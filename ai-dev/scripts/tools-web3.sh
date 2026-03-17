@@ -35,8 +35,6 @@ install_if_missing() {
 # Install Foundry
 install_if_missing "Foundry" "forge" "" '
   curl -L https://foundry.paradigm.xyz | bash &&
-  source $HOME/.bashrc 2>/dev/null &&
-  source $HOME/.zshrc 2>/dev/null &&
   export PATH="$HOME/.foundry/bin:$PATH" &&
   foundryup
 '

@@ -161,9 +161,6 @@ EOFREADME
       echo "⚠️  Warning: Docker is not accessible. Check socket mount."
     fi
     
-    # Source shell configuration
-    source ~/.zshrc 2>/dev/null || true
-    
     # Start opencode serve in background (waits for CLI to be installed by module)
     (
       export PATH="/home/coder/.opencode/bin:$PATH"
@@ -500,8 +497,6 @@ resource "coder_script" "development_tools" {
     # Install Foundry
     install_if_missing "Foundry" "forge" "" '
       curl -L https://foundry.paradigm.xyz | bash &&
-      source $HOME/.bashrc 2>/dev/null &&
-      source $HOME/.zshrc 2>/dev/null &&
       export PATH="$HOME/.foundry/bin:$PATH" &&
       foundryup
     '
@@ -517,9 +512,6 @@ resource "coder_script" "development_tools" {
         printf "$${GREEN}✅ GitHub CLI already authenticated$${RESET}\n\n"
       fi
     fi
-
-    # Source updated shell configuration
-    source $HOME/.zshrc 2>/dev/null || true
 
     echo ""
     printf "$${GREEN}🎉 All development tools are ready!$${RESET}\n"

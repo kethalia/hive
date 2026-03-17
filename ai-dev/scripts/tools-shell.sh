@@ -56,9 +56,9 @@ disabled = true
 STARSHIPEOF
 fi
 
-# Re-append shell config that Oh My Zsh overwrote in .zshrc
-# (PATH is in .zshenv so it's safe, but aliases/hooks/prompt need to be in .zshrc)
-cat >> $HOME/.zshrc << 'ZSHEOF'
+# Append shell config only if not already present (idempotency guard)
+if ! grep -q '# Custom aliases' "$HOME/.zshrc" 2>/dev/null; then
+  cat >> $HOME/.zshrc << 'ZSHEOF'
 
 # Custom aliases
 alias d="docker"
@@ -76,3 +76,4 @@ eval "$(direnv hook zsh)"
 # Starship prompt
 eval "$(starship init zsh)"
 ZSHEOF
+fi

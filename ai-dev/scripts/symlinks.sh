@@ -44,9 +44,6 @@ done
 
 printf "$${GREEN}[ok] All tool symlinks created$${RESET}\n"
 
-# Source updated shell configuration
-source $HOME/.zshrc 2>/dev/null || true
-
 echo ""
 printf "$${GREEN}All development tools are ready!$${RESET}\n"
 echo ""
