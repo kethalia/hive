@@ -60,6 +60,9 @@ fi
 if ! grep -q '# Custom aliases' "$HOME/.zshrc" 2>/dev/null; then
   cat >> $HOME/.zshrc << 'ZSHEOF'
 
+# Remove Oh My Zsh git plugin aliases that conflict with our tools
+unalias gsd 2>/dev/null  # gsd = git svn dcommit — conflicts with GSD (get-shit-done)
+
 # Custom aliases
 alias d="docker"
 alias dc="docker-compose"
