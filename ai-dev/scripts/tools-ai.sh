@@ -32,23 +32,8 @@ install_if_missing() {
   fi
 }
 
-# Ensure PATH includes npm global bin for installations below
+# Ensure PATH includes tool directories
 export PATH="$HOME/.local/bin:$HOME/.bun/bin:$HOME/.foundry/bin:$PATH"
-
-# Wait for nvm/node to be available (installed by nodejs module concurrently)
-NVM_DIR="$HOME/.nvm"
-max_attempts=30
-attempt=0
-while [ ! -s "$NVM_DIR/nvm.sh" ]; do
-  attempt=$((attempt + 1))
-  if [ "$attempt" -ge "$max_attempts" ]; then
-    printf "$${YELLOW}[warn] nvm not found after $max_attempts attempts, skipping npm-based tools$${RESET}\n"
-    exit 0
-  fi
-  echo "Waiting for nvm to be installed... (attempt $attempt/$max_attempts)"
-  sleep 5
-done
-. "$NVM_DIR/nvm.sh"
 
 # Install Pi coding agent
 install_if_missing "Pi coding agent" "pi" "" '

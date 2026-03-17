@@ -436,7 +436,7 @@ resource "coder_app" "claude_code" {
   slug         = "claude-code"
   display_name = "Claude Code"
   icon         = "/icon/claude.svg"
-  command      = "bash -l -c 'export PATH=\"$HOME/.local/bin:$PATH\" && claude'"
+  command      = "bash -l -c 'export PATH=\"$HOME/.claude/local/bin:$HOME/.local/bin:$PATH\" && claude'"
   share        = "owner"
 }
 
@@ -449,7 +449,7 @@ resource "coder_app" "pi" {
   slug         = "pi"
   display_name = "Pi Agent"
   icon         = "/icon/terminal.svg"
-  command      = "bash -l -c 'export PATH=\"$HOME/.local/bin:$PATH\" && pi'"
+  command      = "bash -l -c 'export PATH=\"$HOME/.local/bin:/usr/lib/node_modules/.bin:$PATH\" && pi'"
   share        = "owner"
 }
 
@@ -583,7 +583,7 @@ resource "docker_container" "workspace" {
 
   # Health check — verify the coder agent process is running
   healthcheck {
-    test         = ["CMD-SHELL", "pgrep -f coder\\ agent > /dev/null"]
+    test         = ["CMD-SHELL", "pgrep -x coder > /dev/null || pgrep -f 'coder agent' > /dev/null"]
     interval     = "30s"
     timeout      = "5s"
     retries      = 5
