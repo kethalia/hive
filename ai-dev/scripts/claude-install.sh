@@ -8,8 +8,11 @@ export PATH="$HOME/.local/bin:$PATH"
 if ! command -v claude &> /dev/null; then
   echo "Installing Claude Code..."
   # MUST use bash, not sh — Ubuntu's sh is dash which can't parse the installer
-  curl -fsSL https://claude.ai/install.sh | bash
-  echo "Claude Code install script completed"
+  if curl -fsSL https://claude.ai/install.sh | bash; then
+    echo "Claude Code install script completed"
+  else
+    echo "WARNING: Claude Code installation failed, continuing..."
+  fi
 else
   echo "Claude Code already installed at $(command -v claude)"
 fi
@@ -18,8 +21,7 @@ fi
 if command -v claude &> /dev/null; then
   echo "Claude Code ready: $(command -v claude)"
 else
-  echo "ERROR: Claude Code binary not found after install"
-  exit 1
+  echo "WARNING: Claude Code binary not found after install — may need manual installation"
 fi
 
 %{if claude_api_key != ""}
