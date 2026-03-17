@@ -34,7 +34,7 @@ variable "dotfiles_uri" {
 variable "opencode_model" {
   description = "Default model for OpenCode"
   type        = string
-  default     = "anthropic/claude-sonnet-4-20250514"
+  default     = "anthropic/claude-sonnet-4-6"
 }
 
 variable "opencode_config_json" {
@@ -80,9 +80,9 @@ variable "pi_api_key" {
 }
 
 variable "pi_model" {
-  description = "Model for Pi coding agent (e.g. claude-sonnet-4-20250514)"
+  description = "Model for Pi coding agent (e.g. claude-sonnet-4-6)"
   type        = string
-  default     = "claude-sonnet-4-20250514"
+  default     = "claude-sonnet-4-6"
 }
 
 variable "pi_provider" {

@@ -80,14 +80,14 @@ All AI tools can be configured when creating or updating a workspace:
 |----------|---------|-------------|
 | `docker_socket` | `""` | Custom Docker socket URI |
 | `dotfiles_uri` | `""` | Git URI for dotfiles repository |
-| `opencode_model` | `anthropic/claude-sonnet-4-20250514` | Default model for OpenCode |
+| `opencode_model` | `anthropic/claude-sonnet-4-6` | Default model for OpenCode |
 | `opencode_config_json` | `""` | Full OpenCode config JSON override |
 | `claude_code_model` | `""` | Default model for Claude Code |
 | `claude_code_api_key` | `""` | Anthropic API key (sensitive) |
 | `claude_code_system_prompt` | `""` | Custom system prompt |
 | `claude_code_allowed_tools` | `""` | Comma-separated allowed tools |
 | `pi_api_key` | `""` | API key for Pi's LLM provider (sensitive) |
-| `pi_model` | `claude-sonnet-4-20250514` | Model for Pi |
+| `pi_model` | `claude-sonnet-4-6` | Model for Pi |
 | `pi_provider` | `anthropic` | LLM provider for Pi |
 
 ### Resource Limits
