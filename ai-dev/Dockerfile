@@ -90,6 +90,10 @@ WORKDIR /home/coder
 # Create common directories
 RUN mkdir -p ~/projects ~/bin ~/.config ~/.ssh ~/.local/bin
 
+# Set npm global prefix to user-writable dir so `npm install -g` works without sudo
+# Binaries land in ~/.local/bin which is already on PATH
+RUN npm config set prefix "$HOME/.local"
+
 # Setup basic git configuration that can be overridden
 RUN git config --global init.defaultBranch main \
     && git config --global pull.rebase false \

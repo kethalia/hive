@@ -36,22 +36,13 @@ install_if_missing() {
 export PATH="$HOME/.local/bin:$HOME/.bun/bin:$HOME/.foundry/bin:$PATH"
 mkdir -p "$HOME/.local/bin"
 
-# Helper: after npm install -g, the binary ends up wherever npm's node lives
-# (e.g. /opt/node22/bin/ from the Coder nodejs module). Symlink to ~/.local/bin.
-symlink_npm_bin() {
-  local cmd="$1"
-  if ! [ -e "$HOME/.local/bin/$cmd" ]; then
-    local bin_path
-    bin_path=$(command -v "$cmd" 2>/dev/null || find /opt /usr/local -name "$cmd" -type f -executable 2>/dev/null | head -1)
-    [ -n "$bin_path" ] && ln -sf "$bin_path" "$HOME/.local/bin/$cmd"
-  fi
-}
+# Force npm global installs into ~/.local (user-writable, already on PATH)
+export npm_config_prefix="$HOME/.local"
 
 # Install Pi coding agent
 install_if_missing "Pi coding agent" "pi" "" '
   npm install -g @mariozechner/pi-coding-agent
 '
-symlink_npm_bin "pi"
 
 # Configure Pi provider settings
 mkdir -p $HOME/.config/pi
@@ -74,4 +65,3 @@ install_if_missing "GSD (get-shit-done)" "" "$HOME/.claude/commands/gsd" '
 install_if_missing "GSD-2 (gsd-pi)" "gsd" "" '
   npm install -g gsd-pi
 '
-symlink_npm_bin "gsd"
