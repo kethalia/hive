@@ -44,6 +44,7 @@ RUN apt-get update \
         locales \
         man \
         nano \
+        openssh-client \
         postgresql-16 \
         postgresql-contrib-16 \
         python3 \
