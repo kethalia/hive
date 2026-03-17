@@ -278,7 +278,7 @@ resource "coder_script" "symlinks" {
 module "code-server" {
   count   = data.coder_workspace.me.start_count
   source  = "registry.coder.com/modules/code-server/coder"
-  version = "1.2.0"
+  version = "1.4.3"
 
   agent_id              = coder_agent.main.id
   order                 = 1
@@ -472,7 +472,7 @@ resource "coder_app" "gsd" {
 module "filebrowser" {
   count    = data.coder_workspace.me.start_count
   source   = "registry.coder.com/coder/filebrowser/coder"
-  version  = "1.1.2"
+  version  = "1.1.4"
   agent_id = coder_agent.main.id
 }
 
@@ -483,7 +483,7 @@ module "filebrowser" {
 module "github-upload-public-key" {
   count            = data.coder_workspace.me.start_count
   source           = "registry.coder.com/coder/github-upload-public-key/coder"
-  version          = "1.0.15"
+  version          = "1.0.32"
   agent_id         = coder_agent.main.id
   external_auth_id = data.coder_external_auth.github.id
 }
@@ -491,14 +491,14 @@ module "github-upload-public-key" {
 module "git-commit-signing" {
   count    = data.coder_workspace.me.start_count
   source   = "registry.coder.com/coder/git-commit-signing/coder"
-  version  = "1.0.11"
+  version  = "1.0.32"
   agent_id = coder_agent.main.id
 }
 
 module "git-config" {
   count    = data.coder_workspace.me.start_count
   source   = "registry.coder.com/coder/git-config/coder"
-  version  = "1.0.15"
+  version  = "1.0.33"
   agent_id = coder_agent.main.id
 }
 
