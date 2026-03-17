@@ -456,6 +456,15 @@ resource "coder_app" "pi" {
   share        = "owner"
 }
 
+resource "coder_app" "gsd" {
+  agent_id     = coder_agent.main.id
+  slug         = "gsd"
+  display_name = "GSD"
+  icon         = "/icon/terminal.svg"
+  command      = "bash -l -c 'export PATH=\"$HOME/.local/bin:$PATH\" && gsd'"
+  share        = "owner"
+}
+
 # =============================================================================
 # File Browser
 # =============================================================================

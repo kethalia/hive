@@ -42,6 +42,14 @@ done
 # OpenCode
 [ -f "$HOME/.opencode/bin/opencode" ] && ln -sf "$HOME/.opencode/bin/opencode" "$HOME/.local/bin/opencode"
 
+# GSD (gsd-pi) — ensure gsd and gsd-cli are on PATH
+for bin in gsd gsd-cli; do
+  if [ ! -e "$HOME/.local/bin/$bin" ]; then
+    GSD_BIN=$(command -v "$bin" 2>/dev/null || find /opt/node*/bin -name "$bin" 2>/dev/null | head -1)
+    [ -n "$GSD_BIN" ] && ln -sf "$GSD_BIN" "$HOME/.local/bin/$bin"
+  fi
+done
+
 printf "$${GREEN}[ok] All tool symlinks created$${RESET}\n"
 
 echo ""
