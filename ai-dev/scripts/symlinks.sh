@@ -14,13 +14,16 @@ for bin in node npm npx corepack; do
   [ -n "$SYS_BIN" ] && ln -sf "$SYS_BIN" "$HOME/.local/bin/$bin"
 done
 
-# Symlink globally installed npm packages (pi, gsd, etc.)
-NPM_GLOBAL_BIN=$(npm -g bin 2>/dev/null || echo "/usr/lib/node_modules/.bin")
-if [ -d "$NPM_GLOBAL_BIN" ]; then
-  for bin in "$NPM_GLOBAL_BIN/"*; do
-    [ -x "$bin" ] && [ ! -e "$HOME/.local/bin/$(basename "$bin")" ] && ln -sf "$bin" "$HOME/.local/bin/$(basename "$bin")"
-  done
-fi
+# Symlink globally installed npm packages (pi, gsd, claude, etc.)
+# The Coder nodejs module installs to /opt/node*/bin/, so check there too
+NPM_GLOBAL_BIN=$(npm -g bin 2>/dev/null || echo "")
+for bindir in $NPM_GLOBAL_BIN /usr/lib/node_modules/.bin /opt/node*/bin; do
+  if [ -d "$bindir" ]; then
+    for bin in "$bindir/"*; do
+      [ -x "$bin" ] && [ ! -e "$HOME/.local/bin/$(basename "$bin")" ] && ln -sf "$bin" "$HOME/.local/bin/$(basename "$bin")"
+    done
+  fi
+done
 printf "$${GREEN}[ok] Node.js symlinked$${RESET}\n"
 
 # PNPM
