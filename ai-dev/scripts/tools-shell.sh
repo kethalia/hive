@@ -57,10 +57,12 @@ STARSHIPEOF
 fi
 
 # Remove Oh My Zsh git plugin aliases that conflict with our tools
-# (must come after `source $ZSH/oh-my-zsh.sh` in .zshrc)
-if ! grep -q 'unalias gsd' "$HOME/.zshrc" 2>/dev/null; then
-  echo 'unalias gsd 2>/dev/null  # gsd = git svn dcommit — conflicts with GSD (get-shit-done)' >> "$HOME/.zshrc"
-fi
+# Place in custom/ dir so it loads AFTER plugins (including git plugin)
+mkdir -p "$HOME/.oh-my-zsh/custom"
+cat > "$HOME/.oh-my-zsh/custom/unalias-gsd.zsh" << 'UNALIASEOF'
+# Remove gsd alias (git svn dcommit) — conflicts with GSD (get-shit-done)
+unalias gsd 2>/dev/null
+UNALIASEOF
 
 # Append shell config only if not already present (idempotency guard)
 if ! grep -q '# Custom aliases' "$HOME/.zshrc" 2>/dev/null; then
