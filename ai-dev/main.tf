@@ -683,8 +683,10 @@ resource "coder_script" "development_tools" {
       curl -fsSL https://get.pnpm.io/install.sh | sh -
     '
 
-    # Install Yarn
+    # Install Yarn (needs corepack from nvm's node)
     install_if_missing "Yarn" "yarn" "" '
+      export NVM_DIR="$HOME/.nvm"
+      [ -s "$NVM_DIR/nvm.sh" ] && . "$NVM_DIR/nvm.sh"
       corepack enable &&
       corepack prepare yarn@stable --activate
     '
