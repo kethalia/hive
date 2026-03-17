@@ -1,5 +1,6 @@
 #!/bin/bash
 set -e
+trap 'echo "ERROR: tools-shell.sh failed at line $LINENO (exit code $?)" >&2' ERR
 
 BOLD='\033[0;1m'
 GREEN='\033[0;32m'
@@ -59,10 +60,7 @@ fi
 # Remove Oh My Zsh git plugin aliases that conflict with our tools
 # Place in custom/ dir so it loads AFTER plugins (including git plugin)
 mkdir -p "$HOME/.oh-my-zsh/custom"
-cat > "$HOME/.oh-my-zsh/custom/unalias-gsd.zsh" << 'UNALIASEOF'
-# Remove gsd alias (git svn dcommit) — conflicts with GSD (get-shit-done)
-unalias gsd 2>/dev/null
-UNALIASEOF
+echo 'unalias gsd 2>/dev/null' > "$HOME/.oh-my-zsh/custom/unalias-gsd.zsh"
 
 # Append shell config only if not already present (idempotency guard)
 if ! grep -q '# Custom aliases' "$HOME/.zshrc" 2>/dev/null; then
@@ -85,3 +83,5 @@ eval "$(direnv hook zsh)"
 eval "$(starship init zsh)"
 ZSHEOF
 fi
+
+exit 0
