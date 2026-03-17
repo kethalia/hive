@@ -483,7 +483,7 @@ module "filebrowser" {
 module "github-upload-public-key" {
   count            = data.coder_workspace.me.start_count
   source           = "registry.coder.com/coder/github-upload-public-key/coder"
-  version          = "1.0.15"
+  version          = "1.0.32"
   agent_id         = coder_agent.main.id
   external_auth_id = data.coder_external_auth.github.id
 }
@@ -491,14 +491,14 @@ module "github-upload-public-key" {
 module "git-commit-signing" {
   count    = data.coder_workspace.me.start_count
   source   = "registry.coder.com/coder/git-commit-signing/coder"
-  version  = "1.0.11"
+  version  = "1.0.32"
   agent_id = coder_agent.main.id
 }
 
 module "git-config" {
   count    = data.coder_workspace.me.start_count
   source   = "registry.coder.com/coder/git-config/coder"
-  version  = "1.0.15"
+  version  = "1.0.33"
   agent_id = coder_agent.main.id
 }
 
