@@ -115,3 +115,6 @@ RUN echo '' >> ~/.zshrc \
 RUN echo 'export PGHOST=localhost' >> ~/.zshrc \
     && echo 'export PGUSER=coder' >> ~/.zshrc \
     && echo 'export PGDATABASE=coder' >> ~/.zshrc
+
+# Add PATH to .bashrc so bash -l commands (coder_app) can find tools
+RUN echo 'export PATH="$HOME/.local/bin:$HOME/.opencode/bin:$HOME/.local/share/pnpm:$HOME/.bun/bin:$HOME/.foundry/bin:$PATH"' >> ~/.bashrc

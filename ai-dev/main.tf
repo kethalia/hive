@@ -449,7 +449,7 @@ resource "coder_app" "pi" {
   slug         = "pi"
   display_name = "Pi Agent"
   icon         = "/icon/terminal.svg"
-  command      = "bash -l -c pi"
+  command      = "bash -l -c 'export PATH=\"$HOME/.local/bin:$PATH\" && pi'"
   share        = "owner"
 }
 
