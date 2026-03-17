@@ -17,4 +17,4 @@ while ! command -v opencode &> /dev/null; do
 done
 
 echo "Starting opencode serve on port 62748..."
-exec opencode serve --port 62748
+opencode serve --port 62748 &

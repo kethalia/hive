@@ -405,7 +405,7 @@ resource "coder_script" "opencode_serve" {
     done
 
     echo "Starting opencode serve on port 62748..."
-    exec opencode serve --port 62748
+    opencode serve --port 62748 &
   EOT
 }
 
