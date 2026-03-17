@@ -1,6 +1,5 @@
 #!/bin/bash
 set -e
-trap 'echo "ERROR: tools-shell.sh failed at line $LINENO (exit code $?)" >&2' ERR
 
 BOLD='\033[0;1m'
 GREEN='\033[0;32m'
