@@ -9,8 +9,8 @@ attempt=0
 while ! command -v opencode &> /dev/null; do
   attempt=$((attempt + 1))
   if [ "$attempt" -ge "$max_attempts" ]; then
-    echo "ERROR: opencode CLI not found after $max_attempts attempts"
-    exit 1
+    echo "WARNING: opencode CLI not found after $max_attempts attempts, skipping serve"
+    exit 0
   fi
   echo "Waiting for opencode CLI to be installed... (attempt $attempt/$max_attempts)"
   sleep 10
