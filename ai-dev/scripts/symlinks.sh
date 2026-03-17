@@ -9,9 +9,21 @@ printf "$${BOLD}Creating tool symlinks in ~/.local/bin...$${RESET}\n"
 mkdir -p $HOME/.local/bin
 
 # Node.js / npm / npx — from nvm default version
+# Wait for nvm and at least one node version to be installed
 NVM_DIR="$HOME/.nvm"
-if [ -d "$NVM_DIR" ]; then
-  # Resolve the default node version directory
+max_attempts=30
+attempt=0
+while [ ! -d "$NVM_DIR/versions/node" ] || [ -z "$(ls -A "$NVM_DIR/versions/node" 2>/dev/null)" ]; do
+  attempt=$((attempt + 1))
+  if [ "$attempt" -ge "$max_attempts" ]; then
+    printf "$${YELLOW}[warn] Node.js not found after $max_attempts attempts, skipping node symlinks$${RESET}\n"
+    break
+  fi
+  echo "Waiting for Node.js to be installed via nvm... (attempt $attempt/$max_attempts)"
+  sleep 5
+done
+
+if [ -d "$NVM_DIR/versions/node" ]; then
   NODE_DIR=$(find "$NVM_DIR/versions/node" -maxdepth 1 -type d | sort -V | tail -1)
   if [ -n "$NODE_DIR" ] && [ -d "$NODE_DIR/bin" ]; then
     for bin in node npm npx corepack; do

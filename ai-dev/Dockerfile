@@ -89,35 +89,17 @@ RUN git config --global init.defaultBranch main \
     && git config --global pull.rebase false \
     && git config --global core.editor vim
 
-# Add helpful aliases and shell config to .zshrc
-RUN echo '' >> ~/.zshrc \
-    && echo '# Custom aliases' >> ~/.zshrc \
-    && echo 'alias d="docker"' >> ~/.zshrc \
-    && echo 'alias dc="docker-compose"' >> ~/.zshrc \
-    && echo 'alias g="git"' >> ~/.zshrc \
-    && echo 'alias gs="git status"' >> ~/.zshrc \
-    && echo 'alias gp="git pull"' >> ~/.zshrc \
-    && echo 'alias gc="git commit"' >> ~/.zshrc \
-    && echo 'alias gco="git checkout"' >> ~/.zshrc \
-    && echo 'alias ll="ls -lah"' >> ~/.zshrc \
-    && echo 'alias k="kubectl"' >> ~/.zshrc \
-    && echo '' >> ~/.zshrc \
-    && echo '# Add local bin to PATH' >> ~/.zshrc \
-    && echo 'export PATH="$HOME/.local/bin:$HOME/bin:$PATH"' >> ~/.zshrc \
-    && echo '' >> ~/.zshrc \
-    && echo '# Direnv hook' >> ~/.zshrc \
-    && echo 'eval "$(direnv hook zsh)"' >> ~/.zshrc \
-    && echo '' >> ~/.zshrc \
-    && echo '# Starship prompt' >> ~/.zshrc \
-    && echo 'eval "$(starship init zsh)"' >> ~/.zshrc
+# Setup .zshenv for PATH and env vars (survives Oh My Zsh .zshrc replacement)
+# .zshenv is sourced by ALL zsh invocations (interactive, non-interactive, login, non-login)
+RUN echo '# Tool PATH (set in .zshenv so it survives Oh My Zsh .zshrc replacement)' > ~/.zshenv \
+    && echo 'export PATH="$HOME/.local/bin:$HOME/.opencode/bin:$HOME/.local/share/pnpm:$HOME/.bun/bin:$HOME/.foundry/bin:$HOME/bin:$PATH"' >> ~/.zshenv \
+    && echo '' >> ~/.zshenv \
+    && echo '# PostgreSQL' >> ~/.zshenv \
+    && echo 'export PGHOST=localhost' >> ~/.zshenv \
+    && echo 'export PGUSER=coder' >> ~/.zshenv \
+    && echo 'export PGDATABASE=coder' >> ~/.zshenv
 
-# Add PostgreSQL client configuration
-RUN echo 'export PGHOST=localhost' >> ~/.zshrc \
-    && echo 'export PGUSER=coder' >> ~/.zshrc \
-    && echo 'export PGDATABASE=coder' >> ~/.zshrc
-
-# Add PATH to shell profiles so all shells (bash, zsh, sh) and AI agent subprocesses can find tools
+# Add PATH to .bashrc and .profile for bash -l commands (coder_app launchers)
 RUN TOOL_PATH='export PATH="$HOME/.local/bin:$HOME/.opencode/bin:$HOME/.local/share/pnpm:$HOME/.bun/bin:$HOME/.foundry/bin:$PATH"' \
     && echo "$TOOL_PATH" >> ~/.bashrc \
-    && echo "$TOOL_PATH" >> ~/.profile \
-    && echo "$TOOL_PATH" >> ~/.zprofile
+    && echo "$TOOL_PATH" >> ~/.profile

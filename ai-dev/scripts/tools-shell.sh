@@ -47,7 +47,24 @@ install_if_missing "Starship" "starship" "" '
   curl -sS https://starship.rs/install.sh | sh -s -- --yes
 '
 
-# Ensure Starship init is in .zshrc
-if ! grep -q "starship init zsh" $HOME/.zshrc 2>/dev/null; then
-  echo "eval \"\$(starship init zsh)\"" >> $HOME/.zshrc
-fi
+# Re-append shell config that Oh My Zsh overwrote in .zshrc
+# (PATH is in .zshenv so it's safe, but aliases/hooks/prompt need to be in .zshrc)
+cat >> $HOME/.zshrc << 'ZSHEOF'
+
+# Custom aliases
+alias d="docker"
+alias dc="docker-compose"
+alias g="git"
+alias gs="git status"
+alias gp="git pull"
+alias gc="git commit"
+alias gco="git checkout"
+alias ll="ls -lah"
+alias k="kubectl"
+
+# Direnv hook
+eval "$(direnv hook zsh)"
+
+# Starship prompt
+eval "$(starship init zsh)"
+ZSHEOF

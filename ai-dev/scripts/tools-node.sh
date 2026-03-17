@@ -38,12 +38,26 @@ install_if_missing "PNPM" "pnpm" "" '
 '
 
 # Install Yarn (needs corepack from nvm's node)
-install_if_missing "Yarn" "yarn" "" '
-  export NVM_DIR="$HOME/.nvm"
-  [ -s "$NVM_DIR/nvm.sh" ] && . "$NVM_DIR/nvm.sh"
-  corepack enable &&
-  corepack prepare yarn@stable --activate
-'
+# Wait for nvm to be available first
+NVM_DIR="$HOME/.nvm"
+attempt=0
+while [ ! -s "$NVM_DIR/nvm.sh" ]; do
+  attempt=$((attempt + 1))
+  if [ "$attempt" -ge 30 ]; then
+    printf "$${YELLOW}[warn] nvm not found, skipping Yarn$${RESET}\n"
+    break
+  fi
+  sleep 5
+done
+
+if [ -s "$NVM_DIR/nvm.sh" ]; then
+  install_if_missing "Yarn" "yarn" "" '
+    export NVM_DIR="$HOME/.nvm"
+    . "$NVM_DIR/nvm.sh"
+    corepack enable &&
+    corepack prepare yarn@stable --activate
+  '
+fi
 
 # Install Bun
 install_if_missing "Bun" "bun" "" '

@@ -581,13 +581,13 @@ resource "docker_container" "workspace" {
     read_only      = false
   }
 
-  # Health check
+  # Health check — verify the coder agent process is running
   healthcheck {
-    test         = ["CMD", "test", "-f", "/tmp/coder-agent"]
+    test         = ["CMD-SHELL", "pgrep -f coder\\ agent > /dev/null"]
     interval     = "30s"
     timeout      = "5s"
-    retries      = 3
-    start_period = "10s"
+    retries      = 5
+    start_period = "60s"
   }
 
   labels {
