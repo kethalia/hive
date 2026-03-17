@@ -99,11 +99,6 @@ else
   echo "Warning: Docker is not accessible. Check socket mount."
 fi
 
-# Source shell configuration (may not exist yet if tools-shell hasn't run)
-if [ -f ~/.zshrc ]; then
-  source ~/.zshrc 2>/dev/null || true
-fi
-
 echo ""
 echo "Workspace is ready!"
 echo "Check ~/README.md for quick start guide"
