@@ -65,3 +65,29 @@ install_if_missing "GSD (get-shit-done)" "" "$HOME/.claude/commands/gsd" '
 install_if_missing "GSD-2 (gsd-pi)" "gsd" "" '
   npm install -g gsd-pi
 '
+
+# Patch gsd-pi: fix napi StreamState type mismatch
+# The native napi-rs binding expects Vec<u8> struct fields as plain JS arrays,
+# but processStreamChunk wraps them in Buffer (Uint8Array) which causes:
+#   "Error: Given napi value is not an array on StreamState.utf8Pending"
+# This happens when running shell commands (e.g. !git checkout) in the TUI.
+# See: https://github.com/gsd-build/gsd-2/issues
+patch_gsd_stream_process() {
+  local npm_prefix
+  npm_prefix="$(npm config get prefix 2>/dev/null)"
+  local target="$npm_prefix/lib/node_modules/gsd-pi/packages/native/dist/stream-process/index.js"
+
+  if [ ! -f "$target" ]; then
+    return 0
+  fi
+
+  # Only patch if the Buffer.from bug is present
+  if grep -q 'Buffer\.from(state\.utf8Pending)' "$target" 2>/dev/null; then
+    sed -i \
+      -e 's/utf8Pending: Buffer\.from(state\.utf8Pending)/utf8Pending: state.utf8Pending/' \
+      -e 's/ansiPending: Buffer\.from(state\.ansiPending)/ansiPending: state.ansiPending/' \
+      "$target"
+    printf "$${GREEN}[ok] Patched gsd-pi stream-process napi type mismatch$${RESET}\n"
+  fi
+}
+patch_gsd_stream_process
