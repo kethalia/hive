@@ -87,10 +87,10 @@ printf "$${GREEN}[ok] Claude Code MCP configured for Playwright (headed on :99)$
 OPENCODE_CONFIG="$HOME/.config/opencode/config.json"
 OPENCODE_MCP_BLOCK=$(cat << 'JQEOF'
 .mcp.playwright = {
-  "type": "stdio",
-  "command": "npx",
-  "args": ["-y", "@anthropic-ai/mcp-server-playwright"],
-  "env": {
+  "type": "local",
+  "command": ["npx", "-y", "@anthropic-ai/mcp-server-playwright"],
+  "enabled": true,
+  "environment": {
     "DISPLAY": ":99",
     "PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH": "/usr/bin/chromium-browser"
   }
@@ -109,10 +109,10 @@ else
 {
   "mcp": {
     "playwright": {
-      "type": "stdio",
-      "command": "npx",
-      "args": ["-y", "@anthropic-ai/mcp-server-playwright"],
-      "env": {
+      "type": "local",
+      "command": ["npx", "-y", "@anthropic-ai/mcp-server-playwright"],
+      "enabled": true,
+      "environment": {
         "DISPLAY": ":99",
         "PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH": "/usr/bin/chromium-browser"
       }
