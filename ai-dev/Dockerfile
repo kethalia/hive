@@ -65,31 +65,18 @@ RUN curl -fsSL https://dl.google.com/linux/linux_signing_key.pub \
     && echo "deb [arch=amd64 signed-by=/etc/apt/keyrings/google-chrome.gpg] https://dl.google.com/linux/chrome/deb/ stable main" \
         > /etc/apt/sources.list.d/google-chrome.list
 
-# Google Chrome, Xvfb (for Playwright MCP), fluxbox window manager, fonts
+# Google Chrome (for CLI helpers), KasmVNC (display + VNC + web viewer), fonts
 RUN apt-get update \
     && apt-get install --yes --no-install-recommends \
         google-chrome-stable \
         fonts-liberation \
         fonts-noto-color-emoji \
-        xvfb \
         fluxbox \
-        x11vnc \
-        novnc \
-        websockify \
-    && rm -rf /var/lib/apt/lists/* \
-    && if [ ! -f /usr/share/novnc/vnc.html ] && [ -f /usr/share/novnc/vnc_lite.html ]; then \
-         ln -s /usr/share/novnc/vnc_lite.html /usr/share/novnc/vnc.html; \
-       fi
-
-# KasmVNC (replaces Xvfb + x11vnc + websockify + noVNC in a single package)
-# Installed separately so a failure here doesn't break the rest of the image
-RUN curl -fsSL -o /tmp/kasmvnc.deb \
+    && curl -fsSL -o /tmp/kasmvnc.deb \
         https://github.com/kasmtech/KasmVNC/releases/download/v1.4.0/kasmvncserver_noble_1.4.0_amd64.deb \
-    && apt-get update \
     && apt-get install --yes /tmp/kasmvnc.deb \
     && rm -f /tmp/kasmvnc.deb \
-    && rm -rf /var/lib/apt/lists/* \
-    || echo "WARNING: KasmVNC install failed, falling back to x11vnc+websockify"
+    && rm -rf /var/lib/apt/lists/*
 
 # Install Node.js 24 via NodeSource (always available, no nvm dependency)
 RUN curl -fsSL https://deb.nodesource.com/setup_24.x | bash - \
