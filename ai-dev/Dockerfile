@@ -59,11 +59,16 @@ RUN apt-get update \
         zsh \
     && rm -rf /var/lib/apt/lists/*
 
-# Install Google Chrome (real browser, not Ubuntu 24.04's chromium-browser snap stub)
-# and dependencies for headless browser (AI agent vision)
-RUN wget -q -O /tmp/chrome.deb https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb \
-    && apt-get update \
-    && apt-get install --yes --no-install-recommends /tmp/chrome.deb \
+# Add Google Chrome apt repo (Ubuntu 24.04's chromium-browser is a snap stub, unusable in Docker)
+RUN curl -fsSL https://dl.google.com/linux/linux_signing_key.pub \
+        | gpg --dearmor -o /etc/apt/keyrings/google-chrome.gpg \
+    && echo "deb [arch=amd64 signed-by=/etc/apt/keyrings/google-chrome.gpg] https://dl.google.com/linux/chrome/deb/ stable main" \
+        > /etc/apt/sources.list.d/google-chrome.list
+
+# Install Google Chrome and headless browser vision dependencies
+RUN apt-get update \
+    && apt-get install --yes --no-install-recommends \
+        google-chrome-stable \
         fonts-liberation \
         fonts-noto-color-emoji \
         xvfb \
@@ -71,7 +76,6 @@ RUN wget -q -O /tmp/chrome.deb https://dl.google.com/linux/direct/google-chrome-
         fluxbox \
         novnc \
         websockify \
-    && rm -f /tmp/chrome.deb \
     && rm -rf /var/lib/apt/lists/* \
     && if [ ! -f /usr/share/novnc/vnc.html ] && [ -f /usr/share/novnc/vnc_lite.html ]; then \
          ln -s /usr/share/novnc/vnc_lite.html /usr/share/novnc/vnc.html; \
