@@ -42,6 +42,9 @@ done
 # OpenCode
 [ -f "$HOME/.opencode/bin/opencode" ] && ln -sf "$HOME/.opencode/bin/opencode" "$HOME/.local/bin/opencode"
 
+# Chrome — Playwright looks for /usr/bin/chromium-browser by default
+[ -x /usr/bin/google-chrome-stable ] && sudo ln -sf /usr/bin/google-chrome-stable /usr/bin/chromium-browser
+
 # GSD (gsd-pi) — ensure gsd and gsd-cli are on PATH
 for bin in gsd gsd-cli; do
   if [ ! -e "$HOME/.local/bin/$bin" ]; then
