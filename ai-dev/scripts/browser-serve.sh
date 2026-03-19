@@ -11,18 +11,21 @@ LOG_DIR="$HOME/.local/share/browser-vision"
 mkdir -p "$LOG_DIR"
 
 # Check required commands
-MISSING=""
+READY=true
 for cmd in Xvfb fluxbox x11vnc websockify; do
   if ! command -v "$cmd" &> /dev/null; then
-    MISSING="$MISSING $cmd"
+    echo "Browser Vision Server: '$cmd' not found"
+    READY=false
   fi
 done
 
-if [ -n "$MISSING" ]; then
-  echo "Browser Vision Server: missing commands:$MISSING"
-  echo "The Docker image may need rebuilding with the latest Dockerfile."
+if [ "$READY" = "false" ]; then
+  echo "Docker image needs rebuilding with the latest Dockerfile."
   echo "Browser vision web UI will not be available this session."
-  exit 0
+  echo "Headless mode (Playwright MCP) still works for AI agents."
+  # Keep the script alive so Coder doesn't mark it as failed
+  sleep infinity &
+  wait
 fi
 
 # Kill any existing instances
@@ -33,7 +36,7 @@ pkill -f "websockify.*${NOVNC_PORT}" 2>/dev/null || true
 sleep 1
 
 # Start Xvfb (virtual framebuffer)
-nohup Xvfb ":${DISPLAY_NUM}" -screen 0 "${RESOLUTION}x24" -ac +extension GLX +render -noreset \
+Xvfb ":${DISPLAY_NUM}" -screen 0 "${RESOLUTION}x24" -ac +extension GLX +render -noreset \
   > "$LOG_DIR/xvfb.log" 2>&1 &
 XVFB_PID=$!
 sleep 1
@@ -42,52 +45,53 @@ sleep 1
 if ! kill -0 "$XVFB_PID" 2>/dev/null; then
   echo "ERROR: Xvfb failed to start. Check $LOG_DIR/xvfb.log"
   cat "$LOG_DIR/xvfb.log" 2>/dev/null || true
-  exit 0
+  sleep infinity &
+  wait
 fi
 echo "Xvfb started on display :${DISPLAY_NUM} (pid $XVFB_PID)"
 
-# Start fluxbox (lightweight window manager — needed for proper window rendering)
-nohup fluxbox -display ":${DISPLAY_NUM}" \
+# Start fluxbox (lightweight window manager)
+fluxbox -display ":${DISPLAY_NUM}" \
   > "$LOG_DIR/fluxbox.log" 2>&1 &
 echo "fluxbox started (pid $!)"
 sleep 1
 
 # Start x11vnc (VNC server attached to Xvfb)
-nohup x11vnc -display ":${DISPLAY_NUM}" -rfbport "${VNC_PORT}" \
+x11vnc -display ":${DISPLAY_NUM}" -rfbport "${VNC_PORT}" \
   -nopw -shared -forever -noxdamage -noxfixes \
   > "$LOG_DIR/x11vnc.log" 2>&1 &
 X11VNC_PID=$!
 sleep 1
 
-# Verify x11vnc started
 if ! kill -0 "$X11VNC_PID" 2>/dev/null; then
   echo "WARNING: x11vnc failed to start. Check $LOG_DIR/x11vnc.log"
   cat "$LOG_DIR/x11vnc.log" 2>/dev/null || true
-  echo "Continuing without VNC..."
 fi
 
 # Determine noVNC web directory
 NOVNC_DIR=""
 for dir in /usr/share/novnc /usr/share/novnc/utils/.. /opt/novnc; do
-  if [ -d "$dir" ] && [ -f "$dir/vnc.html" -o -f "$dir/vnc_lite.html" ]; then
-    NOVNC_DIR="$dir"
-    break
+  if [ -d "$dir" ]; then
+    if [ -f "$dir/vnc.html" ] || [ -f "$dir/vnc_lite.html" ]; then
+      NOVNC_DIR="$dir"
+      break
+    fi
   fi
 done
 
 if [ -z "$NOVNC_DIR" ]; then
-  # Try broader search
   NOVNC_DIR=$(find /usr/share -maxdepth 2 -name "vnc.html" -printf "%h\n" 2>/dev/null | head -1)
 fi
 
 if [ -z "$NOVNC_DIR" ]; then
   echo "WARNING: noVNC web directory not found"
   echo "VNC is still accessible directly on port ${VNC_PORT}"
-  exit 0
+  # Keep alive — VNC still works even without the web UI
+  wait
 fi
 
-# Start noVNC (WebSocket proxy → web browser access)
-nohup websockify --web="$NOVNC_DIR" "${NOVNC_PORT}" "localhost:${VNC_PORT}" \
+# Start noVNC (WebSocket proxy for web browser access)
+websockify --web="$NOVNC_DIR" "${NOVNC_PORT}" "localhost:${VNC_PORT}" \
   > "$LOG_DIR/novnc.log" 2>&1 &
 NOVNC_PID=$!
 sleep 1
@@ -99,7 +103,9 @@ if kill -0 "$NOVNC_PID" 2>/dev/null; then
   echo "  Display: ${DISPLAY}"
   echo "  Logs:    ${LOG_DIR}/"
 else
-  echo "WARNING: noVNC/websockify failed to start. Check $LOG_DIR/novnc.log"
+  echo "WARNING: websockify failed to start. Check $LOG_DIR/novnc.log"
   cat "$LOG_DIR/novnc.log" 2>/dev/null || true
-  echo "VNC is still accessible directly on port ${VNC_PORT}"
 fi
+
+# Keep script alive (Coder marks non-blocking scripts as failed if they exit)
+wait
