@@ -16,7 +16,7 @@ export interface BlueprintContext {
   assembledContext: string;
   /** Scoped rules (e.g. coding standards, repo conventions). */
   scopedRules: string;
-  /** Tool flags to enable/disable for the agent (e.g. ["--tool=bash", "--tool=edit"]). */
+  /** Tool names to enable for the agent (e.g. ["bash", "edit", "read"]). Prefixed with --tool= at invocation time. */
   toolFlags: string[];
   /** AI provider identifier (e.g. "anthropic", "openai"). */
   piProvider: string;

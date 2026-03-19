@@ -68,6 +68,7 @@ describe("createRulesStep", () => {
     const step = createRulesStep();
     const ctx = makeCtx();
 
+    // find succeeds (exit 0) but returns no results
     mockExec.mockImplementation(async () => ok(""));
 
     const result = await step.execute(ctx);
@@ -75,6 +76,23 @@ describe("createRulesStep", () => {
     expect(result.status).toBe("skipped");
     expect(result.message).toContain("No AGENTS.md");
     expect(ctx.scopedRules).toBe(""); // unchanged
+  });
+
+  it("returns failure when find exits with error and no results", async () => {
+    const step = createRulesStep();
+    const ctx = makeCtx();
+
+    mockExec.mockImplementation(async () => ({
+      stdout: "",
+      stderr: "find: '/home/coder/project': No such file or directory",
+      exitCode: 1,
+    }));
+
+    const result = await step.execute(ctx);
+
+    expect(result.status).toBe("failure");
+    expect(result.message).toContain("Failed to search for AGENTS.md");
+    expect(result.message).toContain("No such file or directory");
   });
 
   it("single AGENTS.md at root populates scopedRules", async () => {

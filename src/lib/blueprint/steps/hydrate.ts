@@ -28,7 +28,7 @@ export function createHydrateStep(): BlueprintStep {
       // 1. Get repo file tree
       const treeResult = await execInWorkspace(
         ctx.workspaceName,
-        `find ${PROJECT_DIR} -type f -name "*.ts" -o -name "*.tsx" -o -name "*.js" -o -name "*.jsx" -o -name "*.py" -o -name "*.go" | head -200`,
+        `find ${PROJECT_DIR} -type f \( -name "*.ts" -o -name "*.tsx" -o -name "*.js" -o -name "*.jsx" -o -name "*.py" -o -name "*.go" \) | head -200`,
         { timeoutMs: EXEC_TIMEOUT_MS },
       );
 

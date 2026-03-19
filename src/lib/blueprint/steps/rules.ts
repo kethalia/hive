@@ -20,7 +20,7 @@ export function createRulesStep(): BlueprintStep {
       // Find AGENTS.md files at up to 3 levels deep
       const findResult = await execInWorkspace(
         ctx.workspaceName,
-        `find ${PROJECT_DIR} -name "AGENTS.md" -maxdepth 3`,
+        `find ${PROJECT_DIR} -maxdepth 3 -name "AGENTS.md"`,
         { timeoutMs: EXEC_TIMEOUT_MS },
       );
 
@@ -28,6 +28,14 @@ export function createRulesStep(): BlueprintStep {
         .trim()
         .split("\n")
         .filter((p) => p.length > 0);
+
+      if (findResult.exitCode !== 0 && paths.length === 0) {
+        return {
+          status: "failure",
+          message: `Failed to search for AGENTS.md: ${findResult.stderr.slice(0, 200)}`,
+          durationMs: Date.now() - start,
+        };
+      }
 
       if (paths.length === 0) {
         console.log(

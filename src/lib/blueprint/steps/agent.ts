@@ -53,6 +53,26 @@ export function createAgentStep(): BlueprintStep {
         `[blueprint] agent-execution: running pi --print (task=${ctx.taskId}, prompt="${truncatedPrompt}")`,
       );
 
+      // 2b. Write prompt to a temp file via base64 to avoid shell injection.
+      //     The prompt originates from user input — never interpolate it
+      //     into a shell string.
+      const promptPayload = `Based on the following context, implement this task: ${ctx.prompt}`;
+      const promptB64 = Buffer.from(promptPayload, "utf-8").toString("base64");
+
+      const writePromptResult = await execInWorkspace(
+        ctx.workspaceName,
+        `echo '${promptB64}' | base64 -d > /tmp/hive-prompt.txt`,
+        { timeoutMs: 30_000 },
+      );
+
+      if (writePromptResult.exitCode !== 0) {
+        return {
+          status: "failure",
+          message: `Failed to write prompt file: ${writePromptResult.stderr.slice(0, 200)}`,
+          durationMs: Date.now() - start,
+        };
+      }
+
       const toolArgs = ctx.toolFlags.map((t) => `--tool=${t}`).join(" ");
       const piCmd = [
         `cd ${PROJECT_DIR}`,
@@ -63,7 +83,7 @@ export function createAgentStep(): BlueprintStep {
         `--provider ${ctx.piProvider}`,
         `--model ${ctx.piModel}`,
         toolArgs,
-        `"Based on the following context, implement this task: ${ctx.prompt.replace(/"/g, '\\"')}"`,
+        `"$(cat /tmp/hive-prompt.txt)"`,
       ].join(" ");
 
       const piResult = await execInWorkspace(ctx.workspaceName, piCmd, {

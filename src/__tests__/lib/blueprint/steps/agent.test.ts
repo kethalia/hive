@@ -46,8 +46,12 @@ describe("createAgentStep", () => {
     const ctx = makeCtx();
 
     mockExec.mockImplementation(async (_ws, cmd) => {
-      // base64 write to temp file
+      // base64 write to context temp file
       if (cmd.includes("base64 -d > /tmp/hive-context.md")) {
+        return ok("");
+      }
+      // base64 write to prompt temp file
+      if (cmd.includes("base64 -d > /tmp/hive-prompt.txt")) {
         return ok("");
       }
       // Pi execution
@@ -93,6 +97,9 @@ describe("createAgentStep", () => {
       if (cmd.includes("base64 -d > /tmp/hive-context.md")) {
         return ok("");
       }
+      if (cmd.includes("base64 -d > /tmp/hive-prompt.txt")) {
+        return ok("");
+      }
       if (cmd.includes("pi -p --no-session")) {
         return fail("Error: API rate limit exceeded", 1);
       }
@@ -112,6 +119,9 @@ describe("createAgentStep", () => {
 
     mockExec.mockImplementation(async (_ws, cmd) => {
       if (cmd.includes("base64 -d > /tmp/hive-context.md")) {
+        return ok("");
+      }
+      if (cmd.includes("base64 -d > /tmp/hive-prompt.txt")) {
         return ok("");
       }
       if (cmd.includes("pi -p --no-session")) {
@@ -153,6 +163,9 @@ describe("createAgentStep", () => {
 
     mockExec.mockImplementation(async (_ws, cmd) => {
       if (cmd.includes("base64 -d > /tmp/hive-context.md")) {
+        return ok("");
+      }
+      if (cmd.includes("base64 -d > /tmp/hive-prompt.txt")) {
         return ok("");
       }
       if (cmd.includes("pi -p --no-session")) {
