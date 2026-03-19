@@ -9,9 +9,15 @@ import type { TaskAttachment } from "@/lib/types/tasks";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import {
+  Field,
+  FieldLabel,
+  FieldDescription,
+  FieldError,
+  FieldGroup,
+} from "@/components/ui/field";
 import { AlertCircle } from "lucide-react";
 
 export default function NewTaskPage() {
@@ -69,64 +75,62 @@ export default function NewTaskPage() {
           <CardTitle>Task Details</CardTitle>
         </CardHeader>
         <CardContent>
-          <form onSubmit={handleSubmit} className="space-y-5">
-            <div className="space-y-2">
-              <Label htmlFor="prompt">
-                Prompt <span className="text-destructive">*</span>
-              </Label>
-              <Textarea
-                id="prompt"
-                name="prompt"
-                required
-                rows={4}
-                placeholder="Describe what you want built..."
-              />
-              {validationErrors?.prompt && (
-                <p className="text-xs text-destructive">
-                  {validationErrors.prompt._errors?.[0]}
-                </p>
-              )}
-            </div>
+          <form onSubmit={handleSubmit}>
+            <FieldGroup>
+              <Field data-invalid={!!validationErrors?.prompt}>
+                <FieldLabel htmlFor="prompt">
+                  Prompt <span className="text-destructive">*</span>
+                </FieldLabel>
+                <Textarea
+                  id="prompt"
+                  name="prompt"
+                  required
+                  rows={4}
+                  placeholder="Describe what you want built..."
+                />
+                <FieldError>
+                  {validationErrors?.prompt?._errors?.[0]}
+                </FieldError>
+              </Field>
 
-            <div className="space-y-2">
-              <Label htmlFor="repoUrl">
-                Repository URL <span className="text-destructive">*</span>
-              </Label>
-              <Input
-                id="repoUrl"
-                name="repoUrl"
-                type="url"
-                required
-                placeholder="https://github.com/org/repo"
-              />
-              {validationErrors?.repoUrl && (
-                <p className="text-xs text-destructive">
-                  {validationErrors.repoUrl._errors?.[0]}
-                </p>
-              )}
-            </div>
+              <Field data-invalid={!!validationErrors?.repoUrl}>
+                <FieldLabel htmlFor="repoUrl">
+                  Repository URL <span className="text-destructive">*</span>
+                </FieldLabel>
+                <Input
+                  id="repoUrl"
+                  name="repoUrl"
+                  type="url"
+                  required
+                  placeholder="https://github.com/org/repo"
+                />
+                <FieldError>
+                  {validationErrors?.repoUrl?._errors?.[0]}
+                </FieldError>
+              </Field>
 
-            <div className="space-y-2">
-              <Label htmlFor="attachments">
-                File Attachments <span className="text-muted-foreground">(optional)</span>
-              </Label>
-              <Input
-                id="attachments"
-                name="attachments"
-                type="file"
-                multiple
-                ref={fileInputRef}
-              />
-              <p className="text-xs text-muted-foreground">
-                Attach any reference files for the task.
-              </p>
-            </div>
+              <Field>
+                <FieldLabel htmlFor="attachments">
+                  File Attachments
+                </FieldLabel>
+                <Input
+                  id="attachments"
+                  name="attachments"
+                  type="file"
+                  multiple
+                  ref={fileInputRef}
+                />
+                <FieldDescription>
+                  Attach any reference files for the task.
+                </FieldDescription>
+              </Field>
 
-            <div className="pt-2">
-              <Button type="submit" disabled={isPending}>
-                {isPending ? "Submitting…" : "Create Task"}
-              </Button>
-            </div>
+              <div className="pt-2">
+                <Button type="submit" disabled={isPending}>
+                  {isPending ? "Submitting…" : "Create Task"}
+                </Button>
+              </div>
+            </FieldGroup>
           </form>
         </CardContent>
       </Card>
