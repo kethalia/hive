@@ -49,6 +49,11 @@ if [ ! -f ~/.workspace_initialized ]; then
 - **tmux** for session persistence
 - **direnv** for per-project env management
 
+### Browser Vision
+All AI agents can see what you're developing in a browser:
+- **Claude Code & OpenCode**: Just ask! (e.g. "screenshot localhost:3000")
+- **Pi**: Use \`browser-screenshot <url>\` or \`browser-html <url>\`
+
 ### Useful Commands
 
 ```bash

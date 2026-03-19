@@ -59,6 +59,25 @@ RUN apt-get update \
         zsh \
     && rm -rf /var/lib/apt/lists/*
 
+# Add Google Chrome apt repo (Ubuntu 24.04's chromium-browser is a snap stub, unusable in Docker)
+RUN curl -fsSL https://dl.google.com/linux/linux_signing_key.pub \
+        | gpg --dearmor -o /etc/apt/keyrings/google-chrome.gpg \
+    && echo "deb [arch=amd64 signed-by=/etc/apt/keyrings/google-chrome.gpg] https://dl.google.com/linux/chrome/deb/ stable main" \
+        > /etc/apt/sources.list.d/google-chrome.list
+
+# Google Chrome (for CLI helpers), KasmVNC (display + VNC + web viewer), fonts
+RUN apt-get update \
+    && apt-get install --yes --no-install-recommends \
+        google-chrome-stable \
+        fonts-liberation \
+        fonts-noto-color-emoji \
+        fluxbox \
+    && curl -fsSL -o /tmp/kasmvnc.deb \
+        https://github.com/kasmtech/KasmVNC/releases/download/v1.4.0/kasmvncserver_noble_1.4.0_amd64.deb \
+    && apt-get install --yes /tmp/kasmvnc.deb \
+    && rm -f /tmp/kasmvnc.deb \
+    && rm -rf /var/lib/apt/lists/*
+
 # Install Node.js 24 via NodeSource (always available, no nvm dependency)
 RUN curl -fsSL https://deb.nodesource.com/setup_24.x | bash - \
     && apt-get install -y nodejs \
