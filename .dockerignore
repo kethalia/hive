@@ -4,6 +4,3 @@ node_modules
 .gsd
 ai-dev
 web3-dev
-hive-worker
-drizzle
-*.md
