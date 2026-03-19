@@ -76,7 +76,8 @@ RUN apt-get update \
         https://github.com/kasmtech/KasmVNC/releases/download/v1.4.0/kasmvncserver_noble_1.4.0_amd64.deb \
     && apt-get install --yes /tmp/kasmvnc.deb \
     && rm -f /tmp/kasmvnc.deb \
-    && rm -rf /var/lib/apt/lists/*
+    && rm -rf /var/lib/apt/lists/* \
+    && ln -sf /usr/bin/google-chrome-stable /usr/bin/chromium-browser
 
 # Install Node.js 24 via NodeSource (always available, no nvm dependency)
 RUN curl -fsSL https://deb.nodesource.com/setup_24.x | bash - \
