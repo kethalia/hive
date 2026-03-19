@@ -24,6 +24,7 @@ function slugify(text: string): string {
 export async function createTask(input: {
   prompt: string;
   repoUrl: string;
+  attachments?: Array<{ name: string; data: string; type: string }> | null;
 }) {
   const db = getDb();
   const id = uuidv4();
