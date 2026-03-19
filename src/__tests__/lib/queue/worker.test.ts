@@ -34,6 +34,7 @@ vi.mock("bullmq", () => ({
   Worker: vi.fn().mockImplementation((name: string, processor: Function, opts: unknown) => {
     // Store the processor so we can invoke it in tests
     (Worker as any).__lastProcessor = processor;
+    (Worker as any).__lastOpts = opts;
     return {
       on: mockWorkerOn,
       close: vi.fn(),
@@ -84,11 +85,30 @@ vi.mock("@/lib/blueprint/steps/tools", () => ({
 vi.mock("@/lib/blueprint/steps/agent", () => ({
   createAgentStep: vi.fn(() => ({ name: "agent-execution", execute: vi.fn() })),
 }));
+vi.mock("@/lib/blueprint/steps/lint", () => ({
+  createLintStep: vi.fn(() => ({ name: "lint", execute: vi.fn() })),
+}));
+vi.mock("@/lib/blueprint/steps/commit-push", () => ({
+  createCommitPushStep: vi.fn(() => ({ name: "commit-push", execute: vi.fn() })),
+}));
+vi.mock("@/lib/blueprint/steps/ci", () => ({
+  createCIStep: vi.fn(() => ({ name: "ci-feedback", execute: vi.fn() })),
+}));
+vi.mock("@/lib/blueprint/steps/pr", () => ({
+  createPRStep: vi.fn(() => ({ name: "pr-create", execute: vi.fn() })),
+}));
+
+// Mock cleanupWorkspace
+const mockCleanupWorkspace = vi.fn().mockResolvedValue(undefined);
+vi.mock("@/lib/workspace/cleanup", () => ({
+  cleanupWorkspace: (...args: unknown[]) => mockCleanupWorkspace(...args),
+}));
 
 // ── Imports under test ────────────────────────────────────────────
 
 import { getTaskQueue, createTaskWorker, type TaskJobData } from "@/lib/queue/task-queue";
 import type { CoderClient } from "@/lib/coder/client";
+import { createCIStep } from "@/lib/blueprint/steps/ci";
 
 // ── Helpers ───────────────────────────────────────────────────────
 
@@ -107,6 +127,8 @@ function makeMockCoderClient(overrides?: Partial<Record<string, any>>) {
       latest_build: { id: "build-1", status: "running", job: { status: "succeeded", error: "" } },
     }),
     getWorkspaceAgentName: vi.fn().mockResolvedValue("hive-worker-abc12345.main"),
+    stopWorkspace: vi.fn().mockResolvedValue(undefined),
+    deleteWorkspace: vi.fn().mockResolvedValue(undefined),
     ...overrides,
   } as unknown as CoderClient;
 }
@@ -118,6 +140,24 @@ const fakeJobData: TaskJobData = {
   branchName: "hive/abc12345/fix-the-bug",
   params: {},
 };
+
+/** Build the 8-step success result the worker expects. */
+function makeSuccessResult(overrides?: { prUrl?: string }) {
+  return {
+    success: true,
+    steps: [
+      { name: "hydrate-context", status: "success", message: "ok", durationMs: 100 },
+      { name: "scoped-rules", status: "success", message: "ok", durationMs: 50 },
+      { name: "tool-selection", status: "success", message: "ok", durationMs: 30 },
+      { name: "agent-execution", status: "success", message: "Changes made", durationMs: 5000 },
+      { name: "lint", status: "success", message: "Lint passed", durationMs: 200 },
+      { name: "commit-push", status: "success", message: "Pushed abc1234", durationMs: 300 },
+      { name: "ci-feedback", status: "success", message: "CI passed on round 1", durationMs: 15000 },
+      { name: "pr-create", status: "success", message: "https://github.com/test/repo/pull/42", durationMs: 400 },
+    ],
+    totalDurationMs: 21080,
+  };
+}
 
 // ── Tests ─────────────────────────────────────────────────────────
 
@@ -141,7 +181,7 @@ describe("BullMQ task-dispatch queue", () => {
   });
 
   describe("createTaskWorker()", () => {
-    it("creates a Worker with configurable concurrency", () => {
+    it("creates a Worker with 90-minute lock duration", () => {
       const client = makeMockCoderClient();
       createTaskWorker(client);
 
@@ -150,21 +190,18 @@ describe("BullMQ task-dispatch queue", () => {
         expect.any(Function),
         expect.objectContaining({
           concurrency: 5,
-        })
+          lockDuration: 90 * 60 * 1_000,
+        }),
       );
     });
 
-    it("full success flow: create workspace → waitForBuild → blueprint → status done", async () => {
+    it("full success flow: 8-step pipeline with prUrl and branch persisted", async () => {
       const client = makeMockCoderClient();
-      mockRunBlueprint.mockResolvedValue({
-        success: true,
-        steps: [
-          { name: "hydrate-context", status: "success", message: "ok", durationMs: 100 },
-          { name: "scoped-rules", status: "success", message: "ok", durationMs: 50 },
-          { name: "tool-selection", status: "success", message: "ok", durationMs: 30 },
-          { name: "agent-execution", status: "success", message: "Changes made", durationMs: 5000 },
-        ],
-        totalDurationMs: 5180,
+
+      // Simulate ctx.prUrl being set by the PR step during blueprint execution
+      mockRunBlueprint.mockImplementation(async (steps: any[], ctx: any) => {
+        ctx.prUrl = "https://github.com/test/repo/pull/42";
+        return makeSuccessResult();
       });
 
       createTaskWorker(client);
@@ -186,7 +223,7 @@ describe("BullMQ task-dispatch queue", () => {
         expect.objectContaining({
           task_id: fakeJobData.taskId,
           repo_url: fakeJobData.repoUrl,
-        })
+        }),
       );
 
       // 3. Workspace recorded in DB
@@ -212,33 +249,133 @@ describe("BullMQ task-dispatch queue", () => {
       // 6. Agent name resolved
       expect(client.getWorkspaceAgentName).toHaveBeenCalledWith("ws-001");
 
-      // 7. Blueprint ran with 4 steps
+      // 7. Blueprint ran with 8 steps in correct order
       expect(mockRunBlueprint).toHaveBeenCalledWith(
-        expect.arrayContaining([
+        [
           expect.objectContaining({ name: "hydrate-context" }),
+          expect.objectContaining({ name: "scoped-rules" }),
+          expect.objectContaining({ name: "tool-selection" }),
           expect.objectContaining({ name: "agent-execution" }),
-        ]),
+          expect.objectContaining({ name: "lint" }),
+          expect.objectContaining({ name: "commit-push" }),
+          expect.objectContaining({ name: "ci-feedback" }),
+          expect.objectContaining({ name: "pr-create" }),
+        ],
         expect.objectContaining({
           taskId: fakeJobData.taskId,
           workspaceName: "hive-worker-abc12345.main",
           repoUrl: fakeJobData.repoUrl,
           prompt: fakeJobData.prompt,
-        })
+        }),
       );
 
-      // 8. Task set to done
+      // 8. Task set to done with prUrl and branch
       expect(mockTaskUpdate).toHaveBeenCalledWith({
         where: { id: fakeJobData.taskId },
-        data: { status: "done" },
+        data: {
+          status: "done",
+          prUrl: "https://github.com/test/repo/pull/42",
+          branch: fakeJobData.branchName,
+        },
       });
 
-      // 9. Step outcomes logged
-      expect(mockTaskLogCreate).toHaveBeenCalledWith({
-        data: expect.objectContaining({
-          taskId: fakeJobData.taskId,
-          message: expect.stringContaining("agent-execution"),
-        }),
+      // 9. Step outcomes logged (8 steps)
+      const stepLogCalls = mockTaskLogCreate.mock.calls.filter(
+        (c: any) => c[0]?.data?.message?.startsWith('Blueprint step'),
+      );
+      expect(stepLogCalls.length).toBe(8);
+    });
+
+    it("CI step receives injected dependencies", async () => {
+      const client = makeMockCoderClient();
+      mockRunBlueprint.mockResolvedValue(makeSuccessResult());
+
+      createTaskWorker(client);
+      const processor = (Worker as any).__lastProcessor;
+      await processor({ id: "job-1", data: fakeJobData });
+
+      // createCIStep should have been called with the factory deps
+      expect(createCIStep).toHaveBeenCalledWith({
+        createAgentStep: expect.any(Function),
+        createLintStep: expect.any(Function),
+        createCommitPushStep: expect.any(Function),
       });
+    });
+
+    it("cleanup is called after successful blueprint", async () => {
+      const client = makeMockCoderClient();
+      mockRunBlueprint.mockResolvedValue(makeSuccessResult());
+
+      createTaskWorker(client);
+      const processor = (Worker as any).__lastProcessor;
+      await processor({ id: "job-1", data: fakeJobData });
+
+      expect(mockCleanupWorkspace).toHaveBeenCalledWith(
+        client,
+        "ws-001",
+        expect.any(Number),
+        expect.anything(),
+      );
+    });
+
+    it("cleanup is called after failed blueprint", async () => {
+      const client = makeMockCoderClient();
+      mockRunBlueprint.mockResolvedValue({
+        success: false,
+        steps: [
+          { name: "hydrate-context", status: "success", message: "ok", durationMs: 100 },
+          { name: "scoped-rules", status: "success", message: "ok", durationMs: 50 },
+          { name: "tool-selection", status: "success", message: "ok", durationMs: 30 },
+          { name: "agent-execution", status: "failure", message: "Pi exited with code 1: rate limit", durationMs: 2000 },
+          { name: "lint", status: "skipped", message: "skipped", durationMs: 0 },
+          { name: "commit-push", status: "skipped", message: "skipped", durationMs: 0 },
+          { name: "ci-feedback", status: "skipped", message: "skipped", durationMs: 0 },
+          { name: "pr-create", status: "skipped", message: "skipped", durationMs: 0 },
+        ],
+        totalDurationMs: 2180,
+      });
+
+      createTaskWorker(client);
+      const processor = (Worker as any).__lastProcessor;
+      await processor({ id: "job-3", data: fakeJobData });
+
+      // Task set to failed
+      expect(mockTaskUpdate).toHaveBeenCalledWith({
+        where: { id: fakeJobData.taskId },
+        data: {
+          status: "failed",
+          errorMessage: expect.stringContaining('agent-execution'),
+        },
+      });
+
+      // Cleanup still called
+      expect(mockCleanupWorkspace).toHaveBeenCalledWith(
+        client,
+        "ws-001",
+        expect.any(Number),
+        expect.anything(),
+      );
+    });
+
+    it("cleanup is called even when an exception is thrown", async () => {
+      const client = makeMockCoderClient();
+      // Fail after workspace creation so coderWorkspaceId is set
+      client.waitForBuild = vi.fn().mockRejectedValue(new Error("build timeout"));
+
+      createTaskWorker(client);
+      const processor = (Worker as any).__lastProcessor;
+
+      await expect(
+        processor({ id: "job-err", data: fakeJobData }),
+      ).rejects.toThrow("build timeout");
+
+      // Cleanup called with workspace ID from createWorkspace
+      expect(mockCleanupWorkspace).toHaveBeenCalledWith(
+        client,
+        "ws-001",
+        expect.any(Number),
+        expect.anything(),
+      );
     });
 
     it("blueprint failure → task status 'failed' with step name in errorMessage", async () => {
@@ -250,6 +387,10 @@ describe("BullMQ task-dispatch queue", () => {
           { name: "scoped-rules", status: "success", message: "ok", durationMs: 50 },
           { name: "tool-selection", status: "success", message: "ok", durationMs: 30 },
           { name: "agent-execution", status: "failure", message: "Pi exited with code 1: rate limit", durationMs: 2000 },
+          { name: "lint", status: "skipped", message: "skipped", durationMs: 0 },
+          { name: "commit-push", status: "skipped", message: "skipped", durationMs: 0 },
+          { name: "ci-feedback", status: "skipped", message: "skipped", durationMs: 0 },
+          { name: "pr-create", status: "skipped", message: "skipped", durationMs: 0 },
         ],
         totalDurationMs: 2180,
       });
@@ -307,6 +448,9 @@ describe("BullMQ task-dispatch queue", () => {
 
       // Error logged to taskLogs
       expect(mockTaskLogCreate).toHaveBeenCalled();
+
+      // Cleanup NOT called (no workspace ID was captured)
+      expect(mockCleanupWorkspace).not.toHaveBeenCalled();
     });
   });
 });
