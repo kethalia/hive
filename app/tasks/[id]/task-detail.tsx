@@ -2,6 +2,8 @@
 
 import Link from "next/link";
 import { useEffect, useState, useCallback } from "react";
+import { useAction } from "next-safe-action/hooks";
+import { getTaskAction } from "@/lib/actions/tasks";
 
 // ── Types ──────────────────────────────────────────────────────────
 
@@ -85,17 +87,17 @@ const ACTIVE_STATUSES = new Set(["queued", "running", "verifying"]);
 export function TaskDetail({ initialTask }: { initialTask: Task }) {
   const [task, setTask] = useState<Task>(initialTask);
 
-  const fetchTask = useCallback(async () => {
-    try {
-      const res = await fetch(`/api/tasks/${initialTask.id}`);
-      if (res.ok) {
-        const data = await res.json();
-        setTask(data);
+  const { execute } = useAction(getTaskAction, {
+    onSuccess: ({ data }) => {
+      if (data) {
+        setTask(data as Task);
       }
-    } catch {
-      // Silently ignore polling errors — next interval will retry
-    }
-  }, [initialTask.id]);
+    },
+  });
+
+  const fetchTask = useCallback(() => {
+    execute({ id: initialTask.id });
+  }, [execute, initialTask.id]);
 
   useEffect(() => {
     if (!ACTIVE_STATUSES.has(task.status)) return;

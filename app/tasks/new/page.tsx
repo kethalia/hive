@@ -1,7 +1,9 @@
 "use client";
 
-import { useState, useRef, type FormEvent } from "react";
+import { useRef, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
+import { useAction } from "next-safe-action/hooks";
+import { createTaskAction } from "@/lib/actions/tasks";
 
 interface Attachment {
   name: string;
@@ -15,7 +17,6 @@ function readFileAsBase64(file: File): Promise<string> {
     const reader = new FileReader();
     reader.onload = () => {
       const result = reader.result as string;
-      // Strip the "data:...;base64," prefix
       const base64 = result.split(",")[1] ?? "";
       resolve(base64);
     };
@@ -28,66 +29,57 @@ export default function NewTaskPage() {
   const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const [prompt, setPrompt] = useState("");
-  const [repoUrl, setRepoUrl] = useState("");
-  const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const { execute, result, isPending } = useAction(createTaskAction, {
+    onSuccess: ({ data }) => {
+      if (data) {
+        router.push(`/tasks/${data.id}`);
+      }
+    },
+  });
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
-    setError(null);
-    setSubmitting(true);
+    const form = e.target as HTMLFormElement;
+    const formData = new FormData(form);
 
-    try {
-      // Read selected files as base64 attachments
-      let attachments: Attachment[] | undefined;
-      const files = fileInputRef.current?.files;
-      if (files && files.length > 0) {
-        attachments = await Promise.all(
-          Array.from(files).map(async (file) => ({
-            name: file.name,
-            data: await readFileAsBase64(file),
-            type: file.type || "application/octet-stream",
-          }))
-        );
-      }
+    const prompt = formData.get("prompt") as string;
+    const repoUrl = formData.get("repoUrl") as string;
 
-      const body: Record<string, unknown> = { prompt, repoUrl };
-      if (attachments && attachments.length > 0) {
-        body.attachments = attachments;
-      }
-
-      const res = await fetch("/api/tasks", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      });
-
-      if (!res.ok) {
-        const data = await res.json().catch(() => null);
-        throw new Error(data?.error ?? `Request failed (${res.status})`);
-      }
-
-      const task = await res.json();
-      router.push(`/tasks/${task.id}`);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
-      setSubmitting(false);
+    // Read selected files as base64 attachments
+    let attachments: Attachment[] | undefined;
+    const files = fileInputRef.current?.files;
+    if (files && files.length > 0) {
+      attachments = await Promise.all(
+        Array.from(files).map(async (file) => ({
+          name: file.name,
+          data: await readFileAsBase64(file),
+          type: file.type || "application/octet-stream",
+        }))
+      );
     }
+
+    execute({
+      prompt,
+      repoUrl,
+      attachments,
+    });
   }
+
+  const serverError = result.serverError;
+  const validationErrors = result.validationErrors;
 
   return (
     <div className="mx-auto max-w-2xl space-y-6">
       <h1 className="text-2xl font-bold text-white">New Task</h1>
 
-      {/* Error banner */}
-      {error && (
+      {/* Server error banner */}
+      {serverError && (
         <div
           role="alert"
           className="rounded-lg border border-red-500/30 bg-red-900/30 p-4 text-sm text-red-300"
         >
           <p className="font-medium">Submission failed</p>
-          <p className="mt-1 text-red-400">{error}</p>
+          <p className="mt-1 text-red-400">{serverError}</p>
         </div>
       )}
 
@@ -102,11 +94,12 @@ export default function NewTaskPage() {
             name="prompt"
             required
             rows={4}
-            value={prompt}
-            onChange={(e) => setPrompt(e.target.value)}
             placeholder="Describe what you want built..."
             className="block w-full rounded-lg border border-gray-700 bg-gray-800 px-3 py-2 text-sm text-gray-100 placeholder-gray-500 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 transition-colors"
           />
+          {validationErrors?.prompt && (
+            <p className="text-xs text-red-400">{validationErrors.prompt._errors?.[0]}</p>
+          )}
         </div>
 
         {/* Repo URL */}
@@ -119,11 +112,12 @@ export default function NewTaskPage() {
             name="repoUrl"
             type="url"
             required
-            value={repoUrl}
-            onChange={(e) => setRepoUrl(e.target.value)}
             placeholder="https://github.com/org/repo"
             className="block w-full rounded-lg border border-gray-700 bg-gray-800 px-3 py-2 text-sm text-gray-100 placeholder-gray-500 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 transition-colors"
           />
+          {validationErrors?.repoUrl && (
+            <p className="text-xs text-red-400">{validationErrors.repoUrl._errors?.[0]}</p>
+          )}
         </div>
 
         {/* File Attachments */}
@@ -146,10 +140,10 @@ export default function NewTaskPage() {
         <div className="pt-2">
           <button
             type="submit"
-            disabled={submitting}
+            disabled={isPending}
             className="inline-flex items-center justify-center rounded-lg bg-blue-600 px-5 py-2.5 text-sm font-medium text-white hover:bg-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-gray-950 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
-            {submitting ? "Submitting…" : "Create Task"}
+            {isPending ? "Submitting…" : "Create Task"}
           </button>
         </div>
       </form>
