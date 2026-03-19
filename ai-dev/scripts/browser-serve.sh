@@ -107,7 +107,7 @@ sleep 1
 
 if kill -0 "$NOVNC_PID" 2>/dev/null; then
   echo "Browser vision web UI running:"
-  echo "  noVNC:   http://localhost:${NOVNC_PORT}/vnc.html?autoconnect=true&resize=remote"
+  echo "  noVNC:   http://localhost:${NOVNC_PORT}/vnc_lite.html?autoconnect=true&resize=remote"
   echo "  VNC:     localhost:${VNC_PORT}"
   echo "  Display: ${DISPLAY}"
   echo "  Logs:    ${LOG_DIR}/"

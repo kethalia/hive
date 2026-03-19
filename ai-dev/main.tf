@@ -284,7 +284,7 @@ resource "coder_app" "browser_vision" {
   agent_id     = coder_agent.main.id
   slug         = "browser-vision"
   display_name = "Browser"
-  url          = "http://localhost:6080/vnc.html?autoconnect=true&resize=remote"
+  url          = "http://localhost:6080/vnc_lite.html?autoconnect=true&resize=remote"
   icon         = "/icon/terminal.svg"
   subdomain    = true
   share        = "owner"
