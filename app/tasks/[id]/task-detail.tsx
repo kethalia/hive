@@ -41,11 +41,9 @@ export function TaskDetail({ initialTask }: { initialTask: TaskWithRelations }) 
     <div className="space-y-6">
       {/* Navigation */}
       <div className="flex items-center gap-2">
-        <Button variant="ghost" size="sm" asChild>
-          <Link href="/tasks">
-            <ArrowLeft className="mr-1 h-4 w-4" />
-            Back to Tasks
-          </Link>
+        <Button variant="ghost" size="sm" render={<Link href="/tasks" />}>
+          <ArrowLeft className="mr-1 h-4 w-4" />
+          Back to Tasks
         </Button>
       </div>
 

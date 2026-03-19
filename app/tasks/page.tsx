@@ -24,11 +24,9 @@ export default async function TasksPage() {
         {/* Header */}
         <div className="flex items-center justify-between">
           <h1 className="text-2xl font-bold tracking-tight">Tasks</h1>
-          <Button asChild>
-            <Link href="/tasks/new">
-              <PlusCircle className="mr-2 h-4 w-4" />
-              New Task
-            </Link>
+          <Button render={<Link href="/tasks/new" />}>
+            <PlusCircle className="mr-2 h-4 w-4" />
+            New Task
           </Button>
         </div>
 
