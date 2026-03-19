@@ -43,13 +43,16 @@ export function createPRStep(): BlueprintStep {
       const titleB64 = Buffer.from(title, "utf-8").toString("base64");
       const bodyB64 = Buffer.from(body, "utf-8").toString("base64");
 
+      // Quote branch name defensively to prevent shell injection
+      const safeBranch = ctx.branchName.replace(/'/g, "'\"'\"'");
+
       const cmd = [
         `cd ${PROJECT_DIR}`,
         `&& gh pr create`,
         `--title "$(echo '${titleB64}' | base64 -d)"`,
         `--body "$(echo '${bodyB64}' | base64 -d)"`,
         `--base main`,
-        `--head ${ctx.branchName}`,
+        `--head '${safeBranch}'`,
       ].join(" ");
 
       const result = await execInWorkspace(ctx.workspaceName, cmd, {
@@ -65,6 +68,19 @@ export function createPRStep(): BlueprintStep {
 
       // gh pr create outputs the PR URL on success
       const prUrl = result.stdout.trim();
+
+      // Validate URL before treating as success
+      try {
+        new URL(prUrl);
+      } catch {
+        const msg = `gh pr create produced invalid URL: ${prUrl}`;
+        console.log(`[blueprint] pr-create: ${msg} (task=${ctx.taskId})`);
+        return { status: "failure", message: msg, durationMs: Date.now() - start };
+      }
+
+      // Persist PR URL onto context so the worker can store it on the Task record
+      ctx.prUrl = prUrl;
+
       const msg = `PR created: ${prUrl}`;
       console.log(`[blueprint] pr-create: ${msg} (task=${ctx.taskId})`);
       return { status: "success", message: msg, durationMs: Date.now() - start };

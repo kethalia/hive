@@ -57,11 +57,14 @@ describe("createPRStep", () => {
     expect(result.status).toBe("success");
     expect(result.message).toContain("https://github.com/org/repo/pull/42");
 
-    // Verify the command includes proper flags
+    // Verify prUrl is persisted onto context
+    expect(ctx.prUrl).toBe("https://github.com/org/repo/pull/42");
+
+    // Verify the command includes proper flags with quoted branch
     const prCall = mockExec.mock.calls.find(([, cmd]) => cmd.includes("gh pr create"));
     expect(prCall).toBeDefined();
     expect(prCall![1]).toContain("--base main");
-    expect(prCall![1]).toContain("--head hive/task-123");
+    expect(prCall![1]).toContain("--head 'hive/task-123'");
   });
 
   it("returns failure when gh is not authenticated", async () => {
@@ -120,5 +123,23 @@ describe("createPRStep", () => {
     const prCall = mockExec.mock.calls.find(([, cmd]) => cmd.includes("gh pr create"));
     expect(prCall).toBeDefined();
     expect(prCall![1]).toContain("base64 -d");
+  });
+
+  it("returns failure when gh outputs invalid URL", async () => {
+    const step = createPRStep();
+    const ctx = makeCtx();
+
+    mockExec.mockImplementation(async (_ws, cmd) => {
+      if (cmd.includes("gh pr create")) {
+        return ok("not-a-url\n");
+      }
+      return ok("");
+    });
+
+    const result = await step.execute(ctx);
+
+    expect(result.status).toBe("failure");
+    expect(result.message).toContain("invalid URL");
+    expect(ctx.prUrl).toBeUndefined();
   });
 });

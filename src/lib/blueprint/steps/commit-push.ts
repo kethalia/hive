@@ -46,14 +46,16 @@ export function createCommitPushStep(): BlueprintStep {
       }
 
       // 3. Commit with descriptive message
+      // Use base64 + git commit -F to avoid shell injection from user prompts.
       const subject = ctx.prompt.length > 72
         ? ctx.prompt.slice(0, 69) + "..."
         : ctx.prompt;
       const commitMsg = `hive: ${subject}`;
+      const commitMsgB64 = Buffer.from(commitMsg, "utf-8").toString("base64");
 
       const commitResult = await execInWorkspace(
         ctx.workspaceName,
-        `cd ${PROJECT_DIR} && git commit -m "${commitMsg.replace(/"/g, '\\"')}"`,
+        `cd ${PROJECT_DIR} && echo '${commitMsgB64}' | base64 -d > /tmp/hive-commit-msg.txt && git commit -F /tmp/hive-commit-msg.txt`,
         { timeoutMs: GIT_TIMEOUT_MS },
       );
 

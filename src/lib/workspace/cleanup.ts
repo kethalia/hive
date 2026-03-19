@@ -22,7 +22,7 @@ export async function cleanupWorkspace(
     await coderClient.stopWorkspace(workspaceId);
     await coderClient.deleteWorkspace(workspaceId);
 
-    await (db as any).workspace.update({
+    await db.workspace.update({
       where: { coderWorkspaceId: workspaceId },
       data: { status: "deleted" },
     });

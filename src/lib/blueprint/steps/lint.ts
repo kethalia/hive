@@ -50,7 +50,7 @@ export function createLintStep(): BlueprintStep {
       // 2. Run lint with autofix
       const lintResult = await execInWorkspace(
         ctx.workspaceName,
-        `cd ${PROJECT_DIR} && npm run lint -- --fix 2>&1 || true`,
+        `cd ${PROJECT_DIR} && npm run lint -- --fix 2>&1`,
         { timeoutMs: LINT_TIMEOUT_MS },
       );
 

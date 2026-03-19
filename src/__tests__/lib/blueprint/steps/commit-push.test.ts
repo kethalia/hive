@@ -139,12 +139,13 @@ describe("createCommitPushStep", () => {
 
     await step.execute(ctx);
 
+    // Commit now uses base64 + git commit -F, so verify via base64 decode
     const commitCall = mockExec.mock.calls.find(([, cmd]) => cmd.includes("git commit"));
     expect(commitCall).toBeDefined();
-    // "hive: " (6 chars) + 69 chars + "..." = 78 chars total, subject is prompt part ≤ 72
     const commitCmd = commitCall![1];
-    expect(commitCmd).toContain("...");
-    // The full prompt should NOT be in the commit message
+    expect(commitCmd).toContain("base64 -d");
+    expect(commitCmd).toContain("git commit -F");
+    // The full prompt should NOT appear raw in the command
     expect(commitCmd).not.toContain(longPrompt);
   });
 });

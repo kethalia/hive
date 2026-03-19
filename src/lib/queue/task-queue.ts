@@ -269,7 +269,7 @@ export function createTaskWorker(coderClient: CoderClient): Worker<TaskJobData> 
       } finally {
         // Cleanup workspace on both success and failure paths
         if (coderWorkspaceId) {
-          cleanupWorkspace(coderClient, coderWorkspaceId, graceMs, db as any);
+          cleanupWorkspace(coderClient, coderWorkspaceId, graceMs, db);
         }
       }
     },
