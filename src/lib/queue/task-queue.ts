@@ -7,6 +7,11 @@ import { createHydrateStep } from "@/lib/blueprint/steps/hydrate";
 import { createRulesStep } from "@/lib/blueprint/steps/rules";
 import { createToolsStep } from "@/lib/blueprint/steps/tools";
 import { createAgentStep } from "@/lib/blueprint/steps/agent";
+import { createLintStep } from "@/lib/blueprint/steps/lint";
+import { createCommitPushStep } from "@/lib/blueprint/steps/commit-push";
+import { createCIStep } from "@/lib/blueprint/steps/ci";
+import { createPRStep } from "@/lib/blueprint/steps/pr";
+import { cleanupWorkspace } from "@/lib/workspace/cleanup";
 import type { BlueprintContext } from "@/lib/blueprint/types";
 
 // ── Types ─────────────────────────────────────────────────────────
@@ -41,8 +46,8 @@ export function getTaskQueue(): Queue<TaskJobData> {
 
 // ── Worker ────────────────────────────────────────────────────────
 
-/** 35 minutes — longer than the agent's 30-min timeout. */
-const JOB_TIMEOUT_MS = 35 * 60 * 1_000;
+/** 90 minutes — accounts for CI polling + agent retry rounds. */
+const JOB_TIMEOUT_MS = 90 * 60 * 1_000;
 
 /**
  * Creates a BullMQ worker that processes task-dispatch jobs.
@@ -72,6 +77,10 @@ export function createTaskWorker(coderClient: CoderClient): Worker<TaskJobData> 
     async (job: Job<TaskJobData>) => {
       const { taskId, repoUrl, prompt, branchName, params } = job.data;
       const db = getDb();
+      const graceMs = parseInt(process.env.CLEANUP_GRACE_MS ?? "60000", 10);
+
+      // Track workspace ID for cleanup in finally block
+      let coderWorkspaceId: string | undefined;
 
       console.log(`[queue] Processing job ${job.id} for task ${taskId}`);
 
@@ -93,6 +102,8 @@ export function createTaskWorker(coderClient: CoderClient): Worker<TaskJobData> 
           branch_name: branchName,
           ...params,
         });
+
+        coderWorkspaceId = workspace.id;
 
         console.log(`[queue] Created workspace ${workspace.id} for task ${taskId}`);
 
@@ -155,12 +166,16 @@ export function createTaskWorker(coderClient: CoderClient): Worker<TaskJobData> 
           piModel,
         };
 
-        // 9. Run the full blueprint: hydrate → rules → tools → agent
+        // 9. Run the full blueprint: hydrate → rules → tools → agent → lint → commit-push → ci → pr
         const steps = [
           createHydrateStep(),
           createRulesStep(),
           createToolsStep(),
           createAgentStep(),
+          createLintStep(),
+          createCommitPushStep(),
+          createCIStep({ createAgentStep, createLintStep, createCommitPushStep }),
+          createPRStep(),
         ];
 
         console.log(`[queue] Starting blueprint for task ${taskId}`);
@@ -182,7 +197,11 @@ export function createTaskWorker(coderClient: CoderClient): Worker<TaskJobData> 
         if (result.success) {
           await db.task.update({
             where: { id: taskId },
-            data: { status: "done" },
+            data: {
+              status: "done",
+              prUrl: ctx.prUrl ?? null,
+              branch: ctx.branchName,
+            },
           });
 
           console.log(`[task] Task ${taskId} status → done (${result.totalDurationMs}ms)`);
@@ -247,6 +266,11 @@ export function createTaskWorker(coderClient: CoderClient): Worker<TaskJobData> 
 
         // Re-throw so BullMQ marks the job as failed
         throw error;
+      } finally {
+        // Cleanup workspace on both success and failure paths
+        if (coderWorkspaceId) {
+          cleanupWorkspace(coderClient, coderWorkspaceId, graceMs, db);
+        }
       }
     },
     {

@@ -22,6 +22,10 @@ export interface BlueprintContext {
   piProvider: string;
   /** Model identifier (e.g. "claude-sonnet-4-20250514"). */
   piModel: string;
+  /** Number of CI rounds used by the CI feedback step (set during execution). */
+  ciRoundsUsed?: number;
+  /** PR URL set by the PR creation step (read by worker for persistence). */
+  prUrl?: string;
 }
 
 /** Outcome of a single blueprint step execution. */
