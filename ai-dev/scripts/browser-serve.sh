@@ -23,8 +23,7 @@ if [ "$READY" = "false" ]; then
   echo "Docker image needs rebuilding with the latest Dockerfile."
   echo "Browser vision web UI will not be available this session."
   echo "Headless mode (Playwright MCP) still works for AI agents."
-  sleep infinity &
-  wait
+  exit 0
 fi
 
 # Kill any existing instances (exclude our own PID to avoid self-kill)
@@ -51,8 +50,7 @@ sleep 1
 if ! kill -0 "$XVFB_PID" 2>/dev/null; then
   echo "ERROR: Xvfb failed to start. Check $LOG_DIR/xvfb.log"
   cat "$LOG_DIR/xvfb.log" 2>/dev/null || true
-  sleep infinity &
-  wait
+  exit 0
 fi
 echo "Xvfb started on display :${DISPLAY_NUM} (pid $XVFB_PID)"
 
@@ -92,7 +90,7 @@ fi
 if [ -z "$NOVNC_DIR" ]; then
   echo "WARNING: noVNC web directory not found"
   echo "VNC is still accessible directly on port ${VNC_PORT}"
-  wait
+  exit 0
 fi
 
 # Ensure vnc.html exists (Ubuntu's novnc package only ships vnc_lite.html)
@@ -118,5 +116,4 @@ else
   cat "$LOG_DIR/novnc.log" 2>/dev/null || true
 fi
 
-# Keep script alive
-wait
+echo "Browser vision server started successfully"
