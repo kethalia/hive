@@ -2,8 +2,6 @@ import { notFound } from "next/navigation";
 import { getTask } from "@/lib/api/tasks";
 import { TaskDetail } from "./task-detail";
 
-export const dynamic = "force-dynamic";
-
 export default async function TaskDetailPage({
   params,
 }: {

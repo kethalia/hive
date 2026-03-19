@@ -37,8 +37,6 @@ function formatDate(date: Date | string): string {
   return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
 }
 
-export const dynamic = "force-dynamic";
-
 export default async function TasksPage() {
   const taskList = await listTasks();
 
