@@ -71,3 +71,9 @@ export interface WorkspaceResource {
   type: string;
   agents?: WorkspaceAgent[];
 }
+
+/** Response shape from GET /api/v2/workspaces */
+export interface ListWorkspacesResponse {
+  workspaces: CoderWorkspace[];
+  count: number;
+}

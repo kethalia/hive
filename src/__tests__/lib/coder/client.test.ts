@@ -210,4 +210,43 @@ describe("CoderClient", () => {
       /500 Internal Server Error.*forbidden/
     );
   });
+
+  // ── listWorkspaces ─────────────────────────────────────────────
+
+  it("listWorkspaces calls correct URL with no filters", async () => {
+    const response = { workspaces: [mockWorkspace()], count: 1 };
+    fetchSpy.mockResolvedValueOnce(jsonResponse(response));
+
+    const result = await makeClient().listWorkspaces();
+
+    const [url] = fetchSpy.mock.calls[0];
+    expect(url).toBe(`${BASE_URL}/api/v2/workspaces`);
+    expect(result.workspaces).toHaveLength(1);
+    expect(result.count).toBe(1);
+  });
+
+  it("listWorkspaces encodes owner and status into query string", async () => {
+    const response = { workspaces: [], count: 0 };
+    fetchSpy.mockResolvedValueOnce(jsonResponse(response));
+
+    await makeClient().listWorkspaces({ owner: "me", status: "running" });
+
+    const [url] = fetchSpy.mock.calls[0];
+    expect(url).toContain("/api/v2/workspaces?q=");
+    const q = decodeURIComponent(url.split("?q=")[1]);
+    expect(q).toContain("owner:me");
+    expect(q).toContain("status:running");
+  });
+
+  it("listWorkspaces encodes only owner when status omitted", async () => {
+    const response = { workspaces: [], count: 0 };
+    fetchSpy.mockResolvedValueOnce(jsonResponse(response));
+
+    await makeClient().listWorkspaces({ owner: "testuser" });
+
+    const [url] = fetchSpy.mock.calls[0];
+    const q = decodeURIComponent(url.split("?q=")[1]);
+    expect(q).toBe("owner:testuser");
+    expect(q).not.toContain("status:");
+  });
 });
