@@ -73,6 +73,20 @@ export function createAgentStep(): BlueprintStep {
         };
       }
 
+      // Ensure the agent output log file exists before Pi starts,
+      // so `tail -f` from the SSE endpoint doesn't fail if it connects early.
+      const initLogResult = await execInWorkspace(
+        ctx.workspaceName,
+        `echo '' > /tmp/hive-agent-output.log`,
+        { timeoutMs: 10_000 },
+      );
+
+      if (initLogResult.exitCode !== 0) {
+        console.log(
+          `[blueprint] agent-execution: warning — failed to init log file: ${initLogResult.stderr.slice(0, 200)}`,
+        );
+      }
+
       const toolArgs = ctx.toolFlags.map((t) => `--tool=${t}`).join(" ");
       const piCmd = [
         `cd ${PROJECT_DIR}`,
@@ -84,6 +98,7 @@ export function createAgentStep(): BlueprintStep {
         `--model ${ctx.piModel}`,
         toolArgs,
         `"$(cat /tmp/hive-prompt.txt)"`,
+        `| tee /tmp/hive-agent-output.log`,
       ].join(" ");
 
       const piResult = await execInWorkspace(ctx.workspaceName, piCmd, {
