@@ -102,6 +102,19 @@ export async function listTasks() {
 }
 
 /**
+ * Get the verification report for a task.
+ * Returns the parsed JSON report or null if not available.
+ */
+export async function getVerificationReport(taskId: string) {
+  const db = getDb();
+  const task = await db.task.findUnique({
+    where: { id: taskId },
+    select: { verificationReport: true },
+  });
+  return task?.verificationReport ?? null;
+}
+
+/**
  * Update a task's status and optionally record an error message.
  * Also inserts a taskLog entry for the transition.
  */

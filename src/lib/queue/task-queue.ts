@@ -12,7 +12,9 @@ import { createCommitPushStep } from "@/lib/blueprint/steps/commit-push";
 import { createCIStep } from "@/lib/blueprint/steps/ci";
 import { createPRStep } from "@/lib/blueprint/steps/pr";
 import { cleanupWorkspace } from "@/lib/workspace/cleanup";
+import { createVerifierBlueprint } from "@/lib/blueprint/verifier";
 import type { BlueprintContext } from "@/lib/blueprint/types";
+import type { VerificationReport } from "@/lib/verification/report";
 
 // ── Types ─────────────────────────────────────────────────────────
 
@@ -69,6 +71,7 @@ const JOB_TIMEOUT_MS = 90 * 60 * 1_000;
 export function createTaskWorker(coderClient: CoderClient): Worker<TaskJobData> {
   const concurrency = parseInt(process.env.WORKER_CONCURRENCY ?? "5", 10);
   const templateId = process.env.CODER_WORKER_TEMPLATE_ID ?? "";
+  const verifierTemplateId = process.env.CODER_VERIFIER_TEMPLATE_ID ?? "";
   const piProvider = process.env.PI_PROVIDER ?? "anthropic";
   const piModel = process.env.PI_MODEL ?? "claude-sonnet-4-20250514";
 
@@ -79,8 +82,9 @@ export function createTaskWorker(coderClient: CoderClient): Worker<TaskJobData> 
       const db = getDb();
       const graceMs = parseInt(process.env.CLEANUP_GRACE_MS ?? "60000", 10);
 
-      // Track workspace ID for cleanup in finally block
+      // Track workspace IDs for cleanup in finally block
       let coderWorkspaceId: string | undefined;
+      let verifierWorkspaceId: string | undefined;
 
       console.log(`[queue] Processing job ${job.id} for task ${taskId}`);
 
@@ -195,16 +199,15 @@ export function createTaskWorker(coderClient: CoderClient): Worker<TaskJobData> 
 
         // 11. Update task status based on result
         if (result.success) {
+          // Persist prUrl and branch immediately
           await db.task.update({
             where: { id: taskId },
             data: {
-              status: "done",
+              status: ctx.prUrl ? "verifying" : "done",
               prUrl: ctx.prUrl ?? null,
               branch: ctx.branchName,
             },
           });
-
-          console.log(`[task] Task ${taskId} status → done (${result.totalDurationMs}ms)`);
 
           await db.taskLog.create({
             data: {
@@ -213,6 +216,106 @@ export function createTaskWorker(coderClient: CoderClient): Worker<TaskJobData> 
               level: "info",
             },
           });
+
+          // 12. Trigger verifier if PR was created
+          if (ctx.prUrl) {
+            console.log(`[queue] Starting verifier for task ${taskId}`);
+
+            try {
+              // Create verifier workspace
+              const verifierWorkspaceName = `hive-verifier-${taskId.slice(0, 8)}`;
+              const verifierWs = await coderClient.createWorkspace(verifierTemplateId, verifierWorkspaceName, {
+                task_id: taskId,
+                repo_url: repoUrl,
+                branch_name: branchName,
+              });
+
+              verifierWorkspaceId = verifierWs.id;
+
+              // Record verifier workspace in DB
+              await db.workspace.create({
+                data: {
+                  taskId,
+                  coderWorkspaceId: verifierWs.id,
+                  templateType: "verifier",
+                  status: "starting",
+                },
+              });
+
+              // Wait for verifier workspace build
+              await coderClient.waitForBuild(verifierWs.id, "running", {
+                timeoutMs: 300_000,
+              });
+
+              await db.workspace.update({
+                where: { coderWorkspaceId: verifierWs.id },
+                data: { status: "running" },
+              });
+
+              // Resolve verifier agent name
+              const verifierAgentName = await coderClient.getWorkspaceAgentName(verifierWs.id);
+
+              // Build verifier context
+              const verifierCtx: BlueprintContext = {
+                taskId,
+                workspaceName: verifierAgentName,
+                repoUrl,
+                prompt: "",
+                branchName,
+                assembledContext: "",
+                scopedRules: "",
+                toolFlags: [],
+                piProvider,
+                piModel,
+              };
+
+              // Run verifier blueprint
+              const verifierSteps = createVerifierBlueprint();
+              await runBlueprint(verifierSteps, verifierCtx);
+
+              // Persist verification report
+              const report = verifierCtx.verificationReport
+                ? JSON.parse(verifierCtx.verificationReport) as VerificationReport
+                : null;
+
+              await db.task.update({
+                where: { id: taskId },
+                data: {
+                  status: "done",
+                  verificationReport: report ?? undefined,
+                },
+              });
+
+              console.log(`[task] Task ${taskId} status → done (verified)`);
+            } catch (verifierError) {
+              // Verifier failure is informational — PR still exists
+              const verifierMsg = verifierError instanceof Error
+                ? verifierError.message
+                : String(verifierError);
+
+              console.error(`[queue] Verifier failed for task ${taskId}: ${verifierMsg}`);
+
+              const inconclusiveReport: VerificationReport = {
+                strategy: "none",
+                outcome: "inconclusive",
+                logs: verifierMsg,
+                durationMs: 0,
+                timestamp: new Date().toISOString(),
+              };
+
+              await db.task.update({
+                where: { id: taskId },
+                data: {
+                  status: "done",
+                  verificationReport: inconclusiveReport as any,
+                },
+              });
+
+              console.log(`[task] Task ${taskId} status → done (verification inconclusive)`);
+            }
+          } else {
+            console.log(`[task] Task ${taskId} status → done (${result.totalDurationMs}ms)`);
+          }
         } else {
           // Find the failed step for the error message
           const failedStep = result.steps.find((s) => s.status === "failure");
@@ -267,9 +370,12 @@ export function createTaskWorker(coderClient: CoderClient): Worker<TaskJobData> 
         // Re-throw so BullMQ marks the job as failed
         throw error;
       } finally {
-        // Cleanup workspace on both success and failure paths
+        // Cleanup both worker and verifier workspaces on all paths
         if (coderWorkspaceId) {
           cleanupWorkspace(coderClient, coderWorkspaceId, graceMs, db);
+        }
+        if (verifierWorkspaceId) {
+          cleanupWorkspace(coderClient, verifierWorkspaceId, graceMs, db);
         }
       }
     },

@@ -104,6 +104,17 @@ vi.mock("@/lib/workspace/cleanup", () => ({
   cleanupWorkspace: (...args: unknown[]) => mockCleanupWorkspace(...args),
 }));
 
+// Mock verifier blueprint
+const mockCreateVerifierBlueprint = vi.fn(() => [
+  { name: "verify-clone", execute: vi.fn() },
+  { name: "verify-detect", execute: vi.fn() },
+  { name: "verify-execute", execute: vi.fn() },
+  { name: "verify-report", execute: vi.fn() },
+]);
+vi.mock("@/lib/blueprint/verifier", () => ({
+  createVerifierBlueprint: (...args: unknown[]) => mockCreateVerifierBlueprint(...args),
+}));
+
 // ── Imports under test ────────────────────────────────────────────
 
 import { getTaskQueue, createTaskWorker, type TaskJobData } from "@/lib/queue/task-queue";
@@ -113,14 +124,16 @@ import { createCIStep } from "@/lib/blueprint/steps/ci";
 // ── Helpers ───────────────────────────────────────────────────────
 
 function makeMockCoderClient(overrides?: Partial<Record<string, any>>) {
+  const createWorkspaceMock = vi.fn().mockResolvedValue({
+    id: "ws-001",
+    name: "hive-worker-abc12345",
+    template_id: "tmpl-1",
+    owner_name: "me",
+    latest_build: { id: "build-1", status: "starting", job: { status: "running", error: "" } },
+  });
+
   return {
-    createWorkspace: vi.fn().mockResolvedValue({
-      id: "ws-001",
-      name: "hive-worker-abc12345",
-      template_id: "tmpl-1",
-      owner_name: "me",
-      latest_build: { id: "build-1", status: "starting", job: { status: "running", error: "" } },
-    }),
+    createWorkspace: createWorkspaceMock,
     waitForBuild: vi.fn().mockResolvedValue({
       id: "ws-001",
       name: "hive-worker-abc12345",
@@ -196,12 +209,47 @@ describe("BullMQ task-dispatch queue", () => {
     });
 
     it("full success flow: 8-step pipeline with prUrl and branch persisted", async () => {
-      const client = makeMockCoderClient();
+      // Set up createWorkspace to return different IDs for worker vs verifier
+      const createWsMock = vi.fn()
+        .mockResolvedValueOnce({
+          id: "ws-001", name: "hive-worker-abc12345",
+          template_id: "tmpl-1", owner_name: "me",
+          latest_build: { id: "build-1", status: "starting", job: { status: "running", error: "" } },
+        })
+        .mockResolvedValueOnce({
+          id: "ws-verifier-001", name: "hive-verifier-abc12345",
+          template_id: "tmpl-v", owner_name: "me",
+          latest_build: { id: "build-v1", status: "starting", job: { status: "running", error: "" } },
+        });
+      const client = makeMockCoderClient({ createWorkspace: createWsMock });
 
-      // Simulate ctx.prUrl being set by the PR step during blueprint execution
+      // Worker blueprint sets prUrl; verifier blueprint sets verificationReport
+      let runBlueprintCallCount = 0;
       mockRunBlueprint.mockImplementation(async (steps: any[], ctx: any) => {
-        ctx.prUrl = "https://github.com/test/repo/pull/42";
-        return makeSuccessResult();
+        runBlueprintCallCount++;
+        if (runBlueprintCallCount === 1) {
+          // Worker blueprint
+          ctx.prUrl = "https://github.com/test/repo/pull/42";
+          return makeSuccessResult();
+        }
+        // Verifier blueprint
+        ctx.verificationReport = JSON.stringify({
+          strategy: "test-suite",
+          outcome: "pass",
+          logs: "All tests passed",
+          durationMs: 5000,
+          timestamp: "2025-01-01T00:00:00.000Z",
+        });
+        return {
+          success: true,
+          steps: [
+            { name: "verify-clone", status: "success", message: "ok", durationMs: 100 },
+            { name: "verify-detect", status: "success", message: "ok", durationMs: 50 },
+            { name: "verify-execute", status: "success", message: "ok", durationMs: 5000 },
+            { name: "verify-report", status: "success", message: "ok", durationMs: 10 },
+          ],
+          totalDurationMs: 5160,
+        };
       });
 
       createTaskWorker(client);
@@ -269,17 +317,43 @@ describe("BullMQ task-dispatch queue", () => {
         }),
       );
 
-      // 8. Task set to done with prUrl and branch
+      // 8. Task set to verifying first, then done after verifier
       expect(mockTaskUpdate).toHaveBeenCalledWith({
         where: { id: fakeJobData.taskId },
         data: {
-          status: "done",
+          status: "verifying",
           prUrl: "https://github.com/test/repo/pull/42",
           branch: fakeJobData.branchName,
         },
       });
 
-      // 9. Step outcomes logged (8 steps)
+      expect(mockTaskUpdate).toHaveBeenCalledWith({
+        where: { id: fakeJobData.taskId },
+        data: {
+          status: "done",
+          verificationReport: expect.objectContaining({
+            strategy: "test-suite",
+            outcome: "pass",
+          }),
+        },
+      });
+
+      // 9. Verifier blueprint was invoked with 4 steps
+      expect(mockRunBlueprint).toHaveBeenCalledTimes(2);
+      expect(mockRunBlueprint).toHaveBeenCalledWith(
+        [
+          expect.objectContaining({ name: "verify-clone" }),
+          expect.objectContaining({ name: "verify-detect" }),
+          expect.objectContaining({ name: "verify-execute" }),
+          expect.objectContaining({ name: "verify-report" }),
+        ],
+        expect.objectContaining({
+          taskId: fakeJobData.taskId,
+          branchName: fakeJobData.branchName,
+        }),
+      );
+
+      // 10. Step outcomes logged (8 worker steps)
       const stepLogCalls = mockTaskLogCreate.mock.calls.filter(
         (c: any) => c[0]?.data?.message?.startsWith('Blueprint step'),
       );
@@ -288,6 +362,7 @@ describe("BullMQ task-dispatch queue", () => {
 
     it("CI step receives injected dependencies", async () => {
       const client = makeMockCoderClient();
+      // No prUrl → no verifier triggered
       mockRunBlueprint.mockResolvedValue(makeSuccessResult());
 
       createTaskWorker(client);
@@ -304,6 +379,7 @@ describe("BullMQ task-dispatch queue", () => {
 
     it("cleanup is called after successful blueprint", async () => {
       const client = makeMockCoderClient();
+      // No prUrl → no verifier triggered, only worker cleanup
       mockRunBlueprint.mockResolvedValue(makeSuccessResult());
 
       createTaskWorker(client);
@@ -451,6 +527,147 @@ describe("BullMQ task-dispatch queue", () => {
 
       // Cleanup NOT called (no workspace ID was captured)
       expect(mockCleanupWorkspace).not.toHaveBeenCalled();
+    });
+
+    // ── Verifier integration tests ────────────────────────────────
+
+    it("worker failure (blueprint fails) → verifier NOT triggered → task failed", async () => {
+      const client = makeMockCoderClient();
+      mockRunBlueprint.mockResolvedValue({
+        success: false,
+        steps: [
+          { name: "hydrate-context", status: "success", message: "ok", durationMs: 100 },
+          { name: "scoped-rules", status: "success", message: "ok", durationMs: 50 },
+          { name: "tool-selection", status: "success", message: "ok", durationMs: 30 },
+          { name: "agent-execution", status: "failure", message: "Pi exited with code 1: rate limit", durationMs: 2000 },
+          { name: "lint", status: "skipped", message: "skipped", durationMs: 0 },
+          { name: "commit-push", status: "skipped", message: "skipped", durationMs: 0 },
+          { name: "ci-feedback", status: "skipped", message: "skipped", durationMs: 0 },
+          { name: "pr-create", status: "skipped", message: "skipped", durationMs: 0 },
+        ],
+        totalDurationMs: 2180,
+      });
+
+      createTaskWorker(client);
+      const processor = (Worker as any).__lastProcessor;
+      await processor({ id: "job-no-verifier", data: fakeJobData });
+
+      // Task set to failed
+      expect(mockTaskUpdate).toHaveBeenCalledWith({
+        where: { id: fakeJobData.taskId },
+        data: {
+          status: "failed",
+          errorMessage: expect.stringContaining("agent-execution"),
+        },
+      });
+
+      // Verifier blueprint never called — only 1 runBlueprint call
+      expect(mockRunBlueprint).toHaveBeenCalledTimes(1);
+      expect(mockCreateVerifierBlueprint).not.toHaveBeenCalled();
+
+      // Only worker workspace created
+      expect(client.createWorkspace).toHaveBeenCalledTimes(1);
+    });
+
+    it("verifier failure → task still set to done with inconclusive report", async () => {
+      const createWsMock = vi.fn()
+        .mockResolvedValueOnce({
+          id: "ws-001", name: "hive-worker-abc12345",
+          template_id: "tmpl-1", owner_name: "me",
+          latest_build: { id: "build-1", status: "starting", job: { status: "running", error: "" } },
+        })
+        .mockResolvedValueOnce({
+          id: "ws-verifier-001", name: "hive-verifier-abc12345",
+          template_id: "tmpl-v", owner_name: "me",
+          latest_build: { id: "build-v1", status: "starting", job: { status: "running", error: "" } },
+        });
+      const client = makeMockCoderClient({ createWorkspace: createWsMock });
+
+      let callCount = 0;
+      mockRunBlueprint.mockImplementation(async (steps: any[], ctx: any) => {
+        callCount++;
+        if (callCount === 1) {
+          ctx.prUrl = "https://github.com/test/repo/pull/42";
+          return makeSuccessResult();
+        }
+        // Verifier blueprint throws
+        throw new Error("Verifier workspace crashed");
+      });
+
+      createTaskWorker(client);
+      const processor = (Worker as any).__lastProcessor;
+      await processor({ id: "job-verifier-fail", data: fakeJobData });
+
+      // Task set to verifying first
+      expect(mockTaskUpdate).toHaveBeenCalledWith({
+        where: { id: fakeJobData.taskId },
+        data: {
+          status: "verifying",
+          prUrl: "https://github.com/test/repo/pull/42",
+          branch: fakeJobData.branchName,
+        },
+      });
+
+      // Then set to done with inconclusive report (NOT failed)
+      expect(mockTaskUpdate).toHaveBeenCalledWith({
+        where: { id: fakeJobData.taskId },
+        data: {
+          status: "done",
+          verificationReport: expect.objectContaining({
+            strategy: "none",
+            outcome: "inconclusive",
+            logs: "Verifier workspace crashed",
+          }),
+        },
+      });
+
+      // Task NOT set to failed
+      const failCall = mockTaskUpdate.mock.calls.find(
+        (c: any) => c[0]?.data?.status === "failed"
+      );
+      expect(failCall).toBeUndefined();
+    });
+
+    it("both worker and verifier workspaces cleaned up in finally block", async () => {
+      const createWsMock = vi.fn()
+        .mockResolvedValueOnce({
+          id: "ws-001", name: "hive-worker-abc12345",
+          template_id: "tmpl-1", owner_name: "me",
+          latest_build: { id: "build-1", status: "starting", job: { status: "running", error: "" } },
+        })
+        .mockResolvedValueOnce({
+          id: "ws-verifier-001", name: "hive-verifier-abc12345",
+          template_id: "tmpl-v", owner_name: "me",
+          latest_build: { id: "build-v1", status: "starting", job: { status: "running", error: "" } },
+        });
+      const client = makeMockCoderClient({ createWorkspace: createWsMock });
+
+      let callCount = 0;
+      mockRunBlueprint.mockImplementation(async (steps: any[], ctx: any) => {
+        callCount++;
+        if (callCount === 1) {
+          ctx.prUrl = "https://github.com/test/repo/pull/42";
+          return makeSuccessResult();
+        }
+        ctx.verificationReport = JSON.stringify({
+          strategy: "test-suite", outcome: "pass",
+          logs: "ok", durationMs: 100, timestamp: "2025-01-01T00:00:00.000Z",
+        });
+        return { success: true, steps: [], totalDurationMs: 100 };
+      });
+
+      createTaskWorker(client);
+      const processor = (Worker as any).__lastProcessor;
+      await processor({ id: "job-both-cleanup", data: fakeJobData });
+
+      // Both workspaces cleaned up
+      expect(mockCleanupWorkspace).toHaveBeenCalledTimes(2);
+      expect(mockCleanupWorkspace).toHaveBeenCalledWith(
+        client, "ws-001", expect.any(Number), expect.anything(),
+      );
+      expect(mockCleanupWorkspace).toHaveBeenCalledWith(
+        client, "ws-verifier-001", expect.any(Number), expect.anything(),
+      );
     });
   });
 });

@@ -31,8 +31,9 @@ model Task {
   status       TaskStatus @default(queued)
   branch       String?
   prUrl        String?    @map("pr_url")
-  errorMessage String?    @map("error_message")
-  attachments  Json?
+  errorMessage       String?    @map("error_message")
+  verificationReport Json?      @map("verification_report")
+  attachments        Json?
   createdAt    DateTime   @default(now()) @map("created_at") @db.Timestamptz
   updatedAt    DateTime   @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
 
