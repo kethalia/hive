@@ -36,9 +36,19 @@ export interface Task {
   attachments: TaskAttachment[] | null;
 }
 
+/** Verification report data shape stored as JSON on completed tasks. */
+export interface VerificationReportData {
+  strategy: string;
+  outcome: string;
+  logs: string;
+  durationMs: number;
+  timestamp: string;
+}
+
 export interface TaskWithRelations extends Task {
   workspaces: TaskWorkspace[];
   logs: TaskLog[];
+  verificationReport: VerificationReportData | null;
 }
 
 /** Task statuses considered "in progress" — used for polling decisions. */
