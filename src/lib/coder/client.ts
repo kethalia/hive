@@ -2,6 +2,7 @@ import type {
   CoderClientConfig,
   CoderWorkspace,
   CreateWorkspaceRequest,
+  ListWorkspacesResponse,
   WaitForBuildOptions,
   WorkspaceResource,
 } from "./types";
@@ -91,6 +92,23 @@ export class CoderClient {
   async getWorkspace(workspaceId: string): Promise<CoderWorkspace> {
     return this.request<CoderWorkspace>(
       `/api/v2/workspaces/${workspaceId}`
+    );
+  }
+
+  /**
+   * List workspaces with optional filters.
+   * Maps owner/status to the Coder `q` query-string parameter.
+   */
+  async listWorkspaces(
+    options?: { owner?: string; status?: string }
+  ): Promise<ListWorkspacesResponse> {
+    const parts: string[] = [];
+    if (options?.owner) parts.push(`owner:${options.owner}`);
+    if (options?.status) parts.push(`status:${options.status}`);
+
+    const query = parts.length > 0 ? `?q=${encodeURIComponent(parts.join(" "))}` : "";
+    return this.request<ListWorkspacesResponse>(
+      `/api/v2/workspaces${query}`
     );
   }
 

@@ -14,6 +14,9 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Separator } from "@/components/ui/separator";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { AlertCircle, ArrowLeft, ExternalLink, GitBranch, Paperclip } from "lucide-react";
+import { VerificationReportCard } from "./verification-report-card";
+import { AgentStreamPanel } from "./agent-stream-panel";
+import type { VerificationReportData } from "@/lib/types/tasks";
 
 export function TaskDetail({ initialTask }: { initialTask: TaskWithRelations }) {
   const [task, setTask] = useState<TaskWithRelations>(initialTask);
@@ -156,6 +159,11 @@ export function TaskDetail({ initialTask }: { initialTask: TaskWithRelations }) 
         </Card>
       )}
 
+      {/* Verification Report */}
+      {task.verificationReport && (
+        <VerificationReportCard report={task.verificationReport as VerificationReportData} />
+      )}
+
       {/* Workspaces */}
       <Card>
         <CardHeader>
@@ -218,19 +226,8 @@ export function TaskDetail({ initialTask }: { initialTask: TaskWithRelations }) 
         </CardContent>
       </Card>
 
-      {/* S06 Streaming Placeholder */}
-      <Card className="border-dashed">
-        <CardHeader>
-          <CardTitle className="text-sm font-medium uppercase tracking-wider text-muted-foreground">
-            Live Agent Activity
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <p className="text-sm text-muted-foreground">
-            Real-time agent streaming will be available in a future update.
-          </p>
-        </CardContent>
-      </Card>
+      {/* Live Agent Streaming */}
+      <AgentStreamPanel taskId={task.id} status={task.status} />
     </div>
   );
 }

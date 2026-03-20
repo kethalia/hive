@@ -22,16 +22,19 @@ locals {
 variable "task_id" {
   description = "Hive task ID"
   type        = string
+  default     = ""
 }
 
 variable "task_prompt" {
   description = "Task prompt/description"
   type        = string
+  default     = ""
 }
 
 variable "repo_url" {
   description = "Target repository URL"
   type        = string
+  default     = ""
 }
 
 variable "branch_name" {
@@ -93,6 +96,28 @@ data "coder_workspace_owner" "me" {}
 
 data "coder_external_auth" "github" {
   id = "primary-github"
+}
+
+# =============================================================================
+# Workspace Preset — Prebuilt Workspace Pool (Requires Coder Premium)
+# =============================================================================
+# Prebuilds maintain a pool of ready-to-claim workspaces, reducing cold-start
+# time from minutes to seconds. The preset provides default parameter values
+# used during prebuild creation (before a real task is assigned).
+# Without Coder Premium, this block is inert but validates correctly.
+
+data "coder_workspace_preset" "hive-worker" {
+  name = "hive-worker"
+  parameters = {
+    task_id     = ""
+    task_prompt = ""
+    repo_url    = ""
+    branch_name = ""
+  }
+
+  prebuilds {
+    instances = 2
+  }
 }
 
 # =============================================================================
@@ -382,6 +407,11 @@ resource "docker_container" "workspace" {
   image    = docker_image.main.name
   name     = "coder-${data.coder_workspace_owner.me.name}-${lower(data.coder_workspace.me.name)}"
   hostname = data.coder_workspace.me.name
+
+  # Prevent container replacement when workspace name changes during prebuild claim
+  lifecycle {
+    ignore_changes = [name]
+  }
 
   entrypoint = ["sh", "-c", replace(coder_agent.main.init_script, "/localhost|127\\.0\\.0\\.1/", "host.docker.internal")]
   env        = ["CODER_AGENT_TOKEN=${coder_agent.main.token}"]
