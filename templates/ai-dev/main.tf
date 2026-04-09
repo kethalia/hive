@@ -237,6 +237,7 @@ resource "coder_agent" "main" {
   startup_script = templatefile("${path.module}/scripts/init.sh", {
     dotfiles_uri   = data.coder_parameter.dotfiles_uri.value
     vault_repo     = data.coder_parameter.vault_repo.value
+    github_token   = data.coder_external_auth.github.access_token
     workspace_name = data.coder_workspace.me.name
     owner_name     = data.coder_workspace_owner.me.name
     owner_email    = data.coder_workspace_owner.me.email
