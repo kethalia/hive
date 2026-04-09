@@ -10,7 +10,7 @@ import { writeFile, unlink } from "fs/promises";
 import { tmpdir } from "os";
 import { join } from "path";
 import { promisify } from "util";
-import { GH_CMD_TIMEOUT_MS } from "../constants.js";
+import { GH_CMD_TIMEOUT_MS } from "../constants";
 
 const execFile = promisify(execFileCb);
 
