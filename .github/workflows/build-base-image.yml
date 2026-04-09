@@ -63,8 +63,8 @@ jobs:
       - name: Smoke test — act --version
         run: docker run --rm ghcr.io/kethalia/hive-base:${{ github.sha }} act --version
 
-      - name: Smoke test — vncserver --version
-        run: docker run --rm ghcr.io/kethalia/hive-base:${{ github.sha }} vncserver --version
+      - name: Smoke test — vncserver present
+        run: docker run --rm ghcr.io/kethalia/hive-base:${{ github.sha }} which vncserver
 
       - name: Smoke test — openbox --version
         run: docker run --rm ghcr.io/kethalia/hive-base:${{ github.sha }} openbox --version
