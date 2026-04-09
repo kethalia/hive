@@ -59,8 +59,13 @@ fi
 
 echo "KasmVNC started on :${DISPLAY_NUM}"
 
-# Window manager
-if command -v fluxbox &>/dev/null; then
+# Start Openbox window manager — reads /etc/xdg/openbox/autostart (Obsidian etc.)
+if command -v openbox &>/dev/null; then
+  DISPLAY=":${DISPLAY_NUM}" nohup openbox --startup /etc/xdg/openbox/autostart \
+    > "$LOG_DIR/openbox.log" 2>&1 &
+  disown $!
+  echo "Openbox window manager started"
+elif command -v fluxbox &>/dev/null; then
   nohup fluxbox -display ":${DISPLAY_NUM}" > "$LOG_DIR/fluxbox.log" 2>&1 &
   disown $!
 fi

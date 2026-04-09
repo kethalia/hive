@@ -401,9 +401,9 @@ resource "coder_script" "browser_serve" {
 resource "coder_app" "browser_vision" {
   agent_id     = coder_agent.main.id
   slug         = "browser-vision"
-  display_name = "Browser"
+  display_name = "KasmVNC"
   url          = "http://localhost:6080"
-  icon         = "/icon/terminal.svg"
+  icon         = "/icon/kasmvnc.svg"
   subdomain    = true
   share        = "owner"
 }
