@@ -1,10 +1,12 @@
 terraform {
   required_providers {
     coder = {
-      source = "coder/coder"
+      source  = "coder/coder"
+      version = "~> 2.15"
     }
     docker = {
-      source = "kreuzwerker/docker"
+      source  = "kreuzwerker/docker"
+      version = "~> 3.6"
     }
   }
 }
@@ -14,81 +16,131 @@ locals {
 }
 
 # =============================================================================
-# Variables
+# Parameters — surfaced in the Coder workspace creation UI
 # =============================================================================
 
-variable "docker_socket" {
-  description = "(Optional) Docker socket URI"
-  type        = string
-  default     = ""
+data "coder_parameter" "dotfiles_uri" {
+  name         = "dotfiles_uri"
+  display_name = "Dotfiles URI"
+  description  = "Git repository URL for your dotfiles (optional). Will be cloned to ~/.dotfiles and ./install.sh run."
+  type         = "string"
+  default      = ""
+  mutable      = true
+  order        = 1
 }
 
-variable "dotfiles_uri" {
-  description = "Git URI for dotfiles repository (optional)"
-  type        = string
-  default     = ""
+data "coder_parameter" "vault_repo" {
+  name         = "vault_repo"
+  display_name = "Obsidian Vault Repo"
+  description  = "Git repository URL for your Obsidian second-brain vault (optional). Cloned to ~/vault on start."
+  type         = "string"
+  default      = ""
+  mutable      = true
+  order        = 2
 }
 
-# --- OpenCode Configuration ---
-
-variable "opencode_model" {
-  description = "Default model for OpenCode"
-  type        = string
-  default     = "anthropic/claude-opus-4-6"
+data "coder_parameter" "pi_api_key" {
+  name         = "pi_api_key"
+  display_name = "Pi API Key"
+  description  = "API key for the Pi coding agent LLM provider (e.g. Anthropic key). Leave empty to configure later."
+  type         = "string"
+  default      = ""
+  mutable      = true
+  order        = 3
 }
 
-variable "opencode_config_json" {
-  description = "Full OpenCode config JSON override (takes precedence over opencode_model when non-empty)"
-  type        = string
-  default     = ""
+data "coder_parameter" "pi_model" {
+  name         = "pi_model"
+  display_name = "Pi Model"
+  description  = "LLM model for the Pi coding agent."
+  type         = "string"
+  default      = "claude-opus-4-6"
+  mutable      = true
+  order        = 4
+  option {
+    name  = "claude-opus-4-6"
+    value = "claude-opus-4-6"
+  }
+  option {
+    name  = "claude-sonnet-4-5"
+    value = "claude-sonnet-4-5"
+  }
+  option {
+    name  = "claude-haiku-3-5"
+    value = "claude-haiku-3-5"
+  }
 }
 
-# --- Claude Code Configuration ---
-
-variable "claude_code_model" {
-  description = "Default model for Claude Code (e.g. sonnet, opus, or full model name)"
-  type        = string
-  default     = ""
+data "coder_parameter" "pi_provider" {
+  name         = "pi_provider"
+  display_name = "Pi Provider"
+  description  = "LLM provider for the Pi coding agent."
+  type         = "string"
+  default      = "anthropic"
+  mutable      = true
+  order        = 5
+  option {
+    name  = "Anthropic"
+    value = "anthropic"
+  }
+  option {
+    name  = "OpenAI"
+    value = "openai"
+  }
+  option {
+    name  = "Google"
+    value = "google"
+  }
 }
 
-variable "claude_code_api_key" {
-  description = "Anthropic API key for Claude Code (leave empty to use AI Bridge or external auth)"
-  type        = string
-  default     = ""
-  sensitive   = true
+data "coder_parameter" "claude_code_api_key" {
+  name         = "claude_code_api_key"
+  display_name = "Claude Code API Key"
+  description  = "Anthropic API key for Claude Code. Leave empty to use AI Bridge or external auth."
+  type         = "string"
+  default      = ""
+  mutable      = true
+  order        = 6
 }
 
-variable "claude_code_system_prompt" {
-  description = "Custom system prompt for Claude Code"
-  type        = string
-  default     = ""
+data "coder_parameter" "claude_code_model" {
+  name         = "claude_code_model"
+  display_name = "Claude Code Model"
+  description  = "Model for Claude Code (e.g. claude-sonnet-4-5, claude-opus-4-6). Leave empty for default."
+  type         = "string"
+  default      = ""
+  mutable      = true
+  order        = 7
 }
 
-variable "claude_code_allowed_tools" {
-  description = "Comma-separated list of allowed tools for Claude Code"
-  type        = string
-  default     = ""
+data "coder_parameter" "claude_code_system_prompt" {
+  name         = "claude_code_system_prompt"
+  display_name = "Claude Code System Prompt"
+  description  = "Custom system prompt for Claude Code (optional)."
+  type         = "string"
+  default      = ""
+  mutable      = true
+  order        = 8
 }
 
-# --- Pi Coding Agent Configuration ---
-
-variable "pi_api_key" {
-  description = "API key for Pi coding agent LLM provider (e.g. Anthropic key)"
-  type        = string
-  default     = ""
-  sensitive   = true
+data "coder_parameter" "opencode_model" {
+  name         = "opencode_model"
+  display_name = "OpenCode Model"
+  description  = "Default model for OpenCode."
+  type         = "string"
+  default      = "anthropic/claude-opus-4-6"
+  mutable      = true
+  order        = 9
 }
 
-variable "pi_model" {
-  description = "Model for Pi coding agent (e.g. claude-opus-4-6)"
-  type        = string
-  default     = "claude-opus-4-6"
-}
-
-variable "pi_provider" {
-  description = "LLM provider for Pi coding agent (e.g. anthropic, openai, google)"
-  type        = string
-  default     = "anthropic"
+data "coder_parameter" "docker_socket" {
+  name         = "docker_socket"
+  display_name = "Docker Socket URI"
+  description  = "Override the Docker socket URI (optional — leave empty to use the default)."
+  type         = "string"
+  default      = ""
+  mutable      = false
+  order        = 10
 }
 
 # =============================================================================
@@ -96,7 +148,7 @@ variable "pi_provider" {
 # =============================================================================
 
 provider "docker" {
-  host = var.docker_socket != "" ? var.docker_socket : null
+  host = data.coder_parameter.docker_socket.value != "" ? data.coder_parameter.docker_socket.value : null
 }
 
 data "coder_provisioner" "me" {}
@@ -112,6 +164,14 @@ data "coder_external_auth" "github" {
 }
 
 # =============================================================================
+# Base image from GHCR
+# =============================================================================
+
+data "docker_image" "main" {
+  name = "ghcr.io/kethalia/hive-base:latest"
+}
+
+# =============================================================================
 # Coder Agent
 # =============================================================================
 
@@ -120,7 +180,8 @@ resource "coder_agent" "main" {
   os   = "linux"
 
   startup_script = templatefile("${path.module}/scripts/init.sh", {
-    dotfiles_uri   = var.dotfiles_uri
+    dotfiles_uri   = data.coder_parameter.dotfiles_uri.value
+    vault_repo     = data.coder_parameter.vault_repo.value
     workspace_name = data.coder_workspace.me.name
     owner_name     = data.coder_workspace_owner.me.name
     owner_email    = data.coder_workspace_owner.me.email
@@ -129,13 +190,13 @@ resource "coder_agent" "main" {
   env = merge(
     {
       GIT_AUTHOR_NAME     = coalesce(data.coder_workspace_owner.me.full_name, data.coder_workspace_owner.me.name)
-      GIT_AUTHOR_EMAIL    = "${data.coder_workspace_owner.me.email}"
+      GIT_AUTHOR_EMAIL    = data.coder_workspace_owner.me.email
       GIT_COMMITTER_NAME  = coalesce(data.coder_workspace_owner.me.full_name, data.coder_workspace_owner.me.name)
-      GIT_COMMITTER_EMAIL = "${data.coder_workspace_owner.me.email}"
-
-      EXTENSIONS_GALLERY = "{\"serviceUrl\":\"https://marketplace.visualstudio.com/_apis/public/gallery\"}"
+      GIT_COMMITTER_EMAIL = data.coder_workspace_owner.me.email
+      EXTENSIONS_GALLERY  = "{\"serviceUrl\":\"https://marketplace.visualstudio.com/_apis/public/gallery\"}"
+      VAULT_REPO          = data.coder_parameter.vault_repo.value
     },
-    var.claude_code_api_key != "" ? { ANTHROPIC_API_KEY = var.claude_code_api_key } : {}
+    data.coder_parameter.claude_code_api_key.value != "" ? { ANTHROPIC_API_KEY = data.coder_parameter.claude_code_api_key.value } : {}
   )
 
   metadata {
@@ -181,11 +242,11 @@ resource "coder_agent" "main" {
   metadata {
     display_name = "Load Average (Host)"
     key          = "6_load_host"
-    script   = <<EOT
+    script       = <<EOT
       echo "`cat /proc/loadavg | awk '{ print $1 }'` `nproc`" | awk '{ printf "%0.2f", $1/$2 }'
     EOT
-    interval = 60
-    timeout  = 1
+    interval     = 60
+    timeout      = 1
   }
 
   metadata {
@@ -208,7 +269,7 @@ resource "coder_agent" "main" {
 }
 
 # =============================================================================
-# Development Tools (separate scripts for clarity)
+# Development Tools
 # =============================================================================
 
 resource "coder_script" "tools_shell" {
@@ -256,9 +317,9 @@ resource "coder_script" "tools_ai" {
   run_on_start       = true
   start_blocks_login = true
   script = templatefile("${path.module}/scripts/tools-ai.sh", {
-    pi_api_key  = var.pi_api_key
-    pi_provider = var.pi_provider
-    pi_model    = var.pi_model
+    pi_api_key  = data.coder_parameter.pi_api_key.value
+    pi_provider = data.coder_parameter.pi_provider.value
+    pi_model    = data.coder_parameter.pi_model.value
   })
 }
 
@@ -337,14 +398,11 @@ module "code-server" {
   ]
 
   settings = {
-    # Solidity
     "[solidity]" : {
       "editor.defaultFormatter" : "esbenp.prettier-vscode",
       "editor.formatOnSave" : true
     },
     "solidity.telemetry" : false,
-
-    # Editor
     "editor.defaultFormatter" : "esbenp.prettier-vscode",
     "editor.fontFamily" : "Fira Code",
     "editor.fontLigatures" : true,
@@ -356,8 +414,6 @@ module "code-server" {
     "editor.minimap.enabled" : false,
     "editor.stickyScroll.enabled" : true,
     "editor.tabSize" : 2,
-
-    # Files
     "files.autoSave" : "off",
     "files.watcherExclude" : {
       "**/.git/objects/**" : true,
@@ -369,26 +425,16 @@ module "code-server" {
       "**/.next/**" : true,
       "**/out/**" : true,
     },
-
-    # Git
     "git.confirmSync" : false,
     "git.autofetch" : true,
     "git.enableSmartCommit" : true,
-
-    # Terminal
     "terminal.integrated.scrollback" : 10000,
     "terminal.integrated.defaultProfile.linux" : "zsh",
     "terminal.integrated.fontSize" : 14,
-
-    # Workbench
     "workbench.colorTheme" : "Dark Modern (OLED Black) [Orange]",
     "workbench.iconTheme" : "material-icon-theme",
-
-    # Explorer
     "explorer.confirmDelete" : false,
     "explorer.confirmDragAndDrop" : false,
-
-    # Docker
     "docker.showStartPage" : false,
   }
 }
@@ -404,7 +450,7 @@ resource "coder_script" "opencode_install" {
   run_on_start       = true
   start_blocks_login = true
   script = templatefile("${path.module}/scripts/opencode-install.sh", {
-    opencode_config_json = var.opencode_config_json != "" ? var.opencode_config_json : jsonencode({
+    opencode_config_json = jsonencode({
       "$schema" = "https://opencode.ai/config.json"
       permission = {
         skill = {
@@ -414,7 +460,7 @@ resource "coder_script" "opencode_install" {
           "experimental-*" = "ask"
         }
       }
-      model = var.opencode_model
+      model = data.coder_parameter.opencode_model.value
     })
   })
 }
@@ -458,7 +504,7 @@ resource "coder_script" "claude_code_install" {
   run_on_start       = true
   start_blocks_login = true
   script = templatefile("${path.module}/scripts/claude-install.sh", {
-    claude_api_key = var.claude_code_api_key
+    claude_api_key = data.coder_parameter.claude_code_api_key.value
   })
 }
 
@@ -575,19 +621,9 @@ resource "docker_volume" "home_volume" {
   }
 }
 
-resource "docker_image" "main" {
-  name = "coder-${data.coder_workspace.me.id}"
-  build {
-    context = "."
-  }
-  triggers = {
-    dir_sha1 = sha1(join("", [for f in fileset(path.module, "Dockerfile") : filesha1(f)]))
-  }
-}
-
 resource "docker_container" "workspace" {
   count    = data.coder_workspace.me.start_count
-  image    = docker_image.main.name
+  image    = data.docker_image.main.repo_digest
   name     = "coder-${data.coder_workspace_owner.me.name}-${lower(data.coder_workspace.me.name)}"
   hostname = data.coder_workspace.me.name
 
@@ -599,26 +635,26 @@ resource "docker_container" "workspace" {
     ip   = "host-gateway"
   }
 
-  # Resource limits: 12GB RAM, 20GB swap (32GB total), 6 CPU cores
   memory      = 12288
   memory_swap = 32768
   cpu_shares  = 6144
 
-  # Home directory volume
   volumes {
     container_path = "/home/coder"
     volume_name    = docker_volume.home_volume.name
     read_only      = false
   }
 
-  # Docker socket for full Docker functionality
   volumes {
     container_path = "/var/run/docker.sock"
     host_path      = "/var/run/docker.sock"
     read_only      = false
   }
 
-  # Health check — verify the coder agent process is running
+  lifecycle {
+    ignore_changes = [name]
+  }
+
   healthcheck {
     test         = ["CMD-SHELL", "pgrep -x coder > /dev/null || pgrep -f 'coder agent' > /dev/null"]
     interval     = "30s"
@@ -642,9 +678,5 @@ resource "docker_container" "workspace" {
   labels {
     label = "coder.workspace_name"
     value = data.coder_workspace.me.name
-  }
-  labels {
-    label = "coder.template_version"
-    value = "1.0.0"
   }
 }

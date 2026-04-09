@@ -23,6 +23,14 @@ if [ ! -f ~/.workspace_initialized ]; then
   fi
   %{endif}
 
+  # Clone Obsidian vault if specified
+  %{if vault_repo != ""}
+  if [ ! -d ~/vault ]; then
+    echo "Cloning Obsidian vault..."
+    git clone ${vault_repo} ~/vault || true
+  fi
+  %{endif}
+
   # Create workspace README
   if [ ! -f ~/README.md ]; then
     cat > ~/README.md << 'EOFREADME'
@@ -96,6 +104,12 @@ export PATH="$HOME/.local/bin:$HOME/.opencode/bin:$HOME/.local/share/pnpm:$HOME/
 
 # Per-start initialization
 echo "Starting workspace services..."
+
+# Pull latest vault changes on every start
+if [ -n "${vault_repo}" ] && [ -d ~/vault/.git ]; then
+  echo "Pulling vault updates..."
+  git -C ~/vault pull --ff-only 2>/dev/null || true
+fi
 
 # Verify Docker access
 if docker info &> /dev/null; then
