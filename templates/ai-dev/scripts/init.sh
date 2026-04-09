@@ -99,41 +99,39 @@ export PATH="$HOME/.local/bin:$HOME/.opencode/bin:$HOME/.local/share/pnpm:$HOME/
 # Per-start initialization
 echo "Starting workspace services..."
 
-# Clone or pull vault on every start
-%{if vault_repo != ""}
-VAULT_REPO="${vault_repo}"
-if [ ! -d ~/vault/.git ]; then
-  echo "Cloning Obsidian vault..."
-  # Build HTTPS URL with token from gh CLI auth store
-  if echo "$VAULT_REPO" | grep -q "github.com"; then
-    REPO_PATH=$(echo "$VAULT_REPO" | sed 's|.*github.com[:/]||' | sed 's|\.git$||')
+# Vault setup — prefer templatefile var, fall back to VAULT_REPO env (for old workspaces)
+EFFECTIVE_VAULT_REPO="${vault_repo}"
+if [ -z "$EFFECTIVE_VAULT_REPO" ] && [ -n "$VAULT_REPO" ]; then
+  EFFECTIVE_VAULT_REPO="$VAULT_REPO"
+fi
+
+if [ -n "$EFFECTIVE_VAULT_REPO" ]; then
+  # Clone or pull
+  if [ ! -d ~/vault/.git ]; then
+    echo "Cloning Obsidian vault..."
     GH_TOKEN=$(gh auth token 2>/dev/null || echo "")
-    if [ -n "$GH_TOKEN" ]; then
+    if [ -n "$GH_TOKEN" ] && echo "$EFFECTIVE_VAULT_REPO" | grep -q "github.com"; then
+      REPO_PATH=$(echo "$EFFECTIVE_VAULT_REPO" | sed 's|.*github.com[:/]||' | sed 's|\.git$||')
       git clone "https://x-access-token:$GH_TOKEN@github.com/$REPO_PATH.git" ~/vault \
-        && echo "Vault cloned successfully" \
-        || echo "WARNING: vault clone failed"
+        && echo "Vault cloned" || echo "WARNING: vault clone failed"
     else
-      git clone "$VAULT_REPO" ~/vault || echo "WARNING: vault clone failed"
+      git clone "$EFFECTIVE_VAULT_REPO" ~/vault || echo "WARNING: vault clone failed"
     fi
   else
-    git clone "$VAULT_REPO" ~/vault || echo "WARNING: vault clone failed"
+    echo "Pulling vault updates..."
+    git -C ~/vault pull --ff-only 2>/dev/null || true
   fi
-else
-  echo "Pulling vault updates..."
-  git -C ~/vault pull --ff-only 2>/dev/null || true
-fi
 
-# Bootstrap .obsidian config if vault has none (fresh repo)
-if [ -d ~/vault ] && [ ! -d ~/vault/.obsidian ]; then
-  mkdir -p ~/vault/.obsidian
-  echo '{"legacyEditor":false,"livePreview":true}' > ~/vault/.obsidian/app.json
-  echo '{}' > ~/vault/.obsidian/appearance.json
-  echo "Created .obsidian config in vault"
-fi
+  # Bootstrap .obsidian config if vault has none
+  if [ -d ~/vault ] && [ ! -d ~/vault/.obsidian ]; then
+    mkdir -p ~/vault/.obsidian
+    echo '{"legacyEditor":false,"livePreview":true}' > ~/vault/.obsidian/app.json
+    echo '{}' > ~/vault/.obsidian/appearance.json
+    echo "Created .obsidian config in vault"
+  fi
 
-# Configure Obsidian MCP + CLAUDE.md + sync vault skills
-%{if vault_repo != ""}
-if [ -d ~/vault ]; then
+  # Configure Obsidian MCP + CLAUDE.md + sync vault skills
+  if [ -d ~/vault ]; then
   # 1. Register mcp-obsidian in Claude Code's MCP config
   mkdir -p ~/.claude
   CLAUDE_MCP="$HOME/.claude/mcp.json"
@@ -190,10 +188,8 @@ CLAUDEEOF
       cp "$skill_file" "$dest"
       echo "Synced skill: $skill_name"
     done
-  fi
-fi
-%{endif}
-%{endif}
+  fi  # if [ -d ~/vault ]
+fi  # if [ -n "$EFFECTIVE_VAULT_REPO" ]
 
 # Verify Docker access
 if docker info &> /dev/null; then
