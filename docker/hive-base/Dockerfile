@@ -174,7 +174,7 @@ WORKDIR /home/coder
 # Claude CLI — installed as coder so it lands in ~/.claude/local/bin (user-owned)
 # ENV PATH picks it up for non-interactive contexts (docker run, coder_script)
 RUN curl -fsSL https://claude.ai/install.sh | bash
-ENV PATH="/home/coder/.claude/local/bin:${PATH}"
+ENV PATH="/home/coder/.local/bin:${PATH}"
 
 ENV NOTESMD_DEFAULT_VAULT=/home/coder/vault
 
