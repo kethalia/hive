@@ -5,6 +5,12 @@ vi.mock("child_process", () => ({
   execFile: vi.fn(),
 }));
 
+// Mock fs/promises for temp file operations
+vi.mock("fs/promises", () => ({
+  writeFile: vi.fn().mockResolvedValue(undefined),
+  unlink: vi.fn().mockResolvedValue(undefined),
+}));
+
 // The comment module uses promisify(execFile), so we mock execFile at the
 // child_process module level and wrap it with a resolved/rejected promise shape.
 import * as childProcess from "child_process";
@@ -50,20 +56,31 @@ describe("postPRComment", () => {
     expect(result).toBeNull();
   });
 
-  it("calls gh with the correct arguments", async () => {
+  it("calls gh with --body-file and a temp file path", async () => {
     setupExecFileMock({ stdout: "https://github.com/owner/repo/pull/2#issuecomment-456\n" });
     await postPRComment("https://github.com/owner/repo/pull/2", "My comment body");
 
     expect(mockedExecFile).toHaveBeenCalledOnce();
     const [cmd, args] = mockedExecFile.mock.calls[0] as [string, string[]];
     expect(cmd).toBe("gh");
-    expect(args).toEqual([
-      "pr",
-      "comment",
-      "https://github.com/owner/repo/pull/2",
-      "--body",
-      "My comment body",
-    ]);
+    expect(args[0]).toBe("pr");
+    expect(args[1]).toBe("comment");
+    expect(args[2]).toBe("https://github.com/owner/repo/pull/2");
+    expect(args[3]).toBe("--body-file");
+    expect(args[4]).toMatch(/^\/tmp\/council-comment-\d+\.md$/);
+  });
+
+  it("writes body to temp file and cleans up after", async () => {
+    const { writeFile, unlink } = await import("fs/promises");
+    setupExecFileMock({ stdout: "https://github.com/owner/repo/pull/1#issuecomment-1\n" });
+
+    await postPRComment("https://github.com/owner/repo/pull/1", "Comment body");
+
+    expect(writeFile).toHaveBeenCalledOnce();
+    const [path, content] = vi.mocked(writeFile).mock.calls[0] as [string, string, string];
+    expect(path).toMatch(/^\/tmp\/council-comment-\d+\.md$/);
+    expect(content).toBe("Comment body");
+    expect(unlink).toHaveBeenCalledOnce();
   });
 
   it("returns null when gh stdout is empty", async () => {

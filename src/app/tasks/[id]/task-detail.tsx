@@ -17,7 +17,7 @@ import { AlertCircle, ArrowLeft, ExternalLink, GitBranch, Paperclip } from "luci
 import { VerificationReportCard } from "./verification-report-card";
 import { CouncilResultCard } from "./council-result-card";
 import { AgentStreamPanel } from "./agent-stream-panel";
-import { isVerificationReport } from "@/lib/verification/report";
+import { isVerificationReport } from "@/lib/verification/types";
 import { isCouncilReport } from "@/lib/council/types";
 
 export function TaskDetail({ initialTask }: { initialTask: TaskWithRelations }) {

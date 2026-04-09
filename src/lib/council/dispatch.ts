@@ -22,7 +22,8 @@ interface CouncilDispatchParams {
  * Reads councilSize from the DB, fans out N reviewer children + 1 aggregator
  * parent via FlowProducer, and returns immediately (fire-and-forget).
  *
- * @returns true if council was dispatched, false if skipped, throws never.
+ * @returns true if council was dispatched, false if skipped.
+ * @throws on DB or Redis errors — caller must catch (task-queue.ts wraps in try/catch per D015).
  */
 export async function dispatchCouncilReview(params: CouncilDispatchParams): Promise<boolean> {
   const { taskId, prUrl, repoUrl, branchName } = params;
