@@ -1,10 +1,6 @@
 import { execInWorkspace } from "@/lib/workspace/exec";
+import { PROJECT_DIR, GIT_TIMEOUT_MS, GIT_USER_NAME, GIT_USER_EMAIL, COMMIT_MSG_FILE } from "@/lib/constants";
 import type { BlueprintStep } from "../types";
-
-const PROJECT_DIR = "/home/coder/project";
-
-/** Timeout for individual git operations. */
-const GIT_TIMEOUT_MS = 30_000;
 
 /**
  * Create the commit-and-push step.
@@ -22,7 +18,7 @@ export function createCommitPushStep(): BlueprintStep {
       // 1. Set git identity
       const configResult = await execInWorkspace(
         ctx.workspaceName,
-        `cd ${PROJECT_DIR} && git config user.email "hive-bot@coder.com" && git config user.name "Hive Bot"`,
+        `cd ${PROJECT_DIR} && git config user.email "${GIT_USER_EMAIL}" && git config user.name "${GIT_USER_NAME}"`,
         { timeoutMs: GIT_TIMEOUT_MS },
       );
 
@@ -55,7 +51,7 @@ export function createCommitPushStep(): BlueprintStep {
 
       const commitResult = await execInWorkspace(
         ctx.workspaceName,
-        `cd ${PROJECT_DIR} && echo '${commitMsgB64}' | base64 -d > /tmp/hive-commit-msg.txt && git commit -F /tmp/hive-commit-msg.txt`,
+        `cd ${PROJECT_DIR} && echo '${commitMsgB64}' | base64 -d > ${COMMIT_MSG_FILE} && git commit -F ${COMMIT_MSG_FILE}`,
         { timeoutMs: GIT_TIMEOUT_MS },
       );
 

@@ -1,5 +1,6 @@
 import type { CoderClient } from "@/lib/coder/client";
 import type { PrismaClient } from "@prisma/client";
+import { DEFAULT_CLEANUP_GRACE_MS } from "@/lib/constants";
 import { cleanupWorkspace } from "./cleanup";
 
 /** Options for the cleanup scheduler */
@@ -33,7 +34,7 @@ export function startCleanupScheduler(
     options?.graceMs ??
     (process.env.CLEANUP_GRACE_MS
       ? Number(process.env.CLEANUP_GRACE_MS)
-      : 60_000);
+      : DEFAULT_CLEANUP_GRACE_MS);
   // Clamp to non-negative — a negative grace would skip the waiting period
   const graceMs = Math.max(0, rawGraceMs);
 

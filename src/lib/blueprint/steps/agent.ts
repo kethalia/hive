@@ -1,13 +1,14 @@
 import { execInWorkspace } from "@/lib/workspace/exec";
 import type { BlueprintStep } from "../types";
-
-const PROJECT_DIR = "/home/coder/project";
-
-/** 30-minute timeout — complex tasks can run long. */
-const AGENT_TIMEOUT_MS = 1_800_000;
-
-/** Allowlist for values that are interpolated into shell commands. */
-const SAFE_IDENTIFIER = /^[a-zA-Z0-9._-]+$/;
+import {
+  PROJECT_DIR,
+  AGENT_TIMEOUT_MS,
+  SAFE_IDENTIFIER_RE,
+  EXEC_TIMEOUT_MS,
+  AGENT_OUTPUT_LOG,
+  CONTEXT_FILE,
+  PROMPT_FILE,
+} from "@/lib/constants";
 
 /**
  * Create the agent execution step (R003).
@@ -26,14 +27,14 @@ export function createAgentStep(): BlueprintStep {
       // Validate provider and model — these are interpolated into a shell command.
       // Currently sourced from env vars, but validate defensively in case the
       // trust boundary shifts to user/task configuration.
-      if (!SAFE_IDENTIFIER.test(ctx.piProvider)) {
+      if (!SAFE_IDENTIFIER_RE.test(ctx.piProvider)) {
         return {
           status: "failure" as const,
           message: `Invalid piProvider value: ${ctx.piProvider}`,
           durationMs: Date.now() - start,
         };
       }
-      if (!SAFE_IDENTIFIER.test(ctx.piModel)) {
+      if (!SAFE_IDENTIFIER_RE.test(ctx.piModel)) {
         return {
           status: "failure" as const,
           message: `Invalid piModel value: ${ctx.piModel}`,
@@ -50,8 +51,8 @@ export function createAgentStep(): BlueprintStep {
 
       const writeResult = await execInWorkspace(
         ctx.workspaceName,
-        `echo '${b64}' | base64 -d > /tmp/hive-context.md`,
-        { timeoutMs: 30_000 },
+        `echo '${b64}' | base64 -d > ${CONTEXT_FILE}`,
+        { timeoutMs: EXEC_TIMEOUT_MS },
       );
 
       if (writeResult.exitCode !== 0) {
@@ -63,7 +64,7 @@ export function createAgentStep(): BlueprintStep {
       }
 
       console.log(
-        `[blueprint] agent-execution: wrote ${contextPayload.length} chars to /tmp/hive-context.md (task=${ctx.taskId})`,
+        `[blueprint] agent-execution: wrote ${contextPayload.length} chars to ${CONTEXT_FILE} (task=${ctx.taskId})`,
       );
 
       // 2. Build and run the Pi command
@@ -82,8 +83,8 @@ export function createAgentStep(): BlueprintStep {
 
       const writePromptResult = await execInWorkspace(
         ctx.workspaceName,
-        `echo '${promptB64}' | base64 -d > /tmp/hive-prompt.txt`,
-        { timeoutMs: 30_000 },
+        `echo '${promptB64}' | base64 -d > ${PROMPT_FILE}`,
+        { timeoutMs: EXEC_TIMEOUT_MS },
       );
 
       if (writePromptResult.exitCode !== 0) {
@@ -98,8 +99,8 @@ export function createAgentStep(): BlueprintStep {
       // so `tail -f` from the SSE endpoint doesn't fail if it connects early.
       const initLogResult = await execInWorkspace(
         ctx.workspaceName,
-        `echo '' > /tmp/hive-agent-output.log`,
-        { timeoutMs: 10_000 },
+        `echo '' > ${AGENT_OUTPUT_LOG}`,
+        { timeoutMs: EXEC_TIMEOUT_MS },
       );
 
       if (initLogResult.exitCode !== 0) {
@@ -112,14 +113,14 @@ export function createAgentStep(): BlueprintStep {
       const piCmd = [
         `cd ${PROJECT_DIR}`,
         `&&`,
-        `cat /tmp/hive-context.md`,
+        `cat ${CONTEXT_FILE}`,
         `|`,
         `pi -p --no-session`,
         `--provider ${ctx.piProvider}`,
         `--model ${ctx.piModel}`,
         toolArgs,
-        `"$(cat /tmp/hive-prompt.txt)"`,
-        `| tee /tmp/hive-agent-output.log`,
+        `"$(cat ${PROMPT_FILE})"`,
+        `| tee ${AGENT_OUTPUT_LOG}`,
       ].join(" ");
 
       const piResult = await execInWorkspace(ctx.workspaceName, piCmd, {
@@ -138,7 +139,7 @@ export function createAgentStep(): BlueprintStep {
       const diffResult = await execInWorkspace(
         ctx.workspaceName,
         `cd ${PROJECT_DIR} && git diff --stat`,
-        { timeoutMs: 30_000 },
+        { timeoutMs: EXEC_TIMEOUT_MS },
       );
 
       const hasChanges =

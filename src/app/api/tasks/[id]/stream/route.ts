@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import { getDb } from "@/lib/db";
 import { streamFromWorkspace } from "@/lib/workspace/stream";
 import { workerWorkspaceName } from "@/lib/workspace/naming";
+import { UUID_RE, AGENT_OUTPUT_LOG } from "@/lib/constants";
 
 /**
  * SSE endpoint for streaming live agent output from a running workspace.
@@ -22,7 +23,6 @@ export async function GET(
   const { id: taskId } = await params;
 
   // Validate taskId is a UUID before using it in any shell command
-  const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
   if (!UUID_RE.test(taskId)) {
     return new Response("Invalid task ID", { status: 400 });
   }
@@ -74,7 +74,7 @@ export async function GET(
 
   const { stdout, process: childProcess } = streamFromWorkspace(
     workspaceName,
-    "tail -f -n +1 /tmp/hive-agent-output.log",
+    `tail -f -n +1 ${AGENT_OUTPUT_LOG}`,
     request.signal,
   );
 

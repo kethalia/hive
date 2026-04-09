@@ -10,7 +10,7 @@ export interface ExecResult {
   exitCode: number;
 }
 
-const DEFAULT_TIMEOUT_MS = 60_000;
+import { DEFAULT_EXEC_TIMEOUT_MS } from "@/lib/constants";
 
 /**
  * Execute a command inside a Coder workspace via `coder ssh`.
@@ -22,7 +22,7 @@ export function execInWorkspace(
   command: string,
   opts?: ExecOptions,
 ): Promise<ExecResult> {
-  const timeoutMs = opts?.timeoutMs ?? DEFAULT_TIMEOUT_MS;
+  const timeoutMs = opts?.timeoutMs ?? DEFAULT_EXEC_TIMEOUT_MS;
   const truncatedCmd =
     command.length > 100 ? command.slice(0, 100) + "…" : command;
 

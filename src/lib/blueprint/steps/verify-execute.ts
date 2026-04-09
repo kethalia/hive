@@ -1,21 +1,7 @@
 import { execInWorkspace } from "@/lib/workspace/exec";
+import { PROJECT_DIR, TEST_TIMEOUT_MS, SERVER_TIMEOUT_MS, CURL_RETRY_CMD, SCREENSHOT_CMD } from "@/lib/constants";
 import type { VerificationOutcome } from "@/lib/verification/report";
 import type { BlueprintStep } from "../types";
-
-const PROJECT_DIR = "/home/coder/project";
-
-/** Timeout for npm test (2 minutes). */
-const TEST_TIMEOUT_MS = 120_000;
-
-/** Timeout for curl-retry loop + screenshot (90s budget). */
-const SERVER_TIMEOUT_MS = 90_000;
-
-/** Curl-retry loop: try every 2s for 30 attempts (60s). */
-const CURL_RETRY_CMD =
-  "bash -c 'for i in $(seq 1 30); do curl -sf http://localhost:3000 && exit 0; sleep 2; done; exit 1'";
-
-/** Screenshot command for web verification (positional args: url, output-path). */
-const SCREENSHOT_CMD = "browser-screenshot http://localhost:3000 /tmp/verification.png";
 
 /**
  * Create the verify-execute step.

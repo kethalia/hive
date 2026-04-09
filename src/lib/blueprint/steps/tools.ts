@@ -1,17 +1,6 @@
 import { execInWorkspace } from "@/lib/workspace/exec";
+import { PROJECT_DIR, EXEC_TIMEOUT_MS, BASE_TOOLS, WEB_FRAMEWORKS, TEST_FRAMEWORKS } from "@/lib/constants";
 import type { BlueprintStep } from "../types";
-
-const PROJECT_DIR = "/home/coder/project";
-const EXEC_TIMEOUT_MS = 30_000;
-
-/** Tools always available regardless of repo type. */
-const BASE_TOOLS = ["read", "bash", "edit", "write", "lsp"];
-
-/** Web frameworks that warrant browser tools. */
-const WEB_FRAMEWORKS = ["next", "react", "vue", "svelte", "nuxt", "remix", "astro"];
-
-/** Test frameworks that warrant a test tool reference. */
-const TEST_FRAMEWORKS = ["vitest", "jest", "playwright", "cypress", "mocha"];
 
 /**
  * Create the curated tool selection step (R030).

@@ -1,25 +1,14 @@
 import { execInWorkspace } from "@/lib/workspace/exec";
+import {
+  PROJECT_DIR,
+  CI_INITIAL_DELAY_MS,
+  CI_POLL_TIMEOUT_MS,
+  CI_BACKOFF_INTERVALS_MS,
+  CI_MAX_FAILURE_LOG_CHARS,
+  GH_CMD_TIMEOUT_MS,
+  CI_MAX_ROUNDS,
+} from "@/lib/constants";
 import type { BlueprintContext, BlueprintStep, StepResult } from "../types";
-
-const PROJECT_DIR = "/home/coder/project";
-
-/** Initial delay before first CI poll — GitHub Actions needs time to register runs. */
-const INITIAL_DELAY_MS = 10_000;
-
-/** Maximum time to poll for a single CI round. */
-const POLL_TIMEOUT_MS = 600_000; // 10 minutes
-
-/** Backoff schedule: 5s → 10s → 20s → 30s cap. */
-const BACKOFF_INTERVALS_MS = [5_000, 10_000, 20_000, 30_000];
-
-/** Max characters of CI failure logs to feed back to agent. */
-const MAX_FAILURE_LOG_CHARS = 3_000;
-
-/** Timeout for individual gh CLI commands. */
-const GH_CMD_TIMEOUT_MS = 30_000;
-
-/** Max rounds of CI retry. */
-const MAX_ROUNDS = 2;
 
 interface CIStepDeps {
   createAgentStep: () => BlueprintStep;
@@ -74,15 +63,15 @@ export function createCIStep(deps: CIStepDeps): BlueprintStep {
 
       log("gh authenticated, starting CI polling");
 
-      // 2. Run up to MAX_ROUNDS
-      for (let round = 1; round <= MAX_ROUNDS; round++) {
+      // 2. Run up to CI_MAX_ROUNDS
+      for (let round = 1; round <= CI_MAX_ROUNDS; round++) {
         log(`round ${round}: waiting for CI on branch ${ctx.branchName}`);
 
         const pollResult = await pollForCIResult(ctx, log);
 
         if (pollResult.status === "timeout") {
           ctx.ciRoundsUsed = round;
-          const msg = `CI polling timed out on round ${round} after ${POLL_TIMEOUT_MS / 1000}s`;
+          const msg = `CI polling timed out on round ${round} after ${CI_POLL_TIMEOUT_MS / 1000}s`;
           log(msg);
           return { status: "failure", message: msg, durationMs: Date.now() - start };
         }
@@ -99,10 +88,10 @@ export function createCIStep(deps: CIStepDeps): BlueprintStep {
         const failureLogs = await extractFailureLogs(ctx, pollResult.runId!);
 
         // If this is the last round, don't retry
-        if (round === MAX_ROUNDS) {
+        if (round === CI_MAX_ROUNDS) {
           ctx.ciRoundsUsed = round;
-          const msg = `CI failed after ${MAX_ROUNDS} rounds. Last failure:\n${failureLogs.slice(0, 500)}`;
-          log(`exhaustion after ${MAX_ROUNDS} rounds`);
+          const msg = `CI failed after ${CI_MAX_ROUNDS} rounds. Last failure:\n${failureLogs.slice(0, 500)}`;
+          log(`exhaustion after ${CI_MAX_ROUNDS} rounds`);
           return { status: "failure", message: msg, durationMs: Date.now() - start };
         }
 
@@ -119,7 +108,7 @@ export function createCIStep(deps: CIStepDeps): BlueprintStep {
       }
 
       // Should not reach here, but safety net
-      ctx.ciRoundsUsed = MAX_ROUNDS;
+      ctx.ciRoundsUsed = CI_MAX_ROUNDS;
       return {
         status: "failure",
         message: "CI feedback loop ended unexpectedly",
@@ -146,11 +135,11 @@ async function pollForCIResult(
 
   // Initial delay — let GitHub Actions register the run
   log("initial delay before polling");
-  await sleep(INITIAL_DELAY_MS);
+  await sleep(CI_INITIAL_DELAY_MS);
 
   let attempt = 0;
 
-  while (Date.now() - pollStart < POLL_TIMEOUT_MS) {
+  while (Date.now() - pollStart < CI_POLL_TIMEOUT_MS) {
     const result = await execInWorkspace(
       ctx.workspaceName,
       `cd ${PROJECT_DIR} && gh run list --branch ${ctx.branchName} --limit 1 --json status,conclusion,databaseId`,
@@ -186,8 +175,8 @@ async function pollForCIResult(
     }
 
     // Backoff sleep
-    const backoffIdx = Math.min(attempt, BACKOFF_INTERVALS_MS.length - 1);
-    const interval = BACKOFF_INTERVALS_MS[backoffIdx];
+    const backoffIdx = Math.min(attempt, CI_BACKOFF_INTERVALS_MS.length - 1);
+    const interval = CI_BACKOFF_INTERVALS_MS[backoffIdx];
     await sleep(interval);
     attempt++;
   }
@@ -196,7 +185,7 @@ async function pollForCIResult(
 }
 
 /**
- * Extract failure logs from a CI run, truncated to MAX_FAILURE_LOG_CHARS.
+ * Extract failure logs from a CI run, truncated to CI_MAX_FAILURE_LOG_CHARS.
  */
 async function extractFailureLogs(
   ctx: BlueprintContext,
@@ -213,8 +202,8 @@ async function extractFailureLogs(
   }
 
   const logs = result.stdout.trim();
-  return logs.length > MAX_FAILURE_LOG_CHARS
-    ? logs.slice(0, MAX_FAILURE_LOG_CHARS) + "\n... (truncated)"
+  return logs.length > CI_MAX_FAILURE_LOG_CHARS
+    ? logs.slice(0, CI_MAX_FAILURE_LOG_CHARS) + "\n... (truncated)"
     : logs;
 }
 

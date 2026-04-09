@@ -14,6 +14,14 @@ import { createPRStep } from "@/lib/blueprint/steps/pr";
 import { cleanupWorkspace } from "@/lib/workspace/cleanup";
 import { workerWorkspaceName, verifierWorkspaceName } from "@/lib/workspace/naming";
 import { createVerifierBlueprint } from "@/lib/blueprint/verifier";
+import {
+  QUEUE_NAME,
+  JOB_TIMEOUT_MS,
+  DEFAULT_WORKER_CONCURRENCY,
+  DEFAULT_CLEANUP_GRACE_MS,
+  DEFAULT_PI_PROVIDER,
+  DEFAULT_PI_MODEL,
+} from "@/lib/constants";
 import type { BlueprintContext } from "@/lib/blueprint/types";
 import type { VerificationReport } from "@/lib/verification/report";
 
@@ -29,8 +37,6 @@ export interface TaskJobData {
 }
 
 // ── Queue ─────────────────────────────────────────────────────────
-
-const QUEUE_NAME = "task-dispatch";
 
 let queue: Queue<TaskJobData> | null = null;
 
@@ -48,9 +54,6 @@ export function getTaskQueue(): Queue<TaskJobData> {
 }
 
 // ── Worker ────────────────────────────────────────────────────────
-
-/** 90 minutes — accounts for CI polling + agent retry rounds. */
-const JOB_TIMEOUT_MS = 90 * 60 * 1_000;
 
 /**
  * Creates a BullMQ worker that processes task-dispatch jobs.
@@ -70,18 +73,18 @@ const JOB_TIMEOUT_MS = 90 * 60 * 1_000;
  * parallel task execution per R008.
  */
 export function createTaskWorker(coderClient: CoderClient): Worker<TaskJobData> {
-  const concurrency = parseInt(process.env.WORKER_CONCURRENCY ?? "5", 10);
+  const concurrency = parseInt(process.env.WORKER_CONCURRENCY ?? String(DEFAULT_WORKER_CONCURRENCY), 10);
   const templateId = process.env.CODER_WORKER_TEMPLATE_ID ?? "";
   const verifierTemplateId = process.env.CODER_VERIFIER_TEMPLATE_ID ?? "";
-  const piProvider = process.env.PI_PROVIDER ?? "anthropic";
-  const piModel = process.env.PI_MODEL ?? "claude-sonnet-4-20250514";
+  const piProvider = process.env.PI_PROVIDER ?? DEFAULT_PI_PROVIDER;
+  const piModel = process.env.PI_MODEL ?? DEFAULT_PI_MODEL;
 
   const worker = new Worker<TaskJobData>(
     QUEUE_NAME,
     async (job: Job<TaskJobData>) => {
       const { taskId, repoUrl, prompt, branchName, params } = job.data;
       const db = getDb();
-      const graceMs = parseInt(process.env.CLEANUP_GRACE_MS ?? "60000", 10);
+      const graceMs = parseInt(process.env.CLEANUP_GRACE_MS ?? String(DEFAULT_CLEANUP_GRACE_MS), 10);
 
       // Track workspace IDs for cleanup in finally block
       let coderWorkspaceId: string | undefined;

@@ -2,8 +2,7 @@
 
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
-
-const POLL_INTERVAL_MS = 5000;
+import { POLL_INTERVAL_MS } from "@/lib/constants";
 
 /**
  * Client component that wraps children and triggers a server data refresh

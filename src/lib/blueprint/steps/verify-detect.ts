@@ -1,11 +1,7 @@
 import { execInWorkspace } from "@/lib/workspace/exec";
+import { PROJECT_DIR, DEFAULT_TEST_SCRIPT } from "@/lib/constants";
 import type { VerificationStrategy } from "@/lib/verification/report";
 import type { BlueprintStep } from "../types";
-
-const PROJECT_DIR = "/home/coder/project";
-
-/** The default npm test script that means "no real tests". */
-const DEFAULT_TEST_SCRIPT = 'echo "Error: no test specified" && exit 1';
 
 /**
  * Create the verify-detect step.
