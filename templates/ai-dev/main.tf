@@ -54,16 +54,24 @@ data "coder_parameter" "pi_model" {
   mutable      = true
   order        = 4
   option {
+    name  = "claude-sonnet-4-6"
+    value = "claude-sonnet-4-6"
+  }
+  option {
     name  = "claude-opus-4-6"
     value = "claude-opus-4-6"
+  }
+  option {
+    name  = "claude-opus-4-5"
+    value = "claude-opus-4-5"
   }
   option {
     name  = "claude-sonnet-4-5"
     value = "claude-sonnet-4-5"
   }
   option {
-    name  = "claude-haiku-3-5"
-    value = "claude-haiku-3-5"
+    name  = "claude-haiku-4-5"
+    value = "claude-haiku-4-5"
   }
 }
 
@@ -104,24 +112,35 @@ data "coder_parameter" "claude_code_model" {
   display_name = "Claude Code Model"
   description  = "Model for Claude Code."
   type         = "string"
-  default      = "claude-opus-4-5"
+  default      = "claude-sonnet-4-6"
   mutable      = true
   order        = 7
 
+  # Claude 4.6 generation
   option {
-    name  = "Claude Opus 4.5 (Recommended)"
-    value = "claude-opus-4-5"
+    name  = "Claude Sonnet 4.6 (Recommended)"
+    value = "claude-sonnet-4-6"
   }
   option {
     name  = "Claude Opus 4.6"
     value = "claude-opus-4-6"
+  }
+  # Claude 4.5 generation
+  option {
+    name  = "Claude Opus 4.5"
+    value = "claude-opus-4-5"
   }
   option {
     name  = "Claude Sonnet 4.5"
     value = "claude-sonnet-4-5"
   }
   option {
-    name  = "Claude Haiku 3.5"
+    name  = "Claude Haiku 4.5"
+    value = "claude-haiku-4-5"
+  }
+  # Claude 3.5 (legacy)
+  option {
+    name  = "Claude Haiku 3.5 (legacy)"
     value = "claude-haiku-3-5"
   }
 }
@@ -141,9 +160,30 @@ data "coder_parameter" "opencode_model" {
   display_name = "OpenCode Model"
   description  = "Default model for OpenCode."
   type         = "string"
-  default      = "anthropic/claude-opus-4-6"
+  default      = "anthropic/claude-sonnet-4-6"
   mutable      = true
   order        = 9
+
+  option {
+    name  = "claude-sonnet-4-6 (Recommended)"
+    value = "anthropic/claude-sonnet-4-6"
+  }
+  option {
+    name  = "claude-opus-4-6"
+    value = "anthropic/claude-opus-4-6"
+  }
+  option {
+    name  = "claude-opus-4-5"
+    value = "anthropic/claude-opus-4-5"
+  }
+  option {
+    name  = "claude-sonnet-4-5"
+    value = "anthropic/claude-sonnet-4-5"
+  }
+  option {
+    name  = "claude-haiku-4-5"
+    value = "anthropic/claude-haiku-4-5"
+  }
 }
 
 data "coder_parameter" "docker_socket" {
