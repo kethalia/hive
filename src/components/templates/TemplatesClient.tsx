@@ -72,16 +72,20 @@ export function TemplatesClient({ initialStatuses }: TemplatesClientProps) {
     return writeRefs.current[name];
   }
 
-  // Called by TerminalPanel once xterm is ready — flush any buffered lines
+  // Called by TerminalPanel once xterm is ready — flush any buffered lines.
+  // Uses a small setTimeout(0) to yield to React's paint cycle first, ensuring
+  // the terminal DOM is fully visible before writing (avoids xterm sizing glitches).
   const handleTerminalReady = useCallback((name: string) => {
-    const buffered = lineBuffers.current[name] ?? [];
-    delete lineBuffers.current[name];
-    const write = writeRefs.current[name]?.current;
-    if (write) {
-      for (const line of buffered) {
-        write(line);
+    setTimeout(() => {
+      const buffered = lineBuffers.current[name] ?? [];
+      delete lineBuffers.current[name];
+      const write = writeRefs.current[name]?.current;
+      if (write) {
+        for (const line of buffered) {
+          write(line);
+        }
       }
-    }
+    }, 0);
   }, []);
 
   // Write a line to the terminal, buffering if not yet ready
@@ -162,6 +166,13 @@ export function TemplatesClient({ initialStatuses }: TemplatesClientProps) {
         const payload = JSON.parse((ev as MessageEvent).data);
         const success = payload.success === true;
         eventSource.close();
+        // Always write a final status line so the terminal is never blank
+        if (success) {
+          writeLine(name, "\r\n\x1b[32m✓ Push succeeded\x1b[0m");
+        } else {
+          const errDetail = payload.error ? ` — ${payload.error}` : "";
+          writeLine(name, `\r\n\x1b[31m✗ Push failed${errDetail}\x1b[0m`);
+        }
         setPushStates((prev) => ({
           ...prev,
           [name]: { ...prev[name], inProgress: false, result: success },
