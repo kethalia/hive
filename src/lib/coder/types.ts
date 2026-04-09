@@ -77,3 +77,21 @@ export interface ListWorkspacesResponse {
   workspaces: CoderWorkspace[];
   count: number;
 }
+
+/** A Coder template summary (from GET /api/v2/organizations/default/templates). */
+export interface CoderTemplate {
+  id: string;
+  name: string;
+  active_version_id: string;
+  updated_at: string;
+}
+
+/** A Coder template version (from GET /api/v2/templateversions/:id). */
+export interface CoderTemplateVersion {
+  id: string;
+  name: string;
+  job: {
+    file_id: string;
+  };
+  created_at: string;
+}

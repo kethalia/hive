@@ -1,5 +1,7 @@
 import type {
   CoderClientConfig,
+  CoderTemplate,
+  CoderTemplateVersion,
   CoderWorkspace,
   CreateWorkspaceRequest,
   ListWorkspacesResponse,
@@ -207,6 +209,68 @@ export class CoderClient {
     throw new Error(
       `[coder] No agents found for workspace ${workspaceId} — cannot resolve SSH target`
     );
+  }
+
+  // ── Template API ─────────────────────────────────────────────────
+
+  /**
+   * List all templates in the default organization.
+   * Returns a normalized subset of each template object.
+   */
+  async listTemplates(): Promise<{ id: string; name: string; activeVersionId: string; updatedAt: string }[]> {
+    const templates = await this.request<CoderTemplate[]>(
+      "/api/v2/organizations/default/templates"
+    );
+    return templates.map((t) => ({
+      id: t.id,
+      name: t.name,
+      activeVersionId: t.active_version_id,
+      updatedAt: t.updated_at,
+    }));
+  }
+
+  /**
+   * Fetch a single template version by ID.
+   * Returns id, name, fileId (for tar download), and createdAt.
+   */
+  async getTemplateVersion(versionId: string): Promise<{ id: string; name: string; fileId: string; createdAt: string }> {
+    const version = await this.request<CoderTemplateVersion>(
+      `/api/v2/templateversions/${versionId}`
+    );
+    return {
+      id: version.id,
+      name: version.name,
+      fileId: version.job.file_id,
+      createdAt: version.created_at,
+    };
+  }
+
+  /**
+   * Download the template file archive as a Buffer.
+   * Returns a tar archive (application/x-tar) of the template files.
+   */
+  async fetchTemplateFiles(fileId: string): Promise<Buffer> {
+    const url = `${this.baseUrl}/api/v2/files/${fileId}`;
+    const res = await fetch(url, {
+      headers: {
+        "Coder-Session-Token": this.sessionToken,
+      },
+    });
+
+    if (!res.ok) {
+      let body: string;
+      try {
+        body = await res.text();
+      } catch {
+        body = "(unable to read response body)";
+      }
+      throw new Error(
+        `[coder] fetchTemplateFiles failed: ${res.status} ${res.statusText} — ${body}`
+      );
+    }
+
+    const arrayBuffer = await res.arrayBuffer();
+    return Buffer.from(arrayBuffer);
   }
 
   // ── Utilities ────────────────────────────────────────────────────
