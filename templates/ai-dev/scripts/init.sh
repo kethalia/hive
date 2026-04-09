@@ -130,6 +130,28 @@ if [ -d ~/vault ] && [ ! -d ~/vault/.obsidian ]; then
   echo '{}' > ~/vault/.obsidian/appearance.json
   echo "Created .obsidian config in vault"
 fi
+
+# Generate ~/.claude/CLAUDE.md with @imports for every vault markdown file.
+# Claude Code loads this on every session — the @imports inline the actual content
+# so Claude always has the full vault as context without needing to grep for it.
+%{if vault_repo != ""}
+if [ -d ~/vault ]; then
+  mkdir -p ~/.claude
+  {
+    echo "# Second Brain"
+    echo ""
+    echo "The following files are your user's personal knowledge vault."
+    echo "Read them before every task. Write back to them when you make"
+    echo "significant decisions, discover patterns, or complete milestones."
+    echo ""
+    # Emit an @import for every .md file in the vault, sorted
+    find ~/vault -name "*.md" ! -path "*/.git/*" | sort | while read -r f; do
+      echo "@$f"
+    done
+  } > ~/.claude/CLAUDE.md
+  echo "Claude Code vault context written to ~/.claude/CLAUDE.md ($(find ~/vault -name '*.md' ! -path '*/.git/*' | wc -l) files)"
+fi
+%{endif}
 %{endif}
 
 # Verify Docker access
