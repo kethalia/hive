@@ -41,14 +41,11 @@ describe("createCommitPushStep", () => {
     vi.spyOn(console, "log").mockImplementation(() => {});
   });
 
-  it("sets git identity, commits, pushes, and returns success with commit hash", async () => {
+  it("stages, commits, pushes, and returns success with commit hash", async () => {
     const step = createCommitPushStep();
     const ctx = makeCtx();
 
     mockExec.mockImplementation(async (_ws, cmd) => {
-      if (cmd.includes("git config")) {
-        return ok("");
-      }
       if (cmd.includes("git add -A")) {
         return ok("");
       }
@@ -67,11 +64,10 @@ describe("createCommitPushStep", () => {
     expect(result.message).toContain("abc1234");
     expect(result.message).toContain("hive/task-123");
 
-    // Verify git config was set
-    const configCall = mockExec.mock.calls.find(([, cmd]) => cmd.includes("git config"));
-    expect(configCall).toBeDefined();
-    expect(configCall![1]).toContain("hive-bot@coder.com");
-    expect(configCall![1]).toContain("Hive Bot");
+    // Git identity is configured by Coder's git-config module —
+    // no hardcoded git config call expected
+    const configCall = mockExec.mock.calls.find(([, cmd]) => cmd.includes("git config user"));
+    expect(configCall).toBeUndefined();
 
     // Verify push uses -u origin <branch>
     const pushCall = mockExec.mock.calls.find(([, cmd]) => cmd.includes("git push"));
@@ -84,7 +80,6 @@ describe("createCommitPushStep", () => {
     const ctx = makeCtx();
 
     mockExec.mockImplementation(async (_ws, cmd) => {
-      if (cmd.includes("git config")) return ok("");
       if (cmd.includes("git add -A")) return ok("");
       if (cmd.includes("git commit")) {
         return ok("[hive/task-123 abc1234] hive: Fix the bug\n 1 file changed");
@@ -107,7 +102,6 @@ describe("createCommitPushStep", () => {
     const ctx = makeCtx();
 
     mockExec.mockImplementation(async (_ws, cmd) => {
-      if (cmd.includes("git config")) return ok("");
       if (cmd.includes("git add -A")) return ok("");
       if (cmd.includes("git commit")) {
         return { stdout: "nothing to commit, working tree clean", stderr: "", exitCode: 1 };
@@ -128,7 +122,6 @@ describe("createCommitPushStep", () => {
     const ctx = makeCtx({ prompt: longPrompt });
 
     mockExec.mockImplementation(async (_ws, cmd) => {
-      if (cmd.includes("git config")) return ok("");
       if (cmd.includes("git add -A")) return ok("");
       if (cmd.includes("git commit")) {
         return ok("[branch abc1234] hive: message\n 1 file changed");

@@ -22,11 +22,6 @@ export const PROMPT_FILE = "/tmp/hive-prompt.txt";
 /** Commit message file used by git commit -F. */
 export const COMMIT_MSG_FILE = "/tmp/hive-commit-msg.txt";
 
-// ── Git identity ───────────────────────────────────────────────────
-
-export const GIT_USER_NAME = "Hive Bot";
-export const GIT_USER_EMAIL = "hive-bot@coder.com";
-
 // ── Timeouts ───────────────────────────────────────────────────────
 
 /** Default timeout for exec commands in blueprint steps (30s). */
