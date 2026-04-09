@@ -133,7 +133,16 @@ ENV LC_ALL=en_US.UTF-8
 RUN mkdir -p /etc/xdg/openbox
 
 RUN cat > /etc/xdg/openbox/autostart << 'XDGEOF'
-/usr/bin/obsidian --no-sandbox --disable-gpu-sandbox /home/coder/vault &
+# Wait up to 10s for vault to be cloned before launching Obsidian
+(
+  for i in $(seq 1 20); do
+    if [ -d /home/coder/vault/.obsidian ] || [ -d /home/coder/vault/.git ]; then
+      break
+    fi
+    sleep 0.5
+  done
+  /usr/bin/obsidian --no-sandbox --disable-gpu-sandbox /home/coder/vault
+) &
 XDGEOF
 
 RUN cat > /etc/xdg/openbox/menu.xml << 'XDGEOF'
@@ -143,6 +152,11 @@ RUN cat > /etc/xdg/openbox/menu.xml << 'XDGEOF'
     <item label="Obsidian">
       <action name="Execute">
         <command>/usr/bin/obsidian --no-sandbox --disable-gpu-sandbox /home/coder/vault</command>
+      </action>
+    </item>
+    <item label="Chrome">
+      <action name="Execute">
+        <command>/usr/bin/google-chrome-stable --no-sandbox --disable-gpu-sandbox</command>
       </action>
     </item>
     <item label="Terminal">
