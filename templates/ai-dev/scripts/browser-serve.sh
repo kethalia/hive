@@ -59,9 +59,52 @@ fi
 
 echo "KasmVNC started on :${DISPLAY_NUM}"
 
-# Start Openbox window manager — reads /etc/xdg/openbox/autostart (Obsidian etc.)
+# Write autostart and menu — overrides anything baked into the image
+AUTOSTART=/etc/xdg/openbox/autostart
+MENU=/etc/xdg/openbox/menu.xml
+
+sudo tee "$AUTOSTART" > /dev/null << 'AUTOEOF'
+#!/bin/bash
+# Wait up to 10s for vault before launching Obsidian
+(
+  for i in $(seq 1 20); do
+    if [ -d /home/coder/vault/.obsidian ] || [ -d /home/coder/vault/.git ]; then
+      break
+    fi
+    sleep 0.5
+  done
+  /usr/bin/obsidian --no-sandbox --disable-gpu-sandbox /home/coder/vault
+) &
+AUTOEOF
+sudo chmod 755 "$AUTOSTART"
+
+sudo tee "$MENU" > /dev/null << 'MENUEOF'
+<?xml version="1.0" encoding="UTF-8"?>
+<openbox_menu xmlns="http://openbox.org/3.4/menu">
+  <menu id="root-menu" label="Desktop">
+    <item label="Obsidian">
+      <action name="Execute">
+        <command>/usr/bin/obsidian --no-sandbox --disable-gpu-sandbox /home/coder/vault</command>
+      </action>
+    </item>
+    <item label="Chrome">
+      <action name="Execute">
+        <command>/usr/bin/google-chrome-stable --no-sandbox --disable-gpu-sandbox</command>
+      </action>
+    </item>
+    <item label="Terminal">
+      <action name="Execute">
+        <command>xterm</command>
+      </action>
+    </item>
+  </menu>
+</openbox_menu>
+MENUEOF
+sudo chmod 644 "$MENU"
+
+# Start Openbox window manager
 if command -v openbox &>/dev/null; then
-  DISPLAY=":${DISPLAY_NUM}" nohup openbox --startup /etc/xdg/openbox/autostart \
+  DISPLAY=":${DISPLAY_NUM}" nohup openbox --startup "$AUTOSTART" \
     > "$LOG_DIR/openbox.log" 2>&1 &
   disown $!
   echo "Openbox window manager started"
