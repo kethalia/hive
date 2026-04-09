@@ -108,6 +108,11 @@ fi
 if [ -n "$EFFECTIVE_VAULT_REPO" ]; then
   # Clone or pull
   if [ ! -d ~/vault/.git ]; then
+    # If ~/vault exists but isn't a git repo, move it aside
+    if [ -d ~/vault ] && [ ! -d ~/vault/.git ]; then
+      echo "Moving non-git ~/vault aside..."
+      mv ~/vault ~/vault-bak-$(date +%s) 2>/dev/null || rm -rf ~/vault
+    fi
     echo "Cloning Obsidian vault..."
     GH_TOKEN=$(gh auth token 2>/dev/null || echo "")
     if [ -n "$GH_TOKEN" ] && echo "$EFFECTIVE_VAULT_REPO" | grep -q "github.com"; then
