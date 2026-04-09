@@ -168,7 +168,7 @@ RUN cat > /etc/xdg/openbox/menu.xml << 'XDGEOF'
 </openbox_menu>
 XDGEOF
 
-RUN chmod 644 /etc/xdg/openbox/autostart /etc/xdg/openbox/menu.xml
+RUN chmod 755 /etc/xdg/openbox/autostart && chmod 644 /etc/xdg/openbox/menu.xml
 
 # Create coder user
 # ssl-cert group is REQUIRED for KasmVNC (TLS cert access)
