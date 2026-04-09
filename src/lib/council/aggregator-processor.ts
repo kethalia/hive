@@ -34,12 +34,26 @@ export function createCouncilAggregatorProcessor(): (
     const childrenValues: Record<string, unknown> = await job.getChildrenValues();
 
     // 2. Separate valid reviewer results from failed ones
+    //    Validate each child's findings array to prevent shape mismatches
+    //    from silently corrupting downstream aggregation.
     const validResults: ReviewerFinding[][] = [];
-    for (const value of Object.values(childrenValues)) {
-      if (Array.isArray(value)) {
+    for (const [childKey, value] of Object.entries(childrenValues)) {
+      if (Array.isArray(value) && value.every(isValidReviewerFinding)) {
         validResults.push(value as ReviewerFinding[]);
+      } else if (Array.isArray(value)) {
+        console.warn(
+          `[council-aggregator] job=${job.id} child=${childKey} returned malformed findings — skipped`,
+        );
       }
       // null / undefined / non-array → reviewer failed, counted as not completed
+    }
+
+    // Log warning if child count doesn't match expected council size
+    const childCount = Object.keys(childrenValues).length;
+    if (childCount !== councilSize) {
+      console.warn(
+        `[council-aggregator] job=${job.id} expected ${councilSize} children but got ${childCount}`,
+      );
     }
 
     const reviewersCompleted = validResults.length;
@@ -131,4 +145,23 @@ export function createCouncilAggregatorProcessor(): (
 
     return report;
   };
+}
+
+/** Validate minimum shape of a ReviewerFinding from child job output. */
+function isValidReviewerFinding(value: unknown): boolean {
+  if (typeof value !== "object" || value === null) return false;
+  return (
+    "file" in value &&
+    typeof value.file === "string" &&
+    "startLine" in value &&
+    typeof value.startLine === "number" &&
+    "severity" in value &&
+    typeof value.severity === "string" &&
+    "issue" in value &&
+    typeof value.issue === "string" &&
+    "fix" in value &&
+    typeof value.fix === "string" &&
+    "reasoning" in value &&
+    typeof value.reasoning === "string"
+  );
 }

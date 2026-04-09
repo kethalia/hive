@@ -57,21 +57,57 @@ export interface CouncilReport {
  * Runtime type guard for CouncilReport.
  * Validates the shape of Prisma's councilReport Json? column before rendering.
  */
-export function isCouncilReport(v: unknown): v is CouncilReport {
-  if (typeof v !== "object" || v === null) return false;
-  const obj = v as Record<string, unknown>;
+export function isCouncilReport(value: unknown): value is CouncilReport {
+  if (typeof value !== "object" || value === null) return false;
   const validOutcomes = ["complete", "partial", "inconclusive"];
+  if (
+    !("outcome" in value) ||
+    typeof value.outcome !== "string" ||
+    !validOutcomes.includes(value.outcome) ||
+    !("councilSize" in value) ||
+    typeof value.councilSize !== "number" ||
+    !("reviewersCompleted" in value) ||
+    typeof value.reviewersCompleted !== "number" ||
+    !("findings" in value) ||
+    !Array.isArray(value.findings) ||
+    !("consensusItems" in value) ||
+    !Array.isArray(value.consensusItems) ||
+    !("durationMs" in value) ||
+    typeof value.durationMs !== "number" ||
+    !("timestamp" in value) ||
+    typeof value.timestamp !== "string"
+  ) {
+    return false;
+  }
+  // postedCommentUrl is optional: string | null | undefined
+  if (
+    "postedCommentUrl" in value &&
+    value.postedCommentUrl !== null &&
+    typeof value.postedCommentUrl !== "string"
+  ) {
+    return false;
+  }
+  // Validate individual finding items to prevent render crashes
+  for (const item of value.findings) {
+    if (!isValidFinding(item)) return false;
+  }
+  for (const item of value.consensusItems) {
+    if (!isValidFinding(item)) return false;
+  }
+  return true;
+}
+
+/** Validate minimum shape of a finding to prevent render crashes. */
+function isValidFinding(value: unknown): boolean {
+  if (typeof value !== "object" || value === null) return false;
   return (
-    typeof obj.outcome === "string" &&
-    validOutcomes.includes(obj.outcome) &&
-    typeof obj.councilSize === "number" &&
-    typeof obj.reviewersCompleted === "number" &&
-    Array.isArray(obj.findings) &&
-    Array.isArray(obj.consensusItems) &&
-    typeof obj.durationMs === "number" &&
-    typeof obj.timestamp === "string" &&
-    (obj.postedCommentUrl === null ||
-      obj.postedCommentUrl === undefined ||
-      typeof obj.postedCommentUrl === "string")
+    "file" in value &&
+    typeof value.file === "string" &&
+    "startLine" in value &&
+    typeof value.startLine === "number" &&
+    "severity" in value &&
+    typeof value.severity === "string" &&
+    "issue" in value &&
+    typeof value.issue === "string"
   );
 }

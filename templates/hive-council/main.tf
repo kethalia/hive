@@ -331,7 +331,10 @@ resource "docker_image" "main" {
     context = "."
   }
   triggers = {
-    dir_sha1 = sha1(join("", [for f in fileset(path.module, "Dockerfile") : filesha1(f)]))
+    dir_sha1 = sha1(join("", concat(
+      [for f in sort(fileset(path.module, "Dockerfile")) : filesha1("${path.module}/${f}")],
+      [for f in sort(fileset(path.module, "scripts/*")) : filesha1("${path.module}/${f}")],
+    )))
   }
 }
 

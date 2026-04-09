@@ -21,13 +21,14 @@ const outcomeVariant: Record<
 /** Severity display config — emoji prefix and data-testid suffix. */
 const SEVERITIES: Array<{
   key: AggregatedFinding["severity"];
+  emoji: string;
   label: string;
   testId: string;
 }> = [
-  { key: "critical", label: "🔴 Critical", testId: "severity-critical" },
-  { key: "major", label: "🟠 Major", testId: "severity-major" },
-  { key: "minor", label: "🟡 Minor", testId: "severity-minor" },
-  { key: "nit", label: "💬 Nit", testId: "severity-nit" },
+  { key: "critical", emoji: "🔴", label: "Critical", testId: "severity-critical" },
+  { key: "major", emoji: "🟠", label: "Major", testId: "severity-major" },
+  { key: "minor", emoji: "🟡", label: "Minor", testId: "severity-minor" },
+  { key: "nit", emoji: "💬", label: "Nit", testId: "severity-nit" },
 ];
 
 const CONSENSUS_PREVIEW_COUNT = 3;
@@ -67,10 +68,11 @@ export function CouncilResultCard({ report }: { report: CouncilReport }) {
 
           {severityCounts.map(({ key, count }) => {
             if (count === 0) return null;
-            const cfg = SEVERITIES.find((s) => s.key === key)!;
+            const cfg = SEVERITIES.find((s) => s.key === key);
+            if (!cfg) return null;
             return (
               <Badge key={key} variant="outline" data-testid={cfg.testId}>
-                {cfg.label} {count}
+                <span aria-hidden="true">{cfg.emoji} </span>{cfg.label} {count}
               </Badge>
             );
           })}
@@ -82,7 +84,7 @@ export function CouncilResultCard({ report }: { report: CouncilReport }) {
             <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
               Consensus Items
             </p>
-            <ul className="space-y-2">
+            <ul id="consensus-items-list" className="space-y-2" aria-label="Consensus items">
               {visibleItems.map((item) => (
                 <li
                   key={`${item.file}:${item.startLine}:${item.issue}`}
@@ -90,7 +92,7 @@ export function CouncilResultCard({ report }: { report: CouncilReport }) {
                   data-testid="consensus-item"
                 >
                   <div className="flex items-center justify-between gap-2">
-                    <code className="text-xs text-muted-foreground font-mono">
+                    <code className="text-xs text-muted-foreground font-mono truncate min-w-0">
                       {item.file}:{item.startLine}
                     </code>
                     <Badge variant="secondary" className="shrink-0 text-xs">
@@ -109,6 +111,8 @@ export function CouncilResultCard({ report }: { report: CouncilReport }) {
                 variant="ghost"
                 size="sm"
                 className="px-0 text-xs text-muted-foreground hover:text-foreground"
+                aria-expanded={expanded}
+                aria-controls="consensus-items-list"
                 onClick={() => setExpanded((v) => !v)}
               >
                 {expanded
@@ -134,7 +138,8 @@ export function CouncilResultCard({ report }: { report: CouncilReport }) {
               data-testid="pr-comment-link"
             >
               View PR comment
-              <ExternalLink className="h-3 w-3" />
+              <span className="sr-only"> (opens in new tab)</span>
+              <ExternalLink className="h-3 w-3" aria-hidden="true" />
             </Link>
           )}
         </div>

@@ -27,10 +27,6 @@ vi.mock("@/lib/queue/connection", () => ({
 
 // ── BullMQ mock ───────────────────────────────────────────────────
 
-const mockFlowAdd = vi.fn();
-const mockQueueEventsClose = vi.fn().mockResolvedValue(undefined);
-const mockWaitUntilFinished = vi.fn().mockResolvedValue({ outcome: "complete" });
-
 vi.mock("bullmq", () => ({
   Queue: vi.fn().mockImplementation(() => ({
     add: vi.fn(),
@@ -40,16 +36,13 @@ vi.mock("bullmq", () => ({
     (Worker as any).__lastProcessor = processor;
     return { on: vi.fn(), close: vi.fn() };
   }),
-  QueueEvents: vi.fn().mockImplementation(() => ({
-    close: mockQueueEventsClose,
-  })),
   FlowProducer: vi.fn().mockImplementation(() => ({
-    add: mockFlowAdd,
+    add: vi.fn(),
     close: vi.fn(),
   })),
 }));
 
-import { Worker, QueueEvents, FlowProducer } from "bullmq";
+import { Worker } from "bullmq";
 
 // ── Prisma mock ───────────────────────────────────────────────────
 
@@ -115,19 +108,12 @@ vi.mock("@/lib/blueprint/verifier", () => ({
   ]),
 }));
 
-// ── council-queues mock ───────────────────────────────────────────
+// ── council dispatch mock ──────────────────────────────────────────
 
-const mockGetCouncilFlowProducer = vi.fn(() => ({
-  add: mockFlowAdd,
-  close: vi.fn(),
-}));
+const mockDispatchCouncilReview = vi.fn().mockResolvedValue(true);
 
-vi.mock("@/lib/queue/council-queues", () => ({
-  getCouncilFlowProducer: () => mockGetCouncilFlowProducer(),
-  getCouncilReviewerQueue: vi.fn(),
-  getCouncilAggregatorQueue: vi.fn(),
-  createCouncilReviewerWorker: vi.fn(),
-  createCouncilAggregatorWorker: vi.fn(),
+vi.mock("@/lib/council/dispatch", () => ({
+  dispatchCouncilReview: (...args: unknown[]) => mockDispatchCouncilReview(...args),
 }));
 
 // ── Imports under test ────────────────────────────────────────────
@@ -202,14 +188,8 @@ describe("Task-queue council step (step 13)", () => {
     mockTaskFindUnique.mockResolvedValue({ councilSize: 3 });
     mockTaskUpdate.mockResolvedValue({});
 
-    // Default FlowProducer: returns a flow with a job that resolves
-    mockFlowAdd.mockResolvedValue({
-      job: {
-        waitUntilFinished: mockWaitUntilFinished,
-      },
-    });
-    mockWaitUntilFinished.mockResolvedValue({ outcome: "complete" });
-    mockQueueEventsClose.mockResolvedValue(undefined);
+    // Default: dispatch resolves successfully
+    mockDispatchCouncilReview.mockResolvedValue(true);
 
     // Default: verifier blueprint also returns success (no prUrl) so it doesn't
     // interfere; overridden per test when needed
@@ -243,58 +223,23 @@ describe("Task-queue council step (step 13)", () => {
 
   // ── Happy path ────────────────────────────────────────────────────
 
-  it("fires FlowProducer.add() with 1 parent + N children when prUrl and councilSize > 0", async () => {
+  it("calls dispatchCouncilReview with correct params when prUrl is set", async () => {
     const client = makeMockCoderClient();
     createTaskWorker(client);
     const processor = getProcessor();
 
     await processor({ id: "job-1", data: fakeJobData });
 
-    expect(mockFlowAdd).toHaveBeenCalledOnce();
-    const flowCall = mockFlowAdd.mock.calls[0][0];
-
-    // Parent (aggregator) shape
-    expect(flowCall).toMatchObject({
-      name: expect.stringContaining("aggregator"),
-      queueName: "council-aggregator",
-      data: expect.objectContaining({
-        taskId: fakeJobData.taskId,
-        councilSize: 3,
-        prUrl: "https://github.com/test/repo/pull/1",
-      }),
+    expect(mockDispatchCouncilReview).toHaveBeenCalledOnce();
+    expect(mockDispatchCouncilReview).toHaveBeenCalledWith({
+      taskId: fakeJobData.taskId,
+      prUrl: "https://github.com/test/repo/pull/1",
+      repoUrl: fakeJobData.repoUrl,
+      branchName: fakeJobData.branchName,
     });
-
-    // Children array: 3 reviewers
-    expect(flowCall.children).toHaveLength(3);
-    for (let i = 0; i < 3; i++) {
-      expect(flowCall.children[i]).toMatchObject({
-        queueName: "council-reviewer",
-        data: expect.objectContaining({
-          taskId: fakeJobData.taskId,
-          reviewerIndex: i,
-          prUrl: "https://github.com/test/repo/pull/1",
-          repoUrl: fakeJobData.repoUrl,
-          branchName: fakeJobData.branchName,
-        }),
-        opts: expect.objectContaining({ failParentOnFailure: false }),
-      });
-    }
   });
 
-  it("fire-and-forget: does not block on QueueEvents", async () => {
-    const client = makeMockCoderClient();
-    createTaskWorker(client);
-    const processor = getProcessor();
-
-    await processor({ id: "job-2", data: fakeJobData });
-
-    // After fire-and-forget change, no QueueEvents should be created
-    expect(QueueEvents).not.toHaveBeenCalled();
-  });
-
-  // ── No-op guards ──────────────────────────────────────────────────
-
-  it("is a no-op when prUrl is null (blueprint did not create a PR)", async () => {
+  it("does not call dispatchCouncilReview when prUrl is null", async () => {
     // Override: worker blueprint does NOT set prUrl
     mockRunBlueprint.mockImplementation(async (_steps: any[], _ctx: any) => ({
       success: true,
@@ -308,49 +253,16 @@ describe("Task-queue council step (step 13)", () => {
 
     await processor({ id: "job-3", data: fakeJobData });
 
-    expect(mockFlowAdd).not.toHaveBeenCalled();
-  });
-
-  it("is a no-op when CODER_COUNCIL_TEMPLATE_ID is not set", async () => {
-    delete process.env.CODER_COUNCIL_TEMPLATE_ID;
-
-    const client = makeMockCoderClient();
-    createTaskWorker(client);
-    const processor = getProcessor();
-
-    await processor({ id: "job-4", data: fakeJobData });
-
-    expect(mockFlowAdd).not.toHaveBeenCalled();
-  });
-
-  it("is a no-op when councilSize is 0", async () => {
-    mockTaskFindUnique.mockResolvedValue({ councilSize: 0 });
-
-    const client = makeMockCoderClient();
-    createTaskWorker(client);
-    const processor = getProcessor();
-
-    await processor({ id: "job-5", data: fakeJobData });
-
-    expect(mockFlowAdd).not.toHaveBeenCalled();
-  });
-
-  it("is a no-op when councilSize is null", async () => {
-    mockTaskFindUnique.mockResolvedValue({ councilSize: null });
-
-    const client = makeMockCoderClient();
-    createTaskWorker(client);
-    const processor = getProcessor();
-
-    await processor({ id: "job-6", data: fakeJobData });
-
-    expect(mockFlowAdd).not.toHaveBeenCalled();
+    // dispatch is called with empty prUrl — it returns false internally
+    expect(mockDispatchCouncilReview).toHaveBeenCalledWith(
+      expect.objectContaining({ prUrl: "" }),
+    );
   });
 
   // ── Failure tolerance (D015) ──────────────────────────────────────
 
-  it("council FlowProducer.add() failure does not change task status — stays done", async () => {
-    mockFlowAdd.mockRejectedValue(new Error("Redis connection refused"));
+  it("dispatch failure does not change task status — stays done (D015)", async () => {
+    mockDispatchCouncilReview.mockRejectedValue(new Error("Redis connection refused"));
 
     const client = makeMockCoderClient();
     createTaskWorker(client);
@@ -367,8 +279,8 @@ describe("Task-queue council step (step 13)", () => {
     expect(doneCall).toBeDefined();
   });
 
-  it("council FlowProducer.add() failure does not change task status (D015)", async () => {
-    mockFlowAdd.mockRejectedValue(new Error("Redis connection lost"));
+  it("dispatch error is caught and logged, task status unchanged", async () => {
+    mockDispatchCouncilReview.mockRejectedValue(new Error("Network error"));
 
     const client = makeMockCoderClient();
     createTaskWorker(client);
@@ -378,34 +290,5 @@ describe("Task-queue council step (step 13)", () => {
 
     const statusCalls = mockTaskUpdate.mock.calls.map((c) => c[0].data?.status).filter(Boolean);
     expect(statusCalls).not.toContain("failed");
-  });
-
-  it("council db.task.findUnique() failure does not affect task status", async () => {
-    mockTaskFindUnique.mockRejectedValue(new Error("DB connection lost"));
-
-    const client = makeMockCoderClient();
-    createTaskWorker(client);
-    const processor = getProcessor();
-
-    await expect(processor({ id: "job-9", data: fakeJobData })).resolves.not.toThrow();
-
-    expect(mockFlowAdd).not.toHaveBeenCalled();
-    const statusCalls = mockTaskUpdate.mock.calls.map((c) => c[0].data?.status).filter(Boolean);
-    expect(statusCalls).not.toContain("failed");
-  });
-
-  it("council dispatch logs flow job ID", async () => {
-    const consoleSpy = vi.spyOn(console, "log");
-
-    const client = makeMockCoderClient();
-    createTaskWorker(client);
-    const processor = getProcessor();
-
-    await processor({ id: "job-10", data: fakeJobData });
-
-    expect(consoleSpy).toHaveBeenCalledWith(
-      expect.stringContaining("Council review dispatched"),
-    );
-    consoleSpy.mockRestore();
   });
 });

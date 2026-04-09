@@ -30,13 +30,16 @@ export interface VerificationReport {
  * Runtime type guard for VerificationReport.
  * Validates the shape of Prisma's Json? column before rendering.
  */
-export function isVerificationReport(v: unknown): v is VerificationReport {
-  if (typeof v !== "object" || v === null) return false;
-  const obj = v as Record<string, unknown>;
+export function isVerificationReport(value: unknown): value is VerificationReport {
+  if (typeof value !== "object" || value === null) return false;
   return (
-    typeof obj.strategy === "string" &&
-    typeof obj.outcome === "string" &&
-    typeof obj.durationMs === "number" &&
-    typeof obj.timestamp === "string"
+    "strategy" in value &&
+    typeof value.strategy === "string" &&
+    "outcome" in value &&
+    typeof value.outcome === "string" &&
+    "durationMs" in value &&
+    typeof value.durationMs === "number" &&
+    "timestamp" in value &&
+    typeof value.timestamp === "string"
   );
 }

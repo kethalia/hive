@@ -52,7 +52,7 @@ export default function NewTaskPage() {
       );
     }
 
-    const councilSize = parseInt(formData.get("councilSize") as string, 10) || 3;
+    const councilSize = Number(formData.get("councilSize")) || 3;
     execute({ prompt, repoUrl, attachments, councilSize });
   }
 
@@ -110,19 +110,24 @@ export default function NewTaskPage() {
                 </FieldError>
               </Field>
 
-              <Field>
+              <Field data-invalid={!!validationErrors?.councilSize}>
                 <FieldLabel htmlFor="councilSize">Council Size</FieldLabel>
                 <Input
                   id="councilSize"
                   name="councilSize"
                   type="number"
+                  inputMode="numeric"
                   min={1}
                   max={7}
+                  step={1}
                   defaultValue={3}
                 />
                 <FieldDescription>
                   Number of independent reviewers (1–7).
                 </FieldDescription>
+                <FieldError>
+                  {validationErrors?.councilSize?._errors?.[0]}
+                </FieldError>
               </Field>
 
               <Field>

@@ -14,7 +14,7 @@ import { createPRStep } from "@/lib/blueprint/steps/pr";
 import { cleanupWorkspace } from "@/lib/workspace/cleanup";
 import { workerWorkspaceName, verifierWorkspaceName } from "@/lib/workspace/naming";
 import { createVerifierBlueprint } from "@/lib/blueprint/verifier";
-import { getCouncilFlowProducer } from "@/lib/queue/council-queues";
+import { dispatchCouncilReview } from "@/lib/council/dispatch";
 import {
   QUEUE_NAME,
   JOB_TIMEOUT_MS,
@@ -22,11 +22,9 @@ import {
   DEFAULT_CLEANUP_GRACE_MS,
   DEFAULT_PI_PROVIDER,
   DEFAULT_PI_MODEL,
-  COUNCIL_AGGREGATOR_QUEUE,
-  COUNCIL_REVIEWER_QUEUE,
 } from "@/lib/constants";
 import type { BlueprintContext } from "@/lib/blueprint/types";
-import type { VerificationReport } from "@/lib/verification/report";
+import type { VerificationReport } from "@/lib/verification/types";
 
 // ── Types ─────────────────────────────────────────────────────────
 
@@ -366,62 +364,12 @@ export function createTaskWorker(coderClient: CoderClient): Worker<TaskJobData> 
 
           // 13. Council review — informational, never affects task status (D015)
           try {
-            const councilTemplateId = process.env.CODER_COUNCIL_TEMPLATE_ID;
-
-            if (ctx.prUrl && councilTemplateId) {
-              // Fetch councilSize from the task record
-              const taskRecord = await db.task.findUnique({
-                where: { id: taskId },
-                select: { councilSize: true },
-              });
-
-              const councilSize = taskRecord?.councilSize ?? 0;
-
-              if (councilSize > 0) {
-                console.log(`[queue] Starting council review for task ${taskId} (councilSize=${councilSize})`);
-
-                const flowProducer = getCouncilFlowProducer();
-
-                // Build reviewer children
-                const children = Array.from({ length: councilSize }, (_, i) => ({
-                  name: `reviewer-${taskId}-${i}`,
-                  queueName: COUNCIL_REVIEWER_QUEUE,
-                  data: {
-                    taskId,
-                    reviewerIndex: i,
-                    prUrl: ctx.prUrl!,
-                    repoUrl,
-                    branchName,
-                  },
-                  opts: { failParentOnFailure: false },
-                }));
-
-                // Add parent aggregator + children atomically
-                const flow = await flowProducer.add({
-                  name: `aggregator-${taskId}`,
-                  queueName: COUNCIL_AGGREGATOR_QUEUE,
-                  data: {
-                    taskId,
-                    councilSize,
-                    prUrl: ctx.prUrl!,
-                  },
-                  children,
-                });
-
-                // Fire-and-forget: council is informational (D015), no need to
-                // block the main worker slot for up to 15 minutes.  The aggregator
-                // job will persist CouncilReport independently when it finishes.
-                console.log(`[queue] Council review dispatched for task ${taskId} (flow=${flow.job.id})`);
-                void flow; // intentional fire-and-forget
-              } else {
-                console.log(`[queue] Council review skipped for task ${taskId} (councilSize=${councilSize})`);
-              }
-            } else {
-              console.log(
-                `[queue] Council review skipped for task ${taskId} ` +
-                  `(prUrl=${ctx.prUrl ?? "null"} templateId=${councilTemplateId ?? "not set"})`,
-              );
-            }
+            await dispatchCouncilReview({
+              taskId,
+              prUrl: ctx.prUrl ?? "",
+              repoUrl,
+              branchName,
+            });
           } catch (councilError) {
             // D015: Council failure is informational — task stays done
             const councilMsg = councilError instanceof Error

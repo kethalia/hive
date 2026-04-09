@@ -30,7 +30,8 @@ export async function postPRComment(prUrl: string, body: string): Promise<string
     return url.length > 0 ? url : null;
   } catch (err) {
     // D015: comment failure is informational — log and return null
-    console.error("[council-aggregator] Failed to post PR comment:", err);
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error(`[council-aggregator] Failed to post PR comment: ${msg}`);
     return null;
   }
 }

@@ -23,8 +23,3 @@ if command -v claude &> /dev/null; then
 else
   echo "WARNING: Claude Code binary not found after install — may need manual installation"
 fi
-
-%{if claude_api_key != ""}
-# API key is set via coder_agent env block — no need to persist to RC files
-export ANTHROPIC_API_KEY="${claude_api_key}"
-%{endif}

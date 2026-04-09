@@ -62,10 +62,11 @@ export function createCouncilReviewStep(): BlueprintStep {
         `[blueprint] council-review: wrote prompt to ${COUNCIL_PROMPT_FILE} (task=${ctx.taskId})`,
       );
 
-      // Invoke Claude with the prompt file content
+      // Invoke Claude with the prompt file via stdin to avoid shell interpolation
+      // of untrusted diff content (the file may contain shell metacharacters)
       const claudeResult = await execInWorkspace(
         ctx.workspaceName,
-        `claude --print "$(cat ${COUNCIL_PROMPT_FILE})"`,
+        `cat ${COUNCIL_PROMPT_FILE} | claude --print -`,
         { timeoutMs: AGENT_TIMEOUT_MS },
       );
 

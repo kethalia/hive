@@ -1,4 +1,4 @@
-import type { VerificationStrategy } from "@/lib/verification/report";
+import type { VerificationStrategy } from "@/lib/verification/types";
 
 /**
  * Shared types for the blueprint execution system.

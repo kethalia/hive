@@ -1,6 +1,6 @@
 import { execInWorkspace } from "@/lib/workspace/exec";
 import { PROJECT_DIR, DEFAULT_TEST_SCRIPT } from "@/lib/constants";
-import type { VerificationStrategy } from "@/lib/verification/report";
+import type { VerificationStrategy } from "@/lib/verification/types";
 import type { BlueprintStep } from "../types";
 
 /**

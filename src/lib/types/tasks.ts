@@ -1,4 +1,4 @@
-import type { VerificationReport } from "@/lib/verification/report";
+import type { VerificationReport } from "@/lib/verification/types";
 
 // ── Task-related types used across dashboard pages ─────────────────
 

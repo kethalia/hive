@@ -1,6 +1,6 @@
 import { execInWorkspace } from "@/lib/workspace/exec";
 import { PROJECT_DIR, TEST_TIMEOUT_MS, SERVER_TIMEOUT_MS, CURL_RETRY_CMD, SCREENSHOT_CMD } from "@/lib/constants";
-import type { VerificationOutcome } from "@/lib/verification/report";
+import type { VerificationOutcome } from "@/lib/verification/types";
 import type { BlueprintStep } from "../types";
 
 /**
