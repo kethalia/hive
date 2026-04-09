@@ -23,6 +23,7 @@ export async function createTask(input: {
   prompt: string;
   repoUrl: string;
   attachments?: Array<{ name: string; data: string; type: string }> | null;
+  councilSize?: number;
 }) {
   const db = getDb();
   const id = uuidv4();
@@ -37,6 +38,7 @@ export async function createTask(input: {
       status: "queued",
       branch: branchName,
       attachments: input.attachments ?? undefined,
+      councilSize: input.councilSize ?? 3,
     },
   });
 

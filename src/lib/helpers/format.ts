@@ -1,4 +1,4 @@
-import type { VerificationOutcome } from "@/lib/verification/report";
+import type { VerificationOutcome } from "@/lib/verification/types";
 
 // ── Shared formatting and display helpers ──────────────────────────
 

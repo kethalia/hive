@@ -12,10 +12,11 @@ const attachmentSchema = z.object({
   type: z.string(),
 });
 
-const createTaskSchema = z.object({
+export const createTaskSchema = z.object({
   prompt: z.string().min(1, "Prompt is required"),
   repoUrl: z.string().url("Must be a valid URL"),
   attachments: z.array(attachmentSchema).optional(),
+  councilSize: z.coerce.number().int().min(1).max(7).default(3),
 });
 
 const getTaskSchema = z.object({
@@ -31,6 +32,7 @@ export const createTaskAction = actionClient
       prompt: parsedInput.prompt,
       repoUrl: parsedInput.repoUrl,
       attachments: parsedInput.attachments ?? null,
+      councilSize: parsedInput.councilSize,
     });
     return task;
   });

@@ -2,7 +2,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import React from "react";
 import { render, screen, fireEvent, cleanup } from "@testing-library/react";
-import type { VerificationReport } from "@/lib/verification/report";
+import type { VerificationReport } from "@/lib/verification/types";
 import { outcomeVariant, formatDuration } from "@/lib/helpers/format";
 vi.mock("next/link", () => ({
   default: ({ children, ...props }: { children: React.ReactNode; href: string }) =>

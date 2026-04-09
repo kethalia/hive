@@ -50,6 +50,7 @@ vi.mock("@/lib/db", () => ({
 // ── Import under test ────────────────────────────────────────────
 
 import { createTask } from "@/lib/api/tasks";
+import { createTaskSchema } from "@/lib/actions/tasks";
 
 // ── Tests ─────────────────────────────────────────────────────────
 
@@ -116,5 +117,84 @@ describe("createTask attachments handling", () => {
     // Verify Prisma create was NOT passed attachments (undefined omitted)
     const createCall = mockTaskCreate.mock.calls[0][0];
     expect(createCall.data.attachments).toBeUndefined();
+  });
+});
+
+describe("createTask councilSize handling", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockTaskCreate.mockResolvedValue({
+      id: "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
+      prompt: "Fix bug",
+      repoUrl: "https://github.com/test/repo",
+      status: "queued",
+      branch: "hive/aaaaaaaa/fix-bug",
+      attachments: null,
+      councilSize: 3,
+      prUrl: null,
+      errorMessage: null,
+      createdAt: new Date("2026-01-01"),
+      updatedAt: new Date("2026-01-01"),
+    });
+  });
+
+  it("passes councilSize to prisma create", async () => {
+    await createTask({
+      prompt: "Fix bug",
+      repoUrl: "https://github.com/test/repo",
+      councilSize: 5,
+    });
+
+    expect(mockTaskCreate).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        councilSize: 5,
+      }),
+    });
+  });
+
+  it("defaults councilSize to 3 when not provided", async () => {
+    await createTask({
+      prompt: "Fix bug",
+      repoUrl: "https://github.com/test/repo",
+    });
+
+    expect(mockTaskCreate).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        councilSize: 3,
+      }),
+    });
+  });
+});
+
+describe("createTaskSchema councilSize validation", () => {
+  const baseInput = {
+    prompt: "Fix bug",
+    repoUrl: "https://github.com/test/repo",
+  };
+
+  it("rejects councilSize below 1", () => {
+    const result = createTaskSchema.safeParse({ ...baseInput, councilSize: 0 });
+    expect(result.success).toBe(false);
+  });
+
+  it("rejects councilSize above 7", () => {
+    const result = createTaskSchema.safeParse({ ...baseInput, councilSize: 8 });
+    expect(result.success).toBe(false);
+  });
+
+  it("accepts councilSize within bounds", () => {
+    const result = createTaskSchema.safeParse({ ...baseInput, councilSize: 5 });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.councilSize).toBe(5);
+    }
+  });
+
+  it("defaults councilSize to 3 when not supplied", () => {
+    const result = createTaskSchema.safeParse(baseInput);
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.councilSize).toBe(3);
+    }
   });
 });

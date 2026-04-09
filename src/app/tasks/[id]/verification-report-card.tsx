@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import type { VerificationReport } from "@/lib/verification/report";
+import type { VerificationReport } from "@/lib/verification/types";
 import { outcomeVariant, formatDuration, formatTimestamp } from "@/lib/helpers/format";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";

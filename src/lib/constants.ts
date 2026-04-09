@@ -19,6 +19,9 @@ export const CONTEXT_FILE = "/tmp/hive-context.md";
 /** Prompt file piped to the agent via base64. */
 export const PROMPT_FILE = "/tmp/hive-prompt.txt";
 
+/** Council review prompt file piped to Claude via base64. */
+export const COUNCIL_PROMPT_FILE = "/tmp/hive-council-prompt.txt";
+
 /** Commit message file used by git commit -F. */
 export const COMMIT_MSG_FILE = "/tmp/hive-commit-msg.txt";
 
@@ -75,6 +78,15 @@ export const CI_MAX_ROUNDS = 2;
 
 /** BullMQ queue name for task dispatch. */
 export const QUEUE_NAME = "task-dispatch";
+
+/** BullMQ queue name for council reviewer jobs. */
+export const COUNCIL_REVIEWER_QUEUE = "council-reviewer";
+
+/** BullMQ queue name for council aggregator jobs. */
+export const COUNCIL_AGGREGATOR_QUEUE = "council-aggregator";
+
+/** Per-reviewer job timeout — 15 minutes to accommodate agent execution. */
+export const COUNCIL_JOB_TIMEOUT_MS = 15 * 60 * 1_000;
 
 // ── Dashboard ──────────────────────────────────────────────────────
 

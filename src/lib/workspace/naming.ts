@@ -13,3 +13,11 @@ export function workerWorkspaceName(taskId: string): string {
 export function verifierWorkspaceName(taskId: string): string {
   return `hive-verifier-${taskId.slice(0, 8)}`;
 }
+
+/**
+ * Derive the Coder workspace name for a council reviewer.
+ * reviewerIndex is 0-based and appended directly (e.g. index 0 → suffix "-0").
+ */
+export function councilWorkspaceName(taskId: string, reviewerIndex: number): string {
+  return `hive-council-${taskId.slice(0, 8)}-${reviewerIndex}`;
+}

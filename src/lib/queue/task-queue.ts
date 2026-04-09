@@ -14,6 +14,7 @@ import { createPRStep } from "@/lib/blueprint/steps/pr";
 import { cleanupWorkspace } from "@/lib/workspace/cleanup";
 import { workerWorkspaceName, verifierWorkspaceName } from "@/lib/workspace/naming";
 import { createVerifierBlueprint } from "@/lib/blueprint/verifier";
+import { dispatchCouncilReview } from "@/lib/council/dispatch";
 import {
   QUEUE_NAME,
   JOB_TIMEOUT_MS,
@@ -23,7 +24,7 @@ import {
   DEFAULT_PI_MODEL,
 } from "@/lib/constants";
 import type { BlueprintContext } from "@/lib/blueprint/types";
-import type { VerificationReport } from "@/lib/verification/report";
+import type { VerificationReport } from "@/lib/verification/types";
 
 // ── Types ─────────────────────────────────────────────────────────
 
@@ -359,6 +360,22 @@ export function createTaskWorker(coderClient: CoderClient): Worker<TaskJobData> 
             console.log(`[task] Task ${taskId} status → done (verifier template not configured)`);
           } else {
             console.log(`[task] Task ${taskId} status → done (${result.totalDurationMs}ms)`);
+          }
+
+          // 13. Council review — informational, never affects task status (D015)
+          try {
+            await dispatchCouncilReview({
+              taskId,
+              prUrl: ctx.prUrl ?? "",
+              repoUrl,
+              branchName,
+            });
+          } catch (councilError) {
+            // D015: Council failure is informational — task stays done
+            const councilMsg = councilError instanceof Error
+              ? councilError.message
+              : String(councilError);
+            console.error(`[queue] Council review failed for task ${taskId}: ${councilMsg}`);
           }
         } else {
           // Find the failed step for the error message

@@ -1,4 +1,4 @@
-import type { VerificationReport, VerificationStrategy, VerificationOutcome } from "@/lib/verification/report";
+import type { VerificationReport, VerificationStrategy, VerificationOutcome } from "@/lib/verification/types";
 import type { BlueprintStep } from "../types";
 
 /**
