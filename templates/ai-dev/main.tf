@@ -102,11 +102,28 @@ data "coder_parameter" "claude_code_api_key" {
 data "coder_parameter" "claude_code_model" {
   name         = "claude_code_model"
   display_name = "Claude Code Model"
-  description  = "Model for Claude Code (e.g. claude-sonnet-4-5, claude-opus-4-6). Leave empty for default."
+  description  = "Model for Claude Code."
   type         = "string"
-  default      = ""
+  default      = "claude-opus-4-5"
   mutable      = true
   order        = 7
+
+  option {
+    name  = "Claude Opus 4.5 (Recommended)"
+    value = "claude-opus-4-5"
+  }
+  option {
+    name  = "Claude Opus 4.6"
+    value = "claude-opus-4-6"
+  }
+  option {
+    name  = "Claude Sonnet 4.5"
+    value = "claude-sonnet-4-5"
+  }
+  option {
+    name  = "Claude Haiku 3.5"
+    value = "claude-haiku-3-5"
+  }
 }
 
 data "coder_parameter" "claude_code_system_prompt" {
@@ -194,7 +211,9 @@ resource "coder_agent" "main" {
       EXTENSIONS_GALLERY  = "{\"serviceUrl\":\"https://marketplace.visualstudio.com/_apis/public/gallery\"}"
       VAULT_REPO          = data.coder_parameter.vault_repo.value
     },
-    data.coder_parameter.claude_code_api_key.value != "" ? { ANTHROPIC_API_KEY = data.coder_parameter.claude_code_api_key.value } : {}
+    data.coder_parameter.claude_code_api_key.value != "" ? { ANTHROPIC_API_KEY = data.coder_parameter.claude_code_api_key.value } : {},
+    data.coder_parameter.claude_code_model.value != "" ? { CLAUDE_CODE_DEFAULT_MODEL = data.coder_parameter.claude_code_model.value } : {},
+    data.coder_parameter.claude_code_system_prompt.value != "" ? { CLAUDE_CODE_SYSTEM_PROMPT = data.coder_parameter.claude_code_system_prompt.value } : {}
   )
 
   metadata {
