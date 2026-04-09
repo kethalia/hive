@@ -61,8 +61,9 @@ export function TemplatesClient({ initialStatuses }: TemplatesClientProps) {
 
   // writeRef per template — populated when TerminalPanel mounts
   const writeRefs = useRef<Record<string, React.MutableRefObject<((line: string) => void) | null>>>({});
-  // Buffer lines that arrive before the terminal is ready
-  const lineBuffers = useRef<Record<string, string[]>>({});
+  // All lines ever received for a push, keyed by template name.
+  // Kept in a ref so TerminalPanel can replay them on mount regardless of timing.
+  const lineHistory = useRef<Record<string, string[]>>({});
 
   // Get or create a writeRef for a template
   function getWriteRef(name: string): React.MutableRefObject<((line: string) => void) | null> {
@@ -72,31 +73,20 @@ export function TemplatesClient({ initialStatuses }: TemplatesClientProps) {
     return writeRefs.current[name];
   }
 
-  // Called by TerminalPanel once xterm is ready — flush any buffered lines.
-  // Uses a small setTimeout(0) to yield to React's paint cycle first, ensuring
-  // the terminal DOM is fully visible before writing (avoids xterm sizing glitches).
+  // Called by TerminalPanel once xterm is ready — replay full history so far.
   const handleTerminalReady = useCallback((name: string) => {
-    setTimeout(() => {
-      const buffered = lineBuffers.current[name] ?? [];
-      delete lineBuffers.current[name];
-      const write = writeRefs.current[name]?.current;
-      if (write) {
-        for (const line of buffered) {
-          write(line);
-        }
-      }
-    }, 0);
+    const write = writeRefs.current[name]?.current;
+    if (!write) return;
+    for (const line of lineHistory.current[name] ?? []) {
+      write(line);
+    }
   }, []);
 
-  // Write a line to the terminal, buffering if not yet ready
+  // Record a line to history and write to terminal if ready
   function writeLine(name: string, line: string) {
-    const write = writeRefs.current[name]?.current;
-    if (write) {
-      write(line);
-    } else {
-      if (!lineBuffers.current[name]) lineBuffers.current[name] = [];
-      lineBuffers.current[name].push(line);
-    }
+    if (!lineHistory.current[name]) lineHistory.current[name] = [];
+    lineHistory.current[name].push(line);
+    writeRefs.current[name]?.current?.(line);
   }
 
   // ── Status polling ─────────────────────────────────────────────
@@ -120,7 +110,8 @@ export function TemplatesClient({ initialStatuses }: TemplatesClientProps) {
   // ── Push flow ──────────────────────────────────────────────────
 
   const handlePush = useCallback(async (name: string) => {
-    // Start push
+    // Start push — clear previous output history for this template
+    lineHistory.current[name] = [];
     setPushStates((prev) => ({
       ...prev,
       [name]: { jobId: null, inProgress: true, result: null, terminalOpen: true },
