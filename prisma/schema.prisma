@@ -33,6 +33,8 @@ model Task {
   prUrl        String?    @map("pr_url")
   errorMessage       String?    @map("error_message")
   verificationReport Json?      @map("verification_report")
+  councilSize        Int        @default(3) @map("council_size")
+  councilReport      Json?      @map("council_report")
   attachments        Json?
   createdAt    DateTime   @default(now()) @map("created_at") @db.Timestamptz
   updatedAt    DateTime   @default(now()) @updatedAt @map("updated_at") @db.Timestamptz

@@ -105,7 +105,7 @@ const mockCreateVerifierBlueprint = vi.fn(() => [
   { name: "verify-report", execute: vi.fn() },
 ]);
 vi.mock("@/lib/blueprint/verifier", () => ({
-  createVerifierBlueprint: (...args: unknown[]) => mockCreateVerifierBlueprint(...args),
+  createVerifierBlueprint: () => mockCreateVerifierBlueprint(),
 }));
 // ── Imports under test ────────────────────────────────────────────
 

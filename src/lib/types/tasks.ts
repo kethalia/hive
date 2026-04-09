@@ -42,6 +42,8 @@ export interface TaskWithRelations extends Task {
   workspaces: TaskWorkspace[];
   logs: TaskLog[];
   verificationReport: VerificationReport | null;
+  councilReport: unknown;
+  councilSize: number;
 }
 
 /** Task statuses considered "in progress" — used for polling decisions. */

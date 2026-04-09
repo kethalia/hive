@@ -32,6 +32,10 @@ export interface BlueprintContext {
   verificationStrategy?: VerificationStrategy;
   /** Structured verification report JSON (set during verify-report step). */
   verificationReport?: string;
+  /** Git diff output from council-diff step (set during council-diff step). */
+  councilDiff?: string;
+  /** Raw Claude JSON output from council-review step (set during council-review step). */
+  councilFindings?: string;
 }
 
 /** Outcome of a single blueprint step execution. */
