@@ -101,24 +101,25 @@ echo "Starting workspace services..."
 
 # Clone or pull vault on every start
 %{if vault_repo != ""}
-VAULT_REPO_URL="${vault_repo}"
-GH_TOKEN="${github_token}"
-# Convert SSH URLs to HTTPS with token auth
-# e.g. git@github.com:org/repo.git -> https://<token>@github.com/org/repo.git
-if echo "$VAULT_REPO_URL" | grep -q "^git@github.com:"; then
-  REPO_PATH=$(echo "$VAULT_REPO_URL" | sed 's|git@github.com:||' | sed 's|\.git$$||')
-  if [ -n "$GH_TOKEN" ]; then
-    VAULT_REPO_URL="https://$GH_TOKEN@github.com/$REPO_PATH.git"
-  else
-    VAULT_REPO_URL="https://github.com/$REPO_PATH.git"
-  fi
-fi
+VAULT_REPO="${vault_repo}"
 if [ ! -d ~/vault/.git ]; then
   echo "Cloning Obsidian vault..."
-  git clone "$VAULT_REPO_URL" ~/vault || echo "WARNING: vault clone failed — check repo URL and GitHub auth"
+  # Build HTTPS URL with token from gh CLI auth store
+  if echo "$VAULT_REPO" | grep -q "github.com"; then
+    REPO_PATH=$(echo "$VAULT_REPO" | sed 's|.*github.com[:/]||' | sed 's|\.git$||')
+    GH_TOKEN=$(gh auth token 2>/dev/null || echo "")
+    if [ -n "$GH_TOKEN" ]; then
+      git clone "https://x-access-token:$GH_TOKEN@github.com/$REPO_PATH.git" ~/vault \
+        && echo "Vault cloned successfully" \
+        || echo "WARNING: vault clone failed"
+    else
+      git clone "$VAULT_REPO" ~/vault || echo "WARNING: vault clone failed"
+    fi
+  else
+    git clone "$VAULT_REPO" ~/vault || echo "WARNING: vault clone failed"
+  fi
 else
   echo "Pulling vault updates..."
-  git -C ~/vault remote set-url origin "$VAULT_REPO_URL" 2>/dev/null || true
   git -C ~/vault pull --ff-only 2>/dev/null || true
 fi
 %{endif}
