@@ -91,15 +91,16 @@ RUN curl -fsSL https://deb.nodesource.com/setup_24.x | bash - \
     && corepack enable
 
 # Install Claude CLI
-# MUST use bash, not sh — dash cannot parse the installer
-RUN curl -fsSL https://claude.ai/install.sh | bash
+# Installer places binary at /root/.claude/local/bin/claude — symlink to /usr/local/bin
+# so it is on PATH for all users, including coder.
+RUN curl -fsSL https://claude.ai/install.sh | bash \
+    && ln -sf /root/.claude/local/bin/claude /usr/local/bin/claude
 
-# Install Obsidian (latest release) and its Electron dependencies
-# obsidian_1.12.7_amd64.deb — pinned to latest confirmed release tag v1.12.7
+# Install Obsidian (pinned to v1.12.7) and its Electron dependencies
 RUN curl -fsSL -o /tmp/obsidian.deb \
         https://github.com/obsidianmd/obsidian-releases/releases/download/v1.12.7/obsidian_1.12.7_amd64.deb \
     && apt-get update \
-    && apt-get install --yes -f /tmp/obsidian.deb \
+    && apt-get install --yes /tmp/obsidian.deb \
     && rm -f /tmp/obsidian.deb \
     && rm -rf /var/lib/apt/lists/*
 
@@ -111,30 +112,37 @@ RUN wget -qO /tmp/notesmd-cli.tar.gz \
     && chmod +x /usr/local/bin/notesmd-cli \
     && rm -f /tmp/notesmd-cli.tar.gz
 
-# Install act (run GitHub Actions locally)
+# Install act v0.2.74 (run GitHub Actions locally) — pinned for reproducibility
+ENV ACT_VERSION=0.2.74
 RUN wget -qO /tmp/act.tar.gz \
-        https://github.com/nektos/act/releases/latest/download/act_Linux_x86_64.tar.gz \
+        https://github.com/nektos/act/releases/download/v${ACT_VERSION}/act_Linux_x86_64.tar.gz \
     && tar xf /tmp/act.tar.gz -C /usr/local/bin act \
     && chmod +x /usr/local/bin/act \
     && rm -f /tmp/act.tar.gz
 
 # Setup docker-compose symlink
-RUN systemctl enable docker || true
 RUN ln -sf /usr/libexec/docker/cli-plugins/docker-compose /usr/bin/docker-compose
 
-# Setup locale
-RUN locale-gen en_US.UTF-8
+# Setup locale — enable en_US.UTF-8 in /etc/locale.gen before generating
+# (Debian comments it out by default; locale-gen is a no-op without this)
+RUN sed -i 's/^# *\(en_US.UTF-8 UTF-8\)$/\1/' /etc/locale.gen \
+    && locale-gen en_US.UTF-8
 ENV LANG=en_US.UTF-8
 ENV LANGUAGE=en_US.UTF-8
 ENV LC_ALL=en_US.UTF-8
 
-# Bake Openbox desktop config (system-wide — survives volume mounts on /home/coder)
-RUN mkdir -p /etc/xdg/openbox \
-    && cat > /etc/xdg/openbox/autostart << 'XDGEOF'
+# Bake Openbox desktop config at /etc/xdg/ (system-wide — survives /home/coder volume mounts)
+# Note: each heredoc is its own RUN — chaining heredocs with && in a single RUN
+# causes a Dockerfile parse error because the line after the closing delimiter is
+# treated as a new instruction, not a shell continuation.
+RUN mkdir -p /etc/xdg/openbox
+
+RUN cat > /etc/xdg/openbox/autostart << 'XDGEOF'
 # Autostart Obsidian with vault
 /usr/bin/obsidian --no-sandbox --disable-gpu-sandbox /home/coder/vault &
 XDGEOF
-    && cat > /etc/xdg/openbox/menu.xml << 'XDGEOF'
+
+RUN cat > /etc/xdg/openbox/menu.xml << 'XDGEOF'
 <?xml version="1.0" encoding="UTF-8"?>
 <openbox_menu xmlns="http://openbox.org/3.4/menu">
   <menu id="root-menu" label="Desktop">
@@ -151,7 +159,8 @@ XDGEOF
   </menu>
 </openbox_menu>
 XDGEOF
-    && chmod 644 /etc/xdg/openbox/autostart /etc/xdg/openbox/menu.xml
+
+RUN chmod 644 /etc/xdg/openbox/autostart /etc/xdg/openbox/menu.xml
 
 # Create coder user with proper groups
 # ssl-cert group is REQUIRED for KasmVNC (TLS cert access)
