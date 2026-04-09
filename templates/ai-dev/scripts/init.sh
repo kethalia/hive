@@ -107,21 +107,19 @@ fi
 
 if [ -n "$EFFECTIVE_VAULT_REPO" ]; then
   # Clone or pull
+  # Move aside any non-git vault dir from a previous failed attempt
+  if [ -d ~/vault ] && [ ! -d ~/vault/.git ]; then
+    echo "Moving non-git ~/vault aside..."
+    mv ~/vault ~/vault-bak-$(date +%s) 2>/dev/null || rm -rf ~/vault
+  fi
+
   if [ ! -d ~/vault/.git ]; then
-    # If ~/vault exists but isn't a git repo, move it aside
-    if [ -d ~/vault ] && [ ! -d ~/vault/.git ]; then
-      echo "Moving non-git ~/vault aside..."
-      mv ~/vault ~/vault-bak-$(date +%s) 2>/dev/null || rm -rf ~/vault
-    fi
     echo "Cloning Obsidian vault..."
-    GH_TOKEN=$(gh auth token 2>/dev/null || echo "")
-    if [ -n "$GH_TOKEN" ] && echo "$EFFECTIVE_VAULT_REPO" | grep -q "github.com"; then
-      REPO_PATH=$(echo "$EFFECTIVE_VAULT_REPO" | sed 's|.*github.com[:/]||' | sed 's|\.git$||')
-      git clone "https://x-access-token:$GH_TOKEN@github.com/$REPO_PATH.git" ~/vault \
-        && echo "Vault cloned" || echo "WARNING: vault clone failed"
-    else
-      git clone "$EFFECTIVE_VAULT_REPO" ~/vault || echo "WARNING: vault clone failed"
-    fi
+    # Convert SSH URL to HTTPS — Coder's GIT_ASKPASS handles auth automatically
+    CLONE_URL=$(echo "$EFFECTIVE_VAULT_REPO" | sed 's|git@github.com:|https://github.com/|')
+    git clone "$CLONE_URL" ~/vault \
+      && echo "Vault cloned successfully" \
+      || echo "WARNING: vault clone failed"
   else
     echo "Pulling vault updates..."
     git -C ~/vault pull --ff-only 2>/dev/null || true
