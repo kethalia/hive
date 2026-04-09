@@ -83,27 +83,6 @@ data "coder_external_auth" "github" {
 }
 
 # =============================================================================
-# Workspace Preset — Prebuilt Workspace Pool (Requires Coder Premium)
-# =============================================================================
-# Prebuilds maintain a pool of ready-to-claim workspaces, reducing cold-start
-# time from minutes to seconds. The preset provides default parameter values
-# used during prebuild creation (before a real task is assigned).
-# Without Coder Premium, this block is inert but validates correctly.
-
-data "coder_workspace_preset" "hive-council" {
-  name = "hive-council"
-  parameters = {
-    task_id     = ""
-    repo_url    = ""
-    branch_name = ""
-  }
-
-  prebuilds {
-    instances = 1
-  }
-}
-
-# =============================================================================
 # Coder Agent
 # =============================================================================
 
@@ -325,22 +304,13 @@ resource "docker_volume" "home_volume" {
   }
 }
 
-resource "docker_image" "main" {
-  name = "coder-${data.coder_workspace.me.id}"
-  build {
-    context = "."
-  }
-  triggers = {
-    dir_sha1 = sha1(join("", concat(
-      [for f in sort(fileset(path.module, "Dockerfile")) : filesha1("${path.module}/${f}")],
-      [for f in sort(fileset(path.module, "scripts/*")) : filesha1("${path.module}/${f}")],
-    )))
-  }
+data "docker_image" "main" {
+  name = "ghcr.io/kethalia/hive-base:latest"
 }
 
 resource "docker_container" "workspace" {
   count    = data.coder_workspace.me.start_count
-  image    = docker_image.main.name
+  image    = data.docker_image.main.name
   name     = "coder-${data.coder_workspace_owner.me.name}-${lower(data.coder_workspace.me.name)}"
   hostname = data.coder_workspace.me.name
 
