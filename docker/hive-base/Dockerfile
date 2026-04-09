@@ -2,6 +2,8 @@ FROM debian:trixie
 
 ENV DEBIAN_FRONTEND=noninteractive
 
+# ── Stage 1: system packages (all run as root) ────────────────────────────────
+
 # Base system update
 RUN apt-get update \
     && apt-get upgrade --yes --no-install-recommends \
@@ -12,20 +14,33 @@ RUN apt-get update \
         lsb-release \
     && rm -rf /var/lib/apt/lists/*
 
-# Add Docker's official GPG key (Debian variant)
+# Docker apt repo
 RUN install -m 0755 -d /etc/apt/keyrings \
     && curl -fsSL https://download.docker.com/linux/debian/gpg \
         -o /etc/apt/keyrings/docker.asc \
-    && chmod a+r /etc/apt/keyrings/docker.asc
+    && chmod a+r /etc/apt/keyrings/docker.asc \
+    && echo \
+        "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/debian \
+        $(. /etc/os-release && echo "$VERSION_CODENAME") stable" \
+        | tee /etc/apt/sources.list.d/docker.list > /dev/null
 
-# Add Docker repository (linux/debian, resolves VERSION_CODENAME to trixie)
-RUN echo \
-  "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/debian \
-  $(. /etc/os-release && echo "$VERSION_CODENAME") stable" | \
-  tee /etc/apt/sources.list.d/docker.list > /dev/null
+# NodeSource apt repo (signed key — avoids curl|bash installer)
+RUN install -m 0755 -d /etc/apt/keyrings \
+    && curl -fsSL https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key \
+        | gpg --dearmor -o /etc/apt/keyrings/nodesource.gpg \
+    && chmod a+r /etc/apt/keyrings/nodesource.gpg \
+    && echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/nodesource.gpg] https://deb.nodesource.com/node_24.x nodistro main" \
+        > /etc/apt/sources.list.d/nodesource.list
 
-# Install all packages in a single layer
+# Google Chrome apt repo
+RUN curl -fsSL https://dl.google.com/linux/linux_signing_key.pub \
+        | gpg --dearmor -o /etc/apt/keyrings/google-chrome.gpg \
+    && echo "deb [arch=amd64 signed-by=/etc/apt/keyrings/google-chrome.gpg] https://dl.google.com/linux/chrome/deb/ stable main" \
+        > /etc/apt/sources.list.d/google-chrome.list
+
+# Install all apt packages in one layer
 # Note: trixie ships postgresql 17 natively — no version suffix needed
+# Note: software-properties-common was removed from Debian trixie
 RUN apt-get update \
     && apt-get install --yes --no-install-recommends \
         apt-utils \
@@ -38,13 +53,21 @@ RUN apt-get update \
         docker-buildx-plugin \
         docker-compose-plugin \
         fonts-firacode \
+        fonts-liberation \
+        fonts-noto-color-emoji \
         fonts-powerline \
         git \
+        google-chrome-stable \
         htop \
         jq \
+        libatk-bridge2.0-0 \
+        libgtk-3-0 \
+        libnss3 \
         locales \
         man \
         nano \
+        nodejs \
+        openbox \
         openssh-client \
         postgresql \
         postgresql-contrib \
@@ -56,46 +79,20 @@ RUN apt-get update \
         unzip \
         vim \
         wget \
+        xterm \
         zsh \
+    && corepack enable \
     && rm -rf /var/lib/apt/lists/*
 
-# Add Google Chrome apt repo
-RUN curl -fsSL https://dl.google.com/linux/linux_signing_key.pub \
-        | gpg --dearmor -o /etc/apt/keyrings/google-chrome.gpg \
-    && echo "deb [arch=amd64 signed-by=/etc/apt/keyrings/google-chrome.gpg] https://dl.google.com/linux/chrome/deb/ stable main" \
-        > /etc/apt/sources.list.d/google-chrome.list
-
-# Google Chrome, KasmVNC (trixie build), Openbox, fonts
-# Note: openbox is used as the window manager (lightweight X11 WM, supported by KasmVNC)
-RUN apt-get update \
-    && apt-get install --yes --no-install-recommends \
-        google-chrome-stable \
-        fonts-liberation \
-        fonts-noto-color-emoji \
-        openbox \
-        xterm \
-        libnss3 \
-        libatk-bridge2.0-0 \
-        libgtk-3-0 \
-    && curl -fsSL -o /tmp/kasmvnc.deb \
+# KasmVNC (trixie-specific .deb — separate apt-get update needed after Chrome repo add)
+RUN curl -fsSL -o /tmp/kasmvnc.deb \
         https://github.com/kasmtech/KasmVNC/releases/download/v1.4.0/kasmvncserver_trixie_1.4.0_amd64.deb \
+    && apt-get update \
     && apt-get install --yes /tmp/kasmvnc.deb \
     && rm -f /tmp/kasmvnc.deb \
     && rm -rf /var/lib/apt/lists/*
 
-# Install Node.js 24 via NodeSource (always available, no nvm dependency)
-RUN curl -fsSL https://deb.nodesource.com/setup_24.x | bash - \
-    && apt-get install -y nodejs \
-    && rm -rf /var/lib/apt/lists/* \
-    && corepack enable
-
-# Install Claude CLI
-# Installer places binary at /root/.claude/local/bin/claude — symlink to /usr/local/bin
-# so it is on PATH for all users, including coder.
-RUN curl -fsSL https://claude.ai/install.sh | bash \
-    && ln -sf /root/.claude/local/bin/claude /usr/local/bin/claude
-
-# Install Obsidian (pinned to v1.12.7) and its Electron dependencies
+# Obsidian v1.12.7 (pinned — Electron app, installs to /usr/bin/obsidian)
 RUN curl -fsSL -o /tmp/obsidian.deb \
         https://github.com/obsidianmd/obsidian-releases/releases/download/v1.12.7/obsidian_1.12.7_amd64.deb \
     && apt-get update \
@@ -103,15 +100,14 @@ RUN curl -fsSL -o /tmp/obsidian.deb \
     && rm -f /tmp/obsidian.deb \
     && rm -rf /var/lib/apt/lists/*
 
-# Install notesmd-cli v0.3.4 pre-built binary (linux/amd64)
-ENV NOTESMD_DEFAULT_VAULT=/home/coder/vault
+# notesmd-cli v0.3.4 pre-built binary → /usr/local/bin (available to all users)
 RUN wget -qO /tmp/notesmd-cli.tar.gz \
         https://github.com/Yakitrak/notesmd-cli/releases/download/v0.3.4/notesmd-cli_0.3.4_linux_amd64.tar.gz \
     && tar xf /tmp/notesmd-cli.tar.gz -C /usr/local/bin notesmd-cli \
     && chmod +x /usr/local/bin/notesmd-cli \
     && rm -f /tmp/notesmd-cli.tar.gz
 
-# Install act v0.2.74 (run GitHub Actions locally) — pinned for reproducibility
+# act v0.2.74 (pinned) → /usr/local/bin
 ENV ACT_VERSION=0.2.74
 RUN wget -qO /tmp/act.tar.gz \
         https://github.com/nektos/act/releases/download/v${ACT_VERSION}/act_Linux_x86_64.tar.gz \
@@ -119,10 +115,10 @@ RUN wget -qO /tmp/act.tar.gz \
     && chmod +x /usr/local/bin/act \
     && rm -f /tmp/act.tar.gz
 
-# Setup docker-compose symlink
+# docker-compose symlink
 RUN ln -sf /usr/libexec/docker/cli-plugins/docker-compose /usr/bin/docker-compose
 
-# Setup locale — enable en_US.UTF-8 in /etc/locale.gen before generating
+# Locale — uncomment en_US.UTF-8 in /etc/locale.gen before generating
 # (Debian comments it out by default; locale-gen is a no-op without this)
 RUN sed -i 's/^# *\(en_US.UTF-8 UTF-8\)$/\1/' /etc/locale.gen \
     && locale-gen en_US.UTF-8
@@ -130,14 +126,12 @@ ENV LANG=en_US.UTF-8
 ENV LANGUAGE=en_US.UTF-8
 ENV LC_ALL=en_US.UTF-8
 
-# Bake Openbox desktop config at /etc/xdg/ (system-wide — survives /home/coder volume mounts)
-# Note: each heredoc is its own RUN — chaining heredocs with && in a single RUN
-# causes a Dockerfile parse error because the line after the closing delimiter is
-# treated as a new instruction, not a shell continuation.
+# Openbox config at /etc/xdg/ — system-wide, survives /home/coder volume mounts
+# Each heredoc must be its own RUN: chaining with && causes a Dockerfile parse
+# error because the line after the closing delimiter is treated as a new instruction.
 RUN mkdir -p /etc/xdg/openbox
 
 RUN cat > /etc/xdg/openbox/autostart << 'XDGEOF'
-# Autostart Obsidian with vault
 /usr/bin/obsidian --no-sandbox --disable-gpu-sandbox /home/coder/vault &
 XDGEOF
 
@@ -161,7 +155,7 @@ XDGEOF
 
 RUN chmod 644 /etc/xdg/openbox/autostart /etc/xdg/openbox/menu.xml
 
-# Create coder user with proper groups
+# Create coder user
 # ssl-cert group is REQUIRED for KasmVNC (TLS cert access)
 RUN (id ubuntu && userdel -r ubuntu || true) \
     && useradd coder \
@@ -172,32 +166,37 @@ RUN (id ubuntu && userdel -r ubuntu || true) \
         --user-group \
     && echo "coder ALL=(ALL) NOPASSWD:ALL" >>/etc/sudoers.d/nopasswd
 
+# ── Stage 2: user-scoped installs (run as coder) ──────────────────────────────
+
 USER coder
 WORKDIR /home/coder
 
-# Create common directories including vault for notesmd-cli
+# Claude CLI — installed as coder so it lands in ~/.claude/local/bin (user-owned)
+# ENV PATH picks it up for non-interactive contexts (docker run, coder_script)
+RUN curl -fsSL https://claude.ai/install.sh | bash
+ENV PATH="/home/coder/.claude/local/bin:${PATH}"
+
+ENV NOTESMD_DEFAULT_VAULT=/home/coder/vault
+
+# Common directories
 RUN mkdir -p ~/projects ~/bin ~/.config ~/.ssh ~/.local/bin ~/vault
 
-# Setup Obsidian CLI mode (headless)
+# Obsidian headless CLI mode
 RUN mkdir -p ~/.config/obsidian \
     && echo '{"cli": true}' > ~/.config/obsidian/obsidian.json
 
-# Setup basic git configuration that can be overridden
+# Git defaults
 RUN git config --global init.defaultBranch main \
     && git config --global pull.rebase false \
     && git config --global core.editor vim
 
-# Setup .zshenv for PATH and env vars (survives Oh My Zsh .zshrc replacement)
-# .zshenv is sourced by ALL zsh invocations (interactive, non-interactive, login, non-login)
-RUN echo '# Tool PATH (set in .zshenv so it survives Oh My Zsh .zshrc replacement)' > ~/.zshenv \
-    && echo 'export PATH="$HOME/.claude/local/bin:$HOME/.local/bin:$HOME/.opencode/bin:$HOME/.local/share/pnpm:$HOME/.bun/bin:$HOME/.foundry/bin:$HOME/bin:$PATH"' >> ~/.zshenv \
-    && echo '' >> ~/.zshenv \
-    && echo '# PostgreSQL' >> ~/.zshenv \
+# .zshenv — sourced by all zsh invocations (interactive, non-interactive, login, non-login)
+# Keeps PATH correct even after Oh My Zsh overwrites .zshrc
+RUN echo 'export PATH="$HOME/.claude/local/bin:$HOME/.local/bin:$HOME/.opencode/bin:$HOME/.local/share/pnpm:$HOME/.bun/bin:$HOME/.foundry/bin:$HOME/bin:$PATH"' >> ~/.zshenv \
     && echo 'export PGHOST=localhost' >> ~/.zshenv \
     && echo 'export PGUSER=coder' >> ~/.zshenv \
     && echo 'export PGDATABASE=coder' >> ~/.zshenv
 
-# Add PATH to .bashrc and .profile for bash -l commands (coder_app launchers)
-RUN TOOL_PATH='export PATH="$HOME/.claude/local/bin:$HOME/.local/bin:$HOME/.opencode/bin:$HOME/.local/share/pnpm:$HOME/.bun/bin:$HOME/.foundry/bin:$PATH"' \
-    && echo "$TOOL_PATH" >> ~/.bashrc \
-    && echo "$TOOL_PATH" >> ~/.profile
+# .bashrc / .profile for bash -l contexts (coder_app launchers)
+RUN echo 'export PATH="$HOME/.claude/local/bin:$HOME/.local/bin:$HOME/.opencode/bin:$HOME/.local/share/pnpm:$HOME/.bun/bin:$HOME/.foundry/bin:$PATH"' >> ~/.bashrc \
+    && echo 'export PATH="$HOME/.claude/local/bin:$HOME/.local/bin:$HOME/.opencode/bin:$HOME/.local/share/pnpm:$HOME/.bun/bin:$HOME/.foundry/bin:$PATH"' >> ~/.profile

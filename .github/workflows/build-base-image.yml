@@ -12,6 +12,11 @@ on:
     paths:
       - "docker/hive-base/**"
   workflow_dispatch:
+    inputs:
+      push:
+        description: "Push to GHCR (only works on main branch)"
+        required: false
+        default: "false"
 
 permissions:
   contents: read
@@ -30,15 +35,15 @@ jobs:
         uses: docker/setup-buildx-action@v3
 
       - name: Log in to GHCR
-        if: github.event_name != 'pull_request'
+        if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
         uses: docker/login-action@v3
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      # Build locally on all runs (load: true) so smoke tests can run against
-      # the image before it is ever pushed to the registry.
+      # Build locally on all runs (load: true) so smoke tests run against the
+      # exact image before anything is pushed to the registry.
       - name: Build image
         uses: docker/build-push-action@v6
         with:
@@ -49,8 +54,6 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-      # Smoke tests run against the locally loaded image on every run (PR and main).
-      # Push only happens after all tests pass.
       - name: Smoke test — claude --version
         run: docker run --rm ghcr.io/kethalia/hive-base:${{ github.sha }} claude --version
 
@@ -66,15 +69,11 @@ jobs:
       - name: Smoke test — openbox --version
         run: docker run --rm ghcr.io/kethalia/hive-base:${{ github.sha }} openbox --version
 
-      # Push to GHCR only on main / workflow_dispatch, after smoke tests pass.
-      - name: Push image (main only)
-        if: github.event_name != 'pull_request'
-        uses: docker/build-push-action@v6
-        with:
-          context: docker/hive-base
-          push: true
-          tags: |
-            ghcr.io/kethalia/hive-base:latest
-            ghcr.io/kethalia/hive-base:${{ github.sha }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+      # Tag and push the already-built local image — no rebuild, no network fetches.
+      # This guarantees what's in the registry is exactly what passed smoke tests.
+      - name: Push image (main only, after smoke tests pass)
+        if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+        run: |
+          docker tag ghcr.io/kethalia/hive-base:${{ github.sha }} ghcr.io/kethalia/hive-base:latest
+          docker push ghcr.io/kethalia/hive-base:${{ github.sha }}
+          docker push ghcr.io/kethalia/hive-base:latest
