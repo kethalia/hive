@@ -1,0 +1,21 @@
+# Machine-local / ephemeral GSD files
+activity/
+runtime/
+journal/
+forensics/
+worktrees/
+browser-state/
+notifications.jsonl
+event-log.jsonl
+metrics.json
+state-manifest.json
+completed-units.json
+repo-meta.json
+STATE.md
+
+# SQLite WAL/SHM (transient)
+gsd.db-wal
+gsd.db-shm
+
+# Verification JSON (regenerated from DB)
+**/tasks/*-VERIFY.json

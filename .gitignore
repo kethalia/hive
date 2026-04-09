@@ -41,7 +41,7 @@ templates/**/.terraform/
 !templates/**/.terraform.lock.hcl
 
 # ── GSD baseline (auto-generated) ──
-.gsd
+# .gsd tracked in repo (has its own .gitignore for ephemeral files)
 Thumbs.db
 *.swp
 *.swo
