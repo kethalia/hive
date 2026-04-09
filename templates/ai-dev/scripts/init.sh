@@ -122,6 +122,14 @@ else
   echo "Pulling vault updates..."
   git -C ~/vault pull --ff-only 2>/dev/null || true
 fi
+
+# Bootstrap .obsidian config if vault has none (fresh repo)
+if [ -d ~/vault ] && [ ! -d ~/vault/.obsidian ]; then
+  mkdir -p ~/vault/.obsidian
+  echo '{"legacyEditor":false,"livePreview":true}' > ~/vault/.obsidian/app.json
+  echo '{}' > ~/vault/.obsidian/appearance.json
+  echo "Created .obsidian config in vault"
+fi
 %{endif}
 
 # Verify Docker access

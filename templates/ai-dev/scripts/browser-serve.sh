@@ -65,14 +65,36 @@ MENU=/etc/xdg/openbox/menu.xml
 
 sudo tee "$AUTOSTART" > /dev/null << 'AUTOEOF'
 #!/bin/bash
-# Wait up to 10s for vault before launching Obsidian
+# Wait up to 10s for vault to be cloned
 (
   for i in $(seq 1 20); do
-    if [ -d /home/coder/vault/.obsidian ] || [ -d /home/coder/vault/.git ]; then
+    if [ -d /home/coder/vault/.git ] || [ -d /home/coder/vault/.obsidian ]; then
       break
     fi
     sleep 0.5
   done
+
+  # Register the vault in Obsidian's config so it opens directly
+  OBSIDIAN_CFG="$HOME/.config/obsidian/obsidian.json"
+  VAULT_ID="$(echo /home/coder/vault | md5sum | cut -c1-16)"
+  if [ -d /home/coder/vault ]; then
+    mkdir -p "$HOME/.config/obsidian"
+    python3 -c "
+import json, os, sys
+cfg_path = os.path.expanduser('~/.config/obsidian/obsidian.json')
+try:
+    cfg = json.load(open(cfg_path))
+except:
+    cfg = {}
+vaults = cfg.get('vaults', {})
+vault_id = '$(echo /home/coder/vault | md5sum | cut -c1-16)'
+vaults[vault_id] = {'path': '/home/coder/vault', 'ts': 0, 'open': True}
+cfg['vaults'] = vaults
+json.dump(cfg, open(cfg_path, 'w'))
+print('Vault registered in Obsidian config')
+" 2>/dev/null || true
+  fi
+
   /usr/bin/obsidian --no-sandbox --disable-gpu-sandbox /home/coder/vault
 ) &
 AUTOEOF
