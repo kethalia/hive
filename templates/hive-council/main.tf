@@ -83,27 +83,6 @@ data "coder_external_auth" "github" {
 }
 
 # =============================================================================
-# Workspace Preset — Prebuilt Workspace Pool (Requires Coder Premium)
-# =============================================================================
-# Prebuilds maintain a pool of ready-to-claim workspaces, reducing cold-start
-# time from minutes to seconds. The preset provides default parameter values
-# used during prebuild creation (before a real task is assigned).
-# Without Coder Premium, this block is inert but validates correctly.
-
-data "coder_workspace_preset" "hive-council" {
-  name = "hive-council"
-  parameters = {
-    task_id     = ""
-    repo_url    = ""
-    branch_name = ""
-  }
-
-  prebuilds {
-    instances = 1
-  }
-}
-
-# =============================================================================
 # Coder Agent
 # =============================================================================
 
