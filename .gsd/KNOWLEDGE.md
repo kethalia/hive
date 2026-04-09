@@ -1,0 +1,148 @@
+# Knowledge Base
+
+## Docker-in-Docker Networking in Coder Workspaces
+
+**Discovered:** 2026-03-19 during T01
+
+Docker port forwarding (`-p 3000:3000`) does **not** expose ports to `localhost` on the Coder workspace host. This is because Docker runs in a nested container (DinD) where the Docker daemon's network namespace is separate from the host.
+
+**Workarounds:**
+- Run commands inside containers: `docker exec m001-app-1 <command>`
+- Use container IPs directly: `docker inspect <container> --format '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}'` (unreliable — sometimes firewalled)
+- For drizzle-kit push: `docker exec m001-app-1 npx drizzle-kit push --force`
+- For curl tests: `docker exec m001-app-1 wget -qO- http://0.0.0.0:3000`
+
+**Impact on testing:** Integration tests that need DB/Redis access should either run inside the app container or use a `--network` flag to join the Docker network.
+
+## Next.js 15 Docker Binding
+
+Next.js 15 `next dev` only listens on `localhost` by default. In Docker, you must use `next dev --hostname 0.0.0.0` for the server to be reachable from outside the container. The `HOSTNAME=0.0.0.0` env var alone is NOT sufficient.
+
+## Vitest: Response Body Can Only Be Read Once
+
+**Discovered:** 2026-03-19 during T02
+
+When mocking `fetch` with `vi.fn().mockResolvedValue(new Response(...))`, the same Response object is returned on every call. But `Response.json()` / `Response.text()` consume the body stream — the second call throws "Body is unusable: Body has already been read". Use `mockImplementation(() => Promise.resolve(new Response(...)))` to return a fresh Response each time. This matters for polling tests where fetch is called multiple times.
+
+## Slice Completion: Always Open a Separate PR
+
+**Discovered:** 2026-03-19 after S01/S02 merge disaster
+
+Each slice MUST get its own PR targeting `main`. Never point multiple slice branches at the same HEAD. The workflow:
+
+1. Complete the slice on `milestone/M001` branch
+2. Create a dedicated branch for the PR (e.g. `M001-S02`)
+3. **Open the PR immediately** before starting the next slice
+4. Wait for merge before rebasing the next slice on top
+
+**What went wrong:** S01 and S02 branches both pointed to the same commit. When PR #7 (S01) was squash-merged, it included all S02 work too. S02 ended up with zero diff against main — no PR possible.
+
+**Rule:** After every slice, stop, open a PR, get it merged, pull main, THEN start the next slice.
+
+## GitHub Auth: Use gh CLI, Not .env
+
+**Discovered:** 2026-03-19
+
+Store GitHub PAT in `gh auth login --with-token`, NOT in `.env`. The `.env` file gets modified/overwritten during development. `gh` stores credentials in `~/.config/gh/hosts.yml` which persists across sessions. Classic PAT needs `repo` + `read:org` scopes for `gh pr create` to work.
+
+## Turbopack CSS: "style" Export Condition Not Supported
+
+**Discovered:** 2026-03-19
+
+Turbopack (Next.js 16 default) cannot resolve CSS `@import` for packages that use the `"style"` export condition (e.g. `shadcn`, `tw-animate-css`). Workaround: vendor the CSS files locally (`src/styles/`) and import via relative paths.
+
+## Tailwind v4 Requires @tailwindcss/postcss
+
+**Discovered:** 2026-03-19
+
+Tailwind CSS v4 with Next.js requires `@tailwindcss/postcss` as a devDependency AND a `postcss.config.mjs` that registers it. Without this, `@import "tailwindcss"` is silently ignored and no utility classes are generated.
+
+## Base UI: render Prop Instead of asChild
+
+**Discovered:** 2026-03-19
+
+shadcn `base-nova` style uses Base UI, not Radix. Base UI components use `render={<Link href="..." />}` for polymorphism, NOT Radix's `asChild` pattern. Using `asChild` on Base UI components causes React DOM warnings.
+
+## Vitest: Mock Module Boundaries, Not Just Libraries
+
+**Discovered:** 2026-03-19 during T03
+
+When a module validates env vars before constructing a library client (e.g., `getRedisConnection()` checks `REDIS_URL` then creates IORedis), mocking the library (`vi.mock("ioredis")`) is insufficient — the env var check runs first and throws. Instead, mock the entire wrapper module: `vi.mock("@/lib/queue/connection", () => ({ getRedisConnection: vi.fn(() => mockConnection) }))`. This is cleaner and avoids coupling tests to implementation details of the connection module.
+
+## Blueprint Context Piping via Base64
+
+**Discovered:** 2026-03-19 during S03/T03
+
+When piping large context strings into a remote workspace via `coder ssh`, shell quoting/escaping breaks on special characters in code snippets and markdown. Use base64 encoding: `echo '<base64>' | base64 -d > /tmp/context.md` then reference the file in the Pi command. This avoids all shell interpolation issues. The pattern is in `src/lib/blueprint/steps/agent.ts`.
+
+## Web Streams API for SSE in Next.js Route Handlers
+
+**Discovered:** 2026-03-20 during S06/T01
+
+Next.js Route Handlers work natively with Web `Response` objects, so use the Web Streams API (`ReadableStream`) rather than Node.js streams for SSE. Pattern: create a `ReadableStream` with `start(controller)` that enqueues `TextEncoder.encode()` data, return `new Response(stream, { headers: { 'Content-Type': 'text/event-stream', ... } })`. Add a `cancel()` method on the ReadableStream for cleanup when the consumer disconnects.
+
+## EventSource Mock Pattern for Component Testing
+
+**Discovered:** 2026-03-20 during S06/T03
+
+To test components that use `EventSource`, create a `MockEventSource` class with helper methods (`_emitMessage`, `_emitStatus`, `_emitError`) and a static `instances` array. Assign it to `global.EventSource` before tests. Helpers call `onmessage`, `addEventListener` callbacks with synthetic `MessageEvent` objects. Track `close()` calls to verify cleanup. Pattern is in `src/__tests__/app/tasks/agent-stream-panel.test.ts`.
+
+## Workspace Name Sync Between Coder Client and SSE Route
+
+**Discovered:** 2026-03-20 during S06/T01
+
+The SSE streaming route constructs workspace names using `hive-worker-${taskId.slice(0,8)}`. This MUST match the naming convention in `src/lib/coder/client.ts`. If either side changes, streaming silently fails (returns "waiting" forever with no error). There is no shared constant — this is a cross-module contract enforced only by convention.
+
+## Coder Prebuilds: Container Name Stability is Critical
+
+**Discovered:** 2026-03-20 during S07/T01
+
+When using Coder prebuilt workspaces, the `docker_container` resource **must** have `lifecycle { ignore_changes = [name] }`. Without this, when a prebuild is claimed and ownership transfers, the container name changes (it includes the owner name), causing Terraform to destroy and recreate the container — completely defeating the purpose of prebuilds. The prebuild would "work" but take just as long as a cold start.
+
+## Coder Workspace Preset Parameters Must Match Variable Names
+
+**Discovered:** 2026-03-20 during S07/T01
+
+The `coder_workspace_preset` `parameters` map keys must exactly match `variable` block names in the Terraform template. There is no compile-time validation — mismatches silently break prebuild creation. If template variables are refactored (renamed, removed), the preset parameters must be updated in sync.
+
+## Composite Step Pattern for Multi-Phase Operations
+
+**Discovered:** 2026-03-20 during M001 closeout
+
+When a blueprint step needs to orchestrate sub-steps (e.g., CI feedback: poll → extract logs → retry agent → re-push → poll again), inject the sub-step factories as constructor parameters instead of importing them directly. This avoids circular imports and makes each sub-step independently testable. Pattern is in `src/lib/blueprint/steps/ci.ts` — `createCIStep(agentFactory, lintFactory, commitPushFactory)`.
+
+## Dual-Workspace Lifecycle: Track Both, Clean Both
+
+**Discovered:** 2026-03-20 during M001 closeout
+
+A single task may spawn two workspaces (worker + verifier). Both must be independently tracked in the database and both must be cleaned up in the `finally` block regardless of success/failure. The verifier workspace ID is stored separately and cleaned up alongside the worker workspace. Never assume a task maps to exactly one workspace.
+
+## SSE Streaming Architecture Trade-offs
+
+**Discovered:** 2026-03-20 during M001 closeout
+
+Three approaches were considered for live agent streaming: (1) Pi RPC over WebSocket, (2) Redis pub/sub, (3) agent tee-to-logfile + coder ssh tail. Option 3 was chosen because it requires zero changes to the agent harness (just append `| tee /tmp/log`) and avoids Redis pub/sub complexity. The trade-off: text-only streaming with no structured event types. The logfile also serves as a post-mortem artifact inside the workspace. If structured events are needed later, upgrade to Pi RPC mode.
+
+## BullMQ + IORedis Dual-Install Type Mismatch
+
+**Discovered:** 2026-04-09 during M002/S01/T01
+
+BullMQ v5 bundles its own copy of ioredis under `node_modules/bullmq/node_modules/ioredis`. When `connection.ts` imports `IORedis` from the top-level `ioredis` package and returns it as a `ConnectionOptions`, TypeScript sees two structurally incompatible `Redis` types (same JS runtime, different declaration files). This causes `TS2322` errors on every queue/worker instantiation. This is a **pre-existing project-wide issue** (affects `task-queue.ts` too) — not a bug in new queue files. The fix is to deduplicate ioredis by aliasing bullmq's import or to add `"ioredis": "..."` to bullmq's peerDependencies. Until then, these errors are expected and new queue files that follow the same pattern are correct.
+
+## Prisma Migrate Requires Live DB Even for --create-only
+
+**Discovered:** 2026-04-09 during M002/S01/T01
+
+`npx prisma migrate dev --create-only` still attempts to connect to the database (P1001) before generating the SQL file. In environments without a live Postgres connection, write the migration SQL manually and run `npx prisma generate` (which only reads `schema.prisma`) to regenerate the client. The manually-written SQL file is valid as a migration artifact for when the DB is available.
+
+## Empty Diff Graceful Handling in Multi-Step Blueprints
+
+**Discovered:** 2026-04-09 during M002/S02/T01-T02
+
+When a multi-step blueprint processes source diffs (council-diff → council-review), empty diffs must be treated as **success**, not failure. The pattern: (1) diff-capture step returns empty string on no changes (ctx.councilDiff = ""), (2) review step checks for empty diff early and skips expensive operations (Claude invocation), returning success with empty findings ({ findings: [] }), (3) emit step validates the empty findings and passes through. This prevents spurious failures when no code changes are present. The contract is enforced by storing empty string (not undefined or null) to allow safe falsy checks in downstream steps.
+
+## UI Expansion Pattern Consistency: 3-Item Threshold
+
+**Discovered:** 2026-04-09 during M002/S04/T01
+
+When rendering collapsible lists in cards (e.g., VerificationReportCard logs, CouncilResultCard consensus items), use a consistent expansion threshold to improve discoverability and familiarity. Established threshold: show first 3 items, render "Show more" button if total > 3, toggle state to show all. This pattern should be applied across future cards to establish UI consistency. Affects: task detail page card component library.
