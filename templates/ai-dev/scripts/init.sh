@@ -137,10 +137,9 @@ if [ -n "$EFFECTIVE_VAULT_REPO" ]; then
 
   # Configure Obsidian MCP + CLAUDE.md + sync vault skills
   if [ -d ~/vault ]; then
-  # 1. Register mcp-obsidian in Claude Code's MCP config
-  mkdir -p ~/.claude
-  CLAUDE_MCP="$HOME/.claude/mcp.json"
-  python3 -c "
+    # 1. Register obsidian MCP in Claude Code's MCP config
+    mkdir -p ~/.claude
+    python3 -c "
 import json, os
 path = os.path.expanduser('~/.claude/mcp.json')
 try:
@@ -158,8 +157,8 @@ json.dump(cfg, open(path, 'w'), indent=2)
 print('Obsidian MCP registered in ~/.claude/mcp.json')
 " 2>/dev/null || true
 
-  # 2. Write a lean CLAUDE.md — instructs Claude to use the MCP, not raw file reads
-  cat > ~/.claude/CLAUDE.md << 'CLAUDEEOF'
+    # 2. Write a lean CLAUDE.md
+    cat > ~/.claude/CLAUDE.md << 'CLAUDEEOF'
 # Second Brain
 
 Your user maintains a personal knowledge vault at `~/vault`, accessible via the `obsidian` MCP server.
@@ -181,18 +180,18 @@ When you make a significant decision, discover a pattern, or complete a mileston
 
 Custom slash commands for this vault are in `~/vault/Skills/`. Run `/help` in Claude Code to see them.
 CLAUDEEOF
-  echo "Claude Code vault context configured at ~/.claude/CLAUDE.md"
+    echo "Claude Code vault context configured at ~/.claude/CLAUDE.md"
 
-  # 3. Sync vault skills to Claude Code skills directory
-  if [ -d ~/vault/Skills ]; then
-    mkdir -p ~/.claude/skills
-    for skill_file in ~/vault/Skills/*.md; do
-      [ -f "$skill_file" ] || continue
-      skill_name=$(basename "$skill_file" .md | tr '[:upper:]' '[:lower:]' | tr ' ' '-')
-      dest="$HOME/.claude/skills/$skill_name.md"
-      cp "$skill_file" "$dest"
-      echo "Synced skill: $skill_name"
-    done
+    # 3. Sync vault skills to Claude Code skills directory
+    if [ -d ~/vault/Skills ]; then
+      mkdir -p ~/.claude/skills
+      for skill_file in ~/vault/Skills/*.md; do
+        [ -f "$skill_file" ] || continue
+        skill_name=$(basename "$skill_file" .md | tr '[:upper:]' '[:lower:]' | tr ' ' '-')
+        cp "$skill_file" "$HOME/.claude/skills/$skill_name.md"
+        echo "Synced skill: $skill_name"
+      done
+    fi
   fi  # if [ -d ~/vault ]
 fi  # if [ -n "$EFFECTIVE_VAULT_REPO" ]
 
