@@ -1,11 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import type { BlueprintContext } from "@/lib/blueprint/types";
 import type { ExecResult } from "@/lib/workspace/exec";
-
 vi.mock("@/lib/workspace/exec", () => ({
   execInWorkspace: vi.fn(),
 }));
-
 import { createAgentStep } from "@/lib/blueprint/steps/agent";
 import { execInWorkspace } from "@/lib/workspace/exec";
 

@@ -1,8 +1,4 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-
-// ── Mocks ─────────────────────────────────────────────────────────
-
-// Mock IORedis — must be before imports that trigger getRedisConnection
 vi.mock("ioredis", () => {
   return {
     default: vi.fn().mockImplementation(() => ({
@@ -12,7 +8,6 @@ vi.mock("ioredis", () => {
     })),
   };
 });
-
 // Mock the Redis connection module directly
 vi.mock("@/lib/queue/connection", () => ({
   getRedisConnection: vi.fn(() => ({
@@ -41,7 +36,6 @@ vi.mock("bullmq", () => ({
     };
   }),
 }));
-
 // Capture the Worker import for accessing __lastProcessor
 import { Worker } from "bullmq";
 
@@ -71,7 +65,6 @@ const mockRunBlueprint = vi.fn();
 vi.mock("@/lib/blueprint/runner", () => ({
   runBlueprint: (...args: unknown[]) => mockRunBlueprint(...args),
 }));
-
 // Mock step factories (they just need to return objects)
 vi.mock("@/lib/blueprint/steps/hydrate", () => ({
   createHydrateStep: vi.fn(() => ({ name: "hydrate-context", execute: vi.fn() })),
@@ -114,7 +107,6 @@ const mockCreateVerifierBlueprint = vi.fn(() => [
 vi.mock("@/lib/blueprint/verifier", () => ({
   createVerifierBlueprint: (...args: unknown[]) => mockCreateVerifierBlueprint(...args),
 }));
-
 // ── Imports under test ────────────────────────────────────────────
 
 import { getTaskQueue, createTaskWorker, type TaskJobData } from "@/lib/queue/task-queue";

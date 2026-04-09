@@ -1,4 +1,5 @@
 import { execFile } from "child_process";
+import { DEFAULT_EXEC_TIMEOUT_MS } from "@/lib/constants";
 
 export interface ExecOptions {
   timeoutMs?: number;
@@ -10,8 +11,6 @@ export interface ExecResult {
   exitCode: number;
 }
 
-const DEFAULT_TIMEOUT_MS = 60_000;
-
 /**
  * Execute a command inside a Coder workspace via `coder ssh`.
  * Uses `bash -l -c` (login shell) so tools installed via nvm/pnpm are on PATH.
@@ -22,7 +21,7 @@ export function execInWorkspace(
   command: string,
   opts?: ExecOptions,
 ): Promise<ExecResult> {
-  const timeoutMs = opts?.timeoutMs ?? DEFAULT_TIMEOUT_MS;
+  const timeoutMs = opts?.timeoutMs ?? DEFAULT_EXEC_TIMEOUT_MS;
   const truncatedCmd =
     command.length > 100 ? command.slice(0, 100) + "…" : command;
 

@@ -1,17 +1,14 @@
 import { execInWorkspace } from "@/lib/workspace/exec";
+import { PROJECT_DIR, GIT_TIMEOUT_MS, COMMIT_MSG_FILE } from "@/lib/constants";
 import type { BlueprintStep } from "../types";
-
-const PROJECT_DIR = "/home/coder/project";
-
-/** Timeout for individual git operations. */
-const GIT_TIMEOUT_MS = 30_000;
 
 /**
  * Create the commit-and-push step.
  *
- * Sets git identity (Hive Bot), stages all changes, commits with a
- * descriptive message derived from the task prompt, and pushes to
- * the task branch. Returns failure if push fails.
+ * Git identity (user.name, user.email) is configured by Coder's
+ * git-config module from the connected GitHub account — no hardcoding.
+ * This step stages all changes, commits with a descriptive message
+ * derived from the task prompt, and pushes to the task branch.
  */
 export function createCommitPushStep(): BlueprintStep {
   return {
@@ -19,20 +16,7 @@ export function createCommitPushStep(): BlueprintStep {
     async execute(ctx) {
       const start = Date.now();
 
-      // 1. Set git identity
-      const configResult = await execInWorkspace(
-        ctx.workspaceName,
-        `cd ${PROJECT_DIR} && git config user.email "hive-bot@coder.com" && git config user.name "Hive Bot"`,
-        { timeoutMs: GIT_TIMEOUT_MS },
-      );
-
-      if (configResult.exitCode !== 0) {
-        const msg = `Failed to set git identity: ${configResult.stderr.slice(0, 200)}`;
-        console.log(`[blueprint] commit-push: ${msg} (task=${ctx.taskId})`);
-        return { status: "failure", message: msg, durationMs: Date.now() - start };
-      }
-
-      // 2. Stage all changes
+      // 1. Stage all changes
       const addResult = await execInWorkspace(
         ctx.workspaceName,
         `cd ${PROJECT_DIR} && git add -A`,
@@ -55,7 +39,7 @@ export function createCommitPushStep(): BlueprintStep {
 
       const commitResult = await execInWorkspace(
         ctx.workspaceName,
-        `cd ${PROJECT_DIR} && echo '${commitMsgB64}' | base64 -d > /tmp/hive-commit-msg.txt && git commit -F /tmp/hive-commit-msg.txt`,
+        `cd ${PROJECT_DIR} && echo '${commitMsgB64}' | base64 -d > ${COMMIT_MSG_FILE} && git commit -F ${COMMIT_MSG_FILE}`,
         { timeoutMs: GIT_TIMEOUT_MS },
       );
 

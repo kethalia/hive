@@ -1,8 +1,6 @@
 import { execInWorkspace } from "@/lib/workspace/exec";
+import { PROJECT_DIR, EXEC_TIMEOUT_MS } from "@/lib/constants";
 import type { BlueprintStep } from "../types";
-
-const PROJECT_DIR = "/home/coder/project";
-const EXEC_TIMEOUT_MS = 30_000;
 
 /**
  * Create the scoped rules injection step (R026).

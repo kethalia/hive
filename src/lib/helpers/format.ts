@@ -1,3 +1,5 @@
+import type { VerificationOutcome } from "@/lib/verification/report";
+
 // ── Shared formatting and display helpers ──────────────────────────
 
 /** Extract org/repo from a GitHub URL. */
@@ -70,3 +72,20 @@ export const statusVariant: Record<string, "default" | "secondary" | "destructiv
   stopped: "outline",
   deleted: "outline",
 };
+
+/** Map verification outcome to Badge variant. */
+export const outcomeVariant: Record<VerificationOutcome, "default" | "secondary" | "destructive"> = {
+  pass: "default",
+  fail: "destructive",
+  inconclusive: "secondary",
+};
+
+/** Format a duration in milliseconds to a human-readable string (e.g. "12s", "2m 30s"). */
+export function formatDuration(ms: number): string {
+  if (!Number.isFinite(ms) || ms < 0) return "0s";
+  const totalSeconds = Math.floor(ms / 1000);
+  if (totalSeconds < 60) return `${totalSeconds}s`;
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  return seconds > 0 ? `${minutes}m ${seconds}s` : `${minutes}m`;
+}

@@ -1,10 +1,6 @@
 import { execInWorkspace } from "@/lib/workspace/exec";
+import { PROJECT_DIR, LINT_TIMEOUT_MS } from "@/lib/constants";
 import type { BlueprintStep } from "../types";
-
-const PROJECT_DIR = "/home/coder/project";
-
-/** Hard timeout for lint — R028 requires <5s. */
-const LINT_TIMEOUT_MS = 5_000;
 
 /**
  * Create the lint-with-autofix step (R028).

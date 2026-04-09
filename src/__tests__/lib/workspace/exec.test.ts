@@ -1,11 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import type { ExecFileException } from "child_process";
-
 // Mock child_process before importing the module under test
 vi.mock("child_process", () => ({
   execFile: vi.fn(),
 }));
-
 import { execInWorkspace } from "@/lib/workspace/exec";
 import { execFile } from "child_process";
 

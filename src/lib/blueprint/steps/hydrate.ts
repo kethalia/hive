@@ -1,17 +1,6 @@
 import { execInWorkspace } from "@/lib/workspace/exec";
+import { PROJECT_DIR, EXEC_TIMEOUT_MS, HYDRATION_KEY_FILES } from "@/lib/constants";
 import type { BlueprintStep } from "../types";
-
-const PROJECT_DIR = "/home/coder/project";
-const EXEC_TIMEOUT_MS = 30_000;
-
-/** Key files to read for context (order matters for prompt assembly). */
-const KEY_FILES = [
-  "README.md",
-  "package.json",
-  "tsconfig.json",
-  "AGENTS.md",
-  ".github/CODEOWNERS",
-];
 
 /**
  * Create the context hydration step (R027).
@@ -45,7 +34,7 @@ export function createHydrateStep(): BlueprintStep {
 
       // 2. Read key files (missing files are silently skipped)
       const fileSections: string[] = [];
-      for (const file of KEY_FILES) {
+      for (const file of HYDRATION_KEY_FILES) {
         const filePath = `${PROJECT_DIR}/${file}`;
 
         // Check existence first

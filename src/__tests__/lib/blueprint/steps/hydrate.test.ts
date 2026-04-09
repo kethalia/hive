@@ -1,12 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import type { BlueprintContext } from "@/lib/blueprint/types";
 import type { ExecResult } from "@/lib/workspace/exec";
-
 // Mock the exec module boundary (not child_process)
 vi.mock("@/lib/workspace/exec", () => ({
   execInWorkspace: vi.fn(),
 }));
-
 import { createHydrateStep } from "@/lib/blueprint/steps/hydrate";
 import { execInWorkspace } from "@/lib/workspace/exec";
 
