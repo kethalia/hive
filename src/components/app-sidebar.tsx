@@ -14,11 +14,12 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
 } from "@/components/ui/sidebar";
-import { ListTodo, PlusCircle, Settings, Hexagon } from "lucide-react";
+import { ListTodo, PlusCircle, Settings, Hexagon, LayoutTemplate } from "lucide-react";
 
 const navItems = [
   { title: "Tasks", href: "/tasks", icon: ListTodo },
   { title: "New Task", href: "/tasks/new", icon: PlusCircle },
+  { title: "Templates", href: "/templates", icon: LayoutTemplate },
 ];
 
 export function AppSidebar() {
