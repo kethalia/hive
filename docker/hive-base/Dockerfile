@@ -173,7 +173,7 @@ RUN (id ubuntu && userdel -r ubuntu || true) \
 USER coder
 WORKDIR /home/coder
 
-# Claude CLI — installed as coder so it lands in ~/.claude/local/bin (user-owned)
+# Claude CLI — installed as coder so it lands in ~/.local/bin/claude (user-owned)
 # ENV PATH picks it up for non-interactive contexts (docker run, coder_script)
 RUN curl -fsSL https://claude.ai/install.sh | bash
 ENV PATH="/home/coder/.local/bin:${PATH}"

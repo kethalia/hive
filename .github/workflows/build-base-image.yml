@@ -6,11 +6,13 @@ on:
       - main
     paths:
       - "docker/hive-base/**"
+      - ".github/workflows/build-base-image.yml"
   pull_request:
     branches:
       - main
     paths:
       - "docker/hive-base/**"
+      - ".github/workflows/build-base-image.yml"
   workflow_dispatch:
 
 permissions:
