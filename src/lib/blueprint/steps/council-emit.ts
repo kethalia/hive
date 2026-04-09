@@ -88,8 +88,8 @@ function validateFinding(
   if (typeof f.file !== "string") {
     return `finding[${index}].file must be a string`;
   }
-  if (typeof f.startLine !== "number") {
-    return `finding[${index}].startLine must be a number`;
+  if (typeof f.startLine !== "number" || !Number.isInteger(f.startLine) || f.startLine < 1) {
+    return `finding[${index}].startLine must be a positive integer`;
   }
   if (typeof f.severity !== "string" || !validSeverities.has(f.severity)) {
     return `finding[${index}].severity must be one of critical/major/minor/nit`;

@@ -60,13 +60,18 @@ export interface CouncilReport {
 export function isCouncilReport(v: unknown): v is CouncilReport {
   if (typeof v !== "object" || v === null) return false;
   const obj = v as Record<string, unknown>;
+  const validOutcomes = ["complete", "partial", "inconclusive"];
   return (
     typeof obj.outcome === "string" &&
+    validOutcomes.includes(obj.outcome) &&
     typeof obj.councilSize === "number" &&
     typeof obj.reviewersCompleted === "number" &&
     Array.isArray(obj.findings) &&
     Array.isArray(obj.consensusItems) &&
     typeof obj.durationMs === "number" &&
-    typeof obj.timestamp === "string"
+    typeof obj.timestamp === "string" &&
+    (obj.postedCommentUrl === null ||
+      obj.postedCommentUrl === undefined ||
+      typeof obj.postedCommentUrl === "string")
   );
 }

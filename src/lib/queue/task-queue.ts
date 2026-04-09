@@ -1,4 +1,4 @@
-import { Queue, Worker, QueueEvents, type Job } from "bullmq";
+import { Queue, Worker, type Job } from "bullmq";
 import { getRedisConnection } from "./connection";
 import { getDb } from "@/lib/db";
 import type { CoderClient } from "@/lib/coder/client";
@@ -24,7 +24,6 @@ import {
   DEFAULT_PI_MODEL,
   COUNCIL_AGGREGATOR_QUEUE,
   COUNCIL_REVIEWER_QUEUE,
-  COUNCIL_JOB_TIMEOUT_MS,
 } from "@/lib/constants";
 import type { BlueprintContext } from "@/lib/blueprint/types";
 import type { VerificationReport } from "@/lib/verification/report";
@@ -409,18 +408,11 @@ export function createTaskWorker(coderClient: CoderClient): Worker<TaskJobData> 
                   children,
                 });
 
-                // Wait for aggregator job to finish
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                const queueEvents = new QueueEvents(COUNCIL_AGGREGATOR_QUEUE, {
-                  connection: getRedisConnection() as any,
-                });
-
-                try {
-                  await flow.job.waitUntilFinished(queueEvents, COUNCIL_JOB_TIMEOUT_MS);
-                  console.log(`[queue] Council review complete for task ${taskId}`);
-                } finally {
-                  await queueEvents.close();
-                }
+                // Fire-and-forget: council is informational (D015), no need to
+                // block the main worker slot for up to 15 minutes.  The aggregator
+                // job will persist CouncilReport independently when it finishes.
+                console.log(`[queue] Council review dispatched for task ${taskId} (flow=${flow.job.id})`);
+                void flow; // intentional fire-and-forget
               } else {
                 console.log(`[queue] Council review skipped for task ${taskId} (councilSize=${councilSize})`);
               }

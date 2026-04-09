@@ -83,9 +83,9 @@ export function CouncilResultCard({ report }: { report: CouncilReport }) {
               Consensus Items
             </p>
             <ul className="space-y-2">
-              {visibleItems.map((item, i) => (
+              {visibleItems.map((item) => (
                 <li
-                  key={i}
+                  key={`${item.file}:${item.startLine}:${item.issue}`}
                   className="rounded-md border bg-muted/40 p-3 text-sm space-y-1"
                   data-testid="consensus-item"
                 >

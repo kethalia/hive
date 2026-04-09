@@ -281,18 +281,15 @@ describe("Task-queue council step (step 13)", () => {
     }
   });
 
-  it("creates a QueueEvents and closes it after waiting", async () => {
+  it("fire-and-forget: does not block on QueueEvents", async () => {
     const client = makeMockCoderClient();
     createTaskWorker(client);
     const processor = getProcessor();
 
     await processor({ id: "job-2", data: fakeJobData });
 
-    expect(QueueEvents).toHaveBeenCalledWith(
-      "council-aggregator",
-      expect.objectContaining({ connection: expect.anything() }),
-    );
-    expect(mockQueueEventsClose).toHaveBeenCalledOnce();
+    // After fire-and-forget change, no QueueEvents should be created
+    expect(QueueEvents).not.toHaveBeenCalled();
   });
 
   // ── No-op guards ──────────────────────────────────────────────────
@@ -370,8 +367,8 @@ describe("Task-queue council step (step 13)", () => {
     expect(doneCall).toBeDefined();
   });
 
-  it("council waitUntilFinished() rejection does not change task status", async () => {
-    mockWaitUntilFinished.mockRejectedValue(new Error("Timeout waiting for aggregator"));
+  it("council FlowProducer.add() failure does not change task status (D015)", async () => {
+    mockFlowAdd.mockRejectedValue(new Error("Redis connection lost"));
 
     const client = makeMockCoderClient();
     createTaskWorker(client);
@@ -397,8 +394,8 @@ describe("Task-queue council step (step 13)", () => {
     expect(statusCalls).not.toContain("failed");
   });
 
-  it("QueueEvents.close() is called even when waitUntilFinished rejects", async () => {
-    mockWaitUntilFinished.mockRejectedValue(new Error("Timeout"));
+  it("council dispatch logs flow job ID", async () => {
+    const consoleSpy = vi.spyOn(console, "log");
 
     const client = makeMockCoderClient();
     createTaskWorker(client);
@@ -406,6 +403,9 @@ describe("Task-queue council step (step 13)", () => {
 
     await processor({ id: "job-10", data: fakeJobData });
 
-    expect(mockQueueEventsClose).toHaveBeenCalledOnce();
+    expect(consoleSpy).toHaveBeenCalledWith(
+      expect.stringContaining("Council review dispatched"),
+    );
+    consoleSpy.mockRestore();
   });
 });

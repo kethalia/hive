@@ -85,7 +85,7 @@ RUN curl -fsSL https://deb.nodesource.com/setup_24.x | bash - \
     && corepack enable
 
 # Setup docker-compose symlink
-RUN systemctl enable docker
+RUN systemctl enable docker || true
 RUN ln -sf /usr/libexec/docker/cli-plugins/docker-compose /usr/bin/docker-compose
 
 # Setup locale
@@ -95,7 +95,7 @@ ENV LANGUAGE=en_US.UTF-8
 ENV LC_ALL=en_US.UTF-8
 
 # Create coder user with proper groups
-RUN userdel -r ubuntu \
+RUN (id ubuntu && userdel -r ubuntu || true) \
     && useradd coder \
         --create-home \
         --shell=/bin/zsh \

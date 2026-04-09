@@ -17,10 +17,13 @@ export interface AggregationResult {
  *
  * Consensus rule (D013): a finding is consensus when `agreementCount >= 2`.
  *
+ * TODO: make consensus threshold configurable based on councilSize
+ * (e.g. majority = ceil(councilSize / 2)) once UX requirements are clearer.
+ *
  * @param reviewerResults - One entry per reviewer; each entry is that reviewer's
  *   array of ReviewerFindings. May be empty (reviewer failed / returned nothing).
- * @param councilSize - Total number of reviewers requested (for caller use; not
- *   used internally by the aggregation logic itself).
+ * @param councilSize - Total number of reviewers requested. Reserved for future
+ *   threshold calculation; currently consensus is hardcoded to `>= 2`.
  */
 export function aggregateFindings(
   reviewerResults: ReviewerFinding[][],
