@@ -11,10 +11,6 @@ terraform {
   }
 }
 
-locals {
-  username = data.coder_workspace_owner.me.name
-}
-
 # =============================================================================
 # Parameters — surfaced in the Coder workspace creation UI
 # =============================================================================
@@ -32,7 +28,7 @@ data "coder_parameter" "dotfiles_uri" {
 data "coder_parameter" "vault_repo" {
   name         = "vault_repo"
   display_name = "Obsidian Vault Repo"
-  description  = "Git repository URL for your Obsidian second-brain vault (optional). Cloned to ~/vault on start."
+  description  = "Git SSH URL for your Obsidian second-brain vault (e.g. git@github.com:you/vault.git). Cloned to ~/vault on start. Leave empty to skip."
   type         = "string"
   default      = ""
   mutable      = true
@@ -162,6 +158,8 @@ data "coder_workspace_owner" "me" {}
 data "coder_external_auth" "github" {
   id = "primary-github"
 }
+
+
 
 # =============================================================================
 # Base image from GHCR
