@@ -1,3 +1,5 @@
+import type { VerificationOutcome } from "@/lib/verification/report";
+
 // ── Shared formatting and display helpers ──────────────────────────
 
 /** Extract org/repo from a GitHub URL. */
@@ -70,8 +72,6 @@ export const statusVariant: Record<string, "default" | "secondary" | "destructiv
   stopped: "outline",
   deleted: "outline",
 };
-
-import type { VerificationOutcome } from "@/lib/verification/report";
 
 /** Map verification outcome to Badge variant. */
 export const outcomeVariant: Record<VerificationOutcome, "default" | "secondary" | "destructive"> = {

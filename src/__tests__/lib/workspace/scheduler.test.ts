@@ -1,13 +1,8 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { startCleanupScheduler } from "@/lib/workspace/scheduler";
-
-// ── Mocks ────────────────────────────────────────────────────────
-
-// Mock cleanupWorkspace so we can track calls without real side effects
 vi.mock("@/lib/workspace/cleanup", () => ({
   cleanupWorkspace: vi.fn().mockResolvedValue(undefined),
 }));
-
 import { cleanupWorkspace } from "@/lib/workspace/cleanup";
 
 const mockCleanup = vi.mocked(cleanupWorkspace);

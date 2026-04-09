@@ -1,3 +1,5 @@
+import type { VerificationReport } from "@/lib/verification/report";
+
 // ── Task-related types used across dashboard pages ─────────────────
 
 export interface TaskLog {
@@ -35,8 +37,6 @@ export interface Task {
   updatedAt: string;
   attachments: TaskAttachment[] | null;
 }
-
-import type { VerificationReport } from "@/lib/verification/report";
 
 export interface TaskWithRelations extends Task {
   workspaces: TaskWorkspace[];

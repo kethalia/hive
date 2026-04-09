@@ -1,12 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-
-// ── Mocks ─────────────────────────────────────────────────────────
-
-// Mock uuid
 vi.mock("uuid", () => ({
   v4: vi.fn(() => "11111111-2222-3333-4444-555555555555"),
 }));
-
 // Mock IORedis
 vi.mock("ioredis", () => ({
   default: vi.fn().mockImplementation(() => ({
@@ -15,7 +10,6 @@ vi.mock("ioredis", () => ({
     quit: vi.fn(),
   })),
 }));
-
 // Mock the Redis connection module directly
 vi.mock("@/lib/queue/connection", () => ({
   getRedisConnection: vi.fn(() => ({
@@ -59,7 +53,6 @@ vi.mock("@/lib/db", () => ({
     },
   })),
 }));
-
 // ── Imports under test ────────────────────────────────────────────
 
 import { createTask, getTask, listTasks } from "@/lib/api/tasks";

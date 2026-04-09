@@ -4,18 +4,13 @@ import React from "react";
 import { render, screen, fireEvent, cleanup } from "@testing-library/react";
 import type { VerificationReport } from "@/lib/verification/report";
 import { outcomeVariant, formatDuration } from "@/lib/helpers/format";
-
-// ── Mock Next.js and UI dependencies ──────────────────────────────
-
 vi.mock("next/link", () => ({
   default: ({ children, ...props }: { children: React.ReactNode; href: string }) =>
     React.createElement("a", props, children),
 }));
-
 vi.mock("next-safe-action/hooks", () => ({
   useAction: vi.fn(() => ({ execute: vi.fn() })),
 }));
-
 // ── Import component under test ──────────────────────────────────
 
 import { VerificationReportCard } from "@/app/tasks/[id]/verification-report-card";

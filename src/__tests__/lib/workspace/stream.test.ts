@@ -1,11 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { EventEmitter } from "events";
-
 // Mock child_process.spawn before importing the module under test
 vi.mock("child_process", () => ({
   spawn: vi.fn(),
 }));
-
 import { streamFromWorkspace } from "@/lib/workspace/stream";
 import { spawn } from "child_process";
 

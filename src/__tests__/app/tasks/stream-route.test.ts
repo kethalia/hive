@@ -1,18 +1,14 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-
 // Mock dependencies before importing
 vi.mock("@/lib/db", () => ({
   getDb: vi.fn(),
 }));
-
 vi.mock("@/lib/workspace/stream", () => ({
   streamFromWorkspace: vi.fn(),
 }));
-
 vi.mock("@/lib/workspace/naming", () => ({
   workerWorkspaceName: vi.fn((taskId: string) => `hive-worker-${taskId.slice(0, 8)}`),
 }));
-
 import { GET } from "@/app/api/tasks/[id]/stream/route";
 import { getDb } from "@/lib/db";
 import { streamFromWorkspace } from "@/lib/workspace/stream";

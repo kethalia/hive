@@ -1,11 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-
-// ── Mocks (same pattern as __tests__/lib/api/tasks.test.ts) ──────
-
 vi.mock("uuid", () => ({
   v4: vi.fn(() => "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"),
 }));
-
 vi.mock("ioredis", () => ({
   default: vi.fn().mockImplementation(() => ({
     status: "ready",
@@ -13,7 +9,6 @@ vi.mock("ioredis", () => ({
     quit: vi.fn(),
   })),
 }));
-
 vi.mock("@/lib/queue/connection", () => ({
   getRedisConnection: vi.fn(() => ({
     status: "ready",
@@ -52,7 +47,6 @@ vi.mock("@/lib/db", () => ({
     },
   })),
 }));
-
 // ── Import under test ────────────────────────────────────────────
 
 import { createTask } from "@/lib/api/tasks";

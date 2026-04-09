@@ -1,4 +1,5 @@
 import { execFile } from "child_process";
+import { DEFAULT_EXEC_TIMEOUT_MS } from "@/lib/constants";
 
 export interface ExecOptions {
   timeoutMs?: number;
@@ -9,8 +10,6 @@ export interface ExecResult {
   stderr: string;
   exitCode: number;
 }
-
-import { DEFAULT_EXEC_TIMEOUT_MS } from "@/lib/constants";
 
 /**
  * Execute a command inside a Coder workspace via `coder ssh`.
