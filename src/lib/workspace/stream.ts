@@ -94,24 +94,20 @@ export function streamFromWorkspace(
       console.log(
         `[stream] cancelled: workspace=${workspaceName}`,
       );
-      if (!child.killed) {
-        child.kill("SIGTERM");
-      }
+      killWithEscalation(child, workspaceName);
     },
   });
 
   // AbortSignal handling — kill child when the signal fires
   if (signal) {
     if (signal.aborted) {
-      child.kill("SIGTERM");
+      killWithEscalation(child, workspaceName);
     } else {
       const onAbort = () => {
         console.log(
           `[stream] aborted: workspace=${workspaceName}`,
         );
-        if (!child.killed) {
-          child.kill("SIGTERM");
-        }
+        killWithEscalation(child, workspaceName);
       };
       signal.addEventListener("abort", onAbort, { once: true });
 
@@ -123,4 +119,29 @@ export function streamFromWorkspace(
   }
 
   return { stdout: readable, process: child };
+}
+
+/**
+ * Kill a child process with SIGTERM, escalating to SIGKILL after 5 seconds
+ * if the process hasn't exited. Prevents zombie `coder ssh` processes.
+ */
+function killWithEscalation(child: ChildProcess, workspaceName: string): void {
+  if (child.exitCode !== null) return; // already exited
+
+  child.kill("SIGTERM");
+
+  const escalationTimer = setTimeout(() => {
+    if (child.exitCode === null) {
+      console.log(
+        `[stream] SIGKILL escalation: workspace=${workspaceName} (SIGTERM ignored after 5s)`,
+      );
+      child.kill("SIGKILL");
+    }
+  }, 5_000);
+
+  // Don't let the timer keep the process alive
+  escalationTimer.unref();
+
+  // Clear timer if the child exits in time
+  child.on("close", () => clearTimeout(escalationTimer));
 }

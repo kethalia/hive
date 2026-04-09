@@ -135,6 +135,56 @@ describe("streamFromWorkspace", () => {
     expect(r2.done).toBe(true);
   });
 
+  it("errors the stream when the child process fails to spawn", async () => {
+    const child = makeMockChild();
+    mockSpawn.mockReturnValue(child as any);
+
+    const { stdout } = streamFromWorkspace("ws", "cmd");
+    const reader = stdout.getReader();
+
+    // Simulate spawn failure (e.g., 'coder' binary not found)
+    const spawnError = new Error("spawn coder ENOENT");
+    child.emit("error", spawnError);
+
+    await expect(reader.read()).rejects.toThrow("spawn coder ENOENT");
+  });
+
+  it("logs stderr without breaking the stdout stream", async () => {
+    const child = makeMockChild();
+    mockSpawn.mockReturnValue(child as any);
+
+    const { stdout } = streamFromWorkspace("ws", "cmd");
+    const reader = stdout.getReader();
+
+    // Emit stderr, then a stdout line, then close
+    child.stderr.emit("data", Buffer.from("warning: something\n"));
+    child.stdout.emit("data", Buffer.from("output\n"));
+    child.emit("close", 0);
+
+    const r1 = await reader.read();
+    expect(r1.value).toBe("output");
+
+    const r2 = await reader.read();
+    expect(r2.done).toBe(true);
+
+    // Stderr should have been logged (not thrown)
+    expect(console.log).toHaveBeenCalledWith(
+      expect.stringContaining("[stream] stderr:"),
+    );
+  });
+
+  it("kills the child via cancel() on the ReadableStream", async () => {
+    const child = makeMockChild();
+    mockSpawn.mockReturnValue(child as any);
+
+    const { stdout } = streamFromWorkspace("ws", "cmd");
+
+    // Cancel the stream (simulates client disconnect)
+    await stdout.cancel();
+
+    expect(child.kill).toHaveBeenCalledWith("SIGTERM");
+  });
+
   it("flushes remaining buffer on child exit", async () => {
     const child = makeMockChild();
     mockSpawn.mockReturnValue(child as any);

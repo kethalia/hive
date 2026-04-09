@@ -36,6 +36,10 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
+# terraform
+templates/**/.terraform/
+!templates/**/.terraform.lock.hcl
+
 # ── GSD baseline (auto-generated) ──
 .gsd
 Thumbs.db

@@ -6,6 +6,9 @@ const PROJECT_DIR = "/home/coder/project";
 /** 30-minute timeout — complex tasks can run long. */
 const AGENT_TIMEOUT_MS = 1_800_000;
 
+/** Allowlist for values that are interpolated into shell commands. */
+const SAFE_IDENTIFIER = /^[a-zA-Z0-9._-]+$/;
+
 /**
  * Create the agent execution step (R003).
  *
@@ -19,6 +22,24 @@ export function createAgentStep(): BlueprintStep {
     name: "agent-execution",
     async execute(ctx) {
       const start = Date.now();
+
+      // Validate provider and model — these are interpolated into a shell command.
+      // Currently sourced from env vars, but validate defensively in case the
+      // trust boundary shifts to user/task configuration.
+      if (!SAFE_IDENTIFIER.test(ctx.piProvider)) {
+        return {
+          status: "failure" as const,
+          message: `Invalid piProvider value: ${ctx.piProvider}`,
+          durationMs: Date.now() - start,
+        };
+      }
+      if (!SAFE_IDENTIFIER.test(ctx.piModel)) {
+        return {
+          status: "failure" as const,
+          message: `Invalid piModel value: ${ctx.piModel}`,
+          durationMs: Date.now() - start,
+        };
+      }
 
       // 1. Write assembled context + rules to a temp file via base64
       //    to avoid any shell quoting/escaping issues.

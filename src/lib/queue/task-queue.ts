@@ -12,6 +12,7 @@ import { createCommitPushStep } from "@/lib/blueprint/steps/commit-push";
 import { createCIStep } from "@/lib/blueprint/steps/ci";
 import { createPRStep } from "@/lib/blueprint/steps/pr";
 import { cleanupWorkspace } from "@/lib/workspace/cleanup";
+import { workerWorkspaceName, verifierWorkspaceName } from "@/lib/workspace/naming";
 import { createVerifierBlueprint } from "@/lib/blueprint/verifier";
 import type { BlueprintContext } from "@/lib/blueprint/types";
 import type { VerificationReport } from "@/lib/verification/report";
@@ -98,7 +99,7 @@ export function createTaskWorker(coderClient: CoderClient): Worker<TaskJobData> 
         console.log(`[task] Task ${taskId} status → running`);
 
         // 2. Create Coder workspace
-        const workspaceName = `hive-worker-${taskId.slice(0, 8)}`;
+        const workspaceName = workerWorkspaceName(taskId);
         const workspace = await coderClient.createWorkspace(templateId, workspaceName, {
           task_id: taskId,
           task_prompt: prompt,
@@ -223,8 +224,8 @@ export function createTaskWorker(coderClient: CoderClient): Worker<TaskJobData> 
 
             try {
               // Create verifier workspace
-              const verifierWorkspaceName = `hive-verifier-${taskId.slice(0, 8)}`;
-              const verifierWs = await coderClient.createWorkspace(verifierTemplateId, verifierWorkspaceName, {
+              const verifierWsName = verifierWorkspaceName(taskId);
+              const verifierWs = await coderClient.createWorkspace(verifierTemplateId, verifierWsName, {
                 task_id: taskId,
                 repo_url: repoUrl,
                 branch_name: branchName,

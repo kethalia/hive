@@ -29,18 +29,34 @@ export function startCleanupScheduler(
   options?: CleanupSchedulerOptions,
 ): CleanupSchedulerHandle {
   const intervalMs = options?.intervalMs ?? 5 * 60 * 1000;
-  const graceMs =
+  const rawGraceMs =
     options?.graceMs ??
     (process.env.CLEANUP_GRACE_MS
       ? Number(process.env.CLEANUP_GRACE_MS)
       : 60_000);
+  // Clamp to non-negative — a negative grace would skip the waiting period
+  const graceMs = Math.max(0, rawGraceMs);
 
-  const timer = setInterval(() => {
-    void sweep(coderClient, db, graceMs);
-  }, intervalMs);
+  let sweepInProgress = false;
+
+  const runSweep = () => {
+    if (sweepInProgress) return;
+    sweepInProgress = true;
+    sweep(coderClient, db, graceMs)
+      .catch((err) =>
+        console.error(
+          `[cleanup-scheduler] unhandled sweep error: ${err instanceof Error ? err.message : String(err)}`,
+        ),
+      )
+      .finally(() => {
+        sweepInProgress = false;
+      });
+  };
+
+  const timer = setInterval(runSweep, intervalMs);
 
   // Run first sweep immediately
-  void sweep(coderClient, db, graceMs);
+  runSweep();
 
   return {
     stop: () => clearInterval(timer),

@@ -4,6 +4,7 @@ import type {
   CreateWorkspaceRequest,
   ListWorkspacesResponse,
   WaitForBuildOptions,
+  WorkspaceBuildStatus,
   WorkspaceResource,
 } from "./types";
 
@@ -100,7 +101,7 @@ export class CoderClient {
    * Maps owner/status to the Coder `q` query-string parameter.
    */
   async listWorkspaces(
-    options?: { owner?: string; status?: string }
+    options?: { owner?: string; status?: WorkspaceBuildStatus }
   ): Promise<ListWorkspacesResponse> {
     const parts: string[] = [];
     if (options?.owner) parts.push(`owner:${options.owner}`);

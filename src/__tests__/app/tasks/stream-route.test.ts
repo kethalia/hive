@@ -9,6 +9,10 @@ vi.mock("@/lib/workspace/stream", () => ({
   streamFromWorkspace: vi.fn(),
 }));
 
+vi.mock("@/lib/workspace/naming", () => ({
+  workerWorkspaceName: vi.fn((taskId: string) => `hive-worker-${taskId.slice(0, 8)}`),
+}));
+
 import { GET } from "@/app/api/tasks/[id]/stream/route";
 import { getDb } from "@/lib/db";
 import { streamFromWorkspace } from "@/lib/workspace/stream";
@@ -41,10 +45,22 @@ function makeParams(taskId: string): Promise<{ id: string }> {
   return Promise.resolve({ id: taskId });
 }
 
+const VALID_UUID = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee";
+
 describe("GET /api/tasks/[id]/stream", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.spyOn(console, "log").mockImplementation(() => {});
+  });
+
+  it("rejects non-UUID task IDs with 400", async () => {
+    const response = await GET(makeRequest("not-a-uuid"), {
+      params: makeParams("not-a-uuid"),
+    });
+
+    expect(response.status).toBe(400);
+    const body = await response.text();
+    expect(body).toBe("Invalid task ID");
   });
 
   it("returns SSE content-type headers", async () => {
@@ -54,13 +70,12 @@ describe("GET /api/tasks/[id]/stream", () => {
       },
     } as any);
 
-    const response = await GET(makeRequest("task-1"), {
-      params: makeParams("task-1"),
+    const response = await GET(makeRequest(VALID_UUID), {
+      params: makeParams(VALID_UUID),
     });
 
     expect(response.headers.get("Content-Type")).toBe("text/event-stream");
     expect(response.headers.get("Cache-Control")).toBe("no-cache");
-    expect(response.headers.get("Connection")).toBe("keep-alive");
 
     // Consume body to avoid dangling streams
     await readSSEResponse(response);
@@ -73,8 +88,8 @@ describe("GET /api/tasks/[id]/stream", () => {
       },
     } as any);
 
-    const response = await GET(makeRequest("task-1"), {
-      params: makeParams("task-1"),
+    const response = await GET(makeRequest(VALID_UUID), {
+      params: makeParams(VALID_UUID),
     });
 
     const body = await readSSEResponse(response);
@@ -82,12 +97,28 @@ describe("GET /api/tasks/[id]/stream", () => {
     expect(body).toContain('event: status\ndata: {"status":"waiting"}');
   });
 
+  it("sends SSE error event when DB lookup fails", async () => {
+    mockGetDb.mockReturnValue({
+      workspace: {
+        findFirst: vi.fn().mockRejectedValue(new Error("Connection refused")),
+      },
+    } as any);
+
+    const response = await GET(makeRequest(VALID_UUID), {
+      params: makeParams(VALID_UUID),
+    });
+
+    const body = await readSSEResponse(response);
+    expect(body).toContain("event: error");
+    expect(body).toContain("Database lookup failed");
+  });
+
   it("relays lines from stream as SSE data events", async () => {
     mockGetDb.mockReturnValue({
       workspace: {
         findFirst: vi.fn().mockResolvedValue({
           id: "ws-1",
-          taskId: "task-1234-abcd",
+          taskId: VALID_UUID,
           coderWorkspaceId: "coder-ws-1",
           templateType: "worker",
           status: "running",
@@ -110,8 +141,8 @@ describe("GET /api/tasks/[id]/stream", () => {
       process: mockProcess as any,
     });
 
-    const response = await GET(makeRequest("task-1234-abcd"), {
-      params: makeParams("task-1234-abcd"),
+    const response = await GET(makeRequest(VALID_UUID), {
+      params: makeParams(VALID_UUID),
     });
 
     const body = await readSSEResponse(response);
@@ -128,7 +159,7 @@ describe("GET /api/tasks/[id]/stream", () => {
       workspace: {
         findFirst: vi.fn().mockResolvedValue({
           id: "ws-1",
-          taskId: "task-5678-efgh",
+          taskId: VALID_UUID,
           coderWorkspaceId: "coder-ws-1",
           templateType: "worker",
           status: "running",
@@ -149,8 +180,8 @@ describe("GET /api/tasks/[id]/stream", () => {
       process: mockProcess as any,
     });
 
-    const response = await GET(makeRequest("task-5678-efgh"), {
-      params: makeParams("task-5678-efgh"),
+    const response = await GET(makeRequest(VALID_UUID), {
+      params: makeParams(VALID_UUID),
     });
 
     const body = await readSSEResponse(response);
@@ -164,7 +195,7 @@ describe("GET /api/tasks/[id]/stream", () => {
       workspace: {
         findFirst: vi.fn().mockResolvedValue({
           id: "ws-1",
-          taskId: "task-abcd-1234-efgh",
+          taskId: VALID_UUID,
           coderWorkspaceId: "coder-ws-1",
           templateType: "worker",
           status: "running",
@@ -184,12 +215,12 @@ describe("GET /api/tasks/[id]/stream", () => {
       process: mockProcess as any,
     });
 
-    const request = makeRequest("task-abcd-1234-efgh");
-    const response = await GET(request, { params: makeParams("task-abcd-1234-efgh") });
+    const request = makeRequest(VALID_UUID);
+    const response = await GET(request, { params: makeParams(VALID_UUID) });
 
     // Workspace name should follow hive-worker-{taskId.slice(0,8)} pattern
     expect(mockStreamFromWorkspace).toHaveBeenCalledWith(
-      "hive-worker-task-abc",
+      `hive-worker-${VALID_UUID.slice(0, 8)}`,
       "tail -f -n +1 /tmp/hive-agent-output.log",
       request.signal,
     );

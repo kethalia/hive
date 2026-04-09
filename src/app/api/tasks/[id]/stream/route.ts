@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import { getDb } from "@/lib/db";
 import { streamFromWorkspace } from "@/lib/workspace/stream";
+import { workerWorkspaceName } from "@/lib/workspace/naming";
 
 /**
  * SSE endpoint for streaming live agent output from a running workspace.
@@ -19,6 +20,12 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { id: taskId } = await params;
+
+  // Validate taskId is a UUID before using it in any shell command
+  const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  if (!UUID_RE.test(taskId)) {
+    return new Response("Invalid task ID", { status: 400 });
+  }
 
   console.log(`[stream] SSE connect: taskId=${taskId}`);
 
@@ -58,8 +65,8 @@ export async function GET(
     return sseResponse(waitingStream);
   }
 
-  // Construct the SSH workspace name matching the pattern in task-queue.ts
-  const workspaceName = `hive-worker-${taskId.slice(0, 8)}`;
+  // Derive workspace name from the shared naming convention
+  const workspaceName = workerWorkspaceName(taskId);
 
   console.log(
     `[stream] SSE connected: taskId=${taskId} workspace=${workspaceName}`,
@@ -83,7 +90,9 @@ export async function GET(
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
-        controller.enqueue(`data: ${value}\n\n`);
+        // Sanitize: strip \r\n to prevent SSE control sequence injection
+        const sanitized = value.replace(/[\r\n]/g, "");
+        controller.enqueue(`data: ${sanitized}\n\n`);
       }
     } catch (err) {
       // Stream read error — typically from abort
@@ -100,6 +109,14 @@ export async function GET(
       }
     } finally {
       console.log(`[stream] SSE ended: taskId=${taskId}`);
+
+      // Release reader lock before closing the controller
+      try {
+        reader.releaseLock();
+      } catch {
+        // Already released
+      }
+
       try {
         controller.enqueue(
           formatSSE("status", JSON.stringify({ status: "ended" })),
@@ -154,7 +171,6 @@ function sseResponse(stream: ReadableStream<string>): Response {
     headers: {
       "Content-Type": "text/event-stream",
       "Cache-Control": "no-cache",
-      Connection: "keep-alive",
     },
   });
 }

@@ -6,6 +6,9 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 
 type ConnectionStatus = "connecting" | "streaming" | "waiting" | "ended" | "error";
 
+/** Cap the number of lines to prevent unbounded memory growth on long-running agents. */
+const MAX_LINES = 5_000;
+
 const statusDotColor: Record<ConnectionStatus, string> = {
   connecting: "bg-yellow-400",
   waiting: "bg-yellow-400",
@@ -51,7 +54,10 @@ export function AgentStreamPanel({
 
     es.onmessage = (event) => {
       setConnectionStatus("streaming");
-      setLines((prev) => [...prev, event.data]);
+      setLines((prev) => {
+        const next = [...prev, event.data];
+        return next.length > MAX_LINES ? next.slice(-MAX_LINES) : next;
+      });
     };
 
     es.addEventListener("status", (event) => {
