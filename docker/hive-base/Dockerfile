@@ -51,7 +51,6 @@ RUN apt-get update \
         python3 \
         python3-pip \
         rsync \
-        software-properties-common \
         sudo \
         tmux \
         unzip \
