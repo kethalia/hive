@@ -115,11 +115,25 @@ if [ -n "$EFFECTIVE_VAULT_REPO" ]; then
 
   if [ ! -d ~/vault/.git ]; then
     echo "Cloning Obsidian vault..."
-    # Convert SSH URL to HTTPS — Coder's GIT_ASKPASS handles auth automatically
+    # Convert SSH URL to HTTPS
     CLONE_URL=$(echo "$EFFECTIVE_VAULT_REPO" | sed 's|git@github.com:|https://github.com/|')
-    git clone "$CLONE_URL" ~/vault \
-      && echo "Vault cloned successfully" \
-      || echo "WARNING: vault clone failed"
+    # Get token via coder CLI — works regardless of external auth URL regex filters
+    CODER_BIN=$(ls /tmp/coder.*/coder 2>/dev/null | head -1)
+    VAULT_GH_TOKEN=""
+    if [ -n "$CODER_BIN" ] && [ -n "$CODER_AGENT_TOKEN" ]; then
+      VAULT_GH_TOKEN=$(CODER_AGENT_URL="https://coder.local.kethalia.com" \
+        "$CODER_BIN" external-auth access-token primary-github 2>/dev/null || echo "")
+    fi
+    if [ -n "$VAULT_GH_TOKEN" ]; then
+      REPO_PATH=$(echo "$CLONE_URL" | sed 's|https://github.com/||')
+      git clone "https://x-access-token:$VAULT_GH_TOKEN@github.com/$REPO_PATH" ~/vault \
+        && echo "Vault cloned successfully" \
+        || echo "WARNING: vault clone failed"
+    else
+      git clone "$CLONE_URL" ~/vault \
+        && echo "Vault cloned successfully" \
+        || echo "WARNING: vault clone failed (no auth token)"
+    fi
   else
     echo "Pulling vault updates..."
     git -C ~/vault pull --ff-only 2>/dev/null || true
