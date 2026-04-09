@@ -12,15 +12,14 @@ on:
     paths:
       - "docker/hive-base/**"
   workflow_dispatch:
-    inputs:
-      push:
-        description: "Push to GHCR (only works on main branch)"
-        required: false
-        default: "false"
 
 permissions:
   contents: read
   packages: write
+
+concurrency:
+  group: build-hive-base-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   build-test-push:
@@ -50,6 +49,7 @@ jobs:
           context: docker/hive-base
           push: false
           load: true
+          platforms: linux/amd64
           tags: ghcr.io/kethalia/hive-base:${{ github.sha }}
           cache-from: type=gha
           cache-to: type=gha,mode=max

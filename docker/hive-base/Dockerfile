@@ -35,6 +35,7 @@ RUN install -m 0755 -d /etc/apt/keyrings \
 # Google Chrome apt repo
 RUN curl -fsSL https://dl.google.com/linux/linux_signing_key.pub \
         | gpg --dearmor -o /etc/apt/keyrings/google-chrome.gpg \
+    && chmod a+r /etc/apt/keyrings/google-chrome.gpg \
     && echo "deb [arch=amd64 signed-by=/etc/apt/keyrings/google-chrome.gpg] https://dl.google.com/linux/chrome/deb/ stable main" \
         > /etc/apt/sources.list.d/google-chrome.list
 
@@ -164,7 +165,8 @@ RUN (id ubuntu && userdel -r ubuntu || true) \
         --groups=docker,ssl-cert \
         --uid=1000 \
         --user-group \
-    && echo "coder ALL=(ALL) NOPASSWD:ALL" >>/etc/sudoers.d/nopasswd
+    && echo "coder ALL=(ALL) NOPASSWD:ALL" >/etc/sudoers.d/nopasswd \
+    && chmod 0440 /etc/sudoers.d/nopasswd
 
 # ── Stage 2: user-scoped installs (run as coder) ──────────────────────────────
 
