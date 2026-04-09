@@ -35,8 +35,11 @@ export function startCleanupScheduler(
     (process.env.CLEANUP_GRACE_MS
       ? Number(process.env.CLEANUP_GRACE_MS)
       : DEFAULT_CLEANUP_GRACE_MS);
-  // Clamp to non-negative — a negative grace would skip the waiting period
-  const graceMs = Math.max(0, rawGraceMs);
+  // Fall back when parsing produced NaN/Infinity, then clamp to non-negative.
+  const graceMs = Math.max(
+    0,
+    Number.isFinite(rawGraceMs) ? rawGraceMs : DEFAULT_CLEANUP_GRACE_MS,
+  );
 
   let sweepInProgress = false;
 

@@ -71,7 +71,7 @@ export const statusVariant: Record<string, "default" | "secondary" | "destructiv
   deleted: "outline",
 };
 
-import type { VerificationOutcome } from "@/lib/types/tasks";
+import type { VerificationOutcome } from "@/lib/verification/report";
 
 /** Map verification outcome to Badge variant. */
 export const outcomeVariant: Record<VerificationOutcome, "default" | "secondary" | "destructive"> = {

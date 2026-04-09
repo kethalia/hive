@@ -66,7 +66,7 @@ Actual times depend on Docker image size, registry proximity, and host resources
 
 ## Configuring Prebuild Pool Size
 
-Pool sizes are configured in each template's `main.tf` via the `coder_workspace_preset` resource:
+Pool sizes are configured in each template's `main.tf` via the `coder_workspace_preset` data source:
 
 ```hcl
 data "coder_workspace_preset" "default" {

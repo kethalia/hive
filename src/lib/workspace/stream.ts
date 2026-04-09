@@ -1,4 +1,5 @@
 import { spawn, type ChildProcess } from "child_process";
+import { StringDecoder } from "string_decoder";
 
 export interface StreamResult {
   stdout: ReadableStream<string>;
@@ -33,6 +34,9 @@ export function streamFromWorkspace(
   );
 
   let buffer = "";
+  // StringDecoder handles multibyte UTF-8 characters split across chunks
+  // (e.g. emoji, CJK). Plain chunk.toString('utf-8') would corrupt them.
+  const decoder = new StringDecoder("utf-8");
   let streamController: ReadableStreamDefaultController<string> | null = null;
 
   const readable = new ReadableStream<string>({
@@ -40,7 +44,7 @@ export function streamFromWorkspace(
       streamController = controller;
 
       child.stdout?.on("data", (chunk: Buffer) => {
-        buffer += chunk.toString("utf-8");
+        buffer += decoder.write(chunk);
         const lines = buffer.split("\n");
         // Keep the last element — it may be an incomplete line
         buffer = lines.pop() ?? "";

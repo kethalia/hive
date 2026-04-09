@@ -99,7 +99,7 @@ export function createAgentStep(): BlueprintStep {
       // so `tail -f` from the SSE endpoint doesn't fail if it connects early.
       const initLogResult = await execInWorkspace(
         ctx.workspaceName,
-        `echo '' > ${AGENT_OUTPUT_LOG}`,
+        `: > ${AGENT_OUTPUT_LOG}`,
         { timeoutMs: EXEC_TIMEOUT_MS },
       );
 
@@ -110,7 +110,11 @@ export function createAgentStep(): BlueprintStep {
       }
 
       const toolArgs = ctx.toolFlags.map((t) => `--tool=${t}`).join(" ");
+      // set -o pipefail ensures the exit code reflects Pi's status,
+      // not tee's (which almost always returns 0).
       const piCmd = [
+        `set -o pipefail`,
+        `&&`,
         `cd ${PROJECT_DIR}`,
         `&&`,
         `cat ${CONTEXT_FILE}`,

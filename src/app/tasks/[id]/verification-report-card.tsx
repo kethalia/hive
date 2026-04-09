@@ -1,14 +1,14 @@
 "use client";
 
 import { useState } from "react";
-import type { VerificationReportData } from "@/lib/types/tasks";
+import type { VerificationReport } from "@/lib/verification/report";
 import { outcomeVariant, formatDuration, formatTimestamp } from "@/lib/helpers/format";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { ChevronDown, ChevronRight, Clock, FlaskConical } from "lucide-react";
 
-export function VerificationReportCard({ report }: { report: VerificationReportData }) {
+export function VerificationReportCard({ report }: { report: VerificationReport }) {
   const [logsExpanded, setLogsExpanded] = useState(false);
 
   return (

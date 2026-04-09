@@ -16,7 +16,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { AlertCircle, ArrowLeft, ExternalLink, GitBranch, Paperclip } from "lucide-react";
 import { VerificationReportCard } from "./verification-report-card";
 import { AgentStreamPanel } from "./agent-stream-panel";
-import { isVerificationReport } from "@/lib/types/tasks";
+import { isVerificationReport } from "@/lib/verification/report";
 
 export function TaskDetail({ initialTask }: { initialTask: TaskWithRelations }) {
   const [task, setTask] = useState<TaskWithRelations>(initialTask);

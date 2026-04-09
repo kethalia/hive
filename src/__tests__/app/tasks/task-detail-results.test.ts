@@ -2,7 +2,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import React from "react";
 import { render, screen, fireEvent, cleanup } from "@testing-library/react";
-import type { VerificationReportData } from "@/lib/types/tasks";
+import type { VerificationReport } from "@/lib/verification/report";
 import { outcomeVariant, formatDuration } from "@/lib/helpers/format";
 
 // ── Mock Next.js and UI dependencies ──────────────────────────────
@@ -22,7 +22,7 @@ import { VerificationReportCard } from "@/app/tasks/[id]/verification-report-car
 
 // ── Fixtures ──────────────────────────────────────────────────────
 
-function makeReport(overrides: Partial<VerificationReportData> = {}): VerificationReportData {
+function makeReport(overrides: Partial<VerificationReport> = {}): VerificationReport {
   return {
     strategy: "test-suite",
     outcome: "pass",
