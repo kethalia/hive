@@ -115,24 +115,21 @@ if [ -n "$EFFECTIVE_VAULT_REPO" ]; then
 
   if [ ! -d ~/vault/.git ]; then
     echo "Cloning Obsidian vault..."
-    # Convert SSH URL to HTTPS
-    CLONE_URL=$(echo "$EFFECTIVE_VAULT_REPO" | sed 's|git@github.com:|https://github.com/|')
-    # Get token via coder CLI — works regardless of external auth URL regex filters
+    # Ensure github.com host key is in known_hosts
+    mkdir -p ~/.ssh
+    ssh-keyscan github.com >> ~/.ssh/known_hosts 2>/dev/null
+    # Use coder gitssh for SSH key injection — find the agent binary
     CODER_BIN=$(ls /tmp/coder.*/coder 2>/dev/null | head -1)
-    VAULT_GH_TOKEN=""
-    if [ -n "$CODER_BIN" ] && [ -n "$CODER_AGENT_TOKEN" ]; then
-      VAULT_GH_TOKEN=$(CODER_AGENT_URL="https://coder.local.kethalia.com" \
-        "$CODER_BIN" external-auth access-token primary-github 2>/dev/null || echo "")
-    fi
-    if [ -n "$VAULT_GH_TOKEN" ]; then
-      REPO_PATH=$(echo "$CLONE_URL" | sed 's|https://github.com/||')
-      git clone "https://x-access-token:$VAULT_GH_TOKEN@github.com/$REPO_PATH" ~/vault \
+    if [ -n "$CODER_BIN" ]; then
+      GIT_SSH_COMMAND="$CODER_BIN gitssh --" \
+      CODER_AGENT_URL="https://coder.local.kethalia.com" \
+        git clone "$EFFECTIVE_VAULT_REPO" ~/vault \
         && echo "Vault cloned successfully" \
         || echo "WARNING: vault clone failed"
     else
-      git clone "$CLONE_URL" ~/vault \
+      git clone "$EFFECTIVE_VAULT_REPO" ~/vault \
         && echo "Vault cloned successfully" \
-        || echo "WARNING: vault clone failed (no auth token)"
+        || echo "WARNING: vault clone failed"
     fi
   else
     echo "Pulling vault updates..."
