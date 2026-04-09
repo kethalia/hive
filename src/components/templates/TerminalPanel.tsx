@@ -3,8 +3,6 @@
 import { useEffect, useRef } from "react";
 import type { Terminal } from "@xterm/xterm";
 import type { FitAddon } from "@xterm/addon-fit";
-// Vendored CSS — @xterm/xterm uses the "style" export condition which Turbopack cannot resolve
-import "@/styles/xterm.css";
 import { X } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -12,6 +10,8 @@ interface TerminalPanelProps {
   onClose: () => void;
   /** Ref that callers use to write lines into the terminal. */
   writeRef: React.MutableRefObject<((line: string) => void) | null>;
+  /** Called once xterm is mounted and ready to receive output. */
+  onReady?: () => void;
   className?: string;
 }
 
@@ -24,7 +24,7 @@ interface TerminalPanelProps {
  * `writeRef` is populated once the terminal is ready — callers write lines
  * by calling `writeRef.current?.(line)`.
  */
-export function TerminalPanel({ onClose, writeRef, className }: TerminalPanelProps) {
+export function TerminalPanel({ onClose, writeRef, onReady, className }: TerminalPanelProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const termRef = useRef<Terminal | null>(null);
   const fitRef = useRef<FitAddon | null>(null);
@@ -84,6 +84,9 @@ export function TerminalPanel({ onClose, writeRef, className }: TerminalPanelPro
       writeRef.current = (line: string) => {
         term?.writeln(line);
       };
+
+      // Signal to caller that the terminal is ready to receive output
+      onReady?.();
     })();
 
     const handleResize = () => fitRef.current?.fit();
@@ -97,7 +100,7 @@ export function TerminalPanel({ onClose, writeRef, className }: TerminalPanelPro
       termRef.current = null;
       fitRef.current = null;
     };
-  }, [writeRef]);
+  }, [writeRef, onReady]);
 
   return (
     <div

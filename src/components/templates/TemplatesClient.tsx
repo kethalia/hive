@@ -61,6 +61,8 @@ export function TemplatesClient({ initialStatuses }: TemplatesClientProps) {
 
   // writeRef per template — populated when TerminalPanel mounts
   const writeRefs = useRef<Record<string, React.MutableRefObject<((line: string) => void) | null>>>({});
+  // Buffer lines that arrive before the terminal is ready
+  const lineBuffers = useRef<Record<string, string[]>>({});
 
   // Get or create a writeRef for a template
   function getWriteRef(name: string): React.MutableRefObject<((line: string) => void) | null> {
@@ -68,6 +70,29 @@ export function TemplatesClient({ initialStatuses }: TemplatesClientProps) {
       writeRefs.current[name] = { current: null };
     }
     return writeRefs.current[name];
+  }
+
+  // Called by TerminalPanel once xterm is ready — flush any buffered lines
+  const handleTerminalReady = useCallback((name: string) => {
+    const buffered = lineBuffers.current[name] ?? [];
+    delete lineBuffers.current[name];
+    const write = writeRefs.current[name]?.current;
+    if (write) {
+      for (const line of buffered) {
+        write(line);
+      }
+    }
+  }, []);
+
+  // Write a line to the terminal, buffering if not yet ready
+  function writeLine(name: string, line: string) {
+    const write = writeRefs.current[name]?.current;
+    if (write) {
+      write(line);
+    } else {
+      if (!lineBuffers.current[name]) lineBuffers.current[name] = [];
+      lineBuffers.current[name].push(line);
+    }
   }
 
   // ── Status polling ─────────────────────────────────────────────
@@ -102,7 +127,7 @@ export function TemplatesClient({ initialStatuses }: TemplatesClientProps) {
       const res = await fetch(`/api/templates/${name}/push`, { method: "POST" });
       if (!res.ok) {
         const body = await res.json().catch(() => ({ error: "Unknown error" }));
-        writeRefs.current[name]?.current?.(`[error] ${body.error ?? "Failed to start push"}`);
+        writeLine(name, `[error] ${body.error ?? "Failed to start push"}`);
         setPushStates((prev) => ({
           ...prev,
           [name]: { ...prev[name], inProgress: false, result: false },
@@ -112,7 +137,7 @@ export function TemplatesClient({ initialStatuses }: TemplatesClientProps) {
       const data = await res.json();
       jobId = data.jobId;
     } catch (err) {
-      writeRefs.current[name]?.current?.(`[error] ${err instanceof Error ? err.message : String(err)}`);
+      writeLine(name, `[error] ${err instanceof Error ? err.message : String(err)}`);
       setPushStates((prev) => ({
         ...prev,
         [name]: { ...prev[name], inProgress: false, result: false },
@@ -129,7 +154,7 @@ export function TemplatesClient({ initialStatuses }: TemplatesClientProps) {
     const eventSource = new EventSource(`/api/templates/${name}/push/${jobId}/stream`);
 
     eventSource.onmessage = (ev) => {
-      writeRefs.current[name]?.current?.(ev.data);
+      writeLine(name, ev.data);
     };
 
     eventSource.addEventListener("status", (ev) => {
@@ -271,6 +296,7 @@ export function TemplatesClient({ initialStatuses }: TemplatesClientProps) {
             <TerminalPanel
               writeRef={getWriteRef(status.name)}
               onClose={() => handleCloseTerminal(status.name)}
+              onReady={() => handleTerminalReady(status.name)}
               className="h-64"
             />
           </div>

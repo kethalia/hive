@@ -1,5 +1,5 @@
 import { NextRequest } from "next/server";
-import { createReadStream, existsSync } from "fs";
+import { existsSync, statSync, createReadStream } from "fs";
 import { pushLogPath } from "@/lib/templates/push-queue";
 import { KNOWN_TEMPLATES } from "@/lib/templates/staleness";
 
@@ -14,7 +14,7 @@ const JOB_ID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}
  * when it detects the `[exit:0]` or `[exit:1]` sentinel.
  *
  * SSE events:
- *   - `data: <line>` — log output
+ *   - `data: <line>` — log output (blank lines emitted as `data: `)
  *   - `event: status\ndata: {"success":true}`  — push succeeded
  *   - `event: status\ndata: {"success":false}` — push failed
  */
@@ -53,13 +53,15 @@ export async function GET(
         send(`event: ${event}\ndata: ${data}\n\n`);
       }
 
-      /** Emit a data-only SSE line. */
+      /**
+       * Emit a data-only SSE line.
+       * Blank lines are emitted as `data: ` (empty value) so the terminal
+       * renders them correctly — stripping them breaks CLI output readability.
+       */
       function sendData(line: string) {
-        // Sanitize: strip CR/LF to prevent SSE injection
+        // Only strip CR/LF to prevent SSE frame injection; preserve blank lines
         const sanitized = line.replace(/[\r\n]/g, "");
-        if (sanitized.length > 0) {
-          send(`data: ${sanitized}\n\n`);
-        }
+        send(`data: ${sanitized}\n\n`);
       }
 
       // Wait up to 30s for the log file to appear (job may not have started yet)
@@ -77,107 +79,107 @@ export async function GET(
         await new Promise((r) => setTimeout(r, 500));
       }
 
-      // Tail the log file line by line, checking for the exit sentinel
+      // Tail the log file using a byte offset so each poll only reads new content.
+      // This avoids the O(n²) re-read-from-zero pattern — critical for large logs.
       await new Promise<void>((resolve) => {
+        let byteOffset = 0;
         let buffer = "";
         let finished = false;
+        let pollCount = 0;
+        const MAX_POLLS = 240; // 120s total at 500ms intervals
 
-        const fileStream = createReadStream(logPath, { encoding: "utf-8" });
-
-        fileStream.on("data", (chunk: string | Buffer) => {
-          buffer += typeof chunk === "string" ? chunk : chunk.toString("utf-8");
+        function processChunk(chunk: string) {
+          buffer += chunk;
           const lines = buffer.split("\n");
-          // Keep the last (possibly incomplete) segment in the buffer
           buffer = lines.pop() ?? "";
 
           for (const line of lines) {
             if (line === "[exit:0]") {
               finished = true;
               sendEvent("status", JSON.stringify({ success: true }));
+              return;
             } else if (line === "[exit:1]") {
               finished = true;
               sendEvent("status", JSON.stringify({ success: false }));
+              return;
             } else {
               sendData(line);
             }
           }
-        });
+        }
 
-        fileStream.on("end", () => {
-          // Flush remaining buffer
-          if (buffer.length > 0) {
-            if (buffer === "[exit:0]") {
-              sendEvent("status", JSON.stringify({ success: true }));
-            } else if (buffer === "[exit:1]") {
-              sendEvent("status", JSON.stringify({ success: false }));
-            } else {
-              sendData(buffer);
+        function poll() {
+          if (request.signal.aborted || finished) {
+            if (!finished && request.signal.aborted) {
+              // Client disconnected — no need to emit status
             }
-            buffer = "";
-          }
-
-          if (!finished) {
-            // File ended without sentinel — log may still be written by the worker
-            // Poll for updates by re-reading after a short delay
-            let pollCount = 0;
-            const MAX_POLLS = 120; // 60s total
-
-            const poll = () => {
-              if (request.signal.aborted || finished || pollCount >= MAX_POLLS) {
-                if (!finished) {
-                  sendEvent("status", JSON.stringify({ success: false, error: "Timed out waiting for completion" }));
-                }
-                resolve();
-                return;
-              }
-              pollCount++;
-              setTimeout(() => {
-                const tailStream = createReadStream(logPath, {
-                  encoding: "utf-8",
-                  start: 0,
-                });
-                let content = "";
-                tailStream.on("data", (c: string | Buffer) => {
-                  content += typeof c === "string" ? c : c.toString("utf-8");
-                });
-                tailStream.on("end", () => {
-                  const allLines = content.split("\n");
-                  for (const line of allLines) {
-                    if (line === "[exit:0]") {
-                      finished = true;
-                      sendEvent("status", JSON.stringify({ success: true }));
-                      break;
-                    } else if (line === "[exit:1]") {
-                      finished = true;
-                      sendEvent("status", JSON.stringify({ success: false }));
-                      break;
-                    }
-                  }
-                  if (finished) {
-                    resolve();
-                  } else {
-                    poll();
-                  }
-                });
-                tailStream.on("error", () => poll());
-              }, 500);
-            };
-            poll();
-          } else {
             resolve();
+            return;
           }
-        });
 
-        fileStream.on("error", (err) => {
-          sendEvent("status", JSON.stringify({ success: false, error: err.message }));
-          resolve();
-        });
+          if (pollCount >= MAX_POLLS) {
+            sendEvent("status", JSON.stringify({ success: false, error: "Timed out waiting for completion" }));
+            resolve();
+            return;
+          }
+
+          pollCount++;
+
+          // Only read bytes written since the last poll
+          let currentSize = byteOffset;
+          try {
+            currentSize = statSync(logPath).size;
+          } catch {
+            // File may have been cleaned up — stop polling
+            if (!finished) {
+              sendEvent("status", JSON.stringify({ success: false, error: "Log file disappeared" }));
+            }
+            resolve();
+            return;
+          }
+
+          if (currentSize <= byteOffset) {
+            // No new bytes — check again after delay
+            setTimeout(poll, 500);
+            return;
+          }
+
+          const readStream = createReadStream(logPath, {
+            encoding: "utf-8",
+            start: byteOffset,
+            end: currentSize - 1,
+          });
+
+          let newContent = "";
+          readStream.on("data", (c: string | Buffer) => {
+            newContent += typeof c === "string" ? c : c.toString("utf-8");
+          });
+          readStream.on("end", () => {
+            byteOffset = currentSize;
+            processChunk(newContent);
+
+            if (finished) {
+              // Flush any remaining buffer content
+              if (buffer.length > 0) {
+                sendData(buffer);
+                buffer = "";
+              }
+              resolve();
+            } else {
+              setTimeout(poll, 500);
+            }
+          });
+          readStream.on("error", () => setTimeout(poll, 500));
+        }
 
         // Abort handling
         request.signal.addEventListener("abort", () => {
-          fileStream.destroy();
+          finished = true; // stop polling
           resolve();
         });
+
+        // Start polling
+        poll();
       });
 
       try {

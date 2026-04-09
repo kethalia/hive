@@ -154,7 +154,16 @@ export async function compareTemplates(names: string[]): Promise<TemplateStatus[
     remoteTemplates = await client.listTemplates();
   } catch (err) {
     console.error(`[staleness] Failed to list remote templates: ${err instanceof Error ? err.message : String(err)}`);
-    remoteTemplates = [];
+    // Coder unreachable — return unknown state for all templates rather than
+    // treating them as stale, which could prompt accidental pushes during outages.
+    return names.map((name) => ({
+      name,
+      stale: false,
+      lastPushed: null,
+      activeVersionId: null,
+      localHash: "",
+      remoteHash: null,
+    }));
   }
 
   const results: TemplateStatus[] = [];
