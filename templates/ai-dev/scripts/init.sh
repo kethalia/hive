@@ -131,25 +131,66 @@ if [ -d ~/vault ] && [ ! -d ~/vault/.obsidian ]; then
   echo "Created .obsidian config in vault"
 fi
 
-# Generate ~/.claude/CLAUDE.md with @imports for every vault markdown file.
-# Claude Code loads this on every session — the @imports inline the actual content
-# so Claude always has the full vault as context without needing to grep for it.
+# Configure Obsidian MCP + CLAUDE.md + sync vault skills
 %{if vault_repo != ""}
 if [ -d ~/vault ]; then
+  # 1. Register mcp-obsidian in Claude Code's MCP config
   mkdir -p ~/.claude
-  {
-    echo "# Second Brain"
-    echo ""
-    echo "The following files are your user's personal knowledge vault."
-    echo "Read them before every task. Write back to them when you make"
-    echo "significant decisions, discover patterns, or complete milestones."
-    echo ""
-    # Emit an @import for every .md file in the vault, sorted
-    find ~/vault -name "*.md" ! -path "*/.git/*" | sort | while read -r f; do
-      echo "@$f"
+  CLAUDE_MCP="$HOME/.claude/mcp.json"
+  python3 -c "
+import json, os
+path = os.path.expanduser('~/.claude/mcp.json')
+try:
+    cfg = json.load(open(path))
+except:
+    cfg = {}
+servers = cfg.get('mcpServers', {})
+servers['obsidian'] = {
+    'command': 'npx',
+    'args': ['-y', '@bitbonsai/mcpvault@latest', '/home/coder/vault'],
+    'env': {}
+}
+cfg['mcpServers'] = servers
+json.dump(cfg, open(path, 'w'), indent=2)
+print('Obsidian MCP registered in ~/.claude/mcp.json')
+" 2>/dev/null || true
+
+  # 2. Write a lean CLAUDE.md — instructs Claude to use the MCP, not raw file reads
+  cat > ~/.claude/CLAUDE.md << 'CLAUDEEOF'
+# Second Brain
+
+Your user maintains a personal knowledge vault at `~/vault`, accessible via the `obsidian` MCP server.
+
+## How to use the vault
+
+Before starting any task, use the obsidian MCP to load relevant context:
+- `mcp__obsidian__search_notes` — search by keyword across the whole vault
+- `mcp__obsidian__read_note` — read a specific note
+- `mcp__obsidian__list_notes` — list notes in a folder
+
+Key folders: `Projects/`, `Decision Log/`, `Patterns/`, `Principles/`, `Tech Stack/`, `Profile/`, `Knowledge Base/`
+
+## Writing back
+
+When you make a significant decision, discover a pattern, or complete a milestone — offer to update the relevant vault file.
+
+## Skills
+
+Custom slash commands for this vault are in `~/vault/Skills/`. Run `/help` in Claude Code to see them.
+CLAUDEEOF
+  echo "Claude Code vault context configured at ~/.claude/CLAUDE.md"
+
+  # 3. Sync vault skills to Claude Code skills directory
+  if [ -d ~/vault/Skills ]; then
+    mkdir -p ~/.claude/skills
+    for skill_file in ~/vault/Skills/*.md; do
+      [ -f "$skill_file" ] || continue
+      skill_name=$(basename "$skill_file" .md | tr '[:upper:]' '[:lower:]' | tr ' ' '-')
+      dest="$HOME/.claude/skills/$skill_name.md"
+      cp "$skill_file" "$dest"
+      echo "Synced skill: $skill_name"
     done
-  } > ~/.claude/CLAUDE.md
-  echo "Claude Code vault context written to ~/.claude/CLAUDE.md ($(find ~/vault -name '*.md' ! -path '*/.git/*' | wc -l) files)"
+  fi
 fi
 %{endif}
 %{endif}
