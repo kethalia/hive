@@ -27,14 +27,22 @@ export interface TemplateStatus {
 // ── Hashing helpers ───────────────────────────────────────────────
 
 /**
+ * Directories excluded from local hashing — mirrors what `coder templates push`
+ * excludes when building the upload tar (provider cache, module downloads, etc.)
+ */
+const EXCLUDED_DIRS = new Set([".terraform"]);
+
+/**
  * Recursively collect all file paths under `dir`, returning them
  * sorted deterministically relative to `dir`.
+ * Skips directories that `coder templates push` doesn't upload.
  */
 async function collectFiles(dir: string, base: string = dir): Promise<string[]> {
   const entries = await readdir(dir, { withFileTypes: true });
   const paths: string[] = [];
 
   for (const entry of entries) {
+    if (entry.isDirectory() && EXCLUDED_DIRS.has(entry.name)) continue;
     const full = join(dir, entry.name);
     if (entry.isDirectory()) {
       const sub = await collectFiles(full, base);
@@ -44,7 +52,7 @@ async function collectFiles(dir: string, base: string = dir): Promise<string[]> 
     }
   }
 
-  return paths.sort();
+  return paths.sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
 }
 
 /**
@@ -110,7 +118,8 @@ export async function hashRemoteTar(tarBuffer: Buffer): Promise<string> {
   });
 
   // Sort deterministically before hashing
-  entries.sort((a, b) => a.path.localeCompare(b.path));
+  // Use byte-order sort (same as Python's default str sort) for determinism
+  entries.sort((a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0));
 
   const hash = createHash("sha256");
   for (const { path, content } of entries) {

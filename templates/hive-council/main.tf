@@ -53,6 +53,12 @@ variable "dotfiles_uri" {
   default     = ""
 }
 
+variable "vault_repo" {
+  description = "SSH URL of Obsidian second-brain vault repository (optional, e.g. git@github.com:org/vault.git)"
+  type        = string
+  default     = ""
+}
+
 # --- AI ---
 
 variable "anthropic_api_key" {
@@ -107,6 +113,7 @@ resource "coder_agent" "main" {
       HIVE_TASK_ID     = var.task_id
       HIVE_REPO_URL    = var.repo_url
       HIVE_BRANCH_NAME = var.branch_name
+      VAULT_REPO       = var.vault_repo
     },
     var.anthropic_api_key != "" ? { ANTHROPIC_API_KEY = var.anthropic_api_key } : {}
   )
@@ -304,13 +311,15 @@ resource "docker_volume" "home_volume" {
   }
 }
 
-data "docker_image" "main" {
-  name = "ghcr.io/kethalia/hive-base:latest"
+resource "docker_image" "main" {
+  name          = "ghcr.io/kethalia/hive-base:latest"
+  pull_triggers = [data.coder_workspace.me.start_count]
+  keep_locally  = true
 }
 
 resource "docker_container" "workspace" {
   count    = data.coder_workspace.me.start_count
-  image    = data.docker_image.main.name
+  image    = docker_image.main.image_id
   name     = "coder-${data.coder_workspace_owner.me.name}-${lower(data.coder_workspace.me.name)}"
   hostname = data.coder_workspace.me.name
 

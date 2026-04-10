@@ -61,8 +61,9 @@ export function TemplatesClient({ initialStatuses }: TemplatesClientProps) {
 
   // writeRef per template — populated when TerminalPanel mounts
   const writeRefs = useRef<Record<string, React.MutableRefObject<((line: string) => void) | null>>>({});
-  // Buffer lines that arrive before the terminal is ready
-  const lineBuffers = useRef<Record<string, string[]>>({});
+  // All lines ever received for a push, keyed by template name.
+  // Kept in a ref so TerminalPanel can replay them on mount regardless of timing.
+  const lineHistory = useRef<Record<string, string[]>>({});
 
   // Get or create a writeRef for a template
   function getWriteRef(name: string): React.MutableRefObject<((line: string) => void) | null> {
@@ -72,27 +73,23 @@ export function TemplatesClient({ initialStatuses }: TemplatesClientProps) {
     return writeRefs.current[name];
   }
 
-  // Called by TerminalPanel once xterm is ready — flush any buffered lines
+  // Called by TerminalPanel once xterm is ready — replay full history so far.
   const handleTerminalReady = useCallback((name: string) => {
-    const buffered = lineBuffers.current[name] ?? [];
-    delete lineBuffers.current[name];
     const write = writeRefs.current[name]?.current;
-    if (write) {
-      for (const line of buffered) {
-        write(line);
-      }
+    if (!write) return;
+    for (const line of lineHistory.current[name] ?? []) {
+      write(line);
     }
   }, []);
 
-  // Write a line to the terminal, buffering if not yet ready
+  // Record a line to history (capped) and write to terminal if ready
+  const MAX_HISTORY_LINES = 2000;
   function writeLine(name: string, line: string) {
-    const write = writeRefs.current[name]?.current;
-    if (write) {
-      write(line);
-    } else {
-      if (!lineBuffers.current[name]) lineBuffers.current[name] = [];
-      lineBuffers.current[name].push(line);
-    }
+    if (!lineHistory.current[name]) lineHistory.current[name] = [];
+    const history = lineHistory.current[name];
+    if (history.length >= MAX_HISTORY_LINES) history.shift();
+    history.push(line);
+    writeRefs.current[name]?.current?.(line);
   }
 
   // ── Status polling ─────────────────────────────────────────────
@@ -116,7 +113,8 @@ export function TemplatesClient({ initialStatuses }: TemplatesClientProps) {
   // ── Push flow ──────────────────────────────────────────────────
 
   const handlePush = useCallback(async (name: string) => {
-    // Start push
+    // Start push — clear previous output history for this template
+    lineHistory.current[name] = [];
     setPushStates((prev) => ({
       ...prev,
       [name]: { jobId: null, inProgress: true, result: null, terminalOpen: true },
@@ -162,6 +160,13 @@ export function TemplatesClient({ initialStatuses }: TemplatesClientProps) {
         const payload = JSON.parse((ev as MessageEvent).data);
         const success = payload.success === true;
         eventSource.close();
+        // Always write a final status line so the terminal is never blank
+        if (success) {
+          writeLine(name, "\r\n\x1b[32m✓ Push succeeded\x1b[0m");
+        } else {
+          const errDetail = payload.error ? ` — ${payload.error}` : "";
+          writeLine(name, `\r\n\x1b[31m✗ Push failed${errDetail}\x1b[0m`);
+        }
         setPushStates((prev) => ({
           ...prev,
           [name]: { ...prev[name], inProgress: false, result: success },

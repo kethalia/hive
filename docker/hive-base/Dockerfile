@@ -133,7 +133,39 @@ ENV LC_ALL=en_US.UTF-8
 RUN mkdir -p /etc/xdg/openbox
 
 RUN cat > /etc/xdg/openbox/autostart << 'XDGEOF'
-/usr/bin/obsidian --no-sandbox --disable-gpu-sandbox /home/coder/vault &
+#!/bin/bash
+# Wait up to 10s for vault to be cloned before launching Obsidian
+(
+  i=0
+  while [ "$i" -lt 20 ]; do
+    if [ -d /home/coder/vault/.obsidian ] || [ -d /home/coder/vault/.git ]; then
+      break
+    fi
+    sleep 0.5
+    i=$((i + 1))
+  done
+
+  if [ -d /home/coder/vault ]; then
+    # Register vault in Obsidian's config so it opens directly
+    mkdir -p "$HOME/.config/obsidian"
+    python3 -c "
+import json, os, time
+cfg_path = os.path.expanduser('~/.config/obsidian/obsidian.json')
+try:
+    cfg = json.load(open(cfg_path))
+except (OSError, json.JSONDecodeError):
+    cfg = {}
+vaults = cfg.get('vaults', {})
+import hashlib
+vault_id = hashlib.md5(b'/home/coder/vault').hexdigest()[:16]
+vaults[vault_id] = {'path': '/home/coder/vault', 'ts': int(time.time() * 1000), 'open': True}
+cfg['vaults'] = vaults
+json.dump(cfg, open(cfg_path, 'w'))
+" 2>/dev/null || true
+
+    exec /usr/bin/obsidian --no-sandbox --disable-gpu-sandbox /home/coder/vault
+  fi
+) &
 XDGEOF
 
 RUN cat > /etc/xdg/openbox/menu.xml << 'XDGEOF'
@@ -145,6 +177,11 @@ RUN cat > /etc/xdg/openbox/menu.xml << 'XDGEOF'
         <command>/usr/bin/obsidian --no-sandbox --disable-gpu-sandbox /home/coder/vault</command>
       </action>
     </item>
+    <item label="Chrome">
+      <action name="Execute">
+        <command>/usr/bin/google-chrome-stable --no-sandbox --disable-gpu-sandbox</command>
+      </action>
+    </item>
     <item label="Terminal">
       <action name="Execute">
         <command>xterm</command>
@@ -154,7 +191,7 @@ RUN cat > /etc/xdg/openbox/menu.xml << 'XDGEOF'
 </openbox_menu>
 XDGEOF
 
-RUN chmod 644 /etc/xdg/openbox/autostart /etc/xdg/openbox/menu.xml
+RUN chmod 755 /etc/xdg/openbox/autostart && chmod 644 /etc/xdg/openbox/menu.xml
 
 # Create coder user
 # ssl-cert group is REQUIRED for KasmVNC (TLS cert access)
