@@ -35,14 +35,11 @@ data "coder_parameter" "vault_repo" {
   order        = 2
 }
 
-data "coder_parameter" "pi_api_key" {
-  name         = "pi_api_key"
-  display_name = "Pi API Key"
-  description  = "API key for the Pi coding agent LLM provider (e.g. Anthropic key). Leave empty to configure later."
-  type         = "string"
-  default      = ""
-  mutable      = true
-  order        = 3
+variable "pi_api_key" {
+  description = "API key for the Pi coding agent LLM provider (e.g. Anthropic key). Set at template push time."
+  type        = string
+  sensitive   = true
+  default     = ""
 }
 
 data "coder_parameter" "pi_model" {
@@ -97,14 +94,11 @@ data "coder_parameter" "pi_provider" {
   }
 }
 
-data "coder_parameter" "claude_code_api_key" {
-  name         = "claude_code_api_key"
-  display_name = "Claude Code API Key"
-  description  = "Anthropic API key for Claude Code. Leave empty to use AI Bridge or external auth."
-  type         = "string"
-  default      = ""
-  mutable      = true
-  order        = 6
+variable "claude_code_api_key" {
+  description = "Anthropic API key for Claude Code. Set at template push time."
+  type        = string
+  sensitive   = true
+  default     = ""
 }
 
 data "coder_parameter" "claude_code_model" {
@@ -222,8 +216,10 @@ data "coder_external_auth" "github" {
 # Base image from GHCR
 # =============================================================================
 
-data "docker_image" "main" {
-  name = "ghcr.io/kethalia/hive-base:latest"
+resource "docker_image" "main" {
+  name          = "ghcr.io/kethalia/hive-base:latest"
+  pull_triggers = [data.coder_workspace.me.start_count]
+  keep_locally  = true
 }
 
 # =============================================================================
@@ -251,7 +247,7 @@ resource "coder_agent" "main" {
       EXTENSIONS_GALLERY  = "{\"serviceUrl\":\"https://marketplace.visualstudio.com/_apis/public/gallery\"}"
       VAULT_REPO          = data.coder_parameter.vault_repo.value
     },
-    data.coder_parameter.claude_code_api_key.value != "" ? { ANTHROPIC_API_KEY = data.coder_parameter.claude_code_api_key.value } : {},
+    var.claude_code_api_key != "" ? { ANTHROPIC_API_KEY = var.claude_code_api_key } : {},
     data.coder_parameter.claude_code_model.value != "" ? { CLAUDE_CODE_DEFAULT_MODEL = data.coder_parameter.claude_code_model.value } : {},
     data.coder_parameter.claude_code_system_prompt.value != "" ? { CLAUDE_CODE_SYSTEM_PROMPT = data.coder_parameter.claude_code_system_prompt.value } : {}
   )
@@ -374,7 +370,7 @@ resource "coder_script" "tools_ai" {
   run_on_start       = true
   start_blocks_login = true
   script = templatefile("${path.module}/scripts/tools-ai.sh", {
-    pi_api_key  = data.coder_parameter.pi_api_key.value
+    pi_api_key  = var.pi_api_key
     pi_provider = data.coder_parameter.pi_provider.value
     pi_model    = data.coder_parameter.pi_model.value
   })
@@ -561,7 +557,7 @@ resource "coder_script" "claude_code_install" {
   run_on_start       = true
   start_blocks_login = true
   script = templatefile("${path.module}/scripts/claude-install.sh", {
-    claude_api_key = data.coder_parameter.claude_code_api_key.value
+    claude_api_key = var.claude_code_api_key
   })
 }
 
@@ -680,7 +676,7 @@ resource "docker_volume" "home_volume" {
 
 resource "docker_container" "workspace" {
   count    = data.coder_workspace.me.start_count
-  image    = data.docker_image.main.repo_digest
+  image    = docker_image.main.image_id
   name     = "coder-${data.coder_workspace_owner.me.name}-${lower(data.coder_workspace.me.name)}"
   hostname = data.coder_workspace.me.name
 
@@ -735,5 +731,9 @@ resource "docker_container" "workspace" {
   labels {
     label = "coder.workspace_name"
     value = data.coder_workspace.me.name
+  }
+  labels {
+    label = "coder.template_version"
+    value = "1.0.0"
   }
 }

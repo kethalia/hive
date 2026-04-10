@@ -311,13 +311,15 @@ resource "docker_volume" "home_volume" {
   }
 }
 
-data "docker_image" "main" {
-  name = "ghcr.io/kethalia/hive-base:latest"
+resource "docker_image" "main" {
+  name          = "ghcr.io/kethalia/hive-base:latest"
+  pull_triggers = [data.coder_workspace.me.start_count]
+  keep_locally  = true
 }
 
 resource "docker_container" "workspace" {
   count    = data.coder_workspace.me.start_count
-  image    = data.docker_image.main.name
+  image    = docker_image.main.image_id
   name     = "coder-${data.coder_workspace_owner.me.name}-${lower(data.coder_workspace.me.name)}"
   hostname = data.coder_workspace.me.name
 

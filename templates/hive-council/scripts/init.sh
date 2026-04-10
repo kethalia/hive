@@ -118,7 +118,7 @@ EFFECTIVE_VAULT_REPO="$VAULT_REPO"
 
 if [ -n "$EFFECTIVE_VAULT_REPO" ]; then
   # Find Coder agent binary for gitssh (SSH key injection without needing a key on disk)
-  CODER_BIN=$(find /tmp -maxdepth 2 -name 'coder' -path '/tmp/coder.*' -print -quit 2>/dev/null || true)
+  CODER_BIN=$(command -v coder 2>/dev/null || find /tmp -maxdepth 2 -name 'coder' -path '/tmp/coder.*' -print -quit 2>/dev/null || true)
   if [ -n "$CODER_BIN" ]; then
     export GIT_SSH_COMMAND="$CODER_BIN gitssh --"
   fi
