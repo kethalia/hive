@@ -132,40 +132,52 @@ ENV LC_ALL=en_US.UTF-8
 # error because the line after the closing delimiter is treated as a new instruction.
 RUN mkdir -p /etc/xdg/openbox
 
-RUN cat > /etc/xdg/openbox/autostart << 'XDGEOF'
+# Openbox autostart — executed line-by-line by openbox, NOT as a bash script.
+# Do NOT use bash subshell syntax ((...) & ) — openbox passes each line directly
+# to g_spawn which crashes on shell metacharacters. Use a launcher script instead.
+RUN mkdir -p /usr/local/bin && cat > /usr/local/bin/obsidian-launch << 'XDGEOF'
 #!/bin/bash
-# Wait up to 10s for vault to be cloned before launching Obsidian
-(
-  i=0
-  while [ "$i" -lt 20 ]; do
-    if [ -d /home/coder/vault/.obsidian ] || [ -d /home/coder/vault/.git ]; then
-      break
-    fi
-    sleep 0.5
-    i=$((i + 1))
-  done
-
-  if [ -d /home/coder/vault ]; then
-    # Register vault in Obsidian's config so it opens directly
-    mkdir -p "$HOME/.config/obsidian"
-    python3 -c "
-import json, os, time
+# Launched by openbox autostart — wait for vault, register it, open Obsidian.
+i=0
+while [ "$i" -lt 20 ]; do
+  if [ -d /home/coder/vault/.obsidian ] || [ -d /home/coder/vault/.git ]; then
+    break
+  fi
+  sleep 0.5
+  i=$((i + 1))
+done
+if [ -d /home/coder/vault ]; then
+  mkdir -p "$HOME/.config/obsidian"
+  python3 -c "
+import json, os, time, hashlib
 cfg_path = os.path.expanduser('~/.config/obsidian/obsidian.json')
 try:
     cfg = json.load(open(cfg_path))
 except (OSError, json.JSONDecodeError):
     cfg = {}
 vaults = cfg.get('vaults', {})
-import hashlib
 vault_id = hashlib.md5(b'/home/coder/vault').hexdigest()[:16]
 vaults[vault_id] = {'path': '/home/coder/vault', 'ts': int(time.time() * 1000), 'open': True}
 cfg['vaults'] = vaults
 json.dump(cfg, open(cfg_path, 'w'))
 " 2>/dev/null || true
+  exec /usr/bin/obsidian --no-sandbox --disable-gpu-sandbox /home/coder/vault
+fi
+XDGEOF
+RUN chmod +x /usr/local/bin/obsidian-launch
 
-    exec /usr/bin/obsidian --no-sandbox --disable-gpu-sandbox /home/coder/vault
-  fi
-) &
+# Create the missing debian-menu.xml that Debian's rc.xml references —
+# without it, openbox crashes with g_spawn assertion on startup.
+RUN mkdir -p /var/lib/openbox && cat > /var/lib/openbox/debian-menu.xml << 'XDGEOF'
+<?xml version="1.0" encoding="UTF-8"?>
+<openbox_menu xmlns="http://openbox.org/3.4/menu">
+  <menu id="debian-menu" label="Applications"></menu>
+</openbox_menu>
+XDGEOF
+
+# Openbox autostart — one command per line, no bash syntax
+RUN cat > /etc/xdg/openbox/autostart << 'XDGEOF'
+/usr/local/bin/obsidian-launch &
 XDGEOF
 
 RUN cat > /etc/xdg/openbox/menu.xml << 'XDGEOF'
