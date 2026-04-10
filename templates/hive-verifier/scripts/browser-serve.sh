@@ -80,6 +80,9 @@ if command -v openbox &>/dev/null; then
   DISPLAY=":${DISPLAY_NUM}" nohup openbox --sm-disable \
     > "$LOG_DIR/openbox.log" 2>&1 &
   disown $!
+  # Run the autostart script in parallel — openbox reads it automatically
+  # but we also run it explicitly to guarantee it fires
+  bash /etc/xdg/openbox/autostart >/dev/null 2>&1 &
   echo "Openbox window manager started"
 elif command -v fluxbox &>/dev/null; then
   nohup fluxbox -display ":${DISPLAY_NUM}" > "$LOG_DIR/fluxbox.log" 2>&1 &
