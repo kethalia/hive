@@ -52,7 +52,7 @@ if [ ! -f ~/.workspace_initialized ]; then
 ### Browser Vision
 All AI agents can see what you're developing in a browser:
 - **Claude Code & OpenCode**: Just ask! (e.g. "screenshot localhost:3000")
-- **Pi**: Use \`browser-screenshot <url>\` or \`browser-html <url>\`
+- **Pi**: Use `browser-screenshot <url>` or `browser-html <url>`
 
 ### Useful Commands
 
@@ -116,6 +116,119 @@ fi
 
 # Per-start initialization
 echo "Starting workspace services..."
+
+# =============================================================================
+# Vault sync — clone/pull Obsidian second brain + wire Claude Code context
+# Reads VAULT_REPO env var set by Terraform agent env block
+# =============================================================================
+EFFECTIVE_VAULT_REPO="$VAULT_REPO"
+
+if [ -n "$EFFECTIVE_VAULT_REPO" ]; then
+  # Find Coder agent binary for gitssh (SSH key injection without needing a key on disk)
+  CODER_BIN=$(find /tmp -maxdepth 2 -name 'coder' -path '/tmp/coder.*' -print -quit 2>/dev/null || true)
+  if [ -n "$CODER_BIN" ]; then
+    export GIT_SSH_COMMAND="$CODER_BIN gitssh --"
+  fi
+
+  # Ensure github.com host key is trusted (deduplicate on repeat runs)
+  mkdir -p ~/.ssh && chmod 700 ~/.ssh
+  if ! ssh-keygen -F github.com >/dev/null 2>&1; then
+    echo "github.com ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOMqqnkVzrm0SdG6UOoqKLsabgH5C9okWi0dh2l9GKJl" >> ~/.ssh/known_hosts
+    echo "github.com ecdsa-sha2-nistp256 AAAAE2VjZHNhLXNoYTItbmlzdHAyNTYAAAAIbmlzdHAyNTYAAABBBEmKSENjQEezOmxkZMy7opKgwFB9nkt5YRrYMjNuG5N87uRgg6CLrbo5wAdT/y6v0mKV0U2w0WZ2YB/++Tpockg=" >> ~/.ssh/known_hosts
+  fi
+
+  # If ~/vault exists but isn't a git repo, move it aside rather than destroying it
+  if [ -d ~/vault ] && [ ! -d ~/vault/.git ]; then
+    echo "Moving non-git ~/vault aside..."
+    if ! mv ~/vault ~/vault-bak-$(date +%s); then
+      echo "WARNING: could not move ~/vault aside — skipping vault clone"
+      EFFECTIVE_VAULT_REPO=""
+    fi
+  fi
+
+  if [ -n "$EFFECTIVE_VAULT_REPO" ]; then
+    if [ ! -d ~/vault/.git ]; then
+      echo "Cloning Obsidian vault..."
+      git clone "$EFFECTIVE_VAULT_REPO" ~/vault \
+        && echo "Vault cloned successfully" \
+        || echo "WARNING: vault clone failed — check SSH key and repo URL"
+    else
+      echo "Pulling vault updates..."
+      git -C ~/vault pull --ff-only \
+        || echo "WARNING: vault pull failed — vault may be stale (diverged branch or network error)"
+    fi
+  fi
+
+  if [ -d ~/vault ]; then
+    # Bootstrap .obsidian config if vault has none
+    if [ ! -d ~/vault/.obsidian ]; then
+      mkdir -p ~/vault/.obsidian
+      echo '{"legacyEditor":false,"livePreview":true}' > ~/vault/.obsidian/app.json
+      echo '{}' > ~/vault/.obsidian/appearance.json
+      echo "Created .obsidian config in vault"
+    fi
+
+    # Register obsidian MCP in Claude Code's MCP config (merge, don't overwrite)
+    mkdir -p ~/.claude
+    python3 - << 'PYEOF'
+import json, os
+path = os.path.expanduser('~/.claude/mcp.json')
+try:
+    cfg = json.load(open(path))
+except (OSError, json.JSONDecodeError):
+    cfg = {}
+servers = cfg.get('mcpServers', {})
+servers['obsidian'] = {
+    'command': 'npx',
+    'args': ['-y', '@bitbonsai/mcpvault@1.0.4', '/home/coder/vault'],
+    'env': {}
+}
+cfg['mcpServers'] = servers
+json.dump(cfg, open(path, 'w'), indent=2)
+print('Obsidian MCP registered in ~/.claude/mcp.json')
+PYEOF
+
+    # Write CLAUDE.md only on first run — user edits are preserved on subsequent starts
+    if [ ! -f ~/.claude/CLAUDE.md ]; then
+      cat > ~/.claude/CLAUDE.md << 'CLAUDEEOF'
+# Second Brain
+
+Your user maintains a personal knowledge vault at `~/vault`, accessible via the `obsidian` MCP server.
+
+## How to use the vault
+
+Before starting any task, use the obsidian MCP to load relevant context:
+- `mcp__obsidian__search_notes` — search by keyword across the whole vault
+- `mcp__obsidian__read_note` — read a specific note
+- `mcp__obsidian__list_notes` — list notes in a folder
+
+Key folders: `Projects/`, `Decision Log/`, `Patterns/`, `Principles/`, `Tech Stack/`, `Profile/`, `Knowledge Base/`
+
+## Writing back
+
+When you make a significant decision, discover a pattern, or complete a milestone — offer to update the relevant vault file.
+
+## Skills
+
+Custom slash commands for this vault are in `~/vault/Skills/`. Run `/help` in Claude Code to see them.
+CLAUDEEOF
+      echo "Claude Code vault context written to ~/.claude/CLAUDE.md"
+    fi
+
+    # Sync vault Skills → ~/.claude/skills/vault/ (isolated subdir to avoid polluting bundled skills)
+    if [ -d ~/vault/Skills ]; then
+      mkdir -p ~/.claude/skills/vault
+      # Remove stale skills from previous syncs
+      rm -f ~/.claude/skills/vault/*.md
+      for skill_file in ~/vault/Skills/*.md; do
+        [ -f "$skill_file" ] || continue
+        skill_name=$(basename "$skill_file" .md | tr '[:upper:]' '[:lower:]' | tr ' ' '-')
+        cp "$skill_file" "$HOME/.claude/skills/vault/$skill_name.md"
+      done
+      echo "Vault skills synced to ~/.claude/skills/vault/"
+    fi
+  fi  # if [ -d ~/vault ]
+fi  # if [ -n "$EFFECTIVE_VAULT_REPO" ]
 
 # Verify Docker access
 if docker info &> /dev/null; then

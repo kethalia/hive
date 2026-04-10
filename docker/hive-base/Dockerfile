@@ -133,15 +133,38 @@ ENV LC_ALL=en_US.UTF-8
 RUN mkdir -p /etc/xdg/openbox
 
 RUN cat > /etc/xdg/openbox/autostart << 'XDGEOF'
+#!/bin/bash
 # Wait up to 10s for vault to be cloned before launching Obsidian
 (
-  for i in $(seq 1 20); do
+  i=0
+  while [ "$i" -lt 20 ]; do
     if [ -d /home/coder/vault/.obsidian ] || [ -d /home/coder/vault/.git ]; then
       break
     fi
     sleep 0.5
+    i=$((i + 1))
   done
-  /usr/bin/obsidian --no-sandbox --disable-gpu-sandbox /home/coder/vault
+
+  if [ -d /home/coder/vault ]; then
+    # Register vault in Obsidian's config so it opens directly
+    mkdir -p "$HOME/.config/obsidian"
+    python3 -c "
+import json, os, time
+cfg_path = os.path.expanduser('~/.config/obsidian/obsidian.json')
+try:
+    cfg = json.load(open(cfg_path))
+except (OSError, json.JSONDecodeError):
+    cfg = {}
+vaults = cfg.get('vaults', {})
+import hashlib
+vault_id = hashlib.md5(b'/home/coder/vault').hexdigest()[:16]
+vaults[vault_id] = {'path': '/home/coder/vault', 'ts': int(time.time() * 1000), 'open': True}
+cfg['vaults'] = vaults
+json.dump(cfg, open(cfg_path, 'w'))
+" 2>/dev/null || true
+
+    exec /usr/bin/obsidian --no-sandbox --disable-gpu-sandbox /home/coder/vault
+  fi
 ) &
 XDGEOF
 

@@ -53,6 +53,12 @@ variable "dotfiles_uri" {
   default     = ""
 }
 
+variable "vault_repo" {
+  description = "SSH URL of Obsidian second-brain vault repository (optional, e.g. git@github.com:org/vault.git)"
+  type        = string
+  default     = ""
+}
+
 # --- AI ---
 
 variable "anthropic_api_key" {
@@ -107,6 +113,7 @@ resource "coder_agent" "main" {
       HIVE_TASK_ID     = var.task_id
       HIVE_REPO_URL    = var.repo_url
       HIVE_BRANCH_NAME = var.branch_name
+      VAULT_REPO       = var.vault_repo
     },
     var.anthropic_api_key != "" ? { ANTHROPIC_API_KEY = var.anthropic_api_key } : {}
   )

@@ -59,6 +59,12 @@ variable "dotfiles_uri" {
   default     = ""
 }
 
+variable "vault_repo" {
+  description = "SSH URL of Obsidian second-brain vault repository (optional, e.g. git@github.com:org/vault.git)"
+  type        = string
+  default     = ""
+}
+
 # --- Pi Coding Agent Configuration ---
 
 variable "pi_api_key" {
@@ -125,6 +131,7 @@ resource "coder_agent" "main" {
     HIVE_TASK_PROMPT = var.task_prompt
     HIVE_REPO_URL    = var.repo_url
     HIVE_BRANCH_NAME = var.branch_name
+    VAULT_REPO       = var.vault_repo
   }
 
   metadata {

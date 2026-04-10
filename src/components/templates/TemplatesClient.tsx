@@ -82,10 +82,13 @@ export function TemplatesClient({ initialStatuses }: TemplatesClientProps) {
     }
   }, []);
 
-  // Record a line to history and write to terminal if ready
+  // Record a line to history (capped) and write to terminal if ready
+  const MAX_HISTORY_LINES = 2000;
   function writeLine(name: string, line: string) {
     if (!lineHistory.current[name]) lineHistory.current[name] = [];
-    lineHistory.current[name].push(line);
+    const history = lineHistory.current[name];
+    if (history.length >= MAX_HISTORY_LINES) history.shift();
+    history.push(line);
     writeRefs.current[name]?.current?.(line);
   }
 

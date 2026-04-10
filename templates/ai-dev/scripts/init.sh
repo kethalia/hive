@@ -23,8 +23,6 @@ if [ ! -f ~/.workspace_initialized ]; then
   fi
   %{endif}
 
-
-
   # Create workspace README
   if [ ! -f ~/README.md ]; then
     cat > ~/README.md << 'EOFREADME'
@@ -54,7 +52,7 @@ if [ ! -f ~/.workspace_initialized ]; then
 ### Browser Vision
 All AI agents can see what you're developing in a browser:
 - **Claude Code & OpenCode**: Just ask! (e.g. "screenshot localhost:3000")
-- **Pi**: Use \`browser-screenshot <url>\` or \`browser-html <url>\`
+- **Pi**: Use `browser-screenshot <url>` or `browser-html <url>`
 
 ### Useful Commands
 
@@ -99,75 +97,83 @@ export PATH="$HOME/.local/bin:$HOME/.opencode/bin:$HOME/.local/share/pnpm:$HOME/
 # Per-start initialization
 echo "Starting workspace services..."
 
-# Vault setup — prefer templatefile var, fall back to VAULT_REPO env (for old workspaces)
+# =============================================================================
+# Vault sync — clone/pull Obsidian second brain + wire Claude Code context
+# Prefer templatefile var, fall back to VAULT_REPO env (old workspaces)
+# =============================================================================
 EFFECTIVE_VAULT_REPO="${vault_repo}"
 if [ -z "$EFFECTIVE_VAULT_REPO" ] && [ -n "$VAULT_REPO" ]; then
   EFFECTIVE_VAULT_REPO="$VAULT_REPO"
 fi
 
 if [ -n "$EFFECTIVE_VAULT_REPO" ]; then
-  # Clone or pull
-  # Move aside any non-git vault dir from a previous failed attempt
+  # Find Coder agent binary for gitssh (SSH key injection without needing a key on disk)
+  CODER_BIN=$(find /tmp -maxdepth 2 -name 'coder' -path '/tmp/coder.*' -print -quit 2>/dev/null || true)
+  if [ -n "$CODER_BIN" ]; then
+    export GIT_SSH_COMMAND="$CODER_BIN gitssh --"
+  fi
+
+  # Ensure github.com host key is trusted (deduplicate on repeat runs)
+  mkdir -p ~/.ssh && chmod 700 ~/.ssh
+  if ! ssh-keygen -F github.com >/dev/null 2>&1; then
+    echo "github.com ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOMqqnkVzrm0SdG6UOoqKLsabgH5C9okWi0dh2l9GKJl" >> ~/.ssh/known_hosts
+    echo "github.com ecdsa-sha2-nistp256 AAAAE2VjZHNhLXNoYTItbmlzdHAyNTYAAAAIbmlzdHAyNTYAAABBBEmKSENjQEezOmxkZMy7opKgwFB9nkt5YRrYMjNuG5N87uRgg6CLrbo5wAdT/y6v0mKV0U2w0WZ2YB/++Tpockg=" >> ~/.ssh/known_hosts
+  fi
+
+  # If ~/vault exists but isn't a git repo, move it aside rather than destroying it
   if [ -d ~/vault ] && [ ! -d ~/vault/.git ]; then
     echo "Moving non-git ~/vault aside..."
-    mv ~/vault ~/vault-bak-$(date +%s) 2>/dev/null || rm -rf ~/vault
+    if ! mv ~/vault ~/vault-bak-$(date +%s); then
+      echo "WARNING: could not move ~/vault aside — skipping vault clone"
+      EFFECTIVE_VAULT_REPO=""
+    fi
   fi
 
-  if [ ! -d ~/vault/.git ]; then
-    echo "Cloning Obsidian vault..."
-    # Ensure github.com host key is in known_hosts
-    mkdir -p ~/.ssh
-    ssh-keyscan github.com >> ~/.ssh/known_hosts 2>/dev/null
-    # Use coder gitssh for SSH key injection — find the agent binary
-    CODER_BIN=$(ls /tmp/coder.*/coder 2>/dev/null | head -1)
-    if [ -n "$CODER_BIN" ]; then
-      GIT_SSH_COMMAND="$CODER_BIN gitssh --" \
-      CODER_AGENT_URL="https://coder.local.kethalia.com" \
-        git clone "$EFFECTIVE_VAULT_REPO" ~/vault \
-        && echo "Vault cloned successfully" \
-        || echo "WARNING: vault clone failed"
-    else
+  if [ -n "$EFFECTIVE_VAULT_REPO" ]; then
+    if [ ! -d ~/vault/.git ]; then
+      echo "Cloning Obsidian vault..."
       git clone "$EFFECTIVE_VAULT_REPO" ~/vault \
         && echo "Vault cloned successfully" \
-        || echo "WARNING: vault clone failed"
+        || echo "WARNING: vault clone failed — check SSH key and repo URL"
+    else
+      echo "Pulling vault updates..."
+      git -C ~/vault pull --ff-only \
+        || echo "WARNING: vault pull failed — vault may be stale (diverged branch or network error)"
     fi
-  else
-    echo "Pulling vault updates..."
-    git -C ~/vault pull --ff-only 2>/dev/null || true
   fi
 
-  # Bootstrap .obsidian config if vault has none
-  if [ -d ~/vault ] && [ ! -d ~/vault/.obsidian ]; then
-    mkdir -p ~/vault/.obsidian
-    echo '{"legacyEditor":false,"livePreview":true}' > ~/vault/.obsidian/app.json
-    echo '{}' > ~/vault/.obsidian/appearance.json
-    echo "Created .obsidian config in vault"
-  fi
-
-  # Configure Obsidian MCP + CLAUDE.md + sync vault skills
   if [ -d ~/vault ]; then
-    # 1. Register obsidian MCP in Claude Code's MCP config
+    # Bootstrap .obsidian config if vault has none
+    if [ ! -d ~/vault/.obsidian ]; then
+      mkdir -p ~/vault/.obsidian
+      echo '{"legacyEditor":false,"livePreview":true}' > ~/vault/.obsidian/app.json
+      echo '{}' > ~/vault/.obsidian/appearance.json
+      echo "Created .obsidian config in vault"
+    fi
+
+    # Register obsidian MCP in Claude Code's MCP config (merge, don't overwrite)
     mkdir -p ~/.claude
-    python3 -c "
+    python3 - << 'PYEOF'
 import json, os
 path = os.path.expanduser('~/.claude/mcp.json')
 try:
     cfg = json.load(open(path))
-except:
+except (OSError, json.JSONDecodeError):
     cfg = {}
 servers = cfg.get('mcpServers', {})
 servers['obsidian'] = {
     'command': 'npx',
-    'args': ['-y', '@bitbonsai/mcpvault@latest', '/home/coder/vault'],
+    'args': ['-y', '@bitbonsai/mcpvault@1.0.4', '/home/coder/vault'],
     'env': {}
 }
 cfg['mcpServers'] = servers
 json.dump(cfg, open(path, 'w'), indent=2)
 print('Obsidian MCP registered in ~/.claude/mcp.json')
-" 2>/dev/null || true
+PYEOF
 
-    # 2. Write a lean CLAUDE.md
-    cat > ~/.claude/CLAUDE.md << 'CLAUDEEOF'
+    # Write CLAUDE.md only on first run — user edits are preserved on subsequent starts
+    if [ ! -f ~/.claude/CLAUDE.md ]; then
+      cat > ~/.claude/CLAUDE.md << 'CLAUDEEOF'
 # Second Brain
 
 Your user maintains a personal knowledge vault at `~/vault`, accessible via the `obsidian` MCP server.
@@ -189,17 +195,20 @@ When you make a significant decision, discover a pattern, or complete a mileston
 
 Custom slash commands for this vault are in `~/vault/Skills/`. Run `/help` in Claude Code to see them.
 CLAUDEEOF
-    echo "Claude Code vault context configured at ~/.claude/CLAUDE.md"
+      echo "Claude Code vault context written to ~/.claude/CLAUDE.md"
+    fi
 
-    # 3. Sync vault skills to Claude Code skills directory
+    # Sync vault Skills → ~/.claude/skills/vault/ (isolated subdir to avoid polluting bundled skills)
     if [ -d ~/vault/Skills ]; then
-      mkdir -p ~/.claude/skills
+      mkdir -p ~/.claude/skills/vault
+      # Remove stale skills from previous syncs
+      rm -f ~/.claude/skills/vault/*.md
       for skill_file in ~/vault/Skills/*.md; do
         [ -f "$skill_file" ] || continue
         skill_name=$(basename "$skill_file" .md | tr '[:upper:]' '[:lower:]' | tr ' ' '-')
-        cp "$skill_file" "$HOME/.claude/skills/$skill_name.md"
-        echo "Synced skill: $skill_name"
+        cp "$skill_file" "$HOME/.claude/skills/vault/$skill_name.md"
       done
+      echo "Vault skills synced to ~/.claude/skills/vault/"
     fi
   fi  # if [ -d ~/vault ]
 fi  # if [ -n "$EFFECTIVE_VAULT_REPO" ]
