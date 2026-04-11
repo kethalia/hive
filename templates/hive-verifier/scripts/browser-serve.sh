@@ -59,23 +59,14 @@ fi
 
 echo "KasmVNC started on :${DISPLAY_NUM}"
 
-# Openbox crashes on startup if /var/lib/openbox/debian-menu.xml is missing
-# (Debian's rc.xml references it; without it g_spawn gets a null argv → SIGSEGV)
+# Openbox crashes if /var/lib/openbox/debian-menu.xml is missing (rc.xml references it)
 if [ ! -f /var/lib/openbox/debian-menu.xml ]; then
   sudo mkdir -p /var/lib/openbox
   printf '<?xml version="1.0" encoding="UTF-8"?>\n<openbox_menu xmlns="http://openbox.org/3.4/menu"><menu id="debian-menu" label="Applications"></menu></openbox_menu>\n' \
     | sudo tee /var/lib/openbox/debian-menu.xml > /dev/null
 fi
 
-# Ensure autostart is a one-liner calling our launcher script (not bash subshell syntax)
-if [ -f /usr/local/bin/obsidian-launch ]; then
-  printf '/usr/local/bin/obsidian-launch &\n' | sudo tee /etc/xdg/openbox/autostart > /dev/null
-  sudo chmod 755 /etc/xdg/openbox/autostart
-fi
-
 # Start Openbox window manager — reads /etc/xdg/openbox/autostart on launch
-# --startup takes a single command, not a script path; omit it and let openbox
-# read /etc/xdg/openbox/autostart automatically
 if command -v openbox &>/dev/null; then
   DISPLAY=":${DISPLAY_NUM}" nohup openbox --sm-disable \
     > "$LOG_DIR/openbox.log" 2>&1 &
