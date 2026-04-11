@@ -138,17 +138,25 @@ RUN mkdir -p /etc/xdg/openbox
 RUN mkdir -p /usr/local/bin && cat > /usr/local/bin/obsidian-launch << 'XDGEOF'
 #!/bin/bash
 # Launched by openbox autostart — wait for vault, register it, open Obsidian.
+# Logs to ~/.local/share/browser-vision/obsidian-launch.log for diagnostics.
+LAUNCH_LOG="$HOME/.local/share/browser-vision/obsidian-launch.log"
+mkdir -p "$(dirname "$LAUNCH_LOG")"
+exec > "$LAUNCH_LOG" 2>&1
+echo "obsidian-launch started at $(date), DISPLAY=$DISPLAY"
+
 i=0
-while [ "$i" -lt 20 ]; do
+while [ "$i" -lt 40 ]; do
   if [ -d /home/coder/vault/.obsidian ] || [ -d /home/coder/vault/.git ]; then
+    echo "Vault ready after $((i)) polls"
     break
   fi
   sleep 0.5
   i=$((i + 1))
 done
+
 if [ -d /home/coder/vault ]; then
   mkdir -p "$HOME/.config/obsidian"
-  python3 -c "
+  python3 - << 'PYEOF' || echo "WARNING: vault registration failed"
 import json, os, time, hashlib
 cfg_path = os.path.expanduser('~/.config/obsidian/obsidian.json')
 try:
@@ -159,9 +167,14 @@ vaults = cfg.get('vaults', {})
 vault_id = hashlib.md5(b'/home/coder/vault').hexdigest()[:16]
 vaults[vault_id] = {'path': '/home/coder/vault', 'ts': int(time.time() * 1000), 'open': True}
 cfg['vaults'] = vaults
+cfg.pop('cli', None)
 json.dump(cfg, open(cfg_path, 'w'))
-" 2>/dev/null || true
-  exec /usr/bin/obsidian --no-sandbox --disable-gpu-sandbox /home/coder/vault
+print('Vault registered:', vault_id)
+PYEOF
+  echo "Launching Obsidian..."
+  exec /usr/bin/obsidian --no-sandbox --disable-gpu
+else
+  echo "Vault directory not found — skipping Obsidian"
 fi
 XDGEOF
 RUN chmod +x /usr/local/bin/obsidian-launch
@@ -188,7 +201,7 @@ RUN cat > /etc/xdg/openbox/menu.xml << 'XDGEOF'
   <menu id="root-menu" label="Desktop">
     <item label="Obsidian">
       <action name="Execute">
-        <command>/usr/bin/obsidian --no-sandbox --disable-gpu-sandbox /home/coder/vault</command>
+        <command>/usr/bin/obsidian --no-sandbox --disable-gpu</command>
       </action>
     </item>
     <item label="Chrome">
@@ -234,9 +247,10 @@ ENV NOTESMD_DEFAULT_VAULT=/home/coder/vault
 # Common directories
 RUN mkdir -p ~/projects ~/bin ~/.config ~/.ssh ~/.local/bin ~/vault
 
-# Obsidian headless CLI mode
+# Seed obsidian.json so vault registration in obsidian-launch has a valid file to update.
+# Do NOT set "cli": true — that suppresses the GUI window.
 RUN mkdir -p ~/.config/obsidian \
-    && echo '{"cli": true}' > ~/.config/obsidian/obsidian.json
+    && echo '{}' > ~/.config/obsidian/obsidian.json
 
 # Git defaults
 RUN git config --global init.defaultBranch main \
