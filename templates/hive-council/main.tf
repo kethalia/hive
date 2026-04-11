@@ -264,7 +264,6 @@ resource "coder_script" "tools_ai" {
   run_on_start       = true
   start_blocks_login = true
   script = templatefile("${path.module}/scripts/tools-ai.sh", {
-    pi_api_key  = var.pi_api_key
     pi_provider = var.pi_provider
     pi_model    = var.pi_model
   })

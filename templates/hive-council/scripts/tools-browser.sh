@@ -19,9 +19,6 @@ printf "${BOLD}[browser] Setting up browser vision tools...${RESET}\n"
 # /usr/bin/chromium-browser so Playwright finds it without extra config.
 CHROME_BIN="/usr/bin/google-chrome-stable"
 
-# Simple MCP args — no --executable-path needed thanks to the symlink
-MCP_ARGS='["-y", "@playwright/mcp", "--no-sandbox"]'
-
 # Configure Claude Code MCP
 printf "${BOLD}[browser] Waiting for Claude Code to be installed...${RESET}\n"
 for i in $(seq 1 30); do

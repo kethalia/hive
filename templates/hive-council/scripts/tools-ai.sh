@@ -44,16 +44,14 @@ install_if_missing "Pi coding agent" "pi" "" '
   npm install -g @mariozechner/pi-coding-agent
 '
 
-# Configure Pi provider settings
+# Configure Pi provider settings (provider/model only; API key comes from ANTHROPIC_API_KEY env)
 mkdir -p $HOME/.config/pi
-%{if pi_api_key != ""}
 cat > $HOME/.config/pi/config.json << PIEOF
 {
   "provider": "${pi_provider}",
   "model": "${pi_model}"
 }
 PIEOF
-%{endif}
 
 # Install GSD for Claude Code and OpenCode
 install_if_missing "GSD (get-shit-done)" "" "$HOME/.claude/commands/gsd" '
