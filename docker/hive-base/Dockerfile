@@ -175,7 +175,9 @@ RUN mkdir -p /var/lib/openbox && cat > /var/lib/openbox/debian-menu.xml << 'XDGE
 </openbox_menu>
 XDGEOF
 
-# Openbox autostart — one command per line, no bash syntax
+# Openbox autostart — one command per line; avoid shell constructs such as
+# subshells, command chaining, or conditionals. The trailing '&' is intentional
+# so Openbox backgrounds the launcher instead of blocking on it.
 RUN cat > /etc/xdg/openbox/autostart << 'XDGEOF'
 /usr/local/bin/obsidian-launch &
 XDGEOF
