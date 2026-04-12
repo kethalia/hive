@@ -1,0 +1,28 @@
+# Openbox autostart — sourced by openbox after the window manager starts and
+# the display is ready.  Commands must be backgrounded (&) so openbox does not
+# wait for them to exit.
+#
+# Key Electron flags for Docker/container environments:
+#   --no-sandbox             required for non-root Electron
+#   --disable-gpu            skip GPU init in headless containers
+#   --disable-dev-shm-usage  use /tmp instead of /dev/shm (Docker caps shm at
+#                            64 MB by default; Electron exceeds this and crashes)
+(
+  LOG="$HOME/.local/share/browser-vision/obsidian.log"
+  mkdir -p "$(dirname "$LOG")"
+  exec >> "$LOG" 2>&1
+  echo "$(date '+%T') obsidian-autostart: display=$DISPLAY"
+
+  # Ensure vault directory exists (content may arrive later via git clone)
+  mkdir -p "$HOME/vault"
+
+  # Remove any stale Electron single-instance lock left by a prior stop/start
+  rm -f "$HOME/.config/obsidian/.lock" 2>/dev/null || true
+
+  echo "$(date '+%T') launching /usr/bin/obsidian"
+  exec /usr/bin/obsidian \
+    --no-sandbox \
+    --disable-gpu \
+    --disable-dev-shm-usage \
+    "$HOME/vault"
+) &

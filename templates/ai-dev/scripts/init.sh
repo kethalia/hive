@@ -98,105 +98,17 @@ export PATH="$HOME/.local/bin:$HOME/.opencode/bin:$HOME/.local/share/pnpm:$HOME/
 echo "Starting workspace services..."
 
 # =============================================================================
-# Vault sync — clone/pull Obsidian second brain + wire Claude Code context
-# Prefer templatefile var, fall back to VAULT_REPO env (old workspaces)
+# Vault setup — Claude Code context wiring
+# Clone is handled by the coder/git-clone module in main.tf (if vault_repo is set)
+# Obsidian creates .obsidian/ automatically on first launch
 # =============================================================================
 
-EFFECTIVE_VAULT_REPO="${vault_repo}"
-if [ -z "$EFFECTIVE_VAULT_REPO" ] && [ -n "$VAULT_REPO" ]; then
-  EFFECTIVE_VAULT_REPO="$VAULT_REPO"
-fi
-
-if [ -n "$EFFECTIVE_VAULT_REPO" ]; then
-  # Find Coder agent binary for gitssh (SSH key injection without needing a key on disk)
-  CODER_BIN=$(command -v coder 2>/dev/null || find /tmp -maxdepth 2 -name 'coder' -path '/tmp/coder.*' -print -quit 2>/dev/null || true)
-  if [ -n "$CODER_BIN" ]; then
-    export GIT_SSH_COMMAND="$CODER_BIN gitssh --"
-  fi
-
-  # Ensure github.com host key is trusted (deduplicate on repeat runs)
-  mkdir -p ~/.ssh && chmod 700 ~/.ssh
-  if ! ssh-keygen -F github.com >/dev/null 2>&1; then
-    echo "github.com ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOMqqnkVzrm0SdG6UOoqKLsabgH5C9okWi0dh2l9GKJl" >> ~/.ssh/known_hosts
-    echo "github.com ecdsa-sha2-nistp256 AAAAE2VjZHNhLXNoYTItbmlzdHAyNTYAAAAIbmlzdHAyNTYAAABBBEmKSENjQEezOmxkZMy7opKgwFB9nkt5YRrYMjNuG5N87uRgg6CLrbo5wAdT/y6v0mKV0U2w0WZ2YB/++Tpockg=" >> ~/.ssh/known_hosts
-  fi
-
-  # If ~/vault exists but isn't a git repo, move it aside rather than destroying it
-  if [ -d ~/vault ] && [ ! -d ~/vault/.git ]; then
-    echo "Moving non-git ~/vault aside..."
-    if ! mv ~/vault ~/vault-bak-$(date +%s); then
-      echo "WARNING: could not move ~/vault aside — skipping vault clone"
-      EFFECTIVE_VAULT_REPO=""
-    fi
-  fi
-
-  if [ -n "$EFFECTIVE_VAULT_REPO" ]; then
-    if [ ! -d ~/vault/.git ]; then
-      echo "Cloning Obsidian vault..."
-      git clone "$EFFECTIVE_VAULT_REPO" ~/vault \
-        && echo "Vault cloned successfully" \
-        || echo "WARNING: vault clone failed — check SSH key and repo URL"
-    else
-      echo "Pulling vault updates..."
-      git -C ~/vault pull --ff-only \
-        || echo "WARNING: vault pull failed — vault may be stale (diverged branch or network error)"
-    fi
-  fi
-fi  # if [ -n "$EFFECTIVE_VAULT_REPO" ]
-
-# Ensure vault directory and .obsidian config exist. Runs AFTER clone/pull so the
-# bootstrap isn't discarded when a non-git ~/vault is moved aside for cloning.
-mkdir -p ~/vault
-if [ ! -d ~/vault/.obsidian ]; then
-  mkdir -p ~/vault/.obsidian
-  echo '{"legacyEditor":false,"livePreview":true}' > ~/vault/.obsidian/app.json
-  echo '{}' > ~/vault/.obsidian/appearance.json
-  echo "Created .obsidian config in vault"
-fi
-
-# Wire Claude Code vault context (always runs — vault always exists after mkdir above)
-mkdir -p ~/.claude
-python3 - << 'PYEOF'
-import json, os
-path = os.path.expanduser('~/.claude/mcp.json')
-try:
-    cfg = json.load(open(path))
-except (OSError, json.JSONDecodeError):
-    cfg = {}
-servers = cfg.get('mcpServers', {})
-servers['obsidian'] = {
-    'command': 'npx',
-    'args': ['-y', '@bitbonsai/mcpvault@1.0.4', '/home/coder/vault'],
-    'env': {}
-}
-cfg['mcpServers'] = servers
-json.dump(cfg, open(path, 'w'), indent=2)
-print('Obsidian MCP registered in ~/.claude/mcp.json')
-PYEOF
-
+# Claude Code context wiring
+# mcp.json is baked into the Docker image (docker/hive-base/claude-mcp.json)
 # Write CLAUDE.md only on first run — user edits are preserved on subsequent starts
 if [ ! -f ~/.claude/CLAUDE.md ]; then
   cat > ~/.claude/CLAUDE.md << 'CLAUDEEOF'
-# Second Brain
-
-Your user maintains a personal knowledge vault at `~/vault`, accessible via the `obsidian` MCP server.
-
-## How to use the vault
-
-Before starting any task, use the obsidian MCP to load relevant context:
-- `mcp__obsidian__search_notes` — search by keyword across the whole vault
-- `mcp__obsidian__read_note` — read a specific note
-- `mcp__obsidian__list_notes` — list notes in a folder
-
-Key folders: `Projects/`, `Decision Log/`, `Patterns/`, `Principles/`, `Tech Stack/`, `Profile/`, `Knowledge Base/`
-
-## Writing back
-
-When you make a significant decision, discover a pattern, or complete a milestone — offer to update the relevant vault file.
-
-## Skills
-
-Custom slash commands for this vault are in `~/vault/Skills/`. Run `/help` in Claude Code to see them.
+${claude_md_content}
 CLAUDEEOF
   echo "Claude Code vault context written to ~/.claude/CLAUDE.md"
 fi

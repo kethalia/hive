@@ -66,7 +66,10 @@ if [ ! -f /var/lib/openbox/debian-menu.xml ]; then
     | sudo tee /var/lib/openbox/debian-menu.xml > /dev/null
 fi
 
-# Start Openbox window manager — reads /etc/xdg/openbox/autostart on launch
+# Openbox autostart is baked into the Docker image at /etc/xdg/openbox/autostart.
+# No runtime writing needed — openbox sources it automatically after startup.
+
+# Start Openbox — it will source /etc/xdg/openbox/autostart after starting
 if command -v openbox &>/dev/null; then
   DISPLAY=":${DISPLAY_NUM}" nohup openbox --sm-disable \
     > "$LOG_DIR/openbox.log" 2>&1 &

@@ -132,93 +132,13 @@ ENV LC_ALL=en_US.UTF-8
 # error because the line after the closing delimiter is treated as a new instruction.
 RUN mkdir -p /etc/xdg/openbox
 
-# Openbox autostart — executed line-by-line by openbox, NOT as a bash script.
-# Do NOT use bash subshell syntax ((...) & ) — openbox passes each line directly
-# to g_spawn which crashes on shell metacharacters. Use a launcher script instead.
-RUN mkdir -p /usr/local/bin && cat > /usr/local/bin/obsidian-launch << 'XDGEOF'
-#!/bin/bash
-# Launched by openbox autostart — wait for vault, register it, open Obsidian.
-# Logs to ~/.local/share/browser-vision/obsidian-launch.log for diagnostics.
-LAUNCH_LOG="$HOME/.local/share/browser-vision/obsidian-launch.log"
-mkdir -p "$(dirname "$LAUNCH_LOG")"
-exec > "$LAUNCH_LOG" 2>&1
-echo "obsidian-launch started at $(date), DISPLAY=$DISPLAY"
-
-i=0
-while [ "$i" -lt 40 ]; do
-  if [ -d /home/coder/vault/.obsidian ] || [ -d /home/coder/vault/.git ]; then
-    echo "Vault ready after $((i)) polls"
-    break
-  fi
-  sleep 0.5
-  i=$((i + 1))
-done
-
-if [ -d /home/coder/vault ]; then
-  mkdir -p "$HOME/.config/obsidian"
-  python3 - << 'PYEOF' || echo "WARNING: vault registration failed"
-import json, os, time, hashlib
-cfg_path = os.path.expanduser('~/.config/obsidian/obsidian.json')
-try:
-    cfg = json.load(open(cfg_path))
-except (OSError, json.JSONDecodeError):
-    cfg = {}
-vaults = cfg.get('vaults', {})
-vault_id = hashlib.md5(b'/home/coder/vault').hexdigest()[:16]
-vaults[vault_id] = {'path': '/home/coder/vault', 'ts': int(time.time() * 1000), 'open': True}
-cfg['vaults'] = vaults
-cfg.pop('cli', None)
-json.dump(cfg, open(cfg_path, 'w'))
-print('Vault registered:', vault_id)
-PYEOF
-  echo "Launching Obsidian..."
-  exec /usr/bin/obsidian --no-sandbox --disable-gpu /home/coder/vault
-else
-  echo "Vault directory not found — skipping Obsidian"
-fi
-XDGEOF
-RUN chmod +x /usr/local/bin/obsidian-launch
-
-# Create the missing debian-menu.xml that Debian's rc.xml references —
-# without it, openbox crashes with g_spawn assertion on startup.
-RUN mkdir -p /var/lib/openbox && cat > /var/lib/openbox/debian-menu.xml << 'XDGEOF'
-<?xml version="1.0" encoding="UTF-8"?>
-<openbox_menu xmlns="http://openbox.org/3.4/menu">
-  <menu id="debian-menu" label="Applications"></menu>
-</openbox_menu>
-XDGEOF
-
-# Openbox autostart — one command per line; avoid shell constructs such as
-# subshells, command chaining, or conditionals. The trailing '&' is intentional
-# so Openbox backgrounds the launcher instead of blocking on it.
-RUN cat > /etc/xdg/openbox/autostart << 'XDGEOF'
-/usr/local/bin/obsidian-launch &
-XDGEOF
-
-RUN cat > /etc/xdg/openbox/menu.xml << 'XDGEOF'
-<?xml version="1.0" encoding="UTF-8"?>
-<openbox_menu xmlns="http://openbox.org/3.4/menu">
-  <menu id="root-menu" label="Desktop">
-    <item label="Obsidian">
-      <action name="Execute">
-        <command>/usr/bin/obsidian --no-sandbox --disable-gpu /home/coder/vault</command>
-      </action>
-    </item>
-    <item label="Chrome">
-      <action name="Execute">
-        <command>/usr/bin/google-chrome-stable --no-sandbox --disable-gpu-sandbox</command>
-      </action>
-    </item>
-    <item label="Terminal">
-      <action name="Execute">
-        <command>xterm</command>
-      </action>
-    </item>
-  </menu>
-</openbox_menu>
-XDGEOF
-
-RUN chmod 755 /etc/xdg/openbox/autostart && chmod 644 /etc/xdg/openbox/menu.xml
+# Openbox config — all three files are tracked as standalone source files
+# and copied into the image. No inline heredocs needed.
+RUN mkdir -p /var/lib/openbox
+COPY openbox-debian-menu.xml /var/lib/openbox/debian-menu.xml
+COPY openbox-autostart       /etc/xdg/openbox/autostart
+COPY openbox-menu.xml        /etc/xdg/openbox/menu.xml
+RUN chmod 755 /etc/xdg/openbox/autostart && chmod 644 /var/lib/openbox/debian-menu.xml /etc/xdg/openbox/menu.xml
 
 # Create coder user
 # ssl-cert group is REQUIRED for KasmVNC (TLS cert access)
@@ -245,12 +165,18 @@ ENV PATH="/home/coder/.local/bin:${PATH}"
 ENV NOTESMD_DEFAULT_VAULT=/home/coder/vault
 
 # Common directories
-RUN mkdir -p ~/projects ~/bin ~/.config ~/.ssh ~/.local/bin ~/vault
+RUN mkdir -p ~/projects ~/bin ~/.config ~/.ssh ~/.local/bin ~/vault ~/.claude
 
-# Seed obsidian.json so vault registration in obsidian-launch has a valid file to update.
-# Do NOT set "cli": true — that suppresses the GUI window.
+# Claude Code — seed MCP config so the obsidian vault server is available on first boot
+COPY claude-mcp.json /home/coder/.claude/mcp.json
+
+# Static obsidian.json — registers /home/coder/vault so Obsidian opens it
+# directly instead of showing the vault picker.  Vault ID is the deterministic
+# MD5 of the path (first 16 chars).  Do NOT set "cli": true — that suppresses
+# the GUI window.
 RUN mkdir -p ~/.config/obsidian \
-    && echo '{}' > ~/.config/obsidian/obsidian.json
+    && echo '{"vaults":{"3ff2bb63fc5790bf":{"path":"/home/coder/vault","ts":0,"open":true}}}' \
+       > ~/.config/obsidian/obsidian.json
 
 # Git defaults
 RUN git config --global init.defaultBranch main \
