@@ -22,37 +22,7 @@ CHROME_BIN="/usr/bin/google-chrome-stable"
 # Claude Code MCP (obsidian + playwright) is baked into the Docker image
 # at ~/.claude/mcp.json — no runtime registration needed.
 
-# Configure OpenCode MCP server for Playwright
-OPENCODE_CONFIG="$HOME/.config/opencode/config.json"
-if [ -f "$OPENCODE_CONFIG" ] && command -v jq &>/dev/null; then
-  MERGED=$(jq '.mcp.playwright = {
-    "type": "local",
-    "command": ["npx", "-y", "@playwright/mcp", "--no-sandbox"],
-    "enabled": true,
-    "environment": {"DISPLAY": ":99"}
-  }' "$OPENCODE_CONFIG" 2>/dev/null) && echo "$MERGED" > "$OPENCODE_CONFIG" || {
-    printf "${YELLOW}[warn] Could not merge MCP into OpenCode config${RESET}\n"
-  }
-else
-  mkdir -p "$HOME/.config/opencode"
-  cat > "$OPENCODE_CONFIG" << 'OPMCP'
-{
-  "mcp": {
-    "playwright": {
-      "type": "local",
-      "command": ["npx", "-y", "@playwright/mcp", "--no-sandbox"],
-      "enabled": true,
-      "environment": {
-        "DISPLAY": ":99"
-      }
-    }
-  }
-}
-OPMCP
-fi
-printf "${GREEN}[ok] OpenCode MCP configured for Playwright${RESET}\n"
-
-# Create screenshot helper using Google Chrome (for Pi/GSD agents without MCP)
+# Create screenshot helper using Google Chrome (CLI fallback for scripts)
 cat > "$HOME/.local/bin/browser-screenshot" << SCREENSHOT
 #!/bin/bash
 set -e
@@ -82,5 +52,4 @@ echo "Helper scripts using: $CHROME_BIN"
 
 printf "${GREEN}[ok] Browser vision tools ready${RESET}\n"
 printf "  Claude Code: Playwright MCP via ~/.claude/mcp.json (baked into image)\n"
-printf "  OpenCode: Playwright MCP via config.json\n"
-printf "  Pi & GSD: browser-screenshot <url> and browser-html <url>\n"
+printf "  CLI helpers: browser-screenshot <url> and browser-html <url>\n"
