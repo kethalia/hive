@@ -74,18 +74,6 @@ variable "anthropic_api_key" {
   sensitive   = true
 }
 
-variable "pi_model" {
-  description = "Model for Pi coding agent (e.g. claude-opus-4-6)"
-  type        = string
-  default     = "claude-opus-4-6"
-}
-
-variable "pi_provider" {
-  description = "LLM provider for Pi coding agent (e.g. anthropic, openai, google)"
-  type        = string
-  default     = "anthropic"
-}
-
 # =============================================================================
 # Providers & Data Sources
 # =============================================================================
@@ -256,10 +244,7 @@ resource "coder_script" "tools_ai" {
   icon               = "/icon/terminal.svg"
   run_on_start       = true
   start_blocks_login = true
-  script = templatefile("${path.module}/scripts/tools-ai.sh", {
-    pi_provider = var.pi_provider
-    pi_model    = var.pi_model
-  })
+  script = file("${path.module}/scripts/tools-ai.sh")
 }
 
 resource "coder_script" "tools_browser" {
@@ -297,28 +282,6 @@ resource "coder_script" "symlinks" {
   run_on_start       = true
   start_blocks_login = true
   script             = file("${path.module}/scripts/symlinks.sh")
-}
-
-# =============================================================================
-# Pi Coding Agent
-# =============================================================================
-
-resource "coder_app" "pi" {
-  agent_id     = coder_agent.main.id
-  slug         = "pi"
-  display_name = "Pi Agent"
-  icon         = "/icon/terminal.svg"
-  command      = "bash -l -c 'export PATH=\"$HOME/.local/bin:$PATH\" && pi'"
-  share        = "owner"
-}
-
-resource "coder_app" "gsd" {
-  agent_id     = coder_agent.main.id
-  slug         = "gsd"
-  display_name = "GSD"
-  icon         = "/icon/terminal.svg"
-  command      = "bash -l -c 'export PATH=\"$HOME/.local/bin:$PATH\" && gsd'"
-  share        = "owner"
 }
 
 # =============================================================================
