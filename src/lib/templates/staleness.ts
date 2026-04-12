@@ -6,9 +6,7 @@ import { CoderClient } from "@/lib/coder/client";
 
 /** Templates known to this orchestrator. */
 export const KNOWN_TEMPLATES = [
-  "hive-worker",
-  "hive-verifier",
-  "hive-council",
+  "hive",
   "ai-dev",
 ] as const;
 

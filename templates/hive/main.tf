@@ -27,6 +27,12 @@ variable "task_id" {
   default     = ""
 }
 
+variable "task_prompt" {
+  description = "Task prompt/description"
+  type        = string
+  default     = ""
+}
+
 variable "repo_url" {
   description = "Target repository URL"
   type        = string
@@ -34,7 +40,7 @@ variable "repo_url" {
 }
 
 variable "branch_name" {
-  description = "Git branch name to verify"
+  description = "Git branch name"
   type        = string
   default     = ""
 }
@@ -112,6 +118,7 @@ resource "coder_agent" "main" {
       GIT_COMMITTER_EMAIL = "${data.coder_workspace_owner.me.email}"
 
       HIVE_TASK_ID     = var.task_id
+      HIVE_TASK_PROMPT = var.task_prompt
       HIVE_REPO_URL    = var.repo_url
       HIVE_BRANCH_NAME = var.branch_name
     },
