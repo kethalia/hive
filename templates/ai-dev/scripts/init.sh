@@ -6,7 +6,7 @@ if [ ! -f ~/.workspace_initialized ]; then
   echo "First-time workspace setup..."
 
   # Create directory structure
-  mkdir -p ~/projects ~/bin ~/.config ~/.local/bin ~/vault
+  mkdir -p ~/projects ~/bin ~/.config ~/.local/bin
 
   # Setup git aliases
   git config --global alias.st status
