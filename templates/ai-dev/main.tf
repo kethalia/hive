@@ -35,65 +35,6 @@ data "coder_parameter" "vault_repo" {
   order        = 2
 }
 
-variable "pi_api_key" {
-  description = "API key for the Pi coding agent LLM provider (e.g. Anthropic key). Set at template push time."
-  type        = string
-  sensitive   = true
-  default     = ""
-}
-
-data "coder_parameter" "pi_model" {
-  name         = "pi_model"
-  display_name = "Pi Model"
-  description  = "LLM model for the Pi coding agent."
-  type         = "string"
-  default      = "claude-opus-4-6"
-  mutable      = true
-  order        = 4
-  option {
-    name  = "claude-sonnet-4-6"
-    value = "claude-sonnet-4-6"
-  }
-  option {
-    name  = "claude-opus-4-6"
-    value = "claude-opus-4-6"
-  }
-  option {
-    name  = "claude-opus-4-5"
-    value = "claude-opus-4-5"
-  }
-  option {
-    name  = "claude-sonnet-4-5"
-    value = "claude-sonnet-4-5"
-  }
-  option {
-    name  = "claude-haiku-4-5"
-    value = "claude-haiku-4-5"
-  }
-}
-
-data "coder_parameter" "pi_provider" {
-  name         = "pi_provider"
-  display_name = "Pi Provider"
-  description  = "LLM provider for the Pi coding agent."
-  type         = "string"
-  default      = "anthropic"
-  mutable      = true
-  order        = 5
-  option {
-    name  = "Anthropic"
-    value = "anthropic"
-  }
-  option {
-    name  = "OpenAI"
-    value = "openai"
-  }
-  option {
-    name  = "Google"
-    value = "google"
-  }
-}
-
 variable "claude_code_api_key" {
   description = "Anthropic API key for Claude Code. Set at template push time."
   type        = string
@@ -147,37 +88,6 @@ data "coder_parameter" "claude_code_system_prompt" {
   default      = ""
   mutable      = true
   order        = 8
-}
-
-data "coder_parameter" "opencode_model" {
-  name         = "opencode_model"
-  display_name = "OpenCode Model"
-  description  = "Default model for OpenCode."
-  type         = "string"
-  default      = "anthropic/claude-sonnet-4-6"
-  mutable      = true
-  order        = 9
-
-  option {
-    name  = "claude-sonnet-4-6 (Recommended)"
-    value = "anthropic/claude-sonnet-4-6"
-  }
-  option {
-    name  = "claude-opus-4-6"
-    value = "anthropic/claude-opus-4-6"
-  }
-  option {
-    name  = "claude-opus-4-5"
-    value = "anthropic/claude-opus-4-5"
-  }
-  option {
-    name  = "claude-sonnet-4-5"
-    value = "anthropic/claude-sonnet-4-5"
-  }
-  option {
-    name  = "claude-haiku-4-5"
-    value = "anthropic/claude-haiku-4-5"
-  }
 }
 
 data "coder_parameter" "docker_socket" {
@@ -368,11 +278,7 @@ resource "coder_script" "tools_ai" {
   icon               = "/icon/terminal.svg"
   run_on_start       = true
   start_blocks_login = true
-  script = templatefile("${path.module}/scripts/tools-ai.sh", {
-    pi_api_key  = var.pi_api_key
-    pi_provider = data.coder_parameter.pi_provider.value
-    pi_model    = data.coder_parameter.pi_model.value
-  })
+  script = file("${path.module}/scripts/tools-ai.sh")
 }
 
 resource "coder_script" "tools_browser" {
@@ -492,60 +398,6 @@ module "code-server" {
 }
 
 # =============================================================================
-# OpenCode
-# =============================================================================
-
-resource "coder_script" "opencode_install" {
-  agent_id           = coder_agent.main.id
-  display_name       = "OpenCode Install"
-  icon               = "/icon/opencode.svg"
-  run_on_start       = true
-  start_blocks_login = true
-  script = templatefile("${path.module}/scripts/opencode-install.sh", {
-    opencode_config_json = jsonencode({
-      "$schema" = "https://opencode.ai/config.json"
-      permission = {
-        skill = {
-          "*"              = "allow"
-          "pr-review"      = "allow"
-          "internal-*"     = "deny"
-          "experimental-*" = "ask"
-        }
-      }
-      model = data.coder_parameter.opencode_model.value
-    })
-  })
-}
-
-resource "coder_app" "opencode_terminal" {
-  agent_id     = coder_agent.main.id
-  slug         = "opencode-terminal"
-  display_name = "OpenCode"
-  icon         = "/icon/opencode.svg"
-  command      = "bash -l -c 'export PATH=\"$HOME/.opencode/bin:$PATH\" && opencode'"
-  share        = "owner"
-}
-
-resource "coder_app" "opencode_ui" {
-  agent_id     = coder_agent.main.id
-  slug         = "opencode-ui"
-  display_name = "OpenCode UI"
-  url          = "http://localhost:62748"
-  icon         = "/icon/opencode.svg"
-  subdomain    = true
-  share        = "owner"
-}
-
-resource "coder_script" "opencode_serve" {
-  agent_id           = coder_agent.main.id
-  display_name       = "OpenCode Serve"
-  icon               = "/icon/opencode.svg"
-  run_on_start       = true
-  start_blocks_login = false
-  script             = file("${path.module}/scripts/opencode-serve.sh")
-}
-
-# =============================================================================
 # Claude Code
 # =============================================================================
 
@@ -566,19 +418,6 @@ resource "coder_app" "claude_code" {
   display_name = "Claude Code"
   icon         = "/icon/claude.svg"
   command      = "bash -l -c 'export PATH=\"$HOME/.local/bin:$PATH\" && claude'"
-  share        = "owner"
-}
-
-# =============================================================================
-# Pi Coding Agent
-# =============================================================================
-
-resource "coder_app" "pi" {
-  agent_id     = coder_agent.main.id
-  slug         = "pi"
-  display_name = "Pi Agent"
-  icon         = "/icon/terminal.svg"
-  command      = "bash -l -c 'export PATH=\"$HOME/.local/bin:$PATH\" && pi'"
   share        = "owner"
 }
 

@@ -185,11 +185,11 @@ RUN git config --global init.defaultBranch main \
 
 # .zshenv — sourced by all zsh invocations (interactive, non-interactive, login, non-login)
 # Keeps PATH correct even after Oh My Zsh overwrites .zshrc
-RUN echo 'export PATH="$HOME/.claude/local/bin:$HOME/.local/bin:$HOME/.opencode/bin:$HOME/.local/share/pnpm:$HOME/.bun/bin:$HOME/.foundry/bin:$HOME/bin:$PATH"' >> ~/.zshenv \
+RUN echo 'export PATH="$HOME/.claude/local/bin:$HOME/.local/bin:$HOME/.local/share/pnpm:$HOME/.bun/bin:$HOME/.foundry/bin:$HOME/bin:$PATH"' >> ~/.zshenv \
     && echo 'export PGHOST=localhost' >> ~/.zshenv \
     && echo 'export PGUSER=coder' >> ~/.zshenv \
     && echo 'export PGDATABASE=coder' >> ~/.zshenv
 
 # .bashrc / .profile for bash -l contexts (coder_app launchers)
-RUN echo 'export PATH="$HOME/.claude/local/bin:$HOME/.local/bin:$HOME/.opencode/bin:$HOME/.local/share/pnpm:$HOME/.bun/bin:$HOME/.foundry/bin:$PATH"' >> ~/.bashrc \
-    && echo 'export PATH="$HOME/.claude/local/bin:$HOME/.local/bin:$HOME/.opencode/bin:$HOME/.local/share/pnpm:$HOME/.bun/bin:$HOME/.foundry/bin:$PATH"' >> ~/.profile
+RUN echo 'export PATH="$HOME/.claude/local/bin:$HOME/.local/bin:$HOME/.local/share/pnpm:$HOME/.bun/bin:$HOME/.foundry/bin:$PATH"' >> ~/.bashrc \
+    && echo 'export PATH="$HOME/.claude/local/bin:$HOME/.local/bin:$HOME/.local/share/pnpm:$HOME/.bun/bin:$HOME/.foundry/bin:$PATH"' >> ~/.profile

@@ -32,7 +32,7 @@ if [ ! -f ~/.workspace_initialized ]; then
 
 ### Verification Environment
 This is a **verifier workspace** — it runs deterministic checks (tests, linting, builds)
-against PR branches. No AI tools are installed.
+against PR branches, with AI-assisted analysis via Claude Code + GSD.
 
 ### Available Tools & Versions
 - **Node.js**: v24 (default), also available: 18, 20, 22
@@ -86,7 +86,7 @@ EOFREADME
 fi
 
 # Ensure tools are on PATH (prepend without overriding agent PATH)
-export PATH="$HOME/.local/bin:$HOME/.opencode/bin:$HOME/.local/share/pnpm:$HOME/.bun/bin:$HOME/.foundry/bin:$PATH"
+export PATH="$HOME/.local/bin:$HOME/.local/share/pnpm:$HOME/.bun/bin:$HOME/.foundry/bin:$PATH"
 
 # =============================================================================
 # Hive Task: Clone target repository and checkout branch

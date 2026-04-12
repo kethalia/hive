@@ -32,10 +32,7 @@ if [ ! -f ~/.workspace_initialized ]; then
 
 ### AI-Assisted Development
 - **Claude Code**: `claude` in terminal or use the web app
-- **OpenCode**: `opencode` in terminal or use the web UI
-- **Pi**: `pi` in terminal
-- **GSD (Claude/OpenCode)**: `/gsd:help` inside Claude Code or OpenCode
-- **GSD (Pi)**: `/gsd help` inside Pi
+- **GSD**: `/gsd:help` inside Claude Code
 
 ### Available Tools & Versions
 - **Node.js**: v24 (default), also available: 18, 20, 22
@@ -50,17 +47,15 @@ if [ ! -f ~/.workspace_initialized ]; then
 - **direnv** for per-project env management
 
 ### Browser Vision
-All AI agents can see what you're developing in a browser:
-- **Claude Code & OpenCode**: Just ask! (e.g. "screenshot localhost:3000")
-- **Pi**: Use `browser-screenshot <url>` or `browser-html <url>`
+Claude Code can see what you're developing in a browser:
+- **Claude Code**: Just ask! (e.g. "screenshot localhost:3000")
+- **CLI helpers**: `browser-screenshot <url>` or `browser-html <url>`
 
 ### Useful Commands
 
 ```bash
 # AI Agents
 claude                       # Start Claude Code
-opencode                     # Start OpenCode
-pi                           # Start Pi coding agent
 
 # Docker
 docker ps                    # List running containers
@@ -92,7 +87,7 @@ EOFREADME
 fi
 
 # Ensure tools are on PATH (prepend without overriding agent PATH)
-export PATH="$HOME/.local/bin:$HOME/.opencode/bin:$HOME/.local/share/pnpm:$HOME/.bun/bin:$HOME/.foundry/bin:$PATH"
+export PATH="$HOME/.local/bin:$HOME/.local/share/pnpm:$HOME/.bun/bin:$HOME/.foundry/bin:$PATH"
 
 # Per-start initialization
 echo "Starting workspace services..."

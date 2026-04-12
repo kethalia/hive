@@ -85,7 +85,7 @@ EOFREADME
 fi
 
 # Ensure tools are on PATH (prepend without overriding agent PATH)
-export PATH="$HOME/.local/bin:$HOME/.opencode/bin:$HOME/.local/share/pnpm:$HOME/.bun/bin:$HOME/.foundry/bin:$PATH"
+export PATH="$HOME/.local/bin:$HOME/.local/share/pnpm:$HOME/.bun/bin:$HOME/.foundry/bin:$PATH"
 
 # =============================================================================
 # Hive Task: Clone target repository and checkout branch

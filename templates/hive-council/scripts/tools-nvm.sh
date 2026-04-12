@@ -14,7 +14,7 @@ DEFAULT_VERSION="${default_node_version}"
 # Install nvm if not present
 if [ ! -s "$NVM_DIR/nvm.sh" ]; then
   printf "$${BOLD}[install] nvm...$${RESET}\n"
-  curl -sS -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.1/install.sh | bash 2>&1 || {
+  curl -sS -o- https://raw.githubusercontent.com/nvm-sh/nvm/master/install.sh | bash 2>&1 || {
     printf "$${YELLOW}[warn] nvm installation failed, continuing...$${RESET}\n"
     exit 0
   }

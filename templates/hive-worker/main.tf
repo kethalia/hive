@@ -45,6 +45,15 @@ variable "branch_name" {
   default     = ""
 }
 
+# --- AI ---
+
+variable "anthropic_api_key" {
+  description = "Anthropic API key for Claude Code CLI"
+  type        = string
+  default     = ""
+  sensitive   = true
+}
+
 # --- Infrastructure ---
 
 variable "docker_socket" {
@@ -63,27 +72,6 @@ variable "vault_repo" {
   description = "SSH URL of Obsidian second-brain vault repository (optional, e.g. git@github.com:org/vault.git)"
   type        = string
   default     = ""
-}
-
-# --- Pi Coding Agent Configuration ---
-
-variable "pi_api_key" {
-  description = "API key for Pi coding agent LLM provider (e.g. Anthropic key)"
-  type        = string
-  default     = ""
-  sensitive   = true
-}
-
-variable "pi_model" {
-  description = "Model for Pi coding agent (e.g. claude-opus-4-6)"
-  type        = string
-  default     = "claude-opus-4-6"
-}
-
-variable "pi_provider" {
-  description = "LLM provider for Pi coding agent (e.g. anthropic, openai, google)"
-  type        = string
-  default     = "anthropic"
 }
 
 # =============================================================================
@@ -122,17 +110,20 @@ resource "coder_agent" "main" {
     claude_md_content = file("${path.module}/CLAUDE.md")
   })
 
-  env = {
-    GIT_AUTHOR_NAME     = coalesce(data.coder_workspace_owner.me.full_name, data.coder_workspace_owner.me.name)
-    GIT_AUTHOR_EMAIL    = "${data.coder_workspace_owner.me.email}"
-    GIT_COMMITTER_NAME  = coalesce(data.coder_workspace_owner.me.full_name, data.coder_workspace_owner.me.name)
-    GIT_COMMITTER_EMAIL = "${data.coder_workspace_owner.me.email}"
+  env = merge(
+    {
+      GIT_AUTHOR_NAME     = coalesce(data.coder_workspace_owner.me.full_name, data.coder_workspace_owner.me.name)
+      GIT_AUTHOR_EMAIL    = "${data.coder_workspace_owner.me.email}"
+      GIT_COMMITTER_NAME  = coalesce(data.coder_workspace_owner.me.full_name, data.coder_workspace_owner.me.name)
+      GIT_COMMITTER_EMAIL = "${data.coder_workspace_owner.me.email}"
 
-    HIVE_TASK_ID     = var.task_id
-    HIVE_TASK_PROMPT = var.task_prompt
-    HIVE_REPO_URL    = var.repo_url
-    HIVE_BRANCH_NAME = var.branch_name
-  }
+      HIVE_TASK_ID     = var.task_id
+      HIVE_TASK_PROMPT = var.task_prompt
+      HIVE_REPO_URL    = var.repo_url
+      HIVE_BRANCH_NAME = var.branch_name
+    },
+    var.anthropic_api_key != "" ? { ANTHROPIC_API_KEY = var.anthropic_api_key } : {}
+  )
 
   metadata {
     display_name = "CPU Usage"
@@ -236,17 +227,24 @@ resource "coder_script" "tools_ci" {
   })
 }
 
+resource "coder_script" "claude_install" {
+  agent_id           = coder_agent.main.id
+  display_name       = "Claude Code CLI"
+  icon               = "/icon/terminal.svg"
+  run_on_start       = true
+  start_blocks_login = true
+  script = templatefile("${path.module}/scripts/claude-install.sh", {
+    claude_api_key = var.anthropic_api_key
+  })
+}
+
 resource "coder_script" "tools_ai" {
   agent_id           = coder_agent.main.id
   display_name       = "AI Tools"
   icon               = "/icon/terminal.svg"
   run_on_start       = true
   start_blocks_login = true
-  script = templatefile("${path.module}/scripts/tools-ai.sh", {
-    pi_api_key  = var.pi_api_key
-    pi_provider = var.pi_provider
-    pi_model    = var.pi_model
-  })
+  script = file("${path.module}/scripts/tools-ai.sh")
 }
 
 resource "coder_script" "tools_browser" {
@@ -277,28 +275,6 @@ resource "coder_app" "browser_vision" {
   share        = "owner"
 }
 
-resource "coder_script" "symlinks" {
-  agent_id           = coder_agent.main.id
-  display_name       = "Tool Symlinks"
-  icon               = "/icon/terminal.svg"
-  run_on_start       = true
-  start_blocks_login = true
-  script             = file("${path.module}/scripts/symlinks.sh")
-}
-
-# =============================================================================
-# Pi Coding Agent
-# =============================================================================
-
-resource "coder_app" "pi" {
-  agent_id     = coder_agent.main.id
-  slug         = "pi"
-  display_name = "Pi Agent"
-  icon         = "/icon/terminal.svg"
-  command      = "bash -l -c 'export PATH=\"$HOME/.local/bin:$PATH\" && pi'"
-  share        = "owner"
-}
-
 resource "coder_app" "gsd" {
   agent_id     = coder_agent.main.id
   slug         = "gsd"
@@ -306,6 +282,15 @@ resource "coder_app" "gsd" {
   icon         = "/icon/terminal.svg"
   command      = "bash -l -c 'export PATH=\"$HOME/.local/bin:$PATH\" && gsd'"
   share        = "owner"
+}
+
+resource "coder_script" "symlinks" {
+  agent_id           = coder_agent.main.id
+  display_name       = "Tool Symlinks"
+  icon               = "/icon/terminal.svg"
+  run_on_start       = true
+  start_blocks_login = true
+  script             = file("${path.module}/scripts/symlinks.sh")
 }
 
 # =============================================================================

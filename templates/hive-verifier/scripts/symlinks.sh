@@ -14,7 +14,7 @@ for bin in node npm npx corepack; do
   [ -n "$SYS_BIN" ] && ln -sf "$SYS_BIN" "$HOME/.local/bin/$bin"
 done
 
-# Symlink globally installed npm packages (pi, gsd, claude, etc.)
+# Symlink globally installed npm packages (claude, etc.)
 # The Coder nodejs module installs to /opt/node*/bin/, so check there too
 NPM_GLOBAL_BIN=$(npm -g bin 2>/dev/null || echo "")
 for bindir in $NPM_GLOBAL_BIN /usr/lib/node_modules/.bin /opt/node*/bin; do
@@ -39,19 +39,8 @@ for bin in forge cast anvil chisel; do
   [ -f "$HOME/.foundry/bin/$bin" ] && ln -sf "$HOME/.foundry/bin/$bin" "$HOME/.local/bin/$bin"
 done
 
-# OpenCode
-[ -f "$HOME/.opencode/bin/opencode" ] && ln -sf "$HOME/.opencode/bin/opencode" "$HOME/.local/bin/opencode"
-
 # Chrome — Playwright looks for /usr/bin/chromium-browser by default
 [ -x /usr/bin/google-chrome-stable ] && sudo ln -sf /usr/bin/google-chrome-stable /usr/bin/chromium-browser
-
-# GSD (gsd-pi) — ensure gsd and gsd-cli are on PATH
-for bin in gsd gsd-cli; do
-  if [ ! -e "$HOME/.local/bin/$bin" ]; then
-    GSD_BIN=$(command -v "$bin" 2>/dev/null || find /opt/node*/bin -name "$bin" 2>/dev/null | head -1)
-    [ -n "$GSD_BIN" ] && ln -sf "$GSD_BIN" "$HOME/.local/bin/$bin"
-  fi
-done
 
 printf "$${GREEN}[ok] All tool symlinks created$${RESET}\n"
 
