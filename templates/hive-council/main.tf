@@ -115,10 +115,11 @@ resource "coder_agent" "main" {
   os   = "linux"
 
   startup_script = templatefile("${path.module}/scripts/init.sh", {
-    dotfiles_uri   = var.dotfiles_uri
-    workspace_name = data.coder_workspace.me.name
-    owner_name     = data.coder_workspace_owner.me.name
-    owner_email    = data.coder_workspace_owner.me.email
+    dotfiles_uri      = var.dotfiles_uri
+    workspace_name    = data.coder_workspace.me.name
+    owner_name        = data.coder_workspace_owner.me.name
+    owner_email       = data.coder_workspace_owner.me.email
+    claude_md_content = file("${path.module}/CLAUDE.md")
   })
 
   env = merge(

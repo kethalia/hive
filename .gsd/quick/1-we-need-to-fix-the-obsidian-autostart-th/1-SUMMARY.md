@@ -1,27 +1,43 @@
-# Quick Task: Fix Obsidian autostart on workspace start
+# Quick Task: Fix Obsidian autostart and extract embedded config files
 
 **Date:** 2026-04-12
 **Branch:** main
 
 ## What Changed
-- Created `docker/hive-base/openbox-autostart` — standalone shell file with vault-wait loop, obsidian.json registration, stale-lock cleanup, and Obsidian launch with correct Electron flags
-- Created `docker/hive-base/openbox-menu.xml` — standalone XML for the desktop right-click menu (Obsidian, Chrome, Terminal)
-- Created `docker/hive-base/openbox-debian-menu.xml` — standalone XML stub required by Debian's rc.xml to prevent g_spawn assertion crash on openbox startup
-- Updated `docker/hive-base/Dockerfile` to `COPY` all three openbox config files from the build context; replaced inline heredocs with `COPY openbox-autostart`, `COPY openbox-menu.xml`, `COPY openbox-debian-menu.xml`
-- Removed the runtime autostart-writing block from all 4 `browser-serve.sh` files
+
+### Obsidian autostart fix
+- Root causes: missing `--disable-dev-shm-usage` (Electron silent crash with Docker's 64 MB /dev/shm), timing race on autostart write, stale Electron single-instance lock
+- Fixed by using openbox's native autostart (`/etc/xdg/openbox/autostart`) — display is guaranteed ready before it runs, no race possible
+- Removed all runtime autostart-writing logic from `browser-serve.sh` files
+
+### Extracted standalone config files (Dockerfile + scripts → tracked files)
+- `docker/hive-base/openbox-autostart` → `/etc/xdg/openbox/autostart` (vault-wait + Obsidian launch)
+- `docker/hive-base/openbox-menu.xml` → `/etc/xdg/openbox/menu.xml`
+- `docker/hive-base/openbox-debian-menu.xml` → `/var/lib/openbox/debian-menu.xml`
+- `docker/hive-base/obsidian-launch` → `/usr/local/bin/obsidian-launch` (manual debug helper)
+- `templates/ai-dev/CLAUDE.md` — extracted from init.sh heredoc, injected via templatefile()
+- `templates/hive-council/CLAUDE.md` — extracted from init.sh heredoc, injected via templatefile()
+- Dockerfile now uses `COPY` for all five files; no heredocs remain
 
 ## Files Modified
+- `docker/hive-base/Dockerfile` — replaced heredocs with COPY directives
 - `docker/hive-base/openbox-autostart` (new)
 - `docker/hive-base/openbox-menu.xml` (new)
 - `docker/hive-base/openbox-debian-menu.xml` (new)
-- `docker/hive-base/Dockerfile`
-- `templates/ai-dev/scripts/browser-serve.sh`
-- `templates/hive-council/scripts/browser-serve.sh`
-- `templates/hive-worker/scripts/browser-serve.sh`
-- `templates/hive-verifier/scripts/browser-serve.sh`
+- `docker/hive-base/obsidian-launch` (new)
+- `templates/ai-dev/CLAUDE.md` (new)
+- `templates/hive-council/CLAUDE.md` (new)
+- `templates/ai-dev/main.tf` — added `claude_md_content` to templatefile() vars
+- `templates/hive-council/main.tf` — added `claude_md_content` to templatefile() vars
+- `templates/ai-dev/scripts/init.sh` — replaced CLAUDE.md heredoc with `${claude_md_content}`
+- `templates/hive-council/scripts/init.sh` — replaced CLAUDE.md heredoc with `${claude_md_content}`
+- `templates/ai-dev/scripts/browser-serve.sh` — removed autostart-writing block
+- `templates/hive-council/scripts/browser-serve.sh` — removed autostart-writing block
+- `templates/hive-worker/scripts/browser-serve.sh` — removed autostart-writing block
+- `templates/hive-verifier/scripts/browser-serve.sh` — removed autostart-writing block
 
 ## Verification
-- Dockerfile: COPY + chmod 755 verified via grep
-- browser-serve.sh: no autostart-writing code remains — verified via grep
-- Openbox sources /etc/xdg/openbox/autostart automatically after startup; file is baked into the image at build time, no runtime race possible
-- All 4 template browser-serve.sh files synced
+- Dockerfile COPY directives verified against existing files in docker/hive-base/
+- openbox-autostart contains vault-wait, Python vault registration, stale-lock cleanup, correct Electron flags
+- CLAUDE.md content identical to prior heredoc content
+- No runtime config writes remain for autostart or CLAUDE.md
