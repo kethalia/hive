@@ -4,24 +4,24 @@
 **Branch:** main
 
 ## What Changed
-
-- **Use openbox autostart properly** — write the vault-wait + Obsidian launcher to `~/.config/openbox/autostart` (user-level, no sudo) before starting openbox, then let openbox source it naturally after the display is ready.
-- **Removed the sabotage** — prior code wrote a comment to `/etc/xdg/openbox/autostart`, actively disabling the mechanism, then raced Obsidian against openbox startup in a manual background subshell.
-- The launcher is backgrounded with `&` in the autostart file as required by openbox autostart semantics.
-- Display is guaranteed ready when the autostart runs — eliminates the timing race.
-- All container flags retained: `--no-sandbox --disable-gpu --disable-dev-shm-usage`.
+- Created `docker/hive-base/openbox-autostart` — standalone shell file with vault-wait loop, obsidian.json registration, stale-lock cleanup, and Obsidian launch with correct Electron flags
+- Created `docker/hive-base/openbox-menu.xml` — standalone XML for the desktop right-click menu (Obsidian, Chrome, Terminal)
+- Created `docker/hive-base/openbox-debian-menu.xml` — standalone XML stub required by Debian's rc.xml to prevent g_spawn assertion crash on openbox startup
+- Updated `docker/hive-base/Dockerfile` to `COPY` all three openbox config files from the build context; replaced inline heredocs with `COPY openbox-autostart`, `COPY openbox-menu.xml`, `COPY openbox-debian-menu.xml`
+- Removed the runtime autostart-writing block from all 4 `browser-serve.sh` files
 
 ## Files Modified
-
+- `docker/hive-base/openbox-autostart` (new)
+- `docker/hive-base/openbox-menu.xml` (new)
+- `docker/hive-base/openbox-debian-menu.xml` (new)
+- `docker/hive-base/Dockerfile`
 - `templates/ai-dev/scripts/browser-serve.sh`
-- `templates/hive-worker/scripts/browser-serve.sh`
 - `templates/hive-council/scripts/browser-serve.sh`
+- `templates/hive-worker/scripts/browser-serve.sh`
 - `templates/hive-verifier/scripts/browser-serve.sh`
 
 ## Verification
-
-- `~/.config/openbox/autostart` is written before `openbox --sm-disable` is launched — no race.
-- Launcher is backgrounded (`&`) per openbox autostart docs.
-- Vault-wait loop (60 s) and `obsidian.json` registration preserved.
-- No sudo required (user-level config path).
-- Obsidian launch log: `~/.local/share/browser-vision/obsidian.log`
+- Dockerfile: COPY + chmod 755 verified via grep
+- browser-serve.sh: no autostart-writing code remains — verified via grep
+- Openbox sources /etc/xdg/openbox/autostart automatically after startup; file is baked into the image at build time, no runtime race possible
+- All 4 template browser-serve.sh files synced
