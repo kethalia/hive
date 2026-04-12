@@ -23,18 +23,63 @@ sleep 0.5
 # Set a dummy VNC password (KasmVNC requires one to exist even if auth is off)
 echo -e "kasmvnc\nkasmvnc\n" | vncpasswd -u "$USER" -w -r 2>/dev/null || true
 
-# Copy image-baked xstartup (openbox + Obsidian autostart via KasmVNC session)
-cp /etc/kasmvnc/xstartup "$HOME/.vnc/xstartup"
+# Copy image-baked xstartup, or generate inline fallback for older images
+if [ -f /etc/kasmvnc/xstartup ]; then
+  cp /etc/kasmvnc/xstartup "$HOME/.vnc/xstartup"
+else
+  echo "WARNING: /etc/kasmvnc/xstartup not found — using inline fallback (rebuild Docker image)" >&2
+  cat > "$HOME/.vnc/xstartup" <<'XSTARTUP'
+#!/bin/sh
+unset SESSION_MANAGER
+unset DBUS_SESSION_BUS_ADDRESS
+[ -r "$HOME/.Xresources" ] && xrdb "$HOME/.Xresources"
+if command -v openbox >/dev/null 2>&1; then
+  exec openbox --sm-disable
+elif command -v fluxbox >/dev/null 2>&1; then
+  [ -f /etc/xdg/openbox/autostart ] && . /etc/xdg/openbox/autostart
+  exec fluxbox
+else
+  echo "ERROR: No window manager found (tried openbox, fluxbox)" >&2
+  sleep infinity
+fi
+XSTARTUP
+fi
 chmod 755 "$HOME/.vnc/xstartup"
 
 # KasmVNC YAML config — use image default, override resolution if BROWSER_VIEWPORT is set
-if [ -z "$BROWSER_VIEWPORT" ]; then
-  cp /etc/kasmvnc/kasmvnc.yaml "$HOME/.vnc/kasmvnc.yaml"
+if [ -f /etc/kasmvnc/kasmvnc.yaml ]; then
+  if [ -z "$BROWSER_VIEWPORT" ]; then
+    cp /etc/kasmvnc/kasmvnc.yaml "$HOME/.vnc/kasmvnc.yaml"
+  else
+    WIDTH=$(echo "$RESOLUTION" | cut -dx -f1)
+    HEIGHT=$(echo "$RESOLUTION" | cut -dx -f2)
+    if echo "$RESOLUTION" | grep -qE '^[0-9]+x[0-9]+$'; then
+      sed "s/width: 1280/width: ${WIDTH}/; s/height: 720/height: ${HEIGHT}/" \
+        /etc/kasmvnc/kasmvnc.yaml > "$HOME/.vnc/kasmvnc.yaml"
+    else
+      echo "WARNING: Invalid BROWSER_VIEWPORT format '${RESOLUTION}' — expected WIDTHxHEIGHT, using default" >&2
+      cp /etc/kasmvnc/kasmvnc.yaml "$HOME/.vnc/kasmvnc.yaml"
+    fi
+  fi
 else
-  WIDTH=$(echo "$RESOLUTION" | cut -dx -f1)
-  HEIGHT=$(echo "$RESOLUTION" | cut -dx -f2)
-  sed "s/width: 1280/width: ${WIDTH}/; s/height: 720/height: ${HEIGHT}/" \
-    /etc/kasmvnc/kasmvnc.yaml > "$HOME/.vnc/kasmvnc.yaml"
+  echo "WARNING: /etc/kasmvnc/kasmvnc.yaml not found — generating inline fallback" >&2
+  cat > "$HOME/.vnc/kasmvnc.yaml" <<YAML
+network:
+  protocol: http
+  interface: 0.0.0.0
+  websocket_port: ${WEB_PORT}
+  udp:
+    public_ip: 127.0.0.1
+  ssl:
+    require_ssl: false
+    pem_certificate:
+    pem_key:
+desktop:
+  resolution:
+    width: $(echo "$RESOLUTION" | cut -dx -f1)
+    height: $(echo "$RESOLUTION" | cut -dx -f2)
+  allow_resize: true
+YAML
 fi
 
 # Start KasmVNC with minimal flags — let the YAML handle the rest
