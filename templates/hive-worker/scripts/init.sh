@@ -6,7 +6,7 @@ if [ ! -f ~/.workspace_initialized ]; then
   echo "First-time workspace setup..."
 
   # Create directory structure
-  mkdir -p ~/projects ~/bin ~/.config ~/.local/bin
+  mkdir -p ~/projects ~/bin ~/.config ~/.local/bin ~/vault
 
   # Setup git aliases
   git config --global alias.st status
@@ -121,6 +121,7 @@ echo "Starting workspace services..."
 # Vault sync — clone/pull Obsidian second brain + wire Claude Code context
 # Reads VAULT_REPO env var set by Terraform agent env block
 # =============================================================================
+
 EFFECTIVE_VAULT_REPO="$VAULT_REPO"
 
 if [ -n "$EFFECTIVE_VAULT_REPO" ]; then
@@ -158,19 +159,21 @@ if [ -n "$EFFECTIVE_VAULT_REPO" ]; then
         || echo "WARNING: vault pull failed — vault may be stale (diverged branch or network error)"
     fi
   fi
+fi  # if [ -n "$EFFECTIVE_VAULT_REPO" ]
 
-  if [ -d ~/vault ]; then
-    # Bootstrap .obsidian config if vault has none
-    if [ ! -d ~/vault/.obsidian ]; then
-      mkdir -p ~/vault/.obsidian
-      echo '{"legacyEditor":false,"livePreview":true}' > ~/vault/.obsidian/app.json
-      echo '{}' > ~/vault/.obsidian/appearance.json
-      echo "Created .obsidian config in vault"
-    fi
+# Ensure vault directory and .obsidian config exist. Runs AFTER clone/pull so the
+# bootstrap isn't discarded when a non-git ~/vault is moved aside for cloning.
+mkdir -p ~/vault
+if [ ! -d ~/vault/.obsidian ]; then
+  mkdir -p ~/vault/.obsidian
+  echo '{"legacyEditor":false,"livePreview":true}' > ~/vault/.obsidian/app.json
+  echo '{}' > ~/vault/.obsidian/appearance.json
+  echo "Created .obsidian config in vault"
+fi
 
-    # Register obsidian MCP in Claude Code's MCP config (merge, don't overwrite)
-    mkdir -p ~/.claude
-    python3 - << 'PYEOF'
+# Wire Claude Code vault context (always runs — vault always exists after mkdir above)
+mkdir -p ~/.claude
+python3 - << 'PYEOF'
 import json, os
 path = os.path.expanduser('~/.claude/mcp.json')
 try:
@@ -188,9 +191,9 @@ json.dump(cfg, open(path, 'w'), indent=2)
 print('Obsidian MCP registered in ~/.claude/mcp.json')
 PYEOF
 
-    # Write CLAUDE.md only on first run — user edits are preserved on subsequent starts
-    if [ ! -f ~/.claude/CLAUDE.md ]; then
-      cat > ~/.claude/CLAUDE.md << 'CLAUDEEOF'
+# Write CLAUDE.md only on first run — user edits are preserved on subsequent starts
+if [ ! -f ~/.claude/CLAUDE.md ]; then
+  cat > ~/.claude/CLAUDE.md << 'CLAUDEEOF'
 # Second Brain
 
 Your user maintains a personal knowledge vault at `~/vault`, accessible via the `obsidian` MCP server.
@@ -212,23 +215,21 @@ When you make a significant decision, discover a pattern, or complete a mileston
 
 Custom slash commands for this vault are in `~/vault/Skills/`. Run `/help` in Claude Code to see them.
 CLAUDEEOF
-      echo "Claude Code vault context written to ~/.claude/CLAUDE.md"
-    fi
+  echo "Claude Code vault context written to ~/.claude/CLAUDE.md"
+fi
 
-    # Sync vault Skills → ~/.claude/skills/vault/ (isolated subdir to avoid polluting bundled skills)
-    if [ -d ~/vault/Skills ]; then
-      mkdir -p ~/.claude/skills/vault
-      # Remove stale skills from previous syncs
-      rm -f ~/.claude/skills/vault/*.md
-      for skill_file in ~/vault/Skills/*.md; do
-        [ -f "$skill_file" ] || continue
-        skill_name=$(basename "$skill_file" .md | tr '[:upper:]' '[:lower:]' | tr ' ' '-')
-        cp "$skill_file" "$HOME/.claude/skills/vault/$skill_name.md"
-      done
-      echo "Vault skills synced to ~/.claude/skills/vault/"
-    fi
-  fi  # if [ -d ~/vault ]
-fi  # if [ -n "$EFFECTIVE_VAULT_REPO" ]
+# Sync vault Skills → ~/.claude/skills/vault/ (isolated subdir to avoid polluting bundled skills)
+if [ -d ~/vault/Skills ]; then
+  mkdir -p ~/.claude/skills/vault
+  # Remove stale skills from previous syncs
+  rm -f ~/.claude/skills/vault/*.md
+  for skill_file in ~/vault/Skills/*.md; do
+    [ -f "$skill_file" ] || continue
+    skill_name=$(basename "$skill_file" .md | tr '[:upper:]' '[:lower:]' | tr ' ' '-')
+    cp "$skill_file" "$HOME/.claude/skills/vault/$skill_name.md"
+  done
+  echo "Vault skills synced to ~/.claude/skills/vault/"
+fi
 
 # Verify Docker access
 if docker info &> /dev/null; then

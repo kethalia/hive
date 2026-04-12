@@ -74,13 +74,6 @@ variable "anthropic_api_key" {
   sensitive   = true
 }
 
-variable "pi_api_key" {
-  description = "API key for Pi coding agent LLM provider (e.g. Anthropic key)"
-  type        = string
-  default     = ""
-  sensitive   = true
-}
-
 variable "pi_model" {
   description = "Model for Pi coding agent (e.g. claude-opus-4-6)"
   type        = string
@@ -290,9 +283,9 @@ resource "coder_script" "browser_serve" {
 resource "coder_app" "browser_vision" {
   agent_id     = coder_agent.main.id
   slug         = "browser-vision"
-  display_name = "Browser"
+  display_name = "KasmVNC"
   url          = "http://localhost:6080"
-  icon         = "/icon/terminal.svg"
+  icon         = "/icon/kasmvnc.svg"
   subdomain    = true
   share        = "owner"
 }

@@ -19,3 +19,6 @@ gsd.db-shm
 
 # Verification JSON (regenerated from DB)
 **/tasks/*-VERIFY.json
+
+# Generated codebase map cache
+CODEBASE.md
