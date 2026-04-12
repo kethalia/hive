@@ -15,4 +15,8 @@ if command -v openbox >/dev/null 2>&1; then
 elif command -v fluxbox >/dev/null 2>&1; then
   [ -f /etc/xdg/openbox/autostart ] && . /etc/xdg/openbox/autostart
   exec fluxbox
+else
+  echo "ERROR: No window manager found (tried openbox, fluxbox)" >&2
+  # Keep VNC session alive for debugging
+  sleep infinity
 fi

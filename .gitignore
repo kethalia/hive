@@ -69,3 +69,4 @@ tmp/
 # ── GSD baseline (auto-generated) ──
 .gsd-id
 .bg-shell/
+.mcp.json
