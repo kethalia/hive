@@ -21,6 +21,27 @@ sleep 0.5
 # Set a dummy VNC password (KasmVNC requires one to exist even if auth is off)
 echo -e "kasmvnc\nkasmvnc\n" | vncpasswd -u "$USER" -w -r 2>/dev/null || true
 
+# Custom xstartup — start openbox (or fluxbox) as the sole window manager.
+# The default xstartup starts twm, which conflicts with the WM we actually want.
+# Openbox natively sources /etc/xdg/openbox/autostart (which launches Obsidian).
+# For fluxbox fallback, we source that autostart explicitly before starting fluxbox.
+cat > "$HOME/.vnc/xstartup" << 'XSTARTUP'
+#!/bin/sh
+unset SESSION_MANAGER
+unset DBUS_SESSION_BUS_ADDRESS
+[ -r "$HOME/.Xresources" ] && xrdb "$HOME/.Xresources"
+
+if command -v openbox >/dev/null 2>&1; then
+  # Openbox sources /etc/xdg/openbox/autostart natively (launches Obsidian)
+  exec openbox --sm-disable
+elif command -v fluxbox >/dev/null 2>&1; then
+  # Source the openbox autostart for Obsidian, then start fluxbox
+  [ -f /etc/xdg/openbox/autostart ] && . /etc/xdg/openbox/autostart
+  exec fluxbox
+fi
+XSTARTUP
+chmod 755 "$HOME/.vnc/xstartup"
+
 # KasmVNC YAML config — this is the primary way to configure KasmVNC
 cat > "$HOME/.vnc/kasmvnc.yaml" << YAML
 network:
@@ -66,19 +87,9 @@ if [ ! -f /var/lib/openbox/debian-menu.xml ]; then
     | sudo tee /var/lib/openbox/debian-menu.xml > /dev/null
 fi
 
-# Openbox autostart is baked into the Docker image at /etc/xdg/openbox/autostart.
-# No runtime writing needed — openbox sources it automatically after startup.
-
-# Start Openbox — it will source /etc/xdg/openbox/autostart after starting
-if command -v openbox &>/dev/null; then
-  DISPLAY=":${DISPLAY_NUM}" nohup openbox --sm-disable \
-    > "$LOG_DIR/openbox.log" 2>&1 &
-  disown $!
-  echo "Openbox window manager started"
-elif command -v fluxbox &>/dev/null; then
-  nohup fluxbox -display ":${DISPLAY_NUM}" > "$LOG_DIR/fluxbox.log" 2>&1 &
-  disown $!
-fi
+# Window manager + Obsidian autostart is handled by the custom xstartup above.
+# KasmVNC runs xstartup after the display is ready, which starts openbox (or
+# fluxbox) as the sole WM. No separate WM launch needed here.
 
 echo "Browser vision: http://localhost:${WEB_PORT}"
 echo "Browser vision server started successfully"
