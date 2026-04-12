@@ -5,7 +5,7 @@ BOLD='\033[0;1m'
 GREEN='\033[0;32m'
 RESET='\033[0m'
 
-printf "$${BOLD}Creating tool symlinks in ~/.local/bin...$${RESET}\n"
+printf "${BOLD}Creating tool symlinks in ~/.local/bin...${RESET}\n"
 mkdir -p $HOME/.local/bin
 
 # Node.js / npm / npx — from system install (NodeSource in Dockerfile)
@@ -24,7 +24,7 @@ for bindir in $NPM_GLOBAL_BIN /usr/lib/node_modules/.bin /opt/node*/bin; do
     done
   fi
 done
-printf "$${GREEN}[ok] Node.js symlinked$${RESET}\n"
+printf "${GREEN}[ok] Node.js symlinked${RESET}\n"
 
 # PNPM
 [ -f "$HOME/.local/share/pnpm/pnpm" ] && ln -sf "$HOME/.local/share/pnpm/pnpm" "$HOME/.local/bin/pnpm"
@@ -42,8 +42,8 @@ done
 # Chrome — Playwright looks for /usr/bin/chromium-browser by default
 [ -x /usr/bin/google-chrome-stable ] && sudo ln -sf /usr/bin/google-chrome-stable /usr/bin/chromium-browser
 
-printf "$${GREEN}[ok] All tool symlinks created$${RESET}\n"
+printf "${GREEN}[ok] All tool symlinks created${RESET}\n"
 
 echo ""
-printf "$${GREEN}All development tools are ready!$${RESET}\n"
+printf "${GREEN}All development tools are ready!${RESET}\n"
 echo ""

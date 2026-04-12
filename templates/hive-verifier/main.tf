@@ -161,11 +161,11 @@ resource "coder_agent" "main" {
   metadata {
     display_name = "Load Average (Host)"
     key          = "6_load_host"
-    script   = <<EOT
+    script       = <<EOT
       echo "`cat /proc/loadavg | awk '{ print $1 }'` `nproc`" | awk '{ printf "%0.2f", $1/$2 }'
     EOT
-    interval = 60
-    timeout  = 1
+    interval     = 60
+    timeout      = 1
   }
 
   metadata {
@@ -237,7 +237,7 @@ resource "coder_script" "tools_ai" {
   icon               = "/icon/terminal.svg"
   run_on_start       = true
   start_blocks_login = true
-  script = file("${path.module}/scripts/tools-ai.sh")
+  script             = file("${path.module}/scripts/tools-ai.sh")
 }
 
 resource "coder_script" "tools_browser" {
@@ -322,7 +322,27 @@ module "git-clone-vault" {
   version     = "1.2.3"
   agent_id    = coder_agent.main.id
   url         = var.vault_repo
-  folder_name = "vault"
+  folder_name = "vault_clone_tmp"
+
+  # The git-clone module skips cloning when the target dir is non-empty, but
+  # post_clone_script runs ALWAYS (even on skip).  We clone into a temp dir,
+  # then rsync into ~/vault so the vault is refreshed on every workspace start.
+  post_clone_script = <<-EOT
+    #!/bin/bash
+    set -e
+    VAULT_DIR="$HOME/vault"
+    CLONE_DIR="$HOME/vault_clone_tmp"
+    if [ -d "$CLONE_DIR/.git" ]; then
+      mkdir -p "$VAULT_DIR"
+      rsync -a --delete --exclude '.obsidian' "$CLONE_DIR/" "$VAULT_DIR/"
+      rm -rf "$CLONE_DIR"
+      echo "Vault synced to $VAULT_DIR"
+    else
+      echo "ERROR: Vault clone failed — $CLONE_DIR has no .git directory" >&2
+      rm -rf "$CLONE_DIR"
+      exit 1
+    fi
+  EOT
 }
 
 # =============================================================================
