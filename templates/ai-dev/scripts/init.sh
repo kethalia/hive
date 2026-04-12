@@ -89,7 +89,9 @@ echo "Starting workspace services..."
 # XFCE autostart — Obsidian launches automatically when the desktop starts.
 # /home/coder is a volume mount, so we copy from the image-baked staging dir.
 mkdir -p "$HOME/.config/autostart"
-cp /usr/share/hive/autostart/*.desktop "$HOME/.config/autostart/"
+if [ -d /usr/share/hive/autostart ] && ls /usr/share/hive/autostart/*.desktop >/dev/null 2>&1; then
+  cp /usr/share/hive/autostart/*.desktop "$HOME/.config/autostart/"
+fi
 
 # =============================================================================
 # Vault setup — Claude Code context wiring

@@ -493,7 +493,7 @@ module "dotfiles" {
   source                = "registry.coder.com/coder/dotfiles/coder"
   version               = "1.4.1"
   agent_id              = coder_agent.main.id
-  coder_parameter_order = 10
+  coder_parameter_order = 11
 }
 
 # =============================================================================
