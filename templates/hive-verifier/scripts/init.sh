@@ -32,7 +32,7 @@ if [ ! -f ~/.workspace_initialized ]; then
 
 ### Verification Environment
 This is a **verifier workspace** — it runs deterministic checks (tests, linting, builds)
-against PR branches. No AI tools are installed.
+against PR branches, with AI-assisted analysis via Claude Code + GSD.
 
 ### Available Tools & Versions
 - **Node.js**: v24 (default), also available: 18, 20, 22
