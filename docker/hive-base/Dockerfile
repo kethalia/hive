@@ -132,31 +132,32 @@ ENV LC_ALL=en_US.UTF-8
 # error because the line after the closing delimiter is treated as a new instruction.
 RUN mkdir -p /etc/xdg/openbox
 
-# Openbox autostart — executed line-by-line by openbox, NOT as a bash script.
-# Do NOT use bash subshell syntax ((...) & ) — openbox passes each line directly
-# to g_spawn which crashes on shell metacharacters. Use a launcher script instead.
+# Obsidian launcher script — kept for manual debugging; NOT called from autostart.
+# Normal launch path: browser-serve.sh overrides autostart and runs obsidian directly.
 RUN mkdir -p /usr/local/bin && cat > /usr/local/bin/obsidian-launch << 'XDGEOF'
 #!/bin/bash
-# Launched by openbox autostart — wait for vault, register it, open Obsidian.
-# Logs to ~/.local/share/browser-vision/obsidian-launch.log for diagnostics.
+# Manual Obsidian launcher — useful for debugging.
+# In normal operation, browser-serve.sh overrides the openbox autostart and
+# launches Obsidian directly (with --disable-dev-shm-usage for Docker's 64 MB
+# /dev/shm limit and stale-lock cleanup). This script is kept for parity and
+# manual use; it should not be called from autostart.
 LAUNCH_LOG="$HOME/.local/share/browser-vision/obsidian-launch.log"
 mkdir -p "$(dirname "$LAUNCH_LOG")"
-exec > "$LAUNCH_LOG" 2>&1
+exec >> "$LAUNCH_LOG" 2>&1
 echo "obsidian-launch started at $(date), DISPLAY=$DISPLAY"
 
 i=0
-while [ "$i" -lt 40 ]; do
+while [ "$i" -lt 60 ]; do
   if [ -d /home/coder/vault/.obsidian ] || [ -d /home/coder/vault/.git ]; then
-    echo "Vault ready after $((i)) polls"
+    echo "Vault ready after ${i}s"
     break
   fi
-  sleep 0.5
+  sleep 1
   i=$((i + 1))
 done
 
-if [ -d /home/coder/vault ]; then
-  mkdir -p "$HOME/.config/obsidian"
-  python3 - << 'PYEOF' || echo "WARNING: vault registration failed"
+mkdir -p "$HOME/.config/obsidian"
+python3 - << 'PYEOF' || echo "WARNING: vault registration failed"
 import json, os, time, hashlib
 cfg_path = os.path.expanduser('~/.config/obsidian/obsidian.json')
 try:
@@ -171,11 +172,16 @@ cfg.pop('cli', None)
 json.dump(cfg, open(cfg_path, 'w'))
 print('Vault registered:', vault_id)
 PYEOF
-  echo "Launching Obsidian..."
-  exec /usr/bin/obsidian --no-sandbox --disable-gpu /home/coder/vault
-else
-  echo "Vault directory not found — skipping Obsidian"
-fi
+
+# Remove any stale Electron single-instance lock left by a prior crash
+rm -f "$HOME/.config/obsidian/.lock" 2>/dev/null || true
+
+echo "Launching Obsidian..."
+exec /usr/bin/obsidian \
+  --no-sandbox \
+  --disable-gpu \
+  --disable-dev-shm-usage \
+  /home/coder/vault
 XDGEOF
 RUN chmod +x /usr/local/bin/obsidian-launch
 
@@ -188,11 +194,11 @@ RUN mkdir -p /var/lib/openbox && cat > /var/lib/openbox/debian-menu.xml << 'XDGE
 </openbox_menu>
 XDGEOF
 
-# Openbox autostart — one command per line; avoid shell constructs such as
-# subshells, command chaining, or conditionals. The trailing '&' is intentional
-# so Openbox backgrounds the launcher instead of blocking on it.
+# Openbox autostart — left empty at image build time.
+# browser-serve.sh overrides this file before starting openbox and launches
+# Obsidian directly (with --disable-dev-shm-usage and stale-lock cleanup).
 RUN cat > /etc/xdg/openbox/autostart << 'XDGEOF'
-/usr/local/bin/obsidian-launch &
+# Obsidian is managed by browser-serve.sh
 XDGEOF
 
 RUN cat > /etc/xdg/openbox/menu.xml << 'XDGEOF'

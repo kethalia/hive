@@ -66,7 +66,13 @@ if [ ! -f /var/lib/openbox/debian-menu.xml ]; then
     | sudo tee /var/lib/openbox/debian-menu.xml > /dev/null
 fi
 
-# Start Openbox window manager — reads /etc/xdg/openbox/autostart on launch
+# Override the openbox autostart BEFORE starting openbox so there is no race.
+# Obsidian is launched directly below with the correct flags for containers.
+sudo tee /etc/xdg/openbox/autostart > /dev/null << 'AUTOSTART'
+# Obsidian is managed by browser-serve.sh
+AUTOSTART
+
+# Start Openbox window manager — autostart has already been neutralised above
 if command -v openbox &>/dev/null; then
   DISPLAY=":${DISPLAY_NUM}" nohup openbox --sm-disable \
     > "$LOG_DIR/openbox.log" 2>&1 &
@@ -76,6 +82,59 @@ elif command -v fluxbox &>/dev/null; then
   nohup fluxbox -display ":${DISPLAY_NUM}" > "$LOG_DIR/fluxbox.log" 2>&1 &
   disown $!
 fi
+
+# ── Obsidian launch ───────────────────────────────────────────────────────────
+# Runs in background: waits for vault initialisation (init.sh creates .obsidian;
+# a git clone creates .git first), registers the vault, clears any stale
+# single-instance lock, then opens Obsidian.
+# Key flags:
+#   --disable-dev-shm-usage  use /tmp instead of /dev/shm (Docker limits shm to
+#                            64 MB by default; Electron exceeds this and crashes)
+#   --disable-gpu            skip GPU init in headless containers
+#   --no-sandbox             required for non-root Electron in containers
+(
+  LOG="$LOG_DIR/obsidian.log"
+  exec >> "$LOG" 2>&1
+  echo "$(date '+%T') obsidian-launcher: started (DISPLAY=$DISPLAY)"
+
+  # Wait up to 60 s for vault to be initialised by init.sh
+  i=0
+  while [ "$i" -lt 60 ]; do
+    { [ -d ~/vault/.obsidian ] || [ -d ~/vault/.git ]; } && break
+    sleep 1
+    i=$((i + 1))
+  done
+  echo "$(date '+%T') vault ready after ${i}s (.obsidian=$(test -d ~/vault/.obsidian && echo yes || echo no))"
+
+  # Register vault in obsidian.json so Obsidian opens it on launch
+  mkdir -p ~/.config/obsidian
+  python3 - << 'PYEOF'
+import json, os, time, hashlib
+cfg_path = os.path.expanduser('~/.config/obsidian/obsidian.json')
+try:
+    cfg = json.load(open(cfg_path))
+except (OSError, json.JSONDecodeError):
+    cfg = {}
+vaults = cfg.get('vaults', {})
+vault_id = hashlib.md5(b'/home/coder/vault').hexdigest()[:16]
+vaults[vault_id] = {'path': '/home/coder/vault', 'ts': int(time.time() * 1000), 'open': True}
+cfg['vaults'] = vaults
+cfg.pop('cli', None)
+json.dump(cfg, open(cfg_path, 'w'))
+print('Vault registered:', vault_id)
+PYEOF
+
+  # Remove any stale Electron single-instance lock left by a prior crash
+  rm -f ~/.config/obsidian/.lock 2>/dev/null || true
+
+  echo "$(date '+%T') launching /usr/bin/obsidian"
+  exec /usr/bin/obsidian \
+    --no-sandbox \
+    --disable-gpu \
+    --disable-dev-shm-usage \
+    /home/coder/vault
+) &
+disown $!
 
 echo "Browser vision: http://localhost:${WEB_PORT}"
 echo "Browser vision server started successfully"
