@@ -184,43 +184,13 @@ exec /usr/bin/obsidian \
 XDGEOF
 RUN chmod +x /usr/local/bin/obsidian-launch
 
-# Create the missing debian-menu.xml that Debian's rc.xml references —
-# without it, openbox crashes with g_spawn assertion on startup.
-RUN mkdir -p /var/lib/openbox && cat > /var/lib/openbox/debian-menu.xml << 'XDGEOF'
-<?xml version="1.0" encoding="UTF-8"?>
-<openbox_menu xmlns="http://openbox.org/3.4/menu">
-  <menu id="debian-menu" label="Applications"></menu>
-</openbox_menu>
-XDGEOF
-
-# Openbox autostart — baked into the image from a dedicated file.
-# Openbox sources this after the window manager starts and the display is ready.
-COPY openbox-autostart /etc/xdg/openbox/autostart
-
-RUN cat > /etc/xdg/openbox/menu.xml << 'XDGEOF'
-<?xml version="1.0" encoding="UTF-8"?>
-<openbox_menu xmlns="http://openbox.org/3.4/menu">
-  <menu id="root-menu" label="Desktop">
-    <item label="Obsidian">
-      <action name="Execute">
-        <command>/usr/bin/obsidian --no-sandbox --disable-gpu /home/coder/vault</command>
-      </action>
-    </item>
-    <item label="Chrome">
-      <action name="Execute">
-        <command>/usr/bin/google-chrome-stable --no-sandbox --disable-gpu-sandbox</command>
-      </action>
-    </item>
-    <item label="Terminal">
-      <action name="Execute">
-        <command>xterm</command>
-      </action>
-    </item>
-  </menu>
-</openbox_menu>
-XDGEOF
-
-RUN chmod 755 /etc/xdg/openbox/autostart && chmod 644 /etc/xdg/openbox/menu.xml
+# Openbox config — all three files are tracked as standalone source files
+# and copied into the image. No inline heredocs needed.
+RUN mkdir -p /var/lib/openbox
+COPY openbox-debian-menu.xml /var/lib/openbox/debian-menu.xml
+COPY openbox-autostart       /etc/xdg/openbox/autostart
+COPY openbox-menu.xml        /etc/xdg/openbox/menu.xml
+RUN chmod 755 /etc/xdg/openbox/autostart && chmod 644 /var/lib/openbox/debian-menu.xml /etc/xdg/openbox/menu.xml
 
 # Create coder user
 # ssl-cert group is REQUIRED for KasmVNC (TLS cert access)
