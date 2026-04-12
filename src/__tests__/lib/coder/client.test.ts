@@ -249,4 +249,79 @@ describe("CoderClient", () => {
     expect(q).toBe("owner:testuser");
     expect(q).not.toContain("status:");
   });
+
+  // ── listTemplates ───────────────────────────────────────────────
+
+  it("listTemplates returns normalized template objects", async () => {
+    const apiTemplates = [
+      { id: "t1", name: "hive", active_version_id: "v1", updated_at: "2026-04-01T00:00:00Z" },
+      { id: "t2", name: "ai-dev", active_version_id: "v2", updated_at: "2026-04-02T00:00:00Z" },
+    ];
+    fetchSpy.mockResolvedValueOnce(jsonResponse(apiTemplates));
+
+    const result = await makeClient().listTemplates();
+
+    const [url] = fetchSpy.mock.calls[0];
+    expect(url).toBe(`${BASE_URL}/api/v2/organizations/default/templates`);
+    expect(result).toEqual([
+      { id: "t1", name: "hive", activeVersionId: "v1", updatedAt: "2026-04-01T00:00:00Z" },
+      { id: "t2", name: "ai-dev", activeVersionId: "v2", updatedAt: "2026-04-02T00:00:00Z" },
+    ]);
+  });
+
+  // ── getTemplateVersion ────────────────────────────────────────
+
+  it("getTemplateVersion returns normalized version with fileId and message", async () => {
+    const apiVersion = {
+      id: "v1",
+      name: "initial",
+      message: "first push",
+      job: { file_id: "file-abc" },
+      created_at: "2026-04-01T00:00:00Z",
+    };
+    fetchSpy.mockResolvedValueOnce(jsonResponse(apiVersion));
+
+    const result = await makeClient().getTemplateVersion("v1");
+
+    const [url] = fetchSpy.mock.calls[0];
+    expect(url).toBe(`${BASE_URL}/api/v2/templateversions/v1`);
+    expect(result).toEqual({
+      id: "v1",
+      name: "initial",
+      fileId: "file-abc",
+      createdAt: "2026-04-01T00:00:00Z",
+      message: "first push",
+    });
+  });
+
+  // ── fetchTemplateFiles ────────────────────────────────────────
+
+  it("fetchTemplateFiles returns tar archive as Buffer", async () => {
+    const tarContent = new Uint8Array([0x1f, 0x8b, 0x08, 0x00]);
+    fetchSpy.mockResolvedValueOnce(
+      new Response(tarContent, {
+        status: 200,
+        statusText: "OK",
+        headers: { "Content-Type": "application/x-tar" },
+      })
+    );
+
+    const result = await makeClient().fetchTemplateFiles("file-abc");
+
+    const [url, init] = fetchSpy.mock.calls[0];
+    expect(url).toBe(`${BASE_URL}/api/v2/files/file-abc`);
+    expect(init.headers["Coder-Session-Token"]).toBe(TOKEN);
+    expect(Buffer.isBuffer(result)).toBe(true);
+    expect(result.length).toBe(4);
+  });
+
+  it("fetchTemplateFiles throws on non-2xx response", async () => {
+    fetchSpy.mockResolvedValueOnce(
+      new Response("not found", { status: 404, statusText: "Not Found" })
+    );
+
+    await expect(makeClient().fetchTemplateFiles("bad-id")).rejects.toThrow(
+      /fetchTemplateFiles failed: 404 Not Found/
+    );
+  });
 });

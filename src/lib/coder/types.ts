@@ -90,6 +90,7 @@ export interface CoderTemplate {
 export interface CoderTemplateVersion {
   id: string;
   name: string;
+  message: string;
   job: {
     file_id: string;
   };
