@@ -45,6 +45,15 @@ variable "branch_name" {
   default     = ""
 }
 
+# --- AI ---
+
+variable "anthropic_api_key" {
+  description = "Anthropic API key for Claude Code CLI"
+  type        = string
+  default     = ""
+  sensitive   = true
+}
+
 # --- Infrastructure ---
 
 variable "docker_socket" {
@@ -101,17 +110,20 @@ resource "coder_agent" "main" {
     claude_md_content = file("${path.module}/CLAUDE.md")
   })
 
-  env = {
-    GIT_AUTHOR_NAME     = coalesce(data.coder_workspace_owner.me.full_name, data.coder_workspace_owner.me.name)
-    GIT_AUTHOR_EMAIL    = "${data.coder_workspace_owner.me.email}"
-    GIT_COMMITTER_NAME  = coalesce(data.coder_workspace_owner.me.full_name, data.coder_workspace_owner.me.name)
-    GIT_COMMITTER_EMAIL = "${data.coder_workspace_owner.me.email}"
+  env = merge(
+    {
+      GIT_AUTHOR_NAME     = coalesce(data.coder_workspace_owner.me.full_name, data.coder_workspace_owner.me.name)
+      GIT_AUTHOR_EMAIL    = "${data.coder_workspace_owner.me.email}"
+      GIT_COMMITTER_NAME  = coalesce(data.coder_workspace_owner.me.full_name, data.coder_workspace_owner.me.name)
+      GIT_COMMITTER_EMAIL = "${data.coder_workspace_owner.me.email}"
 
-    HIVE_TASK_ID     = var.task_id
-    HIVE_TASK_PROMPT = var.task_prompt
-    HIVE_REPO_URL    = var.repo_url
-    HIVE_BRANCH_NAME = var.branch_name
-  }
+      HIVE_TASK_ID     = var.task_id
+      HIVE_TASK_PROMPT = var.task_prompt
+      HIVE_REPO_URL    = var.repo_url
+      HIVE_BRANCH_NAME = var.branch_name
+    },
+    var.anthropic_api_key != "" ? { ANTHROPIC_API_KEY = var.anthropic_api_key } : {}
+  )
 
   metadata {
     display_name = "CPU Usage"
@@ -215,6 +227,17 @@ resource "coder_script" "tools_ci" {
   })
 }
 
+resource "coder_script" "claude_install" {
+  agent_id           = coder_agent.main.id
+  display_name       = "Claude Code CLI"
+  icon               = "/icon/terminal.svg"
+  run_on_start       = true
+  start_blocks_login = true
+  script = templatefile("${path.module}/scripts/claude-install.sh", {
+    claude_api_key = var.anthropic_api_key
+  })
+}
+
 resource "coder_script" "tools_ai" {
   agent_id           = coder_agent.main.id
   display_name       = "AI Tools"
@@ -249,6 +272,15 @@ resource "coder_app" "browser_vision" {
   url          = "http://localhost:6080"
   icon         = "/icon/kasmvnc.svg"
   subdomain    = true
+  share        = "owner"
+}
+
+resource "coder_app" "gsd" {
+  agent_id     = coder_agent.main.id
+  slug         = "gsd"
+  display_name = "GSD"
+  icon         = "/icon/terminal.svg"
+  command      = "bash -l -c 'export PATH=\"$HOME/.local/bin:$PATH\" && gsd'"
   share        = "owner"
 }
 
