@@ -44,3 +44,8 @@ install_if_missing "GSD (get-shit-done)" "" "$HOME/.claude/commands/gsd" '
   npx get-shit-done-cc@latest --claude --global --yes 2>/dev/null || \
   npx get-shit-done-cc@latest --claude --global 2>/dev/null || true
 '
+
+# Install GSD-2 (gsd-pi)
+install_if_missing "GSD-2 (gsd-pi)" "gsd" "" '
+  npm install -g gsd-pi
+'

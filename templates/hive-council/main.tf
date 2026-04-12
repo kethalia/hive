@@ -275,6 +275,15 @@ resource "coder_app" "browser_vision" {
   share        = "owner"
 }
 
+resource "coder_app" "gsd" {
+  agent_id     = coder_agent.main.id
+  slug         = "gsd"
+  display_name = "GSD"
+  icon         = "/icon/terminal.svg"
+  command      = "bash -l -c 'export PATH=\"$HOME/.local/bin:$PATH\" && gsd'"
+  share        = "owner"
+}
+
 resource "coder_script" "symlinks" {
   agent_id           = coder_agent.main.id
   display_name       = "Tool Symlinks"
