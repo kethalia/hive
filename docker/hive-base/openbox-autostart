@@ -1,0 +1,53 @@
+# Openbox autostart — sourced by openbox after the window manager starts and
+# the display is ready.  Commands must be backgrounded (&) so openbox does not
+# wait for them to exit.
+#
+# Key Electron flags for Docker/container environments:
+#   --no-sandbox             required for non-root Electron
+#   --disable-gpu            skip GPU init in headless containers
+#   --disable-dev-shm-usage  use /tmp instead of /dev/shm (Docker caps shm at
+#                            64 MB by default; Electron exceeds this and crashes)
+(
+  LOG="$HOME/.local/share/browser-vision/obsidian.log"
+  mkdir -p "$(dirname "$LOG")"
+  exec >> "$LOG" 2>&1
+  echo "$(date '+%T') obsidian-autostart: display=$DISPLAY"
+
+  # Wait up to 60 s for the vault to be initialised by init.sh
+  # (init.sh creates .obsidian; a git clone creates .git first)
+  i=0
+  while [ "$i" -lt 60 ]; do
+    { [ -d "$HOME/vault/.obsidian" ] || [ -d "$HOME/vault/.git" ]; } && break
+    sleep 1
+    i=$((i + 1))
+  done
+  echo "$(date '+%T') vault ready after ${i}s"
+
+  # Register vault in obsidian.json so Obsidian opens it on launch
+  mkdir -p "$HOME/.config/obsidian"
+  python3 - << 'PYEOF'
+import json, os, time, hashlib
+cfg_path = os.path.expanduser('~/.config/obsidian/obsidian.json')
+try:
+    cfg = json.load(open(cfg_path))
+except (OSError, json.JSONDecodeError):
+    cfg = {}
+vaults = cfg.get('vaults', {})
+vault_id = hashlib.md5(b'/home/coder/vault').hexdigest()[:16]
+vaults[vault_id] = {'path': '/home/coder/vault', 'ts': int(time.time() * 1000), 'open': True}
+cfg['vaults'] = vaults
+cfg.pop('cli', None)
+json.dump(cfg, open(cfg_path, 'w'))
+print('Vault registered:', vault_id)
+PYEOF
+
+  # Remove any stale Electron single-instance lock left by a prior crash
+  rm -f "$HOME/.config/obsidian/.lock" 2>/dev/null || true
+
+  echo "$(date '+%T') launching /usr/bin/obsidian"
+  exec /usr/bin/obsidian \
+    --no-sandbox \
+    --disable-gpu \
+    --disable-dev-shm-usage \
+    "$HOME/vault"
+) &

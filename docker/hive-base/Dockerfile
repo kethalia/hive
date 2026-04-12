@@ -133,14 +133,13 @@ ENV LC_ALL=en_US.UTF-8
 RUN mkdir -p /etc/xdg/openbox
 
 # Obsidian launcher script — kept for manual debugging; NOT called from autostart.
-# Normal launch path: browser-serve.sh overrides autostart and runs obsidian directly.
+# Normal launch path: /etc/xdg/openbox/autostart (baked from docker/hive-base/openbox-autostart).
 RUN mkdir -p /usr/local/bin && cat > /usr/local/bin/obsidian-launch << 'XDGEOF'
 #!/bin/bash
 # Manual Obsidian launcher — useful for debugging.
-# In normal operation, browser-serve.sh overrides the openbox autostart and
-# launches Obsidian directly (with --disable-dev-shm-usage for Docker's 64 MB
-# /dev/shm limit and stale-lock cleanup). This script is kept for parity and
-# manual use; it should not be called from autostart.
+# In normal operation, /etc/xdg/openbox/autostart (baked from
+# docker/hive-base/openbox-autostart) launches Obsidian automatically after
+# openbox starts.  This script is kept for manual use only.
 LAUNCH_LOG="$HOME/.local/share/browser-vision/obsidian-launch.log"
 mkdir -p "$(dirname "$LAUNCH_LOG")"
 exec >> "$LAUNCH_LOG" 2>&1
@@ -194,12 +193,9 @@ RUN mkdir -p /var/lib/openbox && cat > /var/lib/openbox/debian-menu.xml << 'XDGE
 </openbox_menu>
 XDGEOF
 
-# Openbox autostart — left empty at image build time.
-# browser-serve.sh overrides this file before starting openbox and launches
-# Obsidian directly (with --disable-dev-shm-usage and stale-lock cleanup).
-RUN cat > /etc/xdg/openbox/autostart << 'XDGEOF'
-# Obsidian is managed by browser-serve.sh
-XDGEOF
+# Openbox autostart — baked into the image from a dedicated file.
+# Openbox sources this after the window manager starts and the display is ready.
+COPY openbox-autostart /etc/xdg/openbox/autostart
 
 RUN cat > /etc/xdg/openbox/menu.xml << 'XDGEOF'
 <?xml version="1.0" encoding="UTF-8"?>

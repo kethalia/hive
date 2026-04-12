@@ -66,63 +66,10 @@ if [ ! -f /var/lib/openbox/debian-menu.xml ]; then
     | sudo tee /var/lib/openbox/debian-menu.xml > /dev/null
 fi
 
-# ── Openbox autostart ─────────────────────────────────────────────────────────
-# ~/.config/openbox/autostart is sourced by openbox after the window manager
-# starts and the display is ready — the correct place to launch Obsidian.
-# Commands must be backgrounded (&) so openbox doesn't wait for them.
-# Key Electron flags for Docker/container environments:
-#   --no-sandbox             required for non-root Electron
-#   --disable-gpu            skip GPU init in headless containers
-#   --disable-dev-shm-usage  use /tmp instead of /dev/shm (Docker caps shm at
-#                            64 MB by default; Electron exceeds this and crashes)
-mkdir -p ~/.config/openbox
-cat > ~/.config/openbox/autostart << 'AUTOSTART'
-(
-  LOG="$HOME/.local/share/browser-vision/obsidian.log"
-  exec >> "$LOG" 2>&1
-  echo "$(date '+%T') obsidian-autostart: display=$DISPLAY"
+# Openbox autostart is baked into the Docker image at /etc/xdg/openbox/autostart.
+# No runtime writing needed — openbox sources it automatically after startup.
 
-  # Wait up to 60 s for vault to be initialised by init.sh
-  # (init.sh creates .obsidian; a git clone creates .git first)
-  i=0
-  while [ "$i" -lt 60 ]; do
-    { [ -d "$HOME/vault/.obsidian" ] || [ -d "$HOME/vault/.git" ]; } && break
-    sleep 1
-    i=$((i + 1))
-  done
-  echo "$(date '+%T') vault ready after ${i}s"
-
-  # Register vault in obsidian.json so Obsidian opens it on launch
-  mkdir -p "$HOME/.config/obsidian"
-  python3 - << 'PYEOF'
-import json, os, time, hashlib
-cfg_path = os.path.expanduser('~/.config/obsidian/obsidian.json')
-try:
-    cfg = json.load(open(cfg_path))
-except (OSError, json.JSONDecodeError):
-    cfg = {}
-vaults = cfg.get('vaults', {})
-vault_id = hashlib.md5(b'/home/coder/vault').hexdigest()[:16]
-vaults[vault_id] = {'path': '/home/coder/vault', 'ts': int(time.time() * 1000), 'open': True}
-cfg['vaults'] = vaults
-cfg.pop('cli', None)
-json.dump(cfg, open(cfg_path, 'w'))
-print('Vault registered:', vault_id)
-PYEOF
-
-  # Remove any stale Electron single-instance lock left by a prior crash
-  rm -f "$HOME/.config/obsidian/.lock" 2>/dev/null || true
-
-  echo "$(date '+%T') launching /usr/bin/obsidian"
-  exec /usr/bin/obsidian \
-    --no-sandbox \
-    --disable-gpu \
-    --disable-dev-shm-usage \
-    "$HOME/vault"
-) &
-AUTOSTART
-
-# Start Openbox — it will source ~/.config/openbox/autostart after starting
+# Start Openbox — it will source /etc/xdg/openbox/autostart after starting
 if command -v openbox &>/dev/null; then
   DISPLAY=":${DISPLAY_NUM}" nohup openbox --sm-disable \
     > "$LOG_DIR/openbox.log" 2>&1 &
