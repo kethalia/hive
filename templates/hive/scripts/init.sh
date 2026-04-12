@@ -106,6 +106,11 @@ fi
 # Per-start initialization
 echo "Starting workspace services..."
 
+# XFCE autostart — Obsidian launches automatically when the desktop starts.
+# /home/coder is a volume mount, so we copy from the image-baked staging dir.
+mkdir -p "$HOME/.config/autostart"
+cp /usr/share/hive/autostart/*.desktop "$HOME/.config/autostart/"
+
 # =============================================================================
 # Vault setup — Claude Code context wiring
 # Clone is handled by the coder/git-clone module in main.tf (if vault_repo is set)

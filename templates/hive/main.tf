@@ -338,11 +338,12 @@ module "git-clone-vault" {
 # =============================================================================
 
 module "claude-code" {
-  count    = data.coder_workspace.me.start_count
-  source   = "registry.coder.com/coder/claude-code/coder"
-  version  = "1.1.0"
-  agent_id = coder_agent.main.id
-  folder   = "/home/coder/project"
+  count              = data.coder_workspace.me.start_count
+  source             = "registry.coder.com/coder/claude-code/coder"
+  version            = "1.1.0"
+  agent_id           = coder_agent.main.id
+  folder             = "/home/coder/project"
+  install_claude_code = false
 }
 
 # =============================================================================
@@ -354,7 +355,7 @@ module "kasmvnc" {
   source              = "registry.coder.com/coder/kasmvnc/coder"
   version             = "1.3.0"
   agent_id            = coder_agent.main.id
-  desktop_environment = "manual"
+  desktop_environment = "xfce"
   port                = 6080
 }
 
