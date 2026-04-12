@@ -232,7 +232,6 @@ resource "coder_agent" "main" {
 
   startup_script = templatefile("${path.module}/scripts/init.sh", {
     dotfiles_uri      = data.coder_parameter.dotfiles_uri.value
-    vault_repo        = data.coder_parameter.vault_repo.value
     workspace_name    = data.coder_workspace.me.name
     owner_name        = data.coder_workspace_owner.me.name
     owner_email       = data.coder_workspace_owner.me.email
@@ -246,7 +245,6 @@ resource "coder_agent" "main" {
       GIT_COMMITTER_NAME  = coalesce(data.coder_workspace_owner.me.full_name, data.coder_workspace_owner.me.name)
       GIT_COMMITTER_EMAIL = data.coder_workspace_owner.me.email
       EXTENSIONS_GALLERY  = "{\"serviceUrl\":\"https://marketplace.visualstudio.com/_apis/public/gallery\"}"
-      VAULT_REPO          = data.coder_parameter.vault_repo.value
     },
     var.claude_code_api_key != "" ? { ANTHROPIC_API_KEY = var.claude_code_api_key } : {},
     data.coder_parameter.claude_code_model.value != "" ? { CLAUDE_CODE_DEFAULT_MODEL = data.coder_parameter.claude_code_model.value } : {},
@@ -628,6 +626,19 @@ module "git-config" {
   source   = "registry.coder.com/coder/git-config/coder"
   version  = "1.0.33"
   agent_id = coder_agent.main.id
+}
+
+# =============================================================================
+# Obsidian Vault (optional)
+# =============================================================================
+
+module "git-clone-vault" {
+  count       = data.coder_parameter.vault_repo.value != "" ? data.coder_workspace.me.start_count : 0
+  source      = "registry.coder.com/coder/git-clone/coder"
+  version     = "1.2.3"
+  agent_id    = coder_agent.main.id
+  url         = data.coder_parameter.vault_repo.value
+  folder_name = "vault"
 }
 
 # =============================================================================

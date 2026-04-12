@@ -132,12 +132,6 @@ ENV LC_ALL=en_US.UTF-8
 # error because the line after the closing delimiter is treated as a new instruction.
 RUN mkdir -p /etc/xdg/openbox
 
-# Obsidian launcher script — kept for manual debugging; NOT called from autostart.
-# Normal launch path: /etc/xdg/openbox/autostart (baked from docker/hive-base/openbox-autostart).
-RUN mkdir -p /usr/local/bin
-COPY obsidian-launch /usr/local/bin/obsidian-launch
-RUN chmod +x /usr/local/bin/obsidian-launch
-
 # Openbox config — all three files are tracked as standalone source files
 # and copied into the image. No inline heredocs needed.
 RUN mkdir -p /var/lib/openbox
@@ -171,12 +165,18 @@ ENV PATH="/home/coder/.local/bin:${PATH}"
 ENV NOTESMD_DEFAULT_VAULT=/home/coder/vault
 
 # Common directories
-RUN mkdir -p ~/projects ~/bin ~/.config ~/.ssh ~/.local/bin ~/vault
+RUN mkdir -p ~/projects ~/bin ~/.config ~/.ssh ~/.local/bin ~/vault ~/.claude
 
-# Seed obsidian.json so vault registration in obsidian-launch has a valid file to update.
-# Do NOT set "cli": true — that suppresses the GUI window.
+# Claude Code — seed MCP config so the obsidian vault server is available on first boot
+COPY claude-mcp.json /home/coder/.claude/mcp.json
+
+# Static obsidian.json — registers /home/coder/vault so Obsidian opens it
+# directly instead of showing the vault picker.  Vault ID is the deterministic
+# MD5 of the path (first 16 chars).  Do NOT set "cli": true — that suppresses
+# the GUI window.
 RUN mkdir -p ~/.config/obsidian \
-    && echo '{}' > ~/.config/obsidian/obsidian.json
+    && echo '{"vaults":{"3ff2bb63fc5790bf":{"path":"/home/coder/vault","ts":0,"open":true}}}' \
+       > ~/.config/obsidian/obsidian.json
 
 # Git defaults
 RUN git config --global init.defaultBranch main \

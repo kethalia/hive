@@ -104,7 +104,6 @@ resource "coder_agent" "main" {
     HIVE_TASK_ID     = var.task_id
     HIVE_REPO_URL    = var.repo_url
     HIVE_BRANCH_NAME = var.branch_name
-    VAULT_REPO       = var.vault_repo
   }
 
   metadata {
@@ -270,6 +269,19 @@ module "git-config" {
   source   = "registry.coder.com/coder/git-config/coder"
   version  = "1.0.33"
   agent_id = coder_agent.main.id
+}
+
+# =============================================================================
+# Obsidian Vault (optional)
+# =============================================================================
+
+module "git-clone-vault" {
+  count       = var.vault_repo != "" ? data.coder_workspace.me.start_count : 0
+  source      = "registry.coder.com/coder/git-clone/coder"
+  version     = "1.2.3"
+  agent_id    = coder_agent.main.id
+  url         = var.vault_repo
+  folder_name = "vault"
 }
 
 # =============================================================================

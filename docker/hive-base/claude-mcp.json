@@ -1,0 +1,16 @@
+{
+  "mcpServers": {
+    "obsidian": {
+      "command": "npx",
+      "args": ["-y", "@bitbonsai/mcpvault@1.0.4", "/home/coder/vault"],
+      "env": {}
+    },
+    "playwright": {
+      "command": "npx",
+      "args": ["-y", "@playwright/mcp", "--no-sandbox"],
+      "env": {
+        "DISPLAY": ":99"
+      }
+    }
+  }
+}
