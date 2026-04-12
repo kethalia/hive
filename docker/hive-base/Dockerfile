@@ -140,6 +140,13 @@ COPY openbox-autostart       /etc/xdg/openbox/autostart
 COPY openbox-menu.xml        /etc/xdg/openbox/menu.xml
 RUN chmod 755 /etc/xdg/openbox/autostart && chmod 644 /var/lib/openbox/debian-menu.xml /etc/xdg/openbox/menu.xml
 
+# KasmVNC defaults — baked into /etc/kasmvnc/ (system-wide, survives /home/coder
+# volume mounts). browser-serve.sh copies these to ~/.vnc/ at runtime.
+RUN mkdir -p /etc/kasmvnc
+COPY xstartup      /etc/kasmvnc/xstartup
+COPY kasmvnc.yaml  /etc/kasmvnc/kasmvnc.yaml
+RUN chmod 755 /etc/kasmvnc/xstartup && chmod 644 /etc/kasmvnc/kasmvnc.yaml
+
 # Create coder user
 # ssl-cert group is REQUIRED for KasmVNC (TLS cert access)
 RUN (id ubuntu && userdel -r ubuntu || true) \
