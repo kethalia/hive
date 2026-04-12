@@ -15,16 +15,6 @@ terraform {
 # Parameters — surfaced in the Coder workspace creation UI
 # =============================================================================
 
-data "coder_parameter" "dotfiles_uri" {
-  name         = "dotfiles_uri"
-  display_name = "Dotfiles URI"
-  description  = "Git repository URL for your dotfiles (optional). Will be cloned to ~/.dotfiles and ./install.sh run."
-  type         = "string"
-  default      = ""
-  mutable      = true
-  order        = 1
-}
-
 data "coder_parameter" "vault_repo" {
   name         = "vault_repo"
   display_name = "Obsidian Vault Repo"
@@ -32,7 +22,7 @@ data "coder_parameter" "vault_repo" {
   type         = "string"
   default      = ""
   mutable      = true
-  order        = 2
+  order        = 1
 }
 
 variable "claude_code_api_key" {
@@ -141,7 +131,6 @@ resource "coder_agent" "main" {
   os   = "linux"
 
   startup_script = templatefile("${path.module}/scripts/init.sh", {
-    dotfiles_uri      = data.coder_parameter.dotfiles_uri.value
     workspace_name    = data.coder_workspace.me.name
     owner_name        = data.coder_workspace_owner.me.name
     owner_email       = data.coder_workspace_owner.me.email
@@ -290,25 +279,6 @@ resource "coder_script" "tools_browser" {
   script             = file("${path.module}/scripts/tools-browser.sh")
 }
 
-resource "coder_script" "browser_serve" {
-  agent_id           = coder_agent.main.id
-  display_name       = "Browser Vision Server"
-  icon               = "/icon/terminal.svg"
-  run_on_start       = true
-  start_blocks_login = false
-  script             = file("${path.module}/scripts/browser-serve.sh")
-}
-
-resource "coder_app" "browser_vision" {
-  agent_id     = coder_agent.main.id
-  slug         = "browser-vision"
-  display_name = "KasmVNC"
-  url          = "http://localhost:6080"
-  icon         = "/icon/kasmvnc.svg"
-  subdomain    = true
-  share        = "owner"
-}
-
 resource "coder_script" "symlinks" {
   agent_id           = coder_agent.main.id
   display_name       = "Tool Symlinks"
@@ -397,30 +367,6 @@ module "code-server" {
   }
 }
 
-# =============================================================================
-# Claude Code
-# =============================================================================
-
-resource "coder_script" "claude_code_install" {
-  agent_id           = coder_agent.main.id
-  display_name       = "Claude Code Install"
-  icon               = "/icon/claude.svg"
-  run_on_start       = true
-  start_blocks_login = true
-  script = templatefile("${path.module}/scripts/claude-install.sh", {
-    claude_api_key = var.claude_code_api_key
-  })
-}
-
-resource "coder_app" "claude_code" {
-  agent_id     = coder_agent.main.id
-  slug         = "claude-code"
-  display_name = "Claude Code"
-  icon         = "/icon/claude.svg"
-  command      = "bash -l -c 'export PATH=\"$HOME/.local/bin:$PATH\" && claude'"
-  share        = "owner"
-}
-
 resource "coder_app" "gsd" {
   agent_id     = coder_agent.main.id
   slug         = "gsd"
@@ -501,19 +447,74 @@ module "git-clone-vault" {
 }
 
 # =============================================================================
-# Node.js
+# Claude Code (module replaces claude-install.sh + coder_app)
 # =============================================================================
 
-resource "coder_script" "tools_nvm" {
-  agent_id           = coder_agent.main.id
-  display_name       = "Node.js (nvm)"
-  icon               = "/icon/nodejs.svg"
-  run_on_start       = true
-  start_blocks_login = true
-  script = templatefile("${path.module}/scripts/tools-nvm.sh", {
-    node_versions        = join(" ", ["18", "20", "22", "24", "node"])
-    default_node_version = "24"
-  })
+module "claude-code" {
+  count    = data.coder_workspace.me.start_count
+  source   = "registry.coder.com/coder/claude-code/coder"
+  version  = "1.1.0"
+  agent_id = coder_agent.main.id
+}
+
+# =============================================================================
+# KasmVNC (module replaces browser-serve.sh + coder_app)
+# =============================================================================
+
+module "kasmvnc" {
+  count               = data.coder_workspace.me.start_count
+  source              = "registry.coder.com/coder/kasmvnc/coder"
+  version             = "1.3.0"
+  agent_id            = coder_agent.main.id
+  desktop_environment = "manual"
+  port                = 6080
+}
+
+# =============================================================================
+# Node.js via nvm (module replaces tools-nvm.sh)
+# =============================================================================
+
+module "nodejs" {
+  count                = data.coder_workspace.me.start_count
+  source               = "registry.coder.com/thezoker/nodejs/coder"
+  version              = "1.0.13"
+  agent_id             = coder_agent.main.id
+  node_versions        = ["18", "20", "22", "24"]
+  default_node_version = "24"
+}
+
+# =============================================================================
+# Dotfiles (module replaces dotfiles clone in init.sh)
+# =============================================================================
+
+module "dotfiles" {
+  count                 = data.coder_workspace.me.start_count
+  source                = "registry.coder.com/coder/dotfiles/coder"
+  version               = "1.4.1"
+  agent_id              = coder_agent.main.id
+  coder_parameter_order = 10
+}
+
+# =============================================================================
+# Coder Login (auto-authenticates coder CLI inside workspace)
+# =============================================================================
+
+module "coder-login" {
+  count    = data.coder_workspace.me.start_count
+  source   = "registry.coder.com/coder/coder-login/coder"
+  version  = "1.0.15"
+  agent_id = coder_agent.main.id
+}
+
+# =============================================================================
+# tmux with session persistence
+# =============================================================================
+
+module "tmux" {
+  count    = data.coder_workspace.me.start_count
+  source   = "registry.coder.com/anomaly/tmux/coder"
+  version  = "1.0.4"
+  agent_id = coder_agent.main.id
 }
 
 # =============================================================================

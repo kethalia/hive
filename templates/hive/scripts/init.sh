@@ -15,13 +15,7 @@ if [ ! -f ~/.workspace_initialized ]; then
   git config --global alias.cm commit
   git config --global alias.lg "log --graph --pretty=format:'%Cred%h%Creset -%C(yellow)%d%Creset %s %Cgreen(%cr) %C(bold blue)<%an>%Creset' --abbrev-commit"
 
-  # Clone dotfiles if specified
-  %{if dotfiles_uri != ""}
-  if [ ! -d ~/.dotfiles ]; then
-    echo "Cloning dotfiles..."
-    git clone ${dotfiles_uri} ~/.dotfiles && cd ~/.dotfiles && ./install.sh || true
-  fi
-  %{endif}
+  # Dotfiles are handled by the coder/dotfiles module in main.tf
 
   # Create workspace README
   if [ ! -f ~/README.md ]; then

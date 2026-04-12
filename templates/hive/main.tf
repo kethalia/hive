@@ -68,6 +68,18 @@ variable "dotfiles_uri" {
   default     = ""
 }
 
+variable "node_versions" {
+  description = "Node.js versions to install via nvm"
+  type        = list(string)
+  default     = ["18", "20", "22", "24"]
+}
+
+variable "default_node_version" {
+  description = "Default Node.js version"
+  type        = string
+  default     = "24"
+}
+
 variable "vault_repo" {
   description = "SSH URL of Obsidian second-brain vault repository (optional, e.g. git@github.com:org/vault.git)"
   type        = string
@@ -103,7 +115,6 @@ resource "coder_agent" "main" {
   os   = "linux"
 
   startup_script = templatefile("${path.module}/scripts/init.sh", {
-    dotfiles_uri      = var.dotfiles_uri
     workspace_name    = data.coder_workspace.me.name
     owner_name        = data.coder_workspace_owner.me.name
     owner_email       = data.coder_workspace_owner.me.email
@@ -227,17 +238,6 @@ resource "coder_script" "tools_ci" {
   })
 }
 
-resource "coder_script" "claude_install" {
-  agent_id           = coder_agent.main.id
-  display_name       = "Claude Code CLI"
-  icon               = "/icon/terminal.svg"
-  run_on_start       = true
-  start_blocks_login = true
-  script = templatefile("${path.module}/scripts/claude-install.sh", {
-    claude_api_key = var.anthropic_api_key
-  })
-}
-
 resource "coder_script" "tools_ai" {
   agent_id           = coder_agent.main.id
   display_name       = "AI Tools"
@@ -254,25 +254,6 @@ resource "coder_script" "tools_browser" {
   run_on_start       = true
   start_blocks_login = true
   script             = file("${path.module}/scripts/tools-browser.sh")
-}
-
-resource "coder_script" "browser_serve" {
-  agent_id           = coder_agent.main.id
-  display_name       = "Browser Vision Server"
-  icon               = "/icon/terminal.svg"
-  run_on_start       = true
-  start_blocks_login = false
-  script             = file("${path.module}/scripts/browser-serve.sh")
-}
-
-resource "coder_app" "browser_vision" {
-  agent_id     = coder_agent.main.id
-  slug         = "browser-vision"
-  display_name = "KasmVNC"
-  url          = "http://localhost:6080"
-  icon         = "/icon/kasmvnc.svg"
-  subdomain    = true
-  share        = "owner"
 }
 
 resource "coder_app" "gsd" {
@@ -353,19 +334,75 @@ module "git-clone-vault" {
 }
 
 # =============================================================================
-# Node.js
+# Claude Code (module replaces claude-install.sh + coder_app)
 # =============================================================================
 
-resource "coder_script" "tools_nvm" {
-  agent_id           = coder_agent.main.id
-  display_name       = "Node.js (nvm)"
-  icon               = "/icon/nodejs.svg"
-  run_on_start       = true
-  start_blocks_login = true
-  script = templatefile("${path.module}/scripts/tools-nvm.sh", {
-    node_versions        = join(" ", ["18", "20", "22", "24", "node"])
-    default_node_version = "24"
-  })
+module "claude-code" {
+  count    = data.coder_workspace.me.start_count
+  source   = "registry.coder.com/coder/claude-code/coder"
+  version  = "1.1.0"
+  agent_id = coder_agent.main.id
+  folder   = "/home/coder/project"
+}
+
+# =============================================================================
+# KasmVNC (module replaces browser-serve.sh + coder_app)
+# =============================================================================
+
+module "kasmvnc" {
+  count               = data.coder_workspace.me.start_count
+  source              = "registry.coder.com/coder/kasmvnc/coder"
+  version             = "1.3.0"
+  agent_id            = coder_agent.main.id
+  desktop_environment = "manual"
+  port                = 6080
+}
+
+# =============================================================================
+# Node.js via nvm (module replaces tools-nvm.sh)
+# =============================================================================
+
+module "nodejs" {
+  count                = data.coder_workspace.me.start_count
+  source               = "registry.coder.com/thezoker/nodejs/coder"
+  version              = "1.0.13"
+  agent_id             = coder_agent.main.id
+  node_versions        = var.node_versions
+  default_node_version = var.default_node_version
+}
+
+# =============================================================================
+# Dotfiles (module replaces dotfiles clone in init.sh)
+# =============================================================================
+
+module "dotfiles" {
+  count        = data.coder_workspace.me.start_count
+  source       = "registry.coder.com/coder/dotfiles/coder"
+  version      = "1.4.1"
+  agent_id     = coder_agent.main.id
+  dotfiles_uri = var.dotfiles_uri
+}
+
+# =============================================================================
+# Coder Login (auto-authenticates coder CLI inside workspace)
+# =============================================================================
+
+module "coder-login" {
+  count    = data.coder_workspace.me.start_count
+  source   = "registry.coder.com/coder/coder-login/coder"
+  version  = "1.0.15"
+  agent_id = coder_agent.main.id
+}
+
+# =============================================================================
+# tmux with session persistence
+# =============================================================================
+
+module "tmux" {
+  count    = data.coder_workspace.me.start_count
+  source   = "registry.coder.com/anomaly/tmux/coder"
+  version  = "1.0.4"
+  agent_id = coder_agent.main.id
 }
 
 # =============================================================================
