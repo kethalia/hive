@@ -15,13 +15,7 @@ if [ ! -f ~/.workspace_initialized ]; then
   git config --global alias.cm commit
   git config --global alias.lg "log --graph --pretty=format:'%Cred%h%Creset -%C(yellow)%d%Creset %s %Cgreen(%cr) %C(bold blue)<%an>%Creset' --abbrev-commit"
 
-  # Clone dotfiles if specified
-  %{if dotfiles_uri != ""}
-  if [ ! -d ~/.dotfiles ]; then
-    echo "Cloning dotfiles..."
-    git clone ${dotfiles_uri} ~/.dotfiles && cd ~/.dotfiles && ./install.sh || true
-  fi
-  %{endif}
+  # Dotfiles are handled by the coder/dotfiles module in main.tf
 
   # Create workspace README
   if [ ! -f ~/README.md ]; then
@@ -111,6 +105,13 @@ fi
 
 # Per-start initialization
 echo "Starting workspace services..."
+
+# XFCE autostart — Obsidian launches automatically when the desktop starts.
+# /home/coder is a volume mount, so we copy from the image-baked staging dir.
+mkdir -p "$HOME/.config/autostart"
+if [ -d /usr/share/hive/autostart ] && ls /usr/share/hive/autostart/*.desktop >/dev/null 2>&1; then
+  cp /usr/share/hive/autostart/*.desktop "$HOME/.config/autostart/"
+fi
 
 # =============================================================================
 # Vault setup — Claude Code context wiring

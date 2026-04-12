@@ -67,8 +67,8 @@ RUN apt-get update \
         locales \
         man \
         nano \
+        dbus-x11 \
         nodejs \
-        openbox \
         openssh-client \
         postgresql \
         postgresql-contrib \
@@ -80,6 +80,8 @@ RUN apt-get update \
         unzip \
         vim \
         wget \
+        xfce4 \
+        xfce4-terminal \
         xterm \
         zsh \
     && corepack enable \
@@ -127,21 +129,20 @@ ENV LANG=en_US.UTF-8
 ENV LANGUAGE=en_US.UTF-8
 ENV LC_ALL=en_US.UTF-8
 
-# Openbox config at /etc/xdg/ — system-wide, survives /home/coder volume mounts
-# Each heredoc must be its own RUN: chaining with && causes a Dockerfile parse
-# error because the line after the closing delimiter is treated as a new instruction.
-RUN mkdir -p /etc/xdg/openbox
+# Desktop entries — container-safe flags for Chrome/Electron apps
+# (--no-sandbox required in Docker; Obsidian points to ~/vault)
+COPY google-chrome.desktop /usr/share/applications/google-chrome.desktop
+COPY obsidian.desktop      /usr/share/applications/obsidian.desktop
 
-# Openbox config — all three files are tracked as standalone source files
-# and copied into the image. No inline heredocs needed.
-RUN mkdir -p /var/lib/openbox
-COPY openbox-debian-menu.xml /var/lib/openbox/debian-menu.xml
-COPY openbox-autostart       /etc/xdg/openbox/autostart
-COPY openbox-menu.xml        /etc/xdg/openbox/menu.xml
-RUN chmod 755 /etc/xdg/openbox/autostart && chmod 644 /var/lib/openbox/debian-menu.xml /etc/xdg/openbox/menu.xml
+# XFCE autostart entries — staged at /usr/share/hive/autostart/ for runtime copy
+# (/home/coder is a volume mount, so ~/.config/autostart/ must be populated by init.sh)
+# Reuses the same .desktop files from /usr/share/applications/ — the Categories/Icon
+# fields are harmlessly ignored by the autostart system.
+RUN mkdir -p /usr/share/hive/autostart
+COPY obsidian.desktop /usr/share/hive/autostart/obsidian.desktop
 
 # KasmVNC defaults — baked into /etc/kasmvnc/ (system-wide, survives /home/coder
-# volume mounts). browser-serve.sh copies these to ~/.vnc/ at runtime.
+# volume mounts). XFCE is started natively by KasmVNC's select-de mechanism.
 RUN mkdir -p /etc/kasmvnc
 COPY xstartup      /etc/kasmvnc/xstartup
 COPY kasmvnc.yaml  /etc/kasmvnc/kasmvnc.yaml

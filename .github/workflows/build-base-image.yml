@@ -68,8 +68,8 @@ jobs:
       - name: Smoke test — vncserver present
         run: docker run --rm ghcr.io/kethalia/hive-base:${{ github.sha }} which vncserver
 
-      - name: Smoke test — openbox --version
-        run: docker run --rm ghcr.io/kethalia/hive-base:${{ github.sha }} openbox --version
+      - name: Smoke test — xfce4-session present
+        run: docker run --rm ghcr.io/kethalia/hive-base:${{ github.sha }} which xfce4-session
 
       # Tag and push the already-built local image — no rebuild, no network fetches.
       # This guarantees what's in the registry is exactly what passed smoke tests.

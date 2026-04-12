@@ -231,9 +231,9 @@ export class CoderClient {
 
   /**
    * Fetch a single template version by ID.
-   * Returns id, name, fileId (for tar download), and createdAt.
+   * Returns id, name, fileId (for tar download), createdAt, and message.
    */
-  async getTemplateVersion(versionId: string): Promise<{ id: string; name: string; fileId: string; createdAt: string }> {
+  async getTemplateVersion(versionId: string): Promise<{ id: string; name: string; fileId: string; createdAt: string; message: string }> {
     const version = await this.request<CoderTemplateVersion>(
       `/api/v2/templateversions/${versionId}`
     );
@@ -242,6 +242,7 @@ export class CoderClient {
       name: version.name,
       fileId: version.job.file_id,
       createdAt: version.created_at,
+      message: version.message,
     };
   }
 
