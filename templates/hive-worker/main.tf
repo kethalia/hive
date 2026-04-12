@@ -344,6 +344,10 @@ module "git-clone-vault" {
       rsync -a --delete --exclude '.obsidian' "$CLONE_DIR/" "$VAULT_DIR/"
       rm -rf "$CLONE_DIR"
       echo "Vault synced to $VAULT_DIR"
+    else
+      echo "ERROR: Vault clone failed — $CLONE_DIR has no .git directory" >&2
+      rm -rf "$CLONE_DIR"
+      exit 1
     fi
   EOT
 }
