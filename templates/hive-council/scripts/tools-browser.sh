@@ -69,7 +69,7 @@ SETTINGS
   echo "Wrote Claude settings.json"
 fi
 
-# Write .mcp.json as fallback (Claude Code reads this from cwd)
+# Write ~/.mcp.json as global MCP fallback
 cat > "$HOME/.mcp.json" << 'MCPFILE'
 {
   "mcpServers": {

@@ -116,16 +116,6 @@ echo "Starting workspace services..."
 # Reads VAULT_REPO env var set by Terraform agent env block
 # =============================================================================
 
-# Always ensure vault directory and .obsidian config exist.
-# obsidian-launch (openbox autostart) waits for ~/vault/.obsidian before opening Obsidian.
-mkdir -p ~/vault
-if [ ! -d ~/vault/.obsidian ]; then
-  mkdir -p ~/vault/.obsidian
-  echo '{"legacyEditor":false,"livePreview":true}' > ~/vault/.obsidian/app.json
-  echo '{}' > ~/vault/.obsidian/appearance.json
-  echo "Created .obsidian config in vault"
-fi
-
 EFFECTIVE_VAULT_REPO="$VAULT_REPO"
 
 if [ -n "$EFFECTIVE_VAULT_REPO" ]; then
@@ -164,6 +154,16 @@ if [ -n "$EFFECTIVE_VAULT_REPO" ]; then
     fi
   fi
 fi  # if [ -n "$EFFECTIVE_VAULT_REPO" ]
+
+# Ensure vault directory and .obsidian config exist. Runs AFTER clone/pull so the
+# bootstrap isn't discarded when a non-git ~/vault is moved aside for cloning.
+mkdir -p ~/vault
+if [ ! -d ~/vault/.obsidian ]; then
+  mkdir -p ~/vault/.obsidian
+  echo '{"legacyEditor":false,"livePreview":true}' > ~/vault/.obsidian/app.json
+  echo '{}' > ~/vault/.obsidian/appearance.json
+  echo "Created .obsidian config in vault"
+fi
 
 # Wire Claude Code vault context (always runs — vault always exists after mkdir above)
 mkdir -p ~/.claude

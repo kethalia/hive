@@ -172,7 +172,7 @@ json.dump(cfg, open(cfg_path, 'w'))
 print('Vault registered:', vault_id)
 PYEOF
   echo "Launching Obsidian..."
-  exec /usr/bin/obsidian --no-sandbox --disable-gpu
+  exec /usr/bin/obsidian --no-sandbox --disable-gpu /home/coder/vault
 else
   echo "Vault directory not found — skipping Obsidian"
 fi
@@ -201,7 +201,7 @@ RUN cat > /etc/xdg/openbox/menu.xml << 'XDGEOF'
   <menu id="root-menu" label="Desktop">
     <item label="Obsidian">
       <action name="Execute">
-        <command>/usr/bin/obsidian --no-sandbox --disable-gpu</command>
+        <command>/usr/bin/obsidian --no-sandbox --disable-gpu /home/coder/vault</command>
       </action>
     </item>
     <item label="Chrome">
