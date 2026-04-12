@@ -1,0 +1,18 @@
+#!/bin/sh
+# KasmVNC xstartup — starts the window manager after the display is ready.
+# Baked into the Docker image at /etc/kasmvnc/xstartup; copied to ~/.vnc/
+# at runtime by browser-serve.sh (because /home/coder is a volume mount).
+#
+# Openbox natively sources /etc/xdg/openbox/autostart (which launches Obsidian).
+# For fluxbox fallback, we source that autostart explicitly before starting fluxbox.
+
+unset SESSION_MANAGER
+unset DBUS_SESSION_BUS_ADDRESS
+[ -r "$HOME/.Xresources" ] && xrdb "$HOME/.Xresources"
+
+if command -v openbox >/dev/null 2>&1; then
+  exec openbox --sm-disable
+elif command -v fluxbox >/dev/null 2>&1; then
+  [ -f /etc/xdg/openbox/autostart ] && . /etc/xdg/openbox/autostart
+  exec fluxbox
+fi

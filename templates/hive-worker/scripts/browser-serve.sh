@@ -4,12 +4,14 @@
 # KasmVNC replaces Xvfb + x11vnc + websockify + noVNC.
 # This script must return quickly — Coder treats long-running startup scripts
 # as stuck even with start_blocks_login=false.
+#
+# Static config (xstartup, kasmvnc.yaml) is baked into the Docker image at
+# /etc/kasmvnc/. We copy it to ~/.vnc/ at runtime because /home/coder is a
+# Docker volume mount that masks image-layer files.
 
 DISPLAY_NUM=99
 export DISPLAY=":${DISPLAY_NUM}"
 RESOLUTION="${BROWSER_VIEWPORT:-1280x720}"
-WIDTH=$(echo "$RESOLUTION" | cut -dx -f1)
-HEIGHT=$(echo "$RESOLUTION" | cut -dx -f2)
 WEB_PORT=6080
 LOG_DIR="$HOME/.local/share/browser-vision"
 mkdir -p "$LOG_DIR" "$HOME/.vnc"
@@ -21,45 +23,19 @@ sleep 0.5
 # Set a dummy VNC password (KasmVNC requires one to exist even if auth is off)
 echo -e "kasmvnc\nkasmvnc\n" | vncpasswd -u "$USER" -w -r 2>/dev/null || true
 
-# Custom xstartup — start openbox (or fluxbox) as the sole window manager.
-# The default xstartup starts twm, which conflicts with the WM we actually want.
-# Openbox natively sources /etc/xdg/openbox/autostart (which launches Obsidian).
-# For fluxbox fallback, we source that autostart explicitly before starting fluxbox.
-cat > "$HOME/.vnc/xstartup" << 'XSTARTUP'
-#!/bin/sh
-unset SESSION_MANAGER
-unset DBUS_SESSION_BUS_ADDRESS
-[ -r "$HOME/.Xresources" ] && xrdb "$HOME/.Xresources"
-
-if command -v openbox >/dev/null 2>&1; then
-  # Openbox sources /etc/xdg/openbox/autostart natively (launches Obsidian)
-  exec openbox --sm-disable
-elif command -v fluxbox >/dev/null 2>&1; then
-  # Source the openbox autostart for Obsidian, then start fluxbox
-  [ -f /etc/xdg/openbox/autostart ] && . /etc/xdg/openbox/autostart
-  exec fluxbox
-fi
-XSTARTUP
+# Copy image-baked xstartup (openbox + Obsidian autostart via KasmVNC session)
+cp /etc/kasmvnc/xstartup "$HOME/.vnc/xstartup"
 chmod 755 "$HOME/.vnc/xstartup"
 
-# KasmVNC YAML config — this is the primary way to configure KasmVNC
-cat > "$HOME/.vnc/kasmvnc.yaml" << YAML
-network:
-  protocol: http
-  interface: 0.0.0.0
-  websocket_port: ${WEB_PORT}
-  udp:
-    public_ip: 127.0.0.1
-  ssl:
-    require_ssl: false
-    pem_certificate:
-    pem_key:
-desktop:
-  resolution:
-    width: ${WIDTH}
-    height: ${HEIGHT}
-  allow_resize: true
-YAML
+# KasmVNC YAML config — use image default, override resolution if BROWSER_VIEWPORT is set
+if [ -z "$BROWSER_VIEWPORT" ]; then
+  cp /etc/kasmvnc/kasmvnc.yaml "$HOME/.vnc/kasmvnc.yaml"
+else
+  WIDTH=$(echo "$RESOLUTION" | cut -dx -f1)
+  HEIGHT=$(echo "$RESOLUTION" | cut -dx -f2)
+  sed "s/width: 1280/width: ${WIDTH}/; s/height: 720/height: ${HEIGHT}/" \
+    /etc/kasmvnc/kasmvnc.yaml > "$HOME/.vnc/kasmvnc.yaml"
+fi
 
 # Start KasmVNC with minimal flags — let the YAML handle the rest
 echo "Starting KasmVNC on :${DISPLAY_NUM}, web port ${WEB_PORT}..."
@@ -79,17 +55,5 @@ if [ $RC -ne 0 ]; then
 fi
 
 echo "KasmVNC started on :${DISPLAY_NUM}"
-
-# Openbox crashes if /var/lib/openbox/debian-menu.xml is missing (rc.xml references it)
-if [ ! -f /var/lib/openbox/debian-menu.xml ]; then
-  sudo mkdir -p /var/lib/openbox
-  printf '<?xml version="1.0" encoding="UTF-8"?>\n<openbox_menu xmlns="http://openbox.org/3.4/menu"><menu id="debian-menu" label="Applications"></menu></openbox_menu>\n' \
-    | sudo tee /var/lib/openbox/debian-menu.xml > /dev/null
-fi
-
-# Window manager + Obsidian autostart is handled by the custom xstartup above.
-# KasmVNC runs xstartup after the display is ready, which starts openbox (or
-# fluxbox) as the sole WM. No separate WM launch needed here.
-
 echo "Browser vision: http://localhost:${WEB_PORT}"
 echo "Browser vision server started successfully"

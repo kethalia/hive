@@ -1,0 +1,15 @@
+network:
+  protocol: http
+  interface: 0.0.0.0
+  websocket_port: 6080
+  udp:
+    public_ip: 127.0.0.1
+  ssl:
+    require_ssl: false
+    pem_certificate:
+    pem_key:
+desktop:
+  resolution:
+    width: 1280
+    height: 720
+  allow_resize: true
