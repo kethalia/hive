@@ -66,48 +66,34 @@ if [ ! -f /var/lib/openbox/debian-menu.xml ]; then
     | sudo tee /var/lib/openbox/debian-menu.xml > /dev/null
 fi
 
-# Override the openbox autostart BEFORE starting openbox so there is no race.
-# Obsidian is launched directly below with the correct flags for containers.
-sudo tee /etc/xdg/openbox/autostart > /dev/null << 'AUTOSTART'
-# Obsidian is managed by browser-serve.sh
-AUTOSTART
-
-# Start Openbox window manager — autostart has already been neutralised above
-if command -v openbox &>/dev/null; then
-  DISPLAY=":${DISPLAY_NUM}" nohup openbox --sm-disable \
-    > "$LOG_DIR/openbox.log" 2>&1 &
-  disown $!
-  echo "Openbox window manager started"
-elif command -v fluxbox &>/dev/null; then
-  nohup fluxbox -display ":${DISPLAY_NUM}" > "$LOG_DIR/fluxbox.log" 2>&1 &
-  disown $!
-fi
-
-# ── Obsidian launch ───────────────────────────────────────────────────────────
-# Runs in background: waits for vault initialisation (init.sh creates .obsidian;
-# a git clone creates .git first), registers the vault, clears any stale
-# single-instance lock, then opens Obsidian.
-# Key flags:
-#   --disable-dev-shm-usage  use /tmp instead of /dev/shm (Docker limits shm to
-#                            64 MB by default; Electron exceeds this and crashes)
+# ── Openbox autostart ─────────────────────────────────────────────────────────
+# ~/.config/openbox/autostart is sourced by openbox after the window manager
+# starts and the display is ready — the correct place to launch Obsidian.
+# Commands must be backgrounded (&) so openbox doesn't wait for them.
+# Key Electron flags for Docker/container environments:
+#   --no-sandbox             required for non-root Electron
 #   --disable-gpu            skip GPU init in headless containers
-#   --no-sandbox             required for non-root Electron in containers
+#   --disable-dev-shm-usage  use /tmp instead of /dev/shm (Docker caps shm at
+#                            64 MB by default; Electron exceeds this and crashes)
+mkdir -p ~/.config/openbox
+cat > ~/.config/openbox/autostart << 'AUTOSTART'
 (
-  LOG="$LOG_DIR/obsidian.log"
+  LOG="$HOME/.local/share/browser-vision/obsidian.log"
   exec >> "$LOG" 2>&1
-  echo "$(date '+%T') obsidian-launcher: started (DISPLAY=$DISPLAY)"
+  echo "$(date '+%T') obsidian-autostart: display=$DISPLAY"
 
   # Wait up to 60 s for vault to be initialised by init.sh
+  # (init.sh creates .obsidian; a git clone creates .git first)
   i=0
   while [ "$i" -lt 60 ]; do
-    { [ -d ~/vault/.obsidian ] || [ -d ~/vault/.git ]; } && break
+    { [ -d "$HOME/vault/.obsidian" ] || [ -d "$HOME/vault/.git" ]; } && break
     sleep 1
     i=$((i + 1))
   done
-  echo "$(date '+%T') vault ready after ${i}s (.obsidian=$(test -d ~/vault/.obsidian && echo yes || echo no))"
+  echo "$(date '+%T') vault ready after ${i}s"
 
   # Register vault in obsidian.json so Obsidian opens it on launch
-  mkdir -p ~/.config/obsidian
+  mkdir -p "$HOME/.config/obsidian"
   python3 - << 'PYEOF'
 import json, os, time, hashlib
 cfg_path = os.path.expanduser('~/.config/obsidian/obsidian.json')
@@ -125,16 +111,27 @@ print('Vault registered:', vault_id)
 PYEOF
 
   # Remove any stale Electron single-instance lock left by a prior crash
-  rm -f ~/.config/obsidian/.lock 2>/dev/null || true
+  rm -f "$HOME/.config/obsidian/.lock" 2>/dev/null || true
 
   echo "$(date '+%T') launching /usr/bin/obsidian"
   exec /usr/bin/obsidian \
     --no-sandbox \
     --disable-gpu \
     --disable-dev-shm-usage \
-    /home/coder/vault
+    "$HOME/vault"
 ) &
-disown $!
+AUTOSTART
+
+# Start Openbox — it will source ~/.config/openbox/autostart after starting
+if command -v openbox &>/dev/null; then
+  DISPLAY=":${DISPLAY_NUM}" nohup openbox --sm-disable \
+    > "$LOG_DIR/openbox.log" 2>&1 &
+  disown $!
+  echo "Openbox window manager started"
+elif command -v fluxbox &>/dev/null; then
+  nohup fluxbox -display ":${DISPLAY_NUM}" > "$LOG_DIR/fluxbox.log" 2>&1 &
+  disown $!
+fi
 
 echo "Browser vision: http://localhost:${WEB_PORT}"
 echo "Browser vision server started successfully"
