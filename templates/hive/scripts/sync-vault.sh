@@ -6,18 +6,18 @@
 #   - AGENTS.md  (skill registry & context discovery)
 #   - Skills/    (skill directories with SKILL.md files)
 #
-# The post_clone_script in main.tf syncs these files automatically after every
-# vault fetch. This script can also be invoked manually:
-#   bash ~/sync-vault.sh
+# Called automatically by:
+#   - init.sh (startup path — deploys this script, then calls it)
+#   - post_clone_script in main.tf (after every vault fetch)
 #
-# Arguments:
-#   $1 — fallback CLAUDE.md content (used by init.sh when vault isn't cloned yet)
+# Can also be invoked manually:
+#   bash ~/sync-vault.sh
 
 set -euo pipefail
 
 VAULT_DIR="$HOME/vault"
 CLAUDE_DIR="$HOME/.claude"
-FALLBACK_CLAUDE_MD="${1:-}"
+GSD_DIR="$HOME/.gsd/agent"
 
 # Track what changed for logging
 changes=()
@@ -36,12 +36,8 @@ sync_claude_md() {
       changes+=("CLAUDE.md synced from vault")
       echo "CLAUDE.md: synced from vault"
     fi
-  elif [ -n "$FALLBACK_CLAUDE_MD" ] && [ ! -f "$CLAUDE_DIR/CLAUDE.md" ]; then
-    echo "$FALLBACK_CLAUDE_MD" > "$CLAUDE_DIR/CLAUDE.md"
-    changes+=("CLAUDE.md written from template fallback")
-    echo "CLAUDE.md: written from template fallback (vault not available)"
   else
-    echo "CLAUDE.md: skipped (vault not available, local copy exists)"
+    echo "CLAUDE.md: skipped (vault not available)"
   fi
 }
 
@@ -131,12 +127,42 @@ sync_skills() {
 }
 
 # -----------------------------------------------------------------------------
+# GSD skills symlink — share vault skills with GSD/pi agent
+# ~/.gsd/agent/skills/vault → ~/.claude/skills/vault
+# -----------------------------------------------------------------------------
+link_gsd_skills() {
+  local claude_skills="$CLAUDE_DIR/skills/vault"
+  local gsd_skills="$GSD_DIR/skills/vault"
+
+  # Only link if the Claude skills dir exists (sync_skills created it)
+  if [ ! -d "$claude_skills" ]; then
+    echo "GSD skills: skipped (no Claude skills to link)"
+    return
+  fi
+
+  mkdir -p "$GSD_DIR/skills"
+
+  # If it's already the correct symlink, nothing to do
+  if [ -L "$gsd_skills" ] && [ "$(readlink "$gsd_skills")" = "$claude_skills" ]; then
+    echo "GSD skills: symlink already correct"
+    return
+  fi
+
+  # Remove stale symlink or directory
+  rm -rf "$gsd_skills"
+  ln -s "$claude_skills" "$gsd_skills"
+  changes+=("GSD skills: symlinked to $claude_skills")
+  echo "GSD skills: symlinked $gsd_skills → $claude_skills"
+}
+
+# -----------------------------------------------------------------------------
 # Run all syncs
 # -----------------------------------------------------------------------------
 echo "--- Vault sync started ---"
 sync_claude_md
 sync_agents_md
 sync_skills
+link_gsd_skills
 
 if [ ${#changes[@]} -gt 0 ]; then
   echo "--- Vault sync complete (${#changes[@]} changes) ---"

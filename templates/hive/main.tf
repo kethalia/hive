@@ -168,10 +168,11 @@ resource "coder_agent" "main" {
   os   = "linux"
 
   startup_script = templatefile("${path.module}/scripts/init.sh", {
-    workspace_name    = data.coder_workspace.me.name
-    owner_name        = data.coder_workspace_owner.me.name
-    owner_email       = data.coder_workspace_owner.me.email
-    claude_md_content = file("${path.module}/CLAUDE.md")
+    workspace_name         = data.coder_workspace.me.name
+    owner_name             = data.coder_workspace_owner.me.name
+    owner_email            = data.coder_workspace_owner.me.email
+    claude_md_content      = file("${path.module}/CLAUDE.md")
+    sync_vault_script_b64  = base64encode(file("${path.module}/scripts/sync-vault.sh"))
   })
 
   env = merge(
@@ -367,6 +368,8 @@ module "git-clone-vault" {
   # The git-clone module skips cloning when the target dir is non-empty, but
   # post_clone_script runs ALWAYS (even on skip).  We clone into a temp dir,
   # then rsync into ~/vault so the vault is refreshed on every workspace start.
+  # The git-clone module clones into a temp dir; we rsync into ~/vault then
+  # call ~/sync-vault.sh (deployed by init.sh) to sync config files.
   post_clone_script = <<-EOT
     #!/bin/bash
     set -e
@@ -378,48 +381,12 @@ module "git-clone-vault" {
       rm -rf "$CLONE_DIR"
       echo "Vault synced to $VAULT_DIR"
 
-      # --- Always sync config files after vault refresh ---
-      # Vault is the single source of truth for CLAUDE.md, AGENTS.md, and Skills.
-      CLAUDE_DIR="$HOME/.claude"
-      mkdir -p "$CLAUDE_DIR"
-
-      # CLAUDE.md
-      if [ -f "$VAULT_DIR/CLAUDE.md" ]; then
-        cp "$VAULT_DIR/CLAUDE.md" "$CLAUDE_DIR/CLAUDE.md"
-        echo "CLAUDE.md: synced from vault"
+      # Sync config files (CLAUDE.md, AGENTS.md, Skills, GSD symlinks)
+      if [ -x "$HOME/sync-vault.sh" ]; then
+        "$HOME/sync-vault.sh"
+      else
+        echo "WARNING: ~/sync-vault.sh not found — config sync skipped" >&2
       fi
-
-      # AGENTS.md
-      if [ -f "$VAULT_DIR/AGENTS.md" ]; then
-        cp "$VAULT_DIR/AGENTS.md" "$CLAUDE_DIR/AGENTS.md"
-        echo "AGENTS.md: synced from vault"
-      fi
-
-      # Claude Skills (vault/Skills/ → ~/.claude/skills/vault/)
-      if [ -d "$VAULT_DIR/Skills" ]; then
-        SKILLS_TARGET="$CLAUDE_DIR/skills/vault"
-        mkdir -p "$SKILLS_TARGET"
-        # Remove stale skills
-        for local_skill in "$SKILLS_TARGET"/*/; do
-          [ -d "$local_skill" ] || continue
-          skill_name=$(basename "$local_skill")
-          if [ ! -d "$VAULT_DIR/Skills/$skill_name" ]; then
-            rm -rf "$local_skill"
-          fi
-        done
-        # Sync each skill — vault is authoritative
-        synced=0
-        for skill_dir in "$VAULT_DIR/Skills"/*/; do
-          [ -d "$skill_dir" ] || continue
-          skill_name=$(basename "$skill_dir")
-          rm -rf "$SKILLS_TARGET/$skill_name"
-          cp -a "$skill_dir" "$SKILLS_TARGET/$skill_name"
-          synced=$((synced + 1))
-        done
-        echo "Skills: $synced skill directories synced from vault"
-      fi
-
-      echo "--- Post-fetch vault sync complete ---"
     else
       echo "ERROR: Vault clone failed — $CLONE_DIR has no .git directory" >&2
       rm -rf "$CLONE_DIR"

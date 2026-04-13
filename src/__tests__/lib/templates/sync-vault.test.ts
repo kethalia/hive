@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { mkdtemp, writeFile, mkdir, rm, readFile, readdir, stat } from "fs/promises";
+import { mkdtemp, writeFile, mkdir, rm, readFile, readdir, lstat } from "fs/promises";
 import { join } from "path";
 import { tmpdir } from "os";
 import { execFile } from "child_process";
@@ -16,12 +16,9 @@ const SYNC_SCRIPT = join(
 );
 
 async function runSync(
-  env: Record<string, string>,
-  fallbackArg?: string
+  env: Record<string, string>
 ): Promise<{ stdout: string; stderr: string }> {
-  const args = [SYNC_SCRIPT];
-  if (fallbackArg) args.push(fallbackArg);
-  return execFileAsync("bash", args, { env: { ...process.env, ...env } });
+  return execFileAsync("bash", [SYNC_SCRIPT], { env: { ...process.env, ...env } });
 }
 
 describe("sync-vault.sh", () => {
@@ -63,16 +60,12 @@ describe("sync-vault.sh", () => {
       expect(content).toBe("# New vault version");
     });
 
-    it("uses fallback content when vault is missing and no local copy exists", async () => {
-      // Remove vault dir to simulate vault not cloned yet
+    it("skips CLAUDE.md when vault is missing", async () => {
       await rm(vaultDir, { recursive: true, force: true });
-      // Remove the claude dir so it gets recreated
-      await rm(claudeDir, { recursive: true, force: true });
 
-      await runSync({ HOME: tempDir }, "# Fallback content");
+      const { stdout } = await runSync({ HOME: tempDir });
 
-      const content = await readFile(join(claudeDir, "CLAUDE.md"), "utf-8");
-      expect(content.trim()).toBe("# Fallback content");
+      expect(stdout).toContain("skipped");
     });
 
     it("preserves existing CLAUDE.md when vault is missing", async () => {
@@ -194,6 +187,52 @@ describe("sync-vault.sh", () => {
       const { stdout } = await runSync({ HOME: tempDir });
 
       expect(stdout).toContain("skipped");
+    });
+  });
+
+  // ── GSD Skills Symlink ─────────────────────────────────────────
+
+  describe("GSD skills symlink", () => {
+    it("creates symlink from ~/.gsd/agent/skills/vault to ~/.claude/skills/vault", async () => {
+      const skillsDir = join(vaultDir, "Skills");
+      await mkdir(join(skillsDir, "caveman"), { recursive: true });
+      await writeFile(join(skillsDir, "caveman", "SKILL.md"), "# Caveman");
+
+      await runSync({ HOME: tempDir });
+
+      const gsdLink = join(tempDir, ".gsd", "agent", "skills", "vault");
+      const claudeSkills = join(claudeDir, "skills", "vault");
+
+      // Verify it's a symlink
+      const stats = await lstat(gsdLink);
+      expect(stats.isSymbolicLink()).toBe(true);
+
+      // Verify it points to the right place
+      const { readlink } = await import("fs/promises");
+      const target = await readlink(gsdLink);
+      expect(target).toBe(claudeSkills);
+
+      // Verify the skill content is accessible through the symlink
+      const content = await readFile(join(gsdLink, "caveman", "SKILL.md"), "utf-8");
+      expect(content).toBe("# Caveman");
+    });
+
+    it("is idempotent — does not error on second run", async () => {
+      const skillsDir = join(vaultDir, "Skills");
+      await mkdir(join(skillsDir, "caveman"), { recursive: true });
+      await writeFile(join(skillsDir, "caveman", "SKILL.md"), "# Caveman");
+
+      await runSync({ HOME: tempDir });
+      const { stdout } = await runSync({ HOME: tempDir });
+
+      expect(stdout).toContain("GSD skills: symlink already correct");
+    });
+
+    it("skips GSD symlink when no skills were synced", async () => {
+      // No Skills directory in vault
+      const { stdout } = await runSync({ HOME: tempDir });
+
+      expect(stdout).toContain("GSD skills: skipped");
     });
   });
 });
