@@ -435,9 +435,13 @@ resource "docker_volume" "home_volume" {
   }
 }
 
+data "docker_registry_image" "main" {
+  name = "ghcr.io/kethalia/hive-base:latest"
+}
+
 resource "docker_image" "main" {
-  name          = "ghcr.io/kethalia/hive-base:latest"
-  pull_triggers = [data.coder_workspace.me.start_count]
+  name          = data.docker_registry_image.main.name
+  pull_triggers = [data.docker_registry_image.main.sha256_digest]
   keep_locally  = true
 }
 

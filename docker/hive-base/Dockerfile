@@ -81,6 +81,7 @@ RUN apt-get update \
         vim \
         wget \
         xfce4 \
+        xfce4-session \
         xfce4-terminal \
         xterm \
         zsh \
