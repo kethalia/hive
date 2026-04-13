@@ -32,7 +32,7 @@ Create src/app/api/templates/status/route.ts (GET):
   - Files: `src/app/templates/actions.ts`, `src/app/api/templates/status/route.ts`
   - Verify: npx vitest run src/__tests__/app/api/templates/status.test.ts
 
-- [ ] **T02: Templates page UI with xterm.js terminal panel** `est:90min`
+- [x] **T02: Templates page UI with xterm.js terminal panel** `est:90min`
   Install xterm and @xterm/addon-fit packages.
 
 Create src/app/templates/page.tsx (server component):
