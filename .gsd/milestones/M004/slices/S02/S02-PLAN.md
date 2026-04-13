@@ -54,7 +54,7 @@ Not provided.
   - Files: `src/app/api/templates/[name]/push/route.ts`, `src/app/api/templates/[name]/push/[jobId]/stream/route.ts`
   - Verify: npx vitest run src/__tests__/app/api/templates/
 
-- [ ] **T03: Unit tests for push routes and worker processor** `est:30min`
+- [x] **T03: Unit tests for push routes and worker processor** `est:30min`
   Create tests:
 
 1. src/__tests__/lib/templates/push-queue.test.ts
