@@ -61,15 +61,6 @@ data "coder_parameter" "branch_name" {
   order        = 4
 }
 
-# --- AI ---
-
-variable "anthropic_api_key" {
-  description = "Anthropic API key for Claude Code CLI"
-  type        = string
-  default     = ""
-  sensitive   = true
-}
-
 # --- User Preferences ---
 
 data "coder_parameter" "vault_repo" {
@@ -95,7 +86,7 @@ data "coder_parameter" "dotfiles_uri" {
 data "coder_parameter" "default_node_version" {
   name         = "default_node_version"
   display_name = "Default Node.js Version"
-  description  = "Default Node.js version (installed via nvm alongside 18, 20, 22, 24)."
+  description  = "Default Node.js version set as active after install. Must be one of the selected versions above."
   type         = "string"
   default      = "24"
   mutable      = true
@@ -131,10 +122,31 @@ data "coder_parameter" "docker_socket" {
   order        = 8
 }
 
-variable "node_versions" {
-  description = "Node.js versions to install via nvm"
-  type        = list(string)
-  default     = ["18", "20", "22", "24"]
+data "coder_parameter" "node_versions" {
+  name         = "node_versions"
+  display_name = "Node.js Versions"
+  description  = "Node.js versions to install via nvm. Select the versions you need."
+  type         = "list(string)"
+  default      = jsonencode(["18", "20", "22", "24"])
+  mutable      = true
+  order        = 9
+
+  option {
+    name  = "Node 24 (Latest)"
+    value = "24"
+  }
+  option {
+    name  = "Node 22 (LTS)"
+    value = "22"
+  }
+  option {
+    name  = "Node 20"
+    value = "20"
+  }
+  option {
+    name  = "Node 18"
+    value = "18"
+  }
 }
 
 # =============================================================================
@@ -183,8 +195,7 @@ resource "coder_agent" "main" {
       HIVE_TASK_PROMPT = data.coder_parameter.task_prompt.value
       HIVE_REPO_URL    = data.coder_parameter.repo_url.value
       HIVE_BRANCH_NAME = data.coder_parameter.branch_name.value
-    },
-    var.anthropic_api_key != "" ? { ANTHROPIC_API_KEY = var.anthropic_api_key } : {}
+    }
   )
 
   metadata {
@@ -419,7 +430,7 @@ module "nodejs" {
   source               = "registry.coder.com/thezoker/nodejs/coder"
   version              = "1.0.13"
   agent_id             = coder_agent.main.id
-  node_versions        = var.node_versions
+  node_versions        = jsondecode(data.coder_parameter.node_versions.value)
   default_node_version = data.coder_parameter.default_node_version.value
 }
 
