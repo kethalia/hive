@@ -73,16 +73,6 @@ data "coder_parameter" "vault_repo" {
   order        = 5
 }
 
-data "coder_parameter" "dotfiles_uri" {
-  name         = "dotfiles_uri"
-  display_name = "Dotfiles URI"
-  description  = "Git URI for your dotfiles repository (optional). Applied on workspace start."
-  type         = "string"
-  default      = ""
-  mutable      = true
-  order        = 6
-}
-
 data "coder_parameter" "default_node_version" {
   name         = "default_node_version"
   display_name = "Default Node.js Version"
@@ -118,7 +108,7 @@ data "coder_parameter" "docker_socket" {
   description  = "Override the Docker socket URI (optional — leave empty to use the default)."
   type         = "string"
   default      = ""
-  mutable      = true
+  mutable      = false
   order        = 8
 }
 
@@ -439,11 +429,11 @@ module "nodejs" {
 # =============================================================================
 
 module "dotfiles" {
-  count        = data.coder_workspace.me.start_count
-  source       = "registry.coder.com/coder/dotfiles/coder"
-  version      = "1.4.1"
-  agent_id     = coder_agent.main.id
-  dotfiles_uri = data.coder_parameter.dotfiles_uri.value
+  count                 = data.coder_workspace.me.start_count
+  source                = "registry.coder.com/coder/dotfiles/coder"
+  version               = "1.4.1"
+  agent_id              = coder_agent.main.id
+  coder_parameter_order = 6
 }
 
 # =============================================================================
