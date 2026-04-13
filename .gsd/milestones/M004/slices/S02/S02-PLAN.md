@@ -36,7 +36,7 @@ Not provided.
   - Files: `src/lib/templates/push-queue.ts`, `src/lib/queue/index.ts`
   - Verify: npx vitest run src/__tests__/lib/templates/push-queue.test.ts
 
-- [ ] **T02: POST /api/templates/[name]/push and GET SSE stream route** `est:45min`
+- [x] **T02: POST /api/templates/[name]/push and GET SSE stream route** `est:45min`
   Create two Next.js Route Handlers:
 
 1. src/app/api/templates/[name]/push/route.ts (POST)
