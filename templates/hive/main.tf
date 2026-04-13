@@ -115,28 +115,11 @@ data "coder_parameter" "docker_socket" {
 data "coder_parameter" "node_versions" {
   name         = "node_versions"
   display_name = "Node.js Versions"
-  description  = "Node.js versions to install via nvm. Select the versions you need."
+  description  = "Node.js versions to install via nvm (JSON list, e.g. [\"20\",\"22\",\"24\"])."
   type         = "list(string)"
   default      = jsonencode(["18", "20", "22", "24"])
   mutable      = true
   order        = 9
-
-  option {
-    name  = "Node 24 (Latest)"
-    value = "24"
-  }
-  option {
-    name  = "Node 22 (LTS)"
-    value = "22"
-  }
-  option {
-    name  = "Node 20"
-    value = "20"
-  }
-  option {
-    name  = "Node 18"
-    value = "18"
-  }
 }
 
 # =============================================================================
