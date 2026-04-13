@@ -21,7 +21,7 @@ Not provided.
 
 ## Tasks
 
-- [ ] **T01: Server action and data fetching for templates page** `est:20min`
+- [x] **T01: Server action and data fetching for templates page** `est:20min`
   Create src/app/templates/actions.ts:
 - getTemplateStatuses(): calls compareTemplates() for all 4 known template names, returns TemplateStatus[]
 - Server action: revalidates /templates page cache after successful push
