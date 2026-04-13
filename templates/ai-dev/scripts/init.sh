@@ -94,33 +94,31 @@ if [ -d /usr/share/hive/autostart ] && ls /usr/share/hive/autostart/*.desktop >/
 fi
 
 # =============================================================================
-# Vault setup — Claude Code context wiring
-# Clone is handled by the coder/git-clone module in main.tf (if vault_repo is set)
-# Obsidian creates .obsidian/ automatically on first launch
+# Vault sync — deploy sync-vault.sh and run it
+# sync-vault.sh is the single source of truth for syncing CLAUDE.md, AGENTS.md,
+# Skills, and GSD skills symlinks from the vault.
+# It's also called by the post_clone_script in main.tf after every vault fetch.
+# Obsidian creates .obsidian/ automatically on first launch.
+# mcp.json is baked into the Docker image (docker/hive-base/claude-mcp.json).
 # =============================================================================
 
-# Claude Code context wiring
-# mcp.json is baked into the Docker image (docker/hive-base/claude-mcp.json)
-# Write CLAUDE.md only on first run — user edits are preserved on subsequent starts
-if [ ! -f ~/.claude/CLAUDE.md ]; then
-  cat > ~/.claude/CLAUDE.md << 'CLAUDEEOF'
+# Deploy sync-vault.sh to ~/sync-vault.sh (used by post_clone_script too)
+printf '%s' "${sync_vault_script_b64}" | base64 -d > "$HOME/sync-vault.sh"
+chmod +x "$HOME/sync-vault.sh"
+
+# CLAUDE.md fallback: if vault isn't available yet, write template content
+# so the workspace has a working CLAUDE.md from first boot.
+# sync-vault.sh will overwrite this with the vault version once it's cloned.
+if [ ! -f "$HOME/vault/CLAUDE.md" ] && [ ! -f "$HOME/.claude/CLAUDE.md" ]; then
+  mkdir -p "$HOME/.claude"
+  cat > "$HOME/.claude/CLAUDE.md" << 'CLAUDEEOF'
 ${claude_md_content}
 CLAUDEEOF
-  echo "Claude Code vault context written to ~/.claude/CLAUDE.md"
+  echo "CLAUDE.md: written from template fallback (vault not available yet)"
 fi
 
-# Sync vault Skills → ~/.claude/skills/vault/ (isolated subdir to avoid polluting bundled skills)
-if [ -d ~/vault/Skills ]; then
-  mkdir -p ~/.claude/skills/vault
-  # Remove stale skills from previous syncs
-  rm -f ~/.claude/skills/vault/*.md
-  for skill_file in ~/vault/Skills/*.md; do
-    [ -f "$skill_file" ] || continue
-    skill_name=$(basename "$skill_file" .md | tr '[:upper:]' '[:lower:]' | tr ' ' '-')
-    cp "$skill_file" "$HOME/.claude/skills/vault/$skill_name.md"
-  done
-  echo "Vault skills synced to ~/.claude/skills/vault/"
-fi
+# Run vault sync (syncs CLAUDE.md, AGENTS.md, Skills, GSD skills symlink)
+"$HOME/sync-vault.sh"
 
 # Verify Docker access
 if docker info &> /dev/null; then

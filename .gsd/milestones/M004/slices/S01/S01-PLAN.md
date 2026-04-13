@@ -21,7 +21,7 @@ Not provided.
 
 ## Tasks
 
-- [ ] **T01: Extend Coder client: listTemplates, getActiveVersion, fetchTemplateFiles** `est:30min`
+- [x] **T01: Extend Coder client: listTemplates, getActiveVersion, fetchTemplateFiles** `est:30min`
   Add three methods to src/lib/coder/client.ts:
 - listTemplates(): fetches GET /api/v2/organizations/default/templates, returns {id, name, activeVersionId, updatedAt}[]
 - getActiveVersion(versionId): fetches GET /api/v2/templateversions/:id, returns {id, name, fileId, createdAt, message}
@@ -31,7 +31,7 @@ All use existing CODER_URL / CODER_SESSION_TOKEN env vars.
   - Files: `src/lib/coder/client.ts`
   - Verify: npx vitest run src/__tests__/lib/coder/client.test.ts
 
-- [ ] **T02: Implement staleness engine: local hash, remote hash, compareTemplates()** `est:45min`
+- [x] **T02: Implement staleness engine: local hash, remote hash, compareTemplates()** `est:45min`
   Create src/lib/templates/staleness.ts:
 
 1. hashLocalTemplate(name: string): Promise<string>
@@ -55,7 +55,7 @@ Export TemplateStatus type.
   - Files: `src/lib/templates/staleness.ts`
   - Verify: npx vitest run src/__tests__/lib/templates/staleness.test.ts
 
-- [ ] **T03: Unit tests for staleness engine** `est:30min`
+- [x] **T03: Unit tests for staleness engine** `est:30min`
   Create src/__tests__/lib/templates/staleness.test.ts:
 
 1. hashLocalTemplate: same result on two calls (stability)

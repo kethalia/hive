@@ -78,8 +78,7 @@ All AI tools can be configured when creating or updating a workspace:
 |----------|---------|-------------|
 | `docker_socket` | `""` | Custom Docker socket URI |
 | `dotfiles_uri` | `""` | Git URI for dotfiles repository |
-| `claude_code_model` | `""` | Default model for Claude Code |
-| `claude_code_api_key` | `""` | Anthropic API key (sensitive) |
+| `claude_code_model` | `"claude-sonnet-4-6"` | Default model for Claude Code |
 | `claude_code_system_prompt` | `""` | Custom system prompt |
 
 ### Resource Limits
@@ -207,7 +206,6 @@ npx get-shit-done-cc@latest --claude --global
 ## Security
 
 - Docker socket is mounted — users have full Docker access on the host daemon
-- API keys are marked as sensitive in Terraform and won't appear in plan output
 - Use in trusted development environments
 - Review template access controls in Coder admin
 

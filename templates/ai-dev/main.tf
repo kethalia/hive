@@ -128,10 +128,11 @@ resource "coder_agent" "main" {
   os   = "linux"
 
   startup_script = templatefile("${path.module}/scripts/init.sh", {
-    workspace_name    = data.coder_workspace.me.name
-    owner_name        = data.coder_workspace_owner.me.name
-    owner_email       = data.coder_workspace_owner.me.email
-    claude_md_content = file("${path.module}/CLAUDE.md")
+    workspace_name         = data.coder_workspace.me.name
+    owner_name             = data.coder_workspace_owner.me.name
+    owner_email            = data.coder_workspace_owner.me.email
+    claude_md_content      = file("${path.module}/CLAUDE.md")
+    sync_vault_script_b64  = base64encode(file("${path.module}/scripts/sync-vault.sh"))
   })
 
   env = merge(
@@ -424,6 +425,8 @@ module "git-clone-vault" {
   # The git-clone module skips cloning when the target dir is non-empty, but
   # post_clone_script runs ALWAYS (even on skip).  We clone into a temp dir,
   # then rsync into ~/vault so the vault is refreshed on every workspace start.
+  # The git-clone module clones into a temp dir; we rsync into ~/vault then
+  # call ~/sync-vault.sh (deployed by init.sh) to sync config files.
   post_clone_script = <<-EOT
     #!/bin/bash
     set -e
@@ -434,6 +437,13 @@ module "git-clone-vault" {
       rsync -a --delete --exclude '.obsidian' "$CLONE_DIR/" "$VAULT_DIR/"
       rm -rf "$CLONE_DIR"
       echo "Vault synced to $VAULT_DIR"
+
+      # Sync config files (CLAUDE.md, AGENTS.md, Skills, GSD symlinks)
+      if [ -x "$HOME/sync-vault.sh" ]; then
+        "$HOME/sync-vault.sh"
+      else
+        echo "WARNING: ~/sync-vault.sh not found — config sync skipped" >&2
+      fi
     else
       echo "ERROR: Vault clone failed — $CLONE_DIR has no .git directory" >&2
       rm -rf "$CLONE_DIR"
@@ -447,10 +457,10 @@ module "git-clone-vault" {
 # =============================================================================
 
 module "claude-code" {
-  count              = data.coder_workspace.me.start_count
-  source             = "registry.coder.com/coder/claude-code/coder"
-  version            = "1.1.0"
-  agent_id           = coder_agent.main.id
+  count               = data.coder_workspace.me.start_count
+  source              = "registry.coder.com/coder/claude-code/coder"
+  version             = "1.1.0"
+  agent_id            = coder_agent.main.id
   install_claude_code = false
 }
 
