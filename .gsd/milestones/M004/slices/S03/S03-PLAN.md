@@ -61,7 +61,7 @@ Create src/components/templates/TerminalPanel.tsx:
   - Files: `src/app/templates/page.tsx`, `src/components/templates/TemplatesClient.tsx`, `src/components/templates/TerminalPanel.tsx`
   - Verify: npx vitest run && browser verify: open /templates, see table, push button, xterm panel
 
-- [ ] **T03: Add Templates link to dashboard nav and vitest regression** `est:20min`
+- [x] **T03: Add Templates link to dashboard nav and vitest regression** `est:20min`
   1. Add 'Templates' link to the dashboard navigation (wherever the existing nav is defined)
 2. Run full vitest suite — confirm 263+ tests pass
 3. Browser verify end-to-end: open /templates, see all 4 templates with stale/current badges, click Push on ai-dev, watch xterm.js terminal render coder output with ANSI colors, confirm badge flips to Current on success
