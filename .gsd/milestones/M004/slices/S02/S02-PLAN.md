@@ -21,7 +21,7 @@ Not provided.
 
 ## Tasks
 
-- [ ] **T01: Template push queue, worker, and job processor** `est:45min`
+- [x] **T01: Template push queue, worker, and job processor** `est:45min`
   Create src/lib/templates/push-queue.ts:
 - Define templatePushQueue (BullMQ Queue) and templatePushWorker (BullMQ Worker)
 - Job data: { templateName: string, jobId: string }

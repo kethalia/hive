@@ -146,3 +146,15 @@ When a multi-step blueprint processes source diffs (council-diff → council-rev
 **Discovered:** 2026-04-09 during M002/S04/T01
 
 When rendering collapsible lists in cards (e.g., VerificationReportCard logs, CouncilResultCard consensus items), use a consistent expansion threshold to improve discoverability and familiarity. Established threshold: show first 3 items, render "Show more" button if total > 3, toggle state to show all. This pattern should be applied across future cards to establish UI consistency. Affects: task detail page card component library.
+
+## Staleness Engine: Graceful Degradation on Network Errors
+
+**Discovered:** 2026-04-13 during M004/S01/T02
+
+The `compareTemplates()` function in `src/lib/templates/staleness.ts` returns `stale=false` (not an error) when the Coder API is unreachable or an individual template fetch fails. This prevents spurious template pushes during outages. The trade-off: a genuinely stale template won't be detected until connectivity is restored. Downstream consumers (push jobs, dashboard) should treat `stale=false` as "current OR unknown" — not as a positive guarantee of freshness.
+
+## Tar Hashing: Deterministic Sort is Critical
+
+**Discovered:** 2026-04-13 during M004/S01/T02
+
+When computing a content hash over tar entries, entries must be sorted deterministically by path before hashing. Tar archives don't guarantee entry order, so the same directory contents can produce different tar archives with different native hashes. The staleness engine sorts entries by path for both local (filesystem) and remote (tar buffer) hashing to ensure comparison is reliable. The `tar-stream` package is used for parsing.
