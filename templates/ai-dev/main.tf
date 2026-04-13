@@ -25,13 +25,6 @@ data "coder_parameter" "vault_repo" {
   order        = 1
 }
 
-variable "claude_code_api_key" {
-  description = "Anthropic API key for Claude Code. Set at template push time."
-  type        = string
-  sensitive   = true
-  default     = ""
-}
-
 data "coder_parameter" "claude_code_model" {
   name         = "claude_code_model"
   display_name = "Claude Code Model"
@@ -149,7 +142,6 @@ resource "coder_agent" "main" {
       GIT_COMMITTER_EMAIL = data.coder_workspace_owner.me.email
       EXTENSIONS_GALLERY  = "{\"serviceUrl\":\"https://marketplace.visualstudio.com/_apis/public/gallery\"}"
     },
-    var.claude_code_api_key != "" ? { ANTHROPIC_API_KEY = var.claude_code_api_key } : {},
     data.coder_parameter.claude_code_model.value != "" ? { CLAUDE_CODE_DEFAULT_MODEL = data.coder_parameter.claude_code_model.value } : {},
     data.coder_parameter.claude_code_system_prompt.value != "" ? { CLAUDE_CODE_SYSTEM_PROMPT = data.coder_parameter.claude_code_system_prompt.value } : {}
   )

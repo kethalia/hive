@@ -16,74 +16,127 @@ locals {
 }
 
 # =============================================================================
-# Variables
+# Parameters — surfaced in the Coder workspace creation UI
 # =============================================================================
 
 # --- Hive Task Parameters ---
 
-variable "task_id" {
-  description = "Hive task ID"
-  type        = string
-  default     = ""
+data "coder_parameter" "task_id" {
+  name         = "task_id"
+  display_name = "Hive Task ID"
+  description  = "Hive task identifier (e.g. HIVE-42). Leave empty for a general-purpose workspace."
+  type         = "string"
+  default      = ""
+  mutable      = true
+  order        = 1
 }
 
-variable "task_prompt" {
-  description = "Task prompt/description"
-  type        = string
-  default     = ""
+data "coder_parameter" "task_prompt" {
+  name         = "task_prompt"
+  display_name = "Task Prompt"
+  description  = "Task description or prompt for the hive worker. Leave empty for a general-purpose workspace."
+  type         = "string"
+  default      = ""
+  mutable      = true
+  order        = 2
 }
 
-variable "repo_url" {
-  description = "Target repository URL"
-  type        = string
-  default     = ""
+data "coder_parameter" "repo_url" {
+  name         = "repo_url"
+  display_name = "Repository URL"
+  description  = "Git URL of the target repository to clone into /home/coder/project (e.g. git@github.com:org/repo.git). Leave empty to skip."
+  type         = "string"
+  default      = ""
+  mutable      = true
+  order        = 3
 }
 
-variable "branch_name" {
-  description = "Git branch name"
-  type        = string
-  default     = ""
+data "coder_parameter" "branch_name" {
+  name         = "branch_name"
+  display_name = "Branch Name"
+  description  = "Git branch to checkout after cloning (e.g. feat/my-feature). Leave empty for the default branch."
+  type         = "string"
+  default      = ""
+  mutable      = true
+  order        = 4
 }
 
-# --- AI ---
+# --- User Preferences ---
 
-variable "anthropic_api_key" {
-  description = "Anthropic API key for Claude Code CLI"
-  type        = string
-  default     = ""
-  sensitive   = true
+data "coder_parameter" "vault_repo" {
+  name         = "vault_repo"
+  display_name = "Obsidian Vault Repo"
+  description  = "Git SSH URL for your Obsidian second-brain vault (e.g. git@github.com:you/vault.git). Cloned to ~/vault on start. Leave empty to skip."
+  type         = "string"
+  default      = ""
+  mutable      = true
+  order        = 5
+}
+
+data "coder_parameter" "default_node_version" {
+  name         = "default_node_version"
+  display_name = "Default Node.js Version"
+  description  = "Default Node.js version set as active after install. Must be one of the selected versions above."
+  type         = "string"
+  default      = "24"
+  mutable      = true
+  order        = 7
+
+  option {
+    name  = "Node 24 (Latest)"
+    value = "24"
+  }
+  option {
+    name  = "Node 22 (LTS)"
+    value = "22"
+  }
+  option {
+    name  = "Node 20"
+    value = "20"
+  }
+  option {
+    name  = "Node 18"
+    value = "18"
+  }
 }
 
 # --- Infrastructure ---
 
-variable "docker_socket" {
-  description = "(Optional) Docker socket URI"
-  type        = string
-  default     = ""
+data "coder_parameter" "docker_socket" {
+  name         = "docker_socket"
+  display_name = "Docker Socket URI"
+  description  = "Override the Docker socket URI (optional — leave empty to use the default)."
+  type         = "string"
+  default      = ""
+  mutable      = false
+  order        = 8
 }
 
-variable "dotfiles_uri" {
-  description = "Git URI for dotfiles repository (optional)"
-  type        = string
-  default     = ""
-}
+data "coder_parameter" "node_versions" {
+  name         = "node_versions"
+  display_name = "Node.js Versions"
+  description  = "Node.js versions to install via nvm. Select the versions you need."
+  type         = "list(string)"
+  default      = jsonencode(["18", "20", "22", "24"])
+  mutable      = true
+  order        = 9
 
-variable "node_versions" {
-  description = "Node.js versions to install via nvm"
-  type        = list(string)
-  default     = ["18", "20", "22", "24"]
-}
-
-variable "default_node_version" {
-  description = "Default Node.js version"
-  type        = string
-  default     = "24"
-}
-
-variable "vault_repo" {
-  description = "SSH URL of Obsidian second-brain vault repository (optional, e.g. git@github.com:org/vault.git)"
-  type        = string
-  default     = ""
+  option {
+    name  = "Node 24 (Latest)"
+    value = "24"
+  }
+  option {
+    name  = "Node 22 (LTS)"
+    value = "22"
+  }
+  option {
+    name  = "Node 20"
+    value = "20"
+  }
+  option {
+    name  = "Node 18"
+    value = "18"
+  }
 }
 
 # =============================================================================
@@ -91,7 +144,7 @@ variable "vault_repo" {
 # =============================================================================
 
 provider "docker" {
-  host = var.docker_socket != "" ? var.docker_socket : null
+  host = data.coder_parameter.docker_socket.value != "" ? data.coder_parameter.docker_socket.value : null
 }
 
 data "coder_provisioner" "me" {}
@@ -128,12 +181,11 @@ resource "coder_agent" "main" {
       GIT_COMMITTER_NAME  = coalesce(data.coder_workspace_owner.me.full_name, data.coder_workspace_owner.me.name)
       GIT_COMMITTER_EMAIL = "${data.coder_workspace_owner.me.email}"
 
-      HIVE_TASK_ID     = var.task_id
-      HIVE_TASK_PROMPT = var.task_prompt
-      HIVE_REPO_URL    = var.repo_url
-      HIVE_BRANCH_NAME = var.branch_name
-    },
-    var.anthropic_api_key != "" ? { ANTHROPIC_API_KEY = var.anthropic_api_key } : {}
+      HIVE_TASK_ID     = data.coder_parameter.task_id.value
+      HIVE_TASK_PROMPT = data.coder_parameter.task_prompt.value
+      HIVE_REPO_URL    = data.coder_parameter.repo_url.value
+      HIVE_BRANCH_NAME = data.coder_parameter.branch_name.value
+    }
   )
 
   metadata {
@@ -305,11 +357,11 @@ module "git-config" {
 # =============================================================================
 
 module "git-clone-vault" {
-  count       = var.vault_repo != "" ? data.coder_workspace.me.start_count : 0
+  count       = data.coder_parameter.vault_repo.value != "" ? data.coder_workspace.me.start_count : 0
   source      = "registry.coder.com/coder/git-clone/coder"
   version     = "1.2.3"
   agent_id    = coder_agent.main.id
-  url         = var.vault_repo
+  url         = data.coder_parameter.vault_repo.value
   folder_name = "vault_clone_tmp"
 
   # The git-clone module skips cloning when the target dir is non-empty, but
@@ -368,8 +420,8 @@ module "nodejs" {
   source               = "registry.coder.com/thezoker/nodejs/coder"
   version              = "1.0.13"
   agent_id             = coder_agent.main.id
-  node_versions        = var.node_versions
-  default_node_version = var.default_node_version
+  node_versions        = jsondecode(data.coder_parameter.node_versions.value)
+  default_node_version = data.coder_parameter.default_node_version.value
 }
 
 # =============================================================================
@@ -377,11 +429,11 @@ module "nodejs" {
 # =============================================================================
 
 module "dotfiles" {
-  count        = data.coder_workspace.me.start_count
-  source       = "registry.coder.com/coder/dotfiles/coder"
-  version      = "1.4.1"
-  agent_id     = coder_agent.main.id
-  dotfiles_uri = var.dotfiles_uri
+  count                 = data.coder_workspace.me.start_count
+  source                = "registry.coder.com/coder/dotfiles/coder"
+  version               = "1.4.1"
+  agent_id              = coder_agent.main.id
+  coder_parameter_order = 6
 }
 
 # =============================================================================
