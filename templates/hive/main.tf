@@ -73,31 +73,54 @@ data "coder_parameter" "vault_repo" {
   order        = 5
 }
 
-data "coder_parameter" "default_node_version" {
-  name         = "default_node_version"
-  display_name = "Default Node.js Version"
-  description  = "Default Node.js version set as active after install. Must be one of the selected versions above."
+# --- Claude Code ---
+
+data "coder_parameter" "claude_code_model" {
+  name         = "claude_code_model"
+  display_name = "Claude Code Model"
+  description  = "Model for Claude Code."
   type         = "string"
-  default      = "24"
+  default      = "claude-sonnet-4-6"
   mutable      = true
   order        = 7
 
+  # Claude 4.6 generation
   option {
-    name  = "Node 24 (Latest)"
-    value = "24"
+    name  = "Claude Sonnet 4.6 (Recommended)"
+    value = "claude-sonnet-4-6"
   }
   option {
-    name  = "Node 22 (LTS)"
-    value = "22"
+    name  = "Claude Opus 4.6"
+    value = "claude-opus-4-6"
+  }
+  # Claude 4.5 generation
+  option {
+    name  = "Claude Opus 4.5"
+    value = "claude-opus-4-5"
   }
   option {
-    name  = "Node 20"
-    value = "20"
+    name  = "Claude Sonnet 4.5"
+    value = "claude-sonnet-4-5"
   }
   option {
-    name  = "Node 18"
-    value = "18"
+    name  = "Claude Haiku 4.5"
+    value = "claude-haiku-4-5"
   }
+  # Claude 3.5 (legacy)
+  option {
+    name  = "Claude Haiku 3.5 (legacy)"
+    value = "claude-haiku-3-5"
+  }
+}
+
+data "coder_parameter" "claude_code_system_prompt" {
+  name         = "claude_code_system_prompt"
+  display_name = "Claude Code System Prompt"
+  description  = "Custom system prompt for Claude Code (optional)."
+  type         = "string"
+  default      = ""
+  mutable      = true
+  order        = 8
 }
 
 # --- Infrastructure ---
@@ -109,16 +132,6 @@ data "coder_parameter" "docker_socket" {
   type         = "string"
   default      = ""
   mutable      = false
-  order        = 8
-}
-
-data "coder_parameter" "node_versions" {
-  name         = "node_versions"
-  display_name = "Node.js Versions"
-  description  = "Node.js versions to install via nvm (JSON list, e.g. [\"20\",\"22\",\"24\"])."
-  type         = "list(string)"
-  default      = jsonencode(["18", "20", "22", "24"])
-  mutable      = true
   order        = 9
 }
 
@@ -169,7 +182,9 @@ resource "coder_agent" "main" {
       HIVE_TASK_PROMPT = data.coder_parameter.task_prompt.value
       HIVE_REPO_URL    = data.coder_parameter.repo_url.value
       HIVE_BRANCH_NAME = data.coder_parameter.branch_name.value
-    }
+    },
+    data.coder_parameter.claude_code_model.value != "" ? { CLAUDE_CODE_DEFAULT_MODEL = data.coder_parameter.claude_code_model.value } : {},
+    data.coder_parameter.claude_code_system_prompt.value != "" ? { CLAUDE_CODE_SYSTEM_PROMPT = data.coder_parameter.claude_code_system_prompt.value } : {}
   )
 
   metadata {
@@ -413,8 +428,8 @@ module "nodejs" {
   source               = "registry.coder.com/thezoker/nodejs/coder"
   version              = "1.0.13"
   agent_id             = coder_agent.main.id
-  node_versions        = jsondecode(data.coder_parameter.node_versions.value)
-  default_node_version = data.coder_parameter.default_node_version.value
+  node_versions        = ["18", "20", "22", "24"]
+  default_node_version = "24"
 }
 
 # =============================================================================
