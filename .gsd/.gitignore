@@ -13,7 +13,8 @@ completed-units.json
 repo-meta.json
 STATE.md
 
-# SQLite WAL/SHM (transient)
+# SQLite database and WAL/SHM (transient)
+gsd.db
 gsd.db-wal
 gsd.db-shm
 

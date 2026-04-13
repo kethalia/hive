@@ -123,7 +123,7 @@ fi
 # =============================================================================
 
 # Deploy sync-vault.sh to ~/sync-vault.sh (used by post_clone_script too)
-echo "${sync_vault_script_b64}" | base64 -d > "$HOME/sync-vault.sh"
+printf '%s' "${sync_vault_script_b64}" | base64 -d > "$HOME/sync-vault.sh"
 chmod +x "$HOME/sync-vault.sh"
 
 # CLAUDE.md fallback: if vault isn't available yet, write template content

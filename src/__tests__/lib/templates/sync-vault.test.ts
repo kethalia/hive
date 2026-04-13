@@ -18,7 +18,7 @@ const SYNC_SCRIPT = join(
 async function runSync(
   env: Record<string, string>
 ): Promise<{ stdout: string; stderr: string }> {
-  return execFileAsync("bash", [SYNC_SCRIPT], { env: { ...process.env, ...env } });
+  return execFileAsync("bash", [SYNC_SCRIPT], { env: { ...process.env, ...env }, encoding: "utf-8" });
 }
 
 describe("sync-vault.sh", () => {

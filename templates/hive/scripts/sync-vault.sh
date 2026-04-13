@@ -103,8 +103,8 @@ sync_skills() {
     else
       # Quick check: compare file counts and content hashes
       local vault_hash local_hash
-      vault_hash=$(find "$skill_dir" -type f -exec md5sum {} + 2>/dev/null | sort | md5sum | cut -d' ' -f1)
-      local_hash=$(find "$skills_target/$skill_name" -type f -exec md5sum {} + 2>/dev/null | sort | md5sum | cut -d' ' -f1)
+      vault_hash=$(cd "$skill_dir" && find . -type f -exec md5sum {} + 2>/dev/null | sort | md5sum | cut -d' ' -f1)
+      local_hash=$(cd "$skills_target/$skill_name" && find . -type f -exec md5sum {} + 2>/dev/null | sort | md5sum | cut -d' ' -f1)
       if [ "$vault_hash" != "$local_hash" ]; then
         needs_sync=true
       fi
