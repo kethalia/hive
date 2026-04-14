@@ -58,7 +58,7 @@ This task delivers R038 (multiple terminal tabs open simultaneously).
   - Files: `src/components/workspaces/TerminalTabManager.tsx`, `src/app/workspaces/[id]/terminal/terminal-client.tsx`, `src/app/workspaces/[id]/terminal/page.tsx`
   - Verify: pnpm build && grep -q 'TerminalTabManager' src/app/workspaces/\[id\]/terminal/terminal-client.tsx && grep -q 'getWorkspaceSessionsAction' src/app/workspaces/\[id\]/terminal/page.tsx
 
-- [ ] **T03: Add session rename, kill controls, and session picker to tab manager** `est:1h`
+- [x] **T03: Add session rename, kill controls, and session picker to tab manager** `est:1h`
   Extend the TerminalTabManager from T02 with session lifecycle management UI (R039) and a session picker for connecting to existing sessions.
 
 **Rename:** Double-click on a tab label enters inline edit mode — the tab name becomes an input field. On Enter or blur, call `renameSessionAction` from T01 to rename the tmux session server-side, then update local tab state. Validate against SAFE_IDENTIFIER_RE client-side before calling the action. On Escape, cancel the rename. Important: renaming only changes the tmux session name and tab label — the active WebSocket connection is unaffected because it's already attached to the tmux session by PID, not name (per research pitfalls).

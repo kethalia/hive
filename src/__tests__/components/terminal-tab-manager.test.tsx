@@ -1,0 +1,291 @@
+// @vitest-environment jsdom
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { render, screen, fireEvent, waitFor, act, cleanup } from "@testing-library/react";
+import "@testing-library/jest-dom/vitest";
+
+vi.mock("next/dynamic", () => ({
+  __esModule: true,
+  default: () => {
+    const Stub = ({ sessionName }: { sessionName: string }) => (
+      <div data-testid={`terminal-${sessionName}`}>Terminal: {sessionName}</div>
+    );
+    Stub.displayName = "InteractiveTerminal";
+    return Stub;
+  },
+}));
+
+const mockCreateSession = vi.fn();
+const mockRenameSession = vi.fn();
+const mockKillSession = vi.fn();
+const mockGetSessions = vi.fn();
+
+vi.mock("@/lib/actions/workspaces", () => ({
+  createSessionAction: (...args: unknown[]) => mockCreateSession(...args),
+  renameSessionAction: (...args: unknown[]) => mockRenameSession(...args),
+  killSessionAction: (...args: unknown[]) => mockKillSession(...args),
+  getWorkspaceSessionsAction: (...args: unknown[]) => mockGetSessions(...args),
+}));
+
+vi.mock("@/lib/utils", () => ({
+  cn: (...classes: unknown[]) => classes.filter(Boolean).join(" "),
+}));
+
+vi.mock("@/components/ui/button", () => ({
+  Button: ({
+    children,
+    onClick,
+    onDoubleClick,
+    disabled,
+    ...rest
+  }: React.PropsWithChildren<{
+    onClick?: () => void;
+    onDoubleClick?: () => void;
+    disabled?: boolean;
+    variant?: string;
+    size?: string;
+    className?: string;
+    title?: string;
+    "data-testid"?: string;
+  }>) => (
+    <button
+      onClick={onClick}
+      onDoubleClick={onDoubleClick}
+      disabled={disabled}
+      data-testid={rest["data-testid"]}
+      title={rest.title}
+    >
+      {children}
+    </button>
+  ),
+}));
+
+vi.mock("lucide-react", () => ({
+  X: () => <span data-testid="icon-x">×</span>,
+  Plus: () => <span data-testid="icon-plus">+</span>,
+  Trash2: () => <span data-testid="icon-trash">🗑</span>,
+}));
+
+import { TerminalTabManager } from "@/components/workspaces/TerminalTabManager";
+
+const defaultProps = {
+  agentId: "agent-1",
+  coderUrl: "https://coder.example.com",
+  workspaceId: "ws-1",
+  initialSessions: [
+    { name: "hive-main", created: 1000, windows: 1 },
+    { name: "dev-server", created: 2000, windows: 1 },
+  ],
+  initialSessionName: "hive-main",
+};
+
+describe("TerminalTabManager", () => {
+  afterEach(() => {
+    cleanup();
+  });
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.stubGlobal("crypto", { randomUUID: () => `uuid-${Math.random()}` });
+  });
+
+  describe("rename", () => {
+    it("enters inline edit mode on double-click and commits on Enter", async () => {
+      mockRenameSession.mockResolvedValue({
+        data: { oldName: "hive-main", newName: "my-tab" },
+      });
+
+      render(<TerminalTabManager {...defaultProps} />);
+
+      const tabLabel = screen.getByTestId("tab-label");
+      expect(tabLabel).toHaveTextContent("hive-main");
+
+      const tabButton = tabLabel.closest("button")!;
+      fireEvent.doubleClick(tabButton);
+
+      const input = screen.getByTestId("rename-input");
+      expect(input).toBeInTheDocument();
+      expect(input).toHaveValue("hive-main");
+
+      fireEvent.change(input, { target: { value: "my-tab" } });
+      fireEvent.keyDown(input, { key: "Enter" });
+
+      await waitFor(() => {
+        expect(mockRenameSession).toHaveBeenCalledWith({
+          workspaceId: "ws-1",
+          oldName: "hive-main",
+          newName: "my-tab",
+        });
+      });
+
+      await waitFor(() => {
+        expect(screen.getByTestId("tab-label")).toHaveTextContent("my-tab");
+      });
+    });
+
+    it("cancels rename on Escape", () => {
+      render(<TerminalTabManager {...defaultProps} />);
+
+      const tabButton = screen.getByTestId("tab-label").closest("button")!;
+      fireEvent.doubleClick(tabButton);
+
+      const input = screen.getByTestId("rename-input");
+      fireEvent.change(input, { target: { value: "new-name" } });
+      fireEvent.keyDown(input, { key: "Escape" });
+
+      expect(screen.getByTestId("tab-label")).toHaveTextContent("hive-main");
+      expect(mockRenameSession).not.toHaveBeenCalled();
+    });
+
+    it("does not call rename for invalid names", () => {
+      render(<TerminalTabManager {...defaultProps} />);
+
+      const tabButton = screen.getByTestId("tab-label").closest("button")!;
+      fireEvent.doubleClick(tabButton);
+
+      const input = screen.getByTestId("rename-input");
+      fireEvent.change(input, { target: { value: "bad name!" } });
+      fireEvent.keyDown(input, { key: "Enter" });
+
+      expect(mockRenameSession).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("kill", () => {
+    it("calls killSessionAction and removes the tab", async () => {
+      mockKillSession.mockResolvedValue({ data: { name: "hive-main" } });
+      mockCreateSession.mockResolvedValue({ data: { name: "session-123" } });
+      mockGetSessions.mockResolvedValue({ data: [] });
+
+      render(<TerminalTabManager {...defaultProps} />);
+
+      await act(async () => {
+        fireEvent.click(screen.getByTestId("add-tab-button"));
+      });
+
+      await waitFor(() => {
+        expect(screen.getByTestId("session-picker")).toBeInTheDocument();
+      });
+
+      await act(async () => {
+        fireEvent.click(screen.getByTestId("session-picker-create"));
+      });
+
+      await waitFor(() => {
+        expect(mockCreateSession).toHaveBeenCalled();
+      });
+
+      await waitFor(() => {
+        const labels = screen.getAllByTestId("tab-label");
+        expect(labels).toHaveLength(2);
+      });
+
+      const killButtons = screen.getAllByTestId("kill-tab");
+      expect(killButtons.length).toBe(2);
+
+      await act(async () => {
+        fireEvent.click(killButtons[0]);
+      });
+
+      await waitFor(() => {
+        expect(mockKillSession).toHaveBeenCalledWith({
+          workspaceId: "ws-1",
+          sessionName: "hive-main",
+        });
+      });
+
+      await waitFor(() => {
+        const labels = screen.getAllByTestId("tab-label");
+        expect(labels).toHaveLength(1);
+        expect(labels[0]).toHaveTextContent("session-123");
+      });
+    });
+
+    it("shows empty state when last tab is killed", async () => {
+      mockKillSession.mockResolvedValue({ data: { name: "hive-main" } });
+
+      render(<TerminalTabManager {...defaultProps} />);
+
+      const killButton = screen.getByTestId("kill-tab");
+      await act(async () => {
+        fireEvent.click(killButton);
+      });
+
+      await waitFor(() => {
+        expect(screen.getByText("No terminal sessions open")).toBeInTheDocument();
+        expect(screen.getByText("Create New Session")).toBeInTheDocument();
+      });
+    });
+  });
+
+  describe("session picker", () => {
+    it("opens picker and shows unopened sessions", async () => {
+      mockGetSessions.mockResolvedValue({
+        data: [
+          { name: "hive-main", created: 1000, windows: 1 },
+          { name: "dev-server", created: 2000, windows: 1 },
+          { name: "background", created: 3000, windows: 1 },
+        ],
+      });
+
+      render(<TerminalTabManager {...defaultProps} />);
+
+      await act(async () => {
+        fireEvent.click(screen.getByTestId("add-tab-button"));
+      });
+
+      await waitFor(() => {
+        expect(screen.getByTestId("session-picker")).toBeInTheDocument();
+      });
+
+      const items = screen.getAllByTestId("session-picker-item");
+      expect(items).toHaveLength(2);
+      expect(items[0]).toHaveTextContent("dev-server");
+      expect(items[1]).toHaveTextContent("background");
+    });
+
+    it("opens existing session as new tab from picker", async () => {
+      mockGetSessions.mockResolvedValue({
+        data: [
+          { name: "hive-main", created: 1000, windows: 1 },
+          { name: "dev-server", created: 2000, windows: 1 },
+        ],
+      });
+
+      render(<TerminalTabManager {...defaultProps} />);
+
+      await act(async () => {
+        fireEvent.click(screen.getByTestId("add-tab-button"));
+      });
+
+      await waitFor(() => {
+        expect(screen.getByTestId("session-picker")).toBeInTheDocument();
+      });
+
+      const item = screen.getByTestId("session-picker-item");
+      fireEvent.click(item);
+
+      const labels = screen.getAllByTestId("tab-label");
+      expect(labels).toHaveLength(2);
+      expect(labels[1]).toHaveTextContent("dev-server");
+    });
+
+    it("shows only Create New when all sessions are open", async () => {
+      mockGetSessions.mockResolvedValue({
+        data: [{ name: "hive-main", created: 1000, windows: 1 }],
+      });
+
+      render(<TerminalTabManager {...defaultProps} />);
+
+      await act(async () => {
+        fireEvent.click(screen.getByTestId("add-tab-button"));
+      });
+
+      await waitFor(() => {
+        expect(screen.getByTestId("session-picker")).toBeInTheDocument();
+      });
+
+      expect(screen.queryAllByTestId("session-picker-item")).toHaveLength(0);
+      expect(screen.getByTestId("session-picker-create")).toBeInTheDocument();
+    });
+  });
+});
