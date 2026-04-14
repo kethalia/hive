@@ -7,5 +7,5 @@ M004: Template Management Dashboard
 | ID | Slice | Risk | Depends | Done | After this |
 |----|-------|------|---------|------|------------|
 | S01 | S01 | low | — | ✅ | TBD |
-| S02 | S02 | medium | — | ✅ | TBD |
-| S03 | S03 | medium | — | ✅ | TBD |
+| S02 | S02 | medium | S01 | ✅ | TBD |
+| S03 | S03 | medium | S01, S02 | ✅ | TBD |

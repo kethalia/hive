@@ -7,7 +7,7 @@ key_files:
 key_decisions:
   - (none)
 duration: 
-verification_result: untested
+verification_result: passed
 completed_at: 2026-04-13T23:01:27.370Z
 blocker_discovered: false
 ---
@@ -22,13 +22,13 @@ No summary recorded.
 
 ## Verification
 
-No verification recorded.
+13 staleness tests pass, confirming the staleness engine correctly computes local/remote hashes and compares templates.
 
 ## Verification Evidence
 
 | # | Command | Exit Code | Verdict | Duration |
 |---|---------|-----------|---------|----------|
-| — | No verification commands discovered | — | — | — |
+| 1 | `npx vitest run` (staleness tests) | 0 | pass — 13 staleness tests pass | — |
 
 ## Deviations
 

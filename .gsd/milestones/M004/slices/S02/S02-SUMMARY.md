@@ -30,8 +30,6 @@ blocker_discovered: false
 
 ## What Happened
 
-## What Happened
-
 All three tasks were completed successfully. The source implementation (push-queue module and API routes) was already in place from a prior session; the executor tasks focused on creating comprehensive test coverage and verifying correctness.
 
 **T01 — Template push queue, worker, and job processor:** Created `src/__tests__/lib/templates/push-queue.test.ts` with 8 tests covering the BullMQ queue/worker in `src/lib/templates/push-queue.ts`. The module resolves the coder CLI binary via `which`, spawns `coder templates push <name> --directory templates/<name> --yes` as a child process, injects `CODER_URL` and `CODER_SESSION_TOKEN` into the child env, tees stdout+stderr to `/tmp/template-push-<jobId>.log`, and writes `[exit:0]` or `[exit:1]` sentinels on completion. The worker is re-exported from `src/lib/queue/index.ts`.
