@@ -191,6 +191,83 @@ This file is the explicit capability and coverage contract for the project.
 - Validation: unmapped
 - Notes: Coder prebuilds require workspace presets in the template. May require Coder Premium for full pool management
 
+### R035 — Dashboard lists all owner's Coder workspaces with live status, lazy-loaded tmux sessions per workspace
+- Class: primary-user-loop
+- Status: active
+- Description: Dashboard lists all owner's Coder workspaces with live status, lazy-loaded tmux sessions per workspace
+- Why it matters: Entry point for all terminal interaction — user needs to see what workspaces exist and what sessions are running before they can connect
+- Source: user
+- Primary owning slice: M005/S01
+- Supporting slices: none
+- Validation: unmapped
+- Notes: Shows all workspaces (not just Hive-created). tmux sessions fetched lazily when user clicks into a workspace, not on page load.
+
+### R036 — Full bidirectional interactive terminal in-browser via xterm.js + WebSocket, proxying Coder's native PTY endpoint
+- Class: core-capability
+- Status: active
+- Description: Full bidirectional interactive terminal in-browser via xterm.js + WebSocket, proxying Coder's native PTY endpoint
+- Why it matters: The core value — user can do anything they can do via SSH, directly from the dashboard, without installing or configuring SSH clients
+- Source: user
+- Primary owning slice: M005/S02
+- Supporting slices: none
+- Validation: unmapped
+- Notes: Proxies Coder's /api/v2/workspaceagents/{id}/pty WebSocket. Next.js API route handles upgrade and adds Hive session auth.
+
+### R037 — All terminal sessions are tmux-backed — browser disconnect = tmux detach, reconnect = tmux reattach with scrollback
+- Class: core-capability
+- Status: active
+- Description: All terminal sessions are tmux-backed — browser disconnect = tmux detach, reconnect = tmux reattach with scrollback
+- Why it matters: This is the primary pain point — closing a terminal currently kills all progress. tmux ensures sessions persist regardless of browser state
+- Source: user
+- Primary owning slice: M005/S02
+- Supporting slices: none
+- Validation: unmapped
+- Notes: Every terminal tab wraps in tmux — no bare shells. New terminal = new tmux session. Reconnect = tmux attach with full scrollback.
+
+### R038 — Multiple terminal tabs open simultaneously, each connected to a different tmux session (same or different workspaces)
+- Class: primary-user-loop
+- Status: active
+- Description: Multiple terminal tabs open simultaneously, each connected to a different tmux session (same or different workspaces)
+- Why it matters: Users work across multiple sessions — build in one, logs in another, debug in a third. Single-terminal would break real workflows
+- Source: user
+- Primary owning slice: M005/S03
+- Supporting slices: none
+- Validation: unmapped
+- Notes: Tab bar with multiple simultaneous connections. Each tab independently connected to its own WebSocket.
+
+### R039 — tmux session lifecycle: create (auto-named from cwd), rename, kill from the dashboard
+- Class: core-capability
+- Status: active
+- Description: tmux session lifecycle: create (auto-named from cwd), rename, kill from the dashboard
+- Why it matters: Full session management from the UI — user shouldn't need to SSH in separately to manage tmux
+- Source: user
+- Primary owning slice: M005/S03
+- Supporting slices: none
+- Validation: unmapped
+- Notes: Auto-naming picks up current working directory (e.g. session in /home/coder/hive auto-names as "hive"). Rename available after creation.
+
+### R040 — Iframe-embedded Filebrowser and KasmVNC per workspace with popup-out button; link-out button for Coder management dashboard
+- Class: integration
+- Status: active
+- Description: Iframe-embedded Filebrowser and KasmVNC per workspace with popup-out button; link-out button for Coder management dashboard
+- Why it matters: Makes the Hive dashboard a single pane of glass for workspace interaction — file browsing, desktop, and management without leaving the app
+- Source: user
+- Primary owning slice: M005/S04
+- Supporting slices: none
+- Validation: unmapped
+- Notes: Falls back to link-out buttons if iframe blocked by X-Frame-Options. Links constructed dynamically from Coder subdomain proxy pattern.
+
+### R042 — WebSocket auto-reconnect on network interruption with tmux reattach; workspace-offline detection with clear UI state
+- Class: quality-attribute
+- Status: active
+- Description: WebSocket auto-reconnect on network interruption with tmux reattach; workspace-offline detection with clear UI state
+- Why it matters: Network interruptions are routine (laptop sleep, WiFi blips). Without auto-reconnect the terminal is dead until manually refreshed — defeats persistence
+- Source: inferred
+- Primary owning slice: M005/S02
+- Supporting slices: none
+- Validation: unmapped
+- Notes: Reconnect overlay on temporary disconnect. Workspace-offline state on permanent failure (no retry loop against dead workspaces).
+
 ## Validated
 
 ### R006 — After worker creates PR, orchestrator automatically spins up a verifier workspace that pulls the branch and tests the output by actually using it
@@ -371,6 +448,17 @@ This file is the explicit capability and coverage contract for the project.
 - Validation: n/a
 - Notes: Protect with network-level access for now
 
+### R041 — Workspace creation/deletion is permanently out of scope — handled by Coder, linked from dashboard
+- Class: anti-feature
+- Status: out-of-scope
+- Description: Workspace creation/deletion is permanently out of scope — handled by Coder, linked from dashboard
+- Why it matters: Avoids reimplementing Coder's workspace lifecycle management. Coder already does this well — Hive links out to it
+- Source: user
+- Primary owning slice: none
+- Supporting slices: none
+- Validation: n/a
+- Notes: Permanent exclusion — not deferred, never planned. Workspace CRUD lives in Coder.
+
 ## Traceability
 
 | ID | Class | Status | Primary owner | Supporting | Proof |
@@ -408,10 +496,18 @@ This file is the explicit capability and coverage contract for the project.
 | R032 | constraint | validated | M002/S01 | M002/S03 | CouncilReport type defined with outcome field ('complete' | 'partial' | 'inconclusive'). Stored as Json? column on Task. Type guard isCouncilReport validates structure. S02 will implement logic; S01 provides schema and types to enable flexible failure reporting. |
 | R033 | quality-attribute | validated | M002/S02 | M002/S03 | S02/T02 implements council-emit step as strict JSON validation gate: invalid JSON returns failure (not silent empty findings), all required fields validated, all severity values tested (critical/major/minor/nit). 24 unit tests prove schema enforcement across success paths, malformed inputs, boundary conditions, and per-field validation. Tests include invalid JSON, missing fields, wrong-shape JSON, empty findings, all valid severities. |
 | R034 | core-capability | validated | M002/S01 | M002/S03 | S03/T03 adds council step (step 13) to task-queue.ts after verifier. Uses getCouncilFlowProducer() to fan out N reviewer child jobs + 1 aggregator parent job with continueParentOnFailure semantics (failParentOnFailure: false). Awaits aggregator via QueueEvents.waitUntilFinished(). 10 unit tests verify happy path (correct flow structure), no-op guards (no prUrl, no template, councilSize=0), and failure tolerance (FlowProducer error, wait timeout, DB error don't block task). All 250 tests pass. |
+| R035 | primary-user-loop | active | M005/S01 | none | unmapped |
+| R036 | core-capability | active | M005/S02 | none | unmapped |
+| R037 | core-capability | active | M005/S02 | none | unmapped |
+| R038 | primary-user-loop | active | M005/S03 | none | unmapped |
+| R039 | core-capability | active | M005/S03 | none | unmapped |
+| R040 | integration | active | M005/S04 | none | unmapped |
+| R041 | anti-feature | out-of-scope | none | none | n/a |
+| R042 | quality-attribute | active | M005/S02 | none | unmapped |
 
 ## Coverage Summary
 
-- Active requirements: 17
-- Mapped to slices: 17
+- Active requirements: 24
+- Mapped to slices: 24
 - Validated: 11 (R006, R007, R013, R017, R018, R019, R028, R029, R032, R033, R034)
 - Unmapped active requirements: 0

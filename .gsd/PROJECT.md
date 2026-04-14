@@ -49,3 +49,4 @@ See `.gsd/REQUIREMENTS.md` for the explicit capability contract, requirement sta
 - [x] M001: Minimum Viable Hive — Task-to-PR pipeline with worker + verifier + dashboard (22 requirements validated)
 - [ ] M002: Council Review — N independent Claude reviewer agents analyse the PR diff in parallel, aggregate findings by consensus, post a single combined review comment
 - [x] M004: Template Management Dashboard — Web UI for viewing template staleness and pushing updates (3 slices, 315 tests)
+- [ ] M005: Workspace Terminals — Persistent tmux-backed interactive terminals in the dashboard with workspace discovery and external tool integration

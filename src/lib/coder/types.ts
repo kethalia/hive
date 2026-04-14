@@ -22,6 +22,11 @@ export interface CoderWorkspace {
   name: string;
   template_id: string;
   owner_name: string;
+  template_name?: string;
+  template_display_name?: string;
+  template_icon?: string;
+  last_used_at?: string;
+  health?: { healthy: boolean; failing_agents: string[] };
   latest_build: {
     id: string;
     status: WorkspaceBuildStatus;
@@ -57,11 +62,24 @@ export interface WaitForBuildOptions {
   intervalMs?: number;
 }
 
+/** Coder agent lifecycle statuses */
+export type WorkspaceAgentStatus =
+  | "connected"
+  | "connecting"
+  | "disconnected"
+  | "timeout"
+  | "lifecycle_ready"
+  | "starting"
+  | "start_error"
+  | "shutting_down"
+  | "shutdown_error"
+  | "off";
+
 /** An agent running inside a workspace resource (from build resources endpoint). */
 export interface WorkspaceAgent {
   id: string;
   name: string;
-  status: string;
+  status: WorkspaceAgentStatus;
 }
 
 /** A resource provisioned by a workspace build (compute, volume, etc.). */
