@@ -20,7 +20,10 @@ Unattended task-to-PR automation with behavioral verification — the system doe
 - S03 (Aggregation & PR Comment): ✅ complete — aggregation logic groups findings by file+line with ≥2 consensus, markdown formatting with severity sections, PR comment posting via gh CLI, step 13 integrated into task pipeline
 - S04 (Council Dashboard): ⬜ remaining — UI to display CouncilResultCard with severity badge counts and consensus highlighting; task submission form with councilSize field
 
-**M002 capabilities delivered:** 250 tests pass (36 files), 23 TS errors (at budget). Consensus algorithm: group by file+startLine, agreementCount >= 2. Formatters render CouncilReport to markdown with emoji severity headers (🔴 Critical → 🟠 Major → 🟡 Minor → 💬 Nit). Processors handle workspace lifecycle (create → blueprint → cleanup in finally) and child result collection (compute outcome: complete/partial/inconclusive). Pipeline integration complete: council step (step 13) fans out N reviewer children + 1 aggregator parent via FlowProducer, awaits aggregator via QueueEvents, wrapped in try/catch (council failure is informational per D015). postedCommentUrl persisted to task.councilReport Json column.
+**M004 complete — all 3 slices delivered and verified.**
+- S01 (Coder Template API Client & Staleness Engine): ✅ complete — CoderClient extended with listTemplates/getTemplateVersion/fetchTemplateFiles, deterministic local+remote hash functions, compareTemplates() returns per-template stale/current status with graceful degradation on network errors. 13 staleness tests + 15 client tests pass.
+- S02 (Push Job Worker & SSE Streaming Route): ✅ complete — BullMQ push queue/worker spawns coder templates push as child process, tees output to log files with exit sentinels; POST and SSE API routes trigger and stream push jobs. 17 tests pass.
+- S03 (Templates Dashboard Page with xterm.js): ✅ complete — Server component + client table with stale/current badges, per-row Push buttons, inline xterm.js terminal panels streaming live output via SSE, 30s polling, Templates nav link in sidebar. 315 total tests pass across 42 files.
 
 **Operational notes:** M001 cleanup scheduler not wired to entrypoint. M002 council can run in isolation or as part of full pipeline; initial testing with 3-reviewer council works correctly with mock data. Real GitHub integration tested via mocked gh CLI; live GitHub token handling depends on environment setup during deployment.
 
@@ -34,6 +37,7 @@ Repository: https://github.com/kethalia/hive
 - **Stripe Minions patterns:** Context hydration before agent launch, scoped rule injection, shift-left linting (5s timeout), 2-round CI cap, curated MCP tool subsets, workspace pre-warming
 - **Verification:** Proof-by-consumption — verifier workspace pulls the PR branch and actually uses the output (test-suite execution for tested repos, dev server + screenshot for web apps, inconclusive for unknown types)
 - **Dashboard:** Next.js + Tailwind v4, with live agent streaming via SSE (custom React components, not pi-web-ui Lit — D009)
+- **Template Management:** Staleness engine compares local template files against Coder's active version via deterministic sha256 hashing of sorted file paths + contents. Push worker spawns coder CLI as child process with log-file-based SSE streaming. Dashboard page at /templates with xterm.js terminal panels for live push output.
 - **Deployment:** Solo operator, no auth. Docker-compose: Next.js + Postgres + Redis
 
 ## Capability Contract
@@ -44,3 +48,4 @@ See `.gsd/REQUIREMENTS.md` for the explicit capability contract, requirement sta
 
 - [x] M001: Minimum Viable Hive — Task-to-PR pipeline with worker + verifier + dashboard (22 requirements validated)
 - [ ] M002: Council Review — N independent Claude reviewer agents analyse the PR diff in parallel, aggregate findings by consensus, post a single combined review comment
+- [x] M004: Template Management Dashboard — Web UI for viewing template staleness and pushing updates (3 slices, 315 tests)

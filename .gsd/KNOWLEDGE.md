@@ -146,3 +146,27 @@ When a multi-step blueprint processes source diffs (council-diff → council-rev
 **Discovered:** 2026-04-09 during M002/S04/T01
 
 When rendering collapsible lists in cards (e.g., VerificationReportCard logs, CouncilResultCard consensus items), use a consistent expansion threshold to improve discoverability and familiarity. Established threshold: show first 3 items, render "Show more" button if total > 3, toggle state to show all. This pattern should be applied across future cards to establish UI consistency. Affects: task detail page card component library.
+
+## Staleness Engine: Graceful Degradation on Network Errors
+
+**Discovered:** 2026-04-13 during M004/S01/T02
+
+The `compareTemplates()` function in `src/lib/templates/staleness.ts` returns `stale=false` (not an error) when the Coder API is unreachable or an individual template fetch fails. This prevents spurious template pushes during outages. The trade-off: a genuinely stale template won't be detected until connectivity is restored. Downstream consumers (push jobs, dashboard) should treat `stale=false` as "current OR unknown" — not as a positive guarantee of freshness.
+
+## Tar Hashing: Deterministic Sort is Critical
+
+**Discovered:** 2026-04-13 during M004/S01/T02
+
+When computing a content hash over tar entries, entries must be sorted deterministically by path before hashing. Tar archives don't guarantee entry order, so the same directory contents can produce different tar archives with different native hashes. The staleness engine sorts entries by path for both local (filesystem) and remote (tar buffer) hashing to ensure comparison is reliable. The `tar-stream` package is used for parsing.
+
+## Log-File SSE Streaming: Decouple Producers from Consumers
+
+**Discovered:** 2026-04-13 during M004/S02
+
+When streaming output from a background job (e.g., BullMQ worker) to the browser via SSE, writing to an intermediate log file and having the SSE route tail that file is more resilient than direct job-event-to-SSE coupling. Benefits: multiple clients can connect to the same stream, reconnection replays from disk, the log persists for post-mortem inspection, and the producer (worker) doesn't need to know about consumers. Use byte-offset reads for efficient incremental tailing and exit sentinels (`[exit:0]`/`[exit:1]`) for completion signaling.
+
+## writeRef Pattern: Decouple Async Data from Component Mount
+
+**Discovered:** 2026-04-13 during M004/S03/T02
+
+When SSE data arrives before a component finishes mounting (e.g., xterm.js terminal loaded via dynamic import), use a `writeRef` + `lineHistory` pattern: store incoming lines in a history array and set a ref to write directly once the component mounts. On mount, replay the buffered history then switch to direct writes. Without this, early SSE messages are silently lost. Pattern is in `src/components/templates/TemplatesClient.tsx`.

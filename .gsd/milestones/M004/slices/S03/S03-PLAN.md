@@ -21,18 +21,18 @@ Not provided.
 
 ## Tasks
 
-- [ ] **T01: Server action and data fetching for templates page** `est:20min`
+- [x] **T01: Server action and data fetching for templates page** `est:20min`
   Create src/app/templates/actions.ts:
-- getTemplateStatuses(): calls compareTemplates() for all 4 known template names, returns TemplateStatus[]
+- getTemplateStatuses(): calls compareTemplates() for all 2 known template names, returns TemplateStatus[]
 - Server action: revalidates /templates page cache after successful push
 
 Create src/app/api/templates/status/route.ts (GET):
-- Returns JSON array of TemplateStatus for all 4 templates
+- Returns JSON array of TemplateStatus for all 2 templates
 - Used by the frontend to poll staleness every 30s
   - Files: `src/app/templates/actions.ts`, `src/app/api/templates/status/route.ts`
   - Verify: npx vitest run src/__tests__/app/api/templates/status.test.ts
 
-- [ ] **T02: Templates page UI with xterm.js terminal panel** `est:90min`
+- [x] **T02: Templates page UI with xterm.js terminal panel** `est:90min`
   Install xterm and @xterm/addon-fit packages.
 
 Create src/app/templates/page.tsx (server component):
@@ -61,11 +61,11 @@ Create src/components/templates/TerminalPanel.tsx:
   - Files: `src/app/templates/page.tsx`, `src/components/templates/TemplatesClient.tsx`, `src/components/templates/TerminalPanel.tsx`
   - Verify: npx vitest run && browser verify: open /templates, see table, push button, xterm panel
 
-- [ ] **T03: Add Templates link to dashboard nav and vitest regression** `est:20min`
+- [x] **T03: Add Templates link to dashboard nav and vitest regression** `est:20min`
   1. Add 'Templates' link to the dashboard navigation (wherever the existing nav is defined)
 2. Run full vitest suite — confirm 263+ tests pass
-3. Browser verify end-to-end: open /templates, see all 4 templates with stale/current badges, click Push on ai-dev, watch xterm.js terminal render coder output with ANSI colors, confirm badge flips to Current on success
-  - Files: `src/components/layout/nav.tsx`
+3. Browser verify end-to-end: open /templates, see all 2 templates with stale/current badges, click Push on ai-dev, watch xterm.js terminal render coder output with ANSI colors, confirm badge flips to Current on success
+  - Files: `src/components/app-sidebar.tsx`
   - Verify: npx vitest run (263+ tests pass)
 
 ## Files Likely Touched
@@ -75,4 +75,4 @@ Create src/components/templates/TerminalPanel.tsx:
 - src/app/templates/page.tsx
 - src/components/templates/TemplatesClient.tsx
 - src/components/templates/TerminalPanel.tsx
-- src/components/layout/nav.tsx
+- src/components/app-sidebar.tsx
