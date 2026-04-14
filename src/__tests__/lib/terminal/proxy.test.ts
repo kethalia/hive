@@ -67,6 +67,15 @@ describe("handleUpgrade", () => {
     process.env = originalEnv;
   });
 
+  it("rejects with 502 when CODER_URL and CODER_AGENT_URL are both missing", () => {
+    delete process.env.CODER_URL;
+    delete process.env.CODER_AGENT_URL;
+    const socket = makeSocket();
+    handleUpgrade(makeReq(validParams), socket, Buffer.alloc(0));
+    expect(socket.written[0]).toContain("502");
+    expect(socket.destroy).toHaveBeenCalled();
+  });
+
   it("rejects with 401 when CODER_SESSION_TOKEN is missing", () => {
     delete process.env.CODER_SESSION_TOKEN;
     const socket = makeSocket();

@@ -51,6 +51,13 @@ export function handleUpgrade(
   }
 
   const coderUrl = process.env.CODER_URL ?? process.env.CODER_AGENT_URL ?? "";
+  if (!coderUrl) {
+    console.error("[terminal-proxy] CODER_URL / CODER_AGENT_URL not set — rejecting upgrade");
+    socket.write("HTTP/1.1 502 Bad Gateway\r\n\r\n");
+    socket.destroy();
+    return;
+  }
+
   const upstreamUrl = buildPtyUrl(coderUrl, agentId, {
     reconnectId,
     width: Number(width) || 80,

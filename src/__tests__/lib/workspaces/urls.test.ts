@@ -44,11 +44,16 @@ describe("buildWorkspaceUrls", () => {
   it("uses the provided agent name in subdomain URLs", () => {
     const urls = buildWorkspaceUrls(workspace, "gpu-agent", "https://coder.dev");
 
-    expect(urls.filebrowser).toBe(
+    expect(urls!.filebrowser).toBe(
       "https://filebrowser--gpu-agent--dev-box--alice.coder.dev",
     );
-    expect(urls.kasmvnc).toBe(
+    expect(urls!.kasmvnc).toBe(
       "https://kasmvnc--gpu-agent--dev-box--alice.coder.dev",
     );
+  });
+
+  it("returns null for empty coderUrl", () => {
+    const urls = buildWorkspaceUrls(workspace, agent, "");
+    expect(urls).toBeNull();
   });
 });

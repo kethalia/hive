@@ -9,11 +9,13 @@ import {
   useTerminalWebSocket,
   type ConnectionState,
 } from "@/hooks/useTerminalWebSocket";
+import { Badge } from "@/components/ui/badge";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { AlertCircle } from "lucide-react";
 
 interface InteractiveTerminalProps {
   agentId: string;
   sessionName: string;
-  coderUrl: string;
   className?: string;
 }
 
@@ -39,26 +41,26 @@ const TERMINAL_THEME = {
   brightWhite: "#ffffff",
 };
 
-function connectionBadge(state: ConnectionState) {
+function connectionBadgeProps(state: ConnectionState) {
   switch (state) {
     case "connected":
-      return { color: "bg-green-500", label: "Connected" };
+      return { variant: "default" as const, label: "Connected", className: "bg-green-600 text-white" };
     case "connecting":
+      return { variant: "secondary" as const, label: "Connecting…", className: "bg-yellow-600 text-white" };
     case "reconnecting":
-      return { color: "bg-yellow-500", label: state === "connecting" ? "Connecting…" : "Reconnecting…" };
+      return { variant: "secondary" as const, label: "Reconnecting…", className: "bg-yellow-600 text-white" };
     case "disconnected":
-      return { color: "bg-gray-500", label: "Disconnected" };
+      return { variant: "secondary" as const, label: "Disconnected", className: "" };
     case "failed":
-      return { color: "bg-red-500", label: "Connection failed" };
+      return { variant: "destructive" as const, label: "Connection failed", className: "" };
     case "workspace-offline":
-      return { color: "bg-red-500", label: "Workspace offline" };
+      return { variant: "destructive" as const, label: "Workspace offline", className: "" };
   }
 }
 
 export function InteractiveTerminal({
   agentId,
   sessionName,
-  coderUrl,
   className,
 }: InteractiveTerminalProps) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -66,16 +68,10 @@ export function InteractiveTerminal({
   const fitRef = useRef<FitAddon | null>(null);
   const [reconnectId] = useState(() => crypto.randomUUID());
   const [wsUrl, setWsUrl] = useState<string | null>(null);
-  const pendingResizeRef = useRef<{ rows: number; cols: number } | null>(null);
-  const termReadyRef = useRef(false);
 
   const handleData = useCallback((data: Uint8Array | string) => {
     if (termRef.current) {
-      if (data instanceof Uint8Array) {
-        termRef.current.write(data);
-      } else {
-        termRef.current.write(data);
-      }
+      termRef.current.write(data);
     }
   }, []);
 
@@ -88,14 +84,6 @@ export function InteractiveTerminal({
   const resizeRef = useRef(resize);
   sendRef.current = send;
   resizeRef.current = resize;
-
-  useEffect(() => {
-    if (connectionState === "connected" && pendingResizeRef.current) {
-      const { rows, cols } = pendingResizeRef.current;
-      pendingResizeRef.current = null;
-      resizeRef.current(rows, cols);
-    }
-  }, [connectionState]);
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -140,8 +128,6 @@ export function InteractiveTerminal({
         resizeRef.current(rows, cols);
       });
 
-      termReadyRef.current = true;
-
       const dims = { rows: term.rows, cols: term.cols };
       const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
       const host = window.location.host;
@@ -164,7 +150,6 @@ export function InteractiveTerminal({
 
     return () => {
       mounted = false;
-      termReadyRef.current = false;
       window.removeEventListener("resize", handleResize);
       termRef.current?.dispose();
       termRef.current = null;
@@ -172,7 +157,7 @@ export function InteractiveTerminal({
     };
   }, [agentId, reconnectId, sessionName]);
 
-  const badge = connectionBadge(connectionState);
+  const badge = connectionBadgeProps(connectionState);
 
   return (
     <div
@@ -185,26 +170,26 @@ export function InteractiveTerminal({
         <span className="text-xs font-mono text-muted-foreground">
           {sessionName}
         </span>
-        <div className="flex items-center gap-1.5">
-          <span
-            className={cn("inline-block h-2 w-2 rounded-full", badge.color)}
-            title={badge.label}
-          />
-          <span className="text-xs text-muted-foreground">{badge.label}</span>
-        </div>
+        <Badge variant={badge.variant} className={badge.className}>
+          {badge.label}
+        </Badge>
       </div>
 
       {connectionState === "workspace-offline" && (
-        <div className="flex items-center justify-center bg-red-950/30 px-3 py-2 text-sm text-red-400">
-          Workspace is offline. The terminal will reconnect when the workspace
-          comes back online.
-        </div>
+        <Alert variant="destructive" className="rounded-none border-x-0 border-t-0">
+          <AlertCircle />
+          <AlertDescription>
+            Workspace is offline. The terminal will reconnect when the workspace comes back online.
+          </AlertDescription>
+        </Alert>
       )}
       {connectionState === "failed" && (
-        <div className="flex items-center justify-center bg-red-950/30 px-3 py-2 text-sm text-red-400">
-          Connection failed after multiple attempts. Refresh the page to try
-          again.
-        </div>
+        <Alert variant="destructive" className="rounded-none border-x-0 border-t-0">
+          <AlertCircle />
+          <AlertDescription>
+            Connection failed after multiple attempts. Refresh the page to try again.
+          </AlertDescription>
+        </Alert>
       )}
 
       <div ref={containerRef} className="flex-1 p-2 min-h-[400px]" />

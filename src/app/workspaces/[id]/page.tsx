@@ -1,10 +1,19 @@
 import Link from "next/link";
-import { ArrowLeft } from "lucide-react";
 import {
   getWorkspaceAction,
   getWorkspaceAgentAction,
 } from "@/lib/actions/workspaces";
 import { WorkspaceToolPanel } from "@/components/workspaces/WorkspaceToolPanel";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import {
+  Breadcrumb,
+  BreadcrumbItem,
+  BreadcrumbLink,
+  BreadcrumbList,
+  BreadcrumbPage,
+  BreadcrumbSeparator,
+} from "@/components/ui/breadcrumb";
+import { AlertCircle } from "lucide-react";
 
 interface WorkspaceDetailPageProps {
   params: Promise<{ id: string }>;
@@ -23,17 +32,18 @@ export default async function WorkspaceDetailPage({
   if (!workspaceResult?.data) {
     return (
       <div className="flex h-screen items-center justify-center bg-background text-foreground">
-        <div className="text-center">
-          <h1 className="text-xl font-semibold">Workspace not found</h1>
-          <p className="mt-2 text-muted-foreground">
-            Could not load workspace data. It may have been deleted or you may
-            not have access.
-          </p>
+        <div className="flex flex-col items-center gap-4 text-center">
+          <Alert variant="destructive" className="max-w-md">
+            <AlertCircle />
+            <AlertDescription>
+              Could not load workspace data. It may have been deleted or you may
+              not have access.
+            </AlertDescription>
+          </Alert>
           <Link
             href="/workspaces"
-            className="mt-4 inline-flex items-center gap-1 text-sm text-primary hover:underline"
+            className="text-sm text-primary hover:underline"
           >
-            <ArrowLeft className="h-4 w-4" />
             Back to workspaces
           </Link>
         </div>
@@ -46,17 +56,19 @@ export default async function WorkspaceDetailPage({
 
   return (
     <div className="flex h-screen flex-col gap-4 p-4">
-      <div className="flex items-center gap-3">
-        <Link
-          href="/workspaces"
-          className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
-        >
-          <ArrowLeft className="h-4 w-4" />
-          Workspaces
-        </Link>
-        <span className="text-muted-foreground">/</span>
-        <h1 className="text-lg font-semibold">{workspaceResult.data.name}</h1>
-      </div>
+      <Breadcrumb>
+        <BreadcrumbList>
+          <BreadcrumbItem>
+            <BreadcrumbLink render={<Link href="/workspaces" />}>
+              Workspaces
+            </BreadcrumbLink>
+          </BreadcrumbItem>
+          <BreadcrumbSeparator />
+          <BreadcrumbItem>
+            <BreadcrumbPage>{workspaceResult.data.name}</BreadcrumbPage>
+          </BreadcrumbItem>
+        </BreadcrumbList>
+      </Breadcrumb>
 
       <WorkspaceToolPanel
         workspace={workspaceResult.data}

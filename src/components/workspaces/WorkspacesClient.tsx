@@ -16,6 +16,8 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import type { CoderWorkspace, WorkspaceBuildStatus } from "@/lib/coder/types";
 import type { TmuxSession } from "@/lib/workspaces/sessions";
 import type { WorkspaceUrls } from "@/lib/workspaces/urls";
@@ -28,73 +30,26 @@ interface WorkspacesClientProps {
   initialWorkspaces: CoderWorkspace[];
 }
 
-const STATUS_CONFIG: Record<
+const STATUS_BADGE: Record<
   string,
-  { color: string; dotColor: string; label: string }
+  { variant: "default" | "secondary" | "destructive" | "outline"; className: string; label: string }
 > = {
-  running: {
-    color: "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200",
-    dotColor: "bg-green-500",
-    label: "Running",
-  },
-  starting: {
-    color:
-      "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200",
-    dotColor: "bg-yellow-500",
-    label: "Starting",
-  },
-  stopping: {
-    color:
-      "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200",
-    dotColor: "bg-yellow-500",
-    label: "Stopping",
-  },
-  stopped: {
-    color: "bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-300",
-    dotColor: "bg-gray-400",
-    label: "Stopped",
-  },
-  failed: {
-    color: "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200",
-    dotColor: "bg-red-500",
-    label: "Failed",
-  },
-  deleted: {
-    color: "bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-300",
-    dotColor: "bg-gray-400",
-    label: "Deleted",
-  },
-  deleting: {
-    color: "bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-300",
-    dotColor: "bg-gray-400",
-    label: "Deleting",
-  },
-  pending: {
-    color:
-      "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200",
-    dotColor: "bg-yellow-500",
-    label: "Pending",
-  },
-  canceling: {
-    color: "bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-300",
-    dotColor: "bg-gray-400",
-    label: "Canceling",
-  },
-  canceled: {
-    color: "bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-300",
-    dotColor: "bg-gray-400",
-    label: "Canceled",
-  },
+  running: { variant: "default", className: "bg-green-600 text-white", label: "Running" },
+  starting: { variant: "secondary", className: "bg-yellow-600 text-white", label: "Starting" },
+  stopping: { variant: "secondary", className: "bg-yellow-600 text-white", label: "Stopping" },
+  stopped: { variant: "secondary", className: "", label: "Stopped" },
+  failed: { variant: "destructive", className: "", label: "Failed" },
+  deleted: { variant: "secondary", className: "", label: "Deleted" },
+  deleting: { variant: "secondary", className: "", label: "Deleting" },
+  pending: { variant: "secondary", className: "bg-yellow-600 text-white", label: "Pending" },
+  canceling: { variant: "secondary", className: "", label: "Canceling" },
+  canceled: { variant: "secondary", className: "", label: "Canceled" },
 };
 
-const DEFAULT_STATUS = {
-  color: "bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-300",
-  dotColor: "bg-gray-400",
-  label: "Unknown",
-};
+const DEFAULT_STATUS_BADGE = { variant: "outline" as const, className: "", label: "Unknown" };
 
-function getStatusConfig(status: WorkspaceBuildStatus) {
-  return STATUS_CONFIG[status] ?? DEFAULT_STATUS;
+function getStatusBadge(status: WorkspaceBuildStatus) {
+  return STATUS_BADGE[status] ?? DEFAULT_STATUS_BADGE;
 }
 
 function canExpandSessions(status: WorkspaceBuildStatus): boolean {
@@ -237,7 +192,6 @@ export function WorkspacesClient({ initialWorkspaces }: WorkspacesClientProps) {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold tracking-tight">Workspaces</h1>
         <Button
@@ -252,15 +206,13 @@ export function WorkspacesClient({ initialWorkspaces }: WorkspacesClientProps) {
         </Button>
       </div>
 
-      {/* Error banner */}
       {error && (
-        <div className="flex items-center gap-2 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800 dark:border-red-800 dark:bg-red-950 dark:text-red-200">
-          <AlertCircle className="h-4 w-4 shrink-0" />
-          {error}
-        </div>
+        <Alert variant="destructive">
+          <AlertCircle />
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
       )}
 
-      {/* Empty state */}
       {workspaces.length === 0 && !error ? (
         <Card>
           <CardContent className="flex flex-col items-center justify-center py-12">
@@ -276,7 +228,7 @@ export function WorkspacesClient({ initialWorkspaces }: WorkspacesClientProps) {
       ) : (
         <div className="grid gap-3">
           {workspaces.map((ws) => {
-            const status = getStatusConfig(ws.latest_build.status);
+            const statusBadge = getStatusBadge(ws.latest_build.status);
             const isExpanded = expandedId === ws.id;
             const canExpand = canExpandSessions(ws.latest_build.status);
             const sessionState = sessionMap.get(ws.id);
@@ -296,7 +248,6 @@ export function WorkspacesClient({ initialWorkspaces }: WorkspacesClientProps) {
                   role={canExpand ? "button" : undefined}
                   tabIndex={canExpand ? 0 : undefined}
                 >
-                  {/* Expand/collapse icon */}
                   <div className="w-5 shrink-0">
                     {canExpand ? (
                       isExpanded ? (
@@ -307,7 +258,6 @@ export function WorkspacesClient({ initialWorkspaces }: WorkspacesClientProps) {
                     ) : null}
                   </div>
 
-                  {/* Workspace info */}
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2">
                       <Link
@@ -317,14 +267,9 @@ export function WorkspacesClient({ initialWorkspaces }: WorkspacesClientProps) {
                       >
                         {ws.name}
                       </Link>
-                      <span
-                        className={`inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-xs font-medium ${status.color}`}
-                      >
-                        <span
-                          className={`h-1.5 w-1.5 rounded-full ${status.dotColor}`}
-                        />
-                        {status.label}
-                      </span>
+                      <Badge variant={statusBadge.variant} className={statusBadge.className}>
+                        {statusBadge.label}
+                      </Badge>
                     </div>
                     <div className="text-muted-foreground mt-0.5 flex items-center gap-3 text-xs">
                       <span>
@@ -339,7 +284,6 @@ export function WorkspacesClient({ initialWorkspaces }: WorkspacesClientProps) {
                     </div>
                   </div>
 
-                  {/* Tool links */}
                   {ws.latest_build.status === "running" && toolLinks && (
                     <div
                       className="flex items-center gap-1"
@@ -388,7 +332,6 @@ export function WorkspacesClient({ initialWorkspaces }: WorkspacesClientProps) {
                   )}
                 </div>
 
-                {/* Expanded sessions panel */}
                 {isExpanded && canExpand && (
                   <div className="border-t bg-muted/30 px-4 py-3">
                     {sessionState?.loading ? (
@@ -397,10 +340,10 @@ export function WorkspacesClient({ initialWorkspaces }: WorkspacesClientProps) {
                         Loading sessions…
                       </div>
                     ) : sessionState?.error ? (
-                      <div className="flex items-center gap-2 text-sm text-red-600 dark:text-red-400">
-                        <AlertCircle className="h-4 w-4" />
-                        {sessionState.error}
-                      </div>
+                      <Alert variant="destructive">
+                        <AlertCircle />
+                        <AlertDescription>{sessionState.error}</AlertDescription>
+                      </Alert>
                     ) : sessionState?.sessions.length === 0 ? (
                       <p className="text-sm text-muted-foreground">
                         No tmux sessions running

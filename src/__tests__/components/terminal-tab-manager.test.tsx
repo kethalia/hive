@@ -59,6 +59,34 @@ vi.mock("@/components/ui/button", () => ({
   ),
 }));
 
+vi.mock("@/components/ui/input", () => ({
+  Input: (props: React.InputHTMLAttributes<HTMLInputElement> & { "data-testid"?: string }) => (
+    <input {...props} data-testid={props["data-testid"]} />
+  ),
+}));
+
+vi.mock("@/components/ui/popover", () => ({
+  Popover: ({ children, open }: React.PropsWithChildren<{ open?: boolean }>) => (
+    <div data-open={open}>{children}</div>
+  ),
+  PopoverTrigger: ({
+    children,
+    onClick,
+    disabled,
+    ...rest
+  }: React.PropsWithChildren<{
+    onClick?: () => void;
+    disabled?: boolean;
+    className?: string;
+    "data-testid"?: string;
+  }>) => (
+    <button onClick={onClick} disabled={disabled} data-testid={rest["data-testid"]}>
+      {children}
+    </button>
+  ),
+  PopoverContent: ({ children }: React.PropsWithChildren) => <div>{children}</div>,
+}));
+
 vi.mock("lucide-react", () => ({
   X: () => <span data-testid="icon-x">×</span>,
   Plus: () => <span data-testid="icon-plus">+</span>,
@@ -69,7 +97,6 @@ import { TerminalTabManager } from "@/components/workspaces/TerminalTabManager";
 
 const defaultProps = {
   agentId: "agent-1",
-  coderUrl: "https://coder.example.com",
   workspaceId: "ws-1",
   initialSessions: [
     { name: "hive-main", created: 1000, windows: 1 },

@@ -1,5 +1,7 @@
 import { getWorkspaceAgentAction, getWorkspaceSessionsAction } from "@/lib/actions/workspaces";
 import { TerminalClient } from "./terminal-client";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { AlertCircle } from "lucide-react";
 
 interface TerminalPageProps {
   params: Promise<{ id: string }>;
@@ -18,23 +20,21 @@ export default async function TerminalPage({ params, searchParams }: TerminalPag
   if (!agentResult?.data) {
     return (
       <div className="flex h-screen items-center justify-center bg-background text-foreground">
-        <div className="text-center">
-          <h1 className="text-xl font-semibold">No agent found</h1>
-          <p className="mt-2 text-muted-foreground">
+        <Alert variant="destructive" className="max-w-md">
+          <AlertCircle />
+          <AlertDescription>
             Could not find a running agent for this workspace.
-          </p>
-        </div>
+          </AlertDescription>
+        </Alert>
       </div>
     );
   }
 
-  const coderUrl = process.env.CODER_URL ?? "";
   const sessions = sessionsResult?.data ?? [];
 
   return (
     <TerminalClient
       agentId={agentResult.data.agentId}
-      coderUrl={coderUrl}
       workspaceId={workspaceId}
       initialSessions={sessions}
       initialSessionName={session}

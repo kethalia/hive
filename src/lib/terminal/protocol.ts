@@ -50,7 +50,7 @@ export function buildPtyUrl(
     );
   }
 
-  let wsBase = baseUrl.replace(/\/$/, "");
+  let wsBase = baseUrl.replace(/\/+$/, "");
   if (wsBase.startsWith("https://")) {
     wsBase = "wss://" + wsBase.slice("https://".length);
   } else if (wsBase.startsWith("http://")) {

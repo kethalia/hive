@@ -121,6 +121,12 @@ describe("buildPtyUrl", () => {
     expect(url).not.toContain("//api/");
   });
 
+  it("strips multiple trailing slashes from base URL", () => {
+    const url = buildPtyUrl("https://coder.dev///", agentId, defaults);
+    expect(url).toContain("wss://coder.dev/api/v2/");
+    expect(url).not.toContain("//api/");
+  });
+
   it("URL-encodes the tmux command", () => {
     const url = buildPtyUrl("https://coder.dev", agentId, defaults);
     expect(url).toContain("command=tmux+new-session+-A+-s+my-session");

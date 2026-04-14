@@ -5,7 +5,6 @@ import type { TmuxSession } from "@/lib/workspaces/sessions";
 
 interface TerminalClientProps {
   agentId: string;
-  coderUrl: string;
   workspaceId: string;
   initialSessions: TmuxSession[];
   initialSessionName?: string;
@@ -13,7 +12,6 @@ interface TerminalClientProps {
 
 export function TerminalClient({
   agentId,
-  coderUrl,
   workspaceId,
   initialSessions,
   initialSessionName,
@@ -21,7 +19,6 @@ export function TerminalClient({
   return (
     <TerminalTabManager
       agentId={agentId}
-      coderUrl={coderUrl}
       workspaceId={workspaceId}
       initialSessions={initialSessions}
       initialSessionName={initialSessionName}

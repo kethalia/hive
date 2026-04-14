@@ -10,7 +10,9 @@ export function buildWorkspaceUrls(
   workspace: Pick<CoderWorkspace, "name" | "owner_name">,
   agentName: string,
   coderUrl: string,
-): WorkspaceUrls {
+): WorkspaceUrls | null {
+  if (!coderUrl) return null;
+
   const stripped = coderUrl.replace(/\/+$/, "");
   const coderHost = stripped.replace(/^https?:\/\//, "");
 

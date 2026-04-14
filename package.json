@@ -8,7 +8,7 @@
     "dev:services:start": "docker compose -f docker-compose.dev.yml up -d",
     "dev:services:stop": "docker compose -f docker-compose.dev.yml down",
     "build": "next build",
-    "start": "NODE_ENV=production node server.js",
+    "start": "NODE_ENV=production tsx server.ts",
     "lint": "next lint",
     "test": "vitest run",
     "test:watch": "vitest",
