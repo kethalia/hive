@@ -109,7 +109,7 @@ chmod +x "$HOME/sync-vault.sh"
 # CLAUDE.md fallback: if vault isn't available yet, write template content
 # so the workspace has a working CLAUDE.md from first boot.
 # sync-vault.sh will overwrite this with the vault version once it's cloned.
-if [ ! -f "$HOME/vault/CLAUDE.md" ] && [ ! -f "$HOME/.claude/CLAUDE.md" ]; then
+if [ ! -f "$HOME/vault/Agents/CLAUDE.md" ] && [ ! -f "$HOME/.claude/CLAUDE.md" ]; then
   mkdir -p "$HOME/.claude"
   cat > "$HOME/.claude/CLAUDE.md" << 'CLAUDEEOF'
 ${claude_md_content}

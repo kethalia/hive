@@ -24,13 +24,17 @@ async function runSync(
 describe("sync-vault.sh", () => {
   let tempDir: string;
   let vaultDir: string;
+  let agentsSrc: string;
   let claudeDir: string;
+  let gsdDir: string;
 
   beforeEach(async () => {
     tempDir = await mkdtemp(join(tmpdir(), "sync-vault-test-"));
     vaultDir = join(tempDir, "vault");
+    agentsSrc = join(vaultDir, "Agents");
     claudeDir = join(tempDir, ".claude");
-    await mkdir(vaultDir, { recursive: true });
+    gsdDir = join(tempDir, ".gsd", "agent");
+    await mkdir(agentsSrc, { recursive: true });
     await mkdir(claudeDir, { recursive: true });
   });
 
@@ -41,23 +45,31 @@ describe("sync-vault.sh", () => {
   // ── CLAUDE.md ──────────────────────────────────────────────────
 
   describe("CLAUDE.md sync", () => {
-    it("copies CLAUDE.md from vault to ~/.claude/", async () => {
-      await writeFile(join(vaultDir, "CLAUDE.md"), "# Vault CLAUDE");
+    it("copies CLAUDE.md from vault/Agents/ to ~/.claude/ and ~/.gsd/agent/", async () => {
+      await writeFile(join(agentsSrc, "CLAUDE.md"), "# Vault CLAUDE");
 
       await runSync({ HOME: tempDir });
 
-      const content = await readFile(join(claudeDir, "CLAUDE.md"), "utf-8");
-      expect(content).toBe("# Vault CLAUDE");
+      const claudeContent = await readFile(join(claudeDir, "CLAUDE.md"), "utf-8");
+      expect(claudeContent).toBe("# Vault CLAUDE");
+
+      const gsdContent = await readFile(join(gsdDir, "CLAUDE.md"), "utf-8");
+      expect(gsdContent).toBe("# Vault CLAUDE");
     });
 
     it("overwrites existing CLAUDE.md with vault version", async () => {
       await writeFile(join(claudeDir, "CLAUDE.md"), "# Old local version");
-      await writeFile(join(vaultDir, "CLAUDE.md"), "# New vault version");
+      await mkdir(gsdDir, { recursive: true });
+      await writeFile(join(gsdDir, "CLAUDE.md"), "# Old GSD version");
+      await writeFile(join(agentsSrc, "CLAUDE.md"), "# New vault version");
 
       await runSync({ HOME: tempDir });
 
-      const content = await readFile(join(claudeDir, "CLAUDE.md"), "utf-8");
-      expect(content).toBe("# New vault version");
+      const claudeContent = await readFile(join(claudeDir, "CLAUDE.md"), "utf-8");
+      expect(claudeContent).toBe("# New vault version");
+
+      const gsdContent = await readFile(join(gsdDir, "CLAUDE.md"), "utf-8");
+      expect(gsdContent).toBe("# New vault version");
     });
 
     it("skips CLAUDE.md when vault is missing", async () => {
@@ -82,27 +94,34 @@ describe("sync-vault.sh", () => {
   // ── AGENTS.md ──────────────────────────────────────────────────
 
   describe("AGENTS.md sync", () => {
-    it("copies AGENTS.md from vault to ~/.claude/", async () => {
-      await writeFile(join(vaultDir, "AGENTS.md"), "# Skill Registry");
+    it("copies AGENTS.md from vault/Agents/ to ~/.claude/ and ~/.gsd/agent/", async () => {
+      await writeFile(join(agentsSrc, "AGENTS.md"), "# Skill Registry");
 
       await runSync({ HOME: tempDir });
 
-      const content = await readFile(join(claudeDir, "AGENTS.md"), "utf-8");
-      expect(content).toBe("# Skill Registry");
+      const claudeContent = await readFile(join(claudeDir, "AGENTS.md"), "utf-8");
+      expect(claudeContent).toBe("# Skill Registry");
+
+      const gsdContent = await readFile(join(gsdDir, "AGENTS.md"), "utf-8");
+      expect(gsdContent).toBe("# Skill Registry");
     });
 
     it("overwrites existing AGENTS.md with vault version", async () => {
       await writeFile(join(claudeDir, "AGENTS.md"), "# Old agents");
-      await writeFile(join(vaultDir, "AGENTS.md"), "# Updated agents");
+      await mkdir(gsdDir, { recursive: true });
+      await writeFile(join(gsdDir, "AGENTS.md"), "# Old GSD agents");
+      await writeFile(join(agentsSrc, "AGENTS.md"), "# Updated agents");
 
       await runSync({ HOME: tempDir });
 
-      const content = await readFile(join(claudeDir, "AGENTS.md"), "utf-8");
-      expect(content).toBe("# Updated agents");
+      const claudeContent = await readFile(join(claudeDir, "AGENTS.md"), "utf-8");
+      expect(claudeContent).toBe("# Updated agents");
+
+      const gsdContent = await readFile(join(gsdDir, "AGENTS.md"), "utf-8");
+      expect(gsdContent).toBe("# Updated agents");
     });
 
-    it("skips AGENTS.md when vault has no AGENTS.md", async () => {
-      // No AGENTS.md in vault, and none locally
+    it("skips AGENTS.md when vault has no Agents/AGENTS.md", async () => {
       await runSync({ HOME: tempDir });
 
       const entries = await readdir(claudeDir);
