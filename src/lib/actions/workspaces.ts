@@ -19,6 +19,27 @@ export const listWorkspacesAction = actionClient.action(async () => {
   return result.workspaces;
 });
 
+const getWorkspaceAgentSchema = z.object({
+  workspaceId: z.string().min(1, "workspaceId is required"),
+});
+
+export const getWorkspaceAgentAction = actionClient
+  .inputSchema(getWorkspaceAgentSchema)
+  .action(async ({ parsedInput }) => {
+    const client = getCoderClient();
+    const resources = await client.getWorkspaceResources(
+      parsedInput.workspaceId,
+    );
+    for (const resource of resources) {
+      if (resource.agents && resource.agents.length > 0) {
+        return { agentId: resource.agents[0].id, agentName: resource.agents[0].name };
+      }
+    }
+    throw new Error(
+      `No agents found for workspace ${parsedInput.workspaceId}`,
+    );
+  });
+
 const getWorkspaceSessionsSchema = z.object({
   workspaceId: z.string().min(1, "workspaceId is required"),
 });

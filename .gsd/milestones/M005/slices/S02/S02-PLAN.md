@@ -160,7 +160,7 @@ Critical constraints:
   - Files: `server.ts`, `src/lib/terminal/proxy.ts`, `src/__tests__/lib/terminal/proxy.test.ts`, `package.json`
   - Verify: pnpm vitest run src/__tests__/lib/terminal/proxy.test.ts && pnpm build
 
-- [ ] **T03: Build InteractiveTerminal component with WebSocket hook and auto-reconnect** `est:1h15m`
+- [x] **T03: Build InteractiveTerminal component with WebSocket hook and auto-reconnect** `est:1h15m`
   Create the client-side interactive terminal — an xterm.js component connected via WebSocket to the proxy from T02, with auto-reconnect and exponential backoff for network resilience (R042). This delivers R036 (bidirectional terminal) and R037 (tmux-backed sessions) from the browser side.
 
 The component architecture follows the existing TerminalPanel.tsx pattern (dynamic import, ssr: false, same theme) but is fundamentally different: it manages a WebSocket lifecycle, sends user input via `terminal.onData()`, handles resize via `terminal.onResize()` with FitAddon, and writes raw server output back to xterm. A custom `useTerminalWebSocket` hook encapsulates WebSocket lifecycle, reconnection, and connection state.
