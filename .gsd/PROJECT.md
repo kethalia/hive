@@ -25,6 +25,12 @@ Unattended task-to-PR automation with behavioral verification — the system doe
 - S02 (Push Job Worker & SSE Streaming Route): ✅ complete — BullMQ push queue/worker spawns coder templates push as child process, tees output to log files with exit sentinels; POST and SSE API routes trigger and stream push jobs. 17 tests pass.
 - S03 (Templates Dashboard Page with xterm.js): ✅ complete — Server component + client table with stale/current badges, per-row Push buttons, inline xterm.js terminal panels streaming live output via SSE, 30s polling, Templates nav link in sidebar. 315 total tests pass across 42 files.
 
+**M005 in progress — 1 of 4 slices complete.**
+- S01 (Workspace Discovery & Listing): ✅ complete — /workspaces page with live Coder workspace listing, status badges, lazy-loaded tmux sessions, external tool links (Filebrowser, KasmVNC, Dashboard), sidebar navigation. 16 new tests, 331 total passing.
+- S02 (Bidirectional Terminal via PTY WebSocket): ⬜ remaining — interactive shell with tmux reattach
+- S03 (Multi-Tab Terminal & Session Management): ⬜ remaining — multiple terminal tabs, session naming/renaming/killing
+- S04 (External Tool Integration): ⬜ remaining — embedded Filebrowser/KasmVNC iframes
+
 **Operational notes:** M001 cleanup scheduler not wired to entrypoint. M002 council can run in isolation or as part of full pipeline; initial testing with 3-reviewer council works correctly with mock data. Real GitHub integration tested via mocked gh CLI; live GitHub token handling depends on environment setup during deployment.
 
 Repository: https://github.com/kethalia/hive
@@ -38,6 +44,7 @@ Repository: https://github.com/kethalia/hive
 - **Verification:** Proof-by-consumption — verifier workspace pulls the PR branch and actually uses the output (test-suite execution for tested repos, dev server + screenshot for web apps, inconclusive for unknown types)
 - **Dashboard:** Next.js + Tailwind v4, with live agent streaming via SSE (custom React components, not pi-web-ui Lit — D009)
 - **Template Management:** Staleness engine compares local template files against Coder's active version via deterministic sha256 hashing of sorted file paths + contents. Push worker spawns coder CLI as child process with log-file-based SSE streaming. Dashboard page at /templates with xterm.js terminal panels for live push output.
+- **Workspace Terminals:** Server actions wrap CoderClient for workspace listing and execInWorkspace for tmux session discovery. URL builder constructs external tool links from workspace metadata. Client component pattern matches /templates page.
 - **Deployment:** Solo operator, no auth. Docker-compose: Next.js + Postgres + Redis
 
 ## Capability Contract
