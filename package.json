@@ -3,12 +3,12 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev --hostname 0.0.0.0",
+    "dev": "tsx watch server.ts",
     "dev:services": "docker compose -f docker-compose.dev.yml up",
     "dev:services:start": "docker compose -f docker-compose.dev.yml up -d",
     "dev:services:stop": "docker compose -f docker-compose.dev.yml down",
     "build": "next build",
-    "start": "next start",
+    "start": "NODE_ENV=production node server.js",
     "lint": "next lint",
     "test": "vitest run",
     "test:watch": "vitest",
@@ -56,6 +56,7 @@
     "postcss": "^8",
     "prisma": "^6.19.0",
     "tailwindcss": "^4",
+    "tsx": "^4.21.0",
     "typescript": "^5",
     "vitest": "^3.0.0"
   }

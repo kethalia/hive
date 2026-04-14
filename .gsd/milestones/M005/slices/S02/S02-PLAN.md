@@ -86,7 +86,7 @@ Also create a `buildPtyUrl` helper that constructs the upstream Coder PTY WebSoc
   - Files: `src/lib/terminal/protocol.ts`, `src/__tests__/lib/terminal/protocol.test.ts`, `package.json`
   - Verify: pnpm vitest run src/__tests__/lib/terminal/protocol.test.ts
 
-- [ ] **T02: Create custom server.ts with WebSocket upgrade proxy to Coder PTY** `est:1h`
+- [x] **T02: Create custom server.ts with WebSocket upgrade proxy to Coder PTY** `est:1h`
   Build the server-side WebSocket proxy — the critical infrastructure that routes terminal traffic between browser clients and Coder workspace agents. This task creates `server.ts` (custom Node.js HTTP server wrapping Next.js) and `src/lib/terminal/proxy.ts` (upstream WebSocket connection manager).
 
 Next.js App Router route handlers cannot do WebSocket upgrade (they return Response objects, no access to raw socket). A custom `server.ts` is mandatory per the research findings. The server intercepts HTTP upgrade requests on `/api/terminal/ws`, authenticates with Coder using `CODER_SESSION_TOKEN`, opens an upstream WebSocket to the Coder PTY endpoint, and pipes frames bidirectionally.
