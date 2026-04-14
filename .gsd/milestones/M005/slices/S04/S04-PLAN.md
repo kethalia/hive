@@ -50,7 +50,7 @@
 - Do: (1) Add `getWorkspaceAction` to workspaces.ts — takes `{workspaceId}`, calls `client.getWorkspace(id)`, returns the workspace object. (2) Create `WorkspaceToolPanel.tsx` as a client component with: useState tab toggle (filebrowser | kasmvnc), iframe rendering the active tool URL, Pop Out button calling `window.open()`, Coder Dashboard link-out button, iframe error detection via `onLoad` check + setTimeout fallback that shows popup link UI, disabled state for non-running workspaces. Use `buildWorkspaceUrls()` from `urls.ts` for URL construction. Agent name comes from props (resolved server-side).
 - Verify: `test -f src/components/workspaces/WorkspaceToolPanel.tsx && grep -q "getWorkspaceAction" src/lib/actions/workspaces.ts`
 - Done when: WorkspaceToolPanel renders iframe with tab switching, popup-out, dashboard link-out, error fallback, and disabled state. getWorkspaceAction returns a single workspace by ID.
-- [ ] **T02: Create workspace detail page route and wire list page navigation** `est:30m`
+- [x] **T02: Create workspace detail page route and wire list page navigation** `est:30m`
 - Why: Connects T01's components into the app — creates the `/workspaces/[id]` route and adds navigation from the workspace list page. Without this, the panel component has no page to live on and users can't reach it.
 - Files: `src/app/workspaces/[id]/page.tsx`, `src/components/workspaces/WorkspacesClient.tsx`
 - Do: (1) Create `/workspaces/[id]/page.tsx` as an async server component following the terminal page pattern — await params to get workspace ID, call `getWorkspaceAction` and `getWorkspaceAgentAction` in parallel, handle error states (no workspace found, no agent), pass workspace data + agent name + coderUrl to WorkspaceToolPanel. (2) In `WorkspacesClient.tsx`, make the workspace name a Next.js `<Link>` to `/workspaces/${ws.id}` so users can navigate from list to detail. Keep existing tool link buttons as-is (they remain as quick-access shortcuts).
@@ -84,7 +84,7 @@
 
 ## Tasks
 
-- [ ] **T01: Build WorkspaceToolPanel component and add getWorkspaceAction server action** `est:45m`
+- [x] **T01: Build WorkspaceToolPanel component and add getWorkspaceAction server action** `est:45m`
   ## Description
 
 Creates the core iframe panel component (R040) and the server action needed to fetch a single workspace for the detail page. These are the foundational building blocks that the detail page route (T02) depends on.

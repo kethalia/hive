@@ -2,6 +2,7 @@
 
 import { useCallback, useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import {
   RefreshCw,
   FolderOpen,
@@ -309,9 +310,13 @@ export function WorkspacesClient({ initialWorkspaces }: WorkspacesClientProps) {
                   {/* Workspace info */}
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2">
-                      <span className="truncate font-semibold">
+                      <Link
+                        href={`/workspaces/${ws.id}`}
+                        className="truncate font-semibold hover:underline"
+                        onClick={(e) => e.stopPropagation()}
+                      >
                         {ws.name}
-                      </span>
+                      </Link>
                       <span
                         className={`inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-xs font-medium ${status.color}`}
                       >
