@@ -56,7 +56,7 @@
 - Do: (1) Create `/workspaces/[id]/page.tsx` as an async server component following the terminal page pattern — await params to get workspace ID, call `getWorkspaceAction` and `getWorkspaceAgentAction` in parallel, handle error states (no workspace found, no agent), pass workspace data + agent name + coderUrl to WorkspaceToolPanel. (2) In `WorkspacesClient.tsx`, make the workspace name a Next.js `<Link>` to `/workspaces/${ws.id}` so users can navigate from list to detail. Keep existing tool link buttons as-is (they remain as quick-access shortcuts).
 - Verify: `test -f src/app/workspaces/\\[id\\]/page.tsx && pnpm build`
 - Done when: `/workspaces/[id]` route renders WorkspaceToolPanel with workspace data. Workspace names in list page link to detail page. Build succeeds.
-- [ ] **T03: Add unit tests for WorkspaceToolPanel and getWorkspaceAction** `est:30m`
+- [x] **T03: Add unit tests for WorkspaceToolPanel and getWorkspaceAction** `est:30m`
 - Why: Validates component behavior and server action without a running Coder instance. Ensures tab switching, popup-out, error fallback, disabled state, and the new server action all work correctly.
 - Files: `src/__tests__/components/workspace-tool-panel.test.tsx`, `src/__tests__/lib/workspaces/actions.test.ts`
 - Do: (1) Create `workspace-tool-panel.test.tsx` with tests: renders filebrowser iframe by default, switches to kasmvnc tab, popup-out button calls window.open with correct URL, dashboard link-out renders with correct href, disabled state renders message instead of iframe when workspace is not running, error fallback UI renders when iframe error state is set. Mock `buildWorkspaceUrls` or pass URLs as props. (2) Add test to existing `actions.test.ts` for `getWorkspaceAction` — mock CoderClient.getWorkspace, verify it returns workspace data for valid ID.
@@ -149,7 +149,7 @@ Creates the core iframe panel component (R040) and the server action needed to f
   - Files: `src/components/workspaces/WorkspaceToolPanel.tsx`, `src/lib/actions/workspaces.ts`, `src/lib/workspaces/urls.ts`, `src/lib/coder/types.ts`, `src/lib/coder/client.ts`, `src/components/ui/button.tsx`
   - Verify: test -f src/components/workspaces/WorkspaceToolPanel.tsx && grep -q 'getWorkspaceAction' src/lib/actions/workspaces.ts && grep -q 'buildWorkspaceUrls' src/components/workspaces/WorkspaceToolPanel.tsx
 
-- [ ] **T02: Create workspace detail page route and wire list page navigation** `est:30m`
+- [x] **T02: Create workspace detail page route and wire list page navigation** `est:30m`
   ## Description
 
 Connects T01's components into the app — creates the `/workspaces/[id]` server route and adds navigation from the workspace list page. Without this, the panel component has no page to live on and users can't reach it.

@@ -46,6 +46,7 @@ const mockedExec = vi.mocked(execInWorkspace);
 describe("workspace server actions", () => {
   const mockListWorkspaces = vi.fn();
   const mockGetWorkspaceAgentName = vi.fn();
+  const mockGetWorkspace = vi.fn();
 
   beforeEach(() => {
     vi.stubEnv("CODER_URL", "https://coder.example.com");
@@ -56,6 +57,7 @@ describe("workspace server actions", () => {
     MockedCoderClient.mockImplementation(() => ({
       listWorkspaces: mockListWorkspaces,
       getWorkspaceAgentName: mockGetWorkspaceAgentName,
+      getWorkspace: mockGetWorkspace,
     }) as unknown as InstanceType<typeof CoderClient>);
   });
 
@@ -111,6 +113,35 @@ describe("workspace server actions", () => {
 
     expect(result?.data).toEqual([]);
     expect(mockedExec).not.toHaveBeenCalled();
+  });
+
+  it("getWorkspaceAction returns workspace by ID", async () => {
+    const workspace = {
+      id: "ws-1",
+      name: "dev",
+      template_id: "tpl-1",
+      owner_name: "alice",
+      latest_build: {
+        id: "build-1",
+        status: "running",
+        job: { status: "succeeded", error: "" },
+      },
+    };
+    mockGetWorkspace.mockResolvedValueOnce(workspace);
+
+    const { getWorkspaceAction } = await import("@/lib/actions/workspaces");
+    const result = await getWorkspaceAction({ workspaceId: "ws-1" });
+
+    expect(mockGetWorkspace).toHaveBeenCalledWith("ws-1");
+    expect(result?.data).toEqual(workspace);
+  });
+
+  it("getWorkspaceAction propagates client errors", async () => {
+    mockGetWorkspace.mockRejectedValueOnce(new Error("Not found"));
+
+    const { getWorkspaceAction } = await import("@/lib/actions/workspaces");
+
+    await expect(getWorkspaceAction({ workspaceId: "ws-missing" })).rejects.toThrow("Not found");
   });
 
   it("getWorkspaceSessionsAction returns empty array when tmux exits non-zero", async () => {
