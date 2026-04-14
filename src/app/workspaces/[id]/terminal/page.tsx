@@ -1,4 +1,4 @@
-import { getWorkspaceAgentAction } from "@/lib/actions/workspaces";
+import { getWorkspaceAgentAction, getWorkspaceSessionsAction } from "@/lib/actions/workspaces";
 import { TerminalClient } from "./terminal-client";
 
 interface TerminalPageProps {
@@ -10,9 +10,12 @@ export default async function TerminalPage({ params, searchParams }: TerminalPag
   const { id: workspaceId } = await params;
   const { session } = await searchParams;
 
-  const result = await getWorkspaceAgentAction({ workspaceId });
+  const [agentResult, sessionsResult] = await Promise.all([
+    getWorkspaceAgentAction({ workspaceId }),
+    getWorkspaceSessionsAction({ workspaceId }),
+  ]);
 
-  if (!result?.data) {
+  if (!agentResult?.data) {
     return (
       <div className="flex h-screen items-center justify-center bg-background text-foreground">
         <div className="text-center">
@@ -26,12 +29,15 @@ export default async function TerminalPage({ params, searchParams }: TerminalPag
   }
 
   const coderUrl = process.env.CODER_URL ?? "";
+  const sessions = sessionsResult?.data ?? [];
 
   return (
     <TerminalClient
-      agentId={result.data.agentId}
+      agentId={agentResult.data.agentId}
       coderUrl={coderUrl}
-      sessionName={session ?? "hive-main"}
+      workspaceId={workspaceId}
+      initialSessions={sessions}
+      initialSessionName={session}
     />
   );
 }

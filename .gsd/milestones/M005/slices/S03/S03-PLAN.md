@@ -43,7 +43,7 @@ R039 requires create (auto-named), rename, and kill from the dashboard. Auto-nam
   - Files: `src/lib/actions/workspaces.ts`, `src/__tests__/lib/actions/session-actions.test.ts`
   - Verify: pnpm vitest run src/__tests__/lib/actions/session-actions.test.ts && pnpm vitest run
 
-- [ ] **T02: Build TerminalTabManager component with multi-tab terminal support** `est:1h`
+- [x] **T02: Build TerminalTabManager component with multi-tab terminal support** `est:1h`
   Create `src/components/workspaces/TerminalTabManager.tsx` — a client component that manages multiple terminal tabs. Replace the single-terminal rendering in `terminal-client.tsx` with this tab manager. Update `page.tsx` to fetch existing tmux sessions and pass them to the client.
 
 The tab manager maintains state: `tabs: Array<{ id: string, sessionName: string }>` and `activeTabId: string`. It renders a horizontal tab bar using Button components (ghost variant for inactive, outline for active — no Tabs component exists in the UI library per research). Each tab shows the session name and an X close button. A "+" button at the end creates a new tab by calling `createSessionAction` from T01.
