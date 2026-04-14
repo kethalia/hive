@@ -115,7 +115,7 @@
   - Files: `src/app/workspaces/page.tsx`, `src/components/workspaces/WorkspacesClient.tsx`
   - Verify: pnpm build && test -f src/app/workspaces/page.tsx && test -f src/components/workspaces/WorkspacesClient.tsx && grep -q 'WorkspacesClient' src/app/workspaces/page.tsx
 
-- [ ] **T03: Add tests for workspace URL builder, tmux session parser, and server actions** `est:30m`
+- [x] **T03: Add tests for workspace URL builder, tmux session parser, and server actions** `est:30m`
   This task adds unit tests covering the data layer introduced in T01. Tests follow the existing pattern in `src/__tests__/lib/coder/client.test.ts` — using vitest with vi.fn() for fetch mocking. The tests cover the URL builder, tmux session parser, and server action error handling.
 
 ## Steps
