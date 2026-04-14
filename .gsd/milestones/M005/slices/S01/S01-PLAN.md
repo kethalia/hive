@@ -73,7 +73,7 @@
   - Files: `src/lib/coder/types.ts`, `src/lib/workspaces/urls.ts`, `src/lib/workspaces/sessions.ts`, `src/lib/actions/workspaces.ts`, `src/components/app-sidebar.tsx`
   - Verify: pnpm build && grep -q 'Workspaces' src/components/app-sidebar.tsx && test -f src/lib/actions/workspaces.ts && test -f src/lib/workspaces/urls.ts && test -f src/lib/workspaces/sessions.ts
 
-- [ ] **T02: Build /workspaces page with workspace list, status badges, tmux sessions, and external tool links** `est:1h`
+- [x] **T02: Build /workspaces page with workspace list, status badges, tmux sessions, and external tool links** `est:1h`
   This task creates the UI for the workspaces page following the exact pattern of `/templates` — an async server component that fetches initial data, passing it to a client component that handles interaction and polling. The client component renders a workspace list with status badges (colored dots/pills based on workspace build status), click-to-expand panels showing tmux sessions for each workspace, and external tool link buttons.
 
 ## Steps
