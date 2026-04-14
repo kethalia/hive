@@ -25,11 +25,11 @@ Unattended task-to-PR automation with behavioral verification — the system doe
 - S02 (Push Job Worker & SSE Streaming Route): ✅ complete
 - S03 (Templates Dashboard Page with xterm.js): ✅ complete — 315 total tests pass across 42 files.
 
-**M005 in progress — 3 of 4 slices complete.**
-- S01 (Workspace Discovery & Listing): ✅ complete — /workspaces page with live Coder workspace listing, status badges, lazy-loaded tmux sessions, external tool links (Filebrowser, KasmVNC, Dashboard), sidebar navigation. 16 new tests, 331 total passing.
-- S02 (Bidirectional Terminal via PTY WebSocket): ✅ complete — Custom server.ts wrapping Next.js with WebSocket upgrade proxy to Coder PTY endpoint. InteractiveTerminal component with xterm.js, auto-reconnect with exponential backoff, tmux session persistence. 44 new terminal tests, 375 total passing.
-- S03 (Multi-Tab Terminal & Session Management): ✅ complete — TerminalTabManager with multiple simultaneous terminal tabs, inline rename, kill, session picker. 22 new tests, 397 total passing.
-- S04 (External Tool Integration): ⬜ remaining — embedded Filebrowser/KasmVNC iframes
+**M005 complete — all 4 slices delivered and verified.** Persistent tmux-backed interactive terminals in the Hive dashboard with workspace discovery, multi-tab support, session lifecycle management, and integrated access to external workspace tools. 76 new tests, 407 total passing across 51 files.
+- S01 (Workspace Discovery & Listing): ✅ complete — /workspaces page with live Coder workspace listing, status badges, lazy-loaded tmux sessions, external tool links, sidebar navigation. 16 tests.
+- S02 (Bidirectional Terminal via PTY WebSocket): ✅ complete — Custom server.ts wrapping Next.js with WebSocket upgrade proxy to Coder PTY endpoint. InteractiveTerminal with xterm.js, auto-reconnect with exponential backoff, tmux session persistence. 44 tests.
+- S03 (Multi-Tab Terminal & Session Management): ✅ complete — TerminalTabManager with multiple simultaneous terminal tabs, inline rename, kill, session picker. 22 tests.
+- S04 (External Tool Integration): ✅ complete — Workspace detail page at /workspaces/[id] with iframe-embedded Filebrowser/KasmVNC panels, tab toggle, popup-out buttons, Coder Dashboard link-out, error fallback. 10 tests.
 
 **Operational notes:** M001 cleanup scheduler not wired to entrypoint. M002 council can run in isolation or as part of full pipeline; initial testing with 3-reviewer council works correctly with mock data. Real GitHub integration tested via mocked gh CLI; live GitHub token handling depends on environment setup during deployment. M005 dev workflow now uses `tsx watch server.ts` instead of `next dev` to support WebSocket upgrade.
 
@@ -45,6 +45,7 @@ Repository: https://github.com/kethalia/hive
 - **Dashboard:** Next.js + Tailwind v4, with live agent streaming via SSE (custom React components, not pi-web-ui Lit — D009)
 - **Template Management:** Staleness engine compares local template files against Coder's active version via deterministic sha256 hashing of sorted file paths + contents. Push worker spawns coder CLI as child process with log-file-based SSE streaming. Dashboard page at /templates with xterm.js terminal panels for live push output.
 - **Workspace Terminals:** Custom server.ts wraps Next.js with WebSocket upgrade support. Browser connects via xterm.js → WebSocket proxy → Coder PTY endpoint. All sessions tmux-backed for persistence. Auto-reconnect with exponential backoff on network interruption. Multi-tab support via TerminalTabManager — inactive tabs hidden with display:none to preserve xterm.js instances. Session lifecycle (create/rename/kill) managed through server actions with SAFE_IDENTIFIER_RE validation. Session picker for reconnecting to existing tmux sessions.
+- **External Tool Integration:** Workspace detail page at /workspaces/[id] embeds Filebrowser and KasmVNC in iframe panels with tab toggle and popup-out buttons. Coder Dashboard accessed via link-out. Cross-origin iframe error detection with automatic fallback to direct links. Disabled state for non-running workspaces.
 - **Deployment:** Solo operator, no auth. Docker-compose: Next.js + Postgres + Redis
 
 ## Capability Contract
@@ -56,4 +57,4 @@ See `.gsd/REQUIREMENTS.md` for the explicit capability contract, requirement sta
 - [x] M001: Minimum Viable Hive — Task-to-PR pipeline with worker + verifier + dashboard (22 requirements validated)
 - [ ] M002: Council Review — N independent Claude reviewer agents analyse the PR diff in parallel, aggregate findings by consensus, post a single combined review comment
 - [x] M004: Template Management Dashboard — Web UI for viewing template staleness and pushing updates (3 slices, 315 tests)
-- [ ] M005: Workspace Terminals — Persistent tmux-backed interactive terminals in the dashboard with workspace discovery and external tool integration
+- [x] M005: Workspace Terminals — Persistent tmux-backed interactive terminals in the dashboard with workspace discovery and external tool integration (4 slices, 407 tests, 7 requirements validated)

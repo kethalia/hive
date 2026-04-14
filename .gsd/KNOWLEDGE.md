@@ -182,3 +182,9 @@ Next.js 16 with Turbopack rejects `dynamic(() => import(...), { ssr: false })` w
 **Discovered:** 2026-04-14 during M005/S02/T02
 
 Next.js App Router route handlers return `Response` objects and cannot access the raw HTTP socket needed for WebSocket upgrade. For bidirectional WebSocket support, wrap Next.js in a custom `server.ts` using `http.createServer` + `server.on('upgrade', ...)`. Use `app.getUpgradeHandler()` to delegate non-intercepted upgrades (HMR) back to Next.js. The `ws` package in `noServer` mode receives the raw socket from the HTTP server, avoiding port conflicts. Dev script becomes `tsx watch server.ts` instead of `next dev`.
+
+## Cross-Origin Iframe Error Detection in jsdom/Vitest
+
+**Discovered:** 2026-04-14 during M005/S04/T03
+
+The `<iframe>` element's `onError` event does not fire for cross-origin blocks — only for network-level failures. To detect iframe embedding failures (X-Frame-Options, CSP), use a `setTimeout` after mount and attempt to access `iframe.contentWindow.document`. If this throws a `DOMException` (cross-origin), the iframe is blocked. In tests (jsdom), use `Object.defineProperty(iframeElement, 'contentWindow', { get() { throw new DOMException(...) } })` to simulate this — mocking `document.createElement` doesn't work because React creates elements internally.
