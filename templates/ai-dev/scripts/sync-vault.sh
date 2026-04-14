@@ -34,7 +34,7 @@ sync_file() {
   local targets=("$@")
 
   if [ ! -f "$src" ]; then
-    echo "$name: skipped (vault not available)"
+    echo "$name: skipped (source file missing: $src)"
     return
   fi
 

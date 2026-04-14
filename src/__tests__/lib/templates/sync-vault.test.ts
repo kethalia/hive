@@ -83,11 +83,16 @@ describe("sync-vault.sh", () => {
     it("preserves existing CLAUDE.md when vault is missing", async () => {
       await rm(vaultDir, { recursive: true, force: true });
       await writeFile(join(claudeDir, "CLAUDE.md"), "# Existing local");
+      await mkdir(gsdDir, { recursive: true });
+      await writeFile(join(gsdDir, "CLAUDE.md"), "# Existing GSD");
 
       await runSync({ HOME: tempDir });
 
-      const content = await readFile(join(claudeDir, "CLAUDE.md"), "utf-8");
-      expect(content).toBe("# Existing local");
+      const claudeContent = await readFile(join(claudeDir, "CLAUDE.md"), "utf-8");
+      expect(claudeContent).toBe("# Existing local");
+
+      const gsdContent = await readFile(join(gsdDir, "CLAUDE.md"), "utf-8");
+      expect(gsdContent).toBe("# Existing GSD");
     });
   });
 
