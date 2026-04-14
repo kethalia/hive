@@ -13,14 +13,15 @@ const InteractiveTerminal = dynamic(
 interface TerminalClientProps {
   agentId: string;
   coderUrl: string;
+  sessionName: string;
 }
 
-export function TerminalClient({ agentId, coderUrl }: TerminalClientProps) {
+export function TerminalClient({ agentId, coderUrl, sessionName }: TerminalClientProps) {
   return (
     <div className="flex h-screen flex-col bg-background p-4">
       <InteractiveTerminal
         agentId={agentId}
-        sessionName="hive-main"
+        sessionName={sessionName}
         coderUrl={coderUrl}
         className="flex-1"
       />

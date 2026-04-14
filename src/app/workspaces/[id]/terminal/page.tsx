@@ -3,10 +3,12 @@ import { TerminalClient } from "./terminal-client";
 
 interface TerminalPageProps {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ session?: string }>;
 }
 
-export default async function TerminalPage({ params }: TerminalPageProps) {
+export default async function TerminalPage({ params, searchParams }: TerminalPageProps) {
   const { id: workspaceId } = await params;
+  const { session } = await searchParams;
 
   const result = await getWorkspaceAgentAction({ workspaceId });
 
@@ -29,6 +31,7 @@ export default async function TerminalPage({ params }: TerminalPageProps) {
     <TerminalClient
       agentId={result.data.agentId}
       coderUrl={coderUrl}
+      sessionName={session ?? "hive-main"}
     />
   );
 }

@@ -236,7 +236,7 @@ Key constraints from research:
   - Files: `src/hooks/useTerminalWebSocket.ts`, `src/components/workspaces/InteractiveTerminal.tsx`, `src/app/workspaces/[id]/terminal/page.tsx`, `src/lib/actions/workspaces.ts`, `src/__tests__/lib/terminal/hooks.test.ts`
   - Verify: pnpm vitest run src/__tests__/lib/terminal/hooks.test.ts && pnpm build
 
-- [ ] **T04: Wire terminal connect buttons into workspace list and verify full integration** `est:30m`
+- [x] **T04: Wire terminal connect buttons into workspace list and verify full integration** `est:30m`
   Connect the InteractiveTerminal into the existing workspace UI — add 'New Terminal' and per-session 'Connect' buttons to WorkspacesClient.tsx, wire them to navigate to the terminal page, and run full verification across the slice.
 
 This task closes the integration loop: after T01-T03, the terminal infrastructure exists but isn't accessible from the workspace listing page. Users need to click a button on a workspace card to open a terminal session.

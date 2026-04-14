@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useState } from "react";
+import { useRouter } from "next/navigation";
 import {
   RefreshCw,
   FolderOpen,
@@ -131,6 +132,7 @@ interface SessionState {
 }
 
 export function WorkspacesClient({ initialWorkspaces }: WorkspacesClientProps) {
+  const router = useRouter();
   const [workspaces, setWorkspaces] =
     useState<CoderWorkspace[]>(initialWorkspaces);
   const [expandedId, setExpandedId] = useState<string | null>(null);
@@ -369,6 +371,14 @@ export function WorkspacesClient({ initialWorkspaces }: WorkspacesClientProps) {
                           <ExternalLink className="h-4 w-4" />
                         </Button>
                       </a>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        title="New Terminal"
+                        onClick={() => router.push(`/workspaces/${ws.id}/terminal`)}
+                      >
+                        <Terminal className="h-4 w-4" />
+                      </Button>
                     </div>
                   )}
                 </div>
@@ -408,8 +418,21 @@ export function WorkspacesClient({ initialWorkspaces }: WorkspacesClientProps) {
                               {session.windows} window
                               {session.windows !== 1 ? "s" : ""}
                             </span>
-                            <span className="ml-auto text-xs text-muted-foreground">
-                              {formatTimestamp(session.created)}
+                            <span className="ml-auto flex items-center gap-2">
+                              <span className="text-xs text-muted-foreground">
+                                {formatTimestamp(session.created)}
+                              </span>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="h-6 px-2 text-xs"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  router.push(`/workspaces/${ws.id}/terminal?session=${encodeURIComponent(session.name)}`);
+                                }}
+                              >
+                                Connect
+                              </Button>
                             </span>
                           </div>
                         ))}
