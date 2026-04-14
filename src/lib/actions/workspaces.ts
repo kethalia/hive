@@ -24,6 +24,17 @@ const getWorkspaceAgentSchema = z.object({
   workspaceId: z.string().min(1, "workspaceId is required"),
 });
 
+const getWorkspaceSchema = z.object({
+  workspaceId: z.string().min(1, "workspaceId is required"),
+});
+
+export const getWorkspaceAction = actionClient
+  .inputSchema(getWorkspaceSchema)
+  .action(async ({ parsedInput }) => {
+    const client = getCoderClient();
+    return client.getWorkspace(parsedInput.workspaceId);
+  });
+
 export const getWorkspaceAgentAction = actionClient
   .inputSchema(getWorkspaceAgentSchema)
   .action(async ({ parsedInput }) => {
