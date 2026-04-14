@@ -2,9 +2,9 @@
 # sync-vault.sh — Sync vault config files and skills to local agent directories
 #
 # Vault is the single source of truth for:
-#   - CLAUDE.md  (global Claude Code instructions)
-#   - AGENTS.md  (skill registry & context discovery)
-#   - Skills/    (skill directories with SKILL.md files)
+#   - Agents/CLAUDE.md  (global Claude Code instructions)
+#   - Agents/AGENTS.md  (agent orientation & context discovery)
+#   - Skills/           (skill directories with SKILL.md files)
 #
 # Called automatically by:
 #   - init.sh (startup path — deploys this script, then calls it)
@@ -16,6 +16,7 @@
 set -euo pipefail
 
 VAULT_DIR="$HOME/vault"
+AGENTS_SRC="$VAULT_DIR/Agents"
 CLAUDE_DIR="$HOME/.claude"
 GSD_DIR="$HOME/.gsd/agent"
 
@@ -23,41 +24,45 @@ GSD_DIR="$HOME/.gsd/agent"
 changes=()
 
 # -----------------------------------------------------------------------------
-# CLAUDE.md — always overwrite from vault
+# sync_file — copy a vault file to one or more target directories
+# Usage: sync_file <source_path> <filename> <target_dir> [<target_dir>...]
 # -----------------------------------------------------------------------------
-sync_claude_md() {
-  mkdir -p "$CLAUDE_DIR"
+sync_file() {
+  local src="$1"
+  local name="$2"
+  shift 2
+  local targets=("$@")
 
-  if [ -f "$VAULT_DIR/CLAUDE.md" ]; then
-    if [ -f "$CLAUDE_DIR/CLAUDE.md" ] && diff -q "$VAULT_DIR/CLAUDE.md" "$CLAUDE_DIR/CLAUDE.md" >/dev/null 2>&1; then
-      echo "CLAUDE.md: already in sync"
-    else
-      cp "$VAULT_DIR/CLAUDE.md" "$CLAUDE_DIR/CLAUDE.md"
-      changes+=("CLAUDE.md synced from vault")
-      echo "CLAUDE.md: synced from vault"
-    fi
-  else
-    echo "CLAUDE.md: skipped (vault not available)"
+  if [ ! -f "$src" ]; then
+    echo "$name: skipped (source file missing: $src)"
+    return
   fi
+
+  for target_dir in "${targets[@]}"; do
+    mkdir -p "$target_dir"
+    local dest="$target_dir/$name"
+    if [ -f "$dest" ] && diff -q "$src" "$dest" >/dev/null 2>&1; then
+      echo "$name → $target_dir: already in sync"
+    else
+      cp "$src" "$dest"
+      changes+=("$name synced to $target_dir")
+      echo "$name → $target_dir: synced from vault"
+    fi
+  done
 }
 
 # -----------------------------------------------------------------------------
-# AGENTS.md — always overwrite from vault
+# CLAUDE.md — always overwrite from vault/Agents/ to ~/.claude/ and ~/.gsd/agent/
+# -----------------------------------------------------------------------------
+sync_claude_md() {
+  sync_file "$AGENTS_SRC/CLAUDE.md" "CLAUDE.md" "$CLAUDE_DIR" "$GSD_DIR"
+}
+
+# -----------------------------------------------------------------------------
+# AGENTS.md — always overwrite from vault/Agents/ to ~/.claude/ and ~/.gsd/agent/
 # -----------------------------------------------------------------------------
 sync_agents_md() {
-  mkdir -p "$CLAUDE_DIR"
-
-  if [ -f "$VAULT_DIR/AGENTS.md" ]; then
-    if [ -f "$CLAUDE_DIR/AGENTS.md" ] && diff -q "$VAULT_DIR/AGENTS.md" "$CLAUDE_DIR/AGENTS.md" >/dev/null 2>&1; then
-      echo "AGENTS.md: already in sync"
-    else
-      cp "$VAULT_DIR/AGENTS.md" "$CLAUDE_DIR/AGENTS.md"
-      changes+=("AGENTS.md synced from vault")
-      echo "AGENTS.md: synced from vault"
-    fi
-  else
-    echo "AGENTS.md: skipped (vault not available)"
-  fi
+  sync_file "$AGENTS_SRC/AGENTS.md" "AGENTS.md" "$CLAUDE_DIR" "$GSD_DIR"
 }
 
 # -----------------------------------------------------------------------------
