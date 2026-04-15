@@ -68,6 +68,7 @@ vi.mock("@/components/ui/input", () => ({
 vi.mock("lucide-react", () => ({
   X: () => <span data-testid="icon-x">×</span>,
   Plus: () => <span data-testid="icon-plus">+</span>,
+  Pencil: () => <span data-testid="icon-pencil">✎</span>,
 }));
 
 import { TerminalTabManager } from "@/components/workspaces/TerminalTabManager";
@@ -156,7 +157,7 @@ describe("TerminalTabManager", () => {
   });
 
   describe("rename", () => {
-    it("enters inline edit mode on double-click and commits on Enter", async () => {
+    it("enters inline edit mode on pencil click and commits on Enter", async () => {
       mockGetSessions.mockResolvedValue({
         data: [{ name: "hive-main", created: 1000, windows: 1 }],
       });
@@ -170,8 +171,8 @@ describe("TerminalTabManager", () => {
         expect(screen.getByTestId("tab-label")).toHaveTextContent("hive-main");
       });
 
-      const tabButton = screen.getByTestId("tab-label").closest("button")!;
-      fireEvent.doubleClick(tabButton);
+      const renameBtn = screen.getByTestId("rename-tab");
+      fireEvent.click(renameBtn);
 
       const input = screen.getByTestId("rename-input");
       expect(input).toBeInTheDocument();
@@ -204,8 +205,8 @@ describe("TerminalTabManager", () => {
         expect(screen.getByTestId("tab-label")).toHaveTextContent("hive-main");
       });
 
-      const tabButton = screen.getByTestId("tab-label").closest("button")!;
-      fireEvent.doubleClick(tabButton);
+      const renameBtn = screen.getByTestId("rename-tab");
+      fireEvent.click(renameBtn);
 
       const input = screen.getByTestId("rename-input");
       fireEvent.change(input, { target: { value: "new-name" } });
@@ -226,8 +227,8 @@ describe("TerminalTabManager", () => {
         expect(screen.getByTestId("tab-label")).toHaveTextContent("hive-main");
       });
 
-      const tabButton = screen.getByTestId("tab-label").closest("button")!;
-      fireEvent.doubleClick(tabButton);
+      const renameBtn = screen.getByTestId("rename-tab");
+      fireEvent.click(renameBtn);
 
       const input = screen.getByTestId("rename-input");
       fireEvent.change(input, { target: { value: "bad name!" } });

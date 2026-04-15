@@ -85,6 +85,7 @@ vi.mock("@/components/ui/popover", () => ({
 vi.mock("lucide-react", () => ({
   Plus: () => <span>+</span>,
   X: () => <span>×</span>,
+  Pencil: () => <span>✎</span>,
   Loader2: () => <span data-testid="loader">…</span>,
   Terminal: () => <span>T</span>,
   ChevronDown: () => <span>▾</span>,

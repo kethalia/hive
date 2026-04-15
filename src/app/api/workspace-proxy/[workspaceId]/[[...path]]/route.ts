@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { CoderClient } from "@/lib/coder/client";
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 interface WorkspaceMeta {
   owner: string;
   name: string;
@@ -8,6 +10,7 @@ interface WorkspaceMeta {
   expiresAt: number;
 }
 
+const MAX_CACHE_SIZE = 100;
 const metaCache = new Map<string, WorkspaceMeta>();
 const CACHE_TTL_MS = 5 * 60 * 1000;
 
@@ -21,6 +24,7 @@ const STRIP_RESPONSE_HEADERS = new Set([
   "content-security-policy",
   "content-security-policy-report-only",
   "strict-transport-security",
+  "coder-session-token",
 ]);
 
 const SKIP_REQUEST_HEADERS = new Set([
@@ -52,6 +56,10 @@ async function getWorkspaceMeta(workspaceId: string): Promise<WorkspaceMeta> {
     agent: agentName,
     expiresAt: Date.now() + CACHE_TTL_MS,
   };
+  if (metaCache.size >= MAX_CACHE_SIZE) {
+    const oldest = metaCache.keys().next().value;
+    if (oldest) metaCache.delete(oldest);
+  }
   metaCache.set(workspaceId, meta);
   return meta;
 }
@@ -73,16 +81,29 @@ function resolveApp(pathSegments: string[]): { appSlug: string; subPath: string 
   };
 }
 
+function getCoderHost(): string {
+  return process.env.CODER_URL!.replace(/^https?:\/\//, "").replace(/\/+$/, "");
+}
+
 function buildTargetUrl(
   meta: WorkspaceMeta,
   appSlug: string,
   subPath: string,
   search: string,
 ): string {
-  const coderUrl = process.env.CODER_URL!;
-  const coderHost = coderUrl.replace(/^https?:\/\//, "").replace(/\/+$/, "");
+  const coderHost = getCoderHost();
   const base = `https://${appSlug}--${meta.agent}--${meta.name}--${meta.owner}.${coderHost}`;
   return `${base}/${subPath}${search}`;
+}
+
+/**
+ * Returns true if the given URL points to a host under the Coder deployment
+ * (i.e. the Coder base host itself or any subdomain of it).
+ */
+function isCoderOrigin(url: URL): boolean {
+  const coderHost = getCoderHost().toLowerCase();
+  const targetHost = url.host.toLowerCase();
+  return targetHost === coderHost || targetHost.endsWith(`.${coderHost}`);
 }
 
 async function proxyRequest(
@@ -91,6 +112,13 @@ async function proxyRequest(
 ): Promise<NextResponse> {
   const { workspaceId } = params;
   const pathSegments = params.path ?? [];
+
+  if (!UUID_RE.test(workspaceId)) {
+    return NextResponse.json(
+      { error: "Invalid workspace ID" },
+      { status: 400 },
+    );
+  }
 
   if (!process.env.CODER_URL || !process.env.CODER_SESSION_TOKEN) {
     return NextResponse.json(
@@ -140,7 +168,17 @@ async function proxyRequest(
       if (upstream.status < 300 || upstream.status >= 400) break;
       const location = upstream.headers.get("location");
       if (!location) break;
-      currentUrl = new URL(location, currentUrl).toString();
+
+      const resolvedLocation = new URL(location, currentUrl);
+
+      // If the redirect points outside the Coder deployment, stop
+      // following. Return the redirect to the browser so it can handle
+      // it directly — without ever forwarding the session token.
+      if (!isCoderOrigin(resolvedLocation)) {
+        break;
+      }
+
+      currentUrl = resolvedLocation.toString();
     }
 
     const responseHeaders = new Headers();
@@ -149,14 +187,18 @@ async function proxyRequest(
       responseHeaders.set(key, value);
     }
 
-    const appHost = new URL(targetUrl).host;
     if (upstream!.status >= 300 && upstream!.status < 400) {
       const location = upstream!.headers.get("location");
       if (location) {
         const locUrl = new URL(location, currentUrl);
-        if (locUrl.host === appHost) {
+        if (isCoderOrigin(locUrl)) {
+          // Internal redirect — rewrite to go through the proxy
           const proxyBase = `/api/workspace-proxy/${workspaceId}`;
           responseHeaders.set("location", `${proxyBase}${locUrl.pathname}${locUrl.search}`);
+        } else {
+          // External redirect — pass through the absolute URL as-is
+          // so the browser navigates directly without the session token
+          responseHeaders.set("location", locUrl.toString());
         }
       }
     }
@@ -167,11 +209,16 @@ async function proxyRequest(
     if (isHtml && upstream!.body) {
       const proxyBase = `/api/workspace-proxy/${workspaceId}`;
       let html = await upstream!.text();
-      // Rewrite absolute paths in HTML attributes
-      html = html.replace(
-        /(src|href|action)="\/(?!\/)/g,
-        `$1="${proxyBase}/`,
-      );
+      // Inject <base> tag for robust path rewriting — covers src, href,
+      // action, CSS url(), and JS-initiated fetches with relative paths.
+      const baseTag = `<base href="${proxyBase}/" />`;
+      if (html.includes("<head>")) {
+        html = html.replace("<head>", `<head>${baseTag}`);
+      } else if (html.includes("<HEAD>")) {
+        html = html.replace("<HEAD>", `<HEAD>${baseTag}`);
+      } else {
+        html = baseTag + html;
+      }
       // Inject proxy base into filebrowser's runtime config
       html = html.replace(
         '"BaseURL":""',
@@ -198,7 +245,7 @@ async function proxyRequest(
   } catch (e) {
     const detail = e instanceof Error ? `${e.message} (${e.cause ?? "no cause"})` : String(e);
     return NextResponse.json(
-      { error: `Proxy error: ${detail}`, targetUrl },
+      { error: `Proxy error: ${detail}` },
       { status: 502 },
     );
   }

@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { Plus, X, Loader2, Terminal, ChevronDown } from "lucide-react";
+import { Plus, X, Loader2, Terminal, ChevronDown, Pencil } from "lucide-react";
 import {
   Breadcrumb,
   BreadcrumbList,
@@ -23,8 +23,11 @@ import {
   getWorkspaceSessionsAction,
   createSessionAction,
   killSessionAction,
+  renameSessionAction,
 } from "@/lib/actions/workspaces";
 import type { TmuxSession } from "@/lib/workspaces/sessions";
+import { SAFE_IDENTIFIER_RE } from "@/lib/constants";
+import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 
 interface TerminalBreadcrumbsProps {
@@ -41,6 +44,8 @@ export function TerminalBreadcrumbs({ workspaceId }: TerminalBreadcrumbsProps) {
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
   const [popoverOpen, setPopoverOpen] = useState(false);
+  const [editingName, setEditingName] = useState<string | null>(null);
+  const [editValue, setEditValue] = useState("");
   const initializedRef = useRef(false);
 
   useEffect(() => {
@@ -124,18 +129,55 @@ export function TerminalBreadcrumbs({ workspaceId }: TerminalBreadcrumbsProps) {
       e.stopPropagation();
       try {
         await killSessionAction({ workspaceId, sessionName: name });
-        setSessions((prev) => {
-          const updated = prev.filter((s) => s.name !== name);
-          if (currentSession === name && updated.length > 0) {
-            selectSession(updated[0].name);
-          }
-          return updated;
-        });
+        const updated = sessions.filter((s) => s.name !== name);
+        setSessions(updated);
+        if (currentSession === name && updated.length > 0) {
+          selectSession(updated[0].name);
+        }
       } catch (err) {
         console.error("[breadcrumbs] Failed to delete session:", err);
       }
     },
-    [workspaceId, currentSession, selectSession],
+    [workspaceId, currentSession, selectSession, sessions],
+  );
+
+  const startRename = useCallback((name: string) => {
+    setEditingName(name);
+    setEditValue(name);
+  }, []);
+
+  const commitRename = useCallback(
+    async (oldName: string) => {
+      const trimmed = editValue.trim();
+      if (!trimmed || trimmed === oldName || !SAFE_IDENTIFIER_RE.test(trimmed)) {
+        setEditingName(null);
+        return;
+      }
+      try {
+        const result = await renameSessionAction({
+          workspaceId,
+          oldName,
+          newName: trimmed,
+        });
+        if (result?.data) {
+          setSessions((prev) =>
+            prev.map((s) =>
+              s.name === oldName ? { ...s, name: result.data!.newName } : s,
+            ),
+          );
+          if (currentSession === oldName) {
+            router.replace(
+              `/workspaces/${workspaceId}/terminal?session=${encodeURIComponent(result.data.newName)}`,
+            );
+          }
+        }
+      } catch (err) {
+        console.error("[breadcrumbs] Failed to rename session:", err);
+      } finally {
+        setEditingName(null);
+      }
+    },
+    [editValue, workspaceId, currentSession, router],
   );
 
   if (loading) {
@@ -202,22 +244,60 @@ export function TerminalBreadcrumbs({ workspaceId }: TerminalBreadcrumbsProps) {
                     <div
                       key={session.name}
                       className={cn(
-                        "group flex cursor-pointer items-center justify-between rounded-md px-2 py-1.5 text-sm hover:bg-accent",
+                        "flex cursor-pointer items-center justify-between rounded-md px-2 py-1.5 text-sm hover:bg-accent",
                         currentSession === session.name && "bg-accent",
                       )}
-                      onClick={() => selectSession(session.name)}
+                      onClick={() => {
+                        if (editingName !== session.name) {
+                          selectSession(session.name);
+                        }
+                      }}
                     >
-                      <span className="truncate font-mono text-xs">
-                        {session.name}
-                      </span>
-                      <button
-                        type="button"
-                        className="ml-2 shrink-0 rounded p-0.5 opacity-0 transition-opacity hover:bg-destructive/20 hover:text-destructive group-hover:opacity-100"
-                        onClick={(e) => handleDelete(session.name, e)}
-                        title="Delete session"
-                      >
-                        <X className="h-3 w-3" />
-                      </button>
+                      {editingName === session.name ? (
+                        <Input
+                          className="h-5 w-full rounded border-none bg-transparent px-0 py-0 font-mono text-xs shadow-none focus-visible:ring-0"
+                          value={editValue}
+                          onChange={(e) => setEditValue(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") {
+                              commitRename(session.name);
+                            } else if (e.key === "Escape") {
+                              setEditingName(null);
+                            }
+                            e.stopPropagation();
+                          }}
+                          onBlur={() => commitRename(session.name)}
+                          onClick={(e) => e.stopPropagation()}
+                          autoFocus
+                        />
+                      ) : (
+                        <span className="truncate font-mono text-xs">
+                          {session.name}
+                        </span>
+                      )}
+                      <div className="ml-2 flex shrink-0 items-center gap-0.5">
+                        <button
+                          type="button"
+                          aria-label={`Rename session ${session.name}`}
+                          className="rounded p-0.5 hover:bg-accent-foreground/10"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            startRename(session.name);
+                          }}
+                          title="Rename session"
+                        >
+                          <Pencil className="h-3 w-3" />
+                        </button>
+                        <button
+                          type="button"
+                          aria-label={`Delete session ${session.name}`}
+                          className="rounded p-0.5 hover:bg-destructive/20 hover:text-destructive"
+                          onClick={(e) => handleDelete(session.name, e)}
+                          title="Delete session"
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                      </div>
                     </div>
                   ))
                 )}

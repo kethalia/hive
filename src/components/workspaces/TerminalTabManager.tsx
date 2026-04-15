@@ -1,10 +1,11 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useReducer, useState } from "react";
 import dynamic from "next/dynamic";
-import { X, Plus } from "lucide-react";
+import { X, Plus, Pencil } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
 import {
   createSessionAction,
   renameSessionAction,
@@ -13,6 +14,8 @@ import {
 } from "@/lib/actions/workspaces";
 import { SAFE_IDENTIFIER_RE } from "@/lib/constants";
 import { cn } from "@/lib/utils";
+import { connectionBadgeProps } from "@/components/workspaces/InteractiveTerminal";
+import type { ConnectionState } from "@/hooks/useTerminalWebSocket";
 
 const InteractiveTerminal = dynamic(
   () =>
@@ -27,6 +30,48 @@ interface Tab {
   sessionName: string;
 }
 
+interface TabState {
+  tabs: Tab[];
+  activeTabId: string | null;
+}
+
+type TabAction =
+  | { type: "SET_TABS"; tabs: Tab[]; activeTabId: string }
+  | { type: "ADD_TAB"; tab: Tab }
+  | { type: "RENAME_TAB"; tabId: string; newName: string }
+  | { type: "KILL_TAB"; tabId: string }
+  | { type: "SET_ACTIVE"; tabId: string };
+
+function tabReducer(state: TabState, action: TabAction): TabState {
+  switch (action.type) {
+    case "SET_TABS":
+      return { tabs: action.tabs, activeTabId: action.activeTabId };
+    case "ADD_TAB":
+      return { tabs: [...state.tabs, action.tab], activeTabId: action.tab.id };
+    case "RENAME_TAB":
+      return {
+        ...state,
+        tabs: state.tabs.map((t) =>
+          t.id === action.tabId ? { ...t, sessionName: action.newName } : t,
+        ),
+      };
+    case "KILL_TAB": {
+      const updated = state.tabs.filter((t) => t.id !== action.tabId);
+      let newActiveId = state.activeTabId;
+      if (state.activeTabId === action.tabId && updated.length > 0) {
+        const closedIndex = state.tabs.findIndex((t) => t.id === action.tabId);
+        const nextIndex = Math.min(closedIndex, updated.length - 1);
+        newActiveId = updated[nextIndex].id;
+      }
+      return { tabs: updated, activeTabId: newActiveId };
+    }
+    case "SET_ACTIVE":
+      return { ...state, activeTabId: action.tabId };
+    default:
+      return state;
+  }
+}
+
 interface TerminalTabManagerProps {
   agentId: string;
   workspaceId: string;
@@ -36,10 +81,18 @@ export function TerminalTabManager({
   agentId,
   workspaceId,
 }: TerminalTabManagerProps) {
-  const [tabs, setTabs] = useState<Tab[]>([]);
-  const [activeTabId, setActiveTabId] = useState<string | null>(null);
+  const [{ tabs, activeTabId }, dispatch] = useReducer(tabReducer, {
+    tabs: [],
+    activeTabId: null,
+  });
   const [creating, setCreating] = useState(false);
   const [loading, setLoading] = useState(true);
+
+  const [connStates, setConnStates] = useState<Record<string, ConnectionState>>({});
+
+  const handleConnectionStateChange = useCallback((tabId: string, state: ConnectionState) => {
+    setConnStates((prev) => (prev[tabId] === state ? prev : { ...prev, [tabId]: state }));
+  }, []);
 
   const [editingTabId, setEditingTabId] = useState<string | null>(null);
   const [editValue, setEditValue] = useState("");
@@ -57,15 +110,13 @@ export function TerminalTabManager({
             id: crypto.randomUUID(),
             sessionName: s.name,
           }));
-          setTabs(loaded);
-          setActiveTabId(loaded[0].id);
+          dispatch({ type: "SET_TABS", tabs: loaded, activeTabId: loaded[0].id });
         } else {
           const res = await createSessionAction({ workspaceId });
           if (cancelled) return;
           if (res?.data) {
             const tab: Tab = { id: crypto.randomUUID(), sessionName: res.data.name };
-            setTabs([tab]);
-            setActiveTabId(tab.id);
+            dispatch({ type: "SET_TABS", tabs: [tab], activeTabId: tab.id });
           }
         }
       } catch (err) {
@@ -87,8 +138,7 @@ export function TerminalTabManager({
           id: crypto.randomUUID(),
           sessionName: result.data.name,
         };
-        setTabs((prev) => [...prev, newTab]);
-        setActiveTabId(newTab.id);
+        dispatch({ type: "ADD_TAB", tab: newTab });
       }
     } catch (err) {
       console.error("[terminal-tabs] Failed to create session:", err);
@@ -123,11 +173,7 @@ export function TerminalTabManager({
           newName: trimmed,
         });
         if (result?.data) {
-          setTabs((prev) =>
-            prev.map((t) =>
-              t.id === tabId ? { ...t, sessionName: result.data.newName } : t,
-            ),
-          );
+          dispatch({ type: "RENAME_TAB", tabId, newName: result.data.newName });
         }
       } catch (err) {
         console.error("[terminal-tabs] Failed to rename session:", err);
@@ -151,20 +197,12 @@ export function TerminalTabManager({
         await killSessionAction({ workspaceId, sessionName: tab.sessionName });
         window.localStorage.removeItem(`terminal:reconnect:${agentId}:${tab.sessionName}`);
 
-        setTabs((prev) => {
-          const updated = prev.filter((t) => t.id !== tabId);
-          if (updated.length > 0 && activeTabId === tabId) {
-            const closedIndex = prev.findIndex((t) => t.id === tabId);
-            const nextIndex = Math.min(closedIndex, updated.length - 1);
-            setActiveTabId(updated[nextIndex].id);
-          }
-          return updated;
-        });
+        dispatch({ type: "KILL_TAB", tabId });
       } catch (err) {
         console.error("[terminal-tabs] Failed to kill session:", err);
       }
     },
-    [tabs, workspaceId, activeTabId],
+    [tabs, workspaceId, agentId],
   );
 
   if (loading) {
@@ -193,14 +231,8 @@ export function TerminalTabManager({
         <div className="flex items-center gap-0.5 overflow-x-auto py-1">
           {tabs.map((tab) => (
             <div key={tab.id} className="group flex items-center">
-              <Button
-                variant={activeTabId === tab.id ? "outline" : "ghost"}
-                size="sm"
-                className="gap-1.5 font-mono text-xs"
-                onClick={() => setActiveTabId(tab.id)}
-                onDoubleClick={() => startRename(tab)}
-              >
-                {editingTabId === tab.id ? (
+              {editingTabId === tab.id ? (
+                <div className="flex items-center px-2 py-1">
                   <Input
                     data-testid="rename-input"
                     className="h-5 w-24 rounded border-none bg-transparent px-0 py-0 font-mono text-xs shadow-none focus-visible:ring-0"
@@ -218,31 +250,59 @@ export function TerminalTabManager({
                     onClick={(e) => e.stopPropagation()}
                     autoFocus
                   />
-                ) : (
+                </div>
+              ) : (
+                <Button
+                  variant={activeTabId === tab.id ? "outline" : "ghost"}
+                  size="sm"
+                  className="gap-1.5 font-mono text-xs"
+                  onClick={() => dispatch({ type: "SET_ACTIVE", tabId: tab.id })}
+                >
                   <span data-testid="tab-label">{tab.sessionName}</span>
-                )}
-                {tabs.length > 1 && (
                   <span
                     role="button"
                     tabIndex={0}
-                    data-testid="close-tab"
-                    title="Kill session"
-                    className="ml-1 rounded p-0.5 opacity-0 hover:bg-destructive/20 hover:text-destructive group-hover:opacity-100"
+                    data-testid="rename-tab"
+                    aria-label={`Rename session ${tab.sessionName}`}
+                    title="Rename session"
+                    className="rounded p-0.5 hover:bg-accent-foreground/10"
                     onClick={(e) => {
                       e.stopPropagation();
-                      handleKillTab(tab.id);
+                      startRename(tab);
                     }}
                     onKeyDown={(e) => {
                       if (e.key === "Enter" || e.key === " ") {
                         e.stopPropagation();
-                        handleKillTab(tab.id);
+                        startRename(tab);
                       }
                     }}
                   >
-                    <X className="size-3" />
+                    <Pencil className="size-3" />
                   </span>
-                )}
-              </Button>
+                  {tabs.length > 1 && (
+                    <span
+                      role="button"
+                      tabIndex={0}
+                      data-testid="close-tab"
+                      aria-label={`Kill session ${tab.sessionName}`}
+                      title="Kill session"
+                      className="rounded p-0.5 hover:bg-destructive/20 hover:text-destructive"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleKillTab(tab.id);
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" || e.key === " ") {
+                          e.stopPropagation();
+                          handleKillTab(tab.id);
+                        }
+                      }}
+                    >
+                      <X className="size-3" />
+                    </span>
+                  )}
+                </Button>
+              )}
             </div>
           ))}
         </div>
@@ -256,6 +316,14 @@ export function TerminalTabManager({
         >
           <Plus className="size-3.5" />
         </Button>
+        {activeTabId && connStates[activeTabId] && (() => {
+          const badge = connectionBadgeProps(connStates[activeTabId]);
+          return (
+            <Badge variant={badge.variant} className={cn("ml-auto mr-2 text-[10px] px-1.5 py-0", badge.className)}>
+              {badge.label}
+            </Badge>
+          );
+        })()}
       </div>
 
       <div className="relative flex-1">
@@ -269,6 +337,7 @@ export function TerminalTabManager({
               agentId={agentId}
               sessionName={tab.sessionName}
               className="h-full"
+              onConnectionStateChange={(state) => handleConnectionStateChange(tab.id, state)}
             />
           </div>
         ))}

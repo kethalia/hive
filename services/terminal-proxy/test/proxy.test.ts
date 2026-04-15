@@ -24,14 +24,14 @@ vi.mock("ws", () => {
   return { WebSocket, WebSocketServer, default: { WebSocket, WebSocketServer } };
 });
 
-import { handleUpgrade } from "../src/proxy.js";
+import { handleUpgrade, isOriginAllowed } from "../src/proxy.js";
 import { WebSocket } from "ws";
 
-function makeReq(query: Record<string, string>): IncomingMessage {
+function makeReq(query: Record<string, string>, origin = "http://localhost:3000"): IncomingMessage {
   const params = new URLSearchParams(query);
   return {
     url: `/ws?${params.toString()}`,
-    headers: { host: "localhost" },
+    headers: { host: "localhost", origin },
   } as unknown as IncomingMessage;
 }
 
@@ -49,7 +49,7 @@ function makeSocket(): Duplex & { written: string[] } {
 
 const validParams = {
   agentId: "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
-  reconnectId: "reconnect-123",
+  reconnectId: "b2c3d4e5-f6a7-8901-bcde-f12345678901",
   width: "80",
   height: "24",
   sessionName: "my-session",
@@ -103,6 +103,13 @@ describe("handleUpgrade", () => {
   it("rejects with 400 when agentId is not UUID format", () => {
     const socket = makeSocket();
     handleUpgrade(makeReq({ ...validParams, agentId: "not-a-uuid" }), socket, Buffer.alloc(0));
+    expect(socket.written[0]).toContain("400");
+    expect(socket.destroy).toHaveBeenCalled();
+  });
+
+  it("rejects with 400 when reconnectId is not UUID format", () => {
+    const socket = makeSocket();
+    handleUpgrade(makeReq({ ...validParams, reconnectId: "not-a-uuid" }), socket, Buffer.alloc(0));
     expect(socket.written[0]).toContain("400");
     expect(socket.destroy).toHaveBeenCalled();
   });
@@ -172,5 +179,77 @@ describe("handleUpgrade", () => {
     handleUpgrade(makeReq(params), socket, Buffer.alloc(0));
 
     expect(socket.destroy).not.toHaveBeenCalled();
+  });
+
+  it("rejects with 403 when Origin header is missing", () => {
+    const params = new URLSearchParams(validParams);
+    const req = {
+      url: `/ws?${params.toString()}`,
+      headers: { host: "localhost" },
+    } as unknown as IncomingMessage;
+    const socket = makeSocket();
+    handleUpgrade(req, socket, Buffer.alloc(0));
+    expect(socket.written[0]).toContain("403");
+    expect(socket.destroy).toHaveBeenCalled();
+  });
+
+  it("rejects with 403 when Origin is not in allowed list", () => {
+    const socket = makeSocket();
+    handleUpgrade(makeReq(validParams, "https://evil.example.com"), socket, Buffer.alloc(0));
+    expect(socket.written[0]).toContain("403");
+    expect(socket.destroy).toHaveBeenCalled();
+  });
+
+  it("accepts localhost origins by default", () => {
+    const socket = makeSocket();
+    handleUpgrade(makeReq(validParams, "http://localhost:3000"), socket, Buffer.alloc(0));
+    expect(socket.destroy).not.toHaveBeenCalled();
+  });
+
+  it("accepts https localhost origins by default", () => {
+    const socket = makeSocket();
+    handleUpgrade(makeReq(validParams, "https://localhost:8443"), socket, Buffer.alloc(0));
+    expect(socket.destroy).not.toHaveBeenCalled();
+  });
+
+  it("respects ALLOWED_ORIGINS env var", () => {
+    process.env.ALLOWED_ORIGINS = "https://myapp.example.com,http://localhost:3000";
+    const socket = makeSocket();
+    handleUpgrade(makeReq(validParams, "https://myapp.example.com"), socket, Buffer.alloc(0));
+    expect(socket.destroy).not.toHaveBeenCalled();
+  });
+
+  it("rejects origins not in ALLOWED_ORIGINS when env var is set", () => {
+    process.env.ALLOWED_ORIGINS = "https://myapp.example.com";
+    const socket = makeSocket();
+    handleUpgrade(makeReq(validParams, "http://localhost:3000"), socket, Buffer.alloc(0));
+    expect(socket.written[0]).toContain("403");
+    expect(socket.destroy).toHaveBeenCalled();
+  });
+});
+
+describe("isOriginAllowed", () => {
+  const originalEnv = process.env;
+
+  beforeEach(() => {
+    process.env = { ...originalEnv };
+  });
+
+  afterEach(() => {
+    process.env = originalEnv;
+  });
+
+  it("returns false for undefined origin", () => {
+    expect(isOriginAllowed(undefined)).toBe(false);
+  });
+
+  it("matches wildcard port patterns", () => {
+    expect(isOriginAllowed("http://localhost:9999")).toBe(true);
+  });
+
+  it("matches exact origins from ALLOWED_ORIGINS", () => {
+    process.env.ALLOWED_ORIGINS = "https://app.example.com";
+    expect(isOriginAllowed("https://app.example.com")).toBe(true);
+    expect(isOriginAllowed("https://other.example.com")).toBe(false);
   });
 });

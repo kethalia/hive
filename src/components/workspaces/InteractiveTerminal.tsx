@@ -9,7 +9,6 @@ import {
   useTerminalWebSocket,
   type ConnectionState,
 } from "@/hooks/useTerminalWebSocket";
-import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { AlertCircle } from "lucide-react";
 import "@/styles/xterm.css";
@@ -18,6 +17,7 @@ interface InteractiveTerminalProps {
   agentId: string;
   sessionName: string;
   className?: string;
+  onConnectionStateChange?: (state: ConnectionState) => void;
 }
 
 const TERMINAL_THEME = {
@@ -42,7 +42,7 @@ const TERMINAL_THEME = {
   brightWhite: "#ffffff",
 };
 
-function connectionBadgeProps(state: ConnectionState) {
+export function connectionBadgeProps(state: ConnectionState) {
   switch (state) {
     case "connected":
       return { variant: "default" as const, label: "Connected", className: "bg-green-600 text-white" };
@@ -63,19 +63,29 @@ export function InteractiveTerminal({
   agentId,
   sessionName,
   className,
+  onConnectionStateChange,
 }: InteractiveTerminalProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const termRef = useRef<Terminal | null>(null);
   const fitRef = useRef<FitAddon | null>(null);
   const [reconnectId] = useState(() => {
+    const RECONNECT_TTL_MS = 24 * 60 * 60 * 1000;
     const storageKey = `terminal:reconnect:${agentId}:${sessionName}`;
-    const stored = typeof window !== "undefined"
-      ? window.localStorage.getItem(storageKey)
-      : null;
-    if (stored) return stored;
+    if (typeof window !== "undefined") {
+      const raw = window.localStorage.getItem(storageKey);
+      if (raw) {
+        try {
+          const { id, ts } = JSON.parse(raw);
+          if (typeof id === "string" && Date.now() - ts < RECONNECT_TTL_MS) {
+            return id as string;
+          }
+        } catch { /* corrupted entry — regenerate */ }
+        window.localStorage.removeItem(storageKey);
+      }
+    }
     const id = crypto.randomUUID();
     if (typeof window !== "undefined") {
-      window.localStorage.setItem(storageKey, id);
+      window.localStorage.setItem(storageKey, JSON.stringify({ id, ts: Date.now() }));
     }
     return id;
   });
@@ -91,6 +101,10 @@ export function InteractiveTerminal({
     url: wsUrl,
     onData: handleData,
   });
+
+  useEffect(() => {
+    onConnectionStateChange?.(connectionState);
+  }, [connectionState, onConnectionStateChange]);
 
   const sendRef = useRef(send);
   const resizeRef = useRef(resize);
@@ -173,24 +187,13 @@ export function InteractiveTerminal({
     };
   }, [agentId, reconnectId, sessionName]);
 
-  const badge = connectionBadgeProps(connectionState);
-
   return (
     <div
       className={cn(
-        "relative flex flex-col rounded-lg border border-border bg-[#0a0a0a] overflow-hidden",
+        "relative flex flex-col bg-[#0a0a0a] overflow-hidden",
         className,
       )}
     >
-      <div className="flex items-center justify-between border-b border-border/40 px-3 py-1.5">
-        <span className="text-xs font-mono text-muted-foreground">
-          {sessionName}
-        </span>
-        <Badge variant={badge.variant} className={badge.className}>
-          {badge.label}
-        </Badge>
-      </div>
-
       {connectionState === "workspace-offline" && (
         <Alert variant="destructive" className="rounded-none border-x-0 border-t-0">
           <AlertCircle />
@@ -208,7 +211,7 @@ export function InteractiveTerminal({
         </Alert>
       )}
 
-      <div ref={containerRef} className="flex-1 p-2 min-h-[400px]" />
+      <div ref={containerRef} className="flex-1 p-1" />
     </div>
   );
 }

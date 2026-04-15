@@ -6,13 +6,50 @@ import { SAFE_IDENTIFIER_RE, UUID_RE, buildPtyUrl } from "./protocol.js";
 const PING_INTERVAL_MS = 30_000;
 const UPSTREAM_CONNECT_TIMEOUT_MS = 10_000;
 
-const wss = new WebSocketServer({ noServer: true });
+const wss = new WebSocketServer({ noServer: true, maxPayload: 1_048_576 });
+
+/**
+ * Parse ALLOWED_ORIGINS env var into a list of allowed origin patterns.
+ * Supports exact matches and wildcard ports (e.g. "http://localhost:*").
+ * If not set, defaults to allowing only localhost origins.
+ */
+function getAllowedOrigins(): string[] {
+  const env = process.env.ALLOWED_ORIGINS?.trim();
+  if (env) {
+    return env.split(",").map((o) => o.trim()).filter(Boolean);
+  }
+  return ["http://localhost:*", "https://localhost:*"];
+}
+
+function originMatchesPattern(origin: string, pattern: string): boolean {
+  if (pattern.includes("*")) {
+    // Convert wildcard pattern to regex: escape dots, replace * with .*
+    const escaped = pattern.replace(/[.+^${}()|[\]\\]/g, "\\$&").replace(/\*/g, ".*");
+    return new RegExp(`^${escaped}$`).test(origin);
+  }
+  return origin === pattern;
+}
+
+export function isOriginAllowed(origin: string | undefined): boolean {
+  if (!origin) return false;
+  const patterns = getAllowedOrigins();
+  return patterns.some((pattern) => originMatchesPattern(origin, pattern));
+}
 
 export function handleUpgrade(
   req: IncomingMessage,
   socket: Duplex,
   head: Buffer,
 ): void {
+  // --- Origin validation (cross-site WebSocket hijacking protection) ---
+  const origin = req.headers.origin as string | undefined;
+  if (!isOriginAllowed(origin)) {
+    console.error(`[terminal-proxy] Origin rejected: ${origin ?? "(none)"}`);
+    socket.write("HTTP/1.1 403 Forbidden\r\n\r\n");
+    socket.destroy();
+    return;
+  }
+
   const token = process.env.CODER_SESSION_TOKEN;
   if (!token) {
     console.error("[terminal-proxy] CODER_SESSION_TOKEN not set — rejecting upgrade");
@@ -37,6 +74,13 @@ export function handleUpgrade(
 
   if (!UUID_RE.test(agentId)) {
     console.error(`[terminal-proxy] Invalid agentId format: ${agentId}`);
+    socket.write("HTTP/1.1 400 Bad Request\r\n\r\n");
+    socket.destroy();
+    return;
+  }
+
+  if (!UUID_RE.test(reconnectId)) {
+    console.error(`[terminal-proxy] Invalid reconnectId format: ${reconnectId}`);
     socket.write("HTTP/1.1 400 Bad Request\r\n\r\n");
     socket.destroy();
     return;

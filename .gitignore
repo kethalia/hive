@@ -70,3 +70,5 @@ tmp/
 .gsd-id
 .bg-shell/
 .mcp.json
+
+.playwright-mcp
