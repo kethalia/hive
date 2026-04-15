@@ -149,7 +149,7 @@ The retry loop drains the ring buffer with exponential backoff (1s → 2s → 4s
   - Files: `services/terminal-proxy/src/scrollback-writer.ts`, `services/terminal-proxy/test/scrollback-writer.test.ts`
   - Verify: cd services/terminal-proxy && pnpm test -- scrollback-writer
 
-- [ ] **T03: Wire ScrollbackWriter into proxy, add Docker config and graceful shutdown** `est:45m`
+- [x] **T03: Wire ScrollbackWriter into proxy, add Docker config and graceful shutdown** `est:45m`
   ## Description
 
 Integration task: connect the ScrollbackWriter into the live WebSocket proxy so every PTY output frame is captured, update Docker Compose to provide DATABASE_URL to terminal-proxy, and add SIGTERM/SIGINT handlers for graceful shutdown.
