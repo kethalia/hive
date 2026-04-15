@@ -15,7 +15,7 @@ export function buildWorkspaceUrls(
   if (!coderUrl) return null;
 
   const stripped = coderUrl.replace(/\/+$/, "");
-  const coderHost = stripped.replace(/^https?:\/\//, "");
+  const coderHost = new URL(stripped).host;
 
   return {
     filebrowser: `https://filebrowser--${agentName}--${workspace.name}--${workspace.owner_name}.${coderHost}`,

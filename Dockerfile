@@ -1,4 +1,5 @@
 FROM node:20-alpine
+RUN apk add --no-cache openssh-client
 
 WORKDIR /app
 

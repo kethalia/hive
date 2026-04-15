@@ -9,6 +9,6 @@ COPY . .
 
 EXPOSE 3001
 
-ENV HOSTNAME=0.0.0.0
+ENV BIND_HOST=0.0.0.0
 
 CMD ["npm", "run", "start"]

@@ -201,6 +201,7 @@ export function WorkspaceToolPanel({
           >
             <iframe
               src={iframeUrlMap[toolId]}
+              title={tools.find((t) => t.id === toolId)!.label}
               className="h-full w-full rounded-lg border border-border"
               allow="clipboard-read; clipboard-write"
             />

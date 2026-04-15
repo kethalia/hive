@@ -1,4 +1,4 @@
-export interface PtyClientMessage {
+interface PtyClientMessage {
   data?: string;
   height?: number;
   width?: number;
