@@ -33,6 +33,7 @@ interface UseTerminalWebSocketProps {
   onData: (data: Uint8Array | string) => void;
   onStateChange?: (state: ConnectionState) => void;
   onReconnectIdExpired?: () => void;
+  isGatingLiveData?: boolean;
 }
 
 interface UseTerminalWebSocketReturn {
@@ -42,6 +43,7 @@ interface UseTerminalWebSocketReturn {
   reconnectAttempt: number;
   consecutiveFailures: number;
   reconnect: () => void;
+  flushBufferedData: () => void;
 }
 
 export function useTerminalWebSocket({
@@ -49,6 +51,7 @@ export function useTerminalWebSocket({
   onData,
   onStateChange,
   onReconnectIdExpired,
+  isGatingLiveData,
 }: UseTerminalWebSocketProps): UseTerminalWebSocketReturn {
   const [connectionState, setConnectionState] =
     useState<ConnectionState>("disconnected");
@@ -62,10 +65,13 @@ export function useTerminalWebSocket({
   const onDataRef = useRef(onData);
   const onStateChangeRef = useRef(onStateChange);
   const onReconnectIdExpiredRef = useRef(onReconnectIdExpired);
+  const bufferedDataRef = useRef<(Uint8Array | string)[]>([]);
+  const isGatingRef = useRef(isGatingLiveData ?? false);
 
   onDataRef.current = onData;
   onStateChangeRef.current = onStateChange;
   onReconnectIdExpiredRef.current = onReconnectIdExpired;
+  isGatingRef.current = isGatingLiveData ?? false;
 
   const updateState = useCallback((state: ConnectionState) => {
     if (!mountedRef.current) return;
@@ -113,10 +119,13 @@ export function useTerminalWebSocket({
 
     ws.onmessage = (event: MessageEvent) => {
       if (!mountedRef.current) return;
-      if (event.data instanceof ArrayBuffer) {
-        onDataRef.current(new Uint8Array(event.data));
+      const data = event.data instanceof ArrayBuffer
+        ? new Uint8Array(event.data)
+        : (event.data as string);
+      if (isGatingRef.current) {
+        bufferedDataRef.current.push(data);
       } else {
-        onDataRef.current(event.data as string);
+        onDataRef.current(data);
       }
     };
 
@@ -194,5 +203,20 @@ export function useTerminalWebSocket({
     connect();
   }, [connect]);
 
-  return { send, connectionState, resize, reconnectAttempt: attemptRef.current, consecutiveFailures: consecutiveFailuresRef.current, reconnect };
+  const flushBufferedData = useCallback(() => {
+    const buffered = bufferedDataRef.current;
+    if (buffered.length === 0) return;
+    bufferedDataRef.current = [];
+    for (const chunk of buffered) {
+      onDataRef.current(chunk);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!isGatingLiveData) {
+      flushBufferedData();
+    }
+  }, [isGatingLiveData, flushBufferedData]);
+
+  return { send, connectionState, resize, reconnectAttempt: attemptRef.current, consecutiveFailures: consecutiveFailuresRef.current, reconnect, flushBufferedData };
 }

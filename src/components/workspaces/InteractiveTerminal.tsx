@@ -9,9 +9,10 @@ import {
   useTerminalWebSocket,
   type ConnectionState,
 } from "@/hooks/useTerminalWebSocket";
+import { useScrollbackHydration } from "@/hooks/useScrollbackHydration";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
-import { AlertCircle, RefreshCw } from "lucide-react";
+import { AlertCircle, Loader2, RefreshCw } from "lucide-react";
 import "@/styles/xterm.css";
 
 const RECONNECT_TTL_MS = 24 * 60 * 60 * 1000;
@@ -113,10 +114,17 @@ export function InteractiveTerminal({
     }
   }, []);
 
+  const { hydrationState, isGatingLiveData } = useScrollbackHydration({
+    reconnectId,
+    terminalRef: termRef,
+    isConnected: wsUrl !== null,
+  });
+
   const { send, resize, connectionState, reconnectAttempt, reconnect } = useTerminalWebSocket({
     url: wsUrl,
     onData: handleData,
     onReconnectIdExpired: handleReconnectIdExpired,
+    isGatingLiveData,
   });
 
   useEffect(() => {
@@ -219,6 +227,18 @@ export function InteractiveTerminal({
         className,
       )}
     >
+      {hydrationState === "loading" && (
+        <Alert variant="default" className="rounded-none border-x-0 border-t-0 bg-blue-900/50 border-blue-700">
+          <Loader2 className="animate-spin" />
+          <AlertDescription>Restoring history…</AlertDescription>
+        </Alert>
+      )}
+      {hydrationState === "error" && (
+        <Alert variant="default" className="rounded-none border-x-0 border-t-0 bg-yellow-900/50 border-yellow-700">
+          <AlertCircle />
+          <AlertDescription>History unavailable</AlertDescription>
+        </Alert>
+      )}
       {connectionState === "workspace-offline" && (
         <Alert variant="destructive" className="rounded-none border-x-0 border-t-0">
           <AlertCircle />

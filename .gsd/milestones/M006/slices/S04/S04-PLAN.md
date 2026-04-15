@@ -84,7 +84,7 @@ Also installs `@tanstack/react-virtual` and `ansi-to-html` as project dependenci
   - Files: `src/app/api/terminal/scrollback/route.ts`, `src/__tests__/app/api/terminal/scrollback/route.test.ts`, `package.json`
   - Verify: pnpm vitest run src/__tests__/app/api/terminal/scrollback && pnpm tsc --noEmit
 
-- [ ] **T02: Build scrollback hydration hook and wire into InteractiveTerminal with live-data gating** `est:1h`
+- [x] **T02: Build scrollback hydration hook and wire into InteractiveTerminal with live-data gating** `est:1h`
   ## Description
 
 This is the highest-value deliverable in the slice — even without virtual scrolling, hydration alone restores terminal history on reconnect. Create a `useScrollbackHydration` hook that fetches recent scrollback from the paginated API when the WebSocket connects, writes it into xterm via `terminal.write()`, and gates live WebSocket data until hydration completes.
