@@ -125,7 +125,7 @@ The key challenge is mocking xterm.js (dynamically imported via next/dynamic) an
   - Files: `src/__tests__/integration/interactive-terminal-integration.test.tsx`, `src/components/workspaces/InteractiveTerminal.tsx`
   - Verify: pnpm vitest run src/__tests__/integration/interactive-terminal-integration.test.tsx && pnpm vitest run
 
-- [ ] **T03: Write TerminalTabManager regression tests confirming session CRUD, tab switching, and M006 feature coexistence** `est:40m`
+- [x] **T03: Write TerminalTabManager regression tests confirming session CRUD, tab switching, and M006 feature coexistence** `est:40m`
   ## Description
 
 This task adds regression tests to confirm pre-existing terminal tab features (session create, rename, kill, tab switching) still work correctly with M006 components present (KeepAliveWarning, connection badges with reconnection states, reconnectId localStorage cleanup on kill).
