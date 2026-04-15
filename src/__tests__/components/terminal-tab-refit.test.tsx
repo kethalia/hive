@@ -14,8 +14,10 @@ vi.mock("@xterm/xterm", () => {
       loadAddon = vi.fn();
       onData = vi.fn();
       onResize = vi.fn();
+      onScroll = vi.fn();
       dispose = vi.fn();
       write = vi.fn();
+      scrollToBottom = vi.fn();
     },
   };
 });
@@ -40,6 +42,21 @@ vi.mock("@/hooks/useTerminalWebSocket", () => ({
     reconnectAttempt: 0,
     reconnect: vi.fn(),
   }),
+}));
+
+vi.mock("@/hooks/useScrollbackHydration", () => ({
+  useScrollbackHydration: () => ({
+    hydrationState: "idle",
+    isGatingLiveData: false,
+  }),
+}));
+
+vi.mock("@/components/workspaces/TerminalHistoryPanel", () => ({
+  TerminalHistoryPanel: () => null,
+}));
+
+vi.mock("@/components/workspaces/JumpToBottom", () => ({
+  JumpToBottom: () => null,
 }));
 
 vi.mock("@/lib/utils", () => ({

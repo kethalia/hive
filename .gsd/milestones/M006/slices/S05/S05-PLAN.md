@@ -79,7 +79,7 @@ Three test groups:
   - Files: `src/__tests__/integration/terminal-data-flow.test.ts`, `src/hooks/useTerminalWebSocket.ts`, `src/hooks/useScrollbackHydration.ts`, `src/components/workspaces/InteractiveTerminal.tsx`
   - Verify: pnpm vitest run src/__tests__/integration/terminal-data-flow.test.ts && pnpm vitest run
 
-- [ ] **T02: Write InteractiveTerminal component integration tests verifying M006 hook wiring and UI state coordination** `est:45m`
+- [x] **T02: Write InteractiveTerminal component integration tests verifying M006 hook wiring and UI state coordination** `est:45m`
   ## Description
 
 This task renders InteractiveTerminal with mocked dependencies and verifies that M006 hooks are correctly wired to UI elements. No existing test renders InteractiveTerminal and checks that hydration state changes flow through to banners, that scroll position controls history panel visibility, or that connection state banners show attempt counts.
