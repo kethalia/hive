@@ -143,7 +143,7 @@ The critical race condition: if live WebSocket data arrives before hydration fet
   - Files: `src/hooks/useScrollbackHydration.ts`, `src/hooks/useTerminalWebSocket.ts`, `src/components/workspaces/InteractiveTerminal.tsx`, `src/__tests__/hooks/useScrollbackHydration.test.ts`
   - Verify: pnpm vitest run src/__tests__/hooks/useScrollbackHydration.test.ts && pnpm tsc --noEmit
 
-- [ ] **T03: Build virtual-scrolled history panel with ANSI rendering and lazy chunk loading** `est:1h30m`
+- [x] **T03: Build virtual-scrolled history panel with ANSI rendering and lazy chunk loading** `est:1h30m`
   ## Description
 
 This is the most complex task — it delivers R046 (virtual scrolling for scrollback). Build a TerminalHistoryPanel component that renders older scrollback chunks in a virtual-scrolled div above xterm. Uses `@tanstack/react-virtual` for windowed rendering and `ansi-to-html` for converting raw PTY data to styled HTML. Chunks are lazy-loaded from the paginated API via a `useScrollbackPagination` hook.

@@ -10,6 +10,7 @@ import {
   type ConnectionState,
 } from "@/hooks/useTerminalWebSocket";
 import { useScrollbackHydration } from "@/hooks/useScrollbackHydration";
+import { TerminalHistoryPanel } from "@/components/workspaces/TerminalHistoryPanel";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { AlertCircle, Loader2, RefreshCw } from "lucide-react";
@@ -97,6 +98,7 @@ export function InteractiveTerminal({
   const fitRef = useRef<FitAddon | null>(null);
   const [reconnectId, setReconnectId] = useState(() => getOrCreateReconnectId(agentId, sessionName));
   const [wsUrl, setWsUrl] = useState<string | null>(null);
+  const [showHistoryPanel, setShowHistoryPanel] = useState(false);
 
   const handleReconnectIdExpired = useCallback(() => {
     const storageKey = `terminal:reconnect:${agentId}:${sessionName}`;
@@ -177,6 +179,13 @@ export function InteractiveTerminal({
 
       term.onResize(({ rows, cols }) => {
         resizeRef.current(rows, cols);
+      });
+
+      const localTerm = term;
+      localTerm.onScroll(() => {
+        if (localTerm.buffer.active.viewportY === 0) {
+          setShowHistoryPanel(true);
+        }
       });
 
       // Wait for browser layout paint before reading dimensions
@@ -270,6 +279,11 @@ export function InteractiveTerminal({
         </Alert>
       )}
 
+      <TerminalHistoryPanel
+        reconnectId={reconnectId}
+        visible={showHistoryPanel}
+        onScrollToBottom={() => setShowHistoryPanel(false)}
+      />
       <div ref={containerRef} className="flex-1 p-1" />
     </div>
   );

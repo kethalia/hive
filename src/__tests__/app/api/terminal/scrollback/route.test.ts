@@ -70,8 +70,8 @@ describe("GET /api/terminal/scrollback", () => {
   });
 
   describe("cursor-based pagination", () => {
-    it("filters chunks with seqNum < cursor", async () => {
-      const chunks = [makeChunk(3, "c"), makeChunk(4, "d")];
+    it("filters chunks with seqNum < cursor and returns JSON", async () => {
+      const chunks = [makeChunk(4, "d"), makeChunk(3, "c")];
       mockFindMany.mockResolvedValue(chunks);
       mockCount.mockResolvedValue(10);
 
@@ -80,13 +80,20 @@ describe("GET /api/terminal/scrollback", () => {
       );
 
       expect(res.status).toBe(200);
+      expect(res.headers.get("Content-Type")).toBe("application/json");
       expect(res.headers.get("X-Total-Chunks")).toBe("10");
+
+      const body = await res.json();
+      expect(body.totalChunks).toBe(10);
+      expect(body.chunks).toHaveLength(2);
+      expect(body.chunks[0].seqNum).toBe(3);
+      expect(body.chunks[1].seqNum).toBe(4);
 
       expect(mockFindMany).toHaveBeenCalledWith({
         where: { reconnectId: VALID_UUID, seqNum: { lt: 5 } },
         orderBy: { seqNum: "desc" },
         take: 10,
-        select: { data: true },
+        select: { data: true, seqNum: true },
       });
     });
 
@@ -126,7 +133,7 @@ describe("GET /api/terminal/scrollback", () => {
       expect(call.orderBy).toEqual({ seqNum: "desc" });
     });
 
-    it("reverses desc-ordered results to ascending in response body", async () => {
+    it("reverses desc-ordered results to ascending in JSON response", async () => {
       mockFindMany.mockResolvedValue([
         makeChunk(3, "third"),
         makeChunk(2, "second"),
@@ -138,8 +145,13 @@ describe("GET /api/terminal/scrollback", () => {
         makeRequest({ reconnectId: VALID_UUID, cursor: "4", limit: "3" }),
       );
 
-      const body = Buffer.from(await res.arrayBuffer());
-      expect(body.toString()).toBe("firstsecondthird");
+      const body = await res.json();
+      expect(body.chunks[0].seqNum).toBe(1);
+      expect(body.chunks[1].seqNum).toBe(2);
+      expect(body.chunks[2].seqNum).toBe(3);
+      expect(Buffer.from(body.chunks[0].data, "base64").toString()).toBe("first");
+      expect(Buffer.from(body.chunks[1].data, "base64").toString()).toBe("second");
+      expect(Buffer.from(body.chunks[2].data, "base64").toString()).toBe("third");
     });
   });
 
@@ -226,7 +238,7 @@ describe("GET /api/terminal/scrollback", () => {
   });
 
   describe("boundary conditions", () => {
-    it("returns empty when cursor points before first chunk", async () => {
+    it("returns empty chunks array when cursor points before first chunk", async () => {
       mockFindMany.mockResolvedValue([]);
       mockCount.mockResolvedValue(5);
 
@@ -235,7 +247,9 @@ describe("GET /api/terminal/scrollback", () => {
       );
       expect(res.status).toBe(200);
       expect(res.headers.get("X-Total-Chunks")).toBe("5");
-      expect(res.headers.get("Content-Length")).toBe("0");
+      const body = await res.json();
+      expect(body.chunks).toHaveLength(0);
+      expect(body.totalChunks).toBe(5);
     });
 
     it("handles cursor at last chunk (returns all but last)", async () => {
@@ -247,8 +261,10 @@ describe("GET /api/terminal/scrollback", () => {
         makeRequest({ reconnectId: VALID_UUID, cursor: "3", limit: "50" }),
       );
       expect(res.status).toBe(200);
-      const body = Buffer.from(await res.arrayBuffer());
-      expect(body.toString()).toBe("ab");
+      const body = await res.json();
+      expect(body.chunks).toHaveLength(2);
+      expect(body.chunks[0].seqNum).toBe(1);
+      expect(body.chunks[1].seqNum).toBe(2);
     });
 
     it("handles limit larger than available chunks", async () => {
@@ -260,8 +276,9 @@ describe("GET /api/terminal/scrollback", () => {
         makeRequest({ reconnectId: VALID_UUID, cursor: "100", limit: "200" }),
       );
       expect(res.status).toBe(200);
-      const body = Buffer.from(await res.arrayBuffer());
-      expect(body.toString()).toBe("only");
+      const body = await res.json();
+      expect(body.chunks).toHaveLength(1);
+      expect(Buffer.from(body.chunks[0].data, "base64").toString()).toBe("only");
     });
   });
 });

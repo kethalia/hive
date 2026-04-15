@@ -54,24 +54,44 @@ export async function GET(request: NextRequest) {
   try {
     const db = getDb();
 
+    if (isPaginated) {
+      const [rows, totalChunks] = await Promise.all([
+        db.scrollbackChunk.findMany({
+          where: {
+            reconnectId,
+            ...(cursor ? { seqNum: { lt: cursor } } : {}),
+          },
+          orderBy: { seqNum: "desc" },
+          take: effectiveLimit,
+          select: { data: true, seqNum: true },
+        }),
+        db.scrollbackChunk.count({ where: { reconnectId } }),
+      ]);
+
+      const chunks = rows.reverse().map((c) => ({
+        seqNum: c.seqNum,
+        data: Buffer.from(c.data).toString("base64"),
+      }));
+
+      console.log(
+        `[scrollback] paginated request reconnectId=${reconnectId} chunks=${chunks.length} totalChunks=${totalChunks}${cursor ? ` cursor=${cursor}` : ""}`,
+      );
+
+      return new Response(JSON.stringify({ chunks, totalChunks }), {
+        status: 200,
+        headers: {
+          "Content-Type": "application/json",
+          "X-Total-Chunks": String(totalChunks),
+        },
+      });
+    }
+
     const [chunks, totalChunks] = await Promise.all([
-      isPaginated
-        ? db.scrollbackChunk
-            .findMany({
-              where: {
-                reconnectId,
-                ...(cursor ? { seqNum: { lt: cursor } } : {}),
-              },
-              orderBy: { seqNum: "desc" },
-              take: effectiveLimit,
-              select: { data: true },
-            })
-            .then((rows) => rows.reverse())
-        : db.scrollbackChunk.findMany({
-            where: { reconnectId },
-            orderBy: { seqNum: "asc" },
-            select: { data: true },
-          }),
+      db.scrollbackChunk.findMany({
+        where: { reconnectId },
+        orderBy: { seqNum: "asc" },
+        select: { data: true },
+      }),
       db.scrollbackChunk.count({ where: { reconnectId } }),
     ]);
 
@@ -89,7 +109,7 @@ export async function GET(request: NextRequest) {
     const body = Buffer.concat(buffers);
 
     console.log(
-      `[scrollback] hydration request reconnectId=${reconnectId} chunks=${chunks.length} totalChunks=${totalChunks} bytes=${body.byteLength}${cursor ? ` cursor=${cursor}` : ""}`,
+      `[scrollback] hydration request reconnectId=${reconnectId} chunks=${chunks.length} totalChunks=${totalChunks} bytes=${body.byteLength}`,
     );
 
     return new Response(body, {
