@@ -177,7 +177,7 @@ Key architectural constraint: `reconnectId` is currently initialized in useState
   - Files: `src/hooks/useTerminalWebSocket.ts`, `src/components/workspaces/InteractiveTerminal.tsx`, `src/__tests__/lib/terminal/reconnect.test.ts`
   - Verify: pnpm vitest run src/__tests__/lib/terminal/reconnect.test.ts && pnpm tsc --noEmit && grep -q 'onReconnectIdExpired' src/hooks/useTerminalWebSocket.ts
 
-- [ ] **T03: Add ResizeObserver-based re-fit on tab visibility to preserve scrollback rendering** `est:45m`
+- [x] **T03: Add ResizeObserver-based re-fit on tab visibility to preserve scrollback rendering** `est:45m`
   ## Description
 
 This task implements R052: tab switching preserves scrollback in both tabs with no rendering glitches. The DOM architecture already preserves terminal instances (display:none instead of unmount), so scrollback data is retained. The issue is that when a tab becomes visible again, xterm.js may not re-render correctly because FitAddon.fit() was never called after the container transitioned from display:none to display:block.

@@ -193,16 +193,19 @@ export function InteractiveTerminal({
       setWsUrl(`${proxyUrl}/ws?${params.toString()}`);
     })();
 
-    const handleResize = () => {
-      if (fitRef.current && termRef.current) {
-        fitRef.current.fit();
+    const resizeObserver = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        const { width, height } = entry.contentRect;
+        if (width > 0 && height > 0 && fitRef.current) {
+          fitRef.current.fit();
+        }
       }
-    };
-    window.addEventListener("resize", handleResize);
+    });
+    resizeObserver.observe(containerRef.current);
 
     return () => {
       mounted = false;
-      window.removeEventListener("resize", handleResize);
+      resizeObserver.disconnect();
       termRef.current?.dispose();
       termRef.current = null;
       fitRef.current = null;
