@@ -114,7 +114,7 @@ The "failed" ConnectionState type is kept for workspace-offline and future use â
   - Files: `src/hooks/useTerminalWebSocket.ts`, `src/components/workspaces/InteractiveTerminal.tsx`, `src/__tests__/lib/terminal/hooks.test.ts`
   - Verify: pnpm vitest run src/__tests__/lib/terminal/hooks.test.ts && pnpm tsc --noEmit && ! grep -q 'MAX_RECONNECT_ATTEMPTS' src/hooks/useTerminalWebSocket.ts && grep -q '60000' src/hooks/useTerminalWebSocket.ts
 
-- [ ] **T02: Auto-regenerate expired reconnectId after consecutive failures to rejoin tmux session** `est:1h`
+- [x] **T02: Auto-regenerate expired reconnectId after consecutive failures to rejoin tmux session** `est:1h`
   ## Description
 
 This task implements R048: when the upstream Coder API rejects a stale reconnectId (PTY no longer exists), the client should detect this and generate a fresh reconnectId so the new PTY attaches to the same tmux session (tmux session targeting is handled by the `sessionName` parameter, not reconnectId â€” reconnectId only identifies the PTY within Coder).

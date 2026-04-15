@@ -14,6 +14,29 @@ import { Button } from "@/components/ui/button";
 import { AlertCircle, RefreshCw } from "lucide-react";
 import "@/styles/xterm.css";
 
+const RECONNECT_TTL_MS = 24 * 60 * 60 * 1000;
+
+export function getOrCreateReconnectId(agentId: string, sessionName: string): string {
+  const storageKey = `terminal:reconnect:${agentId}:${sessionName}`;
+  if (typeof window !== "undefined") {
+    const raw = window.localStorage.getItem(storageKey);
+    if (raw) {
+      try {
+        const { id, ts } = JSON.parse(raw);
+        if (typeof id === "string" && Date.now() - ts < RECONNECT_TTL_MS) {
+          return id;
+        }
+      } catch { /* corrupted entry — regenerate */ }
+      window.localStorage.removeItem(storageKey);
+    }
+  }
+  const id = crypto.randomUUID();
+  if (typeof window !== "undefined") {
+    window.localStorage.setItem(storageKey, JSON.stringify({ id, ts: Date.now() }));
+  }
+  return id;
+}
+
 interface InteractiveTerminalProps {
   agentId: string;
   workspaceId: string;
@@ -71,28 +94,18 @@ export function InteractiveTerminal({
   const containerRef = useRef<HTMLDivElement>(null);
   const termRef = useRef<Terminal | null>(null);
   const fitRef = useRef<FitAddon | null>(null);
-  const [reconnectId] = useState(() => {
-    const RECONNECT_TTL_MS = 24 * 60 * 60 * 1000;
-    const storageKey = `terminal:reconnect:${agentId}:${sessionName}`;
-    if (typeof window !== "undefined") {
-      const raw = window.localStorage.getItem(storageKey);
-      if (raw) {
-        try {
-          const { id, ts } = JSON.parse(raw);
-          if (typeof id === "string" && Date.now() - ts < RECONNECT_TTL_MS) {
-            return id as string;
-          }
-        } catch { /* corrupted entry — regenerate */ }
-        window.localStorage.removeItem(storageKey);
-      }
-    }
-    const id = crypto.randomUUID();
-    if (typeof window !== "undefined") {
-      window.localStorage.setItem(storageKey, JSON.stringify({ id, ts: Date.now() }));
-    }
-    return id;
-  });
+  const [reconnectId, setReconnectId] = useState(() => getOrCreateReconnectId(agentId, sessionName));
   const [wsUrl, setWsUrl] = useState<string | null>(null);
+
+  const handleReconnectIdExpired = useCallback(() => {
+    const storageKey = `terminal:reconnect:${agentId}:${sessionName}`;
+    const newId = crypto.randomUUID();
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem(storageKey, JSON.stringify({ id: newId, ts: Date.now() }));
+    }
+    console.log(`[terminal] Regenerating reconnectId after consecutive failures`);
+    setReconnectId(newId);
+  }, [agentId, sessionName]);
 
   const handleData = useCallback((data: Uint8Array | string) => {
     if (termRef.current) {
@@ -103,6 +116,7 @@ export function InteractiveTerminal({
   const { send, resize, connectionState, reconnectAttempt, reconnect } = useTerminalWebSocket({
     url: wsUrl,
     onData: handleData,
+    onReconnectIdExpired: handleReconnectIdExpired,
   });
 
   useEffect(() => {
