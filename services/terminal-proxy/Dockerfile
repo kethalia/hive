@@ -6,9 +6,8 @@ COPY package.json package-lock.json* ./
 RUN npm install --ignore-scripts
 
 COPY . .
-RUN npx prisma generate
 
-EXPOSE 3000
+EXPOSE 3001
 
 ENV HOSTNAME=0.0.0.0
 

@@ -95,7 +95,7 @@ describe("workspace server actions", () => {
     expect(mockGetWorkspaceAgentName).toHaveBeenCalledWith("ws-1");
     expect(mockedExec).toHaveBeenCalledWith(
       "dev.main",
-      "tmux list-sessions -F '#{session_name}:#{session_created}:#{session_windows}'",
+      "tmux -L web list-sessions -F '#{session_name}:#{session_created}:#{session_windows}'",
     );
     expect(result?.data).toEqual([
       { name: "main", created: 1712345678, windows: 3 },

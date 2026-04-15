@@ -75,7 +75,7 @@ export const getWorkspaceSessionsAction = actionClient
 
     const result = await execInWorkspace(
       agentTarget,
-      "tmux list-sessions -F '#{session_name}:#{session_created}:#{session_windows}'",
+      "tmux -L web list-sessions -F '#{session_name}:#{session_created}:#{session_windows}'",
     );
 
     if (result.exitCode !== 0) {
@@ -108,7 +108,7 @@ export const createSessionAction = actionClient
 
     const result = await execInWorkspace(
       agentTarget,
-      `tmux new-session -d -s ${name}`,
+      `tmux -L web new-session -d -s ${name}`,
     );
 
     if (result.exitCode !== 0) {
@@ -146,7 +146,7 @@ export const renameSessionAction = actionClient
 
     const result = await execInWorkspace(
       agentTarget,
-      `tmux rename-session -t ${parsedInput.oldName} ${parsedInput.newName}`,
+      `tmux -L web rename-session -t ${parsedInput.oldName} ${parsedInput.newName}`,
     );
 
     if (result.exitCode !== 0) {
@@ -180,7 +180,7 @@ export const killSessionAction = actionClient
 
     const result = await execInWorkspace(
       agentTarget,
-      `tmux kill-session -t ${parsedInput.sessionName}`,
+      `tmux -L web kill-session -t ${parsedInput.sessionName}`,
     );
 
     if (result.exitCode !== 0) {

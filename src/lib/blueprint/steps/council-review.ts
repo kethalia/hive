@@ -67,7 +67,7 @@ export function createCouncilReviewStep(): BlueprintStep {
       const claudeResult = await execInWorkspace(
         ctx.workspaceName,
         `cat ${COUNCIL_PROMPT_FILE} | claude --print -`,
-        { timeoutMs: AGENT_TIMEOUT_MS },
+        { timeoutMs: AGENT_TIMEOUT_MS, loginShell: true },
       );
 
       if (claudeResult.exitCode !== 0) {

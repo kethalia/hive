@@ -1,8 +1,7 @@
 import type { IncomingMessage } from "node:http";
 import type { Duplex } from "node:stream";
 import { WebSocket, WebSocketServer } from "ws";
-import { SAFE_IDENTIFIER_RE, UUID_RE } from "@/lib/constants";
-import { buildPtyUrl } from "./protocol";
+import { SAFE_IDENTIFIER_RE, UUID_RE, buildPtyUrl } from "./protocol.js";
 
 const PING_INTERVAL_MS = 30_000;
 const UPSTREAM_CONNECT_TIMEOUT_MS = 10_000;

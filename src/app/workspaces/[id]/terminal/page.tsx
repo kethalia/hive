@@ -1,25 +1,20 @@
-import { getWorkspaceAgentAction, getWorkspaceSessionsAction } from "@/lib/actions/workspaces";
+import { getWorkspaceAgentAction } from "@/lib/actions/workspaces";
 import { TerminalClient } from "./terminal-client";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { AlertCircle } from "lucide-react";
 
 interface TerminalPageProps {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ session?: string }>;
 }
 
-export default async function TerminalPage({ params, searchParams }: TerminalPageProps) {
+export default async function TerminalPage({ params }: TerminalPageProps) {
   const { id: workspaceId } = await params;
-  const { session } = await searchParams;
 
-  const [agentResult, sessionsResult] = await Promise.all([
-    getWorkspaceAgentAction({ workspaceId }),
-    getWorkspaceSessionsAction({ workspaceId }),
-  ]);
+  const agentResult = await getWorkspaceAgentAction({ workspaceId });
 
   if (!agentResult?.data) {
     return (
-      <div className="flex h-screen items-center justify-center bg-background text-foreground">
+      <div className="flex items-center justify-center" style={{ height: "calc(100vh - 3.5rem - 3rem)" }}>
         <Alert variant="destructive" className="max-w-md">
           <AlertCircle />
           <AlertDescription>
@@ -30,14 +25,5 @@ export default async function TerminalPage({ params, searchParams }: TerminalPag
     );
   }
 
-  const sessions = sessionsResult?.data ?? [];
-
-  return (
-    <TerminalClient
-      agentId={agentResult.data.agentId}
-      workspaceId={workspaceId}
-      initialSessions={sessions}
-      initialSessionName={session}
-    />
-  );
+  return <TerminalClient agentId={agentResult.data.agentId} />;
 }

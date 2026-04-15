@@ -182,6 +182,6 @@ describe("createAgentStep", () => {
       ([, cmd]) => cmd.includes("pi -p --no-session"),
     );
     expect(piCall).toBeDefined();
-    expect(piCall![2]).toEqual({ timeoutMs: 1_800_000 });
+    expect(piCall![2]).toEqual({ timeoutMs: 1_800_000, loginShell: true });
   });
 });

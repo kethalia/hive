@@ -12,6 +12,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { AlertCircle } from "lucide-react";
+import "@/styles/xterm.css";
 
 interface InteractiveTerminalProps {
   agentId: string;
@@ -66,7 +67,18 @@ export function InteractiveTerminal({
   const containerRef = useRef<HTMLDivElement>(null);
   const termRef = useRef<Terminal | null>(null);
   const fitRef = useRef<FitAddon | null>(null);
-  const [reconnectId] = useState(() => crypto.randomUUID());
+  const [reconnectId] = useState(() => {
+    const storageKey = `terminal:reconnect:${agentId}:${sessionName}`;
+    const stored = typeof window !== "undefined"
+      ? window.localStorage.getItem(storageKey)
+      : null;
+    if (stored) return stored;
+    const id = crypto.randomUUID();
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem(storageKey, id);
+    }
+    return id;
+  });
   const [wsUrl, setWsUrl] = useState<string | null>(null);
 
   const handleData = useCallback((data: Uint8Array | string) => {
@@ -128,9 +140,13 @@ export function InteractiveTerminal({
         resizeRef.current(rows, cols);
       });
 
+      // Wait for browser layout paint before reading dimensions
+      await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+      if (!mounted) return;
+      fit.fit();
+
       const dims = { rows: term.rows, cols: term.cols };
-      const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-      const host = window.location.host;
+      const proxyUrl = process.env.NEXT_PUBLIC_TERMINAL_WS_URL;
       const params = new URLSearchParams({
         agentId,
         reconnectId,
@@ -138,7 +154,7 @@ export function InteractiveTerminal({
         height: String(dims.rows),
         sessionName,
       });
-      setWsUrl(`${protocol}//${host}/api/terminal/ws?${params.toString()}`);
+      setWsUrl(`${proxyUrl}/ws?${params.toString()}`);
     })();
 
     const handleResize = () => {

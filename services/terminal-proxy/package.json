@@ -1,0 +1,23 @@
+{
+  "name": "hive-terminal-proxy",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "start": "NODE_ENV=production tsx src/index.ts",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "dotenv": "^17.4.2",
+    "ws": "^8.20.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22",
+    "@types/ws": "^8.18.1",
+    "tsx": "^4.21.0",
+    "typescript": "^5",
+    "vitest": "^3.0.0"
+  }
+}

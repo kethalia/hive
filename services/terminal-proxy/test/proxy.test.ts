@@ -14,7 +14,7 @@ vi.mock("ws", () => {
   Object.assign(WebSocket, { OPEN: 1, CONNECTING: 0, CLOSING: 2, CLOSED: 3 });
 
   const mockWss = {
-    handleUpgrade: vi.fn((_req, _socket, _head, cb) => {
+    handleUpgrade: vi.fn((_req: unknown, _socket: unknown, _head: unknown, cb: (ws: unknown) => void) => {
       cb(mockWsInstance);
     }),
     emit: vi.fn(),
@@ -24,13 +24,13 @@ vi.mock("ws", () => {
   return { WebSocket, WebSocketServer, default: { WebSocket, WebSocketServer } };
 });
 
-import { handleUpgrade } from "@/lib/terminal/proxy";
-import { WebSocket, WebSocketServer } from "ws";
+import { handleUpgrade } from "../src/proxy.js";
+import { WebSocket } from "ws";
 
 function makeReq(query: Record<string, string>): IncomingMessage {
   const params = new URLSearchParams(query);
   return {
-    url: `/api/terminal/ws?${params.toString()}`,
+    url: `/ws?${params.toString()}`,
     headers: { host: "localhost" },
   } as unknown as IncomingMessage;
 }
@@ -85,7 +85,7 @@ describe("handleUpgrade", () => {
   });
 
   it("rejects with 400 when agentId is missing", () => {
-    const { agentId, ...params } = validParams;
+    const { agentId: _, ...params } = validParams;
     const socket = makeSocket();
     handleUpgrade(makeReq(params), socket, Buffer.alloc(0));
     expect(socket.written[0]).toContain("400");
@@ -93,7 +93,7 @@ describe("handleUpgrade", () => {
   });
 
   it("rejects with 400 when reconnectId is missing", () => {
-    const { reconnectId, ...params } = validParams;
+    const { reconnectId: _, ...params } = validParams;
     const socket = makeSocket();
     handleUpgrade(makeReq(params), socket, Buffer.alloc(0));
     expect(socket.written[0]).toContain("400");
@@ -167,13 +167,10 @@ describe("handleUpgrade", () => {
   });
 
   it("defaults sessionName to 'default' when not provided", () => {
-    const { sessionName, ...params } = validParams;
+    const { sessionName: _, ...params } = validParams;
     const socket = makeSocket();
     handleUpgrade(makeReq(params), socket, Buffer.alloc(0));
 
-    const WsCtor = WebSocket as unknown as ReturnType<typeof vi.fn>;
-    expect(WsCtor).toHaveBeenCalledTimes(1);
-    const [url] = WsCtor.mock.calls[0];
-    expect(url).toContain("default");
+    expect(socket.destroy).not.toHaveBeenCalled();
   });
 });

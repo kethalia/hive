@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, fireEvent, cleanup, act } from "@testing-library/react";
+import { render, screen, cleanup, fireEvent } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
 
 vi.mock("@/lib/workspaces/urls", () => ({
@@ -38,63 +38,81 @@ vi.mock("@/components/ui/button", () => ({
   buttonVariants: () => "mock-button-class",
 }));
 
-vi.mock("@/components/ui/tabs", () => ({
-  Tabs: ({
-    children,
-    onValueChange,
-    ...rest
-  }: React.PropsWithChildren<{
-    value?: string;
-    onValueChange?: (v: string) => void;
-    className?: string;
-  }>) => (
-    <div data-value={rest.value} data-slot="tabs">
-      {children}
-    </div>
+vi.mock("@/components/ui/breadcrumb", () => ({
+  Breadcrumb: ({ children }: React.PropsWithChildren) => (
+    <nav aria-label="breadcrumb">{children}</nav>
   ),
-  TabsList: ({ children }: React.PropsWithChildren) => <div data-slot="tabs-list">{children}</div>,
-  TabsTrigger: ({
+  BreadcrumbList: ({ children }: React.PropsWithChildren) => (
+    <ol>{children}</ol>
+  ),
+  BreadcrumbItem: ({ children }: React.PropsWithChildren) => (
+    <li>{children}</li>
+  ),
+  BreadcrumbLink: ({
     children,
-    value,
+    render,
+  }: React.PropsWithChildren<{ render?: React.ReactElement }>) =>
+    render ? <a href={(render as React.ReactElement<{ href: string }>).props.href}>{children}</a> : <a>{children}</a>,
+  BreadcrumbPage: ({ children }: React.PropsWithChildren) => (
+    <span>{children}</span>
+  ),
+  BreadcrumbSeparator: () => <li>/</li>,
+}));
+
+vi.mock("@/components/ui/popover", () => ({
+  Popover: ({
+    children,
+    open,
+  }: React.PropsWithChildren<{ open?: boolean; onOpenChange?: (v: boolean) => void }>) => (
+    <div data-open={open}>{children}</div>
+  ),
+  PopoverTrigger: ({
+    children,
     ...rest
-  }: React.PropsWithChildren<{ value: string }>) => {
-    const tabsEl = rest as Record<string, unknown>;
-    return (
-      <button
-        data-value={value}
-        onClick={() => {
-          const tabs = document.querySelector("[data-slot='tabs']");
-          if (tabs) {
-            const onValueChange = (tabs as HTMLElement).dataset.onvaluechange;
-            if (onValueChange) (window as Record<string, unknown>)[onValueChange]?.(value);
-          }
-        }}
-      >
-        {children}
-      </button>
-    );
-  },
-  TabsContent: ({
-    children,
-    value,
-  }: React.PropsWithChildren<{ value: string; className?: string }>) => (
-    <div data-tab-content={value}>{children}</div>
+  }: React.PropsWithChildren<{ className?: string; "data-testid"?: string }>) => (
+    <button data-testid={rest["data-testid"]}>{children}</button>
+  ),
+  PopoverContent: ({ children }: React.PropsWithChildren) => (
+    <div data-slot="popover-content">{children}</div>
   ),
 }));
 
 vi.mock("@/components/ui/alert", () => ({
-  Alert: ({ children, ...rest }: React.PropsWithChildren<{ variant?: string; className?: string }>) => (
-    <div role="alert" data-variant={rest.variant}>{children}</div>
+  Alert: ({
+    children,
+    ...rest
+  }: React.PropsWithChildren<{ variant?: string; className?: string }>) => (
+    <div role="alert" data-variant={rest.variant}>
+      {children}
+    </div>
   ),
-  AlertDescription: ({ children }: React.PropsWithChildren) => <div>{children}</div>,
+  AlertDescription: ({ children }: React.PropsWithChildren) => (
+    <div>{children}</div>
+  ),
+}));
+
+vi.mock("next/dynamic", () => ({
+  default: () => {
+    const Stub = () => <div data-testid="terminal-tab-manager" />;
+    Stub.displayName = "DynamicTerminalTabManager";
+    return Stub;
+  },
+}));
+
+vi.mock("next/link", () => ({
+  default: ({ children, href }: React.PropsWithChildren<{ href: string }>) => (
+    <a href={href}>{children}</a>
+  ),
 }));
 
 vi.mock("lucide-react", () => ({
   ExternalLink: () => <span>ExtLink</span>,
   FolderOpen: () => <span>FolderOpen</span>,
   Monitor: () => <span>Monitor</span>,
+  TerminalSquare: () => <span>Terminal</span>,
   LayoutDashboard: () => <span>Dashboard</span>,
   AlertCircle: () => <span>AlertIcon</span>,
+  ChevronDown: () => <span>▾</span>,
 }));
 
 import { WorkspaceToolPanel } from "@/components/workspaces/WorkspaceToolPanel";
@@ -120,6 +138,7 @@ function makeWorkspace(
 
 const defaultProps = {
   workspace: makeWorkspace(),
+  agentId: "agent-1",
   agentName: "main",
   coderUrl: "https://coder.example.com",
 };
@@ -137,30 +156,61 @@ describe("WorkspaceToolPanel", () => {
     vi.restoreAllMocks();
   });
 
-  it("renders filebrowser iframe by default", () => {
+  it("renders terminal tab manager by default", () => {
     render(<WorkspaceToolPanel {...defaultProps} />);
-
-    const iframe = document.querySelector("iframe");
-    expect(iframe).toBeTruthy();
-    expect(iframe!.getAttribute("src")).toBe("https://fb.test");
+    expect(screen.getByTestId("terminal-tab-manager")).toBeInTheDocument();
   });
 
-  it("opens popup with correct URL on Pop Out click", () => {
+  it("renders breadcrumb with workspace name and tool picker", () => {
     render(<WorkspaceToolPanel {...defaultProps} />);
 
-    const popOutButton = screen.getByText("Pop Out").closest("button")!;
-    fireEvent.click(popOutButton);
-
-    expect(mockOpen).toHaveBeenCalledWith("https://fb.test", "_blank");
+    expect(screen.getByText("Workspaces")).toBeInTheDocument();
+    expect(screen.getByText("dev")).toBeInTheDocument();
+    expect(screen.getByTestId("tool-picker-trigger")).toBeInTheDocument();
   });
 
-  it("renders dashboard link with correct href and target", () => {
+  it("default tool picker shows Terminal", () => {
     render(<WorkspaceToolPanel {...defaultProps} />);
 
-    const dashLinks = screen.getAllByText("Dashboard");
-    const dashboardLink = dashLinks.find((el) => el.closest("a"))!.closest("a")!;
-    expect(dashboardLink.getAttribute("href")).toBe("https://dash.test");
-    expect(dashboardLink.getAttribute("target")).toBe("_blank");
+    const trigger = screen.getByTestId("tool-picker-trigger");
+    expect(trigger).toHaveTextContent("Terminal");
+  });
+
+  it("renders all four tool options in the dropdown", () => {
+    render(<WorkspaceToolPanel {...defaultProps} />);
+
+    expect(screen.getByTestId("tool-option-terminal")).toBeInTheDocument();
+    expect(screen.getByTestId("tool-option-filebrowser")).toBeInTheDocument();
+    expect(screen.getByTestId("tool-option-kasmvnc")).toBeInTheDocument();
+    expect(screen.getByTestId("tool-option-dashboard")).toBeInTheDocument();
+  });
+
+  it("switches active tool when option is clicked", () => {
+    render(<WorkspaceToolPanel {...defaultProps} />);
+
+    fireEvent.click(screen.getByTestId("tool-option-filebrowser"));
+
+    const trigger = screen.getByTestId("tool-picker-trigger");
+    expect(trigger).toHaveTextContent("Filebrowser");
+  });
+
+  it("renders proxied iframes for filebrowser and kasmvnc", () => {
+    const { container } = render(<WorkspaceToolPanel {...defaultProps} />);
+
+    const iframes = container.querySelectorAll("iframe");
+    expect(iframes).toHaveLength(2);
+
+    const srcs = Array.from(iframes).map((f) => f.getAttribute("src"));
+    expect(srcs).toContain("/api/workspace-proxy/ws-1/filebrowser");
+    expect(srcs).toContain("/api/workspace-proxy/ws-1/kasmvnc");
+  });
+
+  it("shows external placeholder for dashboard tool", () => {
+    render(<WorkspaceToolPanel {...defaultProps} />);
+
+    fireEvent.click(screen.getByTestId("tool-option-dashboard"));
+
+    expect(screen.getByText("Dashboard opens in a new tab")).toBeInTheDocument();
   });
 
   it("shows disabled state when workspace is stopped", () => {
@@ -183,45 +233,7 @@ describe("WorkspaceToolPanel", () => {
     expect(kasmBtn).toBeDisabled();
   });
 
-  it("shows error fallback with direct links when iframe error triggers", async () => {
-    vi.useFakeTimers();
-
-    const { container } = render(<WorkspaceToolPanel {...defaultProps} />);
-
-    const iframe = container.querySelector("iframe")!;
-    expect(iframe).toBeTruthy();
-
-    Object.defineProperty(iframe, "contentWindow", {
-      configurable: true,
-      get() {
-        return {
-          get location() {
-            throw new DOMException("Blocked a frame with origin from accessing a cross-origin frame.");
-          },
-        };
-      },
-    });
-
-    await act(async () => {
-      vi.advanceTimersByTime(5000);
-    });
-
-    expect(
-      screen.getByText(/Unable to embed/),
-    ).toBeInTheDocument();
-
-    const openFbButton = screen.getByText("Open Filebrowser").closest("button")!;
-    fireEvent.click(openFbButton);
-    expect(mockOpen).toHaveBeenCalledWith("https://fb.test", "_blank");
-
-    const openKasmButton = screen.getByText("Open KasmVNC").closest("button")!;
-    fireEvent.click(openKasmButton);
-    expect(mockOpen).toHaveBeenCalledWith("https://kasm.test", "_blank");
-
-    vi.useRealTimers();
-  });
-
-  it("renders dashboard link even in disabled state", () => {
+  it("renders disabled dashboard button in stopped state", () => {
     render(
       <WorkspaceToolPanel
         {...defaultProps}
@@ -229,9 +241,11 @@ describe("WorkspaceToolPanel", () => {
       />,
     );
 
-    const dashboardLink = screen.getByText("Coder Dashboard").closest("a")!;
-    expect(dashboardLink.getAttribute("href")).toBe("https://dash.test");
-    expect(dashboardLink.getAttribute("target")).toBe("_blank");
+    const dashboardBtns = screen.getAllByText("Dashboard");
+    const disabledBtn = dashboardBtns
+      .map((el) => el.closest("button"))
+      .find((btn) => btn?.disabled);
+    expect(disabledBtn).toBeTruthy();
   });
 
   it("does not crash with empty coderUrl", () => {
@@ -239,6 +253,7 @@ describe("WorkspaceToolPanel", () => {
       render(
         <WorkspaceToolPanel
           workspace={makeWorkspace()}
+          agentId="agent-1"
           agentName="main"
           coderUrl=""
         />,

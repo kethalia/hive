@@ -26,7 +26,7 @@ export function createVerifyExecuteStep(): BlueprintStep {
           const result = await execInWorkspace(
             ctx.workspaceName,
             `cd ${PROJECT_DIR} && npm install && npm test`,
-            { timeoutMs: TEST_TIMEOUT_MS },
+            { timeoutMs: TEST_TIMEOUT_MS, loginShell: true },
           );
           logs = result.stdout + "\n" + result.stderr;
           outcome = result.exitCode === 0 ? "pass" : "fail";
@@ -39,6 +39,7 @@ export function createVerifyExecuteStep(): BlueprintStep {
           await execInWorkspace(
             ctx.workspaceName,
             `cd ${PROJECT_DIR} && npm install && npm run dev &`,
+            { loginShell: true },
           );
 
           const curlResult = await execInWorkspace(
@@ -66,6 +67,7 @@ export function createVerifyExecuteStep(): BlueprintStep {
           await execInWorkspace(
             ctx.workspaceName,
             `cd ${PROJECT_DIR} && npx -y serve . -l 3000 &`,
+            { loginShell: true },
           );
 
           const curlResult = await execInWorkspace(

@@ -1,9 +1,11 @@
 import type { Metadata } from "next";
+import { Suspense } from "react";
 import { Geist, Geist_Mono } from "next/font/google";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { SidebarProvider, SidebarInset, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/app-sidebar";
 import { Separator } from "@/components/ui/separator";
+import { HeaderContent } from "@/components/HeaderContent";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -31,12 +33,14 @@ export default function RootLayout({
       <body className={`${geistSans.variable} ${geistMono.variable} font-sans antialiased`}>
         <TooltipProvider>
           <SidebarProvider>
-            <AppSidebar />
+            <AppSidebar coderUrl={process.env.CODER_URL} />
             <SidebarInset>
               <header className="flex h-14 shrink-0 items-center gap-2 border-b px-4">
                 <SidebarTrigger className="-ml-1" />
                 <Separator orientation="vertical" className="mr-2 h-4" />
-                <span className="text-sm text-muted-foreground">Dashboard</span>
+                <Suspense fallback={<span className="text-sm text-muted-foreground">Loading…</span>}>
+                  <HeaderContent />
+                </Suspense>
               </header>
               <main className="flex-1 p-6">
                 {children}

@@ -47,7 +47,7 @@ export function createLintStep(): BlueprintStep {
       const lintResult = await execInWorkspace(
         ctx.workspaceName,
         `cd ${PROJECT_DIR} && npm run lint -- --fix 2>&1`,
-        { timeoutMs: LINT_TIMEOUT_MS },
+        { timeoutMs: LINT_TIMEOUT_MS, loginShell: true },
       );
 
       if (lintResult.exitCode === 124) {

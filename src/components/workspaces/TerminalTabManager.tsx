@@ -1,11 +1,10 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import dynamic from "next/dynamic";
-import { X, Plus, Trash2 } from "lucide-react";
+import { X, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
   createSessionAction,
   renameSessionAction,
@@ -13,7 +12,6 @@ import {
   getWorkspaceSessionsAction,
 } from "@/lib/actions/workspaces";
 import { SAFE_IDENTIFIER_RE } from "@/lib/constants";
-import type { TmuxSession } from "@/lib/workspaces/sessions";
 import { cn } from "@/lib/utils";
 
 const InteractiveTerminal = dynamic(
@@ -32,34 +30,53 @@ interface Tab {
 interface TerminalTabManagerProps {
   agentId: string;
   workspaceId: string;
-  initialSessions: TmuxSession[];
-  initialSessionName?: string;
 }
 
 export function TerminalTabManager({
   agentId,
   workspaceId,
-  initialSessions,
-  initialSessionName,
 }: TerminalTabManagerProps) {
-  const [tabs, setTabs] = useState<Tab[]>(() => {
-    if (initialSessionName) {
-      return [{ id: crypto.randomUUID(), sessionName: initialSessionName }];
-    }
-    if (initialSessions.length > 0) {
-      return [{ id: crypto.randomUUID(), sessionName: initialSessions[0].name }];
-    }
-    return [{ id: crypto.randomUUID(), sessionName: "hive-main" }];
-  });
-  const [activeTabId, setActiveTabId] = useState<string>(() => tabs[0].id);
+  const [tabs, setTabs] = useState<Tab[]>([]);
+  const [activeTabId, setActiveTabId] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
+  const [loading, setLoading] = useState(true);
 
   const [editingTabId, setEditingTabId] = useState<string | null>(null);
   const [editValue, setEditValue] = useState("");
 
-  const [pickerOpen, setPickerOpen] = useState(false);
-  const [availableSessions, setAvailableSessions] = useState<TmuxSession[]>([]);
-  const [loadingSessions, setLoadingSessions] = useState(false);
+  useEffect(() => {
+    let cancelled = false;
+
+    (async () => {
+      try {
+        const result = await getWorkspaceSessionsAction({ workspaceId });
+        if (cancelled) return;
+
+        if (result?.data && result.data.length > 0) {
+          const loaded: Tab[] = result.data.map((s) => ({
+            id: crypto.randomUUID(),
+            sessionName: s.name,
+          }));
+          setTabs(loaded);
+          setActiveTabId(loaded[0].id);
+        } else {
+          const res = await createSessionAction({ workspaceId });
+          if (cancelled) return;
+          if (res?.data) {
+            const tab: Tab = { id: crypto.randomUUID(), sessionName: res.data.name };
+            setTabs([tab]);
+            setActiveTabId(tab.id);
+          }
+        }
+      } catch (err) {
+        console.error("[terminal-tabs] Failed to load sessions:", err);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+
+    return () => { cancelled = true; };
+  }, [workspaceId]);
 
   const handleCreateTab = useCallback(async () => {
     setCreating(true);
@@ -79,22 +96,6 @@ export function TerminalTabManager({
       setCreating(false);
     }
   }, [workspaceId]);
-
-  const handleCloseTab = useCallback(
-    (tabId: string) => {
-      setTabs((prev) => {
-        const updated = prev.filter((t) => t.id !== tabId);
-        if (updated.length === 0) return prev;
-        if (activeTabId === tabId) {
-          const closedIndex = prev.findIndex((t) => t.id === tabId);
-          const nextIndex = Math.min(closedIndex, updated.length - 1);
-          setActiveTabId(updated[nextIndex].id);
-        }
-        return updated;
-      });
-    },
-    [activeTabId],
-  );
 
   const startRename = useCallback((tab: Tab) => {
     setEditingTabId(tab.id);
@@ -148,6 +149,7 @@ export function TerminalTabManager({
 
       try {
         await killSessionAction({ workspaceId, sessionName: tab.sessionName });
+        window.localStorage.removeItem(`terminal:reconnect:${agentId}:${tab.sessionName}`);
 
         setTabs((prev) => {
           const updated = prev.filter((t) => t.id !== tabId);
@@ -165,41 +167,17 @@ export function TerminalTabManager({
     [tabs, workspaceId, activeTabId],
   );
 
-  const openPicker = useCallback(async () => {
-    setLoadingSessions(true);
-    setPickerOpen(true);
-    try {
-      const result = await getWorkspaceSessionsAction({ workspaceId });
-      if (result?.data) {
-        setAvailableSessions(result.data);
-      }
-    } catch (err) {
-      console.error("[terminal-tabs] Failed to fetch sessions:", err);
-    } finally {
-      setLoadingSessions(false);
-    }
-  }, [workspaceId]);
-
-  const openExistingSession = useCallback(
-    (sessionName: string) => {
-      const newTab: Tab = { id: crypto.randomUUID(), sessionName };
-      setTabs((prev) => [...prev, newTab]);
-      setActiveTabId(newTab.id);
-      setPickerOpen(false);
-    },
-    [],
-  );
-
-  const openSessionNames = new Set(tabs.map((t) => t.sessionName));
-  const unopenedSessions = availableSessions.filter(
-    (s) => !openSessionNames.has(s.name),
-  );
-
-  const hasNoTabs = tabs.length === 0;
-
-  if (hasNoTabs) {
+  if (loading) {
     return (
-      <div className="flex h-screen flex-col items-center justify-center gap-4 bg-background">
+      <div className="flex h-full items-center justify-center bg-background">
+        <p className="text-sm text-muted-foreground">Loading sessions…</p>
+      </div>
+    );
+  }
+
+  if (tabs.length === 0) {
+    return (
+      <div className="flex h-full flex-col items-center justify-center gap-4 bg-background">
         <p className="text-sm text-muted-foreground">No terminal sessions open</p>
         <Button onClick={handleCreateTab} disabled={creating}>
           <Plus className="mr-2 size-4" />
@@ -210,7 +188,7 @@ export function TerminalTabManager({
   }
 
   return (
-    <div className="flex h-screen flex-col bg-background">
+    <div className="flex h-full flex-col bg-background">
       <div className="flex items-center border-b border-border bg-background px-1">
         <div className="flex items-center gap-0.5 overflow-x-auto py-1">
           {tabs.map((tab) => (
@@ -243,13 +221,13 @@ export function TerminalTabManager({
                 ) : (
                   <span data-testid="tab-label">{tab.sessionName}</span>
                 )}
-                <span className="ml-1 flex items-center gap-0.5">
+                {tabs.length > 1 && (
                   <span
                     role="button"
                     tabIndex={0}
-                    data-testid="kill-tab"
+                    data-testid="close-tab"
                     title="Kill session"
-                    className="rounded p-0.5 opacity-0 hover:bg-destructive/20 hover:text-destructive group-hover:opacity-100"
+                    className="ml-1 rounded p-0.5 opacity-0 hover:bg-destructive/20 hover:text-destructive group-hover:opacity-100"
                     onClick={(e) => {
                       e.stopPropagation();
                       handleKillTab(tab.id);
@@ -261,73 +239,23 @@ export function TerminalTabManager({
                       }
                     }}
                   >
-                    <Trash2 className="size-3" />
+                    <X className="size-3" />
                   </span>
-                  {tabs.length > 1 && (
-                    <span
-                      role="button"
-                      tabIndex={0}
-                      data-testid="close-tab"
-                      title="Close tab (keep session)"
-                      className="rounded p-0.5 hover:bg-destructive/20 hover:text-destructive"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleCloseTab(tab.id);
-                      }}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter" || e.key === " ") {
-                          e.stopPropagation();
-                          handleCloseTab(tab.id);
-                        }
-                      }}
-                    >
-                      <X className="size-3" />
-                    </span>
-                  )}
-                </span>
+                )}
               </Button>
             </div>
           ))}
         </div>
-        <Popover open={pickerOpen} onOpenChange={setPickerOpen}>
-          <PopoverTrigger
-            className="ml-1 shrink-0"
-            onClick={() => { if (!pickerOpen) openPicker(); }}
-            disabled={creating}
-            data-testid="add-tab-button"
-          >
-            <Plus className="size-3.5" />
-          </PopoverTrigger>
-          <PopoverContent align="start" className="min-w-48 p-1">
-            {loadingSessions ? (
-              <div className="px-3 py-2 text-xs text-muted-foreground">Loading sessions...</div>
-            ) : (
-              <div data-testid="session-picker">
-                {unopenedSessions.map((session) => (
-                  <button
-                    key={session.name}
-                    data-testid="session-picker-item"
-                    className="flex w-full items-center rounded px-3 py-1.5 text-left font-mono text-xs hover:bg-accent"
-                    onClick={() => openExistingSession(session.name)}
-                  >
-                    {session.name}
-                  </button>
-                ))}
-                <button
-                  data-testid="session-picker-create"
-                  className="flex w-full items-center rounded px-3 py-1.5 text-left text-xs hover:bg-accent"
-                  onClick={() => {
-                    setPickerOpen(false);
-                    handleCreateTab();
-                  }}
-                >
-                  <Plus className="mr-1.5 size-3" />
-                  Create New
-                </button>
-              </div>
-            )}
-          </PopoverContent>
-        </Popover>
+        <Button
+          variant="ghost"
+          size="sm"
+          className="ml-1 shrink-0 px-1.5"
+          onClick={handleCreateTab}
+          disabled={creating}
+          data-testid="add-tab-button"
+        >
+          <Plus className="size-3.5" />
+        </Button>
       </div>
 
       <div className="relative flex-1">

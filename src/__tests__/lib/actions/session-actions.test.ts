@@ -81,7 +81,7 @@ describe("session server actions", () => {
       expect(mockGetWorkspaceAgentName).toHaveBeenCalledWith("ws-1");
       expect(mockedExec).toHaveBeenCalledWith(
         "dev.main",
-        "tmux new-session -d -s my-session",
+        "tmux -L web new-session -d -s my-session",
       );
       expect(result?.data).toEqual({ name: "my-session" });
     });
@@ -99,7 +99,7 @@ describe("session server actions", () => {
 
       expect(mockedExec).toHaveBeenCalledWith(
         "dev.main",
-        expect.stringMatching(/^tmux new-session -d -s session-\d+$/),
+        expect.stringMatching(/^tmux -L web new-session -d -s session-\d+$/),
       );
       expect(result?.data?.name).toMatch(/^session-\d+$/);
     });
@@ -167,7 +167,7 @@ describe("session server actions", () => {
 
       expect(mockedExec).toHaveBeenCalledWith(
         "dev.main",
-        "tmux rename-session -t old-name new-name",
+        "tmux -L web rename-session -t old-name new-name",
       );
       expect(result?.data).toEqual({ oldName: "old-name", newName: "new-name" });
     });
@@ -249,7 +249,7 @@ describe("session server actions", () => {
 
       expect(mockedExec).toHaveBeenCalledWith(
         "dev.main",
-        "tmux kill-session -t my-session",
+        "tmux -L web kill-session -t my-session",
       );
       expect(result?.data).toEqual({ name: "my-session" });
     });

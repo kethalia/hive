@@ -13,5 +13,7 @@ export default async function WorkspacesPage() {
 
   const workspaces = result?.data ?? [];
 
-  return <WorkspacesClient initialWorkspaces={workspaces} />;
+  const coderUrl = process.env.CODER_URL ?? "";
+
+  return <WorkspacesClient initialWorkspaces={workspaces} coderUrl={coderUrl} />;
 }

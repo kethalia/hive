@@ -6,6 +6,7 @@ const nextConfig: NextConfig = {
     // Runtime behavior is correct; type errors are version-mismatch noise.
     ignoreBuildErrors: true,
   },
+  skipTrailingSlashRedirect: true,
 };
 
 export default nextConfig;
