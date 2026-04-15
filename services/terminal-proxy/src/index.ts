@@ -1,6 +1,7 @@
 import { config } from "dotenv";
-import { resolve } from "node:path";
-config({ path: resolve(import.meta.dirname, "../../../.env") });
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
+config({ path: resolve(dirname(fileURLToPath(import.meta.url)), "../../../.env") });
 
 import { createServer } from "node:http";
 import { handleUpgrade } from "./proxy.js";

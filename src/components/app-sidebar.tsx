@@ -52,7 +52,7 @@ export function AppSidebar({ coderUrl }: { coderUrl?: string }) {
                 <SidebarMenuItem key={item.href}>
                   <SidebarMenuButton
                     render={<Link href={item.href} />}
-                    isActive={pathname.startsWith(item.href)}
+                    isActive={pathname === item.href || (pathname.startsWith(item.href + "/") && !navItems.some((other) => other.href !== item.href && pathname.startsWith(other.href)))}
                   >
                     <item.icon className="h-4 w-4" />
                     <span>{item.title}</span>

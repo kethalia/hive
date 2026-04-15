@@ -161,6 +161,10 @@ export function InteractiveTerminal({
 
       const dims = { rows: term.rows, cols: term.cols };
       const proxyUrl = process.env.NEXT_PUBLIC_TERMINAL_WS_URL;
+      if (!proxyUrl) {
+        console.error("NEXT_PUBLIC_TERMINAL_WS_URL is not set");
+        return;
+      }
       const params = new URLSearchParams({
         agentId,
         reconnectId,
