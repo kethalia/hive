@@ -183,6 +183,12 @@ Next.js 16 with Turbopack rejects `dynamic(() => import(...), { ssr: false })` w
 
 Next.js App Router route handlers return `Response` objects and cannot access the raw HTTP socket needed for WebSocket upgrade. For bidirectional WebSocket support, wrap Next.js in a custom `server.ts` using `http.createServer` + `server.on('upgrade', ...)`. Use `app.getUpgradeHandler()` to delegate non-intercepted upgrades (HMR) back to Next.js. The `ws` package in `noServer` mode receives the raw socket from the HTTP server, avoiding port conflicts. Dev script becomes `tsx watch server.ts` instead of `next dev`.
 
+## React Strict Mode: stateRef + Cancelled Flag for Async Effects
+
+**Discovered:** 2026-04-15 during M006/S04/T02
+
+React strict mode double-fires effects in development. When an effect triggers a fetch (e.g., scrollback hydration), the cleanup of the first invocation aborts the in-flight request if using `AbortController`. The second invocation then re-fetches, but the first abort may trigger error state if not handled. The cleaner pattern: use a `stateRef` (reset to idle in cleanup) plus a closure `cancelled` boolean flag. The cleanup resets stateRef so the second effect invocation sees idle and proceeds. The first invocation's cancelled flag prevents stale state writes. This avoids the abort-then-retry noise while still preventing race conditions. Pattern is in `src/hooks/useScrollbackHydration.ts`.
+
 ## Cross-Origin Iframe Error Detection in jsdom/Vitest
 
 **Discovered:** 2026-04-14 during M005/S04/T03
