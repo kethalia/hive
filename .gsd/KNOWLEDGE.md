@@ -189,6 +189,30 @@ Next.js App Router route handlers return `Response` objects and cannot access th
 
 React strict mode double-fires effects in development. When an effect triggers a fetch (e.g., scrollback hydration), the cleanup of the first invocation aborts the in-flight request if using `AbortController`. The second invocation then re-fetches, but the first abort may trigger error state if not handled. The cleaner pattern: use a `stateRef` (reset to idle in cleanup) plus a closure `cancelled` boolean flag. The cleanup resets stateRef so the second effect invocation sees idle and proceeds. The first invocation's cancelled flag prevents stale state writes. This avoids the abort-then-retry noise while still preventing race conditions. Pattern is in `src/hooks/useScrollbackHydration.ts`.
 
+## Two-Zone Scroll Architecture for Terminal History
+
+**Discovered:** 2026-04-15 during M006/S04
+
+When terminal history exceeds xterm.js's built-in scrollback buffer, don't try to extend xterm's buffer — instead render a separate history panel above xterm. xterm handles live terminal output + recent hydrated history; a virtual-scrolled panel (e.g., @tanstack/react-virtual) renders unbounded older scrollback with cursor-based backward pagination. This separates concerns cleanly: xterm stays focused on terminal emulation while the history panel handles arbitrary-length browsing with lazy loading. The two zones communicate via scroll position callbacks to show/hide the history panel.
+
+## Live-Data Gating During Async Hydration
+
+**Discovered:** 2026-04-15 during M006/S04
+
+When restoring terminal history from a database on reconnect, WebSocket messages may arrive before the async hydration fetch completes. Without gating, live data appears before historical data, creating a scrambled timeline. Solution: buffer incoming WebSocket data in an array during hydration (`isGatingLiveData` flag), then flush the buffer in order when hydration completes (success or error). This pattern applies to any component that must merge async historical data with a live streaming source.
+
+## ResizeObserver for Container Dimension Changes Over Window Resize
+
+**Discovered:** 2026-04-15 during M006/S02
+
+For UI components that need to resize when their container changes (not just the window), use `ResizeObserver` instead of `window.addEventListener('resize')`. ResizeObserver fires on CSS visibility changes (display:none→block), parent resize, and window resize — a single mechanism covering all dimension change scenarios. Guard the callback against zero-dimension observations (hidden containers) to prevent corrupted state. This is particularly useful for tabbed interfaces where inactive tabs use display:none.
+
+## vi.hoisted() for Shared Mock State in Vitest
+
+**Discovered:** 2026-04-15 during M006/S05
+
+When test files need per-test control over mocked hook return values, use `vi.hoisted()` to create shared mutable state that's accessible from both `vi.mock()` factory functions and test bodies. The factory reads from the hoisted ref; each test mutates it before rendering. This avoids module reimport overhead and enables fine-grained mock control for complex component integration tests. Pattern proven across 30 M006 integration tests.
+
 ## Cross-Origin Iframe Error Detection in jsdom/Vitest
 
 **Discovered:** 2026-04-14 during M005/S04/T03

@@ -31,12 +31,12 @@ Unattended task-to-PR automation with behavioral verification — the system doe
 - S03 (Multi-Tab Terminal & Session Management): ✅ complete — TerminalTabManager with multiple simultaneous terminal tabs, inline rename, kill, session picker. 22 tests.
 - S04 (External Tool Integration): ✅ complete — Workspace detail page at /workspaces/[id] with iframe-embedded Filebrowser/KasmVNC panels, tab toggle, popup-out buttons, Coder Dashboard link-out, error fallback. 10 tests.
 
-**M006 in progress — 4 of 5 slices complete.** Persistent terminal sessions: server-side workspace keep-alive, infinite reconnection, Postgres-backed scrollback with virtual scrolling.
+**M006 complete — all 5 slices delivered and verified.** Persistent terminal sessions: server-side workspace keep-alive, infinite reconnection, Postgres-backed scrollback with virtual scrolling. 504 frontend tests, 88 proxy tests.
 - S01 (Workspace Keep-Alive Service): ✅ complete — KeepAliveManager pings Coder API every 55s per active workspace, ConnectionRegistry tracks workspaceId→connections, /keepalive/status HTTP endpoint, KeepAliveWarning banner in terminal UI at 3+ failures. 75 new tests.
 - S02 (Infinite Reconnection & Session Continuity): ✅ complete — Infinite WebSocket retries with 60s backoff cap, reconnecting banner with attempt count and Reconnect Now button, reconnectId auto-regeneration after 3 consecutive failures, ResizeObserver-based tab re-fit for scrollback preservation. 21 new tests.
 - S03 (Scrollback Persistence Backend): ✅ complete — ScrollbackWriter batches PTY output to Postgres via chunked writes, ScrollbackChunk Prisma model, scrollback API route for hydration.
-- S04 (Virtual Scrolling & Hydration UI): ✅ complete — Paginated scrollback API (cursor/limit), useScrollbackHydration hook with live-data gating, TerminalHistoryPanel with @tanstack/react-virtual and ANSI rendering, JumpToBottom button, loading skeletons. 39 new tests, 474 total across 60 files.
-- S05 (End-to-End Integration & Regression): ⬜ remaining — depends on S01-S04
+- S04 (Virtual Scrolling & Hydration UI): ✅ complete — Paginated scrollback API (cursor/limit), useScrollbackHydration hook with live-data gating, TerminalHistoryPanel with @tanstack/react-virtual and ANSI rendering, JumpToBottom button, loading skeletons. 39 new tests.
+- S05 (End-to-End Integration & Regression): ✅ complete — 30 cross-slice integration tests proving hydration gating, format compatibility, reconnectId lifecycle, InteractiveTerminal UI coordination, and TerminalTabManager regression with M006 components. 504 total frontend tests, 88 proxy tests, zero regressions.
 
 **Operational notes:** M001 cleanup scheduler not wired to entrypoint. M002 council can run in isolation or as part of full pipeline; initial testing with 3-reviewer council works correctly with mock data. Real GitHub integration tested via mocked gh CLI; live GitHub token handling depends on environment setup during deployment. M005 dev workflow now uses `tsx watch server.ts` instead of `next dev` to support WebSocket upgrade.
 
@@ -67,4 +67,4 @@ See `.gsd/REQUIREMENTS.md` for the explicit capability contract, requirement sta
 - [ ] M002: Council Review — N independent Claude reviewer agents analyse the PR diff in parallel, aggregate findings by consensus, post a single combined review comment
 - [x] M004: Template Management Dashboard — Web UI for viewing template staleness and pushing updates (3 slices, 315 tests)
 - [x] M005: Workspace Terminals — Persistent tmux-backed interactive terminals in the dashboard with workspace discovery and external tool integration (4 slices, 407 tests, 7 requirements validated)
-- [ ] M006: Persistent Terminal Sessions — Fix critical session persistence: server-side workspace keep-alive, infinite reconnection, Postgres-backed scrollback with virtual scrolling
+- [x] M006: Persistent Terminal Sessions — Fix critical session persistence: server-side workspace keep-alive, infinite reconnection, Postgres-backed scrollback with virtual scrolling (5 slices, 504 frontend + 88 proxy tests)
