@@ -29,10 +29,9 @@ describe("execInWorkspace", () => {
       exitCode: 0,
     });
 
-    // Verify coder ssh args include bash -l -c
     expect(mockExecFile).toHaveBeenCalledWith(
-      "coder",
-      ["ssh", "my-workspace", "--", "bash", "-l", "-c", "echo hello"],
+      "ssh",
+      ["-T", "-o", "BatchMode=yes", "coder.my-workspace", "echo hello"],
       expect.objectContaining({ timeout: 60_000 }),
       expect.any(Function),
     );
@@ -92,8 +91,24 @@ describe("execInWorkspace", () => {
     await execInWorkspace("my-workspace", "ls");
 
     expect(mockExecFile).toHaveBeenCalledWith(
-      "coder",
+      "ssh",
       expect.any(Array),
+      expect.objectContaining({ timeout: 60_000 }),
+      expect.any(Function),
+    );
+  });
+
+  it("uses login shell when loginShell option is true", async () => {
+    mockExecFile.mockImplementation((_cmd, _args, _opts, callback) => {
+      (callback as Function)(null, "ok\n", "");
+      return undefined as any;
+    });
+
+    await execInWorkspace("my-workspace", "node -v", { loginShell: true });
+
+    expect(mockExecFile).toHaveBeenCalledWith(
+      "ssh",
+      ["-T", "-o", "BatchMode=yes", "coder.my-workspace", "bash -l -c 'node -v'"],
       expect.objectContaining({ timeout: 60_000 }),
       expect.any(Function),
     );
@@ -109,10 +124,9 @@ describe("execInWorkspace", () => {
     const longCommand = "x".repeat(200);
     await execInWorkspace("ws", longCommand);
 
-    // The full command is still passed to execFile
     expect(mockExecFile).toHaveBeenCalledWith(
-      "coder",
-      ["ssh", "ws", "--", "bash", "-l", "-c", longCommand],
+      "ssh",
+      ["-T", "-o", "BatchMode=yes", "coder.ws", longCommand],
       expect.any(Object),
       expect.any(Function),
     );

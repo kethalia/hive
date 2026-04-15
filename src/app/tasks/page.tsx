@@ -1,3 +1,5 @@
+export const dynamic = "force-dynamic";
+
 import Link from "next/link";
 import { listTasks } from "@/lib/api/tasks";
 import { TaskListPoller } from "./task-list-poller";

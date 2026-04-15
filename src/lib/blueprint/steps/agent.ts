@@ -129,6 +129,7 @@ export function createAgentStep(): BlueprintStep {
 
       const piResult = await execInWorkspace(ctx.workspaceName, piCmd, {
         timeoutMs: AGENT_TIMEOUT_MS,
+        loginShell: true,
       });
 
       if (piResult.exitCode !== 0) {

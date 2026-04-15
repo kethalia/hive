@@ -62,7 +62,7 @@ describe("createLintStep", () => {
     const lintCall = mockExec.mock.calls.find(([, cmd]) => cmd.includes("npm run lint"));
     expect(lintCall).toBeDefined();
     expect(lintCall![1]).toContain("--fix");
-    expect(lintCall![2]).toEqual({ timeoutMs: 5_000 });
+    expect(lintCall![2]).toEqual({ timeoutMs: 5_000, loginShell: true });
   });
 
   it("returns success with skip message when no lint script in package.json", async () => {

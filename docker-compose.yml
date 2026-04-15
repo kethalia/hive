@@ -15,7 +15,18 @@ services:
       - REDIS_URL=redis://redis:6379
       - CODER_URL=${CODER_URL:-}
       - CODER_SESSION_TOKEN=${CODER_SESSION_TOKEN:-}
-    command: npm run dev
+      - NEXT_PUBLIC_TERMINAL_WS_URL=${NEXT_PUBLIC_TERMINAL_WS_URL:-}
+
+  terminal-proxy:
+    build:
+      context: ./services/terminal-proxy
+      dockerfile: Dockerfile
+    ports:
+      - "3001:3001"
+    environment:
+      - CODER_URL=${CODER_URL:-}
+      - CODER_AGENT_URL=${CODER_AGENT_URL:-}
+      - CODER_SESSION_TOKEN=${CODER_SESSION_TOKEN:-}
 
   postgres:
     image: postgres:16-alpine

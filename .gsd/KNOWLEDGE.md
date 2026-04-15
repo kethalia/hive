@@ -170,3 +170,21 @@ When streaming output from a background job (e.g., BullMQ worker) to the browser
 **Discovered:** 2026-04-13 during M004/S03/T02
 
 When SSE data arrives before a component finishes mounting (e.g., xterm.js terminal loaded via dynamic import), use a `writeRef` + `lineHistory` pattern: store incoming lines in a history array and set a ref to write directly once the component mounts. On mount, replay the buffered history then switch to direct writes. Without this, early SSE messages are silently lost. Pattern is in `src/components/templates/TemplatesClient.tsx`.
+
+## Next.js 16 Turbopack: No `ssr: false` Dynamic Import in Server Components
+
+**Discovered:** 2026-04-14 during M005/S02/T03
+
+Next.js 16 with Turbopack rejects `dynamic(() => import(...), { ssr: false })` when used in a Server Component. The workaround is to split into a server component (page.tsx) that fetches data and a client component wrapper that performs the `ssr: false` dynamic import. Pattern: `page.tsx` (server) → `terminal-client.tsx` ('use client' + dynamic import with ssr: false) → actual component. This applies to any component that accesses browser APIs on import (xterm.js, canvas libraries, etc.).
+
+## Custom server.ts for WebSocket Upgrade in Next.js App Router
+
+**Discovered:** 2026-04-14 during M005/S02/T02
+
+Next.js App Router route handlers return `Response` objects and cannot access the raw HTTP socket needed for WebSocket upgrade. For bidirectional WebSocket support, wrap Next.js in a custom `server.ts` using `http.createServer` + `server.on('upgrade', ...)`. Use `app.getUpgradeHandler()` to delegate non-intercepted upgrades (HMR) back to Next.js. The `ws` package in `noServer` mode receives the raw socket from the HTTP server, avoiding port conflicts. Dev script becomes `tsx watch server.ts` instead of `next dev`.
+
+## Cross-Origin Iframe Error Detection in jsdom/Vitest
+
+**Discovered:** 2026-04-14 during M005/S04/T03
+
+The `<iframe>` element's `onError` event does not fire for cross-origin blocks — only for network-level failures. To detect iframe embedding failures (X-Frame-Options, CSP), use a `setTimeout` after mount and attempt to access `iframe.contentWindow.document`. If this throws a `DOMException` (cross-origin), the iframe is blocked. In tests (jsdom), use `Object.defineProperty(iframeElement, 'contentWindow', { get() { throw new DOMException(...) } })` to simulate this — mocking `document.createElement` doesn't work because React creates elements internally.

@@ -1,0 +1,221 @@
+"use client";
+
+import { useCallback, useEffect, useRef, useState } from "react";
+import type { Terminal } from "@xterm/xterm";
+import type { FitAddon } from "@xterm/addon-fit";
+import { cn } from "@/lib/utils";
+import { encodeInput } from "@/lib/terminal/protocol";
+import {
+  useTerminalWebSocket,
+  type ConnectionState,
+} from "@/hooks/useTerminalWebSocket";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { AlertCircle } from "lucide-react";
+import "@/styles/xterm.css";
+
+interface InteractiveTerminalProps {
+  agentId: string;
+  sessionName: string;
+  className?: string;
+  onConnectionStateChange?: (state: ConnectionState) => void;
+}
+
+const TERMINAL_THEME = {
+  background: "#0a0a0a",
+  foreground: "#e5e5e5",
+  cursor: "#e5e5e5",
+  black: "#1a1a1a",
+  brightBlack: "#444444",
+  red: "#ff5555",
+  brightRed: "#ff6e6e",
+  green: "#50fa7b",
+  brightGreen: "#69ff94",
+  yellow: "#f1fa8c",
+  brightYellow: "#ffffa5",
+  blue: "#6272a4",
+  brightBlue: "#8be9fd",
+  magenta: "#ff79c6",
+  brightMagenta: "#ff92d0",
+  cyan: "#8be9fd",
+  brightCyan: "#a4ffff",
+  white: "#f8f8f2",
+  brightWhite: "#ffffff",
+};
+
+export function connectionBadgeProps(state: ConnectionState) {
+  switch (state) {
+    case "connected":
+      return { variant: "default" as const, label: "Connected", className: "bg-green-600 text-white" };
+    case "connecting":
+      return { variant: "secondary" as const, label: "Connecting…", className: "bg-yellow-600 text-white" };
+    case "reconnecting":
+      return { variant: "secondary" as const, label: "Reconnecting…", className: "bg-yellow-600 text-white" };
+    case "disconnected":
+      return { variant: "secondary" as const, label: "Disconnected", className: "" };
+    case "failed":
+      return { variant: "destructive" as const, label: "Connection failed", className: "" };
+    case "workspace-offline":
+      return { variant: "destructive" as const, label: "Workspace offline", className: "" };
+  }
+}
+
+export function InteractiveTerminal({
+  agentId,
+  sessionName,
+  className,
+  onConnectionStateChange,
+}: InteractiveTerminalProps) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const termRef = useRef<Terminal | null>(null);
+  const fitRef = useRef<FitAddon | null>(null);
+  const [reconnectId] = useState(() => {
+    const RECONNECT_TTL_MS = 24 * 60 * 60 * 1000;
+    const storageKey = `terminal:reconnect:${agentId}:${sessionName}`;
+    if (typeof window !== "undefined") {
+      const raw = window.localStorage.getItem(storageKey);
+      if (raw) {
+        try {
+          const { id, ts } = JSON.parse(raw);
+          if (typeof id === "string" && Date.now() - ts < RECONNECT_TTL_MS) {
+            return id as string;
+          }
+        } catch { /* corrupted entry — regenerate */ }
+        window.localStorage.removeItem(storageKey);
+      }
+    }
+    const id = crypto.randomUUID();
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem(storageKey, JSON.stringify({ id, ts: Date.now() }));
+    }
+    return id;
+  });
+  const [wsUrl, setWsUrl] = useState<string | null>(null);
+
+  const handleData = useCallback((data: Uint8Array | string) => {
+    if (termRef.current) {
+      termRef.current.write(data);
+    }
+  }, []);
+
+  const { send, resize, connectionState } = useTerminalWebSocket({
+    url: wsUrl,
+    onData: handleData,
+  });
+
+  useEffect(() => {
+    onConnectionStateChange?.(connectionState);
+  }, [connectionState, onConnectionStateChange]);
+
+  const sendRef = useRef(send);
+  const resizeRef = useRef(resize);
+  sendRef.current = send;
+  resizeRef.current = resize;
+
+  useEffect(() => {
+    if (!containerRef.current) return;
+
+    let mounted = true;
+    let term: Terminal | null = null;
+    let fit: FitAddon | null = null;
+
+    (async () => {
+      const { Terminal } = await import("@xterm/xterm");
+      const { FitAddon } = await import("@xterm/addon-fit");
+
+      if (!mounted || !containerRef.current) return;
+
+      term = new Terminal({
+        theme: TERMINAL_THEME,
+        fontFamily:
+          "'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace",
+        fontSize: 13,
+        lineHeight: 1.4,
+        cursorBlink: true,
+        convertEol: true,
+        scrollback: 10000,
+      });
+
+      fit = new FitAddon();
+      term.loadAddon(fit);
+      term.open(containerRef.current);
+
+      termRef.current = term;
+      fitRef.current = fit;
+
+      await document.fonts.ready;
+      if (!mounted) return;
+      fit.fit();
+
+      term.onData((data) => {
+        sendRef.current(encodeInput(data));
+      });
+
+      term.onResize(({ rows, cols }) => {
+        resizeRef.current(rows, cols);
+      });
+
+      // Wait for browser layout paint before reading dimensions
+      await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+      if (!mounted) return;
+      fit.fit();
+
+      const dims = { rows: term.rows, cols: term.cols };
+      const proxyUrl = process.env.NEXT_PUBLIC_TERMINAL_WS_URL;
+      if (!proxyUrl) {
+        console.error("NEXT_PUBLIC_TERMINAL_WS_URL is not set");
+        return;
+      }
+      const params = new URLSearchParams({
+        agentId,
+        reconnectId,
+        width: String(dims.cols),
+        height: String(dims.rows),
+        sessionName,
+      });
+      setWsUrl(`${proxyUrl}/ws?${params.toString()}`);
+    })();
+
+    const handleResize = () => {
+      if (fitRef.current && termRef.current) {
+        fitRef.current.fit();
+      }
+    };
+    window.addEventListener("resize", handleResize);
+
+    return () => {
+      mounted = false;
+      window.removeEventListener("resize", handleResize);
+      termRef.current?.dispose();
+      termRef.current = null;
+      fitRef.current = null;
+    };
+  }, [agentId, reconnectId, sessionName]);
+
+  return (
+    <div
+      className={cn(
+        "relative flex flex-col bg-[#0a0a0a] overflow-hidden",
+        className,
+      )}
+    >
+      {connectionState === "workspace-offline" && (
+        <Alert variant="destructive" className="rounded-none border-x-0 border-t-0">
+          <AlertCircle />
+          <AlertDescription>
+            Workspace is offline. The terminal will reconnect when the workspace comes back online.
+          </AlertDescription>
+        </Alert>
+      )}
+      {connectionState === "failed" && (
+        <Alert variant="destructive" className="rounded-none border-x-0 border-t-0">
+          <AlertCircle />
+          <AlertDescription>
+            Connection failed after multiple attempts. Refresh the page to try again.
+          </AlertDescription>
+        </Alert>
+      )}
+
+      <div ref={containerRef} className="flex-1 p-1" />
+    </div>
+  );
+}

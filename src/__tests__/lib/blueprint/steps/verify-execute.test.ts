@@ -59,7 +59,7 @@ describe("createVerifyExecuteStep", () => {
     expect(mockExec).toHaveBeenCalledWith(
       "verifier-ws",
       expect.stringContaining("npm test"),
-      { timeoutMs: 120_000 },
+      { timeoutMs: 120_000, loginShell: true },
     );
   });
 
