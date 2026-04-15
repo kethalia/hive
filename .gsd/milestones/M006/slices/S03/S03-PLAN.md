@@ -197,7 +197,7 @@ A Map of active writers in `index.ts` enables the SIGTERM handler to flush all w
   - Files: `services/terminal-proxy/src/proxy.ts`, `services/terminal-proxy/src/index.ts`, `docker-compose.yml`
   - Verify: cd services/terminal-proxy && pnpm test && cd /home/coder/hive && docker compose config | grep -q DATABASE_URL
 
-- [ ] **T04: Add scrollback hydration API route and write integration test** `est:45m`
+- [x] **T04: Add scrollback hydration API route and write integration test** `est:45m`
   ## Description
 
 Completes the read path (R047) and proves the full write→read cycle works. Creates a Next.js API route that reads scrollback chunks from Postgres via Prisma, ordered by seqNum, and returns concatenated binary data. Then writes an integration test that spins up a real Postgres connection, writes chunks via ScrollbackWriter, reads them back via the Prisma client, and verifies ordering and content integrity.

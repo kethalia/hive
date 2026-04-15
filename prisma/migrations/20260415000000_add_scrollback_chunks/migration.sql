@@ -1,6 +1,6 @@
 -- CreateTable
 CREATE TABLE "scrollback_chunks" (
-    "id" UUID NOT NULL,
+    "id" UUID NOT NULL DEFAULT gen_random_uuid(),
     "reconnect_id" UUID NOT NULL,
     "agent_id" UUID NOT NULL,
     "session_name" TEXT NOT NULL,
