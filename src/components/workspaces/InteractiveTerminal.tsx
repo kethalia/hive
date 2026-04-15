@@ -10,7 +10,8 @@ import {
   type ConnectionState,
 } from "@/hooks/useTerminalWebSocket";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { AlertCircle } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { AlertCircle, RefreshCw } from "lucide-react";
 import "@/styles/xterm.css";
 
 interface InteractiveTerminalProps {
@@ -99,7 +100,7 @@ export function InteractiveTerminal({
     }
   }, []);
 
-  const { send, resize, connectionState } = useTerminalWebSocket({
+  const { send, resize, connectionState, reconnectAttempt, reconnect } = useTerminalWebSocket({
     url: wsUrl,
     onData: handleData,
   });
@@ -209,11 +210,25 @@ export function InteractiveTerminal({
           </AlertDescription>
         </Alert>
       )}
+      {connectionState === "reconnecting" && (
+        <Alert variant="default" className="rounded-none border-x-0 border-t-0 bg-yellow-900/50 border-yellow-700">
+          <RefreshCw className="animate-spin" />
+          <AlertDescription className="flex items-center justify-between w-full">
+            <span>Reconnecting… attempt {reconnectAttempt}</span>
+            <Button variant="outline" size="sm" onClick={reconnect}>
+              Reconnect Now
+            </Button>
+          </AlertDescription>
+        </Alert>
+      )}
       {connectionState === "failed" && (
         <Alert variant="destructive" className="rounded-none border-x-0 border-t-0">
           <AlertCircle />
-          <AlertDescription>
-            Connection failed after multiple attempts. Refresh the page to try again.
+          <AlertDescription className="flex items-center justify-between w-full">
+            <span>Connection failed. Retries will continue automatically.</span>
+            <Button variant="outline" size="sm" onClick={reconnect}>
+              Reconnect Now
+            </Button>
           </AlertDescription>
         </Alert>
       )}

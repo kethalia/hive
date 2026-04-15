@@ -31,6 +31,13 @@ Unattended task-to-PR automation with behavioral verification — the system doe
 - S03 (Multi-Tab Terminal & Session Management): ✅ complete — TerminalTabManager with multiple simultaneous terminal tabs, inline rename, kill, session picker. 22 tests.
 - S04 (External Tool Integration): ✅ complete — Workspace detail page at /workspaces/[id] with iframe-embedded Filebrowser/KasmVNC panels, tab toggle, popup-out buttons, Coder Dashboard link-out, error fallback. 10 tests.
 
+**M006 in progress — 1 of 5 slices complete.** Persistent terminal sessions: server-side workspace keep-alive, infinite reconnection, Postgres-backed scrollback with virtual scrolling.
+- S01 (Workspace Keep-Alive Service): ✅ complete — KeepAliveManager pings Coder API every 55s per active workspace, ConnectionRegistry tracks workspaceId→connections, /keepalive/status HTTP endpoint, KeepAliveWarning banner in terminal UI at 3+ failures. 75 new tests.
+- S02 (Infinite Reconnection & Session Continuity): ⬜ remaining
+- S03 (Scrollback Persistence Backend): ⬜ remaining
+- S04 (Virtual Scrolling & Hydration UI): ⬜ remaining — depends on S03
+- S05 (End-to-End Integration & Regression): ⬜ remaining — depends on S01-S04
+
 **Operational notes:** M001 cleanup scheduler not wired to entrypoint. M002 council can run in isolation or as part of full pipeline; initial testing with 3-reviewer council works correctly with mock data. Real GitHub integration tested via mocked gh CLI; live GitHub token handling depends on environment setup during deployment. M005 dev workflow now uses `tsx watch server.ts` instead of `next dev` to support WebSocket upgrade.
 
 Repository: https://github.com/kethalia/hive
@@ -45,6 +52,7 @@ Repository: https://github.com/kethalia/hive
 - **Dashboard:** Next.js + Tailwind v4, with live agent streaming via SSE (custom React components, not pi-web-ui Lit — D009)
 - **Template Management:** Staleness engine compares local template files against Coder's active version via deterministic sha256 hashing of sorted file paths + contents. Push worker spawns coder CLI as child process with log-file-based SSE streaming. Dashboard page at /templates with xterm.js terminal panels for live push output.
 - **Workspace Terminals:** Custom server.ts wraps Next.js with WebSocket upgrade support. Browser connects via xterm.js → WebSocket proxy → Coder PTY endpoint. All sessions tmux-backed for persistence. Auto-reconnect with exponential backoff on network interruption. Multi-tab support via TerminalTabManager — inactive tabs hidden with display:none to preserve xterm.js instances. Session lifecycle (create/rename/kill) managed through server actions with SAFE_IDENTIFIER_RE validation. Session picker for reconnecting to existing tmux sessions.
+- **Workspace Keep-Alive:** KeepAliveManager in terminal-proxy pings Coder extend API every 55s for each workspace with active WebSocket connections. ConnectionRegistry tracks workspaceId→connectionId mappings. /keepalive/status endpoint exposes per-workspace health. Frontend useKeepAliveStatus hook polls every 30s; KeepAliveWarning banner appears at 3+ consecutive failures.
 - **External Tool Integration:** Workspace detail page at /workspaces/[id] embeds Filebrowser and KasmVNC in iframe panels with tab toggle and popup-out buttons. Coder Dashboard accessed via link-out. Cross-origin iframe error detection with automatic fallback to direct links. Disabled state for non-running workspaces.
 - **Deployment:** Solo operator, no auth. Docker-compose: Next.js + Postgres + Redis
 

@@ -191,17 +191,6 @@ This file is the explicit capability and coverage contract for the project.
 - Validation: unmapped
 - Notes: Coder prebuilds require workspace presets in the template. May require Coder Premium for full pool management
 
-### R043 — Workspace stays alive while any terminal session is open — server-side keep-alive via Coder API activity bumps, independent of browser state
-- Class: core-capability
-- Status: active
-- Description: Workspace stays alive while any terminal session is open — server-side keep-alive via Coder API activity bumps, independent of browser state
-- Why it matters: If the workspace auto-stops, everything dies — tmux sessions, running processes, dev servers. Server-side keep-alive ensures browser disconnection doesn't kill the workspace
-- Source: user
-- Primary owning slice: M006/S01
-- Supporting slices: M006/S05
-- Validation: unmapped
-- Notes: Must work even when browser is closed. Keep-alive pings continue server-side until user explicitly stops the workspace.
-
 ### R044 — WebSocket reconnection never gives up — infinite retries with exponential backoff capped at 60s, visual "reconnecting" banner with manual button
 - Class: core-capability
 - Status: active
@@ -267,17 +256,6 @@ This file is the explicit capability and coverage contract for the project.
 - Supporting slices: none
 - Validation: unmapped
 - Notes: The only way a session dies is the user explicitly deleting it or the workspace being manually stopped.
-
-### R050 — Keep-alive failure warning in UI — banner shown after 3 consecutive Coder API failures, warns workspace may auto-stop
-- Class: failure-visibility
-- Status: active
-- Description: Keep-alive failure warning in UI — banner shown after 3 consecutive Coder API failures, warns workspace may auto-stop
-- Why it matters: If the keep-alive service can't reach Coder, the workspace will drift toward auto-stop. User must know so they can intervene
-- Source: inferred
-- Primary owning slice: M006/S01
-- Supporting slices: none
-- Validation: unmapped
-- Notes: Banner appears in terminal UI after 3 consecutive failures. Clears when keep-alive succeeds again.
 
 ### R051 — Postgres write failure buffering — bounded ring buffer in terminal-proxy, retry with backoff, drop oldest on overflow
 - Class: quality-attribute
@@ -512,6 +490,28 @@ This file is the explicit capability and coverage contract for the project.
 - Validation: useTerminalWebSocket implements exponential backoff auto-reconnect (1s base, 2x factor, ±500ms jitter, 30s cap, 10 max attempts). Connection state machine: connecting → connected → disconnected → reconnecting → failed/workspace-offline. Close code 4404 triggers workspace-offline UI state. 8 backoff logic unit tests pass. Colored connection badge (green/yellow/red) in terminal UI.
 - Notes: Reconnect overlay on temporary disconnect. Workspace-offline state on permanent failure (no retry loop against dead workspaces).
 
+### R043 — Workspace stays alive while any terminal session is open — server-side keep-alive via Coder API activity bumps, independent of browser state
+- Class: core-capability
+- Status: validated
+- Description: Workspace stays alive while any terminal session is open — server-side keep-alive via Coder API activity bumps, independent of browser state
+- Why it matters: If the workspace auto-stops, everything dies — tmux sessions, running processes, dev servers. Server-side keep-alive ensures browser disconnection doesn't kill the workspace
+- Source: user
+- Primary owning slice: M006/S01
+- Supporting slices: M006/S05
+- Validation: KeepAliveManager pings PUT /api/v2/workspaces/{id}/extend every 55s for each workspace with active WebSocket connections. Integration tests verify ping hits correct URL with auth headers. Graceful degradation when env vars missing.
+- Notes: Must work even when browser is closed. Keep-alive pings continue server-side until user explicitly stops the workspace.
+
+### R050 — Keep-alive failure warning in UI — banner shown after 3 consecutive Coder API failures, warns workspace may auto-stop
+- Class: failure-visibility
+- Status: validated
+- Description: Keep-alive failure warning in UI — banner shown after 3 consecutive Coder API failures, warns workspace may auto-stop
+- Why it matters: If the keep-alive service can't reach Coder, the workspace will drift toward auto-stop. User must know so they can intervene
+- Source: inferred
+- Primary owning slice: M006/S01
+- Supporting slices: none
+- Validation: KeepAliveWarning component renders destructive Alert banner when consecutiveFailures >= 3, renders nothing below threshold. Component tests verify all threshold cases. Banner mounted in TerminalTabManager above tab bar.
+- Notes: Banner appears in terminal UI after 3 consecutive failures. Clears when keep-alive succeeds again.
+
 ## Deferred
 
 ### R054 — Reconnection visual seam marker — timestamp showing where a disconnect/reconnect occurred in scrollback
@@ -649,14 +649,14 @@ This file is the explicit capability and coverage contract for the project.
 | R040 | integration | validated | M005/S04 | none | WorkspaceToolPanel renders iframe-embedded Filebrowser and KasmVNC with tab toggle, popup-out via window.open, and Coder Dashboard link-out. Error fallback shows direct links when iframe blocked. Disabled state for non-running workspaces. 8 component tests + 2 action tests pass. Build succeeds with /workspaces/[id] route. Detail page accessible from workspace list via Link navigation. |
 | R041 | anti-feature | out-of-scope | none | none | n/a |
 | R042 | quality-attribute | validated | M005/S02 | none | useTerminalWebSocket implements exponential backoff auto-reconnect (1s base, 2x factor, ±500ms jitter, 30s cap, 10 max attempts). Connection state machine: connecting → connected → disconnected → reconnecting → failed/workspace-offline. Close code 4404 triggers workspace-offline UI state. 8 backoff logic unit tests pass. Colored connection badge (green/yellow/red) in terminal UI. |
-| R043 | core-capability | active | M006/S01 | M006/S05 | unmapped |
+| R043 | core-capability | validated | M006/S01 | M006/S05 | KeepAliveManager pings PUT /api/v2/workspaces/{id}/extend every 55s for each workspace with active WebSocket connections. Integration tests verify ping hits correct URL with auth headers. Graceful degradation when env vars missing. |
 | R044 | core-capability | active | M006/S02 | M006/S05 | unmapped |
 | R045 | core-capability | active | M006/S03 | M006/S04, M006/S05 | unmapped |
 | R046 | quality-attribute | active | M006/S04 | M006/S05 | unmapped |
 | R047 | core-capability | active | M006/S03 | M006/S04 | unmapped |
 | R048 | quality-attribute | active | M006/S02 | none | unmapped |
 | R049 | core-capability | active | M006/S01 | none | unmapped |
-| R050 | failure-visibility | active | M006/S01 | none | unmapped |
+| R050 | failure-visibility | validated | M006/S01 | none | KeepAliveWarning component renders destructive Alert banner when consecutiveFailures >= 3, renders nothing below threshold. Component tests verify all threshold cases. Banner mounted in TerminalTabManager above tab bar. |
 | R051 | quality-attribute | active | M006/S03 | none | unmapped |
 | R052 | core-capability | active | M006/S02 | M006/S04 | unmapped |
 | R053 | core-capability | active | M006/S01 | M006/S05 | unmapped |
@@ -665,7 +665,7 @@ This file is the explicit capability and coverage contract for the project.
 
 ## Coverage Summary
 
-- Active requirements: 28
-- Mapped to slices: 28
-- Validated: 18 (R006, R007, R013, R017, R018, R019, R028, R029, R032, R033, R034, R035, R036, R037, R038, R039, R040, R042)
+- Active requirements: 26
+- Mapped to slices: 26
+- Validated: 20 (R006, R007, R013, R017, R018, R019, R028, R029, R032, R033, R034, R035, R036, R037, R038, R039, R040, R042, R043, R050)
 - Unmapped active requirements: 0

@@ -12,10 +12,9 @@ export type ConnectionState =
   | "workspace-offline";
 
 const BASE_DELAY_MS = 1000;
-const MAX_DELAY_MS = 30000;
+const MAX_DELAY_MS = 60000;
 const BACKOFF_FACTOR = 2;
 const JITTER_MS = 500;
-const MAX_RECONNECT_ATTEMPTS = 10;
 const WORKSPACE_OFFLINE_CODE = 4404;
 
 export function computeBackoff(attempt: number): number {
@@ -37,6 +36,8 @@ interface UseTerminalWebSocketReturn {
   send: (data: string) => void;
   resize: (rows: number, cols: number) => void;
   connectionState: ConnectionState;
+  reconnectAttempt: number;
+  reconnect: () => void;
 }
 
 export function useTerminalWebSocket({
@@ -46,6 +47,7 @@ export function useTerminalWebSocket({
 }: UseTerminalWebSocketProps): UseTerminalWebSocketReturn {
   const [connectionState, setConnectionState] =
     useState<ConnectionState>("disconnected");
+  const [reconnectAttempt, setReconnectAttempt] = useState(0);
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const attemptRef = useRef(0);
@@ -79,7 +81,7 @@ export function useTerminalWebSocket({
     updateState(isReconnect ? "reconnecting" : "connecting");
     if (isReconnect) {
       console.log(
-        `[terminal] Reconnect attempt ${attemptRef.current}/${MAX_RECONNECT_ATTEMPTS}`,
+        `[terminal] Reconnect attempt ${attemptRef.current}`,
       );
     }
 
@@ -93,6 +95,7 @@ export function useTerminalWebSocket({
         return;
       }
       attemptRef.current = 0;
+      setReconnectAttempt(0);
       updateState("connected");
     };
 
@@ -113,14 +116,6 @@ export function useTerminalWebSocket({
         updateState("workspace-offline");
         console.log(
           `[terminal] Workspace offline (code ${event.code}): ${event.reason}`,
-        );
-        return;
-      }
-
-      if (attemptRef.current >= MAX_RECONNECT_ATTEMPTS) {
-        updateState("failed");
-        console.log(
-          `[terminal] Max reconnect attempts (${MAX_RECONNECT_ATTEMPTS}) reached`,
         );
         return;
       }
@@ -167,5 +162,10 @@ export function useTerminalWebSocket({
     }
   }, []);
 
-  return { send, connectionState, resize };
+  const reconnect = useCallback(() => {
+    attemptRef.current = 0;
+    connect();
+  }, [connect]);
+
+  return { send, connectionState, resize, reconnectAttempt: attemptRef.current, reconnect };
 }
