@@ -15,6 +15,7 @@ import "@/styles/xterm.css";
 
 interface InteractiveTerminalProps {
   agentId: string;
+  workspaceId: string;
   sessionName: string;
   className?: string;
   onConnectionStateChange?: (state: ConnectionState) => void;
@@ -61,6 +62,7 @@ export function connectionBadgeProps(state: ConnectionState) {
 
 export function InteractiveTerminal({
   agentId,
+  workspaceId,
   sessionName,
   className,
   onConnectionStateChange,
@@ -167,6 +169,7 @@ export function InteractiveTerminal({
       }
       const params = new URLSearchParams({
         agentId,
+        workspaceId,
         reconnectId,
         width: String(dims.cols),
         height: String(dims.rows),

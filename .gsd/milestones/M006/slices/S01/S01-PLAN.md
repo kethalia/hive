@@ -89,7 +89,7 @@ The proxy currently only receives `agentId` in WebSocket query params. The front
   - Files: `services/terminal-proxy/src/keepalive.ts`, `services/terminal-proxy/src/proxy.ts`, `services/terminal-proxy/src/index.ts`, `services/terminal-proxy/src/__tests__/keepalive.test.ts`
   - Verify: cd services/terminal-proxy && pnpm vitest run
 
-- [ ] **T02: Add keep-alive polling hook and warning banner to terminal UI** `est:1h`
+- [x] **T02: Add keep-alive polling hook and warning banner to terminal UI** `est:1h`
   ## Description
 
 Create a React hook that polls the terminal-proxy's `/keepalive/status` endpoint and a warning banner component that renders when consecutive failures reach the threshold. The hook polls every 30 seconds and exposes per-workspace status. The banner uses shadcn's Alert component with the `destructive` variant, matching the existing pattern in InteractiveTerminal.tsx. Mount the banner in TerminalTabManager above the terminal tabs.

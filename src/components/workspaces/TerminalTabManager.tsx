@@ -15,6 +15,7 @@ import {
 import { SAFE_IDENTIFIER_RE } from "@/lib/constants";
 import { cn } from "@/lib/utils";
 import { connectionBadgeProps } from "@/components/workspaces/InteractiveTerminal";
+import { KeepAliveWarning } from "@/components/workspaces/KeepAliveWarning";
 import type { ConnectionState } from "@/hooks/useTerminalWebSocket";
 
 const InteractiveTerminal = dynamic(
@@ -227,6 +228,7 @@ export function TerminalTabManager({
 
   return (
     <div className="flex h-full flex-col bg-background">
+      <KeepAliveWarning workspaceId={workspaceId} />
       <div className="flex items-center border-b border-border bg-background px-1">
         <div className="flex items-center gap-0.5 overflow-x-auto py-1">
           {tabs.map((tab) => (
@@ -335,6 +337,7 @@ export function TerminalTabManager({
           >
             <InteractiveTerminal
               agentId={agentId}
+              workspaceId={workspaceId}
               sessionName={tab.sessionName}
               className="h-full"
               onConnectionStateChange={(state) => handleConnectionStateChange(tab.id, state)}

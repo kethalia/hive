@@ -25,5 +25,5 @@ export default async function TerminalPage({ params }: TerminalPageProps) {
     );
   }
 
-  return <TerminalClient agentId={agentResult.data.agentId} />;
+  return <TerminalClient agentId={agentResult.data.agentId} workspaceId={workspaceId} />;
 }
