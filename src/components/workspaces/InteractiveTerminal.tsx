@@ -11,6 +11,7 @@ import {
 } from "@/hooks/useTerminalWebSocket";
 import { useScrollbackHydration } from "@/hooks/useScrollbackHydration";
 import { TerminalHistoryPanel } from "@/components/workspaces/TerminalHistoryPanel";
+import { JumpToBottom } from "@/components/workspaces/JumpToBottom";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { AlertCircle, Loader2, RefreshCw } from "lucide-react";
@@ -99,6 +100,14 @@ export function InteractiveTerminal({
   const [reconnectId, setReconnectId] = useState(() => getOrCreateReconnectId(agentId, sessionName));
   const [wsUrl, setWsUrl] = useState<string | null>(null);
   const [showHistoryPanel, setShowHistoryPanel] = useState(false);
+  const [isAtBottom, setIsAtBottom] = useState(true);
+  const scrollDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const handleJumpToBottom = useCallback(() => {
+    setShowHistoryPanel(false);
+    setIsAtBottom(true);
+    termRef.current?.scrollToBottom();
+  }, []);
 
   const handleReconnectIdExpired = useCallback(() => {
     const storageKey = `terminal:reconnect:${agentId}:${sessionName}`;
@@ -183,9 +192,15 @@ export function InteractiveTerminal({
 
       const localTerm = term;
       localTerm.onScroll(() => {
-        if (localTerm.buffer.active.viewportY === 0) {
-          setShowHistoryPanel(true);
-        }
+        if (scrollDebounceRef.current) clearTimeout(scrollDebounceRef.current);
+        scrollDebounceRef.current = setTimeout(() => {
+          const buf = localTerm.buffer.active;
+          const atBottom = buf.viewportY >= buf.baseY;
+          setIsAtBottom(atBottom);
+          if (buf.viewportY === 0) {
+            setShowHistoryPanel(true);
+          }
+        }, 100);
       });
 
       // Wait for browser layout paint before reading dimensions
@@ -223,6 +238,7 @@ export function InteractiveTerminal({
     return () => {
       mounted = false;
       resizeObserver.disconnect();
+      if (scrollDebounceRef.current) clearTimeout(scrollDebounceRef.current);
       termRef.current?.dispose();
       termRef.current = null;
       fitRef.current = null;
@@ -285,6 +301,10 @@ export function InteractiveTerminal({
         onScrollToBottom={() => setShowHistoryPanel(false)}
       />
       <div ref={containerRef} className="flex-1 p-1" />
+      <JumpToBottom
+        visible={showHistoryPanel || !isAtBottom}
+        onClick={handleJumpToBottom}
+      />
     </div>
   );
 }

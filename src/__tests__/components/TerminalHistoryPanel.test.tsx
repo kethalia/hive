@@ -71,14 +71,15 @@ describe("TerminalHistoryPanel", () => {
     expect(virtualContainer).not.toBeNull();
   });
 
-  it("shows loading indicator when fetching", () => {
+  it("shows loading skeletons when fetching", () => {
     mockPaginationState.isLoading = true;
 
-    render(
+    const { container } = render(
       <TerminalHistoryPanel reconnectId="test-id" visible={true} />,
     );
 
-    expect(screen.getByText(/Loading older history/)).toBeDefined();
+    const skeletons = container.querySelectorAll(".animate-pulse");
+    expect(skeletons.length).toBeGreaterThanOrEqual(1);
   });
 
   it("shows error message on failure", () => {

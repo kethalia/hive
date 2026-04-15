@@ -220,7 +220,7 @@ This is the most complex task — it delivers R046 (virtual scrolling for scroll
   - Files: `src/lib/terminal/ansi-to-html.ts`, `src/hooks/useScrollbackPagination.ts`, `src/components/workspaces/TerminalHistoryPanel.tsx`, `src/components/workspaces/InteractiveTerminal.tsx`, `src/__tests__/components/TerminalHistoryPanel.test.tsx`, `src/__tests__/hooks/useScrollbackPagination.test.ts`
   - Verify: pnpm vitest run src/__tests__/components/TerminalHistoryPanel.test.tsx && pnpm vitest run src/__tests__/hooks/useScrollbackPagination.test.ts && pnpm tsc --noEmit
 
-- [ ] **T04: Add jump-to-bottom button, loading skeletons, and scroll UX polish** `est:45m`
+- [x] **T04: Add jump-to-bottom button, loading skeletons, and scroll UX polish** `est:45m`
   ## Description
 
 Polish the scroll experience with a floating "Jump to bottom" button that appears when the user is scrolled away from live output, loading skeleton placeholders while chunks are being fetched, and smooth transitions between the history panel and live terminal.

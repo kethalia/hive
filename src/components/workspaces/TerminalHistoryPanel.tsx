@@ -7,7 +7,6 @@ import {
   type ScrollbackChunk,
 } from "@/hooks/useScrollbackPagination";
 import { createAnsiConverter } from "@/lib/terminal/ansi-to-html";
-import { Loader2 } from "lucide-react";
 
 interface TerminalHistoryPanelProps {
   reconnectId: string | null;
@@ -70,9 +69,9 @@ export function TerminalHistoryPanel({
     }
   }, [visible, chunks.length, hasMore, loadMore]);
 
-  if (!visible) return null;
+  if (!visible && chunks.length === 0) return null;
 
-  if (chunks.length === 0 && !isLoading && !hasMore) {
+  if (visible && chunks.length === 0 && !isLoading && !hasMore) {
     return (
       <div
         className="flex items-center justify-center py-4 text-sm"
@@ -85,13 +84,21 @@ export function TerminalHistoryPanel({
 
   return (
     <div
-      className="flex flex-col overflow-hidden"
-      style={{ backgroundColor: "#0a0a0a", maxHeight: "60%" }}
+      className="flex flex-col overflow-hidden transition-[max-height] duration-300 ease-in-out"
+      style={{
+        backgroundColor: "#0a0a0a",
+        maxHeight: visible ? "60%" : "0px",
+      }}
     >
       {isLoading && (
-        <div className="flex items-center gap-2 px-2 py-1 text-xs text-blue-400">
-          <Loader2 className="h-3 w-3 animate-spin" />
-          Loading older history…
+        <div className="flex flex-col gap-1 px-2 py-1">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <div
+              key={i}
+              className="h-[18px] animate-pulse rounded bg-neutral-800"
+              style={{ width: `${60 + (i % 3) * 15}%` }}
+            />
+          ))}
         </div>
       )}
       {error && (
