@@ -87,7 +87,7 @@ The ring buffer is a fixed-capacity circular buffer that holds chunks during Pos
   - Files: `prisma/schema.prisma`, `services/terminal-proxy/package.json`, `services/terminal-proxy/src/db.ts`, `services/terminal-proxy/src/ring-buffer.ts`, `services/terminal-proxy/test/ring-buffer.test.ts`
   - Verify: npx prisma migrate status && cd services/terminal-proxy && pnpm test -- ring-buffer
 
-- [ ] **T02: Implement ScrollbackWriter with batched writes and ring buffer fallback** `est:1h`
+- [x] **T02: Implement ScrollbackWriter with batched writes and ring buffer fallback** `est:1h`
   ## Description
 
 Core persistence logic: build the `ScrollbackWriter` class that accumulates PTY output in memory, flushes to Postgres in batches (per D022: 5s timer or 100KB threshold), and falls back to the ring buffer (R051) when Postgres is unreachable.
