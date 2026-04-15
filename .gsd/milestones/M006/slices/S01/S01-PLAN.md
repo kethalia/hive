@@ -121,7 +121,7 @@ Also update the WebSocket connection URL construction to include `workspaceId` a
   - Files: `src/hooks/useKeepAliveStatus.ts`, `src/components/workspaces/KeepAliveWarning.tsx`, `src/components/workspaces/TerminalTabManager.tsx`, `src/hooks/useTerminalWebSocket.ts`
   - Verify: pnpm tsc --noEmit && grep -q 'KeepAliveWarning' src/components/workspaces/TerminalTabManager.tsx
 
-- [ ] **T03: Add integration tests and verify end-to-end keep-alive flow** `est:1h30m`
+- [x] **T03: Add integration tests and verify end-to-end keep-alive flow** `est:1h30m`
   ## Description
 
 Write integration tests that verify the complete keep-alive flow: proxy with mocked Coder API receives connections, pings the extend endpoint on interval, accumulates failures when API returns errors, exposes correct status via HTTP endpoint, and resets on recovery. Also add a component test for KeepAliveWarning rendering behavior.
