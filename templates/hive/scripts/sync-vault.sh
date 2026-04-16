@@ -66,7 +66,7 @@ sync_agents_md() {
 }
 
 # -----------------------------------------------------------------------------
-# Skills — sync vault skill directories to ~/.claude/skills/vault/
+# Skills — sync vault skill directories to ~/.claude/skills/
 # Each vault skill is a directory (e.g. Skills/caveman/) containing SKILL.md
 # -----------------------------------------------------------------------------
 sync_skills() {
@@ -75,7 +75,7 @@ sync_skills() {
     return
   fi
 
-  local skills_target="$CLAUDE_DIR/skills/vault"
+  local skills_target="$CLAUDE_DIR/skills"
   mkdir -p "$skills_target"
 
   local synced=0
@@ -133,11 +133,11 @@ sync_skills() {
 
 # -----------------------------------------------------------------------------
 # GSD skills symlink — share vault skills with GSD/pi agent
-# ~/.gsd/agent/skills/vault → ~/.claude/skills/vault
+# ~/.gsd/agent/skills → ~/.claude/skills
 # -----------------------------------------------------------------------------
 link_gsd_skills() {
-  local claude_skills="$CLAUDE_DIR/skills/vault"
-  local gsd_skills="$GSD_DIR/skills/vault"
+  local claude_skills="$CLAUDE_DIR/skills"
+  local gsd_skills="$GSD_DIR/skills"
 
   # Only link if the Claude skills dir exists (sync_skills created it)
   if [ ! -d "$claude_skills" ]; then
@@ -145,7 +145,7 @@ link_gsd_skills() {
     return
   fi
 
-  mkdir -p "$GSD_DIR/skills"
+  mkdir -p "$GSD_DIR"
 
   # If it's already the correct symlink, nothing to do
   if [ -L "$gsd_skills" ] && [ "$(readlink "$gsd_skills")" = "$claude_skills" ]; then

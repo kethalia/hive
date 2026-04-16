@@ -137,7 +137,7 @@ describe("sync-vault.sh", () => {
   // ── Skills ─────────────────────────────────────────────────────
 
   describe("Skills sync", () => {
-    it("syncs skill directories from vault to ~/.claude/skills/vault/", async () => {
+    it("syncs skill directories from vault to ~/.claude/skills/", async () => {
       const skillsDir = join(vaultDir, "Skills");
       await mkdir(join(skillsDir, "caveman"), { recursive: true });
       await writeFile(join(skillsDir, "caveman", "SKILL.md"), "# Caveman skill");
@@ -146,7 +146,7 @@ describe("sync-vault.sh", () => {
 
       await runSync({ HOME: tempDir });
 
-      const target = join(claudeDir, "skills", "vault");
+      const target = join(claudeDir, "skills");
       const dirs = await readdir(target);
       expect(dirs.sort()).toEqual(["caveman", "review"]);
 
@@ -156,7 +156,7 @@ describe("sync-vault.sh", () => {
 
     it("removes stale skills no longer in vault", async () => {
       // Pre-populate a local skill that doesn't exist in vault
-      const target = join(claudeDir, "skills", "vault", "old-skill");
+      const target = join(claudeDir, "skills", "old-skill");
       await mkdir(target, { recursive: true });
       await writeFile(join(target, "SKILL.md"), "# Stale skill");
 
@@ -167,14 +167,14 @@ describe("sync-vault.sh", () => {
 
       await runSync({ HOME: tempDir });
 
-      const vaultSkillsDir = join(claudeDir, "skills", "vault");
+      const vaultSkillsDir = join(claudeDir, "skills");
       const dirs = await readdir(vaultSkillsDir);
       expect(dirs).toEqual(["new-skill"]);
     });
 
     it("updates skill content when vault version changes", async () => {
       const skillsDir = join(vaultDir, "Skills");
-      const target = join(claudeDir, "skills", "vault");
+      const target = join(claudeDir, "skills");
 
       // Pre-populate with old content
       await mkdir(join(target, "caveman"), { recursive: true });
@@ -198,7 +198,7 @@ describe("sync-vault.sh", () => {
 
       await runSync({ HOME: tempDir });
 
-      const target = join(claudeDir, "skills", "vault", "shadcn");
+      const target = join(claudeDir, "skills", "shadcn");
       const skill = await readFile(join(target, "SKILL.md"), "utf-8");
       expect(skill).toBe("# shadcn");
 
@@ -217,15 +217,15 @@ describe("sync-vault.sh", () => {
   // ── GSD Skills Symlink ─────────────────────────────────────────
 
   describe("GSD skills symlink", () => {
-    it("creates symlink from ~/.gsd/agent/skills/vault to ~/.claude/skills/vault", async () => {
+    it("creates symlink from ~/.gsd/agent/skills to ~/.claude/skills", async () => {
       const skillsDir = join(vaultDir, "Skills");
       await mkdir(join(skillsDir, "caveman"), { recursive: true });
       await writeFile(join(skillsDir, "caveman", "SKILL.md"), "# Caveman");
 
       await runSync({ HOME: tempDir });
 
-      const gsdLink = join(tempDir, ".gsd", "agent", "skills", "vault");
-      const claudeSkills = join(claudeDir, "skills", "vault");
+      const gsdLink = join(tempDir, ".gsd", "agent", "skills");
+      const claudeSkills = join(claudeDir, "skills");
 
       // Verify it's a symlink
       const stats = await lstat(gsdLink);
