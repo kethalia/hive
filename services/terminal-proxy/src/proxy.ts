@@ -4,8 +4,6 @@ import { randomUUID } from "node:crypto";
 import { WebSocket, WebSocketServer } from "ws";
 import { SAFE_IDENTIFIER_RE, UUID_RE, buildPtyUrl } from "./protocol.js";
 import { ConnectionRegistry } from "./keepalive.js";
-import { ScrollbackWriter } from "./scrollback-writer.js";
-import { getPool } from "./db.js";
 
 const PING_INTERVAL_MS = 30_000;
 const UPSTREAM_CONNECT_TIMEOUT_MS = 10_000;
@@ -13,7 +11,6 @@ const UPSTREAM_CONNECT_TIMEOUT_MS = 10_000;
 const wss = new WebSocketServer({ noServer: true, maxPayload: 1_048_576 });
 
 export const connectionRegistry = new ConnectionRegistry();
-export const activeWriters = new Map<string, ScrollbackWriter>();
 
 /**
  * Parse ALLOWED_ORIGINS env var into a list of allowed origin patterns.
@@ -130,39 +127,17 @@ export function handleUpgrade(
       });
     }
 
-    connectUpstream({ browserWs, upstreamUrl, token, agentId, reconnectId, sessionName, connectionId });
+    connectUpstream(browserWs, upstreamUrl, token, agentId);
   });
 }
 
-interface ConnectUpstreamOpts {
-  browserWs: WebSocket;
-  upstreamUrl: string;
-  token: string;
-  agentId: string;
-  reconnectId: string;
-  sessionName: string;
-  connectionId: string;
-}
-
-function connectUpstream(opts: ConnectUpstreamOpts): void {
-  const { browserWs, upstreamUrl, token, agentId, reconnectId, sessionName, connectionId } = opts;
+function connectUpstream(
+  browserWs: WebSocket,
+  upstreamUrl: string,
+  token: string,
+  agentId: string,
+): void {
   console.log(`[terminal-proxy] connecting upstream agent=${agentId}`);
-
-  let writer: ScrollbackWriter | null = null;
-  if (process.env.DATABASE_URL) {
-    try {
-      writer = new ScrollbackWriter({
-        reconnectId,
-        agentId,
-        sessionName,
-        pool: getPool(),
-      });
-      activeWriters.set(connectionId, writer);
-      console.log(`[scrollback] writer created reconnectId=${reconnectId}`);
-    } catch (err) {
-      console.error(`[scrollback] failed to create writer reconnectId=${reconnectId}:`, (err as Error).message);
-    }
-  }
 
   const upstream = new WebSocket(upstreamUrl, {
     headers: { "Coder-Session-Token": token },
@@ -175,15 +150,6 @@ function connectUpstream(opts: ConnectUpstreamOpts): void {
     if (pingTimer) {
       clearInterval(pingTimer);
       pingTimer = null;
-    }
-    if (writer) {
-      const w = writer;
-      const cId = connectionId;
-      writer = null;
-      w.close()
-        .then(() => console.log(`[scrollback] writer closed reconnectId=${reconnectId}`))
-        .catch((err) => console.error(`[scrollback] writer close error reconnectId=${reconnectId}:`, (err as Error).message))
-        .finally(() => activeWriters.delete(cId));
     }
     if (upstream.readyState === WebSocket.OPEN || upstream.readyState === WebSocket.CONNECTING) {
       upstream.close();
@@ -203,9 +169,6 @@ function connectUpstream(opts: ConnectUpstreamOpts): void {
   });
 
   upstream.on("message", (data, isBinary) => {
-    if (writer) {
-      writer.append(Buffer.isBuffer(data) ? data : Buffer.from(data as ArrayBuffer));
-    }
     if (browserWs.readyState === WebSocket.OPEN) {
       browserWs.send(data, { binary: isBinary });
     }

@@ -69,18 +69,3 @@ model Workspace {
 
   @@map("workspaces")
 }
-
-model ScrollbackChunk {
-  id          String   @id @default(uuid()) @db.Uuid
-  reconnectId String   @map("reconnect_id") @db.Uuid
-  agentId     String   @map("agent_id") @db.Uuid
-  sessionName String   @map("session_name")
-  seqNum      Int      @map("seq_num")
-  data        Bytes
-  byteSize    Int      @map("byte_size")
-  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz
-
-  @@unique([reconnectId, seqNum])
-  @@index([reconnectId])
-  @@map("scrollback_chunks")
-}

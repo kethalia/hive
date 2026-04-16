@@ -39,24 +39,7 @@ vi.mock("@/hooks/useTerminalWebSocket", () => ({
     send: vi.fn(),
     resize: vi.fn(),
     connectionState: "disconnected",
-    reconnectAttempt: 0,
-    reconnect: vi.fn(),
   }),
-}));
-
-vi.mock("@/hooks/useScrollbackHydration", () => ({
-  useScrollbackHydration: () => ({
-    hydrationState: "idle",
-    isGatingLiveData: false,
-  }),
-}));
-
-vi.mock("@/components/workspaces/TerminalHistoryPanel", () => ({
-  TerminalHistoryPanel: () => null,
-}));
-
-vi.mock("@/components/workspaces/JumpToBottom", () => ({
-  JumpToBottom: () => null,
 }));
 
 vi.mock("@/lib/utils", () => ({
@@ -68,15 +51,8 @@ vi.mock("@/components/ui/alert", () => ({
   AlertDescription: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
 }));
 
-vi.mock("@/components/ui/button", () => ({
-  Button: ({ children }: { children: React.ReactNode }) => <button>{children}</button>,
-}));
-
 vi.mock("lucide-react", () => ({
   AlertCircle: () => null,
-  ArrowDown: () => null,
-  Loader2: () => null,
-  RefreshCw: () => null,
 }));
 
 vi.mock("@/styles/xterm.css", () => ({}));

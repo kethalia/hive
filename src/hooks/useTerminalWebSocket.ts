@@ -12,9 +12,10 @@ export type ConnectionState =
   | "workspace-offline";
 
 const BASE_DELAY_MS = 1000;
-const MAX_DELAY_MS = 60000;
+const MAX_DELAY_MS = 30000;
 const BACKOFF_FACTOR = 2;
 const JITTER_MS = 500;
+const MAX_RECONNECT_ATTEMPTS = 10;
 const WORKSPACE_OFFLINE_CODE = 4404;
 
 export function computeBackoff(attempt: number): number {
@@ -26,52 +27,34 @@ export function computeBackoff(attempt: number): number {
   return Math.max(0, exponential + jitter);
 }
 
-const CONSECUTIVE_FAILURE_THRESHOLD = 3;
-
 interface UseTerminalWebSocketProps {
   url: string | null;
   onData: (data: Uint8Array | string) => void;
   onStateChange?: (state: ConnectionState) => void;
-  onReconnectIdExpired?: () => void;
-  isGatingLiveData?: boolean;
 }
 
 interface UseTerminalWebSocketReturn {
   send: (data: string) => void;
   resize: (rows: number, cols: number) => void;
   connectionState: ConnectionState;
-  reconnectAttempt: number;
-  consecutiveFailures: number;
-  reconnect: () => void;
-  flushBufferedData: () => void;
 }
 
 export function useTerminalWebSocket({
   url,
   onData,
   onStateChange,
-  onReconnectIdExpired,
-  isGatingLiveData,
 }: UseTerminalWebSocketProps): UseTerminalWebSocketReturn {
   const [connectionState, setConnectionState] =
     useState<ConnectionState>("disconnected");
-  const [reconnectAttempt, setReconnectAttempt] = useState(0);
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const attemptRef = useRef(0);
   const mountedRef = useRef(true);
-  const consecutiveFailuresRef = useRef(0);
-  const openedRef = useRef(false);
   const onDataRef = useRef(onData);
   const onStateChangeRef = useRef(onStateChange);
-  const onReconnectIdExpiredRef = useRef(onReconnectIdExpired);
-  const bufferedDataRef = useRef<(Uint8Array | string)[]>([]);
-  const isGatingRef = useRef(isGatingLiveData ?? false);
 
   onDataRef.current = onData;
   onStateChangeRef.current = onStateChange;
-  onReconnectIdExpiredRef.current = onReconnectIdExpired;
-  isGatingRef.current = isGatingLiveData ?? false;
 
   const updateState = useCallback((state: ConnectionState) => {
     if (!mountedRef.current) return;
@@ -96,36 +79,29 @@ export function useTerminalWebSocket({
     updateState(isReconnect ? "reconnecting" : "connecting");
     if (isReconnect) {
       console.log(
-        `[terminal] Reconnect attempt ${attemptRef.current}`,
+        `[terminal] Reconnect attempt ${attemptRef.current}/${MAX_RECONNECT_ATTEMPTS}`,
       );
     }
 
     const ws = new WebSocket(url);
     ws.binaryType = "arraybuffer";
     wsRef.current = ws;
-    openedRef.current = false;
 
     ws.onopen = () => {
       if (!mountedRef.current) {
         ws.close();
         return;
       }
-      openedRef.current = true;
       attemptRef.current = 0;
-      setReconnectAttempt(0);
-      consecutiveFailuresRef.current = 0;
       updateState("connected");
     };
 
     ws.onmessage = (event: MessageEvent) => {
       if (!mountedRef.current) return;
-      const data = event.data instanceof ArrayBuffer
-        ? new Uint8Array(event.data)
-        : (event.data as string);
-      if (isGatingRef.current) {
-        bufferedDataRef.current.push(data);
+      if (event.data instanceof ArrayBuffer) {
+        onDataRef.current(new Uint8Array(event.data));
       } else {
-        onDataRef.current(data);
+        onDataRef.current(event.data as string);
       }
     };
 
@@ -141,24 +117,17 @@ export function useTerminalWebSocket({
         return;
       }
 
-      if (!openedRef.current) {
-        consecutiveFailuresRef.current += 1;
-        if (consecutiveFailuresRef.current >= CONSECUTIVE_FAILURE_THRESHOLD) {
-          console.log(
-            `[terminal] Regenerating reconnectId after ${consecutiveFailuresRef.current} consecutive failures`,
-          );
-          consecutiveFailuresRef.current = 0;
-          onReconnectIdExpiredRef.current?.();
-          return;
-        }
-      } else {
-        consecutiveFailuresRef.current = 0;
+      if (attemptRef.current >= MAX_RECONNECT_ATTEMPTS) {
+        updateState("failed");
+        console.log(
+          `[terminal] Max reconnect attempts (${MAX_RECONNECT_ATTEMPTS}) reached`,
+        );
+        return;
       }
 
       updateState("disconnected");
       const delay = computeBackoff(attemptRef.current);
       attemptRef.current += 1;
-      setReconnectAttempt(attemptRef.current);
       console.log(`[terminal] Reconnecting in ${Math.round(delay)}ms`);
       reconnectTimerRef.current = setTimeout(() => {
         if (mountedRef.current) connect();
@@ -198,25 +167,5 @@ export function useTerminalWebSocket({
     }
   }, []);
 
-  const reconnect = useCallback(() => {
-    attemptRef.current = 0;
-    connect();
-  }, [connect]);
-
-  const flushBufferedData = useCallback(() => {
-    const buffered = bufferedDataRef.current;
-    if (buffered.length === 0) return;
-    bufferedDataRef.current = [];
-    for (const chunk of buffered) {
-      onDataRef.current(chunk);
-    }
-  }, []);
-
-  useEffect(() => {
-    if (!isGatingLiveData) {
-      flushBufferedData();
-    }
-  }, [isGatingLiveData, flushBufferedData]);
-
-  return { send, connectionState, resize, reconnectAttempt: attemptRef.current, consecutiveFailures: consecutiveFailuresRef.current, reconnect, flushBufferedData };
+  return { send, connectionState, resize };
 }

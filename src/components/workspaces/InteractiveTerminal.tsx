@@ -9,36 +9,9 @@ import {
   useTerminalWebSocket,
   type ConnectionState,
 } from "@/hooks/useTerminalWebSocket";
-import { useScrollbackHydration } from "@/hooks/useScrollbackHydration";
-import { TerminalHistoryPanel } from "@/components/workspaces/TerminalHistoryPanel";
-import { JumpToBottom } from "@/components/workspaces/JumpToBottom";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Button } from "@/components/ui/button";
-import { AlertCircle, Loader2, RefreshCw } from "lucide-react";
+import { AlertCircle } from "lucide-react";
 import "@/styles/xterm.css";
-
-const RECONNECT_TTL_MS = 24 * 60 * 60 * 1000;
-
-export function getOrCreateReconnectId(agentId: string, sessionName: string): string {
-  const storageKey = `terminal:reconnect:${agentId}:${sessionName}`;
-  if (typeof window !== "undefined") {
-    const raw = window.localStorage.getItem(storageKey);
-    if (raw) {
-      try {
-        const { id, ts } = JSON.parse(raw);
-        if (typeof id === "string" && Date.now() - ts < RECONNECT_TTL_MS) {
-          return id;
-        }
-      } catch { /* corrupted entry — regenerate */ }
-      window.localStorage.removeItem(storageKey);
-    }
-  }
-  const id = crypto.randomUUID();
-  if (typeof window !== "undefined") {
-    window.localStorage.setItem(storageKey, JSON.stringify({ id, ts: Date.now() }));
-  }
-  return id;
-}
 
 interface InteractiveTerminalProps {
   agentId: string;
@@ -97,27 +70,28 @@ export function InteractiveTerminal({
   const containerRef = useRef<HTMLDivElement>(null);
   const termRef = useRef<Terminal | null>(null);
   const fitRef = useRef<FitAddon | null>(null);
-  const [reconnectId, setReconnectId] = useState(() => getOrCreateReconnectId(agentId, sessionName));
-  const [wsUrl, setWsUrl] = useState<string | null>(null);
-  const [showHistoryPanel, setShowHistoryPanel] = useState(false);
-  const [isAtBottom, setIsAtBottom] = useState(true);
-  const scrollDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  const handleJumpToBottom = useCallback(() => {
-    setShowHistoryPanel(false);
-    setIsAtBottom(true);
-    termRef.current?.scrollToBottom();
-  }, []);
-
-  const handleReconnectIdExpired = useCallback(() => {
+  const [reconnectId] = useState(() => {
+    const RECONNECT_TTL_MS = 24 * 60 * 60 * 1000;
     const storageKey = `terminal:reconnect:${agentId}:${sessionName}`;
-    const newId = crypto.randomUUID();
     if (typeof window !== "undefined") {
-      window.localStorage.setItem(storageKey, JSON.stringify({ id: newId, ts: Date.now() }));
+      const raw = window.localStorage.getItem(storageKey);
+      if (raw) {
+        try {
+          const { id, ts } = JSON.parse(raw);
+          if (typeof id === "string" && Date.now() - ts < RECONNECT_TTL_MS) {
+            return id as string;
+          }
+        } catch { /* corrupted entry — regenerate */ }
+        window.localStorage.removeItem(storageKey);
+      }
     }
-    console.log(`[terminal] Regenerating reconnectId after consecutive failures`);
-    setReconnectId(newId);
-  }, [agentId, sessionName]);
+    const id = crypto.randomUUID();
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem(storageKey, JSON.stringify({ id, ts: Date.now() }));
+    }
+    return id;
+  });
+  const [wsUrl, setWsUrl] = useState<string | null>(null);
 
   const handleData = useCallback((data: Uint8Array | string) => {
     if (termRef.current) {
@@ -125,17 +99,9 @@ export function InteractiveTerminal({
     }
   }, []);
 
-  const { hydrationState, isGatingLiveData } = useScrollbackHydration({
-    reconnectId,
-    terminalRef: termRef,
-    isConnected: wsUrl !== null,
-  });
-
-  const { send, resize, connectionState, reconnectAttempt, reconnect } = useTerminalWebSocket({
+  const { send, resize, connectionState } = useTerminalWebSocket({
     url: wsUrl,
     onData: handleData,
-    onReconnectIdExpired: handleReconnectIdExpired,
-    isGatingLiveData,
   });
 
   useEffect(() => {
@@ -190,19 +156,6 @@ export function InteractiveTerminal({
         resizeRef.current(rows, cols);
       });
 
-      const localTerm = term;
-      localTerm.onScroll(() => {
-        if (scrollDebounceRef.current) clearTimeout(scrollDebounceRef.current);
-        scrollDebounceRef.current = setTimeout(() => {
-          const buf = localTerm.buffer.active;
-          const atBottom = buf.viewportY >= buf.baseY;
-          setIsAtBottom(atBottom);
-          if (buf.viewportY === 0) {
-            setShowHistoryPanel(true);
-          }
-        }, 100);
-      });
-
       // Wait for browser layout paint before reading dimensions
       await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
       if (!mounted) return;
@@ -238,7 +191,6 @@ export function InteractiveTerminal({
     return () => {
       mounted = false;
       resizeObserver.disconnect();
-      if (scrollDebounceRef.current) clearTimeout(scrollDebounceRef.current);
       termRef.current?.dispose();
       termRef.current = null;
       fitRef.current = null;
@@ -252,18 +204,6 @@ export function InteractiveTerminal({
         className,
       )}
     >
-      {hydrationState === "loading" && (
-        <Alert variant="default" className="rounded-none border-x-0 border-t-0 bg-blue-900/50 border-blue-700">
-          <Loader2 className="animate-spin" />
-          <AlertDescription>Restoring history…</AlertDescription>
-        </Alert>
-      )}
-      {hydrationState === "error" && (
-        <Alert variant="default" className="rounded-none border-x-0 border-t-0 bg-yellow-900/50 border-yellow-700">
-          <AlertCircle />
-          <AlertDescription>History unavailable</AlertDescription>
-        </Alert>
-      )}
       {connectionState === "workspace-offline" && (
         <Alert variant="destructive" className="rounded-none border-x-0 border-t-0">
           <AlertCircle />
@@ -272,39 +212,16 @@ export function InteractiveTerminal({
           </AlertDescription>
         </Alert>
       )}
-      {connectionState === "reconnecting" && (
-        <Alert variant="default" className="rounded-none border-x-0 border-t-0 bg-yellow-900/50 border-yellow-700">
-          <RefreshCw className="animate-spin" />
-          <AlertDescription className="flex items-center justify-between w-full">
-            <span>Reconnecting… attempt {reconnectAttempt}</span>
-            <Button variant="outline" size="sm" onClick={reconnect}>
-              Reconnect Now
-            </Button>
-          </AlertDescription>
-        </Alert>
-      )}
       {connectionState === "failed" && (
         <Alert variant="destructive" className="rounded-none border-x-0 border-t-0">
           <AlertCircle />
-          <AlertDescription className="flex items-center justify-between w-full">
-            <span>Connection failed. Retries will continue automatically.</span>
-            <Button variant="outline" size="sm" onClick={reconnect}>
-              Reconnect Now
-            </Button>
+          <AlertDescription>
+            Connection failed after multiple attempts. Refresh the page to try again.
           </AlertDescription>
         </Alert>
       )}
 
-      <TerminalHistoryPanel
-        reconnectId={reconnectId}
-        visible={showHistoryPanel}
-        onScrollToBottom={() => setShowHistoryPanel(false)}
-      />
       <div ref={containerRef} className="flex-1 p-1" />
-      <JumpToBottom
-        visible={showHistoryPanel || !isAtBottom}
-        onClick={handleJumpToBottom}
-      />
     </div>
   );
 }

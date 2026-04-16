@@ -18,10 +18,10 @@ describe("computeBackoff", () => {
     vi.restoreAllMocks();
   });
 
-  it("caps at max delay of 60s", () => {
+  it("caps at max delay of 30s", () => {
     vi.spyOn(Math, "random").mockReturnValue(0.5);
     const delay = computeBackoff(20);
-    expect(delay).toBe(60000);
+    expect(delay).toBe(30000);
     vi.restoreAllMocks();
   });
 
@@ -56,22 +56,10 @@ describe("computeBackoff", () => {
 
   it("backoff sequence follows expected pattern", () => {
     vi.spyOn(Math, "random").mockReturnValue(0.5);
-    const expected = [1000, 2000, 4000, 8000, 16000, 32000, 60000];
+    const expected = [1000, 2000, 4000, 8000, 16000, 30000];
     for (let i = 0; i < expected.length; i++) {
       expect(computeBackoff(i)).toBe(expected[i]);
     }
-    vi.restoreAllMocks();
-  });
-
-  it("caps at 60000 for attempt=50", () => {
-    vi.spyOn(Math, "random").mockReturnValue(0.5);
-    expect(computeBackoff(50)).toBe(60000);
-    vi.restoreAllMocks();
-  });
-
-  it("caps at 60000 for attempt=100", () => {
-    vi.spyOn(Math, "random").mockReturnValue(0.5);
-    expect(computeBackoff(100)).toBe(60000);
     vi.restoreAllMocks();
   });
 });
