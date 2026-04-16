@@ -96,29 +96,16 @@ const createSessionSchema = z.object({
 export const createSessionAction = actionClient
   .inputSchema(createSessionSchema)
   .action(async ({ parsedInput }) => {
+    // tmux session is created on-demand when the PTY connects via
+    // `tmux -L web new-session -A -s <name>` (the -A flag creates if
+    // needed). We only need to return a valid session name here.
     const name = parsedInput.sessionName ?? `session-${Date.now()}`;
     if (!SAFE_IDENTIFIER_RE.test(name)) {
       throw new Error(`Invalid session name: ${name}`);
     }
 
-    const client = getCoderClient();
-    const agentTarget = await client.getWorkspaceAgentName(
-      parsedInput.workspaceId,
-    );
-
-    const result = await execInWorkspace(
-      agentTarget,
-      `tmux -L web new-session -d -s ${name}`,
-    );
-
-    if (result.exitCode !== 0) {
-      throw new Error(
-        `Failed to create session "${name}": ${result.stderr}`,
-      );
-    }
-
     console.log(
-      `[workspaces] Created tmux session "${name}" in workspace ${parsedInput.workspaceId}`,
+      `[workspaces] Session name "${name}" allocated for workspace ${parsedInput.workspaceId} (tmux creates on PTY connect)`,
     );
     return { name };
   });

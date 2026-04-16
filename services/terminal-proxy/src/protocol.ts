@@ -28,10 +28,18 @@ export function buildPtyUrl(
     wsBase = "ws://" + wsBase.slice("http://".length);
   }
 
+  // tmux -L web new-session -A -s <name>:
+  //   -L web    → use a dedicated tmux socket (isolates from user's default tmux)
+  //   -A        → attach to session if it exists, create if it doesn't
+  //   -s <name> → session name
+  // This makes the PTY run inside tmux, so the session survives disconnects.
+  const command = `tmux -L web new-session -A -s ${sessionName}`;
+
   const params = new URLSearchParams({
     reconnect: reconnectId,
     width: String(width),
     height: String(height),
+    command,
   });
 
   return `${wsBase}/api/v2/workspaceagents/${agentId}/pty?${params.toString()}`;
