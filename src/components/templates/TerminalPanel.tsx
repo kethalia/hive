@@ -5,6 +5,7 @@ import type { Terminal } from "@xterm/xterm";
 import type { FitAddon } from "@xterm/addon-fit";
 import { X } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { TERMINAL_THEME, TERMINAL_FONT_FAMILY, loadTerminalFont } from "@/lib/terminal/config";
 
 interface TerminalPanelProps {
   onClose: () => void;
@@ -44,38 +45,11 @@ export function TerminalPanel({ onClose, writeRef, onReady, className }: Termina
 
       if (!mounted || !containerRef.current) return;
 
-      // Explicitly load Fira Code before creating the terminal.
-      // CSS @font-face fonts only load when referenced by DOM text —
-      // xterm uses <canvas>, which doesn't trigger the load.
-      try {
-        await document.fonts.load("13px 'Fira Code'");
-      } catch {
-        // Font load failed — terminal will fall back to monospace
-      }
+      await loadTerminalFont();
 
       term = new Terminal({
-        theme: {
-          background: "#0a0a0a",
-          foreground: "#e5e5e5",
-          cursor: "#e5e5e5",
-          black: "#1a1a1a",
-          brightBlack: "#444444",
-          red: "#ff5555",
-          brightRed: "#ff6e6e",
-          green: "#50fa7b",
-          brightGreen: "#69ff94",
-          yellow: "#f1fa8c",
-          brightYellow: "#ffffa5",
-          blue: "#6272a4",
-          brightBlue: "#8be9fd",
-          magenta: "#ff79c6",
-          brightMagenta: "#ff92d0",
-          cyan: "#8be9fd",
-          brightCyan: "#a4ffff",
-          white: "#f8f8f2",
-          brightWhite: "#ffffff",
-        },
-        fontFamily: "'Fira Code', monospace",
+        theme: TERMINAL_THEME,
+        fontFamily: TERMINAL_FONT_FAMILY,
         fontSize: 13,
         lineHeight: 1.4,
         cursorBlink: false,
@@ -100,12 +74,19 @@ export function TerminalPanel({ onClose, writeRef, onReady, className }: Termina
       onReady?.();
     })();
 
-    const handleResize = () => fitRef.current?.fit();
-    window.addEventListener("resize", handleResize);
+    const resizeObserver = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        const { width, height } = entry.contentRect;
+        if (width > 0 && height > 0 && fitRef.current) {
+          fitRef.current.fit();
+        }
+      }
+    });
+    resizeObserver.observe(containerRef.current);
 
     return () => {
       mounted = false;
-      window.removeEventListener("resize", handleResize);
+      resizeObserver.disconnect();
       writeRef.current = null;
       termRef.current?.dispose();
       termRef.current = null;

@@ -39,18 +39,20 @@ export function useKeepAliveStatus(workspaceId: string): KeepAliveStatus {
       try {
         const res = await fetch(`${baseUrl}/keepalive/status`);
         if (!res.ok) return;
-        const data: Record<
-          string,
-          {
-            consecutiveFailures: number;
-            lastSuccess: string | null;
-            lastFailure: string | null;
-          }
-        > = await res.json();
+        const json: {
+          workspaces: Record<
+            string,
+            {
+              consecutiveFailures: number;
+              lastSuccess: string | null;
+              lastFailure: string | null;
+            }
+          >;
+        } = await res.json();
 
         if (!mountedRef.current) return;
 
-        const ws = data[workspaceId];
+        const ws = json.workspaces?.[workspaceId];
         setStatus({
           consecutiveFailures: ws?.consecutiveFailures ?? 0,
           lastSuccess: ws?.lastSuccess ?? null,

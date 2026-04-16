@@ -1,3 +1,4 @@
+// Keep in sync with src/lib/constants.ts SAFE_IDENTIFIER_RE
 export const SAFE_IDENTIFIER_RE = /^[a-zA-Z0-9._-]+$/;
 export const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 

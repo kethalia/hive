@@ -11,6 +11,7 @@ import {
 } from "@/hooks/useTerminalWebSocket";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { AlertCircle } from "lucide-react";
+import { TERMINAL_THEME, TERMINAL_FONT_FAMILY, loadTerminalFont } from "@/lib/terminal/config";
 import "@/styles/xterm.css";
 
 interface InteractiveTerminalProps {
@@ -20,28 +21,6 @@ interface InteractiveTerminalProps {
   className?: string;
   onConnectionStateChange?: (state: ConnectionState) => void;
 }
-
-const TERMINAL_THEME = {
-  background: "#0a0a0a",
-  foreground: "#e5e5e5",
-  cursor: "#e5e5e5",
-  black: "#1a1a1a",
-  brightBlack: "#444444",
-  red: "#ff5555",
-  brightRed: "#ff6e6e",
-  green: "#50fa7b",
-  brightGreen: "#69ff94",
-  yellow: "#f1fa8c",
-  brightYellow: "#ffffa5",
-  blue: "#6272a4",
-  brightBlue: "#8be9fd",
-  magenta: "#ff79c6",
-  brightMagenta: "#ff92d0",
-  cyan: "#8be9fd",
-  brightCyan: "#a4ffff",
-  white: "#f8f8f2",
-  brightWhite: "#ffffff",
-};
 
 export function connectionBadgeProps(state: ConnectionState) {
   switch (state) {
@@ -146,18 +125,11 @@ export function InteractiveTerminal({
 
       if (!mounted || !containerRef.current) return;
 
-      // Explicitly load Fira Code before creating the terminal.
-      // CSS @font-face fonts only load when referenced by DOM text —
-      // xterm uses <canvas>, which doesn't trigger the load.
-      try {
-        await document.fonts.load("13px 'Fira Code'");
-      } catch {
-        // Font load failed — terminal will fall back to monospace
-      }
+      await loadTerminalFont();
 
       term = new Terminal({
         theme: TERMINAL_THEME,
-        fontFamily: "'Fira Code', monospace",
+        fontFamily: TERMINAL_FONT_FAMILY,
         fontSize: 13,
         lineHeight: 1.4,
         cursorBlink: true,
@@ -203,11 +175,13 @@ export function InteractiveTerminal({
       setWsUrl(`${proxyUrl}/ws?${params.toString()}`);
     })();
 
+    let resizeTimer: ReturnType<typeof setTimeout> | null = null;
     const resizeObserver = new ResizeObserver((entries) => {
       for (const entry of entries) {
         const { width, height } = entry.contentRect;
         if (width > 0 && height > 0 && fitRef.current) {
-          fitRef.current.fit();
+          if (resizeTimer) clearTimeout(resizeTimer);
+          resizeTimer = setTimeout(() => fitRef.current?.fit(), 50);
         }
       }
     });
@@ -215,6 +189,7 @@ export function InteractiveTerminal({
 
     return () => {
       mounted = false;
+      if (resizeTimer) clearTimeout(resizeTimer);
       resizeObserver.disconnect();
       termRef.current?.dispose();
       termRef.current = null;

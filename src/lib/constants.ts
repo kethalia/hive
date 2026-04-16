@@ -130,7 +130,7 @@ export const SCREENSHOT_CMD = "browser-screenshot http://localhost:3000 /tmp/ver
 
 // ── Validation ─────────────────────────────────────────────────────
 
-/** Regex for values safe to interpolate into shell commands. */
+// Keep in sync with services/terminal-proxy/src/protocol.ts SAFE_IDENTIFIER_RE
 export const SAFE_IDENTIFIER_RE = /^[a-zA-Z0-9._-]+$/;
 
 /** UUID v4 format regex. */

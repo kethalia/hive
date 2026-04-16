@@ -59,10 +59,14 @@ function tabReducer(state: TabState, action: TabAction): TabState {
     case "KILL_TAB": {
       const updated = state.tabs.filter((t) => t.id !== action.tabId);
       let newActiveId = state.activeTabId;
-      if (state.activeTabId === action.tabId && updated.length > 0) {
-        const closedIndex = state.tabs.findIndex((t) => t.id === action.tabId);
-        const nextIndex = Math.min(closedIndex, updated.length - 1);
-        newActiveId = updated[nextIndex].id;
+      if (state.activeTabId === action.tabId) {
+        if (updated.length > 0) {
+          const closedIndex = state.tabs.findIndex((t) => t.id === action.tabId);
+          const nextIndex = Math.min(closedIndex, updated.length - 1);
+          newActiveId = updated[nextIndex].id;
+        } else {
+          newActiveId = null;
+        }
       }
       return { tabs: updated, activeTabId: newActiveId };
     }

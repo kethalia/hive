@@ -157,16 +157,19 @@ describe("KeepAliveManager", () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  it("pings on interval when workspaces are active", async () => {
+  it("pings immediately on start and on interval", async () => {
     fetchMock.mockResolvedValue({ ok: true });
     registry.addConnection("ws-abc", "conn-1");
 
     manager.start();
-    await vi.advanceTimersByTimeAsync(55_000);
+    await vi.advanceTimersByTimeAsync(0);
     expect(fetchMock).toHaveBeenCalledOnce();
 
     await vi.advanceTimersByTimeAsync(55_000);
     expect(fetchMock).toHaveBeenCalledTimes(2);
+
+    await vi.advanceTimersByTimeAsync(55_000);
+    expect(fetchMock).toHaveBeenCalledTimes(3);
   });
 
   it("stop clears interval", async () => {
@@ -174,6 +177,10 @@ describe("KeepAliveManager", () => {
     registry.addConnection("ws-abc", "conn-1");
 
     manager.start();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(fetchMock).toHaveBeenCalledOnce();
+
+    fetchMock.mockClear();
     manager.stop();
     await vi.advanceTimersByTimeAsync(110_000);
     expect(fetchMock).not.toHaveBeenCalled();

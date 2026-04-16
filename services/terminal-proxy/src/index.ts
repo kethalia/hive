@@ -47,7 +47,15 @@ const server = createServer((req, res) => {
   }
 
   if (req.url === "/keepalive/status") {
-    const workspaces = keepAliveManager?.getHealth() ?? {};
+    const raw = keepAliveManager?.getHealth() ?? {};
+    const workspaces: Record<string, { consecutiveFailures: number; lastSuccess: string | null; lastFailure: string | null }> = {};
+    for (const [id, health] of Object.entries(raw)) {
+      workspaces[id] = {
+        consecutiveFailures: health.consecutiveFailures,
+        lastSuccess: health.lastSuccess,
+        lastFailure: health.lastFailure,
+      };
+    }
     res.writeHead(200, { "Content-Type": "application/json" });
     res.end(JSON.stringify({ workspaces }));
     return;

@@ -59,6 +59,7 @@ export class KeepAliveManager {
   start(): void {
     if (this.intervalId) return;
     console.log("[keep-alive] started");
+    void this.pingAll();
     this.intervalId = setInterval(() => void this.pingAll(), PING_INTERVAL_MS);
   }
 
@@ -80,6 +81,12 @@ export class KeepAliveManager {
 
   private async pingAll(): Promise<void> {
     const workspaceIds = this.registry.getActiveWorkspaceIds();
+
+    const activeSet = new Set(workspaceIds);
+    for (const id of this.healthMap.keys()) {
+      if (!activeSet.has(id)) this.healthMap.delete(id);
+    }
+
     if (workspaceIds.length === 0) return;
 
     await Promise.allSettled(
