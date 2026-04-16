@@ -35,7 +35,12 @@ export function buildPtyUrl(
   // This makes the PTY run inside tmux, so the session survives disconnects.
   // Hide the tmux status bar — the web UI tab manager already shows session
   // names, so the green bar is redundant and wastes terminal real estate.
-  const command = `tmux -L web new-session -A -s ${sessionName} \\; set status off \\; set mouse off`;
+  // status off    → hide green status bar (web UI tab manager already shows names)
+  // mouse off     → let xterm.js handle mouse events natively
+  // terminal-overrides smcup@:rmcup@ → disable alternate screen so xterm.js
+  //   stays in the normal buffer and mouse wheel scrolls the scrollback instead
+  //   of being converted to up/down arrow key sequences
+  const command = `tmux -L web new-session -A -s ${sessionName} \\; set status off \\; set mouse off \\; set -g terminal-overrides ",xterm*:smcup@:rmcup@"`;
 
   const params = new URLSearchParams({
     reconnect: reconnectId,

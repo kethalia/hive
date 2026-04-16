@@ -113,6 +113,24 @@ export function InteractiveTerminal({
   sendRef.current = send;
   resizeRef.current = resize;
 
+  // When the WebSocket connects (or reconnects), re-fit the terminal and
+  // send a resize message. This forces tmux to redraw with the correct
+  // dimensions — critical when reattaching to an existing session where
+  // the initial URL dimensions may not match the actual terminal size.
+  useEffect(() => {
+    if (connectionState !== "connected") return;
+    const fit = fitRef.current;
+    const term = termRef.current;
+    if (!fit || !term) return;
+
+    // Allow one frame for layout to settle after connection state update
+    const frame = requestAnimationFrame(() => {
+      fit.fit();
+      resizeRef.current(term.rows, term.cols);
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [connectionState]);
+
   useEffect(() => {
     if (!containerRef.current) return;
 
