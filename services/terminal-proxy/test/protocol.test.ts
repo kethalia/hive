@@ -10,14 +10,14 @@ describe("buildPtyUrl", () => {
   };
   const agentId = "agent-123";
 
-  it("constructs correct URL with all parameters", () => {
+  it("constructs correct URL with all parameters including tmux command", () => {
     const url = buildPtyUrl("https://coder.example.com", agentId, defaults);
     expect(url).toContain("wss://coder.example.com/api/v2/workspaceagents/agent-123/pty?");
     const parsed = new URL(url);
     expect(parsed.searchParams.get("reconnect")).toBe(defaults.reconnectId);
     expect(parsed.searchParams.get("width")).toBe("80");
     expect(parsed.searchParams.get("height")).toBe("24");
-    expect(parsed.searchParams.has("command")).toBe(false);
+    expect(parsed.searchParams.get("command")).toBe("tmux -L web new-session -A -s my-session \\; set status off \\; set mouse off \\; set -g terminal-overrides \",xterm*:smcup@:rmcup@\"");
   });
 
   it("converts http:// to ws://", () => {
@@ -42,10 +42,13 @@ describe("buildPtyUrl", () => {
     expect(url).not.toContain("//api/");
   });
 
-  it("does not include a command parameter", () => {
-    const url = buildPtyUrl("https://coder.dev", agentId, defaults);
+  it("includes tmux attach-or-create command with session name", () => {
+    const url = buildPtyUrl("https://coder.dev", agentId, {
+      ...defaults,
+      sessionName: "dev-shell",
+    });
     const parsed = new URL(url);
-    expect(parsed.searchParams.has("command")).toBe(false);
+    expect(parsed.searchParams.get("command")).toBe("tmux -L web new-session -A -s dev-shell \\; set status off \\; set mouse off \\; set -g terminal-overrides \",xterm*:smcup@:rmcup@\"");
   });
 
   it("rejects session name with spaces", () => {

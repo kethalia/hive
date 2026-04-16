@@ -1,30 +1,41 @@
 import type { IncomingMessage } from "node:http";
 import type { Duplex } from "node:stream";
+import { randomUUID } from "node:crypto";
 import { WebSocket, WebSocketServer } from "ws";
 import { SAFE_IDENTIFIER_RE, UUID_RE, buildPtyUrl } from "./protocol.js";
+import { ConnectionRegistry } from "./keepalive.js";
 
 const PING_INTERVAL_MS = 30_000;
 const UPSTREAM_CONNECT_TIMEOUT_MS = 10_000;
 
 const wss = new WebSocketServer({ noServer: true, maxPayload: 1_048_576 });
 
+export const connectionRegistry = new ConnectionRegistry();
+
 /**
  * Parse ALLOWED_ORIGINS env var into a list of allowed origin patterns.
  * Supports exact matches and wildcard ports (e.g. "http://localhost:*").
  * If not set, defaults to allowing only localhost origins.
  */
+let cachedOrigins: string[] | null = null;
+let cachedOriginsEnv: string | undefined;
+
 function getAllowedOrigins(): string[] {
   const env = process.env.ALLOWED_ORIGINS?.trim();
+  if (cachedOrigins && cachedOriginsEnv === env) return cachedOrigins;
+  cachedOriginsEnv = env;
   if (env) {
-    return env.split(",").map((o) => o.trim()).filter(Boolean);
+    cachedOrigins = env.split(",").map((o) => o.trim()).filter(Boolean);
+  } else {
+    cachedOrigins = ["http://localhost:*", "https://localhost:*"];
   }
-  return ["http://localhost:*", "https://localhost:*"];
+  return cachedOrigins;
 }
 
 function originMatchesPattern(origin: string, pattern: string): boolean {
   if (pattern.includes("*")) {
     // Convert wildcard pattern to regex: escape dots, replace * with .*
-    const escaped = pattern.replace(/[.+^${}()|[\]\\]/g, "\\$&").replace(/\*/g, ".*");
+    const escaped = pattern.replace(/[.+?^${}()|[\]\\]/g, "\\$&").replace(/\*/g, ".*");
     return new RegExp(`^${escaped}$`).test(origin);
   }
   return origin === pattern;
@@ -61,6 +72,15 @@ export function handleUpgrade(
   const url = new URL(req.url ?? "/", `http://${req.headers.host ?? "localhost"}`);
   const agentId = url.searchParams.get("agentId");
   const reconnectId = url.searchParams.get("reconnectId");
+  const workspaceId = url.searchParams.get("workspaceId");
+
+  if (workspaceId && !UUID_RE.test(workspaceId)) {
+    console.error(`[terminal-proxy] Invalid workspaceId format: ${workspaceId}`);
+    socket.write("HTTP/1.1 400 Bad Request\r\n\r\n");
+    socket.destroy();
+    return;
+  }
+
   const width = url.searchParams.get("width");
   const height = url.searchParams.get("height");
   const sessionName = url.searchParams.get("sessionName") ?? "default";
@@ -108,8 +128,18 @@ export function handleUpgrade(
     sessionName,
   });
 
+  const connectionId = randomUUID();
+
   wss.handleUpgrade(req, socket, head, (browserWs) => {
     wss.emit("connection", browserWs, req);
+
+    if (workspaceId) {
+      connectionRegistry.addConnection(workspaceId, connectionId);
+      browserWs.on("close", () => {
+        connectionRegistry.removeConnection(workspaceId, connectionId);
+      });
+    }
+
     connectUpstream(browserWs, upstreamUrl, token, agentId);
   });
 }

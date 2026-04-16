@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "milestoneId": "M006",
+  "sliceId": "S04",
+  "timestamp": 1776273212724,
+  "status": "fail",
+  "durationMs": 579,
+  "checks": [
+    {
+      "category": "file",
+      "target": "`src/__tests__/app/api/terminal/scrollback/route.test.ts` — existing route tests to extend",
+      "passed": false,
+      "message": "Task T01 references '`src/__tests__/app/api/terminal/scrollback/route.test.ts` — existing route tests to extend' which doesn't exist and isn't created by prior tasks",
+      "blocking": true
+    }
+  ]
+}

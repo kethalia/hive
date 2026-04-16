@@ -13,7 +13,7 @@ const InteractiveTerminal = dynamic(
   { ssr: false },
 );
 
-function TerminalInner({ agentId }: { agentId: string }) {
+function TerminalInner({ agentId, workspaceId }: { agentId: string; workspaceId: string }) {
   const searchParams = useSearchParams();
   const session = searchParams.get("session");
 
@@ -33,6 +33,7 @@ function TerminalInner({ agentId }: { agentId: string }) {
       <InteractiveTerminal
         key={session}
         agentId={agentId}
+        workspaceId={workspaceId}
         sessionName={session}
         className="h-full rounded-none border-0"
       />
@@ -42,9 +43,10 @@ function TerminalInner({ agentId }: { agentId: string }) {
 
 interface TerminalClientProps {
   agentId: string;
+  workspaceId: string;
 }
 
-export function TerminalClient({ agentId }: TerminalClientProps) {
+export function TerminalClient({ agentId, workspaceId }: TerminalClientProps) {
   return (
     <Suspense
       fallback={
@@ -53,7 +55,7 @@ export function TerminalClient({ agentId }: TerminalClientProps) {
         </div>
       }
     >
-      <TerminalInner agentId={agentId} />
+      <TerminalInner agentId={agentId} workspaceId={workspaceId} />
     </Suspense>
   );
 }

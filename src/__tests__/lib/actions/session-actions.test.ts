@@ -64,43 +64,24 @@ describe("session server actions", () => {
   });
 
   describe("createSessionAction", () => {
-    it("creates a session with a provided name", async () => {
-      mockGetWorkspaceAgentName.mockResolvedValueOnce("dev.main");
-      mockedExec.mockResolvedValueOnce({
-        stdout: "",
-        stderr: "",
-        exitCode: 0,
-      });
-
+    it("returns a session with a provided name (no tmux call — PTY creates on connect)", async () => {
       const { createSessionAction } = await import("@/lib/actions/workspaces");
       const result = await createSessionAction({
         workspaceId: "ws-1",
         sessionName: "my-session",
       });
 
-      expect(mockGetWorkspaceAgentName).toHaveBeenCalledWith("ws-1");
-      expect(mockedExec).toHaveBeenCalledWith(
-        "dev.main",
-        "tmux -L web new-session -d -s my-session",
-      );
+      // createSessionAction no longer calls tmux — the PTY command parameter
+      // handles create-or-attach via `tmux -L web new-session -A -s <name>`
+      expect(mockGetWorkspaceAgentName).not.toHaveBeenCalled();
+      expect(mockedExec).not.toHaveBeenCalled();
       expect(result?.data).toEqual({ name: "my-session" });
     });
 
-    it("creates a session with auto-generated name when none provided", async () => {
-      mockGetWorkspaceAgentName.mockResolvedValueOnce("dev.main");
-      mockedExec.mockResolvedValueOnce({
-        stdout: "",
-        stderr: "",
-        exitCode: 0,
-      });
-
+    it("generates a session name when none provided", async () => {
       const { createSessionAction } = await import("@/lib/actions/workspaces");
       const result = await createSessionAction({ workspaceId: "ws-1" });
 
-      expect(mockedExec).toHaveBeenCalledWith(
-        "dev.main",
-        expect.stringMatching(/^tmux -L web new-session -d -s session-\d+$/),
-      );
       expect(result?.data?.name).toMatch(/^session-\d+$/);
     });
 
@@ -113,39 +94,6 @@ describe("session server actions", () => {
           sessionName: "bad name; rm -rf /",
         }),
       ).rejects.toThrow("Invalid session name");
-    });
-
-    it("throws when tmux command fails", async () => {
-      mockGetWorkspaceAgentName.mockResolvedValueOnce("dev.main");
-      mockedExec.mockResolvedValueOnce({
-        stdout: "",
-        stderr: "duplicate session: my-session",
-        exitCode: 1,
-      });
-
-      const { createSessionAction } = await import("@/lib/actions/workspaces");
-
-      await expect(
-        createSessionAction({
-          workspaceId: "ws-1",
-          sessionName: "my-session",
-        }),
-      ).rejects.toThrow('Failed to create session "my-session"');
-    });
-
-    it("throws when no agent found", async () => {
-      mockGetWorkspaceAgentName.mockRejectedValueOnce(
-        new Error("No agents found"),
-      );
-
-      const { createSessionAction } = await import("@/lib/actions/workspaces");
-
-      await expect(
-        createSessionAction({
-          workspaceId: "ws-1",
-          sessionName: "test",
-        }),
-      ).rejects.toThrow("No agents found");
     });
   });
 

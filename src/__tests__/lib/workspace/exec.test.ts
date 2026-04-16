@@ -30,8 +30,8 @@ describe("execInWorkspace", () => {
     });
 
     expect(mockExecFile).toHaveBeenCalledWith(
-      "ssh",
-      ["-T", "-o", "BatchMode=yes", "coder.my-workspace", "echo hello"],
+      "coder",
+      ["ssh", "--wait=no", "my-workspace", "--", "echo hello"],
       expect.objectContaining({ timeout: 60_000 }),
       expect.any(Function),
     );
@@ -91,7 +91,7 @@ describe("execInWorkspace", () => {
     await execInWorkspace("my-workspace", "ls");
 
     expect(mockExecFile).toHaveBeenCalledWith(
-      "ssh",
+      "coder",
       expect.any(Array),
       expect.objectContaining({ timeout: 60_000 }),
       expect.any(Function),
@@ -107,8 +107,8 @@ describe("execInWorkspace", () => {
     await execInWorkspace("my-workspace", "node -v", { loginShell: true });
 
     expect(mockExecFile).toHaveBeenCalledWith(
-      "ssh",
-      ["-T", "-o", "BatchMode=yes", "coder.my-workspace", "bash -l -c 'node -v'"],
+      "coder",
+      ["ssh", "--wait=no", "my-workspace", "--", "bash -l -c 'node -v'"],
       expect.objectContaining({ timeout: 60_000 }),
       expect.any(Function),
     );
@@ -125,8 +125,8 @@ describe("execInWorkspace", () => {
     await execInWorkspace("ws", longCommand);
 
     expect(mockExecFile).toHaveBeenCalledWith(
-      "ssh",
-      ["-T", "-o", "BatchMode=yes", "coder.ws", longCommand],
+      "coder",
+      ["ssh", "--wait=no", "ws", "--", longCommand],
       expect.any(Object),
       expect.any(Function),
     );

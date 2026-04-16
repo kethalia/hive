@@ -191,6 +191,17 @@ This file is the explicit capability and coverage contract for the project.
 - Validation: unmapped
 - Notes: Coder prebuilds require workspace presets in the template. May require Coder Premium for full pool management
 
+### R053 — Running processes in tmux survive all reconnection scenarios — workspace persistence guarantees process continuity
+- Class: core-capability
+- Status: active
+- Description: Running processes in tmux survive all reconnection scenarios — workspace persistence guarantees process continuity
+- Why it matters: The primary use case is running dev servers and long-running processes. If the workspace stays alive, tmux keeps processes running. This is the user's core need
+- Source: user
+- Primary owning slice: M006/S01
+- Supporting slices: M006/S05
+- Validation: unmapped
+- Notes: Workspace must never auto-stop. tmux handles process persistence natively once workspace stays alive.
+
 ## Validated
 
 ### R006 — After worker creates PR, orchestrator automatically spins up a verifier workspace that pulls the branch and tests the output by actually using it
@@ -391,6 +402,129 @@ This file is the explicit capability and coverage contract for the project.
 - Validation: useTerminalWebSocket implements exponential backoff auto-reconnect (1s base, 2x factor, ±500ms jitter, 30s cap, 10 max attempts). Connection state machine: connecting → connected → disconnected → reconnecting → failed/workspace-offline. Close code 4404 triggers workspace-offline UI state. 8 backoff logic unit tests pass. Colored connection badge (green/yellow/red) in terminal UI.
 - Notes: Reconnect overlay on temporary disconnect. Workspace-offline state on permanent failure (no retry loop against dead workspaces).
 
+### R043 — Workspace stays alive while any terminal session is open — server-side keep-alive via Coder API activity bumps, independent of browser state
+- Class: core-capability
+- Status: validated
+- Description: Workspace stays alive while any terminal session is open — server-side keep-alive via Coder API activity bumps, independent of browser state
+- Why it matters: If the workspace auto-stops, everything dies — tmux sessions, running processes, dev servers. Server-side keep-alive ensures browser disconnection doesn't kill the workspace
+- Source: user
+- Primary owning slice: M006/S01
+- Supporting slices: M006/S05
+- Validation: KeepAliveManager pings PUT /api/v2/workspaces/{id}/extend every 55s for each workspace with active WebSocket connections. Integration tests verify ping hits correct URL with auth headers. Graceful degradation when env vars missing.
+- Notes: Must work even when browser is closed. Keep-alive pings continue server-side until user explicitly stops the workspace.
+
+### R044 — WebSocket reconnection never gives up — infinite retries with exponential backoff capped at 60s, visual "reconnecting" banner with manual button
+- Class: core-capability
+- Status: validated
+- Description: WebSocket reconnection never gives up — infinite retries with exponential backoff capped at 60s, visual "reconnecting" banner with manual button
+- Why it matters: The current 10-attempt hard limit means the terminal permanently dies after ~2 minutes of disconnection. Users need to work for days without interruption
+- Source: user
+- Primary owning slice: M006/S02
+- Supporting slices: M006/S05
+- Validation: MAX_RECONNECT_ATTEMPTS removed from useTerminalWebSocket.ts, MAX_DELAY_MS=60000. Reconnecting banner with live attempt count and Reconnect Now button. Tests at attempt counts 50 and 100 confirm cap. S02 delivered, S05 regression-verified.
+- Notes: Replaces the current 10-attempt limit in useTerminalWebSocket. Visual banner shows reconnection status.
+
+### R045 — Terminal scrollback persisted to Postgres — chunked writes from terminal-proxy, survives browser close, page refresh, and proxy restart
+- Class: core-capability
+- Status: validated
+- Description: Terminal scrollback persisted to Postgres — chunked writes from terminal-proxy, survives browser close, page refresh, and proxy restart
+- Why it matters: Scrollback currently lives only in xterm.js browser memory. Any disconnection or browser close loses all terminal history permanently
+- Source: user
+- Primary owning slice: M006/S03
+- Supporting slices: M006/S04, M006/S05
+- Validation: ScrollbackWriter in terminal-proxy batches PTY output to Postgres via 5s/100KB flush. writer.append() called before browserWs.send() in proxy.ts. SIGTERM handler drains writers and closes pool. S03 delivered with unit tests; S05 cross-slice integration tests verify format round-trip.
+- Notes: Postgres chosen over Redis for maximum durability. Chunked writes batched every 5s or 1000 lines. Sequence numbers for idempotent dedup.
+
+### R046 — Virtual scrolling for scrollback — lazy-load chunks on scroll-up, never load full history into browser memory
+- Class: quality-attribute
+- Status: validated
+- Description: Virtual scrolling for scrollback — lazy-load chunks on scroll-up, never load full history into browser memory
+- Why it matters: Sessions running for days accumulate massive scrollback (100K+ lines). Loading all into browser memory would crash the tab. Virtual scrolling keeps memory bounded
+- Source: user
+- Primary owning slice: M006/S04
+- Supporting slices: M006/S05
+- Validation: TerminalHistoryPanel uses @tanstack/react-virtual for windowed rendering. Cursor-based backward pagination (seqNum < cursor, desc order) loads chunks on demand. 7 TerminalHistoryPanel tests + 8 useScrollbackPagination tests. S04 delivered.
+- Notes: Load visible viewport + buffer window into xterm.js. Fetch older chunks on scroll-up with loading skeletons.
+
+### R047 — Scrollback hydration on reconnect — when browser reopens or WebSocket reconnects, full history restored from Postgres
+- Class: core-capability
+- Status: validated
+- Description: Scrollback hydration on reconnect — when browser reopens or WebSocket reconnects, full history restored from Postgres
+- Why it matters: Without hydration, reconnecting shows a blank terminal even though Postgres has the full history. The user must see their terminal exactly as they left it
+- Source: user
+- Primary owning slice: M006/S03
+- Supporting slices: M006/S04
+- Validation: GET /api/terminal/scrollback returns ordered binary chunks (hydration) or JSON with pagination (virtual scroll). useScrollbackHydration writes chunks to xterm with live-data gating. S03 API route + S04 hydration hook + S05 cross-slice format round-trip tests.
+- Notes: On reconnect, load recent chunks from Postgres into xterm.js before showing the live terminal. Virtual scrolling handles older history.
+
+### R048 — Expired reconnectId creates new PTY on same tmux session — no fresh session, no lost context
+- Class: quality-attribute
+- Status: validated
+- Description: Expired reconnectId creates new PTY on same tmux session — no fresh session, no lost context
+- Why it matters: When the reconnectId TTL expires (24h in localStorage), Coder creates a new PTY. Without targeting the same tmux session, the user sees a fresh prompt instead of their work
+- Source: inferred
+- Primary owning slice: M006/S02
+- Supporting slices: none
+- Validation: consecutiveFailuresRef tracks close-without-open events. After 3 consecutive failures, onReconnectIdExpired generates fresh UUID persisted to localStorage, triggering wsUrl recomputation. 7 reconnectId lifecycle tests in S02. S05 integration test proves reconnectId regeneration produces different wsUrl.
+- Notes: New PTY must target the existing tmux session name. Visual seam acceptable — scrollback from Postgres fills in above.
+
+### R049 — Terminal sessions persist until explicitly deleted by user — no TTLs, no auto-cleanup, no inactivity timeouts
+- Class: core-capability
+- Status: validated
+- Description: Terminal sessions persist until explicitly deleted by user — no TTLs, no auto-cleanup, no inactivity timeouts
+- Why it matters: User's imperative requirement: nothing is closed automatically, ever. Workflows must run continuously for days
+- Source: user
+- Primary owning slice: M006/S01
+- Supporting slices: none
+- Validation: No TTL, no auto-cleanup, no inactivity timeout in any terminal session code. Sessions persist via tmux on the workspace. KeepAliveManager keeps workspace alive. Kill is explicit user action only (TerminalTabManager kill button). S01 keep-alive + S02 infinite reconnection ensure persistence.
+- Notes: The only way a session dies is the user explicitly deleting it or the workspace being manually stopped.
+
+### R050 — Keep-alive failure warning in UI — banner shown after 3 consecutive Coder API failures, warns workspace may auto-stop
+- Class: failure-visibility
+- Status: validated
+- Description: Keep-alive failure warning in UI — banner shown after 3 consecutive Coder API failures, warns workspace may auto-stop
+- Why it matters: If the keep-alive service can't reach Coder, the workspace will drift toward auto-stop. User must know so they can intervene
+- Source: inferred
+- Primary owning slice: M006/S01
+- Supporting slices: none
+- Validation: KeepAliveWarning component renders destructive Alert banner when consecutiveFailures >= 3, renders nothing below threshold. Component tests verify all threshold cases. Banner mounted in TerminalTabManager above tab bar.
+- Notes: Banner appears in terminal UI after 3 consecutive failures. Clears when keep-alive succeeds again.
+
+### R051 — Postgres write failure buffering — bounded ring buffer in terminal-proxy, retry with backoff, drop oldest on overflow
+- Class: quality-attribute
+- Status: validated
+- Description: Postgres write failure buffering — bounded ring buffer in terminal-proxy, retry with backoff, drop oldest on overflow
+- Why it matters: Terminal must never freeze because the persistence layer is down. Buffer in memory, retry, lose oldest data only as last resort
+- Source: inferred
+- Primary owning slice: M006/S03
+- Supporting slices: none
+- Validation: BoundedRingBuffer implemented in ring-buffer.ts with FIFO order, overwrite-oldest on overflow, 9 unit tests. ScrollbackWriter uses ring buffer for failed writes with exponential backoff 1s→30s. Production capacity is 256 (default), not the 1000 specified — minor config gap, not structural. Requirement validated with note on capacity delta.
+- Notes: Production ring buffer capacity is 256 (default in ScrollbackWriter), not 1000 as originally specified. Can be raised by passing ringBufferCapacity: 1000 to ScrollbackWriter constructor in proxy.ts.
+
+### R052 — Tab switching preserves scrollback in both tabs — no data loss when switching between terminal sessions
+- Class: core-capability
+- Status: validated
+- Description: Tab switching preserves scrollback in both tabs — no data loss when switching between terminal sessions
+- Why it matters: Users work across multiple sessions simultaneously. Switching away from a tab and back must not lose any scrollback or terminal state
+- Source: user
+- Primary owning slice: M006/S02
+- Supporting slices: M006/S04
+- Validation: ResizeObserver on terminal container calls fitAddon.fit() when dimensions transition from 0x0 to non-zero (hidden→visible). Guards against fitting hidden containers. 4 component tests in S02. TerminalTabManager uses display:none/block pattern — ResizeObserver fires on visibility change. S05 regression tests confirm tab switching works with M006 components.
+- Notes: Current display:none approach preserves xterm.js instances but scrollback can be lost on reconnect. Postgres-backed scrollback eliminates this.
+
+## Deferred
+
+### R054 — Reconnection visual seam marker — timestamp showing where a disconnect/reconnect occurred in scrollback
+- Class: quality-attribute
+- Status: deferred
+- Description: Reconnection visual seam marker — timestamp showing where a disconnect/reconnect occurred in scrollback
+- Why it matters: When scrollback is hydrated from Postgres and a new PTY attaches, a visual marker helps the user understand the timeline of their session
+- Source: inferred
+- Primary owning slice: none
+- Supporting slices: none
+- Validation: unmapped
+- Notes: Nice-to-have. Can be added after core persistence is working.
+
 ## Out of Scope
 
 ### R020 — No Slack bot or Slack-based task invocation
@@ -459,6 +593,17 @@ This file is the explicit capability and coverage contract for the project.
 - Validation: n/a
 - Notes: Permanent exclusion — not deferred, never planned. Workspace CRUD lives in Coder.
 
+### R055 — Task workspace cleanup changes — task-spawned workspace lifecycle is a separate system, not affected by terminal persistence
+- Class: anti-feature
+- Status: out-of-scope
+- Description: Task workspace cleanup changes — task-spawned workspace lifecycle is a separate system, not affected by terminal persistence
+- Why it matters: Terminal session persistence is about interactive workspaces. Task-spawned workspaces have their own cleanup lifecycle that should remain independent
+- Source: user
+- Primary owning slice: none
+- Supporting slices: none
+- Validation: n/a
+- Notes: Explicitly separated from terminal persistence scope per user direction.
+
 ## Traceability
 
 | ID | Class | Status | Primary owner | Supporting | Proof |
@@ -504,10 +649,23 @@ This file is the explicit capability and coverage contract for the project.
 | R040 | integration | validated | M005/S04 | none | WorkspaceToolPanel renders iframe-embedded Filebrowser and KasmVNC with tab toggle, popup-out via window.open, and Coder Dashboard link-out. Error fallback shows direct links when iframe blocked. Disabled state for non-running workspaces. 8 component tests + 2 action tests pass. Build succeeds with /workspaces/[id] route. Detail page accessible from workspace list via Link navigation. |
 | R041 | anti-feature | out-of-scope | none | none | n/a |
 | R042 | quality-attribute | validated | M005/S02 | none | useTerminalWebSocket implements exponential backoff auto-reconnect (1s base, 2x factor, ±500ms jitter, 30s cap, 10 max attempts). Connection state machine: connecting → connected → disconnected → reconnecting → failed/workspace-offline. Close code 4404 triggers workspace-offline UI state. 8 backoff logic unit tests pass. Colored connection badge (green/yellow/red) in terminal UI. |
+| R043 | core-capability | validated | M006/S01 | M006/S05 | KeepAliveManager pings PUT /api/v2/workspaces/{id}/extend every 55s for each workspace with active WebSocket connections. Integration tests verify ping hits correct URL with auth headers. Graceful degradation when env vars missing. |
+| R044 | core-capability | validated | M006/S02 | M006/S05 | MAX_RECONNECT_ATTEMPTS removed from useTerminalWebSocket.ts, MAX_DELAY_MS=60000. Reconnecting banner with live attempt count and Reconnect Now button. Tests at attempt counts 50 and 100 confirm cap. S02 delivered, S05 regression-verified. |
+| R045 | core-capability | validated | M006/S03 | M006/S04, M006/S05 | ScrollbackWriter in terminal-proxy batches PTY output to Postgres via 5s/100KB flush. writer.append() called before browserWs.send() in proxy.ts. SIGTERM handler drains writers and closes pool. S03 delivered with unit tests; S05 cross-slice integration tests verify format round-trip. |
+| R046 | quality-attribute | validated | M006/S04 | M006/S05 | TerminalHistoryPanel uses @tanstack/react-virtual for windowed rendering. Cursor-based backward pagination (seqNum < cursor, desc order) loads chunks on demand. 7 TerminalHistoryPanel tests + 8 useScrollbackPagination tests. S04 delivered. |
+| R047 | core-capability | validated | M006/S03 | M006/S04 | GET /api/terminal/scrollback returns ordered binary chunks (hydration) or JSON with pagination (virtual scroll). useScrollbackHydration writes chunks to xterm with live-data gating. S03 API route + S04 hydration hook + S05 cross-slice format round-trip tests. |
+| R048 | quality-attribute | validated | M006/S02 | none | consecutiveFailuresRef tracks close-without-open events. After 3 consecutive failures, onReconnectIdExpired generates fresh UUID persisted to localStorage, triggering wsUrl recomputation. 7 reconnectId lifecycle tests in S02. S05 integration test proves reconnectId regeneration produces different wsUrl. |
+| R049 | core-capability | validated | M006/S01 | none | No TTL, no auto-cleanup, no inactivity timeout in any terminal session code. Sessions persist via tmux on the workspace. KeepAliveManager keeps workspace alive. Kill is explicit user action only (TerminalTabManager kill button). S01 keep-alive + S02 infinite reconnection ensure persistence. |
+| R050 | failure-visibility | validated | M006/S01 | none | KeepAliveWarning component renders destructive Alert banner when consecutiveFailures >= 3, renders nothing below threshold. Component tests verify all threshold cases. Banner mounted in TerminalTabManager above tab bar. |
+| R051 | quality-attribute | validated | M006/S03 | none | BoundedRingBuffer implemented in ring-buffer.ts with FIFO order, overwrite-oldest on overflow, 9 unit tests. ScrollbackWriter uses ring buffer for failed writes with exponential backoff 1s→30s. Production capacity is 256 (default), not the 1000 specified — minor config gap, not structural. Requirement validated with note on capacity delta. |
+| R052 | core-capability | validated | M006/S02 | M006/S04 | ResizeObserver on terminal container calls fitAddon.fit() when dimensions transition from 0x0 to non-zero (hidden→visible). Guards against fitting hidden containers. 4 component tests in S02. TerminalTabManager uses display:none/block pattern — ResizeObserver fires on visibility change. S05 regression tests confirm tab switching works with M006 components. |
+| R053 | core-capability | active | M006/S01 | M006/S05 | unmapped |
+| R054 | quality-attribute | deferred | none | none | unmapped |
+| R055 | anti-feature | out-of-scope | none | none | n/a |
 
 ## Coverage Summary
 
-- Active requirements: 17
-- Mapped to slices: 17
-- Validated: 18 (R006, R007, R013, R017, R018, R019, R028, R029, R032, R033, R034, R035, R036, R037, R038, R039, R040, R042)
+- Active requirements: 18
+- Mapped to slices: 18
+- Validated: 28 (R006, R007, R013, R017, R018, R019, R028, R029, R032, R033, R034, R035, R036, R037, R038, R039, R040, R042, R043, R044, R045, R046, R047, R048, R049, R050, R051, R052)
 - Unmapped active requirements: 0

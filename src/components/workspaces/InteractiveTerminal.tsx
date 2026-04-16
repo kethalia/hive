@@ -11,36 +11,16 @@ import {
 } from "@/hooks/useTerminalWebSocket";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { AlertCircle } from "lucide-react";
+import { TERMINAL_THEME, TERMINAL_FONT_FAMILY, loadTerminalFont } from "@/lib/terminal/config";
 import "@/styles/xterm.css";
 
 interface InteractiveTerminalProps {
   agentId: string;
+  workspaceId: string;
   sessionName: string;
   className?: string;
   onConnectionStateChange?: (state: ConnectionState) => void;
 }
-
-const TERMINAL_THEME = {
-  background: "#0a0a0a",
-  foreground: "#e5e5e5",
-  cursor: "#e5e5e5",
-  black: "#1a1a1a",
-  brightBlack: "#444444",
-  red: "#ff5555",
-  brightRed: "#ff6e6e",
-  green: "#50fa7b",
-  brightGreen: "#69ff94",
-  yellow: "#f1fa8c",
-  brightYellow: "#ffffa5",
-  blue: "#6272a4",
-  brightBlue: "#8be9fd",
-  magenta: "#ff79c6",
-  brightMagenta: "#ff92d0",
-  cyan: "#8be9fd",
-  brightCyan: "#a4ffff",
-  white: "#f8f8f2",
-  brightWhite: "#ffffff",
-};
 
 export function connectionBadgeProps(state: ConnectionState) {
   switch (state) {
@@ -61,6 +41,7 @@ export function connectionBadgeProps(state: ConnectionState) {
 
 export function InteractiveTerminal({
   agentId,
+  workspaceId,
   sessionName,
   className,
   onConnectionStateChange,
@@ -111,6 +92,24 @@ export function InteractiveTerminal({
   sendRef.current = send;
   resizeRef.current = resize;
 
+  // When the WebSocket connects (or reconnects), re-fit the terminal and
+  // send a resize message. This forces tmux to redraw with the correct
+  // dimensions — critical when reattaching to an existing session where
+  // the initial URL dimensions may not match the actual terminal size.
+  useEffect(() => {
+    if (connectionState !== "connected") return;
+    const fit = fitRef.current;
+    const term = termRef.current;
+    if (!fit || !term) return;
+
+    // Allow one frame for layout to settle after connection state update
+    const frame = requestAnimationFrame(() => {
+      fit.fit();
+      resizeRef.current(term.rows, term.cols);
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [connectionState]);
+
   useEffect(() => {
     if (!containerRef.current) return;
 
@@ -119,15 +118,18 @@ export function InteractiveTerminal({
     let fit: FitAddon | null = null;
 
     (async () => {
-      const { Terminal } = await import("@xterm/xterm");
-      const { FitAddon } = await import("@xterm/addon-fit");
+      const [{ Terminal }, { FitAddon }] = await Promise.all([
+        import("@xterm/xterm"),
+        import("@xterm/addon-fit"),
+      ]);
 
       if (!mounted || !containerRef.current) return;
 
+      await loadTerminalFont();
+
       term = new Terminal({
         theme: TERMINAL_THEME,
-        fontFamily:
-          "'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace",
+        fontFamily: TERMINAL_FONT_FAMILY,
         fontSize: 13,
         lineHeight: 1.4,
         cursorBlink: true,
@@ -141,9 +143,6 @@ export function InteractiveTerminal({
 
       termRef.current = term;
       fitRef.current = fit;
-
-      await document.fonts.ready;
-      if (!mounted) return;
       fit.fit();
 
       term.onData((data) => {
@@ -167,6 +166,7 @@ export function InteractiveTerminal({
       }
       const params = new URLSearchParams({
         agentId,
+        workspaceId,
         reconnectId,
         width: String(dims.cols),
         height: String(dims.rows),
@@ -175,16 +175,22 @@ export function InteractiveTerminal({
       setWsUrl(`${proxyUrl}/ws?${params.toString()}`);
     })();
 
-    const handleResize = () => {
-      if (fitRef.current && termRef.current) {
-        fitRef.current.fit();
+    let resizeTimer: ReturnType<typeof setTimeout> | null = null;
+    const resizeObserver = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        const { width, height } = entry.contentRect;
+        if (width > 0 && height > 0 && fitRef.current) {
+          if (resizeTimer) clearTimeout(resizeTimer);
+          resizeTimer = setTimeout(() => fitRef.current?.fit(), 50);
+        }
       }
-    };
-    window.addEventListener("resize", handleResize);
+    });
+    resizeObserver.observe(containerRef.current);
 
     return () => {
       mounted = false;
-      window.removeEventListener("resize", handleResize);
+      if (resizeTimer) clearTimeout(resizeTimer);
+      resizeObserver.disconnect();
       termRef.current?.dispose();
       termRef.current = null;
       fitRef.current = null;

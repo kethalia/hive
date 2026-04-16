@@ -19,6 +19,9 @@
 .DS_Store
 *.pem
 
+# core dumps
+core
+
 # debug
 npm-debug.log*
 yarn-debug.log*

@@ -15,6 +15,7 @@ import {
 import { SAFE_IDENTIFIER_RE } from "@/lib/constants";
 import { cn } from "@/lib/utils";
 import { connectionBadgeProps } from "@/components/workspaces/InteractiveTerminal";
+import { KeepAliveWarning } from "@/components/workspaces/KeepAliveWarning";
 import type { ConnectionState } from "@/hooks/useTerminalWebSocket";
 
 const InteractiveTerminal = dynamic(
@@ -58,10 +59,14 @@ function tabReducer(state: TabState, action: TabAction): TabState {
     case "KILL_TAB": {
       const updated = state.tabs.filter((t) => t.id !== action.tabId);
       let newActiveId = state.activeTabId;
-      if (state.activeTabId === action.tabId && updated.length > 0) {
-        const closedIndex = state.tabs.findIndex((t) => t.id === action.tabId);
-        const nextIndex = Math.min(closedIndex, updated.length - 1);
-        newActiveId = updated[nextIndex].id;
+      if (state.activeTabId === action.tabId) {
+        if (updated.length > 0) {
+          const closedIndex = state.tabs.findIndex((t) => t.id === action.tabId);
+          const nextIndex = Math.min(closedIndex, updated.length - 1);
+          newActiveId = updated[nextIndex].id;
+        } else {
+          newActiveId = null;
+        }
       }
       return { tabs: updated, activeTabId: newActiveId };
     }
@@ -227,6 +232,7 @@ export function TerminalTabManager({
 
   return (
     <div className="flex h-full flex-col bg-background">
+      <KeepAliveWarning workspaceId={workspaceId} />
       <div className="flex items-center border-b border-border bg-background px-1">
         <div className="flex items-center gap-0.5 overflow-x-auto py-1">
           {tabs.map((tab) => (
@@ -335,6 +341,7 @@ export function TerminalTabManager({
           >
             <InteractiveTerminal
               agentId={agentId}
+              workspaceId={workspaceId}
               sessionName={tab.sessionName}
               className="h-full"
               onConnectionStateChange={(state) => handleConnectionStateChange(tab.id, state)}
