@@ -37,10 +37,21 @@ export function TerminalPanel({ onClose, writeRef, onReady, className }: Termina
     let fit: FitAddon | null = null;
 
     (async () => {
-      const { Terminal } = await import("@xterm/xterm");
-      const { FitAddon } = await import("@xterm/addon-fit");
+      const [{ Terminal }, { FitAddon }] = await Promise.all([
+        import("@xterm/xterm"),
+        import("@xterm/addon-fit"),
+      ]);
 
       if (!mounted || !containerRef.current) return;
+
+      // Explicitly load Fira Code before creating the terminal.
+      // CSS @font-face fonts only load when referenced by DOM text —
+      // xterm uses <canvas>, which doesn't trigger the load.
+      try {
+        await document.fonts.load("13px 'Fira Code'");
+      } catch {
+        // Font load failed — terminal will fall back to monospace
+      }
 
       term = new Terminal({
         theme: {
@@ -64,7 +75,7 @@ export function TerminalPanel({ onClose, writeRef, onReady, className }: Termina
           white: "#f8f8f2",
           brightWhite: "#ffffff",
         },
-        fontFamily: "'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace",
+        fontFamily: "'Fira Code', monospace",
         fontSize: 13,
         lineHeight: 1.4,
         cursorBlink: false,
