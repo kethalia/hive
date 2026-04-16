@@ -75,6 +75,13 @@ export function useTerminalWebSocket({
 
     clearReconnectTimer();
 
+    if (wsRef.current) {
+      wsRef.current.onclose = null;
+      wsRef.current.onerror = null;
+      wsRef.current.close();
+      wsRef.current = null;
+    }
+
     const isReconnect = attemptRef.current > 0;
     updateState(isReconnect ? "reconnecting" : "connecting");
     if (isReconnect) {

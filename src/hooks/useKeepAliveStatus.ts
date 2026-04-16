@@ -38,7 +38,10 @@ export function useKeepAliveStatus(workspaceId: string): KeepAliveStatus {
     async function poll() {
       try {
         const res = await fetch(`${baseUrl}/keepalive/status`);
-        if (!res.ok) return;
+        if (!res.ok) {
+          if (mountedRef.current) setStatus((s) => ({ ...s, isLoading: false }));
+          return;
+        }
         const json: {
           workspaces: Record<
             string,

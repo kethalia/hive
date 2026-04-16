@@ -129,14 +129,12 @@ export function handleUpgrade(
   });
 
   const connectionId = randomUUID();
-  if (workspaceId) {
-    connectionRegistry.addConnection(workspaceId, connectionId);
-  }
 
   wss.handleUpgrade(req, socket, head, (browserWs) => {
     wss.emit("connection", browserWs, req);
 
     if (workspaceId) {
+      connectionRegistry.addConnection(workspaceId, connectionId);
       browserWs.on("close", () => {
         connectionRegistry.removeConnection(workspaceId, connectionId);
       });
