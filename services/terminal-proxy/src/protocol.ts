@@ -35,7 +35,7 @@ export function buildPtyUrl(
   // This makes the PTY run inside tmux, so the session survives disconnects.
   // Hide the tmux status bar — the web UI tab manager already shows session
   // names, so the green bar is redundant and wastes terminal real estate.
-  const command = `tmux -L web new-session -A -s ${sessionName} \\; set status off`;
+  const command = `tmux -L web new-session -A -s ${sessionName} \\; set status off \\; set mouse off`;
 
   const params = new URLSearchParams({
     reconnect: reconnectId,
