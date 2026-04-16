@@ -82,17 +82,17 @@ sync_skills() {
   local removed=0
   local unchanged=0
 
-  # Remove stale skills that no longer exist in vault
-  if [ -d "$skills_target" ]; then
-    for local_skill in "$skills_target"/*/; do
-      [ -d "$local_skill" ] || continue
-      local skill_name
-      skill_name=$(basename "$local_skill")
-      if [ ! -d "$VAULT_DIR/Skills/$skill_name" ]; then
-        rm -rf "$local_skill"
+  # Remove stale vault-managed skills that no longer exist in vault
+  # Only prune skills listed in the manifest — never touch user-created skills
+  local manifest="$skills_target/.vault-managed"
+  if [ -f "$manifest" ]; then
+    while IFS= read -r managed_name; do
+      [ -n "$managed_name" ] || continue
+      if [ -d "$skills_target/$managed_name" ] && [ ! -d "$VAULT_DIR/Skills/$managed_name" ]; then
+        rm -rf "$skills_target/$managed_name"
         removed=$((removed + 1))
       fi
-    done
+    done < "$manifest"
   fi
 
   # Sync each skill directory from vault
@@ -124,6 +124,14 @@ sync_skills() {
     fi
   done
 
+  # Write manifest of vault-managed skills for safe future cleanup
+  local managed_list=""
+  for skill_dir in "$VAULT_DIR/Skills"/*/; do
+    [ -d "$skill_dir" ] || continue
+    managed_list+="$(basename "$skill_dir")"$'\n'
+  done
+  printf '%s' "$managed_list" > "$skills_target/.vault-managed"
+
   local total=$((synced + unchanged))
   if [ "$synced" -gt 0 ] || [ "$removed" -gt 0 ]; then
     changes+=("Skills: $synced updated, $removed removed, $unchanged unchanged (total: $total)")
@@ -153,8 +161,13 @@ link_gsd_skills() {
     return
   fi
 
-  # Remove stale symlink or directory
-  rm -rf "$gsd_skills"
+  # Replace stale symlink; preserve real directories with user content
+  if [ -L "$gsd_skills" ]; then
+    rm "$gsd_skills"
+  elif [ -d "$gsd_skills" ]; then
+    echo "GSD skills: WARNING — $gsd_skills is a real directory, not replacing (may contain user content)"
+    return
+  fi
   ln -s "$claude_skills" "$gsd_skills"
   changes+=("GSD skills: symlinked to $claude_skills")
   echo "GSD skills: symlinked $gsd_skills → $claude_skills"

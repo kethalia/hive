@@ -147,18 +147,21 @@ describe("sync-vault.sh", () => {
       await runSync({ HOME: tempDir });
 
       const target = join(claudeDir, "skills");
-      const dirs = await readdir(target);
+      const dirs = (await readdir(target)).filter(f => !f.startsWith("."));
       expect(dirs.sort()).toEqual(["caveman", "review"]);
 
       const caveman = await readFile(join(target, "caveman", "SKILL.md"), "utf-8");
       expect(caveman).toBe("# Caveman skill");
     });
 
-    it("removes stale skills no longer in vault", async () => {
-      // Pre-populate a local skill that doesn't exist in vault
-      const target = join(claudeDir, "skills", "old-skill");
+    it("removes stale vault-managed skills no longer in vault", async () => {
+      // Pre-populate a local skill that was previously vault-managed
+      const skillsTarget = join(claudeDir, "skills");
+      const target = join(skillsTarget, "old-skill");
       await mkdir(target, { recursive: true });
       await writeFile(join(target, "SKILL.md"), "# Stale skill");
+      // Write a manifest marking it as vault-managed
+      await writeFile(join(skillsTarget, ".vault-managed"), "old-skill\n");
 
       // Vault has only one skill
       const skillsDir = join(vaultDir, "Skills");
@@ -167,9 +170,30 @@ describe("sync-vault.sh", () => {
 
       await runSync({ HOME: tempDir });
 
-      const vaultSkillsDir = join(claudeDir, "skills");
-      const dirs = await readdir(vaultSkillsDir);
+      const dirs = (await readdir(skillsTarget)).filter(f => !f.startsWith("."));
       expect(dirs).toEqual(["new-skill"]);
+    });
+
+    it("preserves user-created skills not in vault manifest", async () => {
+      // Pre-populate a user-created skill (NOT in manifest)
+      const skillsTarget = join(claudeDir, "skills");
+      const userSkill = join(skillsTarget, "my-custom-skill");
+      await mkdir(userSkill, { recursive: true });
+      await writeFile(join(userSkill, "SKILL.md"), "# My custom skill");
+
+      // Vault has one skill
+      const skillsDir = join(vaultDir, "Skills");
+      await mkdir(join(skillsDir, "vault-skill"), { recursive: true });
+      await writeFile(join(skillsDir, "vault-skill", "SKILL.md"), "# Vault skill");
+
+      await runSync({ HOME: tempDir });
+
+      const dirs = (await readdir(skillsTarget)).filter(f => !f.startsWith("."));
+      expect(dirs.sort()).toEqual(["my-custom-skill", "vault-skill"]);
+
+      // User skill content should be untouched
+      const content = await readFile(join(userSkill, "SKILL.md"), "utf-8");
+      expect(content).toBe("# My custom skill");
     });
 
     it("updates skill content when vault version changes", async () => {
@@ -257,6 +281,30 @@ describe("sync-vault.sh", () => {
       const { stdout } = await runSync({ HOME: tempDir });
 
       expect(stdout).toContain("GSD skills: skipped");
+    });
+
+    it("preserves real GSD skills directory instead of replacing with symlink", async () => {
+      // Create a real directory at the GSD skills path with user content
+      const gsdSkillsDir = join(gsdDir, "skills");
+      await mkdir(join(gsdSkillsDir, "my-gsd-skill"), { recursive: true });
+      await writeFile(join(gsdSkillsDir, "my-gsd-skill", "SKILL.md"), "# GSD-only skill");
+
+      // Create vault skills so sync_skills runs
+      const skillsDir = join(vaultDir, "Skills");
+      await mkdir(join(skillsDir, "caveman"), { recursive: true });
+      await writeFile(join(skillsDir, "caveman", "SKILL.md"), "# Caveman");
+
+      const { stdout } = await runSync({ HOME: tempDir });
+
+      expect(stdout).toContain("WARNING");
+
+      // Real directory should still exist with its content
+      const stats = await lstat(gsdSkillsDir);
+      expect(stats.isSymbolicLink()).toBe(false);
+      expect(stats.isDirectory()).toBe(true);
+
+      const content = await readFile(join(gsdSkillsDir, "my-gsd-skill", "SKILL.md"), "utf-8");
+      expect(content).toBe("# GSD-only skill");
     });
   });
 });
