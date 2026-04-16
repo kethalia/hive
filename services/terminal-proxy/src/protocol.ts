@@ -33,7 +33,9 @@ export function buildPtyUrl(
   //   -A        → attach to session if it exists, create if it doesn't
   //   -s <name> → session name
   // This makes the PTY run inside tmux, so the session survives disconnects.
-  const command = `tmux -L web new-session -A -s ${sessionName}`;
+  // Hide the tmux status bar — the web UI tab manager already shows session
+  // names, so the green bar is redundant and wastes terminal real estate.
+  const command = `tmux -L web new-session -A -s ${sessionName} \\; set status off`;
 
   const params = new URLSearchParams({
     reconnect: reconnectId,
