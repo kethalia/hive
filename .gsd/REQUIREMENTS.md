@@ -512,6 +512,160 @@ This file is the explicit capability and coverage contract for the project.
 - Validation: ResizeObserver on terminal container calls fitAddon.fit() when dimensions transition from 0x0 to non-zero (hidden→visible). Guards against fitting hidden containers. 4 component tests in S02. TerminalTabManager uses display:none/block pattern — ResizeObserver fires on visibility change. S05 regression tests confirm tab switching works with M006 components.
 - Notes: Current display:none approach preserves xterm.js instances but scrollback can be lost on reconnect. Postgres-backed scrollback eliminates this.
 
+### R056 — Directory-tree sidebar with collapsible Workspaces and Templates sections
+- Class: core-capability
+- Status: validated
+- Description: Directory-tree sidebar with collapsible Workspaces and Templates sections
+- Why it matters: The sidebar becomes the primary navigation surface replacing flat nav and dedicated listing pages — users need hierarchical browsing of workspaces and templates
+- Source: user
+- Primary owning slice: M007/S01
+- Supporting slices: none
+- Validation: Sidebar renders collapsible Workspaces and Templates sections with SidebarMenuSub tree structure. 8 passing tests confirm rendering. Verified 2026-04-17.
+- Notes: Uses shadcn SidebarMenuSub/Collapsible primitives already installed
+
+### R057 — Workspace sidebar items show 3 external-link buttons (Filebrowser, KasmVNC, Code Server) and nested terminal sessions
+- Class: primary-user-loop
+- Status: validated
+- Description: Workspace sidebar items show 3 external-link buttons (Filebrowser, KasmVNC, Code Server) and nested terminal sessions
+- Why it matters: Puts workspace tools directly in the navigation tree — eliminates navigating to a workspace detail page just to access tools
+- Source: user
+- Primary owning slice: M007/S02
+- Supporting slices: M007/S01
+- Validation: Workspace sidebar items show 3 external-link buttons (Filebrowser, KasmVNC, Code Server) via buildWorkspaceUrls() with lazy-fetched agent name, and nested terminal sessions with per-workspace polling. Verified by grep checks and 17 passing sidebar tests. Verified 2026-04-17.
+- Notes: First 3 tools open in new tabs (external links), terminal sessions are in-app navigation
+
+### R058 — Terminal sessions manageable from sidebar: list, create (+), switch, kill
+- Class: core-capability
+- Status: validated
+- Description: Terminal sessions manageable from sidebar: list, create (+), switch, kill
+- Why it matters: Session management moves from the terminal page tab bar to the sidebar — the sidebar is the single control surface for all navigation and session lifecycle
+- Source: user
+- Primary owning slice: M007/S02
+- Supporting slices: none
+- Validation: Session list fetched via getWorkspaceSessionsAction on expand with 30s polling. Create (+) via createSessionAction navigates to terminal. Kill (x) via killSessionAction removes from list. Switch by clicking session link. 17 passing sidebar tests cover CRUD. Verified 2026-04-17.
+- Notes: Replaces TerminalTabManager tab bar as session switcher
+
+### R059 — Sidebar fetches live workspace and template data via server actions with periodic polling
+- Class: primary-user-loop
+- Status: validated
+- Description: Sidebar fetches live workspace and template data via server actions with periodic polling
+- Why it matters: Sidebar is now the only way to discover workspaces and templates — stale data would leave the user unable to navigate
+- Source: user
+- Primary owning slice: M007/S01
+- Supporting slices: none
+- Validation: listWorkspacesAction and listTemplateStatusesAction called on mount and every 30s via setInterval. Test coverage and grep verification. Verified 2026-04-17.
+- Notes: Uses existing listWorkspacesAction and compareTemplates server actions
+
+### R060 — Last-refreshed timestamp and manual refresh button at sidebar bottom
+- Class: primary-user-loop
+- Status: validated
+- Description: Last-refreshed timestamp and manual refresh button at sidebar bottom
+- Why it matters: Gives user confidence in data freshness and manual control over refresh timing
+- Source: user
+- Primary owning slice: M007/S01
+- Supporting slices: none
+- Validation: Footer shows lastRefreshed timestamp and RefreshCw button with spin animation. Test and grep verification. Verified 2026-04-17.
+- Notes: Positioned at bottom of sidebar near pin/unpin toggle
+
+### R061 — Sidebar mode toggle: floating (offcanvas) vs docked (pinned), persisted in localStorage
+- Class: quality-attribute
+- Status: validated
+- Description: Sidebar mode toggle: floating (offcanvas) vs docked (pinned), persisted in localStorage
+- Why it matters: Different workflows need different sidebar modes — floating maximizes terminal width, docked provides persistent navigation
+- Source: user
+- Primary owning slice: M007/S03
+- Supporting slices: none
+- Validation: useSidebarMode hook reads/writes localStorage key sidebar_mode with offcanvas/icon values. Pin/PinOff toggle in sidebar footer. 11 tests pass in sidebar-mode-toggle.test.tsx covering default mode, toggle, persistence, and SSR safety.
+- Notes: Default to floating (offcanvas). Pin/unpin toggle at sidebar bottom. ResizeObserver handles terminal refit on mode switch.
+
+### R062 — Header and breadcrumbs removed from all pages — floating sidebar trigger is the only chrome
+- Class: core-capability
+- Status: validated
+- Description: Header and breadcrumbs removed from all pages — floating sidebar trigger is the only chrome
+- Why it matters: Maximizes viewport for content, especially terminal pages. User explicitly wants zero chrome on all pages.
+- Source: user
+- Primary owning slice: M007/S01
+- Supporting slices: none
+- Validation: No header tag in layout.tsx, HeaderContent.tsx deleted, floating SidebarTrigger is only chrome. Grep and file existence checks. Verified 2026-04-17.
+- Notes: HeaderContent component removed from layout, SidebarTrigger repositioned as floating button
+
+### R063 — Terminal pages are full-viewport xterm with exclusive keystroke capture
+- Class: core-capability
+- Status: validated
+- Description: Terminal pages are full-viewport xterm with exclusive keystroke capture
+- Why it matters: Terminal-first UX — every keystroke must reach xterm without being intercepted by sidebar or other UI elements
+- Source: user
+- Primary owning slice: M007/S02
+- Supporting slices: none
+- Validation: Terminal page uses negative margin cancellation for full-viewport sizing. onKeyDown stopPropagation prevents keystroke bubbling. term.focus() called on mount. Click-to-refocus handler on container. 3 integration tests verify focus-on-mount, keydown non-bubbling, click-to-refocus. Verified 2026-04-17.
+- Notes: Auto-focus on mount and on click within terminal area. Sidebar clicks don't fight for focus.
+
+### R064 — Template detail page showing template info and push button
+- Class: primary-user-loop
+- Status: validated
+- Description: Template detail page showing template info and push button
+- Why it matters: Clicking a template in the sidebar needs a destination page with actionable info — not just a name in a list
+- Source: user
+- Primary owning slice: M007/S03
+- Supporting slices: none
+- Validation: Template detail page at /templates/[name] shows name, staleness badge, lastPushed, hashes, activeVersionId, and Push button with SSE streaming into TerminalPanel. 12 tests pass in template-detail.test.tsx.
+- Notes: Minimal for now — info + push. Full file tree deferred.
+
+### R065 — Workspaces listing page removed — sidebar is the workspace browser
+- Class: core-capability
+- Status: validated
+- Description: Workspaces listing page removed — sidebar is the workspace browser
+- Why it matters: The sidebar replaces the listing page entirely. Keeping both creates a confusing dual navigation path.
+- Source: user
+- Primary owning slice: M007/S03
+- Supporting slices: M007/S01
+- Validation: src/app/workspaces/page.tsx and WorkspacesClient.tsx deleted. Breadcrumb links updated to /tasks. No remaining imports of deleted components (grep verified). Terminal breadcrumbs test updated to expect /tasks.
+- Notes: Remove /workspaces page and /workspaces/[id] detail page. Terminal pages at /workspaces/[id]/terminal remain.
+
+### R066 — Mobile-responsive sidebar (overlay mode on narrow viewports)
+- Class: quality-attribute
+- Status: validated
+- Description: Mobile-responsive sidebar (overlay mode on narrow viewports)
+- Why it matters: Dashboard must be usable on mobile/tablet for quick workspace monitoring
+- Source: inferred
+- Primary owning slice: M007/S03
+- Supporting slices: none
+- Validation: shadcn Sidebar renders as Sheet overlay when useIsMobile() returns true — built into the sidebar component. SidebarTrigger accessible on mobile. No code changes needed — verified by sidebar-mode-toggle.test.tsx integration tests confirming sidebar renders correctly in both modes.
+- Notes: Existing use-mobile.ts hook already wired. shadcn sidebar handles mobile overlay.
+
+### R067 — Sidebar fetch failures show inline error with retry button per section
+- Class: failure-visibility
+- Status: validated
+- Description: Sidebar fetch failures show inline error with retry button per section
+- Why it matters: Sidebar is now the only navigation surface — silent fetch failures leave user stranded with no way to browse workspaces or templates
+- Source: inferred
+- Primary owning slice: M007/S01
+- Supporting slices: none
+- Validation: Inline Alert (variant destructive) with retry button per section on fetch failure. 3 error-state tests passing. Verified 2026-04-17.
+- Notes: Compact inline error within collapsible section, not a toast or modal
+
+### R068 — Stale sidebar entry click triggers page error + sidebar force-refresh
+- Class: failure-visibility
+- Status: validated
+- Description: Stale sidebar entry click triggers page error + sidebar force-refresh
+- Why it matters: When workspace data changes externally (deleted, stopped), clicking a stale entry must not leave user in a broken state
+- Source: inferred
+- Primary owning slice: M007/S02
+- Supporting slices: none
+- Validation: StaleEntryAlert client component dispatches hive:sidebar-refresh CustomEvent on mount when workspace agent not found. Sidebar listens for event and calls fetchAll(). Terminal client also dispatches on missing session. Error Alert shown with back link. 2 tests verify event bridge. Verified 2026-04-17.
+- Notes: Error shown on the page, sidebar refreshes to remove stale entry
+
+### R069 — Integration test verifying terminal keystroke exclusivity after mount and sidebar toggle
+- Class: quality-attribute
+- Status: validated
+- Description: Integration test verifying terminal keystroke exclusivity after mount and sidebar toggle
+- Why it matters: Keystroke capture is the kind of behavior that regresses silently — automated verification prevents regression
+- Source: inferred
+- Primary owning slice: M007/S02
+- Supporting slices: none
+- Validation: 3 integration tests in terminal-keystroke-exclusivity.test.tsx verify: (1) term.focus() called after mount, (2) keydown events don't bubble past stopPropagation wrapper, (3) clicking terminal container re-focuses xterm. All 3 pass. Verified 2026-04-17.
+- Notes: Test simulates keypress and asserts it reaches xterm, not sidebar
+
 ## Deferred
 
 ### R054 — Reconnection visual seam marker — timestamp showing where a disconnect/reconnect occurred in scrollback
@@ -524,6 +678,26 @@ This file is the explicit capability and coverage contract for the project.
 - Supporting slices: none
 - Validation: unmapped
 - Notes: Nice-to-have. Can be added after core persistence is working.
+
+### R070 — Tasks section migrated to tree-style sidebar
+- Class: quality-attribute
+- Status: deferred
+- Description: Tasks section migrated to tree-style sidebar
+- Why it matters: Consistency with workspace/template tree-style navigation
+- Source: user
+- Primary owning slice: none
+- Validation: unmapped
+- Notes: User explicitly said tasks stay as-is for now, will migrate later
+
+### R071 — Template detail page with full file tree and inline file viewing
+- Class: primary-user-loop
+- Status: deferred
+- Description: Template detail page with full file tree and inline file viewing
+- Why it matters: Would allow browsing template source directly from dashboard without opening files locally
+- Source: user
+- Primary owning slice: none
+- Validation: unmapped
+- Notes: User said keep it minimal for now. Full file tree is a future enhancement.
 
 ## Out of Scope
 
@@ -662,10 +836,26 @@ This file is the explicit capability and coverage contract for the project.
 | R053 | core-capability | active | M006/S01 | M006/S05 | unmapped |
 | R054 | quality-attribute | deferred | none | none | unmapped |
 | R055 | anti-feature | out-of-scope | none | none | n/a |
+| R056 | core-capability | validated | M007/S01 | none | Sidebar renders collapsible Workspaces and Templates sections with SidebarMenuSub tree structure. 8 passing tests confirm rendering. Verified 2026-04-17. |
+| R057 | primary-user-loop | validated | M007/S02 | M007/S01 | Workspace sidebar items show 3 external-link buttons (Filebrowser, KasmVNC, Code Server) via buildWorkspaceUrls() with lazy-fetched agent name, and nested terminal sessions with per-workspace polling. Verified by grep checks and 17 passing sidebar tests. Verified 2026-04-17. |
+| R058 | core-capability | validated | M007/S02 | none | Session list fetched via getWorkspaceSessionsAction on expand with 30s polling. Create (+) via createSessionAction navigates to terminal. Kill (x) via killSessionAction removes from list. Switch by clicking session link. 17 passing sidebar tests cover CRUD. Verified 2026-04-17. |
+| R059 | primary-user-loop | validated | M007/S01 | none | listWorkspacesAction and listTemplateStatusesAction called on mount and every 30s via setInterval. Test coverage and grep verification. Verified 2026-04-17. |
+| R060 | primary-user-loop | validated | M007/S01 | none | Footer shows lastRefreshed timestamp and RefreshCw button with spin animation. Test and grep verification. Verified 2026-04-17. |
+| R061 | quality-attribute | validated | M007/S03 | none | useSidebarMode hook reads/writes localStorage key sidebar_mode with offcanvas/icon values. Pin/PinOff toggle in sidebar footer. 11 tests pass in sidebar-mode-toggle.test.tsx covering default mode, toggle, persistence, and SSR safety. |
+| R062 | core-capability | validated | M007/S01 | none | No header tag in layout.tsx, HeaderContent.tsx deleted, floating SidebarTrigger is only chrome. Grep and file existence checks. Verified 2026-04-17. |
+| R063 | core-capability | validated | M007/S02 | none | Terminal page uses negative margin cancellation for full-viewport sizing. onKeyDown stopPropagation prevents keystroke bubbling. term.focus() called on mount. Click-to-refocus handler on container. 3 integration tests verify focus-on-mount, keydown non-bubbling, click-to-refocus. Verified 2026-04-17. |
+| R064 | primary-user-loop | validated | M007/S03 | none | Template detail page at /templates/[name] shows name, staleness badge, lastPushed, hashes, activeVersionId, and Push button with SSE streaming into TerminalPanel. 12 tests pass in template-detail.test.tsx. |
+| R065 | core-capability | validated | M007/S03 | M007/S01 | src/app/workspaces/page.tsx and WorkspacesClient.tsx deleted. Breadcrumb links updated to /tasks. No remaining imports of deleted components (grep verified). Terminal breadcrumbs test updated to expect /tasks. |
+| R066 | quality-attribute | validated | M007/S03 | none | shadcn Sidebar renders as Sheet overlay when useIsMobile() returns true — built into the sidebar component. SidebarTrigger accessible on mobile. No code changes needed — verified by sidebar-mode-toggle.test.tsx integration tests confirming sidebar renders correctly in both modes. |
+| R067 | failure-visibility | validated | M007/S01 | none | Inline Alert (variant destructive) with retry button per section on fetch failure. 3 error-state tests passing. Verified 2026-04-17. |
+| R068 | failure-visibility | validated | M007/S02 | none | StaleEntryAlert client component dispatches hive:sidebar-refresh CustomEvent on mount when workspace agent not found. Sidebar listens for event and calls fetchAll(). Terminal client also dispatches on missing session. Error Alert shown with back link. 2 tests verify event bridge. Verified 2026-04-17. |
+| R069 | quality-attribute | validated | M007/S02 | none | 3 integration tests in terminal-keystroke-exclusivity.test.tsx verify: (1) term.focus() called after mount, (2) keydown events don't bubble past stopPropagation wrapper, (3) clicking terminal container re-focuses xterm. All 3 pass. Verified 2026-04-17. |
+| R070 | quality-attribute | deferred | none | none | unmapped |
+| R071 | primary-user-loop | deferred | none | none | unmapped |
 
 ## Coverage Summary
 
 - Active requirements: 18
 - Mapped to slices: 18
-- Validated: 28 (R006, R007, R013, R017, R018, R019, R028, R029, R032, R033, R034, R035, R036, R037, R038, R039, R040, R042, R043, R044, R045, R046, R047, R048, R049, R050, R051, R052)
+- Validated: 42 (R006, R007, R013, R017, R018, R019, R028, R029, R032, R033, R034, R035, R036, R037, R038, R039, R040, R042, R043, R044, R045, R046, R047, R048, R049, R050, R051, R052, R056, R057, R058, R059, R060, R061, R062, R063, R064, R065, R066, R067, R068, R069)
 - Unmapped active requirements: 0

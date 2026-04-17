@@ -140,6 +140,7 @@ export function InteractiveTerminal({
       fit = new FitAddon();
       term.loadAddon(fit);
       term.open(containerRef.current);
+      term.focus();
 
       termRef.current = term;
       fitRef.current = fit;
@@ -221,7 +222,7 @@ export function InteractiveTerminal({
         </Alert>
       )}
 
-      <div ref={containerRef} className="flex-1 p-1" />
+      <div ref={containerRef} className="flex-1 p-1" onClick={() => termRef.current?.focus()} />
     </div>
   );
 }
