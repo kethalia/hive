@@ -62,7 +62,7 @@ Import icons: `ChevronRight` for collapse toggle, `Monitor` for workspaces secti
   - Files: `src/components/app-sidebar.tsx`, `src/lib/actions/templates.ts`
   - Verify: pnpm tsc --noEmit && grep -q 'listTemplateStatusesAction' src/lib/actions/templates.ts && grep -q 'Collapsible' src/components/app-sidebar.tsx && grep -q 'setInterval' src/components/app-sidebar.tsx
 
-- [ ] **T03: Add footer timestamp and refresh button, inline error states with retry, and sidebar tests** `est:1h`
+- [x] **T03: Add footer timestamp and refresh button, inline error states with retry, and sidebar tests** `est:1h`
   **1. Footer: last-refreshed timestamp + refresh button.** Replace the disabled Settings button in `SidebarFooter` with:
 - A formatted last-refreshed timestamp (e.g. "Updated 2m ago" or "Updated just now") using relative time formatting. The `lastRefreshed` state from T02 drives this.
 - A refresh `Button` (variant ghost, size sm) with `RefreshCw` icon from lucide-react that calls both `listWorkspacesAction` and `listTemplateStatusesAction` immediately and updates `lastRefreshed`. Disable while loading. Show spin animation on the icon while refreshing (`animate-spin` class).
