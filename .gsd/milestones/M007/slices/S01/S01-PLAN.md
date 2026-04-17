@@ -43,7 +43,7 @@ R062 requires header and breadcrumbs removed from ALL pages with only the floati
   - Files: `src/app/layout.tsx`, `src/components/HeaderContent.tsx`
   - Verify: grep -qv '<header' src/app/layout.tsx && ! test -f src/components/HeaderContent.tsx && pnpm tsc --noEmit
 
-- [ ] **T02: Replace flat nav with collapsible Workspaces and Templates tree sections with live data** `est:1h30m`
+- [x] **T02: Replace flat nav with collapsible Workspaces and Templates tree sections with live data** `est:1h30m`
   This is the core structural and data-wiring task. Three sub-parts:
 
 **1. Create template status server action.** `compareTemplates()` in `src/lib/templates/staleness.ts` is a regular async function, not a server action. Create `src/lib/actions/templates.ts` with a `listTemplateStatusesAction` server action that wraps `compareTemplates(KNOWN_TEMPLATES)` using the same `actionClient` pattern as `listWorkspacesAction`.
