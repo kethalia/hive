@@ -3,8 +3,10 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, fireEvent, waitFor, cleanup } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
 
+const mockPush = vi.fn();
 vi.mock("next/navigation", () => ({
   usePathname: () => "/tasks",
+  useRouter: () => ({ push: mockPush }),
 }));
 
 vi.mock("@/lib/utils", () => ({
@@ -50,22 +52,39 @@ vi.mock("@/components/ui/sidebar", () => {
   };
 });
 
-vi.mock("@/components/ui/collapsible", () => ({
-  Collapsible: ({
-    children,
-    defaultOpen,
-  }: React.PropsWithChildren<{ defaultOpen?: boolean; onOpenChange?: (v: boolean) => void }>) => (
-    <div data-testid="collapsible" data-open={defaultOpen}>
-      {children}
-    </div>
-  ),
-  CollapsibleContent: ({ children }: React.PropsWithChildren) => (
-    <div data-testid="collapsible-content">{children}</div>
-  ),
-  CollapsibleTrigger: ({ children }: React.PropsWithChildren<{ className?: string }>) => (
-    <button data-testid="collapsible-trigger">{children}</button>
-  ),
-}));
+vi.mock("@/components/ui/collapsible", () => {
+  return {
+    Collapsible: ({
+      children,
+      defaultOpen,
+      open,
+      onOpenChange,
+    }: React.PropsWithChildren<{ defaultOpen?: boolean; open?: boolean; onOpenChange?: (v: boolean) => void }>) => {
+      const isOpen = open ?? defaultOpen;
+      return (
+        <div
+          data-testid="collapsible"
+          data-open={isOpen}
+          data-onchange={onOpenChange ? "true" : undefined}
+          onClick={(e) => {
+            const target = e.target as HTMLElement;
+            if (target.closest("[data-testid='collapsible-trigger']") && onOpenChange) {
+              onOpenChange(!isOpen);
+            }
+          }}
+        >
+          {children}
+        </div>
+      );
+    },
+    CollapsibleContent: ({ children }: React.PropsWithChildren) => (
+      <div data-testid="collapsible-content">{children}</div>
+    ),
+    CollapsibleTrigger: ({ children, className }: React.PropsWithChildren<{ className?: string }>) => (
+      <button data-testid="collapsible-trigger" className={className}>{children}</button>
+    ),
+  };
+});
 
 vi.mock("@/components/ui/alert", () => ({
   Alert: ({ children }: React.PropsWithChildren<{ variant?: string; className?: string }>) => (
@@ -98,13 +117,36 @@ vi.mock("lucide-react", () => ({
   ChevronRight: () => <span>ChevronRight</span>,
   RefreshCw: () => <span data-testid="refresh-icon">RefreshCw</span>,
   AlertCircle: () => <span>AlertCircle</span>,
+  Terminal: () => <span>Terminal</span>,
+  Plus: () => <span>Plus</span>,
+  X: () => <span>X</span>,
+  FolderOpen: () => <span>FolderOpen</span>,
+  Code: () => <span>Code</span>,
+  ExternalLink: () => <span>ExternalLink</span>,
 }));
 
 const mockListWorkspaces = vi.fn();
 const mockListTemplates = vi.fn();
+const mockGetWorkspaceAgent = vi.fn();
+const mockGetWorkspaceSessions = vi.fn();
+const mockCreateSession = vi.fn();
+const mockKillSession = vi.fn();
 
 vi.mock("@/lib/actions/workspaces", () => ({
   listWorkspacesAction: (...args: unknown[]) => mockListWorkspaces(...args),
+  getWorkspaceAgentAction: (...args: unknown[]) => mockGetWorkspaceAgent(...args),
+  getWorkspaceSessionsAction: (...args: unknown[]) => mockGetWorkspaceSessions(...args),
+  createSessionAction: (...args: unknown[]) => mockCreateSession(...args),
+  killSessionAction: (...args: unknown[]) => mockKillSession(...args),
+}));
+
+vi.mock("@/lib/workspaces/urls", () => ({
+  buildWorkspaceUrls: (_ws: unknown, _agent: string, _url: string) => ({
+    filebrowser: "https://filebrowser.test",
+    kasmvnc: "https://kasmvnc.test",
+    codeServer: "https://code-server.test",
+    dashboard: "https://dashboard.test",
+  }),
 }));
 
 vi.mock("@/lib/actions/templates", () => ({
@@ -148,6 +190,18 @@ describe("AppSidebar", () => {
     });
     mockListTemplates.mockResolvedValue({
       data: [makeTemplate()],
+    });
+    mockGetWorkspaceAgent.mockResolvedValue({
+      data: { agentId: "agent-1", agentName: "main" },
+    });
+    mockGetWorkspaceSessions.mockResolvedValue({
+      data: [{ name: "dev", created: 1000, windows: 1 }],
+    });
+    mockCreateSession.mockResolvedValue({
+      data: { name: "session-123" },
+    });
+    mockKillSession.mockResolvedValue({
+      data: { name: "dev" },
     });
   });
 
@@ -270,5 +324,156 @@ describe("AppSidebar", () => {
       expect(mockListWorkspaces).toHaveBeenCalledTimes(1);
       expect(mockListTemplates).toHaveBeenCalledTimes(1);
     });
+  });
+
+  it("expanding a workspace triggers agent and session fetch", async () => {
+    render(<AppSidebar coderUrl="https://coder.test" />);
+
+    await waitFor(() => {
+      expect(screen.getByText("dev-box")).toBeInTheDocument();
+    });
+
+    const wsTrigger = screen.getByText("dev-box").closest("[data-testid='collapsible-trigger']");
+    expect(wsTrigger).not.toBeNull();
+    fireEvent.click(wsTrigger!);
+
+    await waitFor(() => {
+      expect(mockGetWorkspaceAgent).toHaveBeenCalledWith({ workspaceId: "ws-1" });
+      expect(mockGetWorkspaceSessions).toHaveBeenCalledWith({ workspaceId: "ws-1" });
+    });
+  });
+
+  it("renders sessions as sub-items under expanded workspace", async () => {
+    render(<AppSidebar coderUrl="https://coder.test" />);
+
+    await waitFor(() => {
+      expect(screen.getByText("dev-box")).toBeInTheDocument();
+    });
+
+    const wsTrigger = screen.getByText("dev-box").closest("[data-testid='collapsible-trigger']");
+    fireEvent.click(wsTrigger!);
+
+    await waitFor(() => {
+      expect(screen.getByText("dev")).toBeInTheDocument();
+    });
+  });
+
+  it("renders external link buttons with correct href targets", async () => {
+    render(<AppSidebar coderUrl="https://coder.test" />);
+
+    await waitFor(() => {
+      expect(screen.getByText("dev-box")).toBeInTheDocument();
+    });
+
+    const wsTrigger = screen.getByText("dev-box").closest("[data-testid='collapsible-trigger']");
+    fireEvent.click(wsTrigger!);
+
+    await waitFor(() => {
+      expect(mockGetWorkspaceAgent).toHaveBeenCalled();
+    });
+
+    await waitFor(() => {
+      const fbLink = screen.getByTitle("Filebrowser");
+      expect(fbLink).toBeInTheDocument();
+      expect(fbLink.getAttribute("href")).toBe("https://filebrowser.test");
+
+      const vncLink = screen.getByTitle("KasmVNC");
+      expect(vncLink).toBeInTheDocument();
+      expect(vncLink.getAttribute("href")).toBe("https://kasmvnc.test");
+
+      const codeLink = screen.getByTitle("Code Server");
+      expect(codeLink).toBeInTheDocument();
+      expect(codeLink.getAttribute("href")).toBe("https://code-server.test");
+    });
+  });
+
+  it("create session button calls createSessionAction and navigates", async () => {
+    render(<AppSidebar coderUrl="https://coder.test" />);
+
+    await waitFor(() => {
+      expect(screen.getByText("dev-box")).toBeInTheDocument();
+    });
+
+    const wsTrigger = screen.getByText("dev-box").closest("[data-testid='collapsible-trigger']");
+    fireEvent.click(wsTrigger!);
+
+    await waitFor(() => {
+      expect(screen.getByText("dev")).toBeInTheDocument();
+    });
+
+    const createBtn = screen.getByTestId("create-session-ws-1");
+    fireEvent.click(createBtn);
+
+    await waitFor(() => {
+      expect(mockCreateSession).toHaveBeenCalledWith({ workspaceId: "ws-1" });
+      expect(mockPush).toHaveBeenCalledWith("/workspaces/ws-1/terminal?session=session-123");
+    });
+  });
+
+  it("kill session button calls killSessionAction", async () => {
+    render(<AppSidebar coderUrl="https://coder.test" />);
+
+    await waitFor(() => {
+      expect(screen.getByText("dev-box")).toBeInTheDocument();
+    });
+
+    const wsTrigger = screen.getByText("dev-box").closest("[data-testid='collapsible-trigger']");
+    fireEvent.click(wsTrigger!);
+
+    await waitFor(() => {
+      expect(screen.getByText("dev")).toBeInTheDocument();
+    });
+
+    const killBtn = screen.getByTestId("kill-session-dev");
+    fireEvent.click(killBtn);
+
+    await waitFor(() => {
+      expect(mockKillSession).toHaveBeenCalledWith({ workspaceId: "ws-1", sessionName: "dev" });
+    });
+  });
+
+  it("shows inline alert with retry when session fetch fails", async () => {
+    mockGetWorkspaceSessions.mockResolvedValue({
+      serverError: "Session fetch failed",
+    });
+
+    render(<AppSidebar coderUrl="https://coder.test" />);
+
+    await waitFor(() => {
+      expect(screen.getByText("dev-box")).toBeInTheDocument();
+    });
+
+    const wsTrigger = screen.getByText("dev-box").closest("[data-testid='collapsible-trigger']");
+    fireEvent.click(wsTrigger!);
+
+    await waitFor(() => {
+      expect(screen.getByText("Session fetch failed")).toBeInTheDocument();
+    });
+
+    const retryButtons = screen.getAllByText("Retry");
+    expect(retryButtons.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it("hides external links when agent fetch fails", async () => {
+    mockGetWorkspaceAgent.mockResolvedValue({
+      serverError: "No agents found",
+    });
+
+    render(<AppSidebar coderUrl="https://coder.test" />);
+
+    await waitFor(() => {
+      expect(screen.getByText("dev-box")).toBeInTheDocument();
+    });
+
+    const wsTrigger = screen.getByText("dev-box").closest("[data-testid='collapsible-trigger']");
+    fireEvent.click(wsTrigger!);
+
+    await waitFor(() => {
+      expect(mockGetWorkspaceAgent).toHaveBeenCalled();
+    });
+
+    expect(screen.queryByTitle("Filebrowser")).not.toBeInTheDocument();
+    expect(screen.queryByTitle("KasmVNC")).not.toBeInTheDocument();
+    expect(screen.queryByTitle("Code Server")).not.toBeInTheDocument();
   });
 });

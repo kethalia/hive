@@ -32,11 +32,16 @@ Unattended task-to-PR automation with behavioral verification — the system doe
 - S04 (External Tool Integration): ✅ complete — Workspace detail page at /workspaces/[id] with iframe-embedded Filebrowser/KasmVNC panels, tab toggle, popup-out buttons, Coder Dashboard link-out, error fallback. 10 tests.
 
 **M006 complete — all 5 slices delivered and verified.** Persistent terminal sessions: server-side workspace keep-alive, infinite reconnection, Postgres-backed scrollback with virtual scrolling. 504 frontend tests, 88 proxy tests.
-- S01 (Workspace Keep-Alive Service): ✅ complete — KeepAliveManager pings Coder API every 55s per active workspace, ConnectionRegistry tracks workspaceId→connections, /keepalive/status HTTP endpoint, KeepAliveWarning banner in terminal UI at 3+ failures. 75 new tests.
-- S02 (Infinite Reconnection & Session Continuity): ✅ complete — Infinite WebSocket retries with 60s backoff cap, reconnecting banner with attempt count and Reconnect Now button, reconnectId auto-regeneration after 3 consecutive failures, ResizeObserver-based tab re-fit for scrollback preservation. 21 new tests.
-- S03 (Scrollback Persistence Backend): ✅ complete — ScrollbackWriter batches PTY output to Postgres via chunked writes, ScrollbackChunk Prisma model, scrollback API route for hydration.
-- S04 (Virtual Scrolling & Hydration UI): ✅ complete — Paginated scrollback API (cursor/limit), useScrollbackHydration hook with live-data gating, TerminalHistoryPanel with @tanstack/react-virtual and ANSI rendering, JumpToBottom button, loading skeletons. 39 new tests.
-- S05 (End-to-End Integration & Regression): ✅ complete — 30 cross-slice integration tests proving hydration gating, format compatibility, reconnectId lifecycle, InteractiveTerminal UI coordination, and TerminalTabManager regression with M006 components. 504 total frontend tests, 88 proxy tests, zero regressions.
+- S01 (Workspace Keep-Alive Service): ✅ complete
+- S02 (Infinite Reconnection & Session Continuity): ✅ complete
+- S03 (Scrollback Persistence Backend): ✅ complete
+- S04 (Virtual Scrolling & Hydration UI): ✅ complete
+- S05 (End-to-End Integration & Regression): ✅ complete
+
+**M007 in progress — 1 of 3 slices complete.** Sidebar navigation overhaul: directory-tree sidebar with collapsible sections, full-viewport terminal pages, floating sidebar toggle.
+- S01 (Sidebar Tree Structure & Layout Overhaul): ✅ complete — Replaced flat nav with collapsible Workspaces/Templates tree sections with live Coder API data and 30s polling. Removed header/breadcrumbs globally, added floating SidebarTrigger. Footer with last-refreshed timestamp and refresh button. Inline error states with retry per section. 8 new tests, 437 total passing.
+- S02 (Terminal Integration & Session Management): ⬜ remaining — Terminal sessions listed under each workspace in sidebar, full-page terminal navigation, keystroke capture
+- S03 (Template Detail Page & Sidebar Polish): ⬜ remaining — Template detail page, sidebar pin/unpin toggle, mobile responsive, old workspaces page removal
 
 **Operational notes:** M001 cleanup scheduler not wired to entrypoint. M002 council can run in isolation or as part of full pipeline; initial testing with 3-reviewer council works correctly with mock data. Real GitHub integration tested via mocked gh CLI; live GitHub token handling depends on environment setup during deployment. M005 dev workflow now uses `tsx watch server.ts` instead of `next dev` to support WebSocket upgrade.
 
@@ -55,6 +60,7 @@ Repository: https://github.com/kethalia/hive
 - **Scrollback Persistence:** Two-zone scroll architecture (D025): TerminalHistoryPanel (virtual scroll via @tanstack/react-virtual) renders unbounded older scrollback above xterm; xterm handles live terminal + recent hydrated history. Scrollback persisted to Postgres as chunked writes (S03). On reconnect, useScrollbackHydration fetches recent chunks and writes to xterm with live-data gating to prevent race conditions. Paginated API (cursor/limit) serves JSON for virtual scroll, binary for hydration (D026). ANSI escape sequences rendered via ansi-to-html with streaming mode for cross-chunk state.
 - **Workspace Keep-Alive:** KeepAliveManager in terminal-proxy pings Coder extend API every 55s for each workspace with active WebSocket connections. ConnectionRegistry tracks workspaceId→connectionId mappings. /keepalive/status endpoint exposes per-workspace health. Frontend useKeepAliveStatus hook polls every 30s; KeepAliveWarning banner appears at 3+ consecutive failures.
 - **External Tool Integration:** Workspace detail page at /workspaces/[id] embeds Filebrowser and KasmVNC in iframe panels with tab toggle and popup-out buttons. Coder Dashboard accessed via link-out. Cross-origin iframe error detection with automatic fallback to direct links. Disabled state for non-running workspaces.
+- **Sidebar Navigation:** Directory-tree sidebar with collapsible Workspaces and Templates sections using shadcn Collapsible/SidebarMenuSub primitives. Per-section independent data fetching with 30s polling via setInterval. Floating SidebarTrigger replaces removed header/breadcrumbs. Footer shows last-refreshed timestamp and manual refresh button. Inline Alert with retry button per section on fetch failure.
 - **Deployment:** Solo operator, no auth. Docker-compose: Next.js + Postgres + Redis
 
 ## Capability Contract
@@ -68,4 +74,4 @@ See `.gsd/REQUIREMENTS.md` for the explicit capability contract, requirement sta
 - [x] M004: Template Management Dashboard — Web UI for viewing template staleness and pushing updates (3 slices, 315 tests)
 - [x] M005: Workspace Terminals — Persistent tmux-backed interactive terminals in the dashboard with workspace discovery and external tool integration (4 slices, 407 tests, 7 requirements validated)
 - [x] M006: Persistent Terminal Sessions — Fix critical session persistence: server-side workspace keep-alive, infinite reconnection, Postgres-backed scrollback with virtual scrolling (5 slices, 504 frontend + 88 proxy tests)
-- [ ] M007: Sidebar Navigation Overhaul — Directory-tree sidebar with collapsible workspace/template sections, full-viewport terminal pages, floating sidebar toggle
+- [ ] M007: Sidebar Navigation Overhaul — Directory-tree sidebar with collapsible workspace/template sections, full-viewport terminal pages, floating sidebar toggle (S01 complete, S02-S03 remaining)

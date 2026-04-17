@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import {
   Sidebar,
   SidebarContent,
@@ -36,10 +36,25 @@ import {
   ChevronRight,
   RefreshCw,
   AlertCircle,
+  Terminal,
+  Plus,
+  X,
+  FolderOpen,
+  Monitor as ScreenIcon,
+  Code,
+  ExternalLink,
 } from "lucide-react";
-import { listWorkspacesAction } from "@/lib/actions/workspaces";
+import {
+  listWorkspacesAction,
+  getWorkspaceAgentAction,
+  getWorkspaceSessionsAction,
+  createSessionAction,
+  killSessionAction,
+} from "@/lib/actions/workspaces";
+import { buildWorkspaceUrls } from "@/lib/workspaces/urls";
 import { listTemplateStatusesAction } from "@/lib/actions/templates";
 import type { CoderWorkspace } from "@/lib/coder/types";
+import type { TmuxSession } from "@/lib/workspaces/sessions";
 import type { TemplateStatus } from "@/lib/templates/staleness";
 
 const POLL_INTERVAL_MS = 30_000;
@@ -50,8 +65,20 @@ interface SectionState<T> {
   error: string | null;
 }
 
+interface WorkspaceSessionState {
+  data: TmuxSession[];
+  isLoading: boolean;
+  error: string | null;
+}
+
+interface AgentInfo {
+  agentId: string;
+  agentName: string;
+}
+
 export function AppSidebar({ coderUrl }: { coderUrl?: string }) {
   const pathname = usePathname();
+  const router = useRouter();
 
   const [workspacesOpen, setWorkspacesOpen] = useState(true);
   const [templatesOpen, setTemplatesOpen] = useState(true);
@@ -68,7 +95,12 @@ export function AppSidebar({ coderUrl }: { coderUrl?: string }) {
   });
   const [lastRefreshed, setLastRefreshed] = useState<Date | null>(null);
 
+  const [expandedWorkspaces, setExpandedWorkspaces] = useState<Record<string, boolean>>({});
+  const [workspaceAgents, setWorkspaceAgents] = useState<Record<string, AgentInfo | null>>({});
+  const [workspaceSessions, setWorkspaceSessions] = useState<Record<string, WorkspaceSessionState>>({});
+
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const sessionIntervalRefs = useRef<Record<string, ReturnType<typeof setInterval>>>({});
 
   const fetchWorkspaces = useCallback(async () => {
     setWorkspaces((prev) => ({ ...prev, isLoading: true, error: null }));
@@ -110,6 +142,102 @@ export function AppSidebar({ coderUrl }: { coderUrl?: string }) {
       if (intervalRef.current) clearInterval(intervalRef.current);
     };
   }, [fetchAll]);
+
+  const fetchAgentInfo = useCallback(async (workspaceId: string) => {
+    const result = await getWorkspaceAgentAction({ workspaceId });
+    if (result?.data) {
+      console.log(`[workspaces] Fetched agent info for workspace ${workspaceId}:`, result.data);
+      setWorkspaceAgents((prev) => ({ ...prev, [workspaceId]: result.data! }));
+      return result.data;
+    }
+    console.error(`[workspaces] Failed to fetch agent for workspace ${workspaceId}`);
+    setWorkspaceAgents((prev) => ({ ...prev, [workspaceId]: null }));
+    return null;
+  }, []);
+
+  const fetchSessions = useCallback(async (workspaceId: string) => {
+    setWorkspaceSessions((prev) => ({
+      ...prev,
+      [workspaceId]: { ...(prev[workspaceId] ?? { data: [] }), isLoading: true, error: null },
+    }));
+    const result = await getWorkspaceSessionsAction({ workspaceId });
+    if (result?.data) {
+      console.log(`[workspaces] Fetched ${result.data.length} sessions for workspace ${workspaceId}`);
+      setWorkspaceSessions((prev) => ({
+        ...prev,
+        [workspaceId]: { data: result.data!, isLoading: false, error: null },
+      }));
+    } else {
+      const msg = result?.serverError ?? "Failed to load sessions";
+      console.error(`[workspaces] Session fetch error for ${workspaceId}:`, msg);
+      setWorkspaceSessions((prev) => ({
+        ...prev,
+        [workspaceId]: { ...(prev[workspaceId] ?? { data: [] }), isLoading: false, error: msg },
+      }));
+    }
+  }, []);
+
+  const handleWorkspaceExpand = useCallback((workspaceId: string, open: boolean) => {
+    setExpandedWorkspaces((prev) => ({ ...prev, [workspaceId]: open }));
+    if (open) {
+      if (!(workspaceId in workspaceAgents)) {
+        fetchAgentInfo(workspaceId);
+      }
+      fetchSessions(workspaceId);
+    }
+  }, [workspaceAgents, fetchAgentInfo, fetchSessions]);
+
+  useEffect(() => {
+    const refs = sessionIntervalRefs.current;
+    for (const [wsId, isExpanded] of Object.entries(expandedWorkspaces)) {
+      if (isExpanded && !refs[wsId]) {
+        refs[wsId] = setInterval(() => fetchSessions(wsId), POLL_INTERVAL_MS);
+      } else if (!isExpanded && refs[wsId]) {
+        clearInterval(refs[wsId]);
+        delete refs[wsId];
+      }
+    }
+    return () => {
+      for (const id of Object.keys(refs)) {
+        clearInterval(refs[id]);
+        delete refs[id];
+      }
+    };
+  }, [expandedWorkspaces, fetchSessions]);
+
+  const handleCreateSession = useCallback(async (workspaceId: string) => {
+    const result = await createSessionAction({ workspaceId });
+    if (result?.data) {
+      console.log(`[workspaces] Created session "${result.data.name}" for workspace ${workspaceId}`);
+      router.push(`/workspaces/${workspaceId}/terminal?session=${result.data.name}`);
+      fetchSessions(workspaceId);
+    } else {
+      const msg = result?.serverError ?? "Failed to create session";
+      console.error(`[workspaces] Create session error for ${workspaceId}:`, msg);
+    }
+  }, [router, fetchSessions]);
+
+  const handleKillSession = useCallback(async (workspaceId: string, sessionName: string) => {
+    const result = await killSessionAction({ workspaceId, sessionName });
+    if (result?.data) {
+      console.log(`[workspaces] Killed session "${sessionName}" in workspace ${workspaceId}`);
+      setWorkspaceSessions((prev) => {
+        const current = prev[workspaceId];
+        if (!current) return prev;
+        return {
+          ...prev,
+          [workspaceId]: {
+            ...current,
+            data: current.data.filter((s) => s.name !== sessionName),
+          },
+        };
+      });
+      fetchSessions(workspaceId);
+    } else {
+      const msg = result?.serverError ?? "Failed to kill session";
+      console.error(`[workspaces] Kill session error for ${workspaceId}/${sessionName}:`, msg);
+    }
+  }, [fetchSessions]);
 
   return (
     <Sidebar>
@@ -198,22 +326,106 @@ export function AppSidebar({ coderUrl }: { coderUrl?: string }) {
                 )}
                 <SidebarMenu>
                   <SidebarMenuSub>
-                    {workspaces.data.map((ws) => (
-                      <SidebarMenuSubItem key={ws.id}>
-                        <SidebarMenuSubButton
-                          render={<Link href={`/workspaces/${ws.id}`} />}
-                          isActive={pathname === `/workspaces/${ws.id}`}
-                        >
-                          <span className="truncate">{ws.name}</span>
-                          <Badge
-                            variant={ws.latest_build.status === "running" ? "default" : "secondary"}
-                            className="ml-auto text-[10px] px-1 py-0"
+                    {workspaces.data.map((ws) => {
+                      const agent = workspaceAgents[ws.id];
+                      const urls = agent && coderUrl ? buildWorkspaceUrls(ws, agent.agentName, coderUrl) : null;
+                      const sessions = workspaceSessions[ws.id];
+                      return (
+                        <SidebarMenuSubItem key={ws.id}>
+                          <Collapsible
+                            open={expandedWorkspaces[ws.id] ?? false}
+                            onOpenChange={(open) => handleWorkspaceExpand(ws.id, open)}
                           >
-                            {ws.latest_build.status}
-                          </Badge>
-                        </SidebarMenuSubButton>
-                      </SidebarMenuSubItem>
-                    ))}
+                            <CollapsibleTrigger className="flex w-full items-center gap-1 rounded-md px-2 py-1 text-sm hover:bg-sidebar-accent">
+                              <ChevronRight
+                                className={`h-3 w-3 shrink-0 transition-transform ${expandedWorkspaces[ws.id] ? "rotate-90" : ""}`}
+                              />
+                              <span className="truncate">{ws.name}</span>
+                              <Badge
+                                variant={ws.latest_build.status === "running" ? "default" : "secondary"}
+                                className="ml-auto text-[10px] px-1 py-0"
+                              >
+                                {ws.latest_build.status}
+                              </Badge>
+                            </CollapsibleTrigger>
+                            <CollapsibleContent>
+                              {/* External links */}
+                              {urls && (
+                                <div className="flex items-center gap-1 px-6 py-1" data-testid={`external-links-${ws.id}`}>
+                                  <a href={urls.filebrowser} target="_blank" rel="noopener noreferrer" title="Filebrowser" className="rounded p-1 hover:bg-sidebar-accent">
+                                    <FolderOpen className="h-3.5 w-3.5" />
+                                  </a>
+                                  <a href={urls.kasmvnc} target="_blank" rel="noopener noreferrer" title="KasmVNC" className="rounded p-1 hover:bg-sidebar-accent">
+                                    <ScreenIcon className="h-3.5 w-3.5" />
+                                  </a>
+                                  <a href={urls.codeServer} target="_blank" rel="noopener noreferrer" title="Code Server" className="rounded p-1 hover:bg-sidebar-accent">
+                                    <Code className="h-3.5 w-3.5" />
+                                  </a>
+                                </div>
+                              )}
+                              {/* Session error */}
+                              {sessions?.error && (
+                                <Alert variant="destructive" className="mx-4 mb-1">
+                                  <AlertCircle className="h-3 w-3" />
+                                  <AlertDescription className="flex items-center justify-between">
+                                    <span className="text-xs">{sessions.error}</span>
+                                    <button
+                                      type="button"
+                                      onClick={() => fetchSessions(ws.id)}
+                                      className="ml-2 text-xs underline"
+                                    >
+                                      Retry
+                                    </button>
+                                  </AlertDescription>
+                                </Alert>
+                              )}
+                              {/* Session loading */}
+                              {sessions?.isLoading && (!sessions.data || sessions.data.length === 0) && (
+                                <p className="px-6 py-1 text-xs text-muted-foreground">Loading sessions...</p>
+                              )}
+                              {/* Session list */}
+                              <SidebarMenuSub>
+                                {sessions?.data?.map((session) => (
+                                  <SidebarMenuSubItem key={session.name}>
+                                    <div className="flex items-center">
+                                      <SidebarMenuSubButton
+                                        render={<Link href={`/workspaces/${ws.id}/terminal?session=${session.name}`} />}
+                                        isActive={pathname === `/workspaces/${ws.id}/terminal` && pathname.includes(session.name)}
+                                        className="flex-1"
+                                      >
+                                        <Terminal className="h-3 w-3 shrink-0" />
+                                        <span className="truncate">{session.name}</span>
+                                      </SidebarMenuSubButton>
+                                      <button
+                                        type="button"
+                                        title="Kill session"
+                                        data-testid={`kill-session-${session.name}`}
+                                        className="rounded p-0.5 hover:bg-destructive/20"
+                                        onClick={() => handleKillSession(ws.id, session.name)}
+                                      >
+                                        <X className="h-3 w-3" />
+                                      </button>
+                                    </div>
+                                  </SidebarMenuSubItem>
+                                ))}
+                                <SidebarMenuSubItem>
+                                  <button
+                                    type="button"
+                                    title="New session"
+                                    data-testid={`create-session-${ws.id}`}
+                                    className="flex w-full items-center gap-1 rounded-md px-2 py-1 text-xs text-muted-foreground hover:bg-sidebar-accent hover:text-foreground"
+                                    onClick={() => handleCreateSession(ws.id)}
+                                  >
+                                    <Plus className="h-3 w-3" />
+                                    <span>New session</span>
+                                  </button>
+                                </SidebarMenuSubItem>
+                              </SidebarMenuSub>
+                            </CollapsibleContent>
+                          </Collapsible>
+                        </SidebarMenuSubItem>
+                      );
+                    })}
                   </SidebarMenuSub>
                 </SidebarMenu>
               </SidebarGroupContent>

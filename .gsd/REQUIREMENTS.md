@@ -202,17 +202,6 @@ This file is the explicit capability and coverage contract for the project.
 - Validation: unmapped
 - Notes: Workspace must never auto-stop. tmux handles process persistence natively once workspace stays alive.
 
-### R056 — Directory-tree sidebar with collapsible Workspaces and Templates sections
-- Class: core-capability
-- Status: active
-- Description: Directory-tree sidebar with collapsible Workspaces and Templates sections
-- Why it matters: The sidebar becomes the primary navigation surface replacing flat nav and dedicated listing pages — users need hierarchical browsing of workspaces and templates
-- Source: user
-- Primary owning slice: M007/S01
-- Supporting slices: none
-- Validation: unmapped
-- Notes: Uses shadcn SidebarMenuSub/Collapsible primitives already installed
-
 ### R057 — Workspace sidebar items show 3 external-link buttons (Filebrowser, KasmVNC, Code Server) and nested terminal sessions
 - Class: primary-user-loop
 - Status: active
@@ -235,28 +224,6 @@ This file is the explicit capability and coverage contract for the project.
 - Validation: unmapped
 - Notes: Replaces TerminalTabManager tab bar as session switcher
 
-### R059 — Sidebar fetches live workspace and template data via server actions with periodic polling
-- Class: primary-user-loop
-- Status: active
-- Description: Sidebar fetches live workspace and template data via server actions with periodic polling
-- Why it matters: Sidebar is now the only way to discover workspaces and templates — stale data would leave the user unable to navigate
-- Source: user
-- Primary owning slice: M007/S01
-- Supporting slices: none
-- Validation: unmapped
-- Notes: Uses existing listWorkspacesAction and compareTemplates server actions
-
-### R060 — Last-refreshed timestamp and manual refresh button at sidebar bottom
-- Class: primary-user-loop
-- Status: active
-- Description: Last-refreshed timestamp and manual refresh button at sidebar bottom
-- Why it matters: Gives user confidence in data freshness and manual control over refresh timing
-- Source: user
-- Primary owning slice: M007/S01
-- Supporting slices: none
-- Validation: unmapped
-- Notes: Positioned at bottom of sidebar near pin/unpin toggle
-
 ### R061 — Sidebar mode toggle: floating (offcanvas) vs docked (pinned), persisted in localStorage
 - Class: quality-attribute
 - Status: active
@@ -267,17 +234,6 @@ This file is the explicit capability and coverage contract for the project.
 - Supporting slices: none
 - Validation: unmapped
 - Notes: Default to floating (offcanvas). Pin/unpin toggle at sidebar bottom. ResizeObserver handles terminal refit on mode switch.
-
-### R062 — Header and breadcrumbs removed from all pages — floating sidebar trigger is the only chrome
-- Class: core-capability
-- Status: active
-- Description: Header and breadcrumbs removed from all pages — floating sidebar trigger is the only chrome
-- Why it matters: Maximizes viewport for content, especially terminal pages. User explicitly wants zero chrome on all pages.
-- Source: user
-- Primary owning slice: M007/S01
-- Supporting slices: none
-- Validation: unmapped
-- Notes: HeaderContent component removed from layout, SidebarTrigger repositioned as floating button
 
 ### R063 — Terminal pages are full-viewport xterm with exclusive keystroke capture
 - Class: core-capability
@@ -322,17 +278,6 @@ This file is the explicit capability and coverage contract for the project.
 - Supporting slices: none
 - Validation: unmapped
 - Notes: Existing use-mobile.ts hook already wired. shadcn sidebar handles mobile overlay.
-
-### R067 — Sidebar fetch failures show inline error with retry button per section
-- Class: failure-visibility
-- Status: active
-- Description: Sidebar fetch failures show inline error with retry button per section
-- Why it matters: Sidebar is now the only navigation surface — silent fetch failures leave user stranded with no way to browse workspaces or templates
-- Source: inferred
-- Primary owning slice: M007/S01
-- Supporting slices: none
-- Validation: unmapped
-- Notes: Compact inline error within collapsible section, not a toast or modal
 
 ### R068 — Stale sidebar entry click triggers page error + sidebar force-refresh
 - Class: failure-visibility
@@ -666,6 +611,61 @@ This file is the explicit capability and coverage contract for the project.
 - Validation: ResizeObserver on terminal container calls fitAddon.fit() when dimensions transition from 0x0 to non-zero (hidden→visible). Guards against fitting hidden containers. 4 component tests in S02. TerminalTabManager uses display:none/block pattern — ResizeObserver fires on visibility change. S05 regression tests confirm tab switching works with M006 components.
 - Notes: Current display:none approach preserves xterm.js instances but scrollback can be lost on reconnect. Postgres-backed scrollback eliminates this.
 
+### R056 — Directory-tree sidebar with collapsible Workspaces and Templates sections
+- Class: core-capability
+- Status: validated
+- Description: Directory-tree sidebar with collapsible Workspaces and Templates sections
+- Why it matters: The sidebar becomes the primary navigation surface replacing flat nav and dedicated listing pages — users need hierarchical browsing of workspaces and templates
+- Source: user
+- Primary owning slice: M007/S01
+- Supporting slices: none
+- Validation: Sidebar renders collapsible Workspaces and Templates sections with SidebarMenuSub tree structure. 8 passing tests confirm rendering. Verified 2026-04-17.
+- Notes: Uses shadcn SidebarMenuSub/Collapsible primitives already installed
+
+### R059 — Sidebar fetches live workspace and template data via server actions with periodic polling
+- Class: primary-user-loop
+- Status: validated
+- Description: Sidebar fetches live workspace and template data via server actions with periodic polling
+- Why it matters: Sidebar is now the only way to discover workspaces and templates — stale data would leave the user unable to navigate
+- Source: user
+- Primary owning slice: M007/S01
+- Supporting slices: none
+- Validation: listWorkspacesAction and listTemplateStatusesAction called on mount and every 30s via setInterval. Test coverage and grep verification. Verified 2026-04-17.
+- Notes: Uses existing listWorkspacesAction and compareTemplates server actions
+
+### R060 — Last-refreshed timestamp and manual refresh button at sidebar bottom
+- Class: primary-user-loop
+- Status: validated
+- Description: Last-refreshed timestamp and manual refresh button at sidebar bottom
+- Why it matters: Gives user confidence in data freshness and manual control over refresh timing
+- Source: user
+- Primary owning slice: M007/S01
+- Supporting slices: none
+- Validation: Footer shows lastRefreshed timestamp and RefreshCw button with spin animation. Test and grep verification. Verified 2026-04-17.
+- Notes: Positioned at bottom of sidebar near pin/unpin toggle
+
+### R062 — Header and breadcrumbs removed from all pages — floating sidebar trigger is the only chrome
+- Class: core-capability
+- Status: validated
+- Description: Header and breadcrumbs removed from all pages — floating sidebar trigger is the only chrome
+- Why it matters: Maximizes viewport for content, especially terminal pages. User explicitly wants zero chrome on all pages.
+- Source: user
+- Primary owning slice: M007/S01
+- Supporting slices: none
+- Validation: No header tag in layout.tsx, HeaderContent.tsx deleted, floating SidebarTrigger is only chrome. Grep and file existence checks. Verified 2026-04-17.
+- Notes: HeaderContent component removed from layout, SidebarTrigger repositioned as floating button
+
+### R067 — Sidebar fetch failures show inline error with retry button per section
+- Class: failure-visibility
+- Status: validated
+- Description: Sidebar fetch failures show inline error with retry button per section
+- Why it matters: Sidebar is now the only navigation surface — silent fetch failures leave user stranded with no way to browse workspaces or templates
+- Source: inferred
+- Primary owning slice: M007/S01
+- Supporting slices: none
+- Validation: Inline Alert (variant destructive) with retry button per section on fetch failure. 3 error-state tests passing. Verified 2026-04-17.
+- Notes: Compact inline error within collapsible section, not a toast or modal
+
 ## Deferred
 
 ### R054 — Reconnection visual seam marker — timestamp showing where a disconnect/reconnect occurred in scrollback
@@ -836,18 +836,18 @@ This file is the explicit capability and coverage contract for the project.
 | R053 | core-capability | active | M006/S01 | M006/S05 | unmapped |
 | R054 | quality-attribute | deferred | none | none | unmapped |
 | R055 | anti-feature | out-of-scope | none | none | n/a |
-| R056 | core-capability | active | M007/S01 | none | unmapped |
+| R056 | core-capability | validated | M007/S01 | none | Sidebar renders collapsible Workspaces and Templates sections with SidebarMenuSub tree structure. 8 passing tests confirm rendering. Verified 2026-04-17. |
 | R057 | primary-user-loop | active | M007/S02 | M007/S01 | unmapped |
 | R058 | core-capability | active | M007/S02 | none | unmapped |
-| R059 | primary-user-loop | active | M007/S01 | none | unmapped |
-| R060 | primary-user-loop | active | M007/S01 | none | unmapped |
+| R059 | primary-user-loop | validated | M007/S01 | none | listWorkspacesAction and listTemplateStatusesAction called on mount and every 30s via setInterval. Test coverage and grep verification. Verified 2026-04-17. |
+| R060 | primary-user-loop | validated | M007/S01 | none | Footer shows lastRefreshed timestamp and RefreshCw button with spin animation. Test and grep verification. Verified 2026-04-17. |
 | R061 | quality-attribute | active | M007/S03 | none | unmapped |
-| R062 | core-capability | active | M007/S01 | none | unmapped |
+| R062 | core-capability | validated | M007/S01 | none | No header tag in layout.tsx, HeaderContent.tsx deleted, floating SidebarTrigger is only chrome. Grep and file existence checks. Verified 2026-04-17. |
 | R063 | core-capability | active | M007/S02 | none | unmapped |
 | R064 | primary-user-loop | active | M007/S03 | none | unmapped |
 | R065 | core-capability | active | M007/S03 | M007/S01 | unmapped |
 | R066 | quality-attribute | active | M007/S03 | none | unmapped |
-| R067 | failure-visibility | active | M007/S01 | none | unmapped |
+| R067 | failure-visibility | validated | M007/S01 | none | Inline Alert (variant destructive) with retry button per section on fetch failure. 3 error-state tests passing. Verified 2026-04-17. |
 | R068 | failure-visibility | active | M007/S02 | none | unmapped |
 | R069 | quality-attribute | active | M007/S02 | none | unmapped |
 | R070 | quality-attribute | deferred | none | none | unmapped |
@@ -855,7 +855,7 @@ This file is the explicit capability and coverage contract for the project.
 
 ## Coverage Summary
 
-- Active requirements: 32
-- Mapped to slices: 32
-- Validated: 28 (R006, R007, R013, R017, R018, R019, R028, R029, R032, R033, R034, R035, R036, R037, R038, R039, R040, R042, R043, R044, R045, R046, R047, R048, R049, R050, R051, R052)
+- Active requirements: 27
+- Mapped to slices: 27
+- Validated: 33 (R006, R007, R013, R017, R018, R019, R028, R029, R032, R033, R034, R035, R036, R037, R038, R039, R040, R042, R043, R044, R045, R046, R047, R048, R049, R050, R051, R052, R056, R059, R060, R062, R067)
 - Unmapped active requirements: 0
