@@ -10,7 +10,7 @@ const DEFAULT_VARIANT: SidebarVariant = "floating";
 function readVariant(): SidebarVariant {
   if (typeof window === "undefined") return DEFAULT_VARIANT;
   const stored = localStorage.getItem(STORAGE_KEY);
-  return stored === "floating" ? "floating" : "sidebar";
+  return stored === "sidebar" ? "sidebar" : "floating";
 }
 
 export function useSidebarMode(): [SidebarVariant, (floating: boolean) => void] {

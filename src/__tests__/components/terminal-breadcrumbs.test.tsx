@@ -132,7 +132,7 @@ describe("TerminalBreadcrumbs", () => {
     render(<TerminalBreadcrumbs workspaceId="ws-1" />);
 
     await waitFor(() => {
-      expect(screen.getByText("Workspaces")).toBeInTheDocument();
+      expect(screen.getByText("Home")).toBeInTheDocument();
       expect(screen.getByText("dev-box")).toBeInTheDocument();
       expect(screen.getByText("Terminal")).toBeInTheDocument();
     });
@@ -249,7 +249,7 @@ describe("TerminalBreadcrumbs", () => {
     render(<TerminalBreadcrumbs workspaceId="ws-1" />);
 
     await waitFor(() => {
-      const link = screen.getByText("Workspaces").closest("a");
+      const link = screen.getByText("Home").closest("a");
       expect(link).toHaveAttribute("href", "/tasks");
     });
   });

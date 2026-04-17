@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
   Sidebar,
   SidebarContent,
@@ -67,14 +67,14 @@ import { SAFE_IDENTIFIER_RE } from "@/lib/constants";
 
 const POLL_INTERVAL_MS = 30_000;
 
-function useRelativeTime(date: Date | null): string {
+function useRelativeTime(date: Date | null, enabled: boolean): string {
   const [now, setNow] = useState(() => Date.now());
 
   useEffect(() => {
-    if (!date) return;
-    const id = setInterval(() => setNow(Date.now()), 1_000);
+    if (!date || !enabled) return;
+    const id = setInterval(() => setNow(Date.now()), 10_000);
     return () => clearInterval(id);
-  }, [date]);
+  }, [date, enabled]);
 
   if (!date) return "Never";
   const diffSec = Math.max(0, Math.floor((now - date.getTime()) / 1_000));
@@ -113,12 +113,14 @@ function SessionList({
   sessions,
   workspaceId,
   pathname,
+  activeSession,
   onKill,
   onRename,
 }: {
   sessions: TmuxSession[];
   workspaceId: string;
   pathname: string;
+  activeSession: string | null;
   onKill: (workspaceId: string, sessionName: string) => void;
   onRename: (workspaceId: string, oldName: string, newName: string) => void;
 }) {
@@ -183,8 +185,8 @@ function SessionList({
               </SidebarMenuSubButton>
             ) : (
               <SidebarMenuSubButton
-                render={<Link href={`/workspaces/${workspaceId}/terminal?session=${session.name}`} />}
-                isActive={pathname === `/workspaces/${workspaceId}/terminal` && pathname.includes(session.name)}
+                render={<Link href={`/workspaces/${workspaceId}/terminal?session=${encodeURIComponent(session.name)}`} />}
+                isActive={pathname === `/workspaces/${workspaceId}/terminal` && activeSession === session.name}
                 className="group/session"
               >
                 <Terminal className="h-3 w-3 shrink-0" />
@@ -235,6 +237,8 @@ function SessionList({
 export function AppSidebar({ coderUrl }: { coderUrl?: string }) {
   const pathname = usePathname();
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const activeSession = searchParams.get("session");
   const [sidebarMode, setSidebarMode] = useSidebarMode();
   const [settingsOpen, setSettingsOpen] = useState(false);
 
@@ -253,7 +257,7 @@ export function AppSidebar({ coderUrl }: { coderUrl?: string }) {
   });
   const [lastRefreshed, setLastRefreshed] = useState<Date | null>(null);
 
-  const relativeTime = useRelativeTime(lastRefreshed);
+  const relativeTime = useRelativeTime(lastRefreshed, settingsOpen);
   const [expandedWorkspaces, setExpandedWorkspaces] = useState<Record<string, boolean>>({});
   const [expandedTerminals, setExpandedTerminals] = useState<Record<string, boolean>>({});
   const [workspaceAgents, setWorkspaceAgents] = useState<Record<string, AgentInfo | null>>({});
@@ -264,40 +268,48 @@ export function AppSidebar({ coderUrl }: { coderUrl?: string }) {
 
   const fetchWorkspaces = useCallback(async () => {
     setWorkspaces((prev) => ({ ...prev, isLoading: true, error: null }));
-    const result = await listWorkspacesAction();
-    if (result?.data) {
-      setWorkspaces({ data: result.data, isLoading: false, error: null });
-      setLastRefreshed(new Date());
-    } else {
-      const msg =
-        result?.serverError ?? "Failed to fetch workspaces";
-      console.error("[sidebar] workspace fetch error:", msg);
+    try {
+      const result = await listWorkspacesAction();
+      if (result?.data) {
+        setWorkspaces({ data: result.data, isLoading: false, error: null });
+        setLastRefreshed(new Date());
+      } else {
+        const msg = result?.serverError ?? "Failed to fetch workspaces";
+        setWorkspaces((prev) => ({ ...prev, isLoading: false, error: msg }));
+      }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Failed to fetch workspaces";
       setWorkspaces((prev) => ({ ...prev, isLoading: false, error: msg }));
     }
   }, []);
 
   const fetchTemplates = useCallback(async () => {
     setTemplates((prev) => ({ ...prev, isLoading: true, error: null }));
-    const result = await listTemplateStatusesAction();
-    if (result?.data) {
-      setTemplates({ data: result.data, isLoading: false, error: null });
-      setLastRefreshed(new Date());
-    } else {
-      const msg =
-        result?.serverError ?? "Failed to fetch templates";
-      console.error("[sidebar] template fetch error:", msg);
+    try {
+      const result = await listTemplateStatusesAction();
+      if (result?.data) {
+        setTemplates({ data: result.data, isLoading: false, error: null });
+        setLastRefreshed(new Date());
+      } else {
+        const msg = result?.serverError ?? "Failed to fetch templates";
+        setTemplates((prev) => ({ ...prev, isLoading: false, error: msg }));
+      }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Failed to fetch templates";
       setTemplates((prev) => ({ ...prev, isLoading: false, error: msg }));
     }
   }, []);
 
   const fetchAgentInfo = useCallback(async (workspaceId: string) => {
-    const result = await getWorkspaceAgentAction({ workspaceId });
-    if (result?.data) {
-      console.log(`[workspaces] Fetched agent info for workspace ${workspaceId}:`, result.data);
-      setWorkspaceAgents((prev) => ({ ...prev, [workspaceId]: result.data! }));
-      return result.data;
+    try {
+      const result = await getWorkspaceAgentAction({ workspaceId });
+      if (result?.data) {
+        setWorkspaceAgents((prev) => ({ ...prev, [workspaceId]: result.data! }));
+        return result.data;
+      }
+    } catch {
+      // fall through to null
     }
-    console.error(`[workspaces] Failed to fetch agent for workspace ${workspaceId}`);
     setWorkspaceAgents((prev) => ({ ...prev, [workspaceId]: null }));
     return null;
   }, []);
@@ -307,16 +319,22 @@ export function AppSidebar({ coderUrl }: { coderUrl?: string }) {
       ...prev,
       [workspaceId]: { ...(prev[workspaceId] ?? { data: [] }), isLoading: true, error: null },
     }));
-    const result = await getWorkspaceSessionsAction({ workspaceId });
-    if (result?.data) {
-      console.log(`[workspaces] Fetched ${result.data.length} sessions for workspace ${workspaceId}`);
-      setWorkspaceSessions((prev) => ({
-        ...prev,
-        [workspaceId]: { data: result.data!, isLoading: false, error: null },
-      }));
-    } else {
-      const msg = result?.serverError ?? "Failed to load sessions";
-      console.error(`[workspaces] Session fetch error for ${workspaceId}:`, msg);
+    try {
+      const result = await getWorkspaceSessionsAction({ workspaceId });
+      if (result?.data) {
+        setWorkspaceSessions((prev) => ({
+          ...prev,
+          [workspaceId]: { data: result.data!, isLoading: false, error: null },
+        }));
+      } else {
+        const msg = result?.serverError ?? "Failed to load sessions";
+        setWorkspaceSessions((prev) => ({
+          ...prev,
+          [workspaceId]: { ...(prev[workspaceId] ?? { data: [] }), isLoading: false, error: msg },
+        }));
+      }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Failed to load sessions";
       setWorkspaceSessions((prev) => ({
         ...prev,
         [workspaceId]: { ...(prev[workspaceId] ?? { data: [] }), isLoading: false, error: msg },
@@ -324,13 +342,13 @@ export function AppSidebar({ coderUrl }: { coderUrl?: string }) {
     }
   }, []);
 
+  const expandedWorkspacesRef = useRef(expandedWorkspaces);
+  expandedWorkspacesRef.current = expandedWorkspaces;
+
   const fetchAll = useCallback(() => {
     fetchWorkspaces();
     fetchTemplates();
-    for (const [wsId, isExpanded] of Object.entries(expandedWorkspaces)) {
-      if (isExpanded) fetchSessions(wsId);
-    }
-  }, [fetchWorkspaces, fetchTemplates, expandedWorkspaces, fetchSessions]);
+  }, [fetchWorkspaces, fetchTemplates]);
 
   useEffect(() => {
     fetchAll();
@@ -341,19 +359,17 @@ export function AppSidebar({ coderUrl }: { coderUrl?: string }) {
   }, [fetchAll]);
 
   const refreshSessions = useCallback(() => {
-    for (const [wsId, isExpanded] of Object.entries(expandedWorkspaces)) {
+    for (const [wsId, isExpanded] of Object.entries(expandedWorkspacesRef.current)) {
       if (isExpanded) fetchSessions(wsId);
     }
-  }, [expandedWorkspaces, fetchSessions]);
+  }, [fetchSessions]);
 
   useEffect(() => {
     const handleSidebarRefresh = (e: Event) => {
       const detail = (e as CustomEvent).detail;
       if (detail?.workspaceId) {
-        console.log(`[workspaces] Received hive:sidebar-refresh for workspace ${detail.workspaceId}`);
         fetchSessions(detail.workspaceId);
       } else {
-        console.log("[workspaces] Received hive:sidebar-refresh, refreshing sessions");
         refreshSessions();
       }
     };
@@ -363,15 +379,18 @@ export function AppSidebar({ coderUrl }: { coderUrl?: string }) {
     };
   }, [refreshSessions, fetchSessions]);
 
+  const workspaceAgentsRef = useRef(workspaceAgents);
+  workspaceAgentsRef.current = workspaceAgents;
+
   const handleWorkspaceExpand = useCallback((workspaceId: string, open: boolean) => {
     setExpandedWorkspaces((prev) => ({ ...prev, [workspaceId]: open }));
     if (open) {
-      if (!(workspaceId in workspaceAgents)) {
+      if (!workspaceAgentsRef.current[workspaceId]) {
         fetchAgentInfo(workspaceId);
       }
       fetchSessions(workspaceId);
     }
-  }, [workspaceAgents, fetchAgentInfo, fetchSessions]);
+  }, [fetchAgentInfo, fetchSessions]);
 
   useEffect(() => {
     const refs = sessionIntervalRefs.current;
@@ -395,7 +414,6 @@ export function AppSidebar({ coderUrl }: { coderUrl?: string }) {
     const result = await createSessionAction({ workspaceId });
     if (result?.data) {
       const name = result.data.name;
-      console.log(`[workspaces] Created session "${name}" for workspace ${workspaceId}`);
       setWorkspaceSessions((prev) => {
         const current = prev[workspaceId] ?? { data: [], isLoading: false, error: null };
         const alreadyExists = current.data.some((s) => s.name === name);
@@ -408,17 +426,15 @@ export function AppSidebar({ coderUrl }: { coderUrl?: string }) {
           },
         };
       });
-      router.push(`/workspaces/${workspaceId}/terminal?session=${name}`);
+      router.push(`/workspaces/${workspaceId}/terminal?session=${encodeURIComponent(name)}`);
     } else {
-      const msg = result?.serverError ?? "Failed to create session";
-      console.error(`[workspaces] Create session error for ${workspaceId}:`, msg);
+      console.error("[sidebar] create session failed:", result?.serverError);
     }
   }, [router]);
 
   const handleKillSession = useCallback(async (workspaceId: string, sessionName: string) => {
     const result = await killSessionAction({ workspaceId, sessionName });
     if (result?.data) {
-      console.log(`[workspaces] Killed session "${sessionName}" in workspace ${workspaceId}`);
       setWorkspaceSessions((prev) => {
         const current = prev[workspaceId];
         if (!current) return prev;
@@ -432,8 +448,7 @@ export function AppSidebar({ coderUrl }: { coderUrl?: string }) {
       });
       fetchSessions(workspaceId);
     } else {
-      const msg = result?.serverError ?? "Failed to kill session";
-      console.error(`[workspaces] Kill session error for ${workspaceId}/${sessionName}:`, msg);
+      console.error("[sidebar] kill session failed:", result?.serverError);
     }
   }, [fetchSessions]);
 
@@ -454,8 +469,7 @@ export function AppSidebar({ coderUrl }: { coderUrl?: string }) {
         };
       });
     } else {
-      const msg = result?.serverError ?? "Failed to rename session";
-      console.error(`[workspaces] Rename session error for ${workspaceId}/${oldName}:`, msg);
+      console.error("[sidebar] rename session failed:", result?.serverError);
     }
   }, []);
 
@@ -664,6 +678,7 @@ export function AppSidebar({ coderUrl }: { coderUrl?: string }) {
                                           sessions={sessions?.data ?? []}
                                           workspaceId={ws.id}
                                           pathname={pathname}
+                                          activeSession={activeSession}
                                           onKill={handleKillSession}
                                           onRename={handleRenameSession}
                                         />

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import { ArrowLeft, RefreshCw, Upload, CheckCircle, XCircle } from "lucide-react";
 import Link from "next/link";
@@ -25,7 +25,7 @@ function formatDate(iso: string | null): string {
   if (!iso) return "—";
   const date = new Date(iso);
   const now = new Date();
-  const diffMs = now.getTime() - date.getTime();
+  const diffMs = Math.max(0, now.getTime() - date.getTime());
   const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
 
   if (diffDays === 0) {
@@ -55,6 +55,11 @@ export function TemplateDetailClient({ status }: TemplateDetailClientProps) {
 
   const writeRef = useRef<((line: string) => void) | null>(null);
   const lineHistory = useRef<string[]>([]);
+  const eventSourceRef = useRef<EventSource | null>(null);
+
+  useEffect(() => {
+    return () => { eventSourceRef.current?.close(); };
+  }, []);
 
   const MAX_HISTORY_LINES = 2000;
 
@@ -95,7 +100,9 @@ export function TemplateDetailClient({ status }: TemplateDetailClientProps) {
 
     setPushState((prev) => ({ ...prev, jobId }));
 
+    eventSourceRef.current?.close();
     const eventSource = new EventSource(`/api/templates/${status.name}/push/${jobId}/stream`);
+    eventSourceRef.current = eventSource;
 
     eventSource.onmessage = (ev) => {
       writeLine(ev.data);

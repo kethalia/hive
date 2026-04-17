@@ -194,7 +194,7 @@ export function TerminalBreadcrumbs({ workspaceId }: TerminalBreadcrumbsProps) {
       <BreadcrumbList>
         <BreadcrumbItem>
           <BreadcrumbLink render={<Link href="/tasks" />}>
-            Workspaces
+            Home
           </BreadcrumbLink>
         </BreadcrumbItem>
         <BreadcrumbSeparator />

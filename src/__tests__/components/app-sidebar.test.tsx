@@ -7,6 +7,7 @@ const mockPush = vi.fn();
 vi.mock("next/navigation", () => ({
   usePathname: () => "/tasks",
   useRouter: () => ({ push: mockPush }),
+  useSearchParams: () => new URLSearchParams(),
 }));
 
 vi.mock("@/lib/utils", () => ({
