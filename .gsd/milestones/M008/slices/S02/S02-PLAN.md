@@ -76,7 +76,7 @@ The standalone output is the standard Vercel-documented approach for Next.js Doc
   - Files: `next.config.ts`, `Dockerfile`, `package.json`, `.dockerignore`
   - Verify: grep -q 'standalone' next.config.ts && grep -q 'packageManager' package.json && grep -q 'AS runner' Dockerfile && grep -q 'USER nextjs' Dockerfile
 
-- [ ] **T02: Rewrite terminal-proxy Dockerfile as multi-stage pnpm build with workspace deploy** `est:30m`
+- [x] **T02: Rewrite terminal-proxy Dockerfile as multi-stage pnpm build with workspace deploy** `est:30m`
   ## Description
 
 The terminal-proxy Dockerfile is single-stage, uses npm, and has no non-root user. Since terminal-proxy is a pnpm workspace member (`hive-terminal-proxy`), we need the workspace context for dependency resolution. The approach:
