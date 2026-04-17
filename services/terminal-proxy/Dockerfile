@@ -3,7 +3,7 @@ RUN corepack enable && corepack prepare pnpm@10.32.1 --activate
 WORKDIR /app
 COPY pnpm-lock.yaml package.json pnpm-workspace.yaml ./
 COPY services/terminal-proxy/package.json services/terminal-proxy/package.json
-RUN pnpm install --frozen-lockfile
+RUN pnpm install --frozen-lockfile --ignore-scripts
 
 FROM node:20-alpine AS deploy
 RUN corepack enable && corepack prepare pnpm@10.32.1 --activate

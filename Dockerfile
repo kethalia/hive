@@ -12,7 +12,6 @@ WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY --from=deps /app/services/terminal-proxy/node_modules ./services/terminal-proxy/node_modules
 COPY . .
-RUN pnpm prisma generate
 RUN pnpm build
 
 FROM node:20-alpine AS runner
