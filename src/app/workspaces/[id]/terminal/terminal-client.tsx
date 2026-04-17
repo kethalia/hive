@@ -19,7 +19,7 @@ function TerminalInner({ agentId, workspaceId }: { agentId: string; workspaceId:
 
   if (!session) {
     return (
-      <div className="flex items-center justify-center" style={{ height: "calc(100vh - 3.5rem - 3rem)" }}>
+      <div className="-m-6 -mt-14 flex h-[100vh] w-[calc(100%+3rem)] items-center justify-center">
         <div className="flex items-center gap-2 text-muted-foreground">
           <Loader2 className="h-5 w-5 animate-spin" />
           <span className="text-sm">Waiting for session…</span>
@@ -29,7 +29,10 @@ function TerminalInner({ agentId, workspaceId }: { agentId: string; workspaceId:
   }
 
   return (
-    <div className="-m-6" style={{ height: "calc(100vh - 3.5rem)" }}>
+    <div
+      className="-m-6 -mt-14 h-[100vh] w-[calc(100%+3rem)]"
+      onKeyDown={(e) => e.stopPropagation()}
+    >
       <InteractiveTerminal
         key={session}
         agentId={agentId}
@@ -50,7 +53,7 @@ export function TerminalClient({ agentId, workspaceId }: TerminalClientProps) {
   return (
     <Suspense
       fallback={
-        <div className="flex items-center justify-center" style={{ height: "calc(100vh - 3.5rem - 3rem)" }}>
+        <div className="-m-6 -mt-14 flex h-[100vh] w-[calc(100%+3rem)] items-center justify-center">
           <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
         </div>
       }

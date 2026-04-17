@@ -57,7 +57,7 @@
 - Do: Make each workspace a nested Collapsible with: (1) lazy-fetch agent info via `getWorkspaceAgentAction` on first expand, cache in state, (2) fetch sessions via `getWorkspaceSessionsAction` on expand + 30s polling for expanded workspaces, (3) three external-link icon buttons (Filebrowser, KasmVNC, Code Server) using `buildWorkspaceUrls()`, (4) "+" button to create session and navigate via `router.push`, (5) "x" button per session to kill via `killSessionAction`, (6) session items link to `/workspaces/[id]/terminal?session=<name>`. Import `useRouter` from next/navigation. Add `TmuxSession` type import. Use existing S01 Collapsible/SidebarMenuSub pattern for nesting. External links open in new tabs with `target="_blank"`. Extend test suite with tests for session rendering, external link buttons, create/kill actions.
 - Verify: `pnpm vitest run src/__tests__/components/app-sidebar.test.tsx` passes all tests including new ones
 - Done when: Sidebar shows sessions nested under workspaces, external links render, create/kill actions work, tests pass
-- [ ] **T02: Make terminal page full-viewport with keystroke exclusivity** `est:1h`
+- [x] **T02: Make terminal page full-viewport with keystroke exclusivity** `est:1h`
 - Why: Delivers R063 — terminal must fill the viewport and capture all keystrokes without sidebar/layout interference
 - Files: `src/app/workspaces/[id]/terminal/terminal-client.tsx`, `src/components/workspaces/InteractiveTerminal.tsx`, `src/app/workspaces/[id]/terminal/page.tsx`
 - Do: (1) In `terminal-client.tsx`: wrap terminal in a container that uses negative margins and calc() to fill the full viewport minus sidebar width — replace current `-m-6` / `calc(100vh - 3.5rem)` with a full-bleed approach: use `-m-6 -mt-14` and `h-[100vh] w-full` to cancel the layout padding entirely. Add `onKeyDown={e => e.stopPropagation()}` on the terminal wrapper div. (2) In `InteractiveTerminal.tsx`: after `term.open(containerRef.current)`, add `term.focus()`. Add a `useEffect` that listens for `focusin` events on the container and calls `term.focus()` when the container or its children receive focus. Store `termRef` and expose a focus method. (3) In `page.tsx`: update the error state container to also use full-viewport sizing for consistency.
@@ -90,7 +90,7 @@ Upstream: app-sidebar.tsx (S01 collapsible pattern), workspaces.ts (session CRUD
 
 ## Tasks
 
-- [ ] **T01: Nest terminal sessions and external-link buttons under each workspace in sidebar** `est:2h`
+- [x] **T01: Nest terminal sessions and external-link buttons under each workspace in sidebar** `est:2h`
   ---
 estimated_steps: 6
 estimated_files: 5

@@ -14,7 +14,7 @@ export default async function TerminalPage({ params }: TerminalPageProps) {
 
   if (!agentResult?.data) {
     return (
-      <div className="flex items-center justify-center" style={{ height: "calc(100vh - 3.5rem - 3rem)" }}>
+      <div className="-m-6 -mt-14 flex h-[100vh] w-[calc(100%+3rem)] items-center justify-center">
         <Alert variant="destructive" className="max-w-md">
           <AlertCircle />
           <AlertDescription>
