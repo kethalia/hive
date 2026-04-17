@@ -69,7 +69,7 @@
 - Do: (1) In `page.tsx`: when `getWorkspaceAgentAction` fails, dispatch `window.dispatchEvent(new CustomEvent('hive:sidebar-refresh'))` alongside showing the existing error Alert. Add a "Back to workspaces" link in the error state. (2) In `terminal-client.tsx`: when no `?session` param is present, also dispatch the refresh event (stale link without session param). (3) In `app-sidebar.tsx`: add a `useEffect` that listens for the `hive:sidebar-refresh` custom event and calls `fetchAll()` when received. Clean up the listener on unmount. (4) Extend sidebar tests to verify the custom event listener is registered and triggers fetchAll.
 - Verify: `grep -q 'hive:sidebar-refresh' src/app/workspaces/[id]/terminal/page.tsx && grep -q 'hive:sidebar-refresh' src/components/app-sidebar.tsx`
 - Done when: Stale terminal page dispatches refresh event, sidebar listens and re-fetches, error state shows with navigation option
-- [ ] **T04: Write keystroke exclusivity integration test** `est:45m`
+- [x] **T04: Write keystroke exclusivity integration test** `est:45m`
 - Why: Delivers R069 — automated verification that keystroke capture doesn't regress after mount or sidebar interactions
 - Files: `src/__tests__/integration/terminal-keystroke-exclusivity.test.tsx`
 - Do: (1) Create new test file following patterns from `interactive-terminal-integration.test.tsx`. (2) Mock xterm Terminal with `focus` spy and `onData` callback capture. Mock FitAddon, useTerminalWebSocket, sidebar components. (3) Test: after mount, verify `term.focus()` was called. (4) Test: fire keydown event on terminal container, verify `stopPropagation` prevents bubbling (attach a listener on a parent div, assert it does NOT receive the event). (5) Test: simulate `focusin` on terminal container, verify `term.focus()` called again. Use the same `vi.hoisted`, `vi.mock`, and `act()` patterns as the existing integration tests. Mock `useSearchParams` to return a session param.
@@ -271,7 +271,7 @@ Keystroke exclusivity (per D030): auto-focus xterm on mount, re-focus on contain
   - Files: `src/app/workspaces/[id]/terminal/terminal-client.tsx`, `src/components/workspaces/InteractiveTerminal.tsx`, `src/app/workspaces/[id]/terminal/page.tsx`
   - Verify: grep -q 'term.focus' src/components/workspaces/InteractiveTerminal.tsx && grep -q 'stopPropagation' src/app/workspaces/[id]/terminal/terminal-client.tsx
 
-- [ ] **T03: Add stale entry error handling with sidebar force-refresh** `est:45m`
+- [x] **T03: Add stale entry error handling with sidebar force-refresh** `est:45m`
   ---
 estimated_steps: 4
 estimated_files: 4
