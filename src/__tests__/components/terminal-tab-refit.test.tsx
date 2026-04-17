@@ -17,6 +17,7 @@ vi.mock("@xterm/xterm", () => {
       onScroll = vi.fn();
       dispose = vi.fn();
       write = vi.fn();
+      focus = vi.fn();
       scrollToBottom = vi.fn();
     },
   };
@@ -130,6 +131,11 @@ describe("ResizeObserver-based terminal re-fit", () => {
 
     act(() => {
       resizeObserverCallback!([{ contentRect: { width: 800, height: 600 } }]);
+    });
+
+    // ResizeObserver callback debounces fit() with a 50ms setTimeout
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 60));
     });
 
     expect(mockFit).toHaveBeenCalled();

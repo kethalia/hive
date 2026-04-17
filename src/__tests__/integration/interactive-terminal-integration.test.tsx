@@ -21,6 +21,7 @@ vi.mock("@xterm/xterm", () => ({
     onResize = vi.fn();
     dispose = vi.fn();
     write = vi.fn();
+    focus = vi.fn();
   },
 }));
 
@@ -180,6 +181,11 @@ describe("InteractiveTerminal integration — ResizeObserver", () => {
 
     act(() => {
       resizeObserverCallback!([{ contentRect: { width: 800, height: 600 } }]);
+    });
+
+    // ResizeObserver callback debounces fit() with a 50ms setTimeout
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 60));
     });
 
     expect(mockFit).toHaveBeenCalled();
