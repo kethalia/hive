@@ -15,60 +15,60 @@ describe("useSidebarMode", () => {
     cleanup();
   });
 
-  it("defaults to offcanvas when localStorage is empty", () => {
+  it("defaults to sidebar when localStorage is empty", () => {
     const { result } = renderHook(() => useSidebarMode());
-    expect(result.current[0]).toBe("offcanvas");
+    expect(result.current[0]).toBe("sidebar");
   });
 
-  it("reads icon mode from localStorage", () => {
-    localStorage.setItem("sidebar_mode", "icon");
+  it("reads floating mode from localStorage", () => {
+    localStorage.setItem("sidebar_variant", "floating");
     const { result } = renderHook(() => useSidebarMode());
-    expect(result.current[0]).toBe("icon");
+    expect(result.current[0]).toBe("floating");
   });
 
-  it("toggle changes mode from offcanvas to icon", () => {
+  it("setSidebarMode(true) changes to floating", () => {
     const { result } = renderHook(() => useSidebarMode());
-    expect(result.current[0]).toBe("offcanvas");
+    expect(result.current[0]).toBe("sidebar");
 
     act(() => {
-      result.current[1]();
+      result.current[1](true);
     });
 
-    expect(result.current[0]).toBe("icon");
+    expect(result.current[0]).toBe("floating");
   });
 
-  it("toggle changes mode from icon back to offcanvas", () => {
-    localStorage.setItem("sidebar_mode", "icon");
+  it("setSidebarMode(false) changes to sidebar", () => {
+    localStorage.setItem("sidebar_variant", "floating");
     const { result } = renderHook(() => useSidebarMode());
-    expect(result.current[0]).toBe("icon");
+    expect(result.current[0]).toBe("floating");
 
     act(() => {
-      result.current[1]();
+      result.current[1](false);
     });
 
-    expect(result.current[0]).toBe("offcanvas");
+    expect(result.current[0]).toBe("sidebar");
   });
 
   it("persists mode change to localStorage", () => {
     const { result } = renderHook(() => useSidebarMode());
 
     act(() => {
-      result.current[1]();
+      result.current[1](true);
     });
 
-    expect(localStorage.getItem("sidebar_mode")).toBe("icon");
+    expect(localStorage.getItem("sidebar_variant")).toBe("floating");
 
     act(() => {
-      result.current[1]();
+      result.current[1](false);
     });
 
-    expect(localStorage.getItem("sidebar_mode")).toBe("offcanvas");
+    expect(localStorage.getItem("sidebar_variant")).toBe("sidebar");
   });
 
-  it("treats unknown localStorage value as offcanvas", () => {
-    localStorage.setItem("sidebar_mode", "bogus");
+  it("treats unknown localStorage value as sidebar", () => {
+    localStorage.setItem("sidebar_variant", "bogus");
     const { result } = renderHook(() => useSidebarMode());
-    expect(result.current[0]).toBe("offcanvas");
+    expect(result.current[0]).toBe("sidebar");
   });
 });
 
@@ -118,6 +118,7 @@ vi.mock("@/components/ui/sidebar", () => {
     SidebarMenuSub: Passthrough,
     SidebarMenuSubButton: MenuButton,
     SidebarMenuSubItem: Passthrough,
+    SidebarTrigger: () => <button data-testid="sidebar-trigger">Toggle</button>,
   };
 });
 
@@ -132,9 +133,45 @@ vi.mock("@/components/ui/alert", () => ({
   AlertDescription: ({ children }: React.PropsWithChildren) => <div>{children}</div>,
 }));
 
+vi.mock("@/components/ui/input", async () => {
+  const React = await import("react");
+  return {
+    Input: React.forwardRef<HTMLInputElement, React.InputHTMLAttributes<HTMLInputElement>>(
+      (props, ref) => <input ref={ref} {...props} />,
+    ),
+  };
+});
+
+vi.mock("@/lib/constants", () => ({
+  SAFE_IDENTIFIER_RE: /^[a-zA-Z0-9._-]+$/,
+}));
+
 vi.mock("@/components/ui/badge", () => ({
   Badge: ({ children, className }: React.PropsWithChildren<{ variant?: string; className?: string }>) => (
     <span data-testid="badge" className={className}>{children}</span>
+  ),
+}));
+
+vi.mock("@/components/ui/switch", () => ({
+  Switch: ({
+    checked,
+    onCheckedChange,
+    ...rest
+  }: {
+    checked?: boolean;
+    onCheckedChange?: (v: boolean) => void;
+    id?: string;
+    size?: string;
+    "data-testid"?: string;
+  }) => (
+    <button
+      role="switch"
+      aria-checked={checked}
+      data-testid={rest["data-testid"]}
+      onClick={() => onCheckedChange?.(!checked)}
+    >
+      {checked ? "On" : "Off"}
+    </button>
   ),
 }));
 
@@ -155,8 +192,9 @@ vi.mock("lucide-react", () => ({
   FolderOpen: () => <span>FolderOpen</span>,
   Code: () => <span>Code</span>,
   ExternalLink: () => <span>ExternalLink</span>,
-  Pin: () => <span data-testid="pin-icon">Pin</span>,
-  PinOff: () => <span data-testid="pinoff-icon">PinOff</span>,
+  ChevronDown: () => <span>ChevronDown</span>,
+  Pencil: () => <span>Pencil</span>,
+  Loader2: () => <span>Loader2</span>,
 }));
 
 const mockListWorkspaces = vi.fn();
@@ -172,6 +210,7 @@ vi.mock("@/lib/actions/workspaces", () => ({
   getWorkspaceSessionsAction: (...args: unknown[]) => mockGetWorkspaceSessions(...args),
   createSessionAction: (...args: unknown[]) => mockCreateSession(...args),
   killSessionAction: (...args: unknown[]) => mockKillSession(...args),
+  renameSessionAction: vi.fn().mockResolvedValue({ data: null }),
 }));
 
 vi.mock("@/lib/workspaces/urls", () => ({
@@ -201,7 +240,7 @@ describe("AppSidebar mode toggle", () => {
     cleanup();
   });
 
-  it("renders mode toggle button in footer", async () => {
+  it("renders mode toggle switch in settings", async () => {
     render(<AppSidebar />);
 
     await waitFor(() => {
@@ -210,15 +249,16 @@ describe("AppSidebar mode toggle", () => {
     });
   });
 
-  it("shows PinOff icon in offcanvas mode (default)", async () => {
+  it("switch is off in sidebar mode (default)", async () => {
     render(<AppSidebar />);
 
     await waitFor(() => {
-      expect(screen.getByTestId("pinoff-icon")).toBeInTheDocument();
+      const toggle = screen.getByTestId("sidebar-mode-toggle");
+      expect(toggle).toHaveAttribute("aria-checked", "false");
     });
   });
 
-  it("clicking toggle switches to icon mode and shows Pin icon", async () => {
+  it("clicking switch enables floating mode", async () => {
     render(<AppSidebar />);
 
     await waitFor(() => {
@@ -228,11 +268,12 @@ describe("AppSidebar mode toggle", () => {
     fireEvent.click(screen.getByTestId("sidebar-mode-toggle"));
 
     await waitFor(() => {
-      expect(screen.getByTestId("pin-icon")).toBeInTheDocument();
+      const toggle = screen.getByTestId("sidebar-mode-toggle");
+      expect(toggle).toHaveAttribute("aria-checked", "true");
     });
   });
 
-  it("clicking toggle persists mode to localStorage", async () => {
+  it("clicking switch persists mode to localStorage", async () => {
     render(<AppSidebar />);
 
     await waitFor(() => {
@@ -241,10 +282,10 @@ describe("AppSidebar mode toggle", () => {
 
     fireEvent.click(screen.getByTestId("sidebar-mode-toggle"));
 
-    expect(localStorage.getItem("sidebar_mode")).toBe("icon");
+    expect(localStorage.getItem("sidebar_variant")).toBe("floating");
   });
 
-  it("clicking toggle twice returns to offcanvas mode", async () => {
+  it("clicking switch twice returns to sidebar mode", async () => {
     render(<AppSidebar />);
 
     await waitFor(() => {
@@ -255,8 +296,9 @@ describe("AppSidebar mode toggle", () => {
     fireEvent.click(screen.getByTestId("sidebar-mode-toggle"));
 
     await waitFor(() => {
-      expect(screen.getByTestId("pinoff-icon")).toBeInTheDocument();
+      const toggle = screen.getByTestId("sidebar-mode-toggle");
+      expect(toggle).toHaveAttribute("aria-checked", "false");
     });
-    expect(localStorage.getItem("sidebar_mode")).toBe("offcanvas");
+    expect(localStorage.getItem("sidebar_variant")).toBe("sidebar");
   });
 });

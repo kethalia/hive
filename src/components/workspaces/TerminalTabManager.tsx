@@ -122,6 +122,7 @@ export function TerminalTabManager({
           if (res?.data) {
             const tab: Tab = { id: crypto.randomUUID(), sessionName: res.data.name };
             dispatch({ type: "SET_TABS", tabs: [tab], activeTabId: tab.id });
+            window.dispatchEvent(new CustomEvent("hive:sidebar-refresh"));
           }
         }
       } catch (err) {
@@ -144,6 +145,7 @@ export function TerminalTabManager({
           sessionName: result.data.name,
         };
         dispatch({ type: "ADD_TAB", tab: newTab });
+        window.dispatchEvent(new CustomEvent("hive:sidebar-refresh"));
       }
     } catch (err) {
       console.error("[terminal-tabs] Failed to create session:", err);
@@ -203,6 +205,7 @@ export function TerminalTabManager({
         window.localStorage.removeItem(`terminal:reconnect:${agentId}:${tab.sessionName}`);
 
         dispatch({ type: "KILL_TAB", tabId });
+        window.dispatchEvent(new CustomEvent("hive:sidebar-refresh"));
       } catch (err) {
         console.error("[terminal-tabs] Failed to kill session:", err);
       }

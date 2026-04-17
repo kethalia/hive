@@ -13,14 +13,15 @@ vi.mock("@/lib/utils", () => ({
   cn: (...classes: unknown[]) => classes.filter(Boolean).join(" "),
 }));
 
-vi.mock("@/components/ui/sidebar", () => {
+vi.mock("@/components/ui/sidebar", async () => {
+  const React = await import("react");
   const Passthrough = ({ children, className }: React.PropsWithChildren<{ className?: string }>) => (
     <div className={className}>{children}</div>
   );
-  const MenuButton = ({
+  const Composable = ({
     children,
     disabled,
-    render: _render,
+    render,
     isActive: _isActive,
     ...rest
   }: React.PropsWithChildren<{
@@ -28,11 +29,12 @@ vi.mock("@/components/ui/sidebar", () => {
     render?: React.ReactElement;
     isActive?: boolean;
     className?: string;
-  }>) => (
-    <button disabled={disabled} {...rest}>
-      {children}
-    </button>
-  );
+  }>) => {
+    if (render) {
+      return React.cloneElement(render, rest, children);
+    }
+    return <button disabled={disabled} {...rest}>{children}</button>;
+  };
   return {
     Sidebar: Passthrough,
     SidebarContent: Passthrough,
@@ -41,14 +43,20 @@ vi.mock("@/components/ui/sidebar", () => {
     ),
     SidebarGroup: Passthrough,
     SidebarGroupContent: Passthrough,
-    SidebarGroupLabel: Passthrough,
+    SidebarGroupLabel: ({ children, render, ...rest }: React.PropsWithChildren<{ render?: React.ReactElement; className?: string }>) => {
+      if (render) {
+        return React.cloneElement(render, rest, children);
+      }
+      return <div {...rest}>{children}</div>;
+    },
     SidebarHeader: Passthrough,
     SidebarMenu: Passthrough,
-    SidebarMenuButton: MenuButton,
+    SidebarMenuButton: Composable,
     SidebarMenuItem: Passthrough,
     SidebarMenuSub: Passthrough,
-    SidebarMenuSubButton: MenuButton,
+    SidebarMenuSubButton: Composable,
     SidebarMenuSubItem: Passthrough,
+    SidebarTrigger: () => <button data-testid="sidebar-trigger">Toggle</button>,
   };
 });
 
@@ -59,11 +67,13 @@ vi.mock("@/components/ui/collapsible", () => {
       defaultOpen,
       open,
       onOpenChange,
-    }: React.PropsWithChildren<{ defaultOpen?: boolean; open?: boolean; onOpenChange?: (v: boolean) => void }>) => {
+      "data-testid": dataTestId,
+      className: _className,
+    }: React.PropsWithChildren<{ defaultOpen?: boolean; open?: boolean; onOpenChange?: (v: boolean) => void; "data-testid"?: string; className?: string }>) => {
       const isOpen = open ?? defaultOpen;
       return (
         <div
-          data-testid="collapsible"
+          data-testid={dataTestId ?? "collapsible"}
           data-open={isOpen}
           data-onchange={onOpenChange ? "true" : undefined}
           onClick={(e) => {
@@ -95,6 +105,19 @@ vi.mock("@/components/ui/alert", () => ({
   ),
 }));
 
+vi.mock("@/components/ui/input", async () => {
+  const React = await import("react");
+  return {
+    Input: React.forwardRef<HTMLInputElement, React.InputHTMLAttributes<HTMLInputElement>>(
+      (props, ref) => <input ref={ref} {...props} />,
+    ),
+  };
+});
+
+vi.mock("@/lib/constants", () => ({
+  SAFE_IDENTIFIER_RE: /^[a-zA-Z0-9._-]+$/,
+}));
+
 vi.mock("@/components/ui/badge", () => ({
   Badge: ({
     children,
@@ -103,6 +126,29 @@ vi.mock("@/components/ui/badge", () => ({
     <span data-testid="badge" className={className}>
       {children}
     </span>
+  ),
+}));
+
+vi.mock("@/components/ui/switch", () => ({
+  Switch: ({
+    checked,
+    onCheckedChange,
+    ...rest
+  }: {
+    checked?: boolean;
+    onCheckedChange?: (v: boolean) => void;
+    id?: string;
+    size?: string;
+    "data-testid"?: string;
+  }) => (
+    <button
+      role="switch"
+      aria-checked={checked}
+      data-testid={rest["data-testid"]}
+      onClick={() => onCheckedChange?.(!checked)}
+    >
+      {checked ? "On" : "Off"}
+    </button>
   ),
 }));
 
@@ -123,8 +169,9 @@ vi.mock("lucide-react", () => ({
   FolderOpen: () => <span>FolderOpen</span>,
   Code: () => <span>Code</span>,
   ExternalLink: () => <span>ExternalLink</span>,
-  Pin: () => <span data-testid="pin-icon">Pin</span>,
-  PinOff: () => <span data-testid="pinoff-icon">PinOff</span>,
+  ChevronDown: () => <span>ChevronDown</span>,
+  Pencil: () => <span>Pencil</span>,
+  Loader2: () => <span data-testid="loader-icon">Loader2</span>,
 }));
 
 const mockListWorkspaces = vi.fn();
@@ -133,6 +180,7 @@ const mockGetWorkspaceAgent = vi.fn();
 const mockGetWorkspaceSessions = vi.fn();
 const mockCreateSession = vi.fn();
 const mockKillSession = vi.fn();
+const mockRenameSession = vi.fn();
 
 vi.mock("@/lib/actions/workspaces", () => ({
   listWorkspacesAction: (...args: unknown[]) => mockListWorkspaces(...args),
@@ -140,6 +188,7 @@ vi.mock("@/lib/actions/workspaces", () => ({
   getWorkspaceSessionsAction: (...args: unknown[]) => mockGetWorkspaceSessions(...args),
   createSessionAction: (...args: unknown[]) => mockCreateSession(...args),
   killSessionAction: (...args: unknown[]) => mockKillSession(...args),
+  renameSessionAction: (...args: unknown[]) => mockRenameSession(...args),
 }));
 
 vi.mock("@/lib/workspaces/urls", () => ({
@@ -296,15 +345,15 @@ describe("AppSidebar", () => {
     expect(refreshIcon).toBeInTheDocument();
   });
 
-  it("shows last-refreshed timestamp in footer after data loads", async () => {
+  it("shows relative last-refreshed time in footer after data loads", async () => {
     render(<AppSidebar />);
 
     await waitFor(() => {
       expect(screen.getByText("dev-box")).toBeInTheDocument();
     });
 
-    const footer = screen.getByTestId("sidebar-footer");
-    expect(footer.textContent).toMatch(/Updated/);
+    const lastRefreshed = screen.getByTestId("last-refreshed");
+    expect(lastRefreshed.textContent).toMatch(/Just now|ago/);
   });
 
   it("calls both fetch actions when refresh button is clicked", async () => {
@@ -345,7 +394,7 @@ describe("AppSidebar", () => {
     });
   });
 
-  it("renders sessions as sub-items under expanded workspace", async () => {
+  it("renders sessions under Terminal collapsible in expanded workspace", async () => {
     render(<AppSidebar coderUrl="https://coder.test" />);
 
     await waitFor(() => {
@@ -356,11 +405,21 @@ describe("AppSidebar", () => {
     fireEvent.click(wsTrigger!);
 
     await waitFor(() => {
+      expect(screen.getByTestId("terminal-section-ws-1")).toBeInTheDocument();
+    });
+
+    const terminalSection = screen.getByTestId("terminal-section-ws-1");
+    const terminalTrigger = terminalSection.querySelector("[data-testid='collapsible-trigger']");
+    fireEvent.click(terminalTrigger!);
+
+    await waitFor(() => {
       expect(screen.getByText("dev")).toBeInTheDocument();
     });
   });
 
-  it("renders external link buttons with correct href targets", async () => {
+  it("renders external tools as text buttons that open popup windows", async () => {
+    const openSpy = vi.spyOn(window, "open").mockImplementation(() => null);
+
     render(<AppSidebar coderUrl="https://coder.test" />);
 
     await waitFor(() => {
@@ -375,18 +434,34 @@ describe("AppSidebar", () => {
     });
 
     await waitFor(() => {
-      const fbLink = screen.getByTitle("Filebrowser");
-      expect(fbLink).toBeInTheDocument();
-      expect(fbLink.getAttribute("href")).toBe("https://filebrowser.test");
-
-      const vncLink = screen.getByTitle("KasmVNC");
-      expect(vncLink).toBeInTheDocument();
-      expect(vncLink.getAttribute("href")).toBe("https://kasmvnc.test");
-
-      const codeLink = screen.getByTitle("Code Server");
-      expect(codeLink).toBeInTheDocument();
-      expect(codeLink.getAttribute("href")).toBe("https://code-server.test");
+      expect(screen.getByText("Filebrowser")).toBeInTheDocument();
     });
+
+    const filebrowserBtn = screen.getByText("Filebrowser").closest("[data-testid='collapsible-trigger']") ?? screen.getByText("Filebrowser").closest("button");
+    fireEvent.click(filebrowserBtn!);
+    expect(openSpy).toHaveBeenCalledWith(
+      "https://filebrowser.test",
+      "Filebrowser",
+      "width=1200,height=800,menubar=no,toolbar=no",
+    );
+
+    const kasmBtn = screen.getByText("KasmVNC").closest("[data-testid='collapsible-trigger']") ?? screen.getByText("KasmVNC").closest("button");
+    fireEvent.click(kasmBtn!);
+    expect(openSpy).toHaveBeenCalledWith(
+      "https://kasmvnc.test",
+      "KasmVNC",
+      "width=1200,height=800,menubar=no,toolbar=no",
+    );
+
+    const codeBtn = screen.getByText("Code Server").closest("[data-testid='collapsible-trigger']") ?? screen.getByText("Code Server").closest("button");
+    fireEvent.click(codeBtn!);
+    expect(openSpy).toHaveBeenCalledWith(
+      "https://code-server.test",
+      "Code Server",
+      "width=1200,height=800,menubar=no,toolbar=no",
+    );
+
+    openSpy.mockRestore();
   });
 
   it("create session button calls createSessionAction and navigates", async () => {
@@ -400,7 +475,15 @@ describe("AppSidebar", () => {
     fireEvent.click(wsTrigger!);
 
     await waitFor(() => {
-      expect(screen.getByText("dev")).toBeInTheDocument();
+      expect(screen.getByTestId("terminal-section-ws-1")).toBeInTheDocument();
+    });
+
+    const terminalSection = screen.getByTestId("terminal-section-ws-1");
+    const terminalTrigger = terminalSection.querySelector("[data-testid='collapsible-trigger']");
+    fireEvent.click(terminalTrigger!);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("create-session-ws-1")).toBeInTheDocument();
     });
 
     const createBtn = screen.getByTestId("create-session-ws-1");
@@ -421,6 +504,14 @@ describe("AppSidebar", () => {
 
     const wsTrigger = screen.getByText("dev-box").closest("[data-testid='collapsible-trigger']");
     fireEvent.click(wsTrigger!);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("terminal-section-ws-1")).toBeInTheDocument();
+    });
+
+    const terminalSection = screen.getByTestId("terminal-section-ws-1");
+    const terminalTrigger = terminalSection.querySelector("[data-testid='collapsible-trigger']");
+    fireEvent.click(terminalTrigger!);
 
     await waitFor(() => {
       expect(screen.getByText("dev")).toBeInTheDocument();
@@ -449,6 +540,14 @@ describe("AppSidebar", () => {
     fireEvent.click(wsTrigger!);
 
     await waitFor(() => {
+      expect(screen.getByTestId("terminal-section-ws-1")).toBeInTheDocument();
+    });
+
+    const terminalSection = screen.getByTestId("terminal-section-ws-1");
+    const terminalTrigger = terminalSection.querySelector("[data-testid='collapsible-trigger']");
+    fireEvent.click(terminalTrigger!);
+
+    await waitFor(() => {
       expect(screen.getByText("Session fetch failed")).toBeInTheDocument();
     });
 
@@ -456,22 +555,33 @@ describe("AppSidebar", () => {
     expect(retryButtons.length).toBeGreaterThanOrEqual(1);
   });
 
-  it("re-fetches all data when hive:sidebar-refresh event is dispatched", async () => {
-    render(<AppSidebar />);
+  it("refreshes only sessions (not workspaces/templates) on hive:sidebar-refresh", async () => {
+    render(<AppSidebar coderUrl="https://coder.test" />);
 
     await waitFor(() => {
       expect(screen.getByText("dev-box")).toBeInTheDocument();
     });
 
+    // Expand workspace to register it for session refresh
+    const wsTrigger = screen.getByText("dev-box").closest("[data-testid='collapsible-trigger']");
+    if (wsTrigger) fireEvent.click(wsTrigger);
+
+    await waitFor(() => {
+      expect(mockGetWorkspaceSessions).toHaveBeenCalled();
+    });
+
     mockListWorkspaces.mockClear();
     mockListTemplates.mockClear();
+    mockGetWorkspaceSessions.mockClear();
 
     window.dispatchEvent(new CustomEvent("hive:sidebar-refresh"));
 
     await waitFor(() => {
-      expect(mockListWorkspaces).toHaveBeenCalledTimes(1);
-      expect(mockListTemplates).toHaveBeenCalledTimes(1);
+      expect(mockGetWorkspaceSessions).toHaveBeenCalledTimes(1);
     });
+    // Workspaces and templates should NOT be re-fetched on session refresh
+    expect(mockListWorkspaces).not.toHaveBeenCalled();
+    expect(mockListTemplates).not.toHaveBeenCalled();
   });
 
   it("cleans up hive:sidebar-refresh listener on unmount", async () => {
@@ -483,17 +593,15 @@ describe("AppSidebar", () => {
 
     unmount();
 
-    mockListWorkspaces.mockClear();
-    mockListTemplates.mockClear();
+    mockGetWorkspaceSessions.mockClear();
 
     window.dispatchEvent(new CustomEvent("hive:sidebar-refresh"));
 
     await new Promise((r) => setTimeout(r, 50));
-    expect(mockListWorkspaces).not.toHaveBeenCalled();
-    expect(mockListTemplates).not.toHaveBeenCalled();
+    expect(mockGetWorkspaceSessions).not.toHaveBeenCalled();
   });
 
-  it("hides external links when agent fetch fails", async () => {
+  it("hides external tool buttons when agent fetch fails", async () => {
     mockGetWorkspaceAgent.mockResolvedValue({
       serverError: "No agents found",
     });
@@ -511,8 +619,8 @@ describe("AppSidebar", () => {
       expect(mockGetWorkspaceAgent).toHaveBeenCalled();
     });
 
-    expect(screen.queryByTitle("Filebrowser")).not.toBeInTheDocument();
-    expect(screen.queryByTitle("KasmVNC")).not.toBeInTheDocument();
-    expect(screen.queryByTitle("Code Server")).not.toBeInTheDocument();
+    expect(screen.queryByText("Filebrowser")).not.toBeInTheDocument();
+    expect(screen.queryByText("KasmVNC")).not.toBeInTheDocument();
+    expect(screen.queryByText("Code Server")).not.toBeInTheDocument();
   });
 });

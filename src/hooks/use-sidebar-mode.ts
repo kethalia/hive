@@ -2,27 +2,25 @@
 
 import { useCallback, useState } from "react";
 
-type SidebarMode = "offcanvas" | "icon";
+type SidebarVariant = "sidebar" | "floating";
 
-const STORAGE_KEY = "sidebar_mode";
-const DEFAULT_MODE: SidebarMode = "offcanvas";
+const STORAGE_KEY = "sidebar_variant";
+const DEFAULT_VARIANT: SidebarVariant = "floating";
 
-function readMode(): SidebarMode {
-  if (typeof window === "undefined") return DEFAULT_MODE;
+function readVariant(): SidebarVariant {
+  if (typeof window === "undefined") return DEFAULT_VARIANT;
   const stored = localStorage.getItem(STORAGE_KEY);
-  return stored === "icon" ? "icon" : "offcanvas";
+  return stored === "floating" ? "floating" : "sidebar";
 }
 
-export function useSidebarMode(): [SidebarMode, () => void] {
-  const [mode, setMode] = useState<SidebarMode>(readMode);
+export function useSidebarMode(): [SidebarVariant, (floating: boolean) => void] {
+  const [variant, setVariant] = useState<SidebarVariant>(readVariant);
 
-  const toggleMode = useCallback(() => {
-    setMode((prev) => {
-      const next: SidebarMode = prev === "offcanvas" ? "icon" : "offcanvas";
-      localStorage.setItem(STORAGE_KEY, next);
-      return next;
-    });
+  const setSidebarMode = useCallback((floating: boolean) => {
+    const next: SidebarVariant = floating ? "floating" : "sidebar";
+    localStorage.setItem(STORAGE_KEY, next);
+    setVariant(next);
   }, []);
 
-  return [mode, toggleMode];
+  return [variant, setSidebarMode];
 }
