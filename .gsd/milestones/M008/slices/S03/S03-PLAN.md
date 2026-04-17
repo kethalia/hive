@@ -79,7 +79,7 @@ This fulfills R073 (PR CI builds both Docker images).
   - Files: `.github/workflows/ci.yml`
   - Verify: node -e "require('js-yaml').load(require('fs').readFileSync('.github/workflows/ci.yml','utf8')); console.log('valid yaml')" && grep -q 'push: false' .github/workflows/ci.yml && grep -q 'ghcr.io/kethalia/hive:' .github/workflows/ci.yml && grep -q 'ghcr.io/kethalia/hive-terminal-proxy:' .github/workflows/ci.yml && grep -q 'ci-pass' .github/workflows/ci.yml
 
-- [ ] **T02: Create release workflow with changesets/action and conditional Docker build+push** `est:35m`
+- [x] **T02: Create release workflow with changesets/action and conditional Docker build+push** `est:35m`
   Create `.github/workflows/release.yml` that triggers on push to main. Uses `changesets/action@v1` to either create a version PR (when changesets exist) or detect published packages (after version PR merge). Two conditional Docker jobs build and push images only for packages whose versions were bumped. Add `ci:release` script to root package.json.
 
 This fulfills R074 (merging changesets opens version PR), R075 (merging version PR triggers Docker build+push), R080 (images published to ghcr.io/kethalia/), and R081 (only changed packages trigger Docker builds).
