@@ -240,7 +240,7 @@ describe("TerminalBreadcrumbs", () => {
     });
   });
 
-  it("renders Workspaces link pointing to /workspaces", async () => {
+  it("renders Workspaces link pointing to /tasks", async () => {
     mockGetWorkspace.mockResolvedValue({ data: { name: "dev-box" } });
     mockGetSessions.mockResolvedValue({
       data: [{ name: "s1", created: 1000, windows: 1 }],
@@ -250,7 +250,7 @@ describe("TerminalBreadcrumbs", () => {
 
     await waitFor(() => {
       const link = screen.getByText("Workspaces").closest("a");
-      expect(link).toHaveAttribute("href", "/workspaces");
+      expect(link).toHaveAttribute("href", "/tasks");
     });
   });
 });

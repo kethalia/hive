@@ -123,6 +123,8 @@ vi.mock("lucide-react", () => ({
   FolderOpen: () => <span>FolderOpen</span>,
   Code: () => <span>Code</span>,
   ExternalLink: () => <span>ExternalLink</span>,
+  Pin: () => <span data-testid="pin-icon">Pin</span>,
+  PinOff: () => <span data-testid="pinoff-icon">PinOff</span>,
 }));
 
 const mockListWorkspaces = vi.fn();

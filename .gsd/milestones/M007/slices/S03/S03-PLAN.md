@@ -74,7 +74,7 @@
   - Files: `src/hooks/use-sidebar-mode.ts`, `src/components/app-sidebar.tsx`, `src/app/workspaces/page.tsx`, `src/components/workspaces/WorkspacesClient.tsx`, `src/components/workspaces/TerminalBreadcrumbs.tsx`, `src/components/workspaces/WorkspaceToolPanel.tsx`
   - Verify: ! test -f src/app/workspaces/page.tsx && grep -q 'collapsible' src/components/app-sidebar.tsx && grep -q 'sidebar_mode' src/hooks/use-sidebar-mode.ts && grep -q '/tasks' src/components/workspaces/TerminalBreadcrumbs.tsx && echo 'PASS'
 
-- [ ] **T03: Add test suites for template detail page and sidebar mode toggle** `est:30m`
+- [x] **T03: Add test suites for template detail page and sidebar mode toggle** `est:30m`
   Write integration tests covering the template detail page rendering and push flow, sidebar mode toggle with localStorage persistence, and verify workspaces page removal and mobile sidebar behavior.
 
 **Why:** Slice verification requires test suites that prove R061, R064, R065, R066 are met.
