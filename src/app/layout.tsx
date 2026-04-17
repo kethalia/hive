@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -30,7 +31,9 @@ export default function RootLayout({
       <body className={`${geistSans.variable} ${geistMono.variable} font-sans antialiased`}>
         <TooltipProvider>
           <SidebarProvider>
-            <AppSidebar coderUrl={process.env.CODER_URL} />
+            <Suspense>
+              <AppSidebar coderUrl={process.env.CODER_URL} />
+            </Suspense>
             <SidebarTrigger className="fixed top-3 left-3 z-50 opacity-0 pointer-events-none transition-opacity peer-data-[state=collapsed]:opacity-100 peer-data-[state=collapsed]:pointer-events-auto" />
             <SidebarInset>
               <main className="flex-1 p-6 pt-14">

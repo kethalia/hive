@@ -16,7 +16,7 @@ COPY --from=deps /app/node_modules ./node_modules
 COPY --from=deps /app/services/terminal-proxy/node_modules ./services/terminal-proxy/node_modules
 COPY services/terminal-proxy/ services/terminal-proxy/
 COPY package.json pnpm-workspace.yaml pnpm-lock.yaml ./
-RUN pnpm deploy --filter hive-terminal-proxy --prod --legacy /deploy
+RUN pnpm deploy --filter hive-terminal-proxy --prod --legacy --ignore-scripts /deploy
 
 FROM node:20-alpine AS runner
 RUN apk add --no-cache tini
