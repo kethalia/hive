@@ -115,7 +115,7 @@ Since the terminal-proxy Dockerfile currently has `context: ./services/terminal-
   - Files: `services/terminal-proxy/Dockerfile`, `services/terminal-proxy/package.json`
   - Verify: grep -q 'AS runner' services/terminal-proxy/Dockerfile && grep -q 'USER appuser' services/terminal-proxy/Dockerfile && grep -q 'tini' services/terminal-proxy/Dockerfile
 
-- [ ] **T03: Restructure compose files: rename local, create prod, update build contexts** `est:30m`
+- [x] **T03: Restructure compose files: rename local, create prod, update build contexts** `est:30m`
   ## Description
 
 Per decision D035, the compose files should be:
