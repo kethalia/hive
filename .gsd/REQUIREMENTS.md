@@ -202,6 +202,160 @@ This file is the explicit capability and coverage contract for the project.
 - Validation: unmapped
 - Notes: Workspace must never auto-stop. tmux handles process persistence natively once workspace stays alive.
 
+### R056 — Directory-tree sidebar with collapsible Workspaces and Templates sections
+- Class: core-capability
+- Status: active
+- Description: Directory-tree sidebar with collapsible Workspaces and Templates sections
+- Why it matters: The sidebar becomes the primary navigation surface replacing flat nav and dedicated listing pages — users need hierarchical browsing of workspaces and templates
+- Source: user
+- Primary owning slice: M007/S01
+- Supporting slices: none
+- Validation: unmapped
+- Notes: Uses shadcn SidebarMenuSub/Collapsible primitives already installed
+
+### R057 — Workspace sidebar items show 3 external-link buttons (Filebrowser, KasmVNC, Code Server) and nested terminal sessions
+- Class: primary-user-loop
+- Status: active
+- Description: Workspace sidebar items show 3 external-link buttons (Filebrowser, KasmVNC, Code Server) and nested terminal sessions
+- Why it matters: Puts workspace tools directly in the navigation tree — eliminates navigating to a workspace detail page just to access tools
+- Source: user
+- Primary owning slice: M007/S02
+- Supporting slices: M007/S01
+- Validation: unmapped
+- Notes: First 3 tools open in new tabs (external links), terminal sessions are in-app navigation
+
+### R058 — Terminal sessions manageable from sidebar: list, create (+), switch, kill
+- Class: core-capability
+- Status: active
+- Description: Terminal sessions manageable from sidebar: list, create (+), switch, kill
+- Why it matters: Session management moves from the terminal page tab bar to the sidebar — the sidebar is the single control surface for all navigation and session lifecycle
+- Source: user
+- Primary owning slice: M007/S02
+- Supporting slices: none
+- Validation: unmapped
+- Notes: Replaces TerminalTabManager tab bar as session switcher
+
+### R059 — Sidebar fetches live workspace and template data via server actions with periodic polling
+- Class: primary-user-loop
+- Status: active
+- Description: Sidebar fetches live workspace and template data via server actions with periodic polling
+- Why it matters: Sidebar is now the only way to discover workspaces and templates — stale data would leave the user unable to navigate
+- Source: user
+- Primary owning slice: M007/S01
+- Supporting slices: none
+- Validation: unmapped
+- Notes: Uses existing listWorkspacesAction and compareTemplates server actions
+
+### R060 — Last-refreshed timestamp and manual refresh button at sidebar bottom
+- Class: primary-user-loop
+- Status: active
+- Description: Last-refreshed timestamp and manual refresh button at sidebar bottom
+- Why it matters: Gives user confidence in data freshness and manual control over refresh timing
+- Source: user
+- Primary owning slice: M007/S01
+- Supporting slices: none
+- Validation: unmapped
+- Notes: Positioned at bottom of sidebar near pin/unpin toggle
+
+### R061 — Sidebar mode toggle: floating (offcanvas) vs docked (pinned), persisted in localStorage
+- Class: quality-attribute
+- Status: active
+- Description: Sidebar mode toggle: floating (offcanvas) vs docked (pinned), persisted in localStorage
+- Why it matters: Different workflows need different sidebar modes — floating maximizes terminal width, docked provides persistent navigation
+- Source: user
+- Primary owning slice: M007/S03
+- Supporting slices: none
+- Validation: unmapped
+- Notes: Default to floating (offcanvas). Pin/unpin toggle at sidebar bottom. ResizeObserver handles terminal refit on mode switch.
+
+### R062 — Header and breadcrumbs removed from all pages — floating sidebar trigger is the only chrome
+- Class: core-capability
+- Status: active
+- Description: Header and breadcrumbs removed from all pages — floating sidebar trigger is the only chrome
+- Why it matters: Maximizes viewport for content, especially terminal pages. User explicitly wants zero chrome on all pages.
+- Source: user
+- Primary owning slice: M007/S01
+- Supporting slices: none
+- Validation: unmapped
+- Notes: HeaderContent component removed from layout, SidebarTrigger repositioned as floating button
+
+### R063 — Terminal pages are full-viewport xterm with exclusive keystroke capture
+- Class: core-capability
+- Status: active
+- Description: Terminal pages are full-viewport xterm with exclusive keystroke capture
+- Why it matters: Terminal-first UX — every keystroke must reach xterm without being intercepted by sidebar or other UI elements
+- Source: user
+- Primary owning slice: M007/S02
+- Supporting slices: none
+- Validation: unmapped
+- Notes: Auto-focus on mount and on click within terminal area. Sidebar clicks don't fight for focus.
+
+### R064 — Template detail page showing template info and push button
+- Class: primary-user-loop
+- Status: active
+- Description: Template detail page showing template info and push button
+- Why it matters: Clicking a template in the sidebar needs a destination page with actionable info — not just a name in a list
+- Source: user
+- Primary owning slice: M007/S03
+- Supporting slices: none
+- Validation: unmapped
+- Notes: Minimal for now — info + push. Full file tree deferred.
+
+### R065 — Workspaces listing page removed — sidebar is the workspace browser
+- Class: core-capability
+- Status: active
+- Description: Workspaces listing page removed — sidebar is the workspace browser
+- Why it matters: The sidebar replaces the listing page entirely. Keeping both creates a confusing dual navigation path.
+- Source: user
+- Primary owning slice: M007/S03
+- Supporting slices: M007/S01
+- Validation: unmapped
+- Notes: Remove /workspaces page and /workspaces/[id] detail page. Terminal pages at /workspaces/[id]/terminal remain.
+
+### R066 — Mobile-responsive sidebar (overlay mode on narrow viewports)
+- Class: quality-attribute
+- Status: active
+- Description: Mobile-responsive sidebar (overlay mode on narrow viewports)
+- Why it matters: Dashboard must be usable on mobile/tablet for quick workspace monitoring
+- Source: inferred
+- Primary owning slice: M007/S03
+- Supporting slices: none
+- Validation: unmapped
+- Notes: Existing use-mobile.ts hook already wired. shadcn sidebar handles mobile overlay.
+
+### R067 — Sidebar fetch failures show inline error with retry button per section
+- Class: failure-visibility
+- Status: active
+- Description: Sidebar fetch failures show inline error with retry button per section
+- Why it matters: Sidebar is now the only navigation surface — silent fetch failures leave user stranded with no way to browse workspaces or templates
+- Source: inferred
+- Primary owning slice: M007/S01
+- Supporting slices: none
+- Validation: unmapped
+- Notes: Compact inline error within collapsible section, not a toast or modal
+
+### R068 — Stale sidebar entry click triggers page error + sidebar force-refresh
+- Class: failure-visibility
+- Status: active
+- Description: Stale sidebar entry click triggers page error + sidebar force-refresh
+- Why it matters: When workspace data changes externally (deleted, stopped), clicking a stale entry must not leave user in a broken state
+- Source: inferred
+- Primary owning slice: M007/S02
+- Supporting slices: none
+- Validation: unmapped
+- Notes: Error shown on the page, sidebar refreshes to remove stale entry
+
+### R069 — Integration test verifying terminal keystroke exclusivity after mount and sidebar toggle
+- Class: quality-attribute
+- Status: active
+- Description: Integration test verifying terminal keystroke exclusivity after mount and sidebar toggle
+- Why it matters: Keystroke capture is the kind of behavior that regresses silently — automated verification prevents regression
+- Source: inferred
+- Primary owning slice: M007/S02
+- Supporting slices: none
+- Validation: unmapped
+- Notes: Test simulates keypress and asserts it reaches xterm, not sidebar
+
 ## Validated
 
 ### R006 — After worker creates PR, orchestrator automatically spins up a verifier workspace that pulls the branch and tests the output by actually using it
@@ -525,6 +679,26 @@ This file is the explicit capability and coverage contract for the project.
 - Validation: unmapped
 - Notes: Nice-to-have. Can be added after core persistence is working.
 
+### R070 — Tasks section migrated to tree-style sidebar
+- Class: quality-attribute
+- Status: deferred
+- Description: Tasks section migrated to tree-style sidebar
+- Why it matters: Consistency with workspace/template tree-style navigation
+- Source: user
+- Primary owning slice: none
+- Validation: unmapped
+- Notes: User explicitly said tasks stay as-is for now, will migrate later
+
+### R071 — Template detail page with full file tree and inline file viewing
+- Class: primary-user-loop
+- Status: deferred
+- Description: Template detail page with full file tree and inline file viewing
+- Why it matters: Would allow browsing template source directly from dashboard without opening files locally
+- Source: user
+- Primary owning slice: none
+- Validation: unmapped
+- Notes: User said keep it minimal for now. Full file tree is a future enhancement.
+
 ## Out of Scope
 
 ### R020 — No Slack bot or Slack-based task invocation
@@ -662,10 +836,26 @@ This file is the explicit capability and coverage contract for the project.
 | R053 | core-capability | active | M006/S01 | M006/S05 | unmapped |
 | R054 | quality-attribute | deferred | none | none | unmapped |
 | R055 | anti-feature | out-of-scope | none | none | n/a |
+| R056 | core-capability | active | M007/S01 | none | unmapped |
+| R057 | primary-user-loop | active | M007/S02 | M007/S01 | unmapped |
+| R058 | core-capability | active | M007/S02 | none | unmapped |
+| R059 | primary-user-loop | active | M007/S01 | none | unmapped |
+| R060 | primary-user-loop | active | M007/S01 | none | unmapped |
+| R061 | quality-attribute | active | M007/S03 | none | unmapped |
+| R062 | core-capability | active | M007/S01 | none | unmapped |
+| R063 | core-capability | active | M007/S02 | none | unmapped |
+| R064 | primary-user-loop | active | M007/S03 | none | unmapped |
+| R065 | core-capability | active | M007/S03 | M007/S01 | unmapped |
+| R066 | quality-attribute | active | M007/S03 | none | unmapped |
+| R067 | failure-visibility | active | M007/S01 | none | unmapped |
+| R068 | failure-visibility | active | M007/S02 | none | unmapped |
+| R069 | quality-attribute | active | M007/S02 | none | unmapped |
+| R070 | quality-attribute | deferred | none | none | unmapped |
+| R071 | primary-user-loop | deferred | none | none | unmapped |
 
 ## Coverage Summary
 
-- Active requirements: 18
-- Mapped to slices: 18
+- Active requirements: 32
+- Mapped to slices: 32
 - Validated: 28 (R006, R007, R013, R017, R018, R019, R028, R029, R032, R033, R034, R035, R036, R037, R038, R039, R040, R042, R043, R044, R045, R046, R047, R048, R049, R050, R051, R052)
 - Unmapped active requirements: 0
