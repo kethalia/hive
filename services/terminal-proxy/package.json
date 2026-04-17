@@ -11,12 +11,12 @@
   },
   "dependencies": {
     "dotenv": "^17.4.2",
+    "tsx": "^4.21.0",
     "ws": "^8.20.0"
   },
   "devDependencies": {
     "@types/node": "^22",
     "@types/ws": "^8.18.1",
-    "tsx": "^4.21.0",
     "typescript": "^5",
     "vitest": "^3.0.0"
   }

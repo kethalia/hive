@@ -231,6 +231,24 @@ When a page needs to fill the entire viewport but lives inside a layout with pad
 
 When a component uses `usePathname()` (or any hook that triggers re-renders on route changes) alongside `setInterval` for polling, store the interval ID in a `useRef` — not in state or a closure variable. Route changes cause re-renders, and if the interval ID is in a closure, the cleanup function captures a stale ID, leaking intervals. `useRef.current` always points to the latest interval ID regardless of re-renders. This prevents polling stacking where multiple intervals fire simultaneously after navigation.
 
+## pnpm deploy --filter Requires Repo Root as Docker Build Context
+
+**Discovered:** 2026-04-17 during M008/S02/T02
+
+When using `pnpm deploy --filter <package> --prod /deploy` in a Dockerfile for a workspace sub-package, the Docker build context must be the repo root — not the service subdirectory. `pnpm deploy` needs the root `pnpm-lock.yaml` and `pnpm-workspace.yaml` to resolve workspace dependencies correctly. Set the build context to `.` in docker-compose and use an explicit `dockerfile:` path (e.g., `services/terminal-proxy/Dockerfile`). This is different from npm/yarn where a service Dockerfile can use `./services/foo` as context.
+
+## changeset tag vs changeset publish for Private Packages
+
+**Discovered:** 2026-04-17 during M008/S03/T02
+
+For packages with `private: true` that deliver Docker images (not npm packages), use `changeset tag` as the publish command in changesets/action — not `changeset publish`. `changeset tag` creates git tags for each bumped package without attempting npm publish, which would fail for private packages. The git tags serve as release markers that trigger conditional Docker image builds. Configure as `publish: pnpm ci:release` with `ci:release: "changeset tag"` in package.json.
+
+## Conditional Docker Builds via changesets/action publishedPackages Output
+
+**Discovered:** 2026-04-17 during M008/S03/T02
+
+When a monorepo has multiple independently-versioned packages that each map to a Docker image, use jq to extract per-package versions from `changesets/action`'s `publishedPackages` JSON output. Gate each Docker build job on whether its specific package was bumped: `if: needs.release.outputs.orchestratorVersion != ''`. This prevents unnecessary rebuilds — a terminal-proxy version bump won't trigger an orchestrator image build. The jq extraction pattern: `echo '${{ steps.changesets.outputs.publishedPackages }}' | jq -r '.[] | select(.name == "package-name") | .version'`.
+
 ## CustomEvent Bridge for Cross-Component-Tree Communication
 
 **Discovered:** 2026-04-17 during M007/S02/T03

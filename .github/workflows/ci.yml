@@ -1,0 +1,133 @@
+name: CI
+
+on:
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: read
+  packages: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Run tests
+        run: pnpm -r test
+
+  build-app:
+    name: Build hive app image
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build app image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: Dockerfile
+          push: false
+          load: true
+          tags: ghcr.io/kethalia/hive:ci-${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  build-terminal-proxy:
+    name: Build terminal-proxy image
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build terminal-proxy image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: services/terminal-proxy/Dockerfile
+          push: false
+          load: true
+          tags: ghcr.io/kethalia/hive-terminal-proxy:ci-${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  changeset-check:
+    name: Changeset status
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Check changeset status
+        run: pnpm changeset status --since=origin/main
+
+  ci-pass:
+    name: CI passed
+    runs-on: ubuntu-latest
+    if: always()
+    needs:
+      - test
+      - build-app
+      - build-terminal-proxy
+      - changeset-check
+    steps:
+      - name: Check upstream job results
+        run: |
+          if [[ "${{ needs.test.result }}" != "success" ]]; then
+            echo "test failed: ${{ needs.test.result }}"
+            exit 1
+          fi
+          if [[ "${{ needs.build-app.result }}" != "success" ]]; then
+            echo "build-app failed: ${{ needs.build-app.result }}"
+            exit 1
+          fi
+          if [[ "${{ needs.build-terminal-proxy.result }}" != "success" ]]; then
+            echo "build-terminal-proxy failed: ${{ needs.build-terminal-proxy.result }}"
+            exit 1
+          fi
+          if [[ "${{ needs.changeset-check.result }}" != "success" ]]; then
+            echo "changeset-check failed: ${{ needs.changeset-check.result }}"
+            exit 1
+          fi
+          echo "All CI checks passed"

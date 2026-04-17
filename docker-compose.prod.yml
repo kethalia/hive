@@ -1,8 +1,7 @@
 services:
   app:
-    build:
-      context: .
-      dockerfile: Dockerfile
+    image: ghcr.io/kethalia/hive:latest
+    restart: unless-stopped
     ports:
       - "3000:3000"
     depends_on:
@@ -11,33 +10,34 @@ services:
       redis:
         condition: service_healthy
     environment:
-      - DATABASE_URL=postgresql://hive:hive@postgres:5432/hive
-      - REDIS_URL=redis://redis:6379
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-hive}:${POSTGRES_PASSWORD:-hive}@postgres:5432/${POSTGRES_DB:-hive}
+      - REDIS_URL=redis://:${REDIS_PASSWORD:-changeme}@redis:6379
       - CODER_URL=${CODER_URL:-}
       - CODER_SESSION_TOKEN=${CODER_SESSION_TOKEN:-}
       - NEXT_PUBLIC_TERMINAL_WS_URL=${NEXT_PUBLIC_TERMINAL_WS_URL:-}
 
   terminal-proxy:
-    build:
-      context: ./services/terminal-proxy
-      dockerfile: Dockerfile
+    image: ghcr.io/kethalia/hive-terminal-proxy:latest
+    restart: unless-stopped
     ports:
       - "3001:3001"
+    depends_on:
+      postgres:
+        condition: service_healthy
     environment:
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-hive}:${POSTGRES_PASSWORD:-hive}@postgres:5432/${POSTGRES_DB:-hive}
       - CODER_URL=${CODER_URL:-}
       - CODER_AGENT_URL=${CODER_AGENT_URL:-}
       - CODER_SESSION_TOKEN=${CODER_SESSION_TOKEN:-}
 
   postgres:
     image: postgres:16-alpine
-    ports:
-      - "5432:5432"
     environment:
-      POSTGRES_USER: hive
-      POSTGRES_PASSWORD: hive
-      POSTGRES_DB: hive
+      POSTGRES_USER: ${POSTGRES_USER:-hive}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-hive}
+      POSTGRES_DB: ${POSTGRES_DB:-hive}
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U hive"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-hive}"]
       interval: 5s
       timeout: 5s
       retries: 5
@@ -46,10 +46,9 @@ services:
 
   redis:
     image: redis:7-alpine
-    ports:
-      - "6379:6379"
+    command: redis-server --requirepass ${REDIS_PASSWORD:-changeme}
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD:-changeme}", "ping"]
       interval: 5s
       timeout: 5s
       retries: 5
