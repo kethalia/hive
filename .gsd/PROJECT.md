@@ -76,3 +76,4 @@ See `.gsd/REQUIREMENTS.md` for the explicit capability contract, requirement sta
 - [x] M005: Workspace Terminals — Persistent tmux-backed interactive terminals in the dashboard with workspace discovery and external tool integration (4 slices, 407 tests, 7 requirements validated)
 - [x] M006: Persistent Terminal Sessions — Fix critical session persistence: server-side workspace keep-alive, infinite reconnection, Postgres-backed scrollback with virtual scrolling (5 slices, 504 frontend + 88 proxy tests)
 - [x] M007: Sidebar Navigation Overhaul — Directory-tree sidebar with collapsible workspace/template sections, full-viewport terminal pages, floating sidebar toggle, template detail page, sidebar pin/unpin mode (3 slices, 462 tests, 14 requirements validated)
+- [ ] M008: Release Workflow — Changesets for independent versioning, CI Docker image builds on PRs, release workflow pushing tagged images to GHCR, compose file restructure (prod/local/dev)
