@@ -135,6 +135,9 @@ importers:
       dotenv:
         specifier: ^17.4.2
         version: 17.4.2
+      tsx:
+        specifier: ^4.21.0
+        version: 4.21.0
       ws:
         specifier: ^8.20.0
         version: 8.20.0
@@ -145,9 +148,6 @@ importers:
       '@types/ws':
         specifier: ^8.18.1
         version: 8.18.1
-      tsx:
-        specifier: ^4.21.0
-        version: 4.21.0
       typescript:
         specifier: ^5
         version: 5.9.3
