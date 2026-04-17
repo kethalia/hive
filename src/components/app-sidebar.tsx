@@ -43,7 +43,10 @@ import {
   Monitor as ScreenIcon,
   Code,
   ExternalLink,
+  Pin,
+  PinOff,
 } from "lucide-react";
+import { useSidebarMode } from "@/hooks/use-sidebar-mode";
 import {
   listWorkspacesAction,
   getWorkspaceAgentAction,
@@ -79,6 +82,7 @@ interface AgentInfo {
 export function AppSidebar({ coderUrl }: { coderUrl?: string }) {
   const pathname = usePathname();
   const router = useRouter();
+  const [sidebarMode, toggleSidebarMode] = useSidebarMode();
 
   const [workspacesOpen, setWorkspacesOpen] = useState(true);
   const [templatesOpen, setTemplatesOpen] = useState(true);
@@ -251,7 +255,7 @@ export function AppSidebar({ coderUrl }: { coderUrl?: string }) {
   }, [fetchSessions]);
 
   return (
-    <Sidebar>
+    <Sidebar collapsible={sidebarMode}>
       <SidebarHeader className="h-14 flex-row items-center border-b border-sidebar-border px-4">
         <Link href="/tasks" className="flex items-center gap-2">
           <Hexagon className="h-6 w-6 text-primary" />
@@ -509,14 +513,29 @@ export function AppSidebar({ coderUrl }: { coderUrl?: string }) {
               ? `Updated ${lastRefreshed.toLocaleTimeString()}`
               : "Loading..."}
           </span>
-          <button
-            type="button"
-            onClick={fetchAll}
-            className="text-muted-foreground hover:text-foreground"
-            title="Refresh"
-          >
-            <RefreshCw className="h-3 w-3" />
-          </button>
+          <div className="flex items-center gap-1">
+            <button
+              type="button"
+              onClick={toggleSidebarMode}
+              className="text-muted-foreground hover:text-foreground"
+              title={sidebarMode === "offcanvas" ? "Collapse to icons" : "Expand sidebar"}
+              data-testid="sidebar-mode-toggle"
+            >
+              {sidebarMode === "offcanvas" ? (
+                <PinOff className="h-3 w-3" />
+              ) : (
+                <Pin className="h-3 w-3" />
+              )}
+            </button>
+            <button
+              type="button"
+              onClick={fetchAll}
+              className="text-muted-foreground hover:text-foreground"
+              title="Refresh"
+            >
+              <RefreshCw className="h-3 w-3" />
+            </button>
+          </div>
         </div>
         <SidebarMenu>
           <SidebarMenuItem>

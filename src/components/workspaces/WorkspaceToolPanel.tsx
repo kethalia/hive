@@ -117,7 +117,7 @@ export function WorkspaceToolPanel({
         <Breadcrumb>
           <BreadcrumbList>
             <BreadcrumbItem>
-              <BreadcrumbLink render={<Link href="/workspaces" />}>
+              <BreadcrumbLink render={<Link href="/tasks" />}>
                 Workspaces
               </BreadcrumbLink>
             </BreadcrumbItem>

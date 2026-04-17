@@ -55,7 +55,7 @@
   - Files: `src/app/templates/[name]/page.tsx`, `src/components/templates/TemplateDetailClient.tsx`, `src/components/templates/TemplatesClient.tsx`, `src/lib/templates/staleness.ts`
   - Verify: pnpm tsc --noEmit 2>&1 | grep -c 'src/app/templates\|src/components/templates/TemplateDetail' | grep -q '^0$' && echo 'PASS: no type errors'
 
-- [ ] **T02: Add sidebar mode toggle, remove workspaces listing, verify mobile** `est:35m`
+- [x] **T02: Add sidebar mode toggle, remove workspaces listing, verify mobile** `est:35m`
   Wire the shadcn Sidebar `collapsible` prop to a localStorage-backed preference, add pin/unpin toggle in sidebar footer, remove the old workspaces listing page, and update breadcrumb links.
 
 **Why:** R061 (sidebar mode toggle), R065 (remove workspaces listing), R066 (mobile responsive sidebar).
