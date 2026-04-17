@@ -43,10 +43,10 @@ Unattended task-to-PR automation with behavioral verification — the system doe
 - S02 (Terminal Integration & Session Management): complete — Terminal sessions nested under each workspace in sidebar with lazy-fetched agent info, session CRUD (create/kill), external-link buttons, 30s polling per expanded workspace. Full-viewport terminal page with keystroke exclusivity (stopPropagation + auto-focus). Stale entry recovery via hive:sidebar-refresh CustomEvent bridge. 10 new tests (7 sidebar + 3 keystroke integration).
 - S03 (Template Detail Page & Sidebar Polish): complete — Template detail page at /templates/[name] with SSE push flow, sidebar pin/unpin mode toggle with localStorage persistence, old workspaces listing page removed, breadcrumbs updated to /tasks. 23 new tests (12 template detail + 11 sidebar mode).
 
-**M008 in progress — 2 of 3 slices complete.**
+**M008 complete — all 3 slices delivered and verified.** Complete release pipeline: changesets for independent versioning, multi-stage Dockerfiles, CI Docker builds on PRs, release workflow with version PRs and conditional tagged image publishing to GHCR. 10 M008 requirements validated (R072-R081).
 - S01 (Changesets Setup): complete — @changesets/cli installed, independent versioning configured for both private packages, convenience scripts in root package.json
 - S02 (Dockerfile Upgrades & Compose Restructure): complete — Multi-stage pnpm Dockerfiles for both services (standalone Next.js + pnpm deploy for terminal-proxy), non-root users, restructured compose files (prod with GHCR images, local builds from source, dev unchanged). All 3 compose files validate.
-- S03 (CI & Release Workflows): remaining — PR CI builds both Docker images without pushing; merging a changeset to main opens a version PR; merging the version PR pushes tagged images to GHCR
+- S03 (CI & Release Workflows): complete — PR CI builds both Docker images without pushing (ci.yml), release workflow creates version PRs via changesets/action and conditionally pushes tagged images to GHCR per-package (release.yml). ci:release script added to package.json.
 
 **Operational notes:** M001 cleanup scheduler not wired to entrypoint. M002 council can run in isolation or as part of full pipeline; initial testing with 3-reviewer council works correctly with mock data. Real GitHub integration tested via mocked gh CLI; live GitHub token handling depends on environment setup during deployment. M005 dev workflow now uses `tsx watch server.ts` instead of `next dev` to support WebSocket upgrade.
 
@@ -84,4 +84,4 @@ See `.gsd/REQUIREMENTS.md` for the explicit capability contract, requirement sta
 - [x] M005: Workspace Terminals — Persistent tmux-backed interactive terminals in the dashboard with workspace discovery and external tool integration (4 slices, 407 tests, 7 requirements validated)
 - [x] M006: Persistent Terminal Sessions — Fix critical session persistence: server-side workspace keep-alive, infinite reconnection, Postgres-backed scrollback with virtual scrolling (5 slices, 504 frontend + 88 proxy tests)
 - [x] M007: Sidebar Navigation Overhaul — Directory-tree sidebar with collapsible workspace/template sections, full-viewport terminal pages, floating sidebar toggle, template detail page, sidebar pin/unpin mode (3 slices, 462 tests, 14 requirements validated)
-- [ ] M008: Release Workflow — Changesets for independent versioning, CI Docker image builds on PRs, release workflow pushing tagged images to GHCR, compose file restructure (prod/local/dev)
+- [x] M008: Release Workflow — Changesets for independent versioning, CI Docker image builds on PRs, release workflow pushing tagged images to GHCR, compose file restructure (prod/local/dev) (3 slices, 5 requirements validated)

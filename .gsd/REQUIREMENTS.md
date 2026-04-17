@@ -666,6 +666,116 @@ This file is the explicit capability and coverage contract for the project.
 - Validation: 3 integration tests in terminal-keystroke-exclusivity.test.tsx verify: (1) term.focus() called after mount, (2) keydown events don't bubble past stopPropagation wrapper, (3) clicking terminal container re-focuses xterm. All 3 pass. Verified 2026-04-17.
 - Notes: Test simulates keypress and asserts it reaches xterm, not sidebar
 
+### R072 — Changesets CLI and config added to monorepo with independent versioning — each package versions independently, no npm publish
+- Class: operability
+- Status: validated
+- Description: Changesets CLI and config added to monorepo with independent versioning — each package versions independently, no npm publish
+- Why it matters: Without version tracking, there's no way to know what's deployed or tag Docker images meaningfully
+- Source: user
+- Primary owning slice: M008/S01
+- Supporting slices: none
+- Validation: S01 installed @changesets/cli with independent versioning config (.changeset/config.json: fixed=[], privatePackages.version=true). Both packages version independently. No npm publish (access: restricted). Verified by S01 summary — 3 checks passed.
+- Notes: privatePackages: { version: true, tag: true }, no npm publish, independent (not fixed) versioning
+
+### R073 — GitHub Actions workflow on PRs builds both Docker images (load only, no push) to verify Dockerfiles and build process work
+- Class: quality-attribute
+- Status: validated
+- Description: GitHub Actions workflow on PRs builds both Docker images (load only, no push) to verify Dockerfiles and build process work
+- Why it matters: User explicitly required this — prevents merging code that breaks Docker builds
+- Source: user
+- Primary owning slice: M008/S03
+- Supporting slices: M008/S02
+- Validation: ci.yml builds both Docker images with push: false and load: true on PRs to main. build-app and build-terminal-proxy jobs run in parallel. Verified by YAML validation + grep checks for push: false, both GHCR image tags, and terminal-proxy Dockerfile path.
+- Notes: Uses matrix strategy for both images. Build only, no push on PRs.
+
+### R074 — changesets/action creates a "Version Packages" PR that bumps package.json versions and updates changelogs when changesets are present on main
+- Class: operability
+- Status: validated
+- Description: changesets/action creates a "Version Packages" PR that bumps package.json versions and updates changelogs when changesets are present on main
+- Why it matters: Automated version management — no manual version bumps
+- Source: user
+- Primary owning slice: M008/S01
+- Supporting slices: M008/S03
+- Validation: release.yml uses changesets/action@v1 with version: pnpm changeset version. When changesets exist on main, action creates a "chore: version packages" PR with bumped package.json files. Verified by grep for changesets/action@v1 in release.yml.
+- Notes: Follows lsp-indexer pattern. PR title: "chore: version packages"
+
+### R075 — When version PR merges and changesets/action publishes, conditionally build and push Docker images for bumped packages to ghcr.io/kethalia/
+- Class: core-capability
+- Status: validated
+- Description: When version PR merges and changesets/action publishes, conditionally build and push Docker images for bumped packages to ghcr.io/kethalia/
+- Why it matters: This is the actual release mechanism — published images are what gets deployed
+- Source: user
+- Primary owning slice: M008/S03
+- Supporting slices: none
+- Validation: release.yml docker-app and docker-terminal-proxy jobs build and push images with tags v{version}, sha-{sha}, and latest after changesets/action publishes. Verified by grep for push: true and both GHCR image prefixes in release.yml.
+- Notes: Tags: v{version}, sha-{sha}, latest. Only build images for packages that were actually bumped.
+
+### R076 — docker-compose.yml references ghcr.io/kethalia/hive:latest and ghcr.io/kethalia/hive-terminal-proxy:latest instead of building from source
+- Class: operability
+- Status: validated
+- Description: docker-compose.yml references ghcr.io/kethalia/hive:latest and ghcr.io/kethalia/hive-terminal-proxy:latest instead of building from source
+- Why it matters: Production deployments should use published, versioned images — not build from source
+- Source: user
+- Primary owning slice: M008/S02
+- Supporting slices: none
+- Validation: docker-compose.yml references ghcr.io/kethalia/hive:latest and ghcr.io/kethalia/hive-terminal-proxy:latest with zero build directives. Verified by S02 checks 10-12: grep confirmed both GHCR image refs and absence of build: directives.
+- Notes: Includes postgres and redis services like the current compose
+
+### R077 — docker-compose.local.yml builds both services from source Dockerfiles, replacing the current docker-compose.yml
+- Class: operability
+- Status: validated
+- Description: docker-compose.local.yml builds both services from source Dockerfiles, replacing the current docker-compose.yml
+- Why it matters: Local development still needs to build from source for testing
+- Source: user
+- Primary owning slice: M008/S02
+- Supporting slices: none
+- Validation: docker-compose.local.yml builds both services from source Dockerfiles. Root Dockerfile at repo root, terminal-proxy Dockerfile at services/terminal-proxy/Dockerfile with repo root context. Verified by S02 check 9 (file exists) and check 14 (config validates).
+- Notes: Same content as current docker-compose.yml, just renamed
+
+### R078 — docker-compose.dev.yml stays exactly as-is — only postgres and redis services for next dev workflow
+- Class: constraint
+- Status: validated
+- Description: docker-compose.dev.yml stays exactly as-is — only postgres and redis services for next dev workflow
+- Why it matters: Don't break the existing dev workflow
+- Source: user
+- Primary owning slice: M008/S02
+- Supporting slices: none
+- Validation: docker-compose.dev.yml unchanged — still contains only postgres and redis services. Verified by S02 check 15 (config validates) and explicit statement in S02 summary that dev compose was left untouched.
+- Notes: No changes needed, just verify it still works
+
+### R079 — Both Dockerfiles upgraded to multi-stage builds using pnpm (matching the monorepo package manager), with non-root user for security
+- Class: quality-attribute
+- Status: validated
+- Description: Both Dockerfiles upgraded to multi-stage builds using pnpm (matching the monorepo package manager), with non-root user for security
+- Why it matters: Current Dockerfiles use npm (wrong package manager), single-stage builds, and run as root
+- Source: inferred
+- Primary owning slice: M008/S02
+- Supporting slices: none
+- Validation: Both Dockerfiles rewritten as 3-stage pnpm builds (deps/build/runner) with non-root users (nextjs uid 1001, appuser uid 1001). Corepack activates pnpm@10.32.1. Verified by S02 checks 3-4 (root Dockerfile AS runner, USER nextjs) and checks 6-8 (terminal-proxy AS runner, USER appuser, tini).
+- Notes: Main app needs prisma generate in build stage. Terminal-proxy is simpler.
+
+### R080 — All Docker images publish to ghcr.io/kethalia/ — matching the existing base image namespace
+- Class: constraint
+- Status: validated
+- Description: All Docker images publish to ghcr.io/kethalia/ — matching the existing base image namespace
+- Why it matters: Consistent namespace with existing hive-base image
+- Source: user
+- Primary owning slice: M008/S03
+- Supporting slices: none
+- Validation: Both ci.yml and release.yml use ghcr.io/kethalia/hive and ghcr.io/kethalia/hive-terminal-proxy image names. Verified by grep in both workflow files.
+- Notes: ghcr.io/kethalia/hive and ghcr.io/kethalia/hive-terminal-proxy
+
+### R081 — Release workflow conditionally builds only Docker images for packages that were version-bumped, not all images on every release
+- Class: quality-attribute
+- Status: validated
+- Description: Release workflow conditionally builds only Docker images for packages that were version-bumped, not all images on every release
+- Why it matters: Independent versioning means a terminal-proxy change shouldn't rebuild the main app
+- Source: user
+- Primary owning slice: M008/S03
+- Supporting slices: none
+- Validation: release.yml extracts per-package versions via jq from changesets/action publishedPackages output. docker-app conditional on orchestratorVersion != '', docker-terminal-proxy conditional on terminalProxyVersion != ''. Only packages with version bumps trigger Docker builds. Verified by grep for hive-orchestrator and hive-terminal-proxy in release.yml.
+- Notes: Check changesets/action publishedPackages output to determine which images to build
+
 ## Deferred
 
 ### R054 — Reconnection visual seam marker — timestamp showing where a disconnect/reconnect occurred in scrollback
@@ -698,116 +808,6 @@ This file is the explicit capability and coverage contract for the project.
 - Primary owning slice: none
 - Validation: unmapped
 - Notes: User said keep it minimal for now. Full file tree is a future enhancement.
-
-### R072 — Changesets configured for independent versioning of hive-orchestrator and hive-terminal-proxy
-- Class: operability
-- Status: active
-- Description: Changesets CLI and config added to monorepo with independent versioning — each package versions independently, no npm publish
-- Why it matters: Without version tracking, there's no way to know what's deployed or tag Docker images meaningfully
-- Source: user
-- Primary owning slice: M008/S01
-- Supporting slices: none
-- Validation: unmapped
-- Notes: privatePackages: { version: true, tag: true }, no npm publish, independent (not fixed) versioning
-
-### R073 — PR CI builds both Docker images to catch build failures before merge
-- Class: quality-attribute
-- Status: active
-- Description: GitHub Actions workflow on PRs builds both Docker images (load only, no push) to verify Dockerfiles and build process work
-- Why it matters: User explicitly required this — prevents merging code that breaks Docker builds
-- Source: user
-- Primary owning slice: M008/S03
-- Supporting slices: M008/S02
-- Validation: unmapped
-- Notes: Uses matrix strategy for both images. Build only, no push on PRs.
-
-### R074 — Merging changesets to main opens a version PR with bumped package.json
-- Class: operability
-- Status: active
-- Description: changesets/action creates a "Version Packages" PR that bumps package.json versions and updates changelogs when changesets are present on main
-- Why it matters: Automated version management — no manual version bumps
-- Source: user
-- Primary owning slice: M008/S01
-- Supporting slices: M008/S03
-- Validation: unmapped
-- Notes: Follows lsp-indexer pattern. PR title: "chore: version packages"
-
-### R075 — Merging version PR triggers Docker build+push to GHCR with version, SHA, and latest tags
-- Class: core-capability
-- Status: active
-- Description: When version PR merges and changesets/action publishes, conditionally build and push Docker images for bumped packages to ghcr.io/kethalia/
-- Why it matters: This is the actual release mechanism — published images are what gets deployed
-- Source: user
-- Primary owning slice: M008/S03
-- Supporting slices: none
-- Validation: unmapped
-- Notes: Tags: v{version}, sha-{sha}, latest. Only build images for packages that were actually bumped.
-
-### R076 — Production compose pulls published GHCR images instead of building from source
-- Class: operability
-- Status: active
-- Description: docker-compose.yml references ghcr.io/kethalia/hive:latest and ghcr.io/kethalia/hive-terminal-proxy:latest instead of building from source
-- Why it matters: Production deployments should use published, versioned images — not build from source
-- Source: user
-- Primary owning slice: M008/S02
-- Supporting slices: none
-- Validation: unmapped
-- Notes: Includes postgres and redis services like the current compose
-
-### R077 — Local compose builds from source (renamed from current docker-compose.yml)
-- Class: operability
-- Status: active
-- Description: docker-compose.local.yml builds both services from source Dockerfiles, replacing the current docker-compose.yml
-- Why it matters: Local development still needs to build from source for testing
-- Source: user
-- Primary owning slice: M008/S02
-- Supporting slices: none
-- Validation: unmapped
-- Notes: Same content as current docker-compose.yml, just renamed
-
-### R078 — Dev compose (postgres + redis only) unchanged
-- Class: constraint
-- Status: active
-- Description: docker-compose.dev.yml stays exactly as-is — only postgres and redis services for next dev workflow
-- Why it matters: Don't break the existing dev workflow
-- Source: user
-- Primary owning slice: M008/S02
-- Supporting slices: none
-- Validation: unmapped
-- Notes: No changes needed, just verify it still works
-
-### R079 — Dockerfiles upgraded to multi-stage builds with pnpm and non-root user
-- Class: quality-attribute
-- Status: active
-- Description: Both Dockerfiles upgraded to multi-stage builds using pnpm (matching the monorepo package manager), with non-root user for security
-- Why it matters: Current Dockerfiles use npm (wrong package manager), single-stage builds, and run as root
-- Source: inferred
-- Primary owning slice: M008/S02
-- Supporting slices: none
-- Validation: unmapped
-- Notes: Main app needs prisma generate in build stage. Terminal-proxy is simpler.
-
-### R080 — Images published to ghcr.io/kethalia/ namespace
-- Class: constraint
-- Status: active
-- Description: All Docker images publish to ghcr.io/kethalia/ — matching the existing base image namespace
-- Why it matters: Consistent namespace with existing hive-base image
-- Source: user
-- Primary owning slice: M008/S03
-- Supporting slices: none
-- Validation: unmapped
-- Notes: ghcr.io/kethalia/hive and ghcr.io/kethalia/hive-terminal-proxy
-
-### R081 — Only changed packages trigger Docker builds in release workflow
-- Class: quality-attribute
-- Status: active
-- Description: Release workflow conditionally builds only Docker images for packages that were version-bumped, not all images on every release
-- Why it matters: Independent versioning means a terminal-proxy change shouldn't rebuild the main app
-- Source: user
-- Primary owning slice: M008/S03
-- Supporting slices: none
-- Validation: unmapped
-- Notes: Check changesets/action publishedPackages output to determine which images to build
 
 ## Out of Scope
 
@@ -962,20 +962,20 @@ This file is the explicit capability and coverage contract for the project.
 | R069 | quality-attribute | validated | M007/S02 | none | 3 integration tests in terminal-keystroke-exclusivity.test.tsx verify: (1) term.focus() called after mount, (2) keydown events don't bubble past stopPropagation wrapper, (3) clicking terminal container re-focuses xterm. All 3 pass. Verified 2026-04-17. |
 | R070 | quality-attribute | deferred | none | none | unmapped |
 | R071 | primary-user-loop | deferred | none | none | unmapped |
-| R072 | operability | active | M008/S01 | none | unmapped |
-| R073 | quality-attribute | active | M008/S03 | M008/S02 | unmapped |
-| R074 | operability | active | M008/S01 | M008/S03 | unmapped |
-| R075 | core-capability | active | M008/S03 | none | unmapped |
-| R076 | operability | active | M008/S02 | none | unmapped |
-| R077 | operability | active | M008/S02 | none | unmapped |
-| R078 | constraint | active | M008/S02 | none | unmapped |
-| R079 | quality-attribute | active | M008/S02 | none | unmapped |
-| R080 | constraint | active | M008/S03 | none | unmapped |
-| R081 | quality-attribute | active | M008/S03 | none | unmapped |
+| R072 | operability | validated | M008/S01 | none | S01 installed @changesets/cli with independent versioning config (.changeset/config.json: fixed=[], privatePackages.version=true). Both packages version independently. No npm publish (access: restricted). Verified by S01 summary — 3 checks passed. |
+| R073 | quality-attribute | validated | M008/S03 | M008/S02 | ci.yml builds both Docker images with push: false and load: true on PRs to main. build-app and build-terminal-proxy jobs run in parallel. Verified by YAML validation + grep checks for push: false, both GHCR image tags, and terminal-proxy Dockerfile path. |
+| R074 | operability | validated | M008/S01 | M008/S03 | release.yml uses changesets/action@v1 with version: pnpm changeset version. When changesets exist on main, action creates a "chore: version packages" PR with bumped package.json files. Verified by grep for changesets/action@v1 in release.yml. |
+| R075 | core-capability | validated | M008/S03 | none | release.yml docker-app and docker-terminal-proxy jobs build and push images with tags v{version}, sha-{sha}, and latest after changesets/action publishes. Verified by grep for push: true and both GHCR image prefixes in release.yml. |
+| R076 | operability | validated | M008/S02 | none | docker-compose.yml references ghcr.io/kethalia/hive:latest and ghcr.io/kethalia/hive-terminal-proxy:latest with zero build directives. Verified by S02 checks 10-12: grep confirmed both GHCR image refs and absence of build: directives. |
+| R077 | operability | validated | M008/S02 | none | docker-compose.local.yml builds both services from source Dockerfiles. Root Dockerfile at repo root, terminal-proxy Dockerfile at services/terminal-proxy/Dockerfile with repo root context. Verified by S02 check 9 (file exists) and check 14 (config validates). |
+| R078 | constraint | validated | M008/S02 | none | docker-compose.dev.yml unchanged — still contains only postgres and redis services. Verified by S02 check 15 (config validates) and explicit statement in S02 summary that dev compose was left untouched. |
+| R079 | quality-attribute | validated | M008/S02 | none | Both Dockerfiles rewritten as 3-stage pnpm builds (deps/build/runner) with non-root users (nextjs uid 1001, appuser uid 1001). Corepack activates pnpm@10.32.1. Verified by S02 checks 3-4 (root Dockerfile AS runner, USER nextjs) and checks 6-8 (terminal-proxy AS runner, USER appuser, tini). |
+| R080 | constraint | validated | M008/S03 | none | Both ci.yml and release.yml use ghcr.io/kethalia/hive and ghcr.io/kethalia/hive-terminal-proxy image names. Verified by grep in both workflow files. |
+| R081 | quality-attribute | validated | M008/S03 | none | release.yml extracts per-package versions via jq from changesets/action publishedPackages output. docker-app conditional on orchestratorVersion != '', docker-terminal-proxy conditional on terminalProxyVersion != ''. Only packages with version bumps trigger Docker builds. Verified by grep for hive-orchestrator and hive-terminal-proxy in release.yml. |
 
 ## Coverage Summary
 
-- Active requirements: 28
-- Mapped to slices: 28
-- Validated: 42 (R006, R007, R013, R017, R018, R019, R028, R029, R032, R033, R034, R035, R036, R037, R038, R039, R040, R042, R043, R044, R045, R046, R047, R048, R049, R050, R051, R052, R056, R057, R058, R059, R060, R061, R062, R063, R064, R065, R066, R067, R068, R069)
+- Active requirements: 18
+- Mapped to slices: 18
+- Validated: 52 (R006, R007, R013, R017, R018, R019, R028, R029, R032, R033, R034, R035, R036, R037, R038, R039, R040, R042, R043, R044, R045, R046, R047, R048, R049, R050, R051, R052, R056, R057, R058, R059, R060, R061, R062, R063, R064, R065, R066, R067, R068, R069, R072, R073, R074, R075, R076, R077, R078, R079, R080, R081)
 - Unmapped active requirements: 0
