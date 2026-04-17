@@ -16,7 +16,7 @@ Unattended task-to-PR automation with behavioral verification — the system doe
 
 **M002 in progress — 3 of 4 slices complete.**
 - S01 (Terraform + Schema + Queue Setup): complete — council template, schema columns, BullMQ queues configured
-- S02 (Council Reviewer Blueprint): complete — 5-step blueprint (clone -> diff -> review -> emit) with Claude CLI integration and strict JSON validation
+- S02 (Council Reviewer Blueprint): complete — 5-step blueprint (clone -> diff -> review -> emit) with Claude integration via base64-safe prompt passing, and JSON validation gate
 - S03 (Aggregation & PR Comment): complete — aggregation logic groups findings by file+line with >=2 consensus, markdown formatting with severity sections, PR comment posting via gh CLI, step 13 integrated into task pipeline
 - S04 (Council Dashboard): remaining — UI to display CouncilResultCard with severity badge counts and consensus highlighting; task submission form with councilSize field
 
@@ -43,10 +43,10 @@ Unattended task-to-PR automation with behavioral verification — the system doe
 - S02 (Terminal Integration & Session Management): complete — Terminal sessions nested under each workspace in sidebar with lazy-fetched agent info, session CRUD (create/kill), external-link buttons, 30s polling per expanded workspace. Full-viewport terminal page with keystroke exclusivity (stopPropagation + auto-focus). Stale entry recovery via hive:sidebar-refresh CustomEvent bridge. 10 new tests (7 sidebar + 3 keystroke integration).
 - S03 (Template Detail Page & Sidebar Polish): complete — Template detail page at /templates/[name] with SSE push flow, sidebar pin/unpin mode toggle with localStorage persistence, old workspaces listing page removed, breadcrumbs updated to /tasks. 23 new tests (12 template detail + 11 sidebar mode).
 
-**M008 in progress — 1 of 3 slices complete.**
+**M008 in progress — 2 of 3 slices complete.**
 - S01 (Changesets Setup): complete — @changesets/cli installed, independent versioning configured for both private packages, convenience scripts in root package.json
-- S02 (Dockerfile Upgrades & Compose Restructure): remaining
-- S03 (CI & Release Workflows): remaining
+- S02 (Dockerfile Upgrades & Compose Restructure): complete — Multi-stage pnpm Dockerfiles for both services (standalone Next.js + pnpm deploy for terminal-proxy), non-root users, restructured compose files (prod with GHCR images, local builds from source, dev unchanged). All 3 compose files validate.
+- S03 (CI & Release Workflows): remaining — PR CI builds both Docker images without pushing; merging a changeset to main opens a version PR; merging the version PR pushes tagged images to GHCR
 
 **Operational notes:** M001 cleanup scheduler not wired to entrypoint. M002 council can run in isolation or as part of full pipeline; initial testing with 3-reviewer council works correctly with mock data. Real GitHub integration tested via mocked gh CLI; live GitHub token handling depends on environment setup during deployment. M005 dev workflow now uses `tsx watch server.ts` instead of `next dev` to support WebSocket upgrade.
 
@@ -68,6 +68,8 @@ Repository: https://github.com/kethalia/hive
 - **Sidebar Navigation:** Directory-tree sidebar with collapsible Workspaces and Templates sections using shadcn Collapsible/SidebarMenuSub primitives. Per-section independent data fetching with 30s polling via setInterval. Floating SidebarTrigger replaces removed header/breadcrumbs. Footer shows last-refreshed timestamp, manual refresh button, and pin/unpin mode toggle. Inline Alert with retry button per section on fetch failure. Workspaces are nested Collapsibles with terminal sessions, external-link buttons (Filebrowser/KasmVNC/Code Server), and session CRUD. Agent info lazy-fetched and cached per workspace. Per-workspace 30s session polling for expanded workspaces. hive:sidebar-refresh CustomEvent bridge for stale entry recovery across component trees. Sidebar supports offcanvas (floating) and icon (pinned) modes persisted in localStorage via useSidebarMode hook. Mobile viewports render sidebar as Sheet overlay via shadcn's useIsMobile().
 - **Terminal Keystroke Exclusivity:** Terminal page uses negative margin cancellation (-m-6 -mt-14) for full-viewport rendering. stopPropagation on keydown prevents keystroke bubbling. Auto-focus on mount via term.focus(), click-to-refocus on container interaction.
 - **Versioning:** @changesets/cli configured for independent versioning across both private packages. No npm publish — changesets used for version tracking and Docker image tagging only. Built-in changelog generator (no GitHub token needed).
+- **Docker Images:** Multi-stage pnpm Dockerfiles for both services. Root app uses 3-stage build (deps/builder/runner) with standalone Next.js output and non-root nextjs user. Terminal-proxy uses 3-stage build with `pnpm deploy --filter` for workspace-correct dependency isolation, tini as PID 1, and non-root appuser. Both use corepack with pnpm@10.32.1 on node:20-alpine.
+- **Compose Files:** Three-file convention — docker-compose.yml (prod, GHCR images, restart: unless-stopped), docker-compose.local.yml (build from source with correct contexts), docker-compose.dev.yml (postgres + redis only for local dev).
 - **Deployment:** Solo operator, no auth. Docker-compose: Next.js + Postgres + Redis
 
 ## Capability Contract
