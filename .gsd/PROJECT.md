@@ -43,6 +43,11 @@ Unattended task-to-PR automation with behavioral verification — the system doe
 - S02 (Terminal Integration & Session Management): complete — Terminal sessions nested under each workspace in sidebar with lazy-fetched agent info, session CRUD (create/kill), external-link buttons, 30s polling per expanded workspace. Full-viewport terminal page with keystroke exclusivity (stopPropagation + auto-focus). Stale entry recovery via hive:sidebar-refresh CustomEvent bridge. 10 new tests (7 sidebar + 3 keystroke integration).
 - S03 (Template Detail Page & Sidebar Polish): complete — Template detail page at /templates/[name] with SSE push flow, sidebar pin/unpin mode toggle with localStorage persistence, old workspaces listing page removed, breadcrumbs updated to /tasks. 23 new tests (12 template detail + 11 sidebar mode).
 
+**M008 in progress — 1 of 3 slices complete.**
+- S01 (Changesets Setup): complete — @changesets/cli installed, independent versioning configured for both private packages, convenience scripts in root package.json
+- S02 (Dockerfile Upgrades & Compose Restructure): remaining
+- S03 (CI & Release Workflows): remaining
+
 **Operational notes:** M001 cleanup scheduler not wired to entrypoint. M002 council can run in isolation or as part of full pipeline; initial testing with 3-reviewer council works correctly with mock data. Real GitHub integration tested via mocked gh CLI; live GitHub token handling depends on environment setup during deployment. M005 dev workflow now uses `tsx watch server.ts` instead of `next dev` to support WebSocket upgrade.
 
 Repository: https://github.com/kethalia/hive
@@ -62,6 +67,7 @@ Repository: https://github.com/kethalia/hive
 - **External Tool Integration:** Workspace detail page at /workspaces/[id] embeds Filebrowser and KasmVNC in iframe panels with tab toggle and popup-out buttons. Coder Dashboard accessed via link-out. Cross-origin iframe error detection with automatic fallback to direct links. Disabled state for non-running workspaces.
 - **Sidebar Navigation:** Directory-tree sidebar with collapsible Workspaces and Templates sections using shadcn Collapsible/SidebarMenuSub primitives. Per-section independent data fetching with 30s polling via setInterval. Floating SidebarTrigger replaces removed header/breadcrumbs. Footer shows last-refreshed timestamp, manual refresh button, and pin/unpin mode toggle. Inline Alert with retry button per section on fetch failure. Workspaces are nested Collapsibles with terminal sessions, external-link buttons (Filebrowser/KasmVNC/Code Server), and session CRUD. Agent info lazy-fetched and cached per workspace. Per-workspace 30s session polling for expanded workspaces. hive:sidebar-refresh CustomEvent bridge for stale entry recovery across component trees. Sidebar supports offcanvas (floating) and icon (pinned) modes persisted in localStorage via useSidebarMode hook. Mobile viewports render sidebar as Sheet overlay via shadcn's useIsMobile().
 - **Terminal Keystroke Exclusivity:** Terminal page uses negative margin cancellation (-m-6 -mt-14) for full-viewport rendering. stopPropagation on keydown prevents keystroke bubbling. Auto-focus on mount via term.focus(), click-to-refocus on container interaction.
+- **Versioning:** @changesets/cli configured for independent versioning across both private packages. No npm publish — changesets used for version tracking and Docker image tagging only. Built-in changelog generator (no GitHub token needed).
 - **Deployment:** Solo operator, no auth. Docker-compose: Next.js + Postgres + Redis
 
 ## Capability Contract
