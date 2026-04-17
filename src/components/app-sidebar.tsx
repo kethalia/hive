@@ -143,6 +143,17 @@ export function AppSidebar({ coderUrl }: { coderUrl?: string }) {
     };
   }, [fetchAll]);
 
+  useEffect(() => {
+    const handleSidebarRefresh = () => {
+      console.log("[workspaces] Received hive:sidebar-refresh, re-fetching all data");
+      fetchAll();
+    };
+    window.addEventListener("hive:sidebar-refresh", handleSidebarRefresh);
+    return () => {
+      window.removeEventListener("hive:sidebar-refresh", handleSidebarRefresh);
+    };
+  }, [fetchAll]);
+
   const fetchAgentInfo = useCallback(async (workspaceId: string) => {
     const result = await getWorkspaceAgentAction({ workspaceId });
     if (result?.data) {

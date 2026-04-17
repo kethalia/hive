@@ -454,6 +454,43 @@ describe("AppSidebar", () => {
     expect(retryButtons.length).toBeGreaterThanOrEqual(1);
   });
 
+  it("re-fetches all data when hive:sidebar-refresh event is dispatched", async () => {
+    render(<AppSidebar />);
+
+    await waitFor(() => {
+      expect(screen.getByText("dev-box")).toBeInTheDocument();
+    });
+
+    mockListWorkspaces.mockClear();
+    mockListTemplates.mockClear();
+
+    window.dispatchEvent(new CustomEvent("hive:sidebar-refresh"));
+
+    await waitFor(() => {
+      expect(mockListWorkspaces).toHaveBeenCalledTimes(1);
+      expect(mockListTemplates).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  it("cleans up hive:sidebar-refresh listener on unmount", async () => {
+    const { unmount } = render(<AppSidebar />);
+
+    await waitFor(() => {
+      expect(screen.getByText("dev-box")).toBeInTheDocument();
+    });
+
+    unmount();
+
+    mockListWorkspaces.mockClear();
+    mockListTemplates.mockClear();
+
+    window.dispatchEvent(new CustomEvent("hive:sidebar-refresh"));
+
+    await new Promise((r) => setTimeout(r, 50));
+    expect(mockListWorkspaces).not.toHaveBeenCalled();
+    expect(mockListTemplates).not.toHaveBeenCalled();
+  });
+
   it("hides external links when agent fetch fails", async () => {
     mockGetWorkspaceAgent.mockResolvedValue({
       serverError: "No agents found",

@@ -63,7 +63,7 @@
 - Do: (1) In `terminal-client.tsx`: wrap terminal in a container that uses negative margins and calc() to fill the full viewport minus sidebar width — replace current `-m-6` / `calc(100vh - 3.5rem)` with a full-bleed approach: use `-m-6 -mt-14` and `h-[100vh] w-full` to cancel the layout padding entirely. Add `onKeyDown={e => e.stopPropagation()}` on the terminal wrapper div. (2) In `InteractiveTerminal.tsx`: after `term.open(containerRef.current)`, add `term.focus()`. Add a `useEffect` that listens for `focusin` events on the container and calls `term.focus()` when the container or its children receive focus. Store `termRef` and expose a focus method. (3) In `page.tsx`: update the error state container to also use full-viewport sizing for consistency.
 - Verify: `grep -q 'term.focus' src/components/workspaces/InteractiveTerminal.tsx && grep -q 'stopPropagation' src/app/workspaces/[id]/terminal/terminal-client.tsx`
 - Done when: Terminal page fills viewport edge-to-edge (no padding gaps), `term.focus()` called on mount, keydown events don't bubble past terminal container
-- [ ] **T03: Add stale entry error handling with sidebar force-refresh** `est:45m`
+- [x] **T03: Add stale entry error handling with sidebar force-refresh** `est:45m`
 - Why: Delivers R068 — clicking a stale sidebar entry must not leave the user in a broken state
 - Files: `src/app/workspaces/[id]/terminal/page.tsx`, `src/app/workspaces/[id]/terminal/terminal-client.tsx`, `src/components/app-sidebar.tsx`
 - Do: (1) In `page.tsx`: when `getWorkspaceAgentAction` fails, dispatch `window.dispatchEvent(new CustomEvent('hive:sidebar-refresh'))` alongside showing the existing error Alert. Add a "Back to workspaces" link in the error state. (2) In `terminal-client.tsx`: when no `?session` param is present, also dispatch the refresh event (stale link without session param). (3) In `app-sidebar.tsx`: add a `useEffect` that listens for the `hive:sidebar-refresh` custom event and calls `fetchAll()` when received. Clean up the listener on unmount. (4) Extend sidebar tests to verify the custom event listener is registered and triggers fetchAll.
@@ -205,7 +205,7 @@ Currently each workspace is a flat `SidebarMenuSubItem` with just a name and sta
   - Files: `src/components/app-sidebar.tsx`, `src/__tests__/components/app-sidebar.test.tsx`
   - Verify: pnpm vitest run src/__tests__/components/app-sidebar.test.tsx
 
-- [ ] **T02: Make terminal page full-viewport with keystroke exclusivity** `est:1h`
+- [x] **T02: Make terminal page full-viewport with keystroke exclusivity** `est:1h`
   ---
 estimated_steps: 4
 estimated_files: 3
