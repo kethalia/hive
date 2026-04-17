@@ -6,8 +6,7 @@ RUN corepack enable && corepack prepare pnpm@${PNPM_VERSION} --activate
 WORKDIR /app
 COPY pnpm-lock.yaml package.json pnpm-workspace.yaml ./
 COPY services/terminal-proxy/package.json services/terminal-proxy/package.json
-COPY prisma/ prisma/
-RUN pnpm install --frozen-lockfile
+RUN pnpm install --frozen-lockfile --ignore-scripts
 
 FROM node:20-alpine AS builder
 ARG PNPM_VERSION
@@ -16,6 +15,7 @@ WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY --from=deps /app/services/terminal-proxy/node_modules ./services/terminal-proxy/node_modules
 COPY . .
+RUN npx prisma generate
 RUN pnpm build
 
 FROM node:20-alpine AS runner

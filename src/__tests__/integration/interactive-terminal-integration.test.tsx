@@ -183,7 +183,6 @@ describe("InteractiveTerminal integration — ResizeObserver", () => {
       resizeObserverCallback!([{ contentRect: { width: 800, height: 600 } }]);
     });
 
-    // ResizeObserver callback debounces fit() with a 50ms setTimeout
     await act(async () => {
       await new Promise((r) => setTimeout(r, 60));
     });
