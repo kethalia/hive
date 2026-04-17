@@ -218,3 +218,9 @@ When test files need per-test control over mocked hook return values, use `vi.ho
 **Discovered:** 2026-04-14 during M005/S04/T03
 
 The `<iframe>` element's `onError` event does not fire for cross-origin blocks — only for network-level failures. To detect iframe embedding failures (X-Frame-Options, CSP), use a `setTimeout` after mount and attempt to access `iframe.contentWindow.document`. If this throws a `DOMException` (cross-origin), the iframe is blocked. In tests (jsdom), use `Object.defineProperty(iframeElement, 'contentWindow', { get() { throw new DOMException(...) } })` to simulate this — mocking `document.createElement` doesn't work because React creates elements internally.
+
+## CustomEvent Bridge for Cross-Component-Tree Communication
+
+**Discovered:** 2026-04-17 during M007/S02/T03
+
+When two components live in different React component trees (e.g., a page component and a sidebar in a layout), React context and props can't bridge between them. Use `window.dispatchEvent(new CustomEvent('event-name'))` on the sender side and `window.addEventListener('event-name', handler)` in a `useEffect` on the receiver side. Clean up the listener on unmount. This avoids coupling via global state libraries for simple one-directional signals. Pattern used for `hive:sidebar-refresh` — terminal pages dispatch when detecting stale data, sidebar listens and re-fetches. For testing, use `window.dispatchEvent(new CustomEvent('event-name'))` in test code and assert the handler side-effects.
