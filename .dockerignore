@@ -2,5 +2,14 @@ node_modules
 .next
 .git
 .gsd
+.changeset
+.github
+.env
+.env.*
+!.env.example
 ai-dev
 web3-dev
+docs
+coverage
+*.md
+!README.md

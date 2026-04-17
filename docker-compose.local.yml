@@ -23,7 +23,11 @@ services:
       dockerfile: services/terminal-proxy/Dockerfile
     ports:
       - "3001:3001"
+    depends_on:
+      postgres:
+        condition: service_healthy
     environment:
+      - DATABASE_URL=postgresql://hive:hive@postgres:5432/hive
       - CODER_URL=${CODER_URL:-}
       - CODER_AGENT_URL=${CODER_AGENT_URL:-}
       - CODER_SESSION_TOKEN=${CODER_SESSION_TOKEN:-}

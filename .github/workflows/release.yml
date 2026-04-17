@@ -52,9 +52,11 @@ jobs:
       - name: Extract published versions
         id: versions
         if: steps.changesets.outputs.published == 'true'
+        env:
+          PUBLISHED_PACKAGES: ${{ steps.changesets.outputs.publishedPackages }}
         run: |
-          ORCHESTRATOR_VERSION=$(echo '${{ steps.changesets.outputs.publishedPackages }}' | jq -r '.[] | select(.name == "hive-orchestrator") | .version')
-          TERMINAL_PROXY_VERSION=$(echo '${{ steps.changesets.outputs.publishedPackages }}' | jq -r '.[] | select(.name == "hive-terminal-proxy") | .version')
+          ORCHESTRATOR_VERSION=$(echo "$PUBLISHED_PACKAGES" | jq -r '.[] | select(.name == "hive-orchestrator") | .version // empty')
+          TERMINAL_PROXY_VERSION=$(echo "$PUBLISHED_PACKAGES" | jq -r '.[] | select(.name == "hive-terminal-proxy") | .version // empty')
           echo "orchestratorVersion=${ORCHESTRATOR_VERSION}" >> "$GITHUB_OUTPUT"
           echo "terminalProxyVersion=${TERMINAL_PROXY_VERSION}" >> "$GITHUB_OUTPUT"
 
@@ -82,9 +84,10 @@ jobs:
 
       - name: Compute tags
         id: tags
+        env:
+          VERSION: ${{ needs.release.outputs.orchestratorVersion }}
+          SHA: ${{ github.sha }}
         run: |
-          VERSION="${{ needs.release.outputs.orchestratorVersion }}"
-          SHA="${{ github.sha }}"
           echo "tags<<EOF" >> "$GITHUB_OUTPUT"
           echo "ghcr.io/kethalia/hive:v${VERSION}" >> "$GITHUB_OUTPUT"
           echo "ghcr.io/kethalia/hive:sha-${SHA:0:7}" >> "$GITHUB_OUTPUT"
@@ -131,9 +134,10 @@ jobs:
 
       - name: Compute tags
         id: tags
+        env:
+          VERSION: ${{ needs.release.outputs.terminalProxyVersion }}
+          SHA: ${{ github.sha }}
         run: |
-          VERSION="${{ needs.release.outputs.terminalProxyVersion }}"
-          SHA="${{ github.sha }}"
           echo "tags<<EOF" >> "$GITHUB_OUTPUT"
           echo "ghcr.io/kethalia/hive-terminal-proxy:v${VERSION}" >> "$GITHUB_OUTPUT"
           echo "ghcr.io/kethalia/hive-terminal-proxy:sha-${SHA:0:7}" >> "$GITHUB_OUTPUT"
