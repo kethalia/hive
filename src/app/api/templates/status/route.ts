@@ -1,17 +1,16 @@
 import { NextResponse } from "next/server";
-import { compareTemplates } from "@/lib/templates/staleness";
-import { KNOWN_TEMPLATES } from "@/lib/templates/staleness";
+import { cookies } from "next/headers";
+import { compareTemplates, KNOWN_TEMPLATES } from "@/lib/templates/staleness";
+import { getSession } from "@/lib/auth/session";
 
-/**
- * GET /api/templates/status
- *
- * Returns staleness information for all known templates.
- * Calls compareTemplates which diffs local files against the active
- * remote version in Coder.
- */
 export async function GET() {
   try {
-    const statuses = await compareTemplates([...KNOWN_TEMPLATES]);
+    const cookieStore = await cookies();
+    const session = await getSession(cookieStore);
+    if (!session) {
+      return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
+    }
+    const statuses = await compareTemplates([...KNOWN_TEMPLATES], session.user.id);
     return NextResponse.json(statuses);
   } catch (err) {
     console.error(`[api/templates/status] ${err instanceof Error ? err.message : String(err)}`);

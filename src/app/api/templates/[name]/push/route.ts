@@ -1,23 +1,22 @@
 import { NextRequest, NextResponse } from "next/server";
 import { randomUUID } from "crypto";
+import { cookies } from "next/headers";
 import { getTemplatePushQueue } from "@/lib/templates/push-queue";
 import { KNOWN_TEMPLATES } from "@/lib/templates/staleness";
+import { getSession } from "@/lib/auth/session";
 
-/**
- * POST /api/templates/[name]/push
- *
- * Enqueues a template push job for the given template name.
- * Returns the jobId so the client can open the SSE stream.
- *
- * Rejects unknown template names with 400.
- */
 export async function POST(
   _request: NextRequest,
   { params }: { params: Promise<{ name: string }> }
 ) {
+  const cookieStore = await cookies();
+  const session = await getSession(cookieStore);
+  if (!session) {
+    return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
+  }
+
   const { name } = await params;
 
-  // Validate name against known templates
   if (!(KNOWN_TEMPLATES as readonly string[]).includes(name)) {
     return NextResponse.json(
       { error: `Unknown template: "${name}". Known: ${KNOWN_TEMPLATES.join(", ")}` },
@@ -31,7 +30,7 @@ export async function POST(
     const queue = getTemplatePushQueue();
     await queue.add(
       `push-${name}`,
-      { templateName: name, jobId },
+      { templateName: name, jobId, userId: session.user.id },
       { jobId }
     );
   } catch (err) {

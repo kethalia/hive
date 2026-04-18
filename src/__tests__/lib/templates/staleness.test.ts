@@ -9,9 +9,36 @@ import {
   compareTemplates,
 } from "@/lib/templates/staleness";
 
+// ── Mock getCoderClientForUser ──────────────────────────────────
+
+const mockListTemplates = vi.fn();
+const mockGetTemplateVersion = vi.fn();
+const mockFetchTemplateFiles = vi.fn();
+
+vi.mock("@/lib/coder/user-client", () => {
+  class UserClientException extends Error {
+    constructor(public readonly code: string, message: string) {
+      super(message);
+      this.name = "UserClientException";
+    }
+  }
+  return {
+    getCoderClientForUser: vi.fn().mockImplementation(async () => ({
+      listTemplates: (...args: unknown[]) => mockListTemplates(...args),
+      getTemplateVersion: (...args: unknown[]) => mockGetTemplateVersion(...args),
+      fetchTemplateFiles: (...args: unknown[]) => mockFetchTemplateFiles(...args),
+    })),
+    UserClientException,
+    UserClientError: {
+      NO_TOKEN: "NO_TOKEN",
+      DECRYPT_FAILED: "DECRYPT_FAILED",
+      USER_NOT_FOUND: "USER_NOT_FOUND",
+    },
+  };
+});
+
 // ── Helpers ──────────────────────────────────────────────────────
 
-/** Create a tar buffer from a map of { path: content } entries. */
 function createTarBuffer(
   files: Record<string, string>
 ): Promise<Buffer> {
@@ -37,7 +64,6 @@ describe("hashLocalTemplate", () => {
 
   beforeEach(async () => {
     tempDir = await mkdtemp(join(tmpdir(), "staleness-test-"));
-    // Point process.cwd at the temp dir so hashLocalTemplate finds templates/<name>/
     process.cwd = () => tempDir;
   });
 
@@ -55,7 +81,7 @@ describe("hashLocalTemplate", () => {
     const hash2 = await hashLocalTemplate("test-tpl");
 
     expect(hash1).toBe(hash2);
-    expect(hash1).toMatch(/^[a-f0-9]{64}$/); // sha256 hex
+    expect(hash1).toMatch(/^[a-f0-9]{64}$/);
   });
 
   it("returns different hash when file content changes", async () => {
@@ -78,7 +104,6 @@ describe("hashLocalTemplate", () => {
 
     const hashWithout = await hashLocalTemplate("test-tpl");
 
-    // Add a .terraform directory — hash should not change
     await mkdir(join(tplDir, ".terraform"), { recursive: true });
     await writeFile(join(tplDir, ".terraform", "lock.json"), "{}");
 
@@ -121,7 +146,6 @@ describe("hashRemoteTar", () => {
   });
 
   it("is order-independent (deterministic sort)", async () => {
-    // Create two tars with same files in different insertion order
     const buf1 = await createTarBuffer({
       "a.tf": "aaa",
       "b.tf": "bbb",
@@ -143,69 +167,39 @@ describe("hashRemoteTar", () => {
 describe("compareTemplates", () => {
   let tempDir: string;
   const origCwd = process.cwd;
-  let fetchSpy: ReturnType<typeof vi.fn>;
+
+  let consoleErrorSpy: ReturnType<typeof vi.spyOn>;
 
   beforeEach(async () => {
     tempDir = await mkdtemp(join(tmpdir(), "staleness-cmp-"));
     process.cwd = () => tempDir;
-
-    fetchSpy = vi.fn();
-    vi.stubGlobal("fetch", fetchSpy);
-    vi.stubEnv("CODER_URL", "https://coder.test");
-    vi.stubEnv("CODER_SESSION_TOKEN", "test-token");
-    vi.spyOn(console, "error").mockImplementation(() => {});
+    mockListTemplates.mockReset();
+    mockGetTemplateVersion.mockReset();
+    mockFetchTemplateFiles.mockReset();
+    consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
   });
 
   afterEach(async () => {
     process.cwd = origCwd;
-    vi.restoreAllMocks();
-    vi.unstubAllEnvs();
+    consoleErrorSpy.mockRestore();
     await rm(tempDir, { recursive: true, force: true });
   });
 
-  /** Mock fetch to return JSON for a given URL pattern. */
-  function mockCoderApi(responses: Record<string, unknown>) {
-    fetchSpy.mockImplementation(async (url: string) => {
-      for (const [pattern, body] of Object.entries(responses)) {
-        if (url.includes(pattern)) {
-          if (body instanceof Buffer) {
-            return new Response(body, {
-              status: 200,
-              headers: { "Content-Type": "application/x-tar" },
-            });
-          }
-          return new Response(JSON.stringify(body), {
-            status: 200,
-            headers: { "Content-Type": "application/json" },
-          });
-        }
-      }
-      return new Response("not found", { status: 404 });
-    });
-  }
-
   it("returns stale=true when local and remote hashes differ", async () => {
-    // Set up local template with different content than remote
     await mkdir(join(tempDir, "templates", "hive"), { recursive: true });
     await writeFile(join(tempDir, "templates", "hive", "main.tf"), "local content v2");
 
     const remoteTar = await createTarBuffer({ "main.tf": "remote content v1" });
 
-    mockCoderApi({
-      "/api/v2/organizations/default/templates": [
-        { id: "t1", name: "hive", active_version_id: "ver-1", updated_at: "2026-04-01T00:00:00Z" },
-      ],
-      "/api/v2/templateversions/ver-1": {
-        id: "ver-1",
-        name: "v1",
-        message: "initial",
-        job: { file_id: "file-1" },
-        created_at: "2026-04-01T00:00:00Z",
-      },
-      "/api/v2/files/file-1": remoteTar,
+    mockListTemplates.mockResolvedValue([
+      { id: "t1", name: "hive", activeVersionId: "ver-1", updatedAt: "2026-04-01T00:00:00Z" },
+    ]);
+    mockGetTemplateVersion.mockResolvedValue({
+      id: "ver-1", name: "v1", message: "initial", fileId: "file-1", createdAt: "2026-04-01T00:00:00Z",
     });
+    mockFetchTemplateFiles.mockResolvedValue(remoteTar);
 
-    const results = await compareTemplates(["hive"]);
+    const results = await compareTemplates(["hive"], "user-123");
 
     expect(results).toHaveLength(1);
     expect(results[0].name).toBe("hive");
@@ -216,27 +210,20 @@ describe("compareTemplates", () => {
   });
 
   it("returns stale=false when local and remote hashes match", async () => {
-    // Same content locally and in the tar
     await mkdir(join(tempDir, "templates", "hive"), { recursive: true });
     await writeFile(join(tempDir, "templates", "hive", "main.tf"), "same content");
 
     const remoteTar = await createTarBuffer({ "main.tf": "same content" });
 
-    mockCoderApi({
-      "/api/v2/organizations/default/templates": [
-        { id: "t1", name: "hive", active_version_id: "ver-1", updated_at: "2026-04-01T00:00:00Z" },
-      ],
-      "/api/v2/templateversions/ver-1": {
-        id: "ver-1",
-        name: "v1",
-        message: "initial",
-        job: { file_id: "file-1" },
-        created_at: "2026-04-01T00:00:00Z",
-      },
-      "/api/v2/files/file-1": remoteTar,
+    mockListTemplates.mockResolvedValue([
+      { id: "t1", name: "hive", activeVersionId: "ver-1", updatedAt: "2026-04-01T00:00:00Z" },
+    ]);
+    mockGetTemplateVersion.mockResolvedValue({
+      id: "ver-1", name: "v1", message: "initial", fileId: "file-1", createdAt: "2026-04-01T00:00:00Z",
     });
+    mockFetchTemplateFiles.mockResolvedValue(remoteTar);
 
-    const results = await compareTemplates(["hive"]);
+    const results = await compareTemplates(["hive"], "user-123");
 
     expect(results).toHaveLength(1);
     expect(results[0].stale).toBe(false);
@@ -247,11 +234,9 @@ describe("compareTemplates", () => {
     await mkdir(join(tempDir, "templates", "new-tpl"), { recursive: true });
     await writeFile(join(tempDir, "templates", "new-tpl", "main.tf"), "new");
 
-    mockCoderApi({
-      "/api/v2/organizations/default/templates": [], // no templates
-    });
+    mockListTemplates.mockResolvedValue([]);
 
-    const results = await compareTemplates(["new-tpl"]);
+    const results = await compareTemplates(["new-tpl"], "user-123");
 
     expect(results).toHaveLength(1);
     expect(results[0].stale).toBe(true);
@@ -268,45 +253,54 @@ describe("compareTemplates", () => {
     const hiveTar = await createTarBuffer({ "main.tf": "hive content" });
     const aiDevTar = await createTarBuffer({ "main.tf": "different content" });
 
-    mockCoderApi({
-      "/api/v2/organizations/default/templates": [
-        { id: "t1", name: "hive", active_version_id: "ver-1", updated_at: "2026-04-01T00:00:00Z" },
-        { id: "t2", name: "ai-dev", active_version_id: "ver-2", updated_at: "2026-04-02T00:00:00Z" },
-      ],
-      "/api/v2/templateversions/ver-1": {
-        id: "ver-1", name: "v1", message: "", job: { file_id: "file-1" }, created_at: "2026-04-01T00:00:00Z",
-      },
-      "/api/v2/templateversions/ver-2": {
-        id: "ver-2", name: "v2", message: "", job: { file_id: "file-2" }, created_at: "2026-04-02T00:00:00Z",
-      },
-      "/api/v2/files/file-1": hiveTar,
-      "/api/v2/files/file-2": aiDevTar,
+    mockListTemplates.mockResolvedValue([
+      { id: "t1", name: "hive", activeVersionId: "ver-1", updatedAt: "2026-04-01T00:00:00Z" },
+      { id: "t2", name: "ai-dev", activeVersionId: "ver-2", updatedAt: "2026-04-02T00:00:00Z" },
+    ]);
+    mockGetTemplateVersion.mockImplementation(async (versionId: string) => {
+      if (versionId === "ver-1") return { id: "ver-1", name: "v1", message: "", fileId: "file-1", createdAt: "2026-04-01T00:00:00Z" };
+      return { id: "ver-2", name: "v2", message: "", fileId: "file-2", createdAt: "2026-04-02T00:00:00Z" };
+    });
+    mockFetchTemplateFiles.mockImplementation(async (fileId: string) => {
+      return fileId === "file-1" ? hiveTar : aiDevTar;
     });
 
-    const results = await compareTemplates(["hive", "ai-dev"]);
+    const results = await compareTemplates(["hive", "ai-dev"], "user-123");
 
     expect(results).toHaveLength(2);
     expect(results[0].name).toBe("hive");
-    expect(results[0].stale).toBe(false); // same content
+    expect(results[0].stale).toBe(false);
     expect(results[1].name).toBe("ai-dev");
-    expect(results[1].stale).toBe(true); // different content
+    expect(results[1].stale).toBe(true);
   });
 
-  it("throws when CODER_URL is not set", async () => {
-    vi.stubEnv("CODER_URL", "");
+  it("uses getCoderClientForUser with provided userId", async () => {
+    const { getCoderClientForUser } = await import("@/lib/coder/user-client");
+    await mkdir(join(tempDir, "templates", "hive"), { recursive: true });
+    await writeFile(join(tempDir, "templates", "hive", "main.tf"), "content");
+    mockListTemplates.mockResolvedValue([]);
 
-    await expect(compareTemplates(["hive"])).rejects.toThrow(
-      /CODER_URL and CODER_SESSION_TOKEN must be set/
+    await compareTemplates(["hive"], "user-456");
+
+    expect(getCoderClientForUser).toHaveBeenCalledWith("user-456");
+  });
+
+  it("throws USER_NOT_FOUND for invalid userId", async () => {
+    const { getCoderClientForUser, UserClientException } = await import("@/lib/coder/user-client");
+    vi.mocked(getCoderClientForUser).mockRejectedValueOnce(
+      new (UserClientException as unknown as new (code: string, msg: string) => Error)("USER_NOT_FOUND", "User not-real not found")
     );
+
+    await expect(compareTemplates(["hive"], "not-real")).rejects.toThrow("User not-real not found");
   });
 
   it("returns stale=false for all templates when Coder is unreachable", async () => {
     await mkdir(join(tempDir, "templates", "hive"), { recursive: true });
     await writeFile(join(tempDir, "templates", "hive", "main.tf"), "content");
 
-    fetchSpy.mockRejectedValue(new Error("network error"));
+    mockListTemplates.mockRejectedValue(new Error("network error"));
 
-    const results = await compareTemplates(["hive"]);
+    const results = await compareTemplates(["hive"], "user-123");
 
     expect(results).toHaveLength(1);
     expect(results[0].stale).toBe(false);

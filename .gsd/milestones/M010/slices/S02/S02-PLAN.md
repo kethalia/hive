@@ -164,7 +164,7 @@ Negative Tests:
   - Files: `src/lib/api/tasks.ts`, `src/lib/queue/task-queue.ts`, `src/lib/queue/council-queues.ts`, `src/lib/council/dispatch.ts`, `src/__tests__/queue/task-queue.test.ts`, `src/__tests__/queue/council-queues.test.ts`
   - Verify: pnpm vitest run src/__tests__/queue/ && rg 'CODER_SESSION_TOKEN|CODER_URL' src/lib/queue/ src/lib/api/tasks.ts src/lib/council/dispatch.ts | grep -v test; test $? -eq 1
 
-- [ ] **T04: Rewire template operations to per-user credentials and remove static env var requirements** `est:45m`
+- [x] **T04: Rewire template operations to per-user credentials and remove static env var requirements** `est:45m`
   Parameterize template staleness checking and push operations to use per-user credentials instead of env vars. Remove CODER_URL and CODER_SESSION_TOKEN from .env.example. Add ENCRYPTION_KEY. Verify no remaining env var references in src/ (R096).
 
 Steps:
