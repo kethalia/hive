@@ -1,7 +1,7 @@
 import { Queue, Worker, type Job } from "bullmq";
 import { getRedisConnection } from "./connection";
 import { getDb } from "@/lib/db";
-import type { CoderClient } from "@/lib/coder/client";
+import { getCoderClientForUser } from "@/lib/coder/user-client";
 import { runBlueprint } from "@/lib/blueprint/runner";
 import { createHydrateStep } from "@/lib/blueprint/steps/hydrate";
 import { createRulesStep } from "@/lib/blueprint/steps/rules";
@@ -34,6 +34,7 @@ export interface TaskJobData {
   repoUrl: string;
   prompt: string;
   branchName: string;
+  userId: string;
   params: Record<string, string>;
 }
 
@@ -73,7 +74,7 @@ export function getTaskQueue(): Queue<TaskJobData> {
  * Concurrency defaults to 5 (env WORKER_CONCURRENCY), enabling
  * parallel task execution per R008.
  */
-export function createTaskWorker(coderClient: CoderClient): Worker<TaskJobData> {
+export function createTaskWorker(): Worker<TaskJobData> {
   const concurrency = parseInt(process.env.WORKER_CONCURRENCY ?? String(DEFAULT_WORKER_CONCURRENCY), 10);
   const templateId = process.env.CODER_WORKER_TEMPLATE_ID ?? "";
   const verifierTemplateId = process.env.CODER_VERIFIER_TEMPLATE_ID ?? "";
@@ -83,7 +84,7 @@ export function createTaskWorker(coderClient: CoderClient): Worker<TaskJobData> 
   const worker = new Worker<TaskJobData>(
     QUEUE_NAME,
     async (job: Job<TaskJobData>) => {
-      const { taskId, repoUrl, prompt, branchName, params } = job.data;
+      const { taskId, repoUrl, prompt, branchName, userId, params } = job.data;
       const db = getDb();
       const graceMs = parseInt(process.env.CLEANUP_GRACE_MS ?? String(DEFAULT_CLEANUP_GRACE_MS), 10);
 
@@ -92,6 +93,12 @@ export function createTaskWorker(coderClient: CoderClient): Worker<TaskJobData> 
       let verifierWorkspaceId: string | undefined;
 
       console.log(`[queue] Processing job ${job.id} for task ${taskId}`);
+
+      // Resolve per-user Coder credentials for this job
+      if (!userId) {
+        throw new Error(`[queue] Job ${job.id} for task ${taskId} has no userId — cannot resolve Coder credentials`);
+      }
+      const coderClient = await getCoderClientForUser(userId);
 
       try {
         // 1. Update task status to 'running'
@@ -369,6 +376,7 @@ export function createTaskWorker(coderClient: CoderClient): Worker<TaskJobData> 
               prUrl: ctx.prUrl ?? "",
               repoUrl,
               branchName,
+              userId,
             });
           } catch (councilError) {
             // D015: Council failure is informational — task stays done

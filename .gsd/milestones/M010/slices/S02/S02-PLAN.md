@@ -127,7 +127,7 @@ Negative Tests:
   - Files: `src/lib/actions/workspaces.ts`, `src/app/api/workspace-proxy/[workspaceId]/[[...path]]/route.ts`, `src/__tests__/actions/workspaces.test.ts`
   - Verify: pnpm vitest run src/__tests__/actions/workspaces.test.ts && rg 'CODER_SESSION_TOKEN|CODER_URL' src/lib/actions/workspaces.ts | grep -v test; test $? -eq 1
 
-- [ ] **T03: Rewire BullMQ task and council workers to resolve per-user credentials per-job** `est:1h`
+- [x] **T03: Rewire BullMQ task and council workers to resolve per-user credentials per-job** `est:1h`
   Update task creation to accept userId and store it on the Task record (R095). Rewire task worker and council worker to resolve the submitting user's decrypted API key per-job instead of using injected shared CoderClient (R094). Propagate userId through the council dispatch chain.
 
 Steps:

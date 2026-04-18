@@ -22,6 +22,7 @@ function slugify(text: string): string {
 export async function createTask(input: {
   prompt: string;
   repoUrl: string;
+  userId: string;
   attachments?: Array<{ name: string; data: string; type: string }> | null;
   councilSize?: number;
 }) {
@@ -39,6 +40,7 @@ export async function createTask(input: {
       branch: branchName,
       attachments: input.attachments ?? undefined,
       councilSize: input.councilSize ?? 3,
+      userId: input.userId,
     },
   });
 
@@ -50,6 +52,7 @@ export async function createTask(input: {
     repoUrl: input.repoUrl,
     prompt: input.prompt,
     branchName,
+    userId: input.userId,
     params: {},
   };
 

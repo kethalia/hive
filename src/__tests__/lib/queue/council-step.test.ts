@@ -116,14 +116,19 @@ vi.mock("@/lib/council/dispatch", () => ({
   dispatchCouncilReview: (...args: unknown[]) => mockDispatchCouncilReview(...args),
 }));
 
+// Mock getCoderClientForUser
+const mockGetCoderClientForUser = vi.fn();
+vi.mock("@/lib/coder/user-client", () => ({
+  getCoderClientForUser: (...args: unknown[]) => mockGetCoderClientForUser(...args),
+}));
+
 // ── Imports under test ────────────────────────────────────────────
 
 import { createTaskWorker, type TaskJobData } from "@/lib/queue/task-queue";
-import type { CoderClient } from "@/lib/coder/client";
 
 // ── Helpers ───────────────────────────────────────────────────────
 
-function makeMockCoderClient(): CoderClient {
+function makeMockCoderClient() {
   return {
     createWorkspace: vi.fn().mockResolvedValue({
       id: "ws-001",
@@ -136,7 +141,7 @@ function makeMockCoderClient(): CoderClient {
     getWorkspaceAgentName: vi.fn().mockResolvedValue("hive-worker-task001.main"),
     stopWorkspace: vi.fn().mockResolvedValue(undefined),
     deleteWorkspace: vi.fn().mockResolvedValue(undefined),
-  } as unknown as CoderClient;
+  };
 }
 
 const fakeJobData: TaskJobData = {
@@ -144,6 +149,7 @@ const fakeJobData: TaskJobData = {
   repoUrl: "https://github.com/test/repo",
   prompt: "Fix the bug",
   branchName: "hive/task001/fix",
+  userId: "user-001",
   params: {},
 };
 
@@ -191,6 +197,9 @@ describe("Task-queue council step (step 13)", () => {
     // Default: dispatch resolves successfully
     mockDispatchCouncilReview.mockResolvedValue(true);
 
+    // Default: getCoderClientForUser returns a standard mock client
+    mockGetCoderClientForUser.mockResolvedValue(makeMockCoderClient());
+
     // Default: verifier blueprint also returns success (no prUrl) so it doesn't
     // interfere; overridden per test when needed
     let callCount = 0;
@@ -224,8 +233,7 @@ describe("Task-queue council step (step 13)", () => {
   // ── Happy path ────────────────────────────────────────────────────
 
   it("calls dispatchCouncilReview with correct params when prUrl is set", async () => {
-    const client = makeMockCoderClient();
-    createTaskWorker(client);
+    createTaskWorker();
     const processor = getProcessor();
 
     await processor({ id: "job-1", data: fakeJobData });
@@ -236,6 +244,7 @@ describe("Task-queue council step (step 13)", () => {
       prUrl: "https://github.com/test/repo/pull/1",
       repoUrl: fakeJobData.repoUrl,
       branchName: fakeJobData.branchName,
+      userId: fakeJobData.userId,
     });
   });
 
@@ -247,8 +256,7 @@ describe("Task-queue council step (step 13)", () => {
       totalDurationMs: 10,
     }));
 
-    const client = makeMockCoderClient();
-    createTaskWorker(client);
+    createTaskWorker();
     const processor = getProcessor();
 
     await processor({ id: "job-3", data: fakeJobData });
@@ -264,8 +272,7 @@ describe("Task-queue council step (step 13)", () => {
   it("dispatch failure does not change task status — stays done (D015)", async () => {
     mockDispatchCouncilReview.mockRejectedValue(new Error("Redis connection refused"));
 
-    const client = makeMockCoderClient();
-    createTaskWorker(client);
+    createTaskWorker();
     const processor = getProcessor();
 
     // Should not throw
@@ -282,8 +289,7 @@ describe("Task-queue council step (step 13)", () => {
   it("dispatch error is caught and logged, task status unchanged", async () => {
     mockDispatchCouncilReview.mockRejectedValue(new Error("Network error"));
 
-    const client = makeMockCoderClient();
-    createTaskWorker(client);
+    createTaskWorker();
     const processor = getProcessor();
 
     await expect(processor({ id: "job-8", data: fakeJobData })).resolves.not.toThrow();

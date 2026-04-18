@@ -1,7 +1,7 @@
 "use server";
 
 import { z } from "zod";
-import { actionClient } from "@/lib/safe-action";
+import { actionClient, authActionClient } from "@/lib/safe-action";
 import { createTask, getTask, listTasks } from "@/lib/api/tasks";
 
 // ── Schemas ───────────────────────────────────────────────────────
@@ -25,12 +25,13 @@ const getTaskSchema = z.object({
 
 // ── Actions ───────────────────────────────────────────────────────
 
-export const createTaskAction = actionClient
+export const createTaskAction = authActionClient
   .inputSchema(createTaskSchema)
-  .action(async ({ parsedInput }) => {
+  .action(async ({ parsedInput, ctx }) => {
     const task = await createTask({
       prompt: parsedInput.prompt,
       repoUrl: parsedInput.repoUrl,
+      userId: ctx.user.id,
       attachments: parsedInput.attachments ?? null,
       councilSize: parsedInput.councilSize,
     });

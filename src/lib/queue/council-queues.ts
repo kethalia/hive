@@ -7,7 +7,6 @@ import {
 import { getRedisConnection } from "./connection";
 import { createCouncilReviewerProcessor } from "@/lib/council/reviewer-processor";
 import { createCouncilAggregatorProcessor } from "@/lib/council/aggregator-processor";
-import type { CoderClient } from "@/lib/coder/client";
 
 // ── Job data interfaces ────────────────────────────────────────────
 
@@ -18,6 +17,7 @@ export interface CouncilReviewerJobData {
   prUrl: string;
   repoUrl: string;
   branchName: string;
+  userId: string;
 }
 
 /** Data required by a council aggregator job. */
@@ -72,13 +72,11 @@ export function getCouncilFlowProducer(): FlowProducer {
  * Creates a council reviewer Worker.
  * Each worker instance processes jobs from the council-reviewer queue.
  * Concurrency 5 — up to five simultaneous reviewer agents per process.
- *
- * @param coderClient - Authenticated Coder API client passed to the processor.
  */
-export function createCouncilReviewerWorker(coderClient: CoderClient): Worker<CouncilReviewerJobData> {
+export function createCouncilReviewerWorker(): Worker<CouncilReviewerJobData> {
   return new Worker<CouncilReviewerJobData>(
     COUNCIL_REVIEWER_QUEUE,
-    createCouncilReviewerProcessor(coderClient),
+    createCouncilReviewerProcessor(),
     {
       connection: getRedisConnection(),
       concurrency: 5,
