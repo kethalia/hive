@@ -1,0 +1,124 @@
+import { PrismaClient } from "@prisma/client";
+import { encrypt } from "./encryption";
+import { createSession } from "./session";
+import { CoderClient } from "../coder/client";
+
+const prisma = new PrismaClient();
+
+const API_KEY_CREATION_RETRIES = 3;
+
+function getTokenEncryptionKey(): string {
+  const key = process.env.TOKEN_ENCRYPTION_KEY;
+  if (!key) {
+    throw new Error(
+      "TOKEN_ENCRYPTION_KEY environment variable is not set"
+    );
+  }
+  if (Buffer.from(key, "hex").length !== 32) {
+    throw new Error(
+      "TOKEN_ENCRYPTION_KEY must be exactly 64 hex characters (32 bytes)"
+    );
+  }
+  return key;
+}
+
+export interface LoginResult {
+  sessionId: string;
+  user: {
+    id: string;
+    username: string;
+    email: string;
+    coderUrl: string;
+  };
+}
+
+export async function performLogin(
+  coderUrl: string,
+  email: string,
+  password: string
+): Promise<LoginResult> {
+  const validation = await CoderClient.validateInstance(coderUrl);
+  if (!validation.valid) {
+    throw new Error(`Invalid Coder instance: ${validation.reason}`);
+  }
+
+  console.log(`[login] Coder instance validated: ${coderUrl}`);
+
+  const loginResult = await CoderClient.login(coderUrl, email, password);
+  console.log(`[login] Authenticated user: ${loginResult.username}`);
+
+  let credential = loginResult.sessionToken;
+  let usedApiKey = false;
+
+  for (let attempt = 1; attempt <= API_KEY_CREATION_RETRIES; attempt++) {
+    const apiKey = await CoderClient.createApiKey(
+      coderUrl,
+      loginResult.sessionToken,
+      loginResult.userId
+    );
+    if (apiKey) {
+      credential = apiKey;
+      usedApiKey = true;
+      console.log(`[login] API key created on attempt ${attempt}`);
+      break;
+    }
+    console.log(
+      `[login] API key creation attempt ${attempt}/${API_KEY_CREATION_RETRIES} failed`
+    );
+  }
+
+  if (!usedApiKey) {
+    console.log("[login] Falling back to session token as credential (R101)");
+  }
+
+  const encryptionKey = getTokenEncryptionKey();
+  const encrypted = encrypt(credential, encryptionKey);
+
+  const user = await prisma.user.upsert({
+    where: {
+      coderUrl_coderUserId: {
+        coderUrl: coderUrl.replace(/\/+$/, ""),
+        coderUserId: loginResult.userId,
+      },
+    },
+    update: {
+      username: loginResult.username,
+      email,
+    },
+    create: {
+      coderUrl: coderUrl.replace(/\/+$/, ""),
+      coderUserId: loginResult.userId,
+      username: loginResult.username,
+      email,
+    },
+  });
+
+  await prisma.coderToken.upsert({
+    where: { id: user.id },
+    update: {
+      ciphertext: encrypted.ciphertext,
+      iv: encrypted.iv,
+      authTag: encrypted.authTag,
+      version: { increment: 1 },
+    },
+    create: {
+      userId: user.id,
+      ciphertext: encrypted.ciphertext,
+      iv: encrypted.iv,
+      authTag: encrypted.authTag,
+    },
+  });
+
+  const sessionId = await createSession(user.id);
+  console.log(`[login] Session created for user ${user.id}`);
+
+  return {
+    sessionId,
+    user: {
+      id: user.id,
+      username: loginResult.username,
+      email,
+      coderUrl: coderUrl.replace(/\/+$/, ""),
+    },
+  };
+}

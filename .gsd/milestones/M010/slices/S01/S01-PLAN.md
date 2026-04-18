@@ -87,7 +87,7 @@ Foundation layer for auth: Prisma schema additions (User, CoderToken, Session), 
   - Files: `prisma/schema.prisma`, `src/lib/auth/encryption.ts`, `src/lib/coder/client.ts`, `src/lib/coder/types.ts`, `src/__tests__/auth/encryption.test.ts`, `src/__tests__/auth/coder-auth.test.ts`
   - Verify: pnpm prisma generate && pnpm vitest run src/__tests__/auth/encryption.test.ts src/__tests__/auth/coder-auth.test.ts
 
-- [ ] **T02: Implement session management and login flow orchestration** `est:1h`
+- [x] **T02: Implement session management and login flow orchestration** `est:1h`
   ## Description
 
 Session CRUD (create/read/delete with cookie management) and the login flow that orchestrates: validate Coder URL → authenticate → create API key (with fallback to session token) → upsert User + CoderToken → create Session → set cookie.
