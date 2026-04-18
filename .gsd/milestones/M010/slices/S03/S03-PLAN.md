@@ -115,7 +115,7 @@ Foundation task that extends the schema, encryption, Coder client, and login flo
   - Files: `prisma/schema.prisma`, `src/lib/constants.ts`, `src/lib/auth/encryption.ts`, `src/lib/coder/types.ts`, `src/lib/coder/client.ts`, `src/lib/auth/login.ts`, `src/__tests__/auth/token-lifecycle.test.ts`
   - Verify: pnpm vitest run src/__tests__/auth/token-lifecycle.test.ts && pnpm prisma generate
 
-- [ ] **T02: Build token status service, add pre-flight expiry check to worker, and classify network vs auth errors** `est:1h`
+- [x] **T02: Build token status service, add pre-flight expiry check to worker, and classify network vs auth errors** `est:1h`
   ## Description
 
 Creates the token status service (R102, R105 foundation), injects pre-flight token expiry checks into the task-queue worker (R098), and adds network vs auth error classification (R108). Also updates user-client.ts to use tryDecrypt for GCM mismatch detection.

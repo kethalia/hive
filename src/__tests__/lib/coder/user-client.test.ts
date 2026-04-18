@@ -6,7 +6,7 @@ vi.mock("@/lib/db", () => ({
 }));
 
 vi.mock("@/lib/auth/encryption", () => ({
-  decrypt: vi.fn(),
+  tryDecrypt: vi.fn(),
 }));
 
 vi.mock("@/lib/coder/client", () => ({
@@ -14,7 +14,7 @@ vi.mock("@/lib/coder/client", () => ({
 }));
 
 import { getDb } from "@/lib/db";
-import { decrypt } from "@/lib/auth/encryption";
+import { tryDecrypt } from "@/lib/auth/encryption";
 import { CoderClient } from "@/lib/coder/client";
 import { getCoderClientForUser } from "@/lib/coder/user-client";
 
@@ -70,7 +70,7 @@ describe("getCoderClientForUser", () => {
     const token = mockToken();
     mockDb.user.findUnique.mockResolvedValue(user);
     mockDb.coderToken.findFirst.mockResolvedValue(token);
-    vi.mocked(decrypt).mockReturnValue("decrypted-session-token");
+    vi.mocked(tryDecrypt).mockReturnValue({ ok: true, plaintext: "decrypted-session-token" });
 
     const clientInstance = { fake: true };
     vi.mocked(CoderClient).mockImplementation(() => clientInstance as never);
@@ -82,7 +82,7 @@ describe("getCoderClientForUser", () => {
       baseUrl: MOCK_CODER_URL,
       sessionToken: "decrypted-session-token",
     });
-    expect(decrypt).toHaveBeenCalledWith(
+    expect(tryDecrypt).toHaveBeenCalledWith(
       {
         ciphertext: expect.any(Buffer),
         iv: expect.any(Buffer),
@@ -95,7 +95,7 @@ describe("getCoderClientForUser", () => {
   it("queries for the most recent token", async () => {
     mockDb.user.findUnique.mockResolvedValue(mockUser());
     mockDb.coderToken.findFirst.mockResolvedValue(mockToken());
-    vi.mocked(decrypt).mockReturnValue("tok");
+    vi.mocked(tryDecrypt).mockReturnValue({ ok: true, plaintext: "tok" });
     vi.mocked(CoderClient).mockImplementation(() => ({}) as never);
 
     await getCoderClientForUser(MOCK_USER_ID);
@@ -138,11 +138,34 @@ describe("getCoderClientForUser", () => {
     }
   });
 
-  it("throws DECRYPT_FAILED on corrupted ciphertext", async () => {
+  it("throws KEY_MISMATCH when tryDecrypt reports key_mismatch", async () => {
     mockDb.user.findUnique.mockResolvedValue(mockUser());
     mockDb.coderToken.findFirst.mockResolvedValue(mockToken());
-    vi.mocked(decrypt).mockImplementation(() => {
-      throw new Error("Unsupported state or unable to authenticate data");
+    vi.mocked(tryDecrypt).mockReturnValue({
+      ok: false,
+      reason: "key_mismatch",
+      error: new Error("unable to authenticate data"),
+    });
+
+    try {
+      await getCoderClientForUser(MOCK_USER_ID);
+      expect.fail("should have thrown");
+    } catch (err) {
+      expect(err).toBeInstanceOf(UserClientException);
+      expect((err as UserClientException).code).toBe(
+        UserClientError.KEY_MISMATCH
+      );
+      expect((err as UserClientException).cause).toBeInstanceOf(Error);
+    }
+  });
+
+  it("throws DECRYPT_FAILED when tryDecrypt reports other error", async () => {
+    mockDb.user.findUnique.mockResolvedValue(mockUser());
+    mockDb.coderToken.findFirst.mockResolvedValue(mockToken());
+    vi.mocked(tryDecrypt).mockReturnValue({
+      ok: false,
+      reason: "other",
+      error: new Error("corrupted data"),
     });
 
     try {
@@ -153,7 +176,6 @@ describe("getCoderClientForUser", () => {
       expect((err as UserClientException).code).toBe(
         UserClientError.DECRYPT_FAILED
       );
-      expect((err as UserClientException).cause).toBeInstanceOf(Error);
     }
   });
 

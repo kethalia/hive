@@ -1,7 +1,9 @@
-import { Queue, Worker, type Job } from "bullmq";
+import { Queue, Worker, UnrecoverableError, type Job } from "bullmq";
 import { getRedisConnection } from "./connection";
 import { getDb } from "@/lib/db";
 import { getCoderClientForUser } from "@/lib/coder/user-client";
+import { getTokenStatus } from "@/lib/auth/token-status";
+import { isAuthError, isNetworkError } from "@/lib/queue/errors";
 import { runBlueprint } from "@/lib/blueprint/runner";
 import { createHydrateStep } from "@/lib/blueprint/steps/hydrate";
 import { createRulesStep } from "@/lib/blueprint/steps/rules";
@@ -22,6 +24,7 @@ import {
   DEFAULT_CLEANUP_GRACE_MS,
   DEFAULT_PI_PROVIDER,
   DEFAULT_PI_MODEL,
+  TOKEN_PREFLIGHT_MIN_HOURS,
 } from "@/lib/constants";
 import type { BlueprintContext } from "@/lib/blueprint/types";
 import type { VerificationReport } from "@/lib/verification/types";
@@ -98,6 +101,24 @@ export function createTaskWorker(): Worker<TaskJobData> {
       if (!userId) {
         throw new Error(`[queue] Job ${job.id} for task ${taskId} has no userId — cannot resolve Coder credentials`);
       }
+      // Pre-flight token expiry check
+      const tokenCheck = await getTokenStatus(userId);
+      if (tokenCheck.status === "expired" || tokenCheck.status === "key_mismatch") {
+        console.log(`[queue] Token expiry pre-flight failed for user ${userId} — status: ${tokenCheck.status}`);
+        throw new UnrecoverableError(
+          `[queue] Token ${tokenCheck.status} for user ${userId} — job cannot proceed`
+        );
+      }
+      if (tokenCheck.status === "expiring" && tokenCheck.expiresAt) {
+        const hoursLeft = (tokenCheck.expiresAt.getTime() - Date.now()) / (1000 * 60 * 60);
+        if (hoursLeft < TOKEN_PREFLIGHT_MIN_HOURS) {
+          console.log(`[queue] Token expiry pre-flight failed for user ${userId} — ${hoursLeft.toFixed(1)}h remaining`);
+          throw new UnrecoverableError(
+            `[queue] Token expires in ${hoursLeft.toFixed(1)}h for user ${userId} — below ${TOKEN_PREFLIGHT_MIN_HOURS}h minimum`
+          );
+        }
+      }
+
       const coderClient = await getCoderClientForUser(userId);
 
       try {
@@ -416,6 +437,13 @@ export function createTaskWorker(): Worker<TaskJobData> {
 
         console.error(`[queue] Job ${job.id} failed for task ${taskId}: ${errorMessage}`);
 
+        // Classify error for retry behavior
+        if (isAuthError(error)) {
+          console.log(`[queue] Auth error — not retrying (task=${taskId})`);
+        } else if (isNetworkError(error)) {
+          console.log(`[queue] Network error — will retry (task=${taskId})`);
+        }
+
         // Update task to failed
         await db.task.update({
           where: { id: taskId },
@@ -436,7 +464,12 @@ export function createTaskWorker(): Worker<TaskJobData> {
           },
         });
 
-        // Re-throw so BullMQ marks the job as failed
+        // Auth errors are unrecoverable — prevent BullMQ retry
+        if (isAuthError(error)) {
+          throw new UnrecoverableError(errorMessage);
+        }
+
+        // Re-throw so BullMQ marks the job as failed (network errors will retry)
         throw error;
       } finally {
         // Cleanup both worker and verifier workspaces on all paths

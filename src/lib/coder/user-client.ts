@@ -1,10 +1,11 @@
 import { getDb } from "@/lib/db";
-import { decrypt } from "@/lib/auth/encryption";
+import { tryDecrypt } from "@/lib/auth/encryption";
 import { CoderClient } from "./client";
 
 export enum UserClientError {
   NO_TOKEN = "NO_TOKEN",
   DECRYPT_FAILED = "DECRYPT_FAILED",
+  KEY_MISMATCH = "KEY_MISMATCH",
   USER_NOT_FOUND = "USER_NOT_FOUND",
 }
 
@@ -54,27 +55,33 @@ export async function getCoderClientForUser(
     );
   }
 
-  let decryptedToken: string;
-  try {
-    decryptedToken = decrypt(
-      {
-        ciphertext: Buffer.from(token.ciphertext),
-        iv: Buffer.from(token.iv),
-        authTag: Buffer.from(token.authTag),
-      },
-      encryptionKey
-    );
-  } catch (err) {
-    console.error(
-      `[user-client] Decrypt failed for user ${userId}:`,
-      err instanceof Error ? err.message : err
-    );
+  const decryptResult = tryDecrypt(
+    {
+      ciphertext: Buffer.from(token.ciphertext),
+      iv: Buffer.from(token.iv),
+      authTag: Buffer.from(token.authTag),
+    },
+    encryptionKey
+  );
+
+  if (!decryptResult.ok) {
+    const msg = `[user-client] Decrypt failed for user ${userId}: ${decryptResult.error.message}`;
+    console.error(msg);
+    if (decryptResult.reason === "key_mismatch") {
+      throw new UserClientException(
+        UserClientError.KEY_MISMATCH,
+        `Encryption key mismatch for user ${userId} — token re-encryption required`,
+        decryptResult.error
+      );
+    }
     throw new UserClientException(
       UserClientError.DECRYPT_FAILED,
       `Failed to decrypt token for user ${userId}`,
-      err
+      decryptResult.error
     );
   }
+
+  const decryptedToken = decryptResult.plaintext;
 
   return new CoderClient({
     baseUrl: user.coderUrl,
