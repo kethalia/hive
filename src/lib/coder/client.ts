@@ -35,6 +35,14 @@ export class CoderClient {
     this.sessionToken = config.sessionToken;
   }
 
+  getSessionToken(): string {
+    return this.sessionToken;
+  }
+
+  getBaseUrl(): string {
+    return this.baseUrl;
+  }
+
   // ── Private helpers ──────────────────────────────────────────────
 
   /**

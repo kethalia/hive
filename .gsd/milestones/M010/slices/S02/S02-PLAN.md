@@ -90,7 +90,7 @@ Negative Tests:
   - Files: `prisma/schema.prisma`, `src/lib/coder/user-client.ts`, `src/__tests__/coder/user-client.test.ts`
   - Verify: pnpm prisma generate && pnpm vitest run src/__tests__/coder/user-client.test.ts
 
-- [ ] **T02: Rewire workspace server actions and proxy route to per-user credentials** `est:1h`
+- [x] **T02: Rewire workspace server actions and proxy route to per-user credentials** `est:1h`
   Switch all workspace server actions from unauthenticated actionClient to authActionClient with per-user CoderClient resolution (R093). Rewire workspace-proxy API route to resolve the user's session and use per-user credentials (R107).
 
 Steps:
