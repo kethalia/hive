@@ -199,7 +199,7 @@ Creates the token status service (R102, R105 foundation), injects pre-flight tok
   - Files: `src/lib/auth/token-status.ts`, `src/lib/coder/user-client.ts`, `src/lib/queue/errors.ts`, `src/lib/queue/task-queue.ts`, `src/__tests__/auth/token-status.test.ts`, `src/__tests__/queue/task-queue-preflight.test.ts`
   - Verify: pnpm vitest run src/__tests__/auth/token-status.test.ts src/__tests__/queue/task-queue-preflight.test.ts
 
-- [ ] **T03: Implement BullMQ token rotation job with transactional create-encrypt-update-delete flow** `est:1h30m`
+- [x] **T03: Implement BullMQ token rotation job with transactional create-encrypt-update-delete flow** `est:1h30m`
   ## Description
 
 Creates the token rotation BullMQ queue and worker (R097). The processor finds tokens at >=75% lifetime, creates a new Coder API key, encrypts it, updates the DB row with optimistic locking, and deletes the old key from Coder. Registered in the worker index and instrumentation hook.
