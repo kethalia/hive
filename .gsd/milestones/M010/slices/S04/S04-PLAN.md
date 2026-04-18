@@ -150,7 +150,7 @@ The service worker is intentionally minimal — no fetch caching (Hive requires 
   - Files: `public/sw.js`, `src/app/manifest.ts`, `src/components/service-worker-register.tsx`, `src/app/layout.tsx`, `src/__tests__/components/service-worker-register.test.tsx`
   - Verify: test -f public/sw.js && test -f src/app/manifest.ts && grep -q 'ServiceWorkerRegister' src/app/layout.tsx && pnpm vitest run src/__tests__/components/service-worker-register.test.tsx
 
-- [ ] **T03: Build push subscription server actions and permission prompt component** `est:1h`
+- [x] **T03: Build push subscription server actions and permission prompt component** `est:1h`
   ## Description
 
 Creates the client-to-server push subscription flow: server actions for subscribing/unsubscribing (authenticated via authActionClient), a server action to expose the VAPID public key, and a dashboard component that prompts users to enable notifications. After this task, users can subscribe to push notifications from the dashboard.

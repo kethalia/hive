@@ -6,6 +6,7 @@ import {
 } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/app-sidebar";
 import { TokenExpiryBanner } from "@/components/token-expiry-banner";
+import { PushPermissionPrompt } from "@/components/push-permission-prompt";
 import { getTokenStatusAction } from "@/lib/auth/actions";
 
 export default async function DashboardLayout({
@@ -32,6 +33,7 @@ export default async function DashboardLayout({
           {bannerStatus?.data && (
             <TokenExpiryBanner status={bannerStatus.data} />
           )}
+          <PushPermissionPrompt />
           {children}
         </main>
       </SidebarInset>
