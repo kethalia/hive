@@ -87,7 +87,7 @@ describe("sync-vault.sh", () => {
 
       const { stdout } = await runSync({ HOME: tempDir });
 
-      expect(stdout).toContain("skipped");
+      expect(stdout).toContain("skipped (source file missing");
     });
 
     it("preserves existing CLAUDE.md when vault is missing", async () => {
@@ -307,7 +307,7 @@ describe("sync-vault.sh", () => {
     it("skips skills sync when vault Skills directory is missing", async () => {
       const { stdout } = await runSync({ HOME: tempDir });
 
-      expect(stdout).toContain("skipped");
+      expect(stdout).toContain("Skills: skipped");
     });
   });
 

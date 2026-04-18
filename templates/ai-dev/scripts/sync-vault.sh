@@ -121,7 +121,7 @@ sync_skills() {
       else
         local local_hash
         local_hash=$(cd "$skills_target/$skill_name" && find . -type f -exec md5sum {} + 2>/dev/null | sort | md5sum | cut -d' ' -f1)
-        if [ "${vault_hashes[$skill_name]}" != "$local_hash" ]; then
+        if [ "${vault_hashes["$skill_name"]-}" != "$local_hash" ]; then
           needs_sync=true
         fi
       fi
