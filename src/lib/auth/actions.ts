@@ -6,6 +6,7 @@ import { actionClient, authActionClient } from "../safe-action";
 import { performLogin } from "./login";
 import { deleteSession, setSessionCookie, clearSessionCookie } from "./session";
 import { loginRateLimiter } from "./rate-limit";
+import { getTokenStatus } from "./token-status";
 
 const loginSchema = z.object({
   coderUrl: z.string().url(),
@@ -61,3 +62,10 @@ export const getSessionAction = authActionClient.action(async ({ ctx }) => {
     },
   };
 });
+
+export const getTokenStatusAction = authActionClient.action(
+  async ({ ctx }) => {
+    const status = await getTokenStatus(ctx.user.id);
+    return status;
+  }
+);

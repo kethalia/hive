@@ -277,7 +277,7 @@ Creates the token rotation BullMQ queue and worker (R097). The processor finds t
   - Files: `src/lib/queue/token-rotation.ts`, `src/lib/queue/index.ts`, `src/instrumentation.ts`, `src/__tests__/queue/token-rotation.test.ts`
   - Verify: pnpm vitest run src/__tests__/queue/token-rotation.test.ts
 
-- [ ] **T04: Add in-app token expiry banner to dashboard layout with server action** `est:45m`
+- [x] **T04: Add in-app token expiry banner to dashboard layout with server action** `est:45m`
   ## Description
 
 Creates the TokenExpiryBanner component (R105) and wires it into the dashboard layout. Uses the token status service from T02 via a server action. Banner shows destructive Alert for expired/key_mismatch tokens and default Alert for near-expiry tokens. Server component approach — checks on each navigation per R105 ("on next visit").
