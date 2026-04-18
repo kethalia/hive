@@ -48,6 +48,9 @@ Unattended task-to-PR automation with behavioral verification — the system doe
 - S02 (Dockerfile Upgrades & Compose Restructure): complete — Multi-stage pnpm Dockerfiles for both services (standalone Next.js + pnpm deploy for terminal-proxy), non-root users, restructured compose files (prod with GHCR images, local builds from source, dev unchanged). All 3 compose files validate.
 - S03 (CI & Release Workflows): complete — PR CI builds both Docker images without pushing (ci.yml), release workflow creates version PRs via changesets/action and conditionally pushes tagged images to GHCR per-package (release.yml). ci:release script added to package.json.
 
+**M009 complete — 1 slice delivered and verified.** Multi-target vault sync: sync-vault.sh copies skills, CLAUDE.md, and AGENTS.md to three independent directories (~/.claude/, ~/.agents/, ~/.pi/agent/) with no symlinks and per-directory manifest cleanup. 16 tests. All 6 M009 requirements (R082-R087) validated.
+- S01 (Multi-target vault sync): complete — Replaced 2-target sync (claude + gsd) with 3-target sync (claude + agents + pi). Deleted link_gsd_skills() symlink logic entirely. Per-directory .vault-managed manifests for independent stale cleanup. Both template copies byte-identical.
+
 **Operational notes:** M001 cleanup scheduler not wired to entrypoint. M002 council can run in isolation or as part of full pipeline; initial testing with 3-reviewer council works correctly with mock data. Real GitHub integration tested via mocked gh CLI; live GitHub token handling depends on environment setup during deployment. M005 dev workflow now uses `tsx watch server.ts` instead of `next dev` to support WebSocket upgrade.
 
 Repository: https://github.com/kethalia/hive
@@ -70,6 +73,7 @@ Repository: https://github.com/kethalia/hive
 - **Versioning:** @changesets/cli configured for independent versioning across both private packages. No npm publish — changesets used for version tracking and Docker image tagging only. Built-in changelog generator (no GitHub token needed).
 - **Docker Images:** Multi-stage pnpm Dockerfiles for both services. Root app uses 3-stage build (deps/builder/runner) with standalone Next.js output and non-root nextjs user. Terminal-proxy uses 3-stage build with `pnpm deploy --filter` for workspace-correct dependency isolation, tini as PID 1, and non-root appuser. Both use corepack with pnpm@10.32.1 on node:20-alpine.
 - **Compose Files:** Three-file convention — docker-compose.prod.yml (prod, GHCR images, restart: unless-stopped), docker-compose.local.yml (build from source with correct contexts), docker-compose.dev.yml (postgres + redis only for local dev).
+- **Vault Sync:** sync-vault.sh copies skills, CLAUDE.md, and AGENTS.md to three independent directories (~/.claude/, ~/.agents/, ~/.pi/agent/). No symlinks — all targets get direct copies. Per-directory .vault-managed manifests track vault-managed skills for independent stale cleanup. SKILL_TARGETS array loop makes adding new target directories trivial.
 - **Deployment:** Solo operator, no auth. Docker-compose: Next.js + Postgres + Redis
 
 ## Capability Contract
@@ -85,4 +89,4 @@ See `.gsd/REQUIREMENTS.md` for the explicit capability contract, requirement sta
 - [x] M006: Persistent Terminal Sessions — Fix critical session persistence: server-side workspace keep-alive, infinite reconnection, Postgres-backed scrollback with virtual scrolling (5 slices, 504 frontend + 88 proxy tests)
 - [x] M007: Sidebar Navigation Overhaul — Directory-tree sidebar with collapsible workspace/template sections, full-viewport terminal pages, floating sidebar toggle, template detail page, sidebar pin/unpin mode (3 slices, 462 tests, 14 requirements validated)
 - [x] M008: Release Workflow — Changesets for independent versioning, CI Docker image builds on PRs, release workflow pushing tagged images to GHCR, compose file restructure (prod/local/dev) (3 slices, 5 requirements validated)
-- [ ] M009: Multi-Target Vault Sync — Fix sync-vault.sh to copy skills and context files to ~/.claude/, ~/.agents/, ~/.pi/agent/ with direct copies, no symlinks
+- [x] M009: Multi-Target Vault Sync — sync-vault.sh copies skills and context files to ~/.claude/, ~/.agents/, ~/.pi/agent/ with direct copies, no symlinks (1 slice, 16 tests, 6 requirements validated)

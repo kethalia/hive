@@ -6,4 +6,4 @@ Fix sync-vault.sh to copy vault skills and context files (AGENTS.md, CLAUDE.md) 
 ## Slice Overview
 | ID | Slice | Risk | Depends | Done | After this |
 |----|-------|------|---------|------|------------|
-| S01 | S01 | low | — | ⬜ | Run sync-vault.sh and see skills + AGENTS.md + CLAUDE.md in all 3 directories (~/.claude/, ~/.agents/, ~/.pi/agent/), no symlinks, stale cleanup works per-directory |
+| S01 | S01 | low | — | ✅ | Run sync-vault.sh and see skills + AGENTS.md + CLAUDE.md in all 3 directories (~/.claude/, ~/.agents/, ~/.pi/agent/), no symlinks, stale cleanup works per-directory |
