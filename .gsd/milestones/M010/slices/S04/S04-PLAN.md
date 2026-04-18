@@ -96,7 +96,7 @@ This task unblocks all other S04 tasks — the schema provides storage, the VAPI
   - Files: `prisma/schema.prisma`, `src/lib/push/vapid.ts`, `src/lib/constants.ts`, `src/__tests__/push/vapid.test.ts`, `package.json`
   - Verify: pnpm prisma generate && pnpm vitest run src/__tests__/push/vapid.test.ts && grep -q 'PushSubscription' prisma/schema.prisma && grep -q 'PUSH_NOTIFICATION_HOURS' src/lib/constants.ts
 
-- [ ] **T02: Create service worker, web app manifest, and PWA registration component** `est:45m`
+- [x] **T02: Create service worker, web app manifest, and PWA registration component** `est:45m`
   ## Description
 
 Makes the app installable as a PWA (R103) and sets up the notification click handler that opens /login (R109). Creates three artifacts: a static service worker file handling push and notificationclick events, a Next.js route-based manifest export, and a client component that registers the service worker on mount.
