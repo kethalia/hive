@@ -260,3 +260,15 @@ When two components live in different React component trees (e.g., a page compon
 **Discovered:** 2026-04-18 during M010/S02 slice completion
 
 When switching server actions from `actionClient` to `authActionClient`, all test files that mock `@/lib/safe-action` must be updated. The mock factory must export `authActionClient` (not just `actionClient`). The correct approach is to mock the upstream dependencies instead: mock `@/lib/coder/user-client` (getCoderClientForUser), `next/headers` (cookies), and `@/lib/auth/session` (getSession). This lets the real `authActionClient` import resolve and the middleware chain run with mocked auth data. Also, `authActionClient` uses `handleServerError` which catches thrown errors and returns `{ serverError: "..." }` — tests must assert on `result?.serverError` instead of `rejects.toThrow()`.
+
+## importOriginal for Modules Exporting Both Functions and Classes
+
+**Discovered:** 2026-04-18 during M010 milestone completion
+
+When a module exports both functions to mock (e.g., `getCoderClientForUser`) and classes/enums used by other modules for `instanceof` checks (e.g., `UserClientException`, `UserClientError`), use `vi.mock` with `importOriginal` to preserve the real class exports while replacing the function. Without this, Vitest raises "No X export is defined on the mock" when a transitive dependency (e.g., `queue/errors.ts`) imports the class from the mocked module. Pattern: `vi.mock("@/lib/mod", async (importOriginal) => ({ ...(await importOriginal()), myFn: vi.fn() }))`.
+
+## Cross-Slice Mock Maintenance: Grep All Importers After Modifying Exports
+
+**Discovered:** 2026-04-18 during M010 milestone completion
+
+When a slice adds a new import to a production module (e.g., S03 adding `getTokenStatus` import to `task-queue.ts`), ALL test files that mock that module's other imports must be checked. The new import may call unmocked code and crash. During M010, S03 added `getTokenStatus` to task-queue but didn't update worker.test.ts or council-step.test.ts mocks — causing 16 test failures found only at milestone completion. Mitigation: after modifying a module's imports, run `rg "vi.mock.*<module-path>" src/__tests__/` to find all test files with mocks for that module, then verify each mock covers all imports.

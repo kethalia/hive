@@ -202,126 +202,6 @@ This file is the explicit capability and coverage contract for the project.
 - Validation: unmapped
 - Notes: Workspace must never auto-stop. tmux handles process persistence natively once workspace stays alive.
 
-### R088 — User authenticates with Coder via direct login API (URL + email + password)
-- Class: core-capability
-- Status: active
-- Description: User authenticates with Coder via direct login API (URL + email + password)
-- Why it matters: Entry point for all multi-user functionality — without auth, Hive remains a single-operator tool with hardcoded credentials
-- Source: user
-- Primary owning slice: M010/S01
-- Validation: unmapped
-- Notes: Uses Coder POST /api/v2/users/login — no OAuth2 experiment flag required
-
-### R089 — Per-user encrypted API key storage in Postgres (AES-256-GCM)
-- Class: core-capability
-- Status: active
-- Description: Per-user encrypted API key storage in Postgres (AES-256-GCM)
-- Why it matters: Workers need persistent credentials for background jobs hours after submission. Encrypted storage protects credentials at rest
-- Source: user
-- Primary owning slice: M010/S01
-- Validation: unmapped
-- Notes: AES-256-GCM via Node.js crypto, key from TOKEN_ENCRYPTION_KEY env var
-
-### R090 — User identity is unique per (coderUrl, coderUserId), not per email
-- Class: core-capability
-- Status: active
-- Description: User identity is unique per (coderUrl, coderUserId), not per email
-- Why it matters: Same email can exist on multiple Coder deployments. Same Coder deployment can have multiple users. Email alone is not a stable unique identifier
-- Source: user
-- Primary owning slice: M010/S01
-- Validation: unmapped
-- Notes: Prisma unique constraint on (coderUrl, coderUserId)
-
-### R091 — Browser sessions are database-backed with encrypted session cookies
-- Class: core-capability
-- Status: active
-- Description: Browser sessions are database-backed with encrypted session cookies
-- Why it matters: Session persistence across requests. Database backing enables session management, revocation, and user tracking
-- Source: user
-- Primary owning slice: M010/S01
-- Validation: unmapped
-- Notes: New Session table in Prisma. Cookie holds encrypted session ID only
-
-### R092 — All protected routes redirect unauthenticated users to login
-- Class: core-capability
-- Status: active
-- Description: All protected routes redirect unauthenticated users to login
-- Why it matters: Core security boundary — unauthenticated access to dashboard, tasks, templates, or workspaces must be blocked
-- Source: user
-- Primary owning slice: M010/S02
-- Validation: unmapped
-- Notes: Next.js middleware checks session cookie, redirects to /login if missing/invalid
-
-### R099 — Coder URL validated via /buildinfo before login attempt
-- Class: quality-attribute
-- Status: active
-- Description: Coder URL validated via /buildinfo before login attempt
-- Why it matters: Prevents confusing auth errors when the URL isn't a Coder instance. Clear error differentiation (DNS, timeout, not-Coder)
-- Source: inferred
-- Primary owning slice: M010/S01
-- Validation: unmapped
-- Notes: GET /api/v2/buildinfo is unauthenticated. Check response shape to confirm it's a Coder instance
-
-### R100 — Login rate limiting (5 attempts/min per IP)
-- Class: quality-attribute
-- Status: active
-- Description: Login rate limiting (5 attempts/min per IP)
-- Why it matters: Prevents brute force attacks against users' Coder instances via Hive as a proxy
-- Source: inferred
-- Primary owning slice: M010/S01
-- Validation: unmapped
-- Notes: In-memory rate limiter, reset on app restart. Surface generic error on rate limit hit
-
-### R101 — Failed API key creation falls back to session token with retry
-- Class: quality-attribute
-- Status: active
-- Description: Failed API key creation falls back to session token with retry
-- Why it matters: Login shouldn't fail entirely if key creation fails — session token works as temporary fallback
-- Source: inferred
-- Primary owning slice: M010/S01
-- Validation: unmapped
-- Notes: Store session token temporarily, retry key creation 3x, surface warning if all fail
-
-### R103 — App installable as PWA with web app manifest and service worker
-- Class: core-capability
-- Status: active
-- Description: App installable as PWA with web app manifest and service worker
-- Why it matters: Enables push notifications and app-like experience. Required for token expiry warnings when user isn't actively in the app
-- Source: user
-- Primary owning slice: M010/S04
-- Validation: unmapped
-- Notes: Minimal PWA — focused on installability and push capability, not offline support
-
-### R104 — Push notifications for token expiry warnings (24h and 2h before)
-- Class: core-capability
-- Status: active
-- Description: Push notifications for token expiry warnings (24h and 2h before)
-- Why it matters: User may not have Hive open when token approaches expiry. Push notifications ensure they can re-authenticate before workers fail
-- Source: user
-- Primary owning slice: M010/S04
-- Validation: unmapped
-- Notes: Web Push API with VAPID keys. Notification opens Hive login page
-
-### R106 — Logout deletes browser session only — API key and user persist
-- Class: core-capability
-- Status: active
-- Description: Logout deletes browser session only — API key and user persist
-- Why it matters: In-flight worker jobs must not be disrupted by logout. API key stays for background work
-- Source: user
-- Primary owning slice: M010/S01
-- Validation: unmapped
-- Notes: Re-login creates new browser session without new API key (verify existing key still works)
-
-### R109 — Login UI feels like extension of Coder — minimal friction, familiar patterns
-- Class: quality-attribute
-- Status: active
-- Description: Login UI feels like extension of Coder — minimal friction, familiar patterns
-- Why it matters: User's explicit design constraint — auth should not feel like a foreign system bolted onto Hive
-- Source: user
-- Primary owning slice: M010/S04
-- Validation: unmapped
-- Notes: Minimal screens, Coder-like styling, no unnecessary friction
-
 ## Validated
 
 ### R006 — After worker creates PR, orchestrator automatically spins up a verifier workspace that pulls the branch and tests the output by actually using it
@@ -956,6 +836,56 @@ This file is the explicit capability and coverage contract for the project.
 - Validation: Independent per-directory .vault-managed manifests — dedicated test verifies stale cleanup in one target doesn't affect others
 - Notes: Each of the 3 skill directories gets its own .vault-managed manifest file.
 
+### R088 — User authenticates with Coder via direct login API (URL + email + password)
+- Class: core-capability
+- Status: validated
+- Description: User authenticates with Coder via direct login API (URL + email + password)
+- Why it matters: Entry point for all multi-user functionality — without auth, Hive remains a single-operator tool with hardcoded credentials
+- Source: user
+- Primary owning slice: M010/S01
+- Validation: loginAction → performLogin → CoderClient.login orchestrates full URL + email + password flow. 59 S01 tests pass including 7 login flow tests. Login page at /login with Zod-validated inputs.
+- Notes: Uses Coder POST /api/v2/users/login — no OAuth2 experiment flag required
+
+### R089 — Per-user encrypted API key storage in Postgres (AES-256-GCM)
+- Class: core-capability
+- Status: validated
+- Description: Per-user encrypted API key storage in Postgres (AES-256-GCM)
+- Why it matters: Workers need persistent credentials for background jobs hours after submission. Encrypted storage protects credentials at rest
+- Source: user
+- Primary owning slice: M010/S01
+- Validation: CoderToken model stores AES-256-GCM encrypted ciphertext/iv/authTag as Bytes in Postgres. performLogin encrypts API key before upsert. 14 encryption tests (round-trip, wrong key, corrupted data). Pure encrypt/decrypt functions with caller-provided key.
+- Notes: AES-256-GCM via Node.js crypto, key from TOKEN_ENCRYPTION_KEY env var
+
+### R090 — User identity is unique per (coderUrl, coderUserId), not per email
+- Class: core-capability
+- Status: validated
+- Description: User identity is unique per (coderUrl, coderUserId), not per email
+- Why it matters: Same email can exist on multiple Coder deployments. Same Coder deployment can have multiple users. Email alone is not a stable unique identifier
+- Source: user
+- Primary owning slice: M010/S01
+- Validation: User model has @@unique([coderUrl, coderUserId]) constraint in Prisma schema. Upsert keyed on this composite in performLogin. Schema validated via prisma generate.
+- Notes: Prisma unique constraint on (coderUrl, coderUserId)
+
+### R091 — Browser sessions are database-backed with encrypted session cookies
+- Class: core-capability
+- Status: validated
+- Description: Browser sessions are database-backed with encrypted session cookies
+- Why it matters: Session persistence across requests. Database backing enables session management, revocation, and user tracking
+- Source: user
+- Primary owning slice: M010/S01
+- Validation: Session model in Postgres with UUID sessionId. hive-session HttpOnly cookie. authActionClient validates on every authenticated request. 9 session CRUD tests + 8 action tests pass.
+- Notes: New Session table in Prisma. Cookie holds encrypted session ID only
+
+### R092 — All protected routes redirect unauthenticated users to login
+- Class: core-capability
+- Status: validated
+- Description: All protected routes redirect unauthenticated users to login
+- Why it matters: Core security boundary — unauthenticated access to dashboard, tasks, templates, or workspaces must be blocked
+- Source: user
+- Primary owning slice: M010/S02
+- Validation: Edge-safe middleware.ts checks hive-session cookie and redirects to /login. Server components redirect unauthenticated users. API routes return 401 JSON. Verified via middleware test and structural grep.
+- Notes: Next.js middleware checks session cookie, redirects to /login if missing/invalid
+
 ### R093 — CoderClient instantiated per-request from logged-in user's stored token
 - Class: core-capability
 - Status: validated
@@ -1003,7 +933,7 @@ This file is the explicit capability and coverage contract for the project.
 - Why it matters: API keys cannot be refreshed — must create new and delete old. Transactional rotation prevents orphaned or lost keys
 - Source: user
 - Primary owning slice: M010/S03
-- Validation: Token rotation BullMQ job queries all CoderTokens, rotates at >=75% lifetime via createApiKey + encrypt + optimistic-lock UPDATE + deleteApiKey. 11 tests cover threshold logic, version conflicts, key_mismatch skip, null expiresAt fallback, old key cleanup. All pass.
+- Validation: Token rotation processor creates new API key at ≥75% lifetime, encrypts, updates via optimistic lock (WHERE version = oldVersion), deletes old keys. 11 rotation tests pass.
 - Notes: BullMQ repeatable job. Create new → update DB → delete old. Optimistic lock on CoderToken version column
 
 ### R098 — Pre-flight token expiry check: workers refuse jobs if token expires within 2h
@@ -1013,8 +943,38 @@ This file is the explicit capability and coverage contract for the project.
 - Why it matters: Prevents partial execution of long-running tasks that would fail mid-way due to token expiry
 - Source: user
 - Primary owning slice: M010/S03
-- Validation: Pre-flight check in task-queue worker calls getTokenStatus before job execution. Expired/key_mismatch tokens throw UnrecoverableError (no retry). Tokens with <2h remaining are refused. 17 tests cover all paths including boundary conditions. All pass.
+- Validation: Pre-flight check in task-queue.ts refuses jobs if token expired/key_mismatch or expiring with <2h remaining. Throws UnrecoverableError. 17 preflight tests pass.
 - Notes: If token expires within 2h, attempt rotation first. If <1h and rotation fails, fail job with TOKEN_EXPIRED
+
+### R099 — Coder URL validated via /buildinfo before login attempt
+- Class: quality-attribute
+- Status: validated
+- Description: Coder URL validated via /buildinfo before login attempt
+- Why it matters: Prevents confusing auth errors when the URL isn't a Coder instance. Clear error differentiation (DNS, timeout, not-Coder)
+- Source: inferred
+- Primary owning slice: M010/S01
+- Validation: performLogin calls CoderClient.validateInstance (GET /buildinfo) before login. Differentiates DNS/timeout/not-Coder errors. 14 CoderClient auth tests cover all validateInstance paths.
+- Notes: GET /api/v2/buildinfo is unauthenticated. Check response shape to confirm it's a Coder instance
+
+### R100 — Login rate limiting (5 attempts/min per IP)
+- Class: quality-attribute
+- Status: validated
+- Description: Login rate limiting (5 attempts/min per IP)
+- Why it matters: Prevents brute force attacks against users' Coder instances via Hive as a proxy
+- Source: inferred
+- Primary owning slice: M010/S01
+- Validation: loginRateLimiter enforces 5 attempts/min per IP via sliding window in rate-limit.ts. loginAction checks before calling performLogin. 7 rate-limit tests pass (sliding window, key isolation, expiry).
+- Notes: In-memory rate limiter, reset on app restart. Surface generic error on rate limit hit
+
+### R101 — Failed API key creation falls back to session token with retry
+- Class: quality-attribute
+- Status: validated
+- Description: Failed API key creation falls back to session token with retry
+- Why it matters: Login shouldn't fail entirely if key creation fails — session token works as temporary fallback
+- Source: inferred
+- Primary owning slice: M010/S01
+- Validation: performLogin retries createApiKey 3 times; on total failure falls back to session token as stored credential. 7 login flow tests cover retry/fallback paths.
+- Notes: Store session token temporarily, retry key creation 3x, surface warning if all fail
 
 ### R102 — Encryption key change detected per-user (GCM auth tag mismatch), graceful degradation
 - Class: quality-attribute
@@ -1023,8 +983,28 @@ This file is the explicit capability and coverage contract for the project.
 - Why it matters: Changed TOKEN_ENCRYPTION_KEY must not crash the app — per-user invalidation and redirect to login
 - Source: user
 - Primary owning slice: M010/S03
-- Validation: tryDecrypt returns { ok: false, reason: 'key_mismatch' } on GCM auth tag failure. getTokenStatus returns 'key_mismatch' status. user-client throws UserClientException with KEY_MISMATCH code. Banner shows destructive re-auth alert. Rotation skips key_mismatch tokens gracefully. Tests cover all paths.
+- Validation: tryDecrypt returns discriminated union with key_mismatch reason by inspecting GCM auth tag failure. Token rotation skips key_mismatch tokens. TokenExpiryBanner shows destructive alert for key_mismatch. 12 lifecycle tests cover detection.
 - Notes: Catch GCM auth tag mismatch, mark token invalid in DB, redirect to login. Don't crash app for other users
+
+### R103 — App installable as PWA with web app manifest and service worker
+- Class: core-capability
+- Status: validated
+- Description: App installable as PWA with web app manifest and service worker
+- Why it matters: Enables push notifications and app-like experience. Required for token expiry warnings when user isn't actively in the app
+- Source: user
+- Primary owning slice: M010/S04
+- Validation: Web app manifest at /manifest.webmanifest with display:standalone. Service worker with push+notificationclick handlers. ServiceWorkerRegister in root layout. 2 SW + manifest tests pass.
+- Notes: Minimal PWA — focused on installability and push capability, not offline support
+
+### R104 — Push notifications for token expiry warnings (24h and 2h before)
+- Class: core-capability
+- Status: validated
+- Description: Push notifications for token expiry warnings (24h and 2h before)
+- Why it matters: User may not have Hive open when token approaches expiry. Push notifications ensure they can re-authenticate before workers fail
+- Source: user
+- Primary owning slice: M010/S04
+- Validation: sendPushToUser fires at ≤24h threshold in token rotation processor. 11 tests cover send/cleanup/rotation integration. Per-subscription error handling with stale cleanup.
+- Notes: Web Push API with VAPID keys. Notification opens Hive login page
 
 ### R105 — In-app banner on next visit if token expired or near-expiry
 - Class: failure-visibility
@@ -1033,8 +1013,18 @@ This file is the explicit capability and coverage contract for the project.
 - Why it matters: Fallback for users who denied push notification permission or whose push subscription expired
 - Source: inferred
 - Primary owning slice: M010/S03
-- Validation: TokenExpiryBanner component renders in dashboard layout via getTokenStatusAction server action. Destructive Alert for expired/key_mismatch, default Alert with hours remaining for expiring, null for valid. 5 component tests + grep verification of layout wiring. All pass.
+- Validation: TokenExpiryBanner server component in dashboard layout. Destructive Alert for expired/key_mismatch, default Alert with hours remaining for expiring. 5 component tests pass.
 - Notes: Banner shown in dashboard layout. Links to login page for re-authentication
+
+### R106 — Logout deletes browser session only — API key and user persist
+- Class: core-capability
+- Status: validated
+- Description: Logout deletes browser session only — API key and user persist
+- Why it matters: In-flight worker jobs must not be disrupted by logout. API key stays for background work
+- Source: user
+- Primary owning slice: M010/S01
+- Validation: logoutAction deletes Session row and clears cookie only; User and CoderToken rows persist. 8 action tests confirm logout behavior per R106.
+- Notes: Re-login creates new browser session without new API key (verify existing key still works)
 
 ### R107 — Multi-deployment isolation — one Coder instance failure doesn't affect another
 - Class: quality-attribute
@@ -1053,8 +1043,18 @@ This file is the explicit capability and coverage contract for the project.
 - Why it matters: Retrying auth errors wastes compute and delays failure reporting. Network errors may self-resolve
 - Source: user
 - Primary owning slice: M010/S03
-- Validation: isAuthError matches 401/403 status codes and KEY_MISMATCH/NO_TOKEN UserClientException codes. isNetworkError matches ECONNREFUSED/ECONNRESET/ETIMEDOUT/ENOTFOUND/fetch-failed/socket-hang-up patterns. Auth errors wrapped in UnrecoverableError (no retry), network errors re-thrown for BullMQ retry. 17 tests cover classification and worker integration.
+- Validation: isAuthError (401/403/KEY_MISMATCH → UnrecoverableError) and isNetworkError (ECONNREFUSED etc → BullMQ retry) classifiers in queue/errors.ts. Task queue catch block routes accordingly. 17 preflight tests verify.
 - Notes: ECONNREFUSED/timeout → retry with backoff. 401/403 → fail immediately, mark token invalid
+
+### R109 — Login UI feels like extension of Coder — minimal friction, familiar patterns
+- Class: quality-attribute
+- Status: validated
+- Description: Login UI feels like extension of Coder — minimal friction, familiar patterns
+- Why it matters: User's explicit design constraint — auth should not feel like a foreign system bolted onto Hive
+- Source: user
+- Primary owning slice: M010/S04
+- Validation: Login page uses shadcn components with zinc-950 dark theme. Notification click opens /login. Coder-like styling confirmed in S04 summary.
+- Notes: Minimal screens, Coder-like styling, no unnecessary friction
 
 ## Deferred
 
@@ -1282,35 +1282,35 @@ This file is the explicit capability and coverage contract for the project.
 | R085 | operability | validated | M009/S01 | none | link_gsd_skills() deleted — grep returns 0 matches for symlink/ln -s/readlink/link_gsd |
 | R086 | constraint | validated | M009/S01 | none | diff between hive and ai-dev templates returns empty — byte-identical |
 | R087 | quality-attribute | validated | M009/S01 | none | Independent per-directory .vault-managed manifests — dedicated test verifies stale cleanup in one target doesn't affect others |
-| R088 | core-capability | active | M010/S01 | none | unmapped |
-| R089 | core-capability | active | M010/S01 | none | unmapped |
-| R090 | core-capability | active | M010/S01 | none | unmapped |
-| R091 | core-capability | active | M010/S01 | none | unmapped |
-| R092 | core-capability | active | M010/S02 | none | unmapped |
+| R088 | core-capability | validated | M010/S01 | none | loginAction → performLogin → CoderClient.login orchestrates full URL + email + password flow. 59 S01 tests pass including 7 login flow tests. Login page at /login with Zod-validated inputs. |
+| R089 | core-capability | validated | M010/S01 | none | CoderToken model stores AES-256-GCM encrypted ciphertext/iv/authTag as Bytes in Postgres. performLogin encrypts API key before upsert. 14 encryption tests (round-trip, wrong key, corrupted data). Pure encrypt/decrypt functions with caller-provided key. |
+| R090 | core-capability | validated | M010/S01 | none | User model has @@unique([coderUrl, coderUserId]) constraint in Prisma schema. Upsert keyed on this composite in performLogin. Schema validated via prisma generate. |
+| R091 | core-capability | validated | M010/S01 | none | Session model in Postgres with UUID sessionId. hive-session HttpOnly cookie. authActionClient validates on every authenticated request. 9 session CRUD tests + 8 action tests pass. |
+| R092 | core-capability | validated | M010/S02 | none | Edge-safe middleware.ts checks hive-session cookie and redirects to /login. Server components redirect unauthenticated users. API routes return 401 JSON. Verified via middleware test and structural grep. |
 | R093 | core-capability | validated | M010/S02 | none | All workspace actions use authActionClient with getCoderClientForUser(ctx.user.id). No actionClient usage or env var reads remain. 6 tests pass. |
 | R094 | core-capability | validated | M010/S02 | none | Task worker and council reviewer worker resolve CoderClient per-job via getCoderClientForUser(job.data.userId). Worker signatures changed to parameterless. 26 queue tests pass. |
 | R095 | core-capability | validated | M010/S02 | none | Task model has nullable userId FK (migration 20250418000000_add_task_user_id). createTask accepts userId and stores on Task record. TaskJobData includes userId. 7 user-client + 14 worker tests pass. |
 | R096 | core-capability | validated | M010/S02 | none | CODER_URL and CODER_SESSION_TOKEN removed from .env.example. ENCRYPTION_KEY added. rg confirms no process.env references in src/ except child process env setting in push-queue.ts (correct). |
-| R097 | core-capability | validated | M010/S03 | none | Token rotation BullMQ job queries all CoderTokens, rotates at >=75% lifetime via createApiKey + encrypt + optimistic-lock UPDATE + deleteApiKey. 11 tests cover threshold logic, version conflicts, key_mismatch skip, null expiresAt fallback, old key cleanup. All pass. |
-| R098 | quality-attribute | validated | M010/S03 | none | Pre-flight check in task-queue worker calls getTokenStatus before job execution. Expired/key_mismatch tokens throw UnrecoverableError (no retry). Tokens with <2h remaining are refused. 17 tests cover all paths including boundary conditions. All pass. |
-| R099 | quality-attribute | active | M010/S01 | none | unmapped |
-| R100 | quality-attribute | active | M010/S01 | none | unmapped |
-| R101 | quality-attribute | active | M010/S01 | none | unmapped |
-| R102 | quality-attribute | validated | M010/S03 | none | tryDecrypt returns { ok: false, reason: 'key_mismatch' } on GCM auth tag failure. getTokenStatus returns 'key_mismatch' status. user-client throws UserClientException with KEY_MISMATCH code. Banner shows destructive re-auth alert. Rotation skips key_mismatch tokens gracefully. Tests cover all paths. |
-| R103 | core-capability | active | M010/S04 | none | unmapped |
-| R104 | core-capability | active | M010/S04 | none | unmapped |
-| R105 | failure-visibility | validated | M010/S03 | none | TokenExpiryBanner component renders in dashboard layout via getTokenStatusAction server action. Destructive Alert for expired/key_mismatch, default Alert with hours remaining for expiring, null for valid. 5 component tests + grep verification of layout wiring. All pass. |
-| R106 | core-capability | active | M010/S01 | none | unmapped |
+| R097 | core-capability | validated | M010/S03 | none | Token rotation processor creates new API key at ≥75% lifetime, encrypts, updates via optimistic lock (WHERE version = oldVersion), deletes old keys. 11 rotation tests pass. |
+| R098 | quality-attribute | validated | M010/S03 | none | Pre-flight check in task-queue.ts refuses jobs if token expired/key_mismatch or expiring with <2h remaining. Throws UnrecoverableError. 17 preflight tests pass. |
+| R099 | quality-attribute | validated | M010/S01 | none | performLogin calls CoderClient.validateInstance (GET /buildinfo) before login. Differentiates DNS/timeout/not-Coder errors. 14 CoderClient auth tests cover all validateInstance paths. |
+| R100 | quality-attribute | validated | M010/S01 | none | loginRateLimiter enforces 5 attempts/min per IP via sliding window in rate-limit.ts. loginAction checks before calling performLogin. 7 rate-limit tests pass (sliding window, key isolation, expiry). |
+| R101 | quality-attribute | validated | M010/S01 | none | performLogin retries createApiKey 3 times; on total failure falls back to session token as stored credential. 7 login flow tests cover retry/fallback paths. |
+| R102 | quality-attribute | validated | M010/S03 | none | tryDecrypt returns discriminated union with key_mismatch reason by inspecting GCM auth tag failure. Token rotation skips key_mismatch tokens. TokenExpiryBanner shows destructive alert for key_mismatch. 12 lifecycle tests cover detection. |
+| R103 | core-capability | validated | M010/S04 | none | Web app manifest at /manifest.webmanifest with display:standalone. Service worker with push+notificationclick handlers. ServiceWorkerRegister in root layout. 2 SW + manifest tests pass. |
+| R104 | core-capability | validated | M010/S04 | none | sendPushToUser fires at ≤24h threshold in token rotation processor. 11 tests cover send/cleanup/rotation integration. Per-subscription error handling with stale cleanup. |
+| R105 | failure-visibility | validated | M010/S03 | none | TokenExpiryBanner server component in dashboard layout. Destructive Alert for expired/key_mismatch, default Alert with hours remaining for expiring. 5 component tests pass. |
+| R106 | core-capability | validated | M010/S01 | none | logoutAction deletes Session row and clears cookie only; User and CoderToken rows persist. 8 action tests confirm logout behavior per R106. |
 | R107 | quality-attribute | validated | M010/S02 | none | Workspace proxy metaCache keyed by ${userId}:${workspaceId}. Each user resolves their own CoderClient. Different Coder deployments fully independent. |
-| R108 | quality-attribute | validated | M010/S03 | none | isAuthError matches 401/403 status codes and KEY_MISMATCH/NO_TOKEN UserClientException codes. isNetworkError matches ECONNREFUSED/ECONNRESET/ETIMEDOUT/ENOTFOUND/fetch-failed/socket-hang-up patterns. Auth errors wrapped in UnrecoverableError (no retry), network errors re-thrown for BullMQ retry. 17 tests cover classification and worker integration. |
-| R109 | quality-attribute | active | M010/S04 | none | unmapped |
+| R108 | quality-attribute | validated | M010/S03 | none | isAuthError (401/403/KEY_MISMATCH → UnrecoverableError) and isNetworkError (ECONNREFUSED etc → BullMQ retry) classifiers in queue/errors.ts. Task queue catch block routes accordingly. 17 preflight tests verify. |
+| R109 | quality-attribute | validated | M010/S04 | none | Login page uses shadcn components with zinc-950 dark theme. Notification click opens /login. Coder-like styling confirmed in S04 summary. |
 | R110 | quality-attribute | deferred | none | none | unmapped |
 | R111 | quality-attribute | deferred | none | none | unmapped |
 | R112 | integration | deferred | none | none | unmapped |
 
 ## Coverage Summary
 
-- Active requirements: 30
-- Mapped to slices: 30
-- Validated: 68 (R006, R007, R013, R017, R018, R019, R028, R029, R032, R033, R034, R035, R036, R037, R038, R039, R040, R042, R043, R044, R045, R046, R047, R048, R049, R050, R051, R052, R056, R057, R058, R059, R060, R061, R062, R063, R064, R065, R066, R067, R068, R069, R072, R073, R074, R075, R076, R077, R078, R079, R080, R081, R082, R083, R084, R085, R086, R087, R093, R094, R095, R096, R097, R098, R102, R105, R107, R108)
+- Active requirements: 18
+- Mapped to slices: 18
+- Validated: 80 (R006, R007, R013, R017, R018, R019, R028, R029, R032, R033, R034, R035, R036, R037, R038, R039, R040, R042, R043, R044, R045, R046, R047, R048, R049, R050, R051, R052, R056, R057, R058, R059, R060, R061, R062, R063, R064, R065, R066, R067, R068, R069, R072, R073, R074, R075, R076, R077, R078, R079, R080, R081, R082, R083, R084, R085, R086, R087, R088, R089, R090, R091, R092, R093, R094, R095, R096, R097, R098, R099, R100, R101, R102, R103, R104, R105, R106, R107, R108, R109)
 - Unmapped active requirements: 0

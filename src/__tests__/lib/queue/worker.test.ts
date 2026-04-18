@@ -99,8 +99,17 @@ vi.mock("@/lib/workspace/cleanup", () => ({
 
 // Mock getCoderClientForUser — returns a mock CoderClient per-job
 const mockGetCoderClientForUser = vi.fn();
-vi.mock("@/lib/coder/user-client", () => ({
-  getCoderClientForUser: (...args: unknown[]) => mockGetCoderClientForUser(...args),
+vi.mock("@/lib/coder/user-client", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/coder/user-client")>();
+  return {
+    ...actual,
+    getCoderClientForUser: (...args: unknown[]) => mockGetCoderClientForUser(...args),
+  };
+});
+
+// Mock token status — default to valid token
+vi.mock("@/lib/auth/token-status", () => ({
+  getTokenStatus: vi.fn().mockResolvedValue({ status: "valid", expiresAt: null }),
 }));
 
 // Mock verifier blueprint
