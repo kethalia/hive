@@ -7,7 +7,10 @@ import {
   TOKEN_LIFETIME_SECONDS,
   TOKEN_ROTATION_THRESHOLD,
   TOKEN_ROTATION_QUEUE,
+  PUSH_NOTIFICATION_HOURS,
+  PUSH_NOTIFICATION_TAG,
 } from "@/lib/constants";
+import { sendPushToUser } from "@/lib/push/send";
 
 export interface TokenRotationJobData {
   triggeredAt: string;
@@ -60,6 +63,24 @@ export async function processTokenRotation(
 
     if (now < threshold) {
       continue;
+    }
+
+    const hoursRemaining = (effectiveExpiresAt - now) / (1000 * 60 * 60);
+    if (hoursRemaining <= PUSH_NOTIFICATION_HOURS) {
+      try {
+        await sendPushToUser(token.userId, {
+          title: "Hive: Token Expiring",
+          body: `Your Coder API token expires in ${Math.round(hoursRemaining)}h. Tap to re-authenticate.`,
+          tag: PUSH_NOTIFICATION_TAG,
+        });
+        console.log(
+          `[token-rotation] Push notification triggered for user ${userId} (${Math.round(hoursRemaining)}h remaining)`
+        );
+      } catch (err) {
+        console.warn(
+          `[token-rotation] Push notification failed for user ${userId}: ${err instanceof Error ? err.message : String(err)}`
+        );
+      }
     }
 
     const decryptResult = tryDecrypt(

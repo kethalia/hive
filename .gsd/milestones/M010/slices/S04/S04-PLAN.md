@@ -220,7 +220,7 @@ The PushPermissionPrompt component checks Notification.permission state, handles
   - Files: `src/lib/push/subscribe.ts`, `src/lib/push/actions.ts`, `src/components/push-permission-prompt.tsx`, `src/app/(dashboard)/layout.tsx`, `src/__tests__/push/subscribe.test.ts`, `src/__tests__/components/push-permission-prompt.test.tsx`
   - Verify: pnpm vitest run src/__tests__/push/subscribe.test.ts && pnpm vitest run src/__tests__/components/push-permission-prompt.test.tsx && grep -q 'PushPermissionPrompt' "src/app/(dashboard)/layout.tsx"
 
-- [ ] **T04: Create push sender and integrate into token rotation worker** `est:45m`
+- [x] **T04: Create push sender and integrate into token rotation worker** `est:45m`
   ## Description
 
 Completes R104 by creating the server-side push notification sender and integrating it into the token rotation worker. When the rotation processor detects a token with ≤24h remaining, it fires a push notification to all of that user's subscribed browsers. Stale subscriptions (410 Gone from the push service) are automatically cleaned up.
