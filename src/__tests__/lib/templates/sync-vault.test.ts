@@ -323,11 +323,12 @@ describe("sync-vault.sh", () => {
 
       await runSync({ HOME: tempDir });
 
-      async function assertNoSymlinks(dir: string): Promise<void> {
+      async function assertNoSymlinks(dir: string, isRoot = false): Promise<void> {
         let entries: string[];
         try {
           entries = await readdir(dir);
-        } catch {
+        } catch (err) {
+          if (isRoot) throw err;
           return;
         }
         for (const entry of entries) {
@@ -340,9 +341,9 @@ describe("sync-vault.sh", () => {
         }
       }
 
-      await assertNoSymlinks(claudeDir);
-      await assertNoSymlinks(agentsConvDir);
-      await assertNoSymlinks(piDir);
+      await assertNoSymlinks(claudeDir, true);
+      await assertNoSymlinks(agentsConvDir, true);
+      await assertNoSymlinks(piDir, true);
     });
   });
 });

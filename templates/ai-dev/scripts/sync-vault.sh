@@ -76,6 +76,15 @@ sync_skills() {
     return
   fi
 
+  # Precompute vault hashes once — avoids re-hashing per target
+  declare -A vault_hashes
+  for skill_dir in "$VAULT_DIR/Skills"/*/; do
+    [ -d "$skill_dir" ] || continue
+    local skill_name
+    skill_name=$(basename "$skill_dir")
+    vault_hashes["$skill_name"]=$(cd "$skill_dir" && find . -type f -exec md5sum {} + 2>/dev/null | sort | md5sum | cut -d' ' -f1)
+  done
+
   local skill_targets=("$CLAUDE_DIR/skills" "$AGENTS_CONV_DIR/skills" "$PI_DIR/skills")
 
   for skills_target in "${skill_targets[@]}"; do
@@ -89,6 +98,11 @@ sync_skills() {
     if [ -f "$manifest" ]; then
       while IFS= read -r managed_name; do
         [ -n "$managed_name" ] || continue
+        # Reject path traversal: no slashes, no "..", no leading dash
+        if [[ "$managed_name" == */* || "$managed_name" == ".." || "$managed_name" == -* ]]; then
+          echo "WARNING: ignoring suspicious manifest entry: $managed_name"
+          continue
+        fi
         if [ -d "$skills_target/$managed_name" ] && [ ! -d "$VAULT_DIR/Skills/$managed_name" ]; then
           rm -rf "$skills_target/$managed_name"
           removed=$((removed + 1))
@@ -105,10 +119,9 @@ sync_skills() {
       if [ ! -d "$skills_target/$skill_name" ]; then
         needs_sync=true
       else
-        local vault_hash local_hash
-        vault_hash=$(cd "$skill_dir" && find . -type f -exec md5sum {} + 2>/dev/null | sort | md5sum | cut -d' ' -f1)
+        local local_hash
         local_hash=$(cd "$skills_target/$skill_name" && find . -type f -exec md5sum {} + 2>/dev/null | sort | md5sum | cut -d' ' -f1)
-        if [ "$vault_hash" != "$local_hash" ]; then
+        if [ "${vault_hashes[$skill_name]}" != "$local_hash" ]; then
           needs_sync=true
         fi
       fi
