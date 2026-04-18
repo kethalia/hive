@@ -202,6 +202,66 @@ This file is the explicit capability and coverage contract for the project.
 - Validation: unmapped
 - Notes: Workspace must never auto-stop. tmux handles process persistence natively once workspace stays alive.
 
+### R082 — Vault skills copied to ~/.claude/skills/, ~/.agents/skills/, and ~/.pi/agent/skills/ — three independent targets, no symlinks
+- Class: core-capability
+- Status: active
+- Description: Vault skills copied to ~/.claude/skills/, ~/.agents/skills/, and ~/.pi/agent/skills/ — three independent targets, no symlinks
+- Why it matters: All three directories are discovered by different AI tools (Claude Code, cross-tool convention, Pi). Skills must land in all three for full tool coverage.
+- Source: user
+- Primary owning slice: M009/S01
+- Validation: unmapped
+- Notes: Direct copies, not symlinks. Each target gets its own .vault-managed manifest for cleanup.
+
+### R083 — CLAUDE.md and AGENTS.md copied to ~/.claude/, ~/.agents/, and ~/.pi/agent/ — all three directories get both files
+- Class: core-capability
+- Status: active
+- Description: CLAUDE.md and AGENTS.md copied to ~/.claude/, ~/.agents/, and ~/.pi/agent/ — all three directories get both files
+- Why it matters: Claude Code reads from ~/.claude/, Pi reads from ~/.pi/agent/, and ~/.agents/ is the cross-tool convention. Both context files must be present in all three.
+- Source: user
+- Primary owning slice: M009/S01
+- Validation: unmapped
+- Notes: Direct copies from vault/Agents/, not symlinks. Replaces current 2-target sync (claude + gsd).
+
+### R084 — No symlinks in vault sync — all targets get independent copies of skills and context files
+- Class: constraint
+- Status: active
+- Description: No symlinks in vault sync — all targets get independent copies of skills and context files
+- Why it matters: Symlinks break when the source directory doesn't exist or when tools resolve paths differently. Independent copies are more robust across tools.
+- Source: user
+- Primary owning slice: M009/S01
+- Validation: unmapped
+- Notes: Replaces the current GSD symlink pattern (link_gsd_skills function).
+
+### R085 — GSD agent skills symlink logic removed from sync-vault.sh — link_gsd_skills function deleted
+- Class: operability
+- Status: active
+- Description: GSD agent skills symlink logic removed from sync-vault.sh — link_gsd_skills function deleted
+- Why it matters: GSD discovers skills through ~/.claude/skills/ or ~/.agents/skills/. The dedicated symlink at ~/.gsd/agent/skills is no longer needed.
+- Source: user
+- Primary owning slice: M009/S01
+- Validation: unmapped
+- Notes: Remove link_gsd_skills() and its invocation from both template scripts.
+
+### R086 — Both template variants (hive and ai-dev) use identical updated sync-vault.sh script
+- Class: constraint
+- Status: active
+- Description: Both template variants (hive and ai-dev) use identical updated sync-vault.sh script
+- Why it matters: The two templates serve different workspace types but share the same vault sync logic. Divergence creates maintenance burden and subtle bugs.
+- Source: user
+- Primary owning slice: M009/S01
+- Validation: unmapped
+- Notes: templates/hive/scripts/sync-vault.sh and templates/ai-dev/scripts/sync-vault.sh must be byte-identical.
+
+### R087 — Manifest-based cleanup (.vault-managed) works per skill target directory — stale skills removed independently in each of the 3 targets
+- Class: quality-attribute
+- Status: active
+- Description: Manifest-based cleanup (.vault-managed) works per skill target directory — stale skills removed independently in each of the 3 targets
+- Why it matters: Each target directory may have user-created skills. The manifest tracks only vault-managed skills so cleanup never deletes user content.
+- Source: inferred
+- Primary owning slice: M009/S01
+- Validation: unmapped
+- Notes: Each of the 3 skill directories gets its own .vault-managed manifest file.
+
 ## Validated
 
 ### R006 — After worker creates PR, orchestrator automatically spins up a verifier workspace that pulls the branch and tests the output by actually using it
@@ -972,10 +1032,16 @@ This file is the explicit capability and coverage contract for the project.
 | R079 | quality-attribute | validated | M008/S02 | none | Both Dockerfiles rewritten as 3-stage pnpm builds (deps/build/runner) with non-root users (nextjs uid 1001, appuser uid 1001). Corepack activates pnpm@10.32.1. Verified by S02 checks 3-4 (root Dockerfile AS runner, USER nextjs) and checks 6-8 (terminal-proxy AS runner, USER appuser, tini). |
 | R080 | constraint | validated | M008/S03 | none | Both ci.yml and release.yml use ghcr.io/kethalia/hive and ghcr.io/kethalia/hive-terminal-proxy image names. Verified by grep in both workflow files. |
 | R081 | quality-attribute | validated | M008/S03 | none | release.yml extracts per-package versions via jq from changesets/action publishedPackages output. docker-app conditional on orchestratorVersion != '', docker-terminal-proxy conditional on terminalProxyVersion != ''. Only packages with version bumps trigger Docker builds. Verified by grep for hive-orchestrator and hive-terminal-proxy in release.yml. |
+| R082 | core-capability | active | M009/S01 | none | unmapped |
+| R083 | core-capability | active | M009/S01 | none | unmapped |
+| R084 | constraint | active | M009/S01 | none | unmapped |
+| R085 | operability | active | M009/S01 | none | unmapped |
+| R086 | constraint | active | M009/S01 | none | unmapped |
+| R087 | quality-attribute | active | M009/S01 | none | unmapped |
 
 ## Coverage Summary
 
-- Active requirements: 18
-- Mapped to slices: 18
+- Active requirements: 24
+- Mapped to slices: 24
 - Validated: 52 (R006, R007, R013, R017, R018, R019, R028, R029, R032, R033, R034, R035, R036, R037, R038, R039, R040, R042, R043, R044, R045, R046, R047, R048, R049, R050, R051, R052, R056, R057, R058, R059, R060, R061, R062, R063, R064, R065, R066, R067, R068, R069, R072, R073, R074, R075, R076, R077, R078, R079, R080, R081)
 - Unmapped active requirements: 0

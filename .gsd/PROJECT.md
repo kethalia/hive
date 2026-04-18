@@ -85,3 +85,4 @@ See `.gsd/REQUIREMENTS.md` for the explicit capability contract, requirement sta
 - [x] M006: Persistent Terminal Sessions — Fix critical session persistence: server-side workspace keep-alive, infinite reconnection, Postgres-backed scrollback with virtual scrolling (5 slices, 504 frontend + 88 proxy tests)
 - [x] M007: Sidebar Navigation Overhaul — Directory-tree sidebar with collapsible workspace/template sections, full-viewport terminal pages, floating sidebar toggle, template detail page, sidebar pin/unpin mode (3 slices, 462 tests, 14 requirements validated)
 - [x] M008: Release Workflow — Changesets for independent versioning, CI Docker image builds on PRs, release workflow pushing tagged images to GHCR, compose file restructure (prod/local/dev) (3 slices, 5 requirements validated)
+- [ ] M009: Multi-Target Vault Sync — Fix sync-vault.sh to copy skills and context files to ~/.claude/, ~/.agents/, ~/.pi/agent/ with direct copies, no symlinks
