@@ -129,7 +129,7 @@ Session CRUD (create/read/delete with cookie management) and the login flow that
   - Files: `src/lib/auth/session.ts`, `src/lib/auth/login.ts`, `src/__tests__/auth/session.test.ts`, `src/__tests__/auth/login.test.ts`
   - Verify: pnpm vitest run src/__tests__/auth/session.test.ts src/__tests__/auth/login.test.ts
 
-- [ ] **T03: Wire auth server actions, middleware route protection, and rate limiting** `est:1h`
+- [x] **T03: Wire auth server actions, middleware route protection, and rate limiting** `est:1h`
   ## Description
 
 Integration layer: login/logout/getSession server actions via next-safe-action, Next.js middleware for route protection (cookie-only check, no Prisma in edge runtime), in-memory rate limiter for login attempts (5/min per IP), and an authenticated safe-action client that injects user context.
