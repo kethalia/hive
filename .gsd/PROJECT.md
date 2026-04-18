@@ -74,7 +74,8 @@ Repository: https://github.com/kethalia/hive
 - **Docker Images:** Multi-stage pnpm Dockerfiles for both services. Root app uses 3-stage build (deps/builder/runner) with standalone Next.js output and non-root nextjs user. Terminal-proxy uses 3-stage build with `pnpm deploy --filter` for workspace-correct dependency isolation, tini as PID 1, and non-root appuser. Both use corepack with pnpm@10.32.1 on node:20-alpine.
 - **Compose Files:** Three-file convention — docker-compose.prod.yml (prod, GHCR images, restart: unless-stopped), docker-compose.local.yml (build from source with correct contexts), docker-compose.dev.yml (postgres + redis only for local dev).
 - **Vault Sync:** sync-vault.sh copies skills, CLAUDE.md, and AGENTS.md to three independent directories (~/.claude/, ~/.agents/, ~/.pi/agent/). No symlinks — all targets get direct copies. Per-directory .vault-managed manifests track vault-managed skills for independent stale cleanup. skill_targets array loop makes adding new target directories trivial.
-- **Deployment:** Solo operator, no auth. Docker-compose: Next.js + Postgres + Redis
+- **Authentication:** Multi-user Coder auth via direct login API. Per-user encrypted API keys in Postgres. Dynamic Coder URL per user. Browser sessions database-backed. Workers use submitting user's stored credentials.
+- **Deployment:** Docker-compose: Next.js + Postgres + Redis. PWA-capable with push notifications
 
 ## Capability Contract
 
@@ -90,3 +91,4 @@ See `.gsd/REQUIREMENTS.md` for the explicit capability contract, requirement sta
 - [x] M007: Sidebar Navigation Overhaul — Directory-tree sidebar with collapsible workspace/template sections, full-viewport terminal pages, floating sidebar toggle, template detail page, sidebar pin/unpin mode (3 slices, 462 tests, 14 requirements validated)
 - [x] M008: Release Workflow — Changesets for independent versioning, CI Docker image builds on PRs, release workflow pushing tagged images to GHCR, compose file restructure (prod/local/dev) (3 slices, 5 requirements validated)
 - [x] M009: Multi-Target Vault Sync — sync-vault.sh copies skills and context files to ~/.claude/, ~/.agents/, ~/.pi/agent/ with direct copies, no symlinks (1 slice, 16 tests, 6 requirements validated)
+- [ ] M010: Multi-User Coder Authentication — Replace static CODER_URL/CODER_SESSION_TOKEN with per-user auth via Coder's direct login API, encrypted token storage, PWA with push notifications

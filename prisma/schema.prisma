@@ -57,6 +57,49 @@ model TaskLog {
   @@map("task_logs")
 }
 
+model User {
+  id          String   @id @default(uuid()) @db.Uuid
+  coderUrl    String   @map("coder_url")
+  coderUserId String   @map("coder_user_id") @db.Uuid
+  username    String
+  email       String
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt   DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+
+  coderTokens CoderToken[]
+  sessions    Session[]
+
+  @@unique([coderUrl, coderUserId])
+  @@map("users")
+}
+
+model CoderToken {
+  id         String   @id @default(uuid()) @db.Uuid
+  userId     String   @map("user_id") @db.Uuid
+  ciphertext Bytes
+  iv         Bytes
+  authTag    Bytes    @map("auth_tag")
+  version    Int      @default(1)
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt  DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@map("coder_tokens")
+}
+
+model Session {
+  id        String   @id @default(uuid()) @db.Uuid
+  sessionId String   @unique @default(uuid()) @map("session_id") @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  expiresAt DateTime @map("expires_at") @db.Timestamptz
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@map("sessions")
+}
+
 model Workspace {
   id               String          @id @default(uuid()) @db.Uuid
   taskId           String          @map("task_id") @db.Uuid
