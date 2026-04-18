@@ -18,7 +18,8 @@ set -euo pipefail
 VAULT_DIR="$HOME/vault"
 AGENTS_SRC="$VAULT_DIR/Agents"
 CLAUDE_DIR="$HOME/.claude"
-GSD_DIR="$HOME/.gsd/agent"
+AGENTS_CONV_DIR="$HOME/.agents"
+PI_DIR="$HOME/.pi/agent"
 
 # Track what changed for logging
 changes=()
@@ -52,21 +53,21 @@ sync_file() {
 }
 
 # -----------------------------------------------------------------------------
-# CLAUDE.md — always overwrite from vault/Agents/ to ~/.claude/ and ~/.gsd/agent/
+# CLAUDE.md — sync to all agent directories
 # -----------------------------------------------------------------------------
 sync_claude_md() {
-  sync_file "$AGENTS_SRC/CLAUDE.md" "CLAUDE.md" "$CLAUDE_DIR" "$GSD_DIR"
+  sync_file "$AGENTS_SRC/CLAUDE.md" "CLAUDE.md" "$CLAUDE_DIR" "$AGENTS_CONV_DIR" "$PI_DIR"
 }
 
 # -----------------------------------------------------------------------------
-# AGENTS.md — always overwrite from vault/Agents/ to ~/.claude/ and ~/.gsd/agent/
+# AGENTS.md — sync to all agent directories
 # -----------------------------------------------------------------------------
 sync_agents_md() {
-  sync_file "$AGENTS_SRC/AGENTS.md" "AGENTS.md" "$CLAUDE_DIR" "$GSD_DIR"
+  sync_file "$AGENTS_SRC/AGENTS.md" "AGENTS.md" "$CLAUDE_DIR" "$AGENTS_CONV_DIR" "$PI_DIR"
 }
 
 # -----------------------------------------------------------------------------
-# Skills — sync vault skill directories to ~/.claude/skills/
+# Skills — sync vault skill directories to all agent skill directories
 # Each vault skill is a directory (e.g. Skills/caveman/) containing SKILL.md
 # -----------------------------------------------------------------------------
 sync_skills() {
@@ -75,102 +76,78 @@ sync_skills() {
     return
   fi
 
-  local skills_target="$CLAUDE_DIR/skills"
-  mkdir -p "$skills_target"
-
-  local synced=0
-  local removed=0
-  local unchanged=0
-
-  # Remove stale vault-managed skills that no longer exist in vault
-  # Only prune skills listed in the manifest — never touch user-created skills
-  local manifest="$skills_target/.vault-managed"
-  if [ -f "$manifest" ]; then
-    while IFS= read -r managed_name; do
-      [ -n "$managed_name" ] || continue
-      if [ -d "$skills_target/$managed_name" ] && [ ! -d "$VAULT_DIR/Skills/$managed_name" ]; then
-        rm -rf "$skills_target/$managed_name"
-        removed=$((removed + 1))
-      fi
-    done < "$manifest"
-  fi
-
-  # Sync each skill directory from vault
+  # Precompute vault hashes once — avoids re-hashing per target
+  declare -A vault_hashes
   for skill_dir in "$VAULT_DIR/Skills"/*/; do
     [ -d "$skill_dir" ] || continue
     local skill_name
     skill_name=$(basename "$skill_dir")
+    vault_hashes["$skill_name"]=$(cd "$skill_dir" && find . -type f -exec md5sum {} + 2>/dev/null | sort | md5sum | cut -d' ' -f1)
+  done
 
-    # Compare using checksums of all files in the skill directory
-    local needs_sync=false
-    if [ ! -d "$skills_target/$skill_name" ]; then
-      needs_sync=true
-    else
-      # Quick check: compare file counts and content hashes
-      local vault_hash local_hash
-      vault_hash=$(cd "$skill_dir" && find . -type f -exec md5sum {} + 2>/dev/null | sort | md5sum | cut -d' ' -f1)
-      local_hash=$(cd "$skills_target/$skill_name" && find . -type f -exec md5sum {} + 2>/dev/null | sort | md5sum | cut -d' ' -f1)
-      if [ "$vault_hash" != "$local_hash" ]; then
+  local skill_targets=("$CLAUDE_DIR/skills" "$AGENTS_CONV_DIR/skills" "$PI_DIR/skills")
+
+  for skills_target in "${skill_targets[@]}"; do
+    mkdir -p "$skills_target"
+
+    local synced=0
+    local removed=0
+    local unchanged=0
+
+    local manifest="$skills_target/.vault-managed"
+    if [ -f "$manifest" ]; then
+      while IFS= read -r managed_name; do
+        [ -n "$managed_name" ] || continue
+        # Reject path traversal: no slashes, no "..", no leading dash
+        if [[ "$managed_name" == */* || "$managed_name" == ".." || "$managed_name" == -* ]]; then
+          echo "WARNING: ignoring suspicious manifest entry: $managed_name"
+          continue
+        fi
+        if [ -d "$skills_target/$managed_name" ] && [ ! -d "$VAULT_DIR/Skills/$managed_name" ]; then
+          rm -rf "$skills_target/$managed_name"
+          removed=$((removed + 1))
+        fi
+      done < "$manifest"
+    fi
+
+    for skill_dir in "$VAULT_DIR/Skills"/*/; do
+      [ -d "$skill_dir" ] || continue
+      local skill_name
+      skill_name=$(basename "$skill_dir")
+
+      local needs_sync=false
+      if [ ! -d "$skills_target/$skill_name" ]; then
         needs_sync=true
+      else
+        local local_hash
+        local_hash=$(cd "$skills_target/$skill_name" && find . -type f -exec md5sum {} + 2>/dev/null | sort | md5sum | cut -d' ' -f1)
+        if [ "${vault_hashes["$skill_name"]-}" != "$local_hash" ]; then
+          needs_sync=true
+        fi
       fi
+
+      if [ "$needs_sync" = true ]; then
+        rm -rf "$skills_target/$skill_name"
+        cp -a "$skill_dir" "$skills_target/$skill_name"
+        synced=$((synced + 1))
+      else
+        unchanged=$((unchanged + 1))
+      fi
+    done
+
+    local managed_list=""
+    for skill_dir in "$VAULT_DIR/Skills"/*/; do
+      [ -d "$skill_dir" ] || continue
+      managed_list+="$(basename "$skill_dir")"$'\n'
+    done
+    printf '%s' "$managed_list" > "$skills_target/.vault-managed"
+
+    local total=$((synced + unchanged))
+    if [ "$synced" -gt 0 ] || [ "$removed" -gt 0 ]; then
+      changes+=("Skills ($skills_target): $synced updated, $removed removed, $unchanged unchanged (total: $total)")
     fi
-
-    if [ "$needs_sync" = true ]; then
-      rm -rf "$skills_target/$skill_name"
-      cp -a "$skill_dir" "$skills_target/$skill_name"
-      synced=$((synced + 1))
-    else
-      unchanged=$((unchanged + 1))
-    fi
+    echo "Skills ($skills_target): $synced updated, $removed removed, $unchanged unchanged (total: $total)"
   done
-
-  # Write manifest of vault-managed skills for safe future cleanup
-  local managed_list=""
-  for skill_dir in "$VAULT_DIR/Skills"/*/; do
-    [ -d "$skill_dir" ] || continue
-    managed_list+="$(basename "$skill_dir")"$'\n'
-  done
-  printf '%s' "$managed_list" > "$skills_target/.vault-managed"
-
-  local total=$((synced + unchanged))
-  if [ "$synced" -gt 0 ] || [ "$removed" -gt 0 ]; then
-    changes+=("Skills: $synced updated, $removed removed, $unchanged unchanged (total: $total)")
-  fi
-  echo "Skills: $synced updated, $removed removed, $unchanged unchanged (total: $total)"
-}
-
-# -----------------------------------------------------------------------------
-# GSD skills symlink — share vault skills with GSD/pi agent
-# ~/.gsd/agent/skills → ~/.claude/skills
-# -----------------------------------------------------------------------------
-link_gsd_skills() {
-  local claude_skills="$CLAUDE_DIR/skills"
-  local gsd_skills="$GSD_DIR/skills"
-
-  # Only link if the Claude skills dir exists (sync_skills created it)
-  if [ ! -d "$claude_skills" ]; then
-    echo "GSD skills: skipped (no Claude skills to link)"
-    return
-  fi
-
-  mkdir -p "$GSD_DIR"
-
-  # If it's already the correct symlink, nothing to do
-  if [ -L "$gsd_skills" ] && [ "$(readlink "$gsd_skills")" = "$claude_skills" ]; then
-    echo "GSD skills: symlink already correct"
-    return
-  fi
-
-  # Replace stale symlink; preserve real directories with user content
-  if [ -L "$gsd_skills" ]; then
-    rm "$gsd_skills"
-  elif [ -d "$gsd_skills" ]; then
-    echo "GSD skills: WARNING — $gsd_skills is a real directory, not replacing (may contain user content)"
-    return
-  fi
-  ln -s "$claude_skills" "$gsd_skills"
-  changes+=("GSD skills: symlinked to $claude_skills")
-  echo "GSD skills: symlinked $gsd_skills → $claude_skills"
 }
 
 # -----------------------------------------------------------------------------
@@ -180,7 +157,6 @@ echo "--- Vault sync started ---"
 sync_claude_md
 sync_agents_md
 sync_skills
-link_gsd_skills
 
 if [ ${#changes[@]} -gt 0 ]; then
   echo "--- Vault sync complete (${#changes[@]} changes) ---"
