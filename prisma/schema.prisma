@@ -36,9 +36,11 @@ model Task {
   councilSize        Int        @default(3) @map("council_size")
   councilReport      Json?      @map("council_report")
   attachments        Json?
+  userId             String?    @map("user_id") @db.Uuid
   createdAt    DateTime   @default(now()) @map("created_at") @db.Timestamptz
   updatedAt    DateTime   @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
 
+  user       User?       @relation(fields: [userId], references: [id])
   logs       TaskLog[]
   workspaces Workspace[]
 
@@ -68,6 +70,7 @@ model User {
 
   coderTokens CoderToken[]
   sessions    Session[]
+  tasks       Task[]
 
   @@unique([coderUrl, coderUserId])
   @@map("users")
