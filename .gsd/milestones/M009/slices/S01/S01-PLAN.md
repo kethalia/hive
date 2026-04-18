@@ -25,7 +25,7 @@
 - Do: (1) Replace GSD_DIR constant with AGENTS_CONV_DIR="$HOME/.agents" and PI_DIR="$HOME/.pi/agent". (2) Update sync_claude_md() to pass all 3 targets: "$CLAUDE_DIR" "$AGENTS_CONV_DIR" "$PI_DIR". (3) Update sync_agents_md() same way. (4) Refactor sync_skills() to loop over SKILL_TARGETS=("$CLAUDE_DIR/skills" "$AGENTS_CONV_DIR/skills" "$PI_DIR/skills") — each target gets its own mkdir, .vault-managed manifest, stale cleanup, and copy pass. (5) Delete link_gsd_skills() function entirely (lines 146-174). (6) Remove link_gsd_skills call from main block. (7) cp templates/hive/scripts/sync-vault.sh templates/ai-dev/scripts/sync-vault.sh.
 - Verify: `diff templates/hive/scripts/sync-vault.sh templates/ai-dev/scripts/sync-vault.sh` returns empty; `grep -c "symlink\|ln -s\|readlink\|link_gsd" templates/hive/scripts/sync-vault.sh` returns 0
 - Done when: Both template scripts are identical, no symlink references remain, script targets 3 directories for both context files and skills
-- [ ] **T02: Rewrite tests for multi-target sync and no-symlink behavior** `est:30m`
+- [x] **T02: Rewrite tests for multi-target sync and no-symlink behavior** `est:30m`
 - Why: Tests currently assert 2-target context file sync, single-target skills, and symlink creation. Must update for 3-target assertions and replace symlink tests with no-symlink verification.
 - Files: `src/__tests__/lib/templates/sync-vault.test.ts`
 - Do: (1) Add agentsConvDir and piDir temp directories in beforeEach alongside existing claudeDir. (2) Update CLAUDE.md tests to assert content exists in all 3 targets (claudeDir, agentsConvDir, piDir) instead of claudeDir+gsdDir. (3) Update AGENTS.md tests same way. (4) Update Skills tests to verify skills land in all 3 skill directories with independent .vault-managed manifests. Add test for stale cleanup working independently per directory. (5) Delete entire "GSD skills symlink" describe block. (6) Add a test asserting no symlinks exist in any target directory after sync.
@@ -50,7 +50,7 @@ Not provided.
 
 ## Tasks
 
-- [ ] **T01: Update sync-vault.sh for multi-target sync and remove symlink logic** `est:30m`
+- [x] **T01: Update sync-vault.sh for multi-target sync and remove symlink logic** `est:30m`
   The script currently targets ~/.claude/ and ~/.gsd/agent/ for context files and only ~/.claude/skills/ for skills, with a symlink for GSD. Must change to 3 independent copy targets with no symlinks.
 
 Key changes to `templates/hive/scripts/sync-vault.sh` (190 lines):
