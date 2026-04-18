@@ -114,3 +114,61 @@ export interface CoderTemplateVersion {
   };
   created_at: string;
 }
+
+/** Response from GET /api/v2/buildinfo */
+export interface BuildInfoResponse {
+  version: string;
+  external_url: string;
+}
+
+/** Request body for POST /api/v2/users/login */
+export interface LoginRequest {
+  email: string;
+  password: string;
+}
+
+/** Response from POST /api/v2/users/login */
+export interface LoginResponse {
+  session_token: string;
+}
+
+/** Request body for POST /api/v2/users/{id}/keys */
+export interface CreateApiKeyRequest {
+  lifetime_seconds?: number;
+}
+
+/** Response from POST /api/v2/users/{id}/keys */
+export interface CreateApiKeyResponse {
+  key: string;
+}
+
+/** Result of validateInstance */
+export interface ValidateInstanceResult {
+  valid: boolean;
+  version?: string;
+  reason?: string;
+}
+
+/** Result of login */
+export interface LoginResult {
+  sessionToken: string;
+  userId: string;
+  username: string;
+}
+
+/** User info from /api/v2/users/me */
+export interface CoderUserResponse {
+  id: string;
+  username: string;
+  email: string;
+}
+
+/** An API key from GET /api/v2/users/{id}/keys */
+export interface ApiKeyInfo {
+  id: string;
+  expires_at: string;
+  last_used: string;
+}
+
+/** Response from listing API keys */
+export type ListApiKeysResponse = ApiKeyInfo[];

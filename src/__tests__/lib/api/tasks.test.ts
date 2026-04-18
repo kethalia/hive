@@ -83,6 +83,7 @@ describe("Task API functions", () => {
       const task = await createTask({
         prompt: "Test prompt",
         repoUrl: "https://github.com/test/repo",
+        userId: "user-001",
       });
 
       // Verify task shape
@@ -119,6 +120,7 @@ describe("Task API functions", () => {
       await createTask({
         prompt: "Fix authentication bug in login",
         repoUrl: "https://github.com/test/repo",
+        userId: "user-001",
       });
 
       // Check Prisma create was called with branch matching the pattern

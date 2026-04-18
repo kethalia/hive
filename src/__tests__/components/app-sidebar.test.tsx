@@ -173,6 +173,7 @@ vi.mock("lucide-react", () => ({
   ChevronDown: () => <span>ChevronDown</span>,
   Pencil: () => <span>Pencil</span>,
   Loader2: () => <span data-testid="loader-icon">Loader2</span>,
+  LogOut: () => <span data-testid="logout-icon">LogOut</span>,
 }));
 
 const mockListWorkspaces = vi.fn();
@@ -203,6 +204,14 @@ vi.mock("@/lib/workspaces/urls", () => ({
 
 vi.mock("@/lib/actions/templates", () => ({
   listTemplateStatusesAction: (...args: unknown[]) => mockListTemplates(...args),
+}));
+
+const mockGetSessionAction = vi.fn();
+const mockLogoutAction = vi.fn();
+
+vi.mock("@/lib/auth/actions", () => ({
+  getSessionAction: (...args: unknown[]) => mockGetSessionAction(...args),
+  logoutAction: (...args: unknown[]) => mockLogoutAction(...args),
 }));
 
 import { AppSidebar } from "@/components/app-sidebar";
@@ -255,6 +264,10 @@ describe("AppSidebar", () => {
     mockKillSession.mockResolvedValue({
       data: { name: "dev" },
     });
+    mockGetSessionAction.mockResolvedValue({
+      data: { user: { id: "u1", email: "test@example.com", coderUrl: "https://coder.test" } },
+    });
+    mockLogoutAction.mockResolvedValue({ data: { success: true } });
   });
 
   afterEach(() => {
@@ -379,7 +392,7 @@ describe("AppSidebar", () => {
   });
 
   it("expanding a workspace triggers agent and session fetch", async () => {
-    render(<AppSidebar coderUrl="https://coder.test" />);
+    render(<AppSidebar />);
 
     await waitFor(() => {
       expect(screen.getByText("dev-box")).toBeInTheDocument();
@@ -396,7 +409,7 @@ describe("AppSidebar", () => {
   });
 
   it("renders sessions under Terminal collapsible in expanded workspace", async () => {
-    render(<AppSidebar coderUrl="https://coder.test" />);
+    render(<AppSidebar />);
 
     await waitFor(() => {
       expect(screen.getByText("dev-box")).toBeInTheDocument();
@@ -421,7 +434,7 @@ describe("AppSidebar", () => {
   it("renders external tools as text buttons that open popup windows", async () => {
     const openSpy = vi.spyOn(window, "open").mockImplementation(() => null);
 
-    render(<AppSidebar coderUrl="https://coder.test" />);
+    render(<AppSidebar />);
 
     await waitFor(() => {
       expect(screen.getByText("dev-box")).toBeInTheDocument();
@@ -466,7 +479,7 @@ describe("AppSidebar", () => {
   });
 
   it("create session button calls createSessionAction and navigates", async () => {
-    render(<AppSidebar coderUrl="https://coder.test" />);
+    render(<AppSidebar />);
 
     await waitFor(() => {
       expect(screen.getByText("dev-box")).toBeInTheDocument();
@@ -497,7 +510,7 @@ describe("AppSidebar", () => {
   });
 
   it("kill session button calls killSessionAction", async () => {
-    render(<AppSidebar coderUrl="https://coder.test" />);
+    render(<AppSidebar />);
 
     await waitFor(() => {
       expect(screen.getByText("dev-box")).toBeInTheDocument();
@@ -531,7 +544,7 @@ describe("AppSidebar", () => {
       serverError: "Session fetch failed",
     });
 
-    render(<AppSidebar coderUrl="https://coder.test" />);
+    render(<AppSidebar />);
 
     await waitFor(() => {
       expect(screen.getByText("dev-box")).toBeInTheDocument();
@@ -557,7 +570,7 @@ describe("AppSidebar", () => {
   });
 
   it("refreshes only sessions (not workspaces/templates) on hive:sidebar-refresh", async () => {
-    render(<AppSidebar coderUrl="https://coder.test" />);
+    render(<AppSidebar />);
 
     await waitFor(() => {
       expect(screen.getByText("dev-box")).toBeInTheDocument();
@@ -607,7 +620,7 @@ describe("AppSidebar", () => {
       serverError: "No agents found",
     });
 
-    render(<AppSidebar coderUrl="https://coder.test" />);
+    render(<AppSidebar />);
 
     await waitFor(() => {
       expect(screen.getByText("dev-box")).toBeInTheDocument();

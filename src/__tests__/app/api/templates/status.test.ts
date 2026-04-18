@@ -9,6 +9,21 @@ vi.mock("@/lib/templates/staleness", () => ({
   KNOWN_TEMPLATES: ["hive", "ai-dev"] as const,
 }));
 
+const MOCK_SESSION = {
+  user: { id: "user-1", coderUrl: "https://coder.test", coderUserId: "cu-1", username: "test", email: "test@test.com" },
+  session: { id: "s-1", sessionId: "sess-1", expiresAt: new Date(Date.now() + 86400000) },
+};
+
+vi.mock("next/headers", () => ({
+  cookies: vi.fn().mockResolvedValue({
+    get: () => ({ value: "session-cookie" }),
+  }),
+}));
+
+vi.mock("@/lib/auth/session", () => ({
+  getSession: vi.fn().mockResolvedValue(MOCK_SESSION),
+}));
+
 // ── GET route tests ──────────────────────────────────────────────
 
 describe("GET /api/templates/status", () => {
@@ -46,7 +61,7 @@ describe("GET /api/templates/status", () => {
     expect(response.status).toBe(200);
     const body = await response.json();
     expect(body).toEqual(statuses);
-    expect(mockCompareTemplates).toHaveBeenCalledWith(["hive", "ai-dev"]);
+    expect(mockCompareTemplates).toHaveBeenCalledWith(["hive", "ai-dev"], "user-1");
   });
 
   it("returns 500 when compareTemplates throws", async () => {

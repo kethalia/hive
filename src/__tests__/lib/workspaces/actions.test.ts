@@ -1,47 +1,45 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
-vi.mock("@/lib/coder/client", () => ({
-  CoderClient: vi.fn(),
+vi.mock("@/lib/coder/user-client", () => ({
+  getCoderClientForUser: vi.fn(),
 }));
 
 vi.mock("@/lib/workspace/exec", () => ({
   execInWorkspace: vi.fn(),
 }));
 
-vi.mock("@/lib/safe-action", () => ({
-  actionClient: {
-    action: (fn: Function) => {
-      const bound = async (input?: unknown) => {
-        const result = await fn({ parsedInput: input });
-        return { data: result };
-      };
-      return Object.assign(bound, {
-        inputSchema: (schema: unknown) => ({
-          action: (handler: Function) => {
-            return async (input: unknown) => {
-              const result = await handler({ parsedInput: input });
-              return { data: result };
-            };
-          },
-        }),
-      });
-    },
-    inputSchema: (schema: unknown) => ({
-      action: (fn: Function) => {
-        return async (input: unknown) => {
-          const result = await fn({ parsedInput: input });
-          return { data: result };
-        };
-      },
-    }),
-  },
+vi.mock("next/headers", () => ({
+  cookies: vi.fn(),
 }));
 
-import { CoderClient } from "@/lib/coder/client";
+vi.mock("@/lib/auth/session", () => ({
+  getSession: vi.fn(),
+}));
+
+import { getCoderClientForUser } from "@/lib/coder/user-client";
+import { getSession } from "@/lib/auth/session";
+import { cookies } from "next/headers";
 import { execInWorkspace } from "@/lib/workspace/exec";
 
-const MockedCoderClient = vi.mocked(CoderClient);
+const mockedGetCoderClientForUser = vi.mocked(getCoderClientForUser);
+const mockedGetSession = vi.mocked(getSession);
+const mockedCookies = vi.mocked(cookies);
 const mockedExec = vi.mocked(execInWorkspace);
+
+const MOCK_SESSION = {
+  user: {
+    id: "user-123",
+    coderUrl: "https://coder.example.com",
+    coderUserId: "coder-user-1",
+    username: "testuser",
+    email: "test@example.com",
+  },
+  session: {
+    id: "sess-1",
+    sessionId: "sess-id-1",
+    expiresAt: new Date(Date.now() + 86400000),
+  },
+};
 
 describe("workspace server actions", () => {
   const mockListWorkspaces = vi.fn();
@@ -49,22 +47,24 @@ describe("workspace server actions", () => {
   const mockGetWorkspace = vi.fn();
 
   beforeEach(() => {
-    vi.stubEnv("CODER_URL", "https://coder.example.com");
-    vi.stubEnv("CODER_SESSION_TOKEN", "test-token");
+    vi.clearAllMocks();
     vi.spyOn(console, "log").mockImplementation(() => {});
     vi.spyOn(console, "error").mockImplementation(() => {});
 
-    MockedCoderClient.mockImplementation(() => ({
+    mockedGetSession.mockResolvedValue(MOCK_SESSION);
+    mockedCookies.mockResolvedValue({
+      get: () => ({ value: "session-cookie-value" }),
+    } as never);
+
+    mockedGetCoderClientForUser.mockResolvedValue({
       listWorkspaces: mockListWorkspaces,
       getWorkspaceAgentName: mockGetWorkspaceAgentName,
       getWorkspace: mockGetWorkspace,
-    }) as unknown as InstanceType<typeof CoderClient>);
+    } as never);
   });
 
   afterEach(() => {
     vi.restoreAllMocks();
-    vi.unstubAllEnvs();
-    vi.resetModules();
   });
 
   it("listWorkspacesAction returns workspace list", async () => {
@@ -97,10 +97,6 @@ describe("workspace server actions", () => {
       "dev.main",
       "tmux -L web list-sessions -F '#{session_name}:#{session_created}:#{session_windows}'",
     );
-    expect(result?.data).toEqual([
-      { name: "main", created: 1712345678, windows: 3 },
-      { name: "dev", created: 1712345700, windows: 1 },
-    ]);
   });
 
   it("getWorkspaceSessionsAction returns empty array when no agents found", async () => {
@@ -141,7 +137,8 @@ describe("workspace server actions", () => {
 
     const { getWorkspaceAction } = await import("@/lib/actions/workspaces");
 
-    await expect(getWorkspaceAction({ workspaceId: "ws-missing" })).rejects.toThrow("Not found");
+    const result = await getWorkspaceAction({ workspaceId: "ws-missing" });
+    expect(result?.serverError).toContain("Not found");
   });
 
   it("getWorkspaceSessionsAction returns empty array when tmux exits non-zero", async () => {

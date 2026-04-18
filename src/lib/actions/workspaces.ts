@@ -1,24 +1,19 @@
 "use server";
 
 import { z } from "zod";
-import { actionClient } from "@/lib/safe-action";
-import { CoderClient } from "@/lib/coder/client";
+import { authActionClient } from "@/lib/safe-action";
+import { getCoderClientForUser } from "@/lib/coder/user-client";
 import { execInWorkspace } from "@/lib/workspace/exec";
 import { parseTmuxSessions } from "@/lib/workspaces/sessions";
 import { SAFE_IDENTIFIER_RE } from "@/lib/constants";
 
-function getCoderClient(): CoderClient {
-  return new CoderClient({
-    baseUrl: process.env.CODER_URL!,
-    sessionToken: process.env.CODER_SESSION_TOKEN!,
-  });
-}
-
-export const listWorkspacesAction = actionClient.action(async () => {
-  const client = getCoderClient();
-  const result = await client.listWorkspaces({ owner: "me" });
-  return result.workspaces;
-});
+export const listWorkspacesAction = authActionClient.action(
+  async ({ ctx }) => {
+    const client = await getCoderClientForUser(ctx.user.id);
+    const result = await client.listWorkspaces({ owner: "me" });
+    return result.workspaces;
+  },
+);
 
 const getWorkspaceAgentSchema = z.object({
   workspaceId: z.string().min(1, "workspaceId is required"),
@@ -28,17 +23,17 @@ const getWorkspaceSchema = z.object({
   workspaceId: z.string().min(1, "workspaceId is required"),
 });
 
-export const getWorkspaceAction = actionClient
+export const getWorkspaceAction = authActionClient
   .inputSchema(getWorkspaceSchema)
-  .action(async ({ parsedInput }) => {
-    const client = getCoderClient();
+  .action(async ({ parsedInput, ctx }) => {
+    const client = await getCoderClientForUser(ctx.user.id);
     return client.getWorkspace(parsedInput.workspaceId);
   });
 
-export const getWorkspaceAgentAction = actionClient
+export const getWorkspaceAgentAction = authActionClient
   .inputSchema(getWorkspaceAgentSchema)
-  .action(async ({ parsedInput }) => {
-    const client = getCoderClient();
+  .action(async ({ parsedInput, ctx }) => {
+    const client = await getCoderClientForUser(ctx.user.id);
     const resources = await client.getWorkspaceResources(
       parsedInput.workspaceId,
     );
@@ -56,10 +51,10 @@ const getWorkspaceSessionsSchema = z.object({
   workspaceId: z.string().min(1, "workspaceId is required"),
 });
 
-export const getWorkspaceSessionsAction = actionClient
+export const getWorkspaceSessionsAction = authActionClient
   .inputSchema(getWorkspaceSessionsSchema)
-  .action(async ({ parsedInput }) => {
-    const client = getCoderClient();
+  .action(async ({ parsedInput, ctx }) => {
+    const client = await getCoderClientForUser(ctx.user.id);
 
     let agentTarget: string;
     try {
@@ -93,12 +88,9 @@ const createSessionSchema = z.object({
   sessionName: z.string().optional(),
 });
 
-export const createSessionAction = actionClient
+export const createSessionAction = authActionClient
   .inputSchema(createSessionSchema)
   .action(async ({ parsedInput }) => {
-    // tmux session is created on-demand when the PTY connects via
-    // `tmux -L web new-session -A -s <name>` (the -A flag creates if
-    // needed). We only need to return a valid session name here.
     const name = parsedInput.sessionName ?? `session-${Date.now()}`;
     if (!SAFE_IDENTIFIER_RE.test(name)) {
       throw new Error(`Invalid session name: ${name}`);
@@ -116,9 +108,9 @@ const renameSessionSchema = z.object({
   newName: z.string().min(1, "newName is required"),
 });
 
-export const renameSessionAction = actionClient
+export const renameSessionAction = authActionClient
   .inputSchema(renameSessionSchema)
-  .action(async ({ parsedInput }) => {
+  .action(async ({ parsedInput, ctx }) => {
     if (!SAFE_IDENTIFIER_RE.test(parsedInput.oldName)) {
       throw new Error(`Invalid session name: ${parsedInput.oldName}`);
     }
@@ -126,7 +118,7 @@ export const renameSessionAction = actionClient
       throw new Error(`Invalid session name: ${parsedInput.newName}`);
     }
 
-    const client = getCoderClient();
+    const client = await getCoderClientForUser(ctx.user.id);
     const agentTarget = await client.getWorkspaceAgentName(
       parsedInput.workspaceId,
     );
@@ -153,14 +145,14 @@ const killSessionSchema = z.object({
   sessionName: z.string().min(1, "sessionName is required"),
 });
 
-export const killSessionAction = actionClient
+export const killSessionAction = authActionClient
   .inputSchema(killSessionSchema)
-  .action(async ({ parsedInput }) => {
+  .action(async ({ parsedInput, ctx }) => {
     if (!SAFE_IDENTIFIER_RE.test(parsedInput.sessionName)) {
       throw new Error(`Invalid session name: ${parsedInput.sessionName}`);
     }
 
-    const client = getCoderClient();
+    const client = await getCoderClientForUser(ctx.user.id);
     const agentTarget = await client.getWorkspaceAgentName(
       parsedInput.workspaceId,
     );
