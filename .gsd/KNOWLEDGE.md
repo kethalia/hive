@@ -254,3 +254,9 @@ When a monorepo has multiple independently-versioned packages that each map to a
 **Discovered:** 2026-04-17 during M007/S02/T03
 
 When two components live in different React component trees (e.g., a page component and a sidebar in a layout), React context and props can't bridge between them. Use `window.dispatchEvent(new CustomEvent('event-name'))` on the sender side and `window.addEventListener('event-name', handler)` in a `useEffect` on the receiver side. Clean up the listener on unmount. This avoids coupling via global state libraries for simple one-directional signals. Pattern used for `hive:sidebar-refresh` — terminal pages dispatch when detecting stale data, sidebar listens and re-fetches. For testing, use `window.dispatchEvent(new CustomEvent('event-name'))` in test code and assert the handler side-effects.
+
+## authActionClient Mock Pattern for Test Files
+
+**Discovered:** 2026-04-18 during M010/S02 slice completion
+
+When switching server actions from `actionClient` to `authActionClient`, all test files that mock `@/lib/safe-action` must be updated. The mock factory must export `authActionClient` (not just `actionClient`). The correct approach is to mock the upstream dependencies instead: mock `@/lib/coder/user-client` (getCoderClientForUser), `next/headers` (cookies), and `@/lib/auth/session` (getSession). This lets the real `authActionClient` import resolve and the middleware chain run with mocked auth data. Also, `authActionClient` uses `handleServerError` which catches thrown errors and returns `{ serverError: "..." }` — tests must assert on `result?.serverError` instead of `rejects.toThrow()`.

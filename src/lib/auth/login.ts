@@ -2,6 +2,7 @@ import { PrismaClient } from "@prisma/client";
 import { encrypt } from "./encryption";
 import { createSession } from "./session";
 import { CoderClient } from "../coder/client";
+import { TOKEN_LIFETIME_SECONDS } from "../constants";
 
 const prisma = new PrismaClient();
 
@@ -54,7 +55,8 @@ export async function performLogin(
     const apiKey = await CoderClient.createApiKey(
       coderUrl,
       loginResult.sessionToken,
-      loginResult.userId
+      loginResult.userId,
+      TOKEN_LIFETIME_SECONDS
     );
     if (apiKey) {
       credential = apiKey;
@@ -70,6 +72,10 @@ export async function performLogin(
   if (!usedApiKey) {
     console.log("[login] Falling back to session token as credential (R101)");
   }
+
+  const expiresAt = usedApiKey
+    ? new Date(Date.now() + TOKEN_LIFETIME_SECONDS * 1000)
+    : new Date(Date.now() + 24 * 60 * 60 * 1000);
 
   const encryptionKey = getTokenEncryptionKey();
   const encrypted = encrypt(credential, encryptionKey);
@@ -99,6 +105,7 @@ export async function performLogin(
       ciphertext: encrypted.ciphertext,
       iv: encrypted.iv,
       authTag: encrypted.authTag,
+      expiresAt,
       version: { increment: 1 },
     },
     create: {
@@ -106,6 +113,7 @@ export async function performLogin(
       ciphertext: encrypted.ciphertext,
       iv: encrypted.iv,
       authTag: encrypted.authTag,
+      expiresAt,
     },
   });
 

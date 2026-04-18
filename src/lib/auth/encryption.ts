@@ -42,3 +42,25 @@ export function decrypt(data: EncryptedData, keyHex: string): string {
   ]);
   return decrypted.toString("utf8");
 }
+
+export type DecryptResult =
+  | { ok: true; plaintext: string }
+  | { ok: false; reason: "key_mismatch" | "other"; error: Error };
+
+export function tryDecrypt(data: EncryptedData, keyHex: string): DecryptResult {
+  try {
+    const plaintext = decrypt(data, keyHex);
+    return { ok: true, plaintext };
+  } catch (err) {
+    const error = err instanceof Error ? err : new Error(String(err));
+    const msg = error.message.toLowerCase();
+    const isKeyMismatch =
+      msg.includes("unable to authenticate") ||
+      msg.includes("unsupported state");
+    return {
+      ok: false,
+      reason: isKeyMismatch ? "key_mismatch" : "other",
+      error,
+    };
+  }
+}

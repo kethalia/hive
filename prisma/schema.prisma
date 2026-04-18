@@ -82,9 +82,10 @@ model CoderToken {
   ciphertext Bytes
   iv         Bytes
   authTag    Bytes    @map("auth_tag")
-  version    Int      @default(1)
-  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz
-  updatedAt  DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+  version    Int       @default(1)
+  expiresAt  DateTime? @map("expires_at") @db.Timestamptz
+  createdAt  DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt  DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
 
   user User @relation(fields: [userId], references: [id])
 

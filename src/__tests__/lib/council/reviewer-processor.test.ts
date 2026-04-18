@@ -2,6 +2,7 @@ import { describe, expect, it, vi, beforeEach } from "vitest";
 import type { Job } from "bullmq";
 import type { CouncilReviewerJobData } from "../../../lib/queue/council-queues.js";
 import type { ReviewerFinding } from "../../../lib/council/types.js";
+import type { CoderClient } from "../../../lib/coder/client.js";
 
 // ── Module mocks ────────────────────────────────────────────────────────────
 
@@ -17,12 +18,18 @@ vi.mock("../../../lib/db/index.js", () => ({
   getDb: vi.fn().mockReturnValue({}),
 }));
 
+vi.mock("../../../lib/coder/user-client.js", () => ({
+  getCoderClientForUser: vi.fn(),
+}));
+
 // ── Imports (after mocks) ───────────────────────────────────────────────────
 
 import { createCouncilReviewerProcessor } from "../../../lib/council/reviewer-processor.js";
 import { runBlueprint } from "../../../lib/blueprint/runner.js";
 import { cleanupWorkspace } from "../../../lib/workspace/cleanup.js";
-import type { CoderClient } from "../../../lib/coder/client.js";
+import { getCoderClientForUser } from "../../../lib/coder/user-client.js";
+
+const mockedGetCoderClientForUser = vi.mocked(getCoderClientForUser);
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -50,6 +57,7 @@ function makeJob(
       prUrl: "https://github.com/owner/repo/pull/42",
       repoUrl: "https://github.com/owner/repo",
       branchName: "feature/my-branch",
+      userId: "user-123",
       ...overrides,
     },
   };
@@ -95,7 +103,8 @@ describe("createCouncilReviewerProcessor", () => {
   it("returns parsed ReviewerFinding[] on successful blueprint run", async () => {
     vi.mocked(runBlueprint).mockResolvedValue(makeSuccessBlueprint());
     const coderClient = mockCoderClient();
-    const processor = createCouncilReviewerProcessor(coderClient);
+    mockedGetCoderClientForUser.mockResolvedValue(coderClient);
+    const processor = createCouncilReviewerProcessor();
     const job = makeJob();
 
     const result = await processor(job as Job<CouncilReviewerJobData>);
@@ -109,14 +118,13 @@ describe("createCouncilReviewerProcessor", () => {
   it("creates workspace with correct templateId and workspaceName", async () => {
     vi.mocked(runBlueprint).mockResolvedValue(makeSuccessBlueprint());
     const coderClient = mockCoderClient();
-    const processor = createCouncilReviewerProcessor(coderClient);
+    mockedGetCoderClientForUser.mockResolvedValue(coderClient);
+    const processor = createCouncilReviewerProcessor();
 
     await processor(makeJob() as Job<CouncilReviewerJobData>);
 
     expect(coderClient.createWorkspace).toHaveBeenCalledWith(
       "tmpl-council-001",
-      // councilWorkspaceName("task001-aabb", 0) slices first 8 chars of taskId:
-      // "task001-aabb".slice(0, 8) = "task001-", so name = "hive-council-task001--0"
       "hive-council-task001--0",
       {
         task_id: "task001-aabb",
@@ -140,7 +148,8 @@ describe("createCouncilReviewerProcessor", () => {
       ],
     });
     const coderClient = mockCoderClient();
-    const processor = createCouncilReviewerProcessor(coderClient);
+    mockedGetCoderClientForUser.mockResolvedValue(coderClient);
+    const processor = createCouncilReviewerProcessor();
 
     await expect(
       processor(makeJob() as Job<CouncilReviewerJobData>),
@@ -156,13 +165,13 @@ describe("createCouncilReviewerProcessor", () => {
       ],
     });
     const coderClient = mockCoderClient();
-    const processor = createCouncilReviewerProcessor(coderClient);
+    mockedGetCoderClientForUser.mockResolvedValue(coderClient);
+    const processor = createCouncilReviewerProcessor();
 
     await expect(
       processor(makeJob() as Job<CouncilReviewerJobData>),
     ).rejects.toThrow();
 
-    // cleanupWorkspace should still have been called
     expect(cleanupWorkspace).toHaveBeenCalledOnce();
     expect(cleanupWorkspace).toHaveBeenCalledWith(
       coderClient,
@@ -176,13 +185,13 @@ describe("createCouncilReviewerProcessor", () => {
     const coderClient = mockCoderClient({
       createWorkspace: vi.fn().mockRejectedValue(new Error("quota exceeded")),
     });
-    const processor = createCouncilReviewerProcessor(coderClient);
+    mockedGetCoderClientForUser.mockResolvedValue(coderClient);
+    const processor = createCouncilReviewerProcessor();
 
     await expect(
       processor(makeJob() as Job<CouncilReviewerJobData>),
     ).rejects.toThrow("quota exceeded");
 
-    // No workspaceId was recorded, so cleanupWorkspace should NOT be called
     expect(cleanupWorkspace).not.toHaveBeenCalled();
   });
 
@@ -194,11 +203,11 @@ describe("createCouncilReviewerProcessor", () => {
         { name: "council-clone", status: "success", message: "ok", durationMs: 10 },
         { name: "council-diff", status: "success", message: "ok", durationMs: 10 },
         { name: "council-review", status: "success", message: "ok", durationMs: 50 },
-        // council-emit step missing
       ],
     });
     const coderClient = mockCoderClient();
-    const processor = createCouncilReviewerProcessor(coderClient);
+    mockedGetCoderClientForUser.mockResolvedValue(coderClient);
+    const processor = createCouncilReviewerProcessor();
 
     await expect(
       processor(makeJob() as Job<CouncilReviewerJobData>),
@@ -222,7 +231,8 @@ describe("createCouncilReviewerProcessor", () => {
       ],
     });
     const coderClient = mockCoderClient();
-    const processor = createCouncilReviewerProcessor(coderClient);
+    mockedGetCoderClientForUser.mockResolvedValue(coderClient);
+    const processor = createCouncilReviewerProcessor();
 
     await expect(
       processor(makeJob() as Job<CouncilReviewerJobData>),
@@ -232,13 +242,12 @@ describe("createCouncilReviewerProcessor", () => {
   it("uses reviewerIndex=1 for second reviewer workspace name", async () => {
     vi.mocked(runBlueprint).mockResolvedValue(makeSuccessBlueprint());
     const coderClient = mockCoderClient();
-    const processor = createCouncilReviewerProcessor(coderClient);
+    mockedGetCoderClientForUser.mockResolvedValue(coderClient);
+    const processor = createCouncilReviewerProcessor();
 
     await processor(makeJob({ reviewerIndex: 1 }) as Job<CouncilReviewerJobData>);
 
     const [, workspaceName] = vi.mocked(coderClient.createWorkspace).mock.calls[0] as [string, string];
-    // councilWorkspaceName("task001-aabb", 1) = "hive-council-task001--1"
-    // (taskId.slice(0,8) = "task001-", then appended "-1")
     expect(workspaceName).toBe("hive-council-task001--1");
   });
 });

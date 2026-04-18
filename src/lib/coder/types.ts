@@ -162,3 +162,13 @@ export interface CoderUserResponse {
   username: string;
   email: string;
 }
+
+/** An API key from GET /api/v2/users/{id}/keys */
+export interface ApiKeyInfo {
+  id: string;
+  expires_at: string;
+  last_used: string;
+}
+
+/** Response from listing API keys */
+export type ListApiKeysResponse = ApiKeyInfo[];

@@ -51,9 +51,9 @@ Unattended task-to-PR automation with behavioral verification — the system doe
 **M009 complete — 1 slice delivered and verified.** Multi-target vault sync: sync-vault.sh copies skills, CLAUDE.md, and AGENTS.md to three independent directories (~/.claude/, ~/.agents/, ~/.pi/agent/) with no symlinks and per-directory manifest cleanup. 16 tests. All 6 M009 requirements (R082-R087) validated.
 - S01 (Multi-target vault sync): complete — Replaced 2-target sync (claude + gsd) with 3-target sync (claude + agents + pi). Deleted link_gsd_skills() symlink logic entirely. Per-directory .vault-managed manifests for independent stale cleanup. Both template copies byte-identical.
 
-**M010 in progress — 1 of 4 slices complete.** Multi-user Coder authentication replacing static env vars with per-user, per-deployment credentials. 59 new auth tests across 6 files.
+**M010 in progress — 2 of 4 slices complete.** Multi-user Coder authentication replacing static env vars with per-user, per-deployment credentials. 537 tests across 67 files.
 - S01 (Auth Foundation — Login, Schema, Sessions): complete — Prisma schema (User/CoderToken/Session), AES-256-GCM encryption, CoderClient auth methods, session CRUD with cookie management, login flow orchestration with API key fallback (3 retries), server actions via next-safe-action (login/logout/getSession), edge-safe middleware route protection, sliding-window rate limiter (5/min per IP), login page UI with error display, (dashboard) route group restructuring with sidebar session indicator and logout. 59 tests.
-- S02 (Per-User Token Rewiring): remaining — replace CODER_URL/CODER_SESSION_TOKEN env vars with per-user stored credentials
+- S02 (Per-User Token Rewiring): complete — getCoderClientForUser factory resolves per-user credentials from DB. All workspace actions, BullMQ workers, template operations, and workspace proxy use per-user credentials. Task model has userId FK. CODER_URL/CODER_SESSION_TOKEN removed from .env.example, ENCRYPTION_KEY added. 537 tests pass.
 - S03 (Token Lifecycle & Resilience): remaining — auto-rotation, expiry handling, encryption key change resilience
 - S04 (PWA & Push Notifications): remaining — PWA install, push notifications for token expiry
 

@@ -252,46 +252,6 @@ This file is the explicit capability and coverage contract for the project.
 - Validation: unmapped
 - Notes: Next.js middleware checks session cookie, redirects to /login if missing/invalid
 
-### R093 — CoderClient instantiated per-request from logged-in user's stored token
-- Class: core-capability
-- Status: active
-- Description: CoderClient instantiated per-request from logged-in user's stored token
-- Why it matters: Replaces static env var CoderClient. Each user's API calls use their own Coder credentials for proper isolation
-- Source: user
-- Primary owning slice: M010/S02
-- Validation: unmapped
-- Notes: Server actions and API routes extract user from session, create CoderClient with their stored token
-
-### R094 — BullMQ workers use submitting user's stored API key (not env var)
-- Class: core-capability
-- Status: active
-- Description: BullMQ workers use submitting user's stored API key (not env var)
-- Why it matters: Per-user credential isolation for background jobs. Workers must act as the user who submitted the task
-- Source: user
-- Primary owning slice: M010/S02
-- Validation: unmapped
-- Notes: Worker looks up userId from task record, fetches encrypted token from CoderToken table, decrypts
-
-### R095 — Task records linked to submitting user via userId FK
-- Class: core-capability
-- Status: active
-- Description: Task records linked to submitting user via userId FK
-- Why it matters: Workers need to know whose token to use. Also enables per-user task filtering in the dashboard
-- Source: user
-- Primary owning slice: M010/S02
-- Validation: unmapped
-- Notes: New userId column on Task model with FK to User
-
-### R096 — CODER_URL and CODER_SESSION_TOKEN removed from .env requirements
-- Class: core-capability
-- Status: active
-- Description: CODER_URL and CODER_SESSION_TOKEN removed from .env requirements
-- Why it matters: Core goal of M010 — credentials come from per-user auth, not static env vars
-- Source: user
-- Primary owning slice: M010/S02
-- Validation: unmapped
-- Notes: TOKEN_ENCRYPTION_KEY remains as the only required secret. VAPID keys also needed for push notifications
-
 ### R097 — Token rotation job creates new API key at 75% lifetime, transactional
 - Class: core-capability
 - Status: active
@@ -391,16 +351,6 @@ This file is the explicit capability and coverage contract for the project.
 - Primary owning slice: M010/S01
 - Validation: unmapped
 - Notes: Re-login creates new browser session without new API key (verify existing key still works)
-
-### R107 — Multi-deployment isolation — one Coder instance failure doesn't affect another
-- Class: quality-attribute
-- Status: active
-- Description: Multi-deployment isolation — one Coder instance failure doesn't affect another
-- Why it matters: Users on different Coder deployments must be fully independent. Error in one deployment must not cascade
-- Source: user
-- Primary owning slice: M010/S02
-- Validation: unmapped
-- Notes: Errors scoped to (coderUrl, coderUserId). Error messages include which Coder instance failed
 
 ### R108 — Network errors (retry with backoff) vs auth errors (fail immediately) distinguished in workers
 - Class: quality-attribute
@@ -1056,6 +1006,56 @@ This file is the explicit capability and coverage contract for the project.
 - Validation: Independent per-directory .vault-managed manifests — dedicated test verifies stale cleanup in one target doesn't affect others
 - Notes: Each of the 3 skill directories gets its own .vault-managed manifest file.
 
+### R093 — CoderClient instantiated per-request from logged-in user's stored token
+- Class: core-capability
+- Status: validated
+- Description: CoderClient instantiated per-request from logged-in user's stored token
+- Why it matters: Replaces static env var CoderClient. Each user's API calls use their own Coder credentials for proper isolation
+- Source: user
+- Primary owning slice: M010/S02
+- Validation: All workspace actions use authActionClient with getCoderClientForUser(ctx.user.id). No actionClient usage or env var reads remain. 6 tests pass.
+- Notes: Server actions and API routes extract user from session, create CoderClient with their stored token
+
+### R094 — BullMQ workers use submitting user's stored API key (not env var)
+- Class: core-capability
+- Status: validated
+- Description: BullMQ workers use submitting user's stored API key (not env var)
+- Why it matters: Per-user credential isolation for background jobs. Workers must act as the user who submitted the task
+- Source: user
+- Primary owning slice: M010/S02
+- Validation: Task worker and council reviewer worker resolve CoderClient per-job via getCoderClientForUser(job.data.userId). Worker signatures changed to parameterless. 26 queue tests pass.
+- Notes: Worker looks up userId from task record, fetches encrypted token from CoderToken table, decrypts
+
+### R095 — Task records linked to submitting user via userId FK
+- Class: core-capability
+- Status: validated
+- Description: Task records linked to submitting user via userId FK
+- Why it matters: Workers need to know whose token to use. Also enables per-user task filtering in the dashboard
+- Source: user
+- Primary owning slice: M010/S02
+- Validation: Task model has nullable userId FK (migration 20250418000000_add_task_user_id). createTask accepts userId and stores on Task record. TaskJobData includes userId. 7 user-client + 14 worker tests pass.
+- Notes: New userId column on Task model with FK to User
+
+### R096 — CODER_URL and CODER_SESSION_TOKEN removed from .env requirements
+- Class: core-capability
+- Status: validated
+- Description: CODER_URL and CODER_SESSION_TOKEN removed from .env requirements
+- Why it matters: Core goal of M010 — credentials come from per-user auth, not static env vars
+- Source: user
+- Primary owning slice: M010/S02
+- Validation: CODER_URL and CODER_SESSION_TOKEN removed from .env.example. ENCRYPTION_KEY added. rg confirms no process.env references in src/ except child process env setting in push-queue.ts (correct).
+- Notes: TOKEN_ENCRYPTION_KEY remains as the only required secret. VAPID keys also needed for push notifications
+
+### R107 — Multi-deployment isolation — one Coder instance failure doesn't affect another
+- Class: quality-attribute
+- Status: validated
+- Description: Multi-deployment isolation — one Coder instance failure doesn't affect another
+- Why it matters: Users on different Coder deployments must be fully independent. Error in one deployment must not cascade
+- Source: user
+- Primary owning slice: M010/S02
+- Validation: Workspace proxy metaCache keyed by ${userId}:${workspaceId}. Each user resolves their own CoderClient. Different Coder deployments fully independent.
+- Notes: Errors scoped to (coderUrl, coderUserId). Error messages include which Coder instance failed
+
 ## Deferred
 
 ### R054 — Reconnection visual seam marker — timestamp showing where a disconnect/reconnect occurred in scrollback
@@ -1287,10 +1287,10 @@ This file is the explicit capability and coverage contract for the project.
 | R090 | core-capability | active | M010/S01 | none | unmapped |
 | R091 | core-capability | active | M010/S01 | none | unmapped |
 | R092 | core-capability | active | M010/S02 | none | unmapped |
-| R093 | core-capability | active | M010/S02 | none | unmapped |
-| R094 | core-capability | active | M010/S02 | none | unmapped |
-| R095 | core-capability | active | M010/S02 | none | unmapped |
-| R096 | core-capability | active | M010/S02 | none | unmapped |
+| R093 | core-capability | validated | M010/S02 | none | All workspace actions use authActionClient with getCoderClientForUser(ctx.user.id). No actionClient usage or env var reads remain. 6 tests pass. |
+| R094 | core-capability | validated | M010/S02 | none | Task worker and council reviewer worker resolve CoderClient per-job via getCoderClientForUser(job.data.userId). Worker signatures changed to parameterless. 26 queue tests pass. |
+| R095 | core-capability | validated | M010/S02 | none | Task model has nullable userId FK (migration 20250418000000_add_task_user_id). createTask accepts userId and stores on Task record. TaskJobData includes userId. 7 user-client + 14 worker tests pass. |
+| R096 | core-capability | validated | M010/S02 | none | CODER_URL and CODER_SESSION_TOKEN removed from .env.example. ENCRYPTION_KEY added. rg confirms no process.env references in src/ except child process env setting in push-queue.ts (correct). |
 | R097 | core-capability | active | M010/S03 | none | unmapped |
 | R098 | quality-attribute | active | M010/S03 | none | unmapped |
 | R099 | quality-attribute | active | M010/S01 | none | unmapped |
@@ -1301,7 +1301,7 @@ This file is the explicit capability and coverage contract for the project.
 | R104 | core-capability | active | M010/S04 | none | unmapped |
 | R105 | failure-visibility | active | M010/S03 | none | unmapped |
 | R106 | core-capability | active | M010/S01 | none | unmapped |
-| R107 | quality-attribute | active | M010/S02 | none | unmapped |
+| R107 | quality-attribute | validated | M010/S02 | none | Workspace proxy metaCache keyed by ${userId}:${workspaceId}. Each user resolves their own CoderClient. Different Coder deployments fully independent. |
 | R108 | quality-attribute | active | M010/S03 | none | unmapped |
 | R109 | quality-attribute | active | M010/S04 | none | unmapped |
 | R110 | quality-attribute | deferred | none | none | unmapped |
@@ -1310,7 +1310,7 @@ This file is the explicit capability and coverage contract for the project.
 
 ## Coverage Summary
 
-- Active requirements: 40
-- Mapped to slices: 40
-- Validated: 58 (R006, R007, R013, R017, R018, R019, R028, R029, R032, R033, R034, R035, R036, R037, R038, R039, R040, R042, R043, R044, R045, R046, R047, R048, R049, R050, R051, R052, R056, R057, R058, R059, R060, R061, R062, R063, R064, R065, R066, R067, R068, R069, R072, R073, R074, R075, R076, R077, R078, R079, R080, R081, R082, R083, R084, R085, R086, R087)
+- Active requirements: 35
+- Mapped to slices: 35
+- Validated: 63 (R006, R007, R013, R017, R018, R019, R028, R029, R032, R033, R034, R035, R036, R037, R038, R039, R040, R042, R043, R044, R045, R046, R047, R048, R049, R050, R051, R052, R056, R057, R058, R059, R060, R061, R062, R063, R064, R065, R066, R067, R068, R069, R072, R073, R074, R075, R076, R077, R078, R079, R080, R081, R082, R083, R084, R085, R086, R087, R093, R094, R095, R096, R107)
 - Unmapped active requirements: 0

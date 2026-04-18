@@ -1,4 +1,5 @@
 import type {
+  ApiKeyInfo,
   BuildInfoResponse,
   CoderClientConfig,
   CoderTemplate,
@@ -409,6 +410,75 @@ export class CoderClient {
         `[coder] API key creation error: ${err instanceof Error ? err.message : String(err)}`
       );
       return null;
+    }
+  }
+
+  static async listApiKeys(
+    baseUrl: string,
+    sessionToken: string,
+    userId: string
+  ): Promise<ApiKeyInfo[]> {
+    const url = baseUrl.replace(/\/+$/, "");
+    try {
+      const res = await fetch(`${url}/api/v2/users/${userId}/keys`, {
+        headers: {
+          "Content-Type": "application/json",
+          "Coder-Session-Token": sessionToken,
+        },
+        signal: AbortSignal.timeout(10_000),
+      });
+
+      if (!res.ok) {
+        console.warn(
+          `[coder] listApiKeys failed: ${res.status} ${res.statusText}`
+        );
+        return [];
+      }
+
+      const data: unknown = await res.json();
+      if (!Array.isArray(data)) {
+        console.warn("[coder] listApiKeys: unexpected response shape");
+        return [];
+      }
+      return data as ApiKeyInfo[];
+    } catch (err) {
+      console.warn(
+        `[coder] listApiKeys error: ${err instanceof Error ? err.message : String(err)}`
+      );
+      return [];
+    }
+  }
+
+  static async deleteApiKey(
+    baseUrl: string,
+    sessionToken: string,
+    userId: string,
+    keyId: string
+  ): Promise<boolean> {
+    const url = baseUrl.replace(/\/+$/, "");
+    try {
+      const res = await fetch(
+        `${url}/api/v2/users/${userId}/keys/${keyId}`,
+        {
+          method: "DELETE",
+          headers: {
+            "Coder-Session-Token": sessionToken,
+          },
+          signal: AbortSignal.timeout(10_000),
+        }
+      );
+      if (!res.ok && res.status !== 204) {
+        console.warn(
+          `[coder] deleteApiKey failed: ${res.status} ${res.statusText}`
+        );
+        return false;
+      }
+      return true;
+    } catch (err) {
+      console.warn(
+        `[coder] deleteApiKey error: ${err instanceof Error ? err.message : String(err)}`
+      );
+      return false;
     }
   }
 
