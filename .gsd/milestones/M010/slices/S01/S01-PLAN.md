@@ -184,7 +184,7 @@ Integration layer: login/logout/getSession server actions via next-safe-action, 
   - Files: `src/lib/auth/rate-limit.ts`, `src/lib/auth/actions.ts`, `src/lib/safe-action.ts`, `middleware.ts`, `src/__tests__/auth/rate-limit.test.ts`, `src/__tests__/auth/actions.test.ts`
   - Verify: pnpm vitest run src/__tests__/auth/rate-limit.test.ts src/__tests__/auth/actions.test.ts && grep -q 'hive-session' middleware.ts
 
-- [ ] **T04: Build login page UI, restructure layout for auth, and add sidebar session indicator** `est:1h`
+- [x] **T04: Build login page UI, restructure layout for auth, and add sidebar session indicator** `est:1h`
   ## Description
 
 Presentation layer: login page with Coder URL, email, password fields and error display; layout restructuring so the sidebar only renders for authenticated routes; sidebar session indicator showing user email and Coder URL with logout button.

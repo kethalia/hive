@@ -20,7 +20,7 @@ vi.mock("next-safe-action/hooks", () => ({
 }));
 
 // ── Import component under test ────────────────────────────────────
-import { CouncilResultCard } from "@/app/tasks/[id]/council-result-card";
+import { CouncilResultCard } from "@/app/(dashboard)/tasks/[id]/council-result-card";
 
 // ── Fixtures ───────────────────────────────────────────────────────
 

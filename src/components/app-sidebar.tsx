@@ -48,6 +48,7 @@ import {
   Monitor as ScreenIcon,
   Code,
   Loader2,
+  LogOut,
 } from "lucide-react";
 import { useSidebarMode } from "@/hooks/use-sidebar-mode";
 import {
@@ -63,6 +64,7 @@ import { listTemplateStatusesAction } from "@/lib/actions/templates";
 import type { CoderWorkspace } from "@/lib/coder/types";
 import type { TmuxSession } from "@/lib/workspaces/sessions";
 import type { TemplateStatus } from "@/lib/templates/staleness";
+import { getSessionAction, logoutAction } from "@/lib/auth/actions";
 import { SAFE_IDENTIFIER_RE } from "@/lib/constants";
 
 const POLL_INTERVAL_MS = 30_000;
@@ -234,13 +236,29 @@ function SessionList({
   );
 }
 
-export function AppSidebar({ coderUrl }: { coderUrl?: string }) {
+export function AppSidebar() {
   const pathname = usePathname();
   const router = useRouter();
   const searchParams = useSearchParams();
   const activeSession = searchParams.get("session");
   const [sidebarMode, setSidebarMode] = useSidebarMode();
   const [settingsOpen, setSettingsOpen] = useState(false);
+
+  const [sessionUser, setSessionUser] = useState<{
+    email: string;
+    coderUrl: string;
+  } | null>(null);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
+
+  useEffect(() => {
+    getSessionAction().then((result) => {
+      if (result?.data?.user) {
+        setSessionUser(result.data.user);
+      }
+    });
+  }, []);
+
+  const coderUrl = sessionUser?.coderUrl ?? undefined;
 
   const [workspacesOpen, setWorkspacesOpen] = useState(true);
   const [templatesOpen, setTemplatesOpen] = useState(true);
@@ -756,6 +774,33 @@ export function AppSidebar({ coderUrl }: { coderUrl?: string }) {
       </SidebarContent>
 
       <SidebarFooter className="border-t border-sidebar-border">
+        {sessionUser && (
+          <div className="flex items-center justify-between px-3 py-2">
+            <div className="min-w-0">
+              <p className="truncate text-sm font-medium">{sessionUser.email}</p>
+              <p className="truncate text-xs text-muted-foreground">
+                {sessionUser.coderUrl}
+              </p>
+            </div>
+            <button
+              type="button"
+              title="Sign out"
+              disabled={isLoggingOut}
+              className="shrink-0 rounded p-1 text-muted-foreground hover:bg-sidebar-accent hover:text-foreground disabled:opacity-50"
+              onClick={async () => {
+                setIsLoggingOut(true);
+                await logoutAction();
+                router.push("/login");
+              }}
+            >
+              {isLoggingOut ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <LogOut className="h-4 w-4" />
+              )}
+            </button>
+          </div>
+        )}
         <SidebarMenu>
           <Collapsible open={settingsOpen} onOpenChange={setSettingsOpen}>
             <SidebarMenuItem>
