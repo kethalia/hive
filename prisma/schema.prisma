@@ -68,9 +68,10 @@ model User {
   createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz
   updatedAt   DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
 
-  coderTokens CoderToken[]
-  sessions    Session[]
-  tasks       Task[]
+  coderTokens       CoderToken[]
+  sessions          Session[]
+  tasks             Task[]
+  pushSubscriptions PushSubscription[]
 
   @@unique([coderUrl, coderUserId])
   @@map("users")
@@ -102,6 +103,29 @@ model Session {
   user User @relation(fields: [userId], references: [id])
 
   @@map("sessions")
+}
+
+model PushSubscription {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  endpoint  String
+  p256dh    String
+  auth      String
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@unique([userId, endpoint])
+  @@map("push_subscriptions")
+}
+
+model VapidKeys {
+  id         Int      @id @default(1)
+  publicKey  String   @map("public_key")
+  privateKey String   @map("private_key")
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  @@map("vapid_keys")
 }
 
 model Workspace {

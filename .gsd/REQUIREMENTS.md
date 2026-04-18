@@ -252,26 +252,6 @@ This file is the explicit capability and coverage contract for the project.
 - Validation: unmapped
 - Notes: Next.js middleware checks session cookie, redirects to /login if missing/invalid
 
-### R097 — Token rotation job creates new API key at 75% lifetime, transactional
-- Class: core-capability
-- Status: active
-- Description: Token rotation job creates new API key at 75% lifetime, transactional
-- Why it matters: API keys cannot be refreshed — must create new and delete old. Transactional rotation prevents orphaned or lost keys
-- Source: user
-- Primary owning slice: M010/S03
-- Validation: unmapped
-- Notes: BullMQ repeatable job. Create new → update DB → delete old. Optimistic lock on CoderToken version column
-
-### R098 — Pre-flight token expiry check: workers refuse jobs if token expires within 2h
-- Class: quality-attribute
-- Status: active
-- Description: Pre-flight token expiry check: workers refuse jobs if token expires within 2h
-- Why it matters: Prevents partial execution of long-running tasks that would fail mid-way due to token expiry
-- Source: user
-- Primary owning slice: M010/S03
-- Validation: unmapped
-- Notes: If token expires within 2h, attempt rotation first. If <1h and rotation fails, fail job with TOKEN_EXPIRED
-
 ### R099 — Coder URL validated via /buildinfo before login attempt
 - Class: quality-attribute
 - Status: active
@@ -302,16 +282,6 @@ This file is the explicit capability and coverage contract for the project.
 - Validation: unmapped
 - Notes: Store session token temporarily, retry key creation 3x, surface warning if all fail
 
-### R102 — Encryption key change detected per-user (GCM auth tag mismatch), graceful degradation
-- Class: quality-attribute
-- Status: active
-- Description: Encryption key change detected per-user (GCM auth tag mismatch), graceful degradation
-- Why it matters: Changed TOKEN_ENCRYPTION_KEY must not crash the app — per-user invalidation and redirect to login
-- Source: user
-- Primary owning slice: M010/S03
-- Validation: unmapped
-- Notes: Catch GCM auth tag mismatch, mark token invalid in DB, redirect to login. Don't crash app for other users
-
 ### R103 — App installable as PWA with web app manifest and service worker
 - Class: core-capability
 - Status: active
@@ -332,16 +302,6 @@ This file is the explicit capability and coverage contract for the project.
 - Validation: unmapped
 - Notes: Web Push API with VAPID keys. Notification opens Hive login page
 
-### R105 — In-app banner on next visit if token expired or near-expiry
-- Class: failure-visibility
-- Status: active
-- Description: In-app banner on next visit if token expired or near-expiry
-- Why it matters: Fallback for users who denied push notification permission or whose push subscription expired
-- Source: inferred
-- Primary owning slice: M010/S03
-- Validation: unmapped
-- Notes: Banner shown in dashboard layout. Links to login page for re-authentication
-
 ### R106 — Logout deletes browser session only — API key and user persist
 - Class: core-capability
 - Status: active
@@ -351,16 +311,6 @@ This file is the explicit capability and coverage contract for the project.
 - Primary owning slice: M010/S01
 - Validation: unmapped
 - Notes: Re-login creates new browser session without new API key (verify existing key still works)
-
-### R108 — Network errors (retry with backoff) vs auth errors (fail immediately) distinguished in workers
-- Class: quality-attribute
-- Status: active
-- Description: Network errors (retry with backoff) vs auth errors (fail immediately) distinguished in workers
-- Why it matters: Retrying auth errors wastes compute and delays failure reporting. Network errors may self-resolve
-- Source: user
-- Primary owning slice: M010/S03
-- Validation: unmapped
-- Notes: ECONNREFUSED/timeout → retry with backoff. 401/403 → fail immediately, mark token invalid
 
 ### R109 — Login UI feels like extension of Coder — minimal friction, familiar patterns
 - Class: quality-attribute
@@ -1046,6 +996,46 @@ This file is the explicit capability and coverage contract for the project.
 - Validation: CODER_URL and CODER_SESSION_TOKEN removed from .env.example. ENCRYPTION_KEY added. rg confirms no process.env references in src/ except child process env setting in push-queue.ts (correct).
 - Notes: TOKEN_ENCRYPTION_KEY remains as the only required secret. VAPID keys also needed for push notifications
 
+### R097 — Token rotation job creates new API key at 75% lifetime, transactional
+- Class: core-capability
+- Status: validated
+- Description: Token rotation job creates new API key at 75% lifetime, transactional
+- Why it matters: API keys cannot be refreshed — must create new and delete old. Transactional rotation prevents orphaned or lost keys
+- Source: user
+- Primary owning slice: M010/S03
+- Validation: Token rotation BullMQ job queries all CoderTokens, rotates at >=75% lifetime via createApiKey + encrypt + optimistic-lock UPDATE + deleteApiKey. 11 tests cover threshold logic, version conflicts, key_mismatch skip, null expiresAt fallback, old key cleanup. All pass.
+- Notes: BullMQ repeatable job. Create new → update DB → delete old. Optimistic lock on CoderToken version column
+
+### R098 — Pre-flight token expiry check: workers refuse jobs if token expires within 2h
+- Class: quality-attribute
+- Status: validated
+- Description: Pre-flight token expiry check: workers refuse jobs if token expires within 2h
+- Why it matters: Prevents partial execution of long-running tasks that would fail mid-way due to token expiry
+- Source: user
+- Primary owning slice: M010/S03
+- Validation: Pre-flight check in task-queue worker calls getTokenStatus before job execution. Expired/key_mismatch tokens throw UnrecoverableError (no retry). Tokens with <2h remaining are refused. 17 tests cover all paths including boundary conditions. All pass.
+- Notes: If token expires within 2h, attempt rotation first. If <1h and rotation fails, fail job with TOKEN_EXPIRED
+
+### R102 — Encryption key change detected per-user (GCM auth tag mismatch), graceful degradation
+- Class: quality-attribute
+- Status: validated
+- Description: Encryption key change detected per-user (GCM auth tag mismatch), graceful degradation
+- Why it matters: Changed TOKEN_ENCRYPTION_KEY must not crash the app — per-user invalidation and redirect to login
+- Source: user
+- Primary owning slice: M010/S03
+- Validation: tryDecrypt returns { ok: false, reason: 'key_mismatch' } on GCM auth tag failure. getTokenStatus returns 'key_mismatch' status. user-client throws UserClientException with KEY_MISMATCH code. Banner shows destructive re-auth alert. Rotation skips key_mismatch tokens gracefully. Tests cover all paths.
+- Notes: Catch GCM auth tag mismatch, mark token invalid in DB, redirect to login. Don't crash app for other users
+
+### R105 — In-app banner on next visit if token expired or near-expiry
+- Class: failure-visibility
+- Status: validated
+- Description: In-app banner on next visit if token expired or near-expiry
+- Why it matters: Fallback for users who denied push notification permission or whose push subscription expired
+- Source: inferred
+- Primary owning slice: M010/S03
+- Validation: TokenExpiryBanner component renders in dashboard layout via getTokenStatusAction server action. Destructive Alert for expired/key_mismatch, default Alert with hours remaining for expiring, null for valid. 5 component tests + grep verification of layout wiring. All pass.
+- Notes: Banner shown in dashboard layout. Links to login page for re-authentication
+
 ### R107 — Multi-deployment isolation — one Coder instance failure doesn't affect another
 - Class: quality-attribute
 - Status: validated
@@ -1055,6 +1045,16 @@ This file is the explicit capability and coverage contract for the project.
 - Primary owning slice: M010/S02
 - Validation: Workspace proxy metaCache keyed by ${userId}:${workspaceId}. Each user resolves their own CoderClient. Different Coder deployments fully independent.
 - Notes: Errors scoped to (coderUrl, coderUserId). Error messages include which Coder instance failed
+
+### R108 — Network errors (retry with backoff) vs auth errors (fail immediately) distinguished in workers
+- Class: quality-attribute
+- Status: validated
+- Description: Network errors (retry with backoff) vs auth errors (fail immediately) distinguished in workers
+- Why it matters: Retrying auth errors wastes compute and delays failure reporting. Network errors may self-resolve
+- Source: user
+- Primary owning slice: M010/S03
+- Validation: isAuthError matches 401/403 status codes and KEY_MISMATCH/NO_TOKEN UserClientException codes. isNetworkError matches ECONNREFUSED/ECONNRESET/ETIMEDOUT/ENOTFOUND/fetch-failed/socket-hang-up patterns. Auth errors wrapped in UnrecoverableError (no retry), network errors re-thrown for BullMQ retry. 17 tests cover classification and worker integration.
+- Notes: ECONNREFUSED/timeout → retry with backoff. 401/403 → fail immediately, mark token invalid
 
 ## Deferred
 
@@ -1291,18 +1291,18 @@ This file is the explicit capability and coverage contract for the project.
 | R094 | core-capability | validated | M010/S02 | none | Task worker and council reviewer worker resolve CoderClient per-job via getCoderClientForUser(job.data.userId). Worker signatures changed to parameterless. 26 queue tests pass. |
 | R095 | core-capability | validated | M010/S02 | none | Task model has nullable userId FK (migration 20250418000000_add_task_user_id). createTask accepts userId and stores on Task record. TaskJobData includes userId. 7 user-client + 14 worker tests pass. |
 | R096 | core-capability | validated | M010/S02 | none | CODER_URL and CODER_SESSION_TOKEN removed from .env.example. ENCRYPTION_KEY added. rg confirms no process.env references in src/ except child process env setting in push-queue.ts (correct). |
-| R097 | core-capability | active | M010/S03 | none | unmapped |
-| R098 | quality-attribute | active | M010/S03 | none | unmapped |
+| R097 | core-capability | validated | M010/S03 | none | Token rotation BullMQ job queries all CoderTokens, rotates at >=75% lifetime via createApiKey + encrypt + optimistic-lock UPDATE + deleteApiKey. 11 tests cover threshold logic, version conflicts, key_mismatch skip, null expiresAt fallback, old key cleanup. All pass. |
+| R098 | quality-attribute | validated | M010/S03 | none | Pre-flight check in task-queue worker calls getTokenStatus before job execution. Expired/key_mismatch tokens throw UnrecoverableError (no retry). Tokens with <2h remaining are refused. 17 tests cover all paths including boundary conditions. All pass. |
 | R099 | quality-attribute | active | M010/S01 | none | unmapped |
 | R100 | quality-attribute | active | M010/S01 | none | unmapped |
 | R101 | quality-attribute | active | M010/S01 | none | unmapped |
-| R102 | quality-attribute | active | M010/S03 | none | unmapped |
+| R102 | quality-attribute | validated | M010/S03 | none | tryDecrypt returns { ok: false, reason: 'key_mismatch' } on GCM auth tag failure. getTokenStatus returns 'key_mismatch' status. user-client throws UserClientException with KEY_MISMATCH code. Banner shows destructive re-auth alert. Rotation skips key_mismatch tokens gracefully. Tests cover all paths. |
 | R103 | core-capability | active | M010/S04 | none | unmapped |
 | R104 | core-capability | active | M010/S04 | none | unmapped |
-| R105 | failure-visibility | active | M010/S03 | none | unmapped |
+| R105 | failure-visibility | validated | M010/S03 | none | TokenExpiryBanner component renders in dashboard layout via getTokenStatusAction server action. Destructive Alert for expired/key_mismatch, default Alert with hours remaining for expiring, null for valid. 5 component tests + grep verification of layout wiring. All pass. |
 | R106 | core-capability | active | M010/S01 | none | unmapped |
 | R107 | quality-attribute | validated | M010/S02 | none | Workspace proxy metaCache keyed by ${userId}:${workspaceId}. Each user resolves their own CoderClient. Different Coder deployments fully independent. |
-| R108 | quality-attribute | active | M010/S03 | none | unmapped |
+| R108 | quality-attribute | validated | M010/S03 | none | isAuthError matches 401/403 status codes and KEY_MISMATCH/NO_TOKEN UserClientException codes. isNetworkError matches ECONNREFUSED/ECONNRESET/ETIMEDOUT/ENOTFOUND/fetch-failed/socket-hang-up patterns. Auth errors wrapped in UnrecoverableError (no retry), network errors re-thrown for BullMQ retry. 17 tests cover classification and worker integration. |
 | R109 | quality-attribute | active | M010/S04 | none | unmapped |
 | R110 | quality-attribute | deferred | none | none | unmapped |
 | R111 | quality-attribute | deferred | none | none | unmapped |
@@ -1310,7 +1310,7 @@ This file is the explicit capability and coverage contract for the project.
 
 ## Coverage Summary
 
-- Active requirements: 35
-- Mapped to slices: 35
-- Validated: 63 (R006, R007, R013, R017, R018, R019, R028, R029, R032, R033, R034, R035, R036, R037, R038, R039, R040, R042, R043, R044, R045, R046, R047, R048, R049, R050, R051, R052, R056, R057, R058, R059, R060, R061, R062, R063, R064, R065, R066, R067, R068, R069, R072, R073, R074, R075, R076, R077, R078, R079, R080, R081, R082, R083, R084, R085, R086, R087, R093, R094, R095, R096, R107)
+- Active requirements: 30
+- Mapped to slices: 30
+- Validated: 68 (R006, R007, R013, R017, R018, R019, R028, R029, R032, R033, R034, R035, R036, R037, R038, R039, R040, R042, R043, R044, R045, R046, R047, R048, R049, R050, R051, R052, R056, R057, R058, R059, R060, R061, R062, R063, R064, R065, R066, R067, R068, R069, R072, R073, R074, R075, R076, R077, R078, R079, R080, R081, R082, R083, R084, R085, R086, R087, R093, R094, R095, R096, R097, R098, R102, R105, R107, R108)
 - Unmapped active requirements: 0

@@ -91,6 +91,14 @@ export const TOKEN_PREFLIGHT_MIN_HOURS = 2;
 /** BullMQ queue name for token rotation jobs. */
 export const TOKEN_ROTATION_QUEUE = "token-rotation";
 
+// ── Push notifications ────────────────────────────────────────────
+
+/** Hours before token expiry to fire a push notification. */
+export const PUSH_NOTIFICATION_HOURS = 24;
+
+/** Notification tag for dedup — only one active notification per tag. */
+export const PUSH_NOTIFICATION_TAG = "token-expiry";
+
 // ── Queue ──────────────────────────────────────────────────────────
 
 /** BullMQ queue name for task dispatch. */
