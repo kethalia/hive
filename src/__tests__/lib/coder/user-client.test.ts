@@ -67,8 +67,7 @@ describe("getCoderClientForUser", () => {
 
   it("returns a CoderClient when user and token exist", async () => {
     const user = mockUser();
-    const token = mockToken();
-    mockDb.user.findUnique.mockResolvedValue(user);
+    const token = mockToken({ user });
     mockDb.coderToken.findFirst.mockResolvedValue(token);
     vi.mocked(tryDecrypt).mockReturnValue({ ok: true, plaintext: "decrypted-session-token" });
 
@@ -93,8 +92,7 @@ describe("getCoderClientForUser", () => {
   });
 
   it("queries for the most recent token", async () => {
-    mockDb.user.findUnique.mockResolvedValue(mockUser());
-    mockDb.coderToken.findFirst.mockResolvedValue(mockToken());
+    mockDb.coderToken.findFirst.mockResolvedValue(mockToken({ user: mockUser() }));
     vi.mocked(tryDecrypt).mockReturnValue({ ok: true, plaintext: "tok" });
     vi.mocked(CoderClient).mockImplementation(() => ({}) as never);
 
@@ -103,10 +101,12 @@ describe("getCoderClientForUser", () => {
     expect(mockDb.coderToken.findFirst).toHaveBeenCalledWith({
       where: { userId: MOCK_USER_ID },
       orderBy: { createdAt: "desc" },
+      include: { user: true },
     });
   });
 
   it("throws USER_NOT_FOUND when user does not exist", async () => {
+    mockDb.coderToken.findFirst.mockResolvedValue(null);
     mockDb.user.findUnique.mockResolvedValue(null);
 
     await expect(getCoderClientForUser(MOCK_USER_ID)).rejects.toThrow(
@@ -124,8 +124,8 @@ describe("getCoderClientForUser", () => {
   });
 
   it("throws NO_TOKEN when no CoderToken exists for user", async () => {
-    mockDb.user.findUnique.mockResolvedValue(mockUser());
     mockDb.coderToken.findFirst.mockResolvedValue(null);
+    mockDb.user.findUnique.mockResolvedValue(mockUser());
 
     try {
       await getCoderClientForUser(MOCK_USER_ID);
@@ -139,8 +139,7 @@ describe("getCoderClientForUser", () => {
   });
 
   it("throws KEY_MISMATCH when tryDecrypt reports key_mismatch", async () => {
-    mockDb.user.findUnique.mockResolvedValue(mockUser());
-    mockDb.coderToken.findFirst.mockResolvedValue(mockToken());
+    mockDb.coderToken.findFirst.mockResolvedValue(mockToken({ user: mockUser() }));
     vi.mocked(tryDecrypt).mockReturnValue({
       ok: false,
       reason: "key_mismatch",
@@ -160,8 +159,7 @@ describe("getCoderClientForUser", () => {
   });
 
   it("throws DECRYPT_FAILED when tryDecrypt reports other error", async () => {
-    mockDb.user.findUnique.mockResolvedValue(mockUser());
-    mockDb.coderToken.findFirst.mockResolvedValue(mockToken());
+    mockDb.coderToken.findFirst.mockResolvedValue(mockToken({ user: mockUser() }));
     vi.mocked(tryDecrypt).mockReturnValue({
       ok: false,
       reason: "other",
@@ -181,8 +179,7 @@ describe("getCoderClientForUser", () => {
 
   it("throws DECRYPT_FAILED when ENCRYPTION_KEY is missing", async () => {
     delete process.env.ENCRYPTION_KEY;
-    mockDb.user.findUnique.mockResolvedValue(mockUser());
-    mockDb.coderToken.findFirst.mockResolvedValue(mockToken());
+    mockDb.coderToken.findFirst.mockResolvedValue(mockToken({ user: mockUser() }));
 
     try {
       await getCoderClientForUser(MOCK_USER_ID);
@@ -197,6 +194,7 @@ describe("getCoderClientForUser", () => {
   });
 
   it("logs typed errors with [user-client] prefix", async () => {
+    mockDb.coderToken.findFirst.mockResolvedValue(null);
     mockDb.user.findUnique.mockResolvedValue(null);
 
     try {

@@ -11,7 +11,7 @@ const subscribeSchema = z.object({
 });
 
 export const subscribePushAction = authActionClient
-  .schema(subscribeSchema)
+  .inputSchema(subscribeSchema)
   .action(async ({ parsedInput: { endpoint, p256dh, auth }, ctx }) => {
     const db = getDb();
     await db.pushSubscription.upsert({
@@ -40,7 +40,7 @@ const unsubscribeSchema = z.object({
 });
 
 export const unsubscribePushAction = authActionClient
-  .schema(unsubscribeSchema)
+  .inputSchema(unsubscribeSchema)
   .action(async ({ parsedInput: { endpoint }, ctx }) => {
     const db = getDb();
     await db.pushSubscription.deleteMany({

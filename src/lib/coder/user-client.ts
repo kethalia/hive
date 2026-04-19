@@ -25,26 +25,28 @@ export async function getCoderClientForUser(
 ): Promise<CoderClient> {
   const db = getDb();
 
-  const user = await db.user.findUnique({ where: { id: userId } });
-  if (!user) {
-    console.error(`[user-client] User not found: ${userId}`);
-    throw new UserClientException(
-      UserClientError.USER_NOT_FOUND,
-      `User ${userId} not found`
-    );
-  }
-
   const token = await db.coderToken.findFirst({
     where: { userId },
     orderBy: { createdAt: "desc" },
+    include: { user: true },
   });
   if (!token) {
+    const userExists = await db.user.findUnique({ where: { id: userId }, select: { id: true } });
+    if (!userExists) {
+      console.error(`[user-client] User not found: ${userId}`);
+      throw new UserClientException(
+        UserClientError.USER_NOT_FOUND,
+        `User ${userId} not found`
+      );
+    }
     console.error(`[user-client] No CoderToken for user: ${userId}`);
     throw new UserClientException(
       UserClientError.NO_TOKEN,
       `No Coder API token stored for user ${userId}`
     );
   }
+
+  const user = token.user;
 
   const encryptionKey = process.env.ENCRYPTION_KEY;
   if (!encryptionKey) {

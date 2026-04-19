@@ -44,6 +44,7 @@ model Task {
   logs       TaskLog[]
   workspaces Workspace[]
 
+  @@index([userId])
   @@map("tasks")
 }
 
@@ -90,6 +91,7 @@ model CoderToken {
 
   user User @relation(fields: [userId], references: [id])
 
+  @@unique([userId])
   @@map("coder_tokens")
 }
 

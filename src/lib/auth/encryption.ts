@@ -4,16 +4,17 @@ const ALGORITHM = "aes-256-gcm";
 const IV_LENGTH = 12;
 
 export interface EncryptedData {
-  ciphertext: Buffer;
-  iv: Buffer;
-  authTag: Buffer;
+  ciphertext: Uint8Array;
+  iv: Uint8Array;
+  authTag: Uint8Array;
 }
 
+const HEX_64_RE = /^[0-9a-fA-F]{64}$/;
+
 export function validateEncryptionKey(key: string): void {
-  const buf = Buffer.from(key, "hex");
-  if (buf.length !== 32) {
+  if (!HEX_64_RE.test(key)) {
     throw new Error(
-      `Encryption key must be exactly 32 bytes (64 hex chars), got ${buf.length} bytes`
+      "Encryption key must be exactly 64 hex characters (32 bytes)"
     );
   }
 }

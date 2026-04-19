@@ -2,7 +2,7 @@ import { getDb } from "@/lib/db";
 import { tryDecrypt } from "@/lib/auth/encryption";
 import { TOKEN_EXPIRY_WARNING_HOURS } from "@/lib/constants";
 
-export type TokenStatus = "valid" | "expiring" | "expired" | "key_mismatch";
+export type TokenStatus = "valid" | "expiring" | "expired" | "key_mismatch" | "decrypt_failed";
 
 export interface TokenStatusResult {
   status: TokenStatus;
@@ -39,7 +39,7 @@ export async function getTokenStatus(
 
   if (!result.ok) {
     return {
-      status: result.reason === "key_mismatch" ? "key_mismatch" : "key_mismatch",
+      status: result.reason === "key_mismatch" ? "key_mismatch" : "decrypt_failed",
       expiresAt: token.expiresAt,
     };
   }

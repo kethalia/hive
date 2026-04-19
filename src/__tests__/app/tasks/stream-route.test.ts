@@ -1,5 +1,13 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-// Mock dependencies before importing
+
+const mockSession = vi.hoisted(() => vi.fn());
+
+vi.mock("next/headers", () => ({
+  cookies: vi.fn(() => ({ get: vi.fn(() => ({ value: "valid-session" })) })),
+}));
+vi.mock("@/lib/auth/session", () => ({
+  getSession: (...args: unknown[]) => mockSession(...args),
+}));
 vi.mock("@/lib/db", () => ({
   getDb: vi.fn(),
 }));
@@ -47,6 +55,10 @@ describe("GET /api/tasks/[id]/stream", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.spyOn(console, "log").mockImplementation(() => {});
+    mockSession.mockResolvedValue({
+      user: { id: "user-1", coderUrl: "https://coder.example.com", coderUserId: "coder-uid", username: "testuser", email: "test@example.com" },
+      session: { id: "s-1", sessionId: "valid-session", expiresAt: new Date(Date.now() + 86400000) },
+    });
   });
 
   it("rejects non-UUID task IDs with 400", async () => {

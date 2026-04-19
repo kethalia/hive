@@ -1,7 +1,7 @@
 "use server";
 
 import { z } from "zod";
-import { actionClient, authActionClient } from "@/lib/safe-action";
+import { authActionClient } from "@/lib/safe-action";
 import { createTask, getTask, listTasks } from "@/lib/api/tasks";
 
 // ── Schemas ───────────────────────────────────────────────────────
@@ -38,19 +38,21 @@ export const createTaskAction = authActionClient
     return task;
   });
 
-export const getTaskAction = actionClient
+export const getTaskAction = authActionClient
   .inputSchema(getTaskSchema)
-  .action(async ({ parsedInput }) => {
+  .action(async ({ parsedInput, ctx }) => {
     const task = await getTask(parsedInput.id);
     if (!task) {
       throw new Error("Task not found");
     }
-    // Serialize dates for client consumption
+    if (task.userId && task.userId !== ctx.user.id) {
+      throw new Error("Task not found");
+    }
     return JSON.parse(JSON.stringify(task));
   });
 
-export const listTasksAction = actionClient
-  .action(async () => {
-    const tasks = await listTasks();
+export const listTasksAction = authActionClient
+  .action(async ({ ctx }) => {
+    const tasks = await listTasks(ctx.user.id);
     return JSON.parse(JSON.stringify(tasks));
   });

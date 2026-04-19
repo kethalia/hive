@@ -1,4 +1,6 @@
 import { NextRequest } from "next/server";
+import { cookies } from "next/headers";
+import { getSession } from "@/lib/auth/session";
 import { existsSync, statSync, createReadStream } from "fs";
 import { pushLogPath } from "@/lib/templates/push-queue";
 import { KNOWN_TEMPLATES } from "@/lib/templates/staleness";
@@ -23,6 +25,12 @@ export async function GET(
   { params }: { params: Promise<{ name: string; jobId: string }> }
 ) {
   const { name, jobId } = await params;
+
+  const cookieStore = await cookies();
+  const session = await getSession(cookieStore);
+  if (!session) {
+    return new Response("Unauthorized", { status: 401 });
+  }
 
   // Validate inputs
   if (!(KNOWN_TEMPLATES as readonly string[]).includes(name)) {

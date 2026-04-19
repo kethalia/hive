@@ -1,23 +1,19 @@
-import { PrismaClient } from "@prisma/client";
 import { encrypt } from "./encryption";
 import { createSession } from "./session";
 import { CoderClient } from "../coder/client";
 import { TOKEN_LIFETIME_SECONDS } from "../constants";
-
-const prisma = new PrismaClient();
+import { getDb } from "@/lib/db";
 
 const API_KEY_CREATION_RETRIES = 3;
 
 function getTokenEncryptionKey(): string {
   const key = process.env.ENCRYPTION_KEY;
   if (!key) {
-    throw new Error(
-      "ENCRYPTION_KEY environment variable is not set"
-    );
+    throw new Error("ENCRYPTION_KEY environment variable is not set");
   }
   if (Buffer.from(key, "hex").length !== 32) {
     throw new Error(
-      "ENCRYPTION_KEY must be exactly 64 hex characters (32 bytes)"
+      "ENCRYPTION_KEY must be exactly 64 hex characters (32 bytes)",
     );
   }
   return key;
@@ -36,7 +32,7 @@ export interface LoginResult {
 export async function performLogin(
   coderUrl: string,
   email: string,
-  password: string
+  password: string,
 ): Promise<LoginResult> {
   const validation = await CoderClient.validateInstance(coderUrl);
   if (!validation.valid) {
@@ -56,7 +52,7 @@ export async function performLogin(
       coderUrl,
       loginResult.sessionToken,
       loginResult.userId,
-      TOKEN_LIFETIME_SECONDS
+      TOKEN_LIFETIME_SECONDS,
     );
     if (apiKey) {
       credential = apiKey;
@@ -65,7 +61,7 @@ export async function performLogin(
       break;
     }
     console.log(
-      `[login] API key creation attempt ${attempt}/${API_KEY_CREATION_RETRIES} failed`
+      `[login] API key creation attempt ${attempt}/${API_KEY_CREATION_RETRIES} failed`,
     );
   }
 
@@ -78,9 +74,14 @@ export async function performLogin(
     : new Date(Date.now() + 24 * 60 * 60 * 1000);
 
   const encryptionKey = getTokenEncryptionKey();
-  const encrypted = encrypt(credential, encryptionKey);
+  const raw = encrypt(credential, encryptionKey);
+  const encrypted = {
+    ciphertext: new Uint8Array(raw.ciphertext),
+    iv: new Uint8Array(raw.iv),
+    authTag: new Uint8Array(raw.authTag),
+  };
 
-  const user = await prisma.user.upsert({
+  const user = await getDb().user.upsert({
     where: {
       coderUrl_coderUserId: {
         coderUrl: coderUrl.replace(/\/+$/, ""),
@@ -99,8 +100,8 @@ export async function performLogin(
     },
   });
 
-  await prisma.coderToken.upsert({
-    where: { id: user.id },
+  await getDb().coderToken.upsert({
+    where: { userId: user.id },
     update: {
       ciphertext: encrypted.ciphertext,
       iv: encrypted.iv,

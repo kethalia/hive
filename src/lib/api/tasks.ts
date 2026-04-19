@@ -97,10 +97,11 @@ export async function getTask(id: string) {
 /**
  * List all tasks, ordered by createdAt desc, limited to 50.
  */
-export async function listTasks() {
+export async function listTasks(userId?: string) {
   const db = getDb();
 
   return db.task.findMany({
+    where: userId ? { userId } : undefined,
     orderBy: { createdAt: "desc" },
     take: 50,
   });

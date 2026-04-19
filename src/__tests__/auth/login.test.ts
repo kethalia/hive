@@ -9,8 +9,8 @@ const mockPrisma = vi.hoisted(() => ({
   },
 }));
 
-vi.mock("@prisma/client", () => ({
-  PrismaClient: vi.fn(() => mockPrisma),
+vi.mock("@/lib/db", () => ({
+  getDb: () => mockPrisma,
 }));
 
 const { mockCreateSession, mockEncrypt, mockValidateInstance, mockLogin, mockCreateApiKey } = vi.hoisted(() => ({

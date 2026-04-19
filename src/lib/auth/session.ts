@@ -1,7 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { PrismaClient } from "@prisma/client";
-
-const prisma = new PrismaClient();
+import { getDb } from "@/lib/db";
 
 const SESSION_COOKIE_NAME = "hive-session";
 const SESSION_MAX_AGE_DAYS = 30;
@@ -26,7 +24,7 @@ export async function createSession(userId: string): Promise<string> {
   const sessionId = randomUUID();
   const expiresAt = new Date(Date.now() + SESSION_MAX_AGE_SECONDS * 1000);
 
-  await prisma.session.create({
+  await getDb().session.create({
     data: {
       sessionId,
       userId,
@@ -47,17 +45,19 @@ export async function getSession(
 
   const sessionId = cookie.value;
 
-  const session = await prisma.session.findUnique({
+  const session = await getDb().session.findUnique({
     where: { sessionId },
     include: { user: true },
   });
 
   if (!session) {
+    console.log(`[session] Not found for sessionId=${sessionId.slice(0, 8)}…`);
     return null;
   }
 
   if (session.expiresAt < new Date()) {
-    await prisma.session.delete({ where: { sessionId } });
+    console.log(`[session] Expired for user=${session.userId}, cleaning up`);
+    await getDb().session.delete({ where: { sessionId } });
     return null;
   }
 
@@ -78,7 +78,7 @@ export async function getSession(
 }
 
 export async function deleteSession(sessionId: string): Promise<void> {
-  await prisma.session.deleteMany({ where: { sessionId } });
+  await getDb().session.deleteMany({ where: { sessionId } });
 }
 
 export function setSessionCookie(
