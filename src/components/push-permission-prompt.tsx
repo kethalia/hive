@@ -92,42 +92,49 @@ export function PushPermissionPrompt() {
 
   if (permission === "denied") {
     return (
-      <Alert className="mb-4">
-        <Bell className="size-4" />
-        <AlertTitle>Notifications blocked</AlertTitle>
-        <AlertDescription>
-          Push notifications are blocked by your browser. To enable them, open
-          your browser&apos;s site settings and allow notifications for this
-          site.
-        </AlertDescription>
-      </Alert>
+      <div className="fixed bottom-4 right-4 z-50 w-80">
+        <Alert>
+          <Bell className="size-4" />
+          <AlertTitle>Notifications blocked</AlertTitle>
+          <AlertDescription>
+            Push notifications are blocked by your browser. To enable them, open
+            your browser&apos;s site settings and allow notifications for this
+            site.
+          </AlertDescription>
+        </Alert>
+      </div>
     );
   }
 
   if (dismissed) return null;
 
   return (
-    <Alert className="mb-4">
-      <Bell className="size-4" />
-      <AlertTitle>Stay notified</AlertTitle>
-      <AlertDescription>
-        Get notified when your Coder token is about to expire so you never lose
-        access.
-        {error && <p className="text-destructive mt-1">{error}</p>}
-      </AlertDescription>
-      <AlertAction className="flex gap-2">
-        <Button
-          variant="ghost"
-          size="xs"
-          onClick={handleDismiss}
-          aria-label="Dismiss notification prompt"
-        >
-          <X className="size-3.5" />
-        </Button>
-        <Button size="xs" onClick={handleEnable} disabled={subscribing}>
-          {subscribing ? "Enabling…" : "Enable notifications"}
-        </Button>
-      </AlertAction>
-    </Alert>
+    <div className="fixed bottom-4 right-4 z-50 w-96">
+      <Alert className="relative">
+        <div className="flex items-center gap-2">
+          <Bell className="size-4 shrink-0" />
+          <AlertTitle>Stay notified</AlertTitle>
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            className="absolute top-2 right-2"
+            onClick={handleDismiss}
+            aria-label="Dismiss notification prompt"
+          >
+            <X className="size-3.5" />
+          </Button>
+        </div>
+        <AlertDescription className="mt-1 pr-6">
+          Get notified when your Coder token is about to expire so you never
+          lose access.
+          {error && <p className="text-destructive mt-1">{error}</p>}
+        </AlertDescription>
+        <div className="mt-2 flex justify-end">
+          <Button size="xs" onClick={handleEnable} disabled={subscribing}>
+            {subscribing ? "Enabling…" : "Enable notifications"}
+          </Button>
+        </div>
+      </Alert>
+    </div>
   );
 }
