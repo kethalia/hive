@@ -97,6 +97,40 @@ vi.mock("@/components/ui/collapsible", () => {
   };
 });
 
+vi.mock("@/components/ui/avatar", () => ({
+  Avatar: ({ children, className }: React.PropsWithChildren<{ size?: string; className?: string }>) => (
+    <span data-testid="avatar" className={className}>{children}</span>
+  ),
+  AvatarFallback: ({ children }: React.PropsWithChildren) => (
+    <span data-testid="avatar-fallback">{children}</span>
+  ),
+}));
+
+vi.mock("@/components/ui/dropdown-menu", () => {
+  const React = require("react");
+  return {
+    DropdownMenu: ({ children }: React.PropsWithChildren) => (
+      <div data-testid="dropdown-menu">{children}</div>
+    ),
+    DropdownMenuTrigger: ({ children, className }: React.PropsWithChildren<{ className?: string }>) => (
+      <button data-testid="user-menu-trigger" className={className}>{children}</button>
+    ),
+    DropdownMenuContent: ({ children }: React.PropsWithChildren<{ side?: string; align?: string; className?: string }>) => (
+      <div data-testid="user-menu-content">{children}</div>
+    ),
+    DropdownMenuItem: ({ children, onClick, disabled }: React.PropsWithChildren<{ onClick?: () => void; disabled?: boolean }>) => (
+      <button data-testid="dropdown-menu-item" onClick={onClick} disabled={disabled}>{children}</button>
+    ),
+    DropdownMenuLabel: ({ children }: React.PropsWithChildren<{ className?: string }>) => (
+      <div data-testid="dropdown-menu-label">{children}</div>
+    ),
+    DropdownMenuGroup: ({ children }: React.PropsWithChildren) => (
+      <div data-testid="dropdown-menu-group">{children}</div>
+    ),
+    DropdownMenuSeparator: () => <hr data-testid="dropdown-menu-separator" />,
+  };
+});
+
 vi.mock("@/components/ui/alert", () => ({
   Alert: ({ children }: React.PropsWithChildren<{ variant?: string; className?: string }>) => (
     <div role="alert">{children}</div>

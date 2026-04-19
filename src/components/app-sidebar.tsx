@@ -25,7 +25,17 @@ import {
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuGroup,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import {
@@ -774,33 +784,6 @@ export function AppSidebar() {
       </SidebarContent>
 
       <SidebarFooter className="border-t border-sidebar-border">
-        {sessionUser && (
-          <div className="flex items-center justify-between px-3 py-2">
-            <div className="min-w-0">
-              <p className="truncate text-sm font-medium">{sessionUser.email}</p>
-              <p className="truncate text-xs text-muted-foreground">
-                {sessionUser.coderUrl}
-              </p>
-            </div>
-            <button
-              type="button"
-              title="Sign out"
-              disabled={isLoggingOut}
-              className="shrink-0 rounded p-1 text-muted-foreground hover:bg-sidebar-accent hover:text-foreground disabled:opacity-50"
-              onClick={async () => {
-                setIsLoggingOut(true);
-                await logoutAction();
-                router.push("/login");
-              }}
-            >
-              {isLoggingOut ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <LogOut className="h-4 w-4" />
-              )}
-            </button>
-          </div>
-        )}
         <SidebarMenu>
           <Collapsible open={settingsOpen} onOpenChange={setSettingsOpen}>
             <SidebarMenuItem>
@@ -846,6 +829,45 @@ export function AppSidebar() {
             </SidebarMenuItem>
           </Collapsible>
         </SidebarMenu>
+        {sessionUser && (
+          <DropdownMenu>
+            <DropdownMenuTrigger className="w-full rounded-md p-2 text-left hover:bg-sidebar-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+              <div className="flex items-center gap-2 min-w-0">
+                <Avatar size="sm">
+                  <AvatarFallback>
+                    {sessionUser.email.charAt(0).toUpperCase()}
+                  </AvatarFallback>
+                </Avatar>
+                <span className="truncate text-sm">{sessionUser.email}</span>
+              </div>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent side="top" align="start" className="w-56">
+              <DropdownMenuGroup>
+                <DropdownMenuLabel className="font-normal">
+                  <p className="truncate text-xs text-muted-foreground">
+                    {sessionUser.coderUrl}
+                  </p>
+                </DropdownMenuLabel>
+              </DropdownMenuGroup>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                disabled={isLoggingOut}
+                onClick={async () => {
+                  setIsLoggingOut(true);
+                  await logoutAction();
+                  router.push("/login");
+                }}
+              >
+                {isLoggingOut ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <LogOut className="h-4 w-4" />
+                )}
+                Sign out
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        )}
       </SidebarFooter>
     </Sidebar>
   );
