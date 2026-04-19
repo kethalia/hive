@@ -35,7 +35,7 @@ vi.mock("bullmq", () => ({
 
 // Mock Prisma client
 const mockTaskCreate = vi.fn();
-const mockTaskFindUnique = vi.fn();
+const mockTaskFindFirst = vi.fn();
 const mockTaskFindMany = vi.fn();
 const mockTaskUpdate = vi.fn();
 const mockTaskLogCreate = vi.fn();
@@ -44,7 +44,7 @@ vi.mock("@/lib/db", () => ({
   getDb: vi.fn(() => ({
     task: {
       create: mockTaskCreate,
-      findUnique: mockTaskFindUnique,
+      findFirst: mockTaskFindFirst,
       findMany: mockTaskFindMany,
       update: mockTaskUpdate,
     },
@@ -142,17 +142,26 @@ describe("Task API functions", () => {
   });
 
   describe("getTask()", () => {
+    const includeClause = {
+      workspaces: true,
+      logs: {
+        orderBy: { createdAt: "desc" },
+        take: 50,
+      },
+    };
+
     it("returns task with workspaces and logs when found", async () => {
       const mockTask = {
         id: "abc-123",
         prompt: "Test",
         repoUrl: "https://github.com/test/repo",
         status: "queued",
+        userId: "user-1",
         workspaces: [{ id: "ws-1", coderWorkspaceId: "cws-1" }],
         logs: [{ id: "log-1", message: "Created" }],
       };
 
-      mockTaskFindUnique.mockResolvedValue(mockTask);
+      mockTaskFindFirst.mockResolvedValue(mockTask);
 
       const result = await getTask("abc-123");
 
@@ -162,23 +171,47 @@ describe("Task API functions", () => {
         logs: [{ id: "log-1" }],
       });
 
-      expect(mockTaskFindUnique).toHaveBeenCalledWith({
+      expect(mockTaskFindFirst).toHaveBeenCalledWith({
         where: { id: "abc-123" },
-        include: {
-          workspaces: true,
-          logs: {
-            orderBy: { createdAt: "desc" },
-            take: 50,
-          },
-        },
+        include: includeClause,
       });
     });
 
     it("returns null when task not found", async () => {
-      mockTaskFindUnique.mockResolvedValue(null);
+      mockTaskFindFirst.mockResolvedValue(null);
 
       const result = await getTask("nonexistent");
       expect(result).toBeNull();
+    });
+
+    it("scopes query by userId when provided", async () => {
+      const mockTask = {
+        id: "abc-123",
+        userId: "user-1",
+        workspaces: [],
+        logs: [],
+      };
+      mockTaskFindFirst.mockResolvedValue(mockTask);
+
+      const result = await getTask("abc-123", "user-1");
+
+      expect(result).toMatchObject({ id: "abc-123" });
+      expect(mockTaskFindFirst).toHaveBeenCalledWith({
+        where: { id: "abc-123", userId: "user-1" },
+        include: includeClause,
+      });
+    });
+
+    it("returns null when userId does not match", async () => {
+      mockTaskFindFirst.mockResolvedValue(null);
+
+      const result = await getTask("abc-123", "wrong-user");
+
+      expect(result).toBeNull();
+      expect(mockTaskFindFirst).toHaveBeenCalledWith({
+        where: { id: "abc-123", userId: "wrong-user" },
+        include: includeClause,
+      });
     });
   });
 

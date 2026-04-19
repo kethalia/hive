@@ -75,13 +75,14 @@ export async function createTask(input: {
 
 /**
  * Get a single task by ID, including related workspaces and recent logs.
- * Returns null if not found.
+ * When `userId` is provided, only returns the task if it belongs to that user.
+ * Returns null if not found or if the task belongs to a different user.
  */
-export async function getTask(id: string) {
+export async function getTask(id: string, userId?: string) {
   const db = getDb();
 
-  const task = await db.task.findUnique({
-    where: { id },
+  const task = await db.task.findFirst({
+    where: userId ? { id, userId } : { id },
     include: {
       workspaces: true,
       logs: {

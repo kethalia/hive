@@ -9,6 +9,7 @@ const mockDb = vi.hoisted(() => ({
   vapidKeys: {
     findUnique: vi.fn(),
     create: vi.fn(),
+    upsert: vi.fn(),
   },
 }));
 
@@ -37,28 +38,31 @@ describe("getVapidKeys", () => {
     clearVapidCache();
     mockDb.vapidKeys.findUnique.mockReset();
     mockDb.vapidKeys.create.mockReset();
+    mockDb.vapidKeys.upsert.mockReset();
     mockGenerateVAPIDKeys.mockReset();
   });
 
   it("generates and persists keys when DB is empty", async () => {
     mockDb.vapidKeys.findUnique.mockResolvedValue(null);
     mockGenerateVAPIDKeys.mockReturnValue(FAKE_KEYS);
-    mockDb.vapidKeys.create.mockResolvedValue({ id: 1, ...FAKE_KEYS });
+    mockDb.vapidKeys.upsert.mockResolvedValue({ id: 1, ...FAKE_KEYS });
 
     const keys = await getVapidKeys();
 
     expect(keys).toEqual(FAKE_KEYS);
     expect(mockDb.vapidKeys.findUnique).toHaveBeenCalledWith({ where: { id: 1 } });
     expect(mockGenerateVAPIDKeys).toHaveBeenCalledOnce();
-    expect(mockDb.vapidKeys.create).toHaveBeenCalledWith({
-      data: { id: 1, ...FAKE_KEYS },
+    expect(mockDb.vapidKeys.upsert).toHaveBeenCalledWith({
+      where: { id: 1 },
+      update: {},
+      create: { id: 1, ...FAKE_KEYS },
     });
   });
 
   it("returns cached keys on second call without hitting DB", async () => {
     mockDb.vapidKeys.findUnique.mockResolvedValue(null);
     mockGenerateVAPIDKeys.mockReturnValue(FAKE_KEYS);
-    mockDb.vapidKeys.create.mockResolvedValue({ id: 1, ...FAKE_KEYS });
+    mockDb.vapidKeys.upsert.mockResolvedValue({ id: 1, ...FAKE_KEYS });
 
     await getVapidKeys();
     const keys = await getVapidKeys();
@@ -78,19 +82,19 @@ describe("getVapidKeys", () => {
 
     expect(keys).toEqual(FAKE_KEYS);
     expect(mockGenerateVAPIDKeys).not.toHaveBeenCalled();
-    expect(mockDb.vapidKeys.create).not.toHaveBeenCalled();
+    expect(mockDb.vapidKeys.upsert).not.toHaveBeenCalled();
   });
 
-  it("does not cache partial state on DB failure during create", async () => {
+  it("does not cache partial state on DB failure during upsert", async () => {
     mockDb.vapidKeys.findUnique.mockResolvedValue(null);
     mockGenerateVAPIDKeys.mockReturnValue(FAKE_KEYS);
-    mockDb.vapidKeys.create.mockRejectedValue(new Error("DB connection lost"));
+    mockDb.vapidKeys.upsert.mockRejectedValue(new Error("DB connection lost"));
 
     await expect(getVapidKeys()).rejects.toThrow("DB connection lost");
 
     clearVapidCache();
     mockDb.vapidKeys.findUnique.mockResolvedValue(null);
-    mockDb.vapidKeys.create.mockResolvedValue({ id: 1, ...FAKE_KEYS });
+    mockDb.vapidKeys.upsert.mockResolvedValue({ id: 1, ...FAKE_KEYS });
 
     const keys = await getVapidKeys();
     expect(keys).toEqual(FAKE_KEYS);

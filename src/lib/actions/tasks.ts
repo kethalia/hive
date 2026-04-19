@@ -41,11 +41,8 @@ export const createTaskAction = authActionClient
 export const getTaskAction = authActionClient
   .inputSchema(getTaskSchema)
   .action(async ({ parsedInput, ctx }) => {
-    const task = await getTask(parsedInput.id);
+    const task = await getTask(parsedInput.id, ctx.user.id);
     if (!task) {
-      throw new Error("Task not found");
-    }
-    if (task.userId && task.userId !== ctx.user.id) {
       throw new Error("Task not found");
     }
     return JSON.parse(JSON.stringify(task));

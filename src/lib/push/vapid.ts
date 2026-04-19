@@ -18,15 +18,17 @@ export async function getVapidKeys(): Promise<{
   }
 
   const generated = webpush.generateVAPIDKeys();
-  await db.vapidKeys.create({
-    data: {
+  const row = await db.vapidKeys.upsert({
+    where: { id: 1 },
+    update: {},
+    create: {
       id: 1,
       publicKey: generated.publicKey,
       privateKey: generated.privateKey,
     },
   });
 
-  cachedKeys = { publicKey: generated.publicKey, privateKey: generated.privateKey };
+  cachedKeys = { publicKey: row.publicKey, privateKey: row.privateKey };
   return cachedKeys;
 }
 

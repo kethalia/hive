@@ -1,5 +1,6 @@
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { getTask } from "@/lib/api/tasks";
+import { getSession } from "@/lib/auth/session";
 import { TaskDetail } from "./task-detail";
 
 export default async function TaskDetailPage({
@@ -7,8 +8,12 @@ export default async function TaskDetailPage({
 }: {
   params: Promise<{ id: string }>;
 }) {
+  const session = await getSession();
+  if (!session) {
+    redirect("/login");
+  }
   const { id } = await params;
-  const task = await getTask(id);
+  const task = await getTask(id, session.userId);
 
   if (!task) {
     notFound();
