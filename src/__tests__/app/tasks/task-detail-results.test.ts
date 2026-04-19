@@ -13,7 +13,7 @@ vi.mock("next-safe-action/hooks", () => ({
 }));
 // ── Import component under test ──────────────────────────────────
 
-import { VerificationReportCard } from "@/app/tasks/[id]/verification-report-card";
+import { VerificationReportCard } from "@/app/(dashboard)/tasks/[id]/verification-report-card";
 
 // ── Fixtures ──────────────────────────────────────────────────────
 

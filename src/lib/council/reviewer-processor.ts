@@ -9,7 +9,6 @@
  */
 
 import type { Job } from "bullmq";
-import type { CoderClient } from "@/lib/coder/client";
 import type { BlueprintContext } from "@/lib/blueprint/types";
 import type { ReviewerFinding } from "@/lib/council/types";
 import type { CouncilReviewerJobData } from "@/lib/queue/council-queues";
@@ -18,6 +17,7 @@ import { runBlueprint } from "@/lib/blueprint/runner";
 import { cleanupWorkspace } from "@/lib/workspace/cleanup";
 import { councilWorkspaceName } from "@/lib/workspace/naming";
 import { getDb } from "@/lib/db";
+import { getCoderClientForUser } from "@/lib/coder/user-client";
 import {
   DEFAULT_CLEANUP_GRACE_MS,
   DEFAULT_PI_MODEL,
@@ -26,20 +26,18 @@ import {
 
 /**
  * Returns a BullMQ processor function for council reviewer jobs.
- *
- * @param coderClient - Authenticated Coder API client
+ * Resolves per-user Coder credentials from job data.
  */
-export function createCouncilReviewerProcessor(
-  coderClient: CoderClient,
-): (job: Job<CouncilReviewerJobData>) => Promise<ReviewerFinding[]> {
+export function createCouncilReviewerProcessor(): (job: Job<CouncilReviewerJobData>) => Promise<ReviewerFinding[]> {
   return async (job: Job<CouncilReviewerJobData>): Promise<ReviewerFinding[]> => {
-    const { taskId, reviewerIndex, repoUrl, branchName } = job.data;
+    const { taskId, reviewerIndex, repoUrl, branchName, userId } = job.data;
     const councilTemplateId = process.env.CODER_COUNCIL_TEMPLATE_ID ?? "";
 
     console.log(
       `[council-reviewer] job=${job.id} taskId=${taskId} reviewerIndex=${reviewerIndex} start`,
     );
 
+    const coderClient = await getCoderClientForUser(userId);
     const workspaceName = councilWorkspaceName(taskId, reviewerIndex);
     let workspaceId: string | null = null;
 

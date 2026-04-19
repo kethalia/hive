@@ -19,7 +19,6 @@ vi.mock("@/lib/queue/connection", () => ({
   })),
 }));
 
-// Capture queue.add calls
 const mockAdd = vi.fn().mockResolvedValue(undefined);
 
 vi.mock("@/lib/templates/push-queue", () => ({
@@ -29,6 +28,21 @@ vi.mock("@/lib/templates/push-queue", () => ({
 
 vi.mock("@/lib/templates/staleness", () => ({
   KNOWN_TEMPLATES: ["hive", "ai-dev"] as const,
+}));
+
+const MOCK_SESSION = {
+  user: { id: "user-1", coderUrl: "https://coder.test", coderUserId: "cu-1", username: "test", email: "test@test.com" },
+  session: { id: "s-1", sessionId: "sess-1", expiresAt: new Date(Date.now() + 86400000) },
+};
+
+vi.mock("next/headers", () => ({
+  cookies: vi.fn().mockResolvedValue({
+    get: () => ({ value: "session-cookie" }),
+  }),
+}));
+
+vi.mock("@/lib/auth/session", () => ({
+  getSession: vi.fn().mockResolvedValue(MOCK_SESSION),
 }));
 
 // fs mock — configurable per test
@@ -95,6 +109,7 @@ describe("POST /api/templates/[name]/push", () => {
     expect(jobName).toBe("push-hive");
     expect(jobData.templateName).toBe("hive");
     expect(jobData.jobId).toBe(body.jobId);
+    expect(jobData.userId).toBe("user-1");
     expect(opts.jobId).toBe(body.jobId);
   });
 

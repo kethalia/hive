@@ -14,6 +14,7 @@ interface CouncilDispatchParams {
   prUrl: string;
   repoUrl: string;
   branchName: string;
+  userId: string;
 }
 
 /**
@@ -26,7 +27,7 @@ interface CouncilDispatchParams {
  * @throws on DB or Redis errors — caller must catch (task-queue.ts wraps in try/catch per D015).
  */
 export async function dispatchCouncilReview(params: CouncilDispatchParams): Promise<boolean> {
-  const { taskId, prUrl, repoUrl, branchName } = params;
+  const { taskId, prUrl, repoUrl, branchName, userId } = params;
 
   const councilTemplateId = process.env.CODER_COUNCIL_TEMPLATE_ID;
 
@@ -66,6 +67,7 @@ export async function dispatchCouncilReview(params: CouncilDispatchParams): Prom
       prUrl,
       repoUrl,
       branchName,
+      userId,
     },
     opts: { failParentOnFailure: false },
   }));

@@ -1,66 +1,66 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
-vi.mock("@/lib/coder/client", () => ({
-  CoderClient: vi.fn(),
+vi.mock("@/lib/coder/user-client", () => ({
+  getCoderClientForUser: vi.fn(),
 }));
 
 vi.mock("@/lib/workspace/exec", () => ({
   execInWorkspace: vi.fn(),
 }));
 
-vi.mock("@/lib/safe-action", () => ({
-  actionClient: {
-    action: (fn: Function) => {
-      const bound = async (input?: unknown) => {
-        const result = await fn({ parsedInput: input });
-        return { data: result };
-      };
-      return Object.assign(bound, {
-        inputSchema: (schema: unknown) => ({
-          action: (handler: Function) => {
-            return async (input: unknown) => {
-              const result = await handler({ parsedInput: input });
-              return { data: result };
-            };
-          },
-        }),
-      });
-    },
-    inputSchema: (schema: unknown) => ({
-      action: (fn: Function) => {
-        return async (input: unknown) => {
-          const result = await fn({ parsedInput: input });
-          return { data: result };
-        };
-      },
-    }),
-  },
+vi.mock("next/headers", () => ({
+  cookies: vi.fn(),
 }));
 
-import { CoderClient } from "@/lib/coder/client";
+vi.mock("@/lib/auth/session", () => ({
+  getSession: vi.fn(),
+}));
+
+import { getCoderClientForUser } from "@/lib/coder/user-client";
+import { getSession } from "@/lib/auth/session";
+import { cookies } from "next/headers";
 import { execInWorkspace } from "@/lib/workspace/exec";
 
-const MockedCoderClient = vi.mocked(CoderClient);
+const mockedGetCoderClientForUser = vi.mocked(getCoderClientForUser);
+const mockedGetSession = vi.mocked(getSession);
+const mockedCookies = vi.mocked(cookies);
 const mockedExec = vi.mocked(execInWorkspace);
+
+const MOCK_SESSION = {
+  user: {
+    id: "user-123",
+    coderUrl: "https://coder.example.com",
+    coderUserId: "coder-user-1",
+    username: "testuser",
+    email: "test@example.com",
+  },
+  session: {
+    id: "sess-1",
+    sessionId: "sess-id-1",
+    expiresAt: new Date(Date.now() + 86400000),
+  },
+};
 
 describe("session server actions", () => {
   const mockGetWorkspaceAgentName = vi.fn();
 
   beforeEach(() => {
-    vi.stubEnv("CODER_URL", "https://coder.example.com");
-    vi.stubEnv("CODER_SESSION_TOKEN", "test-token");
+    vi.clearAllMocks();
     vi.spyOn(console, "log").mockImplementation(() => {});
     vi.spyOn(console, "error").mockImplementation(() => {});
 
-    MockedCoderClient.mockImplementation(() => ({
+    mockedGetSession.mockResolvedValue(MOCK_SESSION);
+    mockedCookies.mockResolvedValue({
+      get: () => ({ value: "session-cookie-value" }),
+    } as never);
+
+    mockedGetCoderClientForUser.mockResolvedValue({
       getWorkspaceAgentName: mockGetWorkspaceAgentName,
-    }) as unknown as InstanceType<typeof CoderClient>);
+    } as never);
   });
 
   afterEach(() => {
     vi.restoreAllMocks();
-    vi.unstubAllEnvs();
-    vi.resetModules();
   });
 
   describe("createSessionAction", () => {
@@ -71,8 +71,6 @@ describe("session server actions", () => {
         sessionName: "my-session",
       });
 
-      // createSessionAction no longer calls tmux — the PTY command parameter
-      // handles create-or-attach via `tmux -L web new-session -A -s <name>`
       expect(mockGetWorkspaceAgentName).not.toHaveBeenCalled();
       expect(mockedExec).not.toHaveBeenCalled();
       expect(result?.data).toEqual({ name: "my-session" });
@@ -88,12 +86,12 @@ describe("session server actions", () => {
     it("rejects invalid session names", async () => {
       const { createSessionAction } = await import("@/lib/actions/workspaces");
 
-      await expect(
-        createSessionAction({
-          workspaceId: "ws-1",
-          sessionName: "bad name; rm -rf /",
-        }),
-      ).rejects.toThrow("Invalid session name");
+      const result = await createSessionAction({
+        workspaceId: "ws-1",
+        sessionName: "bad name; rm -rf /",
+      });
+
+      expect(result?.serverError).toContain("Invalid session name");
     });
   });
 
@@ -123,28 +121,28 @@ describe("session server actions", () => {
     it("rejects invalid old name", async () => {
       const { renameSessionAction } = await import("@/lib/actions/workspaces");
 
-      await expect(
-        renameSessionAction({
-          workspaceId: "ws-1",
-          oldName: "bad name!",
-          newName: "good-name",
-        }),
-      ).rejects.toThrow("Invalid session name: bad name!");
+      const result = await renameSessionAction({
+        workspaceId: "ws-1",
+        oldName: "bad name!",
+        newName: "good-name",
+      });
+
+      expect(result?.serverError).toContain("Invalid session name: bad name!");
     });
 
     it("rejects invalid new name", async () => {
       const { renameSessionAction } = await import("@/lib/actions/workspaces");
 
-      await expect(
-        renameSessionAction({
-          workspaceId: "ws-1",
-          oldName: "good-name",
-          newName: "bad name!",
-        }),
-      ).rejects.toThrow("Invalid session name: bad name!");
+      const result = await renameSessionAction({
+        workspaceId: "ws-1",
+        oldName: "good-name",
+        newName: "bad name!",
+      });
+
+      expect(result?.serverError).toContain("Invalid session name: bad name!");
     });
 
-    it("throws when tmux rename fails", async () => {
+    it("returns error when tmux rename fails", async () => {
       mockGetWorkspaceAgentName.mockResolvedValueOnce("dev.main");
       mockedExec.mockResolvedValueOnce({
         stdout: "",
@@ -154,29 +152,29 @@ describe("session server actions", () => {
 
       const { renameSessionAction } = await import("@/lib/actions/workspaces");
 
-      await expect(
-        renameSessionAction({
-          workspaceId: "ws-1",
-          oldName: "old-name",
-          newName: "new-name",
-        }),
-      ).rejects.toThrow('Failed to rename session "old-name" to "new-name"');
+      const result = await renameSessionAction({
+        workspaceId: "ws-1",
+        oldName: "old-name",
+        newName: "new-name",
+      });
+
+      expect(result?.serverError).toContain('Failed to rename session "old-name" to "new-name"');
     });
 
-    it("throws when no agent found", async () => {
+    it("returns error when no agent found", async () => {
       mockGetWorkspaceAgentName.mockRejectedValueOnce(
         new Error("No agents found"),
       );
 
       const { renameSessionAction } = await import("@/lib/actions/workspaces");
 
-      await expect(
-        renameSessionAction({
-          workspaceId: "ws-1",
-          oldName: "old",
-          newName: "new",
-        }),
-      ).rejects.toThrow("No agents found");
+      const result = await renameSessionAction({
+        workspaceId: "ws-1",
+        oldName: "old",
+        newName: "new",
+      });
+
+      expect(result?.serverError).toContain("No agents found");
     });
   });
 
@@ -205,15 +203,15 @@ describe("session server actions", () => {
     it("rejects invalid session name", async () => {
       const { killSessionAction } = await import("@/lib/actions/workspaces");
 
-      await expect(
-        killSessionAction({
-          workspaceId: "ws-1",
-          sessionName: "$(evil)",
-        }),
-      ).rejects.toThrow("Invalid session name");
+      const result = await killSessionAction({
+        workspaceId: "ws-1",
+        sessionName: "$(evil)",
+      });
+
+      expect(result?.serverError).toContain("Invalid session name");
     });
 
-    it("throws when tmux kill fails", async () => {
+    it("returns error when tmux kill fails", async () => {
       mockGetWorkspaceAgentName.mockResolvedValueOnce("dev.main");
       mockedExec.mockResolvedValueOnce({
         stdout: "",
@@ -223,27 +221,27 @@ describe("session server actions", () => {
 
       const { killSessionAction } = await import("@/lib/actions/workspaces");
 
-      await expect(
-        killSessionAction({
-          workspaceId: "ws-1",
-          sessionName: "my-session",
-        }),
-      ).rejects.toThrow('Failed to kill session "my-session"');
+      const result = await killSessionAction({
+        workspaceId: "ws-1",
+        sessionName: "my-session",
+      });
+
+      expect(result?.serverError).toContain('Failed to kill session "my-session"');
     });
 
-    it("throws when no agent found", async () => {
+    it("returns error when no agent found", async () => {
       mockGetWorkspaceAgentName.mockRejectedValueOnce(
         new Error("No agents found"),
       );
 
       const { killSessionAction } = await import("@/lib/actions/workspaces");
 
-      await expect(
-        killSessionAction({
-          workspaceId: "ws-1",
-          sessionName: "test",
-        }),
-      ).rejects.toThrow("No agents found");
+      const result = await killSessionAction({
+        workspaceId: "ws-1",
+        sessionName: "test",
+      });
+
+      expect(result?.serverError).toContain("No agents found");
     });
   });
 });

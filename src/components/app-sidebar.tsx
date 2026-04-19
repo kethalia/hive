@@ -25,7 +25,17 @@ import {
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuGroup,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import {
@@ -48,6 +58,7 @@ import {
   Monitor as ScreenIcon,
   Code,
   Loader2,
+  LogOut,
 } from "lucide-react";
 import { useSidebarMode } from "@/hooks/use-sidebar-mode";
 import {
@@ -63,6 +74,7 @@ import { listTemplateStatusesAction } from "@/lib/actions/templates";
 import type { CoderWorkspace } from "@/lib/coder/types";
 import type { TmuxSession } from "@/lib/workspaces/sessions";
 import type { TemplateStatus } from "@/lib/templates/staleness";
+import { getSessionAction, logoutAction } from "@/lib/auth/actions";
 import { SAFE_IDENTIFIER_RE } from "@/lib/constants";
 
 const POLL_INTERVAL_MS = 30_000;
@@ -234,13 +246,29 @@ function SessionList({
   );
 }
 
-export function AppSidebar({ coderUrl }: { coderUrl?: string }) {
+export function AppSidebar() {
   const pathname = usePathname();
   const router = useRouter();
   const searchParams = useSearchParams();
   const activeSession = searchParams.get("session");
   const [sidebarMode, setSidebarMode] = useSidebarMode();
   const [settingsOpen, setSettingsOpen] = useState(false);
+
+  const [sessionUser, setSessionUser] = useState<{
+    email: string;
+    coderUrl: string;
+  } | null>(null);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
+
+  useEffect(() => {
+    getSessionAction().then((result) => {
+      if (result?.data?.user) {
+        setSessionUser(result.data.user);
+      }
+    });
+  }, []);
+
+  const coderUrl = sessionUser?.coderUrl ?? undefined;
 
   const [workspacesOpen, setWorkspacesOpen] = useState(true);
   const [templatesOpen, setTemplatesOpen] = useState(true);
@@ -801,6 +829,45 @@ export function AppSidebar({ coderUrl }: { coderUrl?: string }) {
             </SidebarMenuItem>
           </Collapsible>
         </SidebarMenu>
+        {sessionUser && (
+          <DropdownMenu>
+            <DropdownMenuTrigger className="w-full rounded-md p-2 text-left hover:bg-sidebar-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+              <div className="flex items-center gap-2 min-w-0">
+                <Avatar size="sm">
+                  <AvatarFallback>
+                    {sessionUser.email.charAt(0).toUpperCase()}
+                  </AvatarFallback>
+                </Avatar>
+                <span className="truncate text-sm">{sessionUser.email}</span>
+              </div>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent side="top" align="start" className="w-56">
+              <DropdownMenuGroup>
+                <DropdownMenuLabel className="font-normal">
+                  <p className="truncate text-xs text-muted-foreground">
+                    {sessionUser.coderUrl}
+                  </p>
+                </DropdownMenuLabel>
+              </DropdownMenuGroup>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                disabled={isLoggingOut}
+                onClick={async () => {
+                  setIsLoggingOut(true);
+                  await logoutAction();
+                  router.push("/login");
+                }}
+              >
+                {isLoggingOut ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <LogOut className="h-4 w-4" />
+                )}
+                Sign out
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        )}
       </SidebarFooter>
     </Sidebar>
   );

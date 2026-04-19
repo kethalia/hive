@@ -1,4 +1,6 @@
 import { NextRequest } from "next/server";
+import { cookies } from "next/headers";
+import { getSession } from "@/lib/auth/session";
 import { getDb } from "@/lib/db";
 import { streamFromWorkspace } from "@/lib/workspace/stream";
 import { workerWorkspaceName } from "@/lib/workspace/naming";
@@ -22,7 +24,12 @@ export async function GET(
 ) {
   const { id: taskId } = await params;
 
-  // Validate taskId is a UUID before using it in any shell command
+  const cookieStore = await cookies();
+  const session = await getSession(cookieStore);
+  if (!session) {
+    return new Response("Unauthorized", { status: 401 });
+  }
+
   if (!UUID_RE.test(taskId)) {
     return new Response("Invalid task ID", { status: 400 });
   }

@@ -66,7 +66,7 @@ let AgentStreamPanel: React.ComponentType<{ taskId: string; status: string }>;
 beforeEach(async () => {
   MockEventSource.instances = [];
   const mod = await import(
-    "@/app/tasks/[id]/agent-stream-panel"
+    "@/app/(dashboard)/tasks/[id]/agent-stream-panel"
   );
   AgentStreamPanel = mod.AgentStreamPanel;
 });

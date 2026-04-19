@@ -97,6 +97,21 @@ vi.mock("@/lib/workspace/cleanup", () => ({
   cleanupWorkspace: (...args: unknown[]) => mockCleanupWorkspace(...args),
 }));
 
+// Mock getCoderClientForUser — returns a mock CoderClient per-job
+const mockGetCoderClientForUser = vi.fn();
+vi.mock("@/lib/coder/user-client", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/coder/user-client")>();
+  return {
+    ...actual,
+    getCoderClientForUser: (...args: unknown[]) => mockGetCoderClientForUser(...args),
+  };
+});
+
+// Mock token status — default to valid token
+vi.mock("@/lib/auth/token-status", () => ({
+  getTokenStatus: vi.fn().mockResolvedValue({ status: "valid", expiresAt: null }),
+}));
+
 // Mock verifier blueprint
 const mockCreateVerifierBlueprint = vi.fn(() => [
   { name: "verify-clone", execute: vi.fn() },
@@ -110,7 +125,6 @@ vi.mock("@/lib/blueprint/verifier", () => ({
 // ── Imports under test ────────────────────────────────────────────
 
 import { getTaskQueue, createTaskWorker, type TaskJobData } from "@/lib/queue/task-queue";
-import type { CoderClient } from "@/lib/coder/client";
 import { createCIStep } from "@/lib/blueprint/steps/ci";
 
 // ── Helpers ───────────────────────────────────────────────────────
@@ -143,6 +157,7 @@ const fakeJobData: TaskJobData = {
   repoUrl: "https://github.com/test/repo",
   prompt: "Fix the bug",
   branchName: "hive/abc12345/fix-the-bug",
+  userId: "user-001",
   params: {},
 };
 
@@ -173,6 +188,8 @@ describe("BullMQ task-dispatch queue", () => {
     vi.spyOn(console, "error").mockImplementation(() => {});
     // Set verifier template ID so verifier path is exercised
     process.env.CODER_VERIFIER_TEMPLATE_ID = "tmpl-verifier";
+    // Default: getCoderClientForUser returns a standard mock client
+    mockGetCoderClientForUser.mockImplementation(() => Promise.resolve(makeMockCoderClient()));
   });
 
   describe("getTaskQueue()", () => {
@@ -189,8 +206,7 @@ describe("BullMQ task-dispatch queue", () => {
 
   describe("createTaskWorker()", () => {
     it("creates a Worker with 90-minute lock duration", () => {
-      const client = makeMockCoderClient();
-      createTaskWorker(client);
+      createTaskWorker();
 
       expect(Worker).toHaveBeenCalledWith(
         "task-dispatch",
@@ -216,6 +232,7 @@ describe("BullMQ task-dispatch queue", () => {
           latest_build: { id: "build-v1", status: "starting", job: { status: "running", error: "" } },
         });
       const client = makeMockCoderClient({ createWorkspace: createWsMock });
+      mockGetCoderClientForUser.mockResolvedValue(client);
 
       // Worker blueprint sets prUrl; verifier blueprint sets verificationReport
       let runBlueprintCallCount = 0;
@@ -246,7 +263,7 @@ describe("BullMQ task-dispatch queue", () => {
         };
       });
 
-      createTaskWorker(client);
+      createTaskWorker();
       const processor = (Worker as any).__lastProcessor;
       const fakeJob = { id: "job-1", data: fakeJobData };
 
@@ -356,10 +373,11 @@ describe("BullMQ task-dispatch queue", () => {
 
     it("CI step receives injected dependencies", async () => {
       const client = makeMockCoderClient();
+      mockGetCoderClientForUser.mockResolvedValue(client);
       // No prUrl → no verifier triggered
       mockRunBlueprint.mockResolvedValue(makeSuccessResult());
 
-      createTaskWorker(client);
+      createTaskWorker();
       const processor = (Worker as any).__lastProcessor;
       await processor({ id: "job-1", data: fakeJobData });
 
@@ -373,10 +391,11 @@ describe("BullMQ task-dispatch queue", () => {
 
     it("cleanup is called after successful blueprint", async () => {
       const client = makeMockCoderClient();
+      mockGetCoderClientForUser.mockResolvedValue(client);
       // No prUrl → no verifier triggered, only worker cleanup
       mockRunBlueprint.mockResolvedValue(makeSuccessResult());
 
-      createTaskWorker(client);
+      createTaskWorker();
       const processor = (Worker as any).__lastProcessor;
       await processor({ id: "job-1", data: fakeJobData });
 
@@ -390,6 +409,7 @@ describe("BullMQ task-dispatch queue", () => {
 
     it("cleanup is called after failed blueprint", async () => {
       const client = makeMockCoderClient();
+      mockGetCoderClientForUser.mockResolvedValue(client);
       mockRunBlueprint.mockResolvedValue({
         success: false,
         steps: [
@@ -405,7 +425,7 @@ describe("BullMQ task-dispatch queue", () => {
         totalDurationMs: 2180,
       });
 
-      createTaskWorker(client);
+      createTaskWorker();
       const processor = (Worker as any).__lastProcessor;
       await processor({ id: "job-3", data: fakeJobData });
 
@@ -429,10 +449,11 @@ describe("BullMQ task-dispatch queue", () => {
 
     it("cleanup is called even when an exception is thrown", async () => {
       const client = makeMockCoderClient();
+      mockGetCoderClientForUser.mockResolvedValue(client);
       // Fail after workspace creation so coderWorkspaceId is set
       client.waitForBuild = vi.fn().mockRejectedValue(new Error("build timeout"));
 
-      createTaskWorker(client);
+      createTaskWorker();
       const processor = (Worker as any).__lastProcessor;
 
       await expect(
@@ -450,6 +471,7 @@ describe("BullMQ task-dispatch queue", () => {
 
     it("blueprint failure → task status 'failed' with step name in errorMessage", async () => {
       const client = makeMockCoderClient();
+      mockGetCoderClientForUser.mockResolvedValue(client);
       mockRunBlueprint.mockResolvedValue({
         success: false,
         steps: [
@@ -465,7 +487,7 @@ describe("BullMQ task-dispatch queue", () => {
         totalDurationMs: 2180,
       });
 
-      createTaskWorker(client);
+      createTaskWorker();
       const processor = (Worker as any).__lastProcessor;
       const fakeJob = { id: "job-3", data: fakeJobData };
 
@@ -492,8 +514,9 @@ describe("BullMQ task-dispatch queue", () => {
       const failingClient = {
         createWorkspace: vi.fn().mockRejectedValue(new Error("Coder API down")),
       } as unknown as CoderClient;
+      mockGetCoderClientForUser.mockResolvedValue(failingClient);
 
-      createTaskWorker(failingClient);
+      createTaskWorker();
       const processor = (Worker as any).__lastProcessor;
 
       const fakeJob = {
@@ -503,6 +526,7 @@ describe("BullMQ task-dispatch queue", () => {
           repoUrl: "https://github.com/test/repo",
           prompt: "Will fail",
           branchName: "hive/fail0000/will-fail",
+          userId: "user-001",
           params: {},
         } satisfies TaskJobData,
       };
@@ -527,6 +551,7 @@ describe("BullMQ task-dispatch queue", () => {
 
     it("worker failure (blueprint fails) → verifier NOT triggered → task failed", async () => {
       const client = makeMockCoderClient();
+      mockGetCoderClientForUser.mockResolvedValue(client);
       mockRunBlueprint.mockResolvedValue({
         success: false,
         steps: [
@@ -542,7 +567,7 @@ describe("BullMQ task-dispatch queue", () => {
         totalDurationMs: 2180,
       });
 
-      createTaskWorker(client);
+      createTaskWorker();
       const processor = (Worker as any).__lastProcessor;
       await processor({ id: "job-no-verifier", data: fakeJobData });
 
@@ -576,6 +601,7 @@ describe("BullMQ task-dispatch queue", () => {
           latest_build: { id: "build-v1", status: "starting", job: { status: "running", error: "" } },
         });
       const client = makeMockCoderClient({ createWorkspace: createWsMock });
+      mockGetCoderClientForUser.mockResolvedValue(client);
 
       let callCount = 0;
       mockRunBlueprint.mockImplementation(async (steps: any[], ctx: any) => {
@@ -588,7 +614,7 @@ describe("BullMQ task-dispatch queue", () => {
         throw new Error("Verifier workspace crashed");
       });
 
-      createTaskWorker(client);
+      createTaskWorker();
       const processor = (Worker as any).__lastProcessor;
       await processor({ id: "job-verifier-fail", data: fakeJobData });
 
@@ -635,6 +661,7 @@ describe("BullMQ task-dispatch queue", () => {
           latest_build: { id: "build-v1", status: "starting", job: { status: "running", error: "" } },
         });
       const client = makeMockCoderClient({ createWorkspace: createWsMock });
+      mockGetCoderClientForUser.mockResolvedValue(client);
 
       let callCount = 0;
       mockRunBlueprint.mockImplementation(async (steps: any[], ctx: any) => {
@@ -650,7 +677,7 @@ describe("BullMQ task-dispatch queue", () => {
         return { success: true, steps: [], totalDurationMs: 100 };
       });
 
-      createTaskWorker(client);
+      createTaskWorker();
       const processor = (Worker as any).__lastProcessor;
       await processor({ id: "job-both-cleanup", data: fakeJobData });
 
@@ -677,6 +704,7 @@ describe("BullMQ task-dispatch queue", () => {
           latest_build: { id: "build-v1", status: "starting", job: { status: "running", error: "" } },
         });
       const client = makeMockCoderClient({ createWorkspace: createWsMock });
+      mockGetCoderClientForUser.mockResolvedValue(client);
 
       let callCount = 0;
       mockRunBlueprint.mockImplementation(async (steps: any[], ctx: any) => {
@@ -698,7 +726,7 @@ describe("BullMQ task-dispatch queue", () => {
         };
       });
 
-      createTaskWorker(client);
+      createTaskWorker();
       const processor = (Worker as any).__lastProcessor;
       await processor({ id: "job-verifier-step-fail", data: fakeJobData });
 
@@ -726,6 +754,7 @@ describe("BullMQ task-dispatch queue", () => {
       delete process.env.CODER_VERIFIER_TEMPLATE_ID;
 
       const client = makeMockCoderClient();
+      mockGetCoderClientForUser.mockResolvedValue(client);
 
       let callCount = 0;
       mockRunBlueprint.mockImplementation(async (steps: any[], ctx: any) => {
@@ -734,7 +763,7 @@ describe("BullMQ task-dispatch queue", () => {
         return makeSuccessResult();
       });
 
-      createTaskWorker(client);
+      createTaskWorker();
       const processor = (Worker as any).__lastProcessor;
       await processor({ id: "job-no-template", data: fakeJobData });
 

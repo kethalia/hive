@@ -1,9 +1,7 @@
 import type { Metadata } from "next";
-import { Suspense } from "react";
 import { Geist, Geist_Mono } from "next/font/google";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { SidebarProvider, SidebarInset, SidebarTrigger } from "@/components/ui/sidebar";
-import { AppSidebar } from "@/components/app-sidebar";
+import { ServiceWorkerRegister } from "@/components/service-worker-register";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -28,20 +26,11 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" className="dark">
-      <body className={`${geistSans.variable} ${geistMono.variable} font-sans antialiased`}>
-        <TooltipProvider>
-          <SidebarProvider>
-            <Suspense fallback={null}>
-              <AppSidebar coderUrl={process.env.CODER_URL} />
-            </Suspense>
-            <SidebarTrigger className="fixed top-3 left-3 z-50 opacity-0 pointer-events-none transition-opacity peer-data-[state=collapsed]:opacity-100 peer-data-[state=collapsed]:pointer-events-auto" />
-            <SidebarInset>
-              <main className="flex-1 p-6 pt-14">
-                {children}
-              </main>
-            </SidebarInset>
-          </SidebarProvider>
-        </TooltipProvider>
+      <body
+        className={`${geistSans.variable} ${geistMono.variable} font-sans antialiased`}
+      >
+        <ServiceWorkerRegister />
+        <TooltipProvider>{children}</TooltipProvider>
       </body>
     </html>
   );

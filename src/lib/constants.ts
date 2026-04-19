@@ -74,6 +74,31 @@ export const GH_CMD_TIMEOUT_MS = 30_000;
 /** Maximum CI retry rounds before flagging for human review. */
 export const CI_MAX_ROUNDS = 2;
 
+// ── Token lifecycle ───────────────────────────────────────────────
+
+/** API key lifetime in seconds (30 days). */
+export const TOKEN_LIFETIME_SECONDS = 30 * 24 * 60 * 60;
+
+/** Fraction of lifetime elapsed before triggering rotation. */
+export const TOKEN_ROTATION_THRESHOLD = 0.75;
+
+/** Hours before expiry to show warning banner. */
+export const TOKEN_EXPIRY_WARNING_HOURS = 48;
+
+/** Minimum remaining hours for worker pre-flight check. */
+export const TOKEN_PREFLIGHT_MIN_HOURS = 2;
+
+/** BullMQ queue name for token rotation jobs. */
+export const TOKEN_ROTATION_QUEUE = "token-rotation";
+
+// ── Push notifications ────────────────────────────────────────────
+
+/** Hours before token expiry to fire a push notification. */
+export const PUSH_NOTIFICATION_HOURS = 24;
+
+/** Notification tag for dedup — only one active notification per tag. */
+export const PUSH_NOTIFICATION_TAG = "token-expiry";
+
 // ── Queue ──────────────────────────────────────────────────────────
 
 /** BullMQ queue name for task dispatch. */

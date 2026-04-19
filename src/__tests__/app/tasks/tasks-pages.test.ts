@@ -80,6 +80,7 @@ describe("createTask attachments handling", () => {
     const task = await createTask({
       prompt: "Fix bug",
       repoUrl: "https://github.com/test/repo",
+      userId: "user-001",
       attachments,
     });
 
@@ -110,6 +111,7 @@ describe("createTask attachments handling", () => {
     const task = await createTask({
       prompt: "Fix bug",
       repoUrl: "https://github.com/test/repo",
+      userId: "user-001",
     });
 
     expect(task.attachments).toBeNull();
@@ -142,6 +144,7 @@ describe("createTask councilSize handling", () => {
     await createTask({
       prompt: "Fix bug",
       repoUrl: "https://github.com/test/repo",
+      userId: "user-001",
       councilSize: 5,
     });
 
@@ -156,6 +159,7 @@ describe("createTask councilSize handling", () => {
     await createTask({
       prompt: "Fix bug",
       repoUrl: "https://github.com/test/repo",
+      userId: "user-001",
     });
 
     expect(mockTaskCreate).toHaveBeenCalledWith({

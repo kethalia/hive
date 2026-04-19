@@ -57,7 +57,6 @@ import {
   createCouncilReviewerWorker,
   createCouncilAggregatorWorker,
 } from "@/lib/queue/council-queues";
-import type { CoderClient } from "@/lib/coder/client";
 
 // ── Tests ─────────────────────────────────────────────────────────
 
@@ -128,8 +127,7 @@ describe("council queue infrastructure", () => {
 
   describe("createCouncilReviewerWorker()", () => {
     it("creates a Worker with queue name 'council-reviewer' and connection option", () => {
-      const mockClient = {} as unknown as CoderClient;
-      const worker = createCouncilReviewerWorker(mockClient);
+      const worker = createCouncilReviewerWorker();
 
       expect(Worker).toHaveBeenCalledWith(
         "council-reviewer",

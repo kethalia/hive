@@ -10,7 +10,12 @@ export async function register() {
   if (process.env.NEXT_RUNTIME !== "nodejs") return;
 
   const { createTemplatePushWorker } = await import("@/lib/templates/push-queue");
+  const { createTokenRotationWorker, scheduleTokenRotation } = await import("@/lib/queue/token-rotation");
 
   createTemplatePushWorker();
   console.log("[instrumentation] Template push worker started");
+
+  createTokenRotationWorker();
+  await scheduleTokenRotation();
+  console.log("[instrumentation] Token rotation worker started");
 }

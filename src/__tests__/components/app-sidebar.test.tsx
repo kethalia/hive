@@ -97,6 +97,40 @@ vi.mock("@/components/ui/collapsible", () => {
   };
 });
 
+vi.mock("@/components/ui/avatar", () => ({
+  Avatar: ({ children, className }: React.PropsWithChildren<{ size?: string; className?: string }>) => (
+    <span data-testid="avatar" className={className}>{children}</span>
+  ),
+  AvatarFallback: ({ children }: React.PropsWithChildren) => (
+    <span data-testid="avatar-fallback">{children}</span>
+  ),
+}));
+
+vi.mock("@/components/ui/dropdown-menu", () => {
+  const React = require("react");
+  return {
+    DropdownMenu: ({ children }: React.PropsWithChildren) => (
+      <div data-testid="dropdown-menu">{children}</div>
+    ),
+    DropdownMenuTrigger: ({ children, className }: React.PropsWithChildren<{ className?: string }>) => (
+      <button data-testid="user-menu-trigger" className={className}>{children}</button>
+    ),
+    DropdownMenuContent: ({ children }: React.PropsWithChildren<{ side?: string; align?: string; className?: string }>) => (
+      <div data-testid="user-menu-content">{children}</div>
+    ),
+    DropdownMenuItem: ({ children, onClick, disabled }: React.PropsWithChildren<{ onClick?: () => void; disabled?: boolean }>) => (
+      <button data-testid="dropdown-menu-item" onClick={onClick} disabled={disabled}>{children}</button>
+    ),
+    DropdownMenuLabel: ({ children }: React.PropsWithChildren<{ className?: string }>) => (
+      <div data-testid="dropdown-menu-label">{children}</div>
+    ),
+    DropdownMenuGroup: ({ children }: React.PropsWithChildren) => (
+      <div data-testid="dropdown-menu-group">{children}</div>
+    ),
+    DropdownMenuSeparator: () => <hr data-testid="dropdown-menu-separator" />,
+  };
+});
+
 vi.mock("@/components/ui/alert", () => ({
   Alert: ({ children }: React.PropsWithChildren<{ variant?: string; className?: string }>) => (
     <div role="alert">{children}</div>
@@ -173,6 +207,7 @@ vi.mock("lucide-react", () => ({
   ChevronDown: () => <span>ChevronDown</span>,
   Pencil: () => <span>Pencil</span>,
   Loader2: () => <span data-testid="loader-icon">Loader2</span>,
+  LogOut: () => <span data-testid="logout-icon">LogOut</span>,
 }));
 
 const mockListWorkspaces = vi.fn();
@@ -203,6 +238,14 @@ vi.mock("@/lib/workspaces/urls", () => ({
 
 vi.mock("@/lib/actions/templates", () => ({
   listTemplateStatusesAction: (...args: unknown[]) => mockListTemplates(...args),
+}));
+
+const mockGetSessionAction = vi.fn();
+const mockLogoutAction = vi.fn();
+
+vi.mock("@/lib/auth/actions", () => ({
+  getSessionAction: (...args: unknown[]) => mockGetSessionAction(...args),
+  logoutAction: (...args: unknown[]) => mockLogoutAction(...args),
 }));
 
 import { AppSidebar } from "@/components/app-sidebar";
@@ -255,6 +298,10 @@ describe("AppSidebar", () => {
     mockKillSession.mockResolvedValue({
       data: { name: "dev" },
     });
+    mockGetSessionAction.mockResolvedValue({
+      data: { user: { id: "u1", email: "test@example.com", coderUrl: "https://coder.test" } },
+    });
+    mockLogoutAction.mockResolvedValue({ data: { success: true } });
   });
 
   afterEach(() => {
@@ -379,7 +426,7 @@ describe("AppSidebar", () => {
   });
 
   it("expanding a workspace triggers agent and session fetch", async () => {
-    render(<AppSidebar coderUrl="https://coder.test" />);
+    render(<AppSidebar />);
 
     await waitFor(() => {
       expect(screen.getByText("dev-box")).toBeInTheDocument();
@@ -396,7 +443,7 @@ describe("AppSidebar", () => {
   });
 
   it("renders sessions under Terminal collapsible in expanded workspace", async () => {
-    render(<AppSidebar coderUrl="https://coder.test" />);
+    render(<AppSidebar />);
 
     await waitFor(() => {
       expect(screen.getByText("dev-box")).toBeInTheDocument();
@@ -421,7 +468,7 @@ describe("AppSidebar", () => {
   it("renders external tools as text buttons that open popup windows", async () => {
     const openSpy = vi.spyOn(window, "open").mockImplementation(() => null);
 
-    render(<AppSidebar coderUrl="https://coder.test" />);
+    render(<AppSidebar />);
 
     await waitFor(() => {
       expect(screen.getByText("dev-box")).toBeInTheDocument();
@@ -466,7 +513,7 @@ describe("AppSidebar", () => {
   });
 
   it("create session button calls createSessionAction and navigates", async () => {
-    render(<AppSidebar coderUrl="https://coder.test" />);
+    render(<AppSidebar />);
 
     await waitFor(() => {
       expect(screen.getByText("dev-box")).toBeInTheDocument();
@@ -497,7 +544,7 @@ describe("AppSidebar", () => {
   });
 
   it("kill session button calls killSessionAction", async () => {
-    render(<AppSidebar coderUrl="https://coder.test" />);
+    render(<AppSidebar />);
 
     await waitFor(() => {
       expect(screen.getByText("dev-box")).toBeInTheDocument();
@@ -531,7 +578,7 @@ describe("AppSidebar", () => {
       serverError: "Session fetch failed",
     });
 
-    render(<AppSidebar coderUrl="https://coder.test" />);
+    render(<AppSidebar />);
 
     await waitFor(() => {
       expect(screen.getByText("dev-box")).toBeInTheDocument();
@@ -557,7 +604,7 @@ describe("AppSidebar", () => {
   });
 
   it("refreshes only sessions (not workspaces/templates) on hive:sidebar-refresh", async () => {
-    render(<AppSidebar coderUrl="https://coder.test" />);
+    render(<AppSidebar />);
 
     await waitFor(() => {
       expect(screen.getByText("dev-box")).toBeInTheDocument();
@@ -607,7 +654,7 @@ describe("AppSidebar", () => {
       serverError: "No agents found",
     });
 
-    render(<AppSidebar coderUrl="https://coder.test" />);
+    render(<AppSidebar />);
 
     await waitFor(() => {
       expect(screen.getByText("dev-box")).toBeInTheDocument();

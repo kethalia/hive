@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { CoderClient } from "@/lib/coder/client";
+import { cookies } from "next/headers";
+import { getSession } from "@/lib/auth/session";
+import { getCoderClientForUser } from "@/lib/coder/user-client";
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -35,14 +37,15 @@ const SKIP_REQUEST_HEADERS = new Set([
   "next-router-prefetch", "next-url",
 ]);
 
-async function getWorkspaceMeta(workspaceId: string): Promise<WorkspaceMeta> {
-  const cached = metaCache.get(workspaceId);
+async function getWorkspaceMeta(
+  userId: string,
+  workspaceId: string,
+): Promise<WorkspaceMeta> {
+  const cacheKey = `${userId}:${workspaceId}`;
+  const cached = metaCache.get(cacheKey);
   if (cached && cached.expiresAt > Date.now()) return cached;
 
-  const client = new CoderClient({
-    baseUrl: process.env.CODER_URL!,
-    sessionToken: process.env.CODER_SESSION_TOKEN!,
-  });
+  const client = await getCoderClientForUser(userId);
 
   const workspace = await client.getWorkspace(workspaceId);
   const sshTarget = await client.getWorkspaceAgentName(workspaceId);
@@ -60,7 +63,7 @@ async function getWorkspaceMeta(workspaceId: string): Promise<WorkspaceMeta> {
     const oldest = metaCache.keys().next().value;
     if (oldest) metaCache.delete(oldest);
   }
-  metaCache.set(workspaceId, meta);
+  metaCache.set(cacheKey, meta);
   return meta;
 }
 
@@ -72,38 +75,27 @@ function resolveApp(pathSegments: string[]): { appSlug: string; subPath: string 
       subPath: pathSegments.slice(1).join("/"),
     };
   }
-  // Unknown first segment — default to filebrowser.
-  // This handles Coder-injected assets that use relative paths
-  // resolving outside the app prefix (e.g. ../assets/ui.js).
   return {
     appSlug: "filebrowser",
     subPath: pathSegments.join("/"),
   };
 }
 
-function getCoderHost(): string {
-  return process.env.CODER_URL!.replace(/^https?:\/\//, "").replace(/\/+$/, "");
-}
-
 function buildTargetUrl(
+  coderHost: string,
   meta: WorkspaceMeta,
   appSlug: string,
   subPath: string,
   search: string,
 ): string {
-  const coderHost = getCoderHost();
   const base = `https://${appSlug}--${meta.agent}--${meta.name}--${meta.owner}.${coderHost}`;
   return `${base}/${subPath}${search}`;
 }
 
-/**
- * Returns true if the given URL points to a host under the Coder deployment
- * (i.e. the Coder base host itself or any subdomain of it).
- */
-function isCoderOrigin(url: URL): boolean {
-  const coderHost = getCoderHost().toLowerCase();
+function isCoderOrigin(url: URL, coderHost: string): boolean {
   const targetHost = url.host.toLowerCase();
-  return targetHost === coderHost || targetHost.endsWith(`.${coderHost}`);
+  const lowerCoderHost = coderHost.toLowerCase();
+  return targetHost === lowerCoderHost || targetHost.endsWith(`.${lowerCoderHost}`);
 }
 
 async function proxyRequest(
@@ -120,16 +112,20 @@ async function proxyRequest(
     );
   }
 
-  if (!process.env.CODER_URL || !process.env.CODER_SESSION_TOKEN) {
+  const session = await getSession(await cookies());
+  if (!session) {
     return NextResponse.json(
-      { error: "CODER_URL and CODER_SESSION_TOKEN must be configured" },
-      { status: 500 },
+      { error: "Unauthorized" },
+      { status: 401 },
     );
   }
 
+  const userId = session.user.id;
+  const coderHost = session.user.coderUrl.replace(/^https?:\/\//, "").replace(/\/+$/, "");
+
   let meta: WorkspaceMeta;
   try {
-    meta = await getWorkspaceMeta(workspaceId);
+    meta = await getWorkspaceMeta(userId, workspaceId);
   } catch (e) {
     return NextResponse.json(
       { error: `Failed to resolve workspace: ${e instanceof Error ? e.message : String(e)}` },
@@ -138,8 +134,10 @@ async function proxyRequest(
   }
 
   const { appSlug, subPath } = resolveApp(pathSegments);
-  const targetUrl = buildTargetUrl(meta, appSlug, subPath, req.nextUrl.search);
-  const sessionToken = process.env.CODER_SESSION_TOKEN!;
+  const targetUrl = buildTargetUrl(coderHost, meta, appSlug, subPath, req.nextUrl.search);
+
+  const client = await getCoderClientForUser(userId);
+  const sessionToken = client.getSessionToken();
 
   function buildHeaders(target: string): Headers {
     const h = new Headers();
@@ -171,10 +169,7 @@ async function proxyRequest(
 
       const resolvedLocation = new URL(location, currentUrl);
 
-      // If the redirect points outside the Coder deployment, stop
-      // following. Return the redirect to the browser so it can handle
-      // it directly — without ever forwarding the session token.
-      if (!isCoderOrigin(resolvedLocation)) {
+      if (!isCoderOrigin(resolvedLocation, coderHost)) {
         break;
       }
 
@@ -191,13 +186,10 @@ async function proxyRequest(
       const location = upstream!.headers.get("location");
       if (location) {
         const locUrl = new URL(location, currentUrl);
-        if (isCoderOrigin(locUrl)) {
-          // Internal redirect — rewrite to go through the proxy
+        if (isCoderOrigin(locUrl, coderHost)) {
           const proxyBase = `/api/workspace-proxy/${workspaceId}`;
           responseHeaders.set("location", `${proxyBase}${locUrl.pathname}${locUrl.search}`);
         } else {
-          // External redirect — pass through the absolute URL as-is
-          // so the browser navigates directly without the session token
           responseHeaders.set("location", locUrl.toString());
         }
       }
@@ -209,8 +201,6 @@ async function proxyRequest(
     if (isHtml && upstream!.body) {
       const proxyBase = `/api/workspace-proxy/${workspaceId}`;
       let html = await upstream!.text();
-      // Inject <base> tag for robust path rewriting — covers src, href,
-      // action, CSS url(), and JS-initiated fetches with relative paths.
       const baseTag = `<base href="${proxyBase}/" />`;
       if (html.includes("<head>")) {
         html = html.replace("<head>", `<head>${baseTag}`);
@@ -219,7 +209,6 @@ async function proxyRequest(
       } else {
         html = baseTag + html;
       }
-      // Inject proxy base into filebrowser's runtime config
       html = html.replace(
         '"BaseURL":""',
         `"BaseURL":"${proxyBase}/filebrowser"`,

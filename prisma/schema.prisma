@@ -36,12 +36,15 @@ model Task {
   councilSize        Int        @default(3) @map("council_size")
   councilReport      Json?      @map("council_report")
   attachments        Json?
+  userId             String?    @map("user_id") @db.Uuid
   createdAt    DateTime   @default(now()) @map("created_at") @db.Timestamptz
   updatedAt    DateTime   @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
 
+  user       User?       @relation(fields: [userId], references: [id])
   logs       TaskLog[]
   workspaces Workspace[]
 
+  @@index([userId])
   @@map("tasks")
 }
 
@@ -55,6 +58,76 @@ model TaskLog {
   task Task @relation(fields: [taskId], references: [id])
 
   @@map("task_logs")
+}
+
+model User {
+  id          String   @id @default(uuid()) @db.Uuid
+  coderUrl    String   @map("coder_url")
+  coderUserId String   @map("coder_user_id") @db.Uuid
+  username    String
+  email       String
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt   DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+
+  coderTokens       CoderToken[]
+  sessions          Session[]
+  tasks             Task[]
+  pushSubscriptions PushSubscription[]
+
+  @@unique([coderUrl, coderUserId])
+  @@map("users")
+}
+
+model CoderToken {
+  id         String   @id @default(uuid()) @db.Uuid
+  userId     String   @map("user_id") @db.Uuid
+  ciphertext Bytes
+  iv         Bytes
+  authTag    Bytes    @map("auth_tag")
+  version    Int       @default(1)
+  expiresAt  DateTime? @map("expires_at") @db.Timestamptz
+  createdAt  DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt  DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@unique([userId])
+  @@map("coder_tokens")
+}
+
+model Session {
+  id        String   @id @default(uuid()) @db.Uuid
+  sessionId String   @unique @default(uuid()) @map("session_id") @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  expiresAt DateTime @map("expires_at") @db.Timestamptz
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@map("sessions")
+}
+
+model PushSubscription {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  endpoint  String
+  p256dh    String
+  auth      String
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@unique([userId, endpoint])
+  @@map("push_subscriptions")
+}
+
+model VapidKeys {
+  id         Int      @id @default(1)
+  publicKey  String   @map("public_key")
+  privateKey String   @map("private_key")
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  @@map("vapid_keys")
 }
 
 model Workspace {

@@ -5,6 +5,7 @@ import { readdir } from "fs/promises";
 import { promisify } from "util";
 import { join } from "path";
 import { getRedisConnection } from "@/lib/queue/connection";
+import { getCoderClientForUser } from "@/lib/coder/user-client";
 
 const execFileAsync = promisify(execFile);
 
@@ -16,6 +17,7 @@ export const TEMPLATE_PUSH_QUEUE = "template-push";
 export interface TemplatePushJobData {
   templateName: string;
   jobId: string;
+  userId: string;
 }
 
 // ── Log path helper ───────────────────────────────────────────────
@@ -97,16 +99,14 @@ export function createTemplatePushWorker(): Worker<TemplatePushJobData> {
   return new Worker<TemplatePushJobData>(
     TEMPLATE_PUSH_QUEUE,
     async (job: Job<TemplatePushJobData>) => {
-      const { templateName, jobId } = job.data;
+      const { templateName, jobId, userId } = job.data;
       const logPath = pushLogPath(jobId);
 
       console.log(`[template-push] Starting push for "${templateName}" (job ${jobId})`);
 
+      const client = await getCoderClientForUser(userId);
       const coderBin = await findCoderBinary();
       const logStream = createWriteStream(logPath, { flags: "a" });
-
-      const coderUrl = process.env.CODER_URL ?? "";
-      const coderToken = process.env.CODER_SESSION_TOKEN ?? "";
 
       await new Promise<void>((resolve, reject) => {
         const child = spawn(
@@ -122,8 +122,8 @@ export function createTemplatePushWorker(): Worker<TemplatePushJobData> {
           {
             env: {
               ...process.env,
-              CODER_URL: coderUrl,
-              CODER_SESSION_TOKEN: coderToken,
+              CODER_URL: client.getBaseUrl(),
+              CODER_SESSION_TOKEN: client.getSessionToken(),
             },
           }
         );

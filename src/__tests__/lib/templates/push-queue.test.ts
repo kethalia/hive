@@ -19,7 +19,27 @@ vi.mock("@/lib/queue/connection", () => ({
   })),
 }));
 
-// Track what was written to the log file via a real Writable stream
+const MOCK_BASE_URL = "https://coder.example.com";
+const MOCK_SESSION_TOKEN = "decrypted-token-abc";
+
+vi.mock("@/lib/coder/user-client", () => ({
+  getCoderClientForUser: vi.fn().mockResolvedValue({
+    getBaseUrl: () => MOCK_BASE_URL,
+    getSessionToken: () => MOCK_SESSION_TOKEN,
+  }),
+  UserClientException: class UserClientException extends Error {
+    constructor(public readonly code: string, message: string) {
+      super(message);
+      this.name = "UserClientException";
+    }
+  },
+  UserClientError: {
+    NO_TOKEN: "NO_TOKEN",
+    DECRYPT_FAILED: "DECRYPT_FAILED",
+    USER_NOT_FOUND: "USER_NOT_FOUND",
+  },
+}));
+
 let logChunks: string[] = [];
 let mockWriteStream: Writable;
 
@@ -38,12 +58,10 @@ vi.mock("fs", () => ({
   createWriteStream: vi.fn(() => createMockWriteStream()),
 }));
 
-// Mock readdir for findCoderBinary /tmp scan
 vi.mock("fs/promises", () => ({
   readdir: vi.fn().mockRejectedValue(new Error("not readable")),
 }));
 
-// Mock child_process
 let spawnedChild: EventEmitter & { stdout: Readable; stderr: Readable };
 function createMockChild() {
   const child = new EventEmitter() as EventEmitter & {
@@ -60,7 +78,6 @@ const mockSpawn = vi.fn(() => {
   return spawnedChild;
 });
 
-// execFile mock that works with promisify — callback is always the last argument
 const mockExecFile = vi.fn((...args: unknown[]) => {
   const cb = args[args.length - 1] as (
     err: Error | null,
@@ -81,9 +98,8 @@ vi.mock("child_process", () => ({
   execFile: (...args: unknown[]) => mockExecFile(...args),
 }));
 
-// Mock BullMQ — capture processor
 let capturedProcessor: ((job: {
-  data: { templateName: string; jobId: string };
+  data: { templateName: string; jobId: string; userId: string };
 }) => Promise<void>) | null = null;
 
 vi.mock("bullmq", () => ({
@@ -115,13 +131,6 @@ describe("push-queue", () => {
     vi.clearAllMocks();
     logChunks = [];
     capturedProcessor = null;
-    process.env.CODER_URL = "https://coder.example.com";
-    process.env.CODER_SESSION_TOKEN = "test-token-abc";
-  });
-
-  afterEach(() => {
-    delete process.env.CODER_URL;
-    delete process.env.CODER_SESSION_TOKEN;
   });
 
   describe("pushLogPath", () => {
@@ -150,14 +159,18 @@ describe("push-queue", () => {
       createTemplatePushWorker();
     });
 
-    it("spawns coder with correct args and env", async () => {
+    it("resolves per-user credentials and spawns coder with them", async () => {
+      const { getCoderClientForUser } = await import("@/lib/coder/user-client");
+
       const jobPromise = capturedProcessor!({
-        data: { templateName: "hive", jobId: "job-1" },
+        data: { templateName: "hive", jobId: "job-1", userId: "user-abc" },
       });
 
       await vi.waitFor(() => expect(mockSpawn).toHaveBeenCalled(), {
         timeout: 5000,
       });
+
+      expect(getCoderClientForUser).toHaveBeenCalledWith("user-abc");
 
       const [bin, args, opts] = mockSpawn.mock.calls[0] as [
         string,
@@ -174,25 +187,22 @@ describe("push-queue", () => {
         "--yes",
       ]);
 
-      // Verify CODER_URL and CODER_SESSION_TOKEN injected into child env
-      expect(opts.env.CODER_URL).toBe("https://coder.example.com");
-      expect(opts.env.CODER_SESSION_TOKEN).toBe("test-token-abc");
+      expect(opts.env.CODER_URL).toBe(MOCK_BASE_URL);
+      expect(opts.env.CODER_SESSION_TOKEN).toBe(MOCK_SESSION_TOKEN);
 
-      // Simulate successful exit
       spawnedChild.emit("close", 0);
       await jobPromise;
     });
 
     it("tees stdout and stderr to log file", async () => {
       const jobPromise = capturedProcessor!({
-        data: { templateName: "ai-dev", jobId: "job-2" },
+        data: { templateName: "ai-dev", jobId: "job-2", userId: "user-abc" },
       });
 
       await vi.waitFor(() => expect(mockSpawn).toHaveBeenCalled(), {
         timeout: 5000,
       });
 
-      // Verify createWriteStream called with correct path in append mode
       expect(createWriteStream).toHaveBeenCalledWith(
         "/tmp/template-push-job-2.log",
         { flags: "a" },
@@ -204,7 +214,7 @@ describe("push-queue", () => {
 
     it("writes [exit:0] sentinel on success", async () => {
       const jobPromise = capturedProcessor!({
-        data: { templateName: "hive", jobId: "job-3" },
+        data: { templateName: "hive", jobId: "job-3", userId: "user-abc" },
       });
 
       await vi.waitFor(() => expect(mockSpawn).toHaveBeenCalled(), {
@@ -218,7 +228,7 @@ describe("push-queue", () => {
 
     it("writes [exit:1] sentinel and rejects on non-zero exit", async () => {
       const jobPromise = capturedProcessor!({
-        data: { templateName: "hive", jobId: "job-4" },
+        data: { templateName: "hive", jobId: "job-4", userId: "user-abc" },
       });
 
       await vi.waitFor(() => expect(mockSpawn).toHaveBeenCalled(), {
@@ -235,14 +245,13 @@ describe("push-queue", () => {
 
     it("rejects on spawn error and writes error to log", async () => {
       const jobPromise = capturedProcessor!({
-        data: { templateName: "hive", jobId: "job-5" },
+        data: { templateName: "hive", jobId: "job-5", userId: "user-abc" },
       });
 
       await vi.waitFor(() => expect(mockSpawn).toHaveBeenCalled(), {
         timeout: 5000,
       });
 
-      // Emit error — processor catches it, writes to log, and rejects
       spawnedChild.emit("error", new Error("ENOENT"));
 
       await expect(jobPromise).rejects.toThrow("ENOENT");
@@ -250,6 +259,20 @@ describe("push-queue", () => {
       const allLog = logChunks.join("");
       expect(allLog).toContain("[exit:1]");
       expect(allLog).toContain("ENOENT");
+    });
+
+    it("fails with clear error when userId has no token", async () => {
+      const { getCoderClientForUser } = await import("@/lib/coder/user-client");
+      const { UserClientException, UserClientError } = await import("@/lib/coder/user-client");
+      vi.mocked(getCoderClientForUser).mockRejectedValueOnce(
+        new UserClientException(UserClientError.NO_TOKEN, "No Coder API token stored for user bad-user")
+      );
+
+      await expect(
+        capturedProcessor!({
+          data: { templateName: "hive", jobId: "job-6", userId: "bad-user" },
+        })
+      ).rejects.toThrow("No Coder API token stored for user bad-user");
     });
   });
 });

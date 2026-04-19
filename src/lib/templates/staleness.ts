@@ -2,7 +2,7 @@ import { createHash } from "crypto";
 import { readdir, readFile } from "fs/promises";
 import { join } from "path";
 import extract from "tar-stream";
-import { CoderClient } from "@/lib/coder/client";
+import { getCoderClientForUser } from "@/lib/coder/user-client";
 
 /** Templates known to this orchestrator. */
 export const KNOWN_TEMPLATES = [
@@ -140,20 +140,8 @@ export async function hashRemoteTar(tarBuffer: Buffer): Promise<string> {
  *   3. Download the tar archive via fetchTemplateFiles
  *   4. Compute both hashes and compare
  */
-export async function compareTemplates(names: string[]): Promise<TemplateStatus[]> {
-  const coderUrl = process.env.CODER_URL;
-  const coderToken = process.env.CODER_SESSION_TOKEN;
-
-  if (!coderUrl || !coderToken) {
-    throw new Error(
-      "[staleness] CODER_URL and CODER_SESSION_TOKEN must be set"
-    );
-  }
-
-  const client = new CoderClient({
-    baseUrl: coderUrl,
-    sessionToken: coderToken,
-  });
+export async function compareTemplates(names: string[], userId: string): Promise<TemplateStatus[]> {
+  const client = await getCoderClientForUser(userId);
 
   // Fetch remote template list once
   let remoteTemplates: Awaited<ReturnType<typeof client.listTemplates>>;
