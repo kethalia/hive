@@ -1,24 +1,12 @@
-import { signCookie, verifyCookie } from "@hive/auth";
+import {
+  signCookie,
+  verifyCookie,
+  SESSION_COOKIE_NAME,
+  SESSION_MAX_AGE_DAYS,
+  SESSION_MAX_AGE_SECONDS,
+} from "@hive/auth";
+import type { SessionData } from "@hive/auth";
 import { getAuthServiceClient } from "./service-client";
-
-export const SESSION_COOKIE_NAME = "hive-session";
-export const SESSION_MAX_AGE_DAYS = 30;
-export const SESSION_MAX_AGE_SECONDS = SESSION_MAX_AGE_DAYS * 24 * 60 * 60;
-
-export interface SessionData {
-  user: {
-    id: string;
-    coderUrl: string;
-    coderUserId: string;
-    username: string;
-    email: string;
-  };
-  session: {
-    id: string;
-    sessionId: string;
-    expiresAt: Date;
-  };
-}
 
 export async function getSession(
   cookieStore: { get(name: string): { value: string } | undefined },

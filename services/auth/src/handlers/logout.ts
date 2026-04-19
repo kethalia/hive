@@ -1,6 +1,7 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { parseBody, sendJson, sendError } from "../server.js";
 import { deleteSession } from "../auth/session.js";
+import { ErrorCode } from "../auth/constants.js";
 
 export async function handleLogout(
   req: IncomingMessage,
@@ -9,7 +10,7 @@ export async function handleLogout(
   const body = (await parseBody(req)) as Record<string, unknown> | undefined;
 
   if (!body || typeof body !== "object" || !body.sessionId || typeof body.sessionId !== "string") {
-    sendError(res, 400, "Missing or invalid field: sessionId must be a string", "BAD_REQUEST");
+    sendError(res, 400, "Missing or invalid field: sessionId must be a string", ErrorCode.BAD_REQUEST);
     return;
   }
 

@@ -1,23 +1,9 @@
 import { randomUUID } from "node:crypto";
 import { getDb } from "../db.js";
+import { SESSION_MAX_AGE_SECONDS } from "@hive/auth";
+import type { SessionData } from "@hive/auth";
 
-const SESSION_MAX_AGE_DAYS = 30;
-const SESSION_MAX_AGE_SECONDS = SESSION_MAX_AGE_DAYS * 24 * 60 * 60;
-
-export interface SessionData {
-  user: {
-    id: string;
-    coderUrl: string;
-    coderUserId: string;
-    username: string;
-    email: string;
-  };
-  session: {
-    id: string;
-    sessionId: string;
-    expiresAt: Date;
-  };
-}
+export type { SessionData };
 
 export async function createSession(userId: string): Promise<string> {
   const sessionId = randomUUID();

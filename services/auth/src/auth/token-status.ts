@@ -1,23 +1,9 @@
 import { getDb } from "../db.js";
-import { tryDecrypt } from "./encryption.js";
-import { TOKEN_EXPIRY_WARNING_HOURS } from "./constants.js";
+import { tryDecrypt, TOKEN_EXPIRY_WARNING_HOURS } from "@hive/auth";
+import type { TokenStatusResult } from "@hive/auth";
+import type { DecryptedTokenResult } from "./types.js";
 
-export type TokenStatus =
-  | "valid"
-  | "expiring"
-  | "expired"
-  | "key_mismatch"
-  | "decrypt_failed";
-
-export interface TokenStatusResult {
-  status: TokenStatus;
-  expiresAt: Date | null;
-}
-
-export interface DecryptedTokenResult {
-  token: string;
-  expiresAt: Date | null;
-}
+export type { TokenStatusResult, DecryptedTokenResult };
 
 export async function getTokenStatus(
   userId: string

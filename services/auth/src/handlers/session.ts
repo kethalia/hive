@@ -1,6 +1,7 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { sendJson, sendError } from "../server.js";
 import { getSessionById } from "../auth/session.js";
+import { ErrorCode } from "../auth/constants.js";
 import type { SessionPayload } from "@hive/auth";
 
 export async function handleGetSession(
@@ -11,7 +12,7 @@ export async function handleGetSession(
   const sessionId = params.id;
 
   if (!sessionId) {
-    sendError(res, 400, "Missing session ID", "BAD_REQUEST");
+    sendError(res, 400, "Missing session ID", ErrorCode.BAD_REQUEST);
     return;
   }
 
@@ -21,7 +22,7 @@ export async function handleGetSession(
     console.log(
       `[auth-service] GET /sessions/:id → 404 session=${sessionId.slice(0, 8)}…`,
     );
-    sendError(res, 404, "Session not found", "NOT_FOUND");
+    sendError(res, 404, "Session not found", ErrorCode.NOT_FOUND);
     return;
   }
 

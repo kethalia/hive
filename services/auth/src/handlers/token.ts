@@ -2,6 +2,7 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import { sendJson, sendError } from "../server.js";
 import { getSessionById } from "../auth/session.js";
 import { getDecryptedCoderToken } from "../auth/token-status.js";
+import { ErrorCode } from "../auth/constants.js";
 
 export async function handleGetCoderToken(
   _req: IncomingMessage,
@@ -11,7 +12,7 @@ export async function handleGetCoderToken(
   const sessionId = params.id;
 
   if (!sessionId) {
-    sendError(res, 400, "Missing session ID", "BAD_REQUEST");
+    sendError(res, 400, "Missing session ID", ErrorCode.BAD_REQUEST);
     return;
   }
 
@@ -21,7 +22,7 @@ export async function handleGetCoderToken(
     console.log(
       `[auth-service] GET /sessions/:id/token → 404 session=${sessionId.slice(0, 8)}…`,
     );
-    sendError(res, 404, "Session not found", "NOT_FOUND");
+    sendError(res, 404, "Session not found", ErrorCode.NOT_FOUND);
     return;
   }
 
@@ -32,7 +33,7 @@ export async function handleGetCoderToken(
       console.log(
         `[auth-service] GET /sessions/:id/token → 404 no_token user=${session.user.username}`,
       );
-      sendError(res, 404, "No Coder token found", "TOKEN_NOT_FOUND");
+      sendError(res, 404, "No Coder token found", ErrorCode.TOKEN_NOT_FOUND);
       return;
     }
 
@@ -47,11 +48,11 @@ export async function handleGetCoderToken(
   } catch (err) {
     const code =
       err instanceof Error &&
-      (err.message === "KEY_UNAVAILABLE" ||
-        err.message === "KEY_MISMATCH" ||
-        err.message === "DECRYPT_FAILED")
+      (err.message === ErrorCode.KEY_UNAVAILABLE ||
+        err.message === ErrorCode.KEY_MISMATCH ||
+        err.message === ErrorCode.DECRYPT_FAILED)
         ? err.message
-        : "INTERNAL_ERROR";
+        : ErrorCode.INTERNAL_ERROR;
 
     console.error(
       `[auth-service] GET /sessions/:id/token → 500 code=${code} session=${sessionId.slice(0, 8)}…`,

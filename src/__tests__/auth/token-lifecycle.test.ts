@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { encrypt, tryDecrypt } from "@/lib/auth/encryption";
+import { encrypt, tryDecrypt } from "@hive/auth";
 import { CoderClient } from "@/lib/coder/client";
 import { randomBytes } from "node:crypto";
 

@@ -5,7 +5,8 @@ vi.mock("@/lib/db", () => ({
   getDb: vi.fn(),
 }));
 
-vi.mock("@/lib/auth/encryption", () => ({
+vi.mock("@hive/auth", async (importOriginal) => ({
+  ...(await importOriginal()),
   tryDecrypt: vi.fn(),
 }));
 
@@ -14,7 +15,7 @@ vi.mock("@/lib/coder/client", () => ({
 }));
 
 import { getDb } from "@/lib/db";
-import { tryDecrypt } from "@/lib/auth/encryption";
+import { tryDecrypt } from "@hive/auth";
 import { CoderClient } from "@/lib/coder/client";
 import { getCoderClientForUser } from "@/lib/coder/user-client";
 

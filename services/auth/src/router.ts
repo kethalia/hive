@@ -1,16 +1,6 @@
-import type { IncomingMessage, ServerResponse } from "node:http";
+import type { RouteHandler, Route } from "./auth/types.js";
 
-export type RouteHandler = (
-  req: IncomingMessage,
-  res: ServerResponse,
-  params: Record<string, string>
-) => Promise<void>;
-
-interface Route {
-  method: string;
-  segments: string[];
-  handler: RouteHandler;
-}
+export type { RouteHandler };
 
 const routes: Route[] = [];
 

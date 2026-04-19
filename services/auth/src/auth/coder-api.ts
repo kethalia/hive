@@ -1,50 +1,28 @@
-export interface ValidateInstanceResult {
-  valid: boolean;
-  version?: string;
-  reason?: string;
-}
+import {
+  CODER_API_TIMEOUT_MS,
+  CODER_SESSION_TOKEN_HEADER,
+  CODER_API_PATHS,
+} from "./constants.js";
+import type {
+  ValidateInstanceResult,
+  CoderLoginResult,
+  CoderLoginRequest,
+  CoderLoginResponse,
+  CoderUserResponse,
+  BuildInfoResponse,
+  CreateApiKeyRequest,
+  CreateApiKeyResponse,
+} from "./types.js";
 
-export interface LoginResult {
-  sessionToken: string;
-  userId: string;
-  username: string;
-}
-
-interface LoginRequest {
-  email: string;
-  password: string;
-}
-
-interface LoginResponse {
-  session_token: string;
-}
-
-interface CoderUserResponse {
-  id: string;
-  username: string;
-  email: string;
-}
-
-interface BuildInfoResponse {
-  version: string;
-  external_url: string;
-}
-
-interface CreateApiKeyRequest {
-  lifetime_seconds?: number;
-}
-
-interface CreateApiKeyResponse {
-  key: string;
-}
+export type { ValidateInstanceResult, CoderLoginResult };
 
 export async function validateCoderInstance(
   url: string
 ): Promise<ValidateInstanceResult> {
   const baseUrl = url.replace(/\/+$/, "");
   try {
-    const res = await fetch(`${baseUrl}/api/v2/buildinfo`, {
-      signal: AbortSignal.timeout(10_000),
+    const res = await fetch(`${baseUrl}${CODER_API_PATHS.BUILD_INFO}`, {
+      signal: AbortSignal.timeout(CODER_API_TIMEOUT_MS),
     });
     if (!res.ok) {
       return { valid: false, reason: "not a Coder instance" };
@@ -79,14 +57,14 @@ export async function coderLogin(
   baseUrl: string,
   email: string,
   password: string
-): Promise<LoginResult> {
+): Promise<CoderLoginResult> {
   const url = baseUrl.replace(/\/+$/, "");
-  const body: LoginRequest = { email, password };
-  const res = await fetch(`${url}/api/v2/users/login`, {
+  const body: CoderLoginRequest = { email, password };
+  const res = await fetch(`${url}${CODER_API_PATHS.LOGIN}`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
-    signal: AbortSignal.timeout(10_000),
+    signal: AbortSignal.timeout(CODER_API_TIMEOUT_MS),
   });
 
   if (!res.ok) {
@@ -99,14 +77,14 @@ export async function coderLogin(
     );
   }
 
-  const loginData = (await res.json()) as LoginResponse;
+  const loginData = (await res.json()) as CoderLoginResponse;
 
-  const meRes = await fetch(`${url}/api/v2/users/me`, {
+  const meRes = await fetch(`${url}${CODER_API_PATHS.ME}`, {
     headers: {
       "Content-Type": "application/json",
-      "Coder-Session-Token": loginData.session_token,
+      [CODER_SESSION_TOKEN_HEADER]: loginData.session_token,
     },
-    signal: AbortSignal.timeout(10_000),
+    signal: AbortSignal.timeout(CODER_API_TIMEOUT_MS),
   });
 
   if (!meRes.ok) {
@@ -133,14 +111,14 @@ export async function createCoderApiKey(
     ? { lifetime_seconds: lifetimeSeconds }
     : {};
   try {
-    const res = await fetch(`${url}/api/v2/users/${userId}/keys`, {
+    const res = await fetch(`${url}${CODER_API_PATHS.USER_KEYS(userId)}`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "Coder-Session-Token": sessionToken,
+        [CODER_SESSION_TOKEN_HEADER]: sessionToken,
       },
       body: JSON.stringify(body),
-      signal: AbortSignal.timeout(10_000),
+      signal: AbortSignal.timeout(CODER_API_TIMEOUT_MS),
     });
 
     if (!res.ok) {

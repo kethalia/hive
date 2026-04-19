@@ -76,14 +76,8 @@ export const CI_MAX_ROUNDS = 2;
 
 // ── Token lifecycle ───────────────────────────────────────────────
 
-/** API key lifetime in seconds (30 days). */
-export const TOKEN_LIFETIME_SECONDS = 30 * 24 * 60 * 60;
-
 /** Fraction of lifetime elapsed before triggering rotation. */
 export const TOKEN_ROTATION_THRESHOLD = 0.75;
-
-/** Hours before expiry to show warning banner. */
-export const TOKEN_EXPIRY_WARNING_HOURS = 48;
 
 /** Minimum remaining hours for worker pre-flight check. */
 export const TOKEN_PREFLIGHT_MIN_HOURS = 2;

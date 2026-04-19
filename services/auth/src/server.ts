@@ -1,6 +1,7 @@
 import { createServer, type IncomingMessage, type ServerResponse, type Server } from "node:http";
 import { matchRoute } from "./router.js";
 import { closeDb } from "./db.js";
+import { ErrorCode } from "./auth/constants.js";
 
 export function parseBody(req: IncomingMessage): Promise<unknown> {
   return new Promise((resolve, reject) => {
@@ -50,7 +51,7 @@ export function startServer(port: number): Server {
 
     const match = matchRoute(method, pathname);
     if (!match) {
-      sendError(res, 404, "Not found", "NOT_FOUND");
+      sendError(res, 404, "Not found", ErrorCode.NOT_FOUND);
       return;
     }
 
@@ -58,12 +59,12 @@ export function startServer(port: number): Server {
       await match.handler(req, res, match.params);
     } catch (err) {
       if (err instanceof Error && err.message === "Invalid JSON body") {
-        sendError(res, 400, "Invalid JSON body", "BAD_REQUEST");
+        sendError(res, 400, "Invalid JSON body", ErrorCode.BAD_REQUEST);
         return;
       }
       const message = err instanceof Error ? err.message : "Internal server error";
       console.error(`[auth-service] Handler error: ${message}`);
-      sendError(res, 500, "Internal server error", "INTERNAL_ERROR");
+      sendError(res, 500, "Internal server error", ErrorCode.INTERNAL_ERROR);
     }
   });
 

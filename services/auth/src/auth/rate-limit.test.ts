@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { checkRateLimit, loginRateLimiter } from "./rate-limit.js";
+import { checkRateLimit } from "@hive/auth";
+import { loginRateLimiter } from "./rate-limit.js";
 
 describe("checkRateLimit", () => {
   beforeEach(() => {

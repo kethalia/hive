@@ -1,14 +1,18 @@
-import { encrypt } from "./encryption.js";
+import { encrypt, TOKEN_LIFETIME_SECONDS } from "@hive/auth";
 import { createSession } from "./session.js";
 import {
   validateCoderInstance,
   coderLogin,
   createCoderApiKey,
 } from "./coder-api.js";
-import { TOKEN_LIFETIME_SECONDS } from "./constants.js";
+import {
+  API_KEY_CREATION_RETRIES,
+  SESSION_TOKEN_FALLBACK_EXPIRY_MS,
+} from "./constants.js";
+import type { LoginResult } from "./types.js";
 import { getDb } from "../db.js";
 
-const API_KEY_CREATION_RETRIES = 3;
+export type { LoginResult };
 
 function getTokenEncryptionKey(): string {
   const key = process.env.ENCRYPTION_KEY;
@@ -21,16 +25,6 @@ function getTokenEncryptionKey(): string {
     );
   }
   return key;
-}
-
-export interface LoginResult {
-  sessionId: string;
-  user: {
-    id: string;
-    username: string;
-    email: string;
-    coderUrl: string;
-  };
 }
 
 export async function performLogin(
@@ -79,7 +73,7 @@ export async function performLogin(
 
   const expiresAt = usedApiKey
     ? new Date(Date.now() + TOKEN_LIFETIME_SECONDS * 1000)
-    : new Date(Date.now() + 24 * 60 * 60 * 1000);
+    : new Date(Date.now() + SESSION_TOKEN_FALLBACK_EXPIRY_MS);
 
   const encryptionKey = getTokenEncryptionKey();
   const raw = encrypt(credential, encryptionKey);

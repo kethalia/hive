@@ -5,7 +5,7 @@ import {
   encrypt,
   tryDecrypt,
   validateEncryptionKey,
-} from "./encryption.js";
+} from "@hive/auth";
 
 const VALID_KEY = randomBytes(32).toString("hex");
 

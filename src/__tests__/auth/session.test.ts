@@ -8,7 +8,8 @@ const mockServiceClient = vi.hoisted(() => ({
 const mockVerifyCookie = vi.hoisted(() => vi.fn());
 const mockSignCookie = vi.hoisted(() => vi.fn());
 
-vi.mock("@hive/auth", () => ({
+vi.mock("@hive/auth", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@hive/auth")>()),
   verifyCookie: (...args: unknown[]) => mockVerifyCookie(...args),
   signCookie: (...args: unknown[]) => mockSignCookie(...args),
 }));

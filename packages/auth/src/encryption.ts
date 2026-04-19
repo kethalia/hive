@@ -1,15 +1,6 @@
 import { createCipheriv, createDecipheriv, randomBytes } from "node:crypto";
-
-const ALGORITHM = "aes-256-gcm";
-const IV_LENGTH = 12;
-
-export interface EncryptedData {
-  ciphertext: Uint8Array;
-  iv: Uint8Array;
-  authTag: Uint8Array;
-}
-
-const HEX_64_RE = /^[0-9a-fA-F]{64}$/;
+import { ENCRYPTION_ALGORITHM, IV_LENGTH, HEX_64_RE } from "./constants.js";
+import type { EncryptedData, DecryptResult } from "./types.js";
 
 export function validateEncryptionKey(key: string): void {
   if (!HEX_64_RE.test(key)) {
@@ -23,7 +14,7 @@ export function encrypt(plaintext: string, keyHex: string): EncryptedData {
   validateEncryptionKey(keyHex);
   const key = Buffer.from(keyHex, "hex");
   const iv = randomBytes(IV_LENGTH);
-  const cipher = createCipheriv(ALGORITHM, key, iv);
+  const cipher = createCipheriv(ENCRYPTION_ALGORITHM, key, iv);
   const encrypted = Buffer.concat([
     cipher.update(plaintext, "utf8"),
     cipher.final(),
@@ -35,7 +26,7 @@ export function encrypt(plaintext: string, keyHex: string): EncryptedData {
 export function decrypt(data: EncryptedData, keyHex: string): string {
   validateEncryptionKey(keyHex);
   const key = Buffer.from(keyHex, "hex");
-  const decipher = createDecipheriv(ALGORITHM, key, data.iv);
+  const decipher = createDecipheriv(ENCRYPTION_ALGORITHM, key, data.iv);
   decipher.setAuthTag(data.authTag);
   const decrypted = Buffer.concat([
     decipher.update(data.ciphertext),
@@ -43,10 +34,6 @@ export function decrypt(data: EncryptedData, keyHex: string): string {
   ]);
   return decrypted.toString("utf8");
 }
-
-export type DecryptResult =
-  | { ok: true; plaintext: string }
-  | { ok: false; reason: "key_mismatch" | "other"; error: Error };
 
 export function tryDecrypt(data: EncryptedData, keyHex: string): DecryptResult {
   try {

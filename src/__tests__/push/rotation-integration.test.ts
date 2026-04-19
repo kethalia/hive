@@ -10,7 +10,8 @@ vi.mock("@/lib/db", () => ({
   getDb: vi.fn(),
 }));
 
-vi.mock("@/lib/auth/encryption", () => ({
+vi.mock("@hive/auth", async (importOriginal) => ({
+  ...(await importOriginal()),
   tryDecrypt: vi.fn(),
   encrypt: vi.fn(),
 }));
@@ -28,11 +29,10 @@ vi.mock("@/lib/queue/connection", () => ({
 }));
 
 import { getDb } from "@/lib/db";
-import { tryDecrypt, encrypt } from "@/lib/auth/encryption";
+import { tryDecrypt, encrypt, TOKEN_LIFETIME_SECONDS } from "@hive/auth";
 import { CoderClient } from "@/lib/coder/client";
 import { processTokenRotation } from "@/lib/queue/token-rotation";
 import {
-  TOKEN_LIFETIME_SECONDS,
   TOKEN_ROTATION_THRESHOLD,
   PUSH_NOTIFICATION_HOURS,
   PUSH_NOTIFICATION_TAG,

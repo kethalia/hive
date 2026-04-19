@@ -4,12 +4,13 @@ vi.mock("../db.js", () => ({
   getDb: vi.fn(),
 }));
 
-vi.mock("./encryption.js", () => ({
+vi.mock("@hive/auth", async (importOriginal) => ({
+  ...(await importOriginal()),
   tryDecrypt: vi.fn(),
 }));
 
 import { getDb } from "../db.js";
-import { tryDecrypt } from "./encryption.js";
+import { tryDecrypt } from "@hive/auth";
 import { getTokenStatus } from "./token-status.js";
 
 const MOCK_USER_ID = "aaaaaaaa-1111-2222-3333-444444444444";

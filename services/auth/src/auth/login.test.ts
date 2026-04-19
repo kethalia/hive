@@ -31,7 +31,8 @@ vi.mock("./session.js", () => ({
   createSession: (...args: unknown[]) => mockCreateSession(...args),
 }));
 
-vi.mock("./encryption.js", () => ({
+vi.mock("@hive/auth", async (importOriginal) => ({
+  ...(await importOriginal()),
   encrypt: (...args: unknown[]) => mockEncrypt(...args),
 }));
 

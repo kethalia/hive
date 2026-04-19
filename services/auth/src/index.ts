@@ -7,6 +7,7 @@ import { handleLogout } from "./handlers/logout.js";
 import { handleGetSession } from "./handlers/session.js";
 import { handleGetCredentials } from "./handlers/credentials.js";
 import { handleGetCoderToken } from "./handlers/token.js";
+import { DEFAULT_PORT } from "./auth/constants.js";
 
 export { AuthServiceClient } from "./client.js";
 
@@ -34,5 +35,5 @@ addRoute("GET", "/sessions/:id/token", async (req, res, params) => {
   await handleGetCoderToken(req, res, params);
 });
 
-const port = parseInt(process.env.AUTH_SERVICE_PORT ?? "4400", 10);
+const port = parseInt(process.env.AUTH_SERVICE_PORT ?? String(DEFAULT_PORT), 10);
 startServer(port);
