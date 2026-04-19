@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
+import { verifyCookie } from "@hive/auth";
 
 const PUBLIC_PATHS = ["/login", "/api/auth", "/manifest.webmanifest"];
 const STATIC_PREFIXES = ["/_next", "/favicon.ico"];
@@ -20,6 +21,15 @@ export function middleware(request: NextRequest) {
 
   const sessionCookie = request.cookies.get("hive-session");
   if (!sessionCookie?.value) {
+    const loginUrl = new URL("/login", request.url);
+    return NextResponse.redirect(loginUrl);
+  }
+
+  const verified = verifyCookie(
+    sessionCookie.value,
+    process.env.COOKIE_SECRET!,
+  );
+  if (!verified) {
     const loginUrl = new URL("/login", request.url);
     return NextResponse.redirect(loginUrl);
   }

@@ -1,9 +1,9 @@
-import { randomUUID } from "node:crypto";
-import { getDb } from "@/lib/db";
+import { signCookie, verifyCookie } from "@hive/auth";
+import { getAuthServiceClient } from "./service-client";
 
-const SESSION_COOKIE_NAME = "hive-session";
-const SESSION_MAX_AGE_DAYS = 30;
-const SESSION_MAX_AGE_SECONDS = SESSION_MAX_AGE_DAYS * 24 * 60 * 60;
+export const SESSION_COOKIE_NAME = "hive-session";
+export const SESSION_MAX_AGE_DAYS = 30;
+export const SESSION_MAX_AGE_SECONDS = SESSION_MAX_AGE_DAYS * 24 * 60 * 60;
 
 export interface SessionData {
   user: {
@@ -20,78 +20,73 @@ export interface SessionData {
   };
 }
 
-export async function createSession(userId: string): Promise<string> {
-  const sessionId = randomUUID();
-  const expiresAt = new Date(Date.now() + SESSION_MAX_AGE_SECONDS * 1000);
-
-  await getDb().session.create({
-    data: {
-      sessionId,
-      userId,
-      expiresAt,
-    },
-  });
-
-  return sessionId;
-}
-
 export async function getSession(
-  cookieStore: { get(name: string): { value: string } | undefined }
+  cookieStore: { get(name: string): { value: string } | undefined },
 ): Promise<SessionData | null> {
   const cookie = cookieStore.get(SESSION_COOKIE_NAME);
   if (!cookie) {
     return null;
   }
 
-  const sessionId = cookie.value;
-
-  const session = await getDb().session.findUnique({
-    where: { sessionId },
-    include: { user: true },
-  });
-
-  if (!session) {
-    console.log(`[session] Not found for sessionId=${sessionId.slice(0, 8)}…`);
+  const result = verifyCookie(cookie.value, process.env.COOKIE_SECRET!);
+  if (!result) {
+    console.log("[session] Cookie verification failed");
     return null;
   }
 
-  if (session.expiresAt < new Date()) {
-    console.log(`[session] Expired for user=${session.userId}, cleaning up`);
-    await getDb().session.delete({ where: { sessionId } });
+  let payload;
+  try {
+    payload = await getAuthServiceClient().getSession(result.sessionId);
+  } catch {
+    console.log("[session] Auth service error, treating as unauthenticated");
+    return null;
+  }
+
+  if (!payload) {
+    console.log(
+      `[session] Not found for sessionId=${result.sessionId.slice(0, 8)}…`,
+    );
     return null;
   }
 
   return {
     user: {
-      id: session.user.id,
-      coderUrl: session.user.coderUrl,
-      coderUserId: session.user.coderUserId,
-      username: session.user.username,
-      email: session.user.email,
+      id: payload.userId,
+      coderUrl: payload.coderUrl,
+      coderUserId: "",
+      username: payload.username,
+      email: payload.email,
     },
     session: {
-      id: session.id,
-      sessionId: session.sessionId,
-      expiresAt: session.expiresAt,
+      id: "",
+      sessionId: payload.sessionId,
+      expiresAt: new Date(payload.expiresAt),
     },
   };
 }
 
+export async function createSession(_userId: string): Promise<string> {
+  throw new Error(
+    "createSession is deprecated — use AuthServiceClient.login() instead",
+  );
+}
+
 export async function deleteSession(sessionId: string): Promise<void> {
-  await getDb().session.deleteMany({ where: { sessionId } });
+  try {
+    await getAuthServiceClient().logout(sessionId);
+  } catch {
+    console.log("[logout] Auth service error during session deletion");
+  }
 }
 
 export function setSessionCookie(
   cookieStore: {
-    set(
-      name: string,
-      value: string,
-      options: Record<string, unknown>
-    ): void;
+    set(name: string, value: string, options: Record<string, unknown>): void;
   },
-  sessionId: string
+  sessionId: string,
 ): void {
-  cookieStore.set(SESSION_COOKIE_NAME, sessionId, {
+  const signedValue = signCookie(sessionId, process.env.COOKIE_SECRET!);
+  cookieStore.set(SESSION_COOKIE_NAME, signedValue, {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
     sameSite: "lax",
@@ -102,12 +97,8 @@ export function setSessionCookie(
 
 export function clearSessionCookie(
   cookieStore: {
-    set(
-      name: string,
-      value: string,
-      options: Record<string, unknown>
-    ): void;
-  }
+    set(name: string, value: string, options: Record<string, unknown>): void;
+  },
 ): void {
   cookieStore.set(SESSION_COOKIE_NAME, "", {
     httpOnly: true,
