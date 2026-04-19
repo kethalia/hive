@@ -1,5 +1,11 @@
 # hive-orchestrator
 
+## 2.0.1
+
+### Patch Changes
+
+- 085623a: Fix PR review findings: VAPID race condition, rate-limit memory leak, task auth scoping, PWA manifest path
+
 ## 2.0.0
 
 ### Major Changes
