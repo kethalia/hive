@@ -10,6 +10,7 @@
     "test:watch": "vitest"
   },
   "dependencies": {
+    "@hive/auth": "workspace:*",
     "dotenv": "^17.4.2",
     "tsx": "^4.21.0",
     "ws": "^8.20.0"

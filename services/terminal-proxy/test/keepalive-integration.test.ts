@@ -17,12 +17,17 @@ function closeServer(server: Server): Promise<void> {
   return new Promise((resolve) => server.close(() => resolve()));
 }
 
+function addWithMeta(registry: ConnectionRegistry, workspaceId: string, connectionId: string, coderUrl: string, token = "integration-test-token") {
+  registry.addConnection(workspaceId, connectionId, { token, coderUrl });
+}
+
 describe("KeepAliveManager integration", () => {
   let registry: ConnectionRegistry;
   let server: Server;
   let manager: KeepAliveManager;
   let requestLog: { method: string; url: string; headers: Record<string, string | string[] | undefined> }[];
   let responseStatus: number;
+  let mockUrl: string;
 
   beforeEach(async () => {
     requestLog = [];
@@ -39,8 +44,9 @@ describe("KeepAliveManager integration", () => {
     });
 
     server = mock.server;
+    mockUrl = mock.url;
     registry = new ConnectionRegistry();
-    manager = new KeepAliveManager(registry, mock.url, "integration-test-token");
+    manager = new KeepAliveManager(registry, mock.url);
   });
 
   afterEach(async () => {
@@ -49,7 +55,7 @@ describe("KeepAliveManager integration", () => {
   });
 
   it("pings the mock Coder API extend endpoint", async () => {
-    registry.addConnection("ws-123", "conn-a");
+    addWithMeta(registry, "ws-123", "conn-a", mockUrl);
     await manager.ping("ws-123");
 
     expect(requestLog).toHaveLength(1);
@@ -72,9 +78,9 @@ describe("KeepAliveManager integration", () => {
       });
     });
     server = mock.server;
-    manager = new KeepAliveManager(registry, mock.url, "tok");
+    manager = new KeepAliveManager(registry, mock.url);
 
-    registry.addConnection("ws-1", "conn-1");
+    addWithMeta(registry, "ws-1", "conn-1", mock.url, "tok");
     await manager.ping("ws-1");
 
     const parsed = JSON.parse(capturedBody);
@@ -85,7 +91,7 @@ describe("KeepAliveManager integration", () => {
 
   it("increments consecutiveFailures on API 500 error", async () => {
     responseStatus = 500;
-    registry.addConnection("ws-err", "conn-1");
+    addWithMeta(registry, "ws-err", "conn-1", mockUrl);
 
     await manager.ping("ws-err");
     expect(manager.getHealth()["ws-err"].consecutiveFailures).toBe(1);
@@ -97,7 +103,7 @@ describe("KeepAliveManager integration", () => {
 
   it("increments consecutiveFailures on API 401 (expired token)", async () => {
     responseStatus = 401;
-    registry.addConnection("ws-auth", "conn-1");
+    addWithMeta(registry, "ws-auth", "conn-1", mockUrl);
 
     await manager.ping("ws-auth");
 
@@ -109,7 +115,7 @@ describe("KeepAliveManager integration", () => {
 
   it("resets consecutiveFailures on recovery after failures", async () => {
     responseStatus = 500;
-    registry.addConnection("ws-recover", "conn-1");
+    addWithMeta(registry, "ws-recover", "conn-1", mockUrl);
 
     await manager.ping("ws-recover");
     await manager.ping("ws-recover");
@@ -139,9 +145,9 @@ describe("KeepAliveManager integration", () => {
       // never respond — simulates timeout
     });
     server = mock.server;
-    manager = new KeepAliveManager(registry, mock.url, "tok");
+    manager = new KeepAliveManager(registry, mock.url);
 
-    registry.addConnection("ws-timeout", "conn-1");
+    addWithMeta(registry, "ws-timeout", "conn-1", mock.url, "tok");
 
     await manager.ping("ws-timeout");
 
@@ -152,7 +158,7 @@ describe("KeepAliveManager integration", () => {
 
   it("accumulates exactly 3 failures for banner threshold scenario", async () => {
     responseStatus = 500;
-    registry.addConnection("ws-banner", "conn-1");
+    addWithMeta(registry, "ws-banner", "conn-1", mockUrl);
 
     await manager.ping("ws-banner");
     await manager.ping("ws-banner");
@@ -162,7 +168,7 @@ describe("KeepAliveManager integration", () => {
   });
 
   it("does not leak session token in health output", async () => {
-    registry.addConnection("ws-sec", "conn-1");
+    addWithMeta(registry, "ws-sec", "conn-1", mockUrl);
     await manager.ping("ws-sec");
 
     const healthJson = JSON.stringify(manager.getHealth());
@@ -176,6 +182,7 @@ describe("/keepalive/status endpoint integration", () => {
   let appServer: Server;
   let appUrl: string;
   let coderServer: Server;
+  let coderUrl: string;
 
   beforeEach(async () => {
     const coderMock = await createMockCoderApi((_req, res) => {
@@ -183,9 +190,10 @@ describe("/keepalive/status endpoint integration", () => {
       res.end("{}");
     });
     coderServer = coderMock.server;
+    coderUrl = coderMock.url;
 
     registry = new ConnectionRegistry();
-    manager = new KeepAliveManager(registry, coderMock.url, "tok");
+    manager = new KeepAliveManager(registry, coderMock.url);
 
     appServer = createServer((req, res) => {
       if (req.url === "/keepalive/status") {
@@ -221,7 +229,7 @@ describe("/keepalive/status endpoint integration", () => {
   });
 
   it("returns workspace health after pings", async () => {
-    registry.addConnection("ws-status", "conn-1");
+    addWithMeta(registry, "ws-status", "conn-1", coderUrl, "tok");
     await manager.ping("ws-status");
 
     const res = await fetch(`${appUrl}/keepalive/status`);
@@ -234,11 +242,11 @@ describe("/keepalive/status endpoint integration", () => {
   });
 
   it("does not expose session token in status response", async () => {
-    registry.addConnection("ws-sec", "conn-1");
+    addWithMeta(registry, "ws-sec", "conn-1", coderUrl, "secret-tok");
     await manager.ping("ws-sec");
 
     const res = await fetch(`${appUrl}/keepalive/status`);
     const text = await res.text();
-    expect(text).not.toContain("tok");
+    expect(text).not.toContain("secret-tok");
   });
 });

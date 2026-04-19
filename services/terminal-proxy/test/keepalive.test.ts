@@ -66,7 +66,38 @@ describe("ConnectionRegistry", () => {
     registry.removeConnection("ws-1", "conn-b");
     expect(registry.getActiveWorkspaceIds()).toEqual([]);
   });
+
+  it("stores and retrieves connection metadata", () => {
+    registry.addConnection("ws-1", "conn-a", { token: "tok-1", coderUrl: "http://coder1" });
+    const meta = registry.getWorkspaceMeta("ws-1");
+    expect(meta).toEqual({ token: "tok-1", coderUrl: "http://coder1" });
+  });
+
+  it("returns first available meta for workspace with multiple connections", () => {
+    registry.addConnection("ws-1", "conn-a", { token: "tok-a", coderUrl: "http://coder" });
+    registry.addConnection("ws-1", "conn-b", { token: "tok-b", coderUrl: "http://coder" });
+    const meta = registry.getWorkspaceMeta("ws-1");
+    expect(meta).not.toBeNull();
+    expect(meta!.token).toBe("tok-a");
+  });
+
+  it("returns null meta for unknown workspace", () => {
+    expect(registry.getWorkspaceMeta("ws-unknown")).toBeNull();
+  });
+
+  it("cleans up metadata on connection removal", () => {
+    registry.addConnection("ws-1", "conn-a", { token: "tok-1", coderUrl: "http://coder" });
+    registry.removeConnection("ws-1", "conn-a");
+    expect(registry.getWorkspaceMeta("ws-1")).toBeNull();
+  });
+
+  it("works with connections that have no metadata", () => {
+    registry.addConnection("ws-1", "conn-a");
+    expect(registry.getWorkspaceMeta("ws-1")).toBeNull();
+  });
 });
+
+const testMeta = { token: "test-token", coderUrl: "https://coder.example.com" };
 
 describe("KeepAliveManager", () => {
   let registry: ConnectionRegistry;
@@ -78,7 +109,7 @@ describe("KeepAliveManager", () => {
     registry = new ConnectionRegistry();
     fetchMock = vi.fn();
     vi.stubGlobal("fetch", fetchMock);
-    manager = new KeepAliveManager(registry, "https://coder.example.com", "test-token");
+    manager = new KeepAliveManager(registry, "https://coder.example.com");
   });
 
   afterEach(() => {
@@ -89,7 +120,7 @@ describe("KeepAliveManager", () => {
 
   it("pings active workspaces with correct URL and headers", async () => {
     fetchMock.mockResolvedValueOnce({ ok: true });
-    registry.addConnection("ws-abc", "conn-1");
+    registry.addConnection("ws-abc", "conn-1", testMeta);
 
     await manager.ping("ws-abc");
 
@@ -105,7 +136,7 @@ describe("KeepAliveManager", () => {
 
   it("resets failure count on successful ping", async () => {
     fetchMock.mockResolvedValue({ ok: false, status: 500, text: () => Promise.resolve("err") });
-    registry.addConnection("ws-abc", "conn-1");
+    registry.addConnection("ws-abc", "conn-1", testMeta);
 
     await manager.ping("ws-abc");
     expect(manager.getHealth()["ws-abc"].consecutiveFailures).toBe(1);
@@ -118,7 +149,7 @@ describe("KeepAliveManager", () => {
 
   it("increments failure count on HTTP error", async () => {
     fetchMock.mockResolvedValue({ ok: false, status: 401, text: () => Promise.resolve("unauthorized") });
-    registry.addConnection("ws-abc", "conn-1");
+    registry.addConnection("ws-abc", "conn-1", testMeta);
 
     await manager.ping("ws-abc");
     await manager.ping("ws-abc");
@@ -131,7 +162,7 @@ describe("KeepAliveManager", () => {
 
   it("increments failure count on network error", async () => {
     fetchMock.mockRejectedValue(new Error("fetch failed"));
-    registry.addConnection("ws-abc", "conn-1");
+    registry.addConnection("ws-abc", "conn-1", testMeta);
 
     await manager.ping("ws-abc");
 
@@ -142,7 +173,7 @@ describe("KeepAliveManager", () => {
 
   it("increments failure count on abort (timeout simulation)", async () => {
     fetchMock.mockRejectedValue(new DOMException("aborted", "AbortError"));
-    registry.addConnection("ws-abc", "conn-1");
+    registry.addConnection("ws-abc", "conn-1", testMeta);
 
     await manager.ping("ws-abc");
 
@@ -159,7 +190,7 @@ describe("KeepAliveManager", () => {
 
   it("pings immediately on start and on interval", async () => {
     fetchMock.mockResolvedValue({ ok: true });
-    registry.addConnection("ws-abc", "conn-1");
+    registry.addConnection("ws-abc", "conn-1", testMeta);
 
     manager.start();
     await vi.advanceTimersByTimeAsync(0);
@@ -174,7 +205,7 @@ describe("KeepAliveManager", () => {
 
   it("stop clears interval", async () => {
     fetchMock.mockResolvedValue({ ok: true });
-    registry.addConnection("ws-abc", "conn-1");
+    registry.addConnection("ws-abc", "conn-1", testMeta);
 
     manager.start();
     await vi.advanceTimersByTimeAsync(0);
@@ -194,7 +225,7 @@ describe("KeepAliveManager", () => {
     const consoleSpy = vi.spyOn(console, "log").mockImplementation(() => {});
     const consoleErrSpy = vi.spyOn(console, "error").mockImplementation(() => {});
     fetchMock.mockResolvedValue({ ok: true });
-    registry.addConnection("ws-abc", "conn-1");
+    registry.addConnection("ws-abc", "conn-1", testMeta);
 
     await manager.ping("ws-abc");
 
@@ -210,7 +241,7 @@ describe("KeepAliveManager", () => {
 
   it("handles 404 (deleted workspace) as failure", async () => {
     fetchMock.mockResolvedValue({ ok: false, status: 404, text: () => Promise.resolve("not found") });
-    registry.addConnection("ws-abc", "conn-1");
+    registry.addConnection("ws-abc", "conn-1", testMeta);
 
     await manager.ping("ws-abc");
 
@@ -221,12 +252,28 @@ describe("KeepAliveManager", () => {
 
   it("strips trailing slashes from coder URL", async () => {
     fetchMock.mockResolvedValue({ ok: true });
-    const m = new KeepAliveManager(registry, "https://coder.example.com///", "tok");
-    registry.addConnection("ws-abc", "conn-1");
+    const m = new KeepAliveManager(registry, "https://coder.example.com///");
+    registry.addConnection("ws-abc", "conn-1", testMeta);
 
     await m.ping("ws-abc");
 
     const [url] = fetchMock.mock.calls[0];
     expect(url).toBe("https://coder.example.com/api/v2/workspaces/ws-abc/extend");
+  });
+
+  it("skips ping when no token available for workspace", async () => {
+    registry.addConnection("ws-abc", "conn-1");
+    await manager.ping("ws-abc");
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("uses per-connection coderUrl over default", async () => {
+    fetchMock.mockResolvedValue({ ok: true });
+    registry.addConnection("ws-abc", "conn-1", { token: "t", coderUrl: "https://custom-coder.example.com" });
+
+    await manager.ping("ws-abc");
+
+    const [url] = fetchMock.mock.calls[0];
+    expect(url).toBe("https://custom-coder.example.com/api/v2/workspaces/ws-abc/extend");
   });
 });

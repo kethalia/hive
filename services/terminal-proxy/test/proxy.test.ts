@@ -2,6 +2,20 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import type { IncomingMessage } from "node:http";
 import type { Duplex } from "node:stream";
 
+const mockAuthResult = {
+  ok: true as const,
+  value: {
+    token: "per-user-token",
+    coderUrl: "http://coder.example.com",
+    sessionId: "session-123",
+    username: "testuser",
+  },
+};
+
+vi.mock("../src/auth.js", () => ({
+  authenticateUpgrade: vi.fn(() => Promise.resolve(mockAuthResult)),
+}));
+
 vi.mock("ws", () => {
   const mockWsInstance = {
     on: vi.fn(),
@@ -25,13 +39,16 @@ vi.mock("ws", () => {
 });
 
 import { handleUpgrade, isOriginAllowed } from "../src/proxy.js";
+import { authenticateUpgrade } from "../src/auth.js";
 import { WebSocket } from "ws";
+
+const mockAuth = authenticateUpgrade as ReturnType<typeof vi.fn>;
 
 function makeReq(query: Record<string, string>, origin = "http://localhost:3000"): IncomingMessage {
   const params = new URLSearchParams(query);
   return {
     url: `/ws?${params.toString()}`,
-    headers: { host: "localhost", origin },
+    headers: { host: "localhost", origin, cookie: "hive-session=valid-cookie" },
   } as unknown as IncomingMessage;
 }
 
@@ -59,94 +76,77 @@ describe("handleUpgrade", () => {
   const originalEnv = process.env;
 
   beforeEach(() => {
-    process.env = { ...originalEnv, CODER_SESSION_TOKEN: "test-token", CODER_URL: "http://coder.example.com" };
+    process.env = { ...originalEnv, CODER_URL: "http://coder.example.com" };
     vi.clearAllMocks();
+    mockAuth.mockResolvedValue(mockAuthResult);
   });
 
   afterEach(() => {
     process.env = originalEnv;
   });
 
-  it("rejects with 502 when CODER_URL and CODER_AGENT_URL are both missing", () => {
-    delete process.env.CODER_URL;
-    delete process.env.CODER_AGENT_URL;
-    const socket = makeSocket();
-    handleUpgrade(makeReq(validParams), socket, Buffer.alloc(0));
-    expect(socket.written[0]).toContain("502");
-    expect(socket.destroy).toHaveBeenCalled();
-  });
-
-  it("rejects with 401 when CODER_SESSION_TOKEN is missing", () => {
-    delete process.env.CODER_SESSION_TOKEN;
-    const socket = makeSocket();
-    handleUpgrade(makeReq(validParams), socket, Buffer.alloc(0));
-    expect(socket.written[0]).toContain("401");
-    expect(socket.destroy).toHaveBeenCalled();
-  });
-
-  it("rejects with 400 when agentId is missing", () => {
+  it("rejects with 400 when agentId is missing", async () => {
     const { agentId: _, ...params } = validParams;
     const socket = makeSocket();
-    handleUpgrade(makeReq(params), socket, Buffer.alloc(0));
+    await handleUpgrade(makeReq(params), socket, Buffer.alloc(0));
     expect(socket.written[0]).toContain("400");
     expect(socket.destroy).toHaveBeenCalled();
   });
 
-  it("rejects with 400 when reconnectId is missing", () => {
+  it("rejects with 400 when reconnectId is missing", async () => {
     const { reconnectId: _, ...params } = validParams;
     const socket = makeSocket();
-    handleUpgrade(makeReq(params), socket, Buffer.alloc(0));
+    await handleUpgrade(makeReq(params), socket, Buffer.alloc(0));
     expect(socket.written[0]).toContain("400");
     expect(socket.destroy).toHaveBeenCalled();
   });
 
-  it("rejects with 400 when agentId is not UUID format", () => {
+  it("rejects with 400 when agentId is not UUID format", async () => {
     const socket = makeSocket();
-    handleUpgrade(makeReq({ ...validParams, agentId: "not-a-uuid" }), socket, Buffer.alloc(0));
+    await handleUpgrade(makeReq({ ...validParams, agentId: "not-a-uuid" }), socket, Buffer.alloc(0));
     expect(socket.written[0]).toContain("400");
     expect(socket.destroy).toHaveBeenCalled();
   });
 
-  it("rejects with 400 when reconnectId is not UUID format", () => {
+  it("rejects with 400 when reconnectId is not UUID format", async () => {
     const socket = makeSocket();
-    handleUpgrade(makeReq({ ...validParams, reconnectId: "not-a-uuid" }), socket, Buffer.alloc(0));
+    await handleUpgrade(makeReq({ ...validParams, reconnectId: "not-a-uuid" }), socket, Buffer.alloc(0));
     expect(socket.written[0]).toContain("400");
     expect(socket.destroy).toHaveBeenCalled();
   });
 
-  it("rejects with 400 when sessionName contains shell metacharacters", () => {
+  it("rejects with 400 when sessionName contains shell metacharacters", async () => {
     const socket = makeSocket();
-    handleUpgrade(makeReq({ ...validParams, sessionName: "bad;rm -rf" }), socket, Buffer.alloc(0));
+    await handleUpgrade(makeReq({ ...validParams, sessionName: "bad;rm -rf" }), socket, Buffer.alloc(0));
     expect(socket.written[0]).toContain("400");
     expect(socket.destroy).toHaveBeenCalled();
   });
 
-  it("rejects sessionName with spaces", () => {
+  it("rejects sessionName with spaces", async () => {
     const socket = makeSocket();
-    handleUpgrade(makeReq({ ...validParams, sessionName: "bad name" }), socket, Buffer.alloc(0));
+    await handleUpgrade(makeReq({ ...validParams, sessionName: "bad name" }), socket, Buffer.alloc(0));
     expect(socket.written[0]).toContain("400");
   });
 
-  it("rejects sessionName with backticks", () => {
+  it("rejects sessionName with backticks", async () => {
     const socket = makeSocket();
-    handleUpgrade(makeReq({ ...validParams, sessionName: "bad`cmd`" }), socket, Buffer.alloc(0));
+    await handleUpgrade(makeReq({ ...validParams, sessionName: "bad`cmd`" }), socket, Buffer.alloc(0));
     expect(socket.written[0]).toContain("400");
   });
 
-  it("reads CODER_SESSION_TOKEN from env, not query params", () => {
+  it("uses per-user token from auth result, not env var", async () => {
     const socket = makeSocket();
-    handleUpgrade(makeReq({ ...validParams, token: "injected-token" }), socket, Buffer.alloc(0));
+    await handleUpgrade(makeReq(validParams), socket, Buffer.alloc(0));
     const WsCtor = WebSocket as unknown as ReturnType<typeof vi.fn>;
     if (WsCtor.mock.calls.length > 0) {
       const opts = WsCtor.mock.calls[0][1] as { headers: Record<string, string> };
-      expect(opts.headers["Coder-Session-Token"]).toBe("test-token");
-      expect(opts.headers["Coder-Session-Token"]).not.toBe("injected-token");
+      expect(opts.headers["Coder-Session-Token"]).toBe("per-user-token");
     }
   });
 
-  it("opens upstream WebSocket with correct URL and auth header on valid request", () => {
+  it("opens upstream WebSocket with correct URL and per-user auth on valid request", async () => {
     const socket = makeSocket();
-    handleUpgrade(makeReq(validParams), socket, Buffer.alloc(0));
+    await handleUpgrade(makeReq(validParams), socket, Buffer.alloc(0));
 
     const WsCtor = WebSocket as unknown as ReturnType<typeof vi.fn>;
     expect(WsCtor).toHaveBeenCalledTimes(1);
@@ -155,76 +155,150 @@ describe("handleUpgrade", () => {
     expect(url).toContain("ws://coder.example.com/api/v2/workspaceagents/");
     expect(url).toContain(validParams.agentId);
     expect(url).toContain("/pty?");
-    expect(opts.headers["Coder-Session-Token"]).toBe("test-token");
+    expect(opts.headers["Coder-Session-Token"]).toBe("per-user-token");
   });
 
-  it("sets handshakeTimeout on upstream WebSocket", () => {
+  it("sets handshakeTimeout on upstream WebSocket", async () => {
     const socket = makeSocket();
-    handleUpgrade(makeReq(validParams), socket, Buffer.alloc(0));
+    await handleUpgrade(makeReq(validParams), socket, Buffer.alloc(0));
 
     const WsCtor = WebSocket as unknown as ReturnType<typeof vi.fn>;
     const [, opts] = WsCtor.mock.calls[0];
     expect(opts.handshakeTimeout).toBe(10_000);
   });
 
-  it("accepts valid UUID agentId formats", () => {
+  it("accepts valid UUID agentId formats", async () => {
     const socket = makeSocket();
-    handleUpgrade(makeReq({ ...validParams, agentId: "AABBCCDD-EEFF-1122-3344-556677889900" }), socket, Buffer.alloc(0));
+    await handleUpgrade(makeReq({ ...validParams, agentId: "AABBCCDD-EEFF-1122-3344-556677889900" }), socket, Buffer.alloc(0));
     expect(socket.destroy).not.toHaveBeenCalled();
   });
 
-  it("defaults sessionName to 'default' when not provided", () => {
+  it("defaults sessionName to 'default' when not provided", async () => {
     const { sessionName: _, ...params } = validParams;
     const socket = makeSocket();
-    handleUpgrade(makeReq(params), socket, Buffer.alloc(0));
-
+    await handleUpgrade(makeReq(params), socket, Buffer.alloc(0));
     expect(socket.destroy).not.toHaveBeenCalled();
   });
 
-  it("rejects with 403 when Origin header is missing", () => {
+  it("rejects with 403 when Origin header is missing", async () => {
     const params = new URLSearchParams(validParams);
     const req = {
       url: `/ws?${params.toString()}`,
       headers: { host: "localhost" },
     } as unknown as IncomingMessage;
     const socket = makeSocket();
-    handleUpgrade(req, socket, Buffer.alloc(0));
+    await handleUpgrade(req, socket, Buffer.alloc(0));
     expect(socket.written[0]).toContain("403");
     expect(socket.destroy).toHaveBeenCalled();
   });
 
-  it("rejects with 403 when Origin is not in allowed list", () => {
+  it("rejects with 403 when Origin is not in allowed list", async () => {
     const socket = makeSocket();
-    handleUpgrade(makeReq(validParams, "https://evil.example.com"), socket, Buffer.alloc(0));
+    await handleUpgrade(makeReq(validParams, "https://evil.example.com"), socket, Buffer.alloc(0));
     expect(socket.written[0]).toContain("403");
     expect(socket.destroy).toHaveBeenCalled();
   });
 
-  it("accepts localhost origins by default", () => {
+  it("accepts localhost origins by default", async () => {
     const socket = makeSocket();
-    handleUpgrade(makeReq(validParams, "http://localhost:3000"), socket, Buffer.alloc(0));
+    await handleUpgrade(makeReq(validParams, "http://localhost:3000"), socket, Buffer.alloc(0));
     expect(socket.destroy).not.toHaveBeenCalled();
   });
 
-  it("accepts https localhost origins by default", () => {
+  it("accepts https localhost origins by default", async () => {
     const socket = makeSocket();
-    handleUpgrade(makeReq(validParams, "https://localhost:8443"), socket, Buffer.alloc(0));
+    await handleUpgrade(makeReq(validParams, "https://localhost:8443"), socket, Buffer.alloc(0));
     expect(socket.destroy).not.toHaveBeenCalled();
   });
 
-  it("respects ALLOWED_ORIGINS env var", () => {
+  it("respects ALLOWED_ORIGINS env var", async () => {
     process.env.ALLOWED_ORIGINS = "https://myapp.example.com,http://localhost:3000";
     const socket = makeSocket();
-    handleUpgrade(makeReq(validParams, "https://myapp.example.com"), socket, Buffer.alloc(0));
+    await handleUpgrade(makeReq(validParams, "https://myapp.example.com"), socket, Buffer.alloc(0));
     expect(socket.destroy).not.toHaveBeenCalled();
   });
 
-  it("rejects origins not in ALLOWED_ORIGINS when env var is set", () => {
+  it("rejects origins not in ALLOWED_ORIGINS when env var is set", async () => {
     process.env.ALLOWED_ORIGINS = "https://myapp.example.com";
     const socket = makeSocket();
-    handleUpgrade(makeReq(validParams, "http://localhost:3000"), socket, Buffer.alloc(0));
+    await handleUpgrade(makeReq(validParams, "http://localhost:3000"), socket, Buffer.alloc(0));
     expect(socket.written[0]).toContain("403");
     expect(socket.destroy).toHaveBeenCalled();
+  });
+
+  it("returns 401 when authenticateUpgrade returns auth failure (no cookie)", async () => {
+    mockAuth.mockResolvedValue({
+      ok: false,
+      value: { error: "No cookie provided", status: 401, reason: "no_cookie" },
+    });
+    const socket = makeSocket();
+    await handleUpgrade(makeReq(validParams), socket, Buffer.alloc(0));
+    expect(socket.written[0]).toContain("401");
+    expect(socket.destroy).toHaveBeenCalled();
+  });
+
+  it("returns 401 when authenticateUpgrade returns invalid HMAC", async () => {
+    mockAuth.mockResolvedValue({
+      ok: false,
+      value: { error: "Invalid cookie signature", status: 401, reason: "invalid_hmac" },
+    });
+    const socket = makeSocket();
+    await handleUpgrade(makeReq(validParams), socket, Buffer.alloc(0));
+    expect(socket.written[0]).toContain("401");
+    expect(socket.destroy).toHaveBeenCalled();
+  });
+
+  it("returns 502 when auth service is unreachable", async () => {
+    mockAuth.mockResolvedValue({
+      ok: false,
+      value: { error: "Auth service unreachable", status: 502, reason: "auth_service_unreachable" },
+    });
+    const socket = makeSocket();
+    await handleUpgrade(makeReq(validParams), socket, Buffer.alloc(0));
+    expect(socket.written[0]).toContain("502");
+    expect(socket.destroy).toHaveBeenCalled();
+  });
+
+  it("returns 401 when session not found", async () => {
+    mockAuth.mockResolvedValue({
+      ok: false,
+      value: { error: "Session not found", status: 401, reason: "session_not_found" },
+    });
+    const socket = makeSocket();
+    await handleUpgrade(makeReq(validParams), socket, Buffer.alloc(0));
+    expect(socket.written[0]).toContain("401");
+    expect(socket.destroy).toHaveBeenCalled();
+  });
+
+  it("uses coderUrl from auth result over env var", async () => {
+    mockAuth.mockResolvedValue({
+      ok: true,
+      value: {
+        token: "tok",
+        coderUrl: "http://per-user-coder.example.com",
+        sessionId: "s1",
+        username: "u1",
+      },
+    });
+    const socket = makeSocket();
+    await handleUpgrade(makeReq(validParams), socket, Buffer.alloc(0));
+
+    const WsCtor = WebSocket as unknown as ReturnType<typeof vi.fn>;
+    const [url] = WsCtor.mock.calls[0];
+    expect(url).toContain("ws://per-user-coder.example.com/");
+  });
+
+  it("falls back to CODER_URL env var when auth coderUrl is empty", async () => {
+    mockAuth.mockResolvedValue({
+      ok: true,
+      value: { token: "tok", coderUrl: "", sessionId: "s1", username: "u1" },
+    });
+    const socket = makeSocket();
+    await handleUpgrade(makeReq(validParams), socket, Buffer.alloc(0));
+
+    const WsCtor = WebSocket as unknown as ReturnType<typeof vi.fn>;
+    const [url] = WsCtor.mock.calls[0];
+    expect(url).toContain("ws://coder.example.com/");
   });
 });
 

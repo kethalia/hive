@@ -4,6 +4,7 @@ import { randomUUID } from "node:crypto";
 import { WebSocket, WebSocketServer } from "ws";
 import { SAFE_IDENTIFIER_RE, UUID_RE, buildPtyUrl } from "./protocol.js";
 import { ConnectionRegistry } from "./keepalive.js";
+import { authenticateUpgrade } from "./auth.js";
 
 const PING_INTERVAL_MS = 30_000;
 const UPSTREAM_CONNECT_TIMEOUT_MS = 10_000;
@@ -47,24 +48,15 @@ export function isOriginAllowed(origin: string | undefined): boolean {
   return patterns.some((pattern) => originMatchesPattern(origin, pattern));
 }
 
-export function handleUpgrade(
+export async function handleUpgrade(
   req: IncomingMessage,
   socket: Duplex,
   head: Buffer,
-): void {
-  // --- Origin validation (cross-site WebSocket hijacking protection) ---
+): Promise<void> {
   const origin = req.headers.origin as string | undefined;
   if (!isOriginAllowed(origin)) {
     console.error(`[terminal-proxy] Origin rejected: ${origin ?? "(none)"}`);
     socket.write("HTTP/1.1 403 Forbidden\r\n\r\n");
-    socket.destroy();
-    return;
-  }
-
-  const token = process.env.CODER_SESSION_TOKEN;
-  if (!token) {
-    console.error("[terminal-proxy] CODER_SESSION_TOKEN not set — rejecting upgrade");
-    socket.write("HTTP/1.1 401 Unauthorized\r\n\r\n");
     socket.destroy();
     return;
   }
@@ -113,9 +105,17 @@ export function handleUpgrade(
     return;
   }
 
-  const coderUrl = process.env.CODER_URL ?? process.env.CODER_AGENT_URL ?? "";
+  const authResult = await authenticateUpgrade(req);
+  if (!authResult.ok) {
+    socket.write(`HTTP/1.1 ${authResult.value.status} ${authResult.value.error}\r\n\r\n`);
+    socket.destroy();
+    return;
+  }
+
+  const { token, coderUrl: authCoderUrl } = authResult.value;
+  const coderUrl = authCoderUrl || process.env.CODER_URL || process.env.CODER_AGENT_URL || "";
   if (!coderUrl) {
-    console.error("[terminal-proxy] CODER_URL / CODER_AGENT_URL not set — rejecting upgrade");
+    console.error("[terminal-proxy] No coderUrl from auth or env — rejecting upgrade");
     socket.write("HTTP/1.1 502 Bad Gateway\r\n\r\n");
     socket.destroy();
     return;
@@ -134,7 +134,10 @@ export function handleUpgrade(
     wss.emit("connection", browserWs, req);
 
     if (workspaceId) {
-      connectionRegistry.addConnection(workspaceId, connectionId);
+      connectionRegistry.addConnection(workspaceId, connectionId, {
+        token,
+        coderUrl,
+      });
       browserWs.on("close", () => {
         connectionRegistry.removeConnection(workspaceId, connectionId);
       });
