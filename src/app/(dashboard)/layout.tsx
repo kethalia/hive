@@ -14,13 +14,7 @@ export default async function DashboardLayout({
 }: {
   children: React.ReactNode;
 }) {
-  let bannerStatus: Awaited<ReturnType<typeof getTokenStatusAction>> | null =
-    null;
-  try {
-    bannerStatus = await getTokenStatusAction();
-  } catch {
-    // No session or action failed — skip banner
-  }
+  const bannerStatus = await getTokenStatusAction();
 
   return (
     <SidebarProvider>

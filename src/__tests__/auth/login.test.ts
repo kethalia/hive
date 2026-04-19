@@ -44,7 +44,7 @@ describe("performLogin", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    process.env.TOKEN_ENCRYPTION_KEY = TEST_ENCRYPTION_KEY;
+    process.env.ENCRYPTION_KEY = TEST_ENCRYPTION_KEY;
 
     mockEncrypt.mockReturnValue({
       ciphertext: Buffer.from("encrypted"),
@@ -135,8 +135,8 @@ describe("performLogin", () => {
     expect(mockCreateApiKey).not.toHaveBeenCalled();
   });
 
-  it("throws when TOKEN_ENCRYPTION_KEY is not set", async () => {
-    delete process.env.TOKEN_ENCRYPTION_KEY;
+  it("throws when ENCRYPTION_KEY is not set", async () => {
+    delete process.env.ENCRYPTION_KEY;
 
     mockValidateInstance.mockResolvedValue({ valid: true, version: "2.8.0" });
     mockLogin.mockResolvedValue({
@@ -148,7 +148,7 @@ describe("performLogin", () => {
 
     await expect(
       performLogin("https://coder.example.com", "a@b.com", "pass")
-    ).rejects.toThrow("TOKEN_ENCRYPTION_KEY environment variable is not set");
+    ).rejects.toThrow("ENCRYPTION_KEY environment variable is not set");
   });
 
   it("succeeds on second API key retry", async () => {

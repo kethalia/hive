@@ -9,15 +9,15 @@ const prisma = new PrismaClient();
 const API_KEY_CREATION_RETRIES = 3;
 
 function getTokenEncryptionKey(): string {
-  const key = process.env.TOKEN_ENCRYPTION_KEY;
+  const key = process.env.ENCRYPTION_KEY;
   if (!key) {
     throw new Error(
-      "TOKEN_ENCRYPTION_KEY environment variable is not set"
+      "ENCRYPTION_KEY environment variable is not set"
     );
   }
   if (Buffer.from(key, "hex").length !== 32) {
     throw new Error(
-      "TOKEN_ENCRYPTION_KEY must be exactly 64 hex characters (32 bytes)"
+      "ENCRYPTION_KEY must be exactly 64 hex characters (32 bytes)"
     );
   }
   return key;

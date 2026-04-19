@@ -11,7 +11,9 @@ export const actionClient = createSafeActionClient({
 
 export const authActionClient = createSafeActionClient({
   handleServerError: (error) => {
-    console.error("[action] Server error:", error.message);
+    if (error.message !== "Not authenticated") {
+      console.error("[action] Server error:", error.message);
+    }
     return error.message;
   },
 }).use(async ({ next }) => {
