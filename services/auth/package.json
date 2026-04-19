@@ -1,6 +1,6 @@
 {
-  "name": "@hive/auth-service",
-  "version": "1.0.0",
+  "name": "hive-auth",
+  "version": "0.0.1",
   "private": true,
   "type": "module",
   "scripts": {
