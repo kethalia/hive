@@ -77,7 +77,7 @@ export async function createTask(input: {
  * Get a single task by ID, including related workspaces and recent logs.
  * Returns null if not found.
  */
-export async function getTask(id: string) {
+export async function getTask(id: string, userId?: string) {
   const db = getDb();
 
   const task = await db.task.findUnique({
@@ -91,7 +91,10 @@ export async function getTask(id: string) {
     },
   });
 
-  return task ?? null;
+  if (!task) return null;
+  if (userId && task.userId !== userId) return null;
+
+  return task;
 }
 
 /**

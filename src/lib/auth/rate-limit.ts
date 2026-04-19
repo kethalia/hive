@@ -27,7 +27,11 @@ export function checkRateLimit(
   }
 
   timestamps.push(now);
-  store.set(key, timestamps);
+  if (timestamps.length === 0) {
+    store.delete(key);
+  } else {
+    store.set(key, timestamps);
+  }
 
   return {
     allowed: true,
