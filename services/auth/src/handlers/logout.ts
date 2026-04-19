@@ -1,0 +1,23 @@
+import type { IncomingMessage, ServerResponse } from "node:http";
+import { parseBody, sendJson, sendError } from "../server.js";
+import { deleteSession } from "../auth/session.js";
+
+export async function handleLogout(
+  req: IncomingMessage,
+  res: ServerResponse,
+): Promise<void> {
+  const body = (await parseBody(req)) as Record<string, unknown> | undefined;
+
+  if (!body || typeof body !== "object" || !body.sessionId) {
+    sendError(res, 400, "Missing required field: sessionId", "BAD_REQUEST");
+    return;
+  }
+
+  const { sessionId } = body as { sessionId: string };
+
+  await deleteSession(sessionId);
+  console.log(
+    `[auth-service] POST /logout → 200 session=${sessionId.slice(0, 8)}…`,
+  );
+  sendJson(res, 200, { ok: true });
+}
