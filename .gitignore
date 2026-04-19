@@ -43,8 +43,8 @@ next-env.d.ts
 templates/**/.terraform/
 !templates/**/.terraform.lock.hcl
 
-# ── GSD baseline (auto-generated) ──
-# .gsd tracked in repo (has its own .gitignore for ephemeral files)
+# ── GSD ──
+.gsd
 Thumbs.db
 *.swp
 *.swo
