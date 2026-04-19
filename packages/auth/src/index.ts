@@ -1,4 +1,4 @@
-export { signCookie, verifyCookie } from "./cookie.js";
+export { signCookie, verifyCookie } from "./cookie";
 export type {
   TokenStatus,
   SessionPayload,
@@ -6,4 +6,4 @@ export type {
   CoderTokenResponse,
   LoginRequest,
   LoginResponse,
-} from "./types.js";
+} from "./types";

@@ -5,6 +5,7 @@ ARG PNPM_VERSION
 RUN corepack enable && corepack prepare pnpm@${PNPM_VERSION} --activate
 WORKDIR /app
 COPY pnpm-lock.yaml package.json pnpm-workspace.yaml ./
+COPY packages/auth/package.json packages/auth/package.json
 COPY services/terminal-proxy/package.json services/terminal-proxy/package.json
 RUN pnpm install --frozen-lockfile --ignore-scripts
 
