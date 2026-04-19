@@ -101,6 +101,9 @@ export const getTokenStatusAction = authActionClient.action(
     if (!result) {
       return { status: "expired" as const, expiresAt: null };
     }
-    return result;
+    return {
+      status: result.status,
+      expiresAt: result.expiresAt,
+    };
   }
 );

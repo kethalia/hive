@@ -8,8 +8,8 @@ export async function handleLogout(
 ): Promise<void> {
   const body = (await parseBody(req)) as Record<string, unknown> | undefined;
 
-  if (!body || typeof body !== "object" || !body.sessionId) {
-    sendError(res, 400, "Missing required field: sessionId", "BAD_REQUEST");
+  if (!body || typeof body !== "object" || !body.sessionId || typeof body.sessionId !== "string") {
+    sendError(res, 400, "Missing or invalid field: sessionId must be a string", "BAD_REQUEST");
     return;
   }
 

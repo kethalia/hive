@@ -61,7 +61,13 @@ const server = createServer((req, res) => {
 server.on("upgrade", (req, socket, head) => {
   const pathname = req.url?.split("?")[0] ?? "";
   if (pathname === "/ws") {
-    void handleUpgrade(req, socket, head);
+    handleUpgrade(req, socket, head).catch((err) => {
+      console.error(`[terminal-proxy] upgrade error: ${err instanceof Error ? err.message : String(err)}`);
+      if (socket.writable) {
+        socket.write("HTTP/1.1 500 Internal Server Error\r\n\r\n");
+        socket.destroy();
+      }
+    });
   } else {
     socket.write("HTTP/1.1 404 Not Found\r\n\r\n");
     socket.destroy();

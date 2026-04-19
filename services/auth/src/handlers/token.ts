@@ -42,7 +42,7 @@ export async function handleGetCoderToken(
     sendJson(res, 200, {
       token: result.token,
       coderUrl: session.user.coderUrl,
-      expiresAt: result.expiresAt,
+      expiresAt: result.expiresAt?.toISOString() ?? null,
     });
   } catch (err) {
     const code =

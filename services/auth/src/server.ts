@@ -57,6 +57,10 @@ export function startServer(port: number): Server {
     try {
       await match.handler(req, res, match.params);
     } catch (err) {
+      if (err instanceof Error && err.message === "Invalid JSON body") {
+        sendError(res, 400, "Invalid JSON body", "BAD_REQUEST");
+        return;
+      }
       const message = err instanceof Error ? err.message : "Internal server error";
       console.error(`[auth-service] Handler error: ${message}`);
       sendError(res, 500, "Internal server error", "INTERNAL_ERROR");
@@ -67,11 +71,12 @@ export function startServer(port: number): Server {
     console.log(`[auth-service] Listening on port ${port}`);
   });
 
-  const shutdown = async () => {
+  const shutdown = () => {
     console.log("[auth-service] Shutting down...");
-    server.close();
-    await closeDb();
-    process.exit(0);
+    server.close(async () => {
+      await closeDb();
+      process.exit(0);
+    });
   };
 
   process.on("SIGTERM", shutdown);

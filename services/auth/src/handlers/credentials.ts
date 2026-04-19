@@ -30,7 +30,7 @@ export async function handleGetCredentials(
 
   const payload: CredentialResponse = {
     status: tokenStatus.status,
-    expiresAt: tokenStatus.expiresAt,
+    expiresAt: tokenStatus.expiresAt?.toISOString() ?? null,
   };
 
   console.log(

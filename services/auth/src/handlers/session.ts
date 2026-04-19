@@ -31,7 +31,7 @@ export async function handleGetSession(
     email: session.user.email,
     coderUrl: session.user.coderUrl,
     sessionId: session.session.sessionId,
-    expiresAt: session.session.expiresAt,
+    expiresAt: session.session.expiresAt.toISOString(),
   };
 
   console.log(

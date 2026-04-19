@@ -107,7 +107,8 @@ export async function handleUpgrade(
 
   const authResult = await authenticateUpgrade(req);
   if (!authResult.ok) {
-    socket.write(`HTTP/1.1 ${authResult.value.status} ${authResult.value.error}\r\n\r\n`);
+    const reasonPhrase = authResult.value.status === 401 ? "Unauthorized" : "Bad Gateway";
+    socket.write(`HTTP/1.1 ${authResult.value.status} ${reasonPhrase}\r\n\r\n`);
     socket.destroy();
     return;
   }

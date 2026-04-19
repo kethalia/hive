@@ -28,7 +28,13 @@ export async function getSession(
     return null;
   }
 
-  const result = verifyCookie(cookie.value, process.env.COOKIE_SECRET!);
+  const cookieSecret = process.env.COOKIE_SECRET;
+  if (!cookieSecret) {
+    console.error("[session] COOKIE_SECRET is not configured");
+    return null;
+  }
+
+  const result = verifyCookie(cookie.value, cookieSecret);
   if (!result) {
     console.log("[session] Cookie verification failed");
     return null;
@@ -85,7 +91,11 @@ export function setSessionCookie(
   },
   sessionId: string,
 ): void {
-  const signedValue = signCookie(sessionId, process.env.COOKIE_SECRET!);
+  const cookieSecret = process.env.COOKIE_SECRET;
+  if (!cookieSecret) {
+    throw new Error("COOKIE_SECRET is not configured");
+  }
+  const signedValue = signCookie(sessionId, cookieSecret);
   cookieStore.set(SESSION_COOKIE_NAME, signedValue, {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",

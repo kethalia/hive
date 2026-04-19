@@ -25,10 +25,14 @@ export function middleware(request: NextRequest) {
     return NextResponse.redirect(loginUrl);
   }
 
-  const verified = verifyCookie(
-    sessionCookie.value,
-    process.env.COOKIE_SECRET!,
-  );
+  const cookieSecret = process.env.COOKIE_SECRET;
+  if (!cookieSecret) {
+    console.error("[middleware] COOKIE_SECRET is not configured");
+    const loginUrl = new URL("/login", request.url);
+    return NextResponse.redirect(loginUrl);
+  }
+
+  const verified = verifyCookie(sessionCookie.value, cookieSecret);
   if (!verified) {
     const loginUrl = new URL("/login", request.url);
     return NextResponse.redirect(loginUrl);

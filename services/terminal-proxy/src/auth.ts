@@ -85,15 +85,18 @@ export async function authenticateUpgrade(
   try {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), AUTH_SERVICE_TIMEOUT_MS);
-    [tokenRes, sessionRes] = await Promise.all([
-      fetch(`${authServiceUrl}/sessions/${sessionId}/token`, {
-        signal: controller.signal,
-      }),
-      fetch(`${authServiceUrl}/sessions/${sessionId}`, {
-        signal: controller.signal,
-      }),
-    ]);
-    clearTimeout(timeoutId);
+    try {
+      [tokenRes, sessionRes] = await Promise.all([
+        fetch(`${authServiceUrl}/sessions/${sessionId}/token`, {
+          signal: controller.signal,
+        }),
+        fetch(`${authServiceUrl}/sessions/${sessionId}`, {
+          signal: controller.signal,
+        }),
+      ]);
+    } finally {
+      clearTimeout(timeoutId);
+    }
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : String(err);
     console.error(
@@ -142,7 +145,7 @@ export async function authenticateUpgrade(
     };
   }
 
-  if (!tokenBody.token || !tokenBody.coderUrl) {
+  if (!tokenBody.token) {
     console.error(
       `[terminal-proxy] auth: token_unavailable session=${truncatedId}… incomplete_response → 502`,
     );

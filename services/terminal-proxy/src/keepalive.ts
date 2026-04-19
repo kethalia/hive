@@ -136,17 +136,20 @@ export class KeepAliveManager {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
 
-      const res = await fetch(url, {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-          "Coder-Session-Token": meta.token,
-        },
-        body: JSON.stringify({ deadline }),
-        signal: controller.signal,
-      });
-
-      clearTimeout(timeoutId);
+      let res: Response;
+      try {
+        res = await fetch(url, {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+            "Coder-Session-Token": meta.token,
+          },
+          body: JSON.stringify({ deadline }),
+          signal: controller.signal,
+        });
+      } finally {
+        clearTimeout(timeoutId);
+      }
 
       if (!res.ok) {
         const body = await res.text().catch(() => "(unreadable)");

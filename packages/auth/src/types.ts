@@ -11,12 +11,12 @@ export interface SessionPayload {
   email: string;
   coderUrl: string;
   sessionId: string;
-  expiresAt: Date;
+  expiresAt: string;
 }
 
 export interface CredentialResponse {
   status: TokenStatus;
-  expiresAt: Date | null;
+  expiresAt: string | null;
 }
 
 export interface LoginRequest {
@@ -38,5 +38,5 @@ export interface LoginResponse {
 export interface CoderTokenResponse {
   token: string;
   coderUrl: string;
-  expiresAt: Date | null;
+  expiresAt: string | null;
 }
