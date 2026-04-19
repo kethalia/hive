@@ -14,7 +14,11 @@ export function checkRateLimit(
   const now = Date.now();
   const cutoff = now - windowMs;
 
-  const timestamps = (store.get(key) ?? []).filter((t) => t > cutoff);
+  let timestamps = (store.get(key) ?? []).filter((t) => t > cutoff);
+
+  if (timestamps.length === 0) {
+    store.delete(key);
+  }
 
   if (timestamps.length >= limit) {
     const oldestInWindow = timestamps[0]!;
@@ -27,11 +31,7 @@ export function checkRateLimit(
   }
 
   timestamps.push(now);
-  if (timestamps.length === 0) {
-    store.delete(key);
-  } else {
-    store.set(key, timestamps);
-  }
+  store.set(key, timestamps);
 
   return {
     allowed: true,
