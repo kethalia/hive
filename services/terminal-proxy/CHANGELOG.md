@@ -1,5 +1,11 @@
 # hive-terminal-proxy
 
+## 2.0.0
+
+### Major Changes
+
+- e1a2d80: Rewire terminal proxy to use auth service for session-based cookie authentication instead of direct Coder token auth
+
 ## 1.0.0
 
 ### Major Changes

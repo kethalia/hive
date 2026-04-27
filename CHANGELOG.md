@@ -1,5 +1,11 @@
 # hive-orchestrator
 
+## 2.1.0
+
+### Minor Changes
+
+- e1a2d80: Add auth service integration with session-based authentication, token lifecycle management, and auth middleware
+
 ## 2.0.1
 
 ### Patch Changes
