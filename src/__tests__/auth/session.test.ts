@@ -23,7 +23,6 @@ import {
   deleteSession,
   setSessionCookie,
   clearSessionCookie,
-  createSession,
 } from "@/lib/auth/session";
 
 describe("session management", () => {
@@ -86,6 +85,7 @@ describe("session management", () => {
       mockVerifyCookie.mockReturnValue({ sessionId: "sess-123" });
       mockServiceClient.getSession.mockResolvedValue({
         userId: "user-1",
+        coderUserId: "coder-user-1",
         username: "testuser",
         email: "test@example.com",
         coderUrl: "https://coder.example.com",
@@ -99,21 +99,13 @@ describe("session management", () => {
       expect(result!.user).toEqual({
         id: "user-1",
         coderUrl: "https://coder.example.com",
-        coderUserId: "",
+        coderUserId: "coder-user-1",
         username: "testuser",
         email: "test@example.com",
       });
       expect(result!.session.sessionId).toBe("sess-123");
       expect(result!.session.id).toBe("");
       expect(result!.session.expiresAt).toBeInstanceOf(Date);
-    });
-  });
-
-  describe("createSession", () => {
-    it("throws deprecation error", async () => {
-      await expect(createSession("user-1")).rejects.toThrow(
-        "createSession is deprecated",
-      );
     });
   });
 

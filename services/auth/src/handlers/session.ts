@@ -28,6 +28,7 @@ export async function handleGetSession(
 
   const payload: SessionPayload = {
     userId: session.user.id,
+    coderUserId: session.user.coderUserId,
     username: session.user.username,
     email: session.user.email,
     coderUrl: session.user.coderUrl,

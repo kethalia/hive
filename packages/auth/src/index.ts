@@ -1,3 +1,4 @@
+export { AuthServiceClient } from "./client.js";
 export { signCookie, verifyCookie } from "./cookie.js";
 export { encrypt, decrypt, tryDecrypt, validateEncryptionKey } from "./encryption.js";
 export { checkRateLimit } from "./rate-limit.js";

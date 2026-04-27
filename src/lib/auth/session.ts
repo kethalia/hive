@@ -47,7 +47,7 @@ export async function getSession(
     user: {
       id: payload.userId,
       coderUrl: payload.coderUrl,
-      coderUserId: "",
+      coderUserId: payload.coderUserId,
       username: payload.username,
       email: payload.email,
     },
@@ -57,12 +57,6 @@ export async function getSession(
       expiresAt: new Date(payload.expiresAt),
     },
   };
-}
-
-export async function createSession(_userId: string): Promise<string> {
-  throw new Error(
-    "createSession is deprecated — use AuthServiceClient.login() instead",
-  );
 }
 
 export async function deleteSession(sessionId: string): Promise<void> {

@@ -31,6 +31,7 @@ export interface RateLimitResult {
 
 export interface SessionPayload {
   userId: string;
+  coderUserId: string;
   username: string;
   email: string;
   coderUrl: string;
