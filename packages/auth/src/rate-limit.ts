@@ -1,4 +1,4 @@
-import type { RateLimitResult } from "./types.js";
+import type { RateLimitResult } from "./types";
 
 const store = new Map<string, number[]>();
 

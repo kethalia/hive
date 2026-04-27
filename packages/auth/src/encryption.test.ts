@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { randomBytes } from "node:crypto";
-import { encrypt, decrypt, tryDecrypt, validateEncryptionKey } from "./encryption.js";
+import { encrypt, decrypt, tryDecrypt, validateEncryptionKey } from "./encryption";
 
 const VALID_KEY = randomBytes(32).toString("hex");
 

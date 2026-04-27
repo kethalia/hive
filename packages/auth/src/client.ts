@@ -4,7 +4,7 @@ import type {
   SessionPayload,
   CredentialResponse,
   CoderTokenResponse,
-} from "./types.js";
+} from "./types";
 
 export class AuthServiceClient {
   private baseUrl: string;

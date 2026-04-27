@@ -1,7 +1,7 @@
-export { AuthServiceClient } from "./client.js";
-export { signCookie, verifyCookie } from "./cookie.js";
-export { encrypt, decrypt, tryDecrypt, validateEncryptionKey } from "./encryption.js";
-export { checkRateLimit } from "./rate-limit.js";
+export { AuthServiceClient } from "./client";
+export { signCookie, verifyCookie } from "./cookie";
+export { encrypt, decrypt, tryDecrypt, validateEncryptionKey } from "./encryption";
+export { checkRateLimit } from "./rate-limit";
 export {
   TOKEN_LIFETIME_SECONDS,
   TOKEN_EXPIRY_WARNING_HOURS,
@@ -11,7 +11,7 @@ export {
   ENCRYPTION_ALGORITHM,
   IV_LENGTH,
   HEX_64_RE,
-} from "./constants.js";
+} from "./constants";
 export type {
   TokenStatus,
   EncryptedData,
@@ -24,4 +24,4 @@ export type {
   CoderTokenResponse,
   LoginRequest,
   LoginResponse,
-} from "./types.js";
+} from "./types";

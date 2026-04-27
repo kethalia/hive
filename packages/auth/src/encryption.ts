@@ -1,6 +1,6 @@
 import { createCipheriv, createDecipheriv, randomBytes } from "node:crypto";
-import { ENCRYPTION_ALGORITHM, IV_LENGTH, HEX_64_RE } from "./constants.js";
-import type { EncryptedData, DecryptResult } from "./types.js";
+import { ENCRYPTION_ALGORITHM, IV_LENGTH, HEX_64_RE } from "./constants";
+import type { EncryptedData, DecryptResult } from "./types";
 
 export function validateEncryptionKey(key: string): void {
   if (!HEX_64_RE.test(key)) {
