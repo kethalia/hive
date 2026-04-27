@@ -17,6 +17,7 @@ import { SAFE_IDENTIFIER_RE } from "@/lib/constants";
 import { cn } from "@/lib/utils";
 import { connectionBadgeProps } from "@/components/workspaces/InteractiveTerminal";
 import { KeepAliveWarning } from "@/components/workspaces/KeepAliveWarning";
+import { CommandPalette } from "@/components/terminal/CommandPalette";
 import { useKeybindings } from "@/hooks/useKeybindings";
 import { isPwaStandalone } from "@/lib/terminal/pwa";
 import type { ConnectionState } from "@/hooks/useTerminalWebSocket";
@@ -95,6 +96,7 @@ export function TerminalTabManager({
   });
   const [creating, setCreating] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [paletteOpen, setPaletteOpen] = useState(false);
 
   const [connStates, setConnStates] = useState<Record<string, ConnectionState>>({});
   const keybindingsCtx = useKeybindings();
@@ -244,8 +246,23 @@ export function TerminalTabManager({
     [tabs, workspaceId, agentId],
   );
 
+  const setPaletteOpenRef = useRef(setPaletteOpen);
+  setPaletteOpenRef.current = setPaletteOpen;
+
   useEffect(() => {
     const { register, unregister } = keybindingsCtx;
+
+    const commandPaletteBinding = {
+      id: "command-palette",
+      keys: ["ctrl+k", "cmd+k"],
+      action: () => {
+        setPaletteOpenRef.current(true);
+        return false;
+      },
+      description: "Open command palette",
+      category: "session",
+      enabledInBrowser: true,
+    };
 
     const createTabBinding = {
       id: "session:create",
@@ -309,12 +326,14 @@ export function TerminalTabManager({
       enabledInBrowser: true,
     };
 
+    register(commandPaletteBinding);
     register(createTabBinding);
     register(closeTabBinding);
     register(nextTabBinding);
     register(prevTabBinding);
 
     return () => {
+      unregister("command-palette");
       unregister("session:create");
       unregister("session:close");
       unregister("session:next-tab");
@@ -463,6 +482,14 @@ export function TerminalTabManager({
           </div>
         ))}
       </div>
+
+      <CommandPalette
+        open={paletteOpen}
+        onOpenChange={setPaletteOpen}
+        tabs={tabs}
+        onSelectTab={(tabId) => dispatch({ type: "SET_ACTIVE", tabId })}
+        onCreateSession={handleCreateTab}
+      />
     </div>
   );
 }
