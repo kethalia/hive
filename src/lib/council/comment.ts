@@ -42,6 +42,8 @@ export async function postPRComment(prUrl: string, body: string): Promise<string
     console.error(`[council-aggregator] Failed to post PR comment: ${msg}`);
     return null;
   } finally {
-    await unlink(tmpFile).catch(() => {});
+    await unlink(tmpFile).catch((err) => {
+      console.warn(`[council-aggregator] Failed to clean up temp file ${tmpFile}: ${err instanceof Error ? err.message : String(err)}`);
+    });
   }
 }

@@ -26,6 +26,7 @@ import {
   DEFAULT_PI_MODEL,
   TOKEN_PREFLIGHT_MIN_HOURS,
 } from "@/lib/constants";
+import type { Prisma } from "@prisma/client";
 import type { BlueprintContext } from "@/lib/blueprint/types";
 import type { VerificationReport } from "@/lib/verification/types";
 
@@ -320,7 +321,7 @@ export function createTaskWorker(): Worker<TaskJobData> {
                   where: { id: taskId },
                   data: {
                     status: "done",
-                    verificationReport: inconclusiveReport as any,
+                    verificationReport: inconclusiveReport as unknown as Prisma.InputJsonValue,
                   },
                 });
 
@@ -361,7 +362,7 @@ export function createTaskWorker(): Worker<TaskJobData> {
                 where: { id: taskId },
                 data: {
                   status: "done",
-                  verificationReport: inconclusiveReport as any,
+                  verificationReport: inconclusiveReport as unknown as Prisma.InputJsonValue,
                 },
               });
 
@@ -381,7 +382,7 @@ export function createTaskWorker(): Worker<TaskJobData> {
               where: { id: taskId },
               data: {
                 status: "done",
-                verificationReport: skipReport as any,
+                verificationReport: skipReport as unknown as Prisma.InputJsonValue,
               },
             });
 

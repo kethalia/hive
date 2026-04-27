@@ -4,6 +4,7 @@ import { getSession } from "@/lib/auth/session";
 import { existsSync, statSync, createReadStream } from "fs";
 import { pushLogPath } from "@/lib/templates/push-queue";
 import { KNOWN_TEMPLATES } from "@/lib/templates/staleness";
+import { SSE_POLL_INTERVAL_MS, SSE_LOG_WAIT_TIMEOUT_MS, SSE_MAX_POLLS } from "@/lib/constants";
 
 /** Regex allowing job IDs (UUID v4 format). */
 const JOB_ID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -79,12 +80,12 @@ export async function GET(
           controller.close();
           return;
         }
-        if (Date.now() - startWait > 30_000) {
+        if (Date.now() - startWait > SSE_LOG_WAIT_TIMEOUT_MS) {
           sendEvent("status", JSON.stringify({ success: false, error: "Log file never appeared" }));
           controller.close();
           return;
         }
-        await new Promise((r) => setTimeout(r, 500));
+        await new Promise((r) => setTimeout(r, SSE_POLL_INTERVAL_MS));
       }
 
       // Tail the log file using a byte offset so each poll only reads new content.
@@ -94,7 +95,7 @@ export async function GET(
         let buffer = "";
         let finished = false;
         let pollCount = 0;
-        const MAX_POLLS = 240; // 120s total at 500ms intervals
+        const MAX_POLLS = SSE_MAX_POLLS;
 
         function processChunk(chunk: string) {
           buffer += chunk;
@@ -148,7 +149,7 @@ export async function GET(
 
           if (currentSize <= byteOffset) {
             // No new bytes — check again after delay
-            setTimeout(poll, 500);
+            setTimeout(poll, SSE_POLL_INTERVAL_MS);
             return;
           }
 
@@ -174,10 +175,10 @@ export async function GET(
               }
               resolve();
             } else {
-              setTimeout(poll, 500);
+              setTimeout(poll, SSE_POLL_INTERVAL_MS);
             }
           });
-          readStream.on("error", () => setTimeout(poll, 500));
+          readStream.on("error", () => setTimeout(poll, SSE_POLL_INTERVAL_MS));
         }
 
         // Abort handling
