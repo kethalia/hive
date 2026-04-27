@@ -32,8 +32,8 @@ install_if_missing() {
   fi
 }
 
-# Install Foundry
-install_if_missing "Foundry" "forge" "" '
+# Install Foundry (check binary path directly — command -v fails before .zshrc is sourced)
+install_if_missing "Foundry" "" "$HOME/.foundry/bin/forge" '
   curl -L https://foundry.paradigm.xyz | bash &&
   export PATH="$HOME/.foundry/bin:$PATH" &&
   foundryup

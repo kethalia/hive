@@ -42,13 +42,7 @@ install_if_missing "Yarn" "yarn" "" '
   corepack prepare yarn@stable --activate
 '
 
-# Install Bun
-install_if_missing "Bun" "bun" "" '
+# Install Bun (check binary path directly — command -v fails before .zshrc is sourced)
+install_if_missing "Bun" "" "$HOME/.bun/bin/bun" '
   curl -fsSL https://bun.sh/install | bash
 '
-
-# Ensure Bun is on PATH
-if ! grep -q "BUN_INSTALL" $HOME/.zshrc 2>/dev/null; then
-  echo 'export BUN_INSTALL="$HOME/.bun"' >> $HOME/.zshrc
-  echo 'export PATH="$BUN_INSTALL/bin:$PATH"' >> $HOME/.zshrc
-fi
