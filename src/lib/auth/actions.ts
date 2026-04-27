@@ -78,10 +78,15 @@ export const loginAction = actionClient
   });
 
 export const logoutAction = authActionClient.action(async ({ ctx }) => {
-  await getAuthServiceClient().logout(ctx.session.sessionId);
-  const cookieStore = await cookies();
-  clearSessionCookie(cookieStore);
-  console.log(`[logout] Session deleted for user ${ctx.user.id}`);
+  try {
+    await getAuthServiceClient().logout(ctx.session.sessionId);
+    console.log(`[logout] Session deleted for user ${ctx.user.id}`);
+  } catch (error) {
+    console.error(`[logout] Auth service error for user ${ctx.user.id}:`, error);
+  } finally {
+    const cookieStore = await cookies();
+    clearSessionCookie(cookieStore);
+  }
   return { success: true as const };
 });
 

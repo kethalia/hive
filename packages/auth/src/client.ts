@@ -6,11 +6,15 @@ import type {
   CoderTokenResponse,
 } from "./types";
 
+const DEFAULT_TIMEOUT_MS = 10_000;
+
 export class AuthServiceClient {
   private baseUrl: string;
+  private timeoutMs: number;
 
-  constructor(baseUrl: string) {
+  constructor(baseUrl: string, timeoutMs = DEFAULT_TIMEOUT_MS) {
     this.baseUrl = baseUrl.replace(/\/+$/, "");
+    this.timeoutMs = timeoutMs;
   }
 
   async login(req: LoginRequest): Promise<LoginResponse> {
@@ -18,6 +22,7 @@ export class AuthServiceClient {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(req),
+      signal: AbortSignal.timeout(this.timeoutMs),
     });
 
     if (!res.ok) {
@@ -36,6 +41,7 @@ export class AuthServiceClient {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ sessionId }),
+      signal: AbortSignal.timeout(this.timeoutMs),
     });
 
     if (!res.ok) {
@@ -48,7 +54,9 @@ export class AuthServiceClient {
   }
 
   async getSession(sessionId: string): Promise<SessionPayload | null> {
-    const res = await fetch(`${this.baseUrl}/sessions/${sessionId}`);
+    const res = await fetch(`${this.baseUrl}/sessions/${sessionId}`, {
+      signal: AbortSignal.timeout(this.timeoutMs),
+    });
 
     if (res.status === 404) {
       return null;
@@ -68,6 +76,7 @@ export class AuthServiceClient {
   async getCredentials(sessionId: string): Promise<CredentialResponse | null> {
     const res = await fetch(
       `${this.baseUrl}/sessions/${sessionId}/credentials`,
+      { signal: AbortSignal.timeout(this.timeoutMs) },
     );
 
     if (res.status === 404) {
@@ -88,6 +97,7 @@ export class AuthServiceClient {
   async getCoderToken(sessionId: string): Promise<CoderTokenResponse | null> {
     const res = await fetch(
       `${this.baseUrl}/sessions/${sessionId}/token`,
+      { signal: AbortSignal.timeout(this.timeoutMs) },
     );
 
     if (res.status === 404) {

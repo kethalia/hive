@@ -52,7 +52,7 @@ export async function getSession(
       email: payload.email,
     },
     session: {
-      id: "",
+      id: payload.sessionId,
       sessionId: payload.sessionId,
       expiresAt: new Date(payload.expiresAt),
     },

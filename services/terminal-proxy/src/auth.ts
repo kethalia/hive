@@ -112,13 +112,23 @@ export async function authenticateUpgrade(
     };
   }
 
-  if (tokenRes.status === 404 || sessionRes.status === 404) {
+  if (sessionRes.status === 404) {
     console.error(
       `[terminal-proxy] auth: session_not_found session=${truncatedId}… → 401`,
     );
     return {
       ok: false,
       value: { error: "Session not found", status: 401, reason: "session_not_found" },
+    };
+  }
+
+  if (tokenRes.status === 404) {
+    console.error(
+      `[terminal-proxy] auth: token_not_found session=${truncatedId}… → 401`,
+    );
+    return {
+      ok: false,
+      value: { error: "Token not found", status: 401, reason: "token_not_found" },
     };
   }
 

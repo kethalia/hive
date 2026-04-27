@@ -104,7 +104,7 @@ describe("session management", () => {
         email: "test@example.com",
       });
       expect(result!.session.sessionId).toBe("sess-123");
-      expect(result!.session.id).toBe("");
+      expect(result!.session.id).toBe("sess-123");
       expect(result!.session.expiresAt).toBeInstanceOf(Date);
     });
   });
