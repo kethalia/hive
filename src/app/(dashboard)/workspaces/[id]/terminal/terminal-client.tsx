@@ -1,10 +1,12 @@
 "use client";
 
-import { Suspense, useCallback, useEffect } from "react";
+import { Suspense, useCallback, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import dynamic from "next/dynamic";
 import { Loader2 } from "lucide-react";
+import { TerminalContextMenu } from "@/components/terminal/TerminalContextMenu";
 import { useKeybindings } from "@/hooks/useKeybindings";
+import { copyTerminalSelection, pasteToTerminal } from "@/lib/terminal/actions";
 
 const InteractiveTerminal = dynamic(
   () =>
@@ -17,7 +19,9 @@ const InteractiveTerminal = dynamic(
 function TerminalInner({ agentId, workspaceId }: { agentId: string; workspaceId: string }) {
   const searchParams = useSearchParams();
   const session = searchParams.get("session");
-  const { setActiveTerminal } = useKeybindings();
+  const { setActiveTerminal, activeTerminal, activeSend } = useKeybindings();
+  const [menuPosition, setMenuPosition] = useState<{ x: number; y: number } | null>(null);
+  const [menuSelection, setMenuSelection] = useState(false);
 
   const handleTerminalReady = useCallback(
     (term: import("@xterm/xterm").Terminal, send: (data: string) => void) => {
@@ -52,6 +56,11 @@ function TerminalInner({ agentId, workspaceId }: { agentId: string; workspaceId:
     <div
       className="-m-6 -mt-14 h-[100vh] w-[calc(100%+3rem)]"
       onKeyDown={(e) => e.stopPropagation()}
+      onContextMenu={(e) => {
+        e.preventDefault();
+        setMenuSelection(!!activeTerminal?.getSelection());
+        setMenuPosition({ x: e.clientX, y: e.clientY });
+      }}
     >
       <InteractiveTerminal
         key={session}
@@ -61,6 +70,17 @@ function TerminalInner({ agentId, workspaceId }: { agentId: string; workspaceId:
         className="h-full rounded-none border-0"
         onTerminalReady={handleTerminalReady}
         onTerminalDestroy={handleTerminalDestroy}
+      />
+      <TerminalContextMenu
+        position={menuPosition}
+        onClose={() => setMenuPosition(null)}
+        hasSelection={menuSelection}
+        onCopy={() => {
+          if (activeTerminal) copyTerminalSelection(activeTerminal);
+        }}
+        onPaste={() => {
+          if (activeTerminal && activeSend) pasteToTerminal(activeTerminal, activeSend);
+        }}
       />
     </div>
   );
