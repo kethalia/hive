@@ -10,7 +10,9 @@ import { Input } from "@/components/ui/input";
 import { connectionBadgeProps } from "@/components/workspaces/InteractiveTerminal";
 import { KeepAliveWarning } from "@/components/workspaces/KeepAliveWarning";
 import { CommandPalette } from "@/components/terminal/CommandPalette";
+import { TerminalContextMenu } from "@/components/terminal/TerminalContextMenu";
 import { useKeybindings } from "@/hooks/useKeybindings";
+import { copyTerminalSelection, pasteToTerminal } from "@/lib/terminal/actions";
 import { isPwaStandalone } from "@/lib/terminal/pwa";
 import type { ConnectionState } from "@/hooks/useTerminalWebSocket";
 import {
@@ -91,6 +93,8 @@ export function TerminalTabManager({ agentId, workspaceId }: TerminalTabManagerP
   const [creating, setCreating] = useState(false);
   const [loading, setLoading] = useState(true);
   const [paletteOpen, setPaletteOpen] = useState(false);
+  const [menuPosition, setMenuPosition] = useState<{ x: number; y: number } | null>(null);
+  const [menuSelection, setMenuSelection] = useState(false);
 
   const [connStates, setConnStates] = useState<Record<string, ConnectionState>>({});
   const keybindingsCtx = useKeybindings();
@@ -466,7 +470,15 @@ export function TerminalTabManager({ agentId, workspaceId }: TerminalTabManagerP
           })()}
       </div>
 
-      <div className="relative flex-1">
+      <div
+        className="relative flex-1"
+        onContextMenu={(e) => {
+          e.preventDefault();
+          const entry = activeTabId ? terminalsRef.current.get(activeTabId) : null;
+          setMenuSelection(!!entry?.term.getSelection());
+          setMenuPosition({ x: e.clientX, y: e.clientY });
+        }}
+      >
         {tabs.map((tab) => (
           <div
             key={tab.id}
@@ -484,6 +496,21 @@ export function TerminalTabManager({ agentId, workspaceId }: TerminalTabManagerP
             />
           </div>
         ))}
+        <TerminalContextMenu
+          position={menuPosition}
+          onClose={() => setMenuPosition(null)}
+          hasSelection={menuSelection}
+          onCopy={() => {
+            const entry = activeTabId ? terminalsRef.current.get(activeTabId) : null;
+            if (entry) copyTerminalSelection(entry.term);
+          }}
+          onPaste={() => {
+            const entry = activeTabId ? terminalsRef.current.get(activeTabId) : null;
+            if (entry) pasteToTerminal(entry.term, entry.send);
+          }}
+          onNewSession={handleCreateTab}
+          onCloseSession={tabs.length > 1 && activeTabId ? () => handleKillTab(activeTabId) : undefined}
+        />
       </div>
 
       <CommandPalette
