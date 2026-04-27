@@ -9,6 +9,7 @@ import { TokenExpiryBanner } from "@/components/token-expiry-banner";
 import { PushPermissionPrompt } from "@/components/push-permission-prompt";
 import { getTokenStatusAction } from "@/lib/auth/actions";
 import KeybindingProvider from "@/components/terminal/KeybindingProvider";
+import { FloatingActionButton } from "@/components/terminal/FloatingActionButton";
 
 export default async function DashboardLayout({
   children,
@@ -33,6 +34,7 @@ export default async function DashboardLayout({
             {children}
           </main>
         </SidebarInset>
+        <FloatingActionButton />
       </KeybindingProvider>
     </SidebarProvider>
   );
