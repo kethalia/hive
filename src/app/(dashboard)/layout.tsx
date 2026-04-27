@@ -6,6 +6,7 @@ import { SidebarInset, SidebarProvider, SidebarTrigger } from "@/components/ui/s
 import { getTokenStatusAction } from "@/lib/auth/actions";
 import KeybindingProvider from "@/components/terminal/KeybindingProvider";
 import { FloatingActionButton } from "@/components/terminal/FloatingActionButton";
+import { HelpOverlay } from "@/components/terminal/HelpOverlay";
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
   const bannerStatus = await getTokenStatusAction();
@@ -25,6 +26,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
           </main>
         </SidebarInset>
         <FloatingActionButton />
+        <HelpOverlay />
       </KeybindingProvider>
     </SidebarProvider>
   );
