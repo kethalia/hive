@@ -5,6 +5,7 @@ import type { Terminal } from "@xterm/xterm";
 import { AlertCircle } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { useKeybindings } from "@/hooks/useKeybindings";
 import { type ConnectionState, useTerminalWebSocket } from "@/hooks/useTerminalWebSocket";
 import { getClientRuntimeConfig } from "@/lib/runtime-config";
 import { loadTerminalFont, TERMINAL_FONT_FAMILY, TERMINAL_THEME } from "@/lib/terminal/config";
@@ -18,6 +19,8 @@ interface InteractiveTerminalProps {
   sessionName: string;
   className?: string;
   onConnectionStateChange?: (state: ConnectionState) => void;
+  onTerminalReady?: (term: Terminal, send: (data: string) => void) => void;
+  onTerminalDestroy?: () => void;
 }
 
 export function connectionBadgeProps(state: ConnectionState) {
@@ -55,10 +58,19 @@ export function InteractiveTerminal({
   sessionName,
   className,
   onConnectionStateChange,
+  onTerminalReady,
+  onTerminalDestroy,
 }: InteractiveTerminalProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const termRef = useRef<Terminal | null>(null);
   const fitRef = useRef<FitAddon | null>(null);
+  const { handleKeyEvent } = useKeybindings();
+  const handleKeyEventRef = useRef(handleKeyEvent);
+  handleKeyEventRef.current = handleKeyEvent;
+  const onTerminalReadyRef = useRef(onTerminalReady);
+  onTerminalReadyRef.current = onTerminalReady;
+  const onTerminalDestroyRef = useRef(onTerminalDestroy);
+  onTerminalDestroyRef.current = onTerminalDestroy;
   const [reconnectId] = useState(() => {
     const RECONNECT_TTL_MS = 24 * 60 * 60 * 1000;
     const storageKey = `terminal:reconnect:${agentId}:${sessionName}`;
@@ -158,6 +170,13 @@ export function InteractiveTerminal({
       fitRef.current = fit;
       fit.fit();
 
+      term.attachCustomKeyEventHandler((e) => {
+        if (e.type !== "keydown") return true;
+        return handleKeyEventRef.current(e);
+      });
+
+      onTerminalReadyRef.current?.(term, (text) => sendRef.current(encodeInput(text)));
+
       term.onData((data) => {
         sendRef.current(encodeInput(data));
       });
@@ -206,6 +225,7 @@ export function InteractiveTerminal({
       mounted = false;
       if (resizeTimer) clearTimeout(resizeTimer);
       resizeObserver.disconnect();
+      onTerminalDestroyRef.current?.();
       termRef.current?.dispose();
       termRef.current = null;
       fitRef.current = null;

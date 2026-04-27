@@ -1,13 +1,15 @@
 "use client";
 
+import type { Terminal } from "@xterm/xterm";
 import { Pencil, Plus, X } from "lucide-react";
 import dynamic from "next/dynamic";
-import { useCallback, useEffect, useReducer, useState } from "react";
+import { useCallback, useEffect, useReducer, useRef, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { connectionBadgeProps } from "@/components/workspaces/InteractiveTerminal";
 import { KeepAliveWarning } from "@/components/workspaces/KeepAliveWarning";
+import { useKeybindings } from "@/hooks/useKeybindings";
 import type { ConnectionState } from "@/hooks/useTerminalWebSocket";
 import {
   createSessionAction,
@@ -88,6 +90,29 @@ export function TerminalTabManager({ agentId, workspaceId }: TerminalTabManagerP
   const [loading, setLoading] = useState(true);
 
   const [connStates, setConnStates] = useState<Record<string, ConnectionState>>({});
+  const { setActiveTerminal } = useKeybindings();
+  const terminalsRef = useRef<Map<string, { term: Terminal; send: (data: string) => void }>>(new Map());
+
+  const handleTerminalReady = useCallback((tabId: string, term: Terminal, send: (data: string) => void) => {
+    terminalsRef.current.set(tabId, { term, send });
+  }, []);
+
+  const handleTerminalDestroy = useCallback((tabId: string) => {
+    terminalsRef.current.delete(tabId);
+  }, []);
+
+  useEffect(() => {
+    if (!activeTabId) {
+      setActiveTerminal(null, null);
+      return;
+    }
+    const entry = terminalsRef.current.get(activeTabId);
+    if (entry) {
+      setActiveTerminal(entry.term, entry.send);
+    } else {
+      setActiveTerminal(null, null);
+    }
+  }, [activeTabId, setActiveTerminal]);
 
   const handleConnectionStateChange = useCallback((tabId: string, state: ConnectionState) => {
     setConnStates((prev) => (prev[tabId] === state ? prev : { ...prev, [tabId]: state }));
@@ -351,6 +376,8 @@ export function TerminalTabManager({ agentId, workspaceId }: TerminalTabManagerP
               sessionName={tab.sessionName}
               className="h-full"
               onConnectionStateChange={(state) => handleConnectionStateChange(tab.id, state)}
+              onTerminalReady={(term, send) => handleTerminalReady(tab.id, term, send)}
+              onTerminalDestroy={() => handleTerminalDestroy(tab.id)}
             />
           </div>
         ))}

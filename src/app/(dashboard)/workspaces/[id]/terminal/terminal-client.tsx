@@ -3,7 +3,8 @@
 import { Loader2 } from "lucide-react";
 import dynamic from "next/dynamic";
 import { useSearchParams } from "next/navigation";
-import { Suspense, useEffect } from "react";
+import { Suspense, useCallback, useEffect } from "react";
+import { useKeybindings } from "@/hooks/useKeybindings";
 
 const InteractiveTerminal = dynamic(
   () => import("@/components/workspaces/InteractiveTerminal").then((m) => m.InteractiveTerminal),
@@ -13,6 +14,18 @@ const InteractiveTerminal = dynamic(
 function TerminalInner({ agentId, workspaceId }: { agentId: string; workspaceId: string }) {
   const searchParams = useSearchParams();
   const session = searchParams.get("session");
+  const { setActiveTerminal } = useKeybindings();
+
+  const handleTerminalReady = useCallback(
+    (term: import("@xterm/xterm").Terminal, send: (data: string) => void) => {
+      setActiveTerminal(term, send);
+    },
+    [setActiveTerminal],
+  );
+
+  const handleTerminalDestroy = useCallback(() => {
+    setActiveTerminal(null, null);
+  }, [setActiveTerminal]);
 
   useEffect(() => {
     if (!session) {
@@ -45,6 +58,8 @@ function TerminalInner({ agentId, workspaceId }: { agentId: string; workspaceId:
         workspaceId={workspaceId}
         sessionName={session}
         className="h-full rounded-none border-0"
+        onTerminalReady={handleTerminalReady}
+        onTerminalDestroy={handleTerminalDestroy}
       />
     </div>
   );
