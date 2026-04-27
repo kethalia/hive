@@ -66,16 +66,18 @@ export async function handleLogin(
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
 
-    if (message.includes("Invalid Coder instance") || message.includes("unreachable")) {
+    const messageLower = message.toLowerCase();
+
+    if (messageLower.includes("invalid coder instance") || messageLower.includes("unreachable")) {
       console.log(`[auth-service] POST /login → 502 coder unreachable`);
       sendError(res, 502, "Coder instance unreachable", ErrorCode.CODER_UNREACHABLE);
       return;
     }
 
     if (
-      message.includes("Invalid credentials") ||
-      message.includes("authentication failed") ||
-      message.includes("401")
+      messageLower.includes("invalid credentials") ||
+      messageLower.includes("authentication failed") ||
+      messageLower.includes("401")
     ) {
       console.log(`[auth-service] POST /login → 401 invalid credentials`);
       sendError(res, 401, "Invalid credentials", ErrorCode.INVALID_CREDENTIALS);

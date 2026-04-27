@@ -103,7 +103,7 @@ export const getTokenStatusAction = authActionClient.action(
     }
     return {
       status: result.status,
-      expiresAt: result.expiresAt,
+      expiresAt: result.expiresAt ? new Date(result.expiresAt) : null,
     };
   }
 );

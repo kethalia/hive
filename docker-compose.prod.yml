@@ -2,8 +2,8 @@ services:
   auth:
     image: ghcr.io/kethalia/hive-auth:latest
     restart: unless-stopped
-    ports:
-      - "4400:4400"
+    expose:
+      - "4400"
     depends_on:
       postgres:
         condition: service_healthy

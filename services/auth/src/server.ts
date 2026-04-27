@@ -3,10 +3,21 @@ import { matchRoute } from "./router.js";
 import { closeDb } from "./db.js";
 import { ErrorCode } from "./auth/constants.js";
 
+const MAX_BODY_BYTES = 1024 * 1024; // 1 MB
+
 export function parseBody(req: IncomingMessage): Promise<unknown> {
   return new Promise((resolve, reject) => {
     const chunks: Buffer[] = [];
-    req.on("data", (chunk: Buffer) => chunks.push(chunk));
+    let totalLength = 0;
+    req.on("data", (chunk: Buffer) => {
+      totalLength += chunk.length;
+      if (totalLength > MAX_BODY_BYTES) {
+        req.destroy();
+        reject(new Error("Request body too large"));
+        return;
+      }
+      chunks.push(chunk);
+    });
     req.on("end", () => {
       const raw = Buffer.concat(chunks).toString("utf-8");
       if (!raw) {
@@ -58,6 +69,10 @@ export function startServer(port: number): Server {
     try {
       await match.handler(req, res, match.params);
     } catch (err) {
+      if (err instanceof Error && err.message === "Request body too large") {
+        sendError(res, 413, "Request body too large", ErrorCode.BAD_REQUEST);
+        return;
+      }
       if (err instanceof Error && err.message === "Invalid JSON body") {
         sendError(res, 400, "Invalid JSON body", ErrorCode.BAD_REQUEST);
         return;
