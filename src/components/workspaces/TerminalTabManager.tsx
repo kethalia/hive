@@ -18,6 +18,7 @@ import { cn } from "@/lib/utils";
 import { connectionBadgeProps } from "@/components/workspaces/InteractiveTerminal";
 import { KeepAliveWarning } from "@/components/workspaces/KeepAliveWarning";
 import { useKeybindings } from "@/hooks/useKeybindings";
+import { isPwaStandalone } from "@/lib/terminal/pwa";
 import type { ConnectionState } from "@/hooks/useTerminalWebSocket";
 
 const InteractiveTerminal = dynamic(
@@ -96,8 +97,13 @@ export function TerminalTabManager({
   const [loading, setLoading] = useState(true);
 
   const [connStates, setConnStates] = useState<Record<string, ConnectionState>>({});
-  const { setActiveTerminal } = useKeybindings();
+  const keybindingsCtx = useKeybindings();
+  const { setActiveTerminal } = keybindingsCtx;
   const terminalsRef = useRef<Map<string, { term: Terminal; send: (data: string) => void }>>(new Map());
+  const tabsRef = useRef(tabs);
+  tabsRef.current = tabs;
+  const activeTabIdRef = useRef(activeTabId);
+  activeTabIdRef.current = activeTabId;
 
   const handleTerminalReady = useCallback((tabId: string, term: Terminal, send: (data: string) => void) => {
     terminalsRef.current.set(tabId, { term, send });
@@ -237,6 +243,84 @@ export function TerminalTabManager({
     },
     [tabs, workspaceId, agentId],
   );
+
+  useEffect(() => {
+    const { register, unregister } = keybindingsCtx;
+
+    const createTabBinding = {
+      id: "session:create",
+      keys: ["ctrl+t", "cmd+t"],
+      action: () => {
+        if (!isPwaStandalone()) return true;
+        handleCreateTab();
+        return false;
+      },
+      description: "Create new session tab",
+      category: "session",
+      enabledInBrowser: true,
+    };
+
+    const closeTabBinding = {
+      id: "session:close",
+      keys: ["ctrl+w", "cmd+w"],
+      action: () => {
+        if (!isPwaStandalone()) return true;
+        if (tabsRef.current.length <= 1) return true;
+        const currentActiveId = activeTabIdRef.current;
+        if (currentActiveId) handleKillTab(currentActiveId);
+        return false;
+      },
+      description: "Close active session tab",
+      category: "session",
+      enabledInBrowser: true,
+    };
+
+    const nextTabBinding = {
+      id: "session:next-tab",
+      keys: ["ctrl+tab"],
+      action: () => {
+        const currentTabs = tabsRef.current;
+        const currentActiveId = activeTabIdRef.current;
+        if (currentTabs.length <= 1) return false;
+        const idx = currentTabs.findIndex((t) => t.id === currentActiveId);
+        const nextIdx = (idx + 1) % currentTabs.length;
+        dispatch({ type: "SET_ACTIVE", tabId: currentTabs[nextIdx].id });
+        return false;
+      },
+      description: "Switch to next session tab",
+      category: "session",
+      enabledInBrowser: true,
+    };
+
+    const prevTabBinding = {
+      id: "session:prev-tab",
+      keys: ["ctrl+shift+tab"],
+      action: () => {
+        const currentTabs = tabsRef.current;
+        const currentActiveId = activeTabIdRef.current;
+        if (currentTabs.length <= 1) return false;
+        const idx = currentTabs.findIndex((t) => t.id === currentActiveId);
+        const prevIdx = (idx - 1 + currentTabs.length) % currentTabs.length;
+        dispatch({ type: "SET_ACTIVE", tabId: currentTabs[prevIdx].id });
+        return false;
+      },
+      description: "Switch to previous session tab",
+      category: "session",
+      enabledInBrowser: true,
+    };
+
+    register(createTabBinding);
+    register(closeTabBinding);
+    register(nextTabBinding);
+    register(prevTabBinding);
+
+    return () => {
+      unregister("session:create");
+      unregister("session:close");
+      unregister("session:next-tab");
+      unregister("session:prev-tab");
+    };
+  }, [keybindingsCtx, handleCreateTab, handleKillTab]);
 
   if (loading) {
     return (
