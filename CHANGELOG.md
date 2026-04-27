@@ -1,5 +1,11 @@
 # hive-orchestrator
 
+## 2.1.1
+
+### Patch Changes
+
+- c1b4d7d: Fix PATH duplication on workspace rebuild by using binary path checks instead of command -v
+
 ## 2.1.0
 
 ### Minor Changes
