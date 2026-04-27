@@ -3,10 +3,9 @@
 import { z } from "zod";
 import { headers, cookies } from "next/headers";
 import { actionClient, authActionClient } from "../safe-action";
-import { performLogin } from "./login";
-import { deleteSession, setSessionCookie, clearSessionCookie } from "./session";
+import { setSessionCookie, clearSessionCookie } from "./session";
 import { loginRateLimiter } from "./rate-limit";
-import { getTokenStatus } from "./token-status";
+import { getAuthServiceClient } from "./service-client";
 
 const PRIVATE_IP_PATTERNS = [
   /^127\./, /^10\./, /^172\.(1[6-9]|2\d|3[01])\./, /^192\.168\./,
@@ -65,7 +64,7 @@ export const loginAction = actionClient
     }
 
     try {
-      const result = await performLogin(coderUrl, email, password);
+      const result = await getAuthServiceClient().login({ coderUrl, email, password });
       const cookieStore = await cookies();
       setSessionCookie(cookieStore, result.sessionId);
       console.log(`[login] Login successful for ${email}`);
@@ -79,10 +78,15 @@ export const loginAction = actionClient
   });
 
 export const logoutAction = authActionClient.action(async ({ ctx }) => {
-  await deleteSession(ctx.session.sessionId);
-  const cookieStore = await cookies();
-  clearSessionCookie(cookieStore);
-  console.log(`[logout] Session deleted for user ${ctx.user.id}`);
+  try {
+    await getAuthServiceClient().logout(ctx.session.sessionId);
+    console.log(`[logout] Session deleted for user ${ctx.user.id}`);
+  } catch (error) {
+    console.error(`[logout] Auth service error for user ${ctx.user.id}:`, error);
+  } finally {
+    const cookieStore = await cookies();
+    clearSessionCookie(cookieStore);
+  }
   return { success: true as const };
 });
 
@@ -98,7 +102,13 @@ export const getSessionAction = authActionClient.action(async ({ ctx }) => {
 
 export const getTokenStatusAction = authActionClient.action(
   async ({ ctx }) => {
-    const status = await getTokenStatus(ctx.user.id);
-    return status;
+    const result = await getAuthServiceClient().getCredentials(ctx.session.sessionId);
+    if (!result) {
+      return { status: "expired" as const, expiresAt: null };
+    }
+    return {
+      status: result.status,
+      expiresAt: result.expiresAt ? new Date(result.expiresAt) : null,
+    };
   }
 );

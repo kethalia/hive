@@ -1,28 +1,24 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
-const mockPrisma = vi.hoisted(() => ({
-  session: {
-    create: vi.fn(),
-    findUnique: vi.fn(),
-    delete: vi.fn(),
-    deleteMany: vi.fn(),
-  },
+const mockServiceClient = vi.hoisted(() => ({
+  getSession: vi.fn(),
+  logout: vi.fn(),
 }));
 
-vi.mock("@/lib/db", () => ({
-  getDb: () => mockPrisma,
+const mockVerifyCookie = vi.hoisted(() => vi.fn());
+const mockSignCookie = vi.hoisted(() => vi.fn());
+
+vi.mock("@hive/auth", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@hive/auth")>()),
+  verifyCookie: (...args: unknown[]) => mockVerifyCookie(...args),
+  signCookie: (...args: unknown[]) => mockSignCookie(...args),
 }));
 
-vi.mock("node:crypto", async () => {
-  const actual = await vi.importActual<typeof import("node:crypto")>("node:crypto");
-  return {
-    ...actual,
-    randomUUID: vi.fn(() => "test-session-uuid-1234"),
-  };
-});
+vi.mock("@/lib/auth/service-client", () => ({
+  getAuthServiceClient: () => mockServiceClient,
+}));
 
 import {
-  createSession,
   getSession,
   deleteSession,
   setSessionCookie,
@@ -32,35 +28,7 @@ import {
 describe("session management", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-  });
-
-  describe("createSession", () => {
-    it("generates UUID and inserts row with 30-day expiry", async () => {
-      mockPrisma.session.create.mockResolvedValue({
-        id: "db-id",
-        sessionId: "test-session-uuid-1234",
-        userId: "user-1",
-        expiresAt: new Date(),
-      });
-
-      const sessionId = await createSession("user-1");
-
-      expect(sessionId).toBe("test-session-uuid-1234");
-      expect(mockPrisma.session.create).toHaveBeenCalledWith({
-        data: {
-          sessionId: "test-session-uuid-1234",
-          userId: "user-1",
-          expiresAt: expect.any(Date),
-        },
-      });
-
-      const call = mockPrisma.session.create.mock.calls[0][0];
-      const expiresAt = call.data.expiresAt as Date;
-      const thirtyDaysMs = 30 * 24 * 60 * 60 * 1000;
-      const diff = expiresAt.getTime() - Date.now();
-      expect(diff).toBeGreaterThan(thirtyDaysMs - 5000);
-      expect(diff).toBeLessThanOrEqual(thirtyDaysMs);
-    });
+    process.env.COOKIE_SECRET = "test-secret";
   });
 
   describe("getSession", () => {
@@ -68,114 +36,127 @@ describe("session management", () => {
       const cookieStore = { get: vi.fn().mockReturnValue(undefined) };
       const result = await getSession(cookieStore);
       expect(result).toBeNull();
+      expect(mockVerifyCookie).not.toHaveBeenCalled();
     });
 
-    it("returns null for non-existent sessionId", async () => {
+    it("returns null when verifyCookie returns null (tampered cookie)", async () => {
       const cookieStore = {
-        get: vi.fn().mockReturnValue({ value: "nonexistent-id" }),
+        get: vi.fn().mockReturnValue({ value: "tampered-cookie" }),
       };
-      mockPrisma.session.findUnique.mockResolvedValue(null);
-
-      const result = await getSession(cookieStore);
-      expect(result).toBeNull();
-    });
-
-    it("returns null and deletes expired session", async () => {
-      const cookieStore = {
-        get: vi.fn().mockReturnValue({ value: "expired-session" }),
-      };
-      const pastDate = new Date(Date.now() - 1000);
-      mockPrisma.session.findUnique.mockResolvedValue({
-        id: "db-id",
-        sessionId: "expired-session",
-        expiresAt: pastDate,
-        user: {
-          id: "user-1",
-          coderUrl: "https://coder.example.com",
-          coderUserId: "coder-uid",
-          username: "testuser",
-          email: "test@example.com",
-        },
-      });
-      mockPrisma.session.delete.mockResolvedValue({});
+      mockVerifyCookie.mockReturnValue(null);
 
       const result = await getSession(cookieStore);
 
       expect(result).toBeNull();
-      expect(mockPrisma.session.delete).toHaveBeenCalledWith({
-        where: { sessionId: "expired-session" },
-      });
+      expect(mockVerifyCookie).toHaveBeenCalledWith("tampered-cookie", "test-secret");
+      expect(mockServiceClient.getSession).not.toHaveBeenCalled();
     });
 
-    it("returns session data for valid session", async () => {
+    it("returns null when auth service returns null (session not found)", async () => {
+      const cookieStore = {
+        get: vi.fn().mockReturnValue({ value: "signed-cookie" }),
+      };
+      mockVerifyCookie.mockReturnValue({ sessionId: "sess-123" });
+      mockServiceClient.getSession.mockResolvedValue(null);
+
+      const result = await getSession(cookieStore);
+
+      expect(result).toBeNull();
+      expect(mockServiceClient.getSession).toHaveBeenCalledWith("sess-123");
+    });
+
+    it("returns null when auth service throws", async () => {
+      const cookieStore = {
+        get: vi.fn().mockReturnValue({ value: "signed-cookie" }),
+      };
+      mockVerifyCookie.mockReturnValue({ sessionId: "sess-123" });
+      mockServiceClient.getSession.mockRejectedValue(new Error("network error"));
+
+      const result = await getSession(cookieStore);
+
+      expect(result).toBeNull();
+    });
+
+    it("returns correctly mapped SessionData for valid session", async () => {
       const futureDate = new Date(Date.now() + 86400000);
       const cookieStore = {
-        get: vi.fn().mockReturnValue({ value: "valid-session" }),
+        get: vi.fn().mockReturnValue({ value: "signed-cookie" }),
       };
-      mockPrisma.session.findUnique.mockResolvedValue({
-        id: "db-id",
-        sessionId: "valid-session",
-        expiresAt: futureDate,
-        user: {
-          id: "user-1",
-          coderUrl: "https://coder.example.com",
-          coderUserId: "coder-uid",
-          username: "testuser",
-          email: "test@example.com",
-        },
+      mockVerifyCookie.mockReturnValue({ sessionId: "sess-123" });
+      mockServiceClient.getSession.mockResolvedValue({
+        userId: "user-1",
+        coderUserId: "coder-user-1",
+        username: "testuser",
+        email: "test@example.com",
+        coderUrl: "https://coder.example.com",
+        sessionId: "sess-123",
+        expiresAt: futureDate.toISOString(),
       });
 
       const result = await getSession(cookieStore);
 
       expect(result).not.toBeNull();
-      expect(result!.user.id).toBe("user-1");
-      expect(result!.user.username).toBe("testuser");
-      expect(result!.session.sessionId).toBe("valid-session");
+      expect(result!.user).toEqual({
+        id: "user-1",
+        coderUrl: "https://coder.example.com",
+        coderUserId: "coder-user-1",
+        username: "testuser",
+        email: "test@example.com",
+      });
+      expect(result!.session.sessionId).toBe("sess-123");
+      expect(result!.session.id).toBe("sess-123");
+      expect(result!.session.expiresAt).toBeInstanceOf(Date);
     });
   });
 
   describe("deleteSession", () => {
-    it("deletes session by sessionId", async () => {
-      mockPrisma.session.deleteMany.mockResolvedValue({ count: 1 });
+    it("calls AuthServiceClient.logout()", async () => {
+      mockServiceClient.logout.mockResolvedValue(undefined);
 
-      await deleteSession("session-to-delete");
+      await deleteSession("sess-to-delete");
 
-      expect(mockPrisma.session.deleteMany).toHaveBeenCalledWith({
-        where: { sessionId: "session-to-delete" },
-      });
+      expect(mockServiceClient.logout).toHaveBeenCalledWith("sess-to-delete");
+    });
+
+    it("handles auth service error gracefully", async () => {
+      mockServiceClient.logout.mockRejectedValue(new Error("service down"));
+
+      await expect(deleteSession("sess-123")).resolves.toBeUndefined();
     });
   });
 
   describe("setSessionCookie", () => {
-    it("sets HttpOnly, SameSite=Lax, 30-day maxAge cookie", () => {
+    it("signs and sets HttpOnly, SameSite=Lax, 30-day maxAge cookie", () => {
       const cookieStore = { set: vi.fn() };
+      mockSignCookie.mockReturnValue("signed-value");
 
       setSessionCookie(cookieStore, "my-session-id");
 
+      expect(mockSignCookie).toHaveBeenCalledWith("my-session-id", "test-secret");
       expect(cookieStore.set).toHaveBeenCalledWith(
         "hive-session",
-        "my-session-id",
+        "signed-value",
         {
           httpOnly: true,
           secure: false,
           sameSite: "lax",
           path: "/",
           maxAge: 30 * 24 * 60 * 60,
-        }
+        },
       );
     });
 
     it("sets Secure flag in production", () => {
-      const originalEnv = process.env.NODE_ENV;
-      process.env.NODE_ENV = "production";
+      vi.stubEnv("NODE_ENV", "production");
 
       const cookieStore = { set: vi.fn() };
+      mockSignCookie.mockReturnValue("signed-value");
       setSessionCookie(cookieStore, "my-session-id");
 
       const options = cookieStore.set.mock.calls[0][2] as Record<string, unknown>;
       expect(options.secure).toBe(true);
 
-      process.env.NODE_ENV = originalEnv;
+      vi.unstubAllEnvs();
     });
   });
 
@@ -188,7 +169,7 @@ describe("session management", () => {
       expect(cookieStore.set).toHaveBeenCalledWith(
         "hive-session",
         "",
-        expect.objectContaining({ maxAge: 0 })
+        expect.objectContaining({ maxAge: 0 }),
       );
     });
   });

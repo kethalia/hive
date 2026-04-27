@@ -10,17 +10,10 @@ import { KeepAliveManager } from "./keepalive.js";
 const PORT = parseInt(process.env.PORT || "3001", 10);
 const HOSTNAME = process.env.BIND_HOST || "0.0.0.0";
 
-let keepAliveManager: KeepAliveManager | null = null;
-
 const coderUrl = process.env.CODER_URL ?? process.env.CODER_AGENT_URL ?? "";
-const sessionToken = process.env.CODER_SESSION_TOKEN ?? "";
 
-if (coderUrl && sessionToken) {
-  keepAliveManager = new KeepAliveManager(connectionRegistry, coderUrl, sessionToken);
-  keepAliveManager.start();
-} else {
-  console.warn("[keep-alive] CODER_URL or CODER_SESSION_TOKEN not set — keep-alive disabled");
-}
+const keepAliveManager = new KeepAliveManager(connectionRegistry, coderUrl);
+keepAliveManager.start();
 
 function setCorsHeaders(req: import("node:http").IncomingMessage, res: import("node:http").ServerResponse): boolean {
   const origin = req.headers.origin as string | undefined;
@@ -68,7 +61,13 @@ const server = createServer((req, res) => {
 server.on("upgrade", (req, socket, head) => {
   const pathname = req.url?.split("?")[0] ?? "";
   if (pathname === "/ws") {
-    handleUpgrade(req, socket, head);
+    handleUpgrade(req, socket, head).catch((err) => {
+      console.error(`[terminal-proxy] upgrade error: ${err instanceof Error ? err.message : String(err)}`);
+      if (socket.writable) {
+        socket.write("HTTP/1.1 500 Internal Server Error\r\n\r\n");
+        socket.destroy();
+      }
+    });
   } else {
     socket.write("HTTP/1.1 404 Not Found\r\n\r\n");
     socket.destroy();

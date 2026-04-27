@@ -10,6 +10,7 @@
 
 import type { Job } from "bullmq";
 import type { CouncilAggregatorJobData } from "@/lib/queue/council-queues";
+import type { Prisma } from "@prisma/client";
 import type { CouncilReport, ReviewerFinding } from "@/lib/council/types";
 import { aggregateFindings } from "@/lib/council/aggregator";
 import { formatCouncilComment } from "@/lib/council/formatter";
@@ -128,8 +129,7 @@ export function createCouncilAggregatorProcessor(): (
     try {
       await db.task.update({
         where: { id: taskId },
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        data: { councilReport: report as any },
+        data: { councilReport: report as unknown as Prisma.InputJsonValue },
       });
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);

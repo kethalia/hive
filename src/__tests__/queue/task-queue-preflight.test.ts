@@ -73,12 +73,13 @@ vi.mock("@/lib/db", () => ({
   getDb: vi.fn(),
 }));
 
-vi.mock("@/lib/auth/encryption", () => ({
+vi.mock("@hive/auth", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@hive/auth")>()),
   tryDecrypt: vi.fn(),
 }));
 
 import { getDb } from "@/lib/db";
-import { tryDecrypt } from "@/lib/auth/encryption";
+import { tryDecrypt } from "@hive/auth";
 import { getTokenStatus } from "@/lib/auth/token-status";
 
 describe("pre-flight token expiry", () => {

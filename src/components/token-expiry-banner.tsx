@@ -1,6 +1,6 @@
 import { AlertCircle, Clock } from "lucide-react";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
-import type { TokenStatusResult } from "@/lib/auth/token-status";
+import type { TokenStatusResult } from "@hive/auth";
 
 export function TokenExpiryBanner({ status }: { status: TokenStatusResult }) {
   if (status.status === "valid") {

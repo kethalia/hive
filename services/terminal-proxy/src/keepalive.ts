@@ -1,19 +1,29 @@
+export interface ConnectionMeta {
+  token: string;
+  coderUrl: string;
+}
+
 export class ConnectionRegistry {
   private workspaces = new Map<string, Set<string>>();
+  private connectionMeta = new Map<string, ConnectionMeta>();
 
-  addConnection(workspaceId: string, connectionId: string): void {
+  addConnection(workspaceId: string, connectionId: string, meta?: ConnectionMeta): void {
     let connections = this.workspaces.get(workspaceId);
     if (!connections) {
       connections = new Set();
       this.workspaces.set(workspaceId, connections);
     }
     connections.add(connectionId);
+    if (meta) {
+      this.connectionMeta.set(connectionId, meta);
+    }
   }
 
   removeConnection(workspaceId: string, connectionId: string): void {
     const connections = this.workspaces.get(workspaceId);
     if (!connections) return;
     connections.delete(connectionId);
+    this.connectionMeta.delete(connectionId);
     if (connections.size === 0) {
       this.workspaces.delete(workspaceId);
     }
@@ -25,6 +35,16 @@ export class ConnectionRegistry {
 
   getConnectionCount(workspaceId: string): number {
     return this.workspaces.get(workspaceId)?.size ?? 0;
+  }
+
+  getWorkspaceMeta(workspaceId: string): ConnectionMeta | null {
+    const connections = this.workspaces.get(workspaceId);
+    if (!connections) return null;
+    for (const connId of connections) {
+      const meta = this.connectionMeta.get(connId);
+      if (meta) return meta;
+    }
+    return null;
   }
 }
 
@@ -41,19 +61,16 @@ const EXTEND_HOURS = 1;
 
 export class KeepAliveManager {
   private registry: ConnectionRegistry;
-  private coderUrl: string;
-  private sessionToken: string;
+  private defaultCoderUrl: string;
   private healthMap = new Map<string, WorkspaceHealth>();
   private intervalId: ReturnType<typeof setInterval> | null = null;
 
   constructor(
     registry: ConnectionRegistry,
-    coderUrl: string,
-    sessionToken: string,
+    defaultCoderUrl: string,
   ) {
     this.registry = registry;
-    this.coderUrl = coderUrl.replace(/\/+$/, "");
-    this.sessionToken = sessionToken;
+    this.defaultCoderUrl = defaultCoderUrl.replace(/\/+$/, "");
   }
 
   start(): void {
@@ -95,8 +112,15 @@ export class KeepAliveManager {
   }
 
   async ping(workspaceId: string): Promise<void> {
+    const meta = this.registry.getWorkspaceMeta(workspaceId);
+    if (!meta) {
+      console.log(`[keep-alive] skip workspace=${workspaceId} — no token available`);
+      return;
+    }
+
+    const coderUrl = (meta.coderUrl || this.defaultCoderUrl).replace(/\/+$/, "");
     const deadline = new Date(Date.now() + EXTEND_HOURS * 60 * 60 * 1000).toISOString();
-    const url = `${this.coderUrl}/api/v2/workspaces/${workspaceId}/extend`;
+    const url = `${coderUrl}/api/v2/workspaces/${workspaceId}/extend`;
 
     if (!this.healthMap.has(workspaceId)) {
       this.healthMap.set(workspaceId, {
@@ -112,17 +136,20 @@ export class KeepAliveManager {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
 
-      const res = await fetch(url, {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-          "Coder-Session-Token": this.sessionToken,
-        },
-        body: JSON.stringify({ deadline }),
-        signal: controller.signal,
-      });
-
-      clearTimeout(timeoutId);
+      let res: Response;
+      try {
+        res = await fetch(url, {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+            "Coder-Session-Token": meta.token,
+          },
+          body: JSON.stringify({ deadline }),
+          signal: controller.signal,
+        });
+      } finally {
+        clearTimeout(timeoutId);
+      }
 
       if (!res.ok) {
         const body = await res.text().catch(() => "(unreadable)");

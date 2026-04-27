@@ -30,12 +30,12 @@ const MOCK_SESSION = {
   user: {
     id: "user-123",
     coderUrl: "https://coder.example.com",
-    coderUserId: "coder-user-1",
+    coderUserId: "",
     username: "testuser",
     email: "test@example.com",
   },
   session: {
-    id: "sess-1",
+    id: "",
     sessionId: "sess-id-1",
     expiresAt: new Date(Date.now() + 86400000),
   },

@@ -34,9 +34,8 @@ let pushQueue: Queue<TemplatePushJobData> | null = null;
 /** Returns the shared template-push Queue singleton. */
 export function getTemplatePushQueue(): Queue<TemplatePushJobData> {
   if (!pushQueue) {
-    // @ts-ignore — pre-existing ioredis dual-install type mismatch (see KNOWLEDGE.md)
     const q = new Queue<TemplatePushJobData>(TEMPLATE_PUSH_QUEUE, {
-      // @ts-ignore
+      // @ts-expect-error — ioredis dual-install type mismatch
       connection: getRedisConnection(),
     });
     pushQueue = q as Queue<TemplatePushJobData>;
@@ -79,7 +78,9 @@ async function findCoderBinary(): Promise<string> {
     // not on PATH
   }
 
-  throw new Error("[template-push] coder binary not found — checked /tmp/coder.*/coder and PATH");
+  throw new Error(
+    "[template-push] coder binary not found — checked /tmp/coder.*/coder and PATH",
+  );
 }
 
 // ── Worker ────────────────────────────────────────────────────────
@@ -95,14 +96,16 @@ async function findCoderBinary(): Promise<string> {
  *   5. Resolves/rejects based on exit code
  */
 export function createTemplatePushWorker(): Worker<TemplatePushJobData> {
-  // @ts-ignore — pre-existing ioredis dual-install type mismatch
+  // @ts-expect-error — ioredis dual-install type mismatch (see KNOWLEDGE.md)
   return new Worker<TemplatePushJobData>(
     TEMPLATE_PUSH_QUEUE,
     async (job: Job<TemplatePushJobData>) => {
       const { templateName, jobId, userId } = job.data;
       const logPath = pushLogPath(jobId);
 
-      console.log(`[template-push] Starting push for "${templateName}" (job ${jobId})`);
+      console.log(
+        `[template-push] Starting push for "${templateName}" (job ${jobId})`,
+      );
 
       const client = await getCoderClientForUser(userId);
       const coderBin = await findCoderBinary();
@@ -125,7 +128,7 @@ export function createTemplatePushWorker(): Worker<TemplatePushJobData> {
               CODER_URL: client.getBaseUrl(),
               CODER_SESSION_TOKEN: client.getSessionToken(),
             },
-          }
+          },
         );
 
         child.stdout.pipe(logStream, { end: false });
@@ -138,10 +141,14 @@ export function createTemplatePushWorker(): Worker<TemplatePushJobData> {
           });
 
           if (code === 0) {
-            console.log(`[template-push] Push succeeded for "${templateName}" (job ${jobId})`);
+            console.log(
+              `[template-push] Push succeeded for "${templateName}" (job ${jobId})`,
+            );
             resolve();
           } else {
-            console.error(`[template-push] Push failed for "${templateName}" (job ${jobId}) — exit code ${code}`);
+            console.error(
+              `[template-push] Push failed for "${templateName}" (job ${jobId}) — exit code ${code}`,
+            );
             reject(new Error(`coder templates push exited with code ${code}`));
           }
         });
@@ -156,9 +163,9 @@ export function createTemplatePushWorker(): Worker<TemplatePushJobData> {
       });
     },
     {
-      // @ts-ignore — pre-existing ioredis dual-install type mismatch
+      // @ts-expect-error — ioredis dual-install type mismatch (see KNOWLEDGE.md)
       connection: getRedisConnection(),
       concurrency: 2,
-    }
+    },
   );
 }

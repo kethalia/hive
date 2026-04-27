@@ -1,13 +1,7 @@
 import { getDb } from "@/lib/db";
-import { tryDecrypt } from "@/lib/auth/encryption";
-import { TOKEN_EXPIRY_WARNING_HOURS } from "@/lib/constants";
-
-export type TokenStatus = "valid" | "expiring" | "expired" | "key_mismatch" | "decrypt_failed";
-
-export interface TokenStatusResult {
-  status: TokenStatus;
-  expiresAt: Date | null;
-}
+import { tryDecrypt } from "@hive/auth";
+import { TOKEN_EXPIRY_WARNING_HOURS } from "@hive/auth";
+import type { TokenStatusResult } from "@hive/auth";
 
 export async function getTokenStatus(
   userId: string

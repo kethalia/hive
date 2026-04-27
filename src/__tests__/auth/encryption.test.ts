@@ -1,6 +1,6 @@
 import { randomBytes } from "node:crypto";
 import { describe, expect, it } from "vitest";
-import { decrypt, encrypt, validateEncryptionKey } from "../../lib/auth/encryption";
+import { decrypt, encrypt, validateEncryptionKey } from "@hive/auth";
 
 const VALID_KEY = randomBytes(32).toString("hex");
 

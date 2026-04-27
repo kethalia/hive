@@ -1,0 +1,25 @@
+{
+  "name": "hive-auth",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "start": "NODE_ENV=production tsx src/index.ts",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "db:generate": "prisma generate"
+  },
+  "dependencies": {
+    "@hive/auth": "workspace:*",
+    "@prisma/client": "^6.8.0",
+    "dotenv": "^17.4.2",
+    "tsx": "^4.21.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22",
+    "prisma": "^6.8.0",
+    "typescript": "^5",
+    "vitest": "^3.0.0"
+  }
+}

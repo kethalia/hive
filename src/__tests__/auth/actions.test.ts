@@ -1,7 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
-const mockPerformLogin = vi.hoisted(() => vi.fn());
-const mockDeleteSession = vi.hoisted(() => vi.fn());
+const mockServiceClient = vi.hoisted(() => ({
+  login: vi.fn(),
+  logout: vi.fn(),
+  getCredentials: vi.fn(),
+}));
+
 const mockSetSessionCookie = vi.hoisted(() => vi.fn());
 const mockClearSessionCookie = vi.hoisted(() => vi.fn());
 const mockGetSession = vi.hoisted(() => vi.fn());
@@ -21,14 +25,12 @@ vi.mock("next/headers", () => ({
   headers: vi.fn(() => mockHeaderStore),
 }));
 
-vi.mock("@/lib/auth/login", () => ({
-  performLogin: (...args: unknown[]) => mockPerformLogin(...args),
+vi.mock("@/lib/auth/service-client", () => ({
+  getAuthServiceClient: () => mockServiceClient,
 }));
 
 vi.mock("@/lib/auth/session", () => ({
-  createSession: vi.fn(),
   getSession: (...args: unknown[]) => mockGetSession(...args),
-  deleteSession: (...args: unknown[]) => mockDeleteSession(...args),
   setSessionCookie: (...args: unknown[]) => mockSetSessionCookie(...args),
   clearSessionCookie: (...args: unknown[]) => mockClearSessionCookie(...args),
 }));
@@ -39,7 +41,12 @@ vi.mock("@/lib/auth/rate-limit", () => ({
   },
 }));
 
-import { loginAction, logoutAction, getSessionAction } from "@/lib/auth/actions";
+import {
+  loginAction,
+  logoutAction,
+  getSessionAction,
+  getTokenStatusAction,
+} from "@/lib/auth/actions";
 
 describe("loginAction", () => {
   beforeEach(() => {
@@ -52,7 +59,7 @@ describe("loginAction", () => {
   });
 
   it("succeeds with valid input", async () => {
-    mockPerformLogin.mockResolvedValue({
+    mockServiceClient.login.mockResolvedValue({
       sessionId: "sess-123",
       user: { id: "u1", username: "testuser", email: "test@example.com", coderUrl: "https://coder.example.com" },
     });
@@ -64,16 +71,16 @@ describe("loginAction", () => {
     });
 
     expect(result?.data).toEqual({ success: true });
-    expect(mockPerformLogin).toHaveBeenCalledWith(
-      "https://coder.example.com",
-      "test@example.com",
-      "pass123"
-    );
+    expect(mockServiceClient.login).toHaveBeenCalledWith({
+      coderUrl: "https://coder.example.com",
+      email: "test@example.com",
+      password: "pass123",
+    });
     expect(mockSetSessionCookie).toHaveBeenCalledWith(mockCookieStore, "sess-123");
   });
 
-  it("returns error when performLogin fails", async () => {
-    mockPerformLogin.mockRejectedValue(new Error("invalid credentials"));
+  it("returns error when auth service login fails", async () => {
+    mockServiceClient.login.mockRejectedValue(new Error("invalid credentials"));
 
     const result = await loginAction({
       coderUrl: "https://coder.example.com",
@@ -95,7 +102,7 @@ describe("loginAction", () => {
     });
 
     expect(result?.serverError).toBe("Too many login attempts. Please try again later.");
-    expect(mockPerformLogin).not.toHaveBeenCalled();
+    expect(mockServiceClient.login).not.toHaveBeenCalled();
   });
 
   it("rejects invalid input (bad email)", async () => {
@@ -106,7 +113,7 @@ describe("loginAction", () => {
     });
 
     expect(result?.validationErrors).toBeDefined();
-    expect(mockPerformLogin).not.toHaveBeenCalled();
+    expect(mockServiceClient.login).not.toHaveBeenCalled();
   });
 
   it("reads IP from x-forwarded-for header", async () => {
@@ -114,7 +121,7 @@ describe("loginAction", () => {
       if (name === "x-forwarded-for") return "10.0.0.1, 10.0.0.2";
       return null;
     });
-    mockPerformLogin.mockResolvedValue({ sessionId: "s1", user: {} });
+    mockServiceClient.login.mockResolvedValue({ sessionId: "s1", user: {} });
 
     await loginAction({
       coderUrl: "https://coder.example.com",
@@ -130,16 +137,18 @@ describe("logoutAction", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockGetSession.mockResolvedValue({
-      user: { id: "u1", coderUrl: "https://coder.example.com", coderUserId: "cu1", username: "testuser", email: "test@example.com" },
-      session: { id: "sid1", sessionId: "sess-123", expiresAt: new Date(Date.now() + 86400000) },
+      user: { id: "u1", coderUrl: "https://coder.example.com", coderUserId: "", username: "testuser", email: "test@example.com" },
+      session: { id: "", sessionId: "sess-123", expiresAt: new Date(Date.now() + 86400000) },
     });
   });
 
-  it("deletes session and clears cookie", async () => {
+  it("calls auth service logout and clears cookie", async () => {
+    mockServiceClient.logout.mockResolvedValue(undefined);
+
     const result = await logoutAction();
 
     expect(result?.data).toEqual({ success: true });
-    expect(mockDeleteSession).toHaveBeenCalledWith("sess-123");
+    expect(mockServiceClient.logout).toHaveBeenCalledWith("sess-123");
     expect(mockClearSessionCookie).toHaveBeenCalledWith(mockCookieStore);
   });
 });
@@ -148,8 +157,8 @@ describe("getSessionAction", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockGetSession.mockResolvedValue({
-      user: { id: "u1", coderUrl: "https://coder.example.com", coderUserId: "cu1", username: "testuser", email: "test@example.com" },
-      session: { id: "sid1", sessionId: "sess-123", expiresAt: new Date(Date.now() + 86400000) },
+      user: { id: "u1", coderUrl: "https://coder.example.com", coderUserId: "", username: "testuser", email: "test@example.com" },
+      session: { id: "", sessionId: "sess-123", expiresAt: new Date(Date.now() + 86400000) },
     });
   });
 
@@ -163,6 +172,37 @@ describe("getSessionAction", () => {
         coderUrl: "https://coder.example.com",
       },
     });
+  });
+});
+
+describe("getTokenStatusAction", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockGetSession.mockResolvedValue({
+      user: { id: "u1", coderUrl: "https://coder.example.com", coderUserId: "", username: "testuser", email: "test@example.com" },
+      session: { id: "", sessionId: "sess-123", expiresAt: new Date(Date.now() + 86400000) },
+    });
+  });
+
+  it("returns credential status from auth service", async () => {
+    const expiresAt = new Date(Date.now() + 86400000);
+    mockServiceClient.getCredentials.mockResolvedValue({
+      status: "valid",
+      expiresAt,
+    });
+
+    const result = await getTokenStatusAction();
+
+    expect(result?.data).toEqual({ status: "valid", expiresAt });
+    expect(mockServiceClient.getCredentials).toHaveBeenCalledWith("sess-123");
+  });
+
+  it("returns expired status when credentials not found", async () => {
+    mockServiceClient.getCredentials.mockResolvedValue(null);
+
+    const result = await getTokenStatusAction();
+
+    expect(result?.data).toEqual({ status: "expired", expiresAt: null });
   });
 });
 

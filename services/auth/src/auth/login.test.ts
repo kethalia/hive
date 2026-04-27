@@ -9,11 +9,17 @@ const mockPrisma = vi.hoisted(() => ({
   },
 }));
 
-vi.mock("@/lib/db", () => ({
+vi.mock("../db.js", () => ({
   getDb: () => mockPrisma,
 }));
 
-const { mockCreateSession, mockEncrypt, mockValidateInstance, mockLogin, mockCreateApiKey } = vi.hoisted(() => ({
+const {
+  mockCreateSession,
+  mockEncrypt,
+  mockValidateInstance,
+  mockLogin,
+  mockCreateApiKey,
+} = vi.hoisted(() => ({
   mockCreateSession: vi.fn(),
   mockEncrypt: vi.fn(),
   mockValidateInstance: vi.fn(),
@@ -21,23 +27,22 @@ const { mockCreateSession, mockEncrypt, mockValidateInstance, mockLogin, mockCre
   mockCreateApiKey: vi.fn(),
 }));
 
-vi.mock("@/lib/auth/session", () => ({
+vi.mock("./session.js", () => ({
   createSession: (...args: unknown[]) => mockCreateSession(...args),
 }));
 
-vi.mock("@/lib/auth/encryption", () => ({
+vi.mock("@hive/auth", async (importOriginal) => ({
+  ...(await importOriginal()),
   encrypt: (...args: unknown[]) => mockEncrypt(...args),
 }));
 
-vi.mock("@/lib/coder/client", () => ({
-  CoderClient: {
-    validateInstance: (...args: unknown[]) => mockValidateInstance(...args),
-    login: (...args: unknown[]) => mockLogin(...args),
-    createApiKey: (...args: unknown[]) => mockCreateApiKey(...args),
-  },
+vi.mock("./coder-api.js", () => ({
+  validateCoderInstance: (...args: unknown[]) => mockValidateInstance(...args),
+  coderLogin: (...args: unknown[]) => mockLogin(...args),
+  createCoderApiKey: (...args: unknown[]) => mockCreateApiKey(...args),
 }));
 
-import { performLogin } from "@/lib/auth/login";
+import { performLogin } from "./login.js";
 
 describe("performLogin", () => {
   const TEST_ENCRYPTION_KEY = "a".repeat(64);

@@ -1,4 +1,22 @@
 services:
+  auth:
+    image: ghcr.io/kethalia/hive-auth:latest
+    restart: unless-stopped
+    expose:
+      - "4400"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-hive}:${POSTGRES_PASSWORD:-hive}@postgres:5432/${POSTGRES_DB:-hive}
+      - ENCRYPTION_KEY=${ENCRYPTION_KEY:-}
+      - COOKIE_SECRET=${COOKIE_SECRET:-}
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:4400/health"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
   app:
     image: ghcr.io/kethalia/hive:latest
     restart: unless-stopped
@@ -9,11 +27,14 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+      auth:
+        condition: service_healthy
     environment:
       - DATABASE_URL=postgresql://${POSTGRES_USER:-hive}:${POSTGRES_PASSWORD:-hive}@postgres:5432/${POSTGRES_DB:-hive}
       - REDIS_URL=redis://:${REDIS_PASSWORD:-changeme}@redis:6379
       - CODER_URL=${CODER_URL:-}
-      - CODER_SESSION_TOKEN=${CODER_SESSION_TOKEN:-}
+      - AUTH_SERVICE_URL=http://auth:4400
+      - COOKIE_SECRET=${COOKIE_SECRET:-}
       - NEXT_PUBLIC_TERMINAL_WS_URL=${NEXT_PUBLIC_TERMINAL_WS_URL:-}
 
   terminal-proxy:
@@ -22,13 +43,11 @@ services:
     ports:
       - "3001:3001"
     depends_on:
-      postgres:
+      auth:
         condition: service_healthy
     environment:
-      - DATABASE_URL=postgresql://${POSTGRES_USER:-hive}:${POSTGRES_PASSWORD:-hive}@postgres:5432/${POSTGRES_DB:-hive}
-      - CODER_URL=${CODER_URL:-}
-      - CODER_AGENT_URL=${CODER_AGENT_URL:-}
-      - CODER_SESSION_TOKEN=${CODER_SESSION_TOKEN:-}
+      - AUTH_SERVICE_URL=http://auth:4400
+      - COOKIE_SECRET=${COOKIE_SECRET:-}
 
   postgres:
     image: postgres:16-alpine
