@@ -10,6 +10,7 @@ import { PushPermissionPrompt } from "@/components/push-permission-prompt";
 import { getTokenStatusAction } from "@/lib/auth/actions";
 import KeybindingProvider from "@/components/terminal/KeybindingProvider";
 import { FloatingActionButton } from "@/components/terminal/FloatingActionButton";
+import { HelpOverlay } from "@/components/terminal/HelpOverlay";
 
 export default async function DashboardLayout({
   children,
@@ -35,6 +36,7 @@ export default async function DashboardLayout({
           </main>
         </SidebarInset>
         <FloatingActionButton />
+        <HelpOverlay />
       </KeybindingProvider>
     </SidebarProvider>
   );
