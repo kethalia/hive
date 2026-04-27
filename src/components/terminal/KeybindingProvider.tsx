@@ -6,6 +6,7 @@ import {
   type KeybindingContextValue,
   type KeybindingEntry,
 } from "@/hooks/useKeybindings";
+import { copyTerminalSelection, pasteToTerminal } from "@/lib/terminal/actions";
 
 export function KeybindingProvider({
   children,
@@ -83,6 +84,36 @@ export function KeybindingProvider({
       setActiveTerminal,
     ],
   );
+
+  React.useEffect(() => {
+    register({
+      id: "copy",
+      keys: ["ctrl+c", "cmd+c"],
+      action: (term) => {
+        if (!term) return true;
+        return copyTerminalSelection(term);
+      },
+      description: "Copy selection",
+      category: "clipboard",
+      enabledInBrowser: true,
+    });
+    register({
+      id: "paste",
+      keys: ["ctrl+v", "cmd+v"],
+      action: (term, send) => {
+        if (!term || !send) return true;
+        pasteToTerminal(term, send);
+        return false;
+      },
+      description: "Paste",
+      category: "clipboard",
+      enabledInBrowser: true,
+    });
+    return () => {
+      unregister("copy");
+      unregister("paste");
+    };
+  }, [register, unregister]);
 
   return (
     <KeybindingContext.Provider value={value}>
