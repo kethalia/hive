@@ -1,11 +1,5 @@
 # hive-auth
 
-## 1.0.2
-
-### Patch Changes
-
-- c346baa: Copy generated Prisma client into pnpm deploy output so it survives .gitignore exclusion
-
 ## 1.0.1
 
 ### Patch Changes
