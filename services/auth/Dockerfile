@@ -21,6 +21,7 @@ COPY services/auth/ services/auth/
 COPY package.json pnpm-workspace.yaml pnpm-lock.yaml ./
 RUN cd services/auth && npx prisma generate
 RUN pnpm deploy --filter hive-auth --prod --legacy --ignore-scripts /deploy
+RUN cp -r services/auth/generated /deploy/generated
 
 FROM node:20-alpine AS runner
 RUN apk add --no-cache tini
