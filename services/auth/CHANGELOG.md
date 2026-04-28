@@ -1,5 +1,11 @@
 # hive-auth
 
+## 1.0.1
+
+### Patch Changes
+
+- b9402f0: Fix Prisma client generation path for pnpm deploy compatibility
+
 ## 1.0.0
 
 ### Major Changes
