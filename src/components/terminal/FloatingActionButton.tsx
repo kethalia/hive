@@ -83,7 +83,7 @@ export function FloatingActionButton() {
   return (
     <div
       ref={containerRef}
-      className="fixed z-[60]"
+      className="fixed z-40"
       style={{
         transform: `translate3d(${position.x}px, ${position.y}px, 0)`,
         transition: isSnapping ? "transform 200ms ease-out" : isDragging ? "none" : undefined,

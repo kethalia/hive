@@ -1,26 +1,30 @@
 import type { Terminal } from "@xterm/xterm";
 
+function execCommandCopyFallback(text: string): void {
+  try {
+    const textarea = document.createElement("textarea");
+    textarea.value = text;
+    textarea.style.position = "fixed";
+    textarea.style.opacity = "0";
+    document.body.appendChild(textarea);
+    textarea.select();
+    document.execCommand("copy");
+    document.body.removeChild(textarea);
+  } catch {
+    console.warn("[clipboard] copy fallback failed");
+  }
+}
+
 export function copyTerminalSelection(term: Terminal): boolean {
   const selection = term.getSelection();
   if (!selection) return true;
 
-  try {
+  if (navigator.clipboard?.writeText) {
     navigator.clipboard.writeText(selection).catch(() => {
-      try {
-        const textarea = document.createElement("textarea");
-        textarea.value = selection;
-        textarea.style.position = "fixed";
-        textarea.style.opacity = "0";
-        document.body.appendChild(textarea);
-        textarea.select();
-        document.execCommand("copy");
-        document.body.removeChild(textarea);
-      } catch {
-        console.warn("[clipboard] copy fallback failed");
-      }
+      execCommandCopyFallback(selection);
     });
-  } catch {
-    console.warn("[clipboard] writeText not available");
+  } else {
+    execCommandCopyFallback(selection);
   }
 
   term.clearSelection();
@@ -31,6 +35,11 @@ export function pasteToTerminal(
   term: Terminal,
   send: (data: string) => void,
 ): boolean {
+  if (!navigator.clipboard?.readText) {
+    console.warn("[clipboard] readText not available");
+    return false;
+  }
+
   navigator.clipboard
     .readText()
     .then((text) => {
