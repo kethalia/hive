@@ -65,5 +65,5 @@ export function useRegisterKeybinding(entry: KeybindingEntry) {
   React.useEffect(() => {
     register(entry);
     return () => unregister(entry.id);
-  }, [entry.id, register, unregister]);
+  }, [entry.id, entry.keys.join(","), entry.description, entry.category, entry.enabledInBrowser, register, unregister]);
 }

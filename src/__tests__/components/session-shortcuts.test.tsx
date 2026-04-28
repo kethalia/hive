@@ -136,8 +136,12 @@ describe("session keybinding registration", () => {
 
     for (const entry of registeredBindings.values()) {
       expect(entry.category).toBe("session");
-      expect(entry.enabledInBrowser).toBe(true);
     }
+    expect(registeredBindings.get("command-palette")!.enabledInBrowser).toBe(true);
+    expect(registeredBindings.get("session:next-tab")!.enabledInBrowser).toBe(true);
+    expect(registeredBindings.get("session:prev-tab")!.enabledInBrowser).toBe(true);
+    expect(registeredBindings.get("session:create")!.enabledInBrowser).toBe(false);
+    expect(registeredBindings.get("session:close")!.enabledInBrowser).toBe(false);
   });
 
   it("registers correct key combos for each binding", async () => {

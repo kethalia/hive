@@ -28,7 +28,7 @@ export function TerminalContextMenu({
   useEffect(() => {
     if (!position) return;
 
-    function handleMouseDown(e: MouseEvent) {
+    function handleMouseDown(e: PointerEvent) {
       if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
         onClose();
       }
@@ -44,12 +44,12 @@ export function TerminalContextMenu({
       onClose();
     }
 
-    document.addEventListener("mousedown", handleMouseDown);
+    document.addEventListener("pointerdown", handleMouseDown);
     document.addEventListener("keydown", handleKeyDown);
     window.addEventListener("scroll", handleScroll, true);
 
     return () => {
-      document.removeEventListener("mousedown", handleMouseDown);
+      document.removeEventListener("pointerdown", handleMouseDown);
       document.removeEventListener("keydown", handleKeyDown);
       window.removeEventListener("scroll", handleScroll, true);
     };
@@ -65,11 +65,14 @@ export function TerminalContextMenu({
   return createPortal(
     <div
       ref={menuRef}
+      role="menu"
+      aria-label="Terminal context menu"
       className="fixed z-50 min-w-[180px] rounded-lg bg-popover p-1 text-popover-foreground shadow-md ring-1 ring-border"
       style={{ left: clampedX, top: clampedY }}
     >
       <button
         type="button"
+        role="menuitem"
         disabled={!hasSelection}
         className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm outline-none hover:bg-accent hover:text-accent-foreground disabled:pointer-events-none disabled:opacity-50"
         onClick={() => {
@@ -83,6 +86,7 @@ export function TerminalContextMenu({
       </button>
       <button
         type="button"
+        role="menuitem"
         className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm outline-none hover:bg-accent hover:text-accent-foreground"
         onClick={() => {
           onPaste();
@@ -95,10 +99,11 @@ export function TerminalContextMenu({
       </button>
       {hasSessionActions && (
         <>
-          <div className="my-1 h-px bg-border" />
+          <div role="separator" className="my-1 h-px bg-border" />
           {onNewSession && (
             <button
               type="button"
+              role="menuitem"
               className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm outline-none hover:bg-accent hover:text-accent-foreground"
               onClick={() => {
                 onNewSession();
@@ -112,7 +117,8 @@ export function TerminalContextMenu({
           {onCloseSession && (
             <button
               type="button"
-              className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm outline-none hover:bg-accent hover:text-accent-foreground hover:text-destructive"
+              role="menuitem"
+              className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm outline-none hover:bg-destructive/10 hover:text-destructive"
               onClick={() => {
                 onCloseSession();
                 onClose();

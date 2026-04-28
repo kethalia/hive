@@ -23,12 +23,12 @@ describe("TerminalContextMenu", () => {
 
   it("renders nothing when position is null", () => {
     render(<TerminalContextMenu {...defaultProps} position={null} />);
-    expect(screen.queryByRole("button", { name: /copy/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("menuitem", { name: /copy/i })).not.toBeInTheDocument();
   });
 
   it("renders menu at specified coordinates when position provided", () => {
     render(<TerminalContextMenu {...defaultProps} />);
-    const copyBtn = screen.getByRole("button", { name: /copy/i });
+    const copyBtn = screen.getByRole("menuitem", { name: /copy/i });
     const menu = copyBtn.closest("div[class*='fixed']");
     expect(menu).toBeInTheDocument();
     expect(menu).toHaveStyle({ left: "100px", top: "200px" });
@@ -36,13 +36,13 @@ describe("TerminalContextMenu", () => {
 
   it("Copy item has disabled attribute when hasSelection=false", () => {
     render(<TerminalContextMenu {...defaultProps} hasSelection={false} />);
-    const copyBtn = screen.getByRole("button", { name: /copy/i });
+    const copyBtn = screen.getByRole("menuitem", { name: /copy/i });
     expect(copyBtn).toBeDisabled();
   });
 
   it("Copy item enabled when hasSelection=true", () => {
     render(<TerminalContextMenu {...defaultProps} hasSelection={true} />);
-    const copyBtn = screen.getByRole("button", { name: /copy/i });
+    const copyBtn = screen.getByRole("menuitem", { name: /copy/i });
     expect(copyBtn).not.toBeDisabled();
   });
 
@@ -57,7 +57,7 @@ describe("TerminalContextMenu", () => {
         onClose={onClose}
       />,
     );
-    fireEvent.click(screen.getByRole("button", { name: /copy/i }));
+    fireEvent.click(screen.getByRole("menuitem", { name: /copy/i }));
     expect(onCopy).toHaveBeenCalledOnce();
     expect(onClose).toHaveBeenCalledOnce();
   });
@@ -72,7 +72,7 @@ describe("TerminalContextMenu", () => {
         onClose={onClose}
       />,
     );
-    fireEvent.click(screen.getByRole("button", { name: /paste/i }));
+    fireEvent.click(screen.getByRole("menuitem", { name: /paste/i }));
     expect(onPaste).toHaveBeenCalledOnce();
     expect(onClose).toHaveBeenCalledOnce();
   });
@@ -85,14 +85,14 @@ describe("TerminalContextMenu", () => {
         onCloseSession={vi.fn()}
       />,
     );
-    expect(screen.getByRole("button", { name: /new session/i })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /close session/i })).toBeInTheDocument();
+    expect(screen.getByRole("menuitem", { name: /new session/i })).toBeInTheDocument();
+    expect(screen.getByRole("menuitem", { name: /close session/i })).toBeInTheDocument();
   });
 
   it("New Session and Close Session items hidden when callbacks not provided", () => {
     render(<TerminalContextMenu {...defaultProps} />);
-    expect(screen.queryByRole("button", { name: /new session/i })).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: /close session/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("menuitem", { name: /new session/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("menuitem", { name: /close session/i })).not.toBeInTheDocument();
   });
 
   it("clicking New Session calls onNewSession and closes", () => {
@@ -105,7 +105,7 @@ describe("TerminalContextMenu", () => {
         onClose={onClose}
       />,
     );
-    fireEvent.click(screen.getByRole("button", { name: /new session/i }));
+    fireEvent.click(screen.getByRole("menuitem", { name: /new session/i }));
     expect(onNewSession).toHaveBeenCalledOnce();
     expect(onClose).toHaveBeenCalledOnce();
   });
@@ -120,7 +120,7 @@ describe("TerminalContextMenu", () => {
         onClose={onClose}
       />,
     );
-    fireEvent.click(screen.getByRole("button", { name: /close session/i }));
+    fireEvent.click(screen.getByRole("menuitem", { name: /close session/i }));
     expect(onCloseSession).toHaveBeenCalledOnce();
     expect(onClose).toHaveBeenCalledOnce();
   });
@@ -135,7 +135,7 @@ describe("TerminalContextMenu", () => {
   it("clicking outside menu calls onClose", () => {
     const onClose = vi.fn();
     render(<TerminalContextMenu {...defaultProps} onClose={onClose} />);
-    fireEvent.mouseDown(document.body);
+    fireEvent.pointerDown(document.body);
     expect(onClose).toHaveBeenCalledOnce();
   });
 

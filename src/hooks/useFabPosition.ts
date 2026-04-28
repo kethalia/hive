@@ -87,8 +87,8 @@ export function useFabPosition() {
   }, [corner]);
 
   const onPointerDown = useCallback(
-    (e: React.PointerEvent) => {
-      (e.target as HTMLElement).setPointerCapture(e.pointerId);
+    (e: React.PointerEvent<HTMLElement>) => {
+      e.currentTarget.setPointerCapture(e.pointerId);
       setIsDragging(true);
       dragStartRef.current = { x: e.clientX, y: e.clientY };
       dragDistRef.current = 0;

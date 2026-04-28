@@ -113,7 +113,10 @@ export function TerminalTabManager({
 
   const handleTerminalReady = useCallback((tabId: string, term: Terminal, send: (data: string) => void) => {
     terminalsRef.current.set(tabId, { term, send });
-  }, []);
+    if (activeTabIdRef.current === tabId) {
+      setActiveTerminal(term, send);
+    }
+  }, [setActiveTerminal]);
 
   const handleTerminalDestroy = useCallback((tabId: string) => {
     terminalsRef.current.delete(tabId);
@@ -253,9 +256,9 @@ export function TerminalTabManager({
   const setPaletteOpenRef = useRef(setPaletteOpen);
   setPaletteOpenRef.current = setPaletteOpen;
 
-  useEffect(() => {
-    const { register, unregister } = keybindingsCtx;
+  const { register, unregister } = keybindingsCtx;
 
+  useEffect(() => {
     const commandPaletteBinding = {
       id: "command-palette",
       keys: ["ctrl+k", "cmd+k"],
@@ -278,7 +281,7 @@ export function TerminalTabManager({
       },
       description: "Create new session tab",
       category: "session",
-      enabledInBrowser: true,
+      enabledInBrowser: false,
     };
 
     const closeTabBinding = {
@@ -293,7 +296,7 @@ export function TerminalTabManager({
       },
       description: "Close active session tab",
       category: "session",
-      enabledInBrowser: true,
+      enabledInBrowser: false,
     };
 
     const nextTabBinding = {
@@ -343,7 +346,7 @@ export function TerminalTabManager({
       unregister("session:next-tab");
       unregister("session:prev-tab");
     };
-  }, [keybindingsCtx, handleCreateTab, handleKillTab]);
+  }, [register, unregister, handleCreateTab, handleKillTab]);
 
   if (loading) {
     return (
