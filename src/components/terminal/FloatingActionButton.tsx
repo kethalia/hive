@@ -9,6 +9,7 @@ import {
   ArrowRight,
   X,
   Keyboard,
+  Send,
 } from "lucide-react";
 import { useKeybindings } from "@/hooks/useKeybindings";
 import { useFabPosition, type Corner } from "@/hooks/useFabPosition";
@@ -123,6 +124,17 @@ export function FloatingActionButton() {
               {label}
             </button>
           ))}
+          <div className="my-1 h-px bg-border" role="separator" />
+          <button
+            type="button"
+            role="menuitem"
+            className="flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium text-popover-foreground hover:bg-accent hover:text-accent-foreground transition-colors whitespace-nowrap"
+            onPointerDown={(e) => e.stopPropagation()}
+            onClick={() => sendKey("\r")}
+          >
+            <Send className="h-4 w-4" />
+            Send
+          </button>
         </div>
       )}
     </div>
