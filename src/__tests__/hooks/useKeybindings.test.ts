@@ -145,7 +145,15 @@ describe("useRegisterKeybinding", () => {
       wrapper,
     });
 
-    expect(mockValue.register).toHaveBeenCalledWith(entry);
+    expect(mockValue.register).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: "test-binding",
+        keys: ["ctrl+t"],
+        description: "Test",
+        category: "test",
+        enabledInBrowser: true,
+      }),
+    );
 
     unmount();
     expect(mockValue.unregister).toHaveBeenCalledWith("test-binding");
