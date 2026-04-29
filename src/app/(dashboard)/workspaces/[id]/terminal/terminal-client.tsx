@@ -5,6 +5,12 @@ import { useSearchParams } from "next/navigation";
 import dynamic from "next/dynamic";
 import { Loader2 } from "lucide-react";
 import { TerminalContextMenu } from "@/components/terminal/TerminalContextMenu";
+import { ComposePanel } from "@/components/terminal/ComposePanel";
+import {
+  ResizablePanelGroup,
+  ResizablePanel,
+  ResizableHandle,
+} from "@/components/ui/resizable";
 import { useKeybindings } from "@/hooks/useKeybindings";
 import { copyTerminalSelection, pasteToTerminal } from "@/lib/terminal/actions";
 
@@ -19,9 +25,10 @@ const InteractiveTerminal = dynamic(
 function TerminalInner({ agentId, workspaceId }: { agentId: string; workspaceId: string }) {
   const searchParams = useSearchParams();
   const session = searchParams.get("session");
-  const { setActiveTerminal, activeTerminal, activeSend } = useKeybindings();
+  const { setActiveTerminal, activeTerminal, activeSend, register, unregister } = useKeybindings();
   const [menuPosition, setMenuPosition] = useState<{ x: number; y: number } | null>(null);
   const [menuSelection, setMenuSelection] = useState(false);
+  const [composeOpen, setComposeOpen] = useState(false);
 
   const handleTerminalReady = useCallback(
     (term: import("@xterm/xterm").Terminal, send: (data: string) => void) => {
@@ -33,6 +40,22 @@ function TerminalInner({ agentId, workspaceId }: { agentId: string; workspaceId:
   const handleTerminalDestroy = useCallback(() => {
     setActiveTerminal(null, null);
   }, [setActiveTerminal]);
+
+  useEffect(() => {
+    const binding = {
+      id: "compose:toggle",
+      keys: ["ctrl+`", "cmd+`"],
+      action: () => {
+        setComposeOpen((prev) => !prev);
+        return false;
+      },
+      description: "Toggle compose panel",
+      category: "terminal",
+      enabledInBrowser: true,
+    };
+    register(binding);
+    return () => unregister("compose:toggle");
+  }, [register, unregister]);
 
   useEffect(() => {
     if (!session) {
@@ -56,32 +79,48 @@ function TerminalInner({ agentId, workspaceId }: { agentId: string; workspaceId:
     <div
       className="-m-6 -mt-14 h-[100vh] w-[calc(100%+3rem)]"
       onKeyDown={(e) => e.stopPropagation()}
-      onContextMenu={(e) => {
-        e.preventDefault();
-        setMenuSelection(!!activeTerminal?.getSelection());
-        setMenuPosition({ x: e.clientX, y: e.clientY });
-      }}
     >
-      <InteractiveTerminal
-        key={session}
-        agentId={agentId}
-        workspaceId={workspaceId}
-        sessionName={session}
-        className="h-full rounded-none border-0"
-        onTerminalReady={handleTerminalReady}
-        onTerminalDestroy={handleTerminalDestroy}
-      />
-      <TerminalContextMenu
-        position={menuPosition}
-        onClose={() => setMenuPosition(null)}
-        hasSelection={menuSelection}
-        onCopy={() => {
-          if (activeTerminal) copyTerminalSelection(activeTerminal);
-        }}
-        onPaste={() => {
-          if (activeTerminal && activeSend) pasteToTerminal(activeTerminal, activeSend);
-        }}
-      />
+      <ResizablePanelGroup orientation="vertical" className="h-full">
+        <ResizablePanel defaultSize={composeOpen ? 75 : 100} minSize={30}>
+          <div
+            className="h-full"
+            onContextMenu={(e) => {
+              e.preventDefault();
+              setMenuSelection(!!activeTerminal?.getSelection());
+              setMenuPosition({ x: e.clientX, y: e.clientY });
+            }}
+          >
+            <InteractiveTerminal
+              key={session}
+              agentId={agentId}
+              workspaceId={workspaceId}
+              sessionName={session}
+              className="h-full rounded-none border-0"
+              onTerminalReady={handleTerminalReady}
+              onTerminalDestroy={handleTerminalDestroy}
+            />
+            <TerminalContextMenu
+              position={menuPosition}
+              onClose={() => setMenuPosition(null)}
+              hasSelection={menuSelection}
+              onCopy={() => {
+                if (activeTerminal) copyTerminalSelection(activeTerminal);
+              }}
+              onPaste={() => {
+                if (activeTerminal && activeSend) pasteToTerminal(activeTerminal, activeSend);
+              }}
+            />
+          </div>
+        </ResizablePanel>
+        {composeOpen && (
+          <>
+            <ResizableHandle withHandle />
+            <ResizablePanel defaultSize={25} minSize={10} maxSize={50}>
+              <ComposePanel onClose={() => setComposeOpen(false)} />
+            </ResizablePanel>
+          </>
+        )}
+      </ResizablePanelGroup>
     </div>
   );
 }

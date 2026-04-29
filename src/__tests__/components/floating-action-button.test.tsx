@@ -117,14 +117,14 @@ describe("FloatingActionButton", () => {
     expect(screen.queryByRole("menu")).not.toBeInTheDocument();
   });
 
-  it("renders all 7 virtual key buttons when expanded", () => {
+  it("renders all virtual key buttons and send when expanded", () => {
     render(<FloatingActionButton />);
     fireEvent.pointerUp(
       screen.getByRole("button", { name: "Open virtual keyboard" }),
     );
 
     const menuItems = screen.getAllByRole("menuitem");
-    expect(menuItems).toHaveLength(7);
+    expect(menuItems).toHaveLength(8);
 
     const labels = menuItems.map((el) => el.textContent);
     expect(labels).toEqual([
@@ -135,6 +135,7 @@ describe("FloatingActionButton", () => {
       "Left",
       "Ctrl+C",
       "Esc",
+      "Send",
     ]);
   });
 

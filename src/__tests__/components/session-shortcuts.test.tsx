@@ -5,6 +5,14 @@ import "@testing-library/jest-dom/vitest";
 import * as React from "react";
 import type { KeybindingEntry, KeybindingContextValue } from "@/hooks/useKeybindings";
 
+if (typeof globalThis.ResizeObserver === "undefined") {
+  globalThis.ResizeObserver = class {
+    observe() {}
+    unobserve() {}
+    disconnect() {}
+  } as unknown as typeof ResizeObserver;
+}
+
 vi.mock("next/dynamic", () => ({
   __esModule: true,
   default: () => {
@@ -120,11 +128,11 @@ describe("session keybinding registration", () => {
       expect(screen.getAllByTestId("tab-label")).toHaveLength(sessions.length);
     });
     await waitFor(() => {
-      expect(registeredBindings.size).toBe(5);
+      expect(registeredBindings.size).toBe(6);
     });
   }
 
-  it("registers all 5 session keybindings with correct ids and categories", async () => {
+  it("registers all 6 keybindings with correct ids and categories", async () => {
     await renderWithTabs([{ name: "s1" }]);
 
     const ids = Array.from(registeredBindings.keys());
@@ -133,10 +141,13 @@ describe("session keybinding registration", () => {
     expect(ids).toContain("session:close");
     expect(ids).toContain("session:next-tab");
     expect(ids).toContain("session:prev-tab");
+    expect(ids).toContain("compose:toggle");
 
     for (const entry of registeredBindings.values()) {
-      expect(entry.category).toBe("session");
+      expect(["session", "terminal"]).toContain(entry.category);
     }
+    expect(registeredBindings.get("compose:toggle")!.category).toBe("terminal");
+    expect(registeredBindings.get("compose:toggle")!.enabledInBrowser).toBe(true);
     expect(registeredBindings.get("command-palette")!.enabledInBrowser).toBe(true);
     expect(registeredBindings.get("session:next-tab")!.enabledInBrowser).toBe(true);
     expect(registeredBindings.get("session:prev-tab")!.enabledInBrowser).toBe(true);
@@ -271,6 +282,7 @@ describe("session keybinding registration", () => {
       expect(mockCtx.unregister).toHaveBeenCalledWith("session:close");
       expect(mockCtx.unregister).toHaveBeenCalledWith("session:next-tab");
       expect(mockCtx.unregister).toHaveBeenCalledWith("session:prev-tab");
+      expect(mockCtx.unregister).toHaveBeenCalledWith("compose:toggle");
     });
   });
 });

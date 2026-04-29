@@ -42,6 +42,7 @@
     "next-safe-action": "^8.1.8",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
+    "react-resizable-panels": "^4.10.0",
     "shadcn": "^4.0.8",
     "tailwind-merge": "^3.5.0",
     "tar-stream": "^3.1.8",

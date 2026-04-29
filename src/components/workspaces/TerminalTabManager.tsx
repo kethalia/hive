@@ -18,7 +18,13 @@ import { cn } from "@/lib/utils";
 import { connectionBadgeProps } from "@/components/workspaces/InteractiveTerminal";
 import { KeepAliveWarning } from "@/components/workspaces/KeepAliveWarning";
 import { CommandPalette } from "@/components/terminal/CommandPalette";
+import { ComposePanel } from "@/components/terminal/ComposePanel";
 import { TerminalContextMenu } from "@/components/terminal/TerminalContextMenu";
+import {
+  ResizablePanelGroup,
+  ResizablePanel,
+  ResizableHandle,
+} from "@/components/ui/resizable";
 import { useKeybindings } from "@/hooks/useKeybindings";
 import { copyTerminalSelection, pasteToTerminal } from "@/lib/terminal/actions";
 import { isPwaStandalone } from "@/lib/terminal/pwa";
@@ -101,6 +107,7 @@ export function TerminalTabManager({
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [menuPosition, setMenuPosition] = useState<{ x: number; y: number } | null>(null);
   const [menuSelection, setMenuSelection] = useState(false);
+  const [composeOpen, setComposeOpen] = useState(false);
 
   const [connStates, setConnStates] = useState<Record<string, ConnectionState>>({});
   const keybindingsCtx = useKeybindings();
@@ -255,6 +262,8 @@ export function TerminalTabManager({
 
   const setPaletteOpenRef = useRef(setPaletteOpen);
   setPaletteOpenRef.current = setPaletteOpen;
+  const setComposeOpenRef = useRef(setComposeOpen);
+  setComposeOpenRef.current = setComposeOpen;
 
   const { register, unregister } = keybindingsCtx;
 
@@ -333,11 +342,24 @@ export function TerminalTabManager({
       enabledInBrowser: true,
     };
 
+    const composeToggleBinding = {
+      id: "compose:toggle",
+      keys: ["ctrl+`", "cmd+`"],
+      action: () => {
+        setComposeOpenRef.current((prev) => !prev);
+        return false;
+      },
+      description: "Toggle compose panel",
+      category: "terminal",
+      enabledInBrowser: true,
+    };
+
     register(commandPaletteBinding);
     register(createTabBinding);
     register(closeTabBinding);
     register(nextTabBinding);
     register(prevTabBinding);
+    register(composeToggleBinding);
 
     return () => {
       unregister("command-palette");
@@ -345,6 +367,7 @@ export function TerminalTabManager({
       unregister("session:close");
       unregister("session:next-tab");
       unregister("session:prev-tab");
+      unregister("compose:toggle");
     };
   }, [register, unregister, handleCreateTab, handleKillTab]);
 
@@ -470,48 +493,60 @@ export function TerminalTabManager({
         })()}
       </div>
 
-      <div
-        className="relative flex-1"
-        onContextMenu={(e) => {
-          e.preventDefault();
-          const entry = activeTabId ? terminalsRef.current.get(activeTabId) : null;
-          setMenuSelection(!!entry?.term.getSelection());
-          setMenuPosition({ x: e.clientX, y: e.clientY });
-        }}
-      >
-        {tabs.map((tab) => (
+      <ResizablePanelGroup orientation="vertical" className="flex-1">
+        <ResizablePanel defaultSize={composeOpen ? 75 : 100} minSize={30}>
           <div
-            key={tab.id}
-            className={cn("absolute inset-0", activeTabId !== tab.id && "pointer-events-none")}
-            style={{ display: activeTabId === tab.id ? "block" : "none" }}
+            className="relative h-full"
+            onContextMenu={(e) => {
+              e.preventDefault();
+              const entry = activeTabId ? terminalsRef.current.get(activeTabId) : null;
+              setMenuSelection(!!entry?.term.getSelection());
+              setMenuPosition({ x: e.clientX, y: e.clientY });
+            }}
           >
-            <InteractiveTerminal
-              agentId={agentId}
-              workspaceId={workspaceId}
-              sessionName={tab.sessionName}
-              className="h-full"
-              onConnectionStateChange={(state) => handleConnectionStateChange(tab.id, state)}
-              onTerminalReady={(term, send) => handleTerminalReady(tab.id, term, send)}
-              onTerminalDestroy={() => handleTerminalDestroy(tab.id)}
+            {tabs.map((tab) => (
+              <div
+                key={tab.id}
+                className={cn("absolute inset-0", activeTabId !== tab.id && "pointer-events-none")}
+                style={{ display: activeTabId === tab.id ? "block" : "none" }}
+              >
+                <InteractiveTerminal
+                  agentId={agentId}
+                  workspaceId={workspaceId}
+                  sessionName={tab.sessionName}
+                  className="h-full"
+                  onConnectionStateChange={(state) => handleConnectionStateChange(tab.id, state)}
+                  onTerminalReady={(term, send) => handleTerminalReady(tab.id, term, send)}
+                  onTerminalDestroy={() => handleTerminalDestroy(tab.id)}
+                />
+              </div>
+            ))}
+            <TerminalContextMenu
+              position={menuPosition}
+              onClose={() => setMenuPosition(null)}
+              hasSelection={menuSelection}
+              onCopy={() => {
+                const entry = activeTabId ? terminalsRef.current.get(activeTabId) : null;
+                if (entry) copyTerminalSelection(entry.term);
+              }}
+              onPaste={() => {
+                const entry = activeTabId ? terminalsRef.current.get(activeTabId) : null;
+                if (entry) pasteToTerminal(entry.term, entry.send);
+              }}
+              onNewSession={handleCreateTab}
+              onCloseSession={tabs.length > 1 && activeTabId ? () => handleKillTab(activeTabId) : undefined}
             />
           </div>
-        ))}
-        <TerminalContextMenu
-          position={menuPosition}
-          onClose={() => setMenuPosition(null)}
-          hasSelection={menuSelection}
-          onCopy={() => {
-            const entry = activeTabId ? terminalsRef.current.get(activeTabId) : null;
-            if (entry) copyTerminalSelection(entry.term);
-          }}
-          onPaste={() => {
-            const entry = activeTabId ? terminalsRef.current.get(activeTabId) : null;
-            if (entry) pasteToTerminal(entry.term, entry.send);
-          }}
-          onNewSession={handleCreateTab}
-          onCloseSession={tabs.length > 1 && activeTabId ? () => handleKillTab(activeTabId) : undefined}
-        />
-      </div>
+        </ResizablePanel>
+        {composeOpen && (
+          <>
+            <ResizableHandle withHandle />
+            <ResizablePanel defaultSize={25} minSize={10} maxSize={50}>
+              <ComposePanel onClose={() => setComposeOpen(false)} />
+            </ResizablePanel>
+          </>
+        )}
+      </ResizablePanelGroup>
 
       <CommandPalette
         open={paletteOpen}
