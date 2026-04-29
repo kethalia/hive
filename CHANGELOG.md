@@ -1,5 +1,11 @@
 # hive-orchestrator
 
+## 2.1.2
+
+### Patch Changes
+
+- 672e7d6: Normalize HCL formatting in ai-dev template and refine VS Code color theme defaults so the template gets pushed to Coder.
+
 ## 2.1.1
 
 ### Patch Changes
