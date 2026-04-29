@@ -10,9 +10,18 @@ import {
   X,
   Keyboard,
   Send,
+  Plus,
+  Minus,
 } from "lucide-react";
 import { useKeybindings } from "@/hooks/useKeybindings";
 import { useFabPosition, type Corner } from "@/hooks/useFabPosition";
+import {
+  getTerminalFontSize,
+  setTerminalFontSize,
+  MIN_FONT_SIZE,
+  MAX_FONT_SIZE,
+  EVENT_NAME,
+} from "@/lib/terminal/font-size";
 
 const VIRTUAL_KEYS = [
   { label: "Tab", icon: Keyboard, sequence: "\t" },
@@ -46,6 +55,7 @@ export function FloatingActionButton() {
     onPointerUp,
   } = useFabPosition();
   const [expanded, setExpanded] = useState(false);
+  const [fontSize, setFontSize] = useState(getTerminalFontSize);
   const containerRef = useRef<HTMLDivElement>(null);
 
   const handlePointerUp = useCallback(
@@ -71,6 +81,20 @@ export function FloatingActionButton() {
     document.addEventListener("pointerdown", handleClickOutside);
     return () => document.removeEventListener("pointerdown", handleClickOutside);
   }, [expanded]);
+
+  useEffect(() => {
+    const handler = (e: Event) => setFontSize((e as CustomEvent<number>).detail);
+    window.addEventListener(EVENT_NAME, handler);
+    return () => window.removeEventListener(EVENT_NAME, handler);
+  }, []);
+
+  const increaseFontSize = useCallback(() => {
+    setTerminalFontSize(getTerminalFontSize() + 1);
+  }, []);
+
+  const decreaseFontSize = useCallback(() => {
+    setTerminalFontSize(getTerminalFontSize() - 1);
+  }, []);
 
   const sendKey = useCallback(
     (sequence: string) => {
@@ -124,6 +148,34 @@ export function FloatingActionButton() {
               {label}
             </button>
           ))}
+          <div className="my-1 h-px bg-border" role="separator" />
+          <div className="flex items-center justify-between gap-2 px-3 py-1" role="group" aria-label="Font size">
+            <button
+              type="button"
+              role="menuitem"
+              className="flex h-8 w-8 items-center justify-center rounded-md text-popover-foreground hover:bg-accent hover:text-accent-foreground transition-colors disabled:opacity-40 disabled:pointer-events-none"
+              onPointerDown={(e) => e.stopPropagation()}
+              onClick={decreaseFontSize}
+              disabled={fontSize <= MIN_FONT_SIZE}
+              aria-label="Decrease font size"
+            >
+              <Minus className="h-4 w-4" />
+            </button>
+            <span className="text-xs tabular-nums text-popover-foreground select-none min-w-[3ch] text-center">
+              {fontSize}
+            </span>
+            <button
+              type="button"
+              role="menuitem"
+              className="flex h-8 w-8 items-center justify-center rounded-md text-popover-foreground hover:bg-accent hover:text-accent-foreground transition-colors disabled:opacity-40 disabled:pointer-events-none"
+              onPointerDown={(e) => e.stopPropagation()}
+              onClick={increaseFontSize}
+              disabled={fontSize >= MAX_FONT_SIZE}
+              aria-label="Increase font size"
+            >
+              <Plus className="h-4 w-4" />
+            </button>
+          </div>
           <div className="my-1 h-px bg-border" role="separator" />
           <button
             type="button"

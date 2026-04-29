@@ -9,6 +9,7 @@ import { useKeybindings } from "@/hooks/useKeybindings";
 import { type ConnectionState, useTerminalWebSocket } from "@/hooks/useTerminalWebSocket";
 import { getClientRuntimeConfig } from "@/lib/runtime-config";
 import { loadTerminalFont, TERMINAL_FONT_FAMILY, TERMINAL_THEME } from "@/lib/terminal/config";
+import { EVENT_NAME as FONT_SIZE_EVENT, getTerminalFontSize } from "@/lib/terminal/font-size";
 import { encodeInput } from "@/lib/terminal/protocol";
 import { cn } from "@/lib/utils";
 import "@/styles/xterm.css";
@@ -135,6 +136,20 @@ export function InteractiveTerminal({
   }, [connectionState]);
 
   useEffect(() => {
+    const handler = (e: Event) => {
+      const size = (e as CustomEvent<number>).detail;
+      const term = termRef.current;
+      const fit = fitRef.current;
+      if (term && fit) {
+        term.options.fontSize = size;
+        fit.fit();
+      }
+    };
+    window.addEventListener(FONT_SIZE_EVENT, handler);
+    return () => window.removeEventListener(FONT_SIZE_EVENT, handler);
+  }, []);
+
+  useEffect(() => {
     if (!containerRef.current) return;
 
     let mounted = true;
@@ -154,7 +169,7 @@ export function InteractiveTerminal({
       term = new Terminal({
         theme: TERMINAL_THEME,
         fontFamily: TERMINAL_FONT_FAMILY,
-        fontSize: 13,
+        fontSize: getTerminalFontSize(),
         lineHeight: 1.4,
         cursorBlink: true,
         convertEol: true,

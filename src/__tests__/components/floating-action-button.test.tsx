@@ -124,19 +124,18 @@ describe("FloatingActionButton", () => {
     );
 
     const menuItems = screen.getAllByRole("menuitem");
-    expect(menuItems).toHaveLength(8);
+    expect(menuItems).toHaveLength(10);
 
-    const labels = menuItems.map((el) => el.textContent);
-    expect(labels).toEqual([
-      "Tab",
-      "Up",
-      "Down",
-      "Right",
-      "Left",
-      "Ctrl+C",
-      "Esc",
-      "Send",
-    ]);
+    expect(screen.getByRole("menuitem", { name: /Tab/ })).toBeInTheDocument();
+    expect(screen.getByRole("menuitem", { name: /Up/ })).toBeInTheDocument();
+    expect(screen.getByRole("menuitem", { name: /Down/ })).toBeInTheDocument();
+    expect(screen.getByRole("menuitem", { name: /Right/ })).toBeInTheDocument();
+    expect(screen.getByRole("menuitem", { name: /Left/ })).toBeInTheDocument();
+    expect(screen.getByRole("menuitem", { name: /Ctrl\+C/ })).toBeInTheDocument();
+    expect(screen.getByRole("menuitem", { name: /Esc/ })).toBeInTheDocument();
+    expect(screen.getByRole("menuitem", { name: /Send/ })).toBeInTheDocument();
+    expect(screen.getByRole("menuitem", { name: /Decrease font size/ })).toBeInTheDocument();
+    expect(screen.getByRole("menuitem", { name: /Increase font size/ })).toBeInTheDocument();
   });
 
   it("calls activeSend with Tab sequence when Tab key pressed", () => {
@@ -186,6 +185,54 @@ describe("FloatingActionButton", () => {
 
     fireEvent.click(screen.getByRole("menuitem", { name: /Left/ }));
     expect(mockActiveSend).toHaveBeenCalledWith("\x1b[D");
+  });
+
+  it("increases font size when + button clicked", () => {
+    render(<FloatingActionButton />);
+    fireEvent.pointerUp(
+      screen.getByRole("button", { name: "Open virtual keyboard" }),
+    );
+
+    const increaseBtn = screen.getByRole("menuitem", { name: /Increase font size/ });
+    fireEvent.click(increaseBtn);
+
+    expect(localStorage.getItem("terminal:font-size")).toBe("14");
+    expect(screen.getByText("14")).toBeInTheDocument();
+  });
+
+  it("decreases font size when - button clicked", () => {
+    render(<FloatingActionButton />);
+    fireEvent.pointerUp(
+      screen.getByRole("button", { name: "Open virtual keyboard" }),
+    );
+
+    const decreaseBtn = screen.getByRole("menuitem", { name: /Decrease font size/ });
+    fireEvent.click(decreaseBtn);
+
+    expect(localStorage.getItem("terminal:font-size")).toBe("12");
+    expect(screen.getByText("12")).toBeInTheDocument();
+  });
+
+  it("disables decrease button at minimum font size", () => {
+    localStorage.setItem("terminal:font-size", "10");
+    render(<FloatingActionButton />);
+    fireEvent.pointerUp(
+      screen.getByRole("button", { name: "Open virtual keyboard" }),
+    );
+
+    const decreaseBtn = screen.getByRole("menuitem", { name: /Decrease font size/ });
+    expect(decreaseBtn).toBeDisabled();
+  });
+
+  it("disables increase button at maximum font size", () => {
+    localStorage.setItem("terminal:font-size", "24");
+    render(<FloatingActionButton />);
+    fireEvent.pointerUp(
+      screen.getByRole("button", { name: "Open virtual keyboard" }),
+    );
+
+    const increaseBtn = screen.getByRole("menuitem", { name: /Increase font size/ });
+    expect(increaseBtn).toBeDisabled();
   });
 
   it("collapses when clicking outside", () => {
