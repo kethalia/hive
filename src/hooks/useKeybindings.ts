@@ -62,8 +62,15 @@ export function useKeybindings(): KeybindingContextValue {
 export function useRegisterKeybinding(entry: KeybindingEntry) {
   const { register, unregister } = useKeybindings();
 
+  const actionRef = React.useRef(entry.action);
+  actionRef.current = entry.action;
+
   React.useEffect(() => {
-    register(entry);
+    const stableEntry = {
+      ...entry,
+      action: (...args: Parameters<typeof entry.action>) => actionRef.current(...args),
+    };
+    register(stableEntry);
     return () => unregister(entry.id);
   }, [entry.id, entry.keys.join(","), entry.description, entry.category, entry.enabledInBrowser, register, unregister]);
 }

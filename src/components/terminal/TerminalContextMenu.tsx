@@ -57,8 +57,8 @@ export function TerminalContextMenu({
 
   if (!position) return null;
 
-  const clampedX = Math.min(position.x, window.innerWidth - 200);
-  const clampedY = Math.min(position.y, window.innerHeight - 200);
+  const clampedX = Math.max(0, Math.min(position.x, window.innerWidth - 200));
+  const clampedY = Math.max(0, Math.min(position.y, window.innerHeight - 200));
 
   const hasSessionActions = onNewSession || onCloseSession;
 

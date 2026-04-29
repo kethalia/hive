@@ -1,5 +1,6 @@
 "use client";
 
+import type { PointerEvent as ReactPointerEvent } from "react";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 export type Corner =
@@ -87,7 +88,7 @@ export function useFabPosition() {
   }, [corner]);
 
   const onPointerDown = useCallback(
-    (e: React.PointerEvent<HTMLElement>) => {
+    (e: ReactPointerEvent<HTMLElement>) => {
       e.currentTarget.setPointerCapture(e.pointerId);
       setIsDragging(true);
       dragStartRef.current = { x: e.clientX, y: e.clientY };
@@ -97,7 +98,7 @@ export function useFabPosition() {
   );
 
   const onPointerMove = useCallback(
-    (e: React.PointerEvent) => {
+    (e: ReactPointerEvent) => {
       if (!isDragging) return;
       const dx = e.clientX - dragStartRef.current.x;
       const dy = e.clientY - dragStartRef.current.y;
