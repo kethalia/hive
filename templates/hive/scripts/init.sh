@@ -101,6 +101,20 @@ if [ -n "$HIVE_REPO_URL" ]; then
     git checkout -b "$HIVE_BRANCH_NAME" 2>/dev/null || git checkout "$HIVE_BRANCH_NAME" 2>/dev/null || echo "Warning: could not checkout branch $HIVE_BRANCH_NAME"
     echo "Checked out branch: $HIVE_BRANCH_NAME"
   fi
+
+  # Seed pi MCP config in the cloned project so playwright/obsidian work from first boot.
+  # Pi only reads project-rooted MCP config (<cwd>/.mcp.json or <cwd>/.gsd/mcp.json).
+  if [ -d /home/coder/project ] && [ ! -f /home/coder/project/.gsd/mcp.json ] && [ -f /home/coder/.claude/mcp.json ]; then
+    mkdir -p /home/coder/project/.gsd
+    cp /home/coder/.claude/mcp.json /home/coder/project/.gsd/mcp.json
+    echo "Seeded pi MCP config at /home/coder/project/.gsd/mcp.json"
+  fi
+fi
+
+# Home fallback so pi picks up MCP config when run from ~ or any project without one.
+if [ -f /home/coder/.claude/mcp.json ] && [ ! -f /home/coder/.mcp.json ]; then
+  cp /home/coder/.claude/mcp.json /home/coder/.mcp.json
+  echo "Seeded pi MCP config at /home/coder/.mcp.json"
 fi
 
 # Per-start initialization

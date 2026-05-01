@@ -9,7 +9,7 @@
       "command": "npx",
       "args": ["-y", "@playwright/mcp", "--no-sandbox"],
       "env": {
-        "DISPLAY": ":99"
+        "DISPLAY": ":1"
       }
     }
   }
