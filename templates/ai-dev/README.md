@@ -154,7 +154,7 @@ A virtual display (Xvfb) runs a headed Chromium browser that Claude Code control
 
 ### Web App (KasmVNC)
 
-Open the **Browser** app in the Coder dashboard to watch AI agents interact with pages in real-time. The browser runs on a virtual display (`:99`) and is streamed via KasmVNC on port `6080`.
+Open the **Browser** app in the Coder dashboard to watch AI agents interact with pages in real-time. The browser runs on the KasmVNC virtual display (`:1`) and is streamed via KasmVNC on port `6080`.
 
 ### Usage Examples
 
@@ -174,9 +174,9 @@ browser-html http://localhost:3000                    # Dump rendered DOM as tex
 
 ### Configuration
 
-The Playwright MCP server is auto-configured for Claude Code (`~/.claude/mcp.json`) during workspace startup. It runs in **headed mode** on display `:99`, so all browser interactions are visible via the KasmVNC web app.
+The Playwright MCP server is auto-configured for Claude Code (`~/.claude/mcp.json`) during workspace startup. It runs in **headed mode** on display `:1`, so all browser interactions are visible via the KasmVNC web app.
 
-Architecture: `KasmVNC :99` (virtual display + VNC + web viewer on `:6080`) → `fluxbox` (window manager)
+Architecture: `KasmVNC :1` (virtual display + VNC + web viewer on `:6080`) → `openbox` (window manager)
 
 Environment variables:
 - `BROWSER_VIEWPORT` - Screenshot/display viewport size (default: `1280x720`)

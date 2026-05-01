@@ -74,7 +74,7 @@ alias gp="git pull"
 alias gc="git commit"
 alias gco="git checkout"
 alias ll="ls -lah"
-alias chrome="DISPLAY=:99 google-chrome-stable --no-sandbox"
+alias chrome="DISPLAY=:1 google-chrome-stable --no-sandbox"
 
 # Direnv hook
 eval "$(direnv hook zsh)"

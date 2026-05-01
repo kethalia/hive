@@ -83,6 +83,13 @@ fi
 # Ensure tools are on PATH (prepend without overriding agent PATH)
 export PATH="$HOME/.local/bin:$HOME/.local/share/pnpm:$HOME/.bun/bin:$HOME/.foundry/bin:$PATH"
 
+# Home fallback so pi picks up MCP config when run from ~.
+if [ -f /home/coder/.claude/mcp.json ] && [ ! -f /home/coder/.mcp.json ]; then
+  cp /home/coder/.claude/mcp.json /home/coder/.mcp.json
+  chmod 600 /home/coder/.mcp.json
+  echo "Seeded pi MCP config at /home/coder/.mcp.json"
+fi
+
 # Per-start initialization
 echo "Starting workspace services..."
 
