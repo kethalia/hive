@@ -1,0 +1,63 @@
+# Release preflight — gate the changesets "Version Packages" PR on the
+# existence of `:sha-<short>` tags in GHCR for every production image.
+#
+# Why title-match instead of `paths: .changeset/**`?
+#   The changesets bot DELETES the `.changeset/*.md` files when it opens /
+#   updates the Version Packages PR. A `paths` filter is unreliable —
+#   synchronize events after the bot's amend would skip the check.
+#   Matching on the PR title (changesets default "chore: version packages")
+#   is the stable trigger.
+#
+# Why check `pull_request.head.sha` (not the merge sha)?
+#   The merge sha is unknowable pre-merge for squash merges. build-images.yml
+#   on PR runs tags `:sha-<short>` from `GITHUB_SHA`, which on `pull_request`
+#   events is the PR head sha — that is the tag we must verify exists.
+#
+# Contract:
+#   PRE-MERGE half of the build-once-promote-on-release contract. The
+#   POST-MERGE half is `release.yml`'s call into `retag-stack`, which
+#   retags `:sha-<short>` -> `:v<version>` + `:latest` with no rebuild.
+#
+# Recovery: if a check fails, push an empty commit to retrigger
+# build-images.yml on the PR head.
+name: Release preflight
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    branches: [main]
+
+permissions:
+  contents: read
+  packages: read
+
+jobs:
+  verify-sha-tags:
+    if: "${{ startsWith(github.event.pull_request.title, 'chore: version packages') }}"
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        image: [hive, hive-terminal-proxy, hive-auth]
+    steps:
+      - uses: actions/checkout@v4
+
+      - id: sha
+        name: Compute PR head short sha
+        env:
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: echo "sha_short=${PR_HEAD_SHA::7}" >> "$GITHUB_OUTPUT"
+
+      - name: Verify :sha-<short> tag exists in GHCR
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          IMAGE: ${{ matrix.image }}
+          SHA_SHORT: ${{ steps.sha.outputs.sha_short }}
+        run: |
+          if ! gh api --paginate "/orgs/kethalia/packages/container/${IMAGE}/versions" \
+              --jq '.[].metadata.container.tags[]' \
+            | grep -qx "sha-${SHA_SHORT}"; then
+            echo "::error::sha-${SHA_SHORT} tag missing for ${IMAGE}; build-images.yml must succeed before this PR can merge"
+            exit 1
+          fi
+          echo "Found ghcr.io/kethalia/${IMAGE}:sha-${SHA_SHORT}"

@@ -1,217 +1,112 @@
+# Release workflow — promote-on-release retag path.
+#
+# `release` (push to main): calls the org-reusable retag-stack.yml. That
+# reusable runs changesets, then for each `publishedPackages` entry that
+# also appears in the `images:` JSON map below, retags the prebuilt
+# `:sha-<short>` manifest (produced by build-images.yml on the merge commit)
+# to `:v<version>` and `:latest` via `docker buildx imagetools create` — no
+# rebuild.
+#
+# `recovery-publish` (workflow_dispatch): per-image retag entry that calls
+# the leaf retag-image.yml reusable directly. Operator supplies the merge
+# commit's short SHA (`source-sha-short`) and target version.
 name: Release
 
 on:
   push:
-    branches:
-      - main
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      images:
+        description: 'Comma-separated package names to retag (hive-orchestrator,hive-terminal-proxy,hive-auth)'
+        required: true
+        type: string
+      version:
+        description: 'Semver without v prefix (e.g. 0.1.1)'
+        required: true
+        type: string
+      source-sha-short:
+        description: 'Short SHA (7 chars) of the merge commit whose :sha-<short> images to retag (e.g. abc1234)'
+        required: true
+        type: string
 
 concurrency:
   group: release-${{ github.ref }}
   cancel-in-progress: false
 
+permissions:
+  contents: write
+  pull-requests: write
+  packages: write
+
 jobs:
   release:
-    name: Release
+    if: github.event_name == 'push'
+    uses: kethalia/workflows/.github/workflows/retag-stack.yml@v1.0.0
+    with:
+      images: |
+        {
+          "hive-orchestrator":   { "image": "hive" },
+          "hive-terminal-proxy": { "image": "hive-terminal-proxy" },
+          "hive-auth":           { "image": "hive-auth" }
+        }
+    secrets: inherit
+
+  recovery-expand:
+    if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
-      pull-requests: write
-      packages: write
     outputs:
-      published: ${{ steps.changesets.outputs.published }}
-      publishedPackages: ${{ steps.changesets.outputs.publishedPackages }}
-      orchestratorVersion: ${{ steps.versions.outputs.orchestratorVersion }}
-      terminalProxyVersion: ${{ steps.versions.outputs.terminalProxyVersion }}
-      authVersion: ${{ steps.versions.outputs.authVersion }}
+      matrix: ${{ steps.expand.outputs.matrix }}
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-          fetch-tags: true
-
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: pnpm
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Create release Pull Request or publish
-        id: changesets
-        uses: changesets/action@v1
-        with:
-          commit: "chore: version packages"
-          title: "chore: version packages"
-          version: pnpm changeset version
-          publish: pnpm ci:release
+      - name: Expand images input to matrix
+        id: expand
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Extract published versions
-        id: versions
-        if: steps.changesets.outputs.published == 'true'
-        env:
-          PUBLISHED_PACKAGES: ${{ steps.changesets.outputs.publishedPackages }}
+          IMAGES: ${{ inputs.images }}
         run: |
-          ORCHESTRATOR_VERSION=$(echo "$PUBLISHED_PACKAGES" | jq -r '.[] | select(.name == "hive-orchestrator") | .version // empty')
-          TERMINAL_PROXY_VERSION=$(echo "$PUBLISHED_PACKAGES" | jq -r '.[] | select(.name == "hive-terminal-proxy") | .version // empty')
-          AUTH_VERSION=$(echo "$PUBLISHED_PACKAGES" | jq -r '.[] | select(.name == "hive-auth") | .version // empty')
-          echo "orchestratorVersion=${ORCHESTRATOR_VERSION}" >> "$GITHUB_OUTPUT"
-          echo "terminalProxyVersion=${TERMINAL_PROXY_VERSION}" >> "$GITHUB_OUTPUT"
-          echo "authVersion=${AUTH_VERSION}" >> "$GITHUB_OUTPUT"
+          set -euo pipefail
+          echo "Requested images: $IMAGES"
+          include='[]'
+          IFS=',' read -ra names <<<"$IMAGES"
+          for raw in "${names[@]}"; do
+            name="$(echo "$raw" | tr -d '[:space:]')"
+            case "$name" in
+              hive-orchestrator)
+                entry='{"name":"hive-orchestrator","image":"hive"}'
+                ;;
+              hive-terminal-proxy)
+                entry='{"name":"hive-terminal-proxy","image":"hive-terminal-proxy"}'
+                ;;
+              hive-auth)
+                entry='{"name":"hive-auth","image":"hive-auth"}'
+                ;;
+              "")
+                continue
+                ;;
+              *)
+                echo "Unknown image name: $name" >&2
+                exit 1
+                ;;
+            esac
+            include=$(jq -c --argjson e "$entry" '. + [$e]' <<<"$include")
+          done
+          matrix=$(jq -c --argjson inc "$include" -n '{include: $inc}')
+          echo "Resolved matrix: $matrix"
+          echo "matrix=$matrix" >> "$GITHUB_OUTPUT"
 
-  docker-app:
-    name: Push hive app image
-    needs: [release]
-    if: needs.release.outputs.orchestratorVersion != ''
-    runs-on: ubuntu-latest
+  recovery-publish:
+    needs: [recovery-expand]
+    if: github.event_name == 'workflow_dispatch'
     permissions:
       contents: read
       packages: write
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Log in to GHCR
-        uses: docker/login-action@v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Compute tags
-        id: tags
-        env:
-          VERSION: ${{ needs.release.outputs.orchestratorVersion }}
-          SHA: ${{ github.sha }}
-        run: |
-          echo "tags<<EOF" >> "$GITHUB_OUTPUT"
-          echo "ghcr.io/kethalia/hive:v${VERSION}" >> "$GITHUB_OUTPUT"
-          echo "ghcr.io/kethalia/hive:sha-${SHA:0:7}" >> "$GITHUB_OUTPUT"
-          echo "ghcr.io/kethalia/hive:latest" >> "$GITHUB_OUTPUT"
-          echo "EOF" >> "$GITHUB_OUTPUT"
-
-      - name: Build and push app image
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          file: Dockerfile
-          push: true
-          tags: ${{ steps.tags.outputs.tags }}
-          labels: |
-            org.opencontainers.image.source=https://github.com/${{ github.repository }}
-            org.opencontainers.image.description=Hive orchestrator
-            org.opencontainers.image.version=${{ needs.release.outputs.orchestratorVersion }}
-            org.opencontainers.image.revision=${{ github.sha }}
-            org.opencontainers.image.created=${{ github.event.head_commit.timestamp }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-
-  docker-terminal-proxy:
-    name: Push terminal-proxy image
-    needs: [release]
-    if: needs.release.outputs.terminalProxyVersion != ''
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      packages: write
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Log in to GHCR
-        uses: docker/login-action@v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Compute tags
-        id: tags
-        env:
-          VERSION: ${{ needs.release.outputs.terminalProxyVersion }}
-          SHA: ${{ github.sha }}
-        run: |
-          echo "tags<<EOF" >> "$GITHUB_OUTPUT"
-          echo "ghcr.io/kethalia/hive-terminal-proxy:v${VERSION}" >> "$GITHUB_OUTPUT"
-          echo "ghcr.io/kethalia/hive-terminal-proxy:sha-${SHA:0:7}" >> "$GITHUB_OUTPUT"
-          echo "ghcr.io/kethalia/hive-terminal-proxy:latest" >> "$GITHUB_OUTPUT"
-          echo "EOF" >> "$GITHUB_OUTPUT"
-
-      - name: Build and push terminal-proxy image
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          file: services/terminal-proxy/Dockerfile
-          push: true
-          tags: ${{ steps.tags.outputs.tags }}
-          labels: |
-            org.opencontainers.image.source=https://github.com/${{ github.repository }}
-            org.opencontainers.image.description=Hive terminal proxy
-            org.opencontainers.image.version=${{ needs.release.outputs.terminalProxyVersion }}
-            org.opencontainers.image.revision=${{ github.sha }}
-            org.opencontainers.image.created=${{ github.event.head_commit.timestamp }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-
-  docker-auth:
-    name: Push auth service image
-    needs: [release]
-    if: needs.release.outputs.authVersion != ''
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      packages: write
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Log in to GHCR
-        uses: docker/login-action@v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Compute tags
-        id: tags
-        env:
-          VERSION: ${{ needs.release.outputs.authVersion }}
-          SHA: ${{ github.sha }}
-        run: |
-          echo "tags<<EOF" >> "$GITHUB_OUTPUT"
-          echo "ghcr.io/kethalia/hive-auth:v${VERSION}" >> "$GITHUB_OUTPUT"
-          echo "ghcr.io/kethalia/hive-auth:sha-${SHA:0:7}" >> "$GITHUB_OUTPUT"
-          echo "ghcr.io/kethalia/hive-auth:latest" >> "$GITHUB_OUTPUT"
-          echo "EOF" >> "$GITHUB_OUTPUT"
-
-      - name: Build and push auth image
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          file: services/auth/Dockerfile
-          push: true
-          tags: ${{ steps.tags.outputs.tags }}
-          labels: |
-            org.opencontainers.image.source=https://github.com/${{ github.repository }}
-            org.opencontainers.image.description=Hive auth service
-            org.opencontainers.image.version=${{ needs.release.outputs.authVersion }}
-            org.opencontainers.image.revision=${{ github.sha }}
-            org.opencontainers.image.created=${{ github.event.head_commit.timestamp }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.recovery-expand.outputs.matrix) }}
+    uses: kethalia/workflows/.github/workflows/retag-image.yml@v1.0.0
+    with:
+      image: ${{ matrix.image }}
+      source-tag: sha-${{ inputs.source-sha-short }}
+      dest-tags: |
+        v${{ inputs.version }}
+        latest
+    secrets: inherit

@@ -1,0 +1,36 @@
+# Build images workflow — delegates to kethalia/workflows `build-stack.yml`,
+# which owns runner resolution, matrix fan-out, and tag policy.
+#
+# Tag policy (per-service):
+#   - always: ghcr.io/<owner>/<image>:sha-<short>
+#   - on same-repo PR: + :pr-<num>-<sha>
+#
+# The :sha-<short> tag pushed on merge-to-main is the source for release.yml's
+# retag-stack promotion (build-once / promote-on-release contract).
+name: Build images
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+concurrency:
+  group: build-images-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    permissions:
+      contents: read
+      packages: write
+    uses: kethalia/workflows/.github/workflows/build-stack.yml@v1.0.0
+    secrets: inherit
+    with:
+      push: ${{ github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository }}
+      services: |
+        [
+          {"image": "hive", "dockerfile": "Dockerfile"},
+          {"image": "hive-terminal-proxy", "dockerfile": "services/terminal-proxy/Dockerfile"},
+          {"image": "hive-auth", "dockerfile": "services/auth/Dockerfile"}
+        ]
