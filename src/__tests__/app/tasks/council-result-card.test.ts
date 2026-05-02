@@ -1,8 +1,9 @@
 // @vitest-environment jsdom
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import React from "react";
-import { render, screen, fireEvent, cleanup } from "@testing-library/react";
-import type { CouncilReport, AggregatedFinding } from "@/lib/council/types";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { AggregatedFinding, CouncilReport } from "@/lib/council/types";
 
 vi.mock("next/link", () => ({
   default: ({
@@ -24,9 +25,7 @@ import { CouncilResultCard } from "@/app/(dashboard)/tasks/[id]/council-result-c
 
 // ── Fixtures ───────────────────────────────────────────────────────
 
-function makeAggregatedFinding(
-  overrides: Partial<AggregatedFinding> = {}
-): AggregatedFinding {
+function makeAggregatedFinding(overrides: Partial<AggregatedFinding> = {}): AggregatedFinding {
   return {
     file: "src/foo.ts",
     startLine: 10,
@@ -50,9 +49,7 @@ function makeCouncilReport(overrides: Partial<CouncilReport> = {}): CouncilRepor
       makeAggregatedFinding({ severity: "major", agreementCount: 2 }),
       makeAggregatedFinding({ severity: "minor", agreementCount: 1, isConsensus: false }),
     ],
-    consensusItems: [
-      makeAggregatedFinding({ severity: "critical", agreementCount: 3 }),
-    ],
+    consensusItems: [makeAggregatedFinding({ severity: "critical", agreementCount: 3 })],
     postedCommentUrl: "https://github.com/org/repo/pull/1#issuecomment-1",
     durationMs: 45000,
     timestamp: "2026-04-01T12:00:00Z",
@@ -81,7 +78,7 @@ describe("CouncilResultCard", () => {
     render(
       React.createElement(CouncilResultCard, {
         report: makeCouncilReport({ outcome: "partial" }),
-      })
+      }),
     );
     const badge = screen.getByTestId("council-outcome-badge");
     expect(badge.textContent).toBe("partial");
@@ -91,7 +88,7 @@ describe("CouncilResultCard", () => {
     render(
       React.createElement(CouncilResultCard, {
         report: makeCouncilReport({ outcome: "inconclusive" }),
-      })
+      }),
     );
     const badge = screen.getByTestId("council-outcome-badge");
     expect(badge.textContent).toBe("inconclusive");
@@ -150,7 +147,7 @@ describe("CouncilResultCard", () => {
     render(
       React.createElement(CouncilResultCard, {
         report: makeCouncilReport({ postedCommentUrl: url }),
-      })
+      }),
     );
     const link = screen.getByTestId("pr-comment-link");
     expect(link).toBeTruthy();
@@ -161,7 +158,7 @@ describe("CouncilResultCard", () => {
     render(
       React.createElement(CouncilResultCard, {
         report: makeCouncilReport({ postedCommentUrl: null }),
-      })
+      }),
     );
     expect(screen.queryByTestId("pr-comment-link")).toBeNull();
   });
@@ -170,7 +167,7 @@ describe("CouncilResultCard", () => {
     render(
       React.createElement(CouncilResultCard, {
         report: makeCouncilReport({ reviewersCompleted: 2, councilSize: 3 }),
-      })
+      }),
     );
     const stat = screen.getByTestId("reviewer-count");
     expect(stat.textContent).toContain("2/3 reviewers completed");
@@ -180,7 +177,7 @@ describe("CouncilResultCard", () => {
     render(
       React.createElement(CouncilResultCard, {
         report: makeCouncilReport({ findings: [], consensusItems: [] }),
-      })
+      }),
     );
     expect(screen.queryByTestId("severity-critical")).toBeNull();
     expect(screen.queryByTestId("severity-major")).toBeNull();
@@ -190,12 +187,12 @@ describe("CouncilResultCard", () => {
 
   it("collapses consensus items beyond 3 with expand button", () => {
     const manyItems = Array.from({ length: 5 }, (_, i) =>
-      makeAggregatedFinding({ issue: `Issue ${i}`, startLine: i + 1 })
+      makeAggregatedFinding({ issue: `Issue ${i}`, startLine: i + 1 }),
     );
     render(
       React.createElement(CouncilResultCard, {
         report: makeCouncilReport({ consensusItems: manyItems }),
-      })
+      }),
     );
     // Only first 3 visible
     const items = screen.getAllByTestId("consensus-item");
@@ -207,12 +204,12 @@ describe("CouncilResultCard", () => {
 
   it("expands consensus items when show more is clicked", () => {
     const manyItems = Array.from({ length: 5 }, (_, i) =>
-      makeAggregatedFinding({ issue: `Issue ${i}`, startLine: i + 1 })
+      makeAggregatedFinding({ issue: `Issue ${i}`, startLine: i + 1 }),
     );
     render(
       React.createElement(CouncilResultCard, {
         report: makeCouncilReport({ consensusItems: manyItems }),
-      })
+      }),
     );
     const btn = screen.getByText(/Show 2 more/i);
     fireEvent.click(btn);

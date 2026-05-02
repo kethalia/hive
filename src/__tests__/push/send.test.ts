@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mockFindMany = vi.hoisted(() => vi.fn());
 const mockDelete = vi.hoisted(() => vi.fn());
@@ -81,12 +81,12 @@ describe("sendPushToUser", () => {
     expect(mockSendNotification).toHaveBeenCalledTimes(2);
     expect(mockSendNotification).toHaveBeenCalledWith(
       { endpoint: subs[0].endpoint, keys: { p256dh: "p256dh-key", auth: "auth-key" } },
-      JSON.stringify({ title: "Test", body: "Hello", tag: "test-tag" })
+      JSON.stringify({ title: "Test", body: "Hello", tag: "test-tag" }),
     );
     expect(mockSetVapidDetails).toHaveBeenCalledWith(
       "mailto:noreply@hive.local",
       vapidKeys.publicKey,
-      vapidKeys.privateKey
+      vapidKeys.privateKey,
     );
   });
 
@@ -140,7 +140,7 @@ describe("sendPushToUser", () => {
 
     expect(result).toEqual({ sent: 1, cleaned: 0 });
     expect(consoleSpy).toHaveBeenCalledWith(
-      expect.stringContaining("[push] Failed to send to endpoint domain")
+      expect.stringContaining("[push] Failed to send to endpoint domain"),
     );
     expect(mockDelete).not.toHaveBeenCalled();
     consoleSpy.mockRestore();

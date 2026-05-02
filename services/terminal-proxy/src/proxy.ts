@@ -1,10 +1,10 @@
+import { randomUUID } from "node:crypto";
 import type { IncomingMessage } from "node:http";
 import type { Duplex } from "node:stream";
-import { randomUUID } from "node:crypto";
 import { WebSocket, WebSocketServer } from "ws";
-import { SAFE_IDENTIFIER_RE, UUID_RE, buildPtyUrl } from "./protocol.js";
-import { ConnectionRegistry } from "./keepalive.js";
 import { authenticateUpgrade } from "./auth.js";
+import { ConnectionRegistry } from "./keepalive.js";
+import { buildPtyUrl, SAFE_IDENTIFIER_RE, UUID_RE } from "./protocol.js";
 
 const PING_INTERVAL_MS = 30_000;
 const UPSTREAM_CONNECT_TIMEOUT_MS = 10_000;
@@ -26,7 +26,10 @@ function getAllowedOrigins(): string[] {
   if (cachedOrigins && cachedOriginsEnv === env) return cachedOrigins;
   cachedOriginsEnv = env;
   if (env) {
-    cachedOrigins = env.split(",").map((o) => o.trim()).filter(Boolean);
+    cachedOrigins = env
+      .split(",")
+      .map((o) => o.trim())
+      .filter(Boolean);
   } else {
     cachedOrigins = ["http://localhost:*", "https://localhost:*"];
   }

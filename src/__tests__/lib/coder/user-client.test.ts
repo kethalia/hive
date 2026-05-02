@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { UserClientError, UserClientException } from "@/lib/coder/user-client";
 
 vi.mock("@/lib/db", () => ({
@@ -14,10 +14,10 @@ vi.mock("@/lib/coder/client", () => ({
   CoderClient: vi.fn(),
 }));
 
-import { getDb } from "@/lib/db";
 import { tryDecrypt } from "@hive/auth";
 import { CoderClient } from "@/lib/coder/client";
 import { getCoderClientForUser } from "@/lib/coder/user-client";
+import { getDb } from "@/lib/db";
 
 const MOCK_USER_ID = "aaaaaaaa-1111-2222-3333-444444444444";
 const MOCK_CODER_URL = "https://coder.example.com";
@@ -88,7 +88,7 @@ describe("getCoderClientForUser", () => {
         iv: expect.any(Buffer),
         authTag: expect.any(Buffer),
       },
-      "a".repeat(64)
+      "a".repeat(64),
     );
   });
 
@@ -110,17 +110,13 @@ describe("getCoderClientForUser", () => {
     mockDb.coderToken.findFirst.mockResolvedValue(null);
     mockDb.user.findUnique.mockResolvedValue(null);
 
-    await expect(getCoderClientForUser(MOCK_USER_ID)).rejects.toThrow(
-      UserClientException
-    );
+    await expect(getCoderClientForUser(MOCK_USER_ID)).rejects.toThrow(UserClientException);
 
     try {
       await getCoderClientForUser(MOCK_USER_ID);
     } catch (err) {
       expect(err).toBeInstanceOf(UserClientException);
-      expect((err as UserClientException).code).toBe(
-        UserClientError.USER_NOT_FOUND
-      );
+      expect((err as UserClientException).code).toBe(UserClientError.USER_NOT_FOUND);
     }
   });
 
@@ -133,9 +129,7 @@ describe("getCoderClientForUser", () => {
       expect.fail("should have thrown");
     } catch (err) {
       expect(err).toBeInstanceOf(UserClientException);
-      expect((err as UserClientException).code).toBe(
-        UserClientError.NO_TOKEN
-      );
+      expect((err as UserClientException).code).toBe(UserClientError.NO_TOKEN);
     }
   });
 
@@ -152,9 +146,7 @@ describe("getCoderClientForUser", () => {
       expect.fail("should have thrown");
     } catch (err) {
       expect(err).toBeInstanceOf(UserClientException);
-      expect((err as UserClientException).code).toBe(
-        UserClientError.KEY_MISMATCH
-      );
+      expect((err as UserClientException).code).toBe(UserClientError.KEY_MISMATCH);
       expect((err as UserClientException).cause).toBeInstanceOf(Error);
     }
   });
@@ -172,9 +164,7 @@ describe("getCoderClientForUser", () => {
       expect.fail("should have thrown");
     } catch (err) {
       expect(err).toBeInstanceOf(UserClientException);
-      expect((err as UserClientException).code).toBe(
-        UserClientError.DECRYPT_FAILED
-      );
+      expect((err as UserClientException).code).toBe(UserClientError.DECRYPT_FAILED);
     }
   });
 
@@ -187,9 +177,7 @@ describe("getCoderClientForUser", () => {
       expect.fail("should have thrown");
     } catch (err) {
       expect(err).toBeInstanceOf(UserClientException);
-      expect((err as UserClientException).code).toBe(
-        UserClientError.DECRYPT_FAILED
-      );
+      expect((err as UserClientException).code).toBe(UserClientError.DECRYPT_FAILED);
       expect((err as UserClientException).message).toContain("ENCRYPTION_KEY");
     }
   });
@@ -204,8 +192,6 @@ describe("getCoderClientForUser", () => {
       // expected
     }
 
-    expect(console.error).toHaveBeenCalledWith(
-      expect.stringContaining("[user-client]")
-    );
+    expect(console.error).toHaveBeenCalledWith(expect.stringContaining("[user-client]"));
   });
 });

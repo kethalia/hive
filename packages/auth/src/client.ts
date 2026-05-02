@@ -1,9 +1,9 @@
 import type {
+  CoderTokenResponse,
+  CredentialResponse,
   LoginRequest,
   LoginResponse,
   SessionPayload,
-  CredentialResponse,
-  CoderTokenResponse,
 } from "./types";
 
 const DEFAULT_TIMEOUT_MS = 10_000;
@@ -28,8 +28,7 @@ export class AuthServiceClient {
     if (!res.ok) {
       const body = await res.json().catch(() => ({}));
       throw new Error(
-        (body as Record<string, string>).error ??
-          `Login failed with status ${res.status}`,
+        (body as Record<string, string>).error ?? `Login failed with status ${res.status}`,
       );
     }
 
@@ -47,8 +46,7 @@ export class AuthServiceClient {
     if (!res.ok) {
       const body = await res.json().catch(() => ({}));
       throw new Error(
-        (body as Record<string, string>).error ??
-          `Logout failed with status ${res.status}`,
+        (body as Record<string, string>).error ?? `Logout failed with status ${res.status}`,
       );
     }
   }
@@ -65,8 +63,7 @@ export class AuthServiceClient {
     if (!res.ok) {
       const body = await res.json().catch(() => ({}));
       throw new Error(
-        (body as Record<string, string>).error ??
-          `Get session failed with status ${res.status}`,
+        (body as Record<string, string>).error ?? `Get session failed with status ${res.status}`,
       );
     }
 
@@ -74,10 +71,9 @@ export class AuthServiceClient {
   }
 
   async getCredentials(sessionId: string): Promise<CredentialResponse | null> {
-    const res = await fetch(
-      `${this.baseUrl}/sessions/${sessionId}/credentials`,
-      { signal: AbortSignal.timeout(this.timeoutMs) },
-    );
+    const res = await fetch(`${this.baseUrl}/sessions/${sessionId}/credentials`, {
+      signal: AbortSignal.timeout(this.timeoutMs),
+    });
 
     if (res.status === 404) {
       return null;
@@ -95,10 +91,9 @@ export class AuthServiceClient {
   }
 
   async getCoderToken(sessionId: string): Promise<CoderTokenResponse | null> {
-    const res = await fetch(
-      `${this.baseUrl}/sessions/${sessionId}/token`,
-      { signal: AbortSignal.timeout(this.timeoutMs) },
-    );
+    const res = await fetch(`${this.baseUrl}/sessions/${sessionId}/token`, {
+      signal: AbortSignal.timeout(this.timeoutMs),
+    });
 
     if (res.status === 404) {
       return null;
@@ -107,8 +102,7 @@ export class AuthServiceClient {
     if (!res.ok) {
       const body = await res.json().catch(() => ({}));
       throw new Error(
-        (body as Record<string, string>).error ??
-          `Get token failed with status ${res.status}`,
+        (body as Record<string, string>).error ?? `Get token failed with status ${res.status}`,
       );
     }
 

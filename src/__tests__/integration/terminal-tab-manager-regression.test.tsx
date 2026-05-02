@@ -1,13 +1,7 @@
 // @vitest-environment jsdom
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import {
-  render,
-  screen,
-  fireEvent,
-  waitFor,
-  act,
-  cleanup,
-} from "@testing-library/react";
+
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import "@testing-library/jest-dom/vitest";
 
 const mockKeepAliveStatus = vi.hoisted(() => ({
@@ -80,11 +74,7 @@ vi.mock("@/components/ui/button", () => ({
     className?: string;
     "data-testid"?: string;
   }>) => (
-    <button
-      onClick={onClick}
-      disabled={disabled}
-      data-testid={rest["data-testid"]}
-    >
+    <button onClick={onClick} disabled={disabled} data-testid={rest["data-testid"]}>
       {children}
     </button>
   ),
@@ -111,10 +101,7 @@ vi.mock("@/components/ui/badge", () => ({
 }));
 
 vi.mock("@/components/ui/alert", () => ({
-  Alert: ({
-    children,
-    variant,
-  }: React.PropsWithChildren<{ variant?: string }>) => (
+  Alert: ({ children, variant }: React.PropsWithChildren<{ variant?: string }>) => (
     <div data-testid="alert" data-variant={variant}>
       {children}
     </div>
@@ -193,9 +180,7 @@ describe("TerminalTabManager regression — M006 coexistence", () => {
       render(<TerminalTabManager {...defaultProps} />);
 
       await waitFor(() => {
-        expect(screen.getByTestId("tab-label")).toHaveTextContent(
-          "main-session",
-        );
+        expect(screen.getByTestId("tab-label")).toHaveTextContent("main-session");
       });
 
       await act(async () => {
@@ -222,9 +207,7 @@ describe("TerminalTabManager regression — M006 coexistence", () => {
       render(<TerminalTabManager {...defaultProps} />);
 
       await waitFor(() => {
-        expect(screen.getByTestId("tab-label")).toHaveTextContent(
-          "main-session",
-        );
+        expect(screen.getByTestId("tab-label")).toHaveTextContent("main-session");
       });
 
       fireEvent.click(screen.getByTestId("rename-tab"));
@@ -242,9 +225,7 @@ describe("TerminalTabManager regression — M006 coexistence", () => {
       });
 
       await waitFor(() => {
-        expect(screen.getByTestId("tab-label")).toHaveTextContent(
-          "renamed-tab",
-        );
+        expect(screen.getByTestId("tab-label")).toHaveTextContent("renamed-tab");
       });
     });
 
@@ -339,12 +320,8 @@ describe("TerminalTabManager regression — M006 coexistence", () => {
       });
 
       expect(screen.getByTestId("alert")).toBeInTheDocument();
-      expect(screen.getByTestId("alert-title")).toHaveTextContent(
-        "Keep-alive failure",
-      );
-      expect(screen.getByTestId("alert-description")).toHaveTextContent(
-        "3 consecutive failures",
-      );
+      expect(screen.getByTestId("alert-title")).toHaveTextContent("Keep-alive failure");
+      expect(screen.getByTestId("alert-description")).toHaveTextContent("3 consecutive failures");
     });
 
     it("hides KeepAliveWarning banner when consecutiveFailures < 3", async () => {
@@ -386,9 +363,7 @@ describe("TerminalTabManager regression — M006 coexistence", () => {
         expect(screen.getAllByTestId("tab-label")).toHaveLength(2);
       });
 
-      expect(window.localStorage.getItem(reconnectKey)).toBe(
-        "reconnect-uuid-123",
-      );
+      expect(window.localStorage.getItem(reconnectKey)).toBe("reconnect-uuid-123");
 
       const killButtons = screen.getAllByTestId("close-tab");
       await act(async () => {
@@ -400,9 +375,7 @@ describe("TerminalTabManager regression — M006 coexistence", () => {
       });
 
       expect(window.localStorage.getItem(reconnectKey)).toBeNull();
-      expect(window.localStorage.getItem(otherKey)).toBe(
-        "reconnect-uuid-456",
-      );
+      expect(window.localStorage.getItem(otherKey)).toBe("reconnect-uuid-456");
     });
   });
 });

@@ -1,24 +1,24 @@
 "use client";
 
+import { AlertCircle, ArrowLeft, ExternalLink, GitBranch, Paperclip } from "lucide-react";
 import Link from "next/link";
-import { useEffect, useState, useCallback } from "react";
 import { useAction } from "next-safe-action/hooks";
-import { getTaskAction } from "@/lib/actions/tasks";
-import type { TaskWithRelations } from "@/lib/types/tasks";
-import { ACTIVE_STATUSES } from "@/lib/types/tasks";
-import { shortId, formatTimestamp, statusVariant } from "@/lib/helpers/format";
+import { useCallback, useEffect, useState } from "react";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Separator } from "@/components/ui/separator";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { AlertCircle, ArrowLeft, ExternalLink, GitBranch, Paperclip } from "lucide-react";
-import { VerificationReportCard } from "./verification-report-card";
-import { CouncilResultCard } from "./council-result-card";
-import { AgentStreamPanel } from "./agent-stream-panel";
-import { isVerificationReport } from "@/lib/verification/types";
+import { Separator } from "@/components/ui/separator";
+import { getTaskAction } from "@/lib/actions/tasks";
 import { isCouncilReport } from "@/lib/council/types";
+import { formatTimestamp, shortId, statusVariant } from "@/lib/helpers/format";
+import type { TaskWithRelations } from "@/lib/types/tasks";
+import { ACTIVE_STATUSES } from "@/lib/types/tasks";
+import { isVerificationReport } from "@/lib/verification/types";
+import { AgentStreamPanel } from "./agent-stream-panel";
+import { CouncilResultCard } from "./council-result-card";
+import { VerificationReportCard } from "./verification-report-card";
 
 export function TaskDetail({ initialTask }: { initialTask: TaskWithRelations }) {
   const [task, setTask] = useState<TaskWithRelations>(initialTask);
@@ -54,12 +54,8 @@ export function TaskDetail({ initialTask }: { initialTask: TaskWithRelations }) 
 
       {/* Header */}
       <div className="flex items-center gap-3">
-        <h1 className="text-2xl font-bold tracking-tight">
-          Task {shortId(task.id)}
-        </h1>
-        <Badge variant={statusVariant[task.status] ?? "secondary"}>
-          {task.status}
-        </Badge>
+        <h1 className="text-2xl font-bold tracking-tight">Task {shortId(task.id)}</h1>
+        <Badge variant={statusVariant[task.status] ?? "secondary"}>{task.status}</Badge>
       </div>
 
       {/* Error alert */}
@@ -147,8 +143,8 @@ export function TaskDetail({ initialTask }: { initialTask: TaskWithRelations }) 
           </CardHeader>
           <CardContent>
             <ul className="space-y-2">
-              {task.attachments.map((att, i) => (
-                <li key={i} className="flex items-center gap-3 text-sm">
+              {task.attachments.map((att) => (
+                <li key={`${att.type}-${att.name}`} className="flex items-center gap-3 text-sm">
                   <Paperclip className="h-3 w-3 text-muted-foreground" />
                   <Badge variant="outline" className="font-mono text-xs">
                     {att.type}
@@ -167,9 +163,7 @@ export function TaskDetail({ initialTask }: { initialTask: TaskWithRelations }) 
       )}
 
       {/* Council Review */}
-      {isCouncilReport(task.councilReport) && (
-        <CouncilResultCard report={task.councilReport} />
-      )}
+      {isCouncilReport(task.councilReport) && <CouncilResultCard report={task.councilReport} />}
 
       {/* Workspaces */}
       <Card>
@@ -189,14 +183,10 @@ export function TaskDetail({ initialTask }: { initialTask: TaskWithRelations }) 
                   className="flex items-center justify-between rounded-lg border p-3"
                 >
                   <div className="flex items-center gap-3">
-                    <code className="text-xs text-muted-foreground">
-                      {shortId(ws.id)}
-                    </code>
+                    <code className="text-xs text-muted-foreground">{shortId(ws.id)}</code>
                     <span className="text-sm">{ws.templateType}</span>
                   </div>
-                  <Badge variant={statusVariant[ws.status] ?? "secondary"}>
-                    {ws.status}
-                  </Badge>
+                  <Badge variant={statusVariant[ws.status] ?? "secondary"}>{ws.status}</Badge>
                 </div>
               ))}
             </div>
@@ -222,7 +212,9 @@ export function TaskDetail({ initialTask }: { initialTask: TaskWithRelations }) 
                     <span className="shrink-0 text-xs text-muted-foreground font-mono tabular-nums min-w-[140px]">
                       {formatTimestamp(log.createdAt)}
                     </span>
-                    <span className={log.level === "error" ? "text-destructive" : "text-foreground"}>
+                    <span
+                      className={log.level === "error" ? "text-destructive" : "text-foreground"}
+                    >
                       {log.message}
                     </span>
                   </div>

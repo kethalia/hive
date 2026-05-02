@@ -1,4 +1,4 @@
-import { execFile } from "child_process";
+import { execFile } from "node:child_process";
 import { DEFAULT_EXEC_TIMEOUT_MS } from "@/lib/constants";
 
 export interface ExecOptions {
@@ -28,12 +28,9 @@ export function execInWorkspace(
 ): Promise<ExecResult> {
   const timeoutMs = opts?.timeoutMs ?? DEFAULT_EXEC_TIMEOUT_MS;
   const loginShell = opts?.loginShell ?? false;
-  const truncatedCmd =
-    command.length > 100 ? command.slice(0, 100) + "…" : command;
+  const truncatedCmd = command.length > 100 ? `${command.slice(0, 100)}…` : command;
 
-  console.log(
-    `[exec] workspace=${workspaceName} cmd="${truncatedCmd}" timeout=${timeoutMs}ms`,
-  );
+  console.log(`[exec] workspace=${workspaceName} cmd="${truncatedCmd}" timeout=${timeoutMs}ms`);
 
   const shellCmd = loginShell ? `bash -l -c ${shellQuote(command)}` : command;
 
@@ -46,8 +43,7 @@ export function execInWorkspace(
         if (error) {
           if (
             error.killed ||
-            (error as NodeJS.ErrnoException).code ===
-              "ERR_CHILD_PROCESS_TIMEOUT"
+            (error as NodeJS.ErrnoException).code === "ERR_CHILD_PROCESS_TIMEOUT"
           ) {
             console.log(
               `[exec] workspace=${workspaceName} cmd="${truncatedCmd}" timed out after ${timeoutMs}ms`,
@@ -75,9 +71,7 @@ export function execInWorkspace(
           return;
         }
 
-        console.log(
-          `[exec] workspace=${workspaceName} cmd="${truncatedCmd}" exitCode=0`,
-        );
+        console.log(`[exec] workspace=${workspaceName} cmd="${truncatedCmd}" exitCode=0`);
         resolve({ stdout: stdout ?? "", stderr: stderr ?? "", exitCode: 0 });
       },
     );

@@ -1,5 +1,5 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
-import { readFile } from "fs/promises";
+import { readFile } from "node:fs/promises";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/lib/coder/user-client", () => ({
   getCoderClientForUser: vi.fn(),
@@ -21,11 +21,11 @@ vi.mock("@/lib/auth/session", () => ({
   getSession: vi.fn(),
 }));
 
-import { getCoderClientForUser } from "@/lib/coder/user-client";
-import { getSession } from "@/lib/auth/session";
 import { cookies } from "next/headers";
+import { getSession } from "@/lib/auth/session";
+import { getCoderClientForUser } from "@/lib/coder/user-client";
 
-const mockedGetCoderClientForUser = vi.mocked(getCoderClientForUser);
+const _mockedGetCoderClientForUser = vi.mocked(getCoderClientForUser);
 const mockedGetSession = vi.mocked(getSession);
 const mockedCookies = vi.mocked(cookies);
 
@@ -75,9 +75,7 @@ describe("workspace actions use authActionClient + getCoderClientForUser", () =>
   it("proxy route returns 401 for unauthenticated requests", async () => {
     mockedGetSession.mockResolvedValue(null);
 
-    const { GET } = await import(
-      "@/app/api/workspace-proxy/[workspaceId]/[[...path]]/route"
-    );
+    const { GET } = await import("@/app/api/workspace-proxy/[workspaceId]/[[...path]]/route");
     const url = "http://localhost/api/workspace-proxy/aaaaaaaa-1111-2222-3333-444444444444";
     const req = new Request(url);
     Object.defineProperty(req, "nextUrl", { value: new URL(url) });
@@ -96,7 +94,7 @@ describe("workspace actions use authActionClient + getCoderClientForUser", () =>
   it("proxy route does not use env var credentials", async () => {
     const source = await readFile(
       "src/app/api/workspace-proxy/[workspaceId]/[[...path]]/route.ts",
-      "utf-8"
+      "utf-8",
     );
     expect(source).toContain("getCoderClientForUser");
     expect(source).toContain("getSession");
@@ -107,7 +105,7 @@ describe("workspace actions use authActionClient + getCoderClientForUser", () =>
   it("proxy route metaCache key includes userId to prevent cross-user poisoning", async () => {
     const source = await readFile(
       "src/app/api/workspace-proxy/[workspaceId]/[[...path]]/route.ts",
-      "utf-8"
+      "utf-8",
     );
     expect(source).toMatch(/\$\{userId\}:\$\{workspaceId\}/);
   });

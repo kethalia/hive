@@ -1,11 +1,18 @@
 "use client";
 
-import { useState } from "react";
-import Link from "next/link";
+import {
+  AlertCircle,
+  ChevronDown,
+  ExternalLink,
+  FolderOpen,
+  LayoutDashboard,
+  Monitor,
+  TerminalSquare,
+} from "lucide-react";
 import dynamic from "next/dynamic";
-import type { CoderWorkspace } from "@/lib/coder/types";
-import { buildWorkspaceUrls } from "@/lib/workspaces/urls";
-import { Button } from "@/components/ui/button";
+import Link from "next/link";
+import { useState } from "react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -14,27 +21,13 @@ import {
   BreadcrumbPage,
   BreadcrumbSeparator,
 } from "@/components/ui/breadcrumb";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
-import { Alert, AlertDescription } from "@/components/ui/alert";
-import {
-  ExternalLink,
-  FolderOpen,
-  Monitor,
-  TerminalSquare,
-  LayoutDashboard,
-  AlertCircle,
-  ChevronDown,
-} from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import type { CoderWorkspace } from "@/lib/coder/types";
+import { buildWorkspaceUrls } from "@/lib/workspaces/urls";
 
 const TerminalTabManager = dynamic(
-  () =>
-    import("@/components/workspaces/TerminalTabManager").then(
-      (m) => m.TerminalTabManager,
-    ),
+  () => import("@/components/workspaces/TerminalTabManager").then((m) => m.TerminalTabManager),
   { ssr: false },
 );
 
@@ -87,9 +80,7 @@ export function WorkspaceToolPanel({
         <AlertCircle />
         <AlertDescription>
           Workspace must be running to use embedded tools. Current status:{" "}
-          <span className="font-medium text-foreground">
-            {workspace.latest_build.status}
-          </span>
+          <span className="font-medium text-foreground">{workspace.latest_build.status}</span>
         </AlertDescription>
         {urls && (
           <div className="mt-3 flex gap-2">
@@ -117,9 +108,7 @@ export function WorkspaceToolPanel({
         <Breadcrumb>
           <BreadcrumbList>
             <BreadcrumbItem>
-              <BreadcrumbLink render={<Link href="/tasks" />}>
-                Workspaces
-              </BreadcrumbLink>
+              <BreadcrumbLink render={<Link href="/tasks" />}>Workspaces</BreadcrumbLink>
             </BreadcrumbItem>
             <BreadcrumbSeparator />
             <BreadcrumbItem>
@@ -141,6 +130,7 @@ export function WorkspaceToolPanel({
                     const Icon = tool.icon;
                     return (
                       <button
+                        type="button"
                         key={tool.id}
                         onClick={() => {
                           setActiveTool(tool.id);
@@ -166,11 +156,7 @@ export function WorkspaceToolPanel({
 
         <div className="ml-auto flex items-center gap-2">
           {activeUrl && (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => window.open(activeUrl, "_blank")}
-            >
+            <Button variant="ghost" size="sm" onClick={() => window.open(activeUrl, "_blank")}>
               <ExternalLink data-icon="inline-start" />
               Pop Out
             </Button>
@@ -184,12 +170,7 @@ export function WorkspaceToolPanel({
           className="absolute inset-0"
           style={{ display: activeTool === "terminal" ? "block" : "none" }}
         >
-          {agentId && (
-            <TerminalTabManager
-              agentId={agentId}
-              workspaceId={workspace.id}
-            />
-          )}
+          {agentId && <TerminalTabManager agentId={agentId} workspaceId={workspace.id} />}
         </div>
 
         {/* Proxied iframe tools */}
@@ -201,7 +182,7 @@ export function WorkspaceToolPanel({
           >
             <iframe
               src={iframeUrlMap[toolId]}
-              title={tools.find((t) => t.id === toolId)!.label}
+              title={tools.find((t) => t.id === toolId)?.label}
               className="h-full w-full rounded-lg border border-border"
               allow="clipboard-read; clipboard-write"
             />
@@ -211,10 +192,7 @@ export function WorkspaceToolPanel({
         {/* Dashboard — opens externally (Coder UI can't be proxied reliably) */}
         {activeTool === "dashboard" && (
           <div className="absolute inset-0 flex">
-            <ExternalToolPlaceholder
-              label="Dashboard"
-              url={urls?.dashboard}
-            />
+            <ExternalToolPlaceholder label="Dashboard" url={urls?.dashboard} />
           </div>
         )}
       </div>
@@ -222,31 +200,19 @@ export function WorkspaceToolPanel({
   );
 }
 
-function ExternalToolPlaceholder({
-  label,
-  url,
-}: {
-  label: string;
-  url?: string;
-}) {
+function ExternalToolPlaceholder({ label, url }: { label: string; url?: string }) {
   return (
     <div className="flex h-full w-full flex-col items-center justify-center gap-4 rounded-lg border border-border bg-muted/30 p-8 text-center">
       <LayoutDashboard className="size-8 text-muted-foreground" />
       <div className="space-y-2">
-        <p className="text-sm font-medium text-foreground">
-          {label} opens in a new tab
-        </p>
+        <p className="text-sm font-medium text-foreground">{label} opens in a new tab</p>
         <p className="text-xs text-muted-foreground max-w-md">
-          The Coder dashboard has too many internal routes to proxy reliably.
-          Click below to open it directly.
+          The Coder dashboard has too many internal routes to proxy reliably. Click below to open it
+          directly.
         </p>
       </div>
       {url && (
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => window.open(url, "_blank")}
-        >
+        <Button variant="outline" size="sm" onClick={() => window.open(url, "_blank")}>
           <ExternalLink data-icon="inline-start" />
           Open {label}
         </Button>

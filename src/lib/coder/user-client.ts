@@ -1,5 +1,5 @@
-import { getDb } from "@/lib/db";
 import { tryDecrypt } from "@hive/auth";
+import { getDb } from "@/lib/db";
 import { CoderClient } from "./client";
 
 export enum UserClientError {
@@ -13,16 +13,14 @@ export class UserClientException extends Error {
   constructor(
     public readonly code: UserClientError,
     message: string,
-    public readonly cause?: unknown
+    public readonly cause?: unknown,
   ) {
     super(message);
     this.name = "UserClientException";
   }
 }
 
-export async function getCoderClientForUser(
-  userId: string
-): Promise<CoderClient> {
+export async function getCoderClientForUser(userId: string): Promise<CoderClient> {
   const db = getDb();
 
   const token = await db.coderToken.findFirst({
@@ -34,15 +32,12 @@ export async function getCoderClientForUser(
     const userExists = await db.user.findUnique({ where: { id: userId }, select: { id: true } });
     if (!userExists) {
       console.error(`[user-client] User not found: ${userId}`);
-      throw new UserClientException(
-        UserClientError.USER_NOT_FOUND,
-        `User ${userId} not found`
-      );
+      throw new UserClientException(UserClientError.USER_NOT_FOUND, `User ${userId} not found`);
     }
     console.error(`[user-client] No CoderToken for user: ${userId}`);
     throw new UserClientException(
       UserClientError.NO_TOKEN,
-      `No Coder API token stored for user ${userId}`
+      `No Coder API token stored for user ${userId}`,
     );
   }
 
@@ -53,7 +48,7 @@ export async function getCoderClientForUser(
     console.error("[user-client] ENCRYPTION_KEY env var is not set");
     throw new UserClientException(
       UserClientError.DECRYPT_FAILED,
-      "ENCRYPTION_KEY environment variable is not set"
+      "ENCRYPTION_KEY environment variable is not set",
     );
   }
 
@@ -63,7 +58,7 @@ export async function getCoderClientForUser(
       iv: Buffer.from(token.iv),
       authTag: Buffer.from(token.authTag),
     },
-    encryptionKey
+    encryptionKey,
   );
 
   if (!decryptResult.ok) {
@@ -73,13 +68,13 @@ export async function getCoderClientForUser(
       throw new UserClientException(
         UserClientError.KEY_MISMATCH,
         `Encryption key mismatch for user ${userId} — token re-encryption required`,
-        decryptResult.error
+        decryptResult.error,
       );
     }
     throw new UserClientException(
       UserClientError.DECRYPT_FAILED,
       `Failed to decrypt token for user ${userId}`,
-      decryptResult.error
+      decryptResult.error,
     );
   }
 

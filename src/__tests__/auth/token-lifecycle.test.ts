@@ -1,7 +1,7 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { encrypt, tryDecrypt } from "@hive/auth";
-import { CoderClient } from "@/lib/coder/client";
 import { randomBytes } from "node:crypto";
+import { encrypt, tryDecrypt } from "@hive/auth";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { CoderClient } from "@/lib/coder/client";
 
 function makeKey(): string {
   return randomBytes(32).toString("hex");
@@ -78,28 +78,24 @@ describe("CoderClient.listApiKeys", () => {
       { id: "key-1", expires_at: "2026-05-01T00:00:00Z", last_used: "2026-04-18T00:00:00Z" },
       { id: "key-2", expires_at: "2026-06-01T00:00:00Z", last_used: "2026-04-17T00:00:00Z" },
     ];
-    vi.mocked(fetch).mockResolvedValueOnce(
-      new Response(JSON.stringify(keys), { status: 200 })
-    );
+    vi.mocked(fetch).mockResolvedValueOnce(new Response(JSON.stringify(keys), { status: 200 }));
 
     const result = await CoderClient.listApiKeys(
       "https://coder.example.com",
       "session-token",
-      "user-id"
+      "user-id",
     );
     expect(result).toEqual(keys);
     expect(result).toHaveLength(2);
   });
 
   it("returns empty array on error response", async () => {
-    vi.mocked(fetch).mockResolvedValueOnce(
-      new Response("Forbidden", { status: 403 })
-    );
+    vi.mocked(fetch).mockResolvedValueOnce(new Response("Forbidden", { status: 403 }));
 
     const result = await CoderClient.listApiKeys(
       "https://coder.example.com",
       "bad-token",
-      "user-id"
+      "user-id",
     );
     expect(result).toEqual([]);
   });
@@ -110,7 +106,7 @@ describe("CoderClient.listApiKeys", () => {
     const result = await CoderClient.listApiKeys(
       "https://coder.example.com",
       "session-token",
-      "user-id"
+      "user-id",
     );
     expect(result).toEqual([]);
   });
@@ -128,43 +124,37 @@ describe("CoderClient.deleteApiKey", () => {
   });
 
   it("returns true on 204 success", async () => {
-    vi.mocked(fetch).mockResolvedValueOnce(
-      new Response(null, { status: 204 })
-    );
+    vi.mocked(fetch).mockResolvedValueOnce(new Response(null, { status: 204 }));
 
     const result = await CoderClient.deleteApiKey(
       "https://coder.example.com",
       "session-token",
       "user-id",
-      "key-1"
+      "key-1",
     );
     expect(result).toBe(true);
   });
 
   it("returns true on 200 success", async () => {
-    vi.mocked(fetch).mockResolvedValueOnce(
-      new Response(null, { status: 200 })
-    );
+    vi.mocked(fetch).mockResolvedValueOnce(new Response(null, { status: 200 }));
 
     const result = await CoderClient.deleteApiKey(
       "https://coder.example.com",
       "session-token",
       "user-id",
-      "key-1"
+      "key-1",
     );
     expect(result).toBe(true);
   });
 
   it("returns false on error response", async () => {
-    vi.mocked(fetch).mockResolvedValueOnce(
-      new Response("Not Found", { status: 404 })
-    );
+    vi.mocked(fetch).mockResolvedValueOnce(new Response("Not Found", { status: 404 }));
 
     const result = await CoderClient.deleteApiKey(
       "https://coder.example.com",
       "session-token",
       "user-id",
-      "bad-key"
+      "bad-key",
     );
     expect(result).toBe(false);
   });
@@ -176,7 +166,7 @@ describe("CoderClient.deleteApiKey", () => {
       "https://coder.example.com",
       "session-token",
       "user-id",
-      "key-1"
+      "key-1",
     );
     expect(result).toBe(false);
   });

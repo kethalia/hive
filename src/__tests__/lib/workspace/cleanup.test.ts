@@ -1,6 +1,6 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
-import { cleanupWorkspace } from "@/lib/workspace/cleanup";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { CoderClient } from "@/lib/coder/client";
+import { cleanupWorkspace } from "@/lib/workspace/cleanup";
 
 // ── Helpers ───────────────────────────────────────────────────────
 

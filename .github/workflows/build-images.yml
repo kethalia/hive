@@ -30,7 +30,7 @@ jobs:
       push: ${{ github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository }}
       services: |
         [
-          {"image": "hive", "dockerfile": "Dockerfile"},
-          {"image": "hive-terminal-proxy", "dockerfile": "services/terminal-proxy/Dockerfile"},
+          {"image": "hive-web", "dockerfile": "Dockerfile"},
+          {"image": "hive-terminal", "dockerfile": "services/terminal-proxy/Dockerfile"},
           {"image": "hive-auth", "dockerfile": "services/auth/Dockerfile"}
         ]

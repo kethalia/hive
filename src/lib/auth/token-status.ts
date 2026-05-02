@@ -1,11 +1,8 @@
-import { getDb } from "@/lib/db";
-import { tryDecrypt } from "@hive/auth";
-import { TOKEN_EXPIRY_WARNING_HOURS } from "@hive/auth";
 import type { TokenStatusResult } from "@hive/auth";
+import { TOKEN_EXPIRY_WARNING_HOURS, tryDecrypt } from "@hive/auth";
+import { getDb } from "@/lib/db";
 
-export async function getTokenStatus(
-  userId: string
-): Promise<TokenStatusResult> {
+export async function getTokenStatus(userId: string): Promise<TokenStatusResult> {
   const db = getDb();
 
   const token = await db.coderToken.findFirst({
@@ -28,7 +25,7 @@ export async function getTokenStatus(
       iv: Buffer.from(token.iv),
       authTag: Buffer.from(token.authTag),
     },
-    encryptionKey
+    encryptionKey,
   );
 
   if (!result.ok) {

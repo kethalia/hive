@@ -1,6 +1,6 @@
-import { describe, it, expect, beforeAll, afterAll, vi, beforeEach } from "vitest";
 import { createServer, type Server } from "node:http";
-import { addRoute, matchRoute, clearRoutes } from "../src/router.js";
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { addRoute, clearRoutes, matchRoute } from "../src/router.js";
 import { sendError } from "../src/server.js";
 
 vi.mock("../src/auth/session.js", () => ({
@@ -19,9 +19,9 @@ vi.mock("../src/db.js", () => ({
   closeDb: vi.fn(),
 }));
 
-import { handleGetCoderToken } from "../src/handlers/token.js";
 import { getSessionById } from "../src/auth/session.js";
 import { getDecryptedCoderToken } from "../src/auth/token-status.js";
+import { handleGetCoderToken } from "../src/handlers/token.js";
 
 function startTestServer(): Promise<{ server: Server; port: number }> {
   return new Promise((resolve) => {
@@ -76,7 +76,13 @@ describe("GET /sessions/:id/token", () => {
 
   it("returns 200 with token, coderUrl, and expiresAt on success", async () => {
     vi.mocked(getSessionById).mockResolvedValue({
-      user: { id: "u1", coderUrl: "https://coder.test", coderUserId: "cu1", username: "alice", email: "alice@test.com" },
+      user: {
+        id: "u1",
+        coderUrl: "https://coder.test",
+        coderUserId: "cu1",
+        username: "alice",
+        email: "alice@test.com",
+      },
       session: { id: "row-1", sessionId: "sess-123", expiresAt: new Date("2026-05-01") },
     });
     vi.mocked(getDecryptedCoderToken).mockResolvedValue({
@@ -95,7 +101,13 @@ describe("GET /sessions/:id/token", () => {
 
   it("returns 200 with null expiresAt when token has no expiry", async () => {
     vi.mocked(getSessionById).mockResolvedValue({
-      user: { id: "u1", coderUrl: "https://coder.test", coderUserId: "cu1", username: "alice", email: "alice@test.com" },
+      user: {
+        id: "u1",
+        coderUrl: "https://coder.test",
+        coderUserId: "cu1",
+        username: "alice",
+        email: "alice@test.com",
+      },
       session: { id: "row-1", sessionId: "sess-123", expiresAt: new Date("2026-05-01") },
     });
     vi.mocked(getDecryptedCoderToken).mockResolvedValue({
@@ -123,7 +135,13 @@ describe("GET /sessions/:id/token", () => {
 
   it("returns 404 when no Coder token exists for user", async () => {
     vi.mocked(getSessionById).mockResolvedValue({
-      user: { id: "u1", coderUrl: "https://coder.test", coderUserId: "cu1", username: "alice", email: "alice@test.com" },
+      user: {
+        id: "u1",
+        coderUrl: "https://coder.test",
+        coderUserId: "cu1",
+        username: "alice",
+        email: "alice@test.com",
+      },
       session: { id: "row-1", sessionId: "sess-123", expiresAt: new Date("2026-05-01") },
     });
     vi.mocked(getDecryptedCoderToken).mockResolvedValue(null);
@@ -137,7 +155,13 @@ describe("GET /sessions/:id/token", () => {
 
   it("returns 500 with KEY_UNAVAILABLE when encryption key is missing", async () => {
     vi.mocked(getSessionById).mockResolvedValue({
-      user: { id: "u1", coderUrl: "https://coder.test", coderUserId: "cu1", username: "alice", email: "alice@test.com" },
+      user: {
+        id: "u1",
+        coderUrl: "https://coder.test",
+        coderUserId: "cu1",
+        username: "alice",
+        email: "alice@test.com",
+      },
       session: { id: "row-1", sessionId: "sess-123", expiresAt: new Date("2026-05-01") },
     });
     vi.mocked(getDecryptedCoderToken).mockRejectedValue(new Error("KEY_UNAVAILABLE"));
@@ -151,7 +175,13 @@ describe("GET /sessions/:id/token", () => {
 
   it("returns 500 with KEY_MISMATCH on key mismatch", async () => {
     vi.mocked(getSessionById).mockResolvedValue({
-      user: { id: "u1", coderUrl: "https://coder.test", coderUserId: "cu1", username: "alice", email: "alice@test.com" },
+      user: {
+        id: "u1",
+        coderUrl: "https://coder.test",
+        coderUserId: "cu1",
+        username: "alice",
+        email: "alice@test.com",
+      },
       session: { id: "row-1", sessionId: "sess-123", expiresAt: new Date("2026-05-01") },
     });
     vi.mocked(getDecryptedCoderToken).mockRejectedValue(new Error("KEY_MISMATCH"));
@@ -165,7 +195,13 @@ describe("GET /sessions/:id/token", () => {
 
   it("returns 500 with DECRYPT_FAILED on corrupt ciphertext", async () => {
     vi.mocked(getSessionById).mockResolvedValue({
-      user: { id: "u1", coderUrl: "https://coder.test", coderUserId: "cu1", username: "alice", email: "alice@test.com" },
+      user: {
+        id: "u1",
+        coderUrl: "https://coder.test",
+        coderUserId: "cu1",
+        username: "alice",
+        email: "alice@test.com",
+      },
       session: { id: "row-1", sessionId: "sess-123", expiresAt: new Date("2026-05-01") },
     });
     vi.mocked(getDecryptedCoderToken).mockRejectedValue(new Error("DECRYPT_FAILED"));
@@ -179,7 +215,13 @@ describe("GET /sessions/:id/token", () => {
 
   it("returns 500 with INTERNAL_ERROR on unexpected errors", async () => {
     vi.mocked(getSessionById).mockResolvedValue({
-      user: { id: "u1", coderUrl: "https://coder.test", coderUserId: "cu1", username: "alice", email: "alice@test.com" },
+      user: {
+        id: "u1",
+        coderUrl: "https://coder.test",
+        coderUserId: "cu1",
+        username: "alice",
+        email: "alice@test.com",
+      },
       session: { id: "row-1", sessionId: "sess-123", expiresAt: new Date("2026-05-01") },
     });
     vi.mocked(getDecryptedCoderToken).mockRejectedValue(new Error("something unexpected"));

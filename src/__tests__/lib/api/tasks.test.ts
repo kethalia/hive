@@ -1,4 +1,5 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
 vi.mock("uuid", () => ({
   v4: vi.fn(() => "11111111-2222-3333-4444-555555555555"),
 }));
@@ -53,6 +54,7 @@ vi.mock("@/lib/db", () => ({
     },
   })),
 }));
+
 // ── Imports under test ────────────────────────────────────────────
 
 import { createTask, getTask, listTasks } from "@/lib/api/tasks";
@@ -112,7 +114,7 @@ describe("Task API functions", () => {
           repoUrl: "https://github.com/test/repo",
           prompt: "Test prompt",
         }),
-        { jobId: "11111111-2222-3333-4444-555555555555" }
+        { jobId: "11111111-2222-3333-4444-555555555555" },
       );
     });
 
@@ -136,7 +138,7 @@ describe("Task API functions", () => {
         expect.objectContaining({
           branchName: expect.stringMatching(/^hive\/11111111\//),
         }),
-        expect.any(Object)
+        expect.any(Object),
       );
     });
   });

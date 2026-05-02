@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, fireEvent, waitFor, cleanup } from "@testing-library/react";
+
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import "@testing-library/jest-dom/vitest";
 
 const mockReplace = vi.fn();
@@ -25,26 +26,18 @@ vi.mock("@/components/ui/breadcrumb", () => ({
   Breadcrumb: ({ children }: React.PropsWithChildren) => (
     <nav aria-label="breadcrumb">{children}</nav>
   ),
-  BreadcrumbList: ({ children }: React.PropsWithChildren) => (
-    <ol>{children}</ol>
-  ),
-  BreadcrumbItem: ({ children }: React.PropsWithChildren) => (
-    <li>{children}</li>
-  ),
+  BreadcrumbList: ({ children }: React.PropsWithChildren) => <ol>{children}</ol>,
+  BreadcrumbItem: ({ children }: React.PropsWithChildren) => <li>{children}</li>,
   BreadcrumbLink: ({
     children,
     render,
   }: React.PropsWithChildren<{ render?: React.ReactElement }>) =>
     render ? (
-      <a href={(render as React.ReactElement<{ href: string }>).props.href}>
-        {children}
-      </a>
+      <a href={(render as React.ReactElement<{ href: string }>).props.href}>{children}</a>
     ) : (
       <a>{children}</a>
     ),
-  BreadcrumbPage: ({ children }: React.PropsWithChildren) => (
-    <span>{children}</span>
-  ),
+  BreadcrumbPage: ({ children }: React.PropsWithChildren) => <span>{children}</span>,
   BreadcrumbSeparator: () => <li>/</li>,
 }));
 
@@ -69,10 +62,7 @@ vi.mock("@/components/ui/button", () => ({
 
 vi.mock("@/components/ui/popover", () => ({
   Popover: ({ children }: React.PropsWithChildren) => <div>{children}</div>,
-  PopoverTrigger: ({
-    children,
-    className,
-  }: React.PropsWithChildren<{ className?: string }>) => (
+  PopoverTrigger: ({ children, className }: React.PropsWithChildren<{ className?: string }>) => (
     <button data-testid="session-trigger" className={className}>
       {children}
     </button>
@@ -150,9 +140,7 @@ describe("TerminalBreadcrumbs", () => {
     render(<TerminalBreadcrumbs workspaceId="ws-1" />);
 
     await waitFor(() => {
-      expect(mockReplace).toHaveBeenCalledWith(
-        "/workspaces/ws-1/terminal?session=main-session",
-      );
+      expect(mockReplace).toHaveBeenCalledWith("/workspaces/ws-1/terminal?session=main-session");
     });
   });
 
@@ -168,9 +156,7 @@ describe("TerminalBreadcrumbs", () => {
     });
 
     await waitFor(() => {
-      expect(mockReplace).toHaveBeenCalledWith(
-        "/workspaces/ws-1/terminal?session=session-new",
-      );
+      expect(mockReplace).toHaveBeenCalledWith("/workspaces/ws-1/terminal?session=session-new");
     });
   });
 

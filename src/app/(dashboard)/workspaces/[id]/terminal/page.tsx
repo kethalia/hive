@@ -1,6 +1,6 @@
 import { getWorkspaceAgentAction } from "@/lib/actions/workspaces";
-import { TerminalClient } from "./terminal-client";
 import { StaleEntryAlert } from "./stale-entry-alert";
+import { TerminalClient } from "./terminal-client";
 
 interface TerminalPageProps {
   params: Promise<{ id: string }>;

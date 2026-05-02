@@ -1,8 +1,8 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
-import { sendJson, sendError } from "../server.js";
-import { getSessionById } from "../auth/session.js";
-import { ErrorCode } from "../auth/constants.js";
 import type { SessionPayload } from "@hive/auth";
+import { ErrorCode } from "../auth/constants.js";
+import { getSessionById } from "../auth/session.js";
+import { sendError, sendJson } from "../server.js";
 
 export async function handleGetSession(
   _req: IncomingMessage,
@@ -19,9 +19,7 @@ export async function handleGetSession(
   const session = await getSessionById(sessionId);
 
   if (!session) {
-    console.log(
-      `[auth-service] GET /sessions/:id → 404 session=${sessionId.slice(0, 8)}…`,
-    );
+    console.log(`[auth-service] GET /sessions/:id → 404 session=${sessionId.slice(0, 8)}…`);
     sendError(res, 404, "Session not found", ErrorCode.NOT_FOUND);
     return;
   }
@@ -36,8 +34,6 @@ export async function handleGetSession(
     expiresAt: session.session.expiresAt.toISOString(),
   };
 
-  console.log(
-    `[auth-service] GET /sessions/:id → 200 user=${session.user.id}`,
-  );
+  console.log(`[auth-service] GET /sessions/:id → 200 user=${session.user.id}`);
   sendJson(res, 200, payload);
 }

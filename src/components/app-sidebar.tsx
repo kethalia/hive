@@ -1,8 +1,44 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  AlertCircle,
+  ChevronDown,
+  ChevronRight,
+  Code,
+  FolderOpen,
+  Hexagon,
+  LayoutDashboard,
+  LayoutTemplate,
+  ListTodo,
+  Loader2,
+  LogOut,
+  Monitor,
+  Pencil,
+  Plus,
+  PlusCircle,
+  RefreshCw,
+  Monitor as ScreenIcon,
+  Settings,
+  Terminal,
+  X,
+} from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Badge } from "@/components/ui/badge";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuGroup,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Input } from "@/components/ui/input";
 import {
   Sidebar,
   SidebarContent,
@@ -19,63 +55,23 @@ import {
   SidebarMenuSubItem,
   SidebarTrigger,
 } from "@/components/ui/sidebar";
-import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from "@/components/ui/collapsible";
-import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Badge } from "@/components/ui/badge";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuGroup,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
-import {
-  ListTodo,
-  PlusCircle,
-  Settings,
-  Hexagon,
-  LayoutTemplate,
-  Monitor,
-  LayoutDashboard,
-  ChevronRight,
-  ChevronDown,
-  RefreshCw,
-  AlertCircle,
-  Terminal,
-  Plus,
-  X,
-  Pencil,
-  FolderOpen,
-  Monitor as ScreenIcon,
-  Code,
-  Loader2,
-  LogOut,
-} from "lucide-react";
 import { useSidebarMode } from "@/hooks/use-sidebar-mode";
+import { listTemplateStatusesAction } from "@/lib/actions/templates";
 import {
-  listWorkspacesAction,
+  createSessionAction,
   getWorkspaceAgentAction,
   getWorkspaceSessionsAction,
-  createSessionAction,
   killSessionAction,
+  listWorkspacesAction,
   renameSessionAction,
 } from "@/lib/actions/workspaces";
-import { buildWorkspaceUrls } from "@/lib/workspaces/urls";
-import { listTemplateStatusesAction } from "@/lib/actions/templates";
-import type { CoderWorkspace } from "@/lib/coder/types";
-import type { TmuxSession } from "@/lib/workspaces/sessions";
-import type { TemplateStatus } from "@/lib/templates/staleness";
 import { getSessionAction, logoutAction } from "@/lib/auth/actions";
+import type { CoderWorkspace } from "@/lib/coder/types";
 import { SAFE_IDENTIFIER_RE } from "@/lib/constants";
+import type { TemplateStatus } from "@/lib/templates/staleness";
+import type { TmuxSession } from "@/lib/workspaces/sessions";
+import { buildWorkspaceUrls } from "@/lib/workspaces/urls";
 
 const POLL_INTERVAL_MS = 30_000;
 
@@ -152,7 +148,7 @@ function SessionList({
 
   useEffect(() => {
     checkScroll();
-  }, [sessions.length, checkScroll]);
+  }, [checkScroll]);
 
   const startRename = useCallback((sessionName: string) => {
     setEditingSession(sessionName);
@@ -197,8 +193,15 @@ function SessionList({
               </SidebarMenuSubButton>
             ) : (
               <SidebarMenuSubButton
-                render={<Link href={`/workspaces/${workspaceId}/terminal?session=${encodeURIComponent(session.name)}`} />}
-                isActive={pathname === `/workspaces/${workspaceId}/terminal` && activeSession === session.name}
+                render={
+                  <Link
+                    href={`/workspaces/${workspaceId}/terminal?session=${encodeURIComponent(session.name)}`}
+                  />
+                }
+                isActive={
+                  pathname === `/workspaces/${workspaceId}/terminal` &&
+                  activeSession === session.name
+                }
                 className="group/session"
               >
                 <Terminal className="h-3 w-3 shrink-0" />
@@ -209,7 +212,11 @@ function SessionList({
                     title="Rename session"
                     data-testid={`rename-session-${session.name}`}
                     className="rounded p-0.5 hover:bg-sidebar-accent"
-                    onClick={(e) => { e.preventDefault(); e.stopPropagation(); startRename(session.name); }}
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      startRename(session.name);
+                    }}
                   >
                     <Pencil className="h-3 w-3" />
                   </button>
@@ -218,7 +225,11 @@ function SessionList({
                     title="Kill session"
                     data-testid={`kill-session-${session.name}`}
                     className="rounded p-0.5 hover:bg-destructive/20"
-                    onClick={(e) => { e.preventDefault(); e.stopPropagation(); onKill(workspaceId, session.name); }}
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      onKill(workspaceId, session.name);
+                    }}
                   >
                     <X className="h-3 w-3" />
                   </button>
@@ -289,7 +300,9 @@ export function AppSidebar() {
   const [expandedWorkspaces, setExpandedWorkspaces] = useState<Record<string, boolean>>({});
   const [expandedTerminals, setExpandedTerminals] = useState<Record<string, boolean>>({});
   const [workspaceAgents, setWorkspaceAgents] = useState<Record<string, AgentInfo | null>>({});
-  const [workspaceSessions, setWorkspaceSessions] = useState<Record<string, WorkspaceSessionState>>({});
+  const [workspaceSessions, setWorkspaceSessions] = useState<Record<string, WorkspaceSessionState>>(
+    {},
+  );
 
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const sessionIntervalRefs = useRef<Record<string, ReturnType<typeof setInterval>>>({});
@@ -410,15 +423,18 @@ export function AppSidebar() {
   const workspaceAgentsRef = useRef(workspaceAgents);
   workspaceAgentsRef.current = workspaceAgents;
 
-  const handleWorkspaceExpand = useCallback((workspaceId: string, open: boolean) => {
-    setExpandedWorkspaces((prev) => ({ ...prev, [workspaceId]: open }));
-    if (open) {
-      if (!workspaceAgentsRef.current[workspaceId]) {
-        fetchAgentInfo(workspaceId);
+  const handleWorkspaceExpand = useCallback(
+    (workspaceId: string, open: boolean) => {
+      setExpandedWorkspaces((prev) => ({ ...prev, [workspaceId]: open }));
+      if (open) {
+        if (!workspaceAgentsRef.current[workspaceId]) {
+          fetchAgentInfo(workspaceId);
+        }
+        fetchSessions(workspaceId);
       }
-      fetchSessions(workspaceId);
-    }
-  }, [fetchAgentInfo, fetchSessions]);
+    },
+    [fetchAgentInfo, fetchSessions],
+  );
 
   useEffect(() => {
     const refs = sessionIntervalRefs.current;
@@ -438,68 +454,76 @@ export function AppSidebar() {
     };
   }, [expandedWorkspaces, fetchSessions]);
 
-  const handleCreateSession = useCallback(async (workspaceId: string) => {
-    const result = await createSessionAction({ workspaceId });
-    if (result?.data) {
-      const name = result.data.name;
-      setWorkspaceSessions((prev) => {
-        const current = prev[workspaceId] ?? { data: [], isLoading: false, error: null };
-        const alreadyExists = current.data.some((s) => s.name === name);
-        if (alreadyExists) return prev;
-        return {
-          ...prev,
-          [workspaceId]: {
-            ...current,
-            data: [...current.data, { name, created: Date.now(), windows: 1 }],
-          },
-        };
-      });
-      router.push(`/workspaces/${workspaceId}/terminal?session=${encodeURIComponent(name)}`);
-    } else {
-      console.error("[sidebar] create session failed:", result?.serverError);
-    }
-  }, [router]);
+  const handleCreateSession = useCallback(
+    async (workspaceId: string) => {
+      const result = await createSessionAction({ workspaceId });
+      if (result?.data) {
+        const name = result.data.name;
+        setWorkspaceSessions((prev) => {
+          const current = prev[workspaceId] ?? { data: [], isLoading: false, error: null };
+          const alreadyExists = current.data.some((s) => s.name === name);
+          if (alreadyExists) return prev;
+          return {
+            ...prev,
+            [workspaceId]: {
+              ...current,
+              data: [...current.data, { name, created: Date.now(), windows: 1 }],
+            },
+          };
+        });
+        router.push(`/workspaces/${workspaceId}/terminal?session=${encodeURIComponent(name)}`);
+      } else {
+        console.error("[sidebar] create session failed:", result?.serverError);
+      }
+    },
+    [router],
+  );
 
-  const handleKillSession = useCallback(async (workspaceId: string, sessionName: string) => {
-    const result = await killSessionAction({ workspaceId, sessionName });
-    if (result?.data) {
-      setWorkspaceSessions((prev) => {
-        const current = prev[workspaceId];
-        if (!current) return prev;
-        return {
-          ...prev,
-          [workspaceId]: {
-            ...current,
-            data: current.data.filter((s) => s.name !== sessionName),
-          },
-        };
-      });
-      fetchSessions(workspaceId);
-    } else {
-      console.error("[sidebar] kill session failed:", result?.serverError);
-    }
-  }, [fetchSessions]);
+  const handleKillSession = useCallback(
+    async (workspaceId: string, sessionName: string) => {
+      const result = await killSessionAction({ workspaceId, sessionName });
+      if (result?.data) {
+        setWorkspaceSessions((prev) => {
+          const current = prev[workspaceId];
+          if (!current) return prev;
+          return {
+            ...prev,
+            [workspaceId]: {
+              ...current,
+              data: current.data.filter((s) => s.name !== sessionName),
+            },
+          };
+        });
+        fetchSessions(workspaceId);
+      } else {
+        console.error("[sidebar] kill session failed:", result?.serverError);
+      }
+    },
+    [fetchSessions],
+  );
 
-  const handleRenameSession = useCallback(async (workspaceId: string, oldName: string, newName: string) => {
-    const result = await renameSessionAction({ workspaceId, oldName, newName });
-    if (result?.data) {
-      setWorkspaceSessions((prev) => {
-        const current = prev[workspaceId];
-        if (!current) return prev;
-        return {
-          ...prev,
-          [workspaceId]: {
-            ...current,
-            data: current.data.map((s) =>
-              s.name === oldName ? { ...s, name: result.data!.newName } : s,
-            ),
-          },
-        };
-      });
-    } else {
-      console.error("[sidebar] rename session failed:", result?.serverError);
-    }
-  }, []);
+  const handleRenameSession = useCallback(
+    async (workspaceId: string, oldName: string, newName: string) => {
+      const result = await renameSessionAction({ workspaceId, oldName, newName });
+      if (result?.data) {
+        const { newName: renamedTo } = result.data;
+        setWorkspaceSessions((prev) => {
+          const current = prev[workspaceId];
+          if (!current) return prev;
+          return {
+            ...prev,
+            [workspaceId]: {
+              ...current,
+              data: current.data.map((s) => (s.name === oldName ? { ...s, name: renamedTo } : s)),
+            },
+          };
+        });
+      } else {
+        console.error("[sidebar] rename session failed:", result?.serverError);
+      }
+    },
+    [],
+  );
 
   return (
     <Sidebar variant={sidebarMode} collapsible="offcanvas">
@@ -520,7 +544,10 @@ export function AppSidebar() {
               <SidebarMenuItem>
                 <SidebarMenuButton
                   render={<Link href="/tasks" />}
-                  isActive={pathname === "/tasks" || (pathname.startsWith("/tasks/") && !pathname.startsWith("/tasks/new"))}
+                  isActive={
+                    pathname === "/tasks" ||
+                    (pathname.startsWith("/tasks/") && !pathname.startsWith("/tasks/new"))
+                  }
                 >
                   <ListTodo className="h-4 w-4" />
                   <span>Tasks</span>
@@ -538,13 +565,8 @@ export function AppSidebar() {
               {coderUrl && (
                 <SidebarMenuItem>
                   <SidebarMenuButton
-                    render={
-                      <a
-                        href={coderUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                      />
-                    }
+                    // biome-ignore lint/a11y/useAnchorContent: content is injected by Base UI render prop
+                    render={<a href={coderUrl} target="_blank" rel="noopener noreferrer" />}
                   >
                     <LayoutDashboard className="h-4 w-4" />
                     <span>Dashboard</span>
@@ -558,14 +580,16 @@ export function AppSidebar() {
         {/* Workspaces */}
         <SidebarGroup className="py-0">
           <SidebarMenu>
-            <Collapsible defaultOpen={workspacesOpen} onOpenChange={setWorkspacesOpen} className="group/collapsible">
+            <Collapsible
+              defaultOpen={workspacesOpen}
+              onOpenChange={setWorkspacesOpen}
+              className="group/collapsible"
+            >
               <SidebarMenuItem>
                 <SidebarMenuButton render={<CollapsibleTrigger />}>
                   <Monitor className="h-4 w-4" />
                   <span>Workspaces</span>
-                  <ChevronRight
-                    className="ml-auto h-4 w-4 transition-transform group-data-[state=open]/collapsible:rotate-90"
-                  />
+                  <ChevronRight className="ml-auto h-4 w-4 transition-transform group-data-[state=open]/collapsible:rotate-90" />
                 </SidebarMenuButton>
                 <CollapsibleContent>
                   {workspaces.error && (
@@ -589,7 +613,10 @@ export function AppSidebar() {
                   <SidebarMenuSub className="!mr-0 !pr-0">
                     {workspaces.data.map((ws) => {
                       const agent = workspaceAgents[ws.id];
-                      const urls = agent && coderUrl ? buildWorkspaceUrls(ws, agent.agentName, coderUrl) : null;
+                      const urls =
+                        agent && coderUrl
+                          ? buildWorkspaceUrls(ws, agent.agentName, coderUrl)
+                          : null;
                       const sessions = workspaceSessions[ws.id];
                       const isExpanded = expandedWorkspaces[ws.id] ?? false;
                       return (
@@ -608,7 +635,9 @@ export function AppSidebar() {
                               />
                               <span className="truncate">{ws.name}</span>
                               <Badge
-                                variant={ws.latest_build.status === "running" ? "default" : "secondary"}
+                                variant={
+                                  ws.latest_build.status === "running" ? "default" : "secondary"
+                                }
                                 className="ml-auto text-[10px] px-1 py-0"
                               >
                                 {ws.latest_build.status}
@@ -683,23 +712,23 @@ export function AppSidebar() {
                                       )}
                                       <SidebarMenuSub className="!mr-0 !pr-0">
                                         <SidebarMenuSubItem>
-                                          {(!sessions || sessions.isLoading) ? (
-                                          <SidebarMenuSubButton
-                                            className="cursor-not-allowed opacity-50"
-                                            data-testid={`create-session-loading-${ws.id}`}
-                                          >
-                                            <Loader2 className="h-3 w-3 shrink-0 animate-spin" />
-                                            <span>Loading…</span>
-                                          </SidebarMenuSubButton>
+                                          {!sessions || sessions.isLoading ? (
+                                            <SidebarMenuSubButton
+                                              className="cursor-not-allowed opacity-50"
+                                              data-testid={`create-session-loading-${ws.id}`}
+                                            >
+                                              <Loader2 className="h-3 w-3 shrink-0 animate-spin" />
+                                              <span>Loading…</span>
+                                            </SidebarMenuSubButton>
                                           ) : (
-                                          <SidebarMenuSubButton
-                                            className="cursor-pointer"
-                                            data-testid={`create-session-${ws.id}`}
-                                            onClick={() => handleCreateSession(ws.id)}
-                                          >
-                                            <Plus className="h-3 w-3 shrink-0" />
-                                            <span>Add session</span>
-                                          </SidebarMenuSubButton>
+                                            <SidebarMenuSubButton
+                                              className="cursor-pointer"
+                                              data-testid={`create-session-${ws.id}`}
+                                              onClick={() => handleCreateSession(ws.id)}
+                                            >
+                                              <Plus className="h-3 w-3 shrink-0" />
+                                              <span>Add session</span>
+                                            </SidebarMenuSubButton>
                                           )}
                                         </SidebarMenuSubItem>
                                         <SessionList
@@ -730,14 +759,16 @@ export function AppSidebar() {
         {/* Templates */}
         <SidebarGroup className="pt-0">
           <SidebarMenu>
-            <Collapsible defaultOpen={templatesOpen} onOpenChange={setTemplatesOpen} className="group/collapsible-templates">
+            <Collapsible
+              defaultOpen={templatesOpen}
+              onOpenChange={setTemplatesOpen}
+              className="group/collapsible-templates"
+            >
               <SidebarMenuItem>
                 <SidebarMenuButton render={<CollapsibleTrigger />}>
                   <LayoutTemplate className="h-4 w-4" />
                   <span>Templates</span>
-                  <ChevronRight
-                    className="ml-auto h-4 w-4 transition-transform group-data-[state=open]/collapsible-templates:rotate-90"
-                  />
+                  <ChevronRight className="ml-auto h-4 w-4 transition-transform group-data-[state=open]/collapsible-templates:rotate-90" />
                 </SidebarMenuButton>
                 <CollapsibleContent>
                   {templates.error && (
@@ -811,7 +842,10 @@ export function AppSidebar() {
                   <div className="flex items-center justify-between">
                     <div>
                       <span className="text-xs text-muted-foreground">Refresh</span>
-                      <p className="text-[10px] text-muted-foreground/60" data-testid="last-refreshed">
+                      <p
+                        className="text-[10px] text-muted-foreground/60"
+                        data-testid="last-refreshed"
+                      >
                         {relativeTime}
                       </p>
                     </div>
@@ -834,9 +868,7 @@ export function AppSidebar() {
             <DropdownMenuTrigger className="w-full rounded-md p-2 text-left hover:bg-sidebar-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
               <div className="flex items-center gap-2 min-w-0">
                 <Avatar size="sm">
-                  <AvatarFallback>
-                    {sessionUser.email.charAt(0).toUpperCase()}
-                  </AvatarFallback>
+                  <AvatarFallback>{sessionUser.email.charAt(0).toUpperCase()}</AvatarFallback>
                 </Avatar>
                 <span className="truncate text-sm">{sessionUser.email}</span>
               </div>
@@ -844,9 +876,7 @@ export function AppSidebar() {
             <DropdownMenuContent side="top" align="start" className="w-56">
               <DropdownMenuGroup>
                 <DropdownMenuLabel className="font-normal">
-                  <p className="truncate text-xs text-muted-foreground">
-                    {sessionUser.coderUrl}
-                  </p>
+                  <p className="truncate text-xs text-muted-foreground">{sessionUser.coderUrl}</p>
                 </DropdownMenuLabel>
               </DropdownMenuGroup>
               <DropdownMenuSeparator />

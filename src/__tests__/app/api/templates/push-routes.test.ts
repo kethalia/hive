@@ -1,5 +1,5 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
-import { Readable } from "stream";
+import { Readable } from "node:stream";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 // ── Mocks ────────────────────────────────────────────────────────
 
@@ -31,7 +31,13 @@ vi.mock("@/lib/templates/staleness", () => ({
 }));
 
 const MOCK_SESSION = {
-  user: { id: "user-1", coderUrl: "https://coder.test", coderUserId: "cu-1", username: "test", email: "test@test.com" },
+  user: {
+    id: "user-1",
+    coderUrl: "https://coder.test",
+    coderUserId: "cu-1",
+    username: "test",
+    email: "test@test.com",
+  },
   session: { id: "s-1", sessionId: "sess-1", expiresAt: new Date(Date.now() + 86400000) },
 };
 
@@ -153,10 +159,9 @@ describe("GET /api/templates/[name]/push/[jobId]/stream", () => {
   function makeRequest(abortController?: AbortController) {
     const ctrl = abortController ?? new AbortController();
     return {
-      request: new Request(
-        `http://localhost/api/templates/hive/push/${VALID_JOB_ID}/stream`,
-        { signal: ctrl.signal }
-      ) as any,
+      request: new Request(`http://localhost/api/templates/hive/push/${VALID_JOB_ID}/stream`, {
+        signal: ctrl.signal,
+      }) as any,
       controller: ctrl,
     };
   }

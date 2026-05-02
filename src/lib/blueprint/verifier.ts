@@ -1,8 +1,8 @@
-import type { BlueprintStep } from "./types";
 import { createVerifyCloneStep } from "./steps/verify-clone";
 import { createVerifyDetectStep } from "./steps/verify-detect";
 import { createVerifyExecuteStep } from "./steps/verify-execute";
 import { createVerifyReportStep } from "./steps/verify-report";
+import type { BlueprintStep } from "./types";
 
 /**
  * Create the verifier blueprint — a sequence of steps that clone a

@@ -1,28 +1,25 @@
 "use client";
 
-import { useCallback, useEffect, useReducer, useState } from "react";
+import { Pencil, Plus, X } from "lucide-react";
 import dynamic from "next/dynamic";
-import { X, Plus, Pencil } from "lucide-react";
+import { useCallback, useEffect, useReducer, useState } from "react";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
-import {
-  createSessionAction,
-  renameSessionAction,
-  killSessionAction,
-  getWorkspaceSessionsAction,
-} from "@/lib/actions/workspaces";
-import { SAFE_IDENTIFIER_RE } from "@/lib/constants";
-import { cn } from "@/lib/utils";
 import { connectionBadgeProps } from "@/components/workspaces/InteractiveTerminal";
 import { KeepAliveWarning } from "@/components/workspaces/KeepAliveWarning";
 import type { ConnectionState } from "@/hooks/useTerminalWebSocket";
+import {
+  createSessionAction,
+  getWorkspaceSessionsAction,
+  killSessionAction,
+  renameSessionAction,
+} from "@/lib/actions/workspaces";
+import { SAFE_IDENTIFIER_RE } from "@/lib/constants";
+import { cn } from "@/lib/utils";
 
 const InteractiveTerminal = dynamic(
-  () =>
-    import("@/components/workspaces/InteractiveTerminal").then(
-      (m) => m.InteractiveTerminal,
-    ),
+  () => import("@/components/workspaces/InteractiveTerminal").then((m) => m.InteractiveTerminal),
   { ssr: false },
 );
 
@@ -82,10 +79,7 @@ interface TerminalTabManagerProps {
   workspaceId: string;
 }
 
-export function TerminalTabManager({
-  agentId,
-  workspaceId,
-}: TerminalTabManagerProps) {
+export function TerminalTabManager({ agentId, workspaceId }: TerminalTabManagerProps) {
   const [{ tabs, activeTabId }, dispatch] = useReducer(tabReducer, {
     tabs: [],
     activeTabId: null,
@@ -132,7 +126,9 @@ export function TerminalTabManager({
       }
     })();
 
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, [workspaceId]);
 
   const handleCreateTab = useCallback(async () => {
@@ -268,6 +264,7 @@ export function TerminalTabManager({
                   onClick={() => dispatch({ type: "SET_ACTIVE", tabId: tab.id })}
                 >
                   <span data-testid="tab-label">{tab.sessionName}</span>
+                  {/* biome-ignore lint/a11y/useSemanticElements: nested clickable inside <Button> — real button would be invalid HTML */}
                   <span
                     role="button"
                     tabIndex={0}
@@ -289,6 +286,7 @@ export function TerminalTabManager({
                     <Pencil className="size-3" />
                   </span>
                   {tabs.length > 1 && (
+                    // biome-ignore lint/a11y/useSemanticElements: nested clickable inside <Button> — real button would be invalid HTML
                     <span
                       role="button"
                       tabIndex={0}
@@ -325,14 +323,19 @@ export function TerminalTabManager({
         >
           <Plus className="size-3.5" />
         </Button>
-        {activeTabId && connStates[activeTabId] && (() => {
-          const badge = connectionBadgeProps(connStates[activeTabId]);
-          return (
-            <Badge variant={badge.variant} className={cn("ml-auto mr-2 text-[10px] px-1.5 py-0", badge.className)}>
-              {badge.label}
-            </Badge>
-          );
-        })()}
+        {activeTabId &&
+          connStates[activeTabId] &&
+          (() => {
+            const badge = connectionBadgeProps(connStates[activeTabId]);
+            return (
+              <Badge
+                variant={badge.variant}
+                className={cn("ml-auto mr-2 text-[10px] px-1.5 py-0", badge.className)}
+              >
+                {badge.label}
+              </Badge>
+            );
+          })()}
       </div>
 
       <div className="relative flex-1">

@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { CoderClient } from "@/lib/coder/client";
 import type { CoderWorkspace } from "@/lib/coder/types";
 
@@ -65,9 +65,7 @@ describe("CoderClient", () => {
     expect(fetchSpy).toHaveBeenCalledOnce();
 
     const [url, init] = fetchSpy.mock.calls[0];
-    expect(url).toBe(
-      `${BASE_URL}/api/v2/organizations/default/members/me/workspaces`
-    );
+    expect(url).toBe(`${BASE_URL}/api/v2/organizations/default/members/me/workspaces`);
     expect(init.method).toBe("POST");
     expect(init.headers["Coder-Session-Token"]).toBe(TOKEN);
     expect(init.headers["Content-Type"]).toBe("application/json");
@@ -166,15 +164,13 @@ describe("CoderClient", () => {
     });
 
     // Return a fresh Response on every call (Response body can only be read once)
-    fetchSpy.mockImplementation(() =>
-      Promise.resolve(jsonResponse(starting))
-    );
+    fetchSpy.mockImplementation(() => Promise.resolve(jsonResponse(starting)));
 
     await expect(
       makeClient().waitForBuild("ws-123", "running", {
         intervalMs: 10,
         timeoutMs: 50,
-      })
+      }),
     ).rejects.toThrow(/Timeout waiting for workspace ws-123/);
   });
 
@@ -192,7 +188,7 @@ describe("CoderClient", () => {
     fetchSpy.mockResolvedValueOnce(jsonResponse(failed));
 
     await expect(
-      makeClient().waitForBuild("ws-123", "running", { intervalMs: 10 })
+      makeClient().waitForBuild("ws-123", "running", { intervalMs: 10 }),
     ).rejects.toThrow(/build failed: template init crashed/);
   });
 
@@ -203,11 +199,11 @@ describe("CoderClient", () => {
       new Response('{"message":"forbidden"}', {
         status: 500,
         statusText: "Internal Server Error",
-      })
+      }),
     );
 
     await expect(makeClient().getWorkspace("ws-err")).rejects.toThrow(
-      /500 Internal Server Error.*forbidden/
+      /500 Internal Server Error.*forbidden/,
     );
   });
 
@@ -303,7 +299,7 @@ describe("CoderClient", () => {
         status: 200,
         statusText: "OK",
         headers: { "Content-Type": "application/x-tar" },
-      })
+      }),
     );
 
     const result = await makeClient().fetchTemplateFiles("file-abc");
@@ -317,11 +313,11 @@ describe("CoderClient", () => {
 
   it("fetchTemplateFiles throws on non-2xx response", async () => {
     fetchSpy.mockResolvedValueOnce(
-      new Response("not found", { status: 404, statusText: "Not Found" })
+      new Response("not found", { status: 404, statusText: "Not Found" }),
     );
 
     await expect(makeClient().fetchTemplateFiles("bad-id")).rejects.toThrow(
-      /fetchTemplateFiles failed: 404 Not Found/
+      /fetchTemplateFiles failed: 404 Not Found/,
     );
   });
 });

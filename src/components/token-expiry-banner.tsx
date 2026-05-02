@@ -1,6 +1,6 @@
-import { AlertCircle, Clock } from "lucide-react";
-import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 import type { TokenStatusResult } from "@hive/auth";
+import { AlertCircle, Clock } from "lucide-react";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
 export function TokenExpiryBanner({ status }: { status: TokenStatusResult }) {
   if (status.status === "valid") {
@@ -13,8 +13,7 @@ export function TokenExpiryBanner({ status }: { status: TokenStatusResult }) {
         <AlertCircle />
         <AlertTitle>Token Expired</AlertTitle>
         <AlertDescription>
-          Your Coder API token has expired. Please log out and log in again to
-          continue.
+          Your Coder API token has expired. Please log out and log in again to continue.
         </AlertDescription>
       </Alert>
     );
@@ -34,12 +33,7 @@ export function TokenExpiryBanner({ status }: { status: TokenStatusResult }) {
 
   if (status.status === "expiring") {
     const hoursLeft = status.expiresAt
-      ? Math.max(
-          0,
-          Math.round(
-            (status.expiresAt.getTime() - Date.now()) / (1000 * 60 * 60)
-          )
-        )
+      ? Math.max(0, Math.round((status.expiresAt.getTime() - Date.now()) / (1000 * 60 * 60)))
       : 0;
 
     return (
@@ -47,8 +41,7 @@ export function TokenExpiryBanner({ status }: { status: TokenStatusResult }) {
         <Clock />
         <AlertTitle>Token Expiring Soon</AlertTitle>
         <AlertDescription>
-          Your Coder API token will expire in {hoursLeft}{" "}
-          {hoursLeft === 1 ? "hour" : "hours"}.
+          Your Coder API token will expire in {hoursLeft} {hoursLeft === 1 ? "hour" : "hours"}.
         </AlertDescription>
       </Alert>
     );

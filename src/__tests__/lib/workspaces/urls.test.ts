@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, expect, it } from "vitest";
 import { buildWorkspaceUrls } from "@/lib/workspaces/urls";
 
 describe("buildWorkspaceUrls", () => {
@@ -8,24 +8,16 @@ describe("buildWorkspaceUrls", () => {
   it("builds correct subdomain filebrowser, kasmvnc, codeServer, and dashboard URLs", () => {
     const urls = buildWorkspaceUrls(workspace, agent, "https://coder.example.com");
 
-    expect(urls!.filebrowser).toBe(
-      "https://filebrowser--main--dev-box--alice.coder.example.com",
-    );
-    expect(urls!.kasmvnc).toBe(
-      "https://kasm-vnc--main--dev-box--alice.coder.example.com",
-    );
-    expect(urls!.codeServer).toBe(
-      "https://code-server--main--dev-box--alice.coder.example.com",
-    );
+    expect(urls!.filebrowser).toBe("https://filebrowser--main--dev-box--alice.coder.example.com");
+    expect(urls!.kasmvnc).toBe("https://kasm-vnc--main--dev-box--alice.coder.example.com");
+    expect(urls!.codeServer).toBe("https://code-server--main--dev-box--alice.coder.example.com");
     expect(urls!.dashboard).toBe("https://coder.example.com/@alice/dev-box");
   });
 
   it("strips trailing slash from CODER_URL", () => {
     const urls = buildWorkspaceUrls(workspace, agent, "https://coder.example.com/");
 
-    expect(urls!.filebrowser).toBe(
-      "https://filebrowser--main--dev-box--alice.coder.example.com",
-    );
+    expect(urls!.filebrowser).toBe("https://filebrowser--main--dev-box--alice.coder.example.com");
     expect(urls!.dashboard).toBe("https://coder.example.com/@alice/dev-box");
   });
 
@@ -38,15 +30,9 @@ describe("buildWorkspaceUrls", () => {
   it("uses the provided agent name in subdomain URLs", () => {
     const urls = buildWorkspaceUrls(workspace, "gpu-agent", "https://coder.dev");
 
-    expect(urls!.filebrowser).toBe(
-      "https://filebrowser--gpu-agent--dev-box--alice.coder.dev",
-    );
-    expect(urls!.kasmvnc).toBe(
-      "https://kasm-vnc--gpu-agent--dev-box--alice.coder.dev",
-    );
-    expect(urls!.codeServer).toBe(
-      "https://code-server--gpu-agent--dev-box--alice.coder.dev",
-    );
+    expect(urls!.filebrowser).toBe("https://filebrowser--gpu-agent--dev-box--alice.coder.dev");
+    expect(urls!.kasmvnc).toBe("https://kasm-vnc--gpu-agent--dev-box--alice.coder.dev");
+    expect(urls!.codeServer).toBe("https://code-server--gpu-agent--dev-box--alice.coder.dev");
   });
 
   it("returns null for empty coderUrl", () => {

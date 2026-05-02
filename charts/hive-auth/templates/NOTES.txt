@@ -1,0 +1,19 @@
+hive-auth has been deployed.
+
+Chart:    {{ .Chart.Name }}-{{ .Chart.Version }}
+Image:    {{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}
+Release:  {{ .Release.Name }} (namespace: {{ .Release.Namespace }})
+
+In-cluster service DNS:
+  http://{{ include "hive-auth.fullname" . }}.{{ .Release.Namespace }}.svc.cluster.local:{{ .Values.service.port }}
+
+Health probe (liveness + readiness):
+  GET /health on container port {{ .Values.service.targetPort }}
+
+Quick checks from inside the cluster:
+
+  kubectl -n {{ .Release.Namespace }} port-forward svc/{{ include "hive-auth.fullname" . }} 8080:{{ .Values.service.port }}
+  curl -fsS http://localhost:8080/health
+
+Required Secret (envFrom): {{ include "hive-auth.secretName" . }}
+  Must provide: DATABASE_URL, COOKIE_SECRET, ENCRYPTION_KEY

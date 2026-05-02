@@ -16,7 +16,7 @@ export function getRedisConnection(): IORedis {
     if (!redisUrl) {
       throw new Error(
         "[queue] REDIS_URL environment variable is not set. " +
-          "Check .env.example for the required format."
+          "Check .env.example for the required format.",
       );
     }
     connection = new IORedis(redisUrl, {

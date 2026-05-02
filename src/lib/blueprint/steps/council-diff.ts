@@ -1,6 +1,6 @@
-import { execInWorkspace } from "@/lib/workspace/exec";
 import { PROJECT_DIR } from "@/lib/constants";
-import type { BlueprintStep, BlueprintContext } from "../types";
+import { execInWorkspace } from "@/lib/workspace/exec";
+import type { BlueprintContext, BlueprintStep } from "../types";
 
 /**
  * Create the council-diff step.

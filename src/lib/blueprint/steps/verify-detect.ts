@@ -1,6 +1,6 @@
-import { execInWorkspace } from "@/lib/workspace/exec";
-import { PROJECT_DIR, DEFAULT_TEST_SCRIPT } from "@/lib/constants";
+import { DEFAULT_TEST_SCRIPT, PROJECT_DIR } from "@/lib/constants";
 import type { VerificationStrategy } from "@/lib/verification/types";
+import { execInWorkspace } from "@/lib/workspace/exec";
 import type { BlueprintStep } from "../types";
 
 /**
@@ -22,10 +22,7 @@ export function createVerifyDetectStep(): BlueprintStep {
       let strategy: VerificationStrategy = "none";
 
       // Try to read package.json
-      const pkgResult = await execInWorkspace(
-        ctx.workspaceName,
-        `cat ${PROJECT_DIR}/package.json`,
-      );
+      const pkgResult = await execInWorkspace(ctx.workspaceName, `cat ${PROJECT_DIR}/package.json`);
 
       if (pkgResult.exitCode === 0) {
         try {

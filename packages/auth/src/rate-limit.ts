@@ -2,11 +2,7 @@ import type { RateLimitResult } from "./types";
 
 const store = new Map<string, number[]>();
 
-export function checkRateLimit(
-  key: string,
-  limit: number,
-  windowMs: number
-): RateLimitResult {
+export function checkRateLimit(key: string, limit: number, windowMs: number): RateLimitResult {
   const now = Date.now();
   const cutoff = now - windowMs;
 

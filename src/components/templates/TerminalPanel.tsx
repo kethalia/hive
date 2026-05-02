@@ -1,11 +1,11 @@
 "use client";
 
-import { useEffect, useRef } from "react";
-import type { Terminal } from "@xterm/xterm";
 import type { FitAddon } from "@xterm/addon-fit";
+import type { Terminal } from "@xterm/xterm";
 import { X } from "lucide-react";
+import { useEffect, useRef } from "react";
+import { loadTerminalFont, TERMINAL_FONT_FAMILY, TERMINAL_THEME } from "@/lib/terminal/config";
 import { cn } from "@/lib/utils";
-import { TERMINAL_THEME, TERMINAL_FONT_FAMILY, loadTerminalFont } from "@/lib/terminal/config";
 
 interface TerminalPanelProps {
   onClose: () => void;
@@ -98,13 +98,14 @@ export function TerminalPanel({ onClose, writeRef, onReady, className }: Termina
     <div
       className={cn(
         "relative flex flex-col rounded-lg border border-border bg-[#0a0a0a] overflow-hidden",
-        className
+        className,
       )}
     >
       {/* Header */}
       <div className="flex items-center justify-between border-b border-border/40 px-3 py-1.5">
         <span className="text-xs font-mono text-muted-foreground">push output</span>
         <button
+          type="button"
           onClick={onClose}
           className="rounded p-0.5 text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
           aria-label="Close terminal"

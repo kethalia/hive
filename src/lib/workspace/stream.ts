@@ -1,5 +1,5 @@
-import { spawn, type ChildProcess } from "child_process";
-import { StringDecoder } from "string_decoder";
+import { type ChildProcess, spawn } from "node:child_process";
+import { StringDecoder } from "node:string_decoder";
 
 export interface StreamResult {
   stdout: ReadableStream<string>;
@@ -20,28 +20,23 @@ export function streamFromWorkspace(
   command: string,
   signal?: AbortSignal,
 ): StreamResult {
-  const truncatedCmd =
-    command.length > 100 ? command.slice(0, 100) + "…" : command;
+  const truncatedCmd = command.length > 100 ? `${command.slice(0, 100)}…` : command;
 
-  console.log(
-    `[stream] spawning: workspace=${workspaceName} cmd="${truncatedCmd}"`,
-  );
+  console.log(`[stream] spawning: workspace=${workspaceName} cmd="${truncatedCmd}"`);
 
-  const child = spawn(
-    "coder",
-    ["ssh", workspaceName, "--", "bash", "-l", "-c", command],
-    { stdio: ["ignore", "pipe", "pipe"] },
-  );
+  const child = spawn("coder", ["ssh", workspaceName, "--", "bash", "-l", "-c", command], {
+    stdio: ["ignore", "pipe", "pipe"],
+  });
 
   let buffer = "";
   // StringDecoder handles multibyte UTF-8 characters split across chunks
   // (e.g. emoji, CJK). Plain chunk.toString('utf-8') would corrupt them.
   const decoder = new StringDecoder("utf-8");
-  let streamController: ReadableStreamDefaultController<string> | null = null;
+  let _streamController: ReadableStreamDefaultController<string> | null = null;
 
   const readable = new ReadableStream<string>({
     start(controller) {
-      streamController = controller;
+      _streamController = controller;
 
       child.stdout?.on("data", (chunk: Buffer) => {
         buffer += decoder.write(chunk);
@@ -64,9 +59,7 @@ export function streamFromWorkspace(
       });
 
       child.on("close", (code) => {
-        console.log(
-          `[stream] closed: workspace=${workspaceName} exitCode=${code}`,
-        );
+        console.log(`[stream] closed: workspace=${workspaceName} exitCode=${code}`);
         // Flush any remaining buffered content
         if (buffer.length > 0) {
           try {
@@ -84,9 +77,7 @@ export function streamFromWorkspace(
       });
 
       child.on("error", (err) => {
-        console.log(
-          `[stream] error: workspace=${workspaceName} ${err.message}`,
-        );
+        console.log(`[stream] error: workspace=${workspaceName} ${err.message}`);
         try {
           controller.error(err);
         } catch {
@@ -95,9 +86,7 @@ export function streamFromWorkspace(
       });
     },
     cancel() {
-      console.log(
-        `[stream] cancelled: workspace=${workspaceName}`,
-      );
+      console.log(`[stream] cancelled: workspace=${workspaceName}`);
       killWithEscalation(child, workspaceName);
     },
   });
@@ -108,9 +97,7 @@ export function streamFromWorkspace(
       killWithEscalation(child, workspaceName);
     } else {
       const onAbort = () => {
-        console.log(
-          `[stream] aborted: workspace=${workspaceName}`,
-        );
+        console.log(`[stream] aborted: workspace=${workspaceName}`);
         killWithEscalation(child, workspaceName);
       };
       signal.addEventListener("abort", onAbort, { once: true });

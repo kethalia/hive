@@ -1,8 +1,10 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { createServer, type Server, type IncomingMessage, type ServerResponse } from "node:http";
+import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ConnectionRegistry, KeepAliveManager } from "../src/keepalive.js";
 
-function createMockCoderApi(handler: (req: IncomingMessage, res: ServerResponse) => void): Promise<{ server: Server; url: string }> {
+function createMockCoderApi(
+  handler: (req: IncomingMessage, res: ServerResponse) => void,
+): Promise<{ server: Server; url: string }> {
   return new Promise((resolve) => {
     const server = createServer(handler);
     server.listen(0, "127.0.0.1", () => {
@@ -17,7 +19,13 @@ function closeServer(server: Server): Promise<void> {
   return new Promise((resolve) => server.close(() => resolve()));
 }
 
-function addWithMeta(registry: ConnectionRegistry, workspaceId: string, connectionId: string, coderUrl: string, token = "integration-test-token") {
+function addWithMeta(
+  registry: ConnectionRegistry,
+  workspaceId: string,
+  connectionId: string,
+  coderUrl: string,
+  token = "integration-test-token",
+) {
   registry.addConnection(workspaceId, connectionId, { token, coderUrl });
 }
 
@@ -25,7 +33,11 @@ describe("KeepAliveManager integration", () => {
   let registry: ConnectionRegistry;
   let server: Server;
   let manager: KeepAliveManager;
-  let requestLog: { method: string; url: string; headers: Record<string, string | string[] | undefined> }[];
+  let requestLog: {
+    method: string;
+    url: string;
+    headers: Record<string, string | string[] | undefined>;
+  }[];
   let responseStatus: number;
   let mockUrl: string;
 
@@ -70,7 +82,9 @@ describe("KeepAliveManager integration", () => {
 
     const mock = await createMockCoderApi((req, res) => {
       let body = "";
-      req.on("data", (chunk: Buffer) => { body += chunk.toString(); });
+      req.on("data", (chunk: Buffer) => {
+        body += chunk.toString();
+      });
       req.on("end", () => {
         capturedBody = body;
         res.writeHead(200);

@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/lib/coder/user-client", () => ({
   getCoderClientForUser: vi.fn(),
@@ -16,9 +16,9 @@ vi.mock("@/lib/auth/session", () => ({
   getSession: vi.fn(),
 }));
 
-import { getCoderClientForUser } from "@/lib/coder/user-client";
-import { getSession } from "@/lib/auth/session";
 import { cookies } from "next/headers";
+import { getSession } from "@/lib/auth/session";
+import { getCoderClientForUser } from "@/lib/coder/user-client";
 import { execInWorkspace } from "@/lib/workspace/exec";
 
 const mockedGetCoderClientForUser = vi.mocked(getCoderClientForUser);
@@ -90,7 +90,7 @@ describe("workspace server actions", () => {
     });
 
     const { getWorkspaceSessionsAction } = await import("@/lib/actions/workspaces");
-    const result = await getWorkspaceSessionsAction({ workspaceId: "ws-1" });
+    const _result = await getWorkspaceSessionsAction({ workspaceId: "ws-1" });
 
     expect(mockGetWorkspaceAgentName).toHaveBeenCalledWith("ws-1");
     expect(mockedExec).toHaveBeenCalledWith(
@@ -100,9 +100,7 @@ describe("workspace server actions", () => {
   });
 
   it("getWorkspaceSessionsAction returns empty array when no agents found", async () => {
-    mockGetWorkspaceAgentName.mockRejectedValueOnce(
-      new Error("No agents found"),
-    );
+    mockGetWorkspaceAgentName.mockRejectedValueOnce(new Error("No agents found"));
 
     const { getWorkspaceSessionsAction } = await import("@/lib/actions/workspaces");
     const result = await getWorkspaceSessionsAction({ workspaceId: "ws-no-agents" });

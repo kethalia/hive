@@ -4,9 +4,9 @@ import {
   COUNCIL_JOB_TIMEOUT_MS,
   COUNCIL_REVIEWER_QUEUE,
 } from "@/lib/constants";
-import { getRedisConnection } from "./connection";
-import { createCouncilReviewerProcessor } from "@/lib/council/reviewer-processor";
 import { createCouncilAggregatorProcessor } from "@/lib/council/aggregator-processor";
+import { createCouncilReviewerProcessor } from "@/lib/council/reviewer-processor";
+import { getRedisConnection } from "./connection";
 
 // ── Job data interfaces ────────────────────────────────────────────
 
@@ -81,7 +81,7 @@ export function createCouncilReviewerWorker(): Worker<CouncilReviewerJobData> {
       connection: getRedisConnection(),
       concurrency: 5,
       lockDuration: COUNCIL_JOB_TIMEOUT_MS,
-    }
+    },
   );
 }
 
@@ -98,6 +98,6 @@ export function createCouncilAggregatorWorker(): Worker<CouncilAggregatorJobData
       connection: getRedisConnection(),
       concurrency: 3,
       lockDuration: COUNCIL_JOB_TIMEOUT_MS,
-    }
+    },
   );
 }

@@ -1,4 +1,5 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
 vi.mock("ioredis", () => {
   return {
     default: vi.fn().mockImplementation(() => ({
@@ -26,7 +27,7 @@ vi.mock("bullmq", () => ({
     add: mockQueueAdd,
     close: vi.fn(),
   })),
-  Worker: vi.fn().mockImplementation((name: string, processor: Function, opts: unknown) => {
+  Worker: vi.fn().mockImplementation((_name: string, processor: Function, opts: unknown) => {
     // Store the processor so we can invoke it in tests
     (Worker as any).__lastProcessor = processor;
     (Worker as any).__lastOpts = opts;
@@ -36,6 +37,7 @@ vi.mock("bullmq", () => ({
     };
   }),
 }));
+
 // Capture the Worker import for accessing __lastProcessor
 import { Worker } from "bullmq";
 
@@ -122,10 +124,11 @@ const mockCreateVerifierBlueprint = vi.fn(() => [
 vi.mock("@/lib/blueprint/verifier", () => ({
   createVerifierBlueprint: () => mockCreateVerifierBlueprint(),
 }));
+
 // ── Imports under test ────────────────────────────────────────────
 
-import { getTaskQueue, createTaskWorker, type TaskJobData } from "@/lib/queue/task-queue";
 import { createCIStep } from "@/lib/blueprint/steps/ci";
+import { createTaskWorker, getTaskQueue, type TaskJobData } from "@/lib/queue/task-queue";
 
 // ── Helpers ───────────────────────────────────────────────────────
 
@@ -162,7 +165,7 @@ const fakeJobData: TaskJobData = {
 };
 
 /** Build the 8-step success result the worker expects. */
-function makeSuccessResult(overrides?: { prUrl?: string }) {
+function makeSuccessResult(_overrides?: { prUrl?: string }) {
   return {
     success: true,
     steps: [
@@ -172,8 +175,18 @@ function makeSuccessResult(overrides?: { prUrl?: string }) {
       { name: "agent-execution", status: "success", message: "Changes made", durationMs: 5000 },
       { name: "lint", status: "success", message: "Lint passed", durationMs: 200 },
       { name: "commit-push", status: "success", message: "Pushed abc1234", durationMs: 300 },
-      { name: "ci-feedback", status: "success", message: "CI passed on round 1", durationMs: 15000 },
-      { name: "pr-create", status: "success", message: "https://github.com/test/repo/pull/42", durationMs: 400 },
+      {
+        name: "ci-feedback",
+        status: "success",
+        message: "CI passed on round 1",
+        durationMs: 15000,
+      },
+      {
+        name: "pr-create",
+        status: "success",
+        message: "https://github.com/test/repo/pull/42",
+        durationMs: 400,
+      },
     ],
     totalDurationMs: 21080,
   };
@@ -220,23 +233,36 @@ describe("BullMQ task-dispatch queue", () => {
 
     it("full success flow: 8-step pipeline with prUrl and branch persisted", async () => {
       // Set up createWorkspace to return different IDs for worker vs verifier
-      const createWsMock = vi.fn()
+      const createWsMock = vi
+        .fn()
         .mockResolvedValueOnce({
-          id: "ws-001", name: "hive-worker-abc12345",
-          template_id: "tmpl-1", owner_name: "me",
-          latest_build: { id: "build-1", status: "starting", job: { status: "running", error: "" } },
+          id: "ws-001",
+          name: "hive-worker-abc12345",
+          template_id: "tmpl-1",
+          owner_name: "me",
+          latest_build: {
+            id: "build-1",
+            status: "starting",
+            job: { status: "running", error: "" },
+          },
         })
         .mockResolvedValueOnce({
-          id: "ws-verifier-001", name: "hive-verifier-abc12345",
-          template_id: "tmpl-v", owner_name: "me",
-          latest_build: { id: "build-v1", status: "starting", job: { status: "running", error: "" } },
+          id: "ws-verifier-001",
+          name: "hive-verifier-abc12345",
+          template_id: "tmpl-v",
+          owner_name: "me",
+          latest_build: {
+            id: "build-v1",
+            status: "starting",
+            job: { status: "running", error: "" },
+          },
         });
       const client = makeMockCoderClient({ createWorkspace: createWsMock });
       mockGetCoderClientForUser.mockResolvedValue(client);
 
       // Worker blueprint sets prUrl; verifier blueprint sets verificationReport
       let runBlueprintCallCount = 0;
-      mockRunBlueprint.mockImplementation(async (steps: any[], ctx: any) => {
+      mockRunBlueprint.mockImplementation(async (_steps: any[], ctx: any) => {
         runBlueprintCallCount++;
         if (runBlueprintCallCount === 1) {
           // Worker blueprint
@@ -365,8 +391,8 @@ describe("BullMQ task-dispatch queue", () => {
       );
 
       // 10. Step outcomes logged (8 worker steps)
-      const stepLogCalls = mockTaskLogCreate.mock.calls.filter(
-        (c: any) => c[0]?.data?.message?.startsWith('Blueprint step'),
+      const stepLogCalls = mockTaskLogCreate.mock.calls.filter((c: any) =>
+        c[0]?.data?.message?.startsWith("Blueprint step"),
       );
       expect(stepLogCalls.length).toBe(8);
     });
@@ -416,7 +442,12 @@ describe("BullMQ task-dispatch queue", () => {
           { name: "hydrate-context", status: "success", message: "ok", durationMs: 100 },
           { name: "scoped-rules", status: "success", message: "ok", durationMs: 50 },
           { name: "tool-selection", status: "success", message: "ok", durationMs: 30 },
-          { name: "agent-execution", status: "failure", message: "Pi exited with code 1: rate limit", durationMs: 2000 },
+          {
+            name: "agent-execution",
+            status: "failure",
+            message: "Pi exited with code 1: rate limit",
+            durationMs: 2000,
+          },
           { name: "lint", status: "skipped", message: "skipped", durationMs: 0 },
           { name: "commit-push", status: "skipped", message: "skipped", durationMs: 0 },
           { name: "ci-feedback", status: "skipped", message: "skipped", durationMs: 0 },
@@ -434,7 +465,7 @@ describe("BullMQ task-dispatch queue", () => {
         where: { id: fakeJobData.taskId },
         data: {
           status: "failed",
-          errorMessage: expect.stringContaining('agent-execution'),
+          errorMessage: expect.stringContaining("agent-execution"),
         },
       });
 
@@ -456,9 +487,9 @@ describe("BullMQ task-dispatch queue", () => {
       createTaskWorker();
       const processor = (Worker as any).__lastProcessor;
 
-      await expect(
-        processor({ id: "job-err", data: fakeJobData }),
-      ).rejects.toThrow("build timeout");
+      await expect(processor({ id: "job-err", data: fakeJobData })).rejects.toThrow(
+        "build timeout",
+      );
 
       // Cleanup called with workspace ID from createWorkspace
       expect(mockCleanupWorkspace).toHaveBeenCalledWith(
@@ -478,7 +509,12 @@ describe("BullMQ task-dispatch queue", () => {
           { name: "hydrate-context", status: "success", message: "ok", durationMs: 100 },
           { name: "scoped-rules", status: "success", message: "ok", durationMs: 50 },
           { name: "tool-selection", status: "success", message: "ok", durationMs: 30 },
-          { name: "agent-execution", status: "failure", message: "Pi exited with code 1: rate limit", durationMs: 2000 },
+          {
+            name: "agent-execution",
+            status: "failure",
+            message: "Pi exited with code 1: rate limit",
+            durationMs: 2000,
+          },
           { name: "lint", status: "skipped", message: "skipped", durationMs: 0 },
           { name: "commit-push", status: "skipped", message: "skipped", durationMs: 0 },
           { name: "ci-feedback", status: "skipped", message: "skipped", durationMs: 0 },
@@ -498,14 +534,12 @@ describe("BullMQ task-dispatch queue", () => {
         where: { id: fakeJobData.taskId },
         data: {
           status: "failed",
-          errorMessage: expect.stringContaining('agent-execution'),
+          errorMessage: expect.stringContaining("agent-execution"),
         },
       });
 
       // Error message includes the step name and Pi's error
-      const failCall = mockTaskUpdate.mock.calls.find(
-        (c: any) => c[0]?.data?.status === "failed"
-      );
+      const failCall = mockTaskUpdate.mock.calls.find((c: any) => c[0]?.data?.status === "failed");
       expect(failCall).toBeDefined();
       expect(failCall![0].data.errorMessage).toContain("rate limit");
     });
@@ -558,7 +592,12 @@ describe("BullMQ task-dispatch queue", () => {
           { name: "hydrate-context", status: "success", message: "ok", durationMs: 100 },
           { name: "scoped-rules", status: "success", message: "ok", durationMs: 50 },
           { name: "tool-selection", status: "success", message: "ok", durationMs: 30 },
-          { name: "agent-execution", status: "failure", message: "Pi exited with code 1: rate limit", durationMs: 2000 },
+          {
+            name: "agent-execution",
+            status: "failure",
+            message: "Pi exited with code 1: rate limit",
+            durationMs: 2000,
+          },
           { name: "lint", status: "skipped", message: "skipped", durationMs: 0 },
           { name: "commit-push", status: "skipped", message: "skipped", durationMs: 0 },
           { name: "ci-feedback", status: "skipped", message: "skipped", durationMs: 0 },
@@ -589,22 +628,35 @@ describe("BullMQ task-dispatch queue", () => {
     });
 
     it("verifier failure → task still set to done with inconclusive report", async () => {
-      const createWsMock = vi.fn()
+      const createWsMock = vi
+        .fn()
         .mockResolvedValueOnce({
-          id: "ws-001", name: "hive-worker-abc12345",
-          template_id: "tmpl-1", owner_name: "me",
-          latest_build: { id: "build-1", status: "starting", job: { status: "running", error: "" } },
+          id: "ws-001",
+          name: "hive-worker-abc12345",
+          template_id: "tmpl-1",
+          owner_name: "me",
+          latest_build: {
+            id: "build-1",
+            status: "starting",
+            job: { status: "running", error: "" },
+          },
         })
         .mockResolvedValueOnce({
-          id: "ws-verifier-001", name: "hive-verifier-abc12345",
-          template_id: "tmpl-v", owner_name: "me",
-          latest_build: { id: "build-v1", status: "starting", job: { status: "running", error: "" } },
+          id: "ws-verifier-001",
+          name: "hive-verifier-abc12345",
+          template_id: "tmpl-v",
+          owner_name: "me",
+          latest_build: {
+            id: "build-v1",
+            status: "starting",
+            job: { status: "running", error: "" },
+          },
         });
       const client = makeMockCoderClient({ createWorkspace: createWsMock });
       mockGetCoderClientForUser.mockResolvedValue(client);
 
       let callCount = 0;
-      mockRunBlueprint.mockImplementation(async (steps: any[], ctx: any) => {
+      mockRunBlueprint.mockImplementation(async (_steps: any[], ctx: any) => {
         callCount++;
         if (callCount === 1) {
           ctx.prUrl = "https://github.com/test/repo/pull/42";
@@ -642,37 +694,51 @@ describe("BullMQ task-dispatch queue", () => {
       });
 
       // Task NOT set to failed
-      const failCall = mockTaskUpdate.mock.calls.find(
-        (c: any) => c[0]?.data?.status === "failed"
-      );
+      const failCall = mockTaskUpdate.mock.calls.find((c: any) => c[0]?.data?.status === "failed");
       expect(failCall).toBeUndefined();
     });
 
     it("both worker and verifier workspaces cleaned up in finally block", async () => {
-      const createWsMock = vi.fn()
+      const createWsMock = vi
+        .fn()
         .mockResolvedValueOnce({
-          id: "ws-001", name: "hive-worker-abc12345",
-          template_id: "tmpl-1", owner_name: "me",
-          latest_build: { id: "build-1", status: "starting", job: { status: "running", error: "" } },
+          id: "ws-001",
+          name: "hive-worker-abc12345",
+          template_id: "tmpl-1",
+          owner_name: "me",
+          latest_build: {
+            id: "build-1",
+            status: "starting",
+            job: { status: "running", error: "" },
+          },
         })
         .mockResolvedValueOnce({
-          id: "ws-verifier-001", name: "hive-verifier-abc12345",
-          template_id: "tmpl-v", owner_name: "me",
-          latest_build: { id: "build-v1", status: "starting", job: { status: "running", error: "" } },
+          id: "ws-verifier-001",
+          name: "hive-verifier-abc12345",
+          template_id: "tmpl-v",
+          owner_name: "me",
+          latest_build: {
+            id: "build-v1",
+            status: "starting",
+            job: { status: "running", error: "" },
+          },
         });
       const client = makeMockCoderClient({ createWorkspace: createWsMock });
       mockGetCoderClientForUser.mockResolvedValue(client);
 
       let callCount = 0;
-      mockRunBlueprint.mockImplementation(async (steps: any[], ctx: any) => {
+      mockRunBlueprint.mockImplementation(async (_steps: any[], ctx: any) => {
         callCount++;
         if (callCount === 1) {
           ctx.prUrl = "https://github.com/test/repo/pull/42";
           return makeSuccessResult();
         }
         ctx.verificationReport = JSON.stringify({
-          strategy: "test-suite", outcome: "pass",
-          logs: "ok", durationMs: 100, timestamp: "2025-01-01T00:00:00.000Z",
+          strategy: "test-suite",
+          outcome: "pass",
+          logs: "ok",
+          durationMs: 100,
+          timestamp: "2025-01-01T00:00:00.000Z",
         });
         return { success: true, steps: [], totalDurationMs: 100 };
       });
@@ -684,30 +750,49 @@ describe("BullMQ task-dispatch queue", () => {
       // Both workspaces cleaned up
       expect(mockCleanupWorkspace).toHaveBeenCalledTimes(2);
       expect(mockCleanupWorkspace).toHaveBeenCalledWith(
-        client, "ws-001", expect.any(Number), expect.anything(),
+        client,
+        "ws-001",
+        expect.any(Number),
+        expect.anything(),
       );
       expect(mockCleanupWorkspace).toHaveBeenCalledWith(
-        client, "ws-verifier-001", expect.any(Number), expect.anything(),
+        client,
+        "ws-verifier-001",
+        expect.any(Number),
+        expect.anything(),
       );
     });
 
     it("verifier blueprint returns success:false → task done with inconclusive report", async () => {
-      const createWsMock = vi.fn()
+      const createWsMock = vi
+        .fn()
         .mockResolvedValueOnce({
-          id: "ws-001", name: "hive-worker-abc12345",
-          template_id: "tmpl-1", owner_name: "me",
-          latest_build: { id: "build-1", status: "starting", job: { status: "running", error: "" } },
+          id: "ws-001",
+          name: "hive-worker-abc12345",
+          template_id: "tmpl-1",
+          owner_name: "me",
+          latest_build: {
+            id: "build-1",
+            status: "starting",
+            job: { status: "running", error: "" },
+          },
         })
         .mockResolvedValueOnce({
-          id: "ws-verifier-001", name: "hive-verifier-abc12345",
-          template_id: "tmpl-v", owner_name: "me",
-          latest_build: { id: "build-v1", status: "starting", job: { status: "running", error: "" } },
+          id: "ws-verifier-001",
+          name: "hive-verifier-abc12345",
+          template_id: "tmpl-v",
+          owner_name: "me",
+          latest_build: {
+            id: "build-v1",
+            status: "starting",
+            job: { status: "running", error: "" },
+          },
         });
       const client = makeMockCoderClient({ createWorkspace: createWsMock });
       mockGetCoderClientForUser.mockResolvedValue(client);
 
       let callCount = 0;
-      mockRunBlueprint.mockImplementation(async (steps: any[], ctx: any) => {
+      mockRunBlueprint.mockImplementation(async (_steps: any[], ctx: any) => {
         callCount++;
         if (callCount === 1) {
           ctx.prUrl = "https://github.com/test/repo/pull/42";
@@ -719,7 +804,12 @@ describe("BullMQ task-dispatch queue", () => {
           steps: [
             { name: "verify-clone", status: "success", message: "ok", durationMs: 100 },
             { name: "verify-detect", status: "success", message: "ok", durationMs: 50 },
-            { name: "verify-execute", status: "failure", message: "npm test failed", durationMs: 5000 },
+            {
+              name: "verify-execute",
+              status: "failure",
+              message: "npm test failed",
+              durationMs: 5000,
+            },
             { name: "verify-report", status: "skipped", message: "skipped", durationMs: 0 },
           ],
           totalDurationMs: 5150,
@@ -743,9 +833,7 @@ describe("BullMQ task-dispatch queue", () => {
       });
 
       // Task NOT set to failed
-      const failCall = mockTaskUpdate.mock.calls.find(
-        (c: any) => c[0]?.data?.status === "failed"
-      );
+      const failCall = mockTaskUpdate.mock.calls.find((c: any) => c[0]?.data?.status === "failed");
       expect(failCall).toBeUndefined();
     });
 
@@ -756,9 +844,9 @@ describe("BullMQ task-dispatch queue", () => {
       const client = makeMockCoderClient();
       mockGetCoderClientForUser.mockResolvedValue(client);
 
-      let callCount = 0;
-      mockRunBlueprint.mockImplementation(async (steps: any[], ctx: any) => {
-        callCount++;
+      let _callCount = 0;
+      mockRunBlueprint.mockImplementation(async (_steps: any[], ctx: any) => {
+        _callCount++;
         ctx.prUrl = "https://github.com/test/repo/pull/42";
         return makeSuccessResult();
       });

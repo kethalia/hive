@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, fireEvent, waitFor, cleanup } from "@testing-library/react";
+
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import "@testing-library/jest-dom/vitest";
 
 const mockPush = vi.fn();
@@ -16,7 +17,10 @@ vi.mock("@/lib/utils", () => ({
 
 vi.mock("@/components/ui/sidebar", async () => {
   const React = await import("react");
-  const Passthrough = ({ children, className }: React.PropsWithChildren<{ className?: string }>) => (
+  const Passthrough = ({
+    children,
+    className,
+  }: React.PropsWithChildren<{ className?: string }>) => (
     <div className={className}>{children}</div>
   );
   const Composable = ({
@@ -34,17 +38,27 @@ vi.mock("@/components/ui/sidebar", async () => {
     if (render) {
       return React.cloneElement(render, rest, children);
     }
-    return <button disabled={disabled} {...rest}>{children}</button>;
+    return (
+      <button disabled={disabled} {...rest}>
+        {children}
+      </button>
+    );
   };
   return {
     Sidebar: Passthrough,
     SidebarContent: Passthrough,
     SidebarFooter: ({ children, className }: React.PropsWithChildren<{ className?: string }>) => (
-      <div data-testid="sidebar-footer" className={className}>{children}</div>
+      <div data-testid="sidebar-footer" className={className}>
+        {children}
+      </div>
     ),
     SidebarGroup: Passthrough,
     SidebarGroupContent: Passthrough,
-    SidebarGroupLabel: ({ children, render, ...rest }: React.PropsWithChildren<{ render?: React.ReactElement; className?: string }>) => {
+    SidebarGroupLabel: ({
+      children,
+      render,
+      ...rest
+    }: React.PropsWithChildren<{ render?: React.ReactElement; className?: string }>) => {
       if (render) {
         return React.cloneElement(render, rest, children);
       }
@@ -70,7 +84,13 @@ vi.mock("@/components/ui/collapsible", () => {
       onOpenChange,
       "data-testid": dataTestId,
       className: _className,
-    }: React.PropsWithChildren<{ defaultOpen?: boolean; open?: boolean; onOpenChange?: (v: boolean) => void; "data-testid"?: string; className?: string }>) => {
+    }: React.PropsWithChildren<{
+      defaultOpen?: boolean;
+      open?: boolean;
+      onOpenChange?: (v: boolean) => void;
+      "data-testid"?: string;
+      className?: string;
+    }>) => {
       const isOpen = open ?? defaultOpen;
       return (
         <div
@@ -91,15 +111,25 @@ vi.mock("@/components/ui/collapsible", () => {
     CollapsibleContent: ({ children }: React.PropsWithChildren) => (
       <div data-testid="collapsible-content">{children}</div>
     ),
-    CollapsibleTrigger: ({ children, className }: React.PropsWithChildren<{ className?: string }>) => (
-      <button data-testid="collapsible-trigger" className={className}>{children}</button>
+    CollapsibleTrigger: ({
+      children,
+      className,
+    }: React.PropsWithChildren<{ className?: string }>) => (
+      <button data-testid="collapsible-trigger" className={className}>
+        {children}
+      </button>
     ),
   };
 });
 
 vi.mock("@/components/ui/avatar", () => ({
-  Avatar: ({ children, className }: React.PropsWithChildren<{ size?: string; className?: string }>) => (
-    <span data-testid="avatar" className={className}>{children}</span>
+  Avatar: ({
+    children,
+    className,
+  }: React.PropsWithChildren<{ size?: string; className?: string }>) => (
+    <span data-testid="avatar" className={className}>
+      {children}
+    </span>
   ),
   AvatarFallback: ({ children }: React.PropsWithChildren) => (
     <span data-testid="avatar-fallback">{children}</span>
@@ -112,14 +142,27 @@ vi.mock("@/components/ui/dropdown-menu", () => {
     DropdownMenu: ({ children }: React.PropsWithChildren) => (
       <div data-testid="dropdown-menu">{children}</div>
     ),
-    DropdownMenuTrigger: ({ children, className }: React.PropsWithChildren<{ className?: string }>) => (
-      <button data-testid="user-menu-trigger" className={className}>{children}</button>
+    DropdownMenuTrigger: ({
+      children,
+      className,
+    }: React.PropsWithChildren<{ className?: string }>) => (
+      <button data-testid="user-menu-trigger" className={className}>
+        {children}
+      </button>
     ),
-    DropdownMenuContent: ({ children }: React.PropsWithChildren<{ side?: string; align?: string; className?: string }>) => (
+    DropdownMenuContent: ({
+      children,
+    }: React.PropsWithChildren<{ side?: string; align?: string; className?: string }>) => (
       <div data-testid="user-menu-content">{children}</div>
     ),
-    DropdownMenuItem: ({ children, onClick, disabled }: React.PropsWithChildren<{ onClick?: () => void; disabled?: boolean }>) => (
-      <button data-testid="dropdown-menu-item" onClick={onClick} disabled={disabled}>{children}</button>
+    DropdownMenuItem: ({
+      children,
+      onClick,
+      disabled,
+    }: React.PropsWithChildren<{ onClick?: () => void; disabled?: boolean }>) => (
+      <button data-testid="dropdown-menu-item" onClick={onClick} disabled={disabled}>
+        {children}
+      </button>
     ),
     DropdownMenuLabel: ({ children }: React.PropsWithChildren<{ className?: string }>) => (
       <div data-testid="dropdown-menu-label">{children}</div>
@@ -485,7 +528,9 @@ describe("AppSidebar", () => {
       expect(screen.getByText("Filebrowser")).toBeInTheDocument();
     });
 
-    const filebrowserBtn = screen.getByText("Filebrowser").closest("[data-testid='collapsible-trigger']") ?? screen.getByText("Filebrowser").closest("button");
+    const filebrowserBtn =
+      screen.getByText("Filebrowser").closest("[data-testid='collapsible-trigger']") ??
+      screen.getByText("Filebrowser").closest("button");
     fireEvent.click(filebrowserBtn!);
     expect(openSpy).toHaveBeenCalledWith(
       "https://filebrowser.test",
@@ -493,7 +538,9 @@ describe("AppSidebar", () => {
       "width=1200,height=800,menubar=no,toolbar=no",
     );
 
-    const kasmBtn = screen.getByText("KasmVNC").closest("[data-testid='collapsible-trigger']") ?? screen.getByText("KasmVNC").closest("button");
+    const kasmBtn =
+      screen.getByText("KasmVNC").closest("[data-testid='collapsible-trigger']") ??
+      screen.getByText("KasmVNC").closest("button");
     fireEvent.click(kasmBtn!);
     expect(openSpy).toHaveBeenCalledWith(
       "https://kasmvnc.test",
@@ -501,7 +548,9 @@ describe("AppSidebar", () => {
       "width=1200,height=800,menubar=no,toolbar=no",
     );
 
-    const codeBtn = screen.getByText("Code Server").closest("[data-testid='collapsible-trigger']") ?? screen.getByText("Code Server").closest("button");
+    const codeBtn =
+      screen.getByText("Code Server").closest("[data-testid='collapsible-trigger']") ??
+      screen.getByText("Code Server").closest("button");
     fireEvent.click(codeBtn!);
     expect(openSpy).toHaveBeenCalledWith(
       "https://code-server.test",

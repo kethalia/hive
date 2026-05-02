@@ -18,7 +18,7 @@ on:
   workflow_dispatch:
     inputs:
       images:
-        description: 'Comma-separated package names to retag (hive-orchestrator,hive-terminal-proxy,hive-auth)'
+        description: 'Comma-separated package names to retag (hive-web,hive-terminal,hive-auth)'
         required: true
         type: string
       version:
@@ -46,9 +46,9 @@ jobs:
     with:
       images: |
         {
-          "hive-orchestrator":   { "image": "hive" },
-          "hive-terminal-proxy": { "image": "hive-terminal-proxy" },
-          "hive-auth":           { "image": "hive-auth" }
+          "hive-web":      { "image": "hive-web" },
+          "hive-terminal": { "image": "hive-terminal" },
+          "hive-auth":     { "image": "hive-auth" }
         }
     secrets: inherit
 
@@ -70,11 +70,11 @@ jobs:
           for raw in "${names[@]}"; do
             name="$(echo "$raw" | tr -d '[:space:]')"
             case "$name" in
-              hive-orchestrator)
-                entry='{"name":"hive-orchestrator","image":"hive"}'
+              hive-web)
+                entry='{"name":"hive-web","image":"hive-web"}'
                 ;;
-              hive-terminal-proxy)
-                entry='{"name":"hive-terminal-proxy","image":"hive-terminal-proxy"}'
+              hive-terminal)
+                entry='{"name":"hive-terminal","image":"hive-terminal"}'
                 ;;
               hive-auth)
                 entry='{"name":"hive-auth","image":"hive-auth"}'

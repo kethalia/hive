@@ -1,14 +1,14 @@
+import {
+  AGENT_OUTPUT_LOG,
+  AGENT_TIMEOUT_MS,
+  CONTEXT_FILE,
+  EXEC_TIMEOUT_MS,
+  PROJECT_DIR,
+  PROMPT_FILE,
+  SAFE_IDENTIFIER_RE,
+} from "@/lib/constants";
 import { execInWorkspace } from "@/lib/workspace/exec";
 import type { BlueprintStep } from "../types";
-import {
-  PROJECT_DIR,
-  AGENT_TIMEOUT_MS,
-  SAFE_IDENTIFIER_RE,
-  EXEC_TIMEOUT_MS,
-  AGENT_OUTPUT_LOG,
-  CONTEXT_FILE,
-  PROMPT_FILE,
-} from "@/lib/constants";
 
 /**
  * Create the agent execution step (R003).
@@ -44,9 +44,7 @@ export function createAgentStep(): BlueprintStep {
 
       // 1. Write assembled context + rules to a temp file via base64
       //    to avoid any shell quoting/escaping issues.
-      const contextPayload = [ctx.assembledContext, ctx.scopedRules]
-        .filter(Boolean)
-        .join("\n\n");
+      const contextPayload = [ctx.assembledContext, ctx.scopedRules].filter(Boolean).join("\n\n");
       const b64 = Buffer.from(contextPayload, "utf-8").toString("base64");
 
       const writeResult = await execInWorkspace(
@@ -69,8 +67,7 @@ export function createAgentStep(): BlueprintStep {
 
       // 2. Build and run the Pi command
       //    Truncate prompt in logs to 200 chars for redaction constraints.
-      const truncatedPrompt =
-        ctx.prompt.length > 200 ? ctx.prompt.slice(0, 200) + "…" : ctx.prompt;
+      const truncatedPrompt = ctx.prompt.length > 200 ? `${ctx.prompt.slice(0, 200)}…` : ctx.prompt;
       console.log(
         `[blueprint] agent-execution: running pi --print (task=${ctx.taskId}, prompt="${truncatedPrompt}")`,
       );
@@ -97,11 +94,9 @@ export function createAgentStep(): BlueprintStep {
 
       // Ensure the agent output log file exists before Pi starts,
       // so `tail -f` from the SSE endpoint doesn't fail if it connects early.
-      const initLogResult = await execInWorkspace(
-        ctx.workspaceName,
-        `: > ${AGENT_OUTPUT_LOG}`,
-        { timeoutMs: EXEC_TIMEOUT_MS },
-      );
+      const initLogResult = await execInWorkspace(ctx.workspaceName, `: > ${AGENT_OUTPUT_LOG}`, {
+        timeoutMs: EXEC_TIMEOUT_MS,
+      });
 
       if (initLogResult.exitCode !== 0) {
         console.log(
@@ -147,8 +142,7 @@ export function createAgentStep(): BlueprintStep {
         { timeoutMs: EXEC_TIMEOUT_MS },
       );
 
-      const hasChanges =
-        diffResult.exitCode === 0 && diffResult.stdout.trim().length > 0;
+      const hasChanges = diffResult.exitCode === 0 && diffResult.stdout.trim().length > 0;
 
       if (!hasChanges) {
         return {

@@ -12,7 +12,7 @@ export function getDb(): PrismaClient {
     if (!url) {
       throw new Error(
         "[db] DATABASE_URL environment variable is not set. " +
-          "Check .env.example for the required format."
+          "Check .env.example for the required format.",
       );
     }
     prisma = new PrismaClient();

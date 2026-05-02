@@ -1,7 +1,7 @@
 import { v4 as uuidv4 } from "uuid";
 import { getDb } from "@/lib/db";
-import { getTaskQueue } from "@/lib/queue/task-queue";
 import type { TaskJobData } from "@/lib/queue/task-queue";
+import { getTaskQueue } from "@/lib/queue/task-queue";
 
 // ── Helpers ───────────────────────────────────────────────────────
 
@@ -125,11 +125,7 @@ export async function getVerificationReport(taskId: string) {
  * Update a task's status and optionally record an error message.
  * Also inserts a taskLog entry for the transition.
  */
-export async function updateTaskStatus(
-  id: string,
-  status: string,
-  errorMessage?: string
-) {
+export async function updateTaskStatus(id: string, status: string, errorMessage?: string) {
   const db = getDb();
 
   await db.task.update({
@@ -143,9 +139,7 @@ export async function updateTaskStatus(
   await db.taskLog.create({
     data: {
       taskId: id,
-      message: errorMessage
-        ? `Status → ${status}: ${errorMessage}`
-        : `Status → ${status}`,
+      message: errorMessage ? `Status → ${status}: ${errorMessage}` : `Status → ${status}`,
       level: status === "failed" ? "error" : "info",
     },
   });

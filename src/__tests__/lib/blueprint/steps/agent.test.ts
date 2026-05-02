@@ -1,9 +1,11 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { BlueprintContext } from "@/lib/blueprint/types";
 import type { ExecResult } from "@/lib/workspace/exec";
+
 vi.mock("@/lib/workspace/exec", () => ({
   execInWorkspace: vi.fn(),
 }));
+
 import { createAgentStep } from "@/lib/blueprint/steps/agent";
 import { execInWorkspace } from "@/lib/workspace/exec";
 
@@ -58,7 +60,9 @@ describe("createAgentStep", () => {
       }
       // git diff --stat
       if (cmd.includes("git diff --stat")) {
-        return ok(" src/index.ts | 10 +++++++---\n 1 file changed, 7 insertions(+), 3 deletions(-)");
+        return ok(
+          " src/index.ts | 10 +++++++---\n 1 file changed, 7 insertions(+), 3 deletions(-)",
+        );
       }
       return ok("");
     });
@@ -70,15 +74,13 @@ describe("createAgentStep", () => {
     expect(result.message).toContain("src/index.ts");
 
     // Verify context was written as base64
-    const writeCall = mockExec.mock.calls.find(
-      ([, cmd]) => cmd.includes("base64 -d > /tmp/hive-context.md"),
+    const writeCall = mockExec.mock.calls.find(([, cmd]) =>
+      cmd.includes("base64 -d > /tmp/hive-context.md"),
     );
     expect(writeCall).toBeDefined();
 
     // Verify Pi was invoked with correct flags
-    const piCall = mockExec.mock.calls.find(
-      ([, cmd]) => cmd.includes("pi -p --no-session"),
-    );
+    const piCall = mockExec.mock.calls.find(([, cmd]) => cmd.includes("pi -p --no-session"));
     expect(piCall).toBeDefined();
     const piCmd = piCall![1];
     expect(piCmd).toContain("--provider anthropic");
@@ -178,9 +180,7 @@ describe("createAgentStep", () => {
     await step.execute(ctx);
 
     // The Pi command should use 1_800_000ms timeout
-    const piCall = mockExec.mock.calls.find(
-      ([, cmd]) => cmd.includes("pi -p --no-session"),
-    );
+    const piCall = mockExec.mock.calls.find(([, cmd]) => cmd.includes("pi -p --no-session"));
     expect(piCall).toBeDefined();
     expect(piCall![2]).toEqual({ timeoutMs: 1_800_000, loginShell: true });
   });

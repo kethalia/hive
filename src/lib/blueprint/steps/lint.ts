@@ -1,5 +1,5 @@
+import { LINT_TIMEOUT_MS, PROJECT_DIR } from "@/lib/constants";
 import { execInWorkspace } from "@/lib/workspace/exec";
-import { PROJECT_DIR, LINT_TIMEOUT_MS } from "@/lib/constants";
 import type { BlueprintStep } from "../types";
 
 /**

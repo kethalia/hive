@@ -5,11 +5,11 @@
  * Returns the comment URL on success, or null on failure.
  */
 
-import { execFile as execFileCb } from "child_process";
-import { writeFile, unlink } from "fs/promises";
-import { tmpdir } from "os";
-import { join } from "path";
-import { promisify } from "util";
+import { execFile as execFileCb } from "node:child_process";
+import { unlink, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { promisify } from "node:util";
 import { GH_CMD_TIMEOUT_MS } from "../constants";
 
 const execFile = promisify(execFileCb);
@@ -28,11 +28,9 @@ export async function postPRComment(prUrl: string, body: string): Promise<string
   const tmpFile = join(tmpdir(), `council-comment-${Date.now()}.md`);
   try {
     await writeFile(tmpFile, body, "utf-8");
-    const { stdout } = await execFile(
-      "gh",
-      ["pr", "comment", prUrl, "--body-file", tmpFile],
-      { timeout: GH_CMD_TIMEOUT_MS },
-    );
+    const { stdout } = await execFile("gh", ["pr", "comment", prUrl, "--body-file", tmpFile], {
+      timeout: GH_CMD_TIMEOUT_MS,
+    });
     // gh outputs the comment URL on stdout; trim whitespace
     const url = stdout.trim();
     return url.length > 0 ? url : null;
@@ -43,7 +41,9 @@ export async function postPRComment(prUrl: string, body: string): Promise<string
     return null;
   } finally {
     await unlink(tmpFile).catch((err) => {
-      console.warn(`[council-aggregator] Failed to clean up temp file ${tmpFile}: ${err instanceof Error ? err.message : String(err)}`);
+      console.warn(
+        `[council-aggregator] Failed to clean up temp file ${tmpFile}: ${err instanceof Error ? err.message : String(err)}`,
+      );
     });
   }
 }

@@ -5,7 +5,7 @@
 #   The changesets bot DELETES the `.changeset/*.md` files when it opens /
 #   updates the Version Packages PR. A `paths` filter is unreliable —
 #   synchronize events after the bot's amend would skip the check.
-#   Matching on the PR title (changesets default "chore: version packages")
+#   Matching on the PR title (changesets default "Version Packages")
 #   is the stable trigger.
 #
 # Why check `pull_request.head.sha` (not the merge sha)?
@@ -33,12 +33,12 @@ permissions:
 
 jobs:
   verify-sha-tags:
-    if: "${{ startsWith(github.event.pull_request.title, 'chore: version packages') }}"
+    if: "${{ startsWith(github.event.pull_request.title, 'Version Packages') }}"
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        image: [hive, hive-terminal-proxy, hive-auth]
+        image: [hive-web, hive-terminal, hive-auth]
     steps:
       - uses: actions/checkout@v4
 

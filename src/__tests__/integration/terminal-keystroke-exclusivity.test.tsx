@@ -1,7 +1,8 @@
 // @vitest-environment jsdom
+
+import { act, fireEvent, render } from "@testing-library/react";
 import React from "react";
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, act, fireEvent } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const { mockFit, mockFocus } = vi.hoisted(() => ({
   mockFit: vi.fn(),
@@ -58,12 +59,9 @@ vi.mock("@/components/ui/alert", () => ({
       {children}
     </div>
   ),
-  AlertDescription: ({
-    children,
-  }: {
-    children: React.ReactNode;
-    className?: string;
-  }) => <div>{children}</div>,
+  AlertDescription: ({ children }: { children: React.ReactNode; className?: string }) => (
+    <div>{children}</div>
+  ),
 }));
 
 vi.mock("lucide-react", () => ({
@@ -108,16 +106,10 @@ afterEach(() => {
 });
 
 async function renderTerminal(wrapper?: React.ComponentType<{ children: React.ReactNode }>) {
-  const { InteractiveTerminal } = await import(
-    "@/components/workspaces/InteractiveTerminal"
-  );
+  const { InteractiveTerminal } = await import("@/components/workspaces/InteractiveTerminal");
 
   const element = (
-    <InteractiveTerminal
-      agentId="test-agent"
-      workspaceId="test-ws"
-      sessionName="main"
-    />
+    <InteractiveTerminal agentId="test-agent" workspaceId="test-ws" sessionName="main" />
   );
 
   let result: ReturnType<typeof render>;
@@ -145,9 +137,7 @@ describe("Terminal keystroke exclusivity (R069)", () => {
     function StopPropWrapper({ children }: { children: React.ReactNode }) {
       return (
         <div onKeyDown={parentSpy}>
-          <div onKeyDown={(e) => e.stopPropagation()}>
-            {children}
-          </div>
+          <div onKeyDown={(e) => e.stopPropagation()}>{children}</div>
         </div>
       );
     }

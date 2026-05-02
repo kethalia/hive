@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
-import { getDb } from "../db.js";
-import { SESSION_MAX_AGE_SECONDS } from "@hive/auth";
 import type { SessionData } from "@hive/auth";
+import { SESSION_MAX_AGE_SECONDS } from "@hive/auth";
+import { getDb } from "../db.js";
 
 export type { SessionData };
 
@@ -20,25 +20,19 @@ export async function createSession(userId: string): Promise<string> {
   return sessionId;
 }
 
-export async function getSessionById(
-  sessionId: string
-): Promise<SessionData | null> {
+export async function getSessionById(sessionId: string): Promise<SessionData | null> {
   const session = await getDb().session.findUnique({
     where: { sessionId },
     include: { user: true },
   });
 
   if (!session) {
-    console.log(
-      `[auth-service] Session not found for sessionId=${sessionId.slice(0, 8)}…`
-    );
+    console.log(`[auth-service] Session not found for sessionId=${sessionId.slice(0, 8)}…`);
     return null;
   }
 
   if (session.expiresAt < new Date()) {
-    console.log(
-      `[auth-service] Session expired for user=${session.userId}, cleaning up`
-    );
+    console.log(`[auth-service] Session expired for user=${session.userId}, cleaning up`);
     await getDb().session.delete({ where: { sessionId } });
     return null;
   }

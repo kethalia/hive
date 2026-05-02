@@ -1,7 +1,15 @@
 // @vitest-environment jsdom
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { renderHook, act, cleanup } from "@testing-library/react";
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+
+import {
+  act,
+  cleanup,
+  fireEvent,
+  render,
+  renderHook,
+  screen,
+  waitFor,
+} from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import "@testing-library/jest-dom/vitest";
 
 import { useSidebarMode } from "@/hooks/use-sidebar-mode";
@@ -84,7 +92,10 @@ vi.mock("@/lib/utils", () => ({
 }));
 
 vi.mock("@/components/ui/sidebar", () => {
-  const Passthrough = ({ children, className }: React.PropsWithChildren<{ className?: string }>) => (
+  const Passthrough = ({
+    children,
+    className,
+  }: React.PropsWithChildren<{ className?: string }>) => (
     <div className={className}>{children}</div>
   );
   const MenuButton = ({
@@ -107,7 +118,9 @@ vi.mock("@/components/ui/sidebar", () => {
     Sidebar: Passthrough,
     SidebarContent: Passthrough,
     SidebarFooter: ({ children, className }: React.PropsWithChildren<{ className?: string }>) => (
-      <div data-testid="sidebar-footer" className={className}>{children}</div>
+      <div data-testid="sidebar-footer" className={className}>
+        {children}
+      </div>
     ),
     SidebarGroup: Passthrough,
     SidebarGroupContent: Passthrough,
@@ -148,8 +161,13 @@ vi.mock("@/lib/constants", () => ({
 }));
 
 vi.mock("@/components/ui/badge", () => ({
-  Badge: ({ children, className }: React.PropsWithChildren<{ variant?: string; className?: string }>) => (
-    <span data-testid="badge" className={className}>{children}</span>
+  Badge: ({
+    children,
+    className,
+  }: React.PropsWithChildren<{ variant?: string; className?: string }>) => (
+    <span data-testid="badge" className={className}>
+      {children}
+    </span>
   ),
 }));
 

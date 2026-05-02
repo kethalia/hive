@@ -1,5 +1,5 @@
 {
-  "name": "hive-terminal-proxy",
+  "name": "hive-terminal",
   "version": "2.0.0",
   "private": true,
   "type": "module",
@@ -7,7 +7,9 @@
     "dev": "tsx watch src/index.ts",
     "start": "NODE_ENV=production tsx src/index.ts",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@hive/auth": "workspace:*",

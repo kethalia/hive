@@ -1,6 +1,6 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
-import type { BlueprintContext } from "@/lib/blueprint/types";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createVerifyReportStep } from "@/lib/blueprint/steps/verify-report";
+import type { BlueprintContext } from "@/lib/blueprint/types";
 
 function makeCtx(overrides?: Partial<BlueprintContext>): BlueprintContext {
   return {
@@ -28,7 +28,11 @@ describe("createVerifyReportStep", () => {
     const step = createVerifyReportStep();
     const ctx = makeCtx({
       verificationStrategy: "test-suite",
-      verificationReport: JSON.stringify({ outcome: "pass", logs: "All tests passed", durationMs: 5000 }),
+      verificationReport: JSON.stringify({
+        outcome: "pass",
+        logs: "All tests passed",
+        durationMs: 5000,
+      }),
     });
 
     const result = await step.execute(ctx);

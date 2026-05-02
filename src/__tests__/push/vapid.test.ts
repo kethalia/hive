@@ -1,6 +1,6 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const mockVapidKeys = {
+const _mockVapidKeys = {
   findUnique: vi.fn(),
   create: vi.fn(),
 };
@@ -25,7 +25,7 @@ vi.mock("web-push", () => ({
   },
 }));
 
-import { getVapidKeys, getVapidPublicKey, clearVapidCache } from "@/lib/push/vapid";
+import { clearVapidCache, getVapidKeys, getVapidPublicKey } from "@/lib/push/vapid";
 
 describe("getVapidKeys", () => {
   const FAKE_KEYS = {

@@ -9,6 +9,8 @@
     "pretest": "prisma generate",
     "test": "vitest run",
     "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "typecheck": "tsc --noEmit",
     "db:generate": "prisma generate"
   },
   "dependencies": {

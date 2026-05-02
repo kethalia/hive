@@ -1,6 +1,12 @@
-import { execInWorkspace } from "@/lib/workspace/exec";
-import { PROJECT_DIR, TEST_TIMEOUT_MS, SERVER_TIMEOUT_MS, CURL_RETRY_CMD, SCREENSHOT_CMD } from "@/lib/constants";
+import {
+  CURL_RETRY_CMD,
+  PROJECT_DIR,
+  SCREENSHOT_CMD,
+  SERVER_TIMEOUT_MS,
+  TEST_TIMEOUT_MS,
+} from "@/lib/constants";
 import type { VerificationOutcome } from "@/lib/verification/types";
+import { execInWorkspace } from "@/lib/workspace/exec";
 import type { BlueprintStep } from "../types";
 
 /**
@@ -28,7 +34,7 @@ export function createVerifyExecuteStep(): BlueprintStep {
             `cd ${PROJECT_DIR} && npm install && npm test`,
             { timeoutMs: TEST_TIMEOUT_MS, loginShell: true },
           );
-          logs = result.stdout + "\n" + result.stderr;
+          logs = `${result.stdout}\n${result.stderr}`;
           outcome = result.exitCode === 0 ? "pass" : "fail";
           msg = `test-suite: npm test ${outcome === "pass" ? "passed" : "failed"} (exit ${result.exitCode})`;
           break;
@@ -42,20 +48,25 @@ export function createVerifyExecuteStep(): BlueprintStep {
             { loginShell: true },
           );
 
-          const curlResult = await execInWorkspace(
-            ctx.workspaceName,
-            CURL_RETRY_CMD,
-            { timeoutMs: SERVER_TIMEOUT_MS },
-          );
+          const curlResult = await execInWorkspace(ctx.workspaceName, CURL_RETRY_CMD, {
+            timeoutMs: SERVER_TIMEOUT_MS,
+          });
 
           if (curlResult.exitCode === 0) {
             // Server responded — take screenshot
             const ssResult = await execInWorkspace(ctx.workspaceName, SCREENSHOT_CMD);
-            logs = curlResult.stdout + "\n" + curlResult.stderr + "\n" + ssResult.stdout + "\n" + ssResult.stderr;
+            logs =
+              curlResult.stdout +
+              "\n" +
+              curlResult.stderr +
+              "\n" +
+              ssResult.stdout +
+              "\n" +
+              ssResult.stderr;
             outcome = "pass";
             msg = "web-app: dev server responded, screenshot captured";
           } else {
-            logs = curlResult.stdout + "\n" + curlResult.stderr;
+            logs = `${curlResult.stdout}\n${curlResult.stderr}`;
             outcome = "inconclusive";
             msg = "web-app: dev server did not respond within 60s";
           }
@@ -70,26 +81,29 @@ export function createVerifyExecuteStep(): BlueprintStep {
             { loginShell: true },
           );
 
-          const curlResult = await execInWorkspace(
-            ctx.workspaceName,
-            CURL_RETRY_CMD,
-            { timeoutMs: SERVER_TIMEOUT_MS },
-          );
+          const curlResult = await execInWorkspace(ctx.workspaceName, CURL_RETRY_CMD, {
+            timeoutMs: SERVER_TIMEOUT_MS,
+          });
 
           if (curlResult.exitCode === 0) {
             const ssResult = await execInWorkspace(ctx.workspaceName, SCREENSHOT_CMD);
-            logs = curlResult.stdout + "\n" + curlResult.stderr + "\n" + ssResult.stdout + "\n" + ssResult.stderr;
+            logs =
+              curlResult.stdout +
+              "\n" +
+              curlResult.stderr +
+              "\n" +
+              ssResult.stdout +
+              "\n" +
+              ssResult.stderr;
             outcome = "pass";
             msg = "static-site: serve responded, screenshot captured";
           } else {
-            logs = curlResult.stdout + "\n" + curlResult.stderr;
+            logs = `${curlResult.stdout}\n${curlResult.stderr}`;
             outcome = "inconclusive";
             msg = "static-site: serve did not respond within 60s";
           }
           break;
         }
-
-        case "none":
         default: {
           outcome = "inconclusive";
           logs = "";

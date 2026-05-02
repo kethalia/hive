@@ -36,8 +36,8 @@ jobs:
     with:
       org: kethalia
       packages: |
-        hive
-        hive-terminal-proxy
+        hive-web
+        hive-terminal
         hive-auth
       age-days: ${{ inputs.age-days || 14 }}
       dry-run: ${{ inputs.dry-run || false }}

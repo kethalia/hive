@@ -1,7 +1,7 @@
-import { describe, it, expect, beforeAll, afterAll, vi, beforeEach } from "vitest";
 import { createServer, type Server } from "node:http";
-import { addRoute, matchRoute, clearRoutes } from "../src/router.js";
-import { parseBody, sendJson, sendError } from "../src/server.js";
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { addRoute, clearRoutes, matchRoute } from "../src/router.js";
+import { sendError } from "../src/server.js";
 
 vi.mock("../src/auth/login.js", () => ({
   performLogin: vi.fn(),
@@ -28,14 +28,14 @@ vi.mock("../src/db.js", () => ({
   closeDb: vi.fn(),
 }));
 
+import { performLogin } from "../src/auth/login.js";
+import { loginRateLimiter } from "../src/auth/rate-limit.js";
+import { deleteSession, getSessionById } from "../src/auth/session.js";
+import { getTokenStatus } from "../src/auth/token-status.js";
+import { handleGetCredentials } from "../src/handlers/credentials.js";
 import { handleLogin } from "../src/handlers/login.js";
 import { handleLogout } from "../src/handlers/logout.js";
 import { handleGetSession } from "../src/handlers/session.js";
-import { handleGetCredentials } from "../src/handlers/credentials.js";
-import { performLogin } from "../src/auth/login.js";
-import { getSessionById, deleteSession } from "../src/auth/session.js";
-import { getTokenStatus } from "../src/auth/token-status.js";
-import { loginRateLimiter } from "../src/auth/rate-limit.js";
 
 function startTestServer(): Promise<{ server: Server; port: number }> {
   return new Promise((resolve) => {
@@ -109,13 +109,22 @@ describe("HTTP handlers", () => {
     it("returns 200 with session on successful login", async () => {
       vi.mocked(performLogin).mockResolvedValue({
         sessionId: "sess-123",
-        user: { id: "u1", username: "alice", email: "alice@test.com", coderUrl: "https://coder.test" },
+        user: {
+          id: "u1",
+          username: "alice",
+          email: "alice@test.com",
+          coderUrl: "https://coder.test",
+        },
       });
 
       const res = await fetch(`${baseUrl}/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ coderUrl: "https://coder.test", email: "alice@test.com", password: "pass" }),
+        body: JSON.stringify({
+          coderUrl: "https://coder.test",
+          email: "alice@test.com",
+          password: "pass",
+        }),
       });
 
       expect(res.status).toBe(200);
@@ -178,7 +187,11 @@ describe("HTTP handlers", () => {
       const res = await fetch(`${baseUrl}/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ coderUrl: "https://coder.test", email: "a@b.com", password: "wrong" }),
+        body: JSON.stringify({
+          coderUrl: "https://coder.test",
+          email: "a@b.com",
+          password: "wrong",
+        }),
       });
 
       expect(res.status).toBe(401);
@@ -210,7 +223,11 @@ describe("HTTP handlers", () => {
       const res = await fetch(`${baseUrl}/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ coderUrl: "https://coder.test", email: "a@b.com", password: "pass" }),
+        body: JSON.stringify({
+          coderUrl: "https://coder.test",
+          email: "a@b.com",
+          password: "pass",
+        }),
       });
 
       expect(res.status).toBe(429);
@@ -225,7 +242,11 @@ describe("HTTP handlers", () => {
       const res = await fetch(`${baseUrl}/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ coderUrl: "https://coder.test", email: "a@b.com", password: "pass" }),
+        body: JSON.stringify({
+          coderUrl: "https://coder.test",
+          email: "a@b.com",
+          password: "pass",
+        }),
       });
 
       expect(res.status).toBe(500);
@@ -266,7 +287,13 @@ describe("HTTP handlers", () => {
   describe("GET /sessions/:id", () => {
     it("returns 200 with session payload when found", async () => {
       vi.mocked(getSessionById).mockResolvedValue({
-        user: { id: "u1", coderUrl: "https://coder.test", coderUserId: "cu1", username: "alice", email: "alice@test.com" },
+        user: {
+          id: "u1",
+          coderUrl: "https://coder.test",
+          coderUserId: "cu1",
+          username: "alice",
+          email: "alice@test.com",
+        },
         session: { id: "row-1", sessionId: "sess-123", expiresAt: new Date("2026-05-01") },
       });
 
@@ -293,7 +320,13 @@ describe("HTTP handlers", () => {
   describe("GET /sessions/:id/credentials", () => {
     it("returns 200 with credential status when session exists", async () => {
       vi.mocked(getSessionById).mockResolvedValue({
-        user: { id: "u1", coderUrl: "https://coder.test", coderUserId: "cu1", username: "alice", email: "alice@test.com" },
+        user: {
+          id: "u1",
+          coderUrl: "https://coder.test",
+          coderUserId: "cu1",
+          username: "alice",
+          email: "alice@test.com",
+        },
         session: { id: "row-1", sessionId: "sess-123", expiresAt: new Date("2026-05-01") },
       });
       vi.mocked(getTokenStatus).mockResolvedValue({

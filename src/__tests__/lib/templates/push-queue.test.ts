@@ -1,5 +1,5 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { EventEmitter, Readable, Writable } from "stream";
+import { EventEmitter, Readable, Writable } from "node:stream";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 // ── Mocks ────────────────────────────────────────────────────────
 
@@ -28,7 +28,10 @@ vi.mock("@/lib/coder/user-client", () => ({
     getSessionToken: () => MOCK_SESSION_TOKEN,
   }),
   UserClientException: class UserClientException extends Error {
-    constructor(public readonly code: string, message: string) {
+    constructor(
+      public readonly code: string,
+      message: string,
+    ) {
       super(message);
       this.name = "UserClientException";
     }
@@ -98,31 +101,29 @@ vi.mock("child_process", () => ({
   execFile: (...args: unknown[]) => mockExecFile(...args),
 }));
 
-let capturedProcessor: ((job: {
-  data: { templateName: string; jobId: string; userId: string };
-}) => Promise<void>) | null = null;
+let capturedProcessor:
+  | ((job: { data: { templateName: string; jobId: string; userId: string } }) => Promise<void>)
+  | null = null;
 
 vi.mock("bullmq", () => ({
   Queue: vi.fn().mockImplementation(() => ({
     add: vi.fn().mockResolvedValue({ id: "job-1" }),
     close: vi.fn(),
   })),
-  Worker: vi.fn().mockImplementation(
-    (_name: string, processor: typeof capturedProcessor) => {
-      capturedProcessor = processor;
-      return { on: vi.fn(), close: vi.fn() };
-    },
-  ),
+  Worker: vi.fn().mockImplementation((_name: string, processor: typeof capturedProcessor) => {
+    capturedProcessor = processor;
+    return { on: vi.fn(), close: vi.fn() };
+  }),
 }));
 
 // ── Import under test (after mocks) ─────────────────────────────
 
+import { createWriteStream } from "node:fs";
 import {
-  getTemplatePushQueue,
   createTemplatePushWorker,
+  getTemplatePushQueue,
   pushLogPath,
 } from "@/lib/templates/push-queue";
-import { createWriteStream } from "fs";
 
 // ── Tests ────────────────────────────────────────────────────────
 
@@ -178,14 +179,7 @@ describe("push-queue", () => {
         { env: Record<string, string> },
       ];
       expect(bin).toBe("/usr/bin/coder");
-      expect(args).toEqual([
-        "templates",
-        "push",
-        "hive",
-        "--directory",
-        "templates/hive",
-        "--yes",
-      ]);
+      expect(args).toEqual(["templates", "push", "hive", "--directory", "templates/hive", "--yes"]);
 
       expect(opts.env.CODER_URL).toBe(MOCK_BASE_URL);
       expect(opts.env.CODER_SESSION_TOKEN).toBe(MOCK_SESSION_TOKEN);
@@ -203,10 +197,9 @@ describe("push-queue", () => {
         timeout: 5000,
       });
 
-      expect(createWriteStream).toHaveBeenCalledWith(
-        "/tmp/template-push-job-2.log",
-        { flags: "a" },
-      );
+      expect(createWriteStream).toHaveBeenCalledWith("/tmp/template-push-job-2.log", {
+        flags: "a",
+      });
 
       spawnedChild.emit("close", 0);
       await jobPromise;
@@ -236,9 +229,7 @@ describe("push-queue", () => {
       });
       spawnedChild.emit("close", 1);
 
-      await expect(jobPromise).rejects.toThrow(
-        "coder templates push exited with code 1",
-      );
+      await expect(jobPromise).rejects.toThrow("coder templates push exited with code 1");
 
       expect(logChunks.join("")).toContain("[exit:1]");
     });
@@ -265,13 +256,16 @@ describe("push-queue", () => {
       const { getCoderClientForUser } = await import("@/lib/coder/user-client");
       const { UserClientException, UserClientError } = await import("@/lib/coder/user-client");
       vi.mocked(getCoderClientForUser).mockRejectedValueOnce(
-        new UserClientException(UserClientError.NO_TOKEN, "No Coder API token stored for user bad-user")
+        new UserClientException(
+          UserClientError.NO_TOKEN,
+          "No Coder API token stored for user bad-user",
+        ),
       );
 
       await expect(
         capturedProcessor!({
           data: { templateName: "hive", jobId: "job-6", userId: "bad-user" },
-        })
+        }),
       ).rejects.toThrow("No Coder API token stored for user bad-user");
     });
   });

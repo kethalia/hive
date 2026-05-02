@@ -1,9 +1,7 @@
 export const dynamic = "force-dynamic";
 
+import { PlusCircle } from "lucide-react";
 import Link from "next/link";
-import { listTasks } from "@/lib/api/tasks";
-import { TaskListPoller } from "./task-list-poller";
-import { shortRepo, formatRelativeDate, statusVariant } from "@/lib/helpers/format";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -15,7 +13,9 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { PlusCircle } from "lucide-react";
+import { listTasks } from "@/lib/api/tasks";
+import { formatRelativeDate, shortRepo, statusVariant } from "@/lib/helpers/format";
+import { TaskListPoller } from "./task-list-poller";
 
 export default async function TasksPage() {
   const taskList = await listTasks();
@@ -65,13 +65,8 @@ export default async function TasksPage() {
                       </Badge>
                     </TableCell>
                     <TableCell>
-                      <Link
-                        href={`/tasks/${task.id}`}
-                        className="text-foreground hover:underline"
-                      >
-                        {task.prompt.length > 80
-                          ? task.prompt.slice(0, 80) + "…"
-                          : task.prompt}
+                      <Link href={`/tasks/${task.id}`} className="text-foreground hover:underline">
+                        {task.prompt.length > 80 ? `${task.prompt.slice(0, 80)}…` : task.prompt}
                       </Link>
                     </TableCell>
                     <TableCell>

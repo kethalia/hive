@@ -10,24 +10,45 @@ concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
 
-permissions:
-  contents: read
-
 jobs:
-  test:
-    name: Test
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: pnpm
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-      - name: Run tests
-        run: pnpm -r test
+  build-lint-test:
+    name: Build / Lint / Test
+    permissions:
+      contents: read
+      pull-requests: write
+    uses: kethalia/workflows/.github/workflows/ci-build-lint-test.yml@v1.0.0
+    with:
+      node-version: 22
+      lint-command: pnpm lint
+      format-command: pnpm format:check
+      typecheck-command: |
+        export DATABASE_URL=postgresql://dummy:dummy@localhost:5432/dummy
+        export REDIS_URL=redis://localhost:6379
+        export AUTH_SERVICE_URL=http://localhost:4400
+        export COOKIE_SECRET=dummy
+        export ENCRYPTION_KEY=00000000000000000000000000000000
+        export NEXT_PUBLIC_TERMINAL_WS_URL=ws://localhost:3001
+        pnpm -r --if-present run typecheck
+      test-command: |
+        export DATABASE_URL=postgresql://dummy:dummy@localhost:5432/dummy
+        export REDIS_URL=redis://localhost:6379
+        export AUTH_SERVICE_URL=http://localhost:4400
+        export COOKIE_SECRET=dummy
+        export ENCRYPTION_KEY=00000000000000000000000000000000
+        export NEXT_PUBLIC_TERMINAL_WS_URL=ws://localhost:3001
+        pnpm -r --if-present run test:coverage
+      build-command: |
+        export DATABASE_URL=postgresql://dummy:dummy@localhost:5432/dummy
+        export REDIS_URL=redis://localhost:6379
+        export AUTH_SERVICE_URL=http://localhost:4400
+        export COOKIE_SECRET=dummy
+        export ENCRYPTION_KEY=00000000000000000000000000000000
+        export NEXT_PUBLIC_TERMINAL_WS_URL=ws://localhost:3001
+        pnpm build
+      test-node-versions: '[22]'
+      artifact-paths: .next
+      build-cache-paths: .next/cache
+    secrets: inherit
 
   quality:
     name: Quality
@@ -39,3 +60,34 @@ jobs:
       changeset-check: true
       audit-level: critical
     secrets: inherit
+
+  changeset-images:
+    name: Changeset / Per-image coverage
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Verify each touched image has a changeset bump
+        run: .github/scripts/check-image-changesets.sh origin/${{ github.base_ref }}
+
+  helm-lint:
+    name: Helm Lint
+    uses: kethalia/workflows/.github/workflows/helm-lint.yml@v1.0.0
+    with:
+      charts: |
+        charts/hive-web
+        charts/hive-auth
+        charts/hive-terminal
+        charts/hive
+    permissions:
+      contents: read

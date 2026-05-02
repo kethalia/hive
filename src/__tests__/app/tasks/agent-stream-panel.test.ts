@@ -1,7 +1,8 @@
 // @vitest-environment jsdom
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, cleanup, act } from "@testing-library/react";
+
+import { act, cleanup, render, screen } from "@testing-library/react";
 import React from "react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 /* ---------- Mock EventSource ---------- */
 
@@ -47,7 +48,7 @@ class MockEventSource {
     const event = new MessageEvent("status", {
       data: JSON.stringify(payload),
     });
-    for (const fn of this.listeners["status"] ?? []) {
+    for (const fn of this.listeners.status ?? []) {
       fn(event);
     }
   }
@@ -65,9 +66,7 @@ let AgentStreamPanel: React.ComponentType<{ taskId: string; status: string }>;
 
 beforeEach(async () => {
   MockEventSource.instances = [];
-  const mod = await import(
-    "@/app/(dashboard)/tasks/[id]/agent-stream-panel"
-  );
+  const mod = await import("@/app/(dashboard)/tasks/[id]/agent-stream-panel");
   AgentStreamPanel = mod.AgentStreamPanel;
 });
 
@@ -106,9 +105,7 @@ describe("AgentStreamPanel", () => {
       }),
     );
     expect(MockEventSource.instances).toHaveLength(1);
-    expect(MockEventSource.instances[0].url).toBe(
-      "/api/tasks/task-456/stream",
-    );
+    expect(MockEventSource.instances[0].url).toBe("/api/tasks/task-456/stream");
   });
 
   it("renders streamed lines when message events are received", () => {

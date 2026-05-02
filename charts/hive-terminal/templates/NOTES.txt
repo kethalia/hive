@@ -1,0 +1,25 @@
+hive-terminal (WebSocket proxy) has been deployed.
+
+Chart:    {{ .Chart.Name }}-{{ .Chart.Version }}
+Image:    {{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}
+Release:  {{ .Release.Name }} (namespace: {{ .Release.Namespace }})
+
+In-cluster service DNS:
+  ws://{{ include "hive-terminal.fullname" . }}.{{ .Release.Namespace }}.svc.cluster.local:{{ .Values.service.port }}
+
+Probes (TCP socket on container port {{ .Values.service.targetPort }}):
+  Switch to httpGet once a /health route is added.
+
+{{- if .Values.ingress.enabled }}
+
+Ingress is ENABLED. External hosts (WebSocket-friendly timeouts already set):
+{{- range .Values.ingress.hosts }}
+  - wss://{{ .host }}
+{{- end }}
+{{- else }}
+
+Ingress is disabled. Enable with --set ingress.enabled=true and supply ingress.hosts[].host.
+{{- end }}
+
+Required Secret (envFrom): {{ include "hive-terminal.secretName" . }}
+  Must provide: COOKIE_SECRET

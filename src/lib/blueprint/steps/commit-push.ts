@@ -1,5 +1,5 @@
+import { COMMIT_MSG_FILE, GIT_TIMEOUT_MS, PROJECT_DIR } from "@/lib/constants";
 import { execInWorkspace } from "@/lib/workspace/exec";
-import { PROJECT_DIR, GIT_TIMEOUT_MS, COMMIT_MSG_FILE } from "@/lib/constants";
 import type { BlueprintStep } from "../types";
 
 /**
@@ -31,9 +31,7 @@ export function createCommitPushStep(): BlueprintStep {
 
       // 3. Commit with descriptive message
       // Use base64 + git commit -F to avoid shell injection from user prompts.
-      const subject = ctx.prompt.length > 72
-        ? ctx.prompt.slice(0, 69) + "..."
-        : ctx.prompt;
+      const subject = ctx.prompt.length > 72 ? `${ctx.prompt.slice(0, 69)}...` : ctx.prompt;
       const commitMsg = `hive: ${subject}`;
       const commitMsgB64 = Buffer.from(commitMsg, "utf-8").toString("base64");
 

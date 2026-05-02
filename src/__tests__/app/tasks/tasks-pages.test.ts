@@ -1,4 +1,5 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
 vi.mock("uuid", () => ({
   v4: vi.fn(() => "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"),
 }));
@@ -47,10 +48,11 @@ vi.mock("@/lib/db", () => ({
     },
   })),
 }));
+
 // ── Import under test ────────────────────────────────────────────
 
-import { createTask } from "@/lib/api/tasks";
 import { createTaskSchema } from "@/lib/actions/tasks";
+import { createTask } from "@/lib/api/tasks";
 
 // ── Tests ─────────────────────────────────────────────────────────
 
@@ -60,9 +62,7 @@ describe("createTask attachments handling", () => {
   });
 
   it("stores attachments when provided", async () => {
-    const attachments = [
-      { name: "spec.md", data: "YmFzZTY0", type: "text/markdown" },
-    ];
+    const attachments = [{ name: "spec.md", data: "YmFzZTY0", type: "text/markdown" }];
 
     mockTaskCreate.mockResolvedValue({
       id: "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",

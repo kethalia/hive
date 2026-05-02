@@ -1,9 +1,9 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
-import { sendJson, sendError } from "../server.js";
+import type { CredentialResponse } from "@hive/auth";
+import { ErrorCode } from "../auth/constants.js";
 import { getSessionById } from "../auth/session.js";
 import { getTokenStatus } from "../auth/token-status.js";
-import { ErrorCode } from "../auth/constants.js";
-import type { CredentialResponse } from "@hive/auth";
+import { sendError, sendJson } from "../server.js";
 
 export async function handleGetCredentials(
   _req: IncomingMessage,
@@ -34,8 +34,6 @@ export async function handleGetCredentials(
     expiresAt: tokenStatus.expiresAt?.toISOString() ?? null,
   };
 
-  console.log(
-    `[auth-service] GET /sessions/:id/credentials → 200 status=${tokenStatus.status}`,
-  );
+  console.log(`[auth-service] GET /sessions/:id/credentials → 200 status=${tokenStatus.status}`);
   sendJson(res, 200, payload);
 }

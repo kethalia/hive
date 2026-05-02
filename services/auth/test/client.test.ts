@@ -1,5 +1,5 @@
-import { describe, it, expect, beforeAll, afterAll, vi, beforeEach } from "vitest";
-import { createServer, type Server, type IncomingMessage, type ServerResponse } from "node:http";
+import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { AuthServiceClient } from "../src/client.js";
 
 type MockHandler = (req: IncomingMessage, res: ServerResponse) => void;
@@ -17,7 +17,10 @@ function createMockServer(handler: MockHandler): Promise<{ server: Server; port:
 
 function sendJson(res: ServerResponse, status: number, data: unknown): void {
   const body = JSON.stringify(data);
-  res.writeHead(status, { "Content-Type": "application/json", "Content-Length": Buffer.byteLength(body) });
+  res.writeHead(status, {
+    "Content-Type": "application/json",
+    "Content-Length": Buffer.byteLength(body),
+  });
   res.end(body);
 }
 
@@ -55,7 +58,12 @@ describe("AuthServiceClient", () => {
         expect(body.email).toBe("alice@test.com");
         sendJson(res, 200, {
           sessionId: "sess-1",
-          user: { id: "u1", username: "alice", email: "alice@test.com", coderUrl: "https://coder.test" },
+          user: {
+            id: "u1",
+            username: "alice",
+            email: "alice@test.com",
+            coderUrl: "https://coder.test",
+          },
         });
       };
 
@@ -141,7 +149,11 @@ describe("AuthServiceClient", () => {
   describe("getCoderToken", () => {
     it("returns token response on 200", async () => {
       handler = (_req, res) => {
-        sendJson(res, 200, { token: "coder-tok", coderUrl: "https://coder.test", expiresAt: "2026-05-01T00:00:00.000Z" });
+        sendJson(res, 200, {
+          token: "coder-tok",
+          coderUrl: "https://coder.test",
+          expiresAt: "2026-05-01T00:00:00.000Z",
+        });
       };
 
       const result = await client.getCoderToken("sess-1");

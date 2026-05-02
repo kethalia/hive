@@ -1,18 +1,17 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { ArrowLeft, CheckCircle, RefreshCw, Upload, XCircle } from "lucide-react";
 import dynamic from "next/dynamic";
-import { ArrowLeft, RefreshCw, Upload, CheckCircle, XCircle } from "lucide-react";
 import Link from "next/link";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import type { TemplateStatus } from "@/lib/templates/staleness";
 
-const TerminalPanel = dynamic(
-  () => import("./TerminalPanel").then((m) => m.TerminalPanel),
-  { ssr: false }
-);
+const TerminalPanel = dynamic(() => import("./TerminalPanel").then((m) => m.TerminalPanel), {
+  ssr: false,
+});
 
 interface PushState {
   jobId: string | null;
@@ -58,16 +57,18 @@ export function TemplateDetailClient({ status }: TemplateDetailClientProps) {
   const eventSourceRef = useRef<EventSource | null>(null);
 
   useEffect(() => {
-    return () => { eventSourceRef.current?.close(); };
+    return () => {
+      eventSourceRef.current?.close();
+    };
   }, []);
 
   const MAX_HISTORY_LINES = 2000;
 
-  function writeLine(line: string) {
+  const writeLine = useCallback((line: string) => {
     if (lineHistory.current.length >= MAX_HISTORY_LINES) lineHistory.current.shift();
     lineHistory.current.push(line);
     writeRef.current?.(line);
-  }
+  }, []);
 
   const handleTerminalReady = useCallback(() => {
     const write = writeRef.current;
@@ -130,7 +131,7 @@ export function TemplateDetailClient({ status }: TemplateDetailClientProps) {
       eventSource.close();
       setPushState((prev) => ({ ...prev, inProgress: false, result: false }));
     };
-  }, [status.name]);
+  }, [status.name, writeLine]);
 
   const handleCloseTerminal = useCallback(() => {
     setPushState((prev) => ({ ...prev, terminalOpen: false }));
@@ -169,15 +170,11 @@ export function TemplateDetailClient({ status }: TemplateDetailClientProps) {
             </div>
             <div>
               <dt className="text-muted-foreground">Local Hash</dt>
-              <dd className="mt-0.5 font-mono text-xs break-all">
-                {status.localHash || "—"}
-              </dd>
+              <dd className="mt-0.5 font-mono text-xs break-all">{status.localHash || "—"}</dd>
             </div>
             <div>
               <dt className="text-muted-foreground">Remote Hash</dt>
-              <dd className="mt-0.5 font-mono text-xs break-all">
-                {status.remoteHash ?? "—"}
-              </dd>
+              <dd className="mt-0.5 font-mono text-xs break-all">{status.remoteHash ?? "—"}</dd>
             </div>
           </dl>
         </CardContent>

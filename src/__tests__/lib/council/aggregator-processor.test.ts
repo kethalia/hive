@@ -1,7 +1,7 @@
-import { describe, expect, it, vi, beforeEach } from "vitest";
 import type { Job } from "bullmq";
-import type { CouncilAggregatorJobData } from "../../../lib/queue/council-queues.js";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { ReviewerFinding } from "../../../lib/council/types.js";
+import type { CouncilAggregatorJobData } from "../../../lib/queue/council-queues.js";
 
 // ── Module mocks ────────────────────────────────────────────────────────────
 
@@ -16,8 +16,8 @@ vi.mock("../../../lib/council/comment.js", () => ({
 // ── Imports (after mocks) ───────────────────────────────────────────────────
 
 import { createCouncilAggregatorProcessor } from "../../../lib/council/aggregator-processor.js";
-import { getDb } from "../../../lib/db/index.js";
 import { postPRComment } from "../../../lib/council/comment.js";
+import { getDb } from "../../../lib/db/index.js";
 
 // ── Test helpers ────────────────────────────────────────────────────────────
 
@@ -206,10 +206,7 @@ describe("createCouncilAggregatorProcessor", () => {
     };
 
     const prUrl = "https://github.com/owner/repo/pull/5";
-    const job = makeJob(
-      { taskId: "task-eee", councilSize: 2, prUrl },
-      childrenValues,
-    );
+    const job = makeJob({ taskId: "task-eee", councilSize: 2, prUrl }, childrenValues);
 
     const processor = createCouncilAggregatorProcessor();
     await processor(job as Job<CouncilAggregatorJobData>);

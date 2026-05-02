@@ -3,11 +3,7 @@ import { getTask } from "@/lib/api/tasks";
 import { getSession } from "@/lib/auth/session";
 import { TaskDetail } from "./task-detail";
 
-export default async function TaskDetailPage({
-  params,
-}: {
-  params: Promise<{ id: string }>;
-}) {
+export default async function TaskDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const session = await getSession();
   if (!session) {
     redirect("/login");

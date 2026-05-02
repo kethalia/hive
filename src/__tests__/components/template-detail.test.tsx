@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, fireEvent, waitFor, cleanup } from "@testing-library/react";
+
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import "@testing-library/jest-dom/vitest";
 
 vi.mock("next/dynamic", () => ({
@@ -103,20 +104,12 @@ describe("TemplateDetailClient", () => {
   });
 
   it("renders Current badge when not stale", () => {
-    render(
-      <TemplateDetailClient
-        status={makeStatus({ stale: false, remoteHash: "abc" })}
-      />,
-    );
+    render(<TemplateDetailClient status={makeStatus({ stale: false, remoteHash: "abc" })} />);
     expect(screen.getByText("Current")).toBeInTheDocument();
   });
 
   it("renders Unknown badge when remoteHash is null", () => {
-    render(
-      <TemplateDetailClient
-        status={makeStatus({ stale: false, remoteHash: null })}
-      />,
-    );
+    render(<TemplateDetailClient status={makeStatus({ stale: false, remoteHash: null })} />);
     expect(screen.getByText("Unknown")).toBeInTheDocument();
   });
 
@@ -215,9 +208,7 @@ describe("TemplateDetailClient", () => {
   });
 
   it("renders dash for missing lastPushed", () => {
-    render(
-      <TemplateDetailClient status={makeStatus({ lastPushed: null })} />,
-    );
+    render(<TemplateDetailClient status={makeStatus({ lastPushed: null })} />);
     const dds = screen.getAllByText("—");
     expect(dds.length).toBeGreaterThanOrEqual(1);
   });

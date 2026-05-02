@@ -1,5 +1,5 @@
-import type { BlueprintStep, BlueprintContext } from "../types";
 import type { ReviewerFinding } from "@/lib/council/types";
+import type { BlueprintContext, BlueprintStep } from "../types";
 
 /**
  * Create the council-emit step — R033 enforcement gate.

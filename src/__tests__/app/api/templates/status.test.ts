@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 // ── Mocks ────────────────────────────────────────────────────────
 
@@ -10,7 +10,13 @@ vi.mock("@/lib/templates/staleness", () => ({
 }));
 
 const MOCK_SESSION = {
-  user: { id: "user-1", coderUrl: "https://coder.test", coderUserId: "cu-1", username: "test", email: "test@test.com" },
+  user: {
+    id: "user-1",
+    coderUrl: "https://coder.test",
+    coderUserId: "cu-1",
+    username: "test",
+    email: "test@test.com",
+  },
   session: { id: "s-1", sessionId: "sess-1", expiresAt: new Date(Date.now() + 86400000) },
 };
 

@@ -1,8 +1,8 @@
 "use client";
 
-import { useKeepAliveStatus } from "@/hooks/useKeepAliveStatus";
-import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 import { AlertCircle } from "lucide-react";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { useKeepAliveStatus } from "@/hooks/useKeepAliveStatus";
 
 interface KeepAliveWarningProps {
   workspaceId: string;
@@ -20,8 +20,8 @@ export function KeepAliveWarning({ workspaceId }: KeepAliveWarningProps) {
       <AlertCircle className="size-4" />
       <AlertTitle>Keep-alive failure</AlertTitle>
       <AlertDescription>
-        Keep-alive service cannot reach Coder API ({consecutiveFailures}{" "}
-        consecutive failures). Your workspace may auto-stop if this continues.
+        Keep-alive service cannot reach Coder API ({consecutiveFailures} consecutive failures). Your
+        workspace may auto-stop if this continues.
       </AlertDescription>
     </Alert>
   );

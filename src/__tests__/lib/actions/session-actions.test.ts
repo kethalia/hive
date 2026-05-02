@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/lib/coder/user-client", () => ({
   getCoderClientForUser: vi.fn(),
@@ -16,9 +16,9 @@ vi.mock("@/lib/auth/session", () => ({
   getSession: vi.fn(),
 }));
 
-import { getCoderClientForUser } from "@/lib/coder/user-client";
-import { getSession } from "@/lib/auth/session";
 import { cookies } from "next/headers";
+import { getSession } from "@/lib/auth/session";
+import { getCoderClientForUser } from "@/lib/coder/user-client";
 import { execInWorkspace } from "@/lib/workspace/exec";
 
 const mockedGetCoderClientForUser = vi.mocked(getCoderClientForUser);
@@ -162,9 +162,7 @@ describe("session server actions", () => {
     });
 
     it("returns error when no agent found", async () => {
-      mockGetWorkspaceAgentName.mockRejectedValueOnce(
-        new Error("No agents found"),
-      );
+      mockGetWorkspaceAgentName.mockRejectedValueOnce(new Error("No agents found"));
 
       const { renameSessionAction } = await import("@/lib/actions/workspaces");
 
@@ -193,10 +191,7 @@ describe("session server actions", () => {
         sessionName: "my-session",
       });
 
-      expect(mockedExec).toHaveBeenCalledWith(
-        "dev.main",
-        "tmux -L web kill-session -t my-session",
-      );
+      expect(mockedExec).toHaveBeenCalledWith("dev.main", "tmux -L web kill-session -t my-session");
       expect(result?.data).toEqual({ name: "my-session" });
     });
 
@@ -230,9 +225,7 @@ describe("session server actions", () => {
     });
 
     it("returns error when no agent found", async () => {
-      mockGetWorkspaceAgentName.mockRejectedValueOnce(
-        new Error("No agents found"),
-      );
+      mockGetWorkspaceAgentName.mockRejectedValueOnce(new Error("No agents found"));
 
       const { killSessionAction } = await import("@/lib/actions/workspaces");
 

@@ -1,11 +1,13 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
-import { EventEmitter } from "events";
+import { EventEmitter } from "node:events";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
 // Mock child_process.spawn before importing the module under test
 vi.mock("child_process", () => ({
   spawn: vi.fn(),
 }));
+
+import { spawn } from "node:child_process";
 import { streamFromWorkspace } from "@/lib/workspace/stream";
-import { spawn } from "child_process";
 
 const mockSpawn = vi.mocked(spawn);
 
@@ -106,7 +108,7 @@ describe("streamFromWorkspace", () => {
     mockSpawn.mockReturnValue(child as any);
 
     const controller = new AbortController();
-    const { process } = streamFromWorkspace("ws", "cmd", controller.signal);
+    streamFromWorkspace("ws", "cmd", controller.signal);
 
     expect(child.kill).not.toHaveBeenCalled();
 
@@ -166,9 +168,7 @@ describe("streamFromWorkspace", () => {
     expect(r2.done).toBe(true);
 
     // Stderr should have been logged (not thrown)
-    expect(console.log).toHaveBeenCalledWith(
-      expect.stringContaining("[stream] stderr:"),
-    );
+    expect(console.log).toHaveBeenCalledWith(expect.stringContaining("[stream] stderr:"));
   });
 
   it("kills the child via cancel() on the ReadableStream", async () => {

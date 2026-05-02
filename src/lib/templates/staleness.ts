@@ -1,14 +1,11 @@
-import { createHash } from "crypto";
-import { readdir, readFile } from "fs/promises";
-import { join } from "path";
+import { createHash } from "node:crypto";
+import { readdir, readFile } from "node:fs/promises";
+import { join } from "node:path";
 import extract from "tar-stream";
 import { getCoderClientForUser } from "@/lib/coder/user-client";
 
 /** Templates known to this orchestrator. */
-export const KNOWN_TEMPLATES = [
-  "hive",
-  "ai-dev",
-] as const;
+export const KNOWN_TEMPLATES = ["hive", "ai-dev"] as const;
 
 export type KnownTemplate = (typeof KNOWN_TEMPLATES)[number];
 
@@ -66,7 +63,7 @@ export async function hashLocalTemplate(name: string): Promise<string> {
     files = await collectFiles(templateDir);
   } catch (err) {
     throw new Error(
-      `[staleness] Cannot read template directory "templates/${name}": ${err instanceof Error ? err.message : String(err)}`
+      `[staleness] Cannot read template directory "templates/${name}": ${err instanceof Error ? err.message : String(err)}`,
     );
   }
 
@@ -148,7 +145,9 @@ export async function compareTemplates(names: string[], userId: string): Promise
   try {
     remoteTemplates = await client.listTemplates();
   } catch (err) {
-    console.error(`[staleness] Failed to list remote templates: ${err instanceof Error ? err.message : String(err)}`);
+    console.error(
+      `[staleness] Failed to list remote templates: ${err instanceof Error ? err.message : String(err)}`,
+    );
     // Coder unreachable — return unknown state for all templates rather than
     // treating them as stale, which could prompt accidental pushes during outages.
     return names.map((name) => ({
@@ -173,8 +172,17 @@ export async function compareTemplates(names: string[], userId: string): Promise
     try {
       localHash = await hashLocalTemplate(name);
     } catch (err) {
-      console.error(`[staleness] ${name}: local hash failed: ${err instanceof Error ? err.message : String(err)}`);
-      results.push({ name, stale: false, lastPushed: null, activeVersionId: null, localHash: "", remoteHash: null });
+      console.error(
+        `[staleness] ${name}: local hash failed: ${err instanceof Error ? err.message : String(err)}`,
+      );
+      results.push({
+        name,
+        stale: false,
+        lastPushed: null,
+        activeVersionId: null,
+        localHash: "",
+        remoteHash: null,
+      });
       continue;
     }
 
@@ -182,7 +190,14 @@ export async function compareTemplates(names: string[], userId: string): Promise
     const remote = remoteTemplates.find((t) => t.name === name);
     if (!remote) {
       // Template not found in Coder — treat as stale (needs push)
-      results.push({ name, stale: true, lastPushed: null, activeVersionId: null, localHash, remoteHash: null });
+      results.push({
+        name,
+        stale: true,
+        lastPushed: null,
+        activeVersionId: null,
+        localHash,
+        remoteHash: null,
+      });
       continue;
     }
 
@@ -195,9 +210,18 @@ export async function compareTemplates(names: string[], userId: string): Promise
       const tarBuffer = await client.fetchTemplateFiles(version.fileId);
       remoteHash = await hashRemoteTar(tarBuffer);
     } catch (err) {
-      console.error(`[staleness] ${name}: remote hash failed: ${err instanceof Error ? err.message : String(err)}`);
+      console.error(
+        `[staleness] ${name}: remote hash failed: ${err instanceof Error ? err.message : String(err)}`,
+      );
       // Can't compare — leave remoteHash null, treat as unknown (not stale)
-      results.push({ name, stale: false, lastPushed, activeVersionId, localHash, remoteHash: null });
+      results.push({
+        name,
+        stale: false,
+        lastPushed,
+        activeVersionId,
+        localHash,
+        remoteHash: null,
+      });
       continue;
     }
 

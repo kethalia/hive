@@ -1,13 +1,15 @@
 "use client";
 
-import { useEffect } from "react";
-import Link from "next/link";
-import { Alert, AlertDescription } from "@/components/ui/alert";
 import { AlertCircle } from "lucide-react";
+import Link from "next/link";
+import { useEffect } from "react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 
 export function StaleEntryAlert({ workspaceId }: { workspaceId: string }) {
   useEffect(() => {
-    console.log(`[workspaces] Stale entry detected for workspace ${workspaceId}, dispatching sidebar refresh`);
+    console.log(
+      `[workspaces] Stale entry detected for workspace ${workspaceId}, dispatching sidebar refresh`,
+    );
     window.dispatchEvent(new CustomEvent("hive:sidebar-refresh"));
   }, [workspaceId]);
 

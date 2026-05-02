@@ -1,0 +1,112 @@
+# Default values for hive-web (Next.js orchestrator).
+# Override per environment via the umbrella chart or `helm upgrade --set`.
+#
+# ─── NEXT_PUBLIC_* baking gotcha ─────────────────────────────────────────────
+# Next.js inlines every `NEXT_PUBLIC_*` env var into the client bundle at
+# `next build` time. Values under `config:` are surfaced via a ConfigMap and
+# consumed at runtime via `envFrom`. Server-side reads pick them up; the
+# browser sees whatever was baked into the image at build time. To change a
+# NEXT_PUBLIC_* on the client, rebuild the image.
+# ─────────────────────────────────────────────────────────────────────────────
+
+replicaCount: 1
+
+image:
+  repository: ghcr.io/kethalia/hive-web
+  # tag: empty -> falls back to .Chart.AppVersion in deployment.yaml.
+  tag: ""
+  pullPolicy: IfNotPresent
+
+imagePullSecrets: []
+nameOverride: ""
+fullnameOverride: ""
+
+# Optional: name of an externally-managed Secret providing DATABASE_URL,
+# REDIS_URL, COOKIE_SECRET, etc. When empty, defaults to "<release-fullname>-secrets".
+existingSecret: ""
+
+serviceAccount:
+  create: true
+  automount: true
+  annotations: {}
+  name: ""
+
+podAnnotations: {}
+podLabels: {}
+
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 1001
+  runAsGroup: 1001
+  fsGroup: 1001
+  seccompProfile:
+    type: RuntimeDefault
+
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop:
+      - ALL
+
+service:
+  type: ClusterIP
+  port: 80
+  targetPort: 3000
+
+ingress:
+  enabled: false
+  className: nginx
+  annotations: {}
+  hosts:
+    - host: hive.local
+      paths:
+        - path: /
+          pathType: Prefix
+  tls: []
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 256Mi
+  limits:
+    cpu: 1000m
+    memory: 1Gi
+
+# TCP probes — Next.js does not currently expose an unauthenticated HTTP
+# health endpoint. Switch to httpGet once /api/health is added.
+livenessProbe:
+  tcpSocket:
+    port: 3000
+  initialDelaySeconds: 15
+  periodSeconds: 30
+  timeoutSeconds: 3
+  failureThreshold: 3
+
+readinessProbe:
+  tcpSocket:
+    port: 3000
+  initialDelaySeconds: 5
+  periodSeconds: 10
+  timeoutSeconds: 3
+  failureThreshold: 3
+
+autoscaling:
+  enabled: false
+  minReplicas: 1
+  maxReplicas: 5
+  targetCPUUtilizationPercentage: 80
+
+# Non-secret configuration rendered into a ConfigMap and consumed via envFrom.
+config:
+  LOG_LEVEL: info
+  AUTH_SERVICE_URL: ""
+  CODER_URL: ""
+  NEXT_PUBLIC_TERMINAL_WS_URL: ""
+
+nodeSelector: {}
+tolerations: []
+affinity: {}
+
+volumes: []
+volumeMounts: []

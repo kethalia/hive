@@ -1,0 +1,33 @@
+hive-web (Next.js orchestrator) has been deployed.
+
+Chart:    {{ .Chart.Name }}-{{ .Chart.Version }}
+Image:    {{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}
+Release:  {{ .Release.Name }} (namespace: {{ .Release.Namespace }})
+
+In-cluster service DNS:
+  http://{{ include "hive-web.fullname" . }}.{{ .Release.Namespace }}.svc.cluster.local:{{ .Values.service.port }}
+
+Probes (TCP socket on container port {{ .Values.service.targetPort }}):
+  Switch to httpGet once /api/health exists.
+
+Quick checks from inside the cluster:
+
+  kubectl -n {{ .Release.Namespace }} port-forward svc/{{ include "hive-web.fullname" . }} 8080:{{ .Values.service.port }}
+  curl -fsS http://localhost:8080/
+
+{{- if .Values.ingress.enabled }}
+
+Ingress is ENABLED. External hosts:
+{{- range .Values.ingress.hosts }}
+  - https://{{ .host }}
+{{- end }}
+{{- else }}
+
+Ingress is disabled. Enable with --set ingress.enabled=true and supply ingress.hosts[].host.
+{{- end }}
+
+Required Secret (envFrom): {{ include "hive-web.secretName" . }}
+  Must provide: DATABASE_URL, REDIS_URL, COOKIE_SECRET, ENCRYPTION_KEY
+
+Non-secret env (rendered ConfigMap {{ include "hive-web.configMapName" . }}):
+  Edit values.config to override per-environment.

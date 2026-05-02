@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("ioredis", () => {
   return {
@@ -49,13 +49,13 @@ vi.mock("@/lib/council/aggregator-processor", () => ({
   createCouncilAggregatorProcessor: vi.fn(() => vi.fn()),
 }));
 
-import { Queue, Worker, FlowProducer } from "bullmq";
+import { FlowProducer, Queue, Worker } from "bullmq";
 import {
-  getCouncilReviewerQueue,
+  createCouncilAggregatorWorker,
+  createCouncilReviewerWorker,
   getCouncilAggregatorQueue,
   getCouncilFlowProducer,
-  createCouncilReviewerWorker,
-  createCouncilAggregatorWorker,
+  getCouncilReviewerQueue,
 } from "@/lib/queue/council-queues";
 
 // ── Tests ─────────────────────────────────────────────────────────

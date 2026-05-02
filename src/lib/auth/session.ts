@@ -1,16 +1,10 @@
-import {
-  signCookie,
-  verifyCookie,
-  SESSION_COOKIE_NAME,
-  SESSION_MAX_AGE_DAYS,
-  SESSION_MAX_AGE_SECONDS,
-} from "@hive/auth";
 import type { SessionData } from "@hive/auth";
+import { SESSION_COOKIE_NAME, SESSION_MAX_AGE_SECONDS, signCookie, verifyCookie } from "@hive/auth";
 import { getAuthServiceClient } from "./service-client";
 
-export async function getSession(
-  cookieStore: { get(name: string): { value: string } | undefined },
-): Promise<SessionData | null> {
+export async function getSession(cookieStore: {
+  get(name: string): { value: string } | undefined;
+}): Promise<SessionData | null> {
   const cookie = cookieStore.get(SESSION_COOKIE_NAME);
   if (!cookie) {
     return null;
@@ -28,7 +22,7 @@ export async function getSession(
     return null;
   }
 
-  let payload;
+  let payload: Awaited<ReturnType<ReturnType<typeof getAuthServiceClient>["getSession"]>>;
   try {
     payload = await getAuthServiceClient().getSession(result.sessionId);
   } catch {
@@ -37,9 +31,7 @@ export async function getSession(
   }
 
   if (!payload) {
-    console.log(
-      `[session] Not found for sessionId=${result.sessionId.slice(0, 8)}…`,
-    );
+    console.log(`[session] Not found for sessionId=${result.sessionId.slice(0, 8)}…`);
     return null;
   }
 
@@ -87,11 +79,9 @@ export function setSessionCookie(
   });
 }
 
-export function clearSessionCookie(
-  cookieStore: {
-    set(name: string, value: string, options: Record<string, unknown>): void;
-  },
-): void {
+export function clearSessionCookie(cookieStore: {
+  set(name: string, value: string, options: Record<string, unknown>): void;
+}): void {
   cookieStore.set(SESSION_COOKIE_NAME, "", {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",

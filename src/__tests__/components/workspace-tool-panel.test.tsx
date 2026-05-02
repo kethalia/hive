@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, cleanup, fireEvent } from "@testing-library/react";
+
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import "@testing-library/jest-dom/vitest";
 
 vi.mock("@/lib/workspaces/urls", () => ({
@@ -42,20 +43,18 @@ vi.mock("@/components/ui/breadcrumb", () => ({
   Breadcrumb: ({ children }: React.PropsWithChildren) => (
     <nav aria-label="breadcrumb">{children}</nav>
   ),
-  BreadcrumbList: ({ children }: React.PropsWithChildren) => (
-    <ol>{children}</ol>
-  ),
-  BreadcrumbItem: ({ children }: React.PropsWithChildren) => (
-    <li>{children}</li>
-  ),
+  BreadcrumbList: ({ children }: React.PropsWithChildren) => <ol>{children}</ol>,
+  BreadcrumbItem: ({ children }: React.PropsWithChildren) => <li>{children}</li>,
   BreadcrumbLink: ({
     children,
     render,
   }: React.PropsWithChildren<{ render?: React.ReactElement }>) =>
-    render ? <a href={(render as React.ReactElement<{ href: string }>).props.href}>{children}</a> : <a>{children}</a>,
-  BreadcrumbPage: ({ children }: React.PropsWithChildren) => (
-    <span>{children}</span>
-  ),
+    render ? (
+      <a href={(render as React.ReactElement<{ href: string }>).props.href}>{children}</a>
+    ) : (
+      <a>{children}</a>
+    ),
+  BreadcrumbPage: ({ children }: React.PropsWithChildren) => <span>{children}</span>,
   BreadcrumbSeparator: () => <li>/</li>,
 }));
 
@@ -86,9 +85,7 @@ vi.mock("@/components/ui/alert", () => ({
       {children}
     </div>
   ),
-  AlertDescription: ({ children }: React.PropsWithChildren) => (
-    <div>{children}</div>
-  ),
+  AlertDescription: ({ children }: React.PropsWithChildren) => <div>{children}</div>,
 }));
 
 vi.mock("next/dynamic", () => ({
@@ -215,10 +212,7 @@ describe("WorkspaceToolPanel", () => {
 
   it("shows disabled state when workspace is stopped", () => {
     render(
-      <WorkspaceToolPanel
-        {...defaultProps}
-        workspace={makeWorkspace({ status: "stopped" })}
-      />,
+      <WorkspaceToolPanel {...defaultProps} workspace={makeWorkspace({ status: "stopped" })} />,
     );
 
     expect(screen.getByText(/stopped/)).toBeInTheDocument();
@@ -235,10 +229,7 @@ describe("WorkspaceToolPanel", () => {
 
   it("renders disabled dashboard button in stopped state", () => {
     render(
-      <WorkspaceToolPanel
-        {...defaultProps}
-        workspace={makeWorkspace({ status: "stopped" })}
-      />,
+      <WorkspaceToolPanel {...defaultProps} workspace={makeWorkspace({ status: "stopped" })} />,
     );
 
     const dashboardBtns = screen.getAllByText("Dashboard");

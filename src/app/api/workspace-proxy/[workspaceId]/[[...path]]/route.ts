@@ -1,5 +1,5 @@
-import { NextRequest, NextResponse } from "next/server";
 import { cookies } from "next/headers";
+import { type NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/auth/session";
 import { getCoderClientForUser } from "@/lib/coder/user-client";
 
@@ -30,17 +30,27 @@ const STRIP_RESPONSE_HEADERS = new Set([
 ]);
 
 const SKIP_REQUEST_HEADERS = new Set([
-  "host", "cookie", "connection", "referer", "origin",
-  "x-forwarded-for", "x-forwarded-host", "x-forwarded-proto",
-  "x-forwarded-port", "x-real-ip", "x-invoke-path", "x-invoke-query",
-  "x-middleware-invoke", "x-nextjs-data", "rsc", "next-router-state-tree",
-  "next-router-prefetch", "next-url",
+  "host",
+  "cookie",
+  "connection",
+  "referer",
+  "origin",
+  "x-forwarded-for",
+  "x-forwarded-host",
+  "x-forwarded-proto",
+  "x-forwarded-port",
+  "x-real-ip",
+  "x-invoke-path",
+  "x-invoke-query",
+  "x-middleware-invoke",
+  "x-nextjs-data",
+  "rsc",
+  "next-router-state-tree",
+  "next-router-prefetch",
+  "next-url",
 ]);
 
-async function getWorkspaceMeta(
-  userId: string,
-  workspaceId: string,
-): Promise<WorkspaceMeta> {
+async function getWorkspaceMeta(userId: string, workspaceId: string): Promise<WorkspaceMeta> {
   const cacheKey = `${userId}:${workspaceId}`;
   const cached = metaCache.get(cacheKey);
   if (cached && cached.expiresAt > Date.now()) return cached;
@@ -49,9 +59,7 @@ async function getWorkspaceMeta(
 
   const workspace = await client.getWorkspace(workspaceId);
   const sshTarget = await client.getWorkspaceAgentName(workspaceId);
-  const agentName = sshTarget.includes(".")
-    ? sshTarget.split(".").pop()!
-    : sshTarget;
+  const agentName = sshTarget.includes(".") ? sshTarget.split(".").pop()! : sshTarget;
 
   const meta: WorkspaceMeta = {
     owner: workspace.owner_name,
@@ -106,18 +114,12 @@ async function proxyRequest(
   const pathSegments = params.path ?? [];
 
   if (!UUID_RE.test(workspaceId)) {
-    return NextResponse.json(
-      { error: "Invalid workspace ID" },
-      { status: 400 },
-    );
+    return NextResponse.json({ error: "Invalid workspace ID" }, { status: 400 });
   }
 
   const session = await getSession(await cookies());
   if (!session) {
-    return NextResponse.json(
-      { error: "Unauthorized" },
-      { status: 401 },
-    );
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
   const userId = session.user.id;
@@ -176,14 +178,18 @@ async function proxyRequest(
       currentUrl = resolvedLocation.toString();
     }
 
+    if (!upstream) {
+      return NextResponse.json({ error: "No upstream response" }, { status: 502 });
+    }
+
     const responseHeaders = new Headers();
-    for (const [key, value] of upstream!.headers.entries()) {
+    for (const [key, value] of upstream.headers.entries()) {
       if (STRIP_RESPONSE_HEADERS.has(key.toLowerCase())) continue;
       responseHeaders.set(key, value);
     }
 
-    if (upstream!.status >= 300 && upstream!.status < 400) {
-      const location = upstream!.headers.get("location");
+    if (upstream.status >= 300 && upstream.status < 400) {
+      const location = upstream.headers.get("location");
       if (location) {
         const locUrl = new URL(location, currentUrl);
         if (isCoderOrigin(locUrl, coderHost)) {
@@ -198,9 +204,9 @@ async function proxyRequest(
     const contentType = responseHeaders.get("content-type") ?? "";
     const isHtml = contentType.includes("text/html");
 
-    if (isHtml && upstream!.body) {
+    if (isHtml && upstream.body) {
       const proxyBase = `/api/workspace-proxy/${workspaceId}`;
-      let html = await upstream!.text();
+      let html = await upstream.text();
       const baseTag = `<base href="${proxyBase}/" />`;
       if (html.includes("<head>")) {
         html = html.replace("<head>", `<head>${baseTag}`);
@@ -209,34 +215,25 @@ async function proxyRequest(
       } else {
         html = baseTag + html;
       }
-      html = html.replace(
-        '"BaseURL":""',
-        `"BaseURL":"${proxyBase}/filebrowser"`,
-      );
-      html = html.replace(
-        '"StaticURL":"/static"',
-        `"StaticURL":"${proxyBase}/filebrowser/static"`,
-      );
+      html = html.replace('"BaseURL":""', `"BaseURL":"${proxyBase}/filebrowser"`);
+      html = html.replace('"StaticURL":"/static"', `"StaticURL":"${proxyBase}/filebrowser/static"`);
       responseHeaders.delete("content-length");
       responseHeaders.delete("content-encoding");
       return new NextResponse(html, {
-        status: upstream!.status,
-        statusText: upstream!.statusText,
+        status: upstream.status,
+        statusText: upstream.statusText,
         headers: responseHeaders,
       });
     }
 
-    return new NextResponse(upstream!.body, {
-      status: upstream!.status,
-      statusText: upstream!.statusText,
+    return new NextResponse(upstream.body, {
+      status: upstream.status,
+      statusText: upstream.statusText,
       headers: responseHeaders,
     });
   } catch (e) {
     const detail = e instanceof Error ? `${e.message} (${e.cause ?? "no cause"})` : String(e);
-    return NextResponse.json(
-      { error: `Proxy error: ${detail}` },
-      { status: 502 },
-    );
+    return NextResponse.json({ error: `Proxy error: ${detail}` }, { status: 502 });
   }
 }
 

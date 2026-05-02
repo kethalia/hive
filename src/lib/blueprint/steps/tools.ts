@@ -1,5 +1,11 @@
+import {
+  BASE_TOOLS,
+  EXEC_TIMEOUT_MS,
+  PROJECT_DIR,
+  TEST_FRAMEWORKS,
+  WEB_FRAMEWORKS,
+} from "@/lib/constants";
 import { execInWorkspace } from "@/lib/workspace/exec";
-import { PROJECT_DIR, EXEC_TIMEOUT_MS, BASE_TOOLS, WEB_FRAMEWORKS, TEST_FRAMEWORKS } from "@/lib/constants";
 import type { BlueprintStep } from "../types";
 
 /**
@@ -74,9 +80,7 @@ export function createToolsStep(): BlueprintStep {
 
       ctx.toolFlags = tools;
 
-      const typeDesc = detectedTypes.length > 0
-        ? detectedTypes.join(", ")
-        : "plain Node.js";
+      const typeDesc = detectedTypes.length > 0 ? detectedTypes.join(", ") : "plain Node.js";
 
       console.log(
         `[blueprint] tool-selection: detected [${typeDesc}], tools=[${tools.join(",")}] (task=${ctx.taskId})`,

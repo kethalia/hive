@@ -1,6 +1,6 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import type { IncomingMessage } from "node:http";
 import type { Duplex } from "node:stream";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mockAuthResult = {
   ok: true as const,
@@ -28,9 +28,11 @@ vi.mock("ws", () => {
   Object.assign(WebSocket, { OPEN: 1, CONNECTING: 0, CLOSING: 2, CLOSED: 3 });
 
   const mockWss = {
-    handleUpgrade: vi.fn((_req: unknown, _socket: unknown, _head: unknown, cb: (ws: unknown) => void) => {
-      cb(mockWsInstance);
-    }),
+    handleUpgrade: vi.fn(
+      (_req: unknown, _socket: unknown, _head: unknown, cb: (ws: unknown) => void) => {
+        cb(mockWsInstance);
+      },
+    ),
     emit: vi.fn(),
   };
   const WebSocketServer = vi.fn(() => mockWss);
@@ -38,9 +40,9 @@ vi.mock("ws", () => {
   return { WebSocket, WebSocketServer, default: { WebSocket, WebSocketServer } };
 });
 
-import { handleUpgrade, isOriginAllowed } from "../src/proxy.js";
-import { authenticateUpgrade } from "../src/auth.js";
 import { WebSocket } from "ws";
+import { authenticateUpgrade } from "../src/auth.js";
+import { handleUpgrade, isOriginAllowed } from "../src/proxy.js";
 
 const mockAuth = authenticateUpgrade as ReturnType<typeof vi.fn>;
 
@@ -103,34 +105,54 @@ describe("handleUpgrade", () => {
 
   it("rejects with 400 when agentId is not UUID format", async () => {
     const socket = makeSocket();
-    await handleUpgrade(makeReq({ ...validParams, agentId: "not-a-uuid" }), socket, Buffer.alloc(0));
+    await handleUpgrade(
+      makeReq({ ...validParams, agentId: "not-a-uuid" }),
+      socket,
+      Buffer.alloc(0),
+    );
     expect(socket.written[0]).toContain("400");
     expect(socket.destroy).toHaveBeenCalled();
   });
 
   it("rejects with 400 when reconnectId is not UUID format", async () => {
     const socket = makeSocket();
-    await handleUpgrade(makeReq({ ...validParams, reconnectId: "not-a-uuid" }), socket, Buffer.alloc(0));
+    await handleUpgrade(
+      makeReq({ ...validParams, reconnectId: "not-a-uuid" }),
+      socket,
+      Buffer.alloc(0),
+    );
     expect(socket.written[0]).toContain("400");
     expect(socket.destroy).toHaveBeenCalled();
   });
 
   it("rejects with 400 when sessionName contains shell metacharacters", async () => {
     const socket = makeSocket();
-    await handleUpgrade(makeReq({ ...validParams, sessionName: "bad;rm -rf" }), socket, Buffer.alloc(0));
+    await handleUpgrade(
+      makeReq({ ...validParams, sessionName: "bad;rm -rf" }),
+      socket,
+      Buffer.alloc(0),
+    );
     expect(socket.written[0]).toContain("400");
     expect(socket.destroy).toHaveBeenCalled();
   });
 
   it("rejects sessionName with spaces", async () => {
     const socket = makeSocket();
-    await handleUpgrade(makeReq({ ...validParams, sessionName: "bad name" }), socket, Buffer.alloc(0));
+    await handleUpgrade(
+      makeReq({ ...validParams, sessionName: "bad name" }),
+      socket,
+      Buffer.alloc(0),
+    );
     expect(socket.written[0]).toContain("400");
   });
 
   it("rejects sessionName with backticks", async () => {
     const socket = makeSocket();
-    await handleUpgrade(makeReq({ ...validParams, sessionName: "bad`cmd`" }), socket, Buffer.alloc(0));
+    await handleUpgrade(
+      makeReq({ ...validParams, sessionName: "bad`cmd`" }),
+      socket,
+      Buffer.alloc(0),
+    );
     expect(socket.written[0]).toContain("400");
   });
 
@@ -169,7 +191,11 @@ describe("handleUpgrade", () => {
 
   it("accepts valid UUID agentId formats", async () => {
     const socket = makeSocket();
-    await handleUpgrade(makeReq({ ...validParams, agentId: "AABBCCDD-EEFF-1122-3344-556677889900" }), socket, Buffer.alloc(0));
+    await handleUpgrade(
+      makeReq({ ...validParams, agentId: "AABBCCDD-EEFF-1122-3344-556677889900" }),
+      socket,
+      Buffer.alloc(0),
+    );
     expect(socket.destroy).not.toHaveBeenCalled();
   });
 

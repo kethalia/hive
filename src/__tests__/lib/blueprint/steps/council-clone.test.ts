@@ -1,9 +1,11 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { BlueprintContext } from "@/lib/blueprint/types";
 import type { ExecResult } from "@/lib/workspace/exec";
+
 vi.mock("@/lib/workspace/exec", () => ({
   execInWorkspace: vi.fn(),
 }));
+
 import { createCouncilCloneStep } from "@/lib/blueprint/steps/council-clone";
 import { execInWorkspace } from "@/lib/workspace/exec";
 
@@ -128,9 +130,7 @@ describe("createCouncilCloneStep", () => {
     const ctx = makeCtx();
     await step.execute(ctx);
 
-    expect(logSpy).toHaveBeenCalledWith(
-      expect.stringContaining("[blueprint] council-clone:"),
-    );
+    expect(logSpy).toHaveBeenCalledWith(expect.stringContaining("[blueprint] council-clone:"));
     expect(logSpy).toHaveBeenCalledWith(expect.stringContaining("task=test-task-1"));
   });
 });

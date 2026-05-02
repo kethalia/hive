@@ -1,21 +1,17 @@
-import type { RouteHandler, Route } from "./auth/types.js";
+import type { Route, RouteHandler } from "./auth/types.js";
 
 export type { RouteHandler };
 
 const routes: Route[] = [];
 
-export function addRoute(
-  method: string,
-  pattern: string,
-  handler: RouteHandler
-): void {
+export function addRoute(method: string, pattern: string, handler: RouteHandler): void {
   const segments = pattern.split("/").filter(Boolean);
   routes.push({ method: method.toUpperCase(), segments, handler });
 }
 
 export function matchRoute(
   method: string,
-  pathname: string
+  pathname: string,
 ): { handler: RouteHandler; params: Record<string, string> } | null {
   const reqSegments = pathname.split("/").filter(Boolean);
   const upperMethod = method.toUpperCase();

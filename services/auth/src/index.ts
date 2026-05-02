@@ -1,13 +1,12 @@
 import "dotenv/config";
-import { addRoute } from "./router.js";
-import { sendJson } from "./server.js";
-import { startServer } from "./server.js";
+import { DEFAULT_PORT } from "./auth/constants.js";
+import { handleGetCredentials } from "./handlers/credentials.js";
 import { handleLogin } from "./handlers/login.js";
 import { handleLogout } from "./handlers/logout.js";
 import { handleGetSession } from "./handlers/session.js";
-import { handleGetCredentials } from "./handlers/credentials.js";
 import { handleGetCoderToken } from "./handlers/token.js";
-import { DEFAULT_PORT } from "./auth/constants.js";
+import { addRoute } from "./router.js";
+import { sendJson, startServer } from "./server.js";
 
 export { AuthServiceClient } from "./client.js";
 

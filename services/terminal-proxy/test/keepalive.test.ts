@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ConnectionRegistry, KeepAliveManager } from "../src/keepalive.js";
 
 describe("ConnectionRegistry", () => {
@@ -148,7 +148,11 @@ describe("KeepAliveManager", () => {
   });
 
   it("increments failure count on HTTP error", async () => {
-    fetchMock.mockResolvedValue({ ok: false, status: 401, text: () => Promise.resolve("unauthorized") });
+    fetchMock.mockResolvedValue({
+      ok: false,
+      status: 401,
+      text: () => Promise.resolve("unauthorized"),
+    });
     registry.addConnection("ws-abc", "conn-1", testMeta);
 
     await manager.ping("ws-abc");
@@ -240,7 +244,11 @@ describe("KeepAliveManager", () => {
   });
 
   it("handles 404 (deleted workspace) as failure", async () => {
-    fetchMock.mockResolvedValue({ ok: false, status: 404, text: () => Promise.resolve("not found") });
+    fetchMock.mockResolvedValue({
+      ok: false,
+      status: 404,
+      text: () => Promise.resolve("not found"),
+    });
     registry.addConnection("ws-abc", "conn-1", testMeta);
 
     await manager.ping("ws-abc");
@@ -269,7 +277,10 @@ describe("KeepAliveManager", () => {
 
   it("uses per-connection coderUrl over default", async () => {
     fetchMock.mockResolvedValue({ ok: true });
-    registry.addConnection("ws-abc", "conn-1", { token: "t", coderUrl: "https://custom-coder.example.com" });
+    registry.addConnection("ws-abc", "conn-1", {
+      token: "t",
+      coderUrl: "https://custom-coder.example.com",
+    });
 
     await manager.ping("ws-abc");
 

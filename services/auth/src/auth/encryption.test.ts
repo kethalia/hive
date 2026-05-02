@@ -1,11 +1,6 @@
 import { randomBytes } from "node:crypto";
+import { decrypt, encrypt, tryDecrypt, validateEncryptionKey } from "@hive/auth";
 import { describe, expect, it } from "vitest";
-import {
-  decrypt,
-  encrypt,
-  tryDecrypt,
-  validateEncryptionKey,
-} from "@hive/auth";
 
 const VALID_KEY = randomBytes(32).toString("hex");
 
@@ -65,9 +60,7 @@ describe("encrypt / decrypt", () => {
     const a = encrypt("same", VALID_KEY);
     const b = encrypt("same", VALID_KEY);
     expect(Buffer.from(a.iv).equals(Buffer.from(b.iv))).toBe(false);
-    expect(Buffer.from(a.ciphertext).equals(Buffer.from(b.ciphertext))).toBe(
-      false
-    );
+    expect(Buffer.from(a.ciphertext).equals(Buffer.from(b.ciphertext))).toBe(false);
   });
 
   it("throws when decrypting with the wrong key", () => {
