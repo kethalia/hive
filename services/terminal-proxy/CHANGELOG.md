@@ -1,5 +1,11 @@
 # hive-terminal-proxy
 
+## 2.0.1
+
+### Patch Changes
+
+- 9f7f91c: ci: pin reusable workflows to @v1 and consolidate changeset check via ci-changeset-check reusable
+
 ## 2.0.0
 
 ### Major Changes
