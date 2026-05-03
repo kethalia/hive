@@ -1,15 +1,12 @@
 "use client";
 
-import { Suspense, useEffect } from "react";
-import { useSearchParams } from "next/navigation";
-import dynamic from "next/dynamic";
 import { Loader2 } from "lucide-react";
+import dynamic from "next/dynamic";
+import { useSearchParams } from "next/navigation";
+import { Suspense, useEffect } from "react";
 
 const InteractiveTerminal = dynamic(
-  () =>
-    import("@/components/workspaces/InteractiveTerminal").then(
-      (m) => m.InteractiveTerminal,
-    ),
+  () => import("@/components/workspaces/InteractiveTerminal").then((m) => m.InteractiveTerminal),
   { ssr: false },
 );
 
@@ -19,7 +16,9 @@ function TerminalInner({ agentId, workspaceId }: { agentId: string; workspaceId:
 
   useEffect(() => {
     if (!session) {
-      console.log(`[workspaces] No session param for workspace ${workspaceId}, dispatching sidebar refresh`);
+      console.log(
+        `[workspaces] No session param for workspace ${workspaceId}, dispatching sidebar refresh`,
+      );
       window.dispatchEvent(new CustomEvent("hive:sidebar-refresh"));
     }
   }, [session, workspaceId]);

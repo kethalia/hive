@@ -1,6 +1,6 @@
 import type { IncomingMessage } from "node:http";
-import { verifyCookie } from "@hive/auth";
 import type { CoderTokenResponse } from "@hive/auth";
+import { verifyCookie } from "@hive/auth";
 
 const AUTH_SERVICE_TIMEOUT_MS = 5_000;
 
@@ -17,9 +17,7 @@ export interface AuthFailure {
   reason: string;
 }
 
-export type AuthResult =
-  | { ok: true; value: AuthSuccess }
-  | { ok: false; value: AuthFailure };
+export type AuthResult = { ok: true; value: AuthSuccess } | { ok: false; value: AuthFailure };
 
 function parseCookie(header: string, name: string): string | null {
   const pairs = header.split(";");
@@ -34,9 +32,7 @@ function parseCookie(header: string, name: string): string | null {
   return null;
 }
 
-export async function authenticateUpgrade(
-  req: IncomingMessage,
-): Promise<AuthResult> {
+export async function authenticateUpgrade(req: IncomingMessage): Promise<AuthResult> {
   const cookieSecret = process.env.COOKIE_SECRET;
   if (!cookieSecret) {
     console.error("[terminal-proxy] auth: COOKIE_SECRET not configured → 502");
@@ -76,9 +72,10 @@ export async function authenticateUpgrade(
   const { sessionId } = verified;
   const truncatedId = sessionId.slice(0, 8);
 
-  const authServiceUrl = (
-    process.env.AUTH_SERVICE_URL ?? "http://localhost:4400"
-  ).replace(/\/+$/, "");
+  const authServiceUrl = (process.env.AUTH_SERVICE_URL ?? "http://localhost:4400").replace(
+    /\/+$/,
+    "",
+  );
 
   let tokenRes: Response;
   let sessionRes: Response;
@@ -99,9 +96,7 @@ export async function authenticateUpgrade(
     }
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : String(err);
-    console.error(
-      `[terminal-proxy] auth: auth_service_unreachable session=${truncatedId}… → 502`,
-    );
+    console.error(`[terminal-proxy] auth: auth_service_unreachable session=${truncatedId}… → 502`);
     return {
       ok: false,
       value: {
@@ -113,9 +108,7 @@ export async function authenticateUpgrade(
   }
 
   if (sessionRes.status === 404) {
-    console.error(
-      `[terminal-proxy] auth: session_not_found session=${truncatedId}… → 401`,
-    );
+    console.error(`[terminal-proxy] auth: session_not_found session=${truncatedId}… → 401`);
     return {
       ok: false,
       value: { error: "Session not found", status: 401, reason: "session_not_found" },
@@ -123,9 +116,7 @@ export async function authenticateUpgrade(
   }
 
   if (tokenRes.status === 404) {
-    console.error(
-      `[terminal-proxy] auth: token_not_found session=${truncatedId}… → 401`,
-    );
+    console.error(`[terminal-proxy] auth: token_not_found session=${truncatedId}… → 401`);
     return {
       ok: false,
       value: { error: "Token not found", status: 401, reason: "token_not_found" },
@@ -174,9 +165,7 @@ export async function authenticateUpgrade(
   }
 
   const userLog = username ? ` user=${username}` : "";
-  console.log(
-    `[terminal-proxy] auth: session=${truncatedId}…${userLog} → authenticated`,
-  );
+  console.log(`[terminal-proxy] auth: session=${truncatedId}…${userLog} → authenticated`);
 
   return {
     ok: true,

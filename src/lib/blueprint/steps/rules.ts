@@ -1,5 +1,5 @@
+import { EXEC_TIMEOUT_MS, PROJECT_DIR } from "@/lib/constants";
 import { execInWorkspace } from "@/lib/workspace/exec";
-import { PROJECT_DIR, EXEC_TIMEOUT_MS } from "@/lib/constants";
 import type { BlueprintStep } from "../types";
 
 /**
@@ -36,9 +36,7 @@ export function createRulesStep(): BlueprintStep {
       }
 
       if (paths.length === 0) {
-        console.log(
-          `[blueprint] scoped-rules: no AGENTS.md files found (task=${ctx.taskId})`,
-        );
+        console.log(`[blueprint] scoped-rules: no AGENTS.md files found (task=${ctx.taskId})`);
         return {
           status: "skipped",
           message: "No AGENTS.md files found in repo",
@@ -49,16 +47,12 @@ export function createRulesStep(): BlueprintStep {
       // Read each AGENTS.md and concatenate with path headers
       const sections: string[] = [];
       for (const filePath of paths) {
-        const catResult = await execInWorkspace(
-          ctx.workspaceName,
-          `cat ${filePath}`,
-          { timeoutMs: EXEC_TIMEOUT_MS },
-        );
+        const catResult = await execInWorkspace(ctx.workspaceName, `cat ${filePath}`, {
+          timeoutMs: EXEC_TIMEOUT_MS,
+        });
 
         if (catResult.exitCode === 0) {
-          sections.push(
-            `## Rules from ${filePath}\n${catResult.stdout}`,
-          );
+          sections.push(`## Rules from ${filePath}\n${catResult.stdout}`);
         }
       }
 

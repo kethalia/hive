@@ -1,19 +1,17 @@
 "use server";
 
 import { z } from "zod";
-import { authActionClient } from "@/lib/safe-action";
 import { getCoderClientForUser } from "@/lib/coder/user-client";
+import { SAFE_IDENTIFIER_RE } from "@/lib/constants";
+import { authActionClient } from "@/lib/safe-action";
 import { execInWorkspace } from "@/lib/workspace/exec";
 import { parseTmuxSessions } from "@/lib/workspaces/sessions";
-import { SAFE_IDENTIFIER_RE } from "@/lib/constants";
 
-export const listWorkspacesAction = authActionClient.action(
-  async ({ ctx }) => {
-    const client = await getCoderClientForUser(ctx.user.id);
-    const result = await client.listWorkspaces({ owner: "me" });
-    return result.workspaces;
-  },
-);
+export const listWorkspacesAction = authActionClient.action(async ({ ctx }) => {
+  const client = await getCoderClientForUser(ctx.user.id);
+  const result = await client.listWorkspaces({ owner: "me" });
+  return result.workspaces;
+});
 
 const getWorkspaceAgentSchema = z.object({
   workspaceId: z.string().min(1, "workspaceId is required"),
@@ -34,17 +32,13 @@ export const getWorkspaceAgentAction = authActionClient
   .inputSchema(getWorkspaceAgentSchema)
   .action(async ({ parsedInput, ctx }) => {
     const client = await getCoderClientForUser(ctx.user.id);
-    const resources = await client.getWorkspaceResources(
-      parsedInput.workspaceId,
-    );
+    const resources = await client.getWorkspaceResources(parsedInput.workspaceId);
     for (const resource of resources) {
       if (resource.agents && resource.agents.length > 0) {
         return { agentId: resource.agents[0].id, agentName: resource.agents[0].name };
       }
     }
-    throw new Error(
-      `No agents found for workspace ${parsedInput.workspaceId}`,
-    );
+    throw new Error(`No agents found for workspace ${parsedInput.workspaceId}`);
   });
 
 const getWorkspaceSessionsSchema = z.object({
@@ -58,9 +52,7 @@ export const getWorkspaceSessionsAction = authActionClient
 
     let agentTarget: string;
     try {
-      agentTarget = await client.getWorkspaceAgentName(
-        parsedInput.workspaceId,
-      );
+      agentTarget = await client.getWorkspaceAgentName(parsedInput.workspaceId);
     } catch {
       console.log(
         `[workspaces] No agents found for workspace ${parsedInput.workspaceId}, returning empty sessions`,
@@ -119,9 +111,7 @@ export const renameSessionAction = authActionClient
     }
 
     const client = await getCoderClientForUser(ctx.user.id);
-    const agentTarget = await client.getWorkspaceAgentName(
-      parsedInput.workspaceId,
-    );
+    const agentTarget = await client.getWorkspaceAgentName(parsedInput.workspaceId);
 
     const result = await execInWorkspace(
       agentTarget,
@@ -153,9 +143,7 @@ export const killSessionAction = authActionClient
     }
 
     const client = await getCoderClientForUser(ctx.user.id);
-    const agentTarget = await client.getWorkspaceAgentName(
-      parsedInput.workspaceId,
-    );
+    const agentTarget = await client.getWorkspaceAgentName(parsedInput.workspaceId);
 
     const result = await execInWorkspace(
       agentTarget,
@@ -163,9 +151,7 @@ export const killSessionAction = authActionClient
     );
 
     if (result.exitCode !== 0) {
-      throw new Error(
-        `Failed to kill session "${parsedInput.sessionName}": ${result.stderr}`,
-      );
+      throw new Error(`Failed to kill session "${parsedInput.sessionName}": ${result.stderr}`);
     }
 
     console.log(

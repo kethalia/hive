@@ -1,34 +1,34 @@
-import { Queue, Worker, UnrecoverableError, type Job } from "bullmq";
-import { getRedisConnection } from "./connection";
-import { getDb } from "@/lib/db";
-import { getCoderClientForUser } from "@/lib/coder/user-client";
+import type { Prisma } from "@prisma/client";
+import { type Job, Queue, UnrecoverableError, Worker } from "bullmq";
 import { getTokenStatus } from "@/lib/auth/token-status";
-import { isAuthError, isNetworkError } from "@/lib/queue/errors";
 import { runBlueprint } from "@/lib/blueprint/runner";
+import { createAgentStep } from "@/lib/blueprint/steps/agent";
+import { createCIStep } from "@/lib/blueprint/steps/ci";
+import { createCommitPushStep } from "@/lib/blueprint/steps/commit-push";
 import { createHydrateStep } from "@/lib/blueprint/steps/hydrate";
+import { createLintStep } from "@/lib/blueprint/steps/lint";
+import { createPRStep } from "@/lib/blueprint/steps/pr";
 import { createRulesStep } from "@/lib/blueprint/steps/rules";
 import { createToolsStep } from "@/lib/blueprint/steps/tools";
-import { createAgentStep } from "@/lib/blueprint/steps/agent";
-import { createLintStep } from "@/lib/blueprint/steps/lint";
-import { createCommitPushStep } from "@/lib/blueprint/steps/commit-push";
-import { createCIStep } from "@/lib/blueprint/steps/ci";
-import { createPRStep } from "@/lib/blueprint/steps/pr";
-import { cleanupWorkspace } from "@/lib/workspace/cleanup";
-import { workerWorkspaceName, verifierWorkspaceName } from "@/lib/workspace/naming";
+import type { BlueprintContext } from "@/lib/blueprint/types";
 import { createVerifierBlueprint } from "@/lib/blueprint/verifier";
-import { dispatchCouncilReview } from "@/lib/council/dispatch";
+import { getCoderClientForUser } from "@/lib/coder/user-client";
 import {
-  QUEUE_NAME,
-  JOB_TIMEOUT_MS,
-  DEFAULT_WORKER_CONCURRENCY,
   DEFAULT_CLEANUP_GRACE_MS,
-  DEFAULT_PI_PROVIDER,
   DEFAULT_PI_MODEL,
+  DEFAULT_PI_PROVIDER,
+  DEFAULT_WORKER_CONCURRENCY,
+  JOB_TIMEOUT_MS,
+  QUEUE_NAME,
   TOKEN_PREFLIGHT_MIN_HOURS,
 } from "@/lib/constants";
-import type { Prisma } from "@prisma/client";
-import type { BlueprintContext } from "@/lib/blueprint/types";
+import { dispatchCouncilReview } from "@/lib/council/dispatch";
+import { getDb } from "@/lib/db";
+import { isAuthError, isNetworkError } from "@/lib/queue/errors";
 import type { VerificationReport } from "@/lib/verification/types";
+import { cleanupWorkspace } from "@/lib/workspace/cleanup";
+import { verifierWorkspaceName, workerWorkspaceName } from "@/lib/workspace/naming";
+import { getRedisConnection } from "./connection";
 
 // ── Types ─────────────────────────────────────────────────────────
 
@@ -79,7 +79,10 @@ export function getTaskQueue(): Queue<TaskJobData> {
  * parallel task execution per R008.
  */
 export function createTaskWorker(): Worker<TaskJobData> {
-  const concurrency = parseInt(process.env.WORKER_CONCURRENCY ?? String(DEFAULT_WORKER_CONCURRENCY), 10);
+  const concurrency = parseInt(
+    process.env.WORKER_CONCURRENCY ?? String(DEFAULT_WORKER_CONCURRENCY),
+    10,
+  );
   const templateId = process.env.CODER_WORKER_TEMPLATE_ID ?? "";
   const verifierTemplateId = process.env.CODER_VERIFIER_TEMPLATE_ID ?? "";
   const piProvider = process.env.PI_PROVIDER ?? DEFAULT_PI_PROVIDER;
@@ -90,7 +93,10 @@ export function createTaskWorker(): Worker<TaskJobData> {
     async (job: Job<TaskJobData>) => {
       const { taskId, repoUrl, prompt, branchName, userId, params } = job.data;
       const db = getDb();
-      const graceMs = parseInt(process.env.CLEANUP_GRACE_MS ?? String(DEFAULT_CLEANUP_GRACE_MS), 10);
+      const graceMs = parseInt(
+        process.env.CLEANUP_GRACE_MS ?? String(DEFAULT_CLEANUP_GRACE_MS),
+        10,
+      );
 
       // Track workspace IDs for cleanup in finally block
       let coderWorkspaceId: string | undefined;
@@ -100,22 +106,28 @@ export function createTaskWorker(): Worker<TaskJobData> {
 
       // Resolve per-user Coder credentials for this job
       if (!userId) {
-        throw new Error(`[queue] Job ${job.id} for task ${taskId} has no userId — cannot resolve Coder credentials`);
+        throw new Error(
+          `[queue] Job ${job.id} for task ${taskId} has no userId — cannot resolve Coder credentials`,
+        );
       }
       // Pre-flight token expiry check
       const tokenCheck = await getTokenStatus(userId);
       if (tokenCheck.status === "expired" || tokenCheck.status === "key_mismatch") {
-        console.log(`[queue] Token expiry pre-flight failed for user ${userId} — status: ${tokenCheck.status}`);
+        console.log(
+          `[queue] Token expiry pre-flight failed for user ${userId} — status: ${tokenCheck.status}`,
+        );
         throw new UnrecoverableError(
-          `[queue] Token ${tokenCheck.status} for user ${userId} — job cannot proceed`
+          `[queue] Token ${tokenCheck.status} for user ${userId} — job cannot proceed`,
         );
       }
       if (tokenCheck.status === "expiring" && tokenCheck.expiresAt) {
         const hoursLeft = (tokenCheck.expiresAt.getTime() - Date.now()) / (1000 * 60 * 60);
         if (hoursLeft < TOKEN_PREFLIGHT_MIN_HOURS) {
-          console.log(`[queue] Token expiry pre-flight failed for user ${userId} — ${hoursLeft.toFixed(1)}h remaining`);
+          console.log(
+            `[queue] Token expiry pre-flight failed for user ${userId} — ${hoursLeft.toFixed(1)}h remaining`,
+          );
           throw new UnrecoverableError(
-            `[queue] Token expires in ${hoursLeft.toFixed(1)}h for user ${userId} — below ${TOKEN_PREFLIGHT_MIN_HOURS}h minimum`
+            `[queue] Token expires in ${hoursLeft.toFixed(1)}h for user ${userId} — below ${TOKEN_PREFLIGHT_MIN_HOURS}h minimum`,
           );
         }
       }
@@ -258,11 +270,15 @@ export function createTaskWorker(): Worker<TaskJobData> {
             try {
               // Create verifier workspace
               const verifierWsName = verifierWorkspaceName(taskId);
-              const verifierWs = await coderClient.createWorkspace(verifierTemplateId, verifierWsName, {
-                task_id: taskId,
-                repo_url: repoUrl,
-                branch_name: branchName,
-              });
+              const verifierWs = await coderClient.createWorkspace(
+                verifierTemplateId,
+                verifierWsName,
+                {
+                  task_id: taskId,
+                  repo_url: repoUrl,
+                  branch_name: branchName,
+                },
+              );
 
               verifierWorkspaceId = verifierWs.id;
 
@@ -325,11 +341,13 @@ export function createTaskWorker(): Worker<TaskJobData> {
                   },
                 });
 
-                console.log(`[task] Task ${taskId} status → done (verification inconclusive — step failure)`);
+                console.log(
+                  `[task] Task ${taskId} status → done (verification inconclusive — step failure)`,
+                );
               } else {
                 // Persist verification report from successful verifier run
                 const report = verifierCtx.verificationReport
-                  ? JSON.parse(verifierCtx.verificationReport) as VerificationReport
+                  ? (JSON.parse(verifierCtx.verificationReport) as VerificationReport)
                   : null;
 
                 await db.task.update({
@@ -344,9 +362,8 @@ export function createTaskWorker(): Worker<TaskJobData> {
               }
             } catch (verifierError) {
               // Verifier failure is informational — PR still exists
-              const verifierMsg = verifierError instanceof Error
-                ? verifierError.message
-                : String(verifierError);
+              const verifierMsg =
+                verifierError instanceof Error ? verifierError.message : String(verifierError);
 
               console.error(`[queue] Verifier failed for task ${taskId}: ${verifierMsg}`);
 
@@ -402,9 +419,8 @@ export function createTaskWorker(): Worker<TaskJobData> {
             });
           } catch (councilError) {
             // D015: Council failure is informational — task stays done
-            const councilMsg = councilError instanceof Error
-              ? councilError.message
-              : String(councilError);
+            const councilMsg =
+              councilError instanceof Error ? councilError.message : String(councilError);
             console.error(`[queue] Council review failed for task ${taskId}: ${councilMsg}`);
           }
         } else {
@@ -433,8 +449,7 @@ export function createTaskWorker(): Worker<TaskJobData> {
           });
         }
       } catch (error) {
-        const errorMessage =
-          error instanceof Error ? error.message : String(error);
+        const errorMessage = error instanceof Error ? error.message : String(error);
 
         console.error(`[queue] Job ${job.id} failed for task ${taskId}: ${errorMessage}`);
 
@@ -486,7 +501,7 @@ export function createTaskWorker(): Worker<TaskJobData> {
       connection: getRedisConnection(),
       concurrency,
       lockDuration: JOB_TIMEOUT_MS,
-    }
+    },
   );
 
   console.log(`[queue] Task worker started (concurrency: ${concurrency})`);

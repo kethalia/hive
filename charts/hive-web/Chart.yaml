@@ -1,0 +1,17 @@
+apiVersion: v2
+name: hive-web
+description: Helm chart for the Hive Next.js web orchestrator.
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+kubeVersion: ">=1.28.0-0"
+home: https://github.com/kethalia/hive
+sources:
+  - https://github.com/kethalia/hive
+keywords:
+  - nextjs
+  - hive
+  - orchestrator
+maintainers:
+  - name: kethalia
+    url: https://github.com/kethalia

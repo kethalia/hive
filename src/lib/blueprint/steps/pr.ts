@@ -1,5 +1,5 @@
+import { PR_TIMEOUT_MS, PROJECT_DIR } from "@/lib/constants";
 import { execInWorkspace } from "@/lib/workspace/exec";
-import { PROJECT_DIR, PR_TIMEOUT_MS } from "@/lib/constants";
 import type { BlueprintStep } from "../types";
 
 /**
@@ -16,9 +16,7 @@ export function createPRStep(): BlueprintStep {
       const start = Date.now();
 
       // Build title: "hive: <truncated prompt>"
-      const titlePrompt = ctx.prompt.length > 60
-        ? ctx.prompt.slice(0, 57) + "..."
-        : ctx.prompt;
+      const titlePrompt = ctx.prompt.length > 60 ? `${ctx.prompt.slice(0, 57)}...` : ctx.prompt;
       const title = `hive: ${titlePrompt}`;
 
       // Build body with task context

@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
 import { Bell, X } from "lucide-react";
-import { Alert, AlertTitle, AlertDescription, AlertAction } from "@/components/ui/alert";
+import { useCallback, useEffect, useState } from "react";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { getVapidPublicKeyAction } from "@/lib/push/actions";
 import { subscribePushAction } from "@/lib/push/subscribe";
@@ -97,9 +97,8 @@ export function PushPermissionPrompt() {
           <Bell className="size-4" />
           <AlertTitle>Notifications blocked</AlertTitle>
           <AlertDescription>
-            Push notifications are blocked by your browser. To enable them, open
-            your browser&apos;s site settings and allow notifications for this
-            site.
+            Push notifications are blocked by your browser. To enable them, open your browser&apos;s
+            site settings and allow notifications for this site.
           </AlertDescription>
         </Alert>
       </div>
@@ -125,8 +124,7 @@ export function PushPermissionPrompt() {
           </Button>
         </div>
         <AlertDescription className="mt-1 pr-6">
-          Get notified when your Coder token is about to expire so you never
-          lose access.
+          Get notified when your Coder token is about to expire so you never lose access.
           {error && <p className="text-destructive mt-1">{error}</p>}
         </AlertDescription>
         <div className="mt-2 flex justify-end">

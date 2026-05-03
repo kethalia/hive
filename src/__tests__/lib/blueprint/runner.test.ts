@@ -1,10 +1,6 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { runBlueprint } from "@/lib/blueprint/runner";
-import type {
-  BlueprintContext,
-  BlueprintStep,
-  StepResult,
-} from "@/lib/blueprint/types";
+import type { BlueprintContext, BlueprintStep, StepResult } from "@/lib/blueprint/types";
 
 /** Helper to create a minimal BlueprintContext for testing. */
 function makeCtx(overrides?: Partial<BlueprintContext>): BlueprintContext {
@@ -24,10 +20,7 @@ function makeCtx(overrides?: Partial<BlueprintContext>): BlueprintContext {
 }
 
 /** Helper to create a step that returns a given result. */
-function makeStep(
-  name: string,
-  result: Partial<StepResult> = {},
-): BlueprintStep {
+function makeStep(name: string, result: Partial<StepResult> = {}): BlueprintStep {
   return {
     name,
     execute: vi.fn(async () => ({
@@ -50,11 +43,7 @@ describe("runBlueprint", () => {
 
     expect(result.success).toBe(true);
     expect(result.steps).toHaveLength(3);
-    expect(result.steps.map((s) => s.name)).toEqual([
-      "step-a",
-      "step-b",
-      "step-c",
-    ]);
+    expect(result.steps.map((s) => s.name)).toEqual(["step-a", "step-b", "step-c"]);
     expect(result.totalDurationMs).toBeGreaterThanOrEqual(0);
   });
 
@@ -80,10 +69,7 @@ describe("runBlueprint", () => {
     };
     const afterStep = makeStep("after");
 
-    const result = await runBlueprint(
-      [throwingStep, afterStep],
-      makeCtx(),
-    );
+    const result = await runBlueprint([throwingStep, afterStep], makeCtx());
 
     expect(result.success).toBe(false);
     expect(result.steps).toHaveLength(1);

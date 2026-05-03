@@ -1,18 +1,17 @@
 // @vitest-environment jsdom
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, fireEvent, waitFor, cleanup } from "@testing-library/react";
+
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mockGetVapidPublicKeyAction = vi.hoisted(() => vi.fn());
 const mockSubscribePushAction = vi.hoisted(() => vi.fn());
 
 vi.mock("@/lib/push/actions", () => ({
-  getVapidPublicKeyAction: (...args: unknown[]) =>
-    mockGetVapidPublicKeyAction(...args),
+  getVapidPublicKeyAction: (...args: unknown[]) => mockGetVapidPublicKeyAction(...args),
 }));
 
 vi.mock("@/lib/push/subscribe", () => ({
-  subscribePushAction: (...args: unknown[]) =>
-    mockSubscribePushAction(...args),
+  subscribePushAction: (...args: unknown[]) => mockSubscribePushAction(...args),
 }));
 
 import { PushPermissionPrompt } from "@/components/push-permission-prompt";
@@ -88,9 +87,7 @@ describe("PushPermissionPrompt", () => {
     await waitFor(() => {
       expect(screen.getByText("Notifications blocked")).toBeDefined();
     });
-    expect(
-      screen.getByText(/blocked by your browser/)
-    ).toBeDefined();
+    expect(screen.getByText(/blocked by your browser/)).toBeDefined();
   });
 
   it("hides prompt when dismissed", async () => {

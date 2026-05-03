@@ -3,9 +3,7 @@ import { formatCouncilComment } from "../../../lib/council/formatter.js";
 import type { AggregatedFinding, CouncilReport } from "../../../lib/council/types.js";
 
 // Helpers
-function consensusItem(
-  overrides: Partial<AggregatedFinding> = {},
-): AggregatedFinding {
+function consensusItem(overrides: Partial<AggregatedFinding> = {}): AggregatedFinding {
   return {
     file: "src/foo.ts",
     startLine: 10,
@@ -80,10 +78,7 @@ describe("formatCouncilComment", () => {
   });
 
   it("includes correct counts in the footer", () => {
-    const items = [
-      consensusItem({ startLine: 1 }),
-      consensusItem({ startLine: 2 }),
-    ];
+    const items = [consensusItem({ startLine: 1 }), consensusItem({ startLine: 2 })];
     // findings has 3 (one non-consensus), consensusItems has 2
     const extraFinding = { ...consensusItem({ startLine: 99 }), isConsensus: false };
     const r = report({

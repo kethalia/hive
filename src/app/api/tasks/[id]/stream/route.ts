@@ -1,10 +1,10 @@
-import { NextRequest } from "next/server";
 import { cookies } from "next/headers";
+import type { NextRequest } from "next/server";
 import { getSession } from "@/lib/auth/session";
+import { AGENT_OUTPUT_LOG, UUID_RE } from "@/lib/constants";
 import { getDb } from "@/lib/db";
-import { streamFromWorkspace } from "@/lib/workspace/stream";
 import { workerWorkspaceName } from "@/lib/workspace/naming";
-import { UUID_RE, AGENT_OUTPUT_LOG } from "@/lib/constants";
+import { streamFromWorkspace } from "@/lib/workspace/stream";
 
 /**
  * SSE endpoint for streaming live agent output from a running workspace.
@@ -18,10 +18,7 @@ import { UUID_RE, AGENT_OUTPUT_LOG } from "@/lib/constants";
  *   - `event: status` data: {"status":"ended"}     — stream finished
  *   - `event: error`  data: {"message":"..."}      — error occurred
  */
-export async function GET(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> },
-) {
+export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id: taskId } = await params;
 
   const cookieStore = await cookies();
@@ -39,7 +36,7 @@ export async function GET(
   const db = getDb();
 
   // Find the running worker workspace for this task
-  let workspace;
+  let workspace: Awaited<ReturnType<typeof db.workspace.findFirst>>;
   try {
     workspace = await db.workspace.findFirst({
       where: {
@@ -53,9 +50,7 @@ export async function GET(
       `[stream] SSE error: taskId=${taskId} db lookup failed: ${err instanceof Error ? err.message : String(err)}`,
     );
     const errorStream = makeSSEStream((controller) => {
-      controller.enqueue(
-        formatSSE("error", JSON.stringify({ message: "Database lookup failed" })),
-      );
+      controller.enqueue(formatSSE("error", JSON.stringify({ message: "Database lookup failed" })));
       controller.close();
     });
     return sseResponse(errorStream);
@@ -64,9 +59,7 @@ export async function GET(
   if (!workspace) {
     console.log(`[stream] SSE waiting: taskId=${taskId} — no running workspace`);
     const waitingStream = makeSSEStream((controller) => {
-      controller.enqueue(
-        formatSSE("status", JSON.stringify({ status: "waiting" })),
-      );
+      controller.enqueue(formatSSE("status", JSON.stringify({ status: "waiting" })));
       controller.close();
     });
     return sseResponse(waitingStream);
@@ -75,9 +68,7 @@ export async function GET(
   // Derive workspace name from the shared naming convention
   const workspaceName = workerWorkspaceName(taskId);
 
-  console.log(
-    `[stream] SSE connected: taskId=${taskId} workspace=${workspaceName}`,
-  );
+  console.log(`[stream] SSE connected: taskId=${taskId} workspace=${workspaceName}`);
 
   const { stdout, process: childProcess } = streamFromWorkspace(
     workspaceName,
@@ -89,9 +80,7 @@ export async function GET(
 
   const sseStream = makeSSEStream(async (controller) => {
     // Send connected status
-    controller.enqueue(
-      formatSSE("status", JSON.stringify({ status: "connected" })),
-    );
+    controller.enqueue(formatSSE("status", JSON.stringify({ status: "connected" })));
 
     try {
       while (true) {
@@ -107,12 +96,7 @@ export async function GET(
         console.log(
           `[stream] SSE relay error: taskId=${taskId} ${err instanceof Error ? err.message : String(err)}`,
         );
-        controller.enqueue(
-          formatSSE(
-            "error",
-            JSON.stringify({ message: "Stream relay failed" }),
-          ),
-        );
+        controller.enqueue(formatSSE("error", JSON.stringify({ message: "Stream relay failed" })));
       }
     } finally {
       console.log(`[stream] SSE ended: taskId=${taskId}`);
@@ -125,9 +109,7 @@ export async function GET(
       }
 
       try {
-        controller.enqueue(
-          formatSSE("status", JSON.stringify({ status: "ended" })),
-        );
+        controller.enqueue(formatSSE("status", JSON.stringify({ status: "ended" })));
       } catch {
         // Controller may be closed already
       }

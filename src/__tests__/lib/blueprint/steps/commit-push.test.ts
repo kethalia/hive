@@ -1,9 +1,11 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { BlueprintContext } from "@/lib/blueprint/types";
 import type { ExecResult } from "@/lib/workspace/exec";
+
 vi.mock("@/lib/workspace/exec", () => ({
   execInWorkspace: vi.fn(),
 }));
+
 import { createCommitPushStep } from "@/lib/blueprint/steps/commit-push";
 import { execInWorkspace } from "@/lib/workspace/exec";
 

@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/lib/db", () => ({
   getDb: vi.fn(),
@@ -22,13 +22,11 @@ vi.mock("@/lib/queue/connection", () => ({
   getRedisConnection: vi.fn(),
 }));
 
-import { getDb } from "@/lib/db";
-import { tryDecrypt, encrypt, TOKEN_LIFETIME_SECONDS } from "@hive/auth";
+import { encrypt, TOKEN_LIFETIME_SECONDS, tryDecrypt } from "@hive/auth";
 import { CoderClient } from "@/lib/coder/client";
+import { TOKEN_ROTATION_THRESHOLD } from "@/lib/constants";
+import { getDb } from "@/lib/db";
 import { processTokenRotation } from "@/lib/queue/token-rotation";
-import {
-  TOKEN_ROTATION_THRESHOLD,
-} from "@/lib/constants";
 
 const LIFETIME_MS = TOKEN_LIFETIME_SECONDS * 1000;
 
@@ -115,7 +113,7 @@ describe("processTokenRotation", () => {
       "https://coder.example.com",
       "current-session-token",
       "coder-uid-1",
-      TOKEN_LIFETIME_SECONDS
+      TOKEN_LIFETIME_SECONDS,
     );
     expect(encrypt).toHaveBeenCalledWith("new-api-key-123", "a".repeat(64));
     expect(mockDb.$executeRaw).toHaveBeenCalled();
@@ -152,9 +150,7 @@ describe("processTokenRotation", () => {
       plaintext: "session-tok",
     });
     mockDb.$executeRaw.mockResolvedValue(0);
-    vi.mocked(CoderClient.listApiKeys).mockResolvedValue([
-      { id: "old-key-id" } as never,
-    ]);
+    vi.mocked(CoderClient.listApiKeys).mockResolvedValue([{ id: "old-key-id" } as never]);
 
     await processTokenRotation(makeJob());
 
@@ -230,7 +226,7 @@ describe("processTokenRotation", () => {
     expect(CoderClient.listApiKeys).toHaveBeenCalledWith(
       "https://coder.example.com",
       "new-api-key-123",
-      "coder-uid-1"
+      "coder-uid-1",
     );
     expect(CoderClient.deleteApiKey).toHaveBeenCalled();
   });
@@ -247,14 +243,12 @@ describe("processTokenRotation", () => {
       plaintext: "session-tok",
     });
     mockDb.$executeRaw.mockResolvedValue(1);
-    vi.mocked(CoderClient.listApiKeys).mockRejectedValue(
-      new Error("network failure")
-    );
+    vi.mocked(CoderClient.listApiKeys).mockRejectedValue(new Error("network failure"));
 
     const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
     await processTokenRotation(makeJob());
     expect(warnSpy).toHaveBeenCalledWith(
-      expect.stringContaining("[token-rotation] Old key cleanup failed")
+      expect.stringContaining("[token-rotation] Old key cleanup failed"),
     );
     warnSpy.mockRestore();
   });

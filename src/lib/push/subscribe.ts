@@ -1,8 +1,8 @@
 "use server";
 
 import { z } from "zod";
-import { authActionClient } from "../safe-action";
 import { getDb } from "@/lib/db";
+import { authActionClient } from "../safe-action";
 
 const subscribeSchema = z.object({
   endpoint: z.string().url(),
@@ -30,7 +30,7 @@ export const subscribePushAction = authActionClient
       },
     });
     console.log(
-      `[push] Subscription upserted for user ${ctx.user.id} endpoint ${new URL(endpoint).hostname}`
+      `[push] Subscription upserted for user ${ctx.user.id} endpoint ${new URL(endpoint).hostname}`,
     );
     return { success: true as const };
   });
@@ -50,7 +50,7 @@ export const unsubscribePushAction = authActionClient
       },
     });
     console.log(
-      `[push] Subscription removed for user ${ctx.user.id} endpoint ${new URL(endpoint).hostname}`
+      `[push] Subscription removed for user ${ctx.user.id} endpoint ${new URL(endpoint).hostname}`,
     );
     return { success: true as const };
   });

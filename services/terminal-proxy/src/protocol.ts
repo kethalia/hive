@@ -17,16 +17,14 @@ export function buildPtyUrl(
   const { reconnectId, width, height, sessionName } = options;
 
   if (!SAFE_IDENTIFIER_RE.test(sessionName)) {
-    throw new Error(
-      `Invalid session name: "${sessionName}" — must match ${SAFE_IDENTIFIER_RE}`,
-    );
+    throw new Error(`Invalid session name: "${sessionName}" — must match ${SAFE_IDENTIFIER_RE}`);
   }
 
   let wsBase = baseUrl.replace(/\/+$/, "");
   if (wsBase.startsWith("https://")) {
-    wsBase = "wss://" + wsBase.slice("https://".length);
+    wsBase = `wss://${wsBase.slice("https://".length)}`;
   } else if (wsBase.startsWith("http://")) {
-    wsBase = "ws://" + wsBase.slice("http://".length);
+    wsBase = `ws://${wsBase.slice("http://".length)}`;
   }
 
   // tmux -L web new-session -A -s <name>:

@@ -5,7 +5,7 @@
  * all conditions are met, and is a no-op when they aren't. Council failures
  * must not change task status.
  */
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 // ── Infrastructure mocks (must come before imports) ───────────────
 
@@ -32,7 +32,7 @@ vi.mock("bullmq", () => ({
     add: vi.fn(),
     close: vi.fn(),
   })),
-  Worker: vi.fn().mockImplementation((name: string, processor: Function, opts: unknown) => {
+  Worker: vi.fn().mockImplementation((_name: string, processor: Function, _opts: unknown) => {
     (Worker as any).__lastProcessor = processor;
     return { on: vi.fn(), close: vi.fn() };
   }),
@@ -103,9 +103,7 @@ vi.mock("@/lib/workspace/cleanup", () => ({
   cleanupWorkspace: vi.fn(),
 }));
 vi.mock("@/lib/blueprint/verifier", () => ({
-  createVerifierBlueprint: vi.fn(() => [
-    { name: "verify-detect", execute: vi.fn() },
-  ]),
+  createVerifierBlueprint: vi.fn(() => [{ name: "verify-detect", execute: vi.fn() }]),
 }));
 
 // ── council dispatch mock ──────────────────────────────────────────
@@ -184,7 +182,10 @@ function makeBlueprintResult(prUrl?: string) {
 
 /** Returns the processor function captured by the Worker mock. */
 function getProcessor() {
-  return (Worker as any).__lastProcessor as (job: { id: string; data: TaskJobData }) => Promise<void>;
+  return (Worker as any).__lastProcessor as (job: {
+    id: string;
+    data: TaskJobData;
+  }) => Promise<void>;
 }
 
 // ── Tests ─────────────────────────────────────────────────────────
@@ -261,7 +262,9 @@ describe("Task-queue council step (step 13)", () => {
     // Override: worker blueprint does NOT set prUrl
     mockRunBlueprint.mockImplementation(async (_steps: any[], _ctx: any) => ({
       success: true,
-      steps: [{ name: "agent-execution", status: "success", message: "no changes", durationMs: 10 }],
+      steps: [
+        { name: "agent-execution", status: "success", message: "no changes", durationMs: 10 },
+      ],
       totalDurationMs: 10,
     }));
 
@@ -271,9 +274,7 @@ describe("Task-queue council step (step 13)", () => {
     await processor({ id: "job-3", data: fakeJobData });
 
     // dispatch is called with empty prUrl — it returns false internally
-    expect(mockDispatchCouncilReview).toHaveBeenCalledWith(
-      expect.objectContaining({ prUrl: "" }),
-    );
+    expect(mockDispatchCouncilReview).toHaveBeenCalledWith(expect.objectContaining({ prUrl: "" }));
   });
 
   // ── Failure tolerance (D015) ──────────────────────────────────────

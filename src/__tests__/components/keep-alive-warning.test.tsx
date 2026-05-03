@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, cleanup } from "@testing-library/react";
+
+import { cleanup, render, screen } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import "@testing-library/jest-dom/vitest";
 
 const mockStatus = vi.fn();
@@ -10,11 +11,21 @@ vi.mock("@/hooks/useKeepAliveStatus", () => ({
 }));
 
 vi.mock("@/components/ui/alert", () => ({
-  Alert: ({ children, variant, className }: React.PropsWithChildren<{ variant?: string; className?: string }>) => (
-    <div data-testid="alert" data-variant={variant} className={className}>{children}</div>
+  Alert: ({
+    children,
+    variant,
+    className,
+  }: React.PropsWithChildren<{ variant?: string; className?: string }>) => (
+    <div data-testid="alert" data-variant={variant} className={className}>
+      {children}
+    </div>
   ),
-  AlertTitle: ({ children }: React.PropsWithChildren) => <div data-testid="alert-title">{children}</div>,
-  AlertDescription: ({ children }: React.PropsWithChildren) => <div data-testid="alert-description">{children}</div>,
+  AlertTitle: ({ children }: React.PropsWithChildren) => (
+    <div data-testid="alert-title">{children}</div>
+  ),
+  AlertDescription: ({ children }: React.PropsWithChildren) => (
+    <div data-testid="alert-description">{children}</div>
+  ),
 }));
 
 vi.mock("lucide-react", () => ({
@@ -33,25 +44,45 @@ describe("KeepAliveWarning", () => {
   });
 
   it("renders nothing when consecutiveFailures is 0", () => {
-    mockStatus.mockReturnValue({ consecutiveFailures: 0, lastSuccess: null, lastFailure: null, isLoading: false });
+    mockStatus.mockReturnValue({
+      consecutiveFailures: 0,
+      lastSuccess: null,
+      lastFailure: null,
+      isLoading: false,
+    });
     const { container } = render(<KeepAliveWarning workspaceId="ws-1" />);
     expect(container.innerHTML).toBe("");
   });
 
   it("renders nothing when consecutiveFailures is 1", () => {
-    mockStatus.mockReturnValue({ consecutiveFailures: 1, lastSuccess: null, lastFailure: null, isLoading: false });
+    mockStatus.mockReturnValue({
+      consecutiveFailures: 1,
+      lastSuccess: null,
+      lastFailure: null,
+      isLoading: false,
+    });
     const { container } = render(<KeepAliveWarning workspaceId="ws-1" />);
     expect(container.innerHTML).toBe("");
   });
 
   it("renders nothing when consecutiveFailures is 2", () => {
-    mockStatus.mockReturnValue({ consecutiveFailures: 2, lastSuccess: null, lastFailure: null, isLoading: false });
+    mockStatus.mockReturnValue({
+      consecutiveFailures: 2,
+      lastSuccess: null,
+      lastFailure: null,
+      isLoading: false,
+    });
     const { container } = render(<KeepAliveWarning workspaceId="ws-1" />);
     expect(container.innerHTML).toBe("");
   });
 
   it("renders destructive Alert when consecutiveFailures reaches 3", () => {
-    mockStatus.mockReturnValue({ consecutiveFailures: 3, lastSuccess: null, lastFailure: null, isLoading: false });
+    mockStatus.mockReturnValue({
+      consecutiveFailures: 3,
+      lastSuccess: null,
+      lastFailure: null,
+      isLoading: false,
+    });
     render(<KeepAliveWarning workspaceId="ws-1" />);
 
     const alert = screen.getByTestId("alert");
@@ -62,21 +93,36 @@ describe("KeepAliveWarning", () => {
   });
 
   it("renders with correct failure count above threshold", () => {
-    mockStatus.mockReturnValue({ consecutiveFailures: 7, lastSuccess: null, lastFailure: null, isLoading: false });
+    mockStatus.mockReturnValue({
+      consecutiveFailures: 7,
+      lastSuccess: null,
+      lastFailure: null,
+      isLoading: false,
+    });
     render(<KeepAliveWarning workspaceId="ws-1" />);
 
     expect(screen.getByTestId("alert-description")).toHaveTextContent("7 consecutive failures");
   });
 
   it("passes workspaceId to useKeepAliveStatus", () => {
-    mockStatus.mockReturnValue({ consecutiveFailures: 0, lastSuccess: null, lastFailure: null, isLoading: false });
+    mockStatus.mockReturnValue({
+      consecutiveFailures: 0,
+      lastSuccess: null,
+      lastFailure: null,
+      isLoading: false,
+    });
     render(<KeepAliveWarning workspaceId="my-workspace-42" />);
 
     expect(mockStatus).toHaveBeenCalledWith("my-workspace-42");
   });
 
   it("mentions workspace may auto-stop in description", () => {
-    mockStatus.mockReturnValue({ consecutiveFailures: 5, lastSuccess: null, lastFailure: null, isLoading: false });
+    mockStatus.mockReturnValue({
+      consecutiveFailures: 5,
+      lastSuccess: null,
+      lastFailure: null,
+      isLoading: false,
+    });
     render(<KeepAliveWarning workspaceId="ws-1" />);
 
     expect(screen.getByTestId("alert-description")).toHaveTextContent("auto-stop");

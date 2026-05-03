@@ -1,22 +1,22 @@
 import { encrypt, TOKEN_LIFETIME_SECONDS } from "@hive/auth";
-import { createSession } from "./session.js";
-import {
-  validateCoderInstance,
-  coderLogin,
-  createCoderApiKey,
-} from "./coder-api.js";
-import {
-  API_KEY_CREATION_RETRIES,
-  SESSION_TOKEN_FALLBACK_EXPIRY_MS,
-} from "./constants.js";
-import type { LoginResult } from "./types.js";
 import { getDb } from "../db.js";
+import { coderLogin, createCoderApiKey, validateCoderInstance } from "./coder-api.js";
+import { API_KEY_CREATION_RETRIES, SESSION_TOKEN_FALLBACK_EXPIRY_MS } from "./constants.js";
+import { createSession } from "./session.js";
+import type { LoginResult } from "./types.js";
 
 export type { LoginResult };
 
 const PRIVATE_IP_PATTERNS = [
-  /^127\./, /^10\./, /^172\.(1[6-9]|2\d|3[01])\./, /^192\.168\./,
-  /^169\.254\./, /^0\./, /^::1$/, /^fc00:/, /^fe80:/,
+  /^127\./,
+  /^10\./,
+  /^172\.(1[6-9]|2\d|3[01])\./,
+  /^192\.168\./,
+  /^169\.254\./,
+  /^0\./,
+  /^::1$/,
+  /^fc00:/,
+  /^fe80:/,
 ];
 
 function validateCoderUrl(raw: string): string {
@@ -53,9 +53,7 @@ function getTokenEncryptionKey(): string {
     throw new Error("ENCRYPTION_KEY environment variable is not set");
   }
   if (Buffer.from(key, "hex").length !== 32) {
-    throw new Error(
-      "ENCRYPTION_KEY must be exactly 64 hex characters (32 bytes)",
-    );
+    throw new Error("ENCRYPTION_KEY must be exactly 64 hex characters (32 bytes)");
   }
   return key;
 }
@@ -90,9 +88,7 @@ export async function performLogin(
     if (apiKey) {
       credential = apiKey;
       usedApiKey = true;
-      console.log(
-        `[auth-service] API key created on attempt ${attempt}`,
-      );
+      console.log(`[auth-service] API key created on attempt ${attempt}`);
       break;
     }
     console.log(
@@ -101,9 +97,7 @@ export async function performLogin(
   }
 
   if (!usedApiKey) {
-    console.log(
-      "[auth-service] Falling back to session token as credential (R101)",
-    );
+    console.log("[auth-service] Falling back to session token as credential (R101)");
   }
 
   const expiresAt = usedApiKey

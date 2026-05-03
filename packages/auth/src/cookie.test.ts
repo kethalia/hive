@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, expect, it } from "vitest";
 import { signCookie, verifyCookie } from "./cookie";
 
 const SECRET = "test-secret-key-for-hmac-signing";

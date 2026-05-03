@@ -1,4 +1,8 @@
-import type { VerificationReport, VerificationStrategy, VerificationOutcome } from "@/lib/verification/types";
+import type {
+  VerificationOutcome,
+  VerificationReport,
+  VerificationStrategy,
+} from "@/lib/verification/types";
 import type { BlueprintStep } from "../types";
 
 /**
@@ -41,7 +45,7 @@ export function createVerifyReportStep(): BlueprintStep {
         outcome,
         logs,
         // Use actual execution duration from verify-execute, fall back to report step time
-        durationMs: executionDurationMs ?? (Date.now() - start),
+        durationMs: executionDurationMs ?? Date.now() - start,
         timestamp: new Date().toISOString(),
       };
 

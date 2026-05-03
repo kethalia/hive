@@ -5,9 +5,9 @@
  * This function is informational (D015): failures are logged but never propagate.
  */
 
+import { COUNCIL_AGGREGATOR_QUEUE, COUNCIL_REVIEWER_QUEUE } from "@/lib/constants";
 import { getDb } from "@/lib/db";
 import { getCouncilFlowProducer } from "@/lib/queue/council-queues";
-import { COUNCIL_AGGREGATOR_QUEUE, COUNCIL_REVIEWER_QUEUE } from "@/lib/constants";
 
 interface CouncilDispatchParams {
   taskId: string;

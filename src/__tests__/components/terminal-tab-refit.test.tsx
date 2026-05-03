@@ -1,7 +1,8 @@
 // @vitest-environment jsdom
-import React from "react";
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, act } from "@testing-library/react";
+
+import { act, render } from "@testing-library/react";
+import type React from "react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mockFit = vi.fn();
 
@@ -58,7 +59,9 @@ vi.mock("lucide-react", () => ({
 
 vi.mock("@/styles/xterm.css", () => ({}));
 
-type ResizeObserverCallback = (entries: Array<{ contentRect: { width: number; height: number } }>) => void;
+type ResizeObserverCallback = (
+  entries: Array<{ contentRect: { width: number; height: number } }>,
+) => void;
 
 let resizeObserverCallback: ResizeObserverCallback | null = null;
 let resizeObserverDisconnected = false;
@@ -100,18 +103,12 @@ afterEach(() => {
 });
 
 async function renderTerminal() {
-  const { InteractiveTerminal } = await import(
-    "@/components/workspaces/InteractiveTerminal"
-  );
+  const { InteractiveTerminal } = await import("@/components/workspaces/InteractiveTerminal");
 
   let result: ReturnType<typeof render>;
   await act(async () => {
     result = render(
-      <InteractiveTerminal
-        agentId="test-agent"
-        workspaceId="test-ws"
-        sessionName="main"
-      />
+      <InteractiveTerminal agentId="test-agent" workspaceId="test-ws" sessionName="main" />,
     );
   });
 

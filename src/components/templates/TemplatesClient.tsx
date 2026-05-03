@@ -1,8 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { CheckCircle, RefreshCw, Upload, XCircle } from "lucide-react";
 import dynamic from "next/dynamic";
-import { RefreshCw, Upload, CheckCircle, XCircle } from "lucide-react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -17,10 +17,9 @@ import {
 import type { TemplateStatus } from "@/lib/templates/staleness";
 
 // xterm must not run on the server — dynamic import with ssr:false
-const TerminalPanel = dynamic(
-  () => import("./TerminalPanel").then((m) => m.TerminalPanel),
-  { ssr: false }
-);
+const TerminalPanel = dynamic(() => import("./TerminalPanel").then((m) => m.TerminalPanel), {
+  ssr: false,
+});
 
 interface PushState {
   jobId: string | null;
@@ -60,7 +59,9 @@ export function TemplatesClient({ initialStatuses }: TemplatesClientProps) {
   const [pushStates, setPushStates] = useState<Record<string, PushState>>({});
 
   // writeRef per template — populated when TerminalPanel mounts
-  const writeRefs = useRef<Record<string, React.MutableRefObject<((line: string) => void) | null>>>({});
+  const writeRefs = useRef<Record<string, React.MutableRefObject<((line: string) => void) | null>>>(
+    {},
+  );
   // All lines ever received for a push, keyed by template name.
   // Kept in a ref so TerminalPanel can replay them on mount regardless of timing.
   const lineHistory = useRef<Record<string, string[]>>({});
@@ -84,13 +85,13 @@ export function TemplatesClient({ initialStatuses }: TemplatesClientProps) {
 
   // Record a line to history (capped) and write to terminal if ready
   const MAX_HISTORY_LINES = 2000;
-  function writeLine(name: string, line: string) {
+  const writeLine = useCallback((name: string, line: string) => {
     if (!lineHistory.current[name]) lineHistory.current[name] = [];
     const history = lineHistory.current[name];
     if (history.length >= MAX_HISTORY_LINES) history.shift();
     history.push(line);
     writeRefs.current[name]?.current?.(line);
-  }
+  }, []);
 
   // ── Status polling ─────────────────────────────────────────────
 
@@ -112,87 +113,90 @@ export function TemplatesClient({ initialStatuses }: TemplatesClientProps) {
 
   // ── Push flow ──────────────────────────────────────────────────
 
-  const handlePush = useCallback(async (name: string) => {
-    // Start push — clear previous output history for this template
-    lineHistory.current[name] = [];
-    setPushStates((prev) => ({
-      ...prev,
-      [name]: { jobId: null, inProgress: true, result: null, terminalOpen: true },
-    }));
+  const handlePush = useCallback(
+    async (name: string) => {
+      // Start push — clear previous output history for this template
+      lineHistory.current[name] = [];
+      setPushStates((prev) => ({
+        ...prev,
+        [name]: { jobId: null, inProgress: true, result: null, terminalOpen: true },
+      }));
 
-    let jobId: string;
-    try {
-      const res = await fetch(`/api/templates/${name}/push`, { method: "POST" });
-      if (!res.ok) {
-        const body = await res.json().catch(() => ({ error: "Unknown error" }));
-        writeLine(name, `[error] ${body.error ?? "Failed to start push"}`);
+      let jobId: string;
+      try {
+        const res = await fetch(`/api/templates/${name}/push`, { method: "POST" });
+        if (!res.ok) {
+          const body = await res.json().catch(() => ({ error: "Unknown error" }));
+          writeLine(name, `[error] ${body.error ?? "Failed to start push"}`);
+          setPushStates((prev) => ({
+            ...prev,
+            [name]: { ...prev[name], inProgress: false, result: false },
+          }));
+          return;
+        }
+        const data = await res.json();
+        jobId = data.jobId;
+      } catch (err) {
+        writeLine(name, `[error] ${err instanceof Error ? err.message : String(err)}`);
         setPushStates((prev) => ({
           ...prev,
           [name]: { ...prev[name], inProgress: false, result: false },
         }));
         return;
       }
-      const data = await res.json();
-      jobId = data.jobId;
-    } catch (err) {
-      writeLine(name, `[error] ${err instanceof Error ? err.message : String(err)}`);
+
       setPushStates((prev) => ({
         ...prev,
-        [name]: { ...prev[name], inProgress: false, result: false },
+        [name]: { jobId, inProgress: true, result: null, terminalOpen: true },
       }));
-      return;
-    }
 
-    setPushStates((prev) => ({
-      ...prev,
-      [name]: { jobId, inProgress: true, result: null, terminalOpen: true },
-    }));
+      // Stream output
+      const eventSource = new EventSource(`/api/templates/${name}/push/${jobId}/stream`);
 
-    // Stream output
-    const eventSource = new EventSource(`/api/templates/${name}/push/${jobId}/stream`);
+      eventSource.onmessage = (ev) => {
+        writeLine(name, ev.data);
+      };
 
-    eventSource.onmessage = (ev) => {
-      writeLine(name, ev.data);
-    };
-
-    eventSource.addEventListener("status", (ev) => {
-      try {
-        const payload = JSON.parse((ev as MessageEvent).data);
-        const success = payload.success === true;
-        eventSource.close();
-        // Always write a final status line so the terminal is never blank
-        if (success) {
-          writeLine(name, "\r\n\x1b[32m✓ Push succeeded\x1b[0m");
-        } else {
-          const errDetail = payload.error ? ` — ${payload.error}` : "";
-          writeLine(name, `\r\n\x1b[31m✗ Push failed${errDetail}\x1b[0m`);
+      eventSource.addEventListener("status", (ev) => {
+        try {
+          const payload = JSON.parse((ev as MessageEvent).data);
+          const success = payload.success === true;
+          eventSource.close();
+          // Always write a final status line so the terminal is never blank
+          if (success) {
+            writeLine(name, "\r\n\x1b[32m✓ Push succeeded\x1b[0m");
+          } else {
+            const errDetail = payload.error ? ` — ${payload.error}` : "";
+            writeLine(name, `\r\n\x1b[31m✗ Push failed${errDetail}\x1b[0m`);
+          }
+          setPushStates((prev) => ({
+            ...prev,
+            [name]: { ...prev[name], inProgress: false, result: success },
+          }));
+          if (success) {
+            // Refresh this template's status after a short delay
+            setTimeout(refreshStatuses, 1000);
+          }
+        } catch {
+          // Malformed status event — close anyway
+          eventSource.close();
+          setPushStates((prev) => ({
+            ...prev,
+            [name]: { ...prev[name], inProgress: false, result: false },
+          }));
         }
-        setPushStates((prev) => ({
-          ...prev,
-          [name]: { ...prev[name], inProgress: false, result: success },
-        }));
-        if (success) {
-          // Refresh this template's status after a short delay
-          setTimeout(refreshStatuses, 1000);
-        }
-      } catch {
-        // Malformed status event — close anyway
+      });
+
+      eventSource.onerror = () => {
         eventSource.close();
         setPushStates((prev) => ({
           ...prev,
           [name]: { ...prev[name], inProgress: false, result: false },
         }));
-      }
-    });
-
-    eventSource.onerror = () => {
-      eventSource.close();
-      setPushStates((prev) => ({
-        ...prev,
-        [name]: { ...prev[name], inProgress: false, result: false },
-      }));
-    };
-  }, [refreshStatuses]);
+      };
+    },
+    [refreshStatuses, writeLine],
+  );
 
   const handleCloseTerminal = useCallback((name: string) => {
     setPushStates((prev) => ({
@@ -247,12 +251,8 @@ export function TemplatesClient({ initialStatuses }: TemplatesClientProps) {
                   </TableCell>
                   <TableCell className="text-right">
                     <div className="flex items-center justify-end gap-2">
-                      {push?.result === true && (
-                        <CheckCircle className="h-4 w-4 text-green-500" />
-                      )}
-                      {push?.result === false && (
-                        <XCircle className="h-4 w-4 text-destructive" />
-                      )}
+                      {push?.result === true && <CheckCircle className="h-4 w-4 text-green-500" />}
+                      {push?.result === false && <XCircle className="h-4 w-4 text-destructive" />}
                       <Button
                         size="sm"
                         variant={status.stale ? "default" : "outline"}
@@ -290,13 +290,14 @@ export function TemplatesClient({ initialStatuses }: TemplatesClientProps) {
             <div className="flex items-center gap-2">
               <code className="text-sm font-mono text-muted-foreground">{status.name}</code>
               {push.result === true && (
-                <Badge variant="secondary" className="text-green-600 border-green-600/30 bg-green-500/10">
+                <Badge
+                  variant="secondary"
+                  className="text-green-600 border-green-600/30 bg-green-500/10"
+                >
                   Push succeeded
                 </Badge>
               )}
-              {push.result === false && (
-                <Badge variant="destructive">Push failed</Badge>
-              )}
+              {push.result === false && <Badge variant="destructive">Push failed</Badge>}
             </div>
             <TerminalPanel
               writeRef={getWriteRef(status.name)}

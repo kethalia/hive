@@ -2,12 +2,8 @@
 
 import { revalidatePath } from "next/cache";
 import { cookies } from "next/headers";
-import {
-  compareTemplates,
-  KNOWN_TEMPLATES,
-  type TemplateStatus,
-} from "@/lib/templates/staleness";
 import { getSession } from "@/lib/auth/session";
+import { compareTemplates, KNOWN_TEMPLATES, type TemplateStatus } from "@/lib/templates/staleness";
 
 /**
  * Fetch staleness status for all known templates.

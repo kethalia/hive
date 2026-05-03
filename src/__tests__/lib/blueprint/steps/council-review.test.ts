@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { BlueprintContext } from "@/lib/blueprint/types";
 import type { ExecResult } from "@/lib/workspace/exec";
 
@@ -67,9 +67,7 @@ describe("createCouncilReviewStep", () => {
 
   it("happy path: prompt write succeeds + claude returns valid JSON → success with ctx.councilFindings set", async () => {
     // First call: write prompt file; second call: claude --print
-    mockExec
-      .mockResolvedValueOnce(ok(""))
-      .mockResolvedValueOnce(ok(SAMPLE_FINDINGS_JSON));
+    mockExec.mockResolvedValueOnce(ok("")).mockResolvedValueOnce(ok(SAMPLE_FINDINGS_JSON));
 
     const step = createCouncilReviewStep();
     const ctx = makeCtx();
@@ -122,9 +120,7 @@ describe("createCouncilReviewStep", () => {
   });
 
   it("prompt contains <diff> tags with the diff content", async () => {
-    mockExec
-      .mockResolvedValueOnce(ok(""))
-      .mockResolvedValueOnce(ok(SAMPLE_FINDINGS_JSON));
+    mockExec.mockResolvedValueOnce(ok("")).mockResolvedValueOnce(ok(SAMPLE_FINDINGS_JSON));
 
     const step = createCouncilReviewStep();
     const ctx = makeCtx();
@@ -142,9 +138,7 @@ describe("createCouncilReviewStep", () => {
   });
 
   it("prompt contains JSON schema instructions", async () => {
-    mockExec
-      .mockResolvedValueOnce(ok(""))
-      .mockResolvedValueOnce(ok(SAMPLE_FINDINGS_JSON));
+    mockExec.mockResolvedValueOnce(ok("")).mockResolvedValueOnce(ok(SAMPLE_FINDINGS_JSON));
 
     const step = createCouncilReviewStep();
     const ctx = makeCtx();
@@ -162,9 +156,7 @@ describe("createCouncilReviewStep", () => {
   });
 
   it("uses base64 encoding for prompt to prevent shell injection", async () => {
-    mockExec
-      .mockResolvedValueOnce(ok(""))
-      .mockResolvedValueOnce(ok(SAMPLE_FINDINGS_JSON));
+    mockExec.mockResolvedValueOnce(ok("")).mockResolvedValueOnce(ok(SAMPLE_FINDINGS_JSON));
 
     const step = createCouncilReviewStep();
     const ctx = makeCtx({
@@ -181,18 +173,14 @@ describe("createCouncilReviewStep", () => {
   });
 
   it("logs with council-review prefix", async () => {
-    mockExec
-      .mockResolvedValueOnce(ok(""))
-      .mockResolvedValueOnce(ok(SAMPLE_FINDINGS_JSON));
+    mockExec.mockResolvedValueOnce(ok("")).mockResolvedValueOnce(ok(SAMPLE_FINDINGS_JSON));
     const logSpy = vi.spyOn(console, "log");
 
     const step = createCouncilReviewStep();
     const ctx = makeCtx();
     await step.execute(ctx);
 
-    expect(logSpy).toHaveBeenCalledWith(
-      expect.stringContaining("[blueprint] council-review:"),
-    );
+    expect(logSpy).toHaveBeenCalledWith(expect.stringContaining("[blueprint] council-review:"));
     expect(logSpy).toHaveBeenCalledWith(expect.stringContaining("task=test-task-1"));
   });
 });

@@ -1,17 +1,14 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
-import type { Terminal } from "@xterm/xterm";
 import type { FitAddon } from "@xterm/addon-fit";
-import { cn } from "@/lib/utils";
-import { encodeInput } from "@/lib/terminal/protocol";
-import {
-  useTerminalWebSocket,
-  type ConnectionState,
-} from "@/hooks/useTerminalWebSocket";
-import { Alert, AlertDescription } from "@/components/ui/alert";
+import type { Terminal } from "@xterm/xterm";
 import { AlertCircle } from "lucide-react";
-import { TERMINAL_THEME, TERMINAL_FONT_FAMILY, loadTerminalFont } from "@/lib/terminal/config";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { type ConnectionState, useTerminalWebSocket } from "@/hooks/useTerminalWebSocket";
+import { loadTerminalFont, TERMINAL_FONT_FAMILY, TERMINAL_THEME } from "@/lib/terminal/config";
+import { encodeInput } from "@/lib/terminal/protocol";
+import { cn } from "@/lib/utils";
 import "@/styles/xterm.css";
 
 interface InteractiveTerminalProps {
@@ -25,11 +22,23 @@ interface InteractiveTerminalProps {
 export function connectionBadgeProps(state: ConnectionState) {
   switch (state) {
     case "connected":
-      return { variant: "default" as const, label: "Connected", className: "bg-green-600 text-white" };
+      return {
+        variant: "default" as const,
+        label: "Connected",
+        className: "bg-green-600 text-white",
+      };
     case "connecting":
-      return { variant: "secondary" as const, label: "Connecting…", className: "bg-yellow-600 text-white" };
+      return {
+        variant: "secondary" as const,
+        label: "Connecting…",
+        className: "bg-yellow-600 text-white",
+      };
     case "reconnecting":
-      return { variant: "secondary" as const, label: "Reconnecting…", className: "bg-yellow-600 text-white" };
+      return {
+        variant: "secondary" as const,
+        label: "Reconnecting…",
+        className: "bg-yellow-600 text-white",
+      };
     case "disconnected":
       return { variant: "secondary" as const, label: "Disconnected", className: "" };
     case "failed":
@@ -60,7 +69,9 @@ export function InteractiveTerminal({
           if (typeof id === "string" && Date.now() - ts < RECONNECT_TTL_MS) {
             return id as string;
           }
-        } catch { /* corrupted entry — regenerate */ }
+        } catch {
+          /* corrupted entry — regenerate */
+        }
         window.localStorage.removeItem(storageKey);
       }
     }
@@ -196,15 +207,10 @@ export function InteractiveTerminal({
       termRef.current = null;
       fitRef.current = null;
     };
-  }, [agentId, reconnectId, sessionName]);
+  }, [agentId, reconnectId, sessionName, workspaceId]);
 
   return (
-    <div
-      className={cn(
-        "relative flex flex-col bg-[#0a0a0a] overflow-hidden",
-        className,
-      )}
-    >
+    <div className={cn("relative flex flex-col bg-[#0a0a0a] overflow-hidden", className)}>
       {connectionState === "workspace-offline" && (
         <Alert variant="destructive" className="rounded-none border-x-0 border-t-0">
           <AlertCircle />
@@ -222,6 +228,7 @@ export function InteractiveTerminal({
         </Alert>
       )}
 
+      {/* biome-ignore lint/a11y/useKeyWithClickEvents: focus delegation to xterm which handles its own keyboard */}
       <div ref={containerRef} className="flex-1 p-1" onClick={() => termRef.current?.focus()} />
     </div>
   );

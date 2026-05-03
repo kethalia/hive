@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mockSession = vi.hoisted(() => vi.fn());
 
@@ -17,10 +17,11 @@ vi.mock("@/lib/workspace/stream", () => ({
 vi.mock("@/lib/workspace/naming", () => ({
   workerWorkspaceName: vi.fn((taskId: string) => `hive-worker-${taskId.slice(0, 8)}`),
 }));
+
+import { NextRequest } from "next/server";
 import { GET } from "@/app/api/tasks/[id]/stream/route";
 import { getDb } from "@/lib/db";
 import { streamFromWorkspace } from "@/lib/workspace/stream";
-import { NextRequest } from "next/server";
 
 const mockGetDb = vi.mocked(getDb);
 const mockStreamFromWorkspace = vi.mocked(streamFromWorkspace);
@@ -39,10 +40,9 @@ async function readSSEResponse(response: Response): Promise<string> {
 }
 
 function makeRequest(taskId: string): NextRequest {
-  return new NextRequest(
-    new URL(`http://localhost:3000/api/tasks/${taskId}/stream`),
-    { method: "GET" },
-  );
+  return new NextRequest(new URL(`http://localhost:3000/api/tasks/${taskId}/stream`), {
+    method: "GET",
+  });
 }
 
 function makeParams(taskId: string): Promise<{ id: string }> {
@@ -56,8 +56,18 @@ describe("GET /api/tasks/[id]/stream", () => {
     vi.clearAllMocks();
     vi.spyOn(console, "log").mockImplementation(() => {});
     mockSession.mockResolvedValue({
-      user: { id: "user-1", coderUrl: "https://coder.example.com", coderUserId: "coder-uid", username: "testuser", email: "test@example.com" },
-      session: { id: "s-1", sessionId: "valid-session", expiresAt: new Date(Date.now() + 86400000) },
+      user: {
+        id: "user-1",
+        coderUrl: "https://coder.example.com",
+        coderUserId: "coder-uid",
+        username: "testuser",
+        email: "test@example.com",
+      },
+      session: {
+        id: "s-1",
+        sessionId: "valid-session",
+        expiresAt: new Date(Date.now() + 86400000),
+      },
     });
   });
 

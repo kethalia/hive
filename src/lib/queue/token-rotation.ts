@@ -1,15 +1,15 @@
-import { Queue, Worker, type Job } from "bullmq";
-import { getRedisConnection } from "@/lib/queue/connection";
-import { getDb } from "@/lib/db";
-import { encrypt, tryDecrypt, TOKEN_LIFETIME_SECONDS } from "@hive/auth";
+import { encrypt, TOKEN_LIFETIME_SECONDS, tryDecrypt } from "@hive/auth";
+import { type Job, Queue, Worker } from "bullmq";
 import { CoderClient } from "@/lib/coder/client";
 import {
-  TOKEN_ROTATION_THRESHOLD,
-  TOKEN_ROTATION_QUEUE,
   PUSH_NOTIFICATION_HOURS,
   PUSH_NOTIFICATION_TAG,
+  TOKEN_ROTATION_QUEUE,
+  TOKEN_ROTATION_THRESHOLD,
 } from "@/lib/constants";
+import { getDb } from "@/lib/db";
 import { sendPushToUser } from "@/lib/push/send";
+import { getRedisConnection } from "@/lib/queue/connection";
 
 export interface TokenRotationJobData {
   triggeredAt: string;
@@ -26,9 +26,7 @@ export function getTokenRotationQueue(): Queue<TokenRotationJobData> {
   return queue;
 }
 
-export async function processTokenRotation(
-  job: Job<TokenRotationJobData>
-): Promise<void> {
+export async function processTokenRotation(_job: Job<TokenRotationJobData>): Promise<void> {
   const db = getDb();
   const encryptionKey = process.env.ENCRYPTION_KEY;
   if (!encryptionKey) {
@@ -51,14 +49,11 @@ export async function processTokenRotation(
       : token.createdAt.getTime() + lifetimeMs;
 
     if (now >= effectiveExpiresAt) {
-      console.log(
-        `[token-rotation] Skipped — token expired for user ${userId}`
-      );
+      console.log(`[token-rotation] Skipped — token expired for user ${userId}`);
       continue;
     }
 
-    const threshold =
-      effectiveExpiresAt - lifetimeMs * (1 - thresholdFraction);
+    const threshold = effectiveExpiresAt - lifetimeMs * (1 - thresholdFraction);
 
     if (now < threshold) {
       continue;
@@ -73,11 +68,11 @@ export async function processTokenRotation(
           tag: PUSH_NOTIFICATION_TAG,
         });
         console.log(
-          `[token-rotation] Push notification triggered for user ${userId} (${Math.round(hoursRemaining)}h remaining)`
+          `[token-rotation] Push notification triggered for user ${userId} (${Math.round(hoursRemaining)}h remaining)`,
         );
       } catch (err) {
         console.warn(
-          `[token-rotation] Push notification failed for user ${userId}: ${err instanceof Error ? err.message : String(err)}`
+          `[token-rotation] Push notification failed for user ${userId}: ${err instanceof Error ? err.message : String(err)}`,
         );
       }
     }
@@ -88,13 +83,11 @@ export async function processTokenRotation(
         iv: Buffer.from(token.iv),
         authTag: Buffer.from(token.authTag),
       },
-      encryptionKey
+      encryptionKey,
     );
 
     if (!decryptResult.ok) {
-      console.log(
-        `[token-rotation] Skipped — ${decryptResult.reason} for user ${userId}`
-      );
+      console.log(`[token-rotation] Skipped — ${decryptResult.reason} for user ${userId}`);
       continue;
     }
 
@@ -105,20 +98,16 @@ export async function processTokenRotation(
       coderUrl,
       currentSessionToken,
       userId,
-      TOKEN_LIFETIME_SECONDS
+      TOKEN_LIFETIME_SECONDS,
     );
 
     if (!newKey) {
-      console.log(
-        `[token-rotation] createApiKey failed for user ${userId}`
-      );
+      console.log(`[token-rotation] createApiKey failed for user ${userId}`);
       continue;
     }
 
     const encrypted = encrypt(newKey, encryptionKey);
-    const newExpiresAt = new Date(
-      Date.now() + TOKEN_LIFETIME_SECONDS * 1000
-    );
+    const newExpiresAt = new Date(Date.now() + TOKEN_LIFETIME_SECONDS * 1000);
     const oldVersion = token.version;
 
     const updatedCount = await db.$executeRaw`
@@ -133,23 +122,12 @@ export async function processTokenRotation(
     `;
 
     if (updatedCount === 0) {
-      console.log(
-        `[token-rotation] Skipped — version conflict for user ${userId}`
-      );
+      console.log(`[token-rotation] Skipped — version conflict for user ${userId}`);
       try {
-        const keys = await CoderClient.listApiKeys(
-          coderUrl,
-          currentSessionToken,
-          userId
-        );
+        const keys = await CoderClient.listApiKeys(coderUrl, currentSessionToken, userId);
         for (const k of keys) {
           if (k.id !== newKey.slice(0, 10)) {
-            await CoderClient.deleteApiKey(
-              coderUrl,
-              currentSessionToken,
-              userId,
-              k.id
-            );
+            await CoderClient.deleteApiKey(coderUrl, currentSessionToken, userId, k.id);
           }
         }
       } catch {
@@ -159,47 +137,32 @@ export async function processTokenRotation(
     }
 
     try {
-      const keys = await CoderClient.listApiKeys(
-        coderUrl,
-        newKey,
-        userId
-      );
+      const keys = await CoderClient.listApiKeys(coderUrl, newKey, userId);
       for (const k of keys) {
         if (k.id !== newKey.slice(0, 10)) {
-          const deleted = await CoderClient.deleteApiKey(
-            coderUrl,
-            newKey,
-            userId,
-            k.id
-          );
+          const deleted = await CoderClient.deleteApiKey(coderUrl, newKey, userId, k.id);
           if (!deleted) {
-            console.warn(
-              `[token-rotation] Failed to delete old key ${k.id} for user ${userId}`
-            );
+            console.warn(`[token-rotation] Failed to delete old key ${k.id} for user ${userId}`);
           }
         }
       }
     } catch (err) {
       console.warn(
-        `[token-rotation] Old key cleanup failed for user ${userId}: ${err instanceof Error ? err.message : String(err)}`
+        `[token-rotation] Old key cleanup failed for user ${userId}: ${err instanceof Error ? err.message : String(err)}`,
       );
     }
 
     console.log(
-      `[token-rotation] Rotated token for user ${userId}, version ${oldVersion} → ${oldVersion + 1}`
+      `[token-rotation] Rotated token for user ${userId}, version ${oldVersion} → ${oldVersion + 1}`,
     );
   }
 }
 
 export function createTokenRotationWorker(): Worker<TokenRotationJobData> {
-  return new Worker<TokenRotationJobData>(
-    TOKEN_ROTATION_QUEUE,
-    processTokenRotation,
-    {
-      connection: getRedisConnection(),
-      concurrency: 1,
-    }
-  );
+  return new Worker<TokenRotationJobData>(TOKEN_ROTATION_QUEUE, processTokenRotation, {
+    connection: getRedisConnection(),
+    concurrency: 1,
+  });
 }
 
 export async function scheduleTokenRotation(): Promise<void> {
@@ -207,6 +170,6 @@ export async function scheduleTokenRotation(): Promise<void> {
   await q.upsertJobScheduler(
     "token-rotation-scheduler",
     { every: 60 * 60 * 1000 },
-    { data: { triggeredAt: new Date().toISOString() } }
+    { data: { triggeredAt: new Date().toISOString() } },
   );
 }

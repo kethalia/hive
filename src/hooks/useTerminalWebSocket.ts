@@ -19,10 +19,7 @@ const MAX_RECONNECT_ATTEMPTS = 10;
 const WORKSPACE_OFFLINE_CODE = 4404;
 
 export function computeBackoff(attempt: number): number {
-  const exponential = Math.min(
-    BASE_DELAY_MS * Math.pow(BACKOFF_FACTOR, attempt),
-    MAX_DELAY_MS,
-  );
+  const exponential = Math.min(BASE_DELAY_MS * BACKOFF_FACTOR ** attempt, MAX_DELAY_MS);
   const jitter = (Math.random() - 0.5) * 2 * JITTER_MS;
   return Math.max(0, exponential + jitter);
 }
@@ -44,8 +41,7 @@ export function useTerminalWebSocket({
   onData,
   onStateChange,
 }: UseTerminalWebSocketProps): UseTerminalWebSocketReturn {
-  const [connectionState, setConnectionState] =
-    useState<ConnectionState>("disconnected");
+  const [connectionState, setConnectionState] = useState<ConnectionState>("disconnected");
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const attemptRef = useRef(0);
@@ -85,9 +81,7 @@ export function useTerminalWebSocket({
     const isReconnect = attemptRef.current > 0;
     updateState(isReconnect ? "reconnecting" : "connecting");
     if (isReconnect) {
-      console.log(
-        `[terminal] Reconnect attempt ${attemptRef.current}/${MAX_RECONNECT_ATTEMPTS}`,
-      );
+      console.log(`[terminal] Reconnect attempt ${attemptRef.current}/${MAX_RECONNECT_ATTEMPTS}`);
     }
 
     const ws = new WebSocket(url);
@@ -118,17 +112,13 @@ export function useTerminalWebSocket({
 
       if (event.code === WORKSPACE_OFFLINE_CODE) {
         updateState("workspace-offline");
-        console.log(
-          `[terminal] Workspace offline (code ${event.code}): ${event.reason}`,
-        );
+        console.log(`[terminal] Workspace offline (code ${event.code}): ${event.reason}`);
         return;
       }
 
       if (attemptRef.current >= MAX_RECONNECT_ATTEMPTS) {
         updateState("failed");
-        console.log(
-          `[terminal] Max reconnect attempts (${MAX_RECONNECT_ATTEMPTS}) reached`,
-        );
+        console.log(`[terminal] Max reconnect attempts (${MAX_RECONNECT_ATTEMPTS}) reached`);
         return;
       }
 

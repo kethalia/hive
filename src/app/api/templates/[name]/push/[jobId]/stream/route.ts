@@ -1,10 +1,10 @@
-import { NextRequest } from "next/server";
+import { createReadStream, existsSync, statSync } from "node:fs";
 import { cookies } from "next/headers";
+import type { NextRequest } from "next/server";
 import { getSession } from "@/lib/auth/session";
-import { existsSync, statSync, createReadStream } from "fs";
+import { SSE_LOG_WAIT_TIMEOUT_MS, SSE_MAX_POLLS, SSE_POLL_INTERVAL_MS } from "@/lib/constants";
 import { pushLogPath } from "@/lib/templates/push-queue";
 import { KNOWN_TEMPLATES } from "@/lib/templates/staleness";
-import { SSE_POLL_INTERVAL_MS, SSE_LOG_WAIT_TIMEOUT_MS, SSE_MAX_POLLS } from "@/lib/constants";
 
 /** Regex allowing job IDs (UUID v4 format). */
 const JOB_ID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -23,7 +23,7 @@ const JOB_ID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}
  */
 export async function GET(
   request: NextRequest,
-  { params }: { params: Promise<{ name: string; jobId: string }> }
+  { params }: { params: Promise<{ name: string; jobId: string }> },
 ) {
   const { name, jobId } = await params;
 
@@ -127,7 +127,10 @@ export async function GET(
           }
 
           if (pollCount >= MAX_POLLS) {
-            sendEvent("status", JSON.stringify({ success: false, error: "Timed out waiting for completion" }));
+            sendEvent(
+              "status",
+              JSON.stringify({ success: false, error: "Timed out waiting for completion" }),
+            );
             resolve();
             return;
           }
@@ -141,7 +144,10 @@ export async function GET(
           } catch {
             // File may have been cleaned up — stop polling
             if (!finished) {
-              sendEvent("status", JSON.stringify({ success: false, error: "Log file disappeared" }));
+              sendEvent(
+                "status",
+                JSON.stringify({ success: false, error: "Log file disappeared" }),
+              );
             }
             resolve();
             return;

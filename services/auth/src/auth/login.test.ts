@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mockPrisma = vi.hoisted(() => ({
   user: {
@@ -13,19 +13,14 @@ vi.mock("../db.js", () => ({
   getDb: () => mockPrisma,
 }));
 
-const {
-  mockCreateSession,
-  mockEncrypt,
-  mockValidateInstance,
-  mockLogin,
-  mockCreateApiKey,
-} = vi.hoisted(() => ({
-  mockCreateSession: vi.fn(),
-  mockEncrypt: vi.fn(),
-  mockValidateInstance: vi.fn(),
-  mockLogin: vi.fn(),
-  mockCreateApiKey: vi.fn(),
-}));
+const { mockCreateSession, mockEncrypt, mockValidateInstance, mockLogin, mockCreateApiKey } =
+  vi.hoisted(() => ({
+    mockCreateSession: vi.fn(),
+    mockEncrypt: vi.fn(),
+    mockValidateInstance: vi.fn(),
+    mockLogin: vi.fn(),
+    mockCreateApiKey: vi.fn(),
+  }));
 
 vi.mock("./session.js", () => ({
   createSession: (...args: unknown[]) => mockCreateSession(...args),
@@ -81,7 +76,7 @@ describe("performLogin", () => {
     const result = await performLogin(
       "https://coder.example.com",
       "test@example.com",
-      "password123"
+      "password123",
     );
 
     expect(result.sessionId).toBe("new-session-id");
@@ -105,15 +100,12 @@ describe("performLogin", () => {
     const result = await performLogin(
       "https://coder.example.com",
       "test@example.com",
-      "password123"
+      "password123",
     );
 
     expect(result.sessionId).toBe("new-session-id");
     expect(mockCreateApiKey).toHaveBeenCalledTimes(3);
-    expect(mockEncrypt).toHaveBeenCalledWith(
-      "session-token-123",
-      TEST_ENCRYPTION_KEY
-    );
+    expect(mockEncrypt).toHaveBeenCalledWith("session-token-123", TEST_ENCRYPTION_KEY);
   });
 
   it("rejects invalid Coder URL", async () => {
@@ -122,9 +114,9 @@ describe("performLogin", () => {
       reason: "DNS resolution failed",
     });
 
-    await expect(
-      performLogin("https://invalid.example.com", "a@b.com", "pass")
-    ).rejects.toThrow("Invalid Coder instance: DNS resolution failed");
+    await expect(performLogin("https://invalid.example.com", "a@b.com", "pass")).rejects.toThrow(
+      "Invalid Coder instance: DNS resolution failed",
+    );
 
     expect(mockLogin).not.toHaveBeenCalled();
   });
@@ -133,9 +125,9 @@ describe("performLogin", () => {
     mockValidateInstance.mockResolvedValue({ valid: true, version: "2.8.0" });
     mockLogin.mockRejectedValue(new Error("invalid credentials"));
 
-    await expect(
-      performLogin("https://coder.example.com", "a@b.com", "wrong")
-    ).rejects.toThrow("invalid credentials");
+    await expect(performLogin("https://coder.example.com", "a@b.com", "wrong")).rejects.toThrow(
+      "invalid credentials",
+    );
 
     expect(mockCreateApiKey).not.toHaveBeenCalled();
   });
@@ -151,9 +143,9 @@ describe("performLogin", () => {
     });
     mockCreateApiKey.mockResolvedValue("api-key-xyz");
 
-    await expect(
-      performLogin("https://coder.example.com", "a@b.com", "pass")
-    ).rejects.toThrow("ENCRYPTION_KEY environment variable is not set");
+    await expect(performLogin("https://coder.example.com", "a@b.com", "pass")).rejects.toThrow(
+      "ENCRYPTION_KEY environment variable is not set",
+    );
   });
 
   it("succeeds on second API key retry", async () => {
@@ -163,22 +155,17 @@ describe("performLogin", () => {
       userId: "coder-uid",
       username: "testuser",
     });
-    mockCreateApiKey
-      .mockResolvedValueOnce(null)
-      .mockResolvedValueOnce("api-key-retry");
+    mockCreateApiKey.mockResolvedValueOnce(null).mockResolvedValueOnce("api-key-retry");
 
     const result = await performLogin(
       "https://coder.example.com",
       "test@example.com",
-      "password123"
+      "password123",
     );
 
     expect(result.sessionId).toBe("new-session-id");
     expect(mockCreateApiKey).toHaveBeenCalledTimes(2);
-    expect(mockEncrypt).toHaveBeenCalledWith(
-      "api-key-retry",
-      TEST_ENCRYPTION_KEY
-    );
+    expect(mockEncrypt).toHaveBeenCalledWith("api-key-retry", TEST_ENCRYPTION_KEY);
   });
 
   it("strips trailing slash from coderUrl in user upsert", async () => {
@@ -190,16 +177,10 @@ describe("performLogin", () => {
     });
     mockCreateApiKey.mockResolvedValue("key");
 
-    await performLogin(
-      "https://coder.example.com/",
-      "test@example.com",
-      "pass"
-    );
+    await performLogin("https://coder.example.com/", "test@example.com", "pass");
 
     const upsertCall = mockPrisma.user.upsert.mock.calls[0][0];
-    expect(upsertCall.where.coderUrl_coderUserId.coderUrl).toBe(
-      "https://coder.example.com"
-    );
+    expect(upsertCall.where.coderUrl_coderUserId.coderUrl).toBe("https://coder.example.com");
     expect(upsertCall.create.coderUrl).toBe("https://coder.example.com");
   });
 });

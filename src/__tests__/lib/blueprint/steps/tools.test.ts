@@ -1,9 +1,11 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { BlueprintContext } from "@/lib/blueprint/types";
 import type { ExecResult } from "@/lib/workspace/exec";
+
 vi.mock("@/lib/workspace/exec", () => ({
   execInWorkspace: vi.fn(),
 }));
+
 import { createToolsStep } from "@/lib/blueprint/steps/tools";
 import { execInWorkspace } from "@/lib/workspace/exec";
 
@@ -44,10 +46,12 @@ describe("createToolsStep", () => {
     const ctx = makeCtx();
 
     mockExec.mockImplementation(async () =>
-      ok(JSON.stringify({
-        dependencies: { next: "14.0.0", react: "18.0.0" },
-        devDependencies: { vitest: "1.0.0" },
-      })),
+      ok(
+        JSON.stringify({
+          dependencies: { next: "14.0.0", react: "18.0.0" },
+          devDependencies: { vitest: "1.0.0" },
+        }),
+      ),
     );
 
     const result = await step.execute(ctx);
@@ -68,10 +72,12 @@ describe("createToolsStep", () => {
     const ctx = makeCtx();
 
     mockExec.mockImplementation(async () =>
-      ok(JSON.stringify({
-        dependencies: { express: "4.18.0" },
-        devDependencies: {},
-      })),
+      ok(
+        JSON.stringify({
+          dependencies: { express: "4.18.0" },
+          devDependencies: {},
+        }),
+      ),
     );
 
     const result = await step.execute(ctx);
@@ -100,10 +106,12 @@ describe("createToolsStep", () => {
     const ctx = makeCtx();
 
     mockExec.mockImplementation(async () =>
-      ok(JSON.stringify({
-        dependencies: {},
-        devDependencies: { jest: "29.0.0", typescript: "5.0.0" },
-      })),
+      ok(
+        JSON.stringify({
+          dependencies: {},
+          devDependencies: { jest: "29.0.0", typescript: "5.0.0" },
+        }),
+      ),
     );
 
     const result = await step.execute(ctx);

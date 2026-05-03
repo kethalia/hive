@@ -1,0 +1,57 @@
+# hive umbrella values.
+#
+# Per-child overrides. `existingSecret` points each child's envFrom at the
+# umbrella-rendered Secret. The literal value MUST match the umbrella
+# Secret's rendered name. With release name `hive` (the convention this
+# umbrella assumes), fullname collapses to `hive` and the Secret resolves
+# to `hive-secrets`. If you install with a different release name, override
+# these values (and the corresponding Secret name) accordingly.
+
+hive-web:
+  enabled: true
+  existingSecret: hive-secrets
+
+hive-auth:
+  enabled: true
+  existingSecret: hive-secrets
+
+hive-terminal:
+  enabled: true
+  existingSecret: hive-secrets
+
+# Stub application secrets consumed by the umbrella Secret template.
+# Replace every value via -f values-<env>.yaml in real deployments.
+# These placeholders are obviously-fake on purpose — never commit real
+# credentials here.
+sharedSecret:
+  COOKIE_SECRET: replace-me
+  ENCRYPTION_KEY: replace-me-32-bytes-hex-for-aes256
+
+# Bitnami postgresql — ephemeral defaults for preview environments.
+# Persistence is disabled so the volume is wiped on every redeploy. The
+# preview password is a placeholder; production deployments MUST override
+# postgresql.auth.password via a sealed secret or external secrets store.
+postgresql:
+  enabled: true
+  architecture: standalone
+  auth:
+    username: hive
+    password: hive-preview-ephemeral
+    database: hive
+  primary:
+    persistence:
+      enabled: false
+
+# Bitnami redis — ephemeral defaults for preview environments.
+# Standalone (no replica), persistence disabled, preview-only password.
+redis:
+  enabled: true
+  architecture: standalone
+  auth:
+    enabled: true
+    password: hive-preview-ephemeral
+  master:
+    persistence:
+      enabled: false
+  replica:
+    replicaCount: 0

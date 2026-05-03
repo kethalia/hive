@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mockSendPushToUser = vi.hoisted(() => vi.fn());
 
@@ -28,15 +28,15 @@ vi.mock("@/lib/queue/connection", () => ({
   getRedisConnection: vi.fn(),
 }));
 
-import { getDb } from "@/lib/db";
-import { tryDecrypt, encrypt, TOKEN_LIFETIME_SECONDS } from "@hive/auth";
+import { encrypt, TOKEN_LIFETIME_SECONDS, tryDecrypt } from "@hive/auth";
 import { CoderClient } from "@/lib/coder/client";
-import { processTokenRotation } from "@/lib/queue/token-rotation";
 import {
-  TOKEN_ROTATION_THRESHOLD,
   PUSH_NOTIFICATION_HOURS,
   PUSH_NOTIFICATION_TAG,
+  TOKEN_ROTATION_THRESHOLD,
 } from "@/lib/constants";
+import { getDb } from "@/lib/db";
+import { processTokenRotation } from "@/lib/queue/token-rotation";
 
 const LIFETIME_MS = TOKEN_LIFETIME_SECONDS * 1000;
 
@@ -157,7 +157,7 @@ describe("token rotation push notification integration", () => {
       "https://coder.example.com",
       "current-session-token",
       "coder-uid-1",
-      TOKEN_LIFETIME_SECONDS
+      TOKEN_LIFETIME_SECONDS,
     );
     expect(mockDb.$executeRaw).toHaveBeenCalled();
   });
@@ -178,7 +178,7 @@ describe("token rotation push notification integration", () => {
 
     expect(CoderClient.createApiKey).toHaveBeenCalled();
     expect(warnSpy).toHaveBeenCalledWith(
-      expect.stringContaining("[token-rotation] Push notification failed")
+      expect.stringContaining("[token-rotation] Push notification failed"),
     );
     warnSpy.mockRestore();
   });

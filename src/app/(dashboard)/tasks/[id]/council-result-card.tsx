@@ -1,18 +1,15 @@
 "use client";
 
-import { useState } from "react";
+import { ExternalLink } from "lucide-react";
 import Link from "next/link";
-import type { CouncilReport, AggregatedFinding } from "@/lib/council/types";
+import { useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { ExternalLink } from "lucide-react";
+import type { AggregatedFinding, CouncilReport } from "@/lib/council/types";
 
 /** Badge variant for council outcome. */
-const outcomeVariant: Record<
-  CouncilReport["outcome"],
-  "default" | "secondary" | "destructive"
-> = {
+const outcomeVariant: Record<CouncilReport["outcome"], "default" | "secondary" | "destructive"> = {
   complete: "default",
   partial: "secondary",
   inconclusive: "destructive",
@@ -42,10 +39,9 @@ export function CouncilResultCard({ report }: { report: CouncilReport }) {
     count: report.findings.filter((f) => f.severity === key).length,
   }));
 
-  const visibleItems =
-    expanded
-      ? report.consensusItems
-      : report.consensusItems.slice(0, CONSENSUS_PREVIEW_COUNT);
+  const visibleItems = expanded
+    ? report.consensusItems
+    : report.consensusItems.slice(0, CONSENSUS_PREVIEW_COUNT);
 
   const hasMore = report.consensusItems.length > CONSENSUS_PREVIEW_COUNT;
 
@@ -72,7 +68,8 @@ export function CouncilResultCard({ report }: { report: CouncilReport }) {
             if (!cfg) return null;
             return (
               <Badge key={key} variant="outline" data-testid={cfg.testId}>
-                <span aria-hidden="true">{cfg.emoji} </span>{cfg.label} {count}
+                <span aria-hidden="true">{cfg.emoji} </span>
+                {cfg.label} {count}
               </Badge>
             );
           })}

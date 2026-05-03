@@ -1,5 +1,5 @@
-import type { CoderClient } from "@/lib/coder/client";
 import type { PrismaClient } from "@prisma/client";
+import type { CoderClient } from "@/lib/coder/client";
 import { DEFAULT_CLEANUP_GRACE_MS } from "@/lib/constants";
 import { cleanupWorkspace } from "./cleanup";
 
@@ -36,10 +36,7 @@ export function startCleanupScheduler(
       ? Number(process.env.CLEANUP_GRACE_MS)
       : DEFAULT_CLEANUP_GRACE_MS);
   // Fall back when parsing produced NaN/Infinity, then clamp to non-negative.
-  const graceMs = Math.max(
-    0,
-    Number.isFinite(rawGraceMs) ? rawGraceMs : DEFAULT_CLEANUP_GRACE_MS,
-  );
+  const graceMs = Math.max(0, Number.isFinite(rawGraceMs) ? rawGraceMs : DEFAULT_CLEANUP_GRACE_MS);
 
   let sweepInProgress = false;
 
@@ -71,11 +68,7 @@ export function startCleanupScheduler(
  * Single sweep: find stale workspaces and clean them up.
  * Never throws — all errors are logged.
  */
-async function sweep(
-  coderClient: CoderClient,
-  db: PrismaClient,
-  graceMs: number,
-): Promise<void> {
+async function sweep(coderClient: CoderClient, db: PrismaClient, graceMs: number): Promise<void> {
   try {
     const cutoff = new Date(Date.now() - graceMs);
 
@@ -91,9 +84,7 @@ async function sweep(
       include: { task: true },
     });
 
-    console.log(
-      `[cleanup-scheduler] sweep found ${staleWorkspaces.length} stale workspace(s)`,
-    );
+    console.log(`[cleanup-scheduler] sweep found ${staleWorkspaces.length} stale workspace(s)`);
 
     let cleaned = 0;
     for (const ws of staleWorkspaces) {
@@ -108,9 +99,7 @@ async function sweep(
       }
     }
 
-    console.log(
-      `[cleanup-scheduler] sweep complete: ${cleaned}/${staleWorkspaces.length} cleaned`,
-    );
+    console.log(`[cleanup-scheduler] sweep complete: ${cleaned}/${staleWorkspaces.length} cleaned`);
   } catch (error) {
     const msg = error instanceof Error ? error.message : String(error);
     console.error(`[cleanup-scheduler] sweep error: ${msg}`);

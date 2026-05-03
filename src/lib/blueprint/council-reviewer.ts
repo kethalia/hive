@@ -1,8 +1,8 @@
-import type { BlueprintStep } from "./types";
 import { createCouncilCloneStep } from "./steps/council-clone";
 import { createCouncilDiffStep } from "./steps/council-diff";
-import { createCouncilReviewStep } from "./steps/council-review";
 import { createCouncilEmitStep } from "./steps/council-emit";
+import { createCouncilReviewStep } from "./steps/council-review";
+import type { BlueprintStep } from "./types";
 
 /**
  * Create the council reviewer blueprint.

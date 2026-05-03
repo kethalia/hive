@@ -17,7 +17,9 @@ describe("buildPtyUrl", () => {
     expect(parsed.searchParams.get("reconnect")).toBe(defaults.reconnectId);
     expect(parsed.searchParams.get("width")).toBe("80");
     expect(parsed.searchParams.get("height")).toBe("24");
-    expect(parsed.searchParams.get("command")).toBe("tmux -L web new-session -A -s my-session \\; set status off \\; set mouse off \\; set -g terminal-overrides \",xterm*:smcup@:rmcup@\"");
+    expect(parsed.searchParams.get("command")).toBe(
+      'tmux -L web new-session -A -s my-session \\; set status off \\; set mouse off \\; set -g terminal-overrides ",xterm*:smcup@:rmcup@"',
+    );
   });
 
   it("converts http:// to ws://", () => {
@@ -48,7 +50,9 @@ describe("buildPtyUrl", () => {
       sessionName: "dev-shell",
     });
     const parsed = new URL(url);
-    expect(parsed.searchParams.get("command")).toBe("tmux -L web new-session -A -s dev-shell \\; set status off \\; set mouse off \\; set -g terminal-overrides \",xterm*:smcup@:rmcup@\"");
+    expect(parsed.searchParams.get("command")).toBe(
+      'tmux -L web new-session -A -s dev-shell \\; set status off \\; set mouse off \\; set -g terminal-overrides ",xterm*:smcup@:rmcup@"',
+    );
   });
 
   it("rejects session name with spaces", () => {

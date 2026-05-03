@@ -50,10 +50,7 @@ export class CoderClient {
    * Authenticated fetch wrapper. Adds session token header and
    * Content-Type. Throws a descriptive error on non-2xx responses.
    */
-  private async request<T>(
-    path: string,
-    init?: RequestInit
-  ): Promise<T> {
+  private async request<T>(path: string, init?: RequestInit): Promise<T> {
     const url = `${this.baseUrl}${path}`;
     const res = await fetch(url, {
       ...init,
@@ -71,9 +68,7 @@ export class CoderClient {
       } catch {
         body = "(unable to read response body)";
       }
-      throw new Error(
-        `[coder] Request failed: ${res.status} ${res.statusText} — ${body}`
-      );
+      throw new Error(`[coder] Request failed: ${res.status} ${res.statusText} — ${body}`);
     }
 
     return res.json() as Promise<T>;
@@ -89,7 +84,7 @@ export class CoderClient {
   async createWorkspace(
     templateId: string,
     name: string,
-    params: Record<string, string> = {}
+    params: Record<string, string> = {},
   ): Promise<CoderWorkspace> {
     const body: CreateWorkspaceRequest = {
       name,
@@ -102,52 +97,49 @@ export class CoderClient {
 
     console.log(`[coder] Creating workspace "${name}" from template ${templateId}`);
 
-    return this.request<CoderWorkspace>(
-      "/api/v2/organizations/default/members/me/workspaces",
-      { method: "POST", body: JSON.stringify(body) }
-    );
+    return this.request<CoderWorkspace>("/api/v2/organizations/default/members/me/workspaces", {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
   }
 
   /** Fetch a workspace by ID. */
   async getWorkspace(workspaceId: string): Promise<CoderWorkspace> {
-    return this.request<CoderWorkspace>(
-      `/api/v2/workspaces/${workspaceId}`
-    );
+    return this.request<CoderWorkspace>(`/api/v2/workspaces/${workspaceId}`);
   }
 
   /**
    * List workspaces with optional filters.
    * Maps owner/status to the Coder `q` query-string parameter.
    */
-  async listWorkspaces(
-    options?: { owner?: string; status?: WorkspaceBuildStatus }
-  ): Promise<ListWorkspacesResponse> {
+  async listWorkspaces(options?: {
+    owner?: string;
+    status?: WorkspaceBuildStatus;
+  }): Promise<ListWorkspacesResponse> {
     const parts: string[] = [];
     if (options?.owner) parts.push(`owner:${options.owner}`);
     if (options?.status) parts.push(`status:${options.status}`);
 
     const query = parts.length > 0 ? `?q=${encodeURIComponent(parts.join(" "))}` : "";
-    return this.request<ListWorkspacesResponse>(
-      `/api/v2/workspaces${query}`
-    );
+    return this.request<ListWorkspacesResponse>(`/api/v2/workspaces${query}`);
   }
 
   /** Trigger a stop build for a workspace. */
   async stopWorkspace(workspaceId: string): Promise<void> {
     console.log(`[coder] Stopping workspace ${workspaceId}`);
-    await this.request(
-      `/api/v2/workspaces/${workspaceId}/builds`,
-      { method: "POST", body: JSON.stringify({ transition: "stop" }) }
-    );
+    await this.request(`/api/v2/workspaces/${workspaceId}/builds`, {
+      method: "POST",
+      body: JSON.stringify({ transition: "stop" }),
+    });
   }
 
   /** Trigger a delete build for a workspace. */
   async deleteWorkspace(workspaceId: string): Promise<void> {
     console.log(`[coder] Deleting workspace ${workspaceId}`);
-    await this.request(
-      `/api/v2/workspaces/${workspaceId}/builds`,
-      { method: "POST", body: JSON.stringify({ transition: "delete" }) }
-    );
+    await this.request(`/api/v2/workspaces/${workspaceId}/builds`, {
+      method: "POST",
+      body: JSON.stringify({ transition: "delete" }),
+    });
   }
 
   /**
@@ -160,7 +152,7 @@ export class CoderClient {
   async waitForBuild(
     workspaceId: string,
     targetStatus: string,
-    opts?: WaitForBuildOptions
+    opts?: WaitForBuildOptions,
   ): Promise<CoderWorkspace> {
     const timeoutMs = opts?.timeoutMs ?? 120_000;
     const startInterval = opts?.intervalMs ?? 1_000;
@@ -173,9 +165,7 @@ export class CoderClient {
       const ws = await this.getWorkspace(workspaceId);
       const currentStatus = ws.latest_build.status;
 
-      console.log(
-        `[coder] Waiting for workspace ${workspaceId}: ${currentStatus}`
-      );
+      console.log(`[coder] Waiting for workspace ${workspaceId}: ${currentStatus}`);
 
       if (currentStatus === targetStatus) {
         return ws;
@@ -183,9 +173,7 @@ export class CoderClient {
 
       if (currentStatus === "failed") {
         const errMsg = ws.latest_build.job?.error || "unknown error";
-        throw new Error(
-          `[coder] Workspace ${workspaceId} build failed: ${errMsg}`
-        );
+        throw new Error(`[coder] Workspace ${workspaceId} build failed: ${errMsg}`);
       }
 
       await this.sleep(interval);
@@ -193,7 +181,7 @@ export class CoderClient {
     }
 
     throw new Error(
-      `[coder] Timeout waiting for workspace ${workspaceId} to reach "${targetStatus}" after ${timeoutMs}ms`
+      `[coder] Timeout waiting for workspace ${workspaceId} to reach "${targetStatus}" after ${timeoutMs}ms`,
     );
   }
 
@@ -203,9 +191,7 @@ export class CoderClient {
   async getWorkspaceResources(workspaceId: string): Promise<WorkspaceResource[]> {
     const ws = await this.getWorkspace(workspaceId);
     const buildId = ws.latest_build.id;
-    return this.request<WorkspaceResource[]>(
-      `/api/v2/workspacebuilds/${buildId}/resources`
-    );
+    return this.request<WorkspaceResource[]>(`/api/v2/workspacebuilds/${buildId}/resources`);
   }
 
   /**
@@ -216,7 +202,7 @@ export class CoderClient {
   async getWorkspaceAgentName(workspaceId: string): Promise<string> {
     const ws = await this.getWorkspace(workspaceId);
     const resources = await this.request<WorkspaceResource[]>(
-      `/api/v2/workspacebuilds/${ws.latest_build.id}/resources`
+      `/api/v2/workspacebuilds/${ws.latest_build.id}/resources`,
     );
     for (const resource of resources) {
       if (resource.agents && resource.agents.length > 0) {
@@ -224,7 +210,7 @@ export class CoderClient {
       }
     }
     throw new Error(
-      `[coder] No agents found for workspace ${workspaceId} — cannot resolve SSH target`
+      `[coder] No agents found for workspace ${workspaceId} — cannot resolve SSH target`,
     );
   }
 
@@ -234,9 +220,11 @@ export class CoderClient {
    * List all templates in the default organization.
    * Returns a normalized subset of each template object.
    */
-  async listTemplates(): Promise<{ id: string; name: string; activeVersionId: string; updatedAt: string }[]> {
+  async listTemplates(): Promise<
+    { id: string; name: string; activeVersionId: string; updatedAt: string }[]
+  > {
     const templates = await this.request<CoderTemplate[]>(
-      "/api/v2/organizations/default/templates"
+      "/api/v2/organizations/default/templates",
     );
     return templates.map((t) => ({
       id: t.id,
@@ -250,9 +238,11 @@ export class CoderClient {
    * Fetch a single template version by ID.
    * Returns id, name, fileId (for tar download), createdAt, and message.
    */
-  async getTemplateVersion(versionId: string): Promise<{ id: string; name: string; fileId: string; createdAt: string; message: string }> {
+  async getTemplateVersion(
+    versionId: string,
+  ): Promise<{ id: string; name: string; fileId: string; createdAt: string; message: string }> {
     const version = await this.request<CoderTemplateVersion>(
-      `/api/v2/templateversions/${versionId}`
+      `/api/v2/templateversions/${versionId}`,
     );
     return {
       id: version.id,
@@ -283,7 +273,7 @@ export class CoderClient {
         body = "(unable to read response body)";
       }
       throw new Error(
-        `[coder] fetchTemplateFiles failed: ${res.status} ${res.statusText} — ${body}`
+        `[coder] fetchTemplateFiles failed: ${res.status} ${res.statusText} — ${body}`,
       );
     }
 
@@ -308,8 +298,7 @@ export class CoderClient {
       }
       return { valid: true, version: data.version };
     } catch (err: unknown) {
-      const message =
-        err instanceof Error ? err.message.toLowerCase() : String(err);
+      const message = err instanceof Error ? err.message.toLowerCase() : String(err);
       if (
         message.includes("getaddrinfo") ||
         message.includes("enotfound") ||
@@ -328,11 +317,7 @@ export class CoderClient {
     }
   }
 
-  static async login(
-    baseUrl: string,
-    email: string,
-    password: string
-  ): Promise<LoginResult> {
+  static async login(baseUrl: string, email: string, password: string): Promise<LoginResult> {
     const url = baseUrl.replace(/\/+$/, "");
     const body: LoginRequest = { email, password };
     const res = await fetch(`${url}/api/v2/users/login`, {
@@ -347,9 +332,7 @@ export class CoderClient {
         throw new Error("invalid credentials");
       }
       const text = await res.text().catch(() => "");
-      throw new Error(
-        `login failed: ${res.status} ${res.statusText} — ${text}`
-      );
+      throw new Error(`login failed: ${res.status} ${res.statusText} — ${text}`);
     }
 
     const loginData = (await res.json()) as LoginResponse;
@@ -379,12 +362,10 @@ export class CoderClient {
     baseUrl: string,
     sessionToken: string,
     userId: string,
-    lifetimeSeconds?: number
+    lifetimeSeconds?: number,
   ): Promise<string | null> {
     const url = baseUrl.replace(/\/+$/, "");
-    const body: CreateApiKeyRequest = lifetimeSeconds
-      ? { lifetime_seconds: lifetimeSeconds }
-      : {};
+    const body: CreateApiKeyRequest = lifetimeSeconds ? { lifetime_seconds: lifetimeSeconds } : {};
     try {
       const res = await fetch(`${url}/api/v2/users/${userId}/keys`, {
         method: "POST",
@@ -397,9 +378,7 @@ export class CoderClient {
       });
 
       if (!res.ok) {
-        console.log(
-          `[coder] API key creation failed: ${res.status} ${res.statusText}`
-        );
+        console.log(`[coder] API key creation failed: ${res.status} ${res.statusText}`);
         return null;
       }
 
@@ -407,7 +386,7 @@ export class CoderClient {
       return data.key;
     } catch (err) {
       console.log(
-        `[coder] API key creation error: ${err instanceof Error ? err.message : String(err)}`
+        `[coder] API key creation error: ${err instanceof Error ? err.message : String(err)}`,
       );
       return null;
     }
@@ -416,7 +395,7 @@ export class CoderClient {
   static async listApiKeys(
     baseUrl: string,
     sessionToken: string,
-    userId: string
+    userId: string,
   ): Promise<ApiKeyInfo[]> {
     const url = baseUrl.replace(/\/+$/, "");
     try {
@@ -429,9 +408,7 @@ export class CoderClient {
       });
 
       if (!res.ok) {
-        console.warn(
-          `[coder] listApiKeys failed: ${res.status} ${res.statusText}`
-        );
+        console.warn(`[coder] listApiKeys failed: ${res.status} ${res.statusText}`);
         return [];
       }
 
@@ -443,7 +420,7 @@ export class CoderClient {
       return data as ApiKeyInfo[];
     } catch (err) {
       console.warn(
-        `[coder] listApiKeys error: ${err instanceof Error ? err.message : String(err)}`
+        `[coder] listApiKeys error: ${err instanceof Error ? err.message : String(err)}`,
       );
       return [];
     }
@@ -453,30 +430,25 @@ export class CoderClient {
     baseUrl: string,
     sessionToken: string,
     userId: string,
-    keyId: string
+    keyId: string,
   ): Promise<boolean> {
     const url = baseUrl.replace(/\/+$/, "");
     try {
-      const res = await fetch(
-        `${url}/api/v2/users/${userId}/keys/${keyId}`,
-        {
-          method: "DELETE",
-          headers: {
-            "Coder-Session-Token": sessionToken,
-          },
-          signal: AbortSignal.timeout(10_000),
-        }
-      );
+      const res = await fetch(`${url}/api/v2/users/${userId}/keys/${keyId}`, {
+        method: "DELETE",
+        headers: {
+          "Coder-Session-Token": sessionToken,
+        },
+        signal: AbortSignal.timeout(10_000),
+      });
       if (!res.ok && res.status !== 204) {
-        console.warn(
-          `[coder] deleteApiKey failed: ${res.status} ${res.statusText}`
-        );
+        console.warn(`[coder] deleteApiKey failed: ${res.status} ${res.statusText}`);
         return false;
       }
       return true;
     } catch (err) {
       console.warn(
-        `[coder] deleteApiKey error: ${err instanceof Error ? err.message : String(err)}`
+        `[coder] deleteApiKey error: ${err instanceof Error ? err.message : String(err)}`,
       );
       return false;
     }

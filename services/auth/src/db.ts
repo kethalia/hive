@@ -6,9 +6,7 @@ export function getDb(): PrismaClient {
   if (!prisma) {
     const url = process.env.DATABASE_URL;
     if (!url) {
-      throw new Error(
-        "[auth-service] DATABASE_URL environment variable is not set."
-      );
+      throw new Error("[auth-service] DATABASE_URL environment variable is not set.");
     }
     prisma = new PrismaClient();
   }

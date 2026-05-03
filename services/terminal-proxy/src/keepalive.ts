@@ -65,10 +65,7 @@ export class KeepAliveManager {
   private healthMap = new Map<string, WorkspaceHealth>();
   private intervalId: ReturnType<typeof setInterval> | null = null;
 
-  constructor(
-    registry: ConnectionRegistry,
-    defaultCoderUrl: string,
-  ) {
+  constructor(registry: ConnectionRegistry, defaultCoderUrl: string) {
     this.registry = registry;
     this.defaultCoderUrl = defaultCoderUrl.replace(/\/+$/, "");
   }
@@ -106,9 +103,7 @@ export class KeepAliveManager {
 
     if (workspaceIds.length === 0) return;
 
-    await Promise.allSettled(
-      workspaceIds.map((id) => this.ping(id)),
-    );
+    await Promise.allSettled(workspaceIds.map((id) => this.ping(id)));
   }
 
   async ping(workspaceId: string): Promise<void> {
@@ -164,7 +159,9 @@ export class KeepAliveManager {
       health.consecutiveFailures++;
       health.lastFailure = new Date().toISOString();
       health.lastError = message;
-      console.error(`[keep-alive] ping failed workspace=${workspaceId} failures=${health.consecutiveFailures} error=${message}`);
+      console.error(
+        `[keep-alive] ping failed workspace=${workspaceId} failures=${health.consecutiveFailures} error=${message}`,
+      );
     }
   }
 }

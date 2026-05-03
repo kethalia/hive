@@ -1,13 +1,9 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { mkdtemp, writeFile, mkdir, rm } from "fs/promises";
-import { join } from "path";
-import { tmpdir } from "os";
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import * as tar from "tar-stream";
-import {
-  hashLocalTemplate,
-  hashRemoteTar,
-  compareTemplates,
-} from "@/lib/templates/staleness";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { compareTemplates, hashLocalTemplate, hashRemoteTar } from "@/lib/templates/staleness";
 
 // ── Mock getCoderClientForUser ──────────────────────────────────
 
@@ -17,7 +13,10 @@ const mockFetchTemplateFiles = vi.fn();
 
 vi.mock("@/lib/coder/user-client", () => {
   class UserClientException extends Error {
-    constructor(public readonly code: string, message: string) {
+    constructor(
+      public readonly code: string,
+      message: string,
+    ) {
       super(message);
       this.name = "UserClientException";
     }
@@ -39,9 +38,7 @@ vi.mock("@/lib/coder/user-client", () => {
 
 // ── Helpers ──────────────────────────────────────────────────────
 
-function createTarBuffer(
-  files: Record<string, string>
-): Promise<Buffer> {
+function createTarBuffer(files: Record<string, string>): Promise<Buffer> {
   return new Promise((resolve, reject) => {
     const pack = tar.pack();
     const chunks: Buffer[] = [];
@@ -114,7 +111,7 @@ describe("hashLocalTemplate", () => {
 
   it("throws for missing template directory", async () => {
     await expect(hashLocalTemplate("nonexistent")).rejects.toThrow(
-      /Cannot read template directory/
+      /Cannot read template directory/,
     );
   });
 });
@@ -195,7 +192,11 @@ describe("compareTemplates", () => {
       { id: "t1", name: "hive", activeVersionId: "ver-1", updatedAt: "2026-04-01T00:00:00Z" },
     ]);
     mockGetTemplateVersion.mockResolvedValue({
-      id: "ver-1", name: "v1", message: "initial", fileId: "file-1", createdAt: "2026-04-01T00:00:00Z",
+      id: "ver-1",
+      name: "v1",
+      message: "initial",
+      fileId: "file-1",
+      createdAt: "2026-04-01T00:00:00Z",
     });
     mockFetchTemplateFiles.mockResolvedValue(remoteTar);
 
@@ -219,7 +220,11 @@ describe("compareTemplates", () => {
       { id: "t1", name: "hive", activeVersionId: "ver-1", updatedAt: "2026-04-01T00:00:00Z" },
     ]);
     mockGetTemplateVersion.mockResolvedValue({
-      id: "ver-1", name: "v1", message: "initial", fileId: "file-1", createdAt: "2026-04-01T00:00:00Z",
+      id: "ver-1",
+      name: "v1",
+      message: "initial",
+      fileId: "file-1",
+      createdAt: "2026-04-01T00:00:00Z",
     });
     mockFetchTemplateFiles.mockResolvedValue(remoteTar);
 
@@ -258,8 +263,21 @@ describe("compareTemplates", () => {
       { id: "t2", name: "ai-dev", activeVersionId: "ver-2", updatedAt: "2026-04-02T00:00:00Z" },
     ]);
     mockGetTemplateVersion.mockImplementation(async (versionId: string) => {
-      if (versionId === "ver-1") return { id: "ver-1", name: "v1", message: "", fileId: "file-1", createdAt: "2026-04-01T00:00:00Z" };
-      return { id: "ver-2", name: "v2", message: "", fileId: "file-2", createdAt: "2026-04-02T00:00:00Z" };
+      if (versionId === "ver-1")
+        return {
+          id: "ver-1",
+          name: "v1",
+          message: "",
+          fileId: "file-1",
+          createdAt: "2026-04-01T00:00:00Z",
+        };
+      return {
+        id: "ver-2",
+        name: "v2",
+        message: "",
+        fileId: "file-2",
+        createdAt: "2026-04-02T00:00:00Z",
+      };
     });
     mockFetchTemplateFiles.mockImplementation(async (fileId: string) => {
       return fileId === "file-1" ? hiveTar : aiDevTar;
@@ -288,7 +306,10 @@ describe("compareTemplates", () => {
   it("throws USER_NOT_FOUND for invalid userId", async () => {
     const { getCoderClientForUser, UserClientException } = await import("@/lib/coder/user-client");
     vi.mocked(getCoderClientForUser).mockRejectedValueOnce(
-      new (UserClientException as unknown as new (code: string, msg: string) => Error)("USER_NOT_FOUND", "User not-real not found")
+      new (UserClientException as unknown as new (code: string, msg: string) => Error)(
+        "USER_NOT_FOUND",
+        "User not-real not found",
+      ),
     );
 
     await expect(compareTemplates(["hive"], "not-real")).rejects.toThrow("User not-real not found");

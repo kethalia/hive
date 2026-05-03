@@ -1,7 +1,7 @@
-import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
-import { compareTemplates, KNOWN_TEMPLATES } from "@/lib/templates/staleness";
+import { NextResponse } from "next/server";
 import { getSession } from "@/lib/auth/session";
+import { compareTemplates, KNOWN_TEMPLATES } from "@/lib/templates/staleness";
 
 export async function GET() {
   try {
@@ -14,9 +14,6 @@ export async function GET() {
     return NextResponse.json(statuses);
   } catch (err) {
     console.error(`[api/templates/status] ${err instanceof Error ? err.message : String(err)}`);
-    return NextResponse.json(
-      { error: "Failed to fetch template statuses" },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: "Failed to fetch template statuses" }, { status: 500 });
   }
 }

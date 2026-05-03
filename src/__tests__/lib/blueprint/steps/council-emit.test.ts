@@ -1,6 +1,6 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
-import type { BlueprintContext } from "@/lib/blueprint/types";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createCouncilEmitStep } from "@/lib/blueprint/steps/council-emit";
+import type { BlueprintContext } from "@/lib/blueprint/types";
 
 /**
  * Tests for council-emit — R033 enforcement gate.
@@ -257,22 +257,17 @@ describe("createCouncilEmitStep — R033 validation gate", () => {
     const ctx = makeCtx(VALID_FINDINGS_JSON);
     await step.execute(ctx);
 
-    expect(logSpy).toHaveBeenCalledWith(
-      expect.stringContaining("[blueprint] council-emit:"),
-    );
+    expect(logSpy).toHaveBeenCalledWith(expect.stringContaining("[blueprint] council-emit:"));
     expect(logSpy).toHaveBeenCalledWith(expect.stringContaining("task=test-task-1"));
   });
 
   // ── All valid severity values ──────────────────────────────────────
 
-  it.each(["critical", "major", "minor", "nit"])(
-    "severity '%s' is accepted",
-    async (severity) => {
-      const step = createCouncilEmitStep();
-      const ctx = makeCtx(JSON.stringify({ findings: [{ ...VALID_FINDING, severity }] }));
-      const result = await step.execute(ctx);
+  it.each(["critical", "major", "minor", "nit"])("severity '%s' is accepted", async (severity) => {
+    const step = createCouncilEmitStep();
+    const ctx = makeCtx(JSON.stringify({ findings: [{ ...VALID_FINDING, severity }] }));
+    const result = await step.execute(ctx);
 
-      expect(result.status).toBe("success");
-    },
-  );
+    expect(result.status).toBe("success");
+  });
 });

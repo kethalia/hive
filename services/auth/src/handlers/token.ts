@@ -1,8 +1,8 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
-import { sendJson, sendError } from "../server.js";
+import { ErrorCode } from "../auth/constants.js";
 import { getSessionById } from "../auth/session.js";
 import { getDecryptedCoderToken } from "../auth/token-status.js";
-import { ErrorCode } from "../auth/constants.js";
+import { sendError, sendJson } from "../server.js";
 
 export async function handleGetCoderToken(
   _req: IncomingMessage,
@@ -19,9 +19,7 @@ export async function handleGetCoderToken(
   const session = await getSessionById(sessionId);
 
   if (!session) {
-    console.log(
-      `[auth-service] GET /sessions/:id/token → 404 session=${sessionId.slice(0, 8)}…`,
-    );
+    console.log(`[auth-service] GET /sessions/:id/token → 404 session=${sessionId.slice(0, 8)}…`);
     sendError(res, 404, "Session not found", ErrorCode.NOT_FOUND);
     return;
   }
@@ -37,9 +35,7 @@ export async function handleGetCoderToken(
       return;
     }
 
-    console.log(
-      `[auth-service] GET /sessions/:id/token → 200 user=${session.user.username}`,
-    );
+    console.log(`[auth-service] GET /sessions/:id/token → 200 user=${session.user.username}`);
     sendJson(res, 200, {
       token: result.token,
       coderUrl: session.user.coderUrl,

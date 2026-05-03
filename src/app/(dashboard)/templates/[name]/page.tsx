@@ -1,8 +1,8 @@
 import { cookies } from "next/headers";
 import { notFound, redirect } from "next/navigation";
-import { compareTemplates, KNOWN_TEMPLATES } from "@/lib/templates/staleness";
 import { TemplateDetailClient } from "@/components/templates/TemplateDetailClient";
 import { getSession } from "@/lib/auth/session";
+import { compareTemplates, KNOWN_TEMPLATES } from "@/lib/templates/staleness";
 
 interface Props {
   params: Promise<{ name: string }>;
@@ -22,7 +22,7 @@ export default async function TemplateDetailPage({ params }: Props) {
 
   const [status] = await compareTemplates([name], session.user.id).catch((err) => {
     console.error(
-      `[templates/${name}] Failed to load status: ${err instanceof Error ? err.message : String(err)}`
+      `[templates/${name}] Failed to load status: ${err instanceof Error ? err.message : String(err)}`,
     );
     return [
       {

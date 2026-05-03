@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mockServiceClient = vi.hoisted(() => ({
   getSession: vi.fn(),
@@ -19,10 +19,10 @@ vi.mock("@/lib/auth/service-client", () => ({
 }));
 
 import {
-  getSession,
-  deleteSession,
-  setSessionCookie,
   clearSessionCookie,
+  deleteSession,
+  getSession,
+  setSessionCookie,
 } from "@/lib/auth/session";
 
 describe("session management", () => {
@@ -133,17 +133,13 @@ describe("session management", () => {
       setSessionCookie(cookieStore, "my-session-id");
 
       expect(mockSignCookie).toHaveBeenCalledWith("my-session-id", "test-secret");
-      expect(cookieStore.set).toHaveBeenCalledWith(
-        "hive-session",
-        "signed-value",
-        {
-          httpOnly: true,
-          secure: false,
-          sameSite: "lax",
-          path: "/",
-          maxAge: 30 * 24 * 60 * 60,
-        },
-      );
+      expect(cookieStore.set).toHaveBeenCalledWith("hive-session", "signed-value", {
+        httpOnly: true,
+        secure: false,
+        sameSite: "lax",
+        path: "/",
+        maxAge: 30 * 24 * 60 * 60,
+      });
     });
 
     it("sets Secure flag in production", () => {

@@ -1,4 +1,4 @@
-import { describe, expect, it, vi, beforeEach } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 // Mock child_process.execFile before importing the module under test
 vi.mock("child_process", () => ({
@@ -13,7 +13,7 @@ vi.mock("fs/promises", () => ({
 
 // The comment module uses promisify(execFile), so we mock execFile at the
 // child_process module level and wrap it with a resolved/rejected promise shape.
-import * as childProcess from "child_process";
+import * as childProcess from "node:child_process";
 import { postPRComment } from "../../../lib/council/comment.js";
 
 const mockedExecFile = vi.mocked(childProcess.execFile);
@@ -71,7 +71,7 @@ describe("postPRComment", () => {
   });
 
   it("writes body to temp file and cleans up after", async () => {
-    const { writeFile, unlink } = await import("fs/promises");
+    const { writeFile, unlink } = await import("node:fs/promises");
     setupExecFileMock({ stdout: "https://github.com/owner/repo/pull/1#issuecomment-1\n" });
 
     await postPRComment("https://github.com/owner/repo/pull/1", "Comment body");

@@ -1,9 +1,6 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { UserClientError, UserClientException } from "@/lib/coder/user-client";
 import { isAuthError, isNetworkError } from "@/lib/queue/errors";
-import {
-  UserClientException,
-  UserClientError,
-} from "@/lib/coder/user-client";
 
 describe("isAuthError", () => {
   it("matches 401 status in error message", () => {
@@ -15,18 +12,12 @@ describe("isAuthError", () => {
   });
 
   it("matches UserClientException with KEY_MISMATCH", () => {
-    const err = new UserClientException(
-      UserClientError.KEY_MISMATCH,
-      "key mismatch"
-    );
+    const err = new UserClientException(UserClientError.KEY_MISMATCH, "key mismatch");
     expect(isAuthError(err)).toBe(true);
   });
 
   it("matches UserClientException with NO_TOKEN", () => {
-    const err = new UserClientException(
-      UserClientError.NO_TOKEN,
-      "no token"
-    );
+    const err = new UserClientException(UserClientError.NO_TOKEN, "no token");
     expect(isAuthError(err)).toBe(true);
   });
 
@@ -78,9 +69,9 @@ vi.mock("@hive/auth", async (importOriginal) => ({
   tryDecrypt: vi.fn(),
 }));
 
-import { getDb } from "@/lib/db";
 import { tryDecrypt } from "@hive/auth";
 import { getTokenStatus } from "@/lib/auth/token-status";
+import { getDb } from "@/lib/db";
 
 describe("pre-flight token expiry", () => {
   const mockDb = {

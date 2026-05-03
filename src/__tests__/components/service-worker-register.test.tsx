@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
-import { describe, it, expect, vi, afterEach, beforeEach } from "vitest";
-import { render, cleanup } from "@testing-library/react";
+
+import { cleanup, render } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 describe("ServiceWorkerRegister", () => {
   const registerMock = vi.fn(() => Promise.resolve({} as ServiceWorkerRegistration));
@@ -22,9 +23,7 @@ describe("ServiceWorkerRegister", () => {
       writable: true,
     });
 
-    const { ServiceWorkerRegister } = await import(
-      "@/components/service-worker-register"
-    );
+    const { ServiceWorkerRegister } = await import("@/components/service-worker-register");
     const { container } = render(<ServiceWorkerRegister />);
 
     expect(registerMock).toHaveBeenCalledWith("/sw.js");
@@ -35,9 +34,7 @@ describe("ServiceWorkerRegister", () => {
     // @ts-expect-error — removing property to simulate missing API
     delete navigator.serviceWorker;
 
-    const { ServiceWorkerRegister } = await import(
-      "@/components/service-worker-register"
-    );
+    const { ServiceWorkerRegister } = await import("@/components/service-worker-register");
 
     expect(() => render(<ServiceWorkerRegister />)).not.toThrow();
     expect(registerMock).not.toHaveBeenCalled();

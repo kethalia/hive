@@ -1,15 +1,22 @@
 "use server";
 
+import { cookies, headers } from "next/headers";
 import { z } from "zod";
-import { headers, cookies } from "next/headers";
 import { actionClient, authActionClient } from "../safe-action";
-import { setSessionCookie, clearSessionCookie } from "./session";
 import { loginRateLimiter } from "./rate-limit";
 import { getAuthServiceClient } from "./service-client";
+import { clearSessionCookie, setSessionCookie } from "./session";
 
 const PRIVATE_IP_PATTERNS = [
-  /^127\./, /^10\./, /^172\.(1[6-9]|2\d|3[01])\./, /^192\.168\./,
-  /^169\.254\./, /^0\./, /^::1$/, /^fc00:/, /^fe80:/,
+  /^127\./,
+  /^10\./,
+  /^172\.(1[6-9]|2\d|3[01])\./,
+  /^192\.168\./,
+  /^169\.254\./,
+  /^0\./,
+  /^::1$/,
+  /^fc00:/,
+  /^fe80:/,
 ];
 
 function validateCoderUrl(raw: string): string {
@@ -58,9 +65,7 @@ export const loginAction = actionClient
     const rateCheck = loginRateLimiter.check(ip);
     if (!rateCheck.allowed) {
       console.log(`[login] Rate limited IP: ${ip}`);
-      throw new Error(
-        "Too many login attempts. Please try again later."
-      );
+      throw new Error("Too many login attempts. Please try again later.");
     }
 
     try {
@@ -70,8 +75,7 @@ export const loginAction = actionClient
       console.log(`[login] Login successful for ${email}`);
       return { success: true as const };
     } catch (error) {
-      const message =
-        error instanceof Error ? error.message : "Login failed";
+      const message = error instanceof Error ? error.message : "Login failed";
       console.log(`[login] Login failed for ${email}: ${message}`);
       throw new Error(message);
     }
@@ -100,15 +104,13 @@ export const getSessionAction = authActionClient.action(async ({ ctx }) => {
   };
 });
 
-export const getTokenStatusAction = authActionClient.action(
-  async ({ ctx }) => {
-    const result = await getAuthServiceClient().getCredentials(ctx.session.sessionId);
-    if (!result) {
-      return { status: "expired" as const, expiresAt: null };
-    }
-    return {
-      status: result.status,
-      expiresAt: result.expiresAt ? new Date(result.expiresAt) : null,
-    };
+export const getTokenStatusAction = authActionClient.action(async ({ ctx }) => {
+  const result = await getAuthServiceClient().getCredentials(ctx.session.sessionId);
+  if (!result) {
+    return { status: "expired" as const, expiresAt: null };
   }
-);
+  return {
+    status: result.status,
+    expiresAt: result.expiresAt ? new Date(result.expiresAt) : null,
+  };
+});

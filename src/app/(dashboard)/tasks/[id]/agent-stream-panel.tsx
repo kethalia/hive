@@ -23,22 +23,15 @@ const statusLabel: Record<ConnectionStatus, string> = {
   error: "Error",
 };
 
-export function AgentStreamPanel({
-  taskId,
-  status,
-}: {
-  taskId: string;
-  status: string;
-}) {
+export function AgentStreamPanel({ taskId, status }: { taskId: string; status: string }) {
   const [lines, setLines] = useState<string[]>([]);
-  const [connectionStatus, setConnectionStatus] =
-    useState<ConnectionStatus>("connecting");
+  const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>("connecting");
   const bottomRef = useRef<HTMLDivElement>(null);
 
   // Auto-scroll to bottom when new lines arrive
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [lines]);
+  }, []);
 
   useEffect(() => {
     if (status !== "running") {
@@ -109,12 +102,8 @@ export function AgentStreamPanel({
       <CardContent>
         <ScrollArea className="h-[400px]">
           {lines.length === 0 &&
-          (connectionStatus === "connecting" ||
-            connectionStatus === "waiting") ? (
-            <p
-              data-testid="waiting-message"
-              className="text-sm text-muted-foreground"
-            >
+          (connectionStatus === "connecting" || connectionStatus === "waiting") ? (
+            <p data-testid="waiting-message" className="text-sm text-muted-foreground">
               Waiting for agent output…
             </p>
           ) : (

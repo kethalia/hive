@@ -1,5 +1,5 @@
+import { EXEC_TIMEOUT_MS, HYDRATION_KEY_FILES, PROJECT_DIR } from "@/lib/constants";
 import { execInWorkspace } from "@/lib/workspace/exec";
-import { PROJECT_DIR, EXEC_TIMEOUT_MS, HYDRATION_KEY_FILES } from "@/lib/constants";
 import type { BlueprintStep } from "../types";
 
 /**
@@ -17,7 +17,7 @@ export function createHydrateStep(): BlueprintStep {
       // 1. Get repo file tree
       const treeResult = await execInWorkspace(
         ctx.workspaceName,
-        `find ${PROJECT_DIR} -type f \( -name "*.ts" -o -name "*.tsx" -o -name "*.js" -o -name "*.jsx" -o -name "*.py" -o -name "*.go" \) | head -200`,
+        `find ${PROJECT_DIR} -type f ( -name "*.ts" -o -name "*.tsx" -o -name "*.js" -o -name "*.jsx" -o -name "*.py" -o -name "*.go" ) | head -200`,
         { timeoutMs: EXEC_TIMEOUT_MS },
       );
 
@@ -48,11 +48,9 @@ export function createHydrateStep(): BlueprintStep {
           continue;
         }
 
-        const catResult = await execInWorkspace(
-          ctx.workspaceName,
-          `cat ${filePath}`,
-          { timeoutMs: EXEC_TIMEOUT_MS },
-        );
+        const catResult = await execInWorkspace(ctx.workspaceName, `cat ${filePath}`, {
+          timeoutMs: EXEC_TIMEOUT_MS,
+        });
 
         if (catResult.exitCode === 0) {
           fileSections.push(`### ${file}\n${catResult.stdout}`);

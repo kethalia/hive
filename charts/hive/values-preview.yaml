@@ -1,0 +1,31 @@
+# hive preview overlay.
+#
+# Used by the per-PR preview ApplicationSet on top of values.yaml.
+# `Release.Namespace` is set per-PR by the ApplicationSet — DO NOT hard-code
+# a namespace here.
+#
+# Image tags for hive-web / hive-auth / hive-terminal are left at their
+# chart defaults here and overridden per-PR by the ApplicationSet via
+# `--set <child>.image.tag=<sha>`.
+
+hive-web:
+  ingress:
+    enabled: true
+    hosts:
+      - host: pr-placeholder.preview.hive.local
+        paths:
+          - path: /
+            pathType: Prefix
+
+hive-auth:
+  ingress:
+    enabled: false
+
+hive-terminal:
+  ingress:
+    enabled: true
+    hosts:
+      - host: pr-placeholder-terminal.preview.hive.local
+        paths:
+          - path: /
+            pathType: Prefix

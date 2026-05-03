@@ -1,11 +1,6 @@
 // --- Token status ---
 
-export type TokenStatus =
-  | "valid"
-  | "expiring"
-  | "expired"
-  | "key_mismatch"
-  | "decrypt_failed";
+export type TokenStatus = "valid" | "expiring" | "expired" | "key_mismatch" | "decrypt_failed";
 
 // --- Encryption ---
 

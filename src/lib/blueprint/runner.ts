@@ -1,9 +1,4 @@
-import type {
-  BlueprintContext,
-  BlueprintResult,
-  BlueprintStep,
-  StepResult,
-} from "./types";
+import type { BlueprintContext, BlueprintResult, BlueprintStep, StepResult } from "./types";
 
 /**
  * Run a sequence of blueprint steps against a workspace context.
@@ -27,8 +22,7 @@ export async function runBlueprint(
     try {
       result = await step.execute(ctx);
     } catch (err) {
-      const message =
-        err instanceof Error ? err.message : String(err);
+      const message = err instanceof Error ? err.message : String(err);
       result = {
         status: "failure",
         message: `Step threw: ${message}`,

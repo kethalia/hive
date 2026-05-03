@@ -1,24 +1,18 @@
 "use client";
 
-import { useRef, type FormEvent } from "react";
+import { AlertCircle } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useAction } from "next-safe-action/hooks";
+import { type FormEvent, useRef } from "react";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { createTaskAction } from "@/lib/actions/tasks";
 import { readFileAsBase64 } from "@/lib/helpers/format";
 import type { TaskAttachment } from "@/lib/types/tasks";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import {
-  Field,
-  FieldLabel,
-  FieldDescription,
-  FieldError,
-  FieldGroup,
-} from "@/components/ui/field";
-import { AlertCircle } from "lucide-react";
 
 export default function NewTaskPage() {
   const router = useRouter();
@@ -48,7 +42,7 @@ export default function NewTaskPage() {
           name: file.name,
           data: await readFileAsBase64(file),
           type: file.type || "application/octet-stream",
-        }))
+        })),
       );
     }
 
@@ -89,9 +83,7 @@ export default function NewTaskPage() {
                   rows={4}
                   placeholder="Describe what you want built..."
                 />
-                <FieldError>
-                  {validationErrors?.prompt?._errors?.[0]}
-                </FieldError>
+                <FieldError>{validationErrors?.prompt?._errors?.[0]}</FieldError>
               </Field>
 
               <Field data-invalid={!!validationErrors?.repoUrl}>
@@ -105,9 +97,7 @@ export default function NewTaskPage() {
                   required
                   placeholder="https://github.com/org/repo"
                 />
-                <FieldError>
-                  {validationErrors?.repoUrl?._errors?.[0]}
-                </FieldError>
+                <FieldError>{validationErrors?.repoUrl?._errors?.[0]}</FieldError>
               </Field>
 
               <Field data-invalid={!!validationErrors?.councilSize}>
@@ -122,18 +112,12 @@ export default function NewTaskPage() {
                   step={1}
                   defaultValue={3}
                 />
-                <FieldDescription>
-                  Number of independent reviewers (1–7).
-                </FieldDescription>
-                <FieldError>
-                  {validationErrors?.councilSize?._errors?.[0]}
-                </FieldError>
+                <FieldDescription>Number of independent reviewers (1–7).</FieldDescription>
+                <FieldError>{validationErrors?.councilSize?._errors?.[0]}</FieldError>
               </Field>
 
               <Field>
-                <FieldLabel htmlFor="attachments">
-                  File Attachments
-                </FieldLabel>
+                <FieldLabel htmlFor="attachments">File Attachments</FieldLabel>
                 <Input
                   id="attachments"
                   name="attachments"
@@ -141,9 +125,7 @@ export default function NewTaskPage() {
                   multiple
                   ref={fileInputRef}
                 />
-                <FieldDescription>
-                  Attach any reference files for the task.
-                </FieldDescription>
+                <FieldDescription>Attach any reference files for the task.</FieldDescription>
               </Field>
 
               <div className="pt-2">

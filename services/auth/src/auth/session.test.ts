@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mockPrisma = vi.hoisted(() => ({
   session: {
@@ -14,15 +14,14 @@ vi.mock("../db.js", () => ({
 }));
 
 vi.mock("node:crypto", async () => {
-  const actual =
-    await vi.importActual<typeof import("node:crypto")>("node:crypto");
+  const actual = await vi.importActual<typeof import("node:crypto")>("node:crypto");
   return {
     ...actual,
     randomUUID: vi.fn(() => "test-session-uuid-1234"),
   };
 });
 
-import { createSession, getSessionById, deleteSession } from "./session.js";
+import { createSession, deleteSession, getSessionById } from "./session.js";
 
 describe("session management", () => {
   beforeEach(() => {

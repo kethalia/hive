@@ -1,6 +1,6 @@
+import { AGENT_TIMEOUT_MS, COUNCIL_PROMPT_FILE, EXEC_TIMEOUT_MS } from "@/lib/constants";
 import { execInWorkspace } from "@/lib/workspace/exec";
-import type { BlueprintStep, BlueprintContext } from "../types";
-import { COUNCIL_PROMPT_FILE, AGENT_TIMEOUT_MS, EXEC_TIMEOUT_MS } from "@/lib/constants";
+import type { BlueprintContext, BlueprintStep } from "../types";
 
 /**
  * Create the council-review step.
@@ -33,7 +33,7 @@ export function createCouncilReviewStep(): BlueprintStep {
         "IMPORTANT: You MUST respond with ONLY valid JSON matching this exact schema — no prose, no markdown, no code fences:",
         '{ "findings": [ { "file": string, "startLine": number, "severity": "critical"|"major"|"minor"|"nit", "issue": string, "fix": string, "reasoning": string } ] }',
         "",
-        "If there are no issues to report, return: { \"findings\": [] }",
+        'If there are no issues to report, return: { "findings": [] }',
         "",
         "Here is the diff to review:",
         "<diff>",

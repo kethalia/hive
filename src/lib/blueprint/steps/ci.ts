@@ -1,13 +1,13 @@
-import { execInWorkspace } from "@/lib/workspace/exec";
 import {
-  PROJECT_DIR,
-  CI_INITIAL_DELAY_MS,
-  CI_POLL_TIMEOUT_MS,
   CI_BACKOFF_INTERVALS_MS,
+  CI_INITIAL_DELAY_MS,
   CI_MAX_FAILURE_LOG_CHARS,
-  GH_CMD_TIMEOUT_MS,
   CI_MAX_ROUNDS,
+  CI_POLL_TIMEOUT_MS,
+  GH_CMD_TIMEOUT_MS,
+  PROJECT_DIR,
 } from "@/lib/constants";
+import { execInWorkspace } from "@/lib/workspace/exec";
 import type { BlueprintContext, BlueprintStep, StepResult } from "../types";
 
 interface CIStepDeps {
@@ -49,11 +49,9 @@ export function createCIStep(deps: CIStepDeps): BlueprintStep {
         console.log(`[blueprint] ci-feedback: ${msg} (task=${ctx.taskId})`);
 
       // 1. Check gh auth
-      const authResult = await execInWorkspace(
-        ctx.workspaceName,
-        "gh auth status",
-        { timeoutMs: GH_CMD_TIMEOUT_MS },
-      );
+      const authResult = await execInWorkspace(ctx.workspaceName, "gh auth status", {
+        timeoutMs: GH_CMD_TIMEOUT_MS,
+      });
 
       if (authResult.exitCode !== 0) {
         const msg = `gh not authenticated: ${authResult.stderr.slice(0, 200)}`;
@@ -187,10 +185,7 @@ async function pollForCIResult(
 /**
  * Extract failure logs from a CI run, truncated to CI_MAX_FAILURE_LOG_CHARS.
  */
-async function extractFailureLogs(
-  ctx: BlueprintContext,
-  runId: number,
-): Promise<string> {
+async function extractFailureLogs(ctx: BlueprintContext, runId: number): Promise<string> {
   const result = await execInWorkspace(
     ctx.workspaceName,
     `cd ${PROJECT_DIR} && gh run view ${runId} --log-failed`,
@@ -203,7 +198,7 @@ async function extractFailureLogs(
 
   const logs = result.stdout.trim();
   return logs.length > CI_MAX_FAILURE_LOG_CHARS
-    ? logs.slice(0, CI_MAX_FAILURE_LOG_CHARS) + "\n... (truncated)"
+    ? `${logs.slice(0, CI_MAX_FAILURE_LOG_CHARS)}\n... (truncated)`
     : logs;
 }
 

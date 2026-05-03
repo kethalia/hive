@@ -1,0 +1,41 @@
+apiVersion: v2
+name: hive
+description: Umbrella Helm chart composing hive-web, hive-auth, and hive-terminal.
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+kubeVersion: ">=1.28.0-0"
+home: https://github.com/kethalia/hive
+sources:
+  - https://github.com/kethalia/hive
+keywords:
+  - hive
+  - umbrella
+  - composition
+maintainers:
+  - name: kethalia
+    url: https://github.com/kethalia
+dependencies:
+  - name: hive-web
+    version: 0.1.0
+    repository: "file://../hive-web"
+    condition: hive-web.enabled
+  - name: hive-auth
+    version: 0.1.0
+    repository: "file://../hive-auth"
+    condition: hive-auth.enabled
+  - name: hive-terminal
+    version: 0.1.0
+    repository: "file://../hive-terminal"
+    condition: hive-terminal.enabled
+  # Bitnami subcharts provide ephemeral Postgres + Redis for preview environments.
+  # Repository defaults to the public Bitnami HTTP index. If CI cannot reach it,
+  # switch the repository field to oci://registry-1.docker.io/bitnamicharts.
+  - name: postgresql
+    version: 16.3.5
+    repository: "https://charts.bitnami.com/bitnami"
+    condition: postgresql.enabled
+  - name: redis
+    version: 20.6.2
+    repository: "https://charts.bitnami.com/bitnami"
+    condition: redis.enabled

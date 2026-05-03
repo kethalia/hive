@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mockUpsert = vi.hoisted(() => vi.fn());
 const mockDeleteMany = vi.hoisted(() => vi.fn());
@@ -25,10 +25,7 @@ vi.mock("@/lib/auth/session", () => ({
   getSession: (...args: unknown[]) => mockGetSession(...args),
 }));
 
-import {
-  subscribePushAction,
-  unsubscribePushAction,
-} from "@/lib/push/subscribe";
+import { subscribePushAction, unsubscribePushAction } from "@/lib/push/subscribe";
 
 const validSession = {
   user: {

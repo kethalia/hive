@@ -1,9 +1,11 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { BlueprintContext, BlueprintStep, StepResult } from "@/lib/blueprint/types";
 import type { ExecResult } from "@/lib/workspace/exec";
+
 vi.mock("@/lib/workspace/exec", () => ({
   execInWorkspace: vi.fn(),
 }));
+
 import { createCIStep } from "@/lib/blueprint/steps/ci";
 import { execInWorkspace } from "@/lib/workspace/exec";
 
@@ -47,7 +49,7 @@ function mockStep(name: string, result?: Partial<StepResult>): BlueprintStep {
 }
 
 /** Create a mock step that always fails. */
-function mockFailStep(name: string, message = "step failed"): BlueprintStep {
+function _mockFailStep(name: string, message = "step failed"): BlueprintStep {
   return {
     name,
     execute: vi.fn(async () => ({
@@ -106,9 +108,9 @@ describe("createCIStep", () => {
         return ok("Logged in to github.com");
       }
       if (cmd.includes("gh run list")) {
-        return ok(JSON.stringify([
-          { status: "completed", conclusion: "success", databaseId: 12345 },
-        ]));
+        return ok(
+          JSON.stringify([{ status: "completed", conclusion: "success", databaseId: 12345 }]),
+        );
       }
       return ok("");
     });
@@ -140,14 +142,14 @@ describe("createCIStep", () => {
         ghRunListCallCount++;
         if (ghRunListCallCount === 1) {
           // Round 1: CI failed
-          return ok(JSON.stringify([
-            { status: "completed", conclusion: "failure", databaseId: 100 },
-          ]));
+          return ok(
+            JSON.stringify([{ status: "completed", conclusion: "failure", databaseId: 100 }]),
+          );
         }
         // Round 2: CI passed
-        return ok(JSON.stringify([
-          { status: "completed", conclusion: "success", databaseId: 101 },
-        ]));
+        return ok(
+          JSON.stringify([{ status: "completed", conclusion: "success", databaseId: 101 }]),
+        );
       }
       if (cmd.includes("gh run view")) {
         return ok("Error: tests failed\nassert.equal expected 1 got 2");
@@ -183,9 +185,9 @@ describe("createCIStep", () => {
         return ok("Logged in");
       }
       if (cmd.includes("gh run list")) {
-        return ok(JSON.stringify([
-          { status: "completed", conclusion: "failure", databaseId: 200 },
-        ]));
+        return ok(
+          JSON.stringify([{ status: "completed", conclusion: "failure", databaseId: 200 }]),
+        );
       }
       if (cmd.includes("gh run view")) {
         return ok("TypeError: Cannot read property 'foo' of undefined");
@@ -241,9 +243,9 @@ describe("createCIStep", () => {
           return ok("[]");
         }
         // Third poll: run found and completed
-        return ok(JSON.stringify([
-          { status: "completed", conclusion: "success", databaseId: 300 },
-        ]));
+        return ok(
+          JSON.stringify([{ status: "completed", conclusion: "success", databaseId: 300 }]),
+        );
       }
       return ok("");
     });

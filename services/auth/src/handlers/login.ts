@@ -1,21 +1,18 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
-import { parseBody, sendJson, sendError } from "../server.js";
+import { ErrorCode } from "../auth/constants.js";
 import { performLogin } from "../auth/login.js";
 import { loginRateLimiter } from "../auth/rate-limit.js";
-import { ErrorCode } from "../auth/constants.js";
+import { parseBody, sendError, sendJson } from "../server.js";
 
 function getClientIp(req: IncomingMessage): string {
   const forwarded = req.headers["x-forwarded-for"];
   if (typeof forwarded === "string") {
-    return forwarded.split(",")[0]!.trim();
+    return forwarded.split(",")[0]?.trim();
   }
   return req.socket.remoteAddress ?? "unknown";
 }
 
-export async function handleLogin(
-  req: IncomingMessage,
-  res: ServerResponse,
-): Promise<void> {
+export async function handleLogin(req: IncomingMessage, res: ServerResponse): Promise<void> {
   const body = (await parseBody(req)) as Record<string, unknown> | undefined;
 
   if (!body || typeof body !== "object") {
@@ -30,17 +27,10 @@ export async function handleLogin(
   };
 
   if (!coderUrl || !email || !password) {
-    const missing = [
-      !coderUrl && "coderUrl",
-      !email && "email",
-      !password && "password",
-    ].filter(Boolean);
-    sendError(
-      res,
-      400,
-      `Missing required fields: ${missing.join(", ")}`,
-      ErrorCode.BAD_REQUEST,
+    const missing = [!coderUrl && "coderUrl", !email && "email", !password && "password"].filter(
+      Boolean,
     );
+    sendError(res, 400, `Missing required fields: ${missing.join(", ")}`, ErrorCode.BAD_REQUEST);
     return;
   }
 

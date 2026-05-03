@@ -1,13 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { AlertCircle, Loader2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useAction } from "next-safe-action/hooks";
-import { loginAction } from "@/lib/auth/actions";
+import { useState } from "react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Alert, AlertDescription } from "@/components/ui/alert";
-import { AlertCircle, Loader2 } from "lucide-react";
+import { loginAction } from "@/lib/auth/actions";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -22,8 +22,7 @@ export default function LoginPage() {
       router.push("/");
     },
     onError: ({ error: actionError }) => {
-      const message =
-        actionError.serverError ?? "Login failed. Please try again.";
+      const message = actionError.serverError ?? "Login failed. Please try again.";
       setError(message);
     },
   });

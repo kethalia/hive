@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mockServiceClient = vi.hoisted(() => ({
   login: vi.fn(),
@@ -42,10 +42,10 @@ vi.mock("@/lib/auth/rate-limit", () => ({
 }));
 
 import {
-  loginAction,
-  logoutAction,
   getSessionAction,
   getTokenStatusAction,
+  loginAction,
+  logoutAction,
 } from "@/lib/auth/actions";
 
 describe("loginAction", () => {
@@ -61,7 +61,12 @@ describe("loginAction", () => {
   it("succeeds with valid input", async () => {
     mockServiceClient.login.mockResolvedValue({
       sessionId: "sess-123",
-      user: { id: "u1", username: "testuser", email: "test@example.com", coderUrl: "https://coder.example.com" },
+      user: {
+        id: "u1",
+        username: "testuser",
+        email: "test@example.com",
+        coderUrl: "https://coder.example.com",
+      },
     });
 
     const result = await loginAction({
@@ -137,7 +142,13 @@ describe("logoutAction", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockGetSession.mockResolvedValue({
-      user: { id: "u1", coderUrl: "https://coder.example.com", coderUserId: "", username: "testuser", email: "test@example.com" },
+      user: {
+        id: "u1",
+        coderUrl: "https://coder.example.com",
+        coderUserId: "",
+        username: "testuser",
+        email: "test@example.com",
+      },
       session: { id: "", sessionId: "sess-123", expiresAt: new Date(Date.now() + 86400000) },
     });
   });
@@ -157,7 +168,13 @@ describe("getSessionAction", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockGetSession.mockResolvedValue({
-      user: { id: "u1", coderUrl: "https://coder.example.com", coderUserId: "", username: "testuser", email: "test@example.com" },
+      user: {
+        id: "u1",
+        coderUrl: "https://coder.example.com",
+        coderUserId: "",
+        username: "testuser",
+        email: "test@example.com",
+      },
       session: { id: "", sessionId: "sess-123", expiresAt: new Date(Date.now() + 86400000) },
     });
   });
@@ -179,7 +196,13 @@ describe("getTokenStatusAction", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockGetSession.mockResolvedValue({
-      user: { id: "u1", coderUrl: "https://coder.example.com", coderUserId: "", username: "testuser", email: "test@example.com" },
+      user: {
+        id: "u1",
+        coderUrl: "https://coder.example.com",
+        coderUserId: "",
+        username: "testuser",
+        email: "test@example.com",
+      },
       session: { id: "", sessionId: "sess-123", expiresAt: new Date(Date.now() + 86400000) },
     });
   });

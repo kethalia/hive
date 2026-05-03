@@ -1,34 +1,30 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { ChevronDown, Loader2, Pencil, Plus, Terminal, X } from "lucide-react";
 import Link from "next/link";
-import { Plus, X, Loader2, Terminal, ChevronDown, Pencil } from "lucide-react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   Breadcrumb,
-  BreadcrumbList,
   BreadcrumbItem,
   BreadcrumbLink,
-  BreadcrumbSeparator,
+  BreadcrumbList,
   BreadcrumbPage,
+  BreadcrumbSeparator,
 } from "@/components/ui/breadcrumb";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
-  Popover,
-  PopoverTrigger,
-  PopoverContent,
-} from "@/components/ui/popover";
-import {
+  createSessionAction,
   getWorkspaceAction,
   getWorkspaceSessionsAction,
-  createSessionAction,
   killSessionAction,
   renameSessionAction,
 } from "@/lib/actions/workspaces";
-import type { TmuxSession } from "@/lib/workspaces/sessions";
 import { SAFE_IDENTIFIER_RE } from "@/lib/constants";
-import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
+import type { TmuxSession } from "@/lib/workspaces/sessions";
 
 interface TerminalBreadcrumbsProps {
   workspaceId: string;
@@ -63,8 +59,7 @@ export function TerminalBreadcrumbs({ workspaceId }: TerminalBreadcrumbsProps) {
           setWorkspaceName(wsResult.data.name);
         }
 
-        const fetched =
-          (sessionsResult?.data as TmuxSession[] | undefined) ?? [];
+        const fetched = (sessionsResult?.data as TmuxSession[] | undefined) ?? [];
         setSessions(fetched);
 
         if (fetched.length > 0 && !currentSession) {
@@ -96,9 +91,7 @@ export function TerminalBreadcrumbs({ workspaceId }: TerminalBreadcrumbsProps) {
 
   const selectSession = useCallback(
     (name: string) => {
-      router.replace(
-        `/workspaces/${workspaceId}/terminal?session=${encodeURIComponent(name)}`,
-      );
+      router.replace(`/workspaces/${workspaceId}/terminal?session=${encodeURIComponent(name)}`);
       setPopoverOpen(false);
     },
     [router, workspaceId],
@@ -160,14 +153,13 @@ export function TerminalBreadcrumbs({ workspaceId }: TerminalBreadcrumbsProps) {
           newName: trimmed,
         });
         if (result?.data) {
+          const { newName } = result.data;
           setSessions((prev) =>
-            prev.map((s) =>
-              s.name === oldName ? { ...s, name: result.data!.newName } : s,
-            ),
+            prev.map((s) => (s.name === oldName ? { ...s, name: newName } : s)),
           );
           if (currentSession === oldName) {
             router.replace(
-              `/workspaces/${workspaceId}/terminal?session=${encodeURIComponent(result.data.newName)}`,
+              `/workspaces/${workspaceId}/terminal?session=${encodeURIComponent(newName)}`,
             );
           }
         }
@@ -193,9 +185,7 @@ export function TerminalBreadcrumbs({ workspaceId }: TerminalBreadcrumbsProps) {
     <Breadcrumb>
       <BreadcrumbList>
         <BreadcrumbItem>
-          <BreadcrumbLink render={<Link href="/tasks" />}>
-            Home
-          </BreadcrumbLink>
+          <BreadcrumbLink render={<Link href="/tasks" />}>Home</BreadcrumbLink>
         </BreadcrumbItem>
         <BreadcrumbSeparator />
         <BreadcrumbItem>
@@ -208,13 +198,9 @@ export function TerminalBreadcrumbs({ workspaceId }: TerminalBreadcrumbsProps) {
         <BreadcrumbSeparator />
         <BreadcrumbItem>
           <Popover open={popoverOpen} onOpenChange={setPopoverOpen}>
-            <PopoverTrigger
-              className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-sm font-normal hover:bg-accent"
-            >
+            <PopoverTrigger className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-sm font-normal hover:bg-accent">
               <Terminal className="h-3 w-3" />
-              <span className="font-mono">
-                {currentSession ?? "Select session"}
-              </span>
+              <span className="font-mono">{currentSession ?? "Select session"}</span>
               <ChevronDown className="h-3 w-3 text-muted-foreground" />
             </PopoverTrigger>
             <PopoverContent align="start" className="w-64 gap-0 p-0">
@@ -236,11 +222,10 @@ export function TerminalBreadcrumbs({ workspaceId }: TerminalBreadcrumbsProps) {
               </div>
               <div className="max-h-60 overflow-y-auto p-1">
                 {sessions.length === 0 ? (
-                  <p className="px-2 py-3 text-center text-xs text-muted-foreground">
-                    No sessions
-                  </p>
+                  <p className="px-2 py-3 text-center text-xs text-muted-foreground">No sessions</p>
                 ) : (
                   sessions.map((session) => (
+                    // biome-ignore lint/a11y/useKeyWithClickEvents: list item with inline edit; rename input handles its own keys
                     <div
                       key={session.name}
                       className={cn(
@@ -271,9 +256,7 @@ export function TerminalBreadcrumbs({ workspaceId }: TerminalBreadcrumbsProps) {
                           autoFocus
                         />
                       ) : (
-                        <span className="truncate font-mono text-xs">
-                          {session.name}
-                        </span>
+                        <span className="truncate font-mono text-xs">{session.name}</span>
                       )}
                       <div className="ml-2 flex shrink-0 items-center gap-0.5">
                         <button

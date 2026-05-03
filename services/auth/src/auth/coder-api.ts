@@ -1,24 +1,18 @@
-import {
-  CODER_API_TIMEOUT_MS,
-  CODER_SESSION_TOKEN_HEADER,
-  CODER_API_PATHS,
-} from "./constants.js";
+import { CODER_API_PATHS, CODER_API_TIMEOUT_MS, CODER_SESSION_TOKEN_HEADER } from "./constants.js";
 import type {
-  ValidateInstanceResult,
-  CoderLoginResult,
+  BuildInfoResponse,
   CoderLoginRequest,
   CoderLoginResponse,
+  CoderLoginResult,
   CoderUserResponse,
-  BuildInfoResponse,
   CreateApiKeyRequest,
   CreateApiKeyResponse,
+  ValidateInstanceResult,
 } from "./types.js";
 
-export type { ValidateInstanceResult, CoderLoginResult };
+export type { CoderLoginResult, ValidateInstanceResult };
 
-export async function validateCoderInstance(
-  url: string
-): Promise<ValidateInstanceResult> {
+export async function validateCoderInstance(url: string): Promise<ValidateInstanceResult> {
   const baseUrl = url.replace(/\/+$/, "");
   try {
     const res = await fetch(`${baseUrl}${CODER_API_PATHS.BUILD_INFO}`, {
@@ -33,8 +27,7 @@ export async function validateCoderInstance(
     }
     return { valid: true, version: data.version };
   } catch (err: unknown) {
-    const message =
-      err instanceof Error ? err.message.toLowerCase() : String(err);
+    const message = err instanceof Error ? err.message.toLowerCase() : String(err);
     if (
       message.includes("getaddrinfo") ||
       message.includes("enotfound") ||
@@ -42,11 +35,7 @@ export async function validateCoderInstance(
     ) {
       return { valid: false, reason: "DNS resolution failed" };
     }
-    if (
-      message.includes("timeout") ||
-      message.includes("abort") ||
-      message.includes("etimedout")
-    ) {
+    if (message.includes("timeout") || message.includes("abort") || message.includes("etimedout")) {
       return { valid: false, reason: "connection timeout" };
     }
     return { valid: false, reason: "not a Coder instance" };
@@ -56,7 +45,7 @@ export async function validateCoderInstance(
 export async function coderLogin(
   baseUrl: string,
   email: string,
-  password: string
+  password: string,
 ): Promise<CoderLoginResult> {
   const url = baseUrl.replace(/\/+$/, "");
   const body: CoderLoginRequest = { email, password };
@@ -72,9 +61,7 @@ export async function coderLogin(
       throw new Error("invalid credentials");
     }
     const text = await res.text().catch(() => "");
-    throw new Error(
-      `login failed: ${res.status} ${res.statusText} — ${text}`
-    );
+    throw new Error(`login failed: ${res.status} ${res.statusText} — ${text}`);
   }
 
   const loginData = (await res.json()) as CoderLoginResponse;
@@ -104,12 +91,10 @@ export async function createCoderApiKey(
   baseUrl: string,
   sessionToken: string,
   userId: string,
-  lifetimeSeconds?: number
+  lifetimeSeconds?: number,
 ): Promise<string | null> {
   const url = baseUrl.replace(/\/+$/, "");
-  const body: CreateApiKeyRequest = lifetimeSeconds
-    ? { lifetime_seconds: lifetimeSeconds }
-    : {};
+  const body: CreateApiKeyRequest = lifetimeSeconds ? { lifetime_seconds: lifetimeSeconds } : {};
   try {
     const res = await fetch(`${url}${CODER_API_PATHS.USER_KEYS(userId)}`, {
       method: "POST",
@@ -122,9 +107,7 @@ export async function createCoderApiKey(
     });
 
     if (!res.ok) {
-      console.log(
-        `[auth-service] API key creation failed: ${res.status} ${res.statusText}`
-      );
+      console.log(`[auth-service] API key creation failed: ${res.status} ${res.statusText}`);
       return null;
     }
 
@@ -132,7 +115,7 @@ export async function createCoderApiKey(
     return data.key;
   } catch (err) {
     console.log(
-      `[auth-service] API key creation error: ${err instanceof Error ? err.message : String(err)}`
+      `[auth-service] API key creation error: ${err instanceof Error ? err.message : String(err)}`,
     );
     return null;
   }

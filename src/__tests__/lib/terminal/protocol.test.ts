@@ -1,10 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import {
-  decodeOutput,
-  encodeInput,
-  encodeResize,
-} from "@/lib/terminal/protocol";
+import { decodeOutput, encodeInput, encodeResize } from "@/lib/terminal/protocol";
 
 describe("encodeInput", () => {
   it("produces valid JSON with data field", () => {

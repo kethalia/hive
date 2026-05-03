@@ -1,0 +1,43 @@
+# Scheduled GHCR retention pruner — fans out to the kethalia/workflows
+# reusable `ghcr-prune.yml` for production images.
+#
+# `hive-base` is intentionally excluded — it is the base image and uses
+# `:latest` + `:<sha>` only, neither of which matches `:pr-*`.
+name: GHCR retention pruner
+
+on:
+  schedule:
+    # Weekly Sun 04:17 UTC — off-peak, non-top-of-hour to dodge GHA scheduler congestion.
+    - cron: '17 4 * * 0'
+  workflow_dispatch:
+    inputs:
+      dry-run:
+        description: When true, log WOULD-DELETE decisions without calling DELETE.
+        type: boolean
+        required: false
+        default: true
+      age-days:
+        description: Minimum age in days before a pr-* version is eligible for deletion.
+        type: number
+        required: false
+        default: 14
+
+concurrency:
+  group: ghcr-prune-${{ github.workflow }}
+  cancel-in-progress: false
+
+jobs:
+  prune:
+    permissions:
+      contents: read
+      packages: write
+    uses: kethalia/workflows/.github/workflows/ghcr-prune.yml@v1
+    secrets: inherit
+    with:
+      org: kethalia
+      packages: |
+        hive-web
+        hive-terminal
+        hive-auth
+      age-days: ${{ inputs.age-days || 14 }}
+      dry-run: ${{ inputs.dry-run || false }}

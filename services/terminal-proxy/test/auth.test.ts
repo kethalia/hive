@@ -1,12 +1,12 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import type { IncomingMessage } from "node:http";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@hive/auth", () => ({
   verifyCookie: vi.fn(),
 }));
 
-import { authenticateUpgrade } from "../src/auth.js";
 import { verifyCookie } from "@hive/auth";
+import { authenticateUpgrade } from "../src/auth.js";
 
 const mockVerifyCookie = verifyCookie as ReturnType<typeof vi.fn>;
 
@@ -149,7 +149,12 @@ describe("authenticateUpgrade", () => {
     fetchMock.mockResolvedValueOnce({
       ok: true,
       status: 200,
-      json: () => Promise.resolve({ token: "coder-token-123", coderUrl: "http://coder.test", expiresAt: null }),
+      json: () =>
+        Promise.resolve({
+          token: "coder-token-123",
+          coderUrl: "http://coder.test",
+          expiresAt: null,
+        }),
     });
     fetchMock.mockResolvedValueOnce({
       ok: true,
@@ -195,7 +200,8 @@ describe("authenticateUpgrade", () => {
     fetchMock.mockResolvedValueOnce({
       ok: true,
       status: 200,
-      json: () => Promise.resolve({ token: "secret-token-xyz", coderUrl: "http://c", expiresAt: null }),
+      json: () =>
+        Promise.resolve({ token: "secret-token-xyz", coderUrl: "http://c", expiresAt: null }),
     });
     fetchMock.mockResolvedValueOnce({
       ok: true,

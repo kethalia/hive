@@ -1,7 +1,7 @@
-import { createServer, type IncomingMessage, type ServerResponse, type Server } from "node:http";
-import { matchRoute } from "./router.js";
-import { closeDb } from "./db.js";
+import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
 import { ErrorCode } from "./auth/constants.js";
+import { closeDb } from "./db.js";
+import { matchRoute } from "./router.js";
 
 const MAX_BODY_BYTES = 1024 * 1024; // 1 MB
 
@@ -47,7 +47,7 @@ export function sendError(
   res: ServerResponse,
   status: number,
   message: string,
-  code?: string
+  code?: string,
 ): void {
   sendJson(res, status, { error: message, code: code ?? "ERROR" });
 }

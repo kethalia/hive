@@ -1,24 +1,19 @@
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { mkdtemp, writeFile, mkdir, rm, readFile, readdir, lstat } from "fs/promises";
-import { join } from "path";
-import { tmpdir } from "os";
-import { execFile } from "child_process";
-import { promisify } from "util";
+import { execFile } from "node:child_process";
+import { lstat, mkdir, mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { promisify } from "node:util";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 const execFileAsync = promisify(execFile);
 
-const SYNC_SCRIPT = join(
-  process.cwd(),
-  "templates",
-  "hive",
-  "scripts",
-  "sync-vault.sh"
-);
+const SYNC_SCRIPT = join(process.cwd(), "templates", "hive", "scripts", "sync-vault.sh");
 
-async function runSync(
-  env: Record<string, string>
-): Promise<{ stdout: string; stderr: string }> {
-  return execFileAsync("bash", [SYNC_SCRIPT], { env: { ...process.env, ...env }, encoding: "utf-8" });
+async function runSync(env: Record<string, string>): Promise<{ stdout: string; stderr: string }> {
+  return execFileAsync("bash", [SYNC_SCRIPT], {
+    env: { ...process.env, ...env },
+    encoding: "utf-8",
+  });
 }
 
 describe("sync-vault.sh", () => {
@@ -174,7 +169,7 @@ describe("sync-vault.sh", () => {
         join(agentsConvDir, "skills"),
         join(piDir, "skills"),
       ]) {
-        const dirs = (await readdir(target)).filter(f => !f.startsWith("."));
+        const dirs = (await readdir(target)).filter((f) => !f.startsWith("."));
         expect(dirs.sort()).toEqual(["caveman", "review"]);
 
         const caveman = await readFile(join(target, "caveman", "SKILL.md"), "utf-8");
@@ -195,7 +190,7 @@ describe("sync-vault.sh", () => {
 
       await runSync({ HOME: tempDir });
 
-      const dirs = (await readdir(skillsTarget)).filter(f => !f.startsWith("."));
+      const dirs = (await readdir(skillsTarget)).filter((f) => !f.startsWith("."));
       expect(dirs).toEqual(["new-skill"]);
     });
 
@@ -211,7 +206,7 @@ describe("sync-vault.sh", () => {
 
       await runSync({ HOME: tempDir });
 
-      const dirs = (await readdir(skillsTarget)).filter(f => !f.startsWith("."));
+      const dirs = (await readdir(skillsTarget)).filter((f) => !f.startsWith("."));
       expect(dirs.sort()).toEqual(["my-custom-skill", "vault-skill"]);
 
       const content = await readFile(join(userSkill, "SKILL.md"), "utf-8");
@@ -291,16 +286,16 @@ describe("sync-vault.sh", () => {
       await runSync({ HOME: tempDir });
 
       // claudeDir: stale-one removed, keeper present
-      const claudeDirs = (await readdir(claudeSkills)).filter(f => !f.startsWith("."));
+      const claudeDirs = (await readdir(claudeSkills)).filter((f) => !f.startsWith("."));
       expect(claudeDirs).toEqual(["keeper"]);
 
       // agentsConvDir: stale-two removed, keeper present
-      const agentsDirs = (await readdir(agentsSkills)).filter(f => !f.startsWith("."));
+      const agentsDirs = (await readdir(agentsSkills)).filter((f) => !f.startsWith("."));
       expect(agentsDirs).toEqual(["keeper"]);
 
       // piDir: keeper present (no stale to remove)
       const piSkills = join(piDir, "skills");
-      const piDirs = (await readdir(piSkills)).filter(f => !f.startsWith("."));
+      const piDirs = (await readdir(piSkills)).filter((f) => !f.startsWith("."));
       expect(piDirs).toEqual(["keeper"]);
     });
 

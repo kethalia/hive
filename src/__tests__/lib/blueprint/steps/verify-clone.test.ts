@@ -1,9 +1,11 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { BlueprintContext } from "@/lib/blueprint/types";
 import type { ExecResult } from "@/lib/workspace/exec";
+
 vi.mock("@/lib/workspace/exec", () => ({
   execInWorkspace: vi.fn(),
 }));
+
 import { createVerifyCloneStep } from "@/lib/blueprint/steps/verify-clone";
 import { execInWorkspace } from "@/lib/workspace/exec";
 
@@ -77,7 +79,9 @@ describe("createVerifyCloneStep", () => {
   });
 
   it("returns failure when repo is not found", async () => {
-    mockExec.mockResolvedValue(fail("Could not resolve to a Repository with the name 'org/nonexistent'"));
+    mockExec.mockResolvedValue(
+      fail("Could not resolve to a Repository with the name 'org/nonexistent'"),
+    );
 
     const step = createVerifyCloneStep();
     const ctx = makeCtx({ repoUrl: "https://github.com/org/nonexistent" });
@@ -89,7 +93,9 @@ describe("createVerifyCloneStep", () => {
   });
 
   it("returns failure when branch does not exist", async () => {
-    mockExec.mockResolvedValue(fail("error: pathspec 'nonexistent-branch' did not match any file(s)"));
+    mockExec.mockResolvedValue(
+      fail("error: pathspec 'nonexistent-branch' did not match any file(s)"),
+    );
 
     const step = createVerifyCloneStep();
     const ctx = makeCtx({ branchName: "nonexistent-branch" });

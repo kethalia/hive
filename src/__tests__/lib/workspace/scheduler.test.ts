@@ -1,8 +1,10 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { startCleanupScheduler } from "@/lib/workspace/scheduler";
+
 vi.mock("@/lib/workspace/cleanup", () => ({
   cleanupWorkspace: vi.fn().mockResolvedValue(undefined),
 }));
+
 import { cleanupWorkspace } from "@/lib/workspace/cleanup";
 
 const mockCleanup = vi.mocked(cleanupWorkspace);
@@ -121,9 +123,7 @@ describe("startCleanupScheduler", () => {
       coderWorkspaceId: "coder-ws-2",
     });
 
-    mockCleanup
-      .mockRejectedValueOnce(new Error("API timeout"))
-      .mockResolvedValueOnce(undefined);
+    mockCleanup.mockRejectedValueOnce(new Error("API timeout")).mockResolvedValueOnce(undefined);
 
     const db = makeMockDb([ws1, ws2]);
     const client = makeMockClient();

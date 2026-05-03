@@ -1,9 +1,11 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { BlueprintContext } from "@/lib/blueprint/types";
 import type { ExecResult } from "@/lib/workspace/exec";
+
 vi.mock("@/lib/workspace/exec", () => ({
   execInWorkspace: vi.fn(),
 }));
+
 import { createVerifyExecuteStep } from "@/lib/blueprint/steps/verify-execute";
 import { execInWorkspace } from "@/lib/workspace/exec";
 
@@ -56,11 +58,10 @@ describe("createVerifyExecuteStep", () => {
     expect(typeof intermediate.durationMs).toBe("number");
 
     // Should use 120s timeout
-    expect(mockExec).toHaveBeenCalledWith(
-      "verifier-ws",
-      expect.stringContaining("npm test"),
-      { timeoutMs: 120_000, loginShell: true },
-    );
+    expect(mockExec).toHaveBeenCalledWith("verifier-ws", expect.stringContaining("npm test"), {
+      timeoutMs: 120_000,
+      loginShell: true,
+    });
   });
 
   it("test-suite strategy: npm test fails → outcome fail", async () => {

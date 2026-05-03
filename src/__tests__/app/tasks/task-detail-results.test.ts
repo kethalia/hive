@@ -1,9 +1,11 @@
 // @vitest-environment jsdom
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import React from "react";
-import { render, screen, fireEvent, cleanup } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { formatDuration, outcomeVariant } from "@/lib/helpers/format";
 import type { VerificationReport } from "@/lib/verification/types";
-import { outcomeVariant, formatDuration } from "@/lib/helpers/format";
+
 vi.mock("next/link", () => ({
   default: ({ children, ...props }: { children: React.ReactNode; href: string }) =>
     React.createElement("a", props, children),
@@ -11,6 +13,7 @@ vi.mock("next/link", () => ({
 vi.mock("next-safe-action/hooks", () => ({
   useAction: vi.fn(() => ({ execute: vi.fn() })),
 }));
+
 // ── Import component under test ──────────────────────────────────
 
 import { VerificationReportCard } from "@/app/(dashboard)/tasks/[id]/verification-report-card";
@@ -32,15 +35,15 @@ function makeReport(overrides: Partial<VerificationReport> = {}): VerificationRe
 
 describe("outcomeVariant mapping", () => {
   it("maps pass to default (green badge)", () => {
-    expect(outcomeVariant["pass"]).toBe("default");
+    expect(outcomeVariant.pass).toBe("default");
   });
 
   it("maps fail to destructive", () => {
-    expect(outcomeVariant["fail"]).toBe("destructive");
+    expect(outcomeVariant.fail).toBe("destructive");
   });
 
   it("maps inconclusive to secondary", () => {
-    expect(outcomeVariant["inconclusive"]).toBe("secondary");
+    expect(outcomeVariant.inconclusive).toBe("secondary");
   });
 });
 
@@ -84,25 +87,35 @@ describe("VerificationReportCard", () => {
   });
 
   it("renders pass outcome with default variant", () => {
-    render(React.createElement(VerificationReportCard, { report: makeReport({ outcome: "pass" }) }));
+    render(
+      React.createElement(VerificationReportCard, { report: makeReport({ outcome: "pass" }) }),
+    );
     const badge = screen.getByTestId("outcome-badge");
     expect(badge.textContent).toBe("pass");
   });
 
   it("renders fail outcome badge", () => {
-    render(React.createElement(VerificationReportCard, { report: makeReport({ outcome: "fail" }) }));
+    render(
+      React.createElement(VerificationReportCard, { report: makeReport({ outcome: "fail" }) }),
+    );
     const badge = screen.getByTestId("outcome-badge");
     expect(badge.textContent).toBe("fail");
   });
 
   it("renders inconclusive outcome badge", () => {
-    render(React.createElement(VerificationReportCard, { report: makeReport({ outcome: "inconclusive" }) }));
+    render(
+      React.createElement(VerificationReportCard, {
+        report: makeReport({ outcome: "inconclusive" }),
+      }),
+    );
     const badge = screen.getByTestId("outcome-badge");
     expect(badge.textContent).toBe("inconclusive");
   });
 
   it("renders duration formatted correctly", () => {
-    render(React.createElement(VerificationReportCard, { report: makeReport({ durationMs: 12000 }) }));
+    render(
+      React.createElement(VerificationReportCard, { report: makeReport({ durationMs: 12000 }) }),
+    );
     const duration = screen.getByTestId("duration");
     expect(duration.textContent).toContain("12s");
   });
@@ -125,7 +138,9 @@ describe("VerificationReportCard", () => {
   });
 
   it("renders different strategy values", () => {
-    render(React.createElement(VerificationReportCard, { report: makeReport({ strategy: "web-app" }) }));
+    render(
+      React.createElement(VerificationReportCard, { report: makeReport({ strategy: "web-app" }) }),
+    );
     const badge = screen.getByTestId("strategy-badge");
     expect(badge.textContent).toContain("web-app");
   });

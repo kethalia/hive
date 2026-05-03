@@ -1,11 +1,12 @@
-import { config } from "dotenv";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { config } from "dotenv";
+
 config({ path: resolve(dirname(fileURLToPath(import.meta.url)), "../../../.env") });
 
 import { createServer } from "node:http";
-import { handleUpgrade, connectionRegistry, isOriginAllowed } from "./proxy.js";
 import { KeepAliveManager } from "./keepalive.js";
+import { connectionRegistry, handleUpgrade, isOriginAllowed } from "./proxy.js";
 
 const PORT = parseInt(process.env.PORT || "3001", 10);
 const HOSTNAME = process.env.BIND_HOST || "0.0.0.0";
@@ -15,7 +16,10 @@ const coderUrl = process.env.CODER_URL ?? process.env.CODER_AGENT_URL ?? "";
 const keepAliveManager = new KeepAliveManager(connectionRegistry, coderUrl);
 keepAliveManager.start();
 
-function setCorsHeaders(req: import("node:http").IncomingMessage, res: import("node:http").ServerResponse): boolean {
+function setCorsHeaders(
+  req: import("node:http").IncomingMessage,
+  res: import("node:http").ServerResponse,
+): boolean {
   const origin = req.headers.origin as string | undefined;
   if (origin && isOriginAllowed(origin)) {
     res.setHeader("Access-Control-Allow-Origin", origin);
@@ -41,7 +45,10 @@ const server = createServer((req, res) => {
 
   if (req.url === "/keepalive/status") {
     const raw = keepAliveManager?.getHealth() ?? {};
-    const workspaces: Record<string, { consecutiveFailures: number; lastSuccess: string | null; lastFailure: string | null }> = {};
+    const workspaces: Record<
+      string,
+      { consecutiveFailures: number; lastSuccess: string | null; lastFailure: string | null }
+    > = {};
     for (const [id, health] of Object.entries(raw)) {
       workspaces[id] = {
         consecutiveFailures: health.consecutiveFailures,
@@ -62,7 +69,9 @@ server.on("upgrade", (req, socket, head) => {
   const pathname = req.url?.split("?")[0] ?? "";
   if (pathname === "/ws") {
     handleUpgrade(req, socket, head).catch((err) => {
-      console.error(`[terminal-proxy] upgrade error: ${err instanceof Error ? err.message : String(err)}`);
+      console.error(
+        `[terminal-proxy] upgrade error: ${err instanceof Error ? err.message : String(err)}`,
+      );
       if (socket.writable) {
         socket.write("HTTP/1.1 500 Internal Server Error\r\n\r\n");
         socket.destroy();

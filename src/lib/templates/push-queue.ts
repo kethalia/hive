@@ -1,11 +1,11 @@
-import { Queue, Worker, type Job } from "bullmq";
-import { execFile, spawn } from "child_process";
-import { createWriteStream } from "fs";
-import { readdir } from "fs/promises";
-import { promisify } from "util";
-import { join } from "path";
-import { getRedisConnection } from "@/lib/queue/connection";
+import { execFile, spawn } from "node:child_process";
+import { createWriteStream } from "node:fs";
+import { readdir } from "node:fs/promises";
+import { join } from "node:path";
+import { promisify } from "node:util";
+import { type Job, Queue, Worker } from "bullmq";
 import { getCoderClientForUser } from "@/lib/coder/user-client";
+import { getRedisConnection } from "@/lib/queue/connection";
 
 const execFileAsync = promisify(execFile);
 
@@ -78,9 +78,7 @@ async function findCoderBinary(): Promise<string> {
     // not on PATH
   }
 
-  throw new Error(
-    "[template-push] coder binary not found — checked /tmp/coder.*/coder and PATH",
-  );
+  throw new Error("[template-push] coder binary not found — checked /tmp/coder.*/coder and PATH");
 }
 
 // ── Worker ────────────────────────────────────────────────────────
@@ -103,9 +101,7 @@ export function createTemplatePushWorker(): Worker<TemplatePushJobData> {
       const { templateName, jobId, userId } = job.data;
       const logPath = pushLogPath(jobId);
 
-      console.log(
-        `[template-push] Starting push for "${templateName}" (job ${jobId})`,
-      );
+      console.log(`[template-push] Starting push for "${templateName}" (job ${jobId})`);
 
       const client = await getCoderClientForUser(userId);
       const coderBin = await findCoderBinary();
@@ -114,14 +110,7 @@ export function createTemplatePushWorker(): Worker<TemplatePushJobData> {
       await new Promise<void>((resolve, reject) => {
         const child = spawn(
           coderBin,
-          [
-            "templates",
-            "push",
-            templateName,
-            "--directory",
-            `templates/${templateName}`,
-            "--yes",
-          ],
+          ["templates", "push", templateName, "--directory", `templates/${templateName}`, "--yes"],
           {
             env: {
               ...process.env,
@@ -141,9 +130,7 @@ export function createTemplatePushWorker(): Worker<TemplatePushJobData> {
           });
 
           if (code === 0) {
-            console.log(
-              `[template-push] Push succeeded for "${templateName}" (job ${jobId})`,
-            );
+            console.log(`[template-push] Push succeeded for "${templateName}" (job ${jobId})`);
             resolve();
           } else {
             console.error(

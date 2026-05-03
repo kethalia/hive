@@ -1,12 +1,12 @@
 "use client";
 
-import { useState } from "react";
-import type { VerificationReport } from "@/lib/verification/types";
-import { outcomeVariant, formatDuration, formatTimestamp } from "@/lib/helpers/format";
-import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
 import { ChevronDown, ChevronRight, Clock, FlaskConical } from "lucide-react";
+import { useState } from "react";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { formatDuration, formatTimestamp, outcomeVariant } from "@/lib/helpers/format";
+import type { VerificationReport } from "@/lib/verification/types";
 
 export function VerificationReportCard({ report }: { report: VerificationReport }) {
   const [logsExpanded, setLogsExpanded] = useState(false);
@@ -39,9 +39,7 @@ export function VerificationReportCard({ report }: { report: VerificationReport 
             <Clock className="h-3 w-3" />
             Duration: {formatDuration(report.durationMs)}
           </span>
-          <span data-testid="timestamp">
-            {formatTimestamp(report.timestamp)}
-          </span>
+          <span data-testid="timestamp">{formatTimestamp(report.timestamp)}</span>
         </div>
 
         {/* Collapsible logs */}

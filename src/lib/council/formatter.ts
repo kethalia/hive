@@ -63,7 +63,9 @@ export function formatCouncilComment(report: CouncilReport): string {
     lines.push("");
 
     for (const item of items) {
-      lines.push(`**\`${item.file}:${item.startLine}\`** (agreed by ${item.agreementCount} reviewers)`);
+      lines.push(
+        `**\`${item.file}:${item.startLine}\`** (agreed by ${item.agreementCount} reviewers)`,
+      );
       lines.push("");
       lines.push(`- **Issue:** ${item.issue}`);
       lines.push(`- **Fix:** ${item.fix}`);

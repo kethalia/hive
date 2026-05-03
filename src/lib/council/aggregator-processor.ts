@@ -8,14 +8,14 @@
  * Log prefix: [council-aggregator]
  */
 
-import type { Job } from "bullmq";
-import type { CouncilAggregatorJobData } from "@/lib/queue/council-queues";
 import type { Prisma } from "@prisma/client";
-import type { CouncilReport, ReviewerFinding } from "@/lib/council/types";
+import type { Job } from "bullmq";
 import { aggregateFindings } from "@/lib/council/aggregator";
-import { formatCouncilComment } from "@/lib/council/formatter";
 import { postPRComment } from "@/lib/council/comment";
+import { formatCouncilComment } from "@/lib/council/formatter";
+import type { CouncilReport, ReviewerFinding } from "@/lib/council/types";
 import { getDb } from "@/lib/db";
+import type { CouncilAggregatorJobData } from "@/lib/queue/council-queues";
 
 /**
  * Returns a BullMQ processor function for council aggregator jobs.

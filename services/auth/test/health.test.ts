@@ -1,7 +1,7 @@
-import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { createServer, type Server } from "node:http";
-import { addRoute, matchRoute, clearRoutes } from "../src/router.js";
-import { sendJson, sendError } from "../src/server.js";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { addRoute, clearRoutes, matchRoute } from "../src/router.js";
+import { sendError, sendJson } from "../src/server.js";
 
 function startTestServer(): Promise<{ server: Server; port: number }> {
   return new Promise((resolve) => {

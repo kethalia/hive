@@ -1,12 +1,10 @@
 // @vitest-environment jsdom
-import React from "react";
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, act } from "@testing-library/react";
 
-const {
-  mockUseTerminalWebSocket,
-  mockFit,
-} = vi.hoisted(() => ({
+import { act, render } from "@testing-library/react";
+import type React from "react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+const { mockUseTerminalWebSocket, mockFit } = vi.hoisted(() => ({
   mockUseTerminalWebSocket: vi.fn(),
   mockFit: vi.fn(),
 }));
@@ -33,8 +31,7 @@ vi.mock("@xterm/addon-fit", () => ({
 }));
 
 vi.mock("@/hooks/useTerminalWebSocket", () => ({
-  useTerminalWebSocket: (...args: unknown[]) =>
-    mockUseTerminalWebSocket(...args),
+  useTerminalWebSocket: (...args: unknown[]) => mockUseTerminalWebSocket(...args),
 }));
 
 vi.mock("@/lib/terminal/protocol", () => ({
@@ -58,12 +55,9 @@ vi.mock("@/components/ui/alert", () => ({
       {children}
     </div>
   ),
-  AlertDescription: ({
-    children,
-  }: {
-    children: React.ReactNode;
-    className?: string;
-  }) => <div>{children}</div>,
+  AlertDescription: ({ children }: { children: React.ReactNode; className?: string }) => (
+    <div>{children}</div>
+  ),
 }));
 
 vi.mock("lucide-react", () => ({
@@ -117,18 +111,12 @@ afterEach(() => {
 });
 
 async function renderTerminal() {
-  const { InteractiveTerminal } = await import(
-    "@/components/workspaces/InteractiveTerminal"
-  );
+  const { InteractiveTerminal } = await import("@/components/workspaces/InteractiveTerminal");
 
   let result: ReturnType<typeof render>;
   await act(async () => {
     result = render(
-      <InteractiveTerminal
-        agentId="test-agent"
-        workspaceId="test-ws"
-        sessionName="main"
-      />,
+      <InteractiveTerminal agentId="test-agent" workspaceId="test-ws" sessionName="main" />,
     );
   });
 

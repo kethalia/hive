@@ -1,5 +1,5 @@
-import type { CoderClient } from "@/lib/coder/client";
 import type { PrismaClient } from "@prisma/client";
+import type { CoderClient } from "@/lib/coder/client";
 
 /**
  * Clean up a Coder workspace after blueprint execution.
@@ -27,9 +27,7 @@ export async function cleanupWorkspace(
       data: { status: "deleted" },
     });
 
-    console.log(
-      `[cleanup] workspace=${workspaceId} stopped and deleted after ${graceMs}ms grace`,
-    );
+    console.log(`[cleanup] workspace=${workspaceId} stopped and deleted after ${graceMs}ms grace`);
   } catch (error) {
     const msg = error instanceof Error ? error.message : String(error);
     console.error(`[cleanup] workspace=${workspaceId} cleanup failed: ${msg}`);

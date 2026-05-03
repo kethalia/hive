@@ -1,13 +1,11 @@
-import { getDb } from "../db.js";
-import { tryDecrypt, TOKEN_EXPIRY_WARNING_HOURS } from "@hive/auth";
 import type { TokenStatusResult } from "@hive/auth";
+import { TOKEN_EXPIRY_WARNING_HOURS, tryDecrypt } from "@hive/auth";
+import { getDb } from "../db.js";
 import type { DecryptedTokenResult } from "./types.js";
 
-export type { TokenStatusResult, DecryptedTokenResult };
+export type { DecryptedTokenResult, TokenStatusResult };
 
-export async function getTokenStatus(
-  userId: string
-): Promise<TokenStatusResult> {
+export async function getTokenStatus(userId: string): Promise<TokenStatusResult> {
   const db = getDb();
 
   const token = await db.coderToken.findFirst({
@@ -30,13 +28,12 @@ export async function getTokenStatus(
       iv: Buffer.from(token.iv),
       authTag: Buffer.from(token.authTag),
     },
-    encryptionKey
+    encryptionKey,
   );
 
   if (!result.ok) {
     return {
-      status:
-        result.reason === "key_mismatch" ? "key_mismatch" : "decrypt_failed",
+      status: result.reason === "key_mismatch" ? "key_mismatch" : "decrypt_failed",
       expiresAt: token.expiresAt,
     };
   }
@@ -60,9 +57,7 @@ export async function getTokenStatus(
   return { status: "valid", expiresAt: token.expiresAt };
 }
 
-export async function getDecryptedCoderToken(
-  userId: string
-): Promise<DecryptedTokenResult | null> {
+export async function getDecryptedCoderToken(userId: string): Promise<DecryptedTokenResult | null> {
   const db = getDb();
 
   const token = await db.coderToken.findFirst({
@@ -85,13 +80,11 @@ export async function getDecryptedCoderToken(
       iv: Buffer.from(token.iv),
       authTag: Buffer.from(token.authTag),
     },
-    encryptionKey
+    encryptionKey,
   );
 
   if (!result.ok) {
-    throw new Error(
-      result.reason === "key_mismatch" ? "KEY_MISMATCH" : "DECRYPT_FAILED"
-    );
+    throw new Error(result.reason === "key_mismatch" ? "KEY_MISMATCH" : "DECRYPT_FAILED");
   }
 
   return {

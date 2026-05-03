@@ -1,0 +1,31 @@
+hive umbrella stack has been deployed.
+
+Chart:    {{ .Chart.Name }}-{{ .Chart.Version }}
+Release:  {{ .Release.Name }} (namespace: {{ .Release.Namespace }})
+
+Enabled components:
+{{- if (index .Values "hive-web").enabled }}
+  ✓ hive-web (Next.js orchestrator)
+{{- end }}
+{{- if (index .Values "hive-auth").enabled }}
+  ✓ hive-auth (session/login service)
+{{- end }}
+{{- if (index .Values "hive-terminal").enabled }}
+  ✓ hive-terminal (WebSocket proxy)
+{{- end }}
+{{- if .Values.postgresql.enabled }}
+  ✓ postgresql (bitnami subchart, ephemeral)
+{{- end }}
+{{- if .Values.redis.enabled }}
+  ✓ redis (bitnami subchart, ephemeral)
+{{- end }}
+
+Shared Secret name: {{ include "hive.fullname" . }}-secrets
+Each child chart's `existingSecret` MUST equal this name. Defaults assume
+release name `hive`. Override per child if installing under a different name.
+
+⚠  Preview / ephemeral storage
+   With the bitnami postgresql/redis subcharts enabled, persistence is
+   disabled by default — every redeploy wipes data. For production, switch
+   to externally-managed datastores and supply DATABASE_URL / REDIS_URL via
+   a sealed Secret referenced by `existingSecret` on each child.

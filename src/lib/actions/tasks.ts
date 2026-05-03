@@ -1,8 +1,8 @@
 "use server";
 
 import { z } from "zod";
-import { authActionClient } from "@/lib/safe-action";
 import { createTask, getTask, listTasks } from "@/lib/api/tasks";
+import { authActionClient } from "@/lib/safe-action";
 
 // ── Schemas ───────────────────────────────────────────────────────
 
@@ -48,8 +48,7 @@ export const getTaskAction = authActionClient
     return JSON.parse(JSON.stringify(task));
   });
 
-export const listTasksAction = authActionClient
-  .action(async ({ ctx }) => {
-    const tasks = await listTasks(ctx.user.id);
-    return JSON.parse(JSON.stringify(tasks));
-  });
+export const listTasksAction = authActionClient.action(async ({ ctx }) => {
+  const tasks = await listTasks(ctx.user.id);
+  return JSON.parse(JSON.stringify(tasks));
+});

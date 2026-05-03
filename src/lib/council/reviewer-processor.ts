@@ -9,26 +9,24 @@
  */
 
 import type { Job } from "bullmq";
-import type { BlueprintContext } from "@/lib/blueprint/types";
-import type { ReviewerFinding } from "@/lib/council/types";
-import type { CouncilReviewerJobData } from "@/lib/queue/council-queues";
 import { createCouncilReviewerBlueprint } from "@/lib/blueprint/council-reviewer";
 import { runBlueprint } from "@/lib/blueprint/runner";
+import type { BlueprintContext } from "@/lib/blueprint/types";
+import { getCoderClientForUser } from "@/lib/coder/user-client";
+import { DEFAULT_CLEANUP_GRACE_MS, DEFAULT_PI_MODEL, DEFAULT_PI_PROVIDER } from "@/lib/constants";
+import type { ReviewerFinding } from "@/lib/council/types";
+import { getDb } from "@/lib/db";
+import type { CouncilReviewerJobData } from "@/lib/queue/council-queues";
 import { cleanupWorkspace } from "@/lib/workspace/cleanup";
 import { councilWorkspaceName } from "@/lib/workspace/naming";
-import { getDb } from "@/lib/db";
-import { getCoderClientForUser } from "@/lib/coder/user-client";
-import {
-  DEFAULT_CLEANUP_GRACE_MS,
-  DEFAULT_PI_MODEL,
-  DEFAULT_PI_PROVIDER,
-} from "@/lib/constants";
 
 /**
  * Returns a BullMQ processor function for council reviewer jobs.
  * Resolves per-user Coder credentials from job data.
  */
-export function createCouncilReviewerProcessor(): (job: Job<CouncilReviewerJobData>) => Promise<ReviewerFinding[]> {
+export function createCouncilReviewerProcessor(): (
+  job: Job<CouncilReviewerJobData>,
+) => Promise<ReviewerFinding[]> {
   return async (job: Job<CouncilReviewerJobData>): Promise<ReviewerFinding[]> => {
     const { taskId, reviewerIndex, repoUrl, branchName, userId } = job.data;
     const councilTemplateId = process.env.CODER_COUNCIL_TEMPLATE_ID ?? "";
@@ -43,20 +41,14 @@ export function createCouncilReviewerProcessor(): (job: Job<CouncilReviewerJobDa
 
     try {
       // 1. Create workspace
-      const workspace = await coderClient.createWorkspace(
-        councilTemplateId,
-        workspaceName,
-        {
-          task_id: taskId,
-          repo_url: repoUrl,
-          branch_name: branchName,
-        },
-      );
+      const workspace = await coderClient.createWorkspace(councilTemplateId, workspaceName, {
+        task_id: taskId,
+        repo_url: repoUrl,
+        branch_name: branchName,
+      });
       workspaceId = workspace.id;
 
-      console.log(
-        `[council-reviewer] job=${job.id} workspaceId=${workspaceId} created`,
-      );
+      console.log(`[council-reviewer] job=${job.id} workspaceId=${workspaceId} created`);
 
       // 2. Wait for the build to become ready
       await coderClient.waitForBuild(workspaceId, "running");
@@ -91,11 +83,11 @@ export function createCouncilReviewerProcessor(): (job: Job<CouncilReviewerJobDa
       }
 
       // 6. Extract findings from the council-emit step
-      const emitStep = result.steps.find((s) => s.name === "council-emit" && s.status === "success");
+      const emitStep = result.steps.find(
+        (s) => s.name === "council-emit" && s.status === "success",
+      );
       if (!emitStep) {
-        throw new Error(
-          `[council-reviewer] council-emit step missing or did not succeed`,
-        );
+        throw new Error(`[council-reviewer] council-emit step missing or did not succeed`);
       }
 
       let findings: ReviewerFinding[];

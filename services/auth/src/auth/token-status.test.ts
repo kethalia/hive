@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("../db.js", () => ({
   getDb: vi.fn(),
@@ -9,8 +9,8 @@ vi.mock("@hive/auth", async (importOriginal) => ({
   tryDecrypt: vi.fn(),
 }));
 
-import { getDb } from "../db.js";
 import { tryDecrypt } from "@hive/auth";
+import { getDb } from "../db.js";
 import { getTokenStatus } from "./token-status.js";
 
 const MOCK_USER_ID = "aaaaaaaa-1111-2222-3333-444444444444";
