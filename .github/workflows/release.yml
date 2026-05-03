@@ -50,6 +50,7 @@ jobs:
       github.event.workflow_run.head_repository.full_name == github.repository
     uses: kethalia/workflows/.github/workflows/retag-stack.yml@v1
     with:
+      ref: ${{ github.event.workflow_run.head_sha }}
       images: |
         {
           "hive-web":      { "image": "hive-web" },
