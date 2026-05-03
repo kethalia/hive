@@ -42,7 +42,7 @@ permissions:
 jobs:
   release:
     if: github.event_name == 'push'
-    uses: kethalia/workflows/.github/workflows/retag-stack.yml@v1.0.0
+    uses: kethalia/workflows/.github/workflows/retag-stack.yml@v1
     with:
       images: |
         {
@@ -102,7 +102,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix: ${{ fromJSON(needs.recovery-expand.outputs.matrix) }}
-    uses: kethalia/workflows/.github/workflows/retag-image.yml@v1.0.0
+    uses: kethalia/workflows/.github/workflows/retag-image.yml@v1
     with:
       image: ${{ matrix.image }}
       source-tag: sha-${{ inputs.source-sha-short }}

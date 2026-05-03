@@ -31,7 +31,7 @@ jobs:
     permissions:
       contents: read
       packages: write
-    uses: kethalia/workflows/.github/workflows/ghcr-prune.yml@v1.0.0
+    uses: kethalia/workflows/.github/workflows/ghcr-prune.yml@v1
     secrets: inherit
     with:
       org: kethalia

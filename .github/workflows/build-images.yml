@@ -24,7 +24,7 @@ jobs:
     permissions:
       contents: read
       packages: write
-    uses: kethalia/workflows/.github/workflows/build-stack.yml@v1.0.0
+    uses: kethalia/workflows/.github/workflows/build-stack.yml@v1
     secrets: inherit
     with:
       push: ${{ github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository }}
