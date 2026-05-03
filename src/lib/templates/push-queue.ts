@@ -96,7 +96,6 @@ async function findCoderBinary(): Promise<string> {
  *   5. Resolves/rejects based on exit code
  */
 export function createTemplatePushWorker(): Worker<TemplatePushJobData> {
-  // @ts-expect-error — ioredis dual-install type mismatch (see KNOWLEDGE.md)
   return new Worker<TemplatePushJobData>(
     TEMPLATE_PUSH_QUEUE,
     async (job: Job<TemplatePushJobData>) => {
