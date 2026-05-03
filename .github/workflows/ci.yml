@@ -36,6 +36,7 @@ jobs:
         export COOKIE_SECRET=dummy
         export ENCRYPTION_KEY=00000000000000000000000000000000
         export NEXT_PUBLIC_TERMINAL_WS_URL=ws://localhost:3001
+        pnpm test:coverage
         pnpm -r --if-present run test:coverage
       build-command: |
         export DATABASE_URL=postgresql://dummy:dummy@localhost:5432/dummy
