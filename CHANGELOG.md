@@ -1,5 +1,11 @@
 # hive-orchestrator
 
+## 2.1.4
+
+### Patch Changes
+
+- 9f7f91c: ci: pin reusable workflows to @v1 and consolidate changeset check via ci-changeset-check reusable
+
 ## 2.1.3
 
 ### Patch Changes

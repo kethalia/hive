@@ -1,5 +1,11 @@
 # hive-auth
 
+## 1.0.3
+
+### Patch Changes
+
+- 9f7f91c: ci: pin reusable workflows to @v1 and consolidate changeset check via ci-changeset-check reusable
+
 ## 1.0.2
 
 ### Patch Changes
