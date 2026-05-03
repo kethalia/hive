@@ -13,8 +13,10 @@
 name: Release
 
 on:
-  push:
+  workflow_run:
+    workflows: ["Build images"]
     branches: [main]
+    types: [completed]
   workflow_dispatch:
     inputs:
       images:
@@ -41,9 +43,14 @@ permissions:
 
 jobs:
   release:
-    if: github.event_name == 'push'
+    if: >
+      github.event_name == 'workflow_run' &&
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.event == 'push' &&
+      github.event.workflow_run.head_repository.full_name == github.repository
     uses: kethalia/workflows/.github/workflows/retag-stack.yml@v1
     with:
+      ref: ${{ github.event.workflow_run.head_sha }}
       images: |
         {
           "hive-web":      { "image": "hive-web" },
