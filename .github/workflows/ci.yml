@@ -58,15 +58,8 @@ jobs:
       pull-requests: read
     uses: kethalia/workflows/.github/workflows/ci-quality.yml@v1
     with:
-      changeset-check: false
+      changeset-check: true
       audit-level: critical
-    secrets: inherit
-
-  changeset:
-    name: Changeset
-    permissions:
-      contents: read
-    uses: kethalia/workflows/.github/workflows/ci-changeset-check.yml@v1
     secrets: inherit
 
   helm-lint:
