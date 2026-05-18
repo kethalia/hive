@@ -15,6 +15,12 @@ fullnameOverride: ""
 # Optional: name of an externally-managed Secret providing COOKIE_SECRET, etc.
 existingSecret: ""
 
+# Extra env vars wired to external Secrets via secretKeyRef. Used by
+# the umbrella to inject DATABASE_URL + REDIS_URL from the CNPG- and
+# Valkey-owned Secrets. `secretName` is `tpl`-rendered inside the
+# deployment so it can interpolate .Release.Name.
+extraEnv: []
+
 serviceAccount:
   create: true
   automount: true

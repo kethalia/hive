@@ -13,19 +13,24 @@ Enabled components:
 {{- if (index .Values "hive-terminal").enabled }}
   ✓ hive-terminal (WebSocket proxy)
 {{- end }}
-{{- if .Values.postgresql.enabled }}
-  ✓ postgresql (bitnami subchart, ephemeral)
+{{- if .Values.cnpg.enabled }}
+  ✓ postgresql (CNPG `Cluster` {{ .Release.Name }}-pg, instances={{ .Values.cnpg.instances }}{{- if .Values.cnpg.backup.enabled }}, backups → {{ .Values.cnpg.backup.destinationPath }}{{- end }})
 {{- end }}
-{{- if .Values.redis.enabled }}
-  ✓ redis (bitnami subchart, ephemeral)
+{{- if .Values.valkey.enabled }}
+  ✓ valkey (StatefulSet {{ .Release.Name }}-valkey, persistence={{ .Values.valkey.persistence.enabled }})
 {{- end }}
 
 Shared Secret name: {{ include "hive.fullname" . }}-secrets
 Each child chart's `existingSecret` MUST equal this name. Defaults assume
 release name `hive`. Override per child if installing under a different name.
 
-⚠  Preview / ephemeral storage
-   With the bitnami postgresql/redis subcharts enabled, persistence is
-   disabled by default — every redeploy wipes data. For production, switch
-   to externally-managed datastores and supply DATABASE_URL / REDIS_URL via
-   a sealed Secret referenced by `existingSecret` on each child.
+DATABASE_URL / REDIS_URL are NOT in the shared Secret. Children read them
+from the CNPG-generated `{{ .Release.Name }}-pg-app` Secret (key `uri`) and
+the umbrella-rendered `{{ .Release.Name }}-valkey-secret` (key `url`) via
+their `extraEnv` blocks.
+{{- if and .Values.cnpg.enabled (not .Values.cnpg.backup.enabled) }}
+
+⚠  CNPG backups are disabled in this environment (preview default). Data
+   lives only in the local PVC. Enable `cnpg.backup.enabled` in prod
+   overrides and point `destinationPath` at `s3://cnpg-backups/<app>`.
+{{- end }}

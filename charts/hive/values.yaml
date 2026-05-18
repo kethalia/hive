@@ -1,77 +1,103 @@
 # hive umbrella values.
 #
-# Per-child overrides. `existingSecret` points each child's envFrom at the
-# umbrella-rendered Secret. The literal value MUST match the umbrella
-# Secret's rendered name. With release name `hive` (the convention this
-# umbrella assumes), fullname collapses to `hive` and the Secret resolves
-# to `hive-secrets`. If you install with a different release name, override
-# these values (and the corresponding Secret name) accordingly.
+# Datastore migration (v0.2.0):
+#   - Postgres: CNPG `Cluster` CR rendered by templates/cnpg-cluster.yaml.
+#     Cluster name is `<release>-pg`; the operator auto-generates an
+#     application user Secret at `<release>-pg-app` with key `uri`.
+#   - Redis  : Valkey StatefulSet + Secret rendered by templates/valkey.yaml.
+#     Secret name is `<release>-valkey-secret`, key `url`.
+#
+# Children consume DATABASE_URL + REDIS_URL via their `extraEnv` value —
+# each item becomes an env entry on the container with a `secretKeyRef`.
+# The umbrella defaults below wire DATABASE_URL/REDIS_URL automatically;
+# override `extraEnv` in a per-env file only if you need different keys.
+#
+# The `secretName` strings are `tpl`-rendered inside the child chart so
+# they can interpolate `.Release.Name` (which is what `helm install` /
+# the ApplicationSet binds per-PR).
 
 hive-web:
   enabled: true
   existingSecret: hive-secrets
+  extraEnv:
+    - name: DATABASE_URL
+      secretName: "{{ .Release.Name }}-pg-app"
+      secretKey: uri
+    - name: REDIS_URL
+      secretName: "{{ .Release.Name }}-valkey-secret"
+      secretKey: url
 
 hive-auth:
   enabled: true
   existingSecret: hive-secrets
+  extraEnv:
+    - name: DATABASE_URL
+      secretName: "{{ .Release.Name }}-pg-app"
+      secretKey: uri
 
 hive-terminal:
   enabled: true
   existingSecret: hive-secrets
+  extraEnv:
+    - name: DATABASE_URL
+      secretName: "{{ .Release.Name }}-pg-app"
+      secretKey: uri
+    - name: REDIS_URL
+      secretName: "{{ .Release.Name }}-valkey-secret"
+      secretKey: url
 
-# Bitnami chart image-verification escape hatch. The subcharts refuse to
-# render non-`bitnami/*` images unless this flag is set; we point them at
-# `bitnamilegacy/*` (see postgresql/redis blocks below), so opt out.
-global:
-  security:
-    allowInsecureImages: true
-
-# Stub application secrets consumed by the umbrella Secret template.
-# Replace every value via -f values-<env>.yaml in real deployments.
-# These placeholders are obviously-fake on purpose — never commit real
-# credentials here.
+# Stub application secrets composed into `<release>-secrets`. Children
+# consume these via envFrom (existingSecret above). DATABASE_URL +
+# REDIS_URL are NOT composed here — they come from the CNPG- and
+# Valkey-owned Secrets via the `extraEnv` blocks above.
 sharedSecret:
   COOKIE_SECRET: replace-me
   ENCRYPTION_KEY: replace-me-32-bytes-hex-for-aes256
 
-# Bitnami postgresql — ephemeral defaults for preview environments.
-# Persistence is disabled so the volume is wiped on every redeploy. The
-# preview password is a placeholder; production deployments MUST override
-# postgresql.auth.password via a sealed secret or external secrets store.
-#
-# Images point at `bitnamilegacy/*`: Bitnami purged the legacy `bitnami/*`
-# Docker Hub tags in 2025 and mirrored them under `bitnamilegacy/*`. The
-# pinned subchart version still references the purged tags, so override
-# the image repository until the subchart is bumped to a release that
-# pins still-published images.
-postgresql:
+# ─── CloudNativePG `Cluster` ────────────────────────────────────────────
+# Preview defaults: single-instance, small PVC, no backups. Prod
+# overrides in k8s-cluster/apps/kethalia/hive/values-prod.yaml.
+cnpg:
   enabled: true
-  architecture: standalone
-  image:
-    registry: docker.io
-    repository: bitnamilegacy/postgresql
-  auth:
-    username: hive
-    password: hive-preview-ephemeral
-    database: hive
-  primary:
-    persistence:
-      enabled: false
+  # Operator 1.24.x supports PG 13–17. Pin to a digest in prod overrides
+  # for reproducibility; the floating tag here is fine for preview.
+  imageName: ghcr.io/cloudnative-pg/postgresql:17.2
+  instances: 1
+  database: hive
+  owner: hive
+  storage:
+    size: 1Gi
+    # Empty -> cluster default. Prod overrides to longhorn.
+    storageClass: ""
+  resources: {}
+  # WAL archive + base backups to MinIO. Disabled for preview (no need
+  # to flood the bucket with throwaway PR data). Enabled in prod via
+  # values-prod.yaml. Credentials live in `cnpg-minio-credentials`,
+  # Reflector-mirrored into this namespace by the k8s-cluster repo.
+  backup:
+    enabled: false
+    endpointURL: http://minio.infrastructure.svc:9000
+    destinationPath: "" # e.g. s3://cnpg-backups/hive
+    s3CredentialsSecret: cnpg-minio-credentials
+    schedule: "0 0 3 * * *" # ScheduledBackup cron — daily 03:00 UTC
+    retentionPolicy: "14d"
 
-# Bitnami redis — ephemeral defaults for preview environments.
-# Standalone (no replica), persistence disabled, preview-only password.
-# See postgresql block above for the `bitnamilegacy/*` rationale.
-redis:
+# ─── Valkey (Redis drop-in) ─────────────────────────────────────────────
+# Single-replica StatefulSet. Password generated at install time when
+# `auth.password` is empty; the rendered Secret is the source of truth
+# for REDIS_URL (consumed by children via extraEnv).
+valkey:
   enabled: true
-  architecture: standalone
-  image:
-    registry: docker.io
-    repository: bitnamilegacy/redis
+  image: valkey/valkey:8.0-alpine
+  # Empty -> random 32-byte password rendered into the Secret at install.
+  # Prod overrides via SealedSecret-derived value (see values-prod).
   auth:
-    enabled: true
-    password: hive-preview-ephemeral
-  master:
-    persistence:
-      enabled: false
-  replica:
-    replicaCount: 0
+    password: ""
+    # When set, the chart skips rendering its own Secret and reads
+    # `url` (and optional `password`) from this external Secret.
+    existingSecret: ""
+  persistence:
+    enabled: false
+    size: 1Gi
+    storageClass: ""
+  resources: {}

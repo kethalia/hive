@@ -1,0 +1,69 @@
+{{- /*
+CloudNativePG application database for hive.
+
+Cluster name: `{{ .Release.Name }}-pg`. The operator creates a Secret
+named `<cluster>-app` containing keys `username`, `password`, `host`,
+`port`, `dbname`, `uri`, `jdbc-uri`. Children read DATABASE_URL from
+the `uri` key via their `extraEnv` block (see umbrella values.yaml).
+
+Backup gating: only renders the `barmanObjectStore` block and the
+ScheduledBackup CR when `cnpg.backup.enabled`. Preview deploys leave
+it off; prod values-prod.yaml turns it on and points
+`destinationPath` at `s3://cnpg-backups/hive`.
+*/ -}}
+{{- if .Values.cnpg.enabled -}}
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: {{ .Release.Name }}-pg
+  labels:
+    {{- include "hive.labels" . | nindent 4 }}
+spec:
+  instances: {{ .Values.cnpg.instances }}
+  imageName: {{ .Values.cnpg.imageName | quote }}
+  bootstrap:
+    initdb:
+      database: {{ .Values.cnpg.database | quote }}
+      owner: {{ .Values.cnpg.owner | quote }}
+  storage:
+    size: {{ .Values.cnpg.storage.size | quote }}
+    {{- with .Values.cnpg.storage.storageClass }}
+    storageClass: {{ . | quote }}
+    {{- end }}
+  {{- with .Values.cnpg.resources }}
+  resources:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  {{- if .Values.cnpg.backup.enabled }}
+  backup:
+    barmanObjectStore:
+      destinationPath: {{ required "cnpg.backup.destinationPath is required when backup.enabled" .Values.cnpg.backup.destinationPath | quote }}
+      endpointURL: {{ .Values.cnpg.backup.endpointURL | quote }}
+      s3Credentials:
+        accessKeyId:
+          name: {{ .Values.cnpg.backup.s3CredentialsSecret }}
+          key: ACCESS_KEY_ID
+        secretAccessKey:
+          name: {{ .Values.cnpg.backup.s3CredentialsSecret }}
+          key: ACCESS_SECRET_KEY
+      wal:
+        compression: gzip
+      data:
+        compression: gzip
+    retentionPolicy: {{ .Values.cnpg.backup.retentionPolicy | quote }}
+  {{- end }}
+{{- if .Values.cnpg.backup.enabled }}
+---
+apiVersion: postgresql.cnpg.io/v1
+kind: ScheduledBackup
+metadata:
+  name: {{ .Release.Name }}-pg-daily
+  labels:
+    {{- include "hive.labels" . | nindent 4 }}
+spec:
+  schedule: {{ .Values.cnpg.backup.schedule | quote }}
+  backupOwnerReference: self
+  cluster:
+    name: {{ .Release.Name }}-pg
+{{- end }}
+{{- end }}
