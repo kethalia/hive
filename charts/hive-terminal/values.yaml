@@ -106,3 +106,8 @@ affinity: {}
 
 volumes: []
 volumeMounts: []
+
+# Writable /tmp emptyDir, required when securityContext.readOnlyRootFilesystem is true
+# (tsx transpile cache, Node.js os.tmpdir() callers). Disable to mount your own /tmp.
+tmpVolume:
+  enabled: true

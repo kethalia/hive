@@ -120,3 +120,8 @@ affinity: {}
 
 volumes: []
 volumeMounts: []
+
+# Writable /tmp emptyDir, required when securityContext.readOnlyRootFilesystem is true
+# (Next.js scratch, Node.js os.tmpdir() callers). Disable to mount your own /tmp.
+tmpVolume:
+  enabled: true
