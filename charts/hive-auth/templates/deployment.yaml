@@ -46,6 +46,16 @@ spec:
                 name: {{ include "hive-auth.secretName" . }}
             - configMapRef:
                 name: {{ include "hive-auth.configMapName" . }}
+          {{- with .Values.extraEnv }}
+          env:
+            {{- range . }}
+            - name: {{ .name }}
+              valueFrom:
+                secretKeyRef:
+                  name: {{ tpl .secretName $ }}
+                  key: {{ .secretKey }}
+            {{- end }}
+          {{- end }}
           livenessProbe:
             {{- toYaml .Values.livenessProbe | nindent 12 }}
           readinessProbe:

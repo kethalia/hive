@@ -46,6 +46,20 @@ spec:
                 name: {{ include "hive-web.secretName" . }}
             - configMapRef:
                 name: {{ include "hive-web.configMapName" . }}
+          {{- /* Per-env additions wired to external Secrets (CNPG's
+                 generated app Secret, our Valkey Secret). The umbrella
+                 passes secretName as a templated string referencing
+                 .Release.Name, so render it through tpl. */ -}}
+          {{- with .Values.extraEnv }}
+          env:
+            {{- range . }}
+            - name: {{ .name }}
+              valueFrom:
+                secretKeyRef:
+                  name: {{ tpl .secretName $ }}
+                  key: {{ .secretKey }}
+            {{- end }}
+          {{- end }}
           livenessProbe:
             {{- toYaml .Values.livenessProbe | nindent 12 }}
           readinessProbe:

@@ -25,6 +25,16 @@ fullnameOverride: ""
 # REDIS_URL, COOKIE_SECRET, etc. When empty, defaults to "<release-fullname>-secrets".
 existingSecret: ""
 
+# Extra env vars wired to external Secrets (rendered as `env:` entries
+# with `valueFrom.secretKeyRef`). Used by the umbrella to inject
+# DATABASE_URL from CNPG's `<release>-pg-app` Secret and REDIS_URL from
+# the umbrella-rendered Valkey Secret. `secretName` is `tpl`-rendered
+# inside the deployment so it can interpolate .Release.Name.
+extraEnv: []
+# - name: DATABASE_URL
+#   secretName: "{{ .Release.Name }}-pg-app"
+#   secretKey: uri
+
 serviceAccount:
   create: true
   automount: true

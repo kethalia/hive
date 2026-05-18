@@ -16,6 +16,11 @@ fullnameOverride: ""
 # COOKIE_SECRET, ENCRYPTION_KEY. When empty, defaults to "<release-fullname>-secrets".
 existingSecret: ""
 
+# Extra env vars wired to external Secrets via secretKeyRef. Used by
+# the umbrella to inject DATABASE_URL from CNPG's `<release>-pg-app`.
+# `secretName` is `tpl`-rendered inside the deployment.
+extraEnv: []
+
 serviceAccount:
   create: true
   automount: true

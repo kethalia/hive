@@ -1,0 +1,159 @@
+{{- /*
+Valkey (Redis-protocol-compatible) StatefulSet for hive.
+
+Renders three objects:
+  - Secret  `<release>-valkey-secret`  (keys: password, url)
+  - Service `<release>-valkey`         (ClusterIP, redis port)
+  - StatefulSet `<release>-valkey`     (single replica)
+
+The Secret is the source of truth for REDIS_URL — children read its
+`url` key via their `extraEnv` block (see umbrella values.yaml).
+
+Password resolution:
+  - .Values.valkey.auth.existingSecret set -> chart renders nothing,
+    consumer reads `url` (and optional `password`) from that Secret.
+  - .Values.valkey.auth.password set      -> use it verbatim.
+  - otherwise                             -> generate a 32-byte random
+    password at install time. Helm `randAlphaNum` is non-deterministic
+    across renders, but the Secret is created once and re-read on
+    upgrade (look-then-render pattern).
+*/ -}}
+{{- if .Values.valkey.enabled -}}
+{{- $svcName := printf "%s-valkey" .Release.Name -}}
+{{- $secretName := printf "%s-valkey-secret" .Release.Name -}}
+
+{{- if not .Values.valkey.auth.existingSecret -}}
+{{- /* Stable password across upgrades: reuse the existing Secret value
+       if one is already in the cluster, else generate fresh. */ -}}
+{{- $existing := lookup "v1" "Secret" .Release.Namespace $secretName -}}
+{{- $password := "" -}}
+{{- if .Values.valkey.auth.password -}}
+{{- $password = .Values.valkey.auth.password -}}
+{{- else if and $existing $existing.data $existing.data.password -}}
+{{- $password = (index $existing.data "password" | b64dec) -}}
+{{- else -}}
+{{- $password = randAlphaNum 32 -}}
+{{- end -}}
+{{- $url := printf "redis://:%s@%s:6379" $password $svcName -}}
+apiVersion: v1
+kind: Secret
+metadata:
+  name: {{ $secretName }}
+  labels:
+    {{- include "hive.labels" . | nindent 4 }}
+type: Opaque
+stringData:
+  password: {{ $password | quote }}
+  url: {{ $url | quote }}
+---
+{{- end }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $svcName }}
+  labels:
+    {{- include "hive.labels" . | nindent 4 }}
+    app.kubernetes.io/component: valkey
+spec:
+  type: ClusterIP
+  ports:
+    - name: redis
+      port: 6379
+      targetPort: redis
+      protocol: TCP
+  selector:
+    {{- include "hive.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: valkey
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ $svcName }}
+  labels:
+    {{- include "hive.labels" . | nindent 4 }}
+    app.kubernetes.io/component: valkey
+spec:
+  serviceName: {{ $svcName }}
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "hive.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: valkey
+  template:
+    metadata:
+      labels:
+        {{- include "hive.labels" . | nindent 8 }}
+        app.kubernetes.io/component: valkey
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 999
+        fsGroup: 999
+      containers:
+        - name: valkey
+          image: {{ .Values.valkey.image | quote }}
+          imagePullPolicy: IfNotPresent
+          args:
+            - "--requirepass"
+            - "$(VALKEY_PASSWORD)"
+            {{- if .Values.valkey.persistence.enabled }}
+            - "--appendonly"
+            - "yes"
+            - "--dir"
+            - "/data"
+            {{- end }}
+          env:
+            - name: VALKEY_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.valkey.auth.existingSecret | default $secretName }}
+                  key: password
+          ports:
+            - name: redis
+              containerPort: 6379
+              protocol: TCP
+          livenessProbe:
+            tcpSocket:
+              port: redis
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          readinessProbe:
+            exec:
+              command:
+                - sh
+                - -c
+                - "valkey-cli -a \"$VALKEY_PASSWORD\" ping | grep -q PONG"
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          {{- with .Values.valkey.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+          volumeMounts:
+            - name: data
+              mountPath: /data
+      {{- if not .Values.valkey.persistence.enabled }}
+      volumes:
+        - name: data
+          emptyDir: {}
+      {{- end }}
+  {{- if .Values.valkey.persistence.enabled }}
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: {{ .Values.valkey.persistence.size | quote }}
+        {{- with .Values.valkey.persistence.storageClass }}
+        storageClassName: {{ . | quote }}
+        {{- end }}
+  {{- end }}
+{{- end }}
