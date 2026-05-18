@@ -19,6 +19,13 @@ hive-terminal:
   enabled: true
   existingSecret: hive-secrets
 
+# Bitnami chart image-verification escape hatch. The subcharts refuse to
+# render non-`bitnami/*` images unless this flag is set; we point them at
+# `bitnamilegacy/*` (see postgresql/redis blocks below), so opt out.
+global:
+  security:
+    allowInsecureImages: true
+
 # Stub application secrets consumed by the umbrella Secret template.
 # Replace every value via -f values-<env>.yaml in real deployments.
 # These placeholders are obviously-fake on purpose — never commit real
@@ -31,9 +38,18 @@ sharedSecret:
 # Persistence is disabled so the volume is wiped on every redeploy. The
 # preview password is a placeholder; production deployments MUST override
 # postgresql.auth.password via a sealed secret or external secrets store.
+#
+# Images point at `bitnamilegacy/*`: Bitnami purged the legacy `bitnami/*`
+# Docker Hub tags in 2025 and mirrored them under `bitnamilegacy/*`. The
+# pinned subchart version still references the purged tags, so override
+# the image repository until the subchart is bumped to a release that
+# pins still-published images.
 postgresql:
   enabled: true
   architecture: standalone
+  image:
+    registry: docker.io
+    repository: bitnamilegacy/postgresql
   auth:
     username: hive
     password: hive-preview-ephemeral
@@ -44,9 +60,13 @@ postgresql:
 
 # Bitnami redis — ephemeral defaults for preview environments.
 # Standalone (no replica), persistence disabled, preview-only password.
+# See postgresql block above for the `bitnamilegacy/*` rationale.
 redis:
   enabled: true
   architecture: standalone
+  image:
+    registry: docker.io
+    repository: bitnamilegacy/redis
   auth:
     enabled: true
     password: hive-preview-ephemeral
