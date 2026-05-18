@@ -67,15 +67,19 @@ spec:
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
           volumeMounts:
+            {{- if .Values.tmpVolume.enabled }}
             # Writable tmp for tsx transpile cache under readOnlyRootFilesystem.
-            - name: tmp
+            - name: hive-tmp
               mountPath: /tmp
+            {{- end }}
             {{- with .Values.volumeMounts }}
             {{- toYaml . | nindent 12 }}
             {{- end }}
       volumes:
-        - name: tmp
+        {{- if .Values.tmpVolume.enabled }}
+        - name: hive-tmp
           emptyDir: {}
+        {{- end }}
         {{- with .Values.volumes }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
