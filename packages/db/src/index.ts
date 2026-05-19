@@ -1,7 +1,7 @@
-import { Prisma, PrismaClient } from "./generated/prisma/client.js";
+import { Prisma, PrismaClient } from "./generated/prisma/client.ts";
 
 export { Prisma, PrismaClient };
-export type * from "./generated/prisma/client.js";
+export type * from "./generated/prisma/client.ts";
 
 let client: PrismaClient | null = null;
 
