@@ -14,7 +14,7 @@ vi.mock("../../../lib/workspace/cleanup.js", () => ({
   cleanupWorkspace: vi.fn().mockResolvedValue(undefined),
 }));
 
-vi.mock("../../../lib/db/index.js", () => ({
+vi.mock("@hive/db", () => ({
   getDb: vi.fn().mockReturnValue({}),
 }));
 

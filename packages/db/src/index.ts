@@ -1,7 +1,7 @@
-export { Prisma, PrismaClient } from "@prisma/client";
-export type * from "@prisma/client";
+import { Prisma, PrismaClient } from "@prisma/client";
 
-import { PrismaClient } from "@prisma/client";
+export { Prisma, PrismaClient };
+export type * from "@prisma/client";
 
 let client: PrismaClient | null = null;
 

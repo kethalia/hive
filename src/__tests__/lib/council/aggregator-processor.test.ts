@@ -5,7 +5,7 @@ import type { CouncilAggregatorJobData } from "../../../lib/queue/council-queues
 
 // ── Module mocks ────────────────────────────────────────────────────────────
 
-vi.mock("../../../lib/db/index.js", () => ({
+vi.mock("@hive/db", () => ({
   getDb: vi.fn(),
 }));
 
@@ -17,7 +17,7 @@ vi.mock("../../../lib/council/comment.js", () => ({
 
 import { createCouncilAggregatorProcessor } from "../../../lib/council/aggregator-processor.js";
 import { postPRComment } from "../../../lib/council/comment.js";
-import { getDb } from "../../../lib/db/index.js";
+import { getDb } from "@hive/db";
 
 // ── Test helpers ────────────────────────────────────────────────────────────
 

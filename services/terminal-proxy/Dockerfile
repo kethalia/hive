@@ -6,6 +6,7 @@ RUN corepack enable && corepack prepare pnpm@${PNPM_VERSION} --activate
 WORKDIR /app
 COPY pnpm-lock.yaml package.json pnpm-workspace.yaml ./
 COPY packages/auth/package.json packages/auth/package.json
+COPY packages/db/package.json packages/db/package.json
 COPY services/terminal-proxy/package.json services/terminal-proxy/package.json
 RUN pnpm install --frozen-lockfile --ignore-scripts
 
@@ -14,8 +15,11 @@ ARG PNPM_VERSION
 RUN corepack enable && corepack prepare pnpm@${PNPM_VERSION} --activate
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
+COPY --from=deps /app/packages/auth/node_modules ./packages/auth/node_modules
+COPY --from=deps /app/packages/db/node_modules ./packages/db/node_modules
 COPY --from=deps /app/services/terminal-proxy/node_modules ./services/terminal-proxy/node_modules
 COPY packages/auth/ packages/auth/
+COPY packages/db/ packages/db/
 COPY services/terminal-proxy/ services/terminal-proxy/
 COPY package.json pnpm-workspace.yaml pnpm-lock.yaml ./
 RUN pnpm deploy --filter hive-terminal --prod --legacy --ignore-scripts /deploy

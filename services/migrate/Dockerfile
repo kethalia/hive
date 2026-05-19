@@ -10,6 +10,7 @@ ARG PNPM_VERSION
 RUN corepack enable && corepack prepare pnpm@${PNPM_VERSION} --activate
 WORKDIR /app
 COPY pnpm-lock.yaml package.json pnpm-workspace.yaml ./
+COPY packages/auth/package.json packages/auth/package.json
 COPY packages/db/package.json packages/db/package.json
 COPY services/migrate/package.json services/migrate/package.json
 RUN pnpm install --frozen-lockfile --ignore-scripts
@@ -19,7 +20,9 @@ ARG PNPM_VERSION
 RUN corepack enable && corepack prepare pnpm@${PNPM_VERSION} --activate
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
+COPY --from=deps /app/packages/auth/node_modules ./packages/auth/node_modules
 COPY --from=deps /app/packages/db/node_modules ./packages/db/node_modules
+COPY packages/auth/ packages/auth/
 COPY packages/db/ packages/db/
 COPY services/migrate/ services/migrate/
 COPY package.json pnpm-workspace.yaml pnpm-lock.yaml ./
@@ -27,10 +30,11 @@ COPY package.json pnpm-workspace.yaml pnpm-lock.yaml ./
 # itself doesn't need the generated client, but the postinstall in
 # @hive/db expects it and downstream tooling does.
 RUN pnpm --filter @hive/db db:generate
-# Note: --ignore-scripts is intentionally NOT passed here. The migrate
-# image runs only our own workspace packages (@hive/db + hive-migrate);
-# their postinstall is prisma generate, which we explicitly want, and
-# pnpm needs lifecycle to wire `node_modules/.bin/prisma` reliably.
+# Note: --ignore-scripts is intentionally NOT passed here. @hive/db pulls
+# in prisma and @prisma/client, whose own postinstall scripts run as part
+# of `pnpm deploy`. That is intentional — we need `prisma generate` for
+# @hive/db and the prisma CLI binary wired into node_modules/.bin so the
+# CMD below can resolve it.
 RUN pnpm deploy --filter hive-migrate --prod --legacy /deploy
 
 FROM node:20-alpine AS runner

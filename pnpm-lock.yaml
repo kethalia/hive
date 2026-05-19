@@ -191,6 +191,9 @@ importers:
       '@hive/db':
         specifier: workspace:*
         version: link:../../packages/db
+      prisma:
+        specifier: ^6.19.0
+        version: 6.19.2(magicast@0.3.5)(typescript@5.9.3)
 
   services/terminal-proxy:
     dependencies:
