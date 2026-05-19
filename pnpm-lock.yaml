@@ -154,11 +154,14 @@ importers:
         specifier: workspace:*
         version: link:../../packages/auth
       '@prisma/client':
-        specifier: ^6.8.0
+        specifier: ^6.19.0
         version: 6.19.2(prisma@6.19.2(magicast@0.3.5)(typescript@5.9.3))(typescript@5.9.3)
       dotenv:
         specifier: ^17.4.2
         version: 17.4.2
+      prisma:
+        specifier: ^6.19.0
+        version: 6.19.2(magicast@0.3.5)(typescript@5.9.3)
       tsx:
         specifier: ^4.21.0
         version: 4.21.0
@@ -166,9 +169,6 @@ importers:
       '@types/node':
         specifier: ^22
         version: 22.19.15
-      prisma:
-        specifier: ^6.8.0
-        version: 6.19.2(magicast@0.3.5)(typescript@5.9.3)
       typescript:
         specifier: ^5
         version: 5.9.3

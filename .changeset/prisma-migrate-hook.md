@@ -14,8 +14,10 @@ race the CNPG operator.
 To support this:
 
 - `services/auth/Dockerfile` now copies the root `prisma/` directory into
-  the image and installs the `prisma` CLI globally in the runner stage, so
-  the same image powers both the auth service and the migrate Job.
+  the image. The `prisma` CLI is promoted from devDependencies to
+  dependencies of `hive-auth` (aligned to `^6.19.0` to match the workspace
+  root), so `pnpm deploy --prod` keeps it in the runner stage and the same
+  image powers both the auth service and the migrate Job.
 - The 4 incremental migrations under `prisma/migrations/` assumed
   `users` / `tasks` / `coder_tokens` already existed (dev was bootstrapped
   via `db push`, so no init migration ever landed). They are replaced with

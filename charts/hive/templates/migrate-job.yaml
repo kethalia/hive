@@ -65,7 +65,7 @@ spec:
           image: "{{ (index .Values "hive-auth").image.repository }}:{{ (index .Values "hive-auth").image.tag | default .Chart.AppVersion }}"
           imagePullPolicy: {{ (index .Values "hive-auth").image.pullPolicy | default "IfNotPresent" }}
           workingDir: /app
-          command: ["prisma", "migrate", "deploy", "--schema", "/app/prisma/schema.prisma"]
+          command: ["node_modules/.bin/prisma", "migrate", "deploy", "--schema", "/app/prisma/schema.prisma"]
           env:
             - name: DATABASE_URL
               valueFrom:

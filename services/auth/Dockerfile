@@ -32,7 +32,6 @@ ENV NODE_ENV=production
 ENV BIND_HOST=0.0.0.0
 RUN addgroup --system --gid 1001 appgroup && \
     adduser --system --uid 1001 appuser -G appgroup
-RUN npm install -g prisma@6.8.0 && npm cache clean --force
 COPY --from=deploy --chown=appuser:appgroup /deploy ./
 USER appuser
 EXPOSE 4400
