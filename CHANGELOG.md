@@ -1,5 +1,12 @@
 # hive-orchestrator
 
+## 2.1.8
+
+### Patch Changes
+
+- Updated dependencies [2323c3d]
+  - @hive/auth@1.0.1
+
 ## 2.1.7
 
 ### Patch Changes

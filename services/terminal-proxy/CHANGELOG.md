@@ -1,5 +1,12 @@
 # hive-terminal-proxy
 
+## 2.0.5
+
+### Patch Changes
+
+- Updated dependencies [2323c3d]
+  - @hive/auth@1.0.1
+
 ## 2.0.4
 
 ### Patch Changes
