@@ -1,5 +1,5 @@
 import webpush from "web-push";
-import { getDb } from "@/lib/db";
+import { getDb } from "@hive/db";
 
 let cachedKeys: { publicKey: string; privateKey: string } | null = null;
 

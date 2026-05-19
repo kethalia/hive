@@ -75,3 +75,6 @@ tmp/
 .mcp.json
 
 .playwright-mcp
+# helm dep build artifacts
+charts/*/Chart.lock
+charts/*/charts/

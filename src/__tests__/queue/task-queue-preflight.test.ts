@@ -60,7 +60,7 @@ describe("isNetworkError", () => {
   });
 });
 
-vi.mock("@/lib/db", () => ({
+vi.mock("@hive/db", () => ({
   getDb: vi.fn(),
 }));
 
@@ -71,7 +71,7 @@ vi.mock("@hive/auth", async (importOriginal) => ({
 
 import { tryDecrypt } from "@hive/auth";
 import { getTokenStatus } from "@/lib/auth/token-status";
-import { getDb } from "@/lib/db";
+import { getDb } from "@hive/db";
 
 describe("pre-flight token expiry", () => {
   const mockDb = {

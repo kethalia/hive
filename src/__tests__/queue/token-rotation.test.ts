@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("@/lib/db", () => ({
+vi.mock("@hive/db", () => ({
   getDb: vi.fn(),
 }));
 
@@ -25,7 +25,7 @@ vi.mock("@/lib/queue/connection", () => ({
 import { encrypt, TOKEN_LIFETIME_SECONDS, tryDecrypt } from "@hive/auth";
 import { CoderClient } from "@/lib/coder/client";
 import { TOKEN_ROTATION_THRESHOLD } from "@/lib/constants";
-import { getDb } from "@/lib/db";
+import { getDb } from "@hive/db";
 import { processTokenRotation } from "@/lib/queue/token-rotation";
 
 const LIFETIME_MS = TOKEN_LIFETIME_SECONDS * 1000;

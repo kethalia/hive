@@ -3,7 +3,7 @@ import path from "node:path";
 import { describe, expect, it } from "vitest";
 
 describe("Prisma schema", () => {
-  const schemaPath = path.resolve(__dirname, "../../../../prisma/schema.prisma");
+  const schemaPath = path.resolve(__dirname, "../../../../packages/db/prisma/schema.prisma");
   const schema = fs.readFileSync(schemaPath, "utf-8");
 
   it("defines Task model with expected fields", () => {

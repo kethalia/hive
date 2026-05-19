@@ -13,7 +13,7 @@ const mockDb = vi.hoisted(() => ({
   },
 }));
 
-vi.mock("@/lib/db", () => ({
+vi.mock("@hive/db", () => ({
   getDb: () => mockDb,
 }));
 

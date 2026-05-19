@@ -41,7 +41,7 @@ const mockTaskFindMany = vi.fn();
 const mockTaskUpdate = vi.fn();
 const mockTaskLogCreate = vi.fn();
 
-vi.mock("@/lib/db", () => ({
+vi.mock("@hive/db", () => ({
   getDb: vi.fn(() => ({
     task: {
       create: mockTaskCreate,

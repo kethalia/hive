@@ -1,6 +1,6 @@
 import type { TokenStatusResult } from "@hive/auth";
 import { TOKEN_EXPIRY_WARNING_HOURS, tryDecrypt } from "@hive/auth";
-import { getDb } from "../db.js";
+import { getDb } from "@hive/db";
 import type { DecryptedTokenResult } from "./types.js";
 
 export type { DecryptedTokenResult, TokenStatusResult };

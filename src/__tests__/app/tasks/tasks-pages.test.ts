@@ -35,7 +35,7 @@ vi.mock("bullmq", () => ({
 const mockTaskCreate = vi.fn();
 const mockTaskLogCreate = vi.fn().mockResolvedValue({ id: "log-1" });
 
-vi.mock("@/lib/db", () => ({
+vi.mock("@hive/db", () => ({
   getDb: vi.fn(() => ({
     task: {
       create: mockTaskCreate,

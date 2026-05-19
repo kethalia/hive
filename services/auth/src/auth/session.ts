@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import type { SessionData } from "@hive/auth";
 import { SESSION_MAX_AGE_SECONDS } from "@hive/auth";
-import { getDb } from "../db.js";
+import { getDb } from "@hive/db";
 
 export type { SessionData };
 

@@ -6,7 +6,7 @@
  */
 
 import { COUNCIL_AGGREGATOR_QUEUE, COUNCIL_REVIEWER_QUEUE } from "@/lib/constants";
-import { getDb } from "@/lib/db";
+import { getDb } from "@hive/db";
 import { getCouncilFlowProducer } from "@/lib/queue/council-queues";
 
 interface CouncilDispatchParams {

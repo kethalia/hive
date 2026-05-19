@@ -1,5 +1,5 @@
 import { encrypt, TOKEN_LIFETIME_SECONDS } from "@hive/auth";
-import { getDb } from "../db.js";
+import { getDb } from "@hive/db";
 import { coderLogin, createCoderApiKey, validateCoderInstance } from "./coder-api.js";
 import { API_KEY_CREATION_RETRIES, SESSION_TOKEN_FALLBACK_EXPIRY_MS } from "./constants.js";
 import { createSession } from "./session.js";

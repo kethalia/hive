@@ -1,5 +1,5 @@
 import { v4 as uuidv4 } from "uuid";
-import { getDb } from "@/lib/db";
+import { getDb } from "@hive/db";
 import type { TaskJobData } from "@/lib/queue/task-queue";
 import { getTaskQueue } from "@/lib/queue/task-queue";
 

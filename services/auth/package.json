@@ -6,19 +6,15 @@
   "scripts": {
     "dev": "tsx watch src/index.ts",
     "start": "NODE_ENV=production tsx src/index.ts",
-    "postinstall": "prisma generate",
-    "pretest": "prisma generate",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
-    "typecheck": "tsc --noEmit",
-    "db:generate": "prisma generate"
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@hive/auth": "workspace:*",
-    "@prisma/client": "^6.19.0",
+    "@hive/db": "workspace:*",
     "dotenv": "^17.4.2",
-    "prisma": "^6.19.0",
     "tsx": "^4.21.0"
   },
   "devDependencies": {

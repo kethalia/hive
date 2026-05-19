@@ -1,7 +1,9 @@
 {{- /*
 Prisma migrate Job. Runs `prisma migrate deploy` against the CNPG-managed
-Postgres before app pods roll. Reuses the hive-auth image (which now bundles
-the root `prisma/` dir with `migrations/` and the prisma CLI).
+Postgres before app pods roll. Uses the dedicated `hive-migrate` image
+built from services/migrate/Dockerfile — that image carries the Prisma
+CLI plus the @hive/db schema and migrations, decoupled from the auth
+runtime.
 
 Hook strategy:
   - post-install: CNPG `Cluster` is created as a regular manifest in the same
@@ -36,7 +38,7 @@ spec:
         app.kubernetes.io/component: prisma-migrate
     spec:
       restartPolicy: OnFailure
-      {{- with (index .Values "hive-auth").imagePullSecrets }}
+      {{- with (index .Values "hive-migrate").imagePullSecrets | default (index .Values "hive-auth").imagePullSecrets }}
       imagePullSecrets:
         {{- toYaml . | nindent 8 }}
       {{- end }}
@@ -76,15 +78,14 @@ spec:
               exit 1
       containers:
         - name: prisma-migrate
-          image: "{{ (index .Values "hive-auth").image.repository }}:{{ (index .Values "hive-auth").image.tag | default .Chart.AppVersion }}"
-          imagePullPolicy: {{ (index .Values "hive-auth").image.pullPolicy | default "IfNotPresent" }}
+          image: "{{ (index .Values "hive-migrate").image.repository }}:{{ (index .Values "hive-migrate").image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ (index .Values "hive-migrate").image.pullPolicy | default "IfNotPresent" }}
           securityContext:
             allowPrivilegeEscalation: false
             capabilities:
               drop:
                 - ALL
-          workingDir: /app
-          command: ["node_modules/.bin/prisma", "migrate", "deploy", "--schema", "/app/prisma/schema.prisma"]
+          # Command + schema path are baked into the image's CMD.
           env:
             - name: DATABASE_URL
               valueFrom:
@@ -92,9 +93,5 @@ spec:
                   name: {{ .Release.Name }}-pg-app
                   key: uri
           resources:
-            requests:
-              cpu: 50m
-              memory: 128Mi
-            limits:
-              memory: 512Mi
+            {{- toYaml (index .Values "hive-migrate").resources | nindent 12 }}
 {{- end }}

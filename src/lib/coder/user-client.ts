@@ -1,5 +1,5 @@
 import { tryDecrypt } from "@hive/auth";
-import { getDb } from "@/lib/db";
+import { getDb } from "@hive/db";
 import { CoderClient } from "./client";
 
 export enum UserClientError {

@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { UserClientError, UserClientException } from "@/lib/coder/user-client";
 
-vi.mock("@/lib/db", () => ({
+vi.mock("@hive/db", () => ({
   getDb: vi.fn(),
 }));
 
@@ -17,7 +17,7 @@ vi.mock("@/lib/coder/client", () => ({
 import { tryDecrypt } from "@hive/auth";
 import { CoderClient } from "@/lib/coder/client";
 import { getCoderClientForUser } from "@/lib/coder/user-client";
-import { getDb } from "@/lib/db";
+import { getDb } from "@hive/db";
 
 const MOCK_USER_ID = "aaaaaaaa-1111-2222-3333-444444444444";
 const MOCK_CODER_URL = "https://coder.example.com";

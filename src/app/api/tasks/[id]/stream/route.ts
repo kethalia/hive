@@ -2,7 +2,7 @@ import { cookies } from "next/headers";
 import type { NextRequest } from "next/server";
 import { getSession } from "@/lib/auth/session";
 import { AGENT_OUTPUT_LOG, UUID_RE } from "@/lib/constants";
-import { getDb } from "@/lib/db";
+import { getDb } from "@hive/db";
 import { workerWorkspaceName } from "@/lib/workspace/naming";
 import { streamFromWorkspace } from "@/lib/workspace/stream";
 

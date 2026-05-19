@@ -1,6 +1,6 @@
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
 import { ErrorCode } from "./auth/constants.js";
-import { closeDb } from "./db.js";
+import { closeDb } from "@hive/db";
 import { matchRoute } from "./router.js";
 
 const MAX_BODY_BYTES = 1024 * 1024; // 1 MB

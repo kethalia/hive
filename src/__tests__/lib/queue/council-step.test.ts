@@ -52,7 +52,7 @@ const mockWorkspaceCreate = vi.fn().mockResolvedValue({});
 const mockWorkspaceUpdate = vi.fn().mockResolvedValue({});
 const mockTaskLogCreate = vi.fn().mockResolvedValue({});
 
-vi.mock("@/lib/db", () => ({
+vi.mock("@hive/db", () => ({
   getDb: vi.fn(() => ({
     task: {
       update: mockTaskUpdate,

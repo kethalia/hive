@@ -8,7 +8,7 @@ vi.mock("next/headers", () => ({
 vi.mock("@/lib/auth/session", () => ({
   getSession: (...args: unknown[]) => mockSession(...args),
 }));
-vi.mock("@/lib/db", () => ({
+vi.mock("@hive/db", () => ({
   getDb: vi.fn(),
 }));
 vi.mock("@/lib/workspace/stream", () => ({
@@ -20,7 +20,7 @@ vi.mock("@/lib/workspace/naming", () => ({
 
 import { NextRequest } from "next/server";
 import { GET } from "@/app/api/tasks/[id]/stream/route";
-import { getDb } from "@/lib/db";
+import { getDb } from "@hive/db";
 import { streamFromWorkspace } from "@/lib/workspace/stream";
 
 const mockGetDb = vi.mocked(getDb);
