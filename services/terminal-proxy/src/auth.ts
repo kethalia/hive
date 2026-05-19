@@ -72,7 +72,7 @@ export async function authenticateUpgrade(req: IncomingMessage): Promise<AuthRes
   const { sessionId } = verified;
   const truncatedId = sessionId.slice(0, 8);
 
-  const authServiceUrl = (process.env.AUTH_SERVICE_URL ?? "http://localhost:4400").replace(
+  const authServiceUrl = (process.env.AUTH_SERVICE_URL || "http://localhost:4400").replace(
     /\/+$/,
     "",
   );
