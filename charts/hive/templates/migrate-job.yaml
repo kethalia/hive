@@ -7,9 +7,10 @@ Hook strategy:
   - post-install: CNPG `Cluster` is created as a regular manifest in the same
     sync wave. A post-install hook runs after the Cluster CR is applied; the
     initContainer then blocks until `<release>-pg-rw:5432` accepts TCP.
-  - post-upgrade: schema migrations applied before/while app pods roll.
+  - pre-upgrade: schema migrations applied BEFORE updated Deployments roll,
+    so new pods never start against a stale schema.
   - hook-weight -5 + before-hook-creation,hook-succeeded: cleaned up between
-    runs, ordered before any other post-* hooks.
+    runs, ordered before any other hooks at the same phase.
 
 DATABASE_URL is sourced from the CNPG-issued `<release>-pg-app` Secret (key
 `uri`), the same Secret hive-auth/web/terminal consume.
@@ -22,7 +23,7 @@ metadata:
   labels:
     {{- include "hive.labels" . | nindent 4 }}
   annotations:
-    "helm.sh/hook": post-install,post-upgrade
+    "helm.sh/hook": post-install,pre-upgrade
     "helm.sh/hook-weight": "-5"
     "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
 spec:
@@ -39,9 +40,22 @@ spec:
       imagePullSecrets:
         {{- toYaml . | nindent 8 }}
       {{- end }}
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1001
+        runAsGroup: 1001
+        fsGroup: 1001
+        seccompProfile:
+          type: RuntimeDefault
       initContainers:
         - name: wait-for-postgres
           image: busybox:1.36
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
           command:
             - sh
             - -c
@@ -64,6 +78,11 @@ spec:
         - name: prisma-migrate
           image: "{{ (index .Values "hive-auth").image.repository }}:{{ (index .Values "hive-auth").image.tag | default .Chart.AppVersion }}"
           imagePullPolicy: {{ (index .Values "hive-auth").image.pullPolicy | default "IfNotPresent" }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
           workingDir: /app
           command: ["node_modules/.bin/prisma", "migrate", "deploy", "--schema", "/app/prisma/schema.prisma"]
           env:

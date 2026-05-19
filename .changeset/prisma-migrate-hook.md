@@ -3,13 +3,14 @@
 '@hive/auth': patch
 ---
 
-feat(charts): apply Prisma migrations via post-install/post-upgrade hook
+feat(charts): apply Prisma migrations via post-install/pre-upgrade hook
 
 The umbrella `hive` chart now ships a Helm hook Job
-(`post-install,post-upgrade`, weight `-5`) that runs `prisma migrate deploy`
+(`post-install,pre-upgrade`, weight `-5`) that runs `prisma migrate deploy`
 against the CNPG-issued `<release>-pg-app` database before the workloads
-roll. An initContainer waits for `<release>-pg-rw:5432` so the Job does not
-race the CNPG operator.
+roll. The hook is split so installs run after the CNPG `Cluster` CR lands
+(initContainer waits for `<release>-pg-rw:5432`), while upgrades run before
+any Deployment is updated — new pods never start against a stale schema.
 
 To support this:
 
@@ -25,6 +26,11 @@ To support this:
   `prisma migrate diff --from-empty --to-schema-datamodel` — same end
   state, installable from empty.
 
-Existing dev databases with a populated `_prisma_migrations` table will
-need either a wipe or
-`prisma migrate resolve --applied 0_init` after pulling this change.
+Existing dev databases need a one-time reconcile before the hook can run:
+
+- DBs with a populated `_prisma_migrations` table (from the 4 old
+  migrations): wipe, or `prisma migrate resolve --applied 0_init`.
+- DBs bootstrapped via `prisma db push` (tables exist, no
+  `_prisma_migrations` row): `prisma migrate resolve --applied 0_init`,
+  otherwise `migrate deploy` will try to `CREATE TABLE` against existing
+  tables and fail. Prod CNPG is empty, so this only affects local dev.
