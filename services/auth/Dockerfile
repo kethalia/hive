@@ -18,10 +18,12 @@ COPY --from=deps /app/packages/auth/node_modules ./packages/auth/node_modules
 COPY --from=deps /app/services/auth/node_modules ./services/auth/node_modules
 COPY packages/auth/ packages/auth/
 COPY services/auth/ services/auth/
+COPY prisma/ prisma/
 COPY package.json pnpm-workspace.yaml pnpm-lock.yaml ./
 RUN cd services/auth && npx prisma generate
 RUN pnpm deploy --filter hive-auth --prod --legacy --ignore-scripts /deploy
 RUN cp -r services/auth/generated /deploy/generated
+RUN cp -r prisma /deploy/prisma
 
 FROM node:20-alpine AS runner
 RUN apk add --no-cache tini
