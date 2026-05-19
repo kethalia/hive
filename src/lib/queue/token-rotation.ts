@@ -7,7 +7,7 @@ import {
   TOKEN_ROTATION_QUEUE,
   TOKEN_ROTATION_THRESHOLD,
 } from "@/lib/constants";
-import { getDb } from "@/lib/db";
+import { getDb } from "@hive/db";
 import { sendPushToUser } from "@/lib/push/send";
 import { getRedisConnection } from "@/lib/queue/connection";
 

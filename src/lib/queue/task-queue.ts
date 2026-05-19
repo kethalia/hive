@@ -23,7 +23,7 @@ import {
   TOKEN_PREFLIGHT_MIN_HOURS,
 } from "@/lib/constants";
 import { dispatchCouncilReview } from "@/lib/council/dispatch";
-import { getDb } from "@/lib/db";
+import { getDb } from "@hive/db";
 import { isAuthError, isNetworkError } from "@/lib/queue/errors";
 import type { VerificationReport } from "@/lib/verification/types";
 import { cleanupWorkspace } from "@/lib/workspace/cleanup";

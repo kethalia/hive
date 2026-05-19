@@ -26,7 +26,7 @@ vi.mock("web-push", () => ({
   },
 }));
 
-vi.mock("@/lib/db", () => ({
+vi.mock("@hive/db", () => ({
   getDb: () => ({
     pushSubscription: {
       findMany: (...args: unknown[]) => mockFindMany(...args),

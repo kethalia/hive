@@ -1,7 +1,7 @@
 "use server";
 
 import { z } from "zod";
-import { getDb } from "@/lib/db";
+import { getDb } from "@hive/db";
 import { authActionClient } from "../safe-action";
 
 const subscribeSchema = z.object({

@@ -6,7 +6,7 @@ vi.mock("@/lib/push/send", () => ({
   sendPushToUser: (...args: unknown[]) => mockSendPushToUser(...args),
 }));
 
-vi.mock("@/lib/db", () => ({
+vi.mock("@hive/db", () => ({
   getDb: vi.fn(),
 }));
 
@@ -35,7 +35,7 @@ import {
   PUSH_NOTIFICATION_TAG,
   TOKEN_ROTATION_THRESHOLD,
 } from "@/lib/constants";
-import { getDb } from "@/lib/db";
+import { getDb } from "@hive/db";
 import { processTokenRotation } from "@/lib/queue/token-rotation";
 
 const LIFETIME_MS = TOKEN_LIFETIME_SECONDS * 1000;

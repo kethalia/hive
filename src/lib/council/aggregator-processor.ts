@@ -14,7 +14,7 @@ import { aggregateFindings } from "@/lib/council/aggregator";
 import { postPRComment } from "@/lib/council/comment";
 import { formatCouncilComment } from "@/lib/council/formatter";
 import type { CouncilReport, ReviewerFinding } from "@/lib/council/types";
-import { getDb } from "@/lib/db";
+import { getDb } from "@hive/db";
 import type { CouncilAggregatorJobData } from "@/lib/queue/council-queues";
 
 /**

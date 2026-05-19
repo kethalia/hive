@@ -12,7 +12,7 @@ vi.mock("next/headers", () => ({
   cookies: vi.fn(() => mockCookieStore),
 }));
 
-vi.mock("@/lib/db", () => ({
+vi.mock("@hive/db", () => ({
   getDb: () => ({
     pushSubscription: {
       upsert: (...args: unknown[]) => mockUpsert(...args),

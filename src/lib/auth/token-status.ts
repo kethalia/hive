@@ -1,6 +1,6 @@
 import type { TokenStatusResult } from "@hive/auth";
 import { TOKEN_EXPIRY_WARNING_HOURS, tryDecrypt } from "@hive/auth";
-import { getDb } from "@/lib/db";
+import { getDb } from "@hive/db";
 
 export async function getTokenStatus(userId: string): Promise<TokenStatusResult> {
   const db = getDb();
