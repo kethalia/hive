@@ -1,0 +1,81 @@
+{{- /*
+Prisma migrate Job. Runs `prisma migrate deploy` against the CNPG-managed
+Postgres before app pods roll. Reuses the hive-auth image (which now bundles
+the root `prisma/` dir with `migrations/` and the prisma CLI).
+
+Hook strategy:
+  - post-install: CNPG `Cluster` is created as a regular manifest in the same
+    sync wave. A post-install hook runs after the Cluster CR is applied; the
+    initContainer then blocks until `<release>-pg-rw:5432` accepts TCP.
+  - post-upgrade: schema migrations applied before/while app pods roll.
+  - hook-weight -5 + before-hook-creation,hook-succeeded: cleaned up between
+    runs, ordered before any other post-* hooks.
+
+DATABASE_URL is sourced from the CNPG-issued `<release>-pg-app` Secret (key
+`uri`), the same Secret hive-auth/web/terminal consume.
+*/ -}}
+{{- if .Values.cnpg.enabled -}}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ .Release.Name }}-prisma-migrate
+  labels:
+    {{- include "hive.labels" . | nindent 4 }}
+  annotations:
+    "helm.sh/hook": post-install,post-upgrade
+    "helm.sh/hook-weight": "-5"
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+spec:
+  backoffLimit: 5
+  ttlSecondsAfterFinished: 600
+  template:
+    metadata:
+      labels:
+        {{- include "hive.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: prisma-migrate
+    spec:
+      restartPolicy: OnFailure
+      {{- with (index .Values "hive-auth").imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      initContainers:
+        - name: wait-for-postgres
+          image: busybox:1.36
+          command:
+            - sh
+            - -c
+            - |
+              set -e
+              host="{{ .Release.Name }}-pg-rw"
+              port=5432
+              echo "Waiting for ${host}:${port} ..."
+              for i in $(seq 1 60); do
+                if nc -z -w 2 "${host}" "${port}"; then
+                  echo "Postgres reachable."
+                  exit 0
+                fi
+                echo "  attempt ${i}/60: not ready, sleeping 5s"
+                sleep 5
+              done
+              echo "Postgres did not become reachable in time" >&2
+              exit 1
+      containers:
+        - name: prisma-migrate
+          image: "{{ (index .Values "hive-auth").image.repository }}:{{ (index .Values "hive-auth").image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ (index .Values "hive-auth").image.pullPolicy | default "IfNotPresent" }}
+          workingDir: /app
+          command: ["prisma", "migrate", "deploy", "--schema", "/app/prisma/schema.prisma"]
+          env:
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Release.Name }}-pg-app
+                  key: uri
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              memory: 512Mi
+{{- end }}

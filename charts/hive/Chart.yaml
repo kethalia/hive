@@ -2,7 +2,7 @@ apiVersion: v2
 name: hive
 description: Umbrella Helm chart composing hive-web, hive-auth, and hive-terminal.
 type: application
-version: 0.2.0
+version: 0.3.0
 appVersion: "0.1.0"
 kubeVersion: ">=1.28.0-0"
 home: https://github.com/kethalia/hive
