@@ -110,7 +110,10 @@ autoscaling:
 # Non-secret configuration rendered into a ConfigMap and consumed via envFrom.
 config:
   LOG_LEVEL: info
-  AUTH_SERVICE_URL: ""
+  # Defaults to the in-cluster auth Service rendered by hive-auth (Release.Name = hive-auth).
+  # Override when deployed under a different release (e.g. umbrella where the
+  # Service renders as `<umbrella-release>-hive-auth`).
+  AUTH_SERVICE_URL: "http://hive-auth"
   CODER_URL: ""
   NEXT_PUBLIC_TERMINAL_WS_URL: ""
 
