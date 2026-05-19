@@ -1,7 +1,17 @@
-import { Prisma, PrismaClient } from "@prisma/client";
+import pkg from "@prisma/client";
 
-export { Prisma, PrismaClient };
+// Prisma 6's @prisma/client is CJS; with `"type": "module"` in this package,
+// Node's ESM loader can't reliably statically-detect named exports on it, so
+// `import { PrismaClient } from "@prisma/client"` throws at runtime with
+// `does not provide an export named 'PrismaClient'`. Destructure the default
+// (interop) import to get the runtime values; types come via the type-only
+// re-export below, which is erased at compile time.
+const { PrismaClient } = pkg;
+
+export { PrismaClient };
 export type * from "@prisma/client";
+
+type PrismaClient = InstanceType<typeof PrismaClient>;
 
 let client: PrismaClient | null = null;
 
