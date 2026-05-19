@@ -1,8 +1,6 @@
 ---
 'hive-web': patch
 'hive-terminal': patch
-'@hive/web': patch
-'@hive/terminal-proxy': patch
 ---
 
 fix(auth): default AUTH_SERVICE_URL to in-cluster Service, treat empty as unset
