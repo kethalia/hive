@@ -1,0 +1,12 @@
+{
+  "name": "hive-migrate",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "prisma migrate deploy --schema node_modules/@hive/db/prisma/schema.prisma"
+  },
+  "dependencies": {
+    "@hive/db": "workspace:*"
+  }
+}

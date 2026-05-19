@@ -55,7 +55,8 @@ jobs:
         {
           "hive-web":      { "image": "hive-web" },
           "hive-terminal": { "image": "hive-terminal" },
-          "hive-auth":     { "image": "hive-auth" }
+          "hive-auth":     { "image": "hive-auth" },
+          "hive-migrate":  { "image": "hive-migrate" }
         }
     secrets: inherit
 
@@ -85,6 +86,9 @@ jobs:
                 ;;
               hive-auth)
                 entry='{"name":"hive-auth","image":"hive-auth"}'
+                ;;
+              hive-migrate)
+                entry='{"name":"hive-migrate","image":"hive-migrate"}'
                 ;;
               "")
                 continue

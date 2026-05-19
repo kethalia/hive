@@ -8,7 +8,7 @@
  * Log prefix: [council-aggregator]
  */
 
-import type { Prisma } from "@prisma/client";
+import type { Prisma } from "@hive/db";
 import type { Job } from "bullmq";
 import { aggregateFindings } from "@/lib/council/aggregator";
 import { postPRComment } from "@/lib/council/comment";

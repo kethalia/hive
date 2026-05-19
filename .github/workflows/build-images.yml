@@ -32,5 +32,6 @@ jobs:
         [
           {"image": "hive-web", "dockerfile": "Dockerfile"},
           {"image": "hive-terminal", "dockerfile": "services/terminal-proxy/Dockerfile"},
-          {"image": "hive-auth", "dockerfile": "services/auth/Dockerfile"}
+          {"image": "hive-auth", "dockerfile": "services/auth/Dockerfile"},
+          {"image": "hive-migrate", "dockerfile": "services/migrate/Dockerfile"}
         ]

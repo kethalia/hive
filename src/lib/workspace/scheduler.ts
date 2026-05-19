@@ -1,4 +1,4 @@
-import type { PrismaClient } from "@prisma/client";
+import type { PrismaClient } from "@hive/db";
 import type { CoderClient } from "@/lib/coder/client";
 import { DEFAULT_CLEANUP_GRACE_MS } from "@/lib/constants";
 import { cleanupWorkspace } from "./cleanup";

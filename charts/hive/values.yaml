@@ -46,6 +46,24 @@ hive-terminal:
       secretName: "{{ .Release.Name }}-valkey-secret"
       secretKey: url
 
+# Prisma migrate Helm hook image. Rendered by templates/migrate-job.yaml,
+# which runs `prisma migrate deploy` against the CNPG-managed Postgres
+# before app pods roll. Built from services/migrate/Dockerfile in this
+# repo and published as ghcr.io/kethalia/hive-migrate alongside the other
+# images. Tag is pinned to :sha-<short> by k8s-cluster's values-prod.yaml.
+hive-migrate:
+  image:
+    repository: ghcr.io/kethalia/hive-migrate
+    tag: ""
+    pullPolicy: IfNotPresent
+  imagePullSecrets: []
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      memory: 512Mi
+
 # Stub application secrets composed into `<release>-secrets`. Children
 # consume these via envFrom (existingSecret above). DATABASE_URL +
 # REDIS_URL are NOT composed here — they come from the CNPG- and

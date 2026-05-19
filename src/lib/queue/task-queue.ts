@@ -1,4 +1,4 @@
-import type { Prisma } from "@prisma/client";
+import type { Prisma } from "@hive/db";
 import { type Job, Queue, UnrecoverableError, Worker } from "bullmq";
 import { getTokenStatus } from "@/lib/auth/token-status";
 import { runBlueprint } from "@/lib/blueprint/runner";
