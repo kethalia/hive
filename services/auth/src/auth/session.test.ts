@@ -9,7 +9,7 @@ const mockPrisma = vi.hoisted(() => ({
   },
 }));
 
-vi.mock("../db.js", () => ({
+vi.mock("@hive/db", () => ({
   getDb: () => mockPrisma,
 }));
 
