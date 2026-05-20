@@ -39,5 +39,6 @@ jobs:
         hive-web
         hive-terminal
         hive-auth
+        hive-migrate
       age-days: ${{ inputs.age-days || 14 }}
       dry-run: ${{ inputs.dry-run || false }}
