@@ -18,6 +18,8 @@ metadata:
   name: {{ .Release.Name }}-pg
   labels:
     {{- include "hive.labels" . | nindent 4 }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "-10"
 spec:
   instances: {{ .Values.cnpg.instances }}
   imageName: {{ .Values.cnpg.imageName | quote }}
