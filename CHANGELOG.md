@@ -1,5 +1,11 @@
 # hive-orchestrator
 
+## 2.1.10
+
+### Patch Changes
+
+- a20ae21: Transpile `@hive/db` workspace package so Next/Turbopack resolves the generated Prisma client's `.js`-extension ESM imports during the production build.
+
 ## 2.1.9
 
 ### Patch Changes
