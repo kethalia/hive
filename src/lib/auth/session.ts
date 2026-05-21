@@ -76,6 +76,7 @@ export function setSessionCookie(
     sameSite: "lax",
     path: "/",
     maxAge: SESSION_MAX_AGE_SECONDS,
+    ...(process.env.COOKIE_DOMAIN ? { domain: process.env.COOKIE_DOMAIN } : {}),
   });
 }
 
@@ -88,5 +89,6 @@ export function clearSessionCookie(cookieStore: {
     sameSite: "lax",
     path: "/",
     maxAge: 0,
+    ...(process.env.COOKIE_DOMAIN ? { domain: process.env.COOKIE_DOMAIN } : {}),
   });
 }

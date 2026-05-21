@@ -26,6 +26,12 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" className="dark">
+      <head>
+        {/* Runtime config served by a dedicated dynamic route so the rest of
+            the app stays statically optimizable. The script must execute
+            before any client bundle reads window.__HIVE_CONFIG__. */}
+        <script src="/runtime-config.js" />
+      </head>
       <body className={`${geistSans.variable} ${geistMono.variable} font-sans antialiased`}>
         <ServiceWorkerRegister />
         <TooltipProvider>{children}</TooltipProvider>

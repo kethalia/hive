@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { getClientRuntimeConfig } from "@/lib/runtime-config";
 
 interface KeepAliveStatus {
   consecutiveFailures: number;
@@ -27,7 +28,7 @@ export function useKeepAliveStatus(workspaceId: string): KeepAliveStatus {
   useEffect(() => {
     mountedRef.current = true;
 
-    const proxyWsUrl = process.env.NEXT_PUBLIC_TERMINAL_WS_URL;
+    const proxyWsUrl = getClientRuntimeConfig().terminalWsUrl;
     if (!proxyWsUrl) {
       setStatus((s) => ({ ...s, isLoading: false }));
       return;

@@ -116,6 +116,11 @@ config:
   AUTH_SERVICE_URL: "http://hive-auth"
   CODER_URL: ""
   NEXT_PUBLIC_TERMINAL_WS_URL: ""
+  # Cookie Domain attribute applied to the session cookie. Set to a shared
+  # parent (leading dot recommended) so the cookie is sent to sibling
+  # subdomains like the terminal-proxy host (`*-hive-terminal.<domain>`).
+  # Leave empty for host-only cookies (single-host or localhost setups).
+  COOKIE_DOMAIN: ""
 
 nodeSelector: {}
 tolerations: []

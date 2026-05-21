@@ -6,6 +6,7 @@ import { AlertCircle } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { type ConnectionState, useTerminalWebSocket } from "@/hooks/useTerminalWebSocket";
+import { getClientRuntimeConfig } from "@/lib/runtime-config";
 import { loadTerminalFont, TERMINAL_FONT_FAMILY, TERMINAL_THEME } from "@/lib/terminal/config";
 import { encodeInput } from "@/lib/terminal/protocol";
 import { cn } from "@/lib/utils";
@@ -171,9 +172,11 @@ export function InteractiveTerminal({
       fit.fit();
 
       const dims = { rows: term.rows, cols: term.cols };
-      const proxyUrl = process.env.NEXT_PUBLIC_TERMINAL_WS_URL;
+      const proxyUrl = getClientRuntimeConfig().terminalWsUrl;
       if (!proxyUrl) {
-        console.error("NEXT_PUBLIC_TERMINAL_WS_URL is not set");
+        console.error(
+          "runtime config terminalWsUrl is not set (check NEXT_PUBLIC_TERMINAL_WS_URL on the server)",
+        );
         return;
       }
       const params = new URLSearchParams({
