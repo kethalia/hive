@@ -174,7 +174,9 @@ export function InteractiveTerminal({
       const dims = { rows: term.rows, cols: term.cols };
       const proxyUrl = getClientRuntimeConfig().terminalWsUrl;
       if (!proxyUrl) {
-        console.error("NEXT_PUBLIC_TERMINAL_WS_URL is not set");
+        console.error(
+          "runtime config terminalWsUrl is not set (check NEXT_PUBLIC_TERMINAL_WS_URL on the server)",
+        );
         return;
       }
       const params = new URLSearchParams({
