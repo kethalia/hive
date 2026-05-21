@@ -94,6 +94,8 @@ export function TerminalTabManager({ agentId, workspaceId }: TerminalTabManagerP
   });
   const [creating, setCreating] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [reloadKey, setReloadKey] = useState(0);
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [menuPosition, setMenuPosition] = useState<{ x: number; y: number } | null>(null);
   const [menuSelection, setMenuSelection] = useState(false);
@@ -146,29 +148,52 @@ export function TerminalTabManager({ agentId, workspaceId }: TerminalTabManagerP
 
   useEffect(() => {
     let cancelled = false;
+    setLoading(true);
+    setLoadError(null);
 
     (async () => {
       try {
         const result = await getWorkspaceSessionsAction({ workspaceId });
         if (cancelled) return;
 
-        if (result?.data && result.data.length > 0) {
+        if (result?.serverError || result?.validationErrors) {
+          // The action failed on the server — do NOT auto-create. An empty
+          // payload here means "we couldn't reach the workspace", not "user
+          // has zero sessions". Auto-creating would orphan their real sessions.
+          const msg = result.serverError ?? "Failed to load sessions";
+          console.error("[terminal-tabs] getWorkspaceSessionsAction failed:", msg);
+          setLoadError(msg);
+          return;
+        }
+
+        if (!result?.data) {
+          setLoadError("Failed to load sessions: empty response");
+          return;
+        }
+
+        if (result.data.length > 0) {
           const loaded: Tab[] = result.data.map((s) => ({
             id: crypto.randomUUID(),
             sessionName: s.name,
           }));
           dispatch({ type: "SET_TABS", tabs: loaded, activeTabId: loaded[0].id });
         } else {
+          // Confirmed zero sessions — safe to auto-create the first one.
           const res = await createSessionAction({ workspaceId });
           if (cancelled) return;
           if (res?.data) {
             const tab: Tab = { id: crypto.randomUUID(), sessionName: res.data.name };
             dispatch({ type: "SET_TABS", tabs: [tab], activeTabId: tab.id });
             window.dispatchEvent(new CustomEvent("hive:sidebar-refresh"));
+          } else if (res?.serverError) {
+            setLoadError(res.serverError);
           }
         }
       } catch (err) {
+        if (cancelled) return;
+        const msg = err instanceof Error ? err.message : "Failed to load sessions";
         console.error("[terminal-tabs] Failed to load sessions:", err);
+        setLoadError(msg);
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -177,7 +202,7 @@ export function TerminalTabManager({ agentId, workspaceId }: TerminalTabManagerP
     return () => {
       cancelled = true;
     };
-  }, [workspaceId]);
+  }, [workspaceId, reloadKey]);
 
   const handleCreateTab = useCallback(async () => {
     setCreating(true);
@@ -372,6 +397,24 @@ export function TerminalTabManager({ agentId, workspaceId }: TerminalTabManagerP
     return (
       <div className="flex h-full items-center justify-center bg-background">
         <p className="text-sm text-muted-foreground">Loading sessions…</p>
+      </div>
+    );
+  }
+
+  if (loadError && tabs.length === 0) {
+    return (
+      <div className="flex h-full flex-col items-center justify-center gap-4 bg-background px-6 text-center">
+        <p className="text-sm font-medium">Couldn't load your terminal sessions</p>
+        <p className="max-w-md text-xs text-muted-foreground" data-testid="session-load-error">
+          {loadError}
+        </p>
+        <p className="max-w-md text-xs text-muted-foreground">
+          Your existing sessions are likely still running on the workspace — retry instead of
+          starting a new one, which could leave them orphaned.
+        </p>
+        <Button onClick={() => setReloadKey((k) => k + 1)} data-testid="retry-load-sessions">
+          Retry
+        </Button>
       </div>
     );
   }

@@ -351,6 +351,43 @@ describe("TerminalTabManager regression — M006 coexistence", () => {
     });
   });
 
+  describe("Refresh during transient ssh failure", () => {
+    it("does NOT auto-create a phantom session when getWorkspaceSessionsAction fails", async () => {
+      // Reproduces the bug: on refresh, the first sessions fetch can fail
+      // transiently (ssh not yet reachable). The component previously treated
+      // an empty/errored response identically to "user has zero sessions" and
+      // called createSessionAction, allocating a fresh session-<ts> name that
+      // hid the real tmux sessions still alive on the workspace.
+      mockGetSessions.mockResolvedValue({
+        serverError: "Failed to list tmux sessions (exit 255): Connection refused",
+      });
+
+      render(<TerminalTabManager {...defaultProps} />);
+
+      await waitFor(() => {
+        expect(screen.getByTestId("session-load-error")).toBeInTheDocument();
+      });
+
+      expect(mockCreateSession).not.toHaveBeenCalled();
+      expect(screen.queryByTestId("tab-label")).not.toBeInTheDocument();
+      expect(screen.getByTestId("retry-load-sessions")).toBeInTheDocument();
+    });
+
+    it("DOES auto-create exactly one session when the workspace truly has zero", async () => {
+      mockGetSessions.mockResolvedValue({ data: [] });
+      mockCreateSession.mockResolvedValue({ data: { name: "session-12345" } });
+
+      render(<TerminalTabManager {...defaultProps} />);
+
+      await waitFor(() => {
+        expect(screen.getByTestId("tab-label")).toHaveTextContent("session-12345");
+      });
+
+      expect(mockCreateSession).toHaveBeenCalledTimes(1);
+      expect(mockCreateSession).toHaveBeenCalledWith({ workspaceId: "ws-1" });
+    });
+  });
+
   describe("ReconnectId cleanup on kill", () => {
     it("removes reconnectId from localStorage when a session tab is killed", async () => {
       mockGetSessions.mockResolvedValue({
