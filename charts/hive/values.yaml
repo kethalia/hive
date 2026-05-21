@@ -100,6 +100,20 @@ cnpg:
     schedule: "0 0 3 * * *" # ScheduledBackup cron — daily 03:00 UTC
     retentionPolicy: "14d"
 
+# ─── Preview-only resources ────────────────────────────────────────────
+# Stamps a per-PR cert-manager `Certificate` for `*.<preview.host>`
+# (e.g. `*.pr-82.hive.local.kethalia.com`). The TLS Secret lives in the
+# per-PR namespace alongside the Ingress that consumes it, so it's
+# pruned automatically when the ApplicationSet reaps the Application.
+# `preview.host` must equal the first-label parent under which the web
+# (`<preview.host>`) and terminal (`terminal.<preview.host>`) hosts live.
+# Disabled by default; the per-PR ApplicationSet flips this on.
+preview:
+  enabled: false
+  host: ""
+  issuerKind: ClusterIssuer
+  issuerName: letsencrypt-prod
+
 # ─── Valkey (Redis drop-in) ─────────────────────────────────────────────
 # Single-replica StatefulSet. Password generated at install time when
 # `auth.password` is empty; the rendered Secret is the source of truth

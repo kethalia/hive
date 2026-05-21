@@ -1,0 +1,32 @@
+{{- /*
+Per-preview wildcard Certificate for the nested-subdomain hostname
+shape used by the per-PR ApplicationSet:
+
+  pr-N.<parentDomain>            -- web (covered by parent wildcard)
+  terminal.pr-N.<parentDomain>   -- terminal (depth +1, NOT covered)
+
+The terminal host lives one label below `pr-N.<parentDomain>`, so the
+cluster-wide `*.<parentDomain>` wildcard does NOT cover it. cert-manager
+issues `*.pr-N.<parentDomain>` per preview via DNS-01 and stores the
+TLS Secret in the preview namespace. Cookie scope is naturally
+`Domain=.pr-N.<parentDomain>` — disjoint from prod and other previews.
+
+Gated on `.Values.preview.enabled` so prod renders nothing.
+*/ -}}
+{{- if .Values.preview.enabled -}}
+{{- $host := required "preview.host is required when preview.enabled" .Values.preview.host -}}
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: {{ $host }}-tls
+  labels:
+    {{- include "hive.labels" . | nindent 4 }}
+spec:
+  secretName: {{ $host }}-tls
+  dnsNames:
+    - "{{ $host }}"
+    - "*.{{ $host }}"
+  issuerRef:
+    kind: {{ .Values.preview.issuerKind | default "ClusterIssuer" }}
+    name: {{ required "preview.issuerName is required when preview.enabled" .Values.preview.issuerName }}
+{{- end }}
