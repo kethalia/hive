@@ -154,6 +154,28 @@ describe("session management", () => {
 
       vi.unstubAllEnvs();
     });
+
+    it("includes domain when COOKIE_DOMAIN is set", () => {
+      vi.stubEnv("COOKIE_DOMAIN", ".local.kethalia.com");
+
+      const cookieStore = { set: vi.fn() };
+      mockSignCookie.mockReturnValue("signed-value");
+      setSessionCookie(cookieStore, "my-session-id");
+
+      const options = cookieStore.set.mock.calls[0][2] as Record<string, unknown>;
+      expect(options.domain).toBe(".local.kethalia.com");
+
+      vi.unstubAllEnvs();
+    });
+
+    it("omits domain when COOKIE_DOMAIN is not set", () => {
+      const cookieStore = { set: vi.fn() };
+      mockSignCookie.mockReturnValue("signed-value");
+      setSessionCookie(cookieStore, "my-session-id");
+
+      const options = cookieStore.set.mock.calls[0][2] as Record<string, unknown>;
+      expect(options).not.toHaveProperty("domain");
+    });
   });
 
   describe("clearSessionCookie", () => {
