@@ -17,7 +17,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
         <Suspense fallback={null}>
           <AppSidebar />
         </Suspense>
-        <SidebarTrigger className="fixed top-3 left-3 z-50 opacity-0 pointer-events-none transition-opacity peer-data-[state=collapsed]:opacity-100 peer-data-[state=collapsed]:pointer-events-auto" />
+        <SidebarTrigger className="fixed top-3 left-3 z-50 transition-opacity md:opacity-0 md:pointer-events-none md:peer-data-[state=collapsed]:opacity-100 md:peer-data-[state=collapsed]:pointer-events-auto" />
         <SidebarInset>
           <main className="flex-1 p-6 pt-14">
             {bannerStatus?.data && <TokenExpiryBanner status={bannerStatus.data} />}
