@@ -2,12 +2,7 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { ServiceWorkerRegister } from "@/components/service-worker-register";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { getServerRuntimeConfig } from "@/lib/runtime-config";
 import "./globals.css";
-
-// Read runtime env on every request so the WS URL reflects per-deployment
-// config rather than what was set when `pnpm build` ran in the Docker image.
-export const dynamic = "force-dynamic";
 
 const geistSans = Geist({
   variable: "--font-sans",
@@ -29,16 +24,15 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  const runtimeConfig = getServerRuntimeConfig();
   return (
     <html lang="en" className="dark">
+      <head>
+        {/* Runtime config served by a dedicated dynamic route so the rest of
+            the app stays statically optimizable. The script must execute
+            before any client bundle reads window.__HIVE_CONFIG__. */}
+        <script src="/runtime-config.js" />
+      </head>
       <body className={`${geistSans.variable} ${geistMono.variable} font-sans antialiased`}>
-        <script
-          // biome-ignore lint/security/noDangerouslySetInnerHtml: server-controlled config from env
-          dangerouslySetInnerHTML={{
-            __html: `window.__HIVE_CONFIG__=${JSON.stringify(runtimeConfig)};`,
-          }}
-        />
         <ServiceWorkerRegister />
         <TooltipProvider>{children}</TooltipProvider>
       </body>
