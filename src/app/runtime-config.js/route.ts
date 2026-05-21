@@ -10,8 +10,8 @@ export function GET() {
   // strings but break JavaScript parsers.
   const json = JSON.stringify(config)
     .replace(/</g, "\\u003c")
-    .replace(/ /g, "\\u2028")
-    .replace(/ /g, "\\u2029");
+    .replace(/\u2028/g, "\\u2028")
+    .replace(/\u2029/g, "\\u2029");
   const body = `window.__HIVE_CONFIG__=${json};`;
   return new NextResponse(body, {
     headers: {
