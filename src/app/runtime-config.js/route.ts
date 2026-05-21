@@ -18,6 +18,7 @@ export function GET() {
       "content-type": "application/javascript; charset=utf-8",
       "cache-control": "no-store",
       "x-content-type-options": "nosniff",
+      "cross-origin-resource-policy": "same-origin",
     },
   });
 }
