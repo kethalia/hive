@@ -106,14 +106,16 @@ describe("useKeybindings", () => {
     expect(result.current.activeSend).toBeNull();
     expect(result.current.getAll()).toEqual([]);
     expect(result.current.handleKeyEvent(new KeyboardEvent("keydown"))).toBe(true);
-    expect(() => result.current.register({
-      id: "noop",
-      keys: ["ctrl+x"],
-      action: () => false,
-      description: "",
-      category: "",
-      enabledInBrowser: true,
-    })).not.toThrow();
+    expect(() =>
+      result.current.register({
+        id: "noop",
+        keys: ["ctrl+x"],
+        action: () => false,
+        description: "",
+        category: "",
+        enabledInBrowser: true,
+      }),
+    ).not.toThrow();
     expect(() => result.current.unregister("noop")).not.toThrow();
     expect(() => result.current.setActiveTerminal(null, null)).not.toThrow();
   });
