@@ -3,11 +3,7 @@
 import type { PointerEvent as ReactPointerEvent } from "react";
 import { useCallback, useEffect, useRef, useState } from "react";
 
-export type Corner =
-  | "top-left"
-  | "top-right"
-  | "bottom-left"
-  | "bottom-right";
+export type Corner = "top-left" | "top-right" | "bottom-left" | "bottom-right";
 
 const STORAGE_KEY = "fab_position";
 const DEFAULT_CORNER: Corner = "bottom-right";
@@ -46,15 +42,10 @@ export function cornerToPosition(corner: Corner) {
 }
 
 export function nearestCorner(x: number, y: number): Corner {
-  const midX = window.innerWidth / 2;
-  const midY = window.innerHeight / 2;
+  const _midX = window.innerWidth / 2;
+  const _midY = window.innerHeight / 2;
 
-  const corners: Corner[] = [
-    "top-left",
-    "top-right",
-    "bottom-left",
-    "bottom-right",
-  ];
+  const corners: Corner[] = ["top-left", "top-right", "bottom-left", "bottom-right"];
 
   const targets = corners.map((c) => {
     const pos = cornerToPosition(c);
@@ -87,31 +78,22 @@ export function useFabPosition() {
     return () => window.removeEventListener("resize", handleResize);
   }, [corner]);
 
-  const onPointerDown = useCallback(
-    (e: ReactPointerEvent<HTMLElement>) => {
-      e.currentTarget.setPointerCapture(e.pointerId);
-      setIsDragging(true);
-      dragStartRef.current = { x: e.clientX, y: e.clientY };
-      dragDistRef.current = 0;
-    },
-    [],
-  );
+  const onPointerDown = useCallback((e: ReactPointerEvent<HTMLElement>) => {
+    e.currentTarget.setPointerCapture(e.pointerId);
+    setIsDragging(true);
+    dragStartRef.current = { x: e.clientX, y: e.clientY };
+    dragDistRef.current = 0;
+  }, []);
 
   const onPointerMove = useCallback(
     (e: ReactPointerEvent) => {
       if (!isDragging) return;
       const dx = e.clientX - dragStartRef.current.x;
       const dy = e.clientY - dragStartRef.current.y;
-      dragDistRef.current = Math.max(
-        dragDistRef.current,
-        Math.sqrt(dx * dx + dy * dy),
-      );
+      dragDistRef.current = Math.max(dragDistRef.current, Math.sqrt(dx * dx + dy * dy));
       setPosition((prev) => ({
         x: Math.max(0, Math.min(window.innerWidth - 56, prev.x + e.movementX)),
-        y: Math.max(
-          0,
-          Math.min(window.innerHeight - 56, prev.y + e.movementY),
-        ),
+        y: Math.max(0, Math.min(window.innerHeight - 56, prev.y + e.movementY)),
       }));
     },
     [isDragging],

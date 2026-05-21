@@ -2,7 +2,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, waitFor, cleanup } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
-import * as React from "react";
+import type * as React from "react";
 import type { KeybindingEntry, KeybindingContextValue } from "@/hooks/useKeybindings";
 
 if (typeof globalThis.ResizeObserver === "undefined") {
@@ -45,8 +45,17 @@ vi.mock("@/lib/utils", () => ({
 }));
 
 vi.mock("@/components/ui/button", () => ({
-  Button: ({ children, onClick, disabled, ...rest }: React.PropsWithChildren<Record<string, unknown>>) => (
-    <button onClick={onClick as React.MouseEventHandler} disabled={disabled as boolean} data-testid={rest["data-testid"] as string}>
+  Button: ({
+    children,
+    onClick,
+    disabled,
+    ...rest
+  }: React.PropsWithChildren<Record<string, unknown>>) => (
+    <button
+      onClick={onClick as React.MouseEventHandler}
+      disabled={disabled as boolean}
+      data-testid={rest["data-testid"] as string}
+    >
       {children}
     </button>
   ),
@@ -114,7 +123,9 @@ describe("session keybinding registration", () => {
     registeredBindings.clear();
     mockPwaStandalone = false;
     mockCtx = createMockKeybindingsCtx();
-    vi.stubGlobal("crypto", { randomUUID: vi.fn(() => `uuid-${Math.random().toString(36).slice(2)}`) });
+    vi.stubGlobal("crypto", {
+      randomUUID: vi.fn(() => `uuid-${Math.random().toString(36).slice(2)}`),
+    });
   });
 
   afterEach(() => {
@@ -122,7 +133,9 @@ describe("session keybinding registration", () => {
   });
 
   async function renderWithTabs(sessions: Array<{ name: string }>) {
-    mockGetSessions.mockResolvedValue({ data: sessions.map((s) => ({ ...s, created: 1000, windows: 1 })) });
+    mockGetSessions.mockResolvedValue({
+      data: sessions.map((s) => ({ ...s, created: 1000, windows: 1 })),
+    });
     render(<TerminalTabManager {...defaultProps} />);
     await waitFor(() => {
       expect(screen.getAllByTestId("tab-label")).toHaveLength(sessions.length);

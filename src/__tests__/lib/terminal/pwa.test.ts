@@ -1,23 +1,21 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { renderHook, act } from "@testing-library/react";
+import { renderHook } from "@testing-library/react";
 
-let changeHandler: (() => void) | null = null;
+let _changeHandler: (() => void) | null = null;
 let matchesValue = false;
 
 beforeEach(() => {
-  changeHandler = null;
+  _changeHandler = null;
   matchesValue = false;
   vi.stubGlobal(
     "matchMedia",
     vi.fn().mockImplementation((query: string) => ({
       matches: matchesValue,
       media: query,
-      addEventListener: vi.fn(
-        (event: string, handler: () => void) => {
-          if (event === "change") changeHandler = handler;
-        },
-      ),
+      addEventListener: vi.fn((event: string, handler: () => void) => {
+        if (event === "change") _changeHandler = handler;
+      }),
       removeEventListener: vi.fn(),
       onchange: null,
       addListener: vi.fn(),
@@ -68,11 +66,9 @@ describe("usePwaStandalone", () => {
       vi.fn().mockImplementation((query: string) => ({
         matches: true,
         media: query,
-        addEventListener: vi.fn(
-          (event: string, handler: () => void) => {
-            if (event === "change") changeHandler = handler;
-          },
-        ),
+        addEventListener: vi.fn((event: string, handler: () => void) => {
+          if (event === "change") _changeHandler = handler;
+        }),
         removeEventListener: vi.fn(),
         onchange: null,
         addListener: vi.fn(),

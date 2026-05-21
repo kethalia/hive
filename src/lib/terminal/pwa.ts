@@ -6,9 +6,7 @@ export function isPwaStandalone(): boolean {
 }
 
 export function usePwaStandalone() {
-  const [isStandalone, setIsStandalone] = React.useState<boolean | undefined>(
-    undefined,
-  );
+  const [isStandalone, setIsStandalone] = React.useState<boolean | undefined>(undefined);
 
   React.useEffect(() => {
     const mql = window.matchMedia("(display-mode: standalone)");

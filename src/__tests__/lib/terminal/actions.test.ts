@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 import { copyTerminalSelection, pasteToTerminal } from "@/lib/terminal/actions";
 
 function makeMockTerminal() {
@@ -22,9 +22,7 @@ describe("copyTerminalSelection", () => {
 
   it("copies selection text and clears selection, returns false", () => {
     const term = makeMockTerminal();
-    (term.getSelection as ReturnType<typeof vi.fn>).mockReturnValue(
-      "hello world",
-    );
+    (term.getSelection as ReturnType<typeof vi.fn>).mockReturnValue("hello world");
 
     const result = copyTerminalSelection(term);
 

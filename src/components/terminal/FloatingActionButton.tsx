@@ -44,37 +44,23 @@ function menuDirection(corner: Corner): { horizontal: string; vertical: string }
 
 export function FloatingActionButton() {
   const { activeSend } = useKeybindings();
-  const {
-    corner,
-    position,
-    isDragging,
-    isSnapping,
-    dragDist,
-    onPointerDown,
-    onPointerMove,
-    onPointerUp,
-  } = useFabPosition();
+  const { corner, position, isDragging, isSnapping, onPointerDown, onPointerMove, onPointerUp } =
+    useFabPosition();
   const [expanded, setExpanded] = useState(false);
   const [fontSize, setFontSize] = useState(getTerminalFontSize);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  const handlePointerUp = useCallback(
-    (e: React.PointerEvent) => {
-      const wasDrag = onPointerUp();
-      if (!wasDrag) {
-        setExpanded((prev) => !prev);
-      }
-    },
-    [onPointerUp],
-  );
+  const handlePointerUp = useCallback(() => {
+    const wasDrag = onPointerUp();
+    if (!wasDrag) {
+      setExpanded((prev) => !prev);
+    }
+  }, [onPointerUp]);
 
   useEffect(() => {
     if (!expanded) return;
     const handleClickOutside = (e: MouseEvent) => {
-      if (
-        containerRef.current &&
-        !containerRef.current.contains(e.target as Node)
-      ) {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
         setExpanded(false);
       }
     };
@@ -148,8 +134,8 @@ export function FloatingActionButton() {
               {label}
             </button>
           ))}
-          <div className="my-1 h-px bg-border" role="separator" />
-          <div className="flex items-center justify-between gap-2 px-3 py-1" role="group" aria-label="Font size">
+          <hr className="my-1 h-px border-0 bg-border" />
+          <div className="flex items-center justify-between gap-2 px-3 py-1">
             <button
               type="button"
               role="menuitem"
@@ -176,7 +162,7 @@ export function FloatingActionButton() {
               <Plus className="h-4 w-4" />
             </button>
           </div>
-          <div className="my-1 h-px bg-border" role="separator" />
+          <hr className="my-1 h-px border-0 bg-border" />
           <button
             type="button"
             role="menuitem"

@@ -65,13 +65,7 @@ describe("TerminalContextMenu", () => {
   it("clicking Paste calls onPaste callback and closes", () => {
     const onPaste = vi.fn();
     const onClose = vi.fn();
-    render(
-      <TerminalContextMenu
-        {...defaultProps}
-        onPaste={onPaste}
-        onClose={onClose}
-      />,
-    );
+    render(<TerminalContextMenu {...defaultProps} onPaste={onPaste} onClose={onClose} />);
     fireEvent.click(screen.getByRole("menuitem", { name: /paste/i }));
     expect(onPaste).toHaveBeenCalledOnce();
     expect(onClose).toHaveBeenCalledOnce();
@@ -79,11 +73,7 @@ describe("TerminalContextMenu", () => {
 
   it("New Session and Close Session items render when callbacks provided", () => {
     render(
-      <TerminalContextMenu
-        {...defaultProps}
-        onNewSession={vi.fn()}
-        onCloseSession={vi.fn()}
-      />,
+      <TerminalContextMenu {...defaultProps} onNewSession={vi.fn()} onCloseSession={vi.fn()} />,
     );
     expect(screen.getByRole("menuitem", { name: /new session/i })).toBeInTheDocument();
     expect(screen.getByRole("menuitem", { name: /close session/i })).toBeInTheDocument();
@@ -98,13 +88,7 @@ describe("TerminalContextMenu", () => {
   it("clicking New Session calls onNewSession and closes", () => {
     const onNewSession = vi.fn();
     const onClose = vi.fn();
-    render(
-      <TerminalContextMenu
-        {...defaultProps}
-        onNewSession={onNewSession}
-        onClose={onClose}
-      />,
-    );
+    render(<TerminalContextMenu {...defaultProps} onNewSession={onNewSession} onClose={onClose} />);
     fireEvent.click(screen.getByRole("menuitem", { name: /new session/i }));
     expect(onNewSession).toHaveBeenCalledOnce();
     expect(onClose).toHaveBeenCalledOnce();
@@ -114,11 +98,7 @@ describe("TerminalContextMenu", () => {
     const onCloseSession = vi.fn();
     const onClose = vi.fn();
     render(
-      <TerminalContextMenu
-        {...defaultProps}
-        onCloseSession={onCloseSession}
-        onClose={onClose}
-      />,
+      <TerminalContextMenu {...defaultProps} onCloseSession={onCloseSession} onClose={onClose} />,
     );
     fireEvent.click(screen.getByRole("menuitem", { name: /close session/i }));
     expect(onCloseSession).toHaveBeenCalledOnce();

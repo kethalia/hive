@@ -6,11 +6,7 @@ import { useSearchParams } from "next/navigation";
 import { Suspense, useCallback, useEffect, useState } from "react";
 import { TerminalContextMenu } from "@/components/terminal/TerminalContextMenu";
 import { ComposePanel } from "@/components/terminal/ComposePanel";
-import {
-  ResizablePanelGroup,
-  ResizablePanel,
-  ResizableHandle,
-} from "@/components/ui/resizable";
+import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@/components/ui/resizable";
 import { useKeybindings } from "@/hooks/useKeybindings";
 import { copyTerminalSelection, pasteToTerminal } from "@/lib/terminal/actions";
 

@@ -29,16 +29,23 @@ let capturedOnSelect: Map<string, () => void> = new Map();
 
 vi.mock("@/components/ui/command", () => {
   return {
-    CommandDialog: ({ children, open, onOpenChange }: {
+    CommandDialog: ({
+      children,
+      open,
+      onOpenChange,
+    }: {
       children: React.ReactNode;
       open: boolean;
       onOpenChange: (open: boolean) => void;
-    }) => open ? (
-      <div data-testid="command-dialog" data-open={open}>
-        <button data-testid="close-dialog" onClick={() => onOpenChange(false)}>Close</button>
-        {children}
-      </div>
-    ) : null,
+    }) =>
+      open ? (
+        <div data-testid="command-dialog" data-open={open}>
+          <button data-testid="close-dialog" onClick={() => onOpenChange(false)}>
+            Close
+          </button>
+          {children}
+        </div>
+      ) : null,
     CommandInput: ({ placeholder }: { placeholder?: string }) => (
       <input data-testid="command-input" placeholder={placeholder} />
     ),
@@ -49,9 +56,15 @@ vi.mock("@/components/ui/command", () => {
       <div data-testid="command-empty">{children}</div>
     ),
     CommandGroup: ({ heading, children }: { heading?: string; children: React.ReactNode }) => (
-      <div data-testid={`command-group-${heading?.toLowerCase()}`} data-heading={heading}>{children}</div>
+      <div data-testid={`command-group-${heading?.toLowerCase()}`} data-heading={heading}>
+        {children}
+      </div>
     ),
-    CommandItem: ({ children, value, onSelect }: {
+    CommandItem: ({
+      children,
+      value,
+      onSelect,
+    }: {
       children: React.ReactNode;
       value?: string;
       onSelect?: () => void;
@@ -62,6 +75,8 @@ vi.mock("@/components/ui/command", () => {
           data-testid={`command-item-${value ?? "action"}`}
           data-value={value}
           role="option"
+          aria-selected={false}
+          tabIndex={-1}
           onClick={onSelect}
         >
           {children}
@@ -94,24 +109,14 @@ describe("CommandPalette", () => {
 
   it("renders nothing when closed", () => {
     const { container } = render(
-      <CommandPalette
-        open={false}
-        onOpenChange={vi.fn()}
-        tabs={mockTabs}
-        onSelectTab={vi.fn()}
-      />,
+      <CommandPalette open={false} onOpenChange={vi.fn()} tabs={mockTabs} onSelectTab={vi.fn()} />,
     );
     expect(container.querySelector("[data-testid='command-dialog']")).toBeNull();
   });
 
   it("renders session list when open", () => {
     render(
-      <CommandPalette
-        open={true}
-        onOpenChange={vi.fn()}
-        tabs={mockTabs}
-        onSelectTab={vi.fn()}
-      />,
+      <CommandPalette open={true} onOpenChange={vi.fn()} tabs={mockTabs} onSelectTab={vi.fn()} />,
     );
 
     expect(screen.getByTestId("command-dialog")).toBeInTheDocument();
@@ -122,12 +127,7 @@ describe("CommandPalette", () => {
 
   it("renders search input with placeholder", () => {
     render(
-      <CommandPalette
-        open={true}
-        onOpenChange={vi.fn()}
-        tabs={mockTabs}
-        onSelectTab={vi.fn()}
-      />,
+      <CommandPalette open={true} onOpenChange={vi.fn()} tabs={mockTabs} onSelectTab={vi.fn()} />,
     );
 
     const input = screen.getByTestId("command-input");
@@ -207,12 +207,7 @@ describe("CommandPalette", () => {
 
   it("does not render 'New Session' when onCreateSession is not provided", () => {
     render(
-      <CommandPalette
-        open={true}
-        onOpenChange={vi.fn()}
-        tabs={mockTabs}
-        onSelectTab={vi.fn()}
-      />,
+      <CommandPalette open={true} onOpenChange={vi.fn()} tabs={mockTabs} onSelectTab={vi.fn()} />,
     );
 
     expect(screen.queryByText("New Session")).not.toBeInTheDocument();
@@ -220,12 +215,7 @@ describe("CommandPalette", () => {
 
   it("displays session names with correct text", () => {
     render(
-      <CommandPalette
-        open={true}
-        onOpenChange={vi.fn()}
-        tabs={mockTabs}
-        onSelectTab={vi.fn()}
-      />,
+      <CommandPalette open={true} onOpenChange={vi.fn()} tabs={mockTabs} onSelectTab={vi.fn()} />,
     );
 
     expect(screen.getByText("hive-main")).toBeInTheDocument();
@@ -235,12 +225,7 @@ describe("CommandPalette", () => {
 
   it("renders Sessions group heading", () => {
     render(
-      <CommandPalette
-        open={true}
-        onOpenChange={vi.fn()}
-        tabs={mockTabs}
-        onSelectTab={vi.fn()}
-      />,
+      <CommandPalette open={true} onOpenChange={vi.fn()} tabs={mockTabs} onSelectTab={vi.fn()} />,
     );
 
     expect(screen.getByTestId("command-group-sessions")).toBeInTheDocument();

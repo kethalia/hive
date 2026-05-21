@@ -6,10 +6,7 @@ import type { Terminal } from "@xterm/xterm";
 export interface KeybindingEntry {
   id: string;
   keys: string[];
-  action: (
-    term: Terminal | null,
-    send: ((data: string) => void) | null,
-  ) => boolean;
+  action: (term: Terminal | null, send: ((data: string) => void) | null) => boolean;
   description: string;
   category: string;
   enabledInBrowser: boolean;
@@ -22,10 +19,7 @@ export interface KeybindingContextValue {
   handleKeyEvent(e: KeyboardEvent): boolean;
   activeTerminal: Terminal | null;
   activeSend: ((data: string) => void) | null;
-  setActiveTerminal(
-    term: Terminal | null,
-    send: ((data: string) => void) | null,
-  ): void;
+  setActiveTerminal(term: Terminal | null, send: ((data: string) => void) | null): void;
 }
 
 const MODIFIER_ORDER = ["ctrl", "cmd", "alt", "shift"] as const;
@@ -48,15 +42,21 @@ export function normalizeKeyCombo(e: KeyboardEvent): string {
   return parts.join("+");
 }
 
-export const KeybindingContext =
-  React.createContext<KeybindingContextValue | null>(null);
+export const KeybindingContext = React.createContext<KeybindingContextValue | null>(null);
+
+const NOOP_KEYBINDINGS: KeybindingContextValue = {
+  register: () => {},
+  unregister: () => {},
+  getAll: () => [],
+  handleKeyEvent: () => true,
+  activeTerminal: null,
+  activeSend: null,
+  setActiveTerminal: () => {},
+};
 
 export function useKeybindings(): KeybindingContextValue {
   const ctx = React.useContext(KeybindingContext);
-  if (!ctx) {
-    throw new Error("useKeybindings must be used within a KeybindingProvider");
-  }
-  return ctx;
+  return ctx ?? NOOP_KEYBINDINGS;
 }
 
 export function useRegisterKeybinding(entry: KeybindingEntry) {
@@ -65,12 +65,20 @@ export function useRegisterKeybinding(entry: KeybindingEntry) {
   const actionRef = React.useRef(entry.action);
   actionRef.current = entry.action;
 
+  const { id, description, category, enabledInBrowser } = entry;
+  const keysKey = entry.keys.join(",");
+
   React.useEffect(() => {
-    const stableEntry = {
-      ...entry,
-      action: (...args: Parameters<typeof entry.action>) => actionRef.current(...args),
+    const keys = keysKey.split(",");
+    const stableEntry: KeybindingEntry = {
+      id,
+      keys,
+      description,
+      category,
+      enabledInBrowser,
+      action: (term, send) => actionRef.current(term, send),
     };
     register(stableEntry);
-    return () => unregister(entry.id);
-  }, [entry.id, entry.keys.join(","), entry.description, entry.category, entry.enabledInBrowser, register, unregister]);
+    return () => unregister(id);
+  }, [id, keysKey, description, category, enabledInBrowser, register, unregister]);
 }

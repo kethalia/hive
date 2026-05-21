@@ -56,9 +56,7 @@ vi.mock("@/components/ui/dialog", () => ({
   DialogTitle: ({ children }: { children: React.ReactNode }) => (
     <h2 data-testid="dialog-title">{children}</h2>
   ),
-  DialogDescription: ({ children }: { children: React.ReactNode }) => (
-    <p>{children}</p>
-  ),
+  DialogDescription: ({ children }: { children: React.ReactNode }) => <p>{children}</p>,
 }));
 
 vi.mock("@/components/ui/badge", () => ({
@@ -188,17 +186,13 @@ describe("HelpOverlay", () => {
   it("shows install nudge in browser mode", () => {
     mockPwaStandalone = false;
     renderOpenOverlay();
-    expect(
-      screen.getByText("Install as app for more shortcuts"),
-    ).toBeInTheDocument();
+    expect(screen.getByText("Install as app for more shortcuts")).toBeInTheDocument();
   });
 
   it("hides install nudge in PWA mode", () => {
     mockPwaStandalone = true;
     renderOpenOverlay();
-    expect(
-      screen.queryByText("Install as app for more shortcuts"),
-    ).not.toBeInTheDocument();
+    expect(screen.queryByText("Install as app for more shortcuts")).not.toBeInTheDocument();
   });
 
   it("hides install nudge after dismissal", () => {
@@ -206,9 +200,7 @@ describe("HelpOverlay", () => {
     renderOpenOverlay();
     const dismissBtn = screen.getByRole("button", { name: /dismiss/i });
     fireEvent.click(dismissBtn);
-    expect(
-      screen.queryByText("Install as app for more shortcuts"),
-    ).not.toBeInTheDocument();
+    expect(screen.queryByText("Install as app for more shortcuts")).not.toBeInTheDocument();
     expect(localStorage.getItem("hive:help-nudge-dismissed")).toBe("true");
   });
 
@@ -243,9 +235,7 @@ describe("HelpOverlay", () => {
 
   it("general category appears first in the list", () => {
     renderOpenOverlay();
-    const headings = screen
-      .getAllByRole("heading", { level: 3 })
-      .map((h) => h.textContent);
+    const headings = screen.getAllByRole("heading", { level: 3 }).map((h) => h.textContent);
     expect(headings[0]).toBe("general");
   });
 });

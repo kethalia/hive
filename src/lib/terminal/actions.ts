@@ -20,9 +20,14 @@ export function copyTerminalSelection(term: Terminal): boolean {
   if (!selection) return true;
 
   if (navigator.clipboard?.writeText) {
-    navigator.clipboard.writeText(selection).catch(() => {
+    try {
+      const result = navigator.clipboard.writeText(selection);
+      if (result && typeof result.catch === "function") {
+        result.catch(() => execCommandCopyFallback(selection));
+      }
+    } catch {
       execCommandCopyFallback(selection);
-    });
+    }
   } else {
     execCommandCopyFallback(selection);
   }
@@ -31,29 +36,30 @@ export function copyTerminalSelection(term: Terminal): boolean {
   return false;
 }
 
-export function pasteToTerminal(
-  term: Terminal,
-  send: (data: string) => void,
-): boolean {
+export function pasteToTerminal(_term: Terminal, send: (data: string) => void): boolean {
   if (!navigator.clipboard?.readText) {
-    console.warn("[clipboard] readText not available");
-    return false;
+    console.warn("[clipboard] readText not available; allowing native paste");
+    return true;
   }
 
-  navigator.clipboard
-    .readText()
-    .then((text) => {
-      if (text) {
-        send(text);
-      }
-    })
-    .catch((err) => {
-      if (err instanceof DOMException && err.name === "NotAllowedError") {
-        console.warn("[clipboard] paste permission denied");
-      } else {
-        console.warn("[clipboard] paste failed:", err);
-      }
-    });
+  try {
+    navigator.clipboard
+      .readText()
+      .then((text) => {
+        if (text) {
+          send(text);
+        }
+      })
+      .catch((err) => {
+        if (err instanceof DOMException && err.name === "NotAllowedError") {
+          console.warn("[clipboard] paste permission denied");
+        } else {
+          console.warn("[clipboard] paste failed:", err);
+        }
+      });
+  } catch {
+    return true;
+  }
 
   return false;
 }

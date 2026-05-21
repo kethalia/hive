@@ -20,6 +20,9 @@ vi.mock("@xterm/xterm", () => ({
     onResize = vi.fn();
     dispose = vi.fn();
     write = vi.fn();
+    attachCustomKeyEventHandler = vi.fn();
+    getSelection = vi.fn(() => "");
+    clearSelection = vi.fn();
   },
 }));
 

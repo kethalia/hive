@@ -99,7 +99,7 @@ export function TerminalContextMenu({
       </button>
       {hasSessionActions && (
         <>
-          <div role="separator" className="my-1 h-px bg-border" />
+          <hr className="my-1 h-px border-0 bg-border" />
           {onNewSession && (
             <button
               type="button"

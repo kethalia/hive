@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { renderHook, act } from "@testing-library/react";
+import { renderHook } from "@testing-library/react";
 import * as React from "react";
 import {
   normalizeKeyCombo,
@@ -11,9 +11,7 @@ import {
   type KeybindingEntry,
 } from "@/hooks/useKeybindings";
 
-function makeKeyEvent(
-  opts: Partial<KeyboardEventInit> & { key: string },
-): KeyboardEvent {
+function makeKeyEvent(opts: Partial<KeyboardEventInit> & { key: string }): KeyboardEvent {
   return new KeyboardEvent("keydown", opts);
 }
 
@@ -102,20 +100,28 @@ function createMockContextValue(): KeybindingContextValue {
 }
 
 describe("useKeybindings", () => {
-  it("throws when used outside provider", () => {
-    expect(() => {
-      renderHook(() => useKeybindings());
-    }).toThrow("useKeybindings must be used within a KeybindingProvider");
+  it("returns a no-op fallback when used outside provider", () => {
+    const { result } = renderHook(() => useKeybindings());
+    expect(result.current.activeTerminal).toBeNull();
+    expect(result.current.activeSend).toBeNull();
+    expect(result.current.getAll()).toEqual([]);
+    expect(result.current.handleKeyEvent(new KeyboardEvent("keydown"))).toBe(true);
+    expect(() => result.current.register({
+      id: "noop",
+      keys: ["ctrl+x"],
+      action: () => false,
+      description: "",
+      category: "",
+      enabledInBrowser: true,
+    })).not.toThrow();
+    expect(() => result.current.unregister("noop")).not.toThrow();
+    expect(() => result.current.setActiveTerminal(null, null)).not.toThrow();
   });
 
   it("returns context value when inside provider", () => {
     const mockValue = createMockContextValue();
     const wrapper = ({ children }: { children: React.ReactNode }) =>
-      React.createElement(
-        KeybindingContext.Provider,
-        { value: mockValue },
-        children,
-      );
+      React.createElement(KeybindingContext.Provider, { value: mockValue }, children);
 
     const { result } = renderHook(() => useKeybindings(), { wrapper });
     expect(result.current).toBe(mockValue);
@@ -135,11 +141,7 @@ describe("useRegisterKeybinding", () => {
     };
 
     const wrapper = ({ children }: { children: React.ReactNode }) =>
-      React.createElement(
-        KeybindingContext.Provider,
-        { value: mockValue },
-        children,
-      );
+      React.createElement(KeybindingContext.Provider, { value: mockValue }, children);
 
     const { unmount } = renderHook(() => useRegisterKeybinding(entry), {
       wrapper,

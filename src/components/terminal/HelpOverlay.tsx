@@ -25,9 +25,7 @@ function isMacPlatform(): boolean {
 }
 
 function formatKeyCombo(keys: string[], isMac: boolean): string {
-  const preferred = keys.find((k) =>
-    isMac ? k.includes("cmd") : !k.includes("cmd"),
-  ) ?? keys[0];
+  const preferred = keys.find((k) => (isMac ? k.includes("cmd") : !k.includes("cmd"))) ?? keys[0];
 
   return preferred
     .split("+")
@@ -42,13 +40,12 @@ function formatKeyCombo(keys: string[], isMac: boolean): string {
     .join(" + ");
 }
 
-function groupByCategory(
-  entries: KeybindingEntry[],
-): Record<string, KeybindingEntry[]> {
+function groupByCategory(entries: KeybindingEntry[]): Record<string, KeybindingEntry[]> {
   const groups: Record<string, KeybindingEntry[]> = {};
   for (const entry of entries) {
     const cat = entry.category || "other";
-    (groups[cat] ??= []).push(entry);
+    groups[cat] ??= [];
+    groups[cat].push(entry);
   }
   return groups;
 }
@@ -61,9 +58,7 @@ export function HelpOverlay() {
   const [nudgeDismissed, setNudgeDismissed] = React.useState(true);
 
   React.useEffect(() => {
-    setNudgeDismissed(
-      localStorage.getItem(NUDGE_DISMISSED_KEY) === "true",
-    );
+    setNudgeDismissed(localStorage.getItem(NUDGE_DISMISSED_KEY) === "true");
   }, []);
 
   useRegisterKeybinding({
@@ -111,24 +106,16 @@ export function HelpOverlay() {
               </h3>
               <div className="space-y-1">
                 {groups[category].map((entry) => {
-                  const isPwaOnly =
-                    !isStandalone && !entry.enabledInBrowser;
+                  const isPwaOnly = !isStandalone && !entry.enabledInBrowser;
                   return (
                     <div
                       key={entry.id}
                       className="flex items-center justify-between rounded-md px-2 py-1.5 text-sm"
                     >
-                      <span
-                        className={
-                          isPwaOnly ? "text-muted-foreground" : ""
-                        }
-                      >
+                      <span className={isPwaOnly ? "text-muted-foreground" : ""}>
                         {entry.description}
                         {isPwaOnly && (
-                          <Badge
-                            variant="outline"
-                            className="ml-2 text-[10px]"
-                          >
+                          <Badge variant="outline" className="ml-2 text-[10px]">
                             PWA only
                           </Badge>
                         )}
@@ -146,9 +133,7 @@ export function HelpOverlay() {
 
         {showNudge && (
           <div className="mt-2 flex items-center justify-between rounded-md border border-border bg-muted/50 px-3 py-2 text-xs text-muted-foreground">
-            <span>
-              Install as app for more shortcuts
-            </span>
+            <span>Install as app for more shortcuts</span>
             <button
               type="button"
               onClick={dismissNudge}

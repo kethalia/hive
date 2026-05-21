@@ -2,7 +2,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, fireEvent, cleanup } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
-import * as React from "react";
+import type * as React from "react";
 
 vi.mock("@/hooks/useKeybindings", () => ({
   useKeybindings: vi.fn(() => ({
@@ -19,9 +19,8 @@ vi.mock("@/hooks/useKeybindings", () => ({
 const mockActiveSend = vi.fn();
 
 vi.mock("@/hooks/useFabPosition", async () => {
-  const actual = await vi.importActual<
-    typeof import("@/hooks/useFabPosition")
-  >("@/hooks/useFabPosition");
+  const actual =
+    await vi.importActual<typeof import("@/hooks/useFabPosition")>("@/hooks/useFabPosition");
   return {
     ...actual,
     useFabPosition: vi.fn(() => mockFabState),
@@ -29,7 +28,6 @@ vi.mock("@/hooks/useFabPosition", async () => {
 });
 
 import { FloatingActionButton } from "@/components/terminal/FloatingActionButton";
-import { useFabPosition } from "@/hooks/useFabPosition";
 
 let mockFabState: ReturnType<typeof import("@/hooks/useFabPosition").useFabPosition>;
 
@@ -85,9 +83,10 @@ describe("FloatingActionButton", () => {
     fireEvent.pointerUp(btn);
 
     expect(screen.getByRole("menu")).toBeInTheDocument();
-    expect(
-      screen.getByRole("button", { name: "Close virtual keyboard" }),
-    ).toHaveAttribute("aria-expanded", "true");
+    expect(screen.getByRole("button", { name: "Close virtual keyboard" })).toHaveAttribute(
+      "aria-expanded",
+      "true",
+    );
   });
 
   it("collapses on second tap", () => {
@@ -98,16 +97,12 @@ describe("FloatingActionButton", () => {
     fireEvent.pointerUp(btn);
     expect(screen.getByRole("menu")).toBeInTheDocument();
 
-    fireEvent.pointerUp(
-      screen.getByRole("button", { name: "Close virtual keyboard" }),
-    );
+    fireEvent.pointerUp(screen.getByRole("button", { name: "Close virtual keyboard" }));
     expect(screen.queryByRole("menu")).not.toBeInTheDocument();
   });
 
   it("does not expand when pointer up was a drag", () => {
-    (mockFabState.onPointerUp as ReturnType<typeof vi.fn>).mockReturnValue(
-      true,
-    );
+    (mockFabState.onPointerUp as ReturnType<typeof vi.fn>).mockReturnValue(true);
     render(<FloatingActionButton />);
     const btn = screen.getByRole("button", {
       name: "Open virtual keyboard",
@@ -119,9 +114,7 @@ describe("FloatingActionButton", () => {
 
   it("renders all virtual key buttons and send when expanded", () => {
     render(<FloatingActionButton />);
-    fireEvent.pointerUp(
-      screen.getByRole("button", { name: "Open virtual keyboard" }),
-    );
+    fireEvent.pointerUp(screen.getByRole("button", { name: "Open virtual keyboard" }));
 
     const menuItems = screen.getAllByRole("menuitem");
     expect(menuItems).toHaveLength(10);
@@ -140,9 +133,7 @@ describe("FloatingActionButton", () => {
 
   it("calls activeSend with Tab sequence when Tab key pressed", () => {
     render(<FloatingActionButton />);
-    fireEvent.pointerUp(
-      screen.getByRole("button", { name: "Open virtual keyboard" }),
-    );
+    fireEvent.pointerUp(screen.getByRole("button", { name: "Open virtual keyboard" }));
 
     fireEvent.click(screen.getByRole("menuitem", { name: /Tab/ }));
     expect(mockActiveSend).toHaveBeenCalledWith("\t");
@@ -150,9 +141,7 @@ describe("FloatingActionButton", () => {
 
   it("calls activeSend with Ctrl+C sequence", () => {
     render(<FloatingActionButton />);
-    fireEvent.pointerUp(
-      screen.getByRole("button", { name: "Open virtual keyboard" }),
-    );
+    fireEvent.pointerUp(screen.getByRole("button", { name: "Open virtual keyboard" }));
 
     fireEvent.click(screen.getByRole("menuitem", { name: /Ctrl\+C/ }));
     expect(mockActiveSend).toHaveBeenCalledWith("\x03");
@@ -160,9 +149,7 @@ describe("FloatingActionButton", () => {
 
   it("calls activeSend with Escape sequence", () => {
     render(<FloatingActionButton />);
-    fireEvent.pointerUp(
-      screen.getByRole("button", { name: "Open virtual keyboard" }),
-    );
+    fireEvent.pointerUp(screen.getByRole("button", { name: "Open virtual keyboard" }));
 
     fireEvent.click(screen.getByRole("menuitem", { name: /Esc/ }));
     expect(mockActiveSend).toHaveBeenCalledWith("\x1b");
@@ -170,9 +157,7 @@ describe("FloatingActionButton", () => {
 
   it("calls activeSend with arrow key sequences", () => {
     render(<FloatingActionButton />);
-    fireEvent.pointerUp(
-      screen.getByRole("button", { name: "Open virtual keyboard" }),
-    );
+    fireEvent.pointerUp(screen.getByRole("button", { name: "Open virtual keyboard" }));
 
     fireEvent.click(screen.getByRole("menuitem", { name: /Up/ }));
     expect(mockActiveSend).toHaveBeenCalledWith("\x1b[A");
@@ -189,9 +174,7 @@ describe("FloatingActionButton", () => {
 
   it("increases font size when + button clicked", () => {
     render(<FloatingActionButton />);
-    fireEvent.pointerUp(
-      screen.getByRole("button", { name: "Open virtual keyboard" }),
-    );
+    fireEvent.pointerUp(screen.getByRole("button", { name: "Open virtual keyboard" }));
 
     const increaseBtn = screen.getByRole("menuitem", { name: /Increase font size/ });
     fireEvent.click(increaseBtn);
@@ -202,9 +185,7 @@ describe("FloatingActionButton", () => {
 
   it("decreases font size when - button clicked", () => {
     render(<FloatingActionButton />);
-    fireEvent.pointerUp(
-      screen.getByRole("button", { name: "Open virtual keyboard" }),
-    );
+    fireEvent.pointerUp(screen.getByRole("button", { name: "Open virtual keyboard" }));
 
     const decreaseBtn = screen.getByRole("menuitem", { name: /Decrease font size/ });
     fireEvent.click(decreaseBtn);
@@ -216,9 +197,7 @@ describe("FloatingActionButton", () => {
   it("disables decrease button at minimum font size", () => {
     localStorage.setItem("terminal:font-size", "10");
     render(<FloatingActionButton />);
-    fireEvent.pointerUp(
-      screen.getByRole("button", { name: "Open virtual keyboard" }),
-    );
+    fireEvent.pointerUp(screen.getByRole("button", { name: "Open virtual keyboard" }));
 
     const decreaseBtn = screen.getByRole("menuitem", { name: /Decrease font size/ });
     expect(decreaseBtn).toBeDisabled();
@@ -227,9 +206,7 @@ describe("FloatingActionButton", () => {
   it("disables increase button at maximum font size", () => {
     localStorage.setItem("terminal:font-size", "24");
     render(<FloatingActionButton />);
-    fireEvent.pointerUp(
-      screen.getByRole("button", { name: "Open virtual keyboard" }),
-    );
+    fireEvent.pointerUp(screen.getByRole("button", { name: "Open virtual keyboard" }));
 
     const increaseBtn = screen.getByRole("menuitem", { name: /Increase font size/ });
     expect(increaseBtn).toBeDisabled();
@@ -242,9 +219,7 @@ describe("FloatingActionButton", () => {
         <FloatingActionButton />
       </div>,
     );
-    fireEvent.pointerUp(
-      screen.getByRole("button", { name: "Open virtual keyboard" }),
-    );
+    fireEvent.pointerUp(screen.getByRole("button", { name: "Open virtual keyboard" }));
     expect(screen.getByRole("menu")).toBeInTheDocument();
 
     fireEvent.pointerDown(screen.getByTestId("outside"));

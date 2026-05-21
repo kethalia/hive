@@ -1,12 +1,7 @@
 // @vitest-environment jsdom
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, beforeEach } from "vitest";
 import { renderHook, act } from "@testing-library/react";
-import {
-  nearestCorner,
-  cornerToPosition,
-  useFabPosition,
-  type Corner,
-} from "@/hooks/useFabPosition";
+import { nearestCorner, cornerToPosition, useFabPosition } from "@/hooks/useFabPosition";
 
 const OFFSET = 16;
 const FAB_SIZE = 56;
@@ -68,9 +63,7 @@ describe("nearestCorner", () => {
 
   it("returns nearest corner at viewport center", () => {
     const result = nearestCorner(512, 384);
-    expect(["top-left", "top-right", "bottom-left", "bottom-right"]).toContain(
-      result,
-    );
+    expect(["top-left", "top-right", "bottom-left", "bottom-right"]).toContain(result);
   });
 
   it("returns top-left when positioned exactly at top-left offset", () => {
@@ -78,9 +71,7 @@ describe("nearestCorner", () => {
   });
 
   it("returns bottom-right when positioned exactly at bottom-right offset", () => {
-    expect(
-      nearestCorner(1024 - FAB_SIZE - OFFSET, 768 - FAB_SIZE - OFFSET),
-    ).toBe("bottom-right");
+    expect(nearestCorner(1024 - FAB_SIZE - OFFSET, 768 - FAB_SIZE - OFFSET)).toBe("bottom-right");
   });
 });
 

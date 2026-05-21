@@ -114,11 +114,22 @@ vi.mock("@/components/ui/alert", () => ({
   ),
 }));
 
+vi.mock("@/components/ui/resizable", () => ({
+  ResizablePanelGroup: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+  ResizablePanel: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+  ResizableHandle: () => <div />,
+}));
+
 vi.mock("lucide-react", () => ({
   X: () => <span data-testid="icon-x">×</span>,
   Plus: () => <span data-testid="icon-plus">+</span>,
   Pencil: () => <span data-testid="icon-pencil">✎</span>,
   AlertCircle: () => <span data-testid="icon-alert">⚠</span>,
+  Terminal: () => <span data-testid="icon-terminal" />,
+  Copy: () => <span data-testid="icon-copy" />,
+  ClipboardPaste: () => <span data-testid="icon-paste" />,
+  Send: () => <span data-testid="icon-send" />,
+  XIcon: () => <span data-testid="icon-x-2">×</span>,
 }));
 
 import { TerminalTabManager } from "@/components/workspaces/TerminalTabManager";

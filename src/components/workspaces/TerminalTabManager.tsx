@@ -12,11 +12,7 @@ import { KeepAliveWarning } from "@/components/workspaces/KeepAliveWarning";
 import { CommandPalette } from "@/components/terminal/CommandPalette";
 import { ComposePanel } from "@/components/terminal/ComposePanel";
 import { TerminalContextMenu } from "@/components/terminal/TerminalContextMenu";
-import {
-  ResizablePanelGroup,
-  ResizablePanel,
-  ResizableHandle,
-} from "@/components/ui/resizable";
+import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@/components/ui/resizable";
 import { useKeybindings } from "@/hooks/useKeybindings";
 import { copyTerminalSelection, pasteToTerminal } from "@/lib/terminal/actions";
 import { isPwaStandalone } from "@/lib/terminal/pwa";
@@ -106,18 +102,23 @@ export function TerminalTabManager({ agentId, workspaceId }: TerminalTabManagerP
   const [connStates, setConnStates] = useState<Record<string, ConnectionState>>({});
   const keybindingsCtx = useKeybindings();
   const { setActiveTerminal } = keybindingsCtx;
-  const terminalsRef = useRef<Map<string, { term: Terminal; send: (data: string) => void }>>(new Map());
+  const terminalsRef = useRef<Map<string, { term: Terminal; send: (data: string) => void }>>(
+    new Map(),
+  );
   const tabsRef = useRef(tabs);
   tabsRef.current = tabs;
   const activeTabIdRef = useRef(activeTabId);
   activeTabIdRef.current = activeTabId;
 
-  const handleTerminalReady = useCallback((tabId: string, term: Terminal, send: (data: string) => void) => {
-    terminalsRef.current.set(tabId, { term, send });
-    if (activeTabIdRef.current === tabId) {
-      setActiveTerminal(term, send);
-    }
-  }, [setActiveTerminal]);
+  const handleTerminalReady = useCallback(
+    (tabId: string, term: Terminal, send: (data: string) => void) => {
+      terminalsRef.current.set(tabId, { term, send });
+      if (activeTabIdRef.current === tabId) {
+        setActiveTerminal(term, send);
+      }
+    },
+    [setActiveTerminal],
+  );
 
   const handleTerminalDestroy = useCallback((tabId: string) => {
     terminalsRef.current.delete(tabId);
@@ -537,7 +538,9 @@ export function TerminalTabManager({ agentId, workspaceId }: TerminalTabManagerP
                 if (entry) pasteToTerminal(entry.term, entry.send);
               }}
               onNewSession={handleCreateTab}
-              onCloseSession={tabs.length > 1 && activeTabId ? () => handleKillTab(activeTabId) : undefined}
+              onCloseSession={
+                tabs.length > 1 && activeTabId ? () => handleKillTab(activeTabId) : undefined
+              }
             />
           </div>
         </ResizablePanel>

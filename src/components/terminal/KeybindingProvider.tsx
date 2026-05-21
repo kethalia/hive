@@ -10,17 +10,10 @@ import {
 } from "@/hooks/useKeybindings";
 import { copyTerminalSelection, pasteToTerminal } from "@/lib/terminal/actions";
 
-export function KeybindingProvider({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+export function KeybindingProvider({ children }: { children: React.ReactNode }) {
   const registryRef = React.useRef<Map<string, KeybindingEntry>>(new Map());
-  const [activeTerminal, setActiveTerminalState] =
-    React.useState<Terminal | null>(null);
-  const [activeSend, setActiveSendState] = React.useState<
-    ((data: string) => void) | null
-  >(null);
+  const [activeTerminal, setActiveTerminalState] = React.useState<Terminal | null>(null);
+  const [activeSend, setActiveSendState] = React.useState<((data: string) => void) | null>(null);
 
   const register = React.useCallback((entry: KeybindingEntry) => {
     for (const key of entry.keys) {
@@ -76,15 +69,7 @@ export function KeybindingProvider({
       activeSend,
       setActiveTerminal,
     }),
-    [
-      register,
-      unregister,
-      getAll,
-      handleKeyEvent,
-      activeTerminal,
-      activeSend,
-      setActiveTerminal,
-    ],
+    [register, unregister, getAll, handleKeyEvent, activeTerminal, activeSend, setActiveTerminal],
   );
 
   React.useEffect(() => {
@@ -117,11 +102,7 @@ export function KeybindingProvider({
     };
   }, [register, unregister]);
 
-  return (
-    <KeybindingContext.Provider value={value}>
-      {children}
-    </KeybindingContext.Provider>
-  );
+  return <KeybindingContext.Provider value={value}>{children}</KeybindingContext.Provider>;
 }
 
 export default KeybindingProvider;

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useRef } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import { Send, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useKeybindings } from "@/hooks/useKeybindings";
@@ -15,12 +15,16 @@ export function ComposePanel({ onClose }: ComposePanelProps) {
 
   const sendComposed = useCallback(() => {
     const textarea = textareaRef.current;
-    if (!textarea || !textarea.value || !activeSend) return;
+    if (!textarea?.value || !activeSend) return;
     activeSend(textarea.value);
     activeSend("\r");
     textarea.value = "";
     textarea.focus();
   }, [activeSend]);
+
+  useEffect(() => {
+    textareaRef.current?.focus();
+  }, []);
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -37,7 +41,7 @@ export function ComposePanel({ onClose }: ComposePanelProps) {
     <div className="flex h-full flex-col bg-background">
       <div className="flex items-center justify-between border-b border-border px-3 py-1">
         <span className="text-xs font-medium text-muted-foreground">
-          Compose — Ctrl+Enter to send
+          Compose — Ctrl/Cmd+Enter to send
         </span>
         <Button
           variant="ghost"
@@ -54,7 +58,6 @@ export function ComposePanel({ onClose }: ComposePanelProps) {
           ref={textareaRef}
           className="h-full w-full resize-none bg-[#0a0a0a] p-3 font-mono text-sm text-foreground placeholder:text-muted-foreground focus:outline-none"
           placeholder="Type multi-line command..."
-          autoFocus
           onKeyDown={handleKeyDown}
         />
         <Button
