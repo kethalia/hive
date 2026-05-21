@@ -43,6 +43,15 @@
     -webkit-user-select: none;
 }
 
+/* Allow text selection on the rendered rows so mobile users can long-press to copy. */
+.xterm .xterm-rows,
+.xterm .xterm-rows * {
+    user-select: text;
+    -webkit-user-select: text;
+    -ms-user-select: text;
+    -webkit-touch-callout: default;
+}
+
 .xterm.focus,
 .xterm:focus {
     outline: none;

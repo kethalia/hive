@@ -112,7 +112,7 @@ describe("FloatingActionButton", () => {
     expect(screen.queryByRole("menu")).not.toBeInTheDocument();
   });
 
-  it("renders all virtual key buttons and send when expanded", () => {
+  it("renders all virtual key buttons and enter when expanded", () => {
     render(<FloatingActionButton />);
     fireEvent.pointerUp(screen.getByRole("button", { name: "Open virtual keyboard" }));
 
@@ -126,7 +126,7 @@ describe("FloatingActionButton", () => {
     expect(screen.getByRole("menuitem", { name: /Left/ })).toBeInTheDocument();
     expect(screen.getByRole("menuitem", { name: /Ctrl\+C/ })).toBeInTheDocument();
     expect(screen.getByRole("menuitem", { name: /Esc/ })).toBeInTheDocument();
-    expect(screen.getByRole("menuitem", { name: /Send/ })).toBeInTheDocument();
+    expect(screen.getByRole("menuitem", { name: /Enter/ })).toBeInTheDocument();
     expect(screen.getByRole("menuitem", { name: /Decrease font size/ })).toBeInTheDocument();
     expect(screen.getByRole("menuitem", { name: /Increase font size/ })).toBeInTheDocument();
   });

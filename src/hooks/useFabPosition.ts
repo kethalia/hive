@@ -25,26 +25,42 @@ function readCorner(): Corner {
   return DEFAULT_CORNER;
 }
 
+function viewportMetrics() {
+  const vv = typeof window !== "undefined" ? window.visualViewport : undefined;
+  if (vv) {
+    return {
+      width: vv.width,
+      height: vv.height,
+      offsetLeft: vv.offsetLeft,
+      offsetTop: vv.offsetTop,
+    };
+  }
+  return {
+    width: window.innerWidth,
+    height: window.innerHeight,
+    offsetLeft: 0,
+    offsetTop: 0,
+  };
+}
+
 export function cornerToPosition(corner: Corner) {
+  const { width, height, offsetLeft, offsetTop } = viewportMetrics();
   switch (corner) {
     case "top-left":
-      return { x: OFFSET, y: OFFSET };
+      return { x: offsetLeft + OFFSET, y: offsetTop + OFFSET };
     case "top-right":
-      return { x: window.innerWidth - 56 - OFFSET, y: OFFSET };
+      return { x: offsetLeft + width - 56 - OFFSET, y: offsetTop + OFFSET };
     case "bottom-left":
-      return { x: OFFSET, y: window.innerHeight - 56 - OFFSET };
+      return { x: offsetLeft + OFFSET, y: offsetTop + height - 56 - OFFSET };
     case "bottom-right":
       return {
-        x: window.innerWidth - 56 - OFFSET,
-        y: window.innerHeight - 56 - OFFSET,
+        x: offsetLeft + width - 56 - OFFSET,
+        y: offsetTop + height - 56 - OFFSET,
       };
   }
 }
 
 export function nearestCorner(x: number, y: number): Corner {
-  const _midX = window.innerWidth / 2;
-  const _midY = window.innerHeight / 2;
-
   const corners: Corner[] = ["top-left", "top-right", "bottom-left", "bottom-right"];
 
   const targets = corners.map((c) => {
@@ -75,7 +91,14 @@ export function useFabPosition() {
       setPosition(cornerToPosition(corner));
     };
     window.addEventListener("resize", handleResize);
-    return () => window.removeEventListener("resize", handleResize);
+    const vv = window.visualViewport;
+    vv?.addEventListener("resize", handleResize);
+    vv?.addEventListener("scroll", handleResize);
+    return () => {
+      window.removeEventListener("resize", handleResize);
+      vv?.removeEventListener("resize", handleResize);
+      vv?.removeEventListener("scroll", handleResize);
+    };
   }, [corner]);
 
   const onPointerDown = useCallback((e: ReactPointerEvent<HTMLElement>) => {
@@ -91,10 +114,13 @@ export function useFabPosition() {
       const dx = e.clientX - dragStartRef.current.x;
       const dy = e.clientY - dragStartRef.current.y;
       dragDistRef.current = Math.max(dragDistRef.current, Math.sqrt(dx * dx + dy * dy));
-      setPosition((prev) => ({
-        x: Math.max(0, Math.min(window.innerWidth - 56, prev.x + e.movementX)),
-        y: Math.max(0, Math.min(window.innerHeight - 56, prev.y + e.movementY)),
-      }));
+      setPosition((prev) => {
+        const { width, height, offsetLeft, offsetTop } = viewportMetrics();
+        return {
+          x: Math.max(offsetLeft, Math.min(offsetLeft + width - 56, prev.x + e.movementX)),
+          y: Math.max(offsetTop, Math.min(offsetTop + height - 56, prev.y + e.movementY)),
+        };
+      });
     },
     [isDragging],
   );

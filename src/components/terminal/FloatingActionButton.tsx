@@ -9,7 +9,7 @@ import {
   ArrowRight,
   X,
   Keyboard,
-  Send,
+  CornerDownLeft,
   Plus,
   Minus,
 } from "lucide-react";
@@ -170,8 +170,8 @@ export function FloatingActionButton() {
             onPointerDown={(e) => e.stopPropagation()}
             onClick={() => sendKey("\r")}
           >
-            <Send className="h-4 w-4" />
-            Send
+            <CornerDownLeft className="h-4 w-4" />
+            Enter
           </button>
         </div>
       )}
