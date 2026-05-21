@@ -24,6 +24,7 @@ metadata:
 spec:
   secretName: {{ $host }}-tls
   dnsNames:
+    - "{{ $host }}"
     - "*.{{ $host }}"
   issuerRef:
     kind: {{ .Values.preview.issuerKind | default "ClusterIssuer" }}
