@@ -1,5 +1,11 @@
 # hive-orchestrator
 
+## 2.2.0
+
+### Minor Changes
+
+- 5bcfc22: Add per-preview wildcard Certificate template for cookie-isolated preview environments. The chart now stamps a cert-manager Certificate covering both the preview host apex and `*.<host>` when `preview.enabled` is true.
+
 ## 2.1.11
 
 ### Patch Changes
