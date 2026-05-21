@@ -1,9 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import {
-  getClientRuntimeConfig,
-  getServerRuntimeConfig,
-} from "@/lib/runtime-config";
+import { getClientRuntimeConfig, getServerRuntimeConfig } from "@/lib/runtime-config";
 
 describe("runtime-config", () => {
   afterEach(() => {
