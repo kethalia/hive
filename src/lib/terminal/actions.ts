@@ -43,18 +43,28 @@ export function pasteToTerminal(_term: Terminal, send: (data: string) => void): 
   }
 
   try {
-    navigator.clipboard
-      .readText()
+    const result = navigator.clipboard.readText();
+    result
       .then((text) => {
         if (text) {
           send(text);
         }
       })
       .catch((err) => {
+        // We've already swallowed the keypress (returned false below). If the
+        // Clipboard API rejected — most often a NotAllowedError because the
+        // page lacks permission or the browser is restricting access — fall
+        // back to dispatching a synthetic paste so the browser can handle it
+        // with its native gesture-based permission flow.
         if (err instanceof DOMException && err.name === "NotAllowedError") {
-          console.warn("[clipboard] paste permission denied");
+          console.warn("[clipboard] paste permission denied; falling back to native paste");
         } else {
           console.warn("[clipboard] paste failed:", err);
+        }
+        try {
+          document.execCommand("paste");
+        } catch {
+          // execCommand may also be blocked; nothing more we can do here.
         }
       });
   } catch {

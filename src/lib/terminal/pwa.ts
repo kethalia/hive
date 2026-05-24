@@ -1,3 +1,5 @@
+"use client";
+
 import * as React from "react";
 
 export function isPwaStandalone(): boolean {
@@ -6,9 +8,10 @@ export function isPwaStandalone(): boolean {
 }
 
 export function usePwaStandalone() {
-  const [isStandalone, setIsStandalone] = React.useState<boolean | undefined>(undefined);
+  const [isStandalone, setIsStandalone] = React.useState<boolean>(isPwaStandalone);
 
   React.useEffect(() => {
+    if (typeof window === "undefined") return;
     const mql = window.matchMedia("(display-mode: standalone)");
     const onChange = () => {
       setIsStandalone(mql.matches);
@@ -18,5 +21,5 @@ export function usePwaStandalone() {
     return () => mql.removeEventListener("change", onChange);
   }, []);
 
-  return !!isStandalone;
+  return isStandalone;
 }

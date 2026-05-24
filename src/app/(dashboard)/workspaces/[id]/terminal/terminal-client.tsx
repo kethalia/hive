@@ -36,7 +36,7 @@ function TerminalInner({ agentId, workspaceId }: { agentId: string; workspaceId:
 
   useEffect(() => {
     const binding = {
-      id: "compose:toggle",
+      id: "compose:toggle:fullscreen",
       keys: ["ctrl+`", "cmd+`"],
       action: () => {
         setComposeOpen((prev) => !prev);
@@ -47,7 +47,7 @@ function TerminalInner({ agentId, workspaceId }: { agentId: string; workspaceId:
       enabledInBrowser: true,
     };
     register(binding);
-    return () => unregister("compose:toggle");
+    return () => unregister("compose:toggle:fullscreen");
   }, [register, unregister]);
 
   useEffect(() => {

@@ -81,6 +81,16 @@ export function useFabPosition() {
   const [isSnapping, setIsSnapping] = useState(false);
   const dragStartRef = useRef({ x: 0, y: 0 });
   const dragDistRef = useRef(0);
+  const snapTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (snapTimeoutRef.current !== null) {
+        clearTimeout(snapTimeoutRef.current);
+        snapTimeoutRef.current = null;
+      }
+    };
+  }, []);
 
   useEffect(() => {
     setPosition(cornerToPosition(corner));
@@ -137,7 +147,13 @@ export function useFabPosition() {
         localStorage.setItem(STORAGE_KEY, newCorner);
         setCorner(newCorner);
         setIsSnapping(true);
-        setTimeout(() => setIsSnapping(false), SNAP_DURATION);
+        if (snapTimeoutRef.current !== null) {
+          clearTimeout(snapTimeoutRef.current);
+        }
+        snapTimeoutRef.current = setTimeout(() => {
+          setIsSnapping(false);
+          snapTimeoutRef.current = null;
+        }, SNAP_DURATION);
         return cornerToPosition(newCorner);
       });
     }

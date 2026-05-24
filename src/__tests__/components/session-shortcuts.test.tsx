@@ -154,13 +154,13 @@ describe("session keybinding registration", () => {
     expect(ids).toContain("session:close");
     expect(ids).toContain("session:next-tab");
     expect(ids).toContain("session:prev-tab");
-    expect(ids).toContain("compose:toggle");
+    expect(ids).toContain("compose:toggle:tab-manager");
 
     for (const entry of registeredBindings.values()) {
       expect(["session", "terminal"]).toContain(entry.category);
     }
-    expect(registeredBindings.get("compose:toggle")!.category).toBe("terminal");
-    expect(registeredBindings.get("compose:toggle")!.enabledInBrowser).toBe(true);
+    expect(registeredBindings.get("compose:toggle:tab-manager")!.category).toBe("terminal");
+    expect(registeredBindings.get("compose:toggle:tab-manager")!.enabledInBrowser).toBe(true);
     expect(registeredBindings.get("command-palette")!.enabledInBrowser).toBe(true);
     expect(registeredBindings.get("session:next-tab")!.enabledInBrowser).toBe(true);
     expect(registeredBindings.get("session:prev-tab")!.enabledInBrowser).toBe(true);
@@ -295,7 +295,7 @@ describe("session keybinding registration", () => {
       expect(mockCtx.unregister).toHaveBeenCalledWith("session:close");
       expect(mockCtx.unregister).toHaveBeenCalledWith("session:next-tab");
       expect(mockCtx.unregister).toHaveBeenCalledWith("session:prev-tab");
-      expect(mockCtx.unregister).toHaveBeenCalledWith("compose:toggle");
+      expect(mockCtx.unregister).toHaveBeenCalledWith("compose:toggle:tab-manager");
     });
   });
 });

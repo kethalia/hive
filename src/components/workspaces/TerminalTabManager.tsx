@@ -122,9 +122,15 @@ export function TerminalTabManager({ agentId, workspaceId }: TerminalTabManagerP
     [setActiveTerminal],
   );
 
-  const handleTerminalDestroy = useCallback((tabId: string) => {
-    terminalsRef.current.delete(tabId);
-  }, []);
+  const handleTerminalDestroy = useCallback(
+    (tabId: string) => {
+      terminalsRef.current.delete(tabId);
+      if (activeTabIdRef.current === tabId) {
+        setActiveTerminal(null, null);
+      }
+    },
+    [setActiveTerminal],
+  );
 
   useEffect(() => {
     if (!activeTabId) {
@@ -366,7 +372,7 @@ export function TerminalTabManager({ agentId, workspaceId }: TerminalTabManagerP
     };
 
     const composeToggleBinding = {
-      id: "compose:toggle",
+      id: "compose:toggle:tab-manager",
       keys: ["ctrl+`", "cmd+`"],
       action: () => {
         setComposeOpenRef.current((prev) => !prev);
@@ -390,7 +396,7 @@ export function TerminalTabManager({ agentId, workspaceId }: TerminalTabManagerP
       unregister("session:close");
       unregister("session:next-tab");
       unregister("session:prev-tab");
-      unregister("compose:toggle");
+      unregister("compose:toggle:tab-manager");
     };
   }, [register, unregister, handleCreateTab, handleKillTab]);
 

@@ -89,8 +89,7 @@ export function KeybindingProvider({ children }: { children: React.ReactNode }) 
       keys: ["ctrl+v", "cmd+v"],
       action: (term, send) => {
         if (!term || !send) return true;
-        pasteToTerminal(term, send);
-        return false;
+        return pasteToTerminal(term, send);
       },
       description: "Paste",
       category: "clipboard",

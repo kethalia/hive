@@ -86,7 +86,9 @@ describe("pasteToTerminal", () => {
     pasteToTerminal(term, send);
 
     await vi.waitFor(() => {
-      expect(warnSpy).toHaveBeenCalledWith("[clipboard] paste permission denied");
+      expect(warnSpy).toHaveBeenCalledWith(
+        "[clipboard] paste permission denied; falling back to native paste",
+      );
     });
 
     expect(send).not.toHaveBeenCalled();

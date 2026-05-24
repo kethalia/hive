@@ -19,6 +19,7 @@ export function getTerminalFontSize(): number {
 
 export function setTerminalFontSize(size: number): number {
   const clamped = Math.min(MAX_FONT_SIZE, Math.max(MIN_FONT_SIZE, size));
+  if (typeof window === "undefined") return clamped;
   localStorage.setItem(STORAGE_KEY, String(clamped));
   window.dispatchEvent(new CustomEvent(EVENT_NAME, { detail: clamped }));
   return clamped;
