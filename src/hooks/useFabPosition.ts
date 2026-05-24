@@ -80,6 +80,7 @@ export function useFabPosition() {
   const [isDragging, setIsDragging] = useState(false);
   const [isSnapping, setIsSnapping] = useState(false);
   const dragStartRef = useRef({ x: 0, y: 0 });
+  const lastPointerRef = useRef({ x: 0, y: 0 });
   const dragDistRef = useRef(0);
   const snapTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -115,6 +116,7 @@ export function useFabPosition() {
     e.currentTarget.setPointerCapture(e.pointerId);
     setIsDragging(true);
     dragStartRef.current = { x: e.clientX, y: e.clientY };
+    lastPointerRef.current = { x: e.clientX, y: e.clientY };
     dragDistRef.current = 0;
   }, []);
 
@@ -124,11 +126,14 @@ export function useFabPosition() {
       const dx = e.clientX - dragStartRef.current.x;
       const dy = e.clientY - dragStartRef.current.y;
       dragDistRef.current = Math.max(dragDistRef.current, Math.sqrt(dx * dx + dy * dy));
+      const moveX = e.clientX - lastPointerRef.current.x;
+      const moveY = e.clientY - lastPointerRef.current.y;
+      lastPointerRef.current = { x: e.clientX, y: e.clientY };
       setPosition((prev) => {
         const { width, height, offsetLeft, offsetTop } = viewportMetrics();
         return {
-          x: Math.max(offsetLeft, Math.min(offsetLeft + width - 56, prev.x + e.movementX)),
-          y: Math.max(offsetTop, Math.min(offsetTop + height - 56, prev.y + e.movementY)),
+          x: Math.max(offsetLeft, Math.min(offsetLeft + width - 56, prev.x + moveX)),
+          y: Math.max(offsetTop, Math.min(offsetTop + height - 56, prev.y + moveY)),
         };
       });
     },

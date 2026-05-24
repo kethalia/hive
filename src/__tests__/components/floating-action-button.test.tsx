@@ -4,6 +4,8 @@ import { render, screen, fireEvent, cleanup } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
 import type * as React from "react";
 
+const { mockActiveSend } = vi.hoisted(() => ({ mockActiveSend: vi.fn() }));
+
 vi.mock("@/hooks/useKeybindings", () => ({
   useKeybindings: vi.fn(() => ({
     register: vi.fn(),
@@ -15,8 +17,6 @@ vi.mock("@/hooks/useKeybindings", () => ({
     setActiveTerminal: vi.fn(),
   })),
 }));
-
-const mockActiveSend = vi.fn();
 
 vi.mock("@/hooks/useFabPosition", async () => {
   const actual =
