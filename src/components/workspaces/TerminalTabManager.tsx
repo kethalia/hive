@@ -146,6 +146,7 @@ export function TerminalTabManager({ agentId, workspaceId }: TerminalTabManagerP
   const [editingTabId, setEditingTabId] = useState<string | null>(null);
   const [editValue, setEditValue] = useState("");
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: reloadKey is a manual retrigger from the retry button
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
