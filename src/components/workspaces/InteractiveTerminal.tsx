@@ -5,9 +5,11 @@ import type { Terminal } from "@xterm/xterm";
 import { AlertCircle } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { useKeybindings } from "@/hooks/useKeybindings";
 import { type ConnectionState, useTerminalWebSocket } from "@/hooks/useTerminalWebSocket";
 import { getClientRuntimeConfig } from "@/lib/runtime-config";
 import { loadTerminalFont, TERMINAL_FONT_FAMILY, TERMINAL_THEME } from "@/lib/terminal/config";
+import { EVENT_NAME as FONT_SIZE_EVENT, getTerminalFontSize } from "@/lib/terminal/font-size";
 import { encodeInput } from "@/lib/terminal/protocol";
 import { cn } from "@/lib/utils";
 import "@/styles/xterm.css";
@@ -18,6 +20,8 @@ interface InteractiveTerminalProps {
   sessionName: string;
   className?: string;
   onConnectionStateChange?: (state: ConnectionState) => void;
+  onTerminalReady?: (term: Terminal, send: (data: string) => void) => void;
+  onTerminalDestroy?: () => void;
 }
 
 export function connectionBadgeProps(state: ConnectionState) {
@@ -55,10 +59,19 @@ export function InteractiveTerminal({
   sessionName,
   className,
   onConnectionStateChange,
+  onTerminalReady,
+  onTerminalDestroy,
 }: InteractiveTerminalProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const termRef = useRef<Terminal | null>(null);
   const fitRef = useRef<FitAddon | null>(null);
+  const { handleKeyEvent } = useKeybindings();
+  const handleKeyEventRef = useRef(handleKeyEvent);
+  handleKeyEventRef.current = handleKeyEvent;
+  const onTerminalReadyRef = useRef(onTerminalReady);
+  onTerminalReadyRef.current = onTerminalReady;
+  const onTerminalDestroyRef = useRef(onTerminalDestroy);
+  onTerminalDestroyRef.current = onTerminalDestroy;
   const [reconnectId] = useState(() => {
     const RECONNECT_TTL_MS = 24 * 60 * 60 * 1000;
     const storageKey = `terminal:reconnect:${agentId}:${sessionName}`;
@@ -123,6 +136,20 @@ export function InteractiveTerminal({
   }, [connectionState]);
 
   useEffect(() => {
+    const handler = (e: Event) => {
+      const size = (e as CustomEvent<number>).detail;
+      const term = termRef.current;
+      const fit = fitRef.current;
+      if (term && fit) {
+        term.options.fontSize = size;
+        fit.fit();
+      }
+    };
+    window.addEventListener(FONT_SIZE_EVENT, handler);
+    return () => window.removeEventListener(FONT_SIZE_EVENT, handler);
+  }, []);
+
+  useEffect(() => {
     if (!containerRef.current) return;
 
     let mounted = true;
@@ -142,7 +169,7 @@ export function InteractiveTerminal({
       term = new Terminal({
         theme: TERMINAL_THEME,
         fontFamily: TERMINAL_FONT_FAMILY,
-        fontSize: 13,
+        fontSize: getTerminalFontSize(),
         lineHeight: 1.4,
         cursorBlink: true,
         convertEol: true,
@@ -157,6 +184,13 @@ export function InteractiveTerminal({
       termRef.current = term;
       fitRef.current = fit;
       fit.fit();
+
+      term.attachCustomKeyEventHandler((e) => {
+        if (e.type !== "keydown") return true;
+        return handleKeyEventRef.current(e);
+      });
+
+      onTerminalReadyRef.current?.(term, (text) => sendRef.current(encodeInput(text)));
 
       term.onData((data) => {
         sendRef.current(encodeInput(data));
@@ -206,6 +240,7 @@ export function InteractiveTerminal({
       mounted = false;
       if (resizeTimer) clearTimeout(resizeTimer);
       resizeObserver.disconnect();
+      onTerminalDestroyRef.current?.();
       termRef.current?.dispose();
       termRef.current = null;
       fitRef.current = null;

@@ -24,7 +24,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -435,6 +435,26 @@ export function AppSidebar() {
     },
     [fetchAgentInfo, fetchSessions],
   );
+
+  const activeWorkspaceId = useMemo(() => {
+    const match = pathname.match(/^\/workspaces\/([^/]+)/);
+    return match ? match[1] : null;
+  }, [pathname]);
+
+  const autoExpandedRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!activeWorkspaceId) return;
+    if (autoExpandedRef.current === activeWorkspaceId) return;
+    if (!workspaces.data.some((w) => w.id === activeWorkspaceId)) return;
+    autoExpandedRef.current = activeWorkspaceId;
+    setExpandedWorkspaces((prev) =>
+      prev[activeWorkspaceId] ? prev : { ...prev, [activeWorkspaceId]: true },
+    );
+    if (!workspaceAgentsRef.current[activeWorkspaceId]) {
+      fetchAgentInfo(activeWorkspaceId);
+    }
+    fetchSessions(activeWorkspaceId);
+  }, [activeWorkspaceId, workspaces.data, fetchAgentInfo, fetchSessions]);
 
   useEffect(() => {
     const refs = sessionIntervalRefs.current;

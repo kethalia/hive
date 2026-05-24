@@ -122,6 +122,25 @@ RUN wget -qO /tmp/act.tar.gz \
 # docker-compose symlink
 RUN ln -sf /usr/libexec/docker/cli-plugins/docker-compose /usr/bin/docker-compose
 
+# tmux session persistence plugins — pinned commits for reproducible builds.
+# Installed to /opt/tmux-plugins (image-baked, immutable). Saved sessions
+# live under ~/.tmux/resurrect/ which is on the persistent home volume,
+# so layout, CWD, and scrollback survive container restarts.
+ARG TMUX_RESURRECT_SHA=e87d7d592cac97fa38c12395ebec042c154a1844
+ARG TMUX_CONTINUUM_SHA=46e0e0023476018ddb4cc0d44783eede27e5a8ec
+RUN mkdir -p /opt/tmux-plugins \
+    && git clone https://github.com/tmux-plugins/tmux-resurrect.git \
+        /opt/tmux-plugins/tmux-resurrect \
+    && git -C /opt/tmux-plugins/tmux-resurrect checkout "${TMUX_RESURRECT_SHA}" \
+    && git clone https://github.com/tmux-plugins/tmux-continuum.git \
+        /opt/tmux-plugins/tmux-continuum \
+    && git -C /opt/tmux-plugins/tmux-continuum checkout "${TMUX_CONTINUUM_SHA}" \
+    && rm -rf /opt/tmux-plugins/*/.git
+
+# System-wide tmux config — applies to every socket, including the `-L web`
+# socket used by the terminal proxy.
+COPY tmux.conf /etc/tmux.conf
+
 # Locale — uncomment en_US.UTF-8 in /etc/locale.gen before generating
 # (Debian comments it out by default; locale-gen is a no-op without this)
 RUN sed -i 's/^# *\(en_US.UTF-8 UTF-8\)$/\1/' /etc/locale.gen \

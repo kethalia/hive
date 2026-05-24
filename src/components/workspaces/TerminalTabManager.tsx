@@ -1,13 +1,21 @@
 "use client";
 
+import type { Terminal } from "@xterm/xterm";
 import { Pencil, Plus, X } from "lucide-react";
 import dynamic from "next/dynamic";
-import { useCallback, useEffect, useReducer, useState } from "react";
+import { useCallback, useEffect, useReducer, useRef, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { connectionBadgeProps } from "@/components/workspaces/InteractiveTerminal";
 import { KeepAliveWarning } from "@/components/workspaces/KeepAliveWarning";
+import { CommandPalette } from "@/components/terminal/CommandPalette";
+import { ComposePanel } from "@/components/terminal/ComposePanel";
+import { TerminalContextMenu } from "@/components/terminal/TerminalContextMenu";
+import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@/components/ui/resizable";
+import { useKeybindings } from "@/hooks/useKeybindings";
+import { copyTerminalSelection, pasteToTerminal } from "@/lib/terminal/actions";
+import { isPwaStandalone } from "@/lib/terminal/pwa";
 import type { ConnectionState } from "@/hooks/useTerminalWebSocket";
 import {
   createSessionAction,
@@ -86,8 +94,56 @@ export function TerminalTabManager({ agentId, workspaceId }: TerminalTabManagerP
   });
   const [creating, setCreating] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [reloadKey, setReloadKey] = useState(0);
+  const [paletteOpen, setPaletteOpen] = useState(false);
+  const [menuPosition, setMenuPosition] = useState<{ x: number; y: number } | null>(null);
+  const [menuSelection, setMenuSelection] = useState(false);
+  const [composeOpen, setComposeOpen] = useState(false);
 
   const [connStates, setConnStates] = useState<Record<string, ConnectionState>>({});
+  const keybindingsCtx = useKeybindings();
+  const { setActiveTerminal } = keybindingsCtx;
+  const terminalsRef = useRef<Map<string, { term: Terminal; send: (data: string) => void }>>(
+    new Map(),
+  );
+  const tabsRef = useRef(tabs);
+  tabsRef.current = tabs;
+  const activeTabIdRef = useRef(activeTabId);
+  activeTabIdRef.current = activeTabId;
+
+  const handleTerminalReady = useCallback(
+    (tabId: string, term: Terminal, send: (data: string) => void) => {
+      terminalsRef.current.set(tabId, { term, send });
+      if (activeTabIdRef.current === tabId) {
+        setActiveTerminal(term, send);
+      }
+    },
+    [setActiveTerminal],
+  );
+
+  const handleTerminalDestroy = useCallback(
+    (tabId: string) => {
+      terminalsRef.current.delete(tabId);
+      if (activeTabIdRef.current === tabId) {
+        setActiveTerminal(null, null);
+      }
+    },
+    [setActiveTerminal],
+  );
+
+  useEffect(() => {
+    if (!activeTabId) {
+      setActiveTerminal(null, null);
+      return;
+    }
+    const entry = terminalsRef.current.get(activeTabId);
+    if (entry) {
+      setActiveTerminal(entry.term, entry.send);
+    } else {
+      setActiveTerminal(null, null);
+    }
+  }, [activeTabId, setActiveTerminal]);
 
   const handleConnectionStateChange = useCallback((tabId: string, state: ConnectionState) => {
     setConnStates((prev) => (prev[tabId] === state ? prev : { ...prev, [tabId]: state }));
@@ -96,31 +152,55 @@ export function TerminalTabManager({ agentId, workspaceId }: TerminalTabManagerP
   const [editingTabId, setEditingTabId] = useState<string | null>(null);
   const [editValue, setEditValue] = useState("");
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: reloadKey is a manual retrigger from the retry button
   useEffect(() => {
     let cancelled = false;
+    setLoading(true);
+    setLoadError(null);
 
     (async () => {
       try {
         const result = await getWorkspaceSessionsAction({ workspaceId });
         if (cancelled) return;
 
-        if (result?.data && result.data.length > 0) {
+        if (result?.serverError || result?.validationErrors) {
+          // The action failed on the server — do NOT auto-create. An empty
+          // payload here means "we couldn't reach the workspace", not "user
+          // has zero sessions". Auto-creating would orphan their real sessions.
+          const msg = result.serverError ?? "Failed to load sessions";
+          console.error("[terminal-tabs] getWorkspaceSessionsAction failed:", msg);
+          setLoadError(msg);
+          return;
+        }
+
+        if (!result?.data) {
+          setLoadError("Failed to load sessions: empty response");
+          return;
+        }
+
+        if (result.data.length > 0) {
           const loaded: Tab[] = result.data.map((s) => ({
             id: crypto.randomUUID(),
             sessionName: s.name,
           }));
           dispatch({ type: "SET_TABS", tabs: loaded, activeTabId: loaded[0].id });
         } else {
+          // Confirmed zero sessions — safe to auto-create the first one.
           const res = await createSessionAction({ workspaceId });
           if (cancelled) return;
           if (res?.data) {
             const tab: Tab = { id: crypto.randomUUID(), sessionName: res.data.name };
             dispatch({ type: "SET_TABS", tabs: [tab], activeTabId: tab.id });
             window.dispatchEvent(new CustomEvent("hive:sidebar-refresh"));
+          } else if (res?.serverError) {
+            setLoadError(res.serverError);
           }
         }
       } catch (err) {
+        if (cancelled) return;
+        const msg = err instanceof Error ? err.message : "Failed to load sessions";
         console.error("[terminal-tabs] Failed to load sessions:", err);
+        setLoadError(msg);
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -129,7 +209,7 @@ export function TerminalTabManager({ agentId, workspaceId }: TerminalTabManagerP
     return () => {
       cancelled = true;
     };
-  }, [workspaceId]);
+  }, [workspaceId, reloadKey]);
 
   const handleCreateTab = useCallback(async () => {
     setCreating(true);
@@ -209,10 +289,139 @@ export function TerminalTabManager({ agentId, workspaceId }: TerminalTabManagerP
     [tabs, workspaceId, agentId],
   );
 
+  const setPaletteOpenRef = useRef(setPaletteOpen);
+  setPaletteOpenRef.current = setPaletteOpen;
+  const setComposeOpenRef = useRef(setComposeOpen);
+  setComposeOpenRef.current = setComposeOpen;
+
+  const { register, unregister } = keybindingsCtx;
+
+  useEffect(() => {
+    const commandPaletteBinding = {
+      id: "command-palette",
+      keys: ["ctrl+k", "cmd+k"],
+      action: () => {
+        setPaletteOpenRef.current(true);
+        return false;
+      },
+      description: "Open command palette",
+      category: "session",
+      enabledInBrowser: true,
+    };
+
+    const createTabBinding = {
+      id: "session:create",
+      keys: ["ctrl+t", "cmd+t"],
+      action: () => {
+        if (!isPwaStandalone()) return true;
+        handleCreateTab();
+        return false;
+      },
+      description: "Create new session tab",
+      category: "session",
+      enabledInBrowser: false,
+    };
+
+    const closeTabBinding = {
+      id: "session:close",
+      keys: ["ctrl+w", "cmd+w"],
+      action: () => {
+        if (!isPwaStandalone()) return true;
+        if (tabsRef.current.length <= 1) return true;
+        const currentActiveId = activeTabIdRef.current;
+        if (currentActiveId) handleKillTab(currentActiveId);
+        return false;
+      },
+      description: "Close active session tab",
+      category: "session",
+      enabledInBrowser: false,
+    };
+
+    const nextTabBinding = {
+      id: "session:next-tab",
+      keys: ["ctrl+tab"],
+      action: () => {
+        const currentTabs = tabsRef.current;
+        const currentActiveId = activeTabIdRef.current;
+        if (currentTabs.length <= 1) return false;
+        const idx = currentTabs.findIndex((t) => t.id === currentActiveId);
+        const nextIdx = (idx + 1) % currentTabs.length;
+        dispatch({ type: "SET_ACTIVE", tabId: currentTabs[nextIdx].id });
+        return false;
+      },
+      description: "Switch to next session tab",
+      category: "session",
+      enabledInBrowser: true,
+    };
+
+    const prevTabBinding = {
+      id: "session:prev-tab",
+      keys: ["ctrl+shift+tab"],
+      action: () => {
+        const currentTabs = tabsRef.current;
+        const currentActiveId = activeTabIdRef.current;
+        if (currentTabs.length <= 1) return false;
+        const idx = currentTabs.findIndex((t) => t.id === currentActiveId);
+        const prevIdx = (idx - 1 + currentTabs.length) % currentTabs.length;
+        dispatch({ type: "SET_ACTIVE", tabId: currentTabs[prevIdx].id });
+        return false;
+      },
+      description: "Switch to previous session tab",
+      category: "session",
+      enabledInBrowser: true,
+    };
+
+    const composeToggleBinding = {
+      id: "compose:toggle:tab-manager",
+      keys: ["ctrl+`", "cmd+`"],
+      action: () => {
+        setComposeOpenRef.current((prev) => !prev);
+        return false;
+      },
+      description: "Toggle compose panel",
+      category: "terminal",
+      enabledInBrowser: true,
+    };
+
+    register(commandPaletteBinding);
+    register(createTabBinding);
+    register(closeTabBinding);
+    register(nextTabBinding);
+    register(prevTabBinding);
+    register(composeToggleBinding);
+
+    return () => {
+      unregister("command-palette");
+      unregister("session:create");
+      unregister("session:close");
+      unregister("session:next-tab");
+      unregister("session:prev-tab");
+      unregister("compose:toggle:tab-manager");
+    };
+  }, [register, unregister, handleCreateTab, handleKillTab]);
+
   if (loading) {
     return (
       <div className="flex h-full items-center justify-center bg-background">
         <p className="text-sm text-muted-foreground">Loading sessions…</p>
+      </div>
+    );
+  }
+
+  if (loadError && tabs.length === 0) {
+    return (
+      <div className="flex h-full flex-col items-center justify-center gap-4 bg-background px-6 text-center">
+        <p className="text-sm font-medium">Couldn't load your terminal sessions</p>
+        <p className="max-w-md text-xs text-muted-foreground" data-testid="session-load-error">
+          {loadError}
+        </p>
+        <p className="max-w-md text-xs text-muted-foreground">
+          Your existing sessions are likely still running on the workspace — retry instead of
+          starting a new one, which could leave them orphaned.
+        </p>
+        <Button onClick={() => setReloadKey((k) => k + 1)} data-testid="retry-load-sessions">
+          Retry
+        </Button>
       </div>
     );
   }
@@ -338,23 +547,70 @@ export function TerminalTabManager({ agentId, workspaceId }: TerminalTabManagerP
           })()}
       </div>
 
-      <div className="relative flex-1">
-        {tabs.map((tab) => (
+      <ResizablePanelGroup orientation="vertical" className="flex-1">
+        <ResizablePanel defaultSize={composeOpen ? 75 : 100} minSize={30}>
           <div
-            key={tab.id}
-            className={cn("absolute inset-0", activeTabId !== tab.id && "pointer-events-none")}
-            style={{ display: activeTabId === tab.id ? "block" : "none" }}
+            className="relative h-full"
+            onContextMenu={(e) => {
+              e.preventDefault();
+              const entry = activeTabId ? terminalsRef.current.get(activeTabId) : null;
+              setMenuSelection(!!entry?.term.getSelection());
+              setMenuPosition({ x: e.clientX, y: e.clientY });
+            }}
           >
-            <InteractiveTerminal
-              agentId={agentId}
-              workspaceId={workspaceId}
-              sessionName={tab.sessionName}
-              className="h-full"
-              onConnectionStateChange={(state) => handleConnectionStateChange(tab.id, state)}
+            {tabs.map((tab) => (
+              <div
+                key={tab.id}
+                className={cn("absolute inset-0", activeTabId !== tab.id && "pointer-events-none")}
+                style={{ display: activeTabId === tab.id ? "block" : "none" }}
+              >
+                <InteractiveTerminal
+                  agentId={agentId}
+                  workspaceId={workspaceId}
+                  sessionName={tab.sessionName}
+                  className="h-full"
+                  onConnectionStateChange={(state) => handleConnectionStateChange(tab.id, state)}
+                  onTerminalReady={(term, send) => handleTerminalReady(tab.id, term, send)}
+                  onTerminalDestroy={() => handleTerminalDestroy(tab.id)}
+                />
+              </div>
+            ))}
+            <TerminalContextMenu
+              position={menuPosition}
+              onClose={() => setMenuPosition(null)}
+              hasSelection={menuSelection}
+              onCopy={() => {
+                const entry = activeTabId ? terminalsRef.current.get(activeTabId) : null;
+                if (entry) copyTerminalSelection(entry.term);
+              }}
+              onPaste={() => {
+                const entry = activeTabId ? terminalsRef.current.get(activeTabId) : null;
+                if (entry) pasteToTerminal(entry.term, entry.send);
+              }}
+              onNewSession={handleCreateTab}
+              onCloseSession={
+                tabs.length > 1 && activeTabId ? () => handleKillTab(activeTabId) : undefined
+              }
             />
           </div>
-        ))}
-      </div>
+        </ResizablePanel>
+        {composeOpen && (
+          <>
+            <ResizableHandle withHandle />
+            <ResizablePanel defaultSize={25} minSize={10} maxSize={50}>
+              <ComposePanel onClose={() => setComposeOpen(false)} />
+            </ResizablePanel>
+          </>
+        )}
+      </ResizablePanelGroup>
+
+      <CommandPalette
+        open={paletteOpen}
+        onOpenChange={setPaletteOpen}
+        tabs={tabs}
+        onSelectTab={(tabId) => dispatch({ type: "SET_ACTIVE", tabId })}
+        onCreateSession={handleCreateTab}
+      />
     </div>
   );
 }

@@ -66,10 +66,19 @@ export const getWorkspaceSessionsAction = authActionClient
     );
 
     if (result.exitCode !== 0) {
+      // "no server running" is the legitimate empty case — tmux exits non-zero
+      // when no sessions exist on the configured socket. Treat anything else
+      // (ssh failures, timeouts, agent unreachable) as a real error so callers
+      // don't confuse a transient outage with "user has zero sessions".
+      if (/no server running/i.test(result.stderr)) {
+        return [];
+      }
       console.log(
         `[workspaces] tmux list-sessions failed (exit ${result.exitCode}): ${result.stderr}`,
       );
-      return [];
+      throw new Error(
+        `Failed to list tmux sessions (exit ${result.exitCode}): ${result.stderr.trim() || "unknown error"}`,
+      );
     }
 
     return parseTmuxSessions(result.stdout);
