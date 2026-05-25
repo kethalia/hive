@@ -92,7 +92,7 @@ export function PushPermissionPrompt() {
 
   if (permission === "denied") {
     return (
-      <div className="fixed bottom-4 right-4 z-50 w-80">
+      <div className="fixed bottom-4 right-4 z-50 pb-safe w-80">
         <Alert>
           <Bell className="size-4" />
           <AlertTitle>Notifications blocked</AlertTitle>
@@ -108,7 +108,7 @@ export function PushPermissionPrompt() {
   if (dismissed) return null;
 
   return (
-    <div className="fixed bottom-4 right-4 z-50 w-96">
+    <div className="fixed bottom-4 right-4 z-50 pb-safe w-96">
       <Alert className="relative">
         <div className="flex items-center gap-2">
           <Bell className="size-4 shrink-0" />
