@@ -42,6 +42,19 @@ export const PULL_REFRESH_MAX_PULL_PX = 112;
 export const PULL_REFRESH_MAX_RELEASE_VELOCITY = 1.5;
 
 /**
+ * Downward drag travel (px) that dismisses bottom sheets on release. The
+ * drag-to-dismiss rule is an OR trigger: close when downward travel exceeds
+ * this distance OR downward release velocity exceeds DRAG_DISMISS_VELOCITY.
+ */
+export const DRAG_DISMISS_DISTANCE_PX = 80;
+
+/**
+ * Downward release velocity (px/ms) that dismisses bottom sheets on release.
+ * The drag-to-dismiss rule is an OR trigger with DRAG_DISMISS_DISTANCE_PX.
+ */
+export const DRAG_DISMISS_VELOCITY = 0.5;
+
+/**
  * Max pointer travel (px) during the long-press hold window before the
  * gesture is reclassified from long-press to drag. Slightly looser than
  * TAP_THRESHOLD_PX to tolerate finger jitter on a stationary press.
