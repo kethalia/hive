@@ -34,9 +34,7 @@ function installMatchMedia(matches: boolean) {
 afterEach(() => {
   // Reset matchMedia and navigator.standalone between tests.
   // jsdom does not provide matchMedia by default, so delete to restore that.
-  // @ts-expect-error allow delete for cleanup
-  delete window.matchMedia;
-  // @ts-expect-error allow delete for cleanup
+  (window as unknown as { matchMedia?: unknown }).matchMedia = undefined;
   delete (navigator as Navigator & { standalone?: boolean }).standalone;
 });
 
@@ -71,9 +69,9 @@ describe("usePwaMode", () => {
 
     act(() => {
       (mql as unknown as { matches: boolean }).matches = true;
-      listeners.forEach((cb) =>
-        cb({ matches: true, media: mql.media } as MediaQueryListEvent),
-      );
+      for (const cb of listeners) {
+        cb({ matches: true, media: mql.media } as MediaQueryListEvent);
+      }
     });
     expect(result.current).toBe("standalone");
   });

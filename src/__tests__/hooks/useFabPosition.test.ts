@@ -113,3 +113,24 @@ describe("useFabPosition — viewport resize", () => {
     expect(result.current.position).not.toEqual(initialPos);
   });
 });
+
+describe("useFabPosition — gesture surface (use-gesture migration)", () => {
+  it("exposes pointer handlers and dragDist ref shape unchanged for FAB consumer mock", () => {
+    const { result } = renderHook(() => useFabPosition());
+    expect(typeof result.current.onPointerDown).toBe("function");
+    expect(typeof result.current.onPointerMove).toBe("function");
+    expect(typeof result.current.onPointerUp).toBe("function");
+    expect(result.current.dragDist).toHaveProperty("current");
+    expect(typeof result.current.dragDist.current).toBe("number");
+  });
+
+  it("onPointerUp returns false when invoked without a prior drag (tap seam)", () => {
+    const { result } = renderHook(() => useFabPosition());
+    let wasDrag: boolean | undefined;
+    act(() => {
+      wasDrag = result.current.onPointerUp();
+    });
+    expect(wasDrag).toBe(false);
+    expect(result.current.isDragging).toBe(false);
+  });
+});

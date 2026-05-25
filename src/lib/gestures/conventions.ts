@@ -1,0 +1,50 @@
+/**
+ * Gesture conventions shared by S02-S08 (terminal FAB + reposition + future
+ * touch surfaces). Single source of truth so per-slice handlers do not drift
+ * on long-press thresholds, tap tolerance, or iOS magnifier suppression.
+ *
+ * Usage notes for @use-gesture/react:
+ * - Bind handlers to the wrapper element, not the xterm canvas — the canvas
+ *   captures pointer events for cursor/selection and breaks gesture detection.
+ * - Pass `eventOptions: { passive: false }` ONLY on handlers that call
+ *   `event.preventDefault()` (e.g. preventing scroll during drag/long-press).
+ *   Leaving passive:false on tap/hover handlers regresses scroll performance.
+ * - On any surface that supports long-press, set the following CSS on the
+ *   bound element to suppress the iOS text-selection magnifier and callout:
+ *     user-select: none;
+ *     -webkit-user-select: none;
+ *     -webkit-touch-callout: none;
+ *   Without these, iOS Safari shows the loupe during the 500ms hold.
+ */
+
+/** Minimum hold duration (ms) before a press becomes a long-press. */
+export const LONG_PRESS_MS = 500;
+
+/**
+ * Max pointer travel (px) during a press that still counts as a tap rather
+ * than a drag. Above this, treat the gesture as a drag/swipe.
+ */
+export const TAP_THRESHOLD_PX = 5;
+
+/**
+ * Max pointer travel (px) during the long-press hold window before the
+ * gesture is reclassified from long-press to drag. Slightly looser than
+ * TAP_THRESHOLD_PX to tolerate finger jitter on a stationary press.
+ */
+export const DRAG_LONG_PRESS_MOVE_PX = 8;
+
+/**
+ * Returns true when the event target is an editable surface where the OS
+ * text-selection/caret behavior should win over custom gestures. Use to
+ * early-return from long-press handlers bound to wrappers that contain
+ * inputs, textareas, or contenteditable regions.
+ */
+export function isTextSelectionEvent(
+	event: Event | { target: EventTarget | null },
+): boolean {
+	const target = event.target;
+	if (!(target instanceof HTMLElement)) return false;
+	if (target.isContentEditable) return true;
+	const tag = target.tagName;
+	return tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT";
+}
