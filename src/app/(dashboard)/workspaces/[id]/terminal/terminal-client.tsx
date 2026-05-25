@@ -6,6 +6,7 @@ import { useSearchParams } from "next/navigation";
 import { Suspense, useCallback, useEffect, useState } from "react";
 import { ComposePanel } from "@/components/terminal/ComposePanel";
 import { TerminalContextMenu } from "@/components/terminal/TerminalContextMenu";
+import { TerminalGestureLayer } from "@/components/terminal/TerminalGestureLayer";
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { useIsComposeSheet } from "@/hooks/use-compose-sheet";
@@ -82,15 +83,22 @@ function TerminalInner({ agentId, workspaceId }: { agentId: string; workspaceId:
         setMenuPosition({ x: e.clientX, y: e.clientY });
       }}
     >
-      <InteractiveTerminal
-        key={session}
-        agentId={agentId}
-        workspaceId={workspaceId}
-        sessionName={session}
-        className="h-full rounded-none border-0"
-        onTerminalReady={handleTerminalReady}
-        onTerminalDestroy={handleTerminalDestroy}
-      />
+      <TerminalGestureLayer
+        onLongPress={(x, y) => {
+          setMenuSelection(!!activeTerminal?.getSelection());
+          setMenuPosition({ x, y });
+        }}
+      >
+        <InteractiveTerminal
+          key={session}
+          agentId={agentId}
+          workspaceId={workspaceId}
+          sessionName={session}
+          className="h-full rounded-none border-0"
+          onTerminalReady={handleTerminalReady}
+          onTerminalDestroy={handleTerminalDestroy}
+        />
+      </TerminalGestureLayer>
       <TerminalContextMenu
         position={menuPosition}
         onClose={() => setMenuPosition(null)}

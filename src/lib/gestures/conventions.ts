@@ -34,6 +34,16 @@ export const TAP_THRESHOLD_PX = 5;
 export const DRAG_LONG_PRESS_MOVE_PX = 8;
 
 /**
+ * Shared style that suppresses iOS text selection/callout chrome on touch
+ * gesture surfaces while leaving each caller free to choose its touch-action.
+ */
+export const NO_TOUCH_STYLE = {
+	userSelect: "none",
+	WebkitUserSelect: "none",
+	WebkitTouchCallout: "none",
+} as const;
+
+/**
  * Returns true when the event target is an editable surface where the OS
  * text-selection/caret behavior should win over custom gestures. Use to
  * early-return from long-press handlers bound to wrappers that contain

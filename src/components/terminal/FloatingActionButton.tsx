@@ -18,6 +18,7 @@ import { useFabPosition, type Corner } from "@/hooks/useFabPosition";
 import { useFabKeyboardOffset } from "@/hooks/useFabKeyboardOffset";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useTerminalFontStep } from "@/hooks/useTerminalFontStep";
+import { NO_TOUCH_STYLE } from "@/lib/gestures/conventions";
 import { VIRTUAL_KEY_SEQUENCES } from "@/lib/terminal/virtual-keys";
 
 const GRID_KEYS = [
@@ -60,12 +61,6 @@ function quickBarDirection(corner: Corner): string {
   const isTop = corner.includes("top");
   return isTop ? "top-full mt-3" : "bottom-full mb-3";
 }
-
-const NO_TOUCH_STYLE: React.CSSProperties = {
-  userSelect: "none",
-  WebkitUserSelect: "none",
-  WebkitTouchCallout: "none",
-};
 
 export interface FloatingActionButtonProps {
   /**
