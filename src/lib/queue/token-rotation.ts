@@ -1,5 +1,5 @@
 import { encrypt, TOKEN_LIFETIME_SECONDS, tryDecrypt } from "@hive/auth";
-import { type Job, Queue, Worker } from "bullmq";
+import { type ConnectionOptions, type Job, Queue, Worker } from "bullmq";
 import { CoderClient } from "@/lib/coder/client";
 import {
   PUSH_NOTIFICATION_HOURS,
@@ -20,8 +20,8 @@ let queue: Queue<TokenRotationJobData> | null = null;
 export function getTokenRotationQueue(): Queue<TokenRotationJobData> {
   if (!queue) {
     queue = new Queue<TokenRotationJobData>(TOKEN_ROTATION_QUEUE, {
-      connection: getRedisConnection(),
-    });
+      connection: getRedisConnection() as unknown as ConnectionOptions,
+    }) as unknown as Queue<TokenRotationJobData>;
   }
   return queue;
 }
@@ -160,7 +160,7 @@ export async function processTokenRotation(_job: Job<TokenRotationJobData>): Pro
 
 export function createTokenRotationWorker(): Worker<TokenRotationJobData> {
   return new Worker<TokenRotationJobData>(TOKEN_ROTATION_QUEUE, processTokenRotation, {
-    connection: getRedisConnection(),
+    connection: getRedisConnection() as unknown as ConnectionOptions,
     concurrency: 1,
   });
 }

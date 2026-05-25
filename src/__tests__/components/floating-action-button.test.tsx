@@ -42,6 +42,20 @@ vi.mock("@/hooks/useFabKeyboardOffset", () => ({
   useFabKeyboardOffset: vi.fn(() => ({ liftPx: 0 })),
 }));
 
+const {
+  mockUseTerminalFontStep,
+  mockIncreaseFontSize,
+  mockDecreaseFontSize,
+} = vi.hoisted(() => ({
+  mockUseTerminalFontStep: vi.fn(),
+  mockIncreaseFontSize: vi.fn(),
+  mockDecreaseFontSize: vi.fn(),
+}));
+
+vi.mock("@/hooks/useTerminalFontStep", () => ({
+  useTerminalFontStep: mockUseTerminalFontStep,
+}));
+
 import { FloatingActionButton } from "@/components/terminal/FloatingActionButton";
 
 let mockFabState: ReturnType<typeof import("@/hooks/useFabPosition").useFabPosition>;
@@ -79,6 +93,16 @@ beforeEach(() => {
   localStorage.clear();
   mockActiveSend.mockClear();
   mockIsMobile.mockReturnValue(true);
+  mockIncreaseFontSize.mockClear();
+  mockDecreaseFontSize.mockClear();
+  mockUseTerminalFontStep.mockReset();
+  mockUseTerminalFontStep.mockReturnValue({
+    size: 12,
+    increase: mockIncreaseFontSize,
+    decrease: mockDecreaseFontSize,
+    canIncrease: true,
+    canDecrease: true,
+  });
   resetFabState();
 });
 
@@ -91,6 +115,7 @@ describe("FloatingActionButton (mobile)", () => {
     // No expanded menu, but persistent toolbar is always visible on mobile.
     expect(screen.queryByRole("menu")).not.toBeInTheDocument();
     expect(screen.getByRole("toolbar", { name: "Quick keys" })).toBeInTheDocument();
+    expect(screen.getByRole("toolbar", { name: "Terminal font size" })).toBeInTheDocument();
   });
 
   it("persistent quick bar contains Enter, Tab and Ctrl+C with >=44px targets", () => {
@@ -142,14 +167,42 @@ describe("FloatingActionButton (mobile)", () => {
     }
   });
 
-  it("expanded menu exposes font stepper menuitems with >=44px targets", () => {
+  it("persistent mobile font stepper is reachable without opening the FAB", () => {
+    render(<FloatingActionButton />);
+
+    expect(screen.queryByRole("menu")).not.toBeInTheDocument();
+    const toolbar = screen.getByRole("toolbar", { name: "Terminal font size" });
+    const decrease = screen.getByRole("button", { name: "Decrease font size" });
+    const increase = screen.getByRole("button", { name: "Increase font size" });
+
+    expect(toolbar).toContainElement(decrease);
+    expect(toolbar).toContainElement(increase);
+    expect(decrease.className).toContain("h-11");
+    expect(decrease.className).toContain("w-11");
+    expect(increase.className).toContain("h-11");
+    expect(increase.className).toContain("w-11");
+    expect(screen.getByText("12")).toBeInTheDocument();
+  });
+
+  it("persistent mobile font stepper invokes the terminal font hook", () => {
+    render(<FloatingActionButton />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Increase font size" }));
+    expect(mockIncreaseFontSize).toHaveBeenCalledTimes(1);
+
+    fireEvent.click(screen.getByRole("button", { name: "Decrease font size" }));
+    expect(mockDecreaseFontSize).toHaveBeenCalledTimes(1);
+  });
+
+  it("mobile expanded menu keeps the directional/modifier grid separate from the stepper", () => {
     render(<FloatingActionButton />);
     fireEvent.pointerUp(screen.getByRole("button", { name: "Open virtual keyboard" }));
 
-    const decrease = screen.getByRole("menuitem", { name: "Decrease font size" });
-    const increase = screen.getByRole("menuitem", { name: "Increase font size" });
-    expect(decrease.className).toContain("h-11");
-    expect(increase.className).toContain("h-11");
+    expect(screen.getByRole("menu", { name: "Virtual keys" })).toBeInTheDocument();
+    expect(screen.queryByRole("menuitem", { name: "Decrease font size" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("menuitem", { name: "Increase font size" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Decrease font size" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Increase font size" })).toBeInTheDocument();
   });
 
   it("collapses on second tap", () => {
@@ -195,34 +248,42 @@ describe("FloatingActionButton (mobile)", () => {
     expect(mockActiveSend).toHaveBeenCalledWith("\x03");
   });
 
-  it("increases font size when + menuitem clicked", () => {
+  it("increases font size from the persistent mobile stepper", () => {
     render(<FloatingActionButton />);
-    fireEvent.pointerUp(screen.getByRole("button", { name: "Open virtual keyboard" }));
-    fireEvent.click(screen.getByRole("menuitem", { name: "Increase font size" }));
-    expect(localStorage.getItem("terminal:font-size")).toBe("14");
-    expect(screen.getByText("14")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Increase font size" }));
+    expect(mockIncreaseFontSize).toHaveBeenCalledTimes(1);
+    expect(screen.queryByRole("menu")).not.toBeInTheDocument();
   });
 
-  it("decreases font size when - menuitem clicked", () => {
+  it("decreases font size from the persistent mobile stepper", () => {
     render(<FloatingActionButton />);
-    fireEvent.pointerUp(screen.getByRole("button", { name: "Open virtual keyboard" }));
-    fireEvent.click(screen.getByRole("menuitem", { name: "Decrease font size" }));
-    expect(localStorage.getItem("terminal:font-size")).toBe("12");
-    expect(screen.getByText("12")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Decrease font size" }));
+    expect(mockDecreaseFontSize).toHaveBeenCalledTimes(1);
+    expect(screen.queryByRole("menu")).not.toBeInTheDocument();
   });
 
   it("disables decrease at minimum font size", () => {
-    localStorage.setItem("terminal:font-size", "10");
+    mockUseTerminalFontStep.mockReturnValue({
+      size: 10,
+      increase: mockIncreaseFontSize,
+      decrease: mockDecreaseFontSize,
+      canIncrease: true,
+      canDecrease: false,
+    });
     render(<FloatingActionButton />);
-    fireEvent.pointerUp(screen.getByRole("button", { name: "Open virtual keyboard" }));
-    expect(screen.getByRole("menuitem", { name: "Decrease font size" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Decrease font size" })).toBeDisabled();
   });
 
   it("disables increase at maximum font size", () => {
-    localStorage.setItem("terminal:font-size", "24");
+    mockUseTerminalFontStep.mockReturnValue({
+      size: 20,
+      increase: mockIncreaseFontSize,
+      decrease: mockDecreaseFontSize,
+      canIncrease: false,
+      canDecrease: true,
+    });
     render(<FloatingActionButton />);
-    fireEvent.pointerUp(screen.getByRole("button", { name: "Open virtual keyboard" }));
-    expect(screen.getByRole("menuitem", { name: "Increase font size" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Increase font size" })).toBeDisabled();
   });
 
   it("calls onHapticFeedback when a persistent quick-bar key is pressed", () => {

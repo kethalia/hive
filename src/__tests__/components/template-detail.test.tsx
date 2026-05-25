@@ -82,6 +82,23 @@ function makeStatus(overrides: Partial<TemplateStatus> = {}): TemplateStatus {
   } as TemplateStatus;
 }
 
+function mockEventSourceConstructor(): typeof EventSource {
+  return Object.assign(
+    vi.fn().mockImplementation(() => ({
+      onmessage: null,
+      onerror: null,
+      addEventListener: vi.fn(),
+      close: vi.fn(),
+    })),
+    {
+      CONNECTING: 0 as const,
+      OPEN: 1 as const,
+      CLOSED: 2 as const,
+      prototype: {} as EventSource,
+    },
+  ) as unknown as typeof EventSource;
+}
+
 describe("TemplateDetailClient", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -133,12 +150,7 @@ describe("TemplateDetailClient", () => {
     });
     global.fetch = mockFetch;
 
-    global.EventSource = vi.fn().mockImplementation(() => ({
-      onmessage: null,
-      onerror: null,
-      addEventListener: vi.fn(),
-      close: vi.fn(),
-    }));
+    global.EventSource = mockEventSourceConstructor();
 
     render(<TemplateDetailClient status={makeStatus()} />);
     fireEvent.click(screen.getByText("Push"));
@@ -191,12 +203,7 @@ describe("TemplateDetailClient", () => {
     });
     global.fetch = mockFetch;
 
-    global.EventSource = vi.fn().mockImplementation(() => ({
-      onmessage: null,
-      onerror: null,
-      addEventListener: vi.fn(),
-      close: vi.fn(),
-    }));
+    global.EventSource = mockEventSourceConstructor();
 
     render(<TemplateDetailClient status={makeStatus()} />);
     fireEvent.click(screen.getByText("Push"));

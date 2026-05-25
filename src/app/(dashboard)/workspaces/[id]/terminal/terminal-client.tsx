@@ -4,9 +4,11 @@ import { Loader2 } from "lucide-react";
 import dynamic from "next/dynamic";
 import { useSearchParams } from "next/navigation";
 import { Suspense, useCallback, useEffect, useState } from "react";
-import { TerminalContextMenu } from "@/components/terminal/TerminalContextMenu";
 import { ComposePanel } from "@/components/terminal/ComposePanel";
-import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@/components/ui/resizable";
+import { TerminalContextMenu } from "@/components/terminal/TerminalContextMenu";
+import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
+import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
+import { useIsComposeSheet } from "@/hooks/use-compose-sheet";
 import { useKeybindings } from "@/hooks/useKeybindings";
 import { copyTerminalSelection, pasteToTerminal } from "@/lib/terminal/actions";
 
@@ -22,6 +24,7 @@ function TerminalInner({ agentId, workspaceId }: { agentId: string; workspaceId:
   const [menuPosition, setMenuPosition] = useState<{ x: number; y: number } | null>(null);
   const [menuSelection, setMenuSelection] = useState(false);
   const [composeOpen, setComposeOpen] = useState(false);
+  const isComposeSheet = useIsComposeSheet();
 
   const handleTerminalReady = useCallback(
     (term: import("@xterm/xterm").Terminal, send: (data: string) => void) => {
@@ -70,6 +73,55 @@ function TerminalInner({ agentId, workspaceId }: { agentId: string; workspaceId:
     );
   }
 
+  const terminalPane = (
+    <div
+      className="h-full"
+      onContextMenu={(e) => {
+        e.preventDefault();
+        setMenuSelection(!!activeTerminal?.getSelection());
+        setMenuPosition({ x: e.clientX, y: e.clientY });
+      }}
+    >
+      <InteractiveTerminal
+        key={session}
+        agentId={agentId}
+        workspaceId={workspaceId}
+        sessionName={session}
+        className="h-full rounded-none border-0"
+        onTerminalReady={handleTerminalReady}
+        onTerminalDestroy={handleTerminalDestroy}
+      />
+      <TerminalContextMenu
+        position={menuPosition}
+        onClose={() => setMenuPosition(null)}
+        hasSelection={menuSelection}
+        onCopy={() => {
+          if (activeTerminal) copyTerminalSelection(activeTerminal);
+        }}
+        onPaste={() => {
+          if (activeTerminal && activeSend) pasteToTerminal(activeTerminal, activeSend);
+        }}
+      />
+    </div>
+  );
+
+  if (isComposeSheet) {
+    return (
+      <div
+        className="-m-6 -mt-14 h-[100vh] w-[calc(100%+3rem)]"
+        onKeyDown={(e) => e.stopPropagation()}
+      >
+        {terminalPane}
+        <Sheet open={composeOpen} onOpenChange={setComposeOpen}>
+          <SheetContent side="bottom" className="h-[100dvh] p-0">
+            <SheetTitle className="sr-only">Compose command</SheetTitle>
+            <ComposePanel hideHeader onClose={() => setComposeOpen(false)} />
+          </SheetContent>
+        </Sheet>
+      </div>
+    );
+  }
+
   return (
     <div
       className="-m-6 -mt-14 h-[100vh] w-[calc(100%+3rem)]"
@@ -77,35 +129,7 @@ function TerminalInner({ agentId, workspaceId }: { agentId: string; workspaceId:
     >
       <ResizablePanelGroup orientation="vertical" className="h-full">
         <ResizablePanel defaultSize={composeOpen ? 75 : 100} minSize={30}>
-          <div
-            className="h-full"
-            onContextMenu={(e) => {
-              e.preventDefault();
-              setMenuSelection(!!activeTerminal?.getSelection());
-              setMenuPosition({ x: e.clientX, y: e.clientY });
-            }}
-          >
-            <InteractiveTerminal
-              key={session}
-              agentId={agentId}
-              workspaceId={workspaceId}
-              sessionName={session}
-              className="h-full rounded-none border-0"
-              onTerminalReady={handleTerminalReady}
-              onTerminalDestroy={handleTerminalDestroy}
-            />
-            <TerminalContextMenu
-              position={menuPosition}
-              onClose={() => setMenuPosition(null)}
-              hasSelection={menuSelection}
-              onCopy={() => {
-                if (activeTerminal) copyTerminalSelection(activeTerminal);
-              }}
-              onPaste={() => {
-                if (activeTerminal && activeSend) pasteToTerminal(activeTerminal, activeSend);
-              }}
-            />
-          </div>
+          {terminalPane}
         </ResizablePanel>
         {composeOpen && (
           <>

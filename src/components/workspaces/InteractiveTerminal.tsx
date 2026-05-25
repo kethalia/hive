@@ -24,6 +24,20 @@ interface InteractiveTerminalProps {
   onTerminalDestroy?: () => void;
 }
 
+function warnFitFailure(err: unknown) {
+  console.warn("[InteractiveTerminal] fitAddon.fit() failed", err);
+}
+
+function safeFit(fit: FitAddon): boolean {
+  try {
+    fit.fit();
+    return true;
+  } catch (err) {
+    warnFitFailure(err);
+    return false;
+  }
+}
+
 export function connectionBadgeProps(state: ConnectionState) {
   switch (state) {
     case "connected":
@@ -129,7 +143,7 @@ export function InteractiveTerminal({
 
     // Allow one frame for layout to settle after connection state update
     const frame = requestAnimationFrame(() => {
-      fit.fit();
+      safeFit(fit);
       resizeRef.current(term.rows, term.cols);
     });
     return () => cancelAnimationFrame(frame);
@@ -141,8 +155,11 @@ export function InteractiveTerminal({
       const term = termRef.current;
       const fit = fitRef.current;
       if (term && fit) {
+        const previousFontSize = term.options.fontSize;
         term.options.fontSize = size;
-        fit.fit();
+        if (!safeFit(fit)) {
+          term.options.fontSize = previousFontSize;
+        }
       }
     };
     window.addEventListener(FONT_SIZE_EVENT, handler);
@@ -183,7 +200,7 @@ export function InteractiveTerminal({
 
       termRef.current = term;
       fitRef.current = fit;
-      fit.fit();
+      safeFit(fit);
 
       term.attachCustomKeyEventHandler((e) => {
         if (e.type !== "keydown") return true;
@@ -203,7 +220,7 @@ export function InteractiveTerminal({
       // Wait for browser layout paint before reading dimensions
       await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
       if (!mounted) return;
-      fit.fit();
+      safeFit(fit);
 
       const dims = { rows: term.rows, cols: term.cols };
       const proxyUrl = getClientRuntimeConfig().terminalWsUrl;
@@ -230,7 +247,10 @@ export function InteractiveTerminal({
         const { width, height } = entry.contentRect;
         if (width > 0 && height > 0 && fitRef.current) {
           if (resizeTimer) clearTimeout(resizeTimer);
-          resizeTimer = setTimeout(() => fitRef.current?.fit(), 50);
+          resizeTimer = setTimeout(() => {
+            const fit = fitRef.current;
+            if (fit) safeFit(fit);
+          }, 50);
         }
       }
     });

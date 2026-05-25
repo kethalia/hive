@@ -9,11 +9,12 @@ import { subscribePushAction } from "@/lib/push/subscribe";
 
 const DISMISS_KEY = "push-prompt-dismissed";
 
-function base64urlToUint8Array(base64url: string): Uint8Array {
+function base64urlToUint8Array(base64url: string): Uint8Array<ArrayBuffer> {
   const padding = "=".repeat((4 - (base64url.length % 4)) % 4);
   const base64 = base64url.replace(/-/g, "+").replace(/_/g, "/") + padding;
   const raw = atob(base64);
-  const arr = new Uint8Array(raw.length);
+  const buffer = new ArrayBuffer(raw.length);
+  const arr = new Uint8Array(buffer);
   for (let i = 0; i < raw.length; i++) {
     arr[i] = raw.charCodeAt(i);
   }

@@ -1,5 +1,5 @@
 import type { Prisma } from "@hive/db";
-import { type Job, Queue, UnrecoverableError, Worker } from "bullmq";
+import { type ConnectionOptions, type Job, Queue, UnrecoverableError, Worker } from "bullmq";
 import { getTokenStatus } from "@/lib/auth/token-status";
 import { runBlueprint } from "@/lib/blueprint/runner";
 import { createAgentStep } from "@/lib/blueprint/steps/agent";
@@ -53,8 +53,8 @@ let queue: Queue<TaskJobData> | null = null;
 export function getTaskQueue(): Queue<TaskJobData> {
   if (!queue) {
     queue = new Queue<TaskJobData>(QUEUE_NAME, {
-      connection: getRedisConnection(),
-    });
+      connection: getRedisConnection() as unknown as ConnectionOptions,
+    }) as unknown as Queue<TaskJobData>;
   }
   return queue;
 }
@@ -183,7 +183,7 @@ export function createTaskWorker(): Worker<TaskJobData> {
         });
 
         // 6. Update workspace status to 'running'
-        await db.workspace.update({
+        await db.workspace.updateMany({
           where: { coderWorkspaceId: workspace.id },
           data: { status: "running" },
         });
@@ -297,7 +297,7 @@ export function createTaskWorker(): Worker<TaskJobData> {
                 timeoutMs: 300_000,
               });
 
-              await db.workspace.update({
+              await db.workspace.updateMany({
                 where: { coderWorkspaceId: verifierWs.id },
                 data: { status: "running" },
               });
@@ -354,7 +354,9 @@ export function createTaskWorker(): Worker<TaskJobData> {
                   where: { id: taskId },
                   data: {
                     status: "done",
-                    verificationReport: report ?? undefined,
+                    verificationReport: report
+                      ? (report as unknown as Prisma.InputJsonValue)
+                      : undefined,
                   },
                 });
 
@@ -498,7 +500,7 @@ export function createTaskWorker(): Worker<TaskJobData> {
       }
     },
     {
-      connection: getRedisConnection(),
+      connection: getRedisConnection() as unknown as ConnectionOptions,
       concurrency,
       lockDuration: JOB_TIMEOUT_MS,
     },

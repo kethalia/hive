@@ -7,9 +7,10 @@ import { useKeybindings } from "@/hooks/useKeybindings";
 
 interface ComposePanelProps {
   onClose: () => void;
+  hideHeader?: boolean;
 }
 
-export function ComposePanel({ onClose }: ComposePanelProps) {
+export function ComposePanel({ onClose, hideHeader = false }: ComposePanelProps) {
   const { activeSend } = useKeybindings();
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -39,20 +40,22 @@ export function ComposePanel({ onClose }: ComposePanelProps) {
 
   return (
     <div className="flex h-full flex-col bg-background">
-      <div className="flex items-center justify-between border-b border-border px-3 py-1">
-        <span className="text-xs font-medium text-muted-foreground">
-          Compose — Ctrl/Cmd+Enter to send
-        </span>
-        <Button
-          variant="ghost"
-          size="sm"
-          className="h-6 w-6 p-0"
-          onClick={onClose}
-          aria-label="Close compose panel"
-        >
-          <X className="h-3.5 w-3.5" />
-        </Button>
-      </div>
+      {!hideHeader && (
+        <div className="flex items-center justify-between border-b border-border px-3 py-1">
+          <span className="text-xs font-medium text-muted-foreground">
+            Compose — Ctrl/Cmd+Enter to send
+          </span>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-6 w-6 p-0"
+            onClick={onClose}
+            aria-label="Close compose panel"
+          >
+            <X className="h-3.5 w-3.5" />
+          </Button>
+        </div>
+      )}
       <div className="relative flex-1">
         <textarea
           ref={textareaRef}

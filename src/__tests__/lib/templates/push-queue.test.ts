@@ -97,8 +97,8 @@ const mockExecFile = vi.fn((...args: unknown[]) => {
 });
 
 vi.mock("child_process", () => ({
-  spawn: (...args: unknown[]) => mockSpawn(...args),
-  execFile: (...args: unknown[]) => mockExecFile(...args),
+  spawn: (...args: unknown[]) => Reflect.apply(mockSpawn, undefined, args),
+  execFile: (...args: unknown[]) => Reflect.apply(mockExecFile, undefined, args),
 }));
 
 let capturedProcessor:
@@ -173,7 +173,7 @@ describe("push-queue", () => {
 
       expect(getCoderClientForUser).toHaveBeenCalledWith("user-abc");
 
-      const [bin, args, opts] = mockSpawn.mock.calls[0] as [
+      const [bin, args, opts] = mockSpawn.mock.calls[0] as unknown as [
         string,
         string[],
         { env: Record<string, string> },

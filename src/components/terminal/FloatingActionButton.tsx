@@ -17,13 +17,7 @@ import { useKeybindings } from "@/hooks/useKeybindings";
 import { useFabPosition, type Corner } from "@/hooks/useFabPosition";
 import { useFabKeyboardOffset } from "@/hooks/useFabKeyboardOffset";
 import { useIsMobile } from "@/hooks/use-mobile";
-import {
-  getTerminalFontSize,
-  setTerminalFontSize,
-  MIN_FONT_SIZE,
-  MAX_FONT_SIZE,
-  EVENT_NAME,
-} from "@/lib/terminal/font-size";
+import { useTerminalFontStep } from "@/hooks/useTerminalFontStep";
 import { VIRTUAL_KEY_SEQUENCES } from "@/lib/terminal/virtual-keys";
 
 const GRID_KEYS = [
@@ -92,7 +86,13 @@ export function FloatingActionButton({ onHapticFeedback }: FloatingActionButtonP
   const { liftPx } = useFabKeyboardOffset();
   const isMobile = useIsMobile();
   const [expanded, setExpanded] = useState(false);
-  const [fontSize, setFontSize] = useState(getTerminalFontSize);
+  const {
+    size: fontSize,
+    increase: increaseFontSize,
+    decrease: decreaseFontSize,
+    canIncrease,
+    canDecrease,
+  } = useTerminalFontStep();
   const containerRef = useRef<HTMLDivElement>(null);
 
   const handlePointerUp = useCallback(() => {
@@ -112,20 +112,6 @@ export function FloatingActionButton({ onHapticFeedback }: FloatingActionButtonP
     document.addEventListener("pointerdown", handleClickOutside);
     return () => document.removeEventListener("pointerdown", handleClickOutside);
   }, [expanded]);
-
-  useEffect(() => {
-    const handler = (e: Event) => setFontSize((e as CustomEvent<number>).detail);
-    window.addEventListener(EVENT_NAME, handler);
-    return () => window.removeEventListener(EVENT_NAME, handler);
-  }, []);
-
-  const increaseFontSize = useCallback(() => {
-    setTerminalFontSize(getTerminalFontSize() + 1);
-  }, []);
-
-  const decreaseFontSize = useCallback(() => {
-    setTerminalFontSize(getTerminalFontSize() - 1);
-  }, []);
 
   const sendKey = useCallback(
     (sequence: string) => {
@@ -164,24 +150,57 @@ export function FloatingActionButton({ onHapticFeedback }: FloatingActionButtonP
       </button>
 
       {isMobile && (
-        <div
-          className={`absolute ${quickDir} ${dir.horizontal} flex items-center gap-2 rounded-full border bg-popover px-2 py-1 shadow-lg`}
-          role="toolbar"
-          aria-label="Quick keys"
-        >
-          {QUICK_BAR_KEYS.map(({ label, icon: Icon, sequence }) => (
+        <div className={`absolute ${quickDir} ${dir.horizontal} flex flex-col gap-2`}>
+          <div
+            className="flex items-center gap-2 rounded-full border bg-popover px-2 py-1 shadow-lg"
+            role="toolbar"
+            aria-label="Quick keys"
+          >
+            {QUICK_BAR_KEYS.map(({ label, icon: Icon, sequence }) => (
+              <button
+                key={label}
+                type="button"
+                className="flex h-11 w-11 items-center justify-center rounded-full text-popover-foreground hover:bg-accent hover:text-accent-foreground transition-colors"
+                style={NO_TOUCH_STYLE}
+                onPointerDown={(e) => e.stopPropagation()}
+                onClick={() => sendKey(sequence)}
+                aria-label={label}
+              >
+                <Icon className="h-5 w-5" />
+              </button>
+            ))}
+          </div>
+          <div
+            className="flex items-center justify-between gap-2 rounded-full border bg-popover px-2 py-1 shadow-lg"
+            role="toolbar"
+            aria-label="Terminal font size"
+          >
             <button
-              key={label}
               type="button"
-              className="flex h-11 w-11 items-center justify-center rounded-full text-popover-foreground hover:bg-accent hover:text-accent-foreground transition-colors"
+              className="flex h-11 w-11 items-center justify-center rounded-full text-popover-foreground hover:bg-accent hover:text-accent-foreground transition-colors disabled:opacity-40 disabled:pointer-events-none"
               style={NO_TOUCH_STYLE}
               onPointerDown={(e) => e.stopPropagation()}
-              onClick={() => sendKey(sequence)}
-              aria-label={label}
+              onClick={decreaseFontSize}
+              disabled={!canDecrease}
+              aria-label="Decrease font size"
             >
-              <Icon className="h-5 w-5" />
+              <Minus className="h-5 w-5" />
             </button>
-          ))}
+            <span className="text-xs tabular-nums text-popover-foreground select-none min-w-[3ch] text-center">
+              {fontSize}
+            </span>
+            <button
+              type="button"
+              className="flex h-11 w-11 items-center justify-center rounded-full text-popover-foreground hover:bg-accent hover:text-accent-foreground transition-colors disabled:opacity-40 disabled:pointer-events-none"
+              style={NO_TOUCH_STYLE}
+              onPointerDown={(e) => e.stopPropagation()}
+              onClick={increaseFontSize}
+              disabled={!canIncrease}
+              aria-label="Increase font size"
+            >
+              <Plus className="h-5 w-5" />
+            </button>
+          </div>
         </div>
       )}
 
@@ -206,34 +225,6 @@ export function FloatingActionButton({ onHapticFeedback }: FloatingActionButtonP
                 <Icon className="h-5 w-5" />
               </button>
             ))}
-          </div>
-          <hr className="my-1 h-px border-0 bg-border" />
-          <div className="flex items-center justify-between gap-2 px-1 py-1">
-            <button
-              type="button"
-              role="menuitem"
-              className="flex h-11 w-11 items-center justify-center rounded-md text-popover-foreground hover:bg-accent hover:text-accent-foreground transition-colors disabled:opacity-40 disabled:pointer-events-none"
-              onPointerDown={(e) => e.stopPropagation()}
-              onClick={decreaseFontSize}
-              disabled={fontSize <= MIN_FONT_SIZE}
-              aria-label="Decrease font size"
-            >
-              <Minus className="h-5 w-5" />
-            </button>
-            <span className="text-xs tabular-nums text-popover-foreground select-none min-w-[3ch] text-center">
-              {fontSize}
-            </span>
-            <button
-              type="button"
-              role="menuitem"
-              className="flex h-11 w-11 items-center justify-center rounded-md text-popover-foreground hover:bg-accent hover:text-accent-foreground transition-colors disabled:opacity-40 disabled:pointer-events-none"
-              onPointerDown={(e) => e.stopPropagation()}
-              onClick={increaseFontSize}
-              disabled={fontSize >= MAX_FONT_SIZE}
-              aria-label="Increase font size"
-            >
-              <Plus className="h-5 w-5" />
-            </button>
           </div>
         </div>
       )}
@@ -265,7 +256,7 @@ export function FloatingActionButton({ onHapticFeedback }: FloatingActionButtonP
               className="flex h-8 w-8 items-center justify-center rounded-md text-popover-foreground hover:bg-accent hover:text-accent-foreground transition-colors disabled:opacity-40 disabled:pointer-events-none"
               onPointerDown={(e) => e.stopPropagation()}
               onClick={decreaseFontSize}
-              disabled={fontSize <= MIN_FONT_SIZE}
+              disabled={!canDecrease}
               aria-label="Decrease font size"
             >
               <Minus className="h-4 w-4" />
@@ -279,7 +270,7 @@ export function FloatingActionButton({ onHapticFeedback }: FloatingActionButtonP
               className="flex h-8 w-8 items-center justify-center rounded-md text-popover-foreground hover:bg-accent hover:text-accent-foreground transition-colors disabled:opacity-40 disabled:pointer-events-none"
               onPointerDown={(e) => e.stopPropagation()}
               onClick={increaseFontSize}
-              disabled={fontSize >= MAX_FONT_SIZE}
+              disabled={!canIncrease}
               aria-label="Increase font size"
             >
               <Plus className="h-4 w-4" />
