@@ -34,13 +34,12 @@ let pushQueue: Queue<TemplatePushJobData> | null = null;
 /** Returns the shared template-push Queue singleton. */
 export function getTemplatePushQueue(): Queue<TemplatePushJobData> {
   if (!pushQueue) {
-    const q = new Queue<TemplatePushJobData>(TEMPLATE_PUSH_QUEUE, {
+    pushQueue = new Queue<TemplatePushJobData>(TEMPLATE_PUSH_QUEUE, {
       // @ts-expect-error — ioredis dual-install type mismatch
       connection: getRedisConnection(),
-    });
-    pushQueue = q as Queue<TemplatePushJobData>;
+    }) as Queue<TemplatePushJobData>;
   }
-  return pushQueue!;
+  return pushQueue;
 }
 
 // ── Coder binary resolution ───────────────────────────────────────

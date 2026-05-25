@@ -363,8 +363,9 @@ export function AppSidebar() {
     try {
       const result = await getWorkspaceAgentAction({ workspaceId });
       if (result?.data) {
-        setWorkspaceAgents((prev) => ({ ...prev, [workspaceId]: result.data! }));
-        return result.data;
+        const agentInfo = result.data;
+        setWorkspaceAgents((prev) => ({ ...prev, [workspaceId]: agentInfo }));
+        return agentInfo;
       }
     } catch {
       // fall through to null
@@ -381,9 +382,10 @@ export function AppSidebar() {
     try {
       const result = await getWorkspaceSessionsAction({ workspaceId });
       if (result?.data) {
+        const sessions = result.data;
         setWorkspaceSessions((prev) => ({
           ...prev,
-          [workspaceId]: { data: result.data!, isLoading: false, error: null },
+          [workspaceId]: { data: sessions, isLoading: false, error: null },
         }));
       } else {
         const msg = result?.serverError ?? "Failed to load sessions";
