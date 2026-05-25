@@ -158,10 +158,11 @@ describe("WorkspaceToolPanel", () => {
     expect(screen.getByTestId("terminal-tab-manager")).toBeInTheDocument();
   });
 
-  it("renders breadcrumb with workspace name and tool picker", () => {
+  it("renders breadcrumb with workspace name, list href, and tool picker", () => {
     render(<WorkspaceToolPanel {...defaultProps} />);
 
-    expect(screen.getByText("Workspaces")).toBeInTheDocument();
+    const workspacesLink = screen.getByRole("link", { name: "Workspaces" });
+    expect(workspacesLink).toHaveAttribute("href", "/workspaces");
     expect(screen.getByText("dev")).toBeInTheDocument();
     expect(screen.getByTestId("tool-picker-trigger")).toBeInTheDocument();
   });
