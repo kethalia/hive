@@ -27,6 +27,21 @@ export const LONG_PRESS_MS = 500;
 export const TAP_THRESHOLD_PX = 5;
 
 /**
+ * Downward pull distance (px) required before release triggers a refresh.
+ * Shared by all card-stack list surfaces so mobile list pages do not drift.
+ */
+export const PULL_REFRESH_TRIGGER_PX = 72;
+
+/** Max visual pull travel (px) exposed to UI wrappers while dragging. */
+export const PULL_REFRESH_MAX_PULL_PX = 112;
+
+/**
+ * Max downward release velocity (px/ms) that still counts as an intentional
+ * pull-to-refresh. Faster flings are treated as native scrolling momentum.
+ */
+export const PULL_REFRESH_MAX_RELEASE_VELOCITY = 1.5;
+
+/**
  * Max pointer travel (px) during the long-press hold window before the
  * gesture is reclassified from long-press to drag. Slightly looser than
  * TAP_THRESHOLD_PX to tolerate finger jitter on a stationary press.
@@ -38,9 +53,9 @@ export const DRAG_LONG_PRESS_MOVE_PX = 8;
  * gesture surfaces while leaving each caller free to choose its touch-action.
  */
 export const NO_TOUCH_STYLE = {
-	userSelect: "none",
-	WebkitUserSelect: "none",
-	WebkitTouchCallout: "none",
+  userSelect: "none",
+  WebkitUserSelect: "none",
+  WebkitTouchCallout: "none",
 } as const;
 
 /**
@@ -49,12 +64,10 @@ export const NO_TOUCH_STYLE = {
  * early-return from long-press handlers bound to wrappers that contain
  * inputs, textareas, or contenteditable regions.
  */
-export function isTextSelectionEvent(
-	event: Event | { target: EventTarget | null },
-): boolean {
-	const target = event.target;
-	if (!(target instanceof HTMLElement)) return false;
-	if (target.isContentEditable) return true;
-	const tag = target.tagName;
-	return tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT";
+export function isTextSelectionEvent(event: Event | { target: EventTarget | null }): boolean {
+  const target = event.target;
+  if (!(target instanceof HTMLElement)) return false;
+  if (target.isContentEditable) return true;
+  const tag = target.tagName;
+  return tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT";
 }
