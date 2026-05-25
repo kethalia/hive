@@ -3,7 +3,18 @@
 import type { PointerEvent as ReactPointerEvent } from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useDrag } from "@use-gesture/react";
-import { LONG_PRESS_MS, TAP_THRESHOLD_PX } from "@/lib/gestures/conventions";
+import { TAP_THRESHOLD_PX } from "@/lib/gestures/conventions";
+import { createLongPressDetector, type LongPressDetector } from "@/lib/gestures/long-press";
+
+export interface UseFabPositionOptions {
+  /**
+   * Called once when the press transitions to "armed" — either by holding past
+   * LONG_PRESS_MS without crossing DRAG_LONG_PRESS_MOVE_PX, or by exceeding
+   * DRAG_LONG_PRESS_MOVE_PX of in-press movement. Wired by FloatingActionButton
+   * as a haptic-feedback seam (S08 will trigger navigator.vibrate from here).
+   */
+  onArmed?: () => void;
+}
 
 export type Corner = "top-left" | "top-right" | "bottom-left" | "bottom-right";
 
@@ -75,20 +86,27 @@ export function nearestCorner(x: number, y: number): Corner {
   return targets[0].corner;
 }
 
-export function useFabPosition() {
+export function useFabPosition(options?: UseFabPositionOptions) {
   const [corner, setCorner] = useState<Corner>(readCorner);
   const [position, setPosition] = useState({ x: 0, y: 0 });
   const [isDragging, setIsDragging] = useState(false);
   const [isSnapping, setIsSnapping] = useState(false);
-  // Long-press arming seam: T05 will flip this true once the LONG_PRESS_MS hold
-  // is detected without crossing DRAG_LONG_PRESS_MOVE_PX. Exposed via dragDist
-  // ref shape for now; behavior wiring lands in T05.
-  const armedLongPressRef = useRef(false);
+  const [isArmed, setIsArmed] = useState(false);
+  const onArmedRef = useRef<(() => void) | undefined>(options?.onArmed);
+  onArmedRef.current = options?.onArmed;
   const dragStartPosRef = useRef({ x: 0, y: 0 });
   const dragDistRef = useRef(0);
   const wasDragRef = useRef(false);
-  const longPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const snapTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const longPressRef = useRef<LongPressDetector | null>(null);
+  if (longPressRef.current === null) {
+    longPressRef.current = createLongPressDetector({
+      onArm: () => {
+        setIsArmed(true);
+        onArmedRef.current?.();
+      },
+    });
+  }
 
   useEffect(() => {
     return () => {
@@ -96,10 +114,7 @@ export function useFabPosition() {
         clearTimeout(snapTimeoutRef.current);
         snapTimeoutRef.current = null;
       }
-      if (longPressTimerRef.current !== null) {
-        clearTimeout(longPressTimerRef.current);
-        longPressTimerRef.current = null;
-      }
+      longPressRef.current?.end();
     };
   }, []);
 
@@ -123,28 +138,26 @@ export function useFabPosition() {
   }, [corner]);
 
   const bind = useDrag(
-    ({ first, last, tap, movement: [mx, my], distance: [dx, dy] }) => {
+    ({ first, last, movement: [mx, my], distance: [dx, dy] }) => {
+      const detector = longPressRef.current;
+      if (detector === null) return;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+
       if (first) {
         setIsDragging(true);
         dragStartPosRef.current = { ...position };
         dragDistRef.current = 0;
         wasDragRef.current = false;
-        armedLongPressRef.current = false;
-        if (longPressTimerRef.current !== null) {
-          clearTimeout(longPressTimerRef.current);
-        }
-        longPressTimerRef.current = setTimeout(() => {
-          // Arm long-press only if pointer has not crossed the tap threshold.
-          if (dragDistRef.current < TAP_THRESHOLD_PX) {
-            armedLongPressRef.current = true;
-          }
-          longPressTimerRef.current = null;
-        }, LONG_PRESS_MS);
+        detector.start();
       }
 
-      dragDistRef.current = Math.max(dragDistRef.current, Math.sqrt(dx * dx + dy * dy));
+      dragDistRef.current = Math.max(dragDistRef.current, dist);
+      detector.move(dist);
 
-      if (!first && !last) {
+      // Reposition only commits once the press has armed — either by holding
+      // past LONG_PRESS_MS or by crossing DRAG_LONG_PRESS_MOVE_PX. This is
+      // what prevents a casual tap from accidentally dragging the FAB.
+      if (!first && !last && detector.armed) {
         const { width, height, offsetLeft, offsetTop } = viewportMetrics();
         setPosition({
           x: Math.max(
@@ -159,14 +172,11 @@ export function useFabPosition() {
       }
 
       if (last) {
-        if (longPressTimerRef.current !== null) {
-          clearTimeout(longPressTimerRef.current);
-          longPressTimerRef.current = null;
-        }
+        const wasArmed = detector.end();
         setIsDragging(false);
-        const wasDrag = !tap;
-        wasDragRef.current = wasDrag;
-        if (wasDrag) {
+        setIsArmed(false);
+        wasDragRef.current = wasArmed;
+        if (wasArmed) {
           setPosition((current) => {
             const newCorner = nearestCorner(current.x, current.y);
             localStorage.setItem(STORAGE_KEY, newCorner);
@@ -182,7 +192,6 @@ export function useFabPosition() {
             return cornerToPosition(newCorner);
           });
         }
-        armedLongPressRef.current = false;
       }
     },
     {
@@ -221,6 +230,7 @@ export function useFabPosition() {
     position,
     isDragging,
     isSnapping,
+    isArmed,
     dragDist: dragDistRef,
     onPointerDown,
     onPointerMove,

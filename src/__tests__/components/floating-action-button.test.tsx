@@ -23,9 +23,14 @@ vi.mock("@/hooks/useFabPosition", async () => {
     await vi.importActual<typeof import("@/hooks/useFabPosition")>("@/hooks/useFabPosition");
   return {
     ...actual,
-    useFabPosition: vi.fn(() => mockFabState),
+    useFabPosition: vi.fn((opts?: { onArmed?: () => void }) => {
+      capturedOnArmed = opts?.onArmed;
+      return mockFabState;
+    }),
   };
 });
+
+let capturedOnArmed: (() => void) | undefined;
 
 const { mockIsMobile } = vi.hoisted(() => ({ mockIsMobile: vi.fn(() => true) }));
 
@@ -48,11 +53,13 @@ function resetFabState() {
     position: { x: 320, y: 700 },
     isDragging: false,
     isSnapping: false,
+    isArmed: false,
     dragDist: dragDist as React.MutableRefObject<number>,
     onPointerDown: vi.fn(),
     onPointerMove: vi.fn(),
     onPointerUp: vi.fn(() => false),
   };
+  capturedOnArmed = undefined;
 }
 
 function setViewport(w: number, h: number) {
@@ -216,6 +223,38 @@ describe("FloatingActionButton (mobile)", () => {
     render(<FloatingActionButton />);
     fireEvent.pointerUp(screen.getByRole("button", { name: "Open virtual keyboard" }));
     expect(screen.getByRole("menuitem", { name: "Increase font size" })).toBeDisabled();
+  });
+
+  it("calls onHapticFeedback when a persistent quick-bar key is pressed", () => {
+    const onHapticFeedback = vi.fn();
+    render(<FloatingActionButton onHapticFeedback={onHapticFeedback} />);
+    fireEvent.click(screen.getByRole("button", { name: "Enter" }));
+    expect(onHapticFeedback).toHaveBeenCalledTimes(1);
+    expect(mockActiveSend).toHaveBeenCalledWith("\r");
+  });
+
+  it("calls onHapticFeedback when a grid menuitem is pressed", () => {
+    const onHapticFeedback = vi.fn();
+    render(<FloatingActionButton onHapticFeedback={onHapticFeedback} />);
+    fireEvent.pointerUp(screen.getByRole("button", { name: "Open virtual keyboard" }));
+    onHapticFeedback.mockClear();
+    fireEvent.click(screen.getByRole("menuitem", { name: "Up" }));
+    expect(onHapticFeedback).toHaveBeenCalledTimes(1);
+    expect(mockActiveSend).toHaveBeenCalledWith("\x1b[A");
+  });
+
+  it("forwards an onArmed callback to useFabPosition that invokes onHapticFeedback", () => {
+    const onHapticFeedback = vi.fn();
+    render(<FloatingActionButton onHapticFeedback={onHapticFeedback} />);
+    expect(typeof capturedOnArmed).toBe("function");
+    capturedOnArmed?.();
+    expect(onHapticFeedback).toHaveBeenCalledTimes(1);
+  });
+
+  it("defaults onHapticFeedback to a no-op (no throw when arming fires with no prop)", () => {
+    render(<FloatingActionButton />);
+    expect(typeof capturedOnArmed).toBe("function");
+    expect(() => capturedOnArmed?.()).not.toThrow();
   });
 
   it("collapses when clicking outside, treating persistent bar as inside", () => {

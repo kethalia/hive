@@ -73,10 +73,22 @@ const NO_TOUCH_STYLE: React.CSSProperties = {
   WebkitTouchCallout: "none",
 };
 
-export function FloatingActionButton() {
+export interface FloatingActionButtonProps {
+  /**
+   * Haptic-feedback seam: called once when the reposition long-press arms,
+   * and once for each virtual-key press from the grid or persistent quick
+   * bar. Default no-op; S08 wires this to navigator.vibrate(10).
+   */
+  onHapticFeedback?: () => void;
+}
+
+export function FloatingActionButton({ onHapticFeedback }: FloatingActionButtonProps = {}) {
   const { activeSend } = useKeybindings();
+  const haptic = useCallback(() => {
+    onHapticFeedback?.();
+  }, [onHapticFeedback]);
   const { corner, position, isDragging, isSnapping, onPointerDown, onPointerMove, onPointerUp } =
-    useFabPosition();
+    useFabPosition({ onArmed: haptic });
   const { liftPx } = useFabKeyboardOffset();
   const isMobile = useIsMobile();
   const [expanded, setExpanded] = useState(false);
@@ -117,9 +129,10 @@ export function FloatingActionButton() {
 
   const sendKey = useCallback(
     (sequence: string) => {
+      haptic();
       activeSend?.(sequence);
     },
-    [activeSend],
+    [activeSend, haptic],
   );
 
   const dir = menuDirection(corner);

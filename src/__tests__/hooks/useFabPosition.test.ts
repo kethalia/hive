@@ -133,4 +133,15 @@ describe("useFabPosition — gesture surface (use-gesture migration)", () => {
     expect(wasDrag).toBe(false);
     expect(result.current.isDragging).toBe(false);
   });
+
+  it("exposes isArmed (initially false) for the long-press reposition gate", () => {
+    const { result } = renderHook(() => useFabPosition());
+    expect(result.current.isArmed).toBe(false);
+  });
+
+  it("accepts an onArmed option for the haptic-feedback seam without throwing", () => {
+    const onArmed = () => {};
+    const { result } = renderHook(() => useFabPosition({ onArmed }));
+    expect(result.current.isArmed).toBe(false);
+  });
 });
