@@ -56,6 +56,7 @@ import {
   SidebarTrigger,
 } from "@/components/ui/sidebar";
 import { Switch } from "@/components/ui/switch";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { useSidebarMode } from "@/hooks/use-sidebar-mode";
 import { listTemplateStatusesAction } from "@/lib/actions/templates";
 import {
@@ -70,6 +71,7 @@ import { getSessionAction, logoutAction } from "@/lib/auth/actions";
 import type { CoderWorkspace } from "@/lib/coder/types";
 import { SAFE_IDENTIFIER_RE } from "@/lib/constants";
 import type { TemplateStatus } from "@/lib/templates/staleness";
+import { cn } from "@/lib/utils";
 import type { TmuxSession } from "@/lib/workspaces/sessions";
 import { buildWorkspaceUrls } from "@/lib/workspaces/urls";
 
@@ -132,11 +134,19 @@ function SessionList({
   onKill: (workspaceId: string, sessionName: string) => void;
   onRename: (workspaceId: string, oldName: string, newName: string) => void;
 }) {
+  const isMobile = useIsMobile();
   const scrollRef = useRef<HTMLDivElement>(null);
   const [canScroll, setCanScroll] = useState(false);
   const [isAtBottom, setIsAtBottom] = useState(true);
   const [editingSession, setEditingSession] = useState<string | null>(null);
   const [editValue, setEditValue] = useState("");
+  const mobileSessionRowClassName = isMobile ? "min-h-11 py-2 text-sm" : undefined;
+  const actionVisibilityClassName = isMobile
+    ? "opacity-100"
+    : "opacity-0 group-hover/session:opacity-100 focus-within:opacity-100";
+  const actionButtonClassName = isMobile
+    ? "flex h-11 w-11 items-center justify-center p-0"
+    : "p-0.5";
 
   const checkScroll = useCallback(() => {
     const el = scrollRef.current;
@@ -169,14 +179,15 @@ function SessionList({
     <div className="relative">
       <div
         ref={scrollRef}
+        data-testid={`session-list-scroll-${workspaceId}`}
         className="overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
-        style={{ maxHeight: SESSION_MAX_HEIGHT }}
+        style={isMobile ? undefined : { maxHeight: SESSION_MAX_HEIGHT }}
         onScroll={checkScroll}
       >
         {sessions.map((session) => (
           <SidebarMenuSubItem key={session.name}>
             {editingSession === session.name ? (
-              <SidebarMenuSubButton className="cursor-text">
+              <SidebarMenuSubButton className={cn("cursor-text", mobileSessionRowClassName)}>
                 <Terminal className="h-3 w-3 shrink-0 text-muted-foreground" />
                 <Input
                   data-testid={`rename-session-input-${session.name}`}
@@ -202,16 +213,22 @@ function SessionList({
                   pathname === `/workspaces/${workspaceId}/terminal` &&
                   activeSession === session.name
                 }
-                className="group/session"
+                className={cn("group/session", mobileSessionRowClassName)}
               >
                 <Terminal className="h-3 w-3 shrink-0" />
                 <span className="truncate">{session.name}</span>
-                <span className="ml-auto flex shrink-0 items-center gap-0.5 opacity-0 group-hover/session:opacity-100">
+                <span
+                  className={cn(
+                    "ml-auto flex shrink-0 items-center gap-0.5",
+                    actionVisibilityClassName,
+                  )}
+                >
                   <button
                     type="button"
                     title="Rename session"
+                    aria-label={`Rename session ${session.name}`}
                     data-testid={`rename-session-${session.name}`}
-                    className="rounded p-0.5 hover:bg-sidebar-accent"
+                    className={cn("rounded hover:bg-sidebar-accent", actionButtonClassName)}
                     onClick={(e) => {
                       e.preventDefault();
                       e.stopPropagation();
@@ -223,8 +240,9 @@ function SessionList({
                   <button
                     type="button"
                     title="Kill session"
+                    aria-label={`Kill session ${session.name}`}
                     data-testid={`kill-session-${session.name}`}
-                    className="rounded p-0.5 hover:bg-destructive/20"
+                    className={cn("rounded hover:bg-destructive/20", actionButtonClassName)}
                     onClick={(e) => {
                       e.preventDefault();
                       e.stopPropagation();

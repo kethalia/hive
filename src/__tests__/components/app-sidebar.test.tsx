@@ -4,6 +4,7 @@ import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/re
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import "@testing-library/jest-dom/vitest";
 
+const mockUseIsMobile = vi.hoisted(() => vi.fn(() => false));
 const mockPush = vi.fn();
 vi.mock("next/navigation", () => ({
   usePathname: () => "/tasks",
@@ -13,6 +14,10 @@ vi.mock("next/navigation", () => ({
 
 vi.mock("@/lib/utils", () => ({
   cn: (...classes: unknown[]) => classes.filter(Boolean).join(" "),
+}));
+
+vi.mock("@/hooks/use-mobile", () => ({
+  useIsMobile: () => mockUseIsMobile(),
 }));
 
 vi.mock("@/components/ui/sidebar", async () => {
@@ -319,9 +324,44 @@ function makeTemplate(overrides: Partial<TemplateStatus> = {}): TemplateStatus {
   } as TemplateStatus;
 }
 
+function makeSession(name = "dev") {
+  return { name, created: 1000, windows: 1 };
+}
+
+async function expandWorkspaceAndTerminalSessions(workspaceId = "ws-1") {
+  render(<AppSidebar />);
+
+  await waitFor(() => {
+    expect(screen.getByText("dev-box")).toBeInTheDocument();
+  });
+
+  const wsTrigger = screen.getByText("dev-box").closest("[data-testid='collapsible-trigger']");
+  expect(wsTrigger).not.toBeNull();
+  fireEvent.click(wsTrigger!);
+
+  await waitFor(() => {
+    expect(screen.getByTestId(`terminal-section-${workspaceId}`)).toBeInTheDocument();
+  });
+
+  const terminalSection = screen.getByTestId(`terminal-section-${workspaceId}`);
+  const terminalTrigger = terminalSection.querySelector("[data-testid='collapsible-trigger']");
+  expect(terminalTrigger).not.toBeNull();
+  fireEvent.click(terminalTrigger!);
+
+  await waitFor(() => {
+    expect(screen.getByTestId(`session-list-scroll-${workspaceId}`)).toBeInTheDocument();
+  });
+
+  return {
+    scrollContainer: screen.getByTestId(`session-list-scroll-${workspaceId}`),
+    terminalSection,
+  };
+}
+
 describe("AppSidebar", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockUseIsMobile.mockReturnValue(false);
     vi.useFakeTimers({ shouldAdvanceTime: true });
     mockListWorkspaces.mockResolvedValue({
       data: [makeWorkspace()],
@@ -333,7 +373,7 @@ describe("AppSidebar", () => {
       data: { agentId: "agent-1", agentName: "main" },
     });
     mockGetWorkspaceSessions.mockResolvedValue({
-      data: [{ name: "dev", created: 1000, windows: 1 }],
+      data: [makeSession("dev")],
     });
     mockCreateSession.mockResolvedValue({
       data: { name: "session-123" },
@@ -506,6 +546,76 @@ describe("AppSidebar", () => {
     await waitFor(() => {
       expect(screen.getByText("dev")).toBeInTheDocument();
     });
+  });
+
+  it("keeps desktop sessions capped and hover-gated", async () => {
+    mockUseIsMobile.mockReturnValue(false);
+
+    const { scrollContainer } = await expandWorkspaceAndTerminalSessions();
+
+    expect(scrollContainer).toHaveStyle("max-height: 160px");
+
+    const row = screen.getByText("dev").closest("a");
+    expect(row).not.toBeNull();
+    expect(row).toHaveClass("group/session");
+    expect(row).not.toHaveClass("min-h-11");
+
+    const actions = screen.getByTestId("rename-session-dev").parentElement;
+    expect(actions).not.toBeNull();
+    expect(actions).toHaveClass("opacity-0");
+    expect(actions).toHaveClass("group-hover/session:opacity-100");
+    expect(actions).toHaveClass("focus-within:opacity-100");
+
+    expect(screen.getByTestId("rename-session-dev")).toHaveClass("p-0.5");
+    expect(screen.getByTestId("rename-session-dev")).not.toHaveClass("h-11");
+    expect(screen.getByTestId("kill-session-dev")).toHaveClass("p-0.5");
+    expect(screen.getByTestId("kill-session-dev")).not.toHaveClass("h-11");
+  });
+
+  it("makes mobile session rows and actions thumb-friendly without the desktop cap", async () => {
+    mockUseIsMobile.mockReturnValue(true);
+    mockGetWorkspaceSessions.mockResolvedValue({
+      data: [makeSession("dev"), makeSession("build")],
+    });
+
+    const { scrollContainer } = await expandWorkspaceAndTerminalSessions();
+
+    expect(scrollContainer).not.toHaveStyle("max-height: 160px");
+
+    const row = screen.getByText("dev").closest("a");
+    expect(row).not.toBeNull();
+    expect(row).toHaveClass("min-h-11");
+    expect(row).toHaveClass("py-2");
+    expect(row).toHaveClass("text-sm");
+
+    const actions = screen.getByTestId("rename-session-dev").parentElement;
+    expect(actions).not.toBeNull();
+    expect(actions).toHaveClass("opacity-100");
+    expect(actions).not.toHaveClass("opacity-0");
+    expect(actions).not.toHaveClass("group-hover/session:opacity-100");
+
+    for (const testId of ["rename-session-dev", "kill-session-dev"]) {
+      const button = screen.getByTestId(testId);
+      expect(button).toHaveClass("flex");
+      expect(button).toHaveClass("h-11");
+      expect(button).toHaveClass("w-11");
+      expect(button).toHaveClass("items-center");
+      expect(button).toHaveClass("justify-center");
+      expect(button).toHaveClass("p-0");
+      expect(button).not.toHaveClass("p-0.5");
+    }
+
+    fireEvent.click(screen.getByTestId("rename-session-dev"));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("rename-session-input-dev")).toBeInTheDocument();
+    });
+
+    const editingRow = screen.getByTestId("rename-session-input-dev").closest("button");
+    expect(editingRow).not.toBeNull();
+    expect(editingRow).toHaveClass("min-h-11");
+    expect(editingRow).toHaveClass("py-2");
+    expect(editingRow).toHaveClass("text-sm");
   });
 
   it("renders external tools as text buttons that open popup windows", async () => {
