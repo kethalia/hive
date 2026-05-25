@@ -3,6 +3,7 @@
 import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import "@testing-library/jest-dom/vitest";
+import { LONG_PRESS_MS } from "@/lib/gestures/conventions";
 
 vi.mock("next/dynamic", () => ({
   __esModule: true,
@@ -283,6 +284,54 @@ describe("TerminalTabManager", () => {
         const labels = screen.getAllByTestId("tab-label");
         expect(labels).toHaveLength(1);
         expect(labels[0]).toHaveTextContent("dev-server");
+      });
+    });
+
+    it("opens the context menu on touch long-press and closes the active non-final session", async () => {
+      mockGetSessions.mockResolvedValue({
+        data: [
+          { name: "hive-main", created: 1000, windows: 1 },
+          { name: "dev-server", created: 2000, windows: 1 },
+        ],
+      });
+      mockKillSession.mockResolvedValue({ data: { name: "hive-main" } });
+
+      render(<TerminalTabManager {...defaultProps} />);
+
+      await waitFor(() => {
+        const labels = screen.getAllByTestId("tab-label");
+        expect(labels).toHaveLength(2);
+      });
+
+      vi.useFakeTimers();
+      try {
+        fireEvent.pointerDown(screen.getByTestId("terminal-hive-main"), {
+          buttons: 1,
+          clientX: 222,
+          clientY: 333,
+          pointerId: 1,
+          pointerType: "touch",
+        });
+        act(() => {
+          vi.advanceTimersByTime(LONG_PRESS_MS);
+          vi.runOnlyPendingTimers();
+        });
+      } finally {
+        vi.useRealTimers();
+      }
+
+      const menu = screen.getByRole("menu", { name: /terminal context menu/i });
+      expect(menu).toHaveStyle({ left: "222px", top: "333px" });
+
+      await act(async () => {
+        fireEvent.click(screen.getByRole("menuitem", { name: /close session/i }));
+      });
+
+      await waitFor(() => {
+        expect(mockKillSession).toHaveBeenCalledWith({
+          workspaceId: "ws-1",
+          sessionName: "hive-main",
+        });
       });
     });
 

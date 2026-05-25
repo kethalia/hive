@@ -1,8 +1,19 @@
 // @vitest-environment jsdom
 import { act, cleanup, render, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { EVENT_NAME as FONT_SIZE_EVENT } from "@/lib/terminal/font-size";
 import { InteractiveTerminal } from "@/components/workspaces/InteractiveTerminal";
+import { EVENT_NAME as FONT_SIZE_EVENT } from "@/lib/terminal/font-size";
+
+const mockPinchZoomState = vi.hoisted(() => ({
+  bindCallCount: 0,
+}));
+
+vi.mock("@/hooks/useTerminalPinchZoom", () => ({
+  useTerminalPinchZoom: () => () => {
+    mockPinchZoomState.bindCallCount += 1;
+    return { "data-terminal-pinch-zoom": "bound" };
+  },
+}));
 
 const mockTerminalState = vi.hoisted(() => ({
   fit: vi.fn(),
@@ -74,6 +85,7 @@ class ResizeObserverMock {
 }
 
 beforeEach(() => {
+  mockPinchZoomState.bindCallCount = 0;
   mockTerminalState.fit.mockReset();
   mockTerminalState.fit.mockImplementation(() => undefined);
   mockTerminalState.resize.mockClear();
@@ -125,5 +137,23 @@ describe("InteractiveTerminal safe fit", () => {
 
     expect(warn).toHaveBeenCalledWith("[InteractiveTerminal] fitAddon.fit() failed", fitError);
     expect(terminal?.options.fontSize).toBe(13);
+  });
+
+  it("binds pinch font zoom gestures to the terminal host", async () => {
+    const onTerminalReady = vi.fn();
+
+    const { container } = render(
+      <InteractiveTerminal
+        agentId="agent-1"
+        workspaceId="workspace-1"
+        sessionName="main"
+        onTerminalReady={onTerminalReady}
+      />,
+    );
+
+    expect(container.querySelector("[data-terminal-pinch-zoom='bound']")).not.toBeNull();
+    expect(mockPinchZoomState.bindCallCount).toBeGreaterThan(0);
+
+    await waitFor(() => expect(onTerminalReady).toHaveBeenCalledTimes(1));
   });
 });

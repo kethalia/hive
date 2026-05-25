@@ -6,6 +6,7 @@ import { AlertCircle } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useKeybindings } from "@/hooks/useKeybindings";
+import { useTerminalPinchZoom } from "@/hooks/useTerminalPinchZoom";
 import { type ConnectionState, useTerminalWebSocket } from "@/hooks/useTerminalWebSocket";
 import { getClientRuntimeConfig } from "@/lib/runtime-config";
 import { loadTerminalFont, TERMINAL_FONT_FAMILY, TERMINAL_THEME } from "@/lib/terminal/config";
@@ -121,6 +122,7 @@ export function InteractiveTerminal({
     url: wsUrl,
     onData: handleData,
   });
+  const bindPinchZoom = useTerminalPinchZoom();
 
   useEffect(() => {
     onConnectionStateChange?.(connectionState);
@@ -287,7 +289,12 @@ export function InteractiveTerminal({
       )}
 
       {/* biome-ignore lint/a11y/useKeyWithClickEvents: focus delegation to xterm which handles its own keyboard */}
-      <div ref={containerRef} className="flex-1 p-1" onClick={() => termRef.current?.focus()} />
+      <div
+        ref={containerRef}
+        className="flex-1 p-1"
+        {...bindPinchZoom()}
+        onClick={() => termRef.current?.focus()}
+      />
     </div>
   );
 }
