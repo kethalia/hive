@@ -4,16 +4,18 @@ import { useCallback, useEffect, useState } from "react";
 import {
   EVENT_NAME,
   FONT_SIZE_LADDER,
+  MAX_FONT_SIZE,
+  MIN_FONT_SIZE,
   getTerminalFontSize,
   setTerminalFontSize,
 } from "@/lib/terminal/font-size";
 
 function getNextFontSize(size: number): number {
-  return FONT_SIZE_LADDER.find((candidate) => candidate > size) ?? FONT_SIZE_LADDER.at(-1)!;
+  return FONT_SIZE_LADDER.find((candidate) => candidate > size) ?? MAX_FONT_SIZE;
 }
 
 function getPreviousFontSize(size: number): number {
-  return [...FONT_SIZE_LADDER].reverse().find((candidate) => candidate < size) ?? FONT_SIZE_LADDER[0];
+  return [...FONT_SIZE_LADDER].reverse().find((candidate) => candidate < size) ?? MIN_FONT_SIZE;
 }
 
 export function useTerminalFontStep() {
@@ -43,7 +45,7 @@ export function useTerminalFontStep() {
     size,
     increase,
     decrease,
-    canIncrease: size < FONT_SIZE_LADDER[FONT_SIZE_LADDER.length - 1],
-    canDecrease: size > FONT_SIZE_LADDER[0],
+    canIncrease: size < MAX_FONT_SIZE,
+    canDecrease: size > MIN_FONT_SIZE,
   };
 }

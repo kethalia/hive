@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { act, cleanup, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type * as React from "react";
@@ -99,8 +99,9 @@ vi.mock("@/components/ui/sheet", () => ({
     children,
     className,
     side,
-  }: React.PropsWithChildren<{ className?: string; side?: string }>) => (
-    <section className={className} data-side={side} data-testid="compose-sheet-content">
+    ...props
+  }: React.PropsWithChildren<React.HTMLAttributes<HTMLElement> & { className?: string; side?: string }>) => (
+    <section className={className} data-side={side} data-testid="compose-sheet-content" {...props}>
       {children}
     </section>
   ),
@@ -194,6 +195,34 @@ describe("TerminalClient compose sheet", () => {
     expect(screen.getByTestId("compose-sheet-content")).toHaveClass("h-[100dvh]", "p-0");
     expect(screen.getByText("Compose command")).toHaveClass("sr-only");
     expect(screen.getByTestId("compose-panel")).toHaveAttribute("data-hide-header", "true");
+  });
+
+  it("opens the mobile compose Sheet from a tap-accessible terminal control", async () => {
+    await renderTerminalClient(true);
+
+    expect(screen.getByTestId("compose-sheet")).toHaveAttribute("data-open", "false");
+
+    const opener = screen.getByRole("button", { name: "Open compose panel" });
+    expect(opener).toHaveClass("h-11", "min-w-11");
+    fireEvent.click(opener);
+
+    expect(screen.getByTestId("compose-sheet")).toHaveAttribute("data-open", "true");
+    expect(screen.getByTestId("compose-panel")).toHaveAttribute("data-hide-header", "true");
+  });
+
+  it("dismisses the mobile compose Sheet when its handle is dragged downward", async () => {
+    await renderTerminalClient(true);
+
+    toggleCompose();
+    expect(screen.getByTestId("compose-sheet")).toHaveAttribute("data-open", "true");
+
+    const handle = screen.getByRole("button", { name: "Dismiss compose panel" });
+    expect(handle).toHaveClass("h-11", "w-20", "touch-none");
+    fireEvent.pointerDown(handle, { clientY: 24, pointerId: 1, pointerType: "touch" });
+    fireEvent.pointerUp(handle, { clientY: 144, pointerId: 1, pointerType: "touch" });
+
+    expect(screen.getByTestId("compose-sheet")).toHaveAttribute("data-open", "false");
+    expect(screen.queryByTestId("compose-panel")).not.toBeInTheDocument();
   });
 
   it.each([false, true])("Ctrl/Cmd+` binding toggles compose open and closed when sheet=%s", async (isComposeSheet) => {

@@ -3,7 +3,8 @@
 import { Loader2 } from "lucide-react";
 import dynamic from "next/dynamic";
 import { useSearchParams } from "next/navigation";
-import { Suspense, useCallback, useEffect, useState } from "react";
+import type { PointerEvent } from "react";
+import { Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { ComposePanel } from "@/components/terminal/ComposePanel";
 import { TerminalContextMenu } from "@/components/terminal/TerminalContextMenu";
 import { TerminalGestureLayer } from "@/components/terminal/TerminalGestureLayer";
@@ -11,6 +12,7 @@ import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/componen
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { useIsComposeSheet } from "@/hooks/use-compose-sheet";
 import { useKeybindings } from "@/hooks/useKeybindings";
+import { COMPOSE_SHEET_DISMISS_DRAG_PX } from "@/lib/terminal/config";
 import { copyTerminalSelection, pasteToTerminal } from "@/lib/terminal/actions";
 
 const InteractiveTerminal = dynamic(
@@ -25,7 +27,33 @@ function TerminalInner({ agentId, workspaceId }: { agentId: string; workspaceId:
   const [menuPosition, setMenuPosition] = useState<{ x: number; y: number } | null>(null);
   const [menuSelection, setMenuSelection] = useState(false);
   const [composeOpen, setComposeOpen] = useState(false);
+  const composeSheetDragStartYRef = useRef<number | null>(null);
   const isComposeSheet = useIsComposeSheet();
+
+  const handleComposeSheetDragStart = useCallback((event: PointerEvent<HTMLButtonElement>) => {
+    composeSheetDragStartYRef.current = event.clientY;
+    if (typeof event.currentTarget.setPointerCapture === "function") {
+      event.currentTarget.setPointerCapture(event.pointerId);
+    }
+  }, []);
+
+  const handleComposeSheetDragEnd = useCallback((event: PointerEvent<HTMLButtonElement>) => {
+    const startY = composeSheetDragStartYRef.current;
+    composeSheetDragStartYRef.current = null;
+
+    if (typeof event.currentTarget.releasePointerCapture === "function") {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+
+    if (startY === null) return;
+    if (event.clientY - startY >= COMPOSE_SHEET_DISMISS_DRAG_PX) {
+      setComposeOpen(false);
+    }
+  }, []);
+
+  const handleComposeSheetDragCancel = useCallback(() => {
+    composeSheetDragStartYRef.current = null;
+  }, []);
 
   const handleTerminalReady = useCallback(
     (term: import("@xterm/xterm").Terminal, send: (data: string) => void) => {
@@ -116,12 +144,31 @@ function TerminalInner({ agentId, workspaceId }: { agentId: string; workspaceId:
   if (isComposeSheet) {
     return (
       <div
-        className="-m-6 -mt-14 h-[100vh] w-[calc(100%+3rem)]"
+        className="relative -m-6 -mt-14 h-[100vh] w-[calc(100%+3rem)]"
         onKeyDown={(e) => e.stopPropagation()}
       >
         {terminalPane}
+        <button
+          type="button"
+          aria-label="Open compose panel"
+          className="absolute top-4 right-4 z-40 flex h-11 min-w-11 items-center justify-center rounded-full border border-border bg-background/90 px-4 text-sm font-medium shadow-lg backdrop-blur hover:bg-accent hover:text-accent-foreground"
+          onClick={() => setComposeOpen(true)}
+        >
+          Compose
+        </button>
         <Sheet open={composeOpen} onOpenChange={setComposeOpen}>
           <SheetContent side="bottom" className="h-[100dvh] p-0">
+            <button
+              type="button"
+              aria-label="Dismiss compose panel"
+              className="mx-auto mt-2 flex h-11 w-20 touch-none items-center justify-center rounded-full text-muted-foreground hover:text-foreground active:cursor-grabbing"
+              onClick={() => setComposeOpen(false)}
+              onPointerCancel={handleComposeSheetDragCancel}
+              onPointerDown={handleComposeSheetDragStart}
+              onPointerUp={handleComposeSheetDragEnd}
+            >
+              <span className="h-1 w-10 rounded-full bg-current opacity-40" />
+            </button>
             <SheetTitle className="sr-only">Compose command</SheetTitle>
             <ComposePanel hideHeader onClose={() => setComposeOpen(false)} />
           </SheetContent>
