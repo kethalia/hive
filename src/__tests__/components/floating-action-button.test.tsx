@@ -360,4 +360,16 @@ describe("FloatingActionButton (desktop)", () => {
     expect(items.length).toBe(10);
     expect(screen.getByRole("menuitem", { name: /Enter/ })).toBeInTheDocument();
   });
+
+  it("calls onHapticFeedback when a desktop menu key is pressed", () => {
+    const onHapticFeedback = vi.fn();
+    render(<FloatingActionButton onHapticFeedback={onHapticFeedback} />);
+    fireEvent.pointerUp(screen.getByRole("button", { name: "Open virtual keyboard" }));
+    onHapticFeedback.mockClear();
+
+    fireEvent.click(screen.getByRole("menuitem", { name: /Tab/ }));
+
+    expect(onHapticFeedback).toHaveBeenCalledTimes(1);
+    expect(mockActiveSend).toHaveBeenCalledWith("\t");
+  });
 });

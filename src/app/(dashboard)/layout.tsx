@@ -6,7 +6,7 @@ import { TokenExpiryBanner } from "@/components/token-expiry-banner";
 import { SidebarInset, SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { getTokenStatusAction } from "@/lib/auth/actions";
 import KeybindingProvider from "@/components/terminal/KeybindingProvider";
-import { FloatingActionButton } from "@/components/terminal/FloatingActionButton";
+import { HapticFloatingActionButton } from "@/components/terminal/HapticFloatingActionButton";
 import { HelpOverlay } from "@/components/terminal/HelpOverlay";
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
@@ -27,7 +27,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
             {children}
           </main>
         </SidebarInset>
-        <FloatingActionButton />
+        <HapticFloatingActionButton />
         <HelpOverlay />
       </KeybindingProvider>
     </SidebarProvider>
