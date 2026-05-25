@@ -107,6 +107,23 @@ describe("PullToRefresh", () => {
     expect(screen.getByTestId("list")).toHaveTextContent("Alpha task");
   });
 
+  it("exposes reduced-motion class contracts on the pull indicator", async () => {
+    renderPullToRefresh();
+    const surface = screen.getByTestId("pull-to-refresh");
+
+    pointerDown(surface);
+    pointerMove(surface, { y: 32 });
+
+    await waitFor(() => {
+      const indicator = surface.querySelector<HTMLElement>(
+        '[data-slot="pull-to-refresh-indicator"]',
+      );
+      expect(indicator).not.toBeNull();
+      expect(indicator?.className).toContain("motion-reduce:transition-none");
+      expect(indicator?.className).toContain("motion-reduce:duration-0");
+    });
+  });
+
   it("moves through ready, calls onRefresh once, and resets after refresh resolves", async () => {
     let resolveRefresh!: () => void;
     const refreshPromise = new Promise<void>((resolve) => {

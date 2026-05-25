@@ -33,9 +33,16 @@ vi.mock("@/hooks/useFabPosition", async () => {
 let capturedOnArmed: (() => void) | undefined;
 
 const { mockIsMobile } = vi.hoisted(() => ({ mockIsMobile: vi.fn(() => true) }));
+const { mockPrefersReducedMotion } = vi.hoisted(() => ({
+  mockPrefersReducedMotion: vi.fn(() => false),
+}));
 
 vi.mock("@/hooks/use-mobile", () => ({
   useIsMobile: mockIsMobile,
+}));
+
+vi.mock("@/hooks/usePrefersReducedMotion", () => ({
+  usePrefersReducedMotion: mockPrefersReducedMotion,
 }));
 
 vi.mock("@/hooks/useFabKeyboardOffset", () => ({
@@ -93,6 +100,8 @@ beforeEach(() => {
   localStorage.clear();
   mockActiveSend.mockClear();
   mockIsMobile.mockReturnValue(true);
+  mockPrefersReducedMotion.mockReset();
+  mockPrefersReducedMotion.mockReturnValue(false);
   mockIncreaseFontSize.mockClear();
   mockDecreaseFontSize.mockClear();
   mockUseTerminalFontStep.mockReset();
@@ -116,6 +125,33 @@ describe("FloatingActionButton (mobile)", () => {
     expect(screen.queryByRole("menu")).not.toBeInTheDocument();
     expect(screen.getByRole("toolbar", { name: "Quick keys" })).toBeInTheDocument();
     expect(screen.getByRole("toolbar", { name: "Terminal font size" })).toBeInTheDocument();
+  });
+
+  it("exposes reduced-motion class contracts on FAB controls", () => {
+    render(<FloatingActionButton />);
+
+    const fab = screen.getByRole("button", { name: "Open virtual keyboard" });
+    expect(fab.className).toContain("motion-reduce:transition-none");
+    expect(fab.className).toContain("motion-reduce:active:scale-100");
+
+    const quickKey = screen.getByRole("button", { name: "Enter" });
+    expect(quickKey.className).toContain("motion-reduce:transition-none");
+
+    fireEvent.pointerUp(fab);
+    expect(screen.getByRole("menuitem", { name: "Up" }).className).toContain(
+      "motion-reduce:transition-none",
+    );
+  });
+
+  it("does not expose the 200ms snap transition when reduced motion is preferred", () => {
+    mockFabState.isSnapping = true;
+    mockPrefersReducedMotion.mockReturnValue(true);
+
+    render(<FloatingActionButton />);
+
+    const container = screen.getByRole("button", { name: "Open virtual keyboard" }).parentElement;
+    expect(container).toHaveStyle({ transition: "none" });
+    expect(container?.getAttribute("style")).not.toContain("transform 200ms ease-out");
   });
 
   it("persistent quick bar contains Enter, Tab and Ctrl+C with >=44px targets", () => {

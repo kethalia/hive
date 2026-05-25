@@ -14,6 +14,7 @@ import {
   Minus,
 } from "lucide-react";
 import { useKeybindings } from "@/hooks/useKeybindings";
+import { usePrefersReducedMotion } from "@/hooks/usePrefersReducedMotion";
 import { useFabPosition, type Corner } from "@/hooks/useFabPosition";
 import { useFabKeyboardOffset } from "@/hooks/useFabKeyboardOffset";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -80,6 +81,7 @@ export function FloatingActionButton({ onHapticFeedback }: FloatingActionButtonP
     useFabPosition({ onArmed: haptic });
   const { liftPx } = useFabKeyboardOffset();
   const isMobile = useIsMobile();
+  const prefersReducedMotion = usePrefersReducedMotion();
   const [expanded, setExpanded] = useState(false);
   const {
     size: fontSize,
@@ -118,6 +120,12 @@ export function FloatingActionButton({ onHapticFeedback }: FloatingActionButtonP
 
   const dir = menuDirection(corner);
   const quickDir = quickBarDirection(corner);
+  let containerTransition: string | undefined;
+  if (isDragging || (prefersReducedMotion && isSnapping)) {
+    containerTransition = "none";
+  } else if (isSnapping) {
+    containerTransition = "transform 200ms ease-out";
+  }
 
   return (
     <div
@@ -125,7 +133,7 @@ export function FloatingActionButton({ onHapticFeedback }: FloatingActionButtonP
       className="fixed z-40 pb-safe px-safe"
       style={{
         transform: `translate3d(${position.x}px, ${position.y - liftPx}px, 0)`,
-        transition: isSnapping ? "transform 200ms ease-out" : isDragging ? "none" : undefined,
+        transition: containerTransition,
         touchAction: "none",
         top: 0,
         left: 0,
@@ -134,7 +142,7 @@ export function FloatingActionButton({ onHapticFeedback }: FloatingActionButtonP
     >
       <button
         type="button"
-        className="flex h-14 w-14 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg hover:bg-primary/90 active:scale-95 transition-transform"
+        className="flex h-14 w-14 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg hover:bg-primary/90 active:scale-95 transition-transform motion-reduce:transition-none motion-reduce:duration-0 motion-reduce:active:scale-100"
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
         onPointerUp={handlePointerUp}
@@ -155,7 +163,7 @@ export function FloatingActionButton({ onHapticFeedback }: FloatingActionButtonP
               <button
                 key={label}
                 type="button"
-                className="flex h-11 w-11 items-center justify-center rounded-full text-popover-foreground hover:bg-accent hover:text-accent-foreground transition-colors"
+                className="flex h-11 w-11 items-center justify-center rounded-full text-popover-foreground hover:bg-accent hover:text-accent-foreground transition-colors motion-reduce:transition-none motion-reduce:duration-0"
                 style={NO_TOUCH_STYLE}
                 onPointerDown={(e) => e.stopPropagation()}
                 onClick={() => sendKey(sequence)}
@@ -172,7 +180,7 @@ export function FloatingActionButton({ onHapticFeedback }: FloatingActionButtonP
           >
             <button
               type="button"
-              className="flex h-11 w-11 items-center justify-center rounded-full text-popover-foreground hover:bg-accent hover:text-accent-foreground transition-colors disabled:opacity-40 disabled:pointer-events-none"
+              className="flex h-11 w-11 items-center justify-center rounded-full text-popover-foreground hover:bg-accent hover:text-accent-foreground transition-colors disabled:opacity-40 disabled:pointer-events-none motion-reduce:transition-none motion-reduce:duration-0"
               style={NO_TOUCH_STYLE}
               onPointerDown={(e) => e.stopPropagation()}
               onClick={decreaseFontSize}
@@ -186,7 +194,7 @@ export function FloatingActionButton({ onHapticFeedback }: FloatingActionButtonP
             </span>
             <button
               type="button"
-              className="flex h-11 w-11 items-center justify-center rounded-full text-popover-foreground hover:bg-accent hover:text-accent-foreground transition-colors disabled:opacity-40 disabled:pointer-events-none"
+              className="flex h-11 w-11 items-center justify-center rounded-full text-popover-foreground hover:bg-accent hover:text-accent-foreground transition-colors disabled:opacity-40 disabled:pointer-events-none motion-reduce:transition-none motion-reduce:duration-0"
               style={NO_TOUCH_STYLE}
               onPointerDown={(e) => e.stopPropagation()}
               onClick={increaseFontSize}
@@ -211,7 +219,7 @@ export function FloatingActionButton({ onHapticFeedback }: FloatingActionButtonP
                 key={label}
                 type="button"
                 role="menuitem"
-                className="flex h-11 w-11 items-center justify-center rounded-md text-popover-foreground hover:bg-accent hover:text-accent-foreground transition-colors"
+                className="flex h-11 w-11 items-center justify-center rounded-md text-popover-foreground hover:bg-accent hover:text-accent-foreground transition-colors motion-reduce:transition-none motion-reduce:duration-0"
                 style={NO_TOUCH_STYLE}
                 onPointerDown={(e) => e.stopPropagation()}
                 onClick={() => sendKey(sequence)}
@@ -235,7 +243,7 @@ export function FloatingActionButton({ onHapticFeedback }: FloatingActionButtonP
               key={label}
               type="button"
               role="menuitem"
-              className="flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium text-popover-foreground hover:bg-accent hover:text-accent-foreground transition-colors whitespace-nowrap"
+              className="flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium text-popover-foreground hover:bg-accent hover:text-accent-foreground transition-colors whitespace-nowrap motion-reduce:transition-none motion-reduce:duration-0"
               onPointerDown={(e) => e.stopPropagation()}
               onClick={() => sendKey(sequence)}
             >
@@ -248,7 +256,7 @@ export function FloatingActionButton({ onHapticFeedback }: FloatingActionButtonP
             <button
               type="button"
               role="menuitem"
-              className="flex h-8 w-8 items-center justify-center rounded-md text-popover-foreground hover:bg-accent hover:text-accent-foreground transition-colors disabled:opacity-40 disabled:pointer-events-none"
+              className="flex h-8 w-8 items-center justify-center rounded-md text-popover-foreground hover:bg-accent hover:text-accent-foreground transition-colors disabled:opacity-40 disabled:pointer-events-none motion-reduce:transition-none motion-reduce:duration-0"
               onPointerDown={(e) => e.stopPropagation()}
               onClick={decreaseFontSize}
               disabled={!canDecrease}
@@ -262,7 +270,7 @@ export function FloatingActionButton({ onHapticFeedback }: FloatingActionButtonP
             <button
               type="button"
               role="menuitem"
-              className="flex h-8 w-8 items-center justify-center rounded-md text-popover-foreground hover:bg-accent hover:text-accent-foreground transition-colors disabled:opacity-40 disabled:pointer-events-none"
+              className="flex h-8 w-8 items-center justify-center rounded-md text-popover-foreground hover:bg-accent hover:text-accent-foreground transition-colors disabled:opacity-40 disabled:pointer-events-none motion-reduce:transition-none motion-reduce:duration-0"
               onPointerDown={(e) => e.stopPropagation()}
               onClick={increaseFontSize}
               disabled={!canIncrease}
@@ -275,7 +283,7 @@ export function FloatingActionButton({ onHapticFeedback }: FloatingActionButtonP
           <button
             type="button"
             role="menuitem"
-            className="flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium text-popover-foreground hover:bg-accent hover:text-accent-foreground transition-colors whitespace-nowrap"
+            className="flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium text-popover-foreground hover:bg-accent hover:text-accent-foreground transition-colors whitespace-nowrap motion-reduce:transition-none motion-reduce:duration-0"
             onPointerDown={(e) => e.stopPropagation()}
             onClick={() => sendKey(VIRTUAL_KEY_SEQUENCES.Enter)}
           >

@@ -51,7 +51,7 @@ export function PullToRefresh({
         <div
           aria-hidden="true"
           data-slot="pull-to-refresh-indicator"
-          className="pointer-events-none flex items-center justify-center overflow-hidden text-sm text-muted-foreground transition-[height,opacity]"
+          className="pointer-events-none flex items-center justify-center overflow-hidden text-sm text-muted-foreground transition-[height,opacity] motion-reduce:transition-none motion-reduce:duration-0"
           style={{ height: Math.max(0, pullDistance) }}
         >
           {statusText}

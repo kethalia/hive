@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, type ReactNode } from "react";
+import { useEffect, useRef, type CSSProperties, type ReactNode } from "react";
 import { useGesture } from "@use-gesture/react";
 import { DRAG_LONG_PRESS_MOVE_PX, NO_TOUCH_STYLE } from "@/lib/gestures/conventions";
 import { createLongPressDetector, type LongPressDetector } from "@/lib/gestures/long-press";
@@ -10,6 +10,8 @@ const CONTEXT_MENU_SUPPRESS_MS = 1200;
 interface TerminalGestureLayerProps {
   children: ReactNode;
   onLongPress: (x: number, y: number) => void;
+  className?: string;
+  style?: CSSProperties;
 }
 
 function preventDefaultIfCancelable(event: Event | null) {
@@ -18,7 +20,12 @@ function preventDefaultIfCancelable(event: Event | null) {
   }
 }
 
-export function TerminalGestureLayer({ children, onLongPress }: TerminalGestureLayerProps) {
+export function TerminalGestureLayer({
+  children,
+  onLongPress,
+  className,
+  style,
+}: TerminalGestureLayerProps) {
   const onLongPressRef = useRef(onLongPress);
   onLongPressRef.current = onLongPress;
 
@@ -114,9 +121,10 @@ export function TerminalGestureLayer({ children, onLongPress }: TerminalGestureL
   return (
     <div
       {...bind()}
-      className="h-full"
+      className={["h-full", className].filter(Boolean).join(" ")}
       style={{
         ...NO_TOUCH_STYLE,
+        ...style,
         touchAction: "pan-x pan-y",
       }}
       onContextMenu={(event) => {

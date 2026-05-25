@@ -129,6 +129,8 @@ describe("SidebarEdgeHandle", () => {
     expect(handle).toHaveClass("h-16");
     expect(handle).toHaveClass("w-11");
     expect(handle).toHaveStyle({ touchAction: "pan-y", userSelect: "none" });
+    expect(handle.className).toContain("motion-reduce:transition-none");
+    expect(handle.className).toContain("motion-reduce:active:scale-100");
     expect(handle.querySelector("[aria-hidden='true']")).toBeInTheDocument();
   });
 

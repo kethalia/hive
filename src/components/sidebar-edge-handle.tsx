@@ -50,7 +50,7 @@ export function SidebarEdgeHandle({ className }: SidebarEdgeHandleProps) {
       aria-label="Open sidebar"
       data-testid="sidebar-edge-handle"
       className={cn(
-        "fixed left-4 top-1/2 z-40 flex h-16 w-11 -translate-y-1/2 items-center justify-center rounded-full border border-sidebar-border/70 bg-sidebar/80 text-sidebar-foreground shadow-lg backdrop-blur transition-colors hover:bg-sidebar-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring active:scale-95",
+        "fixed left-4 top-1/2 z-40 flex h-16 w-11 -translate-y-1/2 items-center justify-center rounded-full border border-sidebar-border/70 bg-sidebar/80 text-sidebar-foreground shadow-lg backdrop-blur transition-colors hover:bg-sidebar-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring active:scale-95 motion-reduce:transition-none motion-reduce:duration-0 motion-reduce:active:scale-100",
         className,
       )}
       style={{

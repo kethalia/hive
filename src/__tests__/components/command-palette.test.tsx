@@ -360,6 +360,8 @@ describe("CommandPalette", () => {
     expect(sheet).toHaveClass("overflow-hidden");
     expect(sheet).toHaveClass("rounded-t-2xl");
     expect(sheet).toHaveClass("overscroll-contain");
+    expect(sheet).toHaveClass("motion-reduce:transition-none");
+    expect(sheet).toHaveClass("motion-reduce:duration-0");
 
     await waitFor(() => expect(sheet).toHaveStyle({ maxHeight: "512px" }));
   });

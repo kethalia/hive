@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/command";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { usePrefersReducedMotion } from "@/hooks/usePrefersReducedMotion";
 import { useVisualViewportHeight } from "@/hooks/useVisualViewportHeight";
 import {
   DRAG_DISMISS_DISTANCE_PX,
@@ -34,7 +35,6 @@ interface CommandPaletteProps {
 const mobileCommandClassName =
   "[&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:font-medium [&_[cmdk-group-heading]]:text-muted-foreground [&_[cmdk-group]:not([hidden])_~[cmdk-group]]:pt-0 [&_[cmdk-input-wrapper]_svg]:h-5 [&_[cmdk-input-wrapper]_svg]:w-5 [&_[cmdk-input]]:h-12 [&_[cmdk-item]]:px-2 [&_[cmdk-item]]:py-3 [&_[cmdk-group]]:px-2";
 
-const REDUCED_MOTION_QUERY = "(prefers-reduced-motion: reduce)";
 const SNAP_BACK_TRANSITION = "transform 150ms ease-out";
 
 const dragHandleStyle: CSSProperties = {
@@ -53,31 +53,6 @@ function getVectorValue(vector: unknown, index: number): number {
   if (!Array.isArray(vector)) return 0;
   const value = vector[index];
   return typeof value === "number" && Number.isFinite(value) ? value : 0;
-}
-
-function usePrefersReducedMotion(): boolean {
-  const [prefersReducedMotion, setPrefersReducedMotion] = useState(false);
-
-  useEffect(() => {
-    if (typeof window === "undefined" || typeof window.matchMedia !== "function") return;
-
-    const mediaQuery = window.matchMedia(REDUCED_MOTION_QUERY);
-    const updatePreference = () => {
-      setPrefersReducedMotion(mediaQuery.matches);
-    };
-
-    updatePreference();
-
-    if (typeof mediaQuery.addEventListener === "function") {
-      mediaQuery.addEventListener("change", updatePreference);
-      return () => mediaQuery.removeEventListener("change", updatePreference);
-    }
-
-    mediaQuery.addListener?.(updatePreference);
-    return () => mediaQuery.removeListener?.(updatePreference);
-  }, []);
-
-  return prefersReducedMotion;
 }
 
 function CommandPaletteBody({
@@ -223,7 +198,7 @@ export function CommandPalette({
         <SheetContent
           side="bottom"
           showCloseButton={false}
-          className="gap-0 overflow-hidden overscroll-contain rounded-t-2xl p-0 pb-safe"
+          className="gap-0 overflow-hidden overscroll-contain rounded-t-2xl p-0 pb-safe motion-reduce:transition-none motion-reduce:duration-0"
           style={sheetStyle}
         >
           <SheetTitle className="sr-only">Command palette</SheetTitle>
