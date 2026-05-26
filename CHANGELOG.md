@@ -1,5 +1,11 @@
 # hive-orchestrator
 
+## 2.3.0
+
+### Minor Changes
+
+- 107a03d: Add terminal interaction layer: keybinding registry, clipboard copy/paste, session shortcuts, command palette, context menu, floating action button with virtual keys, and help overlay
+
 ## 2.2.0
 
 ### Minor Changes
