@@ -64,6 +64,12 @@ hive-migrate:
     limits:
       memory: 512Mi
 
+# Bounds the Argo CD Sync hook so a missing/broken PR image cannot leave the
+# preview Application stuck in Running forever. Failed hooks are cleaned up by
+# the hook delete policy in templates/migrate-job.yaml.
+migrateJob:
+  activeDeadlineSeconds: 900
+
 # Stub application secrets composed into `<release>-secrets`. Children
 # consume these via envFrom (existingSecret above). DATABASE_URL +
 # REDIS_URL are NOT composed here — they come from the CNPG- and

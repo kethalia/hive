@@ -1,0 +1,18 @@
+{{- /*
+Preview Applications use Argo CD's CreateNamespace=true, but namespaces
+created that way are not chart resources and are therefore not pruned when the
+Application is deleted. Render the preview namespace as an owned resource so
+merged/closed PRs remove the whole ephemeral environment, including leftovers
+from failed syncs.
+*/ -}}
+{{- if .Values.preview.enabled -}}
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: {{ .Release.Namespace }}
+  labels:
+    {{- include "hive.labels" . | nindent 4 }}
+    app.kubernetes.io/component: preview-namespace
+  annotations:
+    argocd.argoproj.io/sync-wave: "-20"
+{{- end }}
