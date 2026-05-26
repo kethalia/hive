@@ -77,6 +77,7 @@ function resetFabState() {
     onPointerDown: vi.fn(),
     onPointerMove: vi.fn(),
     onPointerUp: vi.fn(() => false),
+    onPointerCancel: vi.fn(),
   };
   capturedOnArmed = undefined;
 }
@@ -137,7 +138,8 @@ describe("HapticFloatingActionButton", () => {
   it("keeps mobile virtual key presses flowing through FloatingActionButton's existing seam", () => {
     render(<HapticFloatingActionButton />);
 
-    fireEvent.click(screen.getByRole("button", { name: "Enter" }));
+    fireEvent.pointerUp(screen.getByRole("button", { name: "Open virtual keyboard" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Enter" }));
 
     expect(mockTriggerHapticFeedback).toHaveBeenCalledTimes(1);
     expect(mockActiveSend).toHaveBeenCalledWith("\r");

@@ -53,11 +53,18 @@ export const getWorkspaceSessionsAction = authActionClient
     let agentTarget: string;
     try {
       agentTarget = await client.getWorkspaceAgentName(parsedInput.workspaceId);
-    } catch {
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      if (/no agents? found/i.test(message)) {
+        console.log(
+          `[workspaces] No agents found for workspace ${parsedInput.workspaceId}, returning empty sessions`,
+        );
+        return [];
+      }
       console.log(
-        `[workspaces] No agents found for workspace ${parsedInput.workspaceId}, returning empty sessions`,
+        `[workspaces] Failed to resolve agent for workspace ${parsedInput.workspaceId}: ${message}`,
       );
-      return [];
+      throw new Error(`Failed to resolve workspace agent: ${message}`);
     }
 
     const result = await execInWorkspace(
@@ -70,15 +77,16 @@ export const getWorkspaceSessionsAction = authActionClient
       // when no sessions exist on the configured socket. Treat anything else
       // (ssh failures, timeouts, agent unreachable) as a real error so callers
       // don't confuse a transient outage with "user has zero sessions".
-      if (/no server running/i.test(result.stderr)) {
+      const diagnostic = [result.stderr, result.stdout]
+        .map((part) => part.trim())
+        .filter(Boolean)
+        .join("\n");
+      if (/no server running/i.test(diagnostic)) {
         return [];
       }
-      console.log(
-        `[workspaces] tmux list-sessions failed (exit ${result.exitCode}): ${result.stderr}`,
-      );
-      throw new Error(
-        `Failed to list tmux sessions (exit ${result.exitCode}): ${result.stderr.trim() || "unknown error"}`,
-      );
+      const message = diagnostic || "no diagnostics returned by workspace command";
+      console.log(`[workspaces] tmux list-sessions failed (exit ${result.exitCode}): ${message}`);
+      throw new Error(`Failed to list tmux sessions (exit ${result.exitCode}): ${message}`);
     }
 
     return parseTmuxSessions(result.stdout);

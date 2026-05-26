@@ -1,69 +1,108 @@
 "use client";
 
-import { useDrag } from "@use-gesture/react";
-import { useCallback } from "react";
+import { useEffect, useRef } from "react";
 import { useSidebar } from "@/components/ui/sidebar";
-import { NO_TOUCH_STYLE, TAP_THRESHOLD_PX } from "@/lib/gestures/conventions";
-import { cn } from "@/lib/utils";
+import { TAP_THRESHOLD_PX } from "@/lib/gestures/conventions";
 
-const OPEN_SWIPE_DISTANCE_PX = 32;
+const OPEN_SWIPE_DISTANCE_PX = 56;
+const MAX_START_X_RATIO = 0.72;
 
 export interface SidebarEdgeHandleProps {
   className?: string;
 }
 
-export function SidebarEdgeHandle({ className }: SidebarEdgeHandleProps) {
+type PointerStart = {
+  id: number;
+  x: number;
+  y: number;
+};
+
+function isGestureIgnoredTarget(target: EventTarget | null): boolean {
+  if (!(target instanceof HTMLElement)) return false;
+  return Boolean(
+    target.closest(
+      [
+        "button",
+        "a",
+        "input",
+        "textarea",
+        "select",
+        "summary",
+        "[contenteditable='true']",
+        "[role='button']",
+        "[role='menuitem']",
+        "[data-sidebar-gesture-ignore]",
+      ].join(","),
+    ),
+  );
+}
+
+/**
+ * Registers the mobile drawer-open gesture without rendering a visible edge
+ * handle. The previous fixed left-side pill was too easy to hit accidentally
+ * in the terminal; opening now happens through a rightward page swipe that
+ * starts on non-interactive content.
+ */
+export function SidebarEdgeHandle(_props: SidebarEdgeHandleProps) {
   const { isMobile, openMobile, setOpenMobile } = useSidebar();
+  const startRef = useRef<PointerStart | null>(null);
 
-  const openSidebar = useCallback(() => {
-    setOpenMobile(true);
-  }, [setOpenMobile]);
+  useEffect(() => {
+    if (!isMobile || openMobile) {
+      startRef.current = null;
+      return;
+    }
 
-  const bind = useDrag(
-    ({ movement: [mx, my], cancel, event }) => {
-      const horizontalDominates = Math.abs(mx) > Math.abs(my);
+    const reset = () => {
+      startRef.current = null;
+    };
+
+    const onPointerDown = (event: PointerEvent) => {
+      if (event.pointerType && event.pointerType !== "touch") return;
+      if (event.button !== 0) return;
+      if (isGestureIgnoredTarget(event.target)) return;
+
+      const viewportWidth = window.innerWidth || document.documentElement.clientWidth || 1;
+      const maxStartX = viewportWidth * MAX_START_X_RATIO;
+      if (event.clientX > maxStartX) return;
+
+      startRef.current = {
+        id: event.pointerId,
+        x: event.clientX,
+        y: event.clientY,
+      };
+    };
+
+    const onPointerMove = (event: PointerEvent) => {
+      const start = startRef.current;
+      if (!start || start.id !== event.pointerId) return;
+
+      const dx = event.clientX - start.x;
+      const dy = event.clientY - start.y;
+      const horizontalDominates = Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > TAP_THRESHOLD_PX;
 
       if (horizontalDominates && event.cancelable) {
         event.preventDefault();
       }
 
-      if (mx > OPEN_SWIPE_DISTANCE_PX && horizontalDominates) {
+      if (dx >= OPEN_SWIPE_DISTANCE_PX && horizontalDominates) {
         setOpenMobile(true);
-        cancel();
+        reset();
       }
-    },
-    {
-      filterTaps: true,
-      axis: "x",
-      threshold: TAP_THRESHOLD_PX,
-      eventOptions: { passive: false },
-    },
-  );
+    };
 
-  if (!isMobile || openMobile) {
-    return null;
-  }
+    window.addEventListener("pointerdown", onPointerDown, { passive: true });
+    window.addEventListener("pointermove", onPointerMove, { passive: false });
+    window.addEventListener("pointerup", reset, { passive: true });
+    window.addEventListener("pointercancel", reset, { passive: true });
 
-  return (
-    <button
-      type="button"
-      aria-label="Open sidebar"
-      data-testid="sidebar-edge-handle"
-      className={cn(
-        "fixed left-4 top-1/2 z-40 flex h-16 w-11 -translate-y-1/2 items-center justify-center rounded-full border border-sidebar-border/70 bg-sidebar/80 text-sidebar-foreground shadow-lg backdrop-blur transition-colors hover:bg-sidebar-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring active:scale-95 motion-reduce:transition-none motion-reduce:duration-0 motion-reduce:active:scale-100",
-        className,
-      )}
-      style={{
-        ...NO_TOUCH_STYLE,
-        touchAction: "pan-y",
-      }}
-      onClick={openSidebar}
-      {...bind()}
-    >
-      <span
-        aria-hidden="true"
-        className="block h-10 w-1.5 rounded-full bg-sidebar-foreground/45 shadow-sm"
-      />
-    </button>
-  );
+    return () => {
+      window.removeEventListener("pointerdown", onPointerDown);
+      window.removeEventListener("pointermove", onPointerMove);
+      window.removeEventListener("pointerup", reset);
+      window.removeEventListener("pointercancel", reset);
+    };
+  }, [isMobile, openMobile, setOpenMobile]);
+
+  return null;
 }

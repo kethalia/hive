@@ -63,9 +63,10 @@ export function execInWorkspace(
           console.log(
             `[exec] workspace=${workspaceName} cmd="${truncatedCmd}" exitCode=${exitCode}`,
           );
+          const stderrText = typeof stderr === "string" ? stderr : "";
           resolve({
             stdout: stdout ?? "",
-            stderr: stderr ?? error.message,
+            stderr: stderrText.trim() ? stderrText : error.message,
             exitCode,
           });
           return;

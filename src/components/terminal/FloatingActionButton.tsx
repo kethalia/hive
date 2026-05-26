@@ -1,23 +1,24 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
 import {
-  Terminal,
-  ArrowUp,
   ArrowDown,
   ArrowLeft,
   ArrowRight,
-  X,
-  Keyboard,
+  ArrowUp,
   CornerDownLeft,
-  Plus,
+  Keyboard,
   Minus,
+  Plus,
+  Terminal,
+  X,
 } from "lucide-react";
+import type { PointerEvent } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { useIsMobile } from "@/hooks/use-mobile";
+import { useFabKeyboardOffset } from "@/hooks/useFabKeyboardOffset";
+import { type Corner, useFabPosition } from "@/hooks/useFabPosition";
 import { useKeybindings } from "@/hooks/useKeybindings";
 import { usePrefersReducedMotion } from "@/hooks/usePrefersReducedMotion";
-import { useFabPosition, type Corner } from "@/hooks/useFabPosition";
-import { useFabKeyboardOffset } from "@/hooks/useFabKeyboardOffset";
-import { useIsMobile } from "@/hooks/use-mobile";
 import { useTerminalFontStep } from "@/hooks/useTerminalFontStep";
 import { NO_TOUCH_STYLE } from "@/lib/gestures/conventions";
 import { VIRTUAL_KEY_SEQUENCES } from "@/lib/terminal/virtual-keys";
@@ -28,7 +29,6 @@ const GRID_KEYS = [
   { label: "Left", icon: ArrowLeft, sequence: VIRTUAL_KEY_SEQUENCES.Left },
   { label: "Right", icon: ArrowRight, sequence: VIRTUAL_KEY_SEQUENCES.Right },
   { label: "Esc", icon: Terminal, sequence: VIRTUAL_KEY_SEQUENCES.Esc },
-  { label: "Ctrl+C", icon: X, sequence: VIRTUAL_KEY_SEQUENCES.CtrlC },
 ] as const;
 
 const DESKTOP_KEYS = [
@@ -56,11 +56,14 @@ function menuDirection(corner: Corner): { horizontal: string; vertical: string }
   };
 }
 
-function quickBarDirection(corner: Corner): string {
-  // Anchor the persistent pill on the opposite vertical edge of the FAB so it
-  // sits ~12px away from the FAB in the same horizontal corner.
-  const isTop = corner.includes("top");
-  return isTop ? "top-full mt-3" : "bottom-full mb-3";
+function mobilePanelDirection(corner: Corner): string {
+  const horizontal = corner.includes("left")
+    ? "left-[calc(var(--safe-area-inset-left)+1rem)]"
+    : "right-[calc(var(--safe-area-inset-right)+1rem)]";
+  const vertical = corner.includes("top")
+    ? "top-[calc(var(--safe-area-inset-top)+5rem)]"
+    : "bottom-[calc(var(--safe-area-inset-bottom)+5rem)]";
+  return `${horizontal} ${vertical}`;
 }
 
 export interface FloatingActionButtonProps {
@@ -77,8 +80,16 @@ export function FloatingActionButton({ onHapticFeedback }: FloatingActionButtonP
   const haptic = useCallback(() => {
     onHapticFeedback?.();
   }, [onHapticFeedback]);
-  const { corner, position, isDragging, isSnapping, onPointerDown, onPointerMove, onPointerUp } =
-    useFabPosition({ onArmed: haptic });
+  const {
+    corner,
+    position,
+    isDragging,
+    isSnapping,
+    onPointerDown,
+    onPointerMove,
+    onPointerUp,
+    onPointerCancel,
+  } = useFabPosition({ onArmed: haptic });
   const { liftPx } = useFabKeyboardOffset();
   const isMobile = useIsMobile();
   const prefersReducedMotion = usePrefersReducedMotion();
@@ -92,12 +103,15 @@ export function FloatingActionButton({ onHapticFeedback }: FloatingActionButtonP
   } = useTerminalFontStep();
   const containerRef = useRef<HTMLDivElement>(null);
 
-  const handlePointerUp = useCallback(() => {
-    const wasDrag = onPointerUp();
-    if (!wasDrag) {
-      setExpanded((prev) => !prev);
-    }
-  }, [onPointerUp]);
+  const handlePointerUp = useCallback(
+    (event: PointerEvent<HTMLButtonElement>) => {
+      const wasDrag = onPointerUp(event);
+      if (!wasDrag) {
+        setExpanded((prev) => !prev);
+      }
+    },
+    [onPointerUp],
+  );
 
   useEffect(() => {
     if (!expanded) return;
@@ -119,7 +133,7 @@ export function FloatingActionButton({ onHapticFeedback }: FloatingActionButtonP
   );
 
   const dir = menuDirection(corner);
-  const quickDir = quickBarDirection(corner);
+  const mobilePanelPosition = mobilePanelDirection(corner);
   let containerTransition: string | undefined;
   if (isDragging || (prefersReducedMotion && isSnapping)) {
     containerTransition = "none";
@@ -146,89 +160,95 @@ export function FloatingActionButton({ onHapticFeedback }: FloatingActionButtonP
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
         onPointerUp={handlePointerUp}
+        onPointerCancel={onPointerCancel}
         aria-label={expanded ? "Close virtual keyboard" : "Open virtual keyboard"}
         aria-expanded={expanded}
       >
         <Terminal className="h-6 w-6" />
       </button>
 
-      {isMobile && (
-        <div className={`absolute ${quickDir} ${dir.horizontal} flex flex-col gap-2`}>
-          <div
-            className="flex items-center gap-2 rounded-full border bg-popover px-2 py-1 shadow-lg"
-            role="toolbar"
-            aria-label="Quick keys"
-          >
-            {QUICK_BAR_KEYS.map(({ label, icon: Icon, sequence }) => (
-              <button
-                key={label}
-                type="button"
-                className="flex h-11 w-11 items-center justify-center rounded-full text-popover-foreground hover:bg-accent hover:text-accent-foreground transition-colors motion-reduce:transition-none motion-reduce:duration-0"
-                style={NO_TOUCH_STYLE}
-                onPointerDown={(e) => e.stopPropagation()}
-                onClick={() => sendKey(sequence)}
-                aria-label={label}
-              >
-                <Icon className="h-5 w-5" />
-              </button>
-            ))}
-          </div>
-          <div
-            className="flex items-center justify-between gap-2 rounded-full border bg-popover px-2 py-1 shadow-lg"
-            role="toolbar"
-            aria-label="Terminal font size"
-          >
-            <button
-              type="button"
-              className="flex h-11 w-11 items-center justify-center rounded-full text-popover-foreground hover:bg-accent hover:text-accent-foreground transition-colors disabled:opacity-40 disabled:pointer-events-none motion-reduce:transition-none motion-reduce:duration-0"
-              style={NO_TOUCH_STYLE}
-              onPointerDown={(e) => e.stopPropagation()}
-              onClick={decreaseFontSize}
-              disabled={!canDecrease}
-              aria-label="Decrease font size"
-            >
-              <Minus className="h-5 w-5" />
-            </button>
-            <span className="text-xs tabular-nums text-popover-foreground select-none min-w-[3ch] text-center">
-              {fontSize}
-            </span>
-            <button
-              type="button"
-              className="flex h-11 w-11 items-center justify-center rounded-full text-popover-foreground hover:bg-accent hover:text-accent-foreground transition-colors disabled:opacity-40 disabled:pointer-events-none motion-reduce:transition-none motion-reduce:duration-0"
-              style={NO_TOUCH_STYLE}
-              onPointerDown={(e) => e.stopPropagation()}
-              onClick={increaseFontSize}
-              disabled={!canIncrease}
-              aria-label="Increase font size"
-            >
-              <Plus className="h-5 w-5" />
-            </button>
-          </div>
-        </div>
-      )}
-
       {expanded && isMobile && (
         <div
-          className={`absolute ${dir.vertical} ${dir.horizontal} flex flex-col gap-2 rounded-lg border bg-popover p-2 shadow-xl`}
+          className={`fixed ${mobilePanelPosition} z-50 flex max-h-[calc(100dvh-var(--safe-area-inset-top)-var(--safe-area-inset-bottom)-2rem)] w-[min(calc(100vw-2rem),22rem)] max-w-[calc(100vw-var(--safe-area-inset-left)-var(--safe-area-inset-right)-2rem)] flex-col gap-3 overflow-y-auto rounded-2xl border bg-popover p-3 text-popover-foreground shadow-2xl`}
           role="menu"
           aria-label="Virtual keys"
         >
-          <div className="grid grid-cols-2 gap-2">
-            {GRID_KEYS.map(({ label, icon: Icon, sequence }) => (
+          <section aria-label="Quick keys" className="space-y-2">
+            <p className="px-1 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+              Quick keys
+            </p>
+            <div className="grid grid-cols-3 gap-2">
+              {QUICK_BAR_KEYS.map(({ label, icon: Icon, sequence }) => (
+                <button
+                  key={label}
+                  type="button"
+                  role="menuitem"
+                  className="flex min-h-11 flex-col items-center justify-center gap-1 rounded-xl bg-accent/60 px-2 py-2 text-xs font-medium transition-colors hover:bg-accent hover:text-accent-foreground motion-reduce:transition-none motion-reduce:duration-0"
+                  style={NO_TOUCH_STYLE}
+                  onPointerDown={(e) => e.stopPropagation()}
+                  onClick={() => sendKey(sequence)}
+                  aria-label={label}
+                >
+                  <Icon className="h-4 w-4" />
+                  <span>{label}</span>
+                </button>
+              ))}
+            </div>
+          </section>
+
+          <section aria-label="Navigation keys" className="space-y-2">
+            <p className="px-1 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+              Navigation
+            </p>
+            <div className="grid grid-cols-3 gap-2">
+              {GRID_KEYS.map(({ label, icon: Icon, sequence }) => (
+                <button
+                  key={label}
+                  type="button"
+                  role="menuitem"
+                  className="flex min-h-11 flex-col items-center justify-center gap-1 rounded-xl px-2 py-2 text-xs font-medium transition-colors hover:bg-accent hover:text-accent-foreground motion-reduce:transition-none motion-reduce:duration-0"
+                  style={NO_TOUCH_STYLE}
+                  onPointerDown={(e) => e.stopPropagation()}
+                  onClick={() => sendKey(sequence)}
+                  aria-label={label}
+                >
+                  <Icon className="h-4 w-4" />
+                  <span>{label}</span>
+                </button>
+              ))}
+            </div>
+          </section>
+
+          <section aria-label="Terminal font size" className="space-y-2">
+            <p className="px-1 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+              Font size
+            </p>
+            <div className="grid grid-cols-[2.75rem_1fr_2.75rem] items-center gap-2 rounded-xl bg-muted/50 p-1">
               <button
-                key={label}
                 type="button"
-                role="menuitem"
-                className="flex h-11 w-11 items-center justify-center rounded-md text-popover-foreground hover:bg-accent hover:text-accent-foreground transition-colors motion-reduce:transition-none motion-reduce:duration-0"
+                className="flex h-11 w-11 items-center justify-center rounded-lg transition-colors hover:bg-accent hover:text-accent-foreground disabled:pointer-events-none disabled:opacity-40 motion-reduce:transition-none motion-reduce:duration-0"
                 style={NO_TOUCH_STYLE}
                 onPointerDown={(e) => e.stopPropagation()}
-                onClick={() => sendKey(sequence)}
-                aria-label={label}
+                onClick={decreaseFontSize}
+                disabled={!canDecrease}
+                aria-label="Decrease font size"
               >
-                <Icon className="h-5 w-5" />
+                <Minus className="h-4 w-4" />
               </button>
-            ))}
-          </div>
+              <span className="select-none text-center text-sm tabular-nums">{fontSize}px</span>
+              <button
+                type="button"
+                className="flex h-11 w-11 items-center justify-center rounded-lg transition-colors hover:bg-accent hover:text-accent-foreground disabled:pointer-events-none disabled:opacity-40 motion-reduce:transition-none motion-reduce:duration-0"
+                style={NO_TOUCH_STYLE}
+                onPointerDown={(e) => e.stopPropagation()}
+                onClick={increaseFontSize}
+                disabled={!canIncrease}
+                aria-label="Increase font size"
+              >
+                <Plus className="h-4 w-4" />
+              </button>
+            </div>
+          </section>
         </div>
       )}
 

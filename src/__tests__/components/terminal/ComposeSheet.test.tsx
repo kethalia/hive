@@ -6,6 +6,22 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type * as React from "react";
 import type { KeybindingContextValue, KeybindingEntry } from "@/hooks/useKeybindings";
 
+const { navigationState } = vi.hoisted(() => {
+  const router = { replace: vi.fn() };
+  return {
+    navigationState: {
+      search: "session=tmux-1",
+      replace: router.replace,
+      router,
+    },
+  };
+});
+
+const { mockGetWorkspaceSessionsAction, mockCreateSessionAction } = vi.hoisted(() => ({
+  mockGetWorkspaceSessionsAction: vi.fn(),
+  mockCreateSessionAction: vi.fn(),
+}));
+
 const { mockUseIsComposeSheet } = vi.hoisted(() => ({
   mockUseIsComposeSheet: vi.fn(() => false),
 }));
@@ -32,7 +48,13 @@ vi.mock("next/dynamic", () => ({
 }));
 
 vi.mock("next/navigation", () => ({
-  useSearchParams: () => new URLSearchParams("session=tmux-1"),
+  useRouter: () => navigationState.router,
+  useSearchParams: () => new URLSearchParams(navigationState.search),
+}));
+
+vi.mock("@/lib/actions/workspaces", () => ({
+  createSessionAction: mockCreateSessionAction,
+  getWorkspaceSessionsAction: mockGetWorkspaceSessionsAction,
 }));
 
 vi.mock("@/hooks/use-compose-sheet", () => ({
@@ -153,6 +175,11 @@ describe("TerminalClient compose sheet", () => {
     vi.clearAllMocks();
     registeredBindings.clear();
     mockCtx = createMockKeybindingsCtx();
+    navigationState.search = "session=tmux-1";
+    navigationState.replace.mockClear();
+    mockGetWorkspaceSessionsAction.mockReset();
+    mockCreateSessionAction.mockReset();
+    window.localStorage.clear();
     mockUseIsComposeSheet.mockReturnValue(false);
   });
 
@@ -192,7 +219,12 @@ describe("TerminalClient compose sheet", () => {
 
     expect(screen.getByTestId("compose-sheet")).toHaveAttribute("data-open", "true");
     expect(screen.getByTestId("compose-sheet-content")).toHaveAttribute("data-side", "bottom");
-    expect(screen.getByTestId("compose-sheet-content")).toHaveClass("h-[100dvh]", "p-0");
+    expect(screen.getByTestId("compose-sheet-content")).toHaveClass(
+      "h-[100dvh]",
+      "p-0",
+      "pt-safe",
+      "pb-safe",
+    );
     expect(screen.getByText("Compose command")).toHaveClass("sr-only");
     expect(screen.getByTestId("compose-panel")).toHaveAttribute("data-hide-header", "true");
   });
@@ -223,6 +255,57 @@ describe("TerminalClient compose sheet", () => {
 
     expect(screen.getByTestId("compose-sheet")).toHaveAttribute("data-open", "false");
     expect(screen.queryByTestId("compose-panel")).not.toBeInTheDocument();
+  });
+
+  it("selects the last existing session when the terminal route opens without a session query", async () => {
+    navigationState.search = "";
+    window.localStorage.setItem("terminal:last-session:workspace-1", "old-session");
+    mockGetWorkspaceSessionsAction.mockResolvedValueOnce({
+      data: [
+        { name: "main", created: 1, windows: 1 },
+        { name: "old-session", created: 2, windows: 1 },
+      ],
+    });
+
+    await renderTerminalClient(true);
+
+    await waitFor(() => {
+      expect(navigationState.replace).toHaveBeenCalledWith(
+        "/workspaces/workspace-1/terminal?session=old-session",
+      );
+    });
+    expect(mockCreateSessionAction).not.toHaveBeenCalled();
+  });
+
+  it("creates one session when the no-session terminal route has a confirmed empty session list", async () => {
+    navigationState.search = "";
+    mockGetWorkspaceSessionsAction.mockResolvedValueOnce({ data: [] });
+    mockCreateSessionAction.mockResolvedValueOnce({ data: { name: "session-new" } });
+
+    await renderTerminalClient(true);
+
+    await waitFor(() => {
+      expect(mockCreateSessionAction).toHaveBeenCalledWith({ workspaceId: "workspace-1" });
+    });
+    expect(navigationState.replace).toHaveBeenCalledWith(
+      "/workspaces/workspace-1/terminal?session=session-new",
+    );
+  });
+
+  it("shows retry UI without creating a phantom session when session loading fails", async () => {
+    navigationState.search = "";
+    mockGetWorkspaceSessionsAction.mockResolvedValueOnce({
+      serverError:
+        "Failed to list tmux sessions (exit 1): no diagnostics returned by workspace command",
+    });
+
+    await renderTerminalClient(true);
+
+    expect(await screen.findByText("Could not load terminal sessions")).toBeInTheDocument();
+    expect(screen.getByText(/no diagnostics returned by workspace command/i)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Retry" })).toHaveClass("min-h-11");
+    expect(mockCreateSessionAction).not.toHaveBeenCalled();
+    expect(navigationState.replace).not.toHaveBeenCalled();
   });
 
   it.each([

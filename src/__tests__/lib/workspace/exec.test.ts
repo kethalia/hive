@@ -84,6 +84,20 @@ describe("execInWorkspace", () => {
     expect(result.exitCode).toBe(124);
   });
 
+  it("falls back to error.message when a failed child process has empty stderr", async () => {
+    mockExecFile.mockImplementation((_cmd, _args, _opts, callback) => {
+      const err = new Error("spawn coder ENOENT") as ExecFileException;
+      err.code = "ENOENT";
+      (callback as Function)(err, "", "");
+      return undefined as any;
+    });
+
+    const result = await execInWorkspace("my-workspace", "tmux list-sessions");
+
+    expect(result.exitCode).toBe(1);
+    expect(result.stderr).toBe("spawn coder ENOENT");
+  });
+
   it("applies default timeout of 60s when no opts provided", async () => {
     mockExecFile.mockImplementation((_cmd, _args, _opts, callback) => {
       (callback as Function)(null, "", "");

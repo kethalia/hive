@@ -104,7 +104,7 @@ vi.mock("@/components/token-expiry-banner", () => ({
 }));
 
 vi.mock("@/components/sidebar-edge-handle", () => ({
-  SidebarEdgeHandle: () => <button type="button">Open sidebar</button>,
+  SidebarEdgeHandle: () => null,
 }));
 
 vi.mock("@/components/terminal/HelpOverlay", () => ({
@@ -611,7 +611,8 @@ describe("mobile session assembly", () => {
     expect(screen.getByTestId("app-sidebar")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Open virtual keyboard" })).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: "Tab" }));
+    fireEvent.pointerUp(screen.getByRole("button", { name: "Open virtual keyboard" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Tab" }));
 
     expect(hapticsState.triggerHapticFeedback).toHaveBeenCalledTimes(1);
     expect(keybindingState.activeSend).toHaveBeenCalledWith("\t");

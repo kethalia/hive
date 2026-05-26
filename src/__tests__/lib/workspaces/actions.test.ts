@@ -153,6 +153,49 @@ describe("workspace server actions", () => {
     expect(result?.data).toEqual([]);
   });
 
+  it("getWorkspaceSessionsAction recognizes no-server tmux output from stdout", async () => {
+    mockGetWorkspaceAgentName.mockResolvedValueOnce("dev.main");
+    mockedExec.mockResolvedValueOnce({
+      stdout: "no server running on /tmp/tmux-1000/default",
+      stderr: "",
+      exitCode: 1,
+    });
+
+    const { getWorkspaceSessionsAction } = await import("@/lib/actions/workspaces");
+    const result = await getWorkspaceSessionsAction({ workspaceId: "ws-1" });
+
+    expect(result?.data).toEqual([]);
+  });
+
+  it("getWorkspaceSessionsAction does not collapse blank command failures into unknown error", async () => {
+    mockGetWorkspaceAgentName.mockResolvedValueOnce("dev.main");
+    mockedExec.mockResolvedValueOnce({
+      stdout: "",
+      stderr: "",
+      exitCode: 1,
+    });
+
+    const { getWorkspaceSessionsAction } = await import("@/lib/actions/workspaces");
+    const result = await getWorkspaceSessionsAction({ workspaceId: "ws-1" });
+
+    expect(result?.data).toBeUndefined();
+    expect(result?.serverError).toMatch(/Failed to list tmux sessions/i);
+    expect(result?.serverError).toMatch(/no diagnostics returned by workspace command/i);
+    expect(result?.serverError).not.toMatch(/unknown error/i);
+  });
+
+  it("getWorkspaceSessionsAction propagates agent lookup failures that are not no-agent cases", async () => {
+    mockGetWorkspaceAgentName.mockRejectedValueOnce(new Error("Coder API unreachable"));
+
+    const { getWorkspaceSessionsAction } = await import("@/lib/actions/workspaces");
+    const result = await getWorkspaceSessionsAction({ workspaceId: "ws-1" });
+
+    expect(result?.data).toBeUndefined();
+    expect(result?.serverError).toMatch(/Failed to resolve workspace agent/i);
+    expect(result?.serverError).toMatch(/Coder API unreachable/i);
+    expect(mockedExec).not.toHaveBeenCalled();
+  });
+
   it("getWorkspaceSessionsAction surfaces serverError on ssh/transient failures (not empty)", async () => {
     // Critical regression guard: a transient ssh failure on browser refresh
     // must NOT look like "user has zero sessions" to the client — that caused

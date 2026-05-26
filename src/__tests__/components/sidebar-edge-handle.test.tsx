@@ -20,9 +20,6 @@ type SidebarState = {
 
 let sidebarState: SidebarState;
 let originalPointerEvent: typeof window.PointerEvent | undefined;
-const originalSetPointerCapture = Element.prototype.setPointerCapture;
-const originalReleasePointerCapture = Element.prototype.releasePointerCapture;
-const originalHasPointerCapture = Element.prototype.hasPointerCapture;
 
 function renderHandle(overrides: Partial<SidebarState> = {}) {
   sidebarState = {
@@ -32,22 +29,29 @@ function renderHandle(overrides: Partial<SidebarState> = {}) {
     ...overrides,
   };
   mockUseSidebar.mockReturnValue(sidebarState);
-  return render(<SidebarEdgeHandle />);
+  return render(
+    <div>
+      <button type="button">Interactive child</button>
+      <main data-testid="page-content">
+        <SidebarEdgeHandle />
+      </main>
+    </div>,
+  );
 }
 
-function dragHandle(
-  element: HTMLElement,
-  {
-    start = [16, 200],
-    move,
-    end = move,
-  }: {
-    start?: [number, number];
-    move: [number, number];
-    end?: [number, number];
-  },
-) {
-  fireEvent.pointerDown(element, {
+function swipePage({
+  target,
+  start = [240, 200],
+  move,
+  end = move,
+}: {
+  target?: HTMLElement;
+  start?: [number, number];
+  move: [number, number];
+  end?: [number, number];
+}) {
+  const eventTarget = target ?? window;
+  fireEvent.pointerDown(eventTarget, {
     pointerId: 1,
     pointerType: "touch",
     button: 0,
@@ -56,7 +60,7 @@ function dragHandle(
     clientY: start[1],
     cancelable: true,
   });
-  fireEvent.pointerMove(element, {
+  fireEvent.pointerMove(window, {
     pointerId: 1,
     pointerType: "touch",
     button: 0,
@@ -65,7 +69,7 @@ function dragHandle(
     clientY: move[1],
     cancelable: true,
   });
-  fireEvent.pointerUp(element, {
+  fireEvent.pointerUp(window, {
     pointerId: 1,
     pointerType: "touch",
     button: 0,
@@ -81,26 +85,19 @@ beforeAll(() => {
   if (!window.PointerEvent) {
     window.PointerEvent = MouseEvent as unknown as typeof PointerEvent;
   }
-  if (!Element.prototype.setPointerCapture) {
-    Element.prototype.setPointerCapture = vi.fn();
-  }
-  if (!Element.prototype.releasePointerCapture) {
-    Element.prototype.releasePointerCapture = vi.fn();
-  }
-  if (!Element.prototype.hasPointerCapture) {
-    Element.prototype.hasPointerCapture = vi.fn(() => true);
-  }
 });
 
 afterAll(() => {
   window.PointerEvent = originalPointerEvent as typeof PointerEvent;
-  Element.prototype.setPointerCapture = originalSetPointerCapture;
-  Element.prototype.releasePointerCapture = originalReleasePointerCapture;
-  Element.prototype.hasPointerCapture = originalHasPointerCapture;
 });
 
 beforeEach(() => {
   mockUseSidebar.mockReset();
+  Object.defineProperty(window, "innerWidth", {
+    configurable: true,
+    writable: true,
+    value: 390,
+  });
 });
 
 afterEach(() => {
@@ -108,46 +105,29 @@ afterEach(() => {
 });
 
 describe("SidebarEdgeHandle", () => {
-  it("hides on desktop", () => {
+  it("renders no visible edge button on desktop", () => {
     renderHandle({ isMobile: false });
 
     expect(screen.queryByRole("button", { name: "Open sidebar" })).not.toBeInTheDocument();
   });
 
-  it("hides when the mobile drawer is already open", () => {
+  it("renders no visible edge button when the mobile drawer is already open", () => {
     renderHandle({ openMobile: true });
 
     expect(screen.queryByRole("button", { name: "Open sidebar" })).not.toBeInTheDocument();
   });
 
-  it("exposes an accessible mobile button with a touch-safe gesture surface", () => {
+  it("keeps the old intrusive left-side handle out of the DOM on mobile", () => {
     renderHandle();
 
-    const handle = screen.getByRole("button", { name: "Open sidebar" });
-    expect(handle).toBeInTheDocument();
-    expect(handle).toHaveAttribute("type", "button");
-    expect(handle).toHaveClass("h-16");
-    expect(handle).toHaveClass("w-11");
-    expect(handle).toHaveStyle({ touchAction: "pan-y", userSelect: "none" });
-    expect(handle.className).toContain("motion-reduce:transition-none");
-    expect(handle.className).toContain("motion-reduce:active:scale-100");
-    expect(handle.querySelector("[aria-hidden='true']")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Open sidebar" })).not.toBeInTheDocument();
+    expect(screen.queryByTestId("sidebar-edge-handle")).not.toBeInTheDocument();
   });
 
-  it("opens on click as a keyboard and tap fallback", () => {
+  it("opens on a rightward page swipe from content", async () => {
     renderHandle();
 
-    fireEvent.click(screen.getByRole("button", { name: "Open sidebar" }));
-
-    expect(sidebarState.setOpenMobile).toHaveBeenCalledTimes(1);
-    expect(sidebarState.setOpenMobile).toHaveBeenCalledWith(true);
-  });
-
-  it("opens on a rightward horizontal drag beyond the swipe threshold", async () => {
-    renderHandle();
-    const handle = screen.getByRole("button", { name: "Open sidebar" });
-
-    dragHandle(handle, { move: [54, 204] });
+    swipePage({ target: screen.getByTestId("page-content"), move: [310, 206] });
 
     await waitFor(() => {
       expect(sidebarState.setOpenMobile).toHaveBeenCalledWith(true);
@@ -156,18 +136,35 @@ describe("SidebarEdgeHandle", () => {
 
   it("ignores mostly vertical movement", () => {
     renderHandle();
-    const handle = screen.getByRole("button", { name: "Open sidebar" });
 
-    dragHandle(handle, { move: [26, 260] });
+    swipePage({ target: screen.getByTestId("page-content"), move: [256, 280] });
 
     expect(sidebarState.setOpenMobile).not.toHaveBeenCalled();
   });
 
   it("ignores leftward horizontal movement", () => {
     renderHandle();
-    const handle = screen.getByRole("button", { name: "Open sidebar" });
 
-    dragHandle(handle, { start: [54, 200], move: [12, 204] });
+    swipePage({ target: screen.getByTestId("page-content"), start: [300, 200], move: [230, 204] });
+
+    expect(sidebarState.setOpenMobile).not.toHaveBeenCalled();
+  });
+
+  it("ignores swipes that start on interactive controls", () => {
+    renderHandle();
+
+    swipePage({
+      target: screen.getByRole("button", { name: "Interactive child" }),
+      move: [310, 206],
+    });
+
+    expect(sidebarState.setOpenMobile).not.toHaveBeenCalled();
+  });
+
+  it("does not bind the page gesture when the drawer is already open", () => {
+    renderHandle({ openMobile: true });
+
+    swipePage({ target: screen.getByTestId("page-content"), move: [310, 206] });
 
     expect(sidebarState.setOpenMobile).not.toHaveBeenCalled();
   });

@@ -222,6 +222,17 @@ export function useFabPosition(options?: UseFabPositionOptions) {
     [bound],
   );
 
+  const onPointerCancel = useCallback(
+    (e?: ReactPointerEvent) => {
+      if (e) bound.onPointerUp?.(e);
+      longPressRef.current?.end();
+      setIsDragging(false);
+      setIsArmed(false);
+      wasDragRef.current = false;
+    },
+    [bound],
+  );
+
   return {
     corner,
     position,
@@ -232,5 +243,6 @@ export function useFabPosition(options?: UseFabPositionOptions) {
     onPointerDown,
     onPointerMove,
     onPointerUp,
+    onPointerCancel,
   };
 }
