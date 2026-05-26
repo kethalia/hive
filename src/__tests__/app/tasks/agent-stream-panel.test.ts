@@ -214,7 +214,9 @@ describe("AgentStreamPanel", () => {
     });
 
     expect(scrollIntoView).toHaveBeenCalledWith({ block: "end", behavior: "auto" });
-    expect(scrollIntoView).not.toHaveBeenCalledWith(expect.objectContaining({ behavior: "smooth" }));
+    expect(scrollIntoView).not.toHaveBeenCalledWith(
+      expect.objectContaining({ behavior: "smooth" }),
+    );
   });
 
   it("auto-scrolls appended messages only when already near the live tail", () => {
@@ -235,7 +237,9 @@ describe("AgentStreamPanel", () => {
 
     expect(screen.getByTestId("stream-output").textContent).toBe("near tail message");
     expect(scrollIntoView).toHaveBeenCalledWith({ block: "end", behavior: "auto" });
-    expect(scrollIntoView).not.toHaveBeenCalledWith(expect.objectContaining({ behavior: "smooth" }));
+    expect(scrollIntoView).not.toHaveBeenCalledWith(
+      expect.objectContaining({ behavior: "smooth" }),
+    );
   });
 
   it("does not auto-scroll appended messages when the user is away from the live tail", () => {

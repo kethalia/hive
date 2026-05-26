@@ -195,7 +195,10 @@ export function TaskDetail({ initialTask }: { initialTask: TaskWithRelations }) 
                     <code className="shrink-0 text-xs text-muted-foreground">{shortId(ws.id)}</code>
                     <span className="min-w-0 break-all text-sm">{ws.templateType}</span>
                   </div>
-                  <Badge className="self-start sm:self-auto" variant={statusVariant[ws.status] ?? "secondary"}>
+                  <Badge
+                    className="self-start sm:self-auto"
+                    variant={statusVariant[ws.status] ?? "secondary"}
+                  >
                     {ws.status}
                   </Badge>
                 </div>

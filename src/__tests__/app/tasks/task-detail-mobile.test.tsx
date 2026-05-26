@@ -109,7 +109,14 @@ describe("TaskDetail mobile layout contracts", () => {
     const header = title.parentElement;
     expect(header).not.toBeNull();
     expect(classTokens(header as Element)).toEqual(
-      expect.arrayContaining(["flex", "flex-wrap", "items-start", "gap-2", "sm:items-center", "sm:gap-3"]),
+      expect.arrayContaining([
+        "flex",
+        "flex-wrap",
+        "items-start",
+        "gap-2",
+        "sm:items-center",
+        "sm:gap-3",
+      ]),
     );
   });
 
@@ -154,7 +161,9 @@ describe("TaskDetail mobile layout contracts", () => {
     expect(classTokens(attachment as Element)).toEqual(
       expect.arrayContaining(["flex", "flex-wrap", "items-center", "gap-2", "sm:gap-3"]),
     );
-    expect(classTokens(screen.getByText(longAttachmentName))).toEqual(expect.arrayContaining(["break-all"]));
+    expect(classTokens(screen.getByText(longAttachmentName))).toEqual(
+      expect.arrayContaining(["break-all"]),
+    );
 
     const row = screen.getByTestId("task-workspace-row");
     expect(classTokens(row)).toEqual(
@@ -201,10 +210,7 @@ describe("TaskDetail mobile layout contracts", () => {
   });
 
   it("does not use tiny text in the task detail source", () => {
-    const taskDetailPath = join(
-      process.cwd(),
-      "src/app/(dashboard)/tasks/[id]/task-detail.tsx",
-    );
+    const taskDetailPath = join(process.cwd(), "src/app/(dashboard)/tasks/[id]/task-detail.tsx");
     expect(readFileSync(taskDetailPath, "utf8")).not.toContain("text-[10px]");
   });
 });

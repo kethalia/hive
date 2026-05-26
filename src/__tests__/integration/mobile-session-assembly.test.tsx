@@ -828,6 +828,8 @@ describe("mobile session assembly", () => {
 
     expect(screen.getByTestId("stream-output")).toHaveTextContent("agent output line");
     expect(scrollIntoView).toHaveBeenCalledWith({ block: "end", behavior: "auto" });
-    expect(scrollIntoView).not.toHaveBeenCalledWith(expect.objectContaining({ behavior: "smooth" }));
+    expect(scrollIntoView).not.toHaveBeenCalledWith(
+      expect.objectContaining({ behavior: "smooth" }),
+    );
   });
 });

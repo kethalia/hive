@@ -445,9 +445,7 @@ describe("CommandPalette", () => {
     expect(screen.getByTestId("sheet-content")).not.toHaveAttribute("data-use-drag-bound");
     expect(screen.getByTestId("command")).not.toHaveAttribute("data-use-drag-bound");
     expect(screen.getByTestId("command-list")).not.toHaveAttribute("data-use-drag-bound");
-    expect(screen.getByTestId("command-item-hive-main")).not.toHaveAttribute(
-      "data-use-drag-bound",
-    );
+    expect(screen.getByTestId("command-item-hive-main")).not.toHaveAttribute("data-use-drag-bound");
   });
 
   it("moves the sheet while dragging down and dismisses past the distance threshold", () => {
@@ -469,7 +467,9 @@ describe("CommandPalette", () => {
       velocity: [0, 0],
     });
 
-    expect((activeState.event as { preventDefault: ReturnType<typeof vi.fn> }).preventDefault).toHaveBeenCalled();
+    expect(
+      (activeState.event as { preventDefault: ReturnType<typeof vi.fn> }).preventDefault,
+    ).toHaveBeenCalled();
     expect(screen.getByTestId("sheet-content")).toHaveStyle({
       transform: `translateY(${DRAG_DISMISS_DISTANCE_PX + 12}px)`,
       transition: "none",
@@ -585,7 +585,9 @@ describe("CommandPalette", () => {
       />,
     );
 
-    await waitFor(() => expect(window.matchMedia).toHaveBeenCalledWith("(prefers-reduced-motion: reduce)"));
+    await waitFor(() =>
+      expect(window.matchMedia).toHaveBeenCalledWith("(prefers-reduced-motion: reduce)"),
+    );
     act(() => mediaQuery.dispatch(true));
 
     invokeDrag({ active: true, movement: [0, DRAG_DISMISS_DISTANCE_PX + 8], velocity: [0, 0] });

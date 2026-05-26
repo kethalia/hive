@@ -50,7 +50,8 @@ export function AgentStreamPanel({ taskId, status }: { taskId: string; status: s
     }
 
     return (
-      container.scrollHeight - container.scrollTop - container.clientHeight <= LIVE_TAIL_THRESHOLD_PX
+      container.scrollHeight - container.scrollTop - container.clientHeight <=
+      LIVE_TAIL_THRESHOLD_PX
     );
   }, []);
 

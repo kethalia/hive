@@ -164,10 +164,7 @@ export function useFabPosition(options?: UseFabPositionOptions) {
             offsetLeft,
             Math.min(offsetLeft + width - 56, dragStartPosRef.current.x + mx),
           ),
-          y: Math.max(
-            offsetTop,
-            Math.min(offsetTop + height - 56, dragStartPosRef.current.y + my),
-          ),
+          y: Math.max(offsetTop, Math.min(offsetTop + height - 56, dragStartPosRef.current.y + my)),
         });
       }
 

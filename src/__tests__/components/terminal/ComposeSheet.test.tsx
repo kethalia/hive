@@ -19,14 +19,12 @@ let mockCtx: KeybindingContextValue;
 vi.mock("next/dynamic", () => ({
   __esModule: true,
   default: () => {
-    const Stub = ({
-      className,
-      sessionName,
-    }: {
-      className?: string;
-      sessionName: string;
-    }) => (
-      <div className={className} data-session-name={sessionName} data-testid="interactive-terminal" />
+    const Stub = ({ className, sessionName }: { className?: string; sessionName: string }) => (
+      <div
+        className={className}
+        data-session-name={sessionName}
+        data-testid="interactive-terminal"
+      />
     );
     Stub.displayName = "InteractiveTerminal";
     return Stub;
@@ -100,7 +98,9 @@ vi.mock("@/components/ui/sheet", () => ({
     className,
     side,
     ...props
-  }: React.PropsWithChildren<React.HTMLAttributes<HTMLElement> & { className?: string; side?: string }>) => (
+  }: React.PropsWithChildren<
+    React.HTMLAttributes<HTMLElement> & { className?: string; side?: string }
+  >) => (
     <section className={className} data-side={side} data-testid="compose-sheet-content" {...props}>
       {children}
     </section>
@@ -225,7 +225,10 @@ describe("TerminalClient compose sheet", () => {
     expect(screen.queryByTestId("compose-panel")).not.toBeInTheDocument();
   });
 
-  it.each([false, true])("Ctrl/Cmd+` binding toggles compose open and closed when sheet=%s", async (isComposeSheet) => {
+  it.each([
+    false,
+    true,
+  ])("Ctrl/Cmd+` binding toggles compose open and closed when sheet=%s", async (isComposeSheet) => {
     await renderTerminalClient(isComposeSheet);
 
     toggleCompose();

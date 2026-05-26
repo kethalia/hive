@@ -51,11 +51,7 @@ vi.mock("@/hooks/useFabKeyboardOffset", () => ({
   useFabKeyboardOffset: vi.fn(() => ({ liftPx: 0 })),
 }));
 
-const {
-  mockUseTerminalFontStep,
-  mockIncreaseFontSize,
-  mockDecreaseFontSize,
-} = vi.hoisted(() => ({
+const { mockUseTerminalFontStep, mockIncreaseFontSize, mockDecreaseFontSize } = vi.hoisted(() => ({
   mockUseTerminalFontStep: vi.fn(),
   mockIncreaseFontSize: vi.fn(),
   mockDecreaseFontSize: vi.fn(),
