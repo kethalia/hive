@@ -14,8 +14,9 @@ Hook strategy (ArgoCD-native, NOT Helm hooks):
   first within the Sync phase, then this Job (wave -5) runs and migrates
   the schema, then all other resources (default wave 0) roll.
 
-  BeforeHookCreation,HookSucceeded delete-policy keeps the Job cleaned up
-  between runs so each sync re-runs migrations against the latest schema.
+  BeforeHookCreation,HookSucceeded,HookFailed delete-policy keeps the Job
+  cleaned up between runs and after failures so each sync re-runs migrations
+  against the latest schema without leaving failed hooks behind.
 
 DATABASE_URL is sourced from the CNPG-issued `<release>-pg-app` Secret (key
 `uri`), the same Secret hive-auth/web/terminal consume.
@@ -29,10 +30,11 @@ metadata:
     {{- include "hive.labels" . | nindent 4 }}
   annotations:
     argocd.argoproj.io/hook: Sync
-    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation,HookSucceeded
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation,HookSucceeded,HookFailed
     argocd.argoproj.io/sync-wave: "-5"
 spec:
   backoffLimit: 5
+  activeDeadlineSeconds: {{ .Values.migrateJob.activeDeadlineSeconds | default 900 }}
   ttlSecondsAfterFinished: 600
   template:
     metadata:
