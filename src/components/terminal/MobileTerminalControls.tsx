@@ -92,7 +92,7 @@ export function MobileTerminalControls({ onHapticFeedback }: MobileTerminalContr
     <Collapsible open={expanded} onOpenChange={handleMoreOpenChange}>
       <section
         aria-label="Terminal mobile controls"
-        className="shrink-0 rounded-2xl border bg-background/95 p-2 shadow-[0_-12px_32px_rgba(0,0,0,0.16)] backdrop-blur supports-[backdrop-filter]:bg-background/85"
+        className="shrink-0 border-t bg-background/95 px-2 pt-2 pb-1 backdrop-blur supports-[backdrop-filter]:bg-background/85"
         style={{
           touchAction: "manipulation",
           ...NO_TOUCH_STYLE,
@@ -101,9 +101,9 @@ export function MobileTerminalControls({ onHapticFeedback }: MobileTerminalContr
         <CollapsibleContent
           role="region"
           aria-label="More terminal actions"
-          className="overflow-hidden rounded-xl border bg-popover/90 text-popover-foreground data-ending-style:max-h-0 data-starting-style:max-h-0"
+          className="overflow-hidden data-ending-style:max-h-0 data-starting-style:max-h-0"
         >
-          <div className="flex max-h-[min(42dvh,22rem)] w-full flex-col gap-3 overflow-y-auto p-2">
+          <div className="flex max-h-[min(42dvh,22rem)] w-full flex-col gap-3 overflow-y-auto pb-2">
             <Button
               type="button"
               variant="outline"
@@ -184,7 +184,7 @@ export function MobileTerminalControls({ onHapticFeedback }: MobileTerminalContr
 
         <ButtonGroup
           aria-label="Terminal quick actions"
-          className="mt-2 grid w-full grid-cols-4 rounded-xl border bg-background/95 p-1 shadow-sm backdrop-blur supports-[backdrop-filter]:bg-background/80"
+          className="mt-2 grid w-full grid-cols-4 gap-1 rounded-none"
         >
           {QUICK_ROW_KEYS.map(({ label, icon: Icon, sequence }) => (
             <Button

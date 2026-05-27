@@ -30,7 +30,7 @@ const LAST_SESSION_STORAGE_PREFIX = "terminal:last-session:";
 const TERMINAL_WIDTH_CLASS_NAME = "-mx-6 w-[calc(100%+3rem)]";
 const TERMINAL_STATIC_HEIGHT_CLASS_NAME = "h-[calc(100dvh-var(--safe-area-inset-top)-3.5rem)]";
 const TERMINAL_MOBILE_FRAME_CLASS_NAME =
-  "fixed inset-x-0 bottom-0 top-[calc(var(--safe-area-inset-top)+3.5rem)] flex flex-col overflow-hidden bg-background";
+  "fixed inset-x-0 bottom-0 top-[calc(var(--safe-area-inset-top)+3.5rem)] flex flex-col overflow-hidden overscroll-none bg-background";
 
 function mobileTerminalFrameStyle(keyboardLiftPx: number): CSSProperties {
   return {
@@ -47,43 +47,67 @@ function composeSheetKeyboardStyle(keyboardLiftPx: number): CSSProperties {
   };
 }
 
-function MobileTerminalTitleCard({
-  agentName,
-  sessionName,
-}: {
-  agentName?: string;
-  sessionName: string;
-}) {
-  return (
-    <header className="shrink-0 rounded-2xl border bg-card/95 px-4 py-3 shadow-sm">
-      <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-        Terminal
-      </p>
-      <div className="mt-1 flex items-center justify-between gap-3">
-        <h1 className="truncate text-base font-semibold text-card-foreground">{sessionName}</h1>
-        {agentName ? (
-          <span className="max-w-[45%] truncate rounded-full border bg-background/80 px-2.5 py-1 text-xs text-muted-foreground">
-            {agentName}
-          </span>
-        ) : null}
-      </div>
-    </header>
-  );
+function useMobileTerminalViewportLock(enabled: boolean) {
+  useEffect(() => {
+    if (!enabled || typeof document === "undefined") return;
+
+    const html = document.documentElement;
+    const body = document.body;
+    const scrollY = window.scrollY;
+    const previousHtml = {
+      overflow: html.style.overflow,
+      overscrollBehaviorY: html.style.overscrollBehaviorY,
+    };
+    const previousBody = {
+      height: body.style.height,
+      left: body.style.left,
+      overflow: body.style.overflow,
+      overscrollBehaviorY: body.style.overscrollBehaviorY,
+      position: body.style.position,
+      right: body.style.right,
+      top: body.style.top,
+      width: body.style.width,
+    };
+
+    html.style.overflow = "hidden";
+    html.style.overscrollBehaviorY = "none";
+    body.style.height = "100dvh";
+    body.style.left = "0";
+    body.style.overflow = "hidden";
+    body.style.overscrollBehaviorY = "none";
+    body.style.position = "fixed";
+    body.style.right = "0";
+    body.style.top = `-${scrollY}px`;
+    body.style.width = "100%";
+
+    return () => {
+      html.style.overflow = previousHtml.overflow;
+      html.style.overscrollBehaviorY = previousHtml.overscrollBehaviorY;
+      body.style.height = previousBody.height;
+      body.style.left = previousBody.left;
+      body.style.overflow = previousBody.overflow;
+      body.style.overscrollBehaviorY = previousBody.overscrollBehaviorY;
+      body.style.position = previousBody.position;
+      body.style.right = previousBody.right;
+      body.style.top = previousBody.top;
+      body.style.width = previousBody.width;
+
+      if (scrollY > 0 && typeof window.scrollTo === "function") {
+        try {
+          window.scrollTo(0, scrollY);
+        } catch {
+          // jsdom and some embedded webviews expose scrollTo without implementing it.
+        }
+      }
+    };
+  }, [enabled]);
 }
 
 function terminalSessionHref(workspaceId: string, sessionName: string): string {
   return `/workspaces/${workspaceId}/terminal?session=${encodeURIComponent(sessionName)}`;
 }
 
-function TerminalInner({
-  agentId,
-  agentName,
-  workspaceId,
-}: {
-  agentId: string;
-  agentName?: string;
-  workspaceId: string;
-}) {
+function TerminalInner({ agentId, workspaceId }: { agentId: string; workspaceId: string }) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const session = searchParams.get("session");
@@ -99,6 +123,8 @@ function TerminalInner({
   const keyboardLiftPx = isComposeSheet ? visualKeyboardLiftPx : 0;
   const mobileTerminalStyle = mobileTerminalFrameStyle(keyboardLiftPx);
   const composeSheetStyle = composeSheetKeyboardStyle(keyboardLiftPx);
+
+  useMobileTerminalViewportLock(isComposeSheet);
 
   const handleComposeSheetDragStart = useCallback((event: PointerEvent<HTMLButtonElement>) => {
     composeSheetDragStartYRef.current = event.clientY;
@@ -288,6 +314,7 @@ function TerminalInner({
           onTerminalReady={handleTerminalReady}
           onTerminalDestroy={handleTerminalDestroy}
           layoutSignal={keyboardLiftPx}
+          pinToBottomOnResize={isComposeSheet}
         />
       </TerminalGestureLayer>
       <TerminalContextMenu
@@ -312,11 +339,10 @@ function TerminalInner({
         style={mobileTerminalStyle}
         onKeyDown={(e) => e.stopPropagation()}
       >
-        <div className="flex h-full min-h-0 flex-col gap-3 px-3 pt-3 pb-2">
-          <MobileTerminalTitleCard agentName={agentName} sessionName={session} />
+        <div className="flex h-full min-h-0 flex-col overflow-hidden overscroll-none bg-background">
           <section
             aria-label="Terminal emulator"
-            className="min-h-0 flex-1 overflow-hidden rounded-2xl border bg-black shadow-inner"
+            className="min-h-0 flex-1 overflow-hidden bg-black"
           >
             {terminalPane}
           </section>
@@ -378,7 +404,7 @@ interface TerminalClientProps {
   workspaceId: string;
 }
 
-export function TerminalClient({ agentId, agentName, workspaceId }: TerminalClientProps) {
+export function TerminalClient({ agentId, workspaceId }: TerminalClientProps) {
   return (
     <Suspense
       fallback={
@@ -390,7 +416,7 @@ export function TerminalClient({ agentId, agentName, workspaceId }: TerminalClie
         </div>
       }
     >
-      <TerminalInner agentId={agentId} agentName={agentName} workspaceId={workspaceId} />
+      <TerminalInner agentId={agentId} workspaceId={workspaceId} />
     </Suspense>
   );
 }

@@ -40,8 +40,15 @@ const terminalControlState = vi.hoisted(() => ({
 const terminalState = vi.hoisted(() => ({
   fit: vi.fn(),
   resize: vi.fn(),
+  scrollToBottom: vi.fn(),
   send: vi.fn(),
-  terminalInstances: [] as Array<{ rows: number; cols: number; options: { fontSize?: number } }>,
+  terminalInstances: [] as Array<{
+    buffer: { active: { baseY: number; viewportY: number } };
+    options: { fontSize?: number };
+    rows: number;
+    cols: number;
+    scrollHandler?: () => void;
+  }>,
 }));
 
 const pinchZoomState = vi.hoisted(() => ({
@@ -388,15 +395,24 @@ vi.mock("@xterm/xterm", () => {
   class Terminal {
     rows = 24;
     cols = 80;
+    buffer = { active: { baseY: 0, viewportY: 0 } };
     options: { fontSize?: number };
+    scrollHandler?: () => void;
     attachCustomKeyEventHandler = vi.fn();
     dispose = vi.fn();
     focus = vi.fn();
     loadAddon = vi.fn();
     onData = vi.fn(() => ({ dispose: vi.fn() }));
     onResize = vi.fn(() => ({ dispose: vi.fn() }));
+    onScroll = vi.fn((handler: () => void) => {
+      this.scrollHandler = handler;
+      return { dispose: vi.fn() };
+    });
     open = vi.fn();
-    write = vi.fn();
+    scrollToBottom = terminalState.scrollToBottom;
+    write = vi.fn((_data: Uint8Array | string, callback?: () => void) => {
+      callback?.();
+    });
 
     constructor(options: { fontSize?: number }) {
       this.options = { ...options };
@@ -536,6 +552,7 @@ beforeEach(() => {
   resetTerminalControlState();
   terminalState.fit.mockReset();
   terminalState.resize.mockClear();
+  terminalState.scrollToBottom.mockClear();
   terminalState.send.mockClear();
   terminalState.terminalInstances.length = 0;
   pinchZoomState.bindCallCount = 0;
@@ -733,6 +750,76 @@ describe("mobile session assembly", () => {
     await waitFor(() => {
       expect(onTerminalReady).toHaveBeenCalledTimes(1);
     });
+  });
+
+  it("keeps the terminal pinned to the bottom across mobile viewport resizes", async () => {
+    const { rerender } = render(
+      <InteractiveTerminal
+        agentId="agent-1"
+        workspaceId="workspace-1"
+        sessionName="main"
+        layoutSignal={0}
+        pinToBottomOnResize
+      />,
+    );
+
+    await waitFor(() => {
+      expect(terminalState.terminalInstances).toHaveLength(1);
+    });
+    terminalState.scrollToBottom.mockClear();
+
+    rerender(
+      <InteractiveTerminal
+        agentId="agent-1"
+        workspaceId="workspace-1"
+        sessionName="main"
+        layoutSignal={280}
+        pinToBottomOnResize
+      />,
+    );
+
+    await waitFor(() => {
+      expect(terminalState.scrollToBottom).toHaveBeenCalled();
+    });
+  });
+
+  it("does not yank the terminal to the bottom after the user scrolls back", async () => {
+    const { rerender } = render(
+      <InteractiveTerminal
+        agentId="agent-1"
+        workspaceId="workspace-1"
+        sessionName="main"
+        layoutSignal={0}
+        pinToBottomOnResize
+      />,
+    );
+
+    await waitFor(() => {
+      expect(terminalState.terminalInstances).toHaveLength(1);
+    });
+
+    const terminal = terminalState.terminalInstances[0];
+    terminal.buffer.active.baseY = 40;
+    terminal.buffer.active.viewportY = 12;
+    act(() => {
+      terminal.scrollHandler?.();
+    });
+    terminalState.scrollToBottom.mockClear();
+
+    rerender(
+      <InteractiveTerminal
+        agentId="agent-1"
+        workspaceId="workspace-1"
+        sessionName="main"
+        layoutSignal={320}
+        pinToBottomOnResize
+      />,
+    );
+
+    await waitFor(() => {
+      expect(terminalState.fit).toHaveBeenCalled();
+    });
+    expect(terminalState.scrollToBottom).not.toHaveBeenCalled();
   });
 
   it("keeps terminal context-menu actions touch-sized", () => {

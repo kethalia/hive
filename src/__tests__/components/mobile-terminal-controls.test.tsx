@@ -63,11 +63,16 @@ describe("MobileTerminalControls", () => {
     render(<MobileTerminalControls />);
 
     const controls = screen.getByRole("region", { name: "Terminal mobile controls" });
-    expect(controls).toHaveClass("shrink-0", "rounded-2xl");
-    expect(controls).not.toHaveClass("fixed", "absolute");
+    expect(controls).toHaveClass("shrink-0", "border-t", "px-2", "pb-1");
+    expect(controls).not.toHaveClass(
+      "fixed",
+      "absolute",
+      "rounded-2xl",
+      "shadow-[0_-12px_32px_rgba(0,0,0,0.16)]",
+    );
 
     const quickActions = screen.getByRole("group", { name: "Terminal quick actions" });
-    expect(quickActions).toHaveClass("grid", "w-full", "grid-cols-4");
+    expect(quickActions).toHaveClass("grid", "w-full", "grid-cols-4", "gap-1");
     expect(within(quickActions).getByRole("button", { name: "Enter" })).toHaveClass(
       "min-h-12",
       "min-w-0",
@@ -101,8 +106,8 @@ describe("MobileTerminalControls", () => {
     expect(more).toHaveAttribute("aria-expanded", "true");
     const panel = screen.getByRole("region", { name: "More terminal actions" });
     expect(panel).toHaveAttribute("data-slot", "collapsible-content");
-    expect(panel).toHaveClass("overflow-hidden", "rounded-xl");
-    expect(panel).not.toHaveClass("fixed", "absolute");
+    expect(panel).toHaveClass("overflow-hidden");
+    expect(panel).not.toHaveClass("fixed", "absolute", "rounded-xl", "border");
     expect(panel.firstElementChild).toHaveClass("max-h-[min(42dvh,22rem)]", "overflow-y-auto");
     expect(within(panel).getByRole("button", { name: "Compose" })).toBeInTheDocument();
     expect(

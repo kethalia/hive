@@ -24,6 +24,7 @@ interface InteractiveTerminalProps {
   onTerminalReady?: (term: Terminal, send: (data: string) => void) => void;
   onTerminalDestroy?: () => void;
   layoutSignal?: unknown;
+  pinToBottomOnResize?: boolean;
 }
 
 function warnFitFailure(err: unknown) {
@@ -37,6 +38,22 @@ function safeFit(fit: FitAddon): boolean {
   } catch (err) {
     warnFitFailure(err);
     return false;
+  }
+}
+
+function isTerminalScrolledToBottom(term: Terminal): boolean {
+  const buffer = term.buffer?.active;
+  if (!buffer) return true;
+  return buffer.viewportY >= buffer.baseY - 1;
+}
+
+function scrollTerminalToBottom(term: Terminal) {
+  if (typeof term.scrollToBottom !== "function") return;
+
+  try {
+    term.scrollToBottom();
+  } catch (err) {
+    console.warn("[InteractiveTerminal] scrollToBottom() failed", err);
   }
 }
 
@@ -78,10 +95,14 @@ export function InteractiveTerminal({
   onTerminalReady,
   onTerminalDestroy,
   layoutSignal,
+  pinToBottomOnResize = false,
 }: InteractiveTerminalProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const termRef = useRef<Terminal | null>(null);
   const fitRef = useRef<FitAddon | null>(null);
+  const pinnedToBottomRef = useRef(true);
+  const pinToBottomOnResizeRef = useRef(pinToBottomOnResize);
+  pinToBottomOnResizeRef.current = pinToBottomOnResize;
   const { handleKeyEvent } = useKeybindings();
   const handleKeyEventRef = useRef(handleKeyEvent);
   handleKeyEventRef.current = handleKeyEvent;
@@ -115,9 +136,16 @@ export function InteractiveTerminal({
   const [wsUrl, setWsUrl] = useState<string | null>(null);
 
   const handleData = useCallback((data: Uint8Array | string) => {
-    if (termRef.current) {
-      termRef.current.write(data);
-    }
+    const term = termRef.current;
+    if (!term) return;
+
+    const shouldStayPinned = pinnedToBottomRef.current;
+    term.write(data, () => {
+      if (shouldStayPinned) {
+        scrollTerminalToBottom(term);
+      }
+      pinnedToBottomRef.current = isTerminalScrolledToBottom(term);
+    });
   }, []);
 
   const { send, resize, connectionState } = useTerminalWebSocket({
@@ -135,6 +163,23 @@ export function InteractiveTerminal({
   sendRef.current = send;
   resizeRef.current = resize;
 
+  const fitResizeAndPreserveBottom = useCallback((forceScrollToBottom = false) => {
+    const fit = fitRef.current;
+    const term = termRef.current;
+    if (!fit || !term) return;
+
+    const shouldPinToBottom =
+      forceScrollToBottom || (pinToBottomOnResizeRef.current && pinnedToBottomRef.current);
+
+    if (safeFit(fit)) {
+      resizeRef.current(term.rows, term.cols);
+      if (shouldPinToBottom) {
+        scrollTerminalToBottom(term);
+      }
+      pinnedToBottomRef.current = isTerminalScrolledToBottom(term);
+    }
+  }, []);
+
   // When the WebSocket connects (or reconnects), re-fit the terminal and
   // send a resize message. This forces tmux to redraw with the correct
   // dimensions — critical when reattaching to an existing session where
@@ -147,11 +192,10 @@ export function InteractiveTerminal({
 
     // Allow one frame for layout to settle after connection state update
     const frame = requestAnimationFrame(() => {
-      safeFit(fit);
-      resizeRef.current(term.rows, term.cols);
+      fitResizeAndPreserveBottom(true);
     });
     return () => cancelAnimationFrame(frame);
-  }, [connectionState]);
+  }, [connectionState, fitResizeAndPreserveBottom]);
 
   useEffect(() => {
     const handler = (e: Event) => {
@@ -161,7 +205,13 @@ export function InteractiveTerminal({
       if (term && fit) {
         const previousFontSize = term.options.fontSize;
         term.options.fontSize = size;
-        if (!safeFit(fit)) {
+        const shouldStayPinned = pinnedToBottomRef.current;
+        if (safeFit(fit)) {
+          if (shouldStayPinned) {
+            scrollTerminalToBottom(term);
+          }
+          pinnedToBottomRef.current = isTerminalScrolledToBottom(term);
+        } else {
           term.options.fontSize = previousFontSize;
         }
       }
@@ -178,12 +228,10 @@ export function InteractiveTerminal({
     if (!fit || !term) return;
 
     const frame = requestAnimationFrame(() => {
-      if (safeFit(fit)) {
-        resizeRef.current(term.rows, term.cols);
-      }
+      fitResizeAndPreserveBottom();
     });
     return () => cancelAnimationFrame(frame);
-  }, [layoutSignal]);
+  }, [layoutSignal, fitResizeAndPreserveBottom]);
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -236,10 +284,20 @@ export function InteractiveTerminal({
         resizeRef.current(rows, cols);
       });
 
+      if (typeof term.onScroll === "function") {
+        term.onScroll(() => {
+          pinnedToBottomRef.current = isTerminalScrolledToBottom(term as Terminal);
+        });
+      }
+
+      if (pinToBottomOnResizeRef.current) {
+        scrollTerminalToBottom(term);
+      }
+
       // Wait for browser layout paint before reading dimensions
       await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
       if (!mounted) return;
-      safeFit(fit);
+      fitResizeAndPreserveBottom(Boolean(pinToBottomOnResizeRef.current));
 
       const dims = { rows: term.rows, cols: term.cols };
       const proxyUrl = getClientRuntimeConfig().terminalWsUrl;
@@ -267,8 +325,7 @@ export function InteractiveTerminal({
         if (width > 0 && height > 0 && fitRef.current) {
           if (resizeTimer) clearTimeout(resizeTimer);
           resizeTimer = setTimeout(() => {
-            const fit = fitRef.current;
-            if (fit) safeFit(fit);
+            fitResizeAndPreserveBottom();
           }, 50);
         }
       }
@@ -284,7 +341,7 @@ export function InteractiveTerminal({
       termRef.current = null;
       fitRef.current = null;
     };
-  }, [agentId, reconnectId, sessionName, workspaceId]);
+  }, [agentId, fitResizeAndPreserveBottom, reconnectId, sessionName, workspaceId]);
 
   return (
     <div className={cn("relative flex flex-col bg-[#0a0a0a] overflow-hidden", className)}>

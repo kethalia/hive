@@ -238,17 +238,23 @@ describe("TerminalClient compose sheet", () => {
     expect(screen.getByTestId("terminal-mobile-shell")).toHaveClass(
       "fixed",
       "overflow-hidden",
+      "overscroll-none",
       "top-[calc(var(--safe-area-inset-top)+3.5rem)]",
     );
     expect(screen.getByTestId("terminal-mobile-shell")).toHaveStyle({ bottom: "0px" });
     expect(screen.getByTestId("terminal-mobile-shell")).not.toHaveClass(
       "-mb-[calc(var(--safe-area-inset-bottom)+1.5rem)]",
     );
-    expect(screen.getByRole("heading", { name: "tmux-1" })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "tmux-1" })).not.toBeInTheDocument();
     expect(screen.getByRole("region", { name: "Terminal emulator" })).toHaveClass(
       "min-h-0",
       "flex-1",
+      "overflow-hidden",
+      "bg-black",
+    );
+    expect(screen.getByRole("region", { name: "Terminal emulator" })).not.toHaveClass(
       "rounded-2xl",
+      "shadow-inner",
     );
     expect(screen.getByTestId("terminal-mobile-controls")).toBeInTheDocument();
     expect(screen.queryByTestId("resizable-group")).not.toBeInTheDocument();
@@ -273,6 +279,24 @@ describe("TerminalClient compose sheet", () => {
     });
     expect(screen.getByText("Compose command")).toHaveClass("sr-only");
     expect(screen.getByTestId("compose-panel")).toHaveAttribute("data-hide-header", "true");
+  });
+
+  it("locks document scrolling while the mobile terminal owns the viewport", async () => {
+    await renderTerminalClient(true);
+
+    expect(document.documentElement).toHaveStyle({
+      overflow: "hidden",
+      overscrollBehaviorY: "none",
+    });
+    expect(document.body).toHaveStyle({
+      height: "100dvh",
+      overflow: "hidden",
+      overscrollBehaviorY: "none",
+      position: "fixed",
+      right: "0px",
+      top: "-0px",
+      width: "100%",
+    });
   });
 
   it("opens the mobile compose Sheet from the global terminal compose event", async () => {
