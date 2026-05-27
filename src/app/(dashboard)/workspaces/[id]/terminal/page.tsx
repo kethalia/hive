@@ -15,5 +15,11 @@ export default async function TerminalPage({ params }: TerminalPageProps) {
     return <StaleEntryAlert workspaceId={workspaceId} />;
   }
 
-  return <TerminalClient agentId={agentResult.data.agentId} workspaceId={workspaceId} />;
+  return (
+    <TerminalClient
+      agentId={agentResult.data.agentId}
+      agentName={agentResult.data.agentName}
+      workspaceId={workspaceId}
+    />
+  );
 }

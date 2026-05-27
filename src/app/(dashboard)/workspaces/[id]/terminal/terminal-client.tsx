@@ -6,19 +6,20 @@ import { useRouter, useSearchParams } from "next/navigation";
 import type { CSSProperties, PointerEvent } from "react";
 import { Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { ComposePanel } from "@/components/terminal/ComposePanel";
-import { HapticFloatingActionButton } from "@/components/terminal/HapticFloatingActionButton";
+import { MobileTerminalControls } from "@/components/terminal/MobileTerminalControls";
 import { TerminalContextMenu } from "@/components/terminal/TerminalContextMenu";
 import { TerminalGestureLayer } from "@/components/terminal/TerminalGestureLayer";
 import { Button } from "@/components/ui/button";
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
-import { useFabKeyboardOffset } from "@/hooks/useFabKeyboardOffset";
+import { useVisualViewportKeyboardOffset } from "@/hooks/useVisualViewportKeyboardOffset";
 import { useIsComposeSheet } from "@/hooks/use-compose-sheet";
 import { useKeybindings } from "@/hooks/useKeybindings";
 import { createSessionAction, getWorkspaceSessionsAction } from "@/lib/actions/workspaces";
 import { COMPOSE_SHEET_DISMISS_DRAG_PX } from "@/lib/terminal/config";
 import { TERMINAL_COMPOSE_OPEN_EVENT } from "@/lib/terminal/events";
 import { copyTerminalSelection, pasteToTerminal } from "@/lib/terminal/actions";
+import { triggerHapticFeedback } from "@/lib/device/haptics";
 
 const InteractiveTerminal = dynamic(
   () => import("@/components/workspaces/InteractiveTerminal").then((m) => m.InteractiveTerminal),
@@ -46,11 +47,43 @@ function composeSheetKeyboardStyle(keyboardLiftPx: number): CSSProperties {
   };
 }
 
+function MobileTerminalTitleCard({
+  agentName,
+  sessionName,
+}: {
+  agentName?: string;
+  sessionName: string;
+}) {
+  return (
+    <header className="shrink-0 rounded-2xl border bg-card/95 px-4 py-3 shadow-sm">
+      <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+        Terminal
+      </p>
+      <div className="mt-1 flex items-center justify-between gap-3">
+        <h1 className="truncate text-base font-semibold text-card-foreground">{sessionName}</h1>
+        {agentName ? (
+          <span className="max-w-[45%] truncate rounded-full border bg-background/80 px-2.5 py-1 text-xs text-muted-foreground">
+            {agentName}
+          </span>
+        ) : null}
+      </div>
+    </header>
+  );
+}
+
 function terminalSessionHref(workspaceId: string, sessionName: string): string {
   return `/workspaces/${workspaceId}/terminal?session=${encodeURIComponent(sessionName)}`;
 }
 
-function TerminalInner({ agentId, workspaceId }: { agentId: string; workspaceId: string }) {
+function TerminalInner({
+  agentId,
+  agentName,
+  workspaceId,
+}: {
+  agentId: string;
+  agentName?: string;
+  workspaceId: string;
+}) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const session = searchParams.get("session");
@@ -62,7 +95,7 @@ function TerminalInner({ agentId, workspaceId }: { agentId: string; workspaceId:
   const [bootstrapRetryKey, setBootstrapRetryKey] = useState(0);
   const composeSheetDragStartYRef = useRef<number | null>(null);
   const isComposeSheet = useIsComposeSheet();
-  const { liftPx: visualKeyboardLiftPx } = useFabKeyboardOffset();
+  const { liftPx: visualKeyboardLiftPx } = useVisualViewportKeyboardOffset();
   const keyboardLiftPx = isComposeSheet ? visualKeyboardLiftPx : 0;
   const mobileTerminalStyle = mobileTerminalFrameStyle(keyboardLiftPx);
   const composeSheetStyle = composeSheetKeyboardStyle(keyboardLiftPx);
@@ -279,8 +312,16 @@ function TerminalInner({ agentId, workspaceId }: { agentId: string; workspaceId:
         style={mobileTerminalStyle}
         onKeyDown={(e) => e.stopPropagation()}
       >
-        <div className="min-h-0 flex-1 overflow-hidden">{terminalPane}</div>
-        <HapticFloatingActionButton />
+        <div className="flex h-full min-h-0 flex-col gap-3 px-3 pt-3 pb-2">
+          <MobileTerminalTitleCard agentName={agentName} sessionName={session} />
+          <section
+            aria-label="Terminal emulator"
+            className="min-h-0 flex-1 overflow-hidden rounded-2xl border bg-black shadow-inner"
+          >
+            {terminalPane}
+          </section>
+          <MobileTerminalControls onHapticFeedback={triggerHapticFeedback} />
+        </div>
         <Sheet open={composeOpen} onOpenChange={setComposeOpen}>
           <SheetContent
             side="bottom"
@@ -327,17 +368,17 @@ function TerminalInner({ agentId, workspaceId }: { agentId: string; workspaceId:
           </>
         )}
       </ResizablePanelGroup>
-      <HapticFloatingActionButton />
     </div>
   );
 }
 
 interface TerminalClientProps {
   agentId: string;
+  agentName?: string;
   workspaceId: string;
 }
 
-export function TerminalClient({ agentId, workspaceId }: TerminalClientProps) {
+export function TerminalClient({ agentId, agentName, workspaceId }: TerminalClientProps) {
   return (
     <Suspense
       fallback={
@@ -349,7 +390,7 @@ export function TerminalClient({ agentId, workspaceId }: TerminalClientProps) {
         </div>
       }
     >
-      <TerminalInner agentId={agentId} workspaceId={workspaceId} />
+      <TerminalInner agentId={agentId} agentName={agentName} workspaceId={workspaceId} />
     </Suspense>
   );
 }

@@ -26,8 +26,8 @@ const { mockUseIsComposeSheet } = vi.hoisted(() => ({
   mockUseIsComposeSheet: vi.fn(() => false),
 }));
 
-const { mockUseFabKeyboardOffset } = vi.hoisted(() => ({
-  mockUseFabKeyboardOffset: vi.fn(() => ({ liftPx: 0 })),
+const { mockUseVisualViewportKeyboardOffset } = vi.hoisted(() => ({
+  mockUseVisualViewportKeyboardOffset: vi.fn(() => ({ liftPx: 0 })),
 }));
 
 const { registeredBindings } = vi.hoisted(() => ({
@@ -74,8 +74,8 @@ vi.mock("@/hooks/use-compose-sheet", () => ({
   useIsComposeSheet: mockUseIsComposeSheet,
 }));
 
-vi.mock("@/hooks/useFabKeyboardOffset", () => ({
-  useFabKeyboardOffset: mockUseFabKeyboardOffset,
+vi.mock("@/hooks/useVisualViewportKeyboardOffset", () => ({
+  useVisualViewportKeyboardOffset: mockUseVisualViewportKeyboardOffset,
 }));
 
 vi.mock("@/hooks/useKeybindings", () => ({
@@ -93,8 +93,8 @@ vi.mock("@/components/terminal/ComposePanel", () => ({
   ),
 }));
 
-vi.mock("@/components/terminal/HapticFloatingActionButton", () => ({
-  HapticFloatingActionButton: () => <div data-testid="terminal-fab" />,
+vi.mock("@/components/terminal/MobileTerminalControls", () => ({
+  MobileTerminalControls: () => <div data-testid="terminal-mobile-controls" />,
 }));
 
 vi.mock("@/components/ui/resizable", () => ({
@@ -203,8 +203,8 @@ describe("TerminalClient compose sheet", () => {
     mockCreateSessionAction.mockReset();
     window.localStorage.clear();
     mockUseIsComposeSheet.mockReturnValue(false);
-    mockUseFabKeyboardOffset.mockReset();
-    mockUseFabKeyboardOffset.mockReturnValue({ liftPx: 0 });
+    mockUseVisualViewportKeyboardOffset.mockReset();
+    mockUseVisualViewportKeyboardOffset.mockReturnValue({ liftPx: 0 });
   });
 
   afterEach(() => {
@@ -244,7 +244,13 @@ describe("TerminalClient compose sheet", () => {
     expect(screen.getByTestId("terminal-mobile-shell")).not.toHaveClass(
       "-mb-[calc(var(--safe-area-inset-bottom)+1.5rem)]",
     );
-    expect(screen.getByTestId("terminal-fab")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "tmux-1" })).toBeInTheDocument();
+    expect(screen.getByRole("region", { name: "Terminal emulator" })).toHaveClass(
+      "min-h-0",
+      "flex-1",
+      "rounded-2xl",
+    );
+    expect(screen.getByTestId("terminal-mobile-controls")).toBeInTheDocument();
     expect(screen.queryByTestId("resizable-group")).not.toBeInTheDocument();
     expect(screen.getByTestId("compose-sheet")).toHaveAttribute("data-open", "false");
     expect(screen.queryByTestId("compose-panel")).not.toBeInTheDocument();
@@ -269,7 +275,7 @@ describe("TerminalClient compose sheet", () => {
     expect(screen.getByTestId("compose-panel")).toHaveAttribute("data-hide-header", "true");
   });
 
-  it("opens the mobile compose Sheet from the global FAB compose event", async () => {
+  it("opens the mobile compose Sheet from the global terminal compose event", async () => {
     await renderTerminalClient(true);
 
     expect(screen.getByTestId("compose-sheet")).toHaveAttribute("data-open", "false");
@@ -283,7 +289,7 @@ describe("TerminalClient compose sheet", () => {
   });
 
   it("keeps the mobile terminal controls and compose sheet above the visual viewport keyboard", async () => {
-    mockUseFabKeyboardOffset.mockReturnValue({ liftPx: 280 });
+    mockUseVisualViewportKeyboardOffset.mockReturnValue({ liftPx: 280 });
     await renderTerminalClient(true);
 
     expect(screen.getByTestId("terminal-mobile-shell")).toHaveStyle({ bottom: "280px" });

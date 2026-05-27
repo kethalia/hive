@@ -1,7 +1,7 @@
 /**
- * Gesture conventions shared by S02-S08 (terminal FAB + reposition + future
- * touch surfaces). Single source of truth so per-slice handlers do not drift
- * on long-press thresholds, tap tolerance, or iOS magnifier suppression.
+ * Gesture conventions shared by mobile touch surfaces. Single source of truth
+ * so per-slice handlers do not drift on long-press thresholds, tap tolerance,
+ * or iOS magnifier suppression.
  *
  * Usage notes for @use-gesture/react:
  * - Bind handlers to the wrapper element, not the xterm canvas — the canvas

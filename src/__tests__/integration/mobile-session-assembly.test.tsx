@@ -32,17 +32,9 @@ const workspaceActions = vi.hoisted(() => ({
   renameSessionAction: vi.fn(),
 }));
 
-const fabState = vi.hoisted(() => ({
-  capturedOnArmed: undefined as (() => void) | undefined,
-  corner: "bottom-right" as const,
+const terminalControlState = vi.hoisted(() => ({
   decreaseFontSize: vi.fn(),
   increaseFontSize: vi.fn(),
-  isDragging: false,
-  isSnapping: false,
-  onPointerDown: vi.fn(),
-  onPointerMove: vi.fn(),
-  onPointerUp: vi.fn(() => false),
-  position: { x: 320, y: 700 },
 }));
 
 const terminalState = vi.hoisted(() => ({
@@ -117,34 +109,16 @@ vi.mock("@/components/terminal/KeybindingProvider", () => ({
   ),
 }));
 
-vi.mock("@/hooks/useFabKeyboardOffset", () => ({
-  useFabKeyboardOffset: () => ({ liftPx: 0 }),
-}));
-
-vi.mock("@/hooks/useFabPosition", () => ({
-  useFabPosition: (opts?: { onArmed?: () => void }) => {
-    fabState.capturedOnArmed = opts?.onArmed;
-    return {
-      corner: fabState.corner,
-      dragDist: { current: 0 },
-      isArmed: false,
-      isDragging: fabState.isDragging,
-      isSnapping: fabState.isSnapping,
-      onPointerCancel: vi.fn(),
-      onPointerDown: fabState.onPointerDown,
-      onPointerMove: fabState.onPointerMove,
-      onPointerUp: fabState.onPointerUp,
-      position: fabState.position,
-    };
-  },
+vi.mock("@/hooks/useVisualViewportKeyboardOffset", () => ({
+  useVisualViewportKeyboardOffset: () => ({ liftPx: 0 }),
 }));
 
 vi.mock("@/hooks/useTerminalFontStep", () => ({
   useTerminalFontStep: () => ({
     canDecrease: true,
     canIncrease: true,
-    decrease: fabState.decreaseFontSize,
-    increase: fabState.increaseFontSize,
+    decrease: terminalControlState.decreaseFontSize,
+    increase: terminalControlState.increaseFontSize,
     size: 12,
   }),
 }));
@@ -503,18 +477,9 @@ class MockEventSource {
   }
 }
 
-function resetFabState() {
-  fabState.capturedOnArmed = undefined;
-  fabState.corner = "bottom-right";
-  fabState.isDragging = false;
-  fabState.isSnapping = false;
-  fabState.position = { x: 320, y: 700 };
-  fabState.onPointerDown.mockClear();
-  fabState.onPointerMove.mockClear();
-  fabState.onPointerUp.mockReset();
-  fabState.onPointerUp.mockReturnValue(false);
-  fabState.increaseFontSize.mockClear();
-  fabState.decreaseFontSize.mockClear();
+function resetTerminalControlState() {
+  terminalControlState.increaseFontSize.mockClear();
+  terminalControlState.decreaseFontSize.mockClear();
 }
 
 function setScrollMetrics(
@@ -568,7 +533,7 @@ beforeEach(() => {
   workspaceActions.getWorkspaceSessionsAction.mockReset();
   workspaceActions.killSessionAction.mockReset();
   workspaceActions.renameSessionAction.mockReset();
-  resetFabState();
+  resetTerminalControlState();
   terminalState.fit.mockReset();
   terminalState.resize.mockClear();
   terminalState.send.mockClear();

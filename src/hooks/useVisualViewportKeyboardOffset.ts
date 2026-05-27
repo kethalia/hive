@@ -1,19 +1,20 @@
 import * as React from "react";
 
-export interface FabKeyboardOffset {
+export interface VisualViewportKeyboardOffset {
   liftPx: number;
 }
 
 /**
- * Returns the number of pixels the FAB must lift to stay above the on-screen
- * keyboard. Computed from window.visualViewport: when the soft keyboard opens,
- * visualViewport.height shrinks below window.innerHeight; the difference (minus
- * any offsetTop) is the amount the bottom-anchored FAB must rise.
+ * Returns the number of pixels a bottom-anchored terminal layout must lift to
+ * stay above the on-screen keyboard. Computed from window.visualViewport: when
+ * the soft keyboard opens, visualViewport.height shrinks below
+ * window.innerHeight; subtracting visualViewport.offsetTop avoids double
+ * counting Safari's page shift in installed PWAs.
  *
  * SSR-safe: returns { liftPx: 0 } on first render. Listeners are attached in
- * useEffect to window.visualViewport for 'resize' and 'scroll' events.
+ * useEffect to window.visualViewport for both 'resize' and 'scroll' events.
  */
-export function useFabKeyboardOffset(): FabKeyboardOffset {
+export function useVisualViewportKeyboardOffset(): VisualViewportKeyboardOffset {
   const [liftPx, setLiftPx] = React.useState(0);
 
   React.useEffect(() => {
