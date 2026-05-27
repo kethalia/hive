@@ -3,9 +3,10 @@
 import { Loader2 } from "lucide-react";
 import dynamic from "next/dynamic";
 import { useRouter, useSearchParams } from "next/navigation";
-import type { PointerEvent } from "react";
+import type { CSSProperties, PointerEvent } from "react";
 import { Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { ComposePanel } from "@/components/terminal/ComposePanel";
+import { HapticFloatingActionButton } from "@/components/terminal/HapticFloatingActionButton";
 import { TerminalContextMenu } from "@/components/terminal/TerminalContextMenu";
 import { TerminalGestureLayer } from "@/components/terminal/TerminalGestureLayer";
 import { Button } from "@/components/ui/button";
@@ -25,9 +26,15 @@ const InteractiveTerminal = dynamic(
 );
 
 const LAST_SESSION_STORAGE_PREFIX = "terminal:last-session:";
-const MAX_COMPOSE_KEYBOARD_LIFT_PX = 360;
 const TERMINAL_SHELL_CLASS_NAME =
-  "-mx-6 -mb-[calc(var(--safe-area-inset-bottom)+1.5rem)] h-[calc(100dvh-var(--safe-area-inset-top)-3.5rem)] w-[calc(100%+3rem)]";
+  "-mx-6 -mb-[calc(var(--safe-area-inset-bottom)+1.5rem)] w-[calc(100%+3rem)]";
+const TERMINAL_STATIC_HEIGHT_CLASS_NAME = "h-[calc(100dvh-var(--safe-area-inset-top)-3.5rem)]";
+
+function terminalKeyboardStyle(keyboardLiftPx: number): CSSProperties {
+  return {
+    height: `calc(100dvh - var(--safe-area-inset-top) - 3.5rem - ${keyboardLiftPx}px)`,
+  };
+}
 
 function terminalSessionHref(workspaceId: string, sessionName: string): string {
   return `/workspaces/${workspaceId}/terminal?session=${encodeURIComponent(sessionName)}`;
@@ -45,10 +52,10 @@ function TerminalInner({ agentId, workspaceId }: { agentId: string; workspaceId:
   const [bootstrapRetryKey, setBootstrapRetryKey] = useState(0);
   const composeSheetDragStartYRef = useRef<number | null>(null);
   const isComposeSheet = useIsComposeSheet();
-  const { liftPx: keyboardLiftPx } = useFabKeyboardOffset();
-  const composeKeyboardLiftPx = isComposeSheet
-    ? Math.min(keyboardLiftPx, MAX_COMPOSE_KEYBOARD_LIFT_PX)
-    : 0;
+  const { liftPx: visualKeyboardLiftPx } = useFabKeyboardOffset();
+  const keyboardLiftPx = isComposeSheet ? visualKeyboardLiftPx : 0;
+  const terminalShellHeightClassName = isComposeSheet ? "" : TERMINAL_STATIC_HEIGHT_CLASS_NAME;
+  const terminalShellStyle = isComposeSheet ? terminalKeyboardStyle(keyboardLiftPx) : undefined;
 
   const handleComposeSheetDragStart = useCallback((event: PointerEvent<HTMLButtonElement>) => {
     composeSheetDragStartYRef.current = event.clientY;
@@ -179,7 +186,11 @@ function TerminalInner({ agentId, workspaceId }: { agentId: string; workspaceId:
 
   if (!session) {
     return (
-      <div className={`${TERMINAL_SHELL_CLASS_NAME} flex items-center justify-center`}>
+      <div
+        data-testid="terminal-bootstrap-shell"
+        className={`${TERMINAL_SHELL_CLASS_NAME} ${terminalShellHeightClassName} flex items-center justify-center`}
+        style={terminalShellStyle}
+      >
         <div className="mx-6 max-w-sm rounded-2xl border bg-background/95 p-5 text-center shadow-lg">
           {bootstrapError ? (
             <>
@@ -248,16 +259,19 @@ function TerminalInner({ agentId, workspaceId }: { agentId: string; workspaceId:
   if (isComposeSheet) {
     return (
       <div
-        className={`relative ${TERMINAL_SHELL_CLASS_NAME}`}
+        data-testid="terminal-mobile-shell"
+        className={`relative flex flex-col ${TERMINAL_SHELL_CLASS_NAME}`}
+        style={terminalShellStyle}
         onKeyDown={(e) => e.stopPropagation()}
       >
-        {terminalPane}
+        <div className="min-h-0 flex-1">{terminalPane}</div>
+        <HapticFloatingActionButton />
         <Sheet open={composeOpen} onOpenChange={setComposeOpen}>
           <SheetContent
             side="bottom"
             className="h-[100dvh] max-h-[100dvh] p-0 pt-safe"
             style={{
-              paddingBottom: `calc(var(--safe-area-inset-bottom) + ${composeKeyboardLiftPx}px)`,
+              paddingBottom: `calc(var(--safe-area-inset-bottom) + ${keyboardLiftPx}px)`,
             }}
           >
             <button
@@ -282,7 +296,11 @@ function TerminalInner({ agentId, workspaceId }: { agentId: string; workspaceId:
   }
 
   return (
-    <div className={TERMINAL_SHELL_CLASS_NAME} onKeyDown={(e) => e.stopPropagation()}>
+    <div
+      data-testid="terminal-desktop-shell"
+      className={`${TERMINAL_SHELL_CLASS_NAME} ${TERMINAL_STATIC_HEIGHT_CLASS_NAME}`}
+      onKeyDown={(e) => e.stopPropagation()}
+    >
       <ResizablePanelGroup orientation="vertical" className="h-full">
         <ResizablePanel defaultSize={composeOpen ? 75 : 100} minSize={30}>
           {terminalPane}
@@ -296,6 +314,7 @@ function TerminalInner({ agentId, workspaceId }: { agentId: string; workspaceId:
           </>
         )}
       </ResizablePanelGroup>
+      <HapticFloatingActionButton />
     </div>
   );
 }
@@ -309,7 +328,10 @@ export function TerminalClient({ agentId, workspaceId }: TerminalClientProps) {
   return (
     <Suspense
       fallback={
-        <div className={`${TERMINAL_SHELL_CLASS_NAME} flex items-center justify-center`}>
+        <div
+          data-testid="terminal-suspense-shell"
+          className={`${TERMINAL_SHELL_CLASS_NAME} ${TERMINAL_STATIC_HEIGHT_CLASS_NAME} flex items-center justify-center`}
+        >
           <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
         </div>
       }

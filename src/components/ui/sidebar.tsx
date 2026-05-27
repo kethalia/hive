@@ -179,7 +179,7 @@ function Sidebar({
           data-sidebar="sidebar"
           data-slot="sidebar"
           data-mobile="true"
-          className="w-(--sidebar-width) bg-sidebar p-0 text-sidebar-foreground motion-reduce:transition-none motion-reduce:duration-0 data-[side=left]:!top-[calc(var(--safe-area-inset-top)+3.5rem)] data-[side=left]:!h-[calc(100dvh-var(--safe-area-inset-top)-3.5rem)] data-[side=right]:!top-[calc(var(--safe-area-inset-top)+3.5rem)] data-[side=right]:!h-[calc(100dvh-var(--safe-area-inset-top)-3.5rem)] [&>button]:hidden"
+          className="w-(--sidebar-width) bg-sidebar p-0 pt-[calc(var(--safe-area-inset-top)+0.5rem)] text-sidebar-foreground motion-reduce:transition-none motion-reduce:duration-0 data-[side=left]:!top-0 data-[side=left]:!h-[100dvh] data-[side=right]:!top-0 data-[side=right]:!h-[100dvh] [&>button]:hidden"
           style={
             {
               "--sidebar-width": SIDEBAR_WIDTH_MOBILE,

@@ -605,19 +605,15 @@ afterEach(() => {
 });
 
 describe("mobile session assembly", () => {
-  it("mounts the dashboard haptic FAB wrapper and sends mobile quick keys through haptics", async () => {
+  it("does not mount terminal quick actions on non-terminal dashboard pages", async () => {
     const element = await DashboardLayout({ children: <div>Workspace body</div> });
 
     render(element);
 
     expect(screen.getByText("Workspace body")).toBeInTheDocument();
     expect(screen.getByTestId("app-sidebar")).toBeInTheDocument();
-    expect(screen.getByRole("group", { name: "Terminal quick actions" })).toBeInTheDocument();
-
-    fireEvent.click(screen.getByRole("button", { name: "Tab" }));
-
-    expect(hapticsState.triggerHapticFeedback).toHaveBeenCalledTimes(1);
-    expect(keybindingState.activeSend).toHaveBeenCalledWith("\t");
+    expect(screen.queryByRole("group", { name: "Terminal quick actions" })).not.toBeInTheDocument();
+    expect(hapticsState.triggerHapticFeedback).not.toHaveBeenCalled();
   });
 
   it("renders the mobile command palette as a bottom sheet with a handle-only drag/tap affordance", async () => {

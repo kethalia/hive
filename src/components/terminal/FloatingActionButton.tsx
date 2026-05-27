@@ -14,7 +14,7 @@ import {
   Terminal,
   X,
 } from "lucide-react";
-import type { CSSProperties, PointerEvent } from "react";
+import type { PointerEvent } from "react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { ButtonGroup, ButtonGroupText } from "@/components/ui/button-group";
@@ -26,7 +26,6 @@ import { useTerminalFontStep } from "@/hooks/useTerminalFontStep";
 import { NO_TOUCH_STYLE } from "@/lib/gestures/conventions";
 import { TERMINAL_COMPOSE_OPEN_EVENT } from "@/lib/terminal/events";
 import { VIRTUAL_KEY_SEQUENCES } from "@/lib/terminal/virtual-keys";
-import { cn } from "@/lib/utils";
 
 const NAVIGATION_KEYS = [
   { label: "Up", icon: ArrowUp, sequence: VIRTUAL_KEY_SEQUENCES.Up },
@@ -61,16 +60,11 @@ function menuDirection(corner: Corner): { horizontal: string; vertical: string }
   };
 }
 
-function mobileAnchorStyle(corner: Corner): CSSProperties | undefined {
-  if (!corner.includes("right")) return undefined;
-  return { transform: "translateX(calc(-100% + 3.5rem))" };
-}
-
 export interface FloatingActionButtonProps {
   /**
    * Haptic-feedback seam: called once when the reposition long-press arms,
-   * and once for each virtual-key press from the grid or quick row.
-   * Default no-op; S08 wires this to navigator.vibrate(10).
+   * and once for each terminal action press. Default no-op; S08 wires this
+   * to navigator.vibrate(10).
    */
   onHapticFeedback?: () => void;
 }
@@ -102,7 +96,7 @@ export function FloatingActionButton({ onHapticFeedback }: FloatingActionButtonP
   } = useTerminalFontStep();
   const containerRef = useRef<HTMLDivElement>(null);
 
-  const handleMorePointerUp = useCallback(
+  const handleDesktopPointerUp = useCallback(
     (event: PointerEvent<HTMLButtonElement>) => {
       const wasDrag = onPointerUp(event);
       if (!wasDrag) {
@@ -111,6 +105,11 @@ export function FloatingActionButton({ onHapticFeedback }: FloatingActionButtonP
     },
     [onPointerUp],
   );
+
+  const toggleMobileMore = useCallback(() => {
+    haptic();
+    setExpanded((prev) => !prev);
+  }, [haptic]);
 
   useEffect(() => {
     if (!expanded) return;
@@ -138,38 +137,27 @@ export function FloatingActionButton({ onHapticFeedback }: FloatingActionButtonP
   }, [haptic]);
 
   const dir = menuDirection(corner);
-  let containerTransition: string | undefined;
+  let desktopTransition: string | undefined;
   if (isDragging || (prefersReducedMotion && isSnapping)) {
-    containerTransition = "none";
+    desktopTransition = "none";
   } else if (isSnapping) {
-    containerTransition = "transform 200ms ease-out";
+    desktopTransition = "transform 200ms ease-out";
   }
 
-  return (
-    <div
-      ref={containerRef}
-      className="fixed z-40 pb-safe px-safe"
-      style={{
-        transform: `translate3d(${position.x}px, ${position.y}px, 0)`,
-        transition: containerTransition,
-        touchAction: "none",
-        top: 0,
-        left: 0,
-        ...NO_TOUCH_STYLE,
-      }}
-    >
-      {isMobile ? (
-        <div
-          className={cn(
-            "flex gap-2",
-            corner.includes("top") ? "flex-col-reverse" : "flex-col",
-            corner.includes("right") ? "items-end" : "items-start",
-          )}
-          style={mobileAnchorStyle(corner)}
-        >
+  if (isMobile) {
+    return (
+      <div
+        ref={containerRef}
+        className="w-full border-t bg-background/95 px-safe pt-2 pb-[calc(var(--safe-area-inset-bottom)+0.5rem)] shadow-[0_-18px_40px_rgba(0,0,0,0.24)] backdrop-blur supports-[backdrop-filter]:bg-background/80"
+        style={{
+          touchAction: "manipulation",
+          ...NO_TOUCH_STYLE,
+        }}
+      >
+        <div className="mx-auto flex w-full max-w-screen-sm flex-col gap-2 px-2">
           {expanded && (
             <div
-              className="flex max-h-[calc(100dvh-var(--safe-area-inset-top)-var(--safe-area-inset-bottom)-6rem)] w-[min(calc(100vw-var(--safe-area-inset-left)-var(--safe-area-inset-right)-2rem),22rem)] flex-col gap-3 overflow-y-auto rounded-2xl border bg-popover/95 p-3 text-popover-foreground shadow-2xl backdrop-blur"
+              className="flex max-h-[min(42dvh,22rem)] w-full flex-col gap-3 overflow-y-auto rounded-2xl border bg-popover/95 p-3 text-popover-foreground shadow-2xl backdrop-blur"
               role="menu"
               aria-label="More terminal actions"
             >
@@ -251,14 +239,14 @@ export function FloatingActionButton({ onHapticFeedback }: FloatingActionButtonP
 
           <ButtonGroup
             aria-label="Terminal quick actions"
-            className="rounded-full border bg-background/95 p-1 shadow-xl backdrop-blur supports-[backdrop-filter]:bg-background/80"
+            className="grid w-full grid-cols-4 rounded-2xl border bg-background/95 p-1 shadow-xl backdrop-blur supports-[backdrop-filter]:bg-background/80"
           >
             {QUICK_ROW_KEYS.map(({ label, icon: Icon, sequence }) => (
               <Button
                 key={label}
                 type="button"
                 variant="ghost"
-                className="min-h-11 min-w-11 rounded-full px-3"
+                className="min-h-12 min-w-0 rounded-xl px-1 text-xs"
                 style={NO_TOUCH_STYLE}
                 onPointerDown={(e) => e.stopPropagation()}
                 onClick={() => sendKey(sequence)}
@@ -270,12 +258,9 @@ export function FloatingActionButton({ onHapticFeedback }: FloatingActionButtonP
             <Button
               type="button"
               variant={expanded ? "secondary" : "default"}
-              className="min-h-11 min-w-11 rounded-full px-3"
+              className="min-h-12 min-w-0 rounded-xl px-1 text-xs"
               style={NO_TOUCH_STYLE}
-              onPointerDown={onPointerDown}
-              onPointerMove={onPointerMove}
-              onPointerUp={handleMorePointerUp}
-              onPointerCancel={onPointerCancel}
+              onClick={toggleMobileMore}
               aria-expanded={expanded}
             >
               <Ellipsis data-icon="inline-start" />
@@ -283,82 +268,95 @@ export function FloatingActionButton({ onHapticFeedback }: FloatingActionButtonP
             </Button>
           </ButtonGroup>
         </div>
-      ) : (
-        <>
+      </div>
+    );
+  }
+
+  return (
+    <div
+      ref={containerRef}
+      className="fixed z-40 pb-safe px-safe"
+      style={{
+        transform: `translate3d(${position.x}px, ${position.y}px, 0)`,
+        transition: desktopTransition,
+        touchAction: "none",
+        top: 0,
+        left: 0,
+        ...NO_TOUCH_STYLE,
+      }}
+    >
+      <button
+        type="button"
+        className="flex size-14 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg transition-transform hover:bg-primary/90 active:scale-95 motion-reduce:transition-none motion-reduce:duration-0 motion-reduce:active:scale-100"
+        onPointerDown={onPointerDown}
+        onPointerMove={onPointerMove}
+        onPointerUp={handleDesktopPointerUp}
+        onPointerCancel={onPointerCancel}
+        aria-label={expanded ? "Close virtual keyboard" : "Open virtual keyboard"}
+        aria-expanded={expanded}
+      >
+        <Terminal className="size-6" />
+      </button>
+
+      {expanded && (
+        <div
+          className={`absolute ${dir.vertical} ${dir.horizontal} flex flex-col gap-1 rounded-lg border bg-popover p-2 shadow-xl`}
+          role="menu"
+          aria-label="Virtual keys"
+        >
+          {DESKTOP_KEYS.map(({ label, icon: Icon, sequence }) => (
+            <button
+              key={label}
+              type="button"
+              role="menuitem"
+              className="flex items-center gap-2 whitespace-nowrap rounded-md px-3 py-2 text-sm font-medium text-popover-foreground transition-colors hover:bg-accent hover:text-accent-foreground motion-reduce:transition-none motion-reduce:duration-0"
+              onPointerDown={(e) => e.stopPropagation()}
+              onClick={() => sendKey(sequence)}
+            >
+              <Icon className="size-4" />
+              {label}
+            </button>
+          ))}
+          <hr className="my-1 h-px border-0 bg-border" />
+          <div className="flex items-center justify-between gap-2 px-3 py-1">
+            <button
+              type="button"
+              role="menuitem"
+              className="flex size-8 items-center justify-center rounded-md text-popover-foreground transition-colors hover:bg-accent hover:text-accent-foreground disabled:pointer-events-none disabled:opacity-40 motion-reduce:transition-none motion-reduce:duration-0"
+              onPointerDown={(e) => e.stopPropagation()}
+              onClick={decreaseFontSize}
+              disabled={!canDecrease}
+              aria-label="Decrease font size"
+            >
+              <Minus className="size-4" />
+            </button>
+            <span className="min-w-[3ch] select-none text-center text-xs tabular-nums text-popover-foreground">
+              {fontSize}
+            </span>
+            <button
+              type="button"
+              role="menuitem"
+              className="flex size-8 items-center justify-center rounded-md text-popover-foreground transition-colors hover:bg-accent hover:text-accent-foreground disabled:pointer-events-none disabled:opacity-40 motion-reduce:transition-none motion-reduce:duration-0"
+              onPointerDown={(e) => e.stopPropagation()}
+              onClick={increaseFontSize}
+              disabled={!canIncrease}
+              aria-label="Increase font size"
+            >
+              <Plus className="size-4" />
+            </button>
+          </div>
+          <hr className="my-1 h-px border-0 bg-border" />
           <button
             type="button"
-            className="flex size-14 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg transition-transform hover:bg-primary/90 active:scale-95 motion-reduce:transition-none motion-reduce:duration-0 motion-reduce:active:scale-100"
-            onPointerDown={onPointerDown}
-            onPointerMove={onPointerMove}
-            onPointerUp={handleMorePointerUp}
-            onPointerCancel={onPointerCancel}
-            aria-label={expanded ? "Close virtual keyboard" : "Open virtual keyboard"}
-            aria-expanded={expanded}
+            role="menuitem"
+            className="flex items-center gap-2 whitespace-nowrap rounded-md px-3 py-2 text-sm font-medium text-popover-foreground transition-colors hover:bg-accent hover:text-accent-foreground motion-reduce:transition-none motion-reduce:duration-0"
+            onPointerDown={(e) => e.stopPropagation()}
+            onClick={() => sendKey(VIRTUAL_KEY_SEQUENCES.Enter)}
           >
-            <Terminal className="size-6" />
+            <CornerDownLeft className="size-4" />
+            Enter
           </button>
-
-          {expanded && (
-            <div
-              className={`absolute ${dir.vertical} ${dir.horizontal} flex flex-col gap-1 rounded-lg border bg-popover p-2 shadow-xl`}
-              role="menu"
-              aria-label="Virtual keys"
-            >
-              {DESKTOP_KEYS.map(({ label, icon: Icon, sequence }) => (
-                <button
-                  key={label}
-                  type="button"
-                  role="menuitem"
-                  className="flex items-center gap-2 whitespace-nowrap rounded-md px-3 py-2 text-sm font-medium text-popover-foreground transition-colors hover:bg-accent hover:text-accent-foreground motion-reduce:transition-none motion-reduce:duration-0"
-                  onPointerDown={(e) => e.stopPropagation()}
-                  onClick={() => sendKey(sequence)}
-                >
-                  <Icon className="size-4" />
-                  {label}
-                </button>
-              ))}
-              <hr className="my-1 h-px border-0 bg-border" />
-              <div className="flex items-center justify-between gap-2 px-3 py-1">
-                <button
-                  type="button"
-                  role="menuitem"
-                  className="flex size-8 items-center justify-center rounded-md text-popover-foreground transition-colors hover:bg-accent hover:text-accent-foreground disabled:pointer-events-none disabled:opacity-40 motion-reduce:transition-none motion-reduce:duration-0"
-                  onPointerDown={(e) => e.stopPropagation()}
-                  onClick={decreaseFontSize}
-                  disabled={!canDecrease}
-                  aria-label="Decrease font size"
-                >
-                  <Minus className="size-4" />
-                </button>
-                <span className="min-w-[3ch] select-none text-center text-xs tabular-nums text-popover-foreground">
-                  {fontSize}
-                </span>
-                <button
-                  type="button"
-                  role="menuitem"
-                  className="flex size-8 items-center justify-center rounded-md text-popover-foreground transition-colors hover:bg-accent hover:text-accent-foreground disabled:pointer-events-none disabled:opacity-40 motion-reduce:transition-none motion-reduce:duration-0"
-                  onPointerDown={(e) => e.stopPropagation()}
-                  onClick={increaseFontSize}
-                  disabled={!canIncrease}
-                  aria-label="Increase font size"
-                >
-                  <Plus className="size-4" />
-                </button>
-              </div>
-              <hr className="my-1 h-px border-0 bg-border" />
-              <button
-                type="button"
-                role="menuitem"
-                className="flex items-center gap-2 whitespace-nowrap rounded-md px-3 py-2 text-sm font-medium text-popover-foreground transition-colors hover:bg-accent hover:text-accent-foreground motion-reduce:transition-none motion-reduce:duration-0"
-                onPointerDown={(e) => e.stopPropagation()}
-                onClick={() => sendKey(VIRTUAL_KEY_SEQUENCES.Enter)}
-              >
-                <CornerDownLeft className="size-4" />
-                Enter
-              </button>
-            </div>
-          )}
-        </>
+        </div>
       )}
     </div>
   );

@@ -84,6 +84,10 @@ vi.mock("@/components/terminal/ComposePanel", () => ({
   ),
 }));
 
+vi.mock("@/components/terminal/HapticFloatingActionButton", () => ({
+  HapticFloatingActionButton: () => <div data-testid="terminal-fab" />,
+}));
+
 vi.mock("@/components/ui/resizable", () => ({
   ResizablePanelGroup: ({
     children,
@@ -222,6 +226,10 @@ describe("TerminalClient compose sheet", () => {
     await renderTerminalClient(true);
 
     expect(screen.getByTestId("interactive-terminal")).toBeInTheDocument();
+    expect(screen.getByTestId("terminal-mobile-shell")).toHaveStyle({
+      height: "calc(100dvh - var(--safe-area-inset-top) - 3.5rem - 0px)",
+    });
+    expect(screen.getByTestId("terminal-fab")).toBeInTheDocument();
     expect(screen.queryByTestId("resizable-group")).not.toBeInTheDocument();
     expect(screen.getByTestId("compose-sheet")).toHaveAttribute("data-open", "false");
     expect(screen.queryByTestId("compose-panel")).not.toBeInTheDocument();
@@ -256,9 +264,13 @@ describe("TerminalClient compose sheet", () => {
     expect(screen.getByTestId("compose-panel")).toHaveAttribute("data-hide-header", "true");
   });
 
-  it("keeps the mobile compose sheet above the visual viewport keyboard", async () => {
+  it("keeps the mobile terminal controls and compose sheet above the visual viewport keyboard", async () => {
     mockUseFabKeyboardOffset.mockReturnValue({ liftPx: 280 });
     await renderTerminalClient(true);
+
+    expect(screen.getByTestId("terminal-mobile-shell")).toHaveStyle({
+      height: "calc(100dvh - var(--safe-area-inset-top) - 3.5rem - 280px)",
+    });
 
     act(() => {
       window.dispatchEvent(new CustomEvent(TERMINAL_COMPOSE_OPEN_EVENT));

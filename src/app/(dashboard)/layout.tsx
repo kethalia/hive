@@ -2,12 +2,11 @@ import { Suspense } from "react";
 import { AppSidebar } from "@/components/app-sidebar";
 import { PushPermissionPrompt } from "@/components/push-permission-prompt";
 import { SidebarEdgeHandle } from "@/components/sidebar-edge-handle";
+import { HelpOverlay } from "@/components/terminal/HelpOverlay";
+import KeybindingProvider from "@/components/terminal/KeybindingProvider";
 import { TokenExpiryBanner } from "@/components/token-expiry-banner";
 import { SidebarInset, SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { getTokenStatusAction } from "@/lib/auth/actions";
-import KeybindingProvider from "@/components/terminal/KeybindingProvider";
-import { HapticFloatingActionButton } from "@/components/terminal/HapticFloatingActionButton";
-import { HelpOverlay } from "@/components/terminal/HelpOverlay";
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
   const bannerStatus = await getTokenStatusAction();
@@ -27,7 +26,6 @@ export default async function DashboardLayout({ children }: { children: React.Re
             {children}
           </main>
         </SidebarInset>
-        <HapticFloatingActionButton />
         <HelpOverlay />
       </KeybindingProvider>
     </SidebarProvider>

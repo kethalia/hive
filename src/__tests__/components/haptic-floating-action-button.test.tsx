@@ -114,14 +114,22 @@ describe("HapticFloatingActionButton", () => {
     expect(source.startsWith('"use client";')).toBe(true);
   });
 
-  it("is mounted by the dashboard layout instead of importing the server-unsafe FAB directly", () => {
-    const source = readFileSync(join(process.cwd(), "src/app/(dashboard)/layout.tsx"), "utf8");
+  it("is mounted only by the terminal route instead of every dashboard page", () => {
+    const dashboardSource = readFileSync(
+      join(process.cwd(), "src/app/(dashboard)/layout.tsx"),
+      "utf8",
+    );
+    const terminalSource = readFileSync(
+      join(process.cwd(), "src/app/(dashboard)/workspaces/[id]/terminal/terminal-client.tsx"),
+      "utf8",
+    );
 
-    expect(source).toContain(
+    expect(dashboardSource).not.toContain("HapticFloatingActionButton");
+    expect(terminalSource).toContain(
       'import { HapticFloatingActionButton } from "@/components/terminal/HapticFloatingActionButton";',
     );
-    expect(source).toContain("<HapticFloatingActionButton />");
-    expect(source).not.toContain(
+    expect(terminalSource).toContain("<HapticFloatingActionButton />");
+    expect(dashboardSource).not.toContain(
       'import { FloatingActionButton } from "@/components/terminal/FloatingActionButton";',
     );
   });

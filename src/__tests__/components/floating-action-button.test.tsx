@@ -114,9 +114,10 @@ describe("FloatingActionButton (mobile)", () => {
     render(<FloatingActionButton />);
 
     const quickActions = screen.getByRole("group", { name: "Terminal quick actions" });
+    expect(quickActions).toHaveClass("grid", "w-full", "grid-cols-4");
     expect(within(quickActions).getByRole("button", { name: "Enter" })).toHaveClass(
-      "min-h-11",
-      "min-w-11",
+      "min-h-12",
+      "min-w-0",
     );
     expect(within(quickActions).getByRole("button", { name: "Tab" })).toBeInTheDocument();
     expect(within(quickActions).getByRole("button", { name: "Ctrl+C" })).toBeInTheDocument();
@@ -127,12 +128,14 @@ describe("FloatingActionButton (mobile)", () => {
     expect(screen.queryByRole("menu", { name: "More terminal actions" })).not.toBeInTheDocument();
   });
 
-  it("keeps the FAB at the visualViewport-derived position without applying a second keyboard lift", () => {
+  it("renders the mobile controls in normal flow instead of a fixed draggable FAB", () => {
     render(<FloatingActionButton />);
 
     const container = screen.getByRole("group", { name: "Terminal quick actions" }).parentElement
       ?.parentElement;
-    expect(container).toHaveStyle({ transform: "translate3d(320px, 700px, 0)" });
+    expect(container).toHaveClass("w-full");
+    expect(container).not.toHaveClass("fixed");
+    expect(container?.getAttribute("style")).not.toContain("translate3d");
   });
 
   it("exposes reduced-motion class contracts on mobile controls", () => {
@@ -140,15 +143,15 @@ describe("FloatingActionButton (mobile)", () => {
 
     const quickActions = screen.getByRole("group", { name: "Terminal quick actions" });
     const enter = within(quickActions).getByRole("button", { name: "Enter" });
-    expect(enter.className).toContain("min-h-11");
+    expect(enter.className).toContain("min-h-12");
 
-    fireEvent.pointerUp(within(quickActions).getByRole("button", { name: "More" }));
+    fireEvent.click(within(quickActions).getByRole("button", { name: "More" }));
     const menu = screen.getByRole("menu", { name: "More terminal actions" });
     const up = within(menu).getByRole("menuitem", { name: "Up" });
     expect(up.className).toContain("min-h-11");
   });
 
-  it("does not expose the 200ms snap transition when reduced motion is preferred", () => {
+  it("does not expose the 200ms snap transition on mobile because mobile controls are not draggable", () => {
     mockFabState.isSnapping = true;
     mockPrefersReducedMotion.mockReturnValue(true);
 
@@ -156,7 +159,6 @@ describe("FloatingActionButton (mobile)", () => {
 
     const container = screen.getByRole("group", { name: "Terminal quick actions" }).parentElement
       ?.parentElement;
-    expect(container).toHaveStyle({ transition: "none" });
     expect(container?.getAttribute("style")).not.toContain("transform 200ms ease-out");
   });
 
@@ -175,13 +177,11 @@ describe("FloatingActionButton (mobile)", () => {
   it("expands More into compose, navigation and font controls above the default row", () => {
     render(<FloatingActionButton />);
     const more = screen.getByRole("button", { name: "More" });
-    fireEvent.pointerUp(more);
+    fireEvent.click(more);
 
     expect(more).toHaveAttribute("aria-expanded", "true");
     const menu = screen.getByRole("menu", { name: "More terminal actions" });
-    expect(menu).toHaveClass(
-      "max-h-[calc(100dvh-var(--safe-area-inset-top)-var(--safe-area-inset-bottom)-6rem)]",
-    );
+    expect(menu).toHaveClass("max-h-[min(42dvh,22rem)]");
     expect(within(menu).getByRole("menuitem", { name: "Compose" })).toBeInTheDocument();
     expect(
       within(menu).getByRole("group", { name: "Terminal navigation keys" }),
@@ -197,7 +197,7 @@ describe("FloatingActionButton (mobile)", () => {
     window.addEventListener(TERMINAL_COMPOSE_OPEN_EVENT, listener);
     render(<FloatingActionButton />);
 
-    fireEvent.pointerUp(screen.getByRole("button", { name: "More" }));
+    fireEvent.click(screen.getByRole("button", { name: "More" }));
     fireEvent.click(screen.getByRole("menuitem", { name: "Compose" }));
 
     expect(listener).toHaveBeenCalledTimes(1);
@@ -205,27 +205,20 @@ describe("FloatingActionButton (mobile)", () => {
     window.removeEventListener(TERMINAL_COMPOSE_OPEN_EVENT, listener);
   });
 
-  it("passes the pointerup event through so drag finalization can commit the FAB position", () => {
+  it("does not wire mobile More to the draggable desktop pointer handlers", () => {
     render(<FloatingActionButton />);
-    const more = screen.getByRole("button", { name: "More" });
 
-    fireEvent.pointerUp(more, { pointerId: 7, pointerType: "touch" });
+    fireEvent.click(screen.getByRole("button", { name: "More" }));
 
-    expect(mockFabState.onPointerUp).toHaveBeenCalledWith(
-      expect.objectContaining({ pointerId: 7 }),
-    );
-  });
-
-  it("does not expand when pointer up was a drag", () => {
-    (mockFabState.onPointerUp as ReturnType<typeof vi.fn>).mockReturnValue(true);
-    render(<FloatingActionButton />);
-    fireEvent.pointerUp(screen.getByRole("button", { name: "More" }));
-    expect(screen.queryByRole("menu", { name: "More terminal actions" })).not.toBeInTheDocument();
+    expect(mockFabState.onPointerDown).not.toHaveBeenCalled();
+    expect(mockFabState.onPointerMove).not.toHaveBeenCalled();
+    expect(mockFabState.onPointerUp).not.toHaveBeenCalled();
+    expect(screen.getByRole("menu", { name: "More terminal actions" })).toBeInTheDocument();
   });
 
   it("sends arrow key and Esc sequences from More actions", () => {
     render(<FloatingActionButton />);
-    fireEvent.pointerUp(screen.getByRole("button", { name: "More" }));
+    fireEvent.click(screen.getByRole("button", { name: "More" }));
     const menu = screen.getByRole("menu", { name: "More terminal actions" });
 
     fireEvent.click(within(menu).getByRole("menuitem", { name: "Up" }));
@@ -242,7 +235,7 @@ describe("FloatingActionButton (mobile)", () => {
 
   it("mobile font stepper is reachable inside More actions", () => {
     render(<FloatingActionButton />);
-    fireEvent.pointerUp(screen.getByRole("button", { name: "More" }));
+    fireEvent.click(screen.getByRole("button", { name: "More" }));
 
     const fontControls = screen.getByRole("group", { name: "Terminal font size controls" });
     const decrease = within(fontControls).getByRole("button", { name: "Decrease font size" });
@@ -265,7 +258,7 @@ describe("FloatingActionButton (mobile)", () => {
       canDecrease: false,
     });
     render(<FloatingActionButton />);
-    fireEvent.pointerUp(screen.getByRole("button", { name: "More" }));
+    fireEvent.click(screen.getByRole("button", { name: "More" }));
     expect(screen.getByRole("button", { name: "Decrease font size" })).toBeDisabled();
   });
 
@@ -278,7 +271,7 @@ describe("FloatingActionButton (mobile)", () => {
       canDecrease: true,
     });
     render(<FloatingActionButton />);
-    fireEvent.pointerUp(screen.getByRole("button", { name: "More" }));
+    fireEvent.click(screen.getByRole("button", { name: "More" }));
     expect(screen.getByRole("button", { name: "Increase font size" })).toBeDisabled();
   });
 
@@ -293,7 +286,7 @@ describe("FloatingActionButton (mobile)", () => {
   it("calls onHapticFeedback when a More menuitem is pressed", () => {
     const onHapticFeedback = vi.fn();
     render(<FloatingActionButton onHapticFeedback={onHapticFeedback} />);
-    fireEvent.pointerUp(screen.getByRole("button", { name: "More" }));
+    fireEvent.click(screen.getByRole("button", { name: "More" }));
     onHapticFeedback.mockClear();
     fireEvent.click(screen.getByRole("menuitem", { name: "Up" }));
     expect(onHapticFeedback).toHaveBeenCalledTimes(1);
@@ -321,7 +314,7 @@ describe("FloatingActionButton (mobile)", () => {
         <FloatingActionButton />
       </div>,
     );
-    fireEvent.pointerUp(screen.getByRole("button", { name: "More" }));
+    fireEvent.click(screen.getByRole("button", { name: "More" }));
     expect(screen.getByRole("menu", { name: "More terminal actions" })).toBeInTheDocument();
 
     fireEvent.pointerDown(screen.getByRole("menuitem", { name: "Compose" }));
