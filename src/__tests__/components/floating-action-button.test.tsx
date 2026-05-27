@@ -125,7 +125,7 @@ describe("FloatingActionButton (mobile)", () => {
       "aria-expanded",
       "false",
     );
-    expect(screen.queryByRole("menu", { name: "More terminal actions" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("region", { name: "More terminal actions" })).not.toBeInTheDocument();
   });
 
   it("renders the mobile controls in normal flow instead of a fixed draggable FAB", () => {
@@ -135,6 +135,8 @@ describe("FloatingActionButton (mobile)", () => {
       ?.parentElement;
     expect(container).toHaveClass("w-full");
     expect(container).not.toHaveClass("fixed");
+    expect(container).not.toHaveClass("pb-[calc(var(--safe-area-inset-bottom)+0.5rem)]");
+    expect(container).toHaveClass("pb-2");
     expect(container?.getAttribute("style")).not.toContain("translate3d");
   });
 
@@ -146,7 +148,7 @@ describe("FloatingActionButton (mobile)", () => {
     expect(enter.className).toContain("min-h-12");
 
     fireEvent.click(within(quickActions).getByRole("button", { name: "More" }));
-    const menu = screen.getByRole("menu", { name: "More terminal actions" });
+    const menu = screen.getByRole("region", { name: "More terminal actions" });
     const up = within(menu).getByRole("menuitem", { name: "Up" });
     expect(up.className).toContain("min-h-11");
   });
@@ -180,7 +182,7 @@ describe("FloatingActionButton (mobile)", () => {
     fireEvent.click(more);
 
     expect(more).toHaveAttribute("aria-expanded", "true");
-    const menu = screen.getByRole("menu", { name: "More terminal actions" });
+    const menu = screen.getByRole("region", { name: "More terminal actions" });
     expect(menu).toHaveClass("max-h-[min(42dvh,22rem)]");
     expect(within(menu).getByRole("menuitem", { name: "Compose" })).toBeInTheDocument();
     expect(
@@ -192,7 +194,7 @@ describe("FloatingActionButton (mobile)", () => {
     expect(screen.getByText("12px")).toBeInTheDocument();
   });
 
-  it("dispatches the compose event from More actions and closes the panel", () => {
+  it("dispatches the compose event from More actions and leaves the collapsible open", () => {
     const listener = vi.fn();
     window.addEventListener(TERMINAL_COMPOSE_OPEN_EVENT, listener);
     render(<FloatingActionButton />);
@@ -201,7 +203,7 @@ describe("FloatingActionButton (mobile)", () => {
     fireEvent.click(screen.getByRole("menuitem", { name: "Compose" }));
 
     expect(listener).toHaveBeenCalledTimes(1);
-    expect(screen.queryByRole("menu", { name: "More terminal actions" })).not.toBeInTheDocument();
+    expect(screen.getByRole("region", { name: "More terminal actions" })).toBeInTheDocument();
     window.removeEventListener(TERMINAL_COMPOSE_OPEN_EVENT, listener);
   });
 
@@ -213,13 +215,13 @@ describe("FloatingActionButton (mobile)", () => {
     expect(mockFabState.onPointerDown).not.toHaveBeenCalled();
     expect(mockFabState.onPointerMove).not.toHaveBeenCalled();
     expect(mockFabState.onPointerUp).not.toHaveBeenCalled();
-    expect(screen.getByRole("menu", { name: "More terminal actions" })).toBeInTheDocument();
+    expect(screen.getByRole("region", { name: "More terminal actions" })).toBeInTheDocument();
   });
 
   it("sends arrow key and Esc sequences from More actions", () => {
     render(<FloatingActionButton />);
     fireEvent.click(screen.getByRole("button", { name: "More" }));
-    const menu = screen.getByRole("menu", { name: "More terminal actions" });
+    const menu = screen.getByRole("region", { name: "More terminal actions" });
 
     fireEvent.click(within(menu).getByRole("menuitem", { name: "Up" }));
     expect(mockActiveSend).toHaveBeenCalledWith("\x1b[A");
@@ -307,21 +309,36 @@ describe("FloatingActionButton (mobile)", () => {
     expect(() => capturedOnArmed?.()).not.toThrow();
   });
 
-  it("collapses when clicking outside, treating the expanded panel as inside", () => {
+  it("keeps the mobile More panel open until the More toggle is clicked again", () => {
     render(
       <div>
         <div data-testid="outside">Outside</div>
         <FloatingActionButton />
       </div>,
     );
-    fireEvent.click(screen.getByRole("button", { name: "More" }));
-    expect(screen.getByRole("menu", { name: "More terminal actions" })).toBeInTheDocument();
+    const more = screen.getByRole("button", { name: "More" });
+
+    fireEvent.click(more);
+    expect(screen.getByRole("region", { name: "More terminal actions" })).toBeInTheDocument();
 
     fireEvent.pointerDown(screen.getByRole("menuitem", { name: "Compose" }));
-    expect(screen.getByRole("menu", { name: "More terminal actions" })).toBeInTheDocument();
+    expect(screen.getByRole("region", { name: "More terminal actions" })).toBeInTheDocument();
 
     fireEvent.pointerDown(screen.getByTestId("outside"));
-    expect(screen.queryByRole("menu", { name: "More terminal actions" })).not.toBeInTheDocument();
+    expect(screen.getByRole("region", { name: "More terminal actions" })).toBeInTheDocument();
+
+    fireEvent.click(more);
+    expect(screen.queryByRole("region", { name: "More terminal actions" })).not.toBeInTheDocument();
+  });
+
+  it("prevents pointer focus changes on mobile controls so the terminal keyboard stays open", () => {
+    render(<FloatingActionButton />);
+    const more = screen.getByRole("button", { name: "More" });
+    const pointerEvent = new Event("pointerdown", { bubbles: true, cancelable: true });
+
+    fireEvent(more, pointerEvent);
+
+    expect(pointerEvent.defaultPrevented).toBe(true);
   });
 });
 

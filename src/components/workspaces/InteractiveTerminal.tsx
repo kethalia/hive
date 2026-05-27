@@ -23,6 +23,7 @@ interface InteractiveTerminalProps {
   onConnectionStateChange?: (state: ConnectionState) => void;
   onTerminalReady?: (term: Terminal, send: (data: string) => void) => void;
   onTerminalDestroy?: () => void;
+  layoutSignal?: unknown;
 }
 
 function warnFitFailure(err: unknown) {
@@ -76,6 +77,7 @@ export function InteractiveTerminal({
   onConnectionStateChange,
   onTerminalReady,
   onTerminalDestroy,
+  layoutSignal,
 }: InteractiveTerminalProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const termRef = useRef<Terminal | null>(null);
@@ -167,6 +169,21 @@ export function InteractiveTerminal({
     window.addEventListener(FONT_SIZE_EVENT, handler);
     return () => window.removeEventListener(FONT_SIZE_EVENT, handler);
   }, []);
+
+  useEffect(() => {
+    void layoutSignal;
+
+    const fit = fitRef.current;
+    const term = termRef.current;
+    if (!fit || !term) return;
+
+    const frame = requestAnimationFrame(() => {
+      if (safeFit(fit)) {
+        resizeRef.current(term.rows, term.cols);
+      }
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [layoutSignal]);
 
   useEffect(() => {
     if (!containerRef.current) return;

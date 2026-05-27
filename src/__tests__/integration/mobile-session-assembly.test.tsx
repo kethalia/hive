@@ -611,6 +611,7 @@ describe("mobile session assembly", () => {
     render(element);
 
     expect(screen.getByText("Workspace body")).toBeInTheDocument();
+    expect(document.querySelector('[data-slot="sidebar-inset"] main')).toHaveClass("pb-0");
     expect(screen.getByTestId("app-sidebar")).toBeInTheDocument();
     expect(screen.queryByRole("group", { name: "Terminal quick actions" })).not.toBeInTheDocument();
     expect(hapticsState.triggerHapticFeedback).not.toHaveBeenCalled();

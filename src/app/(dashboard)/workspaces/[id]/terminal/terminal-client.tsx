@@ -26,8 +26,7 @@ const InteractiveTerminal = dynamic(
 );
 
 const LAST_SESSION_STORAGE_PREFIX = "terminal:last-session:";
-const TERMINAL_SHELL_CLASS_NAME =
-  "-mx-6 -mb-[calc(var(--safe-area-inset-bottom)+1.5rem)] w-[calc(100%+3rem)]";
+const TERMINAL_SHELL_CLASS_NAME = "-mx-6 w-[calc(100%+3rem)]";
 const TERMINAL_STATIC_HEIGHT_CLASS_NAME = "h-[calc(100dvh-var(--safe-area-inset-top)-3.5rem)]";
 
 function terminalKeyboardStyle(keyboardLiftPx: number): CSSProperties {
@@ -240,6 +239,7 @@ function TerminalInner({ agentId, workspaceId }: { agentId: string; workspaceId:
           className="h-full rounded-none border-0"
           onTerminalReady={handleTerminalReady}
           onTerminalDestroy={handleTerminalDestroy}
+          layoutSignal={keyboardLiftPx}
         />
       </TerminalGestureLayer>
       <TerminalContextMenu

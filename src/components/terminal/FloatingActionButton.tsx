@@ -14,7 +14,7 @@ import {
   Terminal,
   X,
 } from "lucide-react";
-import type { PointerEvent } from "react";
+import type { PointerEvent, MouseEvent as ReactMouseEvent } from "react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { ButtonGroup, ButtonGroupText } from "@/components/ui/button-group";
@@ -111,8 +111,16 @@ export function FloatingActionButton({ onHapticFeedback }: FloatingActionButtonP
     setExpanded((prev) => !prev);
   }, [haptic]);
 
+  const keepTerminalKeyboardOpen = useCallback(
+    (event: ReactMouseEvent<HTMLButtonElement> | PointerEvent<HTMLButtonElement>) => {
+      event.preventDefault();
+      event.stopPropagation();
+    },
+    [],
+  );
+
   useEffect(() => {
-    if (!expanded) return;
+    if (!expanded || isMobile) return;
     const handleClickOutside = (e: MouseEvent) => {
       if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
         setExpanded(false);
@@ -120,7 +128,7 @@ export function FloatingActionButton({ onHapticFeedback }: FloatingActionButtonP
     };
     document.addEventListener("pointerdown", handleClickOutside);
     return () => document.removeEventListener("pointerdown", handleClickOutside);
-  }, [expanded]);
+  }, [expanded, isMobile]);
 
   const sendKey = useCallback(
     (sequence: string) => {
@@ -133,7 +141,6 @@ export function FloatingActionButton({ onHapticFeedback }: FloatingActionButtonP
   const openCompose = useCallback(() => {
     haptic();
     window.dispatchEvent(new CustomEvent(TERMINAL_COMPOSE_OPEN_EVENT));
-    setExpanded(false);
   }, [haptic]);
 
   const dir = menuDirection(corner);
@@ -148,7 +155,7 @@ export function FloatingActionButton({ onHapticFeedback }: FloatingActionButtonP
     return (
       <div
         ref={containerRef}
-        className="w-full border-t bg-background/95 px-safe pt-2 pb-[calc(var(--safe-area-inset-bottom)+0.5rem)] shadow-[0_-18px_40px_rgba(0,0,0,0.24)] backdrop-blur supports-[backdrop-filter]:bg-background/80"
+        className="w-full border-t bg-background/95 px-safe pt-2 pb-2 shadow-[0_-18px_40px_rgba(0,0,0,0.18)] backdrop-blur supports-[backdrop-filter]:bg-background/80"
         style={{
           touchAction: "manipulation",
           ...NO_TOUCH_STYLE,
@@ -156,9 +163,8 @@ export function FloatingActionButton({ onHapticFeedback }: FloatingActionButtonP
       >
         <div className="mx-auto flex w-full max-w-screen-sm flex-col gap-2 px-2">
           {expanded && (
-            <div
-              className="flex max-h-[min(42dvh,22rem)] w-full flex-col gap-3 overflow-y-auto rounded-2xl border bg-popover/95 p-3 text-popover-foreground shadow-2xl backdrop-blur"
-              role="menu"
+            <section
+              className="flex max-h-[min(42dvh,22rem)] w-full flex-col gap-3 overflow-y-auto rounded-2xl border bg-popover/95 p-3 text-popover-foreground shadow-xl backdrop-blur"
               aria-label="More terminal actions"
             >
               <Button
@@ -167,7 +173,8 @@ export function FloatingActionButton({ onHapticFeedback }: FloatingActionButtonP
                 variant="outline"
                 className="min-h-11 w-full justify-start rounded-xl"
                 style={NO_TOUCH_STYLE}
-                onPointerDown={(e) => e.stopPropagation()}
+                onPointerDown={keepTerminalKeyboardOpen}
+                onMouseDown={keepTerminalKeyboardOpen}
                 onClick={openCompose}
               >
                 <MessageSquareText data-icon="inline-start" />
@@ -190,7 +197,8 @@ export function FloatingActionButton({ onHapticFeedback }: FloatingActionButtonP
                       variant="outline"
                       className="min-h-11 min-w-11 flex-col gap-1 rounded-xl px-2 py-2 text-xs"
                       style={NO_TOUCH_STYLE}
-                      onPointerDown={(e) => e.stopPropagation()}
+                      onPointerDown={keepTerminalKeyboardOpen}
+                      onMouseDown={keepTerminalKeyboardOpen}
                       onClick={() => sendKey(sequence)}
                     >
                       <Icon />
@@ -210,7 +218,8 @@ export function FloatingActionButton({ onHapticFeedback }: FloatingActionButtonP
                     variant="outline"
                     className="min-h-11 min-w-11 flex-1"
                     style={NO_TOUCH_STYLE}
-                    onPointerDown={(e) => e.stopPropagation()}
+                    onPointerDown={keepTerminalKeyboardOpen}
+                    onMouseDown={keepTerminalKeyboardOpen}
                     onClick={decreaseFontSize}
                     disabled={!canDecrease}
                     aria-label="Decrease font size"
@@ -225,7 +234,8 @@ export function FloatingActionButton({ onHapticFeedback }: FloatingActionButtonP
                     variant="outline"
                     className="min-h-11 min-w-11 flex-1"
                     style={NO_TOUCH_STYLE}
-                    onPointerDown={(e) => e.stopPropagation()}
+                    onPointerDown={keepTerminalKeyboardOpen}
+                    onMouseDown={keepTerminalKeyboardOpen}
                     onClick={increaseFontSize}
                     disabled={!canIncrease}
                     aria-label="Increase font size"
@@ -234,7 +244,7 @@ export function FloatingActionButton({ onHapticFeedback }: FloatingActionButtonP
                   </Button>
                 </ButtonGroup>
               </section>
-            </div>
+            </section>
           )}
 
           <ButtonGroup
@@ -248,7 +258,8 @@ export function FloatingActionButton({ onHapticFeedback }: FloatingActionButtonP
                 variant="ghost"
                 className="min-h-12 min-w-0 rounded-xl px-1 text-xs"
                 style={NO_TOUCH_STYLE}
-                onPointerDown={(e) => e.stopPropagation()}
+                onPointerDown={keepTerminalKeyboardOpen}
+                onMouseDown={keepTerminalKeyboardOpen}
                 onClick={() => sendKey(sequence)}
               >
                 <Icon data-icon="inline-start" />
@@ -260,6 +271,8 @@ export function FloatingActionButton({ onHapticFeedback }: FloatingActionButtonP
               variant={expanded ? "secondary" : "default"}
               className="min-h-12 min-w-0 rounded-xl px-1 text-xs"
               style={NO_TOUCH_STYLE}
+              onPointerDown={keepTerminalKeyboardOpen}
+              onMouseDown={keepTerminalKeyboardOpen}
               onClick={toggleMobileMore}
               aria-expanded={expanded}
             >
@@ -310,7 +323,8 @@ export function FloatingActionButton({ onHapticFeedback }: FloatingActionButtonP
               type="button"
               role="menuitem"
               className="flex items-center gap-2 whitespace-nowrap rounded-md px-3 py-2 text-sm font-medium text-popover-foreground transition-colors hover:bg-accent hover:text-accent-foreground motion-reduce:transition-none motion-reduce:duration-0"
-              onPointerDown={(e) => e.stopPropagation()}
+              onPointerDown={keepTerminalKeyboardOpen}
+              onMouseDown={keepTerminalKeyboardOpen}
               onClick={() => sendKey(sequence)}
             >
               <Icon className="size-4" />
@@ -323,7 +337,8 @@ export function FloatingActionButton({ onHapticFeedback }: FloatingActionButtonP
               type="button"
               role="menuitem"
               className="flex size-8 items-center justify-center rounded-md text-popover-foreground transition-colors hover:bg-accent hover:text-accent-foreground disabled:pointer-events-none disabled:opacity-40 motion-reduce:transition-none motion-reduce:duration-0"
-              onPointerDown={(e) => e.stopPropagation()}
+              onPointerDown={keepTerminalKeyboardOpen}
+              onMouseDown={keepTerminalKeyboardOpen}
               onClick={decreaseFontSize}
               disabled={!canDecrease}
               aria-label="Decrease font size"
@@ -337,7 +352,8 @@ export function FloatingActionButton({ onHapticFeedback }: FloatingActionButtonP
               type="button"
               role="menuitem"
               className="flex size-8 items-center justify-center rounded-md text-popover-foreground transition-colors hover:bg-accent hover:text-accent-foreground disabled:pointer-events-none disabled:opacity-40 motion-reduce:transition-none motion-reduce:duration-0"
-              onPointerDown={(e) => e.stopPropagation()}
+              onPointerDown={keepTerminalKeyboardOpen}
+              onMouseDown={keepTerminalKeyboardOpen}
               onClick={increaseFontSize}
               disabled={!canIncrease}
               aria-label="Increase font size"
@@ -350,7 +366,8 @@ export function FloatingActionButton({ onHapticFeedback }: FloatingActionButtonP
             type="button"
             role="menuitem"
             className="flex items-center gap-2 whitespace-nowrap rounded-md px-3 py-2 text-sm font-medium text-popover-foreground transition-colors hover:bg-accent hover:text-accent-foreground motion-reduce:transition-none motion-reduce:duration-0"
-            onPointerDown={(e) => e.stopPropagation()}
+            onPointerDown={keepTerminalKeyboardOpen}
+            onMouseDown={keepTerminalKeyboardOpen}
             onClick={() => sendKey(VIRTUAL_KEY_SEQUENCES.Enter)}
           >
             <CornerDownLeft className="size-4" />

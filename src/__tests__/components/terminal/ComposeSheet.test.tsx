@@ -39,9 +39,18 @@ let mockCtx: KeybindingContextValue;
 vi.mock("next/dynamic", () => ({
   __esModule: true,
   default: () => {
-    const Stub = ({ className, sessionName }: { className?: string; sessionName: string }) => (
+    const Stub = ({
+      className,
+      layoutSignal,
+      sessionName,
+    }: {
+      className?: string;
+      layoutSignal?: unknown;
+      sessionName: string;
+    }) => (
       <div
         className={className}
+        data-layout-signal={String(layoutSignal ?? "")}
         data-session-name={sessionName}
         data-testid="interactive-terminal"
       />
@@ -229,6 +238,9 @@ describe("TerminalClient compose sheet", () => {
     expect(screen.getByTestId("terminal-mobile-shell")).toHaveStyle({
       height: "calc(100dvh - var(--safe-area-inset-top) - 3.5rem - 0px)",
     });
+    expect(screen.getByTestId("terminal-mobile-shell")).not.toHaveClass(
+      "-mb-[calc(var(--safe-area-inset-bottom)+1.5rem)]",
+    );
     expect(screen.getByTestId("terminal-fab")).toBeInTheDocument();
     expect(screen.queryByTestId("resizable-group")).not.toBeInTheDocument();
     expect(screen.getByTestId("compose-sheet")).toHaveAttribute("data-open", "false");
@@ -271,6 +283,7 @@ describe("TerminalClient compose sheet", () => {
     expect(screen.getByTestId("terminal-mobile-shell")).toHaveStyle({
       height: "calc(100dvh - var(--safe-area-inset-top) - 3.5rem - 280px)",
     });
+    expect(screen.getByTestId("interactive-terminal")).toHaveAttribute("data-layout-signal", "280");
 
     act(() => {
       window.dispatchEvent(new CustomEvent(TERMINAL_COMPOSE_OPEN_EVENT));
