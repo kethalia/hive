@@ -179,7 +179,7 @@ function Sidebar({
           data-sidebar="sidebar"
           data-slot="sidebar"
           data-mobile="true"
-          className="w-(--sidebar-width) !gap-0 overflow-hidden bg-sidebar p-0 text-sidebar-foreground motion-reduce:transition-none motion-reduce:duration-0 data-[side=left]:!top-0 data-[side=left]:!bottom-0 data-[side=left]:!h-[100dvh] data-[side=left]:!min-h-[100dvh] data-[side=left]:!max-h-[100dvh] data-[side=right]:!top-0 data-[side=right]:!bottom-0 data-[side=right]:!h-[100dvh] data-[side=right]:!min-h-[100dvh] data-[side=right]:!max-h-[100dvh] [&>button]:hidden"
+          className="w-(--sidebar-width) !gap-0 overflow-hidden bg-sidebar p-0 text-sidebar-foreground motion-reduce:transition-none motion-reduce:duration-0 data-[side=left]:!top-0 data-[side=left]:!bottom-0 data-[side=left]:!h-auto data-[side=left]:!min-h-0 data-[side=left]:!max-h-none data-[side=right]:!top-0 data-[side=right]:!bottom-0 data-[side=right]:!h-auto data-[side=right]:!min-h-0 data-[side=right]:!max-h-none [&>button]:hidden"
           style={
             {
               "--sidebar-width": SIDEBAR_WIDTH_MOBILE,

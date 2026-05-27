@@ -62,9 +62,9 @@ describe("reduced-motion class contracts", () => {
       expect(drawer?.className).toContain("motion-reduce:duration-0");
       expect(drawer?.className).toContain("data-[side=left]:!top-0");
       expect(drawer?.className).toContain("data-[side=left]:!bottom-0");
-      expect(drawer?.className).toContain("data-[side=left]:!h-[100dvh]");
-      expect(drawer?.className).toContain("data-[side=left]:!min-h-[100dvh]");
-      expect(drawer?.className).toContain("data-[side=left]:!max-h-[100dvh]");
+      expect(drawer?.className).toContain("data-[side=left]:!h-auto");
+      expect(drawer?.className).toContain("data-[side=left]:!min-h-0");
+      expect(drawer?.className).toContain("data-[side=left]:!max-h-none");
       expect(drawer?.className).toContain("!gap-0");
       expect(drawer?.className).toContain("overflow-hidden");
       expect(drawer?.className).not.toContain("pt-[calc(var(--safe-area-inset-top)+0.5rem)]");

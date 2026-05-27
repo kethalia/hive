@@ -235,9 +235,12 @@ describe("TerminalClient compose sheet", () => {
     await renderTerminalClient(true);
 
     expect(screen.getByTestId("interactive-terminal")).toBeInTheDocument();
-    expect(screen.getByTestId("terminal-mobile-shell")).toHaveStyle({
-      height: "calc(100dvh - var(--safe-area-inset-top) - 3.5rem - 0px)",
-    });
+    expect(screen.getByTestId("terminal-mobile-shell")).toHaveClass(
+      "fixed",
+      "overflow-hidden",
+      "top-[calc(var(--safe-area-inset-top)+3.5rem)]",
+    );
+    expect(screen.getByTestId("terminal-mobile-shell")).toHaveStyle({ bottom: "0px" });
     expect(screen.getByTestId("terminal-mobile-shell")).not.toHaveClass(
       "-mb-[calc(var(--safe-area-inset-bottom)+1.5rem)]",
     );
@@ -257,7 +260,10 @@ describe("TerminalClient compose sheet", () => {
       "pt-safe",
     );
     expect(screen.getByTestId("compose-sheet-content")).toHaveStyle({
-      paddingBottom: "calc(var(--safe-area-inset-bottom) + 0px)",
+      bottom: "0px",
+      height: "calc(100dvh - 0px)",
+      maxHeight: "calc(100dvh - 0px)",
+      paddingBottom: "var(--safe-area-inset-bottom)",
     });
     expect(screen.getByText("Compose command")).toHaveClass("sr-only");
     expect(screen.getByTestId("compose-panel")).toHaveAttribute("data-hide-header", "true");
@@ -280,9 +286,7 @@ describe("TerminalClient compose sheet", () => {
     mockUseFabKeyboardOffset.mockReturnValue({ liftPx: 280 });
     await renderTerminalClient(true);
 
-    expect(screen.getByTestId("terminal-mobile-shell")).toHaveStyle({
-      height: "calc(100dvh - var(--safe-area-inset-top) - 3.5rem - 280px)",
-    });
+    expect(screen.getByTestId("terminal-mobile-shell")).toHaveStyle({ bottom: "280px" });
     expect(screen.getByTestId("interactive-terminal")).toHaveAttribute("data-layout-signal", "280");
 
     act(() => {
@@ -290,7 +294,10 @@ describe("TerminalClient compose sheet", () => {
     });
 
     expect(screen.getByTestId("compose-sheet-content")).toHaveStyle({
-      paddingBottom: "calc(var(--safe-area-inset-bottom) + 280px)",
+      bottom: "280px",
+      height: "calc(100dvh - 280px)",
+      maxHeight: "calc(100dvh - 280px)",
+      paddingBottom: "var(--safe-area-inset-bottom)",
     });
   });
 

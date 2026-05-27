@@ -18,6 +18,7 @@ import type { PointerEvent, MouseEvent as ReactMouseEvent } from "react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { ButtonGroup, ButtonGroupText } from "@/components/ui/button-group";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { type Corner, useFabPosition } from "@/hooks/useFabPosition";
 import { useKeybindings } from "@/hooks/useKeybindings";
@@ -106,10 +107,13 @@ export function FloatingActionButton({ onHapticFeedback }: FloatingActionButtonP
     [onPointerUp],
   );
 
-  const toggleMobileMore = useCallback(() => {
-    haptic();
-    setExpanded((prev) => !prev);
-  }, [haptic]);
+  const handleMobileMoreOpenChange = useCallback(
+    (open: boolean) => {
+      haptic();
+      setExpanded(open);
+    },
+    [haptic],
+  );
 
   const keepTerminalKeyboardOpen = useCallback(
     (event: ReactMouseEvent<HTMLButtonElement> | PointerEvent<HTMLButtonElement>) => {
@@ -153,135 +157,140 @@ export function FloatingActionButton({ onHapticFeedback }: FloatingActionButtonP
 
   if (isMobile) {
     return (
-      <div
-        ref={containerRef}
-        className="w-full border-t bg-background/95 px-safe pt-2 pb-2 shadow-[0_-18px_40px_rgba(0,0,0,0.18)] backdrop-blur supports-[backdrop-filter]:bg-background/80"
-        style={{
-          touchAction: "manipulation",
-          ...NO_TOUCH_STYLE,
-        }}
-      >
-        <div className="mx-auto flex w-full max-w-screen-sm flex-col gap-2 px-2">
-          {expanded && (
-            <section
-              className="flex max-h-[min(42dvh,22rem)] w-full flex-col gap-3 overflow-y-auto rounded-2xl border bg-popover/95 p-3 text-popover-foreground shadow-xl backdrop-blur"
+      <Collapsible open={expanded} onOpenChange={handleMobileMoreOpenChange}>
+        <div
+          ref={containerRef}
+          className="w-full border-t bg-background/95 px-safe pt-2 pb-2 shadow-[0_-18px_40px_rgba(0,0,0,0.18)] backdrop-blur supports-[backdrop-filter]:bg-background/80"
+          style={{
+            touchAction: "manipulation",
+            ...NO_TOUCH_STYLE,
+          }}
+        >
+          <div className="mx-auto flex w-full max-w-screen-sm flex-col gap-0 px-2">
+            <CollapsibleContent
+              role="region"
               aria-label="More terminal actions"
+              className="overflow-hidden rounded-t-2xl border border-b-0 bg-background/95 px-2 pt-2 pb-2 data-ending-style:max-h-0 data-starting-style:max-h-0"
             >
-              <Button
-                type="button"
-                role="menuitem"
-                variant="outline"
-                className="min-h-11 w-full justify-start rounded-xl"
-                style={NO_TOUCH_STYLE}
-                onPointerDown={keepTerminalKeyboardOpen}
-                onMouseDown={keepTerminalKeyboardOpen}
-                onClick={openCompose}
-              >
-                <MessageSquareText data-icon="inline-start" />
-                Compose
-              </Button>
-
-              <section aria-label="Navigation keys" className="flex flex-col gap-2">
-                <p className="px-1 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-                  Navigation
-                </p>
-                <ButtonGroup
-                  aria-label="Terminal navigation keys"
-                  className="grid w-full grid-cols-5"
+              <div className="flex max-h-[min(42dvh,22rem)] w-full flex-col gap-3 overflow-y-auto rounded-xl bg-popover/90 p-2 text-popover-foreground">
+                <Button
+                  type="button"
+                  role="menuitem"
+                  variant="outline"
+                  className="min-h-11 w-full justify-start rounded-xl"
+                  style={NO_TOUCH_STYLE}
+                  onPointerDown={keepTerminalKeyboardOpen}
+                  onMouseDown={keepTerminalKeyboardOpen}
+                  onClick={openCompose}
                 >
-                  {NAVIGATION_KEYS.map(({ label, icon: Icon, sequence }) => (
+                  <MessageSquareText data-icon="inline-start" />
+                  Compose
+                </Button>
+
+                <section aria-label="Navigation keys" className="flex flex-col gap-2">
+                  <p className="px-1 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                    Navigation
+                  </p>
+                  <ButtonGroup
+                    aria-label="Terminal navigation keys"
+                    className="grid w-full grid-cols-5"
+                  >
+                    {NAVIGATION_KEYS.map(({ label, icon: Icon, sequence }) => (
+                      <Button
+                        key={label}
+                        type="button"
+                        role="menuitem"
+                        variant="outline"
+                        className="min-h-11 min-w-11 flex-col gap-1 rounded-xl px-2 py-2 text-xs"
+                        style={NO_TOUCH_STYLE}
+                        onPointerDown={keepTerminalKeyboardOpen}
+                        onMouseDown={keepTerminalKeyboardOpen}
+                        onClick={() => sendKey(sequence)}
+                      >
+                        <Icon />
+                        <span>{label}</span>
+                      </Button>
+                    ))}
+                  </ButtonGroup>
+                </section>
+
+                <section aria-label="Terminal font size" className="flex flex-col gap-2">
+                  <p className="px-1 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                    Font size
+                  </p>
+                  <ButtonGroup aria-label="Terminal font size controls" className="w-full">
                     <Button
-                      key={label}
                       type="button"
-                      role="menuitem"
                       variant="outline"
-                      className="min-h-11 min-w-11 flex-col gap-1 rounded-xl px-2 py-2 text-xs"
+                      className="min-h-11 min-w-11 flex-1"
                       style={NO_TOUCH_STYLE}
                       onPointerDown={keepTerminalKeyboardOpen}
                       onMouseDown={keepTerminalKeyboardOpen}
-                      onClick={() => sendKey(sequence)}
+                      onClick={decreaseFontSize}
+                      disabled={!canDecrease}
+                      aria-label="Decrease font size"
                     >
-                      <Icon />
-                      <span>{label}</span>
+                      <Minus />
                     </Button>
-                  ))}
-                </ButtonGroup>
-              </section>
+                    <ButtonGroupText className="min-h-11 flex-1 justify-center tabular-nums">
+                      {fontSize}px
+                    </ButtonGroupText>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="min-h-11 min-w-11 flex-1"
+                      style={NO_TOUCH_STYLE}
+                      onPointerDown={keepTerminalKeyboardOpen}
+                      onMouseDown={keepTerminalKeyboardOpen}
+                      onClick={increaseFontSize}
+                      disabled={!canIncrease}
+                      aria-label="Increase font size"
+                    >
+                      <Plus />
+                    </Button>
+                  </ButtonGroup>
+                </section>
+              </div>
+            </CollapsibleContent>
 
-              <section aria-label="Terminal font size" className="flex flex-col gap-2">
-                <p className="px-1 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-                  Font size
-                </p>
-                <ButtonGroup aria-label="Terminal font size controls" className="w-full">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    className="min-h-11 min-w-11 flex-1"
-                    style={NO_TOUCH_STYLE}
-                    onPointerDown={keepTerminalKeyboardOpen}
-                    onMouseDown={keepTerminalKeyboardOpen}
-                    onClick={decreaseFontSize}
-                    disabled={!canDecrease}
-                    aria-label="Decrease font size"
-                  >
-                    <Minus />
-                  </Button>
-                  <ButtonGroupText className="min-h-11 flex-1 justify-center tabular-nums">
-                    {fontSize}px
-                  </ButtonGroupText>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    className="min-h-11 min-w-11 flex-1"
-                    style={NO_TOUCH_STYLE}
-                    onPointerDown={keepTerminalKeyboardOpen}
-                    onMouseDown={keepTerminalKeyboardOpen}
-                    onClick={increaseFontSize}
-                    disabled={!canIncrease}
-                    aria-label="Increase font size"
-                  >
-                    <Plus />
-                  </Button>
-                </ButtonGroup>
-              </section>
-            </section>
-          )}
-
-          <ButtonGroup
-            aria-label="Terminal quick actions"
-            className="grid w-full grid-cols-4 rounded-2xl border bg-background/95 p-1 shadow-xl backdrop-blur supports-[backdrop-filter]:bg-background/80"
-          >
-            {QUICK_ROW_KEYS.map(({ label, icon: Icon, sequence }) => (
-              <Button
-                key={label}
-                type="button"
-                variant="ghost"
-                className="min-h-12 min-w-0 rounded-xl px-1 text-xs"
-                style={NO_TOUCH_STYLE}
-                onPointerDown={keepTerminalKeyboardOpen}
-                onMouseDown={keepTerminalKeyboardOpen}
-                onClick={() => sendKey(sequence)}
-              >
-                <Icon data-icon="inline-start" />
-                {label}
-              </Button>
-            ))}
-            <Button
-              type="button"
-              variant={expanded ? "secondary" : "default"}
-              className="min-h-12 min-w-0 rounded-xl px-1 text-xs"
-              style={NO_TOUCH_STYLE}
-              onPointerDown={keepTerminalKeyboardOpen}
-              onMouseDown={keepTerminalKeyboardOpen}
-              onClick={toggleMobileMore}
-              aria-expanded={expanded}
+            <ButtonGroup
+              aria-label="Terminal quick actions"
+              className="grid w-full grid-cols-4 rounded-2xl border bg-background/95 p-1 shadow-xl backdrop-blur supports-[backdrop-filter]:bg-background/80"
             >
-              <Ellipsis data-icon="inline-start" />
-              More
-            </Button>
-          </ButtonGroup>
+              {QUICK_ROW_KEYS.map(({ label, icon: Icon, sequence }) => (
+                <Button
+                  key={label}
+                  type="button"
+                  variant="ghost"
+                  className="min-h-12 min-w-0 rounded-xl px-1 text-xs"
+                  style={NO_TOUCH_STYLE}
+                  onPointerDown={keepTerminalKeyboardOpen}
+                  onMouseDown={keepTerminalKeyboardOpen}
+                  onClick={() => sendKey(sequence)}
+                >
+                  <Icon data-icon="inline-start" />
+                  {label}
+                </Button>
+              ))}
+              <CollapsibleTrigger
+                render={
+                  <Button
+                    type="button"
+                    variant={expanded ? "secondary" : "default"}
+                    className="min-h-12 min-w-0 rounded-xl px-1 text-xs"
+                    style={NO_TOUCH_STYLE}
+                    onPointerDown={keepTerminalKeyboardOpen}
+                    onMouseDown={keepTerminalKeyboardOpen}
+                  />
+                }
+              >
+                <Ellipsis data-icon="inline-start" />
+                More
+              </CollapsibleTrigger>
+            </ButtonGroup>
+          </div>
         </div>
-      </div>
+      </Collapsible>
     );
   }
 

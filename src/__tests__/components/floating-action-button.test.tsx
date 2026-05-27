@@ -183,7 +183,11 @@ describe("FloatingActionButton (mobile)", () => {
 
     expect(more).toHaveAttribute("aria-expanded", "true");
     const menu = screen.getByRole("region", { name: "More terminal actions" });
-    expect(menu).toHaveClass("max-h-[min(42dvh,22rem)]");
+    expect(menu).toHaveAttribute("data-slot", "collapsible-content");
+    expect(menu).toHaveClass("overflow-hidden", "border-b-0");
+    expect(menu).not.toHaveClass("fixed", "absolute");
+    const panel = menu.firstElementChild as HTMLElement;
+    expect(panel).toHaveClass("max-h-[min(42dvh,22rem)]", "overflow-y-auto");
     expect(within(menu).getByRole("menuitem", { name: "Compose" })).toBeInTheDocument();
     expect(
       within(menu).getByRole("group", { name: "Terminal navigation keys" }),
