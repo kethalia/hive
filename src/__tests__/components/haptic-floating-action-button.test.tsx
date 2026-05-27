@@ -138,8 +138,7 @@ describe("HapticFloatingActionButton", () => {
   it("keeps mobile virtual key presses flowing through FloatingActionButton's existing seam", () => {
     render(<HapticFloatingActionButton />);
 
-    fireEvent.pointerUp(screen.getByRole("button", { name: "Open virtual keyboard" }));
-    fireEvent.click(screen.getByRole("menuitem", { name: "Enter" }));
+    fireEvent.click(screen.getByRole("button", { name: "Enter" }));
 
     expect(mockTriggerHapticFeedback).toHaveBeenCalledTimes(1);
     expect(mockActiveSend).toHaveBeenCalledWith("\r");
@@ -148,6 +147,6 @@ describe("HapticFloatingActionButton", () => {
   it("renders without crashing in jsdom when vibration support is mocked", () => {
     render(<HapticFloatingActionButton />);
 
-    expect(screen.getByRole("button", { name: "Open virtual keyboard" })).toBeInTheDocument();
+    expect(screen.getByRole("group", { name: "Terminal quick actions" })).toBeInTheDocument();
   });
 });

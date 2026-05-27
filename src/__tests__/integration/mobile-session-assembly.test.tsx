@@ -130,6 +130,7 @@ vi.mock("@/hooks/useFabPosition", () => ({
       isArmed: false,
       isDragging: fabState.isDragging,
       isSnapping: fabState.isSnapping,
+      onPointerCancel: vi.fn(),
       onPointerDown: fabState.onPointerDown,
       onPointerMove: fabState.onPointerMove,
       onPointerUp: fabState.onPointerUp,
@@ -254,7 +255,9 @@ vi.mock("lucide-react", () => ({
   ClipboardPaste: () => <span data-testid="icon-paste" />,
   Copy: () => <span data-testid="icon-copy" />,
   CornerDownLeft: () => <span data-testid="icon-enter" />,
+  Ellipsis: () => <span data-testid="icon-ellipsis" />,
   Keyboard: () => <span data-testid="icon-keyboard" />,
+  MessageSquareText: () => <span data-testid="icon-compose" />,
   Minus: () => <span data-testid="icon-minus" />,
   PanelLeftIcon: () => <span data-testid="icon-panel-left" />,
   Pencil: () => <span data-testid="icon-pencil" />,
@@ -609,10 +612,9 @@ describe("mobile session assembly", () => {
 
     expect(screen.getByText("Workspace body")).toBeInTheDocument();
     expect(screen.getByTestId("app-sidebar")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Open virtual keyboard" })).toBeInTheDocument();
+    expect(screen.getByRole("group", { name: "Terminal quick actions" })).toBeInTheDocument();
 
-    fireEvent.pointerUp(screen.getByRole("button", { name: "Open virtual keyboard" }));
-    fireEvent.click(screen.getByRole("menuitem", { name: "Tab" }));
+    fireEvent.click(screen.getByRole("button", { name: "Tab" }));
 
     expect(hapticsState.triggerHapticFeedback).toHaveBeenCalledTimes(1);
     expect(keybindingState.activeSend).toHaveBeenCalledWith("\t");

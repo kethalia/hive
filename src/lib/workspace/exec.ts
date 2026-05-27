@@ -4,6 +4,8 @@ import { DEFAULT_EXEC_TIMEOUT_MS } from "@/lib/constants";
 export interface ExecOptions {
   timeoutMs?: number;
   loginShell?: boolean;
+  coderUrl?: string;
+  sessionToken?: string;
 }
 
 export interface ExecResult {
@@ -33,12 +35,17 @@ export function execInWorkspace(
   console.log(`[exec] workspace=${workspaceName} cmd="${truncatedCmd}" timeout=${timeoutMs}ms`);
 
   const shellCmd = loginShell ? `bash -l -c ${shellQuote(command)}` : command;
+  const env = {
+    ...process.env,
+    ...(opts?.coderUrl ? { CODER_URL: opts.coderUrl } : {}),
+    ...(opts?.sessionToken ? { CODER_SESSION_TOKEN: opts.sessionToken } : {}),
+  };
 
   return new Promise((resolve) => {
     execFile(
       "coder",
       ["ssh", "--wait=no", workspaceName, "--", shellCmd],
-      { timeout: timeoutMs },
+      { timeout: timeoutMs, env },
       (error, stdout, stderr) => {
         if (error) {
           if (

@@ -26,6 +26,10 @@ const { mockUseIsComposeSheet } = vi.hoisted(() => ({
   mockUseIsComposeSheet: vi.fn(() => false),
 }));
 
+const { mockUseFabKeyboardOffset } = vi.hoisted(() => ({
+  mockUseFabKeyboardOffset: vi.fn(() => ({ liftPx: 0 })),
+}));
+
 const { registeredBindings } = vi.hoisted(() => ({
   registeredBindings: new Map<string, KeybindingEntry>(),
 }));
@@ -59,6 +63,10 @@ vi.mock("@/lib/actions/workspaces", () => ({
 
 vi.mock("@/hooks/use-compose-sheet", () => ({
   useIsComposeSheet: mockUseIsComposeSheet,
+}));
+
+vi.mock("@/hooks/useFabKeyboardOffset", () => ({
+  useFabKeyboardOffset: mockUseFabKeyboardOffset,
 }));
 
 vi.mock("@/hooks/useKeybindings", () => ({
@@ -132,6 +140,7 @@ vi.mock("@/components/ui/sheet", () => ({
   ),
 }));
 
+import { TERMINAL_COMPOSE_OPEN_EVENT } from "@/lib/terminal/events";
 import { TerminalClient } from "@/app/(dashboard)/workspaces/[id]/terminal/terminal-client";
 
 function createMockKeybindingsCtx(): KeybindingContextValue {
@@ -181,6 +190,8 @@ describe("TerminalClient compose sheet", () => {
     mockCreateSessionAction.mockReset();
     window.localStorage.clear();
     mockUseIsComposeSheet.mockReturnValue(false);
+    mockUseFabKeyboardOffset.mockReset();
+    mockUseFabKeyboardOffset.mockReturnValue({ liftPx: 0 });
   });
 
   afterEach(() => {
@@ -221,25 +232,41 @@ describe("TerminalClient compose sheet", () => {
     expect(screen.getByTestId("compose-sheet-content")).toHaveAttribute("data-side", "bottom");
     expect(screen.getByTestId("compose-sheet-content")).toHaveClass(
       "h-[100dvh]",
+      "max-h-[100dvh]",
       "p-0",
       "pt-safe",
-      "pb-safe",
     );
+    expect(screen.getByTestId("compose-sheet-content")).toHaveStyle({
+      paddingBottom: "calc(var(--safe-area-inset-bottom) + 0px)",
+    });
     expect(screen.getByText("Compose command")).toHaveClass("sr-only");
     expect(screen.getByTestId("compose-panel")).toHaveAttribute("data-hide-header", "true");
   });
 
-  it("opens the mobile compose Sheet from a tap-accessible terminal control", async () => {
+  it("opens the mobile compose Sheet from the global FAB compose event", async () => {
     await renderTerminalClient(true);
 
     expect(screen.getByTestId("compose-sheet")).toHaveAttribute("data-open", "false");
 
-    const opener = screen.getByRole("button", { name: "Open compose panel" });
-    expect(opener).toHaveClass("h-11", "min-w-11");
-    fireEvent.click(opener);
+    act(() => {
+      window.dispatchEvent(new CustomEvent(TERMINAL_COMPOSE_OPEN_EVENT));
+    });
 
     expect(screen.getByTestId("compose-sheet")).toHaveAttribute("data-open", "true");
     expect(screen.getByTestId("compose-panel")).toHaveAttribute("data-hide-header", "true");
+  });
+
+  it("keeps the mobile compose sheet above the visual viewport keyboard", async () => {
+    mockUseFabKeyboardOffset.mockReturnValue({ liftPx: 280 });
+    await renderTerminalClient(true);
+
+    act(() => {
+      window.dispatchEvent(new CustomEvent(TERMINAL_COMPOSE_OPEN_EVENT));
+    });
+
+    expect(screen.getByTestId("compose-sheet-content")).toHaveStyle({
+      paddingBottom: "calc(var(--safe-area-inset-bottom) + 280px)",
+    });
   });
 
   it("dismisses the mobile compose Sheet when its handle is dragged downward", async () => {

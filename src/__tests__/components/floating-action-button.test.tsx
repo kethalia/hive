@@ -1,8 +1,9 @@
 // @vitest-environment jsdom
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, fireEvent, cleanup } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
 import type * as React from "react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { TERMINAL_COMPOSE_OPEN_EVENT } from "@/lib/terminal/events";
 
 const { mockActiveSend } = vi.hoisted(() => ({ mockActiveSend: vi.fn() }));
 
@@ -43,10 +44,6 @@ vi.mock("@/hooks/use-mobile", () => ({
 
 vi.mock("@/hooks/usePrefersReducedMotion", () => ({
   usePrefersReducedMotion: mockPrefersReducedMotion,
-}));
-
-vi.mock("@/hooks/useFabKeyboardOffset", () => ({
-  useFabKeyboardOffset: vi.fn(() => ({ liftPx: 0 })),
 }));
 
 const { mockUseTerminalFontStep, mockIncreaseFontSize, mockDecreaseFontSize } = vi.hoisted(() => ({
@@ -113,29 +110,42 @@ beforeEach(() => {
 });
 
 describe("FloatingActionButton (mobile)", () => {
-  it("renders only the movable FAB in collapsed mobile state", () => {
+  it("renders a compact default row with Enter, Tab, Ctrl+C and More", () => {
     render(<FloatingActionButton />);
-    const btn = screen.getByRole("button", { name: "Open virtual keyboard" });
-    expect(btn).toBeInTheDocument();
-    expect(btn).toHaveAttribute("aria-expanded", "false");
-    expect(screen.queryByRole("menu")).not.toBeInTheDocument();
-    expect(screen.queryByRole("toolbar", { name: "Quick keys" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("toolbar", { name: "Terminal font size" })).not.toBeInTheDocument();
+
+    const quickActions = screen.getByRole("group", { name: "Terminal quick actions" });
+    expect(within(quickActions).getByRole("button", { name: "Enter" })).toHaveClass(
+      "min-h-11",
+      "min-w-11",
+    );
+    expect(within(quickActions).getByRole("button", { name: "Tab" })).toBeInTheDocument();
+    expect(within(quickActions).getByRole("button", { name: "Ctrl+C" })).toBeInTheDocument();
+    expect(within(quickActions).getByRole("button", { name: "More" })).toHaveAttribute(
+      "aria-expanded",
+      "false",
+    );
+    expect(screen.queryByRole("menu", { name: "More terminal actions" })).not.toBeInTheDocument();
   });
 
-  it("exposes reduced-motion class contracts on FAB controls", () => {
+  it("keeps the FAB at the visualViewport-derived position without applying a second keyboard lift", () => {
     render(<FloatingActionButton />);
 
-    const fab = screen.getByRole("button", { name: "Open virtual keyboard" });
-    expect(fab.className).toContain("motion-reduce:transition-none");
-    expect(fab.className).toContain("motion-reduce:active:scale-100");
+    const container = screen.getByRole("group", { name: "Terminal quick actions" }).parentElement
+      ?.parentElement;
+    expect(container).toHaveStyle({ transform: "translate3d(320px, 700px, 0)" });
+  });
 
-    fireEvent.pointerUp(fab);
-    const quickKey = screen.getByRole("menuitem", { name: "Enter" });
-    expect(quickKey.className).toContain("motion-reduce:transition-none");
-    expect(screen.getByRole("menuitem", { name: "Up" }).className).toContain(
-      "motion-reduce:transition-none",
-    );
+  it("exposes reduced-motion class contracts on mobile controls", () => {
+    render(<FloatingActionButton />);
+
+    const quickActions = screen.getByRole("group", { name: "Terminal quick actions" });
+    const enter = within(quickActions).getByRole("button", { name: "Enter" });
+    expect(enter.className).toContain("min-h-11");
+
+    fireEvent.pointerUp(within(quickActions).getByRole("button", { name: "More" }));
+    const menu = screen.getByRole("menu", { name: "More terminal actions" });
+    const up = within(menu).getByRole("menuitem", { name: "Up" });
+    expect(up.className).toContain("min-h-11");
   });
 
   it("does not expose the 200ms snap transition when reduced motion is preferred", () => {
@@ -144,119 +154,62 @@ describe("FloatingActionButton (mobile)", () => {
 
     render(<FloatingActionButton />);
 
-    const container = screen.getByRole("button", { name: "Open virtual keyboard" }).parentElement;
+    const container = screen.getByRole("group", { name: "Terminal quick actions" }).parentElement
+      ?.parentElement;
     expect(container).toHaveStyle({ transition: "none" });
     expect(container?.getAttribute("style")).not.toContain("transform 200ms ease-out");
   });
 
-  it("expanded quick keys contain Enter, Tab and Ctrl+C with >=44px targets", () => {
+  it("sends sequences from the always-visible quick row", () => {
     render(<FloatingActionButton />);
-    fireEvent.pointerUp(screen.getByRole("button", { name: "Open virtual keyboard" }));
-    const quickSection = screen.getByLabelText("Quick keys");
-    const buttons = quickSection.querySelectorAll("button");
-    expect(buttons).toHaveLength(3);
+    const quickActions = screen.getByRole("group", { name: "Terminal quick actions" });
 
-    const labels = Array.from(buttons).map((b) => b.getAttribute("aria-label"));
-    expect(labels).toEqual(["Enter", "Tab", "Ctrl+C"]);
-
-    for (const b of Array.from(buttons)) {
-      expect(b.className).toContain("min-h-11");
-    }
-  });
-
-  it("sends sequences when expanded quick key buttons are clicked", () => {
-    render(<FloatingActionButton />);
-    fireEvent.pointerUp(screen.getByRole("button", { name: "Open virtual keyboard" }));
-    fireEvent.click(screen.getByRole("menuitem", { name: "Enter" }));
+    fireEvent.click(within(quickActions).getByRole("button", { name: "Enter" }));
     expect(mockActiveSend).toHaveBeenCalledWith("\r");
-    fireEvent.click(screen.getByRole("menuitem", { name: "Tab" }));
+    fireEvent.click(within(quickActions).getByRole("button", { name: "Tab" }));
     expect(mockActiveSend).toHaveBeenCalledWith("\t");
-    fireEvent.click(screen.getByRole("menuitem", { name: "Ctrl+C" }));
+    fireEvent.click(within(quickActions).getByRole("button", { name: "Ctrl+C" }));
     expect(mockActiveSend).toHaveBeenCalledWith("\x03");
   });
 
-  it("expands on tap and shows 2-col grid with >=44px direction/modifier keys", () => {
+  it("expands More into compose, navigation and font controls above the default row", () => {
     render(<FloatingActionButton />);
-    fireEvent.pointerUp(screen.getByRole("button", { name: "Open virtual keyboard" }));
+    const more = screen.getByRole("button", { name: "More" });
+    fireEvent.pointerUp(more);
 
-    const menu = screen.getByRole("menu", { name: "Virtual keys" });
-    expect(menu).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Close virtual keyboard" })).toHaveAttribute(
-      "aria-expanded",
-      "true",
+    expect(more).toHaveAttribute("aria-expanded", "true");
+    const menu = screen.getByRole("menu", { name: "More terminal actions" });
+    expect(menu).toHaveClass(
+      "max-h-[calc(100dvh-var(--safe-area-inset-top)-var(--safe-area-inset-bottom)-6rem)]",
     );
-
-    // Labeled panel with bounded placement and 3-column navigation grid.
-    expect(menu.className).toContain("fixed");
-    expect(menu.className).toContain(
-      "max-h-[calc(100dvh-var(--safe-area-inset-top)-var(--safe-area-inset-bottom)-2rem)]",
-    );
-    const grids = menu.querySelectorAll(".grid-cols-3");
-    expect(grids.length).toBeGreaterThanOrEqual(2);
-
-    // Up, Down, Left, Right, Esc — all menuitems, all >=44px.
-    const gridNames = ["Up", "Down", "Left", "Right", "Esc"];
-    for (const name of gridNames) {
-      const item = screen.getByRole("menuitem", { name });
-      expect(item.className).toContain("min-h-11");
-    }
-  });
-
-  it("mobile font stepper is reachable inside the expanded FAB menu", () => {
-    render(<FloatingActionButton />);
-    fireEvent.pointerUp(screen.getByRole("button", { name: "Open virtual keyboard" }));
-
-    expect(screen.getByRole("menu")).toBeInTheDocument();
-    const fontSection = screen.getByLabelText("Terminal font size");
-    const decrease = screen.getByRole("button", { name: "Decrease font size" });
-    const increase = screen.getByRole("button", { name: "Increase font size" });
-
-    expect(fontSection).toContainElement(decrease);
-    expect(fontSection).toContainElement(increase);
-    expect(decrease.className).toContain("h-11");
-    expect(decrease.className).toContain("w-11");
-    expect(increase.className).toContain("h-11");
-    expect(increase.className).toContain("w-11");
+    expect(within(menu).getByRole("menuitem", { name: "Compose" })).toBeInTheDocument();
+    expect(
+      within(menu).getByRole("group", { name: "Terminal navigation keys" }),
+    ).toBeInTheDocument();
+    expect(
+      within(menu).getByRole("group", { name: "Terminal font size controls" }),
+    ).toBeInTheDocument();
     expect(screen.getByText("12px")).toBeInTheDocument();
   });
 
-  it("expanded mobile font stepper invokes the terminal font hook", () => {
+  it("dispatches the compose event from More actions and closes the panel", () => {
+    const listener = vi.fn();
+    window.addEventListener(TERMINAL_COMPOSE_OPEN_EVENT, listener);
     render(<FloatingActionButton />);
-    fireEvent.pointerUp(screen.getByRole("button", { name: "Open virtual keyboard" }));
 
-    fireEvent.click(screen.getByRole("button", { name: "Increase font size" }));
-    expect(mockIncreaseFontSize).toHaveBeenCalledTimes(1);
+    fireEvent.pointerUp(screen.getByRole("button", { name: "More" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Compose" }));
 
-    fireEvent.click(screen.getByRole("button", { name: "Decrease font size" }));
-    expect(mockDecreaseFontSize).toHaveBeenCalledTimes(1);
-  });
-
-  it("mobile expanded menu keeps the directional/modifier grid separate from the stepper", () => {
-    render(<FloatingActionButton />);
-    fireEvent.pointerUp(screen.getByRole("button", { name: "Open virtual keyboard" }));
-
-    expect(screen.getByRole("menu", { name: "Virtual keys" })).toBeInTheDocument();
-    expect(screen.queryByRole("menuitem", { name: "Decrease font size" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("menuitem", { name: "Increase font size" })).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Decrease font size" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Increase font size" })).toBeInTheDocument();
-  });
-
-  it("collapses on second tap", () => {
-    render(<FloatingActionButton />);
-    const btn = screen.getByRole("button", { name: "Open virtual keyboard" });
-    fireEvent.pointerUp(btn);
-    expect(screen.getByRole("menu")).toBeInTheDocument();
-
-    fireEvent.pointerUp(screen.getByRole("button", { name: "Close virtual keyboard" }));
-    expect(screen.queryByRole("menu")).not.toBeInTheDocument();
+    expect(listener).toHaveBeenCalledTimes(1);
+    expect(screen.queryByRole("menu", { name: "More terminal actions" })).not.toBeInTheDocument();
+    window.removeEventListener(TERMINAL_COMPOSE_OPEN_EVENT, listener);
   });
 
   it("passes the pointerup event through so drag finalization can commit the FAB position", () => {
     render(<FloatingActionButton />);
-    const fab = screen.getByRole("button", { name: "Open virtual keyboard" });
+    const more = screen.getByRole("button", { name: "More" });
 
-    fireEvent.pointerUp(fab, { pointerId: 7, pointerType: "touch" });
+    fireEvent.pointerUp(more, { pointerId: 7, pointerType: "touch" });
 
     expect(mockFabState.onPointerUp).toHaveBeenCalledWith(
       expect.objectContaining({ pointerId: 7 }),
@@ -266,90 +219,81 @@ describe("FloatingActionButton (mobile)", () => {
   it("does not expand when pointer up was a drag", () => {
     (mockFabState.onPointerUp as ReturnType<typeof vi.fn>).mockReturnValue(true);
     render(<FloatingActionButton />);
-    fireEvent.pointerUp(screen.getByRole("button", { name: "Open virtual keyboard" }));
-    expect(screen.queryByRole("menu")).not.toBeInTheDocument();
+    fireEvent.pointerUp(screen.getByRole("button", { name: "More" }));
+    expect(screen.queryByRole("menu", { name: "More terminal actions" })).not.toBeInTheDocument();
   });
 
-  it("sends arrow key sequences from grid", () => {
+  it("sends arrow key and Esc sequences from More actions", () => {
     render(<FloatingActionButton />);
-    fireEvent.pointerUp(screen.getByRole("button", { name: "Open virtual keyboard" }));
+    fireEvent.pointerUp(screen.getByRole("button", { name: "More" }));
+    const menu = screen.getByRole("menu", { name: "More terminal actions" });
 
-    fireEvent.click(screen.getByRole("menuitem", { name: "Up" }));
+    fireEvent.click(within(menu).getByRole("menuitem", { name: "Up" }));
     expect(mockActiveSend).toHaveBeenCalledWith("\x1b[A");
-
-    fireEvent.click(screen.getByRole("menuitem", { name: "Down" }));
+    fireEvent.click(within(menu).getByRole("menuitem", { name: "Down" }));
     expect(mockActiveSend).toHaveBeenCalledWith("\x1b[B");
-
-    fireEvent.click(screen.getByRole("menuitem", { name: "Right" }));
+    fireEvent.click(within(menu).getByRole("menuitem", { name: "Right" }));
     expect(mockActiveSend).toHaveBeenCalledWith("\x1b[C");
-
-    fireEvent.click(screen.getByRole("menuitem", { name: "Left" }));
+    fireEvent.click(within(menu).getByRole("menuitem", { name: "Left" }));
     expect(mockActiveSend).toHaveBeenCalledWith("\x1b[D");
-  });
-
-  it("sends Esc from navigation and Ctrl+C from quick keys", () => {
-    render(<FloatingActionButton />);
-    fireEvent.pointerUp(screen.getByRole("button", { name: "Open virtual keyboard" }));
-    fireEvent.click(screen.getByRole("menuitem", { name: "Esc" }));
+    fireEvent.click(within(menu).getByRole("menuitem", { name: "Esc" }));
     expect(mockActiveSend).toHaveBeenCalledWith("\x1b");
-    fireEvent.click(screen.getByRole("menuitem", { name: "Ctrl+C" }));
-    expect(mockActiveSend).toHaveBeenCalledWith("\x03");
   });
 
-  it("increases font size from the expanded mobile stepper", () => {
+  it("mobile font stepper is reachable inside More actions", () => {
     render(<FloatingActionButton />);
-    fireEvent.pointerUp(screen.getByRole("button", { name: "Open virtual keyboard" }));
-    fireEvent.click(screen.getByRole("button", { name: "Increase font size" }));
+    fireEvent.pointerUp(screen.getByRole("button", { name: "More" }));
+
+    const fontControls = screen.getByRole("group", { name: "Terminal font size controls" });
+    const decrease = within(fontControls).getByRole("button", { name: "Decrease font size" });
+    const increase = within(fontControls).getByRole("button", { name: "Increase font size" });
+
+    expect(decrease).toHaveClass("min-h-11", "min-w-11");
+    expect(increase).toHaveClass("min-h-11", "min-w-11");
+    fireEvent.click(increase);
     expect(mockIncreaseFontSize).toHaveBeenCalledTimes(1);
-  });
-
-  it("decreases font size from the expanded mobile stepper", () => {
-    render(<FloatingActionButton />);
-    fireEvent.pointerUp(screen.getByRole("button", { name: "Open virtual keyboard" }));
-    fireEvent.click(screen.getByRole("button", { name: "Decrease font size" }));
+    fireEvent.click(decrease);
     expect(mockDecreaseFontSize).toHaveBeenCalledTimes(1);
   });
 
   it("disables decrease at minimum font size", () => {
     mockUseTerminalFontStep.mockReturnValue({
-      size: 10,
+      size: 8,
       increase: mockIncreaseFontSize,
       decrease: mockDecreaseFontSize,
       canIncrease: true,
       canDecrease: false,
     });
     render(<FloatingActionButton />);
-    fireEvent.pointerUp(screen.getByRole("button", { name: "Open virtual keyboard" }));
+    fireEvent.pointerUp(screen.getByRole("button", { name: "More" }));
     expect(screen.getByRole("button", { name: "Decrease font size" })).toBeDisabled();
   });
 
   it("disables increase at maximum font size", () => {
     mockUseTerminalFontStep.mockReturnValue({
-      size: 20,
+      size: 28,
       increase: mockIncreaseFontSize,
       decrease: mockDecreaseFontSize,
       canIncrease: false,
       canDecrease: true,
     });
     render(<FloatingActionButton />);
-    fireEvent.pointerUp(screen.getByRole("button", { name: "Open virtual keyboard" }));
+    fireEvent.pointerUp(screen.getByRole("button", { name: "More" }));
     expect(screen.getByRole("button", { name: "Increase font size" })).toBeDisabled();
   });
 
-  it("calls onHapticFeedback when an expanded quick key is pressed", () => {
+  it("calls onHapticFeedback when a quick key is pressed", () => {
     const onHapticFeedback = vi.fn();
     render(<FloatingActionButton onHapticFeedback={onHapticFeedback} />);
-    fireEvent.pointerUp(screen.getByRole("button", { name: "Open virtual keyboard" }));
-    onHapticFeedback.mockClear();
-    fireEvent.click(screen.getByRole("menuitem", { name: "Enter" }));
+    fireEvent.click(screen.getByRole("button", { name: "Enter" }));
     expect(onHapticFeedback).toHaveBeenCalledTimes(1);
     expect(mockActiveSend).toHaveBeenCalledWith("\r");
   });
 
-  it("calls onHapticFeedback when a grid menuitem is pressed", () => {
+  it("calls onHapticFeedback when a More menuitem is pressed", () => {
     const onHapticFeedback = vi.fn();
     render(<FloatingActionButton onHapticFeedback={onHapticFeedback} />);
-    fireEvent.pointerUp(screen.getByRole("button", { name: "Open virtual keyboard" }));
+    fireEvent.pointerUp(screen.getByRole("button", { name: "More" }));
     onHapticFeedback.mockClear();
     fireEvent.click(screen.getByRole("menuitem", { name: "Up" }));
     expect(onHapticFeedback).toHaveBeenCalledTimes(1);
@@ -364,7 +308,7 @@ describe("FloatingActionButton (mobile)", () => {
     expect(onHapticFeedback).toHaveBeenCalledTimes(1);
   });
 
-  it("defaults onHapticFeedback to a no-op (no throw when arming fires with no prop)", () => {
+  it("defaults onHapticFeedback to a no-op", () => {
     render(<FloatingActionButton />);
     expect(typeof capturedOnArmed).toBe("function");
     expect(() => capturedOnArmed?.()).not.toThrow();
@@ -377,17 +321,14 @@ describe("FloatingActionButton (mobile)", () => {
         <FloatingActionButton />
       </div>,
     );
-    fireEvent.pointerUp(screen.getByRole("button", { name: "Open virtual keyboard" }));
-    expect(screen.getByRole("menu")).toBeInTheDocument();
+    fireEvent.pointerUp(screen.getByRole("button", { name: "More" }));
+    expect(screen.getByRole("menu", { name: "More terminal actions" })).toBeInTheDocument();
 
-    // Click inside the expanded quick-key panel — should NOT collapse the menu.
-    const toolbarBtn = screen.getByRole("menuitem", { name: "Enter" });
-    fireEvent.pointerDown(toolbarBtn);
-    expect(screen.getByRole("menu")).toBeInTheDocument();
+    fireEvent.pointerDown(screen.getByRole("menuitem", { name: "Compose" }));
+    expect(screen.getByRole("menu", { name: "More terminal actions" })).toBeInTheDocument();
 
-    // Click truly outside — should collapse.
     fireEvent.pointerDown(screen.getByTestId("outside"));
-    expect(screen.queryByRole("menu")).not.toBeInTheDocument();
+    expect(screen.queryByRole("menu", { name: "More terminal actions" })).not.toBeInTheDocument();
   });
 });
 
@@ -397,9 +338,9 @@ describe("FloatingActionButton (desktop)", () => {
     setViewport(1024, 768);
   });
 
-  it("does not render persistent quick-action toolbar on desktop", () => {
+  it("does not render the mobile quick-action row on desktop", () => {
     render(<FloatingActionButton />);
-    expect(screen.queryByRole("toolbar", { name: "Quick keys" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("group", { name: "Terminal quick actions" })).not.toBeInTheDocument();
   });
 
   it("renders legacy row-based popover when expanded on desktop", () => {
@@ -407,7 +348,6 @@ describe("FloatingActionButton (desktop)", () => {
     fireEvent.pointerUp(screen.getByRole("button", { name: "Open virtual keyboard" }));
     const menu = screen.getByRole("menu", { name: "Virtual keys" });
     expect(menu).toBeInTheDocument();
-    // Desktop popover has the original Tab/Up/.../Enter list (10 menuitems).
     const items = screen.getAllByRole("menuitem");
     expect(items.length).toBe(10);
     expect(screen.getByRole("menuitem", { name: /Enter/ })).toBeInTheDocument();

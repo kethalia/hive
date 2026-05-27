@@ -11,10 +11,12 @@ import { TerminalGestureLayer } from "@/components/terminal/TerminalGestureLayer
 import { Button } from "@/components/ui/button";
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
+import { useFabKeyboardOffset } from "@/hooks/useFabKeyboardOffset";
 import { useIsComposeSheet } from "@/hooks/use-compose-sheet";
 import { useKeybindings } from "@/hooks/useKeybindings";
 import { createSessionAction, getWorkspaceSessionsAction } from "@/lib/actions/workspaces";
 import { COMPOSE_SHEET_DISMISS_DRAG_PX } from "@/lib/terminal/config";
+import { TERMINAL_COMPOSE_OPEN_EVENT } from "@/lib/terminal/events";
 import { copyTerminalSelection, pasteToTerminal } from "@/lib/terminal/actions";
 
 const InteractiveTerminal = dynamic(
@@ -23,6 +25,7 @@ const InteractiveTerminal = dynamic(
 );
 
 const LAST_SESSION_STORAGE_PREFIX = "terminal:last-session:";
+const MAX_COMPOSE_KEYBOARD_LIFT_PX = 360;
 const TERMINAL_SHELL_CLASS_NAME =
   "-mx-6 -mb-[calc(var(--safe-area-inset-bottom)+1.5rem)] h-[calc(100dvh-var(--safe-area-inset-top)-3.5rem)] w-[calc(100%+3rem)]";
 
@@ -42,6 +45,10 @@ function TerminalInner({ agentId, workspaceId }: { agentId: string; workspaceId:
   const [bootstrapRetryKey, setBootstrapRetryKey] = useState(0);
   const composeSheetDragStartYRef = useRef<number | null>(null);
   const isComposeSheet = useIsComposeSheet();
+  const { liftPx: keyboardLiftPx } = useFabKeyboardOffset();
+  const composeKeyboardLiftPx = isComposeSheet
+    ? Math.min(keyboardLiftPx, MAX_COMPOSE_KEYBOARD_LIFT_PX)
+    : 0;
 
   const handleComposeSheetDragStart = useCallback((event: PointerEvent<HTMLButtonElement>) => {
     composeSheetDragStartYRef.current = event.clientY;
@@ -94,6 +101,12 @@ function TerminalInner({ agentId, workspaceId }: { agentId: string; workspaceId:
     register(binding);
     return () => unregister("compose:toggle:fullscreen");
   }, [register, unregister]);
+
+  useEffect(() => {
+    const handleComposeOpen = () => setComposeOpen(true);
+    window.addEventListener(TERMINAL_COMPOSE_OPEN_EVENT, handleComposeOpen);
+    return () => window.removeEventListener(TERMINAL_COMPOSE_OPEN_EVENT, handleComposeOpen);
+  }, []);
 
   useEffect(() => {
     if (session) {
@@ -239,16 +252,14 @@ function TerminalInner({ agentId, workspaceId }: { agentId: string; workspaceId:
         onKeyDown={(e) => e.stopPropagation()}
       >
         {terminalPane}
-        <button
-          type="button"
-          aria-label="Open compose panel"
-          className="absolute top-4 right-4 z-40 flex h-11 min-w-11 items-center justify-center rounded-full border border-border bg-background/90 px-4 text-sm font-medium shadow-lg backdrop-blur hover:bg-accent hover:text-accent-foreground"
-          onClick={() => setComposeOpen(true)}
-        >
-          Compose
-        </button>
         <Sheet open={composeOpen} onOpenChange={setComposeOpen}>
-          <SheetContent side="bottom" className="h-[100dvh] p-0 pt-safe pb-safe">
+          <SheetContent
+            side="bottom"
+            className="h-[100dvh] max-h-[100dvh] p-0 pt-safe"
+            style={{
+              paddingBottom: `calc(var(--safe-area-inset-bottom) + ${composeKeyboardLiftPx}px)`,
+            }}
+          >
             <button
               type="button"
               aria-label="Dismiss compose panel"
@@ -261,7 +272,9 @@ function TerminalInner({ agentId, workspaceId }: { agentId: string; workspaceId:
               <span className="h-1 w-10 rounded-full bg-current opacity-40" />
             </button>
             <SheetTitle className="sr-only">Compose command</SheetTitle>
-            <ComposePanel hideHeader onClose={() => setComposeOpen(false)} />
+            <div className="min-h-0 flex-1">
+              <ComposePanel hideHeader onClose={() => setComposeOpen(false)} />
+            </div>
           </SheetContent>
         </Sheet>
       </div>

@@ -56,6 +56,8 @@ describe("session server actions", () => {
 
     mockedGetCoderClientForUser.mockResolvedValue({
       getWorkspaceAgentName: mockGetWorkspaceAgentName,
+      getBaseUrl: () => "https://coder.example.com",
+      getSessionToken: () => "coder-session-token",
     } as never);
   });
 
@@ -114,6 +116,10 @@ describe("session server actions", () => {
       expect(mockedExec).toHaveBeenCalledWith(
         "dev.main",
         "tmux -L web rename-session -t old-name new-name",
+        {
+          coderUrl: "https://coder.example.com",
+          sessionToken: "coder-session-token",
+        },
       );
       expect(result?.data).toEqual({ oldName: "old-name", newName: "new-name" });
     });
@@ -191,7 +197,14 @@ describe("session server actions", () => {
         sessionName: "my-session",
       });
 
-      expect(mockedExec).toHaveBeenCalledWith("dev.main", "tmux -L web kill-session -t my-session");
+      expect(mockedExec).toHaveBeenCalledWith(
+        "dev.main",
+        "tmux -L web kill-session -t my-session",
+        {
+          coderUrl: "https://coder.example.com",
+          sessionToken: "coder-session-token",
+        },
+      );
       expect(result?.data).toEqual({ name: "my-session" });
     });
 

@@ -102,8 +102,8 @@ describe("useTerminalPinchZoom", () => {
 
     expect(pinchState.config?.scaleBounds).toBeTypeOf("function");
     const bounds = (pinchState.config?.scaleBounds as () => { min: number; max: number })();
-    expect(bounds.min).toBeCloseTo(10 / 14);
-    expect(bounds.max).toBeCloseTo(20 / 14);
+    expect(bounds.min).toBeCloseTo(8 / 14);
+    expect(bounds.max).toBeCloseTo(28 / 14);
   });
 
   it("dispatches font changes only when the snapped ladder value changes", () => {

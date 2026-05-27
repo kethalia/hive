@@ -60,6 +60,8 @@ describe("workspace server actions", () => {
       listWorkspaces: mockListWorkspaces,
       getWorkspaceAgentName: mockGetWorkspaceAgentName,
       getWorkspace: mockGetWorkspace,
+      getBaseUrl: () => "https://coder.example.com",
+      getSessionToken: () => "coder-session-token",
     } as never);
   });
 
@@ -96,6 +98,10 @@ describe("workspace server actions", () => {
     expect(mockedExec).toHaveBeenCalledWith(
       "dev.main",
       "tmux -L web list-sessions -F '#{session_name}:#{session_created}:#{session_windows}'",
+      {
+        coderUrl: "https://coder.example.com",
+        sessionToken: "coder-session-token",
+      },
     );
   });
 
@@ -214,6 +220,22 @@ describe("workspace server actions", () => {
     expect(result?.data).toBeUndefined();
     expect(result?.serverError).toMatch(/Failed to list tmux sessions/i);
     expect(result?.serverError).toMatch(/Connection refused/);
+  });
+
+  it("getWorkspaceSessionsAction surfaces missing Coder CLI diagnostics instead of creating an empty list", async () => {
+    mockGetWorkspaceAgentName.mockResolvedValueOnce("dev.main");
+    mockedExec.mockResolvedValueOnce({
+      stdout: "",
+      stderr: "spawn coder ENOENT",
+      exitCode: 1,
+    });
+
+    const { getWorkspaceSessionsAction } = await import("@/lib/actions/workspaces");
+    const result = await getWorkspaceSessionsAction({ workspaceId: "ws-1" });
+
+    expect(result?.data).toBeUndefined();
+    expect(result?.serverError).toMatch(/Failed to list tmux sessions/i);
+    expect(result?.serverError).toMatch(/spawn coder ENOENT/i);
   });
 
   it("getWorkspaceSessionsAction surfaces serverError on timeout (not empty)", async () => {

@@ -33,30 +33,30 @@ describe("useTerminalFontStep", () => {
     expect(result.current.size).toBe(14);
   });
 
-  it("clamps decreases at 10", () => {
-    window.localStorage.setItem(STORAGE_KEY, "10");
+  it("clamps decreases at 8", () => {
+    window.localStorage.setItem(STORAGE_KEY, "8");
     const { result } = renderHook(() => useTerminalFontStep());
 
-    expect(result.current.size).toBe(10);
+    expect(result.current.size).toBe(8);
     expect(result.current.canDecrease).toBe(false);
 
     act(() => result.current.decrease());
 
-    expect(result.current.size).toBe(10);
-    expect(window.localStorage.getItem(STORAGE_KEY)).toBe("10");
+    expect(result.current.size).toBe(8);
+    expect(window.localStorage.getItem(STORAGE_KEY)).toBe("8");
   });
 
-  it("clamps increases at 20", () => {
-    window.localStorage.setItem(STORAGE_KEY, "20");
+  it("clamps increases at 28", () => {
+    window.localStorage.setItem(STORAGE_KEY, "28");
     const { result } = renderHook(() => useTerminalFontStep());
 
-    expect(result.current.size).toBe(20);
+    expect(result.current.size).toBe(28);
     expect(result.current.canIncrease).toBe(false);
 
     act(() => result.current.increase());
 
-    expect(result.current.size).toBe(20);
-    expect(window.localStorage.getItem(STORAGE_KEY)).toBe("20");
+    expect(result.current.size).toBe(28);
+    expect(window.localStorage.getItem(STORAGE_KEY)).toBe("28");
   });
 
   it("dispatches the terminal font-size event when stepping", () => {

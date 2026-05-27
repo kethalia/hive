@@ -58,6 +58,12 @@ describe("reduced-motion class contracts", () => {
       expect(drawer).not.toBeNull();
       expect(drawer?.className).toContain("motion-reduce:transition-none");
       expect(drawer?.className).toContain("motion-reduce:duration-0");
+      expect(drawer?.className).toContain(
+        "data-[side=left]:!top-[calc(var(--safe-area-inset-top)+3.5rem)]",
+      );
+      expect(drawer?.className).toContain(
+        "data-[side=left]:!h-[calc(100dvh-var(--safe-area-inset-top)-3.5rem)]",
+      );
     });
   });
 });

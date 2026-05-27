@@ -1,4 +1,4 @@
-const FONT_SIZE_LADDER = [10, 12, 14, 16, 18, 20] as const;
+const FONT_SIZE_LADDER = [8, 10, 12, 14, 16, 18, 20, 22, 24, 28] as const;
 const STORAGE_KEY = "terminal:font-size";
 const DEFAULT_FONT_SIZE = 13;
 const MIN_FONT_SIZE = FONT_SIZE_LADDER[0];

@@ -114,6 +114,30 @@ describe("execInWorkspace", () => {
     );
   });
 
+  it("passes authenticated Coder environment when provided", async () => {
+    mockExecFile.mockImplementation((_cmd, _args, _opts, callback) => {
+      (callback as Function)(null, "", "");
+      return undefined as any;
+    });
+
+    await execInWorkspace("my-workspace", "tmux list-sessions", {
+      coderUrl: "https://coder.example.com",
+      sessionToken: "coder-session-token",
+    });
+
+    expect(mockExecFile).toHaveBeenCalledWith(
+      "coder",
+      expect.any(Array),
+      expect.objectContaining({
+        env: expect.objectContaining({
+          CODER_URL: "https://coder.example.com",
+          CODER_SESSION_TOKEN: "coder-session-token",
+        }),
+      }),
+      expect.any(Function),
+    );
+  });
+
   it("uses login shell when loginShell option is true", async () => {
     mockExecFile.mockImplementation((_cmd, _args, _opts, callback) => {
       (callback as Function)(null, "ok\n", "");
