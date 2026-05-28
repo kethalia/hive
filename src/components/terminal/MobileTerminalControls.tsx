@@ -44,7 +44,7 @@ const QUICK_ROW_KEYS = [
   { label: "Ctrl+C", icon: X, sequence: VIRTUAL_KEY_SEQUENCES.CtrlC },
 ] as const;
 
-const CONTROL_PAGES = ["Compose", "Navigation", "Font size"] as const;
+const CONTROL_PAGES = ["Keys", "Compose", "Navigation", "Font size"] as const;
 
 export interface MobileTerminalControlsProps {
   /** Called once for each terminal action press and page-dot navigation. */
@@ -118,31 +118,118 @@ export function MobileTerminalControls({ onHapticFeedback }: MobileTerminalContr
     <section
       aria-label="Terminal mobile controls"
       className="shrink-0 border-t bg-background/95 px-2 pt-2 pb-1 backdrop-blur supports-[backdrop-filter]:bg-background/85"
+      data-sidebar-gesture-ignore="true"
       style={{
         touchAction: "manipulation",
         ...NO_TOUCH_STYLE,
       }}
     >
-      <ButtonGroup
-        aria-label="Terminal quick actions"
-        className="grid w-full grid-cols-3 gap-1 rounded-none"
+      <Carousel
+        aria-label="Terminal controls carousel"
+        className="mt-1"
+        data-sidebar-gesture-ignore="true"
+        opts={{ align: "start", containScroll: "trimSnaps" }}
+        setApi={setCarouselApi}
       >
-        {QUICK_ROW_KEYS.map(({ label, icon: Icon, sequence }) => (
-          <Button
-            key={label}
-            type="button"
-            variant="outline"
-            className="min-h-12 min-w-0 rounded-lg px-1 text-xs"
-            style={NO_TOUCH_STYLE}
-            onPointerDown={keepTerminalKeyboardOpen}
-            onMouseDown={keepTerminalKeyboardOpen}
-            onClick={() => sendKey(sequence)}
-          >
-            <Icon data-icon="inline-start" />
-            {label}
-          </Button>
-        ))}
-      </ButtonGroup>
+        <CarouselContent className="-ml-2">
+          <CarouselItem aria-label="Key controls" className="pl-2">
+            <ButtonGroup
+              aria-label="Terminal quick actions"
+              className="grid w-full grid-cols-3 rounded-none"
+            >
+              {QUICK_ROW_KEYS.map(({ label, icon: Icon, sequence }) => (
+                <Button
+                  key={label}
+                  type="button"
+                  variant="outline"
+                  className="min-h-12 min-w-0 px-1 text-xs"
+                  style={NO_TOUCH_STYLE}
+                  onPointerDown={keepTerminalKeyboardOpen}
+                  onMouseDown={keepTerminalKeyboardOpen}
+                  onClick={() => sendKey(sequence)}
+                >
+                  <Icon data-icon="inline-start" />
+                  {label}
+                </Button>
+              ))}
+            </ButtonGroup>
+          </CarouselItem>
+
+          <CarouselItem aria-label="Compose controls" className="pl-2">
+            <ButtonGroup aria-label="Terminal compose controls" className="w-full rounded-none">
+              <Button
+                type="button"
+                variant="outline"
+                className="min-h-11 w-full justify-start"
+                style={NO_TOUCH_STYLE}
+                onPointerDown={keepTerminalKeyboardOpen}
+                onMouseDown={keepTerminalKeyboardOpen}
+                onClick={openCompose}
+              >
+                <MessageSquareText data-icon="inline-start" />
+                Compose
+              </Button>
+            </ButtonGroup>
+          </CarouselItem>
+
+          <CarouselItem aria-label="Navigation controls" className="pl-2">
+            <ButtonGroup
+              aria-label="Terminal navigation keys"
+              className="grid w-full grid-cols-5 rounded-none"
+            >
+              {NAVIGATION_KEYS.map(({ label, icon: Icon, sequence }) => (
+                <Button
+                  key={label}
+                  type="button"
+                  variant="outline"
+                  className="min-h-11 min-w-11 flex-col gap-1 px-2 py-2 text-xs"
+                  style={NO_TOUCH_STYLE}
+                  onPointerDown={keepTerminalKeyboardOpen}
+                  onMouseDown={keepTerminalKeyboardOpen}
+                  onClick={() => sendKey(sequence)}
+                >
+                  <Icon />
+                  <span>{label}</span>
+                </Button>
+              ))}
+            </ButtonGroup>
+          </CarouselItem>
+
+          <CarouselItem aria-label="Font size controls" className="pl-2">
+            <ButtonGroup aria-label="Terminal font size controls" className="w-full rounded-none">
+              <Button
+                type="button"
+                variant="outline"
+                className="min-h-11 min-w-11 flex-1"
+                style={NO_TOUCH_STYLE}
+                onPointerDown={keepTerminalKeyboardOpen}
+                onMouseDown={keepTerminalKeyboardOpen}
+                onClick={decreaseFontSize}
+                disabled={!canDecrease}
+                aria-label="Decrease font size"
+              >
+                <Minus />
+              </Button>
+              <ButtonGroupText className="min-h-11 flex-1 justify-center tabular-nums">
+                {fontSize}px
+              </ButtonGroupText>
+              <Button
+                type="button"
+                variant="outline"
+                className="min-h-11 min-w-11 flex-1"
+                style={NO_TOUCH_STYLE}
+                onPointerDown={keepTerminalKeyboardOpen}
+                onMouseDown={keepTerminalKeyboardOpen}
+                onClick={increaseFontSize}
+                disabled={!canIncrease}
+                aria-label="Increase font size"
+              >
+                <Plus />
+              </Button>
+            </ButtonGroup>
+          </CarouselItem>
+        </CarouselContent>
+      </Carousel>
 
       <nav
         aria-label="Terminal control pages"
@@ -171,87 +258,6 @@ export function MobileTerminalControls({ onHapticFeedback }: MobileTerminalContr
           </button>
         ))}
       </nav>
-
-      <Carousel
-        aria-label="Terminal secondary controls"
-        className="mt-1"
-        opts={{ align: "start", containScroll: "trimSnaps" }}
-        setApi={setCarouselApi}
-      >
-        <CarouselContent className="-ml-2">
-          <CarouselItem aria-label="Compose controls" className="pl-2">
-            <Button
-              type="button"
-              variant="outline"
-              className="min-h-11 w-full justify-start rounded-xl"
-              style={NO_TOUCH_STYLE}
-              onPointerDown={keepTerminalKeyboardOpen}
-              onMouseDown={keepTerminalKeyboardOpen}
-              onClick={openCompose}
-            >
-              <MessageSquareText data-icon="inline-start" />
-              Compose
-            </Button>
-          </CarouselItem>
-
-          <CarouselItem aria-label="Navigation controls" className="pl-2">
-            <ButtonGroup
-              aria-label="Terminal navigation keys"
-              className="grid w-full grid-cols-5 gap-1"
-            >
-              {NAVIGATION_KEYS.map(({ label, icon: Icon, sequence }) => (
-                <Button
-                  key={label}
-                  type="button"
-                  variant="outline"
-                  className="min-h-11 min-w-11 flex-col gap-1 rounded-xl px-2 py-2 text-xs"
-                  style={NO_TOUCH_STYLE}
-                  onPointerDown={keepTerminalKeyboardOpen}
-                  onMouseDown={keepTerminalKeyboardOpen}
-                  onClick={() => sendKey(sequence)}
-                >
-                  <Icon />
-                  <span>{label}</span>
-                </Button>
-              ))}
-            </ButtonGroup>
-          </CarouselItem>
-
-          <CarouselItem aria-label="Font size controls" className="pl-2">
-            <ButtonGroup aria-label="Terminal font size controls" className="w-full gap-1">
-              <Button
-                type="button"
-                variant="outline"
-                className="min-h-11 min-w-11 flex-1 rounded-xl"
-                style={NO_TOUCH_STYLE}
-                onPointerDown={keepTerminalKeyboardOpen}
-                onMouseDown={keepTerminalKeyboardOpen}
-                onClick={decreaseFontSize}
-                disabled={!canDecrease}
-                aria-label="Decrease font size"
-              >
-                <Minus />
-              </Button>
-              <ButtonGroupText className="min-h-11 flex-1 justify-center rounded-xl tabular-nums">
-                {fontSize}px
-              </ButtonGroupText>
-              <Button
-                type="button"
-                variant="outline"
-                className="min-h-11 min-w-11 flex-1 rounded-xl"
-                style={NO_TOUCH_STYLE}
-                onPointerDown={keepTerminalKeyboardOpen}
-                onMouseDown={keepTerminalKeyboardOpen}
-                onClick={increaseFontSize}
-                disabled={!canIncrease}
-                aria-label="Increase font size"
-              >
-                <Plus />
-              </Button>
-            </ButtonGroup>
-          </CarouselItem>
-        </CarouselContent>
-      </Carousel>
     </section>
   );
 }

@@ -161,6 +161,28 @@ describe("SidebarEdgeHandle", () => {
     expect(sidebarState.setOpenMobile).not.toHaveBeenCalled();
   });
 
+  it("ignores swipes that start inside gesture-ignored regions such as carousels", () => {
+    sidebarState = {
+      isMobile: true,
+      openMobile: false,
+      setOpenMobile: vi.fn(),
+    };
+    mockUseSidebar.mockReturnValue(sidebarState);
+
+    render(
+      <main data-testid="page-content">
+        <div data-sidebar-gesture-ignore="true" data-testid="carousel-region">
+          Carousel
+        </div>
+        <SidebarEdgeHandle />
+      </main>,
+    );
+
+    swipePage({ target: screen.getByTestId("carousel-region"), move: [310, 206] });
+
+    expect(sidebarState.setOpenMobile).not.toHaveBeenCalled();
+  });
+
   it("does not bind the page gesture when the drawer is already open", () => {
     renderHandle({ openMobile: true });
 

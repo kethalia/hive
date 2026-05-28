@@ -97,52 +97,59 @@ beforeEach(() => {
 });
 
 describe("MobileTerminalControls", () => {
-  it("renders a compact quick row, page dots and in-flow secondary pages", () => {
+  it("renders connected carousel pages with key controls first and dots underneath", () => {
     render(<MobileTerminalControls />);
 
     const controls = screen.getByRole("region", { name: "Terminal mobile controls" });
     expect(controls).toHaveClass("shrink-0", "border-t", "px-2", "pb-1");
+    expect(controls).toHaveAttribute("data-sidebar-gesture-ignore", "true");
     expect(controls).not.toHaveClass("fixed", "absolute", "rounded-2xl");
     expect(controls.className).not.toContain("0_-12px_32px");
 
-    const quickActions = screen.getByRole("group", { name: "Terminal quick actions" });
-    expect(quickActions).toHaveClass("grid", "w-full", "grid-cols-3", "gap-1");
+    const carousel = screen.getByRole("region", { name: "Terminal controls carousel" });
+    expect(carousel).toHaveAttribute("aria-roledescription", "carousel");
+    expect(carousel).toHaveAttribute("data-sidebar-gesture-ignore", "true");
+
+    const quickActions = within(carousel).getByRole("group", { name: "Terminal quick actions" });
+    expect(quickActions).toHaveClass("grid", "w-full", "grid-cols-3", "rounded-none");
+    expect(quickActions).not.toHaveClass("gap-1");
     expect(within(quickActions).getByRole("button", { name: "Enter" })).toHaveClass(
       "min-h-12",
       "min-w-0",
     );
-    expect(within(quickActions).getByRole("button", { name: "Enter" })).toHaveClass("border");
     expect(within(quickActions).getByRole("button", { name: "Tab" })).toBeInTheDocument();
     expect(within(quickActions).getByRole("button", { name: "Ctrl+C" })).toBeInTheDocument();
     expect(within(quickActions).queryByRole("button", { name: "More" })).not.toBeInTheDocument();
 
+    const composeControls = within(carousel).getByRole("group", {
+      name: "Terminal compose controls",
+    });
+    expect(composeControls).toHaveClass("w-full", "rounded-none");
+    expect(within(composeControls).getByRole("button", { name: "Compose" })).toBeInTheDocument();
+    expect(
+      within(carousel).getByRole("group", { name: "Terminal navigation keys" }),
+    ).toBeInTheDocument();
+    expect(
+      within(carousel).getByRole("group", { name: "Terminal font size controls" }),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole("region", { name: "More terminal actions" })).not.toBeInTheDocument();
+
     const pageDots = screen.getByLabelText("Terminal control pages");
     expect(pageDots).toBeInTheDocument();
-    expect(within(pageDots).getByRole("button", { name: "Show Compose controls" })).toHaveAttribute(
+    expect(within(pageDots).getByRole("button", { name: "Show Keys controls" })).toHaveAttribute(
       "aria-current",
       "page",
     );
     expect(
-      within(pageDots).getByRole("button", { name: "Show Navigation controls" }),
+      within(pageDots).getByRole("button", { name: "Show Compose controls" }),
     ).not.toHaveAttribute("aria-current");
-
-    const secondaryControls = screen.getByRole("region", { name: "Terminal secondary controls" });
-    expect(secondaryControls).toHaveAttribute("aria-roledescription", "carousel");
-    expect(within(secondaryControls).getByRole("button", { name: "Compose" })).toBeInTheDocument();
-    expect(
-      within(secondaryControls).getByRole("group", { name: "Terminal navigation keys" }),
-    ).toBeInTheDocument();
-    expect(
-      within(secondaryControls).getByRole("group", { name: "Terminal font size controls" }),
-    ).toBeInTheDocument();
-    expect(screen.queryByRole("region", { name: "More terminal actions" })).not.toBeInTheDocument();
-
-    expect(Array.from(controls.children)).toEqual([quickActions, pageDots, secondaryControls]);
+    expect(Array.from(controls.children)).toEqual([carousel, pageDots]);
   });
 
-  it("sends sequences from the always-visible quick row", () => {
+  it("sends sequences from the first carousel page", () => {
     render(<MobileTerminalControls />);
-    const quickActions = screen.getByRole("group", { name: "Terminal quick actions" });
+    const carousel = screen.getByRole("region", { name: "Terminal controls carousel" });
+    const quickActions = within(carousel).getByRole("group", { name: "Terminal quick actions" });
 
     fireEvent.click(within(quickActions).getByRole("button", { name: "Enter" }));
     expect(mockActiveSend).toHaveBeenCalledWith("\r");
@@ -156,19 +163,24 @@ describe("MobileTerminalControls", () => {
     const onHapticFeedback = vi.fn();
     render(<MobileTerminalControls onHapticFeedback={onHapticFeedback} />);
     const pageDots = screen.getByLabelText("Terminal control pages");
+    const keys = within(pageDots).getByRole("button", { name: "Show Keys controls" });
     const compose = within(pageDots).getByRole("button", { name: "Show Compose controls" });
     const navigation = within(pageDots).getByRole("button", { name: "Show Navigation controls" });
     const fontSize = within(pageDots).getByRole("button", { name: "Show Font size controls" });
 
-    expect(compose).toHaveAttribute("aria-current", "page");
+    expect(keys).toHaveAttribute("aria-current", "page");
     fireEvent.click(navigation);
     expect(onHapticFeedback).toHaveBeenCalledTimes(1);
     expect(navigation).toHaveAttribute("aria-current", "page");
-    expect(compose).not.toHaveAttribute("aria-current");
+    expect(keys).not.toHaveAttribute("aria-current");
 
     fireEvent.click(fontSize);
     expect(onHapticFeedback).toHaveBeenCalledTimes(2);
     expect(fontSize).toHaveAttribute("aria-current", "page");
+
+    fireEvent.click(compose);
+    expect(onHapticFeedback).toHaveBeenCalledTimes(3);
+    expect(compose).toHaveAttribute("aria-current", "page");
   });
 
   it("dispatches the compose event from the compose page", () => {
@@ -262,9 +274,9 @@ describe("MobileTerminalControls", () => {
       </div>,
     );
 
-    expect(screen.getByRole("region", { name: "Terminal secondary controls" })).toBeInTheDocument();
+    expect(screen.getByRole("region", { name: "Terminal controls carousel" })).toBeInTheDocument();
     fireEvent.pointerDown(screen.getByTestId("outside"));
-    expect(screen.getByRole("region", { name: "Terminal secondary controls" })).toBeInTheDocument();
+    expect(screen.getByRole("region", { name: "Terminal controls carousel" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "More" })).not.toBeInTheDocument();
   });
 
