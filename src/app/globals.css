@@ -61,6 +61,7 @@
   --app-viewport-height: 100vh;
   --app-window-inner-height: 100dvh;
   --app-visual-viewport-height: 100dvh;
+  --app-visual-viewport-offset-top: 0px;
 }
 
 .dark {

@@ -67,6 +67,7 @@ describe("useVisualViewportKeyboardOffset", () => {
       liftPx: 0,
       isKeyboardVisible: false,
       visualViewportHeightPx: 0,
+      visualViewportOffsetTopPx: 0,
     });
   });
 
@@ -77,6 +78,7 @@ describe("useVisualViewportKeyboardOffset", () => {
       liftPx: 0,
       isKeyboardVisible: false,
       visualViewportHeightPx: 800,
+      visualViewportOffsetTopPx: 0,
     });
   });
 
@@ -93,16 +95,47 @@ describe("useVisualViewportKeyboardOffset", () => {
       liftPx: 300,
       isKeyboardVisible: true,
       visualViewportHeightPx: 500,
+      visualViewportOffsetTopPx: 0,
     });
   });
 
   it("keeps keyboard visibility when visualViewport.offsetTop cancels floating lift", () => {
-    installVisualViewport(500, 300);
+    const vv = installVisualViewport(800);
     const { result } = renderHook(() => useVisualViewportKeyboardOffset());
+
+    act(() => {
+      vv.height = 500;
+      vv.offsetTop = 300;
+      vv.dispatch("resize");
+    });
+
     expect(result.current).toEqual({
       liftPx: 0,
       isKeyboardVisible: true,
       visualViewportHeightPx: 500,
+      visualViewportOffsetTopPx: 300,
+    });
+  });
+
+  it("detects the keyboard when window.innerHeight shrinks with visualViewport.height", () => {
+    const vv = installVisualViewport(800);
+    const { result } = renderHook(() => useVisualViewportKeyboardOffset());
+
+    act(() => {
+      Object.defineProperty(window, "innerHeight", {
+        configurable: true,
+        writable: true,
+        value: 500,
+      });
+      vv.height = 500;
+      vv.dispatch("resize");
+    });
+
+    expect(result.current).toEqual({
+      liftPx: 0,
+      isKeyboardVisible: true,
+      visualViewportHeightPx: 500,
+      visualViewportOffsetTopPx: 0,
     });
   });
 
@@ -119,6 +152,7 @@ describe("useVisualViewportKeyboardOffset", () => {
       liftPx: 0,
       isKeyboardVisible: false,
       visualViewportHeightPx: 800,
+      visualViewportOffsetTopPx: 0,
     });
   });
 
@@ -127,6 +161,7 @@ describe("useVisualViewportKeyboardOffset", () => {
     const { result } = renderHook(() => useVisualViewportKeyboardOffset());
     expect(result.current.liftPx).toBe(250);
     expect(result.current.isKeyboardVisible).toBe(true);
+    expect(result.current.visualViewportOffsetTopPx).toBe(50);
 
     act(() => {
       vv.offsetTop = 0;
@@ -134,6 +169,7 @@ describe("useVisualViewportKeyboardOffset", () => {
     });
     expect(result.current.liftPx).toBe(300);
     expect(result.current.isKeyboardVisible).toBe(true);
+    expect(result.current.visualViewportOffsetTopPx).toBe(0);
   });
 
   it("clamps negative deltas to 0", () => {
@@ -143,6 +179,7 @@ describe("useVisualViewportKeyboardOffset", () => {
       liftPx: 0,
       isKeyboardVisible: false,
       visualViewportHeightPx: 900,
+      visualViewportOffsetTopPx: 0,
     });
   });
 

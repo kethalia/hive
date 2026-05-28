@@ -21,6 +21,10 @@ export function AppViewportSize() {
         "--app-visual-viewport-height",
         `${visualViewport?.height ?? window.innerHeight}px`,
       );
+      root.style.setProperty(
+        "--app-visual-viewport-offset-top",
+        `${visualViewport?.offsetTop ?? 0}px`,
+      );
     };
 
     updateViewportSize();

@@ -8,6 +8,7 @@ afterEach(() => {
   cleanup();
   document.documentElement.style.removeProperty("--app-window-inner-height");
   document.documentElement.style.removeProperty("--app-visual-viewport-height");
+  document.documentElement.style.removeProperty("--app-visual-viewport-offset-top");
   vi.unstubAllGlobals();
 });
 
@@ -22,6 +23,7 @@ describe("AppViewportSize", () => {
       value: {
         addEventListener: addVisualViewportListener,
         height: 810,
+        offsetTop: 42,
         removeEventListener: removeVisualViewportListener,
       },
     });
@@ -32,6 +34,7 @@ describe("AppViewportSize", () => {
     expect(document.documentElement).toHaveStyle({
       "--app-window-inner-height": "844px",
       "--app-visual-viewport-height": "810px",
+      "--app-visual-viewport-offset-top": "42px",
     });
     expect(addVisualViewportListener).toHaveBeenCalledWith("resize", expect.any(Function));
     expect(addVisualViewportListener).toHaveBeenCalledWith("scroll", expect.any(Function));

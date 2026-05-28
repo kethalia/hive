@@ -31,6 +31,7 @@ const { mockUseVisualViewportKeyboardOffset } = vi.hoisted(() => ({
     liftPx: 0,
     isKeyboardVisible: false,
     visualViewportHeightPx: 0,
+    visualViewportOffsetTopPx: 0,
   })),
 }));
 
@@ -212,6 +213,7 @@ describe("TerminalClient compose sheet", () => {
       liftPx: 0,
       isKeyboardVisible: false,
       visualViewportHeightPx: 0,
+      visualViewportOffsetTopPx: 0,
     });
   });
 
@@ -252,6 +254,7 @@ describe("TerminalClient compose sheet", () => {
     expect(screen.getByTestId("terminal-mobile-shell")).toHaveStyle({
       height: "max(0px, calc(var(--app-viewport-height) - var(--safe-area-inset-top) - 3.5rem))",
       maxHeight: "max(0px, calc(var(--app-viewport-height) - var(--safe-area-inset-top) - 3.5rem))",
+      top: "calc(var(--safe-area-inset-top) + 3.5rem)",
     });
     expect(screen.getByTestId("terminal-mobile-shell")).not.toHaveClass(
       "-mb-[calc(var(--safe-area-inset-bottom)+1.5rem)]",
@@ -330,6 +333,7 @@ describe("TerminalClient compose sheet", () => {
       liftPx: 0,
       isKeyboardVisible: true,
       visualViewportHeightPx: 500,
+      visualViewportOffsetTopPx: 240,
     });
     await renderTerminalClient(true);
 
@@ -338,10 +342,11 @@ describe("TerminalClient compose sheet", () => {
         "max(0px, calc(var(--app-visual-viewport-height) - var(--safe-area-inset-top) - 3.5rem))",
       maxHeight:
         "max(0px, calc(var(--app-visual-viewport-height) - var(--safe-area-inset-top) - 3.5rem))",
+      top: "calc(var(--app-visual-viewport-offset-top) + var(--safe-area-inset-top) + 3.5rem)",
     });
     expect(screen.getByTestId("interactive-terminal")).toHaveAttribute(
       "data-layout-signal",
-      "keyboard:500",
+      "keyboard:500:240",
     );
     expect(document.documentElement).toHaveStyle({
       height: "var(--app-visual-viewport-height)",
@@ -351,6 +356,7 @@ describe("TerminalClient compose sheet", () => {
       height: "var(--app-visual-viewport-height)",
       maxHeight: "var(--app-visual-viewport-height)",
       overflow: "hidden",
+      top: "var(--app-visual-viewport-offset-top)",
     });
 
     act(() => {
@@ -358,7 +364,8 @@ describe("TerminalClient compose sheet", () => {
     });
 
     expect(screen.getByTestId("compose-sheet-content")).toHaveStyle({
-      bottom: "calc(var(--app-viewport-height) - var(--app-visual-viewport-height))",
+      bottom:
+        "calc(var(--app-viewport-height) - var(--app-visual-viewport-height) - var(--app-visual-viewport-offset-top))",
       height: "var(--app-visual-viewport-height)",
       maxHeight: "var(--app-visual-viewport-height)",
       paddingBottom: "var(--safe-area-inset-bottom)",

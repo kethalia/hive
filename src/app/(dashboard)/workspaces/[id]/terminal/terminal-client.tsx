@@ -37,17 +37,21 @@ function mobileTerminalFrameStyle(isKeyboardVisible: boolean): CSSProperties {
   const viewportHeight = isKeyboardVisible
     ? "var(--app-visual-viewport-height)"
     : "var(--app-viewport-height)";
+  const top = isKeyboardVisible
+    ? "calc(var(--app-visual-viewport-offset-top) + var(--safe-area-inset-top) + 3.5rem)"
+    : "calc(var(--safe-area-inset-top) + 3.5rem)";
   const height = `max(0px, calc(${viewportHeight} - var(--safe-area-inset-top) - 3.5rem))`;
 
   return {
     height,
     maxHeight: height,
+    top,
   };
 }
 
 function composeSheetKeyboardStyle(isKeyboardVisible: boolean): CSSProperties {
   const bottom = isKeyboardVisible
-    ? "calc(var(--app-viewport-height) - var(--app-visual-viewport-height))"
+    ? "calc(var(--app-viewport-height) - var(--app-visual-viewport-height) - var(--app-visual-viewport-offset-top))"
     : "0px";
   const height = isKeyboardVisible
     ? "var(--app-visual-viewport-height)"
@@ -70,6 +74,7 @@ function useMobileTerminalViewportLock(enabled: boolean, isKeyboardVisible: bool
     const lockedHeight = isKeyboardVisible
       ? "var(--app-visual-viewport-height)"
       : "var(--app-viewport-height)";
+    const lockedTop = isKeyboardVisible ? "var(--app-visual-viewport-offset-top)" : "0";
     const previousHtml = {
       height: html.style.height,
       overflow: html.style.overflow,
@@ -97,7 +102,7 @@ function useMobileTerminalViewportLock(enabled: boolean, isKeyboardVisible: bool
     body.style.overscrollBehaviorY = "none";
     body.style.position = "fixed";
     body.style.right = "0";
-    body.style.top = "0";
+    body.style.top = lockedTop;
     body.style.width = "100%";
 
     return () => {
@@ -137,13 +142,14 @@ function TerminalInner({ agentId, workspaceId }: { agentId: string; workspaceId:
     liftPx: visualKeyboardLiftPx,
     isKeyboardVisible: visualKeyboardVisible = false,
     visualViewportHeightPx = 0,
+    visualViewportOffsetTopPx = 0,
   } = useVisualViewportKeyboardOffset();
   const isMobileKeyboardVisible = isComposeSheet && visualKeyboardVisible;
   const keyboardLiftPx = isComposeSheet ? visualKeyboardLiftPx : 0;
   const mobileTerminalStyle = mobileTerminalFrameStyle(isMobileKeyboardVisible);
   const composeSheetStyle = composeSheetKeyboardStyle(isMobileKeyboardVisible);
   const mobileLayoutSignal = isMobileKeyboardVisible
-    ? `keyboard:${visualViewportHeightPx}`
+    ? `keyboard:${visualViewportHeightPx}:${visualViewportOffsetTopPx}`
     : `lift:${keyboardLiftPx}`;
 
   useMobileTerminalViewportLock(isComposeSheet, isMobileKeyboardVisible);
