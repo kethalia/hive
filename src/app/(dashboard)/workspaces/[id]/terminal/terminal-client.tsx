@@ -34,16 +34,29 @@ const TERMINAL_MOBILE_FRAME_CLASS_NAME =
   "fixed inset-x-0 top-[calc(var(--safe-area-inset-top)+3.5rem)] flex flex-col overflow-hidden overscroll-none bg-background";
 
 function mobileTerminalFrameStyle(keyboardLiftPx: number): CSSProperties {
+  const viewportHeight =
+    keyboardLiftPx > 0 ? "var(--app-window-inner-height)" : "var(--app-viewport-height)";
+  const height = `max(0px, calc(${viewportHeight} - var(--safe-area-inset-top) - 3.5rem - ${keyboardLiftPx}px))`;
+
   return {
-    height: `calc(var(--app-viewport-height) - var(--safe-area-inset-top) - 3.5rem - ${keyboardLiftPx}px)`,
+    height,
+    maxHeight: height,
   };
 }
 
 function composeSheetKeyboardStyle(keyboardLiftPx: number): CSSProperties {
+  const keyboardOpen = keyboardLiftPx > 0;
+  const bottom = keyboardOpen
+    ? `calc(var(--app-viewport-height) - var(--app-window-inner-height) + ${keyboardLiftPx}px)`
+    : "0px";
+  const height = keyboardOpen
+    ? `calc(var(--app-window-inner-height) - ${keyboardLiftPx}px)`
+    : "var(--app-viewport-height)";
+
   return {
-    bottom: `${keyboardLiftPx}px`,
-    height: `calc(var(--app-viewport-height) - ${keyboardLiftPx}px)`,
-    maxHeight: `calc(var(--app-viewport-height) - ${keyboardLiftPx}px)`,
+    bottom,
+    height,
+    maxHeight: height,
     paddingBottom: "var(--safe-area-inset-bottom)",
   };
 }
@@ -56,12 +69,14 @@ function useMobileTerminalViewportLock(enabled: boolean) {
     const body = document.body;
     const scrollY = window.scrollY;
     const previousHtml = {
+      height: html.style.height,
       overflow: html.style.overflow,
       overscrollBehaviorY: html.style.overscrollBehaviorY,
     };
     const previousBody = {
       height: body.style.height,
       left: body.style.left,
+      maxHeight: body.style.maxHeight,
       overflow: body.style.overflow,
       overscrollBehaviorY: body.style.overscrollBehaviorY,
       position: body.style.position,
@@ -70,22 +85,37 @@ function useMobileTerminalViewportLock(enabled: boolean) {
       width: body.style.width,
     };
 
+    const restoreScroll = () => {
+      if (window.scrollY === scrollY || typeof window.scrollTo !== "function") return;
+      try {
+        window.scrollTo(0, scrollY);
+      } catch {
+        // jsdom and some embedded webviews expose scrollTo without implementing it.
+      }
+    };
+
+    html.style.height = "var(--app-viewport-height)";
     html.style.overflow = "hidden";
     html.style.overscrollBehaviorY = "none";
     body.style.height = "var(--app-viewport-height)";
     body.style.left = "0";
+    body.style.maxHeight = "var(--app-viewport-height)";
     body.style.overflow = "hidden";
     body.style.overscrollBehaviorY = "none";
     body.style.position = "fixed";
     body.style.right = "0";
     body.style.top = `-${scrollY}px`;
     body.style.width = "100%";
+    window.addEventListener("scroll", restoreScroll, { passive: true });
 
     return () => {
+      window.removeEventListener("scroll", restoreScroll);
+      html.style.height = previousHtml.height;
       html.style.overflow = previousHtml.overflow;
       html.style.overscrollBehaviorY = previousHtml.overscrollBehaviorY;
       body.style.height = previousBody.height;
       body.style.left = previousBody.left;
+      body.style.maxHeight = previousBody.maxHeight;
       body.style.overflow = previousBody.overflow;
       body.style.overscrollBehaviorY = previousBody.overscrollBehaviorY;
       body.style.position = previousBody.position;
@@ -93,13 +123,7 @@ function useMobileTerminalViewportLock(enabled: boolean) {
       body.style.top = previousBody.top;
       body.style.width = previousBody.width;
 
-      if (scrollY > 0 && typeof window.scrollTo === "function") {
-        try {
-          window.scrollTo(0, scrollY);
-        } catch {
-          // jsdom and some embedded webviews expose scrollTo without implementing it.
-        }
-      }
+      restoreScroll();
     };
   }, [enabled]);
 }

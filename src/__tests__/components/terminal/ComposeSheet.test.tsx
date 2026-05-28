@@ -242,7 +242,10 @@ describe("TerminalClient compose sheet", () => {
       "top-[calc(var(--safe-area-inset-top)+3.5rem)]",
     );
     expect(screen.getByTestId("terminal-mobile-shell")).toHaveStyle({
-      height: "calc(var(--app-viewport-height) - var(--safe-area-inset-top) - 3.5rem - 0px)",
+      height:
+        "max(0px, calc(var(--app-viewport-height) - var(--safe-area-inset-top) - 3.5rem - 0px))",
+      maxHeight:
+        "max(0px, calc(var(--app-viewport-height) - var(--safe-area-inset-top) - 3.5rem - 0px))",
     });
     expect(screen.getByTestId("terminal-mobile-shell")).not.toHaveClass(
       "-mb-[calc(var(--safe-area-inset-bottom)+1.5rem)]",
@@ -275,8 +278,8 @@ describe("TerminalClient compose sheet", () => {
     );
     expect(screen.getByTestId("compose-sheet-content")).toHaveStyle({
       bottom: "0px",
-      height: "calc(var(--app-viewport-height) - 0px)",
-      maxHeight: "calc(var(--app-viewport-height) - 0px)",
+      height: "var(--app-viewport-height)",
+      maxHeight: "var(--app-viewport-height)",
       paddingBottom: "var(--safe-area-inset-bottom)",
     });
     expect(screen.getByText("Compose command")).toHaveClass("sr-only");
@@ -287,11 +290,13 @@ describe("TerminalClient compose sheet", () => {
     await renderTerminalClient(true);
 
     expect(document.documentElement).toHaveStyle({
+      height: "var(--app-viewport-height)",
       overflow: "hidden",
       overscrollBehaviorY: "none",
     });
     expect(document.body).toHaveStyle({
       height: "var(--app-viewport-height)",
+      maxHeight: "var(--app-viewport-height)",
       overflow: "hidden",
       overscrollBehaviorY: "none",
       position: "fixed",
@@ -319,7 +324,10 @@ describe("TerminalClient compose sheet", () => {
     await renderTerminalClient(true);
 
     expect(screen.getByTestId("terminal-mobile-shell")).toHaveStyle({
-      height: "calc(var(--app-viewport-height) - var(--safe-area-inset-top) - 3.5rem - 280px)",
+      height:
+        "max(0px, calc(var(--app-window-inner-height) - var(--safe-area-inset-top) - 3.5rem - 280px))",
+      maxHeight:
+        "max(0px, calc(var(--app-window-inner-height) - var(--safe-area-inset-top) - 3.5rem - 280px))",
     });
     expect(screen.getByTestId("interactive-terminal")).toHaveAttribute("data-layout-signal", "280");
 
@@ -328,9 +336,9 @@ describe("TerminalClient compose sheet", () => {
     });
 
     expect(screen.getByTestId("compose-sheet-content")).toHaveStyle({
-      bottom: "280px",
-      height: "calc(var(--app-viewport-height) - 280px)",
-      maxHeight: "calc(var(--app-viewport-height) - 280px)",
+      bottom: "calc(var(--app-viewport-height) - var(--app-window-inner-height) + 280px)",
+      height: "calc(var(--app-window-inner-height) - 280px)",
+      maxHeight: "calc(var(--app-window-inner-height) - 280px)",
       paddingBottom: "var(--safe-area-inset-bottom)",
     });
   });
