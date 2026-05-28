@@ -246,6 +246,7 @@ describe("TerminalClient compose sheet", () => {
 
     expect(screen.getByTestId("interactive-terminal")).toBeInTheDocument();
     expect(screen.getByTestId("terminal-mobile-shell")).toHaveClass(
+      "terminal-mobile-shell",
       "fixed",
       "overflow-hidden",
       "overscroll-none",
@@ -313,6 +314,21 @@ describe("TerminalClient compose sheet", () => {
       top: "0px",
       width: "100%",
     });
+
+    const outsideScroll = new Event("touchmove", { bubbles: true, cancelable: true });
+    document.dispatchEvent(outsideScroll);
+    expect(outsideScroll.defaultPrevented).toBe(true);
+
+    const terminal = document.createElement("div");
+    terminal.className = "xterm";
+    const terminalRow = document.createElement("div");
+    terminalRow.className = "xterm-rows";
+    terminal.appendChild(terminalRow);
+    screen.getByTestId("terminal-mobile-shell").appendChild(terminal);
+    const terminalScroll = new Event("touchmove", { bubbles: true, cancelable: true });
+    terminalRow.dispatchEvent(terminalScroll);
+    expect(terminalScroll.defaultPrevented).toBe(false);
+    terminal.remove();
   });
 
   it("opens the mobile compose Sheet from the global terminal compose event", async () => {
@@ -356,7 +372,7 @@ describe("TerminalClient compose sheet", () => {
       height: "var(--app-visual-viewport-height)",
       maxHeight: "var(--app-visual-viewport-height)",
       overflow: "hidden",
-      top: "var(--app-visual-viewport-offset-top)",
+      top: "0px",
     });
 
     act(() => {

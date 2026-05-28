@@ -31,7 +31,7 @@ const TERMINAL_WIDTH_CLASS_NAME = "-mx-6 w-[calc(100%+3rem)]";
 const TERMINAL_STATIC_HEIGHT_CLASS_NAME =
   "h-[calc(var(--app-viewport-height)-var(--safe-area-inset-top)-3.5rem)]";
 const TERMINAL_MOBILE_FRAME_CLASS_NAME =
-  "fixed inset-x-0 top-[calc(var(--safe-area-inset-top)+3.5rem)] flex flex-col overflow-hidden overscroll-none bg-background";
+  "terminal-mobile-shell fixed inset-x-0 top-[calc(var(--safe-area-inset-top)+3.5rem)] flex flex-col overflow-hidden overscroll-none bg-background";
 
 function mobileTerminalFrameStyle(isKeyboardVisible: boolean): CSSProperties {
   const viewportHeight = isKeyboardVisible
@@ -74,7 +74,6 @@ function useMobileTerminalViewportLock(enabled: boolean, isKeyboardVisible: bool
     const lockedHeight = isKeyboardVisible
       ? "var(--app-visual-viewport-height)"
       : "var(--app-viewport-height)";
-    const lockedTop = isKeyboardVisible ? "var(--app-visual-viewport-offset-top)" : "0";
     const previousHtml = {
       height: html.style.height,
       overflow: html.style.overflow,
@@ -102,10 +101,20 @@ function useMobileTerminalViewportLock(enabled: boolean, isKeyboardVisible: bool
     body.style.overscrollBehaviorY = "none";
     body.style.position = "fixed";
     body.style.right = "0";
-    body.style.top = lockedTop;
+    body.style.top = "0";
     body.style.width = "100%";
 
+    const blockPageScroll = (event: Event) => {
+      const target = event.target;
+      if (target instanceof Element && target.closest(".terminal-mobile-shell .xterm")) return;
+      event.preventDefault();
+    };
+    document.addEventListener("touchmove", blockPageScroll, { capture: true, passive: false });
+    document.addEventListener("wheel", blockPageScroll, { capture: true, passive: false });
+
     return () => {
+      document.removeEventListener("touchmove", blockPageScroll, { capture: true });
+      document.removeEventListener("wheel", blockPageScroll, { capture: true });
       html.style.height = previousHtml.height;
       html.style.overflow = previousHtml.overflow;
       html.style.overscrollBehaviorY = previousHtml.overscrollBehaviorY;
