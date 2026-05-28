@@ -101,7 +101,12 @@ describe("MobileTerminalControls", () => {
     render(<MobileTerminalControls />);
 
     const controls = screen.getByRole("region", { name: "Terminal mobile controls" });
-    expect(controls).toHaveClass("shrink-0", "border-t", "px-2", "pb-0");
+    expect(controls).toHaveClass(
+      "shrink-0",
+      "border-t",
+      "px-2",
+      "pb-[max(1rem,var(--safe-area-inset-bottom))]",
+    );
     expect(controls).toHaveAttribute("data-sidebar-gesture-ignore", "true");
     expect(controls).not.toHaveClass("fixed", "absolute", "rounded-2xl");
     expect(controls.className).not.toContain("0_-12px_32px");
@@ -120,7 +125,7 @@ describe("MobileTerminalControls", () => {
     expect(quickActions).toHaveClass("grid", "w-full", "grid-cols-3", "rounded-none");
     expect(quickActions).not.toHaveClass("gap-1");
     expect(within(quickActions).getByRole("button", { name: "Enter" })).toHaveClass(
-      "min-h-12",
+      "min-h-14",
       "min-w-0",
     );
     expect(within(quickActions).getByRole("button", { name: "Tab" })).toBeInTheDocument();
@@ -132,7 +137,7 @@ describe("MobileTerminalControls", () => {
     });
     expect(navigationControls).toHaveClass("grid", "w-full", "grid-cols-5", "rounded-none");
     expect(within(navigationControls).getByRole("button", { name: "Up" })).toHaveClass(
-      "min-h-12",
+      "min-h-14",
       "min-w-0",
     );
 
@@ -141,7 +146,7 @@ describe("MobileTerminalControls", () => {
     });
     expect(composeControls).toHaveClass("w-full", "rounded-none");
     expect(within(composeControls).getByRole("button", { name: "Compose" })).toHaveClass(
-      "min-h-12",
+      "min-h-14",
     );
     expect(
       within(carousel).getByRole("group", { name: "Terminal font size controls" }),
@@ -235,9 +240,9 @@ describe("MobileTerminalControls", () => {
     const decrease = within(fontControls).getByRole("button", { name: "Decrease font size" });
     const increase = within(fontControls).getByRole("button", { name: "Increase font size" });
 
-    expect(decrease).toHaveClass("min-h-12", "min-w-0");
-    expect(screen.getByText("12px")).toHaveClass("min-h-12");
-    expect(increase).toHaveClass("min-h-12", "min-w-0");
+    expect(decrease).toHaveClass("min-h-14", "min-w-0");
+    expect(screen.getByText("12px")).toHaveClass("min-h-14");
+    expect(increase).toHaveClass("min-h-14", "min-w-0");
     fireEvent.click(increase);
     expect(mockIncreaseFontSize).toHaveBeenCalledTimes(1);
     fireEvent.click(decrease);

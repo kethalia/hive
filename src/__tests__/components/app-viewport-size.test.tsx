@@ -6,13 +6,13 @@ import { AppViewportSize } from "@/components/app-viewport-size";
 
 afterEach(() => {
   cleanup();
-  document.documentElement.style.removeProperty("--app-viewport-height");
+  document.documentElement.style.removeProperty("--app-window-inner-height");
   document.documentElement.style.removeProperty("--app-visual-viewport-height");
   vi.unstubAllGlobals();
 });
 
 describe("AppViewportSize", () => {
-  it("publishes window and visual viewport heights for app shell sizing", () => {
+  it("publishes measured viewport heights without overriding the CSS app viewport", () => {
     const addVisualViewportListener = vi.fn();
     const removeVisualViewportListener = vi.fn();
 
@@ -28,8 +28,9 @@ describe("AppViewportSize", () => {
 
     const { unmount } = render(<AppViewportSize />);
 
+    expect(document.documentElement.style.getPropertyValue("--app-viewport-height")).toBe("");
     expect(document.documentElement).toHaveStyle({
-      "--app-viewport-height": "844px",
+      "--app-window-inner-height": "844px",
       "--app-visual-viewport-height": "810px",
     });
     expect(addVisualViewportListener).toHaveBeenCalledWith("resize", expect.any(Function));

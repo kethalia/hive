@@ -117,7 +117,7 @@ export function MobileTerminalControls({ onHapticFeedback }: MobileTerminalContr
   return (
     <section
       aria-label="Terminal mobile controls"
-      className="shrink-0 border-t bg-background/95 px-2 pt-2 pb-0 backdrop-blur supports-[backdrop-filter]:bg-background/85"
+      className="shrink-0 border-t bg-background/95 px-2 pt-2 pb-[max(1rem,var(--safe-area-inset-bottom))] backdrop-blur supports-[backdrop-filter]:bg-background/85"
       data-sidebar-gesture-ignore="true"
       style={{
         touchAction: "manipulation",
@@ -142,7 +142,7 @@ export function MobileTerminalControls({ onHapticFeedback }: MobileTerminalContr
                   key={label}
                   type="button"
                   variant="outline"
-                  className="min-h-12 min-w-0 px-1 text-xs"
+                  className="min-h-14 min-w-0 px-1 text-xs"
                   style={NO_TOUCH_STYLE}
                   onPointerDown={keepTerminalKeyboardOpen}
                   onMouseDown={keepTerminalKeyboardOpen}
@@ -165,7 +165,7 @@ export function MobileTerminalControls({ onHapticFeedback }: MobileTerminalContr
                   key={label}
                   type="button"
                   variant="outline"
-                  className="min-h-12 min-w-0 flex-col gap-1 px-1 py-2 text-xs"
+                  className="min-h-14 min-w-0 flex-col gap-1 px-1 py-2 text-xs"
                   style={NO_TOUCH_STYLE}
                   onPointerDown={keepTerminalKeyboardOpen}
                   onMouseDown={keepTerminalKeyboardOpen}
@@ -183,7 +183,7 @@ export function MobileTerminalControls({ onHapticFeedback }: MobileTerminalContr
               <Button
                 type="button"
                 variant="outline"
-                className="min-h-12 w-full justify-start text-xs"
+                className="min-h-14 w-full justify-start text-xs"
                 style={NO_TOUCH_STYLE}
                 onPointerDown={keepTerminalKeyboardOpen}
                 onMouseDown={keepTerminalKeyboardOpen}
@@ -200,7 +200,7 @@ export function MobileTerminalControls({ onHapticFeedback }: MobileTerminalContr
               <Button
                 type="button"
                 variant="outline"
-                className="min-h-12 min-w-0 flex-1"
+                className="min-h-14 min-w-0 flex-1"
                 style={NO_TOUCH_STYLE}
                 onPointerDown={keepTerminalKeyboardOpen}
                 onMouseDown={keepTerminalKeyboardOpen}
@@ -210,13 +210,13 @@ export function MobileTerminalControls({ onHapticFeedback }: MobileTerminalContr
               >
                 <Minus />
               </Button>
-              <ButtonGroupText className="min-h-12 flex-1 justify-center tabular-nums">
+              <ButtonGroupText className="min-h-14 flex-1 justify-center tabular-nums">
                 {fontSize}px
               </ButtonGroupText>
               <Button
                 type="button"
                 variant="outline"
-                className="min-h-12 min-w-0 flex-1"
+                className="min-h-14 min-w-0 flex-1"
                 style={NO_TOUCH_STYLE}
                 onPointerDown={keepTerminalKeyboardOpen}
                 onMouseDown={keepTerminalKeyboardOpen}
