@@ -3,6 +3,13 @@
 
 replicaCount: 1
 
+# Rollout safety defaults. Previews keep one replica but still fail fast on
+# stuck rollouts; production can raise replica/autoscaling counts separately.
+progressDeadlineSeconds: 600
+rollingUpdate:
+  maxUnavailable: 0
+  maxSurge: 1
+
 image:
   repository: ghcr.io/kethalia/hive-auth
   tag: ""
@@ -69,6 +76,16 @@ resources:
     cpu: 500m
     memory: 512Mi
 
+# Startup probe protects slower cold starts without weakening liveness/readiness
+# after startup completes.
+startupProbe:
+  httpGet:
+    path: /health
+    port: 4400
+  periodSeconds: 5
+  timeoutSeconds: 3
+  failureThreshold: 24
+
 livenessProbe:
   httpGet:
     path: /health
@@ -92,6 +109,14 @@ autoscaling:
   minReplicas: 1
   maxReplicas: 3
   targetCPUUtilizationPercentage: 80
+
+# Disabled by default so preview/one-replica releases are not blocked during
+# node drains. Enable in production only when replicas or minReplicas >= 2.
+podDisruptionBudget:
+  enabled: false
+  # Default when enabled. To use maxUnavailable instead, set minAvailable: "".
+  minAvailable: 1
+  maxUnavailable: ""
 
 config:
   LOG_LEVEL: info
