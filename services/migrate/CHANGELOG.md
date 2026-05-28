@@ -1,5 +1,11 @@
 # hive-migrate
 
+## 0.1.3
+
+### Patch Changes
+
+- c955598: Harden Helm rollout defaults and include the migrate image in deployment preflight coverage.
+
 ## 0.1.2
 
 ### Patch Changes
