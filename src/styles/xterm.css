@@ -86,11 +86,13 @@
 }
 
 .terminal-mobile-shell .xterm .xterm-helper-textarea {
-    position: fixed;
-    left: var(--safe-area-inset-left);
-    top: calc(var(--app-visual-viewport-offset-top) + var(--safe-area-inset-top) + 3.5rem);
-    width: 1px;
-    height: 1px;
+    position: fixed !important;
+    top: auto !important;
+    right: auto !important;
+    bottom: calc(var(--safe-area-inset-bottom) + 5rem) !important;
+    left: var(--safe-area-inset-left) !important;
+    width: 1px !important;
+    height: 1px !important;
 }
 
 .xterm .composition-view {

@@ -37,15 +37,12 @@ function mobileTerminalFrameStyle(isKeyboardVisible: boolean): CSSProperties {
   const viewportHeight = isKeyboardVisible
     ? "var(--app-visual-viewport-height)"
     : "var(--app-viewport-height)";
-  const top = isKeyboardVisible
-    ? "calc(var(--app-visual-viewport-offset-top) + var(--safe-area-inset-top) + 3.5rem)"
-    : "calc(var(--safe-area-inset-top) + 3.5rem)";
   const height = `max(0px, calc(${viewportHeight} - var(--safe-area-inset-top) - 3.5rem))`;
 
   return {
     height,
     maxHeight: height,
-    top,
+    top: "calc(var(--safe-area-inset-top) + 3.5rem)",
   };
 }
 
