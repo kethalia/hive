@@ -4,7 +4,7 @@ import { Loader2 } from "lucide-react";
 import dynamic from "next/dynamic";
 import { useRouter, useSearchParams } from "next/navigation";
 import type { CSSProperties, PointerEvent } from "react";
-import { Suspense, useCallback, useEffect, useRef, useState } from "react";
+import { Suspense, useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { ComposePanel } from "@/components/terminal/ComposePanel";
 import { MobileTerminalControls } from "@/components/terminal/MobileTerminalControls";
 import { TerminalContextMenu } from "@/components/terminal/TerminalContextMenu";
@@ -33,10 +33,11 @@ const TERMINAL_STATIC_HEIGHT_CLASS_NAME =
 const TERMINAL_MOBILE_FRAME_CLASS_NAME =
   "fixed inset-x-0 top-[calc(var(--safe-area-inset-top)+3.5rem)] flex flex-col overflow-hidden overscroll-none bg-background";
 
-function mobileTerminalFrameStyle(keyboardLiftPx: number): CSSProperties {
-  const viewportHeight =
-    keyboardLiftPx > 0 ? "var(--app-window-inner-height)" : "var(--app-viewport-height)";
-  const height = `max(0px, calc(${viewportHeight} - var(--safe-area-inset-top) - 3.5rem - ${keyboardLiftPx}px))`;
+function mobileTerminalFrameStyle(isKeyboardVisible: boolean): CSSProperties {
+  const viewportHeight = isKeyboardVisible
+    ? "var(--app-visual-viewport-height)"
+    : "var(--app-viewport-height)";
+  const height = `max(0px, calc(${viewportHeight} - var(--safe-area-inset-top) - 3.5rem))`;
 
   return {
     height,
@@ -44,13 +45,12 @@ function mobileTerminalFrameStyle(keyboardLiftPx: number): CSSProperties {
   };
 }
 
-function composeSheetKeyboardStyle(keyboardLiftPx: number): CSSProperties {
-  const keyboardOpen = keyboardLiftPx > 0;
-  const bottom = keyboardOpen
-    ? `calc(var(--app-viewport-height) - var(--app-window-inner-height) + ${keyboardLiftPx}px)`
+function composeSheetKeyboardStyle(isKeyboardVisible: boolean): CSSProperties {
+  const bottom = isKeyboardVisible
+    ? "calc(var(--app-viewport-height) - var(--app-visual-viewport-height))"
     : "0px";
-  const height = keyboardOpen
-    ? `calc(var(--app-window-inner-height) - ${keyboardLiftPx}px)`
+  const height = isKeyboardVisible
+    ? "var(--app-visual-viewport-height)"
     : "var(--app-viewport-height)";
 
   return {
@@ -61,13 +61,15 @@ function composeSheetKeyboardStyle(keyboardLiftPx: number): CSSProperties {
   };
 }
 
-function useMobileTerminalViewportLock(enabled: boolean) {
-  useEffect(() => {
+function useMobileTerminalViewportLock(enabled: boolean, isKeyboardVisible: boolean) {
+  useLayoutEffect(() => {
     if (!enabled || typeof document === "undefined") return;
 
     const html = document.documentElement;
     const body = document.body;
-    const scrollY = window.scrollY;
+    const lockedHeight = isKeyboardVisible
+      ? "var(--app-visual-viewport-height)"
+      : "var(--app-viewport-height)";
     const previousHtml = {
       height: html.style.height,
       overflow: html.style.overflow,
@@ -85,31 +87,20 @@ function useMobileTerminalViewportLock(enabled: boolean) {
       width: body.style.width,
     };
 
-    const restoreScroll = () => {
-      if (window.scrollY === scrollY || typeof window.scrollTo !== "function") return;
-      try {
-        window.scrollTo(0, scrollY);
-      } catch {
-        // jsdom and some embedded webviews expose scrollTo without implementing it.
-      }
-    };
-
-    html.style.height = "var(--app-viewport-height)";
+    html.style.height = lockedHeight;
     html.style.overflow = "hidden";
     html.style.overscrollBehaviorY = "none";
-    body.style.height = "var(--app-viewport-height)";
+    body.style.height = lockedHeight;
     body.style.left = "0";
-    body.style.maxHeight = "var(--app-viewport-height)";
+    body.style.maxHeight = lockedHeight;
     body.style.overflow = "hidden";
     body.style.overscrollBehaviorY = "none";
     body.style.position = "fixed";
     body.style.right = "0";
-    body.style.top = `-${scrollY}px`;
+    body.style.top = "0";
     body.style.width = "100%";
-    window.addEventListener("scroll", restoreScroll, { passive: true });
 
     return () => {
-      window.removeEventListener("scroll", restoreScroll);
       html.style.height = previousHtml.height;
       html.style.overflow = previousHtml.overflow;
       html.style.overscrollBehaviorY = previousHtml.overscrollBehaviorY;
@@ -122,10 +113,8 @@ function useMobileTerminalViewportLock(enabled: boolean) {
       body.style.right = previousBody.right;
       body.style.top = previousBody.top;
       body.style.width = previousBody.width;
-
-      restoreScroll();
     };
-  }, [enabled]);
+  }, [enabled, isKeyboardVisible]);
 }
 
 function terminalSessionHref(workspaceId: string, sessionName: string): string {
@@ -144,12 +133,20 @@ function TerminalInner({ agentId, workspaceId }: { agentId: string; workspaceId:
   const [bootstrapRetryKey, setBootstrapRetryKey] = useState(0);
   const composeSheetDragStartYRef = useRef<number | null>(null);
   const isComposeSheet = useIsComposeSheet();
-  const { liftPx: visualKeyboardLiftPx } = useVisualViewportKeyboardOffset();
+  const {
+    liftPx: visualKeyboardLiftPx,
+    isKeyboardVisible: visualKeyboardVisible = false,
+    visualViewportHeightPx = 0,
+  } = useVisualViewportKeyboardOffset();
+  const isMobileKeyboardVisible = isComposeSheet && visualKeyboardVisible;
   const keyboardLiftPx = isComposeSheet ? visualKeyboardLiftPx : 0;
-  const mobileTerminalStyle = mobileTerminalFrameStyle(keyboardLiftPx);
-  const composeSheetStyle = composeSheetKeyboardStyle(keyboardLiftPx);
+  const mobileTerminalStyle = mobileTerminalFrameStyle(isMobileKeyboardVisible);
+  const composeSheetStyle = composeSheetKeyboardStyle(isMobileKeyboardVisible);
+  const mobileLayoutSignal = isMobileKeyboardVisible
+    ? `keyboard:${visualViewportHeightPx}`
+    : `lift:${keyboardLiftPx}`;
 
-  useMobileTerminalViewportLock(isComposeSheet);
+  useMobileTerminalViewportLock(isComposeSheet, isMobileKeyboardVisible);
 
   const handleComposeSheetDragStart = useCallback((event: PointerEvent<HTMLButtonElement>) => {
     composeSheetDragStartYRef.current = event.clientY;
@@ -338,7 +335,7 @@ function TerminalInner({ agentId, workspaceId }: { agentId: string; workspaceId:
           className="h-full rounded-none border-0"
           onTerminalReady={handleTerminalReady}
           onTerminalDestroy={handleTerminalDestroy}
-          layoutSignal={keyboardLiftPx}
+          layoutSignal={mobileLayoutSignal}
           pinToBottomOnResize={isComposeSheet}
         />
       </TerminalGestureLayer>

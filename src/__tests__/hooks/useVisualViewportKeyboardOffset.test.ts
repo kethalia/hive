@@ -60,19 +60,27 @@ afterEach(() => {
 });
 
 describe("useVisualViewportKeyboardOffset", () => {
-  it("defaults to liftPx: 0 when visualViewport is unavailable", () => {
+  it("defaults to no keyboard when visualViewport is unavailable", () => {
     expect((window as unknown as { visualViewport?: unknown }).visualViewport).toBeUndefined();
     const { result } = renderHook(() => useVisualViewportKeyboardOffset());
-    expect(result.current.liftPx).toBe(0);
+    expect(result.current).toEqual({
+      liftPx: 0,
+      isKeyboardVisible: false,
+      visualViewportHeightPx: 0,
+    });
   });
 
   it("returns 0 when the keyboard is closed", () => {
     installVisualViewport(800);
     const { result } = renderHook(() => useVisualViewportKeyboardOffset());
-    expect(result.current.liftPx).toBe(0);
+    expect(result.current).toEqual({
+      liftPx: 0,
+      isKeyboardVisible: false,
+      visualViewportHeightPx: 800,
+    });
   });
 
-  it("computes lift when the keyboard opens and shrinks visualViewport.height", () => {
+  it("computes lift and keyboard visibility when the keyboard opens", () => {
     const vv = installVisualViewport(800);
     const { result } = renderHook(() => useVisualViewportKeyboardOffset());
     expect(result.current.liftPx).toBe(0);
@@ -81,7 +89,21 @@ describe("useVisualViewportKeyboardOffset", () => {
       vv.height = 500;
       vv.dispatch("resize");
     });
-    expect(result.current.liftPx).toBe(300);
+    expect(result.current).toEqual({
+      liftPx: 300,
+      isKeyboardVisible: true,
+      visualViewportHeightPx: 500,
+    });
+  });
+
+  it("keeps keyboard visibility when visualViewport.offsetTop cancels floating lift", () => {
+    installVisualViewport(500, 300);
+    const { result } = renderHook(() => useVisualViewportKeyboardOffset());
+    expect(result.current).toEqual({
+      liftPx: 0,
+      isKeyboardVisible: true,
+      visualViewportHeightPx: 500,
+    });
   });
 
   it("returns to 0 when the keyboard closes", () => {
@@ -93,25 +115,35 @@ describe("useVisualViewportKeyboardOffset", () => {
       vv.height = 800;
       vv.dispatch("resize");
     });
-    expect(result.current.liftPx).toBe(0);
+    expect(result.current).toEqual({
+      liftPx: 0,
+      isKeyboardVisible: false,
+      visualViewportHeightPx: 800,
+    });
   });
 
   it("accounts for visualViewport.offsetTop", () => {
     const vv = installVisualViewport(500, 50);
     const { result } = renderHook(() => useVisualViewportKeyboardOffset());
     expect(result.current.liftPx).toBe(250);
+    expect(result.current.isKeyboardVisible).toBe(true);
 
     act(() => {
       vv.offsetTop = 0;
       vv.dispatch("scroll");
     });
     expect(result.current.liftPx).toBe(300);
+    expect(result.current.isKeyboardVisible).toBe(true);
   });
 
   it("clamps negative deltas to 0", () => {
     installVisualViewport(900);
     const { result } = renderHook(() => useVisualViewportKeyboardOffset());
-    expect(result.current.liftPx).toBe(0);
+    expect(result.current).toEqual({
+      liftPx: 0,
+      isKeyboardVisible: false,
+      visualViewportHeightPx: 900,
+    });
   });
 
   it("removes listeners on unmount", () => {

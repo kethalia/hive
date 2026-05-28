@@ -27,7 +27,11 @@ const { mockUseIsComposeSheet } = vi.hoisted(() => ({
 }));
 
 const { mockUseVisualViewportKeyboardOffset } = vi.hoisted(() => ({
-  mockUseVisualViewportKeyboardOffset: vi.fn(() => ({ liftPx: 0 })),
+  mockUseVisualViewportKeyboardOffset: vi.fn(() => ({
+    liftPx: 0,
+    isKeyboardVisible: false,
+    visualViewportHeightPx: 0,
+  })),
 }));
 
 const { registeredBindings } = vi.hoisted(() => ({
@@ -204,7 +208,11 @@ describe("TerminalClient compose sheet", () => {
     window.localStorage.clear();
     mockUseIsComposeSheet.mockReturnValue(false);
     mockUseVisualViewportKeyboardOffset.mockReset();
-    mockUseVisualViewportKeyboardOffset.mockReturnValue({ liftPx: 0 });
+    mockUseVisualViewportKeyboardOffset.mockReturnValue({
+      liftPx: 0,
+      isKeyboardVisible: false,
+      visualViewportHeightPx: 0,
+    });
   });
 
   afterEach(() => {
@@ -242,10 +250,8 @@ describe("TerminalClient compose sheet", () => {
       "top-[calc(var(--safe-area-inset-top)+3.5rem)]",
     );
     expect(screen.getByTestId("terminal-mobile-shell")).toHaveStyle({
-      height:
-        "max(0px, calc(var(--app-viewport-height) - var(--safe-area-inset-top) - 3.5rem - 0px))",
-      maxHeight:
-        "max(0px, calc(var(--app-viewport-height) - var(--safe-area-inset-top) - 3.5rem - 0px))",
+      height: "max(0px, calc(var(--app-viewport-height) - var(--safe-area-inset-top) - 3.5rem))",
+      maxHeight: "max(0px, calc(var(--app-viewport-height) - var(--safe-area-inset-top) - 3.5rem))",
     });
     expect(screen.getByTestId("terminal-mobile-shell")).not.toHaveClass(
       "-mb-[calc(var(--safe-area-inset-bottom)+1.5rem)]",
@@ -301,7 +307,7 @@ describe("TerminalClient compose sheet", () => {
       overscrollBehaviorY: "none",
       position: "fixed",
       right: "0px",
-      top: "-0px",
+      top: "0px",
       width: "100%",
     });
   });
@@ -320,25 +326,41 @@ describe("TerminalClient compose sheet", () => {
   });
 
   it("keeps the mobile terminal controls and compose sheet above the visual viewport keyboard", async () => {
-    mockUseVisualViewportKeyboardOffset.mockReturnValue({ liftPx: 280 });
+    mockUseVisualViewportKeyboardOffset.mockReturnValue({
+      liftPx: 0,
+      isKeyboardVisible: true,
+      visualViewportHeightPx: 500,
+    });
     await renderTerminalClient(true);
 
     expect(screen.getByTestId("terminal-mobile-shell")).toHaveStyle({
       height:
-        "max(0px, calc(var(--app-window-inner-height) - var(--safe-area-inset-top) - 3.5rem - 280px))",
+        "max(0px, calc(var(--app-visual-viewport-height) - var(--safe-area-inset-top) - 3.5rem))",
       maxHeight:
-        "max(0px, calc(var(--app-window-inner-height) - var(--safe-area-inset-top) - 3.5rem - 280px))",
+        "max(0px, calc(var(--app-visual-viewport-height) - var(--safe-area-inset-top) - 3.5rem))",
     });
-    expect(screen.getByTestId("interactive-terminal")).toHaveAttribute("data-layout-signal", "280");
+    expect(screen.getByTestId("interactive-terminal")).toHaveAttribute(
+      "data-layout-signal",
+      "keyboard:500",
+    );
+    expect(document.documentElement).toHaveStyle({
+      height: "var(--app-visual-viewport-height)",
+      overflow: "hidden",
+    });
+    expect(document.body).toHaveStyle({
+      height: "var(--app-visual-viewport-height)",
+      maxHeight: "var(--app-visual-viewport-height)",
+      overflow: "hidden",
+    });
 
     act(() => {
       window.dispatchEvent(new CustomEvent(TERMINAL_COMPOSE_OPEN_EVENT));
     });
 
     expect(screen.getByTestId("compose-sheet-content")).toHaveStyle({
-      bottom: "calc(var(--app-viewport-height) - var(--app-window-inner-height) + 280px)",
-      height: "calc(var(--app-window-inner-height) - 280px)",
-      maxHeight: "calc(var(--app-window-inner-height) - 280px)",
+      bottom: "calc(var(--app-viewport-height) - var(--app-visual-viewport-height))",
+      height: "var(--app-visual-viewport-height)",
+      maxHeight: "var(--app-visual-viewport-height)",
       paddingBottom: "var(--safe-area-inset-bottom)",
     });
   });

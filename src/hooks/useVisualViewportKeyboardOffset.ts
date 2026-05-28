@@ -2,20 +2,27 @@ import * as React from "react";
 
 export interface VisualViewportKeyboardOffset {
   liftPx: number;
+  isKeyboardVisible: boolean;
+  visualViewportHeightPx: number;
 }
 
 /**
- * Returns the number of pixels a bottom-anchored terminal layout must lift to
- * stay above the on-screen keyboard. Computed from window.visualViewport: when
- * the soft keyboard opens, visualViewport.height shrinks below
- * window.innerHeight; subtracting visualViewport.offsetTop avoids double
- * counting Safari's page shift in installed PWAs.
+ * Returns keyboard visibility information for visual-viewport-aware mobile
+ * layouts. `liftPx` is still the safe amount for bottom-anchored floating UI,
+ * but full-height frames should use `isKeyboardVisible` plus the published
+ * `--app-visual-viewport-height` variable so Safari page panning does not
+ * cancel the shrink calculation.
  *
- * SSR-safe: returns { liftPx: 0 } on first render. Listeners are attached in
+ * SSR-safe: returns { liftPx: 0, isKeyboardVisible: false,
+ * visualViewportHeightPx: 0 } on first render. Listeners are attached in
  * useEffect to window.visualViewport for both 'resize' and 'scroll' events.
  */
 export function useVisualViewportKeyboardOffset(): VisualViewportKeyboardOffset {
-  const [liftPx, setLiftPx] = React.useState(0);
+  const [state, setState] = React.useState<VisualViewportKeyboardOffset>({
+    liftPx: 0,
+    isKeyboardVisible: false,
+    visualViewportHeightPx: 0,
+  });
 
   React.useEffect(() => {
     if (typeof window === "undefined") return;
@@ -23,8 +30,19 @@ export function useVisualViewportKeyboardOffset(): VisualViewportKeyboardOffset 
     if (!vv) return;
 
     const compute = () => {
-      const next = Math.max(0, window.innerHeight - (vv.height + vv.offsetTop));
-      setLiftPx(next);
+      const heightDelta = Math.max(0, window.innerHeight - vv.height);
+      const next = {
+        liftPx: Math.max(0, window.innerHeight - (vv.height + vv.offsetTop)),
+        isKeyboardVisible: heightDelta > 80,
+        visualViewportHeightPx: vv.height,
+      };
+      setState((current) =>
+        current.liftPx === next.liftPx &&
+        current.isKeyboardVisible === next.isKeyboardVisible &&
+        current.visualViewportHeightPx === next.visualViewportHeightPx
+          ? current
+          : next,
+      );
     };
 
     compute();
@@ -36,5 +54,5 @@ export function useVisualViewportKeyboardOffset(): VisualViewportKeyboardOffset 
     };
   }, []);
 
-  return { liftPx };
+  return state;
 }
