@@ -64,12 +64,8 @@ describe("MobileTerminalControls", () => {
 
     const controls = screen.getByRole("region", { name: "Terminal mobile controls" });
     expect(controls).toHaveClass("shrink-0", "border-t", "px-2", "pb-1");
-    expect(controls).not.toHaveClass(
-      "fixed",
-      "absolute",
-      "rounded-2xl",
-      "shadow-[0_-12px_32px_rgba(0,0,0,0.16)]",
-    );
+    expect(controls).not.toHaveClass("fixed", "absolute", "rounded-2xl");
+    expect(controls.className).not.toContain("0_-12px_32px");
 
     const quickActions = screen.getByRole("group", { name: "Terminal quick actions" });
     expect(quickActions).toHaveClass("grid", "w-full", "grid-cols-4", "gap-1");
