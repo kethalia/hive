@@ -1,5 +1,6 @@
 # Release preflight — gate the changesets "Version Packages" PR on the
-# existence of `:sha-<short>` tags in GHCR for every production image.
+# existence of `:sha-<short>` tags in GHCR for every production image,
+# including the `hive-migrate` image used by the Prisma migration hook.
 #
 # Why title-match instead of `paths: .changeset/**`?
 #   The changesets bot DELETES the `.changeset/*.md` files when it opens /
@@ -38,7 +39,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        image: [hive-web, hive-terminal, hive-auth]
+        image: [hive-web, hive-terminal, hive-auth, hive-migrate]
     steps:
       - uses: actions/checkout@v4
 
