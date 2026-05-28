@@ -20,7 +20,7 @@ on:
   workflow_dispatch:
     inputs:
       images:
-        description: 'Comma-separated package names to retag (hive-web,hive-terminal,hive-auth)'
+        description: 'Comma-separated package names to retag (hive-web,hive-terminal,hive-auth,hive-migrate)'
         required: true
         type: string
       version:

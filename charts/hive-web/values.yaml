@@ -11,6 +11,13 @@
 
 replicaCount: 1
 
+# Rollout safety defaults. Previews keep one replica but still fail fast on
+# stuck rollouts; production can raise replica/autoscaling counts separately.
+progressDeadlineSeconds: 600
+rollingUpdate:
+  maxUnavailable: 0
+  maxSurge: 1
+
 image:
   repository: ghcr.io/kethalia/hive-web
   # tag: empty -> falls back to .Chart.AppVersion in deployment.yaml.
@@ -83,6 +90,16 @@ resources:
     cpu: 1000m
     memory: 1Gi
 
+# Startup probe protects slower cold starts without weakening liveness/readiness
+# after startup completes. TCP is used until the web app exposes an unauthenticated
+# HTTP health endpoint.
+startupProbe:
+  tcpSocket:
+    port: 3000
+  periodSeconds: 5
+  timeoutSeconds: 3
+  failureThreshold: 24
+
 # TCP probes — Next.js does not currently expose an unauthenticated HTTP
 # health endpoint. Switch to httpGet once /api/health is added.
 livenessProbe:
@@ -106,6 +123,14 @@ autoscaling:
   minReplicas: 1
   maxReplicas: 5
   targetCPUUtilizationPercentage: 80
+
+# Disabled by default so preview/one-replica releases are not blocked during
+# node drains. Enable in production only when replicas or minReplicas >= 2.
+podDisruptionBudget:
+  enabled: false
+  # Default when enabled. To use maxUnavailable instead, set minAvailable: "".
+  minAvailable: 1
+  maxUnavailable: ""
 
 # Non-secret configuration rendered into a ConfigMap and consumed via envFrom.
 config:
