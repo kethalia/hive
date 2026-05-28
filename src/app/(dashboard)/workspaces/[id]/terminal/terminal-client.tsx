@@ -28,21 +28,22 @@ const InteractiveTerminal = dynamic(
 
 const LAST_SESSION_STORAGE_PREFIX = "terminal:last-session:";
 const TERMINAL_WIDTH_CLASS_NAME = "-mx-6 w-[calc(100%+3rem)]";
-const TERMINAL_STATIC_HEIGHT_CLASS_NAME = "h-[calc(100dvh-var(--safe-area-inset-top)-3.5rem)]";
+const TERMINAL_STATIC_HEIGHT_CLASS_NAME =
+  "h-[calc(var(--app-viewport-height)-var(--safe-area-inset-top)-3.5rem)]";
 const TERMINAL_MOBILE_FRAME_CLASS_NAME =
-  "fixed inset-x-0 bottom-0 top-[calc(var(--safe-area-inset-top)+3.5rem)] flex flex-col overflow-hidden overscroll-none bg-background";
+  "fixed inset-x-0 top-[calc(var(--safe-area-inset-top)+3.5rem)] flex flex-col overflow-hidden overscroll-none bg-background";
 
 function mobileTerminalFrameStyle(keyboardLiftPx: number): CSSProperties {
   return {
-    bottom: `${keyboardLiftPx}px`,
+    height: `calc(var(--app-viewport-height) - var(--safe-area-inset-top) - 3.5rem - ${keyboardLiftPx}px)`,
   };
 }
 
 function composeSheetKeyboardStyle(keyboardLiftPx: number): CSSProperties {
   return {
     bottom: `${keyboardLiftPx}px`,
-    height: `calc(100dvh - ${keyboardLiftPx}px)`,
-    maxHeight: `calc(100dvh - ${keyboardLiftPx}px)`,
+    height: `calc(var(--app-viewport-height) - ${keyboardLiftPx}px)`,
+    maxHeight: `calc(var(--app-viewport-height) - ${keyboardLiftPx}px)`,
     paddingBottom: "var(--safe-area-inset-bottom)",
   };
 }
@@ -71,7 +72,7 @@ function useMobileTerminalViewportLock(enabled: boolean) {
 
     html.style.overflow = "hidden";
     html.style.overscrollBehaviorY = "none";
-    body.style.height = "100dvh";
+    body.style.height = "var(--app-viewport-height)";
     body.style.left = "0";
     body.style.overflow = "hidden";
     body.style.overscrollBehaviorY = "none";
@@ -351,7 +352,7 @@ function TerminalInner({ agentId, workspaceId }: { agentId: string; workspaceId:
         <Sheet open={composeOpen} onOpenChange={setComposeOpen}>
           <SheetContent
             side="bottom"
-            className="h-[100dvh] max-h-[100dvh] p-0 pt-safe"
+            className="h-[var(--app-viewport-height)] max-h-[var(--app-viewport-height)] p-0 pt-safe"
             style={composeSheetStyle}
           >
             <button

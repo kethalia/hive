@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import { AppViewportSize } from "@/components/app-viewport-size";
 import { ServiceWorkerRegister } from "@/components/service-worker-register";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import "./globals.css";
@@ -46,6 +47,7 @@ export default function RootLayout({
       </head>
       <body className={`${geistSans.variable} ${geistMono.variable} font-sans antialiased`}>
         <ServiceWorkerRegister />
+        <AppViewportSize />
         <TooltipProvider>{children}</TooltipProvider>
       </body>
     </html>

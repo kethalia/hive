@@ -54,15 +54,18 @@ describe("reduced-motion class contracts", () => {
     fireEvent.click(screen.getByRole("button", { name: "Toggle Sidebar" }));
 
     await waitFor(() => {
+      const wrapper = document.querySelector<HTMLElement>('[data-slot="sidebar-wrapper"]');
       const drawer = document.querySelector<HTMLElement>('[data-mobile="true"]');
       const inner = document.querySelector<HTMLElement>('[data-slot="sidebar-mobile-inner"]');
+      expect(wrapper).not.toBeNull();
       expect(drawer).not.toBeNull();
       expect(inner).not.toBeNull();
+      expect(wrapper?.className).toContain("min-h-[var(--app-viewport-height)]");
       expect(drawer?.className).toContain("motion-reduce:transition-none");
       expect(drawer?.className).toContain("motion-reduce:duration-0");
       expect(drawer?.className).toContain("data-[side=left]:!top-0");
-      expect(drawer?.className).toContain("data-[side=left]:!bottom-0");
-      expect(drawer?.className).toContain("data-[side=left]:!h-auto");
+      expect(drawer?.className).toContain("data-[side=left]:!bottom-auto");
+      expect(drawer?.className).toContain("data-[side=left]:!h-[var(--app-viewport-height)]");
       expect(drawer?.className).toContain("data-[side=left]:!min-h-0");
       expect(drawer?.className).toContain("data-[side=left]:!max-h-none");
       expect(drawer?.className).toContain("!gap-0");
