@@ -11,6 +11,11 @@ import { type ConnectionState, useTerminalWebSocket } from "@/hooks/useTerminalW
 import { getClientRuntimeConfig } from "@/lib/runtime-config";
 import { loadTerminalFont, TERMINAL_FONT_FAMILY, TERMINAL_THEME } from "@/lib/terminal/config";
 import { EVENT_NAME as FONT_SIZE_EVENT, getTerminalFontSize } from "@/lib/terminal/font-size";
+import {
+  configureXtermMobileInput,
+  focusTerminalForMobileInput,
+  type MobileInputAdapterCleanup,
+} from "@/lib/terminal/mobile-input-adapter";
 import { encodeInput } from "@/lib/terminal/protocol";
 import { cn } from "@/lib/utils";
 import "@/styles/xterm.css";
@@ -24,6 +29,7 @@ interface InteractiveTerminalProps {
   onTerminalReady?: (term: Terminal, send: (data: string) => void) => void;
   onTerminalDestroy?: () => void;
   layoutSignal?: unknown;
+  mobileInputMode?: boolean;
   pinToBottomOnResize?: boolean;
 }
 
@@ -95,6 +101,7 @@ export function InteractiveTerminal({
   onTerminalReady,
   onTerminalDestroy,
   layoutSignal,
+  mobileInputMode = false,
   pinToBottomOnResize = false,
 }: InteractiveTerminalProps) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -103,6 +110,9 @@ export function InteractiveTerminal({
   const pinnedToBottomRef = useRef(true);
   const pinToBottomOnResizeRef = useRef(pinToBottomOnResize);
   pinToBottomOnResizeRef.current = pinToBottomOnResize;
+  const mobileInputModeRef = useRef(mobileInputMode);
+  mobileInputModeRef.current = mobileInputMode;
+  const mobileInputCleanupRef = useRef<MobileInputAdapterCleanup | null>(null);
   const { handleKeyEvent } = useKeybindings();
   const handleKeyEventRef = useRef(handleKeyEvent);
   handleKeyEventRef.current = handleKeyEvent;
@@ -162,6 +172,41 @@ export function InteractiveTerminal({
   const resizeRef = useRef(resize);
   sendRef.current = send;
   resizeRef.current = resize;
+
+  const applyMobileInputAdapter = useCallback(() => {
+    mobileInputCleanupRef.current?.dispose();
+    mobileInputCleanupRef.current = null;
+
+    if (!mobileInputModeRef.current || !containerRef.current) return;
+
+    const cleanup = configureXtermMobileInput(containerRef.current);
+    if (cleanup.applied) {
+      mobileInputCleanupRef.current = cleanup;
+    }
+  }, []);
+
+  const focusInteractiveTerminal = useCallback(() => {
+    const term = termRef.current;
+    if (!term) return;
+
+    if (mobileInputModeRef.current) {
+      applyMobileInputAdapter();
+      focusTerminalForMobileInput(term);
+      return;
+    }
+
+    term.focus();
+  }, [applyMobileInputAdapter]);
+
+  useEffect(() => {
+    void layoutSignal;
+    void mobileInputMode;
+    applyMobileInputAdapter();
+    return () => {
+      mobileInputCleanupRef.current?.dispose();
+      mobileInputCleanupRef.current = null;
+    };
+  }, [applyMobileInputAdapter, layoutSignal, mobileInputMode]);
 
   const fitResizeAndPreserveBottom = useCallback((forceScrollToBottom = false) => {
     const fit = fitRef.current;
@@ -263,10 +308,11 @@ export function InteractiveTerminal({
       fit = new FitAddon();
       term.loadAddon(fit);
       term.open(containerRef.current);
-      term.focus();
 
       termRef.current = term;
       fitRef.current = fit;
+      applyMobileInputAdapter();
+      focusTerminalForMobileInput(term);
       safeFit(fit);
 
       term.attachCustomKeyEventHandler((e) => {
@@ -336,12 +382,21 @@ export function InteractiveTerminal({
       mounted = false;
       if (resizeTimer) clearTimeout(resizeTimer);
       resizeObserver.disconnect();
+      mobileInputCleanupRef.current?.dispose();
+      mobileInputCleanupRef.current = null;
       onTerminalDestroyRef.current?.();
       termRef.current?.dispose();
       termRef.current = null;
       fitRef.current = null;
     };
-  }, [agentId, fitResizeAndPreserveBottom, reconnectId, sessionName, workspaceId]);
+  }, [
+    agentId,
+    applyMobileInputAdapter,
+    fitResizeAndPreserveBottom,
+    reconnectId,
+    sessionName,
+    workspaceId,
+  ]);
 
   return (
     <div className={cn("relative flex flex-col bg-[#0a0a0a] overflow-hidden", className)}>
@@ -367,7 +422,8 @@ export function InteractiveTerminal({
         ref={containerRef}
         className="flex-1 p-1"
         {...bindPinchZoom()}
-        onClick={() => termRef.current?.focus()}
+        onClick={focusInteractiveTerminal}
+        onPointerDown={focusInteractiveTerminal}
       />
     </div>
   );

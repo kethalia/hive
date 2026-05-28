@@ -304,17 +304,23 @@ describe("MobileTerminalControls", () => {
     expect(screen.queryByRole("button", { name: "More" })).not.toBeInTheDocument();
   });
 
-  it("prevents pointer focus changes on controls so the terminal keyboard stays open", () => {
+  it("prevents pointer and mouse focus changes on controls so the terminal keyboard stays open", () => {
     render(<MobileTerminalControls />);
     const enter = screen.getByRole("button", { name: "Enter" });
     const dot = screen.getByRole("button", { name: "Show Navigation controls" });
     const pointerEvent = new Event("pointerdown", { bubbles: true, cancelable: true });
     const dotPointerEvent = new Event("pointerdown", { bubbles: true, cancelable: true });
+    const mouseEvent = new Event("mousedown", { bubbles: true, cancelable: true });
+    const dotMouseEvent = new Event("mousedown", { bubbles: true, cancelable: true });
 
     fireEvent(enter, pointerEvent);
     fireEvent(dot, dotPointerEvent);
+    fireEvent(enter, mouseEvent);
+    fireEvent(dot, dotMouseEvent);
 
     expect(pointerEvent.defaultPrevented).toBe(true);
     expect(dotPointerEvent.defaultPrevented).toBe(true);
+    expect(mouseEvent.defaultPrevented).toBe(true);
+    expect(dotMouseEvent.defaultPrevented).toBe(true);
   });
 });

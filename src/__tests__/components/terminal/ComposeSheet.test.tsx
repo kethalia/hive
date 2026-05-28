@@ -2,8 +2,8 @@
 
 import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type * as React from "react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { KeybindingContextValue, KeybindingEntry } from "@/hooks/useKeybindings";
 
 const { navigationState } = vi.hoisted(() => {
@@ -47,15 +47,18 @@ vi.mock("next/dynamic", () => ({
     const Stub = ({
       className,
       layoutSignal,
+      mobileInputMode,
       sessionName,
     }: {
       className?: string;
       layoutSignal?: unknown;
+      mobileInputMode?: boolean;
       sessionName: string;
     }) => (
       <div
         className={className}
         data-layout-signal={String(layoutSignal ?? "")}
+        data-mobile-input-mode={mobileInputMode ? "true" : "false"}
         data-session-name={sessionName}
         data-testid="interactive-terminal"
       />
@@ -99,7 +102,20 @@ vi.mock("@/components/terminal/ComposePanel", () => ({
 }));
 
 vi.mock("@/components/terminal/MobileTerminalControls", () => ({
-  MobileTerminalControls: () => <div data-testid="terminal-mobile-controls" />,
+  MobileTerminalControls: () => (
+    <button
+      type="button"
+      data-testid="terminal-mobile-controls"
+      onClick={() => window.dispatchEvent(new CustomEvent("hive:terminal-compose-open"))}
+    >
+      Open compose from controls
+    </button>
+  ),
+}));
+
+vi.mock("@/components/terminal/MobileTerminalDiagnosticsOverlay", () => ({
+  MobileTerminalDiagnosticsOverlay: ({ enabled }: { enabled: boolean }) =>
+    enabled ? <div data-testid="mobile-terminal-diagnostics-overlay" /> : null,
 }));
 
 vi.mock("@/components/ui/resizable", () => ({
@@ -158,8 +174,8 @@ vi.mock("@/components/ui/sheet", () => ({
   ),
 }));
 
-import { TERMINAL_COMPOSE_OPEN_EVENT } from "@/lib/terminal/events";
 import { TerminalClient } from "@/app/(dashboard)/workspaces/[id]/terminal/terminal-client";
+import { TERMINAL_COMPOSE_OPEN_EVENT } from "@/lib/terminal/events";
 
 function createMockKeybindingsCtx(): KeybindingContextValue {
   return {
@@ -228,9 +244,21 @@ describe("TerminalClient compose sheet", () => {
       "data-session-name",
       "tmux-1",
     );
+    expect(screen.getByTestId("interactive-terminal")).toHaveAttribute(
+      "data-mobile-input-mode",
+      "false",
+    );
     expect(screen.getByTestId("resizable-group")).toHaveAttribute("data-orientation", "vertical");
     expect(screen.queryByTestId("compose-sheet")).not.toBeInTheDocument();
     expect(screen.queryByTestId("compose-panel")).not.toBeInTheDocument();
+    expect(screen.getByTestId("terminal-desktop-shell")).toHaveAttribute(
+      "data-terminal-shell",
+      "true",
+    );
+    expect(mockGetWorkspaceSessionsAction).not.toHaveBeenCalled();
+    expect(mockCreateSessionAction).not.toHaveBeenCalled();
+    expect(document.body.style.position).not.toBe("fixed");
+    expect(document.documentElement.style.overflow).not.toBe("hidden");
 
     toggleCompose();
 
@@ -245,6 +273,10 @@ describe("TerminalClient compose sheet", () => {
     await renderTerminalClient(true);
 
     expect(screen.getByTestId("interactive-terminal")).toBeInTheDocument();
+    expect(screen.getByTestId("interactive-terminal")).toHaveAttribute(
+      "data-mobile-input-mode",
+      "true",
+    );
     expect(screen.getByTestId("terminal-mobile-shell")).toHaveClass(
       "terminal-mobile-shell",
       "fixed",
@@ -259,6 +291,14 @@ describe("TerminalClient compose sheet", () => {
     });
     expect(screen.getByTestId("terminal-mobile-shell")).not.toHaveClass(
       "-mb-[calc(var(--safe-area-inset-bottom)+1.5rem)]",
+    );
+    expect(screen.getByTestId("terminal-mobile-shell").firstElementChild).toHaveClass(
+      "flex",
+      "h-full",
+      "min-h-0",
+      "flex-col",
+      "overflow-hidden",
+      "overscroll-none",
     );
     expect(screen.queryByRole("heading", { name: "tmux-1" })).not.toBeInTheDocument();
     expect(screen.getByRole("region", { name: "Terminal emulator" })).toHaveClass(
@@ -296,6 +336,28 @@ describe("TerminalClient compose sheet", () => {
     expect(screen.getByTestId("compose-panel")).toHaveAttribute("data-hide-header", "true");
   });
 
+  it("keeps diagnostics overlay hidden unless debugViewport query is enabled", async () => {
+    await renderTerminalClient(true);
+
+    expect(screen.queryByTestId("mobile-terminal-diagnostics-overlay")).not.toBeInTheDocument();
+  });
+
+  it("enables diagnostics overlay with stable terminal telemetry selectors in debug mode", async () => {
+    navigationState.search = "session=tmux-1&debugViewport=1";
+
+    await renderTerminalClient(true);
+
+    expect(screen.getByTestId("mobile-terminal-diagnostics-overlay")).toBeInTheDocument();
+    expect(screen.getByTestId("terminal-mobile-shell")).toHaveAttribute(
+      "data-terminal-shell",
+      "true",
+    );
+    expect(screen.getByRole("region", { name: "Terminal emulator" })).toHaveAttribute(
+      "data-terminal-surface",
+      "true",
+    );
+  });
+
   it("locks document scrolling while the mobile terminal owns the viewport", async () => {
     await renderTerminalClient(true);
 
@@ -318,6 +380,9 @@ describe("TerminalClient compose sheet", () => {
     const outsideScroll = new Event("touchmove", { bubbles: true, cancelable: true });
     document.dispatchEvent(outsideScroll);
     expect(outsideScroll.defaultPrevented).toBe(true);
+    const outsideWheel = new Event("wheel", { bubbles: true, cancelable: true });
+    document.dispatchEvent(outsideWheel);
+    expect(outsideWheel.defaultPrevented).toBe(true);
 
     const terminal = document.createElement("div");
     terminal.className = "xterm";
@@ -329,6 +394,29 @@ describe("TerminalClient compose sheet", () => {
     terminalRow.dispatchEvent(terminalScroll);
     expect(terminalScroll.defaultPrevented).toBe(false);
     terminal.remove();
+  });
+
+  it("opens the mobile compose Sheet from the mobile controls action", async () => {
+    await renderTerminalClient(true);
+
+    expect(screen.getByTestId("interactive-terminal")).toHaveAttribute(
+      "data-mobile-input-mode",
+      "true",
+    );
+    expect(screen.getByTestId("compose-sheet")).toHaveAttribute("data-open", "false");
+
+    fireEvent.click(screen.getByTestId("terminal-mobile-controls"));
+
+    expect(screen.getByTestId("compose-sheet")).toHaveAttribute("data-open", "true");
+    expect(screen.getByTestId("compose-sheet-content")).toHaveAttribute("data-side", "bottom");
+    expect(screen.getByTestId("compose-sheet-content")).toHaveStyle({
+      bottom: "0px",
+      height: "var(--app-viewport-height)",
+      maxHeight: "var(--app-viewport-height)",
+      paddingBottom: "var(--safe-area-inset-bottom)",
+    });
+    expect(screen.getByTestId("terminal-mobile-controls")).toBeInTheDocument();
+    expect(screen.getByTestId("compose-panel")).toHaveAttribute("data-hide-header", "true");
   });
 
   it("opens the mobile compose Sheet from the global terminal compose event", async () => {
@@ -423,6 +511,26 @@ describe("TerminalClient compose sheet", () => {
     expect(mockCreateSessionAction).not.toHaveBeenCalled();
   });
 
+  it("preserves debugViewport while resolving a no-session route", async () => {
+    navigationState.search = "debugViewport=1";
+    window.localStorage.setItem("terminal:last-session:workspace-1", "old-session");
+    mockGetWorkspaceSessionsAction.mockResolvedValueOnce({
+      data: [
+        { name: "main", created: 1, windows: 1 },
+        { name: "old-session", created: 2, windows: 1 },
+      ],
+    });
+
+    await renderTerminalClient(true);
+
+    await waitFor(() => {
+      expect(navigationState.replace).toHaveBeenCalledWith(
+        "/workspaces/workspace-1/terminal?session=old-session&debugViewport=1",
+      );
+    });
+    expect(mockCreateSessionAction).not.toHaveBeenCalled();
+  });
+
   it("creates one session when the no-session terminal route has a confirmed empty session list", async () => {
     navigationState.search = "";
     mockGetWorkspaceSessionsAction.mockResolvedValueOnce({ data: [] });
@@ -448,6 +556,19 @@ describe("TerminalClient compose sheet", () => {
     await renderTerminalClient(true);
 
     expect(await screen.findByText("Could not load terminal sessions")).toBeInTheDocument();
+    expect(screen.getByTestId("terminal-mobile-shell")).toHaveAttribute(
+      "data-terminal-shell",
+      "true",
+    );
+    expect(screen.getByTestId("terminal-mobile-shell")).toHaveClass(
+      "items-center",
+      "justify-center",
+    );
+    expect(document.body).toHaveStyle({
+      height: "var(--app-viewport-height)",
+      overflow: "hidden",
+      position: "fixed",
+    });
     expect(screen.getByText(/no diagnostics returned by workspace command/i)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Retry" })).toHaveClass("min-h-11");
     expect(mockCreateSessionAction).not.toHaveBeenCalled();

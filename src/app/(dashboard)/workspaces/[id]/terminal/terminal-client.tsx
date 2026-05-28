@@ -3,23 +3,26 @@
 import { Loader2 } from "lucide-react";
 import dynamic from "next/dynamic";
 import { useRouter, useSearchParams } from "next/navigation";
-import type { CSSProperties, PointerEvent } from "react";
-import { Suspense, useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import type { PointerEvent } from "react";
+import { Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { ComposePanel } from "@/components/terminal/ComposePanel";
 import { MobileTerminalControls } from "@/components/terminal/MobileTerminalControls";
+import { MobileTerminalDiagnosticsOverlay } from "@/components/terminal/MobileTerminalDiagnosticsOverlay";
+import { MobileTerminalShell } from "@/components/terminal/MobileTerminalShell";
 import { TerminalContextMenu } from "@/components/terminal/TerminalContextMenu";
 import { TerminalGestureLayer } from "@/components/terminal/TerminalGestureLayer";
 import { Button } from "@/components/ui/button";
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
-import { useVisualViewportKeyboardOffset } from "@/hooks/useVisualViewportKeyboardOffset";
 import { useIsComposeSheet } from "@/hooks/use-compose-sheet";
 import { useKeybindings } from "@/hooks/useKeybindings";
+import { useVisualViewportKeyboardOffset } from "@/hooks/useVisualViewportKeyboardOffset";
 import { createSessionAction, getWorkspaceSessionsAction } from "@/lib/actions/workspaces";
+import { triggerHapticFeedback } from "@/lib/device/haptics";
+import { copyTerminalSelection, pasteToTerminal } from "@/lib/terminal/actions";
 import { COMPOSE_SHEET_DISMISS_DRAG_PX } from "@/lib/terminal/config";
 import { TERMINAL_COMPOSE_OPEN_EVENT } from "@/lib/terminal/events";
-import { copyTerminalSelection, pasteToTerminal } from "@/lib/terminal/actions";
-import { triggerHapticFeedback } from "@/lib/device/haptics";
+import { composeSheetKeyboardStyle } from "@/lib/terminal/mobile-shell-layout";
 
 const InteractiveTerminal = dynamic(
   () => import("@/components/workspaces/InteractiveTerminal").then((m) => m.InteractiveTerminal),
@@ -30,112 +33,21 @@ const LAST_SESSION_STORAGE_PREFIX = "terminal:last-session:";
 const TERMINAL_WIDTH_CLASS_NAME = "-mx-6 w-[calc(100%+3rem)]";
 const TERMINAL_STATIC_HEIGHT_CLASS_NAME =
   "h-[calc(var(--app-viewport-height)-var(--safe-area-inset-top)-3.5rem)]";
-const TERMINAL_MOBILE_FRAME_CLASS_NAME =
-  "terminal-mobile-shell fixed inset-x-0 top-[calc(var(--safe-area-inset-top)+3.5rem)] flex flex-col overflow-hidden overscroll-none bg-background";
 
-function mobileTerminalFrameStyle(isKeyboardVisible: boolean): CSSProperties {
-  const viewportHeight = isKeyboardVisible
-    ? "var(--app-visual-viewport-height)"
-    : "var(--app-viewport-height)";
-  const height = `max(0px, calc(${viewportHeight} - var(--safe-area-inset-top) - 3.5rem))`;
-
-  return {
-    height,
-    maxHeight: height,
-    top: "calc(var(--safe-area-inset-top) + 3.5rem)",
-  };
-}
-
-function composeSheetKeyboardStyle(isKeyboardVisible: boolean): CSSProperties {
-  const bottom = isKeyboardVisible
-    ? "calc(var(--app-viewport-height) - var(--app-visual-viewport-height) - var(--app-visual-viewport-offset-top))"
-    : "0px";
-  const height = isKeyboardVisible
-    ? "var(--app-visual-viewport-height)"
-    : "var(--app-viewport-height)";
-
-  return {
-    bottom,
-    height,
-    maxHeight: height,
-    paddingBottom: "var(--safe-area-inset-bottom)",
-  };
-}
-
-function useMobileTerminalViewportLock(enabled: boolean, isKeyboardVisible: boolean) {
-  useLayoutEffect(() => {
-    if (!enabled || typeof document === "undefined") return;
-
-    const html = document.documentElement;
-    const body = document.body;
-    const lockedHeight = isKeyboardVisible
-      ? "var(--app-visual-viewport-height)"
-      : "var(--app-viewport-height)";
-    const previousHtml = {
-      height: html.style.height,
-      overflow: html.style.overflow,
-      overscrollBehaviorY: html.style.overscrollBehaviorY,
-    };
-    const previousBody = {
-      height: body.style.height,
-      left: body.style.left,
-      maxHeight: body.style.maxHeight,
-      overflow: body.style.overflow,
-      overscrollBehaviorY: body.style.overscrollBehaviorY,
-      position: body.style.position,
-      right: body.style.right,
-      top: body.style.top,
-      width: body.style.width,
-    };
-
-    html.style.height = lockedHeight;
-    html.style.overflow = "hidden";
-    html.style.overscrollBehaviorY = "none";
-    body.style.height = lockedHeight;
-    body.style.left = "0";
-    body.style.maxHeight = lockedHeight;
-    body.style.overflow = "hidden";
-    body.style.overscrollBehaviorY = "none";
-    body.style.position = "fixed";
-    body.style.right = "0";
-    body.style.top = "0";
-    body.style.width = "100%";
-
-    const blockPageScroll = (event: Event) => {
-      const target = event.target;
-      if (target instanceof Element && target.closest(".terminal-mobile-shell .xterm")) return;
-      event.preventDefault();
-    };
-    document.addEventListener("touchmove", blockPageScroll, { capture: true, passive: false });
-    document.addEventListener("wheel", blockPageScroll, { capture: true, passive: false });
-
-    return () => {
-      document.removeEventListener("touchmove", blockPageScroll, { capture: true });
-      document.removeEventListener("wheel", blockPageScroll, { capture: true });
-      html.style.height = previousHtml.height;
-      html.style.overflow = previousHtml.overflow;
-      html.style.overscrollBehaviorY = previousHtml.overscrollBehaviorY;
-      body.style.height = previousBody.height;
-      body.style.left = previousBody.left;
-      body.style.maxHeight = previousBody.maxHeight;
-      body.style.overflow = previousBody.overflow;
-      body.style.overscrollBehaviorY = previousBody.overscrollBehaviorY;
-      body.style.position = previousBody.position;
-      body.style.right = previousBody.right;
-      body.style.top = previousBody.top;
-      body.style.width = previousBody.width;
-    };
-  }, [enabled, isKeyboardVisible]);
-}
-
-function terminalSessionHref(workspaceId: string, sessionName: string): string {
-  return `/workspaces/${workspaceId}/terminal?session=${encodeURIComponent(sessionName)}`;
+function terminalSessionHref(
+  workspaceId: string,
+  sessionName: string,
+  debugViewport = false,
+): string {
+  const href = `/workspaces/${workspaceId}/terminal?session=${encodeURIComponent(sessionName)}`;
+  return debugViewport ? `${href}&debugViewport=1` : href;
 }
 
 function TerminalInner({ agentId, workspaceId }: { agentId: string; workspaceId: string }) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const session = searchParams.get("session");
+  const debugViewportEnabled = searchParams.get("debugViewport") === "1";
   const { setActiveTerminal, activeTerminal, activeSend, register, unregister } = useKeybindings();
   const [menuPosition, setMenuPosition] = useState<{ x: number; y: number } | null>(null);
   const [menuSelection, setMenuSelection] = useState(false);
@@ -152,13 +64,10 @@ function TerminalInner({ agentId, workspaceId }: { agentId: string; workspaceId:
   } = useVisualViewportKeyboardOffset();
   const isMobileKeyboardVisible = isComposeSheet && visualKeyboardVisible;
   const keyboardLiftPx = isComposeSheet ? visualKeyboardLiftPx : 0;
-  const mobileTerminalStyle = mobileTerminalFrameStyle(isMobileKeyboardVisible);
   const composeSheetStyle = composeSheetKeyboardStyle(isMobileKeyboardVisible);
   const mobileLayoutSignal = isMobileKeyboardVisible
     ? `keyboard:${visualViewportHeightPx}:${visualViewportOffsetTopPx}`
     : `lift:${keyboardLiftPx}`;
-
-  useMobileTerminalViewportLock(isComposeSheet, isMobileKeyboardVisible);
 
   const handleComposeSheetDragStart = useCallback((event: PointerEvent<HTMLButtonElement>) => {
     composeSheetDragStartYRef.current = event.clientY;
@@ -256,7 +165,7 @@ function TerminalInner({ agentId, workspaceId }: { agentId: string; workspaceId:
               ? preferred
               : sessions[0]?.name;
             if (selected) {
-              router.replace(terminalSessionHref(workspaceId, selected));
+              router.replace(terminalSessionHref(workspaceId, selected, debugViewportEnabled));
               return;
             }
           }
@@ -264,7 +173,9 @@ function TerminalInner({ agentId, workspaceId }: { agentId: string; workspaceId:
           const created = await createSessionAction({ workspaceId });
           if (cancelled) return;
           if (created?.data?.name) {
-            router.replace(terminalSessionHref(workspaceId, created.data.name));
+            router.replace(
+              terminalSessionHref(workspaceId, created.data.name, debugViewportEnabled),
+            );
             return;
           }
           setBootstrapError(created?.serverError ?? "Failed to create terminal session");
@@ -285,41 +196,50 @@ function TerminalInner({ agentId, workspaceId }: { agentId: string; workspaceId:
     return () => {
       cancelled = true;
     };
-  }, [session, workspaceId, router, bootstrapRetryKey]);
+  }, [session, workspaceId, router, bootstrapRetryKey, debugViewportEnabled]);
 
   if (!session) {
-    const shellClassName = isComposeSheet
-      ? `${TERMINAL_MOBILE_FRAME_CLASS_NAME} items-center justify-center`
-      : `${TERMINAL_WIDTH_CLASS_NAME} ${TERMINAL_STATIC_HEIGHT_CLASS_NAME} flex items-center justify-center`;
+    const bootstrapCard = (
+      <div className="mx-6 max-w-sm rounded-2xl border bg-background/95 p-5 text-center shadow-lg">
+        {bootstrapError ? (
+          <>
+            <p className="text-sm font-medium text-foreground">Could not load terminal sessions</p>
+            <p className="mt-2 text-xs text-muted-foreground">{bootstrapError}</p>
+            <Button
+              type="button"
+              className="mt-4 min-h-11"
+              onClick={() => setBootstrapRetryKey((value) => value + 1)}
+            >
+              Retry
+            </Button>
+          </>
+        ) : (
+          <div className="flex items-center justify-center gap-2 text-muted-foreground">
+            <Loader2 className="h-5 w-5 animate-spin" />
+            <span className="text-sm">Loading terminal sessions…</span>
+          </div>
+        )}
+      </div>
+    );
+
+    if (isComposeSheet) {
+      return (
+        <MobileTerminalShell
+          className="items-center justify-center"
+          diagnosticsEnabled={debugViewportEnabled}
+          isKeyboardVisible={isMobileKeyboardVisible}
+        >
+          {bootstrapCard}
+        </MobileTerminalShell>
+      );
+    }
 
     return (
       <div
         data-testid="terminal-bootstrap-shell"
-        className={shellClassName}
-        style={isComposeSheet ? mobileTerminalStyle : undefined}
+        className={`${TERMINAL_WIDTH_CLASS_NAME} ${TERMINAL_STATIC_HEIGHT_CLASS_NAME} flex items-center justify-center`}
       >
-        <div className="mx-6 max-w-sm rounded-2xl border bg-background/95 p-5 text-center shadow-lg">
-          {bootstrapError ? (
-            <>
-              <p className="text-sm font-medium text-foreground">
-                Could not load terminal sessions
-              </p>
-              <p className="mt-2 text-xs text-muted-foreground">{bootstrapError}</p>
-              <Button
-                type="button"
-                className="mt-4 min-h-11"
-                onClick={() => setBootstrapRetryKey((value) => value + 1)}
-              >
-                Retry
-              </Button>
-            </>
-          ) : (
-            <div className="flex items-center justify-center gap-2 text-muted-foreground">
-              <Loader2 className="h-5 w-5 animate-spin" />
-              <span className="text-sm">Loading terminal sessions…</span>
-            </div>
-          )}
-        </div>
+        {bootstrapCard}
       </div>
     );
   }
@@ -327,6 +247,7 @@ function TerminalInner({ agentId, workspaceId }: { agentId: string; workspaceId:
   const terminalPane = (
     <div
       className="h-full"
+      data-terminal-surface="true"
       onContextMenu={(e) => {
         e.preventDefault();
         setMenuSelection(!!activeTerminal?.getSelection());
@@ -348,6 +269,7 @@ function TerminalInner({ agentId, workspaceId }: { agentId: string; workspaceId:
           onTerminalReady={handleTerminalReady}
           onTerminalDestroy={handleTerminalDestroy}
           layoutSignal={mobileLayoutSignal}
+          mobileInputMode={isComposeSheet}
           pinToBottomOnResize={isComposeSheet}
         />
       </TerminalGestureLayer>
@@ -367,16 +289,15 @@ function TerminalInner({ agentId, workspaceId }: { agentId: string; workspaceId:
 
   if (isComposeSheet) {
     return (
-      <div
-        data-testid="terminal-mobile-shell"
-        className={TERMINAL_MOBILE_FRAME_CLASS_NAME}
-        style={mobileTerminalStyle}
-        onKeyDown={(e) => e.stopPropagation()}
+      <MobileTerminalShell
+        diagnosticsEnabled={debugViewportEnabled}
+        isKeyboardVisible={isMobileKeyboardVisible}
       >
         <div className="flex h-full min-h-0 flex-col overflow-hidden overscroll-none bg-background">
           <section
             aria-label="Terminal emulator"
             className="min-h-0 flex-1 overflow-hidden bg-black"
+            data-terminal-surface="true"
           >
             {terminalPane}
           </section>
@@ -405,13 +326,14 @@ function TerminalInner({ agentId, workspaceId }: { agentId: string; workspaceId:
             </div>
           </SheetContent>
         </Sheet>
-      </div>
+      </MobileTerminalShell>
     );
   }
 
   return (
     <div
       data-testid="terminal-desktop-shell"
+      data-terminal-shell="true"
       className={`${TERMINAL_WIDTH_CLASS_NAME} ${TERMINAL_STATIC_HEIGHT_CLASS_NAME}`}
       onKeyDown={(e) => e.stopPropagation()}
     >
@@ -428,6 +350,7 @@ function TerminalInner({ agentId, workspaceId }: { agentId: string; workspaceId:
           </>
         )}
       </ResizablePanelGroup>
+      <MobileTerminalDiagnosticsOverlay enabled={debugViewportEnabled} />
     </div>
   );
 }
