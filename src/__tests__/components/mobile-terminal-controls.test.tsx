@@ -38,12 +38,50 @@ function setViewport(w: number, h: number) {
   });
 }
 
+function installMatchMedia() {
+  Object.defineProperty(window, "matchMedia", {
+    writable: true,
+    configurable: true,
+    value: vi.fn().mockImplementation((query: string) => ({
+      matches: false,
+      media: query,
+      onchange: null,
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      dispatchEvent: vi.fn(),
+    })),
+  });
+}
+
+function installObserverMocks() {
+  class IntersectionObserverMock {
+    observe = vi.fn();
+    unobserve = vi.fn();
+    disconnect = vi.fn();
+    takeRecords = vi.fn(() => []);
+  }
+
+  class ResizeObserverMock {
+    observe = vi.fn();
+    unobserve = vi.fn();
+    disconnect = vi.fn();
+  }
+
+  vi.stubGlobal("IntersectionObserver", IntersectionObserverMock);
+  vi.stubGlobal("ResizeObserver", ResizeObserverMock);
+}
+
 afterEach(() => {
   cleanup();
+  vi.unstubAllGlobals();
 });
 
 beforeEach(() => {
   setViewport(375, 812);
+  installMatchMedia();
+  installObserverMocks();
   localStorage.clear();
   mockActiveSend.mockClear();
   mockIncreaseFontSize.mockClear();
@@ -59,7 +97,7 @@ beforeEach(() => {
 });
 
 describe("MobileTerminalControls", () => {
-  it("renders a compact default row with Enter, Tab, Ctrl+C and More", () => {
+  it("renders a compact quick row, page dots and in-flow secondary pages", () => {
     render(<MobileTerminalControls />);
 
     const controls = screen.getByRole("region", { name: "Terminal mobile controls" });
@@ -68,18 +106,38 @@ describe("MobileTerminalControls", () => {
     expect(controls.className).not.toContain("0_-12px_32px");
 
     const quickActions = screen.getByRole("group", { name: "Terminal quick actions" });
-    expect(quickActions).toHaveClass("grid", "w-full", "grid-cols-4", "gap-1");
+    expect(quickActions).toHaveClass("grid", "w-full", "grid-cols-3", "gap-1");
     expect(within(quickActions).getByRole("button", { name: "Enter" })).toHaveClass(
       "min-h-12",
       "min-w-0",
     );
+    expect(within(quickActions).getByRole("button", { name: "Enter" })).toHaveClass("border");
     expect(within(quickActions).getByRole("button", { name: "Tab" })).toBeInTheDocument();
     expect(within(quickActions).getByRole("button", { name: "Ctrl+C" })).toBeInTheDocument();
-    expect(within(quickActions).getByRole("button", { name: "More" })).toHaveAttribute(
-      "aria-expanded",
-      "false",
+    expect(within(quickActions).queryByRole("button", { name: "More" })).not.toBeInTheDocument();
+
+    const pageDots = screen.getByLabelText("Terminal control pages");
+    expect(pageDots).toBeInTheDocument();
+    expect(within(pageDots).getByRole("button", { name: "Show Compose controls" })).toHaveAttribute(
+      "aria-current",
+      "page",
     );
+    expect(
+      within(pageDots).getByRole("button", { name: "Show Navigation controls" }),
+    ).not.toHaveAttribute("aria-current");
+
+    const secondaryControls = screen.getByRole("region", { name: "Terminal secondary controls" });
+    expect(secondaryControls).toHaveAttribute("aria-roledescription", "carousel");
+    expect(within(secondaryControls).getByRole("button", { name: "Compose" })).toBeInTheDocument();
+    expect(
+      within(secondaryControls).getByRole("group", { name: "Terminal navigation keys" }),
+    ).toBeInTheDocument();
+    expect(
+      within(secondaryControls).getByRole("group", { name: "Terminal font size controls" }),
+    ).toBeInTheDocument();
     expect(screen.queryByRole("region", { name: "More terminal actions" })).not.toBeInTheDocument();
+
+    expect(Array.from(controls.children)).toEqual([quickActions, pageDots, secondaryControls]);
   });
 
   it("sends sequences from the always-visible quick row", () => {
@@ -94,60 +152,54 @@ describe("MobileTerminalControls", () => {
     expect(mockActiveSend).toHaveBeenCalledWith("\x03");
   });
 
-  it("expands More into compose, navigation and font controls above the default row", () => {
-    render(<MobileTerminalControls />);
-    const more = screen.getByRole("button", { name: "More" });
-    fireEvent.click(more);
+  it("uses Apple-style dots to page secondary controls", () => {
+    const onHapticFeedback = vi.fn();
+    render(<MobileTerminalControls onHapticFeedback={onHapticFeedback} />);
+    const pageDots = screen.getByLabelText("Terminal control pages");
+    const compose = within(pageDots).getByRole("button", { name: "Show Compose controls" });
+    const navigation = within(pageDots).getByRole("button", { name: "Show Navigation controls" });
+    const fontSize = within(pageDots).getByRole("button", { name: "Show Font size controls" });
 
-    expect(more).toHaveAttribute("aria-expanded", "true");
-    const panel = screen.getByRole("region", { name: "More terminal actions" });
-    expect(panel).toHaveAttribute("data-slot", "collapsible-content");
-    expect(panel).toHaveClass("overflow-hidden");
-    expect(panel).not.toHaveClass("fixed", "absolute", "rounded-xl", "border");
-    expect(panel.firstElementChild).toHaveClass("max-h-[min(42dvh,22rem)]", "overflow-y-auto");
-    expect(within(panel).getByRole("button", { name: "Compose" })).toBeInTheDocument();
-    expect(
-      within(panel).getByRole("group", { name: "Terminal navigation keys" }),
-    ).toBeInTheDocument();
-    expect(
-      within(panel).getByRole("group", { name: "Terminal font size controls" }),
-    ).toBeInTheDocument();
-    expect(screen.getByText("12px")).toBeInTheDocument();
+    expect(compose).toHaveAttribute("aria-current", "page");
+    fireEvent.click(navigation);
+    expect(onHapticFeedback).toHaveBeenCalledTimes(1);
+    expect(navigation).toHaveAttribute("aria-current", "page");
+    expect(compose).not.toHaveAttribute("aria-current");
+
+    fireEvent.click(fontSize);
+    expect(onHapticFeedback).toHaveBeenCalledTimes(2);
+    expect(fontSize).toHaveAttribute("aria-current", "page");
   });
 
-  it("dispatches the compose event from More actions and leaves the collapsible open", () => {
+  it("dispatches the compose event from the compose page", () => {
     const listener = vi.fn();
     window.addEventListener(TERMINAL_COMPOSE_OPEN_EVENT, listener);
     render(<MobileTerminalControls />);
 
-    fireEvent.click(screen.getByRole("button", { name: "More" }));
     fireEvent.click(screen.getByRole("button", { name: "Compose" }));
 
     expect(listener).toHaveBeenCalledTimes(1);
-    expect(screen.getByRole("region", { name: "More terminal actions" })).toBeInTheDocument();
     window.removeEventListener(TERMINAL_COMPOSE_OPEN_EVENT, listener);
   });
 
-  it("sends arrow key and Esc sequences from More actions", () => {
+  it("sends arrow key and Esc sequences from the navigation page", () => {
     render(<MobileTerminalControls />);
-    fireEvent.click(screen.getByRole("button", { name: "More" }));
-    const panel = screen.getByRole("region", { name: "More terminal actions" });
+    const navigation = screen.getByRole("group", { name: "Terminal navigation keys" });
 
-    fireEvent.click(within(panel).getByRole("button", { name: "Up" }));
+    fireEvent.click(within(navigation).getByRole("button", { name: "Up" }));
     expect(mockActiveSend).toHaveBeenCalledWith("\x1b[A");
-    fireEvent.click(within(panel).getByRole("button", { name: "Down" }));
+    fireEvent.click(within(navigation).getByRole("button", { name: "Down" }));
     expect(mockActiveSend).toHaveBeenCalledWith("\x1b[B");
-    fireEvent.click(within(panel).getByRole("button", { name: "Right" }));
+    fireEvent.click(within(navigation).getByRole("button", { name: "Right" }));
     expect(mockActiveSend).toHaveBeenCalledWith("\x1b[C");
-    fireEvent.click(within(panel).getByRole("button", { name: "Left" }));
+    fireEvent.click(within(navigation).getByRole("button", { name: "Left" }));
     expect(mockActiveSend).toHaveBeenCalledWith("\x1b[D");
-    fireEvent.click(within(panel).getByRole("button", { name: "Esc" }));
+    fireEvent.click(within(navigation).getByRole("button", { name: "Esc" }));
     expect(mockActiveSend).toHaveBeenCalledWith("\x1b");
   });
 
-  it("mobile font stepper is reachable inside More actions", () => {
+  it("mobile font stepper is reachable inside the font page", () => {
     render(<MobileTerminalControls />);
-    fireEvent.click(screen.getByRole("button", { name: "More" }));
 
     const fontControls = screen.getByRole("group", { name: "Terminal font size controls" });
     const decrease = within(fontControls).getByRole("button", { name: "Decrease font size" });
@@ -170,10 +222,11 @@ describe("MobileTerminalControls", () => {
       canDecrease: false,
     });
     render(<MobileTerminalControls />);
-    fireEvent.click(screen.getByRole("button", { name: "More" }));
     expect(screen.getByRole("button", { name: "Decrease font size" })).toBeDisabled();
 
     cleanup();
+    installMatchMedia();
+    installObserverMocks();
     mockUseTerminalFontStep.mockReturnValue({
       size: 28,
       increase: mockIncreaseFontSize,
@@ -182,11 +235,10 @@ describe("MobileTerminalControls", () => {
       canDecrease: true,
     });
     render(<MobileTerminalControls />);
-    fireEvent.click(screen.getByRole("button", { name: "More" }));
     expect(screen.getByRole("button", { name: "Increase font size" })).toBeDisabled();
   });
 
-  it("calls onHapticFeedback for quick keys, More, and expanded actions", () => {
+  it("calls onHapticFeedback for quick keys, page dots and secondary actions", () => {
     const onHapticFeedback = vi.fn();
     render(<MobileTerminalControls onHapticFeedback={onHapticFeedback} />);
 
@@ -194,7 +246,7 @@ describe("MobileTerminalControls", () => {
     expect(onHapticFeedback).toHaveBeenCalledTimes(1);
     expect(mockActiveSend).toHaveBeenCalledWith("\r");
 
-    fireEvent.click(screen.getByRole("button", { name: "More" }));
+    fireEvent.click(screen.getByRole("button", { name: "Show Navigation controls" }));
     expect(onHapticFeedback).toHaveBeenCalledTimes(2);
 
     fireEvent.click(screen.getByRole("button", { name: "Up" }));
@@ -202,35 +254,31 @@ describe("MobileTerminalControls", () => {
     expect(mockActiveSend).toHaveBeenCalledWith("\x1b[A");
   });
 
-  it("keeps the More panel open until the More toggle is clicked again", () => {
+  it("keeps secondary controls in flow when interacting outside the carousel", () => {
     render(
       <div>
         <div data-testid="outside">Outside</div>
         <MobileTerminalControls />
       </div>,
     );
-    const more = screen.getByRole("button", { name: "More" });
 
-    fireEvent.click(more);
-    expect(screen.getByRole("region", { name: "More terminal actions" })).toBeInTheDocument();
-
-    fireEvent.pointerDown(screen.getByRole("button", { name: "Compose" }));
-    expect(screen.getByRole("region", { name: "More terminal actions" })).toBeInTheDocument();
-
+    expect(screen.getByRole("region", { name: "Terminal secondary controls" })).toBeInTheDocument();
     fireEvent.pointerDown(screen.getByTestId("outside"));
-    expect(screen.getByRole("region", { name: "More terminal actions" })).toBeInTheDocument();
-
-    fireEvent.click(more);
-    expect(screen.queryByRole("region", { name: "More terminal actions" })).not.toBeInTheDocument();
+    expect(screen.getByRole("region", { name: "Terminal secondary controls" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "More" })).not.toBeInTheDocument();
   });
 
   it("prevents pointer focus changes on controls so the terminal keyboard stays open", () => {
     render(<MobileTerminalControls />);
-    const more = screen.getByRole("button", { name: "More" });
+    const enter = screen.getByRole("button", { name: "Enter" });
+    const dot = screen.getByRole("button", { name: "Show Navigation controls" });
     const pointerEvent = new Event("pointerdown", { bubbles: true, cancelable: true });
+    const dotPointerEvent = new Event("pointerdown", { bubbles: true, cancelable: true });
 
-    fireEvent(more, pointerEvent);
+    fireEvent(enter, pointerEvent);
+    fireEvent(dot, dotPointerEvent);
 
     expect(pointerEvent.defaultPrevented).toBe(true);
+    expect(dotPointerEvent.defaultPrevented).toBe(true);
   });
 });
