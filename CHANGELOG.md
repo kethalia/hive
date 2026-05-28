@@ -1,5 +1,11 @@
 # hive-orchestrator
 
+## 2.3.1
+
+### Patch Changes
+
+- c955598: Harden Helm rollout defaults and include the migrate image in deployment preflight coverage.
+
 ## 2.3.0
 
 ### Minor Changes

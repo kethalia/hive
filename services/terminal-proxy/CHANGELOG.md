@@ -1,5 +1,11 @@
 # hive-terminal-proxy
 
+## 2.0.6
+
+### Patch Changes
+
+- c955598: Harden Helm rollout defaults and include the migrate image in deployment preflight coverage.
+
 ## 2.0.5
 
 ### Patch Changes
