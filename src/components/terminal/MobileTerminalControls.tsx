@@ -44,7 +44,7 @@ const QUICK_ROW_KEYS = [
   { label: "Ctrl+C", icon: X, sequence: VIRTUAL_KEY_SEQUENCES.CtrlC },
 ] as const;
 
-const CONTROL_PAGES = ["Keys", "Compose", "Navigation", "Font size"] as const;
+const CONTROL_PAGES = ["Keys", "Navigation", "Compose", "Font size"] as const;
 
 export interface MobileTerminalControlsProps {
   /** Called once for each terminal action press and page-dot navigation. */
@@ -117,7 +117,7 @@ export function MobileTerminalControls({ onHapticFeedback }: MobileTerminalContr
   return (
     <section
       aria-label="Terminal mobile controls"
-      className="shrink-0 border-t bg-background/95 px-2 pt-2 pb-1 backdrop-blur supports-[backdrop-filter]:bg-background/85"
+      className="shrink-0 border-t bg-background/95 px-2 pt-2 pb-0 backdrop-blur supports-[backdrop-filter]:bg-background/85"
       data-sidebar-gesture-ignore="true"
       style={{
         touchAction: "manipulation",
@@ -126,7 +126,7 @@ export function MobileTerminalControls({ onHapticFeedback }: MobileTerminalContr
     >
       <Carousel
         aria-label="Terminal controls carousel"
-        className="mt-1"
+        className="mt-0"
         data-sidebar-gesture-ignore="true"
         opts={{ align: "start", containScroll: "trimSnaps" }}
         setApi={setCarouselApi}
@@ -155,23 +155,6 @@ export function MobileTerminalControls({ onHapticFeedback }: MobileTerminalContr
             </ButtonGroup>
           </CarouselItem>
 
-          <CarouselItem aria-label="Compose controls" className="pl-2">
-            <ButtonGroup aria-label="Terminal compose controls" className="w-full rounded-none">
-              <Button
-                type="button"
-                variant="outline"
-                className="min-h-11 w-full justify-start"
-                style={NO_TOUCH_STYLE}
-                onPointerDown={keepTerminalKeyboardOpen}
-                onMouseDown={keepTerminalKeyboardOpen}
-                onClick={openCompose}
-              >
-                <MessageSquareText data-icon="inline-start" />
-                Compose
-              </Button>
-            </ButtonGroup>
-          </CarouselItem>
-
           <CarouselItem aria-label="Navigation controls" className="pl-2">
             <ButtonGroup
               aria-label="Terminal navigation keys"
@@ -182,7 +165,7 @@ export function MobileTerminalControls({ onHapticFeedback }: MobileTerminalContr
                   key={label}
                   type="button"
                   variant="outline"
-                  className="min-h-11 min-w-11 flex-col gap-1 px-2 py-2 text-xs"
+                  className="min-h-12 min-w-0 flex-col gap-1 px-1 py-2 text-xs"
                   style={NO_TOUCH_STYLE}
                   onPointerDown={keepTerminalKeyboardOpen}
                   onMouseDown={keepTerminalKeyboardOpen}
@@ -195,12 +178,29 @@ export function MobileTerminalControls({ onHapticFeedback }: MobileTerminalContr
             </ButtonGroup>
           </CarouselItem>
 
+          <CarouselItem aria-label="Compose controls" className="pl-2">
+            <ButtonGroup aria-label="Terminal compose controls" className="w-full rounded-none">
+              <Button
+                type="button"
+                variant="outline"
+                className="min-h-12 w-full justify-start text-xs"
+                style={NO_TOUCH_STYLE}
+                onPointerDown={keepTerminalKeyboardOpen}
+                onMouseDown={keepTerminalKeyboardOpen}
+                onClick={openCompose}
+              >
+                <MessageSquareText data-icon="inline-start" />
+                Compose
+              </Button>
+            </ButtonGroup>
+          </CarouselItem>
+
           <CarouselItem aria-label="Font size controls" className="pl-2">
             <ButtonGroup aria-label="Terminal font size controls" className="w-full rounded-none">
               <Button
                 type="button"
                 variant="outline"
-                className="min-h-11 min-w-11 flex-1"
+                className="min-h-12 min-w-0 flex-1"
                 style={NO_TOUCH_STYLE}
                 onPointerDown={keepTerminalKeyboardOpen}
                 onMouseDown={keepTerminalKeyboardOpen}
@@ -210,13 +210,13 @@ export function MobileTerminalControls({ onHapticFeedback }: MobileTerminalContr
               >
                 <Minus />
               </Button>
-              <ButtonGroupText className="min-h-11 flex-1 justify-center tabular-nums">
+              <ButtonGroupText className="min-h-12 flex-1 justify-center tabular-nums">
                 {fontSize}px
               </ButtonGroupText>
               <Button
                 type="button"
                 variant="outline"
-                className="min-h-11 min-w-11 flex-1"
+                className="min-h-12 min-w-0 flex-1"
                 style={NO_TOUCH_STYLE}
                 onPointerDown={keepTerminalKeyboardOpen}
                 onMouseDown={keepTerminalKeyboardOpen}
@@ -233,7 +233,7 @@ export function MobileTerminalControls({ onHapticFeedback }: MobileTerminalContr
 
       <nav
         aria-label="Terminal control pages"
-        className="mt-1 flex items-center justify-center gap-1"
+        className="mt-0.5 flex h-4 items-center justify-center gap-1"
       >
         {CONTROL_PAGES.map((label, index) => (
           <button
@@ -241,7 +241,7 @@ export function MobileTerminalControls({ onHapticFeedback }: MobileTerminalContr
             type="button"
             aria-current={currentPage === index ? "page" : undefined}
             aria-label={`Show ${label} controls`}
-            className="flex size-6 items-center justify-center rounded-full"
+            className="relative flex h-4 w-5 items-center justify-center rounded-full before:absolute before:-inset-x-1 before:-inset-y-3 before:content-['']"
             style={NO_TOUCH_STYLE}
             onPointerDown={keepTerminalKeyboardOpen}
             onMouseDown={keepTerminalKeyboardOpen}

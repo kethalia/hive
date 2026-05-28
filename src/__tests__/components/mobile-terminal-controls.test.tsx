@@ -101,7 +101,7 @@ describe("MobileTerminalControls", () => {
     render(<MobileTerminalControls />);
 
     const controls = screen.getByRole("region", { name: "Terminal mobile controls" });
-    expect(controls).toHaveClass("shrink-0", "border-t", "px-2", "pb-1");
+    expect(controls).toHaveClass("shrink-0", "border-t", "px-2", "pb-0");
     expect(controls).toHaveAttribute("data-sidebar-gesture-ignore", "true");
     expect(controls).not.toHaveClass("fixed", "absolute", "rounded-2xl");
     expect(controls.className).not.toContain("0_-12px_32px");
@@ -109,6 +109,12 @@ describe("MobileTerminalControls", () => {
     const carousel = screen.getByRole("region", { name: "Terminal controls carousel" });
     expect(carousel).toHaveAttribute("aria-roledescription", "carousel");
     expect(carousel).toHaveAttribute("data-sidebar-gesture-ignore", "true");
+    expect(carousel).toHaveClass("mt-0");
+    expect(
+      Array.from(carousel.querySelectorAll("[data-slot='carousel-item']")).map((item) =>
+        item.getAttribute("aria-label"),
+      ),
+    ).toEqual(["Key controls", "Navigation controls", "Compose controls", "Font size controls"]);
 
     const quickActions = within(carousel).getByRole("group", { name: "Terminal quick actions" });
     expect(quickActions).toHaveClass("grid", "w-full", "grid-cols-3", "rounded-none");
@@ -121,21 +127,33 @@ describe("MobileTerminalControls", () => {
     expect(within(quickActions).getByRole("button", { name: "Ctrl+C" })).toBeInTheDocument();
     expect(within(quickActions).queryByRole("button", { name: "More" })).not.toBeInTheDocument();
 
+    const navigationControls = within(carousel).getByRole("group", {
+      name: "Terminal navigation keys",
+    });
+    expect(navigationControls).toHaveClass("grid", "w-full", "grid-cols-5", "rounded-none");
+    expect(within(navigationControls).getByRole("button", { name: "Up" })).toHaveClass(
+      "min-h-12",
+      "min-w-0",
+    );
+
     const composeControls = within(carousel).getByRole("group", {
       name: "Terminal compose controls",
     });
     expect(composeControls).toHaveClass("w-full", "rounded-none");
-    expect(within(composeControls).getByRole("button", { name: "Compose" })).toBeInTheDocument();
-    expect(
-      within(carousel).getByRole("group", { name: "Terminal navigation keys" }),
-    ).toBeInTheDocument();
+    expect(within(composeControls).getByRole("button", { name: "Compose" })).toHaveClass(
+      "min-h-12",
+    );
     expect(
       within(carousel).getByRole("group", { name: "Terminal font size controls" }),
     ).toBeInTheDocument();
     expect(screen.queryByRole("region", { name: "More terminal actions" })).not.toBeInTheDocument();
 
     const pageDots = screen.getByLabelText("Terminal control pages");
-    expect(pageDots).toBeInTheDocument();
+    expect(pageDots).toHaveClass("mt-0.5", "h-4");
+    expect(within(pageDots).getByRole("button", { name: "Show Keys controls" })).toHaveClass(
+      "h-4",
+      "w-5",
+    );
     expect(within(pageDots).getByRole("button", { name: "Show Keys controls" })).toHaveAttribute(
       "aria-current",
       "page",
@@ -217,8 +235,9 @@ describe("MobileTerminalControls", () => {
     const decrease = within(fontControls).getByRole("button", { name: "Decrease font size" });
     const increase = within(fontControls).getByRole("button", { name: "Increase font size" });
 
-    expect(decrease).toHaveClass("min-h-11", "min-w-11");
-    expect(increase).toHaveClass("min-h-11", "min-w-11");
+    expect(decrease).toHaveClass("min-h-12", "min-w-0");
+    expect(screen.getByText("12px")).toHaveClass("min-h-12");
+    expect(increase).toHaveClass("min-h-12", "min-w-0");
     fireEvent.click(increase);
     expect(mockIncreaseFontSize).toHaveBeenCalledTimes(1);
     fireEvent.click(decrease);
