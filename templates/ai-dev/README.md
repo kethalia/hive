@@ -1,12 +1,12 @@
 # AI-Assisted Full-Stack Development - Coder Template
 
-A production-ready Coder template for AI-assisted full-stack development. Features Claude Code with GSD, comprehensive tooling, Docker, Node.js, Foundry, and everything you need for modern development.
+A production-ready Coder template for AI-assisted full-stack development. Features Claude Code with OpenGSD core slash commands, the OpenGSD Pi CLI, comprehensive tooling, Docker, Node.js, Foundry, and everything you need for modern development.
 
 ## Features
 
 ### AI-Assisted Development
 - **Claude Code** - Anthropic's coding agent with CLI and web interface
-- **GSD (get-shit-done)** - Meta-prompting system for Claude Code
+- **OpenGSD core + Pi** - Maintained GSD slash commands for Claude Code plus the standalone `gsd` CLI from OpenGSD
 - **Browser Vision** - Claude Code can see what it's developing in a headless browser
 - All AI tools are configurable via template variables
 
@@ -46,6 +46,42 @@ cd ai-dev
 coder templates push ai-dev
 ```
 
+### Updating Existing Workspaces to OpenGSD
+
+The previous template installed the abandoned pre-OpenGSD packages. Push this
+updated template, rebuild each workspace, then verify the maintained packages are
+first on PATH.
+
+```bash
+# Push the updated template version from this repository
+coder templates push ai-dev --directory templates/ai-dev --yes
+
+# Rebuild an existing workspace onto the active template version
+coder update <workspace-name>
+
+# Inside the rebuilt workspace, verify OpenGSD is active
+gsd --version
+npm list -g --depth=0 | grep '@opengsd'
+```
+
+If you cannot rebuild a workspace immediately, run the repair commands inside
+that workspace:
+
+```bash
+export PATH="$HOME/.local/bin:$PATH"
+export npm_config_prefix="$HOME/.local"
+npm uninstall -g get-shit-done-cc get-shit-done-redux gsd-pi @gsd-build/sdk @gsd-redux/sdk @gsd-redux/get-shit-done-redux || true
+npm install -g @opengsd/get-shit-done-redux@latest @opengsd/gsd-pi@latest
+get-shit-done-redux --claude --global
+gsd --version
+```
+
+For projects that still have legacy `.planning` artifacts, open `gsd` in the
+project and run `/gsd migrate`, then `/gsd doctor`.
+
+For the operator runbook covering both Hive and ai-dev templates, see
+`docs/opengsd-coder-workspaces.md`.
+
 ### Create a Workspace
 
 ```bash
@@ -57,6 +93,7 @@ coder ssh my-workspace
 
 ```bash
 claude --version          # Claude Code
+gsd --version             # OpenGSD Pi CLI
 docker ps                 # Docker access
 node --version            # Node.js
 bun --version             # Bun
@@ -100,7 +137,7 @@ cpu_shares  = 6144    # 6 CPU cores (relative weight)
 |  +----------------------------------------+  |
 |  |  AI Agents                             |  |
 |  |  - Claude Code (CLI + web)             |  |
-|  |  - GSD (slash commands)                |  |
+|  |  - OpenGSD (slash commands + CLI)      |  |
 |  |  - Playwright MCP (browser vision)     |  |
 |  +----------------------------------------+  |
 |                                              |
@@ -150,7 +187,7 @@ A virtual display (Xvfb) runs a headed Chromium browser that Claude Code control
 | Agent | Method | Capabilities |
 |-------|--------|--------------|
 | Claude Code | Playwright MCP server (headed) | Navigate, screenshot, click, type, inspect elements |
-| GSD | Inherits from Claude Code | Same as Claude Code |
+| OpenGSD core | Claude Code slash commands | Same as Claude Code |
 
 ### Web App (KasmVNC)
 
@@ -197,10 +234,15 @@ groups | grep docker
 docker info
 ```
 
-### GSD commands not available
+### OpenGSD commands not available
 ```bash
-# Reinstall for Claude Code
-npx get-shit-done-cc@latest --claude --global
+# Reinstall the maintained OpenGSD packages and refresh Claude Code commands
+export PATH="$HOME/.local/bin:$PATH"
+export npm_config_prefix="$HOME/.local"
+npm uninstall -g get-shit-done-cc get-shit-done-redux gsd-pi @gsd-build/sdk @gsd-redux/sdk @gsd-redux/get-shit-done-redux || true
+npm install -g @opengsd/get-shit-done-redux@latest @opengsd/gsd-pi@latest
+get-shit-done-redux --claude --global
+gsd --version
 ```
 
 ## Security
@@ -213,6 +255,6 @@ npx get-shit-done-cc@latest --claude --global
 
 - [Coder Documentation](https://coder.com/docs)
 - [Claude Code](https://docs.anthropic.com/en/docs/claude-code)
-- [GSD (get-shit-done)](https://github.com/gsd-build/get-shit-done)
+- [OpenGSD](https://www.opengsd.net/)
 - [Starship Prompt](https://starship.rs)
 - [Foundry Book](https://book.getfoundry.sh)

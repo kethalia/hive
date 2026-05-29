@@ -26,7 +26,8 @@ if [ ! -f ~/.workspace_initialized ]; then
 
 ### AI-Assisted Development
 - **Claude Code**: `claude` in terminal or use the web app
-- **GSD**: `/gsd:help` inside Claude Code
+- **OpenGSD core**: `/gsd-new-project` or `/gsd-progress --next` inside Claude Code
+- **OpenGSD Pi**: `gsd` standalone CLI (`gsd --version` to verify)
 
 ### Available Tools & Versions
 - **Node.js**: v24 (default), also available: 18, 20, 22
