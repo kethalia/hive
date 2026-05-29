@@ -17,6 +17,7 @@ const { mockUseTerminalWebSocket, mockFit, mockSend, mockResize, terminalInstanc
       dataHandler?: (data: string) => void;
       focus: ReturnType<typeof vi.fn>;
       onData: ReturnType<typeof vi.fn>;
+      scrollLines: ReturnType<typeof vi.fn>;
       scrollToBottom: ReturnType<typeof vi.fn>;
     }>,
   }),
@@ -44,6 +45,7 @@ vi.mock("@xterm/xterm", () => ({
     dispose = vi.fn();
     write = vi.fn();
     focus = vi.fn();
+    scrollLines = vi.fn();
     scrollToBottom = vi.fn(() => {
       this.buffer.active.viewportY = this.buffer.active.baseY;
     });
@@ -312,7 +314,7 @@ describe("InteractiveTerminal integration — Mobile input adapter", () => {
     desktop.unmount();
   });
 
-  it("focuses xterm through pointer entry and preserves terminal data flow", async () => {
+  it("focuses xterm on an intentional mobile tap and preserves terminal data flow", async () => {
     const { container, unmount } = await renderTerminal({ mobileInputMode: true });
     const terminal = terminalInstances.at(-1);
     expect(terminal).toBeDefined();
@@ -322,13 +324,82 @@ describe("InteractiveTerminal integration — Mobile input adapter", () => {
     const inputTarget = container.querySelector(".flex-1.p-1");
     expect(inputTarget).toBeTruthy();
 
-    fireEvent.pointerDown(inputTarget as Element);
+    fireEvent.pointerDown(inputTarget as Element, {
+      clientX: 80,
+      clientY: 240,
+      pointerId: 1,
+      pointerType: "touch",
+    });
+    expect(terminal?.focus).not.toHaveBeenCalled();
+
+    fireEvent.pointerUp(inputTarget as Element, {
+      clientX: 82,
+      clientY: 242,
+      pointerId: 1,
+      pointerType: "touch",
+    });
+    expect(terminal?.focus).toHaveBeenCalledTimes(1);
+
+    fireEvent.click(inputTarget as Element);
     expect(terminal?.focus).toHaveBeenCalledTimes(1);
 
     act(() => {
       terminal?.dataHandler?.("echo mobile\r");
     });
     expect(mockSend).toHaveBeenCalledWith("echo mobile\r");
+    unmount();
+  });
+
+  it("scrolls mobile terminal touch drags without opening the keyboard", async () => {
+    const { container, unmount } = await renderTerminal({ mobileInputMode: true });
+    const terminal = terminalInstances.at(-1);
+    expect(terminal).toBeDefined();
+
+    terminal?.focus.mockClear();
+    terminal?.scrollLines.mockClear();
+    const inputTarget = container.querySelector(".flex-1.p-1");
+    expect(inputTarget).toBeTruthy();
+
+    fireEvent.pointerDown(inputTarget as Element, {
+      clientX: 80,
+      clientY: 320,
+      pointerId: 1,
+      pointerType: "touch",
+    });
+    fireEvent.pointerMove(inputTarget as Element, {
+      clientX: 80,
+      clientY: 240,
+      pointerId: 1,
+      pointerType: "touch",
+    });
+    fireEvent.pointerUp(inputTarget as Element, {
+      clientX: 80,
+      clientY: 240,
+      pointerId: 1,
+      pointerType: "touch",
+    });
+    fireEvent.click(inputTarget as Element);
+
+    expect(terminal?.scrollLines).toHaveBeenCalledWith(4);
+    expect(terminal?.focus).not.toHaveBeenCalled();
+    unmount();
+  });
+
+  it("keeps desktop pointer entry focusing immediately", async () => {
+    const { container, unmount } = await renderTerminal({ mobileInputMode: false });
+    const terminal = terminalInstances.at(-1);
+    terminal?.focus.mockClear();
+    const inputTarget = container.querySelector(".flex-1.p-1");
+    expect(inputTarget).toBeTruthy();
+
+    fireEvent.pointerDown(inputTarget as Element, {
+      clientX: 80,
+      clientY: 240,
+      pointerId: 1,
+      pointerType: "mouse",
+    });
+
+    expect(terminal?.focus).toHaveBeenCalledTimes(1);
     unmount();
   });
 });

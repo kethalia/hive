@@ -1,6 +1,8 @@
 import type { CSSProperties } from "react";
 
 export const MOBILE_TERMINAL_TOP_OFFSET = "calc(var(--safe-area-inset-top) + 3.5rem)";
+export const MOBILE_TERMINAL_TOP_OFFSET_WITH_VISUAL_VIEWPORT =
+  "calc(var(--app-visual-viewport-offset-top) + var(--safe-area-inset-top) + 3.5rem)";
 export const MOBILE_TERMINAL_FRAME_HEIGHT_WITH_LAYOUT_VIEWPORT =
   "max(0px, calc(var(--app-viewport-height) - var(--safe-area-inset-top) - 3.5rem))";
 export const MOBILE_TERMINAL_FRAME_HEIGHT_WITH_VISUAL_VIEWPORT =
@@ -42,7 +44,9 @@ export function mobileTerminalFrameStyle(isKeyboardVisible: boolean): CSSPropert
   return {
     height,
     maxHeight: height,
-    top: MOBILE_TERMINAL_TOP_OFFSET,
+    top: isKeyboardVisible
+      ? MOBILE_TERMINAL_TOP_OFFSET_WITH_VISUAL_VIEWPORT
+      : MOBILE_TERMINAL_TOP_OFFSET,
   };
 }
 

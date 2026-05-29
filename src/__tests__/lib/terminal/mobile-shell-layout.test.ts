@@ -8,6 +8,7 @@ import {
   MOBILE_TERMINAL_FRAME_HEIGHT_WITH_LAYOUT_VIEWPORT,
   MOBILE_TERMINAL_FRAME_HEIGHT_WITH_VISUAL_VIEWPORT,
   MOBILE_TERMINAL_TOP_OFFSET,
+  MOBILE_TERMINAL_TOP_OFFSET_WITH_VISUAL_VIEWPORT,
   mobileTerminalFrameStyle,
   mobileViewportLockedHeight,
   restoreMobileViewportLock,
@@ -45,7 +46,7 @@ describe("mobile shell layout", () => {
     expect(mobileTerminalFrameStyle(true)).toEqual({
       height: MOBILE_TERMINAL_FRAME_HEIGHT_WITH_VISUAL_VIEWPORT,
       maxHeight: MOBILE_TERMINAL_FRAME_HEIGHT_WITH_VISUAL_VIEWPORT,
-      top: MOBILE_TERMINAL_TOP_OFFSET,
+      top: MOBILE_TERMINAL_TOP_OFFSET_WITH_VISUAL_VIEWPORT,
     });
     expect(composeSheetKeyboardStyle(true)).toEqual({
       bottom: COMPOSE_SHEET_KEYBOARD_BOTTOM_OFFSET,
