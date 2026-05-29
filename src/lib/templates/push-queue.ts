@@ -1,5 +1,5 @@
 import { execFile, spawn } from "node:child_process";
-import { createWriteStream } from "node:fs";
+import { createWriteStream, type WriteStream } from "node:fs";
 import { readdir } from "node:fs/promises";
 import { join } from "node:path";
 import { promisify } from "node:util";
@@ -27,6 +27,23 @@ export function pushLogPath(jobId: string): string {
   return `/tmp/template-push-${jobId}.log`;
 }
 
+function getErrorMessage(err: unknown): string {
+  return err instanceof Error ? err.message : String(err);
+}
+
+function writeAndCloseLog(logStream: WriteStream, content: string): Promise<void> {
+  return new Promise((resolve) => {
+    if (logStream.destroyed) {
+      resolve();
+      return;
+    }
+
+    logStream.write(content, () => {
+      logStream.end(resolve);
+    });
+  });
+}
+
 // ── Queue ─────────────────────────────────────────────────────────
 
 let pushQueue: Queue<TemplatePushJobData> | null = null;
@@ -40,7 +57,7 @@ export function getTemplatePushQueue(): Queue<TemplatePushJobData> {
     });
     pushQueue = q as Queue<TemplatePushJobData>;
   }
-  return pushQueue!;
+  return pushQueue;
 }
 
 // ── Coder binary resolution ───────────────────────────────────────
@@ -102,9 +119,22 @@ export function createTemplatePushWorker(): Worker<TemplatePushJobData> {
 
       console.log(`[template-push] Starting push for "${templateName}" (job ${jobId})`);
 
-      const client = await getCoderClientForUser(userId);
-      const coderBin = await findCoderBinary();
       const logStream = createWriteStream(logPath, { flags: "a" });
+      logStream.write(`[template-push] Starting push for "${templateName}" (job ${jobId})\n`);
+
+      let client: Awaited<ReturnType<typeof getCoderClientForUser>>;
+      let coderBin: string;
+      try {
+        client = await getCoderClientForUser(userId);
+        coderBin = await findCoderBinary();
+      } catch (err) {
+        const message = getErrorMessage(err);
+        console.error(
+          `[template-push] Preflight failed for "${templateName}" (job ${jobId}) — ${message}`,
+        );
+        await writeAndCloseLog(logStream, `\n[error: ${message}]\n[exit:1]\n`);
+        throw err;
+      }
 
       await new Promise<void>((resolve, reject) => {
         const child = spawn(

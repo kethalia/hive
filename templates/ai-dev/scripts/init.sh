@@ -26,7 +26,9 @@ if [ ! -f ~/.workspace_initialized ]; then
 
 ### AI-Assisted Development
 - **Claude Code**: `claude` in terminal or use the web app
-- **GSD**: `/gsd:help` inside Claude Code
+- **Codex CLI**: `codex` in terminal with Playwright MCP and vault skills wired
+- **OpenGSD core**: `/gsd-new-project` or `/gsd-progress --next` inside Claude Code and Codex
+- **OpenGSD Pi**: `gsd` standalone CLI (`gsd --version` to verify)
 
 ### Available Tools & Versions
 - **Node.js**: v24 (default), also available: 18, 20, 22
@@ -41,8 +43,8 @@ if [ ! -f ~/.workspace_initialized ]; then
 - **direnv** for per-project env management
 
 ### Browser Vision
-Claude Code can see what you're developing in a browser:
-- **Claude Code**: Just ask! (e.g. "screenshot localhost:3000")
+Claude Code and Codex can see what you're developing in a browser:
+- **Claude Code/Codex**: Just ask! (e.g. "screenshot localhost:3000")
 - **CLI helpers**: `browser-screenshot <url>` or `browser-html <url>`
 
 ### Useful Commands
@@ -50,6 +52,8 @@ Claude Code can see what you're developing in a browser:
 ```bash
 # AI Agents
 claude                       # Start Claude Code
+codex                        # Start Codex CLI
+gsd                          # Start OpenGSD Pi
 
 # Docker
 docker ps                    # List running containers
@@ -89,6 +93,52 @@ if [ -f /home/coder/.claude/mcp.json ] && [ ! -f /home/coder/.mcp.json ]; then
   chmod 600 /home/coder/.mcp.json
   echo "Seeded pi MCP config at /home/coder/.mcp.json"
 fi
+
+# Codex MCP config — user-level config is shared by the Codex CLI and IDE.
+# Managed as a marked block so user settings outside the block are preserved.
+configure_codex_mcp() {
+  mkdir -p "$HOME/.codex"
+  python3 - <<'PYCODEX'
+import os
+from pathlib import Path
+
+config = Path(os.environ["HOME"]) / ".codex" / "config.toml"
+config.parent.mkdir(parents=True, exist_ok=True)
+existing = config.read_text() if config.exists() else ""
+start = "# >>> hive-managed-codex-mcp"
+end = "# <<< hive-managed-codex-mcp"
+block = f"""{start}
+[mcp_servers.hive_obsidian]
+command = "npx"
+args = ["-y", "@bitbonsai/mcpvault@1.0.4", "/home/coder/vault"]
+
+[mcp_servers.hive_playwright]
+command = "npx"
+args = ["-y", "@playwright/mcp", "--no-sandbox"]
+
+[mcp_servers.hive_playwright.env]
+DISPLAY = ":1"
+{end}
+"""
+
+if start in existing and end in existing:
+    before = existing.split(start, 1)[0].rstrip()
+    after = existing.split(end, 1)[1].lstrip()
+    pieces = [part for part in (before, block.rstrip(), after.rstrip()) if part]
+    updated = "\n\n".join(pieces) + "\n"
+else:
+    updated = (existing.rstrip() + "\n\n" if existing.strip() else "") + block
+
+if updated != existing:
+    config.write_text(updated)
+    print(f"Codex MCP config synced at {config}")
+else:
+    print(f"Codex MCP config already in sync at {config}")
+PYCODEX
+  chmod 600 "$HOME/.codex/config.toml"
+}
+
+configure_codex_mcp
 
 # Per-start initialization
 echo "Starting workspace services..."

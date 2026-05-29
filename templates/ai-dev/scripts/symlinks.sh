@@ -8,11 +8,18 @@ RESET='\033[0m'
 printf "${BOLD}Creating tool symlinks in ~/.local/bin...${RESET}\n"
 mkdir -p $HOME/.local/bin
 
-# Node.js / npm / npx — from system install (NodeSource in Dockerfile)
+# Node.js / npm / npx — prefer known system/module locations. Do not use
+# command -v against PATH here: persistent homes can contain stale
+# ~/.local/bin/node self-symlinks, and resolving those recreates the loop.
 for bin in node npm npx corepack; do
-  SYS_BIN=$(command -v "$bin" 2>/dev/null)
-  [ -n "$SYS_BIN" ] && ln -sf "$SYS_BIN" "$HOME/.local/bin/$bin"
+  for candidate in /usr/bin/$bin /usr/local/bin/$bin /opt/node*/bin/$bin; do
+    if [ -x "$candidate" ]; then
+      ln -sf "$candidate" "$HOME/.local/bin/$bin"
+      break
+    fi
+  done
 done
+hash -r 2>/dev/null || true
 
 # Symlink globally installed npm packages (claude, etc.)
 # The Coder nodejs module installs to /opt/node*/bin/, so check there too

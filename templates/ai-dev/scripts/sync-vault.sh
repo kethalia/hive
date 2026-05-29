@@ -6,6 +6,9 @@
 #   - Agents/AGENTS.md  (agent orientation & context discovery)
 #   - Skills/           (skill directories with SKILL.md files)
 #
+# Codex reads global instructions from ~/.codex/AGENTS.md and user skills from
+# ~/.agents/skills, so both surfaces are wired here.
+#
 # Called automatically by:
 #   - init.sh (startup path — deploys this script, then calls it)
 #   - post_clone_script in main.tf (after every vault fetch)
@@ -19,6 +22,7 @@ VAULT_DIR="$HOME/vault"
 AGENTS_SRC="$VAULT_DIR/Agents"
 CLAUDE_DIR="$HOME/.claude"
 AGENTS_CONV_DIR="$HOME/.agents"
+CODEX_DIR="$HOME/.codex"
 PI_DIR="$HOME/.pi/agent"
 
 # Track what changed for logging
@@ -63,7 +67,7 @@ sync_claude_md() {
 # AGENTS.md — sync to all agent directories
 # -----------------------------------------------------------------------------
 sync_agents_md() {
-  sync_file "$AGENTS_SRC/AGENTS.md" "AGENTS.md" "$CLAUDE_DIR" "$AGENTS_CONV_DIR" "$PI_DIR"
+  sync_file "$AGENTS_SRC/AGENTS.md" "AGENTS.md" "$CLAUDE_DIR" "$AGENTS_CONV_DIR" "$CODEX_DIR" "$PI_DIR"
 }
 
 # -----------------------------------------------------------------------------
@@ -85,6 +89,8 @@ sync_skills() {
     vault_hashes["$skill_name"]=$(cd "$skill_dir" && find . -type f -exec md5sum {} + 2>/dev/null | sort | md5sum | cut -d' ' -f1)
   done
 
+  # Codex scans ~/.agents/skills for user skills, so AGENTS_CONV_DIR/skills is
+  # intentionally shared between generic agent tooling and Codex.
   local skill_targets=("$CLAUDE_DIR/skills" "$AGENTS_CONV_DIR/skills" "$PI_DIR/skills")
 
   for skills_target in "${skill_targets[@]}"; do

@@ -376,6 +376,10 @@ module "git-clone-vault" {
     if [ -d "$CLONE_DIR/.git" ]; then
       mkdir -p "$VAULT_DIR"
       rsync -a --delete --exclude '.obsidian' "$CLONE_DIR/" "$VAULT_DIR/"
+      # The git-clone module runs this script from inside the clone directory.
+      # Leave it before deleting the temp clone, otherwise later commands emit
+      # noisy getcwd/chdir errors because their current directory disappeared.
+      cd "$HOME"
       rm -rf "$CLONE_DIR"
       echo "Vault synced to $VAULT_DIR"
 

@@ -252,7 +252,7 @@ describe("push-queue", () => {
       expect(allLog).toContain("ENOENT");
     });
 
-    it("fails with clear error when userId has no token", async () => {
+    it("writes failure log when userId has no token", async () => {
       const { getCoderClientForUser } = await import("@/lib/coder/user-client");
       const { UserClientException, UserClientError } = await import("@/lib/coder/user-client");
       vi.mocked(getCoderClientForUser).mockRejectedValueOnce(
@@ -267,6 +267,39 @@ describe("push-queue", () => {
           data: { templateName: "hive", jobId: "job-6", userId: "bad-user" },
         }),
       ).rejects.toThrow("No Coder API token stored for user bad-user");
+
+      expect(createWriteStream).toHaveBeenCalledWith("/tmp/template-push-job-6.log", {
+        flags: "a",
+      });
+      const allLog = logChunks.join("");
+      expect(allLog).toContain('[template-push] Starting push for "hive"');
+      expect(allLog).toContain("No Coder API token stored for user bad-user");
+      expect(allLog).toContain("[exit:1]");
+    });
+
+    it("writes failure log when coder binary is unavailable before spawn", async () => {
+      mockExecFile.mockImplementationOnce((...args: unknown[]) => {
+        const cb = args[args.length - 1] as (
+          err: Error | null,
+          result: { stdout: string; stderr: string },
+        ) => void;
+        cb(new Error("not found"), { stdout: "", stderr: "" });
+      });
+
+      await expect(
+        capturedProcessor!({
+          data: { templateName: "hive", jobId: "job-7", userId: "user-abc" },
+        }),
+      ).rejects.toThrow("coder binary not found");
+
+      expect(mockSpawn).not.toHaveBeenCalled();
+      expect(createWriteStream).toHaveBeenCalledWith("/tmp/template-push-job-7.log", {
+        flags: "a",
+      });
+      const allLog = logChunks.join("");
+      expect(allLog).toContain('[template-push] Starting push for "hive"');
+      expect(allLog).toContain("coder binary not found");
+      expect(allLog).toContain("[exit:1]");
     });
   });
 });
