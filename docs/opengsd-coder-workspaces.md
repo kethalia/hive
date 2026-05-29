@@ -54,6 +54,22 @@ If a workspace cannot be rebuilt immediately, run this inside the workspace:
 export PATH="$HOME/.local/bin:$PATH"
 export npm_config_prefix="$HOME/.local"
 
+# Repair persistent Node shims first. This fixes old workspaces that show
+# `env: ‘node’: Too many levels of symbolic links` during npm installs.
+mkdir -p "$HOME/.local/bin"
+rm -f "$HOME/.local/bin/node" "$HOME/.local/bin/npm" "$HOME/.local/bin/npx" "$HOME/.local/bin/corepack"
+for bin in node npm npx corepack; do
+  for candidate in /usr/bin/$bin /usr/local/bin/$bin /opt/node*/bin/$bin; do
+    if [ -x "$candidate" ]; then
+      ln -sf "$candidate" "$HOME/.local/bin/$bin"
+      break
+    fi
+  done
+done
+hash -r 2>/dev/null || true
+node --version
+npm --version
+
 npm uninstall -g \
   get-shit-done-cc \
   get-shit-done-redux \
@@ -66,8 +82,8 @@ npm uninstall -g \
 npm install -g @openai/codex@latest @opengsd/get-shit-done-redux@latest @opengsd/gsd-pi@latest
 get-shit-done-redux --claude --global
 get-shit-done-redux --codex --global
-codex mcp add obsidian -- npx -y @bitbonsai/mcpvault@1.0.4 /home/coder/vault || true
-codex mcp add playwright --env DISPLAY=:1 -- npx -y @playwright/mcp --no-sandbox || true
+codex mcp add hive_obsidian -- npx -y @bitbonsai/mcpvault@1.0.4 /home/coder/vault || true
+codex mcp add hive_playwright --env DISPLAY=:1 -- npx -y @playwright/mcp --no-sandbox || true
 if [ -f "$HOME/vault/Agents/AGENTS.md" ]; then mkdir -p "$HOME/.codex" && cp "$HOME/vault/Agents/AGENTS.md" "$HOME/.codex/AGENTS.md"; fi
 bash "$HOME/sync-vault.sh" || true
 ```
