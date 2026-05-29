@@ -4,18 +4,21 @@
 
 **Post-read action:** publish the OpenGSD template update, rebuild existing
 workspaces, and verify that each workspace resolves the maintained `@opengsd`
-packages instead of the abandoned pre-OpenGSD packages.
+packages plus Codex instead of the abandoned pre-OpenGSD packages.
 
 ## What changed
 
-The Coder templates now install the maintained OpenGSD packages:
+The Coder templates now install Codex and the maintained OpenGSD packages:
 
 - `@opengsd/get-shit-done-redux` for Claude Code slash commands and the
   `gsd-sdk`/`gsd-tools` shims used by hooks.
 - `@opengsd/gsd-pi` for the standalone `gsd` and `gsd-cli` commands.
+- `@openai/codex` for the Codex CLI.
 
 The templates uninstall the old packages first so stale `gsd` or `gsd-sdk` shims
-cannot stay first on `PATH`.
+cannot stay first on `PATH`. Startup also writes Codex MCP configuration for
+Obsidian and headed Playwright at `~/.codex/config.toml`, while vault skills are
+synced to `~/.agents/skills`, the user skill path Codex scans.
 
 ## Publish updated templates
 
@@ -60,8 +63,13 @@ npm uninstall -g \
   @gsd-redux/get-shit-done-redux \
   || true
 
-npm install -g @opengsd/get-shit-done-redux@latest @opengsd/gsd-pi@latest
+npm install -g @openai/codex@latest @opengsd/get-shit-done-redux@latest @opengsd/gsd-pi@latest
 get-shit-done-redux --claude --global
+get-shit-done-redux --codex --global
+codex mcp add obsidian -- npx -y @bitbonsai/mcpvault@1.0.4 /home/coder/vault || true
+codex mcp add playwright --env DISPLAY=:1 -- npx -y @playwright/mcp --no-sandbox || true
+if [ -f "$HOME/vault/Agents/AGENTS.md" ]; then mkdir -p "$HOME/.codex" && cp "$HOME/vault/Agents/AGENTS.md" "$HOME/.codex/AGENTS.md"; fi
+bash "$HOME/sync-vault.sh" || true
 ```
 
 ## Verify each workspace
@@ -71,8 +79,12 @@ Inside the workspace:
 ```bash
 which gsd
 which gsd-sdk
+which codex
 gsd --version
-npm list -g --depth=0 | grep '@opengsd'
+codex --version
+npm list -g --depth=0 | grep -E '@opengsd|@openai/codex'
+grep -q 'mcp_servers.playwright' ~/.codex/config.toml
+test -d ~/.agents/skills
 ```
 
 Expected result:
@@ -80,9 +92,13 @@ Expected result:
 - `gsd` resolves from the user-writable global npm prefix, normally
   `$HOME/.local/bin/gsd`.
 - `gsd-sdk` resolves from the same prefix, normally `$HOME/.local/bin/gsd-sdk`.
-- `npm list -g --depth=0` includes `@opengsd/gsd-pi` and
-  `@opengsd/get-shit-done-redux`.
-- Claude Code has GSD slash commands such as `/gsd-new-project` and
+- `codex` resolves from the same prefix, normally `$HOME/.local/bin/codex`.
+- `npm list -g --depth=0` includes `@opengsd/gsd-pi`,
+  `@opengsd/get-shit-done-redux`, and `@openai/codex`.
+- `~/.codex/config.toml` contains the managed Playwright MCP server with
+  `DISPLAY = ":1"`.
+- `~/.agents/skills` exists for Codex user-skill discovery.
+- Claude Code and Codex have GSD slash commands such as `/gsd-new-project` and
   `/gsd-progress` available after restart.
 
 ## Migrate legacy project state

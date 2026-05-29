@@ -20,7 +20,7 @@ printf "${BOLD}[browser] Setting up browser vision tools...${RESET}\n"
 CHROME_BIN="/usr/bin/google-chrome-stable"
 
 # Claude Code MCP (obsidian + playwright) is baked into the Docker image
-# at ~/.claude/mcp.json — no runtime registration needed.
+# at ~/.claude/mcp.json. Codex MCP is managed at startup in ~/.codex/config.toml.
 
 # Create screenshot helper using Google Chrome (CLI fallback for scripts)
 cat > "$HOME/.local/bin/browser-screenshot" << SCREENSHOT
@@ -52,4 +52,5 @@ echo "Helper scripts using: $CHROME_BIN"
 
 printf "${GREEN}[ok] Browser vision tools ready${RESET}\n"
 printf "  Claude Code: Playwright MCP via ~/.claude/mcp.json (baked into image)\n"
+printf "  Codex: Playwright MCP via ~/.codex/config.toml (managed at startup)\n"
 printf "  CLI helpers: browser-screenshot <url> and browser-html <url>\n"

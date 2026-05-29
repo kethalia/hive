@@ -42,11 +42,18 @@ run_step "Remove legacy GSD packages" '
     >/dev/null 2>&1 || true
 '
 
+# Install Codex before refreshing OpenGSD's Codex surface.
+run_step "Codex CLI" '
+  npm install -g @openai/codex@latest
+'
+
 # Install OpenGSD core globally so hooks and slash commands resolve the maintained
-# gsd-sdk shim, then refresh the Claude Code command surface non-interactively.
-run_step "OpenGSD core (Claude Code slash commands)" '
+# gsd-sdk shim, then refresh Claude Code and Codex command/skill surfaces.
+run_step "OpenGSD core (Claude Code + Codex)" '
+  mkdir -p "$HOME/.codex" &&
   npm install -g @opengsd/get-shit-done-redux@latest &&
-  get-shit-done-redux --claude --global
+  get-shit-done-redux --claude --global &&
+  get-shit-done-redux --codex --global
 '
 
 # Install the maintained standalone CLI harness. This provides gsd and gsd-cli.
@@ -56,6 +63,7 @@ run_step "OpenGSD Pi CLI" '
 
 gsd_path="$(command -v gsd 2>/dev/null || true)"
 gsd_sdk_path="$(command -v gsd-sdk 2>/dev/null || true)"
+codex_path="$(command -v codex 2>/dev/null || true)"
 
 if [ "$gsd_path" = "$HOME/.local/bin/gsd" ]; then
   printf "${GREEN}[ok] OpenGSD CLI available: %s${RESET}\n" "$gsd_path"
@@ -71,4 +79,12 @@ elif [ -n "$gsd_sdk_path" ]; then
   printf "${YELLOW}[warn] gsd-sdk resolves outside ~/.local/bin after installation: %s${RESET}\n" "$gsd_sdk_path"
 else
   printf "${YELLOW}[warn] gsd-sdk was not found on PATH after installation${RESET}\n"
+fi
+
+if [ "$codex_path" = "$HOME/.local/bin/codex" ]; then
+  printf "${GREEN}[ok] Codex CLI available: %s${RESET}\n" "$codex_path"
+elif [ -n "$codex_path" ]; then
+  printf "${YELLOW}[warn] codex resolves outside ~/.local/bin after installation: %s${RESET}\n" "$codex_path"
+else
+  printf "${YELLOW}[warn] codex was not found on PATH after installation${RESET}\n"
 fi

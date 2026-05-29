@@ -1,13 +1,14 @@
 # AI-Assisted Full-Stack Development - Coder Template
 
-A production-ready Coder template for AI-assisted full-stack development. Features Claude Code with OpenGSD core slash commands, the OpenGSD Pi CLI, comprehensive tooling, Docker, Node.js, Foundry, and everything you need for modern development.
+A production-ready Coder template for AI-assisted full-stack development. Features Claude Code and Codex with OpenGSD core slash commands, the OpenGSD Pi CLI, comprehensive tooling, Docker, Node.js, Foundry, and everything you need for modern development.
 
 ## Features
 
 ### AI-Assisted Development
 - **Claude Code** - Anthropic's coding agent with CLI and web interface
-- **OpenGSD core + Pi** - Maintained GSD slash commands for Claude Code plus the standalone `gsd` CLI from OpenGSD
-- **Browser Vision** - Claude Code can see what it's developing in a headless browser
+- **Codex CLI** - OpenAI's local coding agent with Playwright MCP and vault skills wired
+- **OpenGSD core + Pi** - Maintained GSD slash commands for Claude Code and Codex plus the standalone `gsd` CLI from OpenGSD
+- **Browser Vision** - Claude Code and Codex can see what they're developing in a headed browser
 - All AI tools are configurable via template variables
 
 ### Development Environment
@@ -59,9 +60,12 @@ coder templates push ai-dev --directory templates/ai-dev --yes
 # Rebuild an existing workspace onto the active template version
 coder update <workspace-name>
 
-# Inside the rebuilt workspace, verify OpenGSD is active
+# Inside the rebuilt workspace, verify OpenGSD and Codex are active
 gsd --version
-npm list -g --depth=0 | grep '@opengsd'
+codex --version
+npm list -g --depth=0 | grep -E '@opengsd|@openai/codex'
+grep -q 'mcp_servers.playwright' ~/.codex/config.toml
+test -d ~/.agents/skills
 ```
 
 If you cannot rebuild a workspace immediately, run the repair commands inside
@@ -71,9 +75,15 @@ that workspace:
 export PATH="$HOME/.local/bin:$PATH"
 export npm_config_prefix="$HOME/.local"
 npm uninstall -g get-shit-done-cc get-shit-done-redux gsd-pi @gsd-build/sdk @gsd-redux/sdk @gsd-redux/get-shit-done-redux || true
-npm install -g @opengsd/get-shit-done-redux@latest @opengsd/gsd-pi@latest
+npm install -g @openai/codex@latest @opengsd/get-shit-done-redux@latest @opengsd/gsd-pi@latest
 get-shit-done-redux --claude --global
+get-shit-done-redux --codex --global
+codex mcp add obsidian -- npx -y @bitbonsai/mcpvault@1.0.4 /home/coder/vault || true
+codex mcp add playwright --env DISPLAY=:1 -- npx -y @playwright/mcp --no-sandbox || true
+if [ -f "$HOME/vault/Agents/AGENTS.md" ]; then mkdir -p "$HOME/.codex" && cp "$HOME/vault/Agents/AGENTS.md" "$HOME/.codex/AGENTS.md"; fi
+bash "$HOME/sync-vault.sh" || true
 gsd --version
+codex --version
 ```
 
 For projects that still have legacy `.planning` artifacts, open `gsd` in the
@@ -93,6 +103,7 @@ coder ssh my-workspace
 
 ```bash
 claude --version          # Claude Code
+codex --version           # Codex CLI
 gsd --version             # OpenGSD Pi CLI
 docker ps                 # Docker access
 node --version            # Node.js
@@ -137,6 +148,7 @@ cpu_shares  = 6144    # 6 CPU cores (relative weight)
 |  +----------------------------------------+  |
 |  |  AI Agents                             |  |
 |  |  - Claude Code (CLI + web)             |  |
+|  |  - Codex CLI                           |  |
 |  |  - OpenGSD (slash commands + CLI)      |  |
 |  |  - Playwright MCP (browser vision)     |  |
 |  +----------------------------------------+  |
@@ -178,7 +190,7 @@ cpu_shares  = 6144    # 6 CPU cores (relative weight)
 
 ## Browser Vision
 
-Claude Code can visually inspect what it's developing via a headless Chromium browser.
+Claude Code and Codex can visually inspect what they're developing via a headed Chromium browser on the KasmVNC display.
 
 ### How It Works
 
@@ -187,7 +199,8 @@ A virtual display (Xvfb) runs a headed Chromium browser that Claude Code control
 | Agent | Method | Capabilities |
 |-------|--------|--------------|
 | Claude Code | Playwright MCP server (headed) | Navigate, screenshot, click, type, inspect elements |
-| OpenGSD core | Claude Code slash commands | Same as Claude Code |
+| Codex | Playwright MCP via `~/.codex/config.toml` | Navigate, screenshot, click, type, inspect elements |
+| OpenGSD core | Claude Code and Codex slash commands | Same as host agent |
 
 ### Web App (KasmVNC)
 
@@ -211,7 +224,7 @@ browser-html http://localhost:3000                    # Dump rendered DOM as tex
 
 ### Configuration
 
-The Playwright MCP server is auto-configured for Claude Code (`~/.claude/mcp.json`) during workspace startup. It runs in **headed mode** on display `:1`, so all browser interactions are visible via the KasmVNC web app.
+The Playwright MCP server is auto-configured for Claude Code (`~/.claude/mcp.json`) and Codex (`~/.codex/config.toml`) during workspace startup. It runs in **headed mode** on display `:1`, so all browser interactions are visible via the KasmVNC web app.
 
 Architecture: `KasmVNC :1` (virtual display + VNC + web viewer on `:6080`) → `openbox` (window manager)
 
@@ -240,9 +253,15 @@ docker info
 export PATH="$HOME/.local/bin:$PATH"
 export npm_config_prefix="$HOME/.local"
 npm uninstall -g get-shit-done-cc get-shit-done-redux gsd-pi @gsd-build/sdk @gsd-redux/sdk @gsd-redux/get-shit-done-redux || true
-npm install -g @opengsd/get-shit-done-redux@latest @opengsd/gsd-pi@latest
+npm install -g @openai/codex@latest @opengsd/get-shit-done-redux@latest @opengsd/gsd-pi@latest
 get-shit-done-redux --claude --global
+get-shit-done-redux --codex --global
+codex mcp add obsidian -- npx -y @bitbonsai/mcpvault@1.0.4 /home/coder/vault || true
+codex mcp add playwright --env DISPLAY=:1 -- npx -y @playwright/mcp --no-sandbox || true
+if [ -f "$HOME/vault/Agents/AGENTS.md" ]; then mkdir -p "$HOME/.codex" && cp "$HOME/vault/Agents/AGENTS.md" "$HOME/.codex/AGENTS.md"; fi
+bash "$HOME/sync-vault.sh" || true
 gsd --version
+codex --version
 ```
 
 ## Security
@@ -255,6 +274,7 @@ gsd --version
 
 - [Coder Documentation](https://coder.com/docs)
 - [Claude Code](https://docs.anthropic.com/en/docs/claude-code)
+- [Codex](https://developers.openai.com/codex)
 - [OpenGSD](https://www.opengsd.net/)
 - [Starship Prompt](https://starship.rs)
 - [Foundry Book](https://book.getfoundry.sh)
