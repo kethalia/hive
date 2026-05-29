@@ -139,15 +139,15 @@ existing = config.read_text() if config.exists() else ""
 start = "# >>> hive-managed-codex-mcp"
 end = "# <<< hive-managed-codex-mcp"
 block = f"""{start}
-[mcp_servers.obsidian]
+[mcp_servers.hive_obsidian]
 command = "npx"
 args = ["-y", "@bitbonsai/mcpvault@1.0.4", "/home/coder/vault"]
 
-[mcp_servers.playwright]
+[mcp_servers.hive_playwright]
 command = "npx"
 args = ["-y", "@playwright/mcp", "--no-sandbox"]
 
-[mcp_servers.playwright.env]
+[mcp_servers.hive_playwright.env]
 DISPLAY = ":1"
 {end}
 """

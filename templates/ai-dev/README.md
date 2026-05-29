@@ -64,7 +64,7 @@ coder update <workspace-name>
 gsd --version
 codex --version
 npm list -g --depth=0 | grep -E '@opengsd|@openai/codex'
-grep -q 'mcp_servers.playwright' ~/.codex/config.toml
+grep -q 'mcp_servers.hive_playwright' ~/.codex/config.toml
 test -d ~/.agents/skills
 ```
 
@@ -199,7 +199,7 @@ A virtual display (Xvfb) runs a headed Chromium browser that Claude Code control
 | Agent | Method | Capabilities |
 |-------|--------|--------------|
 | Claude Code | Playwright MCP server (headed) | Navigate, screenshot, click, type, inspect elements |
-| Codex | Playwright MCP via `~/.codex/config.toml` | Navigate, screenshot, click, type, inspect elements |
+| Codex | Playwright MCP via `hive_playwright` in `~/.codex/config.toml` | Navigate, screenshot, click, type, inspect elements |
 | OpenGSD core | Claude Code and Codex slash commands | Same as host agent |
 
 ### Web App (KasmVNC)

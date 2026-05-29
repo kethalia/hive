@@ -83,7 +83,7 @@ which codex
 gsd --version
 codex --version
 npm list -g --depth=0 | grep -E '@opengsd|@openai/codex'
-grep -q 'mcp_servers.playwright' ~/.codex/config.toml
+grep -q 'mcp_servers.hive_playwright' ~/.codex/config.toml
 test -d ~/.agents/skills
 ```
 
@@ -95,8 +95,8 @@ Expected result:
 - `codex` resolves from the same prefix, normally `$HOME/.local/bin/codex`.
 - `npm list -g --depth=0` includes `@opengsd/gsd-pi`,
   `@opengsd/get-shit-done-redux`, and `@openai/codex`.
-- `~/.codex/config.toml` contains the managed Playwright MCP server with
-  `DISPLAY = ":1"`.
+- `~/.codex/config.toml` contains the managed `hive_playwright` MCP server
+  with `DISPLAY = ":1"`.
 - `~/.agents/skills` exists for Codex user-skill discovery.
 - Claude Code and Codex have GSD slash commands such as `/gsd-new-project` and
   `/gsd-progress` available after restart.
