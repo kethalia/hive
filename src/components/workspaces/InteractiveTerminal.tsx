@@ -6,6 +6,7 @@ import { AlertCircle } from "lucide-react";
 import {
   type MouseEvent as ReactMouseEvent,
   type PointerEvent as ReactPointerEvent,
+  type TouchEvent as ReactTouchEvent,
   useCallback,
   useEffect,
   useRef,
@@ -44,7 +45,7 @@ interface InteractiveTerminalProps {
 interface MobileTouchIntent {
   didScroll: boolean;
   lineRemainder: number;
-  pointerId: number;
+  touchIdentifier: number;
   startX: number;
   startY: number;
   lastY: number;
@@ -163,7 +164,6 @@ export function InteractiveTerminal({
   const mobileInputModeRef = useRef(mobileInputMode);
   mobileInputModeRef.current = mobileInputMode;
   const mobileTouchIntentRef = useRef<MobileTouchIntent | null>(null);
-  const activeMobileTouchPointersRef = useRef(new Set<number>());
   const suppressNextClickFocusRef = useRef(false);
   const mobileInputCleanupRef = useRef<MobileInputAdapterCleanup | null>(null);
   const { handleKeyEvent } = useKeybindings();
@@ -253,47 +253,54 @@ export function InteractiveTerminal({
 
   const handleTerminalPointerDown = useCallback(
     (event: ReactPointerEvent<HTMLDivElement>) => {
-      if (!mobileInputModeRef.current || event.pointerType !== "touch") {
-        focusInteractiveTerminal();
+      if (mobileInputModeRef.current && event.pointerType === "touch") {
+        suppressNextClickFocusRef.current = true;
         return;
       }
 
-      activeMobileTouchPointersRef.current.add(event.pointerId);
-      mobileTouchIntentRef.current = {
-        didScroll: false,
-        lineRemainder: 0,
-        pointerId: event.pointerId,
-        startX: event.clientX,
-        startY: event.clientY,
-        lastY: event.clientY,
-        multiTouch: activeMobileTouchPointersRef.current.size > 1,
-      };
+      focusInteractiveTerminal();
     },
     [focusInteractiveTerminal],
   );
 
-  const handleTerminalPointerMove = useCallback((event: ReactPointerEvent<HTMLDivElement>) => {
-    if (!mobileInputModeRef.current || event.pointerType !== "touch") return;
+  const beginMobileTouchScroll = useCallback((touch: Touch) => {
+    mobileTouchIntentRef.current = {
+      didScroll: false,
+      lineRemainder: 0,
+      touchIdentifier: touch.identifier,
+      startX: touch.clientX,
+      startY: touch.clientY,
+      lastY: touch.clientY,
+      multiTouch: false,
+    };
+  }, []);
 
+  const continueMobileTouchScroll = useCallback((event: TouchEvent | ReactTouchEvent) => {
     const intent = mobileTouchIntentRef.current;
-    if (!intent || intent.pointerId !== event.pointerId) return;
+    if (!mobileInputModeRef.current || !intent) return;
 
-    if (activeMobileTouchPointersRef.current.size > 1) {
+    if (event.touches.length > 1) {
       intent.multiTouch = true;
       return;
     }
 
-    const deltaX = event.clientX - intent.startX;
-    const deltaYFromStart = event.clientY - intent.startY;
+    const touch = Array.from(event.touches).find(
+      (candidate) => candidate.identifier === intent.touchIdentifier,
+    );
+    if (!touch) return;
+
+    const deltaX = touch.clientX - intent.startX;
+    const deltaYFromStart = touch.clientY - intent.startY;
     const movedPx = Math.hypot(deltaX, deltaYFromStart);
     if (!intent.didScroll && movedPx < MOBILE_TERMINAL_SCROLL_THRESHOLD_PX) return;
 
     intent.didScroll = true;
     suppressNextClickFocusRef.current = true;
     preventDefaultIfCancelable(event);
+    event.stopPropagation();
 
-    const deltaY = event.clientY - intent.lastY;
-    intent.lastY = event.clientY;
+    const deltaY = touch.clientY - intent.lastY;
+    intent.lastY = touch.clientY;
     const term = termRef.current;
     scrollTerminalByTouchDelta(term, intent, deltaY);
     if (term) {
@@ -301,40 +308,22 @@ export function InteractiveTerminal({
     }
   }, []);
 
-  const handleTerminalPointerEnd = useCallback(
-    (event: ReactPointerEvent<HTMLDivElement>) => {
-      if (!mobileInputModeRef.current || event.pointerType !== "touch") return;
+  const endMobileTouchScroll = useCallback((event: TouchEvent | ReactTouchEvent) => {
+    const intent = mobileTouchIntentRef.current;
+    if (!intent) return;
 
-      activeMobileTouchPointersRef.current.delete(event.pointerId);
-      const intent = mobileTouchIntentRef.current;
-      if (!intent || intent.pointerId !== event.pointerId) return;
+    const ended = Array.from(event.changedTouches).some(
+      (touch) => touch.identifier === intent.touchIdentifier,
+    );
+    if (!ended) return;
 
-      const movedPx = Math.hypot(event.clientX - intent.startX, event.clientY - intent.startY);
-      const shouldFocus =
-        !intent.didScroll && !intent.multiTouch && movedPx <= MOBILE_TERMINAL_SCROLL_THRESHOLD_PX;
-      mobileTouchIntentRef.current = null;
-
-      if (shouldFocus) {
-        suppressNextClickFocusRef.current = true;
-        focusInteractiveTerminal();
-      } else {
-        suppressNextClickFocusRef.current = true;
-      }
-    },
-    [focusInteractiveTerminal],
-  );
-
-  const handleTerminalPointerCancel = useCallback((event: ReactPointerEvent<HTMLDivElement>) => {
-    if (event.pointerType === "touch") {
-      activeMobileTouchPointersRef.current.delete(event.pointerId);
-      mobileTouchIntentRef.current = null;
-      suppressNextClickFocusRef.current = true;
-    }
+    mobileTouchIntentRef.current = null;
+    suppressNextClickFocusRef.current = true;
   }, []);
 
   const handleTerminalClick = useCallback(
     (event: ReactMouseEvent<HTMLDivElement>) => {
-      if (mobileInputModeRef.current && suppressNextClickFocusRef.current) {
+      if (mobileInputModeRef.current) {
         suppressNextClickFocusRef.current = false;
         event.preventDefault();
         return;
@@ -344,6 +333,30 @@ export function InteractiveTerminal({
     },
     [focusInteractiveTerminal],
   );
+
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+
+    const handleTouchStart = (event: TouchEvent) => {
+      if (!mobileInputModeRef.current || event.touches.length !== 1) return;
+      beginMobileTouchScroll(event.touches[0]);
+    };
+    const handleTouchMove = (event: TouchEvent) => continueMobileTouchScroll(event);
+    const handleTouchEnd = (event: TouchEvent) => endMobileTouchScroll(event);
+
+    container.addEventListener("touchstart", handleTouchStart, { capture: true, passive: true });
+    container.addEventListener("touchmove", handleTouchMove, { capture: true, passive: false });
+    container.addEventListener("touchend", handleTouchEnd, { capture: true, passive: true });
+    container.addEventListener("touchcancel", handleTouchEnd, { capture: true, passive: true });
+
+    return () => {
+      container.removeEventListener("touchstart", handleTouchStart, { capture: true });
+      container.removeEventListener("touchmove", handleTouchMove, { capture: true });
+      container.removeEventListener("touchend", handleTouchEnd, { capture: true });
+      container.removeEventListener("touchcancel", handleTouchEnd, { capture: true });
+    };
+  }, [beginMobileTouchScroll, continueMobileTouchScroll, endMobileTouchScroll]);
 
   useEffect(() => {
     void layoutSignal;
@@ -449,6 +462,7 @@ export function InteractiveTerminal({
         lineHeight: 1.4,
         cursorBlink: true,
         convertEol: true,
+        scrollOnUserInput: true,
         scrollback: 10000,
       });
 
@@ -531,7 +545,6 @@ export function InteractiveTerminal({
       mounted = false;
       if (resizeTimer) clearTimeout(resizeTimer);
       resizeObserver.disconnect();
-      activeMobileTouchPointersRef.current.clear();
       mobileTouchIntentRef.current = null;
       suppressNextClickFocusRef.current = false;
       mobileInputCleanupRef.current?.dispose();
@@ -575,10 +588,7 @@ export function InteractiveTerminal({
         className="flex-1 p-1"
         {...bindPinchZoom()}
         onClick={handleTerminalClick}
-        onPointerCancel={handleTerminalPointerCancel}
         onPointerDown={handleTerminalPointerDown}
-        onPointerMove={handleTerminalPointerMove}
-        onPointerUp={handleTerminalPointerEnd}
       />
     </div>
   );

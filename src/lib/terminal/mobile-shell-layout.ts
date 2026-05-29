@@ -121,7 +121,3 @@ export function restoreMobileViewportLock(snapshot: MobileViewportLockSnapshot) 
   bodyElement.style.top = body.top;
   bodyElement.style.width = body.width;
 }
-
-export function shouldAllowMobileTerminalScroll(target: EventTarget | null): boolean {
-  return target instanceof Element && target.closest(".terminal-mobile-shell .xterm") !== null;
-}

@@ -111,7 +111,7 @@ describe("MobileTerminalShell", () => {
     expect(document.body.style.width).toBe("calc(100% - 12px)");
   });
 
-  it("blocks page scroll outside xterm while allowing terminal scroll", () => {
+  it("blocks native page scroll everywhere in the mobile shell", () => {
     render(
       <MobileTerminalShell isKeyboardVisible={false}>
         <div data-testid="outside-control" />
@@ -127,6 +127,6 @@ describe("MobileTerminalShell", () => {
 
     const terminalScroll = new Event("touchmove", { bubbles: true, cancelable: true });
     fireEvent(screen.getByLabelText("xterm helper"), terminalScroll);
-    expect(terminalScroll.defaultPrevented).toBe(false);
+    expect(terminalScroll.defaultPrevented).toBe(true);
   });
 });

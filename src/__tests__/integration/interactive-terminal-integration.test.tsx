@@ -181,6 +181,23 @@ function terminalWebSocketUrls() {
     .filter((url): url is string => typeof url === "string");
 }
 
+function touchPoint(identifier: number, clientX: number, clientY: number): Touch {
+  return { identifier, clientX, clientY } as Touch;
+}
+
+function fireTouchEvent(
+  target: Element,
+  type: "touchstart" | "touchmove" | "touchend" | "touchcancel",
+  touches: Touch[],
+  changedTouches = touches,
+): Event {
+  const event = new Event(type, { bubbles: true, cancelable: true });
+  Object.defineProperty(event, "touches", { value: touches });
+  Object.defineProperty(event, "changedTouches", { value: changedTouches });
+  fireEvent(target, event);
+  return event;
+}
+
 describe("InteractiveTerminal integration — Connection state banners", () => {
   it("shows workspace offline banner", async () => {
     mockUseTerminalWebSocket.mockReturnValue({
@@ -314,7 +331,7 @@ describe("InteractiveTerminal integration — Mobile input adapter", () => {
     desktop.unmount();
   });
 
-  it("focuses xterm on an intentional mobile tap and preserves terminal data flow", async () => {
+  it("does not focus xterm from mobile terminal surface touches", async () => {
     const { container, unmount } = await renderTerminal({ mobileInputMode: true });
     const terminal = terminalInstances.at(-1);
     expect(terminal).toBeDefined();
@@ -330,18 +347,15 @@ describe("InteractiveTerminal integration — Mobile input adapter", () => {
       pointerId: 1,
       pointerType: "touch",
     });
-    expect(terminal?.focus).not.toHaveBeenCalled();
-
     fireEvent.pointerUp(inputTarget as Element, {
       clientX: 82,
       clientY: 242,
       pointerId: 1,
       pointerType: "touch",
     });
-    expect(terminal?.focus).toHaveBeenCalledTimes(1);
-
     fireEvent.click(inputTarget as Element);
-    expect(terminal?.focus).toHaveBeenCalledTimes(1);
+
+    expect(terminal?.focus).not.toHaveBeenCalled();
 
     act(() => {
       terminal?.dataHandler?.("echo mobile\r");
@@ -350,7 +364,7 @@ describe("InteractiveTerminal integration — Mobile input adapter", () => {
     unmount();
   });
 
-  it("scrolls mobile terminal touch drags without opening the keyboard", async () => {
+  it("scrolls mobile terminal touch drags without allowing native page scroll or keyboard focus", async () => {
     const { container, unmount } = await renderTerminal({ mobileInputMode: true });
     const terminal = terminalInstances.at(-1);
     expect(terminal).toBeDefined();
@@ -360,26 +374,12 @@ describe("InteractiveTerminal integration — Mobile input adapter", () => {
     const inputTarget = container.querySelector(".flex-1.p-1");
     expect(inputTarget).toBeTruthy();
 
-    fireEvent.pointerDown(inputTarget as Element, {
-      clientX: 80,
-      clientY: 320,
-      pointerId: 1,
-      pointerType: "touch",
-    });
-    fireEvent.pointerMove(inputTarget as Element, {
-      clientX: 80,
-      clientY: 240,
-      pointerId: 1,
-      pointerType: "touch",
-    });
-    fireEvent.pointerUp(inputTarget as Element, {
-      clientX: 80,
-      clientY: 240,
-      pointerId: 1,
-      pointerType: "touch",
-    });
+    fireTouchEvent(inputTarget as Element, "touchstart", [touchPoint(1, 80, 320)]);
+    const touchMove = fireTouchEvent(inputTarget as Element, "touchmove", [touchPoint(1, 80, 240)]);
+    fireTouchEvent(inputTarget as Element, "touchend", [], [touchPoint(1, 80, 240)]);
     fireEvent.click(inputTarget as Element);
 
+    expect(touchMove.defaultPrevented).toBe(true);
     expect(terminal?.scrollLines).toHaveBeenCalledWith(4);
     expect(terminal?.focus).not.toHaveBeenCalled();
     unmount();

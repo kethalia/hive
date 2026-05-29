@@ -311,6 +311,7 @@ describe("TerminalClient compose sheet", () => {
       "rounded-2xl",
       "shadow-inner",
     );
+    expect(screen.getByTestId("mobile-terminal-input-dock")).toBeInTheDocument();
     expect(screen.getByTestId("terminal-mobile-controls")).toBeInTheDocument();
     expect(screen.queryByTestId("resizable-group")).not.toBeInTheDocument();
     expect(screen.getByTestId("compose-sheet")).toHaveAttribute("data-open", "false");
@@ -392,7 +393,7 @@ describe("TerminalClient compose sheet", () => {
     screen.getByTestId("terminal-mobile-shell").appendChild(terminal);
     const terminalScroll = new Event("touchmove", { bubbles: true, cancelable: true });
     terminalRow.dispatchEvent(terminalScroll);
-    expect(terminalScroll.defaultPrevented).toBe(false);
+    expect(terminalScroll.defaultPrevented).toBe(true);
     terminal.remove();
   });
 

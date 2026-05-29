@@ -12,7 +12,6 @@ import {
   mobileTerminalFrameStyle,
   mobileViewportLockedHeight,
   restoreMobileViewportLock,
-  shouldAllowMobileTerminalScroll,
 } from "@/lib/terminal/mobile-shell-layout";
 
 function resetDocumentStyles() {
@@ -102,24 +101,5 @@ describe("mobile shell layout", () => {
     expect(document.body.style.right).toBe("3px");
     expect(document.body.style.top).toBe("4px");
     expect(document.body.style.width).toBe("calc(100% - 5px)");
-  });
-
-  it("only allows scroll events that originate inside the mobile xterm surface", () => {
-    document.body.innerHTML = `
-      <div class="terminal-mobile-shell">
-        <section>
-          <div class="xterm"><textarea data-testid="helper"></textarea></div>
-        </section>
-        <button data-testid="outside">Outside</button>
-      </div>
-    `;
-
-    const helperTextarea = document.querySelector("[data-testid='helper']");
-    const outsideButton = document.querySelector("[data-testid='outside']");
-
-    expect(shouldAllowMobileTerminalScroll(helperTextarea)).toBe(true);
-    expect(shouldAllowMobileTerminalScroll(outsideButton)).toBe(false);
-    expect(shouldAllowMobileTerminalScroll(document.body)).toBe(false);
-    expect(shouldAllowMobileTerminalScroll(null)).toBe(false);
   });
 });

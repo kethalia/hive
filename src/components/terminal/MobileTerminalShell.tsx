@@ -7,7 +7,6 @@ import {
   applyMobileViewportLock,
   mobileTerminalFrameStyle,
   restoreMobileViewportLock,
-  shouldAllowMobileTerminalScroll,
 } from "@/lib/terminal/mobile-shell-layout";
 import { cn } from "@/lib/utils";
 
@@ -27,7 +26,6 @@ function useMobileTerminalViewportLock(isKeyboardVisible: boolean) {
 
     const snapshot = applyMobileViewportLock(document, isKeyboardVisible);
     const blockPageScroll = (event: Event) => {
-      if (shouldAllowMobileTerminalScroll(event.target)) return;
       event.preventDefault();
     };
     document.addEventListener("touchmove", blockPageScroll, { capture: true, passive: false });

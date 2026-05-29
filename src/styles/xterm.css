@@ -122,6 +122,10 @@
     bottom: 0;
 }
 
+.terminal-mobile-shell .xterm .xterm-viewport {
+    overflow: hidden !important;
+}
+
 .xterm .xterm-screen {
     position: relative;
 }
