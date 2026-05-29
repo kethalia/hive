@@ -8,7 +8,6 @@ import { Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { ComposePanel } from "@/components/terminal/ComposePanel";
 import { MobileTerminalControls } from "@/components/terminal/MobileTerminalControls";
 import { MobileTerminalDiagnosticsOverlay } from "@/components/terminal/MobileTerminalDiagnosticsOverlay";
-import { MobileTerminalInputDock } from "@/components/terminal/MobileTerminalInputDock";
 import { MobileTerminalShell } from "@/components/terminal/MobileTerminalShell";
 import { TerminalContextMenu } from "@/components/terminal/TerminalContextMenu";
 import { TerminalGestureLayer } from "@/components/terminal/TerminalGestureLayer";
@@ -302,8 +301,10 @@ function TerminalInner({ agentId, workspaceId }: { agentId: string; workspaceId:
           >
             {terminalPane}
           </section>
-          <MobileTerminalInputDock />
-          <MobileTerminalControls onHapticFeedback={triggerHapticFeedback} />
+          <MobileTerminalControls
+            isKeyboardVisible={isMobileKeyboardVisible}
+            onHapticFeedback={triggerHapticFeedback}
+          />
         </div>
         <Sheet open={composeOpen} onOpenChange={setComposeOpen}>
           <SheetContent

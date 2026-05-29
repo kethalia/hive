@@ -102,9 +102,10 @@ vi.mock("@/components/terminal/ComposePanel", () => ({
 }));
 
 vi.mock("@/components/terminal/MobileTerminalControls", () => ({
-  MobileTerminalControls: () => (
+  MobileTerminalControls: ({ isKeyboardVisible }: { isKeyboardVisible?: boolean }) => (
     <button
       type="button"
+      data-keyboard-visible={isKeyboardVisible ? "true" : "false"}
       data-testid="terminal-mobile-controls"
       onClick={() => window.dispatchEvent(new CustomEvent("hive:terminal-compose-open"))}
     >
@@ -311,7 +312,6 @@ describe("TerminalClient compose sheet", () => {
       "rounded-2xl",
       "shadow-inner",
     );
-    expect(screen.getByTestId("mobile-terminal-input-dock")).toBeInTheDocument();
     expect(screen.getByTestId("terminal-mobile-controls")).toBeInTheDocument();
     expect(screen.queryByTestId("resizable-group")).not.toBeInTheDocument();
     expect(screen.getByTestId("compose-sheet")).toHaveAttribute("data-open", "false");
@@ -463,6 +463,10 @@ describe("TerminalClient compose sheet", () => {
       overflow: "hidden",
       top: "0px",
     });
+    expect(screen.getByTestId("terminal-mobile-controls")).toHaveAttribute(
+      "data-keyboard-visible",
+      "true",
+    );
 
     act(() => {
       window.dispatchEvent(new CustomEvent(TERMINAL_COMPOSE_OPEN_EVENT));

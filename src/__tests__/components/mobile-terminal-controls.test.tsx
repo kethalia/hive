@@ -122,20 +122,21 @@ describe("MobileTerminalControls", () => {
     ).toEqual(["Key controls", "Navigation controls", "Compose controls", "Font size controls"]);
 
     const quickActions = within(carousel).getByRole("group", { name: "Terminal quick actions" });
-    expect(quickActions).toHaveClass("grid", "w-full", "grid-cols-3", "rounded-none");
+    expect(quickActions).toHaveClass("grid", "w-full", "grid-cols-4", "rounded-none");
     expect(quickActions).not.toHaveClass("gap-1");
     expect(within(quickActions).getByRole("button", { name: "Enter" })).toHaveClass(
       "min-h-14",
       "min-w-0",
     );
     expect(within(quickActions).getByRole("button", { name: "Tab" })).toBeInTheDocument();
+    expect(within(quickActions).getByRole("button", { name: "Esc" })).toBeInTheDocument();
     expect(within(quickActions).getByRole("button", { name: "Ctrl+C" })).toBeInTheDocument();
     expect(within(quickActions).queryByRole("button", { name: "More" })).not.toBeInTheDocument();
 
     const navigationControls = within(carousel).getByRole("group", {
       name: "Terminal navigation keys",
     });
-    expect(navigationControls).toHaveClass("grid", "w-full", "grid-cols-5", "rounded-none");
+    expect(navigationControls).toHaveClass("grid", "w-full", "grid-cols-4", "rounded-none");
     expect(within(navigationControls).getByRole("button", { name: "Up" })).toHaveClass(
       "min-h-14",
       "min-w-0",
@@ -169,6 +170,14 @@ describe("MobileTerminalControls", () => {
     expect(Array.from(controls.children)).toEqual([carousel, pageDots]);
   });
 
+  it("moves controls closer to the keyboard when the keyboard is visible", () => {
+    render(<MobileTerminalControls isKeyboardVisible />);
+
+    const controls = screen.getByRole("region", { name: "Terminal mobile controls" });
+    expect(controls).toHaveClass("pb-1");
+    expect(controls).not.toHaveClass("pb-[max(1rem,var(--safe-area-inset-bottom))]");
+  });
+
   it("sends sequences from the first carousel page", () => {
     render(<MobileTerminalControls />);
     const carousel = screen.getByRole("region", { name: "Terminal controls carousel" });
@@ -178,6 +187,8 @@ describe("MobileTerminalControls", () => {
     expect(mockActiveSend).toHaveBeenCalledWith("\r");
     fireEvent.click(within(quickActions).getByRole("button", { name: "Tab" }));
     expect(mockActiveSend).toHaveBeenCalledWith("\t");
+    fireEvent.click(within(quickActions).getByRole("button", { name: "Esc" }));
+    expect(mockActiveSend).toHaveBeenCalledWith("\x1b");
     fireEvent.click(within(quickActions).getByRole("button", { name: "Ctrl+C" }));
     expect(mockActiveSend).toHaveBeenCalledWith("\x03");
   });
@@ -217,7 +228,7 @@ describe("MobileTerminalControls", () => {
     window.removeEventListener(TERMINAL_COMPOSE_OPEN_EVENT, listener);
   });
 
-  it("sends arrow key and Esc sequences from the navigation page", () => {
+  it("sends arrow key sequences from the navigation page", () => {
     render(<MobileTerminalControls />);
     const navigation = screen.getByRole("group", { name: "Terminal navigation keys" });
 
@@ -229,8 +240,6 @@ describe("MobileTerminalControls", () => {
     expect(mockActiveSend).toHaveBeenCalledWith("\x1b[C");
     fireEvent.click(within(navigation).getByRole("button", { name: "Left" }));
     expect(mockActiveSend).toHaveBeenCalledWith("\x1b[D");
-    fireEvent.click(within(navigation).getByRole("button", { name: "Esc" }));
-    expect(mockActiveSend).toHaveBeenCalledWith("\x1b");
   });
 
   it("mobile font stepper is reachable inside the font page", () => {

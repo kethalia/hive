@@ -6,11 +6,11 @@ import {
   ArrowRight,
   ArrowUp,
   CornerDownLeft,
-  Keyboard,
+  DoorOpen,
+  IndentIncrease,
   MessageSquareText,
   Minus,
   Plus,
-  Terminal,
   X,
 } from "lucide-react";
 import type { PointerEvent, MouseEvent as ReactMouseEvent } from "react";
@@ -35,23 +35,27 @@ const NAVIGATION_KEYS = [
   { label: "Down", icon: ArrowDown, sequence: VIRTUAL_KEY_SEQUENCES.Down },
   { label: "Left", icon: ArrowLeft, sequence: VIRTUAL_KEY_SEQUENCES.Left },
   { label: "Right", icon: ArrowRight, sequence: VIRTUAL_KEY_SEQUENCES.Right },
-  { label: "Esc", icon: Terminal, sequence: VIRTUAL_KEY_SEQUENCES.Esc },
 ] as const;
 
 const QUICK_ROW_KEYS = [
   { label: "Enter", icon: CornerDownLeft, sequence: VIRTUAL_KEY_SEQUENCES.Enter },
-  { label: "Tab", icon: Keyboard, sequence: VIRTUAL_KEY_SEQUENCES.Tab },
+  { label: "Tab", icon: IndentIncrease, sequence: VIRTUAL_KEY_SEQUENCES.Tab },
+  { label: "Esc", icon: DoorOpen, sequence: VIRTUAL_KEY_SEQUENCES.Esc },
   { label: "Ctrl+C", icon: X, sequence: VIRTUAL_KEY_SEQUENCES.CtrlC },
 ] as const;
 
 const CONTROL_PAGES = ["Keys", "Navigation", "Compose", "Font size"] as const;
 
 export interface MobileTerminalControlsProps {
+  isKeyboardVisible?: boolean;
   /** Called once for each terminal action press and page-dot navigation. */
   onHapticFeedback?: () => void;
 }
 
-export function MobileTerminalControls({ onHapticFeedback }: MobileTerminalControlsProps = {}) {
+export function MobileTerminalControls({
+  isKeyboardVisible = false,
+  onHapticFeedback,
+}: MobileTerminalControlsProps = {}) {
   const { activeSend } = useKeybindings();
   const [carouselApi, setCarouselApi] = useState<CarouselApi>();
   const [currentPage, setCurrentPage] = useState(0);
@@ -117,7 +121,10 @@ export function MobileTerminalControls({ onHapticFeedback }: MobileTerminalContr
   return (
     <section
       aria-label="Terminal mobile controls"
-      className="shrink-0 border-t bg-background/95 px-2 pt-2 pb-[max(1rem,var(--safe-area-inset-bottom))] backdrop-blur supports-[backdrop-filter]:bg-background/85"
+      className={cn(
+        "shrink-0 border-t bg-background/95 px-2 pt-2 backdrop-blur supports-[backdrop-filter]:bg-background/85",
+        isKeyboardVisible ? "pb-1" : "pb-[max(1rem,var(--safe-area-inset-bottom))]",
+      )}
       data-sidebar-gesture-ignore="true"
       style={{
         touchAction: "manipulation",
@@ -135,7 +142,7 @@ export function MobileTerminalControls({ onHapticFeedback }: MobileTerminalContr
           <CarouselItem aria-label="Key controls" className="pl-2">
             <ButtonGroup
               aria-label="Terminal quick actions"
-              className="grid w-full grid-cols-3 rounded-none"
+              className="grid w-full grid-cols-4 rounded-none"
             >
               {QUICK_ROW_KEYS.map(({ label, icon: Icon, sequence }) => (
                 <Button
@@ -158,7 +165,7 @@ export function MobileTerminalControls({ onHapticFeedback }: MobileTerminalContr
           <CarouselItem aria-label="Navigation controls" className="pl-2">
             <ButtonGroup
               aria-label="Terminal navigation keys"
-              className="grid w-full grid-cols-5 rounded-none"
+              className="grid w-full grid-cols-4 rounded-none"
             >
               {NAVIGATION_KEYS.map(({ label, icon: Icon, sequence }) => (
                 <Button
