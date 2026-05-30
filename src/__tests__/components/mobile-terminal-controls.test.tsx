@@ -30,6 +30,14 @@ vi.mock("@/hooks/useTerminalFontStep", () => ({
 
 import { MobileTerminalControls } from "@/components/terminal/MobileTerminalControls";
 
+function expectStackedLabelThenIcon(button: HTMLElement, label: string) {
+  expect(button).toHaveClass("flex-col", "text-xs", "leading-none");
+  const labelNode = within(button).getByText(label);
+  expect(labelNode.tagName.toLowerCase()).toBe("span");
+  expect(button.firstElementChild).toBe(labelNode);
+  expect(button.lastElementChild?.tagName.toLowerCase()).toBe("svg");
+}
+
 function setViewport(w: number, h: number) {
   Object.defineProperty(window, "innerWidth", { value: w, configurable: true });
   Object.defineProperty(window, "innerHeight", {
@@ -124,31 +132,32 @@ describe("MobileTerminalControls", () => {
     const quickActions = within(carousel).getByRole("group", { name: "Terminal quick actions" });
     expect(quickActions).toHaveClass("grid", "w-full", "grid-cols-4", "rounded-none");
     expect(quickActions).not.toHaveClass("gap-1");
-    expect(within(quickActions).getByRole("button", { name: "Enter" })).toHaveClass(
-      "min-h-14",
-      "min-w-0",
-    );
-    expect(within(quickActions).getByRole("button", { name: "Tab" })).toBeInTheDocument();
-    expect(within(quickActions).getByRole("button", { name: "Esc" })).toBeInTheDocument();
-    expect(within(quickActions).getByRole("button", { name: "Ctrl+C" })).toBeInTheDocument();
+    const enterButton = within(quickActions).getByRole("button", { name: "Enter" });
+    const tabButton = within(quickActions).getByRole("button", { name: "Tab" });
+    const escButton = within(quickActions).getByRole("button", { name: "Esc" });
+    const ctrlCButton = within(quickActions).getByRole("button", { name: "Ctrl+C" });
+    expect(enterButton).toHaveClass("min-h-14", "min-w-0");
+    expectStackedLabelThenIcon(enterButton, "Enter");
+    expectStackedLabelThenIcon(tabButton, "Tab");
+    expectStackedLabelThenIcon(escButton, "Esc");
+    expectStackedLabelThenIcon(ctrlCButton, "Ctrl+C");
     expect(within(quickActions).queryByRole("button", { name: "More" })).not.toBeInTheDocument();
 
     const navigationControls = within(carousel).getByRole("group", {
       name: "Terminal navigation keys",
     });
     expect(navigationControls).toHaveClass("grid", "w-full", "grid-cols-4", "rounded-none");
-    expect(within(navigationControls).getByRole("button", { name: "Up" })).toHaveClass(
-      "min-h-14",
-      "min-w-0",
-    );
+    const upButton = within(navigationControls).getByRole("button", { name: "Up" });
+    expect(upButton).toHaveClass("min-h-14", "min-w-0");
+    expectStackedLabelThenIcon(upButton, "Up");
 
     const composeControls = within(carousel).getByRole("group", {
       name: "Terminal compose controls",
     });
     expect(composeControls).toHaveClass("w-full", "rounded-none");
-    expect(within(composeControls).getByRole("button", { name: "Compose" })).toHaveClass(
-      "min-h-14",
-    );
+    const composeButton = within(composeControls).getByRole("button", { name: "Compose" });
+    expect(composeButton).toHaveClass("min-h-14", "flex-col");
+    expectStackedLabelThenIcon(composeButton, "Compose");
     expect(
       within(carousel).getByRole("group", { name: "Terminal font size controls" }),
     ).toBeInTheDocument();
@@ -174,8 +183,12 @@ describe("MobileTerminalControls", () => {
     render(<MobileTerminalControls isKeyboardVisible />);
 
     const controls = screen.getByRole("region", { name: "Terminal mobile controls" });
-    expect(controls).toHaveClass("pb-1");
+    expect(controls).toHaveClass("pb-0", "flex", "flex-col");
     expect(controls).not.toHaveClass("pb-[max(1rem,var(--safe-area-inset-bottom))]");
+    expect(screen.getByRole("region", { name: "Terminal controls carousel" })).toHaveClass(
+      "order-2",
+    );
+    expect(screen.getByLabelText("Terminal control pages")).toHaveClass("order-1", "mb-1");
   });
 
   it("sends sequences from the first carousel page", () => {
@@ -249,9 +262,11 @@ describe("MobileTerminalControls", () => {
     const decrease = within(fontControls).getByRole("button", { name: "Decrease font size" });
     const increase = within(fontControls).getByRole("button", { name: "Increase font size" });
 
-    expect(decrease).toHaveClass("min-h-14", "min-w-0");
+    expect(decrease).toHaveClass("min-h-14", "min-w-0", "flex-col");
+    expectStackedLabelThenIcon(decrease, "Smaller");
     expect(screen.getByText("12px")).toHaveClass("min-h-14");
-    expect(increase).toHaveClass("min-h-14", "min-w-0");
+    expect(increase).toHaveClass("min-h-14", "min-w-0", "flex-col");
+    expectStackedLabelThenIcon(increase, "Larger");
     fireEvent.click(increase);
     expect(mockIncreaseFontSize).toHaveBeenCalledTimes(1);
     fireEvent.click(decrease);

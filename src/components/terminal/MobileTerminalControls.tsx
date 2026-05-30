@@ -1,13 +1,14 @@
 "use client";
 
+import type { LucideIcon } from "lucide-react";
 import {
   ArrowDown,
   ArrowLeft,
   ArrowRight,
+  ArrowRightToLine,
   ArrowUp,
   CornerDownLeft,
   DoorOpen,
-  IndentIncrease,
   MessageSquareText,
   Minus,
   Plus,
@@ -39,12 +40,22 @@ const NAVIGATION_KEYS = [
 
 const QUICK_ROW_KEYS = [
   { label: "Enter", icon: CornerDownLeft, sequence: VIRTUAL_KEY_SEQUENCES.Enter },
-  { label: "Tab", icon: IndentIncrease, sequence: VIRTUAL_KEY_SEQUENCES.Tab },
+  { label: "Tab", icon: ArrowRightToLine, sequence: VIRTUAL_KEY_SEQUENCES.Tab },
   { label: "Esc", icon: DoorOpen, sequence: VIRTUAL_KEY_SEQUENCES.Esc },
   { label: "Ctrl+C", icon: X, sequence: VIRTUAL_KEY_SEQUENCES.CtrlC },
 ] as const;
 
 const CONTROL_PAGES = ["Keys", "Navigation", "Compose", "Font size"] as const;
+const STACKED_BUTTON_CLASS = "min-h-14 min-w-0 flex-col gap-1 px-1 py-2 text-xs leading-none";
+
+function MobileControlButtonContent({ label, Icon }: { label: string; Icon: LucideIcon }) {
+  return (
+    <>
+      <span className="block w-full text-center font-medium leading-none">{label}</span>
+      <Icon aria-hidden="true" className="size-4" />
+    </>
+  );
+}
 
 export interface MobileTerminalControlsProps {
   isKeyboardVisible?: boolean;
@@ -122,8 +133,8 @@ export function MobileTerminalControls({
     <section
       aria-label="Terminal mobile controls"
       className={cn(
-        "shrink-0 border-t bg-background/95 px-2 pt-2 backdrop-blur supports-[backdrop-filter]:bg-background/85",
-        isKeyboardVisible ? "pb-1" : "pb-[max(1rem,var(--safe-area-inset-bottom))]",
+        "flex shrink-0 flex-col border-t bg-background/95 px-2 pt-2 backdrop-blur supports-[backdrop-filter]:bg-background/85",
+        isKeyboardVisible ? "pb-0" : "pb-[max(1rem,var(--safe-area-inset-bottom))]",
       )}
       data-sidebar-gesture-ignore="true"
       style={{
@@ -133,7 +144,7 @@ export function MobileTerminalControls({
     >
       <Carousel
         aria-label="Terminal controls carousel"
-        className="mt-0"
+        className={cn("mt-0", isKeyboardVisible ? "order-2" : "order-1")}
         data-sidebar-gesture-ignore="true"
         opts={{ align: "start", containScroll: "trimSnaps" }}
         setApi={setCarouselApi}
@@ -149,14 +160,13 @@ export function MobileTerminalControls({
                   key={label}
                   type="button"
                   variant="outline"
-                  className="min-h-14 min-w-0 px-1 text-xs"
+                  className={STACKED_BUTTON_CLASS}
                   style={NO_TOUCH_STYLE}
                   onPointerDown={keepTerminalKeyboardOpen}
                   onMouseDown={keepTerminalKeyboardOpen}
                   onClick={() => sendKey(sequence)}
                 >
-                  <Icon data-icon="inline-start" />
-                  {label}
+                  <MobileControlButtonContent Icon={Icon} label={label} />
                 </Button>
               ))}
             </ButtonGroup>
@@ -172,14 +182,13 @@ export function MobileTerminalControls({
                   key={label}
                   type="button"
                   variant="outline"
-                  className="min-h-14 min-w-0 flex-col gap-1 px-1 py-2 text-xs"
+                  className={STACKED_BUTTON_CLASS}
                   style={NO_TOUCH_STYLE}
                   onPointerDown={keepTerminalKeyboardOpen}
                   onMouseDown={keepTerminalKeyboardOpen}
                   onClick={() => sendKey(sequence)}
                 >
-                  <Icon />
-                  <span>{label}</span>
+                  <MobileControlButtonContent Icon={Icon} label={label} />
                 </Button>
               ))}
             </ButtonGroup>
@@ -190,14 +199,13 @@ export function MobileTerminalControls({
               <Button
                 type="button"
                 variant="outline"
-                className="min-h-14 w-full justify-start text-xs"
+                className="min-h-14 w-full flex-col gap-1 px-1 py-2 text-xs leading-none"
                 style={NO_TOUCH_STYLE}
                 onPointerDown={keepTerminalKeyboardOpen}
                 onMouseDown={keepTerminalKeyboardOpen}
                 onClick={openCompose}
               >
-                <MessageSquareText data-icon="inline-start" />
-                Compose
+                <MobileControlButtonContent Icon={MessageSquareText} label="Compose" />
               </Button>
             </ButtonGroup>
           </CarouselItem>
@@ -207,7 +215,7 @@ export function MobileTerminalControls({
               <Button
                 type="button"
                 variant="outline"
-                className="min-h-14 min-w-0 flex-1"
+                className="min-h-14 min-w-0 flex-1 flex-col gap-1 px-1 py-2 text-xs leading-none"
                 style={NO_TOUCH_STYLE}
                 onPointerDown={keepTerminalKeyboardOpen}
                 onMouseDown={keepTerminalKeyboardOpen}
@@ -215,7 +223,7 @@ export function MobileTerminalControls({
                 disabled={!canDecrease}
                 aria-label="Decrease font size"
               >
-                <Minus />
+                <MobileControlButtonContent Icon={Minus} label="Smaller" />
               </Button>
               <ButtonGroupText className="min-h-14 flex-1 justify-center tabular-nums">
                 {fontSize}px
@@ -223,7 +231,7 @@ export function MobileTerminalControls({
               <Button
                 type="button"
                 variant="outline"
-                className="min-h-14 min-w-0 flex-1"
+                className="min-h-14 min-w-0 flex-1 flex-col gap-1 px-1 py-2 text-xs leading-none"
                 style={NO_TOUCH_STYLE}
                 onPointerDown={keepTerminalKeyboardOpen}
                 onMouseDown={keepTerminalKeyboardOpen}
@@ -231,7 +239,7 @@ export function MobileTerminalControls({
                 disabled={!canIncrease}
                 aria-label="Increase font size"
               >
-                <Plus />
+                <MobileControlButtonContent Icon={Plus} label="Larger" />
               </Button>
             </ButtonGroup>
           </CarouselItem>
@@ -240,7 +248,10 @@ export function MobileTerminalControls({
 
       <nav
         aria-label="Terminal control pages"
-        className="mt-0.5 flex h-4 items-center justify-center gap-1"
+        className={cn(
+          "flex items-center justify-center gap-1",
+          isKeyboardVisible ? "order-1 mb-1 h-4" : "order-2 mt-0.5 h-4",
+        )}
       >
         {CONTROL_PAGES.map((label, index) => (
           <button
