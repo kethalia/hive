@@ -50,6 +50,7 @@ const mockTaskUpdate = vi.fn().mockResolvedValue({});
 const mockTaskFindUnique = vi.fn().mockResolvedValue({ councilSize: 3 });
 const mockWorkspaceCreate = vi.fn().mockResolvedValue({});
 const mockWorkspaceUpdate = vi.fn().mockResolvedValue({});
+const mockWorkspaceUpdateMany = vi.fn().mockResolvedValue({ count: 1 });
 const mockTaskLogCreate = vi.fn().mockResolvedValue({});
 
 vi.mock("@hive/db", () => ({
@@ -61,6 +62,7 @@ vi.mock("@hive/db", () => ({
     workspace: {
       create: mockWorkspaceCreate,
       update: mockWorkspaceUpdate,
+      updateMany: mockWorkspaceUpdateMany,
     },
     taskLog: {
       create: mockTaskLogCreate,

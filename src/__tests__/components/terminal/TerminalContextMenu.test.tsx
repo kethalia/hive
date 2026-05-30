@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, fireEvent, cleanup } from "@testing-library/react";
+
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import "@testing-library/jest-dom/vitest";
 import { TerminalContextMenu } from "@/components/terminal/TerminalContextMenu";
 
@@ -117,6 +118,22 @@ describe("TerminalContextMenu", () => {
     render(<TerminalContextMenu {...defaultProps} onClose={onClose} />);
     fireEvent.pointerDown(document.body);
     expect(onClose).toHaveBeenCalledOnce();
+  });
+
+  it("menu action rows keep 44px touch target classes", () => {
+    render(
+      <TerminalContextMenu {...defaultProps} onNewSession={vi.fn()} onCloseSession={vi.fn()} />,
+    );
+
+    for (const item of [
+      screen.getByRole("menuitem", { name: /copy/i }),
+      screen.getByRole("menuitem", { name: /paste/i }),
+      screen.getByRole("menuitem", { name: /new session/i }),
+      screen.getByRole("menuitem", { name: /close session/i }),
+    ]) {
+      expect(item).toHaveClass("min-h-11");
+      expect(item).toHaveClass("touch-manipulation");
+    }
   });
 
   it("menu shows keyboard shortcut hints", () => {

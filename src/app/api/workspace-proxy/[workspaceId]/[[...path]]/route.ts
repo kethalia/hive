@@ -59,7 +59,7 @@ async function getWorkspaceMeta(userId: string, workspaceId: string): Promise<Wo
 
   const workspace = await client.getWorkspace(workspaceId);
   const sshTarget = await client.getWorkspaceAgentName(workspaceId);
-  const agentName = sshTarget.includes(".") ? sshTarget.split(".").pop()! : sshTarget;
+  const agentName = sshTarget.includes(".") ? (sshTarget.split(".").pop() ?? sshTarget) : sshTarget;
 
   const meta: WorkspaceMeta = {
     owner: workspace.owner_name,

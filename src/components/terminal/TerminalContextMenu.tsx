@@ -1,8 +1,8 @@
 "use client";
 
+import { ClipboardPaste, Copy, Plus, X } from "lucide-react";
 import { useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
-import { Copy, ClipboardPaste, Plus, X } from "lucide-react";
 
 interface TerminalContextMenuProps {
   position: { x: number; y: number } | null;
@@ -74,7 +74,7 @@ export function TerminalContextMenu({
         type="button"
         role="menuitem"
         disabled={!hasSelection}
-        className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm outline-none hover:bg-accent hover:text-accent-foreground disabled:pointer-events-none disabled:opacity-50"
+        className="flex min-h-11 w-full touch-manipulation items-center gap-2 rounded-md px-2 py-1.5 text-sm outline-none hover:bg-accent hover:text-accent-foreground disabled:pointer-events-none disabled:opacity-50"
         onClick={() => {
           onCopy();
           onClose();
@@ -87,7 +87,7 @@ export function TerminalContextMenu({
       <button
         type="button"
         role="menuitem"
-        className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm outline-none hover:bg-accent hover:text-accent-foreground"
+        className="flex min-h-11 w-full touch-manipulation items-center gap-2 rounded-md px-2 py-1.5 text-sm outline-none hover:bg-accent hover:text-accent-foreground"
         onClick={() => {
           onPaste();
           onClose();
@@ -104,7 +104,7 @@ export function TerminalContextMenu({
             <button
               type="button"
               role="menuitem"
-              className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm outline-none hover:bg-accent hover:text-accent-foreground"
+              className="flex min-h-11 w-full touch-manipulation items-center gap-2 rounded-md px-2 py-1.5 text-sm outline-none hover:bg-accent hover:text-accent-foreground"
               onClick={() => {
                 onNewSession();
                 onClose();
@@ -118,7 +118,7 @@ export function TerminalContextMenu({
             <button
               type="button"
               role="menuitem"
-              className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm outline-none hover:bg-destructive/10 hover:text-destructive"
+              className="flex min-h-11 w-full touch-manipulation items-center gap-2 rounded-md px-2 py-1.5 text-sm outline-none hover:bg-destructive/10 hover:text-destructive"
               onClick={() => {
                 onCloseSession();
                 onClose();

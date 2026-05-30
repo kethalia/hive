@@ -1,7 +1,8 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useEffect } from "react";
+import { useCallback, useEffect } from "react";
+import { PullToRefresh } from "@/components/ui/pull-to-refresh";
 import { POLL_INTERVAL_MS } from "@/lib/constants";
 
 /**
@@ -11,14 +12,15 @@ import { POLL_INTERVAL_MS } from "@/lib/constants";
  */
 export function TaskListPoller({ children }: { children: React.ReactNode }) {
   const router = useRouter();
-
-  useEffect(() => {
-    const interval = setInterval(() => {
-      router.refresh();
-    }, POLL_INTERVAL_MS);
-
-    return () => clearInterval(interval);
+  const refreshTasks = useCallback(() => {
+    return router.refresh();
   }, [router]);
 
-  return <>{children}</>;
+  useEffect(() => {
+    const interval = setInterval(refreshTasks, POLL_INTERVAL_MS);
+
+    return () => clearInterval(interval);
+  }, [refreshTasks]);
+
+  return <PullToRefresh onRefresh={refreshTasks}>{children}</PullToRefresh>;
 }

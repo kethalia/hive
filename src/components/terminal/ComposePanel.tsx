@@ -1,26 +1,28 @@
 "use client";
 
-import { useCallback, useEffect, useRef } from "react";
-import { Send, X } from "lucide-react";
+import { Send } from "lucide-react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
+import { ButtonGroup } from "@/components/ui/button-group";
 import { useKeybindings } from "@/hooks/useKeybindings";
 
 interface ComposePanelProps {
   onClose: () => void;
+  hideHeader?: boolean;
 }
 
-export function ComposePanel({ onClose }: ComposePanelProps) {
+export function ComposePanel({ onClose, hideHeader = false }: ComposePanelProps) {
   const { activeSend } = useKeybindings();
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const [draft, setDraft] = useState("");
 
   const sendComposed = useCallback(() => {
-    const textarea = textareaRef.current;
-    if (!textarea?.value || !activeSend) return;
-    activeSend(textarea.value);
+    if (!draft || !activeSend) return;
+    activeSend(draft);
     activeSend("\r");
-    textarea.value = "";
-    textarea.focus();
-  }, [activeSend]);
+    setDraft("");
+    onClose();
+  }, [activeSend, draft, onClose]);
 
   useEffect(() => {
     textareaRef.current?.focus();
@@ -39,37 +41,39 @@ export function ComposePanel({ onClose }: ComposePanelProps) {
 
   return (
     <div className="flex h-full flex-col bg-background">
-      <div className="flex items-center justify-between border-b border-border px-3 py-1">
-        <span className="text-xs font-medium text-muted-foreground">
-          Compose — Ctrl/Cmd+Enter to send
-        </span>
-        <Button
-          variant="ghost"
-          size="sm"
-          className="h-6 w-6 p-0"
-          onClick={onClose}
-          aria-label="Close compose panel"
-        >
-          <X className="h-3.5 w-3.5" />
-        </Button>
-      </div>
-      <div className="relative flex-1">
+      {!hideHeader && (
+        <div className="flex items-center border-b border-border px-3 py-1">
+          <span className="text-xs font-medium text-muted-foreground">
+            Compose — Ctrl/Cmd+Enter to send
+          </span>
+        </div>
+      )}
+      <div className="min-h-0 flex-1">
         <textarea
           ref={textareaRef}
           className="h-full w-full resize-none bg-[#0a0a0a] p-3 font-mono text-sm text-foreground placeholder:text-muted-foreground focus:outline-none"
           placeholder="Type multi-line command..."
+          value={draft}
+          onChange={(event) => setDraft(event.currentTarget.value)}
           onKeyDown={handleKeyDown}
         />
-        <Button
-          size="sm"
-          className="absolute bottom-2 right-2 gap-1.5"
-          onClick={sendComposed}
-          disabled={!activeSend}
-          aria-label="Send command"
-        >
-          <Send className="h-3.5 w-3.5" />
-          Send
-        </Button>
+      </div>
+      <div className="border-t border-border p-3">
+        <ButtonGroup aria-label="Compose actions" className="w-full rounded-none">
+          <Button type="button" variant="outline" className="min-h-11 flex-1" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button
+            type="button"
+            className="min-h-11 flex-1"
+            onClick={sendComposed}
+            disabled={!activeSend || !draft}
+            aria-label="Send command"
+          >
+            <Send data-icon="inline-start" />
+            Send
+          </Button>
+        </ButtonGroup>
       </div>
     </div>
   );

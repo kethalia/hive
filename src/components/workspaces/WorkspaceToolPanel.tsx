@@ -59,7 +59,7 @@ export function WorkspaceToolPanel({
   const urls = buildWorkspaceUrls(workspace, agentName, coderUrl);
   const isRunning = workspace.latest_build.status === "running";
 
-  const activeDef = tools.find((t) => t.id === activeTool)!;
+  const activeDef = tools.find((t) => t.id === activeTool) ?? tools[0];
   const ActiveIcon = activeDef.icon;
 
   const proxyBase = `/api/workspace-proxy/${workspace.id}`;
@@ -108,7 +108,7 @@ export function WorkspaceToolPanel({
         <Breadcrumb>
           <BreadcrumbList>
             <BreadcrumbItem>
-              <BreadcrumbLink render={<Link href="/tasks" />}>Workspaces</BreadcrumbLink>
+              <BreadcrumbLink render={<Link href="/workspaces" />}>Workspaces</BreadcrumbLink>
             </BreadcrumbItem>
             <BreadcrumbSeparator />
             <BreadcrumbItem>

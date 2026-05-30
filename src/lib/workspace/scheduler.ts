@@ -88,14 +88,17 @@ async function sweep(coderClient: CoderClient, db: PrismaClient, graceMs: number
 
     let cleaned = 0;
     for (const ws of staleWorkspaces) {
+      const coderWorkspaceId = ws.coderWorkspaceId;
+      if (!coderWorkspaceId) {
+        continue;
+      }
+
       try {
-        await cleanupWorkspace(coderClient, ws.coderWorkspaceId!, 0, db);
+        await cleanupWorkspace(coderClient, coderWorkspaceId, 0, db);
         cleaned++;
       } catch (error) {
         const msg = error instanceof Error ? error.message : String(error);
-        console.error(
-          `[cleanup-scheduler] failed to clean workspace=${ws.coderWorkspaceId}: ${msg}`,
-        );
+        console.error(`[cleanup-scheduler] failed to clean workspace=${coderWorkspaceId}: ${msg}`);
       }
     }
 

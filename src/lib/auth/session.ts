@@ -2,6 +2,8 @@ import type { SessionData } from "@hive/auth";
 import { SESSION_COOKIE_NAME, SESSION_MAX_AGE_SECONDS, signCookie, verifyCookie } from "@hive/auth";
 import { getAuthServiceClient } from "./service-client";
 
+export type { SessionData } from "@hive/auth";
+
 export async function getSession(cookieStore: {
   get(name: string): { value: string } | undefined;
 }): Promise<SessionData | null> {

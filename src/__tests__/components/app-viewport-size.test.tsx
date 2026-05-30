@@ -1,0 +1,47 @@
+// @vitest-environment jsdom
+import { cleanup, render } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import "@testing-library/jest-dom/vitest";
+import { AppViewportSize } from "@/components/app-viewport-size";
+
+afterEach(() => {
+  cleanup();
+  document.documentElement.style.removeProperty("--app-window-inner-height");
+  document.documentElement.style.removeProperty("--app-visual-viewport-height");
+  document.documentElement.style.removeProperty("--app-visual-viewport-offset-top");
+  vi.unstubAllGlobals();
+});
+
+describe("AppViewportSize", () => {
+  it("publishes measured viewport heights without overriding the CSS app viewport", () => {
+    const addVisualViewportListener = vi.fn();
+    const removeVisualViewportListener = vi.fn();
+
+    Object.defineProperty(window, "innerHeight", { configurable: true, value: 844 });
+    Object.defineProperty(window, "visualViewport", {
+      configurable: true,
+      value: {
+        addEventListener: addVisualViewportListener,
+        height: 810,
+        offsetTop: 42,
+        removeEventListener: removeVisualViewportListener,
+      },
+    });
+
+    const { unmount } = render(<AppViewportSize />);
+
+    expect(document.documentElement.style.getPropertyValue("--app-viewport-height")).toBe("");
+    expect(document.documentElement).toHaveStyle({
+      "--app-window-inner-height": "844px",
+      "--app-visual-viewport-height": "810px",
+      "--app-visual-viewport-offset-top": "42px",
+    });
+    expect(addVisualViewportListener).toHaveBeenCalledWith("resize", expect.any(Function));
+    expect(addVisualViewportListener).toHaveBeenCalledWith("scroll", expect.any(Function));
+
+    unmount();
+
+    expect(removeVisualViewportListener).toHaveBeenCalledWith("resize", expect.any(Function));
+    expect(removeVisualViewportListener).toHaveBeenCalledWith("scroll", expect.any(Function));
+  });
+});

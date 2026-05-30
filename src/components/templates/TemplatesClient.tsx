@@ -7,6 +7,19 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import {
+  CardStack,
+  ListCard,
+  ListCardAction,
+  ListCardActions,
+  ListCardHeader,
+  ListCardMeta,
+  ListCardMetaBadge,
+  ListCardRow,
+  ListCardRows,
+  ListCardTitle,
+} from "@/components/ui/list-card";
+import { PullToRefresh } from "@/components/ui/pull-to-refresh";
+import {
   Table,
   TableBody,
   TableCell,
@@ -218,67 +231,147 @@ export function TemplatesClient({ initialStatuses }: TemplatesClientProps) {
         </Button>
       </div>
 
-      {/* Table */}
-      <Card>
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Name</TableHead>
-              <TableHead>Last Pushed</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead className="text-right">Action</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {statuses.map((status) => {
+      {/* Status list */}
+      <PullToRefresh onRefresh={refreshStatuses} data-refresh-surface="templates-status-list">
+        <Card className="hidden md:block" data-testid="templates-desktop-table">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Name</TableHead>
+                <TableHead>Last Pushed</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead className="text-right">Action</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {statuses.map((status) => {
+                const push = pushStates[status.name];
+                const isInProgress = push?.inProgress === true;
+
+                return (
+                  <TableRow key={status.name}>
+                    <TableCell>
+                      <code className="text-sm font-mono">{status.name}</code>
+                    </TableCell>
+                    <TableCell className="text-muted-foreground text-sm">
+                      {formatDate(status.lastPushed)}
+                    </TableCell>
+                    <TableCell>
+                      <StatusBadge
+                        status={status}
+                        pushResult={push?.result ?? null}
+                        inProgress={isInProgress}
+                      />
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <div className="flex items-center justify-end gap-2">
+                        {push?.result === true && (
+                          <CheckCircle className="h-4 w-4 text-green-500" />
+                        )}
+                        {push?.result === false && <XCircle className="h-4 w-4 text-destructive" />}
+                        <Button
+                          size="sm"
+                          variant={status.stale ? "default" : "outline"}
+                          disabled={isInProgress}
+                          onClick={() => handlePush(status.name)}
+                        >
+                          {isInProgress ? (
+                            <>
+                              <RefreshCw className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                              Pushing…
+                            </>
+                          ) : (
+                            <>
+                              <Upload className="mr-1.5 h-3.5 w-3.5" />
+                              Push
+                            </>
+                          )}
+                        </Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
+            </TableBody>
+          </Table>
+        </Card>
+
+        <CardStack aria-label="Template statuses" data-testid="templates-mobile-card-stack">
+          {statuses.length === 0 ? (
+            <ListCard data-testid="templates-empty-card">
+              <ListCardHeader>
+                <ListCardTitle>No templates found</ListCardTitle>
+                <ListCardMeta>Pull down or use Refresh to check again.</ListCardMeta>
+              </ListCardHeader>
+            </ListCard>
+          ) : (
+            statuses.map((status) => {
               const push = pushStates[status.name];
               const isInProgress = push?.inProgress === true;
 
               return (
-                <TableRow key={status.name}>
-                  <TableCell>
-                    <code className="text-sm font-mono">{status.name}</code>
-                  </TableCell>
-                  <TableCell className="text-muted-foreground text-sm">
-                    {formatDate(status.lastPushed)}
-                  </TableCell>
-                  <TableCell>
-                    <StatusBadge
-                      status={status}
-                      pushResult={push?.result ?? null}
-                      inProgress={isInProgress}
-                    />
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <div className="flex items-center justify-end gap-2">
-                      {push?.result === true && <CheckCircle className="h-4 w-4 text-green-500" />}
-                      {push?.result === false && <XCircle className="h-4 w-4 text-destructive" />}
-                      <Button
-                        size="sm"
-                        variant={status.stale ? "default" : "outline"}
-                        disabled={isInProgress}
-                        onClick={() => handlePush(status.name)}
+                <ListCard key={status.name} data-testid="template-mobile-card">
+                  <ListCardHeader>
+                    <ListCardTitle>
+                      <code className="break-words font-mono text-base">{status.name}</code>
+                    </ListCardTitle>
+                    <ListCardMeta>
+                      <ListCardMetaBadge variant="outline">
+                        {formatDate(status.lastPushed)}
+                      </ListCardMetaBadge>
+                      <StatusBadge
+                        status={status}
+                        pushResult={push?.result ?? null}
+                        inProgress={isInProgress}
+                      />
+                    </ListCardMeta>
+                  </ListCardHeader>
+                  <ListCardRows>
+                    <ListCardRow label="Last pushed">{formatDate(status.lastPushed)}</ListCardRow>
+                  </ListCardRows>
+                  <ListCardActions>
+                    {push?.result === true && (
+                      <span
+                        role="img"
+                        aria-label="Push succeeded"
+                        className="inline-flex min-h-11 items-center text-green-500"
                       >
-                        {isInProgress ? (
-                          <>
-                            <RefreshCw className="mr-1.5 h-3.5 w-3.5 animate-spin" />
-                            Pushing…
-                          </>
-                        ) : (
-                          <>
-                            <Upload className="mr-1.5 h-3.5 w-3.5" />
-                            Push
-                          </>
-                        )}
-                      </Button>
-                    </div>
-                  </TableCell>
-                </TableRow>
+                        <CheckCircle className="h-4 w-4" aria-hidden="true" />
+                      </span>
+                    )}
+                    {push?.result === false && (
+                      <span
+                        role="img"
+                        aria-label="Push failed"
+                        className="inline-flex min-h-11 items-center text-destructive"
+                      >
+                        <XCircle className="h-4 w-4" aria-hidden="true" />
+                      </span>
+                    )}
+                    <ListCardAction
+                      type="button"
+                      disabled={isInProgress}
+                      onClick={() => handlePush(status.name)}
+                    >
+                      {isInProgress ? (
+                        <>
+                          <RefreshCw className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                          Pushing…
+                        </>
+                      ) : (
+                        <>
+                          <Upload className="mr-1.5 h-3.5 w-3.5" />
+                          Push
+                        </>
+                      )}
+                    </ListCardAction>
+                  </ListCardActions>
+                </ListCard>
               );
-            })}
-          </TableBody>
-        </Table>
-      </Card>
+            })
+          )}
+        </CardStack>
+      </PullToRefresh>
 
       {/* Terminal panels — one per in-progress or recently completed push */}
       {statuses.map((status) => {

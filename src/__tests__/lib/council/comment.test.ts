@@ -61,7 +61,7 @@ describe("postPRComment", () => {
     await postPRComment("https://github.com/owner/repo/pull/2", "My comment body");
 
     expect(mockedExecFile).toHaveBeenCalledOnce();
-    const [cmd, args] = mockedExecFile.mock.calls[0] as [string, string[]];
+    const [cmd, args] = mockedExecFile.mock.calls[0] as unknown as [string, string[]];
     expect(cmd).toBe("gh");
     expect(args[0]).toBe("pr");
     expect(args[1]).toBe("comment");
