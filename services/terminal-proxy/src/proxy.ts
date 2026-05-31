@@ -111,6 +111,10 @@ function validateClonePathSegments(
   return { ok: true, pathSegments };
 }
 
+function logPreAuthRejection(reason: string): void {
+  console.error(`[terminal-proxy] upgrade rejected before auth: ${reason}`);
+}
+
 function validateCloneCwd(sessionName: string, clonePath: string | null): CloneCwdValidationResult {
   const usesCloneSessionPrefix = sessionName.startsWith(CLONE_TERMINAL_SESSION_PREFIX);
 
@@ -163,7 +167,7 @@ export async function handleUpgrade(
 ): Promise<void> {
   const origin = req.headers.origin as string | undefined;
   if (!isOriginAllowed(origin)) {
-    console.error(`[terminal-proxy] Origin rejected: ${origin ?? "(none)"}`);
+    logPreAuthRejection("origin_rejected");
     socket.write("HTTP/1.1 403 Forbidden\r\n\r\n");
     socket.destroy();
     return;
@@ -175,7 +179,7 @@ export async function handleUpgrade(
   const workspaceId = url.searchParams.get("workspaceId");
 
   if (workspaceId && !UUID_RE.test(workspaceId)) {
-    console.error(`[terminal-proxy] Invalid workspaceId format: ${workspaceId}`);
+    logPreAuthRejection("workspaceId_invalid_format");
     socket.write("HTTP/1.1 400 Bad Request\r\n\r\n");
     socket.destroy();
     return;
@@ -187,28 +191,28 @@ export async function handleUpgrade(
   const clonePath = url.searchParams.get("clonePath");
 
   if (!agentId || !reconnectId) {
-    console.error("[terminal-proxy] Missing required params: agentId, reconnectId");
+    logPreAuthRejection("required_params_missing");
     socket.write("HTTP/1.1 400 Bad Request\r\n\r\n");
     socket.destroy();
     return;
   }
 
   if (!UUID_RE.test(agentId)) {
-    console.error(`[terminal-proxy] Invalid agentId format: ${agentId}`);
+    logPreAuthRejection("agentId_invalid_format");
     socket.write("HTTP/1.1 400 Bad Request\r\n\r\n");
     socket.destroy();
     return;
   }
 
   if (!UUID_RE.test(reconnectId)) {
-    console.error(`[terminal-proxy] Invalid reconnectId format: ${reconnectId}`);
+    logPreAuthRejection("reconnectId_invalid_format");
     socket.write("HTTP/1.1 400 Bad Request\r\n\r\n");
     socket.destroy();
     return;
   }
 
   if (!SAFE_IDENTIFIER_RE.test(sessionName)) {
-    console.error(`[terminal-proxy] Unsafe sessionName: ${sessionName}`);
+    logPreAuthRejection("sessionName_unsafe");
     socket.write("HTTP/1.1 400 Bad Request\r\n\r\n");
     socket.destroy();
     return;
@@ -216,7 +220,7 @@ export async function handleUpgrade(
 
   const cloneCwd = validateCloneCwd(sessionName, clonePath);
   if (!cloneCwd.ok) {
-    console.error(`[terminal-proxy] Invalid clonePath/session combination: ${cloneCwd.reason}`);
+    logPreAuthRejection(cloneCwd.reason);
     socket.write("HTTP/1.1 400 Bad Request\r\n\r\n");
     socket.destroy();
     return;

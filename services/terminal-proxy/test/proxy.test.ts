@@ -102,6 +102,16 @@ async function expectBadUpgrade(
   return socket;
 }
 
+async function captureConsoleErrors(run: () => Promise<void>): Promise<string> {
+  const errorSpy = vi.spyOn(console, "error").mockImplementation(() => undefined);
+  try {
+    await run();
+    return errorSpy.mock.calls.flat().map(String).join("\n");
+  } finally {
+    errorSpy.mockRestore();
+  }
+}
+
 describe("handleUpgrade", () => {
   const originalEnv = process.env;
 
@@ -296,6 +306,68 @@ describe("handleUpgrade", () => {
     expect(mockAuth).not.toHaveBeenCalled();
   });
 
+  it("logs only sanitized reason codes for clone validation failures before auth", async () => {
+    const attackerSessionName = "git-clone-00000000000000000000000000000000";
+    const attackerClonePath = "kethalia/secret marker";
+
+    const logged = await captureConsoleErrors(async () => {
+      await expectBadUpgrade({
+        ...validParams,
+        sessionName: attackerSessionName,
+        clonePath: attackerClonePath,
+      });
+    });
+
+    expect(logged).toContain("upgrade rejected before auth");
+    expect(logged).toContain("clone_session_mismatch");
+    expect(logged).not.toContain(attackerSessionName);
+    expect(logged).not.toContain(attackerClonePath);
+    expect(mockAuth).not.toHaveBeenCalled();
+  });
+
+  it("does not echo malformed clonePath values in rejection logs", async () => {
+    const attackerClonePath = "kethalia/secret-marker\0repo";
+
+    const logged = await captureConsoleErrors(async () => {
+      await expectBadUpgrade({
+        ...validParams,
+        sessionName: createCanonicalCloneSessionName("kethalia/hive"),
+        clonePath: attackerClonePath,
+      });
+    });
+
+    expect(logged).toContain("clonePath_nul");
+    expect(logged).not.toContain("secret-marker");
+    expect(mockAuth).not.toHaveBeenCalled();
+  });
+
+  it("does not echo invalid non-clone pre-auth values in rejection logs", async () => {
+    const attackerSessionName = "bad`echo secret-marker`";
+
+    const logged = await captureConsoleErrors(async () => {
+      await expectBadUpgrade({ ...validParams, sessionName: attackerSessionName });
+    });
+
+    expect(logged).toContain("sessionName_unsafe");
+    expect(logged).not.toContain(attackerSessionName);
+    expect(logged).not.toContain("secret-marker");
+    expect(mockAuth).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["agentId_invalid_format", { agentId: "not-a-uuid-secret-marker" }],
+    ["reconnectId_invalid_format", { reconnectId: "not-a-uuid-secret-marker" }],
+    ["workspaceId_invalid_format", { workspaceId: "not-a-uuid-secret-marker" }],
+  ])("logs only reason codes for invalid %s before auth", async (reason, overrides) => {
+    const logged = await captureConsoleErrors(async () => {
+      await expectBadUpgrade({ ...validParams, ...overrides });
+    });
+
+    expect(logged).toContain(reason);
+    expect(logged).not.toContain("not-a-uuid-secret-marker");
+    expect(mockAuth).not.toHaveBeenCalled();
+  });
+
   it("rejects env-root sibling escapes without logging the configured root", async () => {
     process.env.HIVE_PROJECTS_ROOT = "/secret/projects-root";
     const errorSpy = vi.spyOn(console, "error").mockImplementation(() => undefined);
@@ -356,6 +428,21 @@ describe("handleUpgrade", () => {
     await handleUpgrade(makeReq(validParams, "https://evil.example.com"), socket, Buffer.alloc(0));
     expect(socket.written[0]).toContain("403");
     expect(socket.destroy).toHaveBeenCalled();
+  });
+
+  it("does not echo rejected origin values in logs before auth", async () => {
+    const attackerOrigin = "https://evil.example.com/secret-marker";
+    const socket = makeSocket();
+
+    const logged = await captureConsoleErrors(async () => {
+      await handleUpgrade(makeReq(validParams, attackerOrigin), socket, Buffer.alloc(0));
+    });
+
+    expect(socket.written[0]).toContain("403");
+    expect(logged).toContain("origin_rejected");
+    expect(logged).not.toContain(attackerOrigin);
+    expect(logged).not.toContain("secret-marker");
+    expect(mockAuth).not.toHaveBeenCalled();
   });
 
   it("accepts localhost origins by default", async () => {
