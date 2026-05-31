@@ -14,10 +14,21 @@ vi.mock("@/lib/git/clone-discovery", () => ({
 }));
 
 import { cookies } from "next/headers";
-import { listGitClonesAction } from "@/lib/actions/git-clones";
+import {
+  DEFAULT_PROJECTS_ROOT_PATH,
+  listGitClonesAction,
+  PROJECTS_ROOT_ENV_KEY,
+  resolveConfiguredProjectsRoot,
+  resolveGitCloneTerminalAction,
+} from "@/lib/actions/git-clones";
 import { getSession } from "@/lib/auth/session";
+import { SAFE_IDENTIFIER_RE } from "@/lib/constants";
 import { discoverProjectCloneTree } from "@/lib/git/clone-discovery";
-import type { CloneTree, CloneTreeNode } from "@/lib/git/clone-tree";
+import {
+  CLONE_TERMINAL_SESSION_PREFIX,
+  type CloneTree,
+  type CloneTreeNode,
+} from "@/lib/git/clone-tree";
 
 const mockedCookies = vi.mocked(cookies);
 const mockedGetSession = vi.mocked(getSession);
@@ -44,7 +55,7 @@ describe("listGitClonesAction", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.unstubAllEnvs();
-    vi.stubEnv("HIVE_PROJECTS_ROOT", PRIVATE_ROOT);
+    vi.stubEnv(PROJECTS_ROOT_ENV_KEY, PRIVATE_ROOT);
     vi.spyOn(console, "log").mockImplementation(() => {});
     vi.spyOn(console, "error").mockImplementation(() => {});
 
@@ -194,6 +205,159 @@ describe("listGitClonesAction", () => {
   });
 });
 
+describe("resolveGitCloneTerminalAction", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.unstubAllEnvs();
+    vi.stubEnv(PROJECTS_ROOT_ENV_KEY, PRIVATE_ROOT);
+    vi.spyOn(console, "log").mockImplementation(() => {});
+    vi.spyOn(console, "error").mockImplementation(() => {});
+
+    mockedCookies.mockResolvedValue({
+      get: () => ({ value: "session-cookie-value" }),
+    } as never);
+    mockedGetSession.mockResolvedValue(MOCK_SESSION);
+  });
+
+  it("exports projects-root configuration helpers without changing list behavior", () => {
+    expect(resolveConfiguredProjectsRoot()).toBe(resolve(PRIVATE_ROOT));
+
+    vi.unstubAllEnvs();
+
+    expect(resolveConfiguredProjectsRoot()).toBe(resolve(DEFAULT_PROJECTS_ROOT_PATH));
+  });
+
+  it("revalidates a selected repository and returns only safe route-ready terminal identity", async () => {
+    mockedDiscoverProjectCloneTree.mockResolvedValue(
+      makeCloneTree({
+        nodes: [directoryNode],
+      }),
+    );
+
+    const result = await resolveGitCloneTerminalAction({
+      cloneSessionKey: repositoryNode.cloneSessionKey,
+      relativePath: repositoryNode.relativePath,
+    });
+
+    expect(mockedDiscoverProjectCloneTree).toHaveBeenCalledWith(resolve(PRIVATE_ROOT));
+    expect(result?.serverError).toBeUndefined();
+    expect(result?.data).toEqual({
+      sessionName: expect.any(String),
+      clonePath: "kethalia/hive",
+      cloneSessionKey: "git-clone:Git/projects/kethalia/hive",
+    });
+    expect(result?.data?.sessionName).toMatch(SAFE_IDENTIFIER_RE);
+    expect(result?.data?.sessionName).toMatch(new RegExp(`^${CLONE_TERMINAL_SESSION_PREFIX}`));
+    expect(result?.data?.sessionName).not.toContain(":");
+    expect(result?.data?.sessionName).not.toContain("/");
+    expect(JSON.stringify(result?.data)).not.toContain(PRIVATE_ROOT);
+    expect(JSON.stringify(result?.data)).not.toContain("SUPER_SECRET_TOKEN");
+  });
+
+  it("refuses stale or tampered selections that do not match both key and path", async () => {
+    mockedDiscoverProjectCloneTree.mockResolvedValue(makeCloneTree());
+
+    const result = await resolveGitCloneTerminalAction({
+      cloneSessionKey: repositoryNode.cloneSessionKey,
+      relativePath: "kethalia/other",
+    });
+
+    expect(result?.serverError).toBe(
+      "We couldn't verify that Git repository. Refresh and try again.",
+    );
+    expect(result?.data).toBeUndefined();
+    expect(JSON.stringify(result)).not.toContain(PRIVATE_ROOT);
+    expect(JSON.stringify(result)).not.toContain("SUPER_SECRET_TOKEN");
+  });
+
+  it("refuses missing repositories after scanner revalidation", async () => {
+    mockedDiscoverProjectCloneTree.mockResolvedValue(makeCloneTree({ nodes: [] }));
+
+    const result = await resolveGitCloneTerminalAction({
+      cloneSessionKey: repositoryNode.cloneSessionKey,
+      relativePath: repositoryNode.relativePath,
+    });
+
+    expect(result?.serverError).toBe(
+      "We couldn't verify that Git repository. Refresh and try again.",
+    );
+    expect(result?.data).toBeUndefined();
+  });
+
+  it("returns a sanitized unavailable error when the configured root is missing", async () => {
+    mockedDiscoverProjectCloneTree.mockResolvedValue(
+      makeCloneTree({
+        nodes: [],
+        diagnostics: {
+          rootLabel: "Git",
+          repoCount: 0,
+          directoryCount: 0,
+          skippedPaths: [{ relativePath: ".", reason: "not-directory" }],
+          truncated: false,
+          durationMs: 9,
+        },
+      }),
+    );
+
+    const result = await resolveGitCloneTerminalAction({
+      cloneSessionKey: repositoryNode.cloneSessionKey,
+      relativePath: repositoryNode.relativePath,
+    });
+
+    expect(result?.serverError).toBe(
+      "Projects folder is not available. Create or mount the configured projects root, then refresh.",
+    );
+    expect(JSON.stringify(result)).not.toContain(PRIVATE_ROOT);
+    expect(JSON.stringify(result)).not.toContain("SUPER_SECRET_TOKEN");
+  });
+
+  it("returns a generic scan failure when scanner errors contain path secrets", async () => {
+    mockedDiscoverProjectCloneTree.mockRejectedValue(
+      new Error(`scan exploded at ${PRIVATE_ROOT} with SUPER_SECRET_TOKEN`),
+    );
+
+    const result = await resolveGitCloneTerminalAction({
+      cloneSessionKey: repositoryNode.cloneSessionKey,
+      relativePath: repositoryNode.relativePath,
+    });
+
+    expect(result?.serverError).toBe(
+      "We couldn't scan projects for Git clones. Refresh and try again.",
+    );
+    expect(JSON.stringify(result)).not.toContain(PRIVATE_ROOT);
+    expect(JSON.stringify(result)).not.toContain("SUPER_SECRET_TOKEN");
+    expect(JSON.stringify(vi.mocked(console.error).mock.calls)).not.toContain(PRIVATE_ROOT);
+    expect(JSON.stringify(vi.mocked(console.error).mock.calls)).not.toContain("SUPER_SECRET_TOKEN");
+  });
+
+  it("rejects malformed or traversal-like input before invoking the scanner", async () => {
+    const emptyResult = await resolveGitCloneTerminalAction({
+      cloneSessionKey: "",
+      relativePath: repositoryNode.relativePath,
+    });
+    const traversalResult = await resolveGitCloneTerminalAction({
+      cloneSessionKey: repositoryNode.cloneSessionKey,
+      relativePath: "../secrets/repo",
+    });
+
+    expect(emptyResult?.validationErrors).toBeDefined();
+    expect(traversalResult?.validationErrors).toBeDefined();
+    expect(mockedDiscoverProjectCloneTree).not.toHaveBeenCalled();
+  });
+
+  it("requires authentication before resolving or scanning clone terminals", async () => {
+    mockedGetSession.mockResolvedValueOnce(null);
+
+    const result = await resolveGitCloneTerminalAction({
+      cloneSessionKey: repositoryNode.cloneSessionKey,
+      relativePath: repositoryNode.relativePath,
+    });
+
+    expect(result?.serverError).toBe("Not authenticated");
+    expect(mockedDiscoverProjectCloneTree).not.toHaveBeenCalled();
+  });
+});
+
 const repositoryNode = {
   id: "git-repository:Git/projects/kethalia/hive",
   kind: "repository",
@@ -202,6 +366,16 @@ const repositoryNode = {
   relativePathSegments: ["kethalia", "hive"],
   displaySegments: ["Git", "projects", "kethalia", "hive"],
   cloneSessionKey: "git-clone:Git/projects/kethalia/hive",
+} satisfies CloneTreeNode;
+
+const directoryNode = {
+  id: "git-directory:Git/projects/kethalia",
+  kind: "directory",
+  label: "kethalia",
+  relativePath: "kethalia",
+  relativePathSegments: ["kethalia"],
+  displaySegments: ["Git", "projects", "kethalia"],
+  children: [repositoryNode],
 } satisfies CloneTreeNode;
 
 function makeCloneTree(overrides: Partial<CloneTree> = {}): CloneTree {

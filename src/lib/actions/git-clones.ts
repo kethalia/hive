@@ -1,22 +1,27 @@
 "use server";
 
 import { resolve } from "node:path";
+import { z } from "zod";
 import { discoverProjectCloneTree } from "@/lib/git/clone-discovery";
-import type {
-  CloneTree,
-  CloneTreeDiagnostics,
-  CloneTreeSkippedPathReason,
+import {
+  type CloneTree,
+  type CloneTreeDiagnostics,
+  type CloneTreeNode,
+  type CloneTreeRepositoryNode,
+  type CloneTreeSkippedPathReason,
+  createSafeCloneTerminalSessionName,
 } from "@/lib/git/clone-tree";
 import { authActionClient } from "@/lib/safe-action";
 
-const PROJECTS_ROOT_ENV_KEY = "HIVE_PROJECTS_ROOT";
-const DEFAULT_PROJECTS_ROOT_PATH = "/home/coder/projects";
+export const PROJECTS_ROOT_ENV_KEY = "HIVE_PROJECTS_ROOT";
+export const DEFAULT_PROJECTS_ROOT_PATH = "/home/coder/projects";
 
 const SUCCESS_MESSAGE = "Git clones discovered.";
 const EMPTY_MESSAGE = "No Git clones found in the configured projects root.";
 const MISSING_ROOT_MESSAGE =
   "Projects folder is not available. Create or mount the configured projects root, then refresh.";
 const SCAN_FAILED_MESSAGE = "We couldn't scan projects for Git clones. Refresh and try again.";
+const INVALID_SELECTION_MESSAGE = "We couldn't verify that Git repository. Refresh and try again.";
 
 export type PublicCloneTree = Omit<CloneTree, "root"> & {
   root: Omit<CloneTree["root"], "path">;
@@ -45,6 +50,33 @@ export type GitCloneDiscoveryActionResult =
         message: string;
       };
     };
+
+export interface GitCloneTerminalIdentity {
+  sessionName: string;
+  clonePath: string;
+  cloneSessionKey: string;
+}
+
+type GitCloneTerminalResolveStatus =
+  | "success"
+  | "missing-root"
+  | "scan-failed"
+  | "invalid-selection";
+
+const resolveGitCloneTerminalSchema = z
+  .object({
+    cloneSessionKey: z
+      .string()
+      .trim()
+      .min(1, "cloneSessionKey is required")
+      .refine(isExpectedCloneSessionKey, "cloneSessionKey is invalid"),
+    relativePath: z
+      .string()
+      .trim()
+      .min(1, "relativePath is required")
+      .refine(isSafeCloneRelativePath, "relativePath must be a root-relative clone path"),
+  })
+  .strict();
 
 export const listGitClonesAction = authActionClient.action(
   async (): Promise<GitCloneDiscoveryActionResult> => {
@@ -93,7 +125,52 @@ export const listGitClonesAction = authActionClient.action(
   },
 );
 
-function resolveConfiguredProjectsRoot(): string {
+export const resolveGitCloneTerminalAction = authActionClient
+  .inputSchema(resolveGitCloneTerminalSchema)
+  .action(async ({ parsedInput }): Promise<GitCloneTerminalIdentity> => {
+    const projectsRootPath = resolveConfiguredProjectsRoot();
+    let tree: CloneTree;
+
+    try {
+      tree = await discoverProjectCloneTree(projectsRootPath);
+    } catch (error) {
+      console.error(
+        `[git-clones] Terminal resolution scan failed (${describeErrorForLogs(error)})`,
+      );
+      throw new Error(SCAN_FAILED_MESSAGE);
+    }
+
+    const rootSkippedReason = getRootSkippedReason(tree.diagnostics);
+    if (rootSkippedReason === "not-directory") {
+      logTerminalResolveOutcome("missing-root", tree.diagnostics);
+      throw new Error(MISSING_ROOT_MESSAGE);
+    }
+
+    if (rootSkippedReason) {
+      logTerminalResolveOutcome("scan-failed", tree.diagnostics);
+      throw new Error(SCAN_FAILED_MESSAGE);
+    }
+
+    const repository = findRepositoryNode(
+      tree.nodes,
+      parsedInput.cloneSessionKey,
+      parsedInput.relativePath,
+    );
+
+    if (!repository) {
+      logTerminalResolveOutcome("invalid-selection", tree.diagnostics);
+      throw new Error(INVALID_SELECTION_MESSAGE);
+    }
+
+    logTerminalResolveOutcome("success", tree.diagnostics);
+    return {
+      sessionName: createSafeCloneTerminalSessionName(repository.cloneSessionKey),
+      clonePath: repository.relativePath,
+      cloneSessionKey: repository.cloneSessionKey,
+    };
+  });
+
+export function resolveConfiguredProjectsRoot(): string {
   const configuredRoot = process.env[PROJECTS_ROOT_ENV_KEY]?.trim();
   return resolve(configuredRoot || DEFAULT_PROJECTS_ROOT_PATH);
 }
@@ -106,6 +183,55 @@ function toPublicCloneTree(tree: CloneTree): PublicCloneTree {
     nodes: tree.nodes,
     diagnostics: tree.diagnostics,
   };
+}
+
+function findRepositoryNode(
+  nodes: readonly CloneTreeNode[],
+  cloneSessionKey: string,
+  relativePath: string,
+): CloneTreeRepositoryNode | null {
+  for (const node of nodes) {
+    if (node.kind === "repository") {
+      if (node.cloneSessionKey === cloneSessionKey && node.relativePath === relativePath) {
+        return node;
+      }
+      continue;
+    }
+
+    const match = findRepositoryNode(node.children, cloneSessionKey, relativePath);
+    if (match) {
+      return match;
+    }
+  }
+
+  return null;
+}
+
+function isExpectedCloneSessionKey(value: string): boolean {
+  const trimmedValue = value.trim();
+  if (!trimmedValue.startsWith("git-clone:")) {
+    return false;
+  }
+
+  return isSafeSlashDelimitedPath(trimmedValue.slice("git-clone:".length));
+}
+
+function isSafeCloneRelativePath(value: string): boolean {
+  return isSafeSlashDelimitedPath(value.trim());
+}
+
+function isSafeSlashDelimitedPath(value: string): boolean {
+  if (
+    !value ||
+    value === "." ||
+    value.startsWith("/") ||
+    value.includes("\\") ||
+    value.includes("\0")
+  ) {
+    return false;
+  }
+
+  return value.split("/").every((segment) => segment && segment !== "." && segment !== "..");
 }
 
 function getRootSkippedReason(
@@ -139,6 +265,16 @@ function logDiscoveryOutcome(
   const level = status === "scan-failed" ? console.error : console.log;
   level(
     `[git-clones] Discovery ${status}: repos=${diagnostics.repoCount} directories=${diagnostics.directoryCount} skipped=${diagnostics.skippedPaths.length} truncated=${diagnostics.truncated} durationMs=${diagnostics.durationMs}`,
+  );
+}
+
+function logTerminalResolveOutcome(
+  status: GitCloneTerminalResolveStatus,
+  diagnostics: CloneTreeDiagnostics,
+): void {
+  const level = status === "scan-failed" ? console.error : console.log;
+  level(
+    `[git-clones] Terminal resolution ${status}: repos=${diagnostics.repoCount} directories=${diagnostics.directoryCount} skipped=${diagnostics.skippedPaths.length} truncated=${diagnostics.truncated} durationMs=${diagnostics.durationMs}`,
   );
 }
 

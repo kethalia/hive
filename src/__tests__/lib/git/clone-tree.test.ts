@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 
+import { SAFE_IDENTIFIER_RE } from "../../../lib/constants";
 import {
+  CLONE_TERMINAL_SESSION_PREFIX,
   CLONE_TREE_PROJECTS_LABEL,
   CLONE_TREE_ROOT_LABEL,
   createCloneSessionKey,
@@ -8,7 +10,9 @@ import {
   createCloneTreeNodeId,
   createCloneTreeRepositoryNode,
   createCloneTreeRootMetadata,
+  createSafeCloneTerminalSessionName,
   deriveCloneDisplaySegments,
+  isCloneTerminalSessionName,
   normalizeRootContainedClonePath,
 } from "../../../lib/git/clone-tree";
 
@@ -87,6 +91,25 @@ describe("clone-tree contract helpers", () => {
     expect(createCloneSessionKey(displaySegments)).toBe(
       "git-clone:Git/projects/org%20name/repo%231",
     );
+  });
+
+  it("maps clone session keys to reserved deterministic tmux-safe terminal session names", () => {
+    const cloneSessionKey = createCloneSessionKey(["Git", "projects", "org name", "repo#1"]);
+    const safeSessionName = createSafeCloneTerminalSessionName(cloneSessionKey);
+
+    expect(safeSessionName).toMatch(SAFE_IDENTIFIER_RE);
+    expect(safeSessionName).toMatch(new RegExp(`^${CLONE_TERMINAL_SESSION_PREFIX}`));
+    expect(safeSessionName).not.toContain(":");
+    expect(safeSessionName).not.toContain("/");
+    expect(safeSessionName).not.toContain("/home/coder");
+    expect(safeSessionName).toBe(createSafeCloneTerminalSessionName(cloneSessionKey));
+    expect(safeSessionName).not.toBe(
+      createSafeCloneTerminalSessionName(
+        createCloneSessionKey(["Git", "projects", "org name", "other"]),
+      ),
+    );
+    expect(isCloneTerminalSessionName(safeSessionName)).toBe(true);
+    expect(isCloneTerminalSessionName("session-123")).toBe(false);
   });
 
   it("builds root metadata and typed directory/repository nodes from normalized paths", () => {

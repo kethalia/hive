@@ -1,7 +1,9 @@
+import { createHash } from "node:crypto";
 import { isAbsolute, relative, resolve, sep } from "node:path";
 
 export const CLONE_TREE_ROOT_LABEL = "Git" as const;
 export const CLONE_TREE_PROJECTS_LABEL = "projects" as const;
+export const CLONE_TERMINAL_SESSION_PREFIX = "git-clone-" as const;
 
 export type CloneTreeNodeKind = "directory" | "repository";
 export type CloneTreeSkippedPathReason =
@@ -158,6 +160,15 @@ export function createCloneTreeNodeId(
 
 export function createCloneSessionKey(displaySegments: readonly string[]): string {
   return `git-clone:${encodeHierarchySegments(displaySegments)}`;
+}
+
+export function createSafeCloneTerminalSessionName(cloneSessionKey: string): string {
+  const digest = createHash("sha256").update(cloneSessionKey).digest("hex").slice(0, 32);
+  return `${CLONE_TERMINAL_SESSION_PREFIX}${digest}`;
+}
+
+export function isCloneTerminalSessionName(sessionName: string): boolean {
+  return sessionName.startsWith(CLONE_TERMINAL_SESSION_PREFIX);
 }
 
 export function createCloneTreeDirectoryNode(
