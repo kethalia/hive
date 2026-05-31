@@ -1,8 +1,8 @@
+import { getDb } from "@hive/db";
 import { cookies } from "next/headers";
 import type { NextRequest } from "next/server";
 import { getSession } from "@/lib/auth/session";
 import { AGENT_OUTPUT_LOG, UUID_RE } from "@/lib/constants";
-import { getDb } from "@hive/db";
 import { workerWorkspaceName } from "@/lib/workspace/naming";
 import { streamFromWorkspace } from "@/lib/workspace/stream";
 
@@ -35,9 +35,18 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
   const db = getDb();
 
-  // Find the running worker workspace for this task
+  // Confirm the task belongs to the authenticated user before exposing workspace/log stream state.
   let workspace: Awaited<ReturnType<typeof db.workspace.findFirst>>;
   try {
+    const task = await db.task.findFirst({
+      where: { id: taskId, userId: session.user.id },
+      select: { id: true },
+    });
+
+    if (!task) {
+      return new Response("Not found", { status: 404 });
+    }
+
     workspace = await db.workspace.findFirst({
       where: {
         taskId,

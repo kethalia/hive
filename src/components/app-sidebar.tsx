@@ -67,7 +67,7 @@ import {
   listWorkspacesAction,
   renameSessionAction,
 } from "@/lib/actions/workspaces";
-import { getSessionAction, logoutAction } from "@/lib/auth/actions";
+import { getSessionAction } from "@/lib/auth/actions";
 import type { CoderWorkspace } from "@/lib/coder/types";
 import { SAFE_IDENTIFIER_RE } from "@/lib/constants";
 import type { TemplateStatus } from "@/lib/templates/staleness";
@@ -924,8 +924,12 @@ export function AppSidebar() {
                 disabled={isLoggingOut}
                 onClick={async () => {
                   setIsLoggingOut(true);
-                  await logoutAction();
-                  router.push("/login");
+                  try {
+                    await fetch("/api/auth/logout", { method: "POST" });
+                  } finally {
+                    router.push("/login");
+                    router.refresh();
+                  }
                 }}
               >
                 {isLoggingOut ? (

@@ -1,5 +1,5 @@
-import { v4 as uuidv4 } from "uuid";
 import { getDb } from "@hive/db";
+import { v4 as uuidv4 } from "uuid";
 import type { TaskJobData } from "@/lib/queue/task-queue";
 import { getTaskQueue } from "@/lib/queue/task-queue";
 
@@ -75,14 +75,14 @@ export async function createTask(input: {
 
 /**
  * Get a single task by ID, including related workspaces and recent logs.
- * When `userId` is provided, only returns the task if it belongs to that user.
+ * Only returns the task if it belongs to the supplied user.
  * Returns null if not found or if the task belongs to a different user.
  */
-export async function getTask(id: string, userId?: string) {
+export async function getTask(id: string, userId: string) {
   const db = getDb();
 
   const task = await db.task.findFirst({
-    where: userId ? { id, userId } : { id },
+    where: { id, userId },
     include: {
       workspaces: true,
       logs: {
@@ -96,13 +96,13 @@ export async function getTask(id: string, userId?: string) {
 }
 
 /**
- * List all tasks, ordered by createdAt desc, limited to 50.
+ * List a user's tasks, ordered by createdAt desc, limited to 50.
  */
-export async function listTasks(userId?: string) {
+export async function listTasks(userId: string) {
   const db = getDb();
 
   return db.task.findMany({
-    where: userId ? { userId } : undefined,
+    where: { userId },
     orderBy: { createdAt: "desc" },
     take: 50,
   });

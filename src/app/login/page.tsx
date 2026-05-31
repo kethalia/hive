@@ -2,12 +2,10 @@
 
 import { AlertCircle, Loader2 } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useAction } from "next-safe-action/hooks";
 import { useState } from "react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { loginAction } from "@/lib/auth/actions";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -16,21 +14,33 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
 
   const [error, setError] = useState<string | null>(null);
+  const [isPending, setIsPending] = useState(false);
 
-  const { execute, isPending } = useAction(loginAction, {
-    onSuccess: () => {
-      router.push("/");
-    },
-    onError: ({ error: actionError }) => {
-      const message = actionError.serverError ?? "Login failed. Please try again.";
-      setError(message);
-    },
-  });
-
-  function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
-    execute({ coderUrl, email, password });
+    setIsPending(true);
+
+    try {
+      const response = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ coderUrl, email, password }),
+      });
+      const payload = (await response.json().catch(() => null)) as { error?: string } | null;
+
+      if (!response.ok) {
+        setError(payload?.error ?? "Login failed. Please try again.");
+        return;
+      }
+
+      router.push("/");
+      router.refresh();
+    } catch {
+      setError("Login failed. Please try again.");
+    } finally {
+      setIsPending(false);
+    }
   }
 
   return (

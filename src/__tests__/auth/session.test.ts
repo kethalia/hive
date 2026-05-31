@@ -27,6 +27,7 @@ import {
 
 describe("session management", () => {
   beforeEach(() => {
+    vi.unstubAllEnvs();
     vi.clearAllMocks();
     process.env.COOKIE_SECRET = "test-secret";
   });
@@ -156,14 +157,37 @@ describe("session management", () => {
     });
 
     it("includes domain when COOKIE_DOMAIN is set", () => {
-      vi.stubEnv("COOKIE_DOMAIN", ".local.kethalia.com");
+      vi.stubEnv("COOKIE_DOMAIN", ".hive.local.kethalia.com");
+
+      const cookieStore = { set: vi.fn() };
+      mockSignCookie.mockReturnValue("signed-value");
+      setSessionCookie(cookieStore, "my-session-id");
+
+      expect(cookieStore.set).toHaveBeenCalledWith("hive-session", "signed-value", {
+        httpOnly: true,
+        secure: false,
+        sameSite: "lax",
+        path: "/",
+        maxAge: 30 * 24 * 60 * 60,
+        domain: ".hive.local.kethalia.com",
+      });
+
+      vi.unstubAllEnvs();
+    });
+
+    it("refuses broad parent COOKIE_DOMAIN values", () => {
+      vi.stubEnv("COOKIE_DOMAIN", ".kethalia.com");
+      vi.spyOn(console, "error").mockImplementation(() => {});
 
       const cookieStore = { set: vi.fn() };
       mockSignCookie.mockReturnValue("signed-value");
       setSessionCookie(cookieStore, "my-session-id");
 
       const options = cookieStore.set.mock.calls[0][2] as Record<string, unknown>;
-      expect(options.domain).toBe(".local.kethalia.com");
+      expect(options).not.toHaveProperty("domain");
+      expect(console.error).toHaveBeenCalledWith(
+        "[session-cookie] Refusing unsafe COOKIE_DOMAIN; use a Hive-specific parent such as .hive.local.kethalia.com",
+      );
 
       vi.unstubAllEnvs();
     });
@@ -191,14 +215,24 @@ describe("session management", () => {
       );
     });
 
-    it("includes domain when COOKIE_DOMAIN is set", () => {
-      vi.stubEnv("COOKIE_DOMAIN", ".local.kethalia.com");
+    it("clears both domain and host-only cookies when COOKIE_DOMAIN is set", () => {
+      vi.stubEnv("COOKIE_DOMAIN", ".hive.local.kethalia.com");
 
       const cookieStore = { set: vi.fn() };
       clearSessionCookie(cookieStore);
 
-      const options = cookieStore.set.mock.calls[0][2] as Record<string, unknown>;
-      expect(options.domain).toBe(".local.kethalia.com");
+      expect(cookieStore.set).toHaveBeenNthCalledWith(
+        1,
+        "hive-session",
+        "",
+        expect.not.objectContaining({ domain: expect.anything() }),
+      );
+      expect(cookieStore.set).toHaveBeenNthCalledWith(
+        2,
+        "hive-session",
+        "",
+        expect.objectContaining({ maxAge: 0, domain: ".hive.local.kethalia.com" }),
+      );
 
       vi.unstubAllEnvs();
     });

@@ -1,8 +1,12 @@
-import type { SessionData } from "@hive/auth";
-import { SESSION_COOKIE_NAME, SESSION_MAX_AGE_SECONDS, signCookie, verifyCookie } from "@hive/auth";
+import { SESSION_COOKIE_NAME, signCookie, verifyCookie } from "@hive/auth";
 import { getAuthServiceClient } from "./service-client";
+import {
+  clearSessionCookies,
+  setSessionCookieValue,
+  type WritableSessionCookieStore,
+} from "./session-cookie";
 
-export type { SessionData } from "@hive/auth";
+export type SessionData = import("@hive/auth").SessionData;
 
 export async function getSession(cookieStore: {
   get(name: string): { value: string } | undefined;
@@ -61,36 +65,18 @@ export async function deleteSession(sessionId: string): Promise<void> {
   }
 }
 
-export function setSessionCookie(
-  cookieStore: {
-    set(name: string, value: string, options: Record<string, unknown>): void;
-  },
-  sessionId: string,
-): void {
+export function createSignedSessionCookie(sessionId: string): string {
   const cookieSecret = process.env.COOKIE_SECRET;
   if (!cookieSecret) {
     throw new Error("COOKIE_SECRET is not configured");
   }
-  const signedValue = signCookie(sessionId, cookieSecret);
-  cookieStore.set(SESSION_COOKIE_NAME, signedValue, {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: "lax",
-    path: "/",
-    maxAge: SESSION_MAX_AGE_SECONDS,
-    ...(process.env.COOKIE_DOMAIN ? { domain: process.env.COOKIE_DOMAIN } : {}),
-  });
+  return signCookie(sessionId, cookieSecret);
 }
 
-export function clearSessionCookie(cookieStore: {
-  set(name: string, value: string, options: Record<string, unknown>): void;
-}): void {
-  cookieStore.set(SESSION_COOKIE_NAME, "", {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: "lax",
-    path: "/",
-    maxAge: 0,
-    ...(process.env.COOKIE_DOMAIN ? { domain: process.env.COOKIE_DOMAIN } : {}),
-  });
+export function setSessionCookie(cookieStore: WritableSessionCookieStore, sessionId: string): void {
+  setSessionCookieValue(cookieStore, createSignedSessionCookie(sessionId));
+}
+
+export function clearSessionCookie(cookieStore: WritableSessionCookieStore): void {
+  clearSessionCookies(cookieStore);
 }
