@@ -180,8 +180,13 @@ vi.mock("@/components/ui/dropdown-menu", () => {
 });
 
 vi.mock("@/components/ui/alert", () => ({
-  Alert: ({ children }: React.PropsWithChildren<{ variant?: string; className?: string }>) => (
-    <div role="alert">{children}</div>
+  Alert: ({
+    children,
+    ...rest
+  }: React.PropsWithChildren<{ variant?: string; className?: string }>) => (
+    <div role="alert" {...rest}>
+      {children}
+    </div>
   ),
   AlertDescription: ({ children }: React.PropsWithChildren<{ className?: string }>) => (
     <div>{children}</div>
@@ -250,6 +255,8 @@ vi.mock("lucide-react", () => ({
   Plus: () => <span>Plus</span>,
   X: () => <span>X</span>,
   FolderOpen: () => <span>FolderOpen</span>,
+  Folder: () => <span>Folder</span>,
+  GitBranch: () => <span>GitBranch</span>,
   Code: () => <span>Code</span>,
   ExternalLink: () => <span>ExternalLink</span>,
   ChevronDown: () => <span>ChevronDown</span>,
@@ -260,6 +267,7 @@ vi.mock("lucide-react", () => ({
 
 const mockListWorkspaces = vi.fn();
 const mockListTemplates = vi.fn();
+const mockListGitClones = vi.fn();
 const mockGetWorkspaceAgent = vi.fn();
 const mockGetWorkspaceSessions = vi.fn();
 const mockCreateSession = vi.fn();
@@ -288,6 +296,10 @@ vi.mock("@/lib/actions/templates", () => ({
   listTemplateStatusesAction: (...args: unknown[]) => mockListTemplates(...args),
 }));
 
+vi.mock("@/lib/actions/git-clones", () => ({
+  listGitClonesAction: (...args: unknown[]) => mockListGitClones(...args),
+}));
+
 const mockGetSessionAction = vi.fn();
 const mockLogoutAction = vi.fn();
 
@@ -297,8 +309,105 @@ vi.mock("@/lib/auth/actions", () => ({
 }));
 
 import { AppSidebar } from "@/components/app-sidebar";
+import type { GitCloneDiscoveryActionResult, PublicCloneTree } from "@/lib/actions/git-clones";
 import type { CoderWorkspace } from "@/lib/coder/types";
+import type { CloneTreeDiagnostics } from "@/lib/git/clone-tree";
 import type { TemplateStatus } from "@/lib/templates/staleness";
+
+const PRIVATE_ROOT = "/home/coder/projects/SUPER_SECRET_TOKEN";
+
+const gitRepositoryNode = {
+  id: "git-repository:Git/projects/kethalia/hive",
+  kind: "repository",
+  label: "hive",
+  relativePath: "kethalia/hive",
+  relativePathSegments: ["kethalia", "hive"],
+  displaySegments: ["Git", "projects", "kethalia", "hive"],
+  cloneSessionKey: "git-clone:Git/projects/kethalia/hive",
+} as const;
+
+function makeGitDiagnostics(overrides: Partial<CloneTreeDiagnostics> = {}): CloneTreeDiagnostics {
+  return {
+    rootLabel: "Git",
+    repoCount: 1,
+    directoryCount: 1,
+    skippedPaths: [],
+    truncated: false,
+    durationMs: 12,
+    ...overrides,
+  };
+}
+
+function makeGitCloneTree(overrides: Partial<PublicCloneTree> = {}): PublicCloneTree {
+  return {
+    root: {
+      id: "git-directory:Git/projects",
+      label: "Git",
+      projectsLabel: "projects",
+      displaySegments: ["Git", "projects"],
+      path: PRIVATE_ROOT,
+    } as PublicCloneTree["root"],
+    nodes: [
+      {
+        id: "git-directory:Git/projects/kethalia",
+        kind: "directory",
+        label: "kethalia",
+        relativePath: "kethalia",
+        relativePathSegments: ["kethalia"],
+        displaySegments: ["Git", "projects", "kethalia"],
+        children: [gitRepositoryNode],
+      },
+    ],
+    diagnostics: makeGitDiagnostics(),
+    ...overrides,
+  };
+}
+
+function makeGitSuccessResult(tree = makeGitCloneTree()): GitCloneDiscoveryActionResult {
+  return {
+    ok: true,
+    status: "success",
+    message: "Git clones discovered.",
+    tree,
+    diagnostics: tree.diagnostics,
+    error: null,
+  };
+}
+
+function makeGitEmptyResult(): GitCloneDiscoveryActionResult {
+  const tree = makeGitCloneTree({
+    nodes: [],
+    diagnostics: makeGitDiagnostics({ repoCount: 0, directoryCount: 0, durationMs: 4 }),
+  });
+
+  return {
+    ok: true,
+    status: "empty",
+    message: "No Git clones found in the configured projects root.",
+    tree,
+    diagnostics: tree.diagnostics,
+    error: null,
+  };
+}
+
+function makeGitErrorResult(
+  status: "missing-root" | "scan-failed",
+  diagnostics: CloneTreeDiagnostics | null,
+): GitCloneDiscoveryActionResult {
+  const message =
+    status === "missing-root"
+      ? "Projects folder is not available. Create or mount the configured projects root, then refresh."
+      : "We couldn't scan projects for Git clones. Refresh and try again.";
+
+  return {
+    ok: false,
+    status,
+    message,
+    tree: null,
+    diagnostics,
+    error: { code: status, message },
+  };
+}
 
 function makeWorkspace(overrides: Partial<CoderWorkspace> = {}): CoderWorkspace {
   return {
@@ -369,6 +478,9 @@ describe("AppSidebar", () => {
     mockListTemplates.mockResolvedValue({
       data: [makeTemplate()],
     });
+    mockListGitClones.mockResolvedValue({
+      data: makeGitSuccessResult(),
+    });
     mockGetWorkspaceAgent.mockResolvedValue({
       data: { agentId: "agent-1", agentName: "main" },
     });
@@ -405,6 +517,184 @@ describe("AppSidebar", () => {
 
     await waitFor(() => {
       expect(screen.getByText("hive-worker")).toBeInTheDocument();
+    });
+  });
+
+  it("renders Git clone hierarchy with clone metadata and without absolute paths", async () => {
+    render(<AppSidebar />);
+
+    const repoButton = await screen.findByRole("button", {
+      name: "Open Git repository kethalia / hive",
+    });
+
+    expect(repoButton).toHaveAttribute(
+      "data-clone-session-key",
+      "git-clone:Git/projects/kethalia/hive",
+    );
+    expect(repoButton).toHaveAttribute("data-relative-path", "kethalia/hive");
+    expect(screen.getByText("Git")).toBeInTheDocument();
+    expect(screen.getByText("projects")).toBeInTheDocument();
+    expect(screen.getByText("kethalia")).toBeInTheDocument();
+    expect(screen.getByRole("group", { name: "Git clone scan diagnostics" })).toHaveTextContent(
+      "Repos 1",
+    );
+    expect(document.body).not.toHaveTextContent(PRIVATE_ROOT);
+    expect(document.body.innerHTML).not.toContain("/home/coder");
+  });
+
+  it("shows a Git discovery loading state while the action is pending", async () => {
+    let resolveGit: (value: { data: GitCloneDiscoveryActionResult }) => void = () => {};
+    mockListGitClones.mockReturnValue(
+      new Promise((resolve) => {
+        resolveGit = resolve;
+      }),
+    );
+
+    render(<AppSidebar />);
+
+    expect(screen.getByText("Loading Git repositories…")).toBeInTheDocument();
+
+    resolveGit({ data: makeGitSuccessResult() });
+    await screen.findByRole("button", { name: "Open Git repository kethalia / hive" });
+  });
+
+  it("renders the Git empty state with retry and diagnostics", async () => {
+    mockListGitClones.mockResolvedValueOnce({ data: makeGitEmptyResult() });
+
+    render(<AppSidebar />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("git-discovery-empty-state")).toBeInTheDocument();
+    });
+
+    expect(
+      screen.getByText("No Git clones found in the configured projects root."),
+    ).toBeInTheDocument();
+    expect(screen.getByText("No Git repositories found.")).toBeInTheDocument();
+    expect(screen.getByRole("group", { name: "Git clone scan diagnostics" })).toHaveTextContent(
+      "Repos 0",
+    );
+
+    mockListGitClones.mockResolvedValueOnce({ data: makeGitSuccessResult() });
+    fireEvent.click(screen.getByTestId("git-discovery-retry"));
+
+    await waitFor(() => {
+      expect(mockListGitClones).toHaveBeenCalledTimes(2);
+      expect(
+        screen.getByRole("button", { name: "Open Git repository kethalia / hive" }),
+      ).toBeInTheDocument();
+    });
+  });
+
+  it("renders missing-root and scan-failed Git states with sanitized diagnostics", async () => {
+    mockListGitClones.mockResolvedValueOnce({
+      data: makeGitErrorResult(
+        "missing-root",
+        makeGitDiagnostics({
+          repoCount: 0,
+          directoryCount: 0,
+          skippedPaths: [{ relativePath: ".", reason: "not-directory" }],
+          durationMs: 9,
+        }),
+      ),
+    });
+
+    render(<AppSidebar />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("git-discovery-missing-root")).toBeInTheDocument();
+    });
+
+    expect(screen.getByText("Projects root missing")).toBeInTheDocument();
+    expect(screen.getByText(/Projects folder is not available/)).toBeInTheDocument();
+    expect(
+      screen.getByText(/Repos 0 .* Directories 0 .* Skipped 1 .* Complete .* 9ms/),
+    ).toBeInTheDocument();
+
+    mockListGitClones.mockResolvedValueOnce({
+      data: makeGitErrorResult(
+        "scan-failed",
+        makeGitDiagnostics({
+          repoCount: 2,
+          directoryCount: 3,
+          skippedPaths: [{ relativePath: "phlox-labs/platform", reason: "too-deep" }],
+          truncated: true,
+          durationMs: 44,
+        }),
+      ),
+    });
+    fireEvent.click(screen.getByTestId("git-discovery-retry"));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("git-discovery-scan-failed")).toBeInTheDocument();
+    });
+
+    expect(screen.getByText("Git scan failed")).toBeInTheDocument();
+    expect(
+      screen.getByText(/Repos 2 .* Directories 3 .* Skipped 1 .* Truncated .* 44ms/),
+    ).toBeInTheDocument();
+    expect(document.body.innerHTML).not.toContain("/home/coder");
+  });
+
+  it("maps thrown Git discovery failures to a sanitized server-error state", async () => {
+    mockListGitClones.mockRejectedValueOnce(
+      new Error(`scan exploded at ${PRIVATE_ROOT} with SUPER_SECRET_TOKEN`),
+    );
+
+    render(<AppSidebar />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("git-discovery-server-error")).toBeInTheDocument();
+    });
+
+    expect(screen.getByText("Git scan unavailable")).toBeInTheDocument();
+    expect(
+      screen.getByText("Git clone discovery is unavailable. Refresh and try again."),
+    ).toBeInTheDocument();
+    expect(document.body).not.toHaveTextContent("SUPER_SECRET_TOKEN");
+    expect(document.body.innerHTML).not.toContain("/home/coder");
+  });
+
+  it("does not rescan Git clones from the workspace/template polling interval", async () => {
+    render(<AppSidebar />);
+
+    await waitFor(() => {
+      expect(mockListGitClones).toHaveBeenCalledTimes(1);
+    });
+
+    mockListWorkspaces.mockClear();
+    mockListTemplates.mockClear();
+    mockListGitClones.mockClear();
+
+    await vi.advanceTimersByTimeAsync(30_000);
+
+    await waitFor(() => {
+      expect(mockListWorkspaces).toHaveBeenCalledTimes(1);
+      expect(mockListTemplates).toHaveBeenCalledTimes(1);
+    });
+    expect(mockListGitClones).not.toHaveBeenCalled();
+  });
+
+  it("includes Git discovery in the explicit footer refresh", async () => {
+    render(<AppSidebar />);
+
+    await waitFor(() => {
+      expect(screen.getByText("dev-box")).toBeInTheDocument();
+    });
+
+    mockListWorkspaces.mockClear();
+    mockListTemplates.mockClear();
+    mockListGitClones.mockClear();
+
+    const footer = screen.getByTestId("sidebar-footer");
+    const refreshButton = footer.querySelector("button[title='Refresh']");
+    expect(refreshButton).not.toBeNull();
+    fireEvent.click(refreshButton!);
+
+    await waitFor(() => {
+      expect(mockListWorkspaces).toHaveBeenCalledTimes(1);
+      expect(mockListTemplates).toHaveBeenCalledTimes(1);
+      expect(mockListGitClones).toHaveBeenCalledTimes(1);
     });
   });
 

@@ -6,6 +6,7 @@ import {
   ChevronRight,
   Code,
   FolderOpen,
+  GitBranch,
   Hexagon,
   LayoutDashboard,
   LayoutTemplate,
@@ -25,6 +26,7 @@ import {
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { GitCloneSidebarTree } from "@/components/git-clone-sidebar-tree";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -58,6 +60,7 @@ import {
 import { Switch } from "@/components/ui/switch";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useSidebarMode } from "@/hooks/use-sidebar-mode";
+import { type GitCloneDiscoveryActionResult, listGitClonesAction } from "@/lib/actions/git-clones";
 import { listTemplateStatusesAction } from "@/lib/actions/templates";
 import {
   createSessionAction,
@@ -70,6 +73,7 @@ import {
 import { getSessionAction } from "@/lib/auth/actions";
 import type { CoderWorkspace } from "@/lib/coder/types";
 import { SAFE_IDENTIFIER_RE } from "@/lib/constants";
+import type { CloneTreeDiagnostics, CloneTreeRepositoryNode } from "@/lib/git/clone-tree";
 import type { TemplateStatus } from "@/lib/templates/staleness";
 import { cn } from "@/lib/utils";
 import type { TmuxSession } from "@/lib/workspaces/sessions";
@@ -111,6 +115,15 @@ interface WorkspaceSessionState {
   isLoading: boolean;
   error: string | null;
 }
+
+interface GitDiscoveryState {
+  result: GitCloneDiscoveryActionResult | null;
+  isLoading: boolean;
+  serverError: string | null;
+}
+
+const GIT_DISCOVERY_SERVER_ERROR_MESSAGE =
+  "Git clone discovery is unavailable. Refresh and try again.";
 
 interface AgentInfo {
   agentId: string;
@@ -275,6 +288,145 @@ function SessionList({
   );
 }
 
+function GitDiscoveryPanel({
+  state,
+  onRetry,
+  onRepositorySelect,
+}: {
+  state: GitDiscoveryState;
+  onRetry: () => void;
+  onRepositorySelect: (repository: CloneTreeRepositoryNode) => void;
+}) {
+  if (state.isLoading && !state.result && !state.serverError) {
+    return (
+      <p className="px-6 py-2 text-xs text-muted-foreground" role="status">
+        Loading Git repositories…
+      </p>
+    );
+  }
+
+  if (state.serverError) {
+    return (
+      <GitDiscoveryNotice
+        status="server-error"
+        title="Git scan unavailable"
+        message={state.serverError}
+        diagnostics={null}
+        tone="error"
+        onRetry={onRetry}
+      />
+    );
+  }
+
+  const result = state.result;
+  if (!result) return null;
+
+  if (!result.ok) {
+    return (
+      <GitDiscoveryNotice
+        status={result.status}
+        title={result.status === "missing-root" ? "Projects root missing" : "Git scan failed"}
+        message={result.message}
+        diagnostics={result.diagnostics}
+        tone="error"
+        onRetry={onRetry}
+      />
+    );
+  }
+
+  if (result.status === "empty") {
+    return (
+      <div className="space-y-1" data-testid="git-discovery-empty-state">
+        <GitDiscoveryNotice
+          status="empty"
+          title="No Git repositories found"
+          message={result.message}
+          diagnostics={null}
+          tone="neutral"
+          onRetry={onRetry}
+        />
+        <GitCloneSidebarTree tree={result.tree} onRepositorySelect={onRepositorySelect} />
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-1" data-testid="git-discovery-success">
+      {state.isLoading && (
+        <p className="px-6 py-1 text-xs text-muted-foreground" role="status">
+          Refreshing Git repositories…
+        </p>
+      )}
+      <GitCloneSidebarTree tree={result.tree} onRepositorySelect={onRepositorySelect} />
+    </div>
+  );
+}
+
+function GitDiscoveryNotice({
+  status,
+  title,
+  message,
+  diagnostics,
+  tone,
+  onRetry,
+}: {
+  status: "empty" | "missing-root" | "scan-failed" | "server-error";
+  title: string;
+  message: string;
+  diagnostics: CloneTreeDiagnostics | null;
+  tone: "error" | "neutral";
+  onRetry: () => void;
+}) {
+  const body = (
+    <>
+      <div className="min-w-0 flex-1">
+        <p className="text-xs font-medium">{title}</p>
+        <p className="text-xs text-muted-foreground">{message}</p>
+        {diagnostics && <GitDiscoveryDiagnostics diagnostics={diagnostics} />}
+      </div>
+      <button
+        type="button"
+        data-testid="git-discovery-retry"
+        onClick={onRetry}
+        className="ml-2 text-xs underline"
+      >
+        Retry
+      </button>
+    </>
+  );
+
+  if (tone === "error") {
+    return (
+      <Alert variant="destructive" className="mx-4 my-1" data-testid={`git-discovery-${status}`}>
+        <AlertCircle className="h-4 w-4" />
+        <AlertDescription className="flex items-start justify-between gap-2">
+          {body}
+        </AlertDescription>
+      </Alert>
+    );
+  }
+
+  return (
+    <div
+      role="status"
+      data-testid={`git-discovery-${status}`}
+      className="mx-4 my-1 flex items-start justify-between gap-2 rounded-md border border-sidebar-border px-3 py-2"
+    >
+      {body}
+    </div>
+  );
+}
+
+function GitDiscoveryDiagnostics({ diagnostics }: { diagnostics: CloneTreeDiagnostics }) {
+  return (
+    <p className="mt-1 text-[11px] text-muted-foreground tabular-nums">
+      Repos {diagnostics.repoCount} · Directories {diagnostics.directoryCount} · Skipped{" "}
+      {diagnostics.skippedPaths.length} · {diagnostics.truncated ? "Truncated" : "Complete"} ·{" "}
+      {diagnostics.durationMs}ms
+    </p>
+  );
+}
+
 export function AppSidebar() {
   const pathname = usePathname();
   const router = useRouter();
@@ -311,6 +463,11 @@ export function AppSidebar() {
     data: [],
     isLoading: true,
     error: null,
+  });
+  const [gitDiscovery, setGitDiscovery] = useState<GitDiscoveryState>({
+    result: null,
+    isLoading: true,
+    serverError: null,
   });
   const [lastRefreshed, setLastRefreshed] = useState<Date | null>(null);
 
@@ -357,6 +514,25 @@ export function AppSidebar() {
       const msg = err instanceof Error ? err.message : "Failed to fetch templates";
       setTemplates((prev) => ({ ...prev, isLoading: false, error: msg }));
     }
+  }, []);
+
+  const fetchGitClones = useCallback(async () => {
+    setGitDiscovery((prev) => ({ ...prev, isLoading: true, serverError: null }));
+    try {
+      const result = await listGitClonesAction();
+      if (result?.data) {
+        setGitDiscovery({ result: result.data, isLoading: false, serverError: null });
+        return;
+      }
+    } catch {
+      // Fall through to the sanitized server-error state below.
+    }
+
+    setGitDiscovery({
+      result: null,
+      isLoading: false,
+      serverError: GIT_DISCOVERY_SERVER_ERROR_MESSAGE,
+    });
   }, []);
 
   const fetchAgentInfo = useCallback(async (workspaceId: string) => {
@@ -406,18 +582,24 @@ export function AppSidebar() {
   const expandedWorkspacesRef = useRef(expandedWorkspaces);
   expandedWorkspacesRef.current = expandedWorkspaces;
 
-  const fetchAll = useCallback(() => {
+  const fetchWorkspaceAndTemplates = useCallback(() => {
     fetchWorkspaces();
     fetchTemplates();
   }, [fetchWorkspaces, fetchTemplates]);
 
+  const fetchAll = useCallback(() => {
+    fetchWorkspaceAndTemplates();
+    fetchGitClones();
+  }, [fetchWorkspaceAndTemplates, fetchGitClones]);
+
   useEffect(() => {
-    fetchAll();
-    intervalRef.current = setInterval(fetchAll, POLL_INTERVAL_MS);
+    fetchWorkspaceAndTemplates();
+    fetchGitClones();
+    intervalRef.current = setInterval(fetchWorkspaceAndTemplates, POLL_INTERVAL_MS);
     return () => {
       if (intervalRef.current) clearInterval(intervalRef.current);
     };
-  }, [fetchAll]);
+  }, [fetchWorkspaceAndTemplates, fetchGitClones]);
 
   const refreshSessions = useCallback(() => {
     for (const [wsId, isExpanded] of Object.entries(expandedWorkspacesRef.current)) {
@@ -565,6 +747,11 @@ export function AppSidebar() {
     [],
   );
 
+  const handleGitRepositorySelect = useCallback((repository: CloneTreeRepositoryNode) => {
+    // S03 will map this sanitized repository node to a persistent clone terminal session.
+    void repository;
+  }, []);
+
   return (
     <Sidebar variant={sidebarMode} collapsible="offcanvas">
       <SidebarHeader className="h-14 flex-row items-center justify-between border-b border-sidebar-border px-4">
@@ -615,6 +802,28 @@ export function AppSidebar() {
               )}
             </SidebarMenu>
           </SidebarGroupContent>
+        </SidebarGroup>
+
+        {/* Git */}
+        <SidebarGroup className="py-0">
+          <SidebarMenu>
+            <Collapsible defaultOpen className="group/collapsible-git">
+              <SidebarMenuItem>
+                <SidebarMenuButton render={<CollapsibleTrigger />}>
+                  <GitBranch className="h-4 w-4" />
+                  <span>Git</span>
+                  <ChevronRight className="ml-auto h-4 w-4 transition-transform group-data-[state=open]/collapsible-git:rotate-90" />
+                </SidebarMenuButton>
+                <CollapsibleContent>
+                  <GitDiscoveryPanel
+                    state={gitDiscovery}
+                    onRetry={fetchGitClones}
+                    onRepositorySelect={handleGitRepositorySelect}
+                  />
+                </CollapsibleContent>
+              </SidebarMenuItem>
+            </Collapsible>
+          </SidebarMenu>
         </SidebarGroup>
 
         {/* Workspaces */}
