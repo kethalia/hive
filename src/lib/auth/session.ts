@@ -1,4 +1,3 @@
-import type { SessionData } from "@hive/auth";
 import { SESSION_COOKIE_NAME, signCookie, verifyCookie } from "@hive/auth";
 import { getAuthServiceClient } from "./service-client";
 import {
@@ -7,7 +6,7 @@ import {
   type WritableSessionCookieStore,
 } from "./session-cookie";
 
-export type { SessionData } from "@hive/auth";
+export type SessionData = import("@hive/auth").SessionData;
 
 export async function getSession(cookieStore: {
   get(name: string): { value: string } | undefined;
