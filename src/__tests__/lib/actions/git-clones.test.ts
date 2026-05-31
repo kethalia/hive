@@ -14,15 +14,14 @@ vi.mock("@/lib/git/clone-discovery", () => ({
 }));
 
 import { cookies } from "next/headers";
-import {
-  DEFAULT_PROJECTS_ROOT_PATH,
-  listGitClonesAction,
-  PROJECTS_ROOT_ENV_KEY,
-  resolveConfiguredProjectsRoot,
-  resolveGitCloneTerminalAction,
-} from "@/lib/actions/git-clones";
+import { listGitClonesAction, resolveGitCloneTerminalAction } from "@/lib/actions/git-clones";
 import { getSession } from "@/lib/auth/session";
 import { SAFE_IDENTIFIER_RE } from "@/lib/constants";
+import {
+  DEFAULT_PROJECTS_ROOT_PATH,
+  PROJECTS_ROOT_ENV_KEY,
+  resolveConfiguredProjectsRoot,
+} from "@/lib/git/clone-actions-contract";
 import { discoverProjectCloneTree } from "@/lib/git/clone-discovery";
 import {
   CLONE_TERMINAL_SESSION_PREFIX,

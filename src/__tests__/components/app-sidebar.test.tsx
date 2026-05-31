@@ -312,8 +312,11 @@ vi.mock("@/lib/auth/actions", () => ({
 }));
 
 import { AppSidebar } from "@/components/app-sidebar";
-import type { GitCloneDiscoveryActionResult, PublicCloneTree } from "@/lib/actions/git-clones";
 import type { CoderWorkspace } from "@/lib/coder/types";
+import type {
+  GitCloneDiscoveryActionResult,
+  PublicCloneTree,
+} from "@/lib/git/clone-actions-contract";
 import type { CloneTreeDiagnostics } from "@/lib/git/clone-tree";
 import type { TemplateStatus } from "@/lib/templates/staleness";
 

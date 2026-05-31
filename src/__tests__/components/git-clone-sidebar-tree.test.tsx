@@ -5,7 +5,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import "@testing-library/jest-dom/vitest";
 
 import { GitCloneSidebarTree } from "@/components/git-clone-sidebar-tree";
-import type { PublicCloneTree } from "@/lib/actions/git-clones";
+import type { PublicCloneTree } from "@/lib/git/clone-actions-contract";
 import type { CloneTreeRepositoryNode } from "@/lib/git/clone-tree";
 
 const PRIVATE_ROOT = "/home/coder/projects/SUPER_SECRET_TOKEN";

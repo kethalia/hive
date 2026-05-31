@@ -1,7 +1,14 @@
 "use server";
 
-import { resolve } from "node:path";
 import { z } from "zod";
+import {
+  type GitCloneDiscoveryActionResult,
+  type GitCloneDiscoveryErrorCode,
+  type GitCloneDiscoveryStatus,
+  type GitCloneTerminalIdentity,
+  type PublicCloneTree,
+  resolveConfiguredProjectsRoot,
+} from "@/lib/git/clone-actions-contract";
 import { discoverProjectCloneTree } from "@/lib/git/clone-discovery";
 import {
   type CloneTree,
@@ -13,49 +20,12 @@ import {
 } from "@/lib/git/clone-tree";
 import { authActionClient } from "@/lib/safe-action";
 
-export const PROJECTS_ROOT_ENV_KEY = "HIVE_PROJECTS_ROOT";
-export const DEFAULT_PROJECTS_ROOT_PATH = "/home/coder/projects";
-
 const SUCCESS_MESSAGE = "Git clones discovered.";
 const EMPTY_MESSAGE = "No Git clones found in the configured projects root.";
 const MISSING_ROOT_MESSAGE =
   "Projects folder is not available. Create or mount the configured projects root, then refresh.";
 const SCAN_FAILED_MESSAGE = "We couldn't scan projects for Git clones. Refresh and try again.";
 const INVALID_SELECTION_MESSAGE = "We couldn't verify that Git repository. Refresh and try again.";
-
-export type PublicCloneTree = Omit<CloneTree, "root"> & {
-  root: Omit<CloneTree["root"], "path">;
-};
-
-export type GitCloneDiscoveryErrorCode = "missing-root" | "scan-failed";
-export type GitCloneDiscoveryStatus = "success" | "empty" | GitCloneDiscoveryErrorCode;
-
-export type GitCloneDiscoveryActionResult =
-  | {
-      ok: true;
-      status: "success" | "empty";
-      message: string;
-      tree: PublicCloneTree;
-      diagnostics: CloneTreeDiagnostics;
-      error: null;
-    }
-  | {
-      ok: false;
-      status: GitCloneDiscoveryErrorCode;
-      message: string;
-      tree: null;
-      diagnostics: CloneTreeDiagnostics | null;
-      error: {
-        code: GitCloneDiscoveryErrorCode;
-        message: string;
-      };
-    };
-
-export interface GitCloneTerminalIdentity {
-  sessionName: string;
-  clonePath: string;
-  cloneSessionKey: string;
-}
 
 type GitCloneTerminalResolveStatus =
   | "success"
@@ -169,11 +139,6 @@ export const resolveGitCloneTerminalAction = authActionClient
       cloneSessionKey: repository.cloneSessionKey,
     };
   });
-
-export function resolveConfiguredProjectsRoot(): string {
-  const configuredRoot = process.env[PROJECTS_ROOT_ENV_KEY]?.trim();
-  return resolve(configuredRoot || DEFAULT_PROJECTS_ROOT_PATH);
-}
 
 function toPublicCloneTree(tree: CloneTree): PublicCloneTree {
   const { path: _path, ...publicRoot } = tree.root;

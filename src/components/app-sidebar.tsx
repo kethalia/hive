@@ -60,12 +60,7 @@ import {
 import { Switch } from "@/components/ui/switch";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useSidebarMode } from "@/hooks/use-sidebar-mode";
-import {
-  type GitCloneDiscoveryActionResult,
-  type GitCloneTerminalIdentity,
-  listGitClonesAction,
-  resolveGitCloneTerminalAction,
-} from "@/lib/actions/git-clones";
+import { listGitClonesAction, resolveGitCloneTerminalAction } from "@/lib/actions/git-clones";
 import { listTemplateStatusesAction } from "@/lib/actions/templates";
 import {
   createSessionAction,
@@ -78,6 +73,10 @@ import {
 import { getSessionAction } from "@/lib/auth/actions";
 import type { CoderWorkspace } from "@/lib/coder/types";
 import { SAFE_IDENTIFIER_RE } from "@/lib/constants";
+import type {
+  GitCloneDiscoveryActionResult,
+  GitCloneTerminalIdentity,
+} from "@/lib/git/clone-actions-contract";
 import { isCloneTerminalSessionName } from "@/lib/git/clone-terminal-session";
 import type { CloneTreeDiagnostics, CloneTreeRepositoryNode } from "@/lib/git/clone-tree";
 import type { TemplateStatus } from "@/lib/templates/staleness";
