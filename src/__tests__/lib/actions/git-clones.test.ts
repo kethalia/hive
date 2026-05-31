@@ -13,10 +13,15 @@ vi.mock("@/lib/git/clone-discovery", () => ({
   discoverProjectCloneTree: vi.fn(),
 }));
 
+vi.mock("@/lib/coder/user-client", () => ({
+  getCoderClientForUser: vi.fn(),
+}));
+
 import { verifyCloneTerminalProof } from "@hive/auth";
 import { cookies } from "next/headers";
 import { listGitClonesAction, resolveGitCloneTerminalAction } from "@/lib/actions/git-clones";
 import { getSession } from "@/lib/auth/session";
+import { getCoderClientForUser } from "@/lib/coder/user-client";
 import { SAFE_IDENTIFIER_RE } from "@/lib/constants";
 import {
   DEFAULT_PROJECTS_ROOT_PATH,
@@ -33,6 +38,7 @@ import {
 const mockedCookies = vi.mocked(cookies);
 const mockedGetSession = vi.mocked(getSession);
 const mockedDiscoverProjectCloneTree = vi.mocked(discoverProjectCloneTree);
+const mockedGetCoderClientForUser = vi.mocked(getCoderClientForUser);
 
 const MOCK_SESSION = {
   user: {
@@ -50,8 +56,9 @@ const MOCK_SESSION = {
 };
 
 const PRIVATE_ROOT = "/tmp/private-projects/SUPER_SECRET_TOKEN";
-const WORKSPACE_ID = "workspace-123";
-const AGENT_ID = "agent-123";
+const WORKSPACE_ID = "c3d4e5f6-a7b8-9012-cdef-123456789012";
+const AGENT_ID = "a1b2c3d4-e5f6-7890-abcd-ef1234567890";
+const OTHER_AGENT_ID = "e5f6a7b8-c9d0-1234-ef12-345678901234";
 const COOKIE_SECRET = "test-cookie-secret";
 
 describe("listGitClonesAction", () => {
@@ -222,6 +229,16 @@ describe("resolveGitCloneTerminalAction", () => {
       get: () => ({ value: "session-cookie-value" }),
     } as never);
     mockedGetSession.mockResolvedValue(MOCK_SESSION);
+    mockedGetCoderClientForUser.mockResolvedValue({
+      getWorkspaceResources: vi.fn().mockResolvedValue([
+        {
+          id: "resource-1",
+          name: "workspace-resource",
+          type: "docker_container",
+          agents: [{ id: AGENT_ID, name: "main", status: "connected" }],
+        },
+      ]),
+    } as never);
   });
 
   it("exports projects-root configuration helpers without changing list behavior", () => {
@@ -246,6 +263,7 @@ describe("resolveGitCloneTerminalAction", () => {
       relativePath: repositoryNode.relativePath,
     });
 
+    expect(mockedGetCoderClientForUser).toHaveBeenCalledWith(MOCK_SESSION.user.id);
     expect(mockedDiscoverProjectCloneTree).toHaveBeenCalledWith(resolve(PRIVATE_ROOT));
     expect(result?.serverError).toBeUndefined();
     expect(result?.data).toEqual({
@@ -264,6 +282,7 @@ describe("resolveGitCloneTerminalAction", () => {
         {
           workspaceId: WORKSPACE_ID,
           agentId: AGENT_ID,
+          sessionId: MOCK_SESSION.session.sessionId,
           sessionName: result?.data?.sessionName ?? "",
           clonePath: "kethalia/hive",
         },
@@ -272,6 +291,23 @@ describe("resolveGitCloneTerminalAction", () => {
     ).toMatchObject({ ok: true });
     expect(JSON.stringify(result?.data)).not.toContain(PRIVATE_ROOT);
     expect(JSON.stringify(result?.data)).not.toContain("SUPER_SECRET_TOKEN");
+  });
+
+  it("refuses to mint a proof for an agent that is not in the authenticated user's workspace resources", async () => {
+    mockedDiscoverProjectCloneTree.mockResolvedValue(makeCloneTree());
+
+    const result = await resolveGitCloneTerminalAction({
+      cloneSessionKey: repositoryNode.cloneSessionKey,
+      workspaceId: WORKSPACE_ID,
+      agentId: OTHER_AGENT_ID,
+      relativePath: repositoryNode.relativePath,
+    });
+
+    expect(result?.serverError).toBe(
+      "We couldn't verify that workspace terminal. Refresh and try again.",
+    );
+    expect(mockedGetCoderClientForUser).toHaveBeenCalledWith(MOCK_SESSION.user.id);
+    expect(mockedDiscoverProjectCloneTree).not.toHaveBeenCalled();
   });
 
   it("returns a sanitized error when the clone proof secret is not configured", async () => {

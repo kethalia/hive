@@ -1,14 +1,15 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 
-const PROOF_VERSION = 1;
-const SIGNING_CONTEXT = "hive:clone-terminal-proof:v1";
+const PROOF_VERSION = 2;
+const SIGNING_CONTEXT = "hive:clone-terminal-proof:v2";
 const BASE64URL_RE = /^[A-Za-z0-9_-]+$/;
 
 export const CLONE_TERMINAL_PROOF_TTL_MS = 5 * 60 * 1000;
 
 export interface CloneTerminalProofClaims {
   workspaceId: string;
-  agentId: string | null;
+  agentId: string;
+  sessionId: string;
   sessionName: string;
   clonePath: string;
   expiresAt: number;
@@ -16,7 +17,8 @@ export interface CloneTerminalProofClaims {
 
 export interface CreateCloneTerminalProofOptions {
   workspaceId: string;
-  agentId?: string | null;
+  agentId: string;
+  sessionId: string;
   sessionName: string;
   clonePath: string;
   nowMs?: number;
@@ -25,7 +27,8 @@ export interface CreateCloneTerminalProofOptions {
 
 export interface VerifyCloneTerminalProofOptions {
   workspaceId: string;
-  agentId?: string | null;
+  agentId: string;
+  sessionId?: string;
   sessionName: string;
   clonePath: string;
   nowMs?: number;
@@ -56,7 +59,8 @@ export function createCloneTerminalProof(
   const expiresAt = Math.floor(nowMs + ttlMs);
   const claims = normalizeClaims({
     workspaceId: options.workspaceId,
-    agentId: options.agentId ?? null,
+    agentId: options.agentId,
+    sessionId: options.sessionId,
     sessionName: options.sessionName,
     clonePath: options.clonePath,
     expiresAt,
@@ -102,11 +106,10 @@ export function verifyCloneTerminalProof(
     return { ok: false, reason: "expired" };
   }
 
-  const expectedAgentId = expected.agentId ?? null;
-  const agentMatches = claims.agentId === null || claims.agentId === expectedAgentId;
   if (
     claims.workspaceId !== expected.workspaceId ||
-    !agentMatches ||
+    claims.agentId !== expected.agentId ||
+    (expected.sessionId !== undefined && claims.sessionId !== expected.sessionId) ||
     claims.sessionName !== expected.sessionName ||
     claims.clonePath !== expected.clonePath
   ) {
@@ -127,7 +130,8 @@ function normalizeSecret(secret: string): string {
 function normalizeClaims(claims: CloneTerminalProofClaims): CloneTerminalProofClaims {
   const normalized = {
     workspaceId: claims.workspaceId.trim(),
-    agentId: claims.agentId?.trim() || null,
+    agentId: claims.agentId.trim(),
+    sessionId: claims.sessionId.trim(),
     sessionName: claims.sessionName.trim(),
     clonePath: claims.clonePath.trim(),
     expiresAt: claims.expiresAt,
@@ -135,6 +139,8 @@ function normalizeClaims(claims: CloneTerminalProofClaims): CloneTerminalProofCl
 
   if (
     !normalized.workspaceId ||
+    !normalized.agentId ||
+    !normalized.sessionId ||
     !normalized.sessionName ||
     !normalized.clonePath ||
     !Number.isFinite(normalized.expiresAt)
@@ -150,6 +156,7 @@ function encodePayload(payload: SerializedCloneTerminalProofClaims): string {
     v: payload.v,
     workspaceId: payload.workspaceId,
     agentId: payload.agentId,
+    sessionId: payload.sessionId,
     sessionName: payload.sessionName,
     clonePath: payload.clonePath,
     expiresAt: payload.expiresAt,
@@ -173,7 +180,8 @@ function decodePayload(payload: string): CloneTerminalProofClaims | null {
   if (
     candidate.v !== PROOF_VERSION ||
     typeof candidate.workspaceId !== "string" ||
-    !(typeof candidate.agentId === "string" || candidate.agentId === null) ||
+    typeof candidate.agentId !== "string" ||
+    typeof candidate.sessionId !== "string" ||
     typeof candidate.sessionName !== "string" ||
     typeof candidate.clonePath !== "string" ||
     typeof candidate.expiresAt !== "number"
@@ -185,6 +193,7 @@ function decodePayload(payload: string): CloneTerminalProofClaims | null {
     return normalizeClaims({
       workspaceId: candidate.workspaceId,
       agentId: candidate.agentId,
+      sessionId: candidate.sessionId,
       sessionName: candidate.sessionName,
       clonePath: candidate.clonePath,
       expiresAt: candidate.expiresAt,

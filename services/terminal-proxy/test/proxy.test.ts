@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import type { IncomingMessage } from "node:http";
 import type { Duplex } from "node:stream";
-import { createCloneTerminalProof } from "@hive/auth";
+import { createCloneTerminalProof, verifyCloneTerminalProof } from "@hive/auth";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mockAuthResult = {
@@ -16,6 +16,11 @@ const mockAuthResult = {
 
 vi.mock("../src/auth.js", () => ({
   authenticateUpgrade: vi.fn(() => Promise.resolve(mockAuthResult)),
+}));
+
+vi.mock("node:fs/promises", () => ({
+  realpath: vi.fn(async (target: string) => target),
+  stat: vi.fn(async () => ({ isDirectory: () => true })),
 }));
 
 vi.mock("ws", () => {
@@ -42,10 +47,13 @@ vi.mock("ws", () => {
   return { WebSocket, WebSocketServer, default: { WebSocket, WebSocketServer } };
 });
 
+import { realpath, stat } from "node:fs/promises";
 import { WebSocket } from "ws";
 import { authenticateUpgrade } from "../src/auth.js";
 import { handleUpgrade, isOriginAllowed } from "../src/proxy.js";
 
+const mockRealpath = vi.mocked(realpath);
+const mockStat = vi.mocked(stat);
 const mockAuth = authenticateUpgrade as ReturnType<typeof vi.fn>;
 
 function makeReq(query: Record<string, string>, origin = "http://localhost:3000"): IncomingMessage {
@@ -89,8 +97,9 @@ function createCanonicalCloneSessionName(clonePath: string): string {
 function createCloneProof(
   clonePath: string,
   overrides: Partial<{
-    agentId: string | null;
+    agentId: string;
     workspaceId: string;
+    sessionId: string;
     sessionName: string;
     nowMs: number;
     ttlMs: number;
@@ -100,7 +109,8 @@ function createCloneProof(
   return createCloneTerminalProof(
     {
       workspaceId: overrides.workspaceId ?? validParams.workspaceId,
-      agentId: overrides.agentId === undefined ? validParams.agentId : overrides.agentId,
+      agentId: overrides.agentId ?? validParams.agentId,
+      sessionId: overrides.sessionId ?? mockAuthResult.value.sessionId,
       sessionName,
       clonePath,
       nowMs: overrides.nowMs,
@@ -162,6 +172,8 @@ describe("handleUpgrade", () => {
       COOKIE_SECRET: CLONE_PROOF_SECRET,
     };
     vi.clearAllMocks();
+    mockRealpath.mockImplementation(async (target) => String(target));
+    mockStat.mockResolvedValue({ isDirectory: () => true } as never);
     mockAuth.mockResolvedValue(mockAuthResult);
   });
 
@@ -284,24 +296,44 @@ describe("handleUpgrade", () => {
     );
   });
 
-  it("accepts clone proofs minted before an agent id was available", async () => {
+  it("rejects clone proofs minted for another browser session after auth", async () => {
     const clonePath = "kethalia/hive";
     const sessionName = createCanonicalCloneSessionName(clonePath);
     const socket = makeSocket();
+
+    const proof = createCloneProof(clonePath, {
+      sessionId: "different-session",
+      sessionName,
+    });
+    expect(
+      verifyCloneTerminalProof(
+        proof,
+        {
+          workspaceId: validParams.workspaceId,
+          agentId: validParams.agentId,
+          sessionId: mockAuthResult.value.sessionId,
+          sessionName,
+          clonePath,
+        },
+        CLONE_PROOF_SECRET,
+      ),
+    ).toMatchObject({ ok: false, reason: "mismatch" });
 
     await handleUpgrade(
       makeReq({
         ...validParams,
         sessionName,
         clonePath,
-        cloneProof: createCloneProof(clonePath, { agentId: null, sessionName }),
+        cloneProof: proof,
       }),
       socket,
       Buffer.alloc(0),
     );
 
-    expect(socket.destroy).not.toHaveBeenCalled();
-    expect(getLastUpstreamCommand()).toContain("-c '/home/coder/projects/kethalia/hive'");
+    expect(socket.written[0]).toContain("401");
+    expect(socket.destroy).toHaveBeenCalled();
+    expect(mockAuth).toHaveBeenCalledTimes(1);
+    expect(WebSocket).not.toHaveBeenCalled();
   });
 
   it("rejects canonical clone sessions without a server-minted proof before auth", async () => {
@@ -516,6 +548,23 @@ describe("handleUpgrade", () => {
     expect(logged).not.toContain("/secret/projects-root");
     expect(mockAuth).not.toHaveBeenCalled();
     errorSpy.mockRestore();
+  });
+
+  it("rejects clone cwd realpath escapes before opening upstream", async () => {
+    mockRealpath.mockImplementation(async (target) => {
+      const value = String(target);
+      if (value.endsWith("/kethalia/hive")) {
+        return "/secret/outside/kethalia/hive";
+      }
+      return value;
+    });
+
+    const logged = await captureConsoleErrors(async () => {
+      await expectBadUpgrade(createCloneRequestParams("kethalia/hive"));
+    });
+
+    expect(logged).toContain("clonePath_realpath_escape");
+    expect(mockAuth).not.toHaveBeenCalled();
   });
 
   it("sets handshakeTimeout on upstream WebSocket", async () => {

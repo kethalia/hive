@@ -2,6 +2,8 @@
 
 import { createCloneTerminalProof } from "@hive/auth";
 import { z } from "zod";
+import type { WorkspaceAgent } from "@/lib/coder/types";
+import { getCoderClientForUser } from "@/lib/coder/user-client";
 import {
   type GitCloneDiscoveryActionResult,
   type GitCloneDiscoveryErrorCode,
@@ -27,6 +29,8 @@ const MISSING_ROOT_MESSAGE =
   "Projects folder is not available. Create or mount the configured projects root, then refresh.";
 const SCAN_FAILED_MESSAGE = "We couldn't scan projects for Git clones. Refresh and try again.";
 const INVALID_SELECTION_MESSAGE = "We couldn't verify that Git repository. Refresh and try again.";
+const WORKSPACE_AGENT_UNAVAILABLE_MESSAGE =
+  "We couldn't verify that workspace terminal. Refresh and try again.";
 const TERMINAL_PROOF_UNAVAILABLE_MESSAGE =
   "We couldn't prepare a secure Git terminal. Refresh and try again.";
 
@@ -102,7 +106,12 @@ export const listGitClonesAction = authActionClient.action(
 
 export const resolveGitCloneTerminalAction = authActionClient
   .inputSchema(resolveGitCloneTerminalSchema)
-  .action(async ({ parsedInput }): Promise<GitCloneTerminalIdentity> => {
+  .action(async ({ parsedInput, ctx }): Promise<GitCloneTerminalIdentity> => {
+    const agentId = await resolveAuthorizedWorkspaceAgentId(
+      ctx.user.id,
+      parsedInput.workspaceId,
+      parsedInput.agentId,
+    );
     const projectsRootPath = resolveConfiguredProjectsRoot();
     let tree: CloneTree;
 
@@ -141,7 +150,8 @@ export const resolveGitCloneTerminalAction = authActionClient
     const cloneProof = createCloneTerminalProof(
       {
         workspaceId: parsedInput.workspaceId,
-        agentId: parsedInput.agentId ?? null,
+        agentId,
+        sessionId: ctx.session.sessionId,
         sessionName,
         clonePath: repository.relativePath,
       },
@@ -164,6 +174,41 @@ function getCloneTerminalProofSecret(): string {
     throw new Error(TERMINAL_PROOF_UNAVAILABLE_MESSAGE);
   }
   return secret;
+}
+
+async function resolveAuthorizedWorkspaceAgentId(
+  userId: string,
+  workspaceId: string,
+  requestedAgentId: string | undefined,
+): Promise<string> {
+  try {
+    const client = await getCoderClientForUser(userId);
+    const resources = await client.getWorkspaceResources(workspaceId);
+    const agents = resources.flatMap((resource) => resource.agents ?? []);
+
+    if (requestedAgentId) {
+      const requestedAgent = agents.find((agent) => agent.id === requestedAgentId);
+      if (!requestedAgent) {
+        throw new Error("workspace_agent_mismatch");
+      }
+      return requestedAgent.id;
+    }
+
+    const firstAgent = getFirstWorkspaceAgent(agents);
+    if (!firstAgent) {
+      throw new Error("workspace_agent_missing");
+    }
+    return firstAgent.id;
+  } catch (error) {
+    const reason = error instanceof Error ? error.message : describeErrorForLogs(error);
+    const safeReason = reason.startsWith("workspace_agent_") ? reason : describeErrorForLogs(error);
+    console.warn(`[git-clones] Workspace agent verification failed (${safeReason})`);
+    throw new Error(WORKSPACE_AGENT_UNAVAILABLE_MESSAGE);
+  }
+}
+
+function getFirstWorkspaceAgent(agents: readonly WorkspaceAgent[]): WorkspaceAgent | null {
+  return agents[0] ?? null;
 }
 
 function toPublicCloneTree(tree: CloneTree): PublicCloneTree {
