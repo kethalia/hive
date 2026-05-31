@@ -7,6 +7,11 @@ export interface PtyConnectionOptions {
   width: number;
   height: number;
   sessionName: string;
+  cwd?: string;
+}
+
+function shellQuote(value: string): string {
+  return `'${value.replace(/'/g, "'\\''")}'`;
 }
 
 export function buildPtyUrl(
@@ -14,7 +19,7 @@ export function buildPtyUrl(
   agentId: string,
   options: PtyConnectionOptions,
 ): string {
-  const { reconnectId, width, height, sessionName } = options;
+  const { reconnectId, width, height, sessionName, cwd } = options;
 
   if (!SAFE_IDENTIFIER_RE.test(sessionName)) {
     throw new Error(`Invalid session name: "${sessionName}" — must match ${SAFE_IDENTIFIER_RE}`);
@@ -39,7 +44,8 @@ export function buildPtyUrl(
   // terminal-overrides smcup@:rmcup@ → disable alternate screen so xterm.js
   //   stays in the normal buffer and mouse wheel scrolls the scrollback instead
   //   of being converted to up/down arrow key sequences
-  const command = `tmux -L web new-session -A -s ${sessionName} \\; set status off \\; set mouse off \\; set -g terminal-overrides ",xterm*:smcup@:rmcup@"`;
+  const cwdArg = cwd ? ` -c ${shellQuote(cwd)}` : "";
+  const command = `tmux -L web new-session -A -s ${sessionName}${cwdArg} \\; set status off \\; set mouse off \\; set -g terminal-overrides ",xterm*:smcup@:rmcup@"`;
 
   const params = new URLSearchParams({
     reconnect: reconnectId,

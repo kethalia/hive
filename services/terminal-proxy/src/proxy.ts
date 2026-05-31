@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import type { IncomingMessage } from "node:http";
+import path from "node:path";
 import type { Duplex } from "node:stream";
 import { WebSocket, WebSocketServer } from "ws";
 import { authenticateUpgrade } from "./auth.js";
@@ -8,6 +9,9 @@ import { buildPtyUrl, SAFE_IDENTIFIER_RE, UUID_RE } from "./protocol.js";
 
 const PING_INTERVAL_MS = 30_000;
 const UPSTREAM_CONNECT_TIMEOUT_MS = 10_000;
+const CLONE_TERMINAL_SESSION_PREFIX = "git-clone-";
+const PROJECTS_ROOT_ENV_KEY = "HIVE_PROJECTS_ROOT";
+const DEFAULT_PROJECTS_ROOT_PATH = "/home/coder/projects";
 
 const wss = new WebSocketServer({ noServer: true, maxPayload: 1_048_576 });
 
@@ -51,6 +55,65 @@ export function isOriginAllowed(origin: string | undefined): boolean {
   return patterns.some((pattern) => originMatchesPattern(origin, pattern));
 }
 
+type CloneCwdValidationResult = { ok: true; cwd?: string } | { ok: false; reason: string };
+
+function resolveProjectsRoot(): string {
+  return path.resolve(process.env[PROJECTS_ROOT_ENV_KEY]?.trim() || DEFAULT_PROJECTS_ROOT_PATH);
+}
+
+function validateCloneCwd(sessionName: string, clonePath: string | null): CloneCwdValidationResult {
+  const isCloneSession = sessionName.startsWith(CLONE_TERMINAL_SESSION_PREFIX);
+
+  if (!isCloneSession) {
+    if (clonePath !== null) {
+      return { ok: false, reason: "clonePath_not_allowed_for_non_clone_session" };
+    }
+    return { ok: true };
+  }
+
+  if (clonePath === null) {
+    return { ok: false, reason: "clonePath_required_for_clone_session" };
+  }
+
+  if (clonePath.length === 0) {
+    return { ok: false, reason: "clonePath_empty" };
+  }
+
+  if (clonePath.includes("\\") || /^[a-zA-Z]:[\\/]/.test(clonePath)) {
+    return { ok: false, reason: "clonePath_malformed" };
+  }
+
+  if (path.isAbsolute(clonePath)) {
+    return { ok: false, reason: "clonePath_absolute" };
+  }
+
+  const pathSegments = clonePath.split("/");
+  if (pathSegments.some((segment) => segment === "..")) {
+    return { ok: false, reason: "clonePath_traversal" };
+  }
+
+  const normalizedClonePath = path.normalize(clonePath);
+  if (normalizedClonePath === ".") {
+    return { ok: false, reason: "clonePath_root" };
+  }
+
+  const projectsRoot = resolveProjectsRoot();
+  const cwd = path.resolve(projectsRoot, normalizedClonePath);
+  const projectsRootPrefix = projectsRoot.endsWith(path.sep)
+    ? projectsRoot
+    : `${projectsRoot}${path.sep}`;
+
+  if (cwd === projectsRoot) {
+    return { ok: false, reason: "clonePath_root" };
+  }
+
+  if (!cwd.startsWith(projectsRootPrefix)) {
+    return { ok: false, reason: "clonePath_escape" };
+  }
+
+  return { ok: true, cwd };
+}
+
 export async function handleUpgrade(
   req: IncomingMessage,
   socket: Duplex,
@@ -79,6 +142,7 @@ export async function handleUpgrade(
   const width = url.searchParams.get("width");
   const height = url.searchParams.get("height");
   const sessionName = url.searchParams.get("sessionName") ?? "default";
+  const clonePath = url.searchParams.get("clonePath");
 
   if (!agentId || !reconnectId) {
     console.error("[terminal-proxy] Missing required params: agentId, reconnectId");
@@ -108,6 +172,14 @@ export async function handleUpgrade(
     return;
   }
 
+  const cloneCwd = validateCloneCwd(sessionName, clonePath);
+  if (!cloneCwd.ok) {
+    console.error(`[terminal-proxy] Invalid clonePath/session combination: ${cloneCwd.reason}`);
+    socket.write("HTTP/1.1 400 Bad Request\r\n\r\n");
+    socket.destroy();
+    return;
+  }
+
   const authResult = await authenticateUpgrade(req);
   if (!authResult.ok) {
     const reasonPhrase = authResult.value.status === 401 ? "Unauthorized" : "Bad Gateway";
@@ -130,6 +202,7 @@ export async function handleUpgrade(
     width: Number(width) || 80,
     height: Number(height) || 24,
     sessionName,
+    cwd: cloneCwd.cwd,
   });
 
   const connectionId = randomUUID();

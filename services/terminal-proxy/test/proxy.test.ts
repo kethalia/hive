@@ -74,6 +74,26 @@ const validParams = {
   sessionName: "my-session",
 };
 
+function getLastUpstreamUrl(): string {
+  const WsCtor = WebSocket as unknown as ReturnType<typeof vi.fn>;
+  return String(WsCtor.mock.calls.at(-1)?.[0] ?? "");
+}
+
+function getLastUpstreamCommand(): string | null {
+  return new URL(getLastUpstreamUrl()).searchParams.get("command");
+}
+
+async function expectBadUpgrade(
+  query: Record<string, string>,
+): Promise<Duplex & { written: string[] }> {
+  const socket = makeSocket();
+  await handleUpgrade(makeReq(query), socket, Buffer.alloc(0));
+  expect(socket.written[0]).toContain("400");
+  expect(socket.destroy).toHaveBeenCalled();
+  expect(WebSocket).not.toHaveBeenCalled();
+  return socket;
+}
+
 describe("handleUpgrade", () => {
   const originalEnv = process.env;
 
@@ -178,6 +198,75 @@ describe("handleUpgrade", () => {
     expect(url).toContain(validParams.agentId);
     expect(url).toContain("/pty?");
     expect(opts.headers["Coder-Session-Token"]).toBe("per-user-token");
+  });
+
+  it("opens clone sessions with cwd resolved under the default projects root", async () => {
+    delete process.env.HIVE_PROJECTS_ROOT;
+    const socket = makeSocket();
+    await handleUpgrade(
+      makeReq({ ...validParams, sessionName: "git-clone-deadbeef", clonePath: "kethalia/hive" }),
+      socket,
+      Buffer.alloc(0),
+    );
+
+    expect(socket.destroy).not.toHaveBeenCalled();
+    expect(getLastUpstreamCommand()).toContain("-c '/home/coder/projects/kethalia/hive'");
+  });
+
+  it("shell-quotes clone cwd with spaces and single quotes from HIVE_PROJECTS_ROOT", async () => {
+    process.env.HIVE_PROJECTS_ROOT = "/tmp/Hive Projects/o'repos";
+    const socket = makeSocket();
+    await handleUpgrade(
+      makeReq({
+        ...validParams,
+        sessionName: "git-clone-deadbeef",
+        clonePath: "acme/bob's repo",
+      }),
+      socket,
+      Buffer.alloc(0),
+    );
+
+    expect(socket.destroy).not.toHaveBeenCalled();
+    expect(getLastUpstreamCommand()).toContain(
+      "-c '/tmp/Hive Projects/o'\\''repos/acme/bob'\\''s repo'",
+    );
+  });
+
+  it("rejects clone sessions without clonePath", async () => {
+    await expectBadUpgrade({ ...validParams, sessionName: "git-clone-deadbeef" });
+    expect(mockAuth).not.toHaveBeenCalled();
+  });
+
+  it("rejects clonePath on non-clone sessions", async () => {
+    await expectBadUpgrade({ ...validParams, clonePath: "kethalia/hive" });
+    expect(mockAuth).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["parent traversal", "../escape"],
+    ["absolute path", "/home/coder/projects/kethalia/hive"],
+    ["empty path", ""],
+    ["root path", "."],
+  ])("rejects unsafe clonePath: %s", async (_name, clonePath) => {
+    await expectBadUpgrade({ ...validParams, sessionName: "git-clone-deadbeef", clonePath });
+    expect(mockAuth).not.toHaveBeenCalled();
+  });
+
+  it("rejects env-root sibling escapes without logging the configured root", async () => {
+    process.env.HIVE_PROJECTS_ROOT = "/secret/projects-root";
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => undefined);
+
+    await expectBadUpgrade({
+      ...validParams,
+      sessionName: "git-clone-deadbeef",
+      clonePath: "../projects-root-sibling/repo",
+    });
+
+    const logged = errorSpy.mock.calls.flat().join("\n");
+    expect(logged).toContain("clonePath");
+    expect(logged).not.toContain("/secret/projects-root");
+    expect(mockAuth).not.toHaveBeenCalled();
+    errorSpy.mockRestore();
   });
 
   it("sets handshakeTimeout on upstream WebSocket", async () => {
