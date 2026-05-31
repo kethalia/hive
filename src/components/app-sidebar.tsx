@@ -78,6 +78,7 @@ import {
 import { getSessionAction } from "@/lib/auth/actions";
 import type { CoderWorkspace } from "@/lib/coder/types";
 import { SAFE_IDENTIFIER_RE } from "@/lib/constants";
+import { isCloneTerminalSessionName } from "@/lib/git/clone-terminal-session";
 import type { CloneTreeDiagnostics, CloneTreeRepositoryNode } from "@/lib/git/clone-tree";
 import type { TemplateStatus } from "@/lib/templates/staleness";
 import { cn } from "@/lib/utils";
@@ -582,7 +583,7 @@ export function AppSidebar() {
     try {
       const result = await getWorkspaceSessionsAction({ workspaceId });
       if (result?.data) {
-        const sessions = result.data;
+        const sessions = result.data.filter((session) => !isCloneTerminalSessionName(session.name));
         setWorkspaceSessions((prev) => ({
           ...prev,
           [workspaceId]: { data: sessions, isLoading: false, error: null },
@@ -705,6 +706,10 @@ export function AppSidebar() {
       const result = await createSessionAction({ workspaceId });
       if (result?.data) {
         const name = result.data.name;
+        if (isCloneTerminalSessionName(name)) {
+          console.error("[sidebar] create session returned a reserved clone terminal session");
+          return;
+        }
         setWorkspaceSessions((prev) => {
           const current = prev[workspaceId] ?? { data: [], isLoading: false, error: null };
           const alreadyExists = current.data.some((s) => s.name === name);
@@ -727,6 +732,10 @@ export function AppSidebar() {
 
   const handleKillSession = useCallback(
     async (workspaceId: string, sessionName: string) => {
+      if (isCloneTerminalSessionName(sessionName)) {
+        console.error("[sidebar] refused to kill a reserved clone terminal session");
+        return;
+      }
       const result = await killSessionAction({ workspaceId, sessionName });
       if (result?.data) {
         setWorkspaceSessions((prev) => {
@@ -750,6 +759,10 @@ export function AppSidebar() {
 
   const handleRenameSession = useCallback(
     async (workspaceId: string, oldName: string, newName: string) => {
+      if (isCloneTerminalSessionName(oldName) || isCloneTerminalSessionName(newName)) {
+        console.error("[sidebar] refused to rename a reserved clone terminal session");
+        return;
+      }
       const result = await renameSessionAction({ workspaceId, oldName, newName });
       if (result?.data) {
         const { newName: renamedTo } = result.data;

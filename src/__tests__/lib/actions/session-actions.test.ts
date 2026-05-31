@@ -95,6 +95,19 @@ describe("session server actions", () => {
 
       expect(result?.serverError).toContain("Invalid session name");
     });
+
+    it("rejects reserved clone session names without shelling out", async () => {
+      const { createSessionAction } = await import("@/lib/actions/workspaces");
+
+      const result = await createSessionAction({
+        workspaceId: "ws-1",
+        sessionName: "git-clone-abc123",
+      });
+
+      expect(result?.serverError).toContain("reserved clone terminal session");
+      expect(mockedGetCoderClientForUser).not.toHaveBeenCalled();
+      expect(mockedExec).not.toHaveBeenCalled();
+    });
   });
 
   describe("renameSessionAction", () => {
@@ -146,6 +159,34 @@ describe("session server actions", () => {
       });
 
       expect(result?.serverError).toContain("Invalid session name: bad name!");
+    });
+
+    it("rejects renaming a reserved clone session without shelling out", async () => {
+      const { renameSessionAction } = await import("@/lib/actions/workspaces");
+
+      const result = await renameSessionAction({
+        workspaceId: "ws-1",
+        oldName: "git-clone-abc123",
+        newName: "new-name",
+      });
+
+      expect(result?.serverError).toContain("reserved clone terminal session");
+      expect(mockedGetCoderClientForUser).not.toHaveBeenCalled();
+      expect(mockedExec).not.toHaveBeenCalled();
+    });
+
+    it("rejects renaming a generic session to a reserved clone session without shelling out", async () => {
+      const { renameSessionAction } = await import("@/lib/actions/workspaces");
+
+      const result = await renameSessionAction({
+        workspaceId: "ws-1",
+        oldName: "good-name",
+        newName: "git-clone-def456",
+      });
+
+      expect(result?.serverError).toContain("reserved clone terminal session");
+      expect(mockedGetCoderClientForUser).not.toHaveBeenCalled();
+      expect(mockedExec).not.toHaveBeenCalled();
     });
 
     it("returns error when tmux rename fails", async () => {
@@ -217,6 +258,19 @@ describe("session server actions", () => {
       });
 
       expect(result?.serverError).toContain("Invalid session name");
+    });
+
+    it("rejects killing reserved clone sessions without shelling out", async () => {
+      const { killSessionAction } = await import("@/lib/actions/workspaces");
+
+      const result = await killSessionAction({
+        workspaceId: "ws-1",
+        sessionName: "git-clone-abc123",
+      });
+
+      expect(result?.serverError).toContain("reserved clone terminal session");
+      expect(mockedGetCoderClientForUser).not.toHaveBeenCalled();
+      expect(mockedExec).not.toHaveBeenCalled();
     });
 
     it("returns error when tmux kill fails", async () => {

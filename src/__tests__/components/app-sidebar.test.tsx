@@ -994,6 +994,21 @@ describe("AppSidebar", () => {
     });
   });
 
+  it("hides reserved clone sessions from generic terminal rows and cleanup controls", async () => {
+    mockGetWorkspaceSessions.mockResolvedValue({
+      data: [makeSession("dev"), makeSession("git-clone-abc123")],
+    });
+
+    await expandWorkspaceAndTerminalSessions();
+
+    await waitFor(() => {
+      expect(screen.getByText("dev")).toBeInTheDocument();
+    });
+    expect(screen.queryByText("git-clone-abc123")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("rename-session-git-clone-abc123")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("kill-session-git-clone-abc123")).not.toBeInTheDocument();
+  });
+
   it("keeps desktop sessions capped and hover-gated", async () => {
     mockUseIsMobile.mockReturnValue(false);
 
