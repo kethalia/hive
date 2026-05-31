@@ -47,6 +47,7 @@ function TerminalInner({ agentId, workspaceId }: { agentId: string; workspaceId:
   const router = useRouter();
   const searchParams = useSearchParams();
   const session = searchParams.get("session");
+  const clonePath = session ? searchParams.get("clonePath") || undefined : undefined;
   const debugViewportEnabled = searchParams.get("debugViewport") === "1";
   const { setActiveTerminal, activeTerminal, activeSend, register, unregister } = useKeybindings();
   const [menuPosition, setMenuPosition] = useState<{ x: number; y: number } | null>(null);
@@ -265,6 +266,7 @@ function TerminalInner({ agentId, workspaceId }: { agentId: string; workspaceId:
           agentId={agentId}
           workspaceId={workspaceId}
           sessionName={session}
+          clonePath={clonePath}
           className="h-full rounded-none border-0"
           onTerminalReady={handleTerminalReady}
           onTerminalDestroy={handleTerminalDestroy}
