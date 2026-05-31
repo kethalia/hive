@@ -65,13 +65,16 @@ export async function deleteSession(sessionId: string): Promise<void> {
   }
 }
 
-export function setSessionCookie(cookieStore: WritableSessionCookieStore, sessionId: string): void {
+export function createSignedSessionCookie(sessionId: string): string {
   const cookieSecret = process.env.COOKIE_SECRET;
   if (!cookieSecret) {
     throw new Error("COOKIE_SECRET is not configured");
   }
-  const signedValue = signCookie(sessionId, cookieSecret);
-  setSessionCookieValue(cookieStore, signedValue);
+  return signCookie(sessionId, cookieSecret);
+}
+
+export function setSessionCookie(cookieStore: WritableSessionCookieStore, sessionId: string): void {
+  setSessionCookieValue(cookieStore, createSignedSessionCookie(sessionId));
 }
 
 export function clearSessionCookie(cookieStore: WritableSessionCookieStore): void {

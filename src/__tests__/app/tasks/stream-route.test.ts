@@ -18,9 +18,9 @@ vi.mock("@/lib/workspace/naming", () => ({
   workerWorkspaceName: vi.fn((taskId: string) => `hive-worker-${taskId.slice(0, 8)}`),
 }));
 
+import { getDb } from "@hive/db";
 import { NextRequest } from "next/server";
 import { GET } from "@/app/api/tasks/[id]/stream/route";
-import { getDb } from "@hive/db";
 import { streamFromWorkspace } from "@/lib/workspace/stream";
 
 const mockGetDb = vi.mocked(getDb);
@@ -49,7 +49,44 @@ function makeParams(taskId: string): Promise<{ id: string }> {
   return Promise.resolve({ id: taskId });
 }
 
+function mockDb({
+  task = { id: VALID_UUID },
+  workspace = null,
+}: {
+  task?: { id: string } | null | Error;
+  workspace?: unknown | Error;
+} = {}) {
+  const taskFindFirst = vi.fn();
+  if (task instanceof Error) {
+    taskFindFirst.mockRejectedValue(task);
+  } else {
+    taskFindFirst.mockResolvedValue(task);
+  }
+
+  const workspaceFindFirst = vi.fn();
+  if (workspace instanceof Error) {
+    workspaceFindFirst.mockRejectedValue(workspace);
+  } else {
+    workspaceFindFirst.mockResolvedValue(workspace);
+  }
+
+  mockGetDb.mockReturnValue({
+    task: { findFirst: taskFindFirst },
+    workspace: { findFirst: workspaceFindFirst },
+  } as any);
+
+  return { taskFindFirst, workspaceFindFirst };
+}
+
 const VALID_UUID = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee";
+
+const runningWorkspace = {
+  id: "ws-1",
+  taskId: VALID_UUID,
+  coderWorkspaceId: "coder-ws-1",
+  templateType: "worker",
+  status: "running",
+};
 
 describe("GET /api/tasks/[id]/stream", () => {
   beforeEach(() => {
@@ -81,12 +118,25 @@ describe("GET /api/tasks/[id]/stream", () => {
     expect(body).toBe("Invalid task ID");
   });
 
+  it("rejects cross-user or missing tasks with 404 before looking up workspace", async () => {
+    const { taskFindFirst, workspaceFindFirst } = mockDb({ task: null });
+
+    const response = await GET(makeRequest(VALID_UUID), {
+      params: makeParams(VALID_UUID),
+    });
+
+    expect(response.status).toBe(404);
+    expect(await response.text()).toBe("Not found");
+    expect(taskFindFirst).toHaveBeenCalledWith({
+      where: { id: VALID_UUID, userId: "user-1" },
+      select: { id: true },
+    });
+    expect(workspaceFindFirst).not.toHaveBeenCalled();
+    expect(mockStreamFromWorkspace).not.toHaveBeenCalled();
+  });
+
   it("returns SSE content-type headers", async () => {
-    mockGetDb.mockReturnValue({
-      workspace: {
-        findFirst: vi.fn().mockResolvedValue(null),
-      },
-    } as any);
+    mockDb();
 
     const response = await GET(makeRequest(VALID_UUID), {
       params: makeParams(VALID_UUID),
@@ -100,11 +150,7 @@ describe("GET /api/tasks/[id]/stream", () => {
   });
 
   it("sends waiting status when no running workspace found", async () => {
-    mockGetDb.mockReturnValue({
-      workspace: {
-        findFirst: vi.fn().mockResolvedValue(null),
-      },
-    } as any);
+    mockDb();
 
     const response = await GET(makeRequest(VALID_UUID), {
       params: makeParams(VALID_UUID),
@@ -116,11 +162,7 @@ describe("GET /api/tasks/[id]/stream", () => {
   });
 
   it("sends SSE error event when DB lookup fails", async () => {
-    mockGetDb.mockReturnValue({
-      workspace: {
-        findFirst: vi.fn().mockRejectedValue(new Error("Connection refused")),
-      },
-    } as any);
+    mockDb({ workspace: new Error("Connection refused") });
 
     const response = await GET(makeRequest(VALID_UUID), {
       params: makeParams(VALID_UUID),
@@ -132,17 +174,7 @@ describe("GET /api/tasks/[id]/stream", () => {
   });
 
   it("relays lines from stream as SSE data events", async () => {
-    mockGetDb.mockReturnValue({
-      workspace: {
-        findFirst: vi.fn().mockResolvedValue({
-          id: "ws-1",
-          taskId: VALID_UUID,
-          coderWorkspaceId: "coder-ws-1",
-          templateType: "worker",
-          status: "running",
-        }),
-      },
-    } as any);
+    mockDb({ workspace: runningWorkspace });
 
     // Create a mock readable stream that emits lines then closes
     const mockReadable = new ReadableStream<string>({
@@ -173,17 +205,7 @@ describe("GET /api/tasks/[id]/stream", () => {
   });
 
   it("sends ended status on stream close and kills process", async () => {
-    mockGetDb.mockReturnValue({
-      workspace: {
-        findFirst: vi.fn().mockResolvedValue({
-          id: "ws-1",
-          taskId: VALID_UUID,
-          coderWorkspaceId: "coder-ws-1",
-          templateType: "worker",
-          status: "running",
-        }),
-      },
-    } as any);
+    mockDb({ workspace: runningWorkspace });
 
     // Stream that immediately closes
     const mockReadable = new ReadableStream<string>({
@@ -209,17 +231,7 @@ describe("GET /api/tasks/[id]/stream", () => {
   });
 
   it("calls streamFromWorkspace with correct workspace name and command", async () => {
-    mockGetDb.mockReturnValue({
-      workspace: {
-        findFirst: vi.fn().mockResolvedValue({
-          id: "ws-1",
-          taskId: VALID_UUID,
-          coderWorkspaceId: "coder-ws-1",
-          templateType: "worker",
-          status: "running",
-        }),
-      },
-    } as any);
+    mockDb({ workspace: runningWorkspace });
 
     const mockReadable = new ReadableStream<string>({
       start(controller) {

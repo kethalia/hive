@@ -40,7 +40,7 @@ export function middleware(request: NextRequest) {
   }
 
   const response = NextResponse.next();
-  refreshDomainSessionCookie(response.cookies, sessionCookie.value);
+  refreshDomainSessionCookie(response.cookies, sessionCookie.value, verified.timestamp);
   return response;
 }
 

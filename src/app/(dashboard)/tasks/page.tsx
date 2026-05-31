@@ -1,7 +1,9 @@
 export const dynamic = "force-dynamic";
 
 import { PlusCircle } from "lucide-react";
+import { cookies } from "next/headers";
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -14,11 +16,17 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { listTasks } from "@/lib/api/tasks";
+import { getSession } from "@/lib/auth/session";
 import { formatRelativeDate, shortRepo, statusVariant } from "@/lib/helpers/format";
 import { TaskListPoller } from "./task-list-poller";
 
 export default async function TasksPage() {
-  const taskList = await listTasks();
+  const session = await getSession(await cookies());
+  if (!session) {
+    redirect("/login");
+  }
+
+  const taskList = await listTasks(session.user.id);
 
   return (
     <TaskListPoller>

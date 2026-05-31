@@ -165,7 +165,7 @@ describe("Task API functions", () => {
 
       mockTaskFindFirst.mockResolvedValue(mockTask);
 
-      const result = await getTask("abc-123");
+      const result = await getTask("abc-123", "user-1");
 
       expect(result).toMatchObject({
         id: "abc-123",
@@ -174,7 +174,7 @@ describe("Task API functions", () => {
       });
 
       expect(mockTaskFindFirst).toHaveBeenCalledWith({
-        where: { id: "abc-123" },
+        where: { id: "abc-123", userId: "user-1" },
         include: includeClause,
       });
     });
@@ -182,8 +182,12 @@ describe("Task API functions", () => {
     it("returns null when task not found", async () => {
       mockTaskFindFirst.mockResolvedValue(null);
 
-      const result = await getTask("nonexistent");
+      const result = await getTask("nonexistent", "user-1");
       expect(result).toBeNull();
+      expect(mockTaskFindFirst).toHaveBeenCalledWith({
+        where: { id: "nonexistent", userId: "user-1" },
+        include: includeClause,
+      });
     });
 
     it("scopes query by userId when provided", async () => {
@@ -218,7 +222,7 @@ describe("Task API functions", () => {
   });
 
   describe("listTasks()", () => {
-    it("returns tasks ordered by createdAt desc", async () => {
+    it("returns user's tasks ordered by createdAt desc", async () => {
       const mockTasks = [
         { id: "task-2", createdAt: new Date("2026-01-02") },
         { id: "task-1", createdAt: new Date("2026-01-01") },
@@ -226,11 +230,12 @@ describe("Task API functions", () => {
 
       mockTaskFindMany.mockResolvedValue(mockTasks);
 
-      const result = await listTasks();
+      const result = await listTasks("user-1");
 
       expect(result).toHaveLength(2);
       expect(result[0].id).toBe("task-2");
       expect(mockTaskFindMany).toHaveBeenCalledWith({
+        where: { userId: "user-1" },
         orderBy: { createdAt: "desc" },
         take: 50,
       });
