@@ -35,6 +35,7 @@ services:
       - DATABASE_URL=postgresql://hive:hive@postgres:5432/hive
       - REDIS_URL=redis://redis:6379
       - CODER_URL=${CODER_URL:-}
+      - HIVE_PROJECTS_ROOT=${HIVE_PROJECTS_ROOT:-/home/coder/projects}
       - AUTH_SERVICE_URL=http://auth:4400
       - COOKIE_SECRET=${COOKIE_SECRET:-}
       - NEXT_PUBLIC_TERMINAL_WS_URL=${NEXT_PUBLIC_TERMINAL_WS_URL:-}
@@ -51,6 +52,7 @@ services:
     environment:
       - AUTH_SERVICE_URL=http://auth:4400
       - COOKIE_SECRET=${COOKIE_SECRET:-}
+      - HIVE_PROJECTS_ROOT=${HIVE_PROJECTS_ROOT:-/home/coder/projects}
 
   postgres:
     image: postgres:16-alpine

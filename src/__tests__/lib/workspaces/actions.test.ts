@@ -92,7 +92,7 @@ describe("workspace server actions", () => {
     });
 
     const { getWorkspaceSessionsAction } = await import("@/lib/actions/workspaces");
-    const _result = await getWorkspaceSessionsAction({ workspaceId: "ws-1" });
+    const result = await getWorkspaceSessionsAction({ workspaceId: "ws-1" });
 
     expect(mockGetWorkspaceAgentName).toHaveBeenCalledWith("ws-1");
     expect(mockedExec).toHaveBeenCalledWith(
@@ -103,6 +103,41 @@ describe("workspace server actions", () => {
         sessionToken: "coder-session-token",
       },
     );
+    expect(result?.data).toEqual([
+      { name: "main", created: 1712345678, windows: 3 },
+      { name: "dev", created: 1712345700, windows: 1 },
+    ]);
+  });
+
+  it("getWorkspaceSessionsAction filters reserved clone terminal sessions from mixed tmux output", async () => {
+    mockGetWorkspaceAgentName.mockResolvedValueOnce("dev.main");
+    mockedExec.mockResolvedValueOnce({
+      stdout: "main:1712345678:3\ngit-clone-abc123:1712345700:1\nbuild:1712345800:2",
+      stderr: "",
+      exitCode: 0,
+    });
+
+    const { getWorkspaceSessionsAction } = await import("@/lib/actions/workspaces");
+    const result = await getWorkspaceSessionsAction({ workspaceId: "ws-1" });
+
+    expect(result?.data).toEqual([
+      { name: "main", created: 1712345678, windows: 3 },
+      { name: "build", created: 1712345800, windows: 2 },
+    ]);
+  });
+
+  it("getWorkspaceSessionsAction returns an empty list when tmux output contains only clone sessions", async () => {
+    mockGetWorkspaceAgentName.mockResolvedValueOnce("dev.main");
+    mockedExec.mockResolvedValueOnce({
+      stdout: "git-clone-abc123:1712345678:1\ngit-clone-def456:1712345700:2",
+      stderr: "",
+      exitCode: 0,
+    });
+
+    const { getWorkspaceSessionsAction } = await import("@/lib/actions/workspaces");
+    const result = await getWorkspaceSessionsAction({ workspaceId: "ws-1" });
+
+    expect(result?.data).toEqual([]);
   });
 
   it("getWorkspaceSessionsAction returns empty array when no agents found", async () => {

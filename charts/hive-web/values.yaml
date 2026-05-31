@@ -141,6 +141,9 @@ config:
   AUTH_SERVICE_URL: "http://hive-auth"
   CODER_URL: ""
   NEXT_PUBLIC_TERMINAL_WS_URL: ""
+  # Projects tree visible to the web process for Git clone discovery/sidebar scans.
+  # Mount or override this path when repositories live outside the Coder default.
+  HIVE_PROJECTS_ROOT: "/home/coder/projects"
   # Cookie Domain attribute applied to the session cookie. Set to a shared
   # parent (leading dot recommended) so the cookie is sent to sibling
   # subdomains like the terminal-proxy host (`*-hive-terminal.<domain>`).

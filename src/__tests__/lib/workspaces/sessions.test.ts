@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseTmuxSessions } from "@/lib/workspaces/sessions";
+import { filterGenericTmuxSessions, parseTmuxSessions } from "@/lib/workspaces/sessions";
 
 describe("parseTmuxSessions", () => {
   it("parses a single session line", () => {
@@ -47,5 +47,24 @@ describe("parseTmuxSessions", () => {
     const result = parseTmuxSessions("main:1712345678:3\n");
 
     expect(result).toEqual([{ name: "main", created: 1712345678, windows: 3 }]);
+  });
+
+  it("filters reserved clone terminal sessions from mixed tmux output", () => {
+    const sessions = parseTmuxSessions(
+      "main:1712345678:3\ngit-clone-abc123:1712345700:1\nbuild:1712345800:2",
+    );
+
+    expect(filterGenericTmuxSessions(sessions)).toEqual([
+      { name: "main", created: 1712345678, windows: 3 },
+      { name: "build", created: 1712345800, windows: 2 },
+    ]);
+  });
+
+  it("returns an empty list when tmux output contains only reserved clone sessions", () => {
+    const sessions = parseTmuxSessions(
+      "git-clone-abc123:1712345678:1\ngit-clone-def456:1712345700:2",
+    );
+
+    expect(filterGenericTmuxSessions(sessions)).toEqual([]);
   });
 });
