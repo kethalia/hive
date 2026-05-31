@@ -1,5 +1,6 @@
 "use server";
 
+import { createCloneTerminalProof } from "@hive/auth";
 import { z } from "zod";
 import {
   type GitCloneDiscoveryActionResult,
@@ -26,6 +27,8 @@ const MISSING_ROOT_MESSAGE =
   "Projects folder is not available. Create or mount the configured projects root, then refresh.";
 const SCAN_FAILED_MESSAGE = "We couldn't scan projects for Git clones. Refresh and try again.";
 const INVALID_SELECTION_MESSAGE = "We couldn't verify that Git repository. Refresh and try again.";
+const TERMINAL_PROOF_UNAVAILABLE_MESSAGE =
+  "We couldn't prepare a secure Git terminal. Refresh and try again.";
 
 type GitCloneTerminalResolveStatus =
   | "success"
@@ -40,6 +43,8 @@ const resolveGitCloneTerminalSchema = z
       .trim()
       .min(1, "cloneSessionKey is required")
       .refine(isExpectedCloneSessionKey, "cloneSessionKey is invalid"),
+    workspaceId: z.string().trim().min(1, "workspaceId is required"),
+    agentId: z.string().trim().min(1, "agentId is required").optional(),
     relativePath: z
       .string()
       .trim()
@@ -132,13 +137,34 @@ export const resolveGitCloneTerminalAction = authActionClient
       throw new Error(INVALID_SELECTION_MESSAGE);
     }
 
+    const sessionName = createSafeCloneTerminalSessionName(repository.cloneSessionKey);
+    const cloneProof = createCloneTerminalProof(
+      {
+        workspaceId: parsedInput.workspaceId,
+        agentId: parsedInput.agentId ?? null,
+        sessionName,
+        clonePath: repository.relativePath,
+      },
+      getCloneTerminalProofSecret(),
+    );
+
     logTerminalResolveOutcome("success", tree.diagnostics);
     return {
-      sessionName: createSafeCloneTerminalSessionName(repository.cloneSessionKey),
+      sessionName,
       clonePath: repository.relativePath,
       cloneSessionKey: repository.cloneSessionKey,
+      cloneProof,
     };
   });
+
+function getCloneTerminalProofSecret(): string {
+  const secret = process.env.COOKIE_SECRET?.trim();
+  if (!secret) {
+    console.error("[git-clones] Terminal proof mint failed: cloneProof_secret_missing");
+    throw new Error(TERMINAL_PROOF_UNAVAILABLE_MESSAGE);
+  }
+  return secret;
+}
 
 function toPublicCloneTree(tree: CloneTree): PublicCloneTree {
   const { path: _path, ...publicRoot } = tree.root;

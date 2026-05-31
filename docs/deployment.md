@@ -54,7 +54,9 @@ Use the same value everywhere:
 
 If the configured projects root is missing or not mounted into the web service, the sidebar reports that the projects folder is unavailable. If the root exists but contains no discoverable Git repositories, the sidebar reports that no Git clones were found. Discovery runs on manual refresh and on the explicit sidebar load path; it does not currently auto-poll for filesystem changes.
 
-Clone terminal sessions are deterministic and reconnectable through the terminal route, but Hive does not yet expose a dedicated UI control to terminate a clone session. Use the underlying Coder workspace/session tooling when an operator must clean one up before that product surface exists.
+Clone terminal sessions are deterministic and reconnectable through the terminal route, but the deterministic `git-clone-<sha>` session name is only an identifier. Sidebar opens mint a short-lived server proof, signed with the shared `COOKIE_SECRET`, over the workspace, agent when available, session name, clone path, and expiry. The terminal proxy rejects missing, expired, tampered, or mismatched proofs before auth/upstream setup and logs only reason codes. A stale bookmarked clone terminal URL may need to be reopened from the Git sidebar to mint a fresh proof.
+
+Hive does not yet expose a dedicated UI control to terminate a clone session. Use the underlying Coder workspace/session tooling when an operator must clean one up before that product surface exists.
 
 Production diagnostics for this flow are intentionally limited today: the web app returns sanitized UI errors for missing roots, empty results, and scan failures; the web and terminal services log reason-code/count summaries without exposing local root paths, tokens, or terminal payloads. There are no dedicated production metrics for clone discovery or clone terminal startup yet.
 

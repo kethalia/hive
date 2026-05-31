@@ -36,6 +36,7 @@ export interface GitCloneTerminalIdentity {
   sessionName: string;
   clonePath: string;
   cloneSessionKey: string;
+  cloneProof: string;
 }
 
 export function resolveConfiguredProjectsRoot(): string {

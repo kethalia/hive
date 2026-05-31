@@ -120,12 +120,14 @@ vi.mock("next/dynamic", () => ({
     const Stub = ({
       className,
       clonePath,
+      cloneProof,
       layoutSignal,
       mobileInputMode,
       sessionName,
     }: {
       className?: string;
       clonePath?: string;
+      cloneProof?: string;
       layoutSignal?: unknown;
       mobileInputMode?: boolean;
       sessionName: string;
@@ -133,6 +135,7 @@ vi.mock("next/dynamic", () => ({
       <div
         className={className}
         data-clone-path={clonePath ?? ""}
+        data-clone-proof={cloneProof ?? ""}
         data-layout-signal={String(layoutSignal ?? "")}
         data-mobile-input-mode={mobileInputMode ? "true" : "false"}
         data-session-name={sessionName}
@@ -371,6 +374,7 @@ afterEach(() => {
 
 type RenderTerminalOptions = {
   clonePath?: string;
+  cloneProof?: string;
   layoutSignal?: unknown;
   mobileInputMode?: boolean;
   pinToBottomOnResize?: boolean;
@@ -385,7 +389,7 @@ async function flushTerminalEffects() {
 
 async function renderTerminal(props: RenderTerminalOptions = {}) {
   const { InteractiveTerminal } = await import("@/components/workspaces/InteractiveTerminal");
-  const { clonePath, sessionName = "main", ...terminalProps } = props;
+  const { clonePath, cloneProof, sessionName = "main", ...terminalProps } = props;
 
   let result: ReturnType<typeof render>;
   await act(async () => {
@@ -393,6 +397,7 @@ async function renderTerminal(props: RenderTerminalOptions = {}) {
       <InteractiveTerminal
         agentId="test-agent"
         clonePath={clonePath}
+        cloneProof={cloneProof}
         workspaceId="test-ws"
         sessionName={sessionName}
         {...terminalProps}
@@ -533,9 +538,10 @@ describe("InteractiveTerminal integration — Session lifecycle", () => {
     unmount();
   });
 
-  it("adds clonePath to the WebSocket URL when provided", async () => {
+  it("adds clonePath and cloneProof to the WebSocket URL when provided", async () => {
     const { unmount } = await renderTerminal({
       clonePath: "kethalia/hive",
+      cloneProof: "proof-token",
       sessionName: "git-clone-safe-hive",
     });
 
@@ -545,6 +551,7 @@ describe("InteractiveTerminal integration — Session lifecycle", () => {
     const url = new URL(terminalWebSocketUrls().at(-1)!);
     expect(url.searchParams.get("sessionName")).toBe("git-clone-safe-hive");
     expect(url.searchParams.get("clonePath")).toBe("kethalia/hive");
+    expect(url.searchParams.get("cloneProof")).toBe("proof-token");
     unmount();
   });
 
@@ -608,9 +615,9 @@ describe("InteractiveTerminal integration — Session lifecycle", () => {
 });
 
 describe("TerminalClient integration — Clone route parameters", () => {
-  it("passes clonePath from a clone route to InteractiveTerminal and preserves debug diagnostics", async () => {
+  it("passes clonePath and cloneProof from a clone route to InteractiveTerminal and preserves debug diagnostics", async () => {
     const { getByTestId, unmount } = await renderTerminalClient(
-      "session=git-clone-safe-hive&clonePath=kethalia%2Fhive&debugViewport=1",
+      "session=git-clone-safe-hive&clonePath=kethalia%2Fhive&cloneProof=proof-token&debugViewport=1",
     );
 
     await waitFor(() => {
@@ -621,6 +628,7 @@ describe("TerminalClient integration — Clone route parameters", () => {
       "git-clone-safe-hive",
     );
     expect(getByTestId("interactive-terminal")).toHaveAttribute("data-clone-path", "kethalia/hive");
+    expect(getByTestId("interactive-terminal")).toHaveAttribute("data-clone-proof", "proof-token");
     expect(getByTestId("mobile-terminal-diagnostics-overlay")).toBeInTheDocument();
     expect(mockGetWorkspaceSessionsAction).not.toHaveBeenCalled();
     expect(mockCreateSessionAction).not.toHaveBeenCalled();

@@ -13,6 +13,7 @@ vi.mock("@/lib/git/clone-discovery", () => ({
   discoverProjectCloneTree: vi.fn(),
 }));
 
+import { verifyCloneTerminalProof } from "@hive/auth";
 import { cookies } from "next/headers";
 import { listGitClonesAction, resolveGitCloneTerminalAction } from "@/lib/actions/git-clones";
 import { getSession } from "@/lib/auth/session";
@@ -49,12 +50,16 @@ const MOCK_SESSION = {
 };
 
 const PRIVATE_ROOT = "/tmp/private-projects/SUPER_SECRET_TOKEN";
+const WORKSPACE_ID = "workspace-123";
+const AGENT_ID = "agent-123";
+const COOKIE_SECRET = "test-cookie-secret";
 
 describe("listGitClonesAction", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.unstubAllEnvs();
     vi.stubEnv(PROJECTS_ROOT_ENV_KEY, PRIVATE_ROOT);
+    vi.stubEnv("COOKIE_SECRET", COOKIE_SECRET);
     vi.spyOn(console, "log").mockImplementation(() => {});
     vi.spyOn(console, "error").mockImplementation(() => {});
 
@@ -209,6 +214,7 @@ describe("resolveGitCloneTerminalAction", () => {
     vi.clearAllMocks();
     vi.unstubAllEnvs();
     vi.stubEnv(PROJECTS_ROOT_ENV_KEY, PRIVATE_ROOT);
+    vi.stubEnv("COOKIE_SECRET", COOKIE_SECRET);
     vi.spyOn(console, "log").mockImplementation(() => {});
     vi.spyOn(console, "error").mockImplementation(() => {});
 
@@ -235,6 +241,8 @@ describe("resolveGitCloneTerminalAction", () => {
 
     const result = await resolveGitCloneTerminalAction({
       cloneSessionKey: repositoryNode.cloneSessionKey,
+      workspaceId: WORKSPACE_ID,
+      agentId: AGENT_ID,
       relativePath: repositoryNode.relativePath,
     });
 
@@ -244,13 +252,46 @@ describe("resolveGitCloneTerminalAction", () => {
       sessionName: expect.any(String),
       clonePath: "kethalia/hive",
       cloneSessionKey: "git-clone:Git/projects/kethalia/hive",
+      cloneProof: expect.any(String),
     });
     expect(result?.data?.sessionName).toMatch(SAFE_IDENTIFIER_RE);
     expect(result?.data?.sessionName).toMatch(new RegExp(`^${CLONE_TERMINAL_SESSION_PREFIX}`));
     expect(result?.data?.sessionName).not.toContain(":");
     expect(result?.data?.sessionName).not.toContain("/");
+    expect(
+      verifyCloneTerminalProof(
+        result?.data?.cloneProof,
+        {
+          workspaceId: WORKSPACE_ID,
+          agentId: AGENT_ID,
+          sessionName: result?.data?.sessionName ?? "",
+          clonePath: "kethalia/hive",
+        },
+        COOKIE_SECRET,
+      ),
+    ).toMatchObject({ ok: true });
     expect(JSON.stringify(result?.data)).not.toContain(PRIVATE_ROOT);
     expect(JSON.stringify(result?.data)).not.toContain("SUPER_SECRET_TOKEN");
+  });
+
+  it("returns a sanitized error when the clone proof secret is not configured", async () => {
+    vi.stubEnv("COOKIE_SECRET", "");
+    mockedDiscoverProjectCloneTree.mockResolvedValue(makeCloneTree());
+
+    const result = await resolveGitCloneTerminalAction({
+      cloneSessionKey: repositoryNode.cloneSessionKey,
+      workspaceId: WORKSPACE_ID,
+      agentId: AGENT_ID,
+      relativePath: repositoryNode.relativePath,
+    });
+
+    expect(result?.serverError).toBe(
+      "We couldn't prepare a secure Git terminal. Refresh and try again.",
+    );
+    expect(JSON.stringify(result)).not.toContain(PRIVATE_ROOT);
+    expect(JSON.stringify(vi.mocked(console.error).mock.calls)).toContain(
+      "cloneProof_secret_missing",
+    );
   });
 
   it("refuses stale or tampered selections that do not match both key and path", async () => {
@@ -258,6 +299,8 @@ describe("resolveGitCloneTerminalAction", () => {
 
     const result = await resolveGitCloneTerminalAction({
       cloneSessionKey: repositoryNode.cloneSessionKey,
+      workspaceId: WORKSPACE_ID,
+      agentId: AGENT_ID,
       relativePath: "kethalia/other",
     });
 
@@ -274,6 +317,8 @@ describe("resolveGitCloneTerminalAction", () => {
 
     const result = await resolveGitCloneTerminalAction({
       cloneSessionKey: repositoryNode.cloneSessionKey,
+      workspaceId: WORKSPACE_ID,
+      agentId: AGENT_ID,
       relativePath: repositoryNode.relativePath,
     });
 
@@ -300,6 +345,8 @@ describe("resolveGitCloneTerminalAction", () => {
 
     const result = await resolveGitCloneTerminalAction({
       cloneSessionKey: repositoryNode.cloneSessionKey,
+      workspaceId: WORKSPACE_ID,
+      agentId: AGENT_ID,
       relativePath: repositoryNode.relativePath,
     });
 
@@ -317,6 +364,8 @@ describe("resolveGitCloneTerminalAction", () => {
 
     const result = await resolveGitCloneTerminalAction({
       cloneSessionKey: repositoryNode.cloneSessionKey,
+      workspaceId: WORKSPACE_ID,
+      agentId: AGENT_ID,
       relativePath: repositoryNode.relativePath,
     });
 
@@ -332,10 +381,14 @@ describe("resolveGitCloneTerminalAction", () => {
   it("rejects malformed or traversal-like input before invoking the scanner", async () => {
     const emptyResult = await resolveGitCloneTerminalAction({
       cloneSessionKey: "",
+      workspaceId: WORKSPACE_ID,
+      agentId: AGENT_ID,
       relativePath: repositoryNode.relativePath,
     });
     const traversalResult = await resolveGitCloneTerminalAction({
       cloneSessionKey: repositoryNode.cloneSessionKey,
+      workspaceId: WORKSPACE_ID,
+      agentId: AGENT_ID,
       relativePath: "../secrets/repo",
     });
 
@@ -349,6 +402,8 @@ describe("resolveGitCloneTerminalAction", () => {
 
     const result = await resolveGitCloneTerminalAction({
       cloneSessionKey: repositoryNode.cloneSessionKey,
+      workspaceId: WORKSPACE_ID,
+      agentId: AGENT_ID,
       relativePath: repositoryNode.relativePath,
     });
 

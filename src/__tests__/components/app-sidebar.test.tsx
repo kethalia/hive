@@ -494,6 +494,7 @@ describe("AppSidebar", () => {
         sessionName: "git-clone-safe-hive",
         clonePath: "kethalia/hive",
         cloneSessionKey: gitRepositoryNode.cloneSessionKey,
+        cloneProof: "proof-token",
       },
     });
     mockGetWorkspaceAgent.mockResolvedValue({
@@ -583,10 +584,12 @@ describe("AppSidebar", () => {
     await waitFor(() => {
       expect(mockResolveGitCloneTerminal).toHaveBeenCalledWith({
         cloneSessionKey: "git-clone:Git/projects/kethalia/hive",
+        workspaceId: "ws-running",
+        agentId: "agent-1",
         relativePath: "kethalia/hive",
       });
       expect(mockPush).toHaveBeenCalledWith(
-        "/workspaces/ws-running/terminal?session=git-clone-safe-hive&clonePath=kethalia%2Fhive",
+        "/workspaces/ws-running/terminal?session=git-clone-safe-hive&clonePath=kethalia%2Fhive&cloneProof=proof-token",
       );
     });
     expect(mockCreateSession).not.toHaveBeenCalled();
@@ -604,7 +607,7 @@ describe("AppSidebar", () => {
 
     await waitFor(() => {
       expect(mockPush).toHaveBeenCalledWith(
-        "/workspaces/ws-active/terminal?session=git-clone-safe-hive&clonePath=kethalia%2Fhive&debugViewport=1",
+        "/workspaces/ws-active/terminal?session=git-clone-safe-hive&clonePath=kethalia%2Fhive&cloneProof=proof-token&debugViewport=1",
       );
     });
     expect(mockCreateSession).not.toHaveBeenCalled();
@@ -634,7 +637,7 @@ describe("AppSidebar", () => {
 
     await waitFor(() => {
       expect(mockPush).toHaveBeenCalledWith(
-        "/workspaces/ws-stopped/terminal?session=git-clone-safe-hive&clonePath=kethalia%2Fhive",
+        "/workspaces/ws-stopped/terminal?session=git-clone-safe-hive&clonePath=kethalia%2Fhive&cloneProof=proof-token",
       );
     });
   });

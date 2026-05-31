@@ -34,6 +34,7 @@ interface InteractiveTerminalProps {
   workspaceId: string;
   sessionName: string;
   clonePath?: string;
+  cloneProof?: string;
   className?: string;
   onConnectionStateChange?: (state: ConnectionState) => void;
   onTerminalReady?: (term: Terminal, send: (data: string) => void) => void;
@@ -149,6 +150,7 @@ export function InteractiveTerminal({
   workspaceId,
   sessionName,
   clonePath,
+  cloneProof,
   className,
   onConnectionStateChange,
   onTerminalReady,
@@ -528,6 +530,9 @@ export function InteractiveTerminal({
       });
       if (clonePath) {
         params.set("clonePath", clonePath);
+        if (cloneProof) {
+          params.set("cloneProof", cloneProof);
+        }
       }
       setWsUrl(`${proxyUrl}/ws?${params.toString()}`);
     })();
@@ -563,6 +568,7 @@ export function InteractiveTerminal({
     agentId,
     applyMobileInputAdapter,
     clonePath,
+    cloneProof,
     fitResizeAndPreserveBottom,
     reconnectId,
     sessionName,

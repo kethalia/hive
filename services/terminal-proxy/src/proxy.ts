@@ -2,6 +2,7 @@ import { createHash, randomUUID } from "node:crypto";
 import type { IncomingMessage } from "node:http";
 import path from "node:path";
 import type { Duplex } from "node:stream";
+import { verifyCloneTerminalProof } from "@hive/auth";
 import { WebSocket, WebSocketServer } from "ws";
 import { authenticateUpgrade } from "./auth.js";
 import { ConnectionRegistry } from "./keepalive.js";
@@ -58,7 +59,16 @@ export function isOriginAllowed(origin: string | undefined): boolean {
   return patterns.some((pattern) => originMatchesPattern(origin, pattern));
 }
 
-type CloneCwdValidationResult = { ok: true; cwd?: string } | { ok: false; reason: string };
+type CloneCwdValidationResult =
+  | { ok: true; cwd?: string }
+  | { ok: false; reason: string; status?: 400 | 502 };
+
+type CloneProofExpectation = {
+  workspaceId: string | null;
+  agentId: string;
+  sessionName: string;
+  clonePath: string;
+};
 
 function resolveProjectsRoot(): string {
   return path.resolve(process.env[PROJECTS_ROOT_ENV_KEY]?.trim() || DEFAULT_PROJECTS_ROOT_PATH);
@@ -115,12 +125,59 @@ function logPreAuthRejection(reason: string): void {
   console.error(`[terminal-proxy] upgrade rejected before auth: ${reason}`);
 }
 
-function validateCloneCwd(sessionName: string, clonePath: string | null): CloneCwdValidationResult {
+function getCloneTerminalProofSecret(): string | null {
+  return process.env.COOKIE_SECRET?.trim() || null;
+}
+
+function validateCloneProof(
+  cloneProof: string | null,
+  expected: CloneProofExpectation,
+): CloneCwdValidationResult {
+  if (!expected.workspaceId) {
+    return { ok: false, reason: "workspaceId_required_for_clone_session" };
+  }
+
+  const secret = getCloneTerminalProofSecret();
+  if (!secret) {
+    return { ok: false, reason: "cloneProof_secret_missing", status: 502 };
+  }
+
+  try {
+    const result = verifyCloneTerminalProof(
+      cloneProof,
+      {
+        workspaceId: expected.workspaceId,
+        agentId: expected.agentId,
+        sessionName: expected.sessionName,
+        clonePath: expected.clonePath,
+      },
+      secret,
+    );
+
+    if (!result.ok) {
+      return { ok: false, reason: `cloneProof_${result.reason}` };
+    }
+  } catch {
+    return { ok: false, reason: "cloneProof_malformed" };
+  }
+
+  return { ok: true };
+}
+
+function validateCloneCwd(
+  sessionName: string,
+  clonePath: string | null,
+  cloneProof: string | null,
+  proofExpectation: Omit<CloneProofExpectation, "sessionName" | "clonePath">,
+): CloneCwdValidationResult {
   const usesCloneSessionPrefix = sessionName.startsWith(CLONE_TERMINAL_SESSION_PREFIX);
 
   if (!usesCloneSessionPrefix) {
     if (clonePath !== null) {
       return { ok: false, reason: "clonePath_not_allowed_for_non_clone_session" };
+    }
+    if (cloneProof !== null) {
+      return { ok: false, reason: "cloneProof_not_allowed_for_non_clone_session" };
     }
     return { ok: true };
   }
@@ -141,6 +198,15 @@ function validateCloneCwd(sessionName: string, clonePath: string | null): CloneC
   const expectedSessionName = createCanonicalCloneSessionName(clonePathSegments.pathSegments);
   if (sessionName !== expectedSessionName) {
     return { ok: false, reason: "clone_session_mismatch" };
+  }
+
+  const cloneProofValidation = validateCloneProof(cloneProof, {
+    ...proofExpectation,
+    sessionName,
+    clonePath,
+  });
+  if (!cloneProofValidation.ok) {
+    return cloneProofValidation;
   }
 
   const projectsRoot = resolveProjectsRoot();
@@ -189,6 +255,7 @@ export async function handleUpgrade(
   const height = url.searchParams.get("height");
   const sessionName = url.searchParams.get("sessionName") ?? "default";
   const clonePath = url.searchParams.get("clonePath");
+  const cloneProof = url.searchParams.get("cloneProof");
 
   if (!agentId || !reconnectId) {
     logPreAuthRejection("required_params_missing");
@@ -218,10 +285,11 @@ export async function handleUpgrade(
     return;
   }
 
-  const cloneCwd = validateCloneCwd(sessionName, clonePath);
+  const cloneCwd = validateCloneCwd(sessionName, clonePath, cloneProof, { workspaceId, agentId });
   if (!cloneCwd.ok) {
     logPreAuthRejection(cloneCwd.reason);
-    socket.write("HTTP/1.1 400 Bad Request\r\n\r\n");
+    const statusLine = cloneCwd.status === 502 ? "502 Bad Gateway" : "400 Bad Request";
+    socket.write(`HTTP/1.1 ${statusLine}\r\n\r\n`);
     socket.destroy();
     return;
   }

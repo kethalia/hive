@@ -144,7 +144,9 @@ function isGitCloneTerminalIdentity(value: unknown): value is GitCloneTerminalId
     typeof candidate.clonePath === "string" &&
     candidate.clonePath.length > 0 &&
     typeof candidate.cloneSessionKey === "string" &&
-    candidate.cloneSessionKey.length > 0
+    candidate.cloneSessionKey.length > 0 &&
+    typeof candidate.cloneProof === "string" &&
+    candidate.cloneProof.length > 0
   );
 }
 
@@ -799,8 +801,13 @@ export function AppSidebar() {
       }
 
       try {
+        const targetAgent =
+          workspaceAgentsRef.current[targetWorkspaceId] ??
+          (await fetchAgentInfo(targetWorkspaceId));
         const result = await resolveGitCloneTerminalAction({
           cloneSessionKey: repository.cloneSessionKey,
+          workspaceId: targetWorkspaceId,
+          agentId: targetAgent?.agentId,
           relativePath: repository.relativePath,
         });
         const identity = result?.data;
@@ -814,6 +821,7 @@ export function AppSidebar() {
         const params = new URLSearchParams({
           session: identity.sessionName,
           clonePath: identity.clonePath,
+          cloneProof: identity.cloneProof,
         });
         if (searchParams.get("debugViewport") === "1") {
           params.set("debugViewport", "1");
@@ -827,7 +835,7 @@ export function AppSidebar() {
         setGitTerminalError(GIT_TERMINAL_OPEN_ERROR_MESSAGE);
       }
     },
-    [activeWorkspaceId, router, searchParams, workspaces.data],
+    [activeWorkspaceId, fetchAgentInfo, router, searchParams, workspaces.data],
   );
 
   return (

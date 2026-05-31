@@ -1,4 +1,16 @@
 export { AuthServiceClient } from "./client";
+export type {
+  CloneTerminalProofClaims,
+  CloneTerminalProofFailureReason,
+  CreateCloneTerminalProofOptions,
+  VerifyCloneTerminalProofOptions,
+  VerifyCloneTerminalProofResult,
+} from "./clone-terminal-proof";
+export {
+  CLONE_TERMINAL_PROOF_TTL_MS,
+  createCloneTerminalProof,
+  verifyCloneTerminalProof,
+} from "./clone-terminal-proof";
 export {
   ENCRYPTION_ALGORITHM,
   HEX_64_RE,

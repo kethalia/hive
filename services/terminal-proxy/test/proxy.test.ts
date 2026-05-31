@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import type { IncomingMessage } from "node:http";
 import type { Duplex } from "node:stream";
+import { createCloneTerminalProof } from "@hive/auth";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mockAuthResult = {
@@ -67,9 +68,12 @@ function makeSocket(): Duplex & { written: string[] } {
   } as unknown as Duplex & { written: string[] };
 }
 
+const CLONE_PROOF_SECRET = "test-cookie-secret";
+
 const validParams = {
   agentId: "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
   reconnectId: "b2c3d4e5-f6a7-8901-bcde-f12345678901",
+  workspaceId: "c3d4e5f6-a7b8-9012-cdef-123456789012",
   width: "80",
   height: "24",
   sessionName: "my-session",
@@ -80,6 +84,42 @@ function createCanonicalCloneSessionName(clonePath: string): string {
   const cloneSessionKey = `git-clone:${displaySegments.map(encodeURIComponent).join("/")}`;
   const digest = createHash("sha256").update(cloneSessionKey).digest("hex").slice(0, 32);
   return `git-clone-${digest}`;
+}
+
+function createCloneProof(
+  clonePath: string,
+  overrides: Partial<{
+    agentId: string | null;
+    workspaceId: string;
+    sessionName: string;
+    nowMs: number;
+    ttlMs: number;
+  }> = {},
+): string {
+  const sessionName = overrides.sessionName ?? createCanonicalCloneSessionName(clonePath);
+  return createCloneTerminalProof(
+    {
+      workspaceId: overrides.workspaceId ?? validParams.workspaceId,
+      agentId: overrides.agentId === undefined ? validParams.agentId : overrides.agentId,
+      sessionName,
+      clonePath,
+      nowMs: overrides.nowMs,
+      ttlMs: overrides.ttlMs,
+    },
+    CLONE_PROOF_SECRET,
+  );
+}
+
+function createCloneRequestParams(
+  clonePath: string,
+  sessionName = createCanonicalCloneSessionName(clonePath),
+) {
+  return {
+    ...validParams,
+    sessionName,
+    clonePath,
+    cloneProof: createCloneProof(clonePath, { sessionName }),
+  };
 }
 
 function getLastUpstreamUrl(): string {
@@ -116,7 +156,11 @@ describe("handleUpgrade", () => {
   const originalEnv = process.env;
 
   beforeEach(() => {
-    process.env = { ...originalEnv, CODER_URL: "http://coder.example.com" };
+    process.env = {
+      ...originalEnv,
+      CODER_URL: "http://coder.example.com",
+      COOKIE_SECRET: CLONE_PROOF_SECRET,
+    };
     vi.clearAllMocks();
     mockAuth.mockResolvedValue(mockAuthResult);
   });
@@ -222,15 +266,7 @@ describe("handleUpgrade", () => {
     delete process.env.HIVE_PROJECTS_ROOT;
     const clonePath = "kethalia/hive";
     const socket = makeSocket();
-    await handleUpgrade(
-      makeReq({
-        ...validParams,
-        sessionName: createCanonicalCloneSessionName(clonePath),
-        clonePath,
-      }),
-      socket,
-      Buffer.alloc(0),
-    );
+    await handleUpgrade(makeReq(createCloneRequestParams(clonePath)), socket, Buffer.alloc(0));
 
     expect(socket.destroy).not.toHaveBeenCalled();
     expect(getLastUpstreamCommand()).toContain("-c '/home/coder/projects/kethalia/hive'");
@@ -240,20 +276,117 @@ describe("handleUpgrade", () => {
     process.env.HIVE_PROJECTS_ROOT = "/tmp/Hive Projects/o'repos";
     const clonePath = "acme/bob's repo";
     const socket = makeSocket();
+    await handleUpgrade(makeReq(createCloneRequestParams(clonePath)), socket, Buffer.alloc(0));
+
+    expect(socket.destroy).not.toHaveBeenCalled();
+    expect(getLastUpstreamCommand()).toContain(
+      "-c '/tmp/Hive Projects/o'\\''repos/acme/bob'\\''s repo'",
+    );
+  });
+
+  it("accepts clone proofs minted before an agent id was available", async () => {
+    const clonePath = "kethalia/hive";
+    const sessionName = createCanonicalCloneSessionName(clonePath);
+    const socket = makeSocket();
+
     await handleUpgrade(
       makeReq({
         ...validParams,
-        sessionName: createCanonicalCloneSessionName(clonePath),
+        sessionName,
         clonePath,
+        cloneProof: createCloneProof(clonePath, { agentId: null, sessionName }),
       }),
       socket,
       Buffer.alloc(0),
     );
 
     expect(socket.destroy).not.toHaveBeenCalled();
-    expect(getLastUpstreamCommand()).toContain(
-      "-c '/tmp/Hive Projects/o'\\''repos/acme/bob'\\''s repo'",
-    );
+    expect(getLastUpstreamCommand()).toContain("-c '/home/coder/projects/kethalia/hive'");
+  });
+
+  it("rejects canonical clone sessions without a server-minted proof before auth", async () => {
+    await expectBadUpgrade({
+      ...validParams,
+      sessionName: createCanonicalCloneSessionName("kethalia/hive"),
+      clonePath: "kethalia/hive",
+    });
+    expect(mockAuth).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["malformed proof", "not a proof", "cloneProof_malformed"],
+    [
+      "expired proof",
+      createCloneProof("kethalia/hive", { nowMs: Date.now() - 10_000, ttlMs: -1 }),
+      "cloneProof_expired",
+    ],
+    [
+      "wrong workspace proof",
+      createCloneProof("kethalia/hive", { workspaceId: "d4e5f6a7-b8c9-0123-def1-234567890123" }),
+      "cloneProof_mismatch",
+    ],
+    [
+      "wrong agent proof",
+      createCloneProof("kethalia/hive", { agentId: "e5f6a7b8-c9d0-1234-ef12-345678901234" }),
+      "cloneProof_mismatch",
+    ],
+    ["cross-clone proof", createCloneProof("kethalia/other"), "cloneProof_mismatch"],
+  ])("rejects %s before auth with reason-code-only logs", async (_name, cloneProof, reason) => {
+    const logged = await captureConsoleErrors(async () => {
+      await expectBadUpgrade({
+        ...validParams,
+        sessionName: createCanonicalCloneSessionName("kethalia/hive"),
+        clonePath: "kethalia/hive",
+        cloneProof,
+      });
+    });
+
+    expect(logged).toContain(reason);
+    expect(logged).not.toContain(cloneProof);
+    expect(mockAuth).not.toHaveBeenCalled();
+  });
+
+  it("rejects tampered clone proofs before auth", async () => {
+    const validProof = createCloneProof("kethalia/hive");
+    const tamperedProof = `${validProof.slice(0, -1)}${validProof.endsWith("A") ? "B" : "A"}`;
+
+    const logged = await captureConsoleErrors(async () => {
+      await expectBadUpgrade({
+        ...validParams,
+        sessionName: createCanonicalCloneSessionName("kethalia/hive"),
+        clonePath: "kethalia/hive",
+        cloneProof: tamperedProof,
+      });
+    });
+
+    expect(logged).toContain("cloneProof_invalid_signature");
+    expect(logged).not.toContain(tamperedProof);
+    expect(mockAuth).not.toHaveBeenCalled();
+  });
+
+  it("rejects clone proofs on non-clone sessions before auth", async () => {
+    const logged = await captureConsoleErrors(async () => {
+      await expectBadUpgrade({ ...validParams, cloneProof: createCloneProof("kethalia/hive") });
+    });
+
+    expect(logged).toContain("cloneProof_not_allowed_for_non_clone_session");
+    expect(mockAuth).not.toHaveBeenCalled();
+  });
+
+  it("rejects clone sessions with 502 when the shared proof secret is missing", async () => {
+    const params = createCloneRequestParams("kethalia/hive");
+    delete process.env.COOKIE_SECRET;
+    const socket = makeSocket();
+
+    const logged = await captureConsoleErrors(async () => {
+      await handleUpgrade(makeReq(params), socket, Buffer.alloc(0));
+    });
+
+    expect(socket.written[0]).toContain("502");
+    expect(socket.destroy).toHaveBeenCalled();
+    expect(logged).toContain("cloneProof_secret_missing");
+    expect(mockAuth).not.toHaveBeenCalled();
+    expect(WebSocket).not.toHaveBeenCalled();
   });
 
   it("rejects clone sessions without clonePath", async () => {
