@@ -60,7 +60,12 @@ import {
 import { Switch } from "@/components/ui/switch";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useSidebarMode } from "@/hooks/use-sidebar-mode";
-import { type GitCloneDiscoveryActionResult, listGitClonesAction } from "@/lib/actions/git-clones";
+import {
+  type GitCloneDiscoveryActionResult,
+  type GitCloneTerminalIdentity,
+  listGitClonesAction,
+  resolveGitCloneTerminalAction,
+} from "@/lib/actions/git-clones";
 import { listTemplateStatusesAction } from "@/lib/actions/templates";
 import {
   createSessionAction,
@@ -124,6 +129,24 @@ interface GitDiscoveryState {
 
 const GIT_DISCOVERY_SERVER_ERROR_MESSAGE =
   "Git clone discovery is unavailable. Refresh and try again.";
+const GIT_TERMINAL_OPEN_ERROR_MESSAGE =
+  "We couldn't open that Git repository. Refresh and try again.";
+const GIT_TERMINAL_NO_WORKSPACE_MESSAGE =
+  "No workspace is available for Git terminals. Start or create a workspace, then try again.";
+
+function isGitCloneTerminalIdentity(value: unknown): value is GitCloneTerminalIdentity {
+  if (!value || typeof value !== "object") return false;
+
+  const candidate = value as Partial<GitCloneTerminalIdentity>;
+  return (
+    typeof candidate.sessionName === "string" &&
+    candidate.sessionName.length > 0 &&
+    typeof candidate.clonePath === "string" &&
+    candidate.clonePath.length > 0 &&
+    typeof candidate.cloneSessionKey === "string" &&
+    candidate.cloneSessionKey.length > 0
+  );
+}
 
 interface AgentInfo {
   agentId: string;
@@ -469,6 +492,7 @@ export function AppSidebar() {
     isLoading: true,
     serverError: null,
   });
+  const [gitTerminalError, setGitTerminalError] = useState<string | null>(null);
   const [lastRefreshed, setLastRefreshed] = useState<Date | null>(null);
 
   const relativeTime = useRelativeTime(lastRefreshed, settingsOpen);
@@ -747,10 +771,52 @@ export function AppSidebar() {
     [],
   );
 
-  const handleGitRepositorySelect = useCallback((repository: CloneTreeRepositoryNode) => {
-    // S03 will map this sanitized repository node to a persistent clone terminal session.
-    void repository;
-  }, []);
+  const handleGitRepositorySelect = useCallback(
+    async (repository: CloneTreeRepositoryNode) => {
+      setGitTerminalError(null);
+
+      const targetWorkspaceId =
+        activeWorkspaceId ??
+        workspaces.data.find((workspace) => workspace.latest_build.status === "running")?.id ??
+        workspaces.data[0]?.id ??
+        null;
+
+      if (!targetWorkspaceId) {
+        setGitTerminalError(GIT_TERMINAL_NO_WORKSPACE_MESSAGE);
+        return;
+      }
+
+      try {
+        const result = await resolveGitCloneTerminalAction({
+          cloneSessionKey: repository.cloneSessionKey,
+          relativePath: repository.relativePath,
+        });
+        const identity = result?.data;
+
+        if (!isGitCloneTerminalIdentity(identity)) {
+          console.warn("[sidebar] Git terminal open failed: action returned no terminal identity");
+          setGitTerminalError(GIT_TERMINAL_OPEN_ERROR_MESSAGE);
+          return;
+        }
+
+        const params = new URLSearchParams({
+          session: identity.sessionName,
+          clonePath: identity.clonePath,
+        });
+        if (searchParams.get("debugViewport") === "1") {
+          params.set("debugViewport", "1");
+        }
+
+        router.push(
+          `/workspaces/${encodeURIComponent(targetWorkspaceId)}/terminal?${params.toString()}`,
+        );
+      } catch {
+        console.warn("[sidebar] Git terminal open failed: action rejected");
+        setGitTerminalError(GIT_TERMINAL_OPEN_ERROR_MESSAGE);
+      }
+    },
+    [activeWorkspaceId, router, searchParams, workspaces.data],
+  );
 
   return (
     <Sidebar variant={sidebarMode} collapsible="offcanvas">
@@ -820,6 +886,18 @@ export function AppSidebar() {
                     onRetry={fetchGitClones}
                     onRepositorySelect={handleGitRepositorySelect}
                   />
+                  {gitTerminalError && (
+                    <Alert
+                      variant="destructive"
+                      className="mx-4 my-1"
+                      data-testid="git-terminal-open-error"
+                    >
+                      <AlertCircle className="h-4 w-4" />
+                      <AlertDescription>
+                        <span className="text-xs">{gitTerminalError}</span>
+                      </AlertDescription>
+                    </Alert>
+                  )}
                 </CollapsibleContent>
               </SidebarMenuItem>
             </Collapsible>

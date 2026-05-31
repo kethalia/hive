@@ -5,11 +5,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import "@testing-library/jest-dom/vitest";
 
 const mockUseIsMobile = vi.hoisted(() => vi.fn(() => false));
-const mockPush = vi.fn();
+const mockPush = vi.hoisted(() => vi.fn());
+const mockNavigationState = vi.hoisted(() => ({ pathname: "/tasks", searchParams: "" }));
 vi.mock("next/navigation", () => ({
-  usePathname: () => "/tasks",
-  useRouter: () => ({ push: mockPush }),
-  useSearchParams: () => new URLSearchParams(),
+  usePathname: () => mockNavigationState.pathname,
+  useRouter: () => ({ push: mockPush, refresh: vi.fn() }),
+  useSearchParams: () => new URLSearchParams(mockNavigationState.searchParams),
 }));
 
 vi.mock("@/lib/utils", () => ({
@@ -268,6 +269,7 @@ vi.mock("lucide-react", () => ({
 const mockListWorkspaces = vi.fn();
 const mockListTemplates = vi.fn();
 const mockListGitClones = vi.fn();
+const mockResolveGitCloneTerminal = vi.fn();
 const mockGetWorkspaceAgent = vi.fn();
 const mockGetWorkspaceSessions = vi.fn();
 const mockCreateSession = vi.fn();
@@ -298,6 +300,7 @@ vi.mock("@/lib/actions/templates", () => ({
 
 vi.mock("@/lib/actions/git-clones", () => ({
   listGitClonesAction: (...args: unknown[]) => mockListGitClones(...args),
+  resolveGitCloneTerminalAction: (...args: unknown[]) => mockResolveGitCloneTerminal(...args),
 }));
 
 const mockGetSessionAction = vi.fn();
@@ -470,6 +473,8 @@ async function expandWorkspaceAndTerminalSessions(workspaceId = "ws-1") {
 describe("AppSidebar", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockNavigationState.pathname = "/tasks";
+    mockNavigationState.searchParams = "";
     mockUseIsMobile.mockReturnValue(false);
     vi.useFakeTimers({ shouldAdvanceTime: true });
     mockListWorkspaces.mockResolvedValue({
@@ -480,6 +485,13 @@ describe("AppSidebar", () => {
     });
     mockListGitClones.mockResolvedValue({
       data: makeGitSuccessResult(),
+    });
+    mockResolveGitCloneTerminal.mockResolvedValue({
+      data: {
+        sessionName: "git-clone-safe-hive",
+        clonePath: "kethalia/hive",
+        cloneSessionKey: gitRepositoryNode.cloneSessionKey,
+      },
     });
     mockGetWorkspaceAgent.mockResolvedValue({
       data: { agentId: "agent-1", agentName: "main" },
@@ -540,6 +552,150 @@ describe("AppSidebar", () => {
     );
     expect(document.body).not.toHaveTextContent(PRIVATE_ROOT);
     expect(document.body.innerHTML).not.toContain("/home/coder");
+  });
+
+  it("opens a Git repository in the resolved clone terminal session on the first running workspace", async () => {
+    mockListWorkspaces.mockResolvedValueOnce({
+      data: [
+        makeWorkspace({
+          id: "ws-stopped",
+          name: "stopped-box",
+          latest_build: {
+            id: "build-stopped",
+            status: "stopped",
+            job: { status: "succeeded", error: "" },
+          },
+        }),
+        makeWorkspace({ id: "ws-running", name: "running-box" }),
+      ],
+    });
+
+    render(<AppSidebar />);
+
+    await screen.findByText("running-box");
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Open Git repository kethalia / hive" }),
+    );
+
+    await waitFor(() => {
+      expect(mockResolveGitCloneTerminal).toHaveBeenCalledWith({
+        cloneSessionKey: "git-clone:Git/projects/kethalia/hive",
+        relativePath: "kethalia/hive",
+      });
+      expect(mockPush).toHaveBeenCalledWith(
+        "/workspaces/ws-running/terminal?session=git-clone-safe-hive&clonePath=kethalia%2Fhive",
+      );
+    });
+    expect(mockCreateSession).not.toHaveBeenCalled();
+  });
+
+  it("prefers the active workspace route and preserves debugViewport=1", async () => {
+    mockNavigationState.pathname = "/workspaces/ws-active/terminal";
+    mockNavigationState.searchParams = "session=dev&debugViewport=1";
+
+    render(<AppSidebar />);
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Open Git repository kethalia / hive" }),
+    );
+
+    await waitFor(() => {
+      expect(mockPush).toHaveBeenCalledWith(
+        "/workspaces/ws-active/terminal?session=git-clone-safe-hive&clonePath=kethalia%2Fhive&debugViewport=1",
+      );
+    });
+    expect(mockCreateSession).not.toHaveBeenCalled();
+  });
+
+  it("falls back to the first workspace when no workspace is running", async () => {
+    mockListWorkspaces.mockResolvedValueOnce({
+      data: [
+        makeWorkspace({
+          id: "ws-stopped",
+          name: "stopped-box",
+          latest_build: {
+            id: "build-stopped",
+            status: "stopped",
+            job: { status: "succeeded", error: "" },
+          },
+        }),
+      ],
+    });
+
+    render(<AppSidebar />);
+
+    await screen.findByText("stopped-box");
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Open Git repository kethalia / hive" }),
+    );
+
+    await waitFor(() => {
+      expect(mockPush).toHaveBeenCalledWith(
+        "/workspaces/ws-stopped/terminal?session=git-clone-safe-hive&clonePath=kethalia%2Fhive",
+      );
+    });
+  });
+
+  it("shows a sanitized Git terminal error when no workspace is available", async () => {
+    mockListWorkspaces.mockResolvedValueOnce({ data: [] });
+
+    render(<AppSidebar />);
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Open Git repository kethalia / hive" }),
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId("git-terminal-open-error")).toHaveTextContent(
+        "No workspace is available for Git terminals. Start or create a workspace, then try again.",
+      );
+    });
+    expect(mockResolveGitCloneTerminal).not.toHaveBeenCalled();
+    expect(mockCreateSession).not.toHaveBeenCalled();
+    expect(mockPush).not.toHaveBeenCalled();
+    expect(document.body.innerHTML).not.toContain("/home/coder");
+  });
+
+  it("shows a sanitized Git terminal error when the resolve action fails", async () => {
+    mockResolveGitCloneTerminal.mockResolvedValueOnce({
+      serverError: `Cannot scan ${PRIVATE_ROOT}`,
+    });
+
+    render(<AppSidebar />);
+
+    await screen.findByText("dev-box");
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Open Git repository kethalia / hive" }),
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId("git-terminal-open-error")).toHaveTextContent(
+        "We couldn't open that Git repository. Refresh and try again.",
+      );
+    });
+    expect(mockPush).not.toHaveBeenCalled();
+    expect(mockCreateSession).not.toHaveBeenCalled();
+    expect(document.body.innerHTML).not.toContain(PRIVATE_ROOT);
+    expect(document.body.innerHTML).not.toContain("/home/coder");
+  });
+
+  it("treats a missing resolve action payload as a sanitized Git terminal failure", async () => {
+    mockResolveGitCloneTerminal.mockResolvedValueOnce({});
+
+    render(<AppSidebar />);
+
+    await screen.findByText("dev-box");
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Open Git repository kethalia / hive" }),
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId("git-terminal-open-error")).toHaveTextContent(
+        "We couldn't open that Git repository. Refresh and try again.",
+      );
+    });
+    expect(mockPush).not.toHaveBeenCalled();
+    expect(mockCreateSession).not.toHaveBeenCalled();
   });
 
   it("shows a Git discovery loading state while the action is pending", async () => {
