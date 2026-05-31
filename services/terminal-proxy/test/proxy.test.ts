@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import type { IncomingMessage } from "node:http";
 import type { Duplex } from "node:stream";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -73,6 +74,13 @@ const validParams = {
   height: "24",
   sessionName: "my-session",
 };
+
+function createCanonicalCloneSessionName(clonePath: string): string {
+  const displaySegments = ["Git", "projects", ...clonePath.split("/")];
+  const cloneSessionKey = `git-clone:${displaySegments.map(encodeURIComponent).join("/")}`;
+  const digest = createHash("sha256").update(cloneSessionKey).digest("hex").slice(0, 32);
+  return `git-clone-${digest}`;
+}
 
 function getLastUpstreamUrl(): string {
   const WsCtor = WebSocket as unknown as ReturnType<typeof vi.fn>;
@@ -202,9 +210,14 @@ describe("handleUpgrade", () => {
 
   it("opens clone sessions with cwd resolved under the default projects root", async () => {
     delete process.env.HIVE_PROJECTS_ROOT;
+    const clonePath = "kethalia/hive";
     const socket = makeSocket();
     await handleUpgrade(
-      makeReq({ ...validParams, sessionName: "git-clone-deadbeef", clonePath: "kethalia/hive" }),
+      makeReq({
+        ...validParams,
+        sessionName: createCanonicalCloneSessionName(clonePath),
+        clonePath,
+      }),
       socket,
       Buffer.alloc(0),
     );
@@ -215,12 +228,13 @@ describe("handleUpgrade", () => {
 
   it("shell-quotes clone cwd with spaces and single quotes from HIVE_PROJECTS_ROOT", async () => {
     process.env.HIVE_PROJECTS_ROOT = "/tmp/Hive Projects/o'repos";
+    const clonePath = "acme/bob's repo";
     const socket = makeSocket();
     await handleUpgrade(
       makeReq({
         ...validParams,
-        sessionName: "git-clone-deadbeef",
-        clonePath: "acme/bob's repo",
+        sessionName: createCanonicalCloneSessionName(clonePath),
+        clonePath,
       }),
       socket,
       Buffer.alloc(0),
@@ -233,7 +247,28 @@ describe("handleUpgrade", () => {
   });
 
   it("rejects clone sessions without clonePath", async () => {
-    await expectBadUpgrade({ ...validParams, sessionName: "git-clone-deadbeef" });
+    await expectBadUpgrade({
+      ...validParams,
+      sessionName: createCanonicalCloneSessionName("kethalia/hive"),
+    });
+    expect(mockAuth).not.toHaveBeenCalled();
+  });
+
+  it("rejects malformed reserved clone session names before auth", async () => {
+    await expectBadUpgrade({
+      ...validParams,
+      sessionName: "git-clone-deadbeef",
+      clonePath: "kethalia/hive",
+    });
+    expect(mockAuth).not.toHaveBeenCalled();
+  });
+
+  it("rejects valid-shaped clone sessions that do not match clonePath", async () => {
+    await expectBadUpgrade({
+      ...validParams,
+      sessionName: "git-clone-00000000000000000000000000000000",
+      clonePath: "kethalia/hive",
+    });
     expect(mockAuth).not.toHaveBeenCalled();
   });
 
@@ -247,8 +282,17 @@ describe("handleUpgrade", () => {
     ["absolute path", "/home/coder/projects/kethalia/hive"],
     ["empty path", ""],
     ["root path", "."],
+    ["backslash path", "kethalia\\hive"],
+    ["Windows drive path", "C:/Users/coder/projects/kethalia/hive"],
+    ["double slash", "kethalia//hive"],
+    ["dot segment", "kethalia/./hive"],
+    ["NUL byte", "kethalia/\0hive"],
   ])("rejects unsafe clonePath: %s", async (_name, clonePath) => {
-    await expectBadUpgrade({ ...validParams, sessionName: "git-clone-deadbeef", clonePath });
+    await expectBadUpgrade({
+      ...validParams,
+      sessionName: createCanonicalCloneSessionName("kethalia/hive"),
+      clonePath,
+    });
     expect(mockAuth).not.toHaveBeenCalled();
   });
 
@@ -258,7 +302,7 @@ describe("handleUpgrade", () => {
 
     await expectBadUpgrade({
       ...validParams,
-      sessionName: "git-clone-deadbeef",
+      sessionName: createCanonicalCloneSessionName("kethalia/hive"),
       clonePath: "../projects-root-sibling/repo",
     });
 

@@ -1,4 +1,4 @@
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import type { IncomingMessage } from "node:http";
 import path from "node:path";
 import type { Duplex } from "node:stream";
@@ -10,6 +10,9 @@ import { buildPtyUrl, SAFE_IDENTIFIER_RE, UUID_RE } from "./protocol.js";
 const PING_INTERVAL_MS = 30_000;
 const UPSTREAM_CONNECT_TIMEOUT_MS = 10_000;
 const CLONE_TERMINAL_SESSION_PREFIX = "git-clone-";
+const CLONE_TERMINAL_SESSION_RE = /^git-clone-[0-9a-f]{32}$/;
+const CLONE_TREE_ROOT_LABEL = "Git";
+const CLONE_TREE_PROJECTS_LABEL = "projects";
 const PROJECTS_ROOT_ENV_KEY = "HIVE_PROJECTS_ROOT";
 const DEFAULT_PROJECTS_ROOT_PATH = "/home/coder/projects";
 
@@ -61,25 +64,25 @@ function resolveProjectsRoot(): string {
   return path.resolve(process.env[PROJECTS_ROOT_ENV_KEY]?.trim() || DEFAULT_PROJECTS_ROOT_PATH);
 }
 
-function validateCloneCwd(sessionName: string, clonePath: string | null): CloneCwdValidationResult {
-  const isCloneSession = sessionName.startsWith(CLONE_TERMINAL_SESSION_PREFIX);
+function createCanonicalCloneSessionName(pathSegments: readonly string[]): string {
+  const displaySegments = [CLONE_TREE_ROOT_LABEL, CLONE_TREE_PROJECTS_LABEL, ...pathSegments];
+  const cloneSessionKey = `git-clone:${displaySegments.map(encodeURIComponent).join("/")}`;
+  const digest = createHash("sha256").update(cloneSessionKey).digest("hex").slice(0, 32);
+  return `${CLONE_TERMINAL_SESSION_PREFIX}${digest}`;
+}
 
-  if (!isCloneSession) {
-    if (clonePath !== null) {
-      return { ok: false, reason: "clonePath_not_allowed_for_non_clone_session" };
-    }
-    return { ok: true };
-  }
-
-  if (clonePath === null) {
-    return { ok: false, reason: "clonePath_required_for_clone_session" };
-  }
-
+function validateClonePathSegments(
+  clonePath: string,
+): { ok: true; pathSegments: string[] } | { ok: false; reason: string } {
   if (clonePath.length === 0) {
     return { ok: false, reason: "clonePath_empty" };
   }
 
-  if (clonePath.includes("\\") || /^[a-zA-Z]:[\\/]/.test(clonePath)) {
+  if (clonePath.includes("\0")) {
+    return { ok: false, reason: "clonePath_nul" };
+  }
+
+  if (clonePath.includes("\\") || /^[a-zA-Z]:/.test(clonePath)) {
     return { ok: false, reason: "clonePath_malformed" };
   }
 
@@ -88,17 +91,56 @@ function validateCloneCwd(sessionName: string, clonePath: string | null): CloneC
   }
 
   const pathSegments = clonePath.split("/");
+
+  if (pathSegments.some((segment) => segment.length === 0)) {
+    return { ok: false, reason: "clonePath_empty_segment" };
+  }
+
+  if (pathSegments.length === 1 && pathSegments[0] === ".") {
+    return { ok: false, reason: "clonePath_root" };
+  }
+
+  if (pathSegments.some((segment) => segment === ".")) {
+    return { ok: false, reason: "clonePath_dot_segment" };
+  }
+
   if (pathSegments.some((segment) => segment === "..")) {
     return { ok: false, reason: "clonePath_traversal" };
   }
 
-  const normalizedClonePath = path.normalize(clonePath);
-  if (normalizedClonePath === ".") {
-    return { ok: false, reason: "clonePath_root" };
+  return { ok: true, pathSegments };
+}
+
+function validateCloneCwd(sessionName: string, clonePath: string | null): CloneCwdValidationResult {
+  const usesCloneSessionPrefix = sessionName.startsWith(CLONE_TERMINAL_SESSION_PREFIX);
+
+  if (!usesCloneSessionPrefix) {
+    if (clonePath !== null) {
+      return { ok: false, reason: "clonePath_not_allowed_for_non_clone_session" };
+    }
+    return { ok: true };
+  }
+
+  if (!CLONE_TERMINAL_SESSION_RE.test(sessionName)) {
+    return { ok: false, reason: "clone_session_malformed" };
+  }
+
+  if (clonePath === null) {
+    return { ok: false, reason: "clonePath_required_for_clone_session" };
+  }
+
+  const clonePathSegments = validateClonePathSegments(clonePath);
+  if (!clonePathSegments.ok) {
+    return clonePathSegments;
+  }
+
+  const expectedSessionName = createCanonicalCloneSessionName(clonePathSegments.pathSegments);
+  if (sessionName !== expectedSessionName) {
+    return { ok: false, reason: "clone_session_mismatch" };
   }
 
   const projectsRoot = resolveProjectsRoot();
-  const cwd = path.resolve(projectsRoot, normalizedClonePath);
+  const cwd = path.resolve(projectsRoot, ...clonePathSegments.pathSegments);
   const projectsRootPrefix = projectsRoot.endsWith(path.sep)
     ? projectsRoot
     : `${projectsRoot}${path.sep}`;
