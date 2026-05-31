@@ -1,5 +1,11 @@
 # hive-orchestrator
 
+## 2.4.0
+
+### Minor Changes
+
+- e0c0d38: Add the mobile-first agentic development experience.
+
 ## 2.3.2
 
 ### Patch Changes

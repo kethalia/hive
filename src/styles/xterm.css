@@ -85,6 +85,16 @@
     resize: none;
 }
 
+.terminal-mobile-shell .xterm .xterm-helper-textarea {
+    position: fixed !important;
+    top: auto !important;
+    right: auto !important;
+    bottom: calc(var(--safe-area-inset-bottom) + 5rem) !important;
+    left: var(--safe-area-inset-left) !important;
+    width: 1px !important;
+    height: 1px !important;
+}
+
 .xterm .composition-view {
     /* TODO: Composition position got messed up somewhere */
     background: #000;
@@ -103,12 +113,17 @@
     /* On OS X this is required in order for the scroll bar to appear fully opaque */
     background-color: #000;
     overflow-y: scroll;
+    overscroll-behavior: contain;
     cursor: default;
     position: absolute;
     right: 0;
     left: 0;
     top: 0;
     bottom: 0;
+}
+
+.terminal-mobile-shell .xterm .xterm-viewport {
+    overflow: hidden !important;
 }
 
 .xterm .xterm-screen {

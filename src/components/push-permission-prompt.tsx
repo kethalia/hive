@@ -9,11 +9,12 @@ import { subscribePushAction } from "@/lib/push/subscribe";
 
 const DISMISS_KEY = "push-prompt-dismissed";
 
-function base64urlToUint8Array(base64url: string): Uint8Array {
+function base64urlToUint8Array(base64url: string): Uint8Array<ArrayBuffer> {
   const padding = "=".repeat((4 - (base64url.length % 4)) % 4);
   const base64 = base64url.replace(/-/g, "+").replace(/_/g, "/") + padding;
   const raw = atob(base64);
-  const arr = new Uint8Array(raw.length);
+  const buffer = new ArrayBuffer(raw.length);
+  const arr = new Uint8Array(buffer);
   for (let i = 0; i < raw.length; i++) {
     arr[i] = raw.charCodeAt(i);
   }
@@ -92,7 +93,7 @@ export function PushPermissionPrompt() {
 
   if (permission === "denied") {
     return (
-      <div className="fixed bottom-4 right-4 z-50 w-80">
+      <div className="fixed bottom-4 right-4 z-50 pb-safe w-80">
         <Alert>
           <Bell className="size-4" />
           <AlertTitle>Notifications blocked</AlertTitle>
@@ -108,7 +109,7 @@ export function PushPermissionPrompt() {
   if (dismissed) return null;
 
   return (
-    <div className="fixed bottom-4 right-4 z-50 w-96">
+    <div className="fixed bottom-4 right-4 z-50 pb-safe w-96">
       <Alert className="relative">
         <div className="flex items-center gap-2">
           <Bell className="size-4 shrink-0" />

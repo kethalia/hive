@@ -6,7 +6,6 @@ describe("runtime-config", () => {
   afterEach(() => {
     vi.unstubAllEnvs();
     if (typeof globalThis !== "undefined") {
-      // @ts-expect-error - cleanup test-only global
       delete (globalThis as { window?: unknown }).window;
     }
   });
@@ -27,7 +26,6 @@ describe("runtime-config", () => {
 
   describe("getClientRuntimeConfig", () => {
     beforeEach(() => {
-      // @ts-expect-error - mocking browser global for test
       (globalThis as { window?: unknown }).window = {};
     });
 

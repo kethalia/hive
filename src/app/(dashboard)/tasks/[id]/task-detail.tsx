@@ -9,7 +9,6 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Separator } from "@/components/ui/separator";
 import { getTaskAction } from "@/lib/actions/tasks";
 import { isCouncilReport } from "@/lib/council/types";
 import { formatTimestamp, shortId, statusVariant } from "@/lib/helpers/format";
@@ -43,18 +42,24 @@ export function TaskDetail({ initialTask }: { initialTask: TaskWithRelations }) 
   }, [task.status, fetchTask]);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 pb-safe sm:space-y-6">
       {/* Navigation */}
       <div className="flex items-center gap-2">
-        <Button variant="ghost" size="sm" render={<Link href="/tasks" />}>
+        <Button
+          variant="ghost"
+          size="sm"
+          nativeButton={false}
+          className="min-h-11 touch-manipulation sm:min-h-7"
+          render={<Link href="/tasks" />}
+        >
           <ArrowLeft className="mr-1 h-4 w-4" />
           Back to Tasks
         </Button>
       </div>
 
       {/* Header */}
-      <div className="flex items-center gap-3">
-        <h1 className="text-2xl font-bold tracking-tight">Task {shortId(task.id)}</h1>
+      <div className="flex flex-wrap items-start gap-2 sm:items-center sm:gap-3">
+        <h1 className="text-xl font-bold tracking-tight sm:text-2xl">Task {shortId(task.id)}</h1>
         <Badge variant={statusVariant[task.status] ?? "secondary"}>{task.status}</Badge>
       </div>
 
@@ -77,57 +82,57 @@ export function TaskDetail({ initialTask }: { initialTask: TaskWithRelations }) 
         <CardContent className="space-y-4">
           <div className="space-y-1">
             <p className="text-xs text-muted-foreground">Prompt</p>
-            <p className="text-foreground whitespace-pre-wrap">{task.prompt}</p>
+            <p className="whitespace-pre-wrap text-foreground">{task.prompt}</p>
           </div>
 
-          <div className="space-y-1">
-            <p className="text-xs text-muted-foreground">Repository</p>
-            <a
-              href={task.repoUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-1 text-sm font-mono text-primary hover:underline"
-            >
-              {task.repoUrl}
-              <ExternalLink className="h-3 w-3" />
-            </a>
-          </div>
-
-          {task.branch && (
-            <div className="space-y-1">
-              <p className="text-xs text-muted-foreground">Branch</p>
-              <p className="inline-flex items-center gap-1 text-sm font-mono text-foreground">
-                <GitBranch className="h-3 w-3 text-muted-foreground" />
-                {task.branch}
-              </p>
-            </div>
-          )}
-
-          {task.prUrl && (
-            <div className="space-y-1">
-              <p className="text-xs text-muted-foreground">Pull Request</p>
+          <div data-testid="task-metadata-grid" className="grid gap-3 sm:grid-cols-2">
+            <div className="min-w-0 space-y-1">
+              <p className="text-xs text-muted-foreground">Repository</p>
               <a
-                href={task.prUrl}
+                data-testid="task-repo-link"
+                href={task.repoUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex items-center gap-1 text-sm text-primary hover:underline"
+                className="inline-flex max-w-full min-w-0 items-start gap-1 break-all font-mono text-sm text-primary hover:underline"
               >
-                {task.prUrl}
-                <ExternalLink className="h-3 w-3" />
+                {task.repoUrl}
+                <ExternalLink className="mt-0.5 h-3 w-3 shrink-0" />
               </a>
             </div>
-          )}
 
-          <Separator />
+            {task.branch && (
+              <div className="min-w-0 space-y-1">
+                <p className="text-xs text-muted-foreground">Branch</p>
+                <p className="inline-flex max-w-full min-w-0 items-center gap-1 break-all font-mono text-sm text-foreground">
+                  <GitBranch className="h-3 w-3 shrink-0 text-muted-foreground" />
+                  {task.branch}
+                </p>
+              </div>
+            )}
 
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-1">
+            {task.prUrl && (
+              <div className="min-w-0 space-y-1">
+                <p className="text-xs text-muted-foreground">Pull Request</p>
+                <a
+                  data-testid="task-pr-link"
+                  href={task.prUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex max-w-full min-w-0 items-start gap-1 break-all text-sm text-primary hover:underline"
+                >
+                  {task.prUrl}
+                  <ExternalLink className="mt-0.5 h-3 w-3 shrink-0" />
+                </a>
+              </div>
+            )}
+
+            <div className="min-w-0 space-y-1">
               <p className="text-xs text-muted-foreground">Created</p>
-              <p className="text-sm">{formatTimestamp(task.createdAt)}</p>
+              <p className="break-words text-sm">{formatTimestamp(task.createdAt)}</p>
             </div>
-            <div className="space-y-1">
+            <div className="min-w-0 space-y-1">
               <p className="text-xs text-muted-foreground">Last Updated</p>
-              <p className="text-sm">{formatTimestamp(task.updatedAt)}</p>
+              <p className="break-words text-sm">{formatTimestamp(task.updatedAt)}</p>
             </div>
           </div>
         </CardContent>
@@ -144,12 +149,15 @@ export function TaskDetail({ initialTask }: { initialTask: TaskWithRelations }) 
           <CardContent>
             <ul className="space-y-2">
               {task.attachments.map((att) => (
-                <li key={`${att.type}-${att.name}`} className="flex items-center gap-3 text-sm">
-                  <Paperclip className="h-3 w-3 text-muted-foreground" />
-                  <Badge variant="outline" className="font-mono text-xs">
+                <li
+                  key={`${att.type}-${att.name}`}
+                  className="flex flex-wrap items-center gap-2 text-sm sm:gap-3"
+                >
+                  <Paperclip className="h-3 w-3 shrink-0 text-muted-foreground" />
+                  <Badge variant="outline" className="shrink-0 font-mono text-xs">
                     {att.type}
                   </Badge>
-                  <span>{att.name}</span>
+                  <span className="min-w-0 break-all">{att.name}</span>
                 </li>
               ))}
             </ul>
@@ -180,13 +188,19 @@ export function TaskDetail({ initialTask }: { initialTask: TaskWithRelations }) 
               {task.workspaces.map((ws) => (
                 <div
                   key={ws.id}
-                  className="flex items-center justify-between rounded-lg border p-3"
+                  data-testid="task-workspace-row"
+                  className="flex flex-col gap-2 rounded-lg border p-3 sm:flex-row sm:items-center sm:justify-between"
                 >
-                  <div className="flex items-center gap-3">
-                    <code className="text-xs text-muted-foreground">{shortId(ws.id)}</code>
-                    <span className="text-sm">{ws.templateType}</span>
+                  <div className="flex min-w-0 flex-wrap items-center gap-2">
+                    <code className="shrink-0 text-xs text-muted-foreground">{shortId(ws.id)}</code>
+                    <span className="min-w-0 break-all text-sm">{ws.templateType}</span>
                   </div>
-                  <Badge variant={statusVariant[ws.status] ?? "secondary"}>{ws.status}</Badge>
+                  <Badge
+                    className="self-start sm:self-auto"
+                    variant={statusVariant[ws.status] ?? "secondary"}
+                  >
+                    {ws.status}
+                  </Badge>
                 </div>
               ))}
             </div>
@@ -208,12 +222,20 @@ export function TaskDetail({ initialTask }: { initialTask: TaskWithRelations }) 
             <ScrollArea className="h-[300px]">
               <div className="space-y-1">
                 {task.logs.map((log) => (
-                  <div key={log.id} className="flex items-start gap-3 py-1.5 text-sm">
-                    <span className="shrink-0 text-xs text-muted-foreground font-mono tabular-nums min-w-[140px]">
+                  <div
+                    key={log.id}
+                    data-testid="task-log-row"
+                    className="flex flex-col gap-1 py-1.5 text-sm sm:flex-row sm:items-start sm:gap-3"
+                  >
+                    <span className="shrink-0 font-mono text-xs tabular-nums text-muted-foreground sm:min-w-[140px]">
                       {formatTimestamp(log.createdAt)}
                     </span>
                     <span
-                      className={log.level === "error" ? "text-destructive" : "text-foreground"}
+                      className={
+                        log.level === "error"
+                          ? "break-words text-destructive"
+                          : "break-words text-foreground"
+                      }
                     >
                       {log.message}
                     </span>

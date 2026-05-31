@@ -4,18 +4,17 @@ import type { Terminal } from "@xterm/xterm";
 import { Pencil, Plus, X } from "lucide-react";
 import dynamic from "next/dynamic";
 import { useCallback, useEffect, useReducer, useRef, useState } from "react";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { connectionBadgeProps } from "@/components/workspaces/InteractiveTerminal";
-import { KeepAliveWarning } from "@/components/workspaces/KeepAliveWarning";
 import { CommandPalette } from "@/components/terminal/CommandPalette";
 import { ComposePanel } from "@/components/terminal/ComposePanel";
 import { TerminalContextMenu } from "@/components/terminal/TerminalContextMenu";
-import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@/components/ui/resizable";
+import { TerminalGestureLayer } from "@/components/terminal/TerminalGestureLayer";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
+import { connectionBadgeProps } from "@/components/workspaces/InteractiveTerminal";
+import { KeepAliveWarning } from "@/components/workspaces/KeepAliveWarning";
 import { useKeybindings } from "@/hooks/useKeybindings";
-import { copyTerminalSelection, pasteToTerminal } from "@/lib/terminal/actions";
-import { isPwaStandalone } from "@/lib/terminal/pwa";
 import type { ConnectionState } from "@/hooks/useTerminalWebSocket";
 import {
   createSessionAction,
@@ -24,6 +23,8 @@ import {
   renameSessionAction,
 } from "@/lib/actions/workspaces";
 import { SAFE_IDENTIFIER_RE } from "@/lib/constants";
+import { copyTerminalSelection, pasteToTerminal } from "@/lib/terminal/actions";
+import { isPwaStandalone } from "@/lib/terminal/pwa";
 import { cn } from "@/lib/utils";
 
 const InteractiveTerminal = dynamic(
@@ -289,6 +290,13 @@ export function TerminalTabManager({ agentId, workspaceId }: TerminalTabManagerP
     [tabs, workspaceId, agentId],
   );
 
+  const openTerminalContextMenu = useCallback((x: number, y: number) => {
+    const currentActiveId = activeTabIdRef.current;
+    const entry = currentActiveId ? terminalsRef.current.get(currentActiveId) : null;
+    setMenuSelection(!!entry?.term.getSelection());
+    setMenuPosition({ x, y });
+  }, []);
+
   const setPaletteOpenRef = useRef(setPaletteOpen);
   setPaletteOpenRef.current = setPaletteOpen;
   const setComposeOpenRef = useRef(setComposeOpen);
@@ -553,9 +561,7 @@ export function TerminalTabManager({ agentId, workspaceId }: TerminalTabManagerP
             className="relative h-full"
             onContextMenu={(e) => {
               e.preventDefault();
-              const entry = activeTabId ? terminalsRef.current.get(activeTabId) : null;
-              setMenuSelection(!!entry?.term.getSelection());
-              setMenuPosition({ x: e.clientX, y: e.clientY });
+              openTerminalContextMenu(e.clientX, e.clientY);
             }}
           >
             {tabs.map((tab) => (
@@ -564,15 +570,20 @@ export function TerminalTabManager({ agentId, workspaceId }: TerminalTabManagerP
                 className={cn("absolute inset-0", activeTabId !== tab.id && "pointer-events-none")}
                 style={{ display: activeTabId === tab.id ? "block" : "none" }}
               >
-                <InteractiveTerminal
-                  agentId={agentId}
-                  workspaceId={workspaceId}
-                  sessionName={tab.sessionName}
-                  className="h-full"
-                  onConnectionStateChange={(state) => handleConnectionStateChange(tab.id, state)}
-                  onTerminalReady={(term, send) => handleTerminalReady(tab.id, term, send)}
-                  onTerminalDestroy={() => handleTerminalDestroy(tab.id)}
-                />
+                <TerminalGestureLayer
+                  onLongPress={openTerminalContextMenu}
+                  style={{ display: activeTabId === tab.id ? "block" : "none" }}
+                >
+                  <InteractiveTerminal
+                    agentId={agentId}
+                    workspaceId={workspaceId}
+                    sessionName={tab.sessionName}
+                    className="h-full"
+                    onConnectionStateChange={(state) => handleConnectionStateChange(tab.id, state)}
+                    onTerminalReady={(term, send) => handleTerminalReady(tab.id, term, send)}
+                    onTerminalDestroy={() => handleTerminalDestroy(tab.id)}
+                  />
+                </TerminalGestureLayer>
               </div>
             ))}
             <TerminalContextMenu

@@ -3,13 +3,28 @@
 import type { FitAddon } from "@xterm/addon-fit";
 import type { Terminal } from "@xterm/xterm";
 import { AlertCircle } from "lucide-react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  type MouseEvent as ReactMouseEvent,
+  type PointerEvent as ReactPointerEvent,
+  type TouchEvent as ReactTouchEvent,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useKeybindings } from "@/hooks/useKeybindings";
+import { useTerminalPinchZoom } from "@/hooks/useTerminalPinchZoom";
 import { type ConnectionState, useTerminalWebSocket } from "@/hooks/useTerminalWebSocket";
+import { TAP_THRESHOLD_PX } from "@/lib/gestures/conventions";
 import { getClientRuntimeConfig } from "@/lib/runtime-config";
 import { loadTerminalFont, TERMINAL_FONT_FAMILY, TERMINAL_THEME } from "@/lib/terminal/config";
 import { EVENT_NAME as FONT_SIZE_EVENT, getTerminalFontSize } from "@/lib/terminal/font-size";
+import {
+  configureXtermMobileInput,
+  focusTerminalForMobileInput,
+  type MobileInputAdapterCleanup,
+} from "@/lib/terminal/mobile-input-adapter";
 import { encodeInput } from "@/lib/terminal/protocol";
 import { cn } from "@/lib/utils";
 import "@/styles/xterm.css";
@@ -22,6 +37,81 @@ interface InteractiveTerminalProps {
   onConnectionStateChange?: (state: ConnectionState) => void;
   onTerminalReady?: (term: Terminal, send: (data: string) => void) => void;
   onTerminalDestroy?: () => void;
+  layoutSignal?: unknown;
+  mobileInputMode?: boolean;
+  pinToBottomOnResize?: boolean;
+}
+
+interface MobileTouchIntent {
+  didScroll: boolean;
+  lineRemainder: number;
+  touchIdentifier: number;
+  startX: number;
+  startY: number;
+  lastY: number;
+  multiTouch: boolean;
+}
+
+const MOBILE_TERMINAL_SCROLL_THRESHOLD_PX = Math.max(TAP_THRESHOLD_PX + 3, 8);
+const FALLBACK_TERMINAL_LINE_HEIGHT_PX = 20;
+
+function terminalLineHeightPx(term: Terminal | null): number {
+  const fontSize = Number(term?.options?.fontSize);
+  const lineHeight = Number(term?.options?.lineHeight);
+  const estimated = fontSize * (Number.isFinite(lineHeight) && lineHeight > 0 ? lineHeight : 1.4);
+  return Number.isFinite(estimated) && estimated > 0 ? estimated : FALLBACK_TERMINAL_LINE_HEIGHT_PX;
+}
+
+function preventDefaultIfCancelable(event: { cancelable?: boolean; preventDefault: () => void }) {
+  if (event.cancelable) {
+    event.preventDefault();
+  }
+}
+
+function scrollTerminalByTouchDelta(
+  term: Terminal | null,
+  intent: MobileTouchIntent,
+  deltaY: number,
+) {
+  if (!term || typeof term.scrollLines !== "function") return;
+
+  intent.lineRemainder += -deltaY / terminalLineHeightPx(term);
+  const wholeLines =
+    intent.lineRemainder > 0 ? Math.floor(intent.lineRemainder) : Math.ceil(intent.lineRemainder);
+  if (wholeLines === 0) return;
+
+  term.scrollLines(wholeLines);
+  intent.lineRemainder -= wholeLines;
+}
+
+function warnFitFailure(err: unknown) {
+  console.warn("[InteractiveTerminal] fitAddon.fit() failed", err);
+}
+
+function safeFit(fit: FitAddon): boolean {
+  try {
+    fit.fit();
+    return true;
+  } catch (err) {
+    warnFitFailure(err);
+    return false;
+  }
+}
+
+function isTerminalScrolledToBottom(term: Terminal): boolean {
+  const buffer = term.buffer?.active;
+  if (!buffer) return true;
+  return buffer.viewportY >= buffer.baseY - 1;
+}
+
+function scrollTerminalToBottom(term: Terminal) {
+  if (typeof term.scrollToBottom !== "function") return;
+
+  try {
+    term.scrollToBottom();
+  } catch (err) {
+    console.warn("[InteractiveTerminal] scrollToBottom() failed", err);
+  }
 }
 
 export function connectionBadgeProps(state: ConnectionState) {
@@ -61,10 +151,21 @@ export function InteractiveTerminal({
   onConnectionStateChange,
   onTerminalReady,
   onTerminalDestroy,
+  layoutSignal,
+  mobileInputMode = false,
+  pinToBottomOnResize = false,
 }: InteractiveTerminalProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const termRef = useRef<Terminal | null>(null);
   const fitRef = useRef<FitAddon | null>(null);
+  const pinnedToBottomRef = useRef(true);
+  const pinToBottomOnResizeRef = useRef(pinToBottomOnResize);
+  pinToBottomOnResizeRef.current = pinToBottomOnResize;
+  const mobileInputModeRef = useRef(mobileInputMode);
+  mobileInputModeRef.current = mobileInputMode;
+  const mobileTouchIntentRef = useRef<MobileTouchIntent | null>(null);
+  const suppressNextClickFocusRef = useRef(false);
+  const mobileInputCleanupRef = useRef<MobileInputAdapterCleanup | null>(null);
   const { handleKeyEvent } = useKeybindings();
   const handleKeyEventRef = useRef(handleKeyEvent);
   handleKeyEventRef.current = handleKeyEvent;
@@ -98,15 +199,23 @@ export function InteractiveTerminal({
   const [wsUrl, setWsUrl] = useState<string | null>(null);
 
   const handleData = useCallback((data: Uint8Array | string) => {
-    if (termRef.current) {
-      termRef.current.write(data);
-    }
+    const term = termRef.current;
+    if (!term) return;
+
+    const shouldStayPinned = pinnedToBottomRef.current;
+    term.write(data, () => {
+      if (shouldStayPinned) {
+        scrollTerminalToBottom(term);
+      }
+      pinnedToBottomRef.current = isTerminalScrolledToBottom(term);
+    });
   }, []);
 
   const { send, resize, connectionState } = useTerminalWebSocket({
     url: wsUrl,
     onData: handleData,
   });
+  const bindPinchZoom = useTerminalPinchZoom();
 
   useEffect(() => {
     onConnectionStateChange?.(connectionState);
@@ -116,6 +225,165 @@ export function InteractiveTerminal({
   const resizeRef = useRef(resize);
   sendRef.current = send;
   resizeRef.current = resize;
+
+  const applyMobileInputAdapter = useCallback(() => {
+    mobileInputCleanupRef.current?.dispose();
+    mobileInputCleanupRef.current = null;
+
+    if (!mobileInputModeRef.current || !containerRef.current) return;
+
+    const cleanup = configureXtermMobileInput(containerRef.current);
+    if (cleanup.applied) {
+      mobileInputCleanupRef.current = cleanup;
+    }
+  }, []);
+
+  const focusInteractiveTerminal = useCallback(() => {
+    const term = termRef.current;
+    if (!term) return;
+
+    if (mobileInputModeRef.current) {
+      applyMobileInputAdapter();
+      focusTerminalForMobileInput(term);
+      return;
+    }
+
+    term.focus();
+  }, [applyMobileInputAdapter]);
+
+  const handleTerminalPointerDown = useCallback(
+    (event: ReactPointerEvent<HTMLDivElement>) => {
+      if (mobileInputModeRef.current && event.pointerType === "touch") {
+        suppressNextClickFocusRef.current = true;
+        return;
+      }
+
+      focusInteractiveTerminal();
+    },
+    [focusInteractiveTerminal],
+  );
+
+  const beginMobileTouchScroll = useCallback((touch: Touch) => {
+    mobileTouchIntentRef.current = {
+      didScroll: false,
+      lineRemainder: 0,
+      touchIdentifier: touch.identifier,
+      startX: touch.clientX,
+      startY: touch.clientY,
+      lastY: touch.clientY,
+      multiTouch: false,
+    };
+  }, []);
+
+  const continueMobileTouchScroll = useCallback((event: TouchEvent | ReactTouchEvent) => {
+    const intent = mobileTouchIntentRef.current;
+    if (!mobileInputModeRef.current || !intent) return;
+
+    if (event.touches.length > 1) {
+      intent.multiTouch = true;
+      return;
+    }
+
+    const touch = Array.from(event.touches).find(
+      (candidate) => candidate.identifier === intent.touchIdentifier,
+    );
+    if (!touch) return;
+
+    const deltaX = touch.clientX - intent.startX;
+    const deltaYFromStart = touch.clientY - intent.startY;
+    const movedPx = Math.hypot(deltaX, deltaYFromStart);
+    if (!intent.didScroll && movedPx < MOBILE_TERMINAL_SCROLL_THRESHOLD_PX) return;
+
+    intent.didScroll = true;
+    suppressNextClickFocusRef.current = true;
+    preventDefaultIfCancelable(event);
+    event.stopPropagation();
+
+    const deltaY = touch.clientY - intent.lastY;
+    intent.lastY = touch.clientY;
+    const term = termRef.current;
+    scrollTerminalByTouchDelta(term, intent, deltaY);
+    if (term) {
+      pinnedToBottomRef.current = isTerminalScrolledToBottom(term);
+    }
+  }, []);
+
+  const endMobileTouchScroll = useCallback((event: TouchEvent | ReactTouchEvent) => {
+    const intent = mobileTouchIntentRef.current;
+    if (!intent) return;
+
+    const ended = Array.from(event.changedTouches).some(
+      (touch) => touch.identifier === intent.touchIdentifier,
+    );
+    if (!ended) return;
+
+    mobileTouchIntentRef.current = null;
+    suppressNextClickFocusRef.current = true;
+  }, []);
+
+  const handleTerminalClick = useCallback(
+    (event: ReactMouseEvent<HTMLDivElement>) => {
+      if (mobileInputModeRef.current) {
+        suppressNextClickFocusRef.current = false;
+        event.preventDefault();
+        return;
+      }
+
+      focusInteractiveTerminal();
+    },
+    [focusInteractiveTerminal],
+  );
+
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+
+    const handleTouchStart = (event: TouchEvent) => {
+      if (!mobileInputModeRef.current || event.touches.length !== 1) return;
+      beginMobileTouchScroll(event.touches[0]);
+    };
+    const handleTouchMove = (event: TouchEvent) => continueMobileTouchScroll(event);
+    const handleTouchEnd = (event: TouchEvent) => endMobileTouchScroll(event);
+
+    container.addEventListener("touchstart", handleTouchStart, { capture: true, passive: true });
+    container.addEventListener("touchmove", handleTouchMove, { capture: true, passive: false });
+    container.addEventListener("touchend", handleTouchEnd, { capture: true, passive: true });
+    container.addEventListener("touchcancel", handleTouchEnd, { capture: true, passive: true });
+
+    return () => {
+      container.removeEventListener("touchstart", handleTouchStart, { capture: true });
+      container.removeEventListener("touchmove", handleTouchMove, { capture: true });
+      container.removeEventListener("touchend", handleTouchEnd, { capture: true });
+      container.removeEventListener("touchcancel", handleTouchEnd, { capture: true });
+    };
+  }, [beginMobileTouchScroll, continueMobileTouchScroll, endMobileTouchScroll]);
+
+  useEffect(() => {
+    void layoutSignal;
+    void mobileInputMode;
+    applyMobileInputAdapter();
+    return () => {
+      mobileInputCleanupRef.current?.dispose();
+      mobileInputCleanupRef.current = null;
+    };
+  }, [applyMobileInputAdapter, layoutSignal, mobileInputMode]);
+
+  const fitResizeAndPreserveBottom = useCallback((forceScrollToBottom = false) => {
+    const fit = fitRef.current;
+    const term = termRef.current;
+    if (!fit || !term) return;
+
+    const shouldPinToBottom =
+      forceScrollToBottom || (pinToBottomOnResizeRef.current && pinnedToBottomRef.current);
+
+    if (safeFit(fit)) {
+      resizeRef.current(term.rows, term.cols);
+      if (shouldPinToBottom) {
+        scrollTerminalToBottom(term);
+      }
+      pinnedToBottomRef.current = isTerminalScrolledToBottom(term);
+    }
+  }, []);
 
   // When the WebSocket connects (or reconnects), re-fit the terminal and
   // send a resize message. This forces tmux to redraw with the correct
@@ -129,11 +397,10 @@ export function InteractiveTerminal({
 
     // Allow one frame for layout to settle after connection state update
     const frame = requestAnimationFrame(() => {
-      fit.fit();
-      resizeRef.current(term.rows, term.cols);
+      fitResizeAndPreserveBottom(true);
     });
     return () => cancelAnimationFrame(frame);
-  }, [connectionState]);
+  }, [connectionState, fitResizeAndPreserveBottom]);
 
   useEffect(() => {
     const handler = (e: Event) => {
@@ -141,13 +408,35 @@ export function InteractiveTerminal({
       const term = termRef.current;
       const fit = fitRef.current;
       if (term && fit) {
+        const previousFontSize = term.options.fontSize;
         term.options.fontSize = size;
-        fit.fit();
+        const shouldStayPinned = pinnedToBottomRef.current;
+        if (safeFit(fit)) {
+          if (shouldStayPinned) {
+            scrollTerminalToBottom(term);
+          }
+          pinnedToBottomRef.current = isTerminalScrolledToBottom(term);
+        } else {
+          term.options.fontSize = previousFontSize;
+        }
       }
     };
     window.addEventListener(FONT_SIZE_EVENT, handler);
     return () => window.removeEventListener(FONT_SIZE_EVENT, handler);
   }, []);
+
+  useEffect(() => {
+    void layoutSignal;
+
+    const fit = fitRef.current;
+    const term = termRef.current;
+    if (!fit || !term) return;
+
+    const frame = requestAnimationFrame(() => {
+      fitResizeAndPreserveBottom();
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [layoutSignal, fitResizeAndPreserveBottom]);
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -173,17 +462,21 @@ export function InteractiveTerminal({
         lineHeight: 1.4,
         cursorBlink: true,
         convertEol: true,
+        scrollOnUserInput: true,
         scrollback: 10000,
       });
 
       fit = new FitAddon();
       term.loadAddon(fit);
       term.open(containerRef.current);
-      term.focus();
 
       termRef.current = term;
       fitRef.current = fit;
-      fit.fit();
+      applyMobileInputAdapter();
+      if (!mobileInputModeRef.current) {
+        term.focus();
+      }
+      safeFit(fit);
 
       term.attachCustomKeyEventHandler((e) => {
         if (e.type !== "keydown") return true;
@@ -200,10 +493,20 @@ export function InteractiveTerminal({
         resizeRef.current(rows, cols);
       });
 
+      if (typeof term.onScroll === "function") {
+        term.onScroll(() => {
+          pinnedToBottomRef.current = isTerminalScrolledToBottom(term as Terminal);
+        });
+      }
+
+      if (pinToBottomOnResizeRef.current) {
+        scrollTerminalToBottom(term);
+      }
+
       // Wait for browser layout paint before reading dimensions
       await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
       if (!mounted) return;
-      fit.fit();
+      fitResizeAndPreserveBottom(Boolean(pinToBottomOnResizeRef.current));
 
       const dims = { rows: term.rows, cols: term.cols };
       const proxyUrl = getClientRuntimeConfig().terminalWsUrl;
@@ -230,7 +533,9 @@ export function InteractiveTerminal({
         const { width, height } = entry.contentRect;
         if (width > 0 && height > 0 && fitRef.current) {
           if (resizeTimer) clearTimeout(resizeTimer);
-          resizeTimer = setTimeout(() => fitRef.current?.fit(), 50);
+          resizeTimer = setTimeout(() => {
+            fitResizeAndPreserveBottom();
+          }, 50);
         }
       }
     });
@@ -240,12 +545,23 @@ export function InteractiveTerminal({
       mounted = false;
       if (resizeTimer) clearTimeout(resizeTimer);
       resizeObserver.disconnect();
+      mobileTouchIntentRef.current = null;
+      suppressNextClickFocusRef.current = false;
+      mobileInputCleanupRef.current?.dispose();
+      mobileInputCleanupRef.current = null;
       onTerminalDestroyRef.current?.();
       termRef.current?.dispose();
       termRef.current = null;
       fitRef.current = null;
     };
-  }, [agentId, reconnectId, sessionName, workspaceId]);
+  }, [
+    agentId,
+    applyMobileInputAdapter,
+    fitResizeAndPreserveBottom,
+    reconnectId,
+    sessionName,
+    workspaceId,
+  ]);
 
   return (
     <div className={cn("relative flex flex-col bg-[#0a0a0a] overflow-hidden", className)}>
@@ -267,7 +583,13 @@ export function InteractiveTerminal({
       )}
 
       {/* biome-ignore lint/a11y/useKeyWithClickEvents: focus delegation to xterm which handles its own keyboard */}
-      <div ref={containerRef} className="flex-1 p-1" onClick={() => termRef.current?.focus()} />
+      <div
+        ref={containerRef}
+        className="flex-1 p-1"
+        {...bindPinchZoom()}
+        onClick={handleTerminalClick}
+        onPointerDown={handleTerminalPointerDown}
+      />
     </div>
   );
 }

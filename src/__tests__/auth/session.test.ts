@@ -157,7 +157,7 @@ describe("session management", () => {
     });
 
     it("includes domain when COOKIE_DOMAIN is set", () => {
-      vi.stubEnv("COOKIE_DOMAIN", ".local.kethalia.com");
+      vi.stubEnv("COOKIE_DOMAIN", ".hive.local.kethalia.com");
 
       const cookieStore = { set: vi.fn() };
       mockSignCookie.mockReturnValue("signed-value");
@@ -169,8 +169,25 @@ describe("session management", () => {
         sameSite: "lax",
         path: "/",
         maxAge: 30 * 24 * 60 * 60,
-        domain: ".local.kethalia.com",
+        domain: ".hive.local.kethalia.com",
       });
+
+      vi.unstubAllEnvs();
+    });
+
+    it("refuses broad parent COOKIE_DOMAIN values", () => {
+      vi.stubEnv("COOKIE_DOMAIN", ".kethalia.com");
+      vi.spyOn(console, "error").mockImplementation(() => {});
+
+      const cookieStore = { set: vi.fn() };
+      mockSignCookie.mockReturnValue("signed-value");
+      setSessionCookie(cookieStore, "my-session-id");
+
+      const options = cookieStore.set.mock.calls[0][2] as Record<string, unknown>;
+      expect(options).not.toHaveProperty("domain");
+      expect(console.error).toHaveBeenCalledWith(
+        "[session-cookie] Refusing unsafe COOKIE_DOMAIN; use a Hive-specific parent such as .hive.local.kethalia.com",
+      );
 
       vi.unstubAllEnvs();
     });
@@ -199,7 +216,7 @@ describe("session management", () => {
     });
 
     it("clears both domain and host-only cookies when COOKIE_DOMAIN is set", () => {
-      vi.stubEnv("COOKIE_DOMAIN", ".local.kethalia.com");
+      vi.stubEnv("COOKIE_DOMAIN", ".hive.local.kethalia.com");
 
       const cookieStore = { set: vi.fn() };
       clearSessionCookie(cookieStore);
@@ -214,7 +231,7 @@ describe("session management", () => {
         2,
         "hive-session",
         "",
-        expect.objectContaining({ maxAge: 0, domain: ".local.kethalia.com" }),
+        expect.objectContaining({ maxAge: 0, domain: ".hive.local.kethalia.com" }),
       );
 
       vi.unstubAllEnvs();

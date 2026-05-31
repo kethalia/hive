@@ -83,7 +83,7 @@ export function createCIStep(deps: CIStepDeps): BlueprintStep {
 
         // CI failed — extract logs
         log(`round ${round}: CI failed (run ${pollResult.runId}), extracting logs`);
-        const failureLogs = await extractFailureLogs(ctx, pollResult.runId!);
+        const failureLogs = await extractFailureLogs(ctx, pollResult.runId);
 
         // If this is the last round, don't retry
         if (round === CI_MAX_ROUNDS) {
@@ -116,10 +116,10 @@ export function createCIStep(deps: CIStepDeps): BlueprintStep {
   };
 }
 
-interface PollResult {
-  status: "success" | "failure" | "timeout";
-  runId?: number;
-}
+type PollResult =
+  | { status: "success"; runId: number }
+  | { status: "failure"; runId: number }
+  | { status: "timeout" };
 
 /**
  * Poll GitHub Actions for CI completion on the given branch.

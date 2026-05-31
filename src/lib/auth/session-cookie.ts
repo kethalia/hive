@@ -24,9 +24,27 @@ interface SessionCookieOptions {
   domain?: string;
 }
 
+function isHiveScopedCookieDomain(domain: string): boolean {
+  const normalizedDomain = domain.toLowerCase().replace(/^\./, "");
+  return (
+    normalizedDomain === "hive.local" ||
+    normalizedDomain.startsWith("hive.") ||
+    normalizedDomain.includes(".hive.")
+  );
+}
+
 function getCookieDomain(): string | undefined {
   const cookieDomain = process.env.COOKIE_DOMAIN?.trim();
-  return cookieDomain || undefined;
+  if (!cookieDomain) return undefined;
+
+  if (!isHiveScopedCookieDomain(cookieDomain)) {
+    console.error(
+      "[session-cookie] Refusing unsafe COOKIE_DOMAIN; use a Hive-specific parent such as .hive.local.kethalia.com",
+    );
+    return undefined;
+  }
+
+  return cookieDomain;
 }
 
 function sessionCookieOptions(

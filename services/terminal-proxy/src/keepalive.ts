@@ -117,15 +117,16 @@ export class KeepAliveManager {
     const deadline = new Date(Date.now() + EXTEND_HOURS * 60 * 60 * 1000).toISOString();
     const url = `${coderUrl}/api/v2/workspaces/${workspaceId}/extend`;
 
-    if (!this.healthMap.has(workspaceId)) {
-      this.healthMap.set(workspaceId, {
+    let health = this.healthMap.get(workspaceId);
+    if (!health) {
+      health = {
         consecutiveFailures: 0,
         lastSuccess: null,
         lastFailure: null,
         lastError: null,
-      });
+      };
+      this.healthMap.set(workspaceId, health);
     }
-    const health = this.healthMap.get(workspaceId)!;
 
     try {
       const controller = new AbortController();

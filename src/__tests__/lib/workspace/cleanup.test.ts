@@ -15,7 +15,7 @@ function makeMockCoderClient(overrides?: Partial<Record<string, any>>) {
 function makeMockDb() {
   return {
     workspace: {
-      update: vi.fn().mockResolvedValue({}),
+      updateMany: vi.fn().mockResolvedValue({}),
     },
   } as any;
 }
@@ -42,7 +42,7 @@ describe("cleanupWorkspace", () => {
       callOrder.push("delete");
       return Promise.resolve();
     });
-    db.workspace.update.mockImplementation(() => {
+    db.workspace.updateMany.mockImplementation(() => {
       callOrder.push("dbUpdate");
       return Promise.resolve({});
     });
@@ -52,7 +52,7 @@ describe("cleanupWorkspace", () => {
     expect(callOrder).toEqual(["stop", "delete", "dbUpdate"]);
     expect(client.stopWorkspace).toHaveBeenCalledWith("ws-001");
     expect(client.deleteWorkspace).toHaveBeenCalledWith("ws-001");
-    expect(db.workspace.update).toHaveBeenCalledWith({
+    expect(db.workspace.updateMany).toHaveBeenCalledWith({
       where: { coderWorkspaceId: "ws-001" },
       data: { status: "deleted" },
     });

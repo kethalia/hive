@@ -40,11 +40,12 @@ vi.mock("bullmq", () => ({
 
 // Capture the Worker import for accessing __lastProcessor
 import { Worker } from "bullmq";
+import type { CoderClient } from "@/lib/coder/client";
 
 // Mock Prisma client
 const mockTaskUpdate = vi.fn().mockResolvedValue({});
 const mockWorkspaceCreate = vi.fn().mockResolvedValue({});
-const mockWorkspaceUpdate = vi.fn().mockResolvedValue({});
+const mockWorkspaceUpdateMany = vi.fn().mockResolvedValue({});
 const mockTaskLogCreate = vi.fn().mockResolvedValue({});
 
 vi.mock("@hive/db", () => ({
@@ -54,7 +55,7 @@ vi.mock("@hive/db", () => ({
     },
     workspace: {
       create: mockWorkspaceCreate,
-      update: mockWorkspaceUpdate,
+      updateMany: mockWorkspaceUpdateMany,
     },
     taskLog: {
       create: mockTaskLogCreate,
@@ -326,7 +327,7 @@ describe("BullMQ task-dispatch queue", () => {
       });
 
       // 5. Workspace status updated to running
-      expect(mockWorkspaceUpdate).toHaveBeenCalledWith({
+      expect(mockWorkspaceUpdateMany).toHaveBeenCalledWith({
         where: { coderWorkspaceId: "ws-001" },
         data: { status: "running" },
       });

@@ -1,3 +1,4 @@
+import { Buffer } from "node:buffer";
 import { randomBytes } from "node:crypto";
 import { decrypt, encrypt, validateEncryptionKey } from "@hive/auth";
 import { describe, expect, it } from "vitest";
@@ -54,8 +55,8 @@ describe("encrypt / decrypt", () => {
   it("produces different ciphertext on each call (random IV)", () => {
     const a = encrypt("same", VALID_KEY);
     const b = encrypt("same", VALID_KEY);
-    expect(a.iv.equals(b.iv)).toBe(false);
-    expect(a.ciphertext.equals(b.ciphertext)).toBe(false);
+    expect(Buffer.from(a.iv).equals(Buffer.from(b.iv))).toBe(false);
+    expect(Buffer.from(a.ciphertext).equals(Buffer.from(b.ciphertext))).toBe(false);
   });
 
   it("throws when decrypting with the wrong key", () => {

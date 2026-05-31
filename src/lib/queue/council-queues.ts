@@ -1,4 +1,4 @@
-import { FlowProducer, Queue, Worker } from "bullmq";
+import { type ConnectionOptions, FlowProducer, Queue, Worker } from "bullmq";
 import {
   COUNCIL_AGGREGATOR_QUEUE,
   COUNCIL_JOB_TIMEOUT_MS,
@@ -37,8 +37,8 @@ let flowProducer: FlowProducer | null = null;
 export function getCouncilReviewerQueue(): Queue<CouncilReviewerJobData> {
   if (!reviewerQueue) {
     reviewerQueue = new Queue<CouncilReviewerJobData>(COUNCIL_REVIEWER_QUEUE, {
-      connection: getRedisConnection(),
-    });
+      connection: getRedisConnection() as unknown as ConnectionOptions,
+    }) as unknown as Queue<CouncilReviewerJobData>;
   }
   return reviewerQueue;
 }
@@ -47,8 +47,8 @@ export function getCouncilReviewerQueue(): Queue<CouncilReviewerJobData> {
 export function getCouncilAggregatorQueue(): Queue<CouncilAggregatorJobData> {
   if (!aggregatorQueue) {
     aggregatorQueue = new Queue<CouncilAggregatorJobData>(COUNCIL_AGGREGATOR_QUEUE, {
-      connection: getRedisConnection(),
-    });
+      connection: getRedisConnection() as unknown as ConnectionOptions,
+    }) as unknown as Queue<CouncilAggregatorJobData>;
   }
   return aggregatorQueue;
 }
@@ -60,7 +60,7 @@ export function getCouncilAggregatorQueue(): Queue<CouncilAggregatorJobData> {
 export function getCouncilFlowProducer(): FlowProducer {
   if (!flowProducer) {
     flowProducer = new FlowProducer({
-      connection: getRedisConnection(),
+      connection: getRedisConnection() as unknown as ConnectionOptions,
     });
   }
   return flowProducer;
@@ -78,7 +78,7 @@ export function createCouncilReviewerWorker(): Worker<CouncilReviewerJobData> {
     COUNCIL_REVIEWER_QUEUE,
     createCouncilReviewerProcessor(),
     {
-      connection: getRedisConnection(),
+      connection: getRedisConnection() as unknown as ConnectionOptions,
       concurrency: 5,
       lockDuration: COUNCIL_JOB_TIMEOUT_MS,
     },
@@ -95,7 +95,7 @@ export function createCouncilAggregatorWorker(): Worker<CouncilAggregatorJobData
     COUNCIL_AGGREGATOR_QUEUE,
     createCouncilAggregatorProcessor(),
     {
-      connection: getRedisConnection(),
+      connection: getRedisConnection() as unknown as ConnectionOptions,
       concurrency: 3,
       lockDuration: COUNCIL_JOB_TIMEOUT_MS,
     },

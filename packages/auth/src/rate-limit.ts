@@ -13,7 +13,7 @@ export function checkRateLimit(key: string, limit: number, windowMs: number): Ra
   }
 
   if (timestamps.length >= limit) {
-    const oldestInWindow = timestamps[0]!;
+    const oldestInWindow = timestamps[0] ?? now;
     store.set(key, timestamps);
     return {
       allowed: false,
