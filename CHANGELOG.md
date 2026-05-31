@@ -1,5 +1,11 @@
 # hive-orchestrator
 
+## 2.4.1
+
+### Patch Changes
+
+- 630b81c: Migrate existing host-only session cookies to the configured domain scope and clear both cookie scopes on logout so the terminal WebSocket receives authentication on sibling subdomains.
+
 ## 2.4.0
 
 ### Minor Changes
