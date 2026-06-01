@@ -16,7 +16,7 @@ This document is a fillable evidence contract. It may be committed with placehol
 
 ## Blocker note
 
-This T04 execution session had no attached physical iOS or Android device tooling, no simulator bridge, and no browser environment variable suitable for authoritative software-keyboard evidence. Browser emulation and source inspection are intentionally not accepted substitutes for this task, so the required viewport, xterm/FitAddon, resize-sent, and tmux numeric observations were not collected.
+This T05 execution session had no attached physical iOS or Android device tooling, no simulator bridge, and no browser environment variable suitable for authoritative software-keyboard evidence. Browser emulation and source inspection are intentionally not accepted substitutes for this task, so the required viewport, xterm/FitAddon, resize-sent, and tmux numeric observations were not collected.
 
 ## Redaction boundary
 
