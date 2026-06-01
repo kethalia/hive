@@ -11,12 +11,12 @@ This document is a fillable evidence contract. It may be committed with placehol
 - **Run status:** `BLOCKED`
 - **Tester:** `GSD auto-mode agent`
 - **Run date and timezone:** `2026-06-01 UTC`
-- **Related UAT run:** `not run in T09 - no physical mobile device, installed PWA, or real mobile browser runtime was available to this execution session`
-- **Overall result:** `R024 is not validated by this T09 run; real-device keyboard and tmux proof remains blocked until a physical iOS PWA or real mobile browser run is collected`
+- **Related UAT run:** `not run in T10 - no physical mobile device, installed PWA, or real mobile browser runtime was available to this execution session`
+- **Overall result:** `R024 is not validated by this T10 run; real-device keyboard and tmux proof remains blocked until a physical iOS PWA or real mobile browser run is collected`
 
 ## Blocker note
 
-This T09 execution session had no attached physical iOS or Android device tooling, no simulator bridge, and no browser environment suitable for authoritative software-keyboard evidence. Browser emulation, jsdom, automated unit tests, and source inspection are intentionally not accepted substitutes for this task, so the required viewport, xterm/FitAddon, resize-sent, and tmux numeric observations were not collected. The first blocked link is the real mobile visualViewport/software-keyboard capture precondition; without it, the viewport to FitAddon to WebSocket to proxy to tmux chain could not be exercised.
+This T10 execution session had no attached physical iOS or Android device tooling, no simulator bridge, and no browser environment suitable for authoritative software-keyboard evidence. Browser emulation, jsdom, automated unit tests, and source inspection are intentionally not accepted substitutes for this task, so the required viewport, xterm/FitAddon, resize-sent, and tmux numeric observations were not collected. The first blocked link is the real mobile visualViewport/software-keyboard capture precondition; without it, the viewport to FitAddon to WebSocket to proxy to tmux chain could not be exercised.
 
 ## Redaction boundary
 
@@ -36,7 +36,7 @@ When recording the route, use only the route and query shape. Replace workspace 
 - **Browser or installed PWA mode:** `not observed - blocked before real-device run`
 - **Browser version, if visible:** `not observed - blocked before real-device run`
 - **Orientation:** `not observed - blocked before real-device run`
-- **Viewport mode notes:** `No authoritative mobile visualViewport or software-keyboard behavior was observed in this T09 session.`
+- **Viewport mode notes:** `No authoritative mobile visualViewport or software-keyboard behavior was observed in this T10 session.`
 - **Route/query shape used:** `/workspaces/<workspace-id>/terminal?session=<session-name>&debugViewport=1`
 
 ## Required acceptance observations
@@ -132,7 +132,7 @@ If the run fails, identify the first observed break in the chain.
 - **resize-request changed but resize-sent did not:** `yes | no | PENDING`
 - **resize-sent changed but tmux dimensions did not:** `yes | no | PENDING`
 - **All dimensions changed but terminal bottom was clipped:** `yes | no | PENDING`
-- **Notes:** `Blocked before the diagnostic chain could be exercised because no accepted physical mobile device, installed PWA, or real mobile browser runtime was available in this T09 execution session. First blocked link: no real mobile visualViewport/software-keyboard capture, so xterm/FitAddon, resize-sent, proxy, and tmux observations could not be accepted.`
+- **Notes:** `Blocked before the diagnostic chain could be exercised because no accepted physical mobile device, installed PWA, or real mobile browser runtime was available in this T10 execution session. First blocked link: no real mobile visualViewport/software-keyboard capture, so xterm/FitAddon, resize-sent, proxy, and tmux observations could not be accepted.`
 
 ## Evidence attachments checklist
 
