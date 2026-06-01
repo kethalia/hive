@@ -3,9 +3,10 @@
 import { z } from "zod";
 import { getCoderClientForUser } from "@/lib/coder/user-client";
 import { SAFE_IDENTIFIER_RE } from "@/lib/constants";
+import { isCloneTerminalSessionName } from "@/lib/git/clone-terminal-session";
 import { authActionClient } from "@/lib/safe-action";
 import { execInWorkspace } from "@/lib/workspace/exec";
-import { parseTmuxSessions } from "@/lib/workspaces/sessions";
+import { filterGenericTmuxSessions, parseTmuxSessions } from "@/lib/workspaces/sessions";
 
 export const listWorkspacesAction = authActionClient.action(async ({ ctx }) => {
   const client = await getCoderClientForUser(ctx.user.id);
@@ -20,6 +21,19 @@ const getWorkspaceAgentSchema = z.object({
 const getWorkspaceSchema = z.object({
   workspaceId: z.string().min(1, "workspaceId is required"),
 });
+
+function assertGenericSessionName(sessionName: string, operation: "create" | "rename" | "kill") {
+  if (isCloneTerminalSessionName(sessionName)) {
+    console.warn(`[workspaces] Rejected generic ${operation} for reserved clone terminal session`);
+    throw new Error(
+      "Cannot manage reserved clone terminal session through generic session actions",
+    );
+  }
+
+  if (!SAFE_IDENTIFIER_RE.test(sessionName)) {
+    throw new Error(`Invalid session name: ${sessionName}`);
+  }
+}
 
 export const getWorkspaceAction = authActionClient
   .inputSchema(getWorkspaceSchema)
@@ -93,7 +107,7 @@ export const getWorkspaceSessionsAction = authActionClient
       throw new Error(`Failed to list tmux sessions (exit ${result.exitCode}): ${message}`);
     }
 
-    return parseTmuxSessions(result.stdout);
+    return filterGenericTmuxSessions(parseTmuxSessions(result.stdout));
   });
 
 const createSessionSchema = z.object({
@@ -105,9 +119,7 @@ export const createSessionAction = authActionClient
   .inputSchema(createSessionSchema)
   .action(async ({ parsedInput }) => {
     const name = parsedInput.sessionName ?? `session-${Date.now()}`;
-    if (!SAFE_IDENTIFIER_RE.test(name)) {
-      throw new Error(`Invalid session name: ${name}`);
-    }
+    assertGenericSessionName(name, "create");
 
     console.log(
       `[workspaces] Session name "${name}" allocated for workspace ${parsedInput.workspaceId} (tmux creates on PTY connect)`,
@@ -124,12 +136,8 @@ const renameSessionSchema = z.object({
 export const renameSessionAction = authActionClient
   .inputSchema(renameSessionSchema)
   .action(async ({ parsedInput, ctx }) => {
-    if (!SAFE_IDENTIFIER_RE.test(parsedInput.oldName)) {
-      throw new Error(`Invalid session name: ${parsedInput.oldName}`);
-    }
-    if (!SAFE_IDENTIFIER_RE.test(parsedInput.newName)) {
-      throw new Error(`Invalid session name: ${parsedInput.newName}`);
-    }
+    assertGenericSessionName(parsedInput.oldName, "rename");
+    assertGenericSessionName(parsedInput.newName, "rename");
 
     const client = await getCoderClientForUser(ctx.user.id);
     const agentTarget = await client.getWorkspaceAgentName(parsedInput.workspaceId);
@@ -163,9 +171,7 @@ const killSessionSchema = z.object({
 export const killSessionAction = authActionClient
   .inputSchema(killSessionSchema)
   .action(async ({ parsedInput, ctx }) => {
-    if (!SAFE_IDENTIFIER_RE.test(parsedInput.sessionName)) {
-      throw new Error(`Invalid session name: ${parsedInput.sessionName}`);
-    }
+    assertGenericSessionName(parsedInput.sessionName, "kill");
 
     const client = await getCoderClientForUser(ctx.user.id);
     const agentTarget = await client.getWorkspaceAgentName(parsedInput.workspaceId);

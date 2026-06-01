@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 import "@testing-library/jest-dom/vitest";
-import { act, fireEvent, render, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, waitFor } from "@testing-library/react";
 import type React from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -22,6 +22,53 @@ const { mockUseTerminalWebSocket, mockFit, mockSend, mockResize, terminalInstanc
     }>,
   }),
 );
+
+const {
+  mockCreateSessionAction,
+  mockGetWorkspaceSessionsAction,
+  mockHandleKeyEvent,
+  mockRegisterKeybinding,
+  mockSetActiveTerminal,
+  mockUnregisterKeybinding,
+  mockUseIsComposeSheet,
+  mockUseKeybindings,
+  mockUseVisualViewportKeyboardOffset,
+  navigationState,
+} = vi.hoisted(() => {
+  const router = { replace: vi.fn() };
+  const register = vi.fn();
+  const unregister = vi.fn();
+  const handleKeyEvent = vi.fn(() => true);
+  const setActiveTerminal = vi.fn();
+  return {
+    mockCreateSessionAction: vi.fn(),
+    mockGetWorkspaceSessionsAction: vi.fn(),
+    mockHandleKeyEvent: handleKeyEvent,
+    mockRegisterKeybinding: register,
+    mockSetActiveTerminal: setActiveTerminal,
+    mockUnregisterKeybinding: unregister,
+    mockUseIsComposeSheet: vi.fn(() => false),
+    mockUseKeybindings: vi.fn(() => ({
+      activeSend: null,
+      activeTerminal: null,
+      getAll: vi.fn(() => []),
+      handleKeyEvent,
+      register,
+      setActiveTerminal,
+      unregister,
+    })),
+    mockUseVisualViewportKeyboardOffset: vi.fn(() => ({
+      isKeyboardVisible: false,
+      liftPx: 0,
+      visualViewportHeightPx: 0,
+      visualViewportOffsetTopPx: 0,
+    })),
+    navigationState: {
+      router,
+      search: "session=main",
+    },
+  };
+});
 
 vi.mock("@xterm/xterm", () => ({
   Terminal: class MockTerminal {
@@ -67,6 +114,61 @@ vi.mock("@xterm/addon-fit", () => ({
   },
 }));
 
+vi.mock("next/dynamic", () => ({
+  __esModule: true,
+  default: () => {
+    const Stub = ({
+      className,
+      clonePath,
+      cloneProof,
+      layoutSignal,
+      mobileInputMode,
+      sessionName,
+    }: {
+      className?: string;
+      clonePath?: string;
+      cloneProof?: string;
+      layoutSignal?: unknown;
+      mobileInputMode?: boolean;
+      sessionName: string;
+    }) => (
+      <div
+        className={className}
+        data-clone-path={clonePath ?? ""}
+        data-clone-proof={cloneProof ?? ""}
+        data-layout-signal={String(layoutSignal ?? "")}
+        data-mobile-input-mode={mobileInputMode ? "true" : "false"}
+        data-session-name={sessionName}
+        data-testid="interactive-terminal"
+      />
+    );
+    Stub.displayName = "InteractiveTerminal";
+    return Stub;
+  },
+}));
+
+vi.mock("next/navigation", () => ({
+  useRouter: () => navigationState.router,
+  useSearchParams: () => new URLSearchParams(navigationState.search),
+}));
+
+vi.mock("@/lib/actions/workspaces", () => ({
+  createSessionAction: mockCreateSessionAction,
+  getWorkspaceSessionsAction: mockGetWorkspaceSessionsAction,
+}));
+
+vi.mock("@/hooks/use-compose-sheet", () => ({
+  useIsComposeSheet: mockUseIsComposeSheet,
+}));
+
+vi.mock("@/hooks/useVisualViewportKeyboardOffset", () => ({
+  useVisualViewportKeyboardOffset: mockUseVisualViewportKeyboardOffset,
+}));
+
+vi.mock("@/hooks/useKeybindings", () => ({
+  useKeybindings: () => mockUseKeybindings(),
+}));
+
 vi.mock("@/hooks/useTerminalWebSocket", () => ({
   useTerminalWebSocket: (...args: unknown[]) => mockUseTerminalWebSocket(...args),
 }));
@@ -99,6 +201,97 @@ vi.mock("@/components/ui/alert", () => ({
 
 vi.mock("lucide-react", () => ({
   AlertCircle: () => null,
+  Loader2: () => null,
+}));
+
+vi.mock("@/components/terminal/ComposePanel", () => ({
+  ComposePanel: ({ hideHeader }: { hideHeader?: boolean }) => (
+    <div data-hide-header={hideHeader ? "true" : "false"} data-testid="compose-panel" />
+  ),
+}));
+
+vi.mock("@/components/terminal/MobileTerminalControls", () => ({
+  MobileTerminalControls: ({ isKeyboardVisible }: { isKeyboardVisible?: boolean }) => (
+    <button
+      type="button"
+      data-keyboard-visible={isKeyboardVisible ? "true" : "false"}
+      data-testid="terminal-mobile-controls"
+    />
+  ),
+}));
+
+vi.mock("@/components/terminal/MobileTerminalDiagnosticsOverlay", () => ({
+  MobileTerminalDiagnosticsOverlay: ({ enabled }: { enabled: boolean }) =>
+    enabled ? <div data-testid="mobile-terminal-diagnostics-overlay" /> : null,
+}));
+
+vi.mock("@/components/terminal/MobileTerminalShell", () => ({
+  MobileTerminalShell: ({ children }: React.PropsWithChildren<{ className?: string }>) => (
+    <div data-testid="mobile-terminal-shell">{children}</div>
+  ),
+}));
+
+vi.mock("@/components/terminal/TerminalContextMenu", () => ({
+  TerminalContextMenu: () => null,
+}));
+
+vi.mock("@/components/terminal/TerminalGestureLayer", () => ({
+  TerminalGestureLayer: ({ children }: React.PropsWithChildren) => (
+    <div data-testid="terminal-gesture-layer">{children}</div>
+  ),
+}));
+
+vi.mock("@/components/ui/button", () => ({
+  Button: ({ children, ...props }: React.ButtonHTMLAttributes<HTMLButtonElement>) => (
+    <button type="button" {...props}>
+      {children}
+    </button>
+  ),
+}));
+
+vi.mock("@/components/ui/resizable", () => ({
+  ResizableHandle: ({ withHandle }: { withHandle?: boolean }) => (
+    <div data-testid="resizable-handle" data-with-handle={withHandle ? "true" : "false"} />
+  ),
+  ResizablePanel: ({
+    children,
+    defaultSize,
+  }: React.PropsWithChildren<{ defaultSize?: number; minSize?: number; maxSize?: number }>) => (
+    <div data-default-size={defaultSize} data-testid="resizable-panel">
+      {children}
+    </div>
+  ),
+  ResizablePanelGroup: ({
+    children,
+    orientation,
+  }: React.PropsWithChildren<{ className?: string; orientation?: string }>) => (
+    <div data-orientation={orientation} data-testid="resizable-group">
+      {children}
+    </div>
+  ),
+}));
+
+vi.mock("@/components/ui/sheet", () => ({
+  Sheet: ({ children, open }: React.PropsWithChildren<{ open?: boolean }>) => (
+    <div data-open={open ? "true" : "false"} data-testid="compose-sheet">
+      {open ? children : null}
+    </div>
+  ),
+  SheetContent: ({ children, side }: React.PropsWithChildren<{ side?: string }>) => (
+    <section data-side={side} data-testid="compose-sheet-content">
+      {children}
+    </section>
+  ),
+  SheetTitle: ({ children }: React.PropsWithChildren) => <h2>{children}</h2>,
+}));
+
+vi.mock("@/lib/device/haptics", () => ({
+  triggerHapticFeedback: vi.fn(),
+}));
+
+vi.mock("@/lib/terminal/actions", () => ({
+  copyTerminalSelection: vi.fn(),
+  pasteToTerminal: vi.fn(),
 }));
 
 vi.mock("@/styles/xterm.css", () => ({}));
@@ -126,6 +319,33 @@ beforeEach(() => {
   mockResize.mockClear();
   terminalInstances.length = 0;
   window.localStorage.clear();
+  navigationState.search = "session=main";
+  navigationState.router.replace.mockClear();
+  mockCreateSessionAction.mockReset();
+  mockGetWorkspaceSessionsAction.mockReset();
+  mockRegisterKeybinding.mockClear();
+  mockUnregisterKeybinding.mockClear();
+  mockHandleKeyEvent.mockClear();
+  mockSetActiveTerminal.mockClear();
+  mockUseIsComposeSheet.mockReset();
+  mockUseIsComposeSheet.mockReturnValue(false);
+  mockUseVisualViewportKeyboardOffset.mockReset();
+  mockUseVisualViewportKeyboardOffset.mockReturnValue({
+    isKeyboardVisible: false,
+    liftPx: 0,
+    visualViewportHeightPx: 0,
+    visualViewportOffsetTopPx: 0,
+  });
+  mockUseKeybindings.mockReset();
+  mockUseKeybindings.mockReturnValue({
+    activeSend: null,
+    activeTerminal: null,
+    getAll: vi.fn(() => []),
+    handleKeyEvent: mockHandleKeyEvent,
+    register: mockRegisterKeybinding,
+    setActiveTerminal: mockSetActiveTerminal,
+    unregister: mockUnregisterKeybinding,
+  });
 
   mockUseTerminalWebSocket.mockReturnValue({
     send: mockSend,
@@ -146,32 +366,60 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  cleanup();
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
   delete process.env.NEXT_PUBLIC_TERMINAL_WS_URL;
 });
 
-async function renderTerminal(
-  props: { layoutSignal?: unknown; mobileInputMode?: boolean; pinToBottomOnResize?: boolean } = {},
-) {
+type RenderTerminalOptions = {
+  clonePath?: string;
+  cloneProof?: string;
+  layoutSignal?: unknown;
+  mobileInputMode?: boolean;
+  pinToBottomOnResize?: boolean;
+  sessionName?: string;
+};
+
+async function flushTerminalEffects() {
+  await act(async () => {
+    await new Promise((r) => setTimeout(r, 10));
+  });
+}
+
+async function renderTerminal(props: RenderTerminalOptions = {}) {
   const { InteractiveTerminal } = await import("@/components/workspaces/InteractiveTerminal");
+  const { clonePath, cloneProof, sessionName = "main", ...terminalProps } = props;
 
   let result: ReturnType<typeof render>;
   await act(async () => {
     result = render(
       <InteractiveTerminal
         agentId="test-agent"
+        clonePath={clonePath}
+        cloneProof={cloneProof}
         workspaceId="test-ws"
-        sessionName="main"
-        {...props}
+        sessionName={sessionName}
+        {...terminalProps}
       />,
     );
   });
 
-  await act(async () => {
-    await new Promise((r) => setTimeout(r, 10));
-  });
+  await flushTerminalEffects();
 
+  return result!;
+}
+
+async function renderTerminalClient(search: string) {
+  navigationState.search = search;
+  const { TerminalClient } = await import(
+    "@/app/(dashboard)/workspaces/[id]/terminal/terminal-client"
+  );
+
+  let result: ReturnType<typeof render>;
+  await act(async () => {
+    result = render(<TerminalClient agentId="test-agent" workspaceId="test-ws" />);
+  });
   return result!;
 }
 
@@ -286,7 +534,65 @@ describe("InteractiveTerminal integration — Session lifecycle", () => {
     expect(url.searchParams.get("reconnectId")).toBe("cached-reconnect");
     expect(url.searchParams.get("width")).toBe("80");
     expect(url.searchParams.get("height")).toBe("24");
+    expect(url.searchParams.has("clonePath")).toBe(false);
     unmount();
+  });
+
+  it("adds clonePath and cloneProof to the WebSocket URL when provided", async () => {
+    const { unmount } = await renderTerminal({
+      clonePath: "kethalia/hive",
+      cloneProof: "proof-token",
+      sessionName: "git-clone-safe-hive",
+    });
+
+    await waitFor(() => {
+      expect(terminalWebSocketUrls().length).toBeGreaterThan(0);
+    });
+    const url = new URL(terminalWebSocketUrls().at(-1)!);
+    expect(url.searchParams.get("sessionName")).toBe("git-clone-safe-hive");
+    expect(url.searchParams.get("clonePath")).toBe("kethalia/hive");
+    expect(url.searchParams.get("cloneProof")).toBe("proof-token");
+    unmount();
+  });
+
+  it("rebuilds the WebSocket URL when clonePath changes for the same session", async () => {
+    const { InteractiveTerminal } = await import("@/components/workspaces/InteractiveTerminal");
+
+    let result: ReturnType<typeof render>;
+    await act(async () => {
+      result = render(
+        <InteractiveTerminal
+          agentId="test-agent"
+          clonePath="kethalia/hive"
+          workspaceId="test-ws"
+          sessionName="git-clone-safe-hive"
+        />,
+      );
+    });
+    await flushTerminalEffects();
+
+    await waitFor(() => {
+      const url = new URL(terminalWebSocketUrls().at(-1)!);
+      expect(url.searchParams.get("clonePath")).toBe("kethalia/hive");
+    });
+
+    await act(async () => {
+      result!.rerender(
+        <InteractiveTerminal
+          agentId="test-agent"
+          clonePath="kethalia/hive-renamed"
+          workspaceId="test-ws"
+          sessionName="git-clone-safe-hive"
+        />,
+      );
+    });
+    await flushTerminalEffects();
+
+    await waitFor(() => {
+      const url = new URL(terminalWebSocketUrls().at(-1)!);
+      expect(url.searchParams.get("clonePath")).toBe("kethalia/hive-renamed");
+    });
+    result!.unmount();
   });
 
   it("resizes the PTY after connection and preserves bottom pinning when configured", async () => {
@@ -304,6 +610,56 @@ describe("InteractiveTerminal integration — Session lifecycle", () => {
     });
     expect(terminal?.scrollToBottom).toHaveBeenCalled();
     expect(terminal?.buffer.active.viewportY).toBe(terminal?.buffer.active.baseY);
+    unmount();
+  });
+});
+
+describe("TerminalClient integration — Clone route parameters", () => {
+  it("passes clonePath and cloneProof from a clone route to InteractiveTerminal and preserves debug diagnostics", async () => {
+    const { getByTestId, unmount } = await renderTerminalClient(
+      "session=git-clone-safe-hive&clonePath=kethalia%2Fhive&cloneProof=proof-token&debugViewport=1",
+    );
+
+    await waitFor(() => {
+      expect(getByTestId("interactive-terminal")).toBeInTheDocument();
+    });
+    expect(getByTestId("interactive-terminal")).toHaveAttribute(
+      "data-session-name",
+      "git-clone-safe-hive",
+    );
+    expect(getByTestId("interactive-terminal")).toHaveAttribute("data-clone-path", "kethalia/hive");
+    expect(getByTestId("interactive-terminal")).toHaveAttribute("data-clone-proof", "proof-token");
+    expect(getByTestId("mobile-terminal-diagnostics-overlay")).toBeInTheDocument();
+    expect(mockGetWorkspaceSessionsAction).not.toHaveBeenCalled();
+    expect(mockCreateSessionAction).not.toHaveBeenCalled();
+    unmount();
+  });
+
+  it("omits clonePath for normal session routes", async () => {
+    const { getByTestId, unmount } = await renderTerminalClient("session=main");
+
+    await waitFor(() => {
+      expect(getByTestId("interactive-terminal")).toBeInTheDocument();
+    });
+    expect(getByTestId("interactive-terminal")).toHaveAttribute("data-session-name", "main");
+    expect(getByTestId("interactive-terminal")).toHaveAttribute("data-clone-path", "");
+    unmount();
+  });
+
+  it("ignores clonePath while bootstrapping a generic no-session terminal", async () => {
+    mockGetWorkspaceSessionsAction.mockResolvedValue({ data: [] });
+    mockCreateSessionAction.mockResolvedValue({ data: { name: "created-main" } });
+
+    const { unmount } = await renderTerminalClient("clonePath=kethalia%2Fhive&debugViewport=1");
+
+    await waitFor(() => {
+      expect(navigationState.router.replace).toHaveBeenCalledWith(
+        "/workspaces/test-ws/terminal?session=created-main&debugViewport=1",
+      );
+    });
+    expect(navigationState.router.replace).not.toHaveBeenCalledWith(
+      expect.stringContaining("clonePath"),
+    );
     unmount();
   });
 });

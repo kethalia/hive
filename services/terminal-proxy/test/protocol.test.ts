@@ -55,6 +55,30 @@ describe("buildPtyUrl", () => {
     );
   });
 
+  it("includes shell-quoted cwd when provided", () => {
+    const url = buildPtyUrl("https://coder.dev", agentId, {
+      ...defaults,
+      sessionName: "git-clone-deadbeef",
+      cwd: "/home/coder/projects/kethalia/hive",
+    });
+    const parsed = new URL(url);
+    expect(parsed.searchParams.get("command")).toBe(
+      "tmux -L web new-session -A -s git-clone-deadbeef -c '/home/coder/projects/kethalia/hive' \\; set status off \\; set mouse off \\; set -g terminal-overrides \",xterm*:smcup@:rmcup@\"",
+    );
+  });
+
+  it("shell-quotes cwd with spaces and single quotes", () => {
+    const url = buildPtyUrl("https://coder.dev", agentId, {
+      ...defaults,
+      sessionName: "git-clone-deadbeef",
+      cwd: "/home/coder/projects/acme/bob's repo",
+    });
+    const parsed = new URL(url);
+    expect(parsed.searchParams.get("command")).toBe(
+      "tmux -L web new-session -A -s git-clone-deadbeef -c '/home/coder/projects/acme/bob'\\''s repo' \\; set status off \\; set mouse off \\; set -g terminal-overrides \",xterm*:smcup@:rmcup@\"",
+    );
+  });
+
   it("rejects session name with spaces", () => {
     expect(() =>
       buildPtyUrl("https://coder.dev", agentId, { ...defaults, sessionName: "my session" }),

@@ -42,6 +42,24 @@ The following exceptions are intentional and should be revisited only when the m
 - The migration Job is an Argo CD Sync hook with sync-wave ordering, not a Helm hook. Successful hook Jobs may be deleted after completion, so absence of the Job after a healthy sync is expected.
 - Database migrations are forward-only operationally. A failed app rollout can be rolled back to a compatible image, but do not assume the database schema can be automatically rolled back.
 
+## Git clone discovery and clone terminals
+
+The Git sidebar and clone terminal flow share one runtime contract: the web service, terminal proxy, and Coder agent runtime must agree on `HIVE_PROJECTS_ROOT`. The value must be an absolute POSIX path. The default value is `/home/coder`, so discovery is not limited to a strict `projects` directory; it finds Git repositories anywhere under that workspace home root while skipping noisy/sensitive hidden directories and known build-output folders.
+
+Use the same value everywhere:
+
+- The web service scans `HIVE_PROJECTS_ROOT` inside the selected Coder workspace via `coder ssh`, looking for directory or file `.git` metadata.
+- The terminal proxy validates clone terminal requests and passes the requested clone path under the same root to the Coder agent PTY command as the tmux cwd.
+- The Coder agent runtime must have the repository tree at that exact path string. The web and terminal-proxy containers do not need the repository tree mounted locally; they need Coder API access and the shared root string.
+
+If the configured workspace home root is missing, the workspace-scoped Git section reports that the home folder is unavailable. If the root exists but contains no discoverable Git repositories, the workspace-scoped Git section reports that no Git clones were found. Discovery runs when a workspace row is expanded, when the active workspace route auto-expands, and on manual refresh for expanded workspaces; it does not currently auto-poll for filesystem changes.
+
+Clone terminal sessions are deterministic and reconnectable through the terminal route, but the deterministic `git-clone-<sha>` session name is only an identifier. Workspace Git opens mint a short-lived server proof, signed with the shared `COOKIE_SECRET`, over the workspace, agent when available, session name, clone path, and expiry. The terminal proxy rejects missing, expired, tampered, or mismatched proofs before auth/upstream setup and logs only reason codes. A stale bookmarked clone terminal URL may need to be reopened from that workspace's Git section to mint a fresh proof.
+
+Hive does not yet expose a dedicated UI control to terminate a clone session. Use the underlying Coder workspace/session tooling when an operator must clean one up before that product surface exists.
+
+Production diagnostics for this flow are intentionally limited today: the web app returns sanitized UI errors for missing roots, empty results, and scan failures; the web and terminal services log reason-code/count summaries without exposing local root paths, tokens, or terminal payloads. There are no dedicated production metrics for clone discovery or clone terminal startup yet.
+
 ## Deploy
 
 1. Confirm the image build completed for all four images in the release contract.
