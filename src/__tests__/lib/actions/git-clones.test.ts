@@ -1,4 +1,3 @@
-import { resolve } from "node:path";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("next/headers", () => ({
@@ -227,6 +226,26 @@ describe("listGitClonesAction", () => {
     expect(JSON.stringify(result?.data)).not.toContain("SUPER_SECRET_TOKEN");
   });
 
+  it("returns a sanitized scan-failed response without scanning when the configured root is relative", async () => {
+    vi.stubEnv(PROJECTS_ROOT_ENV_KEY, "relative/projects");
+
+    const result = await listGitClonesAction();
+
+    expect(result?.serverError).toBeUndefined();
+    expect(result?.data).toEqual({
+      ok: false,
+      status: "scan-failed",
+      message: "We couldn't scan the home folder for Git clones. Refresh and try again.",
+      tree: null,
+      diagnostics: null,
+      error: {
+        code: "scan-failed",
+        message: "We couldn't scan the home folder for Git clones. Refresh and try again.",
+      },
+    });
+    expect(mockedExecInWorkspace).not.toHaveBeenCalled();
+  });
+
   it("requires authentication before invoking the scanner", async () => {
     mockedGetSession.mockResolvedValueOnce(null);
 
@@ -259,11 +278,18 @@ describe("resolveGitCloneTerminalAction", () => {
   });
 
   it("exports home-root configuration helpers without changing list behavior", () => {
-    expect(resolveConfiguredProjectsRoot()).toBe(resolve(PRIVATE_ROOT));
+    expect(resolveConfiguredProjectsRoot()).toBe(PRIVATE_ROOT);
+
+    vi.stubEnv(PROJECTS_ROOT_ENV_KEY, "/tmp/private-projects/../repos/");
+    expect(resolveConfiguredProjectsRoot()).toBe("/tmp/repos");
+
+    vi.stubEnv(PROJECTS_ROOT_ENV_KEY, "relative/repos");
+    expect(() => resolveConfiguredProjectsRoot()).toThrow(
+      `${PROJECTS_ROOT_ENV_KEY} must be an absolute POSIX path`,
+    );
 
     vi.unstubAllEnvs();
-
-    expect(resolveConfiguredProjectsRoot()).toBe(resolve(DEFAULT_PROJECTS_ROOT_PATH));
+    expect(resolveConfiguredProjectsRoot()).toBe(DEFAULT_PROJECTS_ROOT_PATH);
   });
 
   it("revalidates a selected repository inside the workspace and returns only safe route-ready terminal identity", async () => {
@@ -287,7 +313,7 @@ describe("resolveGitCloneTerminalAction", () => {
     expect(result?.data).toEqual({
       sessionName: expect.any(String),
       clonePath: "kethalia/hive",
-      cloneSessionKey: "git-clone:Git/home/kethalia/hive",
+      cloneSessionKey: "git-clone:kethalia/hive",
       cloneProof: expect.any(String),
     });
     expect(result?.data?.sessionName).toMatch(SAFE_IDENTIFIER_RE);
@@ -462,7 +488,7 @@ const repositoryNode = {
   relativePath: "kethalia/hive",
   relativePathSegments: ["kethalia", "hive"],
   displaySegments: ["Git", "home", "kethalia", "hive"],
-  cloneSessionKey: "git-clone:Git/home/kethalia/hive",
+  cloneSessionKey: "git-clone:kethalia/hive",
 } satisfies CloneTreeNode;
 
 const directoryNode = {

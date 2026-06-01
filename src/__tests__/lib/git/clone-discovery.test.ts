@@ -60,19 +60,19 @@ describe("discoverProjectCloneTree", () => {
         id: "git-repository:Git/home/chillwhales/reef",
         relativePath: "chillwhales/reef",
         displaySegments: ["Git", "home", "chillwhales", "reef"],
-        cloneSessionKey: "git-clone:Git/home/chillwhales/reef",
+        cloneSessionKey: "git-clone:chillwhales/reef",
       },
       {
         id: "git-repository:Git/home/kethalia/hive",
         relativePath: "kethalia/hive",
         displaySegments: ["Git", "home", "kethalia", "hive"],
-        cloneSessionKey: "git-clone:Git/home/kethalia/hive",
+        cloneSessionKey: "git-clone:kethalia/hive",
       },
       {
         id: "git-repository:Git/home/phlox-labs/platform/orchard",
         relativePath: "phlox-labs/platform/orchard",
         displaySegments: ["Git", "home", "phlox-labs", "platform", "orchard"],
-        cloneSessionKey: "git-clone:Git/home/phlox-labs/platform/orchard",
+        cloneSessionKey: "git-clone:phlox-labs/platform/orchard",
       },
     ]);
     expect(JSON.stringify(result.nodes)).not.toContain(tempDir);

@@ -12,8 +12,6 @@ const PING_INTERVAL_MS = 30_000;
 const UPSTREAM_CONNECT_TIMEOUT_MS = 10_000;
 const CLONE_TERMINAL_SESSION_PREFIX = "git-clone-";
 const CLONE_TERMINAL_SESSION_RE = /^git-clone-[0-9a-f]{32}$/;
-const CLONE_TREE_ROOT_LABEL = "Git";
-const CLONE_TREE_PROJECTS_LABEL = "home";
 const PROJECTS_ROOT_ENV_KEY = "HIVE_PROJECTS_ROOT";
 const DEFAULT_PROJECTS_ROOT_PATH = "/home/coder";
 
@@ -77,12 +75,27 @@ type CloneProofExpectation = {
 };
 
 function resolveProjectsRoot(): string {
-  return path.resolve(process.env[PROJECTS_ROOT_ENV_KEY]?.trim() || DEFAULT_PROJECTS_ROOT_PATH);
+  const configuredRoot = process.env[PROJECTS_ROOT_ENV_KEY]?.trim();
+  if (!configuredRoot) return DEFAULT_PROJECTS_ROOT_PATH;
+
+  if (!isAbsolutePosixPath(configuredRoot)) {
+    throw new Error(`${PROJECTS_ROOT_ENV_KEY} must be an absolute POSIX path`);
+  }
+
+  return normalizeAbsolutePosixPath(configuredRoot);
+}
+
+function isAbsolutePosixPath(value: string): boolean {
+  return value.startsWith("/") && !value.includes("\\") && !value.includes("\0");
+}
+
+function normalizeAbsolutePosixPath(value: string): string {
+  const normalized = path.posix.normalize(value);
+  return normalized !== "/" && normalized.endsWith("/") ? normalized.slice(0, -1) : normalized;
 }
 
 function createCanonicalCloneSessionName(pathSegments: readonly string[]): string {
-  const displaySegments = [CLONE_TREE_ROOT_LABEL, CLONE_TREE_PROJECTS_LABEL, ...pathSegments];
-  const cloneSessionKey = `git-clone:${displaySegments.map(encodeURIComponent).join("/")}`;
+  const cloneSessionKey = `git-clone:${pathSegments.map(encodeURIComponent).join("/")}`;
   const digest = createHash("sha256").update(cloneSessionKey).digest("hex").slice(0, 32);
   return `${CLONE_TERMINAL_SESSION_PREFIX}${digest}`;
 }
@@ -98,7 +111,7 @@ function validateClonePathSegments(
     return { ok: false, reason: "clonePath_nul" };
   }
 
-  if (clonePath.includes("\\") || /^[a-zA-Z]:/.test(clonePath)) {
+  if (clonePath.includes("\\") || /^[a-zA-Z]:[\\/]/.test(clonePath)) {
     return { ok: false, reason: "clonePath_malformed" };
   }
 
@@ -221,7 +234,13 @@ async function validateCloneCwd(
     return cloneProofValidation;
   }
 
-  const projectsRoot = resolveProjectsRoot();
+  let projectsRoot: string;
+  try {
+    projectsRoot = resolveProjectsRoot();
+  } catch {
+    return { ok: false, reason: "projectsRoot_invalid", status: 502 };
+  }
+
   const cwd = path.resolve(projectsRoot, ...clonePathSegments.pathSegments);
   const projectsRootPrefix = projectsRoot.endsWith(path.sep)
     ? projectsRoot

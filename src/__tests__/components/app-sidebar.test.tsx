@@ -329,7 +329,7 @@ const gitRepositoryNode = {
   relativePath: "kethalia/hive",
   relativePathSegments: ["kethalia", "hive"],
   displaySegments: ["Git", "home", "kethalia", "hive"],
-  cloneSessionKey: "git-clone:Git/home/kethalia/hive",
+  cloneSessionKey: "git-clone:kethalia/hive",
 } as const;
 
 function makeGitDiagnostics(overrides: Partial<CloneTreeDiagnostics> = {}): CloneTreeDiagnostics {
@@ -542,10 +542,7 @@ describe("AppSidebar", () => {
       name: "Open Git repository kethalia / hive",
     });
 
-    expect(repoButton).toHaveAttribute(
-      "data-clone-session-key",
-      "git-clone:Git/home/kethalia/hive",
-    );
+    expect(repoButton).toHaveAttribute("data-clone-session-key", "git-clone:kethalia/hive");
     expect(repoButton).toHaveAttribute("data-relative-path", "kethalia/hive");
     expect(screen.getByText("Git")).toBeInTheDocument();
     expect(screen.getByText("home")).toBeInTheDocument();
@@ -582,7 +579,7 @@ describe("AppSidebar", () => {
 
     await waitFor(() => {
       expect(mockResolveGitCloneTerminal).toHaveBeenCalledWith({
-        cloneSessionKey: "git-clone:Git/home/kethalia/hive",
+        cloneSessionKey: "git-clone:kethalia/hive",
         workspaceId: "ws-running",
         agentId: "agent-1",
         relativePath: "kethalia/hive",

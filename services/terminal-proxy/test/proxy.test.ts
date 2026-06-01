@@ -80,8 +80,7 @@ const validParams = {
 };
 
 function createCanonicalCloneSessionName(clonePath: string): string {
-  const displaySegments = ["Git", "home", ...clonePath.split("/")];
-  const cloneSessionKey = `git-clone:${displaySegments.map(encodeURIComponent).join("/")}`;
+  const cloneSessionKey = `git-clone:${clonePath.split("/").map(encodeURIComponent).join("/")}`;
   const digest = createHash("sha256").update(cloneSessionKey).digest("hex").slice(0, 32);
   return `git-clone-${digest}`;
 }
@@ -459,6 +458,32 @@ describe("handleUpgrade", () => {
       clonePath,
     });
     expect(mockAuth).not.toHaveBeenCalled();
+  });
+
+  it("allows colon-prefixed Linux clone paths that are not Windows drive prefixes", async () => {
+    const clonePath = "a:repo/foo";
+    const socket = makeSocket();
+
+    await handleUpgrade(makeReq(createCloneRequestParams(clonePath)), socket, Buffer.alloc(0));
+
+    expect(socket.destroy).not.toHaveBeenCalled();
+    expect(getLastUpstreamCommand()).toContain("-c '/home/coder/a:repo/foo'");
+  });
+
+  it("rejects relative HIVE_PROJECTS_ROOT values before auth", async () => {
+    process.env.HIVE_PROJECTS_ROOT = "relative/root";
+    const logged = await captureConsoleErrors(async () => {
+      const params = createCloneRequestParams("kethalia/hive");
+      const socket = makeSocket();
+      await handleUpgrade(makeReq(params), socket, Buffer.alloc(0));
+
+      expect(socket.written[0]).toContain("502");
+      expect(socket.destroy).toHaveBeenCalled();
+    });
+
+    expect(logged).toContain("projectsRoot_invalid");
+    expect(mockAuth).not.toHaveBeenCalled();
+    expect(WebSocket).not.toHaveBeenCalled();
   });
 
   it("logs only sanitized reason codes for clone validation failures before auth", async () => {

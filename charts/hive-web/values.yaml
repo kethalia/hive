@@ -141,7 +141,7 @@ config:
   AUTH_SERVICE_URL: "http://hive-auth"
   CODER_URL: ""
   NEXT_PUBLIC_TERMINAL_WS_URL: ""
-  # Workspace home tree path used for Git clone discovery/sidebar scans.
+  # Absolute POSIX workspace home tree path used for Git clone discovery/sidebar scans.
   # The web service scans this path inside Coder workspaces via coder ssh.
   HIVE_PROJECTS_ROOT: "/home/coder"
   # Cookie Domain attribute applied to the session cookie. Set to a shared

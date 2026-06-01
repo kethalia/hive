@@ -72,27 +72,30 @@ describe("clone-tree contract helpers", () => {
     ).toEqual(["Source", "workspace-clones", "team", "repo"]);
   });
 
-  it("creates stable IDs and clone session keys without embedding absolute paths", () => {
+  it("creates stable IDs and clone session keys without embedding absolute paths or display labels", () => {
     const displaySegments = ["Git", "home", "kethalia", "hive"];
+    const relativePathSegments = ["kethalia", "hive"];
 
     expect(createCloneTreeNodeId("repository", displaySegments)).toBe(
       "git-repository:Git/home/kethalia/hive",
     );
-    expect(createCloneSessionKey(displaySegments)).toBe("git-clone:Git/home/kethalia/hive");
-    expect(createCloneSessionKey(displaySegments)).not.toContain("/home/coder");
+    expect(createCloneSessionKey(relativePathSegments)).toBe("git-clone:kethalia/hive");
+    expect(createCloneSessionKey(relativePathSegments)).not.toContain("/home/coder");
+    expect(createCloneSessionKey(relativePathSegments)).not.toContain("Git/home");
   });
 
-  it("URL-encodes hierarchy segments for deterministic IDs and session keys", () => {
+  it("URL-encodes root-relative path segments for deterministic session keys", () => {
     const displaySegments = ["Git", "home", "org name", "repo#1"];
+    const relativePathSegments = ["org name", "repo#1"];
 
     expect(createCloneTreeNodeId("directory", displaySegments)).toBe(
       "git-directory:Git/home/org%20name/repo%231",
     );
-    expect(createCloneSessionKey(displaySegments)).toBe("git-clone:Git/home/org%20name/repo%231");
+    expect(createCloneSessionKey(relativePathSegments)).toBe("git-clone:org%20name/repo%231");
   });
 
   it("maps clone session keys to reserved deterministic tmux-safe terminal session names", () => {
-    const cloneSessionKey = createCloneSessionKey(["Git", "home", "org name", "repo#1"]);
+    const cloneSessionKey = createCloneSessionKey(["org name", "repo#1"]);
     const safeSessionName = createSafeCloneTerminalSessionName(cloneSessionKey);
 
     expect(safeSessionName).toMatch(SAFE_IDENTIFIER_RE);
@@ -102,9 +105,7 @@ describe("clone-tree contract helpers", () => {
     expect(safeSessionName).not.toContain("/home/coder");
     expect(safeSessionName).toBe(createSafeCloneTerminalSessionName(cloneSessionKey));
     expect(safeSessionName).not.toBe(
-      createSafeCloneTerminalSessionName(
-        createCloneSessionKey(["Git", "home", "org name", "other"]),
-      ),
+      createSafeCloneTerminalSessionName(createCloneSessionKey(["org name", "other"])),
     );
     expect(isCloneTerminalSessionName(safeSessionName)).toBe(true);
     expect(isCloneTerminalSessionName("session-123")).toBe(false);
@@ -134,7 +135,7 @@ describe("clone-tree contract helpers", () => {
       kind: "repository",
       label: "hive",
       relativePath: "kethalia/hive",
-      cloneSessionKey: "git-clone:Git/home/kethalia/hive",
+      cloneSessionKey: "git-clone:kethalia/hive",
     });
     expect(directory).toMatchObject({
       id: "git-directory:Git/home/kethalia/hive",

@@ -63,9 +63,9 @@ test("verifier only reads tracked config and documentation inputs", () => {
 test(".env.example documents the shared workspace home root default", () => {
   const envExample = readTrackedFile(".env.example");
 
-  assert.match(envExample, /Shared workspace home root used by Git clone discovery/);
+  assert.match(envExample, /Shared absolute POSIX workspace home root used by Git clone discovery/);
   assert.match(envExample, /web app scans this path inside the user's Coder workspace/);
-  assert.match(envExample, /terminal proxy uses the same root string/);
+  assert.match(envExample, /terminal proxy uses the same absolute root string/);
   assert.ok(envExample.includes(ENV_EXAMPLE_ENTRY), ".env.example includes HIVE_PROJECTS_ROOT");
 });
 
@@ -106,14 +106,17 @@ test("Helm values expose HIVE_PROJECTS_ROOT with service-specific comments", () 
   const terminalValues = readTrackedFile("charts/hive-terminal/values.yaml");
 
   assert.ok(webValues.includes(HELM_VALUES_ENTRY), "hive-web values include HIVE_PROJECTS_ROOT");
-  assert.match(webValues, /Workspace home tree path used/);
+  assert.match(webValues, /Absolute POSIX workspace home tree path used/);
   assert.match(webValues, /inside Coder workspaces via coder ssh/);
 
   assert.ok(
     terminalValues.includes(HELM_VALUES_ENTRY),
     "hive-terminal values include HIVE_PROJECTS_ROOT",
   );
-  assert.match(terminalValues, /Must match the web\/Coder-agent workspace home root string/);
+  assert.match(
+    terminalValues,
+    /Must match the web\/Coder-agent absolute POSIX workspace home root string/,
+  );
   assert.match(terminalValues, /inside the Coder agent/);
 });
 
@@ -123,6 +126,7 @@ test("deployment docs cover the Git discovery and clone-terminal root contract",
   for (const requiredText of [
     "## Git clone discovery and clone terminals",
     "web service, terminal proxy, and Coder agent runtime must agree on `HIVE_PROJECTS_ROOT`",
+    "The value must be an absolute POSIX path",
     `The default value is \`${HOME_ROOT_VALUE}\``,
     "not limited to a strict `projects` directory",
     "The web service scans `HIVE_PROJECTS_ROOT` inside the user's selected/running Coder workspace via `coder ssh`",

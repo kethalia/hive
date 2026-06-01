@@ -17,7 +17,7 @@ const repositoryNode = {
   relativePath: "kethalia/hive",
   relativePathSegments: ["kethalia", "hive"],
   displaySegments: ["Git", "home", "kethalia", "hive"],
-  cloneSessionKey: "git-clone:Git/home/kethalia/hive",
+  cloneSessionKey: "git-clone:kethalia/hive",
 } as const satisfies CloneTreeRepositoryNode;
 
 function makeCloneTree(overrides: Partial<PublicCloneTree> = {}): PublicCloneTree {
@@ -63,10 +63,7 @@ describe("GitCloneSidebarTree", () => {
       name: "Open Git repository kethalia / hive",
     });
 
-    expect(repoButton).toHaveAttribute(
-      "data-clone-session-key",
-      "git-clone:Git/home/kethalia/hive",
-    );
+    expect(repoButton).toHaveAttribute("data-clone-session-key", "git-clone:kethalia/hive");
     expect(repoButton).toHaveAttribute("data-relative-path", "kethalia/hive");
     expect(screen.getByText("home")).toBeInTheDocument();
     expect(screen.getByText("kethalia")).toBeInTheDocument();

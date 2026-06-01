@@ -1,4 +1,4 @@
-import { resolve } from "node:path";
+import { posix } from "node:path";
 import type { CloneTree, CloneTreeDiagnostics } from "@/lib/git/clone-tree";
 
 export const PROJECTS_ROOT_ENV_KEY = "HIVE_PROJECTS_ROOT";
@@ -41,5 +41,20 @@ export interface GitCloneTerminalIdentity {
 
 export function resolveConfiguredProjectsRoot(): string {
   const configuredRoot = process.env[PROJECTS_ROOT_ENV_KEY]?.trim();
-  return resolve(configuredRoot || DEFAULT_PROJECTS_ROOT_PATH);
+  if (!configuredRoot) return DEFAULT_PROJECTS_ROOT_PATH;
+
+  if (!isAbsolutePosixPath(configuredRoot)) {
+    throw new Error(`${PROJECTS_ROOT_ENV_KEY} must be an absolute POSIX path`);
+  }
+
+  return normalizeAbsolutePosixPath(configuredRoot);
+}
+
+function isAbsolutePosixPath(value: string): boolean {
+  return value.startsWith("/") && !value.includes("\\") && !value.includes("\0");
+}
+
+function normalizeAbsolutePosixPath(value: string): string {
+  const normalized = posix.normalize(value);
+  return normalized !== "/" && normalized.endsWith("/") ? normalized.slice(0, -1) : normalized;
 }

@@ -64,9 +64,8 @@ const resolveGitCloneTerminalSchema = z
 
 export const listGitClonesAction = authActionClient.action(
   async ({ ctx }): Promise<GitCloneDiscoveryActionResult> => {
-    const projectsRootPath = resolveConfiguredProjectsRoot();
-
     try {
+      const projectsRootPath = resolveConfiguredProjectsRoot();
       const tree = await discoverWorkspaceCloneTree(ctx.user.id, projectsRootPath);
       const publicTree = toPublicCloneTree(tree);
       const rootSkippedReason = getRootSkippedReason(tree.diagnostics);
@@ -117,10 +116,10 @@ export const resolveGitCloneTerminalAction = authActionClient
       parsedInput.workspaceId,
       parsedInput.agentId,
     );
-    const projectsRootPath = resolveConfiguredProjectsRoot();
     let tree: CloneTree;
 
     try {
+      const projectsRootPath = resolveConfiguredProjectsRoot();
       tree = await discoverWorkspaceCloneTree(
         ctx.user.id,
         projectsRootPath,

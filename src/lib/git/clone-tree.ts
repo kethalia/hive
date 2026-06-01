@@ -163,8 +163,8 @@ export function createCloneTreeNodeId(
   return `git-${kind}:${encodeHierarchySegments(displaySegments)}`;
 }
 
-export function createCloneSessionKey(displaySegments: readonly string[]): string {
-  return `git-clone:${encodeHierarchySegments(displaySegments)}`;
+export function createCloneSessionKey(relativePathSegments: readonly string[]): string {
+  return `git-clone:${encodeHierarchySegments(relativePathSegments)}`;
 }
 
 export function createSafeCloneTerminalSessionName(cloneSessionKey: string): string {
@@ -197,7 +197,7 @@ export function createCloneTreeRepositoryNode(
     relativePath: normalizedPath.relativePath,
     relativePathSegments: normalizedPath.relativePathSegments,
     displaySegments: normalizedPath.displaySegments,
-    cloneSessionKey: createCloneSessionKey(normalizedPath.displaySegments),
+    cloneSessionKey: createCloneSessionKey(normalizedPath.relativePathSegments),
   };
 }
 
