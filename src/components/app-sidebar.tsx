@@ -131,8 +131,6 @@ const GIT_DISCOVERY_SERVER_ERROR_MESSAGE =
   "Git clone discovery is unavailable. Refresh and try again.";
 const GIT_TERMINAL_OPEN_ERROR_MESSAGE =
   "We couldn't open that Git repository. Refresh and try again.";
-const GIT_TERMINAL_NO_WORKSPACE_MESSAGE =
-  "No workspace is available for Git terminals. Start or create a workspace, then try again.";
 
 function isGitCloneTerminalIdentity(value: unknown): value is GitCloneTerminalIdentity {
   if (!value || typeof value !== "object") return false;
@@ -489,12 +487,12 @@ export function AppSidebar() {
     isLoading: true,
     error: null,
   });
-  const [gitDiscovery, setGitDiscovery] = useState<GitDiscoveryState>({
-    result: null,
-    isLoading: true,
-    serverError: null,
-  });
-  const [gitTerminalError, setGitTerminalError] = useState<string | null>(null);
+  const [workspaceGitDiscovery, setWorkspaceGitDiscovery] = useState<
+    Record<string, GitDiscoveryState>
+  >({});
+  const [workspaceGitTerminalErrors, setWorkspaceGitTerminalErrors] = useState<
+    Record<string, string | null>
+  >({});
   const [lastRefreshed, setLastRefreshed] = useState<Date | null>(null);
 
   const relativeTime = useRelativeTime(lastRefreshed, settingsOpen);
@@ -542,23 +540,37 @@ export function AppSidebar() {
     }
   }, []);
 
-  const fetchGitClones = useCallback(async () => {
-    setGitDiscovery((prev) => ({ ...prev, isLoading: true, serverError: null }));
+  const fetchGitClones = useCallback(async (workspaceId: string) => {
+    setWorkspaceGitDiscovery((prev) => ({
+      ...prev,
+      [workspaceId]: {
+        result: prev[workspaceId]?.result ?? null,
+        isLoading: true,
+        serverError: null,
+      },
+    }));
     try {
-      const result = await listGitClonesAction();
+      const result = await listGitClonesAction({ workspaceId });
       if (result?.data) {
-        setGitDiscovery({ result: result.data, isLoading: false, serverError: null });
+        const data = result.data;
+        setWorkspaceGitDiscovery((prev) => ({
+          ...prev,
+          [workspaceId]: { result: data, isLoading: false, serverError: null },
+        }));
         return;
       }
     } catch {
       // Fall through to the sanitized server-error state below.
     }
 
-    setGitDiscovery({
-      result: null,
-      isLoading: false,
-      serverError: GIT_DISCOVERY_SERVER_ERROR_MESSAGE,
-    });
+    setWorkspaceGitDiscovery((prev) => ({
+      ...prev,
+      [workspaceId]: {
+        result: null,
+        isLoading: false,
+        serverError: GIT_DISCOVERY_SERVER_ERROR_MESSAGE,
+      },
+    }));
   }, []);
 
   const fetchAgentInfo = useCallback(async (workspaceId: string) => {
@@ -608,6 +620,12 @@ export function AppSidebar() {
   const expandedWorkspacesRef = useRef(expandedWorkspaces);
   expandedWorkspacesRef.current = expandedWorkspaces;
 
+  const refreshExpandedGitClones = useCallback(() => {
+    for (const [wsId, isExpanded] of Object.entries(expandedWorkspacesRef.current)) {
+      if (isExpanded) fetchGitClones(wsId);
+    }
+  }, [fetchGitClones]);
+
   const fetchWorkspaceAndTemplates = useCallback(() => {
     fetchWorkspaces();
     fetchTemplates();
@@ -615,17 +633,16 @@ export function AppSidebar() {
 
   const fetchAll = useCallback(() => {
     fetchWorkspaceAndTemplates();
-    fetchGitClones();
-  }, [fetchWorkspaceAndTemplates, fetchGitClones]);
+    refreshExpandedGitClones();
+  }, [fetchWorkspaceAndTemplates, refreshExpandedGitClones]);
 
   useEffect(() => {
     fetchWorkspaceAndTemplates();
-    fetchGitClones();
     intervalRef.current = setInterval(fetchWorkspaceAndTemplates, POLL_INTERVAL_MS);
     return () => {
       if (intervalRef.current) clearInterval(intervalRef.current);
     };
-  }, [fetchWorkspaceAndTemplates, fetchGitClones]);
+  }, [fetchWorkspaceAndTemplates]);
 
   const refreshSessions = useCallback(() => {
     for (const [wsId, isExpanded] of Object.entries(expandedWorkspacesRef.current)) {
@@ -659,9 +676,10 @@ export function AppSidebar() {
           fetchAgentInfo(workspaceId);
         }
         fetchSessions(workspaceId);
+        fetchGitClones(workspaceId);
       }
     },
-    [fetchAgentInfo, fetchSessions],
+    [fetchAgentInfo, fetchGitClones, fetchSessions],
   );
 
   const activeWorkspaceId = useMemo(() => {
@@ -682,7 +700,8 @@ export function AppSidebar() {
       fetchAgentInfo(activeWorkspaceId);
     }
     fetchSessions(activeWorkspaceId);
-  }, [activeWorkspaceId, workspaces.data, fetchAgentInfo, fetchSessions]);
+    fetchGitClones(activeWorkspaceId);
+  }, [activeWorkspaceId, workspaces.data, fetchAgentInfo, fetchGitClones, fetchSessions]);
 
   useEffect(() => {
     const refs = sessionIntervalRefs.current;
@@ -786,27 +805,15 @@ export function AppSidebar() {
   );
 
   const handleGitRepositorySelect = useCallback(
-    async (repository: CloneTreeRepositoryNode) => {
-      setGitTerminalError(null);
-
-      const targetWorkspaceId =
-        activeWorkspaceId ??
-        workspaces.data.find((workspace) => workspace.latest_build.status === "running")?.id ??
-        workspaces.data[0]?.id ??
-        null;
-
-      if (!targetWorkspaceId) {
-        setGitTerminalError(GIT_TERMINAL_NO_WORKSPACE_MESSAGE);
-        return;
-      }
+    async (workspaceId: string, repository: CloneTreeRepositoryNode) => {
+      setWorkspaceGitTerminalErrors((prev) => ({ ...prev, [workspaceId]: null }));
 
       try {
         const targetAgent =
-          workspaceAgentsRef.current[targetWorkspaceId] ??
-          (await fetchAgentInfo(targetWorkspaceId));
+          workspaceAgentsRef.current[workspaceId] ?? (await fetchAgentInfo(workspaceId));
         const result = await resolveGitCloneTerminalAction({
           cloneSessionKey: repository.cloneSessionKey,
-          workspaceId: targetWorkspaceId,
+          workspaceId,
           agentId: targetAgent?.agentId,
           relativePath: repository.relativePath,
         });
@@ -814,7 +821,10 @@ export function AppSidebar() {
 
         if (!isGitCloneTerminalIdentity(identity)) {
           console.warn("[sidebar] Git terminal open failed: action returned no terminal identity");
-          setGitTerminalError(GIT_TERMINAL_OPEN_ERROR_MESSAGE);
+          setWorkspaceGitTerminalErrors((prev) => ({
+            ...prev,
+            [workspaceId]: GIT_TERMINAL_OPEN_ERROR_MESSAGE,
+          }));
           return;
         }
 
@@ -827,15 +837,16 @@ export function AppSidebar() {
           params.set("debugViewport", "1");
         }
 
-        router.push(
-          `/workspaces/${encodeURIComponent(targetWorkspaceId)}/terminal?${params.toString()}`,
-        );
+        router.push(`/workspaces/${encodeURIComponent(workspaceId)}/terminal?${params.toString()}`);
       } catch {
         console.warn("[sidebar] Git terminal open failed: action rejected");
-        setGitTerminalError(GIT_TERMINAL_OPEN_ERROR_MESSAGE);
+        setWorkspaceGitTerminalErrors((prev) => ({
+          ...prev,
+          [workspaceId]: GIT_TERMINAL_OPEN_ERROR_MESSAGE,
+        }));
       }
     },
-    [activeWorkspaceId, fetchAgentInfo, router, searchParams, workspaces.data],
+    [fetchAgentInfo, router, searchParams],
   );
 
   return (
@@ -890,40 +901,6 @@ export function AppSidebar() {
           </SidebarGroupContent>
         </SidebarGroup>
 
-        {/* Git */}
-        <SidebarGroup className="py-0">
-          <SidebarMenu>
-            <Collapsible defaultOpen className="group/collapsible-git">
-              <SidebarMenuItem>
-                <SidebarMenuButton render={<CollapsibleTrigger />}>
-                  <GitBranch className="h-4 w-4" />
-                  <span>Git</span>
-                  <ChevronRight className="ml-auto h-4 w-4 transition-transform group-data-[state=open]/collapsible-git:rotate-90" />
-                </SidebarMenuButton>
-                <CollapsibleContent>
-                  <GitDiscoveryPanel
-                    state={gitDiscovery}
-                    onRetry={fetchGitClones}
-                    onRepositorySelect={handleGitRepositorySelect}
-                  />
-                  {gitTerminalError && (
-                    <Alert
-                      variant="destructive"
-                      className="mx-4 my-1"
-                      data-testid="git-terminal-open-error"
-                    >
-                      <AlertCircle className="h-4 w-4" />
-                      <AlertDescription>
-                        <span className="text-xs">{gitTerminalError}</span>
-                      </AlertDescription>
-                    </Alert>
-                  )}
-                </CollapsibleContent>
-              </SidebarMenuItem>
-            </Collapsible>
-          </SidebarMenu>
-        </SidebarGroup>
-
         {/* Workspaces */}
         <SidebarGroup className="py-0">
           <SidebarMenu>
@@ -965,6 +942,12 @@ export function AppSidebar() {
                           ? buildWorkspaceUrls(ws, agent.agentName, coderUrl)
                           : null;
                       const sessions = workspaceSessions[ws.id];
+                      const gitState = workspaceGitDiscovery[ws.id] ?? {
+                        result: null,
+                        isLoading: false,
+                        serverError: null,
+                      };
+                      const gitTerminalError = workspaceGitTerminalErrors[ws.id];
                       const isExpanded = expandedWorkspaces[ws.id] ?? false;
                       return (
                         <Collapsible
@@ -1023,6 +1006,39 @@ export function AppSidebar() {
                                     </SidebarMenuSubItem>
                                   </>
                                 )}
+                                <Collapsible defaultOpen data-testid={`git-section-${ws.id}`}>
+                                  <SidebarMenuSubItem>
+                                    <SidebarMenuSubButton
+                                      render={<CollapsibleTrigger />}
+                                      className="w-full cursor-pointer"
+                                    >
+                                      <GitBranch className="h-3 w-3 shrink-0" />
+                                      <span>Git</span>
+                                      <ChevronRight className="ml-auto h-3 w-3 transition-transform" />
+                                    </SidebarMenuSubButton>
+                                    <CollapsibleContent>
+                                      <GitDiscoveryPanel
+                                        state={gitState}
+                                        onRetry={() => fetchGitClones(ws.id)}
+                                        onRepositorySelect={(repository) =>
+                                          handleGitRepositorySelect(ws.id, repository)
+                                        }
+                                      />
+                                      {gitTerminalError && (
+                                        <Alert
+                                          variant="destructive"
+                                          className="mx-2 mb-1"
+                                          data-testid={`git-terminal-open-error-${ws.id}`}
+                                        >
+                                          <AlertCircle className="h-3 w-3" />
+                                          <AlertDescription>
+                                            <span className="text-xs">{gitTerminalError}</span>
+                                          </AlertDescription>
+                                        </Alert>
+                                      )}
+                                    </CollapsibleContent>
+                                  </SidebarMenuSubItem>
+                                </Collapsible>
                                 <Collapsible
                                   open={expandedTerminals[ws.id] ?? false}
                                   onOpenChange={(open) =>

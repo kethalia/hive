@@ -2,7 +2,7 @@
 
 import { createCloneTerminalProof } from "@hive/auth";
 import { z } from "zod";
-import type { CoderWorkspace, WorkspaceAgent } from "@/lib/coder/types";
+import type { WorkspaceAgent } from "@/lib/coder/types";
 import { getCoderClientForUser } from "@/lib/coder/user-client";
 import {
   type GitCloneDiscoveryActionResult,
@@ -45,6 +45,12 @@ type GitCloneTerminalResolveStatus =
   | "scan-failed"
   | "invalid-selection";
 
+const listGitClonesSchema = z
+  .object({
+    workspaceId: z.string().trim().min(1, "workspaceId is required"),
+  })
+  .strict();
+
 const resolveGitCloneTerminalSchema = z
   .object({
     cloneSessionKey: z
@@ -62,11 +68,16 @@ const resolveGitCloneTerminalSchema = z
   })
   .strict();
 
-export const listGitClonesAction = authActionClient.action(
-  async ({ ctx }): Promise<GitCloneDiscoveryActionResult> => {
+export const listGitClonesAction = authActionClient
+  .inputSchema(listGitClonesSchema)
+  .action(async ({ parsedInput, ctx }): Promise<GitCloneDiscoveryActionResult> => {
     try {
       const projectsRootPath = resolveConfiguredProjectsRoot();
-      const tree = await discoverWorkspaceCloneTree(ctx.user.id, projectsRootPath);
+      const tree = await discoverWorkspaceCloneTree(
+        ctx.user.id,
+        projectsRootPath,
+        parsedInput.workspaceId,
+      );
       const publicTree = toPublicCloneTree(tree);
       const rootSkippedReason = getRootSkippedReason(tree.diagnostics);
 
@@ -105,8 +116,7 @@ export const listGitClonesAction = authActionClient.action(
       console.error(`[git-clones] Discovery scan failed (${describeErrorForLogs(error)})`);
       return createErrorResult("scan-failed", SCAN_FAILED_MESSAGE, null);
     }
-  },
-);
+  });
 
 export const resolveGitCloneTerminalAction = authActionClient
   .inputSchema(resolveGitCloneTerminalSchema)
@@ -178,12 +188,10 @@ export const resolveGitCloneTerminalAction = authActionClient
 async function discoverWorkspaceCloneTree(
   userId: string,
   projectsRootPath: string,
-  workspaceId?: string,
+  workspaceId: string,
 ): Promise<CloneTree> {
   const client = await getCoderClientForUser(userId);
-  const workspace = workspaceId
-    ? await client.getWorkspace(workspaceId)
-    : selectDiscoveryWorkspace((await client.listWorkspaces({ owner: "me" })).workspaces);
+  const workspace = await client.getWorkspace(workspaceId);
 
   if (!workspace) {
     return createCloneTreeFromRepositoryRelativePaths(projectsRootPath, []);
@@ -222,14 +230,6 @@ async function discoverWorkspaceCloneTree(
   return createCloneTreeFromRepositoryRelativePaths(projectsRootPath, safeRelativePaths, {
     maxRepositories: WORKSPACE_CLONE_SCAN_LIMIT,
   });
-}
-
-function selectDiscoveryWorkspace(workspaces: readonly CoderWorkspace[]): CoderWorkspace | null {
-  return (
-    workspaces.find((workspace) => workspace.latest_build.status === "running") ??
-    workspaces[0] ??
-    null
-  );
 }
 
 function createCloneTreeWithMissingRoot(projectsRootPath: string): CloneTree {

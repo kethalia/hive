@@ -111,7 +111,7 @@ describe("listGitClonesAction", () => {
   });
 
   it("returns a sanitized clone tree with diagnostics for an authenticated user", async () => {
-    const result = await listGitClonesAction();
+    const result = await listGitClonesAction({ workspaceId: WORKSPACE_ID });
 
     expect(mockedGetCoderClientForUser).toHaveBeenCalledWith(MOCK_SESSION.user.id);
     expect(mockedExecInWorkspace).toHaveBeenCalledWith(
@@ -151,7 +151,7 @@ describe("listGitClonesAction", () => {
   it("distinguishes an empty home root from scan failures", async () => {
     mockedExecInWorkspace.mockResolvedValue({ stdout: "", stderr: "", exitCode: 0 });
 
-    const result = await listGitClonesAction();
+    const result = await listGitClonesAction({ workspaceId: WORKSPACE_ID });
 
     expect(result?.serverError).toBeUndefined();
     expect(result?.data).toMatchObject({
@@ -176,7 +176,7 @@ describe("listGitClonesAction", () => {
       exitCode: 0,
     });
 
-    const result = await listGitClonesAction();
+    const result = await listGitClonesAction({ workspaceId: WORKSPACE_ID });
 
     expect(result?.serverError).toBeUndefined();
     expect(result?.data).toEqual({
@@ -208,7 +208,7 @@ describe("listGitClonesAction", () => {
       exitCode: 1,
     });
 
-    const result = await listGitClonesAction();
+    const result = await listGitClonesAction({ workspaceId: WORKSPACE_ID });
 
     expect(result?.serverError).toBeUndefined();
     expect(result?.data).toEqual({
@@ -229,7 +229,7 @@ describe("listGitClonesAction", () => {
   it("returns a sanitized scan-failed response without scanning when the configured root is relative", async () => {
     vi.stubEnv(PROJECTS_ROOT_ENV_KEY, "relative/projects");
 
-    const result = await listGitClonesAction();
+    const result = await listGitClonesAction({ workspaceId: WORKSPACE_ID });
 
     expect(result?.serverError).toBeUndefined();
     expect(result?.data).toEqual({
@@ -249,7 +249,7 @@ describe("listGitClonesAction", () => {
   it("requires authentication before invoking the scanner", async () => {
     mockedGetSession.mockResolvedValueOnce(null);
 
-    const result = await listGitClonesAction();
+    const result = await listGitClonesAction({ workspaceId: WORKSPACE_ID });
 
     expect(result?.serverError).toBe("Not authenticated");
     expect(mockedExecInWorkspace).not.toHaveBeenCalled();

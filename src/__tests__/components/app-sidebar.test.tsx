@@ -535,13 +535,20 @@ describe("AppSidebar", () => {
     });
   });
 
-  it("renders Git clone hierarchy with clone metadata and without absolute paths", async () => {
+  it("renders Git clone hierarchy under the expanded workspace with clone metadata and without absolute paths", async () => {
     render(<AppSidebar />);
+
+    await screen.findByText("dev-box");
+    const wsTrigger = screen.getByText("dev-box").closest("[data-testid='collapsible-trigger']");
+    expect(wsTrigger).not.toBeNull();
+    fireEvent.click(wsTrigger!);
 
     const repoButton = await screen.findByRole("button", {
       name: "Open Git repository kethalia / hive",
     });
 
+    expect(mockListGitClones).toHaveBeenCalledWith({ workspaceId: "ws-1" });
+    expect(screen.getByTestId("git-section-ws-1")).toBeInTheDocument();
     expect(repoButton).toHaveAttribute("data-clone-session-key", "git-clone:kethalia/hive");
     expect(repoButton).toHaveAttribute("data-relative-path", "kethalia/hive");
     expect(screen.getByText("Git")).toBeInTheDocument();
@@ -554,7 +561,7 @@ describe("AppSidebar", () => {
     expect(document.body.innerHTML).not.toContain("/home/coder");
   });
 
-  it("opens a Git repository in the resolved clone terminal session on the first running workspace", async () => {
+  it("opens a Git repository in the workspace that owns the Git tree", async () => {
     mockListWorkspaces.mockResolvedValueOnce({
       data: [
         makeWorkspace({
@@ -573,11 +580,18 @@ describe("AppSidebar", () => {
     render(<AppSidebar />);
 
     await screen.findByText("running-box");
+    const runningTrigger = screen
+      .getByText("running-box")
+      .closest("[data-testid='collapsible-trigger']");
+    expect(runningTrigger).not.toBeNull();
+    fireEvent.click(runningTrigger!);
+
     fireEvent.click(
       await screen.findByRole("button", { name: "Open Git repository kethalia / hive" }),
     );
 
     await waitFor(() => {
+      expect(mockListGitClones).toHaveBeenCalledWith({ workspaceId: "ws-running" });
       expect(mockResolveGitCloneTerminal).toHaveBeenCalledWith({
         cloneSessionKey: "git-clone:kethalia/hive",
         workspaceId: "ws-running",
@@ -591,9 +605,12 @@ describe("AppSidebar", () => {
     expect(mockCreateSession).not.toHaveBeenCalled();
   });
 
-  it("prefers the active workspace route and preserves debugViewport=1", async () => {
+  it("uses the active workspace route when auto-expanding scoped Git and preserves debugViewport=1", async () => {
     mockNavigationState.pathname = "/workspaces/ws-active/terminal";
     mockNavigationState.searchParams = "session=dev&debugViewport=1";
+    mockListWorkspaces.mockResolvedValueOnce({
+      data: [makeWorkspace({ id: "ws-active", name: "active-box" })],
+    });
 
     render(<AppSidebar />);
 
@@ -602,6 +619,13 @@ describe("AppSidebar", () => {
     );
 
     await waitFor(() => {
+      expect(mockListGitClones).toHaveBeenCalledWith({ workspaceId: "ws-active" });
+      expect(mockResolveGitCloneTerminal).toHaveBeenCalledWith({
+        cloneSessionKey: "git-clone:kethalia/hive",
+        workspaceId: "ws-active",
+        agentId: "agent-1",
+        relativePath: "kethalia/hive",
+      });
       expect(mockPush).toHaveBeenCalledWith(
         "/workspaces/ws-active/terminal?session=git-clone-safe-hive&clonePath=kethalia%2Fhive&cloneProof=proof-token&debugViewport=1",
       );
@@ -609,7 +633,7 @@ describe("AppSidebar", () => {
     expect(mockCreateSession).not.toHaveBeenCalled();
   });
 
-  it("falls back to the first workspace when no workspace is running", async () => {
+  it("does not auto-select a fallback workspace for Git discovery before a workspace is expanded", async () => {
     mockListWorkspaces.mockResolvedValueOnce({
       data: [
         makeWorkspace({
@@ -627,35 +651,11 @@ describe("AppSidebar", () => {
     render(<AppSidebar />);
 
     await screen.findByText("stopped-box");
-    fireEvent.click(
-      await screen.findByRole("button", { name: "Open Git repository kethalia / hive" }),
-    );
 
-    await waitFor(() => {
-      expect(mockPush).toHaveBeenCalledWith(
-        "/workspaces/ws-stopped/terminal?session=git-clone-safe-hive&clonePath=kethalia%2Fhive&cloneProof=proof-token",
-      );
-    });
-  });
-
-  it("shows a sanitized Git terminal error when no workspace is available", async () => {
-    mockListWorkspaces.mockResolvedValueOnce({ data: [] });
-
-    render(<AppSidebar />);
-
-    fireEvent.click(
-      await screen.findByRole("button", { name: "Open Git repository kethalia / hive" }),
-    );
-
-    await waitFor(() => {
-      expect(screen.getByTestId("git-terminal-open-error")).toHaveTextContent(
-        "No workspace is available for Git terminals. Start or create a workspace, then try again.",
-      );
-    });
-    expect(mockResolveGitCloneTerminal).not.toHaveBeenCalled();
-    expect(mockCreateSession).not.toHaveBeenCalled();
-    expect(mockPush).not.toHaveBeenCalled();
-    expect(document.body.innerHTML).not.toContain("/home/coder");
+    expect(mockListGitClones).not.toHaveBeenCalled();
+    expect(
+      screen.queryByRole("button", { name: "Open Git repository kethalia / hive" }),
+    ).not.toBeInTheDocument();
   });
 
   it("shows a sanitized Git terminal error when the resolve action fails", async () => {
@@ -666,12 +666,15 @@ describe("AppSidebar", () => {
     render(<AppSidebar />);
 
     await screen.findByText("dev-box");
+    const wsTrigger = screen.getByText("dev-box").closest("[data-testid='collapsible-trigger']");
+    expect(wsTrigger).not.toBeNull();
+    fireEvent.click(wsTrigger!);
     fireEvent.click(
       await screen.findByRole("button", { name: "Open Git repository kethalia / hive" }),
     );
 
     await waitFor(() => {
-      expect(screen.getByTestId("git-terminal-open-error")).toHaveTextContent(
+      expect(screen.getByTestId("git-terminal-open-error-ws-1")).toHaveTextContent(
         "We couldn't open that Git repository. Refresh and try again.",
       );
     });
@@ -687,12 +690,15 @@ describe("AppSidebar", () => {
     render(<AppSidebar />);
 
     await screen.findByText("dev-box");
+    const wsTrigger = screen.getByText("dev-box").closest("[data-testid='collapsible-trigger']");
+    expect(wsTrigger).not.toBeNull();
+    fireEvent.click(wsTrigger!);
     fireEvent.click(
       await screen.findByRole("button", { name: "Open Git repository kethalia / hive" }),
     );
 
     await waitFor(() => {
-      expect(screen.getByTestId("git-terminal-open-error")).toHaveTextContent(
+      expect(screen.getByTestId("git-terminal-open-error-ws-1")).toHaveTextContent(
         "We couldn't open that Git repository. Refresh and try again.",
       );
     });
@@ -710,6 +716,11 @@ describe("AppSidebar", () => {
 
     render(<AppSidebar />);
 
+    await screen.findByText("dev-box");
+    const wsTrigger = screen.getByText("dev-box").closest("[data-testid='collapsible-trigger']");
+    expect(wsTrigger).not.toBeNull();
+    fireEvent.click(wsTrigger!);
+
     expect(screen.getByText("Loading Git repositories…")).toBeInTheDocument();
 
     resolveGit({ data: makeGitSuccessResult() });
@@ -720,6 +731,11 @@ describe("AppSidebar", () => {
     mockListGitClones.mockResolvedValueOnce({ data: makeGitEmptyResult() });
 
     render(<AppSidebar />);
+
+    await screen.findByText("dev-box");
+    const wsTrigger = screen.getByText("dev-box").closest("[data-testid='collapsible-trigger']");
+    expect(wsTrigger).not.toBeNull();
+    fireEvent.click(wsTrigger!);
 
     await waitFor(() => {
       expect(screen.getByTestId("git-discovery-empty-state")).toBeInTheDocument();
@@ -758,6 +774,11 @@ describe("AppSidebar", () => {
     });
 
     render(<AppSidebar />);
+
+    await screen.findByText("dev-box");
+    const wsTrigger = screen.getByText("dev-box").closest("[data-testid='collapsible-trigger']");
+    expect(wsTrigger).not.toBeNull();
+    fireEvent.click(wsTrigger!);
 
     await waitFor(() => {
       expect(screen.getByTestId("git-discovery-missing-root")).toBeInTheDocument();
@@ -801,6 +822,11 @@ describe("AppSidebar", () => {
 
     render(<AppSidebar />);
 
+    await screen.findByText("dev-box");
+    const wsTrigger = screen.getByText("dev-box").closest("[data-testid='collapsible-trigger']");
+    expect(wsTrigger).not.toBeNull();
+    fireEvent.click(wsTrigger!);
+
     await waitFor(() => {
       expect(screen.getByTestId("git-discovery-server-error")).toBeInTheDocument();
     });
@@ -813,12 +839,13 @@ describe("AppSidebar", () => {
     expect(document.body.innerHTML).not.toContain("/home/coder");
   });
 
-  it("does not rescan Git clones from the workspace/template polling interval", async () => {
+  it("does not scan Git clones on initial load or workspace/template polling", async () => {
     render(<AppSidebar />);
 
     await waitFor(() => {
-      expect(mockListGitClones).toHaveBeenCalledTimes(1);
+      expect(screen.getByText("dev-box")).toBeInTheDocument();
     });
+    expect(mockListGitClones).not.toHaveBeenCalled();
 
     mockListWorkspaces.mockClear();
     mockListTemplates.mockClear();
@@ -833,11 +860,18 @@ describe("AppSidebar", () => {
     expect(mockListGitClones).not.toHaveBeenCalled();
   });
 
-  it("includes Git discovery in the explicit footer refresh", async () => {
+  it("includes expanded workspace Git discovery in the explicit footer refresh", async () => {
     render(<AppSidebar />);
 
     await waitFor(() => {
       expect(screen.getByText("dev-box")).toBeInTheDocument();
+    });
+    const wsTrigger = screen.getByText("dev-box").closest("[data-testid='collapsible-trigger']");
+    expect(wsTrigger).not.toBeNull();
+    fireEvent.click(wsTrigger!);
+
+    await waitFor(() => {
+      expect(mockListGitClones).toHaveBeenCalledWith({ workspaceId: "ws-1" });
     });
 
     mockListWorkspaces.mockClear();
@@ -852,7 +886,7 @@ describe("AppSidebar", () => {
     await waitFor(() => {
       expect(mockListWorkspaces).toHaveBeenCalledTimes(1);
       expect(mockListTemplates).toHaveBeenCalledTimes(1);
-      expect(mockListGitClones).toHaveBeenCalledTimes(1);
+      expect(mockListGitClones).toHaveBeenCalledWith({ workspaceId: "ws-1" });
     });
   });
 
@@ -956,7 +990,7 @@ describe("AppSidebar", () => {
     });
   });
 
-  it("expanding a workspace triggers agent and session fetch", async () => {
+  it("expanding a workspace triggers agent, session, and scoped Git fetches", async () => {
     render(<AppSidebar />);
 
     await waitFor(() => {
@@ -970,6 +1004,7 @@ describe("AppSidebar", () => {
     await waitFor(() => {
       expect(mockGetWorkspaceAgent).toHaveBeenCalledWith({ workspaceId: "ws-1" });
       expect(mockGetWorkspaceSessions).toHaveBeenCalledWith({ workspaceId: "ws-1" });
+      expect(mockListGitClones).toHaveBeenCalledWith({ workspaceId: "ws-1" });
     });
   });
 
