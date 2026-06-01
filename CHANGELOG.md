@@ -1,5 +1,13 @@
 # hive-orchestrator
 
+## 2.4.2
+
+### Patch Changes
+
+- 179761f: Add Git clone discovery, home-root sidebar browsing, and session-bound persistent clone terminals with hardened proxy validation.
+- Updated dependencies [179761f]
+  - @hive/auth@1.0.2
+
 ## 2.4.1
 
 ### Patch Changes
