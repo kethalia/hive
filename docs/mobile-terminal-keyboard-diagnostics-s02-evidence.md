@@ -8,11 +8,15 @@ This document is a fillable evidence contract. It may be committed with placehol
 
 ## Evidence status
 
-- **Run status:** `PENDING | PASS | FAIL | BLOCKED`
-- **Tester:** `PENDING`
-- **Run date and timezone:** `PENDING`
-- **Related UAT run:** `PENDING`
-- **Overall result:** `PENDING`
+- **Run status:** `BLOCKED`
+- **Tester:** `GSD auto-mode agent`
+- **Run date and timezone:** `2026-06-01 UTC`
+- **Related UAT run:** `not run - no real mobile device or mobile browser runtime was available to this execution session`
+- **Overall result:** `R024 is not validated by this run; real-device keyboard and tmux proof remains blocked until a physical iOS PWA or real mobile browser run is collected`
+
+## Blocker note
+
+This T04 execution session had no attached physical iOS or Android device tooling, no simulator bridge, and no browser environment variable suitable for authoritative software-keyboard evidence. Browser emulation and source inspection are intentionally not accepted substitutes for this task, so the required viewport, xterm/FitAddon, resize-sent, and tmux numeric observations were not collected.
 
 ## Redaction boundary
 
@@ -26,13 +30,13 @@ When recording the route, use only the route and query shape. Replace workspace 
 
 ## Device and environment
 
-- **Device model:** `PENDING`
-- **Physical device used:** `yes | no | PENDING`
-- **Operating system and version:** `PENDING`
-- **Browser or installed PWA mode:** `PENDING`
-- **Browser version, if visible:** `PENDING`
-- **Orientation:** `portrait | landscape | PENDING`
-- **Viewport mode notes:** `PENDING`
+- **Device model:** `not available in this execution session`
+- **Physical device used:** `no`
+- **Operating system and version:** `not observed - blocked before real-device run`
+- **Browser or installed PWA mode:** `not observed - blocked before real-device run`
+- **Browser version, if visible:** `not observed - blocked before real-device run`
+- **Orientation:** `not observed - blocked before real-device run`
+- **Viewport mode notes:** `No authoritative mobile visualViewport or software-keyboard behavior was observed in this session.`
 - **Route/query shape used:** `/workspaces/<workspace-id>/terminal?session=<session-name>&debugViewport=1`
 
 ## Required acceptance observations
@@ -113,11 +117,11 @@ Use a safe dimension-only observation from the terminal multiplexer or PTY side.
 
 ## Acceptance decision
 
-- **Viewport refit accepted:** `yes | no | PENDING`
-- **xterm/FitAddon refit accepted:** `yes | no | PENDING`
-- **Terminal proxy resize propagation accepted:** `yes | no | PENDING`
-- **tmux resize observation accepted:** `yes | no | PENDING`
-- **S02 real-device evidence accepted:** `yes | no | PENDING`
+- **Viewport refit accepted:** `no - no real-device viewport evidence was collected`
+- **xterm/FitAddon refit accepted:** `no - no real-device xterm/FitAddon evidence was collected`
+- **Terminal proxy resize propagation accepted:** `no - no real-device resize-sent evidence was collected`
+- **tmux resize observation accepted:** `no - no real-device tmux dimension evidence was collected`
+- **S02 real-device evidence accepted:** `no - blocked pending a physical iOS PWA or real mobile browser run`
 
 ## Failure notes
 
@@ -128,12 +132,12 @@ If the run fails, identify the first observed break in the chain.
 - **resize-request changed but resize-sent did not:** `yes | no | PENDING`
 - **resize-sent changed but tmux dimensions did not:** `yes | no | PENDING`
 - **All dimensions changed but terminal bottom was clipped:** `yes | no | PENDING`
-- **Notes:** `PENDING`
+- **Notes:** `Blocked before the diagnostic chain could be exercised because no accepted real mobile runtime was available in this execution session.`
 
 ## Evidence attachments checklist
 
-- **Redacted diagnostic JSON for Snapshot A attached:** `yes | no | PENDING`
-- **Redacted diagnostic JSON for Snapshot B attached:** `yes | no | PENDING`
-- **Redacted diagnostic JSON for Snapshot C attached:** `yes | no | PENDING`
-- **Screenshots show bottom visibility without exposing private content:** `yes | no | PENDING`
-- **No prohibited data categories are present in this record or attachments:** `yes | no | PENDING`
+- **Redacted diagnostic JSON for Snapshot A attached:** `no - blocked before real-device capture`
+- **Redacted diagnostic JSON for Snapshot B attached:** `no - blocked before real-device capture`
+- **Redacted diagnostic JSON for Snapshot C attached:** `no - blocked before real-device capture`
+- **Screenshots show bottom visibility without exposing private content:** `no - blocked before real-device capture`
+- **No prohibited data categories are present in this record or attachments:** `yes`
