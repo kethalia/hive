@@ -1,5 +1,11 @@
 # @hive/auth
 
+## 1.0.2
+
+### Patch Changes
+
+- 179761f: Add Git clone discovery, home-root sidebar browsing, and session-bound persistent clone terminals with hardened proxy validation.
+
 ## 1.0.1
 
 ### Patch Changes
