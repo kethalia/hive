@@ -11,12 +11,12 @@ This document is a fillable evidence contract. It may be committed with placehol
 - **Run status:** `BLOCKED`
 - **Tester:** `GSD auto-mode agent`
 - **Run date and timezone:** `2026-06-01 UTC`
-- **Related UAT run:** `not run in T17 - no physical mobile device, installed PWA, or real mobile browser runtime was available to this execution session`
-- **Overall result:** `R024 is not validated by this T17 run; real-device keyboard and tmux proof remains blocked until a physical iOS PWA or real mobile browser run is collected`
+- **Related UAT run:** `not run in T18 - no physical mobile device, installed PWA, or real mobile browser runtime was available to this execution session`
+- **Overall result:** `R024 is not validated by this T18 run; real-device keyboard and tmux proof remains blocked until a physical iOS PWA or real mobile browser run is collected`
 
 ## Blocker note
 
-This T17 execution session had no attached physical iOS or Android device tooling, no simulator bridge, and no browser environment suitable for authoritative software-keyboard evidence. Browser emulation, jsdom, automated unit tests, and source inspection are intentionally not accepted substitutes for this task, so the required viewport, xterm/FitAddon, resize-sent, and tmux numeric observations were not collected. The first blocked link is the real mobile visualViewport/software-keyboard capture precondition; without it, the viewport to FitAddon to WebSocket to proxy to tmux chain could not be exercised.
+This T18 execution session had no attached physical iOS or Android device tooling, no simulator bridge, and no browser environment suitable for authoritative software-keyboard evidence. Browser emulation, jsdom, automated unit tests, and source inspection are intentionally not accepted substitutes for this task, so the required viewport, xterm/FitAddon, resize-sent, and tmux numeric observations were not collected. The first blocked link is the real mobile visualViewport/software-keyboard capture precondition; without it, the viewport to FitAddon to WebSocket to proxy to tmux chain could not be exercised.
 
 ## Redaction boundary
 
@@ -36,7 +36,7 @@ When recording the route, use only the route and query shape. Replace workspace 
 - **Browser or installed PWA mode:** `not observed - blocked before real-device run`
 - **Browser version, if visible:** `not observed - blocked before real-device run`
 - **Orientation:** `not observed - blocked before real-device run`
-- **Viewport mode notes:** `No authoritative mobile visualViewport or software-keyboard behavior was observed in this T17 session.`
+- **Viewport mode notes:** `No authoritative mobile visualViewport or software-keyboard behavior was observed in this T18 session.`
 - **Route/query shape used:** `/workspaces/<workspace-id>/terminal?session=<session-name>&debugViewport=1`
 
 ## Required acceptance observations
@@ -121,7 +121,7 @@ Use a safe dimension-only observation from the terminal multiplexer or PTY side.
 - **xterm/FitAddon refit accepted:** `no - no real-device xterm/FitAddon evidence was collected`
 - **Terminal proxy resize propagation accepted:** `no - no real-device resize-sent evidence was collected`
 - **tmux resize observation accepted:** `no - no real-device tmux dimension evidence was collected`
-- **S02 real-device evidence accepted:** `no - blocked pending a physical iOS PWA or real mobile browser run`
+- **S02 real-device evidence accepted:** `no - blocked until a physical iOS PWA or real mobile browser run is collected`
 
 ## Failure notes
 
@@ -132,7 +132,7 @@ If the run fails, identify the first observed break in the chain.
 - **resize-request changed but resize-sent did not:** `not observed - blocked before real-device capture`
 - **resize-sent changed but tmux dimensions did not:** `not observed - blocked before real-device capture`
 - **All dimensions changed but terminal bottom was clipped:** `not observed - blocked before real-device capture`
-- **Notes:** `Blocked before the diagnostic chain could be exercised because no accepted physical mobile device, installed PWA, or real mobile browser runtime was available in this T17 execution session. First blocked link: no real mobile visualViewport/software-keyboard capture, so xterm/FitAddon, resize-sent, proxy, and tmux observations could not be accepted.`
+- **Notes:** `Blocked before the diagnostic chain could be exercised because no accepted physical mobile device, installed PWA, or real mobile browser runtime was available in this T18 execution session. First blocked link: no real mobile visualViewport/software-keyboard capture, so xterm/FitAddon, resize-sent, proxy, and tmux observations could not be accepted.`
 
 ## Evidence attachments checklist
 
