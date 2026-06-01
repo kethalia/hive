@@ -1,5 +1,12 @@
 // @vitest-environment jsdom
 import { beforeEach, describe, expect, it } from "vitest";
+import {
+  getMobileTerminalDiagnosticsState,
+  recordMobileTerminalFit,
+  recordMobileTerminalResizeRequest,
+  recordMobileTerminalResizeSent,
+  resetMobileTerminalDiagnosticsState,
+} from "@/lib/terminal/mobile-terminal-diagnostics-state";
 import { sampleMobileViewportDiagnostics } from "@/lib/terminal/mobile-viewport-diagnostics";
 
 function setViewportSize(width: number, height: number) {
@@ -47,6 +54,7 @@ describe("sampleMobileViewportDiagnostics", () => {
     document.documentElement.removeAttribute("style");
     setViewportSize(390, 800);
     setVisualViewport({ height: 800 });
+    resetMobileTerminalDiagnosticsState();
   });
 
   it("samples keyboard-shrunk viewport and terminal geometry without terminal text", () => {
@@ -119,10 +127,61 @@ describe("sampleMobileViewportDiagnostics", () => {
   it("returns null terminal geometry when terminal nodes are missing", () => {
     const snapshot = sampleMobileViewportDiagnostics({ now: () => 3456 });
 
-    expect(snapshot.terminal).toEqual({
+    expect(snapshot.terminal).toMatchObject({
       shellRect: null,
       helperTextareaRect: null,
+      xterm: { rows: null, cols: null, updatedAt: null, source: null },
+      fit: { count: 0, lastAt: null, lastSource: null, rows: null, cols: null },
+      resizeRequest: { count: 0, lastAt: null, lastSource: null, rows: null, cols: null },
+      resizeSent: { count: 0, lastAt: null, lastSource: null, rows: null, cols: null },
     });
     expect(snapshot.activeElement).toBeNull();
+  });
+
+  it("samples sanitized xterm size and resize-send diagnostics from runtime state", () => {
+    recordMobileTerminalFit(24, 80, "initial-layout-refit", () => 100);
+    recordMobileTerminalResizeRequest(30, 100, "xterm-on-resize", () => 200);
+    recordMobileTerminalResizeSent(30, 100, "xterm-on-resize", () => 300);
+
+    const snapshot = sampleMobileViewportDiagnostics({ now: () => 400 });
+
+    expect(snapshot.terminal.xterm).toEqual({
+      rows: 30,
+      cols: 100,
+      updatedAt: 300,
+      source: "xterm-on-resize",
+    });
+    expect(snapshot.terminal.fit).toEqual({
+      count: 1,
+      lastAt: 100,
+      lastSource: "initial-layout-refit",
+      rows: 24,
+      cols: 80,
+    });
+    expect(snapshot.terminal.resizeRequest).toEqual({
+      count: 1,
+      lastAt: 200,
+      lastSource: "xterm-on-resize",
+      rows: 30,
+      cols: 100,
+    });
+    expect(snapshot.terminal.resizeSent).toEqual({
+      count: 1,
+      lastAt: 300,
+      lastSource: "xterm-on-resize",
+      rows: 30,
+      cols: 100,
+    });
+  });
+
+  it("ignores invalid or non-positive runtime dimensions", () => {
+    expect(recordMobileTerminalResizeRequest(0, 80, "invalid", () => 100)).toBe(false);
+    expect(recordMobileTerminalResizeSent(24, -1, "invalid", () => 200)).toBe(false);
+
+    expect(getMobileTerminalDiagnosticsState()).toMatchObject({
+      xterm: { rows: null, cols: null, updatedAt: null, source: null },
+      resizeRequest: { count: 0, lastAt: null, lastSource: null, rows: null, cols: null },
+      resizeSent: { count: 0, lastAt: null, lastSource: null, rows: null, cols: null },
+    });
   });
 });

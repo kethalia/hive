@@ -25,6 +25,12 @@ import {
   focusTerminalForMobileInput,
   type MobileInputAdapterCleanup,
 } from "@/lib/terminal/mobile-input-adapter";
+import {
+  recordMobileTerminalFit,
+  recordMobileTerminalResizeRequest,
+  recordMobileTerminalResizeSent,
+  recordMobileTerminalXtermDimensions,
+} from "@/lib/terminal/mobile-terminal-diagnostics-state";
 import { encodeInput } from "@/lib/terminal/protocol";
 import { cn } from "@/lib/utils";
 import "@/styles/xterm.css";
@@ -98,6 +104,14 @@ function safeFit(fit: FitAddon): boolean {
     warnFitFailure(err);
     return false;
   }
+}
+
+function recordFitDiagnostics(term: Terminal, source: string) {
+  recordMobileTerminalFit(term.rows, term.cols, source);
+}
+
+function recordResizeRequestDiagnostics(term: Terminal, source: string) {
+  recordMobileTerminalResizeRequest(term.rows, term.cols, source);
 }
 
 function isTerminalScrolledToBottom(term: Terminal): boolean {
@@ -218,6 +232,9 @@ export function InteractiveTerminal({
   const { send, resize, connectionState } = useTerminalWebSocket({
     url: wsUrl,
     onData: handleData,
+    onResizeSent: ({ rows, cols, source, sentAt }) => {
+      recordMobileTerminalResizeSent(rows, cols, source, () => sentAt);
+    },
   });
   const bindPinchZoom = useTerminalPinchZoom();
 
@@ -372,22 +389,27 @@ export function InteractiveTerminal({
     };
   }, [applyMobileInputAdapter, layoutSignal, mobileInputMode]);
 
-  const fitResizeAndPreserveBottom = useCallback((forceScrollToBottom = false) => {
-    const fit = fitRef.current;
-    const term = termRef.current;
-    if (!fit || !term) return;
+  const fitResizeAndPreserveBottom = useCallback(
+    (forceScrollToBottom = false, source = "layout-refit") => {
+      const fit = fitRef.current;
+      const term = termRef.current;
+      if (!fit || !term) return;
 
-    const shouldPinToBottom =
-      forceScrollToBottom || (pinToBottomOnResizeRef.current && pinnedToBottomRef.current);
+      const shouldPinToBottom =
+        forceScrollToBottom || (pinToBottomOnResizeRef.current && pinnedToBottomRef.current);
 
-    if (safeFit(fit)) {
-      resizeRef.current(term.rows, term.cols);
-      if (shouldPinToBottom) {
-        scrollTerminalToBottom(term);
+      if (safeFit(fit)) {
+        recordFitDiagnostics(term, source);
+        recordResizeRequestDiagnostics(term, source);
+        resizeRef.current(term.rows, term.cols, source);
+        if (shouldPinToBottom) {
+          scrollTerminalToBottom(term);
+        }
+        pinnedToBottomRef.current = isTerminalScrolledToBottom(term);
       }
-      pinnedToBottomRef.current = isTerminalScrolledToBottom(term);
-    }
-  }, []);
+    },
+    [],
+  );
 
   // When the WebSocket connects (or reconnects), re-fit the terminal and
   // send a resize message. This forces tmux to redraw with the correct
@@ -401,7 +423,7 @@ export function InteractiveTerminal({
 
     // Allow one frame for layout to settle after connection state update
     const frame = requestAnimationFrame(() => {
-      fitResizeAndPreserveBottom(true);
+      fitResizeAndPreserveBottom(true, "connection-refit");
     });
     return () => cancelAnimationFrame(frame);
   }, [connectionState, fitResizeAndPreserveBottom]);
@@ -416,6 +438,7 @@ export function InteractiveTerminal({
         term.options.fontSize = size;
         const shouldStayPinned = pinnedToBottomRef.current;
         if (safeFit(fit)) {
+          recordFitDiagnostics(term, "font-size-refit");
           if (shouldStayPinned) {
             scrollTerminalToBottom(term);
           }
@@ -437,7 +460,7 @@ export function InteractiveTerminal({
     if (!fit || !term) return;
 
     const frame = requestAnimationFrame(() => {
-      fitResizeAndPreserveBottom();
+      fitResizeAndPreserveBottom(false, "layout-signal-refit");
     });
     return () => cancelAnimationFrame(frame);
   }, [layoutSignal, fitResizeAndPreserveBottom]);
@@ -480,7 +503,9 @@ export function InteractiveTerminal({
       if (!mobileInputModeRef.current) {
         term.focus();
       }
-      safeFit(fit);
+      if (safeFit(fit)) {
+        recordFitDiagnostics(term, "initial-open-fit");
+      }
 
       term.attachCustomKeyEventHandler((e) => {
         if (e.type !== "keydown") return true;
@@ -494,7 +519,9 @@ export function InteractiveTerminal({
       });
 
       term.onResize(({ rows, cols }) => {
-        resizeRef.current(rows, cols);
+        recordMobileTerminalXtermDimensions(rows, cols, "xterm-on-resize");
+        recordMobileTerminalResizeRequest(rows, cols, "xterm-on-resize");
+        resizeRef.current(rows, cols, "xterm-on-resize");
       });
 
       if (typeof term.onScroll === "function") {
@@ -510,7 +537,7 @@ export function InteractiveTerminal({
       // Wait for browser layout paint before reading dimensions
       await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
       if (!mounted) return;
-      fitResizeAndPreserveBottom(Boolean(pinToBottomOnResizeRef.current));
+      fitResizeAndPreserveBottom(Boolean(pinToBottomOnResizeRef.current), "initial-layout-refit");
 
       const dims = { rows: term.rows, cols: term.cols };
       const proxyUrl = getClientRuntimeConfig().terminalWsUrl;
@@ -544,7 +571,7 @@ export function InteractiveTerminal({
         if (width > 0 && height > 0 && fitRef.current) {
           if (resizeTimer) clearTimeout(resizeTimer);
           resizeTimer = setTimeout(() => {
-            fitResizeAndPreserveBottom();
+            fitResizeAndPreserveBottom(false, "resize-observer-refit");
           }, 50);
         }
       }

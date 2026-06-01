@@ -24,22 +24,36 @@ export function computeBackoff(attempt: number): number {
   return Math.max(0, exponential + jitter);
 }
 
+export type TerminalResizeSentEvent = {
+  rows: number;
+  cols: number;
+  source: string;
+  sentAt: number;
+};
+
 interface UseTerminalWebSocketProps {
   url: string | null;
   onData: (data: Uint8Array | string) => void;
   onStateChange?: (state: ConnectionState) => void;
+  onResizeSent?: (event: TerminalResizeSentEvent) => void;
 }
 
 interface UseTerminalWebSocketReturn {
   send: (data: string) => void;
-  resize: (rows: number, cols: number) => void;
+  resize: (rows: number, cols: number, source?: string) => void;
   connectionState: ConnectionState;
+}
+
+function normalizeResizeDimension(value: number): number | null {
+  if (!Number.isFinite(value) || value <= 0) return null;
+  return Math.trunc(value);
 }
 
 export function useTerminalWebSocket({
   url,
   onData,
   onStateChange,
+  onResizeSent,
 }: UseTerminalWebSocketProps): UseTerminalWebSocketReturn {
   const [connectionState, setConnectionState] = useState<ConnectionState>("disconnected");
   const wsRef = useRef<WebSocket | null>(null);
@@ -48,9 +62,11 @@ export function useTerminalWebSocket({
   const mountedRef = useRef(true);
   const onDataRef = useRef(onData);
   const onStateChangeRef = useRef(onStateChange);
+  const onResizeSentRef = useRef(onResizeSent);
 
   onDataRef.current = onData;
   onStateChangeRef.current = onStateChange;
+  onResizeSentRef.current = onResizeSent;
 
   const updateState = useCallback((state: ConnectionState) => {
     if (!mountedRef.current) return;
@@ -158,9 +174,19 @@ export function useTerminalWebSocket({
     }
   }, []);
 
-  const resize = useCallback((rows: number, cols: number) => {
+  const resize = useCallback((rows: number, cols: number, source = "unknown") => {
+    const normalizedRows = normalizeResizeDimension(rows);
+    const normalizedCols = normalizeResizeDimension(cols);
+    if (normalizedRows === null || normalizedCols === null) return;
+
     if (wsRef.current?.readyState === WebSocket.OPEN) {
-      wsRef.current.send(encodeResize(rows, cols));
+      wsRef.current.send(encodeResize(normalizedRows, normalizedCols));
+      onResizeSentRef.current?.({
+        rows: normalizedRows,
+        cols: normalizedCols,
+        source,
+        sentAt: Date.now(),
+      });
     }
   }, []);
 

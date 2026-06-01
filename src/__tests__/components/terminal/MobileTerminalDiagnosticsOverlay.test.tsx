@@ -3,6 +3,7 @@ import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-libra
 import "@testing-library/jest-dom/vitest";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { MobileTerminalDiagnosticsOverlay } from "@/components/terminal/MobileTerminalDiagnosticsOverlay";
+import { getMobileTerminalDiagnosticsState } from "@/lib/terminal/mobile-terminal-diagnostics-state";
 import type { MobileViewportDiagnosticsSnapshot } from "@/lib/terminal/mobile-viewport-diagnostics";
 
 function makeSnapshot(): MobileViewportDiagnosticsSnapshot {
@@ -70,6 +71,7 @@ function makeSnapshot(): MobileViewportDiagnosticsSnapshot {
         bottom: 461,
         left: 8,
       },
+      ...getMobileTerminalDiagnosticsState(),
     },
   };
 }

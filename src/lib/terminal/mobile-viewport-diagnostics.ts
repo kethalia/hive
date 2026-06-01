@@ -1,3 +1,8 @@
+import {
+  getMobileTerminalDiagnosticsState,
+  type MobileTerminalDiagnosticsStateSnapshot,
+} from "@/lib/terminal/mobile-terminal-diagnostics-state";
+
 export type MobileViewportRectSnapshot = {
   x: number;
   y: number;
@@ -65,7 +70,7 @@ export type MobileViewportDiagnosticsSnapshot = {
   terminal: {
     shellRect: MobileViewportRectSnapshot | null;
     helperTextareaRect: MobileViewportRectSnapshot | null;
-  };
+  } & MobileTerminalDiagnosticsStateSnapshot;
 };
 
 type SampleMobileViewportDiagnosticsOptions = {
@@ -260,6 +265,7 @@ export function sampleMobileViewportDiagnostics(
     terminal: {
       shellRect: getElementRectSnapshot(terminalShell),
       helperTextareaRect: getElementRectSnapshot(helperTextarea),
+      ...getMobileTerminalDiagnosticsState(),
     },
   };
 }

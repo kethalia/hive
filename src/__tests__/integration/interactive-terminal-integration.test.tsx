@@ -4,6 +4,10 @@ import "@testing-library/jest-dom/vitest";
 import { act, cleanup, fireEvent, render, waitFor } from "@testing-library/react";
 import type React from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  getMobileTerminalDiagnosticsState,
+  resetMobileTerminalDiagnosticsState,
+} from "@/lib/terminal/mobile-terminal-diagnostics-state";
 
 const { mockUseTerminalWebSocket, mockFit, mockSend, mockResize, terminalInstances } = vi.hoisted(
   () => ({
@@ -17,6 +21,7 @@ const { mockUseTerminalWebSocket, mockFit, mockSend, mockResize, terminalInstanc
       dataHandler?: (data: string) => void;
       focus: ReturnType<typeof vi.fn>;
       onData: ReturnType<typeof vi.fn>;
+      resizeHandler?: (dimensions: { rows: number; cols: number }) => void;
       scrollLines: ReturnType<typeof vi.fn>;
       scrollToBottom: ReturnType<typeof vi.fn>;
     }>,
@@ -88,7 +93,11 @@ vi.mock("@xterm/xterm", () => ({
       this.dataHandler = handler;
       return { dispose: vi.fn() };
     });
-    onResize = vi.fn();
+    resizeHandler?: (dimensions: { rows: number; cols: number }) => void;
+    onResize = vi.fn((handler: (dimensions: { rows: number; cols: number }) => void) => {
+      this.resizeHandler = handler;
+      return { dispose: vi.fn() };
+    });
     dispose = vi.fn();
     write = vi.fn();
     focus = vi.fn();
@@ -318,6 +327,7 @@ beforeEach(() => {
   mockSend.mockClear();
   mockResize.mockClear();
   terminalInstances.length = 0;
+  resetMobileTerminalDiagnosticsState();
   window.localStorage.clear();
   navigationState.search = "session=main";
   navigationState.router.replace.mockClear();
@@ -606,10 +616,68 @@ describe("InteractiveTerminal integration — Session lifecycle", () => {
     const terminal = terminalInstances.at(-1);
 
     await waitFor(() => {
-      expect(mockResize).toHaveBeenCalledWith(24, 80);
+      expect(mockResize).toHaveBeenCalledWith(24, 80, "initial-layout-refit");
     });
     expect(terminal?.scrollToBottom).toHaveBeenCalled();
     expect(terminal?.buffer.active.viewportY).toBe(terminal?.buffer.active.baseY);
+    unmount();
+  });
+
+  it("records fit and xterm resize-request diagnostics without terminal content", async () => {
+    const { unmount } = await renderTerminal();
+    const terminal = terminalInstances.at(-1);
+    expect(terminal).toBeDefined();
+
+    await waitFor(() => {
+      expect(getMobileTerminalDiagnosticsState().fit.count).toBeGreaterThan(0);
+    });
+
+    act(() => {
+      terminal?.resizeHandler?.({ rows: 30, cols: 100 });
+    });
+
+    expect(mockResize).toHaveBeenCalledWith(30, 100, "xterm-on-resize");
+    expect(getMobileTerminalDiagnosticsState()).toMatchObject({
+      xterm: { rows: 30, cols: 100, source: "xterm-on-resize" },
+      resizeRequest: {
+        count: expect.any(Number),
+        lastSource: "xterm-on-resize",
+        rows: 30,
+        cols: 100,
+      },
+      resizeSent: { count: 0, rows: null, cols: null },
+    });
+    expect(JSON.stringify(getMobileTerminalDiagnosticsState())).not.toContain("SECRET");
+    unmount();
+  });
+
+  it("records resize-sent diagnostics from the websocket callback", async () => {
+    const { unmount } = await renderTerminal();
+
+    const options = mockUseTerminalWebSocket.mock.calls.at(-1)?.[0] as {
+      onResizeSent?: (event: {
+        rows: number;
+        cols: number;
+        source: string;
+        sentAt: number;
+      }) => void;
+    };
+    act(() => {
+      options.onResizeSent?.({
+        rows: 31,
+        cols: 101,
+        source: "xterm-on-resize",
+        sentAt: 2222,
+      });
+    });
+
+    expect(getMobileTerminalDiagnosticsState().resizeSent).toEqual({
+      count: 1,
+      lastAt: 2222,
+      lastSource: "xterm-on-resize",
+      rows: 31,
+      cols: 101,
+    });
     unmount();
   });
 });
