@@ -343,7 +343,7 @@ describe("TerminalClient compose sheet", () => {
     expect(screen.queryByTestId("mobile-terminal-diagnostics-overlay")).not.toBeInTheDocument();
   });
 
-  it("enables diagnostics overlay with stable terminal telemetry selectors in debug mode", async () => {
+  it("enables diagnostics overlay with stable terminal telemetry selectors in mobile debug mode", async () => {
     navigationState.search = "session=tmux-1&debugViewport=1";
 
     await renderTerminalClient(true);
@@ -355,6 +355,18 @@ describe("TerminalClient compose sheet", () => {
     );
     expect(screen.getByRole("region", { name: "Terminal emulator" })).toHaveAttribute(
       "data-terminal-surface",
+      "true",
+    );
+  });
+
+  it("enables diagnostics overlay with a stable terminal shell selector in desktop debug mode", async () => {
+    navigationState.search = "session=tmux-1&debugViewport=1";
+
+    await renderTerminalClient(false);
+
+    expect(screen.getByTestId("mobile-terminal-diagnostics-overlay")).toBeInTheDocument();
+    expect(screen.getByTestId("terminal-desktop-shell")).toHaveAttribute(
+      "data-terminal-shell",
       "true",
     );
   });

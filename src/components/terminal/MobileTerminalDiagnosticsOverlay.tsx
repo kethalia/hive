@@ -26,6 +26,35 @@ function formatRect(rect: MobileViewportDiagnosticsSnapshot["terminal"]["shellRe
   return `${rect.width}×${rect.height} at ${rect.x},${rect.y}`;
 }
 
+function formatRowsCols(rows: number | null | undefined, cols: number | null | undefined) {
+  if (typeof rows !== "number" || typeof cols !== "number") return "missing";
+  return `${rows} rows × ${cols} cols`;
+}
+
+function formatEventTime(value: number | null | undefined) {
+  return typeof value === "number" ? `${value}` : "—";
+}
+
+function formatTerminalEvent(
+  label: "fit" | "resize request" | "resize sent",
+  event: MobileViewportDiagnosticsSnapshot["terminal"]["fit"],
+) {
+  if (event.count <= 0 && !event.lastAt && !event.lastSource) return "missing";
+  return `${label}: ${event.lastSource ?? "unknown source"} @ ${formatEventTime(
+    event.lastAt,
+  )} (${formatRowsCols(event.rows, event.cols)}, count ${event.count})`;
+}
+
+function formatLatestLocalResizeEvent(terminal: MobileViewportDiagnosticsSnapshot["terminal"]) {
+  const fitAt = terminal.fit.lastAt ?? -1;
+  const requestAt = terminal.resizeRequest.lastAt ?? -1;
+
+  if (fitAt < 0 && requestAt < 0) return "missing";
+  return requestAt >= fitAt
+    ? formatTerminalEvent("resize request", terminal.resizeRequest)
+    : formatTerminalEvent("fit", terminal.fit);
+}
+
 function DiagnosticsRow({ label, value }: { label: string; value: string }) {
   return (
     <div className="grid grid-cols-[7.5rem_1fr] gap-2 border-border/50 border-t py-1.5 first:border-t-0">
@@ -150,6 +179,18 @@ export function MobileTerminalDiagnosticsOverlay({
               <DiagnosticsRow
                 label="Active element"
                 value={snapshot.activeElement?.tagName ?? "none"}
+              />
+              <DiagnosticsRow
+                label="Xterm size"
+                value={formatRowsCols(snapshot.terminal.xterm.rows, snapshot.terminal.xterm.cols)}
+              />
+              <DiagnosticsRow
+                label="Latest resize"
+                value={formatLatestLocalResizeEvent(snapshot.terminal)}
+              />
+              <DiagnosticsRow
+                label="WS resize sent"
+                value={formatTerminalEvent("resize sent", snapshot.terminal.resizeSent)}
               />
             </dl>
           </section>
