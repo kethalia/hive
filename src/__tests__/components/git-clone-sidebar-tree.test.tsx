@@ -27,8 +27,7 @@ function makeCloneTree(overrides: Partial<PublicCloneTree> = {}): PublicCloneTre
       label: "Git",
       projectsLabel: "home",
       displaySegments: ["Git", "home"],
-      path: PRIVATE_ROOT,
-    } as PublicCloneTree["root"],
+    },
     nodes: [
       {
         id: "git-directory:Git/home/kethalia",
