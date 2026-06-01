@@ -88,7 +88,7 @@ const validParams = {
 };
 
 function createCanonicalCloneSessionName(clonePath: string): string {
-  const displaySegments = ["Git", "projects", ...clonePath.split("/")];
+  const displaySegments = ["Git", "home", ...clonePath.split("/")];
   const cloneSessionKey = `git-clone:${displaySegments.map(encodeURIComponent).join("/")}`;
   const digest = createHash("sha256").update(cloneSessionKey).digest("hex").slice(0, 32);
   return `git-clone-${digest}`;
@@ -274,9 +274,9 @@ describe("handleUpgrade", () => {
     expect(opts.headers["Coder-Session-Token"]).toBe("per-user-token");
   });
 
-  it("opens clone sessions with cwd resolved under the default projects root", async () => {
+  it("opens clone sessions with cwd resolved under the default home root", async () => {
     delete process.env.HIVE_PROJECTS_ROOT;
-    const clonePath = "kethalia/hive";
+    const clonePath = "projects/kethalia/hive";
     const socket = makeSocket();
     await handleUpgrade(makeReq(createCloneRequestParams(clonePath)), socket, Buffer.alloc(0));
 

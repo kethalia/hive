@@ -350,7 +350,7 @@ function GitDiscoveryPanel({
     return (
       <GitDiscoveryNotice
         status={result.status}
-        title={result.status === "missing-root" ? "Projects root missing" : "Git scan failed"}
+        title={result.status === "missing-root" ? "Home root unavailable" : "Git scan failed"}
         message={result.message}
         diagnostics={result.diagnostics}
         tone="error"

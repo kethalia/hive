@@ -30,7 +30,9 @@ WORKDIR /app
 ENV NODE_ENV=production
 ENV BIND_HOST=0.0.0.0
 RUN addgroup --system --gid 1001 appgroup && \
-    adduser --system --uid 1001 appuser -G appgroup
+    adduser --system --uid 1001 appuser -G appgroup && \
+    mkdir -p /home/coder && \
+    chown appuser:appgroup /home/coder
 COPY --from=deploy --chown=appuser:appgroup /deploy ./
 USER appuser
 EXPOSE 3001

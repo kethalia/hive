@@ -14,9 +14,9 @@ const UPSTREAM_CONNECT_TIMEOUT_MS = 10_000;
 const CLONE_TERMINAL_SESSION_PREFIX = "git-clone-";
 const CLONE_TERMINAL_SESSION_RE = /^git-clone-[0-9a-f]{32}$/;
 const CLONE_TREE_ROOT_LABEL = "Git";
-const CLONE_TREE_PROJECTS_LABEL = "projects";
+const CLONE_TREE_PROJECTS_LABEL = "home";
 const PROJECTS_ROOT_ENV_KEY = "HIVE_PROJECTS_ROOT";
-const DEFAULT_PROJECTS_ROOT_PATH = "/home/coder/projects";
+const DEFAULT_PROJECTS_ROOT_PATH = "/home/coder";
 
 const wss = new WebSocketServer({ noServer: true, maxPayload: 1_048_576 });
 

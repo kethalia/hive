@@ -8,35 +8,35 @@ import { GitCloneSidebarTree } from "@/components/git-clone-sidebar-tree";
 import type { PublicCloneTree } from "@/lib/git/clone-actions-contract";
 import type { CloneTreeRepositoryNode } from "@/lib/git/clone-tree";
 
-const PRIVATE_ROOT = "/home/coder/projects/SUPER_SECRET_TOKEN";
+const PRIVATE_ROOT = "/home/coder/SUPER_SECRET_TOKEN";
 
 const repositoryNode = {
-  id: "git-repository:Git/projects/kethalia/hive",
+  id: "git-repository:Git/home/kethalia/hive",
   kind: "repository",
   label: "hive",
   relativePath: "kethalia/hive",
   relativePathSegments: ["kethalia", "hive"],
-  displaySegments: ["Git", "projects", "kethalia", "hive"],
-  cloneSessionKey: "git-clone:Git/projects/kethalia/hive",
+  displaySegments: ["Git", "home", "kethalia", "hive"],
+  cloneSessionKey: "git-clone:Git/home/kethalia/hive",
 } as const satisfies CloneTreeRepositoryNode;
 
 function makeCloneTree(overrides: Partial<PublicCloneTree> = {}): PublicCloneTree {
   return {
     root: {
-      id: "git-directory:Git/projects",
+      id: "git-directory:Git/home",
       label: "Git",
-      projectsLabel: "projects",
-      displaySegments: ["Git", "projects"],
+      projectsLabel: "home",
+      displaySegments: ["Git", "home"],
       path: PRIVATE_ROOT,
     } as PublicCloneTree["root"],
     nodes: [
       {
-        id: "git-directory:Git/projects/kethalia",
+        id: "git-directory:Git/home/kethalia",
         kind: "directory",
         label: "kethalia",
         relativePath: "kethalia",
         relativePathSegments: ["kethalia"],
-        displaySegments: ["Git", "projects", "kethalia"],
+        displaySegments: ["Git", "home", "kethalia"],
         children: [repositoryNode],
       },
     ],
@@ -66,10 +66,10 @@ describe("GitCloneSidebarTree", () => {
 
     expect(repoButton).toHaveAttribute(
       "data-clone-session-key",
-      "git-clone:Git/projects/kethalia/hive",
+      "git-clone:Git/home/kethalia/hive",
     );
     expect(repoButton).toHaveAttribute("data-relative-path", "kethalia/hive");
-    expect(screen.getByText("projects")).toBeInTheDocument();
+    expect(screen.getByText("home")).toBeInTheDocument();
     expect(screen.getByText("kethalia")).toBeInTheDocument();
   });
 

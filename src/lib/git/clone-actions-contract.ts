@@ -2,7 +2,7 @@ import { resolve } from "node:path";
 import type { CloneTree, CloneTreeDiagnostics } from "@/lib/git/clone-tree";
 
 export const PROJECTS_ROOT_ENV_KEY = "HIVE_PROJECTS_ROOT";
-export const DEFAULT_PROJECTS_ROOT_PATH = "/home/coder/projects";
+export const DEFAULT_PROJECTS_ROOT_PATH = "/home/coder";
 
 export type PublicCloneTree = Omit<CloneTree, "root"> & {
   root: Omit<CloneTree["root"], "path">;

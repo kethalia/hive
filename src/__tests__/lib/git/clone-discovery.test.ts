@@ -17,7 +17,7 @@ describe("discoverProjectCloneTree", () => {
     await rm(tempDir, { recursive: true, force: true });
   });
 
-  it("discovers Git clones into the Git -> projects hierarchy without reading file contents", async () => {
+  it("discovers Git clones into the Git -> home hierarchy without reading file contents", async () => {
     await makeGitRepository(tempDir, "kethalia/hive");
     await makeGitRepository(tempDir, "chillwhales/reef", "file");
     await makeGitRepository(tempDir, "phlox-labs/platform/orchard");
@@ -31,8 +31,8 @@ describe("discoverProjectCloneTree", () => {
 
     expect(result.root).toMatchObject({
       label: "Git",
-      projectsLabel: "projects",
-      displaySegments: ["Git", "projects"],
+      projectsLabel: "home",
+      displaySegments: ["Git", "home"],
     });
     expect(result.diagnostics).toEqual({
       rootLabel: "Git",
@@ -57,22 +57,22 @@ describe("discoverProjectCloneTree", () => {
       })),
     ).toEqual([
       {
-        id: "git-repository:Git/projects/chillwhales/reef",
+        id: "git-repository:Git/home/chillwhales/reef",
         relativePath: "chillwhales/reef",
-        displaySegments: ["Git", "projects", "chillwhales", "reef"],
-        cloneSessionKey: "git-clone:Git/projects/chillwhales/reef",
+        displaySegments: ["Git", "home", "chillwhales", "reef"],
+        cloneSessionKey: "git-clone:Git/home/chillwhales/reef",
       },
       {
-        id: "git-repository:Git/projects/kethalia/hive",
+        id: "git-repository:Git/home/kethalia/hive",
         relativePath: "kethalia/hive",
-        displaySegments: ["Git", "projects", "kethalia", "hive"],
-        cloneSessionKey: "git-clone:Git/projects/kethalia/hive",
+        displaySegments: ["Git", "home", "kethalia", "hive"],
+        cloneSessionKey: "git-clone:Git/home/kethalia/hive",
       },
       {
-        id: "git-repository:Git/projects/phlox-labs/platform/orchard",
+        id: "git-repository:Git/home/phlox-labs/platform/orchard",
         relativePath: "phlox-labs/platform/orchard",
-        displaySegments: ["Git", "projects", "phlox-labs", "platform", "orchard"],
-        cloneSessionKey: "git-clone:Git/projects/phlox-labs/platform/orchard",
+        displaySegments: ["Git", "home", "phlox-labs", "platform", "orchard"],
+        cloneSessionKey: "git-clone:Git/home/phlox-labs/platform/orchard",
       },
     ]);
     expect(JSON.stringify(result.nodes)).not.toContain(tempDir);
@@ -102,6 +102,8 @@ describe("discoverProjectCloneTree", () => {
   it("skips noisy directories and symlinks without following them", async () => {
     await makeGitRepository(tempDir, "kethalia/hive");
     await makeGitRepository(tempDir, "node_modules/leaky-repo");
+    await makeGitRepository(tempDir, ".ssh/private-repo");
+    await makeGitRepository(tempDir, ".hidden-worktrees/internal-repo");
     await makeGitRepository(tempDir, "chillwhales/build/output-repo");
     await mkdir(join(tempDir, "phlox-labs"), { recursive: true });
 
@@ -122,6 +124,8 @@ describe("discoverProjectCloneTree", () => {
     expect(result.diagnostics.truncated).toBe(false);
     expect(result.diagnostics.skippedPaths).toEqual(
       expect.arrayContaining([
+        { relativePath: ".hidden-worktrees", reason: "invalid-path" },
+        { relativePath: ".ssh", reason: "invalid-path" },
         { relativePath: "chillwhales/build", reason: "invalid-path" },
         { relativePath: "node_modules", reason: "invalid-path" },
       ]),

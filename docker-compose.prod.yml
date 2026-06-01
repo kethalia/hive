@@ -33,10 +33,12 @@ services:
       - DATABASE_URL=postgresql://${POSTGRES_USER:-hive}:${POSTGRES_PASSWORD:-hive}@postgres:5432/${POSTGRES_DB:-hive}
       - REDIS_URL=redis://:${REDIS_PASSWORD:-changeme}@redis:6379
       - CODER_URL=${CODER_URL:-}
-      - HIVE_PROJECTS_ROOT=${HIVE_PROJECTS_ROOT:-/home/coder/projects}
+      - HIVE_PROJECTS_ROOT=${HIVE_PROJECTS_ROOT:-/home/coder}
       - AUTH_SERVICE_URL=http://auth:4400
       - COOKIE_SECRET=${COOKIE_SECRET:-}
       - NEXT_PUBLIC_TERMINAL_WS_URL=${NEXT_PUBLIC_TERMINAL_WS_URL:-}
+    volumes:
+      - ${HIVE_PROJECTS_ROOT:-/home/coder}:${HIVE_PROJECTS_ROOT:-/home/coder}:ro
 
   terminal-proxy:
     image: ghcr.io/kethalia/hive-terminal:latest
@@ -49,7 +51,9 @@ services:
     environment:
       - AUTH_SERVICE_URL=http://auth:4400
       - COOKIE_SECRET=${COOKIE_SECRET:-}
-      - HIVE_PROJECTS_ROOT=${HIVE_PROJECTS_ROOT:-/home/coder/projects}
+      - HIVE_PROJECTS_ROOT=${HIVE_PROJECTS_ROOT:-/home/coder}
+    volumes:
+      - ${HIVE_PROJECTS_ROOT:-/home/coder}:${HIVE_PROJECTS_ROOT:-/home/coder}:ro
 
   postgres:
     image: postgres:16-alpine

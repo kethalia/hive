@@ -20,9 +20,18 @@ export const DEFAULT_CLONE_DISCOVERY_MAX_DEPTH = 5;
 export const DEFAULT_CLONE_DISCOVERY_MAX_REPOSITORIES = 200;
 export const DEFAULT_SKIPPED_DIRECTORY_NAMES = [
   ".cache",
+  ".claude",
+  ".config",
+  ".docker",
+  ".gnupg",
+  ".kube",
+  ".local",
+  ".npm",
+  ".pnpm-store",
+  ".ssh",
+  ".vscode-server",
   ".git",
   ".next",
-  ".pnpm-store",
   ".turbo",
   "build",
   "coverage",
@@ -181,13 +190,17 @@ async function scanDirectory(
       continue;
     }
 
-    if (context.skippedDirectoryNames.has(entry.name)) {
+    if (isHiddenDirectoryName(entry.name) || context.skippedDirectoryNames.has(entry.name)) {
       addSkippedPath(context, childRelativePathSegments, "invalid-path");
       continue;
     }
 
     await scanDirectory(join(directoryPath, entry.name), childRelativePathSegments, context);
   }
+}
+
+function isHiddenDirectoryName(name: string): boolean {
+  return name.startsWith(".");
 }
 
 function addRepository(

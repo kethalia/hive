@@ -320,16 +320,16 @@ import type {
 import type { CloneTreeDiagnostics } from "@/lib/git/clone-tree";
 import type { TemplateStatus } from "@/lib/templates/staleness";
 
-const PRIVATE_ROOT = "/home/coder/projects/SUPER_SECRET_TOKEN";
+const PRIVATE_ROOT = "/home/coder/SUPER_SECRET_TOKEN";
 
 const gitRepositoryNode = {
-  id: "git-repository:Git/projects/kethalia/hive",
+  id: "git-repository:Git/home/kethalia/hive",
   kind: "repository",
   label: "hive",
   relativePath: "kethalia/hive",
   relativePathSegments: ["kethalia", "hive"],
-  displaySegments: ["Git", "projects", "kethalia", "hive"],
-  cloneSessionKey: "git-clone:Git/projects/kethalia/hive",
+  displaySegments: ["Git", "home", "kethalia", "hive"],
+  cloneSessionKey: "git-clone:Git/home/kethalia/hive",
 } as const;
 
 function makeGitDiagnostics(overrides: Partial<CloneTreeDiagnostics> = {}): CloneTreeDiagnostics {
@@ -347,20 +347,20 @@ function makeGitDiagnostics(overrides: Partial<CloneTreeDiagnostics> = {}): Clon
 function makeGitCloneTree(overrides: Partial<PublicCloneTree> = {}): PublicCloneTree {
   return {
     root: {
-      id: "git-directory:Git/projects",
+      id: "git-directory:Git/home",
       label: "Git",
-      projectsLabel: "projects",
-      displaySegments: ["Git", "projects"],
+      projectsLabel: "home",
+      displaySegments: ["Git", "home"],
       path: PRIVATE_ROOT,
     } as PublicCloneTree["root"],
     nodes: [
       {
-        id: "git-directory:Git/projects/kethalia",
+        id: "git-directory:Git/home/kethalia",
         kind: "directory",
         label: "kethalia",
         relativePath: "kethalia",
         relativePathSegments: ["kethalia"],
-        displaySegments: ["Git", "projects", "kethalia"],
+        displaySegments: ["Git", "home", "kethalia"],
         children: [gitRepositoryNode],
       },
     ],
@@ -389,7 +389,7 @@ function makeGitEmptyResult(): GitCloneDiscoveryActionResult {
   return {
     ok: true,
     status: "empty",
-    message: "No Git clones found in the configured projects root.",
+    message: "No Git clones found under the configured home root.",
     tree,
     diagnostics: tree.diagnostics,
     error: null,
@@ -402,8 +402,8 @@ function makeGitErrorResult(
 ): GitCloneDiscoveryActionResult {
   const message =
     status === "missing-root"
-      ? "Projects folder is not available. Create or mount the configured projects root, then refresh."
-      : "We couldn't scan projects for Git clones. Refresh and try again.";
+      ? "Configured home folder is not available. Mount the home root, then refresh."
+      : "We couldn't scan the home folder for Git clones. Refresh and try again.";
 
   return {
     ok: false,
@@ -545,11 +545,11 @@ describe("AppSidebar", () => {
 
     expect(repoButton).toHaveAttribute(
       "data-clone-session-key",
-      "git-clone:Git/projects/kethalia/hive",
+      "git-clone:Git/home/kethalia/hive",
     );
     expect(repoButton).toHaveAttribute("data-relative-path", "kethalia/hive");
     expect(screen.getByText("Git")).toBeInTheDocument();
-    expect(screen.getByText("projects")).toBeInTheDocument();
+    expect(screen.getByText("home")).toBeInTheDocument();
     expect(screen.getByText("kethalia")).toBeInTheDocument();
     expect(screen.getByRole("group", { name: "Git clone scan diagnostics" })).toHaveTextContent(
       "Repos 1",
@@ -583,7 +583,7 @@ describe("AppSidebar", () => {
 
     await waitFor(() => {
       expect(mockResolveGitCloneTerminal).toHaveBeenCalledWith({
-        cloneSessionKey: "git-clone:Git/projects/kethalia/hive",
+        cloneSessionKey: "git-clone:Git/home/kethalia/hive",
         workspaceId: "ws-running",
         agentId: "agent-1",
         relativePath: "kethalia/hive",
@@ -730,7 +730,7 @@ describe("AppSidebar", () => {
     });
 
     expect(
-      screen.getByText("No Git clones found in the configured projects root."),
+      screen.getByText("No Git clones found under the configured home root."),
     ).toBeInTheDocument();
     expect(screen.getByText("No Git repositories found.")).toBeInTheDocument();
     expect(screen.getByRole("group", { name: "Git clone scan diagnostics" })).toHaveTextContent(
@@ -767,8 +767,8 @@ describe("AppSidebar", () => {
       expect(screen.getByTestId("git-discovery-missing-root")).toBeInTheDocument();
     });
 
-    expect(screen.getByText("Projects root missing")).toBeInTheDocument();
-    expect(screen.getByText(/Projects folder is not available/)).toBeInTheDocument();
+    expect(screen.getByText("Home root unavailable")).toBeInTheDocument();
+    expect(screen.getByText(/Configured home folder is not available/)).toBeInTheDocument();
     expect(
       screen.getByText(/Repos 0 .* Directories 0 .* Skipped 1 .* Complete .* 9ms/),
     ).toBeInTheDocument();

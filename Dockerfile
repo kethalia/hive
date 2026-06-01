@@ -34,7 +34,9 @@ RUN apk add --no-cache ca-certificates curl && \
     curl -fsSL https://coder.com/install.sh | sh && \
     coder version && \
     addgroup --system --gid 1001 nodejs && \
-    adduser --system --uid 1001 nextjs
+    adduser --system --uid 1001 nextjs && \
+    mkdir -p /home/coder && \
+    chown nextjs:nodejs /home/coder
 RUN apk add --no-cache ca-certificates curl tar && \
     case "${TARGETARCH:-amd64}" in \
       amd64) coder_arch="amd64"; coder_sha="0089d46a9931498e5dcbe6df6bfb7153a2345156b5e7388ccbce8fb9b430061a" ;; \

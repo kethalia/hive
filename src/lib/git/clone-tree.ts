@@ -8,7 +8,7 @@ export {
 } from "@/lib/git/clone-terminal-session";
 
 export const CLONE_TREE_ROOT_LABEL = "Git" as const;
-export const CLONE_TREE_PROJECTS_LABEL = "projects" as const;
+export const CLONE_TREE_PROJECTS_LABEL = "home" as const;
 
 export type CloneTreeNodeKind = "directory" | "repository";
 export type CloneTreeSkippedPathReason =
@@ -26,9 +26,9 @@ export interface CloneTreeRootMetadata {
   path: string;
   /** User-facing root label. Defaults to Git. */
   label: string;
-  /** User-facing first child under the root. Defaults to projects. */
+  /** User-facing first child under the root. Defaults to home. */
   projectsLabel: string;
-  /** Display-only hierarchy prefix, normally Git -> projects. */
+  /** Display-only hierarchy prefix, normally Git -> home. */
   displaySegments: readonly [string, string];
 }
 
@@ -41,7 +41,7 @@ export interface NormalizedClonePath {
   relativePath: string;
   /** Root-relative clone path split into display-safe hierarchy segments. */
   relativePathSegments: readonly string[];
-  /** Display hierarchy, normally Git -> projects -> org/group -> clone. */
+  /** Display hierarchy, normally Git -> home -> org/group -> clone. */
   displaySegments: readonly [string, string, ...string[]];
 }
 

@@ -98,17 +98,17 @@ describe("listGitClonesAction", () => {
       error: null,
     });
     expect(result?.data?.tree?.root).toEqual({
-      id: "git-directory:Git/projects",
+      id: "git-directory:Git/home",
       label: "Git",
-      projectsLabel: "projects",
-      displaySegments: ["Git", "projects"],
+      projectsLabel: "home",
+      displaySegments: ["Git", "home"],
     });
     expect(result?.data?.tree?.nodes).toEqual([repositoryNode]);
     expect(JSON.stringify(result?.data)).not.toContain(PRIVATE_ROOT);
     expect(JSON.stringify(result?.data)).not.toContain("SUPER_SECRET_TOKEN");
   });
 
-  it("distinguishes an empty projects root from scan failures", async () => {
+  it("distinguishes an empty home root from scan failures", async () => {
     mockedDiscoverProjectCloneTree.mockResolvedValue(
       makeCloneTree({
         nodes: [],
@@ -129,7 +129,7 @@ describe("listGitClonesAction", () => {
     expect(result?.data).toMatchObject({
       ok: true,
       status: "empty",
-      message: "No Git clones found in the configured projects root.",
+      message: "No Git clones found under the configured home root.",
       tree: {
         nodes: [],
       },
@@ -162,8 +162,7 @@ describe("listGitClonesAction", () => {
     expect(result?.data).toEqual({
       ok: false,
       status: "missing-root",
-      message:
-        "Projects folder is not available. Create or mount the configured projects root, then refresh.",
+      message: "Configured home folder is not available. Mount the home root, then refresh.",
       tree: null,
       diagnostics: {
         rootLabel: "Git",
@@ -175,8 +174,7 @@ describe("listGitClonesAction", () => {
       },
       error: {
         code: "missing-root",
-        message:
-          "Projects folder is not available. Create or mount the configured projects root, then refresh.",
+        message: "Configured home folder is not available. Mount the home root, then refresh.",
       },
     });
     expect(JSON.stringify(result?.data)).not.toContain(PRIVATE_ROOT);
@@ -194,12 +192,12 @@ describe("listGitClonesAction", () => {
     expect(result?.data).toEqual({
       ok: false,
       status: "scan-failed",
-      message: "We couldn't scan projects for Git clones. Refresh and try again.",
+      message: "We couldn't scan the home folder for Git clones. Refresh and try again.",
       tree: null,
       diagnostics: null,
       error: {
         code: "scan-failed",
-        message: "We couldn't scan projects for Git clones. Refresh and try again.",
+        message: "We couldn't scan the home folder for Git clones. Refresh and try again.",
       },
     });
     expect(JSON.stringify(result?.data)).not.toContain(PRIVATE_ROOT);
@@ -241,7 +239,7 @@ describe("resolveGitCloneTerminalAction", () => {
     } as never);
   });
 
-  it("exports projects-root configuration helpers without changing list behavior", () => {
+  it("exports home-root configuration helpers without changing list behavior", () => {
     expect(resolveConfiguredProjectsRoot()).toBe(resolve(PRIVATE_ROOT));
 
     vi.unstubAllEnvs();
@@ -269,7 +267,7 @@ describe("resolveGitCloneTerminalAction", () => {
     expect(result?.data).toEqual({
       sessionName: expect.any(String),
       clonePath: "kethalia/hive",
-      cloneSessionKey: "git-clone:Git/projects/kethalia/hive",
+      cloneSessionKey: "git-clone:Git/home/kethalia/hive",
       cloneProof: expect.any(String),
     });
     expect(result?.data?.sessionName).toMatch(SAFE_IDENTIFIER_RE);
@@ -387,7 +385,7 @@ describe("resolveGitCloneTerminalAction", () => {
     });
 
     expect(result?.serverError).toBe(
-      "Projects folder is not available. Create or mount the configured projects root, then refresh.",
+      "Configured home folder is not available. Mount the home root, then refresh.",
     );
     expect(JSON.stringify(result)).not.toContain(PRIVATE_ROOT);
     expect(JSON.stringify(result)).not.toContain("SUPER_SECRET_TOKEN");
@@ -406,7 +404,7 @@ describe("resolveGitCloneTerminalAction", () => {
     });
 
     expect(result?.serverError).toBe(
-      "We couldn't scan projects for Git clones. Refresh and try again.",
+      "We couldn't scan the home folder for Git clones. Refresh and try again.",
     );
     expect(JSON.stringify(result)).not.toContain(PRIVATE_ROOT);
     expect(JSON.stringify(result)).not.toContain("SUPER_SECRET_TOKEN");
@@ -449,33 +447,33 @@ describe("resolveGitCloneTerminalAction", () => {
 });
 
 const repositoryNode = {
-  id: "git-repository:Git/projects/kethalia/hive",
+  id: "git-repository:Git/home/kethalia/hive",
   kind: "repository",
   label: "hive",
   relativePath: "kethalia/hive",
   relativePathSegments: ["kethalia", "hive"],
-  displaySegments: ["Git", "projects", "kethalia", "hive"],
-  cloneSessionKey: "git-clone:Git/projects/kethalia/hive",
+  displaySegments: ["Git", "home", "kethalia", "hive"],
+  cloneSessionKey: "git-clone:Git/home/kethalia/hive",
 } satisfies CloneTreeNode;
 
 const directoryNode = {
-  id: "git-directory:Git/projects/kethalia",
+  id: "git-directory:Git/home/kethalia",
   kind: "directory",
   label: "kethalia",
   relativePath: "kethalia",
   relativePathSegments: ["kethalia"],
-  displaySegments: ["Git", "projects", "kethalia"],
+  displaySegments: ["Git", "home", "kethalia"],
   children: [repositoryNode],
 } satisfies CloneTreeNode;
 
 function makeCloneTree(overrides: Partial<CloneTree> = {}): CloneTree {
   return {
     root: {
-      id: "git-directory:Git/projects",
+      id: "git-directory:Git/home",
       path: PRIVATE_ROOT,
       label: "Git",
-      projectsLabel: "projects",
-      displaySegments: ["Git", "projects"],
+      projectsLabel: "home",
+      displaySegments: ["Git", "home"],
     },
     nodes: [repositoryNode],
     diagnostics: {

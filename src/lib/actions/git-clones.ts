@@ -24,10 +24,11 @@ import {
 import { authActionClient } from "@/lib/safe-action";
 
 const SUCCESS_MESSAGE = "Git clones discovered.";
-const EMPTY_MESSAGE = "No Git clones found in the configured projects root.";
+const EMPTY_MESSAGE = "No Git clones found under the configured home root.";
 const MISSING_ROOT_MESSAGE =
-  "Projects folder is not available. Create or mount the configured projects root, then refresh.";
-const SCAN_FAILED_MESSAGE = "We couldn't scan projects for Git clones. Refresh and try again.";
+  "Configured home folder is not available. Mount the home root, then refresh.";
+const SCAN_FAILED_MESSAGE =
+  "We couldn't scan the home folder for Git clones. Refresh and try again.";
 const INVALID_SELECTION_MESSAGE = "We couldn't verify that Git repository. Refresh and try again.";
 const WORKSPACE_AGENT_UNAVAILABLE_MESSAGE =
   "We couldn't verify that workspace terminal. Refresh and try again.";

@@ -44,15 +44,17 @@ The following exceptions are intentional and should be revisited only when the m
 
 ## Git clone discovery and clone terminals
 
-The Git sidebar and clone terminal flow share one runtime contract: the web service, terminal proxy, and Coder agent runtime must agree on `HIVE_PROJECTS_ROOT`. The default value is `/home/coder/projects`.
+The Git sidebar and clone terminal flow share one runtime contract: the web service, terminal proxy, and Coder agent runtime must agree on `HIVE_PROJECTS_ROOT`. The default value is `/home/coder`, so discovery is not limited to a strict `projects` directory; it finds Git repositories anywhere under that home root while skipping noisy/sensitive hidden directories and known build-output folders.
 
 Use the same value everywhere:
 
-- The web service scans `HIVE_PROJECTS_ROOT` to build the Git clone sidebar.
+- The web service scans `HIVE_PROJECTS_ROOT` to build the Git clone sidebar by looking for directory or file `.git` metadata.
 - The terminal proxy validates clone terminal requests and resolves the requested clone path under the same root before asking the Coder agent to start tmux in that cwd.
-- The Coder agent runtime must either be colocated with that projects tree or receive an equivalent mount at the same path string. A different mount path, even if it points at the same files, can make sidebar selections resolve to a cwd the agent cannot enter.
+- The Coder agent runtime must either be colocated with that home tree or receive an equivalent mount at the same path string. A different mount path, even if it points at the same files, can make sidebar selections resolve to a cwd the agent cannot enter.
 
-If the configured projects root is missing or not mounted into the web service, the sidebar reports that the projects folder is unavailable. If the root exists but contains no discoverable Git repositories, the sidebar reports that no Git clones were found. Discovery runs on manual refresh and on the explicit sidebar load path; it does not currently auto-poll for filesystem changes.
+For Docker Compose, the default services bind-mount `${HIVE_PROJECTS_ROOT:-/home/coder}` read-only into both the web and terminal-proxy containers. For Helm/GitOps deployments, configure matching `volumes` and `volumeMounts` for `hive-web` and `hive-terminal` when the home root is not already present in the pod filesystem.
+
+If the configured home root is missing or not mounted into the web service, the sidebar reports that the home folder is unavailable. If the root exists but contains no discoverable Git repositories, the sidebar reports that no Git clones were found. Discovery runs on manual refresh and on the explicit sidebar load path; it does not currently auto-poll for filesystem changes.
 
 Clone terminal sessions are deterministic and reconnectable through the terminal route, but the deterministic `git-clone-<sha>` session name is only an identifier. Sidebar opens mint a short-lived server proof, signed with the shared `COOKIE_SECRET`, over the workspace, agent when available, session name, clone path, and expiry. The terminal proxy rejects missing, expired, tampered, or mismatched proofs before auth/upstream setup and logs only reason codes. A stale bookmarked clone terminal URL may need to be reopened from the Git sidebar to mint a fresh proof.
 
