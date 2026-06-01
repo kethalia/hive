@@ -48,17 +48,20 @@ vi.mock("next/dynamic", () => ({
       className,
       layoutSignal,
       mobileInputMode,
+      pinToBottomOnResize,
       sessionName,
     }: {
       className?: string;
       layoutSignal?: unknown;
       mobileInputMode?: boolean;
+      pinToBottomOnResize?: boolean;
       sessionName: string;
     }) => (
       <div
         className={className}
         data-layout-signal={String(layoutSignal ?? "")}
         data-mobile-input-mode={mobileInputMode ? "true" : "false"}
+        data-pin-to-bottom-on-resize={pinToBottomOnResize ? "true" : "false"}
         data-session-name={sessionName}
         data-testid="interactive-terminal"
       />
@@ -249,6 +252,10 @@ describe("TerminalClient compose sheet", () => {
       "data-mobile-input-mode",
       "false",
     );
+    expect(screen.getByTestId("interactive-terminal")).toHaveAttribute(
+      "data-pin-to-bottom-on-resize",
+      "false",
+    );
     expect(screen.getByTestId("resizable-group")).toHaveAttribute("data-orientation", "vertical");
     expect(screen.queryByTestId("compose-sheet")).not.toBeInTheDocument();
     expect(screen.queryByTestId("compose-panel")).not.toBeInTheDocument();
@@ -276,6 +283,10 @@ describe("TerminalClient compose sheet", () => {
     expect(screen.getByTestId("interactive-terminal")).toBeInTheDocument();
     expect(screen.getByTestId("interactive-terminal")).toHaveAttribute(
       "data-mobile-input-mode",
+      "true",
+    );
+    expect(screen.getByTestId("interactive-terminal")).toHaveAttribute(
+      "data-pin-to-bottom-on-resize",
       "true",
     );
     expect(screen.getByTestId("terminal-mobile-shell")).toHaveClass(
@@ -464,6 +475,10 @@ describe("TerminalClient compose sheet", () => {
     expect(screen.getByTestId("interactive-terminal")).toHaveAttribute(
       "data-layout-signal",
       "keyboard:500:240",
+    );
+    expect(screen.getByTestId("interactive-terminal")).toHaveAttribute(
+      "data-pin-to-bottom-on-resize",
+      "true",
     );
     expect(document.documentElement).toHaveStyle({
       height: "var(--app-visual-viewport-height)",

@@ -274,7 +274,7 @@ function TerminalInner({ agentId, workspaceId }: { agentId: string; workspaceId:
           onTerminalDestroy={handleTerminalDestroy}
           layoutSignal={mobileLayoutSignal}
           mobileInputMode={isComposeSheet}
-          pinToBottomOnResize={false}
+          pinToBottomOnResize={isComposeSheet}
         />
       </TerminalGestureLayer>
       <TerminalContextMenu

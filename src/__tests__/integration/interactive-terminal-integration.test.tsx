@@ -132,6 +132,7 @@ vi.mock("next/dynamic", () => ({
       cloneProof,
       layoutSignal,
       mobileInputMode,
+      pinToBottomOnResize,
       sessionName,
     }: {
       className?: string;
@@ -139,6 +140,7 @@ vi.mock("next/dynamic", () => ({
       cloneProof?: string;
       layoutSignal?: unknown;
       mobileInputMode?: boolean;
+      pinToBottomOnResize?: boolean;
       sessionName: string;
     }) => (
       <div
@@ -147,6 +149,7 @@ vi.mock("next/dynamic", () => ({
         data-clone-proof={cloneProof ?? ""}
         data-layout-signal={String(layoutSignal ?? "")}
         data-mobile-input-mode={mobileInputMode ? "true" : "false"}
+        data-pin-to-bottom-on-resize={pinToBottomOnResize ? "true" : "false"}
         data-session-name={sessionName}
         data-testid="interactive-terminal"
       />
@@ -678,6 +681,63 @@ describe("InteractiveTerminal integration — Session lifecycle", () => {
       rows: 31,
       cols: 101,
     });
+    unmount();
+  });
+});
+
+describe("TerminalClient integration — Mobile terminal route props", () => {
+  it("leaves bottom-preserving refits disabled on desktop terminal routes", async () => {
+    const { getByTestId, unmount } = await renderTerminalClient("session=main");
+
+    await waitFor(() => {
+      expect(getByTestId("interactive-terminal")).toBeInTheDocument();
+    });
+    expect(getByTestId("interactive-terminal")).toHaveAttribute("data-mobile-input-mode", "false");
+    expect(getByTestId("interactive-terminal")).toHaveAttribute(
+      "data-pin-to-bottom-on-resize",
+      "false",
+    );
+    unmount();
+  });
+
+  it("enables bottom-preserving refits on mobile compose-sheet terminal routes", async () => {
+    mockUseIsComposeSheet.mockReturnValue(true);
+
+    const { getByTestId, unmount } = await renderTerminalClient("session=main");
+
+    await waitFor(() => {
+      expect(getByTestId("interactive-terminal")).toBeInTheDocument();
+    });
+    expect(getByTestId("interactive-terminal")).toHaveAttribute("data-mobile-input-mode", "true");
+    expect(getByTestId("interactive-terminal")).toHaveAttribute(
+      "data-pin-to-bottom-on-resize",
+      "true",
+    );
+    unmount();
+  });
+
+  it("keeps keyboard-visible visual viewport height and offset in the mobile layout signal", async () => {
+    mockUseIsComposeSheet.mockReturnValue(true);
+    mockUseVisualViewportKeyboardOffset.mockReturnValue({
+      isKeyboardVisible: true,
+      liftPx: 0,
+      visualViewportHeightPx: 420,
+      visualViewportOffsetTopPx: 180,
+    });
+
+    const { getByTestId, unmount } = await renderTerminalClient("session=main");
+
+    await waitFor(() => {
+      expect(getByTestId("interactive-terminal")).toBeInTheDocument();
+    });
+    expect(getByTestId("interactive-terminal")).toHaveAttribute(
+      "data-layout-signal",
+      "keyboard:420:180",
+    );
+    expect(getByTestId("interactive-terminal")).toHaveAttribute(
+      "data-pin-to-bottom-on-resize",
+      "true",
+    );
     unmount();
   });
 });
