@@ -2,7 +2,7 @@
 
 import { createCloneTerminalProof } from "@hive/auth";
 import { z } from "zod";
-import type { WorkspaceAgent } from "@/lib/coder/types";
+import type { CoderWorkspace, WorkspaceAgent } from "@/lib/coder/types";
 import { getCoderClientForUser } from "@/lib/coder/user-client";
 import {
   type GitCloneDiscoveryActionResult,
@@ -12,7 +12,7 @@ import {
   type PublicCloneTree,
   resolveConfiguredProjectsRoot,
 } from "@/lib/git/clone-actions-contract";
-import { discoverProjectCloneTree } from "@/lib/git/clone-discovery";
+import { createCloneTreeFromRepositoryRelativePaths } from "@/lib/git/clone-discovery";
 import {
   type CloneTree,
   type CloneTreeDiagnostics,
@@ -22,6 +22,7 @@ import {
   createSafeCloneTerminalSessionName,
 } from "@/lib/git/clone-tree";
 import { authActionClient } from "@/lib/safe-action";
+import { execInWorkspace } from "@/lib/workspace/exec";
 
 const SUCCESS_MESSAGE = "Git clones discovered.";
 const EMPTY_MESSAGE = "No Git clones found under the configured home root.";
@@ -34,6 +35,9 @@ const WORKSPACE_AGENT_UNAVAILABLE_MESSAGE =
   "We couldn't verify that workspace terminal. Refresh and try again.";
 const TERMINAL_PROOF_UNAVAILABLE_MESSAGE =
   "We couldn't prepare a secure Git terminal. Refresh and try again.";
+const WORKSPACE_DISCOVERY_TIMEOUT_MS = 15_000;
+const WORKSPACE_ROOT_MISSING_SENTINEL = "__HIVE_PROJECTS_ROOT_MISSING__";
+const WORKSPACE_CLONE_SCAN_LIMIT = 201;
 
 type GitCloneTerminalResolveStatus =
   | "success"
@@ -59,11 +63,11 @@ const resolveGitCloneTerminalSchema = z
   .strict();
 
 export const listGitClonesAction = authActionClient.action(
-  async (): Promise<GitCloneDiscoveryActionResult> => {
+  async ({ ctx }): Promise<GitCloneDiscoveryActionResult> => {
     const projectsRootPath = resolveConfiguredProjectsRoot();
 
     try {
-      const tree = await discoverProjectCloneTree(projectsRootPath);
+      const tree = await discoverWorkspaceCloneTree(ctx.user.id, projectsRootPath);
       const publicTree = toPublicCloneTree(tree);
       const rootSkippedReason = getRootSkippedReason(tree.diagnostics);
 
@@ -117,7 +121,11 @@ export const resolveGitCloneTerminalAction = authActionClient
     let tree: CloneTree;
 
     try {
-      tree = await discoverProjectCloneTree(projectsRootPath);
+      tree = await discoverWorkspaceCloneTree(
+        ctx.user.id,
+        projectsRootPath,
+        parsedInput.workspaceId,
+      );
     } catch (error) {
       console.error(
         `[git-clones] Terminal resolution scan failed (${describeErrorForLogs(error)})`,
@@ -167,6 +175,92 @@ export const resolveGitCloneTerminalAction = authActionClient
       cloneProof,
     };
   });
+
+async function discoverWorkspaceCloneTree(
+  userId: string,
+  projectsRootPath: string,
+  workspaceId?: string,
+): Promise<CloneTree> {
+  const client = await getCoderClientForUser(userId);
+  const workspace = workspaceId
+    ? await client.getWorkspace(workspaceId)
+    : selectDiscoveryWorkspace((await client.listWorkspaces({ owner: "me" })).workspaces);
+
+  if (!workspace) {
+    return createCloneTreeFromRepositoryRelativePaths(projectsRootPath, []);
+  }
+
+  const agentTarget = await client.getWorkspaceAgentName(workspace.id);
+  const result = await execInWorkspace(
+    agentTarget,
+    buildWorkspaceCloneDiscoveryCommand(projectsRootPath),
+    {
+      coderUrl: client.getBaseUrl(),
+      sessionToken: client.getSessionToken(),
+      timeoutMs: WORKSPACE_DISCOVERY_TIMEOUT_MS,
+    },
+  );
+
+  if (result.exitCode !== 0) {
+    console.error(
+      `[git-clones] Workspace discovery failed: workspace=${workspace.id} exit=${result.exitCode}`,
+    );
+    throw new Error("workspace_clone_discovery_failed");
+  }
+
+  const lines = result.stdout
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean);
+
+  if (lines.includes(WORKSPACE_ROOT_MISSING_SENTINEL)) {
+    return createCloneTreeWithMissingRoot(projectsRootPath);
+  }
+
+  const safeRelativePaths = lines
+    .filter(isSafeCloneRelativePath)
+    .slice(0, WORKSPACE_CLONE_SCAN_LIMIT);
+  return createCloneTreeFromRepositoryRelativePaths(projectsRootPath, safeRelativePaths, {
+    maxRepositories: WORKSPACE_CLONE_SCAN_LIMIT,
+  });
+}
+
+function selectDiscoveryWorkspace(workspaces: readonly CoderWorkspace[]): CoderWorkspace | null {
+  return (
+    workspaces.find((workspace) => workspace.latest_build.status === "running") ??
+    workspaces[0] ??
+    null
+  );
+}
+
+function createCloneTreeWithMissingRoot(projectsRootPath: string): CloneTree {
+  const tree = createCloneTreeFromRepositoryRelativePaths(projectsRootPath, []);
+  return {
+    ...tree,
+    diagnostics: {
+      ...tree.diagnostics,
+      skippedPaths: [{ relativePath: ".", reason: "not-directory" }],
+    },
+  };
+}
+
+function buildWorkspaceCloneDiscoveryCommand(projectsRootPath: string): string {
+  const root = shellQuote(projectsRootPath);
+  const skippedNames = ["node_modules", "build", "coverage", "dist", "out", ".next", ".turbo"];
+  const skippedNameExpression = skippedNames
+    .map((name) => `-name ${shellQuote(name)}`)
+    .join(" -o ");
+
+  return [
+    `root=${root}`,
+    `if [ ! -d "$root" ]; then printf '%s\\n' ${shellQuote(WORKSPACE_ROOT_MISSING_SENTINEL)}; exit 0; fi`,
+    `find "$root" -mindepth 1 -maxdepth 5 \\( -type d -name '.*' -prune \\) -o \\( -type d \\( ${skippedNameExpression} \\) -prune \\) -o \\( -type d -exec test -e '{}/.git' \\; -print \\) | awk -v prefix="$root/" 'index($0, prefix) == 1 { print substr($0, length(prefix) + 1) }' | sort | head -n ${WORKSPACE_CLONE_SCAN_LIMIT}`,
+  ].join("; ");
+}
+
+function shellQuote(value: string): string {
+  return `'${value.replace(/'/g, "'\\''")}'`;
+}
 
 function getCloneTerminalProofSecret(): string {
   const secret = process.env.COOKIE_SECRET?.trim();

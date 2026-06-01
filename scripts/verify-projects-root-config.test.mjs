@@ -6,7 +6,6 @@ import { test } from "node:test";
 const HOME_ROOT_VALUE = "/home/coder";
 const ENV_EXAMPLE_ENTRY = `HIVE_PROJECTS_ROOT=${HOME_ROOT_VALUE}`;
 const COMPOSE_ENV_ENTRY = `HIVE_PROJECTS_ROOT=\${HIVE_PROJECTS_ROOT:-${HOME_ROOT_VALUE}}`;
-const COMPOSE_VOLUME_ENTRY = `\${HIVE_PROJECTS_ROOT:-${HOME_ROOT_VALUE}}:\${HIVE_PROJECTS_ROOT:-${HOME_ROOT_VALUE}}:ro`;
 const HELM_VALUES_ENTRY = `HIVE_PROJECTS_ROOT: "${HOME_ROOT_VALUE}"`;
 
 const TRACKED_INPUT_FILES = [
@@ -61,20 +60,24 @@ test("verifier only reads tracked config and documentation inputs", () => {
   }
 });
 
-test(".env.example documents the shared home root default", () => {
+test(".env.example documents the shared workspace home root default", () => {
   const envExample = readTrackedFile(".env.example");
 
-  assert.match(envExample, /Shared home root used by Git clone discovery/);
-  assert.match(envExample, /web app must see this tree for sidebar scanning/);
-  assert.match(envExample, /terminal proxy must use/);
-  assert.match(envExample, /same root string as the Coder agent runtime/);
+  assert.match(envExample, /Shared workspace home root used by Git clone discovery/);
+  assert.match(envExample, /web app scans this path inside the user's Coder workspace/);
+  assert.match(envExample, /terminal proxy uses the same root string/);
   assert.ok(envExample.includes(ENV_EXAMPLE_ENTRY), ".env.example includes HIVE_PROJECTS_ROOT");
 });
 
-test("Docker images create the default home root so unmounted images show an empty tree, not a missing root", () => {
+test("Docker images include runtime prerequisites for workspace-root discovery", () => {
   const webDockerfile = readTrackedFile("Dockerfile");
   const terminalDockerfile = readTrackedFile("services/terminal-proxy/Dockerfile");
 
+  assert.match(
+    webDockerfile,
+    /coder version/,
+    "web image installs the coder CLI for workspace scans",
+  );
   for (const [label, dockerfile] of [
     ["web", webDockerfile],
     ["terminal", terminalDockerfile],
@@ -84,7 +87,7 @@ test("Docker images create the default home root so unmounted images show an emp
   }
 });
 
-test("Compose local and production pass and mount the same home root to app and terminal-proxy", () => {
+test("Compose local and production pass the same workspace home root to app and terminal-proxy", () => {
   for (const relativePath of ["docker-compose.local.yml", "docker-compose.prod.yml"]) {
     const composeText = readTrackedFile(relativePath);
 
@@ -93,10 +96,6 @@ test("Compose local and production pass and mount the same home root to app and 
       assert.ok(
         serviceBlock.includes(`- ${COMPOSE_ENV_ENTRY}`),
         `${relativePath} ${serviceName} must set ${COMPOSE_ENV_ENTRY}`,
-      );
-      assert.ok(
-        serviceBlock.includes(`- ${COMPOSE_VOLUME_ENTRY}`),
-        `${relativePath} ${serviceName} must bind-mount ${COMPOSE_VOLUME_ENTRY}`,
       );
     }
   }
@@ -107,15 +106,15 @@ test("Helm values expose HIVE_PROJECTS_ROOT with service-specific comments", () 
   const terminalValues = readTrackedFile("charts/hive-terminal/values.yaml");
 
   assert.ok(webValues.includes(HELM_VALUES_ENTRY), "hive-web values include HIVE_PROJECTS_ROOT");
-  assert.match(webValues, /Home tree visible to the web process/);
-  assert.match(webValues, /Git clone discovery\/sidebar scans/);
+  assert.match(webValues, /Workspace home tree path used/);
+  assert.match(webValues, /inside Coder workspaces via coder ssh/);
 
   assert.ok(
     terminalValues.includes(HELM_VALUES_ENTRY),
     "hive-terminal values include HIVE_PROJECTS_ROOT",
   );
-  assert.match(terminalValues, /Must match the web\/Coder-agent home root string/);
-  assert.match(terminalValues, /tmux sessions with cwd under the same repository tree/);
+  assert.match(terminalValues, /Must match the web\/Coder-agent workspace home root string/);
+  assert.match(terminalValues, /inside the Coder agent/);
 });
 
 test("deployment docs cover the Git discovery and clone-terminal root contract", () => {
@@ -126,12 +125,12 @@ test("deployment docs cover the Git discovery and clone-terminal root contract",
     "web service, terminal proxy, and Coder agent runtime must agree on `HIVE_PROJECTS_ROOT`",
     `The default value is \`${HOME_ROOT_VALUE}\``,
     "not limited to a strict `projects` directory",
-    "The web service scans `HIVE_PROJECTS_ROOT`",
+    "The web service scans `HIVE_PROJECTS_ROOT` inside the user's selected/running Coder workspace via `coder ssh`",
     "looking for directory or file `.git` metadata",
     "The terminal proxy validates clone terminal requests",
-    "must either be colocated with that home tree or receive an equivalent mount",
-    "bind-mount `" + "$" + "{HIVE_PROJECTS_ROOT:-/home/coder}` read-only",
-    "home folder is unavailable",
+    "passes the requested clone path under the same root to the Coder agent PTY command",
+    "containers do not need the repository tree mounted locally",
+    "workspace home root is missing",
     "no Git clones were found",
     "Discovery runs on manual refresh",
     "does not currently auto-poll",

@@ -9,12 +9,12 @@ vi.mock("@/lib/auth/session", () => ({
   getSession: vi.fn(),
 }));
 
-vi.mock("@/lib/git/clone-discovery", () => ({
-  discoverProjectCloneTree: vi.fn(),
-}));
-
 vi.mock("@/lib/coder/user-client", () => ({
   getCoderClientForUser: vi.fn(),
+}));
+
+vi.mock("@/lib/workspace/exec", () => ({
+  execInWorkspace: vi.fn(),
 }));
 
 import { verifyCloneTerminalProof } from "@hive/auth";
@@ -28,17 +28,13 @@ import {
   PROJECTS_ROOT_ENV_KEY,
   resolveConfiguredProjectsRoot,
 } from "@/lib/git/clone-actions-contract";
-import { discoverProjectCloneTree } from "@/lib/git/clone-discovery";
-import {
-  CLONE_TERMINAL_SESSION_PREFIX,
-  type CloneTree,
-  type CloneTreeNode,
-} from "@/lib/git/clone-tree";
+import { CLONE_TERMINAL_SESSION_PREFIX, type CloneTreeNode } from "@/lib/git/clone-tree";
+import { execInWorkspace } from "@/lib/workspace/exec";
 
 const mockedCookies = vi.mocked(cookies);
 const mockedGetSession = vi.mocked(getSession);
-const mockedDiscoverProjectCloneTree = vi.mocked(discoverProjectCloneTree);
 const mockedGetCoderClientForUser = vi.mocked(getCoderClientForUser);
+const mockedExecInWorkspace = vi.mocked(execInWorkspace);
 
 const MOCK_SESSION = {
   user: {
@@ -60,6 +56,39 @@ const WORKSPACE_ID = "c3d4e5f6-a7b8-9012-cdef-123456789012";
 const AGENT_ID = "a1b2c3d4-e5f6-7890-abcd-ef1234567890";
 const OTHER_AGENT_ID = "e5f6a7b8-c9d0-1234-ef12-345678901234";
 const COOKIE_SECRET = "test-cookie-secret";
+const WORKSPACE_NAME = "dev-box";
+const AGENT_NAME = "main";
+const AGENT_TARGET = `${WORKSPACE_NAME}.${AGENT_NAME}`;
+
+function makeCoderClient() {
+  return {
+    getBaseUrl: vi.fn(() => "https://coder.example.com"),
+    getSessionToken: vi.fn(() => "coder-token"),
+    listWorkspaces: vi.fn().mockResolvedValue({
+      workspaces: [
+        {
+          id: WORKSPACE_ID,
+          name: WORKSPACE_NAME,
+          latest_build: { id: "build-1", status: "running" },
+        },
+      ],
+    }),
+    getWorkspace: vi.fn().mockResolvedValue({
+      id: WORKSPACE_ID,
+      name: WORKSPACE_NAME,
+      latest_build: { id: "build-1", status: "running" },
+    }),
+    getWorkspaceAgentName: vi.fn().mockResolvedValue(AGENT_TARGET),
+    getWorkspaceResources: vi.fn().mockResolvedValue([
+      {
+        id: "resource-1",
+        name: "workspace-resource",
+        type: "docker_container",
+        agents: [{ id: AGENT_ID, name: AGENT_NAME, status: "connected" }],
+      },
+    ]),
+  };
+}
 
 describe("listGitClonesAction", () => {
   beforeEach(() => {
@@ -74,14 +103,26 @@ describe("listGitClonesAction", () => {
       get: () => ({ value: "session-cookie-value" }),
     } as never);
     mockedGetSession.mockResolvedValue(MOCK_SESSION);
+    mockedGetCoderClientForUser.mockResolvedValue(makeCoderClient() as never);
+    mockedExecInWorkspace.mockResolvedValue({
+      stdout: "kethalia/hive\n",
+      stderr: "",
+      exitCode: 0,
+    });
   });
 
   it("returns a sanitized clone tree with diagnostics for an authenticated user", async () => {
-    mockedDiscoverProjectCloneTree.mockResolvedValue(makeCloneTree());
-
     const result = await listGitClonesAction();
 
-    expect(mockedDiscoverProjectCloneTree).toHaveBeenCalledWith(resolve(PRIVATE_ROOT));
+    expect(mockedGetCoderClientForUser).toHaveBeenCalledWith(MOCK_SESSION.user.id);
+    expect(mockedExecInWorkspace).toHaveBeenCalledWith(
+      AGENT_TARGET,
+      expect.stringContaining(PRIVATE_ROOT),
+      expect.objectContaining({
+        coderUrl: "https://coder.example.com",
+        sessionToken: "coder-token",
+      }),
+    );
     expect(result?.serverError).toBeUndefined();
     expect(result?.data).toMatchObject({
       ok: true,
@@ -93,7 +134,7 @@ describe("listGitClonesAction", () => {
         directoryCount: 1,
         skippedPaths: [],
         truncated: false,
-        durationMs: 12,
+        durationMs: expect.any(Number),
       },
       error: null,
     });
@@ -103,25 +144,13 @@ describe("listGitClonesAction", () => {
       projectsLabel: "home",
       displaySegments: ["Git", "home"],
     });
-    expect(result?.data?.tree?.nodes).toEqual([repositoryNode]);
+    expect(result?.data?.tree?.nodes).toEqual([directoryNode]);
     expect(JSON.stringify(result?.data)).not.toContain(PRIVATE_ROOT);
     expect(JSON.stringify(result?.data)).not.toContain("SUPER_SECRET_TOKEN");
   });
 
   it("distinguishes an empty home root from scan failures", async () => {
-    mockedDiscoverProjectCloneTree.mockResolvedValue(
-      makeCloneTree({
-        nodes: [],
-        diagnostics: {
-          rootLabel: "Git",
-          repoCount: 0,
-          directoryCount: 0,
-          skippedPaths: [],
-          truncated: false,
-          durationMs: 4,
-        },
-      }),
-    );
+    mockedExecInWorkspace.mockResolvedValue({ stdout: "", stderr: "", exitCode: 0 });
 
     const result = await listGitClonesAction();
 
@@ -142,19 +171,11 @@ describe("listGitClonesAction", () => {
   });
 
   it("returns a safe missing-root response when the configured root is unavailable", async () => {
-    mockedDiscoverProjectCloneTree.mockResolvedValue(
-      makeCloneTree({
-        nodes: [],
-        diagnostics: {
-          rootLabel: "Git",
-          repoCount: 0,
-          directoryCount: 0,
-          skippedPaths: [{ relativePath: ".", reason: "not-directory" }],
-          truncated: false,
-          durationMs: 9,
-        },
-      }),
-    );
+    mockedExecInWorkspace.mockResolvedValue({
+      stdout: "__HIVE_PROJECTS_ROOT_MISSING__\n",
+      stderr: "",
+      exitCode: 0,
+    });
 
     const result = await listGitClonesAction();
 
@@ -170,7 +191,7 @@ describe("listGitClonesAction", () => {
         directoryCount: 0,
         skippedPaths: [{ relativePath: ".", reason: "not-directory" }],
         truncated: false,
-        durationMs: 9,
+        durationMs: expect.any(Number),
       },
       error: {
         code: "missing-root",
@@ -181,10 +202,12 @@ describe("listGitClonesAction", () => {
     expect(JSON.stringify(result?.data)).not.toContain("SUPER_SECRET_TOKEN");
   });
 
-  it("returns a sanitized scan-failed response when the scanner throws", async () => {
-    mockedDiscoverProjectCloneTree.mockRejectedValue(
-      new Error(`scan exploded at ${PRIVATE_ROOT} with SUPER_SECRET_TOKEN`),
-    );
+  it("returns a sanitized scan-failed response when the workspace scan fails", async () => {
+    mockedExecInWorkspace.mockResolvedValue({
+      stdout: "",
+      stderr: `scan exploded at ${PRIVATE_ROOT} with SUPER_SECRET_TOKEN`,
+      exitCode: 1,
+    });
 
     const result = await listGitClonesAction();
 
@@ -210,7 +233,7 @@ describe("listGitClonesAction", () => {
     const result = await listGitClonesAction();
 
     expect(result?.serverError).toBe("Not authenticated");
-    expect(mockedDiscoverProjectCloneTree).not.toHaveBeenCalled();
+    expect(mockedExecInWorkspace).not.toHaveBeenCalled();
   });
 });
 
@@ -227,16 +250,12 @@ describe("resolveGitCloneTerminalAction", () => {
       get: () => ({ value: "session-cookie-value" }),
     } as never);
     mockedGetSession.mockResolvedValue(MOCK_SESSION);
-    mockedGetCoderClientForUser.mockResolvedValue({
-      getWorkspaceResources: vi.fn().mockResolvedValue([
-        {
-          id: "resource-1",
-          name: "workspace-resource",
-          type: "docker_container",
-          agents: [{ id: AGENT_ID, name: "main", status: "connected" }],
-        },
-      ]),
-    } as never);
+    mockedGetCoderClientForUser.mockResolvedValue(makeCoderClient() as never);
+    mockedExecInWorkspace.mockResolvedValue({
+      stdout: "kethalia/hive\n",
+      stderr: "",
+      exitCode: 0,
+    });
   });
 
   it("exports home-root configuration helpers without changing list behavior", () => {
@@ -247,13 +266,7 @@ describe("resolveGitCloneTerminalAction", () => {
     expect(resolveConfiguredProjectsRoot()).toBe(resolve(DEFAULT_PROJECTS_ROOT_PATH));
   });
 
-  it("revalidates a selected repository and returns only safe route-ready terminal identity", async () => {
-    mockedDiscoverProjectCloneTree.mockResolvedValue(
-      makeCloneTree({
-        nodes: [directoryNode],
-      }),
-    );
-
+  it("revalidates a selected repository inside the workspace and returns only safe route-ready terminal identity", async () => {
     const result = await resolveGitCloneTerminalAction({
       cloneSessionKey: repositoryNode.cloneSessionKey,
       workspaceId: WORKSPACE_ID,
@@ -262,7 +275,14 @@ describe("resolveGitCloneTerminalAction", () => {
     });
 
     expect(mockedGetCoderClientForUser).toHaveBeenCalledWith(MOCK_SESSION.user.id);
-    expect(mockedDiscoverProjectCloneTree).toHaveBeenCalledWith(resolve(PRIVATE_ROOT));
+    expect(mockedExecInWorkspace).toHaveBeenCalledWith(
+      AGENT_TARGET,
+      expect.stringContaining(PRIVATE_ROOT),
+      expect.objectContaining({
+        coderUrl: "https://coder.example.com",
+        sessionToken: "coder-token",
+      }),
+    );
     expect(result?.serverError).toBeUndefined();
     expect(result?.data).toEqual({
       sessionName: expect.any(String),
@@ -292,8 +312,6 @@ describe("resolveGitCloneTerminalAction", () => {
   });
 
   it("refuses to mint a proof for an agent that is not in the authenticated user's workspace resources", async () => {
-    mockedDiscoverProjectCloneTree.mockResolvedValue(makeCloneTree());
-
     const result = await resolveGitCloneTerminalAction({
       cloneSessionKey: repositoryNode.cloneSessionKey,
       workspaceId: WORKSPACE_ID,
@@ -305,12 +323,11 @@ describe("resolveGitCloneTerminalAction", () => {
       "We couldn't verify that workspace terminal. Refresh and try again.",
     );
     expect(mockedGetCoderClientForUser).toHaveBeenCalledWith(MOCK_SESSION.user.id);
-    expect(mockedDiscoverProjectCloneTree).not.toHaveBeenCalled();
+    expect(mockedExecInWorkspace).not.toHaveBeenCalled();
   });
 
   it("returns a sanitized error when the clone proof secret is not configured", async () => {
     vi.stubEnv("COOKIE_SECRET", "");
-    mockedDiscoverProjectCloneTree.mockResolvedValue(makeCloneTree());
 
     const result = await resolveGitCloneTerminalAction({
       cloneSessionKey: repositoryNode.cloneSessionKey,
@@ -329,8 +346,6 @@ describe("resolveGitCloneTerminalAction", () => {
   });
 
   it("refuses stale or tampered selections that do not match both key and path", async () => {
-    mockedDiscoverProjectCloneTree.mockResolvedValue(makeCloneTree());
-
     const result = await resolveGitCloneTerminalAction({
       cloneSessionKey: repositoryNode.cloneSessionKey,
       workspaceId: WORKSPACE_ID,
@@ -347,7 +362,7 @@ describe("resolveGitCloneTerminalAction", () => {
   });
 
   it("refuses missing repositories after scanner revalidation", async () => {
-    mockedDiscoverProjectCloneTree.mockResolvedValue(makeCloneTree({ nodes: [] }));
+    mockedExecInWorkspace.mockResolvedValue({ stdout: "", stderr: "", exitCode: 0 });
 
     const result = await resolveGitCloneTerminalAction({
       cloneSessionKey: repositoryNode.cloneSessionKey,
@@ -363,19 +378,11 @@ describe("resolveGitCloneTerminalAction", () => {
   });
 
   it("returns a sanitized unavailable error when the configured root is missing", async () => {
-    mockedDiscoverProjectCloneTree.mockResolvedValue(
-      makeCloneTree({
-        nodes: [],
-        diagnostics: {
-          rootLabel: "Git",
-          repoCount: 0,
-          directoryCount: 0,
-          skippedPaths: [{ relativePath: ".", reason: "not-directory" }],
-          truncated: false,
-          durationMs: 9,
-        },
-      }),
-    );
+    mockedExecInWorkspace.mockResolvedValue({
+      stdout: "__HIVE_PROJECTS_ROOT_MISSING__\n",
+      stderr: "",
+      exitCode: 0,
+    });
 
     const result = await resolveGitCloneTerminalAction({
       cloneSessionKey: repositoryNode.cloneSessionKey,
@@ -391,10 +398,12 @@ describe("resolveGitCloneTerminalAction", () => {
     expect(JSON.stringify(result)).not.toContain("SUPER_SECRET_TOKEN");
   });
 
-  it("returns a generic scan failure when scanner errors contain path secrets", async () => {
-    mockedDiscoverProjectCloneTree.mockRejectedValue(
-      new Error(`scan exploded at ${PRIVATE_ROOT} with SUPER_SECRET_TOKEN`),
-    );
+  it("returns a generic scan failure when workspace scan errors contain path secrets", async () => {
+    mockedExecInWorkspace.mockResolvedValue({
+      stdout: "",
+      stderr: `scan exploded at ${PRIVATE_ROOT} with SUPER_SECRET_TOKEN`,
+      exitCode: 1,
+    });
 
     const result = await resolveGitCloneTerminalAction({
       cloneSessionKey: repositoryNode.cloneSessionKey,
@@ -428,7 +437,7 @@ describe("resolveGitCloneTerminalAction", () => {
 
     expect(emptyResult?.validationErrors).toBeDefined();
     expect(traversalResult?.validationErrors).toBeDefined();
-    expect(mockedDiscoverProjectCloneTree).not.toHaveBeenCalled();
+    expect(mockedExecInWorkspace).not.toHaveBeenCalled();
   });
 
   it("requires authentication before resolving or scanning clone terminals", async () => {
@@ -442,7 +451,7 @@ describe("resolveGitCloneTerminalAction", () => {
     });
 
     expect(result?.serverError).toBe("Not authenticated");
-    expect(mockedDiscoverProjectCloneTree).not.toHaveBeenCalled();
+    expect(mockedExecInWorkspace).not.toHaveBeenCalled();
   });
 });
 
@@ -465,25 +474,3 @@ const directoryNode = {
   displaySegments: ["Git", "home", "kethalia"],
   children: [repositoryNode],
 } satisfies CloneTreeNode;
-
-function makeCloneTree(overrides: Partial<CloneTree> = {}): CloneTree {
-  return {
-    root: {
-      id: "git-directory:Git/home",
-      path: PRIVATE_ROOT,
-      label: "Git",
-      projectsLabel: "home",
-      displaySegments: ["Git", "home"],
-    },
-    nodes: [repositoryNode],
-    diagnostics: {
-      rootLabel: "Git",
-      repoCount: 1,
-      directoryCount: 1,
-      skippedPaths: [],
-      truncated: false,
-      durationMs: 12,
-    },
-    ...overrides,
-  };
-}

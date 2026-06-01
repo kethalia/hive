@@ -126,8 +126,8 @@ config:
   # Override when deployed under a different release (e.g. umbrella where the
   # Service renders as `<umbrella-release>-hive-auth`).
   AUTH_SERVICE_URL: "http://hive-auth"
-  # Must match the web/Coder-agent home root string so clone terminals open
-  # tmux sessions with cwd under the same repository tree.
+  # Must match the web/Coder-agent workspace home root string so clone terminals open
+  # tmux sessions with cwd under the same repository tree inside the Coder agent.
   HIVE_PROJECTS_ROOT: "/home/coder"
 
 nodeSelector: {}

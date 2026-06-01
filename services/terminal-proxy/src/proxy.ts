@@ -1,5 +1,4 @@
 import { createHash, randomUUID } from "node:crypto";
-import { realpath, stat } from "node:fs/promises";
 import type { IncomingMessage } from "node:http";
 import path from "node:path";
 import type { Duplex } from "node:stream";
@@ -236,42 +235,12 @@ async function validateCloneCwd(
     return { ok: false, reason: "clonePath_escape" };
   }
 
-  const realCwd = await resolveRealCloneCwd(projectsRoot, cwd);
-  if (!realCwd.ok) {
-    return realCwd;
-  }
-
   return {
     ok: true,
-    cwd: realCwd.cwd,
+    cwd,
     cloneProof: cloneProof ?? undefined,
     proofExpectation: proofExpectationWithPath,
   };
-}
-
-async function resolveRealCloneCwd(
-  projectsRoot: string,
-  cwd: string,
-): Promise<{ ok: true; cwd: string } | { ok: false; reason: string }> {
-  try {
-    const [realProjectsRoot, realCwd] = await Promise.all([realpath(projectsRoot), realpath(cwd)]);
-    const cwdStat = await stat(realCwd);
-    if (!cwdStat.isDirectory()) {
-      return { ok: false, reason: "clonePath_not_directory" };
-    }
-
-    const realProjectsRootPrefix = realProjectsRoot.endsWith(path.sep)
-      ? realProjectsRoot
-      : `${realProjectsRoot}${path.sep}`;
-
-    if (realCwd === realProjectsRoot || !realCwd.startsWith(realProjectsRootPrefix)) {
-      return { ok: false, reason: "clonePath_realpath_escape" };
-    }
-
-    return { ok: true, cwd: realCwd };
-  } catch {
-    return { ok: false, reason: "clonePath_unavailable" };
-  }
 }
 
 export async function handleUpgrade(

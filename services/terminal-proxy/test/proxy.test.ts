@@ -18,11 +18,6 @@ vi.mock("../src/auth.js", () => ({
   authenticateUpgrade: vi.fn(() => Promise.resolve(mockAuthResult)),
 }));
 
-vi.mock("node:fs/promises", () => ({
-  realpath: vi.fn(async (target: string) => target),
-  stat: vi.fn(async () => ({ isDirectory: () => true })),
-}));
-
 vi.mock("ws", () => {
   const mockWsInstance = {
     on: vi.fn(),
@@ -47,13 +42,10 @@ vi.mock("ws", () => {
   return { WebSocket, WebSocketServer, default: { WebSocket, WebSocketServer } };
 });
 
-import { realpath, stat } from "node:fs/promises";
 import { WebSocket } from "ws";
 import { authenticateUpgrade } from "../src/auth.js";
 import { handleUpgrade, isOriginAllowed } from "../src/proxy.js";
 
-const mockRealpath = vi.mocked(realpath);
-const mockStat = vi.mocked(stat);
 const mockAuth = authenticateUpgrade as ReturnType<typeof vi.fn>;
 
 function makeReq(query: Record<string, string>, origin = "http://localhost:3000"): IncomingMessage {
@@ -172,8 +164,6 @@ describe("handleUpgrade", () => {
       COOKIE_SECRET: CLONE_PROOF_SECRET,
     };
     vi.clearAllMocks();
-    mockRealpath.mockImplementation(async (target) => String(target));
-    mockStat.mockResolvedValue({ isDirectory: () => true } as never);
     mockAuth.mockResolvedValue(mockAuthResult);
   });
 
@@ -548,23 +538,6 @@ describe("handleUpgrade", () => {
     expect(logged).not.toContain("/secret/projects-root");
     expect(mockAuth).not.toHaveBeenCalled();
     errorSpy.mockRestore();
-  });
-
-  it("rejects clone cwd realpath escapes before opening upstream", async () => {
-    mockRealpath.mockImplementation(async (target) => {
-      const value = String(target);
-      if (value.endsWith("/kethalia/hive")) {
-        return "/secret/outside/kethalia/hive";
-      }
-      return value;
-    });
-
-    const logged = await captureConsoleErrors(async () => {
-      await expectBadUpgrade(createCloneRequestParams("kethalia/hive"));
-    });
-
-    expect(logged).toContain("clonePath_realpath_escape");
-    expect(mockAuth).not.toHaveBeenCalled();
   });
 
   it("sets handshakeTimeout on upstream WebSocket", async () => {

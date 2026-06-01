@@ -54,6 +54,7 @@ export interface DiscoverProjectCloneTreeOptions extends CloneTreeDisplayOptions
 type GitMetadataState = "repository" | "not-repository" | "permission-denied" | "scan-error";
 
 interface ScanContext {
+  readonly root: CloneTree["root"];
   readonly rootPath: string;
   readonly displayOptions: CloneTreeDisplayOptions;
   readonly maxDepth: number;
@@ -74,14 +75,69 @@ export async function discoverProjectCloneTree(
   projectsRootPath: string,
   options: DiscoverProjectCloneTreeOptions = {},
 ): Promise<CloneTree> {
-  const root = createCloneTreeRootMetadata(projectsRootPath, options);
+  const context = createScanContext(projectsRootPath, options);
   const now = options.now ?? Date.now;
   const startedAt = now();
+
+  try {
+    const rootStats = await lstat(context.root.path);
+
+    if (!rootStats.isDirectory()) {
+      addSkippedPath(context, [], "not-directory");
+    } else {
+      await scanDirectory(context.root.path, [], context);
+    }
+  } catch (error) {
+    addSkippedPath(context, [], mapFilesystemErrorToSkippedReason(error, "not-directory"));
+  }
+
+  return materializeCloneTree(context, Math.max(0, Math.round(now() - startedAt)));
+}
+
+export function createCloneTreeFromRepositoryRelativePaths(
+  projectsRootPath: string,
+  repositoryRelativePaths: readonly string[],
+  options: DiscoverProjectCloneTreeOptions = {},
+): CloneTree {
+  const context = createScanContext(projectsRootPath, options);
+  const now = options.now ?? Date.now;
+  const startedAt = now();
+
+  for (const relativePath of repositoryRelativePaths) {
+    if (context.repositories.length >= context.maxRepositories) {
+      context.truncated = true;
+      break;
+    }
+
+    const normalizedPath = normalizeRootContainedClonePath(
+      context.rootPath,
+      relativePath,
+      context.displayOptions,
+    );
+
+    if (!normalizedPath) {
+      addSkippedPath(context, [relativePath || "."], "invalid-path");
+      continue;
+    }
+
+    context.repositories.push(normalizedPath);
+  }
+
+  return materializeCloneTree(context, Math.max(0, Math.round(now() - startedAt)));
+}
+
+function createScanContext(
+  projectsRootPath: string,
+  options: DiscoverProjectCloneTreeOptions,
+): ScanContext {
+  const root = createCloneTreeRootMetadata(projectsRootPath, options);
   const displayOptions: CloneTreeDisplayOptions = {
     projectsLabel: root.projectsLabel,
     rootLabel: root.label,
   };
-  const context: ScanContext = {
+
+  return {
+    root,
     rootPath: root.path,
     displayOptions,
     maxDepth: normalizeNonNegativeInteger(options.maxDepth, DEFAULT_CLONE_DISCOVERY_MAX_DEPTH),
@@ -96,31 +152,20 @@ export async function discoverProjectCloneTree(
     skippedPaths: [],
     truncated: false,
   };
+}
 
-  try {
-    const rootStats = await lstat(root.path);
-
-    if (!rootStats.isDirectory()) {
-      addSkippedPath(context, [], "not-directory");
-    } else {
-      await scanDirectory(root.path, [], context);
-    }
-  } catch (error) {
-    addSkippedPath(context, [], mapFilesystemErrorToSkippedReason(error, "not-directory"));
-  }
-
+function materializeCloneTree(context: ScanContext, durationMs: number): CloneTree {
   const { directoryCount, nodes } = buildCloneTreeNodes(
-    root.path,
+    context.root.path,
     context.repositories,
-    displayOptions,
+    context.displayOptions,
   );
-  const durationMs = Math.max(0, Math.round(now() - startedAt));
 
   return {
-    root,
+    root: context.root,
     nodes,
     diagnostics: {
-      rootLabel: root.label,
+      rootLabel: context.root.label,
       repoCount: context.repositories.length,
       directoryCount,
       skippedPaths: context.skippedPaths,
