@@ -11,16 +11,16 @@ This document is a fillable evidence contract. It may be committed with placehol
 - **Run status:** `BLOCKED`
 - **Tester:** `GSD auto-mode agent`
 - **Run date and timezone:** `2026-06-01 UTC`
-- **Related UAT run:** `not run - no real mobile device or mobile browser runtime was available to this execution session`
-- **Overall result:** `R024 is not validated by this run; real-device keyboard and tmux proof remains blocked until a physical iOS PWA or real mobile browser run is collected`
+- **Related UAT run:** `not run - no physical mobile device, installed PWA, or real mobile browser runtime was available to this execution session`
+- **Overall result:** `R024 is not validated by this T06 run; real-device keyboard and tmux proof remains blocked until a physical iOS PWA or real mobile browser run is collected`
 
 ## Blocker note
 
-This T05 execution session had no attached physical iOS or Android device tooling, no simulator bridge, and no browser environment variable suitable for authoritative software-keyboard evidence. Browser emulation and source inspection are intentionally not accepted substitutes for this task, so the required viewport, xterm/FitAddon, resize-sent, and tmux numeric observations were not collected.
+This T06 execution session had no attached physical iOS or Android device tooling, no simulator bridge, and no browser environment variable suitable for authoritative software-keyboard evidence. Browser emulation, jsdom, automated unit tests, and source inspection are intentionally not accepted substitutes for this task, so the required viewport, xterm/FitAddon, resize-sent, and tmux numeric observations were not collected.
 
 ## Redaction boundary
 
-Only record geometry, dimensions, timing, counters, and boolean visibility results from the debug overlay. Do not paste terminal buffer contents, command input, hidden input contents, session proof values, authentication material, cookies, upstream connection URLs, filesystem paths, or checkout-specific absolute paths. If a copied diagnostic snapshot contains any of those values, stop the run and file a diagnostics redaction bug instead of pasting the snapshot here.
+Only record geometry, dimensions, timing, counters, and boolean visibility results from the debug overlay. Do not paste command output, command input, hidden input contents, repository validation material, authentication material, cookies, upstream connection URLs, filesystem locations, or checkout-specific absolute locations. If a copied diagnostic snapshot contains any of those values, stop the run and file a diagnostics redaction bug instead of pasting the snapshot here.
 
 When recording the route, use only the route and query shape. Replace workspace identifiers and session names with placeholders.
 
@@ -36,7 +36,7 @@ When recording the route, use only the route and query shape. Replace workspace 
 - **Browser or installed PWA mode:** `not observed - blocked before real-device run`
 - **Browser version, if visible:** `not observed - blocked before real-device run`
 - **Orientation:** `not observed - blocked before real-device run`
-- **Viewport mode notes:** `No authoritative mobile visualViewport or software-keyboard behavior was observed in this session.`
+- **Viewport mode notes:** `No authoritative mobile visualViewport or software-keyboard behavior was observed in this T06 session.`
 - **Route/query shape used:** `/workspaces/<workspace-id>/terminal?session=<session-name>&debugViewport=1`
 
 ## Required acceptance observations
@@ -132,7 +132,7 @@ If the run fails, identify the first observed break in the chain.
 - **resize-request changed but resize-sent did not:** `yes | no | PENDING`
 - **resize-sent changed but tmux dimensions did not:** `yes | no | PENDING`
 - **All dimensions changed but terminal bottom was clipped:** `yes | no | PENDING`
-- **Notes:** `Blocked before the diagnostic chain could be exercised because no accepted real mobile runtime was available in this execution session.`
+- **Notes:** `Blocked before the diagnostic chain could be exercised because no accepted physical mobile device, installed PWA, or real mobile browser runtime was available in this T06 execution session.`
 
 ## Evidence attachments checklist
 
