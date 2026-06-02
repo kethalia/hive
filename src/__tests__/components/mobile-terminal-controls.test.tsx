@@ -4,18 +4,13 @@ import "@testing-library/jest-dom/vitest";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { TERMINAL_COMPOSE_OPEN_EVENT } from "@/lib/terminal/events";
 
-const { mockActiveSend } = vi.hoisted(() => ({ mockActiveSend: vi.fn() }));
+const { mockActiveSend, mockUseKeybindings } = vi.hoisted(() => ({
+  mockActiveSend: vi.fn(),
+  mockUseKeybindings: vi.fn(),
+}));
 
 vi.mock("@/hooks/useKeybindings", () => ({
-  useKeybindings: vi.fn(() => ({
-    register: vi.fn(),
-    unregister: vi.fn(),
-    getAll: vi.fn(() => []),
-    handleKeyEvent: vi.fn(() => false),
-    activeTerminal: null,
-    activeSend: mockActiveSend,
-    setActiveTerminal: vi.fn(),
-  })),
+  useKeybindings: mockUseKeybindings,
 }));
 
 const { mockUseTerminalFontStep, mockIncreaseFontSize, mockDecreaseFontSize } = vi.hoisted(() => ({
@@ -116,6 +111,16 @@ beforeEach(() => {
   installObserverMocks();
   localStorage.clear();
   mockActiveSend.mockClear();
+  mockUseKeybindings.mockReset();
+  mockUseKeybindings.mockReturnValue({
+    register: vi.fn(),
+    unregister: vi.fn(),
+    getAll: vi.fn(() => []),
+    handleKeyEvent: vi.fn(() => false),
+    activeTerminal: null,
+    activeSend: mockActiveSend,
+    setActiveTerminal: vi.fn(),
+  });
   mockIncreaseFontSize.mockClear();
   mockDecreaseFontSize.mockClear();
   mockUseTerminalFontStep.mockReset();
@@ -153,7 +158,9 @@ describe("MobileTerminalControls", () => {
       ),
     ).toEqual([
       "Key controls",
+      "Control controls",
       "Navigation controls",
+      "Position controls",
       "Windows controls",
       "Compose controls",
       "Font size controls",
@@ -165,13 +172,34 @@ describe("MobileTerminalControls", () => {
     const enterButton = within(quickActions).getByRole("button", { name: "Enter" });
     const tabButton = within(quickActions).getByRole("button", { name: "Tab" });
     const escButton = within(quickActions).getByRole("button", { name: "Esc" });
-    const ctrlCButton = within(quickActions).getByRole("button", { name: "Ctrl+C" });
+    const backspaceButton = within(quickActions).getByRole("button", { name: "Backspace" });
     expect(enterButton).toHaveClass("min-h-14", "min-w-0");
     expectStackedLabelThenIcon(enterButton, "Enter");
     expectStackedLabelThenIcon(tabButton, "Tab");
     expectStackedLabelThenIcon(escButton, "Esc");
-    expectStackedLabelThenIcon(ctrlCButton, "Ctrl+C");
+    expectStackedLabelThenIcon(backspaceButton, "Backspace");
     expect(within(quickActions).queryByRole("button", { name: "More" })).not.toBeInTheDocument();
+
+    const controlKeys = within(carousel).getByRole("group", {
+      name: "Terminal control keys",
+    });
+    expect(controlKeys).toHaveClass("grid", "w-full", "grid-cols-4", "rounded-none");
+    expectStackedLabelThenIcon(
+      within(controlKeys).getByRole("button", { name: "Ctrl+C" }),
+      "Ctrl+C",
+    );
+    expectStackedLabelThenIcon(
+      within(controlKeys).getByRole("button", { name: "Ctrl+D" }),
+      "Ctrl+D",
+    );
+    expectStackedLabelThenIcon(
+      within(controlKeys).getByRole("button", { name: "Ctrl+L" }),
+      "Ctrl+L",
+    );
+    expectStackedLabelThenIcon(
+      within(controlKeys).getByRole("button", { name: "Ctrl+R" }),
+      "Ctrl+R",
+    );
 
     const navigationControls = within(carousel).getByRole("group", {
       name: "Terminal navigation keys",
@@ -180,6 +208,27 @@ describe("MobileTerminalControls", () => {
     const upButton = within(navigationControls).getByRole("button", { name: "Up" });
     expect(upButton).toHaveClass("min-h-14", "min-w-0");
     expectStackedLabelThenIcon(upButton, "Up");
+
+    const positionControls = within(carousel).getByRole("group", {
+      name: "Terminal position keys",
+    });
+    expect(positionControls).toHaveClass("grid", "w-full", "grid-cols-4", "rounded-none");
+    expectStackedLabelThenIcon(
+      within(positionControls).getByRole("button", { name: "Home" }),
+      "Home",
+    );
+    expectStackedLabelThenIcon(
+      within(positionControls).getByRole("button", { name: "End" }),
+      "End",
+    );
+    expectStackedLabelThenIcon(
+      within(positionControls).getByRole("button", { name: "PgUp" }),
+      "PgUp",
+    );
+    expectStackedLabelThenIcon(
+      within(positionControls).getByRole("button", { name: "PgDn" }),
+      "PgDn",
+    );
 
     const windowControls = within(carousel).getByRole("group", {
       name: "Terminal window controls",
@@ -222,6 +271,12 @@ describe("MobileTerminalControls", () => {
       "page",
     );
     expect(
+      within(pageDots).getByRole("button", { name: "Show Control controls" }),
+    ).not.toHaveAttribute("aria-current");
+    expect(
+      within(pageDots).getByRole("button", { name: "Show Position controls" }),
+    ).not.toHaveAttribute("aria-current");
+    expect(
       within(pageDots).getByRole("button", { name: "Show Windows controls" }),
     ).not.toHaveAttribute("aria-current");
     expect(
@@ -242,10 +297,12 @@ describe("MobileTerminalControls", () => {
     expect(screen.getByLabelText("Terminal control pages")).toHaveClass("order-1", "mb-1");
   });
 
-  it("sends sequences from the first carousel page", () => {
+  it("sends fixed smart-key sequences from catalog pages", () => {
     render(<MobileTerminalControls />);
     const carousel = screen.getByRole("region", { name: "Terminal controls carousel" });
     const quickActions = within(carousel).getByRole("group", { name: "Terminal quick actions" });
+    const controlKeys = within(carousel).getByRole("group", { name: "Terminal control keys" });
+    const positionKeys = within(carousel).getByRole("group", { name: "Terminal position keys" });
 
     fireEvent.click(within(quickActions).getByRole("button", { name: "Enter" }));
     expect(mockActiveSend).toHaveBeenCalledWith("\r");
@@ -253,8 +310,44 @@ describe("MobileTerminalControls", () => {
     expect(mockActiveSend).toHaveBeenCalledWith("\t");
     fireEvent.click(within(quickActions).getByRole("button", { name: "Esc" }));
     expect(mockActiveSend).toHaveBeenCalledWith("\x1b");
-    fireEvent.click(within(quickActions).getByRole("button", { name: "Ctrl+C" }));
+    fireEvent.click(within(quickActions).getByRole("button", { name: "Backspace" }));
+    expect(mockActiveSend).toHaveBeenCalledWith("\x7f");
+
+    fireEvent.click(within(controlKeys).getByRole("button", { name: "Ctrl+C" }));
     expect(mockActiveSend).toHaveBeenCalledWith("\x03");
+    fireEvent.click(within(controlKeys).getByRole("button", { name: "Ctrl+D" }));
+    expect(mockActiveSend).toHaveBeenCalledWith("\x04");
+    fireEvent.click(within(controlKeys).getByRole("button", { name: "Ctrl+L" }));
+    expect(mockActiveSend).toHaveBeenCalledWith("\x0c");
+    fireEvent.click(within(controlKeys).getByRole("button", { name: "Ctrl+R" }));
+    expect(mockActiveSend).toHaveBeenCalledWith("\x12");
+
+    fireEvent.click(within(positionKeys).getByRole("button", { name: "Home" }));
+    expect(mockActiveSend).toHaveBeenCalledWith("\x1b[H");
+    fireEvent.click(within(positionKeys).getByRole("button", { name: "End" }));
+    expect(mockActiveSend).toHaveBeenCalledWith("\x1b[F");
+    fireEvent.click(within(positionKeys).getByRole("button", { name: "PgUp" }));
+    expect(mockActiveSend).toHaveBeenCalledWith("\x1b[5~");
+    fireEvent.click(within(positionKeys).getByRole("button", { name: "PgDn" }));
+    expect(mockActiveSend).toHaveBeenCalledWith("\x1b[6~");
+  });
+
+  it("does not throw when activeSend is unavailable", () => {
+    const onHapticFeedback = vi.fn();
+    mockUseKeybindings.mockReturnValue({
+      register: vi.fn(),
+      unregister: vi.fn(),
+      getAll: vi.fn(() => []),
+      handleKeyEvent: vi.fn(() => false),
+      activeTerminal: null,
+      activeSend: null,
+      setActiveTerminal: vi.fn(),
+    });
+    render(<MobileTerminalControls onHapticFeedback={onHapticFeedback} />);
+
+    expect(() => fireEvent.click(screen.getByRole("button", { name: "Ctrl+D" }))).not.toThrow();
+    expect(onHapticFeedback).toHaveBeenCalledTimes(1);
+    expect(mockActiveSend).not.toHaveBeenCalled();
   });
 
   it("uses Apple-style dots to page secondary controls", () => {
@@ -417,8 +510,9 @@ describe("MobileTerminalControls", () => {
     expect(
       within(windowControls).getByRole("button", { name: "Switch to next terminal window" }),
     ).toBeDisabled();
-    expect(screen.getByText("Terminal window navigation error: Failed to load terminal sessions"))
-      .toBeInTheDocument();
+    expect(
+      screen.getByText("Terminal window navigation error: Failed to load terminal sessions"),
+    ).toBeInTheDocument();
 
     fireEvent.click(
       within(windowControls).getByRole("button", { name: "Retry loading terminal windows" }),
@@ -564,26 +658,33 @@ describe("MobileTerminalControls", () => {
   it("prevents pointer and mouse focus changes on controls so the terminal keyboard stays open", () => {
     render(<MobileTerminalControls windowNavigation={makeWindowNavigation()} />);
     const enter = screen.getByRole("button", { name: "Enter" });
+    const ctrlD = screen.getByRole("button", { name: "Ctrl+D" });
     const dot = screen.getByRole("button", { name: "Show Navigation controls" });
     const switcher = screen.getByRole("button", { name: "Open terminal window switcher" });
     const pointerEvent = new Event("pointerdown", { bubbles: true, cancelable: true });
+    const ctrlDPointerEvent = new Event("pointerdown", { bubbles: true, cancelable: true });
     const dotPointerEvent = new Event("pointerdown", { bubbles: true, cancelable: true });
     const switcherPointerEvent = new Event("pointerdown", { bubbles: true, cancelable: true });
     const mouseEvent = new Event("mousedown", { bubbles: true, cancelable: true });
+    const ctrlDMouseEvent = new Event("mousedown", { bubbles: true, cancelable: true });
     const dotMouseEvent = new Event("mousedown", { bubbles: true, cancelable: true });
     const switcherMouseEvent = new Event("mousedown", { bubbles: true, cancelable: true });
 
     fireEvent(enter, pointerEvent);
+    fireEvent(ctrlD, ctrlDPointerEvent);
     fireEvent(dot, dotPointerEvent);
     fireEvent(switcher, switcherPointerEvent);
     fireEvent(enter, mouseEvent);
+    fireEvent(ctrlD, ctrlDMouseEvent);
     fireEvent(dot, dotMouseEvent);
     fireEvent(switcher, switcherMouseEvent);
 
     expect(pointerEvent.defaultPrevented).toBe(true);
+    expect(ctrlDPointerEvent.defaultPrevented).toBe(true);
     expect(dotPointerEvent.defaultPrevented).toBe(true);
     expect(switcherPointerEvent.defaultPrevented).toBe(true);
     expect(mouseEvent.defaultPrevented).toBe(true);
+    expect(ctrlDMouseEvent.defaultPrevented).toBe(true);
     expect(dotMouseEvent.defaultPrevented).toBe(true);
     expect(switcherMouseEvent.defaultPrevented).toBe(true);
   });

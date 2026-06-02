@@ -30,24 +30,30 @@ import { useKeybindings } from "@/hooks/useKeybindings";
 import { useTerminalFontStep } from "@/hooks/useTerminalFontStep";
 import { NO_TOUCH_STYLE } from "@/lib/gestures/conventions";
 import { TERMINAL_COMPOSE_OPEN_EVENT } from "@/lib/terminal/events";
-import { VIRTUAL_KEY_SEQUENCES } from "@/lib/terminal/virtual-keys";
+import {
+  MOBILE_SMART_KEY_PAGES,
+  type MobileSmartKeyIconName,
+} from "@/lib/terminal/mobile-smart-keys";
 import { cn } from "@/lib/utils";
 
-const NAVIGATION_KEYS = [
-  { label: "Up", icon: ArrowUp, sequence: VIRTUAL_KEY_SEQUENCES.Up },
-  { label: "Down", icon: ArrowDown, sequence: VIRTUAL_KEY_SEQUENCES.Down },
-  { label: "Left", icon: ArrowLeft, sequence: VIRTUAL_KEY_SEQUENCES.Left },
-  { label: "Right", icon: ArrowRight, sequence: VIRTUAL_KEY_SEQUENCES.Right },
-] as const;
+const MOBILE_SMART_KEY_ICONS: Record<MobileSmartKeyIconName, LucideIcon> = {
+  ArrowDown,
+  ArrowLeft,
+  ArrowRight,
+  ArrowRightToLine,
+  ArrowUp,
+  CornerDownLeft,
+  DoorOpen,
+  RefreshCw,
+  X,
+};
 
-const QUICK_ROW_KEYS = [
-  { label: "Enter", icon: CornerDownLeft, sequence: VIRTUAL_KEY_SEQUENCES.Enter },
-  { label: "Tab", icon: ArrowRightToLine, sequence: VIRTUAL_KEY_SEQUENCES.Tab },
-  { label: "Esc", icon: DoorOpen, sequence: VIRTUAL_KEY_SEQUENCES.Esc },
-  { label: "Ctrl+C", icon: X, sequence: VIRTUAL_KEY_SEQUENCES.CtrlC },
+const CONTROL_PAGES = [
+  ...MOBILE_SMART_KEY_PAGES.map((page) => page.label),
+  "Windows",
+  "Compose",
+  "Font size",
 ] as const;
-
-const CONTROL_PAGES = ["Keys", "Navigation", "Windows", "Compose", "Font size"] as const;
 const STACKED_BUTTON_CLASS = "min-h-14 min-w-0 flex-col gap-1 px-1 py-2 text-xs leading-none";
 
 interface MobileTerminalWindowSession {
@@ -63,7 +69,7 @@ export interface MobileTerminalWindowNavigation {
   canGoNext?: boolean;
   loading?: boolean;
   error?: string | null;
-  select?: (sessionName: string) => boolean | void;
+  select?: (sessionName: string) => boolean | undefined;
   reload?: () => void;
   onOpenSwitcher?: () => void;
 }
@@ -236,49 +242,36 @@ export function MobileTerminalControls({
         setApi={setCarouselApi}
       >
         <CarouselContent className="-ml-2">
-          <CarouselItem aria-label="Key controls" className="pl-2">
-            <ButtonGroup
-              aria-label="Terminal quick actions"
-              className="grid w-full grid-cols-4 rounded-none"
+          {MOBILE_SMART_KEY_PAGES.map((page) => (
+            <CarouselItem
+              key={page.id}
+              aria-label={page.id === "keys" ? "Key controls" : `${page.label} controls`}
+              className="pl-2"
             >
-              {QUICK_ROW_KEYS.map(({ label, icon: Icon, sequence }) => (
-                <Button
-                  key={label}
-                  type="button"
-                  variant="outline"
-                  className={STACKED_BUTTON_CLASS}
-                  style={NO_TOUCH_STYLE}
-                  onPointerDown={keepTerminalKeyboardOpen}
-                  onMouseDown={keepTerminalKeyboardOpen}
-                  onClick={() => sendKey(sequence)}
-                >
-                  <MobileControlButtonContent Icon={Icon} label={label} />
-                </Button>
-              ))}
-            </ButtonGroup>
-          </CarouselItem>
-
-          <CarouselItem aria-label="Navigation controls" className="pl-2">
-            <ButtonGroup
-              aria-label="Terminal navigation keys"
-              className="grid w-full grid-cols-4 rounded-none"
-            >
-              {NAVIGATION_KEYS.map(({ label, icon: Icon, sequence }) => (
-                <Button
-                  key={label}
-                  type="button"
-                  variant="outline"
-                  className={STACKED_BUTTON_CLASS}
-                  style={NO_TOUCH_STYLE}
-                  onPointerDown={keepTerminalKeyboardOpen}
-                  onMouseDown={keepTerminalKeyboardOpen}
-                  onClick={() => sendKey(sequence)}
-                >
-                  <MobileControlButtonContent Icon={Icon} label={label} />
-                </Button>
-              ))}
-            </ButtonGroup>
-          </CarouselItem>
+              <ButtonGroup
+                aria-label={page.ariaLabel}
+                className="grid w-full grid-cols-4 rounded-none"
+              >
+                {page.keys.map(({ id, label, iconName, sequence }) => {
+                  const Icon = MOBILE_SMART_KEY_ICONS[iconName];
+                  return (
+                    <Button
+                      key={id}
+                      type="button"
+                      variant="outline"
+                      className={STACKED_BUTTON_CLASS}
+                      style={NO_TOUCH_STYLE}
+                      onPointerDown={keepTerminalKeyboardOpen}
+                      onMouseDown={keepTerminalKeyboardOpen}
+                      onClick={() => sendKey(sequence)}
+                    >
+                      <MobileControlButtonContent Icon={Icon} label={label} />
+                    </Button>
+                  );
+                })}
+              </ButtonGroup>
+            </CarouselItem>
+          ))}
 
           <CarouselItem aria-label="Windows controls" className="pl-2">
             <div className="flex flex-col gap-1">
