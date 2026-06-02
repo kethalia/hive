@@ -36,17 +36,13 @@ export function mobileViewportLockedHeight(isKeyboardVisible: boolean): string {
   return isKeyboardVisible ? "var(--app-visual-viewport-height)" : "var(--app-viewport-height)";
 }
 
-export function mobileTerminalFrameStyle(isKeyboardVisible: boolean): CSSProperties {
-  const height = isKeyboardVisible
-    ? MOBILE_TERMINAL_FRAME_HEIGHT_WITH_VISUAL_VIEWPORT
-    : MOBILE_TERMINAL_FRAME_HEIGHT_WITH_LAYOUT_VIEWPORT;
+export function mobileTerminalFrameStyle(_isKeyboardVisible: boolean): CSSProperties {
+  const height = MOBILE_TERMINAL_FRAME_HEIGHT_WITH_VISUAL_VIEWPORT;
 
   return {
     height,
     maxHeight: height,
-    top: isKeyboardVisible
-      ? MOBILE_TERMINAL_TOP_OFFSET_WITH_VISUAL_VIEWPORT
-      : MOBILE_TERMINAL_TOP_OFFSET,
+    top: MOBILE_TERMINAL_TOP_OFFSET_WITH_VISUAL_VIEWPORT,
   };
 }
 

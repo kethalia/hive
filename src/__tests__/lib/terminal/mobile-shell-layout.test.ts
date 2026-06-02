@@ -5,9 +5,7 @@ import {
   applyMobileViewportLock,
   COMPOSE_SHEET_KEYBOARD_BOTTOM_OFFSET,
   composeSheetKeyboardStyle,
-  MOBILE_TERMINAL_FRAME_HEIGHT_WITH_LAYOUT_VIEWPORT,
   MOBILE_TERMINAL_FRAME_HEIGHT_WITH_VISUAL_VIEWPORT,
-  MOBILE_TERMINAL_TOP_OFFSET,
   MOBILE_TERMINAL_TOP_OFFSET_WITH_VISUAL_VIEWPORT,
   mobileTerminalFrameStyle,
   mobileViewportLockedHeight,
@@ -25,12 +23,12 @@ afterEach(() => {
 });
 
 describe("mobile shell layout", () => {
-  it("uses layout viewport height when the keyboard is hidden", () => {
+  it("keeps the terminal frame on visual viewport measurements even before keyboard detection flips", () => {
     expect(mobileViewportLockedHeight(false)).toBe("var(--app-viewport-height)");
     expect(mobileTerminalFrameStyle(false)).toEqual({
-      height: MOBILE_TERMINAL_FRAME_HEIGHT_WITH_LAYOUT_VIEWPORT,
-      maxHeight: MOBILE_TERMINAL_FRAME_HEIGHT_WITH_LAYOUT_VIEWPORT,
-      top: MOBILE_TERMINAL_TOP_OFFSET,
+      height: MOBILE_TERMINAL_FRAME_HEIGHT_WITH_VISUAL_VIEWPORT,
+      maxHeight: MOBILE_TERMINAL_FRAME_HEIGHT_WITH_VISUAL_VIEWPORT,
+      top: MOBILE_TERMINAL_TOP_OFFSET_WITH_VISUAL_VIEWPORT,
     });
     expect(composeSheetKeyboardStyle(false)).toEqual({
       bottom: "0px",
