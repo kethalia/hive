@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 import "@testing-library/jest-dom/vitest";
-import { act, cleanup, fireEvent, render, waitFor } from "@testing-library/react";
+import { act, cleanup, createEvent, fireEvent, render, waitFor } from "@testing-library/react";
 import type React from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
@@ -624,6 +624,7 @@ type RenderTerminalOptions = {
   layoutSignal?: unknown;
   mobileInputMode?: boolean;
   pinToBottomOnResize?: boolean;
+  selectionModeEnabled?: boolean;
   sessionName?: string;
 };
 
@@ -1083,6 +1084,13 @@ describe("TerminalClient integration — Mobile terminal route props", () => {
       );
     });
 
+    const suppressedContextMenu = createEvent.contextMenu(getByTestId("terminal-gesture-layer"), {
+      bubbles: true,
+      cancelable: true,
+    });
+    fireEvent(getByTestId("terminal-gesture-layer"), suppressedContextMenu);
+    expect(suppressedContextMenu.defaultPrevented).toBe(true);
+
     fireEvent.click(getByTestId("terminal-selection-toggle"));
 
     expect(getByTestId("terminal-mobile-controls")).toHaveAttribute(
@@ -1097,7 +1105,21 @@ describe("TerminalClient integration — Mobile terminal route props", () => {
       "data-selection-mode-enabled",
       "true",
     );
+    expect(getByTestId("terminal-gesture-layer").parentElement).toHaveAttribute(
+      "data-sidebar-gesture-ignore",
+      "true",
+    );
     expect(getByTestId("terminal-clipboard-status")).toHaveTextContent("Selection mode on");
+
+    const nativeSelectionContextMenu = createEvent.contextMenu(
+      getByTestId("terminal-gesture-layer"),
+      {
+        bubbles: true,
+        cancelable: true,
+      },
+    );
+    fireEvent(getByTestId("terminal-gesture-layer"), nativeSelectionContextMenu);
+    expect(nativeSelectionContextMenu.defaultPrevented).toBe(false);
     unmount();
   });
 
@@ -1458,6 +1480,56 @@ describe("InteractiveTerminal integration — Mobile input adapter", () => {
 
     expect(touchMove.defaultPrevented).toBe(true);
     expect(terminal?.scrollLines).toHaveBeenCalledWith(4);
+    expect(terminal?.focus).not.toHaveBeenCalled();
+    unmount();
+  });
+
+  it("keeps selection mode passive so native text selection wins over keyboard, scroll, and sidebar gestures", async () => {
+    const { container, rerender, unmount } = await renderTerminal({ mobileInputMode: true });
+    const terminal = terminalInstances.at(-1);
+    expect(terminal).toBeDefined();
+
+    const helper = container.querySelector<HTMLTextAreaElement>(".xterm-helper-textarea");
+    expect(helper).toHaveAttribute("data-terminal-mobile-input", "true");
+    helper?.focus();
+    expect(document.activeElement).toBe(helper);
+
+    const { InteractiveTerminal } = await import("@/components/workspaces/InteractiveTerminal");
+    await act(async () => {
+      rerender(
+        <InteractiveTerminal
+          agentId="test-agent"
+          mobileInputMode
+          selectionModeEnabled
+          sessionName="main"
+          workspaceId="test-ws"
+        />,
+      );
+    });
+    await flushTerminalEffects();
+
+    const inputTarget = container.querySelector(".flex-1.p-1");
+    expect(inputTarget).toHaveAttribute("data-sidebar-gesture-ignore", "true");
+    expect(inputTarget).toHaveAttribute("data-terminal-selection-mode", "true");
+    expect(inputTarget).not.toHaveAttribute("data-terminal-pinch-zoom");
+    expect(helper).not.toHaveAttribute("data-terminal-mobile-input");
+    expect(document.activeElement).not.toBe(helper);
+
+    terminal?.focus.mockClear();
+    terminal?.scrollLines.mockClear();
+    fireEvent.pointerDown(inputTarget as Element, {
+      clientX: 80,
+      clientY: 240,
+      pointerId: 1,
+      pointerType: "touch",
+    });
+    fireTouchEvent(inputTarget as Element, "touchstart", [touchPoint(1, 80, 320)]);
+    const touchMove = fireTouchEvent(inputTarget as Element, "touchmove", [touchPoint(1, 80, 240)]);
+    fireTouchEvent(inputTarget as Element, "touchend", [], [touchPoint(1, 80, 240)]);
+    fireEvent.click(inputTarget as Element);
+
+    expect(touchMove.defaultPrevented).toBe(false);
+    expect(terminal?.scrollLines).not.toHaveBeenCalled();
     expect(terminal?.focus).not.toHaveBeenCalled();
     unmount();
   });

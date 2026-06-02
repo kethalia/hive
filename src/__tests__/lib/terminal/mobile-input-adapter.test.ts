@@ -3,6 +3,7 @@
 import "@testing-library/jest-dom/vitest";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
+  blurXtermMobileInput,
   configureXtermMobileInput,
   focusTerminalForMobileInput,
   XTERM_HELPER_TEXTAREA_SELECTOR,
@@ -88,6 +89,17 @@ describe("mobile input adapter", () => {
     expect(adapter.applied).toBe(true);
     expect(helper).toHaveAttribute("data-terminal-mobile-input", "true");
     expect(() => adapter.dispose()).not.toThrow();
+  });
+
+  it("blurs the helper textarea without reading terminal text", () => {
+    const { helper, root } = renderHelper();
+    helper.focus();
+    expect(document.activeElement).toBe(helper);
+
+    expect(blurXtermMobileInput(root)).toBe(true);
+
+    expect(document.activeElement).not.toBe(helper);
+    expect(blurXtermMobileInput(document.createElement("div"))).toBe(false);
   });
 
   it("focuses only through the existing xterm terminal focus method", () => {

@@ -357,8 +357,11 @@ function TerminalInner({ agentId, workspaceId }: { agentId: string; workspaceId:
   const terminalPane = (
     <div
       className="h-full"
+      data-sidebar-gesture-ignore={mobileSelectionModeEnabled ? "true" : undefined}
       data-terminal-surface="true"
       onContextMenu={(e) => {
+        if (mobileSelectionModeEnabled) return;
+
         e.preventDefault();
         setMenuSelection(!!activeTerminal?.getSelection());
         setMenuPosition({ x: e.clientX, y: e.clientY });

@@ -21,6 +21,7 @@ import { getClientRuntimeConfig } from "@/lib/runtime-config";
 import { loadTerminalFont, TERMINAL_FONT_FAMILY, TERMINAL_THEME } from "@/lib/terminal/config";
 import { EVENT_NAME as FONT_SIZE_EVENT, getTerminalFontSize } from "@/lib/terminal/font-size";
 import {
+  blurXtermMobileInput,
   configureXtermMobileInput,
   focusTerminalForMobileInput,
   type MobileInputAdapterCleanup,
@@ -241,6 +242,7 @@ export function InteractiveTerminal({
     },
   });
   const bindPinchZoom = useTerminalPinchZoom();
+  const terminalInteractionProps = selectionModeEnabled ? {} : bindPinchZoom();
 
   useEffect(() => {
     onConnectionStateChange?.(connectionState);
@@ -255,9 +257,15 @@ export function InteractiveTerminal({
     mobileInputCleanupRef.current?.dispose();
     mobileInputCleanupRef.current = null;
 
-    if (!mobileInputModeRef.current || !containerRef.current) return;
+    const container = containerRef.current;
+    if (!mobileInputModeRef.current || !container) return;
 
-    const cleanup = configureXtermMobileInput(containerRef.current);
+    if (selectionModeEnabledRef.current) {
+      blurXtermMobileInput(container);
+      return;
+    }
+
+    const cleanup = configureXtermMobileInput(container);
     if (cleanup.applied) {
       mobileInputCleanupRef.current = cleanup;
     }
@@ -265,7 +273,7 @@ export function InteractiveTerminal({
 
   const focusInteractiveTerminal = useCallback(() => {
     const term = termRef.current;
-    if (!term) return;
+    if (!term || selectionModeEnabledRef.current) return;
 
     if (mobileInputModeRef.current) {
       applyMobileInputAdapter();
@@ -275,6 +283,20 @@ export function InteractiveTerminal({
 
     term.focus();
   }, [applyMobileInputAdapter]);
+
+  const stopTerminalEventForSelection = useCallback(
+    (
+      event:
+        | ReactMouseEvent<HTMLDivElement>
+        | ReactPointerEvent<HTMLDivElement>
+        | ReactTouchEvent<HTMLDivElement>,
+    ) => {
+      if (!mobileInputModeRef.current || !selectionModeEnabledRef.current) return;
+
+      event.stopPropagation();
+    },
+    [],
+  );
 
   const handleTerminalPointerDown = useCallback(
     (event: ReactPointerEvent<HTMLDivElement>) => {
@@ -350,6 +372,11 @@ export function InteractiveTerminal({
     (event: ReactMouseEvent<HTMLDivElement>) => {
       if (mobileInputModeRef.current) {
         suppressNextClickFocusRef.current = false;
+        if (selectionModeEnabledRef.current) {
+          event.stopPropagation();
+          return;
+        }
+
         event.preventDefault();
         return;
       }
@@ -630,9 +657,15 @@ export function InteractiveTerminal({
       <div
         ref={containerRef}
         className="flex-1 p-1"
-        {...bindPinchZoom()}
+        data-sidebar-gesture-ignore={selectionModeEnabled ? "true" : undefined}
+        data-terminal-selection-mode={selectionModeEnabled ? "true" : undefined}
+        {...terminalInteractionProps}
         onClick={handleTerminalClick}
+        onClickCapture={stopTerminalEventForSelection}
+        onMouseDownCapture={stopTerminalEventForSelection}
         onPointerDown={handleTerminalPointerDown}
+        onPointerDownCapture={stopTerminalEventForSelection}
+        onTouchStartCapture={stopTerminalEventForSelection}
       />
     </div>
   );
