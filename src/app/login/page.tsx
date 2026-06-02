@@ -1,14 +1,13 @@
 "use client";
 
 import { AlertCircle, Loader2 } from "lucide-react";
-import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { navigateAfterLogin } from "@/lib/auth/post-login-navigation";
 
 export default function LoginPage() {
-  const router = useRouter();
   const [coderUrl, setCoderUrl] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -34,8 +33,7 @@ export default function LoginPage() {
         return;
       }
 
-      router.push("/");
-      router.refresh();
+      navigateAfterLogin("/");
     } catch {
       setError("Login failed. Please try again.");
     } finally {
