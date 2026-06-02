@@ -26,6 +26,10 @@ const { mockUseIsComposeSheet } = vi.hoisted(() => ({
   mockUseIsComposeSheet: vi.fn(() => false),
 }));
 
+const { mockUseFavoriteWindowNavigation } = vi.hoisted(() => ({
+  mockUseFavoriteWindowNavigation: vi.fn(),
+}));
+
 const { mockUseVisualViewportKeyboardOffset } = vi.hoisted(() => ({
   mockUseVisualViewportKeyboardOffset: vi.fn(() => ({
     liftPx: 0,
@@ -83,6 +87,10 @@ vi.mock("@/lib/actions/workspaces", () => ({
 
 vi.mock("@/hooks/use-compose-sheet", () => ({
   useIsComposeSheet: mockUseIsComposeSheet,
+}));
+
+vi.mock("@/hooks/useFavoriteWindowNavigation", () => ({
+  useFavoriteWindowNavigation: mockUseFavoriteWindowNavigation,
 }));
 
 vi.mock("@/hooks/useVisualViewportKeyboardOffset", () => ({
@@ -228,6 +236,18 @@ describe("TerminalClient compose sheet", () => {
     mockCreateSessionAction.mockReset();
     window.localStorage.clear();
     mockUseIsComposeSheet.mockReturnValue(false);
+    mockUseFavoriteWindowNavigation.mockReturnValue({
+      sessions: [],
+      current: null,
+      previous: null,
+      next: null,
+      canGoPrevious: false,
+      canGoNext: false,
+      loading: false,
+      error: null,
+      reload: vi.fn(),
+      select: vi.fn(),
+    });
     mockUseVisualViewportKeyboardOffset.mockReset();
     mockUseVisualViewportKeyboardOffset.mockReturnValue({
       liftPx: 0,
@@ -263,9 +283,8 @@ describe("TerminalClient compose sheet", () => {
       "data-terminal-shell",
       "true",
     );
-    await waitFor(() => {
-      expect(mockGetWorkspaceSessionsAction).toHaveBeenCalledWith({ workspaceId: "workspace-1" });
-    });
+    expect(mockUseFavoriteWindowNavigation).toHaveBeenCalledWith("workspace-1");
+    expect(mockGetWorkspaceSessionsAction).not.toHaveBeenCalled();
     expect(mockCreateSessionAction).not.toHaveBeenCalled();
     expect(document.body.style.position).not.toBe("fixed");
     expect(document.documentElement.style.overflow).not.toBe("hidden");

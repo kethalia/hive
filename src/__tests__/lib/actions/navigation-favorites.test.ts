@@ -24,6 +24,7 @@ vi.mock("@hive/db", () => ({
 }));
 
 vi.mock("@/lib/auth/session", () => ({
+  getRequestSession: (...args: unknown[]) => mockGetSession(...args),
   getSession: (...args: unknown[]) => mockGetSession(...args),
 }));
 

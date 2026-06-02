@@ -6,6 +6,7 @@ vi.mock("next/headers", () => ({
   cookies: vi.fn(() => ({ get: vi.fn(() => ({ value: "valid-session" })) })),
 }));
 vi.mock("@/lib/auth/session", () => ({
+  getRequestSession: (...args: unknown[]) => mockSession(...args),
   getSession: (...args: unknown[]) => mockSession(...args),
 }));
 vi.mock("@hive/db", () => ({
