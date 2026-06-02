@@ -173,7 +173,7 @@ describe("useTerminalSessionNavigation", () => {
         { name: "malformed" },
         { created: 2, windows: 1 },
         session("bravo"),
-      ],
+      ] as unknown as TmuxSession[],
     });
 
     const { result } = renderHook(() => useTerminalSessionNavigation("workspace-1"));
