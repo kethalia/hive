@@ -133,6 +133,84 @@ describe("GitCloneSidebarTree", () => {
     expect(onRepositorySelect).toHaveBeenCalledWith(repositoryNode);
   });
 
+  it("renders unfavorited repository actions when no favorite set is provided", () => {
+    render(<GitCloneSidebarTree tree={makeCloneTree()} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Open Git folder kethalia" }));
+
+    expect(
+      screen.getByRole("button", { name: "Add Git repository kethalia / hive to favorites" }),
+    ).toHaveAttribute("aria-pressed", "false");
+  });
+
+  it("renders favorited repository actions from sanitized clone session keys", () => {
+    render(
+      <GitCloneSidebarTree
+        tree={makeCloneTree()}
+        favoriteKeys={new Set(["git-clone:kethalia/hive", "git-clone:unknown/repo"])}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Open Git folder kethalia" }));
+
+    expect(
+      screen.getByRole("button", { name: "Remove Git repository kethalia / hive from favorites" }),
+    ).toHaveAttribute("aria-pressed", "true");
+    expect(document.body).not.toHaveTextContent(PRIVATE_ROOT);
+    expect(document.body.innerHTML).not.toContain("/home/coder");
+  });
+
+  it("toggles repository favorites without opening repositories or changing directory expansion", () => {
+    const onFavoriteToggle = vi.fn();
+    const onRepositorySelect = vi.fn();
+
+    render(
+      <GitCloneSidebarTree
+        tree={makeDeepMultiBranchCloneTree()}
+        favoriteKeys={new Set(["git-clone:kethalia/sidecar"])}
+        onFavoriteToggle={onFavoriteToggle}
+        onRepositorySelect={onRepositorySelect}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Open Git folder kethalia" }));
+    expect(
+      screen.queryByRole("button", { name: "Open Git repository phlox-labs / platform" }),
+    ).not.toBeInTheDocument();
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Add Git repository kethalia / hive to favorites" }),
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: "Remove Git repository kethalia / sidecar from favorites" }),
+    );
+
+    expect(onFavoriteToggle).toHaveBeenNthCalledWith(1, repositoryNode, true);
+    expect(onFavoriteToggle).toHaveBeenNthCalledWith(
+      2,
+      makeRepositoryNode("kethalia", "sidecar"),
+      false,
+    );
+    expect(onRepositorySelect).not.toHaveBeenCalled();
+    expect(
+      screen.getByRole("button", { name: "Open Git repository kethalia / hive" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Open Git repository phlox-labs / platform" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("does not render favorite actions for directory nodes", () => {
+    render(<GitCloneSidebarTree tree={makeCloneTree()} />);
+
+    expect(
+      screen.queryByRole("button", { name: "Add Git repository kethalia to favorites" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Remove Git repository kethalia from favorites" }),
+    ).not.toBeInTheDocument();
+  });
+
   it("renders compact diagnostics for skipped and truncated scans", () => {
     render(
       <GitCloneSidebarTree
