@@ -2,10 +2,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
-const evidencePath = join(
-  process.cwd(),
-  "docs/mobile-terminal-window-navigation-s05-evidence.md",
-);
+const evidencePath = join(process.cwd(), "docs/mobile-terminal-window-navigation-s05-evidence.md");
 const referenceDecisionsPath = join(process.cwd(), "docs/mobile-terminal-reference-decisions.md");
 
 function readTrackedDoc(path: string) {

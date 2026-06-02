@@ -3,3 +3,8 @@ packages:
   - "packages/*"
   - "services/*"
   - "!packages/standalone"
+
+auditConfig:
+  ignoreGhsas:
+    # Dev-only Vitest UI advisory. The project does not run Vitest UI in production or CI.
+    - GHSA-5xrq-8626-4rwp

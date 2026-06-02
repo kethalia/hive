@@ -142,8 +142,12 @@ describe("S06 mobile terminal smart keys evidence contract", () => {
     expect(evidence).toContain("direct-typing path");
     expect(evidence).toContain("existing mobile terminal controls seam");
     expect(evidence).toContain("Windows, Compose, and Font size pages");
-    expect(evidence).toContain("does not claim native selection, clipboard, or hardware-keyboard acceptance");
-    expect(evidence).toContain("does not claim R024 keyboard acceptance or S07 clipboard and selection acceptance");
+    expect(evidence).toContain(
+      "does not claim native selection, clipboard, or hardware-keyboard acceptance",
+    );
+    expect(evidence).toContain(
+      "does not claim R024 keyboard acceptance or S07 clipboard and selection acceptance",
+    );
   });
 
   it("guards the S06 redaction boundary", () => {

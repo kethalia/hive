@@ -18,11 +18,19 @@ const forbiddenPatterns: Array<[name: string, pattern: RegExp, fixture: string]>
   ["example proof value", /proof-token/, "proof-token-redacted"],
   ["opaque session query", /session=[A-Za-z0-9_-]{8,}/, "session=abc12345"],
   ["opaque workspace id", /workspace-[A-Za-z0-9_-]{8,}/, "workspace-abc12345"],
-  ["UUID-shaped opaque id", /\b[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\b/i, "123e4567-e89b-12d3-a456-426614174000"],
+  [
+    "UUID-shaped opaque id",
+    /\b[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\b/i,
+    "123e4567-e89b-12d3-a456-426614174000",
+  ],
   ["agent checkout path", /\/home\/coder\//, "/home/coder/project"],
   ["macOS absolute user path", /\/Users\/[^\s)]+/, "/Users/example/project"],
   ["Windows absolute path", /[A-Za-z]:\\[^\s)]+/, "C:\\Users\\example"],
-  ["Linux checkout-style path", /(?:^|\s)\/(?:tmp|var|opt|workspace|mnt)\/[^^\s)]+/, " /tmp/checkout"],
+  [
+    "Linux checkout-style path",
+    /(?:^|\s)\/(?:tmp|var|opt|workspace|mnt)\/[^^\s)]+/,
+    " /tmp/checkout",
+  ],
   ["private key marker", /BEGIN [A-Z ]*PRIVATE KEY/, "BEGIN PRIVATE KEY"],
   ["shell prompt fixture", /[$#] (pnpm|npm|git|ssh|cat|sed|curl)\b/, "$ pnpm test"],
   ["browser storage secret", /(?:localStorage|sessionStorage|cookie)=/i, "localStorage=secret"],
@@ -107,7 +115,9 @@ describe("S07 mobile terminal selection copy paste evidence contract", () => {
       "S07 automated Clipboard controls acceptance:** `accepted - visible controls",
     );
     expect(evidence).toContain("S07 copy contract acceptance:** `accepted - automated proof");
-    expect(evidence).toContain("S07 paste/fallback contract acceptance:** `accepted - automated proof");
+    expect(evidence).toContain(
+      "S07 paste/fallback contract acceptance:** `accepted - automated proof",
+    );
     expect(evidence).toContain("This record does not claim physical phone selection fidelity");
     expect(evidence).toContain(
       "Do not use this record to accept physical runtime behavior until that replacement evidence exists.",

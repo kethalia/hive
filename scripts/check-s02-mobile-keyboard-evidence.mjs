@@ -12,7 +12,7 @@ try {
 
 function field(label) {
   const escaped = label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  const pattern = "- \\*\\*" + escaped + ":\\*\\*\\s*`([^`]*)`";
+  const pattern = `- \\*\\*${escaped}:\\*\\*\\s*\`([^\`]*)\``;
   const match = evidence.match(new RegExp(pattern));
   return match?.[1]?.trim() ?? "";
 }
@@ -23,10 +23,17 @@ function isYes(value) {
 
 function hasPositiveDimensionEvidence(value) {
   const normalized = value.toLowerCase();
-  if (!value || /pending|blocked|not observed|not available|no real-device|no real device/.test(normalized)) {
+  if (
+    !value ||
+    /pending|blocked|not observed|not available|no real-device|no real device/.test(normalized)
+  ) {
     return false;
   }
-  return /\d+/.test(value) || isYes(value) || /observed|accepted|changed|confirmed|matches/.test(normalized);
+  return (
+    /\d+/.test(value) ||
+    isYes(value) ||
+    /observed|accepted|changed|confirmed|matches/.test(normalized)
+  );
 }
 
 const checks = [
@@ -47,11 +54,17 @@ const checks = [
   },
   {
     name: "Keyboard inset or visualViewport shrink observed",
-    ok: () => hasPositiveDimensionEvidence(field("Keyboard inset becomes positive or visual viewport shrinks while keyboard is open")),
+    ok: () =>
+      hasPositiveDimensionEvidence(
+        field("Keyboard inset becomes positive or visual viewport shrinks while keyboard is open"),
+      ),
   },
   {
     name: "Resize-sent rows/cols observed after keyboard-open refit",
-    ok: () => hasPositiveDimensionEvidence(field("Resize-sent rows/cols are observed after the keyboard-open refit")),
+    ok: () =>
+      hasPositiveDimensionEvidence(
+        field("Resize-sent rows/cols are observed after the keyboard-open refit"),
+      ),
   },
   {
     name: "tmux resize observation accepted is yes",
@@ -79,7 +92,10 @@ const checks = [
   },
   {
     name: "No forbidden diagnostic payload categories are present",
-    ok: () => !/(cloneProof|terminal\s+text|terminal\s+transcript|helper\s+textarea\s+value|\btokens?\b|\bsecrets?\b)/i.test(evidence),
+    ok: () =>
+      !/(cloneProof|terminal\s+text|terminal\s+transcript|helper\s+textarea\s+value|\btokens?\b|\bsecrets?\b)/i.test(
+        evidence,
+      ),
   },
 ];
 

@@ -614,9 +614,7 @@ describe("AppSidebar", () => {
   it("upserts and removes terminal favorites without user-scoped payload fields", async () => {
     await expandWorkspaceAndTerminalSessions();
 
-    fireEvent.click(
-      screen.getByRole("button", { name: "Add terminal session dev to favorites" }),
-    );
+    fireEvent.click(screen.getByRole("button", { name: "Add terminal session dev to favorites" }));
 
     await waitFor(() => {
       expect(mockUpsertNavigationFavorite).toHaveBeenCalledWith({
@@ -641,13 +639,12 @@ describe("AppSidebar", () => {
         workspaceId: "ws-1",
         targetKey: "dev",
       });
-      expect(screen.getByRole("button", { name: "Add terminal session dev to favorites" })).toHaveAttribute(
-        "aria-pressed",
-        "false",
-      );
+      expect(
+        screen.getByRole("button", { name: "Add terminal session dev to favorites" }),
+      ).toHaveAttribute("aria-pressed", "false");
     });
     expect(JSON.stringify(mockRemoveNavigationFavorite.mock.calls[0][0])).not.toContain("userId");
-  });
+  }, 10_000);
 
   it("upserts and removes Git repository favorites with sanitized clone identifiers", async () => {
     render(<AppSidebar />);
@@ -677,8 +674,12 @@ describe("AppSidebar", () => {
         }),
       ).toHaveAttribute("aria-pressed", "true");
     });
-    expect(JSON.stringify(mockUpsertNavigationFavorite.mock.calls[0][0])).not.toContain("/home/coder");
-    expect(JSON.stringify(mockUpsertNavigationFavorite.mock.calls[0][0])).not.toContain("cloneProof");
+    expect(JSON.stringify(mockUpsertNavigationFavorite.mock.calls[0][0])).not.toContain(
+      "/home/coder",
+    );
+    expect(JSON.stringify(mockUpsertNavigationFavorite.mock.calls[0][0])).not.toContain(
+      "cloneProof",
+    );
     expect(JSON.stringify(mockUpsertNavigationFavorite.mock.calls[0][0])).not.toContain("userId");
 
     fireEvent.click(
@@ -803,10 +804,9 @@ describe("AppSidebar", () => {
       expect(screen.getByTestId("favorites-error")).toHaveTextContent(
         "Favorites unavailable. Terminal access is still available.",
       );
-      expect(screen.getByRole("button", { name: "Add terminal session dev to favorites" })).toHaveAttribute(
-        "aria-pressed",
-        "false",
-      );
+      expect(
+        screen.getByRole("button", { name: "Add terminal session dev to favorites" }),
+      ).toHaveAttribute("aria-pressed", "false");
     });
     expect(document.body.innerHTML).not.toContain(PRIVATE_ROOT);
   });

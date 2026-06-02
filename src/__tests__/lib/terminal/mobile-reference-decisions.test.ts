@@ -49,7 +49,9 @@ describe("mobile terminal reference decisions doc", () => {
     }
 
     expect(doc).toMatch(/debugViewport=1[\s\S]*non-secret geometry and state/i);
-    expect(doc).toMatch(/must not alter auth, session selection, clone proof validation, or terminal input behavior/i);
+    expect(doc).toMatch(
+      /must not alter auth, session selection, clone proof validation, or terminal input behavior/i,
+    );
   });
 
   it("rejects placeholders and unresolved work markers", async () => {

@@ -145,8 +145,7 @@ const GIT_DISCOVERY_SERVER_ERROR_MESSAGE =
   "Git clone discovery is unavailable. Refresh and try again.";
 const GIT_TERMINAL_OPEN_ERROR_MESSAGE =
   "We couldn't open that Git repository. Refresh and try again.";
-const FAVORITES_UNAVAILABLE_MESSAGE =
-  "Favorites unavailable. Terminal access is still available.";
+const FAVORITES_UNAVAILABLE_MESSAGE = "Favorites unavailable. Terminal access is still available.";
 
 function isGitCloneTerminalIdentity(value: unknown): value is GitCloneTerminalIdentity {
   if (!value || typeof value !== "object") return false;
@@ -164,7 +163,11 @@ function isGitCloneTerminalIdentity(value: unknown): value is GitCloneTerminalId
   );
 }
 
-function favoriteIdentity(kind: NavigationFavoriteDto["kind"], workspaceId: string, targetKey: string) {
+function favoriteIdentity(
+  kind: NavigationFavoriteDto["kind"],
+  workspaceId: string,
+  targetKey: string,
+) {
   return `${kind}:${workspaceId}:${targetKey}`;
 }
 
@@ -296,97 +299,97 @@ function SessionList({
           const isMutatingFavorite = mutatingFavoriteKeys.has(favoriteKey);
 
           return (
-          <SidebarMenuSubItem key={session.name}>
-            {editingSession === session.name ? (
-              <SidebarMenuSubButton className={cn("cursor-text", mobileSessionRowClassName)}>
-                <Terminal className="h-3 w-3 shrink-0 text-muted-foreground" />
-                <Input
-                  data-testid={`rename-session-input-${session.name}`}
-                  className="h-5 flex-1 rounded border-none bg-transparent px-0 py-0 font-mono text-xs shadow-none focus-visible:ring-0"
-                  value={editValue}
-                  onChange={(e) => setEditValue(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") commitRename(session.name);
-                    else if (e.key === "Escape") setEditingSession(null);
-                  }}
-                  onBlur={() => commitRename(session.name)}
-                  autoFocus
-                />
-              </SidebarMenuSubButton>
-            ) : (
-              <SidebarMenuSubButton
-                render={
-                  <Link
-                    href={`/workspaces/${workspaceId}/terminal?session=${encodeURIComponent(session.name)}`}
+            <SidebarMenuSubItem key={session.name}>
+              {editingSession === session.name ? (
+                <SidebarMenuSubButton className={cn("cursor-text", mobileSessionRowClassName)}>
+                  <Terminal className="h-3 w-3 shrink-0 text-muted-foreground" />
+                  <Input
+                    data-testid={`rename-session-input-${session.name}`}
+                    className="h-5 flex-1 rounded border-none bg-transparent px-0 py-0 font-mono text-xs shadow-none focus-visible:ring-0"
+                    value={editValue}
+                    onChange={(e) => setEditValue(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") commitRename(session.name);
+                      else if (e.key === "Escape") setEditingSession(null);
+                    }}
+                    onBlur={() => commitRename(session.name)}
+                    autoFocus
                   />
-                }
-                isActive={
-                  pathname === `/workspaces/${workspaceId}/terminal` &&
-                  activeSession === session.name
-                }
-                className={cn("group/session", mobileSessionRowClassName)}
-              >
-                <Terminal className="h-3 w-3 shrink-0" />
-                <span className="truncate">{session.name}</span>
-                <span
-                  className={cn(
-                    "ml-auto flex shrink-0 items-center gap-0.5",
-                    actionVisibilityClassName,
-                  )}
+                </SidebarMenuSubButton>
+              ) : (
+                <SidebarMenuSubButton
+                  render={
+                    <Link
+                      href={`/workspaces/${workspaceId}/terminal?session=${encodeURIComponent(session.name)}`}
+                    />
+                  }
+                  isActive={
+                    pathname === `/workspaces/${workspaceId}/terminal` &&
+                    activeSession === session.name
+                  }
+                  className={cn("group/session", mobileSessionRowClassName)}
                 >
-                  <button
-                    type="button"
-                    title={isFavorited ? "Remove from favorites" : "Add to favorites"}
-                    aria-label={`${isFavorited ? "Remove" : "Add"} terminal session ${session.name} ${
-                      isFavorited ? "from" : "to"
-                    } favorites`}
-                    aria-pressed={isFavorited}
-                    data-testid={`favorite-terminal-session-${session.name}`}
-                    disabled={isMutatingFavorite}
+                  <Terminal className="h-3 w-3 shrink-0" />
+                  <span className="truncate">{session.name}</span>
+                  <span
                     className={cn(
-                      "rounded hover:bg-sidebar-accent disabled:pointer-events-none disabled:opacity-50",
-                      actionButtonClassName,
+                      "ml-auto flex shrink-0 items-center gap-0.5",
+                      actionVisibilityClassName,
                     )}
-                    onClick={(e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      onFavoriteToggle(workspaceId, session.name, !isFavorited);
-                    }}
                   >
-                    <Star className={cn("h-3 w-3", isFavorited && "fill-current")} />
-                  </button>
-                  <button
-                    type="button"
-                    title="Rename session"
-                    aria-label={`Rename session ${session.name}`}
-                    data-testid={`rename-session-${session.name}`}
-                    className={cn("rounded hover:bg-sidebar-accent", actionButtonClassName)}
-                    onClick={(e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      startRename(session.name);
-                    }}
-                  >
-                    <Pencil className="h-3 w-3" />
-                  </button>
-                  <button
-                    type="button"
-                    title="Kill session"
-                    aria-label={`Kill session ${session.name}`}
-                    data-testid={`kill-session-${session.name}`}
-                    className={cn("rounded hover:bg-destructive/20", actionButtonClassName)}
-                    onClick={(e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      onKill(workspaceId, session.name);
-                    }}
-                  >
-                    <X className="h-3 w-3" />
-                  </button>
-                </span>
-              </SidebarMenuSubButton>
-            )}
-          </SidebarMenuSubItem>
+                    <button
+                      type="button"
+                      title={isFavorited ? "Remove from favorites" : "Add to favorites"}
+                      aria-label={`${isFavorited ? "Remove" : "Add"} terminal session ${session.name} ${
+                        isFavorited ? "from" : "to"
+                      } favorites`}
+                      aria-pressed={isFavorited}
+                      data-testid={`favorite-terminal-session-${session.name}`}
+                      disabled={isMutatingFavorite}
+                      className={cn(
+                        "rounded hover:bg-sidebar-accent disabled:pointer-events-none disabled:opacity-50",
+                        actionButtonClassName,
+                      )}
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        onFavoriteToggle(workspaceId, session.name, !isFavorited);
+                      }}
+                    >
+                      <Star className={cn("h-3 w-3", isFavorited && "fill-current")} />
+                    </button>
+                    <button
+                      type="button"
+                      title="Rename session"
+                      aria-label={`Rename session ${session.name}`}
+                      data-testid={`rename-session-${session.name}`}
+                      className={cn("rounded hover:bg-sidebar-accent", actionButtonClassName)}
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        startRename(session.name);
+                      }}
+                    >
+                      <Pencil className="h-3 w-3" />
+                    </button>
+                    <button
+                      type="button"
+                      title="Kill session"
+                      aria-label={`Kill session ${session.name}`}
+                      data-testid={`kill-session-${session.name}`}
+                      className={cn("rounded hover:bg-destructive/20", actionButtonClassName)}
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        onKill(workspaceId, session.name);
+                      }}
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  </span>
+                </SidebarMenuSubButton>
+              )}
+            </SidebarMenuSubItem>
           );
         })}
       </div>
@@ -463,7 +466,8 @@ function FavoritesSection({
                 );
               }
 
-              const canLaunch = typeof favorite.relativePath === "string" && favorite.relativePath.length > 0;
+              const canLaunch =
+                typeof favorite.relativePath === "string" && favorite.relativePath.length > 0;
               return (
                 <SidebarMenuItem key={favorite.id}>
                   <SidebarMenuButton
@@ -970,7 +974,12 @@ export function AppSidebar() {
   }, [expandedWorkspaces, fetchSessions]);
 
   const favoriteKeySet = useMemo(
-    () => new Set(favorites.data.map((favorite) => favoriteIdentity(favorite.kind, favorite.workspaceId, favorite.targetKey))),
+    () =>
+      new Set(
+        favorites.data.map((favorite) =>
+          favoriteIdentity(favorite.kind, favorite.workspaceId, favorite.targetKey),
+        ),
+      ),
     [favorites.data],
   );
 
@@ -1451,7 +1460,9 @@ export function AppSidebar() {
                                     <CollapsibleContent>
                                       <GitDiscoveryPanel
                                         state={gitState}
-                                        favoriteKeys={gitFavoriteKeysByWorkspace.get(ws.id) ?? new Set()}
+                                        favoriteKeys={
+                                          gitFavoriteKeysByWorkspace.get(ws.id) ?? new Set()
+                                        }
                                         mutatingFavoriteKeys={
                                           mutatingGitFavoriteKeysByWorkspace.get(ws.id) ?? new Set()
                                         }

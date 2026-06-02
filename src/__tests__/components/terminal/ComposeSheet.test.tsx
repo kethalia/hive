@@ -263,7 +263,9 @@ describe("TerminalClient compose sheet", () => {
       "data-terminal-shell",
       "true",
     );
-    expect(mockGetWorkspaceSessionsAction).not.toHaveBeenCalled();
+    await waitFor(() => {
+      expect(mockGetWorkspaceSessionsAction).toHaveBeenCalledWith({ workspaceId: "workspace-1" });
+    });
     expect(mockCreateSessionAction).not.toHaveBeenCalled();
     expect(document.body.style.position).not.toBe("fixed");
     expect(document.documentElement.style.overflow).not.toBe("hidden");

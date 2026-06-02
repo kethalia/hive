@@ -48,10 +48,7 @@ function makeCloneTree(overrides: Partial<PublicCloneTree> = {}): PublicCloneTre
 function makeDeepMultiBranchCloneTree(): PublicCloneTree {
   return makeCloneTree({
     nodes: [
-      makeDirectoryNode("kethalia", [
-        repositoryNode,
-        makeRepositoryNode("kethalia", "sidecar"),
-      ]),
+      makeDirectoryNode("kethalia", [repositoryNode, makeRepositoryNode("kethalia", "sidecar")]),
       makeDirectoryNode("phlox-labs", [makeRepositoryNode("phlox-labs", "platform")]),
     ],
     diagnostics: {
@@ -182,7 +179,9 @@ describe("GitCloneSidebarTree", () => {
       screen.getByRole("button", { name: "Add Git repository kethalia / hive to favorites" }),
     );
     fireEvent.click(
-      screen.getByRole("button", { name: "Remove Git repository kethalia / sidecar from favorites" }),
+      screen.getByRole("button", {
+        name: "Remove Git repository kethalia / sidecar from favorites",
+      }),
     );
 
     expect(onFavoriteToggle).toHaveBeenNthCalledWith(1, repositoryNode, true);

@@ -92,7 +92,8 @@ function clipboardStatusText(
     }
   }
 
-  if (!hasTerminal) return "Terminal is not ready. Clipboard controls will enable after connection.";
+  if (!hasTerminal)
+    return "Terminal is not ready. Clipboard controls will enable after connection.";
   if (selectionModeEnabled) return "Selection mode on. Select terminal text, then copy.";
   if (!canPaste) {
     return "Terminal ready. Select terminal text to copy; paste will enable after connection.";
@@ -113,8 +114,9 @@ function TerminalInner({ agentId, workspaceId }: { agentId: string; workspaceId:
   const [composeOpen, setComposeOpen] = useState(false);
   const [windowSwitcherOpen, setWindowSwitcherOpen] = useState(false);
   const [selectionModeEnabled, setSelectionModeEnabled] = useState(false);
-  const [clipboardActionStatus, setClipboardActionStatus] =
-    useState<ClipboardActionStatus | null>(null);
+  const [clipboardActionStatus, setClipboardActionStatus] = useState<ClipboardActionStatus | null>(
+    null,
+  );
   const [bootstrapError, setBootstrapError] = useState<string | null>(null);
   const [bootstrapRetryKey, setBootstrapRetryKey] = useState(0);
   const composeSheetDragStartYRef = useRef<number | null>(null);
@@ -203,6 +205,12 @@ function TerminalInner({ agentId, workspaceId }: { agentId: string; workspaceId:
   }, [activeSend, activeTerminal]);
 
   useEffect(() => {
+    if (session === null) {
+      setSelectionModeEnabled(false);
+      setClipboardActionStatus(null);
+      return;
+    }
+
     setSelectionModeEnabled(false);
     setClipboardActionStatus(null);
   }, [session]);
@@ -419,7 +427,9 @@ function TerminalInner({ agentId, workspaceId }: { agentId: string; workspaceId:
             selectionModeDisabledReason={hasActiveTerminal ? undefined : "Terminal is not ready"}
             copyDisabledReason={hasActiveTerminal ? undefined : "Terminal is not ready"}
             pasteDisabledReason={
-              hasActiveSender ? undefined : "Paste is unavailable until the terminal sender is ready"
+              hasActiveSender
+                ? undefined
+                : "Paste is unavailable until the terminal sender is ready"
             }
             windowNavigation={{
               ...terminalSessionNavigation,

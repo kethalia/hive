@@ -58,15 +58,17 @@ const {
     mockSetActiveTerminal: setActiveTerminal,
     mockUnregisterKeybinding: unregister,
     mockUseIsComposeSheet: vi.fn(() => false),
-    mockUseKeybindings: vi.fn<() => {
-      activeSend: unknown;
-      activeTerminal: unknown;
-      getAll: ReturnType<typeof vi.fn>;
-      handleKeyEvent: ReturnType<typeof vi.fn>;
-      register: ReturnType<typeof vi.fn>;
-      setActiveTerminal: ReturnType<typeof vi.fn>;
-      unregister: ReturnType<typeof vi.fn>;
-    }>(() => ({
+    mockUseKeybindings: vi.fn<
+      () => {
+        activeSend: unknown;
+        activeTerminal: unknown;
+        getAll: ReturnType<typeof vi.fn>;
+        handleKeyEvent: ReturnType<typeof vi.fn>;
+        register: ReturnType<typeof vi.fn>;
+        setActiveTerminal: ReturnType<typeof vi.fn>;
+        unregister: ReturnType<typeof vi.fn>;
+      }
+    >(() => ({
       activeSend: null,
       activeTerminal: null,
       getAll: vi.fn(() => []),
@@ -267,7 +269,11 @@ vi.mock("@/components/terminal/CommandPalette", () => ({
 
     return (
       <div data-testid="terminal-window-command-palette">
-        <button type="button" data-testid="terminal-window-command-palette-close" onClick={() => onOpenChange(false)}>
+        <button
+          type="button"
+          data-testid="terminal-window-command-palette-close"
+          onClick={() => onOpenChange(false)}
+        >
           Close
         </button>
         {tabs.length === 0 ? <p>No sessions found.</p> : null}
@@ -320,7 +326,7 @@ vi.mock("@/components/terminal/MobileTerminalControls", () => ({
       onOpenSwitcher?: () => void;
       previous?: { name: string } | null;
       reload?: () => void;
-      select?: (sessionName: string) => boolean | void;
+      select?: (sessionName: string) => boolean | undefined;
       sessions?: Array<{ name: string }>;
     };
   }) => {
@@ -356,25 +362,59 @@ vi.mock("@/components/terminal/MobileTerminalControls", () => ({
         <p aria-live="polite" data-testid="terminal-clipboard-status">
           {clipboardStatusText}
         </p>
-        <button type="button" data-testid="terminal-selection-toggle" onClick={() => onToggleSelectionMode?.(!selectionModeEnabled)}>
+        <button
+          type="button"
+          data-testid="terminal-selection-toggle"
+          onClick={() => onToggleSelectionMode?.(!selectionModeEnabled)}
+        >
           Select
         </button>
-        <button type="button" data-testid="terminal-copy-selection" disabled={Boolean(copyDisabledReason)} onClick={() => onCopy?.()}>
+        <button
+          type="button"
+          data-testid="terminal-copy-selection"
+          disabled={Boolean(copyDisabledReason)}
+          onClick={() => onCopy?.()}
+        >
           Copy
         </button>
-        <button type="button" data-testid="terminal-paste-clipboard" disabled={Boolean(pasteDisabledReason)} onClick={() => onPaste?.()}>
+        <button
+          type="button"
+          data-testid="terminal-paste-clipboard"
+          disabled={Boolean(pasteDisabledReason)}
+          onClick={() => onPaste?.()}
+        >
           Paste
         </button>
-        <button type="button" data-testid="terminal-window-previous" onClick={() => windowNavigation?.previous && windowNavigation.select?.(windowNavigation.previous.name)}>
+        <button
+          type="button"
+          data-testid="terminal-window-previous"
+          onClick={() =>
+            windowNavigation?.previous && windowNavigation.select?.(windowNavigation.previous.name)
+          }
+        >
           Previous
         </button>
-        <button type="button" data-testid="terminal-window-switcher" onClick={() => windowNavigation?.onOpenSwitcher?.()}>
+        <button
+          type="button"
+          data-testid="terminal-window-switcher"
+          onClick={() => windowNavigation?.onOpenSwitcher?.()}
+        >
           Windows
         </button>
-        <button type="button" data-testid="terminal-window-next" onClick={() => windowNavigation?.next && windowNavigation.select?.(windowNavigation.next.name)}>
+        <button
+          type="button"
+          data-testid="terminal-window-next"
+          onClick={() =>
+            windowNavigation?.next && windowNavigation.select?.(windowNavigation.next.name)
+          }
+        >
           Next
         </button>
-        <button type="button" data-testid="terminal-window-reload" onClick={() => windowNavigation?.reload?.()}>
+        <button
+          type="button"
+          data-testid="terminal-window-reload"
+          onClick={() => windowNavigation?.reload?.()}
+        >
           Reload
         </button>
       </div>
@@ -1051,8 +1091,14 @@ describe("TerminalClient integration — Mobile terminal route props", () => {
       expect(getByTestId("terminal-mobile-controls")).toHaveAttribute("data-session-count", "3");
     });
     expect(getByTestId("terminal-mobile-controls")).toHaveAttribute("data-current-session", "main");
-    expect(getByTestId("terminal-mobile-controls")).toHaveAttribute("data-previous-session", "alpha");
-    expect(getByTestId("terminal-mobile-controls")).toHaveAttribute("data-next-session", "two words");
+    expect(getByTestId("terminal-mobile-controls")).toHaveAttribute(
+      "data-previous-session",
+      "alpha",
+    );
+    expect(getByTestId("terminal-mobile-controls")).toHaveAttribute(
+      "data-next-session",
+      "two words",
+    );
     expect(document.querySelectorAll('[data-testid="interactive-terminal"]')).toHaveLength(1);
     expect(getByTestId("interactive-terminal")).toHaveAttribute("data-session-name", "main");
     expect(mockGetWorkspaceSessionsAction).toHaveBeenCalledWith({ workspaceId: "test-ws" });
@@ -1072,7 +1118,10 @@ describe("TerminalClient integration — Mobile terminal route props", () => {
     const { getByTestId, unmount } = await renderTerminalClient("session=main&debugViewport=1");
 
     await waitFor(() => {
-      expect(getByTestId("terminal-mobile-controls")).toHaveAttribute("data-next-session", "two words");
+      expect(getByTestId("terminal-mobile-controls")).toHaveAttribute(
+        "data-next-session",
+        "two words",
+      );
     });
 
     fireEvent.click(getByTestId("terminal-window-next"));

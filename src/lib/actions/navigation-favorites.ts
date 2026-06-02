@@ -39,7 +39,10 @@ const terminalTargetKeySchema = z
   .min(1, "targetKey is required")
   .max(256, "targetKey is too long")
   .refine((value) => SAFE_IDENTIFIER_RE.test(value), "targetKey is invalid")
-  .refine((value) => !isCloneTerminalSessionName(value), "clone terminal sessions cannot be favorited as terminal sessions");
+  .refine(
+    (value) => !isCloneTerminalSessionName(value),
+    "clone terminal sessions cannot be favorited as terminal sessions",
+  );
 
 const gitTargetKeySchema = z
   .string()
@@ -102,7 +105,10 @@ const removeNavigationFavoriteSchema = z
   .strict()
   .superRefine((input, ctx) => {
     if (input.kind === "terminal") {
-      if (!SAFE_IDENTIFIER_RE.test(input.targetKey) || isCloneTerminalSessionName(input.targetKey)) {
+      if (
+        !SAFE_IDENTIFIER_RE.test(input.targetKey) ||
+        isCloneTerminalSessionName(input.targetKey)
+      ) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
           path: ["targetKey"],
