@@ -1,7 +1,10 @@
-import { SESSION_COOKIE_NAME, verifyCookie } from "@hive/auth";
+import { verifyCookie } from "@hive/auth";
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
-import { refreshDomainSessionCookie } from "./lib/auth/session-cookie";
+import {
+  getSessionCookieValuesFromHeader,
+  refreshDomainSessionCookie,
+} from "./lib/auth/session-cookie";
 
 const PUBLIC_PATHS = ["/login", "/api/auth", "/manifest.webmanifest"];
 const STATIC_PREFIXES = ["/_next", "/favicon.ico"];
@@ -20,10 +23,7 @@ export function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
-  const sessionCookieValues = request.cookies
-    .getAll(SESSION_COOKIE_NAME)
-    .map((cookie) => cookie.value)
-    .filter(Boolean);
+  const sessionCookieValues = getSessionCookieValuesFromHeader(request.headers.get("cookie"));
   if (sessionCookieValues.length === 0) {
     const loginUrl = new URL("/login", request.url);
     return NextResponse.redirect(loginUrl);

@@ -70,6 +70,26 @@ function remainingSessionCookieMaxAge(issuedAtMs?: number): number {
   return Math.max(0, Math.min(SESSION_MAX_AGE_SECONDS, remainingSeconds));
 }
 
+export function getSessionCookieValuesFromHeader(
+  cookieHeader: string | null | undefined,
+): string[] {
+  if (!cookieHeader) return [];
+
+  const values: string[] = [];
+  for (const part of cookieHeader.split(";")) {
+    const separatorIndex = part.indexOf("=");
+    if (separatorIndex === -1) continue;
+
+    const name = part.slice(0, separatorIndex).trim();
+    if (name !== SESSION_COOKIE_NAME) continue;
+
+    const value = part.slice(separatorIndex + 1).trim();
+    if (value) values.push(value);
+  }
+
+  return [...new Set(values)];
+}
+
 function serializeSessionCookie(
   value: string,
   options: SessionCookieOptions,

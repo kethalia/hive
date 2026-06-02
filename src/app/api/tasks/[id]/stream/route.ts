@@ -22,7 +22,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   const { id: taskId } = await params;
 
   const cookieStore = await cookies();
-  const session = await getSession(cookieStore);
+  const session = await getSession(cookieStore, request.headers.get("cookie"));
   if (!session) {
     return new Response("Unauthorized", { status: 401 });
   }

@@ -6,11 +6,11 @@ import { getTemplatePushQueue } from "@/lib/templates/push-queue";
 import { KNOWN_TEMPLATES } from "@/lib/templates/staleness";
 
 export async function POST(
-  _request: NextRequest,
+  request: NextRequest,
   { params }: { params: Promise<{ name: string }> },
 ) {
   const cookieStore = await cookies();
-  const session = await getSession(cookieStore);
+  const session = await getSession(cookieStore, request.headers.get("cookie"));
   if (!session) {
     return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
   }

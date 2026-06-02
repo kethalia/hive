@@ -1,14 +1,13 @@
 export const dynamic = "force-dynamic";
 
-import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { listTasks } from "@/lib/api/tasks";
-import { getSession } from "@/lib/auth/session";
+import { getRequestSession } from "@/lib/auth/session";
 import { TaskListContent } from "./task-list-content";
 import { TaskListPoller } from "./task-list-poller";
 
 export default async function TasksPage() {
-  const session = await getSession(await cookies());
+  const session = await getRequestSession();
   if (!session) {
     redirect("/login");
   }

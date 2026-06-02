@@ -1,7 +1,9 @@
 import { SESSION_COOKIE_NAME, signCookie, verifyCookie } from "@hive/auth";
+import { cookies, headers } from "next/headers";
 import { getAuthServiceClient } from "./service-client";
 import {
   clearSessionCookies,
+  getSessionCookieValuesFromHeader,
   setSessionCookieValue,
   type WritableSessionCookieStore,
 } from "./session-cookie";
@@ -13,8 +15,16 @@ interface SessionCookieReader {
   getAll?(name: string): { value: string }[];
 }
 
-export async function getSession(cookieStore: SessionCookieReader): Promise<SessionData | null> {
-  const cookieValues = getSessionCookieValues(cookieStore);
+export async function getRequestSession(): Promise<SessionData | null> {
+  const [cookieStore, headerStore] = await Promise.all([cookies(), headers()]);
+  return getSession(cookieStore, headerStore.get("cookie"));
+}
+
+export async function getSession(
+  cookieStore: SessionCookieReader,
+  cookieHeader?: string | null,
+): Promise<SessionData | null> {
+  const cookieValues = getSessionCookieValues(cookieStore, cookieHeader);
   if (cookieValues.length === 0) {
     return null;
   }
@@ -68,7 +78,13 @@ export async function getSession(cookieStore: SessionCookieReader): Promise<Sess
   return null;
 }
 
-function getSessionCookieValues(cookieStore: SessionCookieReader): string[] {
+function getSessionCookieValues(
+  cookieStore: SessionCookieReader,
+  cookieHeader?: string | null,
+): string[] {
+  const rawCookieValues = getSessionCookieValuesFromHeader(cookieHeader);
+  if (rawCookieValues.length > 0) return rawCookieValues;
+
   const cookies = cookieStore.getAll?.(SESSION_COOKIE_NAME);
   const values = cookies?.map((cookie) => cookie.value).filter(Boolean) ?? [];
 

@@ -1,12 +1,10 @@
-import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { TemplatesClient } from "@/components/templates/TemplatesClient";
-import { getSession } from "@/lib/auth/session";
+import { getRequestSession } from "@/lib/auth/session";
 import { compareTemplates, KNOWN_TEMPLATES } from "@/lib/templates/staleness";
 
 export default async function TemplatesPage() {
-  const cookieStore = await cookies();
-  const session = await getSession(cookieStore);
+  const session = await getRequestSession();
   if (!session) {
     redirect("/login");
   }

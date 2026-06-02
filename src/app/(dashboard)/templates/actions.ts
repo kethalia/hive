@@ -1,8 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { cookies } from "next/headers";
-import { getSession } from "@/lib/auth/session";
+import { getRequestSession } from "@/lib/auth/session";
 import { compareTemplates, KNOWN_TEMPLATES, type TemplateStatus } from "@/lib/templates/staleness";
 
 /**
@@ -10,8 +9,7 @@ import { compareTemplates, KNOWN_TEMPLATES, type TemplateStatus } from "@/lib/te
  * Can be called from server components or client components via server action.
  */
 export async function getTemplateStatuses(): Promise<TemplateStatus[]> {
-  const cookieStore = await cookies();
-  const session = await getSession(cookieStore);
+  const session = await getRequestSession();
   if (!session) {
     throw new Error("Not authenticated");
   }

@@ -39,26 +39,23 @@ describe("middleware", () => {
     vi.unstubAllEnvs();
   });
 
-  it("accepts a valid scoped cookie when a stale parent-domain cookie has the same name", () => {
+  it("accepts a valid scoped cookie when a stale parent-domain cookie with the same name is last", () => {
     vi.stubEnv("COOKIE_SECRET", "preview-secret");
     vi.stubEnv("COOKIE_DOMAIN", ".pr-101.hive.local.kethalia.com");
     mockVerifyCookie.mockImplementation((value) =>
       value === "preview-cookie" ? { sessionId: "sess-preview", timestamp: Date.now() } : null,
     );
 
-    const request = {
-      nextUrl: new URL("https://pr-101.hive.local.kethalia.com/tasks"),
-      url: "https://pr-101.hive.local.kethalia.com/tasks",
-      cookies: {
-        getAll: vi.fn().mockReturnValue([{ value: "prod-cookie" }, { value: "preview-cookie" }]),
+    const request = new NextRequest("https://pr-101.hive.local.kethalia.com/tasks", {
+      headers: {
+        cookie: "hive-session=preview-cookie; hive-session=prod-cookie",
       },
-    } as unknown as NextRequest;
+    });
 
     const response = middleware(request);
     const setCookie = response.headers.get("set-cookie");
 
     expect(response.headers.get("location")).toBeNull();
-    expect(mockVerifyCookie).toHaveBeenCalledWith("prod-cookie", "preview-secret");
     expect(mockVerifyCookie).toHaveBeenCalledWith("preview-cookie", "preview-secret");
     expect(setCookie).toContain("hive-session=preview-cookie");
     expect(setCookie).toContain("Domain=.pr-101.hive.local.kethalia.com");

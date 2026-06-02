@@ -1,12 +1,10 @@
-import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import { getAuthServiceClient } from "@/lib/auth/service-client";
-import { getSession } from "@/lib/auth/session";
+import { getRequestSession } from "@/lib/auth/session";
 import { appendClearSessionCookieHeaders } from "@/lib/auth/session-cookie";
 
 export async function POST() {
-  const cookieStore = await cookies();
-  const session = await getSession(cookieStore);
+  const session = await getRequestSession();
 
   if (session) {
     try {

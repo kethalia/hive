@@ -109,11 +109,11 @@ describe("session management", () => {
       expect(result!.session.expiresAt).toBeInstanceOf(Date);
     });
 
-    it("uses the valid scoped cookie when duplicate session cookies include a stale parent-domain cookie", async () => {
+    it("uses the valid scoped cookie when duplicate session cookies include a stale parent-domain cookie last", async () => {
       const futureDate = new Date(Date.now() + 86400000);
       const cookieStore = {
         get: vi.fn().mockReturnValue({ value: "prod-cookie" }),
-        getAll: vi.fn().mockReturnValue([{ value: "prod-cookie" }, { value: "preview-cookie" }]),
+        getAll: vi.fn().mockReturnValue([{ value: "prod-cookie" }]),
       };
       mockVerifyCookie.mockImplementation((value) =>
         value === "preview-cookie" ? { sessionId: "sess-preview" } : null,
@@ -128,11 +128,13 @@ describe("session management", () => {
         expiresAt: futureDate.toISOString(),
       });
 
-      const result = await getSession(cookieStore);
+      const result = await getSession(
+        cookieStore,
+        "hive-session=preview-cookie; hive-session=prod-cookie",
+      );
 
       expect(result).not.toBeNull();
       expect(result!.session.sessionId).toBe("sess-preview");
-      expect(mockVerifyCookie).toHaveBeenCalledWith("prod-cookie", "test-secret");
       expect(mockVerifyCookie).toHaveBeenCalledWith("preview-cookie", "test-secret");
       expect(mockServiceClient.getSession).toHaveBeenCalledWith("sess-preview");
     });
