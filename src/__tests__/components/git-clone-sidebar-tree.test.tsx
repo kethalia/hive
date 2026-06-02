@@ -119,6 +119,15 @@ describe("GitCloneSidebarTree", () => {
     ).toHaveAttribute("data-clone-session-key", "git-clone:phlox-labs/platform");
   });
 
+  it("opens the active repository branch and marks the repository row selected", () => {
+    render(<GitCloneSidebarTree tree={makeCloneTree()} activeClonePath="kethalia/hive" />);
+
+    const repoButton = screen.getByRole("button", {
+      name: "Open Git repository kethalia / hive",
+    });
+    expect(repoButton).toHaveAttribute("data-active");
+  });
+
   it("passes the sanitized repository node to onRepositorySelect", () => {
     const onRepositorySelect = vi.fn();
 

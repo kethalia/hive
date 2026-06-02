@@ -16,6 +16,7 @@ import { cn } from "@/lib/utils";
 
 export interface GitCloneSidebarTreeProps {
   tree: PublicCloneTree;
+  activeClonePath?: string | null;
   favoriteKeys?: ReadonlySet<string>;
   mutatingFavoriteKeys?: ReadonlySet<string>;
   onFavoriteToggle?: (repository: CloneTreeRepositoryNode, nextFavorited: boolean) => void;
@@ -25,6 +26,7 @@ export interface GitCloneSidebarTreeProps {
 
 export function GitCloneSidebarTree({
   tree,
+  activeClonePath,
   favoriteKeys,
   mutatingFavoriteKeys,
   onFavoriteToggle,
@@ -74,6 +76,7 @@ export function GitCloneSidebarTree({
                   {tree.nodes.map((node) =>
                     renderCloneTreeNode(
                       node,
+                      activeClonePath,
                       favoriteKeys,
                       mutatingFavoriteKeys,
                       onFavoriteToggle,
@@ -95,6 +98,7 @@ export function GitCloneSidebarTree({
 
 function renderCloneTreeNode(
   node: CloneTreeNode,
+  activeClonePath: GitCloneSidebarTreeProps["activeClonePath"],
   favoriteKeys: GitCloneSidebarTreeProps["favoriteKeys"],
   mutatingFavoriteKeys: GitCloneSidebarTreeProps["mutatingFavoriteKeys"],
   onFavoriteToggle: GitCloneSidebarTreeProps["onFavoriteToggle"],
@@ -107,6 +111,7 @@ function renderCloneTreeNode(
       <RepositoryTreeNode
         key={node.id}
         node={node}
+        isActive={activeClonePath === node.relativePath}
         favoriteKeys={favoriteKeys}
         mutatingFavoriteKeys={mutatingFavoriteKeys}
         onFavoriteToggle={onFavoriteToggle}
@@ -119,6 +124,7 @@ function renderCloneTreeNode(
     <DirectoryTreeNode
       key={node.id}
       node={node}
+      activeClonePath={activeClonePath}
       favoriteKeys={favoriteKeys}
       mutatingFavoriteKeys={mutatingFavoriteKeys}
       onFavoriteToggle={onFavoriteToggle}
@@ -131,6 +137,7 @@ function renderCloneTreeNode(
 
 function DirectoryTreeNode({
   node,
+  activeClonePath,
   favoriteKeys,
   mutatingFavoriteKeys,
   onFavoriteToggle,
@@ -139,6 +146,7 @@ function DirectoryTreeNode({
   setDirectoryOpen,
 }: {
   node: Extract<CloneTreeNode, { kind: "directory" }>;
+  activeClonePath: GitCloneSidebarTreeProps["activeClonePath"];
   favoriteKeys: GitCloneSidebarTreeProps["favoriteKeys"];
   mutatingFavoriteKeys: GitCloneSidebarTreeProps["mutatingFavoriteKeys"];
   onFavoriteToggle: GitCloneSidebarTreeProps["onFavoriteToggle"];
@@ -146,7 +154,7 @@ function DirectoryTreeNode({
   openDirectoryIds: ReadonlySet<string>;
   setDirectoryOpen: (nodeId: string, open: boolean) => void;
 }) {
-  const isOpen = openDirectoryIds.has(node.id);
+  const isOpen = openDirectoryIds.has(node.id) || containsClonePath(node, activeClonePath);
 
   return (
     <Collapsible
@@ -173,6 +181,7 @@ function DirectoryTreeNode({
             {node.children.map((child) =>
               renderCloneTreeNode(
                 child,
+                activeClonePath,
                 favoriteKeys,
                 mutatingFavoriteKeys,
                 onFavoriteToggle,
@@ -190,12 +199,14 @@ function DirectoryTreeNode({
 
 function RepositoryTreeNode({
   node,
+  isActive,
   favoriteKeys,
   mutatingFavoriteKeys,
   onFavoriteToggle,
   onRepositorySelect,
 }: {
   node: CloneTreeRepositoryNode;
+  isActive: boolean;
   favoriteKeys: GitCloneSidebarTreeProps["favoriteKeys"];
   mutatingFavoriteKeys: GitCloneSidebarTreeProps["mutatingFavoriteKeys"];
   onFavoriteToggle: GitCloneSidebarTreeProps["onFavoriteToggle"];
@@ -221,6 +232,7 @@ function RepositoryTreeNode({
       <SidebarMenuSubButton
         render={<button type="button" />}
         className="w-full cursor-pointer pr-10"
+        isActive={isActive}
         aria-label={accessibleName}
         data-clone-session-key={node.cloneSessionKey}
         data-relative-path={node.relativePath}
@@ -244,6 +256,18 @@ function RepositoryTreeNode({
       </button>
     </SidebarMenuSubItem>
   );
+}
+
+function containsClonePath(
+  node: Extract<CloneTreeNode, { kind: "directory" }>,
+  activeClonePath: string | null | undefined,
+): boolean {
+  if (!activeClonePath) return false;
+
+  return node.children.some((child) => {
+    if (child.kind === "repository") return child.relativePath === activeClonePath;
+    return containsClonePath(child, activeClonePath);
+  });
 }
 
 function GitCloneTreeDiagnostics({ tree }: { tree: PublicCloneTree }) {

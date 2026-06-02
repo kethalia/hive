@@ -413,9 +413,15 @@ function SessionList({
 
 function FavoritesSection({
   favorites,
+  pathname,
+  activeSession,
+  activeClonePath,
   onGitFavoriteLaunch,
 }: {
   favorites: FavoritesState;
+  pathname: string;
+  activeSession: string | null;
+  activeClonePath: string | null;
   onGitFavoriteLaunch: (favorite: NavigationFavoriteDto) => void;
 }) {
   const visibleFavorites = useMemo(() => dedupeFavorites(favorites.data), [favorites.data]);
@@ -457,6 +463,11 @@ function FavoritesSection({
                           )}/terminal?session=${encodeURIComponent(favorite.targetKey)}`}
                         />
                       }
+                      isActive={
+                        pathname === `/workspaces/${favorite.workspaceId}/terminal` &&
+                        !activeClonePath &&
+                        activeSession === favorite.targetKey
+                      }
                       data-testid={`favorite-terminal-link-${favorite.workspaceId}-${favorite.targetKey}`}
                     >
                       <Terminal className="h-4 w-4" />
@@ -473,6 +484,10 @@ function FavoritesSection({
                   <SidebarMenuButton
                     disabled={!canLaunch}
                     className={cn("cursor-pointer", !canLaunch && "cursor-not-allowed opacity-50")}
+                    isActive={
+                      pathname === `/workspaces/${favorite.workspaceId}/terminal` &&
+                      activeClonePath === favorite.relativePath
+                    }
                     data-testid={`favorite-git-link-${favorite.workspaceId}-${favorite.targetKey}`}
                     onClick={() => {
                       if (canLaunch) onGitFavoriteLaunch(favorite);
@@ -493,6 +508,7 @@ function FavoritesSection({
 
 function GitDiscoveryPanel({
   state,
+  activeClonePath,
   favoriteKeys,
   mutatingFavoriteKeys,
   onFavoriteToggle,
@@ -500,6 +516,7 @@ function GitDiscoveryPanel({
   onRepositorySelect,
 }: {
   state: GitDiscoveryState;
+  activeClonePath: string | null;
   favoriteKeys: ReadonlySet<string>;
   mutatingFavoriteKeys: ReadonlySet<string>;
   onFavoriteToggle: (repository: CloneTreeRepositoryNode, nextFavorited: boolean) => void;
@@ -556,6 +573,7 @@ function GitDiscoveryPanel({
         />
         <GitCloneSidebarTree
           tree={result.tree}
+          activeClonePath={activeClonePath}
           favoriteKeys={favoriteKeys}
           mutatingFavoriteKeys={mutatingFavoriteKeys}
           onFavoriteToggle={onFavoriteToggle}
@@ -574,6 +592,7 @@ function GitDiscoveryPanel({
       )}
       <GitCloneSidebarTree
         tree={result.tree}
+        activeClonePath={activeClonePath}
         favoriteKeys={favoriteKeys}
         mutatingFavoriteKeys={mutatingFavoriteKeys}
         onFavoriteToggle={onFavoriteToggle}
@@ -653,6 +672,7 @@ export function AppSidebar() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const activeSession = searchParams.get("session");
+  const activeClonePath = searchParams.get("clonePath");
   const [sidebarMode, setSidebarMode] = useSidebarMode();
   const [settingsOpen, setSettingsOpen] = useState(false);
 
@@ -1340,7 +1360,13 @@ export function AppSidebar() {
           </SidebarGroupContent>
         </SidebarGroup>
 
-        <FavoritesSection favorites={favorites} onGitFavoriteLaunch={handleGitFavoriteLaunch} />
+        <FavoritesSection
+          favorites={favorites}
+          pathname={pathname}
+          activeSession={activeSession}
+          activeClonePath={activeClonePath}
+          onGitFavoriteLaunch={handleGitFavoriteLaunch}
+        />
 
         {/* Workspaces */}
         <SidebarGroup className="py-0">
@@ -1460,6 +1486,11 @@ export function AppSidebar() {
                                     <CollapsibleContent>
                                       <GitDiscoveryPanel
                                         state={gitState}
+                                        activeClonePath={
+                                          pathname === `/workspaces/${ws.id}/terminal`
+                                            ? activeClonePath
+                                            : null
+                                        }
                                         favoriteKeys={
                                           gitFavoriteKeysByWorkspace.get(ws.id) ?? new Set()
                                         }
