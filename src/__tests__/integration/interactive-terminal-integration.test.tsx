@@ -58,7 +58,15 @@ const {
     mockSetActiveTerminal: setActiveTerminal,
     mockUnregisterKeybinding: unregister,
     mockUseIsComposeSheet: vi.fn(() => false),
-    mockUseKeybindings: vi.fn(() => ({
+    mockUseKeybindings: vi.fn<() => {
+      activeSend: unknown;
+      activeTerminal: unknown;
+      getAll: ReturnType<typeof vi.fn>;
+      handleKeyEvent: ReturnType<typeof vi.fn>;
+      register: ReturnType<typeof vi.fn>;
+      setActiveTerminal: ReturnType<typeof vi.fn>;
+      unregister: ReturnType<typeof vi.fn>;
+    }>(() => ({
       activeSend: null,
       activeTerminal: null,
       getAll: vi.fn(() => []),

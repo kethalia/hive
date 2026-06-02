@@ -161,6 +161,7 @@ describe("MobileTerminalControls", () => {
       "Control controls",
       "Navigation controls",
       "Position controls",
+      "Clipboard controls",
       "Windows controls",
       "Compose controls",
       "Font size controls",
@@ -230,6 +231,24 @@ describe("MobileTerminalControls", () => {
       "PgDn",
     );
 
+    const clipboardControls = within(carousel).getByRole("group", {
+      name: "Terminal clipboard controls",
+    });
+    expect(clipboardControls).toHaveClass("grid", "w-full", "grid-cols-3", "rounded-none");
+    expect(
+      within(clipboardControls).getByRole("button", { name: "Turn terminal selection mode on" }),
+    ).toBeDisabled();
+    expect(
+      within(clipboardControls).getByRole("button", { name: "Copy terminal selection" }),
+    ).toBeDisabled();
+    expect(
+      within(clipboardControls).getByRole("button", { name: "Paste from clipboard" }),
+    ).toBeDisabled();
+    expect(screen.getByText("Clipboard controls unavailable")).toHaveAttribute(
+      "aria-live",
+      "polite",
+    );
+
     const windowControls = within(carousel).getByRole("group", {
       name: "Terminal window controls",
     });
@@ -275,6 +294,9 @@ describe("MobileTerminalControls", () => {
     ).not.toHaveAttribute("aria-current");
     expect(
       within(pageDots).getByRole("button", { name: "Show Position controls" }),
+    ).not.toHaveAttribute("aria-current");
+    expect(
+      within(pageDots).getByRole("button", { name: "Show Clipboard controls" }),
     ).not.toHaveAttribute("aria-current");
     expect(
       within(pageDots).getByRole("button", { name: "Show Windows controls" }),
@@ -357,6 +379,7 @@ describe("MobileTerminalControls", () => {
     const keys = within(pageDots).getByRole("button", { name: "Show Keys controls" });
     const compose = within(pageDots).getByRole("button", { name: "Show Compose controls" });
     const navigation = within(pageDots).getByRole("button", { name: "Show Navigation controls" });
+    const clipboard = within(pageDots).getByRole("button", { name: "Show Clipboard controls" });
     const windows = within(pageDots).getByRole("button", { name: "Show Windows controls" });
     const fontSize = within(pageDots).getByRole("button", { name: "Show Font size controls" });
 
@@ -366,17 +389,93 @@ describe("MobileTerminalControls", () => {
     expect(navigation).toHaveAttribute("aria-current", "page");
     expect(keys).not.toHaveAttribute("aria-current");
 
-    fireEvent.click(windows);
+    fireEvent.click(clipboard);
     expect(onHapticFeedback).toHaveBeenCalledTimes(2);
+    expect(clipboard).toHaveAttribute("aria-current", "page");
+
+    fireEvent.click(windows);
+    expect(onHapticFeedback).toHaveBeenCalledTimes(3);
     expect(windows).toHaveAttribute("aria-current", "page");
 
     fireEvent.click(fontSize);
-    expect(onHapticFeedback).toHaveBeenCalledTimes(3);
+    expect(onHapticFeedback).toHaveBeenCalledTimes(4);
     expect(fontSize).toHaveAttribute("aria-current", "page");
 
     fireEvent.click(compose);
-    expect(onHapticFeedback).toHaveBeenCalledTimes(4);
+    expect(onHapticFeedback).toHaveBeenCalledTimes(5);
     expect(compose).toHaveAttribute("aria-current", "page");
+  });
+
+  it("renders clipboard controls with explicit disabled reasons when handlers are unavailable", () => {
+    render(
+      <MobileTerminalControls
+        hasSelection={false}
+        selectionModeEnabled={false}
+        clipboardStatusText="Copy fallback unavailable"
+      />,
+    );
+
+    const clipboardControls = screen.getByRole("group", { name: "Terminal clipboard controls" });
+    const selectionMode = within(clipboardControls).getByRole("button", {
+      name: "Turn terminal selection mode on",
+    });
+    const copy = within(clipboardControls).getByRole("button", {
+      name: "Copy terminal selection",
+    });
+    const paste = within(clipboardControls).getByRole("button", { name: "Paste from clipboard" });
+
+    expect(selectionMode).toBeDisabled();
+    expect(selectionMode).toHaveAttribute("title", "Selection mode unavailable");
+    expect(copy).toBeDisabled();
+    expect(copy).toHaveAttribute("title", "Copy unavailable");
+    expect(paste).toBeDisabled();
+    expect(paste).toHaveAttribute("title", "Paste unavailable");
+    expect(screen.getByText("Copy fallback unavailable")).toHaveAttribute("aria-live", "polite");
+  });
+
+  it("runs clipboard callbacks with haptics and toggles explicit selection mode", () => {
+    const onHapticFeedback = vi.fn();
+    const onToggleSelectionMode = vi.fn();
+    const onCopy = vi.fn();
+    const onPaste = vi.fn();
+
+    render(
+      <MobileTerminalControls
+        hasSelection
+        selectionModeEnabled
+        onCopy={onCopy}
+        onHapticFeedback={onHapticFeedback}
+        onPaste={onPaste}
+        onToggleSelectionMode={onToggleSelectionMode}
+        clipboardStatusText="Copy completed through clipboard-api"
+      />,
+    );
+
+    const clipboardControls = screen.getByRole("group", { name: "Terminal clipboard controls" });
+    const selectionMode = within(clipboardControls).getByRole("button", {
+      name: "Turn terminal selection mode off",
+    });
+    const copy = within(clipboardControls).getByRole("button", {
+      name: "Copy terminal selection",
+    });
+    const paste = within(clipboardControls).getByRole("button", { name: "Paste from clipboard" });
+
+    expect(selectionMode).toHaveAttribute("aria-pressed", "true");
+    expect(copy).toBeEnabled();
+    expect(paste).toBeEnabled();
+    expect(screen.getByText("Copy completed through clipboard-api")).toHaveAttribute(
+      "aria-live",
+      "polite",
+    );
+
+    fireEvent.click(selectionMode);
+    fireEvent.click(copy);
+    fireEvent.click(paste);
+
+    expect(onToggleSelectionMode).toHaveBeenCalledWith(false);
+    expect(onCopy).toHaveBeenCalledTimes(1);
+    expect(onPaste).toHaveBeenCalledTimes(1);
+    expect(onHapticFeedback).toHaveBeenCalledTimes(3);
   });
 
   it("renders loading window navigation as visible disabled controls with a live status", () => {
@@ -656,36 +755,65 @@ describe("MobileTerminalControls", () => {
   });
 
   it("prevents pointer and mouse focus changes on controls so the terminal keyboard stays open", () => {
-    render(<MobileTerminalControls windowNavigation={makeWindowNavigation()} />);
+    render(
+      <MobileTerminalControls
+        hasSelection
+        onCopy={vi.fn()}
+        onPaste={vi.fn()}
+        onToggleSelectionMode={vi.fn()}
+        windowNavigation={makeWindowNavigation()}
+      />,
+    );
     const enter = screen.getByRole("button", { name: "Enter" });
     const ctrlD = screen.getByRole("button", { name: "Ctrl+D" });
     const dot = screen.getByRole("button", { name: "Show Navigation controls" });
     const switcher = screen.getByRole("button", { name: "Open terminal window switcher" });
+    const selectionMode = screen.getByRole("button", { name: "Turn terminal selection mode on" });
+    const copy = screen.getByRole("button", { name: "Copy terminal selection" });
+    const paste = screen.getByRole("button", { name: "Paste from clipboard" });
     const pointerEvent = new Event("pointerdown", { bubbles: true, cancelable: true });
     const ctrlDPointerEvent = new Event("pointerdown", { bubbles: true, cancelable: true });
     const dotPointerEvent = new Event("pointerdown", { bubbles: true, cancelable: true });
     const switcherPointerEvent = new Event("pointerdown", { bubbles: true, cancelable: true });
+    const selectionModePointerEvent = new Event("pointerdown", { bubbles: true, cancelable: true });
+    const copyPointerEvent = new Event("pointerdown", { bubbles: true, cancelable: true });
+    const pastePointerEvent = new Event("pointerdown", { bubbles: true, cancelable: true });
     const mouseEvent = new Event("mousedown", { bubbles: true, cancelable: true });
     const ctrlDMouseEvent = new Event("mousedown", { bubbles: true, cancelable: true });
     const dotMouseEvent = new Event("mousedown", { bubbles: true, cancelable: true });
     const switcherMouseEvent = new Event("mousedown", { bubbles: true, cancelable: true });
+    const selectionModeMouseEvent = new Event("mousedown", { bubbles: true, cancelable: true });
+    const copyMouseEvent = new Event("mousedown", { bubbles: true, cancelable: true });
+    const pasteMouseEvent = new Event("mousedown", { bubbles: true, cancelable: true });
 
     fireEvent(enter, pointerEvent);
     fireEvent(ctrlD, ctrlDPointerEvent);
     fireEvent(dot, dotPointerEvent);
     fireEvent(switcher, switcherPointerEvent);
+    fireEvent(selectionMode, selectionModePointerEvent);
+    fireEvent(copy, copyPointerEvent);
+    fireEvent(paste, pastePointerEvent);
     fireEvent(enter, mouseEvent);
     fireEvent(ctrlD, ctrlDMouseEvent);
     fireEvent(dot, dotMouseEvent);
     fireEvent(switcher, switcherMouseEvent);
+    fireEvent(selectionMode, selectionModeMouseEvent);
+    fireEvent(copy, copyMouseEvent);
+    fireEvent(paste, pasteMouseEvent);
 
     expect(pointerEvent.defaultPrevented).toBe(true);
     expect(ctrlDPointerEvent.defaultPrevented).toBe(true);
     expect(dotPointerEvent.defaultPrevented).toBe(true);
     expect(switcherPointerEvent.defaultPrevented).toBe(true);
+    expect(selectionModePointerEvent.defaultPrevented).toBe(true);
+    expect(copyPointerEvent.defaultPrevented).toBe(true);
+    expect(pastePointerEvent.defaultPrevented).toBe(true);
     expect(mouseEvent.defaultPrevented).toBe(true);
     expect(ctrlDMouseEvent.defaultPrevented).toBe(true);
     expect(dotMouseEvent.defaultPrevented).toBe(true);
     expect(switcherMouseEvent.defaultPrevented).toBe(true);
+    expect(selectionModeMouseEvent.defaultPrevented).toBe(true);
+    expect(copyMouseEvent.defaultPrevented).toBe(true);
+    expect(pasteMouseEvent.defaultPrevented).toBe(true);
   });
 });

@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useRef, type CSSProperties, type ReactNode } from "react";
 import { useGesture } from "@use-gesture/react";
+import { type CSSProperties, type ReactNode, useCallback, useEffect, useRef } from "react";
 import { DRAG_LONG_PRESS_MOVE_PX, NO_TOUCH_STYLE } from "@/lib/gestures/conventions";
 import { createLongPressDetector, type LongPressDetector } from "@/lib/gestures/long-press";
 
@@ -12,6 +12,7 @@ interface TerminalGestureLayerProps {
   onLongPress: (x: number, y: number) => void;
   className?: string;
   style?: CSSProperties;
+  selectionModeEnabled?: boolean;
 }
 
 function preventDefaultIfCancelable(event: Event | null) {
@@ -25,6 +26,7 @@ export function TerminalGestureLayer({
   onLongPress,
   className,
   style,
+  selectionModeEnabled = false,
 }: TerminalGestureLayerProps) {
   const onLongPressRef = useRef(onLongPress);
   onLongPressRef.current = onLongPress;
@@ -36,12 +38,12 @@ export function TerminalGestureLayer({
   const suppressContextMenuTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const detectorRef = useRef<LongPressDetector | null>(null);
 
-  const clearSuppressContextMenuTimer = () => {
+  const clearSuppressContextMenuTimer = useCallback(() => {
     if (suppressContextMenuTimerRef.current !== null) {
       clearTimeout(suppressContextMenuTimerRef.current);
       suppressContextMenuTimerRef.current = null;
     }
-  };
+  }, []);
 
   const armContextMenuSuppression = () => {
     suppressNextContextMenuRef.current = true;
@@ -67,6 +69,17 @@ export function TerminalGestureLayer({
   }
 
   useEffect(() => {
+    if (!selectionModeEnabled) return;
+
+    detectorRef.current?.end();
+    canceledByMovementRef.current = false;
+    lastEventRef.current = null;
+    lastPointRef.current = null;
+    suppressNextContextMenuRef.current = false;
+    clearSuppressContextMenuTimer();
+  }, [clearSuppressContextMenuTimer, selectionModeEnabled]);
+
+  useEffect(() => {
     return () => {
       detectorRef.current?.end();
       if (suppressContextMenuTimerRef.current !== null) {
@@ -79,6 +92,8 @@ export function TerminalGestureLayer({
   const bind = useGesture(
     {
       onDrag: ({ first, last, distance: [dx, dy], event, xy: [x, y] }) => {
+        if (selectionModeEnabled) return;
+
         const detector = detectorRef.current;
         if (!detector) return;
 
@@ -123,11 +138,12 @@ export function TerminalGestureLayer({
       {...bind()}
       className={["h-full", className].filter(Boolean).join(" ")}
       style={{
-        ...NO_TOUCH_STYLE,
+        ...(selectionModeEnabled ? {} : NO_TOUCH_STYLE),
         ...style,
-        touchAction: "pan-x pan-y",
+        touchAction: selectionModeEnabled ? "auto" : "pan-x pan-y",
       }}
       onContextMenu={(event) => {
+        if (selectionModeEnabled) return;
         if (!suppressNextContextMenuRef.current) return;
         event.preventDefault();
         event.stopPropagation();

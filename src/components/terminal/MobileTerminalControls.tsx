@@ -7,6 +7,8 @@ import {
   ArrowRight,
   ArrowRightToLine,
   ArrowUp,
+  ClipboardPaste,
+  Copy,
   CornerDownLeft,
   DoorOpen,
   List,
@@ -14,6 +16,7 @@ import {
   Minus,
   Plus,
   RefreshCw,
+  TextSelect,
   X,
 } from "lucide-react";
 import type { PointerEvent, MouseEvent as ReactMouseEvent } from "react";
@@ -50,6 +53,7 @@ const MOBILE_SMART_KEY_ICONS: Record<MobileSmartKeyIconName, LucideIcon> = {
 
 const CONTROL_PAGES = [
   ...MOBILE_SMART_KEY_PAGES.map((page) => page.label),
+  "Clipboard",
   "Windows",
   "Compose",
   "Font size",
@@ -119,12 +123,30 @@ export interface MobileTerminalControlsProps {
   /** Called once for each terminal action press and page-dot navigation. */
   onHapticFeedback?: () => void;
   windowNavigation?: MobileTerminalWindowNavigation;
+  hasSelection?: boolean;
+  selectionModeEnabled?: boolean;
+  onToggleSelectionMode?: (enabled: boolean) => void;
+  onCopy?: () => void;
+  onPaste?: () => void;
+  clipboardStatusText?: string;
+  selectionModeDisabledReason?: string;
+  copyDisabledReason?: string;
+  pasteDisabledReason?: string;
 }
 
 export function MobileTerminalControls({
   isKeyboardVisible = false,
   onHapticFeedback,
   windowNavigation,
+  hasSelection = false,
+  selectionModeEnabled = false,
+  onToggleSelectionMode,
+  onCopy,
+  onPaste,
+  clipboardStatusText,
+  selectionModeDisabledReason,
+  copyDisabledReason,
+  pasteDisabledReason,
 }: MobileTerminalControlsProps = {}) {
   const { activeSend } = useKeybindings();
   const [carouselApi, setCarouselApi] = useState<CarouselApi>();
@@ -183,6 +205,24 @@ export function MobileTerminalControls({
     windowNavigation.reload();
   }, [haptic, windowNavigation]);
 
+  const toggleSelectionMode = useCallback(() => {
+    if (!onToggleSelectionMode) return;
+    haptic();
+    onToggleSelectionMode(!selectionModeEnabled);
+  }, [haptic, onToggleSelectionMode, selectionModeEnabled]);
+
+  const copySelection = useCallback(() => {
+    if (!onCopy || !hasSelection) return;
+    haptic();
+    onCopy();
+  }, [hasSelection, haptic, onCopy]);
+
+  const pasteClipboard = useCallback(() => {
+    if (!onPaste) return;
+    haptic();
+    onPaste();
+  }, [haptic, onPaste]);
+
   const selectPage = useCallback(
     (index: number) => {
       haptic();
@@ -192,6 +232,29 @@ export function MobileTerminalControls({
     [carouselApi, haptic],
   );
 
+  const selectionModeButtonDisabledReason =
+    selectionModeDisabledReason ??
+    (!onToggleSelectionMode ? "Selection mode unavailable" : undefined);
+  const copyButtonDisabledReason =
+    copyDisabledReason ??
+    (!onCopy
+      ? "Copy unavailable"
+      : !hasSelection
+        ? "Select terminal text before copying"
+        : undefined);
+  const pasteButtonDisabledReason =
+    pasteDisabledReason ?? (!onPaste ? "Paste unavailable" : undefined);
+  const clipboardStatus =
+    clipboardStatusText ??
+    (!onToggleSelectionMode && !onCopy && !onPaste
+      ? "Clipboard controls unavailable"
+      : selectionModeEnabled
+        ? hasSelection
+          ? "Selection mode on. Terminal selection available."
+          : "Selection mode on. Select terminal text to copy."
+        : hasSelection
+          ? "Terminal selection available."
+          : "Selection mode off. Use Select to enable terminal selection.");
   const previousDisabledReason = getWindowStepDisabledReason("previous", windowNavigation);
   const nextDisabledReason = getWindowStepDisabledReason("next", windowNavigation);
   const windowStatus = getWindowNavigationStatus(windowNavigation);
@@ -272,6 +335,73 @@ export function MobileTerminalControls({
               </ButtonGroup>
             </CarouselItem>
           ))}
+
+          <CarouselItem aria-label="Clipboard controls" className="pl-2">
+            <div className="flex flex-col gap-1">
+              <ButtonGroup
+                aria-label="Terminal clipboard controls"
+                className="grid w-full grid-cols-3 rounded-none"
+              >
+                <Button
+                  type="button"
+                  variant="outline"
+                  className={STACKED_BUTTON_CLASS}
+                  style={NO_TOUCH_STYLE}
+                  onPointerDown={keepTerminalKeyboardOpen}
+                  onMouseDown={keepTerminalKeyboardOpen}
+                  onClick={toggleSelectionMode}
+                  disabled={Boolean(selectionModeButtonDisabledReason)}
+                  aria-label={
+                    selectionModeEnabled
+                      ? "Turn terminal selection mode off"
+                      : "Turn terminal selection mode on"
+                  }
+                  aria-pressed={selectionModeEnabled}
+                  aria-describedby="terminal-clipboard-status"
+                  title={selectionModeButtonDisabledReason}
+                >
+                  <MobileControlButtonContent Icon={TextSelect} label="Select" />
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className={STACKED_BUTTON_CLASS}
+                  style={NO_TOUCH_STYLE}
+                  onPointerDown={keepTerminalKeyboardOpen}
+                  onMouseDown={keepTerminalKeyboardOpen}
+                  onClick={copySelection}
+                  disabled={Boolean(copyButtonDisabledReason)}
+                  aria-label="Copy terminal selection"
+                  aria-describedby="terminal-clipboard-status"
+                  title={copyButtonDisabledReason}
+                >
+                  <MobileControlButtonContent Icon={Copy} label="Copy" />
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className={STACKED_BUTTON_CLASS}
+                  style={NO_TOUCH_STYLE}
+                  onPointerDown={keepTerminalKeyboardOpen}
+                  onMouseDown={keepTerminalKeyboardOpen}
+                  onClick={pasteClipboard}
+                  disabled={Boolean(pasteButtonDisabledReason)}
+                  aria-label="Paste from clipboard"
+                  aria-describedby="terminal-clipboard-status"
+                  title={pasteButtonDisabledReason}
+                >
+                  <MobileControlButtonContent Icon={ClipboardPaste} label="Paste" />
+                </Button>
+              </ButtonGroup>
+              <p
+                id="terminal-clipboard-status"
+                aria-live="polite"
+                className="min-h-4 truncate text-center text-[11px] text-muted-foreground"
+              >
+                {clipboardStatus}
+              </p>
+            </div>
+          </CarouselItem>
 
           <CarouselItem aria-label="Windows controls" className="pl-2">
             <div className="flex flex-col gap-1">

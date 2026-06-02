@@ -48,6 +48,7 @@ interface InteractiveTerminalProps {
   layoutSignal?: unknown;
   mobileInputMode?: boolean;
   pinToBottomOnResize?: boolean;
+  selectionModeEnabled?: boolean;
 }
 
 interface MobileTouchIntent {
@@ -172,6 +173,7 @@ export function InteractiveTerminal({
   layoutSignal,
   mobileInputMode = false,
   pinToBottomOnResize = false,
+  selectionModeEnabled = false,
 }: InteractiveTerminalProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const termRef = useRef<Terminal | null>(null);
@@ -181,6 +183,8 @@ export function InteractiveTerminal({
   pinToBottomOnResizeRef.current = pinToBottomOnResize;
   const mobileInputModeRef = useRef(mobileInputMode);
   mobileInputModeRef.current = mobileInputMode;
+  const selectionModeEnabledRef = useRef(selectionModeEnabled);
+  selectionModeEnabledRef.current = selectionModeEnabled;
   const mobileTouchIntentRef = useRef<MobileTouchIntent | null>(null);
   const suppressNextClickFocusRef = useRef(false);
   const mobileInputCleanupRef = useRef<MobileInputAdapterCleanup | null>(null);
@@ -298,7 +302,7 @@ export function InteractiveTerminal({
 
   const continueMobileTouchScroll = useCallback((event: TouchEvent | ReactTouchEvent) => {
     const intent = mobileTouchIntentRef.current;
-    if (!mobileInputModeRef.current || !intent) return;
+    if (!mobileInputModeRef.current || selectionModeEnabledRef.current || !intent) return;
 
     if (event.touches.length > 1) {
       intent.multiTouch = true;
@@ -382,12 +386,13 @@ export function InteractiveTerminal({
   useEffect(() => {
     void layoutSignal;
     void mobileInputMode;
+    void selectionModeEnabled;
     applyMobileInputAdapter();
     return () => {
       mobileInputCleanupRef.current?.dispose();
       mobileInputCleanupRef.current = null;
     };
-  }, [applyMobileInputAdapter, layoutSignal, mobileInputMode]);
+  }, [applyMobileInputAdapter, layoutSignal, mobileInputMode, selectionModeEnabled]);
 
   const fitResizeAndPreserveBottom = useCallback(
     (forceScrollToBottom = false, source = "layout-refit") => {
