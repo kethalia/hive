@@ -29,9 +29,11 @@ const { mockUseTerminalWebSocket, mockFit, mockSend, mockResize, terminalInstanc
 );
 
 const {
+  mockCopyTerminalSelection,
   mockCreateSessionAction,
   mockGetWorkspaceSessionsAction,
   mockHandleKeyEvent,
+  mockPasteToTerminal,
   mockRegisterKeybinding,
   mockSetActiveTerminal,
   mockUnregisterKeybinding,
@@ -47,9 +49,11 @@ const {
   const handleKeyEvent = vi.fn(() => true);
   const setActiveTerminal = vi.fn();
   return {
+    mockCopyTerminalSelection: vi.fn(),
     mockCreateSessionAction: vi.fn(),
     mockGetWorkspaceSessionsAction: vi.fn(),
     mockHandleKeyEvent: handleKeyEvent,
+    mockPasteToTerminal: vi.fn(),
     mockRegisterKeybinding: register,
     mockSetActiveTerminal: setActiveTerminal,
     mockUnregisterKeybinding: unregister,
@@ -75,6 +79,7 @@ const {
     },
     terminalRouteMockState: {
       commandPaletteProps: null as unknown,
+      gestureLayerProps: null as unknown,
       mobileControlsProps: null as unknown,
     },
   };
@@ -138,6 +143,7 @@ vi.mock("next/dynamic", () => ({
       layoutSignal,
       mobileInputMode,
       pinToBottomOnResize,
+      selectionModeEnabled,
       sessionName,
     }: {
       className?: string;
@@ -146,6 +152,7 @@ vi.mock("next/dynamic", () => ({
       layoutSignal?: unknown;
       mobileInputMode?: boolean;
       pinToBottomOnResize?: boolean;
+      selectionModeEnabled?: boolean;
       sessionName: string;
     }) => (
       <div
@@ -155,6 +162,7 @@ vi.mock("next/dynamic", () => ({
         data-layout-signal={String(layoutSignal ?? "")}
         data-mobile-input-mode={mobileInputMode ? "true" : "false"}
         data-pin-to-bottom-on-resize={pinToBottomOnResize ? "true" : "false"}
+        data-selection-mode-enabled={selectionModeEnabled ? "true" : "false"}
         data-session-name={sessionName}
         data-testid="interactive-terminal"
       />
@@ -272,10 +280,28 @@ vi.mock("@/components/terminal/CommandPalette", () => ({
 
 vi.mock("@/components/terminal/MobileTerminalControls", () => ({
   MobileTerminalControls: ({
+    clipboardStatusText,
+    copyDisabledReason,
+    hasSelection,
     isKeyboardVisible,
+    onCopy,
+    onPaste,
+    onToggleSelectionMode,
+    pasteDisabledReason,
+    selectionModeDisabledReason,
+    selectionModeEnabled,
     windowNavigation,
   }: {
+    clipboardStatusText?: string;
+    copyDisabledReason?: string;
+    hasSelection?: boolean;
     isKeyboardVisible?: boolean;
+    onCopy?: () => void;
+    onPaste?: () => void;
+    onToggleSelectionMode?: (enabled: boolean) => void;
+    pasteDisabledReason?: string;
+    selectionModeDisabledReason?: string;
+    selectionModeEnabled?: boolean;
     windowNavigation?: {
       canGoNext?: boolean;
       canGoPrevious?: boolean;
@@ -290,19 +316,47 @@ vi.mock("@/components/terminal/MobileTerminalControls", () => ({
       sessions?: Array<{ name: string }>;
     };
   }) => {
-    terminalRouteMockState.mobileControlsProps = { isKeyboardVisible, windowNavigation };
+    terminalRouteMockState.mobileControlsProps = {
+      clipboardStatusText,
+      copyDisabledReason,
+      hasSelection,
+      isKeyboardVisible,
+      pasteDisabledReason,
+      selectionModeDisabledReason,
+      selectionModeEnabled,
+      windowNavigation,
+    };
 
     return (
       <div
+        data-copy-disabled={copyDisabledReason ? "true" : "false"}
+        data-copy-disabled-reason={copyDisabledReason ?? ""}
         data-current-session={windowNavigation?.current?.name ?? ""}
         data-error={windowNavigation?.error ?? ""}
+        data-has-selection={hasSelection ? "true" : "false"}
         data-keyboard-visible={isKeyboardVisible ? "true" : "false"}
         data-loading={windowNavigation?.loading ? "true" : "false"}
         data-next-session={windowNavigation?.next?.name ?? ""}
+        data-paste-disabled={pasteDisabledReason ? "true" : "false"}
+        data-paste-disabled-reason={pasteDisabledReason ?? ""}
         data-previous-session={windowNavigation?.previous?.name ?? ""}
+        data-selection-disabled-reason={selectionModeDisabledReason ?? ""}
+        data-selection-mode-enabled={selectionModeEnabled ? "true" : "false"}
         data-session-count={String(windowNavigation?.sessions?.length ?? 0)}
         data-testid="terminal-mobile-controls"
       >
+        <p aria-live="polite" data-testid="terminal-clipboard-status">
+          {clipboardStatusText}
+        </p>
+        <button type="button" data-testid="terminal-selection-toggle" onClick={() => onToggleSelectionMode?.(!selectionModeEnabled)}>
+          Select
+        </button>
+        <button type="button" data-testid="terminal-copy-selection" disabled={Boolean(copyDisabledReason)} onClick={() => onCopy?.()}>
+          Copy
+        </button>
+        <button type="button" data-testid="terminal-paste-clipboard" disabled={Boolean(pasteDisabledReason)} onClick={() => onPaste?.()}>
+          Paste
+        </button>
         <button type="button" data-testid="terminal-window-previous" onClick={() => windowNavigation?.previous && windowNavigation.select?.(windowNavigation.previous.name)}>
           Previous
         </button>
@@ -336,9 +390,20 @@ vi.mock("@/components/terminal/TerminalContextMenu", () => ({
 }));
 
 vi.mock("@/components/terminal/TerminalGestureLayer", () => ({
-  TerminalGestureLayer: ({ children }: React.PropsWithChildren) => (
-    <div data-testid="terminal-gesture-layer">{children}</div>
-  ),
+  TerminalGestureLayer: ({
+    children,
+    selectionModeEnabled,
+  }: React.PropsWithChildren<{ selectionModeEnabled?: boolean }>) => {
+    terminalRouteMockState.gestureLayerProps = { selectionModeEnabled };
+    return (
+      <div
+        data-selection-mode-enabled={selectionModeEnabled ? "true" : "false"}
+        data-testid="terminal-gesture-layer"
+      >
+        {children}
+      </div>
+    );
+  },
 }));
 
 vi.mock("@/components/ui/button", () => ({
@@ -390,8 +455,8 @@ vi.mock("@/lib/device/haptics", () => ({
 }));
 
 vi.mock("@/lib/terminal/actions", () => ({
-  copyTerminalSelection: vi.fn(),
-  pasteToTerminal: vi.fn(),
+  copyTerminalSelection: mockCopyTerminalSelection,
+  pasteToTerminal: mockPasteToTerminal,
 }));
 
 vi.mock("@/styles/xterm.css", () => ({}));
@@ -422,10 +487,13 @@ beforeEach(() => {
   window.localStorage.clear();
   navigationState.search = "session=main";
   navigationState.router.replace.mockClear();
+  mockCopyTerminalSelection.mockReset();
+  mockPasteToTerminal.mockReset();
   mockCreateSessionAction.mockReset();
   mockGetWorkspaceSessionsAction.mockReset();
   mockGetWorkspaceSessionsAction.mockResolvedValue({ data: [] });
   terminalRouteMockState.commandPaletteProps = null;
+  terminalRouteMockState.gestureLayerProps = null;
   terminalRouteMockState.mobileControlsProps = null;
   mockRegisterKeybinding.mockClear();
   mockUnregisterKeybinding.mockClear();
@@ -788,6 +856,14 @@ describe("TerminalClient integration — Mobile terminal route props", () => {
       "data-pin-to-bottom-on-resize",
       "false",
     );
+    expect(getByTestId("interactive-terminal")).toHaveAttribute(
+      "data-selection-mode-enabled",
+      "false",
+    );
+    expect(getByTestId("terminal-gesture-layer")).toHaveAttribute(
+      "data-selection-mode-enabled",
+      "false",
+    );
     expect(getByTestId("terminal-desktop-shell")).toBeInTheDocument();
     expect(document.querySelectorAll('[data-testid="interactive-terminal"]')).toHaveLength(1);
     expect(document.querySelector('[data-testid="terminal-window-command-palette"]')).toBeNull();
@@ -832,6 +908,122 @@ describe("TerminalClient integration — Mobile terminal route props", () => {
       "data-pin-to-bottom-on-resize",
       "true",
     );
+    unmount();
+  });
+
+  it("wires mobile clipboard buttons to the active terminal and sender with redacted status", async () => {
+    mockUseIsComposeSheet.mockReturnValue(true);
+    const activeTerminal = {
+      clearSelection: vi.fn(),
+      getSelection: vi.fn(() => "non-empty-selection"),
+    };
+    const activeSend = vi.fn();
+    mockUseKeybindings.mockReturnValue({
+      activeSend,
+      activeTerminal,
+      getAll: vi.fn(() => []),
+      handleKeyEvent: mockHandleKeyEvent,
+      register: mockRegisterKeybinding,
+      setActiveTerminal: mockSetActiveTerminal,
+      unregister: mockUnregisterKeybinding,
+    });
+    mockCopyTerminalSelection.mockImplementation((_term, options) => {
+      options?.onStatus?.({ action: "copy", outcome: "copied", method: "clipboard-api" });
+      return false;
+    });
+    mockPasteToTerminal.mockImplementation((_term, _send, options) => {
+      options?.onStatus?.({ action: "paste", outcome: "pasted", method: "clipboard-api" });
+      return false;
+    });
+
+    const { getByTestId, unmount } = await renderTerminalClient("session=main");
+
+    await waitFor(() => {
+      expect(getByTestId("terminal-mobile-controls")).toHaveAttribute("data-has-selection", "true");
+    });
+
+    fireEvent.click(getByTestId("terminal-copy-selection"));
+    expect(mockCopyTerminalSelection).toHaveBeenCalledWith(
+      activeTerminal,
+      expect.objectContaining({ onStatus: expect.any(Function) }),
+    );
+    expect(getByTestId("terminal-clipboard-status")).toHaveTextContent("Copy complete");
+    expect(getByTestId("terminal-clipboard-status")).not.toHaveTextContent("non-empty-selection");
+
+    fireEvent.click(getByTestId("terminal-paste-clipboard"));
+    expect(mockPasteToTerminal).toHaveBeenCalledWith(
+      activeTerminal,
+      activeSend,
+      expect.objectContaining({ onStatus: expect.any(Function) }),
+    );
+    expect(getByTestId("terminal-clipboard-status")).toHaveTextContent("Paste complete");
+    unmount();
+  });
+
+  it("keeps mobile clipboard actions disabled until the active terminal and sender are available", async () => {
+    mockUseIsComposeSheet.mockReturnValue(true);
+
+    const { getByTestId, unmount } = await renderTerminalClient("session=main");
+
+    await waitFor(() => {
+      expect(getByTestId("terminal-mobile-controls")).toHaveAttribute("data-copy-disabled", "true");
+    });
+    expect(getByTestId("terminal-mobile-controls")).toHaveAttribute(
+      "data-copy-disabled-reason",
+      "Terminal is not ready",
+    );
+    expect(getByTestId("terminal-mobile-controls")).toHaveAttribute("data-paste-disabled", "true");
+    expect(getByTestId("terminal-mobile-controls")).toHaveAttribute(
+      "data-paste-disabled-reason",
+      "Paste is unavailable until the terminal sender is ready",
+    );
+    expect(getByTestId("terminal-clipboard-status")).toHaveTextContent("Terminal is not ready");
+    expect(mockCopyTerminalSelection).not.toHaveBeenCalled();
+    expect(mockPasteToTerminal).not.toHaveBeenCalled();
+    unmount();
+  });
+
+  it("forwards mobile selection mode to the gesture layer and terminal only on compose-sheet routes", async () => {
+    mockUseIsComposeSheet.mockReturnValue(true);
+    const activeTerminal = {
+      clearSelection: vi.fn(),
+      getSelection: vi.fn(() => ""),
+    };
+    const activeSend = vi.fn();
+    mockUseKeybindings.mockReturnValue({
+      activeSend,
+      activeTerminal,
+      getAll: vi.fn(() => []),
+      handleKeyEvent: mockHandleKeyEvent,
+      register: mockRegisterKeybinding,
+      setActiveTerminal: mockSetActiveTerminal,
+      unregister: mockUnregisterKeybinding,
+    });
+
+    const { getByTestId, unmount } = await renderTerminalClient("session=main");
+
+    await waitFor(() => {
+      expect(getByTestId("terminal-mobile-controls")).toHaveAttribute(
+        "data-selection-mode-enabled",
+        "false",
+      );
+    });
+
+    fireEvent.click(getByTestId("terminal-selection-toggle"));
+
+    expect(getByTestId("terminal-mobile-controls")).toHaveAttribute(
+      "data-selection-mode-enabled",
+      "true",
+    );
+    expect(getByTestId("terminal-gesture-layer")).toHaveAttribute(
+      "data-selection-mode-enabled",
+      "true",
+    );
+    expect(getByTestId("interactive-terminal")).toHaveAttribute(
+      "data-selection-mode-enabled",
+      "true",
+    );
+    expect(getByTestId("terminal-clipboard-status")).toHaveTextContent("Selection mode on");
     unmount();
   });
 
