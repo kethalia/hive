@@ -5,6 +5,7 @@ import dynamic from "next/dynamic";
 import { useRouter, useSearchParams } from "next/navigation";
 import type { PointerEvent } from "react";
 import { Suspense, useCallback, useEffect, useRef, useState } from "react";
+import { CommandPalette } from "@/components/terminal/CommandPalette";
 import { ComposePanel } from "@/components/terminal/ComposePanel";
 import { MobileTerminalControls } from "@/components/terminal/MobileTerminalControls";
 import { MobileTerminalDiagnosticsOverlay } from "@/components/terminal/MobileTerminalDiagnosticsOverlay";
@@ -16,6 +17,7 @@ import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/componen
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { useIsComposeSheet } from "@/hooks/use-compose-sheet";
 import { useKeybindings } from "@/hooks/useKeybindings";
+import { useTerminalSessionNavigation } from "@/hooks/useTerminalSessionNavigation";
 import { useVisualViewportKeyboardOffset } from "@/hooks/useVisualViewportKeyboardOffset";
 import { createSessionAction, getWorkspaceSessionsAction } from "@/lib/actions/workspaces";
 import { triggerHapticFeedback } from "@/lib/device/haptics";
@@ -54,6 +56,7 @@ function TerminalInner({ agentId, workspaceId }: { agentId: string; workspaceId:
   const [menuPosition, setMenuPosition] = useState<{ x: number; y: number } | null>(null);
   const [menuSelection, setMenuSelection] = useState(false);
   const [composeOpen, setComposeOpen] = useState(false);
+  const [windowSwitcherOpen, setWindowSwitcherOpen] = useState(false);
   const [bootstrapError, setBootstrapError] = useState<string | null>(null);
   const [bootstrapRetryKey, setBootstrapRetryKey] = useState(0);
   const composeSheetDragStartYRef = useRef<number | null>(null);
@@ -64,6 +67,17 @@ function TerminalInner({ agentId, workspaceId }: { agentId: string; workspaceId:
     visualViewportHeightPx = 0,
     visualViewportOffsetTopPx = 0,
   } = useVisualViewportKeyboardOffset();
+  const terminalSessionNavigation = useTerminalSessionNavigation(workspaceId);
+  const terminalWindowTabs = terminalSessionNavigation.sessions.map((terminalSession) => ({
+    id: terminalSession.name,
+    sessionName: terminalSession.name,
+  }));
+  const handleSelectTerminalWindowTab = useCallback(
+    (tabId: string) => {
+      terminalSessionNavigation.select(tabId);
+    },
+    [terminalSessionNavigation],
+  );
   const isMobileKeyboardVisible = isComposeSheet && visualKeyboardVisible;
   const keyboardLiftPx = isComposeSheet ? visualKeyboardLiftPx : 0;
   const composeSheetStyle = composeSheetKeyboardStyle(isMobileKeyboardVisible);
@@ -308,6 +322,10 @@ function TerminalInner({ agentId, workspaceId }: { agentId: string; workspaceId:
           <MobileTerminalControls
             isKeyboardVisible={isMobileKeyboardVisible}
             onHapticFeedback={triggerHapticFeedback}
+            windowNavigation={{
+              ...terminalSessionNavigation,
+              onOpenSwitcher: () => setWindowSwitcherOpen(true),
+            }}
           />
         </div>
         <Sheet open={composeOpen} onOpenChange={setComposeOpen}>
@@ -333,6 +351,12 @@ function TerminalInner({ agentId, workspaceId }: { agentId: string; workspaceId:
             </div>
           </SheetContent>
         </Sheet>
+        <CommandPalette
+          open={windowSwitcherOpen}
+          onOpenChange={setWindowSwitcherOpen}
+          tabs={terminalWindowTabs}
+          onSelectTab={handleSelectTerminalWindowTab}
+        />
       </MobileTerminalShell>
     );
   }

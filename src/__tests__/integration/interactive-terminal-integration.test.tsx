@@ -39,6 +39,7 @@ const {
   mockUseKeybindings,
   mockUseVisualViewportKeyboardOffset,
   navigationState,
+  terminalRouteMockState,
 } = vi.hoisted(() => {
   const router = { replace: vi.fn() };
   const register = vi.fn();
@@ -71,6 +72,10 @@ const {
     navigationState: {
       router,
       search: "session=main",
+    },
+    terminalRouteMockState: {
+      commandPaletteProps: null as unknown,
+      mobileControlsProps: null as unknown,
     },
   };
 });
@@ -222,14 +227,97 @@ vi.mock("@/components/terminal/ComposePanel", () => ({
   ),
 }));
 
+vi.mock("@/components/terminal/CommandPalette", () => ({
+  CommandPalette: ({
+    onCreateSession,
+    onOpenChange,
+    onSelectTab,
+    open,
+    tabs,
+  }: {
+    onCreateSession?: () => void;
+    onOpenChange: (open: boolean) => void;
+    onSelectTab: (tabId: string) => void;
+    open: boolean;
+    tabs: Array<{ id: string; sessionName: string }>;
+  }) => {
+    terminalRouteMockState.commandPaletteProps = {
+      hasCreateSession: Boolean(onCreateSession),
+      open,
+      tabs,
+    };
+
+    if (!open) return null;
+
+    return (
+      <div data-testid="terminal-window-command-palette">
+        <button type="button" data-testid="terminal-window-command-palette-close" onClick={() => onOpenChange(false)}>
+          Close
+        </button>
+        {tabs.length === 0 ? <p>No sessions found.</p> : null}
+        {tabs.map((tab) => (
+          <button
+            key={tab.id}
+            type="button"
+            data-testid={`terminal-window-option-${tab.id}`}
+            onClick={() => onSelectTab(tab.id)}
+          >
+            {tab.sessionName}
+          </button>
+        ))}
+      </div>
+    );
+  },
+}));
+
 vi.mock("@/components/terminal/MobileTerminalControls", () => ({
-  MobileTerminalControls: ({ isKeyboardVisible }: { isKeyboardVisible?: boolean }) => (
-    <button
-      type="button"
-      data-keyboard-visible={isKeyboardVisible ? "true" : "false"}
-      data-testid="terminal-mobile-controls"
-    />
-  ),
+  MobileTerminalControls: ({
+    isKeyboardVisible,
+    windowNavigation,
+  }: {
+    isKeyboardVisible?: boolean;
+    windowNavigation?: {
+      canGoNext?: boolean;
+      canGoPrevious?: boolean;
+      current?: { name: string } | null;
+      error?: string | null;
+      loading?: boolean;
+      next?: { name: string } | null;
+      onOpenSwitcher?: () => void;
+      previous?: { name: string } | null;
+      reload?: () => void;
+      select?: (sessionName: string) => boolean | void;
+      sessions?: Array<{ name: string }>;
+    };
+  }) => {
+    terminalRouteMockState.mobileControlsProps = { isKeyboardVisible, windowNavigation };
+
+    return (
+      <div
+        data-current-session={windowNavigation?.current?.name ?? ""}
+        data-error={windowNavigation?.error ?? ""}
+        data-keyboard-visible={isKeyboardVisible ? "true" : "false"}
+        data-loading={windowNavigation?.loading ? "true" : "false"}
+        data-next-session={windowNavigation?.next?.name ?? ""}
+        data-previous-session={windowNavigation?.previous?.name ?? ""}
+        data-session-count={String(windowNavigation?.sessions?.length ?? 0)}
+        data-testid="terminal-mobile-controls"
+      >
+        <button type="button" data-testid="terminal-window-previous" onClick={() => windowNavigation?.previous && windowNavigation.select?.(windowNavigation.previous.name)}>
+          Previous
+        </button>
+        <button type="button" data-testid="terminal-window-switcher" onClick={() => windowNavigation?.onOpenSwitcher?.()}>
+          Windows
+        </button>
+        <button type="button" data-testid="terminal-window-next" onClick={() => windowNavigation?.next && windowNavigation.select?.(windowNavigation.next.name)}>
+          Next
+        </button>
+        <button type="button" data-testid="terminal-window-reload" onClick={() => windowNavigation?.reload?.()}>
+          Reload
+        </button>
+      </div>
+    );
+  },
 }));
 
 vi.mock("@/components/terminal/MobileTerminalDiagnosticsOverlay", () => ({
@@ -336,6 +424,9 @@ beforeEach(() => {
   navigationState.router.replace.mockClear();
   mockCreateSessionAction.mockReset();
   mockGetWorkspaceSessionsAction.mockReset();
+  mockGetWorkspaceSessionsAction.mockResolvedValue({ data: [] });
+  terminalRouteMockState.commandPaletteProps = null;
+  terminalRouteMockState.mobileControlsProps = null;
   mockRegisterKeybinding.mockClear();
   mockUnregisterKeybinding.mockClear();
   mockHandleKeyEvent.mockClear();
@@ -697,6 +788,9 @@ describe("TerminalClient integration — Mobile terminal route props", () => {
       "data-pin-to-bottom-on-resize",
       "false",
     );
+    expect(getByTestId("terminal-desktop-shell")).toBeInTheDocument();
+    expect(document.querySelectorAll('[data-testid="interactive-terminal"]')).toHaveLength(1);
+    expect(document.querySelector('[data-testid="terminal-window-command-palette"]')).toBeNull();
     unmount();
   });
 
@@ -740,6 +834,177 @@ describe("TerminalClient integration — Mobile terminal route props", () => {
     );
     unmount();
   });
+
+  it("passes route-authoritative terminal-window navigation state to mobile controls", async () => {
+    mockUseIsComposeSheet.mockReturnValue(true);
+    mockGetWorkspaceSessionsAction.mockResolvedValue({
+      data: [
+        { name: "alpha", created: 1, windows: 1 },
+        { name: "main", created: 2, windows: 1 },
+        { name: "two words", created: 3, windows: 1 },
+      ],
+    });
+
+    const { getByTestId, unmount } = await renderTerminalClient("session=main&debugViewport=1");
+
+    await waitFor(() => {
+      expect(getByTestId("terminal-mobile-controls")).toHaveAttribute("data-session-count", "3");
+    });
+    expect(getByTestId("terminal-mobile-controls")).toHaveAttribute("data-current-session", "main");
+    expect(getByTestId("terminal-mobile-controls")).toHaveAttribute("data-previous-session", "alpha");
+    expect(getByTestId("terminal-mobile-controls")).toHaveAttribute("data-next-session", "two words");
+    expect(document.querySelectorAll('[data-testid="interactive-terminal"]')).toHaveLength(1);
+    expect(getByTestId("interactive-terminal")).toHaveAttribute("data-session-name", "main");
+    expect(mockGetWorkspaceSessionsAction).toHaveBeenCalledWith({ workspaceId: "test-ws" });
+    unmount();
+  });
+
+  it("routes previous and next mobile controls with encoded names while preserving debugViewport", async () => {
+    mockUseIsComposeSheet.mockReturnValue(true);
+    mockGetWorkspaceSessionsAction.mockResolvedValue({
+      data: [
+        { name: "alpha", created: 1, windows: 1 },
+        { name: "main", created: 2, windows: 1 },
+        { name: "two words", created: 3, windows: 1 },
+      ],
+    });
+
+    const { getByTestId, unmount } = await renderTerminalClient("session=main&debugViewport=1");
+
+    await waitFor(() => {
+      expect(getByTestId("terminal-mobile-controls")).toHaveAttribute("data-next-session", "two words");
+    });
+
+    fireEvent.click(getByTestId("terminal-window-next"));
+    expect(navigationState.router.replace).toHaveBeenCalledWith(
+      "/workspaces/test-ws/terminal?session=two%20words&debugViewport=1",
+    );
+
+    fireEvent.click(getByTestId("terminal-window-previous"));
+    expect(navigationState.router.replace).toHaveBeenCalledWith(
+      "/workspaces/test-ws/terminal?session=alpha&debugViewport=1",
+    );
+    unmount();
+  });
+
+  it("opens the existing command palette picker and routes selection without enabling creation", async () => {
+    mockUseIsComposeSheet.mockReturnValue(true);
+    mockGetWorkspaceSessionsAction.mockResolvedValue({
+      data: [
+        { name: "main", created: 1, windows: 1 },
+        { name: "beta/slash", created: 2, windows: 1 },
+      ],
+    });
+
+    const { getByTestId, queryByTestId, unmount } = await renderTerminalClient("session=main");
+
+    await waitFor(() => {
+      expect(getByTestId("terminal-mobile-controls")).toHaveAttribute("data-session-count", "2");
+    });
+    expect(queryByTestId("terminal-window-command-palette")).not.toBeInTheDocument();
+
+    fireEvent.click(getByTestId("terminal-window-switcher"));
+
+    expect(getByTestId("terminal-window-command-palette")).toBeInTheDocument();
+    expect(terminalRouteMockState.commandPaletteProps).toMatchObject({
+      hasCreateSession: false,
+      open: true,
+      tabs: [
+        { id: "main", sessionName: "main" },
+        { id: "beta/slash", sessionName: "beta/slash" },
+      ],
+    });
+
+    fireEvent.click(getByTestId("terminal-window-option-beta/slash"));
+
+    expect(navigationState.router.replace).toHaveBeenCalledWith(
+      "/workspaces/test-ws/terminal?session=beta%2Fslash",
+    );
+    unmount();
+  });
+
+  it("shows an empty picker state instead of navigating when the route has no generic sessions", async () => {
+    mockUseIsComposeSheet.mockReturnValue(true);
+    mockGetWorkspaceSessionsAction.mockResolvedValue({ data: [] });
+
+    const { getByTestId, queryByTestId, unmount } = await renderTerminalClient("session=missing");
+
+    await waitFor(() => {
+      expect(getByTestId("terminal-mobile-controls")).toHaveAttribute("data-session-count", "0");
+    });
+
+    fireEvent.click(getByTestId("terminal-window-switcher"));
+
+    expect(getByTestId("terminal-window-command-palette")).toHaveTextContent("No sessions found.");
+    expect(queryByTestId("terminal-window-option-missing")).not.toBeInTheDocument();
+    expect(navigationState.router.replace).not.toHaveBeenCalled();
+    unmount();
+  });
+
+  it("strips clone params when switching from an active clone URL to a generic session", async () => {
+    mockUseIsComposeSheet.mockReturnValue(true);
+    mockGetWorkspaceSessionsAction.mockResolvedValue({
+      data: [
+        { name: "main", created: 1, windows: 1 },
+        { name: "two words", created: 2, windows: 1 },
+      ],
+    });
+
+    const { getByTestId, unmount } = await renderTerminalClient(
+      "session=git-clone-safe-hive&clonePath=kethalia%2Fhive&cloneProof=proof-token&debugViewport=1",
+    );
+
+    await waitFor(() => {
+      expect(getByTestId("terminal-mobile-controls")).toHaveAttribute("data-session-count", "2");
+    });
+    expect(getByTestId("interactive-terminal")).toHaveAttribute(
+      "data-session-name",
+      "git-clone-safe-hive",
+    );
+    expect(getByTestId("interactive-terminal")).toHaveAttribute("data-clone-proof", "proof-token");
+
+    fireEvent.click(getByTestId("terminal-window-switcher"));
+    fireEvent.click(getByTestId("terminal-window-option-two words"));
+
+    expect(navigationState.router.replace).toHaveBeenCalledWith(
+      "/workspaces/test-ws/terminal?session=two%20words&debugViewport=1",
+    );
+    expect(navigationState.router.replace).not.toHaveBeenCalledWith(
+      expect.stringContaining("clonePath"),
+    );
+    expect(navigationState.router.replace).not.toHaveBeenCalledWith(
+      expect.stringContaining("cloneProof"),
+    );
+    unmount();
+  });
+
+  it("surfaces loading and server-error navigation states without leaving the active route", async () => {
+    mockUseIsComposeSheet.mockReturnValue(true);
+    let resolveSessions: (value: { serverError: string }) => void = () => undefined;
+    mockGetWorkspaceSessionsAction.mockReturnValue(
+      new Promise((resolve) => {
+        resolveSessions = resolve;
+      }),
+    );
+
+    const { getByTestId, unmount } = await renderTerminalClient("session=main");
+
+    await waitFor(() => {
+      expect(getByTestId("terminal-mobile-controls")).toHaveAttribute("data-loading", "true");
+    });
+    expect(navigationState.router.replace).not.toHaveBeenCalled();
+
+    act(() => resolveSessions({ serverError: "Workspace agent unavailable" }));
+
+    await waitFor(() => {
+      expect(getByTestId("terminal-mobile-controls")).toHaveAttribute(
+        "data-error",
+        "Workspace agent unavailable",
+      );
+    });
+    expect(navigationState.router.replace).not.toHaveBeenCalled();
+    unmount();
+  });
 });
 
 describe("TerminalClient integration — Clone route parameters", () => {
@@ -758,7 +1023,7 @@ describe("TerminalClient integration — Clone route parameters", () => {
     expect(getByTestId("interactive-terminal")).toHaveAttribute("data-clone-path", "kethalia/hive");
     expect(getByTestId("interactive-terminal")).toHaveAttribute("data-clone-proof", "proof-token");
     expect(getByTestId("mobile-terminal-diagnostics-overlay")).toBeInTheDocument();
-    expect(mockGetWorkspaceSessionsAction).not.toHaveBeenCalled();
+    expect(mockGetWorkspaceSessionsAction).toHaveBeenCalledWith({ workspaceId: "test-ws" });
     expect(mockCreateSessionAction).not.toHaveBeenCalled();
     unmount();
   });
