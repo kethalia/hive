@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { ChevronRight, Folder, GitBranch } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import {
@@ -24,6 +25,22 @@ export function GitCloneSidebarTree({
   onRepositorySelect,
   className,
 }: GitCloneSidebarTreeProps) {
+  const [openDirectoryIds, setOpenDirectoryIds] = useState<ReadonlySet<string>>(() => new Set());
+
+  const setDirectoryOpen = (nodeId: string, open: boolean) => {
+    setOpenDirectoryIds((currentIds) => {
+      const nextIds = new Set(currentIds);
+
+      if (open) {
+        nextIds.add(nodeId);
+      } else {
+        nextIds.delete(nodeId);
+      }
+
+      return nextIds;
+    });
+  };
+
   return (
     <div className={cn("flex min-w-0 flex-col gap-1", className)} data-testid="git-clone-tree">
       <SidebarMenu>
@@ -48,7 +65,14 @@ export function GitCloneSidebarTree({
                 </p>
               ) : (
                 <SidebarMenuSub className="!mr-0 !pr-0">
-                  {tree.nodes.map((node) => renderCloneTreeNode(node, onRepositorySelect))}
+                  {tree.nodes.map((node) =>
+                    renderCloneTreeNode(
+                      node,
+                      onRepositorySelect,
+                      openDirectoryIds,
+                      setDirectoryOpen,
+                    ),
+                  )}
                 </SidebarMenuSub>
               )}
             </CollapsibleContent>
@@ -63,23 +87,43 @@ export function GitCloneSidebarTree({
 function renderCloneTreeNode(
   node: CloneTreeNode,
   onRepositorySelect: GitCloneSidebarTreeProps["onRepositorySelect"],
+  openDirectoryIds: ReadonlySet<string>,
+  setDirectoryOpen: (nodeId: string, open: boolean) => void,
 ) {
   if (node.kind === "repository") {
     return <RepositoryTreeNode key={node.id} node={node} onRepositorySelect={onRepositorySelect} />;
   }
 
-  return <DirectoryTreeNode key={node.id} node={node} onRepositorySelect={onRepositorySelect} />;
+  return (
+    <DirectoryTreeNode
+      key={node.id}
+      node={node}
+      onRepositorySelect={onRepositorySelect}
+      openDirectoryIds={openDirectoryIds}
+      setDirectoryOpen={setDirectoryOpen}
+    />
+  );
 }
 
 function DirectoryTreeNode({
   node,
   onRepositorySelect,
+  openDirectoryIds,
+  setDirectoryOpen,
 }: {
   node: Extract<CloneTreeNode, { kind: "directory" }>;
   onRepositorySelect: GitCloneSidebarTreeProps["onRepositorySelect"];
+  openDirectoryIds: ReadonlySet<string>;
+  setDirectoryOpen: (nodeId: string, open: boolean) => void;
 }) {
+  const isOpen = openDirectoryIds.has(node.id);
+
   return (
-    <Collapsible defaultOpen className="group/git-directory">
+    <Collapsible
+      open={isOpen}
+      onOpenChange={(open) => setDirectoryOpen(node.id, open)}
+      className="group/git-directory"
+    >
       <SidebarMenuSubItem>
         <SidebarMenuSubButton
           render={<CollapsibleTrigger />}
@@ -96,7 +140,9 @@ function DirectoryTreeNode({
         </SidebarMenuSubButton>
         <CollapsibleContent>
           <SidebarMenuSub className="!mr-0 !pr-0">
-            {node.children.map((child) => renderCloneTreeNode(child, onRepositorySelect))}
+            {node.children.map((child) =>
+              renderCloneTreeNode(child, onRepositorySelect, openDirectoryIds, setDirectoryOpen),
+            )}
           </SidebarMenuSub>
         </CollapsibleContent>
       </SidebarMenuSubItem>
