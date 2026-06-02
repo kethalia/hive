@@ -60,6 +60,14 @@ function clipboardFallbackText(reason: string): string {
   }
 }
 
+function terminalHasSelection(term: {
+  hasSelection?: () => boolean;
+  getSelection?: () => string;
+}): boolean {
+  if (typeof term.hasSelection === "function") return term.hasSelection();
+  return Boolean(term.getSelection?.());
+}
+
 function clipboardStatusText(
   status: ClipboardActionStatus | null,
   {
@@ -114,11 +122,13 @@ function TerminalInner({ agentId, workspaceId }: { agentId: string; workspaceId:
   const [composeOpen, setComposeOpen] = useState(false);
   const [windowSwitcherOpen, setWindowSwitcherOpen] = useState(false);
   const [selectionModeEnabled, setSelectionModeEnabled] = useState(false);
+  const [hasTerminalSelection, setHasTerminalSelection] = useState(false);
   const [clipboardActionStatus, setClipboardActionStatus] = useState<ClipboardActionStatus | null>(
     null,
   );
   const [bootstrapError, setBootstrapError] = useState<string | null>(null);
   const [bootstrapRetryKey, setBootstrapRetryKey] = useState(0);
+  const previousSessionRef = useRef(session);
   const composeSheetDragStartYRef = useRef<number | null>(null);
   const isComposeSheet = useIsComposeSheet();
   const {
@@ -205,15 +215,28 @@ function TerminalInner({ agentId, workspaceId }: { agentId: string; workspaceId:
   }, [activeSend, activeTerminal]);
 
   useEffect(() => {
-    if (session === null) {
-      setSelectionModeEnabled(false);
-      setClipboardActionStatus(null);
-      return;
-    }
+    if (previousSessionRef.current === session) return;
 
+    previousSessionRef.current = session;
     setSelectionModeEnabled(false);
     setClipboardActionStatus(null);
   }, [session]);
+
+  useEffect(() => {
+    if (!activeTerminal) {
+      setHasTerminalSelection(false);
+      return;
+    }
+
+    const updateSelectionState = () =>
+      setHasTerminalSelection(terminalHasSelection(activeTerminal));
+    updateSelectionState();
+
+    if (typeof activeTerminal.onSelectionChange !== "function") return;
+
+    const disposable = activeTerminal.onSelectionChange(updateSelectionState);
+    return () => disposable.dispose();
+  }, [activeTerminal]);
 
   useEffect(() => {
     const binding = {
@@ -421,14 +444,20 @@ function TerminalInner({ agentId, workspaceId }: { agentId: string; workspaceId:
           <MobileTerminalControls
             isKeyboardVisible={isMobileKeyboardVisible}
             onHapticFeedback={triggerHapticFeedback}
-            hasSelection={hasActiveTerminal}
+            hasSelection={hasTerminalSelection}
             selectionModeEnabled={mobileSelectionModeEnabled}
             onToggleSelectionMode={handleSelectionModeChange}
             onCopy={handleMobileCopy}
             onPaste={handleMobilePaste}
             clipboardStatusText={clipboardStatus}
             selectionModeDisabledReason={hasActiveTerminal ? undefined : "Terminal is not ready"}
-            copyDisabledReason={hasActiveTerminal ? undefined : "Terminal is not ready"}
+            copyDisabledReason={
+              hasActiveTerminal
+                ? hasTerminalSelection
+                  ? undefined
+                  : "Select terminal text before copying"
+                : "Terminal is not ready"
+            }
             pasteDisabledReason={
               hasActiveSender
                 ? undefined

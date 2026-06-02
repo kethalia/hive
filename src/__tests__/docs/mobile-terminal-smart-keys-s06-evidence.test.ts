@@ -52,7 +52,6 @@ describe("S06 mobile terminal smart keys evidence contract", () => {
       "**Keys:** Enter, Tab, Esc, Backspace.",
       "**Control:** Ctrl+C, Ctrl+D, Ctrl+L, Ctrl+R.",
       "**Navigation:** Up, Down, Left, Right.",
-      "**Position:** Home, End, PgUp, PgDn.",
     ];
 
     for (const row of expectedPageRows) {
@@ -72,15 +71,14 @@ describe("S06 mobile terminal smart keys evidence contract", () => {
       "Down",
       "Left",
       "Right",
-      "Home",
-      "End",
-      "PgUp",
-      "PgDn",
     ];
 
     for (const label of requiredLabels) {
       expect(evidence).toMatch(new RegExp(`\\| [^|]*${label.replace("+", "\\+")}[^|]* \\|`));
     }
+
+    expect(evidence).toContain("PgUp and PgDn controls were removed");
+    expect(evidence).not.toContain("**Position:** Home, End, PgUp, PgDn.");
   });
 
   it("documents the exact smart-key sequence contract", () => {
@@ -97,10 +95,6 @@ describe("S06 mobile terminal smart keys evidence contract", () => {
       "| Navigation | Down | cursor down | `\\x1b[B` |",
       "| Navigation | Left | cursor left | `\\x1b[D` |",
       "| Navigation | Right | cursor right | `\\x1b[C` |",
-      "| Position | Home | cursor home | `\\x1b[H` |",
-      "| Position | End | cursor end | `\\x1b[F` |",
-      "| Position | PgUp | page up | `\\x1b[5~` |",
-      "| Position | PgDn | page down | `\\x1b[6~` |",
     ];
 
     for (const row of requiredSequenceRows) {

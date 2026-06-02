@@ -986,6 +986,53 @@ describe("TerminalClient integration — Mobile terminal route props", () => {
     unmount();
   });
 
+  it("updates mobile copy availability when terminal selection changes", async () => {
+    mockUseIsComposeSheet.mockReturnValue(true);
+    let selected = false;
+    let selectionChangeHandler: (() => void) | null = null;
+    const disposeSelectionChange = vi.fn();
+    const activeTerminal = {
+      clearSelection: vi.fn(),
+      getSelection: vi.fn(() => (selected ? "selected text" : "")),
+      hasSelection: vi.fn(() => selected),
+      onSelectionChange: vi.fn((handler: () => void) => {
+        selectionChangeHandler = handler;
+        return { dispose: disposeSelectionChange };
+      }),
+    };
+    mockUseKeybindings.mockReturnValue({
+      activeSend: vi.fn(),
+      activeTerminal,
+      getAll: vi.fn(() => []),
+      handleKeyEvent: mockHandleKeyEvent,
+      register: mockRegisterKeybinding,
+      setActiveTerminal: mockSetActiveTerminal,
+      unregister: mockUnregisterKeybinding,
+    });
+
+    const { getByTestId, unmount } = await renderTerminalClient("session=main");
+
+    await waitFor(() => {
+      expect(getByTestId("terminal-mobile-controls")).toHaveAttribute(
+        "data-copy-disabled-reason",
+        "Select terminal text before copying",
+      );
+    });
+
+    selected = true;
+    act(() => {
+      selectionChangeHandler?.();
+    });
+
+    await waitFor(() => {
+      expect(getByTestId("terminal-mobile-controls")).toHaveAttribute("data-has-selection", "true");
+    });
+    expect(getByTestId("terminal-mobile-controls")).toHaveAttribute("data-copy-disabled", "false");
+
+    unmount();
+    expect(disposeSelectionChange).toHaveBeenCalledTimes(1);
+  });
+
   it("wires mobile clipboard buttons to the active terminal and sender with redacted status", async () => {
     mockUseIsComposeSheet.mockReturnValue(true);
     const activeTerminal = {

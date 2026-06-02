@@ -1,5 +1,5 @@
 import { createSafeActionClient } from "next-safe-action";
-import { getRequestSession, type SessionData } from "./auth/session";
+import { getRequestSession, type SessionData } from "@/lib/auth/session";
 
 export const actionClient = createSafeActionClient({
   handleServerError: (error) => {

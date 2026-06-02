@@ -60,4 +60,28 @@ describe("middleware", () => {
     expect(setCookie).toContain("hive-session=preview-cookie");
     expect(setCookie).toContain("Domain=.pr-101.hive.local.kethalia.com");
   });
+
+  it("refreshes the newest verified duplicate session cookie deterministically", () => {
+    vi.stubEnv("COOKIE_SECRET", "preview-secret");
+    vi.stubEnv("COOKIE_DOMAIN", ".pr-101.hive.local.kethalia.com");
+    const now = Date.now();
+    mockVerifyCookie.mockImplementation((value) => {
+      if (value === "older-cookie") return { sessionId: "sess-older", timestamp: now - 1000 };
+      if (value === "newer-cookie") return { sessionId: "sess-newer", timestamp: now };
+      return null;
+    });
+
+    const request = new NextRequest("https://pr-101.hive.local.kethalia.com/tasks", {
+      headers: {
+        cookie: "hive-session=older-cookie; hive-session=newer-cookie",
+      },
+    });
+
+    const response = middleware(request);
+    const setCookie = response.headers.get("set-cookie");
+
+    expect(response.headers.get("location")).toBeNull();
+    expect(setCookie).toContain("hive-session=newer-cookie");
+    expect(setCookie).not.toContain("hive-session=older-cookie");
+  });
 });

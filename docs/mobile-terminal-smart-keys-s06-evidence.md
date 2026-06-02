@@ -8,7 +8,7 @@ This document is an evidence contract for S06. It may be committed with blocked 
 
 ## Evidence status
 
-- **Visible smart-key controls shipped:** `yes - mobile terminal controls include Keys, Control, Navigation, and Position smart-key pages`
+- **Visible smart-key controls shipped:** `yes - mobile terminal controls include Keys, Control, and Navigation smart-key pages`
 - **Fixed sequence catalog shipped:** `yes - each visible smart key maps to a fixed terminal control sequence`
 - **Existing window controls retained:** `yes - the Windows, Compose, and Font size pages remain present after the smart-key pages`
 - **Focus-preserving handlers retained:** `yes - smart keys, page dots, and window controls prevent pointer and mouse focus transfer before click handling`
@@ -23,7 +23,7 @@ S06 ships visible, Blink-inspired controls as carousel pages near the mobile ter
 - **Keys:** Enter, Tab, Esc, Backspace.
 - **Control:** Ctrl+C, Ctrl+D, Ctrl+L, Ctrl+R.
 - **Navigation:** Up, Down, Left, Right.
-- **Position:** Home, End, PgUp, PgDn.
+The Position page is intentionally not shipped in the current mobile control set; PgUp and PgDn controls were removed after mobile ergonomics review.
 
 The user-visible inspection surface is limited to labels, page labels, ARIA labels, page-dot labels, haptic callback invocation in tests, and automated pass or fail outcomes. S06 does not require terminal output, helper text, command input, clone material, browser storage, endpoint data, or local checkout information to validate the smart-key catalog.
 
@@ -45,10 +45,6 @@ The smart-key sequence contract is fixed and byte-oriented. Escaped values below
 | Navigation | Down | cursor down | `\x1b[B` |
 | Navigation | Left | cursor left | `\x1b[D` |
 | Navigation | Right | cursor right | `\x1b[C` |
-| Position | Home | cursor home | `\x1b[H` |
-| Position | End | cursor end | `\x1b[F` |
-| Position | PgUp | page up | `\x1b[5~` |
-| Position | PgDn | page down | `\x1b[6~` |
 
 Automated unit and component tests are the acceptance source for this table. If the shipped catalog or control component changes, this document and its guard test must be updated together.
 

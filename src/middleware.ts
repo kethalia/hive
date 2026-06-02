@@ -36,12 +36,20 @@ export function middleware(request: NextRequest) {
     return NextResponse.redirect(loginUrl);
   }
 
-  for (const sessionCookieValue of [...new Set(sessionCookieValues)]) {
-    const verified = verifyCookie(sessionCookieValue, cookieSecret);
-    if (!verified) continue;
+  const verifiedSessionCookie = [...new Set(sessionCookieValues)]
+    .flatMap((value) => {
+      const verified = verifyCookie(value, cookieSecret);
+      return verified ? [{ value, verified }] : [];
+    })
+    .sort((left, right) => right.verified.timestamp - left.verified.timestamp)[0];
 
+  if (verifiedSessionCookie) {
     const response = NextResponse.next();
-    refreshDomainSessionCookie(response.cookies, sessionCookieValue, verified.timestamp);
+    refreshDomainSessionCookie(
+      response.cookies,
+      verifiedSessionCookie.value,
+      verifiedSessionCookie.verified.timestamp,
+    );
     return response;
   }
 
