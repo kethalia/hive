@@ -61,6 +61,7 @@ const CONTROL_PAGES = [
 const STACKED_BUTTON_CLASS = "min-h-14 min-w-0 flex-col gap-1 px-1 py-2 text-xs leading-none";
 
 interface MobileTerminalWindowSession {
+  id?: string;
   name: string;
 }
 
@@ -73,7 +74,7 @@ export interface MobileTerminalWindowNavigation {
   canGoNext?: boolean;
   loading?: boolean;
   error?: string | null;
-  select?: (sessionName: string) => boolean | undefined;
+  select?: (sessionId: string) => boolean | undefined;
   reload?: () => void;
   onOpenSwitcher?: () => void;
 }
@@ -88,32 +89,32 @@ function MobileControlButtonContent({ label, Icon }: { label: string; Icon: Luci
 }
 
 function getWindowNavigationStatus(windowNavigation?: MobileTerminalWindowNavigation): string {
-  if (!windowNavigation) return "Window navigation unavailable";
-  if (windowNavigation.loading) return "Loading terminal windows";
-  if (windowNavigation.error) return `Terminal window navigation error: ${windowNavigation.error}`;
+  if (!windowNavigation) return "Favorite window navigation unavailable";
+  if (windowNavigation.loading) return "Loading favorite windows";
+  if (windowNavigation.error) return `Favorite window navigation error: ${windowNavigation.error}`;
 
   const windowCount = windowNavigation.sessions?.length ?? 0;
-  if (windowCount <= 0) return "No terminal windows are available";
-  if (windowCount === 1) return "Only one terminal window is available";
-  if (!windowNavigation.current) return `${windowCount} terminal windows available`;
+  if (windowCount <= 0) return "No favorite windows are available";
+  if (windowCount === 1) return "Only one favorite window is available";
+  if (!windowNavigation.current) return `${windowCount} favorite windows available`;
 
-  return `Current terminal window: ${windowNavigation.current.name}. ${windowCount} windows available.`;
+  return `Current favorite window: ${windowNavigation.current.name}. ${windowCount} favorite windows available.`;
 }
 
 function getWindowStepDisabledReason(
   direction: "previous" | "next",
   windowNavigation?: MobileTerminalWindowNavigation,
 ): string | undefined {
-  if (!windowNavigation) return "Window navigation unavailable";
-  if (windowNavigation.loading) return "Loading terminal windows";
-  if (windowNavigation.error) return "Terminal windows could not be loaded";
-  if (!windowNavigation.select) return "Window switching unavailable";
-  if ((windowNavigation.sessions?.length ?? 0) <= 1) return "Only one terminal window is available";
+  if (!windowNavigation) return "Favorite window navigation unavailable";
+  if (windowNavigation.loading) return "Loading favorite windows";
+  if (windowNavigation.error) return "Favorite windows could not be loaded";
+  if (!windowNavigation.select) return "Favorite window switching unavailable";
+  if ((windowNavigation.sessions?.length ?? 0) <= 1) return "Only one favorite window is available";
   if (direction === "previous" && (!windowNavigation.canGoPrevious || !windowNavigation.previous)) {
-    return "Already at the first terminal window";
+    return "Already at the first favorite window";
   }
   if (direction === "next" && (!windowNavigation.canGoNext || !windowNavigation.next)) {
-    return "Already at the last terminal window";
+    return "Already at the last favorite window";
   }
   return undefined;
 }
@@ -187,7 +188,7 @@ export function MobileTerminalControls({
   const switchWindow = useCallback(
     (session?: MobileTerminalWindowSession | null) => {
       if (!session || !windowNavigation?.select) return;
-      const selected = windowNavigation.select(session.name);
+      const selected = windowNavigation.select(session.id ?? session.name);
       if (selected !== false) haptic();
     },
     [haptic, windowNavigation],
@@ -260,9 +261,9 @@ export function MobileTerminalControls({
   const windowStatus = getWindowNavigationStatus(windowNavigation);
   const windowSwitcherDisabled = !windowNavigation?.onOpenSwitcher || windowNavigation.loading;
   const windowSwitcherDisabledReason = !windowNavigation?.onOpenSwitcher
-    ? "Terminal window switcher unavailable"
+    ? "Favorite window switcher unavailable"
     : windowNavigation.loading
-      ? "Loading terminal windows"
+      ? "Loading favorite windows"
       : undefined;
   const reloadDisabled = !windowNavigation?.reload || Boolean(windowNavigation.loading);
   const reloadLabel = windowNavigation?.error ? "Retry" : "Reload";
@@ -406,7 +407,7 @@ export function MobileTerminalControls({
           <CarouselItem aria-label="Windows controls" className="pl-2">
             <div className="flex flex-col gap-1">
               <ButtonGroup
-                aria-label="Terminal window controls"
+                aria-label="Favorite window controls"
                 className="grid w-full grid-cols-4 rounded-none"
               >
                 <Button
@@ -418,7 +419,7 @@ export function MobileTerminalControls({
                   onMouseDown={keepTerminalKeyboardOpen}
                   onClick={() => switchWindow(windowNavigation?.previous)}
                   disabled={Boolean(previousDisabledReason)}
-                  aria-label="Switch to previous terminal window"
+                  aria-label="Switch to previous favorite window"
                   aria-describedby="terminal-window-navigation-status"
                   title={previousDisabledReason}
                 >
@@ -433,7 +434,7 @@ export function MobileTerminalControls({
                   onMouseDown={keepTerminalKeyboardOpen}
                   onClick={openWindowSwitcher}
                   disabled={windowSwitcherDisabled}
-                  aria-label="Open terminal window switcher"
+                  aria-label="Open favorite window switcher"
                   aria-describedby="terminal-window-navigation-status"
                   title={windowSwitcherDisabledReason}
                 >
@@ -448,7 +449,7 @@ export function MobileTerminalControls({
                   onMouseDown={keepTerminalKeyboardOpen}
                   onClick={() => switchWindow(windowNavigation?.next)}
                   disabled={Boolean(nextDisabledReason)}
-                  aria-label="Switch to next terminal window"
+                  aria-label="Switch to next favorite window"
                   aria-describedby="terminal-window-navigation-status"
                   title={nextDisabledReason}
                 >
@@ -465,8 +466,8 @@ export function MobileTerminalControls({
                   disabled={reloadDisabled}
                   aria-label={
                     windowNavigation?.error
-                      ? "Retry loading terminal windows"
-                      : "Reload terminal window list"
+                      ? "Retry loading favorite windows"
+                      : "Reload favorite window list"
                   }
                   aria-describedby="terminal-window-navigation-status"
                 >

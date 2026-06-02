@@ -94,22 +94,6 @@ export const MOBILE_SMART_KEY_PAGES = [
       },
     ],
   },
-  {
-    id: "position",
-    label: "Position",
-    ariaLabel: "Terminal position keys",
-    keys: [
-      { id: "home", label: "Home", sequence: VIRTUAL_KEY_SEQUENCES.Home, iconName: "ArrowUp" },
-      { id: "end", label: "End", sequence: VIRTUAL_KEY_SEQUENCES.End, iconName: "ArrowDown" },
-      { id: "page-up", label: "PgUp", sequence: VIRTUAL_KEY_SEQUENCES.PgUp, iconName: "ArrowUp" },
-      {
-        id: "page-down",
-        label: "PgDn",
-        sequence: VIRTUAL_KEY_SEQUENCES.PgDn,
-        iconName: "ArrowDown",
-      },
-    ],
-  },
 ] as const satisfies readonly MobileSmartKeyPage[];
 
 export const MOBILE_SMART_KEYS: readonly MobileSmartKey[] = MOBILE_SMART_KEY_PAGES.flatMap(

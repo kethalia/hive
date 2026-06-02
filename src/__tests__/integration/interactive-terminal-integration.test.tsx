@@ -33,6 +33,7 @@ const {
   mockCreateSessionAction,
   mockGetWorkspaceSessionsAction,
   mockHandleKeyEvent,
+  mockUseFavoriteWindowNavigation,
   mockPasteToTerminal,
   mockRegisterKeybinding,
   mockSetActiveTerminal,
@@ -43,7 +44,7 @@ const {
   navigationState,
   terminalRouteMockState,
 } = vi.hoisted(() => {
-  const router = { replace: vi.fn() };
+  const router = { push: vi.fn(), replace: vi.fn() };
   const register = vi.fn();
   const unregister = vi.fn();
   const handleKeyEvent = vi.fn(() => true);
@@ -53,6 +54,7 @@ const {
     mockCreateSessionAction: vi.fn(),
     mockGetWorkspaceSessionsAction: vi.fn(),
     mockHandleKeyEvent: handleKeyEvent,
+    mockUseFavoriteWindowNavigation: vi.fn(),
     mockPasteToTerminal: vi.fn(),
     mockRegisterKeybinding: register,
     mockSetActiveTerminal: setActiveTerminal,
@@ -196,6 +198,10 @@ vi.mock("@/hooks/use-compose-sheet", () => ({
   useIsComposeSheet: mockUseIsComposeSheet,
 }));
 
+vi.mock("@/hooks/useFavoriteWindowNavigation", () => ({
+  useFavoriteWindowNavigation: (...args: unknown[]) => mockUseFavoriteWindowNavigation(...args),
+}));
+
 vi.mock("@/hooks/useVisualViewportKeyboardOffset", () => ({
   useVisualViewportKeyboardOffset: mockUseVisualViewportKeyboardOffset,
 }));
@@ -248,11 +254,13 @@ vi.mock("@/components/terminal/ComposePanel", () => ({
 vi.mock("@/components/terminal/CommandPalette", () => ({
   CommandPalette: ({
     onCreateSession,
+    emptyText = "No sessions found.",
     onOpenChange,
     onSelectTab,
     open,
     tabs,
   }: {
+    emptyText?: string;
     onCreateSession?: () => void;
     onOpenChange: (open: boolean) => void;
     onSelectTab: (tabId: string) => void;
@@ -276,7 +284,7 @@ vi.mock("@/components/terminal/CommandPalette", () => ({
         >
           Close
         </button>
-        {tabs.length === 0 ? <p>No sessions found.</p> : null}
+        {tabs.length === 0 ? <p>{emptyText}</p> : null}
         {tabs.map((tab) => (
           <button
             key={tab.id}
@@ -319,15 +327,15 @@ vi.mock("@/components/terminal/MobileTerminalControls", () => ({
     windowNavigation?: {
       canGoNext?: boolean;
       canGoPrevious?: boolean;
-      current?: { name: string } | null;
+      current?: { id?: string; name: string } | null;
       error?: string | null;
       loading?: boolean;
-      next?: { name: string } | null;
+      next?: { id?: string; name: string } | null;
       onOpenSwitcher?: () => void;
-      previous?: { name: string } | null;
+      previous?: { id?: string; name: string } | null;
       reload?: () => void;
-      select?: (sessionName: string) => boolean | undefined;
-      sessions?: Array<{ name: string }>;
+      select?: (sessionId: string) => boolean | undefined;
+      sessions?: Array<{ id?: string; name: string }>;
     };
   }) => {
     terminalRouteMockState.mobileControlsProps = {
@@ -389,7 +397,10 @@ vi.mock("@/components/terminal/MobileTerminalControls", () => ({
           type="button"
           data-testid="terminal-window-previous"
           onClick={() =>
-            windowNavigation?.previous && windowNavigation.select?.(windowNavigation.previous.name)
+            windowNavigation?.previous &&
+            windowNavigation.select?.(
+              windowNavigation.previous.id ?? windowNavigation.previous.name,
+            )
           }
         >
           Previous
@@ -405,7 +416,8 @@ vi.mock("@/components/terminal/MobileTerminalControls", () => ({
           type="button"
           data-testid="terminal-window-next"
           onClick={() =>
-            windowNavigation?.next && windowNavigation.select?.(windowNavigation.next.name)
+            windowNavigation?.next &&
+            windowNavigation.select?.(windowNavigation.next.id ?? windowNavigation.next.name)
           }
         >
           Next
@@ -534,12 +546,26 @@ beforeEach(() => {
   resetMobileTerminalDiagnosticsState();
   window.localStorage.clear();
   navigationState.search = "session=main";
+  navigationState.router.push.mockClear();
   navigationState.router.replace.mockClear();
   mockCopyTerminalSelection.mockReset();
   mockPasteToTerminal.mockReset();
   mockCreateSessionAction.mockReset();
   mockGetWorkspaceSessionsAction.mockReset();
   mockGetWorkspaceSessionsAction.mockResolvedValue({ data: [] });
+  mockUseFavoriteWindowNavigation.mockReset();
+  mockUseFavoriteWindowNavigation.mockReturnValue({
+    sessions: [],
+    current: null,
+    previous: null,
+    next: null,
+    canGoPrevious: false,
+    canGoNext: false,
+    loading: false,
+    error: null,
+    reload: vi.fn(),
+    select: vi.fn(() => false),
+  });
   terminalRouteMockState.commandPaletteProps = null;
   terminalRouteMockState.gestureLayerProps = null;
   terminalRouteMockState.mobileControlsProps = null;
@@ -1075,14 +1101,23 @@ describe("TerminalClient integration — Mobile terminal route props", () => {
     unmount();
   });
 
-  it("passes route-authoritative terminal-window navigation state to mobile controls", async () => {
+  it("passes favorite-window navigation state to mobile controls", async () => {
     mockUseIsComposeSheet.mockReturnValue(true);
-    mockGetWorkspaceSessionsAction.mockResolvedValue({
-      data: [
-        { name: "alpha", created: 1, windows: 1 },
-        { name: "main", created: 2, windows: 1 },
-        { name: "two words", created: 3, windows: 1 },
+    mockUseFavoriteWindowNavigation.mockReturnValue({
+      sessions: [
+        { id: "fav-alpha", name: "alpha" },
+        { id: "fav-main", name: "main" },
+        { id: "fav-two-words", name: "two words" },
       ],
+      current: { id: "fav-main", name: "main" },
+      previous: { id: "fav-alpha", name: "alpha" },
+      next: { id: "fav-two-words", name: "two words" },
+      canGoPrevious: true,
+      canGoNext: true,
+      loading: false,
+      error: null,
+      reload: vi.fn(),
+      select: vi.fn(() => true),
     });
 
     const { getByTestId, unmount } = await renderTerminalClient("session=main&debugViewport=1");
@@ -1101,18 +1136,29 @@ describe("TerminalClient integration — Mobile terminal route props", () => {
     );
     expect(document.querySelectorAll('[data-testid="interactive-terminal"]')).toHaveLength(1);
     expect(getByTestId("interactive-terminal")).toHaveAttribute("data-session-name", "main");
-    expect(mockGetWorkspaceSessionsAction).toHaveBeenCalledWith({ workspaceId: "test-ws" });
+    expect(mockUseFavoriteWindowNavigation).toHaveBeenCalledWith("test-ws");
+    expect(mockGetWorkspaceSessionsAction).not.toHaveBeenCalled();
     unmount();
   });
 
-  it("routes previous and next mobile controls with encoded names while preserving debugViewport", async () => {
+  it("selects previous and next favorite windows by id", async () => {
     mockUseIsComposeSheet.mockReturnValue(true);
-    mockGetWorkspaceSessionsAction.mockResolvedValue({
-      data: [
-        { name: "alpha", created: 1, windows: 1 },
-        { name: "main", created: 2, windows: 1 },
-        { name: "two words", created: 3, windows: 1 },
+    const selectFavoriteWindow = vi.fn(() => true);
+    mockUseFavoriteWindowNavigation.mockReturnValue({
+      sessions: [
+        { id: "fav-alpha", name: "alpha" },
+        { id: "fav-main", name: "main" },
+        { id: "fav-two-words", name: "two words" },
       ],
+      current: { id: "fav-main", name: "main" },
+      previous: { id: "fav-alpha", name: "alpha" },
+      next: { id: "fav-two-words", name: "two words" },
+      canGoPrevious: true,
+      canGoNext: true,
+      loading: false,
+      error: null,
+      reload: vi.fn(),
+      select: selectFavoriteWindow,
     });
 
     const { getByTestId, unmount } = await renderTerminalClient("session=main&debugViewport=1");
@@ -1125,24 +1171,31 @@ describe("TerminalClient integration — Mobile terminal route props", () => {
     });
 
     fireEvent.click(getByTestId("terminal-window-next"));
-    expect(navigationState.router.replace).toHaveBeenCalledWith(
-      "/workspaces/test-ws/terminal?session=two%20words&debugViewport=1",
-    );
+    expect(selectFavoriteWindow).toHaveBeenCalledWith("fav-two-words");
 
     fireEvent.click(getByTestId("terminal-window-previous"));
-    expect(navigationState.router.replace).toHaveBeenCalledWith(
-      "/workspaces/test-ws/terminal?session=alpha&debugViewport=1",
-    );
+    expect(selectFavoriteWindow).toHaveBeenCalledWith("fav-alpha");
+    expect(navigationState.router.replace).not.toHaveBeenCalled();
     unmount();
   });
 
-  it("opens the existing command palette picker and routes selection without enabling creation", async () => {
+  it("opens the existing command palette picker and routes favorite selection without enabling creation", async () => {
     mockUseIsComposeSheet.mockReturnValue(true);
-    mockGetWorkspaceSessionsAction.mockResolvedValue({
-      data: [
-        { name: "main", created: 1, windows: 1 },
-        { name: "beta/slash", created: 2, windows: 1 },
+    const selectFavoriteWindow = vi.fn(() => true);
+    mockUseFavoriteWindowNavigation.mockReturnValue({
+      sessions: [
+        { id: "fav-main", name: "main" },
+        { id: "fav-beta", name: "beta/slash" },
       ],
+      current: { id: "fav-main", name: "main" },
+      previous: null,
+      next: { id: "fav-beta", name: "beta/slash" },
+      canGoPrevious: false,
+      canGoNext: true,
+      loading: false,
+      error: null,
+      reload: vi.fn(),
+      select: selectFavoriteWindow,
     });
 
     const { getByTestId, queryByTestId, unmount } = await renderTerminalClient("session=main");
@@ -1159,22 +1212,20 @@ describe("TerminalClient integration — Mobile terminal route props", () => {
       hasCreateSession: false,
       open: true,
       tabs: [
-        { id: "main", sessionName: "main" },
-        { id: "beta/slash", sessionName: "beta/slash" },
+        { id: "fav-main", sessionName: "main" },
+        { id: "fav-beta", sessionName: "beta/slash" },
       ],
     });
 
-    fireEvent.click(getByTestId("terminal-window-option-beta/slash"));
+    fireEvent.click(getByTestId("terminal-window-option-fav-beta"));
 
-    expect(navigationState.router.replace).toHaveBeenCalledWith(
-      "/workspaces/test-ws/terminal?session=beta%2Fslash",
-    );
+    expect(selectFavoriteWindow).toHaveBeenCalledWith("fav-beta");
+    expect(navigationState.router.replace).not.toHaveBeenCalled();
     unmount();
   });
 
-  it("shows an empty picker state instead of navigating when the route has no generic sessions", async () => {
+  it("shows an empty favorite picker state instead of navigating when there are no favorite windows", async () => {
     mockUseIsComposeSheet.mockReturnValue(true);
-    mockGetWorkspaceSessionsAction.mockResolvedValue({ data: [] });
 
     const { getByTestId, queryByTestId, unmount } = await renderTerminalClient("session=missing");
 
@@ -1184,19 +1235,31 @@ describe("TerminalClient integration — Mobile terminal route props", () => {
 
     fireEvent.click(getByTestId("terminal-window-switcher"));
 
-    expect(getByTestId("terminal-window-command-palette")).toHaveTextContent("No sessions found.");
+    expect(getByTestId("terminal-window-command-palette")).toHaveTextContent(
+      "No favorite windows found.",
+    );
     expect(queryByTestId("terminal-window-option-missing")).not.toBeInTheDocument();
     expect(navigationState.router.replace).not.toHaveBeenCalled();
     unmount();
   });
 
-  it("strips clone params when switching from an active clone URL to a generic session", async () => {
+  it("selects favorite windows from an active clone URL without generic session fallback", async () => {
     mockUseIsComposeSheet.mockReturnValue(true);
-    mockGetWorkspaceSessionsAction.mockResolvedValue({
-      data: [
-        { name: "main", created: 1, windows: 1 },
-        { name: "two words", created: 2, windows: 1 },
+    const selectFavoriteWindow = vi.fn(() => true);
+    mockUseFavoriteWindowNavigation.mockReturnValue({
+      sessions: [
+        { id: "fav-git", name: "Hive repo" },
+        { id: "fav-terminal-two-words", name: "two words" },
       ],
+      current: { id: "fav-git", name: "Hive repo" },
+      previous: null,
+      next: { id: "fav-terminal-two-words", name: "two words" },
+      canGoPrevious: false,
+      canGoNext: true,
+      loading: false,
+      error: null,
+      reload: vi.fn(),
+      select: selectFavoriteWindow,
     });
 
     const { getByTestId, unmount } = await renderTerminalClient(
@@ -1213,46 +1276,62 @@ describe("TerminalClient integration — Mobile terminal route props", () => {
     expect(getByTestId("interactive-terminal")).toHaveAttribute("data-clone-proof", "proof-token");
 
     fireEvent.click(getByTestId("terminal-window-switcher"));
-    fireEvent.click(getByTestId("terminal-window-option-two words"));
+    fireEvent.click(getByTestId("terminal-window-option-fav-terminal-two-words"));
 
-    expect(navigationState.router.replace).toHaveBeenCalledWith(
-      "/workspaces/test-ws/terminal?session=two%20words&debugViewport=1",
-    );
-    expect(navigationState.router.replace).not.toHaveBeenCalledWith(
-      expect.stringContaining("clonePath"),
-    );
-    expect(navigationState.router.replace).not.toHaveBeenCalledWith(
-      expect.stringContaining("cloneProof"),
-    );
+    expect(selectFavoriteWindow).toHaveBeenCalledWith("fav-terminal-two-words");
+    expect(navigationState.router.replace).not.toHaveBeenCalled();
     unmount();
   });
 
-  it("surfaces loading and server-error navigation states without leaving the active route", async () => {
+  it("surfaces loading and server-error favorite navigation states without leaving the active route", async () => {
     mockUseIsComposeSheet.mockReturnValue(true);
-    let resolveSessions: (value: { serverError: string }) => void = () => undefined;
-    mockGetWorkspaceSessionsAction.mockReturnValue(
-      new Promise((resolve) => {
-        resolveSessions = resolve;
-      }),
-    );
-
-    const { getByTestId, unmount } = await renderTerminalClient("session=main");
-
-    await waitFor(() => {
-      expect(getByTestId("terminal-mobile-controls")).toHaveAttribute("data-loading", "true");
+    mockUseFavoriteWindowNavigation.mockReturnValue({
+      sessions: [],
+      current: null,
+      previous: null,
+      next: null,
+      canGoPrevious: false,
+      canGoNext: false,
+      loading: true,
+      error: null,
+      reload: vi.fn(),
+      select: vi.fn(() => false),
     });
-    expect(navigationState.router.replace).not.toHaveBeenCalled();
 
-    act(() => resolveSessions({ serverError: "Workspace agent unavailable" }));
+    const loadingRender = await renderTerminalClient("session=main");
 
     await waitFor(() => {
-      expect(getByTestId("terminal-mobile-controls")).toHaveAttribute(
-        "data-error",
-        "Workspace agent unavailable",
+      expect(loadingRender.getByTestId("terminal-mobile-controls")).toHaveAttribute(
+        "data-loading",
+        "true",
       );
     });
     expect(navigationState.router.replace).not.toHaveBeenCalled();
-    unmount();
+    loadingRender.unmount();
+
+    mockUseFavoriteWindowNavigation.mockReturnValue({
+      sessions: [],
+      current: null,
+      previous: null,
+      next: null,
+      canGoPrevious: false,
+      canGoNext: false,
+      loading: false,
+      error: "Favorites unavailable",
+      reload: vi.fn(),
+      select: vi.fn(() => false),
+    });
+
+    const errorRender = await renderTerminalClient("session=main");
+
+    await waitFor(() => {
+      expect(errorRender.getByTestId("terminal-mobile-controls")).toHaveAttribute(
+        "data-error",
+        "Favorites unavailable",
+      );
+    });
+    expect(navigationState.router.replace).not.toHaveBeenCalled();
+    errorRender.unmount();
   });
 });
 
@@ -1272,7 +1351,7 @@ describe("TerminalClient integration — Clone route parameters", () => {
     expect(getByTestId("interactive-terminal")).toHaveAttribute("data-clone-path", "kethalia/hive");
     expect(getByTestId("interactive-terminal")).toHaveAttribute("data-clone-proof", "proof-token");
     expect(getByTestId("mobile-terminal-diagnostics-overlay")).toBeInTheDocument();
-    expect(mockGetWorkspaceSessionsAction).toHaveBeenCalledWith({ workspaceId: "test-ws" });
+    expect(mockGetWorkspaceSessionsAction).not.toHaveBeenCalled();
     expect(mockCreateSessionAction).not.toHaveBeenCalled();
     unmount();
   });

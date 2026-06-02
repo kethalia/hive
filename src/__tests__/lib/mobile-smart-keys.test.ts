@@ -33,12 +33,6 @@ describe("mobile smart key catalog", () => {
         ariaLabel: "Terminal navigation keys",
         keyLabels: ["Up", "Down", "Left", "Right"],
       },
-      {
-        id: "position",
-        label: "Position",
-        ariaLabel: "Terminal position keys",
-        keyLabels: ["Home", "End", "PgUp", "PgDn"],
-      },
     ]);
   });
 
@@ -56,10 +50,6 @@ describe("mobile smart key catalog", () => {
       Down: "\x1b[B",
       Left: "\x1b[D",
       Right: "\x1b[C",
-      Home: "\x1b[H",
-      End: "\x1b[F",
-      PgUp: "\x1b[5~",
-      PgDn: "\x1b[6~",
     });
   });
 

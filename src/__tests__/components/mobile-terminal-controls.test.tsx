@@ -160,7 +160,6 @@ describe("MobileTerminalControls", () => {
       "Key controls",
       "Control controls",
       "Navigation controls",
-      "Position controls",
       "Clipboard controls",
       "Windows controls",
       "Compose controls",
@@ -210,26 +209,11 @@ describe("MobileTerminalControls", () => {
     expect(upButton).toHaveClass("min-h-14", "min-w-0");
     expectStackedLabelThenIcon(upButton, "Up");
 
-    const positionControls = within(carousel).getByRole("group", {
-      name: "Terminal position keys",
-    });
-    expect(positionControls).toHaveClass("grid", "w-full", "grid-cols-4", "rounded-none");
-    expectStackedLabelThenIcon(
-      within(positionControls).getByRole("button", { name: "Home" }),
-      "Home",
-    );
-    expectStackedLabelThenIcon(
-      within(positionControls).getByRole("button", { name: "End" }),
-      "End",
-    );
-    expectStackedLabelThenIcon(
-      within(positionControls).getByRole("button", { name: "PgUp" }),
-      "PgUp",
-    );
-    expectStackedLabelThenIcon(
-      within(positionControls).getByRole("button", { name: "PgDn" }),
-      "PgDn",
-    );
+    expect(
+      within(carousel).queryByRole("group", { name: "Terminal position keys" }),
+    ).not.toBeInTheDocument();
+    expect(within(carousel).queryByRole("button", { name: "PgUp" })).not.toBeInTheDocument();
+    expect(within(carousel).queryByRole("button", { name: "PgDn" })).not.toBeInTheDocument();
 
     const clipboardControls = within(carousel).getByRole("group", {
       name: "Terminal clipboard controls",
@@ -250,22 +234,22 @@ describe("MobileTerminalControls", () => {
     );
 
     const windowControls = within(carousel).getByRole("group", {
-      name: "Terminal window controls",
+      name: "Favorite window controls",
     });
     expect(windowControls).toHaveClass("grid", "w-full", "grid-cols-4", "rounded-none");
     expect(
-      within(windowControls).getByRole("button", { name: "Switch to previous terminal window" }),
+      within(windowControls).getByRole("button", { name: "Switch to previous favorite window" }),
     ).toHaveClass("min-h-14", "min-w-0");
     expect(
-      within(windowControls).getByRole("button", { name: "Open terminal window switcher" }),
+      within(windowControls).getByRole("button", { name: "Open favorite window switcher" }),
     ).toHaveClass("min-h-14", "min-w-0");
     expect(
-      within(windowControls).getByRole("button", { name: "Switch to next terminal window" }),
+      within(windowControls).getByRole("button", { name: "Switch to next favorite window" }),
     ).toHaveClass("min-h-14", "min-w-0");
     expect(
-      within(windowControls).getByRole("button", { name: "Reload terminal window list" }),
+      within(windowControls).getByRole("button", { name: "Reload favorite window list" }),
     ).toHaveClass("min-h-14", "min-w-0");
-    expect(screen.getByText("Window navigation unavailable")).toBeInTheDocument();
+    expect(screen.getByText("Favorite window navigation unavailable")).toBeInTheDocument();
 
     const composeControls = within(carousel).getByRole("group", {
       name: "Terminal compose controls",
@@ -291,9 +275,6 @@ describe("MobileTerminalControls", () => {
     );
     expect(
       within(pageDots).getByRole("button", { name: "Show Control controls" }),
-    ).not.toHaveAttribute("aria-current");
-    expect(
-      within(pageDots).getByRole("button", { name: "Show Position controls" }),
     ).not.toHaveAttribute("aria-current");
     expect(
       within(pageDots).getByRole("button", { name: "Show Clipboard controls" }),
@@ -324,8 +305,6 @@ describe("MobileTerminalControls", () => {
     const carousel = screen.getByRole("region", { name: "Terminal controls carousel" });
     const quickActions = within(carousel).getByRole("group", { name: "Terminal quick actions" });
     const controlKeys = within(carousel).getByRole("group", { name: "Terminal control keys" });
-    const positionKeys = within(carousel).getByRole("group", { name: "Terminal position keys" });
-
     fireEvent.click(within(quickActions).getByRole("button", { name: "Enter" }));
     expect(mockActiveSend).toHaveBeenCalledWith("\r");
     fireEvent.click(within(quickActions).getByRole("button", { name: "Tab" }));
@@ -343,15 +322,6 @@ describe("MobileTerminalControls", () => {
     expect(mockActiveSend).toHaveBeenCalledWith("\x0c");
     fireEvent.click(within(controlKeys).getByRole("button", { name: "Ctrl+R" }));
     expect(mockActiveSend).toHaveBeenCalledWith("\x12");
-
-    fireEvent.click(within(positionKeys).getByRole("button", { name: "Home" }));
-    expect(mockActiveSend).toHaveBeenCalledWith("\x1b[H");
-    fireEvent.click(within(positionKeys).getByRole("button", { name: "End" }));
-    expect(mockActiveSend).toHaveBeenCalledWith("\x1b[F");
-    fireEvent.click(within(positionKeys).getByRole("button", { name: "PgUp" }));
-    expect(mockActiveSend).toHaveBeenCalledWith("\x1b[5~");
-    fireEvent.click(within(positionKeys).getByRole("button", { name: "PgDn" }));
-    expect(mockActiveSend).toHaveBeenCalledWith("\x1b[6~");
   });
 
   it("does not throw when activeSend is unavailable", () => {
@@ -493,28 +463,28 @@ describe("MobileTerminalControls", () => {
       />,
     );
 
-    const windowControls = screen.getByRole("group", { name: "Terminal window controls" });
+    const windowControls = screen.getByRole("group", { name: "Favorite window controls" });
     const previous = within(windowControls).getByRole("button", {
-      name: "Switch to previous terminal window",
+      name: "Switch to previous favorite window",
     });
     const switcher = within(windowControls).getByRole("button", {
-      name: "Open terminal window switcher",
+      name: "Open favorite window switcher",
     });
     const next = within(windowControls).getByRole("button", {
-      name: "Switch to next terminal window",
+      name: "Switch to next favorite window",
     });
     const reload = within(windowControls).getByRole("button", {
-      name: "Reload terminal window list",
+      name: "Reload favorite window list",
     });
 
     expect(previous).toBeDisabled();
-    expect(previous).toHaveAttribute("title", "Loading terminal windows");
+    expect(previous).toHaveAttribute("title", "Loading favorite windows");
     expect(switcher).toBeDisabled();
-    expect(switcher).toHaveAttribute("title", "Loading terminal windows");
+    expect(switcher).toHaveAttribute("title", "Loading favorite windows");
     expect(next).toBeDisabled();
-    expect(next).toHaveAttribute("title", "Loading terminal windows");
+    expect(next).toHaveAttribute("title", "Loading favorite windows");
     expect(reload).toBeDisabled();
-    expect(screen.getByText("Loading terminal windows")).toHaveAttribute("aria-live", "polite");
+    expect(screen.getByText("Loading favorite windows")).toHaveAttribute("aria-live", "polite");
   });
 
   it("keeps one-window navigation visible but explains why previous and next are disabled", () => {
@@ -532,25 +502,25 @@ describe("MobileTerminalControls", () => {
       />,
     );
 
-    const windowControls = screen.getByRole("group", { name: "Terminal window controls" });
+    const windowControls = screen.getByRole("group", { name: "Favorite window controls" });
     const previous = within(windowControls).getByRole("button", {
-      name: "Switch to previous terminal window",
+      name: "Switch to previous favorite window",
     });
     const next = within(windowControls).getByRole("button", {
-      name: "Switch to next terminal window",
+      name: "Switch to next favorite window",
     });
 
     expect(previous).toBeDisabled();
-    expect(previous).toHaveAttribute("title", "Only one terminal window is available");
+    expect(previous).toHaveAttribute("title", "Only one favorite window is available");
     expect(next).toBeDisabled();
-    expect(next).toHaveAttribute("title", "Only one terminal window is available");
-    expect(screen.getByText("Only one terminal window is available")).toBeInTheDocument();
+    expect(next).toHaveAttribute("title", "Only one favorite window is available");
+    expect(screen.getByText("Only one favorite window is available")).toBeInTheDocument();
     expect(
-      within(windowControls).getByRole("button", { name: "Open terminal window switcher" }),
+      within(windowControls).getByRole("button", { name: "Open favorite window switcher" }),
     ).toBeEnabled();
   });
 
-  it("switches previous and next terminal windows and opens the switcher with haptics", () => {
+  it("switches previous and next favorite windows and opens the switcher with haptics", () => {
     const onHapticFeedback = vi.fn();
     const windowNavigation = makeWindowNavigation();
     render(
@@ -560,21 +530,21 @@ describe("MobileTerminalControls", () => {
       />,
     );
 
-    const windowControls = screen.getByRole("group", { name: "Terminal window controls" });
+    const windowControls = screen.getByRole("group", { name: "Favorite window controls" });
     const previous = within(windowControls).getByRole("button", {
-      name: "Switch to previous terminal window",
+      name: "Switch to previous favorite window",
     });
     const switcher = within(windowControls).getByRole("button", {
-      name: "Open terminal window switcher",
+      name: "Open favorite window switcher",
     });
     const next = within(windowControls).getByRole("button", {
-      name: "Switch to next terminal window",
+      name: "Switch to next favorite window",
     });
 
     expect(previous).toBeEnabled();
     expect(next).toBeEnabled();
     expect(
-      screen.getByText("Current terminal window: window-two. 3 windows available."),
+      screen.getByText("Current favorite window: window-two. 3 favorite windows available."),
     ).toHaveAttribute("aria-live", "polite");
 
     fireEvent.click(previous);
@@ -602,19 +572,19 @@ describe("MobileTerminalControls", () => {
       />,
     );
 
-    const windowControls = screen.getByRole("group", { name: "Terminal window controls" });
+    const windowControls = screen.getByRole("group", { name: "Favorite window controls" });
     expect(
-      within(windowControls).getByRole("button", { name: "Switch to previous terminal window" }),
+      within(windowControls).getByRole("button", { name: "Switch to previous favorite window" }),
     ).toBeDisabled();
     expect(
-      within(windowControls).getByRole("button", { name: "Switch to next terminal window" }),
+      within(windowControls).getByRole("button", { name: "Switch to next favorite window" }),
     ).toBeDisabled();
     expect(
-      screen.getByText("Terminal window navigation error: Failed to load terminal sessions"),
+      screen.getByText("Favorite window navigation error: Failed to load terminal sessions"),
     ).toBeInTheDocument();
 
     fireEvent.click(
-      within(windowControls).getByRole("button", { name: "Retry loading terminal windows" }),
+      within(windowControls).getByRole("button", { name: "Retry loading favorite windows" }),
     );
 
     expect(windowNavigation.reload).toHaveBeenCalledTimes(1);
@@ -640,18 +610,18 @@ describe("MobileTerminalControls", () => {
       />,
     );
 
-    const windowControls = screen.getByRole("group", { name: "Terminal window controls" });
+    const windowControls = screen.getByRole("group", { name: "Favorite window controls" });
     expect(
-      within(windowControls).getByRole("button", { name: "Switch to next terminal window" }),
+      within(windowControls).getByRole("button", { name: "Switch to next favorite window" }),
     ).toBeDisabled();
     expect(
-      within(windowControls).getByRole("button", { name: "Switch to next terminal window" }),
-    ).toHaveAttribute("title", "Window switching unavailable");
+      within(windowControls).getByRole("button", { name: "Switch to next favorite window" }),
+    ).toHaveAttribute("title", "Favorite window switching unavailable");
     expect(
-      within(windowControls).getByRole("button", { name: "Open terminal window switcher" }),
+      within(windowControls).getByRole("button", { name: "Open favorite window switcher" }),
     ).toBeDisabled();
     expect(
-      within(windowControls).getByRole("button", { name: "Reload terminal window list" }),
+      within(windowControls).getByRole("button", { name: "Reload favorite window list" }),
     ).toBeDisabled();
     expect(onHapticFeedback).not.toHaveBeenCalled();
   });
@@ -767,7 +737,7 @@ describe("MobileTerminalControls", () => {
     const enter = screen.getByRole("button", { name: "Enter" });
     const ctrlD = screen.getByRole("button", { name: "Ctrl+D" });
     const dot = screen.getByRole("button", { name: "Show Navigation controls" });
-    const switcher = screen.getByRole("button", { name: "Open terminal window switcher" });
+    const switcher = screen.getByRole("button", { name: "Open favorite window switcher" });
     const selectionMode = screen.getByRole("button", { name: "Turn terminal selection mode on" });
     const copy = screen.getByRole("button", { name: "Copy terminal selection" });
     const paste = screen.getByRole("button", { name: "Paste from clipboard" });

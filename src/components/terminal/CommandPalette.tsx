@@ -30,6 +30,9 @@ interface CommandPaletteProps {
   tabs: Array<{ id: string; sessionName: string }>;
   onSelectTab: (tabId: string) => void;
   onCreateSession?: () => void;
+  searchPlaceholder?: string;
+  emptyText?: string;
+  groupHeading?: string;
 }
 
 const mobileCommandClassName =
@@ -47,6 +50,9 @@ interface CommandPaletteBodyProps {
   onSelectTab: (tabId: string) => void;
   onOpenChange: (open: boolean) => void;
   onCreateSession?: () => void;
+  searchPlaceholder: string;
+  emptyText: string;
+  groupHeading: string;
 }
 
 function getVectorValue(vector: unknown, index: number): number {
@@ -60,6 +66,9 @@ function CommandPaletteBody({
   onSelectTab,
   onOpenChange,
   onCreateSession,
+  searchPlaceholder,
+  emptyText,
+  groupHeading,
 }: CommandPaletteBodyProps) {
   const handleSelect = useCallback(
     (tabId: string) => {
@@ -76,10 +85,10 @@ function CommandPaletteBody({
 
   return (
     <>
-      <CommandInput placeholder="Search sessions…" />
+      <CommandInput placeholder={searchPlaceholder} />
       <CommandList>
-        <CommandEmpty>No sessions found.</CommandEmpty>
-        <CommandGroup heading="Sessions">
+        <CommandEmpty>{emptyText}</CommandEmpty>
+        <CommandGroup heading={groupHeading}>
           {tabs.map((tab) => (
             <CommandItem key={tab.id} value={tab.sessionName} onSelect={() => handleSelect(tab.id)}>
               <Terminal className="mr-2 size-4 shrink-0 opacity-70" />
@@ -107,6 +116,9 @@ export function CommandPalette({
   tabs,
   onSelectTab,
   onCreateSession,
+  searchPlaceholder = "Search sessions…",
+  emptyText = "No sessions found.",
+  groupHeading = "Sessions",
 }: CommandPaletteProps) {
   const isMobile = useIsMobile();
   const { height } = useVisualViewportHeight();
@@ -218,6 +230,9 @@ export function CommandPalette({
               onSelectTab={onSelectTab}
               onOpenChange={onOpenChange}
               onCreateSession={onCreateSession}
+              searchPlaceholder={searchPlaceholder}
+              emptyText={emptyText}
+              groupHeading={groupHeading}
             />
           </Command>
         </SheetContent>
@@ -232,6 +247,9 @@ export function CommandPalette({
         onSelectTab={onSelectTab}
         onOpenChange={onOpenChange}
         onCreateSession={onCreateSession}
+        searchPlaceholder={searchPlaceholder}
+        emptyText={emptyText}
+        groupHeading={groupHeading}
       />
     </CommandDialog>
   );

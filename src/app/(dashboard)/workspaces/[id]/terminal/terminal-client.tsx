@@ -16,8 +16,8 @@ import { Button } from "@/components/ui/button";
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { useIsComposeSheet } from "@/hooks/use-compose-sheet";
+import { useFavoriteWindowNavigation } from "@/hooks/useFavoriteWindowNavigation";
 import { useKeybindings } from "@/hooks/useKeybindings";
-import { useTerminalSessionNavigation } from "@/hooks/useTerminalSessionNavigation";
 import { useVisualViewportKeyboardOffset } from "@/hooks/useVisualViewportKeyboardOffset";
 import { createSessionAction, getWorkspaceSessionsAction } from "@/lib/actions/workspaces";
 import { triggerHapticFeedback } from "@/lib/device/haptics";
@@ -127,16 +127,16 @@ function TerminalInner({ agentId, workspaceId }: { agentId: string; workspaceId:
     visualViewportHeightPx = 0,
     visualViewportOffsetTopPx = 0,
   } = useVisualViewportKeyboardOffset();
-  const terminalSessionNavigation = useTerminalSessionNavigation(workspaceId);
-  const terminalWindowTabs = terminalSessionNavigation.sessions.map((terminalSession) => ({
-    id: terminalSession.name,
-    sessionName: terminalSession.name,
+  const favoriteWindowNavigation = useFavoriteWindowNavigation(workspaceId);
+  const favoriteWindowTabs = favoriteWindowNavigation.sessions.map((favoriteWindow) => ({
+    id: favoriteWindow.id,
+    sessionName: favoriteWindow.name,
   }));
-  const handleSelectTerminalWindowTab = useCallback(
+  const handleSelectFavoriteWindowTab = useCallback(
     (tabId: string) => {
-      terminalSessionNavigation.select(tabId);
+      favoriteWindowNavigation.select(tabId);
     },
-    [terminalSessionNavigation],
+    [favoriteWindowNavigation],
   );
   const isMobileKeyboardVisible = isComposeSheet && visualKeyboardVisible;
   const keyboardLiftPx = isComposeSheet ? visualKeyboardLiftPx : 0;
@@ -432,7 +432,7 @@ function TerminalInner({ agentId, workspaceId }: { agentId: string; workspaceId:
                 : "Paste is unavailable until the terminal sender is ready"
             }
             windowNavigation={{
-              ...terminalSessionNavigation,
+              ...favoriteWindowNavigation,
               onOpenSwitcher: () => setWindowSwitcherOpen(true),
             }}
           />
@@ -463,8 +463,11 @@ function TerminalInner({ agentId, workspaceId }: { agentId: string; workspaceId:
         <CommandPalette
           open={windowSwitcherOpen}
           onOpenChange={setWindowSwitcherOpen}
-          tabs={terminalWindowTabs}
-          onSelectTab={handleSelectTerminalWindowTab}
+          tabs={favoriteWindowTabs}
+          onSelectTab={handleSelectFavoriteWindowTab}
+          searchPlaceholder="Search favorite windows…"
+          emptyText="No favorite windows found."
+          groupHeading="Favorite windows"
         />
       </MobileTerminalShell>
     );
