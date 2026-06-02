@@ -108,6 +108,34 @@ describe("session management", () => {
       expect(result!.session.id).toBe("sess-123");
       expect(result!.session.expiresAt).toBeInstanceOf(Date);
     });
+
+    it("uses the valid scoped cookie when duplicate session cookies include a stale parent-domain cookie", async () => {
+      const futureDate = new Date(Date.now() + 86400000);
+      const cookieStore = {
+        get: vi.fn().mockReturnValue({ value: "prod-cookie" }),
+        getAll: vi.fn().mockReturnValue([{ value: "prod-cookie" }, { value: "preview-cookie" }]),
+      };
+      mockVerifyCookie.mockImplementation((value) =>
+        value === "preview-cookie" ? { sessionId: "sess-preview" } : null,
+      );
+      mockServiceClient.getSession.mockResolvedValue({
+        userId: "user-1",
+        coderUserId: "coder-user-1",
+        username: "testuser",
+        email: "test@example.com",
+        coderUrl: "https://coder.example.com",
+        sessionId: "sess-preview",
+        expiresAt: futureDate.toISOString(),
+      });
+
+      const result = await getSession(cookieStore);
+
+      expect(result).not.toBeNull();
+      expect(result!.session.sessionId).toBe("sess-preview");
+      expect(mockVerifyCookie).toHaveBeenCalledWith("prod-cookie", "test-secret");
+      expect(mockVerifyCookie).toHaveBeenCalledWith("preview-cookie", "test-secret");
+      expect(mockServiceClient.getSession).toHaveBeenCalledWith("sess-preview");
+    });
   });
 
   describe("deleteSession", () => {

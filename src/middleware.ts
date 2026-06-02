@@ -20,8 +20,11 @@ export function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
-  const sessionCookie = request.cookies.get(SESSION_COOKIE_NAME);
-  if (!sessionCookie?.value) {
+  const sessionCookieValues = request.cookies
+    .getAll(SESSION_COOKIE_NAME)
+    .map((cookie) => cookie.value)
+    .filter(Boolean);
+  if (sessionCookieValues.length === 0) {
     const loginUrl = new URL("/login", request.url);
     return NextResponse.redirect(loginUrl);
   }
@@ -33,15 +36,17 @@ export function middleware(request: NextRequest) {
     return NextResponse.redirect(loginUrl);
   }
 
-  const verified = verifyCookie(sessionCookie.value, cookieSecret);
-  if (!verified) {
-    const loginUrl = new URL("/login", request.url);
-    return NextResponse.redirect(loginUrl);
+  for (const sessionCookieValue of [...new Set(sessionCookieValues)]) {
+    const verified = verifyCookie(sessionCookieValue, cookieSecret);
+    if (!verified) continue;
+
+    const response = NextResponse.next();
+    refreshDomainSessionCookie(response.cookies, sessionCookieValue, verified.timestamp);
+    return response;
   }
 
-  const response = NextResponse.next();
-  refreshDomainSessionCookie(response.cookies, sessionCookie.value, verified.timestamp);
-  return response;
+  const loginUrl = new URL("/login", request.url);
+  return NextResponse.redirect(loginUrl);
 }
 
 export const runtime = "nodejs";
