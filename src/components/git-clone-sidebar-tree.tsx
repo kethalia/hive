@@ -17,6 +17,7 @@ import { cn } from "@/lib/utils";
 export interface GitCloneSidebarTreeProps {
   tree: PublicCloneTree;
   favoriteKeys?: ReadonlySet<string>;
+  mutatingFavoriteKeys?: ReadonlySet<string>;
   onFavoriteToggle?: (repository: CloneTreeRepositoryNode, nextFavorited: boolean) => void;
   onRepositorySelect?: (repository: CloneTreeRepositoryNode) => void;
   className?: string;
@@ -25,6 +26,7 @@ export interface GitCloneSidebarTreeProps {
 export function GitCloneSidebarTree({
   tree,
   favoriteKeys,
+  mutatingFavoriteKeys,
   onFavoriteToggle,
   onRepositorySelect,
   className,
@@ -73,6 +75,7 @@ export function GitCloneSidebarTree({
                     renderCloneTreeNode(
                       node,
                       favoriteKeys,
+                      mutatingFavoriteKeys,
                       onFavoriteToggle,
                       onRepositorySelect,
                       openDirectoryIds,
@@ -93,6 +96,7 @@ export function GitCloneSidebarTree({
 function renderCloneTreeNode(
   node: CloneTreeNode,
   favoriteKeys: GitCloneSidebarTreeProps["favoriteKeys"],
+  mutatingFavoriteKeys: GitCloneSidebarTreeProps["mutatingFavoriteKeys"],
   onFavoriteToggle: GitCloneSidebarTreeProps["onFavoriteToggle"],
   onRepositorySelect: GitCloneSidebarTreeProps["onRepositorySelect"],
   openDirectoryIds: ReadonlySet<string>,
@@ -104,6 +108,7 @@ function renderCloneTreeNode(
         key={node.id}
         node={node}
         favoriteKeys={favoriteKeys}
+        mutatingFavoriteKeys={mutatingFavoriteKeys}
         onFavoriteToggle={onFavoriteToggle}
         onRepositorySelect={onRepositorySelect}
       />
@@ -115,6 +120,7 @@ function renderCloneTreeNode(
       key={node.id}
       node={node}
       favoriteKeys={favoriteKeys}
+      mutatingFavoriteKeys={mutatingFavoriteKeys}
       onFavoriteToggle={onFavoriteToggle}
       onRepositorySelect={onRepositorySelect}
       openDirectoryIds={openDirectoryIds}
@@ -126,6 +132,7 @@ function renderCloneTreeNode(
 function DirectoryTreeNode({
   node,
   favoriteKeys,
+  mutatingFavoriteKeys,
   onFavoriteToggle,
   onRepositorySelect,
   openDirectoryIds,
@@ -133,6 +140,7 @@ function DirectoryTreeNode({
 }: {
   node: Extract<CloneTreeNode, { kind: "directory" }>;
   favoriteKeys: GitCloneSidebarTreeProps["favoriteKeys"];
+  mutatingFavoriteKeys: GitCloneSidebarTreeProps["mutatingFavoriteKeys"];
   onFavoriteToggle: GitCloneSidebarTreeProps["onFavoriteToggle"];
   onRepositorySelect: GitCloneSidebarTreeProps["onRepositorySelect"];
   openDirectoryIds: ReadonlySet<string>;
@@ -166,6 +174,7 @@ function DirectoryTreeNode({
               renderCloneTreeNode(
                 child,
                 favoriteKeys,
+                mutatingFavoriteKeys,
                 onFavoriteToggle,
                 onRepositorySelect,
                 openDirectoryIds,
@@ -182,17 +191,20 @@ function DirectoryTreeNode({
 function RepositoryTreeNode({
   node,
   favoriteKeys,
+  mutatingFavoriteKeys,
   onFavoriteToggle,
   onRepositorySelect,
 }: {
   node: CloneTreeRepositoryNode;
   favoriteKeys: GitCloneSidebarTreeProps["favoriteKeys"];
+  mutatingFavoriteKeys: GitCloneSidebarTreeProps["mutatingFavoriteKeys"];
   onFavoriteToggle: GitCloneSidebarTreeProps["onFavoriteToggle"];
   onRepositorySelect: GitCloneSidebarTreeProps["onRepositorySelect"];
 }) {
   const displayPath = formatDisplayPath(node.displaySegments, node.label);
   const accessibleName = `Open Git repository ${displayPath}`;
   const isFavorited = favoriteKeys?.has(node.cloneSessionKey) === true;
+  const isMutatingFavorite = mutatingFavoriteKeys?.has(node.cloneSessionKey) === true;
   const favoriteAccessibleName = `${isFavorited ? "Remove" : "Add"} Git repository ${displayPath} ${
     isFavorited ? "from" : "to"
   } favorites`;
@@ -200,6 +212,7 @@ function RepositoryTreeNode({
   const handleFavoriteClick = (event: MouseEvent<HTMLButtonElement>) => {
     event.preventDefault();
     event.stopPropagation();
+    if (isMutatingFavorite) return;
     onFavoriteToggle?.(node, !isFavorited);
   };
 
@@ -220,7 +233,8 @@ function RepositoryTreeNode({
         type="button"
         aria-label={favoriteAccessibleName}
         aria-pressed={isFavorited}
-        className="absolute top-0 right-0 flex size-7 items-center justify-center rounded-md text-sidebar-foreground outline-hidden transition-colors after:absolute after:-inset-1 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2 focus-visible:ring-sidebar-ring active:bg-sidebar-accent active:text-sidebar-accent-foreground group-data-[collapsible=icon]:hidden md:after:hidden"
+        disabled={isMutatingFavorite}
+        className="absolute top-0 right-0 flex size-7 items-center justify-center rounded-md text-sidebar-foreground outline-hidden transition-colors after:absolute after:-inset-1 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2 focus-visible:ring-sidebar-ring active:bg-sidebar-accent active:text-sidebar-accent-foreground disabled:pointer-events-none disabled:opacity-50 group-data-[collapsible=icon]:hidden md:after:hidden"
         onClick={handleFavoriteClick}
       >
         <Star

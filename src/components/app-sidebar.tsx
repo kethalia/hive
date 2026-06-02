@@ -20,6 +20,7 @@ import {
   RefreshCw,
   Monitor as ScreenIcon,
   Settings,
+  Star,
   Terminal,
   X,
 } from "lucide-react";
@@ -61,6 +62,12 @@ import { Switch } from "@/components/ui/switch";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useSidebarMode } from "@/hooks/use-sidebar-mode";
 import { listGitClonesAction, resolveGitCloneTerminalAction } from "@/lib/actions/git-clones";
+import {
+  listNavigationFavoritesAction,
+  removeNavigationFavoriteAction,
+  upsertNavigationFavoriteAction,
+  type NavigationFavoriteDto,
+} from "@/lib/actions/navigation-favorites";
 import { listTemplateStatusesAction } from "@/lib/actions/templates";
 import {
   createSessionAction,
@@ -127,10 +134,19 @@ interface GitDiscoveryState {
   serverError: string | null;
 }
 
+interface FavoritesState {
+  data: NavigationFavoriteDto[];
+  isLoading: boolean;
+  error: string | null;
+  mutatingKeys: ReadonlySet<string>;
+}
+
 const GIT_DISCOVERY_SERVER_ERROR_MESSAGE =
   "Git clone discovery is unavailable. Refresh and try again.";
 const GIT_TERMINAL_OPEN_ERROR_MESSAGE =
   "We couldn't open that Git repository. Refresh and try again.";
+const FAVORITES_UNAVAILABLE_MESSAGE =
+  "Favorites unavailable. Terminal access is still available.";
 
 function isGitCloneTerminalIdentity(value: unknown): value is GitCloneTerminalIdentity {
   if (!value || typeof value !== "object") return false;
@@ -148,6 +164,54 @@ function isGitCloneTerminalIdentity(value: unknown): value is GitCloneTerminalId
   );
 }
 
+function favoriteIdentity(kind: NavigationFavoriteDto["kind"], workspaceId: string, targetKey: string) {
+  return `${kind}:${workspaceId}:${targetKey}`;
+}
+
+function isNavigationFavoriteDto(value: unknown): value is NavigationFavoriteDto {
+  if (!value || typeof value !== "object") return false;
+
+  const candidate = value as Partial<NavigationFavoriteDto>;
+  return (
+    typeof candidate.id === "string" &&
+    (candidate.kind === "terminal" || candidate.kind === "git") &&
+    typeof candidate.workspaceId === "string" &&
+    candidate.workspaceId.length > 0 &&
+    typeof candidate.targetKey === "string" &&
+    candidate.targetKey.length > 0 &&
+    (typeof candidate.label === "string" || candidate.label === null) &&
+    (typeof candidate.relativePath === "string" || candidate.relativePath === null) &&
+    typeof candidate.createdAt === "string"
+  );
+}
+
+function dedupeFavorites(favorites: NavigationFavoriteDto[]): NavigationFavoriteDto[] {
+  const byKey = new Map<string, NavigationFavoriteDto>();
+  for (const favorite of favorites) {
+    const key = favoriteIdentity(favorite.kind, favorite.workspaceId, favorite.targetKey);
+    if (!byKey.has(key)) byKey.set(key, favorite);
+  }
+  return [...byKey.values()];
+}
+
+function isSafeFavoriteLabel(label: string | null): label is string {
+  if (!label) return false;
+  const value = label.trim();
+  return (
+    value.length > 0 &&
+    !value.startsWith("/") &&
+    !/^[a-zA-Z][a-zA-Z0-9+.-]*:\/\//.test(value) &&
+    !/cloneProof=/i.test(value) &&
+    !/[\r\n\0]/.test(value)
+  );
+}
+
+function favoriteLabel(favorite: NavigationFavoriteDto): string {
+  if (isSafeFavoriteLabel(favorite.label)) return favorite.label.trim();
+  if (favorite.kind === "git") return favorite.relativePath ?? "Git repository";
+  return favorite.targetKey;
+}
+
 interface AgentInfo {
   agentId: string;
   agentName: string;
@@ -160,6 +224,9 @@ function SessionList({
   workspaceId,
   pathname,
   activeSession,
+  favoriteKeys,
+  mutatingFavoriteKeys,
+  onFavoriteToggle,
   onKill,
   onRename,
 }: {
@@ -167,6 +234,9 @@ function SessionList({
   workspaceId: string;
   pathname: string;
   activeSession: string | null;
+  favoriteKeys: ReadonlySet<string>;
+  mutatingFavoriteKeys: ReadonlySet<string>;
+  onFavoriteToggle: (workspaceId: string, sessionName: string, nextFavorited: boolean) => void;
   onKill: (workspaceId: string, sessionName: string) => void;
   onRename: (workspaceId: string, oldName: string, newName: string) => void;
 }) {
@@ -220,7 +290,12 @@ function SessionList({
         style={isMobile ? undefined : { maxHeight: SESSION_MAX_HEIGHT }}
         onScroll={checkScroll}
       >
-        {sessions.map((session) => (
+        {sessions.map((session) => {
+          const favoriteKey = favoriteIdentity("terminal", workspaceId, session.name);
+          const isFavorited = favoriteKeys.has(favoriteKey);
+          const isMutatingFavorite = mutatingFavoriteKeys.has(favoriteKey);
+
+          return (
           <SidebarMenuSubItem key={session.name}>
             {editingSession === session.name ? (
               <SidebarMenuSubButton className={cn("cursor-text", mobileSessionRowClassName)}>
@@ -261,6 +336,27 @@ function SessionList({
                 >
                   <button
                     type="button"
+                    title={isFavorited ? "Remove from favorites" : "Add to favorites"}
+                    aria-label={`${isFavorited ? "Remove" : "Add"} terminal session ${session.name} ${
+                      isFavorited ? "from" : "to"
+                    } favorites`}
+                    aria-pressed={isFavorited}
+                    data-testid={`favorite-terminal-session-${session.name}`}
+                    disabled={isMutatingFavorite}
+                    className={cn(
+                      "rounded hover:bg-sidebar-accent disabled:pointer-events-none disabled:opacity-50",
+                      actionButtonClassName,
+                    )}
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      onFavoriteToggle(workspaceId, session.name, !isFavorited);
+                    }}
+                  >
+                    <Star className={cn("h-3 w-3", isFavorited && "fill-current")} />
+                  </button>
+                  <button
+                    type="button"
                     title="Rename session"
                     aria-label={`Rename session ${session.name}`}
                     data-testid={`rename-session-${session.name}`}
@@ -291,7 +387,8 @@ function SessionList({
               </SidebarMenuSubButton>
             )}
           </SidebarMenuSubItem>
-        ))}
+          );
+        })}
       </div>
       {canScroll && !isAtBottom && (
         <button
@@ -311,12 +408,97 @@ function SessionList({
   );
 }
 
+function FavoritesSection({
+  favorites,
+  onGitFavoriteLaunch,
+}: {
+  favorites: FavoritesState;
+  onGitFavoriteLaunch: (favorite: NavigationFavoriteDto) => void;
+}) {
+  const visibleFavorites = useMemo(() => dedupeFavorites(favorites.data), [favorites.data]);
+
+  return (
+    <SidebarGroup className="pb-0" data-testid="favorites-section">
+      <SidebarGroupLabel>Favorites</SidebarGroupLabel>
+      <SidebarGroupContent>
+        {favorites.error && (
+          <Alert variant="destructive" className="mx-4 my-1" data-testid="favorites-error">
+            <AlertCircle className="h-4 w-4" />
+            <AlertDescription>
+              <span className="text-xs">{favorites.error}</span>
+            </AlertDescription>
+          </Alert>
+        )}
+        {favorites.isLoading && visibleFavorites.length === 0 && (
+          <p className="px-6 py-2 text-xs text-muted-foreground" role="status">
+            Loading favorites…
+          </p>
+        )}
+        {!favorites.isLoading && visibleFavorites.length === 0 && !favorites.error && (
+          <p className="px-6 py-2 text-xs text-muted-foreground" role="status">
+            No favorites yet.
+          </p>
+        )}
+        {visibleFavorites.length > 0 && (
+          <SidebarMenu>
+            {visibleFavorites.map((favorite) => {
+              const label = favoriteLabel(favorite);
+              if (favorite.kind === "terminal") {
+                return (
+                  <SidebarMenuItem key={favorite.id}>
+                    <SidebarMenuButton
+                      render={
+                        <Link
+                          href={`/workspaces/${encodeURIComponent(
+                            favorite.workspaceId,
+                          )}/terminal?session=${encodeURIComponent(favorite.targetKey)}`}
+                        />
+                      }
+                      data-testid={`favorite-terminal-link-${favorite.workspaceId}-${favorite.targetKey}`}
+                    >
+                      <Terminal className="h-4 w-4" />
+                      <span className="truncate">{label}</span>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                );
+              }
+
+              const canLaunch = typeof favorite.relativePath === "string" && favorite.relativePath.length > 0;
+              return (
+                <SidebarMenuItem key={favorite.id}>
+                  <SidebarMenuButton
+                    disabled={!canLaunch}
+                    className={cn("cursor-pointer", !canLaunch && "cursor-not-allowed opacity-50")}
+                    data-testid={`favorite-git-link-${favorite.workspaceId}-${favorite.targetKey}`}
+                    onClick={() => {
+                      if (canLaunch) onGitFavoriteLaunch(favorite);
+                    }}
+                  >
+                    <GitBranch className="h-4 w-4" />
+                    <span className="truncate">{label}</span>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              );
+            })}
+          </SidebarMenu>
+        )}
+      </SidebarGroupContent>
+    </SidebarGroup>
+  );
+}
+
 function GitDiscoveryPanel({
   state,
+  favoriteKeys,
+  mutatingFavoriteKeys,
+  onFavoriteToggle,
   onRetry,
   onRepositorySelect,
 }: {
   state: GitDiscoveryState;
+  favoriteKeys: ReadonlySet<string>;
+  mutatingFavoriteKeys: ReadonlySet<string>;
+  onFavoriteToggle: (repository: CloneTreeRepositoryNode, nextFavorited: boolean) => void;
   onRetry: () => void;
   onRepositorySelect: (repository: CloneTreeRepositoryNode) => void;
 }) {
@@ -368,7 +550,13 @@ function GitDiscoveryPanel({
           tone="neutral"
           onRetry={onRetry}
         />
-        <GitCloneSidebarTree tree={result.tree} onRepositorySelect={onRepositorySelect} />
+        <GitCloneSidebarTree
+          tree={result.tree}
+          favoriteKeys={favoriteKeys}
+          mutatingFavoriteKeys={mutatingFavoriteKeys}
+          onFavoriteToggle={onFavoriteToggle}
+          onRepositorySelect={onRepositorySelect}
+        />
       </div>
     );
   }
@@ -380,7 +568,13 @@ function GitDiscoveryPanel({
           Refreshing Git repositories…
         </p>
       )}
-      <GitCloneSidebarTree tree={result.tree} onRepositorySelect={onRepositorySelect} />
+      <GitCloneSidebarTree
+        tree={result.tree}
+        favoriteKeys={favoriteKeys}
+        mutatingFavoriteKeys={mutatingFavoriteKeys}
+        onFavoriteToggle={onFavoriteToggle}
+        onRepositorySelect={onRepositorySelect}
+      />
     </div>
   );
 }
@@ -487,6 +681,12 @@ export function AppSidebar() {
     isLoading: true,
     error: null,
   });
+  const [favorites, setFavorites] = useState<FavoritesState>({
+    data: [],
+    isLoading: true,
+    error: null,
+    mutatingKeys: new Set(),
+  });
   const [workspaceGitDiscovery, setWorkspaceGitDiscovery] = useState<
     Record<string, GitDiscoveryState>
   >({});
@@ -538,6 +738,49 @@ export function AppSidebar() {
       const msg = err instanceof Error ? err.message : "Failed to fetch templates";
       setTemplates((prev) => ({ ...prev, isLoading: false, error: msg }));
     }
+  }, []);
+
+  const loadedFavoriteWorkspaceIdsRef = useRef<Set<string>>(new Set());
+  const fetchFavoritesForWorkspaces = useCallback(async (workspaceIds: string[]) => {
+    const pendingWorkspaceIds = workspaceIds.filter(
+      (workspaceId) => !loadedFavoriteWorkspaceIdsRef.current.has(workspaceId),
+    );
+    if (pendingWorkspaceIds.length === 0) {
+      setFavorites((prev) => ({ ...prev, isLoading: false }));
+      return;
+    }
+
+    for (const workspaceId of pendingWorkspaceIds) {
+      loadedFavoriteWorkspaceIdsRef.current.add(workspaceId);
+    }
+
+    setFavorites((prev) => ({ ...prev, isLoading: true, error: null }));
+    const settledResults = await Promise.allSettled(
+      pendingWorkspaceIds.map((workspaceId) => listNavigationFavoritesAction({ workspaceId })),
+    );
+
+    const nextFavorites: NavigationFavoriteDto[] = [];
+    let failed = false;
+    for (const result of settledResults) {
+      if (result.status === "rejected") {
+        failed = true;
+        continue;
+      }
+
+      const data = result.value?.data;
+      if (!Array.isArray(data) || !data.every(isNavigationFavoriteDto)) {
+        failed = true;
+        continue;
+      }
+      nextFavorites.push(...data);
+    }
+
+    setFavorites((prev) => ({
+      ...prev,
+      data: dedupeFavorites([...prev.data, ...nextFavorites]),
+      isLoading: false,
+      error: failed ? FAVORITES_UNAVAILABLE_MESSAGE : null,
+    }));
   }, []);
 
   const fetchGitClones = useCallback(async (workspaceId: string) => {
@@ -644,6 +887,11 @@ export function AppSidebar() {
     };
   }, [fetchWorkspaceAndTemplates]);
 
+  useEffect(() => {
+    if (workspaces.isLoading) return;
+    fetchFavoritesForWorkspaces(workspaces.data.map((workspace) => workspace.id));
+  }, [fetchFavoritesForWorkspaces, workspaces.data, workspaces.isLoading]);
+
   const refreshSessions = useCallback(() => {
     for (const [wsId, isExpanded] of Object.entries(expandedWorkspacesRef.current)) {
       if (isExpanded) fetchSessions(wsId);
@@ -720,6 +968,163 @@ export function AppSidebar() {
       }
     };
   }, [expandedWorkspaces, fetchSessions]);
+
+  const favoriteKeySet = useMemo(
+    () => new Set(favorites.data.map((favorite) => favoriteIdentity(favorite.kind, favorite.workspaceId, favorite.targetKey))),
+    [favorites.data],
+  );
+
+  const gitFavoriteKeysByWorkspace = useMemo(() => {
+    const byWorkspace = new Map<string, Set<string>>();
+    for (const favorite of favorites.data) {
+      if (favorite.kind !== "git") continue;
+      const keys = byWorkspace.get(favorite.workspaceId) ?? new Set<string>();
+      keys.add(favorite.targetKey);
+      byWorkspace.set(favorite.workspaceId, keys);
+    }
+    return byWorkspace;
+  }, [favorites.data]);
+
+  const mutatingGitFavoriteKeysByWorkspace = useMemo(() => {
+    const byWorkspace = new Map<string, Set<string>>();
+    for (const key of favorites.mutatingKeys) {
+      if (!key.startsWith("git:")) continue;
+      const workspaceAndTarget = key.slice("git:".length);
+      const separatorIndex = workspaceAndTarget.indexOf(":");
+      if (separatorIndex === -1) continue;
+      const workspaceId = workspaceAndTarget.slice(0, separatorIndex);
+      const targetKey = workspaceAndTarget.slice(separatorIndex + 1);
+      const keys = byWorkspace.get(workspaceId) ?? new Set<string>();
+      keys.add(targetKey);
+      byWorkspace.set(workspaceId, keys);
+    }
+    return byWorkspace;
+  }, [favorites.mutatingKeys]);
+
+  const setFavoriteMutating = useCallback((key: string, isMutating: boolean) => {
+    setFavorites((prev) => {
+      const mutatingKeys = new Set(prev.mutatingKeys);
+      if (isMutating) {
+        mutatingKeys.add(key);
+      } else {
+        mutatingKeys.delete(key);
+      }
+      return { ...prev, mutatingKeys };
+    });
+  }, []);
+
+  const handleTerminalFavoriteToggle = useCallback(
+    async (workspaceId: string, sessionName: string, nextFavorited: boolean) => {
+      const key = favoriteIdentity("terminal", workspaceId, sessionName);
+      if (favorites.mutatingKeys.has(key)) return;
+
+      setFavoriteMutating(key, true);
+      try {
+        if (nextFavorited) {
+          const result = await upsertNavigationFavoriteAction({
+            kind: "terminal",
+            workspaceId,
+            targetKey: sessionName,
+            label: sessionName,
+          });
+          const favorite = result?.data;
+          if (!isNavigationFavoriteDto(favorite)) throw new Error("favorite_upsert_failed");
+          setFavorites((prev) => ({
+            ...prev,
+            data: dedupeFavorites([
+              ...prev.data.filter(
+                (currentFavorite) =>
+                  favoriteIdentity(
+                    currentFavorite.kind,
+                    currentFavorite.workspaceId,
+                    currentFavorite.targetKey,
+                  ) !== key,
+              ),
+              favorite,
+            ]),
+            error: null,
+          }));
+        } else {
+          const result = await removeNavigationFavoriteAction({
+            kind: "terminal",
+            workspaceId,
+            targetKey: sessionName,
+          });
+          if (result?.data?.success !== true) throw new Error("favorite_remove_failed");
+          setFavorites((prev) => ({
+            ...prev,
+            data: prev.data.filter(
+              (favorite) =>
+                favoriteIdentity(favorite.kind, favorite.workspaceId, favorite.targetKey) !== key,
+            ),
+            error: null,
+          }));
+        }
+      } catch {
+        setFavorites((prev) => ({ ...prev, error: FAVORITES_UNAVAILABLE_MESSAGE }));
+      } finally {
+        setFavoriteMutating(key, false);
+      }
+    },
+    [favorites.mutatingKeys, setFavoriteMutating],
+  );
+
+  const handleGitFavoriteToggle = useCallback(
+    async (workspaceId: string, repository: CloneTreeRepositoryNode, nextFavorited: boolean) => {
+      const key = favoriteIdentity("git", workspaceId, repository.cloneSessionKey);
+      if (favorites.mutatingKeys.has(key)) return;
+
+      setFavoriteMutating(key, true);
+      try {
+        if (nextFavorited) {
+          const result = await upsertNavigationFavoriteAction({
+            kind: "git",
+            workspaceId,
+            targetKey: repository.cloneSessionKey,
+            relativePath: repository.relativePath,
+            label: repository.label,
+          });
+          const favorite = result?.data;
+          if (!isNavigationFavoriteDto(favorite)) throw new Error("favorite_upsert_failed");
+          setFavorites((prev) => ({
+            ...prev,
+            data: dedupeFavorites([
+              ...prev.data.filter(
+                (currentFavorite) =>
+                  favoriteIdentity(
+                    currentFavorite.kind,
+                    currentFavorite.workspaceId,
+                    currentFavorite.targetKey,
+                  ) !== key,
+              ),
+              favorite,
+            ]),
+            error: null,
+          }));
+        } else {
+          const result = await removeNavigationFavoriteAction({
+            kind: "git",
+            workspaceId,
+            targetKey: repository.cloneSessionKey,
+          });
+          if (result?.data?.success !== true) throw new Error("favorite_remove_failed");
+          setFavorites((prev) => ({
+            ...prev,
+            data: prev.data.filter(
+              (favorite) =>
+                favoriteIdentity(favorite.kind, favorite.workspaceId, favorite.targetKey) !== key,
+            ),
+            error: null,
+          }));
+        }
+      } catch {
+        setFavorites((prev) => ({ ...prev, error: FAVORITES_UNAVAILABLE_MESSAGE }));
+      } finally {
+        setFavoriteMutating(key, false);
+      }
+    },
+    [favorites.mutatingKeys, setFavoriteMutating],
+  );
 
   const handleCreateSession = useCallback(
     async (workspaceId: string) => {
@@ -804,18 +1209,19 @@ export function AppSidebar() {
     [],
   );
 
-  const handleGitRepositorySelect = useCallback(
-    async (workspaceId: string, repository: CloneTreeRepositoryNode) => {
+  const openGitCloneTerminal = useCallback(
+    async (input: { workspaceId: string; cloneSessionKey: string; relativePath: string }) => {
+      const { workspaceId, cloneSessionKey, relativePath } = input;
       setWorkspaceGitTerminalErrors((prev) => ({ ...prev, [workspaceId]: null }));
 
       try {
         const targetAgent =
           workspaceAgentsRef.current[workspaceId] ?? (await fetchAgentInfo(workspaceId));
         const result = await resolveGitCloneTerminalAction({
-          cloneSessionKey: repository.cloneSessionKey,
+          cloneSessionKey,
           workspaceId,
           agentId: targetAgent?.agentId,
-          relativePath: repository.relativePath,
+          relativePath,
         });
         const identity = result?.data;
 
@@ -825,6 +1231,7 @@ export function AppSidebar() {
             ...prev,
             [workspaceId]: GIT_TERMINAL_OPEN_ERROR_MESSAGE,
           }));
+          setFavorites((prev) => ({ ...prev, error: GIT_TERMINAL_OPEN_ERROR_MESSAGE }));
           return;
         }
 
@@ -844,9 +1251,32 @@ export function AppSidebar() {
           ...prev,
           [workspaceId]: GIT_TERMINAL_OPEN_ERROR_MESSAGE,
         }));
+        setFavorites((prev) => ({ ...prev, error: GIT_TERMINAL_OPEN_ERROR_MESSAGE }));
       }
     },
     [fetchAgentInfo, router, searchParams],
+  );
+
+  const handleGitRepositorySelect = useCallback(
+    (workspaceId: string, repository: CloneTreeRepositoryNode) =>
+      openGitCloneTerminal({
+        workspaceId,
+        cloneSessionKey: repository.cloneSessionKey,
+        relativePath: repository.relativePath,
+      }),
+    [openGitCloneTerminal],
+  );
+
+  const handleGitFavoriteLaunch = useCallback(
+    (favorite: NavigationFavoriteDto) => {
+      if (favorite.kind !== "git" || !favorite.relativePath) return;
+      openGitCloneTerminal({
+        workspaceId: favorite.workspaceId,
+        cloneSessionKey: favorite.targetKey,
+        relativePath: favorite.relativePath,
+      });
+    },
+    [openGitCloneTerminal],
   );
 
   return (
@@ -900,6 +1330,8 @@ export function AppSidebar() {
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
+
+        <FavoritesSection favorites={favorites} onGitFavoriteLaunch={handleGitFavoriteLaunch} />
 
         {/* Workspaces */}
         <SidebarGroup className="py-0">
@@ -1019,6 +1451,13 @@ export function AppSidebar() {
                                     <CollapsibleContent>
                                       <GitDiscoveryPanel
                                         state={gitState}
+                                        favoriteKeys={gitFavoriteKeysByWorkspace.get(ws.id) ?? new Set()}
+                                        mutatingFavoriteKeys={
+                                          mutatingGitFavoriteKeysByWorkspace.get(ws.id) ?? new Set()
+                                        }
+                                        onFavoriteToggle={(repository, nextFavorited) =>
+                                          handleGitFavoriteToggle(ws.id, repository, nextFavorited)
+                                        }
                                         onRetry={() => fetchGitClones(ws.id)}
                                         onRepositorySelect={(repository) =>
                                           handleGitRepositorySelect(ws.id, repository)
@@ -1099,6 +1538,9 @@ export function AppSidebar() {
                                           workspaceId={ws.id}
                                           pathname={pathname}
                                           activeSession={activeSession}
+                                          favoriteKeys={favoriteKeySet}
+                                          mutatingFavoriteKeys={favorites.mutatingKeys}
+                                          onFavoriteToggle={handleTerminalFavoriteToggle}
                                           onKill={handleKillSession}
                                           onRename={handleRenameSession}
                                         />
