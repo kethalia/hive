@@ -28,7 +28,10 @@ vi.mock("@/hooks/useTerminalFontStep", () => ({
   useTerminalFontStep: mockUseTerminalFontStep,
 }));
 
-import { MobileTerminalControls } from "@/components/terminal/MobileTerminalControls";
+import {
+  MobileTerminalControls,
+  type MobileTerminalWindowNavigation,
+} from "@/components/terminal/MobileTerminalControls";
 
 function expectStackedLabelThenIcon(button: HTMLElement, label: string) {
   expect(button).toHaveClass("flex-col", "text-xs", "leading-none");
@@ -81,6 +84,27 @@ function installObserverMocks() {
   vi.stubGlobal("ResizeObserver", ResizeObserverMock);
 }
 
+function makeWindowNavigation(
+  overrides: Partial<MobileTerminalWindowNavigation> = {},
+): MobileTerminalWindowNavigation {
+  const sessions = [{ name: "window-one" }, { name: "window-two" }, { name: "window-three" }];
+
+  return {
+    sessions,
+    current: sessions[1],
+    previous: sessions[0],
+    next: sessions[2],
+    canGoPrevious: true,
+    canGoNext: true,
+    loading: false,
+    error: null,
+    select: vi.fn(() => true),
+    reload: vi.fn(),
+    onOpenSwitcher: vi.fn(),
+    ...overrides,
+  };
+}
+
 afterEach(() => {
   cleanup();
   vi.unstubAllGlobals();
@@ -127,7 +151,13 @@ describe("MobileTerminalControls", () => {
       Array.from(carousel.querySelectorAll("[data-slot='carousel-item']")).map((item) =>
         item.getAttribute("aria-label"),
       ),
-    ).toEqual(["Key controls", "Navigation controls", "Compose controls", "Font size controls"]);
+    ).toEqual([
+      "Key controls",
+      "Navigation controls",
+      "Windows controls",
+      "Compose controls",
+      "Font size controls",
+    ]);
 
     const quickActions = within(carousel).getByRole("group", { name: "Terminal quick actions" });
     expect(quickActions).toHaveClass("grid", "w-full", "grid-cols-4", "rounded-none");
@@ -151,6 +181,24 @@ describe("MobileTerminalControls", () => {
     expect(upButton).toHaveClass("min-h-14", "min-w-0");
     expectStackedLabelThenIcon(upButton, "Up");
 
+    const windowControls = within(carousel).getByRole("group", {
+      name: "Terminal window controls",
+    });
+    expect(windowControls).toHaveClass("grid", "w-full", "grid-cols-4", "rounded-none");
+    expect(
+      within(windowControls).getByRole("button", { name: "Switch to previous terminal window" }),
+    ).toHaveClass("min-h-14", "min-w-0");
+    expect(
+      within(windowControls).getByRole("button", { name: "Open terminal window switcher" }),
+    ).toHaveClass("min-h-14", "min-w-0");
+    expect(
+      within(windowControls).getByRole("button", { name: "Switch to next terminal window" }),
+    ).toHaveClass("min-h-14", "min-w-0");
+    expect(
+      within(windowControls).getByRole("button", { name: "Reload terminal window list" }),
+    ).toHaveClass("min-h-14", "min-w-0");
+    expect(screen.getByText("Window navigation unavailable")).toBeInTheDocument();
+
     const composeControls = within(carousel).getByRole("group", {
       name: "Terminal compose controls",
     });
@@ -173,6 +221,9 @@ describe("MobileTerminalControls", () => {
       "aria-current",
       "page",
     );
+    expect(
+      within(pageDots).getByRole("button", { name: "Show Windows controls" }),
+    ).not.toHaveAttribute("aria-current");
     expect(
       within(pageDots).getByRole("button", { name: "Show Compose controls" }),
     ).not.toHaveAttribute("aria-current");
@@ -213,6 +264,7 @@ describe("MobileTerminalControls", () => {
     const keys = within(pageDots).getByRole("button", { name: "Show Keys controls" });
     const compose = within(pageDots).getByRole("button", { name: "Show Compose controls" });
     const navigation = within(pageDots).getByRole("button", { name: "Show Navigation controls" });
+    const windows = within(pageDots).getByRole("button", { name: "Show Windows controls" });
     const fontSize = within(pageDots).getByRole("button", { name: "Show Font size controls" });
 
     expect(keys).toHaveAttribute("aria-current", "page");
@@ -221,13 +273,194 @@ describe("MobileTerminalControls", () => {
     expect(navigation).toHaveAttribute("aria-current", "page");
     expect(keys).not.toHaveAttribute("aria-current");
 
-    fireEvent.click(fontSize);
+    fireEvent.click(windows);
     expect(onHapticFeedback).toHaveBeenCalledTimes(2);
+    expect(windows).toHaveAttribute("aria-current", "page");
+
+    fireEvent.click(fontSize);
+    expect(onHapticFeedback).toHaveBeenCalledTimes(3);
     expect(fontSize).toHaveAttribute("aria-current", "page");
 
     fireEvent.click(compose);
-    expect(onHapticFeedback).toHaveBeenCalledTimes(3);
+    expect(onHapticFeedback).toHaveBeenCalledTimes(4);
     expect(compose).toHaveAttribute("aria-current", "page");
+  });
+
+  it("renders loading window navigation as visible disabled controls with a live status", () => {
+    render(
+      <MobileTerminalControls
+        windowNavigation={makeWindowNavigation({
+          sessions: [],
+          current: null,
+          previous: null,
+          next: null,
+          canGoPrevious: false,
+          canGoNext: false,
+          loading: true,
+        })}
+      />,
+    );
+
+    const windowControls = screen.getByRole("group", { name: "Terminal window controls" });
+    const previous = within(windowControls).getByRole("button", {
+      name: "Switch to previous terminal window",
+    });
+    const switcher = within(windowControls).getByRole("button", {
+      name: "Open terminal window switcher",
+    });
+    const next = within(windowControls).getByRole("button", {
+      name: "Switch to next terminal window",
+    });
+    const reload = within(windowControls).getByRole("button", {
+      name: "Reload terminal window list",
+    });
+
+    expect(previous).toBeDisabled();
+    expect(previous).toHaveAttribute("title", "Loading terminal windows");
+    expect(switcher).toBeDisabled();
+    expect(switcher).toHaveAttribute("title", "Loading terminal windows");
+    expect(next).toBeDisabled();
+    expect(next).toHaveAttribute("title", "Loading terminal windows");
+    expect(reload).toBeDisabled();
+    expect(screen.getByText("Loading terminal windows")).toHaveAttribute("aria-live", "polite");
+  });
+
+  it("keeps one-window navigation visible but explains why previous and next are disabled", () => {
+    const sessions = [{ name: "window-one" }];
+    render(
+      <MobileTerminalControls
+        windowNavigation={makeWindowNavigation({
+          sessions,
+          current: sessions[0],
+          previous: null,
+          next: null,
+          canGoPrevious: false,
+          canGoNext: false,
+        })}
+      />,
+    );
+
+    const windowControls = screen.getByRole("group", { name: "Terminal window controls" });
+    const previous = within(windowControls).getByRole("button", {
+      name: "Switch to previous terminal window",
+    });
+    const next = within(windowControls).getByRole("button", {
+      name: "Switch to next terminal window",
+    });
+
+    expect(previous).toBeDisabled();
+    expect(previous).toHaveAttribute("title", "Only one terminal window is available");
+    expect(next).toBeDisabled();
+    expect(next).toHaveAttribute("title", "Only one terminal window is available");
+    expect(screen.getByText("Only one terminal window is available")).toBeInTheDocument();
+    expect(
+      within(windowControls).getByRole("button", { name: "Open terminal window switcher" }),
+    ).toBeEnabled();
+  });
+
+  it("switches previous and next terminal windows and opens the switcher with haptics", () => {
+    const onHapticFeedback = vi.fn();
+    const windowNavigation = makeWindowNavigation();
+    render(
+      <MobileTerminalControls
+        onHapticFeedback={onHapticFeedback}
+        windowNavigation={windowNavigation}
+      />,
+    );
+
+    const windowControls = screen.getByRole("group", { name: "Terminal window controls" });
+    const previous = within(windowControls).getByRole("button", {
+      name: "Switch to previous terminal window",
+    });
+    const switcher = within(windowControls).getByRole("button", {
+      name: "Open terminal window switcher",
+    });
+    const next = within(windowControls).getByRole("button", {
+      name: "Switch to next terminal window",
+    });
+
+    expect(previous).toBeEnabled();
+    expect(next).toBeEnabled();
+    expect(
+      screen.getByText("Current terminal window: window-two. 3 windows available."),
+    ).toHaveAttribute("aria-live", "polite");
+
+    fireEvent.click(previous);
+    expect(windowNavigation.select).toHaveBeenCalledWith("window-one");
+    fireEvent.click(next);
+    expect(windowNavigation.select).toHaveBeenCalledWith("window-three");
+    fireEvent.click(switcher);
+    expect(windowNavigation.onOpenSwitcher).toHaveBeenCalledTimes(1);
+    expect(onHapticFeedback).toHaveBeenCalledTimes(3);
+  });
+
+  it("exposes error retry without enabling stale previous or next navigation", () => {
+    const onHapticFeedback = vi.fn();
+    const windowNavigation = makeWindowNavigation({
+      error: "Failed to load terminal sessions",
+      previous: null,
+      next: null,
+      canGoPrevious: false,
+      canGoNext: false,
+    });
+    render(
+      <MobileTerminalControls
+        onHapticFeedback={onHapticFeedback}
+        windowNavigation={windowNavigation}
+      />,
+    );
+
+    const windowControls = screen.getByRole("group", { name: "Terminal window controls" });
+    expect(
+      within(windowControls).getByRole("button", { name: "Switch to previous terminal window" }),
+    ).toBeDisabled();
+    expect(
+      within(windowControls).getByRole("button", { name: "Switch to next terminal window" }),
+    ).toBeDisabled();
+    expect(screen.getByText("Terminal window navigation error: Failed to load terminal sessions"))
+      .toBeInTheDocument();
+
+    fireEvent.click(
+      within(windowControls).getByRole("button", { name: "Retry loading terminal windows" }),
+    );
+
+    expect(windowNavigation.reload).toHaveBeenCalledTimes(1);
+    expect(onHapticFeedback).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not throw or fire haptics when optional window callbacks are omitted", () => {
+    const onHapticFeedback = vi.fn();
+    const sessions = [{ name: "window-one" }, { name: "window-two" }];
+    render(
+      <MobileTerminalControls
+        onHapticFeedback={onHapticFeedback}
+        windowNavigation={{
+          sessions,
+          current: sessions[0],
+          previous: null,
+          next: sessions[1],
+          canGoPrevious: false,
+          canGoNext: true,
+          loading: false,
+          error: null,
+        }}
+      />,
+    );
+
+    const windowControls = screen.getByRole("group", { name: "Terminal window controls" });
+    expect(
+      within(windowControls).getByRole("button", { name: "Switch to next terminal window" }),
+    ).toBeDisabled();
+    expect(
+      within(windowControls).getByRole("button", { name: "Switch to next terminal window" }),
+    ).toHaveAttribute("title", "Window switching unavailable");
+    expect(
+      within(windowControls).getByRole("button", { name: "Open terminal window switcher" }),
+    ).toBeDisabled();
+    expect(
+      within(windowControls).getByRole("button", { name: "Reload terminal window list" }),
+    ).toBeDisabled();
+    expect(onHapticFeedback).not.toHaveBeenCalled();
   });
 
   it("dispatches the compose event from the compose page", () => {
@@ -329,22 +562,29 @@ describe("MobileTerminalControls", () => {
   });
 
   it("prevents pointer and mouse focus changes on controls so the terminal keyboard stays open", () => {
-    render(<MobileTerminalControls />);
+    render(<MobileTerminalControls windowNavigation={makeWindowNavigation()} />);
     const enter = screen.getByRole("button", { name: "Enter" });
     const dot = screen.getByRole("button", { name: "Show Navigation controls" });
+    const switcher = screen.getByRole("button", { name: "Open terminal window switcher" });
     const pointerEvent = new Event("pointerdown", { bubbles: true, cancelable: true });
     const dotPointerEvent = new Event("pointerdown", { bubbles: true, cancelable: true });
+    const switcherPointerEvent = new Event("pointerdown", { bubbles: true, cancelable: true });
     const mouseEvent = new Event("mousedown", { bubbles: true, cancelable: true });
     const dotMouseEvent = new Event("mousedown", { bubbles: true, cancelable: true });
+    const switcherMouseEvent = new Event("mousedown", { bubbles: true, cancelable: true });
 
     fireEvent(enter, pointerEvent);
     fireEvent(dot, dotPointerEvent);
+    fireEvent(switcher, switcherPointerEvent);
     fireEvent(enter, mouseEvent);
     fireEvent(dot, dotMouseEvent);
+    fireEvent(switcher, switcherMouseEvent);
 
     expect(pointerEvent.defaultPrevented).toBe(true);
     expect(dotPointerEvent.defaultPrevented).toBe(true);
+    expect(switcherPointerEvent.defaultPrevented).toBe(true);
     expect(mouseEvent.defaultPrevented).toBe(true);
     expect(dotMouseEvent.defaultPrevented).toBe(true);
+    expect(switcherMouseEvent.defaultPrevented).toBe(true);
   });
 });

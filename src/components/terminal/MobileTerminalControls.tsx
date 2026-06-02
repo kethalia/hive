@@ -9,9 +9,11 @@ import {
   ArrowUp,
   CornerDownLeft,
   DoorOpen,
+  List,
   MessageSquareText,
   Minus,
   Plus,
+  RefreshCw,
   X,
 } from "lucide-react";
 import type { PointerEvent, MouseEvent as ReactMouseEvent } from "react";
@@ -45,8 +47,26 @@ const QUICK_ROW_KEYS = [
   { label: "Ctrl+C", icon: X, sequence: VIRTUAL_KEY_SEQUENCES.CtrlC },
 ] as const;
 
-const CONTROL_PAGES = ["Keys", "Navigation", "Compose", "Font size"] as const;
+const CONTROL_PAGES = ["Keys", "Navigation", "Windows", "Compose", "Font size"] as const;
 const STACKED_BUTTON_CLASS = "min-h-14 min-w-0 flex-col gap-1 px-1 py-2 text-xs leading-none";
+
+interface MobileTerminalWindowSession {
+  name: string;
+}
+
+export interface MobileTerminalWindowNavigation {
+  sessions?: MobileTerminalWindowSession[];
+  current?: MobileTerminalWindowSession | null;
+  previous?: MobileTerminalWindowSession | null;
+  next?: MobileTerminalWindowSession | null;
+  canGoPrevious?: boolean;
+  canGoNext?: boolean;
+  loading?: boolean;
+  error?: string | null;
+  select?: (sessionName: string) => boolean | void;
+  reload?: () => void;
+  onOpenSwitcher?: () => void;
+}
 
 function MobileControlButtonContent({ label, Icon }: { label: string; Icon: LucideIcon }) {
   return (
@@ -57,15 +77,48 @@ function MobileControlButtonContent({ label, Icon }: { label: string; Icon: Luci
   );
 }
 
+function getWindowNavigationStatus(windowNavigation?: MobileTerminalWindowNavigation): string {
+  if (!windowNavigation) return "Window navigation unavailable";
+  if (windowNavigation.loading) return "Loading terminal windows";
+  if (windowNavigation.error) return `Terminal window navigation error: ${windowNavigation.error}`;
+
+  const windowCount = windowNavigation.sessions?.length ?? 0;
+  if (windowCount <= 0) return "No terminal windows are available";
+  if (windowCount === 1) return "Only one terminal window is available";
+  if (!windowNavigation.current) return `${windowCount} terminal windows available`;
+
+  return `Current terminal window: ${windowNavigation.current.name}. ${windowCount} windows available.`;
+}
+
+function getWindowStepDisabledReason(
+  direction: "previous" | "next",
+  windowNavigation?: MobileTerminalWindowNavigation,
+): string | undefined {
+  if (!windowNavigation) return "Window navigation unavailable";
+  if (windowNavigation.loading) return "Loading terminal windows";
+  if (windowNavigation.error) return "Terminal windows could not be loaded";
+  if (!windowNavigation.select) return "Window switching unavailable";
+  if ((windowNavigation.sessions?.length ?? 0) <= 1) return "Only one terminal window is available";
+  if (direction === "previous" && (!windowNavigation.canGoPrevious || !windowNavigation.previous)) {
+    return "Already at the first terminal window";
+  }
+  if (direction === "next" && (!windowNavigation.canGoNext || !windowNavigation.next)) {
+    return "Already at the last terminal window";
+  }
+  return undefined;
+}
+
 export interface MobileTerminalControlsProps {
   isKeyboardVisible?: boolean;
   /** Called once for each terminal action press and page-dot navigation. */
   onHapticFeedback?: () => void;
+  windowNavigation?: MobileTerminalWindowNavigation;
 }
 
 export function MobileTerminalControls({
   isKeyboardVisible = false,
   onHapticFeedback,
+  windowNavigation,
 }: MobileTerminalControlsProps = {}) {
   const { activeSend } = useKeybindings();
   const [carouselApi, setCarouselApi] = useState<CarouselApi>();
@@ -103,6 +156,27 @@ export function MobileTerminalControls({
     window.dispatchEvent(new CustomEvent(TERMINAL_COMPOSE_OPEN_EVENT));
   }, [haptic]);
 
+  const switchWindow = useCallback(
+    (session?: MobileTerminalWindowSession | null) => {
+      if (!session || !windowNavigation?.select) return;
+      const selected = windowNavigation.select(session.name);
+      if (selected !== false) haptic();
+    },
+    [haptic, windowNavigation],
+  );
+
+  const openWindowSwitcher = useCallback(() => {
+    if (!windowNavigation?.onOpenSwitcher) return;
+    haptic();
+    windowNavigation.onOpenSwitcher();
+  }, [haptic, windowNavigation]);
+
+  const reloadWindows = useCallback(() => {
+    if (!windowNavigation?.reload || windowNavigation.loading) return;
+    haptic();
+    windowNavigation.reload();
+  }, [haptic, windowNavigation]);
+
   const selectPage = useCallback(
     (index: number) => {
       haptic();
@@ -111,6 +185,18 @@ export function MobileTerminalControls({
     },
     [carouselApi, haptic],
   );
+
+  const previousDisabledReason = getWindowStepDisabledReason("previous", windowNavigation);
+  const nextDisabledReason = getWindowStepDisabledReason("next", windowNavigation);
+  const windowStatus = getWindowNavigationStatus(windowNavigation);
+  const windowSwitcherDisabled = !windowNavigation?.onOpenSwitcher || windowNavigation.loading;
+  const windowSwitcherDisabledReason = !windowNavigation?.onOpenSwitcher
+    ? "Terminal window switcher unavailable"
+    : windowNavigation.loading
+      ? "Loading terminal windows"
+      : undefined;
+  const reloadDisabled = !windowNavigation?.reload || Boolean(windowNavigation.loading);
+  const reloadLabel = windowNavigation?.error ? "Retry" : "Reload";
 
   useEffect(() => {
     if (!carouselApi) return;
@@ -192,6 +278,86 @@ export function MobileTerminalControls({
                 </Button>
               ))}
             </ButtonGroup>
+          </CarouselItem>
+
+          <CarouselItem aria-label="Windows controls" className="pl-2">
+            <div className="flex flex-col gap-1">
+              <ButtonGroup
+                aria-label="Terminal window controls"
+                className="grid w-full grid-cols-4 rounded-none"
+              >
+                <Button
+                  type="button"
+                  variant="outline"
+                  className={STACKED_BUTTON_CLASS}
+                  style={NO_TOUCH_STYLE}
+                  onPointerDown={keepTerminalKeyboardOpen}
+                  onMouseDown={keepTerminalKeyboardOpen}
+                  onClick={() => switchWindow(windowNavigation?.previous)}
+                  disabled={Boolean(previousDisabledReason)}
+                  aria-label="Switch to previous terminal window"
+                  aria-describedby="terminal-window-navigation-status"
+                  title={previousDisabledReason}
+                >
+                  <MobileControlButtonContent Icon={ArrowLeft} label="Previous" />
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className={STACKED_BUTTON_CLASS}
+                  style={NO_TOUCH_STYLE}
+                  onPointerDown={keepTerminalKeyboardOpen}
+                  onMouseDown={keepTerminalKeyboardOpen}
+                  onClick={openWindowSwitcher}
+                  disabled={windowSwitcherDisabled}
+                  aria-label="Open terminal window switcher"
+                  aria-describedby="terminal-window-navigation-status"
+                  title={windowSwitcherDisabledReason}
+                >
+                  <MobileControlButtonContent Icon={List} label="Windows" />
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className={STACKED_BUTTON_CLASS}
+                  style={NO_TOUCH_STYLE}
+                  onPointerDown={keepTerminalKeyboardOpen}
+                  onMouseDown={keepTerminalKeyboardOpen}
+                  onClick={() => switchWindow(windowNavigation?.next)}
+                  disabled={Boolean(nextDisabledReason)}
+                  aria-label="Switch to next terminal window"
+                  aria-describedby="terminal-window-navigation-status"
+                  title={nextDisabledReason}
+                >
+                  <MobileControlButtonContent Icon={ArrowRight} label="Next" />
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className={STACKED_BUTTON_CLASS}
+                  style={NO_TOUCH_STYLE}
+                  onPointerDown={keepTerminalKeyboardOpen}
+                  onMouseDown={keepTerminalKeyboardOpen}
+                  onClick={reloadWindows}
+                  disabled={reloadDisabled}
+                  aria-label={
+                    windowNavigation?.error
+                      ? "Retry loading terminal windows"
+                      : "Reload terminal window list"
+                  }
+                  aria-describedby="terminal-window-navigation-status"
+                >
+                  <MobileControlButtonContent Icon={RefreshCw} label={reloadLabel} />
+                </Button>
+              </ButtonGroup>
+              <p
+                id="terminal-window-navigation-status"
+                aria-live="polite"
+                className="min-h-4 truncate text-center text-[11px] text-muted-foreground"
+              >
+                {windowStatus}
+              </p>
+            </div>
           </CarouselItem>
 
           <CarouselItem aria-label="Compose controls" className="pl-2">
