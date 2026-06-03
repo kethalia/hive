@@ -31,6 +31,8 @@ const { mockUseTerminalWebSocket, mockFit, mockSend, mockResize, terminalInstanc
 const {
   mockCopyTerminalSelection,
   mockCreateSessionAction,
+  mockGetTerminalSettingsAction,
+  mockGetWorkspaceAgentAction,
   mockGetWorkspaceSessionsAction,
   mockHandleKeyEvent,
   mockUseFavoriteWindowNavigation,
@@ -52,6 +54,8 @@ const {
   return {
     mockCopyTerminalSelection: vi.fn(),
     mockCreateSessionAction: vi.fn(),
+    mockGetTerminalSettingsAction: vi.fn(),
+    mockGetWorkspaceAgentAction: vi.fn(),
     mockGetWorkspaceSessionsAction: vi.fn(),
     mockHandleKeyEvent: handleKeyEvent,
     mockUseFavoriteWindowNavigation: vi.fn(),
@@ -191,7 +195,12 @@ vi.mock("next/navigation", () => ({
 
 vi.mock("@/lib/actions/workspaces", () => ({
   createSessionAction: mockCreateSessionAction,
+  getWorkspaceAgentAction: mockGetWorkspaceAgentAction,
   getWorkspaceSessionsAction: mockGetWorkspaceSessionsAction,
+}));
+
+vi.mock("@/lib/actions/user-settings", () => ({
+  getTerminalSettingsAction: mockGetTerminalSettingsAction,
 }));
 
 vi.mock("@/hooks/use-compose-sheet", () => ({
@@ -338,6 +347,7 @@ vi.mock("@/components/terminal/MobileTerminalControls", () => ({
       sessions?: Array<{ id?: string; name: string }>;
     };
   }) => {
+    const { activeSend } = mockUseKeybindings();
     terminalRouteMockState.mobileControlsProps = {
       clipboardStatusText,
       copyDisabledReason,
@@ -370,6 +380,13 @@ vi.mock("@/components/terminal/MobileTerminalControls", () => ({
         <p aria-live="polite" data-testid="terminal-clipboard-status">
           {clipboardStatusText}
         </p>
+        <button
+          type="button"
+          data-testid="terminal-smart-enter"
+          onClick={() => (activeSend as ((data: string) => void) | null)?.("\r")}
+        >
+          Enter
+        </button>
         <button
           type="button"
           data-testid="terminal-selection-toggle"
@@ -551,6 +568,14 @@ beforeEach(() => {
   mockCopyTerminalSelection.mockReset();
   mockPasteToTerminal.mockReset();
   mockCreateSessionAction.mockReset();
+  mockGetTerminalSettingsAction.mockReset();
+  mockGetTerminalSettingsAction.mockResolvedValue({
+    data: { terminalControlsBeyondMobile: false },
+  });
+  mockGetWorkspaceAgentAction.mockReset();
+  mockGetWorkspaceAgentAction.mockResolvedValue({
+    data: { agentId: "test-agent", agentName: "Test Agent" },
+  });
   mockGetWorkspaceSessionsAction.mockReset();
   mockGetWorkspaceSessionsAction.mockResolvedValue({ data: [] });
   mockUseFavoriteWindowNavigation.mockReset();
@@ -657,7 +682,10 @@ async function renderTerminal(props: RenderTerminalOptions = {}) {
   return result!;
 }
 
-async function renderTerminalClient(search: string) {
+async function renderTerminalClient(
+  search: string,
+  props: { terminalControlsBeyondMobile?: boolean } = {},
+) {
   navigationState.search = search;
   const { TerminalClient } = await import(
     "@/app/(dashboard)/workspaces/[id]/terminal/terminal-client"
@@ -665,7 +693,19 @@ async function renderTerminalClient(search: string) {
 
   let result: ReturnType<typeof render>;
   await act(async () => {
-    result = render(<TerminalClient agentId="test-agent" workspaceId="test-ws" />);
+    result = render(<TerminalClient agentId="test-agent" workspaceId="test-ws" {...props} />);
+  });
+  return result!;
+}
+
+async function renderTerminalPage(search: string) {
+  navigationState.search = search;
+  const { default: TerminalPage } = await import("@/app/(dashboard)/workspaces/[id]/terminal/page");
+  const page = await TerminalPage({ params: Promise.resolve({ id: "test-ws" }) });
+
+  let result: ReturnType<typeof render>;
+  await act(async () => {
+    result = render(page);
   });
   return result!;
 }
@@ -945,7 +985,110 @@ describe("TerminalClient integration — Mobile terminal route props", () => {
       "md:h-[calc(var(--app-viewport-height)-var(--safe-area-inset-top)-var(--safe-area-inset-bottom)-5rem)]",
     );
     expect(document.querySelectorAll('[data-testid="interactive-terminal"]')).toHaveLength(1);
+    expect(document.querySelector('[data-testid="terminal-mobile-controls"]')).toBeNull();
     expect(document.querySelector('[data-testid="terminal-window-command-palette"]')).toBeNull();
+    unmount();
+  });
+
+  it("shows opt-in desktop controls without enabling mobile terminal input mode", async () => {
+    const activeSend = vi.fn();
+    mockUseKeybindings.mockReturnValue({
+      activeSend,
+      activeTerminal: { focus: vi.fn(), getSelection: vi.fn(() => "") },
+      getAll: vi.fn(() => []),
+      handleKeyEvent: mockHandleKeyEvent,
+      register: mockRegisterKeybinding,
+      setActiveTerminal: mockSetActiveTerminal,
+      unregister: mockUnregisterKeybinding,
+    });
+
+    const { getByTestId, unmount } = await renderTerminalClient("session=main", {
+      terminalControlsBeyondMobile: true,
+    });
+
+    await waitFor(() => {
+      expect(getByTestId("terminal-mobile-controls")).toBeInTheDocument();
+    });
+    expect(getByTestId("interactive-terminal")).toHaveAttribute("data-mobile-input-mode", "false");
+    expect(getByTestId("interactive-terminal")).toHaveAttribute(
+      "data-pin-to-bottom-on-resize",
+      "false",
+    );
+    expect(getByTestId("terminal-desktop-shell")).toHaveClass("flex", "flex-col");
+
+    fireEvent.click(getByTestId("terminal-smart-enter"));
+    expect(activeSend).toHaveBeenCalledWith("\r");
+    unmount();
+  });
+
+  it("updates mounted desktop controls from terminal settings events and ignores malformed events", async () => {
+    const { getByTestId, queryByTestId, unmount } = await renderTerminalClient("session=main");
+
+    await waitFor(() => {
+      expect(getByTestId("interactive-terminal")).toBeInTheDocument();
+    });
+    expect(queryByTestId("terminal-mobile-controls")).not.toBeInTheDocument();
+
+    act(() => {
+      window.dispatchEvent(
+        new CustomEvent("hive:terminal-settings-changed", {
+          detail: { terminalControlsBeyondMobile: "yes" },
+        }),
+      );
+    });
+    expect(queryByTestId("terminal-mobile-controls")).not.toBeInTheDocument();
+
+    act(() => {
+      window.dispatchEvent(
+        new CustomEvent("hive:terminal-settings-changed", {
+          detail: { terminalControlsBeyondMobile: true },
+        }),
+      );
+    });
+    expect(getByTestId("terminal-mobile-controls")).toBeInTheDocument();
+    expect(getByTestId("interactive-terminal")).toHaveAttribute("data-mobile-input-mode", "false");
+
+    act(() => {
+      window.dispatchEvent(
+        new CustomEvent("hive:terminal-settings-changed", {
+          detail: { terminalControlsBeyondMobile: false },
+        }),
+      );
+    });
+    expect(queryByTestId("terminal-mobile-controls")).not.toBeInTheDocument();
+    unmount();
+  });
+
+  it("passes the server-read setting into the terminal client", async () => {
+    mockGetTerminalSettingsAction.mockResolvedValueOnce({
+      data: { terminalControlsBeyondMobile: true },
+    });
+
+    const { getByTestId, unmount } = await renderTerminalPage("session=main");
+
+    await waitFor(() => {
+      expect(getByTestId("terminal-mobile-controls")).toBeInTheDocument();
+    });
+    expect(mockGetWorkspaceAgentAction).toHaveBeenCalledWith({ workspaceId: "test-ws" });
+    expect(mockGetTerminalSettingsAction).toHaveBeenCalledTimes(1);
+    expect(getByTestId("interactive-terminal")).toHaveAttribute("data-mobile-input-mode", "false");
+    unmount();
+  });
+
+  it("defaults the server-read setting off when the terminal settings action fails", async () => {
+    mockGetTerminalSettingsAction.mockResolvedValueOnce({
+      serverError: "Terminal settings are unavailable. Refresh and try again.",
+    });
+
+    const { getByTestId, queryByTestId, unmount } = await renderTerminalPage("session=main");
+
+    await waitFor(() => {
+      expect(getByTestId("interactive-terminal")).toBeInTheDocument();
+    });
+    expect(mockGetWorkspaceAgentAction).toHaveBeenCalledWith({ workspaceId: "test-ws" });
+    expect(mockGetTerminalSettingsAction).toHaveBeenCalledTimes(1);
+    expect(getByTestId("interactive-terminal")).toHaveAttribute("data-mobile-input-mode", "false");
+    expect(queryByTestId("terminal-mobile-controls")).not.toBeInTheDocument();
     unmount();
   });
 

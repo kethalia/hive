@@ -29,6 +29,10 @@ import {
 import { COMPOSE_SHEET_DISMISS_DRAG_PX } from "@/lib/terminal/config";
 import { TERMINAL_COMPOSE_OPEN_EVENT } from "@/lib/terminal/events";
 import { composeSheetKeyboardStyle } from "@/lib/terminal/mobile-shell-layout";
+import {
+  isTerminalSettingsChangedDetail,
+  TERMINAL_SETTINGS_CHANGED_EVENT,
+} from "@/lib/terminal/settings-events";
 
 const InteractiveTerminal = dynamic(
   () => import("@/components/workspaces/InteractiveTerminal").then((m) => m.InteractiveTerminal),
@@ -117,7 +121,15 @@ function clipboardStatusText(
   return "Terminal ready. Use Select for text selection, Copy, or Paste.";
 }
 
-function TerminalInner({ agentId, workspaceId }: { agentId: string; workspaceId: string }) {
+function TerminalInner({
+  agentId,
+  terminalControlsBeyondMobile: initialTerminalControlsBeyondMobile,
+  workspaceId,
+}: {
+  agentId: string;
+  terminalControlsBeyondMobile: boolean;
+  workspaceId: string;
+}) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const session = searchParams.get("session");
@@ -130,6 +142,9 @@ function TerminalInner({ agentId, workspaceId }: { agentId: string; workspaceId:
   const [composeOpen, setComposeOpen] = useState(false);
   const [windowSwitcherOpen, setWindowSwitcherOpen] = useState(false);
   const [selectionModeEnabled, setSelectionModeEnabled] = useState(false);
+  const [terminalControlsBeyondMobile, setTerminalControlsBeyondMobile] = useState(
+    initialTerminalControlsBeyondMobile,
+  );
   const [hasTerminalSelection, setHasTerminalSelection] = useState(false);
   const [clipboardActionStatus, setClipboardActionStatus] = useState<ClipboardActionStatus | null>(
     null,
@@ -162,13 +177,14 @@ function TerminalInner({ agentId, workspaceId }: { agentId: string; workspaceId:
   const mobileLayoutSignal = isMobileKeyboardVisible
     ? `keyboard:${visualViewportHeightPx}:${visualViewportOffsetTopPx}`
     : `lift:${keyboardLiftPx}`;
-  const mobileSelectionModeEnabled = isComposeSheet && selectionModeEnabled;
+  const controlsVisible = isComposeSheet || terminalControlsBeyondMobile;
+  const controlsSelectionModeEnabled = controlsVisible && selectionModeEnabled;
   const hasActiveTerminal = Boolean(activeTerminal);
   const hasActiveSender = Boolean(activeSend);
   const clipboardStatus = clipboardStatusText(clipboardActionStatus, {
     canPaste: hasActiveSender,
     hasTerminal: hasActiveTerminal,
-    selectionModeEnabled: mobileSelectionModeEnabled,
+    selectionModeEnabled: controlsSelectionModeEnabled,
   });
 
   const handleComposeSheetDragStart = useCallback((event: PointerEvent<HTMLButtonElement>) => {
@@ -276,9 +292,25 @@ function TerminalInner({ agentId, workspaceId }: { agentId: string; workspaceId:
   }, [register, unregister]);
 
   useEffect(() => {
+    setTerminalControlsBeyondMobile(initialTerminalControlsBeyondMobile);
+  }, [initialTerminalControlsBeyondMobile]);
+
+  useEffect(() => {
     const handleComposeOpen = () => setComposeOpen(true);
     window.addEventListener(TERMINAL_COMPOSE_OPEN_EVENT, handleComposeOpen);
     return () => window.removeEventListener(TERMINAL_COMPOSE_OPEN_EVENT, handleComposeOpen);
+  }, []);
+
+  useEffect(() => {
+    const handleTerminalSettingsChanged = (event: Event) => {
+      if (!(event instanceof CustomEvent)) return;
+      if (!isTerminalSettingsChangedDetail(event.detail)) return;
+      setTerminalControlsBeyondMobile(event.detail.terminalControlsBeyondMobile);
+    };
+
+    window.addEventListener(TERMINAL_SETTINGS_CHANGED_EVENT, handleTerminalSettingsChanged);
+    return () =>
+      window.removeEventListener(TERMINAL_SETTINGS_CHANGED_EVENT, handleTerminalSettingsChanged);
   }, []);
 
   useEffect(() => {
@@ -401,10 +433,10 @@ function TerminalInner({ agentId, workspaceId }: { agentId: string; workspaceId:
   const terminalPane = (
     <div
       className="h-full"
-      data-sidebar-gesture-ignore={mobileSelectionModeEnabled ? "true" : undefined}
+      data-sidebar-gesture-ignore={controlsSelectionModeEnabled ? "true" : undefined}
       data-terminal-surface="true"
       onContextMenu={(e) => {
-        if (mobileSelectionModeEnabled) return;
+        if (controlsSelectionModeEnabled) return;
 
         e.preventDefault();
         setMenuSelection(!!activeTerminal?.getSelection());
@@ -412,7 +444,7 @@ function TerminalInner({ agentId, workspaceId }: { agentId: string; workspaceId:
       }}
     >
       <TerminalGestureLayer
-        selectionModeEnabled={mobileSelectionModeEnabled}
+        selectionModeEnabled={controlsSelectionModeEnabled}
         onLongPress={(x, y) => {
           setMenuSelection(!!activeTerminal?.getSelection());
           setMenuPosition({ x, y });
@@ -431,7 +463,7 @@ function TerminalInner({ agentId, workspaceId }: { agentId: string; workspaceId:
           layoutSignal={mobileLayoutSignal}
           mobileInputMode={isComposeSheet}
           pinToBottomOnResize={isComposeSheet}
-          selectionModeEnabled={mobileSelectionModeEnabled}
+          selectionModeEnabled={controlsSelectionModeEnabled}
         />
       </TerminalGestureLayer>
       <TerminalContextMenu
@@ -448,6 +480,34 @@ function TerminalInner({ agentId, workspaceId }: { agentId: string; workspaceId:
     </div>
   );
 
+  const terminalControls = (
+    <MobileTerminalControls
+      isKeyboardVisible={isMobileKeyboardVisible}
+      onHapticFeedback={triggerHapticFeedback}
+      hasSelection={hasTerminalSelection}
+      selectionModeEnabled={controlsSelectionModeEnabled}
+      onToggleSelectionMode={handleSelectionModeChange}
+      onCopy={handleMobileCopy}
+      onPaste={handleMobilePaste}
+      clipboardStatusText={clipboardStatus}
+      selectionModeDisabledReason={hasActiveTerminal ? undefined : "Terminal is not ready"}
+      copyDisabledReason={
+        hasActiveTerminal
+          ? hasTerminalSelection
+            ? undefined
+            : "Select terminal text before copying"
+          : "Terminal is not ready"
+      }
+      pasteDisabledReason={
+        hasActiveSender ? undefined : "Paste is unavailable until the terminal sender is ready"
+      }
+      windowNavigation={{
+        ...favoriteWindowNavigation,
+        onOpenSwitcher: () => setWindowSwitcherOpen(true),
+      }}
+    />
+  );
+
   if (isComposeSheet) {
     return (
       <MobileTerminalShell
@@ -462,33 +522,7 @@ function TerminalInner({ agentId, workspaceId }: { agentId: string; workspaceId:
           >
             {terminalPane}
           </section>
-          <MobileTerminalControls
-            isKeyboardVisible={isMobileKeyboardVisible}
-            onHapticFeedback={triggerHapticFeedback}
-            hasSelection={hasTerminalSelection}
-            selectionModeEnabled={mobileSelectionModeEnabled}
-            onToggleSelectionMode={handleSelectionModeChange}
-            onCopy={handleMobileCopy}
-            onPaste={handleMobilePaste}
-            clipboardStatusText={clipboardStatus}
-            selectionModeDisabledReason={hasActiveTerminal ? undefined : "Terminal is not ready"}
-            copyDisabledReason={
-              hasActiveTerminal
-                ? hasTerminalSelection
-                  ? undefined
-                  : "Select terminal text before copying"
-                : "Terminal is not ready"
-            }
-            pasteDisabledReason={
-              hasActiveSender
-                ? undefined
-                : "Paste is unavailable until the terminal sender is ready"
-            }
-            windowNavigation={{
-              ...favoriteWindowNavigation,
-              onOpenSwitcher: () => setWindowSwitcherOpen(true),
-            }}
-          />
+          {terminalControls}
         </div>
         <Sheet open={composeOpen} onOpenChange={setComposeOpen}>
           <SheetContent
@@ -530,22 +564,25 @@ function TerminalInner({ agentId, workspaceId }: { agentId: string; workspaceId:
     <div
       data-testid="terminal-desktop-shell"
       data-terminal-shell="true"
-      className={`${TERMINAL_WIDTH_CLASS_NAME} ${TERMINAL_STATIC_HEIGHT_CLASS_NAME}`}
+      className={`${TERMINAL_WIDTH_CLASS_NAME} ${TERMINAL_STATIC_HEIGHT_CLASS_NAME} flex flex-col overflow-hidden`}
       onKeyDown={(e) => e.stopPropagation()}
     >
-      <ResizablePanelGroup orientation="vertical" className="h-full">
-        <ResizablePanel defaultSize={composeOpen ? 75 : 100} minSize={30}>
-          {terminalPane}
-        </ResizablePanel>
-        {composeOpen && (
-          <>
-            <ResizableHandle withHandle />
-            <ResizablePanel defaultSize={25} minSize={10} maxSize={50}>
-              <ComposePanel onClose={() => setComposeOpen(false)} />
-            </ResizablePanel>
-          </>
-        )}
-      </ResizablePanelGroup>
+      <div className="min-h-0 flex-1 overflow-hidden">
+        <ResizablePanelGroup orientation="vertical" className="h-full">
+          <ResizablePanel defaultSize={composeOpen ? 75 : 100} minSize={30}>
+            {terminalPane}
+          </ResizablePanel>
+          {composeOpen && (
+            <>
+              <ResizableHandle withHandle />
+              <ResizablePanel defaultSize={25} minSize={10} maxSize={50}>
+                <ComposePanel onClose={() => setComposeOpen(false)} />
+              </ResizablePanel>
+            </>
+          )}
+        </ResizablePanelGroup>
+      </div>
+      {terminalControlsBeyondMobile ? terminalControls : null}
       <MobileTerminalDiagnosticsOverlay enabled={debugViewportEnabled} />
     </div>
   );
@@ -554,10 +591,15 @@ function TerminalInner({ agentId, workspaceId }: { agentId: string; workspaceId:
 interface TerminalClientProps {
   agentId: string;
   agentName?: string;
+  terminalControlsBeyondMobile?: boolean;
   workspaceId: string;
 }
 
-export function TerminalClient({ agentId, workspaceId }: TerminalClientProps) {
+export function TerminalClient({
+  agentId,
+  terminalControlsBeyondMobile = false,
+  workspaceId,
+}: TerminalClientProps) {
   return (
     <Suspense
       fallback={
@@ -569,7 +611,11 @@ export function TerminalClient({ agentId, workspaceId }: TerminalClientProps) {
         </div>
       }
     >
-      <TerminalInner agentId={agentId} workspaceId={workspaceId} />
+      <TerminalInner
+        agentId={agentId}
+        terminalControlsBeyondMobile={terminalControlsBeyondMobile}
+        workspaceId={workspaceId}
+      />
     </Suspense>
   );
 }

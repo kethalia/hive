@@ -6,6 +6,14 @@ export interface TerminalSettingsChangedDetail {
 
 export type TerminalSettingsChangedEvent = CustomEvent<TerminalSettingsChangedDetail>;
 
+export function isTerminalSettingsChangedDetail(
+  value: unknown,
+): value is TerminalSettingsChangedDetail {
+  if (!value || typeof value !== "object") return false;
+  const candidate = value as Partial<TerminalSettingsChangedDetail>;
+  return typeof candidate.terminalControlsBeyondMobile === "boolean";
+}
+
 export function dispatchTerminalSettingsChanged(detail: TerminalSettingsChangedDetail): void {
   if (typeof window === "undefined") return;
   window.dispatchEvent(
