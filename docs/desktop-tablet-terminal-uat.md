@@ -9,7 +9,7 @@ This document is the S06 evidence contract. It may start in a pre-UAT state. It 
 ## Evidence status
 
 - **Overall S06 evidence status:** `blocked - local app shell was reachable, but no signed-in app session was available for terminal or workspace route UAT`
-- **Automated regression baseline status:** `passed - T04 planned workspace, layout, documentation, and integration regression command exited 0`
+- **Automated regression baseline status:** `passed - T05 final focused suite and typecheck exited 0`
 - **Browser viewport matrix status:** `blocked - desktop, laptop, and tablet browser navigations reached the auth gate before terminal or workspace route mount`
 - **Terminal route UAT status:** `blocked - auth gate prevented terminal route control and layout observations`
 - **Multi-session workspace UAT status:** `blocked - T04 desktop, laptop, and tablet workspace route attempts reached auth gate before session switching or layout controls mounted`
@@ -24,10 +24,10 @@ S06 validates assembled terminal flows across the terminal route and the multi-s
 
 Requirement coverage fields:
 
-- **R027 viewport and layout coverage:** `blocked - desktop, laptop, and tablet route attempts reached auth gate before terminal or workspace layout could mount`
-- **R028 live terminal runtime coverage:** `blocked - requires live tmux/runtime connection evidence and cannot be inferred from auth-gated browser checks`
-- **R029 multi-session workspace coverage:** `blocked - T04 workspace route UAT reached auth gate before session switching or layout persistence could be observed`
-- **R030 tablet touch coverage:** `blocked - tablet route attempts reached auth gate before touch or gesture-cancellation behavior could be observed`
+- **R027 viewport and layout coverage:** `validated for automated contract scope - final focused suite kept layout, sidebar, and terminal-route regression contracts green; blocked for signed-in browser route UAT because auth gate prevented terminal or workspace layout mount`
+- **R028 live terminal runtime coverage:** `blocked - requires live tmux/runtime connection evidence and cannot be inferred from auth-gated browser checks or automated contracts`
+- **R029 multi-session workspace coverage:** `validated for automated contract scope - final focused suite kept workspace composition, tiled placement, and metadata-only layout persistence contracts green; blocked for signed-in workspace route UAT because auth gate prevented session switching observation`
+- **R030 tablet touch coverage:** `validated for automated contract scope - final focused suite kept tablet reachability and gesture-cancellation regression contracts green; blocked for signed-in tablet browser route UAT because auth gate prevented touch observations`
 - **R012 diagnostic and failure-surface coverage:** `partial - redacted app shell, terminal proxy health, auth gate, and blocked-runtime categories recorded`
 - **R013 persistence and continuity coverage:** `blocked - route continuity and layout persistence were not reached because signed-in app session was unavailable`
 - **R024 mobile keyboard evidence:** `deferred - remains out of S06 acceptance unless true physical browser or installed-PWA evidence is later attached`
@@ -39,12 +39,12 @@ Use this section only for automated carry-forward and guard proof. Automated pro
 
 Required fields:
 
-- **Automated command name:** `pnpm vitest run S06 T04 documentation, workspace component, layout library, and integration regression set`
+- **Automated command name:** `pnpm vitest run S06 final focused suite and pnpm typecheck`
 - **Automated command exit code:** `0`
-- **Automated command duration:** `3223 ms pre-edit baseline; final duration recorded in T04 task summary`
+- **Automated command duration:** `11424 ms wall-clock via task runner; Vitest reported 12 files and 191 tests passed in 7.59s`
 - **Automated verdict:** `passed - automated regression scope only`
-- **Automated scope accepted:** `automated documentation guard, workspace component behavior, metadata-only layout persistence, and integration regression scope only; never live runtime or physical/PWA scope`
-- **Automated limitations:** `desktop and tablet emulation cannot accept R024, R026, or live R028 behavior`
+- **Automated scope accepted:** `automated documentation guard, database schema, settings actions, sidebar, terminal ownership, shortcut exclusivity, compose sheet, multi-session workspace, workspace layout, runtime config, and typecheck contracts only; never live runtime or physical/PWA scope`
+- **Automated limitations:** `desktop and tablet emulation and automated tests cannot accept R024, R026, or live R028 behavior`
 
 ## Browser viewport matrix
 
@@ -163,7 +163,7 @@ If a copied diagnostic snapshot contains prohibited material, stop the run and r
 
 ## Acceptance decision
 
-- **Automated regression baseline acceptance:** `pending - final task verification records command result outside this blocked browser record`
+- **Automated regression baseline acceptance:** `accepted - T05 final focused automated suite and typecheck exited 0 for automated contract scope only`
 - **Desktop viewport acceptance:** `blocked - signed-in route UAT required before acceptance`
 - **Laptop viewport acceptance:** `blocked - signed-in route UAT required before acceptance`
 - **Tablet viewport acceptance:** `blocked - signed-in route UAT required before acceptance`
@@ -173,6 +173,29 @@ If a copied diagnostic snapshot contains prohibited material, stop the run and r
 - **R024 physical/PWA acceptance:** `deferred - desktop or tablet emulation is not replacement evidence`
 - **R026 physical/PWA acceptance:** `deferred - desktop or tablet emulation is not replacement evidence`
 - **Overall S06 acceptance:** `blocked - browser UAT could not proceed past auth gate; live-runtime and physical/PWA acceptance remain blocked or deferred`
+
+## Final proof and operational follow-ups
+
+Final proof fields:
+
+- **Final proof command:** `pnpm vitest run S06 final focused suite and pnpm typecheck`
+- **Final proof exit code:** `0`
+- **Final proof duration:** `11424 ms wall-clock via task runner; Vitest reported 12 files and 191 tests passed in 7.59s`
+- **Final proof verdict:** `passed - validates automated contracts only`
+- **R027 automated contract decision:** `validated - viewport, layout, sidebar, and terminal-route automated contracts remain green`
+- **R029 automated contract decision:** `validated - multi-session workspace, tiled placement, active-pane routing, and metadata-only layout persistence automated contracts remain green`
+- **R030 automated contract decision:** `validated - tablet reachability and gesture-cancellation automated contracts remain green`
+- **R028 live behavior decision:** `blocked - no signed-in route WebSocket, live tmux, or live terminal runtime evidence was observed`
+- **R024 and R026 physical/PWA decision:** `deferred - no true physical browser or installed-PWA evidence was observed`
+- **Q3 and Q4 closure:** `closed - evidence remains categorical and redacted, with no requirement overclaim beyond automated contract scope`
+- **Q5 and Q7 closure:** `closed - negative and error-path regression tests remained green in the final focused suite`
+- **Q6 closure:** `closed - no new long-running server work or storage persistence was introduced beyond existing browser-local layout metadata`
+
+Follow-up fields:
+
+- **Signed-in browser UAT follow-up:** `collect redacted desktop, laptop, and tablet route observations after a signed-in app session is available`
+- **Live runtime follow-up:** `collect redacted live tmux, route WebSocket, create or attach, and resize propagation observations before accepting R028 live behavior`
+- **Physical or PWA follow-up:** `collect true physical browser or installed-PWA observations before accepting R024 or R026`
 
 ## Evidence attachments checklist
 
