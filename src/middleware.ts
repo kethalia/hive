@@ -1,7 +1,10 @@
-import { SESSION_COOKIE_NAME, verifyCookie } from "@hive/auth";
+import { verifyCookie } from "@hive/auth";
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
-import { refreshDomainSessionCookie } from "./lib/auth/session-cookie";
+import {
+  getSessionCookieValuesFromHeader,
+  refreshDomainSessionCookie,
+} from "./lib/auth/session-cookie";
 
 const PUBLIC_PATHS = ["/login", "/api/auth", "/manifest.webmanifest"];
 const STATIC_PREFIXES = ["/_next", "/favicon.ico"];
@@ -20,8 +23,8 @@ export function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
-  const sessionCookie = request.cookies.get(SESSION_COOKIE_NAME);
-  if (!sessionCookie?.value) {
+  const sessionCookieValues = getSessionCookieValuesFromHeader(request.headers.get("cookie"));
+  if (sessionCookieValues.length === 0) {
     const loginUrl = new URL("/login", request.url);
     return NextResponse.redirect(loginUrl);
   }
@@ -33,15 +36,25 @@ export function middleware(request: NextRequest) {
     return NextResponse.redirect(loginUrl);
   }
 
-  const verified = verifyCookie(sessionCookie.value, cookieSecret);
-  if (!verified) {
-    const loginUrl = new URL("/login", request.url);
-    return NextResponse.redirect(loginUrl);
+  const verifiedSessionCookie = [...new Set(sessionCookieValues)]
+    .flatMap((value) => {
+      const verified = verifyCookie(value, cookieSecret);
+      return verified ? [{ value, verified }] : [];
+    })
+    .sort((left, right) => right.verified.timestamp - left.verified.timestamp)[0];
+
+  if (verifiedSessionCookie) {
+    const response = NextResponse.next();
+    refreshDomainSessionCookie(
+      response.cookies,
+      verifiedSessionCookie.value,
+      verifiedSessionCookie.verified.timestamp,
+    );
+    return response;
   }
 
-  const response = NextResponse.next();
-  refreshDomainSessionCookie(response.cookies, sessionCookie.value, verified.timestamp);
-  return response;
+  const loginUrl = new URL("/login", request.url);
+  return NextResponse.redirect(loginUrl);
 }
 
 export const runtime = "nodejs";

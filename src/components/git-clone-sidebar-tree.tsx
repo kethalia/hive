@@ -1,6 +1,7 @@
 "use client";
 
-import { ChevronRight, Folder, GitBranch } from "lucide-react";
+import { type MouseEvent, useState } from "react";
+import { ChevronRight, Folder, GitBranch, Star } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import {
   SidebarMenu,
@@ -15,15 +16,39 @@ import { cn } from "@/lib/utils";
 
 export interface GitCloneSidebarTreeProps {
   tree: PublicCloneTree;
+  activeClonePath?: string | null;
+  favoriteKeys?: ReadonlySet<string>;
+  mutatingFavoriteKeys?: ReadonlySet<string>;
+  onFavoriteToggle?: (repository: CloneTreeRepositoryNode, nextFavorited: boolean) => void;
   onRepositorySelect?: (repository: CloneTreeRepositoryNode) => void;
   className?: string;
 }
 
 export function GitCloneSidebarTree({
   tree,
+  activeClonePath,
+  favoriteKeys,
+  mutatingFavoriteKeys,
+  onFavoriteToggle,
   onRepositorySelect,
   className,
 }: GitCloneSidebarTreeProps) {
+  const [openDirectoryIds, setOpenDirectoryIds] = useState<ReadonlySet<string>>(() => new Set());
+
+  const setDirectoryOpen = (nodeId: string, open: boolean) => {
+    setOpenDirectoryIds((currentIds) => {
+      const nextIds = new Set(currentIds);
+
+      if (open) {
+        nextIds.add(nodeId);
+      } else {
+        nextIds.delete(nodeId);
+      }
+
+      return nextIds;
+    });
+  };
+
   return (
     <div className={cn("flex min-w-0 flex-col gap-1", className)} data-testid="git-clone-tree">
       <SidebarMenu>
@@ -48,7 +73,18 @@ export function GitCloneSidebarTree({
                 </p>
               ) : (
                 <SidebarMenuSub className="!mr-0 !pr-0">
-                  {tree.nodes.map((node) => renderCloneTreeNode(node, onRepositorySelect))}
+                  {tree.nodes.map((node) =>
+                    renderCloneTreeNode(
+                      node,
+                      activeClonePath,
+                      favoriteKeys,
+                      mutatingFavoriteKeys,
+                      onFavoriteToggle,
+                      onRepositorySelect,
+                      openDirectoryIds,
+                      setDirectoryOpen,
+                    ),
+                  )}
                 </SidebarMenuSub>
               )}
             </CollapsibleContent>
@@ -62,24 +98,70 @@ export function GitCloneSidebarTree({
 
 function renderCloneTreeNode(
   node: CloneTreeNode,
+  activeClonePath: GitCloneSidebarTreeProps["activeClonePath"],
+  favoriteKeys: GitCloneSidebarTreeProps["favoriteKeys"],
+  mutatingFavoriteKeys: GitCloneSidebarTreeProps["mutatingFavoriteKeys"],
+  onFavoriteToggle: GitCloneSidebarTreeProps["onFavoriteToggle"],
   onRepositorySelect: GitCloneSidebarTreeProps["onRepositorySelect"],
+  openDirectoryIds: ReadonlySet<string>,
+  setDirectoryOpen: (nodeId: string, open: boolean) => void,
 ) {
   if (node.kind === "repository") {
-    return <RepositoryTreeNode key={node.id} node={node} onRepositorySelect={onRepositorySelect} />;
+    return (
+      <RepositoryTreeNode
+        key={node.id}
+        node={node}
+        isActive={activeClonePath === node.relativePath}
+        favoriteKeys={favoriteKeys}
+        mutatingFavoriteKeys={mutatingFavoriteKeys}
+        onFavoriteToggle={onFavoriteToggle}
+        onRepositorySelect={onRepositorySelect}
+      />
+    );
   }
 
-  return <DirectoryTreeNode key={node.id} node={node} onRepositorySelect={onRepositorySelect} />;
+  return (
+    <DirectoryTreeNode
+      key={node.id}
+      node={node}
+      activeClonePath={activeClonePath}
+      favoriteKeys={favoriteKeys}
+      mutatingFavoriteKeys={mutatingFavoriteKeys}
+      onFavoriteToggle={onFavoriteToggle}
+      onRepositorySelect={onRepositorySelect}
+      openDirectoryIds={openDirectoryIds}
+      setDirectoryOpen={setDirectoryOpen}
+    />
+  );
 }
 
 function DirectoryTreeNode({
   node,
+  activeClonePath,
+  favoriteKeys,
+  mutatingFavoriteKeys,
+  onFavoriteToggle,
   onRepositorySelect,
+  openDirectoryIds,
+  setDirectoryOpen,
 }: {
   node: Extract<CloneTreeNode, { kind: "directory" }>;
+  activeClonePath: GitCloneSidebarTreeProps["activeClonePath"];
+  favoriteKeys: GitCloneSidebarTreeProps["favoriteKeys"];
+  mutatingFavoriteKeys: GitCloneSidebarTreeProps["mutatingFavoriteKeys"];
+  onFavoriteToggle: GitCloneSidebarTreeProps["onFavoriteToggle"];
   onRepositorySelect: GitCloneSidebarTreeProps["onRepositorySelect"];
+  openDirectoryIds: ReadonlySet<string>;
+  setDirectoryOpen: (nodeId: string, open: boolean) => void;
 }) {
+  const isOpen = openDirectoryIds.has(node.id) || containsClonePath(node, activeClonePath);
+
   return (
-    <Collapsible defaultOpen className="group/git-directory">
+    <Collapsible
+      open={isOpen}
+      onOpenChange={(open) => setDirectoryOpen(node.id, open)}
+      className="group/git-directory"
+    >
       <SidebarMenuSubItem>
         <SidebarMenuSubButton
           render={<CollapsibleTrigger />}
@@ -96,7 +178,18 @@ function DirectoryTreeNode({
         </SidebarMenuSubButton>
         <CollapsibleContent>
           <SidebarMenuSub className="!mr-0 !pr-0">
-            {node.children.map((child) => renderCloneTreeNode(child, onRepositorySelect))}
+            {node.children.map((child) =>
+              renderCloneTreeNode(
+                child,
+                activeClonePath,
+                favoriteKeys,
+                mutatingFavoriteKeys,
+                onFavoriteToggle,
+                onRepositorySelect,
+                openDirectoryIds,
+                setDirectoryOpen,
+              ),
+            )}
           </SidebarMenuSub>
         </CollapsibleContent>
       </SidebarMenuSubItem>
@@ -106,18 +199,40 @@ function DirectoryTreeNode({
 
 function RepositoryTreeNode({
   node,
+  isActive,
+  favoriteKeys,
+  mutatingFavoriteKeys,
+  onFavoriteToggle,
   onRepositorySelect,
 }: {
   node: CloneTreeRepositoryNode;
+  isActive: boolean;
+  favoriteKeys: GitCloneSidebarTreeProps["favoriteKeys"];
+  mutatingFavoriteKeys: GitCloneSidebarTreeProps["mutatingFavoriteKeys"];
+  onFavoriteToggle: GitCloneSidebarTreeProps["onFavoriteToggle"];
   onRepositorySelect: GitCloneSidebarTreeProps["onRepositorySelect"];
 }) {
-  const accessibleName = `Open Git repository ${formatDisplayPath(node.displaySegments, node.label)}`;
+  const displayPath = formatDisplayPath(node.displaySegments, node.label);
+  const accessibleName = `Open Git repository ${displayPath}`;
+  const isFavorited = favoriteKeys?.has(node.cloneSessionKey) === true;
+  const isMutatingFavorite = mutatingFavoriteKeys?.has(node.cloneSessionKey) === true;
+  const favoriteAccessibleName = `${isFavorited ? "Remove" : "Add"} Git repository ${displayPath} ${
+    isFavorited ? "from" : "to"
+  } favorites`;
+
+  const handleFavoriteClick = (event: MouseEvent<HTMLButtonElement>) => {
+    event.preventDefault();
+    event.stopPropagation();
+    if (isMutatingFavorite) return;
+    onFavoriteToggle?.(node, !isFavorited);
+  };
 
   return (
     <SidebarMenuSubItem>
       <SidebarMenuSubButton
         render={<button type="button" />}
-        className="w-full cursor-pointer"
+        className="w-full cursor-pointer pr-10"
+        isActive={isActive}
         aria-label={accessibleName}
         data-clone-session-key={node.cloneSessionKey}
         data-relative-path={node.relativePath}
@@ -126,8 +241,33 @@ function RepositoryTreeNode({
         <GitBranch aria-hidden="true" className="size-3 shrink-0" />
         <span className="truncate">{node.label}</span>
       </SidebarMenuSubButton>
+      <button
+        type="button"
+        aria-label={favoriteAccessibleName}
+        aria-pressed={isFavorited}
+        disabled={isMutatingFavorite}
+        className="absolute top-0 right-0 flex size-7 items-center justify-center rounded-md text-sidebar-foreground outline-hidden transition-colors after:absolute after:-inset-1 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2 focus-visible:ring-sidebar-ring active:bg-sidebar-accent active:text-sidebar-accent-foreground disabled:pointer-events-none disabled:opacity-50 group-data-[collapsible=icon]:hidden md:after:hidden"
+        onClick={handleFavoriteClick}
+      >
+        <Star
+          aria-hidden="true"
+          className={cn("size-3.5", isFavorited && "fill-current text-sidebar-accent-foreground")}
+        />
+      </button>
     </SidebarMenuSubItem>
   );
+}
+
+function containsClonePath(
+  node: Extract<CloneTreeNode, { kind: "directory" }>,
+  activeClonePath: string | null | undefined,
+): boolean {
+  if (!activeClonePath) return false;
+
+  return node.children.some((child) => {
+    if (child.kind === "repository") return child.relativePath === activeClonePath;
+    return containsClonePath(child, activeClonePath);
+  });
 }
 
 function GitCloneTreeDiagnostics({ tree }: { tree: PublicCloneTree }) {

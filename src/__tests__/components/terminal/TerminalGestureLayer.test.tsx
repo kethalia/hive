@@ -1,17 +1,23 @@
 // @vitest-environment jsdom
 import { act, cleanup, createEvent, fireEvent, render, screen } from "@testing-library/react";
+import type { ComponentProps } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { TerminalGestureLayer } from "@/components/terminal/TerminalGestureLayer";
 import { DRAG_LONG_PRESS_MOVE_PX, LONG_PRESS_MS } from "@/lib/gestures/conventions";
 
-function renderLayer(onLongPress = vi.fn()) {
+function renderLayer(
+  onLongPress = vi.fn(),
+  props: Partial<ComponentProps<typeof TerminalGestureLayer>> = {},
+) {
   render(
-    <TerminalGestureLayer onLongPress={onLongPress}>
+    <TerminalGestureLayer onLongPress={onLongPress} {...props}>
       <div data-testid="terminal-child">terminal</div>
     </TerminalGestureLayer>,
   );
+  const child = screen.getByTestId("terminal-child");
   return {
-    child: screen.getByTestId("terminal-child"),
+    child,
+    layer: child.parentElement as HTMLElement,
     onLongPress,
   };
 }
@@ -58,7 +64,10 @@ describe("TerminalGestureLayer", () => {
   });
 
   it("fires onLongPress with client coordinates after a held press", () => {
-    const { child, onLongPress } = renderLayer();
+    const { child, layer, onLongPress } = renderLayer();
+
+    expect(layer.style.userSelect).toBe("none");
+    expect(layer.style.touchAction).toBe("pan-x pan-y");
 
     pointerDown(child, 123, 456);
     act(() => {
@@ -92,6 +101,38 @@ describe("TerminalGestureLayer", () => {
     pointerUp(child, 10 + DRAG_LONG_PRESS_MOVE_PX + 1, 20);
 
     expect(onLongPress).not.toHaveBeenCalled();
+  });
+
+  it("allows native selection and context menu behavior when selection mode is enabled", () => {
+    const parentContextMenu = vi.fn();
+    const onLongPress = vi.fn();
+    render(
+      <div onContextMenu={parentContextMenu}>
+        <TerminalGestureLayer onLongPress={onLongPress} selectionModeEnabled>
+          <div data-testid="terminal-child">terminal</div>
+        </TerminalGestureLayer>
+      </div>,
+    );
+    const child = screen.getByTestId("terminal-child");
+    const layer = child.parentElement as HTMLElement;
+
+    expect(layer.style.userSelect).toBe("");
+    expect(layer.style.touchAction).toBe("auto");
+
+    pointerDown(child, 50, 60);
+    act(() => {
+      vi.advanceTimersByTime(LONG_PRESS_MS);
+    });
+
+    const nativeContextMenu = createEvent.contextMenu(child, {
+      bubbles: true,
+      cancelable: true,
+    });
+    fireEvent(child, nativeContextMenu);
+
+    expect(onLongPress).not.toHaveBeenCalled();
+    expect(nativeContextMenu.defaultPrevented).toBe(false);
+    expect(parentContextMenu).toHaveBeenCalledTimes(1);
   });
 
   it("suppresses the native context menu immediately after a successful long press", () => {

@@ -262,6 +262,7 @@ vi.mock("lucide-react", () => ({
   ExternalLink: () => <span>ExternalLink</span>,
   ChevronDown: () => <span>ChevronDown</span>,
   Pencil: () => <span>Pencil</span>,
+  Star: () => <span>Star</span>,
   Loader2: () => <span data-testid="loader-icon">Loader2</span>,
   LogOut: () => <span data-testid="logout-icon">LogOut</span>,
 }));
@@ -275,6 +276,9 @@ const mockGetWorkspaceSessions = vi.fn();
 const mockCreateSession = vi.fn();
 const mockKillSession = vi.fn();
 const mockRenameSession = vi.fn();
+const mockListNavigationFavorites = vi.fn();
+const mockUpsertNavigationFavorite = vi.fn();
+const mockRemoveNavigationFavorite = vi.fn();
 
 vi.mock("@/lib/actions/workspaces", () => ({
   listWorkspacesAction: (...args: unknown[]) => mockListWorkspaces(...args),
@@ -301,6 +305,12 @@ vi.mock("@/lib/actions/templates", () => ({
 vi.mock("@/lib/actions/git-clones", () => ({
   listGitClonesAction: (...args: unknown[]) => mockListGitClones(...args),
   resolveGitCloneTerminalAction: (...args: unknown[]) => mockResolveGitCloneTerminal(...args),
+}));
+
+vi.mock("@/lib/actions/navigation-favorites", () => ({
+  listNavigationFavoritesAction: (...args: unknown[]) => mockListNavigationFavorites(...args),
+  upsertNavigationFavoriteAction: (...args: unknown[]) => mockUpsertNavigationFavorite(...args),
+  removeNavigationFavoriteAction: (...args: unknown[]) => mockRemoveNavigationFavorite(...args),
 }));
 
 const mockGetSessionAction = vi.fn();
@@ -442,6 +452,19 @@ function makeSession(name = "dev") {
   return { name, created: 1000, windows: 1 };
 }
 
+function makeFavorite(overrides: Record<string, unknown> = {}) {
+  return {
+    id: "fav-1",
+    kind: "terminal",
+    workspaceId: "ws-1",
+    targetKey: "dev",
+    label: "dev",
+    relativePath: null,
+    createdAt: "2026-06-02T00:00:00.000Z",
+    ...overrides,
+  };
+}
+
 async function expandWorkspaceAndTerminalSessions(workspaceId = "ws-1") {
   render(<AppSidebar />);
 
@@ -488,6 +511,24 @@ describe("AppSidebar", () => {
     mockListGitClones.mockResolvedValue({
       data: makeGitSuccessResult(),
     });
+    mockListNavigationFavorites.mockResolvedValue({
+      data: [],
+    });
+    mockUpsertNavigationFavorite.mockImplementation((input) =>
+      Promise.resolve({
+        data: makeFavorite({
+          id: `${input.kind}-${input.targetKey}`,
+          kind: input.kind,
+          workspaceId: input.workspaceId,
+          targetKey: input.targetKey,
+          label: input.label ?? input.targetKey,
+          relativePath: input.kind === "git" ? input.relativePath : null,
+        }),
+      }),
+    );
+    mockRemoveNavigationFavorite.mockResolvedValue({
+      data: { success: true },
+    });
     mockResolveGitCloneTerminal.mockResolvedValue({
       data: {
         sessionName: "git-clone-safe-hive",
@@ -533,6 +574,241 @@ describe("AppSidebar", () => {
     await waitFor(() => {
       expect(screen.getByText("hive-worker")).toBeInTheDocument();
     });
+  });
+
+  it("loads persisted favorites for the signed-in workspace and renders terminal and Git rows", async () => {
+    mockListNavigationFavorites.mockResolvedValueOnce({
+      data: [
+        makeFavorite({ id: "fav-terminal", label: "Main shell" }),
+        makeFavorite({
+          id: "fav-git",
+          kind: "git",
+          targetKey: "git-clone:kethalia/hive",
+          label: "Hive repo",
+          relativePath: "kethalia/hive",
+        }),
+      ],
+    });
+
+    render(<AppSidebar />);
+
+    await waitFor(() => {
+      expect(mockListNavigationFavorites).toHaveBeenCalledWith({ workspaceId: "ws-1" });
+      expect(screen.getByText("Main shell")).toBeInTheDocument();
+      expect(screen.getByText("Hive repo")).toBeInTheDocument();
+    });
+
+    const terminalLink = screen.getByText("Main shell").closest("a");
+    expect(terminalLink).toHaveAttribute("href", "/workspaces/ws-1/terminal?session=dev");
+    expect(document.body.innerHTML).not.toContain("userId");
+  });
+
+  it("renders an empty favorites state when no favorites are returned", async () => {
+    render(<AppSidebar />);
+
+    await waitFor(() => {
+      expect(screen.getByText("No favorites yet.")).toBeInTheDocument();
+    });
+  });
+
+  it("upserts and removes terminal favorites without user-scoped payload fields", async () => {
+    await expandWorkspaceAndTerminalSessions();
+
+    fireEvent.click(screen.getByRole("button", { name: "Add terminal session dev to favorites" }));
+
+    await waitFor(() => {
+      expect(mockUpsertNavigationFavorite).toHaveBeenCalledWith({
+        kind: "terminal",
+        workspaceId: "ws-1",
+        targetKey: "dev",
+        label: "dev",
+      });
+      expect(
+        screen.getByRole("button", { name: "Remove terminal session dev from favorites" }),
+      ).toHaveAttribute("aria-pressed", "true");
+    });
+    expect(JSON.stringify(mockUpsertNavigationFavorite.mock.calls[0][0])).not.toContain("userId");
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Remove terminal session dev from favorites" }),
+    );
+
+    await waitFor(() => {
+      expect(mockRemoveNavigationFavorite).toHaveBeenCalledWith({
+        kind: "terminal",
+        workspaceId: "ws-1",
+        targetKey: "dev",
+      });
+      expect(
+        screen.getByRole("button", { name: "Add terminal session dev to favorites" }),
+      ).toHaveAttribute("aria-pressed", "false");
+    });
+    expect(JSON.stringify(mockRemoveNavigationFavorite.mock.calls[0][0])).not.toContain("userId");
+  }, 10_000);
+
+  it("upserts and removes Git repository favorites with sanitized clone identifiers", async () => {
+    render(<AppSidebar />);
+
+    await screen.findByText("dev-box");
+    const wsTrigger = screen.getByText("dev-box").closest("[data-testid='collapsible-trigger']");
+    expect(wsTrigger).not.toBeNull();
+    fireEvent.click(wsTrigger!);
+
+    fireEvent.click(
+      await screen.findByRole("button", {
+        name: "Add Git repository kethalia / hive to favorites",
+      }),
+    );
+
+    await waitFor(() => {
+      expect(mockUpsertNavigationFavorite).toHaveBeenCalledWith({
+        kind: "git",
+        workspaceId: "ws-1",
+        targetKey: "git-clone:kethalia/hive",
+        relativePath: "kethalia/hive",
+        label: "hive",
+      });
+      expect(
+        screen.getByRole("button", {
+          name: "Remove Git repository kethalia / hive from favorites",
+        }),
+      ).toHaveAttribute("aria-pressed", "true");
+    });
+    expect(JSON.stringify(mockUpsertNavigationFavorite.mock.calls[0][0])).not.toContain(
+      "/home/coder",
+    );
+    expect(JSON.stringify(mockUpsertNavigationFavorite.mock.calls[0][0])).not.toContain(
+      "cloneProof",
+    );
+    expect(JSON.stringify(mockUpsertNavigationFavorite.mock.calls[0][0])).not.toContain("userId");
+
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "Remove Git repository kethalia / hive from favorites",
+      }),
+    );
+
+    await waitFor(() => {
+      expect(mockRemoveNavigationFavorite).toHaveBeenCalledWith({
+        kind: "git",
+        workspaceId: "ws-1",
+        targetKey: "git-clone:kethalia/hive",
+      });
+    });
+  });
+
+  it("launches a Git favorite through the existing clone terminal resolver", async () => {
+    mockListNavigationFavorites.mockResolvedValueOnce({
+      data: [
+        makeFavorite({
+          id: "fav-git",
+          kind: "git",
+          targetKey: "git-clone:kethalia/hive",
+          label: "Hive repo",
+          relativePath: "kethalia/hive",
+        }),
+      ],
+    });
+
+    render(<AppSidebar />);
+
+    const favoriteButton = await screen.findByText("Hive repo");
+    fireEvent.click(favoriteButton.closest("button")!);
+
+    await waitFor(() => {
+      expect(mockResolveGitCloneTerminal).toHaveBeenCalledWith({
+        cloneSessionKey: "git-clone:kethalia/hive",
+        workspaceId: "ws-1",
+        agentId: "agent-1",
+        relativePath: "kethalia/hive",
+      });
+      expect(mockPush).toHaveBeenCalledWith(
+        "/workspaces/ws-1/terminal?session=git-clone-safe-hive&clonePath=kethalia%2Fhive&cloneProof=proof-token",
+      );
+    });
+  });
+
+  it("renders malformed Git favorites without a relative path as disabled and does not launch", async () => {
+    mockListNavigationFavorites.mockResolvedValueOnce({
+      data: [
+        makeFavorite({
+          id: "fav-git-bad",
+          kind: "git",
+          targetKey: "git-clone:kethalia/hive",
+          label: "Hive repo",
+          relativePath: null,
+        }),
+      ],
+    });
+
+    render(<AppSidebar />);
+
+    const favoriteButton = (await screen.findByText("Hive repo")).closest("button");
+    expect(favoriteButton).toBeDisabled();
+    fireEvent.click(favoriteButton!);
+
+    expect(mockResolveGitCloneTerminal).not.toHaveBeenCalled();
+  });
+
+  it("reloads favorites from the action on remount", async () => {
+    mockListNavigationFavorites.mockResolvedValue({
+      data: [makeFavorite({ id: "fav-terminal", label: "Main shell" })],
+    });
+
+    const first = render(<AppSidebar />);
+    await screen.findByText("Main shell");
+    first.unmount();
+
+    render(<AppSidebar />);
+
+    await waitFor(() => {
+      expect(mockListNavigationFavorites).toHaveBeenCalledTimes(2);
+      expect(screen.getByText("Main shell")).toBeInTheDocument();
+    });
+  });
+
+  it("shows sanitized favorite load and mutation failures while workspace and Git access remain usable", async () => {
+    mockListNavigationFavorites.mockResolvedValueOnce({
+      serverError: `db exploded at ${PRIVATE_ROOT} with cloneProof=secret`,
+    });
+
+    render(<AppSidebar />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("favorites-error")).toHaveTextContent(
+        "Favorites unavailable. Terminal access is still available.",
+      );
+      expect(screen.getByText("dev-box")).toBeInTheDocument();
+    });
+    expect(document.body.innerHTML).not.toContain(PRIVATE_ROOT);
+    expect(document.body.innerHTML).not.toContain("cloneProof=secret");
+
+    const wsTrigger = screen.getByText("dev-box").closest("[data-testid='collapsible-trigger']");
+    expect(wsTrigger).not.toBeNull();
+    fireEvent.click(wsTrigger!);
+    expect(
+      await screen.findByRole("button", { name: "Open Git repository kethalia / hive" }),
+    ).toBeInTheDocument();
+
+    mockUpsertNavigationFavorite.mockResolvedValueOnce({
+      serverError: `write failed at ${PRIVATE_ROOT}`,
+    });
+    const terminalSection = await screen.findByTestId("terminal-section-ws-1");
+    const terminalTrigger = terminalSection.querySelector("[data-testid='collapsible-trigger']");
+    fireEvent.click(terminalTrigger!);
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Add terminal session dev to favorites" }),
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId("favorites-error")).toHaveTextContent(
+        "Favorites unavailable. Terminal access is still available.",
+      );
+      expect(
+        screen.getByRole("button", { name: "Add terminal session dev to favorites" }),
+      ).toHaveAttribute("aria-pressed", "false");
+    });
+    expect(document.body.innerHTML).not.toContain(PRIVATE_ROOT);
   });
 
   it("renders Git clone hierarchy under the expanded workspace with clone metadata and without absolute paths", async () => {

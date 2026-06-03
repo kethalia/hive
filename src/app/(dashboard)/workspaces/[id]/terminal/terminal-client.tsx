@@ -5,6 +5,7 @@ import dynamic from "next/dynamic";
 import { useRouter, useSearchParams } from "next/navigation";
 import type { PointerEvent } from "react";
 import { Suspense, useCallback, useEffect, useRef, useState } from "react";
+import { CommandPalette } from "@/components/terminal/CommandPalette";
 import { ComposePanel } from "@/components/terminal/ComposePanel";
 import { MobileTerminalControls } from "@/components/terminal/MobileTerminalControls";
 import { MobileTerminalDiagnosticsOverlay } from "@/components/terminal/MobileTerminalDiagnosticsOverlay";
@@ -15,11 +16,16 @@ import { Button } from "@/components/ui/button";
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { useIsComposeSheet } from "@/hooks/use-compose-sheet";
+import { useFavoriteWindowNavigation } from "@/hooks/useFavoriteWindowNavigation";
 import { useKeybindings } from "@/hooks/useKeybindings";
 import { useVisualViewportKeyboardOffset } from "@/hooks/useVisualViewportKeyboardOffset";
 import { createSessionAction, getWorkspaceSessionsAction } from "@/lib/actions/workspaces";
 import { triggerHapticFeedback } from "@/lib/device/haptics";
-import { copyTerminalSelection, pasteToTerminal } from "@/lib/terminal/actions";
+import {
+  type ClipboardActionStatus,
+  copyTerminalSelection,
+  pasteToTerminal,
+} from "@/lib/terminal/actions";
 import { COMPOSE_SHEET_DISMISS_DRAG_PX } from "@/lib/terminal/config";
 import { TERMINAL_COMPOSE_OPEN_EVENT } from "@/lib/terminal/events";
 import { composeSheetKeyboardStyle } from "@/lib/terminal/mobile-shell-layout";
@@ -43,6 +49,66 @@ function terminalSessionHref(
   return debugViewport ? `${href}&debugViewport=1` : href;
 }
 
+function clipboardFallbackText(reason: string): string {
+  switch (reason) {
+    case "clipboard-api-denied":
+      return "Clipboard permission was denied. Use selection mode or the browser paste control.";
+    case "clipboard-api-unavailable":
+      return "Clipboard API is unavailable. Use selection mode or the browser paste control.";
+    default:
+      return "Clipboard API failed. Use selection mode or the browser paste control.";
+  }
+}
+
+function terminalHasSelection(term: {
+  hasSelection?: () => boolean;
+  getSelection?: () => string;
+}): boolean {
+  if (typeof term.hasSelection === "function") return term.hasSelection();
+  return Boolean(term.getSelection?.());
+}
+
+function clipboardStatusText(
+  status: ClipboardActionStatus | null,
+  {
+    canPaste,
+    hasTerminal,
+    selectionModeEnabled,
+  }: { canPaste: boolean; hasTerminal: boolean; selectionModeEnabled: boolean },
+): string {
+  if (status) {
+    switch (status.action) {
+      case "copy":
+        if (status.outcome === "copied") {
+          return status.method === "exec-command"
+            ? "Copy complete using clipboard fallback."
+            : "Copy complete.";
+        }
+        if (status.outcome === "failed") {
+          return clipboardFallbackText(status.reason);
+        }
+        return "No terminal selection. Terminal interrupt shortcuts remain available.";
+      case "paste":
+        if (status.outcome === "pasted") return "Paste complete.";
+        if (status.outcome === "empty") return "Clipboard was empty.";
+        if (status.reason === "clipboard-api-unavailable") {
+          return clipboardFallbackText(status.reason);
+        }
+        return status.fallbackSucceeded
+          ? "Paste fallback was attempted."
+          : clipboardFallbackText(status.reason);
+    }
+  }
+
+  if (!hasTerminal)
+    return "Terminal is not ready. Clipboard controls will enable after connection.";
+  if (selectionModeEnabled) return "Selection mode on. Select terminal text, then copy.";
+  if (!canPaste) {
+    return "Terminal ready. Select terminal text to copy; paste will enable after connection.";
+  }
+  return "Terminal ready. Use Select for text selection, Copy, or Paste.";
+}
+
 function TerminalInner({ agentId, workspaceId }: { agentId: string; workspaceId: string }) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -54,8 +120,15 @@ function TerminalInner({ agentId, workspaceId }: { agentId: string; workspaceId:
   const [menuPosition, setMenuPosition] = useState<{ x: number; y: number } | null>(null);
   const [menuSelection, setMenuSelection] = useState(false);
   const [composeOpen, setComposeOpen] = useState(false);
+  const [windowSwitcherOpen, setWindowSwitcherOpen] = useState(false);
+  const [selectionModeEnabled, setSelectionModeEnabled] = useState(false);
+  const [hasTerminalSelection, setHasTerminalSelection] = useState(false);
+  const [clipboardActionStatus, setClipboardActionStatus] = useState<ClipboardActionStatus | null>(
+    null,
+  );
   const [bootstrapError, setBootstrapError] = useState<string | null>(null);
   const [bootstrapRetryKey, setBootstrapRetryKey] = useState(0);
+  const previousSessionRef = useRef(session);
   const composeSheetDragStartYRef = useRef<number | null>(null);
   const isComposeSheet = useIsComposeSheet();
   const {
@@ -64,12 +137,31 @@ function TerminalInner({ agentId, workspaceId }: { agentId: string; workspaceId:
     visualViewportHeightPx = 0,
     visualViewportOffsetTopPx = 0,
   } = useVisualViewportKeyboardOffset();
+  const favoriteWindowNavigation = useFavoriteWindowNavigation(workspaceId);
+  const favoriteWindowTabs = favoriteWindowNavigation.sessions.map((favoriteWindow) => ({
+    id: favoriteWindow.id,
+    sessionName: favoriteWindow.name,
+  }));
+  const handleSelectFavoriteWindowTab = useCallback(
+    (tabId: string) => {
+      favoriteWindowNavigation.select(tabId);
+    },
+    [favoriteWindowNavigation],
+  );
   const isMobileKeyboardVisible = isComposeSheet && visualKeyboardVisible;
   const keyboardLiftPx = isComposeSheet ? visualKeyboardLiftPx : 0;
   const composeSheetStyle = composeSheetKeyboardStyle(isMobileKeyboardVisible);
   const mobileLayoutSignal = isMobileKeyboardVisible
     ? `keyboard:${visualViewportHeightPx}:${visualViewportOffsetTopPx}`
     : `lift:${keyboardLiftPx}`;
+  const mobileSelectionModeEnabled = isComposeSheet && selectionModeEnabled;
+  const hasActiveTerminal = Boolean(activeTerminal);
+  const hasActiveSender = Boolean(activeSend);
+  const clipboardStatus = clipboardStatusText(clipboardActionStatus, {
+    canPaste: hasActiveSender,
+    hasTerminal: hasActiveTerminal,
+    selectionModeEnabled: mobileSelectionModeEnabled,
+  });
 
   const handleComposeSheetDragStart = useCallback((event: PointerEvent<HTMLButtonElement>) => {
     composeSheetDragStartYRef.current = event.clientY;
@@ -106,6 +198,45 @@ function TerminalInner({ agentId, workspaceId }: { agentId: string; workspaceId:
   const handleTerminalDestroy = useCallback(() => {
     setActiveTerminal(null, null);
   }, [setActiveTerminal]);
+
+  const handleSelectionModeChange = useCallback((enabled: boolean) => {
+    setSelectionModeEnabled(enabled);
+    setClipboardActionStatus(null);
+  }, []);
+
+  const handleMobileCopy = useCallback(() => {
+    if (!activeTerminal) return;
+    copyTerminalSelection(activeTerminal, { onStatus: setClipboardActionStatus });
+  }, [activeTerminal]);
+
+  const handleMobilePaste = useCallback(() => {
+    if (!activeSend) return;
+    pasteToTerminal(activeTerminal ?? null, activeSend, { onStatus: setClipboardActionStatus });
+  }, [activeSend, activeTerminal]);
+
+  useEffect(() => {
+    if (previousSessionRef.current === session) return;
+
+    previousSessionRef.current = session;
+    setSelectionModeEnabled(false);
+    setClipboardActionStatus(null);
+  }, [session]);
+
+  useEffect(() => {
+    if (!activeTerminal) {
+      setHasTerminalSelection(false);
+      return;
+    }
+
+    const updateSelectionState = () =>
+      setHasTerminalSelection(terminalHasSelection(activeTerminal));
+    updateSelectionState();
+
+    if (typeof activeTerminal.onSelectionChange !== "function") return;
+
+    const disposable = activeTerminal.onSelectionChange(updateSelectionState);
+    return () => disposable.dispose();
+  }, [activeTerminal]);
 
   useEffect(() => {
     const binding = {
@@ -249,14 +380,18 @@ function TerminalInner({ agentId, workspaceId }: { agentId: string; workspaceId:
   const terminalPane = (
     <div
       className="h-full"
+      data-sidebar-gesture-ignore={mobileSelectionModeEnabled ? "true" : undefined}
       data-terminal-surface="true"
       onContextMenu={(e) => {
+        if (mobileSelectionModeEnabled) return;
+
         e.preventDefault();
         setMenuSelection(!!activeTerminal?.getSelection());
         setMenuPosition({ x: e.clientX, y: e.clientY });
       }}
     >
       <TerminalGestureLayer
+        selectionModeEnabled={mobileSelectionModeEnabled}
         onLongPress={(x, y) => {
           setMenuSelection(!!activeTerminal?.getSelection());
           setMenuPosition({ x, y });
@@ -274,7 +409,8 @@ function TerminalInner({ agentId, workspaceId }: { agentId: string; workspaceId:
           onTerminalDestroy={handleTerminalDestroy}
           layoutSignal={mobileLayoutSignal}
           mobileInputMode={isComposeSheet}
-          pinToBottomOnResize={false}
+          pinToBottomOnResize={isComposeSheet}
+          selectionModeEnabled={mobileSelectionModeEnabled}
         />
       </TerminalGestureLayer>
       <TerminalContextMenu
@@ -308,6 +444,29 @@ function TerminalInner({ agentId, workspaceId }: { agentId: string; workspaceId:
           <MobileTerminalControls
             isKeyboardVisible={isMobileKeyboardVisible}
             onHapticFeedback={triggerHapticFeedback}
+            hasSelection={hasTerminalSelection}
+            selectionModeEnabled={mobileSelectionModeEnabled}
+            onToggleSelectionMode={handleSelectionModeChange}
+            onCopy={handleMobileCopy}
+            onPaste={handleMobilePaste}
+            clipboardStatusText={clipboardStatus}
+            selectionModeDisabledReason={hasActiveTerminal ? undefined : "Terminal is not ready"}
+            copyDisabledReason={
+              hasActiveTerminal
+                ? hasTerminalSelection
+                  ? undefined
+                  : "Select terminal text before copying"
+                : "Terminal is not ready"
+            }
+            pasteDisabledReason={
+              hasActiveSender
+                ? undefined
+                : "Paste is unavailable until the terminal sender is ready"
+            }
+            windowNavigation={{
+              ...favoriteWindowNavigation,
+              onOpenSwitcher: () => setWindowSwitcherOpen(true),
+            }}
           />
         </div>
         <Sheet open={composeOpen} onOpenChange={setComposeOpen}>
@@ -333,6 +492,15 @@ function TerminalInner({ agentId, workspaceId }: { agentId: string; workspaceId:
             </div>
           </SheetContent>
         </Sheet>
+        <CommandPalette
+          open={windowSwitcherOpen}
+          onOpenChange={setWindowSwitcherOpen}
+          tabs={favoriteWindowTabs}
+          onSelectTab={handleSelectFavoriteWindowTab}
+          searchPlaceholder="Search favorite windows…"
+          emptyText="No favorite windows found."
+          groupHeading="Favorite windows"
+        />
       </MobileTerminalShell>
     );
   }

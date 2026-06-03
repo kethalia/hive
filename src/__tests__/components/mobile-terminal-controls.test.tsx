@@ -4,18 +4,13 @@ import "@testing-library/jest-dom/vitest";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { TERMINAL_COMPOSE_OPEN_EVENT } from "@/lib/terminal/events";
 
-const { mockActiveSend } = vi.hoisted(() => ({ mockActiveSend: vi.fn() }));
+const { mockActiveSend, mockUseKeybindings } = vi.hoisted(() => ({
+  mockActiveSend: vi.fn(),
+  mockUseKeybindings: vi.fn(),
+}));
 
 vi.mock("@/hooks/useKeybindings", () => ({
-  useKeybindings: vi.fn(() => ({
-    register: vi.fn(),
-    unregister: vi.fn(),
-    getAll: vi.fn(() => []),
-    handleKeyEvent: vi.fn(() => false),
-    activeTerminal: null,
-    activeSend: mockActiveSend,
-    setActiveTerminal: vi.fn(),
-  })),
+  useKeybindings: mockUseKeybindings,
 }));
 
 const { mockUseTerminalFontStep, mockIncreaseFontSize, mockDecreaseFontSize } = vi.hoisted(() => ({
@@ -28,7 +23,10 @@ vi.mock("@/hooks/useTerminalFontStep", () => ({
   useTerminalFontStep: mockUseTerminalFontStep,
 }));
 
-import { MobileTerminalControls } from "@/components/terminal/MobileTerminalControls";
+import {
+  MobileTerminalControls,
+  type MobileTerminalWindowNavigation,
+} from "@/components/terminal/MobileTerminalControls";
 
 function expectStackedLabelThenIcon(button: HTMLElement, label: string) {
   expect(button).toHaveClass("flex-col", "text-xs", "leading-none");
@@ -81,6 +79,27 @@ function installObserverMocks() {
   vi.stubGlobal("ResizeObserver", ResizeObserverMock);
 }
 
+function makeWindowNavigation(
+  overrides: Partial<MobileTerminalWindowNavigation> = {},
+): MobileTerminalWindowNavigation {
+  const sessions = [{ name: "window-one" }, { name: "window-two" }, { name: "window-three" }];
+
+  return {
+    sessions,
+    current: sessions[1],
+    previous: sessions[0],
+    next: sessions[2],
+    canGoPrevious: true,
+    canGoNext: true,
+    loading: false,
+    error: null,
+    select: vi.fn(() => true),
+    reload: vi.fn(),
+    onOpenSwitcher: vi.fn(),
+    ...overrides,
+  };
+}
+
 afterEach(() => {
   cleanup();
   vi.unstubAllGlobals();
@@ -92,6 +111,16 @@ beforeEach(() => {
   installObserverMocks();
   localStorage.clear();
   mockActiveSend.mockClear();
+  mockUseKeybindings.mockReset();
+  mockUseKeybindings.mockReturnValue({
+    register: vi.fn(),
+    unregister: vi.fn(),
+    getAll: vi.fn(() => []),
+    handleKeyEvent: vi.fn(() => false),
+    activeTerminal: null,
+    activeSend: mockActiveSend,
+    setActiveTerminal: vi.fn(),
+  });
   mockIncreaseFontSize.mockClear();
   mockDecreaseFontSize.mockClear();
   mockUseTerminalFontStep.mockReset();
@@ -127,7 +156,15 @@ describe("MobileTerminalControls", () => {
       Array.from(carousel.querySelectorAll("[data-slot='carousel-item']")).map((item) =>
         item.getAttribute("aria-label"),
       ),
-    ).toEqual(["Key controls", "Navigation controls", "Compose controls", "Font size controls"]);
+    ).toEqual([
+      "Key controls",
+      "Control controls",
+      "Navigation controls",
+      "Clipboard controls",
+      "Windows controls",
+      "Compose controls",
+      "Font size controls",
+    ]);
 
     const quickActions = within(carousel).getByRole("group", { name: "Terminal quick actions" });
     expect(quickActions).toHaveClass("grid", "w-full", "grid-cols-4", "rounded-none");
@@ -135,13 +172,34 @@ describe("MobileTerminalControls", () => {
     const enterButton = within(quickActions).getByRole("button", { name: "Enter" });
     const tabButton = within(quickActions).getByRole("button", { name: "Tab" });
     const escButton = within(quickActions).getByRole("button", { name: "Esc" });
-    const ctrlCButton = within(quickActions).getByRole("button", { name: "Ctrl+C" });
+    const backspaceButton = within(quickActions).getByRole("button", { name: "Backspace" });
     expect(enterButton).toHaveClass("min-h-14", "min-w-0");
     expectStackedLabelThenIcon(enterButton, "Enter");
     expectStackedLabelThenIcon(tabButton, "Tab");
     expectStackedLabelThenIcon(escButton, "Esc");
-    expectStackedLabelThenIcon(ctrlCButton, "Ctrl+C");
+    expectStackedLabelThenIcon(backspaceButton, "Backspace");
     expect(within(quickActions).queryByRole("button", { name: "More" })).not.toBeInTheDocument();
+
+    const controlKeys = within(carousel).getByRole("group", {
+      name: "Terminal control keys",
+    });
+    expect(controlKeys).toHaveClass("grid", "w-full", "grid-cols-4", "rounded-none");
+    expectStackedLabelThenIcon(
+      within(controlKeys).getByRole("button", { name: "Ctrl+C" }),
+      "Ctrl+C",
+    );
+    expectStackedLabelThenIcon(
+      within(controlKeys).getByRole("button", { name: "Ctrl+D" }),
+      "Ctrl+D",
+    );
+    expectStackedLabelThenIcon(
+      within(controlKeys).getByRole("button", { name: "Ctrl+L" }),
+      "Ctrl+L",
+    );
+    expectStackedLabelThenIcon(
+      within(controlKeys).getByRole("button", { name: "Ctrl+R" }),
+      "Ctrl+R",
+    );
 
     const navigationControls = within(carousel).getByRole("group", {
       name: "Terminal navigation keys",
@@ -150,6 +208,48 @@ describe("MobileTerminalControls", () => {
     const upButton = within(navigationControls).getByRole("button", { name: "Up" });
     expect(upButton).toHaveClass("min-h-14", "min-w-0");
     expectStackedLabelThenIcon(upButton, "Up");
+
+    expect(
+      within(carousel).queryByRole("group", { name: "Terminal position keys" }),
+    ).not.toBeInTheDocument();
+    expect(within(carousel).queryByRole("button", { name: "PgUp" })).not.toBeInTheDocument();
+    expect(within(carousel).queryByRole("button", { name: "PgDn" })).not.toBeInTheDocument();
+
+    const clipboardControls = within(carousel).getByRole("group", {
+      name: "Terminal clipboard controls",
+    });
+    expect(clipboardControls).toHaveClass("grid", "w-full", "grid-cols-3", "rounded-none");
+    expect(
+      within(clipboardControls).getByRole("button", { name: "Turn terminal selection mode on" }),
+    ).toBeDisabled();
+    expect(
+      within(clipboardControls).getByRole("button", { name: "Copy terminal selection" }),
+    ).toBeDisabled();
+    expect(
+      within(clipboardControls).getByRole("button", { name: "Paste from clipboard" }),
+    ).toBeDisabled();
+    expect(screen.getByText("Clipboard controls unavailable")).toHaveAttribute(
+      "aria-live",
+      "polite",
+    );
+
+    const windowControls = within(carousel).getByRole("group", {
+      name: "Favorite window controls",
+    });
+    expect(windowControls).toHaveClass("grid", "w-full", "grid-cols-4", "rounded-none");
+    expect(
+      within(windowControls).getByRole("button", { name: "Switch to previous favorite window" }),
+    ).toHaveClass("min-h-14", "min-w-0");
+    expect(
+      within(windowControls).getByRole("button", { name: "Open favorite window switcher" }),
+    ).toHaveClass("min-h-14", "min-w-0");
+    expect(
+      within(windowControls).getByRole("button", { name: "Switch to next favorite window" }),
+    ).toHaveClass("min-h-14", "min-w-0");
+    expect(
+      within(windowControls).getByRole("button", { name: "Reload favorite window list" }),
+    ).toHaveClass("min-h-14", "min-w-0");
+    expect(screen.getByText("Favorite window navigation unavailable")).toBeInTheDocument();
 
     const composeControls = within(carousel).getByRole("group", {
       name: "Terminal compose controls",
@@ -174,6 +274,15 @@ describe("MobileTerminalControls", () => {
       "page",
     );
     expect(
+      within(pageDots).getByRole("button", { name: "Show Control controls" }),
+    ).not.toHaveAttribute("aria-current");
+    expect(
+      within(pageDots).getByRole("button", { name: "Show Clipboard controls" }),
+    ).not.toHaveAttribute("aria-current");
+    expect(
+      within(pageDots).getByRole("button", { name: "Show Windows controls" }),
+    ).not.toHaveAttribute("aria-current");
+    expect(
       within(pageDots).getByRole("button", { name: "Show Compose controls" }),
     ).not.toHaveAttribute("aria-current");
     expect(Array.from(controls.children)).toEqual([carousel, pageDots]);
@@ -191,19 +300,46 @@ describe("MobileTerminalControls", () => {
     expect(screen.getByLabelText("Terminal control pages")).toHaveClass("order-1", "mb-1");
   });
 
-  it("sends sequences from the first carousel page", () => {
+  it("sends fixed smart-key sequences from catalog pages", () => {
     render(<MobileTerminalControls />);
     const carousel = screen.getByRole("region", { name: "Terminal controls carousel" });
     const quickActions = within(carousel).getByRole("group", { name: "Terminal quick actions" });
-
+    const controlKeys = within(carousel).getByRole("group", { name: "Terminal control keys" });
     fireEvent.click(within(quickActions).getByRole("button", { name: "Enter" }));
     expect(mockActiveSend).toHaveBeenCalledWith("\r");
     fireEvent.click(within(quickActions).getByRole("button", { name: "Tab" }));
     expect(mockActiveSend).toHaveBeenCalledWith("\t");
     fireEvent.click(within(quickActions).getByRole("button", { name: "Esc" }));
     expect(mockActiveSend).toHaveBeenCalledWith("\x1b");
-    fireEvent.click(within(quickActions).getByRole("button", { name: "Ctrl+C" }));
+    fireEvent.click(within(quickActions).getByRole("button", { name: "Backspace" }));
+    expect(mockActiveSend).toHaveBeenCalledWith("\x7f");
+
+    fireEvent.click(within(controlKeys).getByRole("button", { name: "Ctrl+C" }));
     expect(mockActiveSend).toHaveBeenCalledWith("\x03");
+    fireEvent.click(within(controlKeys).getByRole("button", { name: "Ctrl+D" }));
+    expect(mockActiveSend).toHaveBeenCalledWith("\x04");
+    fireEvent.click(within(controlKeys).getByRole("button", { name: "Ctrl+L" }));
+    expect(mockActiveSend).toHaveBeenCalledWith("\x0c");
+    fireEvent.click(within(controlKeys).getByRole("button", { name: "Ctrl+R" }));
+    expect(mockActiveSend).toHaveBeenCalledWith("\x12");
+  });
+
+  it("does not throw when activeSend is unavailable", () => {
+    const onHapticFeedback = vi.fn();
+    mockUseKeybindings.mockReturnValue({
+      register: vi.fn(),
+      unregister: vi.fn(),
+      getAll: vi.fn(() => []),
+      handleKeyEvent: vi.fn(() => false),
+      activeTerminal: null,
+      activeSend: null,
+      setActiveTerminal: vi.fn(),
+    });
+    render(<MobileTerminalControls onHapticFeedback={onHapticFeedback} />);
+
+    expect(() => fireEvent.click(screen.getByRole("button", { name: "Ctrl+D" }))).not.toThrow();
+    expect(onHapticFeedback).toHaveBeenCalledTimes(1);
+    expect(mockActiveSend).not.toHaveBeenCalled();
   });
 
   it("uses Apple-style dots to page secondary controls", () => {
@@ -213,6 +349,8 @@ describe("MobileTerminalControls", () => {
     const keys = within(pageDots).getByRole("button", { name: "Show Keys controls" });
     const compose = within(pageDots).getByRole("button", { name: "Show Compose controls" });
     const navigation = within(pageDots).getByRole("button", { name: "Show Navigation controls" });
+    const clipboard = within(pageDots).getByRole("button", { name: "Show Clipboard controls" });
+    const windows = within(pageDots).getByRole("button", { name: "Show Windows controls" });
     const fontSize = within(pageDots).getByRole("button", { name: "Show Font size controls" });
 
     expect(keys).toHaveAttribute("aria-current", "page");
@@ -221,13 +359,271 @@ describe("MobileTerminalControls", () => {
     expect(navigation).toHaveAttribute("aria-current", "page");
     expect(keys).not.toHaveAttribute("aria-current");
 
-    fireEvent.click(fontSize);
+    fireEvent.click(clipboard);
     expect(onHapticFeedback).toHaveBeenCalledTimes(2);
+    expect(clipboard).toHaveAttribute("aria-current", "page");
+
+    fireEvent.click(windows);
+    expect(onHapticFeedback).toHaveBeenCalledTimes(3);
+    expect(windows).toHaveAttribute("aria-current", "page");
+
+    fireEvent.click(fontSize);
+    expect(onHapticFeedback).toHaveBeenCalledTimes(4);
     expect(fontSize).toHaveAttribute("aria-current", "page");
 
     fireEvent.click(compose);
-    expect(onHapticFeedback).toHaveBeenCalledTimes(3);
+    expect(onHapticFeedback).toHaveBeenCalledTimes(5);
     expect(compose).toHaveAttribute("aria-current", "page");
+  });
+
+  it("renders clipboard controls with explicit disabled reasons when handlers are unavailable", () => {
+    render(
+      <MobileTerminalControls
+        hasSelection={false}
+        selectionModeEnabled={false}
+        clipboardStatusText="Copy fallback unavailable"
+      />,
+    );
+
+    const clipboardControls = screen.getByRole("group", { name: "Terminal clipboard controls" });
+    const selectionMode = within(clipboardControls).getByRole("button", {
+      name: "Turn terminal selection mode on",
+    });
+    const copy = within(clipboardControls).getByRole("button", {
+      name: "Copy terminal selection",
+    });
+    const paste = within(clipboardControls).getByRole("button", { name: "Paste from clipboard" });
+
+    expect(selectionMode).toBeDisabled();
+    expect(selectionMode).toHaveAttribute("title", "Selection mode unavailable");
+    expect(copy).toBeDisabled();
+    expect(copy).toHaveAttribute("title", "Copy unavailable");
+    expect(paste).toBeDisabled();
+    expect(paste).toHaveAttribute("title", "Paste unavailable");
+    expect(screen.getByText("Copy fallback unavailable")).toHaveAttribute("aria-live", "polite");
+  });
+
+  it("runs clipboard callbacks with haptics and toggles explicit selection mode", () => {
+    const onHapticFeedback = vi.fn();
+    const onToggleSelectionMode = vi.fn();
+    const onCopy = vi.fn();
+    const onPaste = vi.fn();
+
+    render(
+      <MobileTerminalControls
+        hasSelection
+        selectionModeEnabled
+        onCopy={onCopy}
+        onHapticFeedback={onHapticFeedback}
+        onPaste={onPaste}
+        onToggleSelectionMode={onToggleSelectionMode}
+        clipboardStatusText="Copy completed through clipboard-api"
+      />,
+    );
+
+    const clipboardControls = screen.getByRole("group", { name: "Terminal clipboard controls" });
+    const selectionMode = within(clipboardControls).getByRole("button", {
+      name: "Turn terminal selection mode off",
+    });
+    const copy = within(clipboardControls).getByRole("button", {
+      name: "Copy terminal selection",
+    });
+    const paste = within(clipboardControls).getByRole("button", { name: "Paste from clipboard" });
+
+    expect(selectionMode).toHaveAttribute("aria-pressed", "true");
+    expect(copy).toBeEnabled();
+    expect(paste).toBeEnabled();
+    expect(screen.getByText("Copy completed through clipboard-api")).toHaveAttribute(
+      "aria-live",
+      "polite",
+    );
+
+    fireEvent.click(selectionMode);
+    fireEvent.click(copy);
+    fireEvent.click(paste);
+
+    expect(onToggleSelectionMode).toHaveBeenCalledWith(false);
+    expect(onCopy).toHaveBeenCalledTimes(1);
+    expect(onPaste).toHaveBeenCalledTimes(1);
+    expect(onHapticFeedback).toHaveBeenCalledTimes(3);
+  });
+
+  it("renders loading window navigation as visible disabled controls with a live status", () => {
+    render(
+      <MobileTerminalControls
+        windowNavigation={makeWindowNavigation({
+          sessions: [],
+          current: null,
+          previous: null,
+          next: null,
+          canGoPrevious: false,
+          canGoNext: false,
+          loading: true,
+        })}
+      />,
+    );
+
+    const windowControls = screen.getByRole("group", { name: "Favorite window controls" });
+    const previous = within(windowControls).getByRole("button", {
+      name: "Switch to previous favorite window",
+    });
+    const switcher = within(windowControls).getByRole("button", {
+      name: "Open favorite window switcher",
+    });
+    const next = within(windowControls).getByRole("button", {
+      name: "Switch to next favorite window",
+    });
+    const reload = within(windowControls).getByRole("button", {
+      name: "Reload favorite window list",
+    });
+
+    expect(previous).toBeDisabled();
+    expect(previous).toHaveAttribute("title", "Loading favorite windows");
+    expect(switcher).toBeDisabled();
+    expect(switcher).toHaveAttribute("title", "Loading favorite windows");
+    expect(next).toBeDisabled();
+    expect(next).toHaveAttribute("title", "Loading favorite windows");
+    expect(reload).toBeDisabled();
+    expect(screen.getByText("Loading favorite windows")).toHaveAttribute("aria-live", "polite");
+  });
+
+  it("keeps one-window navigation visible but explains why previous and next are disabled", () => {
+    const sessions = [{ name: "window-one" }];
+    render(
+      <MobileTerminalControls
+        windowNavigation={makeWindowNavigation({
+          sessions,
+          current: sessions[0],
+          previous: null,
+          next: null,
+          canGoPrevious: false,
+          canGoNext: false,
+        })}
+      />,
+    );
+
+    const windowControls = screen.getByRole("group", { name: "Favorite window controls" });
+    const previous = within(windowControls).getByRole("button", {
+      name: "Switch to previous favorite window",
+    });
+    const next = within(windowControls).getByRole("button", {
+      name: "Switch to next favorite window",
+    });
+
+    expect(previous).toBeDisabled();
+    expect(previous).toHaveAttribute("title", "Only one favorite window is available");
+    expect(next).toBeDisabled();
+    expect(next).toHaveAttribute("title", "Only one favorite window is available");
+    expect(screen.getByText("Only one favorite window is available")).toBeInTheDocument();
+    expect(
+      within(windowControls).getByRole("button", { name: "Open favorite window switcher" }),
+    ).toBeEnabled();
+  });
+
+  it("switches previous and next favorite windows and opens the switcher with haptics", () => {
+    const onHapticFeedback = vi.fn();
+    const windowNavigation = makeWindowNavigation();
+    render(
+      <MobileTerminalControls
+        onHapticFeedback={onHapticFeedback}
+        windowNavigation={windowNavigation}
+      />,
+    );
+
+    const windowControls = screen.getByRole("group", { name: "Favorite window controls" });
+    const previous = within(windowControls).getByRole("button", {
+      name: "Switch to previous favorite window",
+    });
+    const switcher = within(windowControls).getByRole("button", {
+      name: "Open favorite window switcher",
+    });
+    const next = within(windowControls).getByRole("button", {
+      name: "Switch to next favorite window",
+    });
+
+    expect(previous).toBeEnabled();
+    expect(next).toBeEnabled();
+    expect(
+      screen.getByText("Current favorite window: window-two. 3 favorite windows available."),
+    ).toHaveAttribute("aria-live", "polite");
+
+    fireEvent.click(previous);
+    expect(windowNavigation.select).toHaveBeenCalledWith("window-one");
+    fireEvent.click(next);
+    expect(windowNavigation.select).toHaveBeenCalledWith("window-three");
+    fireEvent.click(switcher);
+    expect(windowNavigation.onOpenSwitcher).toHaveBeenCalledTimes(1);
+    expect(onHapticFeedback).toHaveBeenCalledTimes(3);
+  });
+
+  it("exposes error retry without enabling stale previous or next navigation", () => {
+    const onHapticFeedback = vi.fn();
+    const windowNavigation = makeWindowNavigation({
+      error: "Failed to load terminal sessions",
+      previous: null,
+      next: null,
+      canGoPrevious: false,
+      canGoNext: false,
+    });
+    render(
+      <MobileTerminalControls
+        onHapticFeedback={onHapticFeedback}
+        windowNavigation={windowNavigation}
+      />,
+    );
+
+    const windowControls = screen.getByRole("group", { name: "Favorite window controls" });
+    expect(
+      within(windowControls).getByRole("button", { name: "Switch to previous favorite window" }),
+    ).toBeDisabled();
+    expect(
+      within(windowControls).getByRole("button", { name: "Switch to next favorite window" }),
+    ).toBeDisabled();
+    expect(
+      screen.getByText("Favorite window navigation error: Failed to load terminal sessions"),
+    ).toBeInTheDocument();
+
+    fireEvent.click(
+      within(windowControls).getByRole("button", { name: "Retry loading favorite windows" }),
+    );
+
+    expect(windowNavigation.reload).toHaveBeenCalledTimes(1);
+    expect(onHapticFeedback).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not throw or fire haptics when optional window callbacks are omitted", () => {
+    const onHapticFeedback = vi.fn();
+    const sessions = [{ name: "window-one" }, { name: "window-two" }];
+    render(
+      <MobileTerminalControls
+        onHapticFeedback={onHapticFeedback}
+        windowNavigation={{
+          sessions,
+          current: sessions[0],
+          previous: null,
+          next: sessions[1],
+          canGoPrevious: false,
+          canGoNext: true,
+          loading: false,
+          error: null,
+        }}
+      />,
+    );
+
+    const windowControls = screen.getByRole("group", { name: "Favorite window controls" });
+    expect(
+      within(windowControls).getByRole("button", { name: "Switch to next favorite window" }),
+    ).toBeDisabled();
+    expect(
+      within(windowControls).getByRole("button", { name: "Switch to next favorite window" }),
+    ).toHaveAttribute("title", "Favorite window switching unavailable");
+    expect(
+      within(windowControls).getByRole("button", { name: "Open favorite window switcher" }),
+    ).toBeDisabled();
+    expect(
+      within(windowControls).getByRole("button", { name: "Reload favorite window list" }),
+    ).toBeDisabled();
+    expect(onHapticFeedback).not.toHaveBeenCalled();
   });
 
   it("dispatches the compose event from the compose page", () => {
@@ -329,22 +725,65 @@ describe("MobileTerminalControls", () => {
   });
 
   it("prevents pointer and mouse focus changes on controls so the terminal keyboard stays open", () => {
-    render(<MobileTerminalControls />);
+    render(
+      <MobileTerminalControls
+        hasSelection
+        onCopy={vi.fn()}
+        onPaste={vi.fn()}
+        onToggleSelectionMode={vi.fn()}
+        windowNavigation={makeWindowNavigation()}
+      />,
+    );
     const enter = screen.getByRole("button", { name: "Enter" });
+    const ctrlD = screen.getByRole("button", { name: "Ctrl+D" });
     const dot = screen.getByRole("button", { name: "Show Navigation controls" });
+    const switcher = screen.getByRole("button", { name: "Open favorite window switcher" });
+    const selectionMode = screen.getByRole("button", { name: "Turn terminal selection mode on" });
+    const copy = screen.getByRole("button", { name: "Copy terminal selection" });
+    const paste = screen.getByRole("button", { name: "Paste from clipboard" });
     const pointerEvent = new Event("pointerdown", { bubbles: true, cancelable: true });
+    const ctrlDPointerEvent = new Event("pointerdown", { bubbles: true, cancelable: true });
     const dotPointerEvent = new Event("pointerdown", { bubbles: true, cancelable: true });
+    const switcherPointerEvent = new Event("pointerdown", { bubbles: true, cancelable: true });
+    const selectionModePointerEvent = new Event("pointerdown", { bubbles: true, cancelable: true });
+    const copyPointerEvent = new Event("pointerdown", { bubbles: true, cancelable: true });
+    const pastePointerEvent = new Event("pointerdown", { bubbles: true, cancelable: true });
     const mouseEvent = new Event("mousedown", { bubbles: true, cancelable: true });
+    const ctrlDMouseEvent = new Event("mousedown", { bubbles: true, cancelable: true });
     const dotMouseEvent = new Event("mousedown", { bubbles: true, cancelable: true });
+    const switcherMouseEvent = new Event("mousedown", { bubbles: true, cancelable: true });
+    const selectionModeMouseEvent = new Event("mousedown", { bubbles: true, cancelable: true });
+    const copyMouseEvent = new Event("mousedown", { bubbles: true, cancelable: true });
+    const pasteMouseEvent = new Event("mousedown", { bubbles: true, cancelable: true });
 
     fireEvent(enter, pointerEvent);
+    fireEvent(ctrlD, ctrlDPointerEvent);
     fireEvent(dot, dotPointerEvent);
+    fireEvent(switcher, switcherPointerEvent);
+    fireEvent(selectionMode, selectionModePointerEvent);
+    fireEvent(copy, copyPointerEvent);
+    fireEvent(paste, pastePointerEvent);
     fireEvent(enter, mouseEvent);
+    fireEvent(ctrlD, ctrlDMouseEvent);
     fireEvent(dot, dotMouseEvent);
+    fireEvent(switcher, switcherMouseEvent);
+    fireEvent(selectionMode, selectionModeMouseEvent);
+    fireEvent(copy, copyMouseEvent);
+    fireEvent(paste, pasteMouseEvent);
 
     expect(pointerEvent.defaultPrevented).toBe(true);
+    expect(ctrlDPointerEvent.defaultPrevented).toBe(true);
     expect(dotPointerEvent.defaultPrevented).toBe(true);
+    expect(switcherPointerEvent.defaultPrevented).toBe(true);
+    expect(selectionModePointerEvent.defaultPrevented).toBe(true);
+    expect(copyPointerEvent.defaultPrevented).toBe(true);
+    expect(pastePointerEvent.defaultPrevented).toBe(true);
     expect(mouseEvent.defaultPrevented).toBe(true);
+    expect(ctrlDMouseEvent.defaultPrevented).toBe(true);
     expect(dotMouseEvent.defaultPrevented).toBe(true);
+    expect(switcherMouseEvent.defaultPrevented).toBe(true);
+    expect(selectionModeMouseEvent.defaultPrevented).toBe(true);
+    expect(copyMouseEvent.defaultPrevented).toBe(true);
+    expect(pasteMouseEvent.defaultPrevented).toBe(true);
   });
 });

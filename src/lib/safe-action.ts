@@ -1,6 +1,5 @@
-import { cookies } from "next/headers";
 import { createSafeActionClient } from "next-safe-action";
-import { getSession, type SessionData } from "./auth/session";
+import { getRequestSession, type SessionData } from "@/lib/auth/session";
 
 export const actionClient = createSafeActionClient({
   handleServerError: (error) => {
@@ -17,8 +16,7 @@ export const authActionClient = createSafeActionClient({
     return error.message;
   },
 }).use(async ({ next }) => {
-  const cookieStore = await cookies();
-  const session = await getSession(cookieStore);
+  const session = await getRequestSession();
 
   if (!session) {
     throw new Error("Not authenticated");

@@ -26,6 +26,10 @@ const { mockUseIsComposeSheet } = vi.hoisted(() => ({
   mockUseIsComposeSheet: vi.fn(() => false),
 }));
 
+const { mockUseFavoriteWindowNavigation } = vi.hoisted(() => ({
+  mockUseFavoriteWindowNavigation: vi.fn(),
+}));
+
 const { mockUseVisualViewportKeyboardOffset } = vi.hoisted(() => ({
   mockUseVisualViewportKeyboardOffset: vi.fn(() => ({
     liftPx: 0,
@@ -48,17 +52,20 @@ vi.mock("next/dynamic", () => ({
       className,
       layoutSignal,
       mobileInputMode,
+      pinToBottomOnResize,
       sessionName,
     }: {
       className?: string;
       layoutSignal?: unknown;
       mobileInputMode?: boolean;
+      pinToBottomOnResize?: boolean;
       sessionName: string;
     }) => (
       <div
         className={className}
         data-layout-signal={String(layoutSignal ?? "")}
         data-mobile-input-mode={mobileInputMode ? "true" : "false"}
+        data-pin-to-bottom-on-resize={pinToBottomOnResize ? "true" : "false"}
         data-session-name={sessionName}
         data-testid="interactive-terminal"
       />
@@ -80,6 +87,10 @@ vi.mock("@/lib/actions/workspaces", () => ({
 
 vi.mock("@/hooks/use-compose-sheet", () => ({
   useIsComposeSheet: mockUseIsComposeSheet,
+}));
+
+vi.mock("@/hooks/useFavoriteWindowNavigation", () => ({
+  useFavoriteWindowNavigation: mockUseFavoriteWindowNavigation,
 }));
 
 vi.mock("@/hooks/useVisualViewportKeyboardOffset", () => ({
@@ -225,6 +236,18 @@ describe("TerminalClient compose sheet", () => {
     mockCreateSessionAction.mockReset();
     window.localStorage.clear();
     mockUseIsComposeSheet.mockReturnValue(false);
+    mockUseFavoriteWindowNavigation.mockReturnValue({
+      sessions: [],
+      current: null,
+      previous: null,
+      next: null,
+      canGoPrevious: false,
+      canGoNext: false,
+      loading: false,
+      error: null,
+      reload: vi.fn(),
+      select: vi.fn(),
+    });
     mockUseVisualViewportKeyboardOffset.mockReset();
     mockUseVisualViewportKeyboardOffset.mockReturnValue({
       liftPx: 0,
@@ -249,6 +272,10 @@ describe("TerminalClient compose sheet", () => {
       "data-mobile-input-mode",
       "false",
     );
+    expect(screen.getByTestId("interactive-terminal")).toHaveAttribute(
+      "data-pin-to-bottom-on-resize",
+      "false",
+    );
     expect(screen.getByTestId("resizable-group")).toHaveAttribute("data-orientation", "vertical");
     expect(screen.queryByTestId("compose-sheet")).not.toBeInTheDocument();
     expect(screen.queryByTestId("compose-panel")).not.toBeInTheDocument();
@@ -256,6 +283,7 @@ describe("TerminalClient compose sheet", () => {
       "data-terminal-shell",
       "true",
     );
+    expect(mockUseFavoriteWindowNavigation).toHaveBeenCalledWith("workspace-1");
     expect(mockGetWorkspaceSessionsAction).not.toHaveBeenCalled();
     expect(mockCreateSessionAction).not.toHaveBeenCalled();
     expect(document.body.style.position).not.toBe("fixed");
@@ -278,6 +306,10 @@ describe("TerminalClient compose sheet", () => {
       "data-mobile-input-mode",
       "true",
     );
+    expect(screen.getByTestId("interactive-terminal")).toHaveAttribute(
+      "data-pin-to-bottom-on-resize",
+      "true",
+    );
     expect(screen.getByTestId("terminal-mobile-shell")).toHaveClass(
       "terminal-mobile-shell",
       "fixed",
@@ -286,9 +318,11 @@ describe("TerminalClient compose sheet", () => {
       "top-[calc(var(--safe-area-inset-top)+3.5rem)]",
     );
     expect(screen.getByTestId("terminal-mobile-shell")).toHaveStyle({
-      height: "max(0px, calc(var(--app-viewport-height) - var(--safe-area-inset-top) - 3.5rem))",
-      maxHeight: "max(0px, calc(var(--app-viewport-height) - var(--safe-area-inset-top) - 3.5rem))",
-      top: "calc(var(--safe-area-inset-top) + 3.5rem)",
+      height:
+        "max(0px, calc(var(--app-visual-viewport-height) - var(--safe-area-inset-top) - 3.5rem))",
+      maxHeight:
+        "max(0px, calc(var(--app-visual-viewport-height) - var(--safe-area-inset-top) - 3.5rem))",
+      top: "calc(var(--app-visual-viewport-offset-top) + var(--safe-area-inset-top) + 3.5rem)",
     });
     expect(screen.getByTestId("terminal-mobile-shell")).not.toHaveClass(
       "-mb-[calc(var(--safe-area-inset-bottom)+1.5rem)]",
@@ -343,7 +377,7 @@ describe("TerminalClient compose sheet", () => {
     expect(screen.queryByTestId("mobile-terminal-diagnostics-overlay")).not.toBeInTheDocument();
   });
 
-  it("enables diagnostics overlay with stable terminal telemetry selectors in debug mode", async () => {
+  it("enables diagnostics overlay with stable terminal telemetry selectors in mobile debug mode", async () => {
     navigationState.search = "session=tmux-1&debugViewport=1";
 
     await renderTerminalClient(true);
@@ -355,6 +389,18 @@ describe("TerminalClient compose sheet", () => {
     );
     expect(screen.getByRole("region", { name: "Terminal emulator" })).toHaveAttribute(
       "data-terminal-surface",
+      "true",
+    );
+  });
+
+  it("enables diagnostics overlay with a stable terminal shell selector in desktop debug mode", async () => {
+    navigationState.search = "session=tmux-1&debugViewport=1";
+
+    await renderTerminalClient(false);
+
+    expect(screen.getByTestId("mobile-terminal-diagnostics-overlay")).toBeInTheDocument();
+    expect(screen.getByTestId("terminal-desktop-shell")).toHaveAttribute(
+      "data-terminal-shell",
       "true",
     );
   });
@@ -452,6 +498,10 @@ describe("TerminalClient compose sheet", () => {
     expect(screen.getByTestId("interactive-terminal")).toHaveAttribute(
       "data-layout-signal",
       "keyboard:500:240",
+    );
+    expect(screen.getByTestId("interactive-terminal")).toHaveAttribute(
+      "data-pin-to-bottom-on-resize",
+      "true",
     );
     expect(document.documentElement).toHaveStyle({
       height: "var(--app-visual-viewport-height)",

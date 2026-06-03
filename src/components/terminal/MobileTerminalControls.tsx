@@ -7,11 +7,16 @@ import {
   ArrowRight,
   ArrowRightToLine,
   ArrowUp,
+  ClipboardPaste,
+  Copy,
   CornerDownLeft,
   DoorOpen,
+  List,
   MessageSquareText,
   Minus,
   Plus,
+  RefreshCw,
+  TextSelect,
   X,
 } from "lucide-react";
 import type { PointerEvent, MouseEvent as ReactMouseEvent } from "react";
@@ -28,25 +33,51 @@ import { useKeybindings } from "@/hooks/useKeybindings";
 import { useTerminalFontStep } from "@/hooks/useTerminalFontStep";
 import { NO_TOUCH_STYLE } from "@/lib/gestures/conventions";
 import { TERMINAL_COMPOSE_OPEN_EVENT } from "@/lib/terminal/events";
-import { VIRTUAL_KEY_SEQUENCES } from "@/lib/terminal/virtual-keys";
+import {
+  MOBILE_SMART_KEY_PAGES,
+  type MobileSmartKeyIconName,
+} from "@/lib/terminal/mobile-smart-keys";
 import { cn } from "@/lib/utils";
 
-const NAVIGATION_KEYS = [
-  { label: "Up", icon: ArrowUp, sequence: VIRTUAL_KEY_SEQUENCES.Up },
-  { label: "Down", icon: ArrowDown, sequence: VIRTUAL_KEY_SEQUENCES.Down },
-  { label: "Left", icon: ArrowLeft, sequence: VIRTUAL_KEY_SEQUENCES.Left },
-  { label: "Right", icon: ArrowRight, sequence: VIRTUAL_KEY_SEQUENCES.Right },
-] as const;
+const MOBILE_SMART_KEY_ICONS: Record<MobileSmartKeyIconName, LucideIcon> = {
+  ArrowDown,
+  ArrowLeft,
+  ArrowRight,
+  ArrowRightToLine,
+  ArrowUp,
+  CornerDownLeft,
+  DoorOpen,
+  RefreshCw,
+  X,
+};
 
-const QUICK_ROW_KEYS = [
-  { label: "Enter", icon: CornerDownLeft, sequence: VIRTUAL_KEY_SEQUENCES.Enter },
-  { label: "Tab", icon: ArrowRightToLine, sequence: VIRTUAL_KEY_SEQUENCES.Tab },
-  { label: "Esc", icon: DoorOpen, sequence: VIRTUAL_KEY_SEQUENCES.Esc },
-  { label: "Ctrl+C", icon: X, sequence: VIRTUAL_KEY_SEQUENCES.CtrlC },
+const CONTROL_PAGES = [
+  ...MOBILE_SMART_KEY_PAGES.map((page) => page.label),
+  "Clipboard",
+  "Windows",
+  "Compose",
+  "Font size",
 ] as const;
-
-const CONTROL_PAGES = ["Keys", "Navigation", "Compose", "Font size"] as const;
 const STACKED_BUTTON_CLASS = "min-h-14 min-w-0 flex-col gap-1 px-1 py-2 text-xs leading-none";
+
+interface MobileTerminalWindowSession {
+  id?: string;
+  name: string;
+}
+
+export interface MobileTerminalWindowNavigation {
+  sessions?: MobileTerminalWindowSession[];
+  current?: MobileTerminalWindowSession | null;
+  previous?: MobileTerminalWindowSession | null;
+  next?: MobileTerminalWindowSession | null;
+  canGoPrevious?: boolean;
+  canGoNext?: boolean;
+  loading?: boolean;
+  error?: string | null;
+  select?: (sessionId: string) => boolean | undefined;
+  reload?: () => void;
+  onOpenSwitcher?: () => void;
+}
 
 function MobileControlButtonContent({ label, Icon }: { label: string; Icon: LucideIcon }) {
   return (
@@ -57,15 +88,66 @@ function MobileControlButtonContent({ label, Icon }: { label: string; Icon: Luci
   );
 }
 
+function getWindowNavigationStatus(windowNavigation?: MobileTerminalWindowNavigation): string {
+  if (!windowNavigation) return "Favorite window navigation unavailable";
+  if (windowNavigation.loading) return "Loading favorite windows";
+  if (windowNavigation.error) return `Favorite window navigation error: ${windowNavigation.error}`;
+
+  const windowCount = windowNavigation.sessions?.length ?? 0;
+  if (windowCount <= 0) return "No favorite windows are available";
+  if (windowCount === 1) return "Only one favorite window is available";
+  if (!windowNavigation.current) return `${windowCount} favorite windows available`;
+
+  return `Current favorite window: ${windowNavigation.current.name}. ${windowCount} favorite windows available.`;
+}
+
+function getWindowStepDisabledReason(
+  direction: "previous" | "next",
+  windowNavigation?: MobileTerminalWindowNavigation,
+): string | undefined {
+  if (!windowNavigation) return "Favorite window navigation unavailable";
+  if (windowNavigation.loading) return "Loading favorite windows";
+  if (windowNavigation.error) return "Favorite windows could not be loaded";
+  if (!windowNavigation.select) return "Favorite window switching unavailable";
+  if ((windowNavigation.sessions?.length ?? 0) <= 1) return "Only one favorite window is available";
+  if (direction === "previous" && (!windowNavigation.canGoPrevious || !windowNavigation.previous)) {
+    return "Already at the first favorite window";
+  }
+  if (direction === "next" && (!windowNavigation.canGoNext || !windowNavigation.next)) {
+    return "Already at the last favorite window";
+  }
+  return undefined;
+}
+
 export interface MobileTerminalControlsProps {
   isKeyboardVisible?: boolean;
   /** Called once for each terminal action press and page-dot navigation. */
   onHapticFeedback?: () => void;
+  windowNavigation?: MobileTerminalWindowNavigation;
+  hasSelection?: boolean;
+  selectionModeEnabled?: boolean;
+  onToggleSelectionMode?: (enabled: boolean) => void;
+  onCopy?: () => void;
+  onPaste?: () => void;
+  clipboardStatusText?: string;
+  selectionModeDisabledReason?: string;
+  copyDisabledReason?: string;
+  pasteDisabledReason?: string;
 }
 
 export function MobileTerminalControls({
   isKeyboardVisible = false,
   onHapticFeedback,
+  windowNavigation,
+  hasSelection = false,
+  selectionModeEnabled = false,
+  onToggleSelectionMode,
+  onCopy,
+  onPaste,
+  clipboardStatusText,
+  selectionModeDisabledReason,
+  copyDisabledReason,
+  pasteDisabledReason,
 }: MobileTerminalControlsProps = {}) {
   const { activeSend } = useKeybindings();
   const [carouselApi, setCarouselApi] = useState<CarouselApi>();
@@ -103,6 +185,45 @@ export function MobileTerminalControls({
     window.dispatchEvent(new CustomEvent(TERMINAL_COMPOSE_OPEN_EVENT));
   }, [haptic]);
 
+  const switchWindow = useCallback(
+    (session?: MobileTerminalWindowSession | null) => {
+      if (!session || !windowNavigation?.select) return;
+      const selected = windowNavigation.select(session.id ?? session.name);
+      if (selected !== false) haptic();
+    },
+    [haptic, windowNavigation],
+  );
+
+  const openWindowSwitcher = useCallback(() => {
+    if (!windowNavigation?.onOpenSwitcher) return;
+    haptic();
+    windowNavigation.onOpenSwitcher();
+  }, [haptic, windowNavigation]);
+
+  const reloadWindows = useCallback(() => {
+    if (!windowNavigation?.reload || windowNavigation.loading) return;
+    haptic();
+    windowNavigation.reload();
+  }, [haptic, windowNavigation]);
+
+  const toggleSelectionMode = useCallback(() => {
+    if (!onToggleSelectionMode) return;
+    haptic();
+    onToggleSelectionMode(!selectionModeEnabled);
+  }, [haptic, onToggleSelectionMode, selectionModeEnabled]);
+
+  const copySelection = useCallback(() => {
+    if (!onCopy || !hasSelection) return;
+    haptic();
+    onCopy();
+  }, [hasSelection, haptic, onCopy]);
+
+  const pasteClipboard = useCallback(() => {
+    if (!onPaste) return;
+    haptic();
+    onPaste();
+  }, [haptic, onPaste]);
+
   const selectPage = useCallback(
     (index: number) => {
       haptic();
@@ -111,6 +232,41 @@ export function MobileTerminalControls({
     },
     [carouselApi, haptic],
   );
+
+  const selectionModeButtonDisabledReason =
+    selectionModeDisabledReason ??
+    (!onToggleSelectionMode ? "Selection mode unavailable" : undefined);
+  const copyButtonDisabledReason =
+    copyDisabledReason ??
+    (!onCopy
+      ? "Copy unavailable"
+      : !hasSelection
+        ? "Select terminal text before copying"
+        : undefined);
+  const pasteButtonDisabledReason =
+    pasteDisabledReason ?? (!onPaste ? "Paste unavailable" : undefined);
+  const clipboardStatus =
+    clipboardStatusText ??
+    (!onToggleSelectionMode && !onCopy && !onPaste
+      ? "Clipboard controls unavailable"
+      : selectionModeEnabled
+        ? hasSelection
+          ? "Selection mode on. Terminal selection available."
+          : "Selection mode on. Select terminal text to copy."
+        : hasSelection
+          ? "Terminal selection available."
+          : "Selection mode off. Use Select to enable terminal selection.");
+  const previousDisabledReason = getWindowStepDisabledReason("previous", windowNavigation);
+  const nextDisabledReason = getWindowStepDisabledReason("next", windowNavigation);
+  const windowStatus = getWindowNavigationStatus(windowNavigation);
+  const windowSwitcherDisabled = !windowNavigation?.onOpenSwitcher || windowNavigation.loading;
+  const windowSwitcherDisabledReason = !windowNavigation?.onOpenSwitcher
+    ? "Favorite window switcher unavailable"
+    : windowNavigation.loading
+      ? "Loading favorite windows"
+      : undefined;
+  const reloadDisabled = !windowNavigation?.reload || Boolean(windowNavigation.loading);
+  const reloadLabel = windowNavigation?.error ? "Retry" : "Reload";
 
   useEffect(() => {
     if (!carouselApi) return;
@@ -150,48 +306,182 @@ export function MobileTerminalControls({
         setApi={setCarouselApi}
       >
         <CarouselContent className="-ml-2">
-          <CarouselItem aria-label="Key controls" className="pl-2">
-            <ButtonGroup
-              aria-label="Terminal quick actions"
-              className="grid w-full grid-cols-4 rounded-none"
+          {MOBILE_SMART_KEY_PAGES.map((page) => (
+            <CarouselItem
+              key={page.id}
+              aria-label={page.id === "keys" ? "Key controls" : `${page.label} controls`}
+              className="pl-2"
             >
-              {QUICK_ROW_KEYS.map(({ label, icon: Icon, sequence }) => (
+              <ButtonGroup
+                aria-label={page.ariaLabel}
+                className="grid w-full grid-cols-4 rounded-none"
+              >
+                {page.keys.map(({ id, label, iconName, sequence }) => {
+                  const Icon = MOBILE_SMART_KEY_ICONS[iconName];
+                  return (
+                    <Button
+                      key={id}
+                      type="button"
+                      variant="outline"
+                      className={STACKED_BUTTON_CLASS}
+                      style={NO_TOUCH_STYLE}
+                      onPointerDown={keepTerminalKeyboardOpen}
+                      onMouseDown={keepTerminalKeyboardOpen}
+                      onClick={() => sendKey(sequence)}
+                    >
+                      <MobileControlButtonContent Icon={Icon} label={label} />
+                    </Button>
+                  );
+                })}
+              </ButtonGroup>
+            </CarouselItem>
+          ))}
+
+          <CarouselItem aria-label="Clipboard controls" className="pl-2">
+            <div className="flex flex-col gap-1">
+              <ButtonGroup
+                aria-label="Terminal clipboard controls"
+                className="grid w-full grid-cols-3 rounded-none"
+              >
                 <Button
-                  key={label}
                   type="button"
                   variant="outline"
                   className={STACKED_BUTTON_CLASS}
                   style={NO_TOUCH_STYLE}
                   onPointerDown={keepTerminalKeyboardOpen}
                   onMouseDown={keepTerminalKeyboardOpen}
-                  onClick={() => sendKey(sequence)}
+                  onClick={toggleSelectionMode}
+                  disabled={Boolean(selectionModeButtonDisabledReason)}
+                  aria-label={
+                    selectionModeEnabled
+                      ? "Turn terminal selection mode off"
+                      : "Turn terminal selection mode on"
+                  }
+                  aria-pressed={selectionModeEnabled}
+                  aria-describedby="terminal-clipboard-status"
+                  title={selectionModeButtonDisabledReason}
                 >
-                  <MobileControlButtonContent Icon={Icon} label={label} />
+                  <MobileControlButtonContent Icon={TextSelect} label="Select" />
                 </Button>
-              ))}
-            </ButtonGroup>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className={STACKED_BUTTON_CLASS}
+                  style={NO_TOUCH_STYLE}
+                  onPointerDown={keepTerminalKeyboardOpen}
+                  onMouseDown={keepTerminalKeyboardOpen}
+                  onClick={copySelection}
+                  disabled={Boolean(copyButtonDisabledReason)}
+                  aria-label="Copy terminal selection"
+                  aria-describedby="terminal-clipboard-status"
+                  title={copyButtonDisabledReason}
+                >
+                  <MobileControlButtonContent Icon={Copy} label="Copy" />
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className={STACKED_BUTTON_CLASS}
+                  style={NO_TOUCH_STYLE}
+                  onPointerDown={keepTerminalKeyboardOpen}
+                  onMouseDown={keepTerminalKeyboardOpen}
+                  onClick={pasteClipboard}
+                  disabled={Boolean(pasteButtonDisabledReason)}
+                  aria-label="Paste from clipboard"
+                  aria-describedby="terminal-clipboard-status"
+                  title={pasteButtonDisabledReason}
+                >
+                  <MobileControlButtonContent Icon={ClipboardPaste} label="Paste" />
+                </Button>
+              </ButtonGroup>
+              <p
+                id="terminal-clipboard-status"
+                aria-live="polite"
+                className="min-h-4 truncate text-center text-[11px] text-muted-foreground"
+              >
+                {clipboardStatus}
+              </p>
+            </div>
           </CarouselItem>
 
-          <CarouselItem aria-label="Navigation controls" className="pl-2">
-            <ButtonGroup
-              aria-label="Terminal navigation keys"
-              className="grid w-full grid-cols-4 rounded-none"
-            >
-              {NAVIGATION_KEYS.map(({ label, icon: Icon, sequence }) => (
+          <CarouselItem aria-label="Windows controls" className="pl-2">
+            <div className="flex flex-col gap-1">
+              <ButtonGroup
+                aria-label="Favorite window controls"
+                className="grid w-full grid-cols-4 rounded-none"
+              >
                 <Button
-                  key={label}
                   type="button"
                   variant="outline"
                   className={STACKED_BUTTON_CLASS}
                   style={NO_TOUCH_STYLE}
                   onPointerDown={keepTerminalKeyboardOpen}
                   onMouseDown={keepTerminalKeyboardOpen}
-                  onClick={() => sendKey(sequence)}
+                  onClick={() => switchWindow(windowNavigation?.previous)}
+                  disabled={Boolean(previousDisabledReason)}
+                  aria-label="Switch to previous favorite window"
+                  aria-describedby="terminal-window-navigation-status"
+                  title={previousDisabledReason}
                 >
-                  <MobileControlButtonContent Icon={Icon} label={label} />
+                  <MobileControlButtonContent Icon={ArrowLeft} label="Previous" />
                 </Button>
-              ))}
-            </ButtonGroup>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className={STACKED_BUTTON_CLASS}
+                  style={NO_TOUCH_STYLE}
+                  onPointerDown={keepTerminalKeyboardOpen}
+                  onMouseDown={keepTerminalKeyboardOpen}
+                  onClick={openWindowSwitcher}
+                  disabled={windowSwitcherDisabled}
+                  aria-label="Open favorite window switcher"
+                  aria-describedby="terminal-window-navigation-status"
+                  title={windowSwitcherDisabledReason}
+                >
+                  <MobileControlButtonContent Icon={List} label="Windows" />
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className={STACKED_BUTTON_CLASS}
+                  style={NO_TOUCH_STYLE}
+                  onPointerDown={keepTerminalKeyboardOpen}
+                  onMouseDown={keepTerminalKeyboardOpen}
+                  onClick={() => switchWindow(windowNavigation?.next)}
+                  disabled={Boolean(nextDisabledReason)}
+                  aria-label="Switch to next favorite window"
+                  aria-describedby="terminal-window-navigation-status"
+                  title={nextDisabledReason}
+                >
+                  <MobileControlButtonContent Icon={ArrowRight} label="Next" />
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className={STACKED_BUTTON_CLASS}
+                  style={NO_TOUCH_STYLE}
+                  onPointerDown={keepTerminalKeyboardOpen}
+                  onMouseDown={keepTerminalKeyboardOpen}
+                  onClick={reloadWindows}
+                  disabled={reloadDisabled}
+                  aria-label={
+                    windowNavigation?.error
+                      ? "Retry loading favorite windows"
+                      : "Reload favorite window list"
+                  }
+                  aria-describedby="terminal-window-navigation-status"
+                >
+                  <MobileControlButtonContent Icon={RefreshCw} label={reloadLabel} />
+                </Button>
+              </ButtonGroup>
+              <p
+                id="terminal-window-navigation-status"
+                aria-live="polite"
+                className="min-h-4 truncate text-center text-[11px] text-muted-foreground"
+              >
+                {windowStatus}
+              </p>
+            </div>
           </CarouselItem>
 
           <CarouselItem aria-label="Compose controls" className="pl-2">

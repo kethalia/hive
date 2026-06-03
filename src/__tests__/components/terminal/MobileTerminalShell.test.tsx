@@ -38,9 +38,11 @@ describe("MobileTerminalShell", () => {
       "top-[calc(var(--safe-area-inset-top)+3.5rem)]",
     );
     expect(screen.getByTestId("terminal-mobile-shell")).toHaveStyle({
-      height: "max(0px, calc(var(--app-viewport-height) - var(--safe-area-inset-top) - 3.5rem))",
-      maxHeight: "max(0px, calc(var(--app-viewport-height) - var(--safe-area-inset-top) - 3.5rem))",
-      top: "calc(var(--safe-area-inset-top) + 3.5rem)",
+      height:
+        "max(0px, calc(var(--app-visual-viewport-height) - var(--safe-area-inset-top) - 3.5rem))",
+      maxHeight:
+        "max(0px, calc(var(--app-visual-viewport-height) - var(--safe-area-inset-top) - 3.5rem))",
+      top: "calc(var(--app-visual-viewport-offset-top) + var(--safe-area-inset-top) + 3.5rem)",
     });
     expect(screen.getByTestId("terminal-content")).toBeInTheDocument();
     expect(screen.getByTestId("mobile-terminal-diagnostics-overlay")).toBeInTheDocument();
@@ -111,7 +113,7 @@ describe("MobileTerminalShell", () => {
     expect(document.body.style.width).toBe("calc(100% - 12px)");
   });
 
-  it("blocks native page scroll everywhere in the mobile shell", () => {
+  it("blocks native page scroll everywhere outside sidebar-marked regions", () => {
     render(
       <MobileTerminalShell isKeyboardVisible={false}>
         <div data-testid="outside-control" />
@@ -121,6 +123,9 @@ describe("MobileTerminalShell", () => {
       </MobileTerminalShell>,
     );
 
+    const nearbyUnmarked = document.createElement("div");
+    document.body.appendChild(nearbyUnmarked);
+
     const outsideScroll = new Event("touchmove", { bubbles: true, cancelable: true });
     fireEvent(screen.getByTestId("outside-control"), outsideScroll);
     expect(outsideScroll.defaultPrevented).toBe(true);
@@ -128,5 +133,56 @@ describe("MobileTerminalShell", () => {
     const terminalScroll = new Event("touchmove", { bubbles: true, cancelable: true });
     fireEvent(screen.getByLabelText("xterm helper"), terminalScroll);
     expect(terminalScroll.defaultPrevented).toBe(true);
+
+    const bodyWheel = new Event("wheel", { bubbles: true, cancelable: true });
+    fireEvent(document.body, bodyWheel);
+    expect(bodyWheel.defaultPrevented).toBe(true);
+
+    const documentTouchMove = new Event("touchmove", { bubbles: true, cancelable: true });
+    fireEvent(document, documentTouchMove);
+    expect(documentTouchMove.defaultPrevented).toBe(true);
+
+    const nearbyWheel = new Event("wheel", { bubbles: true, cancelable: true });
+    fireEvent(nearbyUnmarked, nearbyWheel);
+    expect(nearbyWheel.defaultPrevented).toBe(true);
+  });
+
+  it("allows native scroll events from sidebar-marked mobile drawer regions", () => {
+    render(
+      <MobileTerminalShell isKeyboardVisible={false}>
+        <div data-testid="terminal-content" />
+      </MobileTerminalShell>,
+    );
+
+    const sidebar = document.createElement("aside");
+    sidebar.dataset.sidebar = "sidebar";
+    document.body.appendChild(sidebar);
+
+    const sidebarContent = document.createElement("div");
+    sidebarContent.dataset.sidebar = "content";
+    sidebarContent.dataset.slot = "sidebar-content";
+    sidebar.appendChild(sidebarContent);
+
+    const nestedScrollRegion = document.createElement("div");
+    nestedScrollRegion.dataset.testid = "nested-sidebar-region";
+    sidebarContent.appendChild(nestedScrollRegion);
+
+    const mobileInner = document.createElement("div");
+    mobileInner.dataset.slot = "sidebar-mobile-inner";
+    const nestedMobileInnerRegion = document.createElement("div");
+    mobileInner.appendChild(nestedMobileInnerRegion);
+    document.body.appendChild(mobileInner);
+
+    const sidebarTouchMove = new Event("touchmove", { bubbles: true, cancelable: true });
+    fireEvent(nestedScrollRegion, sidebarTouchMove);
+    expect(sidebarTouchMove.defaultPrevented).toBe(false);
+
+    const sidebarWheel = new Event("wheel", { bubbles: true, cancelable: true });
+    fireEvent(sidebarContent, sidebarWheel);
+    expect(sidebarWheel.defaultPrevented).toBe(false);
+
+    const mobileInnerTouchMove = new Event("touchmove", { bubbles: true, cancelable: true });
+    fireEvent(nestedMobileInnerRegion, mobileInnerTouchMove);
+    expect(mobileInnerTouchMove.defaultPrevented).toBe(false);
   });
 });

@@ -48,6 +48,7 @@ vi.mock("next/headers", () => ({
 }));
 
 vi.mock("@/lib/auth/session", () => ({
+  getRequestSession: vi.fn().mockResolvedValue(MOCK_SESSION),
   getSession: vi.fn().mockResolvedValue(MOCK_SESSION),
 }));
 

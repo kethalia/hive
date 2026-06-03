@@ -1,12 +1,10 @@
-import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
-import { getSession } from "@/lib/auth/session";
+import { getRequestSession } from "@/lib/auth/session";
 import { compareTemplates, KNOWN_TEMPLATES } from "@/lib/templates/staleness";
 
 export async function GET() {
   try {
-    const cookieStore = await cookies();
-    const session = await getSession(cookieStore);
+    const session = await getRequestSession();
     if (!session) {
       return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
     }

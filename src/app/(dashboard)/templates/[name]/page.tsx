@@ -1,7 +1,6 @@
-import { cookies } from "next/headers";
 import { notFound, redirect } from "next/navigation";
 import { TemplateDetailClient } from "@/components/templates/TemplateDetailClient";
-import { getSession } from "@/lib/auth/session";
+import { getRequestSession } from "@/lib/auth/session";
 import { compareTemplates, KNOWN_TEMPLATES } from "@/lib/templates/staleness";
 
 interface Props {
@@ -10,8 +9,7 @@ interface Props {
 
 export default async function TemplateDetailPage({ params }: Props) {
   const { name } = await params;
-  const cookieStore = await cookies();
-  const session = await getSession(cookieStore);
+  const session = await getRequestSession();
   if (!session) {
     redirect("/login");
   }

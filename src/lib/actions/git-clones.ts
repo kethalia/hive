@@ -21,6 +21,10 @@ import {
   type CloneTreeSkippedPathReason,
   createSafeCloneTerminalSessionName,
 } from "@/lib/git/clone-tree";
+import {
+  isExpectedCloneSessionKey,
+  isSafeCloneRelativePath,
+} from "@/lib/git/clone-public-identifiers";
 import { authActionClient } from "@/lib/safe-action";
 import { execInWorkspace } from "@/lib/workspace/exec";
 
@@ -335,33 +339,6 @@ function findRepositoryNode(
   }
 
   return null;
-}
-
-function isExpectedCloneSessionKey(value: string): boolean {
-  const trimmedValue = value.trim();
-  if (!trimmedValue.startsWith("git-clone:")) {
-    return false;
-  }
-
-  return isSafeSlashDelimitedPath(trimmedValue.slice("git-clone:".length));
-}
-
-function isSafeCloneRelativePath(value: string): boolean {
-  return isSafeSlashDelimitedPath(value.trim());
-}
-
-function isSafeSlashDelimitedPath(value: string): boolean {
-  if (
-    !value ||
-    value === "." ||
-    value.startsWith("/") ||
-    value.includes("\\") ||
-    value.includes("\0")
-  ) {
-    return false;
-  }
-
-  return value.split("/").every((segment) => segment && segment !== "." && segment !== "..");
 }
 
 function getRootSkippedReason(

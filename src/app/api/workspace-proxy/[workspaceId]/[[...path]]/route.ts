@@ -117,7 +117,7 @@ async function proxyRequest(
     return NextResponse.json({ error: "Invalid workspace ID" }, { status: 400 });
   }
 
-  const session = await getSession(await cookies());
+  const session = await getSession(await cookies(), req.headers.get("cookie"));
   if (!session) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }

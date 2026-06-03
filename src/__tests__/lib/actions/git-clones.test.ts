@@ -5,6 +5,7 @@ vi.mock("next/headers", () => ({
 }));
 
 vi.mock("@/lib/auth/session", () => ({
+  getRequestSession: vi.fn(),
   getSession: vi.fn(),
 }));
 
@@ -19,7 +20,7 @@ vi.mock("@/lib/workspace/exec", () => ({
 import { verifyCloneTerminalProof } from "@hive/auth";
 import { cookies } from "next/headers";
 import { listGitClonesAction, resolveGitCloneTerminalAction } from "@/lib/actions/git-clones";
-import { getSession } from "@/lib/auth/session";
+import { getRequestSession, getSession } from "@/lib/auth/session";
 import { getCoderClientForUser } from "@/lib/coder/user-client";
 import { SAFE_IDENTIFIER_RE } from "@/lib/constants";
 import {
@@ -31,6 +32,7 @@ import { CLONE_TERMINAL_SESSION_PREFIX, type CloneTreeNode } from "@/lib/git/clo
 import { execInWorkspace } from "@/lib/workspace/exec";
 
 const mockedCookies = vi.mocked(cookies);
+const mockedGetRequestSession = vi.mocked(getRequestSession);
 const mockedGetSession = vi.mocked(getSession);
 const mockedGetCoderClientForUser = vi.mocked(getCoderClientForUser);
 const mockedExecInWorkspace = vi.mocked(execInWorkspace);
@@ -101,6 +103,7 @@ describe("listGitClonesAction", () => {
     mockedCookies.mockResolvedValue({
       get: () => ({ value: "session-cookie-value" }),
     } as never);
+    mockedGetRequestSession.mockResolvedValue(MOCK_SESSION);
     mockedGetSession.mockResolvedValue(MOCK_SESSION);
     mockedGetCoderClientForUser.mockResolvedValue(makeCoderClient() as never);
     mockedExecInWorkspace.mockResolvedValue({
@@ -247,6 +250,7 @@ describe("listGitClonesAction", () => {
   });
 
   it("requires authentication before invoking the scanner", async () => {
+    mockedGetRequestSession.mockResolvedValueOnce(null);
     mockedGetSession.mockResolvedValueOnce(null);
 
     const result = await listGitClonesAction({ workspaceId: WORKSPACE_ID });
@@ -268,6 +272,7 @@ describe("resolveGitCloneTerminalAction", () => {
     mockedCookies.mockResolvedValue({
       get: () => ({ value: "session-cookie-value" }),
     } as never);
+    mockedGetRequestSession.mockResolvedValue(MOCK_SESSION);
     mockedGetSession.mockResolvedValue(MOCK_SESSION);
     mockedGetCoderClientForUser.mockResolvedValue(makeCoderClient() as never);
     mockedExecInWorkspace.mockResolvedValue({
@@ -467,6 +472,7 @@ describe("resolveGitCloneTerminalAction", () => {
   });
 
   it("requires authentication before resolving or scanning clone terminals", async () => {
+    mockedGetRequestSession.mockResolvedValueOnce(null);
     mockedGetSession.mockResolvedValueOnce(null);
 
     const result = await resolveGitCloneTerminalAction({

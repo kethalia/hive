@@ -20,12 +20,27 @@ interface MobileTerminalShellProps {
   isKeyboardVisible: boolean;
 }
 
+const SIDEBAR_SCROLL_ALLOW_SELECTOR = [
+  '[data-sidebar="sidebar"]',
+  '[data-sidebar="content"]',
+  '[data-slot="sidebar-mobile-inner"]',
+  '[data-slot="sidebar-content"]',
+].join(", ");
+
+function isSidebarScrollTarget(target: EventTarget | null): boolean {
+  if (!(target instanceof Element)) return false;
+
+  return target.closest(SIDEBAR_SCROLL_ALLOW_SELECTOR) !== null;
+}
+
 function useMobileTerminalViewportLock(isKeyboardVisible: boolean) {
   useLayoutEffect(() => {
     if (typeof document === "undefined") return;
 
     const snapshot = applyMobileViewportLock(document, isKeyboardVisible);
     const blockPageScroll = (event: Event) => {
+      if (isSidebarScrollTarget(event.target)) return;
+
       event.preventDefault();
     };
     document.addEventListener("touchmove", blockPageScroll, { capture: true, passive: false });

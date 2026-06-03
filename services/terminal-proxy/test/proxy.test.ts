@@ -18,21 +18,44 @@ vi.mock("../src/auth.js", () => ({
   authenticateUpgrade: vi.fn(() => Promise.resolve(mockAuthResult)),
 }));
 
-vi.mock("ws", () => {
-  const mockWsInstance = {
+type MockWebSocket = {
+  on: ReturnType<typeof vi.fn>;
+  send: ReturnType<typeof vi.fn>;
+  close: ReturnType<typeof vi.fn>;
+  ping: ReturnType<typeof vi.fn>;
+  readyState: number;
+};
+
+const wsMockState = vi.hoisted(() => {
+  const createSocket = (): MockWebSocket => ({
     on: vi.fn(),
     send: vi.fn(),
     close: vi.fn(),
     ping: vi.fn(),
     readyState: 1,
+  });
+
+  return {
+    browserSockets: [] as MockWebSocket[],
+    upstreamSockets: [] as MockWebSocket[],
+    createSocket,
   };
-  const WebSocket = vi.fn(() => mockWsInstance);
+});
+
+vi.mock("ws", () => {
+  const WebSocket = vi.fn(() => {
+    const upstreamSocket = wsMockState.createSocket();
+    wsMockState.upstreamSockets.push(upstreamSocket);
+    return upstreamSocket;
+  });
   Object.assign(WebSocket, { OPEN: 1, CONNECTING: 0, CLOSING: 2, CLOSED: 3 });
 
   const mockWss = {
     handleUpgrade: vi.fn(
       (_req: unknown, _socket: unknown, _head: unknown, cb: (ws: unknown) => void) => {
-        cb(mockWsInstance);
+        const browserSocket = wsMockState.createSocket();
+        wsMockState.browserSockets.push(browserSocket);
+        cb(browserSocket);
       },
     ),
     emit: vi.fn(),
@@ -163,6 +186,8 @@ describe("handleUpgrade", () => {
       COOKIE_SECRET: CLONE_PROOF_SECRET,
     };
     vi.clearAllMocks();
+    wsMockState.browserSockets.length = 0;
+    wsMockState.upstreamSockets.length = 0;
     mockAuth.mockResolvedValue(mockAuthResult);
   });
 
@@ -261,6 +286,55 @@ describe("handleUpgrade", () => {
     expect(url).toContain(validParams.agentId);
     expect(url).toContain("/pty?");
     expect(opts.headers["Coder-Session-Token"]).toBe("per-user-token");
+  });
+
+  it("forwards browser resize frames unchanged to open upstream websocket", async () => {
+    const resizeFrame = JSON.stringify({ height: 42, width: 120 });
+    const logSpy = vi.spyOn(console, "log").mockImplementation(() => undefined);
+
+    try {
+      const socket = makeSocket();
+      await handleUpgrade(makeReq(validParams), socket, Buffer.alloc(0));
+
+      const browserWs = wsMockState.browserSockets.at(-1);
+      const upstreamWs = wsMockState.upstreamSockets.at(-1);
+      expect(browserWs).toBeDefined();
+      expect(upstreamWs).toBeDefined();
+      expect(browserWs).not.toBe(upstreamWs);
+
+      const browserMessageHandler = browserWs?.on.mock.calls.find(
+        ([event]) => event === "message",
+      )?.[1];
+      expect(browserMessageHandler).toBeTypeOf("function");
+
+      browserMessageHandler?.(resizeFrame);
+
+      expect(upstreamWs?.send).toHaveBeenCalledWith(resizeFrame);
+      expect(logSpy.mock.calls.flat().join("\n")).not.toContain(resizeFrame);
+    } finally {
+      logSpy.mockRestore();
+    }
+  });
+
+  it("does not forward browser messages when upstream websocket is closed", async () => {
+    const resizeFrame = JSON.stringify({ height: 43, width: 121 });
+    const socket = makeSocket();
+    await handleUpgrade(makeReq(validParams), socket, Buffer.alloc(0));
+
+    const browserWs = wsMockState.browserSockets.at(-1);
+    const upstreamWs = wsMockState.upstreamSockets.at(-1);
+    expect(browserWs).toBeDefined();
+    expect(upstreamWs).toBeDefined();
+
+    if (upstreamWs) upstreamWs.readyState = WebSocket.CLOSED;
+    const browserMessageHandler = browserWs?.on.mock.calls.find(
+      ([event]) => event === "message",
+    )?.[1];
+    expect(browserMessageHandler).toBeTypeOf("function");
+
+    browserMessageHandler?.(resizeFrame);
+
+    expect(upstreamWs?.send).not.toHaveBeenCalled();
   });
 
   it("opens clone sessions with cwd resolved under the default home root", async () => {
@@ -369,7 +443,9 @@ describe("handleUpgrade", () => {
 
   it("rejects tampered clone proofs before auth", async () => {
     const validProof = createCloneProof("kethalia/hive");
-    const tamperedProof = `${validProof.slice(0, -1)}${validProof.endsWith("A") ? "B" : "A"}`;
+    const [payload, signature] = validProof.split(".");
+    const tamperedSignature = `${signature.startsWith("A") ? "B" : "A"}${signature.slice(1)}`;
+    const tamperedProof = `${payload}.${tamperedSignature}`;
 
     const logged = await captureConsoleErrors(async () => {
       await expectBadUpgrade({

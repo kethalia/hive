@@ -18,14 +18,16 @@ vi.mock("next/headers", () => ({
 }));
 
 vi.mock("@/lib/auth/session", () => ({
+  getRequestSession: vi.fn(),
   getSession: vi.fn(),
 }));
 
 import { cookies } from "next/headers";
-import { getSession } from "@/lib/auth/session";
+import { getRequestSession, getSession } from "@/lib/auth/session";
 import { getCoderClientForUser } from "@/lib/coder/user-client";
 
 const _mockedGetCoderClientForUser = vi.mocked(getCoderClientForUser);
+const mockedGetRequestSession = vi.mocked(getRequestSession);
 const mockedGetSession = vi.mocked(getSession);
 const mockedCookies = vi.mocked(cookies);
 
@@ -47,6 +49,7 @@ const MOCK_SESSION = {
 describe("workspace actions use authActionClient + getCoderClientForUser", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockedGetRequestSession.mockResolvedValue(MOCK_SESSION);
     mockedGetSession.mockResolvedValue(MOCK_SESSION);
     mockedCookies.mockResolvedValue({
       get: () => ({ value: "session-cookie-value" }),

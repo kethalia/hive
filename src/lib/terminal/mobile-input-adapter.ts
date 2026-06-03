@@ -56,11 +56,29 @@ function applyMobileInputAttributes(helper: HTMLTextAreaElement) {
   helper.spellcheck = false;
 }
 
+function findXtermMobileHelper(
+  root: ParentNode | null,
+  selector = XTERM_HELPER_TEXTAREA_SELECTOR,
+): HTMLTextAreaElement | null {
+  return root?.querySelector<HTMLTextAreaElement>(selector) ?? null;
+}
+
+export function blurXtermMobileInput(
+  root: ParentNode | null,
+  selector = XTERM_HELPER_TEXTAREA_SELECTOR,
+): boolean {
+  const helper = findXtermMobileHelper(root, selector);
+  if (!helper) return false;
+
+  helper.blur();
+  return true;
+}
+
 export function configureXtermMobileInput(
   root: ParentNode | null,
   selector = XTERM_HELPER_TEXTAREA_SELECTOR,
 ): MobileInputAdapterCleanup {
-  const helper = root?.querySelector<HTMLTextAreaElement>(selector) ?? null;
+  const helper = findXtermMobileHelper(root, selector);
   if (!helper) {
     return { applied: false, dispose: () => {}, helper: null };
   }

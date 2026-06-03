@@ -11,10 +11,15 @@ const mockCookieStore = vi.hoisted(() => ({
   get: vi.fn(),
 }));
 
+const mockHeaderStore = vi.hoisted(() => ({
+  get: vi.fn(),
+}));
+
 const mockCheckRateLimit = vi.hoisted(() => vi.fn());
 
 vi.mock("next/headers", () => ({
   cookies: vi.fn(() => mockCookieStore),
+  headers: vi.fn(() => mockHeaderStore),
 }));
 
 vi.mock("@/lib/auth/service-client", () => ({

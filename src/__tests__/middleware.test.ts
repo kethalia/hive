@@ -38,4 +38,50 @@ describe("middleware", () => {
 
     vi.unstubAllEnvs();
   });
+
+  it("accepts a valid scoped cookie when a stale parent-domain cookie with the same name is last", () => {
+    vi.stubEnv("COOKIE_SECRET", "preview-secret");
+    vi.stubEnv("COOKIE_DOMAIN", ".pr-101.hive.local.kethalia.com");
+    mockVerifyCookie.mockImplementation((value) =>
+      value === "preview-cookie" ? { sessionId: "sess-preview", timestamp: Date.now() } : null,
+    );
+
+    const request = new NextRequest("https://pr-101.hive.local.kethalia.com/tasks", {
+      headers: {
+        cookie: "hive-session=preview-cookie; hive-session=prod-cookie",
+      },
+    });
+
+    const response = middleware(request);
+    const setCookie = response.headers.get("set-cookie");
+
+    expect(response.headers.get("location")).toBeNull();
+    expect(mockVerifyCookie).toHaveBeenCalledWith("preview-cookie", "preview-secret");
+    expect(setCookie).toContain("hive-session=preview-cookie");
+    expect(setCookie).toContain("Domain=.pr-101.hive.local.kethalia.com");
+  });
+
+  it("refreshes the newest verified duplicate session cookie deterministically", () => {
+    vi.stubEnv("COOKIE_SECRET", "preview-secret");
+    vi.stubEnv("COOKIE_DOMAIN", ".pr-101.hive.local.kethalia.com");
+    const now = Date.now();
+    mockVerifyCookie.mockImplementation((value) => {
+      if (value === "older-cookie") return { sessionId: "sess-older", timestamp: now - 1000 };
+      if (value === "newer-cookie") return { sessionId: "sess-newer", timestamp: now };
+      return null;
+    });
+
+    const request = new NextRequest("https://pr-101.hive.local.kethalia.com/tasks", {
+      headers: {
+        cookie: "hive-session=older-cookie; hive-session=newer-cookie",
+      },
+    });
+
+    const response = middleware(request);
+    const setCookie = response.headers.get("set-cookie");
+
+    expect(response.headers.get("location")).toBeNull();
+    expect(setCookie).toContain("hive-session=newer-cookie");
+    expect(setCookie).not.toContain("hive-session=older-cookie");
+  });
 });
