@@ -336,10 +336,12 @@ describe("MultiSessionWorkspace", () => {
       expect(screen.getByTestId("active-pane-label")).toHaveTextContent("dev-server");
     });
 
-    expect(screen.getByTestId("workspace-pane-dev-server")).toHaveAttribute(
-      "data-pane-mode",
-      "floating",
-    );
+    await waitFor(() => {
+      expect(screen.getByTestId("workspace-pane-dev-server")).toHaveAttribute(
+        "data-pane-mode",
+        "floating",
+      );
+    });
     expect(screen.getByTestId("workspace-pane-new-session")).toHaveAttribute(
       "data-pane-mode",
       "tiled",

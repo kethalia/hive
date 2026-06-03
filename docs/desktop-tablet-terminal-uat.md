@@ -8,12 +8,12 @@ This document is the S06 evidence contract. It may start in a pre-UAT state. It 
 
 ## Evidence status
 
-- **Overall S06 evidence status:** `blocked - local app shell and terminal proxy health were reachable, but no signed-in app session was available for terminal route UAT`
-- **Automated regression baseline status:** `pending - final task verification records command name, exit code, duration, and pass/fail result`
-- **Browser viewport matrix status:** `blocked - desktop, laptop, and tablet browser navigations reached the auth gate before terminal route mount`
+- **Overall S06 evidence status:** `blocked - local app shell was reachable, but no signed-in app session was available for terminal or workspace route UAT`
+- **Automated regression baseline status:** `passed - T04 planned workspace, layout, documentation, and integration regression command exited 0`
+- **Browser viewport matrix status:** `blocked - desktop, laptop, and tablet browser navigations reached the auth gate before terminal or workspace route mount`
 - **Terminal route UAT status:** `blocked - auth gate prevented terminal route control and layout observations`
-- **Multi-session workspace UAT status:** `blocked - auth gate prevented workspace route switching and layout observations`
-- **Tablet touch and gesture-cancellation status:** `blocked - auth gate prevented tablet terminal route touch observations`
+- **Multi-session workspace UAT status:** `blocked - T04 desktop, laptop, and tablet workspace route attempts reached auth gate before session switching or layout controls mounted`
+- **Tablet touch and gesture-cancellation status:** `blocked - auth gate prevented tablet terminal and workspace touch observations`
 - **Live tmux/runtime status:** `blocked - signed-in app session was unavailable before live tmux or route WebSocket evidence could be collected`
 - **Blocked operational status:** `blocked - first unavailable link was signed-in app session; workspace runtime and live tmux were not reached`
 - **Redaction status:** `reviewed - categorical blocked evidence only; no sensitive runtime material recorded`
@@ -24,10 +24,10 @@ S06 validates assembled terminal flows across the terminal route and the multi-s
 
 Requirement coverage fields:
 
-- **R027 viewport and layout coverage:** `blocked - desktop, laptop, and tablet route attempts reached auth gate before terminal layout could mount`
+- **R027 viewport and layout coverage:** `blocked - desktop, laptop, and tablet route attempts reached auth gate before terminal or workspace layout could mount`
 - **R028 live terminal runtime coverage:** `blocked - requires live tmux/runtime connection evidence and cannot be inferred from auth-gated browser checks`
-- **R029 multi-session workspace coverage:** `blocked - workspace route UAT reached auth gate before session switching or layout persistence could be observed`
-- **R030 tablet touch coverage:** `blocked - tablet route attempt reached auth gate before touch or gesture-cancellation behavior could be observed`
+- **R029 multi-session workspace coverage:** `blocked - T04 workspace route UAT reached auth gate before session switching or layout persistence could be observed`
+- **R030 tablet touch coverage:** `blocked - tablet route attempts reached auth gate before touch or gesture-cancellation behavior could be observed`
 - **R012 diagnostic and failure-surface coverage:** `partial - redacted app shell, terminal proxy health, auth gate, and blocked-runtime categories recorded`
 - **R013 persistence and continuity coverage:** `blocked - route continuity and layout persistence were not reached because signed-in app session was unavailable`
 - **R024 mobile keyboard evidence:** `deferred - remains out of S06 acceptance unless true physical browser or installed-PWA evidence is later attached`
@@ -39,11 +39,11 @@ Use this section only for automated carry-forward and guard proof. Automated pro
 
 Required fields:
 
-- **Automated command name:** `pending - record the redacted command label only`
-- **Automated command exit code:** `pending`
-- **Automated command duration:** `pending`
-- **Automated verdict:** `pending`
-- **Automated scope accepted:** `pending - automated scope only, never live runtime or physical/PWA scope`
+- **Automated command name:** `pnpm vitest run S06 T04 documentation, workspace component, layout library, and integration regression set`
+- **Automated command exit code:** `0`
+- **Automated command duration:** `3223 ms pre-edit baseline; final duration recorded in T04 task summary`
+- **Automated verdict:** `passed - automated regression scope only`
+- **Automated scope accepted:** `automated documentation guard, workspace component behavior, metadata-only layout persistence, and integration regression scope only; never live runtime or physical/PWA scope`
 - **Automated limitations:** `desktop and tablet emulation cannot accept R024, R026, or live R028 behavior`
 
 ## Browser viewport matrix
@@ -109,10 +109,10 @@ Use the workspace route placeholder shape `/workspaces/<workspace-id>/terminal/w
 Required fields:
 
 - **Workspace route shape:** `/workspaces/<workspace-id>/terminal/workspace`
-- **Workspace route load status:** `blocked - route attempt redirected to auth gate before workspace client mounted`
+- **Workspace route load status:** `blocked - T04 desktop, laptop, and tablet route attempts redirected to auth gate before workspace client mounted`
 - **Session switching status:** `blocked - session list and switching controls not mounted`
-- **Workspace control reachability:** `blocked - workspace controls not mounted`
-- **Workspace layout persistence observation:** `blocked - workspace layout persistence not reached`
+- **Workspace control reachability:** `blocked - workspace controls not mounted; auth form controls were visible instead`
+- **Workspace layout persistence observation:** `blocked - workspace layout persistence not reached; automated guard covers metadata-only persistence shape only`
 - **Workspace route regression result:** `blocked - requires signed-in app session to exercise workspace behavior`
 
 ## Tablet touch and gesture-cancellation evidence
@@ -176,8 +176,8 @@ If a copied diagnostic snapshot contains prohibited material, stop the run and r
 
 ## Evidence attachments checklist
 
-- [ ] Automated carry-forward regression command row with exit code, duration, and verdict.
-- [ ] Documentation guard command row with exit code, duration, and verdict.
+- [x] Automated carry-forward regression command row with exit code, duration, and verdict.
+- [x] Documentation guard command row with exit code, duration, and verdict.
 - [x] Desktop terminal route observation with redacted control and layout status.
 - [x] Desktop multi-session workspace observation with redacted switching and layout status.
 - [x] Laptop terminal route observation with redacted control and layout status.
