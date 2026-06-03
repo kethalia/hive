@@ -34,7 +34,7 @@ vi.mock("@/components/ui/sidebar", async () => {
     children,
     disabled,
     render,
-    isActive: _isActive,
+    isActive,
     ...rest
   }: React.PropsWithChildren<{
     disabled?: boolean;
@@ -42,11 +42,12 @@ vi.mock("@/components/ui/sidebar", async () => {
     isActive?: boolean;
     className?: string;
   }>) => {
+    const activeProps = { ...rest, "data-active": isActive ? "true" : "false" };
     if (render) {
-      return React.cloneElement(render, rest, children);
+      return React.cloneElement(render, activeProps, children);
     }
     return (
-      <button disabled={disabled} {...rest}>
+      <button disabled={disabled} {...activeProps}>
         {children}
       </button>
     );
@@ -1626,6 +1627,73 @@ describe("AppSidebar", () => {
     );
 
     openSpy.mockRestore();
+  });
+
+  it("renders a multi-session workspace link without replacing single-session terminal rows", async () => {
+    await expandWorkspaceAndTerminalSessions();
+
+    const workspaceLink = screen.getByTestId("multi-session-workspace-link-ws-1");
+    expect(workspaceLink).toHaveAttribute("href", "/workspaces/ws-1/terminal/workspace");
+    expect(workspaceLink).toHaveTextContent("Multi-session workspace");
+    expect(workspaceLink).toHaveAttribute("data-active", "false");
+
+    const sessionLink = screen.getByText("dev").closest("a");
+    expect(sessionLink).toHaveAttribute("href", "/workspaces/ws-1/terminal?session=dev");
+    expect(screen.getByTestId("create-session-ws-1")).toBeInTheDocument();
+  });
+
+  it("marks only the multi-session workspace link active on the workspace route", async () => {
+    mockNavigationState.pathname = "/workspaces/ws-1/terminal/workspace";
+
+    render(<AppSidebar />);
+
+    const workspaceLink = await screen.findByTestId("multi-session-workspace-link-ws-1");
+    expect(workspaceLink).toHaveAttribute("href", "/workspaces/ws-1/terminal/workspace");
+    expect(workspaceLink).toHaveAttribute("data-active", "true");
+
+    await waitFor(() => {
+      expect(screen.getByText("dev")).toBeInTheDocument();
+    });
+    expect(screen.getByText("dev").closest("a")).toHaveAttribute("data-active", "false");
+  });
+
+  it("keeps the multi-session workspace link reachable when session loading fails", async () => {
+    mockGetWorkspaceSessions.mockResolvedValue({
+      serverError: "Session fetch failed",
+    });
+
+    render(<AppSidebar />);
+
+    await screen.findByText("dev-box");
+    const wsTrigger = screen.getByText("dev-box").closest("[data-testid='collapsible-trigger']");
+    expect(wsTrigger).not.toBeNull();
+    fireEvent.click(wsTrigger!);
+
+    const terminalSection = await screen.findByTestId("terminal-section-ws-1");
+    const terminalTrigger = terminalSection.querySelector("[data-testid='collapsible-trigger']");
+    expect(terminalTrigger).not.toBeNull();
+    fireEvent.click(terminalTrigger!);
+
+    expect(screen.getByTestId("multi-session-workspace-link-ws-1")).toHaveAttribute(
+      "href",
+      "/workspaces/ws-1/terminal/workspace",
+    );
+    await waitFor(() => {
+      expect(screen.getByText("Session fetch failed")).toBeInTheDocument();
+    });
+  });
+
+  it("does not mark clone terminal URLs as active workspace links or create reserved clone sessions", async () => {
+    mockNavigationState.pathname = "/workspaces/ws-1/terminal";
+    mockNavigationState.searchParams =
+      "session=git-clone-safe-hive&clonePath=kethalia%2Fhive&cloneProof=proof-token";
+
+    render(<AppSidebar />);
+
+    const workspaceLink = await screen.findByTestId("multi-session-workspace-link-ws-1");
+    expect(workspaceLink).toHaveAttribute("data-active", "false");
+    expect(workspaceLink).toHaveAttribute("href", "/workspaces/ws-1/terminal/workspace");
+    expect(mockCreateSession).not.toHaveBeenCalled();
   });
 
   it("create session button calls createSessionAction and navigates", async () => {

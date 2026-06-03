@@ -1504,6 +1504,8 @@ export function AppSidebar() {
                       };
                       const gitTerminalError = workspaceGitTerminalErrors[ws.id];
                       const isExpanded = expandedWorkspaces[ws.id] ?? false;
+                      const encodedWorkspaceId = encodeURIComponent(ws.id);
+                      const multiSessionWorkspaceHref = `/workspaces/${encodedWorkspaceId}/terminal/workspace`;
                       return (
                         <Collapsible
                           key={ws.id}
@@ -1643,6 +1645,16 @@ export function AppSidebar() {
                                         </Alert>
                                       )}
                                       <SidebarMenuSub className="!mr-0 !pr-0">
+                                        <SidebarMenuSubItem>
+                                          <SidebarMenuSubButton
+                                            render={<Link href={multiSessionWorkspaceHref} />}
+                                            isActive={pathname === multiSessionWorkspaceHref}
+                                            data-testid={`multi-session-workspace-link-${ws.id}`}
+                                          >
+                                            <Monitor className="h-3 w-3 shrink-0" />
+                                            <span>Multi-session workspace</span>
+                                          </SidebarMenuSubButton>
+                                        </SidebarMenuSubItem>
                                         <SidebarMenuSubItem>
                                           {!sessions || sessions.isLoading ? (
                                             <SidebarMenuSubButton

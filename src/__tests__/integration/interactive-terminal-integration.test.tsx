@@ -28,6 +28,10 @@ const { mockUseTerminalWebSocket, mockFit, mockSend, mockResize, terminalInstanc
   }),
 );
 
+const multiSessionRouteMockState = vi.hoisted(() => ({
+  props: null as null | { agentId: string; className?: string; workspaceId: string },
+}));
+
 const {
   mockCopyTerminalSelection,
   mockCreateSessionAction,
@@ -191,6 +195,20 @@ vi.mock("next/dynamic", () => ({
 vi.mock("next/navigation", () => ({
   useRouter: () => navigationState.router,
   useSearchParams: () => new URLSearchParams(navigationState.search),
+}));
+
+vi.mock("@/components/workspaces/MultiSessionWorkspace", () => ({
+  MultiSessionWorkspace: (props: { agentId: string; className?: string; workspaceId: string }) => {
+    multiSessionRouteMockState.props = props;
+    return (
+      <section
+        data-agent-id={props.agentId}
+        data-class-name={props.className ?? ""}
+        data-testid="multi-session-workspace-route"
+        data-workspace-id={props.workspaceId}
+      />
+    );
+  },
 }));
 
 vi.mock("@/lib/actions/workspaces", () => ({
@@ -594,6 +612,7 @@ beforeEach(() => {
   terminalRouteMockState.commandPaletteProps = null;
   terminalRouteMockState.gestureLayerProps = null;
   terminalRouteMockState.mobileControlsProps = null;
+  multiSessionRouteMockState.props = null;
   mockRegisterKeybinding.mockClear();
   mockUnregisterKeybinding.mockClear();
   mockHandleKeyEvent.mockClear();
@@ -702,6 +721,19 @@ async function renderTerminalPage(search: string) {
   navigationState.search = search;
   const { default: TerminalPage } = await import("@/app/(dashboard)/workspaces/[id]/terminal/page");
   const page = await TerminalPage({ params: Promise.resolve({ id: "test-ws" }) });
+
+  let result: ReturnType<typeof render>;
+  await act(async () => {
+    result = render(page);
+  });
+  return result!;
+}
+
+async function renderWorkspaceTerminalPage() {
+  const { default: WorkspaceTerminalPage } = await import(
+    "@/app/(dashboard)/workspaces/[id]/terminal/workspace/page"
+  );
+  const page = await WorkspaceTerminalPage({ params: Promise.resolve({ id: "test-ws" }) });
 
   let result: ReturnType<typeof render>;
   await act(async () => {
@@ -955,6 +987,51 @@ describe("InteractiveTerminal integration — Session lifecycle", () => {
       rows: 31,
       cols: 101,
     });
+    unmount();
+  });
+});
+
+describe("WorkspaceTerminalPage integration — Multi-session route", () => {
+  it("renders the multi-session workspace with the authenticated agent boundary", async () => {
+    mockGetWorkspaceAgentAction.mockResolvedValueOnce({
+      data: { agentId: "workspace-agent", agentName: "Workspace Agent" },
+    });
+
+    const { getByTestId, unmount } = await renderWorkspaceTerminalPage();
+
+    expect(mockGetWorkspaceAgentAction).toHaveBeenCalledWith({ workspaceId: "test-ws" });
+    expect(mockGetWorkspaceAgentAction).toHaveBeenCalledTimes(1);
+    expect(mockGetTerminalSettingsAction).not.toHaveBeenCalled();
+    expect(mockGetWorkspaceSessionsAction).not.toHaveBeenCalled();
+    expect(getByTestId("multi-session-workspace-route")).toHaveAttribute(
+      "data-agent-id",
+      "workspace-agent",
+    );
+    expect(getByTestId("multi-session-workspace-route")).toHaveAttribute(
+      "data-workspace-id",
+      "test-ws",
+    );
+    expect(getByTestId("multi-session-workspace-route").getAttribute("data-class-name")).toContain(
+      "h-[calc(var(--app-viewport-height)",
+    );
+    expect(multiSessionRouteMockState.props).toMatchObject({
+      agentId: "workspace-agent",
+      workspaceId: "test-ws",
+    });
+    unmount();
+  });
+
+  it("reuses the stale-entry alert path when the agent lookup fails", async () => {
+    mockGetWorkspaceAgentAction.mockResolvedValueOnce({
+      serverError: "No agents found for workspace /private/path",
+    });
+
+    const { getByText, queryByTestId, unmount } = await renderWorkspaceTerminalPage();
+
+    expect(mockGetWorkspaceAgentAction).toHaveBeenCalledWith({ workspaceId: "test-ws" });
+    expect(getByText("Could not find a running agent for this workspace.")).toBeInTheDocument();
+    expect(queryByTestId("multi-session-workspace-route")).not.toBeInTheDocument();
+    expect(document.body.innerHTML).not.toContain("/private/path");
     unmount();
   });
 });
