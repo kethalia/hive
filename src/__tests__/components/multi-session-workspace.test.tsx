@@ -87,9 +87,10 @@ vi.mock("@/components/ui/button", () => ({
     children,
     onClick,
     disabled,
+    className,
     ...rest
   }: React.PropsWithChildren<{
-    onClick?: () => void;
+    onClick?: (event: React.MouseEvent<HTMLButtonElement>) => void;
     disabled?: boolean;
     className?: string;
     variant?: string;
@@ -101,6 +102,7 @@ vi.mock("@/components/ui/button", () => ({
       type="button"
       onClick={onClick}
       disabled={disabled}
+      className={className}
       data-testid={rest["data-testid"]}
       aria-label={rest["aria-label"]}
     >
@@ -154,10 +156,12 @@ describe("MultiSessionWorkspace", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     terminalProps.clear();
+    window.localStorage.clear();
   });
 
   afterEach(() => {
     cleanup();
+    vi.restoreAllMocks();
   });
 
   it("renders two or more real panes with InteractiveTerminal props and active diagnostics", async () => {
@@ -185,6 +189,190 @@ describe("MultiSessionWorkspace", () => {
     expect(screen.getByTestId("active-pane-label")).toHaveTextContent("main-session");
     expect(terminalProps.get("main-session")?.sessionName).toBe("main-session");
     expect(terminalProps.get("dev-server")?.sessionName).toBe("dev-server");
+  });
+
+  it("floats and tiles a pane while persisting only redacted layout metadata", async () => {
+    mockGetSessions.mockResolvedValue({
+      data: [
+        { name: "main-session", created: 1, windows: 1 },
+        { name: "dev-server", created: 2, windows: 1 },
+      ],
+    });
+
+    render(<MultiSessionWorkspace {...defaultProps} />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("workspace-pane-main-session")).toBeInTheDocument();
+    });
+
+    await act(async () => {
+      fireEvent.click(screen.getByTestId("float-pane-pane-main-session"));
+    });
+
+    expect(screen.getByTestId("floating-pane-layer")).toContainElement(
+      screen.getByTestId("workspace-pane-main-session"),
+    );
+    expect(screen.getByTestId("tile-pane-pane-main-session")).toHaveAccessibleName(
+      "Tile main-session",
+    );
+    expect(localStorage.getItem("multi-session-layout:ws-1")).toMatchInlineSnapshot(
+      `"{"version":1,"activeSessionName":"main-session","panes":[{"sessionName":"main-session","mode":"floating","order":0,"geometry":{"x":24,"y":24,"width":720,"height":420,"zIndex":100}},{"sessionName":"dev-server","mode":"tiled","order":1}]}"`,
+    );
+    expect(localStorage.getItem("multi-session-layout:ws-1")).not.toMatch(
+      /clipboard|terminalBuffer|selection|secret|cwd/i,
+    );
+
+    await act(async () => {
+      fireEvent.click(screen.getByTestId("tile-pane-pane-main-session"));
+    });
+
+    expect(screen.getByTestId("multi-session-grid")).toContainElement(
+      screen.getByTestId("workspace-pane-main-session"),
+    );
+    expect(localStorage.getItem("multi-session-layout:ws-1")).toContain(
+      '"sessionName":"main-session","mode":"tiled"',
+    );
+  });
+
+  it("restores, repairs, and redacts stale or out-of-bounds stored layouts", async () => {
+    window.localStorage.setItem(
+      "multi-session-layout:ws-1",
+      JSON.stringify({
+        version: 1,
+        activeSessionName: "dev-server",
+        panes: [
+          {
+            sessionName: "stale-secret-session",
+            mode: "floating",
+            geometry: { x: 1, y: 1, width: 400, height: 300, zIndex: 120 },
+            terminalBuffer: "do-not-render",
+          },
+          {
+            sessionName: "dev-server",
+            mode: "floating",
+            geometry: { x: -999, y: -999, width: 10, height: 9999, zIndex: -1 },
+            clipboard: "secret clipboard",
+          },
+        ],
+      }),
+    );
+    mockGetSessions.mockResolvedValue({
+      data: [
+        { name: "main-session", created: 1, windows: 1 },
+        { name: "dev-server", created: 2, windows: 1 },
+        { name: "new-session", created: 3, windows: 1 },
+      ],
+    });
+
+    render(<MultiSessionWorkspace {...defaultProps} />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("active-pane-label")).toHaveTextContent("dev-server");
+    });
+
+    expect(screen.getByTestId("workspace-pane-dev-server")).toHaveAttribute(
+      "data-pane-mode",
+      "floating",
+    );
+    expect(screen.getByTestId("workspace-pane-new-session")).toHaveAttribute(
+      "data-pane-mode",
+      "tiled",
+    );
+    expect(screen.getByTestId("layout-persistence-status")).toHaveAttribute(
+      "data-layout-codes",
+      expect.stringContaining("stale-pane-dropped"),
+    );
+    expect(screen.getByTestId("layout-persistence-status")).toHaveAttribute(
+      "data-layout-codes",
+      expect.stringContaining("pane-geometry-repaired"),
+    );
+    expect(
+      screen.queryByText(/stale-secret-session|secret clipboard|do-not-render/i),
+    ).not.toBeInTheDocument();
+  });
+
+  it("recovers from corrupt layout storage and reset clears the stored layout", async () => {
+    window.localStorage.setItem("multi-session-layout:ws-1", "{not-json with secret path /tmp/x");
+    mockGetSessions.mockResolvedValue({
+      data: [
+        { name: "main-session", created: 1, windows: 1 },
+        { name: "dev-server", created: 2, windows: 1 },
+      ],
+    });
+
+    render(<MultiSessionWorkspace {...defaultProps} />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("layout-persistence-status")).toHaveTextContent(
+        "Stored pane layout could not be read.",
+      );
+    });
+
+    expect(screen.getByTestId("workspace-pane-main-session")).toHaveAttribute(
+      "data-pane-mode",
+      "tiled",
+    );
+    expect(screen.getByTestId("interactive-terminal-main-session")).toBeInTheDocument();
+    expect(screen.queryByText(/secret path|not-json/i)).not.toBeInTheDocument();
+
+    await act(async () => {
+      fireEvent.click(screen.getByTestId("reset-layout"));
+    });
+
+    expect(window.localStorage.getItem("multi-session-layout:ws-1")).toBeNull();
+    expect(screen.queryByTestId("layout-persistence-status")).not.toBeInTheDocument();
+    expect(screen.getByTestId("workspace-pane-dev-server")).toHaveAttribute(
+      "data-pane-mode",
+      "tiled",
+    );
+  });
+
+  it("keeps panes mounted and redacts diagnostics when layout storage is unavailable", async () => {
+    vi.spyOn(Storage.prototype, "getItem").mockImplementation(() => {
+      throw new Error("denied secret path");
+    });
+    mockGetSessions.mockResolvedValue({ data: [{ name: "main-session", created: 1, windows: 1 }] });
+
+    render(<MultiSessionWorkspace {...defaultProps} />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("layout-persistence-status")).toHaveTextContent(
+        "Layout persistence is unavailable.",
+      );
+    });
+
+    expect(screen.getByTestId("interactive-terminal-main-session")).toBeInTheDocument();
+    expect(screen.queryByText(/denied secret path/i)).not.toBeInTheDocument();
+  });
+
+  it("keeps committed layout changes in view when localStorage writes fail", async () => {
+    mockGetSessions.mockResolvedValue({ data: [{ name: "main-session", created: 1, windows: 1 }] });
+    const setSpy = vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
+      throw new Error("disk full with secret");
+    });
+
+    render(<MultiSessionWorkspace {...defaultProps} />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("workspace-pane-main-session")).toBeInTheDocument();
+    });
+
+    await act(async () => {
+      fireEvent.click(screen.getByTestId("float-pane-pane-main-session"));
+    });
+
+    expect(setSpy).toHaveBeenCalledWith(
+      "multi-session-layout:ws-1",
+      expect.stringContaining('"mode":"floating"'),
+    );
+    expect(screen.getByTestId("workspace-pane-main-session")).toHaveAttribute(
+      "data-pane-mode",
+      "floating",
+    );
+    expect(screen.getByTestId("layout-persistence-status")).toHaveTextContent(
+      "could not be saved locally",
+    );
+    expect(screen.queryByText(/disk full|secret/i)).not.toBeInTheDocument();
   });
 
   it("creates, appends, and selects a new session from the accessible create control", async () => {

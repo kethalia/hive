@@ -14,7 +14,18 @@ import {
   pasteToTerminal,
 } from "@/lib/terminal/actions";
 import { cn } from "@/lib/utils";
-import { computeSmartTiledLayout } from "@/lib/workspaces/tiled-layout";
+import {
+  createCascadedFloatingGeometry,
+  deriveRetiledSessionPaneLayout,
+  type FloatingPaneGeometry,
+  type PersistedSessionPane,
+  resolveSessionPaneLayout,
+  SESSION_PANE_LAYOUT_VERSION,
+  type SessionPane,
+  type SessionPaneContainerRect,
+  type SessionPaneLayout,
+  type SessionPaneLayoutDiagnostic,
+} from "@/lib/workspaces/session-pane-layout";
 
 interface InteractiveTerminalComponentProps {
   agentId: string;
@@ -53,6 +64,11 @@ type SessionLoadResult =
   | { status: "failure" };
 
 type CreateResult = { status: "success"; session: WorkspaceSessionPane } | { status: "failure" };
+
+type LayoutPersistenceNotice = {
+  code: "storage-unavailable" | "storage-write-failed" | "storage-reset-failed";
+  message: string;
+};
 
 function isObjectRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
@@ -123,6 +139,162 @@ function clipboardStatusText(status: ClipboardActionStatus | null): string | nul
   return "Paste fallback was attempted.";
 }
 
+function storageKeyForWorkspace(workspaceId: string): string {
+  return `multi-session-layout:${workspaceId}`;
+}
+
+function readWorkspaceLayoutStorage(storageKey: string): {
+  raw: string | null;
+  notice: LayoutPersistenceNotice | null;
+} {
+  if (typeof window === "undefined") return { raw: null, notice: null };
+
+  try {
+    return { raw: window.localStorage.getItem(storageKey), notice: null };
+  } catch {
+    return {
+      raw: null,
+      notice: {
+        code: "storage-unavailable",
+        message: "Layout persistence is unavailable. Safe tiled layout is active.",
+      },
+    };
+  }
+}
+
+function parsePersistedActiveSessionName(persistedJson: string | null): string | null {
+  if (!persistedJson) return null;
+
+  try {
+    const parsed = JSON.parse(persistedJson) as unknown;
+    if (!isObjectRecord(parsed)) return null;
+    return normalizeSessionName(parsed.activeSessionName);
+  } catch {
+    return null;
+  }
+}
+
+function readElementContainerRect(element: HTMLElement | null): SessionPaneContainerRect | null {
+  if (!element) return null;
+
+  const rect = element.getBoundingClientRect();
+  const width = rect.width || element.clientWidth || window.innerWidth;
+  const height = rect.height || element.clientHeight || window.innerHeight;
+
+  if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) {
+    return null;
+  }
+
+  return { width, height };
+}
+
+function sameContainerRect(
+  left: SessionPaneContainerRect | null,
+  right: SessionPaneContainerRect | null,
+): boolean {
+  return (
+    (left?.width ?? null) === (right?.width ?? null) &&
+    (left?.height ?? null) === (right?.height ?? null)
+  );
+}
+
+function geometryFromFloatingPane(
+  pane: Extract<SessionPane, { mode: "floating" }>,
+): FloatingPaneGeometry {
+  return {
+    x: pane.x,
+    y: pane.y,
+    width: pane.width,
+    height: pane.height,
+    zIndex: pane.zIndex,
+  };
+}
+
+function toPersistedPane(
+  pane: SessionPane,
+  override?: { mode: "tiled" } | { mode: "floating"; geometry: FloatingPaneGeometry },
+): PersistedSessionPane {
+  if (override?.mode === "floating") {
+    return {
+      sessionName: pane.sessionName,
+      mode: "floating",
+      order: pane.order,
+      geometry: override.geometry,
+    };
+  }
+
+  if (override?.mode === "tiled") {
+    return {
+      sessionName: pane.sessionName,
+      mode: "tiled",
+      order: pane.order,
+    };
+  }
+
+  if (pane.mode === "floating") {
+    return {
+      sessionName: pane.sessionName,
+      mode: "floating",
+      order: pane.order,
+      geometry: geometryFromFloatingPane(pane),
+    };
+  }
+
+  return {
+    sessionName: pane.sessionName,
+    mode: "tiled",
+    order: pane.order,
+  };
+}
+
+function serializeWorkspacePaneLayout(
+  panes: readonly PersistedSessionPane[],
+  activeSessionName: string | null,
+): string {
+  return JSON.stringify({
+    version: SESSION_PANE_LAYOUT_VERSION,
+    activeSessionName: activeSessionName ?? undefined,
+    panes,
+  });
+}
+
+function serializeResolvedWorkspacePaneLayout(
+  layout: SessionPaneLayout,
+  activeSessionName: string | null,
+): string {
+  return serializeWorkspacePaneLayout(
+    layout.panes.map((pane) => toPersistedPane(pane)),
+    activeSessionName,
+  );
+}
+
+function buildLayoutPersistenceMessage(
+  notice: LayoutPersistenceNotice | null,
+  diagnostics: readonly SessionPaneLayoutDiagnostic[],
+): string | null {
+  if (notice) return notice.message;
+  if (diagnostics.length === 0) return null;
+
+  const codes = new Set(diagnostics.map((diagnostic) => diagnostic.code));
+  if (codes.has("persisted-json-invalid") || codes.has("persisted-layout-malformed")) {
+    return "Stored pane layout could not be read. Safe tiled layout is active; use Reset layout to clear it.";
+  }
+  if (codes.has("persisted-version-unsupported")) {
+    return "Stored pane layout uses an unsupported version. Safe tiled layout is active; use Reset layout to clear it.";
+  }
+  if (codes.has("container-invalid")) {
+    return "Floating pane layout is waiting for a valid workspace size. Safe tiled layout is active.";
+  }
+  if (codes.has("pane-geometry-repaired")) {
+    return "Stored floating pane geometry was repaired to fit this workspace.";
+  }
+  if (codes.has("stale-pane-dropped")) {
+    return "Stored panes for sessions that are no longer open were ignored.";
+  }
+
+  return "Stored pane layout was recovered with safe defaults.";
+}
+
 export function MultiSessionWorkspace({
   agentId,
   workspaceId,
@@ -139,21 +311,39 @@ export function MultiSessionWorkspace({
   const [clipboardActionStatus, setClipboardActionStatus] = useState<ClipboardActionStatus | null>(
     null,
   );
+  const [persistedLayoutJson, setPersistedLayoutJson] = useState<string | null>(null);
+  const [layoutPersistenceNotice, setLayoutPersistenceNotice] =
+    useState<LayoutPersistenceNotice | null>(null);
+  const [containerRect, setContainerRect] = useState<SessionPaneContainerRect | null>(null);
   const terminalsRef = useRef<Map<string, TerminalEntry>>(new Map());
   const activeSessionNameRef = useRef<string | null>(null);
+  const workspaceBodyRef = useRef<HTMLDivElement>(null);
 
   activeSessionNameRef.current = activeSessionName;
 
   const layout = useMemo(
     () =>
-      computeSmartTiledLayout(
-        sessions.map((session) => ({ sessionName: session.sessionName, label: session.label })),
-      ),
-    [sessions],
+      resolveSessionPaneLayout({
+        sessions: sessions.map((session) => ({
+          sessionName: session.sessionName,
+          label: session.label,
+        })),
+        persistedJson: persistedLayoutJson,
+        container: containerRect,
+      }),
+    [containerRect, persistedLayoutJson, sessions],
   );
   const activeEntry = activeSessionName ? terminalsRef.current.get(activeSessionName) : undefined;
   const activeLabel = sessions.find((session) => session.sessionName === activeSessionName)?.label;
   const clipboardMessage = clipboardStatusText(clipboardActionStatus);
+  const layoutPersistenceMessage = buildLayoutPersistenceMessage(
+    layoutPersistenceNotice,
+    layout.diagnostics,
+  );
+  const layoutPersistenceCodes = [
+    ...(layoutPersistenceNotice ? [layoutPersistenceNotice.code] : []),
+    ...layout.diagnostics.map((diagnostic) => diagnostic.code),
+  ].join(" ");
 
   const clearActiveTerminal = useCallback(() => {
     setActiveTerminal(null, null);
@@ -193,15 +383,89 @@ export function MultiSessionWorkspace({
     [clearActiveTerminal],
   );
 
+  const persistLayoutJson = useCallback(
+    (nextLayoutJson: string | null) => {
+      const storageKey = storageKeyForWorkspace(workspaceId);
+      setPersistedLayoutJson(nextLayoutJson);
+
+      if (typeof window === "undefined") return;
+
+      try {
+        if (nextLayoutJson === null) {
+          window.localStorage.removeItem(storageKey);
+        } else {
+          window.localStorage.setItem(storageKey, nextLayoutJson);
+        }
+        setLayoutPersistenceNotice(null);
+      } catch {
+        setLayoutPersistenceNotice({
+          code: nextLayoutJson === null ? "storage-reset-failed" : "storage-write-failed",
+          message:
+            nextLayoutJson === null
+              ? "Layout storage could not be cleared. Safe controls remain available."
+              : "Layout changes are active for this view but could not be saved locally.",
+        });
+      }
+    },
+    [workspaceId],
+  );
+
+  const handleFloatPane = useCallback(
+    (sessionName: string) => {
+      const floatingCount = layout.panes.filter((pane) => pane.mode === "floating").length;
+      const panes = layout.panes.map((pane) => {
+        if (pane.sessionName !== sessionName) return toPersistedPane(pane);
+        const geometry =
+          pane.mode === "floating"
+            ? geometryFromFloatingPane(pane)
+            : createCascadedFloatingGeometry(floatingCount, containerRect);
+        return toPersistedPane(pane, { mode: "floating", geometry });
+      });
+      persistLayoutJson(serializeWorkspacePaneLayout(panes, sessionName));
+      selectSession(sessionName);
+    },
+    [containerRect, layout.panes, persistLayoutJson, selectSession],
+  );
+
+  const handleTilePane = useCallback(
+    (sessionName: string) => {
+      const panes = layout.panes.map((pane) =>
+        pane.sessionName === sessionName
+          ? toPersistedPane(pane, { mode: "tiled" })
+          : toPersistedPane(pane),
+      );
+      persistLayoutJson(serializeWorkspacePaneLayout(panes, sessionName));
+      selectSession(sessionName);
+    },
+    [layout.panes, persistLayoutJson, selectSession],
+  );
+
+  const handleResetLayout = useCallback(() => {
+    persistLayoutJson(null);
+  }, [persistLayoutJson]);
+
+  const handleRetileLayout = useCallback(() => {
+    const retiledLayout = deriveRetiledSessionPaneLayout(layout);
+    persistLayoutJson(
+      serializeResolvedWorkspacePaneLayout(retiledLayout, activeSessionNameRef.current),
+    );
+  }, [layout, persistLayoutJson]);
+
   // biome-ignore lint/correctness/useExhaustiveDependencies: reloadKey is a manual retry trigger for session loading
   useEffect(() => {
     let cancelled = false;
+    const storageKey = storageKeyForWorkspace(workspaceId);
+    const storedLayout = readWorkspaceLayoutStorage(storageKey);
+    const storedActiveSessionName = parsePersistedActiveSessionName(storedLayout.raw);
+
     setLoading(true);
     setLoadFailed(false);
     setCreateFailed(false);
     setClipboardActionStatus(null);
     setSessions([]);
     setActiveSessionName(null);
+    setPersistedLayoutJson(storedLayout.raw);
+    setLayoutPersistenceNotice(storedLayout.notice);
     terminalsRef.current.clear();
     clearActiveTerminal();
 
@@ -213,7 +477,12 @@ export function MultiSessionWorkspace({
         const parsed = parseSessionsResult(result);
         if (parsed.status === "success") {
           setSessions(parsed.sessions);
-          setActiveSessionName(parsed.sessions[0].sessionName);
+          const restoredActiveSession = parsed.sessions.find(
+            (session) => session.sessionName === storedActiveSessionName,
+          );
+          setActiveSessionName(
+            restoredActiveSession?.sessionName ?? parsed.sessions[0].sessionName,
+          );
           return;
         }
 
@@ -239,6 +508,34 @@ export function MultiSessionWorkspace({
       clearActiveTerminal();
     };
   }, [clearActiveTerminal, reloadKey, workspaceId]);
+
+  useEffect(() => {
+    if (loading || sessions.length === 0) return;
+
+    const element = workspaceBodyRef.current;
+    if (!element) return;
+
+    const measure = (nextRect = readElementContainerRect(element)) => {
+      setContainerRect((current) => (sameContainerRect(current, nextRect) ? current : nextRect));
+    };
+
+    measure();
+
+    if (typeof ResizeObserver === "undefined") return;
+
+    const observer = new ResizeObserver((entries) => {
+      const entry = entries[0];
+      if (!entry) {
+        measure();
+        return;
+      }
+      const { width, height } = entry.contentRect;
+      measure(width > 0 && height > 0 ? { width, height } : readElementContainerRect(element));
+    });
+    observer.observe(element);
+
+    return () => observer.disconnect();
+  }, [loading, sessions.length]);
 
   const handleCreateSession = useCallback(async () => {
     setCreating(true);
@@ -278,6 +575,100 @@ export function MultiSessionWorkspace({
     if (!entry) return;
     pasteToTerminal(entry.term, entry.send, { onStatus: setClipboardActionStatus });
   }, []);
+
+  const renderPane = (pane: SessionPane) => {
+    const isActive = pane.sessionName === activeSessionName;
+    const layoutSignal =
+      pane.mode === "floating"
+        ? `${pane.x}:${pane.y}:${pane.width}:${pane.height}:${pane.zIndex}`
+        : `${layout.tiled.rows}:${layout.tiled.columns}:${pane.gridArea}`;
+    const paneStyle =
+      pane.mode === "floating"
+        ? {
+            left: pane.x,
+            top: pane.y,
+            width: pane.width,
+            height: pane.height,
+            zIndex: pane.zIndex,
+          }
+        : { gridArea: pane.gridArea };
+
+    return (
+      // biome-ignore lint/a11y/useSemanticElements: selectable tile wraps a terminal surface, so a native button would be invalid
+      <div
+        key={pane.id}
+        aria-label={`Terminal pane ${pane.label}`}
+        aria-current={isActive ? "true" : undefined}
+        aria-pressed={isActive}
+        role="button"
+        className={cn(
+          "min-h-0 overflow-hidden rounded-xl border bg-black shadow-sm outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring",
+          pane.mode === "floating" ? "absolute" : "",
+          isActive ? "border-primary ring-1 ring-primary" : "border-border",
+        )}
+        data-testid={`workspace-${pane.id}`}
+        data-active={isActive ? "true" : "false"}
+        data-pane-mode={pane.mode}
+        style={paneStyle}
+        tabIndex={0}
+        onClick={() => selectSession(pane.sessionName)}
+        onFocus={() => selectSession(pane.sessionName)}
+        onKeyDown={(event) => {
+          if (event.key === "Enter" || event.key === " ") {
+            event.preventDefault();
+            selectSession(pane.sessionName);
+          }
+        }}
+      >
+        <div className="flex min-h-11 items-center gap-2 border-b border-white/10 bg-zinc-950 px-2 py-1 text-white">
+          <span className="min-w-0 flex-1 truncate font-mono text-xs">{pane.label}</span>
+          <span className="rounded bg-white/10 px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-white/80">
+            {isActive ? "Active" : "Inactive"}
+          </span>
+          {pane.mode === "floating" ? (
+            <Button
+              type="button"
+              variant="secondary"
+              size="xs"
+              className="min-h-11 min-w-11 px-2 text-xs"
+              aria-label={`Tile ${pane.label}`}
+              data-testid={`tile-pane-${pane.id}`}
+              onClick={(event) => {
+                event.stopPropagation();
+                handleTilePane(pane.sessionName);
+              }}
+            >
+              Tile
+            </Button>
+          ) : (
+            <Button
+              type="button"
+              variant="secondary"
+              size="xs"
+              className="min-h-11 min-w-11 px-2 text-xs"
+              aria-label={`Float ${pane.label}`}
+              data-testid={`float-pane-${pane.id}`}
+              onClick={(event) => {
+                event.stopPropagation();
+                handleFloatPane(pane.sessionName);
+              }}
+            >
+              Float
+            </Button>
+          )}
+        </div>
+        <InteractiveTerminal
+          agentId={agentId}
+          workspaceId={workspaceId}
+          sessionName={pane.sessionName}
+          className="h-[calc(100%-2.75rem)]"
+          layoutSignal={layoutSignal}
+          onTerminalReady={(term, send) => handleTerminalReady(pane.sessionName, term, send)}
+          onTerminalDestroy={() => handleTerminalDestroy(pane.sessionName)}
+        />
+      </div>
+    );
+  };
 
   if (loading) {
     return (
@@ -392,6 +783,28 @@ export function MultiSessionWorkspace({
           type="button"
           variant="outline"
           size="sm"
+          onClick={handleResetLayout}
+          className="min-h-11 min-w-11"
+          aria-label="Reset layout"
+          data-testid="reset-layout"
+        >
+          Reset layout
+        </Button>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          onClick={handleRetileLayout}
+          className="min-h-11 min-w-11"
+          aria-label="Retile panes"
+          data-testid="retile-layout"
+        >
+          Retile
+        </Button>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
           onClick={handleCopyActivePane}
           disabled={!activeEntry}
           data-testid="copy-active-pane"
@@ -432,6 +845,16 @@ export function MultiSessionWorkspace({
         </Alert>
       ) : null}
 
+      {layoutPersistenceMessage ? (
+        <p
+          className="border-b border-border px-3 py-1 text-xs text-muted-foreground"
+          data-layout-codes={layoutPersistenceCodes}
+          data-testid="layout-persistence-status"
+        >
+          {layoutPersistenceMessage}
+        </p>
+      ) : null}
+
       {clipboardMessage ? (
         <p className="px-3 py-1 text-xs text-muted-foreground" data-testid="clipboard-status">
           {clipboardMessage}
@@ -439,58 +862,29 @@ export function MultiSessionWorkspace({
       ) : null}
 
       <div
-        className="grid min-h-0 flex-1 gap-2 p-2"
-        style={{
-          gridTemplateColumns: layout.gridTemplateColumns,
-          gridTemplateRows: layout.gridTemplateRows,
-        }}
-        data-testid="multi-session-grid"
+        ref={workspaceBodyRef}
+        className="relative min-h-0 flex-1 overflow-hidden p-2"
+        data-testid="multi-session-body"
       >
-        {layout.panes.map((pane) => {
-          const isActive = pane.sessionName === activeSessionName;
-          return (
-            // biome-ignore lint/a11y/useSemanticElements: selectable tile wraps a terminal surface, so a native button would be invalid
-            <div
-              key={pane.id}
-              aria-label={`Terminal pane ${pane.label}`}
-              aria-current={isActive ? "true" : undefined}
-              aria-pressed={isActive}
-              role="button"
-              className={cn(
-                "min-h-0 overflow-hidden rounded-xl border bg-black shadow-sm outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring",
-                isActive ? "border-primary ring-1 ring-primary" : "border-border",
-              )}
-              data-testid={`workspace-${pane.id}`}
-              data-active={isActive ? "true" : "false"}
-              style={{ gridArea: pane.gridArea }}
-              tabIndex={0}
-              onClick={() => selectSession(pane.sessionName)}
-              onFocus={() => selectSession(pane.sessionName)}
-              onKeyDown={(event) => {
-                if (event.key === "Enter" || event.key === " ") {
-                  event.preventDefault();
-                  selectSession(pane.sessionName);
-                }
-              }}
-            >
-              <div className="flex items-center gap-2 border-b border-white/10 bg-zinc-950 px-2 py-1 text-white">
-                <span className="min-w-0 flex-1 truncate font-mono text-xs">{pane.label}</span>
-                <span className="rounded bg-white/10 px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-white/80">
-                  {isActive ? "Active" : "Inactive"}
-                </span>
+        <div
+          className="grid h-full min-h-0 gap-2"
+          style={{
+            gridTemplateColumns: layout.tiled.gridTemplateColumns,
+            gridTemplateRows: layout.tiled.gridTemplateRows,
+          }}
+          data-testid="multi-session-grid"
+        >
+          {layout.tiled.panes.map(renderPane)}
+        </div>
+        <div className="absolute inset-0 pointer-events-none" data-testid="floating-pane-layer">
+          {layout.panes
+            .filter((pane) => pane.mode === "floating")
+            .map((pane) => (
+              <div key={pane.id} className="pointer-events-auto contents">
+                {renderPane(pane)}
               </div>
-              <InteractiveTerminal
-                agentId={agentId}
-                workspaceId={workspaceId}
-                sessionName={pane.sessionName}
-                className="h-[calc(100%-2rem)]"
-                layoutSignal={`${layout.rows}:${layout.columns}:${pane.gridArea}`}
-                onTerminalReady={(term, send) => handleTerminalReady(pane.sessionName, term, send)}
-                onTerminalDestroy={() => handleTerminalDestroy(pane.sessionName)}
-              />
-            </div>
-          );
-        })}
+            ))}
+        </div>
       </div>
     </section>
   );
