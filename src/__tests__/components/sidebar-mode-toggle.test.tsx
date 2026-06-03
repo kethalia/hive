@@ -3,6 +3,7 @@
 import {
   act,
   cleanup,
+  fireEvent,
   render,
   renderHook,
   screen,
@@ -12,6 +13,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import "@testing-library/jest-dom/vitest";
 
 import { useSidebarMode } from "@/hooks/use-sidebar-mode";
+
+const originalInnerWidth = window.innerWidth;
 
 describe("useSidebarMode", () => {
   beforeEach(() => {
@@ -223,8 +226,10 @@ vi.mock("lucide-react", () => ({
   RefreshCw: () => <span data-testid="refresh-icon">RefreshCw</span>,
   AlertCircle: () => <span>AlertCircle</span>,
   Terminal: () => <span>Terminal</span>,
+  PanelLeftIcon: () => <span>PanelLeftIcon</span>,
   Plus: () => <span>Plus</span>,
   X: () => <span>X</span>,
+  XIcon: () => <span>XIcon</span>,
   FolderOpen: () => <span>FolderOpen</span>,
   Code: () => <span>Code</span>,
   ExternalLink: () => <span>ExternalLink</span>,
@@ -261,6 +266,81 @@ vi.mock("@/lib/workspaces/urls", () => ({
 vi.mock("@/lib/actions/templates", () => ({
   listTemplateStatusesAction: (...args: unknown[]) => mockListTemplates(...args),
 }));
+
+describe("Sidebar primitive layout contract", () => {
+  afterEach(() => {
+    cleanup();
+    Object.defineProperty(window, "innerWidth", {
+      configurable: true,
+      value: originalInnerWidth,
+    });
+  });
+
+  it("uses the widened desktop width while keeping floating gap at zero", async () => {
+    const {
+      Sidebar: ActualSidebar,
+      SidebarProvider: ActualSidebarProvider,
+    } = await vi.importActual<typeof import("@/components/ui/sidebar")>(
+      "@/components/ui/sidebar",
+    );
+
+    const { container } = render(
+      <ActualSidebarProvider>
+        <ActualSidebar variant="floating">
+          <nav aria-label="Workspace navigation">Navigation</nav>
+        </ActualSidebar>
+      </ActualSidebarProvider>,
+    );
+
+    const wrapper = container.querySelector<HTMLElement>('[data-slot="sidebar-wrapper"]');
+    const root = container.querySelector<HTMLElement>('[data-slot="sidebar"]');
+    const gap = container.querySelector<HTMLElement>('[data-slot="sidebar-gap"]');
+    const sidebarContainer = container.querySelector<HTMLElement>(
+      '[data-slot="sidebar-container"]',
+    );
+
+    expect(wrapper?.style.getPropertyValue("--sidebar-width")).toBe("18rem");
+    expect(wrapper?.style.getPropertyValue("--sidebar-width-icon")).toBe("3rem");
+    expect(root).toHaveAttribute("data-variant", "floating");
+    expect(gap?.className).toContain("w-0");
+    expect(gap?.className).not.toContain("w-(--sidebar-width)");
+    expect(sidebarContainer?.className).toContain("w-(--sidebar-width)");
+  });
+
+  it("preserves the mobile drawer width token", async () => {
+    Object.defineProperty(window, "innerWidth", {
+      configurable: true,
+      value: 390,
+    });
+
+    const {
+      Sidebar: ActualSidebar,
+      SidebarProvider: ActualSidebarProvider,
+      SidebarTrigger: ActualSidebarTrigger,
+    } = await vi.importActual<typeof import("@/components/ui/sidebar")>(
+      "@/components/ui/sidebar",
+    );
+
+    render(
+      <ActualSidebarProvider>
+        <ActualSidebarTrigger />
+        <ActualSidebar variant="floating">
+          <nav aria-label="Mobile workspace navigation">Navigation</nav>
+        </ActualSidebar>
+      </ActualSidebarProvider>,
+    );
+
+    const trigger = document.querySelector<HTMLElement>('[data-slot="sidebar-trigger"]');
+    expect(trigger).not.toBeNull();
+    fireEvent.click(trigger!);
+
+    await waitFor(() => {
+      const drawer = document.querySelector<HTMLElement>('[data-mobile="true"]');
+      expect(drawer).not.toBeNull();
+      expect(drawer?.style.getPropertyValue("--sidebar-width")).toBe("18rem");
+    });
+  });
+});
 
 import { AppSidebar } from "@/components/app-sidebar";
 
