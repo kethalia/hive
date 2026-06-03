@@ -8,15 +8,15 @@ This document is the S06 evidence contract. It may start in a pre-UAT state. It 
 
 ## Evidence status
 
-- **Overall S06 evidence status:** `pre-UAT - browser, live-runtime, and operational evidence still need redacted observations`
-- **Automated regression baseline status:** `pending - attach only command name, exit code, duration, and pass/fail result`
-- **Browser viewport matrix status:** `pending - desktop, laptop, and tablet rows are not yet accepted`
-- **Terminal route UAT status:** `pending - route controls and layout observations not yet recorded`
-- **Multi-session workspace UAT status:** `pending - workspace route controls and layout observations not yet recorded`
-- **Tablet touch and gesture-cancellation status:** `pending - tablet browser observations not yet recorded`
-- **Live tmux/runtime status:** `blocked - no live tmux or terminal-proxy runtime has been evidenced in this record`
-- **Blocked operational status:** `blocked - operational runtime proof remains unavailable until a live run is attached`
-- **Redaction status:** `required - all evidence must stay categorical and must not expose sensitive runtime material`
+- **Overall S06 evidence status:** `blocked - local app shell and terminal proxy health were reachable, but no signed-in app session was available for terminal route UAT`
+- **Automated regression baseline status:** `pending - final task verification records command name, exit code, duration, and pass/fail result`
+- **Browser viewport matrix status:** `blocked - desktop, laptop, and tablet browser navigations reached the auth gate before terminal route mount`
+- **Terminal route UAT status:** `blocked - auth gate prevented terminal route control and layout observations`
+- **Multi-session workspace UAT status:** `blocked - auth gate prevented workspace route switching and layout observations`
+- **Tablet touch and gesture-cancellation status:** `blocked - auth gate prevented tablet terminal route touch observations`
+- **Live tmux/runtime status:** `blocked - signed-in app session was unavailable before live tmux or route WebSocket evidence could be collected`
+- **Blocked operational status:** `blocked - first unavailable link was signed-in app session; workspace runtime and live tmux were not reached`
+- **Redaction status:** `reviewed - categorical blocked evidence only; no sensitive runtime material recorded`
 
 ## Scope and requirements
 
@@ -24,12 +24,12 @@ S06 validates assembled terminal flows across the terminal route and the multi-s
 
 Requirement coverage fields:
 
-- **R027 viewport and layout coverage:** `pending - requires desktop, laptop, and tablet viewport rows with route, layout, and control observations`
-- **R028 live terminal runtime coverage:** `blocked - requires live tmux/runtime connection evidence and cannot be inferred from emulated browser checks`
-- **R029 multi-session workspace coverage:** `pending - requires workspace route observations for session switching, tab/control reachability, and layout persistence`
-- **R030 tablet touch coverage:** `pending - requires tablet touch and gesture-cancellation observations without terminal-content capture`
-- **R012 diagnostic and failure-surface coverage:** `pending - requires redacted connection, layout, and blocked-runtime status fields`
-- **R013 persistence and continuity coverage:** `pending - requires redacted layout/session-continuity observations across route changes or reloads`
+- **R027 viewport and layout coverage:** `blocked - desktop, laptop, and tablet route attempts reached auth gate before terminal layout could mount`
+- **R028 live terminal runtime coverage:** `blocked - requires live tmux/runtime connection evidence and cannot be inferred from auth-gated browser checks`
+- **R029 multi-session workspace coverage:** `blocked - workspace route UAT reached auth gate before session switching or layout persistence could be observed`
+- **R030 tablet touch coverage:** `blocked - tablet route attempt reached auth gate before touch or gesture-cancellation behavior could be observed`
+- **R012 diagnostic and failure-surface coverage:** `partial - redacted app shell, terminal proxy health, auth gate, and blocked-runtime categories recorded`
+- **R013 persistence and continuity coverage:** `blocked - route continuity and layout persistence were not reached because signed-in app session was unavailable`
 - **R024 mobile keyboard evidence:** `deferred - remains out of S06 acceptance unless true physical browser or installed-PWA evidence is later attached`
 - **R026 physical/PWA terminal behavior evidence:** `deferred - remains out of S06 acceptance unless true physical browser or installed-PWA evidence is later attached`
 
@@ -53,41 +53,41 @@ Record one row for each viewport class. Use placeholder route shapes only. Do no
 ### Desktop viewport row
 
 - **Viewport class:** `desktop`
-- **Viewport size:** `pending - record width by height category only`
-- **Device scale factor:** `pending`
-- **Browser mode:** `pending - browser family or installed-PWA category only`
+- **Viewport size:** `desktop 1440 by 900 category`
+- **Device scale factor:** `default browser scale category`
+- **Browser mode:** `Chromium browser automation category`
 - **Route shape checked:** `/workspaces/<workspace-id>/terminal`
 - **Workspace route shape checked:** `/workspaces/<workspace-id>/terminal/workspace`
-- **Terminal route status:** `pending`
-- **Multi-session workspace status:** `pending`
-- **Controls checked:** `pending - record categorical reachability only`
-- **Acceptance status:** `pending`
+- **Terminal route status:** `blocked - auth gate reached before terminal shell mounted`
+- **Multi-session workspace status:** `blocked - auth gate reached before workspace shell mounted`
+- **Controls checked:** `blocked - auth form controls visible; terminal and workspace controls not mounted`
+- **Acceptance status:** `blocked - signed-in app session required before desktop route acceptance`
 
 ### Laptop viewport row
 
 - **Viewport class:** `laptop`
-- **Viewport size:** `pending - record width by height category only`
-- **Device scale factor:** `pending`
-- **Browser mode:** `pending - browser family or installed-PWA category only`
+- **Viewport size:** `laptop 1280 by 800 category`
+- **Device scale factor:** `default browser scale category`
+- **Browser mode:** `Chromium browser automation category`
 - **Route shape checked:** `/workspaces/<workspace-id>/terminal`
 - **Workspace route shape checked:** `/workspaces/<workspace-id>/terminal/workspace`
-- **Terminal route status:** `pending`
-- **Multi-session workspace status:** `pending`
-- **Controls checked:** `pending - record categorical reachability only`
-- **Acceptance status:** `pending`
+- **Terminal route status:** `blocked - auth gate reached before terminal shell mounted`
+- **Multi-session workspace status:** `blocked - auth gate reached before workspace shell mounted`
+- **Controls checked:** `blocked - auth form controls visible; terminal and workspace controls not mounted`
+- **Acceptance status:** `blocked - signed-in app session required before laptop route acceptance`
 
 ### Tablet viewport row
 
 - **Viewport class:** `tablet`
-- **Viewport size:** `pending - record width by height category only`
-- **Device scale factor:** `pending`
-- **Browser mode:** `pending - browser family or installed-PWA category only`
+- **Viewport size:** `tablet 820 by 1180 category`
+- **Device scale factor:** `default browser scale category`
+- **Browser mode:** `Chromium browser automation category`
 - **Route shape checked:** `/workspaces/<workspace-id>/terminal`
 - **Workspace route shape checked:** `/workspaces/<workspace-id>/terminal/workspace`
-- **Terminal route status:** `pending`
-- **Multi-session workspace status:** `pending`
-- **Controls checked:** `pending - record categorical reachability only`
-- **Acceptance status:** `pending`
+- **Terminal route status:** `blocked - auth gate reached before terminal shell mounted`
+- **Multi-session workspace status:** `blocked - auth gate reached before workspace shell mounted`
+- **Controls checked:** `blocked - auth form controls visible; terminal and workspace controls not mounted`
+- **Acceptance status:** `blocked - signed-in app session required before tablet route acceptance`
 
 ## Terminal route UAT
 
@@ -96,11 +96,11 @@ Use the terminal route placeholder shape `/workspaces/<workspace-id>/terminal`. 
 Required fields:
 
 - **Terminal route shape:** `/workspaces/<workspace-id>/terminal`
-- **Terminal route load status:** `pending`
-- **Terminal connection-state diagnostic:** `pending - categorical status only`
-- **Terminal control reachability:** `pending - categorical status only`
-- **Terminal layout persistence observation:** `pending - categorical status only`
-- **Terminal route regression result:** `pending`
+- **Terminal route load status:** `blocked - route attempt redirected to auth gate before terminal client mounted`
+- **Terminal connection-state diagnostic:** `blocked - terminal connection state not reached`
+- **Terminal control reachability:** `blocked - terminal controls not mounted`
+- **Terminal layout persistence observation:** `blocked - terminal layout persistence not reached`
+- **Terminal route regression result:** `blocked - requires signed-in app session to exercise route behavior`
 
 ## Multi-session workspace UAT
 
@@ -109,11 +109,11 @@ Use the workspace route placeholder shape `/workspaces/<workspace-id>/terminal/w
 Required fields:
 
 - **Workspace route shape:** `/workspaces/<workspace-id>/terminal/workspace`
-- **Workspace route load status:** `pending`
-- **Session switching status:** `pending - categorical status only`
-- **Workspace control reachability:** `pending - categorical status only`
-- **Workspace layout persistence observation:** `pending - categorical status only`
-- **Workspace route regression result:** `pending`
+- **Workspace route load status:** `blocked - route attempt redirected to auth gate before workspace client mounted`
+- **Session switching status:** `blocked - session list and switching controls not mounted`
+- **Workspace control reachability:** `blocked - workspace controls not mounted`
+- **Workspace layout persistence observation:** `blocked - workspace layout persistence not reached`
+- **Workspace route regression result:** `blocked - requires signed-in app session to exercise workspace behavior`
 
 ## Tablet touch and gesture-cancellation evidence
 
@@ -121,11 +121,11 @@ Tablet evidence must use categorical observations. It may describe whether contr
 
 Required fields:
 
-- **Tablet touch runtime:** `pending - physical tablet browser, installed PWA, or emulated tablet category`
-- **Touch target reachability:** `pending`
-- **Gesture-cancellation status:** `pending`
-- **Terminal scroll or drag cancellation status:** `pending`
-- **Route-control cancellation status:** `pending`
+- **Tablet touch runtime:** `blocked - emulated tablet browser reached auth gate before terminal route mounted`
+- **Touch target reachability:** `blocked - only auth form controls were reachable; terminal targets not mounted`
+- **Gesture-cancellation status:** `blocked - terminal gesture layer not mounted`
+- **Terminal scroll or drag cancellation status:** `blocked - terminal scroll and drag surfaces not mounted`
+- **Route-control cancellation status:** `blocked - terminal route controls not mounted`
 - **Tablet evidence limitation:** `R024 and R026 remain deferred unless true physical browser or installed-PWA evidence is later attached`
 
 ## Live tmux/runtime evidence
@@ -134,10 +134,10 @@ Live runtime evidence is required before accepting R028. A browser viewport pass
 
 Required fields:
 
-- **Live tmux runtime status:** `blocked - no live tmux runtime evidence attached`
-- **Terminal proxy connection status:** `blocked - no live terminal-proxy connection evidence attached`
-- **Session create or attach status:** `blocked - no redacted live session evidence attached`
-- **Resize propagation status:** `blocked - no live resize evidence attached`
+- **Live tmux runtime status:** `blocked - signed-in app session unavailable before live tmux runtime evidence could be collected`
+- **Terminal proxy connection status:** `blocked - local proxy health was reachable but no signed-in route WebSocket evidence was collected`
+- **Session create or attach status:** `blocked - workspace runtime was not reached`
+- **Resize propagation status:** `blocked - terminal pane did not mount, so live resize evidence was not collected`
 - **Runtime route shape:** `/workspaces/<workspace-id>/terminal`
 - **R028 live-runtime acceptance:** `blocked - requires live tmux/runtime evidence before this field can move out of blocked state`
 
@@ -147,10 +147,10 @@ Use this section when the agent cannot reach the runtime needed for live proof. 
 
 Required fields:
 
-- **First blocked link:** `live tmux/runtime unavailable in this evidence record`
-- **Blocked proof type:** `live terminal runtime, terminal-proxy connection, and physical/PWA runtime proof`
-- **Unavailable runtime:** `live tmux, live terminal proxy, physical browser or installed PWA as applicable`
-- **Replacement evidence required:** `redacted live runtime observations and, for R024/R026, true physical browser or installed-PWA observations`
+- **First blocked link:** `signed-in app session unavailable for browser route UAT`
+- **Blocked proof type:** `terminal route UAT, workspace route UAT, live terminal runtime, route WebSocket connection, and physical/PWA runtime proof`
+- **Unavailable runtime:** `signed-in app session, workspace runtime, live tmux, route WebSocket connection, physical browser or installed PWA as applicable`
+- **Replacement evidence required:** `redacted signed-in browser route observations, live runtime observations, and for R024/R026 true physical browser or installed-PWA observations`
 - **Can automated evidence substitute:** `no - automated checks can support regression scope only`
 
 ## Redaction boundary
@@ -163,27 +163,27 @@ If a copied diagnostic snapshot contains prohibited material, stop the run and r
 
 ## Acceptance decision
 
-- **Automated regression baseline acceptance:** `pending - accept only after automated evidence rows are attached`
-- **Desktop viewport acceptance:** `pending - requires redacted desktop route and workspace observations`
-- **Laptop viewport acceptance:** `pending - requires redacted laptop route and workspace observations`
-- **Tablet viewport acceptance:** `pending - requires redacted tablet route, workspace, touch, and gesture-cancellation observations`
-- **Terminal route acceptance:** `pending - requires redacted route-control, connection-state, and layout observations`
-- **Multi-session workspace acceptance:** `pending - requires redacted workspace route, switching, control, and layout observations`
+- **Automated regression baseline acceptance:** `pending - final task verification records command result outside this blocked browser record`
+- **Desktop viewport acceptance:** `blocked - signed-in route UAT required before acceptance`
+- **Laptop viewport acceptance:** `blocked - signed-in route UAT required before acceptance`
+- **Tablet viewport acceptance:** `blocked - signed-in route UAT required before acceptance`
+- **Terminal route acceptance:** `blocked - signed-in route UAT required before acceptance`
+- **Multi-session workspace acceptance:** `blocked - signed-in workspace route UAT required before acceptance`
 - **R028 live-runtime acceptance:** `blocked - requires live tmux/runtime evidence before this field can move out of blocked state`
 - **R024 physical/PWA acceptance:** `deferred - desktop or tablet emulation is not replacement evidence`
 - **R026 physical/PWA acceptance:** `deferred - desktop or tablet emulation is not replacement evidence`
-- **Overall S06 acceptance:** `pending - browser UAT, live-runtime blockers, and redacted evidence attachments are not complete in this starter record`
+- **Overall S06 acceptance:** `blocked - browser UAT could not proceed past auth gate; live-runtime and physical/PWA acceptance remain blocked or deferred`
 
 ## Evidence attachments checklist
 
 - [ ] Automated carry-forward regression command row with exit code, duration, and verdict.
 - [ ] Documentation guard command row with exit code, duration, and verdict.
-- [ ] Desktop terminal route observation with redacted control and layout status.
-- [ ] Desktop multi-session workspace observation with redacted switching and layout status.
-- [ ] Laptop terminal route observation with redacted control and layout status.
-- [ ] Laptop multi-session workspace observation with redacted switching and layout status.
-- [ ] Tablet terminal route observation with redacted touch and gesture-cancellation status.
-- [ ] Tablet multi-session workspace observation with redacted touch and gesture-cancellation status.
-- [ ] Live tmux/runtime observation, or a blocked operational row explaining why it remains unavailable.
+- [x] Desktop terminal route observation with redacted control and layout status.
+- [x] Desktop multi-session workspace observation with redacted switching and layout status.
+- [x] Laptop terminal route observation with redacted control and layout status.
+- [x] Laptop multi-session workspace observation with redacted switching and layout status.
+- [x] Tablet terminal route observation with redacted touch and gesture-cancellation status.
+- [x] Tablet multi-session workspace observation with redacted touch and gesture-cancellation status.
+- [x] Live tmux/runtime observation, or a blocked operational row explaining why it remains unavailable.
 - [ ] Physical browser or installed-PWA attachment for R024/R026 only if that runtime was truly exercised.
-- [ ] Redaction review confirming no prohibited buffers, commands, clone material, credentials, storage values, endpoints, opaque identifiers, or local paths were recorded.
+- [x] Redaction review confirming no prohibited buffers, commands, clone material, credentials, storage values, endpoints, opaque identifiers, or local paths were recorded.

@@ -105,12 +105,14 @@ describe("S06 desktop tablet terminal UAT evidence contract", () => {
     }
   });
 
-  it("starts in a truthful pre-UAT or pending state without live-validation claims", () => {
-    expect(fieldValue(evidence, "Overall S06 evidence status")).toMatch(/^pre-UAT - /);
-    expect(fieldValue(evidence, "Browser viewport matrix status")).toMatch(/^pending - /);
-    expect(fieldValue(evidence, "Terminal route UAT status")).toMatch(/^pending - /);
-    expect(fieldValue(evidence, "Multi-session workspace UAT status")).toMatch(/^pending - /);
-    expect(fieldValue(evidence, "Tablet touch and gesture-cancellation status")).toMatch(/^pending - /);
+  it("records a truthful pending or blocked UAT state without live-validation claims", () => {
+    expect(fieldValue(evidence, "Overall S06 evidence status")).toMatch(/^(pre-UAT|blocked) - /);
+    expect(fieldValue(evidence, "Browser viewport matrix status")).toMatch(/^(pending|blocked) - /);
+    expect(fieldValue(evidence, "Terminal route UAT status")).toMatch(/^(pending|blocked) - /);
+    expect(fieldValue(evidence, "Multi-session workspace UAT status")).toMatch(/^(pending|blocked) - /);
+    expect(fieldValue(evidence, "Tablet touch and gesture-cancellation status")).toMatch(
+      /^(pending|blocked) - /,
+    );
     expect(fieldValue(evidence, "Live tmux/runtime status")).toMatch(/^blocked - /);
     expect(fieldValue(evidence, "Blocked operational status")).toMatch(/^blocked - /);
   });
