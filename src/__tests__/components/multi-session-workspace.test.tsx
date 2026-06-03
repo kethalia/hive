@@ -17,6 +17,7 @@ const terminalProps = new Map<
     agentId: string;
     workspaceId: string;
     sessionName: string;
+    layoutSignal?: unknown;
     onTerminalReady?: (term: Terminal, send: (data: string) => void) => void;
     onTerminalDestroy?: () => void;
   }
@@ -30,12 +31,14 @@ vi.mock("next/dynamic", () => ({
       agentId,
       workspaceId,
       sessionName,
+      layoutSignal,
       onTerminalReady,
       onTerminalDestroy,
     }: {
       agentId: string;
       workspaceId: string;
       sessionName: string;
+      layoutSignal?: unknown;
       onTerminalReady?: (term: Terminal, send: (data: string) => void) => void;
       onTerminalDestroy?: () => void;
     }) => {
@@ -43,6 +46,7 @@ vi.mock("next/dynamic", () => ({
         agentId,
         workspaceId,
         sessionName,
+        layoutSignal,
         onTerminalReady,
         onTerminalDestroy,
       });
@@ -150,6 +154,68 @@ function makeTerminal(name: string): Terminal {
 
 function makeSender(name: string) {
   return vi.fn((data: string) => `${name}:${data}`);
+}
+
+function twoSessionPayload() {
+  return {
+    data: [
+      { name: "main-session", created: 1, windows: 1 },
+      { name: "dev-server", created: 2, windows: 1 },
+    ],
+  };
+}
+
+async function renderTwoSessionWorkspace() {
+  mockGetSessions.mockResolvedValue(twoSessionPayload());
+  render(<MultiSessionWorkspace {...defaultProps} />);
+
+  await waitFor(() => {
+    expect(screen.getByTestId("workspace-pane-main-session")).toBeInTheDocument();
+  });
+}
+
+async function floatPane(sessionName: string) {
+  await act(async () => {
+    fireEvent.click(screen.getByTestId(`float-pane-pane-${sessionName}`));
+  });
+}
+
+function pointerDown(element: HTMLElement, x: number, y: number, init: PointerEventInit = {}) {
+  fireEvent.pointerDown(element, {
+    pointerId: 7,
+    pointerType: "mouse",
+    button: 0,
+    buttons: 1,
+    isPrimary: true,
+    clientX: x,
+    clientY: y,
+    ...init,
+  });
+}
+
+function pointerMove(element: HTMLElement, x: number, y: number, init: PointerEventInit = {}) {
+  fireEvent.pointerMove(element, {
+    pointerId: 7,
+    pointerType: "mouse",
+    buttons: 1,
+    isPrimary: true,
+    clientX: x,
+    clientY: y,
+    ...init,
+  });
+}
+
+function pointerUp(element: HTMLElement, x: number, y: number, init: PointerEventInit = {}) {
+  fireEvent.pointerUp(element, {
+    pointerId: 7,
+    pointerType: "mouse",
+    button: 0,
+    buttons: 0,
+    isPrimary: true,
+    clientX: x,
+    clientY: y,
+    ...init,
+  });
 }
 
 describe("MultiSessionWorkspace", () => {
@@ -373,6 +439,172 @@ describe("MultiSessionWorkspace", () => {
       "could not be saved locally",
     );
     expect(screen.queryByText(/disk full|secret/i)).not.toBeInTheDocument();
+  });
+
+  it("drags a floating pane from its chrome handle, clamps it in bounds, raises it, and keeps refit signals stable until commit", async () => {
+    await renderTwoSessionWorkspace();
+    await floatPane("main-session");
+    await floatPane("dev-server");
+
+    const pane = screen.getByTestId("workspace-pane-main-session");
+    const devPane = screen.getByTestId("workspace-pane-dev-server");
+    const handle = screen.getByTestId("drag-handle-pane-main-session");
+    const initialLayoutSignal = terminalProps.get("main-session")?.layoutSignal;
+
+    await act(async () => {
+      pointerDown(handle, 100, 100);
+      pointerMove(pane, 2000, 2000);
+    });
+
+    expect(pane).toHaveStyle({ left: "304px", top: "348px" });
+    expect(Number(pane.style.zIndex)).toBeGreaterThan(Number(devPane.style.zIndex));
+    expect(screen.getByTestId("active-pane-label")).toHaveTextContent("main-session");
+    expect(terminalProps.get("main-session")?.layoutSignal).toBe(initialLayoutSignal);
+
+    await act(async () => {
+      pointerUp(pane, 2000, 2000);
+    });
+
+    expect(pane).toHaveStyle({ left: "304px", top: "348px" });
+    expect(localStorage.getItem("multi-session-layout:ws-1")).toContain(
+      '"geometry":{"x":304,"y":348,"width":720,"height":420',
+    );
+    expect(terminalProps.get("main-session")?.layoutSignal).toBe(initialLayoutSignal);
+  });
+
+  it("resizes from an explicit handle, clamps below minimum size, and keeps active copy and paste ownership", async () => {
+    await renderTwoSessionWorkspace();
+    await floatPane("main-session");
+    const mainTerm = makeTerminal("main-session");
+    const mainSend = makeSender("main-session");
+    const devTerm = makeTerminal("dev-server");
+    const devSend = makeSender("dev-server");
+
+    await act(async () => {
+      terminalProps.get("main-session")?.onTerminalReady?.(mainTerm, mainSend);
+      terminalProps.get("dev-server")?.onTerminalReady?.(devTerm, devSend);
+    });
+
+    const pane = screen.getByTestId("workspace-pane-main-session");
+    const resizeHandle = screen.getByTestId("resize-handle-pane-main-session");
+
+    await act(async () => {
+      pointerDown(resizeHandle, 744, 444);
+      pointerMove(pane, -1000, -1000);
+      pointerUp(pane, -1000, -1000);
+    });
+
+    expect(pane).toHaveStyle({ width: "320px", height: "220px" });
+    expect(screen.getByTestId("active-pane-label")).toHaveTextContent("main-session");
+
+    fireEvent.click(screen.getByTestId("copy-active-pane"));
+    fireEvent.click(screen.getByTestId("paste-active-pane"));
+
+    expect(mockCopyTerminalSelection).toHaveBeenCalledWith(mainTerm, expect.any(Object));
+    expect(mockPasteToTerminal).toHaveBeenCalledWith(mainTerm, mainSend, expect.any(Object));
+    expect(mockCopyTerminalSelection).not.toHaveBeenCalledWith(devTerm, expect.anything());
+    expect(mockPasteToTerminal).not.toHaveBeenCalledWith(devTerm, devSend, expect.anything());
+  });
+
+  it("commits reachable geometry on pointer cancel and lost capture", async () => {
+    await renderTwoSessionWorkspace();
+    await floatPane("main-session");
+    const pane = screen.getByTestId("workspace-pane-main-session");
+    const handle = screen.getByTestId("drag-handle-pane-main-session");
+    const resizeHandle = screen.getByTestId("resize-handle-pane-main-session");
+
+    await act(async () => {
+      pointerDown(handle, 100, 100);
+      pointerMove(pane, 180, 160);
+      fireEvent.pointerCancel(pane, {
+        pointerId: 7,
+        pointerType: "mouse",
+        clientX: 180,
+        clientY: 160,
+        isPrimary: true,
+      });
+    });
+
+    expect(pane).toHaveStyle({ left: "104px", top: "84px" });
+    expect(screen.getByTestId("active-pane-label")).toHaveTextContent("main-session");
+
+    await act(async () => {
+      pointerDown(resizeHandle, 824, 504);
+      pointerMove(pane, 844, 524);
+      fireEvent.lostPointerCapture(pane, {
+        pointerId: 7,
+        pointerType: "mouse",
+        clientX: 844,
+        clientY: 524,
+        isPrimary: true,
+      });
+    });
+
+    expect(pane).toHaveStyle({ width: "740px", height: "440px" });
+    expect(screen.getByTestId("active-pane-label")).toHaveTextContent("main-session");
+  });
+
+  it("ignores terminal body, secondary pointer, editable target, and missing container measurements", async () => {
+    await renderTwoSessionWorkspace();
+    await floatPane("main-session");
+    const pane = screen.getByTestId("workspace-pane-main-session");
+    const terminalBody = screen.getByTestId("interactive-terminal-main-session");
+    const handle = screen.getByTestId("drag-handle-pane-main-session");
+
+    await act(async () => {
+      pointerDown(terminalBody, 100, 100);
+      pointerMove(pane, 300, 300);
+      pointerUp(pane, 300, 300);
+    });
+    expect(pane).toHaveStyle({ left: "24px", top: "24px" });
+
+    await act(async () => {
+      pointerDown(handle, 100, 100, { pointerId: 8, isPrimary: false });
+      pointerMove(pane, 300, 300, { pointerId: 8, isPrimary: false });
+      pointerUp(pane, 300, 300, { pointerId: 8, isPrimary: false });
+    });
+    expect(pane).toHaveStyle({ left: "24px", top: "24px" });
+
+    const editableTarget = document.createElement("input");
+    handle.appendChild(editableTarget);
+    await act(async () => {
+      pointerDown(editableTarget, 100, 100);
+      pointerMove(pane, 300, 300);
+      pointerUp(pane, 300, 300);
+    });
+    expect(pane).toHaveStyle({ left: "24px", top: "24px" });
+    editableTarget.remove();
+
+    const originalInnerWidth = window.innerWidth;
+    const originalInnerHeight = window.innerHeight;
+    Object.defineProperty(window, "innerWidth", { configurable: true, value: 0 });
+    Object.defineProperty(window, "innerHeight", { configurable: true, value: 0 });
+    vi.spyOn(pane.parentElement?.parentElement ?? pane, "getBoundingClientRect").mockReturnValue({
+      x: 0,
+      y: 0,
+      top: 0,
+      left: 0,
+      bottom: 0,
+      right: 0,
+      width: 0,
+      height: 0,
+      toJSON: () => ({}),
+    });
+
+    await act(async () => {
+      fireEvent.click(screen.getByTestId("select-pane-pane-dev-server"));
+      pointerDown(handle, 100, 100);
+      pointerMove(pane, 300, 300);
+      pointerUp(pane, 300, 300);
+    });
+
+    expect(pane).toHaveStyle({ left: "24px", top: "24px" });
+    expect(screen.getByTestId("active-pane-label")).toHaveTextContent("main-session");
+    Object.defineProperty(window, "innerWidth", { configurable: true, value: originalInnerWidth });
+    Object.defineProperty(window, "innerHeight", {
+      configurable: true,
+      value: originalInnerHeight,
+    });
   });
 
   it("creates, appends, and selects a new session from the accessible create control", async () => {

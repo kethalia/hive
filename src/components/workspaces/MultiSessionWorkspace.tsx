@@ -3,11 +3,20 @@
 import type { Terminal } from "@xterm/xterm";
 import { AlertCircle, ClipboardPaste, Copy, Loader2, Plus } from "lucide-react";
 import dynamic from "next/dynamic";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  type CSSProperties,
+  type PointerEvent as ReactPointerEvent,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { useKeybindings } from "@/hooks/useKeybindings";
 import { createSessionAction, getWorkspaceSessionsAction } from "@/lib/actions/workspaces";
+import { isTextSelectionEvent, NO_TOUCH_STYLE } from "@/lib/gestures/conventions";
 import {
   type ClipboardActionStatus,
   copyTerminalSelection,
@@ -17,6 +26,8 @@ import { cn } from "@/lib/utils";
 import {
   createCascadedFloatingGeometry,
   deriveRetiledSessionPaneLayout,
+  FLOATING_PANE_MIN_HEIGHT,
+  FLOATING_PANE_MIN_WIDTH,
   type FloatingPaneGeometry,
   type PersistedSessionPane,
   resolveSessionPaneLayout,
@@ -68,6 +79,23 @@ type CreateResult = { status: "success"; session: WorkspaceSessionPane } | { sta
 type LayoutPersistenceNotice = {
   code: "storage-unavailable" | "storage-write-failed" | "storage-reset-failed";
   message: string;
+};
+
+type FloatingPaneGestureKind = "drag" | "resize";
+
+type FloatingPaneGesture = {
+  kind: FloatingPaneGestureKind;
+  sessionName: string;
+  pointerId: number;
+  originClientX: number;
+  originClientY: number;
+  startGeometry: FloatingPaneGeometry;
+  previewGeometry: FloatingPaneGeometry;
+};
+
+type FloatingPaneGesturePreview = {
+  sessionName: string;
+  geometry: FloatingPaneGeometry;
 };
 
 function isObjectRecord(value: unknown): value is Record<string, unknown> {
@@ -210,6 +238,38 @@ function geometryFromFloatingPane(
   };
 }
 
+function clampFloatingPaneGeometry(
+  geometry: FloatingPaneGeometry,
+  container: SessionPaneContainerRect | null,
+): FloatingPaneGeometry {
+  const width = finiteClampedInteger(
+    geometry.width,
+    FLOATING_PANE_MIN_WIDTH,
+    Math.max(1, Math.trunc(container?.width ?? geometry.width)),
+  );
+  const height = finiteClampedInteger(
+    geometry.height,
+    FLOATING_PANE_MIN_HEIGHT,
+    Math.max(1, Math.trunc(container?.height ?? geometry.height)),
+  );
+  const maxX = Math.max(0, Math.trunc(container?.width ?? width) - width);
+  const maxY = Math.max(0, Math.trunc(container?.height ?? height) - height);
+
+  return {
+    x: finiteClampedInteger(geometry.x, 0, maxX),
+    y: finiteClampedInteger(geometry.y, 0, maxY),
+    width,
+    height,
+    zIndex: Math.max(0, Math.trunc(geometry.zIndex)),
+  };
+}
+
+function finiteClampedInteger(value: number, min: number, max: number): number {
+  const safeMax = Math.max(min, Math.trunc(max));
+  if (!Number.isFinite(value)) return min;
+  return Math.min(Math.max(Math.trunc(value), min), safeMax);
+}
+
 function toPersistedPane(
   pane: SessionPane,
   override?: { mode: "tiled" } | { mode: "floating"; geometry: FloatingPaneGeometry },
@@ -315,8 +375,10 @@ export function MultiSessionWorkspace({
   const [layoutPersistenceNotice, setLayoutPersistenceNotice] =
     useState<LayoutPersistenceNotice | null>(null);
   const [containerRect, setContainerRect] = useState<SessionPaneContainerRect | null>(null);
+  const [gesturePreview, setGesturePreview] = useState<FloatingPaneGesturePreview | null>(null);
   const terminalsRef = useRef<Map<string, TerminalEntry>>(new Map());
   const activeSessionNameRef = useRef<string | null>(null);
+  const activeGestureRef = useRef<FloatingPaneGesture | null>(null);
   const workspaceBodyRef = useRef<HTMLDivElement>(null);
 
   activeSessionNameRef.current = activeSessionName;
@@ -576,22 +638,160 @@ export function MultiSessionWorkspace({
     pasteToTerminal(entry.term, entry.send, { onStatus: setClipboardActionStatus });
   }, []);
 
+  const commitFloatingPaneGeometry = useCallback(
+    (sessionName: string, geometry: FloatingPaneGeometry) => {
+      const panes = layout.panes.map((pane) =>
+        pane.sessionName === sessionName
+          ? toPersistedPane(pane, { mode: "floating", geometry })
+          : toPersistedPane(pane),
+      );
+      persistLayoutJson(serializeWorkspacePaneLayout(panes, sessionName));
+    },
+    [layout.panes, persistLayoutJson],
+  );
+
+  const resolveCurrentGestureContainer = useCallback(
+    () => readElementContainerRect(workspaceBodyRef.current) ?? containerRect,
+    [containerRect],
+  );
+
+  const deriveGestureGeometry = useCallback(
+    (gesture: FloatingPaneGesture, clientX: number, clientY: number): FloatingPaneGeometry => {
+      const deltaX = clientX - gesture.originClientX;
+      const deltaY = clientY - gesture.originClientY;
+      const container = resolveCurrentGestureContainer();
+
+      if (gesture.kind === "resize") {
+        return clampFloatingPaneGeometry(
+          {
+            ...gesture.startGeometry,
+            width: gesture.startGeometry.width + deltaX,
+            height: gesture.startGeometry.height + deltaY,
+          },
+          container,
+        );
+      }
+
+      return clampFloatingPaneGeometry(
+        {
+          ...gesture.startGeometry,
+          x: gesture.startGeometry.x + deltaX,
+          y: gesture.startGeometry.y + deltaY,
+        },
+        container,
+      );
+    },
+    [resolveCurrentGestureContainer],
+  );
+
+  const finishFloatingPaneGesture = useCallback(
+    (event: ReactPointerEvent<HTMLElement>) => {
+      const gesture = activeGestureRef.current;
+      if (!gesture || gesture.pointerId !== event.pointerId) return;
+
+      const finalGeometry = deriveGestureGeometry(gesture, event.clientX, event.clientY);
+      activeGestureRef.current = null;
+      setGesturePreview(null);
+      if (event.currentTarget.hasPointerCapture?.(event.pointerId)) {
+        event.currentTarget.releasePointerCapture(event.pointerId);
+      }
+      event.preventDefault();
+      event.stopPropagation();
+      selectSession(gesture.sessionName);
+      commitFloatingPaneGeometry(gesture.sessionName, finalGeometry);
+    },
+    [commitFloatingPaneGeometry, deriveGestureGeometry, selectSession],
+  );
+
+  const handleFloatingPanePointerMove = useCallback(
+    (event: ReactPointerEvent<HTMLElement>) => {
+      const gesture = activeGestureRef.current;
+      if (!gesture || gesture.pointerId !== event.pointerId) return;
+
+      const geometry = deriveGestureGeometry(gesture, event.clientX, event.clientY);
+      activeGestureRef.current = { ...gesture, previewGeometry: geometry };
+      setGesturePreview({ sessionName: gesture.sessionName, geometry });
+      event.preventDefault();
+      event.stopPropagation();
+    },
+    [deriveGestureGeometry],
+  );
+
+  const startFloatingPaneGesture = useCallback(
+    (
+      event: ReactPointerEvent<HTMLElement>,
+      pane: Extract<SessionPane, { mode: "floating" }>,
+      kind: FloatingPaneGestureKind,
+    ) => {
+      event.preventDefault();
+      event.stopPropagation();
+      selectSession(pane.sessionName);
+
+      if (
+        event.button !== 0 ||
+        event.isPrimary === false ||
+        isTextSelectionEvent(event.nativeEvent)
+      ) {
+        activeGestureRef.current = null;
+        setGesturePreview(null);
+        return;
+      }
+
+      const container = readElementContainerRect(workspaceBodyRef.current);
+      if (!container) {
+        activeGestureRef.current = null;
+        setGesturePreview(null);
+        return;
+      }
+
+      const maxZIndex = layout.panes.reduce((max, candidate) => {
+        if (candidate.mode !== "floating") return max;
+        return Math.max(max, candidate.zIndex);
+      }, 0);
+      const startGeometry = clampFloatingPaneGeometry(
+        { ...geometryFromFloatingPane(pane), zIndex: Math.max(pane.zIndex, maxZIndex + 1) },
+        container,
+      );
+      const gesture: FloatingPaneGesture = {
+        kind,
+        sessionName: pane.sessionName,
+        pointerId: event.pointerId,
+        originClientX: event.clientX,
+        originClientY: event.clientY,
+        startGeometry,
+        previewGeometry: startGeometry,
+      };
+
+      activeGestureRef.current = gesture;
+      setGesturePreview({ sessionName: pane.sessionName, geometry: startGeometry });
+      event.currentTarget.setPointerCapture?.(event.pointerId);
+    },
+    [layout.panes, selectSession],
+  );
+
   const renderPane = (pane: SessionPane) => {
     const isActive = pane.sessionName === activeSessionName;
+    const previewGeometry =
+      pane.mode === "floating" && gesturePreview?.sessionName === pane.sessionName
+        ? gesturePreview.geometry
+        : null;
     const layoutSignal =
       pane.mode === "floating"
-        ? `${pane.x}:${pane.y}:${pane.width}:${pane.height}:${pane.zIndex}`
+        ? `floating:${pane.width}:${pane.height}`
         : `${layout.tiled.rows}:${layout.tiled.columns}:${pane.gridArea}`;
-    const paneStyle =
-      pane.mode === "floating"
-        ? {
-            left: pane.x,
-            top: pane.y,
-            width: pane.width,
-            height: pane.height,
-            zIndex: pane.zIndex,
-          }
-        : { gridArea: pane.gridArea };
+    let paneStyle: CSSProperties;
+    if (pane.mode === "floating") {
+      const renderedGeometry = previewGeometry ?? pane;
+      paneStyle = {
+        left: renderedGeometry.x,
+        top: renderedGeometry.y,
+        width: renderedGeometry.width,
+        height: renderedGeometry.height,
+        zIndex: renderedGeometry.zIndex,
+      };
+    } else {
+      paneStyle = { gridArea: pane.gridArea };
+    }
 
     return (
       // biome-ignore lint/a11y/useSemanticElements: selectable tile wraps a terminal surface, so a native button would be invalid
@@ -613,6 +813,10 @@ export function MultiSessionWorkspace({
         tabIndex={0}
         onClick={() => selectSession(pane.sessionName)}
         onFocus={() => selectSession(pane.sessionName)}
+        onPointerMove={pane.mode === "floating" ? handleFloatingPanePointerMove : undefined}
+        onPointerUp={pane.mode === "floating" ? finishFloatingPaneGesture : undefined}
+        onPointerCancel={pane.mode === "floating" ? finishFloatingPaneGesture : undefined}
+        onLostPointerCapture={pane.mode === "floating" ? finishFloatingPaneGesture : undefined}
         onKeyDown={(event) => {
           if (event.key === "Enter" || event.key === " ") {
             event.preventDefault();
@@ -621,10 +825,29 @@ export function MultiSessionWorkspace({
         }}
       >
         <div className="flex min-h-11 items-center gap-2 border-b border-white/10 bg-zinc-950 px-2 py-1 text-white">
-          <span className="min-w-0 flex-1 truncate font-mono text-xs">{pane.label}</span>
-          <span className="rounded bg-white/10 px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-white/80">
-            {isActive ? "Active" : "Inactive"}
-          </span>
+          {pane.mode === "floating" ? (
+            <div
+              aria-label={`Drag ${pane.label}`}
+              className="flex min-h-11 min-w-11 flex-1 cursor-move items-center gap-2 overflow-hidden touch-none"
+              data-testid={`drag-handle-${pane.id}`}
+              role="presentation"
+              style={NO_TOUCH_STYLE}
+              onClick={(event) => event.stopPropagation()}
+              onPointerDown={(event) => startFloatingPaneGesture(event, pane, "drag")}
+            >
+              <span className="min-w-0 flex-1 truncate font-mono text-xs">{pane.label}</span>
+              <span className="rounded bg-white/10 px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-white/80">
+                {isActive ? "Active" : "Inactive"}
+              </span>
+            </div>
+          ) : (
+            <>
+              <span className="min-w-0 flex-1 truncate font-mono text-xs">{pane.label}</span>
+              <span className="rounded bg-white/10 px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-white/80">
+                {isActive ? "Active" : "Inactive"}
+              </span>
+            </>
+          )}
           {pane.mode === "floating" ? (
             <Button
               type="button"
@@ -637,6 +860,7 @@ export function MultiSessionWorkspace({
                 event.stopPropagation();
                 handleTilePane(pane.sessionName);
               }}
+              onPointerDown={(event) => event.stopPropagation()}
             >
               Tile
             </Button>
@@ -652,6 +876,7 @@ export function MultiSessionWorkspace({
                 event.stopPropagation();
                 handleFloatPane(pane.sessionName);
               }}
+              onPointerDown={(event) => event.stopPropagation()}
             >
               Float
             </Button>
@@ -666,6 +891,21 @@ export function MultiSessionWorkspace({
           onTerminalReady={(term, send) => handleTerminalReady(pane.sessionName, term, send)}
           onTerminalDestroy={() => handleTerminalDestroy(pane.sessionName)}
         />
+        {pane.mode === "floating" ? (
+          <div
+            aria-label={`Resize ${pane.label}`}
+            className="absolute bottom-0 right-0 flex min-h-11 min-w-11 cursor-nwse-resize items-end justify-end touch-none p-1 text-white/70"
+            data-testid={`resize-handle-${pane.id}`}
+            role="presentation"
+            style={NO_TOUCH_STYLE}
+            onClick={(event) => event.stopPropagation()}
+            onPointerDown={(event) => startFloatingPaneGesture(event, pane, "resize")}
+          >
+            <span aria-hidden="true" className="text-xs leading-none">
+              ◢
+            </span>
+          </div>
+        ) : null}
       </div>
     );
   };
@@ -874,7 +1114,7 @@ export function MultiSessionWorkspace({
           }}
           data-testid="multi-session-grid"
         >
-          {layout.tiled.panes.map(renderPane)}
+          {layout.panes.filter((pane) => pane.mode === "tiled").map(renderPane)}
         </div>
         <div className="absolute inset-0 pointer-events-none" data-testid="floating-pane-layer">
           {layout.panes
