@@ -1,0 +1,351 @@
+// @vitest-environment jsdom
+
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import type { Terminal } from "@xterm/xterm";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import "@testing-library/jest-dom/vitest";
+import type { KeybindingContextValue } from "@/hooks/useKeybindings";
+
+const mockCreateSession = vi.fn();
+const mockGetSessions = vi.fn();
+const mockSetActiveTerminal = vi.fn();
+const mockCopyTerminalSelection = vi.fn();
+const mockPasteToTerminal = vi.fn();
+const terminalProps = new Map<
+  string,
+  {
+    agentId: string;
+    workspaceId: string;
+    sessionName: string;
+    onTerminalReady?: (term: Terminal, send: (data: string) => void) => void;
+    onTerminalDestroy?: () => void;
+  }
+>();
+
+vi.mock("next/dynamic", () => ({
+  __esModule: true,
+  default: (loader: () => Promise<{ InteractiveTerminal: React.ComponentType<any> }>) => {
+    void loader;
+    const Stub = ({
+      agentId,
+      workspaceId,
+      sessionName,
+      onTerminalReady,
+      onTerminalDestroy,
+    }: {
+      agentId: string;
+      workspaceId: string;
+      sessionName: string;
+      onTerminalReady?: (term: Terminal, send: (data: string) => void) => void;
+      onTerminalDestroy?: () => void;
+    }) => {
+      terminalProps.set(sessionName, {
+        agentId,
+        workspaceId,
+        sessionName,
+        onTerminalReady,
+        onTerminalDestroy,
+      });
+      return (
+        <div
+          data-testid={`interactive-terminal-${sessionName}`}
+          data-agent-id={agentId}
+          data-workspace-id={workspaceId}
+          data-session-name={sessionName}
+        >
+          Terminal: {sessionName}
+        </div>
+      );
+    };
+    Stub.displayName = "InteractiveTerminal";
+    return Stub;
+  },
+}));
+
+vi.mock("@/lib/actions/workspaces", () => ({
+  createSessionAction: (...args: unknown[]) => mockCreateSession(...args),
+  getWorkspaceSessionsAction: (...args: unknown[]) => mockGetSessions(...args),
+}));
+
+vi.mock("@/hooks/useKeybindings", () => ({
+  useKeybindings: (): Partial<KeybindingContextValue> => ({
+    setActiveTerminal: mockSetActiveTerminal,
+  }),
+}));
+
+vi.mock("@/lib/terminal/actions", () => ({
+  copyTerminalSelection: (...args: unknown[]) => mockCopyTerminalSelection(...args),
+  pasteToTerminal: (...args: unknown[]) => mockPasteToTerminal(...args),
+}));
+
+vi.mock("@/lib/utils", () => ({
+  cn: (...classes: unknown[]) => classes.filter(Boolean).join(" "),
+}));
+
+vi.mock("@/components/ui/button", () => ({
+  Button: ({
+    children,
+    onClick,
+    disabled,
+    ...rest
+  }: React.PropsWithChildren<{
+    onClick?: () => void;
+    disabled?: boolean;
+    className?: string;
+    variant?: string;
+    size?: string;
+    "data-testid"?: string;
+    "aria-label"?: string;
+  }>) => (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      data-testid={rest["data-testid"]}
+      aria-label={rest["aria-label"]}
+    >
+      {children}
+    </button>
+  ),
+}));
+
+vi.mock("@/components/ui/alert", () => ({
+  Alert: ({
+    children,
+    variant,
+    ...rest
+  }: React.PropsWithChildren<{ variant?: string; "data-testid"?: string }>) => (
+    <div data-testid={rest["data-testid"] ?? "alert"} data-variant={variant}>
+      {children}
+    </div>
+  ),
+  AlertDescription: ({ children }: React.PropsWithChildren) => <p>{children}</p>,
+  AlertTitle: ({ children }: React.PropsWithChildren) => <p>{children}</p>,
+}));
+
+vi.mock("lucide-react", () => ({
+  AlertCircle: () => <span data-testid="icon-alert" />,
+  ClipboardPaste: () => <span data-testid="icon-paste" />,
+  Copy: () => <span data-testid="icon-copy" />,
+  Loader2: () => <span data-testid="icon-loader" />,
+  Plus: () => <span data-testid="icon-plus" />,
+}));
+
+import { MultiSessionWorkspace } from "@/components/workspaces/MultiSessionWorkspace";
+
+const defaultProps = {
+  agentId: "agent-1",
+  workspaceId: "ws-1",
+};
+
+function makeTerminal(name: string): Terminal {
+  return {
+    name,
+    getSelection: vi.fn(() => `${name}-selection`),
+    clearSelection: vi.fn(),
+  } as unknown as Terminal;
+}
+
+function makeSender(name: string) {
+  return vi.fn((data: string) => `${name}:${data}`);
+}
+
+describe("MultiSessionWorkspace", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    terminalProps.clear();
+  });
+
+  afterEach(() => {
+    cleanup();
+  });
+
+  it("renders two or more real panes with InteractiveTerminal props and active diagnostics", async () => {
+    mockGetSessions.mockResolvedValue({
+      data: [
+        { name: "main-session", created: 1, windows: 1 },
+        { name: "dev-server", created: 2, windows: 1 },
+      ],
+    });
+
+    render(<MultiSessionWorkspace {...defaultProps} />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("multi-session-pane-count")).toHaveTextContent("2");
+    });
+
+    expect(screen.getByTestId("interactive-terminal-main-session")).toHaveAttribute(
+      "data-agent-id",
+      "agent-1",
+    );
+    expect(screen.getByTestId("interactive-terminal-dev-server")).toHaveAttribute(
+      "data-workspace-id",
+      "ws-1",
+    );
+    expect(screen.getByTestId("active-pane-label")).toHaveTextContent("main-session");
+    expect(terminalProps.get("main-session")?.sessionName).toBe("main-session");
+    expect(terminalProps.get("dev-server")?.sessionName).toBe("dev-server");
+  });
+
+  it("creates, appends, and selects a new session from the accessible create control", async () => {
+    mockGetSessions.mockResolvedValue({ data: [{ name: "main-session", created: 1, windows: 1 }] });
+    mockCreateSession.mockResolvedValue({ data: { name: "new-session" } });
+
+    render(<MultiSessionWorkspace {...defaultProps} />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("active-pane-label")).toHaveTextContent("main-session");
+    });
+
+    await act(async () => {
+      fireEvent.click(screen.getByTestId("create-session-button"));
+    });
+
+    await waitFor(() => {
+      expect(screen.getByTestId("multi-session-pane-count")).toHaveTextContent("2");
+    });
+
+    expect(mockCreateSession).toHaveBeenCalledWith({ workspaceId: "ws-1" });
+    expect(screen.getByTestId("interactive-terminal-new-session")).toBeInTheDocument();
+    expect(screen.getByTestId("active-pane-label")).toHaveTextContent("new-session");
+  });
+
+  it("moves active ownership only when the selected pane is ready", async () => {
+    mockGetSessions.mockResolvedValue({
+      data: [
+        { name: "main-session", created: 1, windows: 1 },
+        { name: "dev-server", created: 2, windows: 1 },
+      ],
+    });
+    const mainTerm = makeTerminal("main-session");
+    const devTerm = makeTerminal("dev-server");
+    const mainSend = makeSender("main-session");
+    const devSend = makeSender("dev-server");
+
+    render(<MultiSessionWorkspace {...defaultProps} />);
+
+    await waitFor(() => {
+      expect(terminalProps.has("main-session")).toBe(true);
+      expect(terminalProps.has("dev-server")).toBe(true);
+    });
+
+    await act(async () => {
+      terminalProps.get("dev-server")?.onTerminalReady?.(devTerm, devSend);
+    });
+    expect(mockSetActiveTerminal).not.toHaveBeenCalledWith(devTerm, devSend);
+
+    await act(async () => {
+      terminalProps.get("main-session")?.onTerminalReady?.(mainTerm, mainSend);
+    });
+    expect(mockSetActiveTerminal).toHaveBeenLastCalledWith(mainTerm, mainSend);
+
+    await act(async () => {
+      fireEvent.click(screen.getByTestId("workspace-pane-dev-server"));
+    });
+    expect(mockSetActiveTerminal).toHaveBeenLastCalledWith(devTerm, devSend);
+
+    await act(async () => {
+      terminalProps.get("dev-server")?.onTerminalDestroy?.();
+    });
+    expect(mockSetActiveTerminal).toHaveBeenLastCalledWith(null, null);
+  });
+
+  it("does not set a stale sender when selecting a pane before terminal readiness", async () => {
+    mockGetSessions.mockResolvedValue({
+      data: [
+        { name: "ready-session", created: 1, windows: 1 },
+        { name: "cold-session", created: 2, windows: 1 },
+      ],
+    });
+    const readyTerm = makeTerminal("ready-session");
+    const readySend = makeSender("ready-session");
+
+    render(<MultiSessionWorkspace {...defaultProps} />);
+
+    await waitFor(() => {
+      expect(terminalProps.has("ready-session")).toBe(true);
+    });
+
+    await act(async () => {
+      terminalProps.get("ready-session")?.onTerminalReady?.(readyTerm, readySend);
+    });
+    expect(mockSetActiveTerminal).toHaveBeenLastCalledWith(readyTerm, readySend);
+
+    await act(async () => {
+      fireEvent.click(screen.getByTestId("workspace-pane-cold-session"));
+    });
+
+    expect(mockSetActiveTerminal).toHaveBeenLastCalledWith(null, null);
+  });
+
+  it("copy and paste target only the active pane", async () => {
+    mockGetSessions.mockResolvedValue({
+      data: [
+        { name: "main-session", created: 1, windows: 1 },
+        { name: "dev-server", created: 2, windows: 1 },
+      ],
+    });
+    const mainTerm = makeTerminal("main-session");
+    const devTerm = makeTerminal("dev-server");
+    const mainSend = makeSender("main-session");
+    const devSend = makeSender("dev-server");
+
+    render(<MultiSessionWorkspace {...defaultProps} />);
+
+    await waitFor(() => {
+      expect(terminalProps.has("main-session")).toBe(true);
+      expect(terminalProps.has("dev-server")).toBe(true);
+    });
+
+    await act(async () => {
+      terminalProps.get("main-session")?.onTerminalReady?.(mainTerm, mainSend);
+      terminalProps.get("dev-server")?.onTerminalReady?.(devTerm, devSend);
+      fireEvent.click(screen.getByTestId("workspace-pane-dev-server"));
+    });
+
+    fireEvent.click(screen.getByTestId("copy-active-pane"));
+    fireEvent.click(screen.getByTestId("paste-active-pane"));
+
+    expect(mockCopyTerminalSelection).toHaveBeenCalledWith(devTerm, expect.any(Object));
+    expect(mockPasteToTerminal).toHaveBeenCalledWith(devTerm, devSend, expect.any(Object));
+    expect(mockCopyTerminalSelection).not.toHaveBeenCalledWith(mainTerm, expect.anything());
+    expect(mockPasteToTerminal).not.toHaveBeenCalledWith(mainTerm, mainSend, expect.anything());
+  });
+
+  it("shows inspectable empty, load error, and create error states without mounting stale terminals", async () => {
+    mockGetSessions.mockResolvedValueOnce({ data: [] });
+    mockCreateSession.mockResolvedValueOnce({ serverError: "creation failed with secret path" });
+
+    render(<MultiSessionWorkspace {...defaultProps} />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("multi-session-empty")).toBeInTheDocument();
+    });
+    expect(screen.queryByTestId(/^interactive-terminal-/)).not.toBeInTheDocument();
+
+    await act(async () => {
+      fireEvent.click(screen.getByTestId("create-empty-session-button"));
+    });
+
+    await waitFor(() => {
+      expect(screen.getByTestId("session-create-error")).toHaveTextContent(
+        "Could not create a terminal session.",
+      );
+    });
+    expect(screen.queryByText(/secret path/i)).not.toBeInTheDocument();
+
+    cleanup();
+    terminalProps.clear();
+    mockGetSessions.mockResolvedValueOnce({ serverError: "workspace refused ssh" });
+
+    render(<MultiSessionWorkspace {...defaultProps} />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("session-load-error")).toHaveTextContent(
+        "Could not load terminal sessions.",
+      );
+    });
+    expect(screen.getByTestId("retry-load-sessions")).toBeInTheDocument();
+    expect(screen.queryByTestId(/^interactive-terminal-/)).not.toBeInTheDocument();
+  });
+});
