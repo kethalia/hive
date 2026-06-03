@@ -7,7 +7,7 @@ interface WorkspaceTerminalPageProps {
 }
 
 const WORKSPACE_TERMINAL_SHELL_CLASS_NAME =
-  "-mx-6 h-[calc(var(--app-viewport-height)-var(--safe-area-inset-top)-3.5rem)] w-[calc(100%+3rem)] md:h-[calc(var(--app-viewport-height)-var(--safe-area-inset-top)-var(--safe-area-inset-bottom)-5rem)]";
+  "-mx-6 h-[calc(var(--app-viewport-height)-var(--safe-area-inset-top)-3.5rem)] min-h-0 w-[calc(100%+3rem)] overflow-hidden md:h-[calc(var(--app-viewport-height)-var(--safe-area-inset-top)-var(--safe-area-inset-bottom)-5rem)]";
 
 export default async function WorkspaceTerminalPage({ params }: WorkspaceTerminalPageProps) {
   const { id: workspaceId } = await params;
