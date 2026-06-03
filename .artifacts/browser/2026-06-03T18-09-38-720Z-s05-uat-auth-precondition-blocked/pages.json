@@ -1,0 +1,9 @@
+[
+  {
+    "id": 1,
+    "title": "Hive Orchestrator",
+    "url": "http://localhost:3000/workspaces/s05-uat-workspace/terminal/workspace",
+    "opener": null,
+    "isActive": true
+  }
+]

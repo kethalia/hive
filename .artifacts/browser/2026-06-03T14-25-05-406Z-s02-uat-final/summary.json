@@ -1,0 +1,401 @@
+{
+  "counts": {
+    "pages": 1,
+    "actions": {
+      "total": 0,
+      "retained": 0,
+      "success": 0,
+      "error": 0,
+      "running": 0
+    },
+    "waits": {
+      "total": 0,
+      "success": 0,
+      "error": 0,
+      "running": 0
+    },
+    "assertions": {
+      "total": 0,
+      "passed": 0,
+      "failed": 0,
+      "running": 0
+    },
+    "consoleErrors": 69,
+    "failedRequests": 0,
+    "dialogs": 0
+  },
+  "activePage": {
+    "id": 1,
+    "title": "Hive Orchestrator",
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session"
+  },
+  "caveats": [
+    "bounded console history may hide older console events.",
+    "bounded network history may hide older requests."
+  ],
+  "failureHypothesis": {
+    "hasFailures": true,
+    "categories": [
+      "console"
+    ],
+    "summary": "Recent failure signals detected across console.",
+    "signals": [
+      {
+        "category": "console",
+        "source": "error",
+        "detail": "Base UI: A component that acts as a button expected a native <button> because the `nativeButton` prop is true. Rendering a non-<button> removes native button semantics, which can impact forms and accessibility. Use a real <button> in the `render` prop, or set `nativeButton` to `false`.\n    at Button (http://localhost:3000/_next/static/chunks/src_0qh6dse._.js:138:375)\n    at TaskListContent (about://React/Server/file:///home/coder/projects/kethalia/hive/.next/dev/server/chunks/ssr/%5Broot-of-the-server%5D__0pp5el~._.js?83:3431:433)\n    at TasksPage (about://React/Server/file:///home/coder/projects/kethalia/hive/.next/dev/server/chunks/ssr/%5Broot-of-the-server%5D__0pp5el~._.js?72:3796:431)"
+      },
+      {
+        "category": "console",
+        "source": "error",
+        "detail": "WebSocket connection to 'ws://localhost:4500/ws?agentId=66666666-6666-4666-8666-666666666666&workspaceId=44444444-4444-4444-8444-444444444444&reconnectId=262619e3-2e86-4fd0-95af-7dbc2ad988f6&width=178&height=37&sessionName=uat-session' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED"
+      },
+      {
+        "category": "console",
+        "source": "error",
+        "detail": "WebSocket connection to 'ws://localhost:4500/ws?agentId=66666666-6666-4666-8666-666666666666&workspaceId=44444444-4444-4444-8444-444444444444&reconnectId=262619e3-2e86-4fd0-95af-7dbc2ad988f6&width=178&height=37&sessionName=uat-session' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED"
+      },
+      {
+        "category": "console",
+        "source": "error",
+        "detail": "WebSocket connection to 'ws://localhost:4500/ws?agentId=66666666-6666-4666-8666-666666666666&workspaceId=44444444-4444-4444-8444-444444444444&reconnectId=262619e3-2e86-4fd0-95af-7dbc2ad988f6&width=178&height=37&sessionName=uat-session' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED"
+      },
+      {
+        "category": "console",
+        "source": "error",
+        "detail": "WebSocket connection to 'ws://localhost:4500/ws?agentId=66666666-6666-4666-8666-666666666666&workspaceId=44444444-4444-4444-8444-444444444444&reconnectId=262619e3-2e86-4fd0-95af-7dbc2ad988f6&width=178&height=37&sessionName=uat-session' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED"
+      },
+      {
+        "category": "console",
+        "source": "error",
+        "detail": "WebSocket connection to 'ws://localhost:4500/ws?agentId=66666666-6666-4666-8666-666666666666&workspaceId=44444444-4444-4444-8444-444444444444&reconnectId=262619e3-2e86-4fd0-95af-7dbc2ad988f6&width=178&height=37&sessionName=uat-session' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED"
+      },
+      {
+        "category": "console",
+        "source": "error",
+        "detail": "WebSocket connection to 'ws://localhost:4500/ws?agentId=66666666-6666-4666-8666-666666666666&workspaceId=44444444-4444-4444-8444-444444444444&reconnectId=262619e3-2e86-4fd0-95af-7dbc2ad988f6&width=178&height=37&sessionName=uat-session' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED"
+      },
+      {
+        "category": "console",
+        "source": "error",
+        "detail": "WebSocket connection to 'ws://localhost:4500/ws?agentId=66666666-6666-4666-8666-666666666666&workspaceId=44444444-4444-4444-8444-444444444444&reconnectId=262619e3-2e86-4fd0-95af-7dbc2ad988f6&width=178&height=37&sessionName=uat-session' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED"
+      },
+      {
+        "category": "console",
+        "source": "error",
+        "detail": "WebSocket connection to 'ws://localhost:4500/ws?agentId=66666666-6666-4666-8666-666666666666&workspaceId=44444444-4444-4444-8444-444444444444&reconnectId=262619e3-2e86-4fd0-95af-7dbc2ad988f6&width=178&height=37&sessionName=uat-session' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED"
+      },
+      {
+        "category": "console",
+        "source": "error",
+        "detail": "WebSocket connection to 'ws://localhost:4500/ws?agentId=66666666-6666-4666-8666-666666666666&workspaceId=44444444-4444-4444-8444-444444444444&reconnectId=262619e3-2e86-4fd0-95af-7dbc2ad988f6&width=178&height=37&sessionName=uat-session' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED"
+      },
+      {
+        "category": "console",
+        "source": "error",
+        "detail": "WebSocket connection to 'ws://localhost:4500/ws?agentId=66666666-6666-4666-8666-666666666666&workspaceId=44444444-4444-4444-8444-444444444444&reconnectId=262619e3-2e86-4fd0-95af-7dbc2ad988f6&width=178&height=37&sessionName=uat-session' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED"
+      },
+      {
+        "category": "console",
+        "source": "error",
+        "detail": "WebSocket connection to 'ws://localhost:4500/ws?agentId=66666666-6666-4666-8666-666666666666&workspaceId=44444444-4444-4444-8444-444444444444&reconnectId=262619e3-2e86-4fd0-95af-7dbc2ad988f6&width=178&height=37&sessionName=uat-session' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED"
+      },
+      {
+        "category": "console",
+        "source": "error",
+        "detail": "WebSocket connection to 'ws://localhost:4500/ws?agentId=66666666-6666-4666-8666-666666666666&workspaceId=44444444-4444-4444-8444-444444444444&reconnectId=262619e3-2e86-4fd0-95af-7dbc2ad988f6&width=178&height=37&sessionName=uat-session' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED"
+      },
+      {
+        "category": "console",
+        "source": "error",
+        "detail": "WebSocket connection to 'ws://localhost:4500/ws?agentId=66666666-6666-4666-8666-666666666666&workspaceId=44444444-4444-4444-8444-444444444444&reconnectId=262619e3-2e86-4fd0-95af-7dbc2ad988f6&width=158&height=32&sessionName=uat-session' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED"
+      },
+      {
+        "category": "console",
+        "source": "error",
+        "detail": "WebSocket connection to 'ws://localhost:4500/ws?agentId=66666666-6666-4666-8666-666666666666&workspaceId=44444444-4444-4444-8444-444444444444&reconnectId=262619e3-2e86-4fd0-95af-7dbc2ad988f6&width=158&height=32&sessionName=uat-session' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED"
+      },
+      {
+        "category": "console",
+        "source": "error",
+        "detail": "WebSocket connection to 'ws://localhost:4500/ws?agentId=66666666-6666-4666-8666-666666666666&workspaceId=44444444-4444-4444-8444-444444444444&reconnectId=262619e3-2e86-4fd0-95af-7dbc2ad988f6&width=158&height=32&sessionName=uat-session' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED"
+      },
+      {
+        "category": "console",
+        "source": "error",
+        "detail": "WebSocket connection to 'ws://localhost:4500/ws?agentId=66666666-6666-4666-8666-666666666666&workspaceId=44444444-4444-4444-8444-444444444444&reconnectId=262619e3-2e86-4fd0-95af-7dbc2ad988f6&width=158&height=32&sessionName=uat-session' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED"
+      },
+      {
+        "category": "console",
+        "source": "error",
+        "detail": "WebSocket connection to 'ws://localhost:4500/ws?agentId=66666666-6666-4666-8666-666666666666&workspaceId=44444444-4444-4444-8444-444444444444&reconnectId=262619e3-2e86-4fd0-95af-7dbc2ad988f6&width=158&height=32&sessionName=uat-session' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED"
+      },
+      {
+        "category": "console",
+        "source": "error",
+        "detail": "WebSocket connection to 'ws://localhost:4500/ws?agentId=66666666-6666-4666-8666-666666666666&workspaceId=44444444-4444-4444-8444-444444444444&reconnectId=262619e3-2e86-4fd0-95af-7dbc2ad988f6&width=47&height=30&sessionName=uat-session' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED"
+      },
+      {
+        "category": "console",
+        "source": "error",
+        "detail": "WebSocket connection to 'ws://localhost:4500/ws?agentId=66666666-6666-4666-8666-666666666666&workspaceId=44444444-4444-4444-8444-444444444444&reconnectId=262619e3-2e86-4fd0-95af-7dbc2ad988f6&width=47&height=30&sessionName=uat-session' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED"
+      },
+      {
+        "category": "console",
+        "source": "error",
+        "detail": "WebSocket connection to 'ws://localhost:4500/ws?agentId=66666666-6666-4666-8666-666666666666&workspaceId=44444444-4444-4444-8444-444444444444&reconnectId=262619e3-2e86-4fd0-95af-7dbc2ad988f6&width=47&height=30&sessionName=uat-session' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED"
+      },
+      {
+        "category": "console",
+        "source": "pageerror",
+        "detail": "Hydration failed because the server rendered HTML didn't match the client. As a result this tree will be regenerated on the client. This can happen if a SSR-ed Client Component used:\n\n- A server/client branch `if (typeof window !== 'undefined')`.\n- Variable input such as `Date.now()` or `Math.random()` which changes each time it's called.\n- Date formatting in a user's locale which doesn't match the server.\n- External changing data without sending a snapshot of it along with the HTML.\n- Invalid HTML tag nesting.\n\nIt can also happen if the client has a browser extension installed which messes with the HTML before React loaded.\n\nhttps://react.dev/link/hydration-mismatch\n\n  ...\n    <LoadingBoundary name=\"/\" loading={null}>\n      <HTTPAccessFallbackBoundary notFound={{...}} forbidden={undefined} unauthorized={undefined}>\n        <HTTPAccessFallbackErrorBoundary pathname=\"/workspace...\" notFound={{...}} forbidden={undefined} ...>\n          <RedirectBoundary>\n            <RedirectErrorBoundary router={{...}}>\n              <InnerLayoutRouter url=\"/workspace...\" tree={[...]} params={{}} cacheNode={{rsc:{...}, ...}} ...>\n                <SegmentViewNode type=\"layout\" pagePath=\"(dashboard...\">\n                  <SegmentTrieNode>\n                  <script>\n                  <script>\n                  <script>\n                  <script>\n                  <script>\n                  <script>\n                  <script>\n                  <script>\n                  <DashboardLayout>\n                    <SidebarProvider>\n                      <div data-slot=\"sidebar-wr...\" style={{...}} className=\"group/side...\">\n                        <KeybindingProvider>\n                          <Suspense fallback={null}>\n-                           <div\n-                             className=\"group peer hidden text-sidebar-foreground md:block\"\n-                             data-state=\"expanded\"\n-                             data-collapsible=\"\"\n-                             data-variant=\"floating\"\n-                             data-side=\"left\"\n-                             data-slot=\"sidebar\"\n-                           >\n                          ...\n              ...\n"
+      },
+      {
+        "category": "console",
+        "source": "error",
+        "detail": "WebSocket connection to 'ws://localhost:4500/ws?agentId=66666666-6666-4666-8666-666666666666&workspaceId=44444444-4444-4444-8444-444444444444&reconnectId=262619e3-2e86-4fd0-95af-7dbc2ad988f6&width=47&height=30&sessionName=uat-session' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED"
+      },
+      {
+        "category": "console",
+        "source": "error",
+        "detail": "WebSocket connection to 'ws://localhost:4500/ws?agentId=66666666-6666-4666-8666-666666666666&workspaceId=44444444-4444-4444-8444-444444444444&reconnectId=262619e3-2e86-4fd0-95af-7dbc2ad988f6&width=47&height=30&sessionName=uat-session' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED"
+      },
+      {
+        "category": "console",
+        "source": "error",
+        "detail": "WebSocket connection to 'ws://localhost:4500/ws?agentId=66666666-6666-4666-8666-666666666666&workspaceId=44444444-4444-4444-8444-444444444444&reconnectId=262619e3-2e86-4fd0-95af-7dbc2ad988f6&width=47&height=30&sessionName=uat-session' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED"
+      },
+      {
+        "category": "console",
+        "source": "error",
+        "detail": "WebSocket connection to 'ws://localhost:4500/ws?agentId=66666666-6666-4666-8666-666666666666&workspaceId=44444444-4444-4444-8444-444444444444&reconnectId=262619e3-2e86-4fd0-95af-7dbc2ad988f6&width=47&height=30&sessionName=uat-session' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED"
+      },
+      {
+        "category": "console",
+        "source": "error",
+        "detail": "WebSocket connection to 'ws://localhost:4500/ws?agentId=66666666-6666-4666-8666-666666666666&workspaceId=44444444-4444-4444-8444-444444444444&reconnectId=262619e3-2e86-4fd0-95af-7dbc2ad988f6&width=47&height=30&sessionName=uat-session' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED"
+      },
+      {
+        "category": "console",
+        "source": "error",
+        "detail": "WebSocket connection to 'ws://localhost:4500/ws?agentId=66666666-6666-4666-8666-666666666666&workspaceId=44444444-4444-4444-8444-444444444444&reconnectId=262619e3-2e86-4fd0-95af-7dbc2ad988f6&width=47&height=30&sessionName=uat-session' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED"
+      },
+      {
+        "category": "console",
+        "source": "error",
+        "detail": "WebSocket connection to 'ws://localhost:4500/ws?agentId=66666666-6666-4666-8666-666666666666&workspaceId=44444444-4444-4444-8444-444444444444&reconnectId=262619e3-2e86-4fd0-95af-7dbc2ad988f6&width=47&height=30&sessionName=uat-session' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED"
+      },
+      {
+        "category": "console",
+        "source": "error",
+        "detail": "WebSocket connection to 'ws://localhost:4500/ws?agentId=66666666-6666-4666-8666-666666666666&workspaceId=44444444-4444-4444-8444-444444444444&reconnectId=262619e3-2e86-4fd0-95af-7dbc2ad988f6&width=178&height=34&sessionName=uat-session' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED"
+      },
+      {
+        "category": "console",
+        "source": "error",
+        "detail": "WebSocket connection to 'ws://localhost:4500/ws?agentId=66666666-6666-4666-8666-666666666666&workspaceId=44444444-4444-4444-8444-444444444444&reconnectId=262619e3-2e86-4fd0-95af-7dbc2ad988f6&width=178&height=34&sessionName=uat-session' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED"
+      },
+      {
+        "category": "console",
+        "source": "error",
+        "detail": "WebSocket connection to 'ws://localhost:4500/ws?agentId=66666666-6666-4666-8666-666666666666&workspaceId=44444444-4444-4444-8444-444444444444&reconnectId=262619e3-2e86-4fd0-95af-7dbc2ad988f6&width=178&height=34&sessionName=uat-session' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED"
+      },
+      {
+        "category": "console",
+        "source": "error",
+        "detail": "WebSocket connection to 'ws://localhost:4500/ws?agentId=66666666-6666-4666-8666-666666666666&workspaceId=44444444-4444-4444-8444-444444444444&reconnectId=262619e3-2e86-4fd0-95af-7dbc2ad988f6&width=178&height=37&sessionName=uat-session' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED"
+      },
+      {
+        "category": "console",
+        "source": "error",
+        "detail": "WebSocket connection to 'ws://localhost:4500/ws?agentId=66666666-6666-4666-8666-666666666666&workspaceId=44444444-4444-4444-8444-444444444444&reconnectId=262619e3-2e86-4fd0-95af-7dbc2ad988f6&width=178&height=37&sessionName=uat-session' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED"
+      },
+      {
+        "category": "console",
+        "source": "error",
+        "detail": "WebSocket connection to 'ws://localhost:4500/ws?agentId=66666666-6666-4666-8666-666666666666&workspaceId=44444444-4444-4444-8444-444444444444&reconnectId=262619e3-2e86-4fd0-95af-7dbc2ad988f6&width=178&height=37&sessionName=uat-session' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED"
+      },
+      {
+        "category": "console",
+        "source": "error",
+        "detail": "WebSocket connection to 'ws://localhost:4500/ws?agentId=66666666-6666-4666-8666-666666666666&workspaceId=44444444-4444-4444-8444-444444444444&reconnectId=262619e3-2e86-4fd0-95af-7dbc2ad988f6&width=178&height=37&sessionName=uat-session' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED"
+      },
+      {
+        "category": "console",
+        "source": "error",
+        "detail": "WebSocket connection to 'ws://localhost:4500/ws?agentId=66666666-6666-4666-8666-666666666666&workspaceId=44444444-4444-4444-8444-444444444444&reconnectId=262619e3-2e86-4fd0-95af-7dbc2ad988f6&width=178&height=37&sessionName=uat-session' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED"
+      },
+      {
+        "category": "console",
+        "source": "error",
+        "detail": "WebSocket connection to 'ws://localhost:4500/ws?agentId=66666666-6666-4666-8666-666666666666&workspaceId=44444444-4444-4444-8444-444444444444&reconnectId=262619e3-2e86-4fd0-95af-7dbc2ad988f6&width=178&height=37&sessionName=uat-session' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED"
+      },
+      {
+        "category": "console",
+        "source": "error",
+        "detail": "WebSocket connection to 'ws://localhost:4500/ws?agentId=66666666-6666-4666-8666-666666666666&workspaceId=44444444-4444-4444-8444-444444444444&reconnectId=262619e3-2e86-4fd0-95af-7dbc2ad988f6&width=178&height=37&sessionName=uat-session' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED"
+      },
+      {
+        "category": "console",
+        "source": "error",
+        "detail": "WebSocket connection to 'ws://localhost:4500/ws?agentId=66666666-6666-4666-8666-666666666666&workspaceId=44444444-4444-4444-8444-444444444444&reconnectId=262619e3-2e86-4fd0-95af-7dbc2ad988f6&width=178&height=37&sessionName=uat-session' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED"
+      },
+      {
+        "category": "console",
+        "source": "error",
+        "detail": "WebSocket connection to 'ws://localhost:4500/ws?agentId=66666666-6666-4666-8666-666666666666&workspaceId=44444444-4444-4444-8444-444444444444&reconnectId=262619e3-2e86-4fd0-95af-7dbc2ad988f6&width=178&height=37&sessionName=uat-session' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED"
+      },
+      {
+        "category": "console",
+        "source": "error",
+        "detail": "WebSocket connection to 'ws://localhost:4500/ws?agentId=66666666-6666-4666-8666-666666666666&workspaceId=44444444-4444-4444-8444-444444444444&reconnectId=262619e3-2e86-4fd0-95af-7dbc2ad988f6&width=178&height=37&sessionName=uat-session' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED"
+      },
+      {
+        "category": "console",
+        "source": "error",
+        "detail": "WebSocket connection to 'ws://localhost:4500/ws?agentId=66666666-6666-4666-8666-666666666666&workspaceId=44444444-4444-4444-8444-444444444444&reconnectId=262619e3-2e86-4fd0-95af-7dbc2ad988f6&width=178&height=37&sessionName=uat-session' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED"
+      },
+      {
+        "category": "console",
+        "source": "error",
+        "detail": "WebSocket connection to 'ws://localhost:4500/ws?agentId=66666666-6666-4666-8666-666666666666&workspaceId=44444444-4444-4444-8444-444444444444&reconnectId=262619e3-2e86-4fd0-95af-7dbc2ad988f6&width=178&height=37&sessionName=uat-session' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED"
+      },
+      {
+        "category": "console",
+        "source": "error",
+        "detail": "WebSocket connection to 'ws://localhost:4500/ws?agentId=66666666-6666-4666-8666-666666666666&workspaceId=44444444-4444-4444-8444-444444444444&reconnectId=262619e3-2e86-4fd0-95af-7dbc2ad988f6&width=178&height=37&sessionName=uat-session' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED"
+      },
+      {
+        "category": "console",
+        "source": "error",
+        "detail": "WebSocket connection to 'ws://localhost:4500/ws?agentId=66666666-6666-4666-8666-666666666666&workspaceId=44444444-4444-4444-8444-444444444444&reconnectId=262619e3-2e86-4fd0-95af-7dbc2ad988f6&width=178&height=37&sessionName=uat-session' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED"
+      },
+      {
+        "category": "console",
+        "source": "error",
+        "detail": "WebSocket connection to 'ws://localhost:4500/ws?agentId=66666666-6666-4666-8666-666666666666&workspaceId=44444444-4444-4444-8444-444444444444&reconnectId=262619e3-2e86-4fd0-95af-7dbc2ad988f6&width=178&height=37&sessionName=uat-session' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED"
+      },
+      {
+        "category": "console",
+        "source": "error",
+        "detail": "WebSocket connection to 'ws://localhost:4500/ws?agentId=66666666-6666-4666-8666-666666666666&workspaceId=44444444-4444-4444-8444-444444444444&reconnectId=262619e3-2e86-4fd0-95af-7dbc2ad988f6&width=178&height=37&sessionName=uat-session' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED"
+      },
+      {
+        "category": "console",
+        "source": "error",
+        "detail": "WebSocket connection to 'ws://localhost:4500/ws?agentId=66666666-6666-4666-8666-666666666666&workspaceId=44444444-4444-4444-8444-444444444444&reconnectId=262619e3-2e86-4fd0-95af-7dbc2ad988f6&width=178&height=37&sessionName=uat-session' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED"
+      },
+      {
+        "category": "console",
+        "source": "error",
+        "detail": "WebSocket connection to 'ws://localhost:4500/ws?agentId=66666666-6666-4666-8666-666666666666&workspaceId=44444444-4444-4444-8444-444444444444&reconnectId=262619e3-2e86-4fd0-95af-7dbc2ad988f6&width=178&height=37&sessionName=uat-session' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED"
+      },
+      {
+        "category": "console",
+        "source": "error",
+        "detail": "WebSocket connection to 'ws://localhost:4500/ws?agentId=66666666-6666-4666-8666-666666666666&workspaceId=44444444-4444-4444-8444-444444444444&reconnectId=262619e3-2e86-4fd0-95af-7dbc2ad988f6&width=178&height=37&sessionName=uat-session' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED"
+      },
+      {
+        "category": "console",
+        "source": "error",
+        "detail": "WebSocket connection to 'ws://localhost:4500/ws?agentId=66666666-6666-4666-8666-666666666666&workspaceId=44444444-4444-4444-8444-444444444444&reconnectId=262619e3-2e86-4fd0-95af-7dbc2ad988f6&width=178&height=37&sessionName=uat-session' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED"
+      },
+      {
+        "category": "console",
+        "source": "error",
+        "detail": "WebSocket connection to 'ws://localhost:4500/ws?agentId=66666666-6666-4666-8666-666666666666&workspaceId=44444444-4444-4444-8444-444444444444&reconnectId=262619e3-2e86-4fd0-95af-7dbc2ad988f6&width=178&height=37&sessionName=uat-session' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED"
+      },
+      {
+        "category": "console",
+        "source": "error",
+        "detail": "WebSocket connection to 'ws://localhost:4500/ws?agentId=66666666-6666-4666-8666-666666666666&workspaceId=44444444-4444-4444-8444-444444444444&reconnectId=262619e3-2e86-4fd0-95af-7dbc2ad988f6&width=178&height=37&sessionName=uat-session' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED"
+      },
+      {
+        "category": "console",
+        "source": "error",
+        "detail": "WebSocket connection to 'ws://localhost:4500/ws?agentId=66666666-6666-4666-8666-666666666666&workspaceId=44444444-4444-4444-8444-444444444444&reconnectId=262619e3-2e86-4fd0-95af-7dbc2ad988f6&width=178&height=37&sessionName=uat-session' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED"
+      },
+      {
+        "category": "console",
+        "source": "error",
+        "detail": "WebSocket connection to 'ws://localhost:4500/ws?agentId=66666666-6666-4666-8666-666666666666&workspaceId=44444444-4444-4444-8444-444444444444&reconnectId=262619e3-2e86-4fd0-95af-7dbc2ad988f6&width=158&height=32&sessionName=uat-session' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED"
+      },
+      {
+        "category": "console",
+        "source": "error",
+        "detail": "WebSocket connection to 'ws://localhost:4500/ws?agentId=66666666-6666-4666-8666-666666666666&workspaceId=44444444-4444-4444-8444-444444444444&reconnectId=262619e3-2e86-4fd0-95af-7dbc2ad988f6&width=158&height=32&sessionName=uat-session' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED"
+      },
+      {
+        "category": "console",
+        "source": "error",
+        "detail": "WebSocket connection to 'ws://localhost:4500/ws?agentId=66666666-6666-4666-8666-666666666666&workspaceId=44444444-4444-4444-8444-444444444444&reconnectId=262619e3-2e86-4fd0-95af-7dbc2ad988f6&width=158&height=32&sessionName=uat-session' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED"
+      },
+      {
+        "category": "console",
+        "source": "error",
+        "detail": "WebSocket connection to 'ws://localhost:4500/ws?agentId=66666666-6666-4666-8666-666666666666&workspaceId=44444444-4444-4444-8444-444444444444&reconnectId=262619e3-2e86-4fd0-95af-7dbc2ad988f6&width=158&height=32&sessionName=uat-session' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED"
+      },
+      {
+        "category": "console",
+        "source": "error",
+        "detail": "WebSocket connection to 'ws://localhost:4500/ws?agentId=66666666-6666-4666-8666-666666666666&workspaceId=44444444-4444-4444-8444-444444444444&reconnectId=262619e3-2e86-4fd0-95af-7dbc2ad988f6&width=158&height=32&sessionName=uat-session' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED"
+      },
+      {
+        "category": "console",
+        "source": "error",
+        "detail": "WebSocket connection to 'ws://localhost:4500/ws?agentId=66666666-6666-4666-8666-666666666666&workspaceId=44444444-4444-4444-8444-444444444444&reconnectId=262619e3-2e86-4fd0-95af-7dbc2ad988f6&width=47&height=30&sessionName=uat-session' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED"
+      },
+      {
+        "category": "console",
+        "source": "error",
+        "detail": "WebSocket connection to 'ws://localhost:4500/ws?agentId=66666666-6666-4666-8666-666666666666&workspaceId=44444444-4444-4444-8444-444444444444&reconnectId=262619e3-2e86-4fd0-95af-7dbc2ad988f6&width=47&height=30&sessionName=uat-session' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED"
+      },
+      {
+        "category": "console",
+        "source": "error",
+        "detail": "WebSocket connection to 'ws://localhost:4500/ws?agentId=66666666-6666-4666-8666-666666666666&workspaceId=44444444-4444-4444-8444-444444444444&reconnectId=262619e3-2e86-4fd0-95af-7dbc2ad988f6&width=47&height=30&sessionName=uat-session' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED"
+      },
+      {
+        "category": "console",
+        "source": "pageerror",
+        "detail": "Hydration failed because the server rendered HTML didn't match the client. As a result this tree will be regenerated on the client. This can happen if a SSR-ed Client Component used:\n\n- A server/client branch `if (typeof window !== 'undefined')`.\n- Variable input such as `Date.now()` or `Math.random()` which changes each time it's called.\n- Date formatting in a user's locale which doesn't match the server.\n- External changing data without sending a snapshot of it along with the HTML.\n- Invalid HTML tag nesting.\n\nIt can also happen if the client has a browser extension installed which messes with the HTML before React loaded.\n\nhttps://react.dev/link/hydration-mismatch\n\n  ...\n    <LoadingBoundary name=\"/\" loading={null}>\n      <HTTPAccessFallbackBoundary notFound={{...}} forbidden={undefined} unauthorized={undefined}>\n        <HTTPAccessFallbackErrorBoundary pathname=\"/workspace...\" notFound={{...}} forbidden={undefined} ...>\n          <RedirectBoundary>\n            <RedirectErrorBoundary router={{...}}>\n              <InnerLayoutRouter url=\"/workspace...\" tree={[...]} params={{}} cacheNode={{rsc:{...}, ...}} ...>\n                <SegmentViewNode type=\"layout\" pagePath=\"(dashboard...\">\n                  <SegmentTrieNode>\n                  <script>\n                  <script>\n                  <script>\n                  <script>\n                  <script>\n                  <script>\n                  <script>\n                  <script>\n                  <DashboardLayout>\n                    <SidebarProvider>\n                      <div data-slot=\"sidebar-wr...\" style={{...}} className=\"group/side...\">\n                        <KeybindingProvider>\n                          <Suspense fallback={null}>\n-                           <div\n-                             className=\"group peer hidden text-sidebar-foreground md:block\"\n-                             data-state=\"expanded\"\n-                             data-collapsible=\"\"\n-                             data-variant=\"floating\"\n-                             data-side=\"left\"\n-                             data-slot=\"sidebar\"\n-                           >\n                          ...\n              ...\n"
+      },
+      {
+        "category": "console",
+        "source": "error",
+        "detail": "WebSocket connection to 'ws://localhost:4500/ws?agentId=66666666-6666-4666-8666-666666666666&workspaceId=44444444-4444-4444-8444-444444444444&reconnectId=262619e3-2e86-4fd0-95af-7dbc2ad988f6&width=47&height=30&sessionName=uat-session' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED"
+      },
+      {
+        "category": "console",
+        "source": "error",
+        "detail": "WebSocket connection to 'ws://localhost:4500/ws?agentId=66666666-6666-4666-8666-666666666666&workspaceId=44444444-4444-4444-8444-444444444444&reconnectId=262619e3-2e86-4fd0-95af-7dbc2ad988f6&width=47&height=30&sessionName=uat-session' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED"
+      },
+      {
+        "category": "console",
+        "source": "error",
+        "detail": "WebSocket connection to 'ws://localhost:4500/ws?agentId=66666666-6666-4666-8666-666666666666&workspaceId=44444444-4444-4444-8444-444444444444&reconnectId=262619e3-2e86-4fd0-95af-7dbc2ad988f6&width=47&height=30&sessionName=uat-session' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED"
+      },
+      {
+        "category": "console",
+        "source": "error",
+        "detail": "WebSocket connection to 'ws://localhost:4500/ws?agentId=66666666-6666-4666-8666-666666666666&workspaceId=44444444-4444-4444-8444-444444444444&reconnectId=262619e3-2e86-4fd0-95af-7dbc2ad988f6&width=47&height=30&sessionName=uat-session' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED"
+      },
+      {
+        "category": "console",
+        "source": "error",
+        "detail": "WebSocket connection to 'ws://localhost:4500/ws?agentId=66666666-6666-4666-8666-666666666666&workspaceId=44444444-4444-4444-8444-444444444444&reconnectId=262619e3-2e86-4fd0-95af-7dbc2ad988f6&width=47&height=30&sessionName=uat-session' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED"
+      }
+    ]
+  },
+  "summary": "Session: 1 page, 0 actions, 0 waits, 0 asserts. bounded console history may hide older console events. bounded network history may hide older requests.",
+  "trace": null,
+  "har": {
+    "enabled": true,
+    "configuredAtContextCreation": true,
+    "path": "/home/coder/projects/kethalia/hive/.artifacts/browser/2026-06-03T14-18-36-929Z-session/session.har",
+    "exportCount": 0,
+    "lastExportedPath": null,
+    "lastExportedAt": null
+  },
+  "sessionArtifactDir": "/home/coder/projects/kethalia/hive/.artifacts/browser/2026-06-03T14-18-36-929Z-session"
+}

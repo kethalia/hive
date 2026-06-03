@@ -1,0 +1,152 @@
+{
+  "entries": [
+    {
+      "id": 1,
+      "tool": "browser_navigate",
+      "status": "success",
+      "durationMs": 1635,
+      "beforeUrl": "about:blank",
+      "afterUrl": "http://localhost:3000/login",
+      "line": "#1 | browser_navigate | success | 1635ms | url=\"http://localhost:3000/login\", screenshot=true | URL changed to http://localhost:3000/login; title changed to Hive Orchestrator; landmarks 0→1; buttons 0→1"
+    },
+    {
+      "id": 2,
+      "tool": "browser_analyze_form",
+      "status": "success",
+      "durationMs": 7,
+      "beforeUrl": "http://localhost:3000/login",
+      "afterUrl": "http://localhost:3000/login",
+      "line": "#2 | browser_analyze_form | success | 7ms"
+    },
+    {
+      "id": 3,
+      "tool": "browser_fill_form",
+      "status": "error",
+      "durationMs": 1098,
+      "beforeUrl": "http://localhost:3000/login",
+      "afterUrl": "http://localhost:3000/",
+      "line": "#3 | browser_fill_form | error | 1098ms | selector=\"form\", values={...}, submit=true | validationSummary.invalidFields is not iterable"
+    },
+    {
+      "id": 4,
+      "tool": "browser_click",
+      "status": "success",
+      "durationMs": 586,
+      "beforeUrl": "http://localhost:3000/tasks",
+      "afterUrl": "http://localhost:3000/workspaces/uat-s04-workspace/terminal/workspace",
+      "line": "#4 | browser_click | success | 586ms | selector=\"a[href='/workspaces/uat-s04-workspace/terminal/workspace']\" | PASS (url_changed) | URL changed to http://localhost:3000/workspaces/uat-s04-workspace/terminal/workspace; links 9→7; headings changed; visible text changed"
+    },
+    {
+      "id": 5,
+      "tool": "browser_click",
+      "status": "success",
+      "durationMs": 429,
+      "beforeUrl": "http://localhost:3000/workspaces/uat-s04-workspace/terminal/workspace",
+      "afterUrl": "http://localhost:3000/workspaces/uat-s04-workspace/terminal/workspace",
+      "line": "#5 | browser_click | success | 429ms | selector=\"[data-testid='create-empty-session-button']\" | PASS (target_state_changed) | focus changed; landmarks 4→7; buttons 11→15; visible text changed"
+    },
+    {
+      "id": 6,
+      "tool": "browser_batch",
+      "status": "success",
+      "durationMs": 1608,
+      "beforeUrl": "http://localhost:3000/workspaces/uat-s04-workspace/terminal/workspace",
+      "afterUrl": "http://localhost:3000/workspaces/uat-s04-workspace/terminal/workspace",
+      "line": "#6 | browser_batch | success | 1608ms | steps=[8], stopOnFailure=true, finalSummaryOnly=true | buttons 15→23; inputs 1→5; visible text changed"
+    },
+    {
+      "id": 7,
+      "tool": "browser_click",
+      "status": "success",
+      "durationMs": 154,
+      "beforeUrl": "http://localhost:3000/workspaces/uat-s04-workspace/terminal/workspace",
+      "afterUrl": "http://localhost:3000/workspaces/uat-s04-workspace/terminal/workspace",
+      "line": "#7 | browser_click | success | 154ms | selector=\"[data-testid='workspace-pane-session-1780507261773']\" | PASS (target_state_changed) | visible text changed"
+    },
+    {
+      "id": 8,
+      "tool": "browser_type",
+      "status": "success",
+      "durationMs": 226,
+      "beforeUrl": "http://localhost:3000/workspaces/uat-s04-workspace/terminal/workspace",
+      "afterUrl": "http://localhost:3000/workspaces/uat-s04-workspace/terminal/workspace",
+      "line": "#8 | browser_type | success | 226ms | selector=\"[data-testid='workspace-pane-session-1780507261773'] text...\", text=\"uat-second-pane\", clearFirst=false, submit=false, slowly=true | SOFT-FAIL (no observable state change) | visible text changed"
+    },
+    {
+      "id": 9,
+      "tool": "browser_click",
+      "status": "success",
+      "durationMs": 173,
+      "beforeUrl": "http://localhost:3000/workspaces/uat-s04-workspace/terminal/workspace",
+      "afterUrl": "http://localhost:3000/workspaces/uat-s04-workspace/terminal/workspace",
+      "line": "#9 | browser_click | success | 173ms | selector=\"[data-testid='copy-active-pane']\" | SOFT-FAIL (no observable state change) | focus changed; visible text changed"
+    },
+    {
+      "id": 10,
+      "tool": "browser_click",
+      "status": "success",
+      "durationMs": 139,
+      "beforeUrl": "http://localhost:3000/workspaces/uat-s04-workspace/terminal/workspace",
+      "afterUrl": "http://localhost:3000/workspaces/uat-s04-workspace/terminal/workspace",
+      "line": "#10 | browser_click | success | 139ms | selector=\"[data-testid='paste-active-pane']\" | SOFT-FAIL (no observable state change) | visible text changed"
+    },
+    {
+      "id": 11,
+      "tool": "browser_click",
+      "status": "success",
+      "durationMs": 112,
+      "beforeUrl": "http://localhost:3000/workspaces/uat-s04-workspace/terminal/workspace",
+      "afterUrl": "http://localhost:3000/workspaces/uat-s04-workspace/terminal/workspace",
+      "line": "#11 | browser_click | success | 112ms | selector=\"[data-testid='workspace-pane-session-1780507261773'] text...\" | SOFT-FAIL (no observable state change) | focus changed; visible text changed"
+    },
+    {
+      "id": 12,
+      "tool": "browser_key_press",
+      "status": "success",
+      "durationMs": 259,
+      "beforeUrl": "http://localhost:3000/workspaces/uat-s04-workspace/terminal/workspace",
+      "afterUrl": "http://localhost:3000/workspaces/uat-s04-workspace/terminal/workspace",
+      "line": "#12 | browser_key_press | success | 259ms | key=\"Control+V\" | SOFT-FAIL (no observable state change) | visible text changed"
+    },
+    {
+      "id": 13,
+      "tool": "browser_key_press",
+      "status": "success",
+      "durationMs": 146,
+      "beforeUrl": "http://localhost:3000/workspaces/uat-s04-workspace/terminal/workspace",
+      "afterUrl": "http://localhost:3000/workspaces/uat-s04-workspace/terminal/workspace",
+      "line": "#13 | browser_key_press | success | 146ms | key=\"Control+K\" | PASS (focus_changed, dialog_open) | focus changed; dialog count 0→1; landmarks 7→8; buttons 23→25"
+    },
+    {
+      "id": 14,
+      "tool": "browser_key_press",
+      "status": "success",
+      "durationMs": 101,
+      "beforeUrl": "http://localhost:3000/workspaces/uat-s04-workspace/terminal/workspace",
+      "afterUrl": "http://localhost:3000/workspaces/uat-s04-workspace/terminal/workspace",
+      "line": "#14 | browser_key_press | success | 101ms | key=\"Escape\" | SOFT-FAIL (no observable state change) | No meaningful browser-state change detected"
+    },
+    {
+      "id": 15,
+      "tool": "browser_click",
+      "status": "success",
+      "durationMs": 14266,
+      "beforeUrl": "http://localhost:3000/workspaces/uat-s04-workspace/terminal/workspace",
+      "afterUrl": "http://localhost:3000/workspaces/uat-s04-workspace/terminal/workspace",
+      "line": "#15 | browser_click | success | 14266ms | selector=\"button[aria-label='Close']\" | SOFT-FAIL (no observable state change) | focus changed"
+    },
+    {
+      "id": 16,
+      "tool": "browser_click",
+      "status": "success",
+      "durationMs": 317,
+      "beforeUrl": "http://localhost:3000/workspaces/uat-s04-workspace/terminal/workspace",
+      "afterUrl": "http://localhost:3000/workspaces/uat-s04-workspace/terminal/workspace",
+      "line": "#16 | browser_click | success | 317ms | selector=\"[data-testid='retry-load-sessions']\" | PASS (target_state_changed) | landmarks 5→4; visible text changed"
+    }
+  ],
+  "retained": 16,
+  "totalRecorded": 16,
+  "bounded": false,
+  "summary": "Timeline: 16 browser actions recorded."
+}

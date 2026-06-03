@@ -1,0 +1,2657 @@
+[
+  {
+    "method": "GET",
+    "url": "http://localhost:3000/_next/static/media/797e433ab948586e-s.p.09zddjkbdep5a.woff2",
+    "status": 200,
+    "resourceType": "font",
+    "timestamp": 1780499099310,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "GET",
+    "url": "http://localhost:3000/_next/static/media/caa3a2e1cccd8315-s.p.09~u27dqhyhd6.woff2",
+    "status": 200,
+    "resourceType": "font",
+    "timestamp": 1780499099311,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "GET",
+    "url": "http://localhost:3000/runtime-config.js",
+    "status": 200,
+    "resourceType": "script",
+    "timestamp": 1780499099358,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "GET",
+    "url": "http://localhost:3000/login",
+    "status": 200,
+    "resourceType": "document",
+    "timestamp": 1780499099363,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "GET",
+    "url": "http://localhost:3000/_next/static/chunks/%5Bturbopack%5D_browser_dev_hmr-client_hmr-client_ts_0t33hsw._.js",
+    "status": 200,
+    "resourceType": "script",
+    "timestamp": 1780499099364,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "GET",
+    "url": "http://localhost:3000/_next/static/chunks/%5Broot-of-the-server%5D__0rfiqwx._.css",
+    "status": 200,
+    "resourceType": "stylesheet",
+    "timestamp": 1780499099367,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "GET",
+    "url": "http://localhost:3000/_next/static/chunks/0w4n_next_dist_compiled_0q67tpg._.js",
+    "status": 200,
+    "resourceType": "script",
+    "timestamp": 1780499099394,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "GET",
+    "url": "http://localhost:3000/_next/static/chunks/0w4n_next_dist_compiled_react-server-dom-turbopack_0fcruwz._.js",
+    "status": 200,
+    "resourceType": "script",
+    "timestamp": 1780499099394,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "GET",
+    "url": "http://localhost:3000/_next/static/chunks/0w4n_next_dist_0_cxz4v._.js",
+    "status": 200,
+    "resourceType": "script",
+    "timestamp": 1780499099400,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "GET",
+    "url": "http://localhost:3000/_next/static/chunks/_0rqeker._.js",
+    "status": 200,
+    "resourceType": "script",
+    "timestamp": 1780499099400,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "GET",
+    "url": "http://localhost:3000/_next/static/chunks/0i4a_%40swc_helpers_cjs_0hvz.20._.js",
+    "status": 200,
+    "resourceType": "script",
+    "timestamp": 1780499099404,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "GET",
+    "url": "http://localhost:3000/_next/static/chunks/turbopack-_0w032mg._.js",
+    "status": 200,
+    "resourceType": "script",
+    "timestamp": 1780499099459,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "GET",
+    "url": "http://localhost:3000/_next/static/chunks/0w4n_next_dist_0tq8ufy._.js",
+    "status": 200,
+    "resourceType": "script",
+    "timestamp": 1780499099459,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "GET",
+    "url": "http://localhost:3000/_next/static/chunks/0w4n_next_dist_compiled_next-devtools_index_0pxa.kc.js",
+    "status": 200,
+    "resourceType": "script",
+    "timestamp": 1780499099460,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "GET",
+    "url": "http://localhost:3000/_next/static/chunks/0w4n_next_dist_compiled_react-dom_0zgmlza._.js",
+    "status": 200,
+    "resourceType": "script",
+    "timestamp": 1780499099460,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "GET",
+    "url": "http://localhost:3000/_next/static/chunks/src_0d~p897._.js",
+    "status": 200,
+    "resourceType": "script",
+    "timestamp": 1780499099460,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "GET",
+    "url": "http://localhost:3000/_next/static/chunks/0995_tailwind-merge_dist_bundle-mjs_mjs_0osztqy._.js",
+    "status": 200,
+    "resourceType": "script",
+    "timestamp": 1780499099460,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "GET",
+    "url": "http://localhost:3000/_next/static/chunks/0w4n_next_dist_client_0st4c5a._.js",
+    "status": 200,
+    "resourceType": "script",
+    "timestamp": 1780499099460,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "GET",
+    "url": "http://localhost:3000/_next/static/chunks/src_app_layout_tsx_0n5d3p_._.js",
+    "status": 200,
+    "resourceType": "script",
+    "timestamp": 1780499099555,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "GET",
+    "url": "http://localhost:3000/_next/static/chunks/0cp._%40base-ui_react_esm_0qx4b6w._.js",
+    "status": 200,
+    "resourceType": "script",
+    "timestamp": 1780499099556,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "GET",
+    "url": "http://localhost:3000/_next/static/chunks/src_app_login_page_tsx_0d8~3ke._.js",
+    "status": 200,
+    "resourceType": "script",
+    "timestamp": 1780499099556,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "GET",
+    "url": "http://localhost:3000/_next/static/chunks/src_0qh6dse._.js",
+    "status": 200,
+    "resourceType": "script",
+    "timestamp": 1780499099556,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "GET",
+    "url": "http://localhost:3000/_next/static/chunks/0w4n_next_dist_client_components_builtin_global-error_0d8~3ke.js",
+    "status": 200,
+    "resourceType": "script",
+    "timestamp": 1780499099556,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "GET",
+    "url": "http://localhost:3000/_next/static/chunks/node_modules__pnpm_111dqxo._.js",
+    "status": 200,
+    "resourceType": "script",
+    "timestamp": 1780499099556,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "GET",
+    "url": "http://localhost:3000/_next/static/chunks/node_modules__pnpm_04ph8bm._.js",
+    "status": 200,
+    "resourceType": "script",
+    "timestamp": 1780499099556,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "GET",
+    "url": "http://localhost:3000/_next/static/chunks/%5Bturbopack%5D_browser_dev_hmr-client_hmr-client_ts_0nrt9uy._.js",
+    "status": 200,
+    "resourceType": "script",
+    "timestamp": 1780499099708,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "GET",
+    "url": "http://localhost:3000/_next/static/chunks/%5Bturbopack%5D_browser_dev_hmr-client_hmr-client_ts_0yjw1oe._.js",
+    "status": 200,
+    "resourceType": "script",
+    "timestamp": 1780499099708,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "POST",
+    "url": "http://localhost:3000/api/auth/login",
+    "status": 200,
+    "resourceType": "fetch",
+    "timestamp": 1780499110122,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "GET",
+    "url": "http://localhost:3000/?_rsc=13uu9",
+    "status": 200,
+    "resourceType": "fetch",
+    "timestamp": 1780499110313,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "GET",
+    "url": "http://localhost:3000/_next/static/chunks/0cp._%40base-ui_react_esm_field_0vhybvm._.js",
+    "status": 200,
+    "resourceType": "script",
+    "timestamp": 1780499110362,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "GET",
+    "url": "http://localhost:3000/_next/static/chunks/0cp._%40base-ui_react_esm_dialog_0ybl1yr._.js",
+    "status": 200,
+    "resourceType": "script",
+    "timestamp": 1780499110362,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "GET",
+    "url": "http://localhost:3000/_next/static/chunks/0cp._%40base-ui_react_esm_floating-ui-react_0ya-_bz._.js",
+    "status": 200,
+    "resourceType": "script",
+    "timestamp": 1780499110362,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "GET",
+    "url": "http://localhost:3000/?_rsc=qbihd",
+    "status": 200,
+    "resourceType": "fetch",
+    "timestamp": 1780499110362,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "GET",
+    "url": "http://localhost:3000/_next/static/chunks/src_app_(dashboard)_layout_tsx_0d8~3ke._.js",
+    "status": 200,
+    "resourceType": "script",
+    "timestamp": 1780499110362,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "GET",
+    "url": "http://localhost:3000/_next/static/chunks/0cp._%40base-ui_react_esm_menu_01vhlv5._.js",
+    "status": 200,
+    "resourceType": "script",
+    "timestamp": 1780499110362,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "GET",
+    "url": "http://localhost:3000/_next/static/chunks/node_modules__pnpm_131lfxg._.js",
+    "status": 200,
+    "resourceType": "script",
+    "timestamp": 1780499110362,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "GET",
+    "url": "http://localhost:3000/_next/static/chunks/0cp._%40base-ui_react_esm_07_kxks._.js",
+    "status": 200,
+    "resourceType": "script",
+    "timestamp": 1780499110362,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "GET",
+    "url": "http://localhost:3000/_next/static/chunks/src_0q98q~5._.js",
+    "status": 200,
+    "resourceType": "script",
+    "timestamp": 1780499110362,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "GET",
+    "url": "http://localhost:3000/_next/static/chunks/src_0q98q~5._.js",
+    "status": 304,
+    "resourceType": "script",
+    "timestamp": 1780499110564,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "GET",
+    "url": "http://localhost:3000/_next/static/chunks/0cp._%40base-ui_react_esm_field_0vhybvm._.js",
+    "status": 304,
+    "resourceType": "script",
+    "timestamp": 1780499110564,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "GET",
+    "url": "http://localhost:3000/_next/static/chunks/0cp._%40base-ui_react_esm_dialog_0ybl1yr._.js",
+    "status": 304,
+    "resourceType": "script",
+    "timestamp": 1780499110564,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "GET",
+    "url": "http://localhost:3000/_next/static/chunks/0cp._%40base-ui_react_esm_floating-ui-react_0ya-_bz._.js",
+    "status": 304,
+    "resourceType": "script",
+    "timestamp": 1780499110564,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "GET",
+    "url": "http://localhost:3000/_next/static/chunks/0cp._%40base-ui_react_esm_menu_01vhlv5._.js",
+    "status": 304,
+    "resourceType": "script",
+    "timestamp": 1780499110564,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "GET",
+    "url": "http://localhost:3000/_next/static/chunks/node_modules__pnpm_131lfxg._.js",
+    "status": 304,
+    "resourceType": "script",
+    "timestamp": 1780499110564,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "GET",
+    "url": "http://localhost:3000/_next/static/chunks/0cp._%40base-ui_react_esm_07_kxks._.js",
+    "status": 304,
+    "resourceType": "script",
+    "timestamp": 1780499110564,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "GET",
+    "url": "http://localhost:3000/_next/static/chunks/src_app_(dashboard)_layout_tsx_0d8~3ke._.js",
+    "status": 304,
+    "resourceType": "script",
+    "timestamp": 1780499110564,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "GET",
+    "url": "http://localhost:3000/__nextjs_font/geist-latin.woff2",
+    "status": 200,
+    "resourceType": "font",
+    "timestamp": 1780499110751,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "POST",
+    "url": "http://localhost:3000/",
+    "status": 200,
+    "resourceType": "fetch",
+    "timestamp": 1780499110791,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "GET",
+    "url": "http://localhost:3000/tasks?_rsc=1ezil",
+    "status": 200,
+    "resourceType": "fetch",
+    "timestamp": 1780499110796,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "POST",
+    "url": "http://localhost:3000/",
+    "status": 200,
+    "resourceType": "fetch",
+    "timestamp": 1780499110807,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "GET",
+    "url": "http://localhost:3000/tasks?_rsc=1ezil",
+    "status": 200,
+    "resourceType": "fetch",
+    "timestamp": 1780499110825,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "GET",
+    "url": "http://localhost:3000/_next/static/chunks/src_app_(dashboard)_tasks_page_tsx_0cvtrhh._.js",
+    "status": 200,
+    "resourceType": "script",
+    "timestamp": 1780499110825,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "POST",
+    "url": "http://localhost:3000/",
+    "status": 200,
+    "resourceType": "fetch",
+    "timestamp": 1780499110839,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "GET",
+    "url": "http://localhost:3000/_next/static/chunks/_11_9ufb._.js",
+    "status": 200,
+    "resourceType": "script",
+    "timestamp": 1780499110841,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "POST",
+    "url": "http://localhost:3000/tasks",
+    "status": 200,
+    "resourceType": "fetch",
+    "timestamp": 1780499110849,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "POST",
+    "url": "http://localhost:3000/",
+    "status": 200,
+    "resourceType": "fetch",
+    "timestamp": 1780499110853,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "POST",
+    "url": "http://localhost:3000/",
+    "status": 200,
+    "resourceType": "fetch",
+    "timestamp": 1780499110869,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "GET",
+    "url": "http://localhost:3000/_next/static/chunks/_11_9ufb._.js",
+    "status": 304,
+    "resourceType": "script",
+    "timestamp": 1780499110895,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "GET",
+    "url": "http://localhost:3000/_next/static/chunks/src_app_(dashboard)_tasks_page_tsx_0cvtrhh._.js",
+    "status": 304,
+    "resourceType": "script",
+    "timestamp": 1780499110895,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "POST",
+    "url": "http://localhost:3000/tasks",
+    "status": 200,
+    "resourceType": "fetch",
+    "timestamp": 1780499110922,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "POST",
+    "url": "http://localhost:3000/",
+    "status": 200,
+    "resourceType": "fetch",
+    "timestamp": 1780499110955,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "POST",
+    "url": "http://localhost:3000/__nextjs_original-stack-frames",
+    "status": 200,
+    "resourceType": "fetch",
+    "timestamp": 1780499110987,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "POST",
+    "url": "http://localhost:3000/tasks",
+    "status": 200,
+    "resourceType": "fetch",
+    "timestamp": 1780499110987,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "GET",
+    "url": "http://localhost:3000/tasks?_rsc=1jll8",
+    "status": 200,
+    "resourceType": "fetch",
+    "timestamp": 1780499115972,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "GET",
+    "url": "http://localhost:3000/tasks?_rsc=1jll8",
+    "status": 200,
+    "resourceType": "fetch",
+    "timestamp": 1780499120986,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "GET",
+    "url": "http://localhost:3000/tasks?_rsc=1jll8",
+    "status": 200,
+    "resourceType": "fetch",
+    "timestamp": 1780499125945,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "GET",
+    "url": "http://localhost:3000/tasks?_rsc=1jll8",
+    "status": 200,
+    "resourceType": "fetch",
+    "timestamp": 1780499130950,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "GET",
+    "url": "http://localhost:3000/tasks?_rsc=1jll8",
+    "status": 200,
+    "resourceType": "fetch",
+    "timestamp": 1780499135960,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "POST",
+    "url": "http://localhost:3000/tasks",
+    "status": 200,
+    "resourceType": "fetch",
+    "timestamp": 1780499140583,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "POST",
+    "url": "http://localhost:3000/tasks",
+    "status": 200,
+    "resourceType": "fetch",
+    "timestamp": 1780499140645,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "GET",
+    "url": "http://localhost:3000/tasks?_rsc=1jll8",
+    "status": 200,
+    "resourceType": "fetch",
+    "timestamp": 1780499140945,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "GET",
+    "url": "http://localhost:3000/tasks?_rsc=1jll8",
+    "status": 200,
+    "resourceType": "fetch",
+    "timestamp": 1780499145951,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "GET",
+    "url": "http://localhost:3000/tasks?_rsc=1jll8",
+    "status": 200,
+    "resourceType": "fetch",
+    "timestamp": 1780499150951,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "POST",
+    "url": "http://localhost:3000/tasks",
+    "status": 200,
+    "resourceType": "fetch",
+    "timestamp": 1780499151389,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "GET",
+    "url": "http://localhost:3000/tasks?_rsc=1jll8",
+    "status": 200,
+    "resourceType": "fetch",
+    "timestamp": 1780499151390,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "GET",
+    "url": "http://localhost:3000/tasks?_rsc=1jll8",
+    "status": 200,
+    "resourceType": "fetch",
+    "timestamp": 1780499155993,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "GET",
+    "url": "http://localhost:3000/tasks?_rsc=1jll8",
+    "status": 200,
+    "resourceType": "fetch",
+    "timestamp": 1780499161001,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "GET",
+    "url": "http://localhost:3000/tasks?_rsc=1jll8",
+    "status": 200,
+    "resourceType": "fetch",
+    "timestamp": 1780499165941,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "POST",
+    "url": "http://localhost:3000/tasks",
+    "status": 200,
+    "resourceType": "fetch",
+    "timestamp": 1780499170585,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "POST",
+    "url": "http://localhost:3000/tasks",
+    "status": 200,
+    "resourceType": "fetch",
+    "timestamp": 1780499170636,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "GET",
+    "url": "http://localhost:3000/tasks?_rsc=1jll8",
+    "status": 200,
+    "resourceType": "fetch",
+    "timestamp": 1780499170951,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "GET",
+    "url": "http://localhost:3000/tasks?_rsc=1jll8",
+    "status": 200,
+    "resourceType": "fetch",
+    "timestamp": 1780499175987,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "GET",
+    "url": "http://localhost:3000/_next/static/media/797e433ab948586e-s.p.09zddjkbdep5a.woff2",
+    "status": 200,
+    "resourceType": "font",
+    "timestamp": 1780499179901,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "GET",
+    "url": "http://localhost:3000/_next/static/media/caa3a2e1cccd8315-s.p.09~u27dqhyhd6.woff2",
+    "status": 200,
+    "resourceType": "font",
+    "timestamp": 1780499179901,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "GET",
+    "url": "http://localhost:3000/_next/static/chunks/%5Broot-of-the-server%5D__0rfiqwx._.css",
+    "status": 200,
+    "resourceType": "stylesheet",
+    "timestamp": 1780499179901,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "GET",
+    "url": "http://localhost:3000/_next/static/chunks/%5Bturbopack%5D_browser_dev_hmr-client_hmr-client_ts_0t33hsw._.js",
+    "status": 200,
+    "resourceType": "script",
+    "timestamp": 1780499179901,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "GET",
+    "url": "http://localhost:3000/runtime-config.js",
+    "status": 200,
+    "resourceType": "script",
+    "timestamp": 1780499179909,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "GET",
+    "url": "http://localhost:3000/_next/static/chunks/0w4n_next_dist_compiled_0q67tpg._.js",
+    "status": 200,
+    "resourceType": "script",
+    "timestamp": 1780499179982,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "GET",
+    "url": "http://localhost:3000/_next/static/chunks/0i4a_%40swc_helpers_cjs_0hvz.20._.js",
+    "status": 200,
+    "resourceType": "script",
+    "timestamp": 1780499179982,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "GET",
+    "url": "http://localhost:3000/_next/static/chunks/0w4n_next_dist_compiled_react-server-dom-turbopack_0fcruwz._.js",
+    "status": 200,
+    "resourceType": "script",
+    "timestamp": 1780499179982,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "GET",
+    "url": "http://localhost:3000/_next/static/chunks/0w4n_next_dist_0_cxz4v._.js",
+    "status": 200,
+    "resourceType": "script",
+    "timestamp": 1780499179998,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "GET",
+    "url": "http://localhost:3000/_next/static/chunks/_0rqeker._.js",
+    "status": 200,
+    "resourceType": "script",
+    "timestamp": 1780499179998,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "GET",
+    "url": "http://localhost:3000/_next/static/chunks/turbopack-_0w032mg._.js",
+    "status": 200,
+    "resourceType": "script",
+    "timestamp": 1780499179998,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "GET",
+    "url": "http://localhost:3000/_next/static/chunks/0w4n_next_dist_compiled_react-dom_0zgmlza._.js",
+    "status": 200,
+    "resourceType": "script",
+    "timestamp": 1780499179998,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "GET",
+    "url": "http://localhost:3000/_next/static/chunks/0w4n_next_dist_client_0st4c5a._.js",
+    "status": 200,
+    "resourceType": "script",
+    "timestamp": 1780499179998,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "GET",
+    "url": "http://localhost:3000/_next/static/chunks/src_0d~p897._.js",
+    "status": 200,
+    "resourceType": "script",
+    "timestamp": 1780499179999,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "GET",
+    "url": "http://localhost:3000/_next/static/chunks/0w4n_next_dist_0tq8ufy._.js",
+    "status": 200,
+    "resourceType": "script",
+    "timestamp": 1780499179999,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "GET",
+    "url": "http://localhost:3000/_next/static/chunks/src_app_layout_tsx_0n5d3p_._.js",
+    "status": 200,
+    "resourceType": "script",
+    "timestamp": 1780499179999,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "GET",
+    "url": "http://localhost:3000/_next/static/chunks/0w4n_next_dist_client_components_builtin_global-error_0d8~3ke.js",
+    "status": 200,
+    "resourceType": "script",
+    "timestamp": 1780499179999,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "GET",
+    "url": "http://localhost:3000/_next/static/chunks/0995_tailwind-merge_dist_bundle-mjs_mjs_0osztqy._.js",
+    "status": 200,
+    "resourceType": "script",
+    "timestamp": 1780499179999,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "GET",
+    "url": "http://localhost:3000/_next/static/chunks/0cp._%40base-ui_react_esm_0qx4b6w._.js",
+    "status": 200,
+    "resourceType": "script",
+    "timestamp": 1780499179999,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "GET",
+    "url": "http://localhost:3000/workspaces/workspace-uat/terminal?session=uat-session&debugViewport=1",
+    "status": 200,
+    "resourceType": "document",
+    "timestamp": 1780499179999,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "GET",
+    "url": "http://localhost:3000/_next/static/chunks/0w4n_next_dist_compiled_next-devtools_index_0pxa.kc.js",
+    "status": 200,
+    "resourceType": "script",
+    "timestamp": 1780499179999,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "GET",
+    "url": "http://localhost:3000/_next/static/chunks/node_modules__pnpm_111dqxo._.js",
+    "status": 200,
+    "resourceType": "script",
+    "timestamp": 1780499179999,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "GET",
+    "url": "http://localhost:3000/_next/static/chunks/0cp._%40base-ui_react_esm_dialog_0ybl1yr._.js",
+    "status": 200,
+    "resourceType": "script",
+    "timestamp": 1780499179999,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "GET",
+    "url": "http://localhost:3000/_next/static/chunks/0cp._%40base-ui_react_esm_field_0vhybvm._.js",
+    "status": 200,
+    "resourceType": "script",
+    "timestamp": 1780499179999,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "GET",
+    "url": "http://localhost:3000/_next/static/chunks/0cp._%40base-ui_react_esm_floating-ui-react_0ya-_bz._.js",
+    "status": 200,
+    "resourceType": "script",
+    "timestamp": 1780499180040,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "GET",
+    "url": "http://localhost:3000/_next/static/chunks/src_0q98q~5._.js",
+    "status": 200,
+    "resourceType": "script",
+    "timestamp": 1780499180053,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "GET",
+    "url": "http://localhost:3000/_next/static/chunks/0cp._%40base-ui_react_esm_menu_01vhlv5._.js",
+    "status": 200,
+    "resourceType": "script",
+    "timestamp": 1780499180053,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "GET",
+    "url": "http://localhost:3000/_next/static/chunks/src_app_(dashboard)_layout_tsx_0d8~3ke._.js",
+    "status": 200,
+    "resourceType": "script",
+    "timestamp": 1780499180053,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "GET",
+    "url": "http://localhost:3000/_next/static/chunks/0cp._%40base-ui_react_esm_07_kxks._.js",
+    "status": 200,
+    "resourceType": "script",
+    "timestamp": 1780499180077,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "GET",
+    "url": "http://localhost:3000/_next/static/chunks/node_modules__pnpm_131lfxg._.js",
+    "status": 200,
+    "resourceType": "script",
+    "timestamp": 1780499180113,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "GET",
+    "url": "http://localhost:3000/_next/static/chunks/src_components_workspaces_InteractiveTerminal_tsx_0vu~42u._.js",
+    "status": 200,
+    "resourceType": "script",
+    "timestamp": 1780499180113,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "GET",
+    "url": "http://localhost:3000/_next/static/chunks/src_app_(dashboard)_workspaces_%5Bid%5D_terminal_page_tsx_0cvtrhh._.js",
+    "status": 200,
+    "resourceType": "script",
+    "timestamp": 1780499180121,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "GET",
+    "url": "http://localhost:3000/_next/static/chunks/src_08.jjs8._.js",
+    "status": 200,
+    "resourceType": "script",
+    "timestamp": 1780499180235,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "GET",
+    "url": "http://localhost:3000/_next/static/chunks/node_modules__pnpm_0gupd8h._.js",
+    "status": 200,
+    "resourceType": "script",
+    "timestamp": 1780499180235,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "GET",
+    "url": "http://localhost:3000/_next/static/chunks/%5Bturbopack%5D_browser_dev_hmr-client_hmr-client_ts_0yjw1oe._.js",
+    "status": 200,
+    "resourceType": "script",
+    "timestamp": 1780499180235,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "GET",
+    "url": "http://localhost:3000/_next/static/chunks/%5Bturbopack%5D_browser_dev_hmr-client_hmr-client_ts_0nrt9uy._.js",
+    "status": 200,
+    "resourceType": "script",
+    "timestamp": 1780499180235,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "GET",
+    "url": "http://localhost:3000/_next/static/chunks/src_styles_xterm_0.npnxv.css",
+    "status": 200,
+    "resourceType": "stylesheet",
+    "timestamp": 1780499180555,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "GET",
+    "url": "http://localhost:3000/_next/static/chunks/node_modules__pnpm_0vhiyjd._.js",
+    "status": 200,
+    "resourceType": "script",
+    "timestamp": 1780499180652,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "GET",
+    "url": "http://localhost:3000/_next/static/chunks/src_components_workspaces_InteractiveTerminal_tsx_01-72b3._.js",
+    "status": 200,
+    "resourceType": "script",
+    "timestamp": 1780499180714,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "GET",
+    "url": "http://localhost:3000/_next/static/chunks/src_03nbw~j._.js",
+    "status": 200,
+    "resourceType": "script",
+    "timestamp": 1780499180714,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "POST",
+    "url": "http://localhost:3000/workspaces/workspace-uat/terminal?session=uat-session&debugViewport=1",
+    "status": 200,
+    "resourceType": "fetch",
+    "timestamp": 1780499180875,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "GET",
+    "url": "http://localhost:3000/_next/static/chunks/0adv_%40xterm_xterm_lib_xterm_mjs_11s6y-d._.js",
+    "status": 200,
+    "resourceType": "script",
+    "timestamp": 1780499180875,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "GET",
+    "url": "http://localhost:3000/_next/static/chunks/13fc_%40xterm_addon-fit_lib_addon-fit_mjs_11s6y-d._.js",
+    "status": 200,
+    "resourceType": "script",
+    "timestamp": 1780499180875,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "GET",
+    "url": "http://localhost:3000/_next/static/chunks/13fc_%40xterm_addon-fit_lib_addon-fit_mjs_11qtae5._.js",
+    "status": 200,
+    "resourceType": "script",
+    "timestamp": 1780499180875,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "POST",
+    "url": "http://localhost:3000/workspaces/workspace-uat/terminal?session=uat-session&debugViewport=1",
+    "status": 200,
+    "resourceType": "fetch",
+    "timestamp": 1780499180875,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "GET",
+    "url": "http://localhost:3000/_next/static/chunks/0adv_%40xterm_xterm_lib_xterm_mjs_0.qgu9l._.js",
+    "status": 200,
+    "resourceType": "script",
+    "timestamp": 1780499180875,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "POST",
+    "url": "http://localhost:3000/workspaces/workspace-uat/terminal?session=uat-session&debugViewport=1",
+    "status": 200,
+    "resourceType": "fetch",
+    "timestamp": 1780499180876,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "GET",
+    "url": "http://localhost:3000/fonts/FiraCode-Regular.ttf",
+    "status": 200,
+    "resourceType": "font",
+    "timestamp": 1780499180877,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "POST",
+    "url": "http://localhost:3000/workspaces/workspace-uat/terminal?session=uat-session&debugViewport=1",
+    "status": 200,
+    "resourceType": "fetch",
+    "timestamp": 1780499180907,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "POST",
+    "url": "http://localhost:3000/workspaces/workspace-uat/terminal?session=uat-session&debugViewport=1",
+    "status": 200,
+    "resourceType": "fetch",
+    "timestamp": 1780499181002,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "GET",
+    "url": "http://localhost:3000/__nextjs_font/geist-latin.woff2",
+    "status": 200,
+    "resourceType": "font",
+    "timestamp": 1780499181052,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "POST",
+    "url": "http://localhost:3000/workspaces/workspace-uat/terminal?session=uat-session&debugViewport=1",
+    "status": 200,
+    "resourceType": "fetch",
+    "timestamp": 1780499181057,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "POST",
+    "url": "http://localhost:3000/workspaces/workspace-uat/terminal?session=uat-session&debugViewport=1",
+    "status": 200,
+    "resourceType": "fetch",
+    "timestamp": 1780499181105,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "POST",
+    "url": "http://localhost:3000/workspaces/workspace-uat/terminal?session=uat-session&debugViewport=1",
+    "status": 200,
+    "resourceType": "fetch",
+    "timestamp": 1780499181250,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "POST",
+    "url": "http://localhost:3000/workspaces/workspace-uat/terminal?session=uat-session&debugViewport=1",
+    "status": 200,
+    "resourceType": "fetch",
+    "timestamp": 1780499181453,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "POST",
+    "url": "http://localhost:3000/workspaces/workspace-uat/terminal?session=uat-session&debugViewport=1",
+    "status": 200,
+    "resourceType": "fetch",
+    "timestamp": 1780499210626,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "POST",
+    "url": "http://localhost:3000/workspaces/workspace-uat/terminal?session=uat-session&debugViewport=1",
+    "status": 200,
+    "resourceType": "fetch",
+    "timestamp": 1780499210686,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "POST",
+    "url": "http://localhost:3000/workspaces/workspace-uat/terminal?session=uat-session&debugViewport=1",
+    "status": 200,
+    "resourceType": "fetch",
+    "timestamp": 1780499210962,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "POST",
+    "url": "http://localhost:3000/workspaces/workspace-uat/terminal?session=uat-session&debugViewport=1",
+    "status": 200,
+    "resourceType": "fetch",
+    "timestamp": 1780499240363,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "GET",
+    "url": "http://localhost:3000/workspaces/workspace-uat/terminal?session=uat-session&debugViewport=1&_rsc=1imk1",
+    "status": 200,
+    "resourceType": "fetch",
+    "timestamp": 1780499240421,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "POST",
+    "url": "http://localhost:3000/workspaces/workspace-uat/terminal?session=uat-session&debugViewport=1",
+    "status": 200,
+    "resourceType": "fetch",
+    "timestamp": 1780499240621,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "POST",
+    "url": "http://localhost:3000/workspaces/workspace-uat/terminal?session=uat-session&debugViewport=1",
+    "status": 200,
+    "resourceType": "fetch",
+    "timestamp": 1780499240646,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "POST",
+    "url": "http://localhost:3000/workspaces/workspace-uat/terminal?session=uat-session&debugViewport=1",
+    "status": 200,
+    "resourceType": "fetch",
+    "timestamp": 1780499241031,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "POST",
+    "url": "http://localhost:3000/workspaces/workspace-uat/terminal?session=uat-session&debugViewport=1",
+    "status": 200,
+    "resourceType": "fetch",
+    "timestamp": 1780499270608,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "POST",
+    "url": "http://localhost:3000/workspaces/workspace-uat/terminal?session=uat-session&debugViewport=1",
+    "status": 200,
+    "resourceType": "fetch",
+    "timestamp": 1780499270670,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "POST",
+    "url": "http://localhost:3000/workspaces/workspace-uat/terminal?session=uat-session&debugViewport=1",
+    "status": 200,
+    "resourceType": "fetch",
+    "timestamp": 1780499270951,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "POST",
+    "url": "http://localhost:3000/workspaces/workspace-uat/terminal?session=uat-session&debugViewport=1",
+    "status": 200,
+    "resourceType": "fetch",
+    "timestamp": 1780499300611,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "POST",
+    "url": "http://localhost:3000/workspaces/workspace-uat/terminal?session=uat-session&debugViewport=1",
+    "status": 200,
+    "resourceType": "fetch",
+    "timestamp": 1780499300647,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "POST",
+    "url": "http://localhost:3000/workspaces/workspace-uat/terminal?session=uat-session&debugViewport=1",
+    "status": 200,
+    "resourceType": "fetch",
+    "timestamp": 1780499300970,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "POST",
+    "url": "http://localhost:3000/workspaces/workspace-uat/terminal?session=uat-session&debugViewport=1",
+    "status": 200,
+    "resourceType": "fetch",
+    "timestamp": 1780499330681,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "POST",
+    "url": "http://localhost:3000/workspaces/workspace-uat/terminal?session=uat-session&debugViewport=1",
+    "status": 200,
+    "resourceType": "fetch",
+    "timestamp": 1780499330682,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "POST",
+    "url": "http://localhost:3000/workspaces/workspace-uat/terminal?session=uat-session&debugViewport=1",
+    "status": 200,
+    "resourceType": "fetch",
+    "timestamp": 1780499330976,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "POST",
+    "url": "http://localhost:3000/workspaces/workspace-uat/terminal?session=uat-session&debugViewport=1",
+    "status": 200,
+    "resourceType": "fetch",
+    "timestamp": 1780499360669,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "POST",
+    "url": "http://localhost:3000/workspaces/workspace-uat/terminal?session=uat-session&debugViewport=1",
+    "status": 200,
+    "resourceType": "fetch",
+    "timestamp": 1780499360685,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "POST",
+    "url": "http://localhost:3000/workspaces/workspace-uat/terminal?session=uat-session&debugViewport=1",
+    "status": 200,
+    "resourceType": "fetch",
+    "timestamp": 1780499360957,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "POST",
+    "url": "http://localhost:3000/workspaces/workspace-uat/terminal?session=uat-session&debugViewport=1",
+    "status": 200,
+    "resourceType": "fetch",
+    "timestamp": 1780499390635,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "POST",
+    "url": "http://localhost:3000/workspaces/workspace-uat/terminal?session=uat-session&debugViewport=1",
+    "status": 200,
+    "resourceType": "fetch",
+    "timestamp": 1780499390690,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "POST",
+    "url": "http://localhost:3000/workspaces/workspace-uat/terminal?session=uat-session&debugViewport=1",
+    "status": 200,
+    "resourceType": "fetch",
+    "timestamp": 1780499390999,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "POST",
+    "url": "http://localhost:3000/workspaces/workspace-uat/terminal?session=uat-session&debugViewport=1",
+    "status": 200,
+    "resourceType": "fetch",
+    "timestamp": 1780499420672,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "POST",
+    "url": "http://localhost:3000/workspaces/workspace-uat/terminal?session=uat-session&debugViewport=1",
+    "status": 200,
+    "resourceType": "fetch",
+    "timestamp": 1780499420736,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "POST",
+    "url": "http://localhost:3000/workspaces/workspace-uat/terminal?session=uat-session&debugViewport=1",
+    "status": 200,
+    "resourceType": "fetch",
+    "timestamp": 1780499420967,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "POST",
+    "url": "http://localhost:3000/workspaces/workspace-uat/terminal?session=uat-session&debugViewport=1",
+    "status": 200,
+    "resourceType": "fetch",
+    "timestamp": 1780499439925,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "GET",
+    "url": "http://localhost:3000/workspaces/workspace-uat/terminal?session=uat-session&debugViewport=1&_rsc=1imk1",
+    "status": 200,
+    "resourceType": "fetch",
+    "timestamp": 1780499439958,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "GET",
+    "url": "http://localhost:3000/_next/static/media/797e433ab948586e-s.p.09zddjkbdep5a.woff2",
+    "status": 200,
+    "resourceType": "font",
+    "timestamp": 1780499447340,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "GET",
+    "url": "http://localhost:3000/_next/static/media/caa3a2e1cccd8315-s.p.09~u27dqhyhd6.woff2",
+    "status": 200,
+    "resourceType": "font",
+    "timestamp": 1780499447340,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "GET",
+    "url": "http://localhost:3000/_next/static/chunks/%5Broot-of-the-server%5D__0rfiqwx._.css",
+    "status": 200,
+    "resourceType": "stylesheet",
+    "timestamp": 1780499447345,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "GET",
+    "url": "http://localhost:3000/_next/static/chunks/%5Bturbopack%5D_browser_dev_hmr-client_hmr-client_ts_0t33hsw._.js",
+    "status": 200,
+    "resourceType": "script",
+    "timestamp": 1780499447345,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "GET",
+    "url": "http://localhost:3000/workspaces/workspace-uat/terminal?session=uat-session&debugViewport=1",
+    "status": 200,
+    "resourceType": "document",
+    "timestamp": 1780499447345,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "GET",
+    "url": "http://localhost:3000/runtime-config.js",
+    "status": 200,
+    "resourceType": "script",
+    "timestamp": 1780499447345,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "GET",
+    "url": "http://localhost:3000/_next/static/chunks/0w4n_next_dist_compiled_0q67tpg._.js",
+    "status": 200,
+    "resourceType": "script",
+    "timestamp": 1780499447351,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "GET",
+    "url": "http://localhost:3000/_next/static/chunks/0w4n_next_dist_compiled_react-server-dom-turbopack_0fcruwz._.js",
+    "status": 200,
+    "resourceType": "script",
+    "timestamp": 1780499447351,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "GET",
+    "url": "http://localhost:3000/_next/static/chunks/0i4a_%40swc_helpers_cjs_0hvz.20._.js",
+    "status": 200,
+    "resourceType": "script",
+    "timestamp": 1780499447351,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "GET",
+    "url": "http://localhost:3000/_next/static/chunks/_0rqeker._.js",
+    "status": 200,
+    "resourceType": "script",
+    "timestamp": 1780499447351,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "GET",
+    "url": "http://localhost:3000/_next/static/chunks/0w4n_next_dist_0_cxz4v._.js",
+    "status": 200,
+    "resourceType": "script",
+    "timestamp": 1780499447351,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "GET",
+    "url": "http://localhost:3000/_next/static/chunks/turbopack-_0w032mg._.js",
+    "status": 200,
+    "resourceType": "script",
+    "timestamp": 1780499447351,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "GET",
+    "url": "http://localhost:3000/_next/static/chunks/0w4n_next_dist_compiled_next-devtools_index_0pxa.kc.js",
+    "status": 200,
+    "resourceType": "script",
+    "timestamp": 1780499447351,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "GET",
+    "url": "http://localhost:3000/_next/static/chunks/0w4n_next_dist_client_0st4c5a._.js",
+    "status": 200,
+    "resourceType": "script",
+    "timestamp": 1780499447355,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "GET",
+    "url": "http://localhost:3000/_next/static/chunks/0w4n_next_dist_0tq8ufy._.js",
+    "status": 200,
+    "resourceType": "script",
+    "timestamp": 1780499447355,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "GET",
+    "url": "http://localhost:3000/_next/static/chunks/src_0d~p897._.js",
+    "status": 200,
+    "resourceType": "script",
+    "timestamp": 1780499447355,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "GET",
+    "url": "http://localhost:3000/_next/static/chunks/0w4n_next_dist_client_components_builtin_global-error_0d8~3ke.js",
+    "status": 200,
+    "resourceType": "script",
+    "timestamp": 1780499447355,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "GET",
+    "url": "http://localhost:3000/_next/static/chunks/0995_tailwind-merge_dist_bundle-mjs_mjs_0osztqy._.js",
+    "status": 200,
+    "resourceType": "script",
+    "timestamp": 1780499447355,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "GET",
+    "url": "http://localhost:3000/_next/static/chunks/src_app_layout_tsx_0n5d3p_._.js",
+    "status": 200,
+    "resourceType": "script",
+    "timestamp": 1780499447355,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "GET",
+    "url": "http://localhost:3000/_next/static/chunks/0w4n_next_dist_compiled_react-dom_0zgmlza._.js",
+    "status": 200,
+    "resourceType": "script",
+    "timestamp": 1780499447355,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "GET",
+    "url": "http://localhost:3000/_next/static/chunks/0cp._%40base-ui_react_esm_field_0vhybvm._.js",
+    "status": 200,
+    "resourceType": "script",
+    "timestamp": 1780499447355,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "GET",
+    "url": "http://localhost:3000/_next/static/chunks/0cp._%40base-ui_react_esm_0qx4b6w._.js",
+    "status": 200,
+    "resourceType": "script",
+    "timestamp": 1780499447355,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "GET",
+    "url": "http://localhost:3000/_next/static/chunks/0cp._%40base-ui_react_esm_dialog_0ybl1yr._.js",
+    "status": 200,
+    "resourceType": "script",
+    "timestamp": 1780499447355,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "GET",
+    "url": "http://localhost:3000/_next/static/chunks/node_modules__pnpm_111dqxo._.js",
+    "status": 200,
+    "resourceType": "script",
+    "timestamp": 1780499447356,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "GET",
+    "url": "http://localhost:3000/_next/static/chunks/src_app_(dashboard)_layout_tsx_0d8~3ke._.js",
+    "status": 200,
+    "resourceType": "script",
+    "timestamp": 1780499447356,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "GET",
+    "url": "http://localhost:3000/_next/static/chunks/src_components_workspaces_InteractiveTerminal_tsx_0vu~42u._.js",
+    "status": 200,
+    "resourceType": "script",
+    "timestamp": 1780499447356,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "GET",
+    "url": "http://localhost:3000/_next/static/chunks/src_0q98q~5._.js",
+    "status": 200,
+    "resourceType": "script",
+    "timestamp": 1780499447356,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "GET",
+    "url": "http://localhost:3000/_next/static/chunks/0cp._%40base-ui_react_esm_floating-ui-react_0ya-_bz._.js",
+    "status": 200,
+    "resourceType": "script",
+    "timestamp": 1780499447356,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "GET",
+    "url": "http://localhost:3000/_next/static/chunks/node_modules__pnpm_131lfxg._.js",
+    "status": 200,
+    "resourceType": "script",
+    "timestamp": 1780499447356,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "GET",
+    "url": "http://localhost:3000/_next/static/chunks/0cp._%40base-ui_react_esm_menu_01vhlv5._.js",
+    "status": 200,
+    "resourceType": "script",
+    "timestamp": 1780499447356,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "GET",
+    "url": "http://localhost:3000/_next/static/chunks/0cp._%40base-ui_react_esm_07_kxks._.js",
+    "status": 200,
+    "resourceType": "script",
+    "timestamp": 1780499447356,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "GET",
+    "url": "http://localhost:3000/_next/static/chunks/src_app_(dashboard)_workspaces_%5Bid%5D_terminal_page_tsx_0cvtrhh._.js",
+    "status": 200,
+    "resourceType": "script",
+    "timestamp": 1780499447356,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "GET",
+    "url": "http://localhost:3000/_next/static/chunks/src_08.jjs8._.js",
+    "status": 200,
+    "resourceType": "script",
+    "timestamp": 1780499447356,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "GET",
+    "url": "http://localhost:3000/_next/static/chunks/node_modules__pnpm_0gupd8h._.js",
+    "status": 200,
+    "resourceType": "script",
+    "timestamp": 1780499447358,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "GET",
+    "url": "http://localhost:3000/_next/static/chunks/%5Bturbopack%5D_browser_dev_hmr-client_hmr-client_ts_0yjw1oe._.js",
+    "status": 200,
+    "resourceType": "script",
+    "timestamp": 1780499447359,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "GET",
+    "url": "http://localhost:3000/_next/static/chunks/%5Bturbopack%5D_browser_dev_hmr-client_hmr-client_ts_0nrt9uy._.js",
+    "status": 200,
+    "resourceType": "script",
+    "timestamp": 1780499447360,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "GET",
+    "url": "http://localhost:3000/__nextjs_font/geist-latin.woff2",
+    "status": 200,
+    "resourceType": "font",
+    "timestamp": 1780499447460,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "GET",
+    "url": "http://localhost:3000/_next/static/chunks/src_styles_xterm_0.npnxv.css",
+    "status": 200,
+    "resourceType": "stylesheet",
+    "timestamp": 1780499447792,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "GET",
+    "url": "http://localhost:3000/_next/static/chunks/node_modules__pnpm_0vhiyjd._.js",
+    "status": 200,
+    "resourceType": "script",
+    "timestamp": 1780499447841,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "GET",
+    "url": "http://localhost:3000/_next/static/chunks/src_components_workspaces_InteractiveTerminal_tsx_01-72b3._.js",
+    "status": 200,
+    "resourceType": "script",
+    "timestamp": 1780499447841,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "GET",
+    "url": "http://localhost:3000/_next/static/chunks/src_03nbw~j._.js",
+    "status": 200,
+    "resourceType": "script",
+    "timestamp": 1780499447841,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "POST",
+    "url": "http://localhost:3000/workspaces/workspace-uat/terminal?session=uat-session&debugViewport=1",
+    "status": 200,
+    "resourceType": "fetch",
+    "timestamp": 1780499447860,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "GET",
+    "url": "http://localhost:3000/_next/static/chunks/0adv_%40xterm_xterm_lib_xterm_mjs_11s6y-d._.js",
+    "status": 200,
+    "resourceType": "script",
+    "timestamp": 1780499447887,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "GET",
+    "url": "http://localhost:3000/_next/static/chunks/13fc_%40xterm_addon-fit_lib_addon-fit_mjs_11qtae5._.js",
+    "status": 200,
+    "resourceType": "script",
+    "timestamp": 1780499447887,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "GET",
+    "url": "http://localhost:3000/_next/static/chunks/13fc_%40xterm_addon-fit_lib_addon-fit_mjs_11s6y-d._.js",
+    "status": 200,
+    "resourceType": "script",
+    "timestamp": 1780499447887,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "GET",
+    "url": "http://localhost:3000/_next/static/chunks/0adv_%40xterm_xterm_lib_xterm_mjs_0.qgu9l._.js",
+    "status": 200,
+    "resourceType": "script",
+    "timestamp": 1780499447887,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "POST",
+    "url": "http://localhost:3000/workspaces/workspace-uat/terminal?session=uat-session&debugViewport=1",
+    "status": 200,
+    "resourceType": "fetch",
+    "timestamp": 1780499447892,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "GET",
+    "url": "http://localhost:3000/fonts/FiraCode-Regular.ttf",
+    "status": 200,
+    "resourceType": "font",
+    "timestamp": 1780499447911,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "POST",
+    "url": "http://localhost:3000/workspaces/workspace-uat/terminal?session=uat-session&debugViewport=1",
+    "status": 200,
+    "resourceType": "fetch",
+    "timestamp": 1780499447970,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "POST",
+    "url": "http://localhost:3000/workspaces/workspace-uat/terminal?session=uat-session&debugViewport=1",
+    "status": 200,
+    "resourceType": "fetch",
+    "timestamp": 1780499448044,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "POST",
+    "url": "http://localhost:3000/workspaces/workspace-uat/terminal?session=uat-session&debugViewport=1",
+    "status": 200,
+    "resourceType": "fetch",
+    "timestamp": 1780499448079,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "POST",
+    "url": "http://localhost:3000/workspaces/workspace-uat/terminal?session=uat-session&debugViewport=1",
+    "status": 200,
+    "resourceType": "fetch",
+    "timestamp": 1780499448111,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "POST",
+    "url": "http://localhost:3000/workspaces/workspace-uat/terminal?session=uat-session&debugViewport=1",
+    "status": 200,
+    "resourceType": "fetch",
+    "timestamp": 1780499448141,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "POST",
+    "url": "http://localhost:3000/workspaces/workspace-uat/terminal?session=uat-session&debugViewport=1",
+    "status": 200,
+    "resourceType": "fetch",
+    "timestamp": 1780499448293,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "POST",
+    "url": "http://localhost:3000/workspaces/workspace-uat/terminal?session=uat-session&debugViewport=1",
+    "status": 200,
+    "resourceType": "fetch",
+    "timestamp": 1780499448372,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "POST",
+    "url": "http://localhost:3000/workspaces/workspace-uat/terminal?session=uat-session&debugViewport=1",
+    "status": 200,
+    "resourceType": "fetch",
+    "timestamp": 1780499477866,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "POST",
+    "url": "http://localhost:3000/workspaces/workspace-uat/terminal?session=uat-session&debugViewport=1",
+    "status": 200,
+    "resourceType": "fetch",
+    "timestamp": 1780499477941,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "POST",
+    "url": "http://localhost:3000/workspaces/workspace-uat/terminal?session=uat-session&debugViewport=1",
+    "status": 200,
+    "resourceType": "fetch",
+    "timestamp": 1780499478183,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "POST",
+    "url": "http://localhost:3000/workspaces/workspace-uat/terminal?session=uat-session&debugViewport=1",
+    "status": 200,
+    "resourceType": "fetch",
+    "timestamp": 1780499507862,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "POST",
+    "url": "http://localhost:3000/workspaces/workspace-uat/terminal?session=uat-session&debugViewport=1",
+    "status": 200,
+    "resourceType": "fetch",
+    "timestamp": 1780499507941,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "POST",
+    "url": "http://localhost:3000/workspaces/workspace-uat/terminal?session=uat-session&debugViewport=1",
+    "status": 200,
+    "resourceType": "fetch",
+    "timestamp": 1780499508151,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "POST",
+    "url": "http://localhost:3000/workspaces/workspace-uat/terminal?session=uat-session&debugViewport=1",
+    "status": 200,
+    "resourceType": "fetch",
+    "timestamp": 1780499527835,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "GET",
+    "url": "http://localhost:3000/workspaces/workspace-uat/terminal?session=uat-session&debugViewport=1&_rsc=1imk1",
+    "status": 200,
+    "resourceType": "fetch",
+    "timestamp": 1780499527885,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "POST",
+    "url": "http://localhost:3000/workspaces/workspace-uat/terminal?session=uat-session&debugViewport=1",
+    "status": 200,
+    "resourceType": "fetch",
+    "timestamp": 1780499538604,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "POST",
+    "url": "http://localhost:3000/workspaces/workspace-uat/terminal?session=uat-session&debugViewport=1",
+    "status": 200,
+    "resourceType": "fetch",
+    "timestamp": 1780499538604,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "POST",
+    "url": "http://localhost:3000/workspaces/workspace-uat/terminal?session=uat-session&debugViewport=1",
+    "status": 200,
+    "resourceType": "fetch",
+    "timestamp": 1780499538604,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "POST",
+    "url": "http://localhost:3000/workspaces/workspace-uat/terminal?session=uat-session&debugViewport=1",
+    "status": 200,
+    "resourceType": "fetch",
+    "timestamp": 1780499567848,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "POST",
+    "url": "http://localhost:3000/workspaces/workspace-uat/terminal?session=uat-session&debugViewport=1",
+    "status": 200,
+    "resourceType": "fetch",
+    "timestamp": 1780499567882,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "POST",
+    "url": "http://localhost:3000/workspaces/workspace-uat/terminal?session=uat-session&debugViewport=1",
+    "status": 200,
+    "resourceType": "fetch",
+    "timestamp": 1780499568855,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "POST",
+    "url": "http://localhost:3000/workspaces/workspace-uat/terminal?session=uat-session&debugViewport=1",
+    "status": 200,
+    "resourceType": "fetch",
+    "timestamp": 1780499600092,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "POST",
+    "url": "http://localhost:3000/workspaces/workspace-uat/terminal?session=uat-session&debugViewport=1",
+    "status": 200,
+    "resourceType": "fetch",
+    "timestamp": 1780499600092,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "POST",
+    "url": "http://localhost:3000/workspaces/workspace-uat/terminal?session=uat-session&debugViewport=1",
+    "status": 200,
+    "resourceType": "fetch",
+    "timestamp": 1780499600092,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "GET",
+    "url": "http://localhost:3000/_next/static/media/797e433ab948586e-s.p.09zddjkbdep5a.woff2",
+    "status": 200,
+    "resourceType": "font",
+    "timestamp": 1780499616017,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "GET",
+    "url": "http://localhost:3000/_next/static/media/caa3a2e1cccd8315-s.p.09~u27dqhyhd6.woff2",
+    "status": 200,
+    "resourceType": "font",
+    "timestamp": 1780499616018,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "GET",
+    "url": "http://localhost:3000/_next/static/chunks/%5Broot-of-the-server%5D__0rfiqwx._.css",
+    "status": 200,
+    "resourceType": "stylesheet",
+    "timestamp": 1780499616018,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "GET",
+    "url": "http://localhost:3000/_next/static/chunks/%5Bturbopack%5D_browser_dev_hmr-client_hmr-client_ts_0t33hsw._.js",
+    "status": 200,
+    "resourceType": "script",
+    "timestamp": 1780499616018,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "GET",
+    "url": "http://localhost:3000/runtime-config.js",
+    "status": 200,
+    "resourceType": "script",
+    "timestamp": 1780499616022,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "GET",
+    "url": "http://localhost:3000/_next/static/chunks/0w4n_next_dist_compiled_react-server-dom-turbopack_0fcruwz._.js",
+    "status": 200,
+    "resourceType": "script",
+    "timestamp": 1780499616044,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "GET",
+    "url": "http://localhost:3000/_next/static/chunks/0w4n_next_dist_compiled_0q67tpg._.js",
+    "status": 200,
+    "resourceType": "script",
+    "timestamp": 1780499616046,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "GET",
+    "url": "http://localhost:3000/workspaces/workspace-uat/terminal?session=uat-session",
+    "status": 200,
+    "resourceType": "document",
+    "timestamp": 1780499616046,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "GET",
+    "url": "http://localhost:3000/_next/static/chunks/0w4n_next_dist_0_cxz4v._.js",
+    "status": 200,
+    "resourceType": "script",
+    "timestamp": 1780499616046,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "GET",
+    "url": "http://localhost:3000/_next/static/chunks/0i4a_%40swc_helpers_cjs_0hvz.20._.js",
+    "status": 200,
+    "resourceType": "script",
+    "timestamp": 1780499616052,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "GET",
+    "url": "http://localhost:3000/_next/static/chunks/_0rqeker._.js",
+    "status": 200,
+    "resourceType": "script",
+    "timestamp": 1780499616087,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "GET",
+    "url": "http://localhost:3000/_next/static/chunks/turbopack-_0w032mg._.js",
+    "status": 200,
+    "resourceType": "script",
+    "timestamp": 1780499616089,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "GET",
+    "url": "http://localhost:3000/_next/static/chunks/0w4n_next_dist_compiled_next-devtools_index_0pxa.kc.js",
+    "status": 200,
+    "resourceType": "script",
+    "timestamp": 1780499616089,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "GET",
+    "url": "http://localhost:3000/_next/static/chunks/0w4n_next_dist_client_0st4c5a._.js",
+    "status": 200,
+    "resourceType": "script",
+    "timestamp": 1780499616089,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "GET",
+    "url": "http://localhost:3000/_next/static/chunks/0w4n_next_dist_0tq8ufy._.js",
+    "status": 200,
+    "resourceType": "script",
+    "timestamp": 1780499616089,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "GET",
+    "url": "http://localhost:3000/_next/static/chunks/0995_tailwind-merge_dist_bundle-mjs_mjs_0osztqy._.js",
+    "status": 200,
+    "resourceType": "script",
+    "timestamp": 1780499616089,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "GET",
+    "url": "http://localhost:3000/_next/static/chunks/0w4n_next_dist_compiled_react-dom_0zgmlza._.js",
+    "status": 200,
+    "resourceType": "script",
+    "timestamp": 1780499616089,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "GET",
+    "url": "http://localhost:3000/_next/static/chunks/src_0d~p897._.js",
+    "status": 200,
+    "resourceType": "script",
+    "timestamp": 1780499616089,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "GET",
+    "url": "http://localhost:3000/_next/static/chunks/src_app_layout_tsx_0n5d3p_._.js",
+    "status": 200,
+    "resourceType": "script",
+    "timestamp": 1780499616089,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "GET",
+    "url": "http://localhost:3000/_next/static/chunks/node_modules__pnpm_111dqxo._.js",
+    "status": 200,
+    "resourceType": "script",
+    "timestamp": 1780499616089,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "GET",
+    "url": "http://localhost:3000/_next/static/chunks/0w4n_next_dist_client_components_builtin_global-error_0d8~3ke.js",
+    "status": 200,
+    "resourceType": "script",
+    "timestamp": 1780499616089,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "GET",
+    "url": "http://localhost:3000/_next/static/chunks/0cp._%40base-ui_react_esm_0qx4b6w._.js",
+    "status": 200,
+    "resourceType": "script",
+    "timestamp": 1780499616089,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "GET",
+    "url": "http://localhost:3000/_next/static/chunks/0cp._%40base-ui_react_esm_field_0vhybvm._.js",
+    "status": 200,
+    "resourceType": "script",
+    "timestamp": 1780499616089,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "GET",
+    "url": "http://localhost:3000/_next/static/chunks/0cp._%40base-ui_react_esm_dialog_0ybl1yr._.js",
+    "status": 200,
+    "resourceType": "script",
+    "timestamp": 1780499616089,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "GET",
+    "url": "http://localhost:3000/_next/static/chunks/0cp._%40base-ui_react_esm_floating-ui-react_0ya-_bz._.js",
+    "status": 200,
+    "resourceType": "script",
+    "timestamp": 1780499616089,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "GET",
+    "url": "http://localhost:3000/_next/static/chunks/src_0q98q~5._.js",
+    "status": 200,
+    "resourceType": "script",
+    "timestamp": 1780499616117,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "GET",
+    "url": "http://localhost:3000/_next/static/chunks/0cp._%40base-ui_react_esm_07_kxks._.js",
+    "status": 200,
+    "resourceType": "script",
+    "timestamp": 1780499616117,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "GET",
+    "url": "http://localhost:3000/_next/static/chunks/src_components_workspaces_InteractiveTerminal_tsx_0vu~42u._.js",
+    "status": 200,
+    "resourceType": "script",
+    "timestamp": 1780499616202,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "GET",
+    "url": "http://localhost:3000/_next/static/chunks/src_app_(dashboard)_layout_tsx_0d8~3ke._.js",
+    "status": 200,
+    "resourceType": "script",
+    "timestamp": 1780499616202,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "GET",
+    "url": "http://localhost:3000/_next/static/chunks/0cp._%40base-ui_react_esm_menu_01vhlv5._.js",
+    "status": 200,
+    "resourceType": "script",
+    "timestamp": 1780499616206,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "GET",
+    "url": "http://localhost:3000/_next/static/chunks/node_modules__pnpm_131lfxg._.js",
+    "status": 200,
+    "resourceType": "script",
+    "timestamp": 1780499616206,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "GET",
+    "url": "http://localhost:3000/_next/static/chunks/src_app_(dashboard)_workspaces_%5Bid%5D_terminal_page_tsx_0cvtrhh._.js",
+    "status": 200,
+    "resourceType": "script",
+    "timestamp": 1780499616233,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "GET",
+    "url": "http://localhost:3000/_next/static/chunks/src_08.jjs8._.js",
+    "status": 200,
+    "resourceType": "script",
+    "timestamp": 1780499616270,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "GET",
+    "url": "http://localhost:3000/_next/static/chunks/node_modules__pnpm_0gupd8h._.js",
+    "status": 200,
+    "resourceType": "script",
+    "timestamp": 1780499616275,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "GET",
+    "url": "http://localhost:3000/_next/static/chunks/%5Bturbopack%5D_browser_dev_hmr-client_hmr-client_ts_0yjw1oe._.js",
+    "status": 200,
+    "resourceType": "script",
+    "timestamp": 1780499616275,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "GET",
+    "url": "http://localhost:3000/_next/static/chunks/%5Bturbopack%5D_browser_dev_hmr-client_hmr-client_ts_0nrt9uy._.js",
+    "status": 200,
+    "resourceType": "script",
+    "timestamp": 1780499616275,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "GET",
+    "url": "http://localhost:3000/__nextjs_font/geist-latin.woff2",
+    "status": 200,
+    "resourceType": "font",
+    "timestamp": 1780499616278,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "GET",
+    "url": "http://localhost:3000/_next/static/chunks/src_styles_xterm_0.npnxv.css",
+    "status": 200,
+    "resourceType": "stylesheet",
+    "timestamp": 1780499617300,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "GET",
+    "url": "http://localhost:3000/_next/static/chunks/node_modules__pnpm_0vhiyjd._.js",
+    "status": 200,
+    "resourceType": "script",
+    "timestamp": 1780499617300,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "GET",
+    "url": "http://localhost:3000/_next/static/chunks/src_components_workspaces_InteractiveTerminal_tsx_01-72b3._.js",
+    "status": 200,
+    "resourceType": "script",
+    "timestamp": 1780499617300,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "GET",
+    "url": "http://localhost:3000/_next/static/chunks/src_03nbw~j._.js",
+    "status": 200,
+    "resourceType": "script",
+    "timestamp": 1780499617300,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "POST",
+    "url": "http://localhost:3000/workspaces/workspace-uat/terminal?session=uat-session",
+    "status": 200,
+    "resourceType": "fetch",
+    "timestamp": 1780499617307,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "GET",
+    "url": "http://localhost:3000/_next/static/chunks/0adv_%40xterm_xterm_lib_xterm_mjs_11s6y-d._.js",
+    "status": 200,
+    "resourceType": "script",
+    "timestamp": 1780499617307,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "GET",
+    "url": "http://localhost:3000/_next/static/chunks/13fc_%40xterm_addon-fit_lib_addon-fit_mjs_11qtae5._.js",
+    "status": 200,
+    "resourceType": "script",
+    "timestamp": 1780499617307,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "GET",
+    "url": "http://localhost:3000/_next/static/chunks/13fc_%40xterm_addon-fit_lib_addon-fit_mjs_11s6y-d._.js",
+    "status": 200,
+    "resourceType": "script",
+    "timestamp": 1780499617307,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "GET",
+    "url": "http://localhost:3000/_next/static/chunks/0adv_%40xterm_xterm_lib_xterm_mjs_0.qgu9l._.js",
+    "status": 200,
+    "resourceType": "script",
+    "timestamp": 1780499617307,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "POST",
+    "url": "http://localhost:3000/workspaces/workspace-uat/terminal?session=uat-session",
+    "status": 200,
+    "resourceType": "fetch",
+    "timestamp": 1780499617307,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "GET",
+    "url": "http://localhost:3000/fonts/FiraCode-Regular.ttf",
+    "status": 200,
+    "resourceType": "font",
+    "timestamp": 1780499617311,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "POST",
+    "url": "http://localhost:3000/workspaces/workspace-uat/terminal?session=uat-session",
+    "status": 200,
+    "resourceType": "fetch",
+    "timestamp": 1780499617311,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "POST",
+    "url": "http://localhost:3000/workspaces/workspace-uat/terminal?session=uat-session",
+    "status": 200,
+    "resourceType": "fetch",
+    "timestamp": 1780499617313,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "POST",
+    "url": "http://localhost:3000/workspaces/workspace-uat/terminal?session=uat-session",
+    "status": 200,
+    "resourceType": "fetch",
+    "timestamp": 1780499617313,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "POST",
+    "url": "http://localhost:3000/workspaces/workspace-uat/terminal?session=uat-session",
+    "status": 200,
+    "resourceType": "fetch",
+    "timestamp": 1780499617313,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "POST",
+    "url": "http://localhost:3000/workspaces/workspace-uat/terminal?session=uat-session",
+    "status": 200,
+    "resourceType": "fetch",
+    "timestamp": 1780499617314,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "POST",
+    "url": "http://localhost:3000/workspaces/workspace-uat/terminal?session=uat-session",
+    "status": 200,
+    "resourceType": "fetch",
+    "timestamp": 1780499617314,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "POST",
+    "url": "http://localhost:3000/workspaces/workspace-uat/terminal?session=uat-session",
+    "status": 200,
+    "resourceType": "fetch",
+    "timestamp": 1780499617314,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "POST",
+    "url": "http://localhost:3000/workspaces/workspace-uat/terminal?session=uat-session",
+    "status": 200,
+    "resourceType": "fetch",
+    "timestamp": 1780499646567,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "POST",
+    "url": "http://localhost:3000/workspaces/workspace-uat/terminal?session=uat-session",
+    "status": 200,
+    "resourceType": "fetch",
+    "timestamp": 1780499646622,
+    "failed": false,
+    "pageId": 1
+  },
+  {
+    "method": "POST",
+    "url": "http://localhost:3000/workspaces/workspace-uat/terminal?session=uat-session",
+    "status": 200,
+    "resourceType": "fetch",
+    "timestamp": 1780499646833,
+    "failed": false,
+    "pageId": 1
+  }
+]

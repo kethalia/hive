@@ -1,0 +1,3026 @@
+[
+  {
+    "type": "info",
+    "text": "%cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold",
+    "timestamp": 1780496320195,
+    "url": "http://localhost:3000/login",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[HMR] connected",
+    "timestamp": 1780496320449,
+    "url": "http://localhost:3000/login",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[Fast Refresh] rebuilding",
+    "timestamp": 1780496324460,
+    "url": "http://localhost:3000/login",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[Fast Refresh] done in 114ms",
+    "timestamp": 1780496324474,
+    "url": "http://localhost:3000/login",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[Fast Refresh] rebuilding",
+    "timestamp": 1780496324991,
+    "url": "http://localhost:3000/",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[Fast Refresh] done in 110ms",
+    "timestamp": 1780496325002,
+    "url": "http://localhost:3000/",
+    "pageId": 1
+  },
+  {
+    "type": "error",
+    "text": "Base UI: A component that acts as a button expected a native <button> because the `nativeButton` prop is true. Rendering a non-<button> removes native button semantics, which can impact forms and accessibility. Use a real <button> in the `render` prop, or set `nativeButton` to `false`.\n    at Button (http://localhost:3000/_next/static/chunks/src_0qh6dse._.js:138:375)\n    at TaskListContent (about://React/Server/file:///home/coder/projects/kethalia/hive/.next/dev/server/chunks/ssr/%5Broot-of-the-server%5D__0pp5el~._.js?83:3431:433)\n    at TasksPage (about://React/Server/file:///home/coder/projects/kethalia/hive/.next/dev/server/chunks/ssr/%5Broot-of-the-server%5D__0pp5el~._.js?72:3796:431)",
+    "timestamp": 1780496325231,
+    "url": "http://localhost:3000/tasks",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[Fast Refresh] rebuilding",
+    "timestamp": 1780496325419,
+    "url": "http://localhost:3000/tasks",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[Fast Refresh] done in 143ms",
+    "timestamp": 1780496325453,
+    "url": "http://localhost:3000/",
+    "pageId": 1
+  },
+  {
+    "type": "info",
+    "text": "%cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold",
+    "timestamp": 1780496331831,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[HMR] connected",
+    "timestamp": 1780496332077,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] Connection state: connecting",
+    "timestamp": 1780496332507,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "error",
+    "text": "WebSocket connection to 'ws://localhost:4500/ws?agentId=66666666-6666-4666-8666-666666666666&workspaceId=44444444-4444-4444-8444-444444444444&reconnectId=262619e3-2e86-4fd0-95af-7dbc2ad988f6&width=178&height=37&sessionName=uat-session' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED",
+    "timestamp": 1780496332513,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] WebSocket error",
+    "timestamp": 1780496332514,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] Connection state: disconnected",
+    "timestamp": 1780496332515,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] Reconnecting in 1398ms",
+    "timestamp": 1780496332515,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] Connection state: reconnecting",
+    "timestamp": 1780496333913,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] Reconnect attempt 1/10",
+    "timestamp": 1780496333913,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "error",
+    "text": "WebSocket connection to 'ws://localhost:4500/ws?agentId=66666666-6666-4666-8666-666666666666&workspaceId=44444444-4444-4444-8444-444444444444&reconnectId=262619e3-2e86-4fd0-95af-7dbc2ad988f6&width=178&height=37&sessionName=uat-session' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED",
+    "timestamp": 1780496333914,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] WebSocket error",
+    "timestamp": 1780496333914,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] Connection state: disconnected",
+    "timestamp": 1780496333914,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] Reconnecting in 2084ms",
+    "timestamp": 1780496333914,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] Connection state: reconnecting",
+    "timestamp": 1780496335999,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] Reconnect attempt 2/10",
+    "timestamp": 1780496335999,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "error",
+    "text": "WebSocket connection to 'ws://localhost:4500/ws?agentId=66666666-6666-4666-8666-666666666666&workspaceId=44444444-4444-4444-8444-444444444444&reconnectId=262619e3-2e86-4fd0-95af-7dbc2ad988f6&width=178&height=37&sessionName=uat-session' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED",
+    "timestamp": 1780496336000,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] WebSocket error",
+    "timestamp": 1780496336000,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] Connection state: disconnected",
+    "timestamp": 1780496336000,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] Reconnecting in 3861ms",
+    "timestamp": 1780496336000,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] Connection state: reconnecting",
+    "timestamp": 1780496339879,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] Reconnect attempt 3/10",
+    "timestamp": 1780496339879,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "error",
+    "text": "WebSocket connection to 'ws://localhost:4500/ws?agentId=66666666-6666-4666-8666-666666666666&workspaceId=44444444-4444-4444-8444-444444444444&reconnectId=262619e3-2e86-4fd0-95af-7dbc2ad988f6&width=178&height=37&sessionName=uat-session' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED",
+    "timestamp": 1780496339879,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] WebSocket error",
+    "timestamp": 1780496339879,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] Connection state: disconnected",
+    "timestamp": 1780496339879,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] Reconnecting in 8197ms",
+    "timestamp": 1780496339879,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] Connection state: reconnecting",
+    "timestamp": 1780496348079,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] Reconnect attempt 4/10",
+    "timestamp": 1780496348079,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "error",
+    "text": "WebSocket connection to 'ws://localhost:4500/ws?agentId=66666666-6666-4666-8666-666666666666&workspaceId=44444444-4444-4444-8444-444444444444&reconnectId=262619e3-2e86-4fd0-95af-7dbc2ad988f6&width=178&height=37&sessionName=uat-session' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED",
+    "timestamp": 1780496348080,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] WebSocket error",
+    "timestamp": 1780496348080,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] Connection state: disconnected",
+    "timestamp": 1780496348080,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] Reconnecting in 15537ms",
+    "timestamp": 1780496348080,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] Connection state: reconnecting",
+    "timestamp": 1780496363626,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] Reconnect attempt 5/10",
+    "timestamp": 1780496363626,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "error",
+    "text": "WebSocket connection to 'ws://localhost:4500/ws?agentId=66666666-6666-4666-8666-666666666666&workspaceId=44444444-4444-4444-8444-444444444444&reconnectId=262619e3-2e86-4fd0-95af-7dbc2ad988f6&width=178&height=37&sessionName=uat-session' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED",
+    "timestamp": 1780496363626,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] WebSocket error",
+    "timestamp": 1780496363626,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] Connection state: disconnected",
+    "timestamp": 1780496363626,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] Reconnecting in 30293ms",
+    "timestamp": 1780496363626,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "info",
+    "text": "%cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold",
+    "timestamp": 1780496367729,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[HMR] connected",
+    "timestamp": 1780496367838,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] Connection state: connecting",
+    "timestamp": 1780496368223,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "error",
+    "text": "WebSocket connection to 'ws://localhost:4500/ws?agentId=66666666-6666-4666-8666-666666666666&workspaceId=44444444-4444-4444-8444-444444444444&reconnectId=262619e3-2e86-4fd0-95af-7dbc2ad988f6&width=178&height=37&sessionName=uat-session' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED",
+    "timestamp": 1780496368323,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] WebSocket error",
+    "timestamp": 1780496368327,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] Connection state: disconnected",
+    "timestamp": 1780496368327,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] Reconnecting in 1424ms",
+    "timestamp": 1780496368327,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] Connection state: reconnecting",
+    "timestamp": 1780496369753,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] Reconnect attempt 1/10",
+    "timestamp": 1780496369753,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "error",
+    "text": "WebSocket connection to 'ws://localhost:4500/ws?agentId=66666666-6666-4666-8666-666666666666&workspaceId=44444444-4444-4444-8444-444444444444&reconnectId=262619e3-2e86-4fd0-95af-7dbc2ad988f6&width=178&height=37&sessionName=uat-session' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED",
+    "timestamp": 1780496369776,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] WebSocket error",
+    "timestamp": 1780496369786,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] Connection state: disconnected",
+    "timestamp": 1780496369786,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] Reconnecting in 1872ms",
+    "timestamp": 1780496369786,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] Connection state: reconnecting",
+    "timestamp": 1780496371626,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] Reconnect attempt 2/10",
+    "timestamp": 1780496371626,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "error",
+    "text": "WebSocket connection to 'ws://localhost:4500/ws?agentId=66666666-6666-4666-8666-666666666666&workspaceId=44444444-4444-4444-8444-444444444444&reconnectId=262619e3-2e86-4fd0-95af-7dbc2ad988f6&width=178&height=37&sessionName=uat-session' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED",
+    "timestamp": 1780496371627,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] WebSocket error",
+    "timestamp": 1780496371627,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] Connection state: disconnected",
+    "timestamp": 1780496371627,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] Reconnecting in 4439ms",
+    "timestamp": 1780496371627,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] Connection state: reconnecting",
+    "timestamp": 1780496376067,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] Reconnect attempt 3/10",
+    "timestamp": 1780496376067,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "error",
+    "text": "WebSocket connection to 'ws://localhost:4500/ws?agentId=66666666-6666-4666-8666-666666666666&workspaceId=44444444-4444-4444-8444-444444444444&reconnectId=262619e3-2e86-4fd0-95af-7dbc2ad988f6&width=178&height=37&sessionName=uat-session' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED",
+    "timestamp": 1780496376068,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] WebSocket error",
+    "timestamp": 1780496376068,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] Connection state: disconnected",
+    "timestamp": 1780496376068,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] Reconnecting in 7517ms",
+    "timestamp": 1780496376068,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] Connection state: reconnecting",
+    "timestamp": 1780496383586,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] Reconnect attempt 4/10",
+    "timestamp": 1780496383586,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "error",
+    "text": "WebSocket connection to 'ws://localhost:4500/ws?agentId=66666666-6666-4666-8666-666666666666&workspaceId=44444444-4444-4444-8444-444444444444&reconnectId=262619e3-2e86-4fd0-95af-7dbc2ad988f6&width=178&height=37&sessionName=uat-session' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED",
+    "timestamp": 1780496383587,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] WebSocket error",
+    "timestamp": 1780496383588,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] Connection state: disconnected",
+    "timestamp": 1780496383588,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] Reconnecting in 15634ms",
+    "timestamp": 1780496383588,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] Connection state: reconnecting",
+    "timestamp": 1780496399238,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] Reconnect attempt 5/10",
+    "timestamp": 1780496399238,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "error",
+    "text": "WebSocket connection to 'ws://localhost:4500/ws?agentId=66666666-6666-4666-8666-666666666666&workspaceId=44444444-4444-4444-8444-444444444444&reconnectId=262619e3-2e86-4fd0-95af-7dbc2ad988f6&width=178&height=37&sessionName=uat-session' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED",
+    "timestamp": 1780496399238,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] WebSocket error",
+    "timestamp": 1780496399238,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] Connection state: disconnected",
+    "timestamp": 1780496399238,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] Reconnecting in 30479ms",
+    "timestamp": 1780496399238,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "info",
+    "text": "%cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold",
+    "timestamp": 1780496403176,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[HMR] connected",
+    "timestamp": 1780496403382,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] Connection state: connecting",
+    "timestamp": 1780496403820,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "error",
+    "text": "WebSocket connection to 'ws://localhost:4500/ws?agentId=66666666-6666-4666-8666-666666666666&workspaceId=44444444-4444-4444-8444-444444444444&reconnectId=262619e3-2e86-4fd0-95af-7dbc2ad988f6&width=158&height=32&sessionName=uat-session' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED",
+    "timestamp": 1780496403833,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] WebSocket error",
+    "timestamp": 1780496403835,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] Connection state: disconnected",
+    "timestamp": 1780496403835,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] Reconnecting in 1253ms",
+    "timestamp": 1780496403835,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] Connection state: reconnecting",
+    "timestamp": 1780496405088,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] Reconnect attempt 1/10",
+    "timestamp": 1780496405088,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "error",
+    "text": "WebSocket connection to 'ws://localhost:4500/ws?agentId=66666666-6666-4666-8666-666666666666&workspaceId=44444444-4444-4444-8444-444444444444&reconnectId=262619e3-2e86-4fd0-95af-7dbc2ad988f6&width=158&height=32&sessionName=uat-session' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED",
+    "timestamp": 1780496405089,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] WebSocket error",
+    "timestamp": 1780496405089,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] Connection state: disconnected",
+    "timestamp": 1780496405090,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] Reconnecting in 2467ms",
+    "timestamp": 1780496405090,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] Connection state: reconnecting",
+    "timestamp": 1780496407580,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] Reconnect attempt 2/10",
+    "timestamp": 1780496407580,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "error",
+    "text": "WebSocket connection to 'ws://localhost:4500/ws?agentId=66666666-6666-4666-8666-666666666666&workspaceId=44444444-4444-4444-8444-444444444444&reconnectId=262619e3-2e86-4fd0-95af-7dbc2ad988f6&width=158&height=32&sessionName=uat-session' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED",
+    "timestamp": 1780496407580,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] WebSocket error",
+    "timestamp": 1780496407580,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] Connection state: disconnected",
+    "timestamp": 1780496407581,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] Reconnecting in 4096ms",
+    "timestamp": 1780496407581,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] Connection state: reconnecting",
+    "timestamp": 1780496411677,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] Reconnect attempt 3/10",
+    "timestamp": 1780496411677,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "error",
+    "text": "WebSocket connection to 'ws://localhost:4500/ws?agentId=66666666-6666-4666-8666-666666666666&workspaceId=44444444-4444-4444-8444-444444444444&reconnectId=262619e3-2e86-4fd0-95af-7dbc2ad988f6&width=158&height=32&sessionName=uat-session' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED",
+    "timestamp": 1780496411677,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] WebSocket error",
+    "timestamp": 1780496411677,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] Connection state: disconnected",
+    "timestamp": 1780496411689,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] Reconnecting in 7621ms",
+    "timestamp": 1780496411689,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] Connection state: reconnecting",
+    "timestamp": 1780496419278,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] Reconnect attempt 4/10",
+    "timestamp": 1780496419278,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "error",
+    "text": "WebSocket connection to 'ws://localhost:4500/ws?agentId=66666666-6666-4666-8666-666666666666&workspaceId=44444444-4444-4444-8444-444444444444&reconnectId=262619e3-2e86-4fd0-95af-7dbc2ad988f6&width=158&height=32&sessionName=uat-session' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED",
+    "timestamp": 1780496419279,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] WebSocket error",
+    "timestamp": 1780496419279,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] Connection state: disconnected",
+    "timestamp": 1780496419279,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] Reconnecting in 15766ms",
+    "timestamp": 1780496419279,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] Connection state: connecting",
+    "timestamp": 1780496420958,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "error",
+    "text": "WebSocket connection to 'ws://localhost:4500/ws?agentId=66666666-6666-4666-8666-666666666666&workspaceId=44444444-4444-4444-8444-444444444444&reconnectId=262619e3-2e86-4fd0-95af-7dbc2ad988f6&width=47&height=30&sessionName=uat-session' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED",
+    "timestamp": 1780496420965,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] WebSocket error",
+    "timestamp": 1780496420965,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] Connection state: disconnected",
+    "timestamp": 1780496420965,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] Reconnecting in 1005ms",
+    "timestamp": 1780496420965,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] Connection state: reconnecting",
+    "timestamp": 1780496421970,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] Reconnect attempt 1/10",
+    "timestamp": 1780496421970,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "error",
+    "text": "WebSocket connection to 'ws://localhost:4500/ws?agentId=66666666-6666-4666-8666-666666666666&workspaceId=44444444-4444-4444-8444-444444444444&reconnectId=262619e3-2e86-4fd0-95af-7dbc2ad988f6&width=47&height=30&sessionName=uat-session' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED",
+    "timestamp": 1780496421971,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] WebSocket error",
+    "timestamp": 1780496421971,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] Connection state: disconnected",
+    "timestamp": 1780496421971,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] Reconnecting in 1584ms",
+    "timestamp": 1780496421971,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] Connection state: reconnecting",
+    "timestamp": 1780496423573,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] Reconnect attempt 2/10",
+    "timestamp": 1780496423573,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "error",
+    "text": "WebSocket connection to 'ws://localhost:4500/ws?agentId=66666666-6666-4666-8666-666666666666&workspaceId=44444444-4444-4444-8444-444444444444&reconnectId=262619e3-2e86-4fd0-95af-7dbc2ad988f6&width=47&height=30&sessionName=uat-session' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED",
+    "timestamp": 1780496423573,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] WebSocket error",
+    "timestamp": 1780496423573,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] Connection state: disconnected",
+    "timestamp": 1780496423573,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] Reconnecting in 3787ms",
+    "timestamp": 1780496423573,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "info",
+    "text": "%cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold",
+    "timestamp": 1780496424484,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[HMR] connected",
+    "timestamp": 1780496424714,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "pageerror",
+    "text": "Hydration failed because the server rendered HTML didn't match the client. As a result this tree will be regenerated on the client. This can happen if a SSR-ed Client Component used:\n\n- A server/client branch `if (typeof window !== 'undefined')`.\n- Variable input such as `Date.now()` or `Math.random()` which changes each time it's called.\n- Date formatting in a user's locale which doesn't match the server.\n- External changing data without sending a snapshot of it along with the HTML.\n- Invalid HTML tag nesting.\n\nIt can also happen if the client has a browser extension installed which messes with the HTML before React loaded.\n\nhttps://react.dev/link/hydration-mismatch\n\n  ...\n    <LoadingBoundary name=\"/\" loading={null}>\n      <HTTPAccessFallbackBoundary notFound={{...}} forbidden={undefined} unauthorized={undefined}>\n        <HTTPAccessFallbackErrorBoundary pathname=\"/workspace...\" notFound={{...}} forbidden={undefined} ...>\n          <RedirectBoundary>\n            <RedirectErrorBoundary router={{...}}>\n              <InnerLayoutRouter url=\"/workspace...\" tree={[...]} params={{}} cacheNode={{rsc:{...}, ...}} ...>\n                <SegmentViewNode type=\"layout\" pagePath=\"(dashboard...\">\n                  <SegmentTrieNode>\n                  <script>\n                  <script>\n                  <script>\n                  <script>\n                  <script>\n                  <script>\n                  <script>\n                  <script>\n                  <DashboardLayout>\n                    <SidebarProvider>\n                      <div data-slot=\"sidebar-wr...\" style={{...}} className=\"group/side...\">\n                        <KeybindingProvider>\n                          <Suspense fallback={null}>\n-                           <div\n-                             className=\"group peer hidden text-sidebar-foreground md:block\"\n-                             data-state=\"expanded\"\n-                             data-collapsible=\"\"\n-                             data-variant=\"floating\"\n-                             data-side=\"left\"\n-                             data-slot=\"sidebar\"\n-                           >\n                          ...\n              ...\n",
+    "timestamp": 1780496425076,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] Connection state: connecting",
+    "timestamp": 1780496425163,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "error",
+    "text": "WebSocket connection to 'ws://localhost:4500/ws?agentId=66666666-6666-4666-8666-666666666666&workspaceId=44444444-4444-4444-8444-444444444444&reconnectId=262619e3-2e86-4fd0-95af-7dbc2ad988f6&width=47&height=30&sessionName=uat-session' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED",
+    "timestamp": 1780496425173,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] WebSocket error",
+    "timestamp": 1780496425181,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] Connection state: disconnected",
+    "timestamp": 1780496425182,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] Reconnecting in 1082ms",
+    "timestamp": 1780496425182,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[Fast Refresh] rebuilding",
+    "timestamp": 1780496425298,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[Fast Refresh] done in 183ms",
+    "timestamp": 1780496425362,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] Connection state: reconnecting",
+    "timestamp": 1780496426263,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] Reconnect attempt 1/10",
+    "timestamp": 1780496426263,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "error",
+    "text": "WebSocket connection to 'ws://localhost:4500/ws?agentId=66666666-6666-4666-8666-666666666666&workspaceId=44444444-4444-4444-8444-444444444444&reconnectId=262619e3-2e86-4fd0-95af-7dbc2ad988f6&width=47&height=30&sessionName=uat-session' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED",
+    "timestamp": 1780496426264,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] WebSocket error",
+    "timestamp": 1780496426264,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] Connection state: disconnected",
+    "timestamp": 1780496426264,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] Reconnecting in 2080ms",
+    "timestamp": 1780496426264,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] Connection state: reconnecting",
+    "timestamp": 1780496428346,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] Reconnect attempt 2/10",
+    "timestamp": 1780496428346,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "error",
+    "text": "WebSocket connection to 'ws://localhost:4500/ws?agentId=66666666-6666-4666-8666-666666666666&workspaceId=44444444-4444-4444-8444-444444444444&reconnectId=262619e3-2e86-4fd0-95af-7dbc2ad988f6&width=47&height=30&sessionName=uat-session' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED",
+    "timestamp": 1780496428348,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] WebSocket error",
+    "timestamp": 1780496428349,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] Connection state: disconnected",
+    "timestamp": 1780496428349,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] Reconnecting in 3702ms",
+    "timestamp": 1780496428349,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] Connection state: reconnecting",
+    "timestamp": 1780496432063,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] Reconnect attempt 3/10",
+    "timestamp": 1780496432063,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "error",
+    "text": "WebSocket connection to 'ws://localhost:4500/ws?agentId=66666666-6666-4666-8666-666666666666&workspaceId=44444444-4444-4444-8444-444444444444&reconnectId=262619e3-2e86-4fd0-95af-7dbc2ad988f6&width=47&height=30&sessionName=uat-session' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED",
+    "timestamp": 1780496432064,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] WebSocket error",
+    "timestamp": 1780496432064,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] Connection state: disconnected",
+    "timestamp": 1780496432064,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] Reconnecting in 7583ms",
+    "timestamp": 1780496432064,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] Connection state: reconnecting",
+    "timestamp": 1780496439649,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] Reconnect attempt 4/10",
+    "timestamp": 1780496439649,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "error",
+    "text": "WebSocket connection to 'ws://localhost:4500/ws?agentId=66666666-6666-4666-8666-666666666666&workspaceId=44444444-4444-4444-8444-444444444444&reconnectId=262619e3-2e86-4fd0-95af-7dbc2ad988f6&width=47&height=30&sessionName=uat-session' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED",
+    "timestamp": 1780496439649,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] WebSocket error",
+    "timestamp": 1780496439649,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] Connection state: disconnected",
+    "timestamp": 1780496439649,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] Reconnecting in 15979ms",
+    "timestamp": 1780496439649,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] Connection state: reconnecting",
+    "timestamp": 1780496455618,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] Reconnect attempt 5/10",
+    "timestamp": 1780496455618,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "error",
+    "text": "WebSocket connection to 'ws://localhost:4500/ws?agentId=66666666-6666-4666-8666-666666666666&workspaceId=44444444-4444-4444-8444-444444444444&reconnectId=262619e3-2e86-4fd0-95af-7dbc2ad988f6&width=47&height=30&sessionName=uat-session' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED",
+    "timestamp": 1780496455619,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] WebSocket error",
+    "timestamp": 1780496455619,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] Connection state: disconnected",
+    "timestamp": 1780496455619,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] Reconnecting in 30081ms",
+    "timestamp": 1780496455619,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] Connection state: reconnecting",
+    "timestamp": 1780496485710,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] Reconnect attempt 6/10",
+    "timestamp": 1780496485710,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "error",
+    "text": "WebSocket connection to 'ws://localhost:4500/ws?agentId=66666666-6666-4666-8666-666666666666&workspaceId=44444444-4444-4444-8444-444444444444&reconnectId=262619e3-2e86-4fd0-95af-7dbc2ad988f6&width=47&height=30&sessionName=uat-session' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED",
+    "timestamp": 1780496485710,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] WebSocket error",
+    "timestamp": 1780496485710,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] Connection state: disconnected",
+    "timestamp": 1780496485710,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] Reconnecting in 29851ms",
+    "timestamp": 1780496485710,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[Fast Refresh] rebuilding",
+    "timestamp": 1780496496736,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[Fast Refresh] done in 117ms",
+    "timestamp": 1780496496753,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[Fast Refresh] rebuilding",
+    "timestamp": 1780496496961,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[Fast Refresh] done in 108ms",
+    "timestamp": 1780496496966,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] Connection state: connecting",
+    "timestamp": 1780496503645,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "error",
+    "text": "WebSocket connection to 'ws://localhost:4500/ws?agentId=66666666-6666-4666-8666-666666666666&workspaceId=44444444-4444-4444-8444-444444444444&reconnectId=262619e3-2e86-4fd0-95af-7dbc2ad988f6&width=178&height=34&sessionName=uat-session' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED",
+    "timestamp": 1780496503651,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] WebSocket error",
+    "timestamp": 1780496503651,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] Connection state: disconnected",
+    "timestamp": 1780496503651,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] Reconnecting in 1214ms",
+    "timestamp": 1780496503651,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] Connection state: reconnecting",
+    "timestamp": 1780496504865,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] Reconnect attempt 1/10",
+    "timestamp": 1780496504865,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "error",
+    "text": "WebSocket connection to 'ws://localhost:4500/ws?agentId=66666666-6666-4666-8666-666666666666&workspaceId=44444444-4444-4444-8444-444444444444&reconnectId=262619e3-2e86-4fd0-95af-7dbc2ad988f6&width=178&height=34&sessionName=uat-session' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED",
+    "timestamp": 1780496504866,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] WebSocket error",
+    "timestamp": 1780496504866,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] Connection state: disconnected",
+    "timestamp": 1780496504866,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] Reconnecting in 1911ms",
+    "timestamp": 1780496504866,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] Connection state: reconnecting",
+    "timestamp": 1780496506777,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] Reconnect attempt 2/10",
+    "timestamp": 1780496506777,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "error",
+    "text": "WebSocket connection to 'ws://localhost:4500/ws?agentId=66666666-6666-4666-8666-666666666666&workspaceId=44444444-4444-4444-8444-444444444444&reconnectId=262619e3-2e86-4fd0-95af-7dbc2ad988f6&width=178&height=34&sessionName=uat-session' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED",
+    "timestamp": 1780496506779,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] WebSocket error",
+    "timestamp": 1780496506779,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] Connection state: disconnected",
+    "timestamp": 1780496506779,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] Reconnecting in 4052ms",
+    "timestamp": 1780496506779,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "info",
+    "text": "%cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold",
+    "timestamp": 1780496507123,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[HMR] connected",
+    "timestamp": 1780496507318,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] Connection state: connecting",
+    "timestamp": 1780496507714,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "error",
+    "text": "WebSocket connection to 'ws://localhost:4500/ws?agentId=66666666-6666-4666-8666-666666666666&workspaceId=44444444-4444-4444-8444-444444444444&reconnectId=262619e3-2e86-4fd0-95af-7dbc2ad988f6&width=178&height=37&sessionName=uat-session' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED",
+    "timestamp": 1780496507717,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] WebSocket error",
+    "timestamp": 1780496507718,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] Connection state: disconnected",
+    "timestamp": 1780496507718,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] Reconnecting in 1232ms",
+    "timestamp": 1780496507718,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] Connection state: reconnecting",
+    "timestamp": 1780496508876,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] Reconnect attempt 1/10",
+    "timestamp": 1780496508876,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "error",
+    "text": "WebSocket connection to 'ws://localhost:4500/ws?agentId=66666666-6666-4666-8666-666666666666&workspaceId=44444444-4444-4444-8444-444444444444&reconnectId=262619e3-2e86-4fd0-95af-7dbc2ad988f6&width=178&height=37&sessionName=uat-session' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED",
+    "timestamp": 1780496508877,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] WebSocket error",
+    "timestamp": 1780496508877,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] Connection state: disconnected",
+    "timestamp": 1780496508878,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] Reconnecting in 1699ms",
+    "timestamp": 1780496508878,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] Connection state: reconnecting",
+    "timestamp": 1780496510578,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] Reconnect attempt 2/10",
+    "timestamp": 1780496510578,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "error",
+    "text": "WebSocket connection to 'ws://localhost:4500/ws?agentId=66666666-6666-4666-8666-666666666666&workspaceId=44444444-4444-4444-8444-444444444444&reconnectId=262619e3-2e86-4fd0-95af-7dbc2ad988f6&width=178&height=37&sessionName=uat-session' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED",
+    "timestamp": 1780496510580,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] WebSocket error",
+    "timestamp": 1780496510581,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] Connection state: disconnected",
+    "timestamp": 1780496510581,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] Reconnecting in 4109ms",
+    "timestamp": 1780496510581,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] Connection state: reconnecting",
+    "timestamp": 1780496514692,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] Reconnect attempt 3/10",
+    "timestamp": 1780496514692,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "error",
+    "text": "WebSocket connection to 'ws://localhost:4500/ws?agentId=66666666-6666-4666-8666-666666666666&workspaceId=44444444-4444-4444-8444-444444444444&reconnectId=262619e3-2e86-4fd0-95af-7dbc2ad988f6&width=178&height=37&sessionName=uat-session' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED",
+    "timestamp": 1780496514692,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] WebSocket error",
+    "timestamp": 1780496514692,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] Connection state: disconnected",
+    "timestamp": 1780496514692,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] Reconnecting in 8109ms",
+    "timestamp": 1780496514692,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] Connection state: reconnecting",
+    "timestamp": 1780496522801,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] Reconnect attempt 4/10",
+    "timestamp": 1780496522801,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "error",
+    "text": "WebSocket connection to 'ws://localhost:4500/ws?agentId=66666666-6666-4666-8666-666666666666&workspaceId=44444444-4444-4444-8444-444444444444&reconnectId=262619e3-2e86-4fd0-95af-7dbc2ad988f6&width=178&height=37&sessionName=uat-session' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED",
+    "timestamp": 1780496522804,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] WebSocket error",
+    "timestamp": 1780496522804,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] Connection state: disconnected",
+    "timestamp": 1780496522804,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] Reconnecting in 15605ms",
+    "timestamp": 1780496522804,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] Connection state: reconnecting",
+    "timestamp": 1780496538423,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] Reconnect attempt 5/10",
+    "timestamp": 1780496538423,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "error",
+    "text": "WebSocket connection to 'ws://localhost:4500/ws?agentId=66666666-6666-4666-8666-666666666666&workspaceId=44444444-4444-4444-8444-444444444444&reconnectId=262619e3-2e86-4fd0-95af-7dbc2ad988f6&width=178&height=37&sessionName=uat-session' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED",
+    "timestamp": 1780496538423,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] WebSocket error",
+    "timestamp": 1780496538423,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] Connection state: disconnected",
+    "timestamp": 1780496538423,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] Reconnecting in 30390ms",
+    "timestamp": 1780496538423,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "info",
+    "text": "%cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold",
+    "timestamp": 1780496549381,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[HMR] connected",
+    "timestamp": 1780496549654,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[Fast Refresh] rebuilding",
+    "timestamp": 1780496549983,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[Fast Refresh] done in 120ms",
+    "timestamp": 1780496549986,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] Connection state: connecting",
+    "timestamp": 1780496550039,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "error",
+    "text": "WebSocket connection to 'ws://localhost:4500/ws?agentId=66666666-6666-4666-8666-666666666666&workspaceId=44444444-4444-4444-8444-444444444444&reconnectId=262619e3-2e86-4fd0-95af-7dbc2ad988f6&width=178&height=37&sessionName=uat-session' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED",
+    "timestamp": 1780496550045,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] WebSocket error",
+    "timestamp": 1780496550047,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] Connection state: disconnected",
+    "timestamp": 1780496550047,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] Reconnecting in 1256ms",
+    "timestamp": 1780496550047,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] Connection state: reconnecting",
+    "timestamp": 1780496551303,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] Reconnect attempt 1/10",
+    "timestamp": 1780496551303,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "error",
+    "text": "WebSocket connection to 'ws://localhost:4500/ws?agentId=66666666-6666-4666-8666-666666666666&workspaceId=44444444-4444-4444-8444-444444444444&reconnectId=262619e3-2e86-4fd0-95af-7dbc2ad988f6&width=178&height=37&sessionName=uat-session' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED",
+    "timestamp": 1780496551305,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] WebSocket error",
+    "timestamp": 1780496551305,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] Connection state: disconnected",
+    "timestamp": 1780496551305,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] Reconnecting in 1963ms",
+    "timestamp": 1780496551305,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] Connection state: reconnecting",
+    "timestamp": 1780496553268,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] Reconnect attempt 2/10",
+    "timestamp": 1780496553268,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "error",
+    "text": "WebSocket connection to 'ws://localhost:4500/ws?agentId=66666666-6666-4666-8666-666666666666&workspaceId=44444444-4444-4444-8444-444444444444&reconnectId=262619e3-2e86-4fd0-95af-7dbc2ad988f6&width=178&height=37&sessionName=uat-session' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED",
+    "timestamp": 1780496553271,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] WebSocket error",
+    "timestamp": 1780496553271,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] Connection state: disconnected",
+    "timestamp": 1780496553271,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] Reconnecting in 3725ms",
+    "timestamp": 1780496553271,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] Connection state: reconnecting",
+    "timestamp": 1780496557051,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] Reconnect attempt 3/10",
+    "timestamp": 1780496557051,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "error",
+    "text": "WebSocket connection to 'ws://localhost:4500/ws?agentId=66666666-6666-4666-8666-666666666666&workspaceId=44444444-4444-4444-8444-444444444444&reconnectId=262619e3-2e86-4fd0-95af-7dbc2ad988f6&width=178&height=37&sessionName=uat-session' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED",
+    "timestamp": 1780496557051,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] WebSocket error",
+    "timestamp": 1780496557051,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] Connection state: disconnected",
+    "timestamp": 1780496557051,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] Reconnecting in 8298ms",
+    "timestamp": 1780496557051,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] Connection state: reconnecting",
+    "timestamp": 1780496565295,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] Reconnect attempt 4/10",
+    "timestamp": 1780496565295,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "error",
+    "text": "WebSocket connection to 'ws://localhost:4500/ws?agentId=66666666-6666-4666-8666-666666666666&workspaceId=44444444-4444-4444-8444-444444444444&reconnectId=262619e3-2e86-4fd0-95af-7dbc2ad988f6&width=178&height=37&sessionName=uat-session' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED",
+    "timestamp": 1780496565297,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] WebSocket error",
+    "timestamp": 1780496565297,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] Connection state: disconnected",
+    "timestamp": 1780496565297,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] Reconnecting in 16128ms",
+    "timestamp": 1780496565297,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] Connection state: reconnecting",
+    "timestamp": 1780496581425,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] Reconnect attempt 5/10",
+    "timestamp": 1780496581425,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "error",
+    "text": "WebSocket connection to 'ws://localhost:4500/ws?agentId=66666666-6666-4666-8666-666666666666&workspaceId=44444444-4444-4444-8444-444444444444&reconnectId=262619e3-2e86-4fd0-95af-7dbc2ad988f6&width=178&height=37&sessionName=uat-session' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED",
+    "timestamp": 1780496581428,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] WebSocket error",
+    "timestamp": 1780496581428,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] Connection state: disconnected",
+    "timestamp": 1780496581428,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] Reconnecting in 30278ms",
+    "timestamp": 1780496581428,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "info",
+    "text": "%cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold",
+    "timestamp": 1780496586793,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[HMR] connected",
+    "timestamp": 1780496587062,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[Fast Refresh] rebuilding",
+    "timestamp": 1780496587864,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[Fast Refresh] done in 160ms",
+    "timestamp": 1780496587864,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] Connection state: connecting",
+    "timestamp": 1780496587865,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "error",
+    "text": "WebSocket connection to 'ws://localhost:4500/ws?agentId=66666666-6666-4666-8666-666666666666&workspaceId=44444444-4444-4444-8444-444444444444&reconnectId=262619e3-2e86-4fd0-95af-7dbc2ad988f6&width=178&height=37&sessionName=uat-session' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED",
+    "timestamp": 1780496587870,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] WebSocket error",
+    "timestamp": 1780496587871,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] Connection state: disconnected",
+    "timestamp": 1780496587871,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] Reconnecting in 777ms",
+    "timestamp": 1780496587871,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] Connection state: reconnecting",
+    "timestamp": 1780496588676,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] Reconnect attempt 1/10",
+    "timestamp": 1780496588676,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "error",
+    "text": "WebSocket connection to 'ws://localhost:4500/ws?agentId=66666666-6666-4666-8666-666666666666&workspaceId=44444444-4444-4444-8444-444444444444&reconnectId=262619e3-2e86-4fd0-95af-7dbc2ad988f6&width=178&height=37&sessionName=uat-session' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED",
+    "timestamp": 1780496588676,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] WebSocket error",
+    "timestamp": 1780496588676,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] Connection state: disconnected",
+    "timestamp": 1780496588676,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] Reconnecting in 1849ms",
+    "timestamp": 1780496588676,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] Connection state: reconnecting",
+    "timestamp": 1780496590489,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] Reconnect attempt 2/10",
+    "timestamp": 1780496590489,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "error",
+    "text": "WebSocket connection to 'ws://localhost:4500/ws?agentId=66666666-6666-4666-8666-666666666666&workspaceId=44444444-4444-4444-8444-444444444444&reconnectId=262619e3-2e86-4fd0-95af-7dbc2ad988f6&width=178&height=37&sessionName=uat-session' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED",
+    "timestamp": 1780496590489,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] WebSocket error",
+    "timestamp": 1780496590489,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] Connection state: disconnected",
+    "timestamp": 1780496590489,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] Reconnecting in 3515ms",
+    "timestamp": 1780496590489,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] Connection state: reconnecting",
+    "timestamp": 1780496593991,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] Reconnect attempt 3/10",
+    "timestamp": 1780496593991,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "error",
+    "text": "WebSocket connection to 'ws://localhost:4500/ws?agentId=66666666-6666-4666-8666-666666666666&workspaceId=44444444-4444-4444-8444-444444444444&reconnectId=262619e3-2e86-4fd0-95af-7dbc2ad988f6&width=178&height=37&sessionName=uat-session' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED",
+    "timestamp": 1780496593995,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] WebSocket error",
+    "timestamp": 1780496593995,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] Connection state: disconnected",
+    "timestamp": 1780496593995,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] Reconnecting in 8284ms",
+    "timestamp": 1780496593995,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] Connection state: reconnecting",
+    "timestamp": 1780496602280,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] Reconnect attempt 4/10",
+    "timestamp": 1780496602280,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "error",
+    "text": "WebSocket connection to 'ws://localhost:4500/ws?agentId=66666666-6666-4666-8666-666666666666&workspaceId=44444444-4444-4444-8444-444444444444&reconnectId=262619e3-2e86-4fd0-95af-7dbc2ad988f6&width=178&height=37&sessionName=uat-session' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED",
+    "timestamp": 1780496602283,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] WebSocket error",
+    "timestamp": 1780496602283,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] Connection state: disconnected",
+    "timestamp": 1780496602284,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] Reconnecting in 16010ms",
+    "timestamp": 1780496602284,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[Fast Refresh] rebuilding",
+    "timestamp": 1780496617875,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[Fast Refresh] done in 103ms",
+    "timestamp": 1780496617875,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] Connection state: reconnecting",
+    "timestamp": 1780496618340,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] Reconnect attempt 5/10",
+    "timestamp": 1780496618341,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "error",
+    "text": "WebSocket connection to 'ws://localhost:4500/ws?agentId=66666666-6666-4666-8666-666666666666&workspaceId=44444444-4444-4444-8444-444444444444&reconnectId=262619e3-2e86-4fd0-95af-7dbc2ad988f6&width=178&height=37&sessionName=uat-session' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED",
+    "timestamp": 1780496618341,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] WebSocket error",
+    "timestamp": 1780496618341,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] Connection state: disconnected",
+    "timestamp": 1780496618341,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] Reconnecting in 29915ms",
+    "timestamp": 1780496618341,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "info",
+    "text": "%cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold",
+    "timestamp": 1780496633479,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[HMR] connected",
+    "timestamp": 1780496633494,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[Fast Refresh] rebuilding",
+    "timestamp": 1780496634044,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[Fast Refresh] done in 186ms",
+    "timestamp": 1780496634044,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] Connection state: connecting",
+    "timestamp": 1780496634046,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "error",
+    "text": "WebSocket connection to 'ws://localhost:4500/ws?agentId=66666666-6666-4666-8666-666666666666&workspaceId=44444444-4444-4444-8444-444444444444&reconnectId=262619e3-2e86-4fd0-95af-7dbc2ad988f6&width=178&height=37&sessionName=uat-session' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED",
+    "timestamp": 1780496634049,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] WebSocket error",
+    "timestamp": 1780496634049,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] Connection state: disconnected",
+    "timestamp": 1780496634049,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] Reconnecting in 1155ms",
+    "timestamp": 1780496634049,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] Connection state: reconnecting",
+    "timestamp": 1780496635168,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] Reconnect attempt 1/10",
+    "timestamp": 1780496635168,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "error",
+    "text": "WebSocket connection to 'ws://localhost:4500/ws?agentId=66666666-6666-4666-8666-666666666666&workspaceId=44444444-4444-4444-8444-444444444444&reconnectId=262619e3-2e86-4fd0-95af-7dbc2ad988f6&width=178&height=37&sessionName=uat-session' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED",
+    "timestamp": 1780496635168,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] WebSocket error",
+    "timestamp": 1780496635168,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] Connection state: disconnected",
+    "timestamp": 1780496635168,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] Reconnecting in 2187ms",
+    "timestamp": 1780496635168,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] Connection state: reconnecting",
+    "timestamp": 1780496637354,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] Reconnect attempt 2/10",
+    "timestamp": 1780496637354,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "error",
+    "text": "WebSocket connection to 'ws://localhost:4500/ws?agentId=66666666-6666-4666-8666-666666666666&workspaceId=44444444-4444-4444-8444-444444444444&reconnectId=262619e3-2e86-4fd0-95af-7dbc2ad988f6&width=178&height=37&sessionName=uat-session' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED",
+    "timestamp": 1780496637359,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] WebSocket error",
+    "timestamp": 1780496637359,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] Connection state: disconnected",
+    "timestamp": 1780496637359,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] Reconnecting in 4285ms",
+    "timestamp": 1780496637359,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] Connection state: reconnecting",
+    "timestamp": 1780496641669,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] Reconnect attempt 3/10",
+    "timestamp": 1780496641669,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "error",
+    "text": "WebSocket connection to 'ws://localhost:4500/ws?agentId=66666666-6666-4666-8666-666666666666&workspaceId=44444444-4444-4444-8444-444444444444&reconnectId=262619e3-2e86-4fd0-95af-7dbc2ad988f6&width=178&height=37&sessionName=uat-session' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED",
+    "timestamp": 1780496641669,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] WebSocket error",
+    "timestamp": 1780496641669,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] Connection state: disconnected",
+    "timestamp": 1780496641669,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] Reconnecting in 7922ms",
+    "timestamp": 1780496641669,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] Connection state: reconnecting",
+    "timestamp": 1780496649576,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] Reconnect attempt 4/10",
+    "timestamp": 1780496649576,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "error",
+    "text": "WebSocket connection to 'ws://localhost:4500/ws?agentId=66666666-6666-4666-8666-666666666666&workspaceId=44444444-4444-4444-8444-444444444444&reconnectId=262619e3-2e86-4fd0-95af-7dbc2ad988f6&width=178&height=37&sessionName=uat-session' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED",
+    "timestamp": 1780496649576,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] WebSocket error",
+    "timestamp": 1780496649576,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] Connection state: disconnected",
+    "timestamp": 1780496649576,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] Reconnecting in 15917ms",
+    "timestamp": 1780496649576,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "info",
+    "text": "%cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold",
+    "timestamp": 1780496654742,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[HMR] connected",
+    "timestamp": 1780496654963,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] Connection state: connecting",
+    "timestamp": 1780496655262,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "error",
+    "text": "WebSocket connection to 'ws://localhost:4500/ws?agentId=66666666-6666-4666-8666-666666666666&workspaceId=44444444-4444-4444-8444-444444444444&reconnectId=262619e3-2e86-4fd0-95af-7dbc2ad988f6&width=158&height=32&sessionName=uat-session' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED",
+    "timestamp": 1780496655309,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] WebSocket error",
+    "timestamp": 1780496655317,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] Connection state: disconnected",
+    "timestamp": 1780496655317,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] Reconnecting in 763ms",
+    "timestamp": 1780496655317,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] Connection state: reconnecting",
+    "timestamp": 1780496656080,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] Reconnect attempt 1/10",
+    "timestamp": 1780496656080,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "error",
+    "text": "WebSocket connection to 'ws://localhost:4500/ws?agentId=66666666-6666-4666-8666-666666666666&workspaceId=44444444-4444-4444-8444-444444444444&reconnectId=262619e3-2e86-4fd0-95af-7dbc2ad988f6&width=158&height=32&sessionName=uat-session' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED",
+    "timestamp": 1780496656081,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] WebSocket error",
+    "timestamp": 1780496656082,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] Connection state: disconnected",
+    "timestamp": 1780496656082,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] Reconnecting in 2333ms",
+    "timestamp": 1780496656082,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] Connection state: reconnecting",
+    "timestamp": 1780496658429,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] Reconnect attempt 2/10",
+    "timestamp": 1780496658430,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "error",
+    "text": "WebSocket connection to 'ws://localhost:4500/ws?agentId=66666666-6666-4666-8666-666666666666&workspaceId=44444444-4444-4444-8444-444444444444&reconnectId=262619e3-2e86-4fd0-95af-7dbc2ad988f6&width=158&height=32&sessionName=uat-session' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED",
+    "timestamp": 1780496658430,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] WebSocket error",
+    "timestamp": 1780496658430,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] Connection state: disconnected",
+    "timestamp": 1780496658430,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] Reconnecting in 4121ms",
+    "timestamp": 1780496658430,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] Connection state: reconnecting",
+    "timestamp": 1780496662580,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] Reconnect attempt 3/10",
+    "timestamp": 1780496662580,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "error",
+    "text": "WebSocket connection to 'ws://localhost:4500/ws?agentId=66666666-6666-4666-8666-666666666666&workspaceId=44444444-4444-4444-8444-444444444444&reconnectId=262619e3-2e86-4fd0-95af-7dbc2ad988f6&width=158&height=32&sessionName=uat-session' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED",
+    "timestamp": 1780496662580,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] WebSocket error",
+    "timestamp": 1780496662580,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] Connection state: disconnected",
+    "timestamp": 1780496662580,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] Reconnecting in 7688ms",
+    "timestamp": 1780496662580,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] Connection state: reconnecting",
+    "timestamp": 1780496670235,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] Reconnect attempt 4/10",
+    "timestamp": 1780496670235,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "error",
+    "text": "WebSocket connection to 'ws://localhost:4500/ws?agentId=66666666-6666-4666-8666-666666666666&workspaceId=44444444-4444-4444-8444-444444444444&reconnectId=262619e3-2e86-4fd0-95af-7dbc2ad988f6&width=158&height=32&sessionName=uat-session' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED",
+    "timestamp": 1780496670238,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] WebSocket error",
+    "timestamp": 1780496670238,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] Connection state: disconnected",
+    "timestamp": 1780496670238,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] Reconnecting in 16013ms",
+    "timestamp": 1780496670238,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] Connection state: connecting",
+    "timestamp": 1780496671779,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "error",
+    "text": "WebSocket connection to 'ws://localhost:4500/ws?agentId=66666666-6666-4666-8666-666666666666&workspaceId=44444444-4444-4444-8444-444444444444&reconnectId=262619e3-2e86-4fd0-95af-7dbc2ad988f6&width=47&height=30&sessionName=uat-session' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED",
+    "timestamp": 1780496671779,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] WebSocket error",
+    "timestamp": 1780496671779,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] Connection state: disconnected",
+    "timestamp": 1780496671779,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] Reconnecting in 706ms",
+    "timestamp": 1780496671779,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] Connection state: reconnecting",
+    "timestamp": 1780496672465,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] Reconnect attempt 1/10",
+    "timestamp": 1780496672465,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "error",
+    "text": "WebSocket connection to 'ws://localhost:4500/ws?agentId=66666666-6666-4666-8666-666666666666&workspaceId=44444444-4444-4444-8444-444444444444&reconnectId=262619e3-2e86-4fd0-95af-7dbc2ad988f6&width=47&height=30&sessionName=uat-session' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED",
+    "timestamp": 1780496672465,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] WebSocket error",
+    "timestamp": 1780496672465,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] Connection state: disconnected",
+    "timestamp": 1780496672465,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] Reconnecting in 2314ms",
+    "timestamp": 1780496672465,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] Connection state: reconnecting",
+    "timestamp": 1780496674779,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] Reconnect attempt 2/10",
+    "timestamp": 1780496674779,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "error",
+    "text": "WebSocket connection to 'ws://localhost:4500/ws?agentId=66666666-6666-4666-8666-666666666666&workspaceId=44444444-4444-4444-8444-444444444444&reconnectId=262619e3-2e86-4fd0-95af-7dbc2ad988f6&width=47&height=30&sessionName=uat-session' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED",
+    "timestamp": 1780496674779,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] WebSocket error",
+    "timestamp": 1780496674779,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] Connection state: disconnected",
+    "timestamp": 1780496674779,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] Reconnecting in 3526ms",
+    "timestamp": 1780496674779,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "info",
+    "text": "%cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold",
+    "timestamp": 1780496675619,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[HMR] connected",
+    "timestamp": 1780496675790,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "pageerror",
+    "text": "Hydration failed because the server rendered HTML didn't match the client. As a result this tree will be regenerated on the client. This can happen if a SSR-ed Client Component used:\n\n- A server/client branch `if (typeof window !== 'undefined')`.\n- Variable input such as `Date.now()` or `Math.random()` which changes each time it's called.\n- Date formatting in a user's locale which doesn't match the server.\n- External changing data without sending a snapshot of it along with the HTML.\n- Invalid HTML tag nesting.\n\nIt can also happen if the client has a browser extension installed which messes with the HTML before React loaded.\n\nhttps://react.dev/link/hydration-mismatch\n\n  ...\n    <LoadingBoundary name=\"/\" loading={null}>\n      <HTTPAccessFallbackBoundary notFound={{...}} forbidden={undefined} unauthorized={undefined}>\n        <HTTPAccessFallbackErrorBoundary pathname=\"/workspace...\" notFound={{...}} forbidden={undefined} ...>\n          <RedirectBoundary>\n            <RedirectErrorBoundary router={{...}}>\n              <InnerLayoutRouter url=\"/workspace...\" tree={[...]} params={{}} cacheNode={{rsc:{...}, ...}} ...>\n                <SegmentViewNode type=\"layout\" pagePath=\"(dashboard...\">\n                  <SegmentTrieNode>\n                  <script>\n                  <script>\n                  <script>\n                  <script>\n                  <script>\n                  <script>\n                  <script>\n                  <script>\n                  <DashboardLayout>\n                    <SidebarProvider>\n                      <div data-slot=\"sidebar-wr...\" style={{...}} className=\"group/side...\">\n                        <KeybindingProvider>\n                          <Suspense fallback={null}>\n-                           <div\n-                             className=\"group peer hidden text-sidebar-foreground md:block\"\n-                             data-state=\"expanded\"\n-                             data-collapsible=\"\"\n-                             data-variant=\"floating\"\n-                             data-side=\"left\"\n-                             data-slot=\"sidebar\"\n-                           >\n                          ...\n              ...\n",
+    "timestamp": 1780496676213,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] Connection state: connecting",
+    "timestamp": 1780496676269,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "error",
+    "text": "WebSocket connection to 'ws://localhost:4500/ws?agentId=66666666-6666-4666-8666-666666666666&workspaceId=44444444-4444-4444-8444-444444444444&reconnectId=262619e3-2e86-4fd0-95af-7dbc2ad988f6&width=47&height=30&sessionName=uat-session' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED",
+    "timestamp": 1780496676340,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] WebSocket error",
+    "timestamp": 1780496676340,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] Connection state: disconnected",
+    "timestamp": 1780496676340,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] Reconnecting in 1002ms",
+    "timestamp": 1780496676340,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[Fast Refresh] rebuilding",
+    "timestamp": 1780496676471,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[Fast Refresh] done in 112ms",
+    "timestamp": 1780496676517,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] Connection state: reconnecting",
+    "timestamp": 1780496677339,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] Reconnect attempt 1/10",
+    "timestamp": 1780496677339,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "error",
+    "text": "WebSocket connection to 'ws://localhost:4500/ws?agentId=66666666-6666-4666-8666-666666666666&workspaceId=44444444-4444-4444-8444-444444444444&reconnectId=262619e3-2e86-4fd0-95af-7dbc2ad988f6&width=47&height=30&sessionName=uat-session' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED",
+    "timestamp": 1780496677339,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] WebSocket error",
+    "timestamp": 1780496677339,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] Connection state: disconnected",
+    "timestamp": 1780496677339,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] Reconnecting in 2417ms",
+    "timestamp": 1780496677339,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] Connection state: reconnecting",
+    "timestamp": 1780496679762,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] Reconnect attempt 2/10",
+    "timestamp": 1780496679762,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "error",
+    "text": "WebSocket connection to 'ws://localhost:4500/ws?agentId=66666666-6666-4666-8666-666666666666&workspaceId=44444444-4444-4444-8444-444444444444&reconnectId=262619e3-2e86-4fd0-95af-7dbc2ad988f6&width=47&height=30&sessionName=uat-session' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED",
+    "timestamp": 1780496679762,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] WebSocket error",
+    "timestamp": 1780496679762,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] Connection state: disconnected",
+    "timestamp": 1780496679762,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] Reconnecting in 4258ms",
+    "timestamp": 1780496679762,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] Connection state: reconnecting",
+    "timestamp": 1780496683997,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] Reconnect attempt 3/10",
+    "timestamp": 1780496683997,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "error",
+    "text": "WebSocket connection to 'ws://localhost:4500/ws?agentId=66666666-6666-4666-8666-666666666666&workspaceId=44444444-4444-4444-8444-444444444444&reconnectId=262619e3-2e86-4fd0-95af-7dbc2ad988f6&width=47&height=30&sessionName=uat-session' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED",
+    "timestamp": 1780496683997,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] WebSocket error",
+    "timestamp": 1780496683997,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] Connection state: disconnected",
+    "timestamp": 1780496683997,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] Reconnecting in 7845ms",
+    "timestamp": 1780496683997,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] Connection state: reconnecting",
+    "timestamp": 1780496691828,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] Reconnect attempt 4/10",
+    "timestamp": 1780496691828,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "error",
+    "text": "WebSocket connection to 'ws://localhost:4500/ws?agentId=66666666-6666-4666-8666-666666666666&workspaceId=44444444-4444-4444-8444-444444444444&reconnectId=262619e3-2e86-4fd0-95af-7dbc2ad988f6&width=47&height=30&sessionName=uat-session' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED",
+    "timestamp": 1780496691830,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] WebSocket error",
+    "timestamp": 1780496691830,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] Connection state: disconnected",
+    "timestamp": 1780496691830,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[terminal] Reconnecting in 16361ms",
+    "timestamp": 1780496691830,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[Fast Refresh] rebuilding",
+    "timestamp": 1780496705542,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  },
+  {
+    "type": "log",
+    "text": "[Fast Refresh] done in 129ms",
+    "timestamp": 1780496705551,
+    "url": "http://localhost:3000/workspaces/44444444-4444-4444-8444-444444444444/terminal?session=uat-session",
+    "pageId": 1
+  }
+]
