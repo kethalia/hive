@@ -92,9 +92,10 @@ describe("useSidebarMode", () => {
 });
 
 const mockPush = vi.fn();
+const mockRefresh = vi.fn();
 vi.mock("next/navigation", () => ({
   usePathname: () => "/tasks",
-  useRouter: () => ({ push: mockPush }),
+  useRouter: () => ({ push: mockPush, refresh: mockRefresh }),
   useSearchParams: () => new URLSearchParams(),
 }));
 
@@ -193,19 +194,31 @@ vi.mock("@/components/ui/badge", () => ({
 vi.mock("@/components/ui/switch", () => ({
   Switch: ({
     checked,
+    disabled,
+    id,
     onCheckedChange,
     ...rest
   }: {
     checked?: boolean;
-    onCheckedChange?: (v: boolean) => void;
+    disabled?: boolean;
     id?: string;
+    onCheckedChange?: (v: boolean) => void;
     size?: string;
+    "aria-describedby"?: string;
+    "aria-invalid"?: boolean;
+    "aria-labelledby"?: string;
     "data-testid"?: string;
   }) => (
     <button
+      id={id}
+      type="button"
       role="switch"
       aria-checked={checked}
+      aria-describedby={rest["aria-describedby"]}
+      aria-invalid={rest["aria-invalid"]}
+      aria-labelledby={rest["aria-labelledby"]}
       data-testid={rest["data-testid"]}
+      disabled={disabled}
       onClick={() => onCheckedChange?.(!checked)}
     >
       {checked ? "On" : "Off"}
@@ -235,7 +248,9 @@ vi.mock("lucide-react", () => ({
   ExternalLink: () => <span>ExternalLink</span>,
   ChevronDown: () => <span>ChevronDown</span>,
   Pencil: () => <span>Pencil</span>,
+  Star: () => <span>Star</span>,
   Loader2: () => <span>Loader2</span>,
+  LogOut: () => <span>LogOut</span>,
 }));
 
 const mockListWorkspaces = vi.fn();
@@ -244,6 +259,14 @@ const mockGetWorkspaceAgent = vi.fn();
 const mockGetWorkspaceSessions = vi.fn();
 const mockCreateSession = vi.fn();
 const mockKillSession = vi.fn();
+const mockListGitClones = vi.fn();
+const mockResolveGitCloneTerminal = vi.fn();
+const mockListNavigationFavorites = vi.fn();
+const mockUpsertNavigationFavorite = vi.fn();
+const mockRemoveNavigationFavorite = vi.fn();
+const mockGetTerminalSettings = vi.fn();
+const mockUpdateTerminalSettings = vi.fn();
+const mockGetSessionAction = vi.fn();
 
 vi.mock("@/lib/actions/workspaces", () => ({
   listWorkspacesAction: (...args: unknown[]) => mockListWorkspaces(...args),
@@ -265,6 +288,26 @@ vi.mock("@/lib/workspaces/urls", () => ({
 
 vi.mock("@/lib/actions/templates", () => ({
   listTemplateStatusesAction: (...args: unknown[]) => mockListTemplates(...args),
+}));
+
+vi.mock("@/lib/actions/git-clones", () => ({
+  listGitClonesAction: (...args: unknown[]) => mockListGitClones(...args),
+  resolveGitCloneTerminalAction: (...args: unknown[]) => mockResolveGitCloneTerminal(...args),
+}));
+
+vi.mock("@/lib/actions/navigation-favorites", () => ({
+  listNavigationFavoritesAction: (...args: unknown[]) => mockListNavigationFavorites(...args),
+  upsertNavigationFavoriteAction: (...args: unknown[]) => mockUpsertNavigationFavorite(...args),
+  removeNavigationFavoriteAction: (...args: unknown[]) => mockRemoveNavigationFavorite(...args),
+}));
+
+vi.mock("@/lib/actions/user-settings", () => ({
+  getTerminalSettingsAction: (...args: unknown[]) => mockGetTerminalSettings(...args),
+  updateTerminalSettingsAction: (...args: unknown[]) => mockUpdateTerminalSettings(...args),
+}));
+
+vi.mock("@/lib/auth/actions", () => ({
+  getSessionAction: (...args: unknown[]) => mockGetSessionAction(...args),
 }));
 
 describe("Sidebar primitive layout contract", () => {
@@ -350,6 +393,13 @@ describe("AppSidebar floating-only mode", () => {
     localStorage.clear();
     mockListWorkspaces.mockResolvedValue({ data: [] });
     mockListTemplates.mockResolvedValue({ data: [] });
+    mockGetTerminalSettings.mockResolvedValue({
+      data: { terminalControlsBeyondMobile: false },
+    });
+    mockUpdateTerminalSettings.mockResolvedValue({
+      data: { terminalControlsBeyondMobile: false },
+    });
+    mockGetSessionAction.mockResolvedValue({ data: null });
   });
 
   afterEach(() => {
