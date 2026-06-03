@@ -1,0 +1,9 @@
+[
+  {
+    "id": 1,
+    "title": "Hive Orchestrator",
+    "url": "http://localhost:3000/login",
+    "opener": null,
+    "isActive": true
+  }
+]
