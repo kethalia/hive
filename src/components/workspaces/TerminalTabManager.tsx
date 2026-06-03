@@ -297,26 +297,12 @@ export function TerminalTabManager({ agentId, workspaceId }: TerminalTabManagerP
     setMenuPosition({ x, y });
   }, []);
 
-  const setPaletteOpenRef = useRef(setPaletteOpen);
-  setPaletteOpenRef.current = setPaletteOpen;
   const setComposeOpenRef = useRef(setComposeOpen);
   setComposeOpenRef.current = setComposeOpen;
 
   const { register, unregister } = keybindingsCtx;
 
   useEffect(() => {
-    const commandPaletteBinding = {
-      id: "command-palette",
-      keys: ["ctrl+k", "cmd+k"],
-      action: () => {
-        setPaletteOpenRef.current(true);
-        return false;
-      },
-      description: "Open command palette",
-      category: "session",
-      enabledInBrowser: true,
-    };
-
     const createTabBinding = {
       id: "session:create",
       keys: ["ctrl+t", "cmd+t"],
@@ -391,7 +377,6 @@ export function TerminalTabManager({ agentId, workspaceId }: TerminalTabManagerP
       enabledInBrowser: true,
     };
 
-    register(commandPaletteBinding);
     register(createTabBinding);
     register(closeTabBinding);
     register(nextTabBinding);
@@ -399,7 +384,6 @@ export function TerminalTabManager({ agentId, workspaceId }: TerminalTabManagerP
     register(composeToggleBinding);
 
     return () => {
-      unregister("command-palette");
       unregister("session:create");
       unregister("session:close");
       unregister("session:next-tab");

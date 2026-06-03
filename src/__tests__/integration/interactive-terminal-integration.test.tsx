@@ -940,8 +940,60 @@ describe("TerminalClient integration — Mobile terminal route props", () => {
       "false",
     );
     expect(getByTestId("terminal-desktop-shell")).toBeInTheDocument();
+    expect(getByTestId("terminal-desktop-shell")).toHaveClass(
+      "h-[calc(var(--app-viewport-height)-var(--safe-area-inset-top)-3.5rem)]",
+      "md:h-[calc(var(--app-viewport-height)-var(--safe-area-inset-top)-var(--safe-area-inset-bottom)-5rem)]",
+    );
     expect(document.querySelectorAll('[data-testid="interactive-terminal"]')).toHaveLength(1);
     expect(document.querySelector('[data-testid="terminal-window-command-palette"]')).toBeNull();
+    unmount();
+  });
+
+  it("restores active terminal focus on desktop terminal routes", async () => {
+    const focus = vi.fn();
+    mockUseKeybindings.mockReturnValue({
+      activeSend: vi.fn(),
+      activeTerminal: { focus },
+      getAll: vi.fn(() => []),
+      handleKeyEvent: mockHandleKeyEvent,
+      register: mockRegisterKeybinding,
+      setActiveTerminal: mockSetActiveTerminal,
+      unregister: mockUnregisterKeybinding,
+    });
+
+    const { unmount } = await renderTerminalClient("session=main");
+
+    await waitFor(() => {
+      expect(focus).toHaveBeenCalledTimes(1);
+    });
+    unmount();
+  });
+
+  it("does not steal focus from focused text inputs on desktop terminal routes", async () => {
+    const focus = vi.fn();
+    const input = document.createElement("input");
+    document.body.appendChild(input);
+    input.focus();
+    expect(document.activeElement).toBe(input);
+
+    mockUseKeybindings.mockReturnValue({
+      activeSend: vi.fn(),
+      activeTerminal: { focus },
+      getAll: vi.fn(() => []),
+      handleKeyEvent: mockHandleKeyEvent,
+      register: mockRegisterKeybinding,
+      setActiveTerminal: mockSetActiveTerminal,
+      unregister: mockUnregisterKeybinding,
+    });
+
+    const { unmount } = await renderTerminalClient("session=main");
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(focus).not.toHaveBeenCalled();
+    expect(document.activeElement).toBe(input);
+    input.remove();
     unmount();
   });
 

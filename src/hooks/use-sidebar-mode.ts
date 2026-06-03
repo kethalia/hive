@@ -2,24 +2,27 @@
 
 import { useCallback, useState } from "react";
 
-type SidebarVariant = "sidebar" | "floating";
+type SidebarVariant = "floating";
 
 const STORAGE_KEY = "sidebar_variant";
 const DEFAULT_VARIANT: SidebarVariant = "floating";
 
-function readVariant(): SidebarVariant {
-  if (typeof window === "undefined") return DEFAULT_VARIANT;
-  const stored = localStorage.getItem(STORAGE_KEY);
-  return stored === "sidebar" ? "sidebar" : "floating";
+function persistFloatingVariant() {
+  if (typeof window === "undefined") return;
+  localStorage.setItem(STORAGE_KEY, DEFAULT_VARIANT);
 }
 
-export function useSidebarMode(): [SidebarVariant, (floating: boolean) => void] {
+function readVariant(): SidebarVariant {
+  persistFloatingVariant();
+  return DEFAULT_VARIANT;
+}
+
+export function useSidebarMode(): [SidebarVariant, (_floating: boolean) => void] {
   const [variant, setVariant] = useState<SidebarVariant>(readVariant);
 
-  const setSidebarMode = useCallback((floating: boolean) => {
-    const next: SidebarVariant = floating ? "floating" : "sidebar";
-    localStorage.setItem(STORAGE_KEY, next);
-    setVariant(next);
+  const setSidebarMode = useCallback((_floating: boolean) => {
+    persistFloatingVariant();
+    setVariant(DEFAULT_VARIANT);
   }, []);
 
   return [variant, setSidebarMode];

@@ -63,7 +63,7 @@ export function HelpOverlay() {
 
   useRegisterKeybinding({
     id: "help:show",
-    keys: ["shift+?"],
+    keys: ["ctrl+k", "cmd+k"],
     action: () => {
       setOpen((prev) => !prev);
       return false;

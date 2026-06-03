@@ -38,7 +38,7 @@ const InteractiveTerminal = dynamic(
 const LAST_SESSION_STORAGE_PREFIX = "terminal:last-session:";
 const TERMINAL_WIDTH_CLASS_NAME = "-mx-6 w-[calc(100%+3rem)]";
 const TERMINAL_STATIC_HEIGHT_CLASS_NAME =
-  "h-[calc(var(--app-viewport-height)-var(--safe-area-inset-top)-3.5rem)]";
+  "h-[calc(var(--app-viewport-height)-var(--safe-area-inset-top)-3.5rem)] md:h-[calc(var(--app-viewport-height)-var(--safe-area-inset-top)-var(--safe-area-inset-bottom)-5rem)]";
 
 function terminalSessionHref(
   workspaceId: string,
@@ -66,6 +66,14 @@ function terminalHasSelection(term: {
 }): boolean {
   if (typeof term.hasSelection === "function") return term.hasSelection();
   return Boolean(term.getSelection?.());
+}
+
+function isTextEntryElement(element: Element | null): boolean {
+  if (!(element instanceof HTMLElement)) return false;
+  if (element.isContentEditable) return true;
+
+  const tagName = element.tagName.toLowerCase();
+  return tagName === "input" || tagName === "textarea" || tagName === "select";
 }
 
 function clipboardStatusText(
@@ -213,6 +221,19 @@ function TerminalInner({ agentId, workspaceId }: { agentId: string; workspaceId:
     if (!activeSend) return;
     pasteToTerminal(activeTerminal ?? null, activeSend, { onStatus: setClipboardActionStatus });
   }, [activeSend, activeTerminal]);
+
+  useEffect(() => {
+    if (!session || isComposeSheet || composeOpen || selectionModeEnabled || !activeTerminal) {
+      return;
+    }
+
+    const frame = window.requestAnimationFrame(() => {
+      if (isTextEntryElement(document.activeElement)) return;
+      activeTerminal.focus();
+    });
+
+    return () => window.cancelAnimationFrame(frame);
+  }, [activeTerminal, composeOpen, isComposeSheet, selectionModeEnabled, session]);
 
   useEffect(() => {
     if (previousSessionRef.current === session) return;

@@ -58,7 +58,6 @@ import {
   SidebarMenuSubItem,
   SidebarTrigger,
 } from "@/components/ui/sidebar";
-import { Switch } from "@/components/ui/switch";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useSidebarMode } from "@/hooks/use-sidebar-mode";
 import { listGitClonesAction, resolveGitCloneTerminalAction } from "@/lib/actions/git-clones";
@@ -673,7 +672,7 @@ export function AppSidebar() {
   const searchParams = useSearchParams();
   const activeSession = searchParams.get("session");
   const activeClonePath = searchParams.get("clonePath");
-  const [sidebarMode, setSidebarMode] = useSidebarMode();
+  const [sidebarMode] = useSidebarMode();
   const [settingsOpen, setSettingsOpen] = useState(false);
 
   const [sessionUser, setSessionUser] = useState<{
@@ -1674,18 +1673,6 @@ export function AppSidebar() {
               </SidebarMenuButton>
               <CollapsibleContent>
                 <div className="space-y-3 px-3 py-2">
-                  <div className="flex items-center justify-between">
-                    <label htmlFor="sidebar-float-switch" className="text-xs text-muted-foreground">
-                      Float sidebar
-                    </label>
-                    <Switch
-                      id="sidebar-float-switch"
-                      size="sm"
-                      checked={sidebarMode === "floating"}
-                      onCheckedChange={(checked) => setSidebarMode(checked)}
-                      data-testid="sidebar-mode-toggle"
-                    />
-                  </div>
                   <div className="flex items-center justify-between">
                     <div>
                       <span className="text-xs text-muted-foreground">Refresh</span>

@@ -3,7 +3,6 @@
 import {
   act,
   cleanup,
-  fireEvent,
   render,
   renderHook,
   screen,
@@ -45,7 +44,7 @@ describe("useSidebarMode", () => {
     expect(result.current[0]).toBe("floating");
   });
 
-  it("setSidebarMode(false) changes to sidebar", () => {
+  it("setSidebarMode(false) still forces floating", () => {
     localStorage.setItem("sidebar_variant", "floating");
     const { result } = renderHook(() => useSidebarMode());
     expect(result.current[0]).toBe("floating");
@@ -54,10 +53,11 @@ describe("useSidebarMode", () => {
       result.current[1](false);
     });
 
-    expect(result.current[0]).toBe("sidebar");
+    expect(result.current[0]).toBe("floating");
+    expect(localStorage.getItem("sidebar_variant")).toBe("floating");
   });
 
-  it("persists mode change to localStorage", () => {
+  it("persists only floating mode to localStorage", () => {
     const { result } = renderHook(() => useSidebarMode());
 
     act(() => {
@@ -70,13 +70,21 @@ describe("useSidebarMode", () => {
       result.current[1](false);
     });
 
-    expect(localStorage.getItem("sidebar_variant")).toBe("sidebar");
+    expect(localStorage.getItem("sidebar_variant")).toBe("floating");
   });
 
-  it("treats unknown localStorage value as floating", () => {
+  it("migrates unknown localStorage value to floating", () => {
     localStorage.setItem("sidebar_variant", "bogus");
     const { result } = renderHook(() => useSidebarMode());
     expect(result.current[0]).toBe("floating");
+    expect(localStorage.getItem("sidebar_variant")).toBe("floating");
+  });
+
+  it("migrates stale sidebar localStorage value to floating", () => {
+    localStorage.setItem("sidebar_variant", "sidebar");
+    const { result } = renderHook(() => useSidebarMode());
+    expect(result.current[0]).toBe("floating");
+    expect(localStorage.getItem("sidebar_variant")).toBe("floating");
   });
 });
 
@@ -115,7 +123,15 @@ vi.mock("@/components/ui/sidebar", () => {
     </button>
   );
   return {
-    Sidebar: Passthrough,
+    Sidebar: ({
+      children,
+      className,
+      variant,
+    }: React.PropsWithChildren<{ className?: string; variant?: string }>) => (
+      <div data-testid="app-sidebar-root" data-variant={variant} className={className}>
+        {children}
+      </div>
+    ),
     SidebarContent: Passthrough,
     SidebarFooter: ({ children, className }: React.PropsWithChildren<{ className?: string }>) => (
       <div data-testid="sidebar-footer" className={className}>
@@ -248,7 +264,7 @@ vi.mock("@/lib/actions/templates", () => ({
 
 import { AppSidebar } from "@/components/app-sidebar";
 
-describe("AppSidebar mode toggle", () => {
+describe("AppSidebar floating-only mode", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     localStorage.clear();
@@ -260,65 +276,40 @@ describe("AppSidebar mode toggle", () => {
     cleanup();
   });
 
-  it("renders mode toggle switch in settings", async () => {
+  it("does not render a sidebar mode toggle in settings", async () => {
     render(<AppSidebar />);
 
     await waitFor(() => {
-      const toggle = screen.getByTestId("sidebar-mode-toggle");
-      expect(toggle).toBeInTheDocument();
+      expect(screen.getByTestId("app-sidebar-root")).toBeInTheDocument();
+    });
+
+    expect(screen.queryByTestId("sidebar-mode-toggle")).not.toBeInTheDocument();
+    expect(screen.queryByText("Float sidebar")).not.toBeInTheDocument();
+  });
+
+  it("uses floating sidebar variant by default", async () => {
+    render(<AppSidebar />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("app-sidebar-root")).toHaveAttribute(
+        "data-variant",
+        "floating",
+      );
     });
   });
 
-  it("switch is on in floating mode (default)", async () => {
+  it("ignores and migrates stale non-floating storage", async () => {
+    localStorage.setItem("sidebar_variant", "sidebar");
+
     render(<AppSidebar />);
 
     await waitFor(() => {
-      const toggle = screen.getByTestId("sidebar-mode-toggle");
-      expect(toggle).toHaveAttribute("aria-checked", "true");
-    });
-  });
-
-  it("clicking switch disables floating mode", async () => {
-    render(<AppSidebar />);
-
-    await waitFor(() => {
-      expect(screen.getByTestId("sidebar-mode-toggle")).toBeInTheDocument();
-    });
-
-    fireEvent.click(screen.getByTestId("sidebar-mode-toggle"));
-
-    await waitFor(() => {
-      const toggle = screen.getByTestId("sidebar-mode-toggle");
-      expect(toggle).toHaveAttribute("aria-checked", "false");
-    });
-  });
-
-  it("clicking switch persists mode to localStorage", async () => {
-    render(<AppSidebar />);
-
-    await waitFor(() => {
-      expect(screen.getByTestId("sidebar-mode-toggle")).toBeInTheDocument();
-    });
-
-    fireEvent.click(screen.getByTestId("sidebar-mode-toggle"));
-
-    expect(localStorage.getItem("sidebar_variant")).toBe("sidebar");
-  });
-
-  it("clicking switch twice returns to floating mode", async () => {
-    render(<AppSidebar />);
-
-    await waitFor(() => {
-      expect(screen.getByTestId("sidebar-mode-toggle")).toBeInTheDocument();
-    });
-
-    fireEvent.click(screen.getByTestId("sidebar-mode-toggle"));
-    fireEvent.click(screen.getByTestId("sidebar-mode-toggle"));
-
-    await waitFor(() => {
-      const toggle = screen.getByTestId("sidebar-mode-toggle");
-      expect(toggle).toHaveAttribute("aria-checked", "true");
+      expect(screen.getByTestId("app-sidebar-root")).toHaveAttribute(
+        "data-variant",
+        "floating",
+      );
     });
     expect(localStorage.getItem("sidebar_variant")).toBe("floating");
+    expect(screen.queryByTestId("sidebar-mode-toggle")).not.toBeInTheDocument();
   });
 });

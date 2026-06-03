@@ -8,7 +8,7 @@ import {
   type KeybindingContextValue,
   type KeybindingEntry,
 } from "@/hooks/useKeybindings";
-import { copyTerminalSelection, pasteToTerminal } from "@/lib/terminal/actions";
+import { copyTerminalSelection } from "@/lib/terminal/actions";
 
 export function KeybindingProvider({ children }: { children: React.ReactNode }) {
   const registryRef = React.useRef<Map<string, KeybindingEntry>>(new Map());
@@ -84,20 +84,8 @@ export function KeybindingProvider({ children }: { children: React.ReactNode }) 
       category: "clipboard",
       enabledInBrowser: true,
     });
-    register({
-      id: "paste",
-      keys: ["ctrl+v", "cmd+v"],
-      action: (term, send) => {
-        if (!term || !send) return true;
-        return pasteToTerminal(term, send);
-      },
-      description: "Paste",
-      category: "clipboard",
-      enabledInBrowser: true,
-    });
     return () => {
       unregister("copy");
-      unregister("paste");
     };
   }, [register, unregister]);
 
