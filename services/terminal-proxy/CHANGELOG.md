@@ -1,5 +1,11 @@
 # hive-terminal-proxy
 
+## 2.0.8
+
+### Patch Changes
+
+- 43f62fe: Add mobile terminal ergonomics, navigation favorites schema changes, terminal proxy resize coverage, and CI audit policy for the dev-only Vitest UI advisory.
+
 ## 2.0.7
 
 ### Patch Changes
