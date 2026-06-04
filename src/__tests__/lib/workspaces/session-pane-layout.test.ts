@@ -23,9 +23,9 @@ describe("session pane layout model", () => {
     expect(layout.tiled.rows).toBe(2);
     expect(layout.tiled.columns).toBe(2);
     expect(layout.panes.map((pane) => (pane.mode === "tiled" ? pane.gridArea : null))).toEqual([
-      "1 / 1 / span 1 / span 1",
+      "1 / 1 / span 2 / span 1",
       "1 / 2 / span 1 / span 1",
-      "2 / 1 / span 1 / span 1",
+      "2 / 2 / span 1 / span 1",
     ]);
     expect(layout.diagnostics).toEqual([]);
   });

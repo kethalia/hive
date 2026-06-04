@@ -54,7 +54,7 @@ describe("computeSmartTiledLayout", () => {
     ]);
   });
 
-  it("places three sessions in a deterministic two column grid using input order", () => {
+  it("places three sessions with the primary pane spanning the full left column", () => {
     const layout = computeSmartTiledLayout([
       { sessionName: "worker" },
       { sessionName: "api" },
@@ -63,10 +63,19 @@ describe("computeSmartTiledLayout", () => {
 
     expect(layout.rows).toBe(2);
     expect(layout.columns).toBe(2);
-    expect(layout.panes.map((pane) => [pane.sessionName, pane.row, pane.column])).toEqual([
-      ["worker", 1, 1],
-      ["api", 1, 2],
-      ["shell", 2, 1],
+    expect(
+      layout.panes.map((pane) => [
+        pane.sessionName,
+        pane.row,
+        pane.column,
+        pane.rowSpan,
+        pane.columnSpan,
+        pane.gridArea,
+      ]),
+    ).toEqual([
+      ["worker", 1, 1, 2, 1, "1 / 1 / span 2 / span 1"],
+      ["api", 1, 2, 1, 1, "1 / 2 / span 1 / span 1"],
+      ["shell", 2, 2, 1, 1, "2 / 2 / span 1 / span 1"],
     ]);
   });
 

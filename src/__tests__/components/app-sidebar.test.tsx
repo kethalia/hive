@@ -263,7 +263,11 @@ vi.mock("lucide-react", () => ({
   LayoutTemplate: () => <span>LayoutTemplate</span>,
   Monitor: () => <span>Monitor</span>,
   LayoutDashboard: () => <span>LayoutDashboard</span>,
-  ChevronRight: () => <span>ChevronRight</span>,
+  ChevronRight: ({ className, ...props }: { className?: string; "data-testid"?: string }) => (
+    <span className={className} data-testid={props["data-testid"]}>
+      ChevronRight
+    </span>
+  ),
   RefreshCw: () => <span data-testid="refresh-icon">RefreshCw</span>,
   AlertCircle: () => <span>AlertCircle</span>,
   Terminal: () => <span>Terminal</span>,
@@ -1021,6 +1025,28 @@ describe("AppSidebar", () => {
     expect(document.body.innerHTML).not.toContain("/home/coder");
   });
 
+  it("keeps the Git section closed by default and rotates its chevron when opened", async () => {
+    render(<AppSidebar />);
+
+    await screen.findByText("dev-box");
+    const wsTrigger = screen.getByText("dev-box").closest("[data-testid='collapsible-trigger']");
+    expect(wsTrigger).not.toBeNull();
+    fireEvent.click(wsTrigger!);
+
+    const gitSection = await screen.findByTestId("git-section-ws-1");
+    expect(gitSection).toHaveAttribute("data-open", "false");
+    expect(screen.getByTestId("git-section-chevron-ws-1")).not.toHaveClass("rotate-90");
+
+    const gitTrigger = gitSection.querySelector("[data-testid='collapsible-trigger']");
+    expect(gitTrigger).not.toBeNull();
+    fireEvent.click(gitTrigger!);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("git-section-ws-1")).toHaveAttribute("data-open", "true");
+      expect(screen.getByTestId("git-section-chevron-ws-1")).toHaveClass("rotate-90");
+    });
+  });
+
   it("opens a Git repository in the workspace that owns the Git tree", async () => {
     mockListWorkspaces.mockResolvedValueOnce({
       data: [
@@ -1320,7 +1346,7 @@ describe("AppSidebar", () => {
     expect(mockListGitClones).not.toHaveBeenCalled();
   });
 
-  it("includes expanded workspace Git discovery in the explicit footer refresh", async () => {
+  it("includes open workspace Git discovery in the explicit footer refresh", async () => {
     render(<AppSidebar />);
 
     await waitFor(() => {
@@ -1332,6 +1358,13 @@ describe("AppSidebar", () => {
 
     await waitFor(() => {
       expect(mockListGitClones).toHaveBeenCalledWith({ workspaceId: "ws-1" });
+    });
+    const gitSection = await screen.findByTestId("git-section-ws-1");
+    const gitTrigger = gitSection.querySelector("[data-testid='collapsible-trigger']");
+    expect(gitTrigger).not.toBeNull();
+    fireEvent.click(gitTrigger!);
+    await waitFor(() => {
+      expect(screen.getByTestId("git-section-ws-1")).toHaveAttribute("data-open", "true");
     });
 
     mockListWorkspaces.mockClear();

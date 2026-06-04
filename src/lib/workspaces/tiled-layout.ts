@@ -41,8 +41,7 @@ export function computeSmartTiledLayout(inputs: readonly TiledPaneInput[]): Smar
   const slugCounts = new Map<string, number>();
 
   const panes = normalized.map((input, order) => {
-    const row = Math.floor(order / columns) + 1;
-    const column = (order % columns) + 1;
+    const geometry = getPaneGeometry(order, normalized.length, columns);
     const baseId = `pane-${slugifyPaneId(input.sessionName)}`;
     const occurrence = (slugCounts.get(baseId) ?? 0) + 1;
     slugCounts.set(baseId, occurrence);
@@ -53,11 +52,8 @@ export function computeSmartTiledLayout(inputs: readonly TiledPaneInput[]): Smar
       sessionName: input.sessionName,
       label: input.label,
       order,
-      row,
-      column,
-      rowSpan: 1,
-      columnSpan: 1,
-      gridArea: `${row} / ${column} / span 1 / span 1`,
+      ...geometry,
+      gridArea: `${geometry.row} / ${geometry.column} / span ${geometry.rowSpan} / span ${geometry.columnSpan}`,
       testId: `terminal-${id}`,
     };
   });
@@ -69,6 +65,24 @@ export function computeSmartTiledLayout(inputs: readonly TiledPaneInput[]): Smar
     columns,
     gridTemplateColumns: buildGridTemplate(columns),
     gridTemplateRows: buildGridTemplate(rows),
+  };
+}
+
+function getPaneGeometry(
+  order: number,
+  paneCount: number,
+  columns: number,
+): Pick<TiledPane, "row" | "column" | "rowSpan" | "columnSpan"> {
+  if (paneCount === 3) {
+    if (order === 0) return { row: 1, column: 1, rowSpan: 2, columnSpan: 1 };
+    return { row: order, column: 2, rowSpan: 1, columnSpan: 1 };
+  }
+
+  return {
+    row: Math.floor(order / columns) + 1,
+    column: (order % columns) + 1,
+    rowSpan: 1,
+    columnSpan: 1,
   };
 }
 

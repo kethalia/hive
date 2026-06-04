@@ -10,6 +10,7 @@ const mockCreateSession = vi.fn();
 const mockGetSessions = vi.fn();
 const mockListGitClones = vi.fn();
 const mockResolveGitCloneTerminal = vi.fn();
+const mockCloseGitCloneTerminal = vi.fn();
 const mockListNavigationFavorites = vi.fn();
 const mockSetActiveTerminal = vi.fn();
 const mockRegister = vi.fn();
@@ -74,6 +75,7 @@ vi.mock("next/dynamic", () => ({
           data-session-name={sessionName}
           data-clone-path={clonePath}
           data-clone-proof={cloneProof}
+          data-layout-signal={String(layoutSignal ?? "")}
         >
           Terminal: {sessionName}
           <textarea
@@ -90,6 +92,7 @@ vi.mock("next/dynamic", () => ({
 }));
 
 vi.mock("@/lib/actions/git-clones", () => ({
+  closeGitCloneTerminalAction: (...args: unknown[]) => mockCloseGitCloneTerminal(...args),
   listGitClonesAction: (...args: unknown[]) => mockListGitClones(...args),
   resolveGitCloneTerminalAction: (...args: unknown[]) => mockResolveGitCloneTerminal(...args),
 }));
@@ -286,6 +289,7 @@ describe("MultiSessionWorkspace", () => {
     terminalProps.clear();
     window.localStorage.clear();
     mockGetSessions.mockResolvedValue({ data: [] });
+    mockCloseGitCloneTerminal.mockResolvedValue({ data: { sessionName: "git-clone-safe-hive" } });
     mockListNavigationFavorites.mockResolvedValue({ data: [] });
     mockRouterPush.mockReset();
   });
@@ -318,6 +322,32 @@ describe("MultiSessionWorkspace", () => {
     expect(screen.queryByTestId("copy-active-pane")).not.toBeInTheDocument();
     expect(screen.queryByTestId("paste-active-pane")).not.toBeInTheDocument();
     expect(screen.queryByTestId("float-pane-pane-main-session")).not.toBeInTheDocument();
+  });
+
+  it("gives the primary pane full height when three sessions are open", async () => {
+    mockGetSessions.mockResolvedValue({
+      data: [
+        { name: "main-session", created: 1, windows: 1 },
+        { name: "dev-server", created: 2, windows: 1 },
+        { name: "shell", created: 3, windows: 1 },
+      ],
+    });
+
+    render(<MultiSessionWorkspace {...defaultProps} />);
+
+    expect(await screen.findByTestId("workspace-pane-main-session")).toHaveStyle({
+      gridArea: "1 / 1 / span 2 / span 1",
+    });
+    expect(screen.getByTestId("workspace-pane-dev-server")).toHaveStyle({
+      gridArea: "1 / 2 / span 1 / span 1",
+    });
+    expect(screen.getByTestId("workspace-pane-shell")).toHaveStyle({
+      gridArea: "2 / 2 / span 1 / span 1",
+    });
+    expect(screen.getByTestId("interactive-terminal-main-session")).toHaveAttribute(
+      "data-layout-signal",
+      "2:2:1 / 1 / span 2 / span 1",
+    );
   });
 
   it("changes focus on hover and click while preserving terminal ownership", async () => {
@@ -610,8 +640,16 @@ describe("MultiSessionWorkspace", () => {
     expect(stored).toContain("kethalia/hive");
     expect(stored).not.toContain("proof-token");
 
-    fireEvent.click(screen.getByTestId("remove-pane-pane-git-clone-safe-hive"));
+    await act(async () => {
+      fireEvent.click(screen.getByTestId("remove-pane-pane-git-clone-safe-hive"));
+    });
     expect(await screen.findByTestId("multi-session-empty")).toBeInTheDocument();
+    expect(mockCloseGitCloneTerminal).toHaveBeenCalledWith({
+      agentId: "agent-1",
+      workspaceId: "ws-1",
+      cloneSessionKey: "git-clone:kethalia/hive",
+      relativePath: "kethalia/hive",
+    });
     expect(window.localStorage.getItem("multi-session-layout:git:ws-1")).not.toContain(
       "git-clone:kethalia/hive",
     );

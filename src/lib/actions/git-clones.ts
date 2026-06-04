@@ -72,6 +72,8 @@ const resolveGitCloneTerminalSchema = z
   })
   .strict();
 
+const closeGitCloneTerminalSchema = resolveGitCloneTerminalSchema;
+
 export const listGitClonesAction = authActionClient
   .inputSchema(listGitClonesSchema)
   .action(async ({ parsedInput, ctx }): Promise<GitCloneDiscoveryActionResult> => {
@@ -130,44 +132,12 @@ export const resolveGitCloneTerminalAction = authActionClient
       parsedInput.workspaceId,
       parsedInput.agentId,
     );
-    let tree: CloneTree;
-
-    try {
-      const projectsRootPath = resolveConfiguredProjectsRoot();
-      tree = await discoverWorkspaceCloneTree(
-        ctx.user.id,
-        projectsRootPath,
-        parsedInput.workspaceId,
-      );
-    } catch (error) {
-      console.error(
-        `[git-clones] Terminal resolution scan failed (${describeErrorForLogs(error)})`,
-      );
-      throw new Error(SCAN_FAILED_MESSAGE);
-    }
-
-    const rootSkippedReason = getRootSkippedReason(tree.diagnostics);
-    if (rootSkippedReason === "not-directory") {
-      logTerminalResolveOutcome("missing-root", tree.diagnostics);
-      throw new Error(MISSING_ROOT_MESSAGE);
-    }
-
-    if (rootSkippedReason) {
-      logTerminalResolveOutcome("scan-failed", tree.diagnostics);
-      throw new Error(SCAN_FAILED_MESSAGE);
-    }
-
-    const repository = findRepositoryNode(
-      tree.nodes,
+    const repository = await resolveSelectedRepository(
+      ctx.user.id,
+      parsedInput.workspaceId,
       parsedInput.cloneSessionKey,
       parsedInput.relativePath,
     );
-
-    if (!repository) {
-      logTerminalResolveOutcome("invalid-selection", tree.diagnostics);
-      throw new Error(INVALID_SELECTION_MESSAGE);
-    }
-
     const sessionName = createSafeCloneTerminalSessionName(repository.cloneSessionKey);
     const cloneProof = createCloneTerminalProof(
       {
@@ -180,7 +150,6 @@ export const resolveGitCloneTerminalAction = authActionClient
       getCloneTerminalProofSecret(),
     );
 
-    logTerminalResolveOutcome("success", tree.diagnostics);
     return {
       sessionName,
       clonePath: repository.relativePath,
@@ -188,6 +157,89 @@ export const resolveGitCloneTerminalAction = authActionClient
       cloneProof,
     };
   });
+
+export const closeGitCloneTerminalAction = authActionClient
+  .inputSchema(closeGitCloneTerminalSchema)
+  .action(async ({ parsedInput, ctx }): Promise<{ sessionName: string }> => {
+    await resolveAuthorizedWorkspaceAgentId(
+      ctx.user.id,
+      parsedInput.workspaceId,
+      parsedInput.agentId,
+    );
+    const repository = await resolveSelectedRepository(
+      ctx.user.id,
+      parsedInput.workspaceId,
+      parsedInput.cloneSessionKey,
+      parsedInput.relativePath,
+    );
+    const sessionName = createSafeCloneTerminalSessionName(repository.cloneSessionKey);
+    const client = await getCoderClientForUser(ctx.user.id);
+    const agentTarget = await client.getWorkspaceAgentName(parsedInput.workspaceId);
+    const result = await execInWorkspace(
+      agentTarget,
+      `tmux -L web kill-session -t ${shellQuote(sessionName)}`,
+      {
+        coderUrl: client.getBaseUrl(),
+        sessionToken: client.getSessionToken(),
+      },
+    );
+
+    if (result.exitCode !== 0) {
+      const diagnostic = [result.stderr, result.stdout]
+        .map((part) => part.trim())
+        .filter(Boolean)
+        .join("\n");
+      if (!/no server running|can't find session|no such session/i.test(diagnostic)) {
+        console.warn(
+          `[git-clones] Close clone terminal failed: workspace=${parsedInput.workspaceId} exit=${result.exitCode}`,
+        );
+        throw new Error("We couldn't close that Git terminal. Refresh and try again.");
+      }
+    }
+
+    console.log(
+      `[git-clones] Closed clone terminal session for workspace ${parsedInput.workspaceId}`,
+    );
+    return { sessionName };
+  });
+
+async function resolveSelectedRepository(
+  userId: string,
+  workspaceId: string,
+  cloneSessionKey: string,
+  relativePath: string,
+): Promise<CloneTreeRepositoryNode> {
+  let tree: CloneTree;
+
+  try {
+    const projectsRootPath = resolveConfiguredProjectsRoot();
+    tree = await discoverWorkspaceCloneTree(userId, projectsRootPath, workspaceId);
+  } catch (error) {
+    console.error(`[git-clones] Terminal resolution scan failed (${describeErrorForLogs(error)})`);
+    throw new Error(SCAN_FAILED_MESSAGE);
+  }
+
+  const rootSkippedReason = getRootSkippedReason(tree.diagnostics);
+  if (rootSkippedReason === "not-directory") {
+    logTerminalResolveOutcome("missing-root", tree.diagnostics);
+    throw new Error(MISSING_ROOT_MESSAGE);
+  }
+
+  if (rootSkippedReason) {
+    logTerminalResolveOutcome("scan-failed", tree.diagnostics);
+    throw new Error(SCAN_FAILED_MESSAGE);
+  }
+
+  const repository = findRepositoryNode(tree.nodes, cloneSessionKey, relativePath);
+
+  if (!repository) {
+    logTerminalResolveOutcome("invalid-selection", tree.diagnostics);
+    throw new Error(INVALID_SELECTION_MESSAGE);
+  }
+
+  logTerminalResolveOutcome("success", tree.diagnostics);
+  return repository;
+}
 
 async function discoverWorkspaceCloneTree(
   userId: string,

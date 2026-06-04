@@ -26,7 +26,11 @@ import {
 } from "@/components/ui/dialog";
 import { useKeybindings } from "@/hooks/useKeybindings";
 import { useTerminalFontStep } from "@/hooks/useTerminalFontStep";
-import { listGitClonesAction, resolveGitCloneTerminalAction } from "@/lib/actions/git-clones";
+import {
+  closeGitCloneTerminalAction,
+  listGitClonesAction,
+  resolveGitCloneTerminalAction,
+} from "@/lib/actions/git-clones";
 import {
   listNavigationFavoritesAction,
   type NavigationFavoriteDto,
@@ -444,6 +448,7 @@ export function MultiSessionWorkspace({
   const [gitSearchQuery, setGitSearchQuery] = useState("");
   const [addingCloneKey, setAddingCloneKey] = useState<string | null>(null);
   const [gitAddFailed, setGitAddFailed] = useState(false);
+  const [gitCloseFailed, setGitCloseFailed] = useState(false);
   const [persistedLayoutJson, setPersistedLayoutJson] = useState<string | null>(null);
   const [layoutPersistenceNotice, setLayoutPersistenceNotice] =
     useState<LayoutPersistenceNotice | null>(null);
@@ -746,6 +751,7 @@ export function MultiSessionWorkspace({
     setGitSearchOpen(false);
     setGitSearchQuery("");
     setGitAddFailed(false);
+    setGitCloseFailed(false);
     setPersistedLayoutJson(storedLayout.raw);
     setLayoutPersistenceNotice(storedLayout.notice);
     terminalsRef.current.clear();
@@ -1090,11 +1096,14 @@ export function MultiSessionWorkspace({
   ]);
 
   const handleRemoveGitSession = useCallback(
-    (sessionName: string) => {
+    async (sessionName: string) => {
       if (!isUnifiedSource) return;
 
+      const removedSession = sessions.find((session) => session.sessionName === sessionName);
       const nextSessions = sessions.filter((session) => session.sessionName !== sessionName);
       const nextActiveSessionName = nextSessions[0]?.sessionName ?? null;
+      terminalsRef.current.delete(sessionName);
+      setGitCloseFailed(false);
       setSessions(nextSessions);
       persistSessionOrder(nextSessions, nextActiveSessionName);
 
@@ -1106,8 +1115,32 @@ export function MultiSessionWorkspace({
           clearActiveTerminal();
         }
       }
+
+      if (!removedSession?.cloneSessionKey || !removedSession.relativePath) return;
+
+      try {
+        const result = await closeGitCloneTerminalAction({
+          agentId,
+          workspaceId,
+          cloneSessionKey: removedSession.cloneSessionKey,
+          relativePath: removedSession.relativePath,
+        });
+        if (result?.serverError || result?.validationErrors) {
+          setGitCloseFailed(true);
+        }
+      } catch {
+        setGitCloseFailed(true);
+      }
     },
-    [clearActiveTerminal, isUnifiedSource, persistSessionOrder, selectSession, sessions],
+    [
+      agentId,
+      clearActiveTerminal,
+      isUnifiedSource,
+      persistSessionOrder,
+      selectSession,
+      sessions,
+      workspaceId,
+    ],
   );
 
   const renderGitFontControls = () => {
@@ -1401,7 +1434,7 @@ export function MultiSessionWorkspace({
               data-testid={`remove-pane-${pane.id}`}
               onClick={(event) => {
                 event.stopPropagation();
-                handleRemoveGitSession(pane.sessionName);
+                void handleRemoveGitSession(pane.sessionName);
               }}
             >
               <X className="size-3" />
@@ -1595,6 +1628,17 @@ export function MultiSessionWorkspace({
           <AlertTitle>Could not create a terminal session.</AlertTitle>
           <AlertDescription>
             Existing panes remain mounted and selected state is unchanged.
+          </AlertDescription>
+        </Alert>
+      ) : null}
+
+      {gitCloseFailed ? (
+        <Alert variant="destructive" data-testid="git-session-close-error" className="m-3 mb-0">
+          <AlertCircle />
+          <AlertTitle>Could not close Git terminal.</AlertTitle>
+          <AlertDescription>
+            The pane was removed locally, but the backing terminal may still exist. Refresh and try
+            again.
           </AlertDescription>
         </Alert>
       ) : null}

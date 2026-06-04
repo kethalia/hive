@@ -800,6 +800,7 @@ export function AppSidebar() {
 
   const relativeTime = useRelativeTime(lastRefreshed, settingsOpen);
   const [expandedWorkspaces, setExpandedWorkspaces] = useState<Record<string, boolean>>({});
+  const [expandedGitSections, setExpandedGitSections] = useState<Record<string, boolean>>({});
   const [expandedTerminals, setExpandedTerminals] = useState<Record<string, boolean>>({});
   const [workspaceAgents, setWorkspaceAgents] = useState<Record<string, AgentInfo | null>>({});
   const [workspaceSessions, setWorkspaceSessions] = useState<Record<string, WorkspaceSessionState>>(
@@ -965,9 +966,11 @@ export function AppSidebar() {
 
   const expandedWorkspacesRef = useRef(expandedWorkspaces);
   expandedWorkspacesRef.current = expandedWorkspaces;
+  const expandedGitSectionsRef = useRef(expandedGitSections);
+  expandedGitSectionsRef.current = expandedGitSections;
 
   const refreshExpandedGitClones = useCallback(() => {
-    for (const [wsId, isExpanded] of Object.entries(expandedWorkspacesRef.current)) {
+    for (const [wsId, isExpanded] of Object.entries(expandedGitSectionsRef.current)) {
       if (isExpanded) fetchGitClones(wsId);
     }
   }, [fetchGitClones]);
@@ -1031,6 +1034,14 @@ export function AppSidebar() {
       }
     },
     [fetchAgentInfo, fetchGitClones, fetchSessions],
+  );
+
+  const handleGitSectionExpand = useCallback(
+    (workspaceId: string, open: boolean) => {
+      setExpandedGitSections((prev) => ({ ...prev, [workspaceId]: open }));
+      if (open) fetchGitClones(workspaceId);
+    },
+    [fetchGitClones],
   );
 
   const activeWorkspaceId = useMemo(() => {
@@ -1495,6 +1506,7 @@ export function AppSidebar() {
                       };
                       const gitTerminalError = workspaceGitTerminalErrors[ws.id];
                       const isExpanded = expandedWorkspaces[ws.id] ?? false;
+                      const isGitSectionExpanded = expandedGitSections[ws.id] ?? false;
                       const encodedWorkspaceId = encodeURIComponent(ws.id);
                       const multiSessionWorkspaceHref = `/workspaces/${encodedWorkspaceId}/terminal/workspace`;
                       const gitMultiSessionWorkspaceHref = `/workspaces/${encodedWorkspaceId}/terminal/git-workspace`;
@@ -1568,7 +1580,11 @@ export function AppSidebar() {
                                     </SidebarMenuSubItem>
                                   </>
                                 )}
-                                <Collapsible defaultOpen data-testid={`git-section-${ws.id}`}>
+                                <Collapsible
+                                  open={isGitSectionExpanded}
+                                  onOpenChange={(open) => handleGitSectionExpand(ws.id, open)}
+                                  data-testid={`git-section-${ws.id}`}
+                                >
                                   <SidebarMenuSubItem>
                                     <SidebarMenuSubButton
                                       render={<CollapsibleTrigger />}
@@ -1576,7 +1592,10 @@ export function AppSidebar() {
                                     >
                                       <GitBranch className="h-3 w-3 shrink-0" />
                                       <span>Git</span>
-                                      <ChevronRight className="ml-auto h-3 w-3 transition-transform" />
+                                      <ChevronRight
+                                        className={`ml-auto h-3 w-3 transition-transform ${isGitSectionExpanded ? "rotate-90" : ""}`}
+                                        data-testid={`git-section-chevron-${ws.id}`}
+                                      />
                                     </SidebarMenuSubButton>
                                     <CollapsibleContent>
                                       <GitDiscoveryPanel
