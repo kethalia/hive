@@ -344,13 +344,13 @@ vi.mock("@/lib/auth/actions", () => ({
 
 import { AppSidebar } from "@/components/app-sidebar";
 import type { CoderWorkspace } from "@/lib/coder/types";
-import { TERMINAL_SETTINGS_CHANGED_EVENT } from "@/lib/terminal/settings-events";
 import type {
   GitCloneDiscoveryActionResult,
   PublicCloneTree,
 } from "@/lib/git/clone-actions-contract";
 import type { CloneTreeDiagnostics } from "@/lib/git/clone-tree";
 import type { TemplateStatus } from "@/lib/templates/staleness";
+import { TERMINAL_SETTINGS_CHANGED_EVENT } from "@/lib/terminal/settings-events";
 
 const PRIVATE_ROOT = "/home/coder/SUPER_SECRET_TOKEN";
 
@@ -1636,6 +1636,11 @@ describe("AppSidebar", () => {
     expect(workspaceLink).toHaveAttribute("href", "/workspaces/ws-1/terminal/workspace");
     expect(workspaceLink).toHaveTextContent("Multi-session workspace");
     expect(workspaceLink).toHaveAttribute("data-active", "false");
+
+    const gitWorkspaceLink = screen.getByTestId("git-workspace-link-ws-1");
+    expect(gitWorkspaceLink).toHaveAttribute("href", "/workspaces/ws-1/terminal/git-workspace");
+    expect(gitWorkspaceLink).toHaveTextContent("Git workspace");
+    expect(gitWorkspaceLink).toHaveAttribute("data-active", "false");
 
     const sessionLink = screen.getByText("dev").closest("a");
     expect(sessionLink).toHaveAttribute("href", "/workspaces/ws-1/terminal?session=dev");

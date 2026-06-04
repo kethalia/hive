@@ -782,44 +782,6 @@ function fireTouchEvent(
   return event;
 }
 
-function pointerDown(element: HTMLElement, x: number, y: number, init: PointerEventInit = {}) {
-  fireEvent.pointerDown(element, {
-    pointerId: 7,
-    pointerType: "mouse",
-    button: 0,
-    buttons: 1,
-    isPrimary: true,
-    clientX: x,
-    clientY: y,
-    ...init,
-  });
-}
-
-function pointerMove(element: HTMLElement, x: number, y: number, init: PointerEventInit = {}) {
-  fireEvent.pointerMove(element, {
-    pointerId: 7,
-    pointerType: "mouse",
-    buttons: 1,
-    isPrimary: true,
-    clientX: x,
-    clientY: y,
-    ...init,
-  });
-}
-
-function pointerUp(element: HTMLElement, x: number, y: number, init: PointerEventInit = {}) {
-  fireEvent.pointerUp(element, {
-    pointerId: 7,
-    pointerType: "mouse",
-    button: 0,
-    buttons: 0,
-    isPrimary: true,
-    clientX: x,
-    clientY: y,
-    ...init,
-  });
-}
-
 describe("InteractiveTerminal integration — Connection state banners", () => {
   it("shows workspace offline banner", async () => {
     mockUseTerminalWebSocket.mockReturnValue({
@@ -1094,7 +1056,7 @@ describe("WorkspaceTerminalPage integration — Multi-session route", () => {
     unmount();
   });
 
-  it("keeps S05 floating layout signals independent from drag-only x/y movement", async () => {
+  it("keeps tiled layout signals stable while moving panes by order", async () => {
     mockGetWorkspaceSessionsAction.mockResolvedValueOnce({
       data: [
         { name: "main-session", created: 1, windows: 1 },
@@ -1108,43 +1070,25 @@ describe("WorkspaceTerminalPage integration — Multi-session route", () => {
       expect(getByTestId("workspace-pane-main-session")).toBeInTheDocument();
     });
 
-    await act(async () => {
-      fireEvent.click(getByTestId("float-pane-pane-main-session"));
-    });
-
-    await waitFor(() => {
-      expect(getByTestId("workspace-pane-main-session")).toHaveAttribute(
-        "data-pane-mode",
-        "floating",
-      );
-    });
-
     const findMainTerminal = () =>
       getAllByTestId("interactive-terminal").find(
         (terminal) => terminal.getAttribute("data-session-name") === "main-session",
       );
-    const signalBeforeDrag = findMainTerminal()?.getAttribute("data-layout-signal");
-    expect(signalBeforeDrag).toBe("floating:720:420");
-
-    const pane = getByTestId("workspace-pane-main-session");
-    const handle = getByTestId("drag-handle-pane-main-session");
+    const signalBeforeMove = findMainTerminal()?.getAttribute("data-layout-signal");
+    expect(signalBeforeMove).toBe("1:2:1 / 1 / span 1 / span 1");
 
     await act(async () => {
-      pointerDown(handle, 100, 100);
-      pointerMove(pane, 180, 160);
+      fireEvent.click(getByTestId("move-pane-left-pane-dev-server"));
     });
 
-    expect(pane).toHaveStyle({ left: "104px", top: "84px" });
-    expect(findMainTerminal()?.getAttribute("data-layout-signal")).toBe(signalBeforeDrag);
-
-    await act(async () => {
-      pointerUp(pane, 180, 160);
+    await waitFor(() => {
+      expect(getByTestId("active-pane-label")).toHaveTextContent("dev-server");
     });
-
-    expect(pane).toHaveStyle({ left: "104px", top: "84px" });
-    expect(findMainTerminal()?.getAttribute("data-layout-signal")).toBe(signalBeforeDrag);
-    expect(signalBeforeDrag).not.toContain("104");
-    expect(signalBeforeDrag).not.toContain("84");
+    expect(findMainTerminal()?.getAttribute("data-layout-signal")).toBe(
+      "1:2:1 / 2 / span 1 / span 1",
+    );
+    expect(findMainTerminal()?.getAttribute("data-layout-signal")).not.toBe(signalBeforeMove);
+    expect(getByTestId("workspace-pane-main-session")).toHaveAttribute("data-pane-mode", "tiled");
     unmount();
   });
 });

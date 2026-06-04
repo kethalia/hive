@@ -112,19 +112,17 @@ export function resolveSessionPaneLayout({
   persistedJson,
   container,
 }: ResolveSessionPaneLayoutOptions): SessionPaneLayout {
-  const baseLayout = computeSmartTiledLayout(sessions);
+  void container;
+
   const diagnostics: SessionPaneLayoutDiagnostic[] = [];
   const parsed = parsePersistedSessionPaneLayout(persistedJson);
   diagnostics.push(...parsed.diagnostics);
 
-  const safeContainer = coerceContainer(container);
-  if (!safeContainer && persistedJson) {
-    diagnostics.push({
-      code: "container-invalid",
-      message: "Floating pane geometry was ignored because the workspace container is unavailable.",
-    });
-  }
-
+  const orderedSessions = applyPersistedPaneOrder(
+    sessions,
+    parsed.status === "valid" ? parsed.layout.panes : [],
+  );
+  const baseLayout = computeSmartTiledLayout(orderedSessions);
   const currentSessionNames = new Set(baseLayout.panes.map((pane) => pane.sessionName));
   const persistedBySessionName = new Map<string, PersistedSessionPane>();
 
@@ -150,20 +148,42 @@ export function resolveSessionPaneLayout({
     }
   }
 
-  const modeBySessionName = new Map<string, SessionPaneMode>();
-  for (const pane of baseLayout.panes) {
-    const persistedPane = persistedBySessionName.get(pane.sessionName);
-    const mode = persistedPane?.mode === "floating" && safeContainer ? "floating" : "tiled";
-    modeBySessionName.set(pane.sessionName, mode);
-  }
-
   return buildSessionPaneLayout({
     basePanes: baseLayout.panes,
-    modeForPane: (pane) => modeBySessionName.get(pane.sessionName) ?? "tiled",
+    modeForPane: () => "tiled",
     geometryForPane: (pane) => persistedBySessionName.get(pane.sessionName)?.geometry,
-    container: safeContainer,
+    container: null,
     diagnostics,
   });
+}
+
+function applyPersistedPaneOrder(
+  sessions: readonly TiledPaneInput[],
+  persistedPanes: readonly PersistedSessionPane[],
+): TiledPaneInput[] {
+  if (persistedPanes.length === 0) return [...sessions];
+
+  const orderBySessionName = new Map<string, number>();
+  persistedPanes.forEach((pane, index) => {
+    const sessionName = normalizeSessionName(pane.sessionName);
+    if (!sessionName || orderBySessionName.has(sessionName)) return;
+    orderBySessionName.set(sessionName, finiteNumberOrUndefined(pane.order) ?? index);
+  });
+
+  return [...sessions].sort((left, right) => {
+    const leftOrder =
+      orderBySessionName.get(sessionNameFromTiledInput(left)) ?? Number.MAX_SAFE_INTEGER;
+    const rightOrder =
+      orderBySessionName.get(sessionNameFromTiledInput(right)) ?? Number.MAX_SAFE_INTEGER;
+    if (leftOrder !== rightOrder) return leftOrder - rightOrder;
+    return sessions.indexOf(left) - sessions.indexOf(right);
+  });
+}
+
+function sessionNameFromTiledInput(input: TiledPaneInput): string {
+  return normalizeSessionName(
+    typeof input === "string" ? input : (input.sessionName ?? input.name),
+  );
 }
 
 export function parsePersistedSessionPaneLayout(

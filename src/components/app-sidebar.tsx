@@ -41,12 +41,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import {
-  Field,
-  FieldContent,
-  FieldDescription,
-  FieldLabel,
-} from "@/components/ui/field";
+import { Field, FieldContent, FieldDescription, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import {
   Sidebar,
@@ -70,9 +65,9 @@ import { useSidebarMode } from "@/hooks/use-sidebar-mode";
 import { listGitClonesAction, resolveGitCloneTerminalAction } from "@/lib/actions/git-clones";
 import {
   listNavigationFavoritesAction,
+  type NavigationFavoriteDto,
   removeNavigationFavoriteAction,
   upsertNavigationFavoriteAction,
-  type NavigationFavoriteDto,
 } from "@/lib/actions/navigation-favorites";
 import { listTemplateStatusesAction } from "@/lib/actions/templates";
 import {
@@ -97,8 +92,8 @@ import type {
 } from "@/lib/git/clone-actions-contract";
 import { isCloneTerminalSessionName } from "@/lib/git/clone-terminal-session";
 import type { CloneTreeDiagnostics, CloneTreeRepositoryNode } from "@/lib/git/clone-tree";
-import { dispatchTerminalSettingsChanged } from "@/lib/terminal/settings-events";
 import type { TemplateStatus } from "@/lib/templates/staleness";
+import { dispatchTerminalSettingsChanged } from "@/lib/terminal/settings-events";
 import { cn } from "@/lib/utils";
 import type { TmuxSession } from "@/lib/workspaces/sessions";
 import { buildWorkspaceUrls } from "@/lib/workspaces/urls";
@@ -770,12 +765,7 @@ export function AppSidebar() {
         setIsTerminalSettingsUpdating(false);
       }
     },
-    [
-      isTerminalSettingsLoading,
-      isTerminalSettingsUpdating,
-      router,
-      terminalControlsBeyondMobile,
-    ],
+    [isTerminalSettingsLoading, isTerminalSettingsUpdating, router, terminalControlsBeyondMobile],
   );
 
   const coderUrl = sessionUser?.coderUrl ?? undefined;
@@ -1506,6 +1496,7 @@ export function AppSidebar() {
                       const isExpanded = expandedWorkspaces[ws.id] ?? false;
                       const encodedWorkspaceId = encodeURIComponent(ws.id);
                       const multiSessionWorkspaceHref = `/workspaces/${encodedWorkspaceId}/terminal/workspace`;
+                      const gitMultiSessionWorkspaceHref = `/workspaces/${encodedWorkspaceId}/terminal/git-workspace`;
                       return (
                         <Collapsible
                           key={ws.id}
@@ -1574,6 +1565,21 @@ export function AppSidebar() {
                                       <ChevronRight className="ml-auto h-3 w-3 transition-transform" />
                                     </SidebarMenuSubButton>
                                     <CollapsibleContent>
+                                      <SidebarMenuSub className="!mr-0 !pr-0">
+                                        <SidebarMenuSubItem>
+                                          <SidebarMenuSubButton
+                                            render={<Link href={gitMultiSessionWorkspaceHref} />}
+                                            isActive={
+                                              pathname ===
+                                              `/workspaces/${ws.id}/terminal/git-workspace`
+                                            }
+                                            data-testid={`git-workspace-link-${ws.id}`}
+                                          >
+                                            <ScreenIcon className="h-3 w-3 shrink-0" />
+                                            <span>Git workspace</span>
+                                          </SidebarMenuSubButton>
+                                        </SidebarMenuSubItem>
+                                      </SidebarMenuSub>
                                       <GitDiscoveryPanel
                                         state={gitState}
                                         activeClonePath={
