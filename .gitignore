@@ -56,10 +56,13 @@ templates/**/.terraform/
 .gsd/activity/
 .gsd/worktrees/
 
-# Generated verification/evidence docs should stay local unless explicitly promoted.
+# Generated verification/evidence docs and matching doc-contract tests should stay local unless explicitly promoted.
 docs/*-evidence.md
 docs/*-uat.md
 docs/*-diagnostics-*.md
+src/__tests__/docs/*-evidence.test.ts
+src/__tests__/docs/*-uat.test.ts
+src/__tests__/docs/*-diagnostics-*.test.ts
 
 Thumbs.db
 *.swp

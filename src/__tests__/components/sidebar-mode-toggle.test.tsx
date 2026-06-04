@@ -320,12 +320,8 @@ describe("Sidebar primitive layout contract", () => {
   });
 
   it("uses the widened desktop width while keeping floating gap at zero", async () => {
-    const {
-      Sidebar: ActualSidebar,
-      SidebarProvider: ActualSidebarProvider,
-    } = await vi.importActual<typeof import("@/components/ui/sidebar")>(
-      "@/components/ui/sidebar",
-    );
+    const { Sidebar: ActualSidebar, SidebarProvider: ActualSidebarProvider } =
+      await vi.importActual<typeof import("@/components/ui/sidebar")>("@/components/ui/sidebar");
 
     const { container } = render(
       <ActualSidebarProvider>
@@ -360,9 +356,7 @@ describe("Sidebar primitive layout contract", () => {
       Sidebar: ActualSidebar,
       SidebarProvider: ActualSidebarProvider,
       SidebarTrigger: ActualSidebarTrigger,
-    } = await vi.importActual<typeof import("@/components/ui/sidebar")>(
-      "@/components/ui/sidebar",
-    );
+    } = await vi.importActual<typeof import("@/components/ui/sidebar")>("@/components/ui/sidebar");
 
     render(
       <ActualSidebarProvider>
@@ -421,10 +415,7 @@ describe("AppSidebar floating-only mode", () => {
     render(<AppSidebar />);
 
     await waitFor(() => {
-      expect(screen.getByTestId("app-sidebar-root")).toHaveAttribute(
-        "data-variant",
-        "floating",
-      );
+      expect(screen.getByTestId("app-sidebar-root")).toHaveAttribute("data-variant", "floating");
     });
   });
 
@@ -434,10 +425,7 @@ describe("AppSidebar floating-only mode", () => {
     render(<AppSidebar />);
 
     await waitFor(() => {
-      expect(screen.getByTestId("app-sidebar-root")).toHaveAttribute(
-        "data-variant",
-        "floating",
-      );
+      expect(screen.getByTestId("app-sidebar-root")).toHaveAttribute("data-variant", "floating");
     });
     expect(localStorage.getItem("sidebar_variant")).toBe("floating");
     expect(screen.queryByTestId("sidebar-mode-toggle")).not.toBeInTheDocument();
