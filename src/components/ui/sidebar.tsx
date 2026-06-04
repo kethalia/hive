@@ -18,6 +18,7 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { TERMINAL_FOCUS_ACTIVE_EVENT } from "@/lib/terminal/events";
 import { cn } from "@/lib/utils";
 
 const SIDEBAR_COOKIE_NAME = "sidebar_state";
@@ -85,7 +86,14 @@ function SidebarProvider({
 
   // Helper to toggle the sidebar.
   const toggleSidebar = React.useCallback(() => {
-    return isMobile ? setOpenMobile((open) => !open) : setOpen((open) => !open);
+    window.requestAnimationFrame(() => {
+      window.dispatchEvent(new CustomEvent(TERMINAL_FOCUS_ACTIVE_EVENT));
+    });
+    if (isMobile) {
+      setOpenMobile((open) => !open);
+    } else {
+      setOpen((open) => !open);
+    }
   }, [isMobile, setOpen]);
 
   // Adds a keyboard shortcut to toggle the sidebar.
@@ -97,8 +105,8 @@ function SidebarProvider({
       }
     };
 
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
+    window.addEventListener("keydown", handleKeyDown, { capture: true });
+    return () => window.removeEventListener("keydown", handleKeyDown, { capture: true });
   }, [toggleSidebar]);
 
   // We add a state so that we can do data-state="expanded" or "collapsed".

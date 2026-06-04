@@ -1,9 +1,11 @@
 // @vitest-environment jsdom
-import { render, waitFor, cleanup } from "@testing-library/react";
+import { act, cleanup, render, waitFor } from "@testing-library/react";
+import type { Terminal } from "@xterm/xterm";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { KeybindingProvider } from "@/components/terminal/KeybindingProvider";
 import type { KeybindingContextValue } from "@/hooks/useKeybindings";
 import { useKeybindings } from "@/hooks/useKeybindings";
-import { KeybindingProvider } from "@/components/terminal/KeybindingProvider";
+import { TERMINAL_FOCUS_ACTIVE_EVENT } from "@/lib/terminal/events";
 
 vi.mock("@/lib/terminal/actions", () => ({
   copyTerminalSelection: vi.fn(() => false),
@@ -16,6 +18,7 @@ function makeKeyEvent(opts: Partial<KeyboardEventInit> & { key: string }): Keybo
 describe("KeybindingProvider", () => {
   afterEach(() => {
     cleanup();
+    vi.restoreAllMocks();
   });
 
   function renderWithProbe() {
@@ -53,5 +56,24 @@ describe("KeybindingProvider", () => {
     expect(entries.flatMap((entry) => entry.keys)).not.toContain("cmd+v");
     expect(probe.context?.handleKeyEvent(makeKeyEvent({ key: "v", ctrlKey: true }))).toBe(true);
     expect(probe.context?.handleKeyEvent(makeKeyEvent({ key: "v", metaKey: true }))).toBe(true);
+  });
+
+  it("focuses the active terminal when sidebar toggles request terminal focus", async () => {
+    vi.spyOn(window, "requestAnimationFrame").mockImplementation((callback) => {
+      callback(0);
+      return 1;
+    });
+    const probe = renderWithProbe();
+    const terminal = { focus: vi.fn() } as unknown as Terminal;
+
+    act(() => {
+      probe.context?.setActiveTerminal(terminal, vi.fn());
+    });
+
+    act(() => {
+      window.dispatchEvent(new CustomEvent(TERMINAL_FOCUS_ACTIVE_EVENT));
+    });
+
+    expect(terminal.focus).toHaveBeenCalledTimes(1);
   });
 });

@@ -11,6 +11,8 @@ const mockGetSessions = vi.fn();
 const mockListGitClones = vi.fn();
 const mockResolveGitCloneTerminal = vi.fn();
 const mockSetActiveTerminal = vi.fn();
+const mockRegister = vi.fn();
+const mockUnregister = vi.fn();
 const terminalProps = new Map<
   string,
   {
@@ -88,7 +90,9 @@ vi.mock("@/lib/actions/workspaces", () => ({
 
 vi.mock("@/hooks/useKeybindings", () => ({
   useKeybindings: (): Partial<KeybindingContextValue> => ({
+    register: mockRegister,
     setActiveTerminal: mockSetActiveTerminal,
+    unregister: mockUnregister,
   }),
 }));
 
@@ -146,6 +150,8 @@ vi.mock("lucide-react", () => ({
   AlertCircle: () => <span data-testid="icon-alert" />,
   Loader2: () => <span data-testid="icon-loader" />,
   Plus: () => <span data-testid="icon-plus" />,
+  Search: () => <span data-testid="icon-search" />,
+  X: () => <span data-testid="icon-x" />,
 }));
 
 import { MultiSessionWorkspace } from "@/components/workspaces/MultiSessionWorkspace";
@@ -239,15 +245,30 @@ describe("MultiSessionWorkspace", () => {
     expect(screen.getByTestId("active-pane-label")).toHaveTextContent("main-session");
   });
 
-  it("switches active pane with Ctrl/Cmd arrow keys", async () => {
+  it("switches active pane with Ctrl/Cmd arrow keys and focuses xterm", async () => {
     await renderTwoSessionWorkspace();
     const workspace = screen.getByTestId("multi-session-workspace");
+    const devTerm = makeTerminal("dev-server");
+    const devSend = makeSender("dev-server");
+
+    act(() => {
+      terminalProps.get("dev-server")?.onTerminalReady?.(devTerm, devSend);
+    });
 
     fireEvent.keyDown(workspace, { key: "ArrowRight", ctrlKey: true });
     expect(screen.getByTestId("active-pane-label")).toHaveTextContent("dev-server");
+    expect(devTerm.focus).toHaveBeenCalled();
 
     fireEvent.keyDown(workspace, { key: "ArrowLeft", metaKey: true });
     expect(screen.getByTestId("active-pane-label")).toHaveTextContent("main-session");
+
+    const nextBinding = mockRegister.mock.calls
+      .filter(([entry]) => entry.id === "multi-session:ws-1:next-pane")
+      .at(-1)?.[0];
+    act(() => {
+      expect(nextBinding.action(null, null)).toBe(false);
+    });
+    expect(screen.getByTestId("active-pane-label")).toHaveTextContent("dev-server");
   });
 
   it("moves panes with compact controls and persists order without terminal contents", async () => {
@@ -309,30 +330,29 @@ describe("MultiSessionWorkspace", () => {
     expect(screen.queryByTestId("create-session-button")).not.toBeInTheDocument();
   });
 
-  it("loads Git clone terminals through the resolver and passes clone proof to each pane", async () => {
+  it("starts Git workspaces empty, adds searched repositories, and persists selected clone refs", async () => {
     mockListGitClones.mockResolvedValueOnce({
       data: {
         ok: true,
         tree: {
           nodes: [
             {
-              id: "dir-kethalia",
-              kind: "directory",
-              label: "kethalia",
-              relativePath: "kethalia",
-              relativePathSegments: ["kethalia"],
-              displaySegments: ["Git", "home", "kethalia"],
-              children: [
-                {
-                  id: "repo-hive",
-                  kind: "repository",
-                  label: "hive",
-                  relativePath: "kethalia/hive",
-                  relativePathSegments: ["kethalia", "hive"],
-                  displaySegments: ["Git", "home", "kethalia", "hive"],
-                  cloneSessionKey: "git-clone:kethalia/hive",
-                },
-              ],
+              id: "repo-hive",
+              kind: "repository",
+              label: "hive",
+              relativePath: "kethalia/hive",
+              relativePathSegments: ["kethalia", "hive"],
+              displaySegments: ["Git", "home", "kethalia", "hive"],
+              cloneSessionKey: "git-clone:kethalia/hive",
+            },
+            {
+              id: "repo-docs",
+              kind: "repository",
+              label: "docs",
+              relativePath: "kethalia/docs",
+              relativePathSegments: ["kethalia", "docs"],
+              displaySegments: ["Git", "home", "kethalia", "docs"],
+              cloneSessionKey: "git-clone:kethalia/docs",
             },
           ],
         },
@@ -349,6 +369,16 @@ describe("MultiSessionWorkspace", () => {
 
     render(<MultiSessionWorkspace {...defaultProps} source="git" />);
 
+    expect(await screen.findByTestId("multi-session-empty")).toBeInTheDocument();
+    expect(mockResolveGitCloneTerminal).not.toHaveBeenCalled();
+
+    fireEvent.change(screen.getByTestId("git-session-search"), { target: { value: "hive" } });
+    expect(screen.getByTestId("git-session-results")).toHaveTextContent("kethalia/hive");
+
+    await act(async () => {
+      fireEvent.click(screen.getByTestId("add-git-session-git-clone:kethalia/hive"));
+    });
+
     expect(await screen.findByTestId("multi-session-workspace")).toHaveAttribute(
       "data-session-source",
       "git",
@@ -362,12 +392,79 @@ describe("MultiSessionWorkspace", () => {
       "data-clone-proof",
       "proof-token",
     );
+    expect(mockResolveGitCloneTerminal).toHaveBeenCalledTimes(1);
     expect(mockResolveGitCloneTerminal).toHaveBeenCalledWith({
       agentId: "agent-1",
       workspaceId: "ws-1",
       cloneSessionKey: "git-clone:kethalia/hive",
       relativePath: "kethalia/hive",
     });
+
+    const stored = window.localStorage.getItem("multi-session-layout:git:ws-1");
+    expect(stored).toContain("git-clone:kethalia/hive");
+    expect(stored).toContain("kethalia/hive");
+    expect(stored).not.toContain("proof-token");
+
+    fireEvent.click(screen.getByTestId("remove-pane-pane-git-clone-safe-hive"));
+    expect(await screen.findByTestId("multi-session-empty")).toBeInTheDocument();
+    expect(window.localStorage.getItem("multi-session-layout:git:ws-1")).not.toContain(
+      "git-clone:kethalia/hive",
+    );
+  });
+
+  it("restores persisted Git workspace selections by resolving fresh clone proofs", async () => {
+    window.localStorage.setItem(
+      "multi-session-layout:git:ws-1",
+      JSON.stringify({
+        version: 1,
+        activeSessionName: "git-clone-safe-hive",
+        panes: [
+          {
+            sessionName: "git-clone-safe-hive",
+            mode: "tiled",
+            order: 0,
+            cloneSessionKey: "git-clone:kethalia/hive",
+            relativePath: "kethalia/hive",
+            label: "kethalia/hive",
+          },
+        ],
+      }),
+    );
+    mockListGitClones.mockResolvedValueOnce({
+      data: {
+        ok: true,
+        tree: {
+          nodes: [
+            {
+              id: "repo-hive",
+              kind: "repository",
+              label: "hive",
+              relativePath: "kethalia/hive",
+              relativePathSegments: ["kethalia", "hive"],
+              displaySegments: ["Git", "home", "kethalia", "hive"],
+              cloneSessionKey: "git-clone:kethalia/hive",
+            },
+          ],
+        },
+      },
+    });
+    mockResolveGitCloneTerminal.mockResolvedValueOnce({
+      data: {
+        sessionName: "git-clone-safe-hive",
+        clonePath: "kethalia/hive",
+        cloneSessionKey: "git-clone:kethalia/hive",
+        cloneProof: "fresh-proof-token",
+      },
+    });
+
+    render(<MultiSessionWorkspace {...defaultProps} source="git" />);
+
+    expect(await screen.findByTestId("interactive-terminal-git-clone-safe-hive")).toHaveAttribute(
+      "data-clone-proof",
+      "fresh-proof-token",
+    );
+    expect(screen.getByTestId("active-pane-label")).toHaveTextContent("kethalia/hive");
+    expect(mockResolveGitCloneTerminal).toHaveBeenCalledTimes(1);
   });
 
   it("surfaces sanitized load and create failures", async () => {

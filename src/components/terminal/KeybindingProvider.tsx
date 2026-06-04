@@ -1,14 +1,15 @@
 "use client";
 
-import * as React from "react";
 import type { Terminal } from "@xterm/xterm";
+import * as React from "react";
 import {
   KeybindingContext,
-  normalizeKeyCombo,
   type KeybindingContextValue,
   type KeybindingEntry,
+  normalizeKeyCombo,
 } from "@/hooks/useKeybindings";
 import { copyTerminalSelection } from "@/lib/terminal/actions";
+import { TERMINAL_FOCUS_ACTIVE_EVENT } from "@/lib/terminal/events";
 
 export function KeybindingProvider({ children }: { children: React.ReactNode }) {
   const registryRef = React.useRef<Map<string, KeybindingEntry>>(new Map());
@@ -71,6 +72,17 @@ export function KeybindingProvider({ children }: { children: React.ReactNode }) 
     }),
     [register, unregister, getAll, handleKeyEvent, activeTerminal, activeSend, setActiveTerminal],
   );
+
+  React.useEffect(() => {
+    const handleFocusActiveTerminal = () => {
+      window.requestAnimationFrame(() => {
+        activeTerminal?.focus();
+      });
+    };
+
+    window.addEventListener(TERMINAL_FOCUS_ACTIVE_EVENT, handleFocusActiveTerminal);
+    return () => window.removeEventListener(TERMINAL_FOCUS_ACTIVE_EVENT, handleFocusActiveTerminal);
+  }, [activeTerminal]);
 
   React.useEffect(() => {
     register({
