@@ -15,6 +15,7 @@ import {
 import { CommandPalette } from "@/components/terminal/CommandPalette";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
+import { SidebarTrigger } from "@/components/ui/sidebar";
 import {
   Dialog,
   DialogContent,
@@ -1379,6 +1380,7 @@ export function MultiSessionWorkspace({
       onKeyDown={handleWorkspaceKeyDown}
     >
       <header className="shrink-0 flex flex-wrap items-center gap-1 border-b border-border px-2 py-1.5">
+        <SidebarTrigger className="h-7 min-h-0 shrink-0" />
         <div className="min-w-0 flex-1">
           <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Active pane</p>
           <p className="truncate font-mono text-xs" data-testid="active-pane-label">

@@ -110,6 +110,14 @@ vi.mock("@/components/terminal/CommandPalette", () => ({
     open ? <div data-testid="multi-session-command-palette" /> : null,
 }));
 
+vi.mock("@/components/ui/sidebar", () => ({
+  SidebarTrigger: ({ className }: { className?: string }) => (
+    <button type="button" className={className} data-testid="workspace-sidebar-trigger">
+      Toggle sidebar
+    </button>
+  ),
+}));
+
 vi.mock("@/components/ui/button", () => ({
   Button: ({
     children,
@@ -239,6 +247,7 @@ describe("MultiSessionWorkspace", () => {
     await renderTwoSessionWorkspace();
 
     expect(screen.getByTestId("multi-session-pane-count")).toHaveTextContent("2");
+    expect(screen.getByTestId("workspace-sidebar-trigger")).toHaveClass("h-7", "shrink-0");
     expect(screen.getByTestId("interactive-terminal-main-session")).toHaveAttribute(
       "data-agent-id",
       "agent-1",

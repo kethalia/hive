@@ -6,8 +6,7 @@ interface WorkspaceTerminalPageProps {
   params: Promise<{ id: string }>;
 }
 
-const WORKSPACE_TERMINAL_SHELL_CLASS_NAME =
-  "-mx-6 h-[calc(var(--app-viewport-height)-var(--safe-area-inset-top)-3.5rem)] min-h-0 w-[calc(100%+3rem)] overflow-hidden md:h-[calc(var(--app-viewport-height)-var(--safe-area-inset-top)-var(--safe-area-inset-bottom)-5rem)]";
+const WORKSPACE_TERMINAL_SHELL_CLASS_NAME = "h-full min-h-0 w-full overflow-hidden";
 
 export default async function WorkspaceTerminalPage({ params }: WorkspaceTerminalPageProps) {
   const { id: workspaceId } = await params;
@@ -18,11 +17,13 @@ export default async function WorkspaceTerminalPage({ params }: WorkspaceTermina
   }
 
   return (
-    <MultiSessionWorkspace
-      agentId={agentResult.data.agentId}
-      workspaceId={workspaceId}
-      source="unified"
-      className={WORKSPACE_TERMINAL_SHELL_CLASS_NAME}
-    />
+    <div className="h-full min-h-0 w-full overflow-hidden" data-dashboard-full-bleed="">
+      <MultiSessionWorkspace
+        agentId={agentResult.data.agentId}
+        workspaceId={workspaceId}
+        source="unified"
+        className={WORKSPACE_TERMINAL_SHELL_CLASS_NAME}
+      />
+    </div>
   );
 }

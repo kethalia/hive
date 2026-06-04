@@ -166,6 +166,26 @@
   padding-bottom: var(--safe-area-inset-bottom);
 }
 
+@layer components {
+  [data-dashboard-main]:has([data-dashboard-full-bleed]) {
+    padding: 0;
+  }
+
+  [data-dashboard-content-row]:has([data-dashboard-full-bleed]) {
+    height: 100%;
+    align-items: stretch;
+    gap: 0;
+  }
+
+  [data-dashboard-content-row]:has([data-dashboard-full-bleed]) [data-dashboard-sidebar-trigger] {
+    display: none;
+  }
+
+  [data-dashboard-content]:has([data-dashboard-full-bleed]) {
+    height: 100%;
+  }
+}
+
 @layer base {
   * {
     @apply border-border outline-ring/50;

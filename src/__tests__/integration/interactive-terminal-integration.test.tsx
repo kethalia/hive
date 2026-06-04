@@ -202,6 +202,14 @@ vi.mock("next/navigation", () => ({
   useSearchParams: () => new URLSearchParams(navigationState.search),
 }));
 
+vi.mock("@/components/ui/sidebar", () => ({
+  SidebarTrigger: ({ className }: { className?: string }) => (
+    <button type="button" className={className} data-testid="workspace-sidebar-trigger">
+      Toggle sidebar
+    </button>
+  ),
+}));
+
 vi.mock("@/components/workspaces/MultiSessionWorkspace", () => ({
   MultiSessionWorkspace: (props: {
     agentId: string;
@@ -1042,9 +1050,13 @@ describe("WorkspaceTerminalPage integration — Multi-session route", () => {
     const routeClassName = getByTestId("multi-session-workspace-route").getAttribute(
       "data-class-name",
     );
-    expect(routeClassName).toContain("h-[calc(var(--app-viewport-height)");
+    expect(routeClassName).toContain("h-full");
     expect(routeClassName).toContain("min-h-0");
+    expect(routeClassName).toContain("w-full");
     expect(routeClassName).toContain("overflow-hidden");
+    expect(routeClassName).not.toContain("-mx-6");
+    expect(routeClassName).not.toContain("w-[calc(100%+3rem)]");
+    expect(document.querySelector("[data-dashboard-full-bleed]")).toBeInTheDocument();
     expect(multiSessionRouteMockState.props).toMatchObject({
       agentId: "workspace-agent",
       source: "unified",
