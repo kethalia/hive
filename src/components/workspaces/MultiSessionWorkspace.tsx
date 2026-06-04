@@ -1022,25 +1022,6 @@ export function MultiSessionWorkspace({
         <span className="sr-only" data-testid="multi-session-pane-count">
           {sessions.length}
         </span>
-        <nav className="flex max-w-full gap-1 overflow-x-auto" aria-label="Select terminal pane">
-          {layout.panes.map((pane) => {
-            const isActive = pane.sessionName === activeSessionName;
-            return (
-              <Button
-                key={pane.id}
-                type="button"
-                variant={isActive ? "secondary" : "ghost"}
-                size="xs"
-                className="h-7 min-h-0 px-2 text-xs"
-                onMouseEnter={() => selectSession(pane.sessionName)}
-                onClick={() => selectSession(pane.sessionName)}
-                data-testid={`select-pane-${pane.id}`}
-              >
-                {pane.label}
-              </Button>
-            );
-          })}
-        </nav>
         {renderGitRepositoryPicker()}
         <Button
           type="button"

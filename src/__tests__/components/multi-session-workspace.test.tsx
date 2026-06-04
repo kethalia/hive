@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import type { Terminal } from "@xterm/xterm";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import "@testing-library/jest-dom/vitest";
@@ -276,9 +276,9 @@ describe("MultiSessionWorkspace", () => {
 
     fireEvent.click(screen.getByTestId("move-pane-left-pane-dev-server"));
 
-    const labels = within(screen.getByLabelText("Select terminal pane"))
-      .getAllByRole("button")
-      .map((button) => button.textContent);
+    const labels = Array.from(screen.getByTestId("multi-session-grid").children).map((pane) =>
+      pane.getAttribute("aria-label")?.replace("Terminal pane ", ""),
+    );
     expect(labels).toEqual(["dev-server", "main-session"]);
     expect(screen.getByTestId("active-pane-label")).toHaveTextContent("dev-server");
 
@@ -302,9 +302,9 @@ describe("MultiSessionWorkspace", () => {
 
     await renderTwoSessionWorkspace();
 
-    const labels = within(screen.getByLabelText("Select terminal pane"))
-      .getAllByRole("button")
-      .map((button) => button.textContent);
+    const labels = Array.from(screen.getByTestId("multi-session-grid").children).map((pane) =>
+      pane.getAttribute("aria-label")?.replace("Terminal pane ", ""),
+    );
     expect(labels).toEqual(["dev-server", "main-session"]);
     expect(screen.getByTestId("active-pane-label")).toHaveTextContent("dev-server");
   });
