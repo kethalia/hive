@@ -18,6 +18,10 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useIsMobile } from "@/hooks/use-mobile";
+import {
+  isTerminalHelperTextAreaTarget,
+  isTextEntryEventTarget,
+} from "@/lib/keyboard-event-targets";
 import { TERMINAL_FOCUS_ACTIVE_EVENT } from "@/lib/terminal/events";
 import { cn } from "@/lib/utils";
 
@@ -100,6 +104,9 @@ function SidebarProvider({
   React.useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === SIDEBAR_KEYBOARD_SHORTCUT && (event.metaKey || event.ctrlKey)) {
+        if (isTextEntryEventTarget(event.target)) {
+          if (!isTerminalHelperTextAreaTarget(event.target) || event.ctrlKey) return;
+        }
         event.preventDefault();
         toggleSidebar();
       }

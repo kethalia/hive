@@ -30,8 +30,9 @@ import {
   type NavigationFavoriteDto,
 } from "@/lib/actions/navigation-favorites";
 import { createSessionAction, getWorkspaceSessionsAction } from "@/lib/actions/workspaces";
-import { formatShortcut } from "@/lib/keyboard-shortcuts";
 import type { GitCloneTerminalIdentity, PublicCloneTree } from "@/lib/git/clone-actions-contract";
+import { isTextEntryEventTarget } from "@/lib/keyboard-event-targets";
+import { formatShortcut } from "@/lib/keyboard-shortcuts";
 import type { CloneTreeNode, CloneTreeRepositoryNode } from "@/lib/git/clone-tree";
 import { cn } from "@/lib/utils";
 import {
@@ -330,14 +331,6 @@ function moveByIndex<T>(values: readonly T[], fromIndex: number, toIndex: number
   if (item === undefined) return [...values];
   next.splice(safeToIndex, 0, item);
   return next;
-}
-
-function isTextEntryElement(element: Element | null): boolean {
-  if (!(element instanceof HTMLElement)) return false;
-  if (element.isContentEditable) return true;
-
-  const tagName = element.tagName.toLowerCase();
-  return tagName === "input" || tagName === "textarea" || tagName === "select";
 }
 
 async function loadWorkspaceSessions(workspaceId: string): Promise<SessionLoadResult> {
@@ -675,10 +668,9 @@ export function MultiSessionWorkspace({
 
   const handleWorkspaceKeyDown = useCallback(
     (event: ReactKeyboardEvent<HTMLElement>) => {
-      const target = event.target instanceof Element ? event.target : null;
       if (!(event.ctrlKey || event.metaKey)) return;
       if (event.altKey || event.shiftKey) return;
-      if (isTextEntryElement(target)) return;
+      if (isTextEntryEventTarget(event.target)) return;
 
       if (event.key === "ArrowLeft" || event.key === "ArrowUp") {
         event.preventDefault();

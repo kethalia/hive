@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { act, cleanup, render, waitFor } from "@testing-library/react";
 import type { Terminal } from "@xterm/xterm";
+import type * as React from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { KeybindingProvider } from "@/components/terminal/KeybindingProvider";
 import type { KeybindingContextValue } from "@/hooks/useKeybindings";
@@ -21,7 +22,7 @@ describe("KeybindingProvider", () => {
     vi.restoreAllMocks();
   });
 
-  function renderWithProbe() {
+  function renderWithProbe(children?: React.ReactNode) {
     let context: KeybindingContextValue | null = null;
 
     function Probe() {
@@ -32,6 +33,7 @@ describe("KeybindingProvider", () => {
     render(
       <KeybindingProvider>
         <Probe />
+        {children}
       </KeybindingProvider>,
     );
 
@@ -77,6 +79,64 @@ describe("KeybindingProvider", () => {
     const event = makeKeyEvent({ key: "k", metaKey: true, bubbles: true, cancelable: true });
     act(() => {
       window.dispatchEvent(event);
+    });
+
+    expect(action).toHaveBeenCalledTimes(1);
+    expect(event.defaultPrevented).toBe(true);
+  });
+
+  it("does not capture global shortcuts from ordinary text-entry fields", async () => {
+    const action = vi.fn(() => false);
+    const probe = renderWithProbe(<input aria-label="Search sessions" />);
+
+    act(() => {
+      probe.context?.register({
+        id: "command-palette",
+        keys: ["ctrl+k", "cmd+k"],
+        action,
+        description: "Open command palette",
+        category: "terminal",
+        enabledInBrowser: true,
+        global: true,
+      });
+    });
+
+    const input = document.querySelector("input");
+    expect(input).not.toBeNull();
+    const event = makeKeyEvent({ key: "k", metaKey: true, bubbles: true, cancelable: true });
+    act(() => {
+      input?.dispatchEvent(event);
+    });
+
+    expect(action).not.toHaveBeenCalled();
+    expect(event.defaultPrevented).toBe(false);
+  });
+
+  it("still captures global shortcuts from the xterm helper textarea", async () => {
+    const action = vi.fn(() => false);
+    const probe = renderWithProbe(
+      <div className="xterm">
+        <textarea aria-label="Terminal input" className="xterm-helper-textarea" />
+      </div>,
+    );
+
+    act(() => {
+      probe.context?.register({
+        id: "command-palette",
+        keys: ["ctrl+k", "cmd+k"],
+        action,
+        description: "Open command palette",
+        category: "terminal",
+        enabledInBrowser: true,
+        global: true,
+      });
+    });
+
+    const textarea = document.querySelector("textarea");
+    expect(textarea).not.toBeNull();
+    const event = makeKeyEvent({ key: "k", metaKey: true, bubbles: true, cancelable: true });
+    act(() => {
+      textarea?.dispatchEvent(event);
     });
 
     expect(action).toHaveBeenCalledTimes(1);

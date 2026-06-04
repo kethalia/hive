@@ -8,6 +8,10 @@ import {
   type KeybindingEntry,
   normalizeKeyCombo,
 } from "@/hooks/useKeybindings";
+import {
+  isTerminalHelperTextAreaTarget,
+  isTextEntryEventTarget,
+} from "@/lib/keyboard-event-targets";
 import { copyTerminalSelection } from "@/lib/terminal/actions";
 import { TERMINAL_FOCUS_ACTIVE_EVENT } from "@/lib/terminal/events";
 import { isPwaStandalone } from "@/lib/terminal/pwa";
@@ -79,6 +83,9 @@ export function KeybindingProvider({ children }: { children: React.ReactNode }) 
       const combo = normalizeKeyCombo(event);
       const entry = registryRef.current.get(combo);
       if (!entry?.global) return;
+      if (isTextEntryEventTarget(event.target) && !isTerminalHelperTextAreaTarget(event.target)) {
+        return;
+      }
       if (!entry.enabledInBrowser && !isPwaStandalone()) return;
 
       const shouldContinue = entry.action(activeTerminal, activeSend);

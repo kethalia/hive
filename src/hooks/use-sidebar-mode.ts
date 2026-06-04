@@ -16,12 +16,8 @@ function persistFloatingVariant() {
   }
 }
 
-function readVariant(): SidebarVariant {
-  return DEFAULT_VARIANT;
-}
-
 export function useSidebarMode(): [SidebarVariant, (_floating: boolean) => void] {
-  const [variant, setVariant] = useState<SidebarVariant>(readVariant);
+  const [variant, setVariant] = useState<SidebarVariant>(DEFAULT_VARIANT);
 
   useEffect(() => {
     persistFloatingVariant();
