@@ -4,6 +4,7 @@ import { AlertCircle, Loader2, Monitor, Plus, TerminalSquare } from "lucide-reac
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { type FormEvent, useCallback, useEffect, useState } from "react";
+import { useRegisterKeybinding } from "@/hooks/useKeybindings";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -67,14 +68,6 @@ function isWorkspaceTemplateOption(value: unknown): value is WorkspaceTemplateOp
     "updatedAt" in value &&
     typeof value.updatedAt === "string"
   );
-}
-
-function isTextEntryElement(element: Element | null): boolean {
-  if (!(element instanceof HTMLElement)) return false;
-  if (element.isContentEditable) return true;
-
-  const tagName = element.tagName.toLowerCase();
-  return tagName === "input" || tagName === "textarea" || tagName === "select";
 }
 
 function terminalHref(workspaceId: string): string {
@@ -206,20 +199,18 @@ export function WorkspaceListContent({ workspaces, error }: WorkspaceListContent
     setCreateOpen(true);
   }, []);
 
-  useEffect(() => {
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (!(event.ctrlKey || event.metaKey)) return;
-      if (event.altKey || event.shiftKey) return;
-      if (event.key.toLowerCase() !== "n") return;
-      if (isTextEntryElement(event.target instanceof Element ? event.target : null)) return;
-
-      event.preventDefault();
+  useRegisterKeybinding({
+    id: "workspace:create",
+    keys: [...CREATE_WORKSPACE_SHORTCUT_KEYS],
+    action: () => {
       openCreateDialog();
-    };
-
-    window.addEventListener("keydown", handleKeyDown, { capture: true });
-    return () => window.removeEventListener("keydown", handleKeyDown, { capture: true });
-  }, [openCreateDialog]);
+      return false;
+    },
+    description: "Create workspace",
+    category: "workspace",
+    enabledInBrowser: true,
+    global: true,
+  });
 
   useEffect(() => {
     if (!createOpen || templates.length > 0) return;

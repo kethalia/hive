@@ -1,5 +1,8 @@
 import { getTerminalSettingsAction } from "@/lib/actions/user-settings";
-import type { TerminalSettingsDto } from "@/lib/actions/user-settings-contract";
+import {
+  terminalSettingsDtoSchema,
+  type TerminalSettingsDto,
+} from "@/lib/actions/user-settings-contract";
 import { getWorkspaceAgentAction } from "@/lib/actions/workspaces";
 import { StaleEntryAlert } from "./stale-entry-alert";
 import { TerminalClient } from "./terminal-client";
@@ -9,9 +12,7 @@ interface TerminalPageProps {
 }
 
 function isTerminalSettingsDto(value: unknown): value is TerminalSettingsDto {
-  if (!value || typeof value !== "object") return false;
-  const candidate = value as Partial<TerminalSettingsDto>;
-  return typeof candidate.terminalControlsBeyondMobile === "boolean";
+  return terminalSettingsDtoSchema.safeParse(value).success;
 }
 
 async function getTerminalControlsBeyondMobile(): Promise<boolean> {

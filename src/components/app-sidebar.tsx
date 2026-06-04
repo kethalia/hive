@@ -74,7 +74,10 @@ import {
   getTerminalSettingsAction,
   updateTerminalSettingsAction,
 } from "@/lib/actions/user-settings";
-import type { TerminalSettingsDto } from "@/lib/actions/user-settings-contract";
+import {
+  terminalSettingsDtoSchema,
+  type TerminalSettingsDto,
+} from "@/lib/actions/user-settings-contract";
 import {
   createSessionAction,
   getWorkspaceAgentAction,
@@ -160,9 +163,7 @@ const TERMINAL_CONTROLS_SWITCH_DESCRIPTION_ID = `${TERMINAL_CONTROLS_SWITCH_ID}-
 const TERMINAL_CONTROLS_SWITCH_ERROR_ID = `${TERMINAL_CONTROLS_SWITCH_ID}-error`;
 
 function isTerminalSettingsDto(value: unknown): value is TerminalSettingsDto {
-  if (!value || typeof value !== "object") return false;
-  const candidate = value as Partial<TerminalSettingsDto>;
-  return typeof candidate.terminalControlsBeyondMobile === "boolean";
+  return terminalSettingsDtoSchema.safeParse(value).success;
 }
 
 function isGitCloneTerminalIdentity(value: unknown): value is GitCloneTerminalIdentity {

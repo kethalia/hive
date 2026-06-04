@@ -8,6 +8,7 @@ import "@testing-library/jest-dom/vitest";
 
 import { WorkspaceListContent } from "@/app/(dashboard)/workspaces/workspace-list-content";
 import { WorkspaceListPoller } from "@/app/(dashboard)/workspaces/workspace-list-poller";
+import { KeybindingProvider } from "@/components/terminal/KeybindingProvider";
 import type { CoderWorkspace, WorkspaceBuildStatus } from "@/lib/coder/types";
 import { PULL_REFRESH_TRIGGER_PX } from "@/lib/gestures/conventions";
 
@@ -194,7 +195,11 @@ describe("workspaces mobile list", () => {
       ],
     });
 
-    render(<WorkspaceListContent workspaces={[makeWorkspace()]} />);
+    render(
+      <KeybindingProvider>
+        <WorkspaceListContent workspaces={[makeWorkspace()]} />
+      </KeybindingProvider>,
+    );
 
     fireEvent.click(screen.getByTestId("open-create-workspace-modal"));
     expect(await screen.findByTestId("create-workspace-modal")).toHaveTextContent("Add workspace");
