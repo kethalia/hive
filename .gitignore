@@ -47,6 +47,7 @@ templates/**/.terraform/
 .gsd
 .gsd-id
 .bg-shell/
+.artifacts/
 .playwright-mcp
 .gsd/browser-state/
 .gsd/browser-baselines/
