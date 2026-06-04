@@ -112,6 +112,51 @@ describe("KeybindingProvider", () => {
     expect(event.defaultPrevented).toBe(false);
   });
 
+  it("does not capture global shortcuts from contenteditable fields", async () => {
+    const action = vi.fn(() => false);
+    const probe = renderWithProbe(
+      <div>
+        <div data-testid="plain-editor" />
+        <div contentEditable="plaintext-only" data-testid="plaintext-editor" />
+      </div>,
+    );
+
+    act(() => {
+      probe.context?.register({
+        id: "command-palette",
+        keys: ["ctrl+k", "cmd+k"],
+        action,
+        description: "Open command palette",
+        category: "terminal",
+        enabledInBrowser: true,
+        global: true,
+      });
+    });
+
+    const plainEditor = document.querySelector('[data-testid="plain-editor"]');
+    const plaintextEditor = document.querySelector('[data-testid="plaintext-editor"]');
+    expect(plainEditor).not.toBeNull();
+    expect(plaintextEditor).not.toBeNull();
+    plainEditor?.setAttribute("contenteditable", "");
+
+    const plainEvent = makeKeyEvent({ key: "k", metaKey: true, bubbles: true, cancelable: true });
+    const plaintextEvent = makeKeyEvent({
+      key: "k",
+      metaKey: true,
+      bubbles: true,
+      cancelable: true,
+    });
+
+    act(() => {
+      plainEditor?.dispatchEvent(plainEvent);
+      plaintextEditor?.dispatchEvent(plaintextEvent);
+    });
+
+    expect(action).not.toHaveBeenCalled();
+    expect(plainEvent.defaultPrevented).toBe(false);
+    expect(plaintextEvent.defaultPrevented).toBe(false);
+  });
+
   it("still captures global shortcuts from the xterm helper textarea", async () => {
     const action = vi.fn(() => false);
     const probe = renderWithProbe(
