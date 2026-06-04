@@ -3,6 +3,7 @@
 import type { Terminal } from "@xterm/xterm";
 import { AlertCircle, Loader2, Minus, Plus, Search, TerminalSquare, X } from "lucide-react";
 import dynamic from "next/dynamic";
+import { useRouter } from "next/navigation";
 import {
   type CSSProperties,
   type KeyboardEvent as ReactKeyboardEvent,
@@ -12,7 +13,7 @@ import {
   useRef,
   useState,
 } from "react";
-import { CommandPalette } from "@/components/terminal/CommandPalette";
+import { CommandPalette, type CommandPaletteAction } from "@/components/terminal/CommandPalette";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { SidebarTrigger } from "@/components/ui/sidebar";
@@ -32,6 +33,7 @@ import {
 } from "@/lib/actions/navigation-favorites";
 import { createSessionAction, getWorkspaceSessionsAction } from "@/lib/actions/workspaces";
 import type { GitCloneTerminalIdentity, PublicCloneTree } from "@/lib/git/clone-actions-contract";
+import { SAFE_IDENTIFIER_RE } from "@/lib/constants";
 import { isTextEntryEventTarget } from "@/lib/keyboard-event-targets";
 import { formatShortcut } from "@/lib/keyboard-shortcuts";
 import type { CloneTreeNode, CloneTreeRepositoryNode } from "@/lib/git/clone-tree";
@@ -117,7 +119,6 @@ type LayoutPersistenceNotice = {
   message: string;
 };
 
-const ADD_SESSION_MODAL_SHORTCUT_KEYS = ["ctrl+n", "cmd+n"] as const;
 const CREATE_TERMINAL_SESSION_SHORTCUT_KEYS = ["ctrl+shift+n", "cmd+shift+n"] as const;
 
 function isObjectRecord(value: unknown): value is Record<string, unknown> {
@@ -418,6 +419,7 @@ export function MultiSessionWorkspace({
   className,
   source = "workspace",
 }: MultiSessionWorkspaceProps) {
+  const router = useRouter();
   const { register, setActiveTerminal, unregister } = useKeybindings();
   const {
     size: fontSize,
@@ -718,35 +720,12 @@ export function MultiSessionWorkspace({
       global: true,
     });
 
-    if (isUnifiedSource) {
-      register({
-        id: `multi-session:${workspaceId}:open-session-search`,
-        keys: [...ADD_SESSION_MODAL_SHORTCUT_KEYS],
-        action: () => {
-          openGitSearchModal();
-          return false;
-        },
-        description: "Open workspace session search",
-        category: "terminal",
-        enabledInBrowser: true,
-        global: true,
-      });
-    }
-
     return () => {
       unregister(`multi-session:${workspaceId}:previous-pane`);
       unregister(`multi-session:${workspaceId}:next-pane`);
       unregister("command-palette");
-      unregister(`multi-session:${workspaceId}:open-session-search`);
     };
-  }, [
-    focusRelativeSession,
-    isUnifiedSource,
-    openGitSearchModal,
-    register,
-    unregister,
-    workspaceId,
-  ]);
+  }, [focusRelativeSession, register, unregister, workspaceId]);
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: reloadKey is a manual retry trigger for session loading
   useEffect(() => {
@@ -822,7 +801,7 @@ export function MultiSessionWorkspace({
   }, [gitSearchOpen]);
 
   useEffect(() => {
-    if (!isUnifiedSource || !gitSearchOpen) return;
+    if (!isUnifiedSource || (!gitSearchOpen && !paletteOpen)) return;
 
     let cancelled = false;
     setGitFavoritesLoading(true);
@@ -850,36 +829,92 @@ export function MultiSessionWorkspace({
     return () => {
       cancelled = true;
     };
-  }, [gitSearchOpen, isUnifiedSource, workspaceId]);
+  }, [gitSearchOpen, isUnifiedSource, paletteOpen, workspaceId]);
 
-  const handleCreateSession = useCallback(async (): Promise<boolean> => {
-    if (!canCreateSession) return false;
-    setCreating(true);
-    setCreateFailed(false);
+  const handleCreateSession = useCallback(
+    async (sessionName?: string): Promise<boolean> => {
+      if (!canCreateSession) return false;
+      const trimmedSessionName = sessionName?.trim();
+      const safeSessionName =
+        trimmedSessionName && SAFE_IDENTIFIER_RE.test(trimmedSessionName)
+          ? trimmedSessionName
+          : undefined;
+      setCreating(true);
+      setCreateFailed(false);
 
-    try {
-      const result = await createSessionAction({ workspaceId });
-      const parsed = parseCreateResult(result);
-      if (parsed.status === "failure") {
+      try {
+        const result = await createSessionAction(
+          safeSessionName ? { workspaceId, sessionName: safeSessionName } : { workspaceId },
+        );
+        const parsed = parseCreateResult(result);
+        if (parsed.status === "failure") {
+          setCreateFailed(true);
+          return false;
+        }
+
+        setSessions((current) => {
+          const next = uniqueSessions([...current, parsed.session]);
+          persistSessionOrder(next, parsed.session.sessionName);
+          return next;
+        });
+        selectSession(parsed.session.sessionName);
+        window.dispatchEvent(new CustomEvent("hive:sidebar-refresh", { detail: { workspaceId } }));
+        return true;
+      } catch {
         setCreateFailed(true);
         return false;
+      } finally {
+        setCreating(false);
       }
+    },
+    [persistSessionOrder, selectSession, workspaceId],
+  );
 
-      setSessions((current) => {
-        const next = uniqueSessions([...current, parsed.session]);
-        persistSessionOrder(next, parsed.session.sessionName);
-        return next;
-      });
-      selectSession(parsed.session.sessionName);
-      window.dispatchEvent(new CustomEvent("hive:sidebar-refresh", { detail: { workspaceId } }));
-      return true;
-    } catch {
-      setCreateFailed(true);
-      return false;
-    } finally {
-      setCreating(false);
-    }
-  }, [persistSessionOrder, selectSession, workspaceId]);
+  const openTerminalSessionPage = useCallback(
+    (session: WorkspaceSessionPane) => {
+      const params = new URLSearchParams({ session: session.sessionName });
+      if (session.clonePath && session.cloneProof) {
+        params.set("clonePath", session.clonePath);
+        params.set("cloneProof", session.cloneProof);
+      }
+      router.push(`/workspaces/${encodeURIComponent(workspaceId)}/terminal?${params.toString()}`);
+    },
+    [router, workspaceId],
+  );
+
+  const openGitRepositoryTerminalPage = useCallback(
+    async (repository: GitRepositoryOption) => {
+      setAddingCloneKey(repository.cloneSessionKey);
+      setGitAddFailed(false);
+
+      try {
+        const identity = unwrapActionData(
+          await resolveGitCloneTerminalAction({
+            agentId,
+            workspaceId,
+            cloneSessionKey: repository.cloneSessionKey,
+            relativePath: repository.relativePath,
+          }),
+        );
+        if (!isGitCloneTerminalIdentity(identity)) {
+          setGitAddFailed(true);
+          return;
+        }
+
+        const params = new URLSearchParams({
+          session: identity.sessionName,
+          clonePath: identity.clonePath,
+          cloneProof: identity.cloneProof,
+        });
+        router.push(`/workspaces/${encodeURIComponent(workspaceId)}/terminal?${params.toString()}`);
+      } catch {
+        setGitAddFailed(true);
+      } finally {
+        setAddingCloneKey(null);
+      }
+    },
+    [agentId, router, workspaceId],
+  );
 
   useEffect(() => {
     register({
@@ -943,6 +978,116 @@ export function MultiSessionWorkspace({
     },
     [agentId, isUnifiedSource, persistSessionOrder, selectSession, workspaceId],
   );
+
+  const paletteQuery = gitSearchQuery.trim();
+  const paletteQueryLower = paletteQuery.toLowerCase();
+  const paletteMatchesExisting =
+    paletteQueryLower.length > 0 &&
+    (sessions.some(
+      (session) =>
+        session.label.toLowerCase().includes(paletteQueryLower) ||
+        session.sessionName.toLowerCase().includes(paletteQueryLower),
+    ) ||
+      gitRepositories.some(
+        (repository) =>
+          repository.label.toLowerCase().includes(paletteQueryLower) ||
+          repository.relativePath.toLowerCase().includes(paletteQueryLower),
+      ));
+
+  const workspacePaletteActions = useMemo<CommandPaletteAction[]>(() => {
+    if (!isUnifiedSource) return [];
+
+    const actions: CommandPaletteAction[] = [];
+    const typedSessionName =
+      paletteQuery.length > 0 && SAFE_IDENTIFIER_RE.test(paletteQuery) ? paletteQuery : undefined;
+    const typedCreateAction: CommandPaletteAction = {
+      id: "workspace:new-terminal-from-query",
+      label: typedSessionName
+        ? `New terminal session named ${typedSessionName}`
+        : "New terminal session in workspace",
+      description: typedSessionName
+        ? "Create and focus this session in the workspace"
+        : "Create and focus a plain terminal session in the workspace",
+      group: "Actions",
+      value: `${paletteQuery} new terminal session workspace`,
+      shortcut: formatShortcut(CREATE_TERMINAL_SESSION_SHORTCUT_KEYS),
+      icon: "plus",
+      disabled: creating,
+      onSelect: () => void handleCreateSession(typedSessionName),
+    };
+
+    if (!paletteQuery || !paletteMatchesExisting) {
+      actions.push(typedCreateAction);
+    }
+
+    for (const session of sessions.slice(0, 8)) {
+      actions.push({
+        id: `workspace:focus-session:${session.sessionName}`,
+        label: session.label,
+        description: "Focus in this workspace",
+        group: "Terminal sessions",
+        value: `${session.label} ${session.sessionName} focus workspace terminal session`,
+        rightLabel: "Focus",
+        icon: "terminal",
+        onSelect: () => selectSession(session.sessionName),
+      });
+      actions.push({
+        id: `workspace:open-session:${session.sessionName}`,
+        label: `Open ${session.label}`,
+        description: "Open as a single terminal page",
+        group: "Terminal sessions",
+        value: `${session.label} ${session.sessionName} open terminal page`,
+        rightLabel: "Open",
+        icon: "terminal",
+        onSelect: () => openTerminalSessionPage(session),
+      });
+    }
+
+    const repositories = [...favoriteGitRepositories, ...filteredGitRepositories].slice(0, 10);
+    for (const repository of repositories) {
+      if (!openCloneKeys.has(repository.cloneSessionKey)) {
+        actions.push({
+          id: `workspace:add-git:${repository.cloneSessionKey}`,
+          label: `Add ${repository.label}`,
+          description: "Open this Git repository as a workspace pane",
+          group: "Git repositories",
+          value: `${repository.label} ${repository.relativePath} add git repository workspace`,
+          rightLabel: addingCloneKey === repository.cloneSessionKey ? "Adding…" : "Workspace",
+          icon: "plus",
+          disabled: addingCloneKey === repository.cloneSessionKey,
+          onSelect: () => void handleAddGitRepository(repository),
+        });
+      }
+      actions.push({
+        id: `workspace:open-git:${repository.cloneSessionKey}`,
+        label: `Open ${repository.label}`,
+        description: "Open this Git repository as a single terminal page",
+        group: "Git repositories",
+        value: `${repository.label} ${repository.relativePath} open git repository terminal`,
+        rightLabel: addingCloneKey === repository.cloneSessionKey ? "Opening…" : "Open",
+        icon: "search",
+        disabled: addingCloneKey === repository.cloneSessionKey,
+        onSelect: () => void openGitRepositoryTerminalPage(repository),
+      });
+    }
+
+    return actions;
+  }, [
+    addingCloneKey,
+    creating,
+    favoriteGitRepositories,
+    filteredGitRepositories,
+    handleAddGitRepository,
+    handleCreateSession,
+    isUnifiedSource,
+    openCloneKeys,
+    openGitRepositoryTerminalPage,
+    openTerminalSessionPage,
+    paletteMatchesExisting,
+    paletteQuery,
+    selectSession,
+    sessions,
+  ]);
 
   const handleRemoveGitSession = useCallback(
     (sessionName: string) => {
@@ -1013,15 +1158,15 @@ export function MultiSessionWorkspace({
         type="button"
         variant="outline"
         size="xs"
-        onClick={openGitSearchModal}
+        onClick={() => setPaletteOpen(true)}
         className="h-7 min-h-0 px-2 text-xs"
-        aria-label="Add workspace session"
+        aria-label="Open workspace command palette"
         data-testid="open-git-session-search"
       >
         <Search className="size-3" />
         Add session
         <span className="ml-1 hidden text-[10px] text-muted-foreground sm:inline">
-          {formatShortcut(ADD_SESSION_MODAL_SHORTCUT_KEYS)}
+          {formatShortcut(["ctrl+k", "cmd+k"])}
         </span>
       </Button>
     );
@@ -1358,11 +1503,18 @@ export function MultiSessionWorkspace({
         <CommandPalette
           open={paletteOpen}
           onOpenChange={setPaletteOpen}
-          tabs={commandPaletteTabs}
+          tabs={isUnifiedSource ? [] : commandPaletteTabs}
           onSelectTab={handlePaletteSelect}
-          onCreateSession={() => void handleCreateSession()}
-          searchPlaceholder="Search workspace sessions…"
-          emptyText="No workspace sessions found."
+          onCreateSession={isUnifiedSource ? undefined : () => void handleCreateSession()}
+          actions={workspacePaletteActions}
+          searchValue={isUnifiedSource ? gitSearchQuery : undefined}
+          onSearchValueChange={isUnifiedSource ? setGitSearchQuery : undefined}
+          searchPlaceholder={
+            isUnifiedSource
+              ? "Search terminal sessions, Git repositories, or type a new session name…"
+              : "Search workspace sessions…"
+          }
+          emptyText={isUnifiedSource ? "No command matches." : "No workspace sessions found."}
           groupHeading="Workspace sessions"
         />
       </div>
@@ -1396,11 +1548,18 @@ export function MultiSessionWorkspace({
         <CommandPalette
           open={paletteOpen}
           onOpenChange={setPaletteOpen}
-          tabs={commandPaletteTabs}
+          tabs={isUnifiedSource ? [] : commandPaletteTabs}
           onSelectTab={handlePaletteSelect}
-          onCreateSession={() => void handleCreateSession()}
-          searchPlaceholder="Search workspace sessions…"
-          emptyText="No workspace sessions found."
+          onCreateSession={isUnifiedSource ? undefined : () => void handleCreateSession()}
+          actions={workspacePaletteActions}
+          searchValue={isUnifiedSource ? gitSearchQuery : undefined}
+          onSearchValueChange={isUnifiedSource ? setGitSearchQuery : undefined}
+          searchPlaceholder={
+            isUnifiedSource
+              ? "Search terminal sessions, Git repositories, or type a new session name…"
+              : "Search workspace sessions…"
+          }
+          emptyText={isUnifiedSource ? "No command matches." : "No workspace sessions found."}
           groupHeading="Workspace sessions"
         />
         <Button

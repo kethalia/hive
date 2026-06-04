@@ -1,11 +1,12 @@
 import { Suspense } from "react";
 import { AppSidebar } from "@/components/app-sidebar";
+import { DashboardSidebarTrigger } from "@/components/dashboard-sidebar-trigger";
 import { PushPermissionPrompt } from "@/components/push-permission-prompt";
 import { SidebarEdgeHandle } from "@/components/sidebar-edge-handle";
 import { HelpOverlay } from "@/components/terminal/HelpOverlay";
 import KeybindingProvider from "@/components/terminal/KeybindingProvider";
 import { TokenExpiryBanner } from "@/components/token-expiry-banner";
-import { SidebarInset, SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
+import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { getTokenStatusAction } from "@/lib/auth/actions";
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
@@ -27,7 +28,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
               className="flex min-h-0 w-full flex-1 items-start gap-2"
               data-dashboard-content-row=""
             >
-              <SidebarTrigger className="mt-1 shrink-0" data-dashboard-sidebar-trigger="" />
+              <DashboardSidebarTrigger />
               <div className="min-w-0 flex-1" data-dashboard-content="">
                 {bannerStatus?.data && <TokenExpiryBanner status={bannerStatus.data} />}
                 <PushPermissionPrompt />

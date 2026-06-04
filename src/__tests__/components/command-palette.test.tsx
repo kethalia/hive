@@ -35,6 +35,7 @@ vi.mock("@/lib/utils", () => ({
 vi.mock("lucide-react", () => ({
   Terminal: () => <span data-testid="icon-terminal">⊞</span>,
   Plus: () => <span data-testid="icon-plus">+</span>,
+  Search: () => <span data-testid="icon-search-action">🔎</span>,
   SearchIcon: () => <span data-testid="icon-search">🔍</span>,
 }));
 
@@ -108,8 +109,24 @@ vi.mock("@/components/ui/command", () => {
           {children}
         </div>
       ) : null,
-    CommandInput: ({ placeholder, className }: { placeholder?: string; className?: string }) => (
-      <input data-testid="command-input" placeholder={placeholder} className={className} />
+    CommandInput: ({
+      placeholder,
+      className,
+      value,
+      onValueChange,
+    }: {
+      placeholder?: string;
+      className?: string;
+      value?: string;
+      onValueChange?: (value: string) => void;
+    }) => (
+      <input
+        data-testid="command-input"
+        placeholder={placeholder}
+        className={className}
+        value={value ?? ""}
+        onChange={(event) => onValueChange?.(event.currentTarget.value)}
+      />
     ),
     CommandList: ({ children }: { children: ReactNode }) => (
       <div data-testid="command-list">{children}</div>
@@ -654,6 +671,64 @@ describe("CommandPalette", () => {
 
     expect(onSelectTab).toHaveBeenCalledWith("tab-2");
     expect(onOpenChange).toHaveBeenCalledWith(false);
+  });
+
+  it("renders custom command actions before sessions and closes after selection", () => {
+    const action = vi.fn();
+    const onOpenChange = vi.fn();
+
+    render(
+      <CommandPalette
+        open={true}
+        onOpenChange={onOpenChange}
+        tabs={mockTabs}
+        onSelectTab={vi.fn()}
+        actions={[
+          {
+            id: "workspace:new",
+            label: "New terminal session named api",
+            description: "Create and focus this session in the workspace",
+            group: "Actions",
+            value: "api new terminal session",
+            shortcut: "Ctrl + Shift + N",
+            rightLabel: "Workspace",
+            icon: "plus",
+            onSelect: action,
+          },
+        ]}
+      />,
+    );
+
+    const groups = screen.getAllByTestId(/command-group-/);
+    expect(groups[0]).toHaveAttribute("data-heading", "Actions");
+    expect(screen.getByText("New terminal session named api")).toBeInTheDocument();
+    expect(screen.getByText("Create and focus this session in the workspace")).toBeInTheDocument();
+    expect(screen.getByText("Workspace")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId("command-item-api new terminal session"));
+
+    expect(action).toHaveBeenCalledTimes(1);
+    expect(onOpenChange).toHaveBeenCalledWith(false);
+  });
+
+  it("controls search input value when search props are provided", () => {
+    const onSearchValueChange = vi.fn();
+
+    render(
+      <CommandPalette
+        open={true}
+        onOpenChange={vi.fn()}
+        tabs={mockTabs}
+        onSelectTab={vi.fn()}
+        searchValue="api"
+        onSearchValueChange={onSearchValueChange}
+      />,
+    );
+
+    const input = screen.getByTestId("command-input");
+    expect(input).toHaveValue("api");
+    fireEvent.change(input, { target: { value: "worker" } });
+    expect(onSearchValueChange).toHaveBeenCalledWith("worker");
   });
 
   it("shows 'New Session' command item with shortcut", () => {

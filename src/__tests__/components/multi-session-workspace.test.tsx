@@ -14,6 +14,7 @@ const mockListNavigationFavorites = vi.fn();
 const mockSetActiveTerminal = vi.fn();
 const mockRegister = vi.fn();
 const mockUnregister = vi.fn();
+const mockRouterPush = vi.fn();
 const terminalProps = new Map<
   string,
   {
@@ -27,6 +28,10 @@ const terminalProps = new Map<
     onTerminalDestroy?: () => void;
   }
 >();
+
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ push: mockRouterPush }),
+}));
 
 vi.mock("next/dynamic", () => ({
   __esModule: true,
@@ -106,8 +111,49 @@ vi.mock("@/lib/utils", () => ({
 }));
 
 vi.mock("@/components/terminal/CommandPalette", () => ({
-  CommandPalette: ({ open }: { open: boolean }) =>
-    open ? <div data-testid="multi-session-command-palette" /> : null,
+  CommandPalette: ({
+    open,
+    onOpenChange,
+    actions = [],
+    searchValue = "",
+    onSearchValueChange,
+  }: {
+    open: boolean;
+    onOpenChange?: (open: boolean) => void;
+    actions?: Array<{
+      id: string;
+      label: string;
+      description?: string;
+      rightLabel?: string;
+      onSelect: () => void;
+    }>;
+    searchValue?: string;
+    onSearchValueChange?: (value: string) => void;
+  }) =>
+    open ? (
+      <div data-testid="multi-session-command-palette">
+        <input
+          data-testid="workspace-command-palette-search"
+          value={searchValue}
+          onChange={(event) => onSearchValueChange?.(event.currentTarget.value)}
+        />
+        {actions.map((action) => (
+          <button
+            key={action.id}
+            type="button"
+            data-testid={`palette-action-${action.id}`}
+            onClick={() => {
+              action.onSelect();
+              onOpenChange?.(false);
+            }}
+          >
+            <span>{action.label}</span>
+            {action.description ? <span>{action.description}</span> : null}
+            {action.rightLabel ? <span>{action.rightLabel}</span> : null}
+          </button>
+        ))}
+      </div>
+    ) : null,
 }));
 
 vi.mock("@/components/ui/sidebar", () => ({
@@ -236,6 +282,7 @@ describe("MultiSessionWorkspace", () => {
     window.localStorage.clear();
     mockGetSessions.mockResolvedValue({ data: [] });
     mockListNavigationFavorites.mockResolvedValue({ data: [] });
+    mockRouterPush.mockReset();
   });
 
   afterEach(() => {
@@ -343,7 +390,7 @@ describe("MultiSessionWorkspace", () => {
     expect(screen.getByTestId("active-pane-label")).toHaveTextContent("dev-server");
   });
 
-  it("creates generic workspace sessions while keeping Git source creation inside the add-session modal", async () => {
+  it("creates generic workspace sessions while unified source creation lives in the command palette", async () => {
     await renderTwoSessionWorkspace();
     mockCreateSession.mockResolvedValueOnce({ data: { name: "created-main" } });
 
@@ -364,10 +411,13 @@ describe("MultiSessionWorkspace", () => {
 
     expect(screen.queryByTestId("create-session-button")).not.toBeInTheDocument();
     fireEvent.click(screen.getByTestId("open-git-session-search"));
-    expect(await screen.findByTestId("add-plain-terminal-session")).toBeInTheDocument();
+    expect(await screen.findByTestId("multi-session-command-palette")).toBeInTheDocument();
+    expect(
+      screen.getByTestId("palette-action-workspace:new-terminal-from-query"),
+    ).toHaveTextContent("New terminal session in workspace");
   });
 
-  it("searches terminal sessions and Git repositories from the add-session modal", async () => {
+  it("searches terminal sessions and Git repositories from the command palette", async () => {
     mockGetSessions.mockResolvedValueOnce(twoSessionPayload());
     mockListGitClones.mockResolvedValueOnce({
       data: {
@@ -392,21 +442,57 @@ describe("MultiSessionWorkspace", () => {
     await screen.findByTestId("multi-session-workspace");
 
     fireEvent.click(screen.getByTestId("open-git-session-search"));
-    fireEvent.change(await screen.findByTestId("git-session-search"), {
+    fireEvent.change(await screen.findByTestId("workspace-command-palette-search"), {
       target: { value: "dev" },
     });
 
-    expect(screen.getByTestId("terminal-session-results")).toHaveTextContent("dev-server");
-    expect(screen.getByTestId("terminal-session-results")).toHaveTextContent("Terminal session");
+    expect(
+      screen.getByTestId("palette-action-workspace:focus-session:dev-server"),
+    ).toHaveTextContent("Focus in this workspace");
+    expect(
+      screen.getByTestId("palette-action-workspace:open-session:dev-server"),
+    ).toHaveTextContent("Open as a single terminal page");
 
-    fireEvent.change(screen.getByTestId("git-session-search"), { target: { value: "hive" } });
-    expect(screen.getByTestId("git-session-results")).toHaveTextContent("kethalia/hive");
+    fireEvent.change(screen.getByTestId("workspace-command-palette-search"), {
+      target: { value: "hive" },
+    });
+    expect(
+      screen.getByTestId("palette-action-workspace:add-git:git-clone:kethalia/hive"),
+    ).toHaveTextContent("Open this Git repository as a workspace pane");
+    expect(
+      screen.getByTestId("palette-action-workspace:open-git:git-clone:kethalia/hive"),
+    ).toHaveTextContent("Open this Git repository as a single terminal page");
 
-    fireEvent.change(screen.getByTestId("git-session-search"), { target: { value: "dev" } });
-    fireEvent.click(screen.getByTestId("select-terminal-session-dev-server"));
+    fireEvent.click(screen.getByTestId("palette-action-workspace:focus-session:dev-server"));
 
-    expect(screen.queryByTestId("git-session-search-modal")).not.toBeInTheDocument();
     expect(screen.getByTestId("active-pane-label")).toHaveTextContent("dev-server");
+  });
+
+  it("creates a named workspace terminal from a non-matching command palette query", async () => {
+    mockGetSessions.mockResolvedValueOnce(twoSessionPayload());
+    mockListGitClones.mockResolvedValueOnce({ data: { ok: true, tree: { nodes: [] } } });
+    mockCreateSession.mockResolvedValueOnce({ data: { name: "api-shell" } });
+
+    render(<MultiSessionWorkspace {...defaultProps} source="unified" />);
+    await screen.findByTestId("multi-session-workspace");
+
+    fireEvent.click(screen.getByTestId("open-git-session-search"));
+    fireEvent.change(await screen.findByTestId("workspace-command-palette-search"), {
+      target: { value: "api-shell" },
+    });
+
+    const createAction = screen.getByTestId("palette-action-workspace:new-terminal-from-query");
+    expect(createAction).toHaveTextContent("New terminal session named api-shell");
+
+    await act(async () => {
+      fireEvent.click(createAction);
+    });
+
+    expect(mockCreateSession).toHaveBeenCalledWith({
+      workspaceId: "ws-1",
+      sessionName: "api-shell",
+    });
+    expect(await screen.findByTestId("workspace-pane-api-shell")).toBeInTheDocument();
   });
 
   it("starts Git workspaces empty, adds searched repositories, and persists selected clone refs", async () => {
@@ -450,22 +536,28 @@ describe("MultiSessionWorkspace", () => {
 
     expect(await screen.findByTestId("multi-session-empty")).toBeInTheDocument();
     expect(mockResolveGitCloneTerminal).not.toHaveBeenCalled();
-    expect(screen.queryByTestId("git-session-search")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("workspace-command-palette-search")).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByTestId("open-git-session-search"));
-    expect(await screen.findByTestId("git-session-search-modal")).toBeInTheDocument();
-    fireEvent.change(screen.getByTestId("git-session-search"), { target: { value: "hive" } });
-    expect(screen.getByTestId("git-session-results")).toHaveTextContent("kethalia/hive");
+    expect(await screen.findByTestId("multi-session-command-palette")).toBeInTheDocument();
+    fireEvent.change(screen.getByTestId("workspace-command-palette-search"), {
+      target: { value: "hive" },
+    });
+    expect(
+      screen.getByTestId("palette-action-workspace:add-git:git-clone:kethalia/hive"),
+    ).toHaveTextContent("kethalia/hive");
 
     await act(async () => {
-      fireEvent.click(screen.getByTestId("add-git-session-git-clone:kethalia/hive"));
+      fireEvent.click(
+        screen.getByTestId("palette-action-workspace:add-git:git-clone:kethalia/hive"),
+      );
     });
 
     expect(await screen.findByTestId("multi-session-workspace")).toHaveAttribute(
       "data-session-source",
       "unified",
     );
-    expect(screen.queryByTestId("git-session-search-modal")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("multi-session-command-palette")).not.toBeInTheDocument();
     expect(screen.getByTestId("active-pane-label")).toHaveTextContent("kethalia/hive");
     expect(screen.getByTestId("interactive-terminal-git-clone-safe-hive")).toHaveAttribute(
       "data-clone-path",
@@ -495,7 +587,7 @@ describe("MultiSessionWorkspace", () => {
     );
   });
 
-  it("registers modifier shortcuts for session search and immediate plain terminals", async () => {
+  it("registers command palette and immediate plain terminal shortcuts", async () => {
     mockListGitClones.mockResolvedValueOnce({
       data: {
         ok: true,
@@ -524,16 +616,16 @@ describe("MultiSessionWorkspace", () => {
     expect(paletteBinding.keys).toEqual(["ctrl+k", "cmd+k"]);
     expect(paletteBinding.global).toBe(true);
 
-    const searchBinding = mockRegister.mock.calls
-      .filter(([entry]) => entry.id === "multi-session:ws-1:open-session-search")
-      .at(-1)?.[0];
-    expect(searchBinding.keys).toEqual(["ctrl+n", "cmd+n"]);
-    expect(searchBinding.global).toBe(true);
+    expect(
+      mockRegister.mock.calls.some(
+        ([entry]) => entry.id === "multi-session:ws-1:open-session-search",
+      ),
+    ).toBe(false);
     act(() => {
-      expect(searchBinding.action(null, null)).toBe(false);
+      expect(paletteBinding.action(null, null)).toBe(false);
     });
 
-    expect(await screen.findByTestId("git-session-search-modal")).toBeInTheDocument();
+    expect(await screen.findByTestId("multi-session-command-palette")).toBeInTheDocument();
     expect(mockListNavigationFavorites).toHaveBeenCalledWith({ workspaceId: "ws-1", kind: "git" });
 
     mockCreateSession.mockResolvedValueOnce({ data: { name: "plain-main" } });
@@ -581,12 +673,14 @@ describe("MultiSessionWorkspace", () => {
     render(<MultiSessionWorkspace {...defaultProps} source="unified" />);
     await screen.findByTestId("multi-session-empty");
     fireEvent.click(screen.getByTestId("open-git-session-search"));
-    fireEvent.change(await screen.findByTestId("git-session-search"), {
+    fireEvent.change(await screen.findByTestId("workspace-command-palette-search"), {
       target: { value: "hive" },
     });
 
     await act(async () => {
-      fireEvent.click(await screen.findByTestId("add-git-session-git-clone:kethalia/hive"));
+      fireEvent.click(
+        await screen.findByTestId("palette-action-workspace:add-git:git-clone:kethalia/hive"),
+      );
     });
 
     expect(await screen.findByTestId("git-terminal-font-size-controls")).toHaveTextContent("13px");
@@ -595,7 +689,7 @@ describe("MultiSessionWorkspace", () => {
     expect(localStorage.getItem("terminal:font-size")).toBe("14");
   });
 
-  it("pins Git favorites at the top of the search modal", async () => {
+  it("pins Git favorites at the top of command palette Git actions", async () => {
     mockListGitClones.mockResolvedValueOnce({
       data: {
         ok: true,
@@ -642,15 +736,18 @@ describe("MultiSessionWorkspace", () => {
 
     fireEvent.click(screen.getByTestId("open-git-session-search"));
 
-    const favorites = await screen.findByTestId("git-session-favorites");
     await waitFor(() => {
-      expect(favorites).toHaveTextContent("kethalia/docs");
-      expect(favorites).toHaveTextContent("Pinned favorite · Docs repo");
+      expect(
+        screen.getByTestId("palette-action-workspace:add-git:git-clone:kethalia/docs"),
+      ).toHaveTextContent("kethalia/docs");
     });
 
-    fireEvent.change(screen.getByTestId("git-session-search"), { target: { value: "kethalia" } });
+    fireEvent.change(screen.getByTestId("workspace-command-palette-search"), {
+      target: { value: "kethalia" },
+    });
     const resultButtons = screen
-      .getAllByTestId(/add-git-session-/)
+      .getAllByRole("button")
+      .filter((button) => button.dataset.testid?.startsWith("palette-action-workspace:add-git:"))
       .map((button) => button.textContent);
     expect(resultButtons[0]).toContain("kethalia/docs");
     expect(resultButtons[1]).toContain("kethalia/hive");
