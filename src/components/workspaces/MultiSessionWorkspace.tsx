@@ -14,8 +14,19 @@ import {
 } from "react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { useKeybindings } from "@/hooks/useKeybindings";
 import { listGitClonesAction, resolveGitCloneTerminalAction } from "@/lib/actions/git-clones";
+import {
+  listNavigationFavoritesAction,
+  type NavigationFavoriteDto,
+} from "@/lib/actions/navigation-favorites";
 import { createSessionAction, getWorkspaceSessionsAction } from "@/lib/actions/workspaces";
 import type { GitCloneTerminalIdentity, PublicCloneTree } from "@/lib/git/clone-actions-contract";
 import type { CloneTreeNode, CloneTreeRepositoryNode } from "@/lib/git/clone-tree";
@@ -58,6 +69,10 @@ interface GitRepositoryOption {
   cloneSessionKey: string;
   relativePath: string;
   label: string;
+}
+
+interface GitFavoriteRepositoryOption extends GitRepositoryOption {
+  favoriteLabel: string;
 }
 
 interface TerminalEntry {
@@ -166,6 +181,19 @@ function isGitCloneTerminalIdentity(value: unknown): value is GitCloneTerminalId
 
 function isPublicCloneTree(value: unknown): value is PublicCloneTree {
   return isObjectRecord(value) && Array.isArray(value.nodes);
+}
+
+function isNavigationFavoriteDto(value: unknown): value is NavigationFavoriteDto {
+  return (
+    isObjectRecord(value) &&
+    typeof value.id === "string" &&
+    (value.kind === "terminal" || value.kind === "git") &&
+    typeof value.workspaceId === "string" &&
+    typeof value.targetKey === "string" &&
+    (typeof value.label === "string" || value.label === null) &&
+    (typeof value.relativePath === "string" || value.relativePath === null) &&
+    typeof value.createdAt === "string"
+  );
 }
 
 function flattenRepositoryNodes(nodes: readonly CloneTreeNode[]): CloneTreeRepositoryNode[] {
@@ -383,6 +411,10 @@ export function MultiSessionWorkspace({
   const [creating, setCreating] = useState(false);
   const [createFailed, setCreateFailed] = useState(false);
   const [gitRepositories, setGitRepositories] = useState<GitRepositoryOption[]>([]);
+  const [gitFavorites, setGitFavorites] = useState<NavigationFavoriteDto[]>([]);
+  const [gitFavoritesLoading, setGitFavoritesLoading] = useState(false);
+  const [gitFavoritesFailed, setGitFavoritesFailed] = useState(false);
+  const [gitSearchOpen, setGitSearchOpen] = useState(false);
   const [gitSearchQuery, setGitSearchQuery] = useState("");
   const [addingCloneKey, setAddingCloneKey] = useState<string | null>(null);
   const [gitAddFailed, setGitAddFailed] = useState(false);
@@ -392,6 +424,7 @@ export function MultiSessionWorkspace({
   const terminalsRef = useRef<Map<string, TerminalEntry>>(new Map());
   const activeSessionNameRef = useRef<string | null>(null);
   const workspaceBodyRef = useRef<HTMLDivElement>(null);
+  const gitSearchInputRef = useRef<HTMLInputElement>(null);
   const canCreateSession = source === "workspace";
   const isGitSource = source === "git";
 
@@ -413,17 +446,52 @@ export function MultiSessionWorkspace({
     () => new Set(sessions.map((session) => session.cloneSessionKey).filter(Boolean)),
     [sessions],
   );
+  const favoriteGitRepositories = useMemo(() => {
+    const repositoryByKey = new Map(
+      gitRepositories.map((repository) => [repository.cloneSessionKey, repository]),
+    );
+    const seen = new Set<string>();
+    const query = gitSearchQuery.trim().toLowerCase();
+
+    return gitFavorites.flatMap((favorite): GitFavoriteRepositoryOption[] => {
+      if (favorite.kind !== "git" || favorite.workspaceId !== workspaceId) return [];
+      if (!favorite.relativePath || seen.has(favorite.targetKey)) return [];
+      const repository = repositoryByKey.get(favorite.targetKey);
+      if (!repository || repository.relativePath !== favorite.relativePath) return [];
+      if (openCloneKeys.has(repository.cloneSessionKey)) return [];
+      if (
+        query &&
+        !repository.label.toLowerCase().includes(query) &&
+        !repository.relativePath.toLowerCase().includes(query) &&
+        !(favorite.label ?? "").toLowerCase().includes(query)
+      ) {
+        return [];
+      }
+      seen.add(favorite.targetKey);
+      return [
+        {
+          ...repository,
+          favoriteLabel: favorite.label?.trim() || repository.label,
+        },
+      ];
+    });
+  }, [gitFavorites, gitRepositories, gitSearchQuery, openCloneKeys, workspaceId]);
+  const favoriteCloneKeys = useMemo(
+    () => new Set(favoriteGitRepositories.map((repository) => repository.cloneSessionKey)),
+    [favoriteGitRepositories],
+  );
   const filteredGitRepositories = useMemo(() => {
     const query = gitSearchQuery.trim().toLowerCase();
     return gitRepositories.filter((repository) => {
       if (openCloneKeys.has(repository.cloneSessionKey)) return false;
-      if (!query) return true;
+      if (favoriteCloneKeys.has(repository.cloneSessionKey)) return false;
+      if (!query) return false;
       return (
         repository.label.toLowerCase().includes(query) ||
         repository.relativePath.toLowerCase().includes(query)
       );
     });
-  }, [gitRepositories, gitSearchQuery, openCloneKeys]);
+  }, [favoriteCloneKeys, gitRepositories, gitSearchQuery, openCloneKeys]);
   const layoutPersistenceMessage = buildLayoutPersistenceMessage(
     layoutPersistenceNotice,
     layout.diagnostics,
@@ -542,10 +610,29 @@ export function MultiSessionWorkspace({
     [selectSession, sessions],
   );
 
+  const openGitSearchModal = useCallback(() => {
+    if (!isGitSource) return;
+    setGitSearchOpen(true);
+    setGitAddFailed(false);
+  }, [isGitSource]);
+
+  const closeGitSearchModal = useCallback(() => {
+    setGitSearchOpen(false);
+    setGitSearchQuery("");
+    setGitAddFailed(false);
+  }, []);
+
   const handleWorkspaceKeyDown = useCallback(
     (event: ReactKeyboardEvent<HTMLElement>) => {
       if (!(event.ctrlKey || event.metaKey)) return;
       if (event.altKey || event.shiftKey) return;
+
+      if (isGitSource && event.key.toLowerCase() === "n") {
+        event.preventDefault();
+        openGitSearchModal();
+        return;
+      }
+
       if (isTextEntryElement(event.target instanceof Element ? event.target : null)) return;
 
       if (event.key === "ArrowLeft" || event.key === "ArrowUp") {
@@ -559,7 +646,7 @@ export function MultiSessionWorkspace({
         focusRelativeSession(1);
       }
     },
-    [focusRelativeSession],
+    [focusRelativeSession, isGitSource, openGitSearchModal],
   );
 
   const handleResetLayout = useCallback(() => {
@@ -593,11 +680,42 @@ export function MultiSessionWorkspace({
       enabledInBrowser: true,
     });
 
+    if (isGitSource) {
+      register({
+        id: `multi-session:${workspaceId}:open-git-search`,
+        keys: ["ctrl+n", "cmd+n"],
+        action: () => {
+          openGitSearchModal();
+          return false;
+        },
+        description: "Open Git repository search",
+        category: "terminal",
+        enabledInBrowser: true,
+      });
+    }
+
     return () => {
       unregister(`multi-session:${workspaceId}:previous-pane`);
       unregister(`multi-session:${workspaceId}:next-pane`);
+      unregister(`multi-session:${workspaceId}:open-git-search`);
     };
-  }, [focusRelativeSession, register, unregister, workspaceId]);
+  }, [focusRelativeSession, isGitSource, openGitSearchModal, register, unregister, workspaceId]);
+
+  useEffect(() => {
+    if (!isGitSource) return;
+
+    const handleBrowserNewShortcut = (event: KeyboardEvent) => {
+      if (!(event.ctrlKey || event.metaKey)) return;
+      if (event.altKey || event.shiftKey) return;
+      if (event.key.toLowerCase() !== "n") return;
+      event.preventDefault();
+      event.stopPropagation();
+      openGitSearchModal();
+    };
+
+    window.addEventListener("keydown", handleBrowserNewShortcut, { capture: true });
+    return () => window.removeEventListener("keydown", handleBrowserNewShortcut, { capture: true });
+  }, [isGitSource, openGitSearchModal]);
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: reloadKey is a manual retry trigger for session loading
   useEffect(() => {
@@ -612,6 +730,10 @@ export function MultiSessionWorkspace({
     setSessions([]);
     setActiveSessionName(null);
     setGitRepositories([]);
+    setGitFavorites([]);
+    setGitFavoritesLoading(false);
+    setGitFavoritesFailed(false);
+    setGitSearchOpen(false);
     setGitSearchQuery("");
     setGitAddFailed(false);
     setPersistedLayoutJson(storedLayout.raw);
@@ -662,6 +784,42 @@ export function MultiSessionWorkspace({
       clearActiveTerminal();
     };
   }, [agentId, clearActiveTerminal, reloadKey, source, workspaceId]);
+
+  useEffect(() => {
+    if (!gitSearchOpen) return;
+    window.requestAnimationFrame(() => gitSearchInputRef.current?.focus());
+  }, [gitSearchOpen]);
+
+  useEffect(() => {
+    if (!isGitSource || !gitSearchOpen) return;
+
+    let cancelled = false;
+    setGitFavoritesLoading(true);
+    setGitFavoritesFailed(false);
+
+    async function loadFavorites() {
+      try {
+        const favorites = unwrapActionData(
+          await listNavigationFavoritesAction({ workspaceId, kind: "git" }),
+        );
+        if (cancelled) return;
+        setGitFavorites(Array.isArray(favorites) ? favorites.filter(isNavigationFavoriteDto) : []);
+      } catch {
+        if (!cancelled) {
+          setGitFavorites([]);
+          setGitFavoritesFailed(true);
+        }
+      } finally {
+        if (!cancelled) setGitFavoritesLoading(false);
+      }
+    }
+
+    void loadFavorites();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [gitSearchOpen, isGitSource, workspaceId]);
 
   const handleCreateSession = useCallback(async () => {
     if (!canCreateSession) return;
@@ -725,6 +883,7 @@ export function MultiSessionWorkspace({
           return next;
         });
         selectSession(session.sessionName);
+        setGitSearchOpen(false);
         setGitSearchQuery("");
       } catch {
         setGitAddFailed(true);
@@ -758,62 +917,143 @@ export function MultiSessionWorkspace({
     [clearActiveTerminal, isGitSource, persistSessionOrder, selectSession],
   );
 
-  const renderGitRepositoryPicker = () => {
+  const renderGitRepositoryButton = () => {
+    if (!isGitSource) return null;
+
+    return (
+      <Button
+        type="button"
+        variant="outline"
+        size="xs"
+        onClick={openGitSearchModal}
+        className="h-7 min-h-0 px-2 text-xs"
+        aria-label="Search Git repositories"
+        data-testid="open-git-session-search"
+      >
+        <Search className="size-3" />
+        Add Git pane
+        <span className="ml-1 hidden text-[10px] text-muted-foreground sm:inline">⌘/Ctrl N</span>
+      </Button>
+    );
+  };
+
+  const renderGitRepositoryRow = (
+    repository: GitRepositoryOption,
+    options?: { pinnedLabel?: string },
+  ) => (
+    <button
+      type="button"
+      key={repository.cloneSessionKey}
+      className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-xs hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-wait disabled:opacity-70"
+      onClick={() => void handleAddGitRepository(repository)}
+      disabled={addingCloneKey === repository.cloneSessionKey}
+      data-testid={`add-git-session-${repository.cloneSessionKey}`}
+    >
+      <Plus className="size-3 shrink-0" />
+      <span className="min-w-0 flex-1">
+        <span className="block truncate font-mono">{repository.label}</span>
+        {options?.pinnedLabel ? (
+          <span className="block truncate text-[10px] text-muted-foreground">
+            Pinned favorite · {options.pinnedLabel}
+          </span>
+        ) : null}
+      </span>
+      <span className="text-[10px] text-muted-foreground">
+        {addingCloneKey === repository.cloneSessionKey ? "Adding…" : "Add"}
+      </span>
+    </button>
+  );
+
+  const renderGitRepositorySearchModal = () => {
     if (!isGitSource) return null;
 
     const query = gitSearchQuery.trim();
-    const visibleRepositories = query ? filteredGitRepositories.slice(0, 8) : [];
+    const visibleFavorites = favoriteGitRepositories.slice(0, 6);
+    const visibleRepositories = filteredGitRepositories.slice(0, 8);
+    const hasResults = visibleFavorites.length > 0 || visibleRepositories.length > 0;
 
     return (
-      <div className="min-w-64 max-w-full flex-1 rounded-md border border-border bg-background/80 p-2">
-        <label className="flex items-center gap-2 rounded-md border border-input bg-background px-2 py-1 text-xs">
-          <Search className="size-3.5 shrink-0 text-muted-foreground" />
-          <span className="sr-only">Search Git repositories</span>
-          <input
-            type="search"
-            value={gitSearchQuery}
-            onChange={(event) => setGitSearchQuery(event.target.value)}
-            placeholder="Search Git repositories to add…"
-            className="min-w-0 flex-1 bg-transparent outline-none"
-            data-testid="git-session-search"
-          />
-        </label>
-        {gitAddFailed ? (
-          <p className="mt-1 text-xs text-destructive" data-testid="git-session-add-error">
-            Could not add Git terminal. No terminal contents or clone proof were logged.
-          </p>
-        ) : null}
-        {query ? (
-          <div className="mt-2 max-h-44 space-y-1 overflow-auto" data-testid="git-session-results">
-            {visibleRepositories.length > 0 ? (
-              visibleRepositories.map((repository) => (
-                <button
-                  type="button"
-                  key={repository.cloneSessionKey}
-                  className="flex w-full items-center gap-2 rounded px-2 py-1 text-left text-xs hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                  onClick={() => void handleAddGitRepository(repository)}
-                  disabled={addingCloneKey === repository.cloneSessionKey}
-                  data-testid={`add-git-session-${repository.cloneSessionKey}`}
-                >
-                  <Plus className="size-3 shrink-0" />
-                  <span className="min-w-0 flex-1 truncate font-mono">{repository.label}</span>
-                  <span className="text-[10px] text-muted-foreground">
-                    {addingCloneKey === repository.cloneSessionKey ? "Adding…" : "Add"}
-                  </span>
-                </button>
-              ))
-            ) : (
-              <p className="px-2 py-1 text-xs text-muted-foreground">
-                No matching Git repositories.
+      <Dialog
+        open={gitSearchOpen}
+        onOpenChange={(open) => (open ? openGitSearchModal() : closeGitSearchModal())}
+      >
+        {gitSearchOpen ? (
+          <DialogContent className="max-w-xl" data-testid="git-session-search-modal">
+            <DialogHeader>
+              <DialogTitle>Add Git terminal pane</DialogTitle>
+              <DialogDescription>
+                Search repositories or choose a pinned favorite. Open panes are hidden from this
+                list.
+              </DialogDescription>
+            </DialogHeader>
+            <label className="flex items-center gap-2 rounded-md border border-input bg-background px-2 py-2 text-sm">
+              <Search className="size-4 shrink-0 text-muted-foreground" />
+              <span className="sr-only">Search Git repositories</span>
+              <input
+                ref={gitSearchInputRef}
+                type="search"
+                value={gitSearchQuery}
+                onChange={(event) => setGitSearchQuery(event.target.value)}
+                placeholder="Search Git repositories to add…"
+                className="min-w-0 flex-1 bg-transparent outline-none"
+                data-testid="git-session-search"
+              />
+            </label>
+            {gitAddFailed ? (
+              <p className="text-xs text-destructive" data-testid="git-session-add-error">
+                Could not add Git terminal. No terminal contents or clone proof were logged.
               </p>
-            )}
-          </div>
-        ) : (
-          <p className="mt-1 text-xs text-muted-foreground">
-            Search to add persisted Git terminal panes. Open panes are hidden from results.
-          </p>
-        )}
-      </div>
+            ) : null}
+            {gitFavoritesFailed ? (
+              <p className="text-xs text-muted-foreground" data-testid="git-favorites-error">
+                Favorites are unavailable. Search still works.
+              </p>
+            ) : null}
+            <div className="max-h-80 space-y-3 overflow-auto" data-testid="git-session-results">
+              <section aria-label="Pinned Git favorites" data-testid="git-session-favorites">
+                <div className="mb-1 flex items-center justify-between gap-2 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+                  <span>Pinned favorites</span>
+                  {gitFavoritesLoading ? <span>Loading…</span> : null}
+                </div>
+                {visibleFavorites.length > 0 ? (
+                  <div className="space-y-1">
+                    {visibleFavorites.map((repository) =>
+                      renderGitRepositoryRow(repository, { pinnedLabel: repository.favoriteLabel }),
+                    )}
+                  </div>
+                ) : (
+                  <p className="rounded border border-dashed border-border px-2 py-2 text-xs text-muted-foreground">
+                    No pinned favorites match this view.
+                  </p>
+                )}
+              </section>
+
+              {query ? (
+                <section aria-label="Git repository search results">
+                  <div className="mb-1 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+                    Search results
+                  </div>
+                  {visibleRepositories.length > 0 ? (
+                    <div className="space-y-1">
+                      {visibleRepositories.map((repository) => renderGitRepositoryRow(repository))}
+                    </div>
+                  ) : (
+                    <p className="rounded border border-dashed border-border px-2 py-2 text-xs text-muted-foreground">
+                      {hasResults
+                        ? "No additional matching repositories."
+                        : "No matching Git repositories."}
+                    </p>
+                  )}
+                </section>
+              ) : (
+                <p className="text-xs text-muted-foreground">
+                  Type to search all repositories. Use favorites for quick pinned access.
+                </p>
+              )}
+            </div>
+          </DialogContent>
+        ) : null}
+      </Dialog>
     );
   };
 
@@ -975,7 +1215,8 @@ export function MultiSessionWorkspace({
             ? "Search Git repositories and add only the terminal panes you need."
             : "Create a tmux-backed terminal session for this workspace."}
         </p>
-        {renderGitRepositoryPicker()}
+        {renderGitRepositoryButton()}
+        {renderGitRepositorySearchModal()}
         {createFailed ? (
           <Alert variant="destructive" data-testid="session-create-error" className="max-w-md">
             <AlertCircle />
@@ -1022,7 +1263,8 @@ export function MultiSessionWorkspace({
         <span className="sr-only" data-testid="multi-session-pane-count">
           {sessions.length}
         </span>
-        {renderGitRepositoryPicker()}
+        {renderGitRepositoryButton()}
+        {renderGitRepositorySearchModal()}
         <Button
           type="button"
           variant="outline"

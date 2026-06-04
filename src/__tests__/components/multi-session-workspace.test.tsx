@@ -10,6 +10,7 @@ const mockCreateSession = vi.fn();
 const mockGetSessions = vi.fn();
 const mockListGitClones = vi.fn();
 const mockResolveGitCloneTerminal = vi.fn();
+const mockListNavigationFavorites = vi.fn();
 const mockSetActiveTerminal = vi.fn();
 const mockRegister = vi.fn();
 const mockUnregister = vi.fn();
@@ -88,6 +89,10 @@ vi.mock("@/lib/actions/workspaces", () => ({
   getWorkspaceSessionsAction: (...args: unknown[]) => mockGetSessions(...args),
 }));
 
+vi.mock("@/lib/actions/navigation-favorites", () => ({
+  listNavigationFavoritesAction: (...args: unknown[]) => mockListNavigationFavorites(...args),
+}));
+
 vi.mock("@/hooks/useKeybindings", () => ({
   useKeybindings: (): Partial<KeybindingContextValue> => ({
     register: mockRegister,
@@ -146,6 +151,23 @@ vi.mock("@/components/ui/alert", () => ({
   AlertTitle: ({ children }: React.PropsWithChildren) => <p>{children}</p>,
 }));
 
+vi.mock("@/components/ui/dialog", () => ({
+  Dialog: ({ children, open }: React.PropsWithChildren<{ open?: boolean }>) =>
+    open ? <div data-testid="dialog-root">{children}</div> : null,
+  DialogContent: ({
+    children,
+    className,
+    ...rest
+  }: React.PropsWithChildren<{ className?: string; "data-testid"?: string }>) => (
+    <div className={className} data-testid={rest["data-testid"]}>
+      {children}
+    </div>
+  ),
+  DialogDescription: ({ children }: React.PropsWithChildren) => <p>{children}</p>,
+  DialogHeader: ({ children }: React.PropsWithChildren) => <div>{children}</div>,
+  DialogTitle: ({ children }: React.PropsWithChildren) => <h2>{children}</h2>,
+}));
+
 vi.mock("lucide-react", () => ({
   AlertCircle: () => <span data-testid="icon-alert" />,
   Loader2: () => <span data-testid="icon-loader" />,
@@ -197,6 +219,7 @@ describe("MultiSessionWorkspace", () => {
     vi.clearAllMocks();
     terminalProps.clear();
     window.localStorage.clear();
+    mockListNavigationFavorites.mockResolvedValue({ data: [] });
   });
 
   afterEach(() => {
@@ -371,7 +394,10 @@ describe("MultiSessionWorkspace", () => {
 
     expect(await screen.findByTestId("multi-session-empty")).toBeInTheDocument();
     expect(mockResolveGitCloneTerminal).not.toHaveBeenCalled();
+    expect(screen.queryByTestId("git-session-search")).not.toBeInTheDocument();
 
+    fireEvent.click(screen.getByTestId("open-git-session-search"));
+    expect(await screen.findByTestId("git-session-search-modal")).toBeInTheDocument();
     fireEvent.change(screen.getByTestId("git-session-search"), { target: { value: "hive" } });
     expect(screen.getByTestId("git-session-results")).toHaveTextContent("kethalia/hive");
 
@@ -383,6 +409,7 @@ describe("MultiSessionWorkspace", () => {
       "data-session-source",
       "git",
     );
+    expect(screen.queryByTestId("git-session-search-modal")).not.toBeInTheDocument();
     expect(screen.getByTestId("active-pane-label")).toHaveTextContent("kethalia/hive");
     expect(screen.getByTestId("interactive-terminal-git-clone-safe-hive")).toHaveAttribute(
       "data-clone-path",
@@ -410,6 +437,110 @@ describe("MultiSessionWorkspace", () => {
     expect(window.localStorage.getItem("multi-session-layout:git:ws-1")).not.toContain(
       "git-clone:kethalia/hive",
     );
+  });
+
+  it("opens Git repository search with Ctrl/Cmd+N and prevents browser new-window behavior", async () => {
+    mockListGitClones.mockResolvedValueOnce({
+      data: {
+        ok: true,
+        tree: {
+          nodes: [
+            {
+              id: "repo-hive",
+              kind: "repository",
+              label: "hive",
+              relativePath: "kethalia/hive",
+              relativePathSegments: ["kethalia", "hive"],
+              displaySegments: ["Git", "home", "kethalia", "hive"],
+              cloneSessionKey: "git-clone:kethalia/hive",
+            },
+          ],
+        },
+      },
+    });
+
+    render(<MultiSessionWorkspace {...defaultProps} source="git" />);
+    await screen.findByTestId("multi-session-empty");
+
+    const event = new KeyboardEvent("keydown", {
+      key: "n",
+      metaKey: true,
+      bubbles: true,
+      cancelable: true,
+    });
+    window.dispatchEvent(event);
+
+    expect(event.defaultPrevented).toBe(true);
+    expect(await screen.findByTestId("git-session-search-modal")).toBeInTheDocument();
+    expect(mockListNavigationFavorites).toHaveBeenCalledWith({ workspaceId: "ws-1", kind: "git" });
+
+    const binding = mockRegister.mock.calls
+      .filter(([entry]) => entry.id === "multi-session:ws-1:open-git-search")
+      .at(-1)?.[0];
+    act(() => {
+      expect(binding.action(null, null)).toBe(false);
+    });
+  });
+
+  it("pins Git favorites at the top of the search modal", async () => {
+    mockListGitClones.mockResolvedValueOnce({
+      data: {
+        ok: true,
+        tree: {
+          nodes: [
+            {
+              id: "repo-hive",
+              kind: "repository",
+              label: "hive",
+              relativePath: "kethalia/hive",
+              relativePathSegments: ["kethalia", "hive"],
+              displaySegments: ["Git", "home", "kethalia", "hive"],
+              cloneSessionKey: "git-clone:kethalia/hive",
+            },
+            {
+              id: "repo-docs",
+              kind: "repository",
+              label: "docs",
+              relativePath: "kethalia/docs",
+              relativePathSegments: ["kethalia", "docs"],
+              displaySegments: ["Git", "home", "kethalia", "docs"],
+              cloneSessionKey: "git-clone:kethalia/docs",
+            },
+          ],
+        },
+      },
+    });
+    mockListNavigationFavorites.mockResolvedValueOnce({
+      data: [
+        {
+          id: "fav-1",
+          kind: "git",
+          workspaceId: "ws-1",
+          targetKey: "git-clone:kethalia/docs",
+          label: "Docs repo",
+          relativePath: "kethalia/docs",
+          createdAt: "2026-06-04T00:00:00.000Z",
+        },
+      ],
+    });
+
+    render(<MultiSessionWorkspace {...defaultProps} source="git" />);
+    await screen.findByTestId("multi-session-empty");
+
+    fireEvent.click(screen.getByTestId("open-git-session-search"));
+
+    const favorites = await screen.findByTestId("git-session-favorites");
+    await waitFor(() => {
+      expect(favorites).toHaveTextContent("kethalia/docs");
+      expect(favorites).toHaveTextContent("Pinned favorite · Docs repo");
+    });
+
+    fireEvent.change(screen.getByTestId("git-session-search"), { target: { value: "kethalia" } });
+    const resultButtons = screen
+      .getAllByTestId(/add-git-session-/)
+      .map((button) => button.textContent);
+    expect(resultButtons[0]).toContain("kethalia/docs");
+    expect(resultButtons[1]).toContain("kethalia/hive");
   });
 
   it("restores persisted Git workspace selections by resolving fresh clone proofs", async () => {
