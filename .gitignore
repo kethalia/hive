@@ -43,8 +43,23 @@ next-env.d.ts
 templates/**/.terraform/
 !templates/**/.terraform.lock.hcl
 
-# ── GSD ──
+# ── GSD / agent-generated artifacts ──
 .gsd
+.gsd-id
+.bg-shell/
+.playwright-mcp
+.gsd/browser-state/
+.gsd/browser-baselines/
+.gsd/exec/
+.gsd/runtime/
+.gsd/activity/
+.gsd/worktrees/
+
+# Generated verification/evidence docs should stay local unless explicitly promoted.
+docs/*-evidence.md
+docs/*-uat.md
+docs/*-diagnostics-*.md
+
 Thumbs.db
 *.swp
 *.swo
@@ -69,12 +84,9 @@ coverage/
 .cache/
 tmp/
 
-# ── GSD baseline (auto-generated) ──
-.gsd-id
-.bg-shell/
+# ── Local MCP config ──
 .mcp.json
 
-.playwright-mcp
 # helm dep build artifacts
 charts/*/Chart.lock
 charts/*/charts/
