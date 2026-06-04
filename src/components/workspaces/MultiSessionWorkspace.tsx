@@ -1,7 +1,7 @@
 "use client";
 
 import type { Terminal } from "@xterm/xterm";
-import { AlertCircle, Loader2, Minus, Plus, Search, X } from "lucide-react";
+import { AlertCircle, Loader2, Minus, Plus, Search, TerminalSquare, X } from "lucide-react";
 import dynamic from "next/dynamic";
 import {
   type CSSProperties,
@@ -322,18 +322,6 @@ function buildLayoutPersistenceMessage(
   return null;
 }
 
-function moveByIndex<T>(values: readonly T[], fromIndex: number, toIndex: number): T[] {
-  if (fromIndex < 0 || fromIndex >= values.length) return [...values];
-  const safeToIndex = Math.min(Math.max(toIndex, 0), values.length - 1);
-  if (fromIndex === safeToIndex) return [...values];
-
-  const next = [...values];
-  const [item] = next.splice(fromIndex, 1);
-  if (item === undefined) return [...values];
-  next.splice(safeToIndex, 0, item);
-  return next;
-}
-
 async function loadWorkspaceSessions(workspaceId: string): Promise<SessionLoadResult> {
   const result = await getWorkspaceSessionsAction({ workspaceId });
   return parseSessionsResult(result);
@@ -527,6 +515,18 @@ export function MultiSessionWorkspace({
       );
     });
   }, [favoriteCloneKeys, gitRepositories, gitSearchQuery, openCloneKeys]);
+  const filteredTerminalSessions = useMemo(() => {
+    const query = gitSearchQuery.trim().toLowerCase();
+    if (!query) return [];
+
+    return sessions
+      .filter(
+        (session) =>
+          session.label.toLowerCase().includes(query) ||
+          session.sessionName.toLowerCase().includes(query),
+      )
+      .slice(0, 6);
+  }, [gitSearchQuery, sessions]);
   const layoutPersistenceMessage = buildLayoutPersistenceMessage(
     layoutPersistenceNotice,
     layout.diagnostics,
@@ -627,19 +627,6 @@ export function MultiSessionWorkspace({
       }
     },
     [clearActiveTerminal],
-  );
-
-  const moveSession = useCallback(
-    (sessionName: string, direction: -1 | 1) => {
-      setSessions((current) => {
-        const fromIndex = current.findIndex((session) => session.sessionName === sessionName);
-        const next = moveByIndex(current, fromIndex, fromIndex + direction);
-        persistSessionOrder(next, sessionName);
-        return next;
-      });
-      selectSession(sessionName);
-    },
-    [persistSessionOrder, selectSession],
   );
 
   const focusRelativeSession = useCallback(
@@ -1039,6 +1026,26 @@ export function MultiSessionWorkspace({
     );
   };
 
+  const renderTerminalSessionRow = (session: WorkspaceSessionPane) => (
+    <button
+      type="button"
+      key={session.sessionName}
+      className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-xs hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      onClick={() => {
+        selectSession(session.sessionName);
+        closeGitSearchModal();
+      }}
+      data-testid={`select-terminal-session-${session.sessionName}`}
+    >
+      <TerminalSquare className="size-3 shrink-0" />
+      <span className="min-w-0 flex-1">
+        <span className="block truncate font-mono">{session.label}</span>
+        <span className="block truncate text-[10px] text-muted-foreground">Terminal session</span>
+      </span>
+      <span className="text-[10px] text-muted-foreground">Focus</span>
+    </button>
+  );
+
   const renderGitRepositoryRow = (
     repository: GitRepositoryOption,
     options?: { pinnedLabel?: string },
@@ -1070,9 +1077,13 @@ export function MultiSessionWorkspace({
     if (!isUnifiedSource) return null;
 
     const query = gitSearchQuery.trim();
+    const visibleTerminalSessions = filteredTerminalSessions.slice(0, 6);
     const visibleFavorites = favoriteGitRepositories.slice(0, 6);
     const visibleRepositories = filteredGitRepositories.slice(0, 8);
-    const hasResults = visibleFavorites.length > 0 || visibleRepositories.length > 0;
+    const hasResults =
+      visibleTerminalSessions.length > 0 ||
+      visibleFavorites.length > 0 ||
+      visibleRepositories.length > 0;
 
     return (
       <Dialog
@@ -1084,19 +1095,20 @@ export function MultiSessionWorkspace({
             <DialogHeader>
               <DialogTitle>Add workspace session</DialogTitle>
               <DialogDescription>
-                Create a plain terminal in the workspace home directory, search repositories, or
-                choose a pinned Git favorite. Open panes are hidden from this list.
+                Create a plain terminal in the workspace home directory, jump to terminal sessions,
+                search repositories, or choose a pinned Git favorite. Open Git panes are hidden from
+                repository results.
               </DialogDescription>
             </DialogHeader>
             <label className="flex items-center gap-2 rounded-md border border-input bg-background px-2 py-2 text-sm">
               <Search className="size-4 shrink-0 text-muted-foreground" />
-              <span className="sr-only">Search Git repositories</span>
+              <span className="sr-only">Search terminal sessions and Git repositories</span>
               <input
                 ref={gitSearchInputRef}
                 type="search"
                 value={gitSearchQuery}
                 onChange={(event) => setGitSearchQuery(event.target.value)}
-                placeholder="Search Git repositories to add…"
+                placeholder="Search terminal sessions or Git repositories…"
                 className="min-w-0 flex-1 bg-transparent outline-none"
                 data-testid="git-session-search"
               />
@@ -1129,6 +1141,26 @@ export function MultiSessionWorkspace({
               </p>
             ) : null}
             <div className="max-h-80 space-y-3 overflow-auto" data-testid="git-session-results">
+              {query ? (
+                <section
+                  aria-label="Terminal session search results"
+                  data-testid="terminal-session-results"
+                >
+                  <div className="mb-1 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+                    Terminal sessions
+                  </div>
+                  {visibleTerminalSessions.length > 0 ? (
+                    <div className="space-y-1">
+                      {visibleTerminalSessions.map((session) => renderTerminalSessionRow(session))}
+                    </div>
+                  ) : (
+                    <p className="rounded border border-dashed border-border px-2 py-2 text-xs text-muted-foreground">
+                      No matching terminal sessions.
+                    </p>
+                  )}
+                </section>
+              ) : null}
+
               <section aria-label="Pinned Git favorites" data-testid="git-session-favorites">
                 <div className="mb-1 flex items-center justify-between gap-2 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
                   <span>Pinned favorites</span>
@@ -1166,7 +1198,8 @@ export function MultiSessionWorkspace({
                 </section>
               ) : (
                 <p className="text-xs text-muted-foreground">
-                  Type to search all repositories. Use favorites for quick pinned access.
+                  Type to search terminal sessions and repositories. Use favorites for quick pinned
+                  access.
                 </p>
               )}
             </div>
@@ -1209,43 +1242,12 @@ export function MultiSessionWorkspace({
           }
         }}
       >
-        <div className="flex min-h-8 items-center gap-1 border-b border-white/10 bg-zinc-950 px-1.5 py-1 text-white">
+        <div className="flex min-h-8 items-center gap-1 border-b border-white/10 bg-zinc-950 px-2 py-1 text-white">
           <span className="min-w-0 flex-1 truncate font-mono text-xs">{pane.label}</span>
-          <span className="rounded bg-white/10 px-1 py-0.5 text-[9px] uppercase tracking-wide text-white/80">
-            {isActive ? "Active" : "Idle"}
-          </span>
-          <Button
-            type="button"
-            variant="secondary"
-            size="xs"
-            className="h-6 min-h-0 px-1.5 text-[10px]"
-            aria-label={`Move ${pane.label} left`}
-            data-testid={`move-pane-left-${pane.id}`}
-            onClick={(event) => {
-              event.stopPropagation();
-              moveSession(pane.sessionName, -1);
-            }}
-          >
-            ←
-          </Button>
-          <Button
-            type="button"
-            variant="secondary"
-            size="xs"
-            className="h-6 min-h-0 px-1.5 text-[10px]"
-            aria-label={`Move ${pane.label} right`}
-            data-testid={`move-pane-right-${pane.id}`}
-            onClick={(event) => {
-              event.stopPropagation();
-              moveSession(pane.sessionName, 1);
-            }}
-          >
-            →
-          </Button>
           {isUnifiedSource ? (
             <Button
               type="button"
-              variant="ghost"
+              variant="destructive"
               size="xs"
               className="h-6 min-h-0 px-1.5 text-[10px]"
               aria-label={`Remove ${pane.label}`}

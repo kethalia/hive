@@ -1068,7 +1068,7 @@ describe("WorkspaceTerminalPage integration — Multi-session route", () => {
     unmount();
   });
 
-  it("keeps tiled layout signals stable while moving panes by order", async () => {
+  it("keeps tiled layout signals stable without pane-header reorder controls", async () => {
     mockGetWorkspaceSessionsAction.mockResolvedValueOnce({
       data: [
         { name: "main-session", created: 1, windows: 1 },
@@ -1076,7 +1076,8 @@ describe("WorkspaceTerminalPage integration — Multi-session route", () => {
       ],
     });
 
-    const { getAllByTestId, getByTestId, unmount } = await renderActualMultiSessionWorkspace();
+    const { getAllByTestId, getByTestId, queryByTestId, unmount } =
+      await renderActualMultiSessionWorkspace();
 
     await waitFor(() => {
       expect(getByTestId("workspace-pane-main-session")).toBeInTheDocument();
@@ -1086,21 +1087,12 @@ describe("WorkspaceTerminalPage integration — Multi-session route", () => {
       getAllByTestId("interactive-terminal").find(
         (terminal) => terminal.getAttribute("data-session-name") === "main-session",
       );
-    const signalBeforeMove = findMainTerminal()?.getAttribute("data-layout-signal");
-    expect(signalBeforeMove).toBe("1:2:1 / 1 / span 1 / span 1");
-
-    await act(async () => {
-      fireEvent.click(getByTestId("move-pane-left-pane-dev-server"));
-    });
-
-    await waitFor(() => {
-      expect(getByTestId("active-pane-label")).toHaveTextContent("dev-server");
-    });
     expect(findMainTerminal()?.getAttribute("data-layout-signal")).toBe(
-      "1:2:1 / 2 / span 1 / span 1",
+      "1:2:1 / 1 / span 1 / span 1",
     );
-    expect(findMainTerminal()?.getAttribute("data-layout-signal")).not.toBe(signalBeforeMove);
     expect(getByTestId("workspace-pane-main-session")).toHaveAttribute("data-pane-mode", "tiled");
+    expect(queryByTestId("move-pane-left-pane-dev-server")).not.toBeInTheDocument();
+    expect(queryByTestId("move-pane-right-pane-dev-server")).not.toBeInTheDocument();
     unmount();
   });
 });

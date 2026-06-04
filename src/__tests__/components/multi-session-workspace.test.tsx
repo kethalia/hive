@@ -179,6 +179,7 @@ vi.mock("lucide-react", () => ({
   Minus: () => <span data-testid="icon-minus" />,
   Plus: () => <span data-testid="icon-plus" />,
   Search: () => <span data-testid="icon-search" />,
+  TerminalSquare: () => <span data-testid="icon-terminal-square" />,
   X: () => <span data-testid="icon-x" />,
 }));
 
@@ -301,20 +302,14 @@ describe("MultiSessionWorkspace", () => {
     expect(screen.getByTestId("active-pane-label")).toHaveTextContent("dev-server");
   });
 
-  it("moves panes with compact controls and persists order without terminal contents", async () => {
+  it("keeps pane headers compact without reorder controls or status badges", async () => {
     await renderTwoSessionWorkspace();
 
-    fireEvent.click(screen.getByTestId("move-pane-left-pane-dev-server"));
-
-    const labels = Array.from(screen.getByTestId("multi-session-grid").children).map((pane) =>
-      pane.getAttribute("aria-label")?.replace("Terminal pane ", ""),
-    );
-    expect(labels).toEqual(["dev-server", "main-session"]);
-    expect(screen.getByTestId("active-pane-label")).toHaveTextContent("dev-server");
-
-    const stored = window.localStorage.getItem("multi-session-layout:workspace:ws-1");
-    expect(stored).toContain("dev-server");
-    expect(stored).not.toMatch(/selection|clipboard|terminalBuffer|cloneProof/);
+    expect(screen.queryByTestId("move-pane-left-pane-dev-server")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("move-pane-right-pane-dev-server")).not.toBeInTheDocument();
+    expect(screen.queryByText("Active")).not.toBeInTheDocument();
+    expect(screen.queryByText("Idle")).not.toBeInTheDocument();
+    expect(screen.getByText("dev-server")).toBeInTheDocument();
   });
 
   it("restores persisted pane order from source-scoped storage", async () => {
@@ -361,6 +356,48 @@ describe("MultiSessionWorkspace", () => {
     expect(screen.queryByTestId("create-session-button")).not.toBeInTheDocument();
     fireEvent.click(screen.getByTestId("open-git-session-search"));
     expect(await screen.findByTestId("add-plain-terminal-session")).toBeInTheDocument();
+  });
+
+  it("searches terminal sessions and Git repositories from the add-session modal", async () => {
+    mockGetSessions.mockResolvedValueOnce(twoSessionPayload());
+    mockListGitClones.mockResolvedValueOnce({
+      data: {
+        ok: true,
+        tree: {
+          nodes: [
+            {
+              id: "repo-hive",
+              kind: "repository",
+              label: "hive",
+              relativePath: "kethalia/hive",
+              relativePathSegments: ["kethalia", "hive"],
+              displaySegments: ["Git", "home", "kethalia", "hive"],
+              cloneSessionKey: "git-clone:kethalia/hive",
+            },
+          ],
+        },
+      },
+    });
+
+    render(<MultiSessionWorkspace {...defaultProps} source="unified" />);
+    await screen.findByTestId("multi-session-workspace");
+
+    fireEvent.click(screen.getByTestId("open-git-session-search"));
+    fireEvent.change(await screen.findByTestId("git-session-search"), {
+      target: { value: "dev" },
+    });
+
+    expect(screen.getByTestId("terminal-session-results")).toHaveTextContent("dev-server");
+    expect(screen.getByTestId("terminal-session-results")).toHaveTextContent("Terminal session");
+
+    fireEvent.change(screen.getByTestId("git-session-search"), { target: { value: "hive" } });
+    expect(screen.getByTestId("git-session-results")).toHaveTextContent("kethalia/hive");
+
+    fireEvent.change(screen.getByTestId("git-session-search"), { target: { value: "dev" } });
+    fireEvent.click(screen.getByTestId("select-terminal-session-dev-server"));
+
+    expect(screen.queryByTestId("git-session-search-modal")).not.toBeInTheDocument();
+    expect(screen.getByTestId("active-pane-label")).toHaveTextContent("dev-server");
   });
 
   it("starts Git workspaces empty, adds searched repositories, and persists selected clone refs", async () => {
