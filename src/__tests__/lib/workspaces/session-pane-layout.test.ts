@@ -8,13 +8,10 @@ import {
   serializeSessionPaneLayout,
 } from "@/lib/workspaces/session-pane-layout";
 
-const container = { width: 1200, height: 800 };
-
 describe("session pane layout model", () => {
   it("resolves current sessions in deterministic input order and reuses smart tiled geometry", () => {
     const layout = resolveSessionPaneLayout({
       sessions: [{ sessionName: "worker" }, { sessionName: "api" }, { sessionName: "shell" }],
-      container,
     });
 
     expect(layout.version).toBe(SESSION_PANE_LAYOUT_VERSION);
@@ -56,7 +53,6 @@ describe("session pane layout model", () => {
     const layout = resolveSessionPaneLayout({
       sessions: ["api", "new-session"],
       persistedJson: persisted,
-      container,
     });
 
     expect(layout.panes.map((pane) => [pane.sessionName, pane.mode, pane.order])).toEqual([
@@ -71,12 +67,10 @@ describe("session pane layout model", () => {
     const corrupt = resolveSessionPaneLayout({
       sessions: ["api", "worker"],
       persistedJson: "{not-json",
-      container,
     });
     const wrongVersion = resolveSessionPaneLayout({
       sessions: ["api", "worker"],
       persistedJson: JSON.stringify({ version: 999, panes: [] }),
-      container,
     });
 
     expect(corrupt.panes.map((pane) => pane.mode)).toEqual(["tiled", "tiled"]);
@@ -110,7 +104,6 @@ describe("session pane layout model", () => {
           },
         ],
       }),
-      container,
     });
 
     const reset = deriveResetSessionPaneLayout(layout);
@@ -142,7 +135,6 @@ describe("session pane layout model", () => {
           },
         ],
       }),
-      container,
     });
 
     const serialized = serializeSessionPaneLayout(layout);
@@ -164,7 +156,6 @@ describe("session pane layout model", () => {
   it("skips blank session names while preserving stable ids for duplicate and slug-colliding sessions", () => {
     const layout = resolveSessionPaneLayout({
       sessions: ["Main", "  ", "main", "main!", "main"],
-      container,
     });
 
     expect(layout.panes.map((pane) => pane.sessionName)).toEqual(["Main", "main", "main!", "main"]);

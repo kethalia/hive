@@ -23,6 +23,9 @@ import {
   DRAG_DISMISS_VELOCITY,
   NO_TOUCH_STYLE,
 } from "@/lib/gestures/conventions";
+import { formatShortcut } from "@/lib/keyboard-shortcuts";
+
+const CREATE_SESSION_SHORTCUT_KEYS = ["ctrl+t", "cmd+t"] as const;
 
 interface CommandPaletteProps {
   open: boolean;
@@ -101,7 +104,7 @@ function CommandPaletteBody({
             <CommandItem onSelect={handleCreate}>
               <Plus className="mr-2 size-4 shrink-0 opacity-70" />
               <span>New Session</span>
-              <CommandShortcut>Ctrl+T</CommandShortcut>
+              <CommandShortcut>{formatShortcut(CREATE_SESSION_SHORTCUT_KEYS)}</CommandShortcut>
             </CommandItem>
           </CommandGroup>
         )}

@@ -38,6 +38,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { createWorkspaceAction, listWorkspaceTemplatesAction } from "@/lib/actions/workspaces";
+import { formatShortcut } from "@/lib/keyboard-shortcuts";
 import type { CoderWorkspace } from "@/lib/coder/types";
 import { formatRelativeDate, statusVariant } from "@/lib/helpers/format";
 
@@ -102,6 +103,8 @@ function lastUsedLabel(value: string | undefined): string {
 
   return formatRelativeDate(value);
 }
+
+const CREATE_WORKSPACE_SHORTCUT_KEYS = ["f2"] as const;
 
 function healthLabel(workspace: CoderWorkspace): string {
   if (!workspace.health) return "Unknown";
@@ -170,9 +173,7 @@ export function WorkspaceListContent({ workspaces, error }: WorkspaceListContent
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key.toLowerCase() !== "n") return;
-      if (!(event.ctrlKey || event.metaKey)) return;
-      if (event.altKey || event.shiftKey) return;
+      if (event.key !== "F2") return;
       if (isTextEntryElement(event.target instanceof Element ? event.target : null)) return;
 
       event.preventDefault();
@@ -271,7 +272,9 @@ export function WorkspaceListContent({ workspaces, error }: WorkspaceListContent
         >
           <Plus data-icon="inline-start" />
           Add workspace
-          <span className="ml-1 hidden text-xs text-muted-foreground sm:inline">⌘/Ctrl N</span>
+          <span className="ml-1 hidden text-xs text-muted-foreground sm:inline">
+            {formatShortcut(CREATE_WORKSPACE_SHORTCUT_KEYS)}
+          </span>
         </Button>
       </div>
 

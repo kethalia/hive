@@ -103,7 +103,7 @@ const testEntries = [
   },
   {
     id: "help:show",
-    keys: ["ctrl+k", "cmd+k"],
+    keys: ["f1"],
     action: () => false,
     description: "Show keyboard shortcuts",
     category: "general",
@@ -157,7 +157,7 @@ describe("HelpOverlay", () => {
 
   it("formats key combos for display", () => {
     renderOpenOverlay();
-    expect(screen.getByText("Ctrl + K")).toBeInTheDocument();
+    expect(screen.getByText("F1")).toBeInTheDocument();
     expect(screen.queryByText("⇧ + ?")).not.toBeInTheDocument();
   });
 
@@ -196,12 +196,12 @@ describe("HelpOverlay", () => {
     expect(localStorage.getItem("hive:help-nudge-dismissed")).toBe("true");
   });
 
-  it("the help:show keybinding is registered on Ctrl or Cmd K and appears in the list", () => {
+  it("the help:show keybinding is registered on F1 and appears in the list", () => {
     renderOpenOverlay();
     expect(mockRegister).toHaveBeenCalledWith(
       expect.objectContaining({
         id: "help:show",
-        keys: ["ctrl+k", "cmd+k"],
+        keys: ["f1"],
       }),
     );
     expect(mockRegister).not.toHaveBeenCalledWith(

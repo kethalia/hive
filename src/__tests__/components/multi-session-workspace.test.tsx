@@ -171,6 +171,7 @@ vi.mock("@/components/ui/dialog", () => ({
 vi.mock("lucide-react", () => ({
   AlertCircle: () => <span data-testid="icon-alert" />,
   Loader2: () => <span data-testid="icon-loader" />,
+  Minus: () => <span data-testid="icon-minus" />,
   Plus: () => <span data-testid="icon-plus" />,
   Search: () => <span data-testid="icon-search" />,
   X: () => <span data-testid="icon-x" />,
@@ -439,7 +440,7 @@ describe("MultiSessionWorkspace", () => {
     );
   });
 
-  it("opens Git repository search with Ctrl/Cmd+N and prevents browser new-window behavior", async () => {
+  it("opens Git repository search with F2 and avoids browser new-window shortcuts", async () => {
     mockListGitClones.mockResolvedValueOnce({
       data: {
         ok: true,
@@ -463,8 +464,7 @@ describe("MultiSessionWorkspace", () => {
     await screen.findByTestId("multi-session-empty");
 
     const event = new KeyboardEvent("keydown", {
-      key: "n",
-      metaKey: true,
+      key: "F2",
       bubbles: true,
       cancelable: true,
     });
@@ -477,9 +477,55 @@ describe("MultiSessionWorkspace", () => {
     const binding = mockRegister.mock.calls
       .filter(([entry]) => entry.id === "multi-session:ws-1:open-git-search")
       .at(-1)?.[0];
+    expect(binding.keys).toEqual(["f2"]);
     act(() => {
       expect(binding.action(null, null)).toBe(false);
     });
+  });
+
+  it("shows Git terminal font size controls that update mounted terminals", async () => {
+    mockListGitClones.mockResolvedValueOnce({
+      data: {
+        ok: true,
+        tree: {
+          nodes: [
+            {
+              id: "repo-hive",
+              kind: "repository",
+              label: "hive",
+              relativePath: "kethalia/hive",
+              relativePathSegments: ["kethalia", "hive"],
+              displaySegments: ["Git", "home", "kethalia", "hive"],
+              cloneSessionKey: "git-clone:kethalia/hive",
+            },
+          ],
+        },
+      },
+    });
+    mockResolveGitCloneTerminal.mockResolvedValueOnce({
+      data: {
+        sessionName: "git-clone-safe-hive",
+        clonePath: "kethalia/hive",
+        cloneSessionKey: "git-clone:kethalia/hive",
+        cloneProof: "proof-token",
+      },
+    });
+
+    render(<MultiSessionWorkspace {...defaultProps} source="git" />);
+    await screen.findByTestId("multi-session-empty");
+    fireEvent.click(screen.getByTestId("open-git-session-search"));
+    fireEvent.change(await screen.findByTestId("git-session-search"), {
+      target: { value: "hive" },
+    });
+
+    await act(async () => {
+      fireEvent.click(await screen.findByTestId("add-git-session-git-clone:kethalia/hive"));
+    });
+
+    expect(await screen.findByTestId("git-terminal-font-size-controls")).toHaveTextContent("13px");
+    fireEvent.click(screen.getByTestId("increase-git-terminal-font-size"));
+    expect(screen.getByTestId("git-terminal-font-size-controls")).toHaveTextContent("14px");
+    expect(localStorage.getItem("terminal:font-size")).toBe("14");
   });
 
   it("pins Git favorites at the top of the search modal", async () => {

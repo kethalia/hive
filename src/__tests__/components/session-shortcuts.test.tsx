@@ -141,15 +141,15 @@ describe("session keybinding registration", () => {
       expect(screen.getAllByTestId("tab-label")).toHaveLength(sessions.length);
     });
     await waitFor(() => {
-      expect(registeredBindings.size).toBe(5);
+      expect(registeredBindings.size).toBe(6);
     });
   }
 
-  it("registers all 5 keybindings with correct ids and categories", async () => {
+  it("registers all 6 keybindings with correct ids and categories", async () => {
     await renderWithTabs([{ name: "s1" }]);
 
     const ids = Array.from(registeredBindings.keys());
-    expect(ids).not.toContain("command-palette");
+    expect(ids).toContain("command-palette");
     expect(ids).toContain("session:create");
     expect(ids).toContain("session:close");
     expect(ids).toContain("session:next-tab");
@@ -160,7 +160,9 @@ describe("session keybinding registration", () => {
       expect(["session", "terminal"]).toContain(entry.category);
     }
     expect(registeredBindings.get("compose:toggle:tab-manager")!.category).toBe("terminal");
+    expect(registeredBindings.get("command-palette")!.category).toBe("terminal");
     expect(registeredBindings.get("compose:toggle:tab-manager")!.enabledInBrowser).toBe(true);
+    expect(registeredBindings.get("command-palette")!.enabledInBrowser).toBe(true);
     expect(registeredBindings.get("session:next-tab")!.enabledInBrowser).toBe(true);
     expect(registeredBindings.get("session:prev-tab")!.enabledInBrowser).toBe(true);
     expect(registeredBindings.get("session:create")!.enabledInBrowser).toBe(false);
@@ -170,7 +172,10 @@ describe("session keybinding registration", () => {
   it("registers correct key combos for each binding", async () => {
     await renderWithTabs([{ name: "s1" }]);
 
-    expect(registeredBindings.get("command-palette")).toBeUndefined();
+    expect(registeredBindings.get("command-palette")!.keys).toEqual([
+      "ctrl+shift+p",
+      "cmd+shift+p",
+    ]);
     expect(registeredBindings.get("session:create")!.keys).toEqual(["ctrl+t", "cmd+t"]);
     expect(registeredBindings.get("session:close")!.keys).toEqual(["ctrl+w", "cmd+w"]);
     expect(registeredBindings.get("session:next-tab")!.keys).toEqual(["ctrl+tab"]);
@@ -289,7 +294,7 @@ describe("session keybinding registration", () => {
 
       unmount();
 
-      expect(mockCtx.unregister).not.toHaveBeenCalledWith("command-palette");
+      expect(mockCtx.unregister).toHaveBeenCalledWith("command-palette");
       expect(mockCtx.unregister).toHaveBeenCalledWith("session:create");
       expect(mockCtx.unregister).toHaveBeenCalledWith("session:close");
       expect(mockCtx.unregister).toHaveBeenCalledWith("session:next-tab");

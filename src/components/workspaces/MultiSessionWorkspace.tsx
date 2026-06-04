@@ -1,7 +1,7 @@
 "use client";
 
 import type { Terminal } from "@xterm/xterm";
-import { AlertCircle, Loader2, Plus, Search, X } from "lucide-react";
+import { AlertCircle, Loader2, Minus, Plus, Search, X } from "lucide-react";
 import dynamic from "next/dynamic";
 import {
   type CSSProperties,
@@ -22,12 +22,14 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { useKeybindings } from "@/hooks/useKeybindings";
+import { useTerminalFontStep } from "@/hooks/useTerminalFontStep";
 import { listGitClonesAction, resolveGitCloneTerminalAction } from "@/lib/actions/git-clones";
 import {
   listNavigationFavoritesAction,
   type NavigationFavoriteDto,
 } from "@/lib/actions/navigation-favorites";
 import { createSessionAction, getWorkspaceSessionsAction } from "@/lib/actions/workspaces";
+import { formatShortcut } from "@/lib/keyboard-shortcuts";
 import type { GitCloneTerminalIdentity, PublicCloneTree } from "@/lib/git/clone-actions-contract";
 import type { CloneTreeNode, CloneTreeRepositoryNode } from "@/lib/git/clone-tree";
 import { cn } from "@/lib/utils";
@@ -111,6 +113,8 @@ type LayoutPersistenceNotice = {
   code: "storage-unavailable" | "storage-write-failed" | "storage-reset-failed";
   message: string;
 };
+
+const GIT_SEARCH_SHORTCUT_KEYS = ["f2"] as const;
 
 function isObjectRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
@@ -403,6 +407,13 @@ export function MultiSessionWorkspace({
   source = "workspace",
 }: MultiSessionWorkspaceProps) {
   const { register, setActiveTerminal, unregister } = useKeybindings();
+  const {
+    size: fontSize,
+    increase: increaseFontSize,
+    decrease: decreaseFontSize,
+    canIncrease: canIncreaseFontSize,
+    canDecrease: canDecreaseFontSize,
+  } = useTerminalFontStep();
   const [sessions, setSessions] = useState<WorkspaceSessionPane[]>([]);
   const [activeSessionName, setActiveSessionName] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -624,16 +635,16 @@ export function MultiSessionWorkspace({
 
   const handleWorkspaceKeyDown = useCallback(
     (event: ReactKeyboardEvent<HTMLElement>) => {
-      if (!(event.ctrlKey || event.metaKey)) return;
-      if (event.altKey || event.shiftKey) return;
-
-      if (isGitSource && event.key.toLowerCase() === "n") {
+      const target = event.target instanceof Element ? event.target : null;
+      if (isGitSource && event.key === "F2" && !isTextEntryElement(target)) {
         event.preventDefault();
         openGitSearchModal();
         return;
       }
 
-      if (isTextEntryElement(event.target instanceof Element ? event.target : null)) return;
+      if (!(event.ctrlKey || event.metaKey)) return;
+      if (event.altKey || event.shiftKey) return;
+      if (isTextEntryElement(target)) return;
 
       if (event.key === "ArrowLeft" || event.key === "ArrowUp") {
         event.preventDefault();
@@ -683,7 +694,7 @@ export function MultiSessionWorkspace({
     if (isGitSource) {
       register({
         id: `multi-session:${workspaceId}:open-git-search`,
-        keys: ["ctrl+n", "cmd+n"],
+        keys: [...GIT_SEARCH_SHORTCUT_KEYS],
         action: () => {
           openGitSearchModal();
           return false;
@@ -704,17 +715,17 @@ export function MultiSessionWorkspace({
   useEffect(() => {
     if (!isGitSource) return;
 
-    const handleBrowserNewShortcut = (event: KeyboardEvent) => {
-      if (!(event.ctrlKey || event.metaKey)) return;
-      if (event.altKey || event.shiftKey) return;
-      if (event.key.toLowerCase() !== "n") return;
+    const handleGlobalGitSearchShortcut = (event: KeyboardEvent) => {
+      if (event.key !== "F2") return;
+      if (isTextEntryElement(event.target instanceof Element ? event.target : null)) return;
       event.preventDefault();
       event.stopPropagation();
       openGitSearchModal();
     };
 
-    window.addEventListener("keydown", handleBrowserNewShortcut, { capture: true });
-    return () => window.removeEventListener("keydown", handleBrowserNewShortcut, { capture: true });
+    window.addEventListener("keydown", handleGlobalGitSearchShortcut, { capture: true });
+    return () =>
+      window.removeEventListener("keydown", handleGlobalGitSearchShortcut, { capture: true });
   }, [isGitSource, openGitSearchModal]);
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: reloadKey is a manual retry trigger for session loading
@@ -897,13 +908,11 @@ export function MultiSessionWorkspace({
   const handleRemoveGitSession = useCallback(
     (sessionName: string) => {
       if (!isGitSource) return;
-      let nextActiveSessionName: string | null = null;
-      setSessions((current) => {
-        const next = current.filter((session) => session.sessionName !== sessionName);
-        nextActiveSessionName = next[0]?.sessionName ?? null;
-        persistSessionOrder(next, nextActiveSessionName);
-        return next;
-      });
+
+      const nextSessions = sessions.filter((session) => session.sessionName !== sessionName);
+      const nextActiveSessionName = nextSessions[0]?.sessionName ?? null;
+      setSessions(nextSessions);
+      persistSessionOrder(nextSessions, nextActiveSessionName);
 
       if (activeSessionNameRef.current === sessionName) {
         if (nextActiveSessionName) {
@@ -914,8 +923,48 @@ export function MultiSessionWorkspace({
         }
       }
     },
-    [clearActiveTerminal, isGitSource, persistSessionOrder, selectSession],
+    [clearActiveTerminal, isGitSource, persistSessionOrder, selectSession, sessions],
   );
+
+  const renderGitFontControls = () => {
+    if (!isGitSource) return null;
+
+    return (
+      <div
+        className="flex items-center gap-1 rounded-md border border-border px-1 py-0.5"
+        aria-label="Git terminal font size controls"
+        data-testid="git-terminal-font-size-controls"
+      >
+        <Button
+          type="button"
+          variant="ghost"
+          size="xs"
+          className="h-6 min-h-0 px-1.5 text-[10px]"
+          onClick={decreaseFontSize}
+          disabled={!canDecreaseFontSize}
+          aria-label="Decrease Git terminal font size"
+          data-testid="decrease-git-terminal-font-size"
+        >
+          <Minus className="size-3" />
+        </Button>
+        <span className="min-w-10 text-center text-[10px] tabular-nums text-muted-foreground">
+          {fontSize}px
+        </span>
+        <Button
+          type="button"
+          variant="ghost"
+          size="xs"
+          className="h-6 min-h-0 px-1.5 text-[10px]"
+          onClick={increaseFontSize}
+          disabled={!canIncreaseFontSize}
+          aria-label="Increase Git terminal font size"
+          data-testid="increase-git-terminal-font-size"
+        >
+          <Plus className="size-3" />
+        </Button>
+      </div>
+    );
+  };
 
   const renderGitRepositoryButton = () => {
     if (!isGitSource) return null;
@@ -932,7 +981,9 @@ export function MultiSessionWorkspace({
       >
         <Search className="size-3" />
         Add Git pane
-        <span className="ml-1 hidden text-[10px] text-muted-foreground sm:inline">⌘/Ctrl N</span>
+        <span className="ml-1 hidden text-[10px] text-muted-foreground sm:inline">
+          {formatShortcut(GIT_SEARCH_SHORTCUT_KEYS)}
+        </span>
       </Button>
     );
   };
@@ -1058,8 +1109,6 @@ export function MultiSessionWorkspace({
   };
 
   const renderPane = (pane: SessionPane) => {
-    if (pane.mode !== "tiled") return null;
-
     const session = sessions.find((candidate) => candidate.sessionName === pane.sessionName);
     const isActive = pane.sessionName === activeSessionName;
     const layoutSignal = `${layout.tiled.rows}:${layout.tiled.columns}:${pane.gridArea}`;
@@ -1263,6 +1312,7 @@ export function MultiSessionWorkspace({
         <span className="sr-only" data-testid="multi-session-pane-count">
           {sessions.length}
         </span>
+        {renderGitFontControls()}
         {renderGitRepositoryButton()}
         {renderGitRepositorySearchModal()}
         <Button

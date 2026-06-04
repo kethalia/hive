@@ -377,11 +377,24 @@ export function TerminalTabManager({ agentId, workspaceId }: TerminalTabManagerP
       enabledInBrowser: true,
     };
 
+    const commandPaletteBinding = {
+      id: "command-palette",
+      keys: ["ctrl+shift+p", "cmd+shift+p"],
+      action: () => {
+        setPaletteOpen(true);
+        return false;
+      },
+      description: "Open command palette",
+      category: "terminal",
+      enabledInBrowser: true,
+    };
+
     register(createTabBinding);
     register(closeTabBinding);
     register(nextTabBinding);
     register(prevTabBinding);
     register(composeToggleBinding);
+    register(commandPaletteBinding);
 
     return () => {
       unregister("session:create");
@@ -389,6 +402,7 @@ export function TerminalTabManager({ agentId, workspaceId }: TerminalTabManagerP
       unregister("session:next-tab");
       unregister("session:prev-tab");
       unregister("compose:toggle:tab-manager");
+      unregister("command-palette");
     };
   }, [register, unregister, handleCreateTab, handleKillTab]);
 

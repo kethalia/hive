@@ -1569,10 +1569,7 @@ export function AppSidebar() {
                                         <SidebarMenuSubItem>
                                           <SidebarMenuSubButton
                                             render={<Link href={gitMultiSessionWorkspaceHref} />}
-                                            isActive={
-                                              pathname ===
-                                              `/workspaces/${ws.id}/terminal/git-workspace`
-                                            }
+                                            isActive={pathname === gitMultiSessionWorkspaceHref}
                                             data-testid={`git-workspace-link-${ws.id}`}
                                           >
                                             <ScreenIcon className="h-3 w-3 shrink-0" />

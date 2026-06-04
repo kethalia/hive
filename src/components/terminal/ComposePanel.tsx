@@ -5,11 +5,14 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { ButtonGroup } from "@/components/ui/button-group";
 import { useKeybindings } from "@/hooks/useKeybindings";
+import { formatShortcut } from "@/lib/keyboard-shortcuts";
 
 interface ComposePanelProps {
   onClose: () => void;
   hideHeader?: boolean;
 }
+
+const SEND_COMPOSE_SHORTCUT_KEYS = ["ctrl+enter", "cmd+enter"] as const;
 
 export function ComposePanel({ onClose, hideHeader = false }: ComposePanelProps) {
   const { activeSend } = useKeybindings();
@@ -44,7 +47,7 @@ export function ComposePanel({ onClose, hideHeader = false }: ComposePanelProps)
       {!hideHeader && (
         <div className="flex items-center border-b border-border px-3 py-1">
           <span className="text-xs font-medium text-muted-foreground">
-            Compose — Ctrl/Cmd+Enter to send
+            Compose — {formatShortcut(SEND_COMPOSE_SHORTCUT_KEYS)} to send
           </span>
         </div>
       )}
