@@ -21,7 +21,7 @@ export default async function GitWorkspaceTerminalPage({ params }: GitWorkspaceT
     <MultiSessionWorkspace
       agentId={agentResult.data.agentId}
       workspaceId={workspaceId}
-      source="git"
+      source="unified"
       className={WORKSPACE_TERMINAL_SHELL_CLASS_NAME}
     />
   );

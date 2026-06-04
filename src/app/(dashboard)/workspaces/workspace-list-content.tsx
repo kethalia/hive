@@ -86,6 +86,41 @@ function fieldOrUnknown(value: string | null | undefined): string {
   return trimmed ? trimmed : "Unknown";
 }
 
+function firstValidationMessage(value: unknown): string | null {
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    return trimmed.length > 0 ? trimmed : null;
+  }
+
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      const message = firstValidationMessage(item);
+      if (message) return message;
+    }
+    return null;
+  }
+
+  if (typeof value === "object" && value !== null) {
+    for (const item of Object.values(value)) {
+      const message = firstValidationMessage(item);
+      if (message) return message;
+    }
+  }
+
+  return null;
+}
+
+function createWorkspaceErrorMessage(result: unknown): string {
+  if (typeof result !== "object" || result === null) return "Failed to create workspace.";
+  if ("serverError" in result && typeof result.serverError === "string") {
+    return result.serverError;
+  }
+  if ("validationErrors" in result) {
+    return firstValidationMessage(result.validationErrors) ?? "Failed to create workspace.";
+  }
+  return "Failed to create workspace.";
+}
+
 function templateLabel(workspace: CoderWorkspace): string {
   return (
     workspace.template_display_name?.trim() ||
@@ -241,8 +276,8 @@ export function WorkspaceListContent({ workspaces, error }: WorkspaceListContent
       setCreating(true);
       try {
         const result = await createWorkspaceAction({ templateId, name: trimmedName });
-        if (result?.serverError || !result?.data) {
-          setCreateError(result?.serverError ?? "Failed to create workspace.");
+        if (result?.serverError || result?.validationErrors || !result?.data) {
+          setCreateError(createWorkspaceErrorMessage(result));
           return;
         }
         setWorkspaceName("");

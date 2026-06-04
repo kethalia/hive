@@ -209,6 +209,48 @@ describe("workspaces mobile list", () => {
     expect(await screen.findByTestId("create-workspace-modal")).toBeInTheDocument();
   });
 
+  it("shows create workspace validation errors from the action response", async () => {
+    mocks.listWorkspaceTemplatesAction.mockResolvedValue({
+      data: [
+        {
+          id: "template-1",
+          name: "hive-template",
+          activeVersionId: "version-1",
+          updatedAt: "2026-01-01T00:00:00.000Z",
+        },
+      ],
+    });
+    mocks.createWorkspaceAction.mockResolvedValue({
+      validationErrors: {
+        name: {
+          _errors: [
+            "Workspace names can contain only letters, numbers, dots, underscores, and hyphens.",
+          ],
+        },
+      },
+    });
+
+    render(<WorkspaceListContent workspaces={[makeWorkspace()]} />);
+
+    fireEvent.click(screen.getByTestId("open-create-workspace-modal"));
+    await screen.findByTestId("create-workspace-modal");
+    await waitFor(() => {
+      expect(screen.getByTestId("create-workspace-template")).toHaveValue("template-1");
+    });
+    fireEvent.change(screen.getByTestId("create-workspace-name"), {
+      target: { value: "bad workspace" },
+    });
+
+    await act(async () => {
+      fireEvent.click(screen.getByTestId("submit-create-workspace"));
+    });
+
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "Workspace names can contain only letters, numbers, dots, underscores, and hyphens.",
+    );
+    expect(mocks.refresh).not.toHaveBeenCalled();
+  });
+
   it("creates a workspace from the modal and refreshes the list", async () => {
     mocks.listWorkspaceTemplatesAction.mockResolvedValue({
       data: [

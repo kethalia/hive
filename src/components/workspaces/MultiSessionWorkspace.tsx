@@ -88,7 +88,7 @@ interface MultiSessionWorkspaceProps {
   agentId: string;
   workspaceId: string;
   className?: string;
-  source?: "workspace" | "git";
+  source?: "workspace" | "unified";
 }
 
 type SessionLoadResult =
@@ -255,8 +255,9 @@ function unwrapActionData(result: unknown): unknown {
   return isObjectRecord(result) && "data" in result ? result.data : result;
 }
 
-function storageKeyForWorkspace(workspaceId: string, source: "workspace" | "git"): string {
-  return `multi-session-layout:${source}:${workspaceId}`;
+function storageKeyForWorkspace(workspaceId: string, source: "workspace" | "unified"): string {
+  const storageSource = source === "unified" ? "git" : "workspace";
+  return `multi-session-layout:${storageSource}:${workspaceId}`;
 }
 
 function readWorkspaceLayoutStorage(storageKey: string): {
@@ -460,7 +461,7 @@ export function MultiSessionWorkspace({
   const workspaceBodyRef = useRef<HTMLDivElement>(null);
   const gitSearchInputRef = useRef<HTMLInputElement>(null);
   const canCreateSession = true;
-  const isGitSource = source === "git";
+  const isUnifiedSource = source === "unified";
 
   activeSessionNameRef.current = activeSessionName;
 
@@ -655,10 +656,10 @@ export function MultiSessionWorkspace({
   );
 
   const openGitSearchModal = useCallback(() => {
-    if (!isGitSource) return;
+    if (!isUnifiedSource) return;
     setGitSearchOpen(true);
     setGitAddFailed(false);
-  }, [isGitSource]);
+  }, [isUnifiedSource]);
 
   const closeGitSearchModal = useCallback(() => {
     setGitSearchOpen(false);
@@ -729,7 +730,7 @@ export function MultiSessionWorkspace({
       global: true,
     });
 
-    if (isGitSource) {
+    if (isUnifiedSource) {
       register({
         id: `multi-session:${workspaceId}:open-session-search`,
         keys: [...ADD_SESSION_MODAL_SHORTCUT_KEYS],
@@ -750,7 +751,14 @@ export function MultiSessionWorkspace({
       unregister("command-palette");
       unregister(`multi-session:${workspaceId}:open-session-search`);
     };
-  }, [focusRelativeSession, isGitSource, openGitSearchModal, register, unregister, workspaceId]);
+  }, [
+    focusRelativeSession,
+    isUnifiedSource,
+    openGitSearchModal,
+    register,
+    unregister,
+    workspaceId,
+  ]);
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: reloadKey is a manual retry trigger for session loading
   useEffect(() => {
@@ -779,7 +787,7 @@ export function MultiSessionWorkspace({
     async function loadSessions() {
       try {
         const parsed =
-          source === "git"
+          source === "unified"
             ? await loadUnifiedWorkspaceSessions(workspaceId, agentId, storedLayout.raw)
             : await loadWorkspaceSessions(workspaceId);
         if (cancelled) return;
@@ -826,7 +834,7 @@ export function MultiSessionWorkspace({
   }, [gitSearchOpen]);
 
   useEffect(() => {
-    if (!isGitSource || !gitSearchOpen) return;
+    if (!isUnifiedSource || !gitSearchOpen) return;
 
     let cancelled = false;
     setGitFavoritesLoading(true);
@@ -854,7 +862,7 @@ export function MultiSessionWorkspace({
     return () => {
       cancelled = true;
     };
-  }, [gitSearchOpen, isGitSource, workspaceId]);
+  }, [gitSearchOpen, isUnifiedSource, workspaceId]);
 
   const handleCreateSession = useCallback(async (): Promise<boolean> => {
     if (!canCreateSession) return false;
@@ -904,7 +912,7 @@ export function MultiSessionWorkspace({
 
   const handleAddGitRepository = useCallback(
     async (repository: GitRepositoryOption) => {
-      if (!isGitSource) return;
+      if (!isUnifiedSource) return;
       setAddingCloneKey(repository.cloneSessionKey);
       setGitAddFailed(false);
 
@@ -945,12 +953,12 @@ export function MultiSessionWorkspace({
         setAddingCloneKey(null);
       }
     },
-    [agentId, isGitSource, persistSessionOrder, selectSession, workspaceId],
+    [agentId, isUnifiedSource, persistSessionOrder, selectSession, workspaceId],
   );
 
   const handleRemoveGitSession = useCallback(
     (sessionName: string) => {
-      if (!isGitSource) return;
+      if (!isUnifiedSource) return;
 
       const nextSessions = sessions.filter((session) => session.sessionName !== sessionName);
       const nextActiveSessionName = nextSessions[0]?.sessionName ?? null;
@@ -966,11 +974,11 @@ export function MultiSessionWorkspace({
         }
       }
     },
-    [clearActiveTerminal, isGitSource, persistSessionOrder, selectSession, sessions],
+    [clearActiveTerminal, isUnifiedSource, persistSessionOrder, selectSession, sessions],
   );
 
   const renderGitFontControls = () => {
-    if (!isGitSource) return null;
+    if (!isUnifiedSource) return null;
 
     return (
       <fieldset
@@ -1010,7 +1018,7 @@ export function MultiSessionWorkspace({
   };
 
   const renderGitRepositoryButton = () => {
-    if (!isGitSource) return null;
+    if (!isUnifiedSource) return null;
 
     return (
       <Button
@@ -1059,7 +1067,7 @@ export function MultiSessionWorkspace({
   );
 
   const renderGitRepositorySearchModal = () => {
-    if (!isGitSource) return null;
+    if (!isUnifiedSource) return null;
 
     const query = gitSearchQuery.trim();
     const visibleFavorites = favoriteGitRepositories.slice(0, 6);
@@ -1234,7 +1242,7 @@ export function MultiSessionWorkspace({
           >
             →
           </Button>
-          {isGitSource ? (
+          {isUnifiedSource ? (
             <Button
               type="button"
               variant="ghost"
@@ -1318,7 +1326,7 @@ export function MultiSessionWorkspace({
       >
         <p className="text-sm font-medium text-foreground">No workspace sessions open</p>
         <p className="max-w-md text-xs text-muted-foreground">
-          {source === "git"
+          {source === "unified"
             ? "Create a plain terminal session or search Git repositories and add only the panes you need."
             : "Create a tmux-backed terminal session for this workspace."}
         </p>
@@ -1333,7 +1341,7 @@ export function MultiSessionWorkspace({
             </AlertDescription>
           </Alert>
         ) : null}
-        {canCreateSession && !isGitSource ? (
+        {canCreateSession && !isUnifiedSource ? (
           <Button
             type="button"
             onClick={() => void handleCreateSession()}
@@ -1364,7 +1372,7 @@ export function MultiSessionWorkspace({
       data-testid="multi-session-workspace"
       data-session-source={source}
       aria-label={
-        source === "git" ? "Workspace terminal sessions" : "Multi-session terminal workspace"
+        source === "unified" ? "Workspace terminal sessions" : "Multi-session terminal workspace"
       }
       onKeyDown={handleWorkspaceKeyDown}
     >
@@ -1402,7 +1410,7 @@ export function MultiSessionWorkspace({
         >
           Reset
         </Button>
-        {canCreateSession && !isGitSource ? (
+        {canCreateSession && !isUnifiedSource ? (
           <Button
             type="button"
             size="xs"

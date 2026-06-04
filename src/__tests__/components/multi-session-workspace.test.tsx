@@ -355,7 +355,7 @@ describe("MultiSessionWorkspace", () => {
     mockGetSessions.mockResolvedValue({ data: [] });
     mockListGitClones.mockResolvedValueOnce({ data: { ok: true, tree: { nodes: [] } } });
 
-    render(<MultiSessionWorkspace {...defaultProps} source="git" />);
+    render(<MultiSessionWorkspace {...defaultProps} source="unified" />);
     await screen.findByTestId("multi-session-empty");
 
     expect(screen.queryByTestId("create-session-button")).not.toBeInTheDocument();
@@ -400,7 +400,7 @@ describe("MultiSessionWorkspace", () => {
       },
     });
 
-    render(<MultiSessionWorkspace {...defaultProps} source="git" />);
+    render(<MultiSessionWorkspace {...defaultProps} source="unified" />);
 
     expect(await screen.findByTestId("multi-session-empty")).toBeInTheDocument();
     expect(mockResolveGitCloneTerminal).not.toHaveBeenCalled();
@@ -417,7 +417,7 @@ describe("MultiSessionWorkspace", () => {
 
     expect(await screen.findByTestId("multi-session-workspace")).toHaveAttribute(
       "data-session-source",
-      "git",
+      "unified",
     );
     expect(screen.queryByTestId("git-session-search-modal")).not.toBeInTheDocument();
     expect(screen.getByTestId("active-pane-label")).toHaveTextContent("kethalia/hive");
@@ -469,7 +469,7 @@ describe("MultiSessionWorkspace", () => {
       },
     });
 
-    render(<MultiSessionWorkspace {...defaultProps} source="git" />);
+    render(<MultiSessionWorkspace {...defaultProps} source="unified" />);
     await screen.findByTestId("multi-session-empty");
 
     const paletteBinding = mockRegister.mock.calls
@@ -532,7 +532,7 @@ describe("MultiSessionWorkspace", () => {
       },
     });
 
-    render(<MultiSessionWorkspace {...defaultProps} source="git" />);
+    render(<MultiSessionWorkspace {...defaultProps} source="unified" />);
     await screen.findByTestId("multi-session-empty");
     fireEvent.click(screen.getByTestId("open-git-session-search"));
     fireEvent.change(await screen.findByTestId("git-session-search"), {
@@ -591,7 +591,7 @@ describe("MultiSessionWorkspace", () => {
       ],
     });
 
-    render(<MultiSessionWorkspace {...defaultProps} source="git" />);
+    render(<MultiSessionWorkspace {...defaultProps} source="unified" />);
     await screen.findByTestId("multi-session-empty");
 
     fireEvent.click(screen.getByTestId("open-git-session-search"));
@@ -655,7 +655,7 @@ describe("MultiSessionWorkspace", () => {
       },
     });
 
-    render(<MultiSessionWorkspace {...defaultProps} source="git" />);
+    render(<MultiSessionWorkspace {...defaultProps} source="unified" />);
 
     expect(await screen.findByTestId("interactive-terminal-git-clone-safe-hive")).toHaveAttribute(
       "data-clone-proof",
