@@ -92,6 +92,7 @@ export function KeybindingProvider({ children }: { children: React.ReactNode }) 
       if (!shouldContinue) {
         event.preventDefault();
         event.stopPropagation();
+        event.stopImmediatePropagation();
       }
     };
 

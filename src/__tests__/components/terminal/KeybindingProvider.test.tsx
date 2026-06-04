@@ -77,12 +77,15 @@ describe("KeybindingProvider", () => {
     });
 
     const event = makeKeyEvent({ key: "k", metaKey: true, bubbles: true, cancelable: true });
+    const stopImmediatePropagation = vi.spyOn(event, "stopImmediatePropagation");
+
     act(() => {
       window.dispatchEvent(event);
     });
 
     expect(action).toHaveBeenCalledTimes(1);
     expect(event.defaultPrevented).toBe(true);
+    expect(stopImmediatePropagation).toHaveBeenCalledTimes(1);
   });
 
   it("does not capture global shortcuts from ordinary text-entry fields", async () => {
