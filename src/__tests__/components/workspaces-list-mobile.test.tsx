@@ -183,7 +183,7 @@ describe("workspaces mobile list", () => {
     expect(within(desktopTable).getByRole("columnheader", { name: "Action" })).toBeInTheDocument();
   });
 
-  it("opens the add workspace modal from the button and Cmd or Ctrl+N", async () => {
+  it("opens the add workspace modal from the button and Cmd/Ctrl+Alt+N", async () => {
     mocks.listWorkspaceTemplatesAction.mockResolvedValue({
       data: [
         {
@@ -211,6 +211,9 @@ describe("workspaces mobile list", () => {
     });
 
     fireEvent.keyDown(window, { key: "n", metaKey: true });
+    expect(screen.queryByTestId("create-workspace-modal")).not.toBeInTheDocument();
+
+    fireEvent.keyDown(window, { key: "n", metaKey: true, altKey: true });
     expect(await screen.findByTestId("create-workspace-modal")).toBeInTheDocument();
   });
 

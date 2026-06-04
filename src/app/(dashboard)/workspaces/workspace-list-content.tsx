@@ -132,7 +132,7 @@ function lastUsedLabel(value: string | undefined): string {
   return formatRelativeDate(value);
 }
 
-const CREATE_WORKSPACE_SHORTCUT_KEYS = ["ctrl+n", "cmd+n"] as const;
+const CREATE_WORKSPACE_SHORTCUT_KEYS = ["ctrl+alt+n", "cmd+alt+n"] as const;
 
 function healthLabel(workspace: CoderWorkspace): string {
   if (!workspace.health) return "Unknown";
