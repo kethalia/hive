@@ -1382,6 +1382,7 @@ export function MultiSessionWorkspace({
         onClick={() => selectSession(pane.sessionName)}
         onFocus={() => selectSession(pane.sessionName)}
         onKeyDown={(event) => {
+          if (event.currentTarget !== event.target) return;
           if (event.key === "Enter" || event.key === " ") {
             event.preventDefault();
             selectSession(pane.sessionName);
@@ -1531,7 +1532,7 @@ export function MultiSessionWorkspace({
       }
       onKeyDown={handleWorkspaceKeyDown}
     >
-      <header className="shrink-0 flex flex-wrap items-center gap-1 border-b border-border px-2 py-1.5">
+      <header className="shrink-0 flex flex-wrap items-center gap-1 border-b border-border px-1 py-1">
         <SidebarTrigger className="h-7 min-h-0 shrink-0" />
         <div className="min-w-0 flex-1">
           <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Active pane</p>
@@ -1610,11 +1611,11 @@ export function MultiSessionWorkspace({
 
       <div
         ref={workspaceBodyRef}
-        className="relative min-h-0 flex-1 overflow-hidden p-2"
+        className="relative min-h-0 flex-1 overflow-hidden p-1"
         data-testid="multi-session-body"
       >
         <div
-          className="grid h-full min-h-0 gap-2"
+          className="grid h-full min-h-0 gap-1"
           style={{
             gridTemplateColumns: layout.tiled.gridTemplateColumns,
             gridTemplateRows: layout.tiled.gridTemplateRows,

@@ -76,6 +76,11 @@ vi.mock("next/dynamic", () => ({
           data-clone-proof={cloneProof}
         >
           Terminal: {sessionName}
+          <textarea
+            aria-label={`Terminal input ${sessionName}`}
+            className="xterm-helper-textarea"
+            data-testid={`terminal-input-${sessionName}`}
+          />
         </div>
       );
     };
@@ -308,6 +313,8 @@ describe("MultiSessionWorkspace", () => {
       "data-pane-mode",
       "tiled",
     );
+    expect(screen.getByTestId("multi-session-body")).toHaveClass("p-1");
+    expect(screen.getByTestId("multi-session-grid")).toHaveClass("gap-1");
     expect(screen.queryByTestId("copy-active-pane")).not.toBeInTheDocument();
     expect(screen.queryByTestId("paste-active-pane")).not.toBeInTheDocument();
     expect(screen.queryByTestId("float-pane-pane-main-session")).not.toBeInTheDocument();
@@ -330,6 +337,29 @@ describe("MultiSessionWorkspace", () => {
     fireEvent.click(screen.getByTestId("workspace-pane-main-session"));
 
     expect(screen.getByTestId("active-pane-label")).toHaveTextContent("main-session");
+  });
+
+  it("does not consume space or enter typed inside terminal panes", async () => {
+    await renderTwoSessionWorkspace();
+    const terminalInput = screen.getByTestId("terminal-input-main-session");
+    const spaceEvent = new KeyboardEvent("keydown", {
+      key: " ",
+      bubbles: true,
+      cancelable: true,
+    });
+    const enterEvent = new KeyboardEvent("keydown", {
+      key: "Enter",
+      bubbles: true,
+      cancelable: true,
+    });
+
+    act(() => {
+      terminalInput.dispatchEvent(spaceEvent);
+      terminalInput.dispatchEvent(enterEvent);
+    });
+
+    expect(spaceEvent.defaultPrevented).toBe(false);
+    expect(enterEvent.defaultPrevented).toBe(false);
   });
 
   it("switches active pane with Ctrl/Cmd arrow keys and focuses xterm", async () => {

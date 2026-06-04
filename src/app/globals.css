@@ -183,6 +183,8 @@
 
   [data-dashboard-content]:has([data-dashboard-full-bleed]) {
     height: 100%;
+    min-width: 0;
+    width: 100%;
   }
 }
 
