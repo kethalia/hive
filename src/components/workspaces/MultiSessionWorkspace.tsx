@@ -891,7 +891,7 @@ export function MultiSessionWorkspace({
     } finally {
       setCreating(false);
     }
-  }, [canCreateSession, persistSessionOrder, selectSession, workspaceId]);
+  }, [persistSessionOrder, selectSession, workspaceId]);
 
   useEffect(() => {
     register({
@@ -981,11 +981,11 @@ export function MultiSessionWorkspace({
     if (!isGitSource) return null;
 
     return (
-      <div
-        className="flex items-center gap-1 rounded-md border border-border px-1 py-0.5"
-        aria-label="Workspace terminal font size controls"
+      <fieldset
+        className="flex min-w-0 items-center gap-1 rounded-md border border-border px-1 py-0.5"
         data-testid="git-terminal-font-size-controls"
       >
+        <legend className="sr-only">Workspace terminal font size controls</legend>
         <Button
           type="button"
           variant="ghost"
@@ -1013,7 +1013,7 @@ export function MultiSessionWorkspace({
         >
           <Plus className="size-3" />
         </Button>
-      </div>
+      </fieldset>
     );
   };
 
