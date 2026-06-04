@@ -1629,25 +1629,22 @@ describe("AppSidebar", () => {
     openSpy.mockRestore();
   });
 
-  it("renders a multi-session workspace link without replacing single-session terminal rows", async () => {
+  it("renders one unified Workspace link without replacing single-session terminal rows", async () => {
     await expandWorkspaceAndTerminalSessions();
 
     const workspaceLink = screen.getByTestId("multi-session-workspace-link-ws-1");
     expect(workspaceLink).toHaveAttribute("href", "/workspaces/ws-1/terminal/workspace");
-    expect(workspaceLink).toHaveTextContent("Multi-session workspace");
+    expect(workspaceLink).toHaveTextContent("Workspace");
     expect(workspaceLink).toHaveAttribute("data-active", "false");
 
-    const gitWorkspaceLink = screen.getByTestId("git-workspace-link-ws-1");
-    expect(gitWorkspaceLink).toHaveAttribute("href", "/workspaces/ws-1/terminal/git-workspace");
-    expect(gitWorkspaceLink).toHaveTextContent("Git workspace");
-    expect(gitWorkspaceLink).toHaveAttribute("data-active", "false");
+    expect(screen.queryByTestId("git-workspace-link-ws-1")).not.toBeInTheDocument();
 
     const sessionLink = screen.getByText("dev").closest("a");
     expect(sessionLink).toHaveAttribute("href", "/workspaces/ws-1/terminal?session=dev");
     expect(screen.getByTestId("create-session-ws-1")).toBeInTheDocument();
   });
 
-  it("marks only the multi-session workspace link active on the workspace route", async () => {
+  it("marks only the unified Workspace link active on workspace routes", async () => {
     mockNavigationState.pathname = "/workspaces/ws-1/terminal/workspace";
 
     render(<AppSidebar />);
@@ -1660,6 +1657,14 @@ describe("AppSidebar", () => {
       expect(screen.getByText("dev")).toBeInTheDocument();
     });
     expect(screen.getByText("dev").closest("a")).toHaveAttribute("data-active", "false");
+
+    cleanup();
+    mockNavigationState.pathname = "/workspaces/ws-1/terminal/git-workspace";
+    render(<AppSidebar />);
+    expect(await screen.findByTestId("multi-session-workspace-link-ws-1")).toHaveAttribute(
+      "data-active",
+      "true",
+    );
   });
 
   it("keeps the multi-session workspace link reachable when session loading fails", async () => {
@@ -1673,11 +1678,6 @@ describe("AppSidebar", () => {
     const wsTrigger = screen.getByText("dev-box").closest("[data-testid='collapsible-trigger']");
     expect(wsTrigger).not.toBeNull();
     fireEvent.click(wsTrigger!);
-
-    const terminalSection = await screen.findByTestId("terminal-section-ws-1");
-    const terminalTrigger = terminalSection.querySelector("[data-testid='collapsible-trigger']");
-    expect(terminalTrigger).not.toBeNull();
-    fireEvent.click(terminalTrigger!);
 
     expect(screen.getByTestId("multi-session-workspace-link-ws-1")).toHaveAttribute(
       "href",

@@ -305,15 +305,15 @@ export function TerminalTabManager({ agentId, workspaceId }: TerminalTabManagerP
   useEffect(() => {
     const createTabBinding = {
       id: "session:create",
-      keys: ["ctrl+t", "cmd+t"],
+      keys: ["ctrl+shift+n", "cmd+shift+n"],
       action: () => {
-        if (!isPwaStandalone()) return true;
         handleCreateTab();
         return false;
       },
-      description: "Create new session tab",
+      description: "Create new terminal session",
       category: "session",
-      enabledInBrowser: false,
+      enabledInBrowser: true,
+      global: true,
     };
 
     const closeTabBinding = {
@@ -379,7 +379,7 @@ export function TerminalTabManager({ agentId, workspaceId }: TerminalTabManagerP
 
     const commandPaletteBinding = {
       id: "command-palette",
-      keys: ["ctrl+shift+p", "cmd+shift+p"],
+      keys: ["ctrl+k", "cmd+k"],
       action: () => {
         setPaletteOpen(true);
         return false;
@@ -387,6 +387,7 @@ export function TerminalTabManager({ agentId, workspaceId }: TerminalTabManagerP
       description: "Open command palette",
       category: "terminal",
       enabledInBrowser: true,
+      global: true,
     };
 
     register(createTabBinding);

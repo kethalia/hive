@@ -58,6 +58,55 @@ describe("KeybindingProvider", () => {
     expect(probe.context?.handleKeyEvent(makeKeyEvent({ key: "v", metaKey: true }))).toBe(true);
   });
 
+  it("handles registered global shortcuts at the window level", async () => {
+    const probe = renderWithProbe();
+    const action = vi.fn(() => false);
+
+    act(() => {
+      probe.context?.register({
+        id: "command-palette",
+        keys: ["ctrl+k", "cmd+k"],
+        action,
+        description: "Open command palette",
+        category: "terminal",
+        enabledInBrowser: true,
+        global: true,
+      });
+    });
+
+    const event = makeKeyEvent({ key: "k", metaKey: true, bubbles: true, cancelable: true });
+    act(() => {
+      window.dispatchEvent(event);
+    });
+
+    expect(action).toHaveBeenCalledTimes(1);
+    expect(event.defaultPrevented).toBe(true);
+  });
+
+  it("does not capture non-global shortcuts at the window level", async () => {
+    const probe = renderWithProbe();
+    const action = vi.fn(() => false);
+
+    act(() => {
+      probe.context?.register({
+        id: "copy-test",
+        keys: ["ctrl+c", "cmd+c"],
+        action,
+        description: "Copy selection",
+        category: "clipboard",
+        enabledInBrowser: true,
+      });
+    });
+
+    const event = makeKeyEvent({ key: "c", metaKey: true, bubbles: true, cancelable: true });
+    act(() => {
+      window.dispatchEvent(event);
+    });
+
+    expect(action).not.toHaveBeenCalled();
+    expect(event.defaultPrevented).toBe(false);
+  });
+
   it("focuses the active terminal when sidebar toggles request terminal focus", async () => {
     vi.spyOn(window, "requestAnimationFrame").mockImplementation((callback) => {
       callback(0);

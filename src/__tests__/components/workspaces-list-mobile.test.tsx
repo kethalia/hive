@@ -161,9 +161,9 @@ describe("workspaces mobile list", () => {
     expect(within(cards[0]).getByText("alice")).toBeInTheDocument();
 
     const terminalLink = within(cards[0]).getByRole("link", {
-      name: "Open terminal for mobile-dev",
+      name: "Open workspace for mobile-dev",
     });
-    expect(terminalLink).toHaveAttribute("href", "/workspaces/workspace-1/terminal");
+    expect(terminalLink).toHaveAttribute("href", "/workspaces/workspace-1/terminal/workspace");
     expect(terminalLink).toHaveClass("min-h-11", "touch-manipulation", "text-sm");
 
     const desktopTable = screen.getByTestId("workspaces-desktop-table");
@@ -182,7 +182,7 @@ describe("workspaces mobile list", () => {
     expect(within(desktopTable).getByRole("columnheader", { name: "Action" })).toBeInTheDocument();
   });
 
-  it("opens the add workspace modal from the button and F2", async () => {
+  it("opens the add workspace modal from the button and Cmd or Ctrl+N", async () => {
     mocks.listWorkspaceTemplatesAction.mockResolvedValue({
       data: [
         {
@@ -205,7 +205,7 @@ describe("workspaces mobile list", () => {
       expect(screen.queryByTestId("create-workspace-modal")).not.toBeInTheDocument();
     });
 
-    fireEvent.keyDown(window, { key: "F2" });
+    fireEvent.keyDown(window, { key: "n", metaKey: true });
     expect(await screen.findByTestId("create-workspace-modal")).toBeInTheDocument();
   });
 

@@ -105,6 +105,11 @@ vi.mock("@/lib/utils", () => ({
   cn: (...classes: unknown[]) => classes.filter(Boolean).join(" "),
 }));
 
+vi.mock("@/components/terminal/CommandPalette", () => ({
+  CommandPalette: ({ open }: { open: boolean }) =>
+    open ? <div data-testid="multi-session-command-palette" /> : null,
+}));
+
 vi.mock("@/components/ui/button", () => ({
   Button: ({
     children,
@@ -220,6 +225,7 @@ describe("MultiSessionWorkspace", () => {
     vi.clearAllMocks();
     terminalProps.clear();
     window.localStorage.clear();
+    mockGetSessions.mockResolvedValue({ data: [] });
     mockListNavigationFavorites.mockResolvedValue({ data: [] });
   });
 
@@ -333,7 +339,7 @@ describe("MultiSessionWorkspace", () => {
     expect(screen.getByTestId("active-pane-label")).toHaveTextContent("dev-server");
   });
 
-  it("creates generic workspace sessions but hides creation for Git source", async () => {
+  it("creates generic workspace sessions while keeping Git source creation inside the add-session modal", async () => {
     await renderTwoSessionWorkspace();
     mockCreateSession.mockResolvedValueOnce({ data: { name: "created-main" } });
 
@@ -346,12 +352,15 @@ describe("MultiSessionWorkspace", () => {
 
     cleanup();
     terminalProps.clear();
+    mockGetSessions.mockResolvedValue({ data: [] });
     mockListGitClones.mockResolvedValueOnce({ data: { ok: true, tree: { nodes: [] } } });
 
     render(<MultiSessionWorkspace {...defaultProps} source="git" />);
     await screen.findByTestId("multi-session-empty");
 
     expect(screen.queryByTestId("create-session-button")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByTestId("open-git-session-search"));
+    expect(await screen.findByTestId("add-plain-terminal-session")).toBeInTheDocument();
   });
 
   it("starts Git workspaces empty, adds searched repositories, and persists selected clone refs", async () => {
@@ -440,7 +449,7 @@ describe("MultiSessionWorkspace", () => {
     );
   });
 
-  it("opens Git repository search with F2 and avoids browser new-window shortcuts", async () => {
+  it("registers modifier shortcuts for session search and immediate plain terminals", async () => {
     mockListGitClones.mockResolvedValueOnce({
       data: {
         ok: true,
@@ -463,23 +472,35 @@ describe("MultiSessionWorkspace", () => {
     render(<MultiSessionWorkspace {...defaultProps} source="git" />);
     await screen.findByTestId("multi-session-empty");
 
-    const event = new KeyboardEvent("keydown", {
-      key: "F2",
-      bubbles: true,
-      cancelable: true,
-    });
-    window.dispatchEvent(event);
+    const paletteBinding = mockRegister.mock.calls
+      .filter(([entry]) => entry.id === "command-palette")
+      .at(-1)?.[0];
+    expect(paletteBinding.keys).toEqual(["ctrl+k", "cmd+k"]);
+    expect(paletteBinding.global).toBe(true);
 
-    expect(event.defaultPrevented).toBe(true);
+    const searchBinding = mockRegister.mock.calls
+      .filter(([entry]) => entry.id === "multi-session:ws-1:open-session-search")
+      .at(-1)?.[0];
+    expect(searchBinding.keys).toEqual(["ctrl+n", "cmd+n"]);
+    expect(searchBinding.global).toBe(true);
+    act(() => {
+      expect(searchBinding.action(null, null)).toBe(false);
+    });
+
     expect(await screen.findByTestId("git-session-search-modal")).toBeInTheDocument();
     expect(mockListNavigationFavorites).toHaveBeenCalledWith({ workspaceId: "ws-1", kind: "git" });
 
-    const binding = mockRegister.mock.calls
-      .filter(([entry]) => entry.id === "multi-session:ws-1:open-git-search")
+    mockCreateSession.mockResolvedValueOnce({ data: { name: "plain-main" } });
+    const createBinding = mockRegister.mock.calls
+      .filter(([entry]) => entry.id === "multi-session:ws-1:create-terminal-session")
       .at(-1)?.[0];
-    expect(binding.keys).toEqual(["f2"]);
+    expect(createBinding.keys).toEqual(["ctrl+shift+n", "cmd+shift+n"]);
+    expect(createBinding.global).toBe(true);
     act(() => {
-      expect(binding.action(null, null)).toBe(false);
+      expect(createBinding.action(null, null)).toBe(false);
+    });
+    await waitFor(() => {
+      expect(mockCreateSession).toHaveBeenCalledWith({ workspaceId: "ws-1" });
     });
   });
 

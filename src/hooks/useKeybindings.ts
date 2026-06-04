@@ -10,6 +10,7 @@ export interface KeybindingEntry {
   description: string;
   category: string;
   enabledInBrowser: boolean;
+  global?: boolean;
 }
 
 export interface KeybindingContextValue {
@@ -65,7 +66,7 @@ export function useRegisterKeybinding(entry: KeybindingEntry) {
   const actionRef = React.useRef(entry.action);
   actionRef.current = entry.action;
 
-  const { id, description, category, enabledInBrowser } = entry;
+  const { id, description, category, enabledInBrowser, global } = entry;
   const keysKey = entry.keys.join(",");
 
   React.useEffect(() => {
@@ -76,9 +77,10 @@ export function useRegisterKeybinding(entry: KeybindingEntry) {
       description,
       category,
       enabledInBrowser,
+      global,
       action: (term, send) => actionRef.current(term, send),
     };
     register(stableEntry);
     return () => unregister(id);
-  }, [id, keysKey, description, category, enabledInBrowser, register, unregister]);
+  }, [id, keysKey, description, category, enabledInBrowser, global, register, unregister]);
 }

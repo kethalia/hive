@@ -10,6 +10,7 @@ import {
 } from "@/hooks/useKeybindings";
 import { copyTerminalSelection } from "@/lib/terminal/actions";
 import { TERMINAL_FOCUS_ACTIVE_EVENT } from "@/lib/terminal/events";
+import { isPwaStandalone } from "@/lib/terminal/pwa";
 
 export function KeybindingProvider({ children }: { children: React.ReactNode }) {
   const registryRef = React.useRef<Map<string, KeybindingEntry>>(new Map());
@@ -72,6 +73,24 @@ export function KeybindingProvider({ children }: { children: React.ReactNode }) 
     }),
     [register, unregister, getAll, handleKeyEvent, activeTerminal, activeSend, setActiveTerminal],
   );
+
+  React.useEffect(() => {
+    const handleGlobalKeyDown = (event: KeyboardEvent) => {
+      const combo = normalizeKeyCombo(event);
+      const entry = registryRef.current.get(combo);
+      if (!entry?.global) return;
+      if (!entry.enabledInBrowser && !isPwaStandalone()) return;
+
+      const shouldContinue = entry.action(activeTerminal, activeSend);
+      if (!shouldContinue) {
+        event.preventDefault();
+        event.stopPropagation();
+      }
+    };
+
+    window.addEventListener("keydown", handleGlobalKeyDown, { capture: true });
+    return () => window.removeEventListener("keydown", handleGlobalKeyDown, { capture: true });
+  }, [activeSend, activeTerminal]);
 
   React.useEffect(() => {
     const handleFocusActiveTerminal = () => {

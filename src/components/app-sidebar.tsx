@@ -1497,6 +1497,9 @@ export function AppSidebar() {
                       const encodedWorkspaceId = encodeURIComponent(ws.id);
                       const multiSessionWorkspaceHref = `/workspaces/${encodedWorkspaceId}/terminal/workspace`;
                       const gitMultiSessionWorkspaceHref = `/workspaces/${encodedWorkspaceId}/terminal/git-workspace`;
+                      const isWorkspacePageActive =
+                        pathname === multiSessionWorkspaceHref ||
+                        pathname === gitMultiSessionWorkspaceHref;
                       return (
                         <Collapsible
                           key={ws.id}
@@ -1523,6 +1526,16 @@ export function AppSidebar() {
                             </SidebarMenuSubButton>
                             <CollapsibleContent>
                               <SidebarMenuSub className="!mr-0 !pr-0">
+                                <SidebarMenuSubItem>
+                                  <SidebarMenuSubButton
+                                    render={<Link href={multiSessionWorkspaceHref} />}
+                                    isActive={isWorkspacePageActive}
+                                    data-testid={`multi-session-workspace-link-${ws.id}`}
+                                  >
+                                    <Monitor className="h-3 w-3 shrink-0" />
+                                    <span>Workspace</span>
+                                  </SidebarMenuSubButton>
+                                </SidebarMenuSubItem>
                                 {urls && (
                                   <>
                                     <SidebarMenuSubItem>
@@ -1565,18 +1578,6 @@ export function AppSidebar() {
                                       <ChevronRight className="ml-auto h-3 w-3 transition-transform" />
                                     </SidebarMenuSubButton>
                                     <CollapsibleContent>
-                                      <SidebarMenuSub className="!mr-0 !pr-0">
-                                        <SidebarMenuSubItem>
-                                          <SidebarMenuSubButton
-                                            render={<Link href={gitMultiSessionWorkspaceHref} />}
-                                            isActive={pathname === gitMultiSessionWorkspaceHref}
-                                            data-testid={`git-workspace-link-${ws.id}`}
-                                          >
-                                            <ScreenIcon className="h-3 w-3 shrink-0" />
-                                            <span>Git workspace</span>
-                                          </SidebarMenuSubButton>
-                                        </SidebarMenuSubItem>
-                                      </SidebarMenuSub>
                                       <GitDiscoveryPanel
                                         state={gitState}
                                         activeClonePath={
@@ -1648,16 +1649,6 @@ export function AppSidebar() {
                                         </Alert>
                                       )}
                                       <SidebarMenuSub className="!mr-0 !pr-0">
-                                        <SidebarMenuSubItem>
-                                          <SidebarMenuSubButton
-                                            render={<Link href={multiSessionWorkspaceHref} />}
-                                            isActive={pathname === multiSessionWorkspaceHref}
-                                            data-testid={`multi-session-workspace-link-${ws.id}`}
-                                          >
-                                            <Monitor className="h-3 w-3 shrink-0" />
-                                            <span>Multi-session workspace</span>
-                                          </SidebarMenuSubButton>
-                                        </SidebarMenuSubItem>
                                         <SidebarMenuSubItem>
                                           {!sessions || sessions.isLoading ? (
                                             <SidebarMenuSubButton

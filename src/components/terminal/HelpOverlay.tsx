@@ -47,7 +47,7 @@ export function HelpOverlay() {
 
   useRegisterKeybinding({
     id: "help:show",
-    keys: ["f1"],
+    keys: ["ctrl+/", "cmd+/"],
     action: () => {
       setOpen((prev) => !prev);
       return false;
@@ -55,6 +55,7 @@ export function HelpOverlay() {
     description: "Show keyboard shortcuts",
     category: "general",
     enabledInBrowser: true,
+    global: true,
   });
 
   const entries = getAll();

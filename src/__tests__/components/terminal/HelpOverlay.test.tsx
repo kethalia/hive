@@ -95,7 +95,7 @@ const testEntries = [
   },
   {
     id: "session:new",
-    keys: ["ctrl+t"],
+    keys: ["ctrl+shift+n", "cmd+shift+n"],
     action: () => false,
     description: "New session",
     category: "session",
@@ -103,7 +103,7 @@ const testEntries = [
   },
   {
     id: "help:show",
-    keys: ["f1"],
+    keys: ["ctrl+/", "cmd+/"],
     action: () => false,
     description: "Show keyboard shortcuts",
     category: "general",
@@ -157,7 +157,7 @@ describe("HelpOverlay", () => {
 
   it("formats key combos for display", () => {
     renderOpenOverlay();
-    expect(screen.getByText("F1")).toBeInTheDocument();
+    expect(screen.getByText("Ctrl + /")).toBeInTheDocument();
     expect(screen.queryByText("⇧ + ?")).not.toBeInTheDocument();
   });
 
@@ -196,18 +196,19 @@ describe("HelpOverlay", () => {
     expect(localStorage.getItem("hive:help-nudge-dismissed")).toBe("true");
   });
 
-  it("the help:show keybinding is registered on F1 and appears in the list", () => {
+  it("the help:show keybinding is registered on Ctrl/Cmd+/ and appears in the list", () => {
     renderOpenOverlay();
     expect(mockRegister).toHaveBeenCalledWith(
       expect.objectContaining({
         id: "help:show",
-        keys: ["f1"],
+        keys: ["ctrl+/", "cmd+/"],
+        global: true,
       }),
     );
     expect(mockRegister).not.toHaveBeenCalledWith(
       expect.objectContaining({
         id: "help:show",
-        keys: ["shift+?"],
+        keys: ["f1"],
       }),
     );
     expect(screen.getByText("Show keyboard shortcuts")).toBeInTheDocument();

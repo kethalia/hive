@@ -668,7 +668,7 @@ describe("CommandPalette", () => {
     );
 
     expect(screen.getByText("New Session")).toBeInTheDocument();
-    expect(screen.getByTestId("command-shortcut")).toHaveTextContent("Ctrl + T");
+    expect(screen.getByTestId("command-shortcut")).toHaveTextContent("Ctrl + Shift + N");
   });
 
   it("calls onCreateSession and closes when 'New Session' is selected", () => {

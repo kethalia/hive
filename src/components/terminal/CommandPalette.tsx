@@ -25,7 +25,7 @@ import {
 } from "@/lib/gestures/conventions";
 import { formatShortcut } from "@/lib/keyboard-shortcuts";
 
-const CREATE_SESSION_SHORTCUT_KEYS = ["ctrl+t", "cmd+t"] as const;
+const CREATE_SESSION_SHORTCUT_KEYS = ["ctrl+shift+n", "cmd+shift+n"] as const;
 
 interface CommandPaletteProps {
   open: boolean;

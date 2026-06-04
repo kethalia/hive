@@ -12,6 +12,7 @@ import {
   useRef,
   useState,
 } from "react";
+import { CommandPalette } from "@/components/terminal/CommandPalette";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import {
@@ -114,7 +115,8 @@ type LayoutPersistenceNotice = {
   message: string;
 };
 
-const GIT_SEARCH_SHORTCUT_KEYS = ["f2"] as const;
+const ADD_SESSION_MODAL_SHORTCUT_KEYS = ["ctrl+n", "cmd+n"] as const;
+const CREATE_TERMINAL_SESSION_SHORTCUT_KEYS = ["ctrl+shift+n", "cmd+shift+n"] as const;
 
 function isObjectRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
@@ -397,7 +399,34 @@ async function loadGitSessions(
 
   return sessions.length > 0
     ? { status: "success", sessions, repositories }
-    : { status: "failure", repositories };
+    : { status: "empty", repositories };
+}
+
+async function loadUnifiedWorkspaceSessions(
+  workspaceId: string,
+  agentId: string,
+  persistedJson: string | null,
+): Promise<SessionLoadResult> {
+  const [workspaceResult, gitResult] = await Promise.allSettled([
+    loadWorkspaceSessions(workspaceId),
+    loadGitSessions(workspaceId, agentId, persistedJson),
+  ]);
+
+  const workspaceLoad: SessionLoadResult =
+    workspaceResult.status === "fulfilled" ? workspaceResult.value : { status: "failure" };
+  const gitLoad: SessionLoadResult =
+    gitResult.status === "fulfilled" ? gitResult.value : { status: "failure" };
+  const repositories = "repositories" in gitLoad ? gitLoad.repositories : undefined;
+  const sessions = uniqueSessions([
+    ...(workspaceLoad.status === "success" ? workspaceLoad.sessions : []),
+    ...(gitLoad.status === "success" ? gitLoad.sessions : []),
+  ]);
+
+  if (sessions.length > 0) return { status: "success", sessions, repositories };
+  if (workspaceLoad.status === "failure" && gitLoad.status === "failure") {
+    return { status: "failure", repositories };
+  }
+  return { status: "empty", repositories };
 }
 
 export function MultiSessionWorkspace({
@@ -426,6 +455,7 @@ export function MultiSessionWorkspace({
   const [gitFavoritesLoading, setGitFavoritesLoading] = useState(false);
   const [gitFavoritesFailed, setGitFavoritesFailed] = useState(false);
   const [gitSearchOpen, setGitSearchOpen] = useState(false);
+  const [paletteOpen, setPaletteOpen] = useState(false);
   const [gitSearchQuery, setGitSearchQuery] = useState("");
   const [addingCloneKey, setAddingCloneKey] = useState<string | null>(null);
   const [gitAddFailed, setGitAddFailed] = useState(false);
@@ -436,7 +466,7 @@ export function MultiSessionWorkspace({
   const activeSessionNameRef = useRef<string | null>(null);
   const workspaceBodyRef = useRef<HTMLDivElement>(null);
   const gitSearchInputRef = useRef<HTMLInputElement>(null);
-  const canCreateSession = source === "workspace";
+  const canCreateSession = true;
   const isGitSource = source === "git";
 
   activeSessionNameRef.current = activeSessionName;
@@ -528,6 +558,16 @@ export function MultiSessionWorkspace({
       clearActiveTerminal();
     },
     [clearActiveTerminal, setActiveTerminal],
+  );
+  const commandPaletteTabs = useMemo(
+    () => sessions.map((session) => ({ id: session.sessionName, sessionName: session.label })),
+    [sessions],
+  );
+  const handlePaletteSelect = useCallback(
+    (sessionName: string) => {
+      selectSession(sessionName);
+    },
+    [selectSession],
   );
 
   const persistLayoutJson = useCallback(
@@ -636,12 +676,6 @@ export function MultiSessionWorkspace({
   const handleWorkspaceKeyDown = useCallback(
     (event: ReactKeyboardEvent<HTMLElement>) => {
       const target = event.target instanceof Element ? event.target : null;
-      if (isGitSource && event.key === "F2" && !isTextEntryElement(target)) {
-        event.preventDefault();
-        openGitSearchModal();
-        return;
-      }
-
       if (!(event.ctrlKey || event.metaKey)) return;
       if (event.altKey || event.shiftKey) return;
       if (isTextEntryElement(target)) return;
@@ -657,7 +691,7 @@ export function MultiSessionWorkspace({
         focusRelativeSession(1);
       }
     },
-    [focusRelativeSession, isGitSource, openGitSearchModal],
+    [focusRelativeSession],
   );
 
   const handleResetLayout = useCallback(() => {
@@ -690,43 +724,41 @@ export function MultiSessionWorkspace({
       category: "terminal",
       enabledInBrowser: true,
     });
+    register({
+      id: "command-palette",
+      keys: ["ctrl+k", "cmd+k"],
+      action: () => {
+        setPaletteOpen(true);
+        return false;
+      },
+      description: "Open command palette",
+      category: "terminal",
+      enabledInBrowser: true,
+      global: true,
+    });
 
     if (isGitSource) {
       register({
-        id: `multi-session:${workspaceId}:open-git-search`,
-        keys: [...GIT_SEARCH_SHORTCUT_KEYS],
+        id: `multi-session:${workspaceId}:open-session-search`,
+        keys: [...ADD_SESSION_MODAL_SHORTCUT_KEYS],
         action: () => {
           openGitSearchModal();
           return false;
         },
-        description: "Open Git repository search",
+        description: "Open workspace session search",
         category: "terminal",
         enabledInBrowser: true,
+        global: true,
       });
     }
 
     return () => {
       unregister(`multi-session:${workspaceId}:previous-pane`);
       unregister(`multi-session:${workspaceId}:next-pane`);
-      unregister(`multi-session:${workspaceId}:open-git-search`);
+      unregister("command-palette");
+      unregister(`multi-session:${workspaceId}:open-session-search`);
     };
   }, [focusRelativeSession, isGitSource, openGitSearchModal, register, unregister, workspaceId]);
-
-  useEffect(() => {
-    if (!isGitSource) return;
-
-    const handleGlobalGitSearchShortcut = (event: KeyboardEvent) => {
-      if (event.key !== "F2") return;
-      if (isTextEntryElement(event.target instanceof Element ? event.target : null)) return;
-      event.preventDefault();
-      event.stopPropagation();
-      openGitSearchModal();
-    };
-
-    window.addEventListener("keydown", handleGlobalGitSearchShortcut, { capture: true });
-    return () =>
-      window.removeEventListener("keydown", handleGlobalGitSearchShortcut, { capture: true });
-  }, [isGitSource, openGitSearchModal]);
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: reloadKey is a manual retry trigger for session loading
   useEffect(() => {
@@ -756,7 +788,7 @@ export function MultiSessionWorkspace({
       try {
         const parsed =
           source === "git"
-            ? await loadGitSessions(workspaceId, agentId, storedLayout.raw)
+            ? await loadUnifiedWorkspaceSessions(workspaceId, agentId, storedLayout.raw)
             : await loadWorkspaceSessions(workspaceId);
         if (cancelled) return;
 
@@ -832,8 +864,8 @@ export function MultiSessionWorkspace({
     };
   }, [gitSearchOpen, isGitSource, workspaceId]);
 
-  const handleCreateSession = useCallback(async () => {
-    if (!canCreateSession) return;
+  const handleCreateSession = useCallback(async (): Promise<boolean> => {
+    if (!canCreateSession) return false;
     setCreating(true);
     setCreateFailed(false);
 
@@ -842,7 +874,7 @@ export function MultiSessionWorkspace({
       const parsed = parseCreateResult(result);
       if (parsed.status === "failure") {
         setCreateFailed(true);
-        return;
+        return false;
       }
 
       setSessions((current) => {
@@ -852,12 +884,31 @@ export function MultiSessionWorkspace({
       });
       selectSession(parsed.session.sessionName);
       window.dispatchEvent(new CustomEvent("hive:sidebar-refresh", { detail: { workspaceId } }));
+      return true;
     } catch {
       setCreateFailed(true);
+      return false;
     } finally {
       setCreating(false);
     }
   }, [canCreateSession, persistSessionOrder, selectSession, workspaceId]);
+
+  useEffect(() => {
+    register({
+      id: `multi-session:${workspaceId}:create-terminal-session`,
+      keys: [...CREATE_TERMINAL_SESSION_SHORTCUT_KEYS],
+      action: () => {
+        void handleCreateSession();
+        return false;
+      },
+      description: "Create new terminal session",
+      category: "terminal",
+      enabledInBrowser: true,
+      global: true,
+    });
+
+    return () => unregister(`multi-session:${workspaceId}:create-terminal-session`);
+  }, [handleCreateSession, register, unregister, workspaceId]);
 
   const handleAddGitRepository = useCallback(
     async (repository: GitRepositoryOption) => {
@@ -932,7 +983,7 @@ export function MultiSessionWorkspace({
     return (
       <div
         className="flex items-center gap-1 rounded-md border border-border px-1 py-0.5"
-        aria-label="Git terminal font size controls"
+        aria-label="Workspace terminal font size controls"
         data-testid="git-terminal-font-size-controls"
       >
         <Button
@@ -942,7 +993,7 @@ export function MultiSessionWorkspace({
           className="h-6 min-h-0 px-1.5 text-[10px]"
           onClick={decreaseFontSize}
           disabled={!canDecreaseFontSize}
-          aria-label="Decrease Git terminal font size"
+          aria-label="Decrease workspace terminal font size"
           data-testid="decrease-git-terminal-font-size"
         >
           <Minus className="size-3" />
@@ -957,7 +1008,7 @@ export function MultiSessionWorkspace({
           className="h-6 min-h-0 px-1.5 text-[10px]"
           onClick={increaseFontSize}
           disabled={!canIncreaseFontSize}
-          aria-label="Increase Git terminal font size"
+          aria-label="Increase workspace terminal font size"
           data-testid="increase-git-terminal-font-size"
         >
           <Plus className="size-3" />
@@ -976,13 +1027,13 @@ export function MultiSessionWorkspace({
         size="xs"
         onClick={openGitSearchModal}
         className="h-7 min-h-0 px-2 text-xs"
-        aria-label="Search Git repositories"
+        aria-label="Add workspace session"
         data-testid="open-git-session-search"
       >
         <Search className="size-3" />
-        Add Git pane
+        Add session
         <span className="ml-1 hidden text-[10px] text-muted-foreground sm:inline">
-          {formatShortcut(GIT_SEARCH_SHORTCUT_KEYS)}
+          {formatShortcut(ADD_SESSION_MODAL_SHORTCUT_KEYS)}
         </span>
       </Button>
     );
@@ -1031,10 +1082,10 @@ export function MultiSessionWorkspace({
         {gitSearchOpen ? (
           <DialogContent className="max-w-xl" data-testid="git-session-search-modal">
             <DialogHeader>
-              <DialogTitle>Add Git terminal pane</DialogTitle>
+              <DialogTitle>Add workspace session</DialogTitle>
               <DialogDescription>
-                Search repositories or choose a pinned favorite. Open panes are hidden from this
-                list.
+                Create a plain terminal in the workspace home directory, search repositories, or
+                choose a pinned Git favorite. Open panes are hidden from this list.
               </DialogDescription>
             </DialogHeader>
             <label className="flex items-center gap-2 rounded-md border border-input bg-background px-2 py-2 text-sm">
@@ -1050,6 +1101,23 @@ export function MultiSessionWorkspace({
                 data-testid="git-session-search"
               />
             </label>
+            <Button
+              type="button"
+              variant="outline"
+              className="w-full justify-between"
+              onClick={async () => {
+                if (await handleCreateSession()) {
+                  closeGitSearchModal();
+                }
+              }}
+              disabled={creating}
+              data-testid="add-plain-terminal-session"
+            >
+              <span>Add new terminal session</span>
+              <span className="text-xs text-muted-foreground">
+                {formatShortcut(CREATE_TERMINAL_SESSION_SHORTCUT_KEYS)}
+              </span>
+            </Button>
             {gitAddFailed ? (
               <p className="text-xs text-destructive" data-testid="git-session-add-error">
                 Could not add Git terminal. No terminal contents or clone proof were logged.
@@ -1123,7 +1191,7 @@ export function MultiSessionWorkspace({
         aria-pressed={isActive}
         role="button"
         className={cn(
-          "min-h-48 resize overflow-hidden rounded-lg border bg-black shadow-sm outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring",
+          "min-h-0 resize-none overflow-hidden rounded-lg border bg-black shadow-sm outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring",
           isActive ? "border-primary ring-1 ring-primary" : "border-border",
         )}
         data-testid={`workspace-${pane.id}`}
@@ -1214,7 +1282,7 @@ export function MultiSessionWorkspace({
       >
         <div className="flex items-center gap-2 text-sm text-muted-foreground">
           <Loader2 className="size-4 animate-spin" />
-          Loading {source === "git" ? "Git terminal" : "terminal"} sessions…
+          Loading workspace sessions…
         </div>
       </div>
     );
@@ -1232,8 +1300,8 @@ export function MultiSessionWorkspace({
           <AlertCircle />
           <AlertTitle>Could not load terminal sessions.</AlertTitle>
           <AlertDescription>
-            Retry to inspect {source === "git" ? "Git repositories" : "workspace sessions"}.
-            Existing terminals were not mounted from stale data.
+            Retry to inspect workspace sessions. Existing terminals were not mounted from stale
+            data.
           </AlertDescription>
         </Alert>
         <Button
@@ -1256,12 +1324,10 @@ export function MultiSessionWorkspace({
         )}
         data-testid="multi-session-empty"
       >
-        <p className="text-sm font-medium text-foreground">
-          No {source === "git" ? "Git repositories" : "terminal sessions"} open
-        </p>
+        <p className="text-sm font-medium text-foreground">No workspace sessions open</p>
         <p className="max-w-md text-xs text-muted-foreground">
           {source === "git"
-            ? "Search Git repositories and add only the terminal panes you need."
+            ? "Create a plain terminal session or search Git repositories and add only the panes you need."
             : "Create a tmux-backed terminal session for this workspace."}
         </p>
         {renderGitRepositoryButton()}
@@ -1275,10 +1341,10 @@ export function MultiSessionWorkspace({
             </AlertDescription>
           </Alert>
         ) : null}
-        {canCreateSession ? (
+        {canCreateSession && !isGitSource ? (
           <Button
             type="button"
-            onClick={handleCreateSession}
+            onClick={() => void handleCreateSession()}
             disabled={creating}
             data-testid="create-empty-session-button"
           >
@@ -1286,6 +1352,16 @@ export function MultiSessionWorkspace({
             {creating ? "Creating…" : "Create session"}
           </Button>
         ) : null}
+        <CommandPalette
+          open={paletteOpen}
+          onOpenChange={setPaletteOpen}
+          tabs={commandPaletteTabs}
+          onSelectTab={handlePaletteSelect}
+          onCreateSession={() => void handleCreateSession()}
+          searchPlaceholder="Search workspace sessions…"
+          emptyText="No workspace sessions found."
+          groupHeading="Workspace sessions"
+        />
       </div>
     );
   }
@@ -1296,13 +1372,11 @@ export function MultiSessionWorkspace({
       data-testid="multi-session-workspace"
       data-session-source={source}
       aria-label={
-        source === "git"
-          ? "Multi-session Git terminal workspace"
-          : "Multi-session terminal workspace"
+        source === "git" ? "Workspace terminal sessions" : "Multi-session terminal workspace"
       }
       onKeyDown={handleWorkspaceKeyDown}
     >
-      <header className="flex flex-wrap items-center gap-1 border-b border-border px-2 py-1.5">
+      <header className="shrink-0 flex flex-wrap items-center gap-1 border-b border-border px-2 py-1.5">
         <div className="min-w-0 flex-1">
           <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Active pane</p>
           <p className="truncate font-mono text-xs" data-testid="active-pane-label">
@@ -1315,6 +1389,16 @@ export function MultiSessionWorkspace({
         {renderGitFontControls()}
         {renderGitRepositoryButton()}
         {renderGitRepositorySearchModal()}
+        <CommandPalette
+          open={paletteOpen}
+          onOpenChange={setPaletteOpen}
+          tabs={commandPaletteTabs}
+          onSelectTab={handlePaletteSelect}
+          onCreateSession={() => void handleCreateSession()}
+          searchPlaceholder="Search workspace sessions…"
+          emptyText="No workspace sessions found."
+          groupHeading="Workspace sessions"
+        />
         <Button
           type="button"
           variant="outline"
@@ -1326,11 +1410,11 @@ export function MultiSessionWorkspace({
         >
           Reset
         </Button>
-        {canCreateSession ? (
+        {canCreateSession && !isGitSource ? (
           <Button
             type="button"
             size="xs"
-            onClick={handleCreateSession}
+            onClick={() => void handleCreateSession()}
             disabled={creating}
             className="h-7 min-h-0 px-2 text-xs"
             data-testid="create-session-button"
@@ -1363,11 +1447,11 @@ export function MultiSessionWorkspace({
 
       <div
         ref={workspaceBodyRef}
-        className="relative min-h-0 flex-1 overflow-auto p-2"
+        className="relative min-h-0 flex-1 overflow-hidden p-2"
         data-testid="multi-session-body"
       >
         <div
-          className="grid min-h-full gap-2"
+          className="grid h-full min-h-0 gap-2"
           style={{
             gridTemplateColumns: layout.tiled.gridTemplateColumns,
             gridTemplateRows: layout.tiled.gridTemplateRows,

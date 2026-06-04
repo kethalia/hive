@@ -78,7 +78,7 @@ function isTextEntryElement(element: Element | null): boolean {
 }
 
 function terminalHref(workspaceId: string): string {
-  return `/workspaces/${encodeURIComponent(workspaceId)}/terminal`;
+  return `/workspaces/${encodeURIComponent(workspaceId)}/terminal/workspace`;
 }
 
 function fieldOrUnknown(value: string | null | undefined): string {
@@ -104,7 +104,7 @@ function lastUsedLabel(value: string | undefined): string {
   return formatRelativeDate(value);
 }
 
-const CREATE_WORKSPACE_SHORTCUT_KEYS = ["f2"] as const;
+const CREATE_WORKSPACE_SHORTCUT_KEYS = ["ctrl+n", "cmd+n"] as const;
 
 function healthLabel(workspace: CoderWorkspace): string {
   if (!workspace.health) return "Unknown";
@@ -146,9 +146,9 @@ function WorkspaceListCard({ workspace }: { workspace: CoderWorkspace }) {
         <ListCardRow label="Health">{healthLabel(workspace)}</ListCardRow>
       </ListCardRows>
       <ListCardActions>
-        <ListCardAction as={Link} href={href} aria-label={`Open terminal for ${workspaceName}`}>
+        <ListCardAction as={Link} href={href} aria-label={`Open workspace for ${workspaceName}`}>
           <TerminalSquare className="h-4 w-4" aria-hidden="true" />
-          Open terminal
+          Open workspace
         </ListCardAction>
       </ListCardActions>
     </ListCard>
@@ -173,7 +173,9 @@ export function WorkspaceListContent({ workspaces, error }: WorkspaceListContent
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key !== "F2") return;
+      if (!(event.ctrlKey || event.metaKey)) return;
+      if (event.altKey || event.shiftKey) return;
+      if (event.key.toLowerCase() !== "n") return;
       if (isTextEntryElement(event.target instanceof Element ? event.target : null)) return;
 
       event.preventDefault();
@@ -435,7 +437,7 @@ export function WorkspaceListContent({ workspaces, error }: WorkspaceListContent
                         render={<Link href={terminalHref(workspace.id)} />}
                       >
                         <TerminalSquare data-icon="inline-start" />
-                        Terminal
+                        Workspace
                       </Button>
                     </TableCell>
                   </TableRow>

@@ -29,7 +29,12 @@ const { mockUseTerminalWebSocket, mockFit, mockSend, mockResize, terminalInstanc
 );
 
 const multiSessionRouteMockState = vi.hoisted(() => ({
-  props: null as null | { agentId: string; className?: string; workspaceId: string },
+  props: null as null | {
+    agentId: string;
+    className?: string;
+    source?: "workspace" | "git";
+    workspaceId: string;
+  },
 }));
 
 const {
@@ -198,13 +203,19 @@ vi.mock("next/navigation", () => ({
 }));
 
 vi.mock("@/components/workspaces/MultiSessionWorkspace", () => ({
-  MultiSessionWorkspace: (props: { agentId: string; className?: string; workspaceId: string }) => {
+  MultiSessionWorkspace: (props: {
+    agentId: string;
+    className?: string;
+    source?: "workspace" | "git";
+    workspaceId: string;
+  }) => {
     multiSessionRouteMockState.props = props;
     return (
       <section
         data-agent-id={props.agentId}
         data-class-name={props.className ?? ""}
         data-testid="multi-session-workspace-route"
+        data-session-source={props.source}
         data-workspace-id={props.workspaceId}
       />
     );
@@ -1036,6 +1047,7 @@ describe("WorkspaceTerminalPage integration — Multi-session route", () => {
     expect(routeClassName).toContain("overflow-hidden");
     expect(multiSessionRouteMockState.props).toMatchObject({
       agentId: "workspace-agent",
+      source: "git",
       workspaceId: "test-ws",
     });
     unmount();
