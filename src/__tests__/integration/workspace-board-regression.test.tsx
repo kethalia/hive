@@ -571,20 +571,23 @@ describe("workspace board shortcut integration", () => {
 
     fireEvent.click(screen.getByTestId("workspace-board-tab-review"));
 
-    expect(await screen.findByTestId("interactive-terminal-git-clone-safe-hive-fresh-a"))
-      .toHaveAttribute("data-clone-proof", "fresh-proof-token-a");
-    expect(screen.getByTestId("interactive-terminal-git-clone-safe-hive-fresh-a"))
-      .toHaveAttribute("data-clone-path", "kethalia/hive");
+    expect(
+      await screen.findByTestId("interactive-terminal-git-clone-safe-hive-fresh-a"),
+    ).toHaveAttribute("data-clone-proof", "fresh-proof-token-a");
+    expect(screen.getByTestId("interactive-terminal-git-clone-safe-hive-fresh-a")).toHaveAttribute(
+      "data-clone-path",
+      "kethalia/hive",
+    );
     expect(screen.queryByTestId("interactive-terminal-stale-session-name")).not.toBeInTheDocument();
     expect(screen.getByTestId("active-pane-label")).toHaveTextContent("Hive Review");
-    expect(screen.queryByText(/persisted-proof|fresh-proof|stale-session-name|\/home\/coder|token/))
-      .not.toBeInTheDocument();
+    expect(
+      screen.queryByText(/persisted-proof|fresh-proof|stale-session-name|\/home\/coder|token/),
+    ).not.toBeInTheDocument();
 
     const storedAfterSelection = readStoredBoardState();
     expect(storedAfterSelection.activeBoardKey).toBe("review");
     expect(
-      storedAfterSelection.boards.find((board: { key: string }) => board.key === "review")
-        .panes[0],
+      storedAfterSelection.boards.find((board: { key: string }) => board.key === "review").panes[0],
     ).toMatchObject({
       kind: "git",
       cloneSessionKey: "git-clone:kethalia/hive",
@@ -613,10 +616,12 @@ describe("workspace board shortcut integration", () => {
       </KeybindingProvider>,
     );
 
-    expect(await screen.findByTestId("interactive-terminal-git-clone-safe-hive-fresh-b"))
-      .toHaveAttribute("data-clone-proof", "fresh-proof-token-b");
-    expect(screen.queryByTestId("interactive-terminal-git-clone-safe-hive-fresh-a"))
-      .not.toBeInTheDocument();
+    expect(
+      await screen.findByTestId("interactive-terminal-git-clone-safe-hive-fresh-b"),
+    ).toHaveAttribute("data-clone-proof", "fresh-proof-token-b");
+    expect(
+      screen.queryByTestId("interactive-terminal-git-clone-safe-hive-fresh-a"),
+    ).not.toBeInTheDocument();
     expect(mockResolveGitCloneTerminal).toHaveBeenCalledTimes(1);
     expectResolverCalledWithSafeGitIdentity(0);
     expect(mockResolveGitCloneTerminal.mock.calls[0][0]).not.toHaveProperty("cloneProof");
@@ -625,7 +630,7 @@ describe("workspace board shortcut integration", () => {
 
     fireEvent.click(screen.getByTestId("workspace-board-tab-main"));
     expect(screen.getByTestId("active-pane-label")).toHaveTextContent("Main Board Pane");
-    let storedAfterRemountSelection = readStoredBoardState();
+    const storedAfterRemountSelection = readStoredBoardState();
     expect(storedAfterRemountSelection.activeBoardKey).toBe("main");
     expect(
       storedAfterRemountSelection.boards.find((board: { key: string }) => board.key === "review")
@@ -638,12 +643,14 @@ describe("workspace board shortcut integration", () => {
     expectStoredBoardJsonSanitized();
 
     fireEvent.click(screen.getByTestId("workspace-board-tab-review"));
-    expect(await screen.findByTestId("workspace-pane-git-clone-safe-hive-fresh-b"))
-      .toBeInTheDocument();
+    expect(
+      await screen.findByTestId("workspace-pane-git-clone-safe-hive-fresh-b"),
+    ).toBeInTheDocument();
     fireEvent.click(screen.getByTestId("remove-pane-pane-git-clone-safe-hive-fresh-b"));
 
-    expect(screen.queryByTestId("workspace-pane-git-clone-safe-hive-fresh-b"))
-      .not.toBeInTheDocument();
+    expect(
+      screen.queryByTestId("workspace-pane-git-clone-safe-hive-fresh-b"),
+    ).not.toBeInTheDocument();
     expect(screen.getByTestId("active-board-empty")).toBeInTheDocument();
     const storedAfterRemoval = readStoredBoardState();
     expect(
@@ -665,10 +672,7 @@ describe("workspace board shortcut integration", () => {
     fireEvent.click(screen.getByTestId("workspace-board-delete"));
 
     expect(screen.queryByTestId("workspace-board-tab-review")).not.toBeInTheDocument();
-    expect(screen.getByTestId("workspace-board-tab-main")).toHaveAttribute(
-      "aria-selected",
-      "true",
-    );
+    expect(screen.getByTestId("workspace-board-tab-main")).toHaveAttribute("aria-selected", "true");
     const storedAfterDeletion = readStoredBoardState();
     expect(storedAfterDeletion.boards).toHaveLength(1);
     expect(storedAfterDeletion.boards[0]).toMatchObject({ key: "main", name: "Main" });
