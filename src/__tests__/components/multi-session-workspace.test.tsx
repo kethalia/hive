@@ -349,7 +349,7 @@ describe("MultiSessionWorkspace", () => {
     });
     expect(screen.getByTestId("interactive-terminal-main-session")).toHaveAttribute(
       "data-layout-signal",
-      "default:2:2:1 / 1 / span 2 / span 1",
+      "default:terminal:main-session:2:2:1 / 1 / span 2 / span 1",
     );
     expect(screen.getByTestId("workspace-pane-dev-server")).toHaveClass(
       "flex",
@@ -375,6 +375,10 @@ describe("MultiSessionWorkspace", () => {
 
     expect(screen.getByTestId("active-pane-label")).toHaveTextContent("dev-server");
     expect(mockSetActiveTerminal).toHaveBeenLastCalledWith(devTerm, devSend);
+    expect(
+      JSON.parse(window.localStorage.getItem("workspace-board-state:workspace:ws-1") ?? "{}")
+        .boards[0].activePaneKey,
+    ).toBe("terminal:dev-server");
 
     fireEvent.click(screen.getByTestId("workspace-pane-main-session"));
 
@@ -858,6 +862,11 @@ describe("MultiSessionWorkspace", () => {
 
     render(<MultiSessionWorkspace {...defaultProps} source="unified" />);
     await screen.findByTestId("workspace-pane-main-session");
+    const mainTerm = makeTerminal("main-session");
+    const mainSend = makeSender("main-session");
+    act(() => {
+      terminalProps.get("main-session")?.onTerminalReady?.(mainTerm, mainSend);
+    });
 
     await act(async () => {
       fireEvent.click(screen.getByTestId("remove-pane-pane-main-session"));
@@ -865,12 +874,84 @@ describe("MultiSessionWorkspace", () => {
 
     expect(screen.queryByTestId("workspace-pane-main-session")).not.toBeInTheDocument();
     expect(screen.getByTestId("workspace-pane-dev-server")).toBeInTheDocument();
+    expect(screen.getByTestId("active-pane-label")).toHaveTextContent("dev-server");
     expect(mockKillSession).not.toHaveBeenCalled();
     expect(mockCloseGitCloneTerminal).not.toHaveBeenCalled();
 
     const stored = window.localStorage.getItem("workspace-board-state:git:ws-1");
     expect(stored).not.toContain("main-session");
     expect(stored).toContain("dev-server");
+
+    fireEvent.click(screen.getByTestId("open-git-session-search"));
+    fireEvent.change(await screen.findByTestId("workspace-command-palette-search"), {
+      target: { value: "main" },
+    });
+    fireEvent.click(screen.getByTestId("palette-action-workspace:add-session:main-session"));
+
+    expect(screen.getByTestId("workspace-pane-main-session")).toBeInTheDocument();
+    expect(screen.getByTestId("active-pane-label")).toHaveTextContent("main-session");
+    expect(mockSetActiveTerminal).toHaveBeenLastCalledWith(mainTerm, mainSend);
+    expect(mockKillSession).not.toHaveBeenCalled();
+    expect(mockCloseGitCloneTerminal).not.toHaveBeenCalled();
+  });
+
+  it("includes board pane identity in layout signals for shared terminal sessions", async () => {
+    window.localStorage.setItem(
+      "workspace-board-state:git:ws-1",
+      JSON.stringify({
+        version: 1,
+        activeBoardKey: "default",
+        boards: [
+          {
+            key: "default",
+            name: "Default",
+            order: 0,
+            panes: [
+              {
+                kind: "terminal",
+                key: "terminal:main-session",
+                sessionName: "main-session",
+                label: "main-session",
+                order: 0,
+              },
+            ],
+          },
+          {
+            key: "review",
+            name: "Review",
+            order: 1,
+            panes: [
+              {
+                kind: "terminal",
+                key: "terminal:main-session-review",
+                sessionName: "main-session",
+                label: "main-session",
+                order: 0,
+              },
+            ],
+          },
+        ],
+      }),
+    );
+    mockGetSessions.mockResolvedValueOnce(twoSessionPayload());
+    mockListGitClones.mockResolvedValueOnce({ data: { ok: true, tree: { nodes: [] } } });
+
+    render(<MultiSessionWorkspace {...defaultProps} source="unified" />);
+
+    expect(await screen.findByTestId("interactive-terminal-main-session")).toHaveAttribute(
+      "data-layout-signal",
+      "default:terminal:main-session:1:1:1 / 1 / span 1 / span 1",
+    );
+
+    fireEvent.click(screen.getByTestId("workspace-board-tab-review"));
+
+    expect(screen.getByTestId("interactive-terminal-main-session")).toHaveAttribute(
+      "data-layout-signal",
+      "review:terminal:main-session-review:1:1:1 / 1 / span 1 / span 1",
+    );
+    expect(screen.getByTestId("active-pane-label")).toHaveTextContent("main-session");
+    expect(mockKillSession).not.toHaveBeenCalled();
+    expect(mockCloseGitCloneTerminal).not.toHaveBeenCalled();
   });
 
   it("adds a Git repository to a second board by reusing the live resolved session", async () => {

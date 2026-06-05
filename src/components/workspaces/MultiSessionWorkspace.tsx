@@ -54,6 +54,7 @@ import {
   removeWorkspaceBoardPane,
   renameWorkspaceBoard,
   selectWorkspaceBoard,
+  selectWorkspaceBoardPane,
 } from "@/lib/workspaces/workspace-board-crud";
 import {
   parsePersistedWorkspaceBoardState,
@@ -785,31 +786,6 @@ export function MultiSessionWorkspace({
     setActiveTerminal(null, null);
   }, [setActiveTerminal]);
 
-  const selectSession = useCallback(
-    (sessionName: string) => {
-      setActiveSessionName(sessionName);
-      const entry = terminalsRef.current.get(sessionName);
-      if (entry) {
-        setActiveTerminal(entry.term, entry.send);
-        entry.term.focus();
-        return;
-      }
-      clearActiveTerminal();
-    },
-    [clearActiveTerminal, setActiveTerminal],
-  );
-  const commandPaletteTabs = useMemo(
-    () =>
-      visibleSessions.map((session) => ({ id: session.sessionName, sessionName: session.label })),
-    [visibleSessions],
-  );
-  const handlePaletteSelect = useCallback(
-    (sessionName: string) => {
-      selectSession(sessionName);
-    },
-    [selectSession],
-  );
-
   const persistLayoutJson = useCallback(
     (nextLayoutJson: string | null) => {
       const storageKey = storageKeyForWorkspace(workspaceId, source);
@@ -873,6 +849,46 @@ export function MultiSessionWorkspace({
       }
     },
     [source, workspaceId],
+  );
+
+  const selectSession = useCallback(
+    (sessionName: string) => {
+      setActiveSessionName(sessionName);
+
+      const selectedPane = visibleSessions.find((session) => session.sessionName === sessionName);
+      if (activeBoard && selectedPane && activeBoard.activePaneKey !== selectedPane.boardPaneKey) {
+        persistBoardState(
+          selectWorkspaceBoardPane(boardState, activeBoard.key, selectedPane.boardPaneKey),
+        );
+      }
+
+      const entry = terminalsRef.current.get(sessionName);
+      if (entry) {
+        setActiveTerminal(entry.term, entry.send);
+        entry.term.focus();
+        return;
+      }
+      clearActiveTerminal();
+    },
+    [
+      activeBoard,
+      boardState,
+      clearActiveTerminal,
+      persistBoardState,
+      setActiveTerminal,
+      visibleSessions,
+    ],
+  );
+  const commandPaletteTabs = useMemo(
+    () =>
+      visibleSessions.map((session) => ({ id: session.sessionName, sessionName: session.label })),
+    [visibleSessions],
+  );
+  const handlePaletteSelect = useCallback(
+    (sessionName: string) => {
+      selectSession(sessionName);
+    },
+    [selectSession],
   );
 
   const handleCreateBoard = useCallback(
@@ -1551,12 +1567,18 @@ export function MultiSessionWorkspace({
         activeSessionNameRef.current === sessionName ? null : activeSessionNameRef.current,
       );
 
-      terminalsRef.current.delete(sessionName);
       setTerminalCloseFailed(false);
       persistBoardState(nextBoardState);
 
       if (nextActiveSessionName) {
-        selectSession(nextActiveSessionName);
+        setActiveSessionName(nextActiveSessionName);
+        const entry = terminalsRef.current.get(nextActiveSessionName);
+        if (entry) {
+          setActiveTerminal(entry.term, entry.send);
+          entry.term.focus();
+        } else {
+          clearActiveTerminal();
+        }
       } else {
         setActiveSessionName(null);
         clearActiveTerminal();
@@ -1568,8 +1590,8 @@ export function MultiSessionWorkspace({
       clearActiveTerminal,
       isUnifiedSource,
       persistBoardState,
-      selectSession,
       sessions,
+      setActiveTerminal,
       visibleSessions,
     ],
   );
@@ -1838,9 +1860,14 @@ export function MultiSessionWorkspace({
   };
 
   const renderPane = (pane: SessionPane) => {
-    const session = sessions.find((candidate) => candidate.sessionName === pane.sessionName);
+    const visibleSession = visibleSessions.find(
+      (candidate) => candidate.sessionName === pane.sessionName,
+    );
+    const session =
+      visibleSession ?? sessions.find((candidate) => candidate.sessionName === pane.sessionName);
     const isActive = pane.sessionName === activeSessionName;
-    const layoutSignal = `${activeBoard?.key ?? "no-board"}:${layout.tiled.rows}:${layout.tiled.columns}:${pane.gridArea}`;
+    const boardPaneSignal = visibleSession?.boardPaneKey ?? pane.id;
+    const layoutSignal = `${activeBoard?.key ?? "no-board"}:${boardPaneSignal}:${layout.tiled.rows}:${layout.tiled.columns}:${pane.gridArea}`;
     const paneStyle: CSSProperties = { gridArea: pane.gridArea };
 
     return (
