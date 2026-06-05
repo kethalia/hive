@@ -876,10 +876,13 @@ describe("MultiSessionWorkspace", () => {
 
     render(<MultiSessionWorkspace {...defaultProps} source="unified" />);
 
-    expect(await screen.findByTestId("interactive-terminal-git-clone-safe-hive-fresh"))
-      .toHaveAttribute("data-clone-proof", "fresh-proof-token");
-    expect(screen.getByTestId("interactive-terminal-git-clone-safe-hive-fresh"))
-      .toHaveAttribute("data-clone-path", "kethalia/hive");
+    expect(
+      await screen.findByTestId("interactive-terminal-git-clone-safe-hive-fresh"),
+    ).toHaveAttribute("data-clone-proof", "fresh-proof-token");
+    expect(screen.getByTestId("interactive-terminal-git-clone-safe-hive-fresh")).toHaveAttribute(
+      "data-clone-path",
+      "kethalia/hive",
+    );
     expect(screen.queryByTestId("interactive-terminal-stale-session-name")).not.toBeInTheDocument();
     expect(screen.getByTestId("workspace-board-tab-review")).toHaveAttribute(
       "aria-selected",
@@ -1468,11 +1471,14 @@ describe("MultiSessionWorkspace", () => {
     );
     expect(screen.getByTestId("retry-git-session-restore")).toHaveTextContent("Retry Git restore");
     expect(screen.queryByTestId("interactive-terminal-stale-session-name")).not.toBeInTheDocument();
-    expect(screen.queryByText(/secret-proof|\/home\/coder|persisted-proof|stale-session-name/))
-      .not.toBeInTheDocument();
+    expect(
+      screen.queryByText(/secret-proof|\/home\/coder|persisted-proof|stale-session-name/),
+    ).not.toBeInTheDocument();
     expect(window.localStorage.getItem("workspace-board-state:git:ws-1") ?? "").toContain(
       "persisted-proof-should-not-be-read",
     );
+    expect(mockKillSession).not.toHaveBeenCalled();
+    expect(mockCloseGitCloneTerminal).not.toHaveBeenCalled();
   });
 
   it("surfaces repository-missing persisted Git refs without hiding repository search or killing sessions", async () => {
@@ -1555,7 +1561,9 @@ describe("MultiSessionWorkspace", () => {
     expect(await screen.findByTestId("git-session-restore-error")).toHaveTextContent(
       "Git panes need refresh. Retry to restore repository panes.",
     );
-    expect(screen.queryByText(/persisted-proof|\/home\/coder|stale-session-name/)).not.toBeInTheDocument();
+    expect(
+      screen.queryByText(/persisted-proof|\/home\/coder|stale-session-name/),
+    ).not.toBeInTheDocument();
     expect(screen.getByTestId("multi-session-empty")).toBeInTheDocument();
     expect(mockResolveGitCloneTerminal).not.toHaveBeenCalled();
     expect(mockKillSession).not.toHaveBeenCalled();
@@ -1640,8 +1648,9 @@ describe("MultiSessionWorkspace", () => {
     expect(await screen.findByTestId("git-session-restore-error")).toHaveTextContent(
       "Git panes need refresh. Retry to restore repository panes.",
     );
-    expect(screen.queryByText(/secret-proof-token|\/home\/coder|stale-session-name/))
-      .not.toBeInTheDocument();
+    expect(
+      screen.queryByText(/secret-proof-token|\/home\/coder|stale-session-name/),
+    ).not.toBeInTheDocument();
     expect(mockResolveGitCloneTerminal).toHaveBeenCalledTimes(1);
 
     fireEvent.click(screen.getByTestId("retry-git-session-restore"));
@@ -1971,15 +1980,17 @@ describe("MultiSessionWorkspace", () => {
       "multi-session-layout:git:ws-1",
       JSON.stringify({
         version: 1,
-        activeSessionName: "git-clone-safe-hive",
+        activeSessionName: "git-clone-safe-docs",
         panes: [
           {
-            sessionName: "git-clone-safe-hive",
+            sessionName: "stale-docs-session",
             mode: "tiled",
             order: 0,
-            cloneSessionKey: "git-clone:kethalia/hive",
-            relativePath: "kethalia/hive",
-            label: "kethalia/hive",
+            cloneSessionKey: "git-clone:monorepo",
+            relativePath: "kethalia/docs",
+            label: "kethalia/docs",
+            cloneProof: "persisted-proof-should-not-be-read",
+            clonePath: "/home/coder/projects/kethalia/docs",
           },
         ],
       }),
@@ -1996,7 +2007,16 @@ describe("MultiSessionWorkspace", () => {
               relativePath: "kethalia/hive",
               relativePathSegments: ["kethalia", "hive"],
               displaySegments: ["Git", "home", "kethalia", "hive"],
-              cloneSessionKey: "git-clone:kethalia/hive",
+              cloneSessionKey: "git-clone:monorepo",
+            },
+            {
+              id: "repo-docs",
+              kind: "repository",
+              label: "docs",
+              relativePath: "kethalia/docs",
+              relativePathSegments: ["kethalia", "docs"],
+              displaySegments: ["Git", "home", "kethalia", "docs"],
+              cloneSessionKey: "git-clone:monorepo",
             },
           ],
         },
@@ -2004,21 +2024,33 @@ describe("MultiSessionWorkspace", () => {
     });
     mockResolveGitCloneTerminal.mockResolvedValueOnce({
       data: {
-        sessionName: "git-clone-safe-hive",
-        clonePath: "kethalia/hive",
-        cloneSessionKey: "git-clone:kethalia/hive",
+        sessionName: "git-clone-safe-docs",
+        clonePath: "kethalia/docs",
+        cloneSessionKey: "git-clone:monorepo",
         cloneProof: "fresh-proof-token",
       },
     });
 
     render(<MultiSessionWorkspace {...defaultProps} source="unified" />);
 
-    expect(await screen.findByTestId("interactive-terminal-git-clone-safe-hive")).toHaveAttribute(
+    expect(await screen.findByTestId("interactive-terminal-git-clone-safe-docs")).toHaveAttribute(
       "data-clone-proof",
       "fresh-proof-token",
     );
-    expect(screen.getByTestId("active-pane-label")).toHaveTextContent("kethalia/hive");
+    expect(screen.queryByTestId("interactive-terminal-stale-docs-session")).not.toBeInTheDocument();
+    expect(screen.getByTestId("active-pane-label")).toHaveTextContent("kethalia/docs");
+    expect(mockResolveGitCloneTerminal).toHaveBeenCalledWith({
+      agentId: "agent-1",
+      workspaceId: "ws-1",
+      cloneSessionKey: "git-clone:monorepo",
+      relativePath: "kethalia/docs",
+    });
     expect(mockResolveGitCloneTerminal).toHaveBeenCalledTimes(1);
+    expect(
+      screen.queryByText(/persisted-proof|fresh-proof-token|\/home\/coder|stale-docs-session/),
+    ).not.toBeInTheDocument();
+    expect(mockKillSession).not.toHaveBeenCalled();
+    expect(mockCloseGitCloneTerminal).not.toHaveBeenCalled();
   });
 
   it("surfaces sanitized load and create failures", async () => {

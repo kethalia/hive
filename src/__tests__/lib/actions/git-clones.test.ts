@@ -493,9 +493,15 @@ describe("resolveGitCloneTerminalAction", () => {
     expect(JSON.stringify(vi.mocked(console.error).mock.calls)).not.toContain("SUPER_SECRET_TOKEN");
   });
 
-  it("rejects malformed or traversal-like input before invoking the scanner", async () => {
+  it("rejects malformed clone keys and traversal-like input before invoking the scanner", async () => {
     const emptyResult = await resolveGitCloneTerminalAction({
       cloneSessionKey: "",
+      workspaceId: WORKSPACE_ID,
+      agentId: AGENT_ID,
+      relativePath: repositoryNode.relativePath,
+    });
+    const malformedKeyResult = await resolveGitCloneTerminalAction({
+      cloneSessionKey: "git-clone:../secrets/repo",
       workspaceId: WORKSPACE_ID,
       agentId: AGENT_ID,
       relativePath: repositoryNode.relativePath,
@@ -508,6 +514,7 @@ describe("resolveGitCloneTerminalAction", () => {
     });
 
     expect(emptyResult?.validationErrors).toBeDefined();
+    expect(malformedKeyResult?.validationErrors).toBeDefined();
     expect(traversalResult?.validationErrors).toBeDefined();
     expect(mockedExecInWorkspace).not.toHaveBeenCalled();
   });
