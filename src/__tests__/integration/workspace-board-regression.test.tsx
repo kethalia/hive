@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { act, cleanup, render, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import type { Terminal } from "@xterm/xterm";
 import type * as React from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -247,6 +247,38 @@ function emptyGitDiscoveryPayload() {
   return { data: { ok: true, tree: { nodes: [] } } };
 }
 
+function hiveGitDiscoveryPayload() {
+  return {
+    data: {
+      ok: true,
+      tree: {
+        nodes: [
+          {
+            id: "repo-hive",
+            kind: "repository",
+            label: "hive",
+            relativePath: "kethalia/hive",
+            relativePathSegments: ["kethalia", "hive"],
+            displaySegments: ["Git", "projects", "kethalia", "hive"],
+            cloneSessionKey: "git-clone:kethalia/hive",
+          },
+        ],
+      },
+    },
+  };
+}
+
+function gitIdentityPayload(sessionName: string, cloneProof: string) {
+  return {
+    data: {
+      sessionName,
+      clonePath: "kethalia/hive",
+      cloneSessionKey: "git-clone:kethalia/hive",
+      cloneProof,
+    },
+  };
+}
+
 function seedTwoBoardState() {
   window.localStorage.setItem(
     "workspace-board-state:git:ws-1",
@@ -289,9 +321,84 @@ function seedTwoBoardState() {
   );
 }
 
+function seedHostileGitBoardState() {
+  window.localStorage.setItem(
+    "workspace-board-state:git:ws-1",
+    JSON.stringify({
+      version: 1,
+      activeBoardKey: "main",
+      boards: [
+        {
+          key: "main",
+          name: "Main",
+          order: 0,
+          activePaneKey: "terminal:main-session",
+          panes: [
+            {
+              kind: "terminal",
+              key: "terminal:main-session",
+              sessionName: "main-session",
+              label: "Main Board Pane",
+              terminalContents: "Bearer persisted-terminal-token",
+              cwd: "/home/coder/projects/kethalia/hive",
+              order: 0,
+            },
+          ],
+        },
+        {
+          key: "review",
+          name: "Review",
+          order: 1,
+          activePaneKey: "git:persisted-hive",
+          panes: [
+            {
+              kind: "git",
+              key: "git:persisted-hive",
+              cloneSessionKey: "git-clone:kethalia/hive",
+              relativePath: "kethalia/hive",
+              sessionName: "stale-session-name",
+              label: "Hive Review",
+              cloneProof: "persisted-proof-should-not-be-read",
+              clonePath: "/home/coder/projects/kethalia/hive",
+              token: "secret-token-should-not-persist",
+              terminalBuffer: "terminal output should not persist",
+              nested: { cloneProof: "nested-proof", clonePath: "C:\\Users\\repo" },
+              order: 0,
+            },
+          ],
+        },
+      ],
+    }),
+  );
+}
+
 function readStoredActiveBoardKey() {
-  return JSON.parse(window.localStorage.getItem("workspace-board-state:git:ws-1") ?? "{}")
-    .activeBoardKey;
+  return readStoredBoardState().activeBoardKey;
+}
+
+function readStoredBoardState() {
+  return JSON.parse(window.localStorage.getItem("workspace-board-state:git:ws-1") ?? "{}");
+}
+
+function readStoredBoardJson() {
+  return window.localStorage.getItem("workspace-board-state:git:ws-1") ?? "";
+}
+
+function expectStoredBoardJsonSanitized(stored = readStoredBoardJson()) {
+  expect(stored).not.toMatch(
+    /cloneProof|clonePath|persisted-proof|fresh-proof|stale-session-name|terminalContents|terminalBuffer|Bearer|token|secret|cwd|\/home\/coder|\/Users|C:\\\\Users/,
+  );
+}
+
+function expectResolverCalledWithSafeGitIdentity(callIndex = 0) {
+  expect(mockResolveGitCloneTerminal.mock.calls[callIndex]).toEqual([
+    {
+      agentId: "agent-1",
+      workspaceId: "ws-1",
+      cloneSessionKey: "git-clone:kethalia/hive",
+      relativePath: "kethalia/hive",
+    },
+  ]);
 }
 
 function makeKeyEvent(opts: Partial<KeyboardEventInit> & { key: string }): KeyboardEvent {
@@ -436,6 +543,139 @@ describe("workspace board shortcut integration", () => {
     expect(mockKillSession).not.toHaveBeenCalled();
     expect(mockCloseGitCloneTerminal).not.toHaveBeenCalled();
     expect(mockResolveGitCloneTerminal).not.toHaveBeenCalled();
+    expect(mockRouterPush).not.toHaveBeenCalled();
+  });
+
+  it("refreshes persisted Git board identity on reload while keeping board storage and removal non-destructive", async () => {
+    seedHostileGitBoardState();
+    mockListGitClones.mockResolvedValue(hiveGitDiscoveryPayload());
+    mockResolveGitCloneTerminal.mockResolvedValue(
+      gitIdentityPayload("git-clone-safe-hive-fresh-a", "fresh-proof-token-a"),
+    );
+
+    const { unmount } = render(
+      <KeybindingProvider>
+        <MultiSessionWorkspace agentId="agent-1" workspaceId="ws-1" source="unified" />
+      </KeybindingProvider>,
+    );
+
+    expect(await screen.findByTestId("workspace-board-tab-main")).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+    await waitFor(() => expect(mockResolveGitCloneTerminal).toHaveBeenCalledTimes(1));
+    expectResolverCalledWithSafeGitIdentity(0);
+    expect(mockResolveGitCloneTerminal.mock.calls[0][0]).not.toHaveProperty("cloneProof");
+    expect(mockResolveGitCloneTerminal.mock.calls[0][0]).not.toHaveProperty("clonePath");
+    expect(mockResolveGitCloneTerminal.mock.calls[0][0]).not.toHaveProperty("sessionName");
+
+    fireEvent.click(screen.getByTestId("workspace-board-tab-review"));
+
+    expect(await screen.findByTestId("interactive-terminal-git-clone-safe-hive-fresh-a"))
+      .toHaveAttribute("data-clone-proof", "fresh-proof-token-a");
+    expect(screen.getByTestId("interactive-terminal-git-clone-safe-hive-fresh-a"))
+      .toHaveAttribute("data-clone-path", "kethalia/hive");
+    expect(screen.queryByTestId("interactive-terminal-stale-session-name")).not.toBeInTheDocument();
+    expect(screen.getByTestId("active-pane-label")).toHaveTextContent("Hive Review");
+    expect(screen.queryByText(/persisted-proof|fresh-proof|stale-session-name|\/home\/coder|token/))
+      .not.toBeInTheDocument();
+
+    const storedAfterSelection = readStoredBoardState();
+    expect(storedAfterSelection.activeBoardKey).toBe("review");
+    expect(
+      storedAfterSelection.boards.find((board: { key: string }) => board.key === "review")
+        .panes[0],
+    ).toMatchObject({
+      kind: "git",
+      cloneSessionKey: "git-clone:kethalia/hive",
+      relativePath: "kethalia/hive",
+      sessionName: "git-clone-safe-hive-fresh-a",
+      label: "Hive Review",
+    });
+    expectStoredBoardJsonSanitized();
+
+    unmount();
+    terminalProps.clear();
+    mockGetSessions.mockClear();
+    mockListGitClones.mockClear();
+    mockResolveGitCloneTerminal.mockClear();
+    mockKillSession.mockClear();
+    mockCloseGitCloneTerminal.mockClear();
+    mockCreateSession.mockClear();
+    mockRouterPush.mockClear();
+    mockResolveGitCloneTerminal.mockResolvedValue(
+      gitIdentityPayload("git-clone-safe-hive-fresh-b", "fresh-proof-token-b"),
+    );
+
+    render(
+      <KeybindingProvider>
+        <MultiSessionWorkspace agentId="agent-1" workspaceId="ws-1" source="unified" />
+      </KeybindingProvider>,
+    );
+
+    expect(await screen.findByTestId("interactive-terminal-git-clone-safe-hive-fresh-b"))
+      .toHaveAttribute("data-clone-proof", "fresh-proof-token-b");
+    expect(screen.queryByTestId("interactive-terminal-git-clone-safe-hive-fresh-a"))
+      .not.toBeInTheDocument();
+    expect(mockResolveGitCloneTerminal).toHaveBeenCalledTimes(1);
+    expectResolverCalledWithSafeGitIdentity(0);
+    expect(mockResolveGitCloneTerminal.mock.calls[0][0]).not.toHaveProperty("cloneProof");
+    expect(mockResolveGitCloneTerminal.mock.calls[0][0]).not.toHaveProperty("clonePath");
+    expect(mockResolveGitCloneTerminal.mock.calls[0][0]).not.toHaveProperty("sessionName");
+
+    fireEvent.click(screen.getByTestId("workspace-board-tab-main"));
+    expect(screen.getByTestId("active-pane-label")).toHaveTextContent("Main Board Pane");
+    let storedAfterRemountSelection = readStoredBoardState();
+    expect(storedAfterRemountSelection.activeBoardKey).toBe("main");
+    expect(
+      storedAfterRemountSelection.boards.find((board: { key: string }) => board.key === "review")
+        .panes[0],
+    ).toMatchObject({
+      cloneSessionKey: "git-clone:kethalia/hive",
+      relativePath: "kethalia/hive",
+      sessionName: "git-clone-safe-hive-fresh-b",
+    });
+    expectStoredBoardJsonSanitized();
+
+    fireEvent.click(screen.getByTestId("workspace-board-tab-review"));
+    expect(await screen.findByTestId("workspace-pane-git-clone-safe-hive-fresh-b"))
+      .toBeInTheDocument();
+    fireEvent.click(screen.getByTestId("remove-pane-pane-git-clone-safe-hive-fresh-b"));
+
+    expect(screen.queryByTestId("workspace-pane-git-clone-safe-hive-fresh-b"))
+      .not.toBeInTheDocument();
+    expect(screen.getByTestId("active-board-empty")).toBeInTheDocument();
+    const storedAfterRemoval = readStoredBoardState();
+    expect(
+      storedAfterRemoval.boards.find((board: { key: string }) => board.key === "main").panes,
+    ).toEqual([
+      expect.objectContaining({
+        kind: "terminal",
+        sessionName: "main-session",
+        label: "Main Board Pane",
+      }),
+    ]);
+    expect(
+      storedAfterRemoval.boards.find((board: { key: string }) => board.key === "review").panes,
+    ).toEqual([]);
+    expectStoredBoardJsonSanitized();
+    expect(mockKillSession).not.toHaveBeenCalled();
+    expect(mockCloseGitCloneTerminal).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByTestId("workspace-board-delete"));
+
+    expect(screen.queryByTestId("workspace-board-tab-review")).not.toBeInTheDocument();
+    expect(screen.getByTestId("workspace-board-tab-main")).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+    const storedAfterDeletion = readStoredBoardState();
+    expect(storedAfterDeletion.boards).toHaveLength(1);
+    expect(storedAfterDeletion.boards[0]).toMatchObject({ key: "main", name: "Main" });
+    expectStoredBoardJsonSanitized();
+    expect(mockCreateSession).not.toHaveBeenCalled();
+    expect(mockKillSession).not.toHaveBeenCalled();
+    expect(mockCloseGitCloneTerminal).not.toHaveBeenCalled();
     expect(mockRouterPush).not.toHaveBeenCalled();
   });
 });
