@@ -1,5 +1,5 @@
-import webpush from "web-push";
 import { getDb } from "@hive/db";
+import webpush from "web-push";
 import { getVapidKeys } from "@/lib/push/vapid";
 
 export async function sendPushToUser(

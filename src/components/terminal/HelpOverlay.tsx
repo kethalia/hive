@@ -1,22 +1,22 @@
 "use client";
 
+import { XIcon } from "lucide-react";
 import * as React from "react";
-import {
-  useKeybindings,
-  useRegisterKeybinding,
-  type KeybindingEntry,
-} from "@/hooks/useKeybindings";
-import { usePwaStandalone } from "@/lib/terminal/pwa";
+import { Badge } from "@/components/ui/badge";
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
-  DialogDescription,
 } from "@/components/ui/dialog";
-import { Badge } from "@/components/ui/badge";
+import {
+  type KeybindingEntry,
+  useKeybindings,
+  useRegisterKeybinding,
+} from "@/hooks/useKeybindings";
 import { formatShortcut, isApplePlatform } from "@/lib/keyboard-shortcuts";
-import { XIcon } from "lucide-react";
+import { usePwaStandalone } from "@/lib/terminal/pwa";
 
 const NUDGE_DISMISSED_KEY = "hive:help-nudge-dismissed";
 

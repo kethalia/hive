@@ -8,6 +8,7 @@
  * Log prefix: [council-reviewer]
  */
 
+import { getDb } from "@hive/db";
 import type { Job } from "bullmq";
 import { createCouncilReviewerBlueprint } from "@/lib/blueprint/council-reviewer";
 import { runBlueprint } from "@/lib/blueprint/runner";
@@ -15,7 +16,6 @@ import type { BlueprintContext } from "@/lib/blueprint/types";
 import { getCoderClientForUser } from "@/lib/coder/user-client";
 import { DEFAULT_CLEANUP_GRACE_MS, DEFAULT_PI_MODEL, DEFAULT_PI_PROVIDER } from "@/lib/constants";
 import type { ReviewerFinding } from "@/lib/council/types";
-import { getDb } from "@hive/db";
 import type { CouncilReviewerJobData } from "@/lib/queue/council-queues";
 import { cleanupWorkspace } from "@/lib/workspace/cleanup";
 import { councilWorkspaceName } from "@/lib/workspace/naming";

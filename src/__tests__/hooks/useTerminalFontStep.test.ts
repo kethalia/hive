@@ -1,8 +1,8 @@
 // @vitest-environment jsdom
 import { act, cleanup, renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { EVENT_NAME, STORAGE_KEY } from "@/lib/terminal/font-size";
 import { useTerminalFontStep } from "@/hooks/useTerminalFontStep";
+import { EVENT_NAME, STORAGE_KEY } from "@/lib/terminal/font-size";
 
 beforeEach(() => {
   window.localStorage.clear();

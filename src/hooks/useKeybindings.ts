@@ -1,7 +1,7 @@
 "use client";
 
-import * as React from "react";
 import type { Terminal } from "@xterm/xterm";
+import * as React from "react";
 
 export interface KeybindingEntry {
   id: string;

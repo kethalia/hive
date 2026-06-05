@@ -15,9 +15,9 @@ vi.mock("../../../lib/council/comment.js", () => ({
 
 // ── Imports (after mocks) ───────────────────────────────────────────────────
 
+import { getDb } from "@hive/db";
 import { createCouncilAggregatorProcessor } from "../../../lib/council/aggregator-processor.js";
 import { postPRComment } from "../../../lib/council/comment.js";
-import { getDb } from "@hive/db";
 
 // ── Test helpers ────────────────────────────────────────────────────────────
 

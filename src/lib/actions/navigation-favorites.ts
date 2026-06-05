@@ -1,15 +1,15 @@
 "use server";
 
-import { getDb } from "@hive/db";
 import type { NavigationFavorite, NavigationFavoriteKind } from "@hive/db";
+import { getDb } from "@hive/db";
 import { z } from "zod";
 import { SAFE_IDENTIFIER_RE } from "@/lib/constants";
-import { isCloneTerminalSessionName } from "@/lib/git/clone-terminal-session";
 import {
   isExpectedCloneSessionKey,
   isSafeCloneRelativePath,
   isSafePublicCloneIdentifier,
 } from "@/lib/git/clone-public-identifiers";
+import { isCloneTerminalSessionName } from "@/lib/git/clone-terminal-session";
 import { authActionClient } from "@/lib/safe-action";
 
 const FAVORITE_UNAVAILABLE_MESSAGE = "Favorites are unavailable. Refresh and try again.";

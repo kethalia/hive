@@ -1,14 +1,15 @@
 // @vitest-environment jsdom
-import { describe, it, expect, vi, beforeEach } from "vitest";
+
 import { renderHook } from "@testing-library/react";
 import * as React from "react";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
-  normalizeKeyCombo,
   KeybindingContext,
-  useKeybindings,
-  useRegisterKeybinding,
   type KeybindingContextValue,
   type KeybindingEntry,
+  normalizeKeyCombo,
+  useKeybindings,
+  useRegisterKeybinding,
 } from "@/hooks/useKeybindings";
 
 function makeKeyEvent(opts: Partial<KeyboardEventInit> & { key: string }): KeyboardEvent {

@@ -4,7 +4,6 @@ import { AlertCircle, Loader2, Monitor, Plus, TerminalSquare } from "lucide-reac
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { type FormEvent, useCallback, useEffect, useState } from "react";
-import { useRegisterKeybinding } from "@/hooks/useKeybindings";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -38,10 +37,11 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { useRegisterKeybinding } from "@/hooks/useKeybindings";
 import { createWorkspaceAction, listWorkspaceTemplatesAction } from "@/lib/actions/workspaces";
-import { formatShortcut } from "@/lib/keyboard-shortcuts";
 import type { CoderWorkspace } from "@/lib/coder/types";
 import { formatRelativeDate, statusVariant } from "@/lib/helpers/format";
+import { formatShortcut } from "@/lib/keyboard-shortcuts";
 
 interface WorkspaceListContentProps {
   workspaces: CoderWorkspace[];

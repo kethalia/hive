@@ -1,7 +1,7 @@
 "use client";
 
-import { type MouseEvent, useState } from "react";
 import { ChevronRight, Folder, GitBranch, Star } from "lucide-react";
+import { type MouseEvent, useState } from "react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import {
   SidebarMenu,

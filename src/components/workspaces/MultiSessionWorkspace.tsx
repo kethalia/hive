@@ -16,7 +16,6 @@ import {
 import { CommandPalette, type CommandPaletteAction } from "@/components/terminal/CommandPalette";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
-import { SidebarTrigger } from "@/components/ui/sidebar";
 import {
   Dialog,
   DialogContent,
@@ -24,6 +23,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { SidebarTrigger } from "@/components/ui/sidebar";
 import { useKeybindings } from "@/hooks/useKeybindings";
 import { useTerminalFontStep } from "@/hooks/useTerminalFontStep";
 import {
@@ -40,11 +40,11 @@ import {
   getWorkspaceSessionsAction,
   killSessionAction,
 } from "@/lib/actions/workspaces";
-import type { GitCloneTerminalIdentity, PublicCloneTree } from "@/lib/git/clone-actions-contract";
 import { SAFE_IDENTIFIER_RE } from "@/lib/constants";
+import type { GitCloneTerminalIdentity, PublicCloneTree } from "@/lib/git/clone-actions-contract";
+import type { CloneTreeNode, CloneTreeRepositoryNode } from "@/lib/git/clone-tree";
 import { isTextEntryEventTarget } from "@/lib/keyboard-event-targets";
 import { formatShortcut } from "@/lib/keyboard-shortcuts";
-import type { CloneTreeNode, CloneTreeRepositoryNode } from "@/lib/git/clone-tree";
 import { cn } from "@/lib/utils";
 import {
   type PersistedSessionPane,
