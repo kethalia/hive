@@ -1829,7 +1829,7 @@ describe("InteractiveTerminal integration — Mobile input adapter", () => {
     expect(terminal?.attachCustomKeyEventHandler).toHaveBeenCalledTimes(1);
 
     terminal?.focus.mockClear();
-    const inputTarget = container.querySelector(".flex-1.p-1");
+    const inputTarget = container.querySelector('[data-testid="terminal-fit-host"]');
     expect(inputTarget).toBeTruthy();
 
     fireEvent.pointerDown(inputTarget as Element, {
@@ -1862,7 +1862,7 @@ describe("InteractiveTerminal integration — Mobile input adapter", () => {
 
     terminal?.focus.mockClear();
     terminal?.scrollLines.mockClear();
-    const inputTarget = container.querySelector(".flex-1.p-1");
+    const inputTarget = container.querySelector('[data-testid="terminal-fit-host"]');
     expect(inputTarget).toBeTruthy();
 
     fireTouchEvent(inputTarget as Element, "touchstart", [touchPoint(1, 80, 320)]);
@@ -1900,7 +1900,7 @@ describe("InteractiveTerminal integration — Mobile input adapter", () => {
     });
     await flushTerminalEffects();
 
-    const inputTarget = container.querySelector(".flex-1.p-1");
+    const inputTarget = container.querySelector('[data-testid="terminal-fit-host"]');
     expect(inputTarget).toHaveAttribute("data-sidebar-gesture-ignore", "true");
     expect(inputTarget).toHaveAttribute("data-terminal-selection-mode", "true");
     expect(inputTarget).not.toHaveAttribute("data-terminal-pinch-zoom");
@@ -1930,7 +1930,7 @@ describe("InteractiveTerminal integration — Mobile input adapter", () => {
     const { container, unmount } = await renderTerminal({ mobileInputMode: false });
     const terminal = terminalInstances.at(-1);
     terminal?.focus.mockClear();
-    const inputTarget = container.querySelector(".flex-1.p-1");
+    const inputTarget = container.querySelector('[data-testid="terminal-fit-host"]');
     expect(inputTarget).toBeTruthy();
 
     fireEvent.pointerDown(inputTarget as Element, {

@@ -166,11 +166,15 @@ describe("ResizeObserver-based terminal re-fit", () => {
     expect(resizeObserverDisconnected).toBe(true);
   });
 
-  it("observes the container element", async () => {
-    const { unmount } = await renderTerminal();
+  it("observes the exact terminal fit host, not the padded wrapper", async () => {
+    const { getByTestId, unmount } = await renderTerminal();
 
     expect(resizeObserverTarget).not.toBeNull();
-    expect(resizeObserverTarget).toBeInstanceOf(HTMLDivElement);
+    expect(resizeObserverTarget).toBe(getByTestId("terminal-fit-host"));
+    expect(resizeObserverTarget).not.toBe(getByTestId("terminal-fit-padding"));
+    expect((resizeObserverTarget as HTMLElement).className).toContain("h-full");
+    expect((resizeObserverTarget as HTMLElement).className).toContain("min-h-0");
+    expect((resizeObserverTarget as HTMLElement).className).toContain("w-full");
 
     unmount();
   });

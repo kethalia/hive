@@ -655,18 +655,24 @@ export function InteractiveTerminal({
 
       {/* biome-ignore lint/a11y/useKeyWithClickEvents: focus delegation to xterm which handles its own keyboard */}
       <div
-        ref={containerRef}
-        className="flex-1 p-1"
-        data-sidebar-gesture-ignore={selectionModeEnabled ? "true" : undefined}
-        data-terminal-selection-mode={selectionModeEnabled ? "true" : undefined}
-        {...terminalInteractionProps}
+        className="min-h-0 flex-1 p-1"
+        data-testid="terminal-fit-padding"
         onClick={handleTerminalClick}
-        onClickCapture={stopTerminalEventForSelection}
-        onMouseDownCapture={stopTerminalEventForSelection}
         onPointerDown={handleTerminalPointerDown}
-        onPointerDownCapture={stopTerminalEventForSelection}
-        onTouchStartCapture={stopTerminalEventForSelection}
-      />
+      >
+        <div
+          ref={containerRef}
+          className="h-full min-h-0 w-full"
+          data-testid="terminal-fit-host"
+          data-sidebar-gesture-ignore={selectionModeEnabled ? "true" : undefined}
+          data-terminal-selection-mode={selectionModeEnabled ? "true" : undefined}
+          {...terminalInteractionProps}
+          onClickCapture={stopTerminalEventForSelection}
+          onMouseDownCapture={stopTerminalEventForSelection}
+          onPointerDownCapture={stopTerminalEventForSelection}
+          onTouchStartCapture={stopTerminalEventForSelection}
+        />
+      </div>
     </div>
   );
 }
