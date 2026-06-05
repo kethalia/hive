@@ -349,7 +349,7 @@ describe("MultiSessionWorkspace", () => {
     });
     expect(screen.getByTestId("interactive-terminal-main-session")).toHaveAttribute(
       "data-layout-signal",
-      "2:2:1 / 1 / span 2 / span 1",
+      "default:2:2:1 / 1 / span 2 / span 1",
     );
     expect(screen.getByTestId("workspace-pane-dev-server")).toHaveClass(
       "flex",
@@ -453,8 +453,14 @@ describe("MultiSessionWorkspace", () => {
       "aria-selected",
       "true",
     );
-    expect(screen.getByTestId("workspace-pane-main-session")).toBeInTheDocument();
-    expect(screen.getByTestId("workspace-pane-dev-server")).toBeInTheDocument();
+    expect(screen.getByTestId("active-board-empty")).toHaveTextContent(
+      "This board has no panes yet.",
+    );
+    expect(screen.getByTestId("multi-session-pane-count")).toHaveTextContent("0");
+    expect(screen.getByTestId("active-pane-label")).toHaveTextContent("No active pane");
+    expect(screen.queryByTestId("workspace-pane-main-session")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("workspace-pane-dev-server")).not.toBeInTheDocument();
+    expect(screen.getByTestId("create-session-button")).toBeInTheDocument();
 
     fireEvent.click(screen.getByTestId("workspace-board-tab-default"));
     expect(screen.getByTestId("workspace-board-tab-default")).toHaveAttribute(
@@ -463,6 +469,7 @@ describe("MultiSessionWorkspace", () => {
     );
     expect(screen.getByTestId("workspace-pane-main-session")).toBeInTheDocument();
     expect(screen.getByTestId("workspace-pane-dev-server")).toBeInTheDocument();
+    expect(screen.getByTestId("multi-session-pane-count")).toHaveTextContent("2");
 
     fireEvent.click(screen.getByTestId("workspace-board-rename"));
     fireEvent.change(screen.getByTestId("workspace-board-rename-input"), {
@@ -481,12 +488,110 @@ describe("MultiSessionWorkspace", () => {
 
     const stored = window.localStorage.getItem("workspace-board-state:workspace:ws-1");
     expect(stored).toBeTruthy();
-    expect(JSON.parse(stored ?? "{}")).toMatchObject({
+    const storedState = JSON.parse(stored ?? "{}");
+    expect(storedState).toMatchObject({
       version: 1,
       activeBoardKey: "default",
-      boards: [{ key: "default", name: "Main Board", order: 0, panes: [] }],
+      boards: [{ key: "default", name: "Main Board", order: 0 }],
     });
+    expect(storedState.boards[0].panes).toEqual([
+      expect.objectContaining({ kind: "terminal", sessionName: "main-session", order: 0 }),
+      expect.objectContaining({ kind: "terminal", sessionName: "dev-server", order: 1 }),
+    ]);
     expect(stored).not.toMatch(/proof|token|secret|terminal contents|\/home\/coder/);
+    expect(mockKillSession).not.toHaveBeenCalled();
+    expect(mockCloseGitCloneTerminal).not.toHaveBeenCalled();
+  });
+
+  it("keeps valid empty boards empty and falls back around stale active membership", async () => {
+    window.localStorage.setItem(
+      "workspace-board-state:workspace:ws-1",
+      JSON.stringify({
+        version: 1,
+        activeBoardKey: "review",
+        boards: [
+          {
+            key: "default",
+            name: "Default",
+            order: 0,
+            activePaneKey: "terminal:stale-session",
+            panes: [
+              {
+                kind: "terminal",
+                key: "terminal:stale-session",
+                sessionName: "stale-session",
+                order: 0,
+              },
+              {
+                kind: "terminal",
+                key: "terminal:dev-server",
+                sessionName: "dev-server",
+                order: 1,
+              },
+            ],
+          },
+          { key: "review", name: "Review", order: 1, panes: [] },
+        ],
+      }),
+    );
+
+    mockGetSessions.mockResolvedValueOnce(twoSessionPayload());
+    render(<MultiSessionWorkspace {...defaultProps} />);
+
+    expect(await screen.findByTestId("active-board-empty")).toBeInTheDocument();
+    expect(screen.getByTestId("workspace-board-tab-review")).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+    expect(screen.getByTestId("multi-session-pane-count")).toHaveTextContent("0");
+    expect(screen.queryByTestId("workspace-pane-main-session")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("workspace-pane-dev-server")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId("workspace-board-tab-default"));
+
+    expect(screen.queryByTestId("workspace-pane-main-session")).not.toBeInTheDocument();
+    expect(screen.getByTestId("workspace-pane-dev-server")).toBeInTheDocument();
+    expect(screen.getByTestId("multi-session-pane-count")).toHaveTextContent("1");
+    expect(screen.getByTestId("active-pane-label")).toHaveTextContent("dev-server");
+    expect(window.localStorage.getItem("workspace-board-state:workspace:ws-1")).toContain(
+      "stale-session",
+    );
+  });
+
+  it("adds live backing sessions to an empty active board from the command palette", async () => {
+    mockGetSessions.mockResolvedValueOnce(twoSessionPayload());
+    mockListGitClones.mockResolvedValueOnce({ data: { ok: true, tree: { nodes: [] } } });
+
+    render(<MultiSessionWorkspace {...defaultProps} source="unified" />);
+    await screen.findByTestId("workspace-pane-main-session");
+
+    fireEvent.click(screen.getByTestId("workspace-board-new"));
+    fireEvent.change(screen.getByTestId("workspace-board-create-input"), {
+      target: { value: "Review" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Create board" }));
+
+    expect(screen.getByTestId("active-board-empty")).toBeInTheDocument();
+    fireEvent.click(screen.getByTestId("open-git-session-search"));
+    fireEvent.change(await screen.findByTestId("workspace-command-palette-search"), {
+      target: { value: "dev" },
+    });
+
+    expect(screen.queryByTestId("palette-action-workspace:focus-session:dev-server"))
+      .not.toBeInTheDocument();
+    expect(screen.getByTestId("palette-action-workspace:add-session:dev-server")).toHaveTextContent(
+      "Add this terminal to Review",
+    );
+
+    fireEvent.click(screen.getByTestId("palette-action-workspace:add-session:dev-server"));
+
+    expect(screen.getByTestId("workspace-pane-dev-server")).toBeInTheDocument();
+    expect(screen.queryByTestId("workspace-pane-main-session")).not.toBeInTheDocument();
+    expect(screen.getByTestId("active-pane-label")).toHaveTextContent("dev-server");
+    expect(screen.getByTestId("multi-session-pane-count")).toHaveTextContent("1");
+    expect(window.localStorage.getItem("workspace-board-state:git:ws-1")).toContain(
+      "dev-server",
+    );
     expect(mockKillSession).not.toHaveBeenCalled();
     expect(mockCloseGitCloneTerminal).not.toHaveBeenCalled();
   });
@@ -689,7 +794,7 @@ describe("MultiSessionWorkspace", () => {
 
     expect(
       screen.getByTestId("palette-action-workspace:focus-session:dev-server"),
-    ).toHaveTextContent("Focus in this workspace");
+    ).toHaveTextContent("Focus in this board");
     expect(
       screen.getByTestId("palette-action-workspace:open-session:dev-server"),
     ).toHaveTextContent("Open as a single terminal page");
@@ -736,7 +841,7 @@ describe("MultiSessionWorkspace", () => {
     expect(await screen.findByTestId("workspace-pane-api-shell")).toBeInTheDocument();
   });
 
-  it("kills plain workspace terminal sessions when removing them from a unified workspace", async () => {
+  it("removes plain workspace panes from the active board without killing sessions", async () => {
     mockGetSessions.mockResolvedValueOnce(twoSessionPayload());
     mockListGitClones.mockResolvedValueOnce({ data: { ok: true, tree: { nodes: [] } } });
 
@@ -749,13 +854,10 @@ describe("MultiSessionWorkspace", () => {
 
     expect(screen.queryByTestId("workspace-pane-main-session")).not.toBeInTheDocument();
     expect(screen.getByTestId("workspace-pane-dev-server")).toBeInTheDocument();
-    expect(mockKillSession).toHaveBeenCalledWith({
-      workspaceId: "ws-1",
-      sessionName: "main-session",
-    });
+    expect(mockKillSession).not.toHaveBeenCalled();
     expect(mockCloseGitCloneTerminal).not.toHaveBeenCalled();
 
-    const stored = window.localStorage.getItem("multi-session-layout:git:ws-1");
+    const stored = window.localStorage.getItem("workspace-board-state:git:ws-1");
     expect(stored).not.toContain("main-session");
     expect(stored).toContain("dev-server");
   });
@@ -840,7 +942,7 @@ describe("MultiSessionWorkspace", () => {
       relativePath: "kethalia/hive",
     });
 
-    const stored = window.localStorage.getItem("multi-session-layout:git:ws-1");
+    const stored = window.localStorage.getItem("workspace-board-state:git:ws-1");
     expect(stored).toContain("git-clone:kethalia/hive");
     expect(stored).toContain("kethalia/hive");
     expect(stored).not.toContain("proof-token");
@@ -848,14 +950,9 @@ describe("MultiSessionWorkspace", () => {
     await act(async () => {
       fireEvent.click(screen.getByTestId("remove-pane-pane-git-clone-safe-hive"));
     });
-    expect(await screen.findByTestId("multi-session-empty")).toBeInTheDocument();
-    expect(mockCloseGitCloneTerminal).toHaveBeenCalledWith({
-      agentId: "agent-1",
-      workspaceId: "ws-1",
-      cloneSessionKey: "git-clone:kethalia/hive",
-      relativePath: "kethalia/hive",
-    });
-    expect(window.localStorage.getItem("multi-session-layout:git:ws-1")).not.toContain(
+    expect(await screen.findByTestId("active-board-empty")).toBeInTheDocument();
+    expect(mockCloseGitCloneTerminal).not.toHaveBeenCalled();
+    expect(window.localStorage.getItem("workspace-board-state:git:ws-1")).not.toContain(
       "git-clone:kethalia/hive",
     );
   });
