@@ -84,10 +84,7 @@ describe("workspace board CRUD helper", () => {
   it("generates stable unique names and keys for duplicate board names", () => {
     const withDuplicateCandidates: WorkspaceBoardState = {
       ...baseState(),
-      boards: [
-        ...baseState().boards,
-        { key: "main-2", name: "Main 2", order: 1, panes: [] },
-      ],
+      boards: [...baseState().boards, { key: "main-2", name: "Main 2", order: 1, panes: [] }],
     };
 
     const next = createWorkspaceBoard(withDuplicateCandidates, " Main ");
