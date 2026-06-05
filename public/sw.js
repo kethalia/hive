@@ -1,5 +1,23 @@
 /// <reference lib="webworker" />
 
+self.addEventListener("install", () => {
+  self.skipWaiting();
+});
+
+self.addEventListener("activate", (event) => {
+  event.waitUntil(self.clients.claim());
+});
+
+self.addEventListener("fetch", (event) => {
+  const { request } = event;
+
+  if (request.method !== "GET") return;
+
+  if (request.mode === "navigate") {
+    event.respondWith(fetch(request));
+  }
+});
+
 self.addEventListener("push", (event) => {
   if (!event.data) return;
 

@@ -236,7 +236,6 @@ vi.mock("lucide-react", () => ({
   ClipboardPaste: () => <span data-testid="icon-paste" />,
   Copy: () => <span data-testid="icon-copy" />,
   CornerDownLeft: () => <span data-testid="icon-enter" />,
-  Download: () => <span data-testid="icon-download" />,
   Ellipsis: () => <span data-testid="icon-ellipsis" />,
   Keyboard: () => <span data-testid="icon-keyboard" />,
   MessageSquareText: () => <span data-testid="icon-compose" />,
