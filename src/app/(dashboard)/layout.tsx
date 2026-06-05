@@ -2,6 +2,7 @@ import { Suspense } from "react";
 import { AppSidebar } from "@/components/app-sidebar";
 import { DashboardSidebarTrigger } from "@/components/dashboard-sidebar-trigger";
 import { PushPermissionPrompt } from "@/components/push-permission-prompt";
+import { PwaInstallPrompt } from "@/components/pwa-install-prompt";
 import { SidebarEdgeHandle } from "@/components/sidebar-edge-handle";
 import { HelpOverlay } from "@/components/terminal/HelpOverlay";
 import KeybindingProvider from "@/components/terminal/KeybindingProvider";
@@ -32,6 +33,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
               <div className="min-w-0 flex-1" data-dashboard-content="">
                 {bannerStatus?.data && <TokenExpiryBanner status={bannerStatus.data} />}
                 <PushPermissionPrompt />
+                <PwaInstallPrompt />
                 {children}
               </div>
             </div>

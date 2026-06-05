@@ -10,3 +10,7 @@ export const updateTerminalSettingsSchema = terminalSettingsDtoSchema;
 
 export type TerminalSettingsDto = z.infer<typeof terminalSettingsDtoSchema>;
 export type UpdateTerminalSettingsInput = z.infer<typeof updateTerminalSettingsSchema>;
+
+export function isTerminalSettingsDto(value: unknown): value is TerminalSettingsDto {
+  return terminalSettingsDtoSchema.safeParse(value).success;
+}
