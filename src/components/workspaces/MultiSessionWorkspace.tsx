@@ -401,9 +401,7 @@ function buildFallbackBoardPanes(
 }
 
 function findActiveWorkspaceBoard(state: WorkspaceBoardState): WorkspaceBoard | undefined {
-  return (
-    state.boards.find((board) => board.key === state.activeBoardKey) ?? state.boards[0]
-  );
+  return state.boards.find((board) => board.key === state.activeBoardKey) ?? state.boards[0];
 }
 
 function gitPaneIdentity(cloneSessionKey: string, relativePath: string): string {
@@ -418,10 +416,11 @@ function deriveVisibleSessionsFromBoard(
 
   const sessionByName = new Map(sessions.map((session) => [session.sessionName, session]));
   const gitSessionByIdentity = new Map(
-    sessions.flatMap((session): Array<[string, WorkspaceSessionPane]> =>
-      session.cloneSessionKey && session.relativePath
-        ? [[gitPaneIdentity(session.cloneSessionKey, session.relativePath), session]]
-        : [],
+    sessions.flatMap(
+      (session): Array<[string, WorkspaceSessionPane]> =>
+        session.cloneSessionKey && session.relativePath
+          ? [[gitPaneIdentity(session.cloneSessionKey, session.relativePath), session]]
+          : [],
     ),
   );
   const seenSessionNames = new Set<string>();
@@ -535,25 +534,30 @@ async function loadGitSessions(
   const repositories = flattenRepositoryNodes(discovery.tree.nodes).map(toGitRepositoryOption);
   if (repositories.length === 0) return { status: "empty", repositories };
 
-  const repositoryByKey = new Map(
-    repositories.map((repository) => [repository.cloneSessionKey, repository]),
+  const repositoryByIdentity = new Map(
+    repositories.map((repository) => [
+      gitPaneIdentity(repository.cloneSessionKey, repository.relativePath),
+      repository,
+    ]),
   );
   const selectedRefs = readPersistedGitPaneRefs(persistedJson).filter((ref) =>
-    repositoryByKey.has(ref.cloneSessionKey),
+    repositoryByIdentity.has(gitPaneIdentity(ref.cloneSessionKey, ref.relativePath)),
   );
   if (selectedRefs.length === 0) return { status: "empty", repositories };
 
   const resolved = await Promise.allSettled(
     selectedRefs.map(async (ref): Promise<WorkspaceSessionPane | null> => {
-      const repository = repositoryByKey.get(ref.cloneSessionKey);
+      const repository = repositoryByIdentity.get(
+        gitPaneIdentity(ref.cloneSessionKey, ref.relativePath),
+      );
       if (!repository) return null;
 
       const identity = unwrapActionData(
         await resolveGitCloneTerminalAction({
           agentId,
           workspaceId,
-          cloneSessionKey: repository.cloneSessionKey,
-          relativePath: repository.relativePath,
+          cloneSessionKey: ref.cloneSessionKey,
+          relativePath: ref.relativePath,
         }),
       );
       if (!isGitCloneTerminalIdentity(identity)) return null;
@@ -562,8 +566,8 @@ async function loadGitSessions(
         label: ref.label ?? repository.label,
         clonePath: identity.clonePath,
         cloneProof: identity.cloneProof,
-        cloneSessionKey: repository.cloneSessionKey,
-        relativePath: repository.relativePath,
+        cloneSessionKey: ref.cloneSessionKey,
+        relativePath: ref.relativePath,
       };
     }),
   );
@@ -638,7 +642,7 @@ export function MultiSessionWorkspace({
   const [addingCloneKey, setAddingCloneKey] = useState<string | null>(null);
   const [gitAddFailed, setGitAddFailed] = useState(false);
   const [terminalCloseFailed, setTerminalCloseFailed] = useState(false);
-  const [persistedLayoutJson, setPersistedLayoutJson] = useState<string | null>(null);
+  const [_persistedLayoutJson, setPersistedLayoutJson] = useState<string | null>(null);
   const [layoutPersistenceNotice, setLayoutPersistenceNotice] =
     useState<LayoutPersistenceNotice | null>(null);
   const [boardState, setBoardState] = useState<WorkspaceBoardState>(() =>
@@ -685,9 +689,14 @@ export function MultiSessionWorkspace({
   const activeLabel = visibleSessions.find(
     (session) => session.sessionName === activeSessionName,
   )?.label;
-  const openCloneKeys = useMemo(
-    () => new Set(visibleSessions.map((session) => session.cloneSessionKey).filter(Boolean)),
-    [visibleSessions],
+  const activeBoardGitPaneIdentities = useMemo(
+    () =>
+      new Set(
+        (activeBoard?.panes ?? []).flatMap((pane) =>
+          pane.kind === "git" ? [gitPaneIdentity(pane.cloneSessionKey, pane.relativePath)] : [],
+        ),
+      ),
+    [activeBoard],
   );
   const favoriteGitRepositories = useMemo(() => {
     const repositoryByKey = new Map(
@@ -698,10 +707,12 @@ export function MultiSessionWorkspace({
 
     return gitFavorites.flatMap((favorite): GitFavoriteRepositoryOption[] => {
       if (favorite.kind !== "git" || favorite.workspaceId !== workspaceId) return [];
-      if (!favorite.relativePath || seen.has(favorite.targetKey)) return [];
+      if (!favorite.relativePath) return [];
+      const favoriteIdentity = gitPaneIdentity(favorite.targetKey, favorite.relativePath);
+      if (seen.has(favoriteIdentity)) return [];
       const repository = repositoryByKey.get(favorite.targetKey);
       if (!repository || repository.relativePath !== favorite.relativePath) return [];
-      if (openCloneKeys.has(repository.cloneSessionKey)) return [];
+      if (activeBoardGitPaneIdentities.has(favoriteIdentity)) return [];
       if (
         query &&
         !repository.label.toLowerCase().includes(query) &&
@@ -710,7 +721,7 @@ export function MultiSessionWorkspace({
       ) {
         return [];
       }
-      seen.add(favorite.targetKey);
+      seen.add(favoriteIdentity);
       return [
         {
           ...repository,
@@ -718,7 +729,7 @@ export function MultiSessionWorkspace({
         },
       ];
     });
-  }, [gitFavorites, gitRepositories, gitSearchQuery, openCloneKeys, workspaceId]);
+  }, [activeBoardGitPaneIdentities, gitFavorites, gitRepositories, gitSearchQuery, workspaceId]);
   const favoriteCloneKeys = useMemo(
     () => new Set(favoriteGitRepositories.map((repository) => repository.cloneSessionKey)),
     [favoriteGitRepositories],
@@ -726,7 +737,13 @@ export function MultiSessionWorkspace({
   const filteredGitRepositories = useMemo(() => {
     const query = gitSearchQuery.trim().toLowerCase();
     return gitRepositories.filter((repository) => {
-      if (openCloneKeys.has(repository.cloneSessionKey)) return false;
+      if (
+        activeBoardGitPaneIdentities.has(
+          gitPaneIdentity(repository.cloneSessionKey, repository.relativePath),
+        )
+      ) {
+        return false;
+      }
       if (favoriteCloneKeys.has(repository.cloneSessionKey)) return false;
       if (!query) return false;
       return (
@@ -734,7 +751,7 @@ export function MultiSessionWorkspace({
         repository.relativePath.toLowerCase().includes(query)
       );
     });
-  }, [favoriteCloneKeys, gitRepositories, gitSearchQuery, openCloneKeys]);
+  }, [activeBoardGitPaneIdentities, favoriteCloneKeys, gitRepositories, gitSearchQuery]);
   const filteredTerminalSessions = useMemo(() => {
     const query = gitSearchQuery.trim().toLowerCase();
     if (!query) return [];
@@ -782,7 +799,8 @@ export function MultiSessionWorkspace({
     [clearActiveTerminal, setActiveTerminal],
   );
   const commandPaletteTabs = useMemo(
-    () => visibleSessions.map((session) => ({ id: session.sessionName, sessionName: session.label })),
+    () =>
+      visibleSessions.map((session) => ({ id: session.sessionName, sessionName: session.label })),
     [visibleSessions],
   );
   const handlePaletteSelect = useCallback(
@@ -931,7 +949,8 @@ export function MultiSessionWorkspace({
           (session) => session.sessionName === activeSessionNameRef.current,
         ),
       );
-      const nextIndex = (currentIndex + direction + visibleSessions.length) % visibleSessions.length;
+      const nextIndex =
+        (currentIndex + direction + visibleSessions.length) % visibleSessions.length;
       selectSession(visibleSessions[nextIndex].sessionName);
     },
     [selectSession, visibleSessions],
@@ -1230,7 +1249,7 @@ export function MultiSessionWorkspace({
 
   const openGitRepositoryTerminalPage = useCallback(
     async (repository: GitRepositoryOption) => {
-      setAddingCloneKey(repository.cloneSessionKey);
+      setAddingCloneKey(gitPaneIdentity(repository.cloneSessionKey, repository.relativePath));
       setGitAddFailed(false);
 
       try {
@@ -1282,8 +1301,34 @@ export function MultiSessionWorkspace({
   const handleAddGitRepository = useCallback(
     async (repository: GitRepositoryOption) => {
       if (!isUnifiedSource) return;
-      setAddingCloneKey(repository.cloneSessionKey);
+      const repositoryIdentity = gitPaneIdentity(
+        repository.cloneSessionKey,
+        repository.relativePath,
+      );
+      const existingSession = sessions.find(
+        (session) =>
+          session.cloneSessionKey &&
+          session.relativePath &&
+          gitPaneIdentity(session.cloneSessionKey, session.relativePath) === repositoryIdentity,
+      );
       setGitAddFailed(false);
+
+      if (existingSession) {
+        persistBoardState(
+          addGitPaneToActiveWorkspaceBoard(boardState, {
+            cloneSessionKey: repository.cloneSessionKey,
+            relativePath: repository.relativePath,
+            sessionName: existingSession.sessionName,
+            label: repository.label,
+          }),
+        );
+        selectSession(existingSession.sessionName);
+        setGitSearchOpen(false);
+        setGitSearchQuery("");
+        return;
+      }
+
+      setAddingCloneKey(repositoryIdentity);
 
       try {
         const identity = unwrapActionData(
@@ -1330,7 +1375,16 @@ export function MultiSessionWorkspace({
         setAddingCloneKey(null);
       }
     },
-    [agentId, boardState, isUnifiedSource, persistBoardState, persistSessionOrder, selectSession, workspaceId],
+    [
+      agentId,
+      boardState,
+      isUnifiedSource,
+      persistBoardState,
+      persistSessionOrder,
+      selectSession,
+      sessions,
+      workspaceId,
+    ],
   );
 
   const handleAddExistingTerminalToBoard = useCallback(
@@ -1425,16 +1479,21 @@ export function MultiSessionWorkspace({
 
     const repositories = [...favoriteGitRepositories, ...filteredGitRepositories].slice(0, 10);
     for (const repository of repositories) {
-      if (!openCloneKeys.has(repository.cloneSessionKey)) {
+      const repositoryIdentity = gitPaneIdentity(
+        repository.cloneSessionKey,
+        repository.relativePath,
+      );
+      const repositoryPending = addingCloneKey === repositoryIdentity;
+      if (!activeBoardGitPaneIdentities.has(repositoryIdentity)) {
         actions.push({
           id: `workspace:add-git:${repository.cloneSessionKey}`,
           label: `Add ${repository.label}`,
           description: "Open this Git repository as a workspace pane",
           group: "Git repositories",
           value: `${repository.label} ${repository.relativePath} add git repository workspace`,
-          rightLabel: addingCloneKey === repository.cloneSessionKey ? "Adding…" : "Workspace",
+          rightLabel: repositoryPending ? "Adding…" : "Workspace",
           icon: "plus",
-          disabled: addingCloneKey === repository.cloneSessionKey,
+          disabled: repositoryPending,
           onSelect: () => void handleAddGitRepository(repository),
         });
       }
@@ -1444,9 +1503,9 @@ export function MultiSessionWorkspace({
         description: "Open this Git repository as a single terminal page",
         group: "Git repositories",
         value: `${repository.label} ${repository.relativePath} open git repository terminal`,
-        rightLabel: addingCloneKey === repository.cloneSessionKey ? "Opening…" : "Open",
+        rightLabel: repositoryPending ? "Opening…" : "Open",
         icon: "search",
-        disabled: addingCloneKey === repository.cloneSessionKey,
+        disabled: repositoryPending,
         onSelect: () => void openGitRepositoryTerminalPage(repository),
       });
     }
@@ -1454,6 +1513,7 @@ export function MultiSessionWorkspace({
     return actions;
   }, [
     activeBoard,
+    activeBoardGitPaneIdentities,
     addingCloneKey,
     availableTerminalSessions,
     creating,
@@ -1463,7 +1523,6 @@ export function MultiSessionWorkspace({
     handleAddGitRepository,
     handleCreateSession,
     isUnifiedSource,
-    openCloneKeys,
     openGitRepositoryTerminalPage,
     openTerminalSessionPage,
     paletteMatchesExisting,
@@ -1577,52 +1636,74 @@ export function MultiSessionWorkspace({
     );
   };
 
-  const renderTerminalSessionRow = (session: WorkspaceSessionPane) => (
-    <button
-      type="button"
-      key={session.sessionName}
-      className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-xs hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-      onClick={() => {
-        selectSession(session.sessionName);
-        closeGitSearchModal();
-      }}
-      data-testid={`select-terminal-session-${session.sessionName}`}
-    >
-      <TerminalSquare className="size-3 shrink-0" />
-      <span className="min-w-0 flex-1">
-        <span className="block truncate font-mono">{session.label}</span>
-        <span className="block truncate text-[10px] text-muted-foreground">Terminal session</span>
-      </span>
-      <span className="text-[10px] text-muted-foreground">Focus</span>
-    </button>
-  );
+  const renderTerminalSessionRow = (session: WorkspaceSessionPane) => {
+    const isOnActiveBoard = visibleSessionNames.has(session.sessionName);
+
+    return (
+      <button
+        type="button"
+        key={session.sessionName}
+        className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-xs hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        onClick={() => {
+          if (isOnActiveBoard) {
+            selectSession(session.sessionName);
+          } else {
+            handleAddExistingTerminalToBoard(session);
+          }
+          closeGitSearchModal();
+        }}
+        data-testid={`select-terminal-session-${session.sessionName}`}
+      >
+        <TerminalSquare className="size-3 shrink-0" />
+        <span className="min-w-0 flex-1">
+          <span className="block truncate font-mono">{session.label}</span>
+          <span className="block truncate text-[10px] text-muted-foreground">Terminal session</span>
+        </span>
+        <span className="text-[10px] text-muted-foreground">
+          {isOnActiveBoard ? "Focus" : "Add to board"}
+        </span>
+      </button>
+    );
+  };
 
   const renderGitRepositoryRow = (
     repository: GitRepositoryOption,
     options?: { pinnedLabel?: string },
-  ) => (
-    <button
-      type="button"
-      key={repository.cloneSessionKey}
-      className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-xs hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-wait disabled:opacity-70"
-      onClick={() => void handleAddGitRepository(repository)}
-      disabled={addingCloneKey === repository.cloneSessionKey}
-      data-testid={`add-git-session-${repository.cloneSessionKey}`}
-    >
-      <Plus className="size-3 shrink-0" />
-      <span className="min-w-0 flex-1">
-        <span className="block truncate font-mono">{repository.label}</span>
-        {options?.pinnedLabel ? (
-          <span className="block truncate text-[10px] text-muted-foreground">
-            Pinned favorite · {options.pinnedLabel}
-          </span>
-        ) : null}
-      </span>
-      <span className="text-[10px] text-muted-foreground">
-        {addingCloneKey === repository.cloneSessionKey ? "Adding…" : "Add"}
-      </span>
-    </button>
-  );
+  ) => {
+    const repositoryIdentity = gitPaneIdentity(repository.cloneSessionKey, repository.relativePath);
+    const repositoryPending = addingCloneKey === repositoryIdentity;
+
+    return (
+      <button
+        type="button"
+        key={repositoryIdentity}
+        className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-xs hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-wait disabled:opacity-70"
+        onClick={() => void handleAddGitRepository(repository)}
+        disabled={repositoryPending}
+        data-testid={`add-git-session-${repository.cloneSessionKey}`}
+      >
+        <Plus className="size-3 shrink-0" />
+        <span className="min-w-0 flex-1">
+          <span className="block truncate font-mono">{repository.label}</span>
+          {options?.pinnedLabel ? (
+            <span className="block truncate text-[10px] text-muted-foreground">
+              Pinned favorite · {options.pinnedLabel}
+            </span>
+          ) : null}
+        </span>
+        <span className="text-[10px] text-muted-foreground">
+          {repositoryPending ? "Adding…" : "Add"}
+        </span>
+      </button>
+    );
+  };
+
+  const renderGitAddFailureStatus = () =>
+    gitAddFailed ? (
+      <p className="text-xs text-destructive" data-testid="git-session-add-error">
+        Could not add Git terminal. No terminal contents or clone proof were logged.
+      </p>
+    ) : null;
 
   const renderGitRepositorySearchModal = () => {
     if (!isUnifiedSource) return null;
@@ -1681,11 +1762,7 @@ export function MultiSessionWorkspace({
                 {formatShortcut(CREATE_TERMINAL_SESSION_SHORTCUT_KEYS)}
               </span>
             </Button>
-            {gitAddFailed ? (
-              <p className="text-xs text-destructive" data-testid="git-session-add-error">
-                Could not add Git terminal. No terminal contents or clone proof were logged.
-              </p>
-            ) : null}
+            {renderGitAddFailureStatus()}
             {gitFavoritesFailed ? (
               <p className="text-xs text-muted-foreground" data-testid="git-favorites-error">
                 Favorites are unavailable. Search still works.
@@ -1888,6 +1965,7 @@ export function MultiSessionWorkspace({
         {renderBoardPersistenceStatus()}
         {renderGitRepositoryButton()}
         {renderGitRepositorySearchModal()}
+        {renderGitAddFailureStatus()}
         {createFailed ? (
           <Alert variant="destructive" data-testid="session-create-error" className="max-w-md">
             <AlertCircle />
@@ -1953,6 +2031,7 @@ export function MultiSessionWorkspace({
         {renderGitFontControls()}
         {renderGitRepositoryButton()}
         {renderGitRepositorySearchModal()}
+        {renderGitAddFailureStatus()}
         {renderBoardBar()}
         <CommandPalette
           open={paletteOpen}
