@@ -122,9 +122,14 @@ interface MultiSessionWorkspaceProps {
 }
 
 type SessionLoadResult =
-  | { status: "success"; sessions: WorkspaceSessionPane[]; repositories?: GitRepositoryOption[] }
-  | { status: "empty"; repositories?: GitRepositoryOption[] }
-  | { status: "failure"; repositories?: GitRepositoryOption[] };
+  | {
+      status: "success";
+      sessions: WorkspaceSessionPane[];
+      repositories?: GitRepositoryOption[];
+      gitRestoreFailed?: boolean;
+    }
+  | { status: "empty"; repositories?: GitRepositoryOption[]; gitRestoreFailed?: boolean }
+  | { status: "failure"; repositories?: GitRepositoryOption[]; gitRestoreFailed?: boolean };
 
 type CreateResult = { status: "success"; session: WorkspaceSessionPane } | { status: "failure" };
 
@@ -447,6 +452,34 @@ function deriveVisibleSessionsFromBoard(
   return visibleSessions;
 }
 
+function reconcileGitPaneSessionNames(
+  state: WorkspaceBoardState,
+  sessions: readonly WorkspaceSessionPane[],
+): WorkspaceBoardState {
+  const gitSessionNameByIdentity = new Map(
+    sessions.flatMap(
+      (session): Array<[string, string]> =>
+        session.cloneSessionKey && session.relativePath
+          ? [[gitPaneIdentity(session.cloneSessionKey, session.relativePath), session.sessionName]]
+          : [],
+    ),
+  );
+
+  return {
+    ...state,
+    boards: state.boards.map((board) => ({
+      ...board,
+      panes: board.panes.map((pane) => {
+        if (pane.kind !== "git") return pane;
+        const sessionName = gitSessionNameByIdentity.get(
+          gitPaneIdentity(pane.cloneSessionKey, pane.relativePath),
+        );
+        return sessionName ? { ...pane, sessionName } : { ...pane, sessionName: undefined };
+      }),
+    })),
+  };
+}
+
 function activeSessionNameForVisibleSessions(
   visibleSessions: readonly VisibleWorkspaceSessionPane[],
   activeBoard: WorkspaceBoard | undefined,
@@ -578,10 +611,11 @@ async function loadGitSessions(
       result.status === "fulfilled" && result.value ? [result.value] : [],
     ),
   );
+  const gitRestoreFailed = sessions.length < selectedRefs.length;
 
   return sessions.length > 0
-    ? { status: "success", sessions, repositories }
-    : { status: "empty", repositories };
+    ? { status: "success", sessions, repositories, gitRestoreFailed }
+    : { status: "empty", repositories, gitRestoreFailed };
 }
 
 async function loadUnifiedWorkspaceSessions(
@@ -604,11 +638,14 @@ async function loadUnifiedWorkspaceSessions(
     ...(gitLoad.status === "success" ? gitLoad.sessions : []),
   ]);
 
-  if (sessions.length > 0) return { status: "success", sessions, repositories };
-  if (workspaceLoad.status === "failure" && gitLoad.status === "failure") {
-    return { status: "failure", repositories };
+  if (gitLoad.status === "failure") return { status: "failure", repositories };
+
+  const gitRestoreFailed = gitLoad.gitRestoreFailed === true;
+  if (sessions.length > 0) return { status: "success", sessions, repositories, gitRestoreFailed };
+  if (workspaceLoad.status === "failure") {
+    return { status: "failure", repositories, gitRestoreFailed };
   }
-  return { status: "empty", repositories };
+  return { status: "empty", repositories, gitRestoreFailed };
 }
 
 export function MultiSessionWorkspace({
@@ -642,6 +679,7 @@ export function MultiSessionWorkspace({
   const [gitSearchQuery, setGitSearchQuery] = useState("");
   const [addingCloneKey, setAddingCloneKey] = useState<string | null>(null);
   const [gitAddFailed, setGitAddFailed] = useState(false);
+  const [gitRestoreFailed, setGitRestoreFailed] = useState(false);
   const [terminalCloseFailed, setTerminalCloseFailed] = useState(false);
   const [_persistedLayoutJson, setPersistedLayoutJson] = useState<string | null>(null);
   const [layoutPersistenceNotice, setLayoutPersistenceNotice] =
@@ -1131,6 +1169,7 @@ export function MultiSessionWorkspace({
     setGitSearchOpen(false);
     setGitSearchQuery("");
     setGitAddFailed(false);
+    setGitRestoreFailed(false);
     setTerminalCloseFailed(false);
     setPersistedLayoutJson(storedLayout.raw);
     setLayoutPersistenceNotice(storedLayout.notice);
@@ -1153,13 +1192,17 @@ export function MultiSessionWorkspace({
         if (cancelled) return;
 
         setGitRepositories(parsed.repositories ?? []);
+        setGitRestoreFailed(parsed.gitRestoreFailed === true);
 
         if (parsed.status === "success") {
-          const nextBoardState = resolveWorkspaceBoardState({
-            persistedBoardJson: storedBoard.raw,
-            legacyPaneLayoutJson: storedLayout.raw,
-            fallbackPanes: hasValidBoardState ? [] : buildFallbackBoardPanes(parsed.sessions),
-          });
+          const nextBoardState = reconcileGitPaneSessionNames(
+            resolveWorkspaceBoardState({
+              persistedBoardJson: storedBoard.raw,
+              legacyPaneLayoutJson: storedLayout.raw,
+              fallbackPanes: hasValidBoardState ? [] : buildFallbackBoardPanes(parsed.sessions),
+            }),
+            parsed.sessions,
+          );
           const nextActiveBoard = findActiveWorkspaceBoard(nextBoardState);
           const nextVisibleSessions = deriveVisibleSessionsFromBoard(
             parsed.sessions,
@@ -1778,6 +1821,25 @@ export function MultiSessionWorkspace({
       </p>
     ) : null;
 
+  const renderGitRestoreFailureStatus = () =>
+    gitRestoreFailed ? (
+      <div className="flex flex-wrap items-center justify-center gap-2 text-xs text-destructive">
+        <p data-testid="git-session-restore-error">
+          Git panes need refresh. Retry to restore repository panes.
+        </p>
+        <Button
+          type="button"
+          variant="outline"
+          size="xs"
+          className="h-7 min-h-0 px-2 text-xs"
+          onClick={() => setReloadKey((value) => value + 1)}
+          data-testid="retry-git-session-restore"
+        >
+          Retry Git restore
+        </Button>
+      </div>
+    ) : null;
+
   const renderGitRepositorySearchModal = () => {
     if (!isUnifiedSource) return null;
 
@@ -2044,6 +2106,7 @@ export function MultiSessionWorkspace({
         {renderGitRepositoryButton()}
         {renderGitRepositorySearchModal()}
         {renderGitAddFailureStatus()}
+        {renderGitRestoreFailureStatus()}
         {createFailed ? (
           <Alert variant="destructive" data-testid="session-create-error" className="max-w-md">
             <AlertCircle />
@@ -2110,6 +2173,7 @@ export function MultiSessionWorkspace({
         {renderGitRepositoryButton()}
         {renderGitRepositorySearchModal()}
         {renderGitAddFailureStatus()}
+        {renderGitRestoreFailureStatus()}
         {renderBoardBar()}
         <CommandPalette
           open={paletteOpen}
