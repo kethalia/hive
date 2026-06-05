@@ -1,12 +1,216 @@
 import { describe, expect, it } from "vitest";
 import {
+  migrateLegacySessionPaneLayoutToBoardState,
   parsePersistedWorkspaceBoardState,
+  resolveWorkspaceBoardState,
   serializeWorkspaceBoardState,
   WORKSPACE_BOARD_STATE_VERSION,
   workspaceBoardStorageKey,
 } from "@/lib/workspaces/workspace-board-state";
 
 describe("workspace board state model", () => {
+  it("migrates legacy session pane layout JSON into a default board while preserving safe Git metadata", () => {
+    const migrated = migrateLegacySessionPaneLayoutToBoardState(
+      JSON.stringify({
+        version: 1,
+        activeSessionName: "git-hive",
+        panes: [
+          { sessionName: "api", mode: "tiled", order: 1, label: "API" },
+          {
+            sessionName: "git-hive",
+            mode: "floating",
+            order: 0,
+            label: "Hive Repo",
+            cloneSessionKey: "git-clone:Git/projects/kethalia/hive",
+            relativePath: "kethalia/hive",
+            cloneProof: "do-not-persist",
+          },
+        ],
+      }),
+    );
+
+    expect(migrated.status).toBe("valid");
+    expect(migrated.diagnostics.map((diagnostic) => diagnostic.code)).toEqual([
+      "legacy-layout-migrated",
+    ]);
+    expect(migrated.state?.activeBoardKey).toBe("default");
+    expect(migrated.state?.boards).toHaveLength(1);
+    expect(migrated.state?.boards[0]).toMatchObject({
+      key: "default",
+      name: "Default",
+      activePaneKey: "git:git-clone:Git/projects/kethalia/hive",
+    });
+    expect(migrated.state?.boards[0].panes).toEqual([
+      {
+        kind: "git",
+        key: "git:git-clone:Git/projects/kethalia/hive",
+        sessionName: "git-hive",
+        label: "Hive Repo",
+        cloneSessionKey: "git-clone:Git/projects/kethalia/hive",
+        relativePath: "kethalia/hive",
+        order: 0,
+      },
+      {
+        kind: "terminal",
+        key: "terminal:api",
+        sessionName: "api",
+        label: "API",
+        order: 1,
+      },
+    ]);
+    expect(JSON.stringify(migrated.state)).not.toMatch(/cloneProof|do-not-persist/);
+  });
+
+  it("prefers valid current board state over valid legacy layout", () => {
+    const state = resolveWorkspaceBoardState({
+      persistedBoardJson: JSON.stringify({
+        version: WORKSPACE_BOARD_STATE_VERSION,
+        activeBoardKey: "current",
+        boards: [
+          {
+            key: "current",
+            name: "Current",
+            order: 0,
+            panes: [{ kind: "terminal", sessionName: "current-api", order: 0 }],
+          },
+        ],
+      }),
+      legacyPaneLayoutJson: JSON.stringify({
+        version: 1,
+        panes: [{ sessionName: "legacy-api", mode: "tiled", order: 0 }],
+      }),
+      fallbackPanes: [{ sessionName: "current-api" }],
+    });
+
+    expect(state.activeBoardKey).toBe("current");
+    expect(state.boards[0].panes.map((pane) => pane.key)).toEqual(["terminal:current-api"]);
+    expect(state.diagnostics).toEqual([]);
+  });
+
+  it("resolves corrupt current state through legacy migration before using fallback panes", () => {
+    const state = resolveWorkspaceBoardState({
+      persistedBoardJson: "{not-json",
+      legacyPaneLayoutJson: JSON.stringify({
+        version: 1,
+        panes: [{ sessionName: "legacy-worker", mode: "floating", order: 0 }],
+      }),
+      fallbackPanes: [{ sessionName: "fallback-worker" }],
+    });
+
+    expect(state.boards[0].panes.map((pane) => pane.key)).toEqual(["terminal:fallback-worker"]);
+    expect(state.diagnostics.map((diagnostic) => diagnostic.code)).toEqual([
+      "persisted-json-invalid",
+      "legacy-layout-migrated",
+      "stale-pane-dropped",
+      "board-repaired",
+    ]);
+  });
+
+  it("creates a safe default board from fallback panes when current and legacy persistence are unusable", () => {
+    const state = resolveWorkspaceBoardState({
+      persistedBoardJson: JSON.stringify({ version: 999, boards: [] }),
+      legacyPaneLayoutJson: JSON.stringify({ version: 999, panes: [] }),
+      fallbackPanes: [
+        { sessionName: "shell", label: "Shell", order: 1 },
+        {
+          kind: "git",
+          sessionName: "git-hive",
+          label: "Hive",
+          cloneSessionKey: "git-clone:Git/projects/kethalia/hive",
+          relativePath: "kethalia/hive",
+          order: 0,
+        },
+      ],
+    });
+
+    expect(state.activeBoardKey).toBe("default");
+    expect(state.boards).toHaveLength(1);
+    expect(state.boards[0]).toMatchObject({ key: "default", name: "Default" });
+    expect(state.boards[0].panes.map((pane) => [pane.kind, pane.key, pane.order])).toEqual([
+      ["git", "git:git-clone:Git/projects/kethalia/hive", 0],
+      ["terminal", "terminal:shell", 1],
+    ]);
+    expect(state.diagnostics.map((diagnostic) => diagnostic.code)).toEqual([
+      "persisted-version-unsupported",
+      "persisted-version-unsupported",
+    ]);
+  });
+
+  it("repairs malformed current board state with sanitized diagnostics", () => {
+    const state = resolveWorkspaceBoardState({
+      persistedBoardJson: JSON.stringify({
+        version: WORKSPACE_BOARD_STATE_VERSION,
+        activeBoardKey: "missing-board",
+        boards: [
+          {
+            key: "main",
+            name: "Main",
+            order: 0,
+            activePaneKey: "missing-pane",
+            panes: [
+              "not-a-pane",
+              { kind: "terminal", sessionName: " ", order: 0, terminalContents: "secret" },
+              { kind: "terminal", sessionName: "api", order: 1 },
+              { kind: "terminal", sessionName: "api", order: 2 },
+              {
+                kind: "git",
+                sessionName: "git-evil",
+                cloneSessionKey: "git-clone:evil",
+                relativePath: "/home/coder/projects/kethalia/hive",
+                order: 3,
+                cloneProof: "secret-proof",
+              },
+              { kind: "git", sessionName: "git-missing", cloneSessionKey: "git-clone:missing" },
+            ],
+          },
+          { key: "main", name: "Duplicate", order: 1, panes: [] },
+        ],
+      }),
+      fallbackPanes: [{ sessionName: "api" }],
+    });
+
+    expect(state.activeBoardKey).toBe("main");
+    expect(state.boards).toHaveLength(1);
+    expect(state.boards[0].activePaneKey).toBe("terminal:api");
+    expect(state.boards[0].panes).toEqual([
+      { kind: "terminal", key: "terminal:api", sessionName: "api", order: 0 },
+    ]);
+    expect(state.diagnostics.map((diagnostic) => diagnostic.code)).toEqual([
+      "pane-repaired",
+      "pane-repaired",
+      "pane-repaired",
+      "unsafe-pane-metadata-redacted",
+      "pane-repaired",
+      "pane-repaired",
+      "board-repaired",
+      "board-repaired",
+    ]);
+    expect(JSON.stringify(state.diagnostics)).not.toMatch(
+      /secret|secret-proof|terminalContents|cloneProof|\/home\/coder/,
+    );
+  });
+
+  it("repairs empty current boards to an empty default board without throwing", () => {
+    const state = resolveWorkspaceBoardState({
+      persistedBoardJson: JSON.stringify({
+        version: WORKSPACE_BOARD_STATE_VERSION,
+        boards: [],
+      }),
+    });
+
+    expect(state).toMatchObject({
+      version: WORKSPACE_BOARD_STATE_VERSION,
+      activeBoardKey: "default",
+      boards: [{ key: "default", name: "Default", order: 0, panes: [] }],
+    });
+    expect(state.diagnostics.map((diagnostic) => diagnostic.code)).toEqual(["board-repaired"]);
+    expect(() =>
+      resolveWorkspaceBoardState({
+        persistedBoardJson: JSON.stringify({ version: 1, boards: [] }),
+      }),
+    ).not.toThrow();
+  });
+
   it("parses a valid current two-board state while preserving active board and pane keys", () => {
     const parsed = parsePersistedWorkspaceBoardState(
       JSON.stringify({

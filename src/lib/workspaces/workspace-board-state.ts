@@ -62,6 +62,21 @@ export type PersistedWorkspaceBoardStateParseResult =
   | { status: "valid"; state: WorkspaceBoardState; diagnostics: WorkspaceBoardStateDiagnostic[] }
   | { status: "invalid"; state: null; diagnostics: WorkspaceBoardStateDiagnostic[] };
 
+export type LegacySessionPaneLayoutMigrationResult = PersistedWorkspaceBoardStateParseResult;
+
+export type WorkspaceBoardFallbackPane =
+  | (Partial<Omit<WorkspaceBoardTerminalPane, "kind" | "order">> & {
+      kind?: "terminal";
+      order?: number;
+    })
+  | (Partial<Omit<WorkspaceBoardGitPane, "kind" | "order">> & { kind: "git"; order?: number });
+
+export interface ResolveWorkspaceBoardStateOptions {
+  persistedBoardJson?: string | null;
+  legacyPaneLayoutJson?: string | null;
+  fallbackPanes?: readonly WorkspaceBoardFallbackPane[];
+}
+
 interface IndexedValue<T> {
   value: T;
   index: number;
@@ -73,6 +88,116 @@ export function workspaceBoardStorageKey(
 ): string {
   const storageSource = source === "workspace" ? "workspace" : "git";
   return `workspace-board-state:${storageSource}:${workspaceId}`;
+}
+
+export function resolveWorkspaceBoardState({
+  persistedBoardJson,
+  legacyPaneLayoutJson,
+  fallbackPanes = [],
+}: ResolveWorkspaceBoardStateOptions): WorkspaceBoardState {
+  const diagnostics: WorkspaceBoardStateDiagnostic[] = [];
+  const persisted = parsePersistedWorkspaceBoardState(persistedBoardJson);
+  diagnostics.push(...persisted.diagnostics);
+
+  if (persisted.status === "valid") {
+    return repairWorkspaceBoardState(persisted.state, fallbackPanes, diagnostics);
+  }
+
+  const migrated = migrateLegacySessionPaneLayoutToBoardState(legacyPaneLayoutJson);
+  diagnostics.push(...migrated.diagnostics);
+  if (migrated.status === "valid") {
+    return repairWorkspaceBoardState(migrated.state, fallbackPanes, diagnostics);
+  }
+
+  return createDefaultWorkspaceBoardState(fallbackPanes, diagnostics);
+}
+
+export function migrateLegacySessionPaneLayoutToBoardState(
+  persistedJson?: string | null,
+): LegacySessionPaneLayoutMigrationResult {
+  if (typeof persistedJson !== "string" || persistedJson.trim().length === 0) {
+    return { status: "unavailable", state: null, diagnostics: [] };
+  }
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(persistedJson);
+  } catch {
+    return {
+      status: "invalid",
+      state: null,
+      diagnostics: [
+        {
+          code: "persisted-json-invalid",
+          message:
+            "Stored legacy pane layout JSON could not be parsed; default board state was used.",
+        },
+      ],
+    };
+  }
+
+  if (!isRecord(parsed)) {
+    return invalidMalformed(
+      "Stored legacy pane layout was not an object; default board state was used.",
+    );
+  }
+
+  if (parsed.version !== 1) {
+    return {
+      status: "invalid",
+      state: null,
+      diagnostics: [
+        {
+          code: "persisted-version-unsupported",
+          message:
+            "Stored legacy pane layout version is unsupported; default board state was used.",
+        },
+      ],
+    };
+  }
+
+  if (!Array.isArray(parsed.panes)) {
+    return invalidMalformed(
+      "Stored legacy pane layout panes were malformed; default board state was used.",
+    );
+  }
+
+  const diagnostics: WorkspaceBoardStateDiagnostic[] = [
+    {
+      code: "legacy-layout-migrated",
+      message: "Stored legacy session pane layout was migrated to workspace board state.",
+    },
+  ];
+  const legacyPanes = normalizeLegacyPanes(parsed.panes, diagnostics);
+  const activePaneKey = activePaneKeyFromLegacyHint(
+    parsed.activePaneKey ?? parsed.activeSessionName ?? parsed.activeSession,
+    legacyPanes,
+  );
+  const boards = normalizeBoards(
+    [
+      {
+        key: "default",
+        name: "Default",
+        order: 0,
+        ...(activePaneKey ? { activePaneKey } : {}),
+        panes: legacyPanes,
+      },
+    ],
+    diagnostics,
+  );
+  const activeBoardKey = normalizeActiveBoardKey("default", boards);
+  const stateDiagnostics = [...diagnostics];
+
+  return {
+    status: "valid",
+    state: {
+      version: WORKSPACE_BOARD_STATE_VERSION,
+      activeBoardKey,
+      boards,
+      diagnostics: stateDiagnostics,
+    },
+    diagnostics: stateDiagnostics,
+  };
 }
 
 export function parsePersistedWorkspaceBoardState(
@@ -127,7 +252,11 @@ export function parsePersistedWorkspaceBoardState(
 
   const diagnostics: WorkspaceBoardStateDiagnostic[] = [];
   const boards = normalizeBoards(parsed.boards, diagnostics);
-  const activeBoardKey = normalizeActiveBoardKey(parsed.activeBoardKey, boards);
+  const activeBoardKey = normalizeActiveBoardKeyWithDiagnostics(
+    parsed.activeBoardKey,
+    boards,
+    diagnostics,
+  );
   const stateDiagnostics = [...diagnostics];
 
   return {
@@ -162,6 +291,178 @@ export function serializeWorkspaceBoardState(
     ...(activeBoardKey ? { activeBoardKey } : {}),
     boards,
   } satisfies PersistedWorkspaceBoardState);
+}
+
+function repairWorkspaceBoardState(
+  state: WorkspaceBoardState,
+  fallbackPanes: readonly WorkspaceBoardFallbackPane[],
+  diagnostics: WorkspaceBoardStateDiagnostic[],
+): WorkspaceBoardState {
+  const normalizedFallbackPanes = normalizeFallbackPanes(fallbackPanes, diagnostics);
+  const fallbackIdentities = paneIdentitySet(normalizedFallbackPanes);
+  let staleCount = 0;
+
+  const boards = state.boards
+    .map((board): WorkspaceBoard => {
+      const panes =
+        fallbackIdentities.size === 0
+          ? board.panes
+          : board.panes.filter((pane) => {
+              if (fallbackIdentities.has(paneIdentity(pane))) return true;
+              staleCount += 1;
+              return false;
+            });
+      return {
+        ...board,
+        activePaneKey: normalizeActivePaneKey(board.activePaneKey, panes),
+        panes: panes.map((pane, order) => ({ ...pane, order })),
+      };
+    })
+    .filter((board) => board.panes.length > 0 || normalizedFallbackPanes.length === 0);
+
+  if (staleCount > 0) {
+    diagnostics.push({
+      code: "stale-pane-dropped",
+      message: "Stored workspace board panes that are no longer present were dropped.",
+      count: staleCount,
+    });
+  }
+
+  if (boards.length === 0) {
+    diagnostics.push({
+      code: "board-repaired",
+      message: "Workspace board state had no usable boards; a safe default board was created.",
+    });
+    return buildWorkspaceBoardStateFromPanes(normalizedFallbackPanes, diagnostics);
+  }
+
+  const activeBoardKey = normalizeActiveBoardKeyWithDiagnostics(
+    state.activeBoardKey,
+    boards,
+    diagnostics,
+  );
+  const stateDiagnostics = [...diagnostics];
+  return {
+    version: WORKSPACE_BOARD_STATE_VERSION,
+    activeBoardKey,
+    boards: boards.map((board, order) => ({ ...board, order })),
+    diagnostics: stateDiagnostics,
+  };
+}
+
+function createDefaultWorkspaceBoardState(
+  fallbackPanes: readonly WorkspaceBoardFallbackPane[],
+  diagnostics: WorkspaceBoardStateDiagnostic[],
+): WorkspaceBoardState {
+  return buildWorkspaceBoardStateFromPanes(
+    normalizeFallbackPanes(fallbackPanes, diagnostics),
+    diagnostics,
+  );
+}
+
+function buildWorkspaceBoardStateFromPanes(
+  panes: readonly WorkspaceBoardPane[],
+  diagnostics: WorkspaceBoardStateDiagnostic[],
+): WorkspaceBoardState {
+  const boards = normalizeBoards(
+    [
+      {
+        key: "default",
+        name: "Default",
+        order: 0,
+        panes,
+      },
+    ],
+    diagnostics,
+  );
+  const activeBoardKey = normalizeActiveBoardKey("default", boards);
+  const stateDiagnostics = [...diagnostics];
+  return {
+    version: WORKSPACE_BOARD_STATE_VERSION,
+    activeBoardKey,
+    boards,
+    diagnostics: stateDiagnostics,
+  };
+}
+
+function normalizeFallbackPanes(
+  fallbackPanes: readonly WorkspaceBoardFallbackPane[],
+  diagnostics: WorkspaceBoardStateDiagnostic[],
+): WorkspaceBoardPane[] {
+  const rawPanes = fallbackPanes.map((pane) => ({ ...pane, kind: pane.kind ?? "terminal" }));
+  return normalizePanes(rawPanes, "default", diagnostics);
+}
+
+function normalizeLegacyPanes(
+  values: readonly unknown[],
+  diagnostics: WorkspaceBoardStateDiagnostic[],
+): WorkspaceBoardPane[] {
+  const panes: Record<string, unknown>[] = [];
+  values.forEach((value, index) => {
+    if (!isRecord(value)) {
+      diagnostics.push({
+        code: "pane-repaired",
+        message: "A malformed legacy pane was dropped.",
+        boardKey: "default",
+      });
+      return;
+    }
+
+    const sessionName = normalizeText(value.sessionName);
+    if (!sessionName) {
+      diagnostics.push({
+        code: "pane-repaired",
+        message: "A legacy pane without a session name was dropped.",
+        boardKey: "default",
+      });
+      return;
+    }
+
+    const hasGitIdentity =
+      value.kind === "git" ||
+      value.cloneSessionKey !== undefined ||
+      value.relativePath !== undefined;
+    if (hasGitIdentity) {
+      panes.push({
+        kind: "git",
+        key: normalizeText(value.key),
+        sessionName,
+        label: normalizeText(value.label),
+        cloneSessionKey: value.cloneSessionKey,
+        relativePath: value.relativePath,
+        order: finiteNumberOrFallback(value.order, index),
+      });
+      return;
+    }
+
+    panes.push({
+      kind: "terminal",
+      key: normalizeText(value.key),
+      sessionName,
+      label: normalizeText(value.label),
+      order: finiteNumberOrFallback(value.order, index),
+    });
+  });
+
+  return normalizePanes(panes, "default", diagnostics);
+}
+
+function activePaneKeyFromLegacyHint(
+  value: unknown,
+  panes: readonly WorkspaceBoardPane[],
+): string | undefined {
+  const hint = normalizeText(value);
+  if (!hint) return undefined;
+  return panes.find((pane) => pane.key === hint || pane.sessionName === hint)?.key;
+}
+
+function paneIdentitySet(panes: readonly WorkspaceBoardPane[]): Set<string> {
+  return new Set(panes.map(paneIdentity));
+}
+
+function paneIdentity(pane: WorkspaceBoardPane): string {
+  if (pane.kind === "git") return `git:${pane.cloneSessionKey}:${pane.relativePath}`;
+  return `terminal:${pane.sessionName}`;
 }
 
 function invalidMalformed(message: string): PersistedWorkspaceBoardStateParseResult {
@@ -306,6 +607,13 @@ function normalizePane(
 
   const cloneSessionKey = normalizeText(value.cloneSessionKey);
   const relativePath = normalizeRelativePath(value.relativePath);
+  if (normalizeText(value.relativePath) && !relativePath) {
+    diagnostics.push({
+      code: "unsafe-pane-metadata-redacted",
+      message: "A Git workspace board pane with an unsafe relative path was dropped.",
+      boardKey,
+    });
+  }
   if (!cloneSessionKey || !relativePath) {
     diagnostics.push({
       code: "pane-repaired",
@@ -355,6 +663,23 @@ function normalizeActiveBoardKey(
   const activeBoardKey = normalizeText(value);
   if (!activeBoardKey) return boards[0]?.key;
   return boards.some((board) => board.key === activeBoardKey) ? activeBoardKey : boards[0]?.key;
+}
+
+function normalizeActiveBoardKeyWithDiagnostics(
+  value: unknown,
+  boards: readonly Pick<WorkspaceBoard, "key">[],
+  diagnostics: WorkspaceBoardStateDiagnostic[],
+): string | undefined {
+  const activeBoardKey = normalizeText(value);
+  const normalized = normalizeActiveBoardKey(value, boards);
+  if (activeBoardKey && activeBoardKey !== normalized) {
+    diagnostics.push({
+      code: "board-repaired",
+      message: "Workspace board state referenced a missing active board; the first board was used.",
+      boardKey: activeBoardKey,
+    });
+  }
+  return normalized;
 }
 
 function normalizeActivePaneKey(
