@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import type { WorkspaceBoardState } from "@/lib/workspaces/workspace-board-state";
 import {
   migrateLegacySessionPaneLayoutToBoardState,
   parsePersistedWorkspaceBoardState,
@@ -400,6 +401,164 @@ describe("workspace board state model", () => {
     });
     expect(serialized).not.toMatch(
       /terminalContents|terminalBuffer|secret terminal|cwd|cloneProof|clonePath|token|do-not-persist|\/home\/coder|\/Users/,
+    );
+  });
+
+  it("drops unsafe Git pane path samples and keeps diagnostics sanitized", () => {
+    const state = resolveWorkspaceBoardState({
+      persistedBoardJson: JSON.stringify({
+        version: WORKSPACE_BOARD_STATE_VERSION,
+        activeBoardKey: "main",
+        boards: [
+          {
+            key: "main",
+            name: "Main",
+            order: 0,
+            activePaneKey: "terminal:api",
+            panes: [
+              { kind: "terminal", key: "terminal:api", sessionName: "api", order: 0 },
+              {
+                kind: "git",
+                key: "git:absolute-posix",
+                cloneSessionKey: "git-clone:absolute-posix",
+                relativePath: "/home/coder/projects/kethalia/hive",
+                order: 1,
+                cloneProof: "proof-should-not-echo",
+                terminalBuffer: "buffer-should-not-echo",
+              },
+              {
+                kind: "git",
+                key: "git:home-relative",
+                cloneSessionKey: "git-clone:home-relative",
+                relativePath: "~/projects/repo",
+                order: 2,
+                clipboard: "Bearer abc.def.ghi",
+                token: "token-should-not-echo",
+              },
+              {
+                kind: "git",
+                key: "git:windows-absolute",
+                cloneSessionKey: "git-clone:windows-absolute",
+                relativePath: "C:\\Users\\repo",
+                order: 3,
+                cwd: "C:\\Users\\repo",
+                secret: "secret-should-not-echo",
+              },
+              { kind: "git", key: "git:malformed", panes: [{ cloneProof: "nested" }] },
+            ],
+          },
+        ],
+      }),
+    });
+
+    expect(state.boards[0].panes).toEqual([
+      { kind: "terminal", key: "terminal:api", sessionName: "api", order: 0 },
+    ]);
+    expect(state.diagnostics.map((diagnostic) => diagnostic.code)).toEqual([
+      "unsafe-pane-metadata-redacted",
+      "pane-repaired",
+      "unsafe-pane-metadata-redacted",
+      "pane-repaired",
+      "unsafe-pane-metadata-redacted",
+      "pane-repaired",
+      "pane-repaired",
+    ]);
+    expect(JSON.stringify(state)).not.toMatch(
+      /proof-should-not-echo|buffer-should-not-echo|Bearer abc\.def\.ghi|token-should-not-echo|secret-should-not-echo|cloneProof|terminalBuffer|clipboard|cwd|secret|\/home\/coder|~\/projects|C:\\Users/,
+    );
+  });
+
+  it("serializes forged caller objects through fresh whitelisted objects", () => {
+    const terminalPane = {
+      kind: "terminal",
+      key: "terminal:api",
+      sessionName: "api",
+      label: "API",
+      order: 0,
+      terminalBuffer: "terminal-buffer-should-not-persist",
+      clipboard: "Bearer abc.def.ghi",
+      cwd: "/home/coder/projects/kethalia/hive",
+      toJSON: () => {
+        throw new Error("source terminal pane should not be stringified");
+      },
+    };
+    const gitPane = {
+      kind: "git",
+      key: "git:hive",
+      sessionName: "git-hive",
+      label: "Hive",
+      cloneSessionKey: "git-clone:Git/projects/kethalia/hive",
+      relativePath: "kethalia/hive",
+      order: 1,
+      cloneProof: "clone-proof-should-not-persist",
+      clonePath: "/home/coder/projects/kethalia/hive",
+      token: "token-should-not-persist",
+      secret: "secret-should-not-persist",
+      toJSON: () => {
+        throw new Error("source Git pane should not be stringified");
+      },
+    };
+    const board = {
+      key: "main",
+      name: "Main",
+      order: 0,
+      activePaneKey: "git:hive",
+      panes: [terminalPane, gitPane],
+      cloneProof: "board-proof-should-not-persist",
+      terminalBuffer: "board-buffer-should-not-persist",
+      token: "board-token-should-not-persist",
+      toJSON: () => {
+        throw new Error("source board should not be stringified");
+      },
+    };
+    const callerState = {
+      version: WORKSPACE_BOARD_STATE_VERSION,
+      activeBoardKey: "main",
+      boards: [board],
+      diagnostics: [],
+      secret: "state-secret-should-not-persist",
+      toJSON: () => {
+        throw new Error("source state should not be stringified");
+      },
+    } as unknown as WorkspaceBoardState;
+
+    const serialized = serializeWorkspaceBoardState(callerState);
+    const persisted = JSON.parse(serialized);
+
+    expect(persisted).toEqual({
+      version: WORKSPACE_BOARD_STATE_VERSION,
+      activeBoardKey: "main",
+      boards: [
+        {
+          key: "main",
+          name: "Main",
+          order: 0,
+          activePaneKey: "git:hive",
+          panes: [
+            {
+              kind: "terminal",
+              key: "terminal:api",
+              sessionName: "api",
+              label: "API",
+              order: 0,
+            },
+            {
+              kind: "git",
+              key: "git:hive",
+              sessionName: "git-hive",
+              label: "Hive",
+              cloneSessionKey: "git-clone:Git/projects/kethalia/hive",
+              relativePath: "kethalia/hive",
+              order: 1,
+            },
+          ],
+        },
+      ],
+    });
+    expect(board.token).toBe("board-token-should-not-persist");
+    expect(gitPane.cloneProof).toBe("clone-proof-should-not-persist");
+    expect(serialized).not.toMatch(
+      /terminal-buffer|Bearer abc\.def\.ghi|cwd|cloneProof|clonePath|clone-proof|token|secret|board-proof|state-secret|\/home\/coder/,
     );
   });
 

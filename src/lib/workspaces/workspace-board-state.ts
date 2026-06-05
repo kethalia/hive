@@ -720,7 +720,14 @@ function normalizeText(value: unknown): string | undefined {
 
 function normalizeRelativePath(value: unknown): string | undefined {
   const relativePath = normalizeText(value);
-  if (!relativePath || relativePath.startsWith("/") || /^[A-Za-z]:[\\/]/.test(relativePath)) {
+  if (
+    !relativePath ||
+    relativePath.startsWith("/") ||
+    relativePath === "~" ||
+    relativePath.startsWith("~/") ||
+    relativePath.startsWith("~\\") ||
+    /^[A-Za-z]:[\\/]/.test(relativePath)
+  ) {
     return undefined;
   }
   return relativePath;
