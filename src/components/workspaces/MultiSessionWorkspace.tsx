@@ -24,6 +24,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { SidebarTrigger } from "@/components/ui/sidebar";
+import { WorkspaceBoardBar } from "@/components/workspaces/WorkspaceBoardBar";
 import { useKeybindings } from "@/hooks/useKeybindings";
 import { useTerminalFontStep } from "@/hooks/useTerminalFontStep";
 import {
@@ -53,6 +54,19 @@ import {
   type SessionPane,
   type SessionPaneLayoutDiagnostic,
 } from "@/lib/workspaces/session-pane-layout";
+import {
+  createWorkspaceBoard,
+  deleteWorkspaceBoard,
+  renameWorkspaceBoard,
+  selectWorkspaceBoard,
+} from "@/lib/workspaces/workspace-board-crud";
+import {
+  resolveWorkspaceBoardState,
+  serializeWorkspaceBoardState,
+  type WorkspaceBoardState,
+  type WorkspaceBoardStateDiagnostic,
+  workspaceBoardStorageKey,
+} from "@/lib/workspaces/workspace-board-state";
 
 interface InteractiveTerminalComponentProps {
   agentId: string;
@@ -124,6 +138,11 @@ interface PersistedGitPaneRef {
 
 type LayoutPersistenceNotice = {
   code: "storage-unavailable" | "storage-write-failed" | "storage-reset-failed";
+  message: string;
+};
+
+type BoardPersistenceNotice = {
+  code: "storage-unavailable" | "storage-write-failed";
   message: string;
 };
 
@@ -289,6 +308,25 @@ function readWorkspaceLayoutStorage(storageKey: string): {
   }
 }
 
+function readWorkspaceBoardStorage(storageKey: string): {
+  raw: string | null;
+  notice: BoardPersistenceNotice | null;
+} {
+  if (typeof window === "undefined") return { raw: null, notice: null };
+
+  try {
+    return { raw: window.localStorage.getItem(storageKey), notice: null };
+  } catch {
+    return {
+      raw: null,
+      notice: {
+        code: "storage-unavailable",
+        message: "Board persistence is unavailable. Safe default board is active.",
+      },
+    };
+  }
+}
+
 function parsePersistedActiveSessionName(persistedJson: string | null): string | null {
   if (!persistedJson) return null;
 
@@ -328,6 +366,38 @@ function buildLayoutPersistenceMessage(
   }
   if (diagnostics.some((diagnostic) => diagnostic.code === "stale-pane-dropped")) {
     return "Stored layout referenced closed sessions and was repaired.";
+  }
+  return null;
+}
+
+function buildBoardPersistenceMessage(
+  notice: BoardPersistenceNotice | null,
+  diagnostics: readonly WorkspaceBoardStateDiagnostic[],
+): string | null {
+  if (notice) return notice.message;
+  if (diagnostics.some((diagnostic) => diagnostic.code === "persisted-json-invalid")) {
+    return "Stored board state was unreadable. Safe default board is active.";
+  }
+  if (diagnostics.some((diagnostic) => diagnostic.code === "persisted-version-unsupported")) {
+    return "Stored board state version is unsupported. Safe default board is active.";
+  }
+  if (diagnostics.some((diagnostic) => diagnostic.code === "persisted-board-state-malformed")) {
+    return "Stored board state was malformed. Safe default board is active.";
+  }
+  if (diagnostics.some((diagnostic) => diagnostic.code === "legacy-layout-migrated")) {
+    return "Stored layout was migrated to workspace boards.";
+  }
+  if (
+    diagnostics.some((diagnostic) =>
+      [
+        "board-repaired",
+        "pane-repaired",
+        "stale-pane-dropped",
+        "unsafe-pane-metadata-redacted",
+      ].includes(diagnostic.code),
+    )
+  ) {
+    return "Stored board state was repaired. Safe board metadata is active.";
   }
   return null;
 }
@@ -456,6 +526,11 @@ export function MultiSessionWorkspace({
   const [persistedLayoutJson, setPersistedLayoutJson] = useState<string | null>(null);
   const [layoutPersistenceNotice, setLayoutPersistenceNotice] =
     useState<LayoutPersistenceNotice | null>(null);
+  const [boardState, setBoardState] = useState<WorkspaceBoardState>(() =>
+    resolveWorkspaceBoardState({}),
+  );
+  const [boardPersistenceNotice, setBoardPersistenceNotice] =
+    useState<BoardPersistenceNotice | null>(null);
   const terminalsRef = useRef<Map<string, TerminalEntry>>(new Map());
   const activeSessionNameRef = useRef<string | null>(null);
   const workspaceBodyRef = useRef<HTMLDivElement>(null);
@@ -547,6 +622,14 @@ export function MultiSessionWorkspace({
     ...(layoutPersistenceNotice ? [layoutPersistenceNotice.code] : []),
     ...layout.diagnostics.map((diagnostic) => diagnostic.code),
   ].join(" ");
+  const boardPersistenceMessage = buildBoardPersistenceMessage(
+    boardPersistenceNotice,
+    boardState.diagnostics,
+  );
+  const boardPersistenceCodes = [
+    ...(boardPersistenceNotice ? [boardPersistenceNotice.code] : []),
+    ...boardState.diagnostics.map((diagnostic) => diagnostic.code),
+  ].join(" ");
 
   const clearActiveTerminal = useCallback(() => {
     setActiveTerminal(null, null);
@@ -619,6 +702,71 @@ export function MultiSessionWorkspace({
     },
     [persistLayoutJson],
   );
+
+  const persistBoardState = useCallback(
+    (nextState: WorkspaceBoardState) => {
+      setBoardState(nextState);
+      if (typeof window === "undefined") return;
+
+      try {
+        window.localStorage.setItem(
+          workspaceBoardStorageKey(workspaceId, source),
+          serializeWorkspaceBoardState(nextState),
+        );
+        setBoardPersistenceNotice(null);
+      } catch {
+        setBoardPersistenceNotice({
+          code: "storage-write-failed",
+          message: "Board changes are active for this view but could not be saved locally.",
+        });
+      }
+    },
+    [source, workspaceId],
+  );
+
+  const handleCreateBoard = useCallback(
+    (name: string) => persistBoardState(createWorkspaceBoard(boardState, name)),
+    [boardState, persistBoardState],
+  );
+
+  const handleRenameBoard = useCallback(
+    (boardKey: string, name: string) =>
+      persistBoardState(renameWorkspaceBoard(boardState, boardKey, name)),
+    [boardState, persistBoardState],
+  );
+
+  const handleDeleteBoard = useCallback(
+    (boardKey: string) => persistBoardState(deleteWorkspaceBoard(boardState, boardKey)),
+    [boardState, persistBoardState],
+  );
+
+  const handleSelectBoard = useCallback(
+    (boardKey: string) => persistBoardState(selectWorkspaceBoard(boardState, boardKey)),
+    [boardState, persistBoardState],
+  );
+
+  const renderBoardBar = () => (
+    <WorkspaceBoardBar
+      boards={boardState.boards}
+      activeBoardKey={boardState.activeBoardKey}
+      onCreate={handleCreateBoard}
+      onRename={handleRenameBoard}
+      onDelete={handleDeleteBoard}
+      onSelect={handleSelectBoard}
+      className="w-full min-w-0"
+    />
+  );
+
+  const renderBoardPersistenceStatus = () =>
+    boardPersistenceMessage ? (
+      <p
+        className="border-b border-border px-3 py-1 text-xs text-muted-foreground"
+        data-board-codes={boardPersistenceCodes}
+        data-testid="board-persistence-status"
+      >
+        {boardPersistenceMessage}
+      </p>
+    ) : null;
 
   const handleTerminalReady = useCallback(
     (sessionName: string, term: Terminal, send: (data: string) => void) => {
@@ -739,7 +887,14 @@ export function MultiSessionWorkspace({
   // biome-ignore lint/correctness/useExhaustiveDependencies: reloadKey is a manual retry trigger for session loading
   useEffect(() => {
     const storageKey = storageKeyForWorkspace(workspaceId, source);
+    const boardStorageKey = workspaceBoardStorageKey(workspaceId, source);
     const storedLayout = readWorkspaceLayoutStorage(storageKey);
+    const storedBoard = readWorkspaceBoardStorage(boardStorageKey);
+    const restoredBoardState = resolveWorkspaceBoardState({
+      persistedBoardJson: storedBoard.raw,
+      legacyPaneLayoutJson: storedLayout.raw,
+      fallbackPanes: [],
+    });
     const storedActiveSessionName = parsePersistedActiveSessionName(storedLayout.raw);
     let cancelled = false;
 
@@ -758,6 +913,8 @@ export function MultiSessionWorkspace({
     setTerminalCloseFailed(false);
     setPersistedLayoutJson(storedLayout.raw);
     setLayoutPersistenceNotice(storedLayout.notice);
+    setBoardState(restoredBoardState);
+    setBoardPersistenceNotice(storedBoard.notice);
     terminalsRef.current.clear();
     clearActiveTerminal();
 
@@ -1520,6 +1677,8 @@ export function MultiSessionWorkspace({
             ? "Create a plain terminal session or search Git repositories and add only the panes you need."
             : "Create a tmux-backed terminal session for this workspace."}
         </p>
+        <div className="w-full max-w-2xl">{renderBoardBar()}</div>
+        {renderBoardPersistenceStatus()}
         {renderGitRepositoryButton()}
         {renderGitRepositorySearchModal()}
         {createFailed ? (
@@ -1587,6 +1746,7 @@ export function MultiSessionWorkspace({
         {renderGitFontControls()}
         {renderGitRepositoryButton()}
         {renderGitRepositorySearchModal()}
+        {renderBoardBar()}
         <CommandPalette
           open={paletteOpen}
           onOpenChange={setPaletteOpen}
@@ -1664,6 +1824,8 @@ export function MultiSessionWorkspace({
           {layoutPersistenceMessage}
         </p>
       ) : null}
+
+      {renderBoardPersistenceStatus()}
 
       <div
         ref={workspaceBodyRef}

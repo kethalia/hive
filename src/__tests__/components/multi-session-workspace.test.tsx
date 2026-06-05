@@ -182,30 +182,13 @@ vi.mock("@/components/ui/sidebar", () => ({
 vi.mock("@/components/ui/button", () => ({
   Button: ({
     children,
-    onClick,
-    onMouseEnter,
-    disabled,
-    className,
-    ...rest
-  }: React.PropsWithChildren<{
-    onClick?: (event: React.MouseEvent<HTMLButtonElement>) => void;
-    onMouseEnter?: (event: React.MouseEvent<HTMLButtonElement>) => void;
-    disabled?: boolean;
-    className?: string;
-    variant?: string;
-    size?: string;
-    "data-testid"?: string;
-    "aria-label"?: string;
-  }>) => (
-    <button
-      type="button"
-      onClick={onClick}
-      onMouseEnter={onMouseEnter}
-      disabled={disabled}
-      className={className}
-      data-testid={rest["data-testid"]}
-      aria-label={rest["aria-label"]}
-    >
+    variant,
+    size,
+    ...props
+  }: React.PropsWithChildren<
+    React.ButtonHTMLAttributes<HTMLButtonElement> & { variant?: string; size?: string }
+  >) => (
+    <button type={props.type ?? "button"} {...props}>
       {children}
     </button>
   ),
@@ -238,8 +221,13 @@ vi.mock("@/components/ui/dialog", () => ({
     </div>
   ),
   DialogDescription: ({ children }: React.PropsWithChildren) => <p>{children}</p>,
+  DialogFooter: ({ children }: React.PropsWithChildren) => <div>{children}</div>,
   DialogHeader: ({ children }: React.PropsWithChildren) => <div>{children}</div>,
   DialogTitle: ({ children }: React.PropsWithChildren) => <h2>{children}</h2>,
+}));
+
+vi.mock("@/components/ui/input", () => ({
+  Input: (props: React.InputHTMLAttributes<HTMLInputElement>) => <input {...props} />,
 }));
 
 vi.mock("lucide-react", () => ({
@@ -310,6 +298,13 @@ describe("MultiSessionWorkspace", () => {
   it("renders tiled real panes with InteractiveTerminal props and active diagnostics", async () => {
     await renderTwoSessionWorkspace();
 
+    expect(screen.getByTestId("workspace-board-bar")).toBeInTheDocument();
+    expect(screen.getByTestId("workspace-board-tab-default")).toHaveTextContent("Default");
+    expect(screen.getByTestId("workspace-board-tab-default")).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+    expect(screen.queryByTestId("board-persistence-status")).not.toBeInTheDocument();
     expect(screen.getByTestId("multi-session-pane-count")).toHaveTextContent("2");
     expect(screen.getByTestId("workspace-sidebar-trigger")).toHaveClass("h-7", "shrink-0");
     expect(screen.getByTestId("interactive-terminal-main-session")).toHaveAttribute(
@@ -443,6 +438,175 @@ describe("MultiSessionWorkspace", () => {
     expect(screen.queryByText("Active")).not.toBeInTheDocument();
     expect(screen.queryByText("Idle")).not.toBeInTheDocument();
     expect(screen.getByText("dev-server")).toBeInTheDocument();
+  });
+
+  it("creates, selects, renames, deletes, and persists local boards without terminal side effects", async () => {
+    await renderTwoSessionWorkspace();
+
+    fireEvent.click(screen.getByTestId("workspace-board-new"));
+    fireEvent.change(screen.getByTestId("workspace-board-create-input"), {
+      target: { value: " Planning " },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Create board" }));
+
+    expect(screen.getByTestId("workspace-board-tab-planning")).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+    expect(screen.getByTestId("workspace-pane-main-session")).toBeInTheDocument();
+    expect(screen.getByTestId("workspace-pane-dev-server")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId("workspace-board-tab-default"));
+    expect(screen.getByTestId("workspace-board-tab-default")).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+    expect(screen.getByTestId("workspace-pane-main-session")).toBeInTheDocument();
+    expect(screen.getByTestId("workspace-pane-dev-server")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId("workspace-board-rename"));
+    fireEvent.change(screen.getByTestId("workspace-board-rename-input"), {
+      target: { value: " Main Board " },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Save board name" }));
+    expect(screen.getByTestId("workspace-board-tab-default")).toHaveTextContent("Main Board");
+
+    fireEvent.click(screen.getByTestId("workspace-board-tab-planning"));
+    fireEvent.click(screen.getByTestId("workspace-board-delete"));
+    expect(screen.queryByTestId("workspace-board-tab-planning")).not.toBeInTheDocument();
+    expect(screen.getByTestId("workspace-board-tab-default")).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+
+    const stored = window.localStorage.getItem("workspace-board-state:workspace:ws-1");
+    expect(stored).toBeTruthy();
+    expect(JSON.parse(stored ?? "{}")).toMatchObject({
+      version: 1,
+      activeBoardKey: "default",
+      boards: [{ key: "default", name: "Main Board", order: 0, panes: [] }],
+    });
+    expect(stored).not.toMatch(/proof|token|secret|terminal contents|\/home\/coder/);
+    expect(mockKillSession).not.toHaveBeenCalled();
+    expect(mockCloseGitCloneTerminal).not.toHaveBeenCalled();
+  });
+
+  it("restores persisted boards from git-scoped storage and writes selection back to the git key", async () => {
+    window.localStorage.setItem(
+      "workspace-board-state:git:ws-1",
+      JSON.stringify({
+        version: 1,
+        activeBoardKey: "review",
+        boards: [
+          { key: "main", name: "Main", order: 0, panes: [] },
+          { key: "review", name: "Review", order: 1, panes: [] },
+        ],
+      }),
+    );
+    mockListGitClones.mockResolvedValueOnce({ data: { ok: true, tree: { nodes: [] } } });
+
+    render(<MultiSessionWorkspace {...defaultProps} source="unified" />);
+
+    expect(await screen.findByTestId("multi-session-empty")).toBeInTheDocument();
+    expect(screen.getByTestId("workspace-board-tab-review")).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+    expect(window.localStorage.getItem("workspace-board-state:workspace:ws-1")).toBeNull();
+
+    fireEvent.click(screen.getByTestId("workspace-board-tab-main"));
+
+    expect(
+      JSON.parse(window.localStorage.getItem("workspace-board-state:git:ws-1") ?? "{}"),
+    ).toMatchObject({
+      activeBoardKey: "main",
+      boards: [
+        { key: "main", name: "Main", order: 0, panes: [] },
+        { key: "review", name: "Review", order: 1, panes: [] },
+      ],
+    });
+    expect(mockKillSession).not.toHaveBeenCalled();
+    expect(mockCloseGitCloneTerminal).not.toHaveBeenCalled();
+  });
+
+  it("shows sanitized board repair diagnostics for malformed board storage", async () => {
+    window.localStorage.setItem(
+      "workspace-board-state:workspace:ws-1",
+      '{"secret":"token","path":"/home/coder/projects/kethalia/hive"',
+    );
+
+    await renderTwoSessionWorkspace();
+
+    expect(screen.getByTestId("workspace-board-tab-default")).toHaveTextContent("Default");
+    expect(screen.getByTestId("board-persistence-status")).toHaveTextContent(
+      "Stored board state was unreadable. Safe default board is active.",
+    );
+    expect(screen.getByTestId("board-persistence-status")).toHaveAttribute(
+      "data-board-codes",
+      "persisted-json-invalid",
+    );
+    expect(screen.getByTestId("board-persistence-status").textContent).not.toMatch(
+      /secret|token|\/home\/coder|workspace-board-state/,
+    );
+  });
+
+  it("creates boards in the empty state without creating or closing terminal sessions", async () => {
+    mockGetSessions.mockResolvedValueOnce({ data: [] });
+
+    render(<MultiSessionWorkspace {...defaultProps} />);
+
+    expect(await screen.findByTestId("multi-session-empty")).toBeInTheDocument();
+    fireEvent.click(screen.getByTestId("workspace-board-new"));
+    fireEvent.change(screen.getByTestId("workspace-board-create-input"), {
+      target: { value: "Ops" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Create board" }));
+
+    expect(screen.getByTestId("workspace-board-tab-ops")).toHaveAttribute("aria-selected", "true");
+    expect(
+      JSON.parse(window.localStorage.getItem("workspace-board-state:workspace:ws-1") ?? "{}"),
+    ).toMatchObject({
+      activeBoardKey: "ops",
+      boards: [
+        { key: "default", name: "Default", order: 0, panes: [] },
+        { key: "ops", name: "Ops", order: 1, panes: [] },
+      ],
+    });
+    expect(mockCreateSession).not.toHaveBeenCalled();
+    expect(mockKillSession).not.toHaveBeenCalled();
+    expect(mockCloseGitCloneTerminal).not.toHaveBeenCalled();
+  });
+
+  it("keeps in-memory board changes active when board storage writes fail", async () => {
+    const setItem = vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
+      throw new Error("secret write failure /home/coder/projects/kethalia/hive");
+    });
+
+    await renderTwoSessionWorkspace();
+    fireEvent.click(screen.getByTestId("workspace-board-new"));
+    fireEvent.change(screen.getByTestId("workspace-board-create-input"), {
+      target: { value: "Planning" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Create board" }));
+
+    expect(screen.getByTestId("workspace-board-tab-planning")).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+    expect(screen.getByTestId("board-persistence-status")).toHaveTextContent(
+      "Board changes are active for this view but could not be saved locally.",
+    );
+    expect(screen.getByTestId("board-persistence-status")).toHaveAttribute(
+      "data-board-codes",
+      "storage-write-failed",
+    );
+    expect(screen.getByTestId("board-persistence-status").textContent).not.toMatch(
+      /secret|\/home\/coder/,
+    );
+    expect(setItem).toHaveBeenCalledWith(
+      "workspace-board-state:workspace:ws-1",
+      expect.stringContaining('"activeBoardKey":"planning"'),
+    );
   });
 
   it("restores persisted pane order from source-scoped storage", async () => {
