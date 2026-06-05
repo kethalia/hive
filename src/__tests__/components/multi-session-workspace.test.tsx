@@ -8,6 +8,7 @@ import type { KeybindingContextValue } from "@/hooks/useKeybindings";
 
 const mockCreateSession = vi.fn();
 const mockGetSessions = vi.fn();
+const mockKillSession = vi.fn();
 const mockListGitClones = vi.fn();
 const mockResolveGitCloneTerminal = vi.fn();
 const mockCloseGitCloneTerminal = vi.fn();
@@ -100,6 +101,7 @@ vi.mock("@/lib/actions/git-clones", () => ({
 vi.mock("@/lib/actions/workspaces", () => ({
   createSessionAction: (...args: unknown[]) => mockCreateSession(...args),
   getWorkspaceSessionsAction: (...args: unknown[]) => mockGetSessions(...args),
+  killSessionAction: (...args: unknown[]) => mockKillSession(...args),
 }));
 
 vi.mock("@/lib/actions/navigation-favorites", () => ({
@@ -289,6 +291,7 @@ describe("MultiSessionWorkspace", () => {
     terminalProps.clear();
     window.localStorage.clear();
     mockGetSessions.mockResolvedValue({ data: [] });
+    mockKillSession.mockResolvedValue({ data: { name: "main-session" } });
     mockCloseGitCloneTerminal.mockResolvedValue({ data: { sessionName: "git-clone-safe-hive" } });
     mockListNavigationFavorites.mockResolvedValue({ data: [] });
     mockRouterPush.mockReset();
@@ -553,6 +556,30 @@ describe("MultiSessionWorkspace", () => {
       sessionName: "api-shell",
     });
     expect(await screen.findByTestId("workspace-pane-api-shell")).toBeInTheDocument();
+  });
+
+  it("kills plain workspace terminal sessions when removing them from a unified workspace", async () => {
+    mockGetSessions.mockResolvedValueOnce(twoSessionPayload());
+    mockListGitClones.mockResolvedValueOnce({ data: { ok: true, tree: { nodes: [] } } });
+
+    render(<MultiSessionWorkspace {...defaultProps} source="unified" />);
+    await screen.findByTestId("workspace-pane-main-session");
+
+    await act(async () => {
+      fireEvent.click(screen.getByTestId("remove-pane-pane-main-session"));
+    });
+
+    expect(screen.queryByTestId("workspace-pane-main-session")).not.toBeInTheDocument();
+    expect(screen.getByTestId("workspace-pane-dev-server")).toBeInTheDocument();
+    expect(mockKillSession).toHaveBeenCalledWith({
+      workspaceId: "ws-1",
+      sessionName: "main-session",
+    });
+    expect(mockCloseGitCloneTerminal).not.toHaveBeenCalled();
+
+    const stored = window.localStorage.getItem("multi-session-layout:git:ws-1");
+    expect(stored).not.toContain("main-session");
+    expect(stored).toContain("dev-server");
   });
 
   it("starts Git workspaces empty, adds searched repositories, and persists selected clone refs", async () => {

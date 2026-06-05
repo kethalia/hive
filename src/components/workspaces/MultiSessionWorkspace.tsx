@@ -35,7 +35,11 @@ import {
   listNavigationFavoritesAction,
   type NavigationFavoriteDto,
 } from "@/lib/actions/navigation-favorites";
-import { createSessionAction, getWorkspaceSessionsAction } from "@/lib/actions/workspaces";
+import {
+  createSessionAction,
+  getWorkspaceSessionsAction,
+  killSessionAction,
+} from "@/lib/actions/workspaces";
 import type { GitCloneTerminalIdentity, PublicCloneTree } from "@/lib/git/clone-actions-contract";
 import { SAFE_IDENTIFIER_RE } from "@/lib/constants";
 import { isTextEntryEventTarget } from "@/lib/keyboard-event-targets";
@@ -448,7 +452,7 @@ export function MultiSessionWorkspace({
   const [gitSearchQuery, setGitSearchQuery] = useState("");
   const [addingCloneKey, setAddingCloneKey] = useState<string | null>(null);
   const [gitAddFailed, setGitAddFailed] = useState(false);
-  const [gitCloseFailed, setGitCloseFailed] = useState(false);
+  const [terminalCloseFailed, setTerminalCloseFailed] = useState(false);
   const [persistedLayoutJson, setPersistedLayoutJson] = useState<string | null>(null);
   const [layoutPersistenceNotice, setLayoutPersistenceNotice] =
     useState<LayoutPersistenceNotice | null>(null);
@@ -751,7 +755,7 @@ export function MultiSessionWorkspace({
     setGitSearchOpen(false);
     setGitSearchQuery("");
     setGitAddFailed(false);
-    setGitCloseFailed(false);
+    setTerminalCloseFailed(false);
     setPersistedLayoutJson(storedLayout.raw);
     setLayoutPersistenceNotice(storedLayout.notice);
     terminalsRef.current.clear();
@@ -1095,15 +1099,17 @@ export function MultiSessionWorkspace({
     sessions,
   ]);
 
-  const handleRemoveGitSession = useCallback(
+  const handleRemoveSession = useCallback(
     async (sessionName: string) => {
       if (!isUnifiedSource) return;
 
       const removedSession = sessions.find((session) => session.sessionName === sessionName);
+      if (!removedSession) return;
+
       const nextSessions = sessions.filter((session) => session.sessionName !== sessionName);
       const nextActiveSessionName = nextSessions[0]?.sessionName ?? null;
       terminalsRef.current.delete(sessionName);
-      setGitCloseFailed(false);
+      setTerminalCloseFailed(false);
       setSessions(nextSessions);
       persistSessionOrder(nextSessions, nextActiveSessionName);
 
@@ -1116,20 +1122,22 @@ export function MultiSessionWorkspace({
         }
       }
 
-      if (!removedSession?.cloneSessionKey || !removedSession.relativePath) return;
-
       try {
-        const result = await closeGitCloneTerminalAction({
-          agentId,
-          workspaceId,
-          cloneSessionKey: removedSession.cloneSessionKey,
-          relativePath: removedSession.relativePath,
-        });
+        const result =
+          removedSession.cloneSessionKey && removedSession.relativePath
+            ? await closeGitCloneTerminalAction({
+                agentId,
+                workspaceId,
+                cloneSessionKey: removedSession.cloneSessionKey,
+                relativePath: removedSession.relativePath,
+              })
+            : await killSessionAction({ workspaceId, sessionName });
+
         if (result?.serverError || result?.validationErrors) {
-          setGitCloseFailed(true);
+          setTerminalCloseFailed(true);
         }
       } catch {
-        setGitCloseFailed(true);
+        setTerminalCloseFailed(true);
       }
     },
     [
@@ -1434,7 +1442,7 @@ export function MultiSessionWorkspace({
               data-testid={`remove-pane-${pane.id}`}
               onClick={(event) => {
                 event.stopPropagation();
-                void handleRemoveGitSession(pane.sessionName);
+                void handleRemoveSession(pane.sessionName);
               }}
             >
               <X className="size-3" />
@@ -1632,10 +1640,14 @@ export function MultiSessionWorkspace({
         </Alert>
       ) : null}
 
-      {gitCloseFailed ? (
-        <Alert variant="destructive" data-testid="git-session-close-error" className="m-3 mb-0">
+      {terminalCloseFailed ? (
+        <Alert
+          variant="destructive"
+          data-testid="terminal-session-close-error"
+          className="m-3 mb-0"
+        >
           <AlertCircle />
-          <AlertTitle>Could not close Git terminal.</AlertTitle>
+          <AlertTitle>Could not close terminal.</AlertTitle>
           <AlertDescription>
             The pane was removed locally, but the backing terminal may still exist. Refresh and try
             again.
