@@ -1,5 +1,13 @@
 # hive-migrate
 
+## 0.1.5
+
+### Patch Changes
+
+- 8c0f1d6: Document terminal workspace updates and ignore generated agent evidence artifacts plus generated doc-contract tests.
+- Updated dependencies [8c0f1d6]
+  - @hive/db@0.1.2
+
 ## 0.1.4
 
 ### Patch Changes

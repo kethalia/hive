@@ -1,5 +1,13 @@
 # hive-terminal-proxy
 
+## 2.0.9
+
+### Patch Changes
+
+- 8c0f1d6: Document terminal workspace updates and ignore generated agent evidence artifacts plus generated doc-contract tests.
+- Updated dependencies [8c0f1d6]
+  - @hive/auth@1.0.3
+
 ## 2.0.8
 
 ### Patch Changes
