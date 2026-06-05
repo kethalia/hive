@@ -160,11 +160,14 @@ describe("session keybinding registration", () => {
       expect(["session", "terminal"]).toContain(entry.category);
     }
     expect(registeredBindings.get("compose:toggle:tab-manager")!.category).toBe("terminal");
+    expect(registeredBindings.get("command-palette")!.category).toBe("terminal");
     expect(registeredBindings.get("compose:toggle:tab-manager")!.enabledInBrowser).toBe(true);
     expect(registeredBindings.get("command-palette")!.enabledInBrowser).toBe(true);
     expect(registeredBindings.get("session:next-tab")!.enabledInBrowser).toBe(true);
     expect(registeredBindings.get("session:prev-tab")!.enabledInBrowser).toBe(true);
-    expect(registeredBindings.get("session:create")!.enabledInBrowser).toBe(false);
+    expect(registeredBindings.get("session:create")!.enabledInBrowser).toBe(true);
+    expect(registeredBindings.get("session:create")!.global).toBe(true);
+    expect(registeredBindings.get("command-palette")!.global).toBe(true);
     expect(registeredBindings.get("session:close")!.enabledInBrowser).toBe(false);
   });
 
@@ -172,25 +175,15 @@ describe("session keybinding registration", () => {
     await renderWithTabs([{ name: "s1" }]);
 
     expect(registeredBindings.get("command-palette")!.keys).toEqual(["ctrl+k", "cmd+k"]);
-    expect(registeredBindings.get("session:create")!.keys).toEqual(["ctrl+t", "cmd+t"]);
+    expect(registeredBindings.get("session:create")!.keys).toEqual(["ctrl+shift+n", "cmd+shift+n"]);
     expect(registeredBindings.get("session:close")!.keys).toEqual(["ctrl+w", "cmd+w"]);
     expect(registeredBindings.get("session:next-tab")!.keys).toEqual(["ctrl+tab"]);
     expect(registeredBindings.get("session:prev-tab")!.keys).toEqual(["ctrl+shift+tab"]);
   });
 
-  describe("Ctrl+T (session:create)", () => {
-    it("returns true (pass-through) when not in PWA standalone", async () => {
+  describe("Ctrl/Cmd+Shift+N (session:create)", () => {
+    it("calls handleCreateTab and returns false", async () => {
       mockPwaStandalone = false;
-      await renderWithTabs([{ name: "s1" }]);
-
-      const action = registeredBindings.get("session:create")!.action;
-      const result = action(null, null);
-      expect(result).toBe(true);
-      expect(mockCreateSession).not.toHaveBeenCalled();
-    });
-
-    it("calls handleCreateTab and returns false when in PWA standalone", async () => {
-      mockPwaStandalone = true;
       mockCreateSession.mockResolvedValue({ data: { name: "new-session" } });
       await renderWithTabs([{ name: "s1" }]);
 

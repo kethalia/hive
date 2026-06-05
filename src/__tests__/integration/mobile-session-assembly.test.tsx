@@ -593,7 +593,16 @@ describe("mobile session assembly", () => {
     render(element);
 
     expect(screen.getByText("Workspace body")).toBeInTheDocument();
-    expect(document.querySelector('[data-slot="sidebar-inset"] main')).toHaveClass("pb-0");
+    const sidebarInset = document.querySelector('[data-slot="sidebar-inset"]');
+    const dashboardMain = document.querySelector("[data-dashboard-main]");
+    const dashboardContent = document.querySelector("[data-dashboard-content]");
+
+    expect(sidebarInset).toHaveClass("h-[var(--app-viewport-height)]", "overflow-hidden");
+    expect(dashboardMain).toHaveClass("h-full", "overflow-hidden");
+    expect(dashboardMain?.className).not.toContain("px-");
+    expect(dashboardMain?.className).not.toContain("pt-");
+    expect(dashboardMain?.className).not.toContain("pb-");
+    expect(dashboardContent).toHaveClass("h-full", "min-h-0", "overflow-hidden");
     expect(screen.getByTestId("app-sidebar")).toBeInTheDocument();
     expect(screen.queryByRole("group", { name: "Terminal quick actions" })).not.toBeInTheDocument();
     expect(hapticsState.triggerHapticFeedback).not.toHaveBeenCalled();

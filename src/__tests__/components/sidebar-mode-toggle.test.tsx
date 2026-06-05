@@ -14,6 +14,8 @@ import "@testing-library/jest-dom/vitest";
 
 import { useSidebarMode } from "@/hooks/use-sidebar-mode";
 
+const originalInnerWidth = window.innerWidth;
+
 describe("useSidebarMode", () => {
   beforeEach(() => {
     localStorage.clear();
@@ -45,7 +47,7 @@ describe("useSidebarMode", () => {
     expect(result.current[0]).toBe("floating");
   });
 
-  it("setSidebarMode(false) changes to sidebar", () => {
+  it("setSidebarMode(false) still forces floating", () => {
     localStorage.setItem("sidebar_variant", "floating");
     const { result } = renderHook(() => useSidebarMode());
     expect(result.current[0]).toBe("floating");
@@ -54,10 +56,11 @@ describe("useSidebarMode", () => {
       result.current[1](false);
     });
 
-    expect(result.current[0]).toBe("sidebar");
+    expect(result.current[0]).toBe("floating");
+    expect(localStorage.getItem("sidebar_variant")).toBe("floating");
   });
 
-  it("persists mode change to localStorage", () => {
+  it("persists only floating mode to localStorage", () => {
     const { result } = renderHook(() => useSidebarMode());
 
     act(() => {
@@ -70,20 +73,29 @@ describe("useSidebarMode", () => {
       result.current[1](false);
     });
 
-    expect(localStorage.getItem("sidebar_variant")).toBe("sidebar");
+    expect(localStorage.getItem("sidebar_variant")).toBe("floating");
   });
 
-  it("treats unknown localStorage value as floating", () => {
+  it("migrates unknown localStorage value to floating", () => {
     localStorage.setItem("sidebar_variant", "bogus");
     const { result } = renderHook(() => useSidebarMode());
     expect(result.current[0]).toBe("floating");
+    expect(localStorage.getItem("sidebar_variant")).toBe("floating");
+  });
+
+  it("migrates stale sidebar localStorage value to floating", () => {
+    localStorage.setItem("sidebar_variant", "sidebar");
+    const { result } = renderHook(() => useSidebarMode());
+    expect(result.current[0]).toBe("floating");
+    expect(localStorage.getItem("sidebar_variant")).toBe("floating");
   });
 });
 
 const mockPush = vi.fn();
+const mockRefresh = vi.fn();
 vi.mock("next/navigation", () => ({
   usePathname: () => "/tasks",
-  useRouter: () => ({ push: mockPush }),
+  useRouter: () => ({ push: mockPush, refresh: mockRefresh }),
   useSearchParams: () => new URLSearchParams(),
 }));
 
@@ -115,7 +127,15 @@ vi.mock("@/components/ui/sidebar", () => {
     </button>
   );
   return {
-    Sidebar: Passthrough,
+    Sidebar: ({
+      children,
+      className,
+      variant,
+    }: React.PropsWithChildren<{ className?: string; variant?: string }>) => (
+      <div data-testid="app-sidebar-root" data-variant={variant} className={className}>
+        {children}
+      </div>
+    ),
     SidebarContent: Passthrough,
     SidebarFooter: ({ children, className }: React.PropsWithChildren<{ className?: string }>) => (
       <div data-testid="sidebar-footer" className={className}>
@@ -174,19 +194,31 @@ vi.mock("@/components/ui/badge", () => ({
 vi.mock("@/components/ui/switch", () => ({
   Switch: ({
     checked,
+    disabled,
+    id,
     onCheckedChange,
     ...rest
   }: {
     checked?: boolean;
-    onCheckedChange?: (v: boolean) => void;
+    disabled?: boolean;
     id?: string;
+    onCheckedChange?: (v: boolean) => void;
     size?: string;
+    "aria-describedby"?: string;
+    "aria-invalid"?: boolean;
+    "aria-labelledby"?: string;
     "data-testid"?: string;
   }) => (
     <button
+      id={id}
+      type="button"
       role="switch"
       aria-checked={checked}
+      aria-describedby={rest["aria-describedby"]}
+      aria-invalid={rest["aria-invalid"]}
+      aria-labelledby={rest["aria-labelledby"]}
       data-testid={rest["data-testid"]}
+      disabled={disabled}
       onClick={() => onCheckedChange?.(!checked)}
     >
       {checked ? "On" : "Off"}
@@ -207,14 +239,18 @@ vi.mock("lucide-react", () => ({
   RefreshCw: () => <span data-testid="refresh-icon">RefreshCw</span>,
   AlertCircle: () => <span>AlertCircle</span>,
   Terminal: () => <span>Terminal</span>,
+  PanelLeftIcon: () => <span>PanelLeftIcon</span>,
   Plus: () => <span>Plus</span>,
   X: () => <span>X</span>,
+  XIcon: () => <span>XIcon</span>,
   FolderOpen: () => <span>FolderOpen</span>,
   Code: () => <span>Code</span>,
   ExternalLink: () => <span>ExternalLink</span>,
   ChevronDown: () => <span>ChevronDown</span>,
   Pencil: () => <span>Pencil</span>,
+  Star: () => <span>Star</span>,
   Loader2: () => <span>Loader2</span>,
+  LogOut: () => <span>LogOut</span>,
 }));
 
 const mockListWorkspaces = vi.fn();
@@ -223,6 +259,14 @@ const mockGetWorkspaceAgent = vi.fn();
 const mockGetWorkspaceSessions = vi.fn();
 const mockCreateSession = vi.fn();
 const mockKillSession = vi.fn();
+const mockListGitClones = vi.fn();
+const mockResolveGitCloneTerminal = vi.fn();
+const mockListNavigationFavorites = vi.fn();
+const mockUpsertNavigationFavorite = vi.fn();
+const mockRemoveNavigationFavorite = vi.fn();
+const mockGetTerminalSettings = vi.fn();
+const mockUpdateTerminalSettings = vi.fn();
+const mockGetSessionAction = vi.fn();
 
 vi.mock("@/lib/actions/workspaces", () => ({
   listWorkspacesAction: (...args: unknown[]) => mockListWorkspaces(...args),
@@ -246,79 +290,144 @@ vi.mock("@/lib/actions/templates", () => ({
   listTemplateStatusesAction: (...args: unknown[]) => mockListTemplates(...args),
 }));
 
+vi.mock("@/lib/actions/git-clones", () => ({
+  listGitClonesAction: (...args: unknown[]) => mockListGitClones(...args),
+  resolveGitCloneTerminalAction: (...args: unknown[]) => mockResolveGitCloneTerminal(...args),
+}));
+
+vi.mock("@/lib/actions/navigation-favorites", () => ({
+  listNavigationFavoritesAction: (...args: unknown[]) => mockListNavigationFavorites(...args),
+  upsertNavigationFavoriteAction: (...args: unknown[]) => mockUpsertNavigationFavorite(...args),
+  removeNavigationFavoriteAction: (...args: unknown[]) => mockRemoveNavigationFavorite(...args),
+}));
+
+vi.mock("@/lib/actions/user-settings", () => ({
+  getTerminalSettingsAction: (...args: unknown[]) => mockGetTerminalSettings(...args),
+  updateTerminalSettingsAction: (...args: unknown[]) => mockUpdateTerminalSettings(...args),
+}));
+
+vi.mock("@/lib/auth/actions", () => ({
+  getSessionAction: (...args: unknown[]) => mockGetSessionAction(...args),
+}));
+
+describe("Sidebar primitive layout contract", () => {
+  afterEach(() => {
+    cleanup();
+    Object.defineProperty(window, "innerWidth", {
+      configurable: true,
+      value: originalInnerWidth,
+    });
+  });
+
+  it("uses the widened desktop width while keeping floating gap at zero", async () => {
+    const { Sidebar: ActualSidebar, SidebarProvider: ActualSidebarProvider } =
+      await vi.importActual<typeof import("@/components/ui/sidebar")>("@/components/ui/sidebar");
+
+    const { container } = render(
+      <ActualSidebarProvider>
+        <ActualSidebar variant="floating">
+          <nav aria-label="Workspace navigation">Navigation</nav>
+        </ActualSidebar>
+      </ActualSidebarProvider>,
+    );
+
+    const wrapper = container.querySelector<HTMLElement>('[data-slot="sidebar-wrapper"]');
+    const root = container.querySelector<HTMLElement>('[data-slot="sidebar"]');
+    const gap = container.querySelector<HTMLElement>('[data-slot="sidebar-gap"]');
+    const sidebarContainer = container.querySelector<HTMLElement>(
+      '[data-slot="sidebar-container"]',
+    );
+
+    expect(wrapper?.style.getPropertyValue("--sidebar-width")).toBe("18rem");
+    expect(wrapper?.style.getPropertyValue("--sidebar-width-icon")).toBe("3rem");
+    expect(root).toHaveAttribute("data-variant", "floating");
+    expect(gap?.className).toContain("w-0");
+    expect(gap?.className).not.toContain("w-(--sidebar-width)");
+    expect(sidebarContainer?.className).toContain("w-(--sidebar-width)");
+  });
+
+  it("preserves the mobile drawer width token", async () => {
+    Object.defineProperty(window, "innerWidth", {
+      configurable: true,
+      value: 390,
+    });
+
+    const {
+      Sidebar: ActualSidebar,
+      SidebarProvider: ActualSidebarProvider,
+      SidebarTrigger: ActualSidebarTrigger,
+    } = await vi.importActual<typeof import("@/components/ui/sidebar")>("@/components/ui/sidebar");
+
+    render(
+      <ActualSidebarProvider>
+        <ActualSidebarTrigger />
+        <ActualSidebar variant="floating">
+          <nav aria-label="Mobile workspace navigation">Navigation</nav>
+        </ActualSidebar>
+      </ActualSidebarProvider>,
+    );
+
+    const trigger = document.querySelector<HTMLElement>('[data-slot="sidebar-trigger"]');
+    expect(trigger).not.toBeNull();
+    fireEvent.click(trigger!);
+
+    await waitFor(() => {
+      const drawer = document.querySelector<HTMLElement>('[data-mobile="true"]');
+      expect(drawer).not.toBeNull();
+      expect(drawer?.style.getPropertyValue("--sidebar-width")).toBe("18rem");
+    });
+  });
+});
+
 import { AppSidebar } from "@/components/app-sidebar";
 
-describe("AppSidebar mode toggle", () => {
+describe("AppSidebar floating-only mode", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     localStorage.clear();
     mockListWorkspaces.mockResolvedValue({ data: [] });
     mockListTemplates.mockResolvedValue({ data: [] });
+    mockGetTerminalSettings.mockResolvedValue({
+      data: { terminalControlsBeyondMobile: false },
+    });
+    mockUpdateTerminalSettings.mockResolvedValue({
+      data: { terminalControlsBeyondMobile: false },
+    });
+    mockGetSessionAction.mockResolvedValue({ data: null });
   });
 
   afterEach(() => {
     cleanup();
   });
 
-  it("renders mode toggle switch in settings", async () => {
+  it("does not render a sidebar mode toggle in settings", async () => {
     render(<AppSidebar />);
 
     await waitFor(() => {
-      const toggle = screen.getByTestId("sidebar-mode-toggle");
-      expect(toggle).toBeInTheDocument();
+      expect(screen.getByTestId("app-sidebar-root")).toBeInTheDocument();
+    });
+
+    expect(screen.queryByTestId("sidebar-mode-toggle")).not.toBeInTheDocument();
+    expect(screen.queryByText("Float sidebar")).not.toBeInTheDocument();
+  });
+
+  it("uses floating sidebar variant by default", async () => {
+    render(<AppSidebar />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("app-sidebar-root")).toHaveAttribute("data-variant", "floating");
     });
   });
 
-  it("switch is on in floating mode (default)", async () => {
+  it("ignores and migrates stale non-floating storage", async () => {
+    localStorage.setItem("sidebar_variant", "sidebar");
+
     render(<AppSidebar />);
 
     await waitFor(() => {
-      const toggle = screen.getByTestId("sidebar-mode-toggle");
-      expect(toggle).toHaveAttribute("aria-checked", "true");
-    });
-  });
-
-  it("clicking switch disables floating mode", async () => {
-    render(<AppSidebar />);
-
-    await waitFor(() => {
-      expect(screen.getByTestId("sidebar-mode-toggle")).toBeInTheDocument();
-    });
-
-    fireEvent.click(screen.getByTestId("sidebar-mode-toggle"));
-
-    await waitFor(() => {
-      const toggle = screen.getByTestId("sidebar-mode-toggle");
-      expect(toggle).toHaveAttribute("aria-checked", "false");
-    });
-  });
-
-  it("clicking switch persists mode to localStorage", async () => {
-    render(<AppSidebar />);
-
-    await waitFor(() => {
-      expect(screen.getByTestId("sidebar-mode-toggle")).toBeInTheDocument();
-    });
-
-    fireEvent.click(screen.getByTestId("sidebar-mode-toggle"));
-
-    expect(localStorage.getItem("sidebar_variant")).toBe("sidebar");
-  });
-
-  it("clicking switch twice returns to floating mode", async () => {
-    render(<AppSidebar />);
-
-    await waitFor(() => {
-      expect(screen.getByTestId("sidebar-mode-toggle")).toBeInTheDocument();
-    });
-
-    fireEvent.click(screen.getByTestId("sidebar-mode-toggle"));
-    fireEvent.click(screen.getByTestId("sidebar-mode-toggle"));
-
-    await waitFor(() => {
-      const toggle = screen.getByTestId("sidebar-mode-toggle");
-      expect(toggle).toHaveAttribute("aria-checked", "true");
+      expect(screen.getByTestId("app-sidebar-root")).toHaveAttribute("data-variant", "floating");
     });
     expect(localStorage.getItem("sidebar_variant")).toBe("floating");
+    expect(screen.queryByTestId("sidebar-mode-toggle")).not.toBeInTheDocument();
   });
 });

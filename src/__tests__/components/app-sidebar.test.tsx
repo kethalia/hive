@@ -6,10 +6,11 @@ import "@testing-library/jest-dom/vitest";
 
 const mockUseIsMobile = vi.hoisted(() => vi.fn(() => false));
 const mockPush = vi.hoisted(() => vi.fn());
+const mockRefresh = vi.hoisted(() => vi.fn());
 const mockNavigationState = vi.hoisted(() => ({ pathname: "/tasks", searchParams: "" }));
 vi.mock("next/navigation", () => ({
   usePathname: () => mockNavigationState.pathname,
-  useRouter: () => ({ push: mockPush, refresh: vi.fn() }),
+  useRouter: () => ({ push: mockPush, refresh: mockRefresh }),
   useSearchParams: () => new URLSearchParams(mockNavigationState.searchParams),
 }));
 
@@ -33,7 +34,7 @@ vi.mock("@/components/ui/sidebar", async () => {
     children,
     disabled,
     render,
-    isActive: _isActive,
+    isActive,
     ...rest
   }: React.PropsWithChildren<{
     disabled?: boolean;
@@ -41,11 +42,12 @@ vi.mock("@/components/ui/sidebar", async () => {
     isActive?: boolean;
     className?: string;
   }>) => {
+    const activeProps = { ...rest, "data-active": isActive ? "true" : "false" };
     if (render) {
-      return React.cloneElement(render, rest, children);
+      return React.cloneElement(render, activeProps, children);
     }
     return (
-      <button disabled={disabled} {...rest}>
+      <button disabled={disabled} {...activeProps}>
         {children}
       </button>
     );
@@ -221,19 +223,31 @@ vi.mock("@/components/ui/badge", () => ({
 vi.mock("@/components/ui/switch", () => ({
   Switch: ({
     checked,
+    disabled,
+    id,
     onCheckedChange,
     ...rest
   }: {
     checked?: boolean;
-    onCheckedChange?: (v: boolean) => void;
+    disabled?: boolean;
     id?: string;
+    onCheckedChange?: (v: boolean) => void;
     size?: string;
+    "aria-describedby"?: string;
+    "aria-invalid"?: boolean;
+    "aria-labelledby"?: string;
     "data-testid"?: string;
   }) => (
     <button
+      id={id}
+      type="button"
       role="switch"
       aria-checked={checked}
+      aria-describedby={rest["aria-describedby"]}
+      aria-invalid={rest["aria-invalid"]}
+      aria-labelledby={rest["aria-labelledby"]}
       data-testid={rest["data-testid"]}
+      disabled={disabled}
       onClick={() => onCheckedChange?.(!checked)}
     >
       {checked ? "On" : "Off"}
@@ -249,7 +263,11 @@ vi.mock("lucide-react", () => ({
   LayoutTemplate: () => <span>LayoutTemplate</span>,
   Monitor: () => <span>Monitor</span>,
   LayoutDashboard: () => <span>LayoutDashboard</span>,
-  ChevronRight: () => <span>ChevronRight</span>,
+  ChevronRight: ({ className, ...props }: { className?: string; "data-testid"?: string }) => (
+    <span className={className} data-testid={props["data-testid"]}>
+      ChevronRight
+    </span>
+  ),
   RefreshCw: () => <span data-testid="refresh-icon">RefreshCw</span>,
   AlertCircle: () => <span>AlertCircle</span>,
   Terminal: () => <span>Terminal</span>,
@@ -279,6 +297,8 @@ const mockRenameSession = vi.fn();
 const mockListNavigationFavorites = vi.fn();
 const mockUpsertNavigationFavorite = vi.fn();
 const mockRemoveNavigationFavorite = vi.fn();
+const mockGetTerminalSettings = vi.fn();
+const mockUpdateTerminalSettings = vi.fn();
 
 vi.mock("@/lib/actions/workspaces", () => ({
   listWorkspacesAction: (...args: unknown[]) => mockListWorkspaces(...args),
@@ -313,6 +333,11 @@ vi.mock("@/lib/actions/navigation-favorites", () => ({
   removeNavigationFavoriteAction: (...args: unknown[]) => mockRemoveNavigationFavorite(...args),
 }));
 
+vi.mock("@/lib/actions/user-settings", () => ({
+  getTerminalSettingsAction: (...args: unknown[]) => mockGetTerminalSettings(...args),
+  updateTerminalSettingsAction: (...args: unknown[]) => mockUpdateTerminalSettings(...args),
+}));
+
 const mockGetSessionAction = vi.fn();
 const mockLogoutAction = vi.fn();
 
@@ -329,6 +354,7 @@ import type {
 } from "@/lib/git/clone-actions-contract";
 import type { CloneTreeDiagnostics } from "@/lib/git/clone-tree";
 import type { TemplateStatus } from "@/lib/templates/staleness";
+import { TERMINAL_SETTINGS_CHANGED_EVENT } from "@/lib/terminal/settings-events";
 
 const PRIVATE_ROOT = "/home/coder/SUPER_SECRET_TOKEN";
 
@@ -529,6 +555,14 @@ describe("AppSidebar", () => {
     mockRemoveNavigationFavorite.mockResolvedValue({
       data: { success: true },
     });
+    mockGetTerminalSettings.mockResolvedValue({
+      data: { terminalControlsBeyondMobile: false },
+    });
+    mockUpdateTerminalSettings.mockImplementation((input) =>
+      Promise.resolve({
+        data: { terminalControlsBeyondMobile: input.terminalControlsBeyondMobile },
+      }),
+    );
     mockResolveGitCloneTerminal.mockResolvedValue({
       data: {
         sessionName: "git-clone-safe-hive",
@@ -566,6 +600,160 @@ describe("AppSidebar", () => {
     await waitFor(() => {
       expect(screen.getByText("dev-box")).toBeInTheDocument();
     });
+  });
+
+  it("loads the synced terminal controls setting once per sidebar mount", async () => {
+    mockGetTerminalSettings.mockResolvedValueOnce({
+      data: { terminalControlsBeyondMobile: true },
+    });
+
+    render(<AppSidebar />);
+
+    const switchControl = await screen.findByRole("switch", {
+      name: "Show terminal controls beyond phone",
+    });
+
+    await waitFor(() => {
+      expect(switchControl).toHaveAttribute("aria-checked", "true");
+      expect(switchControl).not.toBeDisabled();
+    });
+    expect(mockGetTerminalSettings).toHaveBeenCalledTimes(1);
+  });
+
+  it("falls back to the default-off terminal controls setting when read data is missing", async () => {
+    mockGetTerminalSettings.mockResolvedValueOnce({});
+
+    render(<AppSidebar />);
+
+    const switchControl = await screen.findByRole("switch", {
+      name: "Show terminal controls beyond phone",
+    });
+
+    await waitFor(() => {
+      expect(screen.queryByText("Loading terminal controls setting…")).not.toBeInTheDocument();
+    });
+    expect(switchControl).toHaveAttribute("aria-checked", "false");
+    expect(screen.queryByTestId("terminal-settings-error")).not.toBeInTheDocument();
+  });
+
+  it("shows redacted retry UI when reading terminal controls setting fails", async () => {
+    mockGetTerminalSettings.mockResolvedValueOnce({
+      serverError: "database path /home/coder/secret failed",
+    });
+
+    render(<AppSidebar />);
+
+    const switchControl = await screen.findByRole("switch", {
+      name: "Show terminal controls beyond phone",
+    });
+
+    await waitFor(() => {
+      expect(screen.getByTestId("terminal-settings-error")).toHaveTextContent(
+        "Terminal controls setting unavailable.",
+      );
+    });
+    expect(switchControl).toHaveAttribute("aria-checked", "false");
+    expect(document.body.innerHTML).not.toContain("/home/coder/secret");
+
+    mockGetTerminalSettings.mockResolvedValueOnce({
+      data: { terminalControlsBeyondMobile: true },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Retry" }));
+
+    await waitFor(() => {
+      expect(switchControl).toHaveAttribute("aria-checked", "true");
+      expect(screen.queryByTestId("terminal-settings-error")).not.toBeInTheDocument();
+    });
+  });
+
+  it("optimistically updates terminal controls, dispatches the setting event, and refreshes", async () => {
+    const events: boolean[] = [];
+    window.addEventListener(TERMINAL_SETTINGS_CHANGED_EVENT, (event) => {
+      events.push(
+        (event as CustomEvent<{ terminalControlsBeyondMobile: boolean }>).detail
+          .terminalControlsBeyondMobile,
+      );
+    });
+
+    render(<AppSidebar />);
+
+    const switchControl = await screen.findByRole("switch", {
+      name: "Show terminal controls beyond phone",
+    });
+    await waitFor(() => expect(switchControl).not.toBeDisabled());
+    fireEvent.click(switchControl);
+
+    await waitFor(() => {
+      expect(mockUpdateTerminalSettings).toHaveBeenCalledWith({
+        terminalControlsBeyondMobile: true,
+      });
+      expect(switchControl).toHaveAttribute("aria-checked", "true");
+      expect(events).toEqual([true]);
+      expect(mockRefresh).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  it("rolls back terminal controls and skips the success event when updating fails", async () => {
+    const eventSpy = vi.fn();
+    window.addEventListener(TERMINAL_SETTINGS_CHANGED_EVENT, eventSpy);
+    mockUpdateTerminalSettings.mockResolvedValueOnce({
+      serverError: "write failed with terminal text redacted",
+    });
+
+    render(<AppSidebar />);
+
+    const switchControl = await screen.findByRole("switch", {
+      name: "Show terminal controls beyond phone",
+    });
+    await waitFor(() => expect(switchControl).not.toBeDisabled());
+    fireEvent.click(switchControl);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("terminal-settings-error")).toHaveTextContent(
+        "Terminal controls setting unavailable.",
+      );
+      expect(switchControl).toHaveAttribute("aria-checked", "false");
+    });
+    expect(eventSpy).not.toHaveBeenCalled();
+    expect(mockRefresh).not.toHaveBeenCalled();
+  });
+
+  it("leaves terminal controls unchanged when update returns malformed data", async () => {
+    mockGetTerminalSettings.mockResolvedValueOnce({
+      data: { terminalControlsBeyondMobile: true },
+    });
+    mockUpdateTerminalSettings.mockResolvedValueOnce({ data: {} });
+
+    render(<AppSidebar />);
+
+    const switchControl = await screen.findByRole("switch", {
+      name: "Show terminal controls beyond phone",
+    });
+    await waitFor(() => {
+      expect(switchControl).toHaveAttribute("aria-checked", "true");
+      expect(switchControl).not.toBeDisabled();
+    });
+
+    fireEvent.click(switchControl);
+
+    await waitFor(() => {
+      expect(switchControl).toHaveAttribute("aria-checked", "true");
+      expect(screen.getByTestId("terminal-settings-error")).toBeInTheDocument();
+    });
+  });
+
+  it("renders accessible thumb-friendly terminal controls setting without removed sidebar mode UI", async () => {
+    render(<AppSidebar />);
+
+    const switchControl = await screen.findByRole("switch", {
+      name: "Show terminal controls beyond phone",
+    });
+    expect(switchControl).toHaveAccessibleDescription(
+      "Use mobile-style terminal controls on tablet, laptop, and desktop.",
+    );
+    expect(screen.getByTestId("terminal-controls-beyond-mobile-setting")).toHaveClass("min-h-11");
+    expect(screen.queryByTestId("sidebar-mode-toggle")).not.toBeInTheDocument();
+    expect(screen.queryByText("Float sidebar")).not.toBeInTheDocument();
   });
 
   it("renders template names when data loads", async () => {
@@ -835,6 +1023,28 @@ describe("AppSidebar", () => {
     );
     expect(document.body).not.toHaveTextContent(PRIVATE_ROOT);
     expect(document.body.innerHTML).not.toContain("/home/coder");
+  });
+
+  it("keeps the Git section closed by default and rotates its chevron when opened", async () => {
+    render(<AppSidebar />);
+
+    await screen.findByText("dev-box");
+    const wsTrigger = screen.getByText("dev-box").closest("[data-testid='collapsible-trigger']");
+    expect(wsTrigger).not.toBeNull();
+    fireEvent.click(wsTrigger!);
+
+    const gitSection = await screen.findByTestId("git-section-ws-1");
+    expect(gitSection).toHaveAttribute("data-open", "false");
+    expect(screen.getByTestId("git-section-chevron-ws-1")).not.toHaveClass("rotate-90");
+
+    const gitTrigger = gitSection.querySelector("[data-testid='collapsible-trigger']");
+    expect(gitTrigger).not.toBeNull();
+    fireEvent.click(gitTrigger!);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("git-section-ws-1")).toHaveAttribute("data-open", "true");
+      expect(screen.getByTestId("git-section-chevron-ws-1")).toHaveClass("rotate-90");
+    });
   });
 
   it("opens a Git repository in the workspace that owns the Git tree", async () => {
@@ -1136,7 +1346,7 @@ describe("AppSidebar", () => {
     expect(mockListGitClones).not.toHaveBeenCalled();
   });
 
-  it("includes expanded workspace Git discovery in the explicit footer refresh", async () => {
+  it("includes open workspace Git discovery in the explicit footer refresh", async () => {
     render(<AppSidebar />);
 
     await waitFor(() => {
@@ -1148,6 +1358,13 @@ describe("AppSidebar", () => {
 
     await waitFor(() => {
       expect(mockListGitClones).toHaveBeenCalledWith({ workspaceId: "ws-1" });
+    });
+    const gitSection = await screen.findByTestId("git-section-ws-1");
+    const gitTrigger = gitSection.querySelector("[data-testid='collapsible-trigger']");
+    expect(gitTrigger).not.toBeNull();
+    fireEvent.click(gitTrigger!);
+    await waitFor(() => {
+      expect(screen.getByTestId("git-section-ws-1")).toHaveAttribute("data-open", "true");
     });
 
     mockListWorkspaces.mockClear();
@@ -1443,6 +1660,78 @@ describe("AppSidebar", () => {
     );
 
     openSpy.mockRestore();
+  });
+
+  it("renders one unified Workspace link without replacing single-session terminal rows", async () => {
+    await expandWorkspaceAndTerminalSessions();
+
+    const workspaceLink = screen.getByTestId("multi-session-workspace-link-ws-1");
+    expect(workspaceLink).toHaveAttribute("href", "/workspaces/ws-1/terminal/workspace");
+    expect(workspaceLink).toHaveTextContent("Workspace");
+    expect(workspaceLink).toHaveAttribute("data-active", "false");
+
+    expect(screen.queryByTestId("git-workspace-link-ws-1")).not.toBeInTheDocument();
+
+    const sessionLink = screen.getByText("dev").closest("a");
+    expect(sessionLink).toHaveAttribute("href", "/workspaces/ws-1/terminal?session=dev");
+    expect(screen.getByTestId("create-session-ws-1")).toBeInTheDocument();
+  });
+
+  it("marks only the unified Workspace link active on workspace routes", async () => {
+    mockNavigationState.pathname = "/workspaces/ws-1/terminal/workspace";
+
+    render(<AppSidebar />);
+
+    const workspaceLink = await screen.findByTestId("multi-session-workspace-link-ws-1");
+    expect(workspaceLink).toHaveAttribute("href", "/workspaces/ws-1/terminal/workspace");
+    expect(workspaceLink).toHaveAttribute("data-active", "true");
+
+    await waitFor(() => {
+      expect(screen.getByText("dev")).toBeInTheDocument();
+    });
+    expect(screen.getByText("dev").closest("a")).toHaveAttribute("data-active", "false");
+
+    cleanup();
+    mockNavigationState.pathname = "/workspaces/ws-1/terminal/git-workspace";
+    render(<AppSidebar />);
+    expect(await screen.findByTestId("multi-session-workspace-link-ws-1")).toHaveAttribute(
+      "data-active",
+      "true",
+    );
+  });
+
+  it("keeps the multi-session workspace link reachable when session loading fails", async () => {
+    mockGetWorkspaceSessions.mockResolvedValue({
+      serverError: "Session fetch failed",
+    });
+
+    render(<AppSidebar />);
+
+    await screen.findByText("dev-box");
+    const wsTrigger = screen.getByText("dev-box").closest("[data-testid='collapsible-trigger']");
+    expect(wsTrigger).not.toBeNull();
+    fireEvent.click(wsTrigger!);
+
+    expect(screen.getByTestId("multi-session-workspace-link-ws-1")).toHaveAttribute(
+      "href",
+      "/workspaces/ws-1/terminal/workspace",
+    );
+    await waitFor(() => {
+      expect(screen.getByText("Session fetch failed")).toBeInTheDocument();
+    });
+  });
+
+  it("does not mark clone terminal URLs as active workspace links or create reserved clone sessions", async () => {
+    mockNavigationState.pathname = "/workspaces/ws-1/terminal";
+    mockNavigationState.searchParams =
+      "session=git-clone-safe-hive&clonePath=kethalia%2Fhive&cloneProof=proof-token";
+
+    render(<AppSidebar />);
+
+    const workspaceLink = await screen.findByTestId("multi-session-workspace-link-ws-1");
+    expect(workspaceLink).toHaveAttribute("data-active", "false");
+    expect(workspaceLink).toHaveAttribute("href", "/workspaces/ws-1/terminal/workspace");
+    expect(mockCreateSession).not.toHaveBeenCalled();
   });
 
   it("create session button calls createSessionAction and navigates", async () => {

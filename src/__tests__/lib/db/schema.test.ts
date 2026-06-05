@@ -45,6 +45,13 @@ describe("Prisma schema", () => {
     }
   });
 
+  it("defines the default-off synced terminal controls user setting", () => {
+    expect(schema).toContain("model User {");
+    expect(schema).toContain(
+      'terminalControlsBeyondMobile Boolean  @default(false) @map("terminal_controls_beyond_mobile")',
+    );
+  });
+
   it("defines user-owned navigation favorites with composite scoping", () => {
     expect(schema).toContain("enum NavigationFavoriteKind {");
     expect(schema).toContain("terminal");
@@ -88,6 +95,18 @@ describe("Prisma schema", () => {
     );
     expect(migration).toContain(
       'FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE',
+    );
+  });
+
+  it("ships a terminal controls preference migration with a non-null false default", () => {
+    const migrationPath = path.resolve(
+      __dirname,
+      "../../../../packages/db/prisma/migrations/20260603000000_add_terminal_controls_beyond_mobile/migration.sql",
+    );
+    const migration = fs.readFileSync(migrationPath, "utf-8");
+
+    expect(migration).toContain(
+      'ALTER TABLE "users" ADD COLUMN "terminal_controls_beyond_mobile" BOOLEAN NOT NULL DEFAULT false;',
     );
   });
 });

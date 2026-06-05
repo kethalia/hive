@@ -1,14 +1,20 @@
 "use client";
 
-import * as React from "react";
 import type { Terminal } from "@xterm/xterm";
+import * as React from "react";
 import {
   KeybindingContext,
-  normalizeKeyCombo,
   type KeybindingContextValue,
   type KeybindingEntry,
+  normalizeKeyCombo,
 } from "@/hooks/useKeybindings";
-import { copyTerminalSelection, pasteToTerminal } from "@/lib/terminal/actions";
+import {
+  isTerminalHelperTextAreaTarget,
+  isTextEntryEventTarget,
+} from "@/lib/keyboard-event-targets";
+import { copyTerminalSelection } from "@/lib/terminal/actions";
+import { TERMINAL_FOCUS_ACTIVE_EVENT } from "@/lib/terminal/events";
+import { isPwaStandalone } from "@/lib/terminal/pwa";
 
 export function KeybindingProvider({ children }: { children: React.ReactNode }) {
   const registryRef = React.useRef<Map<string, KeybindingEntry>>(new Map());
@@ -73,6 +79,39 @@ export function KeybindingProvider({ children }: { children: React.ReactNode }) 
   );
 
   React.useEffect(() => {
+    const handleGlobalKeyDown = (event: KeyboardEvent) => {
+      const combo = normalizeKeyCombo(event);
+      const entry = registryRef.current.get(combo);
+      if (!entry?.global) return;
+      if (isTextEntryEventTarget(event.target) && !isTerminalHelperTextAreaTarget(event.target)) {
+        return;
+      }
+      if (!entry.enabledInBrowser && !isPwaStandalone()) return;
+
+      const shouldContinue = entry.action(activeTerminal, activeSend);
+      if (!shouldContinue) {
+        event.preventDefault();
+        event.stopPropagation();
+        event.stopImmediatePropagation();
+      }
+    };
+
+    window.addEventListener("keydown", handleGlobalKeyDown, { capture: true });
+    return () => window.removeEventListener("keydown", handleGlobalKeyDown, { capture: true });
+  }, [activeSend, activeTerminal]);
+
+  React.useEffect(() => {
+    const handleFocusActiveTerminal = () => {
+      window.requestAnimationFrame(() => {
+        activeTerminal?.focus();
+      });
+    };
+
+    window.addEventListener(TERMINAL_FOCUS_ACTIVE_EVENT, handleFocusActiveTerminal);
+    return () => window.removeEventListener(TERMINAL_FOCUS_ACTIVE_EVENT, handleFocusActiveTerminal);
+  }, [activeTerminal]);
+
+  React.useEffect(() => {
     register({
       id: "copy",
       keys: ["ctrl+c", "cmd+c"],
@@ -84,20 +123,8 @@ export function KeybindingProvider({ children }: { children: React.ReactNode }) 
       category: "clipboard",
       enabledInBrowser: true,
     });
-    register({
-      id: "paste",
-      keys: ["ctrl+v", "cmd+v"],
-      action: (term, send) => {
-        if (!term || !send) return true;
-        return pasteToTerminal(term, send);
-      },
-      description: "Paste",
-      category: "clipboard",
-      enabledInBrowser: true,
-    });
     return () => {
       unregister("copy");
-      unregister("paste");
     };
   }, [register, unregister]);
 

@@ -41,6 +41,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { Field, FieldContent, FieldDescription, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import {
   Sidebar,
@@ -64,11 +65,16 @@ import { useSidebarMode } from "@/hooks/use-sidebar-mode";
 import { listGitClonesAction, resolveGitCloneTerminalAction } from "@/lib/actions/git-clones";
 import {
   listNavigationFavoritesAction,
+  type NavigationFavoriteDto,
   removeNavigationFavoriteAction,
   upsertNavigationFavoriteAction,
-  type NavigationFavoriteDto,
 } from "@/lib/actions/navigation-favorites";
 import { listTemplateStatusesAction } from "@/lib/actions/templates";
+import {
+  getTerminalSettingsAction,
+  updateTerminalSettingsAction,
+} from "@/lib/actions/user-settings";
+import { isTerminalSettingsDto } from "@/lib/actions/user-settings-contract";
 import {
   createSessionAction,
   getWorkspaceAgentAction,
@@ -87,6 +93,7 @@ import type {
 import { isCloneTerminalSessionName } from "@/lib/git/clone-terminal-session";
 import type { CloneTreeDiagnostics, CloneTreeRepositoryNode } from "@/lib/git/clone-tree";
 import type { TemplateStatus } from "@/lib/templates/staleness";
+import { dispatchTerminalSettingsChanged } from "@/lib/terminal/settings-events";
 import { cn } from "@/lib/utils";
 import type { TmuxSession } from "@/lib/workspaces/sessions";
 import { buildWorkspaceUrls } from "@/lib/workspaces/urls";
@@ -146,6 +153,11 @@ const GIT_DISCOVERY_SERVER_ERROR_MESSAGE =
 const GIT_TERMINAL_OPEN_ERROR_MESSAGE =
   "We couldn't open that Git repository. Refresh and try again.";
 const FAVORITES_UNAVAILABLE_MESSAGE = "Favorites unavailable. Terminal access is still available.";
+const TERMINAL_SETTINGS_ERROR_MESSAGE = "Terminal controls setting unavailable.";
+const TERMINAL_CONTROLS_SWITCH_ID = "terminal-controls-beyond-mobile";
+const TERMINAL_CONTROLS_SWITCH_LABEL_ID = `${TERMINAL_CONTROLS_SWITCH_ID}-label`;
+const TERMINAL_CONTROLS_SWITCH_DESCRIPTION_ID = `${TERMINAL_CONTROLS_SWITCH_ID}-description`;
+const TERMINAL_CONTROLS_SWITCH_ERROR_ID = `${TERMINAL_CONTROLS_SWITCH_ID}-error`;
 
 function isGitCloneTerminalIdentity(value: unknown): value is GitCloneTerminalIdentity {
   if (!value || typeof value !== "object") return false;
@@ -673,8 +685,12 @@ export function AppSidebar() {
   const searchParams = useSearchParams();
   const activeSession = searchParams.get("session");
   const activeClonePath = searchParams.get("clonePath");
-  const [sidebarMode, setSidebarMode] = useSidebarMode();
+  const [sidebarMode] = useSidebarMode();
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [terminalControlsBeyondMobile, setTerminalControlsBeyondMobile] = useState(false);
+  const [isTerminalSettingsLoading, setIsTerminalSettingsLoading] = useState(true);
+  const [isTerminalSettingsUpdating, setIsTerminalSettingsUpdating] = useState(false);
+  const [terminalSettingsError, setTerminalSettingsError] = useState<string | null>(null);
 
   const [sessionUser, setSessionUser] = useState<{
     email: string;
@@ -689,6 +705,62 @@ export function AppSidebar() {
       }
     });
   }, []);
+
+  const loadTerminalSettings = useCallback(async () => {
+    setIsTerminalSettingsLoading(true);
+    setTerminalSettingsError(null);
+    try {
+      const result = await getTerminalSettingsAction();
+      if (isTerminalSettingsDto(result?.data)) {
+        setTerminalControlsBeyondMobile(result.data.terminalControlsBeyondMobile);
+      } else if (result?.serverError) {
+        setTerminalControlsBeyondMobile(false);
+        setTerminalSettingsError(TERMINAL_SETTINGS_ERROR_MESSAGE);
+      } else {
+        setTerminalControlsBeyondMobile(false);
+      }
+    } catch {
+      setTerminalControlsBeyondMobile(false);
+      setTerminalSettingsError(TERMINAL_SETTINGS_ERROR_MESSAGE);
+    } finally {
+      setIsTerminalSettingsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadTerminalSettings();
+  }, [loadTerminalSettings]);
+
+  const handleTerminalControlsBeyondMobileChange = useCallback(
+    async (nextValue: boolean) => {
+      if (isTerminalSettingsLoading || isTerminalSettingsUpdating) return;
+
+      const previousValue = terminalControlsBeyondMobile;
+      setTerminalControlsBeyondMobile(nextValue);
+      setIsTerminalSettingsUpdating(true);
+      setTerminalSettingsError(null);
+
+      try {
+        const result = await updateTerminalSettingsAction({
+          terminalControlsBeyondMobile: nextValue,
+        });
+        if (!isTerminalSettingsDto(result?.data)) {
+          throw new Error("terminal_settings_update_failed");
+        }
+
+        const savedValue = result.data.terminalControlsBeyondMobile;
+        setTerminalControlsBeyondMobile(savedValue);
+        dispatchTerminalSettingsChanged({ terminalControlsBeyondMobile: savedValue });
+        router.refresh();
+      } catch {
+        setTerminalControlsBeyondMobile(previousValue);
+        setTerminalSettingsError(TERMINAL_SETTINGS_ERROR_MESSAGE);
+      } finally {
+        setIsTerminalSettingsUpdating(false);
+      }
+    },
+    [isTerminalSettingsLoading, isTerminalSettingsUpdating, router, terminalControlsBeyondMobile],
+  );
 
   const coderUrl = sessionUser?.coderUrl ?? undefined;
 
@@ -721,6 +793,7 @@ export function AppSidebar() {
 
   const relativeTime = useRelativeTime(lastRefreshed, settingsOpen);
   const [expandedWorkspaces, setExpandedWorkspaces] = useState<Record<string, boolean>>({});
+  const [expandedGitSections, setExpandedGitSections] = useState<Record<string, boolean>>({});
   const [expandedTerminals, setExpandedTerminals] = useState<Record<string, boolean>>({});
   const [workspaceAgents, setWorkspaceAgents] = useState<Record<string, AgentInfo | null>>({});
   const [workspaceSessions, setWorkspaceSessions] = useState<Record<string, WorkspaceSessionState>>(
@@ -886,9 +959,11 @@ export function AppSidebar() {
 
   const expandedWorkspacesRef = useRef(expandedWorkspaces);
   expandedWorkspacesRef.current = expandedWorkspaces;
+  const expandedGitSectionsRef = useRef(expandedGitSections);
+  expandedGitSectionsRef.current = expandedGitSections;
 
   const refreshExpandedGitClones = useCallback(() => {
-    for (const [wsId, isExpanded] of Object.entries(expandedWorkspacesRef.current)) {
+    for (const [wsId, isExpanded] of Object.entries(expandedGitSectionsRef.current)) {
       if (isExpanded) fetchGitClones(wsId);
     }
   }, [fetchGitClones]);
@@ -952,6 +1027,14 @@ export function AppSidebar() {
       }
     },
     [fetchAgentInfo, fetchGitClones, fetchSessions],
+  );
+
+  const handleGitSectionExpand = useCallback(
+    (workspaceId: string, open: boolean) => {
+      setExpandedGitSections((prev) => ({ ...prev, [workspaceId]: open }));
+      if (open) fetchGitClones(workspaceId);
+    },
+    [fetchGitClones],
   );
 
   const activeWorkspaceId = useMemo(() => {
@@ -1416,6 +1499,13 @@ export function AppSidebar() {
                       };
                       const gitTerminalError = workspaceGitTerminalErrors[ws.id];
                       const isExpanded = expandedWorkspaces[ws.id] ?? false;
+                      const isGitSectionExpanded = expandedGitSections[ws.id] ?? false;
+                      const encodedWorkspaceId = encodeURIComponent(ws.id);
+                      const multiSessionWorkspaceHref = `/workspaces/${encodedWorkspaceId}/terminal/workspace`;
+                      const gitMultiSessionWorkspaceHref = `/workspaces/${encodedWorkspaceId}/terminal/git-workspace`;
+                      const isWorkspacePageActive =
+                        pathname === multiSessionWorkspaceHref ||
+                        pathname === gitMultiSessionWorkspaceHref;
                       return (
                         <Collapsible
                           key={ws.id}
@@ -1442,6 +1532,16 @@ export function AppSidebar() {
                             </SidebarMenuSubButton>
                             <CollapsibleContent>
                               <SidebarMenuSub className="!mr-0 !pr-0">
+                                <SidebarMenuSubItem>
+                                  <SidebarMenuSubButton
+                                    render={<Link href={multiSessionWorkspaceHref} />}
+                                    isActive={isWorkspacePageActive}
+                                    data-testid={`multi-session-workspace-link-${ws.id}`}
+                                  >
+                                    <Monitor className="h-3 w-3 shrink-0" />
+                                    <span>Workspace</span>
+                                  </SidebarMenuSubButton>
+                                </SidebarMenuSubItem>
                                 {urls && (
                                   <>
                                     <SidebarMenuSubItem>
@@ -1473,7 +1573,11 @@ export function AppSidebar() {
                                     </SidebarMenuSubItem>
                                   </>
                                 )}
-                                <Collapsible defaultOpen data-testid={`git-section-${ws.id}`}>
+                                <Collapsible
+                                  open={isGitSectionExpanded}
+                                  onOpenChange={(open) => handleGitSectionExpand(ws.id, open)}
+                                  data-testid={`git-section-${ws.id}`}
+                                >
                                   <SidebarMenuSubItem>
                                     <SidebarMenuSubButton
                                       render={<CollapsibleTrigger />}
@@ -1481,7 +1585,10 @@ export function AppSidebar() {
                                     >
                                       <GitBranch className="h-3 w-3 shrink-0" />
                                       <span>Git</span>
-                                      <ChevronRight className="ml-auto h-3 w-3 transition-transform" />
+                                      <ChevronRight
+                                        className={`ml-auto h-3 w-3 transition-transform ${isGitSectionExpanded ? "rotate-90" : ""}`}
+                                        data-testid={`git-section-chevron-${ws.id}`}
+                                      />
                                     </SidebarMenuSubButton>
                                     <CollapsibleContent>
                                       <GitDiscoveryPanel
@@ -1674,18 +1781,66 @@ export function AppSidebar() {
               </SidebarMenuButton>
               <CollapsibleContent>
                 <div className="space-y-3 px-3 py-2">
-                  <div className="flex items-center justify-between">
-                    <label htmlFor="sidebar-float-switch" className="text-xs text-muted-foreground">
-                      Float sidebar
-                    </label>
+                  <Field
+                    orientation="horizontal"
+                    className="min-h-11 items-center justify-between rounded-md px-1 py-1"
+                    data-testid="terminal-controls-beyond-mobile-setting"
+                    data-disabled={isTerminalSettingsLoading || isTerminalSettingsUpdating}
+                    data-invalid={Boolean(terminalSettingsError)}
+                  >
+                    <FieldContent className="pr-2">
+                      <FieldLabel
+                        id={TERMINAL_CONTROLS_SWITCH_LABEL_ID}
+                        htmlFor={TERMINAL_CONTROLS_SWITCH_ID}
+                        className="text-xs font-medium"
+                      >
+                        Show terminal controls beyond phone
+                      </FieldLabel>
+                      <FieldDescription
+                        id={TERMINAL_CONTROLS_SWITCH_DESCRIPTION_ID}
+                        className="text-[10px] leading-snug"
+                      >
+                        Use mobile-style terminal controls on tablet, laptop, and desktop.
+                      </FieldDescription>
+                    </FieldContent>
                     <Switch
-                      id="sidebar-float-switch"
-                      size="sm"
-                      checked={sidebarMode === "floating"}
-                      onCheckedChange={(checked) => setSidebarMode(checked)}
-                      data-testid="sidebar-mode-toggle"
+                      id={TERMINAL_CONTROLS_SWITCH_ID}
+                      data-testid="terminal-controls-beyond-mobile-switch"
+                      checked={terminalControlsBeyondMobile}
+                      disabled={isTerminalSettingsLoading || isTerminalSettingsUpdating}
+                      aria-labelledby={TERMINAL_CONTROLS_SWITCH_LABEL_ID}
+                      aria-describedby={
+                        terminalSettingsError
+                          ? TERMINAL_CONTROLS_SWITCH_ERROR_ID
+                          : TERMINAL_CONTROLS_SWITCH_DESCRIPTION_ID
+                      }
+                      aria-invalid={Boolean(terminalSettingsError)}
+                      onCheckedChange={handleTerminalControlsBeyondMobileChange}
                     />
-                  </div>
+                  </Field>
+                  {isTerminalSettingsLoading && (
+                    <p className="text-[10px] text-muted-foreground" role="status">
+                      Loading terminal controls setting…
+                    </p>
+                  )}
+                  {terminalSettingsError && (
+                    <div
+                      id={TERMINAL_CONTROLS_SWITCH_ERROR_ID}
+                      className="flex items-center justify-between gap-2 text-[10px] text-destructive"
+                      role="alert"
+                      data-testid="terminal-settings-error"
+                    >
+                      <span>{terminalSettingsError}</span>
+                      <button
+                        type="button"
+                        onClick={loadTerminalSettings}
+                        disabled={isTerminalSettingsLoading || isTerminalSettingsUpdating}
+                        className="min-h-11 rounded px-2 text-[10px] underline disabled:opacity-50"
+                      >
+                        Retry
+                      </button>
+                    </div>
+                  )}
                   <div className="flex items-center justify-between">
                     <div>
                       <span className="text-xs text-muted-foreground">Refresh</span>

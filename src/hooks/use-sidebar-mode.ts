@@ -1,25 +1,31 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
-type SidebarVariant = "sidebar" | "floating";
+type SidebarVariant = "floating";
 
 const STORAGE_KEY = "sidebar_variant";
 const DEFAULT_VARIANT: SidebarVariant = "floating";
 
-function readVariant(): SidebarVariant {
-  if (typeof window === "undefined") return DEFAULT_VARIANT;
-  const stored = localStorage.getItem(STORAGE_KEY);
-  return stored === "sidebar" ? "sidebar" : "floating";
+function persistFloatingVariant() {
+  if (typeof window === "undefined") return;
+  try {
+    localStorage.setItem(STORAGE_KEY, DEFAULT_VARIANT);
+  } catch {
+    // Storage can be unavailable in restricted browser modes; keep rendering with the safe default.
+  }
 }
 
-export function useSidebarMode(): [SidebarVariant, (floating: boolean) => void] {
-  const [variant, setVariant] = useState<SidebarVariant>(readVariant);
+export function useSidebarMode(): [SidebarVariant, (_floating: boolean) => void] {
+  const [variant, setVariant] = useState<SidebarVariant>(DEFAULT_VARIANT);
 
-  const setSidebarMode = useCallback((floating: boolean) => {
-    const next: SidebarVariant = floating ? "floating" : "sidebar";
-    localStorage.setItem(STORAGE_KEY, next);
-    setVariant(next);
+  useEffect(() => {
+    persistFloatingVariant();
+  }, []);
+
+  const setSidebarMode = useCallback((_floating: boolean) => {
+    persistFloatingVariant();
+    setVariant(DEFAULT_VARIANT);
   }, []);
 
   return [variant, setSidebarMode];

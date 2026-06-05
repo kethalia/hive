@@ -18,6 +18,7 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "Hive Orchestrator",
   description: "AI-powered task orchestration platform",
+  manifest: "/manifest.webmanifest",
 };
 
 export const viewport: Viewport = {

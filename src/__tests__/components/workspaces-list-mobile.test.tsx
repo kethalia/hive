@@ -8,10 +8,13 @@ import "@testing-library/jest-dom/vitest";
 
 import { WorkspaceListContent } from "@/app/(dashboard)/workspaces/workspace-list-content";
 import { WorkspaceListPoller } from "@/app/(dashboard)/workspaces/workspace-list-poller";
+import { KeybindingProvider } from "@/components/terminal/KeybindingProvider";
 import type { CoderWorkspace, WorkspaceBuildStatus } from "@/lib/coder/types";
 import { PULL_REFRESH_TRIGGER_PX } from "@/lib/gestures/conventions";
 
 const mocks = vi.hoisted(() => ({
+  createWorkspaceAction: vi.fn(),
+  listWorkspaceTemplatesAction: vi.fn(),
   listWorkspacesAction: vi.fn(),
   refresh: vi.fn(),
 }));
@@ -21,6 +24,8 @@ vi.mock("next/navigation", () => ({
 }));
 
 vi.mock("@/lib/actions/workspaces", () => ({
+  createWorkspaceAction: mocks.createWorkspaceAction,
+  listWorkspaceTemplatesAction: mocks.listWorkspaceTemplatesAction,
   listWorkspacesAction: mocks.listWorkspacesAction,
 }));
 
@@ -124,6 +129,8 @@ afterAll(() => {
 
 afterEach(() => {
   cleanup();
+  mocks.createWorkspaceAction.mockReset();
+  mocks.listWorkspaceTemplatesAction.mockReset();
   mocks.refresh.mockReset();
   mocks.listWorkspacesAction.mockReset();
 });
@@ -155,9 +162,9 @@ describe("workspaces mobile list", () => {
     expect(within(cards[0]).getByText("alice")).toBeInTheDocument();
 
     const terminalLink = within(cards[0]).getByRole("link", {
-      name: "Open terminal for mobile-dev",
+      name: "Open workspace for mobile-dev",
     });
-    expect(terminalLink).toHaveAttribute("href", "/workspaces/workspace-1/terminal");
+    expect(terminalLink).toHaveAttribute("href", "/workspaces/workspace-1/terminal/workspace");
     expect(terminalLink).toHaveClass("min-h-11", "touch-manipulation", "text-sm");
 
     const desktopTable = screen.getByTestId("workspaces-desktop-table");
@@ -174,6 +181,120 @@ describe("workspaces mobile list", () => {
       within(desktopTable).getByRole("columnheader", { name: "Last used" }),
     ).toBeInTheDocument();
     expect(within(desktopTable).getByRole("columnheader", { name: "Action" })).toBeInTheDocument();
+  });
+
+  it("opens the add workspace modal from the button and Cmd/Ctrl+Alt+N", async () => {
+    mocks.listWorkspaceTemplatesAction.mockResolvedValue({
+      data: [
+        {
+          id: "template-1",
+          name: "hive-template",
+          activeVersionId: "version-1",
+          updatedAt: "2026-01-01T00:00:00.000Z",
+        },
+      ],
+    });
+
+    render(
+      <KeybindingProvider>
+        <WorkspaceListContent workspaces={[makeWorkspace()]} />
+      </KeybindingProvider>,
+    );
+
+    fireEvent.click(screen.getByTestId("open-create-workspace-modal"));
+    expect(await screen.findByTestId("create-workspace-modal")).toHaveTextContent("Add workspace");
+    expect(mocks.listWorkspaceTemplatesAction).toHaveBeenCalledTimes(1);
+
+    fireEvent.click(screen.getByRole("button", { name: /close/i }));
+    await waitFor(() => {
+      expect(screen.queryByTestId("create-workspace-modal")).not.toBeInTheDocument();
+    });
+
+    fireEvent.keyDown(window, { key: "n", metaKey: true });
+    expect(screen.queryByTestId("create-workspace-modal")).not.toBeInTheDocument();
+
+    fireEvent.keyDown(window, { key: "n", metaKey: true, altKey: true });
+    expect(await screen.findByTestId("create-workspace-modal")).toBeInTheDocument();
+  });
+
+  it("shows create workspace validation errors from the action response", async () => {
+    mocks.listWorkspaceTemplatesAction.mockResolvedValue({
+      data: [
+        {
+          id: "template-1",
+          name: "hive-template",
+          activeVersionId: "version-1",
+          updatedAt: "2026-01-01T00:00:00.000Z",
+        },
+      ],
+    });
+    mocks.createWorkspaceAction.mockResolvedValue({
+      validationErrors: {
+        name: {
+          _errors: [
+            "Workspace names can contain only letters, numbers, dots, underscores, and hyphens.",
+          ],
+        },
+      },
+    });
+
+    render(<WorkspaceListContent workspaces={[makeWorkspace()]} />);
+
+    fireEvent.click(screen.getByTestId("open-create-workspace-modal"));
+    await screen.findByTestId("create-workspace-modal");
+    await waitFor(() => {
+      expect(screen.getByTestId("create-workspace-template")).toHaveValue("template-1");
+    });
+    fireEvent.change(screen.getByTestId("create-workspace-name"), {
+      target: { value: "bad workspace" },
+    });
+
+    await act(async () => {
+      fireEvent.click(screen.getByTestId("submit-create-workspace"));
+    });
+
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "Workspace names can contain only letters, numbers, dots, underscores, and hyphens.",
+    );
+    expect(mocks.refresh).not.toHaveBeenCalled();
+  });
+
+  it("creates a workspace from the modal and refreshes the list", async () => {
+    mocks.listWorkspaceTemplatesAction.mockResolvedValue({
+      data: [
+        {
+          id: "template-1",
+          name: "hive-template",
+          activeVersionId: "version-1",
+          updatedAt: "2026-01-01T00:00:00.000Z",
+        },
+      ],
+    });
+    mocks.createWorkspaceAction.mockResolvedValue({
+      data: makeWorkspace({ id: "workspace-new", name: "new-dev" }),
+    });
+
+    render(<WorkspaceListContent workspaces={[makeWorkspace()]} />);
+
+    fireEvent.click(screen.getByTestId("open-create-workspace-modal"));
+    await screen.findByTestId("create-workspace-modal");
+    await waitFor(() => {
+      expect(screen.getByTestId("create-workspace-template")).toHaveValue("template-1");
+    });
+    fireEvent.change(screen.getByTestId("create-workspace-name"), {
+      target: { value: "new-dev" },
+    });
+
+    await act(async () => {
+      fireEvent.click(screen.getByTestId("submit-create-workspace"));
+    });
+
+    expect(mocks.createWorkspaceAction).toHaveBeenCalledWith({
+      templateId: "template-1",
+      name: "new-dev",
+    });
+    expect(mocks.refresh).toHaveBeenCalledTimes(1);
+    expect(screen.queryByTestId("create-workspace-modal")).not.toBeInTheDocument();
   });
 
   it("keeps the empty state inside the pull-to-refresh surface", () => {

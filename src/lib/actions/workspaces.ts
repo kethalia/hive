@@ -14,6 +14,28 @@ export const listWorkspacesAction = authActionClient.action(async ({ ctx }) => {
   return result.workspaces;
 });
 
+export const listWorkspaceTemplatesAction = authActionClient.action(async ({ ctx }) => {
+  const client = await getCoderClientForUser(ctx.user.id);
+  return client.listTemplates();
+});
+
+const createWorkspaceSchema = z.object({
+  templateId: z.string().trim().min(1, "Template is required"),
+  name: z
+    .string()
+    .trim()
+    .min(1, "Workspace name is required")
+    .max(64, "Workspace name is too long")
+    .regex(SAFE_IDENTIFIER_RE, "Use letters, numbers, dots, underscores, or hyphens"),
+});
+
+export const createWorkspaceAction = authActionClient
+  .inputSchema(createWorkspaceSchema)
+  .action(async ({ parsedInput, ctx }) => {
+    const client = await getCoderClientForUser(ctx.user.id);
+    return client.createWorkspace(parsedInput.templateId, parsedInput.name);
+  });
+
 const getWorkspaceAgentSchema = z.object({
   workspaceId: z.string().min(1, "workspaceId is required"),
 });

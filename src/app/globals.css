@@ -64,6 +64,12 @@
   --app-visual-viewport-offset-top: 0px;
 }
 
+@supports (height: 100lvh) {
+  :root {
+    --app-viewport-height: 100lvh;
+  }
+}
+
 .dark {
   --background: oklch(0.145 0 0);
   --foreground: oklch(0.985 0 0);
@@ -164,6 +170,33 @@
 @utility py-safe {
   padding-top: var(--safe-area-inset-top);
   padding-bottom: var(--safe-area-inset-bottom);
+}
+
+@layer components {
+  [data-dashboard-main]:has([data-dashboard-full-bleed]) {
+    padding: 0;
+  }
+
+  [data-dashboard-content-row]:has([data-dashboard-full-bleed]) {
+    height: 100%;
+    align-items: stretch;
+    gap: 0;
+  }
+
+  [data-dashboard-content-row]:has([data-dashboard-full-bleed]) [data-dashboard-sidebar-trigger] {
+    display: none;
+  }
+
+  [data-dashboard-content]:has([data-dashboard-full-bleed]) {
+    height: 100%;
+    min-width: 0;
+    width: 100%;
+  }
+
+  [data-dashboard-content]:has([data-dashboard-full-bleed]) > [data-dashboard-full-bleed] {
+    flex: 1 1 auto;
+    min-height: 0;
+  }
 }
 
 @layer base {

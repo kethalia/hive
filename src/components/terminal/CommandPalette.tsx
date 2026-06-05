@@ -1,7 +1,7 @@
 "use client";
 
 import { useDrag } from "@use-gesture/react";
-import { Plus, Terminal } from "lucide-react";
+import { Plus, Search, Terminal } from "lucide-react";
 import type { CSSProperties } from "react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
@@ -23,6 +23,22 @@ import {
   DRAG_DISMISS_VELOCITY,
   NO_TOUCH_STYLE,
 } from "@/lib/gestures/conventions";
+import { formatShortcut } from "@/lib/keyboard-shortcuts";
+
+const CREATE_SESSION_SHORTCUT_KEYS = ["ctrl+shift+n", "cmd+shift+n"] as const;
+
+export interface CommandPaletteAction {
+  id: string;
+  label: string;
+  description?: string;
+  group: string;
+  value?: string;
+  shortcut?: string;
+  rightLabel?: string;
+  disabled?: boolean;
+  icon?: "plus" | "search" | "terminal";
+  onSelect: () => void;
+}
 
 interface CommandPaletteProps {
   open: boolean;
@@ -30,6 +46,9 @@ interface CommandPaletteProps {
   tabs: Array<{ id: string; sessionName: string }>;
   onSelectTab: (tabId: string) => void;
   onCreateSession?: () => void;
+  actions?: CommandPaletteAction[];
+  searchValue?: string;
+  onSearchValueChange?: (value: string) => void;
   searchPlaceholder?: string;
   emptyText?: string;
   groupHeading?: string;
@@ -50,6 +69,9 @@ interface CommandPaletteBodyProps {
   onSelectTab: (tabId: string) => void;
   onOpenChange: (open: boolean) => void;
   onCreateSession?: () => void;
+  actions: CommandPaletteAction[];
+  searchValue?: string;
+  onSearchValueChange?: (value: string) => void;
   searchPlaceholder: string;
   emptyText: string;
   groupHeading: string;
@@ -61,11 +83,20 @@ function getVectorValue(vector: unknown, index: number): number {
   return typeof value === "number" && Number.isFinite(value) ? value : 0;
 }
 
+function actionIcon(icon: CommandPaletteAction["icon"]) {
+  if (icon === "search") return <Search className="mr-2 size-4 shrink-0 opacity-70" />;
+  if (icon === "plus") return <Plus className="mr-2 size-4 shrink-0 opacity-70" />;
+  return <Terminal className="mr-2 size-4 shrink-0 opacity-70" />;
+}
+
 function CommandPaletteBody({
   tabs,
   onSelectTab,
   onOpenChange,
   onCreateSession,
+  actions,
+  searchValue,
+  onSearchValueChange,
   searchPlaceholder,
   emptyText,
   groupHeading,
@@ -83,11 +114,55 @@ function CommandPaletteBody({
     onOpenChange(false);
   }, [onCreateSession, onOpenChange]);
 
+  const actionGroups = useMemo(() => {
+    const groups = new Map<string, CommandPaletteAction[]>();
+    for (const action of actions) {
+      const group = groups.get(action.group) ?? [];
+      group.push(action);
+      groups.set(action.group, group);
+    }
+    return [...groups.entries()];
+  }, [actions]);
+
   return (
     <>
-      <CommandInput placeholder={searchPlaceholder} />
+      <CommandInput
+        placeholder={searchPlaceholder}
+        value={searchValue}
+        onValueChange={onSearchValueChange}
+      />
       <CommandList>
         <CommandEmpty>{emptyText}</CommandEmpty>
+        {actionGroups.map(([heading, groupActions]) => (
+          <CommandGroup key={heading} heading={heading}>
+            {groupActions.map((action) => (
+              <CommandItem
+                key={action.id}
+                value={action.value ?? `${action.label} ${action.description ?? ""}`}
+                onSelect={() => {
+                  if (action.disabled) return;
+                  action.onSelect();
+                  onOpenChange(false);
+                }}
+                disabled={action.disabled}
+              >
+                {actionIcon(action.icon)}
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-sm">{action.label}</span>
+                  {action.description ? (
+                    <span className="block truncate text-xs text-muted-foreground">
+                      {action.description}
+                    </span>
+                  ) : null}
+                </span>
+                {action.shortcut ? <CommandShortcut>{action.shortcut}</CommandShortcut> : null}
+                {action.rightLabel ? (
+                  <span className="ml-auto text-xs text-muted-foreground">{action.rightLabel}</span>
+                ) : null}
+              </CommandItem>
+            ))}
+          </CommandGroup>
+        ))}
         <CommandGroup heading={groupHeading}>
           {tabs.map((tab) => (
             <CommandItem key={tab.id} value={tab.sessionName} onSelect={() => handleSelect(tab.id)}>
@@ -101,7 +176,7 @@ function CommandPaletteBody({
             <CommandItem onSelect={handleCreate}>
               <Plus className="mr-2 size-4 shrink-0 opacity-70" />
               <span>New Session</span>
-              <CommandShortcut>Ctrl+T</CommandShortcut>
+              <CommandShortcut>{formatShortcut(CREATE_SESSION_SHORTCUT_KEYS)}</CommandShortcut>
             </CommandItem>
           </CommandGroup>
         )}
@@ -116,6 +191,9 @@ export function CommandPalette({
   tabs,
   onSelectTab,
   onCreateSession,
+  actions = [],
+  searchValue,
+  onSearchValueChange,
   searchPlaceholder = "Search sessions…",
   emptyText = "No sessions found.",
   groupHeading = "Sessions",
@@ -230,6 +308,9 @@ export function CommandPalette({
               onSelectTab={onSelectTab}
               onOpenChange={onOpenChange}
               onCreateSession={onCreateSession}
+              actions={actions}
+              searchValue={searchValue}
+              onSearchValueChange={onSearchValueChange}
               searchPlaceholder={searchPlaceholder}
               emptyText={emptyText}
               groupHeading={groupHeading}
@@ -247,6 +328,9 @@ export function CommandPalette({
         onSelectTab={onSelectTab}
         onOpenChange={onOpenChange}
         onCreateSession={onCreateSession}
+        actions={actions}
+        searchValue={searchValue}
+        onSearchValueChange={onSearchValueChange}
         searchPlaceholder={searchPlaceholder}
         emptyText={emptyText}
         groupHeading={groupHeading}

@@ -94,16 +94,8 @@ const testEntries = [
     enabledInBrowser: true,
   },
   {
-    id: "clipboard:paste",
-    keys: ["ctrl+v", "cmd+v"],
-    action: () => false,
-    description: "Paste from clipboard",
-    category: "clipboard",
-    enabledInBrowser: true,
-  },
-  {
     id: "session:new",
-    keys: ["ctrl+t"],
+    keys: ["ctrl+shift+n", "cmd+shift+n"],
     action: () => false,
     description: "New session",
     category: "session",
@@ -111,7 +103,7 @@ const testEntries = [
   },
   {
     id: "help:show",
-    keys: ["shift+?"],
+    keys: ["ctrl+/", "cmd+/"],
     action: () => false,
     description: "Show keyboard shortcuts",
     category: "general",
@@ -152,7 +144,6 @@ describe("HelpOverlay", () => {
     renderOpenOverlay();
     expect(screen.getByTestId("dialog")).toBeInTheDocument();
     expect(screen.getByText("Copy selection")).toBeInTheDocument();
-    expect(screen.getByText("Paste from clipboard")).toBeInTheDocument();
     expect(screen.getByText("New session")).toBeInTheDocument();
     expect(screen.getByText("Show keyboard shortcuts")).toBeInTheDocument();
   });
@@ -166,7 +157,8 @@ describe("HelpOverlay", () => {
 
   it("formats key combos for display", () => {
     renderOpenOverlay();
-    expect(screen.getByText("⇧ + ?")).toBeInTheDocument();
+    expect(screen.getByText("Ctrl + /")).toBeInTheDocument();
+    expect(screen.queryByText("⇧ + ?")).not.toBeInTheDocument();
   });
 
   it("shows PWA only badge on enabledInBrowser:false shortcuts in browser mode", () => {
@@ -204,12 +196,19 @@ describe("HelpOverlay", () => {
     expect(localStorage.getItem("hive:help-nudge-dismissed")).toBe("true");
   });
 
-  it("the help:show keybinding is registered and appears in the list", () => {
+  it("the help:show keybinding is registered on Ctrl/Cmd+/ and appears in the list", () => {
     renderOpenOverlay();
     expect(mockRegister).toHaveBeenCalledWith(
       expect.objectContaining({
         id: "help:show",
-        keys: ["shift+?"],
+        keys: ["ctrl+/", "cmd+/"],
+        global: true,
+      }),
+    );
+    expect(mockRegister).not.toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: "help:show",
+        keys: ["f1"],
       }),
     );
     expect(screen.getByText("Show keyboard shortcuts")).toBeInTheDocument();

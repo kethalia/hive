@@ -297,37 +297,23 @@ export function TerminalTabManager({ agentId, workspaceId }: TerminalTabManagerP
     setMenuPosition({ x, y });
   }, []);
 
-  const setPaletteOpenRef = useRef(setPaletteOpen);
-  setPaletteOpenRef.current = setPaletteOpen;
   const setComposeOpenRef = useRef(setComposeOpen);
   setComposeOpenRef.current = setComposeOpen;
 
   const { register, unregister } = keybindingsCtx;
 
   useEffect(() => {
-    const commandPaletteBinding = {
-      id: "command-palette",
-      keys: ["ctrl+k", "cmd+k"],
-      action: () => {
-        setPaletteOpenRef.current(true);
-        return false;
-      },
-      description: "Open command palette",
-      category: "session",
-      enabledInBrowser: true,
-    };
-
     const createTabBinding = {
       id: "session:create",
-      keys: ["ctrl+t", "cmd+t"],
+      keys: ["ctrl+shift+n", "cmd+shift+n"],
       action: () => {
-        if (!isPwaStandalone()) return true;
         handleCreateTab();
         return false;
       },
-      description: "Create new session tab",
+      description: "Create new terminal session",
       category: "session",
-      enabledInBrowser: false,
+      enabledInBrowser: true,
+      global: true,
     };
 
     const closeTabBinding = {
@@ -391,20 +377,33 @@ export function TerminalTabManager({ agentId, workspaceId }: TerminalTabManagerP
       enabledInBrowser: true,
     };
 
-    register(commandPaletteBinding);
+    const commandPaletteBinding = {
+      id: "command-palette",
+      keys: ["ctrl+k", "cmd+k"],
+      action: () => {
+        setPaletteOpen(true);
+        return false;
+      },
+      description: "Open command palette",
+      category: "terminal",
+      enabledInBrowser: true,
+      global: true,
+    };
+
     register(createTabBinding);
     register(closeTabBinding);
     register(nextTabBinding);
     register(prevTabBinding);
     register(composeToggleBinding);
+    register(commandPaletteBinding);
 
     return () => {
-      unregister("command-palette");
       unregister("session:create");
       unregister("session:close");
       unregister("session:next-tab");
       unregister("session:prev-tab");
       unregister("compose:toggle:tab-manager");
+      unregister("command-palette");
     };
   }, [register, unregister, handleCreateTab, handleKillTab]);
 

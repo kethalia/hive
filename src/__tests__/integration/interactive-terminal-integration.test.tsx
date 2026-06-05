@@ -28,9 +28,20 @@ const { mockUseTerminalWebSocket, mockFit, mockSend, mockResize, terminalInstanc
   }),
 );
 
+const multiSessionRouteMockState = vi.hoisted(() => ({
+  props: null as null | {
+    agentId: string;
+    className?: string;
+    source?: "workspace" | "unified";
+    workspaceId: string;
+  },
+}));
+
 const {
   mockCopyTerminalSelection,
   mockCreateSessionAction,
+  mockGetTerminalSettingsAction,
+  mockGetWorkspaceAgentAction,
   mockGetWorkspaceSessionsAction,
   mockHandleKeyEvent,
   mockUseFavoriteWindowNavigation,
@@ -52,6 +63,8 @@ const {
   return {
     mockCopyTerminalSelection: vi.fn(),
     mockCreateSessionAction: vi.fn(),
+    mockGetTerminalSettingsAction: vi.fn(),
+    mockGetWorkspaceAgentAction: vi.fn(),
     mockGetWorkspaceSessionsAction: vi.fn(),
     mockHandleKeyEvent: handleKeyEvent,
     mockUseFavoriteWindowNavigation: vi.fn(),
@@ -189,9 +202,42 @@ vi.mock("next/navigation", () => ({
   useSearchParams: () => new URLSearchParams(navigationState.search),
 }));
 
+vi.mock("@/components/ui/sidebar", () => ({
+  SidebarTrigger: ({ className }: { className?: string }) => (
+    <button type="button" className={className} data-testid="workspace-sidebar-trigger">
+      Toggle sidebar
+    </button>
+  ),
+}));
+
+vi.mock("@/components/workspaces/MultiSessionWorkspace", () => ({
+  MultiSessionWorkspace: (props: {
+    agentId: string;
+    className?: string;
+    source?: "workspace" | "unified";
+    workspaceId: string;
+  }) => {
+    multiSessionRouteMockState.props = props;
+    return (
+      <section
+        data-agent-id={props.agentId}
+        data-class-name={props.className ?? ""}
+        data-testid="multi-session-workspace-route"
+        data-session-source={props.source}
+        data-workspace-id={props.workspaceId}
+      />
+    );
+  },
+}));
+
 vi.mock("@/lib/actions/workspaces", () => ({
   createSessionAction: mockCreateSessionAction,
+  getWorkspaceAgentAction: mockGetWorkspaceAgentAction,
   getWorkspaceSessionsAction: mockGetWorkspaceSessionsAction,
+}));
+
+vi.mock("@/lib/actions/user-settings", () => ({
+  getTerminalSettingsAction: mockGetTerminalSettingsAction,
 }));
 
 vi.mock("@/hooks/use-compose-sheet", () => ({
@@ -242,7 +288,10 @@ vi.mock("@/components/ui/alert", () => ({
 
 vi.mock("lucide-react", () => ({
   AlertCircle: () => null,
+  ClipboardPaste: () => null,
+  Copy: () => null,
   Loader2: () => null,
+  Plus: () => null,
 }));
 
 vi.mock("@/components/terminal/ComposePanel", () => ({
@@ -338,6 +387,7 @@ vi.mock("@/components/terminal/MobileTerminalControls", () => ({
       sessions?: Array<{ id?: string; name: string }>;
     };
   }) => {
+    const { activeSend } = mockUseKeybindings();
     terminalRouteMockState.mobileControlsProps = {
       clipboardStatusText,
       copyDisabledReason,
@@ -370,6 +420,13 @@ vi.mock("@/components/terminal/MobileTerminalControls", () => ({
         <p aria-live="polite" data-testid="terminal-clipboard-status">
           {clipboardStatusText}
         </p>
+        <button
+          type="button"
+          data-testid="terminal-smart-enter"
+          onClick={() => (activeSend as ((data: string) => void) | null)?.("\r")}
+        >
+          Enter
+        </button>
         <button
           type="button"
           data-testid="terminal-selection-toggle"
@@ -551,6 +608,14 @@ beforeEach(() => {
   mockCopyTerminalSelection.mockReset();
   mockPasteToTerminal.mockReset();
   mockCreateSessionAction.mockReset();
+  mockGetTerminalSettingsAction.mockReset();
+  mockGetTerminalSettingsAction.mockResolvedValue({
+    data: { terminalControlsBeyondMobile: false },
+  });
+  mockGetWorkspaceAgentAction.mockReset();
+  mockGetWorkspaceAgentAction.mockResolvedValue({
+    data: { agentId: "test-agent", agentName: "Test Agent" },
+  });
   mockGetWorkspaceSessionsAction.mockReset();
   mockGetWorkspaceSessionsAction.mockResolvedValue({ data: [] });
   mockUseFavoriteWindowNavigation.mockReset();
@@ -569,6 +634,7 @@ beforeEach(() => {
   terminalRouteMockState.commandPaletteProps = null;
   terminalRouteMockState.gestureLayerProps = null;
   terminalRouteMockState.mobileControlsProps = null;
+  multiSessionRouteMockState.props = null;
   mockRegisterKeybinding.mockClear();
   mockUnregisterKeybinding.mockClear();
   mockHandleKeyEvent.mockClear();
@@ -657,7 +723,10 @@ async function renderTerminal(props: RenderTerminalOptions = {}) {
   return result!;
 }
 
-async function renderTerminalClient(search: string) {
+async function renderTerminalClient(
+  search: string,
+  props: { terminalControlsBeyondMobile?: boolean } = {},
+) {
   navigationState.search = search;
   const { TerminalClient } = await import(
     "@/app/(dashboard)/workspaces/[id]/terminal/terminal-client"
@@ -665,7 +734,46 @@ async function renderTerminalClient(search: string) {
 
   let result: ReturnType<typeof render>;
   await act(async () => {
-    result = render(<TerminalClient agentId="test-agent" workspaceId="test-ws" />);
+    result = render(<TerminalClient agentId="test-agent" workspaceId="test-ws" {...props} />);
+  });
+  return result!;
+}
+
+async function renderTerminalPage(search: string) {
+  navigationState.search = search;
+  const { default: TerminalPage } = await import("@/app/(dashboard)/workspaces/[id]/terminal/page");
+  const page = await TerminalPage({ params: Promise.resolve({ id: "test-ws" }) });
+
+  let result: ReturnType<typeof render>;
+  await act(async () => {
+    result = render(page);
+  });
+  return result!;
+}
+
+async function renderWorkspaceTerminalPage() {
+  const { default: WorkspaceTerminalPage } = await import(
+    "@/app/(dashboard)/workspaces/[id]/terminal/workspace/page"
+  );
+  const page = await WorkspaceTerminalPage({ params: Promise.resolve({ id: "test-ws" }) });
+
+  let result: ReturnType<typeof render>;
+  await act(async () => {
+    result = render(page);
+  });
+  return result!;
+}
+
+async function renderActualMultiSessionWorkspace() {
+  const { MultiSessionWorkspace: ActualMultiSessionWorkspace } = await vi.importActual<
+    typeof import("@/components/workspaces/MultiSessionWorkspace")
+  >("@/components/workspaces/MultiSessionWorkspace");
+
+  let result: ReturnType<typeof render>;
+  await act(async () => {
+    result = render(
+      <ActualMultiSessionWorkspace agentId="workspace-agent" workspaceId="test-ws" />,
+    );
   });
   return result!;
 }
@@ -919,6 +1027,88 @@ describe("InteractiveTerminal integration — Session lifecycle", () => {
   });
 });
 
+describe("WorkspaceTerminalPage integration — Multi-session route", () => {
+  it("renders the multi-session workspace with the authenticated agent boundary", async () => {
+    mockGetWorkspaceAgentAction.mockResolvedValueOnce({
+      data: { agentId: "workspace-agent", agentName: "Workspace Agent" },
+    });
+
+    const { getByTestId, unmount } = await renderWorkspaceTerminalPage();
+
+    expect(mockGetWorkspaceAgentAction).toHaveBeenCalledWith({ workspaceId: "test-ws" });
+    expect(mockGetWorkspaceAgentAction).toHaveBeenCalledTimes(1);
+    expect(mockGetTerminalSettingsAction).not.toHaveBeenCalled();
+    expect(mockGetWorkspaceSessionsAction).not.toHaveBeenCalled();
+    expect(getByTestId("multi-session-workspace-route")).toHaveAttribute(
+      "data-agent-id",
+      "workspace-agent",
+    );
+    expect(getByTestId("multi-session-workspace-route")).toHaveAttribute(
+      "data-workspace-id",
+      "test-ws",
+    );
+    const routeClassName = getByTestId("multi-session-workspace-route").getAttribute(
+      "data-class-name",
+    );
+    expect(routeClassName).toContain("h-full");
+    expect(routeClassName).toContain("min-h-0");
+    expect(routeClassName).toContain("w-full");
+    expect(routeClassName).toContain("overflow-hidden");
+    expect(routeClassName).not.toContain("-mx-6");
+    expect(routeClassName).not.toContain("w-[calc(100%+3rem)]");
+    expect(document.querySelector("[data-dashboard-full-bleed]")).toBeInTheDocument();
+    expect(multiSessionRouteMockState.props).toMatchObject({
+      agentId: "workspace-agent",
+      source: "unified",
+      workspaceId: "test-ws",
+    });
+    unmount();
+  });
+
+  it("reuses the stale-entry alert path when the agent lookup fails", async () => {
+    mockGetWorkspaceAgentAction.mockResolvedValueOnce({
+      serverError: "No agents found for workspace /private/path",
+    });
+
+    const { getByText, queryByTestId, unmount } = await renderWorkspaceTerminalPage();
+
+    expect(mockGetWorkspaceAgentAction).toHaveBeenCalledWith({ workspaceId: "test-ws" });
+    expect(getByText("Could not find a running agent for this workspace.")).toBeInTheDocument();
+    expect(queryByTestId("multi-session-workspace-route")).not.toBeInTheDocument();
+    expect(document.querySelector('[data-testid="interactive-terminal"]')).toBeNull();
+    expect(document.body.innerHTML).not.toContain("/private/path");
+    unmount();
+  });
+
+  it("keeps tiled layout signals stable without pane-header reorder controls", async () => {
+    mockGetWorkspaceSessionsAction.mockResolvedValueOnce({
+      data: [
+        { name: "main-session", created: 1, windows: 1 },
+        { name: "dev-server", created: 2, windows: 1 },
+      ],
+    });
+
+    const { getAllByTestId, getByTestId, queryByTestId, unmount } =
+      await renderActualMultiSessionWorkspace();
+
+    await waitFor(() => {
+      expect(getByTestId("workspace-pane-main-session")).toBeInTheDocument();
+    });
+
+    const findMainTerminal = () =>
+      getAllByTestId("interactive-terminal").find(
+        (terminal) => terminal.getAttribute("data-session-name") === "main-session",
+      );
+    expect(findMainTerminal()?.getAttribute("data-layout-signal")).toBe(
+      "1:2:1 / 1 / span 1 / span 1",
+    );
+    expect(getByTestId("workspace-pane-main-session")).toHaveAttribute("data-pane-mode", "tiled");
+    expect(queryByTestId("move-pane-left-pane-dev-server")).not.toBeInTheDocument();
+    expect(queryByTestId("move-pane-right-pane-dev-server")).not.toBeInTheDocument();
+    unmount();
+  });
+});
+
 describe("TerminalClient integration — Mobile terminal route props", () => {
   it("leaves bottom-preserving refits disabled on desktop terminal routes", async () => {
     const { getByTestId, unmount } = await renderTerminalClient("session=main");
@@ -940,8 +1130,163 @@ describe("TerminalClient integration — Mobile terminal route props", () => {
       "false",
     );
     expect(getByTestId("terminal-desktop-shell")).toBeInTheDocument();
+    expect(getByTestId("terminal-desktop-shell")).toHaveClass(
+      "h-[calc(var(--app-viewport-height)-var(--safe-area-inset-top)-3.5rem)]",
+      "md:h-[calc(var(--app-viewport-height)-var(--safe-area-inset-top)-var(--safe-area-inset-bottom)-5rem)]",
+    );
     expect(document.querySelectorAll('[data-testid="interactive-terminal"]')).toHaveLength(1);
+    expect(document.querySelector('[data-testid="terminal-mobile-controls"]')).toBeNull();
     expect(document.querySelector('[data-testid="terminal-window-command-palette"]')).toBeNull();
+    unmount();
+  });
+
+  it("shows opt-in desktop controls without enabling mobile terminal input mode", async () => {
+    const activeSend = vi.fn();
+    mockUseKeybindings.mockReturnValue({
+      activeSend,
+      activeTerminal: { focus: vi.fn(), getSelection: vi.fn(() => "") },
+      getAll: vi.fn(() => []),
+      handleKeyEvent: mockHandleKeyEvent,
+      register: mockRegisterKeybinding,
+      setActiveTerminal: mockSetActiveTerminal,
+      unregister: mockUnregisterKeybinding,
+    });
+
+    const { getByTestId, unmount } = await renderTerminalClient("session=main", {
+      terminalControlsBeyondMobile: true,
+    });
+
+    await waitFor(() => {
+      expect(getByTestId("terminal-mobile-controls")).toBeInTheDocument();
+    });
+    expect(getByTestId("interactive-terminal")).toHaveAttribute("data-mobile-input-mode", "false");
+    expect(getByTestId("interactive-terminal")).toHaveAttribute(
+      "data-pin-to-bottom-on-resize",
+      "false",
+    );
+    expect(getByTestId("terminal-desktop-shell")).toHaveClass("flex", "flex-col");
+
+    fireEvent.click(getByTestId("terminal-smart-enter"));
+    expect(activeSend).toHaveBeenCalledWith("\r");
+    unmount();
+  });
+
+  it("updates mounted desktop controls from terminal settings events and ignores malformed events", async () => {
+    const { getByTestId, queryByTestId, unmount } = await renderTerminalClient("session=main");
+
+    await waitFor(() => {
+      expect(getByTestId("interactive-terminal")).toBeInTheDocument();
+    });
+    expect(queryByTestId("terminal-mobile-controls")).not.toBeInTheDocument();
+
+    act(() => {
+      window.dispatchEvent(
+        new CustomEvent("hive:terminal-settings-changed", {
+          detail: { terminalControlsBeyondMobile: "yes" },
+        }),
+      );
+    });
+    expect(queryByTestId("terminal-mobile-controls")).not.toBeInTheDocument();
+
+    act(() => {
+      window.dispatchEvent(
+        new CustomEvent("hive:terminal-settings-changed", {
+          detail: { terminalControlsBeyondMobile: true },
+        }),
+      );
+    });
+    expect(getByTestId("terminal-mobile-controls")).toBeInTheDocument();
+    expect(getByTestId("interactive-terminal")).toHaveAttribute("data-mobile-input-mode", "false");
+
+    act(() => {
+      window.dispatchEvent(
+        new CustomEvent("hive:terminal-settings-changed", {
+          detail: { terminalControlsBeyondMobile: false },
+        }),
+      );
+    });
+    expect(queryByTestId("terminal-mobile-controls")).not.toBeInTheDocument();
+    unmount();
+  });
+
+  it("passes the server-read setting into the terminal client", async () => {
+    mockGetTerminalSettingsAction.mockResolvedValueOnce({
+      data: { terminalControlsBeyondMobile: true },
+    });
+
+    const { getByTestId, unmount } = await renderTerminalPage("session=main");
+
+    await waitFor(() => {
+      expect(getByTestId("terminal-mobile-controls")).toBeInTheDocument();
+    });
+    expect(mockGetWorkspaceAgentAction).toHaveBeenCalledWith({ workspaceId: "test-ws" });
+    expect(mockGetTerminalSettingsAction).toHaveBeenCalledTimes(1);
+    expect(getByTestId("interactive-terminal")).toHaveAttribute("data-mobile-input-mode", "false");
+    unmount();
+  });
+
+  it("defaults the server-read setting off when the terminal settings action fails", async () => {
+    mockGetTerminalSettingsAction.mockResolvedValueOnce({
+      serverError: "Terminal settings are unavailable. Refresh and try again.",
+    });
+
+    const { getByTestId, queryByTestId, unmount } = await renderTerminalPage("session=main");
+
+    await waitFor(() => {
+      expect(getByTestId("interactive-terminal")).toBeInTheDocument();
+    });
+    expect(mockGetWorkspaceAgentAction).toHaveBeenCalledWith({ workspaceId: "test-ws" });
+    expect(mockGetTerminalSettingsAction).toHaveBeenCalledTimes(1);
+    expect(getByTestId("interactive-terminal")).toHaveAttribute("data-mobile-input-mode", "false");
+    expect(queryByTestId("terminal-mobile-controls")).not.toBeInTheDocument();
+    unmount();
+  });
+
+  it("restores active terminal focus on desktop terminal routes", async () => {
+    const focus = vi.fn();
+    mockUseKeybindings.mockReturnValue({
+      activeSend: vi.fn(),
+      activeTerminal: { focus },
+      getAll: vi.fn(() => []),
+      handleKeyEvent: mockHandleKeyEvent,
+      register: mockRegisterKeybinding,
+      setActiveTerminal: mockSetActiveTerminal,
+      unregister: mockUnregisterKeybinding,
+    });
+
+    const { unmount } = await renderTerminalClient("session=main");
+
+    await waitFor(() => {
+      expect(focus).toHaveBeenCalledTimes(1);
+    });
+    unmount();
+  });
+
+  it("does not steal focus from focused text inputs on desktop terminal routes", async () => {
+    const focus = vi.fn();
+    const input = document.createElement("input");
+    document.body.appendChild(input);
+    input.focus();
+    expect(document.activeElement).toBe(input);
+
+    mockUseKeybindings.mockReturnValue({
+      activeSend: vi.fn(),
+      activeTerminal: { focus },
+      getAll: vi.fn(() => []),
+      handleKeyEvent: mockHandleKeyEvent,
+      register: mockRegisterKeybinding,
+      setActiveTerminal: mockSetActiveTerminal,
+      unregister: mockUnregisterKeybinding,
+    });
+
+    const { unmount } = await renderTerminalClient("session=main");
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(focus).not.toHaveBeenCalled();
+    expect(document.activeElement).toBe(input);
+    input.remove();
     unmount();
   });
 
@@ -1484,7 +1829,7 @@ describe("InteractiveTerminal integration — Mobile input adapter", () => {
     expect(terminal?.attachCustomKeyEventHandler).toHaveBeenCalledTimes(1);
 
     terminal?.focus.mockClear();
-    const inputTarget = container.querySelector(".flex-1.p-1");
+    const inputTarget = container.querySelector('[data-testid="terminal-fit-host"]');
     expect(inputTarget).toBeTruthy();
 
     fireEvent.pointerDown(inputTarget as Element, {
@@ -1517,7 +1862,7 @@ describe("InteractiveTerminal integration — Mobile input adapter", () => {
 
     terminal?.focus.mockClear();
     terminal?.scrollLines.mockClear();
-    const inputTarget = container.querySelector(".flex-1.p-1");
+    const inputTarget = container.querySelector('[data-testid="terminal-fit-host"]');
     expect(inputTarget).toBeTruthy();
 
     fireTouchEvent(inputTarget as Element, "touchstart", [touchPoint(1, 80, 320)]);
@@ -1555,7 +1900,7 @@ describe("InteractiveTerminal integration — Mobile input adapter", () => {
     });
     await flushTerminalEffects();
 
-    const inputTarget = container.querySelector(".flex-1.p-1");
+    const inputTarget = container.querySelector('[data-testid="terminal-fit-host"]');
     expect(inputTarget).toHaveAttribute("data-sidebar-gesture-ignore", "true");
     expect(inputTarget).toHaveAttribute("data-terminal-selection-mode", "true");
     expect(inputTarget).not.toHaveAttribute("data-terminal-pinch-zoom");
@@ -1585,7 +1930,7 @@ describe("InteractiveTerminal integration — Mobile input adapter", () => {
     const { container, unmount } = await renderTerminal({ mobileInputMode: false });
     const terminal = terminalInstances.at(-1);
     terminal?.focus.mockClear();
-    const inputTarget = container.querySelector(".flex-1.p-1");
+    const inputTarget = container.querySelector('[data-testid="terminal-fit-host"]');
     expect(inputTarget).toBeTruthy();
 
     fireEvent.pointerDown(inputTarget as Element, {

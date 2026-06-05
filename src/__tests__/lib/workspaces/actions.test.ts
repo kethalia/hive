@@ -44,6 +44,8 @@ const MOCK_SESSION = {
 };
 
 describe("workspace server actions", () => {
+  const mockCreateWorkspace = vi.fn();
+  const mockListTemplates = vi.fn();
   const mockListWorkspaces = vi.fn();
   const mockGetWorkspaceAgentName = vi.fn();
   const mockGetWorkspace = vi.fn();
@@ -60,6 +62,8 @@ describe("workspace server actions", () => {
     } as never);
 
     mockedGetCoderClientForUser.mockResolvedValue({
+      createWorkspace: mockCreateWorkspace,
+      listTemplates: mockListTemplates,
       listWorkspaces: mockListWorkspaces,
       getWorkspaceAgentName: mockGetWorkspaceAgentName,
       getWorkspace: mockGetWorkspace,
@@ -84,6 +88,45 @@ describe("workspace server actions", () => {
 
     expect(mockListWorkspaces).toHaveBeenCalledWith({ owner: "me" });
     expect(result?.data).toEqual(workspaces);
+  });
+
+  it("listWorkspaceTemplatesAction returns Coder templates", async () => {
+    const templates = [
+      {
+        id: "template-1",
+        name: "hive-template",
+        activeVersionId: "version-1",
+        updatedAt: "2026-01-01T00:00:00.000Z",
+      },
+    ];
+    mockListTemplates.mockResolvedValueOnce(templates);
+
+    const { listWorkspaceTemplatesAction } = await import("@/lib/actions/workspaces");
+    const result = await listWorkspaceTemplatesAction();
+
+    expect(mockListTemplates).toHaveBeenCalledTimes(1);
+    expect(result?.data).toEqual(templates);
+  });
+
+  it("createWorkspaceAction creates a workspace from a selected template", async () => {
+    const workspace = {
+      id: "ws-new",
+      name: "new-dev",
+      template_id: "template-1",
+      owner_name: "alice",
+      latest_build: {
+        id: "build-1",
+        status: "pending",
+        job: { status: "pending", error: "" },
+      },
+    };
+    mockCreateWorkspace.mockResolvedValueOnce(workspace);
+
+    const { createWorkspaceAction } = await import("@/lib/actions/workspaces");
+    const result = await createWorkspaceAction({ templateId: "template-1", name: "new-dev" });
+
+    expect(mockCreateWorkspace).toHaveBeenCalledWith("template-1", "new-dev");
+    expect(result?.data).toEqual(workspace);
   });
 
   it("getWorkspaceSessionsAction returns parsed sessions for running workspace", async () => {

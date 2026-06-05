@@ -15,30 +15,10 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
+import { formatShortcut, isApplePlatform } from "@/lib/keyboard-shortcuts";
 import { XIcon } from "lucide-react";
 
 const NUDGE_DISMISSED_KEY = "hive:help-nudge-dismissed";
-
-function isMacPlatform(): boolean {
-  if (typeof navigator === "undefined") return false;
-  return /Mac|iPhone|iPad|iPod/.test(navigator.userAgent);
-}
-
-function formatKeyCombo(keys: string[], isMac: boolean): string {
-  const preferred = keys.find((k) => (isMac ? k.includes("cmd") : !k.includes("cmd"))) ?? keys[0];
-
-  return preferred
-    .split("+")
-    .map((part) => {
-      const p = part.trim();
-      if (isMac && p === "ctrl") return "Ctrl";
-      if (p === "cmd") return "⌘";
-      if (p === "alt") return isMac ? "⌥" : "Alt";
-      if (p === "shift") return "⇧";
-      return p.length === 1 ? p.toUpperCase() : p.charAt(0).toUpperCase() + p.slice(1);
-    })
-    .join(" + ");
-}
 
 function groupByCategory(entries: KeybindingEntry[]): Record<string, KeybindingEntry[]> {
   const groups: Record<string, KeybindingEntry[]> = {};
@@ -54,16 +34,20 @@ export function HelpOverlay() {
   const [open, setOpen] = React.useState(false);
   const { getAll } = useKeybindings();
   const isStandalone = usePwaStandalone();
-  const isMac = React.useMemo(() => isMacPlatform(), []);
+  const isMac = React.useMemo(() => isApplePlatform(), []);
   const [nudgeDismissed, setNudgeDismissed] = React.useState(true);
 
   React.useEffect(() => {
-    setNudgeDismissed(localStorage.getItem(NUDGE_DISMISSED_KEY) === "true");
+    try {
+      setNudgeDismissed(localStorage.getItem(NUDGE_DISMISSED_KEY) === "true");
+    } catch {
+      setNudgeDismissed(true);
+    }
   }, []);
 
   useRegisterKeybinding({
     id: "help:show",
-    keys: ["shift+?"],
+    keys: ["ctrl+/", "cmd+/"],
     action: () => {
       setOpen((prev) => !prev);
       return false;
@@ -71,6 +55,7 @@ export function HelpOverlay() {
     description: "Show keyboard shortcuts",
     category: "general",
     enabledInBrowser: true,
+    global: true,
   });
 
   const entries = getAll();
@@ -84,7 +69,11 @@ export function HelpOverlay() {
   const showNudge = !isStandalone && !nudgeDismissed;
 
   function dismissNudge() {
-    localStorage.setItem(NUDGE_DISMISSED_KEY, "true");
+    try {
+      localStorage.setItem(NUDGE_DISMISSED_KEY, "true");
+    } catch {
+      // Ignore storage failures; the in-memory dismissal still applies.
+    }
     setNudgeDismissed(true);
   }
 
@@ -121,7 +110,7 @@ export function HelpOverlay() {
                         )}
                       </span>
                       <kbd className="rounded border border-border bg-muted px-1.5 py-0.5 font-mono text-xs text-muted-foreground">
-                        {formatKeyCombo(entry.keys, isMac)}
+                        {formatShortcut(entry.keys, isMac)}
                       </kbd>
                     </div>
                   );

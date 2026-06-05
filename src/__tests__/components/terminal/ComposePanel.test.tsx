@@ -73,7 +73,7 @@ describe("ComposePanel", () => {
   it("hides the header while keeping footer actions in compose sheet mode", () => {
     render(<ComposePanel hideHeader onClose={vi.fn()} />);
 
-    expect(screen.queryByText("Compose — Ctrl/Cmd+Enter to send")).not.toBeInTheDocument();
+    expect(screen.queryByText(/Compose — .*Enter to send/)).not.toBeInTheDocument();
     expect(screen.getByRole("group", { name: "Compose actions" })).toBeInTheDocument();
   });
 });

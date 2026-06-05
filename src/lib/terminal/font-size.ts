@@ -36,17 +36,25 @@ export function fontSizeFromPinchScale(baseSize: number, scale: number): number 
 
 export function getTerminalFontSize(): number {
   if (typeof window === "undefined") return DEFAULT_FONT_SIZE;
-  const raw = localStorage.getItem(STORAGE_KEY);
-  if (!raw) return DEFAULT_FONT_SIZE;
-  const parsed = parseInt(raw, 10);
-  if (Number.isNaN(parsed)) return DEFAULT_FONT_SIZE;
-  return Math.min(MAX_FONT_SIZE, Math.max(MIN_FONT_SIZE, parsed));
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return DEFAULT_FONT_SIZE;
+    const parsed = parseInt(raw, 10);
+    if (Number.isNaN(parsed)) return DEFAULT_FONT_SIZE;
+    return Math.min(MAX_FONT_SIZE, Math.max(MIN_FONT_SIZE, parsed));
+  } catch {
+    return DEFAULT_FONT_SIZE;
+  }
 }
 
 export function setTerminalFontSize(size: number): number {
   const clamped = Math.min(MAX_FONT_SIZE, Math.max(MIN_FONT_SIZE, finiteSizeOrDefault(size)));
   if (typeof window === "undefined") return clamped;
-  localStorage.setItem(STORAGE_KEY, String(clamped));
+  try {
+    localStorage.setItem(STORAGE_KEY, String(clamped));
+  } catch {
+    // Storage can be unavailable; still notify mounted terminals so the live control works.
+  }
   window.dispatchEvent(new CustomEvent(EVENT_NAME, { detail: clamped }));
   return clamped;
 }

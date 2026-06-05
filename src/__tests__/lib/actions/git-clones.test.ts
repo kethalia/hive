@@ -19,7 +19,11 @@ vi.mock("@/lib/workspace/exec", () => ({
 
 import { verifyCloneTerminalProof } from "@hive/auth";
 import { cookies } from "next/headers";
-import { listGitClonesAction, resolveGitCloneTerminalAction } from "@/lib/actions/git-clones";
+import {
+  closeGitCloneTerminalAction,
+  listGitClonesAction,
+  resolveGitCloneTerminalAction,
+} from "@/lib/actions/git-clones";
 import { getRequestSession, getSession } from "@/lib/auth/session";
 import { getCoderClientForUser } from "@/lib/coder/user-client";
 import { SAFE_IDENTIFIER_RE } from "@/lib/constants";
@@ -355,6 +359,43 @@ describe("resolveGitCloneTerminalAction", () => {
     );
     expect(mockedGetCoderClientForUser).toHaveBeenCalledWith(MOCK_SESSION.user.id);
     expect(mockedExecInWorkspace).not.toHaveBeenCalled();
+  });
+
+  it("closes a verified reserved clone terminal session without exposing generic kill controls", async () => {
+    const result = await closeGitCloneTerminalAction({
+      cloneSessionKey: repositoryNode.cloneSessionKey,
+      workspaceId: WORKSPACE_ID,
+      agentId: AGENT_ID,
+      relativePath: repositoryNode.relativePath,
+    });
+
+    expect(result?.serverError).toBeUndefined();
+    expect(result?.data?.sessionName).toMatch(new RegExp(`^${CLONE_TERMINAL_SESSION_PREFIX}`));
+    expect(mockedExecInWorkspace).toHaveBeenCalledTimes(2);
+    expect(mockedExecInWorkspace).toHaveBeenLastCalledWith(
+      AGENT_TARGET,
+      expect.stringMatching(/tmux -L web kill-session -t 'git-clone-[a-f0-9]+'/),
+      expect.objectContaining({
+        coderUrl: "https://coder.example.com",
+        sessionToken: "coder-token",
+      }),
+    );
+  });
+
+  it("treats an already-closed clone terminal as an idempotent close", async () => {
+    mockedExecInWorkspace
+      .mockResolvedValueOnce({ stdout: "kethalia/hive\n", stderr: "", exitCode: 0 })
+      .mockResolvedValueOnce({ stdout: "", stderr: "can't find session", exitCode: 1 });
+
+    const result = await closeGitCloneTerminalAction({
+      cloneSessionKey: repositoryNode.cloneSessionKey,
+      workspaceId: WORKSPACE_ID,
+      agentId: AGENT_ID,
+      relativePath: repositoryNode.relativePath,
+    });
+
+    expect(result?.serverError).toBeUndefined();
+    expect(result?.data?.sessionName).toMatch(new RegExp(`^${CLONE_TERMINAL_SESSION_PREFIX}`));
   });
 
   it("returns a sanitized error when the clone proof secret is not configured", async () => {
