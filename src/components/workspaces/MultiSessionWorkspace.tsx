@@ -972,6 +972,31 @@ export function MultiSessionWorkspace({
     [selectSession, visibleSessions],
   );
 
+  const switchRelativeWorkspaceBoard = useCallback(
+    (direction: -1 | 1) => {
+      const orderedBoards = boardState.boards
+        .map((board, index) => ({ board, index }))
+        .sort((left, right) => {
+          const orderDelta = left.board.order - right.board.order;
+          return orderDelta === 0 ? left.index - right.index : orderDelta;
+        })
+        .map(({ board }) => board);
+      if (orderedBoards.length <= 1) return;
+
+      const activeBoardKey = boardState.activeBoardKey ?? activeBoard?.key;
+      const currentIndex = Math.max(
+        0,
+        orderedBoards.findIndex((board) => board.key === activeBoardKey),
+      );
+      const nextBoard =
+        orderedBoards[(currentIndex + direction + orderedBoards.length) % orderedBoards.length];
+      if (!nextBoard || nextBoard.key === activeBoardKey) return;
+
+      persistBoardState(selectWorkspaceBoard(boardState, nextBoard.key));
+    },
+    [activeBoard?.key, boardState, persistBoardState],
+  );
+
   const openGitSearchModal = useCallback(() => {
     if (!isUnifiedSource) return;
     setGitSearchOpen(true);
@@ -1035,6 +1060,30 @@ export function MultiSessionWorkspace({
       enabledInBrowser: true,
     });
     register({
+      id: `multi-session:${workspaceId}:previous-board`,
+      keys: ["cmd+alt+arrowleft", "ctrl+alt+arrowleft"],
+      action: () => {
+        switchRelativeWorkspaceBoard(-1);
+        return false;
+      },
+      description: "Switch to previous workspace board",
+      category: "terminal",
+      enabledInBrowser: true,
+      global: true,
+    });
+    register({
+      id: `multi-session:${workspaceId}:next-board`,
+      keys: ["cmd+alt+arrowright", "ctrl+alt+arrowright"],
+      action: () => {
+        switchRelativeWorkspaceBoard(1);
+        return false;
+      },
+      description: "Switch to next workspace board",
+      category: "terminal",
+      enabledInBrowser: true,
+      global: true,
+    });
+    register({
       id: "command-palette",
       keys: ["ctrl+k", "cmd+k"],
       action: () => {
@@ -1050,9 +1099,11 @@ export function MultiSessionWorkspace({
     return () => {
       unregister(`multi-session:${workspaceId}:previous-pane`);
       unregister(`multi-session:${workspaceId}:next-pane`);
+      unregister(`multi-session:${workspaceId}:previous-board`);
+      unregister(`multi-session:${workspaceId}:next-board`);
       unregister("command-palette");
     };
-  }, [focusRelativeSession, register, unregister, workspaceId]);
+  }, [focusRelativeSession, register, switchRelativeWorkspaceBoard, unregister, workspaceId]);
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: reloadKey is a manual retry trigger for session loading
   useEffect(() => {

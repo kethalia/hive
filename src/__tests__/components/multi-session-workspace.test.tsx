@@ -278,6 +278,13 @@ async function renderTwoSessionWorkspace() {
   });
 }
 
+function lastRegisteredEntry(id: string) {
+  return mockRegister.mock.calls
+    .map(([entry]) => entry)
+    .filter((entry) => entry.id === id)
+    .at(-1);
+}
+
 describe("MultiSessionWorkspace", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -425,13 +432,177 @@ describe("MultiSessionWorkspace", () => {
     fireEvent.keyDown(workspace, { key: "ArrowLeft", metaKey: true });
     expect(screen.getByTestId("active-pane-label")).toHaveTextContent("main-session");
 
-    const nextBinding = mockRegister.mock.calls
-      .filter(([entry]) => entry.id === "multi-session:ws-1:next-pane")
-      .at(-1)?.[0];
+    const nextBinding = lastRegisteredEntry("multi-session:ws-1:next-pane");
     act(() => {
       expect(nextBinding.action(null, null)).toBe(false);
     });
     expect(screen.getByTestId("active-pane-label")).toHaveTextContent("dev-server");
+  });
+
+  it("registers exact global board shortcuts that switch boards through board persistence only", async () => {
+    window.localStorage.setItem(
+      "workspace-board-state:workspace:ws-1",
+      JSON.stringify({
+        version: 1,
+        activeBoardKey: "later",
+        boards: [
+          {
+            key: "later",
+            name: "Later",
+            order: 20,
+            activePaneKey: "terminal:main-session",
+            panes: [
+              {
+                kind: "terminal",
+                key: "terminal:main-session",
+                sessionName: "main-session",
+                label: "Main Board Pane",
+                order: 0,
+              },
+            ],
+          },
+          {
+            key: "earlier",
+            name: "Earlier",
+            order: 10,
+            activePaneKey: "terminal:dev-server",
+            panes: [
+              {
+                kind: "terminal",
+                key: "terminal:dev-server",
+                sessionName: "dev-server",
+                label: "Review Board Pane",
+                order: 0,
+              },
+            ],
+          },
+        ],
+      }),
+    );
+
+    mockGetSessions.mockResolvedValueOnce(twoSessionPayload());
+    render(<MultiSessionWorkspace {...defaultProps} />);
+
+    expect(await screen.findByTestId("workspace-board-tab-later")).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+    expect(screen.getByTestId("active-pane-label")).toHaveTextContent("Main Board Pane");
+    expect(screen.getByTestId("multi-session-pane-count")).toHaveTextContent("1");
+    expect(screen.getByTestId("interactive-terminal-main-session")).toHaveAttribute(
+      "data-layout-signal",
+      "later:terminal:main-session:1:1:1 / 1 / span 1 / span 1",
+    );
+
+    const previousBoard = lastRegisteredEntry("multi-session:ws-1:previous-board");
+    const nextBoard = lastRegisteredEntry("multi-session:ws-1:next-board");
+    expect(previousBoard).toMatchObject({
+      id: "multi-session:ws-1:previous-board",
+      keys: ["cmd+alt+arrowleft", "ctrl+alt+arrowleft"],
+      category: "terminal",
+      enabledInBrowser: true,
+      global: true,
+    });
+    expect(nextBoard).toMatchObject({
+      id: "multi-session:ws-1:next-board",
+      keys: ["cmd+alt+arrowright", "ctrl+alt+arrowright"],
+      category: "terminal",
+      enabledInBrowser: true,
+      global: true,
+    });
+
+    act(() => {
+      expect(previousBoard.action(null, null)).toBe(false);
+    });
+
+    expect(screen.getByTestId("workspace-board-tab-earlier")).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+    expect(screen.getByTestId("active-pane-label")).toHaveTextContent("Review Board Pane");
+    expect(screen.getByTestId("multi-session-pane-count")).toHaveTextContent("1");
+    expect(screen.getByTestId("interactive-terminal-dev-server")).toHaveAttribute(
+      "data-layout-signal",
+      "earlier:terminal:dev-server:1:1:1 / 1 / span 1 / span 1",
+    );
+    expect(
+      JSON.parse(window.localStorage.getItem("workspace-board-state:workspace:ws-1") ?? "{}")
+        .activeBoardKey,
+    ).toBe("earlier");
+
+    act(() => {
+      expect(lastRegisteredEntry("multi-session:ws-1:next-board").action(null, null)).toBe(false);
+    });
+
+    expect(screen.getByTestId("workspace-board-tab-later")).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+    expect(screen.getByTestId("active-pane-label")).toHaveTextContent("Main Board Pane");
+    expect(
+      JSON.parse(window.localStorage.getItem("workspace-board-state:workspace:ws-1") ?? "{}")
+        .activeBoardKey,
+    ).toBe("later");
+    expect(mockKillSession).not.toHaveBeenCalled();
+    expect(mockCloseGitCloneTerminal).not.toHaveBeenCalled();
+    expect(mockResolveGitCloneTerminal).not.toHaveBeenCalled();
+    expect(mockRouterPush).not.toHaveBeenCalled();
+    expect(mockCreateSession).not.toHaveBeenCalled();
+
+    cleanup();
+    vi.clearAllMocks();
+    terminalProps.clear();
+    window.localStorage.clear();
+    window.localStorage.setItem(
+      "workspace-board-state:workspace:ws-1",
+      JSON.stringify({
+        version: 1,
+        activeBoardKey: "solo",
+        boards: [
+          {
+            key: "solo",
+            name: "Solo",
+            order: 0,
+            panes: [
+              {
+                kind: "terminal",
+                key: "terminal:main-session",
+                sessionName: "main-session",
+                order: 0,
+              },
+            ],
+          },
+        ],
+      }),
+    );
+    mockGetSessions.mockResolvedValueOnce(twoSessionPayload());
+
+    render(<MultiSessionWorkspace {...defaultProps} />);
+    expect(await screen.findByTestId("workspace-board-tab-solo")).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+
+    act(() => {
+      expect(lastRegisteredEntry("multi-session:ws-1:previous-board").action(null, null)).toBe(
+        false,
+      );
+      expect(lastRegisteredEntry("multi-session:ws-1:next-board").action(null, null)).toBe(false);
+    });
+
+    expect(screen.getByTestId("workspace-board-tab-solo")).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+    expect(
+      JSON.parse(window.localStorage.getItem("workspace-board-state:workspace:ws-1") ?? "{}")
+        .activeBoardKey,
+    ).toBe("solo");
+    expect(mockKillSession).not.toHaveBeenCalled();
+    expect(mockCloseGitCloneTerminal).not.toHaveBeenCalled();
+    expect(mockResolveGitCloneTerminal).not.toHaveBeenCalled();
+    expect(mockRouterPush).not.toHaveBeenCalled();
+    expect(mockCreateSession).not.toHaveBeenCalled();
   });
 
   it("keeps pane headers compact without reorder controls or status badges", async () => {
