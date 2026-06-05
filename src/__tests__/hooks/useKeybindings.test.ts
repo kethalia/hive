@@ -42,6 +42,15 @@ describe("normalizeKeyCombo", () => {
     expect(normalizeKeyCombo(e)).toBe("ctrl+alt+shift+t");
   });
 
+  it("normalizes exact workspace-board arrow chords", () => {
+    expect(normalizeKeyCombo(makeKeyEvent({ key: "ArrowLeft", metaKey: true, altKey: true }))).toBe(
+      "cmd+alt+arrowleft",
+    );
+    expect(
+      normalizeKeyCombo(makeKeyEvent({ key: "ArrowRight", ctrlKey: true, altKey: true })),
+    ).toBe("ctrl+alt+arrowright");
+  });
+
   it("normalizes all four modifiers in fixed order", () => {
     const e = makeKeyEvent({
       key: "x",

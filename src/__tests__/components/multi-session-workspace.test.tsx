@@ -590,10 +590,7 @@ describe("MultiSessionWorkspace", () => {
       expect(lastRegisteredEntry("multi-session:ws-1:next-board").action(null, null)).toBe(false);
     });
 
-    expect(screen.getByTestId("workspace-board-tab-solo")).toHaveAttribute(
-      "aria-selected",
-      "true",
-    );
+    expect(screen.getByTestId("workspace-board-tab-solo")).toHaveAttribute("aria-selected", "true");
     expect(
       JSON.parse(window.localStorage.getItem("workspace-board-state:workspace:ws-1") ?? "{}")
         .activeBoardKey,
