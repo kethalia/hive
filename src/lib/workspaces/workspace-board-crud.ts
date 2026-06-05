@@ -6,6 +6,20 @@ import {
   type WorkspaceBoardStateDiagnostic,
 } from "@/lib/workspaces/workspace-board-state";
 
+export interface AddWorkspaceBoardTerminalPaneInput {
+  key?: string | null;
+  sessionName?: string | null;
+  label?: string | null;
+}
+
+export interface AddWorkspaceBoardGitPaneInput {
+  key?: string | null;
+  cloneSessionKey?: string | null;
+  relativePath?: string | null;
+  sessionName?: string | null;
+  label?: string | null;
+}
+
 export function createWorkspaceBoard(
   state: WorkspaceBoardState,
   requestedName?: string | null,
@@ -112,6 +126,103 @@ export function selectWorkspaceBoard(
   };
 }
 
+export function addTerminalPaneToActiveWorkspaceBoard(
+  state: WorkspaceBoardState,
+  pane: AddWorkspaceBoardTerminalPaneInput,
+): WorkspaceBoardState {
+  const normalized = normalizeWorkspaceBoardStateForCrud(state);
+  const sessionName = normalizeText(pane?.sessionName);
+  if (!sessionName || !normalized.activeBoardKey) return normalized;
+
+  const label = normalizeText(pane?.label);
+  return addPaneToBoard(normalized, normalized.activeBoardKey, {
+    kind: "terminal",
+    key: normalizeText(pane?.key) ?? `terminal:${sessionName}`,
+    sessionName,
+    ...(label ? { label } : {}),
+    order: 0,
+  });
+}
+
+export function addGitPaneToActiveWorkspaceBoard(
+  state: WorkspaceBoardState,
+  pane: AddWorkspaceBoardGitPaneInput,
+): WorkspaceBoardState {
+  const normalized = normalizeWorkspaceBoardStateForCrud(state);
+  const cloneSessionKey = normalizeText(pane?.cloneSessionKey);
+  const relativePath = normalizeRelativePath(pane?.relativePath);
+  if (!cloneSessionKey || !relativePath || !normalized.activeBoardKey) return normalized;
+
+  const sessionName = normalizeText(pane?.sessionName);
+  const label = normalizeText(pane?.label);
+  return addPaneToBoard(normalized, normalized.activeBoardKey, {
+    kind: "git",
+    key: normalizeText(pane?.key) ?? `git:${cloneSessionKey}:${relativePath}`,
+    cloneSessionKey,
+    relativePath,
+    ...(sessionName ? { sessionName } : {}),
+    ...(label ? { label } : {}),
+    order: 0,
+  });
+}
+
+export function removeWorkspaceBoardPane(
+  state: WorkspaceBoardState,
+  boardKey: string | null | undefined,
+  paneKey: string | null | undefined,
+): WorkspaceBoardState {
+  const normalized = normalizeWorkspaceBoardStateForCrud(state);
+  const key = normalizeText(boardKey);
+  const paneKeyToRemove = normalizeText(paneKey);
+  if (!key || !paneKeyToRemove || !normalized.boards.some((board) => board.key === key)) {
+    return normalized;
+  }
+
+  let paneRemoved = false;
+  const boards = normalizeBoardOrder(
+    normalized.boards.map((board) => {
+      if (board.key !== key) return board;
+      const panes = board.panes.filter((pane) => {
+        const keep = pane.key !== paneKeyToRemove;
+        if (!keep) paneRemoved = true;
+        return keep;
+      });
+      return {
+        ...board,
+        activePaneKey: normalizeActivePaneKey(board.activePaneKey, panes),
+        panes,
+      };
+    }),
+  );
+
+  if (!paneRemoved) return normalized;
+  return { ...normalized, boards };
+}
+
+export function selectWorkspaceBoardPane(
+  state: WorkspaceBoardState,
+  boardKey: string | null | undefined,
+  paneKey: string | null | undefined,
+): WorkspaceBoardState {
+  const normalized = normalizeWorkspaceBoardStateForCrud(state);
+  const key = normalizeText(boardKey);
+  const activePaneKey = normalizeText(paneKey);
+  const board = key ? normalized.boards.find((candidate) => candidate.key === key) : undefined;
+  if (!board || !activePaneKey || !board.panes.some((pane) => pane.key === activePaneKey)) {
+    return normalized;
+  }
+
+  return {
+    ...normalized,
+    activeBoardKey: key,
+    boards: normalizeBoardOrder(
+      normalized.boards.map((candidate) =>
+        candidate.key === key ? { ...candidate, activePaneKey } : candidate,
+      ),
+    ),
+  };
+}
+
 function normalizeWorkspaceBoardStateForCrud(state: WorkspaceBoardState): WorkspaceBoardState {
   const diagnostics = Array.isArray(state?.diagnostics)
     ? [...state.diagnostics]
@@ -171,6 +282,65 @@ function activePaneKeyObject(
 function normalizePaneOrder(panes: readonly WorkspaceBoardPane[]): WorkspaceBoardPane[] {
   if (!Array.isArray(panes)) return [];
   return panes.map((pane, order) => ({ ...pane, order }));
+}
+
+function addPaneToBoard(
+  state: WorkspaceBoardState,
+  boardKey: string,
+  pane: WorkspaceBoardPane,
+): WorkspaceBoardState {
+  const boards = normalizeBoardOrder(
+    state.boards.map((board) => {
+      if (board.key !== boardKey) return board;
+      const matchingPane = board.panes.find(
+        (candidate) => paneIdentity(candidate) === paneIdentity(pane),
+      );
+      if (matchingPane) {
+        return {
+          ...board,
+          activePaneKey: matchingPane.key,
+        };
+      }
+      const panes = [
+        ...board.panes,
+        {
+          ...pane,
+          key: uniquePaneKey(pane.key, board.panes),
+          order: board.panes.length,
+        },
+      ];
+      return {
+        ...board,
+        activePaneKey: panes[panes.length - 1]?.key,
+        panes,
+      };
+    }),
+  );
+
+  return {
+    ...state,
+    boards,
+  };
+}
+
+function paneIdentity(pane: WorkspaceBoardPane): string {
+  if (pane.kind === "git") return `git:${pane.cloneSessionKey}:${pane.relativePath}`;
+  return `terminal:${pane.sessionName}`;
+}
+
+function uniquePaneKey(
+  requestedKey: string,
+  panes: readonly Pick<WorkspaceBoardPane, "key">[],
+): string {
+  const existingKeys = new Set(panes.map((pane) => pane.key));
+  if (!existingKeys.has(requestedKey)) return requestedKey;
+
+  for (let suffix = 2; suffix < 10000; suffix += 1) {
+    const candidate = `${requestedKey}-${suffix}`;
+    if (!existingKeys.has(candidate)) return candidate;
+  }
+
+  return `${requestedKey}-${panes.length + 1}`;
 }
 
 function firstBoardWithKey(): (
@@ -242,6 +412,21 @@ function normalizeText(value: unknown): string | undefined {
   if (typeof value !== "string") return undefined;
   const trimmed = value.trim();
   return trimmed.length > 0 ? trimmed : undefined;
+}
+
+function normalizeRelativePath(value: unknown): string | undefined {
+  const relativePath = normalizeText(value);
+  if (
+    !relativePath ||
+    relativePath.startsWith("/") ||
+    relativePath === "~" ||
+    relativePath.startsWith("~/") ||
+    relativePath.startsWith("~\\") ||
+    /^[A-Za-z]:[\\/]/.test(relativePath)
+  ) {
+    return undefined;
+  }
+  return relativePath;
 }
 
 function finiteNumberOrFallback(value: unknown, fallback: number): number {

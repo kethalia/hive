@@ -1,10 +1,14 @@
 import { describe, expect, it } from "vitest";
 import {
+  addGitPaneToActiveWorkspaceBoard,
+  addTerminalPaneToActiveWorkspaceBoard,
   createWorkspaceBoard,
   deleteWorkspaceBoard,
+  removeWorkspaceBoardPane,
   renameActiveWorkspaceBoard,
   renameWorkspaceBoard,
   selectWorkspaceBoard,
+  selectWorkspaceBoardPane,
 } from "@/lib/workspaces/workspace-board-crud";
 import {
   serializeWorkspaceBoardState,
@@ -144,6 +148,118 @@ describe("workspace board CRUD helper", () => {
     const next = deleteWorkspaceBoard(state, "main");
 
     expect(next).toEqual(state);
+  });
+
+  it("adds terminal panes to the active board, dedupes by session, and repairs active pane fallback", () => {
+    const withPlanning = createWorkspaceBoard(baseState(), "Planning");
+    const withWorker = addTerminalPaneToActiveWorkspaceBoard(withPlanning, {
+      sessionName: " worker ",
+      label: " Worker ",
+    });
+    const deduped = addTerminalPaneToActiveWorkspaceBoard(withWorker, {
+      sessionName: "worker",
+      label: "Renamed duplicate should not replace existing membership",
+    });
+    const selected = selectWorkspaceBoardPane(deduped, "planning", "terminal:worker");
+    const removedSelected = removeWorkspaceBoardPane(selected, "planning", "terminal:worker");
+
+    expect(withWorker.activeBoardKey).toBe("planning");
+    expect(withWorker.boards[1]).toMatchObject({
+      key: "planning",
+      activePaneKey: "terminal:worker",
+    });
+    expect(withWorker.boards[1].panes).toEqual([
+      {
+        kind: "terminal",
+        key: "terminal:worker",
+        sessionName: "worker",
+        label: "Worker",
+        order: 0,
+      },
+    ]);
+    expect(deduped.boards[1].panes).toEqual(withWorker.boards[1].panes);
+    expect(selected.boards[1].activePaneKey).toBe("terminal:worker");
+    expect(removedSelected.boards[1]).toMatchObject({ key: "planning", panes: [] });
+    expect(removedSelected.boards[1].activePaneKey).toBeUndefined();
+  });
+
+  it("repairs active pane fallback when removing the selected pane and ignores invalid pane operations", () => {
+    const state = addTerminalPaneToActiveWorkspaceBoard(baseState(), {
+      sessionName: "worker",
+      label: "Worker",
+    });
+    const selectedWorker = selectWorkspaceBoardPane(state, "main", "terminal:worker");
+    const removedWorker = removeWorkspaceBoardPane(selectedWorker, "main", "terminal:worker");
+    const blankBoardNoop = removeWorkspaceBoardPane(removedWorker, "   ", "terminal:api");
+    const missingPaneNoop = selectWorkspaceBoardPane(removedWorker, "main", "   ");
+    const unknownPaneNoop = removeWorkspaceBoardPane(removedWorker, "main", "terminal:missing");
+
+    expect(selectedWorker.boards[0].activePaneKey).toBe("terminal:worker");
+    expect(removedWorker.boards[0].activePaneKey).toBe("terminal:api");
+    expect(removedWorker.boards[0].panes).toEqual([
+      { kind: "terminal", key: "terminal:api", sessionName: "api", label: "API", order: 0 },
+    ]);
+    expect(blankBoardNoop).toEqual(removedWorker);
+    expect(missingPaneNoop).toEqual(removedWorker);
+    expect(unknownPaneNoop).toEqual(removedWorker);
+  });
+
+  it("adds Git panes with safe metadata and allows the same identity on multiple boards", () => {
+    const planning = createWorkspaceBoard(baseState(), "Planning");
+    const withGitOnPlanning = addGitPaneToActiveWorkspaceBoard(planning, {
+      cloneSessionKey: " git-clone:Git/projects/kethalia/hive ",
+      relativePath: " kethalia/hive ",
+      sessionName: " git-hive ",
+      label: " Hive Repo ",
+    });
+    const mainSelected = selectWorkspaceBoard(withGitOnPlanning, "main");
+    const sharedOnMain = addGitPaneToActiveWorkspaceBoard(mainSelected, {
+      cloneSessionKey: "git-clone:Git/projects/kethalia/hive",
+      relativePath: "kethalia/hive",
+      label: "Hive on Main",
+      cloneProof: "proof-should-not-persist",
+      clonePath: "/home/coder/projects/kethalia/hive",
+    } as Parameters<typeof addGitPaneToActiveWorkspaceBoard>[1]);
+    const duplicateGitNoop = addGitPaneToActiveWorkspaceBoard(sharedOnMain, {
+      cloneSessionKey: "git-clone:Git/projects/kethalia/hive",
+      relativePath: "kethalia/hive",
+      label: "Duplicate should not replace existing Git membership",
+    });
+    const unsafeNoop = addGitPaneToActiveWorkspaceBoard(duplicateGitNoop, {
+      cloneSessionKey: "git-clone:absolute",
+      relativePath: "/home/coder/projects/kethalia/hive",
+      label: "Unsafe",
+    });
+    const missingRefsNoop = addGitPaneToActiveWorkspaceBoard(unsafeNoop, {
+      cloneSessionKey: "   ",
+      relativePath: "kethalia/hive",
+      label: "Missing refs",
+    });
+    const serialized = serializeWorkspaceBoardState(missingRefsNoop);
+
+    expect(withGitOnPlanning.boards[1].panes).toEqual([
+      {
+        kind: "git",
+        key: "git:git-clone:Git/projects/kethalia/hive:kethalia/hive",
+        cloneSessionKey: "git-clone:Git/projects/kethalia/hive",
+        relativePath: "kethalia/hive",
+        sessionName: "git-hive",
+        label: "Hive Repo",
+        order: 0,
+      },
+    ]);
+    expect(sharedOnMain.boards[0].panes.map((pane) => [pane.kind, pane.key, pane.order])).toEqual([
+      ["terminal", "terminal:api", 0],
+      ["git", "git:git-clone:Git/projects/kethalia/hive:kethalia/hive", 1],
+    ]);
+    expect(sharedOnMain.boards[1].panes).toHaveLength(1);
+    expect(duplicateGitNoop).toEqual(sharedOnMain);
+    expect(unsafeNoop).toEqual(sharedOnMain);
+    expect(missingRefsNoop).toEqual(sharedOnMain);
+    expect(
+      JSON.parse(serialized).boards.flatMap((board: { panes: unknown[] }) => board.panes),
+    ).toHaveLength(3);
+    expect(serialized).not.toMatch(/cloneProof|clonePath|proof-should-not-persist|\/home\/coder/);
   });
 
   it("keeps CRUD output compatible with serializer redaction for hostile caller fields", () => {
