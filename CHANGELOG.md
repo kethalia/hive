@@ -1,5 +1,14 @@
 # hive-orchestrator
 
+## 2.4.4
+
+### Patch Changes
+
+- 8c0f1d6: Document terminal workspace updates and ignore generated agent evidence artifacts plus generated doc-contract tests.
+- Updated dependencies [8c0f1d6]
+  - @hive/auth@1.0.3
+  - @hive/db@0.1.2
+
 ## 2.4.3
 
 ### Patch Changes

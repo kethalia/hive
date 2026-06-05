@@ -1,5 +1,11 @@
 # @hive/db
 
+## 0.1.2
+
+### Patch Changes
+
+- 8c0f1d6: Document terminal workspace updates and ignore generated agent evidence artifacts plus generated doc-contract tests.
+
 ## 0.1.1
 
 ### Patch Changes
