@@ -20,13 +20,22 @@ const mockLocalStorage: Record<string, string> = {};
 
 const fakePushSubscription = {
   endpoint: "https://push.example.test/subscriptions/secret-endpoint",
+  expirationTime: null,
+  options: {
+    applicationServerKey: null,
+    userVisibleOnly: true,
+  },
+  getKey: vi.fn((_name: PushEncryptionKeyName) => new ArrayBuffer(0)),
+  unsubscribe: vi.fn(async () => true),
   toJSON: () => ({
+    endpoint: "https://push.example.test/subscriptions/secret-endpoint",
+    expirationTime: null,
     keys: {
       p256dh: "secret-p256dh-key",
       auth: "secret-auth-key",
     },
   }),
-} as PushSubscription;
+} satisfies PushSubscription;
 
 const mockPushManager = {
   subscribe: vi.fn(),
