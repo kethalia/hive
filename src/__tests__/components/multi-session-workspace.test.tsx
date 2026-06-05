@@ -1475,6 +1475,187 @@ describe("MultiSessionWorkspace", () => {
     );
   });
 
+  it("surfaces repository-missing persisted Git refs without hiding repository search or killing sessions", async () => {
+    window.localStorage.setItem(
+      "workspace-board-state:git:ws-1",
+      JSON.stringify({
+        version: 1,
+        activeBoardKey: "default",
+        boards: [
+          {
+            key: "default",
+            name: "Default",
+            order: 0,
+            activePaneKey: "git:persisted-hive",
+            panes: [
+              {
+                kind: "git",
+                key: "git:persisted-hive",
+                cloneSessionKey: "git-clone:kethalia/hive",
+                relativePath: "kethalia/hive",
+                sessionName: "stale-session-name",
+                label: "Hive Review",
+                cloneProof: "persisted-proof-should-not-be-read",
+                clonePath: "/home/coder/projects/kethalia/hive",
+                order: 0,
+              },
+            ],
+          },
+        ],
+      }),
+    );
+    mockListGitClones
+      .mockResolvedValueOnce({
+        data: {
+          ok: true,
+          tree: {
+            nodes: [
+              {
+                id: "repo-docs",
+                kind: "repository",
+                label: "docs",
+                relativePath: "kethalia/docs",
+                relativePathSegments: ["kethalia", "docs"],
+                displaySegments: ["Git", "home", "kethalia", "docs"],
+                cloneSessionKey: "git-clone:kethalia/docs",
+              },
+            ],
+          },
+        },
+      })
+      .mockResolvedValueOnce({
+        data: {
+          ok: true,
+          tree: {
+            nodes: [
+              {
+                id: "repo-hive",
+                kind: "repository",
+                label: "hive",
+                relativePath: "kethalia/hive",
+                relativePathSegments: ["kethalia", "hive"],
+                displaySegments: ["Git", "home", "kethalia", "hive"],
+                cloneSessionKey: "git-clone:kethalia/hive",
+              },
+            ],
+          },
+        },
+      });
+    mockResolveGitCloneTerminal.mockResolvedValueOnce({
+      data: {
+        sessionName: "git-clone-safe-hive",
+        clonePath: "kethalia/hive",
+        cloneSessionKey: "git-clone:kethalia/hive",
+        cloneProof: "fresh-proof-token",
+      },
+    });
+
+    render(<MultiSessionWorkspace {...defaultProps} source="unified" />);
+
+    expect(await screen.findByTestId("git-session-restore-error")).toHaveTextContent(
+      "Git panes need refresh. Retry to restore repository panes.",
+    );
+    expect(screen.queryByText(/persisted-proof|\/home\/coder|stale-session-name/)).not.toBeInTheDocument();
+    expect(screen.getByTestId("multi-session-empty")).toBeInTheDocument();
+    expect(mockResolveGitCloneTerminal).not.toHaveBeenCalled();
+    expect(mockKillSession).not.toHaveBeenCalled();
+    expect(mockCloseGitCloneTerminal).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByTestId("open-git-session-search"));
+    fireEvent.change(await screen.findByTestId("workspace-command-palette-search"), {
+      target: { value: "docs" },
+    });
+    expect(screen.getByRole("button", { name: /Add kethalia\/docs/ })).toBeInTheDocument();
+    fireEvent.click(screen.getByTestId("retry-git-session-restore"));
+
+    expect(await screen.findByTestId("interactive-terminal-git-clone-safe-hive")).toHaveAttribute(
+      "data-clone-proof",
+      "fresh-proof-token",
+    );
+    expect(screen.queryByTestId("git-session-restore-error")).not.toBeInTheDocument();
+    expect(mockResolveGitCloneTerminal).toHaveBeenCalledTimes(1);
+    expect(mockListGitClones).toHaveBeenCalledTimes(2);
+    expect(mockKillSession).not.toHaveBeenCalled();
+    expect(mockCloseGitCloneTerminal).not.toHaveBeenCalled();
+  });
+
+  it("keeps rejected Git pane restore actions sanitized and retries without duplicate concurrent calls", async () => {
+    window.localStorage.setItem(
+      "workspace-board-state:git:ws-1",
+      JSON.stringify({
+        version: 1,
+        activeBoardKey: "default",
+        boards: [
+          {
+            key: "default",
+            name: "Default",
+            order: 0,
+            activePaneKey: "git:persisted-hive",
+            panes: [
+              {
+                kind: "git",
+                key: "git:persisted-hive",
+                cloneSessionKey: "git-clone:kethalia/hive",
+                relativePath: "kethalia/hive",
+                sessionName: "stale-session-name",
+                label: "Hive Review",
+                order: 0,
+              },
+            ],
+          },
+        ],
+      }),
+    );
+    mockListGitClones.mockResolvedValue({
+      data: {
+        ok: true,
+        tree: {
+          nodes: [
+            {
+              id: "repo-hive",
+              kind: "repository",
+              label: "hive",
+              relativePath: "kethalia/hive",
+              relativePathSegments: ["kethalia", "hive"],
+              displaySegments: ["Git", "home", "kethalia", "hive"],
+              cloneSessionKey: "git-clone:kethalia/hive",
+            },
+          ],
+        },
+      },
+    });
+    mockResolveGitCloneTerminal
+      .mockRejectedValueOnce(new Error("secret-proof-token at /home/coder/projects/kethalia/hive"))
+      .mockResolvedValueOnce({
+        data: {
+          sessionName: "git-clone-safe-hive",
+          clonePath: "kethalia/hive",
+          cloneSessionKey: "git-clone:kethalia/hive",
+          cloneProof: "fresh-proof-token",
+        },
+      });
+
+    render(<MultiSessionWorkspace {...defaultProps} source="unified" />);
+
+    expect(await screen.findByTestId("git-session-restore-error")).toHaveTextContent(
+      "Git panes need refresh. Retry to restore repository panes.",
+    );
+    expect(screen.queryByText(/secret-proof-token|\/home\/coder|stale-session-name/))
+      .not.toBeInTheDocument();
+    expect(mockResolveGitCloneTerminal).toHaveBeenCalledTimes(1);
+
+    fireEvent.click(screen.getByTestId("retry-git-session-restore"));
+
+    expect(await screen.findByTestId("interactive-terminal-git-clone-safe-hive")).toHaveAttribute(
+      "data-clone-proof",
+      "fresh-proof-token",
+    );
+    expect(screen.queryByTestId("git-session-restore-error")).not.toBeInTheDocument();
+    expect(mockResolveGitCloneTerminal).toHaveBeenCalledTimes(2);
+    expect(mockKillSession).not.toHaveBeenCalled();
+    expect(mockCloseGitCloneTerminal).not.toHaveBeenCalled();
+  });
+
   it("keeps Git add resolver failures sanitized and leaves board membership unchanged", async () => {
     mockListGitClones.mockResolvedValueOnce({
       data: {

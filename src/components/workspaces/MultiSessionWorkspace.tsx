@@ -566,7 +566,10 @@ async function loadGitSessions(
   }
 
   const repositories = flattenRepositoryNodes(discovery.tree.nodes).map(toGitRepositoryOption);
-  if (repositories.length === 0) return { status: "empty", repositories };
+  const persistedRefs = readPersistedGitPaneRefs(persistedJson);
+  if (repositories.length === 0) {
+    return { status: "empty", repositories, gitRestoreFailed: persistedRefs.length > 0 };
+  }
 
   const repositoryByIdentity = new Map(
     repositories.map((repository) => [
@@ -574,10 +577,12 @@ async function loadGitSessions(
       repository,
     ]),
   );
-  const selectedRefs = readPersistedGitPaneRefs(persistedJson).filter((ref) =>
+  const selectedRefs = persistedRefs.filter((ref) =>
     repositoryByIdentity.has(gitPaneIdentity(ref.cloneSessionKey, ref.relativePath)),
   );
-  if (selectedRefs.length === 0) return { status: "empty", repositories };
+  if (selectedRefs.length === 0) {
+    return { status: "empty", repositories, gitRestoreFailed: persistedRefs.length > 0 };
+  }
 
   const resolved = await Promise.allSettled(
     selectedRefs.map(async (ref): Promise<WorkspaceSessionPane | null> => {
@@ -611,7 +616,7 @@ async function loadGitSessions(
       result.status === "fulfilled" && result.value ? [result.value] : [],
     ),
   );
-  const gitRestoreFailed = sessions.length < selectedRefs.length;
+  const gitRestoreFailed = sessions.length < persistedRefs.length;
 
   return sessions.length > 0
     ? { status: "success", sessions, repositories, gitRestoreFailed }
