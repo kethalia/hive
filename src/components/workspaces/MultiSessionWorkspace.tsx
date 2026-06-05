@@ -1411,7 +1411,7 @@ export function MultiSessionWorkspace({
         aria-pressed={isActive}
         role="button"
         className={cn(
-          "min-h-0 resize-none overflow-hidden rounded-lg border bg-black shadow-sm outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring",
+          "flex min-h-0 resize-none flex-col overflow-hidden rounded-lg border bg-black shadow-sm outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring",
           isActive ? "border-primary ring-1 ring-primary" : "border-border",
         )}
         data-testid={`workspace-${pane.id}`}
@@ -1430,7 +1430,7 @@ export function MultiSessionWorkspace({
           }
         }}
       >
-        <div className="flex min-h-8 items-center gap-1 border-b border-white/10 bg-zinc-950 px-2 py-1 text-white">
+        <div className="flex min-h-8 shrink-0 items-center gap-1 border-b border-white/10 bg-zinc-950 px-2 py-1 text-white">
           <span className="min-w-0 flex-1 truncate font-mono text-xs">{pane.label}</span>
           {isUnifiedSource ? (
             <Button
@@ -1455,7 +1455,7 @@ export function MultiSessionWorkspace({
           sessionName={pane.sessionName}
           clonePath={session?.clonePath}
           cloneProof={session?.cloneProof}
-          className="h-[calc(100%-2rem)]"
+          className="min-h-0 flex-1"
           layoutSignal={layoutSignal}
           onTerminalReady={(term, send) => handleTerminalReady(pane.sessionName, term, send)}
           onTerminalDestroy={() => handleTerminalDestroy(pane.sessionName)}

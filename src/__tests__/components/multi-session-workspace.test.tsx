@@ -25,6 +25,7 @@ const terminalProps = new Map<
     sessionName: string;
     clonePath?: string;
     cloneProof?: string;
+    className?: string;
     layoutSignal?: unknown;
     onTerminalReady?: (term: Terminal, send: (data: string) => void) => void;
     onTerminalDestroy?: () => void;
@@ -45,6 +46,7 @@ vi.mock("next/dynamic", () => ({
       sessionName,
       clonePath,
       cloneProof,
+      className,
       layoutSignal,
       onTerminalReady,
       onTerminalDestroy,
@@ -54,6 +56,7 @@ vi.mock("next/dynamic", () => ({
       sessionName: string;
       clonePath?: string;
       cloneProof?: string;
+      className?: string;
       layoutSignal?: unknown;
       onTerminalReady?: (term: Terminal, send: (data: string) => void) => void;
       onTerminalDestroy?: () => void;
@@ -64,6 +67,7 @@ vi.mock("next/dynamic", () => ({
         sessionName,
         clonePath,
         cloneProof,
+        className,
         layoutSignal,
         onTerminalReady,
         onTerminalDestroy,
@@ -74,6 +78,7 @@ vi.mock("next/dynamic", () => ({
           data-agent-id={agentId}
           data-workspace-id={workspaceId}
           data-session-name={sessionName}
+          className={className}
           data-clone-path={clonePath}
           data-clone-proof={cloneProof}
           data-layout-signal={String(layoutSignal ?? "")}
@@ -350,6 +355,15 @@ describe("MultiSessionWorkspace", () => {
     expect(screen.getByTestId("interactive-terminal-main-session")).toHaveAttribute(
       "data-layout-signal",
       "2:2:1 / 1 / span 2 / span 1",
+    );
+    expect(screen.getByTestId("workspace-pane-dev-server")).toHaveClass(
+      "flex",
+      "flex-col",
+      "min-h-0",
+    );
+    expect(screen.getByTestId("interactive-terminal-dev-server")).toHaveClass("min-h-0", "flex-1");
+    expect(screen.getByTestId("interactive-terminal-dev-server").className).not.toContain(
+      "calc(100%-2rem)",
     );
   });
 
