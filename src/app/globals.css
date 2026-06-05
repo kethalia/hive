@@ -186,6 +186,11 @@
     min-width: 0;
     width: 100%;
   }
+
+  [data-dashboard-content]:has([data-dashboard-full-bleed]) > [data-dashboard-full-bleed] {
+    flex: 1 1 auto;
+    min-height: 0;
+  }
 }
 
 @layer base {

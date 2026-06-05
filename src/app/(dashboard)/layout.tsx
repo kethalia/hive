@@ -19,17 +19,17 @@ export default async function DashboardLayout({ children }: { children: React.Re
           <AppSidebar />
         </Suspense>
         <SidebarEdgeHandle />
-        <SidebarInset>
-          <main
-            className="flex min-h-0 flex-1 overflow-hidden px-6 pt-[calc(var(--safe-area-inset-top)+0.75rem)] pb-0 md:pb-[calc(var(--safe-area-inset-bottom)+1.5rem)]"
-            data-dashboard-main=""
-          >
+        <SidebarInset className="h-[var(--app-viewport-height)] min-h-0 overflow-hidden">
+          <main className="flex h-full min-h-0 flex-1 overflow-hidden" data-dashboard-main="">
             <div
-              className="flex min-h-0 w-full flex-1 items-start gap-2"
+              className="flex h-full min-h-0 w-full flex-1 items-stretch gap-0"
               data-dashboard-content-row=""
             >
               <DashboardSidebarTrigger />
-              <div className="min-w-0 flex-1" data-dashboard-content="">
+              <div
+                className="flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden"
+                data-dashboard-content=""
+              >
                 {bannerStatus?.data && <TokenExpiryBanner status={bannerStatus.data} />}
                 <PushPermissionPrompt />
                 {children}
