@@ -548,6 +548,45 @@ describe("MultiSessionWorkspace", () => {
         .activeBoardKey,
     ).toBe("later");
 
+    const capturedPreviousBoard = new KeyboardEvent("keydown", {
+      key: "ArrowLeft",
+      ctrlKey: true,
+      altKey: true,
+      bubbles: true,
+      cancelable: true,
+    });
+    act(() => {
+      window.dispatchEvent(capturedPreviousBoard);
+    });
+    expect(capturedPreviousBoard.defaultPrevented).toBe(true);
+    expect(screen.getByTestId("workspace-board-tab-earlier")).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+    expect(
+      JSON.parse(window.localStorage.getItem("workspace-board-state:workspace:ws-1") ?? "{}")
+        .activeBoardKey,
+    ).toBe("earlier");
+
+    const capturedSecondBoard = new KeyboardEvent("keydown", {
+      key: "2",
+      metaKey: true,
+      bubbles: true,
+      cancelable: true,
+    });
+    act(() => {
+      screen.getByTestId("terminal-input-dev-server").dispatchEvent(capturedSecondBoard);
+    });
+    expect(capturedSecondBoard.defaultPrevented).toBe(true);
+    expect(screen.getByTestId("workspace-board-tab-later")).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+    expect(
+      JSON.parse(window.localStorage.getItem("workspace-board-state:workspace:ws-1") ?? "{}")
+        .activeBoardKey,
+    ).toBe("later");
+
     const firstBoard = lastRegisteredEntry("multi-session:ws-1:board-1");
     const thirdBoard = lastRegisteredEntry("multi-session:ws-1:board-3");
     expect(firstBoard).toMatchObject({

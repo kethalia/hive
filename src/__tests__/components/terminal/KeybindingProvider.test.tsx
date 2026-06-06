@@ -88,6 +88,33 @@ describe("KeybindingProvider", () => {
     expect(stopImmediatePropagation).toHaveBeenCalledTimes(1);
   });
 
+  it("skips global shortcuts that were already handled by a capture fallback", async () => {
+    const probe = renderWithProbe();
+    const action = vi.fn(() => false);
+
+    act(() => {
+      probe.context?.register({
+        id: "workspace-index",
+        keys: ["ctrl+1", "cmd+1"],
+        action,
+        description: "Switch workspace",
+        category: "terminal",
+        enabledInBrowser: true,
+        global: true,
+      });
+    });
+
+    const event = makeKeyEvent({ key: "1", ctrlKey: true, bubbles: true, cancelable: true });
+    event.preventDefault();
+
+    act(() => {
+      window.dispatchEvent(event);
+    });
+
+    expect(action).not.toHaveBeenCalled();
+    expect(probe.context?.handleKeyEvent(event)).toBe(false);
+  });
+
   it("does not capture global shortcuts from ordinary text-entry fields", async () => {
     const action = vi.fn(() => false);
     const probe = renderWithProbe(<input aria-label="Search sessions" />);

@@ -37,6 +37,7 @@ import { SAFE_IDENTIFIER_RE } from "@/lib/constants";
 import type { GitCloneTerminalIdentity, PublicCloneTree } from "@/lib/git/clone-actions-contract";
 import type { CloneTreeNode, CloneTreeRepositoryNode } from "@/lib/git/clone-tree";
 import {
+  eventTargetElement,
   isTerminalHelperTextAreaTarget,
   isTextEntryEventTarget,
 } from "@/lib/keyboard-event-targets";
@@ -715,6 +716,7 @@ export function MultiSessionWorkspace({
     useState<BoardPersistenceNotice | null>(null);
   const terminalsRef = useRef<Map<string, TerminalEntry>>(new Map());
   const activeSessionNameRef = useRef<string | null>(null);
+  const workspaceRootRef = useRef<HTMLElement>(null);
   const workspaceBodyRef = useRef<HTMLDivElement>(null);
   const gitSearchInputRef = useRef<HTMLInputElement>(null);
   const canCreateSession = true;
@@ -1079,33 +1081,68 @@ export function MultiSessionWorkspace({
     setGitAddFailed(false);
   }, []);
 
-  const handleWorkspaceKeyDown = useCallback(
-    (event: ReactKeyboardEvent<HTMLElement>) => {
-      if (!(event.ctrlKey || event.metaKey)) return;
-      if (event.altKey || event.shiftKey) return;
+  const handleWorkspaceShortcutKeyDown = useCallback(
+    (
+      event: Pick<
+        KeyboardEvent,
+        | "altKey"
+        | "ctrlKey"
+        | "defaultPrevented"
+        | "key"
+        | "metaKey"
+        | "preventDefault"
+        | "shiftKey"
+        | "target"
+      >,
+    ) => {
+      if (event.defaultPrevented) return false;
+      if (!(event.ctrlKey || event.metaKey)) return false;
+      if (event.shiftKey) return false;
 
       const isTextEntryTarget = isTextEntryEventTarget(event.target);
       const isTerminalHelperTarget = isTerminalHelperTextAreaTarget(event.target);
-      if (/^[1-9]$/.test(event.key) && (!isTextEntryTarget || isTerminalHelperTarget)) {
+      if (
+        !event.altKey &&
+        /^[1-9]$/.test(event.key) &&
+        (!isTextEntryTarget || isTerminalHelperTarget)
+      ) {
         event.preventDefault();
         switchToWorkspaceBoardIndex(Number(event.key));
-        return;
+        return true;
       }
 
-      if (isTextEntryTarget) return;
+      if (isTextEntryTarget) return false;
 
       if (event.key === "ArrowLeft" || event.key === "ArrowUp") {
         event.preventDefault();
-        focusRelativeSession(-1);
-        return;
+        if (event.altKey) {
+          switchRelativeWorkspaceBoard(-1);
+        } else {
+          focusRelativeSession(-1);
+        }
+        return true;
       }
 
       if (event.key === "ArrowRight" || event.key === "ArrowDown") {
         event.preventDefault();
-        focusRelativeSession(1);
+        if (event.altKey) {
+          switchRelativeWorkspaceBoard(1);
+        } else {
+          focusRelativeSession(1);
+        }
+        return true;
       }
+
+      return false;
     },
-    [focusRelativeSession, switchToWorkspaceBoardIndex],
+    [focusRelativeSession, switchRelativeWorkspaceBoard, switchToWorkspaceBoardIndex],
+  );
+
+  const handleWorkspaceKeyDown = useCallback(
+    (event: ReactKeyboardEvent<HTMLElement>) => {
+      handleWorkspaceShortcutKeyDown(event.nativeEvent);
+    },
+    [handleWorkspaceShortcutKeyDown],
   );
 
   const handleResetLayout = useCallback(() => {
@@ -1114,6 +1151,29 @@ export function MultiSessionWorkspace({
       [...current].sort((left, right) => left.label.localeCompare(right.label)),
     );
   }, [persistLayoutJson]);
+
+  useEffect(() => {
+    const handleCapturedWorkspaceKeyDown = (event: KeyboardEvent) => {
+      const target = eventTargetElement(event.target);
+      if (
+        target &&
+        workspaceRootRef.current &&
+        !workspaceRootRef.current.contains(target) &&
+        !isTerminalHelperTextAreaTarget(event.target)
+      ) {
+        return;
+      }
+
+      if (!handleWorkspaceShortcutKeyDown(event)) return;
+      event.stopPropagation();
+      event.stopImmediatePropagation();
+    };
+
+    window.addEventListener("keydown", handleCapturedWorkspaceKeyDown, { capture: true });
+    return () => {
+      window.removeEventListener("keydown", handleCapturedWorkspaceKeyDown, { capture: true });
+    };
+  }, [handleWorkspaceShortcutKeyDown]);
 
   useEffect(() => {
     register({
@@ -2247,6 +2307,7 @@ export function MultiSessionWorkspace({
 
   return (
     <section
+      ref={workspaceRootRef}
       className={cn("flex h-full min-h-0 flex-col bg-background", className)}
       data-testid={isEmptyWorkspace ? "multi-session-empty" : "multi-session-workspace"}
       data-session-source={source}
