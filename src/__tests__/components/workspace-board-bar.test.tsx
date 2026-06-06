@@ -1,9 +1,9 @@
 // @vitest-environment jsdom
 
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import type * as React from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import "@testing-library/jest-dom/vitest";
-import type * as React from "react";
 import { WorkspaceBoardBar } from "@/components/workspaces/WorkspaceBoardBar";
 import type { WorkspaceBoard } from "@/lib/workspaces/workspace-board-state";
 
@@ -17,31 +17,6 @@ vi.mock("@/components/ui/button", () => ({
   ),
 }));
 
-vi.mock("@/components/ui/input", () => ({
-  Input: (props: React.InputHTMLAttributes<HTMLInputElement>) => <input {...props} />,
-}));
-
-vi.mock("@/components/ui/dialog", () => ({
-  Dialog: ({ children }: React.PropsWithChildren<{ open?: boolean }>) => <>{children}</>,
-  DialogContent: ({ children, ...props }: React.HTMLAttributes<HTMLDivElement>) => (
-    <div role="dialog" {...props}>
-      {children}
-    </div>
-  ),
-  DialogDescription: ({ children, ...props }: React.HTMLAttributes<HTMLParagraphElement>) => (
-    <p {...props}>{children}</p>
-  ),
-  DialogFooter: ({ children, ...props }: React.HTMLAttributes<HTMLDivElement>) => (
-    <div {...props}>{children}</div>
-  ),
-  DialogHeader: ({ children, ...props }: React.HTMLAttributes<HTMLDivElement>) => (
-    <div {...props}>{children}</div>
-  ),
-  DialogTitle: ({ children, ...props }: React.HTMLAttributes<HTMLHeadingElement>) => (
-    <h2 {...props}>{children}</h2>
-  ),
-}));
-
 function board(key: string, name: string, order: number): WorkspaceBoard {
   return { key, name, order, panes: [] };
 }
@@ -51,7 +26,7 @@ describe("WorkspaceBoardBar", () => {
     cleanup();
   });
 
-  it("renders ordered accessible board tabs and guards already-active selection", () => {
+  it("renders ordered square workspace tabs using numeric labels", () => {
     const onSelect = vi.fn();
 
     render(
@@ -63,8 +38,9 @@ describe("WorkspaceBoardBar", () => {
     );
 
     const tabs = screen.getAllByRole("tab");
-    expect(tabs.map((tab) => tab.textContent)).toEqual(["Main", "Planning"]);
+    expect(tabs.map((tab) => tab.textContent)).toEqual(["1", "2"]);
     expect(screen.getByTestId("workspace-board-tab-main")).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByTestId("workspace-board-tab-main")).toHaveAccessibleName("Open workspace 1");
     expect(screen.getByTestId("workspace-board-tab-planning")).toHaveAttribute(
       "aria-selected",
       "false",
@@ -77,7 +53,7 @@ describe("WorkspaceBoardBar", () => {
     expect(onSelect).toHaveBeenCalledWith("planning");
   });
 
-  it("supports keyboard selection across visible board tabs", () => {
+  it("supports keyboard selection across visible workspace tabs", () => {
     const onSelect = vi.fn();
 
     const boards = [board("main", "Main", 0), board("planning", "Planning", 1)];
@@ -93,7 +69,7 @@ describe("WorkspaceBoardBar", () => {
     expect(onSelect).toHaveBeenLastCalledWith("main");
   });
 
-  it("submits and cancels the create-board dialog without prompt APIs", () => {
+  it("creates a workspace immediately from the plus button", () => {
     const onCreate = vi.fn();
 
     render(
@@ -105,94 +81,15 @@ describe("WorkspaceBoardBar", () => {
     );
 
     fireEvent.click(screen.getByTestId("workspace-board-new"));
-    fireEvent.change(screen.getByTestId("workspace-board-create-input"), {
-      target: { value: " Planning " },
-    });
-    fireEvent.click(screen.getByRole("button", { name: "Create board" }));
-
-    expect(onCreate).toHaveBeenCalledWith("Planning");
-    expect(screen.queryByTestId("workspace-board-create-dialog")).not.toBeInTheDocument();
-
-    fireEvent.click(screen.getByTestId("workspace-board-new"));
-    fireEvent.change(screen.getByTestId("workspace-board-create-input"), {
-      target: { value: "Cancelled" },
-    });
-    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
 
     expect(onCreate).toHaveBeenCalledTimes(1);
-    expect(screen.queryByTestId("workspace-board-create-dialog")).not.toBeInTheDocument();
+    expect(screen.getByTestId("workspace-board-new")).toHaveAccessibleName("Create workspace");
   });
 
-  it("keeps create and rename dialogs open on blank names without firing callbacks", () => {
-    const onCreate = vi.fn();
-    const onRename = vi.fn();
-
-    render(
-      <WorkspaceBoardBar
-        boards={[board("main", "Main", 0)]}
-        activeBoardKey="main"
-        onCreate={onCreate}
-        onRename={onRename}
-      />,
-    );
-
-    fireEvent.click(screen.getByTestId("workspace-board-new"));
-    fireEvent.change(screen.getByTestId("workspace-board-create-input"), {
-      target: { value: "   " },
-    });
-    fireEvent.click(screen.getByRole("button", { name: "Create board" }));
-
-    expect(onCreate).not.toHaveBeenCalled();
-    expect(screen.getByTestId("workspace-board-create-dialog")).toBeInTheDocument();
-    expect(screen.getByText("Enter a board name.")).toBeInTheDocument();
-
-    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
-    fireEvent.click(screen.getByTestId("workspace-board-rename"));
-    fireEvent.change(screen.getByTestId("workspace-board-rename-input"), {
-      target: { value: "   " },
-    });
-    fireEvent.click(screen.getByRole("button", { name: "Save board name" }));
-
-    expect(onRename).not.toHaveBeenCalled();
-    expect(screen.getByTestId("workspace-board-rename-dialog")).toBeInTheDocument();
-    expect(screen.getByText("Enter a board name.")).toBeInTheDocument();
-  });
-
-  it("renames the active board by stable key and cancels without callback", () => {
-    const onRename = vi.fn();
-
-    render(
-      <WorkspaceBoardBar
-        boards={[board("main", "Main", 0), board("planning", "Planning", 1)]}
-        activeBoardKey="planning"
-        onRename={onRename}
-      />,
-    );
-
-    fireEvent.click(screen.getByTestId("workspace-board-rename"));
-    expect(screen.getByTestId("workspace-board-rename-input")).toHaveValue("Planning");
-    fireEvent.change(screen.getByTestId("workspace-board-rename-input"), {
-      target: { value: " Delivery " },
-    });
-    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
-
-    expect(onRename).not.toHaveBeenCalled();
-    expect(screen.queryByTestId("workspace-board-rename-dialog")).not.toBeInTheDocument();
-
-    fireEvent.click(screen.getByTestId("workspace-board-rename"));
-    fireEvent.change(screen.getByTestId("workspace-board-rename-input"), {
-      target: { value: " Delivery " },
-    });
-    fireEvent.click(screen.getByRole("button", { name: "Save board name" }));
-
-    expect(onRename).toHaveBeenCalledWith("planning", "Delivery");
-    expect(screen.queryByTestId("workspace-board-rename-dialog")).not.toBeInTheDocument();
-  });
-
-  it("deletes only when a non-final active board exists", () => {
+  it("turns the active workspace into a danger delete control on hover", () => {
     const onDelete = vi.fn();
 
-    const { rerender } = render(
+    render(
       <WorkspaceBoardBar
         boards={[board("main", "Main", 0), board("planning", "Planning", 1)]}
         activeBoardKey="main"
@@ -200,10 +97,23 @@ describe("WorkspaceBoardBar", () => {
       />,
     );
 
-    fireEvent.click(screen.getByTestId("workspace-board-delete"));
-    expect(onDelete).toHaveBeenCalledWith("main");
+    const activeTab = screen.getByTestId("workspace-board-tab-main");
+    expect(activeTab).toHaveTextContent("1");
+    expect(activeTab).toHaveAccessibleName("Open workspace 1");
 
-    rerender(
+    fireEvent.mouseEnter(activeTab);
+    expect(screen.getByTestId("workspace-board-delete")).toBeInTheDocument();
+    expect(activeTab).toHaveAccessibleName("Delete workspace 1");
+
+    fireEvent.click(activeTab);
+
+    expect(onDelete).toHaveBeenCalledWith("main");
+  });
+
+  it("does not expose delete when only one workspace exists", () => {
+    const onDelete = vi.fn();
+
+    render(
       <WorkspaceBoardBar
         boards={[board("main", "Main", 0)]}
         activeBoardKey="main"
@@ -211,16 +121,21 @@ describe("WorkspaceBoardBar", () => {
       />,
     );
 
-    expect(screen.getByTestId("workspace-board-delete")).toBeDisabled();
-    fireEvent.click(screen.getByTestId("workspace-board-delete"));
-    expect(onDelete).toHaveBeenCalledTimes(1);
+    const activeTab = screen.getByTestId("workspace-board-tab-main");
+    fireEvent.mouseEnter(activeTab);
+    fireEvent.click(activeTab);
+
+    expect(screen.queryByTestId("workspace-board-delete")).not.toBeInTheDocument();
+    expect(onDelete).not.toHaveBeenCalled();
   });
 
-  it("does not throw for an empty board list and keeps controls guarded", () => {
-    expect(() => render(<WorkspaceBoardBar boards={[]} />)).not.toThrow();
+  it("does not throw for an empty board list and keeps create available", () => {
+    const onCreate = vi.fn();
+
+    expect(() => render(<WorkspaceBoardBar boards={[]} onCreate={onCreate} />)).not.toThrow();
 
     expect(screen.queryAllByRole("tab")).toHaveLength(0);
-    expect(screen.getByTestId("workspace-board-rename")).toBeDisabled();
-    expect(screen.getByTestId("workspace-board-delete")).toBeDisabled();
+    fireEvent.click(screen.getByTestId("workspace-board-new"));
+    expect(onCreate).toHaveBeenCalledTimes(1);
   });
 });

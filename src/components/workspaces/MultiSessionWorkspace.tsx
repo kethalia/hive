@@ -36,8 +36,12 @@ import { createSessionAction, getWorkspaceSessionsAction } from "@/lib/actions/w
 import { SAFE_IDENTIFIER_RE } from "@/lib/constants";
 import type { GitCloneTerminalIdentity, PublicCloneTree } from "@/lib/git/clone-actions-contract";
 import type { CloneTreeNode, CloneTreeRepositoryNode } from "@/lib/git/clone-tree";
-import { isTextEntryEventTarget } from "@/lib/keyboard-event-targets";
+import {
+  isTerminalHelperTextAreaTarget,
+  isTextEntryEventTarget,
+} from "@/lib/keyboard-event-targets";
 import { formatShortcut } from "@/lib/keyboard-shortcuts";
+import { isPwaStandalone } from "@/lib/terminal/pwa";
 import { cn } from "@/lib/utils";
 import {
   type PersistedSessionPane,
@@ -52,7 +56,6 @@ import {
   createWorkspaceBoard,
   deleteWorkspaceBoard,
   removeWorkspaceBoardPane,
-  renameWorkspaceBoard,
   selectWorkspaceBoard,
   selectWorkspaceBoardPane,
 } from "@/lib/workspaces/workspace-board-crud";
@@ -157,6 +160,7 @@ type BoardPersistenceNotice = {
 };
 
 const CREATE_TERMINAL_SESSION_SHORTCUT_KEYS = ["ctrl+shift+n", "cmd+shift+n"] as const;
+const WORKSPACE_BOARD_INDEXES = [1, 2, 3, 4, 5, 6, 7, 8, 9] as const;
 
 function isObjectRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
@@ -408,6 +412,21 @@ function buildFallbackBoardPanes(
 
 function findActiveWorkspaceBoard(state: WorkspaceBoardState): WorkspaceBoard | undefined {
   return state.boards.find((board) => board.key === state.activeBoardKey) ?? state.boards[0];
+}
+
+function orderedWorkspaceBoards(boards: readonly WorkspaceBoard[]): WorkspaceBoard[] {
+  return boards
+    .map((board, index) => ({ board, index }))
+    .sort((left, right) => {
+      const leftOrder = finiteNumberOrFallback(left.board.order, left.index);
+      const rightOrder = finiteNumberOrFallback(right.board.order, right.index);
+      return leftOrder === rightOrder ? left.index - right.index : leftOrder - rightOrder;
+    })
+    .map(({ board }) => board);
+}
+
+function finiteNumberOrFallback(value: unknown, fallback: number): number {
+  return typeof value === "number" && Number.isFinite(value) ? value : fallback;
 }
 
 function gitPaneIdentity(cloneSessionKey: string, relativePath: string): string {
@@ -686,6 +705,7 @@ export function MultiSessionWorkspace({
   const [gitAddFailed, setGitAddFailed] = useState(false);
   const [gitRestoreFailed, setGitRestoreFailed] = useState(false);
   const [terminalCloseFailed, setTerminalCloseFailed] = useState(false);
+  const [workspaceShortcutNotice, setWorkspaceShortcutNotice] = useState<string | null>(null);
   const [_persistedLayoutJson, setPersistedLayoutJson] = useState<string | null>(null);
   const [layoutPersistenceNotice, setLayoutPersistenceNotice] =
     useState<LayoutPersistenceNotice | null>(null);
@@ -718,6 +738,12 @@ export function MultiSessionWorkspace({
   );
 
   activeSessionNameRef.current = activeSessionName;
+
+  useEffect(() => {
+    if (!workspaceShortcutNotice) return;
+    const timeout = window.setTimeout(() => setWorkspaceShortcutNotice(null), 2400);
+    return () => window.clearTimeout(timeout);
+  }, [workspaceShortcutNotice]);
 
   const layout = useMemo(
     () =>
@@ -934,16 +960,10 @@ export function MultiSessionWorkspace({
     [selectSession],
   );
 
-  const handleCreateBoard = useCallback(
-    (name: string) => persistBoardState(createWorkspaceBoard(boardState, name)),
-    [boardState, persistBoardState],
-  );
-
-  const handleRenameBoard = useCallback(
-    (boardKey: string, name: string) =>
-      persistBoardState(renameWorkspaceBoard(boardState, boardKey, name)),
-    [boardState, persistBoardState],
-  );
+  const handleCreateBoard = useCallback(() => {
+    const nextWorkspaceNumber = boardState.boards.length + 1;
+    persistBoardState(createWorkspaceBoard(boardState, `Workspace ${nextWorkspaceNumber}`));
+  }, [boardState, persistBoardState]);
 
   const handleDeleteBoard = useCallback(
     (boardKey: string) => persistBoardState(deleteWorkspaceBoard(boardState, boardKey)),
@@ -960,10 +980,9 @@ export function MultiSessionWorkspace({
       boards={boardState.boards}
       activeBoardKey={boardState.activeBoardKey}
       onCreate={handleCreateBoard}
-      onRename={handleRenameBoard}
       onDelete={handleDeleteBoard}
       onSelect={handleSelectBoard}
-      className="w-full min-w-0"
+      className="shrink-0"
     />
   );
 
@@ -1017,13 +1036,7 @@ export function MultiSessionWorkspace({
 
   const switchRelativeWorkspaceBoard = useCallback(
     (direction: -1 | 1) => {
-      const orderedBoards = boardState.boards
-        .map((board, index) => ({ board, index }))
-        .sort((left, right) => {
-          const orderDelta = left.board.order - right.board.order;
-          return orderDelta === 0 ? left.index - right.index : orderDelta;
-        })
-        .map(({ board }) => board);
+      const orderedBoards = orderedWorkspaceBoards(boardState.boards);
       if (orderedBoards.length <= 1) return;
 
       const activeBoardKey = boardState.activeBoardKey ?? activeBoard?.key;
@@ -1036,6 +1049,21 @@ export function MultiSessionWorkspace({
       if (!nextBoard || nextBoard.key === activeBoardKey) return;
 
       persistBoardState(selectWorkspaceBoard(boardState, nextBoard.key));
+    },
+    [activeBoard?.key, boardState, persistBoardState],
+  );
+
+  const switchToWorkspaceBoardIndex = useCallback(
+    (workspaceIndex: number) => {
+      const targetBoard = orderedWorkspaceBoards(boardState.boards)[workspaceIndex - 1];
+      if (!targetBoard) {
+        setWorkspaceShortcutNotice(`Workspace ${workspaceIndex} does not exist.`);
+        return;
+      }
+
+      setWorkspaceShortcutNotice(null);
+      if (targetBoard.key === (boardState.activeBoardKey ?? activeBoard?.key)) return;
+      persistBoardState(selectWorkspaceBoard(boardState, targetBoard.key));
     },
     [activeBoard?.key, boardState, persistBoardState],
   );
@@ -1056,7 +1084,17 @@ export function MultiSessionWorkspace({
     (event: ReactKeyboardEvent<HTMLElement>) => {
       if (!(event.ctrlKey || event.metaKey)) return;
       if (event.altKey || event.shiftKey) return;
-      if (isTextEntryEventTarget(event.target)) return;
+
+      const isTextEntryTarget = isTextEntryEventTarget(event.target);
+      const isTerminalHelperTarget = isTerminalHelperTextAreaTarget(event.target);
+      if (/^[1-9]$/.test(event.key) && (!isTextEntryTarget || isTerminalHelperTarget)) {
+        if (!isPwaStandalone()) return;
+        event.preventDefault();
+        switchToWorkspaceBoardIndex(Number(event.key));
+        return;
+      }
+
+      if (isTextEntryTarget) return;
 
       if (event.key === "ArrowLeft" || event.key === "ArrowUp") {
         event.preventDefault();
@@ -1069,7 +1107,7 @@ export function MultiSessionWorkspace({
         focusRelativeSession(1);
       }
     },
-    [focusRelativeSession],
+    [focusRelativeSession, switchToWorkspaceBoardIndex],
   );
 
   const handleResetLayout = useCallback(() => {
@@ -1126,6 +1164,20 @@ export function MultiSessionWorkspace({
       enabledInBrowser: true,
       global: true,
     });
+    for (const workspaceIndex of WORKSPACE_BOARD_INDEXES) {
+      register({
+        id: `multi-session:${workspaceId}:board-${workspaceIndex}`,
+        keys: [`cmd+${workspaceIndex}`, `ctrl+${workspaceIndex}`],
+        action: () => {
+          switchToWorkspaceBoardIndex(workspaceIndex);
+          return false;
+        },
+        description: `Switch to workspace ${workspaceIndex}`,
+        category: "terminal",
+        enabledInBrowser: false,
+        global: true,
+      });
+    }
     register({
       id: "command-palette",
       keys: ["ctrl+k", "cmd+k"],
@@ -1144,9 +1196,19 @@ export function MultiSessionWorkspace({
       unregister(`multi-session:${workspaceId}:next-pane`);
       unregister(`multi-session:${workspaceId}:previous-board`);
       unregister(`multi-session:${workspaceId}:next-board`);
+      for (const workspaceIndex of WORKSPACE_BOARD_INDEXES) {
+        unregister(`multi-session:${workspaceId}:board-${workspaceIndex}`);
+      }
       unregister("command-palette");
     };
-  }, [focusRelativeSession, register, switchRelativeWorkspaceBoard, unregister, workspaceId]);
+  }, [
+    focusRelativeSession,
+    register,
+    switchRelativeWorkspaceBoard,
+    switchToWorkspaceBoardIndex,
+    unregister,
+    workspaceId,
+  ]);
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: reloadKey is a manual retry trigger for session loading
   useEffect(() => {
@@ -2163,6 +2225,15 @@ export function MultiSessionWorkspace({
       }
       onKeyDown={handleWorkspaceKeyDown}
     >
+      {workspaceShortcutNotice ? (
+        <div
+          role="status"
+          className="pointer-events-none fixed right-3 top-3 z-50 rounded-md border border-border bg-background px-3 py-2 text-xs text-foreground shadow-lg"
+          data-testid="workspace-shortcut-toast"
+        >
+          {workspaceShortcutNotice}
+        </div>
+      ) : null}
       <header className="shrink-0 flex flex-wrap items-center gap-1 border-b border-border px-1 py-1">
         <SidebarTrigger className="h-7 min-h-0 shrink-0" />
         <div className="min-w-0 flex-1">
@@ -2174,12 +2245,12 @@ export function MultiSessionWorkspace({
         <span className="sr-only" data-testid="multi-session-pane-count">
           {visibleSessions.length}
         </span>
+        {renderBoardBar()}
         {renderGitFontControls()}
         {renderGitRepositoryButton()}
         {renderGitRepositorySearchModal()}
         {renderGitAddFailureStatus()}
         {renderGitRestoreFailureStatus()}
-        {renderBoardBar()}
         <CommandPalette
           open={paletteOpen}
           onOpenChange={setPaletteOpen}

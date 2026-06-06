@@ -306,7 +306,7 @@ describe("MultiSessionWorkspace", () => {
     await renderTwoSessionWorkspace();
 
     expect(screen.getByTestId("workspace-board-bar")).toBeInTheDocument();
-    expect(screen.getByTestId("workspace-board-tab-default")).toHaveTextContent("Default");
+    expect(screen.getByTestId("workspace-board-tab-default")).toHaveTextContent("1");
     expect(screen.getByTestId("workspace-board-tab-default")).toHaveAttribute(
       "aria-selected",
       "true",
@@ -543,6 +543,37 @@ describe("MultiSessionWorkspace", () => {
       JSON.parse(window.localStorage.getItem("workspace-board-state:workspace:ws-1") ?? "{}")
         .activeBoardKey,
     ).toBe("later");
+
+    const firstBoard = lastRegisteredEntry("multi-session:ws-1:board-1");
+    const thirdBoard = lastRegisteredEntry("multi-session:ws-1:board-3");
+    expect(firstBoard).toMatchObject({
+      id: "multi-session:ws-1:board-1",
+      keys: ["cmd+1", "ctrl+1"],
+      enabledInBrowser: false,
+      global: true,
+    });
+    act(() => {
+      expect(firstBoard.action(null, null)).toBe(false);
+    });
+    expect(screen.getByTestId("workspace-board-tab-earlier")).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+    expect(
+      JSON.parse(window.localStorage.getItem("workspace-board-state:workspace:ws-1") ?? "{}")
+        .activeBoardKey,
+    ).toBe("earlier");
+
+    act(() => {
+      expect(thirdBoard.action(null, null)).toBe(false);
+    });
+    expect(screen.getByTestId("workspace-shortcut-toast")).toHaveTextContent(
+      "Workspace 3 does not exist.",
+    );
+    expect(screen.getByTestId("workspace-board-tab-earlier")).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
     expect(mockKillSession).not.toHaveBeenCalled();
     expect(mockCloseGitCloneTerminal).not.toHaveBeenCalled();
     expect(mockResolveGitCloneTerminal).not.toHaveBeenCalled();
@@ -612,16 +643,12 @@ describe("MultiSessionWorkspace", () => {
     expect(screen.getByText("dev-server")).toBeInTheDocument();
   });
 
-  it("creates, selects, renames, deletes, and persists local boards without terminal side effects", async () => {
+  it("creates, selects, deletes, and persists numbered local workspaces without terminal side effects", async () => {
     await renderTwoSessionWorkspace();
 
     fireEvent.click(screen.getByTestId("workspace-board-new"));
-    fireEvent.change(screen.getByTestId("workspace-board-create-input"), {
-      target: { value: " Planning " },
-    });
-    fireEvent.click(screen.getByRole("button", { name: "Create board" }));
 
-    expect(screen.getByTestId("workspace-board-tab-planning")).toHaveAttribute(
+    expect(screen.getByTestId("workspace-board-tab-workspace-2")).toHaveAttribute(
       "aria-selected",
       "true",
     );
@@ -643,16 +670,10 @@ describe("MultiSessionWorkspace", () => {
     expect(screen.getByTestId("workspace-pane-dev-server")).toBeInTheDocument();
     expect(screen.getByTestId("multi-session-pane-count")).toHaveTextContent("2");
 
-    fireEvent.click(screen.getByTestId("workspace-board-rename"));
-    fireEvent.change(screen.getByTestId("workspace-board-rename-input"), {
-      target: { value: " Main Board " },
-    });
-    fireEvent.click(screen.getByRole("button", { name: "Save board name" }));
-    expect(screen.getByTestId("workspace-board-tab-default")).toHaveTextContent("Main Board");
-
-    fireEvent.click(screen.getByTestId("workspace-board-tab-planning"));
-    fireEvent.click(screen.getByTestId("workspace-board-delete"));
-    expect(screen.queryByTestId("workspace-board-tab-planning")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByTestId("workspace-board-tab-workspace-2"));
+    fireEvent.mouseEnter(screen.getByTestId("workspace-board-tab-workspace-2"));
+    fireEvent.click(screen.getByTestId("workspace-board-tab-workspace-2"));
+    expect(screen.queryByTestId("workspace-board-tab-workspace-2")).not.toBeInTheDocument();
     expect(screen.getByTestId("workspace-board-tab-default")).toHaveAttribute(
       "aria-selected",
       "true",
@@ -664,7 +685,7 @@ describe("MultiSessionWorkspace", () => {
     expect(storedState).toMatchObject({
       version: 1,
       activeBoardKey: "default",
-      boards: [{ key: "default", name: "Main Board", order: 0 }],
+      boards: [{ key: "default", name: "Default", order: 0 }],
     });
     expect(storedState.boards[0].panes).toEqual([
       expect.objectContaining({ kind: "terminal", sessionName: "main-session", order: 0 }),
@@ -738,10 +759,6 @@ describe("MultiSessionWorkspace", () => {
     await screen.findByTestId("workspace-pane-main-session");
 
     fireEvent.click(screen.getByTestId("workspace-board-new"));
-    fireEvent.change(screen.getByTestId("workspace-board-create-input"), {
-      target: { value: "Review" },
-    });
-    fireEvent.click(screen.getByRole("button", { name: "Create board" }));
 
     expect(screen.getByTestId("active-board-empty")).toBeInTheDocument();
     fireEvent.click(screen.getByTestId("open-git-session-search"));
@@ -753,7 +770,7 @@ describe("MultiSessionWorkspace", () => {
       screen.queryByTestId("palette-action-workspace:focus-session:dev-server"),
     ).not.toBeInTheDocument();
     expect(screen.getByTestId("palette-action-workspace:add-session:dev-server")).toHaveTextContent(
-      "Add this terminal to Review",
+      "Add this terminal to Workspace 2",
     );
 
     fireEvent.click(screen.getByTestId("palette-action-workspace:add-session:dev-server"));
@@ -772,7 +789,7 @@ describe("MultiSessionWorkspace", () => {
       expect.objectContaining({ kind: "terminal", sessionName: "dev-server" }),
     ]);
     expect(
-      storedState.boards.find((board: { key: string }) => board.key === "review").panes,
+      storedState.boards.find((board: { key: string }) => board.key === "workspace-2").panes,
     ).toEqual([expect.objectContaining({ kind: "terminal", sessionName: "dev-server" })]);
     expect(mockCreateSession).not.toHaveBeenCalled();
     expect(mockKillSession).not.toHaveBeenCalled();
@@ -932,7 +949,7 @@ describe("MultiSessionWorkspace", () => {
 
     await renderTwoSessionWorkspace();
 
-    expect(screen.getByTestId("workspace-board-tab-default")).toHaveTextContent("Default");
+    expect(screen.getByTestId("workspace-board-tab-default")).toHaveTextContent("1");
     expect(screen.getByTestId("board-persistence-status")).toHaveTextContent(
       "Stored board state was unreadable. Safe default board is active.",
     );
@@ -952,19 +969,18 @@ describe("MultiSessionWorkspace", () => {
 
     expect(await screen.findByTestId("multi-session-empty")).toBeInTheDocument();
     fireEvent.click(screen.getByTestId("workspace-board-new"));
-    fireEvent.change(screen.getByTestId("workspace-board-create-input"), {
-      target: { value: "Ops" },
-    });
-    fireEvent.click(screen.getByRole("button", { name: "Create board" }));
 
-    expect(screen.getByTestId("workspace-board-tab-ops")).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByTestId("workspace-board-tab-workspace-2")).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
     expect(
       JSON.parse(window.localStorage.getItem("workspace-board-state:workspace:ws-1") ?? "{}"),
     ).toMatchObject({
-      activeBoardKey: "ops",
+      activeBoardKey: "workspace-2",
       boards: [
         { key: "default", name: "Default", order: 0, panes: [] },
-        { key: "ops", name: "Ops", order: 1, panes: [] },
+        { key: "workspace-2", name: "Workspace 2", order: 1, panes: [] },
       ],
     });
     expect(mockCreateSession).not.toHaveBeenCalled();
@@ -979,12 +995,8 @@ describe("MultiSessionWorkspace", () => {
 
     await renderTwoSessionWorkspace();
     fireEvent.click(screen.getByTestId("workspace-board-new"));
-    fireEvent.change(screen.getByTestId("workspace-board-create-input"), {
-      target: { value: "Planning" },
-    });
-    fireEvent.click(screen.getByRole("button", { name: "Create board" }));
 
-    expect(screen.getByTestId("workspace-board-tab-planning")).toHaveAttribute(
+    expect(screen.getByTestId("workspace-board-tab-workspace-2")).toHaveAttribute(
       "aria-selected",
       "true",
     );
@@ -1000,7 +1012,7 @@ describe("MultiSessionWorkspace", () => {
     );
     expect(setItem).toHaveBeenCalledWith(
       "workspace-board-state:workspace:ws-1",
-      expect.stringContaining('"activeBoardKey":"planning"'),
+      expect.stringContaining('"activeBoardKey":"workspace-2"'),
     );
   });
 
@@ -1293,10 +1305,6 @@ describe("MultiSessionWorkspace", () => {
     expect(mockResolveGitCloneTerminal).toHaveBeenCalledTimes(1);
 
     fireEvent.click(screen.getByTestId("workspace-board-new"));
-    fireEvent.change(screen.getByTestId("workspace-board-create-input"), {
-      target: { value: "Review" },
-    });
-    fireEvent.click(screen.getByRole("button", { name: "Create board" }));
     expect(screen.getByTestId("active-board-empty")).toBeInTheDocument();
 
     fireEvent.click(screen.getByTestId("open-git-session-search"));
@@ -1323,7 +1331,7 @@ describe("MultiSessionWorkspace", () => {
       }),
     ]);
     expect(
-      storedState.boards.find((board: { key: string }) => board.key === "review").panes,
+      storedState.boards.find((board: { key: string }) => board.key === "workspace-2").panes,
     ).toEqual([
       expect.objectContaining({
         cloneSessionKey: "git-clone:kethalia/hive",

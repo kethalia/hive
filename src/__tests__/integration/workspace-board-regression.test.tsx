@@ -416,6 +416,23 @@ function dispatchFromTerminalInput(target: HTMLElement, event: KeyboardEvent) {
   return { stopImmediatePropagation, stopPropagation };
 }
 
+function mockStandaloneDisplayMode(matches: boolean) {
+  Object.defineProperty(window, "matchMedia", {
+    configurable: true,
+    writable: true,
+    value: vi.fn((query: string) => ({
+      matches: query === "(display-mode: standalone)" ? matches : false,
+      media: query,
+      onchange: null,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      dispatchEvent: vi.fn(),
+    })),
+  });
+}
+
 describe("workspace board shortcut integration", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -444,6 +461,7 @@ describe("workspace board shortcut integration", () => {
 
   it("captures real provider board shortcuts from terminal focus while nearby input passes through", async () => {
     seedTwoBoardState();
+    mockStandaloneDisplayMode(true);
 
     render(
       <KeybindingProvider>
@@ -513,6 +531,56 @@ describe("workspace board shortcut integration", () => {
       "data-layout-signal",
       "main:terminal:main-session:1:1:1 / 1 / span 1 / span 1",
     );
+    expect(readStoredActiveBoardKey()).toBe("main");
+
+    await act(async () => {});
+    const directSecond = makeKeyEvent({
+      key: "2",
+      ctrlKey: true,
+      bubbles: true,
+      cancelable: true,
+    });
+    const directSecondSpies = dispatchFromTerminalInput(
+      await screen.findByTestId("terminal-input-main-session"),
+      directSecond,
+    );
+
+    expect(directSecond.defaultPrevented).toBe(true);
+    expect(directSecondSpies.stopPropagation).toHaveBeenCalledTimes(1);
+    expect(directSecondSpies.stopImmediatePropagation).toHaveBeenCalledTimes(1);
+    expect(screen.getByTestId("workspace-board-tab-review")).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+    expect(readStoredActiveBoardKey()).toBe("review");
+
+    const directMissing = makeKeyEvent({
+      key: "3",
+      metaKey: true,
+      bubbles: true,
+      cancelable: true,
+    });
+    const directMissingSpies = dispatchFromTerminalInput(
+      await screen.findByTestId("terminal-input-dev-server"),
+      directMissing,
+    );
+
+    expect(directMissing.defaultPrevented).toBe(true);
+    expect(directMissingSpies.stopPropagation).toHaveBeenCalledTimes(1);
+    expect(directMissingSpies.stopImmediatePropagation).toHaveBeenCalledTimes(1);
+    expect(screen.getByTestId("workspace-shortcut-toast")).toHaveTextContent(
+      "Workspace 3 does not exist.",
+    );
+    expect(readStoredActiveBoardKey()).toBe("review");
+
+    const directFirst = makeKeyEvent({
+      key: "1",
+      metaKey: true,
+      bubbles: true,
+      cancelable: true,
+    });
+    dispatchFromTerminalInput(await screen.findByTestId("terminal-input-dev-server"), directFirst);
+    expect(screen.getByTestId("workspace-board-tab-main")).toHaveAttribute("aria-selected", "true");
     expect(readStoredActiveBoardKey()).toBe("main");
 
     const activeInput = await screen.findByTestId("terminal-input-main-session");
@@ -669,7 +737,8 @@ describe("workspace board shortcut integration", () => {
     expect(mockKillSession).not.toHaveBeenCalled();
     expect(mockCloseGitCloneTerminal).not.toHaveBeenCalled();
 
-    fireEvent.click(screen.getByTestId("workspace-board-delete"));
+    fireEvent.mouseEnter(screen.getByTestId("workspace-board-tab-review"));
+    fireEvent.click(screen.getByTestId("workspace-board-tab-review"));
 
     expect(screen.queryByTestId("workspace-board-tab-review")).not.toBeInTheDocument();
     expect(screen.getByTestId("workspace-board-tab-main")).toHaveAttribute("aria-selected", "true");
