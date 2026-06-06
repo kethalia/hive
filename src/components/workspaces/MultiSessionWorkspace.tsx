@@ -41,7 +41,6 @@ import {
   isTextEntryEventTarget,
 } from "@/lib/keyboard-event-targets";
 import { formatShortcut } from "@/lib/keyboard-shortcuts";
-import { isPwaStandalone } from "@/lib/terminal/pwa";
 import { cn } from "@/lib/utils";
 import {
   type PersistedSessionPane,
@@ -1088,7 +1087,6 @@ export function MultiSessionWorkspace({
       const isTextEntryTarget = isTextEntryEventTarget(event.target);
       const isTerminalHelperTarget = isTerminalHelperTextAreaTarget(event.target);
       if (/^[1-9]$/.test(event.key) && (!isTextEntryTarget || isTerminalHelperTarget)) {
-        if (!isPwaStandalone()) return;
         event.preventDefault();
         switchToWorkspaceBoardIndex(Number(event.key));
         return;
@@ -1174,7 +1172,7 @@ export function MultiSessionWorkspace({
         },
         description: `Switch to workspace ${workspaceIndex}`,
         category: "terminal",
-        enabledInBrowser: false,
+        enabledInBrowser: true,
         global: true,
       });
     }

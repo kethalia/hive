@@ -553,7 +553,7 @@ describe("MultiSessionWorkspace", () => {
     expect(firstBoard).toMatchObject({
       id: "multi-session:ws-1:board-1",
       keys: ["cmd+1", "ctrl+1"],
-      enabledInBrowser: false,
+      enabledInBrowser: true,
       global: true,
     });
     act(() => {

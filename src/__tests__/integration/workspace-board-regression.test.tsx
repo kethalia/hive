@@ -461,7 +461,7 @@ describe("workspace board shortcut integration", () => {
 
   it("captures real provider board shortcuts from terminal focus while nearby input passes through", async () => {
     seedTwoBoardState();
-    mockStandaloneDisplayMode(true);
+    mockStandaloneDisplayMode(false);
 
     render(
       <KeybindingProvider>
