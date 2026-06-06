@@ -2039,6 +2039,98 @@ export function MultiSessionWorkspace({
     );
   };
 
+  const renderWorkspaceHeader = () => (
+    <>
+      <header className="grid shrink-0 grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-1 border-b border-border px-1 py-1">
+        <div className="flex min-w-0 items-center gap-1" data-testid="workspace-header-left">
+          <SidebarTrigger className="h-7 min-h-0 shrink-0" />
+          <div className="min-w-0 flex-1">
+            <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Active pane</p>
+            <p className="truncate font-mono text-xs" data-testid="active-pane-label">
+              {activeLabel ?? "No active pane"}
+            </p>
+          </div>
+        </div>
+        <div
+          className="flex min-w-0 items-center justify-center"
+          data-testid="workspace-header-board-controls"
+        >
+          {renderBoardBar()}
+        </div>
+        <div
+          className="flex min-w-0 items-center justify-end gap-1"
+          data-testid="workspace-header-right"
+        >
+          <span className="sr-only" data-testid="multi-session-pane-count">
+            {visibleSessions.length}
+          </span>
+          {renderGitFontControls()}
+          {renderGitRepositoryButton()}
+          <Button
+            type="button"
+            variant="outline"
+            size="xs"
+            onClick={handleResetLayout}
+            className="h-7 min-h-0 px-2 text-xs"
+            aria-label="Reset layout"
+            data-testid="reset-layout"
+          >
+            Reset
+          </Button>
+          {canCreateSession && !isUnifiedSource ? (
+            <Button
+              type="button"
+              size="xs"
+              onClick={() => void handleCreateSession()}
+              disabled={creating}
+              className="h-7 min-h-0 px-2 text-xs"
+              data-testid={
+                sessions.length === 0 ? "create-empty-session-button" : "create-session-button"
+              }
+            >
+              <Plus className="size-3" />
+              {creating ? "Creating…" : "New"}
+            </Button>
+          ) : null}
+        </div>
+      </header>
+      {renderGitRepositorySearchModal()}
+      {renderGitAddFailureStatus()}
+      {renderGitRestoreFailureStatus()}
+      <CommandPalette
+        open={paletteOpen}
+        onOpenChange={setPaletteOpen}
+        tabs={isUnifiedSource ? [] : commandPaletteTabs}
+        onSelectTab={handlePaletteSelect}
+        onCreateSession={isUnifiedSource ? undefined : () => void handleCreateSession()}
+        actions={workspacePaletteActions}
+        searchValue={isUnifiedSource ? gitSearchQuery : undefined}
+        onSearchValueChange={isUnifiedSource ? setGitSearchQuery : undefined}
+        searchPlaceholder={
+          isUnifiedSource
+            ? "Search terminal sessions, Git repositories, or type a new session name…"
+            : "Search workspace sessions…"
+        }
+        emptyText={isUnifiedSource ? "No command matches." : "No workspace sessions found."}
+        groupHeading="Workspace sessions"
+      />
+    </>
+  );
+
+  const renderEmptyWorkspaceBody = () => (
+    <div
+      className="flex h-full min-h-0 flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-border bg-muted/20 px-6 text-center"
+      data-testid="active-board-empty"
+    >
+      <p className="text-sm font-medium text-foreground">This workspace has no panes yet.</p>
+      <p className="max-w-md text-xs text-muted-foreground">
+        {source === "unified"
+          ? "Use Add session to place a terminal or Git repository in this workspace."
+          : "Create a tmux-backed terminal session to start using this workspace."}
+      </p>
+    </div>
+  );
+
   const renderPane = (pane: SessionPane) => {
     const visibleSession = visibleSessions.find(
       (candidate) => candidate.sessionName === pane.sessionName,
@@ -2153,72 +2245,12 @@ export function MultiSessionWorkspace({
     );
   }
 
-  if (sessions.length === 0) {
-    return (
-      <div
-        className={cn(
-          "flex h-full flex-col items-center justify-center gap-4 bg-background px-6 text-center",
-          className,
-        )}
-        data-testid="multi-session-empty"
-      >
-        <p className="text-sm font-medium text-foreground">No workspace sessions open</p>
-        <p className="max-w-md text-xs text-muted-foreground">
-          {source === "unified"
-            ? "Create a plain terminal session or search Git repositories and add only the panes you need."
-            : "Create a tmux-backed terminal session for this workspace."}
-        </p>
-        <div className="w-full max-w-2xl">{renderBoardBar()}</div>
-        {renderBoardPersistenceStatus()}
-        {renderGitRepositoryButton()}
-        {renderGitRepositorySearchModal()}
-        {renderGitAddFailureStatus()}
-        {renderGitRestoreFailureStatus()}
-        {createFailed ? (
-          <Alert variant="destructive" data-testid="session-create-error" className="max-w-md">
-            <AlertCircle />
-            <AlertTitle>Could not create a terminal session.</AlertTitle>
-            <AlertDescription>
-              Retry creation; no clipboard or terminal contents were logged.
-            </AlertDescription>
-          </Alert>
-        ) : null}
-        {canCreateSession && !isUnifiedSource ? (
-          <Button
-            type="button"
-            onClick={() => void handleCreateSession()}
-            disabled={creating}
-            data-testid="create-empty-session-button"
-          >
-            <Plus className="size-4" />
-            {creating ? "Creating…" : "Create session"}
-          </Button>
-        ) : null}
-        <CommandPalette
-          open={paletteOpen}
-          onOpenChange={setPaletteOpen}
-          tabs={isUnifiedSource ? [] : commandPaletteTabs}
-          onSelectTab={handlePaletteSelect}
-          onCreateSession={isUnifiedSource ? undefined : () => void handleCreateSession()}
-          actions={workspacePaletteActions}
-          searchValue={isUnifiedSource ? gitSearchQuery : undefined}
-          onSearchValueChange={isUnifiedSource ? setGitSearchQuery : undefined}
-          searchPlaceholder={
-            isUnifiedSource
-              ? "Search terminal sessions, Git repositories, or type a new session name…"
-              : "Search workspace sessions…"
-          }
-          emptyText={isUnifiedSource ? "No command matches." : "No workspace sessions found."}
-          groupHeading="Workspace sessions"
-        />
-      </div>
-    );
-  }
+  const isEmptyWorkspace = sessions.length === 0;
 
   return (
     <section
       className={cn("flex h-full min-h-0 flex-col bg-background", className)}
-      data-testid="multi-session-workspace"
+      data-testid={isEmptyWorkspace ? "multi-session-empty" : "multi-session-workspace"}
       data-session-source={source}
       aria-label={
         source === "unified" ? "Workspace terminal sessions" : "Multi-session terminal workspace"
@@ -2234,65 +2266,7 @@ export function MultiSessionWorkspace({
           {workspaceShortcutNotice}
         </div>
       ) : null}
-      <header className="shrink-0 flex flex-wrap items-center gap-1 border-b border-border px-1 py-1">
-        <SidebarTrigger className="h-7 min-h-0 shrink-0" />
-        <div className="min-w-0 flex-1">
-          <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Active pane</p>
-          <p className="truncate font-mono text-xs" data-testid="active-pane-label">
-            {activeLabel ?? "No active pane"}
-          </p>
-        </div>
-        <span className="sr-only" data-testid="multi-session-pane-count">
-          {visibleSessions.length}
-        </span>
-        {renderBoardBar()}
-        {renderGitFontControls()}
-        {renderGitRepositoryButton()}
-        {renderGitRepositorySearchModal()}
-        {renderGitAddFailureStatus()}
-        {renderGitRestoreFailureStatus()}
-        <CommandPalette
-          open={paletteOpen}
-          onOpenChange={setPaletteOpen}
-          tabs={isUnifiedSource ? [] : commandPaletteTabs}
-          onSelectTab={handlePaletteSelect}
-          onCreateSession={isUnifiedSource ? undefined : () => void handleCreateSession()}
-          actions={workspacePaletteActions}
-          searchValue={isUnifiedSource ? gitSearchQuery : undefined}
-          onSearchValueChange={isUnifiedSource ? setGitSearchQuery : undefined}
-          searchPlaceholder={
-            isUnifiedSource
-              ? "Search terminal sessions, Git repositories, or type a new session name…"
-              : "Search workspace sessions…"
-          }
-          emptyText={isUnifiedSource ? "No command matches." : "No workspace sessions found."}
-          groupHeading="Workspace sessions"
-        />
-        <Button
-          type="button"
-          variant="outline"
-          size="xs"
-          onClick={handleResetLayout}
-          className="h-7 min-h-0 px-2 text-xs"
-          aria-label="Reset layout"
-          data-testid="reset-layout"
-        >
-          Reset
-        </Button>
-        {canCreateSession && !isUnifiedSource ? (
-          <Button
-            type="button"
-            size="xs"
-            onClick={() => void handleCreateSession()}
-            disabled={creating}
-            className="h-7 min-h-0 px-2 text-xs"
-            data-testid="create-session-button"
-          >
-            <Plus className="size-3" />
-            {creating ? "Creating…" : "New"}
-          </Button>
-        ) : null}
-      </header>
+      {renderWorkspaceHeader()}
 
       {createFailed ? (
         <Alert variant="destructive" data-testid="session-create-error" className="m-3 mb-0">
@@ -2337,16 +2311,7 @@ export function MultiSessionWorkspace({
         data-testid="multi-session-body"
       >
         {visibleSessions.length === 0 ? (
-          <div
-            className="flex h-full min-h-0 flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-border bg-muted/20 px-6 text-center"
-            data-testid="active-board-empty"
-          >
-            <p className="text-sm font-medium text-foreground">This board has no panes yet.</p>
-            <p className="max-w-md text-xs text-muted-foreground">
-              Use Add session to place an existing terminal or Git repository on this board. Backing
-              sessions remain available to other boards.
-            </p>
-          </div>
+          renderEmptyWorkspaceBody()
         ) : (
           <div
             className="grid h-full min-h-0 gap-1"

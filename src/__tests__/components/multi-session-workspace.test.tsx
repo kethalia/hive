@@ -311,6 +311,10 @@ describe("MultiSessionWorkspace", () => {
       "aria-selected",
       "true",
     );
+    expect(screen.getByTestId("workspace-header-board-controls")).toContainElement(
+      screen.getByTestId("workspace-board-bar"),
+    );
+    expect(screen.getByTestId("workspace-header-board-controls")).toHaveClass("justify-center");
     expect(screen.queryByTestId("board-persistence-status")).not.toBeInTheDocument();
     expect(screen.getByTestId("multi-session-pane-count")).toHaveTextContent("2");
     expect(screen.getByTestId("workspace-sidebar-trigger")).toHaveClass("h-7", "shrink-0");
@@ -653,7 +657,7 @@ describe("MultiSessionWorkspace", () => {
       "true",
     );
     expect(screen.getByTestId("active-board-empty")).toHaveTextContent(
-      "This board has no panes yet.",
+      "This workspace has no panes yet.",
     );
     expect(screen.getByTestId("multi-session-pane-count")).toHaveTextContent("0");
     expect(screen.getByTestId("active-pane-label")).toHaveTextContent("No active pane");
