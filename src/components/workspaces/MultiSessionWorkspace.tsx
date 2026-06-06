@@ -165,6 +165,40 @@ type BoardPersistenceNotice = {
 
 const CREATE_TERMINAL_SESSION_SHORTCUT_KEYS = ["ctrl+shift+n", "cmd+shift+n"] as const;
 const WORKSPACE_BOARD_INDEXES = [1, 2, 3, 4, 5, 6, 7, 8, 9] as const;
+type WorkspaceBoardIndex = (typeof WORKSPACE_BOARD_INDEXES)[number];
+
+type WorkspaceShortcutEvent = Pick<
+  KeyboardEvent,
+  | "altKey"
+  | "code"
+  | "ctrlKey"
+  | "defaultPrevented"
+  | "key"
+  | "metaKey"
+  | "preventDefault"
+  | "shiftKey"
+  | "target"
+>;
+
+function workspaceIndexFromShortcutEvent(
+  event: WorkspaceShortcutEvent,
+): WorkspaceBoardIndex | null {
+  const codeMatch = /^(?:Digit|Numpad)([1-9])$/.exec(event.code);
+  const rawIndex = codeMatch?.[1] ?? (/^[1-9]$/.test(event.key) ? event.key : null);
+  if (!rawIndex) return null;
+  return Number(rawIndex) as WorkspaceBoardIndex;
+}
+
+function workspaceArrowDirectionFromShortcutEvent(event: WorkspaceShortcutEvent): -1 | 1 | null {
+  const key = event.key.toLowerCase();
+  if (key === "arrowleft" || key === "left" || key === "arrowup" || key === "up") return -1;
+  if (key === "arrowright" || key === "right" || key === "arrowdown" || key === "down") {
+    return 1;
+  }
+  if (event.code === "ArrowLeft" || event.code === "ArrowUp") return -1;
+  if (event.code === "ArrowRight" || event.code === "ArrowDown") return 1;
+  return null;
+}
 
 function isObjectRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
@@ -1086,53 +1120,29 @@ export function MultiSessionWorkspace({
   }, []);
 
   const handleWorkspaceShortcutKeyDown = useCallback(
-    (
-      event: Pick<
-        KeyboardEvent,
-        | "altKey"
-        | "ctrlKey"
-        | "defaultPrevented"
-        | "key"
-        | "metaKey"
-        | "preventDefault"
-        | "shiftKey"
-        | "target"
-      >,
-    ) => {
+    (event: WorkspaceShortcutEvent) => {
       if (event.defaultPrevented) return false;
       if (!(event.ctrlKey || event.metaKey)) return false;
       if (event.shiftKey) return false;
 
       const isTextEntryTarget = isTextEntryEventTarget(event.target);
       const isTerminalHelperTarget = isTerminalHelperTextAreaTarget(event.target);
-      if (
-        !event.altKey &&
-        /^[1-9]$/.test(event.key) &&
-        (!isTextEntryTarget || isTerminalHelperTarget)
-      ) {
+      const workspaceIndex = workspaceIndexFromShortcutEvent(event);
+      if (!event.altKey && workspaceIndex && (!isTextEntryTarget || isTerminalHelperTarget)) {
         event.preventDefault();
-        switchToWorkspaceBoardIndex(Number(event.key));
+        switchToWorkspaceBoardIndex(workspaceIndex);
         return true;
       }
 
       if (isTextEntryTarget && !isTerminalHelperTarget) return false;
 
-      if (event.key === "ArrowLeft" || event.key === "ArrowUp") {
+      const arrowDirection = workspaceArrowDirectionFromShortcutEvent(event);
+      if (arrowDirection) {
         event.preventDefault();
         if (event.altKey) {
-          switchRelativeWorkspaceBoard(-1);
+          switchRelativeWorkspaceBoard(arrowDirection);
         } else {
-          focusRelativeSession(-1);
-        }
-        return true;
-      }
-
-      if (event.key === "ArrowRight" || event.key === "ArrowDown") {
-        event.preventDefault();
-        if (event.altKey) {
-          switchRelativeWorkspaceBoard(1);
-        } else {
-          focusRelativeSession(1);
+          focusRelativeSession(arrowDirection);
         }
         return true;
       }

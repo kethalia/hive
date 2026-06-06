@@ -51,6 +51,20 @@ describe("normalizeKeyCombo", () => {
     ).toBe("ctrl+alt+arrowright");
   });
 
+  it("normalizes legacy and physical browser keys for workspace shortcuts", () => {
+    expect(
+      normalizeKeyCombo(
+        makeKeyEvent({ key: "Left", code: "ArrowLeft", metaKey: true, altKey: true }),
+      ),
+    ).toBe("cmd+alt+arrowleft");
+    expect(normalizeKeyCombo(makeKeyEvent({ key: "!", code: "Digit1", metaKey: true }))).toBe(
+      "cmd+1",
+    );
+    expect(normalizeKeyCombo(makeKeyEvent({ key: "End", code: "Numpad1", ctrlKey: true }))).toBe(
+      "ctrl+1",
+    );
+  });
+
   it("normalizes all four modifiers in fixed order", () => {
     const e = makeKeyEvent({
       key: "x",

@@ -25,6 +25,21 @@ export interface KeybindingContextValue {
 
 const MODIFIER_ORDER = ["ctrl", "cmd", "alt", "shift"] as const;
 
+function normalizeShortcutKey(e: KeyboardEvent): string {
+  const key = e.key.toLowerCase();
+  if (["control", "meta", "alt", "shift"].includes(key)) return "";
+
+  if (key === "left" || e.code === "ArrowLeft") return "arrowleft";
+  if (key === "right" || e.code === "ArrowRight") return "arrowright";
+  if (key === "up" || e.code === "ArrowUp") return "arrowup";
+  if (key === "down" || e.code === "ArrowDown") return "arrowdown";
+
+  const digitMatch = /^(?:Digit|Numpad)([0-9])$/.exec(e.code);
+  if (digitMatch) return digitMatch[1];
+
+  return key;
+}
+
 export function normalizeKeyCombo(e: KeyboardEvent): string {
   const parts: string[] = [];
   if (e.ctrlKey) parts.push("ctrl");
@@ -36,8 +51,8 @@ export function normalizeKeyCombo(e: KeyboardEvent): string {
       MODIFIER_ORDER.indexOf(a as (typeof MODIFIER_ORDER)[number]) -
       MODIFIER_ORDER.indexOf(b as (typeof MODIFIER_ORDER)[number]),
   );
-  const key = e.key.toLowerCase();
-  if (!["control", "meta", "alt", "shift"].includes(key)) {
+  const key = normalizeShortcutKey(e);
+  if (key) {
     parts.push(key);
   }
   return parts.join("+");
