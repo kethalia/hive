@@ -1,3 +1,4 @@
+import { isSafeCloneRelativePath } from "@/lib/git/clone-public-identifiers";
 import {
   WORKSPACE_BOARD_STATE_VERSION,
   type WorkspaceBoard,
@@ -418,11 +419,11 @@ function normalizeRelativePath(value: unknown): string | undefined {
   const relativePath = normalizeText(value);
   if (
     !relativePath ||
-    relativePath.startsWith("/") ||
     relativePath === "~" ||
     relativePath.startsWith("~/") ||
     relativePath.startsWith("~\\") ||
-    /^[A-Za-z]:[\\/]/.test(relativePath)
+    /^[A-Za-z]:[\\/]/.test(relativePath) ||
+    !isSafeCloneRelativePath(relativePath)
   ) {
     return undefined;
   }

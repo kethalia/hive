@@ -39,12 +39,12 @@ describe("workspace board state model", () => {
     expect(migrated.state?.boards[0]).toMatchObject({
       key: "default",
       name: "Default",
-      activePaneKey: "git:git-clone:Git/projects/kethalia/hive",
+      activePaneKey: "git:git-clone:Git/projects/kethalia/hive:kethalia/hive",
     });
     expect(migrated.state?.boards[0].panes).toEqual([
       {
         kind: "git",
-        key: "git:git-clone:Git/projects/kethalia/hive",
+        key: "git:git-clone:Git/projects/kethalia/hive:kethalia/hive",
         sessionName: "git-hive",
         label: "Hive Repo",
         cloneSessionKey: "git-clone:Git/projects/kethalia/hive",
@@ -128,7 +128,7 @@ describe("workspace board state model", () => {
     expect(state.boards).toHaveLength(1);
     expect(state.boards[0]).toMatchObject({ key: "default", name: "Default" });
     expect(state.boards[0].panes.map((pane) => [pane.kind, pane.key, pane.order])).toEqual([
-      ["git", "git:git-clone:Git/projects/kethalia/hive", 0],
+      ["git", "git:git-clone:Git/projects/kethalia/hive:kethalia/hive", 0],
       ["terminal", "terminal:shell", 1],
     ]);
     expect(state.diagnostics.map((diagnostic) => diagnostic.code)).toEqual([
@@ -275,6 +275,43 @@ describe("workspace board state model", () => {
     expect(parsed.state?.boards[0].panes.map((pane) => [pane.key, pane.kind, pane.order])).toEqual([
       ["git:hive", "git", 0],
       ["terminal:worker", "terminal", 1],
+    ]);
+  });
+
+  it("keeps Git panes with the same clone key and different relative paths when pane keys are missing", () => {
+    const parsed = parsePersistedWorkspaceBoardState(
+      JSON.stringify({
+        version: WORKSPACE_BOARD_STATE_VERSION,
+        activeBoardKey: "repo-work",
+        boards: [
+          {
+            key: "repo-work",
+            name: "Repo Work",
+            order: 0,
+            panes: [
+              {
+                kind: "git",
+                cloneSessionKey: "git-clone:Git/projects/kethalia/hive",
+                relativePath: "kethalia/hive",
+                order: 0,
+              },
+              {
+                kind: "git",
+                cloneSessionKey: "git-clone:Git/projects/kethalia/hive",
+                relativePath: "kethalia/hive/packages/auth",
+                order: 1,
+              },
+            ],
+          },
+        ],
+      }),
+    );
+
+    expect(parsed.status).toBe("valid");
+    expect(parsed.diagnostics).toEqual([]);
+    expect(parsed.state?.boards[0].panes.map((pane) => pane.key)).toEqual([
+      "git:git-clone:Git/projects/kethalia/hive:kethalia/hive",
+      "git:git-clone:Git/projects/kethalia/hive:kethalia/hive/packages/auth",
     ]);
   });
 
@@ -466,6 +503,66 @@ describe("workspace board state model", () => {
     expect(JSON.stringify(state)).not.toMatch(
       /proof-should-not-echo|buffer-should-not-echo|Bearer abc\.def\.ghi|token-should-not-echo|secret-should-not-echo|cloneProof|terminalBuffer|clipboard|cwd|secret|\/home\/coder|~\/projects|C:\\Users/,
     );
+  });
+
+  it("drops traversal, backslash, empty segment, and null byte Git relative paths", () => {
+    const parsed = parsePersistedWorkspaceBoardState(
+      JSON.stringify({
+        version: WORKSPACE_BOARD_STATE_VERSION,
+        activeBoardKey: "main",
+        boards: [
+          {
+            key: "main",
+            name: "Main",
+            order: 0,
+            panes: [
+              {
+                kind: "git",
+                key: "git:traversal",
+                cloneSessionKey: "git-clone:Git/projects/kethalia/hive",
+                relativePath: "kethalia/../hive",
+                order: 0,
+              },
+              {
+                kind: "git",
+                key: "git:backslash",
+                cloneSessionKey: "git-clone:Git/projects/kethalia/hive",
+                relativePath: "kethalia\\hive",
+                order: 1,
+              },
+              {
+                kind: "git",
+                key: "git:empty-segment",
+                cloneSessionKey: "git-clone:Git/projects/kethalia/hive",
+                relativePath: "kethalia//hive",
+                order: 2,
+              },
+              {
+                kind: "git",
+                key: "git:null-byte",
+                cloneSessionKey: "git-clone:Git/projects/kethalia/hive",
+                relativePath: "kethalia/hi\0ve",
+                order: 3,
+              },
+            ],
+          },
+        ],
+      }),
+    );
+
+    expect(parsed.status).toBe("valid");
+    expect(parsed.state?.boards[0].panes).toEqual([]);
+    expect(parsed.diagnostics.map((diagnostic) => diagnostic.code)).toEqual([
+      "unsafe-pane-metadata-redacted",
+      "pane-repaired",
+      "unsafe-pane-metadata-redacted",
+      "pane-repaired",
+      "unsafe-pane-metadata-redacted",
+      "pane-repaired",
+      "unsafe-pane-metadata-redacted",
+      "pane-repaired",
+    ]);
+    expect(JSON.stringify(parsed.state)).not.toMatch(/\.\.|kethalia\\hive|kethalia\/\/hive/);
   });
 
   it("serializes forged caller objects through fresh whitelisted objects", () => {

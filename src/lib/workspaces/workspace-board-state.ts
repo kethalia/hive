@@ -1,3 +1,5 @@
+import { isSafeCloneRelativePath } from "@/lib/git/clone-public-identifiers";
+
 export const WORKSPACE_BOARD_STATE_VERSION = 1;
 
 export type WorkspaceBoardStorageSource = "workspace" | "unified" | "git";
@@ -622,7 +624,7 @@ function normalizePane(
     });
     return null;
   }
-  const key = normalizeText(value.key) ?? `git:${cloneSessionKey}`;
+  const key = normalizeText(value.key) ?? `git:${cloneSessionKey}:${relativePath}`;
   return {
     kind,
     key,
@@ -722,11 +724,11 @@ function normalizeRelativePath(value: unknown): string | undefined {
   const relativePath = normalizeText(value);
   if (
     !relativePath ||
-    relativePath.startsWith("/") ||
     relativePath === "~" ||
     relativePath.startsWith("~/") ||
     relativePath.startsWith("~\\") ||
-    /^[A-Za-z]:[\\/]/.test(relativePath)
+    /^[A-Za-z]:[\\/]/.test(relativePath) ||
+    !isSafeCloneRelativePath(relativePath)
   ) {
     return undefined;
   }

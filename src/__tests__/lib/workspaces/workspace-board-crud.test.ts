@@ -225,12 +225,32 @@ describe("workspace board CRUD helper", () => {
       relativePath: "kethalia/hive",
       label: "Duplicate should not replace existing Git membership",
     });
-    const unsafeNoop = addGitPaneToActiveWorkspaceBoard(duplicateGitNoop, {
+    const absoluteNoop = addGitPaneToActiveWorkspaceBoard(duplicateGitNoop, {
       cloneSessionKey: "git-clone:absolute",
       relativePath: "/home/coder/projects/kethalia/hive",
-      label: "Unsafe",
+      label: "Unsafe absolute",
     });
-    const missingRefsNoop = addGitPaneToActiveWorkspaceBoard(unsafeNoop, {
+    const traversalNoop = addGitPaneToActiveWorkspaceBoard(absoluteNoop, {
+      cloneSessionKey: "git-clone:traversal",
+      relativePath: "kethalia/../hive",
+      label: "Unsafe traversal",
+    });
+    const backslashNoop = addGitPaneToActiveWorkspaceBoard(traversalNoop, {
+      cloneSessionKey: "git-clone:backslash",
+      relativePath: "kethalia\\hive",
+      label: "Unsafe backslash",
+    });
+    const emptySegmentNoop = addGitPaneToActiveWorkspaceBoard(backslashNoop, {
+      cloneSessionKey: "git-clone:empty-segment",
+      relativePath: "kethalia//hive",
+      label: "Unsafe empty segment",
+    });
+    const nullByteNoop = addGitPaneToActiveWorkspaceBoard(emptySegmentNoop, {
+      cloneSessionKey: "git-clone:null-byte",
+      relativePath: "kethalia/hi\0ve",
+      label: "Unsafe null byte",
+    });
+    const missingRefsNoop = addGitPaneToActiveWorkspaceBoard(nullByteNoop, {
       cloneSessionKey: "   ",
       relativePath: "kethalia/hive",
       label: "Missing refs",
@@ -254,7 +274,11 @@ describe("workspace board CRUD helper", () => {
     ]);
     expect(sharedOnMain.boards[1].panes).toHaveLength(1);
     expect(duplicateGitNoop).toEqual(sharedOnMain);
-    expect(unsafeNoop).toEqual(sharedOnMain);
+    expect(absoluteNoop).toEqual(sharedOnMain);
+    expect(traversalNoop).toEqual(sharedOnMain);
+    expect(backslashNoop).toEqual(sharedOnMain);
+    expect(emptySegmentNoop).toEqual(sharedOnMain);
+    expect(nullByteNoop).toEqual(sharedOnMain);
     expect(missingRefsNoop).toEqual(sharedOnMain);
     expect(
       JSON.parse(serialized).boards.flatMap((board: { panes: unknown[] }) => board.panes),
