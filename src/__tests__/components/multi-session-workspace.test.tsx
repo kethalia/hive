@@ -587,6 +587,28 @@ describe("MultiSessionWorkspace", () => {
         .activeBoardKey,
     ).toBe("later");
 
+    const capturedTerminalPreviousBoard = new KeyboardEvent("keydown", {
+      key: "ArrowLeft",
+      ctrlKey: true,
+      altKey: true,
+      bubbles: true,
+      cancelable: true,
+    });
+    act(() => {
+      screen
+        .getByTestId("terminal-input-main-session")
+        .dispatchEvent(capturedTerminalPreviousBoard);
+    });
+    expect(capturedTerminalPreviousBoard.defaultPrevented).toBe(true);
+    expect(screen.getByTestId("workspace-board-tab-earlier")).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+    expect(
+      JSON.parse(window.localStorage.getItem("workspace-board-state:workspace:ws-1") ?? "{}")
+        .activeBoardKey,
+    ).toBe("earlier");
+
     const firstBoard = lastRegisteredEntry("multi-session:ws-1:board-1");
     const thirdBoard = lastRegisteredEntry("multi-session:ws-1:board-3");
     expect(firstBoard).toMatchObject({
@@ -1184,6 +1206,23 @@ describe("MultiSessionWorkspace", () => {
       sessionName: "api-shell",
     });
     expect(await screen.findByTestId("workspace-pane-api-shell")).toBeInTheDocument();
+  });
+
+  it("closes regular workspace sessions through the pane close button", async () => {
+    await renderTwoSessionWorkspace();
+
+    await act(async () => {
+      fireEvent.click(screen.getByTestId("remove-pane-pane-main-session"));
+    });
+
+    expect(mockKillSession).toHaveBeenCalledWith({
+      workspaceId: "ws-1",
+      sessionName: "main-session",
+    });
+    expect(screen.queryByTestId("workspace-pane-main-session")).not.toBeInTheDocument();
+    expect(screen.getByTestId("workspace-pane-dev-server")).toBeInTheDocument();
+    expect(screen.getByTestId("active-pane-label")).toHaveTextContent("dev-server");
+    expect(mockCloseGitCloneTerminal).not.toHaveBeenCalled();
   });
 
   it("removes plain workspace panes from the active board without killing sessions", async () => {

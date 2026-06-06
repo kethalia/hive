@@ -587,8 +587,6 @@ describe("workspace board shortcut integration", () => {
     const unmatchedEvents = [
       makeKeyEvent({ key: "ArrowRight", bubbles: true, cancelable: true }),
       makeKeyEvent({ key: "ArrowLeft", bubbles: true, cancelable: true }),
-      makeKeyEvent({ key: "ArrowRight", ctrlKey: true, bubbles: true, cancelable: true }),
-      makeKeyEvent({ key: "ArrowRight", metaKey: true, bubbles: true, cancelable: true }),
       makeKeyEvent({ key: "a", bubbles: true, cancelable: true }),
       makeKeyEvent({ key: "v", ctrlKey: true, bubbles: true, cancelable: true }),
       makeKeyEvent({ key: "v", metaKey: true, bubbles: true, cancelable: true }),

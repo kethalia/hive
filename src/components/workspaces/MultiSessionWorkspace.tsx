@@ -32,7 +32,11 @@ import {
   listNavigationFavoritesAction,
   type NavigationFavoriteDto,
 } from "@/lib/actions/navigation-favorites";
-import { createSessionAction, getWorkspaceSessionsAction } from "@/lib/actions/workspaces";
+import {
+  createSessionAction,
+  getWorkspaceSessionsAction,
+  killSessionAction,
+} from "@/lib/actions/workspaces";
 import { SAFE_IDENTIFIER_RE } from "@/lib/constants";
 import type { GitCloneTerminalIdentity, PublicCloneTree } from "@/lib/git/clone-actions-contract";
 import type { CloneTreeNode, CloneTreeRepositoryNode } from "@/lib/git/clone-tree";
@@ -1111,7 +1115,7 @@ export function MultiSessionWorkspace({
         return true;
       }
 
-      if (isTextEntryTarget) return false;
+      if (isTextEntryTarget && !isTerminalHelperTarget) return false;
 
       if (event.key === "ArrowLeft" || event.key === "ArrowUp") {
         event.preventDefault();
@@ -1767,27 +1771,41 @@ export function MultiSessionWorkspace({
   ]);
 
   const handleRemoveSession = useCallback(
-    (sessionName: string) => {
-      if (!isUnifiedSource || !activeBoard) return;
-
+    async (sessionName: string) => {
       const removedSession = visibleSessions.find((session) => session.sessionName === sessionName);
       if (!removedSession) return;
 
-      const nextBoardState = removeWorkspaceBoardPane(
-        boardState,
-        activeBoard.key,
-        removedSession.boardPaneKey,
-      );
+      setTerminalCloseFailed(false);
+
+      if (!isUnifiedSource) {
+        try {
+          await killSessionAction({ workspaceId, sessionName });
+        } catch {
+          setTerminalCloseFailed(true);
+          return;
+        }
+      }
+
+      const nextSessions = isUnifiedSource
+        ? sessions
+        : sessions.filter((session) => session.sessionName !== sessionName);
+      const nextBoardState = activeBoard
+        ? removeWorkspaceBoardPane(boardState, activeBoard.key, removedSession.boardPaneKey)
+        : boardState;
       const nextActiveBoard = findActiveWorkspaceBoard(nextBoardState);
-      const nextVisibleSessions = deriveVisibleSessionsFromBoard(sessions, nextActiveBoard);
+      const nextVisibleSessions = deriveVisibleSessionsFromBoard(nextSessions, nextActiveBoard);
       const nextActiveSessionName = activeSessionNameForVisibleSessions(
         nextVisibleSessions,
         nextActiveBoard,
         activeSessionNameRef.current === sessionName ? null : activeSessionNameRef.current,
       );
 
-      setTerminalCloseFailed(false);
-      persistBoardState(nextBoardState);
+      if (activeBoard) {
+        persistBoardState(nextBoardState);
+      }
+      if (!isUnifiedSource) {
+        setSessions(nextSessions);
+      }
 
       if (nextActiveSessionName) {
         setActiveSessionName(nextActiveSessionName);
@@ -1812,6 +1830,7 @@ export function MultiSessionWorkspace({
       sessions,
       setActiveTerminal,
       visibleSessions,
+      workspaceId,
     ],
   );
 
@@ -2230,22 +2249,20 @@ export function MultiSessionWorkspace({
       >
         <div className="flex min-h-8 shrink-0 items-center gap-1 border-b border-white/10 bg-zinc-950 px-2 py-1 text-white">
           <span className="min-w-0 flex-1 truncate font-mono text-xs">{pane.label}</span>
-          {isUnifiedSource ? (
-            <Button
-              type="button"
-              variant="destructive"
-              size="xs"
-              className="h-6 min-h-0 px-1.5 text-[10px]"
-              aria-label={`Remove ${pane.label}`}
-              data-testid={`remove-pane-${pane.id}`}
-              onClick={(event) => {
-                event.stopPropagation();
-                void handleRemoveSession(pane.sessionName);
-              }}
-            >
-              <X className="size-3" />
-            </Button>
-          ) : null}
+          <Button
+            type="button"
+            variant="destructive"
+            size="xs"
+            className="h-6 min-h-0 px-1.5 text-[10px]"
+            aria-label={`${isUnifiedSource ? "Remove" : "Close"} ${pane.label}`}
+            data-testid={`remove-pane-${pane.id}`}
+            onClick={(event) => {
+              event.stopPropagation();
+              void handleRemoveSession(pane.sessionName);
+            }}
+          >
+            <X className="size-3" />
+          </Button>
         </div>
         <InteractiveTerminal
           agentId={agentId}
