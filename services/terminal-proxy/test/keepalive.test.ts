@@ -147,11 +147,16 @@ describe("KeepAliveManager", () => {
     expect(manager.getHealth()["ws-abc"].lastSuccess).toBeTruthy();
   });
 
-  it("increments failure count on HTTP error", async () => {
+  it.each([
+    [401, "http-auth"],
+    [403, "http-auth"],
+    [404, "http-client"],
+    [500, "http-server"],
+  ] as const)("classifies HTTP %s keepalive failures as %s", async (status, category) => {
     fetchMock.mockResolvedValue({
       ok: false,
-      status: 401,
-      text: () => Promise.resolve("unauthorized"),
+      status,
+      text: () => Promise.resolve("secret-token /tmp/session ws-abc response body"),
     });
     registry.addConnection("ws-abc", "conn-1", testMeta);
 
@@ -159,31 +164,42 @@ describe("KeepAliveManager", () => {
     await manager.ping("ws-abc");
 
     const health = manager.getHealth()["ws-abc"];
+    expect(health.status).toBe("failing");
     expect(health.consecutiveFailures).toBe(2);
-    expect(health.lastError).toContain("401");
+    expect(health.lastFailureCategory).toBe(category);
+    expect(health.lastAttempt).toBeTruthy();
     expect(health.lastFailure).toBeTruthy();
+    expect(health.activeConnectionCount).toBe(1);
+    expect(health).not.toHaveProperty("lastError");
   });
 
-  it("increments failure count on network error", async () => {
-    fetchMock.mockRejectedValue(new Error("fetch failed"));
+  it("classifies network errors without storing the raw error message", async () => {
+    fetchMock.mockRejectedValue(new Error("secret-token /Users/alice/project ws-abc failed"));
     registry.addConnection("ws-abc", "conn-1", testMeta);
 
     await manager.ping("ws-abc");
 
     const health = manager.getHealth()["ws-abc"];
+    expect(health.status).toBe("failing");
     expect(health.consecutiveFailures).toBe(1);
-    expect(health.lastError).toBe("fetch failed");
+    expect(health.lastFailureCategory).toBe("network");
+    expect(JSON.stringify(health)).not.toContain("secret-token");
+    expect(JSON.stringify(health)).not.toContain("/Users/alice/project");
+    expect(JSON.stringify(health)).not.toContain("ws-abc failed");
   });
 
-  it("increments failure count on abort (timeout simulation)", async () => {
-    fetchMock.mockRejectedValue(new DOMException("aborted", "AbortError"));
+  it("classifies abort errors as timeout without storing the raw abort message", async () => {
+    fetchMock.mockRejectedValue(new DOMException("secret-token aborted /tmp/session", "AbortError"));
     registry.addConnection("ws-abc", "conn-1", testMeta);
 
     await manager.ping("ws-abc");
 
     const health = manager.getHealth()["ws-abc"];
+    expect(health.status).toBe("failing");
     expect(health.consecutiveFailures).toBe(1);
-    expect(health.lastError).toContain("aborted");
+    expect(health.lastFailureCategory).toBe("timeout");
+    expect(JSON.stringify(health)).not.toContain("secret-token");
+    expect(JSON.stringify(health)).not.toContain("/tmp/session");
   });
 
   it("does not ping when no workspaces are active", async () => {
@@ -225,37 +241,91 @@ describe("KeepAliveManager", () => {
     expect(manager.getHealth()).toEqual({});
   });
 
-  it("does not leak session token in logs", async () => {
+  it("does not leak session token, Coder URL, workspace ID, raw body, or raw error in logs", async () => {
     const consoleSpy = vi.spyOn(console, "log").mockImplementation(() => {});
     const consoleErrSpy = vi.spyOn(console, "error").mockImplementation(() => {});
-    fetchMock.mockResolvedValue({ ok: true });
-    registry.addConnection("ws-abc", "conn-1", testMeta);
-
-    await manager.ping("ws-abc");
-
-    for (const call of [...consoleSpy.mock.calls, ...consoleErrSpy.mock.calls]) {
-      for (const arg of call) {
-        expect(String(arg)).not.toContain("test-token");
-      }
-    }
-
-    consoleSpy.mockRestore();
-    consoleErrSpy.mockRestore();
-  });
-
-  it("handles 404 (deleted workspace) as failure", async () => {
     fetchMock.mockResolvedValue({
       ok: false,
-      status: 404,
-      text: () => Promise.resolve("not found"),
+      status: 500,
+      text: () => Promise.resolve("test-token https://coder.example.com ws-abc /tmp/session body"),
     });
     registry.addConnection("ws-abc", "conn-1", testMeta);
 
     await manager.ping("ws-abc");
 
+    const logText = [...consoleSpy.mock.calls, ...consoleErrSpy.mock.calls]
+      .flat()
+      .map(String)
+      .join("\n");
+    expect(logText).toContain("event=ping-failed");
+    expect(logText).toContain("failureCategory=http-server");
+    expect(logText).not.toContain("test-token");
+    expect(logText).not.toContain("https://coder.example.com");
+    expect(logText).not.toContain("ws-abc");
+    expect(logText).not.toContain("/tmp/session");
+    expect(logText).not.toContain("body");
+
+    consoleSpy.mockRestore();
+    consoleErrSpy.mockRestore();
+  });
+
+  it("reports healthy status, last attempt, and active connection count on successful ping", async () => {
+    fetchMock.mockResolvedValue({ ok: true });
+    registry.addConnection("ws-abc", "conn-1", testMeta);
+
+    await manager.ping("ws-abc");
+
     const health = manager.getHealth()["ws-abc"];
-    expect(health.consecutiveFailures).toBe(1);
-    expect(health.lastError).toContain("404");
+    expect(health.status).toBe("healthy");
+    expect(health.lastAttempt).toBeTruthy();
+    expect(health.lastSuccess).toBeTruthy();
+    expect(health.lastFailureCategory).toBeNull();
+    expect(health.activeConnectionCount).toBe(1);
+  });
+
+  it("retains a sanitized recently-disconnected health record without pinging it", async () => {
+    fetchMock.mockResolvedValue({ ok: true });
+    registry.addConnection("ws-abc", "conn-1", testMeta);
+    await manager.ping("ws-abc");
+    fetchMock.mockClear();
+
+    registry.removeConnection("ws-abc", "conn-1");
+    await (manager as unknown as { pingAll: () => Promise<void> }).pingAll();
+
+    const health = manager.getHealth()["ws-abc"];
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(registry.getWorkspaceMeta("ws-abc")).toBeNull();
+    expect(health.status).toBe("recently-disconnected");
+    expect(health.activeConnectionCount).toBe(0);
+    expect(health.lastDisconnectedAt).toBeTruthy();
+    expect(JSON.stringify(health)).not.toContain("test-token");
+    expect(JSON.stringify(health)).not.toContain("https://coder.example.com");
+  });
+
+  it("expires recently-disconnected health records by TTL", async () => {
+    fetchMock.mockResolvedValue({ ok: true });
+    registry.addConnection("ws-abc", "conn-1", testMeta);
+    await manager.ping("ws-abc");
+    registry.removeConnection("ws-abc", "conn-1");
+
+    expect(manager.getHealth()["ws-abc"]?.status).toBe("recently-disconnected");
+
+    await vi.advanceTimersByTimeAsync(5 * 60_000 + 1);
+
+    expect(manager.getHealth()["ws-abc"]).toBeUndefined();
+  });
+
+  it("bounds recently-disconnected health records", () => {
+    for (let i = 0; i < 105; i++) {
+      const workspaceId = `ws-${i}`;
+      registry.addConnection(workspaceId, `conn-${i}`, testMeta);
+      registry.removeConnection(workspaceId, `conn-${i}`);
+    }
+
+    const health = manager.getHealth();
+    expect(Object.keys(health)).toHaveLength(100);
+    expect(health["ws-0"]).toBeUndefined();
+    expect(health["ws-104"]?.status).toBe("recently-disconnected");
   });
 
   it("strips trailing slashes from coder URL", async () => {
