@@ -59,9 +59,19 @@ export type TerminalRefreshAction =
   | "refresh-succeeded"
   | "refresh-failed";
 
-export type TerminalRefreshFailureCategory = "callback-error" | "malformed-response";
+export type TerminalRefreshFailureCategory =
+  | "callback-error"
+  | "malformed-response"
+  | "malformed-identity"
+  | "session-name-mismatch";
 
 export type TerminalReconnectReason = "scheduled-reconnect" | "manual-reconnect";
+
+export type TerminalRefreshUrlFailure = {
+  failureCategory: TerminalRefreshFailureCategory;
+};
+
+export type TerminalRefreshUrlResult = string | TerminalRefreshUrlFailure | null | undefined;
 
 export type TerminalRefreshUrlContext = {
   currentUrl: string;
@@ -74,7 +84,7 @@ export type TerminalRefreshUrlContext = {
 
 export type TerminalRefreshUrlBeforeReconnect = (
   context: TerminalRefreshUrlContext,
-) => Promise<string | null | undefined> | string | null | undefined;
+) => Promise<TerminalRefreshUrlResult> | TerminalRefreshUrlResult;
 
 export type TerminalCloseClassification = {
   closeCategory: TerminalCloseCategory;
@@ -266,6 +276,17 @@ function normalizeResizeDimension(value: number): number | null {
   return Math.trunc(value);
 }
 
+function isTerminalRefreshFailure(value: unknown): value is TerminalRefreshUrlFailure {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const category = (value as { failureCategory?: unknown }).failureCategory;
+  return (
+    category === "callback-error" ||
+    category === "malformed-response" ||
+    category === "malformed-identity" ||
+    category === "session-name-mismatch"
+  );
+}
+
 export function useTerminalWebSocket({
   url,
   onData,
@@ -386,7 +407,7 @@ export function useTerminalWebSocket({
           canRetry: false,
         }));
 
-        let refreshedUrl: string | null | undefined;
+        let refreshedUrl: TerminalRefreshUrlResult;
         try {
           refreshedUrl = await refreshUrlBeforeReconnectRef.current({
             currentUrl: baseUrl,
@@ -398,6 +419,11 @@ export function useTerminalWebSocket({
           });
         } catch {
           scheduleRefreshFailureRetry("callback-error");
+          return;
+        }
+
+        if (isTerminalRefreshFailure(refreshedUrl)) {
+          scheduleRefreshFailureRetry(refreshedUrl.failureCategory);
           return;
         }
 

@@ -686,12 +686,21 @@ afterEach(() => {
   delete process.env.NEXT_PUBLIC_TERMINAL_WS_URL;
 });
 
+type RefreshedCloneTerminalIdentity = {
+  sessionName: string;
+  clonePath: string;
+  cloneProof: string;
+};
+
 type RenderTerminalOptions = {
   clonePath?: string;
   cloneProof?: string;
   layoutSignal?: unknown;
   mobileInputMode?: boolean;
   pinToBottomOnResize?: boolean;
+  refreshCloneTerminalIdentity?: () =>
+    | Promise<RefreshedCloneTerminalIdentity>
+    | RefreshedCloneTerminalIdentity;
   selectionModeEnabled?: boolean;
   sessionName?: string;
 };
@@ -786,6 +795,22 @@ function terminalWebSocketUrls() {
     .filter((url): url is string => typeof url === "string");
 }
 
+function latestTerminalWebSocketOptions() {
+  return mockUseTerminalWebSocket.mock.calls.at(-1)?.[0] as
+    | {
+        refreshUrlBeforeReconnect?: (context: {
+          currentUrl: string;
+          reason: "scheduled-reconnect" | "manual-reconnect";
+          retryCount: number;
+          closeCode: number | null;
+          closeCategory: string | null;
+          reasonCategory: string | null;
+        }) => Promise<string | { failureCategory: string } | null | undefined>;
+        url: string | null;
+      }
+    | undefined;
+}
+
 function touchPoint(identifier: number, clientX: number, clientY: number): Touch {
   return { identifier, clientX, clientY } as Touch;
 }
@@ -818,6 +843,10 @@ function terminalRecoveryState(
     lastConnectedAt: null,
     lastDisconnectedAt: null,
     lastRecoveryAction: "none",
+    lastRefreshAction: "none",
+    refreshFailureCategory: null,
+    lastRefreshStartedAt: null,
+    lastRefreshFinishedAt: null,
     isRecoverable: true,
     canRetry: false,
     ...overrides,
@@ -962,6 +991,162 @@ describe("InteractiveTerminal integration — Session lifecycle", () => {
     expect(url.searchParams.get("sessionName")).toBe("git-clone-safe-hive");
     expect(url.searchParams.get("clonePath")).toBe("kethalia/hive");
     expect(url.searchParams.get("cloneProof")).toBe("proof-token");
+    unmount();
+  });
+
+  it("refreshes stale Git clone proof material before reconnecting without persisting proofs", async () => {
+    window.localStorage.setItem(
+      "terminal:reconnect:test-agent:git-clone-safe-hive",
+      JSON.stringify({ id: "cached-clone-reconnect", ts: Date.now() }),
+    );
+    const refreshCloneTerminalIdentity = vi.fn(async () => ({
+      sessionName: "git-clone-safe-hive",
+      clonePath: "kethalia/hive",
+      cloneProof: "fresh-proof-token",
+    }));
+
+    const { unmount } = await renderTerminal({
+      clonePath: "kethalia/hive",
+      cloneProof: "stale-proof-token",
+      refreshCloneTerminalIdentity,
+      sessionName: "git-clone-safe-hive",
+    });
+
+    await waitFor(() => {
+      expect(latestTerminalWebSocketOptions()?.refreshUrlBeforeReconnect).toEqual(
+        expect.any(Function),
+      );
+    });
+    const staleUrl = new URL(terminalWebSocketUrls().at(-1)!);
+    expect(staleUrl.searchParams.get("cloneProof")).toBe("stale-proof-token");
+
+    const refreshedUrlValue = await latestTerminalWebSocketOptions()?.refreshUrlBeforeReconnect?.({
+      currentUrl: staleUrl.toString(),
+      reason: "scheduled-reconnect",
+      retryCount: 1,
+      closeCode: 1008,
+      closeCategory: "clone-proof-invalid",
+      reasonCategory: "clone-proof-invalid",
+    });
+
+    expect(refreshCloneTerminalIdentity).toHaveBeenCalledTimes(1);
+    expect(refreshCloneTerminalIdentity).toHaveBeenCalledWith({
+      sessionName: "git-clone-safe-hive",
+      clonePath: "kethalia/hive",
+      reason: "scheduled-reconnect",
+      retryCount: 1,
+      closeCode: 1008,
+      closeCategory: "clone-proof-invalid",
+      reasonCategory: "clone-proof-invalid",
+    });
+    expect(typeof refreshedUrlValue).toBe("string");
+    const refreshedUrl = new URL(refreshedUrlValue as string);
+    expect(refreshedUrl.searchParams.get("agentId")).toBe("test-agent");
+    expect(refreshedUrl.searchParams.get("workspaceId")).toBe("test-ws");
+    expect(refreshedUrl.searchParams.get("sessionName")).toBe("git-clone-safe-hive");
+    expect(refreshedUrl.searchParams.get("reconnectId")).toBe("cached-clone-reconnect");
+    expect(refreshedUrl.searchParams.get("width")).toBe("80");
+    expect(refreshedUrl.searchParams.get("height")).toBe("24");
+    expect(refreshedUrl.searchParams.get("clonePath")).toBe("kethalia/hive");
+    expect(refreshedUrl.searchParams.get("cloneProof")).toBe("fresh-proof-token");
+
+    expect(window.localStorage.length).toBe(1);
+    expect(window.localStorage.key(0)).toBe("terminal:reconnect:test-agent:git-clone-safe-hive");
+    expect(JSON.stringify(window.localStorage)).not.toContain("fresh-proof-token");
+    expect(JSON.stringify(window.localStorage)).not.toContain("/ws?");
+    unmount();
+  });
+
+  it("rejects refreshed Git clone identity when the session name changes", async () => {
+    const refreshCloneTerminalIdentity = vi.fn(async () => ({
+      sessionName: "git-clone-other-repo",
+      clonePath: "kethalia/hive",
+      cloneProof: "fresh-proof-token",
+    }));
+
+    const { unmount } = await renderTerminal({
+      clonePath: "kethalia/hive",
+      cloneProof: "stale-proof-token",
+      refreshCloneTerminalIdentity,
+      sessionName: "git-clone-safe-hive",
+    });
+
+    await waitFor(() => {
+      expect(latestTerminalWebSocketOptions()?.refreshUrlBeforeReconnect).toEqual(
+        expect.any(Function),
+      );
+    });
+    const staleUrl = new URL(terminalWebSocketUrls().at(-1)!);
+
+    const refreshedUrlValue = await latestTerminalWebSocketOptions()?.refreshUrlBeforeReconnect?.({
+      currentUrl: staleUrl.toString(),
+      reason: "scheduled-reconnect",
+      retryCount: 1,
+      closeCode: 1008,
+      closeCategory: "clone-proof-invalid",
+      reasonCategory: "clone-proof-invalid",
+    });
+
+    expect(refreshedUrlValue).toEqual({ failureCategory: "session-name-mismatch" });
+    expect(JSON.stringify(window.localStorage)).not.toContain("fresh-proof-token");
+    unmount();
+  });
+
+  it("rejects malformed refreshed Git clone identity without exposing proof material", async () => {
+    const refreshCloneTerminalIdentity = vi.fn(async () => ({
+      sessionName: "git-clone-safe-hive",
+      clonePath: "kethalia/hive",
+      cloneProof: "",
+    }));
+
+    const { unmount } = await renderTerminal({
+      clonePath: "kethalia/hive",
+      cloneProof: "stale-proof-token",
+      refreshCloneTerminalIdentity,
+      sessionName: "git-clone-safe-hive",
+    });
+
+    await waitFor(() => {
+      expect(latestTerminalWebSocketOptions()?.refreshUrlBeforeReconnect).toEqual(
+        expect.any(Function),
+      );
+    });
+    const staleUrl = new URL(terminalWebSocketUrls().at(-1)!);
+
+    const refreshedUrlValue = await latestTerminalWebSocketOptions()?.refreshUrlBeforeReconnect?.({
+      currentUrl: staleUrl.toString(),
+      reason: "scheduled-reconnect",
+      retryCount: 1,
+      closeCode: 1008,
+      closeCategory: "clone-proof-invalid",
+      reasonCategory: "clone-proof-invalid",
+    });
+
+    expect(refreshedUrlValue).toEqual({ failureCategory: "malformed-identity" });
+    expect(JSON.stringify(window.localStorage)).not.toContain("fresh-proof-token");
+    expect(JSON.stringify(window.localStorage)).not.toContain("/ws?");
+    unmount();
+  });
+
+  it("does not enable clone identity refresh for ordinary terminal sessions", async () => {
+    const refreshCloneTerminalIdentity = vi.fn(async () => ({
+      sessionName: "main",
+      clonePath: "kethalia/hive",
+      cloneProof: "fresh-proof-token",
+    }));
+
+    const { unmount } = await renderTerminal({
+      clonePath: "kethalia/hive",
+      cloneProof: "stale-proof-token",
+      refreshCloneTerminalIdentity,
+      sessionName: "main",
+    });
+
+    await waitFor(() => {
+      expect(terminalWebSocketUrls().length).toBeGreaterThan(0);
+    });
+    expect(latestTerminalWebSocketOptions()?.refreshUrlBeforeReconnect).toBeUndefined();
+    expect(refreshCloneTerminalIdentity).not.toHaveBeenCalled();
     unmount();
   });
 
