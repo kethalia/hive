@@ -24,6 +24,42 @@ export interface WorkspaceHealth {
   lastDisconnectedAt: string | null;
 }
 
+export interface SerializedWorkspaceHealth {
+  consecutiveFailures: number;
+  lastSuccess: string | null;
+  lastFailure: string | null;
+  status: KeepAliveStatus;
+  lastAttempt: string | null;
+  lastFailureCategory: KeepAliveFailureCategory | null;
+  activeConnectionCount: number;
+  lastDisconnectedAt: string | null;
+}
+
+export interface KeepAliveStatusPayload {
+  workspaces: Record<string, SerializedWorkspaceHealth>;
+}
+
+export function serializeKeepAliveStatusPayload(
+  health: Record<string, WorkspaceHealth> | null | undefined,
+): KeepAliveStatusPayload {
+  const workspaces: Record<string, SerializedWorkspaceHealth> = {};
+
+  for (const [id, workspaceHealth] of Object.entries(health ?? {})) {
+    workspaces[id] = {
+      consecutiveFailures: workspaceHealth.consecutiveFailures,
+      lastSuccess: workspaceHealth.lastSuccess,
+      lastFailure: workspaceHealth.lastFailure,
+      status: workspaceHealth.status,
+      lastAttempt: workspaceHealth.lastAttempt,
+      lastFailureCategory: workspaceHealth.lastFailureCategory,
+      activeConnectionCount: workspaceHealth.activeConnectionCount,
+      lastDisconnectedAt: workspaceHealth.lastDisconnectedAt,
+    };
+  }
+
+  return { workspaces };
+}
+
 interface RecentlyDisconnectedWorkspace {
   disconnectedAt: string;
   expiresAt: number;

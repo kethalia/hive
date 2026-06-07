@@ -1,6 +1,10 @@
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { ConnectionRegistry, KeepAliveManager } from "../src/keepalive.js";
+import {
+  ConnectionRegistry,
+  KeepAliveManager,
+  serializeKeepAliveStatusPayload,
+} from "../src/keepalive.js";
 
 function createMockCoderApi(
   handler: (req: IncomingMessage, res: ServerResponse) => void,
@@ -111,8 +115,10 @@ describe("KeepAliveManager integration", () => {
     expect(manager.getHealth()["ws-err"].consecutiveFailures).toBe(1);
 
     await manager.ping("ws-err");
-    expect(manager.getHealth()["ws-err"].consecutiveFailures).toBe(2);
-    expect(manager.getHealth()["ws-err"].lastError).toContain("500");
+    const health = manager.getHealth()["ws-err"];
+    expect(health.consecutiveFailures).toBe(2);
+    expect(health.lastFailureCategory).toBe("http-server");
+    expect(health).not.toHaveProperty("lastError");
   });
 
   it("increments consecutiveFailures on API 401 (expired token)", async () => {
@@ -123,8 +129,9 @@ describe("KeepAliveManager integration", () => {
 
     const health = manager.getHealth()["ws-auth"];
     expect(health.consecutiveFailures).toBe(1);
-    expect(health.lastError).toContain("401");
+    expect(health.lastFailureCategory).toBe("http-auth");
     expect(health.lastFailure).toBeTruthy();
+    expect(health).not.toHaveProperty("lastError");
   });
 
   it("resets consecutiveFailures on recovery after failures", async () => {
@@ -167,7 +174,8 @@ describe("KeepAliveManager integration", () => {
 
     const health = manager.getHealth()["ws-timeout"];
     expect(health.consecutiveFailures).toBe(1);
-    expect(health.lastError).toBeTruthy();
+    expect(health.lastFailureCategory).toBe("timeout");
+    expect(health).not.toHaveProperty("lastError");
   }, 15_000);
 
   it("accumulates exactly 3 failures for banner threshold scenario", async () => {
@@ -197,11 +205,16 @@ describe("/keepalive/status endpoint integration", () => {
   let appUrl: string;
   let coderServer: Server;
   let coderUrl: string;
+  let coderResponseStatus: number;
+  let coderResponseBody: string;
 
   beforeEach(async () => {
+    coderResponseStatus = 200;
+    coderResponseBody = "{}";
+
     const coderMock = await createMockCoderApi((_req, res) => {
-      res.writeHead(200);
-      res.end("{}");
+      res.writeHead(coderResponseStatus, { "Content-Type": "application/json" });
+      res.end(coderResponseBody);
     });
     coderServer = coderMock.server;
     coderUrl = coderMock.url;
@@ -211,9 +224,8 @@ describe("/keepalive/status endpoint integration", () => {
 
     appServer = createServer((req, res) => {
       if (req.url === "/keepalive/status") {
-        const workspaces = manager.getHealth();
         res.writeHead(200, { "Content-Type": "application/json" });
-        res.end(JSON.stringify({ workspaces }));
+        res.end(JSON.stringify(serializeKeepAliveStatusPayload(manager.getHealth())));
         return;
       }
       res.writeHead(404);
@@ -242,7 +254,7 @@ describe("/keepalive/status endpoint integration", () => {
     expect(data).toEqual({ workspaces: {} });
   });
 
-  it("returns workspace health after pings", async () => {
+  it("returns old fields plus sanitized category fields after pings", async () => {
     addWithMeta(registry, "ws-status", "conn-1", coderUrl, "tok");
     await manager.ping("ws-status");
 
@@ -253,14 +265,46 @@ describe("/keepalive/status endpoint integration", () => {
     expect(data.workspaces["ws-status"].consecutiveFailures).toBe(0);
     expect(data.workspaces["ws-status"].lastSuccess).toBeTruthy();
     expect(data.workspaces["ws-status"].lastFailure).toBeNull();
+    expect(data.workspaces["ws-status"].status).toBe("healthy");
+    expect(data.workspaces["ws-status"].lastAttempt).toBeTruthy();
+    expect(data.workspaces["ws-status"].lastFailureCategory).toBeNull();
+    expect(data.workspaces["ws-status"].activeConnectionCount).toBe(1);
+    expect(data.workspaces["ws-status"].lastDisconnectedAt).toBeNull();
+    expect(data.workspaces["ws-status"]).not.toHaveProperty("lastError");
   });
 
-  it("does not expose session token in status response", async () => {
-    addWithMeta(registry, "ws-sec", "conn-1", coderUrl, "secret-tok");
-    await manager.ping("ws-sec");
+  it("does not expose failed response body markers or lastError in status response", async () => {
+    coderResponseStatus = 500;
+    coderResponseBody =
+      "secret-tok clone-proof-abc /Users/alice/projects/kethalia/hive session-name-from-body";
+    addWithMeta(registry, "ws-failed", "conn-1", coderUrl, "secret-tok");
+
+    await manager.ping("ws-failed");
 
     const res = await fetch(`${appUrl}/keepalive/status`);
     const text = await res.text();
+    const data = JSON.parse(text);
+    expect(data.workspaces["ws-failed"].status).toBe("failing");
+    expect(data.workspaces["ws-failed"].lastFailureCategory).toBe("http-server");
     expect(text).not.toContain("secret-tok");
+    expect(text).not.toContain("clone-proof-abc");
+    expect(text).not.toContain("/Users/alice/projects/kethalia/hive");
+    expect(text).not.toContain("session-name-from-body");
+    expect(text).not.toContain("lastError");
+  });
+
+  it("reports recently disconnected workspace status without tokens", async () => {
+    addWithMeta(registry, "ws-disconnected", "conn-1", coderUrl, "recent-secret-token");
+    await manager.ping("ws-disconnected");
+    registry.removeConnection("ws-disconnected", "conn-1");
+
+    const res = await fetch(`${appUrl}/keepalive/status`);
+    const text = await res.text();
+    const data = JSON.parse(text);
+
+    expect(data.workspaces["ws-disconnected"].status).toBe("recently-disconnected");
+    expect(data.workspaces["ws-disconnected"].activeConnectionCount).toBe(0);
+    expect(data.workspaces["ws-disconnected"].lastDisconnectedAt).toBeTruthy();
+    expect(text).not.toContain("recent-secret-token");
   });
 });

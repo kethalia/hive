@@ -5,7 +5,7 @@ import { config } from "dotenv";
 config({ path: resolve(dirname(fileURLToPath(import.meta.url)), "../../../.env") });
 
 import { createServer } from "node:http";
-import { KeepAliveManager } from "./keepalive.js";
+import { KeepAliveManager, serializeKeepAliveStatusPayload } from "./keepalive.js";
 import { connectionRegistry, handleUpgrade, isOriginAllowed } from "./proxy.js";
 
 const PORT = parseInt(process.env.PORT || "3001", 10);
@@ -44,20 +44,8 @@ const server = createServer((req, res) => {
   }
 
   if (req.url === "/keepalive/status") {
-    const raw = keepAliveManager?.getHealth() ?? {};
-    const workspaces: Record<
-      string,
-      { consecutiveFailures: number; lastSuccess: string | null; lastFailure: string | null }
-    > = {};
-    for (const [id, health] of Object.entries(raw)) {
-      workspaces[id] = {
-        consecutiveFailures: health.consecutiveFailures,
-        lastSuccess: health.lastSuccess,
-        lastFailure: health.lastFailure,
-      };
-    }
     res.writeHead(200, { "Content-Type": "application/json" });
-    res.end(JSON.stringify({ workspaces }));
+    res.end(JSON.stringify(serializeKeepAliveStatusPayload(keepAliveManager.getHealth())));
     return;
   }
 
