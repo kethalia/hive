@@ -83,6 +83,7 @@ import {
   listWorkspacesAction,
   renameSessionAction,
 } from "@/lib/actions/workspaces";
+import { refreshInstalledApp } from "@/lib/app-update";
 import { getSessionAction } from "@/lib/auth/actions";
 import type { CoderWorkspace } from "@/lib/coder/types";
 import { SAFE_IDENTIFIER_RE } from "@/lib/constants";
@@ -1859,6 +1860,24 @@ export function AppSidebar() {
                     >
                       <RefreshCw className="h-3.5 w-3.5" />
                     </button>
+                  </div>
+                  <div className="rounded-md border border-sidebar-border p-2">
+                    <div className="flex items-center justify-between gap-2">
+                      <div>
+                        <span className="text-xs text-muted-foreground">App update</span>
+                        <p className="text-[10px] leading-snug text-muted-foreground/60">
+                          Clear installed app caches and reload the newest build.
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => void refreshInstalledApp()}
+                        className="min-h-9 shrink-0 rounded border border-sidebar-border px-2 text-[10px] text-muted-foreground hover:bg-sidebar-accent hover:text-foreground"
+                        data-testid="update-installed-app"
+                      >
+                        Update
+                      </button>
+                    </div>
                   </div>
                 </div>
               </CollapsibleContent>

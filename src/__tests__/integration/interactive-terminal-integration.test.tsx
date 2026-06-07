@@ -292,6 +292,7 @@ vi.mock("lucide-react", () => ({
   Copy: () => null,
   Loader2: () => null,
   Plus: () => null,
+  X: () => null,
 }));
 
 vi.mock("@/components/terminal/ComposePanel", () => ({
