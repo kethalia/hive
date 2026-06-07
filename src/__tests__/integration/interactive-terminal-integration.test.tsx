@@ -4,6 +4,7 @@ import "@testing-library/jest-dom/vitest";
 import { act, cleanup, createEvent, fireEvent, render, waitFor } from "@testing-library/react";
 import type React from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { TerminalRecoveryState } from "@/hooks/useTerminalWebSocket";
 import {
   getMobileTerminalDiagnosticsState,
   resetMobileTerminalDiagnosticsState,
@@ -802,6 +803,27 @@ function fireTouchEvent(
   return event;
 }
 
+function terminalRecoveryState(
+  overrides: Partial<TerminalRecoveryState> = {},
+): TerminalRecoveryState {
+  return {
+    phase: "idle",
+    retryCount: 0,
+    maxRetryCount: null,
+    lastCloseCode: null,
+    lastCloseCategory: null,
+    lastReasonCategory: null,
+    failureCategory: null,
+    lastDelayMs: null,
+    lastConnectedAt: null,
+    lastDisconnectedAt: null,
+    lastRecoveryAction: "none",
+    isRecoverable: true,
+    canRetry: false,
+    ...overrides,
+  };
+}
+
 describe("InteractiveTerminal integration — Connection state banners", () => {
   it("shows workspace offline banner", async () => {
     mockUseTerminalWebSocket.mockReturnValue({
@@ -815,15 +837,47 @@ describe("InteractiveTerminal integration — Connection state banners", () => {
     unmount();
   });
 
-  it("shows connection failed banner", async () => {
+  it("shows sanitized final-failure banner only when recovery reaches final failure", async () => {
+    const manualReconnect = vi.fn();
     mockUseTerminalWebSocket.mockReturnValue({
       send: vi.fn(),
       resize: vi.fn(),
       connectionState: "failed",
+      manualReconnect,
+      recoveryState: terminalRecoveryState({
+        phase: "final-failure",
+        failureCategory: "auth-expired",
+        isRecoverable: false,
+        canRetry: true,
+      }),
+    });
+
+    const { container, getByRole, unmount } = await renderTerminal();
+    expect(container.textContent).toContain("authentication expired");
+    expect(container.textContent).not.toContain("Refresh the page");
+    fireEvent.click(getByRole("button", { name: "Retry terminal connection" }));
+    expect(manualReconnect).toHaveBeenCalledTimes(1);
+    unmount();
+  });
+
+  it("shows quiet recoverable reconnect status without refresh-page failure text", async () => {
+    mockUseTerminalWebSocket.mockReturnValue({
+      send: vi.fn(),
+      resize: vi.fn(),
+      connectionState: "failed",
+      recoveryState: terminalRecoveryState({
+        phase: "recovering",
+        retryCount: 2,
+        lastRecoveryAction: "schedule-reconnect",
+        isRecoverable: true,
+        canRetry: true,
+      }),
     });
 
     const { container, unmount } = await renderTerminal();
-    expect(container.textContent).toContain("Connection failed");
+    expect(container.textContent).toContain("Reconnecting terminal… Retry 2.");
+    expect(container.textContent).not.toContain("Connection failed after multiple attempts");
+    expect(container.textContent).not.toContain("Refresh the page");
     unmount();
   });
 

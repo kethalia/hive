@@ -15,7 +15,11 @@ import {
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useKeybindings } from "@/hooks/useKeybindings";
 import { useTerminalPinchZoom } from "@/hooks/useTerminalPinchZoom";
-import { type ConnectionState, useTerminalWebSocket } from "@/hooks/useTerminalWebSocket";
+import {
+  type ConnectionState,
+  type TerminalRecoveryState,
+  useTerminalWebSocket,
+} from "@/hooks/useTerminalWebSocket";
 import { TAP_THRESHOLD_PX } from "@/lib/gestures/conventions";
 import { getClientRuntimeConfig } from "@/lib/runtime-config";
 import { loadTerminalFont, TERMINAL_FONT_FAMILY, TERMINAL_THEME } from "@/lib/terminal/config";
@@ -132,6 +136,49 @@ function scrollTerminalToBottom(term: Terminal) {
   }
 }
 
+function quietRecoveryMessage(
+  connectionState: ConnectionState,
+  recoveryState?: TerminalRecoveryState,
+): string | null {
+  if (connectionState === "workspace-offline") return null;
+  if (recoveryState?.phase === "final-failure") return null;
+
+  if (recoveryState?.phase === "recovering" || connectionState === "reconnecting") {
+    const retryLabel = recoveryState?.retryCount ? ` Retry ${recoveryState.retryCount}.` : "";
+    return `Reconnecting terminal…${retryLabel}`;
+  }
+
+  if (recoveryState?.phase === "connecting" || connectionState === "connecting") {
+    return "Connecting terminal…";
+  }
+
+  if (
+    connectionState === "disconnected" &&
+    recoveryState?.isRecoverable !== false &&
+    recoveryState?.lastRecoveryAction === "schedule-reconnect"
+  ) {
+    const retryLabel = recoveryState.retryCount ? ` Retry ${recoveryState.retryCount}.` : "";
+    return `Reconnecting terminal…${retryLabel}`;
+  }
+
+  return null;
+}
+
+function finalFailureMessage(recoveryState?: TerminalRecoveryState): string {
+  switch (recoveryState?.failureCategory) {
+    case "auth-expired":
+      return "Terminal connection ended because authentication expired.";
+    case "permission-denied":
+      return "Terminal connection ended because access was denied.";
+    case "clone-proof-invalid":
+      return "Terminal connection ended because clone authorization could not be verified.";
+    case "terminal-closed":
+      return "Terminal connection ended because the terminal session closed.";
+    default:
+      return "Terminal connection ended and automatic recovery stopped.";
+  }
+}
+
 export function connectionBadgeProps(state: ConnectionState) {
   switch (state) {
     case "connected":
@@ -234,13 +281,17 @@ export function InteractiveTerminal({
     });
   }, []);
 
-  const { send, resize, connectionState } = useTerminalWebSocket({
+  const { send, resize, connectionState, recoveryState, manualReconnect } = useTerminalWebSocket({
     url: wsUrl,
     onData: handleData,
     onResizeSent: ({ rows, cols, source, sentAt }) => {
       recordMobileTerminalResizeSent(rows, cols, source, () => sentAt);
     },
   });
+  const recoveryMessage = quietRecoveryMessage(connectionState, recoveryState);
+  const showFinalFailure =
+    recoveryState?.phase === "final-failure" ||
+    (connectionState === "failed" && recoveryState?.isRecoverable === false);
   const bindPinchZoom = useTerminalPinchZoom();
   const terminalInteractionProps = selectionModeEnabled ? {} : bindPinchZoom();
 
@@ -644,11 +695,30 @@ export function InteractiveTerminal({
           </AlertDescription>
         </Alert>
       )}
-      {connectionState === "failed" && (
+      {recoveryMessage && (
+        <Alert
+          className="rounded-none border-x-0 border-t-0"
+          data-testid="terminal-recovery-status"
+        >
+          <AlertDescription>{recoveryMessage}</AlertDescription>
+        </Alert>
+      )}
+      {showFinalFailure && (
         <Alert variant="destructive" className="rounded-none border-x-0 border-t-0">
           <AlertCircle />
           <AlertDescription>
-            Connection failed after multiple attempts. Refresh the page to try again.
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+              <span>{finalFailureMessage(recoveryState)}</span>
+              {recoveryState?.canRetry && (
+                <button
+                  type="button"
+                  className="rounded border border-destructive/30 px-2 py-1 text-xs font-medium text-destructive transition-colors hover:bg-destructive/10"
+                  onClick={manualReconnect}
+                >
+                  Retry terminal connection
+                </button>
+              )}
+            </div>
           </AlertDescription>
         </Alert>
       )}
