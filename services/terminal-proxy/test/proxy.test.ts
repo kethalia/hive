@@ -176,6 +176,24 @@ async function captureConsoleErrors(run: () => Promise<void>): Promise<string> {
   }
 }
 
+async function captureConsoleOutput(run: () => Promise<void>): Promise<string> {
+  const errorSpy = vi.spyOn(console, "error").mockImplementation(() => undefined);
+  const logSpy = vi.spyOn(console, "log").mockImplementation(() => undefined);
+  try {
+    await run();
+    return [...errorSpy.mock.calls, ...logSpy.mock.calls].flat().map(String).join("\n");
+  } finally {
+    errorSpy.mockRestore();
+    logSpy.mockRestore();
+  }
+}
+
+function getSocketHandler(socket: MockWebSocket, event: string): (...args: unknown[]) => void {
+  const handler = socket.on.mock.calls.find(([name]) => name === event)?.[1];
+  expect(handler).toBeTypeOf("function");
+  return handler as (...args: unknown[]) => void;
+}
+
 describe("handleUpgrade", () => {
   const originalEnv = process.env;
 
@@ -192,6 +210,7 @@ describe("handleUpgrade", () => {
   });
 
   afterEach(() => {
+    vi.useRealTimers();
     process.env = originalEnv;
   });
 
@@ -335,6 +354,86 @@ describe("handleUpgrade", () => {
     browserMessageHandler?.(resizeFrame);
 
     expect(upstreamWs?.send).not.toHaveBeenCalled();
+  });
+
+  it("sanitizes recoverable upstream close reasons and does not forward code 1000", async () => {
+    const rawReason = "SECRET_TOKEN=/tmp/hive/private session=my-session cloneProof=proof-material";
+
+    const logged = await captureConsoleOutput(async () => {
+      const socket = makeSocket();
+      await handleUpgrade(makeReq(validParams), socket, Buffer.alloc(0));
+
+      const browserWs = wsMockState.browserSockets.at(-1);
+      const upstreamWs = wsMockState.upstreamSockets.at(-1);
+      expect(browserWs).toBeDefined();
+      expect(upstreamWs).toBeDefined();
+
+      getSocketHandler(upstreamWs!, "close")(1000, Buffer.from(rawReason));
+
+      expect(browserWs!.close).toHaveBeenCalledWith(1013, "upstream closed");
+      expect(browserWs!.close).not.toHaveBeenCalledWith(1000, expect.anything());
+    });
+
+    expect(logged).toContain("category=upstream_closed");
+    expect(logged).toContain("code=1000");
+    expect(logged).not.toContain(rawReason);
+    expect(logged).not.toContain("SECRET_TOKEN");
+    expect(logged).not.toContain("/tmp/hive/private");
+    expect(logged).not.toContain("my-session");
+    expect(logged).not.toContain("proof-material");
+    expect(logged).not.toContain(validParams.agentId);
+  });
+
+  it("sanitizes upstream error diagnostics before closing the browser", async () => {
+    const rawMessage = "SECRET_TOKEN=/tmp/hive/private session=my-session cloneProof=proof-material";
+
+    const logged = await captureConsoleOutput(async () => {
+      const socket = makeSocket();
+      await handleUpgrade(makeReq(validParams), socket, Buffer.alloc(0));
+
+      const browserWs = wsMockState.browserSockets.at(-1);
+      const upstreamWs = wsMockState.upstreamSockets.at(-1);
+      expect(browserWs).toBeDefined();
+      expect(upstreamWs).toBeDefined();
+
+      getSocketHandler(upstreamWs!, "error")(new Error(rawMessage));
+
+      expect(browserWs!.close).toHaveBeenCalledWith(1011, "upstream error");
+    });
+
+    expect(logged).toContain("category=upstream_error");
+    expect(logged).not.toContain(rawMessage);
+    expect(logged).not.toContain("SECRET_TOKEN");
+    expect(logged).not.toContain("/tmp/hive/private");
+    expect(logged).not.toContain("my-session");
+    expect(logged).not.toContain("proof-material");
+    expect(logged).not.toContain(validParams.agentId);
+  });
+
+  it("sanitizes upstream connect timeout diagnostics before closing the browser", async () => {
+    vi.useFakeTimers();
+    const rawIdentifiers = [validParams.agentId, validParams.sessionName, "/tmp/hive/private"];
+
+    const logged = await captureConsoleOutput(async () => {
+      const socket = makeSocket();
+      await handleUpgrade(makeReq(validParams), socket, Buffer.alloc(0));
+
+      const browserWs = wsMockState.browserSockets.at(-1);
+      const upstreamWs = wsMockState.upstreamSockets.at(-1);
+      expect(browserWs).toBeDefined();
+      expect(upstreamWs).toBeDefined();
+
+      upstreamWs!.readyState = WebSocket.CONNECTING;
+      await vi.advanceTimersByTimeAsync(10_000);
+
+      expect(browserWs!.close).toHaveBeenCalledWith(1013, "upstream connect timeout");
+    });
+
+    expect(logged).toContain("category=upstream_connect_timeout");
+    for (const rawIdentifier of rawIdentifiers) {
+      expect(logged).not.toContain(rawIdentifier);
+    }
+    vi.useRealTimers();
   });
 
   it("opens clone sessions with cwd resolved under the default home root", async () => {

@@ -10,6 +10,12 @@ import { buildPtyUrl, SAFE_IDENTIFIER_RE, UUID_RE } from "./protocol.js";
 
 const PING_INTERVAL_MS = 30_000;
 const UPSTREAM_CONNECT_TIMEOUT_MS = 10_000;
+const BROWSER_CLOSE_UPSTREAM_CLOSED_CODE = 1013;
+const BROWSER_CLOSE_UPSTREAM_CLOSED_REASON = "upstream closed";
+const BROWSER_CLOSE_UPSTREAM_ERROR_CODE = 1011;
+const BROWSER_CLOSE_UPSTREAM_ERROR_REASON = "upstream error";
+const BROWSER_CLOSE_UPSTREAM_TIMEOUT_CODE = 1013;
+const BROWSER_CLOSE_UPSTREAM_TIMEOUT_REASON = "upstream connect timeout";
 const CLONE_TERMINAL_SESSION_PREFIX = "git-clone-";
 const CLONE_TERMINAL_SESSION_RE = /^git-clone-[0-9a-f]{32}$/;
 const PROJECTS_ROOT_ENV_KEY = "HIVE_PROJECTS_ROOT";
@@ -146,6 +152,18 @@ function logPreAuthRejection(reason: string): void {
 
 function logPostAuthRejection(reason: string): void {
   console.error(`[terminal-proxy] upgrade rejected after auth: ${reason}`);
+}
+
+function logProxyEvent(
+  level: "error" | "log",
+  event: string,
+  fields: Record<string, string | number> = {},
+): void {
+  const suffix = Object.entries(fields)
+    .map(([key, value]) => `${key}=${value}`)
+    .join(" ");
+  const message = suffix ? `[terminal-proxy] event=${event} ${suffix}` : `[terminal-proxy] event=${event}`;
+  console[level](message);
 }
 
 function getCloneTerminalProofSecret(): string | null {
@@ -397,17 +415,12 @@ export async function handleUpgrade(
       });
     }
 
-    connectUpstream(browserWs, upstreamUrl, token, agentId);
+    connectUpstream(browserWs, upstreamUrl, token);
   });
 }
 
-function connectUpstream(
-  browserWs: WebSocket,
-  upstreamUrl: string,
-  token: string,
-  agentId: string,
-): void {
-  console.log(`[terminal-proxy] connecting upstream agent=${agentId}`);
+function connectUpstream(browserWs: WebSocket, upstreamUrl: string, token: string): void {
+  logProxyEvent("log", "upstream_connecting", { category: "upstream_connecting" });
 
   const upstream = new WebSocket(upstreamUrl, {
     headers: { "Coder-Session-Token": token },
@@ -430,7 +443,7 @@ function connectUpstream(
   }
 
   upstream.on("open", () => {
-    console.log(`[terminal-proxy] upstream connected agent=${agentId}`);
+    logProxyEvent("log", "upstream_connected", { category: "upstream_connected" });
     pingTimer = setInterval(() => {
       if (upstream.readyState === WebSocket.OPEN) {
         upstream.ping();
@@ -444,18 +457,18 @@ function connectUpstream(
     }
   });
 
-  upstream.on("error", (err) => {
-    console.error(`[terminal-proxy] upstream error agent=${agentId}: ${err.message}`);
+  upstream.on("error", () => {
+    logProxyEvent("error", "upstream_error", { category: "upstream_error" });
     if (browserWs.readyState === WebSocket.OPEN) {
-      browserWs.close(1011, "upstream error");
+      browserWs.close(BROWSER_CLOSE_UPSTREAM_ERROR_CODE, BROWSER_CLOSE_UPSTREAM_ERROR_REASON);
     }
     cleanup();
   });
 
-  upstream.on("close", (code, reason) => {
-    console.log(`[terminal-proxy] upstream closed agent=${agentId} code=${code}`);
+  upstream.on("close", (code) => {
+    logProxyEvent("log", "upstream_closed", { category: "upstream_closed", code });
     if (browserWs.readyState === WebSocket.OPEN) {
-      browserWs.close(code, reason);
+      browserWs.close(BROWSER_CLOSE_UPSTREAM_CLOSED_CODE, BROWSER_CLOSE_UPSTREAM_CLOSED_REASON);
     }
     cleanup();
   });
@@ -467,20 +480,22 @@ function connectUpstream(
   });
 
   browserWs.on("close", () => {
-    console.log(`[terminal-proxy] browser disconnected agent=${agentId}`);
+    logProxyEvent("log", "browser_disconnected", { category: "browser_disconnected" });
     cleanup();
   });
 
-  browserWs.on("error", (err) => {
-    console.error(`[terminal-proxy] browser error agent=${agentId}: ${err.message}`);
+  browserWs.on("error", () => {
+    logProxyEvent("error", "browser_error", { category: "browser_error" });
     cleanup();
   });
 
   setTimeout(() => {
     if (upstream.readyState === WebSocket.CONNECTING) {
-      console.error(`[terminal-proxy] upstream connect timeout agent=${agentId}`);
+      logProxyEvent("error", "upstream_connect_timeout", {
+        category: "upstream_connect_timeout",
+      });
       if (browserWs.readyState === WebSocket.OPEN) {
-        browserWs.close(1013, "upstream connect timeout");
+        browserWs.close(BROWSER_CLOSE_UPSTREAM_TIMEOUT_CODE, BROWSER_CLOSE_UPSTREAM_TIMEOUT_REASON);
       }
       cleanup();
     }
