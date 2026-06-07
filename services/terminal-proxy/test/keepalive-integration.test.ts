@@ -1,8 +1,11 @@
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
+import type { Duplex } from "node:stream";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { createTerminalProxyServer } from "../src/index.js";
 import {
   ConnectionRegistry,
   KeepAliveManager,
+  type WorkspaceHealth,
   serializeKeepAliveStatusPayload,
 } from "../src/keepalive.js";
 
@@ -31,6 +34,31 @@ function addWithMeta(
   token = "integration-test-token",
 ) {
   registry.addConnection(workspaceId, connectionId, { token, coderUrl });
+}
+
+function createFakeKeepAliveManager(health: Record<string, WorkspaceHealth> = {}) {
+  return {
+    start: vi.fn(),
+    stop: vi.fn(),
+    getHealth: vi.fn(() => health),
+  };
+}
+
+function makeUpgradeReq(url = "/ws"): IncomingMessage {
+  return { url, headers: { host: "localhost", origin: "http://localhost:3000" } } as IncomingMessage;
+}
+
+function makeUpgradeSocket(): Duplex & { written: string[] } {
+  const written: string[] = [];
+  return {
+    writable: true,
+    written,
+    write: vi.fn((data: string) => {
+      written.push(data);
+      return true;
+    }),
+    destroy: vi.fn(),
+  } as unknown as Duplex & { written: string[] };
 }
 
 describe("KeepAliveManager integration", () => {
@@ -306,5 +334,84 @@ describe("/keepalive/status endpoint integration", () => {
     expect(data.workspaces["ws-disconnected"].activeConnectionCount).toBe(0);
     expect(data.workspaces["ws-disconnected"].lastDisconnectedAt).toBeTruthy();
     expect(text).not.toContain("recent-secret-token");
+  });
+});
+
+describe("terminal-proxy server wiring", () => {
+  it("serves /keepalive/status through the index server factory without raw diagnostic fields", async () => {
+    const fakeKeepAlive = createFakeKeepAliveManager({
+      "ws-index": {
+        status: "failing",
+        consecutiveFailures: 2,
+        lastAttempt: "2026-06-07T19:00:00.000Z",
+        lastSuccess: null,
+        lastFailure: "2026-06-07T19:00:01.000Z",
+        lastFailureCategory: "http-server",
+        activeConnectionCount: 1,
+        lastDisconnectedAt: null,
+      },
+    });
+    const { server } = createTerminalProxyServer({ keepAliveManager: fakeKeepAlive });
+
+    try {
+      await new Promise<void>((resolve) => {
+        server.listen(0, "127.0.0.1", () => resolve());
+      });
+      const addr = server.address();
+      if (!addr || typeof addr === "string") throw new Error("unexpected address");
+
+      const res = await fetch(`http://127.0.0.1:${addr.port}/keepalive/status`);
+      const text = await res.text();
+      const data = JSON.parse(text);
+
+      expect(fakeKeepAlive.start).toHaveBeenCalledOnce();
+      expect(data.workspaces["ws-index"].status).toBe("failing");
+      expect(data.workspaces["ws-index"].lastFailureCategory).toBe("http-server");
+      expect(text).not.toContain("lastError");
+      expect(text).not.toContain("secret-token");
+      expect(text).not.toContain("cloneProof");
+    } finally {
+      await closeServer(server);
+    }
+
+    expect(fakeKeepAlive.stop).toHaveBeenCalledOnce();
+  });
+
+  it("sanitizes unexpected top-level upgrade fallback errors before logging or writing to socket", async () => {
+    const rawError =
+      "SECRET_TOKEN=abc cloneProof=proof-material /Users/alice/projects/kethalia/hive session=my-session";
+    const fakeKeepAlive = createFakeKeepAliveManager();
+    const upgradeHandler = vi.fn(async () => {
+      throw new Error(rawError);
+    });
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => undefined);
+
+    try {
+      const { server } = createTerminalProxyServer({
+        keepAliveManager: fakeKeepAlive,
+        upgradeHandler,
+      });
+      const socket = makeUpgradeSocket();
+
+      server.emit("upgrade", makeUpgradeReq("/ws?cloneProof=proof-material"), socket, Buffer.alloc(0));
+      await new Promise((resolve) => setImmediate(resolve));
+
+      const logged = errorSpy.mock.calls.flat().map(String).join("\n");
+      const socketOutput = socket.written.join("\n");
+
+      expect(upgradeHandler).toHaveBeenCalledOnce();
+      expect(logged).toContain("event=upgrade_failed");
+      expect(logged).toContain("category=unexpected_upgrade_error");
+      expect(logged).not.toContain(rawError);
+      expect(logged).not.toContain("SECRET_TOKEN");
+      expect(logged).not.toContain("proof-material");
+      expect(logged).not.toContain("/Users/alice/projects/kethalia/hive");
+      expect(logged).not.toContain("my-session");
+      expect(socketOutput).toBe("HTTP/1.1 500 Internal Server Error\r\n\r\n");
+      expect(socketOutput).not.toContain(rawError);
+      expect(socket.destroy).toHaveBeenCalledOnce();
+    } finally {
+      errorSpy.mockRestore();
+    }
   });
 });
