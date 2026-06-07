@@ -254,10 +254,10 @@ const defaultProps = {
   workspaceId: "ws-1",
 };
 
-function makeTerminal(name: string): Terminal {
+function makeTerminal(name: string, focus?: () => void): Terminal {
   return {
     name,
-    focus: vi.fn(),
+    focus: vi.fn(focus),
     getSelection: vi.fn(() => `${name}-selection`),
     clearSelection: vi.fn(),
   } as unknown as Terminal;
@@ -1288,6 +1288,38 @@ describe("MultiSessionWorkspace", () => {
     expect(mockSetActiveTerminal).toHaveBeenLastCalledWith(mainTerm, mainSend);
     expect(mockKillSession).not.toHaveBeenCalled();
     expect(mockCloseGitCloneTerminal).not.toHaveBeenCalled();
+  });
+
+  it("does not restore a removed pane when focusing the fallback terminal bubbles from xterm", async () => {
+    mockGetSessions.mockResolvedValueOnce(twoSessionPayload());
+    mockListGitClones.mockResolvedValueOnce({ data: { ok: true, tree: { nodes: [] } } });
+
+    render(<MultiSessionWorkspace {...defaultProps} source="unified" />);
+    await screen.findByTestId("workspace-pane-main-session");
+
+    const devTerm = makeTerminal("dev-server", () => {
+      fireEvent.focus(screen.getByTestId("terminal-input-dev-server"));
+    });
+    const devSend = makeSender("dev-server");
+    act(() => {
+      terminalProps.get("dev-server")?.onTerminalReady?.(devTerm, devSend);
+    });
+
+    await act(async () => {
+      fireEvent.click(screen.getByTestId("remove-pane-pane-main-session"));
+    });
+    await act(async () => {
+      await new Promise<void>((resolve) => window.requestAnimationFrame(() => resolve()));
+    });
+
+    expect(devTerm.focus).toHaveBeenCalled();
+    expect(screen.queryByTestId("workspace-pane-main-session")).not.toBeInTheDocument();
+    expect(screen.getByTestId("workspace-pane-dev-server")).toBeInTheDocument();
+    expect(screen.getByTestId("active-pane-label")).toHaveTextContent("dev-server");
+
+    const stored = window.localStorage.getItem("workspace-board-state:git:ws-1");
+    expect(stored).not.toContain("main-session");
+    expect(stored).toContain("dev-server");
   });
 
   it("includes board pane identity in layout signals for shared terminal sessions", async () => {

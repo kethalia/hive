@@ -1821,7 +1821,9 @@ export function MultiSessionWorkspace({
         const entry = terminalsRef.current.get(nextActiveSessionName);
         if (entry) {
           setActiveTerminal(entry.term, entry.send);
-          entry.term.focus();
+          window.requestAnimationFrame(() => {
+            entry.term.focus();
+          });
         } else {
           clearActiveTerminal();
         }
@@ -2245,7 +2247,10 @@ export function MultiSessionWorkspace({
         tabIndex={0}
         onMouseEnter={() => selectSession(pane.sessionName)}
         onClick={() => selectSession(pane.sessionName)}
-        onFocus={() => selectSession(pane.sessionName)}
+        onFocus={(event) => {
+          if (event.currentTarget !== event.target) return;
+          selectSession(pane.sessionName);
+        }}
         onKeyDown={(event) => {
           if (event.currentTarget !== event.target) return;
           if (event.key === "Enter" || event.key === " ") {
