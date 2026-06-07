@@ -53,7 +53,7 @@ describe("WorkspaceBoardBar", () => {
     expect(onSelect).toHaveBeenCalledWith("planning");
   });
 
-  it("supports keyboard selection across visible workspace tabs", () => {
+  it("supports keyboard selection across visible workspace tabs and moves focus", () => {
     const onSelect = vi.fn();
 
     const boards = [board("main", "Main", 0), board("planning", "Planning", 1)];
@@ -63,10 +63,12 @@ describe("WorkspaceBoardBar", () => {
 
     fireEvent.keyDown(screen.getByTestId("workspace-board-tab-main"), { key: "ArrowRight" });
     expect(onSelect).toHaveBeenLastCalledWith("planning");
+    expect(screen.getByTestId("workspace-board-tab-planning")).toHaveFocus();
 
     rerender(<WorkspaceBoardBar boards={boards} activeBoardKey="planning" onSelect={onSelect} />);
     fireEvent.keyDown(screen.getByTestId("workspace-board-tab-planning"), { key: "ArrowLeft" });
     expect(onSelect).toHaveBeenLastCalledWith("main");
+    expect(screen.getByTestId("workspace-board-tab-main")).toHaveFocus();
   });
 
   it("creates a workspace immediately from the plus button", () => {
@@ -108,6 +110,25 @@ describe("WorkspaceBoardBar", () => {
     fireEvent.click(activeTab);
 
     expect(onDelete).toHaveBeenCalledWith("main");
+  });
+
+  it("does not arm delete from keyboard focus alone", () => {
+    const onDelete = vi.fn();
+
+    render(
+      <WorkspaceBoardBar
+        boards={[board("main", "Main", 0), board("planning", "Planning", 1)]}
+        activeBoardKey="main"
+        onDelete={onDelete}
+      />,
+    );
+
+    const activeTab = screen.getByTestId("workspace-board-tab-main");
+    fireEvent.focus(activeTab);
+    expect(screen.queryByTestId("workspace-board-delete")).not.toBeInTheDocument();
+    fireEvent.click(activeTab);
+
+    expect(onDelete).not.toHaveBeenCalled();
   });
 
   it("does not expose delete when only one workspace exists", () => {

@@ -1017,19 +1017,21 @@ describe("MultiSessionWorkspace", () => {
     );
   });
 
-  it("keeps Git discovery failures as sanitized retryable load failures", async () => {
+  it("keeps workspace sessions visible when Git discovery fails in unified workspaces", async () => {
+    mockGetSessions.mockResolvedValueOnce(twoSessionPayload());
     mockListGitClones.mockRejectedValueOnce(
       new Error("secret discovery failure /home/coder/projects/kethalia/hive token-123"),
     );
 
     render(<MultiSessionWorkspace {...defaultProps} source="unified" />);
 
-    expect(await screen.findByTestId("session-load-error")).toHaveTextContent(
-      "Could not load terminal sessions.",
+    expect(await screen.findByTestId("workspace-pane-main-session")).toBeInTheDocument();
+    expect(screen.getByTestId("workspace-pane-dev-server")).toBeInTheDocument();
+    expect(screen.getByTestId("git-session-restore-error")).toHaveTextContent(
+      "Git panes need refresh. Retry to restore repository panes.",
     );
-    expect(screen.getByTestId("retry-load-sessions")).toHaveTextContent("Retry");
+    expect(screen.queryByTestId("session-load-error")).not.toBeInTheDocument();
     expect(screen.queryByText(/secret discovery|\/home\/coder|token-123/)).not.toBeInTheDocument();
-    expect(screen.queryByTestId("git-session-restore-error")).not.toBeInTheDocument();
   });
 
   it("shows sanitized board repair diagnostics for malformed board storage", async () => {
@@ -1050,6 +1052,34 @@ describe("MultiSessionWorkspace", () => {
     );
     expect(screen.getByTestId("board-persistence-status").textContent).not.toMatch(
       /secret|token|\/home\/coder|workspace-board-state/,
+    );
+  });
+
+  it("resets active board pane order instead of only clearing legacy layout storage", async () => {
+    await renderTwoSessionWorkspace();
+
+    fireEvent.click(screen.getByTestId("reset-layout"));
+
+    const stored = JSON.parse(
+      window.localStorage.getItem("workspace-board-state:workspace:ws-1") ?? "{}",
+    );
+    expect(stored.boards[0].panes.map((pane: { sessionName: string }) => pane.sessionName)).toEqual(
+      ["dev-server", "main-session"],
+    );
+  });
+
+  it("falls back to live sessions when persisted board state has no usable boards", async () => {
+    window.localStorage.setItem(
+      "workspace-board-state:workspace:ws-1",
+      JSON.stringify({ version: 1, activeBoardKey: "missing", boards: [] }),
+    );
+
+    await renderTwoSessionWorkspace();
+
+    expect(screen.getByTestId("workspace-pane-main-session")).toBeInTheDocument();
+    expect(screen.getByTestId("workspace-pane-dev-server")).toBeInTheDocument();
+    expect(screen.getByTestId("board-persistence-status")).toHaveTextContent(
+      "Stored board state was repaired. Safe board metadata is active.",
     );
   });
 
@@ -1196,15 +1226,67 @@ describe("MultiSessionWorkspace", () => {
       target: { value: "hive" },
     });
     expect(
-      screen.getByTestId("palette-action-workspace:add-git:git-clone:kethalia/hive"),
+      screen.getByTestId("palette-action-workspace:add-git:git-clone:kethalia/hive:kethalia/hive"),
     ).toHaveTextContent("Open this Git repository as a workspace pane");
     expect(
-      screen.getByTestId("palette-action-workspace:open-git:git-clone:kethalia/hive"),
+      screen.getByTestId("palette-action-workspace:open-git:git-clone:kethalia/hive:kethalia/hive"),
     ).toHaveTextContent("Open this Git repository as a single terminal page");
 
     fireEvent.click(screen.getByTestId("palette-action-workspace:focus-session:dev-server"));
 
     expect(screen.getByTestId("active-pane-label")).toHaveTextContent("dev-server");
+  });
+
+  it("uses clone key plus relative path for Git command palette identities", async () => {
+    mockGetSessions.mockResolvedValueOnce({ data: [] });
+    mockListGitClones.mockResolvedValueOnce({
+      data: {
+        ok: true,
+        tree: {
+          nodes: [
+            {
+              id: "repo-hive",
+              kind: "repository",
+              label: "hive",
+              relativePath: "kethalia/hive",
+              relativePathSegments: ["kethalia", "hive"],
+              displaySegments: ["Git", "home", "kethalia", "hive"],
+              cloneSessionKey: "git-clone:kethalia",
+            },
+            {
+              id: "repo-docs",
+              kind: "repository",
+              label: "docs",
+              relativePath: "kethalia/docs",
+              relativePathSegments: ["kethalia", "docs"],
+              displaySegments: ["Git", "home", "kethalia", "docs"],
+              cloneSessionKey: "git-clone:kethalia",
+            },
+          ],
+        },
+      },
+    });
+
+    render(<MultiSessionWorkspace {...defaultProps} source="unified" />);
+    await screen.findByTestId("multi-session-empty");
+
+    fireEvent.click(screen.getByTestId("open-git-session-search"));
+    fireEvent.change(await screen.findByTestId("workspace-command-palette-search"), {
+      target: { value: "kethalia" },
+    });
+
+    expect(
+      screen.getByTestId("palette-action-workspace:add-git:git-clone:kethalia:kethalia/hive"),
+    ).toHaveTextContent("kethalia/hive");
+    expect(
+      screen.getByTestId("palette-action-workspace:add-git:git-clone:kethalia:kethalia/docs"),
+    ).toHaveTextContent("kethalia/docs");
+    expect(
+      screen.getByTestId("palette-action-workspace:open-git:git-clone:kethalia:kethalia/hive"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByTestId("palette-action-workspace:open-git:git-clone:kethalia:kethalia/docs"),
+    ).toBeInTheDocument();
   });
 
   it("creates a named workspace terminal from a non-matching command palette query", async () => {
@@ -1911,12 +1993,14 @@ describe("MultiSessionWorkspace", () => {
       target: { value: "hive" },
     });
     expect(
-      screen.getByTestId("palette-action-workspace:add-git:git-clone:kethalia/hive"),
+      screen.getByTestId("palette-action-workspace:add-git:git-clone:kethalia/hive:kethalia/hive"),
     ).toHaveTextContent("kethalia/hive");
 
     await act(async () => {
       fireEvent.click(
-        screen.getByTestId("palette-action-workspace:add-git:git-clone:kethalia/hive"),
+        screen.getByTestId(
+          "palette-action-workspace:add-git:git-clone:kethalia/hive:kethalia/hive",
+        ),
       );
     });
 
@@ -2049,7 +2133,9 @@ describe("MultiSessionWorkspace", () => {
 
     await act(async () => {
       fireEvent.click(
-        await screen.findByTestId("palette-action-workspace:add-git:git-clone:kethalia/hive"),
+        await screen.findByTestId(
+          "palette-action-workspace:add-git:git-clone:kethalia/hive:kethalia/hive",
+        ),
       );
     });
 
@@ -2108,7 +2194,9 @@ describe("MultiSessionWorkspace", () => {
 
     await waitFor(() => {
       expect(
-        screen.getByTestId("palette-action-workspace:add-git:git-clone:kethalia/docs"),
+        screen.getByTestId(
+          "palette-action-workspace:add-git:git-clone:kethalia/docs:kethalia/docs",
+        ),
       ).toHaveTextContent("kethalia/docs");
     });
 

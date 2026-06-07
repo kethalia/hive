@@ -117,15 +117,38 @@ export function PushPermissionPrompt() {
       setPermission("granted");
     } catch (err) {
       console.error("[push] Retry subscribe failed:", err);
-      setPermission("denied");
+      setPermission(Notification.permission);
       setError(RETRY_SUBSCRIBE_FAILURE_MESSAGE);
     } finally {
       setSubscribing(false);
     }
   }, []);
 
-  if (!permission || permission === "granted") return null;
+  if (!permission || (permission === "granted" && !error)) return null;
   if (dismissed) return null;
+
+  if (permission === "granted") {
+    return (
+      <div className="fixed right-4 bottom-4 z-50 w-[calc(100vw-2rem)] max-w-96 pb-safe sm:w-96">
+        <Alert>
+          <Bell className="size-4" />
+          <AlertTitle>Notifications unavailable</AlertTitle>
+          <AlertDescription>
+            Browser permission is enabled, but this device could not finish push setup.
+            {error && <p className="text-destructive mt-1">{error}</p>}
+          </AlertDescription>
+          <div className="mt-3 flex justify-end gap-2">
+            <Button variant="outline" size="xs" onClick={handleDismiss} disabled={subscribing}>
+              Dismiss
+            </Button>
+            <Button size="xs" onClick={handleRetry} disabled={subscribing}>
+              {subscribing ? "Retrying…" : "Retry"}
+            </Button>
+          </div>
+        </Alert>
+      </div>
+    );
+  }
 
   if (permission === "denied") {
     return (

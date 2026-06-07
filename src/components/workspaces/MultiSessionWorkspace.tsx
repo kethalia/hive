@@ -426,7 +426,8 @@ function serializeWorkspacePaneLayout(
 }
 
 function hasValidPersistedBoardState(persistedBoardJson: string | null): boolean {
-  return parsePersistedWorkspaceBoardState(persistedBoardJson).status === "valid";
+  const parsed = parsePersistedWorkspaceBoardState(persistedBoardJson);
+  return parsed.status === "valid" && parsed.state.boards.length > 0;
 }
 
 function buildFallbackBoardPanes(
@@ -478,6 +479,14 @@ function gitPaneIdentity(cloneSessionKey: string, relativePath: string): string 
   return `${cloneSessionKey}\u0000${relativePath}`;
 }
 
+function gitPaneActionIdentity(cloneSessionKey: string, relativePath: string): string {
+  return `${cloneSessionKey}:${relativePath}`;
+}
+
+function gitRepositoryActionIdentity(repository: GitRepositoryOption): string {
+  return gitPaneActionIdentity(repository.cloneSessionKey, repository.relativePath);
+}
+
 function deriveVisibleSessionsFromBoard(
   sessions: readonly WorkspaceSessionPane[],
   activeBoard: WorkspaceBoard | undefined,
@@ -514,6 +523,28 @@ function deriveVisibleSessionsFromBoard(
   }
 
   return visibleSessions;
+}
+
+function resetWorkspaceBoardPaneOrderByLabel(
+  state: WorkspaceBoardState,
+  boardKey: string | undefined,
+): WorkspaceBoardState {
+  if (!boardKey) return state;
+
+  return {
+    ...state,
+    boards: state.boards.map((board) => {
+      if (board.key !== boardKey) return board;
+      const panes = [...board.panes]
+        .sort((left, right) => paneSortLabel(left).localeCompare(paneSortLabel(right)))
+        .map((pane, order) => ({ ...pane, order }));
+      return { ...board, panes };
+    }),
+  };
+}
+
+function paneSortLabel(pane: WorkspaceBoardPane): string {
+  return pane.label ?? (pane.kind === "git" ? pane.relativePath : pane.sessionName) ?? pane.key;
 }
 
 function reconcileGitPaneSessionNames(
@@ -707,9 +738,7 @@ async function loadUnifiedWorkspaceSessions(
     ...(gitLoad.status === "success" ? gitLoad.sessions : []),
   ]);
 
-  if (gitLoad.status === "failure") return { status: "failure", repositories };
-
-  const gitRestoreFailed = gitLoad.gitRestoreFailed === true;
+  const gitRestoreFailed = gitLoad.status === "failure" || gitLoad.gitRestoreFailed === true;
   if (sessions.length > 0) return { status: "success", sessions, repositories, gitRestoreFailed };
   if (workspaceLoad.status === "failure") {
     return { status: "failure", repositories, gitRestoreFailed };
@@ -750,7 +779,7 @@ export function MultiSessionWorkspace({
   const [gitAddFailed, setGitAddFailed] = useState(false);
   const [gitRestoreFailed, setGitRestoreFailed] = useState(false);
   const [terminalCloseFailed, setTerminalCloseFailed] = useState(false);
-  const [_persistedLayoutJson, setPersistedLayoutJson] = useState<string | null>(null);
+  const [persistedLayoutJson, setPersistedLayoutJson] = useState<string | null>(null);
   const [layoutPersistenceNotice, setLayoutPersistenceNotice] =
     useState<LayoutPersistenceNotice | null>(null);
   const [boardState, setBoardState] = useState<WorkspaceBoardState>(() =>
@@ -791,9 +820,9 @@ export function MultiSessionWorkspace({
           sessionName: session.sessionName,
           label: session.label,
         })),
-        persistedJson: null,
+        persistedJson: persistedLayoutJson,
       }),
-    [visibleSessions],
+    [persistedLayoutJson, visibleSessions],
   );
   const activeLabel = visibleSessions.find(
     (session) => session.sessionName === activeSessionName,
@@ -808,8 +837,11 @@ export function MultiSessionWorkspace({
     [activeBoard],
   );
   const favoriteGitRepositories = useMemo(() => {
-    const repositoryByKey = new Map(
-      gitRepositories.map((repository) => [repository.cloneSessionKey, repository]),
+    const repositoryByIdentity = new Map(
+      gitRepositories.map((repository) => [
+        gitPaneIdentity(repository.cloneSessionKey, repository.relativePath),
+        repository,
+      ]),
     );
     const seen = new Set<string>();
     const query = gitSearchQuery.trim().toLowerCase();
@@ -819,8 +851,8 @@ export function MultiSessionWorkspace({
       if (!favorite.relativePath) return [];
       const favoriteIdentity = gitPaneIdentity(favorite.targetKey, favorite.relativePath);
       if (seen.has(favoriteIdentity)) return [];
-      const repository = repositoryByKey.get(favorite.targetKey);
-      if (!repository || repository.relativePath !== favorite.relativePath) return [];
+      const repository = repositoryByIdentity.get(favoriteIdentity);
+      if (!repository) return [];
       if (activeBoardGitPaneIdentities.has(favoriteIdentity)) return [];
       if (
         query &&
@@ -839,8 +871,13 @@ export function MultiSessionWorkspace({
       ];
     });
   }, [activeBoardGitPaneIdentities, gitFavorites, gitRepositories, gitSearchQuery, workspaceId]);
-  const favoriteCloneKeys = useMemo(
-    () => new Set(favoriteGitRepositories.map((repository) => repository.cloneSessionKey)),
+  const favoriteGitRepositoryIdentities = useMemo(
+    () =>
+      new Set(
+        favoriteGitRepositories.map((repository) =>
+          gitPaneIdentity(repository.cloneSessionKey, repository.relativePath),
+        ),
+      ),
     [favoriteGitRepositories],
   );
   const filteredGitRepositories = useMemo(() => {
@@ -853,14 +890,24 @@ export function MultiSessionWorkspace({
       ) {
         return false;
       }
-      if (favoriteCloneKeys.has(repository.cloneSessionKey)) return false;
+      if (
+        favoriteGitRepositoryIdentities.has(
+          gitPaneIdentity(repository.cloneSessionKey, repository.relativePath),
+        )
+      )
+        return false;
       if (!query) return false;
       return (
         repository.label.toLowerCase().includes(query) ||
         repository.relativePath.toLowerCase().includes(query)
       );
     });
-  }, [activeBoardGitPaneIdentities, favoriteCloneKeys, gitRepositories, gitSearchQuery]);
+  }, [
+    activeBoardGitPaneIdentities,
+    favoriteGitRepositoryIdentities,
+    gitRepositories,
+    gitSearchQuery,
+  ]);
   const filteredTerminalSessions = useMemo(() => {
     const query = gitSearchQuery.trim().toLowerCase();
     if (!query) return [];
@@ -1160,10 +1207,8 @@ export function MultiSessionWorkspace({
 
   const handleResetLayout = useCallback(() => {
     persistLayoutJson(null);
-    setSessions((current) =>
-      [...current].sort((left, right) => left.label.localeCompare(right.label)),
-    );
-  }, [persistLayoutJson]);
+    persistBoardState(resetWorkspaceBoardPaneOrderByLabel(boardState, activeBoard?.key));
+  }, [activeBoard?.key, boardState, persistBoardState, persistLayoutJson]);
 
   useEffect(() => {
     const handleCapturedWorkspaceKeyDown = (event: KeyboardEvent) => {
@@ -1734,7 +1779,7 @@ export function MultiSessionWorkspace({
       const repositoryPending = addingCloneKey === repositoryIdentity;
       if (!activeBoardGitPaneIdentities.has(repositoryIdentity)) {
         actions.push({
-          id: `workspace:add-git:${repository.cloneSessionKey}`,
+          id: `workspace:add-git:${gitRepositoryActionIdentity(repository)}`,
           label: `Add ${repository.label}`,
           description: "Open this Git repository as a workspace pane",
           group: "Git repositories",
@@ -1746,7 +1791,7 @@ export function MultiSessionWorkspace({
         });
       }
       actions.push({
-        id: `workspace:open-git:${repository.cloneSessionKey}`,
+        id: `workspace:open-git:${gitRepositoryActionIdentity(repository)}`,
         label: `Open ${repository.label}`,
         description: "Open this Git repository as a single terminal page",
         group: "Git repositories",
@@ -1949,7 +1994,7 @@ export function MultiSessionWorkspace({
         className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-xs hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-wait disabled:opacity-70"
         onClick={() => void handleAddGitRepository(repository)}
         disabled={repositoryPending}
-        data-testid={`add-git-session-${repository.cloneSessionKey}`}
+        data-testid={`add-git-session-${gitRepositoryActionIdentity(repository)}`}
       >
         <Plus className="size-3 shrink-0" />
         <span className="min-w-0 flex-1">

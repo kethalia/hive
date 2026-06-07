@@ -43,6 +43,35 @@ describe("refreshInstalledApp", () => {
     expect(reload).toHaveBeenCalledTimes(1);
   });
 
+  it("still reloads when update, unregister, and Cache Storage cleanup fail", async () => {
+    const update = vi.fn(() => Promise.reject(new Error("update failed")));
+    const unregister = vi.fn(() => Promise.reject(new Error("unregister failed")));
+    const getRegistrations = vi.fn(() => Promise.resolve([{ update, unregister }]));
+    const cacheKeys = vi.fn(() => Promise.reject(new Error("cache list failed")));
+    const reload = vi.fn();
+
+    Object.defineProperty(navigator, "serviceWorker", {
+      configurable: true,
+      value: { getRegistrations },
+    });
+    Object.defineProperty(window, "caches", {
+      configurable: true,
+      value: { keys: cacheKeys, delete: vi.fn() },
+    });
+    Object.defineProperty(window, "location", {
+      configurable: true,
+      value: { reload },
+    });
+
+    await refreshInstalledApp();
+
+    expect(getRegistrations).toHaveBeenCalledTimes(1);
+    expect(update).toHaveBeenCalledTimes(1);
+    expect(unregister).toHaveBeenCalledTimes(1);
+    expect(cacheKeys).toHaveBeenCalledTimes(1);
+    expect(reload).toHaveBeenCalledTimes(1);
+  });
+
   it("still reloads when service workers and Cache Storage are unavailable", async () => {
     const reload = vi.fn();
 

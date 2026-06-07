@@ -243,7 +243,7 @@ describe("PushPermissionPrompt", () => {
     });
   });
 
-  it("keeps sanitized retryable copy visible when granted retry subscription fails", async () => {
+  it("keeps sanitized retryable copy visible without claiming notifications are blocked when granted retry subscription fails", async () => {
     const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
     const secretFailure = new Error(
       `Subscription failed for ${fakePushSubscription.endpoint} secret-p256dh-key secret-auth-key`,
@@ -263,7 +263,8 @@ describe("PushPermissionPrompt", () => {
     await waitFor(() => {
       expect(screen.getByText(/We could not restore notifications/)).toBeDefined();
     });
-    expect(screen.getByText("Notifications blocked")).toBeDefined();
+    expect(screen.getByText("Notifications unavailable")).toBeDefined();
+    expect(screen.queryByText("Notifications blocked")).toBeNull();
     const visibleCopy = document.body.textContent ?? "";
     expect(visibleCopy).not.toContain(fakePushSubscription.endpoint);
     expect(visibleCopy).not.toContain("secret-p256dh-key");

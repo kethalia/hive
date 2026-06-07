@@ -59,7 +59,13 @@ export function WorkspaceBoardBar({
 
     event.preventDefault();
     const nextBoard = orderedBoards[nextIndex];
-    if (nextBoard) selectBoard(nextBoard.key);
+    if (nextBoard) {
+      selectBoard(nextBoard.key);
+      event.currentTarget
+        .closest('[role="tablist"]')
+        ?.querySelector<HTMLButtonElement>(`[data-testid="workspace-board-tab-${nextBoard.key}"]`)
+        ?.focus();
+    }
   }
 
   return (
@@ -101,7 +107,7 @@ export function WorkspaceBoardBar({
                 if (dangerBoardKey === board.key) setDangerBoardKey(null);
               }}
               onFocus={() => {
-                if (canDelete && isActive) setDangerBoardKey(board.key);
+                if (dangerBoardKey === board.key) setDangerBoardKey(null);
               }}
               onBlur={() => {
                 if (dangerBoardKey === board.key) setDangerBoardKey(null);

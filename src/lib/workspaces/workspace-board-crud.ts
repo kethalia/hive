@@ -395,12 +395,12 @@ function firstBoardWithKey(): (
 
 function uniqueBoardName(requestedName: string, boards: readonly WorkspaceBoard[]): string {
   const baseName = normalizeText(requestedName) ?? "Board";
-  const existingNames = new Set(boards.map((board) => board.name.toLocaleLowerCase()));
-  if (!existingNames.has(baseName.toLocaleLowerCase())) return baseName;
+  const existingNames = new Set(boards.map((board) => board.name.toLowerCase()));
+  if (!existingNames.has(baseName.toLowerCase())) return baseName;
 
   for (let suffix = 2; suffix < 10000; suffix += 1) {
     const candidate = `${baseName} ${suffix}`;
-    if (!existingNames.has(candidate.toLocaleLowerCase())) return candidate;
+    if (!existingNames.has(candidate.toLowerCase())) return candidate;
   }
 
   return `${baseName} ${boards.length + 1}`;
@@ -421,7 +421,7 @@ function uniqueBoardKey(requestedKey: string, boards: readonly WorkspaceBoard[])
 
 function slugifyBoardKey(value: string): string {
   const slug = value
-    .toLocaleLowerCase()
+    .toLowerCase()
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "");
   return slug || "board";
