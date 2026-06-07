@@ -4,7 +4,6 @@ import type { Terminal } from "@xterm/xterm";
 import { AlertCircle, Loader2, Minus, Plus, Search, TerminalSquare, X } from "lucide-react";
 import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
-import { toast } from "sonner";
 import {
   type CSSProperties,
   type KeyboardEvent as ReactKeyboardEvent,
@@ -14,6 +13,7 @@ import {
   useRef,
   useState,
 } from "react";
+import { toast } from "sonner";
 import { CommandPalette, type CommandPaletteAction } from "@/components/terminal/CommandPalette";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -82,6 +82,15 @@ interface InteractiveTerminalComponentProps {
   sessionName: string;
   clonePath?: string;
   cloneProof?: string;
+  refreshCloneTerminalIdentity?: (context: {
+    sessionName: string;
+    clonePath: string;
+    reason: "scheduled-reconnect" | "manual-reconnect";
+    retryCount: number;
+    closeCode: number | null;
+    closeCategory: string | null;
+    reasonCategory: string | null;
+  }) => Promise<{ sessionName: string; clonePath: string; cloneProof: string }>;
   className?: string;
   onTerminalReady?: (term: Terminal, send: (data: string) => void) => void;
   onTerminalDestroy?: () => void;
@@ -1528,12 +1537,58 @@ export function MultiSessionWorkspace({
     [boardState, persistBoardState, persistSessionOrder, selectSession, workspaceId],
   );
 
+  const refreshGitPaneCloneTerminalIdentity = useCallback(
+    async (
+      expectedSessionName: string,
+      cloneSessionKey: string,
+      relativePath: string,
+    ): Promise<{ sessionName: string; clonePath: string; cloneProof: string }> => {
+      const identity = unwrapActionData(
+        await resolveGitCloneTerminalAction({
+          agentId,
+          workspaceId,
+          cloneSessionKey,
+          relativePath,
+        }),
+      );
+
+      if (!isGitCloneTerminalIdentity(identity) || identity.sessionName !== expectedSessionName) {
+        throw new Error("Git clone terminal refresh failed");
+      }
+
+      setSessions((current) =>
+        current.map((session) =>
+          session.sessionName === expectedSessionName
+            ? {
+                ...session,
+                clonePath: identity.clonePath,
+                cloneProof: identity.cloneProof,
+                cloneSessionKey: session.cloneSessionKey ?? cloneSessionKey,
+                relativePath: session.relativePath ?? relativePath,
+              }
+            : session,
+        ),
+      );
+
+      return {
+        sessionName: identity.sessionName,
+        clonePath: identity.clonePath,
+        cloneProof: identity.cloneProof,
+      };
+    },
+    [agentId, workspaceId],
+  );
+
   const openTerminalSessionPage = useCallback(
     (session: WorkspaceSessionPane) => {
       const params = new URLSearchParams({ session: session.sessionName });
       if (session.clonePath && session.cloneProof) {
         params.set("clonePath", session.clonePath);
         params.set("cloneProof", session.cloneProof);
+      }
+      if (session.cloneSessionKey && session.relativePath) {
+        params.set("cloneSessionKey", session.cloneSessionKey);
+        params.set("relativePath", session.relativePath);
       }
       router.push(`/workspaces/${encodeURIComponent(workspaceId)}/terminal?${params.toString()}`);
     },
@@ -1563,6 +1618,8 @@ export function MultiSessionWorkspace({
           session: identity.sessionName,
           clonePath: identity.clonePath,
           cloneProof: identity.cloneProof,
+          cloneSessionKey: repository.cloneSessionKey,
+          relativePath: repository.relativePath,
         });
         router.push(`/workspaces/${encodeURIComponent(workspaceId)}/terminal?${params.toString()}`);
       } catch {
@@ -2269,6 +2326,13 @@ export function MultiSessionWorkspace({
     const session =
       visibleSession ?? sessions.find((candidate) => candidate.sessionName === pane.sessionName);
     const isActive = pane.sessionName === activeSessionName;
+    const cloneSessionKey = session?.cloneSessionKey;
+    const relativePath = session?.relativePath;
+    const refreshCloneTerminalIdentity =
+      session && cloneSessionKey && relativePath
+        ? () =>
+            refreshGitPaneCloneTerminalIdentity(session.sessionName, cloneSessionKey, relativePath)
+        : undefined;
     const boardPaneSignal = visibleSession?.boardPaneKey ?? pane.id;
     const layoutSignal = `${activeBoard?.key ?? "no-board"}:${boardPaneSignal}:${layout.tiled.rows}:${layout.tiled.columns}:${pane.gridArea}`;
     const paneStyle: CSSProperties = { gridArea: pane.gridArea };
@@ -2331,6 +2395,7 @@ export function MultiSessionWorkspace({
           sessionName={pane.sessionName}
           clonePath={session?.clonePath}
           cloneProof={session?.cloneProof}
+          refreshCloneTerminalIdentity={refreshCloneTerminalIdentity}
           className="min-h-0 flex-1"
           layoutSignal={layoutSignal}
           onTerminalReady={(term, send) => handleTerminalReady(pane.sessionName, term, send)}

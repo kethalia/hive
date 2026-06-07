@@ -26,6 +26,15 @@ const terminalProps = new Map<
     sessionName: string;
     clonePath?: string;
     cloneProof?: string;
+    refreshCloneTerminalIdentity?: (context: {
+      sessionName: string;
+      clonePath: string;
+      reason: "scheduled-reconnect" | "manual-reconnect";
+      retryCount: number;
+      closeCode: number | null;
+      closeCategory: string | null;
+      reasonCategory: string | null;
+    }) => Promise<{ sessionName: string; clonePath: string; cloneProof: string }>;
     className?: string;
     layoutSignal?: unknown;
     onTerminalReady?: (term: Terminal, send: (data: string) => void) => void;
@@ -53,6 +62,7 @@ vi.mock("next/dynamic", () => ({
       sessionName,
       clonePath,
       cloneProof,
+      refreshCloneTerminalIdentity,
       className,
       layoutSignal,
       onTerminalReady,
@@ -63,6 +73,15 @@ vi.mock("next/dynamic", () => ({
       sessionName: string;
       clonePath?: string;
       cloneProof?: string;
+      refreshCloneTerminalIdentity?: (context: {
+        sessionName: string;
+        clonePath: string;
+        reason: "scheduled-reconnect" | "manual-reconnect";
+        retryCount: number;
+        closeCode: number | null;
+        closeCategory: string | null;
+        reasonCategory: string | null;
+      }) => Promise<{ sessionName: string; clonePath: string; cloneProof: string }>;
       className?: string;
       layoutSignal?: unknown;
       onTerminalReady?: (term: Terminal, send: (data: string) => void) => void;
@@ -74,6 +93,7 @@ vi.mock("next/dynamic", () => ({
         sessionName,
         clonePath,
         cloneProof,
+        refreshCloneTerminalIdentity,
         className,
         layoutSignal,
         onTerminalReady,
@@ -2039,6 +2059,255 @@ describe("MultiSessionWorkspace", () => {
     expect(window.localStorage.getItem("workspace-board-state:git:ws-1")).not.toContain(
       "git-clone:kethalia/hive",
     );
+  });
+
+  it("refreshes Git pane clone identity in memory without persisting proof material", async () => {
+    mockListGitClones.mockResolvedValueOnce({
+      data: {
+        ok: true,
+        tree: {
+          nodes: [
+            {
+              id: "repo-hive",
+              kind: "repository",
+              label: "hive",
+              relativePath: "kethalia/hive",
+              relativePathSegments: ["kethalia", "hive"],
+              displaySegments: ["Git", "home", "kethalia", "hive"],
+              cloneSessionKey: "git-clone:kethalia/hive",
+            },
+          ],
+        },
+      },
+    });
+    mockResolveGitCloneTerminal
+      .mockResolvedValueOnce({
+        data: {
+          sessionName: "git-clone-safe-hive",
+          clonePath: "kethalia/hive",
+          cloneSessionKey: "git-clone:kethalia/hive",
+          cloneProof: "stale-proof-token",
+        },
+      })
+      .mockResolvedValueOnce({
+        data: {
+          sessionName: "git-clone-safe-hive",
+          clonePath: "kethalia/hive",
+          cloneSessionKey: "git-clone:kethalia/hive",
+          cloneProof: "fresh-proof-token",
+        },
+      });
+
+    render(<MultiSessionWorkspace {...defaultProps} source="unified" />);
+    await screen.findByTestId("multi-session-empty");
+
+    fireEvent.click(screen.getByTestId("open-git-session-search"));
+    fireEvent.change(await screen.findByTestId("workspace-command-palette-search"), {
+      target: { value: "hive" },
+    });
+
+    await act(async () => {
+      fireEvent.click(
+        screen.getByTestId(
+          "palette-action-workspace:add-git:git-clone:kethalia/hive:kethalia/hive",
+        ),
+      );
+    });
+
+    expect(await screen.findByTestId("interactive-terminal-git-clone-safe-hive")).toHaveAttribute(
+      "data-clone-proof",
+      "stale-proof-token",
+    );
+    expect(typeof terminalProps.get("git-clone-safe-hive")?.refreshCloneTerminalIdentity).toBe(
+      "function",
+    );
+
+    let refreshed: { sessionName: string; clonePath: string; cloneProof: string } | undefined;
+    await act(async () => {
+      refreshed = await terminalProps.get("git-clone-safe-hive")?.refreshCloneTerminalIdentity?.({
+        sessionName: "git-clone-safe-hive",
+        clonePath: "kethalia/hive",
+        reason: "scheduled-reconnect",
+        retryCount: 1,
+        closeCode: 4401,
+        closeCategory: "clone-proof-invalid",
+        reasonCategory: "clone-proof-invalid",
+      });
+    });
+
+    expect(refreshed).toEqual({
+      sessionName: "git-clone-safe-hive",
+      clonePath: "kethalia/hive",
+      cloneProof: "fresh-proof-token",
+    });
+    expect(mockResolveGitCloneTerminal).toHaveBeenLastCalledWith({
+      agentId: "agent-1",
+      workspaceId: "ws-1",
+      cloneSessionKey: "git-clone:kethalia/hive",
+      relativePath: "kethalia/hive",
+    });
+    expect(mockResolveGitCloneTerminal.mock.calls[1][0]).not.toHaveProperty("cloneProof");
+    expect(mockResolveGitCloneTerminal.mock.calls[1][0]).not.toHaveProperty("clonePath");
+    expect(await screen.findByTestId("interactive-terminal-git-clone-safe-hive")).toHaveAttribute(
+      "data-clone-proof",
+      "fresh-proof-token",
+    );
+    expect(screen.getByTestId("active-pane-label")).toHaveTextContent("kethalia/hive");
+
+    const stored = window.localStorage.getItem("workspace-board-state:git:ws-1") ?? "";
+    expect(stored).toContain("git-clone:kethalia/hive");
+    expect(stored).toContain("kethalia/hive");
+    expect(stored).not.toMatch(/cloneProof|clonePath|stale-proof-token|fresh-proof-token/);
+  });
+
+  it("rejects mismatched Git pane refresh identity without changing live or persisted proof state", async () => {
+    mockListGitClones.mockResolvedValueOnce({
+      data: {
+        ok: true,
+        tree: {
+          nodes: [
+            {
+              id: "repo-hive",
+              kind: "repository",
+              label: "hive",
+              relativePath: "kethalia/hive",
+              relativePathSegments: ["kethalia", "hive"],
+              displaySegments: ["Git", "home", "kethalia", "hive"],
+              cloneSessionKey: "git-clone:kethalia/hive",
+            },
+          ],
+        },
+      },
+    });
+    mockResolveGitCloneTerminal
+      .mockResolvedValueOnce({
+        data: {
+          sessionName: "git-clone-safe-hive",
+          clonePath: "kethalia/hive",
+          cloneSessionKey: "git-clone:kethalia/hive",
+          cloneProof: "stable-proof-token",
+        },
+      })
+      .mockResolvedValueOnce({
+        data: {
+          sessionName: "git-clone-other",
+          clonePath: "kethalia/hive",
+          cloneSessionKey: "git-clone:kethalia/hive",
+          cloneProof: "wrong-proof-token",
+        },
+      });
+
+    render(<MultiSessionWorkspace {...defaultProps} source="unified" />);
+    await screen.findByTestId("multi-session-empty");
+    fireEvent.click(screen.getByTestId("open-git-session-search"));
+    fireEvent.change(await screen.findByTestId("workspace-command-palette-search"), {
+      target: { value: "hive" },
+    });
+    await act(async () => {
+      fireEvent.click(
+        screen.getByTestId(
+          "palette-action-workspace:add-git:git-clone:kethalia/hive:kethalia/hive",
+        ),
+      );
+    });
+
+    await expect(
+      terminalProps.get("git-clone-safe-hive")?.refreshCloneTerminalIdentity?.({
+        sessionName: "git-clone-safe-hive",
+        clonePath: "kethalia/hive",
+        reason: "manual-reconnect",
+        retryCount: 0,
+        closeCode: 4401,
+        closeCategory: "clone-proof-invalid",
+        reasonCategory: "clone-proof-invalid",
+      }),
+    ).rejects.toThrow("Git clone terminal refresh failed");
+
+    expect(screen.getByTestId("interactive-terminal-git-clone-safe-hive")).toHaveAttribute(
+      "data-clone-proof",
+      "stable-proof-token",
+    );
+    expect(screen.queryByTestId("interactive-terminal-git-clone-other")).not.toBeInTheDocument();
+    expect(window.localStorage.getItem("workspace-board-state:git:ws-1") ?? "").not.toMatch(
+      /wrong-proof-token|git-clone-other|cloneProof|clonePath/,
+    );
+    expect(screen.queryByText(/wrong-proof-token|git-clone-other/)).not.toBeInTheDocument();
+  });
+
+  it("includes public clone identifiers when opening Git terminals as standalone pages", async () => {
+    mockListGitClones.mockResolvedValueOnce({
+      data: {
+        ok: true,
+        tree: {
+          nodes: [
+            {
+              id: "repo-hive",
+              kind: "repository",
+              label: "hive",
+              relativePath: "kethalia/hive",
+              relativePathSegments: ["kethalia", "hive"],
+              displaySegments: ["Git", "home", "kethalia", "hive"],
+              cloneSessionKey: "git-clone:kethalia/hive",
+            },
+          ],
+        },
+      },
+    });
+    mockResolveGitCloneTerminal.mockResolvedValue({
+      data: {
+        sessionName: "git-clone-safe-hive",
+        clonePath: "kethalia/hive",
+        cloneSessionKey: "git-clone:kethalia/hive",
+        cloneProof: "proof-token",
+      },
+    });
+
+    render(<MultiSessionWorkspace {...defaultProps} source="unified" />);
+    await screen.findByTestId("multi-session-empty");
+    fireEvent.click(screen.getByTestId("open-git-session-search"));
+    fireEvent.change(await screen.findByTestId("workspace-command-palette-search"), {
+      target: { value: "hive" },
+    });
+
+    await act(async () => {
+      fireEvent.click(
+        screen.getByTestId(
+          "palette-action-workspace:open-git:git-clone:kethalia/hive:kethalia/hive",
+        ),
+      );
+    });
+
+    let pushed = new URL(mockRouterPush.mock.calls.at(-1)?.[0] ?? "", "https://example.test");
+    expect(pushed.pathname).toBe("/workspaces/ws-1/terminal");
+    expect(pushed.searchParams.get("session")).toBe("git-clone-safe-hive");
+    expect(pushed.searchParams.get("clonePath")).toBe("kethalia/hive");
+    expect(pushed.searchParams.get("cloneProof")).toBe("proof-token");
+    expect(pushed.searchParams.get("cloneSessionKey")).toBe("git-clone:kethalia/hive");
+    expect(pushed.searchParams.get("relativePath")).toBe("kethalia/hive");
+
+    fireEvent.click(screen.getByTestId("open-git-session-search"));
+    fireEvent.change(await screen.findByTestId("workspace-command-palette-search"), {
+      target: { value: "hive" },
+    });
+    await act(async () => {
+      fireEvent.click(
+        screen.getByTestId(
+          "palette-action-workspace:add-git:git-clone:kethalia/hive:kethalia/hive",
+        ),
+      );
+    });
+    fireEvent.click(screen.getByTestId("open-git-session-search"));
+    fireEvent.change(await screen.findByTestId("workspace-command-palette-search"), {
+      target: { value: "hive" },
+    });
+    fireEvent.click(
+      screen.getByTestId("palette-action-workspace:open-session:git-clone-safe-hive"),
+    );
+
+    pushed = new URL(mockRouterPush.mock.calls.at(-1)?.[0] ?? "", "https://example.test");
+    expect(pushed.searchParams.get("cloneSessionKey")).toBe("git-clone:kethalia/hive");
+    expect(pushed.searchParams.get("relativePath")).toBe("kethalia/hive");
+    expect(pushed.searchParams.get("cloneProof")).toBe("proof-token");
   });
 
   it("registers command palette and immediate plain terminal shortcuts", async () => {

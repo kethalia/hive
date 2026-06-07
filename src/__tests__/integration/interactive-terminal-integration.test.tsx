@@ -48,6 +48,7 @@ const {
   mockUseFavoriteWindowNavigation,
   mockPasteToTerminal,
   mockRegisterKeybinding,
+  mockResolveGitCloneTerminalAction,
   mockSetActiveTerminal,
   mockUnregisterKeybinding,
   mockUseIsComposeSheet,
@@ -71,6 +72,7 @@ const {
     mockUseFavoriteWindowNavigation: vi.fn(),
     mockPasteToTerminal: vi.fn(),
     mockRegisterKeybinding: register,
+    mockResolveGitCloneTerminalAction: vi.fn(),
     mockSetActiveTerminal: setActiveTerminal,
     mockUnregisterKeybinding: unregister,
     mockUseIsComposeSheet: vi.fn(() => false),
@@ -106,6 +108,20 @@ const {
     terminalRouteMockState: {
       commandPaletteProps: null as unknown,
       gestureLayerProps: null as unknown,
+      interactiveTerminalProps: null as null | {
+        clonePath?: string;
+        cloneProof?: string;
+        refreshCloneTerminalIdentity?: (context: {
+          sessionName: string;
+          clonePath: string;
+          reason: "scheduled-reconnect" | "manual-reconnect";
+          retryCount: number;
+          closeCode: number | null;
+          closeCategory: string | null;
+          reasonCategory: string | null;
+        }) => Promise<{ sessionName: string; clonePath: string; cloneProof: string }>;
+        sessionName: string;
+      },
       mobileControlsProps: null as unknown,
     },
   };
@@ -169,6 +185,7 @@ vi.mock("next/dynamic", () => ({
       layoutSignal,
       mobileInputMode,
       pinToBottomOnResize,
+      refreshCloneTerminalIdentity,
       selectionModeEnabled,
       sessionName,
     }: {
@@ -178,21 +195,38 @@ vi.mock("next/dynamic", () => ({
       layoutSignal?: unknown;
       mobileInputMode?: boolean;
       pinToBottomOnResize?: boolean;
+      refreshCloneTerminalIdentity?: (context: {
+        sessionName: string;
+        clonePath: string;
+        reason: "scheduled-reconnect" | "manual-reconnect";
+        retryCount: number;
+        closeCode: number | null;
+        closeCategory: string | null;
+        reasonCategory: string | null;
+      }) => Promise<{ sessionName: string; clonePath: string; cloneProof: string }>;
       selectionModeEnabled?: boolean;
       sessionName: string;
-    }) => (
-      <div
-        className={className}
-        data-clone-path={clonePath ?? ""}
-        data-clone-proof={cloneProof ?? ""}
-        data-layout-signal={String(layoutSignal ?? "")}
-        data-mobile-input-mode={mobileInputMode ? "true" : "false"}
-        data-pin-to-bottom-on-resize={pinToBottomOnResize ? "true" : "false"}
-        data-selection-mode-enabled={selectionModeEnabled ? "true" : "false"}
-        data-session-name={sessionName}
-        data-testid="interactive-terminal"
-      />
-    );
+    }) => {
+      terminalRouteMockState.interactiveTerminalProps = {
+        clonePath,
+        cloneProof,
+        refreshCloneTerminalIdentity,
+        sessionName,
+      };
+      return (
+        <div
+          className={className}
+          data-clone-path={clonePath ?? ""}
+          data-clone-proof={cloneProof ?? ""}
+          data-layout-signal={String(layoutSignal ?? "")}
+          data-mobile-input-mode={mobileInputMode ? "true" : "false"}
+          data-pin-to-bottom-on-resize={pinToBottomOnResize ? "true" : "false"}
+          data-selection-mode-enabled={selectionModeEnabled ? "true" : "false"}
+          data-session-name={sessionName}
+          data-testid="interactive-terminal"
+        />
+      );
+    };
     Stub.displayName = "InteractiveTerminal";
     return Stub;
   },
@@ -235,6 +269,10 @@ vi.mock("@/lib/actions/workspaces", () => ({
   createSessionAction: mockCreateSessionAction,
   getWorkspaceAgentAction: mockGetWorkspaceAgentAction,
   getWorkspaceSessionsAction: mockGetWorkspaceSessionsAction,
+}));
+
+vi.mock("@/lib/actions/git-clones", () => ({
+  resolveGitCloneTerminalAction: mockResolveGitCloneTerminalAction,
 }));
 
 vi.mock("@/lib/actions/user-settings", () => ({
@@ -620,6 +658,7 @@ beforeEach(() => {
   });
   mockGetWorkspaceSessionsAction.mockReset();
   mockGetWorkspaceSessionsAction.mockResolvedValue({ data: [] });
+  mockResolveGitCloneTerminalAction.mockReset();
   mockUseFavoriteWindowNavigation.mockReset();
   mockUseFavoriteWindowNavigation.mockReturnValue({
     sessions: [],
@@ -635,6 +674,7 @@ beforeEach(() => {
   });
   terminalRouteMockState.commandPaletteProps = null;
   terminalRouteMockState.gestureLayerProps = null;
+  terminalRouteMockState.interactiveTerminalProps = null;
   terminalRouteMockState.mobileControlsProps = null;
   multiSessionRouteMockState.props = null;
   mockRegisterKeybinding.mockClear();
@@ -2104,6 +2144,106 @@ describe("TerminalClient integration — Clone route parameters", () => {
     unmount();
   });
 
+  it("refreshes standalone Git clone route proof with public clone identifiers only", async () => {
+    mockResolveGitCloneTerminalAction.mockResolvedValueOnce({
+      data: {
+        sessionName: "git-clone-safe-hive",
+        clonePath: "kethalia/hive",
+        cloneSessionKey: "git-clone:kethalia/hive",
+        cloneProof: "fresh-proof-token",
+      },
+    });
+    const { getByTestId, unmount } = await renderTerminalClient(
+      "session=git-clone-safe-hive&clonePath=kethalia%2Fhive&cloneProof=stale-proof-token&cloneSessionKey=git-clone%3Akethalia%2Fhive&relativePath=kethalia%2Fhive",
+    );
+
+    await waitFor(() => {
+      expect(getByTestId("interactive-terminal")).toHaveAttribute(
+        "data-clone-proof",
+        "stale-proof-token",
+      );
+    });
+    expect(
+      typeof terminalRouteMockState.interactiveTerminalProps?.refreshCloneTerminalIdentity,
+    ).toBe("function");
+
+    let refreshed: { sessionName: string; clonePath: string; cloneProof: string } | undefined;
+    await act(async () => {
+      refreshed =
+        await terminalRouteMockState.interactiveTerminalProps?.refreshCloneTerminalIdentity?.({
+          sessionName: "git-clone-safe-hive",
+          clonePath: "kethalia/hive",
+          reason: "scheduled-reconnect",
+          retryCount: 1,
+          closeCode: 4401,
+          closeCategory: "clone-proof-invalid",
+          reasonCategory: "clone-proof-invalid",
+        });
+    });
+
+    expect(refreshed).toEqual({
+      sessionName: "git-clone-safe-hive",
+      clonePath: "kethalia/hive",
+      cloneProof: "fresh-proof-token",
+    });
+    expect(mockResolveGitCloneTerminalAction).toHaveBeenCalledWith({
+      agentId: "test-agent",
+      workspaceId: "test-ws",
+      cloneSessionKey: "git-clone:kethalia/hive",
+      relativePath: "kethalia/hive",
+    });
+    expect(mockResolveGitCloneTerminalAction.mock.calls[0][0]).not.toHaveProperty("clonePath");
+    expect(mockResolveGitCloneTerminalAction.mock.calls[0][0]).not.toHaveProperty("cloneProof");
+    expect(getByTestId("interactive-terminal")).toHaveAttribute(
+      "data-clone-proof",
+      "fresh-proof-token",
+    );
+    expect(getByTestId("interactive-terminal")).toHaveAttribute("data-clone-path", "kethalia/hive");
+    expect(
+      window.localStorage.getItem("terminal:clone-proof:test-ws:git-clone-safe-hive"),
+    ).toBeNull();
+    unmount();
+  });
+
+  it("rejects mismatched standalone Git route refresh without changing proof props", async () => {
+    mockResolveGitCloneTerminalAction.mockResolvedValueOnce({
+      data: {
+        sessionName: "git-clone-other",
+        clonePath: "kethalia/hive",
+        cloneSessionKey: "git-clone:kethalia/hive",
+        cloneProof: "wrong-proof-token",
+      },
+    });
+    const { getByTestId, queryByText, unmount } = await renderTerminalClient(
+      "session=git-clone-safe-hive&clonePath=kethalia%2Fhive&cloneProof=stable-proof-token&cloneSessionKey=git-clone%3Akethalia%2Fhive&relativePath=kethalia%2Fhive",
+    );
+
+    await waitFor(() => {
+      expect(getByTestId("interactive-terminal")).toHaveAttribute(
+        "data-clone-proof",
+        "stable-proof-token",
+      );
+    });
+    await expect(
+      terminalRouteMockState.interactiveTerminalProps?.refreshCloneTerminalIdentity?.({
+        sessionName: "git-clone-safe-hive",
+        clonePath: "kethalia/hive",
+        reason: "manual-reconnect",
+        retryCount: 0,
+        closeCode: 4401,
+        closeCategory: "clone-proof-invalid",
+        reasonCategory: "clone-proof-invalid",
+      }),
+    ).rejects.toThrow("Git clone terminal refresh failed");
+
+    expect(getByTestId("interactive-terminal")).toHaveAttribute(
+      "data-clone-proof",
+      "stable-proof-token",
+    );
+    expect(queryByText(/wrong-proof-token|git-clone-other/)).not.toBeInTheDocument();
+    unmount();
+  });
+
   it("omits clonePath for normal session routes", async () => {
     const { getByTestId, unmount } = await renderTerminalClient("session=main");
 
@@ -2112,6 +2252,9 @@ describe("TerminalClient integration — Clone route parameters", () => {
     });
     expect(getByTestId("interactive-terminal")).toHaveAttribute("data-session-name", "main");
     expect(getByTestId("interactive-terminal")).toHaveAttribute("data-clone-path", "");
+    expect(
+      terminalRouteMockState.interactiveTerminalProps?.refreshCloneTerminalIdentity,
+    ).toBeUndefined();
     unmount();
   });
 
