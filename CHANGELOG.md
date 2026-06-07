@@ -1,5 +1,11 @@
 # hive-orchestrator
 
+## 2.4.5
+
+### Patch Changes
+
+- 67bfbf0: Tighten workspace board Git pane restoration metadata validation and avoid fallback key collisions for persisted Git panes.
+
 ## 2.4.4
 
 ### Patch Changes
