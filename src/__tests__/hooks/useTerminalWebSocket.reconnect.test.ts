@@ -44,6 +44,14 @@ function closeSocket(socket: MockWebSocket, init: CloseEventInit) {
   });
 }
 
+async function advanceTimersAndFlush(ms: number) {
+  await act(async () => {
+    vi.advanceTimersByTime(ms);
+    await Promise.resolve();
+    await Promise.resolve();
+  });
+}
+
 describe("useTerminalWebSocket reconnect loop", () => {
   beforeEach(() => {
     instances.length = 0;
@@ -147,6 +155,249 @@ describe("useTerminalWebSocket reconnect loop", () => {
       isRecoverable: true,
     });
     expect(result.current.connectionState).toBe("reconnecting");
+    unmount();
+  });
+
+  it("refreshes the URL before scheduled reconnect attempts", async () => {
+    const refreshUrlBeforeReconnect = vi
+      .fn()
+      .mockResolvedValue("ws://terminal.example/ws?proof=fresh");
+    const { result, unmount } = renderHook(() =>
+      useTerminalWebSocket({
+        url: "ws://terminal.example/ws?proof=stale",
+        onData: vi.fn(),
+        refreshUrlBeforeReconnect,
+      }),
+    );
+    const socket = openSocket();
+
+    closeSocket(socket, {
+      code: 1013,
+      reason: "upstream connect timeout",
+      wasClean: false,
+    });
+
+    expect(result.current.recoveryState.lastDelayMs).toBe(1000);
+    expect(instances).toHaveLength(1);
+
+    await advanceTimersAndFlush(1000);
+
+    expect(refreshUrlBeforeReconnect).toHaveBeenCalledWith(
+      expect.objectContaining({
+        currentUrl: "ws://terminal.example/ws?proof=stale",
+        reason: "scheduled-reconnect",
+        retryCount: 1,
+        closeCategory: "transient",
+        reasonCategory: "upstream-timeout",
+      }),
+    );
+    expect(instances).toHaveLength(2);
+    expect(instances.at(-1)?.url).toBe("ws://terminal.example/ws?proof=fresh");
+    expect(result.current.recoveryState).toMatchObject({
+      phase: "recovering",
+      retryCount: 1,
+      lastRecoveryAction: "schedule-reconnect",
+      lastRefreshAction: "refresh-succeeded",
+      refreshFailureCategory: null,
+      isRecoverable: true,
+    });
+    unmount();
+  });
+
+  it("does not reconnect with a stale URL when refresh fails", async () => {
+    const refreshUrlBeforeReconnect = vi.fn().mockRejectedValue(new Error("resolver failed"));
+    const { result, unmount } = renderHook(() =>
+      useTerminalWebSocket({
+        url: "ws://terminal.example/ws?proof=stale",
+        onData: vi.fn(),
+        refreshUrlBeforeReconnect,
+      }),
+    );
+    const socket = openSocket();
+
+    closeSocket(socket, {
+      code: 1006,
+      reason: "transient network error",
+      wasClean: false,
+    });
+
+    await advanceTimersAndFlush(1000);
+
+    expect(refreshUrlBeforeReconnect).toHaveBeenCalledTimes(1);
+    expect(instances).toHaveLength(1);
+    expect(instances.at(-1)?.url).toBe("ws://terminal.example/ws?proof=stale");
+    expect(result.current.connectionState).toBe("disconnected");
+    expect(result.current.recoveryState).toMatchObject({
+      phase: "recovering",
+      retryCount: 2,
+      lastRecoveryAction: "schedule-reconnect",
+      lastRefreshAction: "refresh-failed",
+      refreshFailureCategory: "callback-error",
+      lastDelayMs: 2000,
+      isRecoverable: true,
+      canRetry: true,
+    });
+    expect(vi.getTimerCount()).toBe(1);
+    unmount();
+  });
+
+  it("treats malformed refresh results as sanitized refresh failures", async () => {
+    const refreshUrlBeforeReconnect = vi.fn().mockResolvedValue({ url: "ws://terminal.example/ws" });
+    const { result, unmount } = renderHook(() =>
+      useTerminalWebSocket({
+        url: "ws://terminal.example/ws?proof=stale",
+        onData: vi.fn(),
+        refreshUrlBeforeReconnect,
+      }),
+    );
+    const socket = openSocket();
+
+    closeSocket(socket, {
+      code: 1013,
+      reason: "upstream connect timeout",
+      wasClean: false,
+    });
+
+    await advanceTimersAndFlush(1000);
+
+    expect(instances).toHaveLength(1);
+    expect(result.current.recoveryState).toMatchObject({
+      lastRefreshAction: "refresh-failed",
+      refreshFailureCategory: "malformed-response",
+      lastCloseCategory: "transient",
+      lastReasonCategory: "upstream-timeout",
+      isRecoverable: true,
+      canRetry: true,
+    });
+    unmount();
+  });
+
+  it("makes clone-proof-invalid closes refreshable only when a refresh callback exists", async () => {
+    const withoutRefresh = renderHook(() =>
+      useTerminalWebSocket({
+        url: "ws://terminal.example/ws?proof=stale",
+        onData: vi.fn(),
+      }),
+    );
+    closeSocket(openSocket(), {
+      code: 1008,
+      reason: "cloneProof invalid",
+      wasClean: false,
+    });
+
+    expect(withoutRefresh.result.current.connectionState).toBe("failed");
+    expect(withoutRefresh.result.current.recoveryState).toMatchObject({
+      phase: "final-failure",
+      lastCloseCategory: "clone-proof-invalid",
+      failureCategory: "clone-proof-invalid",
+      isRecoverable: false,
+    });
+    expect(vi.getTimerCount()).toBe(0);
+    withoutRefresh.unmount();
+
+    instances.length = 0;
+    const refreshUrlBeforeReconnect = vi
+      .fn()
+      .mockResolvedValue("ws://terminal.example/ws?proof=fresh");
+    const withRefresh = renderHook(() =>
+      useTerminalWebSocket({
+        url: "ws://terminal.example/ws?proof=stale",
+        onData: vi.fn(),
+        refreshUrlBeforeReconnect,
+      }),
+    );
+    closeSocket(openSocket(), {
+      code: 1008,
+      reason: "cloneProof invalid",
+      wasClean: false,
+    });
+
+    expect(withRefresh.result.current.connectionState).toBe("disconnected");
+    expect(withRefresh.result.current.recoveryState).toMatchObject({
+      phase: "recovering",
+      lastCloseCategory: "clone-proof-invalid",
+      failureCategory: null,
+      isRecoverable: true,
+    });
+
+    await advanceTimersAndFlush(1000);
+
+    expect(refreshUrlBeforeReconnect).toHaveBeenCalledWith(
+      expect.objectContaining({
+        closeCategory: "clone-proof-invalid",
+        reasonCategory: "clone-proof-invalid",
+      }),
+    );
+    expect(instances).toHaveLength(2);
+    expect(instances.at(-1)?.url).toBe("ws://terminal.example/ws?proof=fresh");
+    withRefresh.unmount();
+  });
+
+  it("keeps auth and permission closes final even with a refresh callback", () => {
+    const refreshUrlBeforeReconnect = vi
+      .fn()
+      .mockResolvedValue("ws://terminal.example/ws?proof=fresh");
+    const { result, unmount } = renderHook(() =>
+      useTerminalWebSocket({
+        url: "ws://terminal.example/ws?proof=stale",
+        onData: vi.fn(),
+        refreshUrlBeforeReconnect,
+      }),
+    );
+    const socket = openSocket();
+
+    closeSocket(socket, {
+      code: 4401,
+      reason: "unauthorized",
+      wasClean: false,
+    });
+
+    expect(result.current.connectionState).toBe("failed");
+    expect(result.current.recoveryState).toMatchObject({
+      phase: "final-failure",
+      lastCloseCategory: "auth-expired",
+      failureCategory: "auth-expired",
+      isRecoverable: false,
+      canRetry: true,
+    });
+    expect(refreshUrlBeforeReconnect).not.toHaveBeenCalled();
+    expect(vi.getTimerCount()).toBe(0);
+    unmount();
+  });
+
+  it("refreshes the URL before manual reconnects", async () => {
+    const refreshUrlBeforeReconnect = vi
+      .fn()
+      .mockResolvedValue("ws://terminal.example/ws?proof=fresh");
+    const { result, unmount } = renderHook(() =>
+      useTerminalWebSocket({
+        url: "ws://terminal.example/ws?proof=stale",
+        onData: vi.fn(),
+        refreshUrlBeforeReconnect,
+      }),
+    );
+    const socket = openSocket();
+
+    act(() => {
+      result.current.manualReconnect();
+    });
+    await advanceTimersAndFlush(0);
+
+    expect(refreshUrlBeforeReconnect).toHaveBeenCalledWith(
+      expect.objectContaining({
+        currentUrl: "ws://terminal.example/ws?proof=stale",
+        reason: "manual-reconnect",
+        retryCount: 0,
+      }),
+    );
+    expect(socket.close).toHaveBeenCalledTimes(1);
+    expect(instances).toHaveLength(2);
+    expect(instances.at(-1)?.url).toBe("ws://terminal.example/ws?proof=fresh");
+    expect(result.current.recoveryState).toMatchObject({
+      lastRecoveryAction: "manual-reconnect",
+      lastRefreshAction: "refresh-succeeded",
+      refreshFailureCategory: null,
+    });
     unmount();
   });
 

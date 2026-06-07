@@ -53,6 +53,29 @@ export type TerminalRecoveryAction =
   | "manual-reconnect"
   | "connected";
 
+export type TerminalRefreshAction =
+  | "none"
+  | "refresh-before-reconnect"
+  | "refresh-succeeded"
+  | "refresh-failed";
+
+export type TerminalRefreshFailureCategory = "callback-error" | "malformed-response";
+
+export type TerminalReconnectReason = "scheduled-reconnect" | "manual-reconnect";
+
+export type TerminalRefreshUrlContext = {
+  currentUrl: string;
+  reason: TerminalReconnectReason;
+  retryCount: number;
+  closeCode: number | null;
+  closeCategory: TerminalCloseCategory | null;
+  reasonCategory: TerminalCloseReasonCategory | null;
+};
+
+export type TerminalRefreshUrlBeforeReconnect = (
+  context: TerminalRefreshUrlContext,
+) => Promise<string | null | undefined> | string | null | undefined;
+
 export type TerminalCloseClassification = {
   closeCategory: TerminalCloseCategory;
   reasonCategory: TerminalCloseReasonCategory;
@@ -72,6 +95,10 @@ export type TerminalRecoveryState = {
   lastConnectedAt: number | null;
   lastDisconnectedAt: number | null;
   lastRecoveryAction: TerminalRecoveryAction;
+  lastRefreshAction: TerminalRefreshAction;
+  refreshFailureCategory: TerminalRefreshFailureCategory | null;
+  lastRefreshStartedAt: number | null;
+  lastRefreshFinishedAt: number | null;
   isRecoverable: boolean;
   canRetry: boolean;
 };
@@ -96,6 +123,10 @@ const INITIAL_RECOVERY_STATE: TerminalRecoveryState = {
   lastConnectedAt: null,
   lastDisconnectedAt: null,
   lastRecoveryAction: "none",
+  lastRefreshAction: "none",
+  refreshFailureCategory: null,
+  lastRefreshStartedAt: null,
+  lastRefreshFinishedAt: null,
   isRecoverable: true,
   canRetry: false,
 };
@@ -208,6 +239,7 @@ interface UseTerminalWebSocketProps {
   onStateChange?: (state: ConnectionState) => void;
   onResizeSent?: (event: TerminalResizeSentEvent) => void;
   onRecoveryStateChange?: (state: TerminalRecoveryState) => void;
+  refreshUrlBeforeReconnect?: TerminalRefreshUrlBeforeReconnect;
 }
 
 interface UseTerminalWebSocketReturn {
@@ -222,6 +254,13 @@ type RecoveryStateUpdate =
   | TerminalRecoveryState
   | ((current: TerminalRecoveryState) => TerminalRecoveryState);
 
+type ConnectOptions = {
+  recoveryAction?: TerminalRecoveryAction;
+  reconnectReason?: TerminalReconnectReason;
+  refreshBeforeConnect?: boolean;
+  generation?: number;
+};
+
 function normalizeResizeDimension(value: number): number | null {
   if (!Number.isFinite(value) || value <= 0) return null;
   return Math.trunc(value);
@@ -233,6 +272,7 @@ export function useTerminalWebSocket({
   onStateChange,
   onResizeSent,
   onRecoveryStateChange,
+  refreshUrlBeforeReconnect,
 }: UseTerminalWebSocketProps): UseTerminalWebSocketReturn {
   const [connectionState, setConnectionState] = useState<ConnectionState>("disconnected");
   const [recoveryState, setRecoveryState] = useState<TerminalRecoveryState>(INITIAL_RECOVERY_STATE);
@@ -240,16 +280,20 @@ export function useTerminalWebSocket({
   const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const attemptRef = useRef(0);
   const mountedRef = useRef(true);
+  const connectionGenerationRef = useRef(0);
+  const currentUrlRef = useRef<string | null>(url);
   const recoveryStateRef = useRef<TerminalRecoveryState>(INITIAL_RECOVERY_STATE);
   const onDataRef = useRef(onData);
   const onStateChangeRef = useRef(onStateChange);
   const onResizeSentRef = useRef(onResizeSent);
   const onRecoveryStateChangeRef = useRef(onRecoveryStateChange);
+  const refreshUrlBeforeReconnectRef = useRef(refreshUrlBeforeReconnect);
 
   onDataRef.current = onData;
   onStateChangeRef.current = onStateChange;
   onResizeSentRef.current = onResizeSent;
   onRecoveryStateChangeRef.current = onRecoveryStateChange;
+  refreshUrlBeforeReconnectRef.current = refreshUrlBeforeReconnect;
 
   const updateRecoveryState = useCallback((update: RecoveryStateUpdate) => {
     if (!mountedRef.current) return;
@@ -273,137 +317,257 @@ export function useTerminalWebSocket({
     }
   }, []);
 
-  const connect = useCallback(() => {
-    if (!url || !mountedRef.current) return;
+  const connect = useCallback(
+    async ({
+      recoveryAction,
+      reconnectReason,
+      refreshBeforeConnect = false,
+      generation = connectionGenerationRef.current,
+    }: ConnectOptions = {}) => {
+      const baseUrl = currentUrlRef.current ?? url;
+      if (!baseUrl || !mountedRef.current) return;
 
-    clearReconnectTimer();
+      clearReconnectTimer();
 
-    if (wsRef.current) {
-      wsRef.current.onclose = null;
-      wsRef.current.onerror = null;
-      wsRef.current.close();
-      wsRef.current = null;
-    }
+      const action: TerminalRecoveryAction =
+        recoveryAction ?? (attemptRef.current > 0 ? "schedule-reconnect" : "initial-connect");
+      const isReconnect = action !== "initial-connect" || attemptRef.current > 0;
+      let effectiveUrl = baseUrl;
 
-    const isReconnect = attemptRef.current > 0;
-    updateState(isReconnect ? "reconnecting" : "connecting");
-    updateRecoveryState((current) => ({
-      ...current,
-      phase: isReconnect ? "recovering" : "connecting",
-      lastRecoveryAction: isReconnect ? "schedule-reconnect" : "initial-connect",
-      canRetry: false,
-      isRecoverable: true,
-    }));
-    if (isReconnect) {
-      console.log(`[terminal] Reconnect attempt ${attemptRef.current}`);
-    }
+      const scheduleRefreshFailureRetry = (failureCategory: TerminalRefreshFailureCategory) => {
+        if (!mountedRef.current || generation !== connectionGenerationRef.current) return;
 
-    const ws = new WebSocket(url);
-    ws.binaryType = "arraybuffer";
-    wsRef.current = ws;
+        const delay = computeBackoff(attemptRef.current);
+        attemptRef.current += 1;
+        const retryCount = attemptRef.current;
+        const finishedAt = Date.now();
 
-    ws.onopen = () => {
-      if (!mountedRef.current) {
-        ws.close();
-        return;
-      }
-      attemptRef.current = 0;
-      updateState("connected");
-      updateRecoveryState((current) => ({
-        ...current,
-        phase: "connected",
-        retryCount: 0,
-        failureCategory: null,
-        lastDelayMs: null,
-        lastConnectedAt: Date.now(),
-        lastRecoveryAction: "connected",
-        isRecoverable: true,
-        canRetry: false,
-      }));
-    };
-
-    ws.onmessage = (event: MessageEvent) => {
-      if (!mountedRef.current) return;
-      if (event.data instanceof ArrayBuffer) {
-        onDataRef.current(new Uint8Array(event.data));
-      } else {
-        onDataRef.current(event.data as string);
-      }
-    };
-
-    ws.onclose = (event: CloseEvent) => {
-      if (!mountedRef.current) return;
-      wsRef.current = null;
-
-      const classification = classifyTerminalClose(event);
-      const closeCode = sanitizeCloseCode(event.code);
-      const disconnectedAt = Date.now();
-
-      if (!classification.recoverable) {
-        updateState("failed");
+        updateState("disconnected");
         updateRecoveryState((current) => ({
           ...current,
-          phase: "final-failure",
-          lastCloseCode: closeCode,
-          lastCloseCategory: classification.closeCategory,
-          lastReasonCategory: classification.reasonCategory,
-          failureCategory: classification.failureCategory,
-          lastDelayMs: null,
-          lastDisconnectedAt: disconnectedAt,
-          lastRecoveryAction: "none",
-          isRecoverable: false,
+          phase: "recovering",
+          retryCount,
+          failureCategory: null,
+          lastDelayMs: Math.round(delay),
+          lastRecoveryAction: action,
+          lastRefreshAction: "refresh-failed",
+          refreshFailureCategory: failureCategory,
+          lastRefreshFinishedAt: finishedAt,
+          isRecoverable: true,
           canRetry: true,
         }));
         console.log(
-          `[terminal] Final WebSocket close category=${classification.closeCategory} code=${closeCode ?? "unknown"}`,
+          `[terminal] Reconnect URL refresh failed category=${failureCategory}; reconnecting in ${Math.round(delay)}ms`,
         );
-        return;
+        reconnectTimerRef.current = setTimeout(() => {
+          if (mountedRef.current && generation === connectionGenerationRef.current) {
+            void connect({
+              recoveryAction: "schedule-reconnect",
+              reconnectReason: "scheduled-reconnect",
+              refreshBeforeConnect: true,
+              generation,
+            });
+          }
+        }, delay);
+      };
+
+      if (refreshBeforeConnect && refreshUrlBeforeReconnectRef.current) {
+        const startedAt = Date.now();
+        updateState("reconnecting");
+        updateRecoveryState((current) => ({
+          ...current,
+          phase: "recovering",
+          lastRecoveryAction: action,
+          lastRefreshAction: "refresh-before-reconnect",
+          refreshFailureCategory: null,
+          lastRefreshStartedAt: startedAt,
+          lastRefreshFinishedAt: null,
+          isRecoverable: true,
+          canRetry: false,
+        }));
+
+        let refreshedUrl: string | null | undefined;
+        try {
+          refreshedUrl = await refreshUrlBeforeReconnectRef.current({
+            currentUrl: baseUrl,
+            reason: reconnectReason ?? "scheduled-reconnect",
+            retryCount: recoveryStateRef.current.retryCount,
+            closeCode: recoveryStateRef.current.lastCloseCode,
+            closeCategory: recoveryStateRef.current.lastCloseCategory,
+            reasonCategory: recoveryStateRef.current.lastReasonCategory,
+          });
+        } catch {
+          scheduleRefreshFailureRetry("callback-error");
+          return;
+        }
+
+        if (typeof refreshedUrl !== "string" || refreshedUrl.trim().length === 0) {
+          scheduleRefreshFailureRetry("malformed-response");
+          return;
+        }
+
+        if (!mountedRef.current || generation !== connectionGenerationRef.current) return;
+
+        effectiveUrl = refreshedUrl;
+        currentUrlRef.current = refreshedUrl;
+        updateRecoveryState((current) => ({
+          ...current,
+          lastRefreshAction: "refresh-succeeded",
+          refreshFailureCategory: null,
+          lastRefreshFinishedAt: Date.now(),
+          isRecoverable: true,
+          canRetry: false,
+        }));
       }
 
-      const delay = computeBackoff(attemptRef.current);
-      attemptRef.current += 1;
-      const retryCount = attemptRef.current;
+      if (!mountedRef.current || generation !== connectionGenerationRef.current) return;
 
-      updateState(
-        classification.closeCategory === "workspace-offline" ? "workspace-offline" : "disconnected",
-      );
+      if (wsRef.current) {
+        wsRef.current.onclose = null;
+        wsRef.current.onerror = null;
+        wsRef.current.close();
+        wsRef.current = null;
+      }
+
+      updateState(isReconnect ? "reconnecting" : "connecting");
       updateRecoveryState((current) => ({
         ...current,
-        phase:
-          classification.closeCategory === "workspace-offline" ? "workspace-offline" : "recovering",
-        retryCount,
-        lastCloseCode: closeCode,
-        lastCloseCategory: classification.closeCategory,
-        lastReasonCategory: classification.reasonCategory,
-        failureCategory: null,
-        lastDelayMs: Math.round(delay),
-        lastDisconnectedAt: disconnectedAt,
-        lastRecoveryAction: "schedule-reconnect",
+        phase: isReconnect ? "recovering" : "connecting",
+        lastRecoveryAction: action,
+        canRetry: false,
         isRecoverable: true,
-        canRetry: true,
       }));
-      console.log(
-        `[terminal] Recoverable WebSocket close category=${classification.closeCategory} code=${closeCode ?? "unknown"}; reconnecting in ${Math.round(delay)}ms`,
-      );
-      reconnectTimerRef.current = setTimeout(() => {
-        if (mountedRef.current) connect();
-      }, delay);
-    };
+      if (isReconnect) {
+        console.log(`[terminal] Reconnect attempt ${attemptRef.current}`);
+      }
 
-    ws.onerror = () => {
-      console.log("[terminal] WebSocket error");
-    };
-  }, [url, updateState, updateRecoveryState, clearReconnectTimer]);
+      const ws = new WebSocket(effectiveUrl);
+      ws.binaryType = "arraybuffer";
+      wsRef.current = ws;
+
+      ws.onopen = () => {
+        if (!mountedRef.current) {
+          ws.close();
+          return;
+        }
+        attemptRef.current = 0;
+        updateState("connected");
+        updateRecoveryState((current) => ({
+          ...current,
+          phase: "connected",
+          retryCount: 0,
+          failureCategory: null,
+          lastDelayMs: null,
+          lastConnectedAt: Date.now(),
+          lastRecoveryAction: "connected",
+          isRecoverable: true,
+          canRetry: false,
+        }));
+      };
+
+      ws.onmessage = (event: MessageEvent) => {
+        if (!mountedRef.current) return;
+        if (event.data instanceof ArrayBuffer) {
+          onDataRef.current(new Uint8Array(event.data));
+        } else {
+          onDataRef.current(event.data as string);
+        }
+      };
+
+      ws.onclose = (event: CloseEvent) => {
+        if (!mountedRef.current) return;
+        wsRef.current = null;
+
+        const classification = classifyTerminalClose(event);
+        const closeCode = sanitizeCloseCode(event.code);
+        const disconnectedAt = Date.now();
+        const canRefreshCloneProof =
+          classification.closeCategory === "clone-proof-invalid" &&
+          Boolean(refreshUrlBeforeReconnectRef.current);
+
+        if (!classification.recoverable && !canRefreshCloneProof) {
+          updateState("failed");
+          updateRecoveryState((current) => ({
+            ...current,
+            phase: "final-failure",
+            lastCloseCode: closeCode,
+            lastCloseCategory: classification.closeCategory,
+            lastReasonCategory: classification.reasonCategory,
+            failureCategory: classification.failureCategory,
+            lastDelayMs: null,
+            lastDisconnectedAt: disconnectedAt,
+            lastRecoveryAction: "none",
+            isRecoverable: false,
+            canRetry: true,
+          }));
+          console.log(
+            `[terminal] Final WebSocket close category=${classification.closeCategory} code=${closeCode ?? "unknown"}`,
+          );
+          return;
+        }
+
+        const delay = computeBackoff(attemptRef.current);
+        attemptRef.current += 1;
+        const retryCount = attemptRef.current;
+        const reconnectGeneration = connectionGenerationRef.current;
+
+        updateState(
+          classification.closeCategory === "workspace-offline"
+            ? "workspace-offline"
+            : "disconnected",
+        );
+        updateRecoveryState((current) => ({
+          ...current,
+          phase:
+            classification.closeCategory === "workspace-offline"
+              ? "workspace-offline"
+              : "recovering",
+          retryCount,
+          lastCloseCode: closeCode,
+          lastCloseCategory: classification.closeCategory,
+          lastReasonCategory: classification.reasonCategory,
+          failureCategory: null,
+          lastDelayMs: Math.round(delay),
+          lastDisconnectedAt: disconnectedAt,
+          lastRecoveryAction: "schedule-reconnect",
+          isRecoverable: true,
+          canRetry: true,
+        }));
+        console.log(
+          `[terminal] Recoverable WebSocket close category=${classification.closeCategory} code=${closeCode ?? "unknown"}; reconnecting in ${Math.round(delay)}ms`,
+        );
+        reconnectTimerRef.current = setTimeout(() => {
+          if (mountedRef.current && reconnectGeneration === connectionGenerationRef.current) {
+            void connect({
+              recoveryAction: "schedule-reconnect",
+              reconnectReason: "scheduled-reconnect",
+              refreshBeforeConnect: Boolean(refreshUrlBeforeReconnectRef.current),
+              generation: reconnectGeneration,
+            });
+          }
+        }, delay);
+      };
+
+      ws.onerror = () => {
+        console.log("[terminal] WebSocket error");
+      };
+    },
+    [url, updateState, updateRecoveryState, clearReconnectTimer],
+  );
 
   useEffect(() => {
     mountedRef.current = true;
+    connectionGenerationRef.current += 1;
+    const generation = connectionGenerationRef.current;
+    currentUrlRef.current = url;
     attemptRef.current = 0;
     recoveryStateRef.current = INITIAL_RECOVERY_STATE;
     setRecoveryState(INITIAL_RECOVERY_STATE);
-    connect();
+    void connect({ recoveryAction: "initial-connect", refreshBeforeConnect: false, generation });
 
     return () => {
       mountedRef.current = false;
+      connectionGenerationRef.current += 1;
       clearReconnectTimer();
       if (wsRef.current) {
         wsRef.current.onclose = null;
@@ -411,10 +575,10 @@ export function useTerminalWebSocket({
         wsRef.current = null;
       }
     };
-  }, [connect, clearReconnectTimer]);
+  }, [connect, clearReconnectTimer, url]);
 
   const manualReconnect = useCallback(() => {
-    if (!url || !mountedRef.current) return;
+    if (!(currentUrlRef.current ?? url) || !mountedRef.current) return;
     attemptRef.current = 0;
     updateRecoveryState((current) => ({
       ...current,
@@ -425,7 +589,12 @@ export function useTerminalWebSocket({
       isRecoverable: true,
       canRetry: false,
     }));
-    connect();
+    void connect({
+      recoveryAction: "manual-reconnect",
+      reconnectReason: "manual-reconnect",
+      refreshBeforeConnect: Boolean(refreshUrlBeforeReconnectRef.current),
+      generation: connectionGenerationRef.current,
+    });
   }, [url, connect, updateRecoveryState]);
 
   const send = useCallback((data: string) => {
