@@ -200,6 +200,42 @@ export function removeWorkspaceBoardPane(
   return { ...normalized, boards };
 }
 
+export function removeWorkspaceBoardPaneIdentity(
+  state: WorkspaceBoardState,
+  boardKey: string | null | undefined,
+  paneKey: string | null | undefined,
+): WorkspaceBoardState {
+  const normalized = normalizeWorkspaceBoardStateForCrud(state);
+  const key = normalizeText(boardKey);
+  const paneKeyToMatch = normalizeText(paneKey);
+  const board = key ? normalized.boards.find((candidate) => candidate.key === key) : undefined;
+  const targetPane = paneKeyToMatch
+    ? board?.panes.find((candidate) => candidate.key === paneKeyToMatch)
+    : undefined;
+  if (!key || !board || !targetPane) return normalized;
+
+  const identityToRemove = paneIdentity(targetPane);
+  let paneRemoved = false;
+  const boards = normalizeBoardOrder(
+    normalized.boards.map((candidate) => {
+      if (candidate.key !== key) return candidate;
+      const panes = candidate.panes.filter((pane) => {
+        const keep = paneIdentity(pane) !== identityToRemove;
+        if (!keep) paneRemoved = true;
+        return keep;
+      });
+      return {
+        ...candidate,
+        activePaneKey: normalizeActivePaneKey(candidate.activePaneKey, panes),
+        panes,
+      };
+    }),
+  );
+
+  if (!paneRemoved) return normalized;
+  return { ...normalized, boards };
+}
+
 export function selectWorkspaceBoardPane(
   state: WorkspaceBoardState,
   boardKey: string | null | undefined,

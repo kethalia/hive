@@ -60,7 +60,7 @@ import {
   addTerminalPaneToActiveWorkspaceBoard,
   createWorkspaceBoard,
   deleteWorkspaceBoard,
-  removeWorkspaceBoardPane,
+  removeWorkspaceBoardPaneIdentity,
   selectWorkspaceBoard,
   selectWorkspaceBoardPane,
 } from "@/lib/workspaces/workspace-board-crud";
@@ -1802,7 +1802,7 @@ export function MultiSessionWorkspace({
       const nextSessions = isUnifiedSource
         ? sessions
         : sessions.filter((session) => session.sessionName !== sessionName);
-      const nextBoardState = removeWorkspaceBoardPane(boardState, board.key, boardPaneKey);
+      const nextBoardState = removeWorkspaceBoardPaneIdentity(boardState, board.key, boardPaneKey);
       const nextActiveBoard = findActiveWorkspaceBoard(nextBoardState);
       const nextVisibleSessions = deriveVisibleSessionsFromBoard(nextSessions, nextActiveBoard);
       const nextActiveSessionName = activeSessionNameForVisibleSessions(

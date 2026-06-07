@@ -5,6 +5,7 @@ import {
   createWorkspaceBoard,
   deleteWorkspaceBoard,
   removeWorkspaceBoardPane,
+  removeWorkspaceBoardPaneIdentity,
   renameActiveWorkspaceBoard,
   renameWorkspaceBoard,
   selectWorkspaceBoard,
@@ -202,6 +203,88 @@ describe("workspace board CRUD helper", () => {
     expect(blankBoardNoop).toEqual(removedWorker);
     expect(missingPaneNoop).toEqual(removedWorker);
     expect(unknownPaneNoop).toEqual(removedWorker);
+  });
+
+  it("removes duplicate terminal pane identities left by older persisted board state", () => {
+    const staleDuplicateState: WorkspaceBoardState = {
+      ...baseState(),
+      boards: [
+        {
+          ...baseState().boards[0],
+          activePaneKey: "terminal:api-copy",
+          panes: [
+            { kind: "terminal", key: "terminal:api", sessionName: "api", label: "API", order: 0 },
+            {
+              kind: "terminal",
+              key: "terminal:api-copy",
+              sessionName: "api",
+              label: "API duplicate",
+              order: 1,
+            },
+            {
+              kind: "terminal",
+              key: "terminal:worker",
+              sessionName: "worker",
+              label: "Worker",
+              order: 2,
+            },
+          ],
+        },
+      ],
+    };
+
+    const next = removeWorkspaceBoardPaneIdentity(staleDuplicateState, "main", "terminal:api");
+
+    expect(next.boards[0].panes).toEqual([
+      {
+        kind: "terminal",
+        key: "terminal:worker",
+        sessionName: "worker",
+        label: "Worker",
+        order: 0,
+      },
+    ]);
+    expect(next.boards[0].activePaneKey).toBe("terminal:worker");
+  });
+
+  it("removes duplicate Git pane identities left by older persisted board state", () => {
+    const staleDuplicateState: WorkspaceBoardState = {
+      ...baseState(),
+      boards: [
+        {
+          ...baseState().boards[0],
+          activePaneKey: "git:hive-copy",
+          panes: [
+            {
+              kind: "git",
+              key: "git:hive",
+              cloneSessionKey: "git-clone:Git/projects/kethalia/hive",
+              relativePath: "kethalia/hive",
+              sessionName: "git-hive",
+              label: "Hive",
+              order: 0,
+            },
+            {
+              kind: "git",
+              key: "git:hive-copy",
+              cloneSessionKey: "git-clone:Git/projects/kethalia/hive",
+              relativePath: "kethalia/hive",
+              sessionName: "git-hive-copy",
+              label: "Hive duplicate",
+              order: 1,
+            },
+            { kind: "terminal", key: "terminal:api", sessionName: "api", label: "API", order: 2 },
+          ],
+        },
+      ],
+    };
+
+    const next = removeWorkspaceBoardPaneIdentity(staleDuplicateState, "main", "git:hive-copy");
+
+    expect(next.boards[0].panes).toEqual([
+      { kind: "terminal", key: "terminal:api", sessionName: "api", label: "API", order: 0 },
+    ]);
+    expect(next.boards[0].activePaneKey).toBe("terminal:api");
   });
 
   it("adds Git panes with safe metadata and allows the same identity on multiple boards", () => {
