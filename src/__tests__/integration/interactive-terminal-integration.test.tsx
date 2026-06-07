@@ -598,9 +598,9 @@ class MockResizeObserver {
 beforeEach(() => {
   vi.stubGlobal("ResizeObserver", MockResizeObserver);
   resizeObserverCallback = null;
-  mockFit.mockClear();
-  mockSend.mockClear();
-  mockResize.mockClear();
+  mockFit.mockReset();
+  mockSend.mockReset();
+  mockResize.mockReset();
   terminalInstances.length = 0;
   resetMobileTerminalDiagnosticsState();
   window.localStorage.clear();
@@ -1021,6 +1021,100 @@ describe("InteractiveTerminal integration — Session lifecycle", () => {
     expect(terminal?.scrollToBottom).toHaveBeenCalled();
     expect(terminal?.buffer.active.viewportY).toBe(terminal?.buffer.active.baseY);
     unmount();
+  });
+
+  it("refits and records resize-sent diagnostics after reconnect without changing normal terminal identity", async () => {
+    window.localStorage.setItem(
+      "terminal:reconnect:test-agent:main",
+      JSON.stringify({ id: "cached-reconnect", ts: Date.now() }),
+    );
+
+    let connectionState: "disconnected" | "reconnecting" | "connected" = "disconnected";
+    let latestOptions: null | {
+      onResizeSent?: (event: {
+        rows: number;
+        cols: number;
+        source: string;
+        sentAt: number;
+      }) => void;
+      url: string | null;
+    } = null;
+
+    mockResize.mockImplementation((rows: number, cols: number, source: string) => {
+      latestOptions?.onResizeSent?.({ rows, cols, source, sentAt: 3333 });
+    });
+    mockUseTerminalWebSocket.mockImplementation((options: unknown) => {
+      latestOptions = options as typeof latestOptions;
+      return {
+        send: mockSend,
+        resize: mockResize,
+        connectionState,
+        recoveryState: terminalRecoveryState({
+          phase: connectionState === "connected" ? "connected" : "recovering",
+          retryCount: connectionState === "connected" ? 0 : 1,
+          lastRecoveryAction: connectionState === "connected" ? "connected" : "schedule-reconnect",
+          canRetry: connectionState !== "connected",
+        }),
+      };
+    });
+
+    const { InteractiveTerminal } = await import("@/components/workspaces/InteractiveTerminal");
+
+    let result: ReturnType<typeof render>;
+    await act(async () => {
+      result = render(
+        <InteractiveTerminal agentId="test-agent" workspaceId="test-ws" sessionName="main" />,
+      );
+    });
+    await flushTerminalEffects();
+
+    await waitFor(() => {
+      expect(terminalWebSocketUrls().length).toBeGreaterThan(0);
+    });
+    const initialUrl = new URL(terminalWebSocketUrls().at(-1)!);
+    expect(initialUrl.searchParams.get("sessionName")).toBe("main");
+    expect(initialUrl.searchParams.get("reconnectId")).toBe("cached-reconnect");
+
+    mockResize.mockClear();
+    mockFit.mockClear();
+    resetMobileTerminalDiagnosticsState();
+
+    connectionState = "reconnecting";
+    await act(async () => {
+      result!.rerender(
+        <InteractiveTerminal agentId="test-agent" workspaceId="test-ws" sessionName="main" />,
+      );
+    });
+    await flushTerminalEffects();
+    expect(mockResize).not.toHaveBeenCalledWith(24, 80, "connection-refit");
+
+    connectionState = "connected";
+    await act(async () => {
+      result!.rerender(
+        <InteractiveTerminal agentId="test-agent" workspaceId="test-ws" sessionName="main" />,
+      );
+    });
+    await flushTerminalEffects();
+
+    await waitFor(() => {
+      expect(mockResize).toHaveBeenCalledWith(24, 80, "connection-refit");
+    });
+    expect(mockFit).toHaveBeenCalled();
+    expect(getMobileTerminalDiagnosticsState().resizeSent).toEqual({
+      count: 1,
+      lastAt: 3333,
+      lastSource: "connection-refit",
+      rows: 24,
+      cols: 80,
+    });
+    expect(getMobileTerminalDiagnosticsState().resizeSent.rows).toBeGreaterThan(0);
+    expect(getMobileTerminalDiagnosticsState().resizeSent.cols).toBeGreaterThan(0);
+
+    const latestUrl = new URL(terminalWebSocketUrls().at(-1)!);
+    expect(latestUrl.toString()).toBe(initialUrl.toString());
+    expect(latestUrl.searchParams.get("sessionName")).toBe("main");
+    expect(latestUrl.searchParams.get("reconnectId")).toBe("cached-reconnect");
+    result!.unmount();
   });
 
   it("records fit and xterm resize-request diagnostics without terminal content", async () => {
