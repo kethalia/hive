@@ -103,7 +103,7 @@ const INITIAL_RECOVERY_STATE: TerminalRecoveryState = {
 export function computeBackoff(attempt: number): number {
   const exponential = Math.min(BASE_DELAY_MS * BACKOFF_FACTOR ** attempt, MAX_DELAY_MS);
   const jitter = (Math.random() - 0.5) * 2 * JITTER_MS;
-  return Math.max(0, exponential + jitter);
+  return Math.min(MAX_DELAY_MS, Math.max(0, exponential + jitter));
 }
 
 function sanitizeCloseCode(code: number): number | null {
@@ -235,8 +235,7 @@ export function useTerminalWebSocket({
   onRecoveryStateChange,
 }: UseTerminalWebSocketProps): UseTerminalWebSocketReturn {
   const [connectionState, setConnectionState] = useState<ConnectionState>("disconnected");
-  const [recoveryState, setRecoveryState] =
-    useState<TerminalRecoveryState>(INITIAL_RECOVERY_STATE);
+  const [recoveryState, setRecoveryState] = useState<TerminalRecoveryState>(INITIAL_RECOVERY_STATE);
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const attemptRef = useRef(0);
