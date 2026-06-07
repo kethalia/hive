@@ -4,6 +4,7 @@ import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-libra
 import type { Terminal } from "@xterm/xterm";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import "@testing-library/jest-dom/vitest";
+import type { KeepAliveStatus } from "@/hooks/useKeepAliveStatus";
 import type { KeybindingContextValue } from "@/hooks/useKeybindings";
 
 const mockCreateSession = vi.fn();
@@ -19,17 +20,19 @@ const mockUnregister = vi.fn();
 const mockRouterPush = vi.fn();
 const mockToastInfo = vi.hoisted(() => vi.fn());
 const mockUseKeepAliveStatus = vi.hoisted(() =>
-  vi.fn(() => ({
-    status: "healthy",
-    consecutiveFailures: 0,
-    lastAttempt: null,
-    lastSuccess: null,
-    lastFailure: null,
-    lastFailureCategory: null,
-    activeConnectionCount: 0,
-    lastDisconnectedAt: null,
-    isLoading: false,
-  })),
+  vi.fn(
+    (_workspaceId: string): KeepAliveStatus => ({
+      status: "healthy",
+      consecutiveFailures: 0,
+      lastAttempt: null,
+      lastSuccess: null,
+      lastFailure: null,
+      lastFailureCategory: null,
+      activeConnectionCount: 0,
+      lastDisconnectedAt: null,
+      isLoading: false,
+    }),
+  ),
 );
 type StubConnectionState =
   | "connecting"
@@ -2116,7 +2119,7 @@ describe("MultiSessionWorkspace", () => {
   });
 
   it("renders quiet aggregate recovery status without mutating workspace or Git identity", async () => {
-    let keepAliveStatus = {
+    let keepAliveStatus: KeepAliveStatus = {
       status: "healthy",
       consecutiveFailures: 0,
       lastAttempt: null,

@@ -446,7 +446,7 @@ function isInSet<T extends string>(value: string | null | undefined, set: Set<T>
 }
 
 function normalizeCount(value: number | null | undefined): number {
-  if (!Number.isFinite(value)) return 0;
+  if (typeof value !== "number" || !Number.isFinite(value)) return 0;
   return Math.max(0, Math.trunc(value));
 }
 
