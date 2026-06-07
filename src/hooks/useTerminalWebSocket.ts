@@ -11,17 +11,188 @@ export type ConnectionState =
   | "failed"
   | "workspace-offline";
 
+export type TerminalCloseReasonCategory =
+  | "none"
+  | "auth-expired"
+  | "permission-denied"
+  | "clone-proof-invalid"
+  | "workspace-offline"
+  | "upstream-timeout"
+  | "upstream-error"
+  | "timeout"
+  | "unknown";
+
+export type TerminalRecoveryFailureCategory =
+  | "auth-expired"
+  | "permission-denied"
+  | "clone-proof-invalid"
+  | "terminal-closed"
+  | "unknown-final-failure";
+
+export type TerminalCloseCategory =
+  | "transient"
+  | "workspace-offline"
+  | "auth-expired"
+  | "permission-denied"
+  | "clone-proof-invalid"
+  | "terminal-closed"
+  | "unknown-final-failure";
+
+export type TerminalRecoveryPhase =
+  | "idle"
+  | "connecting"
+  | "connected"
+  | "recovering"
+  | "workspace-offline"
+  | "final-failure";
+
+export type TerminalRecoveryAction =
+  | "none"
+  | "initial-connect"
+  | "schedule-reconnect"
+  | "manual-reconnect"
+  | "connected";
+
+export type TerminalCloseClassification = {
+  closeCategory: TerminalCloseCategory;
+  reasonCategory: TerminalCloseReasonCategory;
+  failureCategory: TerminalRecoveryFailureCategory | null;
+  recoverable: boolean;
+};
+
+export type TerminalRecoveryState = {
+  phase: TerminalRecoveryPhase;
+  retryCount: number;
+  maxRetryCount: number | null;
+  lastCloseCode: number | null;
+  lastCloseCategory: TerminalCloseCategory | null;
+  lastReasonCategory: TerminalCloseReasonCategory | null;
+  failureCategory: TerminalRecoveryFailureCategory | null;
+  lastDelayMs: number | null;
+  lastConnectedAt: number | null;
+  lastDisconnectedAt: number | null;
+  lastRecoveryAction: TerminalRecoveryAction;
+  isRecoverable: boolean;
+  canRetry: boolean;
+};
+
 const BASE_DELAY_MS = 1000;
 const MAX_DELAY_MS = 30000;
 const BACKOFF_FACTOR = 2;
 const JITTER_MS = 500;
-const MAX_RECONNECT_ATTEMPTS = 10;
 const WORKSPACE_OFFLINE_CODE = 4404;
+const AUTH_EXPIRED_CODE = 4401;
+const PERMISSION_DENIED_CODE = 4403;
+
+const INITIAL_RECOVERY_STATE: TerminalRecoveryState = {
+  phase: "idle",
+  retryCount: 0,
+  maxRetryCount: null,
+  lastCloseCode: null,
+  lastCloseCategory: null,
+  lastReasonCategory: null,
+  failureCategory: null,
+  lastDelayMs: null,
+  lastConnectedAt: null,
+  lastDisconnectedAt: null,
+  lastRecoveryAction: "none",
+  isRecoverable: true,
+  canRetry: false,
+};
 
 export function computeBackoff(attempt: number): number {
   const exponential = Math.min(BASE_DELAY_MS * BACKOFF_FACTOR ** attempt, MAX_DELAY_MS);
   const jitter = (Math.random() - 0.5) * 2 * JITTER_MS;
   return Math.max(0, exponential + jitter);
+}
+
+function sanitizeCloseCode(code: number): number | null {
+  if (!Number.isInteger(code) || code < 0 || code > 4999) return null;
+  return code;
+}
+
+function categorizeCloseReason(reason: string): TerminalCloseReasonCategory {
+  const normalized = reason.trim().toLowerCase();
+  if (!normalized) return "none";
+  if (normalized.includes("cloneproof")) return "clone-proof-invalid";
+  if (
+    normalized.includes("unauthorized") ||
+    normalized.includes("no_cookie") ||
+    normalized.includes("invalid_hmac") ||
+    normalized.includes("session_not_found") ||
+    normalized.includes("token_not_found") ||
+    normalized.includes("auth")
+  ) {
+    return "auth-expired";
+  }
+  if (normalized.includes("forbidden") || normalized.includes("permission")) {
+    return "permission-denied";
+  }
+  if (normalized.includes("workspace") && normalized.includes("offline")) {
+    return "workspace-offline";
+  }
+  if (normalized.includes("upstream connect timeout")) return "upstream-timeout";
+  if (normalized.includes("upstream error")) return "upstream-error";
+  if (normalized.includes("timeout")) return "timeout";
+  return "unknown";
+}
+
+export function classifyTerminalClose(
+  event: Pick<CloseEvent, "code" | "reason" | "wasClean">,
+): TerminalCloseClassification {
+  const reasonCategory = categorizeCloseReason(event.reason);
+
+  if (event.code === WORKSPACE_OFFLINE_CODE || reasonCategory === "workspace-offline") {
+    return {
+      closeCategory: "workspace-offline",
+      reasonCategory,
+      failureCategory: null,
+      recoverable: true,
+    };
+  }
+
+  if (event.code === AUTH_EXPIRED_CODE || reasonCategory === "auth-expired") {
+    return {
+      closeCategory: "auth-expired",
+      reasonCategory,
+      failureCategory: "auth-expired",
+      recoverable: false,
+    };
+  }
+
+  if (event.code === PERMISSION_DENIED_CODE || reasonCategory === "permission-denied") {
+    return {
+      closeCategory: "permission-denied",
+      reasonCategory,
+      failureCategory: "permission-denied",
+      recoverable: false,
+    };
+  }
+
+  if (reasonCategory === "clone-proof-invalid") {
+    return {
+      closeCategory: "clone-proof-invalid",
+      reasonCategory,
+      failureCategory: "clone-proof-invalid",
+      recoverable: false,
+    };
+  }
+
+  if (event.wasClean && event.code === 1000) {
+    return {
+      closeCategory: "terminal-closed",
+      reasonCategory,
+      failureCategory: "terminal-closed",
+      recoverable: false,
+    };
+  }
+
+  return {
+    closeCategory: "transient",
+    reasonCategory,
+    failureCategory: null,
+    recoverable: true,
+  };
 }
 
 export type TerminalResizeSentEvent = {
@@ -36,13 +207,20 @@ interface UseTerminalWebSocketProps {
   onData: (data: Uint8Array | string) => void;
   onStateChange?: (state: ConnectionState) => void;
   onResizeSent?: (event: TerminalResizeSentEvent) => void;
+  onRecoveryStateChange?: (state: TerminalRecoveryState) => void;
 }
 
 interface UseTerminalWebSocketReturn {
   send: (data: string) => void;
   resize: (rows: number, cols: number, source?: string) => void;
   connectionState: ConnectionState;
+  recoveryState: TerminalRecoveryState;
+  manualReconnect: () => void;
 }
+
+type RecoveryStateUpdate =
+  | TerminalRecoveryState
+  | ((current: TerminalRecoveryState) => TerminalRecoveryState);
 
 function normalizeResizeDimension(value: number): number | null {
   if (!Number.isFinite(value) || value <= 0) return null;
@@ -54,19 +232,33 @@ export function useTerminalWebSocket({
   onData,
   onStateChange,
   onResizeSent,
+  onRecoveryStateChange,
 }: UseTerminalWebSocketProps): UseTerminalWebSocketReturn {
   const [connectionState, setConnectionState] = useState<ConnectionState>("disconnected");
+  const [recoveryState, setRecoveryState] =
+    useState<TerminalRecoveryState>(INITIAL_RECOVERY_STATE);
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const attemptRef = useRef(0);
   const mountedRef = useRef(true);
+  const recoveryStateRef = useRef<TerminalRecoveryState>(INITIAL_RECOVERY_STATE);
   const onDataRef = useRef(onData);
   const onStateChangeRef = useRef(onStateChange);
   const onResizeSentRef = useRef(onResizeSent);
+  const onRecoveryStateChangeRef = useRef(onRecoveryStateChange);
 
   onDataRef.current = onData;
   onStateChangeRef.current = onStateChange;
   onResizeSentRef.current = onResizeSent;
+  onRecoveryStateChangeRef.current = onRecoveryStateChange;
+
+  const updateRecoveryState = useCallback((update: RecoveryStateUpdate) => {
+    if (!mountedRef.current) return;
+    const next = typeof update === "function" ? update(recoveryStateRef.current) : update;
+    recoveryStateRef.current = next;
+    setRecoveryState(next);
+    onRecoveryStateChangeRef.current?.(next);
+  }, []);
 
   const updateState = useCallback((state: ConnectionState) => {
     if (!mountedRef.current) return;
@@ -96,8 +288,15 @@ export function useTerminalWebSocket({
 
     const isReconnect = attemptRef.current > 0;
     updateState(isReconnect ? "reconnecting" : "connecting");
+    updateRecoveryState((current) => ({
+      ...current,
+      phase: isReconnect ? "recovering" : "connecting",
+      lastRecoveryAction: isReconnect ? "schedule-reconnect" : "initial-connect",
+      canRetry: false,
+      isRecoverable: true,
+    }));
     if (isReconnect) {
-      console.log(`[terminal] Reconnect attempt ${attemptRef.current}/${MAX_RECONNECT_ATTEMPTS}`);
+      console.log(`[terminal] Reconnect attempt ${attemptRef.current}`);
     }
 
     const ws = new WebSocket(url);
@@ -111,6 +310,17 @@ export function useTerminalWebSocket({
       }
       attemptRef.current = 0;
       updateState("connected");
+      updateRecoveryState((current) => ({
+        ...current,
+        phase: "connected",
+        retryCount: 0,
+        failureCategory: null,
+        lastDelayMs: null,
+        lastConnectedAt: Date.now(),
+        lastRecoveryAction: "connected",
+        isRecoverable: true,
+        canRetry: false,
+      }));
     };
 
     ws.onmessage = (event: MessageEvent) => {
@@ -126,22 +336,56 @@ export function useTerminalWebSocket({
       if (!mountedRef.current) return;
       wsRef.current = null;
 
-      if (event.code === WORKSPACE_OFFLINE_CODE) {
-        updateState("workspace-offline");
-        console.log(`[terminal] Workspace offline (code ${event.code}): ${event.reason}`);
-        return;
-      }
+      const classification = classifyTerminalClose(event);
+      const closeCode = sanitizeCloseCode(event.code);
+      const disconnectedAt = Date.now();
 
-      if (attemptRef.current >= MAX_RECONNECT_ATTEMPTS) {
+      if (!classification.recoverable) {
         updateState("failed");
-        console.log(`[terminal] Max reconnect attempts (${MAX_RECONNECT_ATTEMPTS}) reached`);
+        updateRecoveryState((current) => ({
+          ...current,
+          phase: "final-failure",
+          lastCloseCode: closeCode,
+          lastCloseCategory: classification.closeCategory,
+          lastReasonCategory: classification.reasonCategory,
+          failureCategory: classification.failureCategory,
+          lastDelayMs: null,
+          lastDisconnectedAt: disconnectedAt,
+          lastRecoveryAction: "none",
+          isRecoverable: false,
+          canRetry: true,
+        }));
+        console.log(
+          `[terminal] Final WebSocket close category=${classification.closeCategory} code=${closeCode ?? "unknown"}`,
+        );
         return;
       }
 
-      updateState("disconnected");
       const delay = computeBackoff(attemptRef.current);
       attemptRef.current += 1;
-      console.log(`[terminal] Reconnecting in ${Math.round(delay)}ms`);
+      const retryCount = attemptRef.current;
+
+      updateState(
+        classification.closeCategory === "workspace-offline" ? "workspace-offline" : "disconnected",
+      );
+      updateRecoveryState((current) => ({
+        ...current,
+        phase:
+          classification.closeCategory === "workspace-offline" ? "workspace-offline" : "recovering",
+        retryCount,
+        lastCloseCode: closeCode,
+        lastCloseCategory: classification.closeCategory,
+        lastReasonCategory: classification.reasonCategory,
+        failureCategory: null,
+        lastDelayMs: Math.round(delay),
+        lastDisconnectedAt: disconnectedAt,
+        lastRecoveryAction: "schedule-reconnect",
+        isRecoverable: true,
+        canRetry: true,
+      }));
+      console.log(
+        `[terminal] Recoverable WebSocket close category=${classification.closeCategory} code=${closeCode ?? "unknown"}; reconnecting in ${Math.round(delay)}ms`,
+      );
       reconnectTimerRef.current = setTimeout(() => {
         if (mountedRef.current) connect();
       }, delay);
@@ -150,11 +394,13 @@ export function useTerminalWebSocket({
     ws.onerror = () => {
       console.log("[terminal] WebSocket error");
     };
-  }, [url, updateState, clearReconnectTimer]);
+  }, [url, updateState, updateRecoveryState, clearReconnectTimer]);
 
   useEffect(() => {
     mountedRef.current = true;
     attemptRef.current = 0;
+    recoveryStateRef.current = INITIAL_RECOVERY_STATE;
+    setRecoveryState(INITIAL_RECOVERY_STATE);
     connect();
 
     return () => {
@@ -167,6 +413,21 @@ export function useTerminalWebSocket({
       }
     };
   }, [connect, clearReconnectTimer]);
+
+  const manualReconnect = useCallback(() => {
+    if (!url || !mountedRef.current) return;
+    attemptRef.current = 0;
+    updateRecoveryState((current) => ({
+      ...current,
+      phase: "recovering",
+      retryCount: 0,
+      lastDelayMs: null,
+      lastRecoveryAction: "manual-reconnect",
+      isRecoverable: true,
+      canRetry: false,
+    }));
+    connect();
+  }, [url, connect, updateRecoveryState]);
 
   const send = useCallback((data: string) => {
     if (wsRef.current?.readyState === WebSocket.OPEN) {
@@ -190,5 +451,5 @@ export function useTerminalWebSocket({
     }
   }, []);
 
-  return { send, connectionState, resize };
+  return { send, connectionState, resize, recoveryState, manualReconnect };
 }

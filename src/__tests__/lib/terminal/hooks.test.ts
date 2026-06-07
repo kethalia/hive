@@ -1,5 +1,67 @@
 import { describe, expect, it, vi } from "vitest";
-import { computeBackoff } from "@/hooks/useTerminalWebSocket";
+import { classifyTerminalClose, computeBackoff } from "@/hooks/useTerminalWebSocket";
+
+describe("classifyTerminalClose", () => {
+  it("treats upstream timeout closes as recoverable transient failures", () => {
+    expect(
+      classifyTerminalClose({
+        code: 1013,
+        reason: "upstream connect timeout",
+        wasClean: false,
+      }),
+    ).toEqual({
+      closeCategory: "transient",
+      reasonCategory: "upstream-timeout",
+      failureCategory: null,
+      recoverable: true,
+    });
+  });
+
+  it("classifies workspace offline closes as recoverable", () => {
+    expect(
+      classifyTerminalClose({
+        code: 4404,
+        reason: "workspace offline",
+        wasClean: false,
+      }),
+    ).toEqual({
+      closeCategory: "workspace-offline",
+      reasonCategory: "workspace-offline",
+      failureCategory: null,
+      recoverable: true,
+    });
+  });
+
+  it("classifies auth closes as final failures with sanitized categories", () => {
+    expect(
+      classifyTerminalClose({
+        code: 4401,
+        reason: "Unauthorized cloneProof=secret-token /private/repo",
+        wasClean: false,
+      }),
+    ).toEqual({
+      closeCategory: "auth-expired",
+      reasonCategory: "clone-proof-invalid",
+      failureCategory: "auth-expired",
+      recoverable: false,
+    });
+  });
+
+  it("classifies clean terminal closes as final terminal-closed failures", () => {
+    expect(
+      classifyTerminalClose({
+        code: 1000,
+        reason: "normal closure",
+        wasClean: true,
+      }),
+    ).toEqual({
+      closeCategory: "terminal-closed",
+      reasonCategory: "unknown",
+      failureCategory: "terminal-closed",
+      recoverable: false,
+    });
+  });
+});
 
 describe("computeBackoff", () => {
   it("returns base delay for attempt 0", () => {
