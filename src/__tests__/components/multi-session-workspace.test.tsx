@@ -17,6 +17,7 @@ const mockSetActiveTerminal = vi.fn();
 const mockRegister = vi.fn();
 const mockUnregister = vi.fn();
 const mockRouterPush = vi.fn();
+const mockToastInfo = vi.hoisted(() => vi.fn());
 const terminalProps = new Map<
   string,
   {
@@ -34,6 +35,12 @@ const terminalProps = new Map<
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: mockRouterPush }),
+}));
+
+vi.mock("sonner", () => ({
+  toast: {
+    info: mockToastInfo,
+  },
 }));
 
 vi.mock("next/dynamic", () => ({
@@ -653,9 +660,7 @@ describe("MultiSessionWorkspace", () => {
     act(() => {
       expect(thirdBoard.action(null, null)).toBe(false);
     });
-    expect(screen.getByTestId("workspace-shortcut-toast")).toHaveTextContent(
-      "Workspace 3 does not exist.",
-    );
+    expect(mockToastInfo).toHaveBeenCalledWith("Workspace 3 does not exist.");
     expect(screen.getByTestId("workspace-board-tab-earlier")).toHaveAttribute(
       "aria-selected",
       "true",

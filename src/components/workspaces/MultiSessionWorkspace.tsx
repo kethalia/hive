@@ -4,6 +4,7 @@ import type { Terminal } from "@xterm/xterm";
 import { AlertCircle, Loader2, Minus, Plus, Search, TerminalSquare, X } from "lucide-react";
 import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
+import { toast } from "sonner";
 import {
   type CSSProperties,
   type KeyboardEvent as ReactKeyboardEvent,
@@ -743,7 +744,6 @@ export function MultiSessionWorkspace({
   const [gitAddFailed, setGitAddFailed] = useState(false);
   const [gitRestoreFailed, setGitRestoreFailed] = useState(false);
   const [terminalCloseFailed, setTerminalCloseFailed] = useState(false);
-  const [workspaceShortcutNotice, setWorkspaceShortcutNotice] = useState<string | null>(null);
   const [_persistedLayoutJson, setPersistedLayoutJson] = useState<string | null>(null);
   const [layoutPersistenceNotice, setLayoutPersistenceNotice] =
     useState<LayoutPersistenceNotice | null>(null);
@@ -777,12 +777,6 @@ export function MultiSessionWorkspace({
   );
 
   activeSessionNameRef.current = activeSessionName;
-
-  useEffect(() => {
-    if (!workspaceShortcutNotice) return;
-    const timeout = window.setTimeout(() => setWorkspaceShortcutNotice(null), 2400);
-    return () => window.clearTimeout(timeout);
-  }, [workspaceShortcutNotice]);
 
   const layout = useMemo(
     () =>
@@ -1096,11 +1090,10 @@ export function MultiSessionWorkspace({
     (workspaceIndex: number) => {
       const targetBoard = orderedWorkspaceBoards(boardState.boards)[workspaceIndex - 1];
       if (!targetBoard) {
-        setWorkspaceShortcutNotice(`Workspace ${workspaceIndex} does not exist.`);
+        toast.info(`Workspace ${workspaceIndex} does not exist.`);
         return;
       }
 
-      setWorkspaceShortcutNotice(null);
       if (targetBoard.key === (boardState.activeBoardKey ?? activeBoard?.key)) return;
       persistBoardState(selectWorkspaceBoard(boardState, targetBoard.key));
     },
@@ -2343,15 +2336,6 @@ export function MultiSessionWorkspace({
       }
       onKeyDown={handleWorkspaceKeyDown}
     >
-      {workspaceShortcutNotice ? (
-        <div
-          role="status"
-          className="pointer-events-none fixed right-3 top-3 z-50 rounded-md border border-border bg-background px-3 py-2 text-xs text-foreground shadow-lg"
-          data-testid="workspace-shortcut-toast"
-        >
-          {workspaceShortcutNotice}
-        </div>
-      ) : null}
       {renderWorkspaceHeader()}
 
       {createFailed ? (

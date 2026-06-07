@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { AppViewportSize } from "@/components/app-viewport-size";
 import { ServiceWorkerRegister } from "@/components/service-worker-register";
+import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import "./globals.css";
 
@@ -51,6 +52,7 @@ export default function RootLayout({
         <ServiceWorkerRegister />
         <AppViewportSize />
         <TooltipProvider>{children}</TooltipProvider>
+        <Toaster />
       </body>
     </html>
   );

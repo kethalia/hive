@@ -16,6 +16,7 @@ const mockResolveGitCloneTerminal = vi.fn();
 const mockCloseGitCloneTerminal = vi.fn();
 const mockListNavigationFavorites = vi.fn();
 const mockRouterPush = vi.fn();
+const mockToastInfo = vi.hoisted(() => vi.fn());
 const terminalProps = new Map<
   string,
   {
@@ -33,6 +34,12 @@ const terminalProps = new Map<
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: mockRouterPush }),
+}));
+
+vi.mock("sonner", () => ({
+  toast: {
+    info: mockToastInfo,
+  },
 }));
 
 vi.mock("next/dynamic", () => ({
@@ -568,9 +575,7 @@ describe("workspace board shortcut integration", () => {
     expect(directMissing.defaultPrevented).toBe(true);
     expect(directMissingSpies.stopPropagation).toHaveBeenCalledTimes(1);
     expect(directMissingSpies.stopImmediatePropagation).toHaveBeenCalledTimes(1);
-    expect(screen.getByTestId("workspace-shortcut-toast")).toHaveTextContent(
-      "Workspace 3 does not exist.",
-    );
+    expect(mockToastInfo).toHaveBeenCalledWith("Workspace 3 does not exist.");
     expect(readStoredActiveBoardKey()).toBe("review");
 
     const directFirst = makeKeyEvent({
