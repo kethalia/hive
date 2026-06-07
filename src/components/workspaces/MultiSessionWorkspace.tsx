@@ -107,6 +107,12 @@ interface VisibleWorkspaceSessionPane extends WorkspaceSessionPane {
   boardPaneKind: WorkspaceBoardPane["kind"];
 }
 
+interface RemoveWorkspacePaneTarget {
+  sessionName: string;
+  boardKey?: string;
+  boardPaneKey?: string;
+}
+
 interface GitRepositoryOption {
   cloneSessionKey: string;
   relativePath: string;
@@ -1773,10 +1779,14 @@ export function MultiSessionWorkspace({
     visibleSessions,
   ]);
 
-  const handleRemoveSession = useCallback(
-    async (sessionName: string) => {
-      const removedSession = visibleSessions.find((session) => session.sessionName === sessionName);
-      if (!removedSession) return;
+  const handleRemovePane = useCallback(
+    async ({ boardKey, boardPaneKey, sessionName }: RemoveWorkspacePaneTarget) => {
+      const board = boardKey
+        ? boardState.boards.find((candidate) => candidate.key === boardKey)
+        : undefined;
+      if (!board || !boardPaneKey || !board.panes.some((pane) => pane.key === boardPaneKey)) {
+        return;
+      }
 
       setTerminalCloseFailed(false);
 
@@ -1792,9 +1802,7 @@ export function MultiSessionWorkspace({
       const nextSessions = isUnifiedSource
         ? sessions
         : sessions.filter((session) => session.sessionName !== sessionName);
-      const nextBoardState = activeBoard
-        ? removeWorkspaceBoardPane(boardState, activeBoard.key, removedSession.boardPaneKey)
-        : boardState;
+      const nextBoardState = removeWorkspaceBoardPane(boardState, board.key, boardPaneKey);
       const nextActiveBoard = findActiveWorkspaceBoard(nextBoardState);
       const nextVisibleSessions = deriveVisibleSessionsFromBoard(nextSessions, nextActiveBoard);
       const nextActiveSessionName = activeSessionNameForVisibleSessions(
@@ -1803,9 +1811,7 @@ export function MultiSessionWorkspace({
         activeSessionNameRef.current === sessionName ? null : activeSessionNameRef.current,
       );
 
-      if (activeBoard) {
-        persistBoardState(nextBoardState);
-      }
+      persistBoardState(nextBoardState);
       if (!isUnifiedSource) {
         setSessions(nextSessions);
       }
@@ -1825,14 +1831,12 @@ export function MultiSessionWorkspace({
       }
     },
     [
-      activeBoard,
       boardState,
       clearActiveTerminal,
       isUnifiedSource,
       persistBoardState,
       sessions,
       setActiveTerminal,
-      visibleSessions,
       workspaceId,
     ],
   );
@@ -2261,7 +2265,11 @@ export function MultiSessionWorkspace({
             data-testid={`remove-pane-${pane.id}`}
             onClick={(event) => {
               event.stopPropagation();
-              void handleRemoveSession(pane.sessionName);
+              void handleRemovePane({
+                boardKey: activeBoard?.key,
+                boardPaneKey: visibleSession?.boardPaneKey,
+                sessionName: pane.sessionName,
+              });
             }}
           >
             <X className="size-3" />
