@@ -1,4 +1,5 @@
 import { encrypt, TOKEN_LIFETIME_SECONDS, tryDecrypt } from "@hive/auth";
+import { getDb } from "@hive/db";
 import { type ConnectionOptions, type Job, Queue, Worker } from "bullmq";
 import { CoderClient } from "@/lib/coder/client";
 import {
@@ -7,7 +8,6 @@ import {
   TOKEN_ROTATION_QUEUE,
   TOKEN_ROTATION_THRESHOLD,
 } from "@/lib/constants";
-import { getDb } from "@hive/db";
 import { sendPushToUser } from "@/lib/push/send";
 import { getRedisConnection } from "@/lib/queue/connection";
 

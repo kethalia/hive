@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { createLongPressDetector } from "@/lib/gestures/long-press";
 import { DRAG_LONG_PRESS_MOVE_PX, LONG_PRESS_MS } from "@/lib/gestures/conventions";
+import { createLongPressDetector } from "@/lib/gestures/long-press";
 
 describe("createLongPressDetector", () => {
   beforeEach(() => {

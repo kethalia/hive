@@ -1,14 +1,15 @@
 // @vitest-environment jsdom
-import { describe, it, expect, vi, beforeEach } from "vitest";
+
 import { renderHook } from "@testing-library/react";
 import * as React from "react";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
-  normalizeKeyCombo,
   KeybindingContext,
-  useKeybindings,
-  useRegisterKeybinding,
   type KeybindingContextValue,
   type KeybindingEntry,
+  normalizeKeyCombo,
+  useKeybindings,
+  useRegisterKeybinding,
 } from "@/hooks/useKeybindings";
 
 function makeKeyEvent(opts: Partial<KeyboardEventInit> & { key: string }): KeyboardEvent {
@@ -39,6 +40,29 @@ describe("normalizeKeyCombo", () => {
       shiftKey: true,
     });
     expect(normalizeKeyCombo(e)).toBe("ctrl+alt+shift+t");
+  });
+
+  it("normalizes exact workspace-board arrow chords", () => {
+    expect(normalizeKeyCombo(makeKeyEvent({ key: "ArrowLeft", metaKey: true, altKey: true }))).toBe(
+      "cmd+alt+arrowleft",
+    );
+    expect(
+      normalizeKeyCombo(makeKeyEvent({ key: "ArrowRight", ctrlKey: true, altKey: true })),
+    ).toBe("ctrl+alt+arrowright");
+  });
+
+  it("normalizes legacy and physical browser keys for workspace shortcuts", () => {
+    expect(
+      normalizeKeyCombo(
+        makeKeyEvent({ key: "Left", code: "ArrowLeft", metaKey: true, altKey: true }),
+      ),
+    ).toBe("cmd+alt+arrowleft");
+    expect(normalizeKeyCombo(makeKeyEvent({ key: "!", code: "Digit1", metaKey: true }))).toBe(
+      "cmd+1",
+    );
+    expect(normalizeKeyCombo(makeKeyEvent({ key: "End", code: "Numpad1", ctrlKey: true }))).toBe(
+      "ctrl+1",
+    );
   });
 
   it("normalizes all four modifiers in fixed order", () => {

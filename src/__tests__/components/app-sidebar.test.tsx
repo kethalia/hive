@@ -14,6 +14,12 @@ vi.mock("next/navigation", () => ({
   useSearchParams: () => new URLSearchParams(mockNavigationState.searchParams),
 }));
 
+const mockRefreshInstalledApp = vi.hoisted(() => vi.fn());
+
+vi.mock("@/lib/app-update", () => ({
+  refreshInstalledApp: mockRefreshInstalledApp,
+}));
+
 vi.mock("@/lib/utils", () => ({
   cn: (...classes: unknown[]) => classes.filter(Boolean).join(" "),
 }));
@@ -754,6 +760,17 @@ describe("AppSidebar", () => {
     expect(screen.getByTestId("terminal-controls-beyond-mobile-setting")).toHaveClass("min-h-11");
     expect(screen.queryByTestId("sidebar-mode-toggle")).not.toBeInTheDocument();
     expect(screen.queryByText("Float sidebar")).not.toBeInTheDocument();
+  });
+
+  it("offers an app update action from settings", async () => {
+    render(<AppSidebar />);
+
+    const updateButton = await screen.findByTestId("update-installed-app");
+    expect(updateButton).toHaveTextContent("Update");
+
+    fireEvent.click(updateButton);
+
+    expect(mockRefreshInstalledApp).toHaveBeenCalledTimes(1);
   });
 
   it("renders template names when data loads", async () => {

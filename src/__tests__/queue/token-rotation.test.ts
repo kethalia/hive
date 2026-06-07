@@ -23,9 +23,9 @@ vi.mock("@/lib/queue/connection", () => ({
 }));
 
 import { encrypt, TOKEN_LIFETIME_SECONDS, tryDecrypt } from "@hive/auth";
+import { getDb } from "@hive/db";
 import { CoderClient } from "@/lib/coder/client";
 import { TOKEN_ROTATION_THRESHOLD } from "@/lib/constants";
-import { getDb } from "@hive/db";
 import { processTokenRotation } from "@/lib/queue/token-rotation";
 
 const LIFETIME_MS = TOKEN_LIFETIME_SECONDS * 1000;

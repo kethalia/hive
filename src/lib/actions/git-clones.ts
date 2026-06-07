@@ -14,6 +14,10 @@ import {
 } from "@/lib/git/clone-actions-contract";
 import { createCloneTreeFromRepositoryRelativePaths } from "@/lib/git/clone-discovery";
 import {
+  isExpectedCloneSessionKey,
+  isSafeCloneRelativePath,
+} from "@/lib/git/clone-public-identifiers";
+import {
   type CloneTree,
   type CloneTreeDiagnostics,
   type CloneTreeNode,
@@ -21,10 +25,6 @@ import {
   type CloneTreeSkippedPathReason,
   createSafeCloneTerminalSessionName,
 } from "@/lib/git/clone-tree";
-import {
-  isExpectedCloneSessionKey,
-  isSafeCloneRelativePath,
-} from "@/lib/git/clone-public-identifiers";
 import { authActionClient } from "@/lib/safe-action";
 import { execInWorkspace } from "@/lib/workspace/exec";
 

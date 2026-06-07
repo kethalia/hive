@@ -292,6 +292,7 @@ vi.mock("lucide-react", () => ({
   Copy: () => null,
   Loader2: () => null,
   Plus: () => null,
+  X: () => null,
 }));
 
 vi.mock("@/components/terminal/ComposePanel", () => ({
@@ -1100,7 +1101,7 @@ describe("WorkspaceTerminalPage integration — Multi-session route", () => {
         (terminal) => terminal.getAttribute("data-session-name") === "main-session",
       );
     expect(findMainTerminal()?.getAttribute("data-layout-signal")).toBe(
-      "1:2:1 / 1 / span 1 / span 1",
+      "default:terminal:main-session:1:2:1 / 1 / span 1 / span 1",
     );
     expect(getByTestId("workspace-pane-main-session")).toHaveAttribute("data-pane-mode", "tiled");
     expect(queryByTestId("move-pane-left-pane-dev-server")).not.toBeInTheDocument();

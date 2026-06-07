@@ -88,6 +88,33 @@ describe("KeybindingProvider", () => {
     expect(stopImmediatePropagation).toHaveBeenCalledTimes(1);
   });
 
+  it("skips global shortcuts that were already handled by a capture fallback", async () => {
+    const probe = renderWithProbe();
+    const action = vi.fn(() => false);
+
+    act(() => {
+      probe.context?.register({
+        id: "workspace-index",
+        keys: ["ctrl+1", "cmd+1"],
+        action,
+        description: "Switch workspace",
+        category: "terminal",
+        enabledInBrowser: true,
+        global: true,
+      });
+    });
+
+    const event = makeKeyEvent({ key: "1", ctrlKey: true, bubbles: true, cancelable: true });
+    event.preventDefault();
+
+    act(() => {
+      window.dispatchEvent(event);
+    });
+
+    expect(action).not.toHaveBeenCalled();
+    expect(probe.context?.handleKeyEvent(event)).toBe(false);
+  });
+
   it("does not capture global shortcuts from ordinary text-entry fields", async () => {
     const action = vi.fn(() => false);
     const probe = renderWithProbe(<input aria-label="Search sessions" />);
@@ -189,6 +216,105 @@ describe("KeybindingProvider", () => {
 
     expect(action).toHaveBeenCalledTimes(1);
     expect(event.defaultPrevented).toBe(true);
+  });
+
+  it("captures exact global workspace board chords from the xterm helper textarea", async () => {
+    const action = vi.fn(() => false);
+    const probe = renderWithProbe(
+      <div className="xterm">
+        <textarea aria-label="Terminal input" className="xterm-helper-textarea" />
+      </div>,
+    );
+
+    act(() => {
+      probe.context?.register({
+        id: "multi-session:test-workspace:next-board",
+        keys: ["ctrl+alt+arrowright", "cmd+alt+arrowright"],
+        action,
+        description: "Switch to next workspace board",
+        category: "terminal",
+        enabledInBrowser: true,
+        global: true,
+      });
+    });
+
+    const textarea = document.querySelector("textarea");
+    expect(textarea).not.toBeNull();
+
+    for (const event of [
+      makeKeyEvent({
+        key: "ArrowRight",
+        ctrlKey: true,
+        altKey: true,
+        bubbles: true,
+        cancelable: true,
+      }),
+      makeKeyEvent({
+        key: "ArrowRight",
+        metaKey: true,
+        altKey: true,
+        bubbles: true,
+        cancelable: true,
+      }),
+    ]) {
+      const stopImmediatePropagation = vi.spyOn(event, "stopImmediatePropagation");
+
+      act(() => {
+        textarea?.dispatchEvent(event);
+      });
+
+      expect(event.defaultPrevented).toBe(true);
+      expect(stopImmediatePropagation).toHaveBeenCalledTimes(1);
+    }
+
+    expect(action).toHaveBeenCalledTimes(2);
+  });
+
+  it("lets nearby non-board input pass through from the xterm helper textarea", async () => {
+    const action = vi.fn(() => false);
+    const probe = renderWithProbe(
+      <div className="xterm">
+        <textarea aria-label="Terminal input" className="xterm-helper-textarea" />
+      </div>,
+    );
+
+    act(() => {
+      probe.context?.register({
+        id: "multi-session:test-workspace:next-board",
+        keys: ["ctrl+alt+arrowright", "cmd+alt+arrowright"],
+        action,
+        description: "Switch to next workspace board",
+        category: "terminal",
+        enabledInBrowser: true,
+        global: true,
+      });
+    });
+
+    const textarea = document.querySelector("textarea");
+    expect(textarea).not.toBeNull();
+
+    const unmatchedEvents = [
+      makeKeyEvent({ key: "ArrowRight", bubbles: true, cancelable: true }),
+      makeKeyEvent({ key: "ArrowLeft", bubbles: true, cancelable: true }),
+      makeKeyEvent({ key: "ArrowRight", ctrlKey: true, bubbles: true, cancelable: true }),
+      makeKeyEvent({ key: "ArrowRight", metaKey: true, bubbles: true, cancelable: true }),
+      makeKeyEvent({ key: "a", bubbles: true, cancelable: true }),
+      makeKeyEvent({ key: "v", ctrlKey: true, bubbles: true, cancelable: true }),
+      makeKeyEvent({ key: "v", metaKey: true, bubbles: true, cancelable: true }),
+    ];
+
+    for (const event of unmatchedEvents) {
+      const stopImmediatePropagation = vi.spyOn(event, "stopImmediatePropagation");
+
+      act(() => {
+        textarea?.dispatchEvent(event);
+      });
+
+      expect(event.defaultPrevented).toBe(false);
+      expect(stopImmediatePropagation).not.toHaveBeenCalled();
+    }
+
+    expect(action).not.toHaveBeenCalled();
   });
 
   it("does not capture non-global shortcuts at the window level", async () => {

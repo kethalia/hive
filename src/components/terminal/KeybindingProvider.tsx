@@ -49,6 +49,7 @@ export function KeybindingProvider({ children }: { children: React.ReactNode }) 
 
   const handleKeyEvent = React.useCallback(
     (e: KeyboardEvent): boolean => {
+      if (e.defaultPrevented) return false;
       const combo = normalizeKeyCombo(e);
       const entry = registryRef.current.get(combo);
       if (!entry) return true;
@@ -80,6 +81,7 @@ export function KeybindingProvider({ children }: { children: React.ReactNode }) 
 
   React.useEffect(() => {
     const handleGlobalKeyDown = (event: KeyboardEvent) => {
+      if (event.defaultPrevented) return;
       const combo = normalizeKeyCombo(event);
       const entry = registryRef.current.get(combo);
       if (!entry?.global) return;

@@ -7,8 +7,8 @@ vi.mock("@/hooks/use-mobile", () => ({
   useIsMobile: () => true,
 }));
 
-import { Sidebar, SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
+import { Sidebar, SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 
 afterEach(() => {
   cleanup();

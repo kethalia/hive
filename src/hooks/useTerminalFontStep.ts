@@ -4,9 +4,9 @@ import { useCallback, useEffect, useState } from "react";
 import {
   EVENT_NAME,
   FONT_SIZE_LADDER,
+  getTerminalFontSize,
   MAX_FONT_SIZE,
   MIN_FONT_SIZE,
-  getTerminalFontSize,
   setTerminalFontSize,
 } from "@/lib/terminal/font-size";
 

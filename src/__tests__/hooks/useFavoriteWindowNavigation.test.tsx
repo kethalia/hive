@@ -3,8 +3,8 @@ import { act, cleanup, renderHook, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useFavoriteWindowNavigation } from "@/hooks/useFavoriteWindowNavigation";
 import { resolveGitCloneTerminalAction } from "@/lib/actions/git-clones";
-import { listNavigationFavoritesAction } from "@/lib/actions/navigation-favorites";
 import type { NavigationFavoriteDto } from "@/lib/actions/navigation-favorites";
+import { listNavigationFavoritesAction } from "@/lib/actions/navigation-favorites";
 
 const navigationState = vi.hoisted(() => ({
   search: "session=alpha",

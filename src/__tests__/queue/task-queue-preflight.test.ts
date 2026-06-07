@@ -70,8 +70,8 @@ vi.mock("@hive/auth", async (importOriginal) => ({
 }));
 
 import { tryDecrypt } from "@hive/auth";
-import { getTokenStatus } from "@/lib/auth/token-status";
 import { getDb } from "@hive/db";
+import { getTokenStatus } from "@/lib/auth/token-status";
 
 describe("pre-flight token expiry", () => {
   const mockDb = {
