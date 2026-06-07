@@ -71,6 +71,7 @@ interface InteractiveTerminalProps {
   refreshCloneTerminalIdentity?: RefreshCloneTerminalIdentity;
   className?: string;
   onConnectionStateChange?: (state: ConnectionState) => void;
+  onRecoveryStateChange?: (state: TerminalRecoveryState) => void;
   onTerminalReady?: (term: Terminal, send: (data: string) => void) => void;
   onTerminalDestroy?: () => void;
   layoutSignal?: unknown;
@@ -320,6 +321,7 @@ export function InteractiveTerminal({
   refreshCloneTerminalIdentity,
   className,
   onConnectionStateChange,
+  onRecoveryStateChange,
   onTerminalReady,
   onTerminalDestroy,
   layoutSignal,
@@ -463,6 +465,7 @@ export function InteractiveTerminal({
     onResizeSent: ({ rows, cols, source, sentAt }) => {
       recordMobileTerminalResizeSent(rows, cols, source, () => sentAt);
     },
+    onRecoveryStateChange,
     refreshUrlBeforeReconnect: canRefreshCloneTerminalIdentity
       ? refreshCloneTerminalWebSocketUrl
       : undefined,
