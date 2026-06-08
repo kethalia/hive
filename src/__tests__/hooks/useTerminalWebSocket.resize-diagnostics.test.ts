@@ -37,6 +37,13 @@ function openSocket(socket = instances.at(-1)) {
   return socket;
 }
 
+function closeSocket(socket: MockWebSocket, init: CloseEventInit) {
+  socket.readyState = MockWebSocket.CLOSED;
+  act(() => {
+    socket.onclose?.(new CloseEvent("close", init));
+  });
+}
+
 describe("useTerminalWebSocket resize diagnostics", () => {
   beforeEach(() => {
     instances.length = 0;
@@ -45,6 +52,7 @@ describe("useTerminalWebSocket resize diagnostics", () => {
   });
 
   afterEach(() => {
+    vi.useRealTimers();
     vi.restoreAllMocks();
     vi.unstubAllGlobals();
   });
@@ -113,6 +121,112 @@ describe("useTerminalWebSocket resize diagnostics", () => {
 
     expect(socket.send).not.toHaveBeenCalled();
     expect(onResizeSent).not.toHaveBeenCalled();
+    unmount();
+  });
+
+  it("preserves send behavior for open and closed sockets", () => {
+    const { result, unmount } = renderHook(() =>
+      useTerminalWebSocket({
+        url: "ws://terminal.example/ws",
+        onData: vi.fn(),
+      }),
+    );
+    const socket = openSocket();
+
+    act(() => {
+      result.current.send("hello");
+    });
+    expect(socket.send).toHaveBeenCalledWith("hello");
+
+    socket.readyState = MockWebSocket.CLOSED;
+    act(() => {
+      result.current.send("ignored");
+    });
+    expect(socket.send).not.toHaveBeenCalledWith("ignored");
+    unmount();
+  });
+
+  it("records retry metadata and reconnects after a recoverable close", () => {
+    vi.useFakeTimers();
+    vi.spyOn(Math, "random").mockReturnValue(0.5);
+    const onRecoveryStateChange = vi.fn();
+    const { result, unmount } = renderHook(() =>
+      useTerminalWebSocket({
+        url: "ws://terminal.example/ws",
+        onData: vi.fn(),
+        onRecoveryStateChange,
+      }),
+    );
+    const socket = openSocket();
+
+    closeSocket(socket, {
+      code: 1013,
+      reason: "upstream connect timeout containing no terminal data",
+      wasClean: false,
+    });
+
+    expect(result.current.connectionState).toBe("disconnected");
+    expect(result.current.recoveryState).toMatchObject({
+      phase: "recovering",
+      retryCount: 1,
+      maxRetryCount: null,
+      lastCloseCode: 1013,
+      lastCloseCategory: "transient",
+      lastReasonCategory: "upstream-timeout",
+      failureCategory: null,
+      lastDelayMs: 1000,
+      lastRecoveryAction: "schedule-reconnect",
+      isRecoverable: true,
+      canRetry: true,
+    });
+
+    act(() => {
+      vi.advanceTimersByTime(1000);
+    });
+
+    expect(instances).toHaveLength(2);
+    expect(result.current.connectionState).toBe("reconnecting");
+    expect(onRecoveryStateChange).toHaveBeenCalledWith(
+      expect.objectContaining({ phase: "recovering", retryCount: 1 }),
+    );
+    unmount();
+  });
+
+  it("classifies unrecoverable closes without storing raw close reasons", () => {
+    vi.useFakeTimers();
+    const { result, unmount } = renderHook(() =>
+      useTerminalWebSocket({
+        url: "ws://terminal.example/ws?cloneProof=secret-token&path=/private/repo",
+        onData: vi.fn(),
+      }),
+    );
+    const socket = openSocket();
+
+    closeSocket(socket, {
+      code: 4401,
+      reason: "Unauthorized cloneProof=secret-token /private/repo",
+      wasClean: false,
+    });
+
+    expect(result.current.connectionState).toBe("failed");
+    expect(result.current.recoveryState).toMatchObject({
+      phase: "final-failure",
+      retryCount: 0,
+      lastCloseCode: 4401,
+      lastCloseCategory: "auth-expired",
+      lastReasonCategory: "clone-proof-invalid",
+      failureCategory: "auth-expired",
+      lastDelayMs: null,
+      isRecoverable: false,
+      canRetry: true,
+    });
+    expect(JSON.stringify(result.current.recoveryState)).not.toContain("secret-token");
+    expect(JSON.stringify(result.current.recoveryState)).not.toContain("/private/repo");
+
+    act(() => {
+      vi.runOnlyPendingTimers();
+    });
+    expect(instances).toHaveLength(1);
     unmount();
   });
 });

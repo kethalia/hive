@@ -15,8 +15,14 @@ import {
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useKeybindings } from "@/hooks/useKeybindings";
 import { useTerminalPinchZoom } from "@/hooks/useTerminalPinchZoom";
-import { type ConnectionState, useTerminalWebSocket } from "@/hooks/useTerminalWebSocket";
+import {
+  type ConnectionState,
+  type TerminalRecoveryState,
+  type TerminalRefreshUrlBeforeReconnect,
+  useTerminalWebSocket,
+} from "@/hooks/useTerminalWebSocket";
 import { TAP_THRESHOLD_PX } from "@/lib/gestures/conventions";
+import { isCloneTerminalSessionName } from "@/lib/git/clone-terminal-session";
 import { getClientRuntimeConfig } from "@/lib/runtime-config";
 import { loadTerminalFont, TERMINAL_FONT_FAMILY, TERMINAL_THEME } from "@/lib/terminal/config";
 import { EVENT_NAME as FONT_SIZE_EVENT, getTerminalFontSize } from "@/lib/terminal/font-size";
@@ -36,14 +42,36 @@ import { encodeInput } from "@/lib/terminal/protocol";
 import { cn } from "@/lib/utils";
 import "@/styles/xterm.css";
 
+export interface RefreshedCloneTerminalIdentity {
+  sessionName: string;
+  clonePath: string;
+  cloneProof: string;
+}
+
+export interface RefreshCloneTerminalIdentityContext {
+  sessionName: string;
+  clonePath: string;
+  reason: "scheduled-reconnect" | "manual-reconnect";
+  retryCount: number;
+  closeCode: number | null;
+  closeCategory: string | null;
+  reasonCategory: string | null;
+}
+
+export type RefreshCloneTerminalIdentity = (
+  context: RefreshCloneTerminalIdentityContext,
+) => Promise<RefreshedCloneTerminalIdentity> | RefreshedCloneTerminalIdentity;
+
 interface InteractiveTerminalProps {
   agentId: string;
   workspaceId: string;
   sessionName: string;
   clonePath?: string;
   cloneProof?: string;
+  refreshCloneTerminalIdentity?: RefreshCloneTerminalIdentity;
   className?: string;
   onConnectionStateChange?: (state: ConnectionState) => void;
+  onRecoveryStateChange?: (state: TerminalRecoveryState) => void;
   onTerminalReady?: (term: Terminal, send: (data: string) => void) => void;
   onTerminalDestroy?: () => void;
   layoutSignal?: unknown;
@@ -64,6 +92,86 @@ interface MobileTouchIntent {
 
 const MOBILE_TERMINAL_SCROLL_THRESHOLD_PX = Math.max(TAP_THRESHOLD_PX + 3, 8);
 const FALLBACK_TERMINAL_LINE_HEIGHT_PX = 20;
+const FALLBACK_TERMINAL_ROWS = 24;
+const FALLBACK_TERMINAL_COLS = 80;
+
+function isNonEmptyString(value: unknown): value is string {
+  return typeof value === "string" && value.trim().length > 0;
+}
+
+function normalizeTerminalDimension(value: unknown, fallback: number): number {
+  const numeric = typeof value === "number" ? value : Number(value);
+  if (!Number.isFinite(numeric) || numeric <= 0) return fallback;
+  return Math.trunc(numeric);
+}
+
+function readDimensionFromUrl(url: string, param: "width" | "height", fallback: number): number {
+  try {
+    return normalizeTerminalDimension(new URL(url).searchParams.get(param), fallback);
+  } catch {
+    return fallback;
+  }
+}
+
+function buildTerminalWebSocketUrl({
+  proxyUrl,
+  agentId,
+  workspaceId,
+  reconnectId,
+  sessionName,
+  rows,
+  cols,
+  clonePath,
+  cloneProof,
+}: {
+  proxyUrl: string;
+  agentId: string;
+  workspaceId: string;
+  reconnectId: string;
+  sessionName: string;
+  rows: number;
+  cols: number;
+  clonePath?: string;
+  cloneProof?: string;
+}): string {
+  const params = new URLSearchParams({
+    agentId,
+    workspaceId,
+    reconnectId,
+    width: String(cols),
+    height: String(rows),
+    sessionName,
+  });
+  if (clonePath) {
+    params.set("clonePath", clonePath);
+    if (cloneProof) {
+      params.set("cloneProof", cloneProof);
+    }
+  }
+  return `${proxyUrl}/ws?${params.toString()}`;
+}
+
+function validateRefreshedCloneTerminalIdentity(
+  identity: unknown,
+  expectedSessionName: string,
+): RefreshedCloneTerminalIdentity | "malformed-identity" | "session-name-mismatch" {
+  if (!identity || typeof identity !== "object" || Array.isArray(identity)) {
+    return "malformed-identity";
+  }
+
+  const candidate = identity as Partial<RefreshedCloneTerminalIdentity>;
+  if (!isNonEmptyString(candidate.sessionName)) return "malformed-identity";
+  if (candidate.sessionName !== expectedSessionName) return "session-name-mismatch";
+  if (!isNonEmptyString(candidate.clonePath) || !isNonEmptyString(candidate.cloneProof)) {
+    return "malformed-identity";
+  }
+
+  return {
+    sessionName: candidate.sessionName,
+    clonePath: candidate.clonePath,
+    cloneProof: candidate.cloneProof,
+  };
+}
 
 function terminalLineHeightPx(term: Terminal | null): number {
   const fontSize = Number(term?.options?.fontSize);
@@ -132,6 +240,49 @@ function scrollTerminalToBottom(term: Terminal) {
   }
 }
 
+function quietRecoveryMessage(
+  connectionState: ConnectionState,
+  recoveryState?: TerminalRecoveryState,
+): string | null {
+  if (connectionState === "workspace-offline") return null;
+  if (recoveryState?.phase === "final-failure") return null;
+
+  if (recoveryState?.phase === "recovering" || connectionState === "reconnecting") {
+    const retryLabel = recoveryState?.retryCount ? ` Retry ${recoveryState.retryCount}.` : "";
+    return `Reconnecting terminal…${retryLabel}`;
+  }
+
+  if (recoveryState?.phase === "connecting" || connectionState === "connecting") {
+    return "Connecting terminal…";
+  }
+
+  if (
+    connectionState === "disconnected" &&
+    recoveryState?.isRecoverable !== false &&
+    recoveryState?.lastRecoveryAction === "schedule-reconnect"
+  ) {
+    const retryLabel = recoveryState.retryCount ? ` Retry ${recoveryState.retryCount}.` : "";
+    return `Reconnecting terminal…${retryLabel}`;
+  }
+
+  return null;
+}
+
+function finalFailureMessage(recoveryState?: TerminalRecoveryState): string {
+  switch (recoveryState?.failureCategory) {
+    case "auth-expired":
+      return "Terminal connection ended because authentication expired.";
+    case "permission-denied":
+      return "Terminal connection ended because access was denied.";
+    case "clone-proof-invalid":
+      return "Terminal connection ended because clone authorization could not be verified.";
+    case "terminal-closed":
+      return "Terminal connection ended because the terminal session closed.";
+    default:
+      return "Terminal connection ended and automatic recovery stopped.";
+  }
+}
+
 export function connectionBadgeProps(state: ConnectionState) {
   switch (state) {
     case "connected":
@@ -167,8 +318,10 @@ export function InteractiveTerminal({
   sessionName,
   clonePath,
   cloneProof,
+  refreshCloneTerminalIdentity,
   className,
   onConnectionStateChange,
+  onRecoveryStateChange,
   onTerminalReady,
   onTerminalDestroy,
   layoutSignal,
@@ -220,6 +373,71 @@ export function InteractiveTerminal({
     return id;
   });
   const [wsUrl, setWsUrl] = useState<string | null>(null);
+  const canRefreshCloneTerminalIdentity =
+    Boolean(refreshCloneTerminalIdentity) &&
+    isCloneTerminalSessionName(sessionName) &&
+    isNonEmptyString(clonePath) &&
+    isNonEmptyString(cloneProof);
+
+  const refreshCloneTerminalWebSocketUrl = useCallback<TerminalRefreshUrlBeforeReconnect>(
+    async (context) => {
+      if (!refreshCloneTerminalIdentity || !isNonEmptyString(clonePath)) {
+        return { failureCategory: "malformed-identity" };
+      }
+
+      const refreshedIdentity = await refreshCloneTerminalIdentity({
+        sessionName,
+        clonePath,
+        reason: context.reason,
+        retryCount: context.retryCount,
+        closeCode: context.closeCode,
+        closeCategory: context.closeCategory,
+        reasonCategory: context.reasonCategory,
+      });
+      const validatedIdentity = validateRefreshedCloneTerminalIdentity(
+        refreshedIdentity,
+        sessionName,
+      );
+      if (validatedIdentity === "malformed-identity") {
+        return { failureCategory: "malformed-identity" };
+      }
+      if (validatedIdentity === "session-name-mismatch") {
+        return { failureCategory: "session-name-mismatch" };
+      }
+
+      const proxyUrl = getClientRuntimeConfig().terminalWsUrl;
+      if (!proxyUrl) {
+        return { failureCategory: "malformed-identity" };
+      }
+
+      const term = termRef.current;
+      const fallbackCols = readDimensionFromUrl(
+        context.currentUrl,
+        "width",
+        FALLBACK_TERMINAL_COLS,
+      );
+      const fallbackRows = readDimensionFromUrl(
+        context.currentUrl,
+        "height",
+        FALLBACK_TERMINAL_ROWS,
+      );
+      const cols = normalizeTerminalDimension(term?.cols, fallbackCols);
+      const rows = normalizeTerminalDimension(term?.rows, fallbackRows);
+
+      return buildTerminalWebSocketUrl({
+        proxyUrl,
+        agentId,
+        workspaceId,
+        reconnectId,
+        sessionName,
+        rows,
+        cols,
+        clonePath: validatedIdentity.clonePath,
+        cloneProof: validatedIdentity.cloneProof,
+      });
+    },
+    [agentId, clonePath, reconnectId, refreshCloneTerminalIdentity, sessionName, workspaceId],
+  );
 
   const handleData = useCallback((data: Uint8Array | string) => {
     const term = termRef.current;
@@ -234,13 +452,21 @@ export function InteractiveTerminal({
     });
   }, []);
 
-  const { send, resize, connectionState } = useTerminalWebSocket({
+  const { send, resize, connectionState, recoveryState, manualReconnect } = useTerminalWebSocket({
     url: wsUrl,
     onData: handleData,
     onResizeSent: ({ rows, cols, source, sentAt }) => {
       recordMobileTerminalResizeSent(rows, cols, source, () => sentAt);
     },
+    onRecoveryStateChange,
+    refreshUrlBeforeReconnect: canRefreshCloneTerminalIdentity
+      ? refreshCloneTerminalWebSocketUrl
+      : undefined,
   });
+  const recoveryMessage = quietRecoveryMessage(connectionState, recoveryState);
+  const showFinalFailure =
+    recoveryState?.phase === "final-failure" ||
+    (connectionState === "failed" && recoveryState?.isRecoverable === false);
   const bindPinchZoom = useTerminalPinchZoom();
   const terminalInteractionProps = selectionModeEnabled ? {} : bindPinchZoom();
 
@@ -579,21 +805,19 @@ export function InteractiveTerminal({
         );
         return;
       }
-      const params = new URLSearchParams({
-        agentId,
-        workspaceId,
-        reconnectId,
-        width: String(dims.cols),
-        height: String(dims.rows),
-        sessionName,
-      });
-      if (clonePath) {
-        params.set("clonePath", clonePath);
-        if (cloneProof) {
-          params.set("cloneProof", cloneProof);
-        }
-      }
-      setWsUrl(`${proxyUrl}/ws?${params.toString()}`);
+      setWsUrl(
+        buildTerminalWebSocketUrl({
+          proxyUrl,
+          agentId,
+          workspaceId,
+          reconnectId,
+          rows: dims.rows,
+          cols: dims.cols,
+          sessionName,
+          clonePath,
+          cloneProof,
+        }),
+      );
     })();
 
     let resizeTimer: ReturnType<typeof setTimeout> | null = null;
@@ -644,11 +868,30 @@ export function InteractiveTerminal({
           </AlertDescription>
         </Alert>
       )}
-      {connectionState === "failed" && (
+      {recoveryMessage && (
+        <Alert
+          className="rounded-none border-x-0 border-t-0"
+          data-testid="terminal-recovery-status"
+        >
+          <AlertDescription>{recoveryMessage}</AlertDescription>
+        </Alert>
+      )}
+      {showFinalFailure && (
         <Alert variant="destructive" className="rounded-none border-x-0 border-t-0">
           <AlertCircle />
           <AlertDescription>
-            Connection failed after multiple attempts. Refresh the page to try again.
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+              <span>{finalFailureMessage(recoveryState)}</span>
+              {recoveryState?.canRetry && (
+                <button
+                  type="button"
+                  className="rounded border border-destructive/30 px-2 py-1 text-xs font-medium text-destructive transition-colors hover:bg-destructive/10"
+                  onClick={manualReconnect}
+                >
+                  Retry terminal connection
+                </button>
+              )}
+            </div>
           </AlertDescription>
         </Alert>
       )}

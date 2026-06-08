@@ -19,8 +19,14 @@ import { useIsComposeSheet } from "@/hooks/use-compose-sheet";
 import { useFavoriteWindowNavigation } from "@/hooks/useFavoriteWindowNavigation";
 import { useKeybindings } from "@/hooks/useKeybindings";
 import { useVisualViewportKeyboardOffset } from "@/hooks/useVisualViewportKeyboardOffset";
+import { resolveGitCloneTerminalAction } from "@/lib/actions/git-clones";
 import { createSessionAction, getWorkspaceSessionsAction } from "@/lib/actions/workspaces";
 import { triggerHapticFeedback } from "@/lib/device/haptics";
+import type { GitCloneTerminalIdentity } from "@/lib/git/clone-actions-contract";
+import {
+  isExpectedCloneSessionKey,
+  isSafeCloneRelativePath,
+} from "@/lib/git/clone-public-identifiers";
 import {
   type ClipboardActionStatus,
   copyTerminalSelection,
@@ -70,6 +76,26 @@ function terminalHasSelection(term: {
 }): boolean {
   if (typeof term.hasSelection === "function") return term.hasSelection();
   return Boolean(term.getSelection?.());
+}
+
+function isObjectRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
+function unwrapActionData(result: unknown): unknown {
+  return isObjectRecord(result) && "data" in result ? result.data : result;
+}
+
+function isGitCloneTerminalIdentity(value: unknown): value is GitCloneTerminalIdentity {
+  if (!isObjectRecord(value)) return false;
+  return (
+    typeof value.sessionName === "string" &&
+    value.sessionName.length > 0 &&
+    typeof value.clonePath === "string" &&
+    value.clonePath.length > 0 &&
+    typeof value.cloneProof === "string" &&
+    value.cloneProof.length > 0
+  );
 }
 
 function isTextEntryElement(element: Element | null): boolean {
@@ -133,8 +159,13 @@ function TerminalInner({
   const router = useRouter();
   const searchParams = useSearchParams();
   const session = searchParams.get("session");
-  const clonePath = session ? searchParams.get("clonePath") || undefined : undefined;
-  const cloneProof = session && clonePath ? searchParams.get("cloneProof") || undefined : undefined;
+  const routeClonePath = session ? searchParams.get("clonePath") || undefined : undefined;
+  const routeCloneProof =
+    session && routeClonePath ? searchParams.get("cloneProof") || undefined : undefined;
+  const routeCloneSessionKey = session
+    ? searchParams.get("cloneSessionKey") || undefined
+    : undefined;
+  const routeRelativePath = session ? searchParams.get("relativePath") || undefined : undefined;
   const debugViewportEnabled = searchParams.get("debugViewport") === "1";
   const { setActiveTerminal, activeTerminal, activeSend, register, unregister } = useKeybindings();
   const [menuPosition, setMenuPosition] = useState<{ x: number; y: number } | null>(null);
@@ -151,6 +182,15 @@ function TerminalInner({
   );
   const [bootstrapError, setBootstrapError] = useState<string | null>(null);
   const [bootstrapRetryKey, setBootstrapRetryKey] = useState(0);
+  const [cloneIdentity, setCloneIdentity] = useState<{
+    clonePath?: string;
+    cloneProof?: string;
+    sessionName: string | null;
+  }>(() => ({
+    sessionName: session,
+    clonePath: routeClonePath,
+    cloneProof: routeCloneProof,
+  }));
   const previousSessionRef = useRef(session);
   const composeSheetDragStartYRef = useRef<number | null>(null);
   const isComposeSheet = useIsComposeSheet();
@@ -186,6 +226,54 @@ function TerminalInner({
     hasTerminal: hasActiveTerminal,
     selectionModeEnabled: controlsSelectionModeEnabled,
   });
+  const cloneIdentityMatchesRoute = cloneIdentity.sessionName === session;
+  const clonePath = cloneIdentityMatchesRoute ? cloneIdentity.clonePath : routeClonePath;
+  const cloneProof = cloneIdentityMatchesRoute ? cloneIdentity.cloneProof : routeCloneProof;
+  const canRefreshCloneIdentity = Boolean(
+    session &&
+      clonePath &&
+      cloneProof &&
+      routeCloneSessionKey &&
+      routeRelativePath &&
+      isExpectedCloneSessionKey(routeCloneSessionKey) &&
+      isSafeCloneRelativePath(routeRelativePath),
+  );
+  const refreshCloneTerminalIdentity = useCallback(async () => {
+    if (
+      !session ||
+      !routeCloneSessionKey ||
+      !routeRelativePath ||
+      !isExpectedCloneSessionKey(routeCloneSessionKey) ||
+      !isSafeCloneRelativePath(routeRelativePath)
+    ) {
+      throw new Error("Git clone terminal refresh unavailable");
+    }
+
+    const identity = unwrapActionData(
+      await resolveGitCloneTerminalAction({
+        agentId,
+        workspaceId,
+        cloneSessionKey: routeCloneSessionKey,
+        relativePath: routeRelativePath,
+      }),
+    );
+
+    if (!isGitCloneTerminalIdentity(identity) || identity.sessionName !== session) {
+      throw new Error("Git clone terminal refresh failed");
+    }
+
+    setCloneIdentity({
+      sessionName: session,
+      clonePath: identity.clonePath,
+      cloneProof: identity.cloneProof,
+    });
+
+    return {
+      sessionName: identity.sessionName,
+      clonePath: identity.clonePath,
+      cloneProof: identity.cloneProof,
+    };
+  }, [agentId, routeCloneSessionKey, routeRelativePath, session, workspaceId]);
 
   const handleComposeSheetDragStart = useCallback((event: PointerEvent<HTMLButtonElement>) => {
     composeSheetDragStartYRef.current = event.clientY;
@@ -250,6 +338,14 @@ function TerminalInner({
 
     return () => window.cancelAnimationFrame(frame);
   }, [activeTerminal, composeOpen, isComposeSheet, selectionModeEnabled, session]);
+
+  useEffect(() => {
+    setCloneIdentity({
+      sessionName: session,
+      clonePath: routeClonePath,
+      cloneProof: routeCloneProof,
+    });
+  }, [routeClonePath, routeCloneProof, session]);
 
   useEffect(() => {
     if (previousSessionRef.current === session) return;
@@ -457,6 +553,9 @@ function TerminalInner({
           sessionName={session}
           clonePath={clonePath}
           cloneProof={cloneProof}
+          refreshCloneTerminalIdentity={
+            canRefreshCloneIdentity ? refreshCloneTerminalIdentity : undefined
+          }
           className="h-full rounded-none border-0"
           onTerminalReady={handleTerminalReady}
           onTerminalDestroy={handleTerminalDestroy}

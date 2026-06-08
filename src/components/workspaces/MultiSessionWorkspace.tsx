@@ -4,7 +4,6 @@ import type { Terminal } from "@xterm/xterm";
 import { AlertCircle, Loader2, Minus, Plus, Search, TerminalSquare, X } from "lucide-react";
 import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
-import { toast } from "sonner";
 import {
   type CSSProperties,
   type KeyboardEvent as ReactKeyboardEvent,
@@ -14,6 +13,7 @@ import {
   useRef,
   useState,
 } from "react";
+import { toast } from "sonner";
 import { CommandPalette, type CommandPaletteAction } from "@/components/terminal/CommandPalette";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -26,8 +26,10 @@ import {
 } from "@/components/ui/dialog";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { WorkspaceBoardBar } from "@/components/workspaces/WorkspaceBoardBar";
+import { useKeepAliveStatus } from "@/hooks/useKeepAliveStatus";
 import { useKeybindings } from "@/hooks/useKeybindings";
 import { useTerminalFontStep } from "@/hooks/useTerminalFontStep";
+import type { ConnectionState, TerminalRecoveryState } from "@/hooks/useTerminalWebSocket";
 import { listGitClonesAction, resolveGitCloneTerminalAction } from "@/lib/actions/git-clones";
 import {
   listNavigationFavoritesAction,
@@ -75,6 +77,11 @@ import {
   type WorkspaceBoardStateDiagnostic,
   workspaceBoardStorageKey,
 } from "@/lib/workspaces/workspace-board-state";
+import {
+  summarizeWorkspacePaneRecovery,
+  type WorkspaceGitPaneRefreshInput,
+  type WorkspacePaneRecoveryInput,
+} from "@/lib/workspaces/workspace-pane-recovery";
 
 interface InteractiveTerminalComponentProps {
   agentId: string;
@@ -82,7 +89,18 @@ interface InteractiveTerminalComponentProps {
   sessionName: string;
   clonePath?: string;
   cloneProof?: string;
+  refreshCloneTerminalIdentity?: (context: {
+    sessionName: string;
+    clonePath: string;
+    reason: "scheduled-reconnect" | "manual-reconnect";
+    retryCount: number;
+    closeCode: number | null;
+    closeCategory: string | null;
+    reasonCategory: string | null;
+  }) => Promise<{ sessionName: string; clonePath: string; cloneProof: string }>;
   className?: string;
+  onConnectionStateChange?: (state: ConnectionState) => void;
+  onRecoveryStateChange?: (state: TerminalRecoveryState) => void;
   onTerminalReady?: (term: Terminal, send: (data: string) => void) => void;
   onTerminalDestroy?: () => void;
   layoutSignal?: unknown;
@@ -787,6 +805,9 @@ export function MultiSessionWorkspace({
   );
   const [boardPersistenceNotice, setBoardPersistenceNotice] =
     useState<BoardPersistenceNotice | null>(null);
+  const [paneRecoveryStates, setPaneRecoveryStates] = useState<
+    Record<string, WorkspacePaneRecoveryInput>
+  >({});
   const terminalsRef = useRef<Map<string, TerminalEntry>>(new Map());
   const activeSessionNameRef = useRef<string | null>(null);
   const workspaceRootRef = useRef<HTMLElement>(null);
@@ -794,6 +815,7 @@ export function MultiSessionWorkspace({
   const gitSearchInputRef = useRef<HTMLInputElement>(null);
   const canCreateSession = true;
   const isUnifiedSource = source === "unified";
+  const keepAliveStatus = useKeepAliveStatus(workspaceId);
   const activeBoard = useMemo(() => findActiveWorkspaceBoard(boardState), [boardState]);
   const visibleSessions = useMemo(
     () => deriveVisibleSessionsFromBoard(sessions, activeBoard),
@@ -801,6 +823,10 @@ export function MultiSessionWorkspace({
   );
   const visibleSessionNames = useMemo(
     () => new Set(visibleSessions.map((session) => session.sessionName)),
+    [visibleSessions],
+  );
+  const visibleBoardPaneKeys = useMemo(
+    () => visibleSessions.map((session) => session.boardPaneKey),
     [visibleSessions],
   );
   const availableTerminalSessions = useMemo(
@@ -936,6 +962,22 @@ export function MultiSessionWorkspace({
     ...(boardPersistenceNotice ? [boardPersistenceNotice.code] : []),
     ...boardState.diagnostics.map((diagnostic) => diagnostic.code),
   ].join(" ");
+  const workspaceRecoverySummary = useMemo(
+    () =>
+      summarizeWorkspacePaneRecovery({
+        visibleBoardPaneKeys,
+        panes: paneRecoveryStates,
+        keepalive: keepAliveStatus.isLoading
+          ? null
+          : {
+              status: keepAliveStatus.status,
+              consecutiveFailures: keepAliveStatus.consecutiveFailures,
+              lastFailureCategory: keepAliveStatus.lastFailureCategory,
+              activeConnectionCount: keepAliveStatus.activeConnectionCount,
+            },
+      }),
+    [keepAliveStatus, paneRecoveryStates, visibleBoardPaneKeys],
+  );
 
   const clearActiveTerminal = useCallback(() => {
     setActiveTerminal(null, null);
@@ -1082,6 +1124,83 @@ export function MultiSessionWorkspace({
         {boardPersistenceMessage}
       </p>
     ) : null;
+
+  const renderWorkspaceRecoveryStatus = () =>
+    workspaceRecoverySummary ? (
+      <p
+        className="border-b border-border px-3 py-1 text-xs text-muted-foreground"
+        data-testid="workspace-recovery-status"
+        data-workspace-recovery-keepalive-status={keepAliveStatus.status}
+        data-workspace-recovery-keepalive-category={keepAliveStatus.lastFailureCategory ?? "none"}
+        data-workspace-recovery-active-connection-count={String(
+          keepAliveStatus.activeConnectionCount,
+        )}
+        {...workspaceRecoverySummary.dataAttributes}
+      >
+        <span>{workspaceRecoverySummary.message}</span>
+        <span className="ml-2 text-[10px] tabular-nums" title="Workspace recovery categories">
+          {workspaceRecoverySummary.categories.join(" ")}
+        </span>
+      </p>
+    ) : null;
+
+  const updatePaneRecoveryState = useCallback(
+    (
+      boardPaneKey: string,
+      kind: WorkspacePaneRecoveryInput["kind"],
+      patch: Partial<WorkspacePaneRecoveryInput>,
+    ) => {
+      setPaneRecoveryStates((current) => ({
+        ...current,
+        [boardPaneKey]: {
+          ...current[boardPaneKey],
+          boardPaneKey,
+          kind,
+          ...patch,
+        },
+      }));
+    },
+    [],
+  );
+
+  const updatePaneGitRefreshState = useCallback(
+    (boardPaneKey: string | undefined, status: WorkspaceGitPaneRefreshInput) => {
+      if (!boardPaneKey) return;
+      updatePaneRecoveryState(boardPaneKey, "git", { gitRefreshState: status });
+    },
+    [updatePaneRecoveryState],
+  );
+
+  const clearPaneRecoveryState = useCallback((boardPaneKey: string) => {
+    setPaneRecoveryStates((current) => {
+      if (!(boardPaneKey in current)) return current;
+      const next = { ...current };
+      delete next[boardPaneKey];
+      return next;
+    });
+  }, []);
+
+  const handlePaneConnectionStateChange = useCallback(
+    (
+      boardPaneKey: string,
+      kind: WorkspacePaneRecoveryInput["kind"],
+      connectionState: ConnectionState,
+    ) => {
+      updatePaneRecoveryState(boardPaneKey, kind, { connectionState });
+    },
+    [updatePaneRecoveryState],
+  );
+
+  const handlePaneRecoveryStateChange = useCallback(
+    (
+      boardPaneKey: string,
+      kind: WorkspacePaneRecoveryInput["kind"],
+      recoveryState: TerminalRecoveryState,
+    ) => {
+      updatePaneRecoveryState(boardPaneKey, kind, { recoveryState });
+    },
+    [updatePaneRecoveryState],
+  );
 
   const handleTerminalReady = useCallback(
     (sessionName: string, term: Terminal, send: (data: string) => void) => {
@@ -1354,6 +1473,7 @@ export function MultiSessionWorkspace({
     setGitAddFailed(false);
     setGitRestoreFailed(false);
     setTerminalCloseFailed(false);
+    setPaneRecoveryStates({});
     setPersistedLayoutJson(storedLayout.raw);
     setLayoutPersistenceNotice(storedLayout.notice);
     setBoardState(restoredBoardState);
@@ -1436,6 +1556,15 @@ export function MultiSessionWorkspace({
     if (!gitSearchOpen) return;
     window.requestAnimationFrame(() => gitSearchInputRef.current?.focus());
   }, [gitSearchOpen]);
+
+  useEffect(() => {
+    const visibleKeys = new Set(visibleBoardPaneKeys);
+    setPaneRecoveryStates((current) => {
+      const nextEntries = Object.entries(current).filter(([key]) => visibleKeys.has(key));
+      if (nextEntries.length === Object.keys(current).length) return current;
+      return Object.fromEntries(nextEntries);
+    });
+  }, [visibleBoardPaneKeys]);
 
   useEffect(() => {
     const nextActiveSessionName = activeSessionNameForVisibleSessions(
@@ -1528,12 +1657,76 @@ export function MultiSessionWorkspace({
     [boardState, persistBoardState, persistSessionOrder, selectSession, workspaceId],
   );
 
+  const refreshGitPaneCloneTerminalIdentity = useCallback(
+    async (
+      expectedSessionName: string,
+      cloneSessionKey: string,
+      relativePath: string,
+      boardPaneKey?: string,
+    ): Promise<{ sessionName: string; clonePath: string; cloneProof: string }> => {
+      updatePaneGitRefreshState(boardPaneKey, { status: "refreshing", failureCategory: null });
+      let failureCategory: WorkspaceGitPaneRefreshInput["failureCategory"] = "callback-error";
+
+      try {
+        const identity = unwrapActionData(
+          await resolveGitCloneTerminalAction({
+            agentId,
+            workspaceId,
+            cloneSessionKey,
+            relativePath,
+          }),
+        );
+
+        if (!isGitCloneTerminalIdentity(identity)) {
+          failureCategory = "malformed-identity";
+          updatePaneGitRefreshState(boardPaneKey, { status: "failed", failureCategory });
+          throw new Error("Git clone terminal refresh failed");
+        }
+
+        if (identity.sessionName !== expectedSessionName) {
+          failureCategory = "session-name-mismatch";
+          updatePaneGitRefreshState(boardPaneKey, { status: "failed", failureCategory });
+          throw new Error("Git clone terminal refresh failed");
+        }
+
+        setSessions((current) =>
+          current.map((session) =>
+            session.sessionName === expectedSessionName
+              ? {
+                  ...session,
+                  clonePath: identity.clonePath,
+                  cloneProof: identity.cloneProof,
+                  cloneSessionKey: session.cloneSessionKey ?? cloneSessionKey,
+                  relativePath: session.relativePath ?? relativePath,
+                }
+              : session,
+          ),
+        );
+        updatePaneGitRefreshState(boardPaneKey, { status: "succeeded", failureCategory: null });
+
+        return {
+          sessionName: identity.sessionName,
+          clonePath: identity.clonePath,
+          cloneProof: identity.cloneProof,
+        };
+      } catch (error) {
+        updatePaneGitRefreshState(boardPaneKey, { status: "failed", failureCategory });
+        throw error;
+      }
+    },
+    [agentId, updatePaneGitRefreshState, workspaceId],
+  );
+
   const openTerminalSessionPage = useCallback(
     (session: WorkspaceSessionPane) => {
       const params = new URLSearchParams({ session: session.sessionName });
       if (session.clonePath && session.cloneProof) {
         params.set("clonePath", session.clonePath);
         params.set("cloneProof", session.cloneProof);
+      }
+      if (session.cloneSessionKey && session.relativePath) {
+        params.set("cloneSessionKey", session.cloneSessionKey);
+        params.set("relativePath", session.relativePath);
       }
       router.push(`/workspaces/${encodeURIComponent(workspaceId)}/terminal?${params.toString()}`);
     },
@@ -1563,6 +1756,8 @@ export function MultiSessionWorkspace({
           session: identity.sessionName,
           clonePath: identity.clonePath,
           cloneProof: identity.cloneProof,
+          cloneSessionKey: repository.cloneSessionKey,
+          relativePath: repository.relativePath,
         });
         router.push(`/workspaces/${encodeURIComponent(workspaceId)}/terminal?${params.toString()}`);
       } catch {
@@ -2269,7 +2464,20 @@ export function MultiSessionWorkspace({
     const session =
       visibleSession ?? sessions.find((candidate) => candidate.sessionName === pane.sessionName);
     const isActive = pane.sessionName === activeSessionName;
+    const cloneSessionKey = session?.cloneSessionKey;
+    const relativePath = session?.relativePath;
     const boardPaneSignal = visibleSession?.boardPaneKey ?? pane.id;
+    const boardPaneKind = visibleSession?.boardPaneKind ?? "terminal";
+    const refreshCloneTerminalIdentity =
+      session && cloneSessionKey && relativePath
+        ? () =>
+            refreshGitPaneCloneTerminalIdentity(
+              session.sessionName,
+              cloneSessionKey,
+              relativePath,
+              boardPaneSignal,
+            )
+        : undefined;
     const layoutSignal = `${activeBoard?.key ?? "no-board"}:${boardPaneSignal}:${layout.tiled.rows}:${layout.tiled.columns}:${pane.gridArea}`;
     const paneStyle: CSSProperties = { gridArea: pane.gridArea };
 
@@ -2331,10 +2539,20 @@ export function MultiSessionWorkspace({
           sessionName={pane.sessionName}
           clonePath={session?.clonePath}
           cloneProof={session?.cloneProof}
+          refreshCloneTerminalIdentity={refreshCloneTerminalIdentity}
           className="min-h-0 flex-1"
           layoutSignal={layoutSignal}
+          onConnectionStateChange={(state) =>
+            handlePaneConnectionStateChange(boardPaneSignal, boardPaneKind, state)
+          }
+          onRecoveryStateChange={(state) =>
+            handlePaneRecoveryStateChange(boardPaneSignal, boardPaneKind, state)
+          }
           onTerminalReady={(term, send) => handleTerminalReady(pane.sessionName, term, send)}
-          onTerminalDestroy={() => handleTerminalDestroy(pane.sessionName)}
+          onTerminalDestroy={() => {
+            handleTerminalDestroy(pane.sessionName);
+            clearPaneRecoveryState(boardPaneSignal);
+          }}
         />
       </div>
     );
@@ -2395,6 +2613,7 @@ export function MultiSessionWorkspace({
       onKeyDown={handleWorkspaceKeyDown}
     >
       {renderWorkspaceHeader()}
+      {renderWorkspaceRecoveryStatus()}
 
       {createFailed ? (
         <Alert variant="destructive" data-testid="session-create-error" className="m-3 mb-0">

@@ -4,6 +4,7 @@ import "@testing-library/jest-dom/vitest";
 import { act, cleanup, createEvent, fireEvent, render, waitFor } from "@testing-library/react";
 import type React from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { ConnectionState, TerminalRecoveryState } from "@/hooks/useTerminalWebSocket";
 import {
   getMobileTerminalDiagnosticsState,
   resetMobileTerminalDiagnosticsState,
@@ -47,6 +48,7 @@ const {
   mockUseFavoriteWindowNavigation,
   mockPasteToTerminal,
   mockRegisterKeybinding,
+  mockResolveGitCloneTerminalAction,
   mockSetActiveTerminal,
   mockUnregisterKeybinding,
   mockUseIsComposeSheet,
@@ -70,6 +72,7 @@ const {
     mockUseFavoriteWindowNavigation: vi.fn(),
     mockPasteToTerminal: vi.fn(),
     mockRegisterKeybinding: register,
+    mockResolveGitCloneTerminalAction: vi.fn(),
     mockSetActiveTerminal: setActiveTerminal,
     mockUnregisterKeybinding: unregister,
     mockUseIsComposeSheet: vi.fn(() => false),
@@ -105,6 +108,20 @@ const {
     terminalRouteMockState: {
       commandPaletteProps: null as unknown,
       gestureLayerProps: null as unknown,
+      interactiveTerminalProps: null as null | {
+        clonePath?: string;
+        cloneProof?: string;
+        refreshCloneTerminalIdentity?: (context: {
+          sessionName: string;
+          clonePath: string;
+          reason: "scheduled-reconnect" | "manual-reconnect";
+          retryCount: number;
+          closeCode: number | null;
+          closeCategory: string | null;
+          reasonCategory: string | null;
+        }) => Promise<{ sessionName: string; clonePath: string; cloneProof: string }>;
+        sessionName: string;
+      },
       mobileControlsProps: null as unknown,
     },
   };
@@ -168,6 +185,7 @@ vi.mock("next/dynamic", () => ({
       layoutSignal,
       mobileInputMode,
       pinToBottomOnResize,
+      refreshCloneTerminalIdentity,
       selectionModeEnabled,
       sessionName,
     }: {
@@ -177,21 +195,38 @@ vi.mock("next/dynamic", () => ({
       layoutSignal?: unknown;
       mobileInputMode?: boolean;
       pinToBottomOnResize?: boolean;
+      refreshCloneTerminalIdentity?: (context: {
+        sessionName: string;
+        clonePath: string;
+        reason: "scheduled-reconnect" | "manual-reconnect";
+        retryCount: number;
+        closeCode: number | null;
+        closeCategory: string | null;
+        reasonCategory: string | null;
+      }) => Promise<{ sessionName: string; clonePath: string; cloneProof: string }>;
       selectionModeEnabled?: boolean;
       sessionName: string;
-    }) => (
-      <div
-        className={className}
-        data-clone-path={clonePath ?? ""}
-        data-clone-proof={cloneProof ?? ""}
-        data-layout-signal={String(layoutSignal ?? "")}
-        data-mobile-input-mode={mobileInputMode ? "true" : "false"}
-        data-pin-to-bottom-on-resize={pinToBottomOnResize ? "true" : "false"}
-        data-selection-mode-enabled={selectionModeEnabled ? "true" : "false"}
-        data-session-name={sessionName}
-        data-testid="interactive-terminal"
-      />
-    );
+    }) => {
+      terminalRouteMockState.interactiveTerminalProps = {
+        clonePath,
+        cloneProof,
+        refreshCloneTerminalIdentity,
+        sessionName,
+      };
+      return (
+        <div
+          className={className}
+          data-clone-path={clonePath ?? ""}
+          data-clone-proof={cloneProof ?? ""}
+          data-layout-signal={String(layoutSignal ?? "")}
+          data-mobile-input-mode={mobileInputMode ? "true" : "false"}
+          data-pin-to-bottom-on-resize={pinToBottomOnResize ? "true" : "false"}
+          data-selection-mode-enabled={selectionModeEnabled ? "true" : "false"}
+          data-session-name={sessionName}
+          data-testid="interactive-terminal"
+        />
+      );
+    };
     Stub.displayName = "InteractiveTerminal";
     return Stub;
   },
@@ -234,6 +269,10 @@ vi.mock("@/lib/actions/workspaces", () => ({
   createSessionAction: mockCreateSessionAction,
   getWorkspaceAgentAction: mockGetWorkspaceAgentAction,
   getWorkspaceSessionsAction: mockGetWorkspaceSessionsAction,
+}));
+
+vi.mock("@/lib/actions/git-clones", () => ({
+  resolveGitCloneTerminalAction: mockResolveGitCloneTerminalAction,
 }));
 
 vi.mock("@/lib/actions/user-settings", () => ({
@@ -597,9 +636,9 @@ class MockResizeObserver {
 beforeEach(() => {
   vi.stubGlobal("ResizeObserver", MockResizeObserver);
   resizeObserverCallback = null;
-  mockFit.mockClear();
-  mockSend.mockClear();
-  mockResize.mockClear();
+  mockFit.mockReset();
+  mockSend.mockReset();
+  mockResize.mockReset();
   terminalInstances.length = 0;
   resetMobileTerminalDiagnosticsState();
   window.localStorage.clear();
@@ -619,6 +658,7 @@ beforeEach(() => {
   });
   mockGetWorkspaceSessionsAction.mockReset();
   mockGetWorkspaceSessionsAction.mockResolvedValue({ data: [] });
+  mockResolveGitCloneTerminalAction.mockReset();
   mockUseFavoriteWindowNavigation.mockReset();
   mockUseFavoriteWindowNavigation.mockReturnValue({
     sessions: [],
@@ -634,6 +674,7 @@ beforeEach(() => {
   });
   terminalRouteMockState.commandPaletteProps = null;
   terminalRouteMockState.gestureLayerProps = null;
+  terminalRouteMockState.interactiveTerminalProps = null;
   terminalRouteMockState.mobileControlsProps = null;
   multiSessionRouteMockState.props = null;
   mockRegisterKeybinding.mockClear();
@@ -685,12 +726,23 @@ afterEach(() => {
   delete process.env.NEXT_PUBLIC_TERMINAL_WS_URL;
 });
 
+type RefreshedCloneTerminalIdentity = {
+  sessionName: string;
+  clonePath: string;
+  cloneProof: string;
+};
+
 type RenderTerminalOptions = {
   clonePath?: string;
   cloneProof?: string;
   layoutSignal?: unknown;
   mobileInputMode?: boolean;
+  onConnectionStateChange?: (state: ConnectionState) => void;
+  onRecoveryStateChange?: (state: TerminalRecoveryState) => void;
   pinToBottomOnResize?: boolean;
+  refreshCloneTerminalIdentity?: () =>
+    | Promise<RefreshedCloneTerminalIdentity>
+    | RefreshedCloneTerminalIdentity;
   selectionModeEnabled?: boolean;
   sessionName?: string;
 };
@@ -785,6 +837,23 @@ function terminalWebSocketUrls() {
     .filter((url): url is string => typeof url === "string");
 }
 
+function latestTerminalWebSocketOptions() {
+  return mockUseTerminalWebSocket.mock.calls.at(-1)?.[0] as
+    | {
+        onRecoveryStateChange?: (state: TerminalRecoveryState) => void;
+        refreshUrlBeforeReconnect?: (context: {
+          currentUrl: string;
+          reason: "scheduled-reconnect" | "manual-reconnect";
+          retryCount: number;
+          closeCode: number | null;
+          closeCategory: string | null;
+          reasonCategory: string | null;
+        }) => Promise<string | { failureCategory: string } | null | undefined>;
+        url: string | null;
+      }
+    | undefined;
+}
+
 function touchPoint(identifier: number, clientX: number, clientY: number): Touch {
   return { identifier, clientX, clientY } as Touch;
 }
@@ -802,6 +871,31 @@ function fireTouchEvent(
   return event;
 }
 
+function terminalRecoveryState(
+  overrides: Partial<TerminalRecoveryState> = {},
+): TerminalRecoveryState {
+  return {
+    phase: "idle",
+    retryCount: 0,
+    maxRetryCount: null,
+    lastCloseCode: null,
+    lastCloseCategory: null,
+    lastReasonCategory: null,
+    failureCategory: null,
+    lastDelayMs: null,
+    lastConnectedAt: null,
+    lastDisconnectedAt: null,
+    lastRecoveryAction: "none",
+    lastRefreshAction: "none",
+    refreshFailureCategory: null,
+    lastRefreshStartedAt: null,
+    lastRefreshFinishedAt: null,
+    isRecoverable: true,
+    canRetry: false,
+    ...overrides,
+  };
+}
+
 describe("InteractiveTerminal integration — Connection state banners", () => {
   it("shows workspace offline banner", async () => {
     mockUseTerminalWebSocket.mockReturnValue({
@@ -815,15 +909,47 @@ describe("InteractiveTerminal integration — Connection state banners", () => {
     unmount();
   });
 
-  it("shows connection failed banner", async () => {
+  it("shows sanitized final-failure banner only when recovery reaches final failure", async () => {
+    const manualReconnect = vi.fn();
     mockUseTerminalWebSocket.mockReturnValue({
       send: vi.fn(),
       resize: vi.fn(),
       connectionState: "failed",
+      manualReconnect,
+      recoveryState: terminalRecoveryState({
+        phase: "final-failure",
+        failureCategory: "auth-expired",
+        isRecoverable: false,
+        canRetry: true,
+      }),
+    });
+
+    const { container, getByRole, unmount } = await renderTerminal();
+    expect(container.textContent).toContain("authentication expired");
+    expect(container.textContent).not.toContain("Refresh the page");
+    fireEvent.click(getByRole("button", { name: "Retry terminal connection" }));
+    expect(manualReconnect).toHaveBeenCalledTimes(1);
+    unmount();
+  });
+
+  it("shows quiet recoverable reconnect status without refresh-page failure text", async () => {
+    mockUseTerminalWebSocket.mockReturnValue({
+      send: vi.fn(),
+      resize: vi.fn(),
+      connectionState: "failed",
+      recoveryState: terminalRecoveryState({
+        phase: "recovering",
+        retryCount: 2,
+        lastRecoveryAction: "schedule-reconnect",
+        isRecoverable: true,
+        canRetry: true,
+      }),
     });
 
     const { container, unmount } = await renderTerminal();
-    expect(container.textContent).toContain("Connection failed");
+    expect(container.textContent).toContain("Reconnecting terminal… Retry 2.");
+    expect(container.textContent).not.toContain("Connection failed after multiple attempts");
+    expect(container.textContent).not.toContain("Refresh the page");
     unmount();
   });
 
@@ -911,6 +1037,257 @@ describe("InteractiveTerminal integration — Session lifecycle", () => {
     unmount();
   });
 
+  it("forwards sanitized recovery callbacks while preserving connection callbacks and clone URL refresh", async () => {
+    window.localStorage.setItem(
+      "terminal:reconnect:test-agent:git-clone-safe-hive",
+      JSON.stringify({ id: "cached-clone-reconnect", ts: Date.now() }),
+    );
+    const emittedRecoveryState = terminalRecoveryState({
+      phase: "recovering",
+      retryCount: 2,
+      lastCloseCode: 1008,
+      lastCloseCategory: "clone-proof-invalid",
+      lastReasonCategory: "clone-proof-invalid",
+      failureCategory: null,
+      lastDelayMs: 1250,
+      lastRecoveryAction: "schedule-reconnect",
+      lastRefreshAction: "refresh-failed",
+      refreshFailureCategory: "malformed-identity",
+      isRecoverable: true,
+      canRetry: true,
+    });
+    const onConnectionStateChange = vi.fn();
+    const onRecoveryStateChange = vi.fn();
+    const refreshCloneTerminalIdentity = vi.fn(async () => ({
+      sessionName: "git-clone-safe-hive",
+      clonePath: "kethalia/hive",
+      cloneProof: "fresh-proof-token",
+    }));
+
+    mockUseTerminalWebSocket.mockReturnValue({
+      send: mockSend,
+      resize: mockResize,
+      connectionState: "reconnecting",
+      recoveryState: emittedRecoveryState,
+    });
+
+    const { container, unmount } = await renderTerminal({
+      clonePath: "kethalia/hive",
+      cloneProof: "stale-proof-token",
+      onConnectionStateChange,
+      onRecoveryStateChange,
+      refreshCloneTerminalIdentity,
+      sessionName: "git-clone-safe-hive",
+    });
+
+    await waitFor(() => {
+      expect(onConnectionStateChange).toHaveBeenCalledWith("reconnecting");
+      expect(latestTerminalWebSocketOptions()?.onRecoveryStateChange).toBe(onRecoveryStateChange);
+      expect(latestTerminalWebSocketOptions()?.refreshUrlBeforeReconnect).toEqual(
+        expect.any(Function),
+      );
+    });
+
+    act(() => {
+      latestTerminalWebSocketOptions()?.onRecoveryStateChange?.(emittedRecoveryState);
+    });
+    expect(onRecoveryStateChange).toHaveBeenCalledWith(emittedRecoveryState);
+    expect(onRecoveryStateChange.mock.calls[0][0]).toMatchObject({
+      phase: "recovering",
+      lastCloseCategory: "clone-proof-invalid",
+      lastReasonCategory: "clone-proof-invalid",
+      lastRefreshAction: "refresh-failed",
+      refreshFailureCategory: "malformed-identity",
+    });
+    expect(JSON.stringify(onRecoveryStateChange.mock.calls)).not.toContain("fresh-proof-token");
+    expect(JSON.stringify(onRecoveryStateChange.mock.calls)).not.toContain("stale-proof-token");
+    expect(JSON.stringify(onRecoveryStateChange.mock.calls)).not.toContain("kethalia/hive");
+    expect(JSON.stringify(onRecoveryStateChange.mock.calls)).not.toContain("/ws?");
+    expect(container.textContent).toContain("Reconnecting terminal… Retry 2.");
+    expect(container.textContent).not.toContain("automatic recovery stopped");
+
+    const staleUrl = new URL(terminalWebSocketUrls().at(-1)!);
+    const refreshedUrlValue = await latestTerminalWebSocketOptions()?.refreshUrlBeforeReconnect?.({
+      currentUrl: staleUrl.toString(),
+      reason: "scheduled-reconnect",
+      retryCount: 2,
+      closeCode: 1008,
+      closeCategory: "clone-proof-invalid",
+      reasonCategory: "clone-proof-invalid",
+    });
+
+    expect(refreshCloneTerminalIdentity).toHaveBeenCalledWith({
+      sessionName: "git-clone-safe-hive",
+      clonePath: "kethalia/hive",
+      reason: "scheduled-reconnect",
+      retryCount: 2,
+      closeCode: 1008,
+      closeCategory: "clone-proof-invalid",
+      reasonCategory: "clone-proof-invalid",
+    });
+    const refreshedUrl = new URL(refreshedUrlValue as string);
+    expect(refreshedUrl.searchParams.get("sessionName")).toBe("git-clone-safe-hive");
+    expect(refreshedUrl.searchParams.get("reconnectId")).toBe("cached-clone-reconnect");
+    expect(refreshedUrl.searchParams.get("cloneProof")).toBe("fresh-proof-token");
+    unmount();
+  });
+
+  it("refreshes stale Git clone proof material before reconnecting without persisting proofs", async () => {
+    window.localStorage.setItem(
+      "terminal:reconnect:test-agent:git-clone-safe-hive",
+      JSON.stringify({ id: "cached-clone-reconnect", ts: Date.now() }),
+    );
+    const refreshCloneTerminalIdentity = vi.fn(async () => ({
+      sessionName: "git-clone-safe-hive",
+      clonePath: "kethalia/hive",
+      cloneProof: "fresh-proof-token",
+    }));
+
+    const { unmount } = await renderTerminal({
+      clonePath: "kethalia/hive",
+      cloneProof: "stale-proof-token",
+      refreshCloneTerminalIdentity,
+      sessionName: "git-clone-safe-hive",
+    });
+
+    await waitFor(() => {
+      expect(latestTerminalWebSocketOptions()?.refreshUrlBeforeReconnect).toEqual(
+        expect.any(Function),
+      );
+    });
+    const staleUrl = new URL(terminalWebSocketUrls().at(-1)!);
+    expect(staleUrl.searchParams.get("cloneProof")).toBe("stale-proof-token");
+
+    const refreshedUrlValue = await latestTerminalWebSocketOptions()?.refreshUrlBeforeReconnect?.({
+      currentUrl: staleUrl.toString(),
+      reason: "scheduled-reconnect",
+      retryCount: 1,
+      closeCode: 1008,
+      closeCategory: "clone-proof-invalid",
+      reasonCategory: "clone-proof-invalid",
+    });
+
+    expect(refreshCloneTerminalIdentity).toHaveBeenCalledTimes(1);
+    expect(refreshCloneTerminalIdentity).toHaveBeenCalledWith({
+      sessionName: "git-clone-safe-hive",
+      clonePath: "kethalia/hive",
+      reason: "scheduled-reconnect",
+      retryCount: 1,
+      closeCode: 1008,
+      closeCategory: "clone-proof-invalid",
+      reasonCategory: "clone-proof-invalid",
+    });
+    expect(typeof refreshedUrlValue).toBe("string");
+    const refreshedUrl = new URL(refreshedUrlValue as string);
+    expect(refreshedUrl.searchParams.get("agentId")).toBe("test-agent");
+    expect(refreshedUrl.searchParams.get("workspaceId")).toBe("test-ws");
+    expect(refreshedUrl.searchParams.get("sessionName")).toBe("git-clone-safe-hive");
+    expect(refreshedUrl.searchParams.get("reconnectId")).toBe("cached-clone-reconnect");
+    expect(refreshedUrl.searchParams.get("width")).toBe("80");
+    expect(refreshedUrl.searchParams.get("height")).toBe("24");
+    expect(refreshedUrl.searchParams.get("clonePath")).toBe("kethalia/hive");
+    expect(refreshedUrl.searchParams.get("cloneProof")).toBe("fresh-proof-token");
+
+    expect(window.localStorage.length).toBe(1);
+    expect(window.localStorage.key(0)).toBe("terminal:reconnect:test-agent:git-clone-safe-hive");
+    expect(JSON.stringify(window.localStorage)).not.toContain("fresh-proof-token");
+    expect(JSON.stringify(window.localStorage)).not.toContain("/ws?");
+    unmount();
+  });
+
+  it("rejects refreshed Git clone identity when the session name changes", async () => {
+    const refreshCloneTerminalIdentity = vi.fn(async () => ({
+      sessionName: "git-clone-other-repo",
+      clonePath: "kethalia/hive",
+      cloneProof: "fresh-proof-token",
+    }));
+
+    const { unmount } = await renderTerminal({
+      clonePath: "kethalia/hive",
+      cloneProof: "stale-proof-token",
+      refreshCloneTerminalIdentity,
+      sessionName: "git-clone-safe-hive",
+    });
+
+    await waitFor(() => {
+      expect(latestTerminalWebSocketOptions()?.refreshUrlBeforeReconnect).toEqual(
+        expect.any(Function),
+      );
+    });
+    const staleUrl = new URL(terminalWebSocketUrls().at(-1)!);
+
+    const refreshedUrlValue = await latestTerminalWebSocketOptions()?.refreshUrlBeforeReconnect?.({
+      currentUrl: staleUrl.toString(),
+      reason: "scheduled-reconnect",
+      retryCount: 1,
+      closeCode: 1008,
+      closeCategory: "clone-proof-invalid",
+      reasonCategory: "clone-proof-invalid",
+    });
+
+    expect(refreshedUrlValue).toEqual({ failureCategory: "session-name-mismatch" });
+    expect(JSON.stringify(window.localStorage)).not.toContain("fresh-proof-token");
+    unmount();
+  });
+
+  it("rejects malformed refreshed Git clone identity without exposing proof material", async () => {
+    const refreshCloneTerminalIdentity = vi.fn(async () => ({
+      sessionName: "git-clone-safe-hive",
+      clonePath: "kethalia/hive",
+      cloneProof: "",
+    }));
+
+    const { unmount } = await renderTerminal({
+      clonePath: "kethalia/hive",
+      cloneProof: "stale-proof-token",
+      refreshCloneTerminalIdentity,
+      sessionName: "git-clone-safe-hive",
+    });
+
+    await waitFor(() => {
+      expect(latestTerminalWebSocketOptions()?.refreshUrlBeforeReconnect).toEqual(
+        expect.any(Function),
+      );
+    });
+    const staleUrl = new URL(terminalWebSocketUrls().at(-1)!);
+
+    const refreshedUrlValue = await latestTerminalWebSocketOptions()?.refreshUrlBeforeReconnect?.({
+      currentUrl: staleUrl.toString(),
+      reason: "scheduled-reconnect",
+      retryCount: 1,
+      closeCode: 1008,
+      closeCategory: "clone-proof-invalid",
+      reasonCategory: "clone-proof-invalid",
+    });
+
+    expect(refreshedUrlValue).toEqual({ failureCategory: "malformed-identity" });
+    expect(JSON.stringify(window.localStorage)).not.toContain("fresh-proof-token");
+    expect(JSON.stringify(window.localStorage)).not.toContain("/ws?");
+    unmount();
+  });
+
+  it("does not enable clone identity refresh for ordinary terminal sessions", async () => {
+    const refreshCloneTerminalIdentity = vi.fn(async () => ({
+      sessionName: "main",
+      clonePath: "kethalia/hive",
+      cloneProof: "fresh-proof-token",
+    }));
+
+    const { unmount } = await renderTerminal({
+      clonePath: "kethalia/hive",
+      cloneProof: "stale-proof-token",
+      refreshCloneTerminalIdentity,
+      sessionName: "main",
+    });
+
+    await waitFor(() => {
+      expect(terminalWebSocketUrls().length).toBeGreaterThan(0);
+    });
+    expect(latestTerminalWebSocketOptions()?.refreshUrlBeforeReconnect).toBeUndefined();
+    expect(refreshCloneTerminalIdentity).not.toHaveBeenCalled();
+    unmount();
+  });
+
   it("rebuilds the WebSocket URL when clonePath changes for the same session", async () => {
     const { InteractiveTerminal } = await import("@/components/workspaces/InteractiveTerminal");
 
@@ -967,6 +1344,100 @@ describe("InteractiveTerminal integration — Session lifecycle", () => {
     expect(terminal?.scrollToBottom).toHaveBeenCalled();
     expect(terminal?.buffer.active.viewportY).toBe(terminal?.buffer.active.baseY);
     unmount();
+  });
+
+  it("refits and records resize-sent diagnostics after reconnect without changing normal terminal identity", async () => {
+    window.localStorage.setItem(
+      "terminal:reconnect:test-agent:main",
+      JSON.stringify({ id: "cached-reconnect", ts: Date.now() }),
+    );
+
+    let connectionState: "disconnected" | "reconnecting" | "connected" = "disconnected";
+    let latestOptions: null | {
+      onResizeSent?: (event: {
+        rows: number;
+        cols: number;
+        source: string;
+        sentAt: number;
+      }) => void;
+      url: string | null;
+    } = null;
+
+    mockResize.mockImplementation((rows: number, cols: number, source: string) => {
+      latestOptions?.onResizeSent?.({ rows, cols, source, sentAt: 3333 });
+    });
+    mockUseTerminalWebSocket.mockImplementation((options: unknown) => {
+      latestOptions = options as typeof latestOptions;
+      return {
+        send: mockSend,
+        resize: mockResize,
+        connectionState,
+        recoveryState: terminalRecoveryState({
+          phase: connectionState === "connected" ? "connected" : "recovering",
+          retryCount: connectionState === "connected" ? 0 : 1,
+          lastRecoveryAction: connectionState === "connected" ? "connected" : "schedule-reconnect",
+          canRetry: connectionState !== "connected",
+        }),
+      };
+    });
+
+    const { InteractiveTerminal } = await import("@/components/workspaces/InteractiveTerminal");
+
+    let result: ReturnType<typeof render>;
+    await act(async () => {
+      result = render(
+        <InteractiveTerminal agentId="test-agent" workspaceId="test-ws" sessionName="main" />,
+      );
+    });
+    await flushTerminalEffects();
+
+    await waitFor(() => {
+      expect(terminalWebSocketUrls().length).toBeGreaterThan(0);
+    });
+    const initialUrl = new URL(terminalWebSocketUrls().at(-1)!);
+    expect(initialUrl.searchParams.get("sessionName")).toBe("main");
+    expect(initialUrl.searchParams.get("reconnectId")).toBe("cached-reconnect");
+
+    mockResize.mockClear();
+    mockFit.mockClear();
+    resetMobileTerminalDiagnosticsState();
+
+    connectionState = "reconnecting";
+    await act(async () => {
+      result!.rerender(
+        <InteractiveTerminal agentId="test-agent" workspaceId="test-ws" sessionName="main" />,
+      );
+    });
+    await flushTerminalEffects();
+    expect(mockResize).not.toHaveBeenCalledWith(24, 80, "connection-refit");
+
+    connectionState = "connected";
+    await act(async () => {
+      result!.rerender(
+        <InteractiveTerminal agentId="test-agent" workspaceId="test-ws" sessionName="main" />,
+      );
+    });
+    await flushTerminalEffects();
+
+    await waitFor(() => {
+      expect(mockResize).toHaveBeenCalledWith(24, 80, "connection-refit");
+    });
+    expect(mockFit).toHaveBeenCalled();
+    expect(getMobileTerminalDiagnosticsState().resizeSent).toEqual({
+      count: 1,
+      lastAt: 3333,
+      lastSource: "connection-refit",
+      rows: 24,
+      cols: 80,
+    });
+    expect(getMobileTerminalDiagnosticsState().resizeSent.rows).toBeGreaterThan(0);
+    expect(getMobileTerminalDiagnosticsState().resizeSent.cols).toBeGreaterThan(0);
+
+    const latestUrl = new URL(terminalWebSocketUrls().at(-1)!);
+    expect(latestUrl.toString()).toBe(initialUrl.toString());
+    expect(latestUrl.searchParams.get("sessionName")).toBe("main");
+    expect(latestUrl.searchParams.get("reconnectId")).toBe("cached-reconnect");
+    result!.unmount();
   });
 
   it("records fit and xterm resize-request diagnostics without terminal content", async () => {
@@ -1771,6 +2242,106 @@ describe("TerminalClient integration — Clone route parameters", () => {
     unmount();
   });
 
+  it("refreshes standalone Git clone route proof with public clone identifiers only", async () => {
+    mockResolveGitCloneTerminalAction.mockResolvedValueOnce({
+      data: {
+        sessionName: "git-clone-safe-hive",
+        clonePath: "kethalia/hive",
+        cloneSessionKey: "git-clone:kethalia/hive",
+        cloneProof: "fresh-proof-token",
+      },
+    });
+    const { getByTestId, unmount } = await renderTerminalClient(
+      "session=git-clone-safe-hive&clonePath=kethalia%2Fhive&cloneProof=stale-proof-token&cloneSessionKey=git-clone%3Akethalia%2Fhive&relativePath=kethalia%2Fhive",
+    );
+
+    await waitFor(() => {
+      expect(getByTestId("interactive-terminal")).toHaveAttribute(
+        "data-clone-proof",
+        "stale-proof-token",
+      );
+    });
+    expect(
+      typeof terminalRouteMockState.interactiveTerminalProps?.refreshCloneTerminalIdentity,
+    ).toBe("function");
+
+    let refreshed: { sessionName: string; clonePath: string; cloneProof: string } | undefined;
+    await act(async () => {
+      refreshed =
+        await terminalRouteMockState.interactiveTerminalProps?.refreshCloneTerminalIdentity?.({
+          sessionName: "git-clone-safe-hive",
+          clonePath: "kethalia/hive",
+          reason: "scheduled-reconnect",
+          retryCount: 1,
+          closeCode: 4401,
+          closeCategory: "clone-proof-invalid",
+          reasonCategory: "clone-proof-invalid",
+        });
+    });
+
+    expect(refreshed).toEqual({
+      sessionName: "git-clone-safe-hive",
+      clonePath: "kethalia/hive",
+      cloneProof: "fresh-proof-token",
+    });
+    expect(mockResolveGitCloneTerminalAction).toHaveBeenCalledWith({
+      agentId: "test-agent",
+      workspaceId: "test-ws",
+      cloneSessionKey: "git-clone:kethalia/hive",
+      relativePath: "kethalia/hive",
+    });
+    expect(mockResolveGitCloneTerminalAction.mock.calls[0][0]).not.toHaveProperty("clonePath");
+    expect(mockResolveGitCloneTerminalAction.mock.calls[0][0]).not.toHaveProperty("cloneProof");
+    expect(getByTestId("interactive-terminal")).toHaveAttribute(
+      "data-clone-proof",
+      "fresh-proof-token",
+    );
+    expect(getByTestId("interactive-terminal")).toHaveAttribute("data-clone-path", "kethalia/hive");
+    expect(
+      window.localStorage.getItem("terminal:clone-proof:test-ws:git-clone-safe-hive"),
+    ).toBeNull();
+    unmount();
+  });
+
+  it("rejects mismatched standalone Git route refresh without changing proof props", async () => {
+    mockResolveGitCloneTerminalAction.mockResolvedValueOnce({
+      data: {
+        sessionName: "git-clone-other",
+        clonePath: "kethalia/hive",
+        cloneSessionKey: "git-clone:kethalia/hive",
+        cloneProof: "wrong-proof-token",
+      },
+    });
+    const { getByTestId, queryByText, unmount } = await renderTerminalClient(
+      "session=git-clone-safe-hive&clonePath=kethalia%2Fhive&cloneProof=stable-proof-token&cloneSessionKey=git-clone%3Akethalia%2Fhive&relativePath=kethalia%2Fhive",
+    );
+
+    await waitFor(() => {
+      expect(getByTestId("interactive-terminal")).toHaveAttribute(
+        "data-clone-proof",
+        "stable-proof-token",
+      );
+    });
+    await expect(
+      terminalRouteMockState.interactiveTerminalProps?.refreshCloneTerminalIdentity?.({
+        sessionName: "git-clone-safe-hive",
+        clonePath: "kethalia/hive",
+        reason: "manual-reconnect",
+        retryCount: 0,
+        closeCode: 4401,
+        closeCategory: "clone-proof-invalid",
+        reasonCategory: "clone-proof-invalid",
+      }),
+    ).rejects.toThrow("Git clone terminal refresh failed");
+
+    expect(getByTestId("interactive-terminal")).toHaveAttribute(
+      "data-clone-proof",
+      "stable-proof-token",
+    );
+    expect(queryByText(/wrong-proof-token|git-clone-other/)).not.toBeInTheDocument();
+    unmount();
+  });
+
   it("omits clonePath for normal session routes", async () => {
     const { getByTestId, unmount } = await renderTerminalClient("session=main");
 
@@ -1779,6 +2350,9 @@ describe("TerminalClient integration — Clone route parameters", () => {
     });
     expect(getByTestId("interactive-terminal")).toHaveAttribute("data-session-name", "main");
     expect(getByTestId("interactive-terminal")).toHaveAttribute("data-clone-path", "");
+    expect(
+      terminalRouteMockState.interactiveTerminalProps?.refreshCloneTerminalIdentity,
+    ).toBeUndefined();
     unmount();
   });
 
