@@ -1,5 +1,11 @@
 # hive-terminal-proxy
 
+## 2.0.10
+
+### Patch Changes
+
+- 508b542: Add in-place terminal connection recovery, Git pane proof refresh, sanitized proxy diagnostics, and workspace-board recovery status for terminal resilience.
+
 ## 2.0.9
 
 ### Patch Changes

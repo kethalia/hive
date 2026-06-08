@@ -1,5 +1,11 @@
 # hive-orchestrator
 
+## 2.4.6
+
+### Patch Changes
+
+- 508b542: Add in-place terminal connection recovery, Git pane proof refresh, sanitized proxy diagnostics, and workspace-board recovery status for terminal resilience.
+
 ## 2.4.5
 
 ### Patch Changes
