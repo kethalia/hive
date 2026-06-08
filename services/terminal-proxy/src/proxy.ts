@@ -162,7 +162,9 @@ function logProxyEvent(
   const suffix = Object.entries(fields)
     .map(([key, value]) => `${key}=${value}`)
     .join(" ");
-  const message = suffix ? `[terminal-proxy] event=${event} ${suffix}` : `[terminal-proxy] event=${event}`;
+  const message = suffix
+    ? `[terminal-proxy] event=${event} ${suffix}`
+    : `[terminal-proxy] event=${event}`;
   console[level](message);
 }
 

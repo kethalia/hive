@@ -242,7 +242,9 @@ describe("useTerminalWebSocket reconnect loop", () => {
   });
 
   it("treats malformed refresh results as sanitized refresh failures", async () => {
-    const refreshUrlBeforeReconnect = vi.fn().mockResolvedValue({ url: "ws://terminal.example/ws" });
+    const refreshUrlBeforeReconnect = vi
+      .fn()
+      .mockResolvedValue({ url: "ws://terminal.example/ws" });
     const { result, unmount } = renderHook(() =>
       useTerminalWebSocket({
         url: "ws://terminal.example/ws?proof=stale",

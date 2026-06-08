@@ -49,7 +49,7 @@ function collectFields(markdown) {
   for (const label of requiredFields) {
     const escaped = escapeRegExp(label);
     const match = markdown.match(
-      new RegExp(`^- \\*\\*${escaped}:\\*\\*\\s*` + "`([^`]*)`\\s*$", "m"),
+      new RegExp(`^- \\*\\*${escaped}:\\*\\*\\s*\`([^\`]*)\`\\s*$`, "m"),
     );
     fields.set(label, match?.[1]?.trim() ?? "");
   }

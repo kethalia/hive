@@ -189,7 +189,9 @@ describe("KeepAliveManager", () => {
   });
 
   it("classifies abort errors as timeout without storing the raw abort message", async () => {
-    fetchMock.mockRejectedValue(new DOMException("secret-token aborted /tmp/session", "AbortError"));
+    fetchMock.mockRejectedValue(
+      new DOMException("secret-token aborted /tmp/session", "AbortError"),
+    );
     registry.addConnection("ws-abc", "conn-1", testMeta);
 
     await manager.ping("ws-abc");

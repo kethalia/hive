@@ -385,7 +385,8 @@ describe("handleUpgrade", () => {
   });
 
   it("sanitizes upstream error diagnostics before closing the browser", async () => {
-    const rawMessage = "SECRET_TOKEN=/tmp/hive/private session=my-session cloneProof=proof-material";
+    const rawMessage =
+      "SECRET_TOKEN=/tmp/hive/private session=my-session cloneProof=proof-material";
 
     const logged = await captureConsoleOutput(async () => {
       const socket = makeSocket();

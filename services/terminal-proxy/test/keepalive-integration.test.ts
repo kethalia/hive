@@ -45,7 +45,10 @@ function createFakeKeepAliveManager(health: Record<string, WorkspaceHealth> = {}
 }
 
 function makeUpgradeReq(url = "/ws"): IncomingMessage {
-  return { url, headers: { host: "localhost", origin: "http://localhost:3000" } } as IncomingMessage;
+  return {
+    url,
+    headers: { host: "localhost", origin: "http://localhost:3000" },
+  } as IncomingMessage;
 }
 
 function makeUpgradeSocket(): Duplex & { written: string[] } {
@@ -393,7 +396,12 @@ describe("terminal-proxy server wiring", () => {
       });
       const socket = makeUpgradeSocket();
 
-      server.emit("upgrade", makeUpgradeReq("/ws?cloneProof=proof-material"), socket, Buffer.alloc(0));
+      server.emit(
+        "upgrade",
+        makeUpgradeReq("/ws?cloneProof=proof-material"),
+        socket,
+        Buffer.alloc(0),
+      );
       await new Promise((resolve) => setImmediate(resolve));
 
       const logged = errorSpy.mock.calls.flat().map(String).join("\n");

@@ -436,14 +436,7 @@ export function InteractiveTerminal({
         cloneProof: validatedIdentity.cloneProof,
       });
     },
-    [
-      agentId,
-      clonePath,
-      reconnectId,
-      refreshCloneTerminalIdentity,
-      sessionName,
-      workspaceId,
-    ],
+    [agentId, clonePath, reconnectId, refreshCloneTerminalIdentity, sessionName, workspaceId],
   );
 
   const handleData = useCallback((data: Uint8Array | string) => {

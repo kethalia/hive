@@ -1131,16 +1131,14 @@ export function MultiSessionWorkspace({
         className="border-b border-border px-3 py-1 text-xs text-muted-foreground"
         data-testid="workspace-recovery-status"
         data-workspace-recovery-keepalive-status={keepAliveStatus.status}
-        data-workspace-recovery-keepalive-category={
-          keepAliveStatus.lastFailureCategory ?? "none"
-        }
+        data-workspace-recovery-keepalive-category={keepAliveStatus.lastFailureCategory ?? "none"}
         data-workspace-recovery-active-connection-count={String(
           keepAliveStatus.activeConnectionCount,
         )}
         {...workspaceRecoverySummary.dataAttributes}
       >
         <span>{workspaceRecoverySummary.message}</span>
-        <span className="ml-2 text-[10px] tabular-nums" aria-label="Workspace recovery categories">
+        <span className="ml-2 text-[10px] tabular-nums" title="Workspace recovery categories">
           {workspaceRecoverySummary.categories.join(" ")}
         </span>
       </p>

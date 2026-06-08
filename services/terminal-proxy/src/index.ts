@@ -3,7 +3,11 @@ import { dirname, resolve } from "node:path";
 import type { Duplex } from "node:stream";
 import { fileURLToPath } from "node:url";
 import { config } from "dotenv";
-import { KeepAliveManager, type WorkspaceHealth, serializeKeepAliveStatusPayload } from "./keepalive.js";
+import {
+  KeepAliveManager,
+  type WorkspaceHealth,
+  serializeKeepAliveStatusPayload,
+} from "./keepalive.js";
 import { connectionRegistry, handleUpgrade, isOriginAllowed } from "./proxy.js";
 
 const INDEX_FILE = fileURLToPath(import.meta.url);
