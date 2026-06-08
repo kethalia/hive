@@ -38,7 +38,7 @@ describe("useKeepAliveStatus", () => {
     return rendered;
   }
 
-  it("parses S03 keepalive health fields for the requested workspace", async () => {
+  it("parses keepalive health fields for the requested workspace", async () => {
     const payload = {
       workspaces: {
         "workspace-1": {
