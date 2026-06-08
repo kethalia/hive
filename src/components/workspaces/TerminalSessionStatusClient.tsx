@@ -2,7 +2,7 @@
 
 import { RefreshCw } from "lucide-react";
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -14,7 +14,7 @@ import {
 import { getClientRuntimeConfig } from "@/lib/runtime-config";
 
 interface TerminalSessionStatusClientProps {
-  workspaceId: string;
+  highlightedWorkspaceId?: string;
 }
 
 interface StatusState {
@@ -50,8 +50,7 @@ function formatDuration(value: number | null): string {
   return value === null ? "—" : `${value}ms`;
 }
 
-function statusSummary(status: KeepAliveStatus | null): string {
-  if (!status) return "No terminal-proxy keepalive row exists for this workspace.";
+function statusSummary(status: KeepAliveStatus): string {
   if (status.status === "not-applicable") {
     return "Coder reports keepalive extension is not applicable for this workspace.";
   }
@@ -59,8 +58,9 @@ function statusSummary(status: KeepAliveStatus | null): string {
     return "Terminal proxy is connected to at least one session, but workspace keepalive is failing.";
   }
   if (status.status === "healthy") return "Keepalive is healthy for this workspace.";
-  if (status.status === "recently-disconnected")
+  if (status.status === "recently-disconnected") {
     return "Terminal recently disconnected; row is retained for diagnosis.";
+  }
   return "Terminal proxy has an active connection but no Coder token metadata for keepalive.";
 }
 
@@ -119,7 +119,21 @@ function DetailGrid({ status }: { status: KeepAliveStatus }) {
   );
 }
 
-export function TerminalSessionStatusClient({ workspaceId }: TerminalSessionStatusClientProps) {
+function MetricCard({ label, value }: { label: string; value: number }) {
+  return (
+    <Card>
+      <CardHeader className="space-y-1 pb-2">
+        <CardDescription>{label}</CardDescription>
+        <CardTitle className="text-2xl tabular-nums">{value}</CardTitle>
+      </CardHeader>
+    </Card>
+  );
+}
+
+export function TerminalSessionStatusClient({
+  highlightedWorkspaceId,
+}: TerminalSessionStatusClientProps) {
+  const mountedRef = useRef(true);
   const [state, setState] = useState<StatusState>({
     error: null,
     isLoading: true,
@@ -134,6 +148,7 @@ export function TerminalSessionStatusClient({ workspaceId }: TerminalSessionStat
 
   const refresh = useCallback(async () => {
     if (!statusEndpoint) {
+      if (!mountedRef.current) return;
       setState((current) => ({
         ...current,
         error:
@@ -143,11 +158,12 @@ export function TerminalSessionStatusClient({ workspaceId }: TerminalSessionStat
       return;
     }
 
-    setState((current) => ({ ...current, isLoading: true }));
+    if (mountedRef.current) setState((current) => ({ ...current, isLoading: true }));
     try {
-      const res = await fetch(statusEndpoint, { cache: "no-store" });
+      const res = await fetch(statusEndpoint, { cache: "no-store", credentials: "include" });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const payload: unknown = await res.json();
+      if (!mountedRef.current) return;
       setState({
         error: null,
         isLoading: false,
@@ -155,38 +171,50 @@ export function TerminalSessionStatusClient({ workspaceId }: TerminalSessionStat
         workspaces: parseKeepAliveStatusPayload(payload),
       });
     } catch (err) {
+      if (!mountedRef.current) return;
       const message = err instanceof Error ? err.message : "Unknown status fetch error";
       setState((current) => ({ ...current, error: message, isLoading: false }));
     }
   }, [statusEndpoint]);
 
   useEffect(() => {
+    mountedRef.current = true;
     void refresh();
     const intervalId = setInterval(() => void refresh(), POLL_INTERVAL_MS);
-    return () => clearInterval(intervalId);
+    return () => {
+      mountedRef.current = false;
+      clearInterval(intervalId);
+    };
   }, [refresh]);
 
-  const currentStatus = state.workspaces[workspaceId] ?? null;
   const workspaceEntries = Object.entries(state.workspaces).sort(([left], [right]) =>
     left.localeCompare(right),
   );
+  const highlightedStatus = highlightedWorkspaceId
+    ? state.workspaces[highlightedWorkspaceId]
+    : null;
+  const activeConnectionCount = workspaceEntries.reduce(
+    (total, [, status]) => total + status.activeConnectionCount,
+    0,
+  );
+  const failingCount = workspaceEntries.filter(([, status]) => status.status === "failing").length;
+  const notApplicableCount = workspaceEntries.filter(
+    ([, status]) => status.status === "not-applicable",
+  ).length;
 
   return (
-    <main className="mx-auto flex w-full max-w-5xl flex-col gap-4 p-4 md:p-6">
+    <main className="mx-auto flex w-full max-w-5xl flex-col gap-4 overflow-auto p-4 md:p-6">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <p className="text-sm text-muted-foreground">Terminal diagnostics</p>
-          <h1 className="text-2xl font-semibold tracking-tight">Terminal session status</h1>
+          <h1 className="text-2xl font-semibold tracking-tight">Terminal status</h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            Workspace <code className="rounded bg-muted px-1 py-0.5">{workspaceId}</code>
+            Aggregated keepalive status for terminal sessions authorized by your Coder account.
           </p>
         </div>
         <div className="flex gap-2">
-          <Link
-            className={buttonVariants({ variant: "outline" })}
-            href={`/workspaces/${workspaceId}/terminal`}
-          >
-            Back to terminal
+          <Link className={buttonVariants({ variant: "outline" })} href="/workspaces">
+            Workspaces
           </Link>
           <Button onClick={() => void refresh()} disabled={state.isLoading}>
             <RefreshCw className="mr-2 size-4" />
@@ -195,66 +223,100 @@ export function TerminalSessionStatusClient({ workspaceId }: TerminalSessionStat
         </div>
       </div>
 
-      <Card>
-        <CardHeader>
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <CardTitle>Current workspace</CardTitle>
-              <CardDescription>{statusSummary(currentStatus)}</CardDescription>
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <MetricCard label="Workspace rows" value={workspaceEntries.length} />
+        <MetricCard label="Active terminal connections" value={activeConnectionCount} />
+        <MetricCard label="Failing rows" value={failingCount} />
+        <MetricCard label="Not applicable" value={notApplicableCount} />
+      </div>
+
+      {state.error ? (
+        <p className="rounded-md border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">
+          Status fetch failed: {state.error}
+        </p>
+      ) : null}
+
+      {highlightedWorkspaceId ? (
+        <Card>
+          <CardHeader>
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <CardTitle>Highlighted workspace</CardTitle>
+                <CardDescription>
+                  <code className="rounded bg-muted px-1 py-0.5">{highlightedWorkspaceId}</code>
+                </CardDescription>
+              </div>
+              {highlightedStatus ? (
+                statusBadge(highlightedStatus.status)
+              ) : (
+                <Badge variant="outline">No row</Badge>
+              )}
             </div>
-            {currentStatus ? (
-              statusBadge(currentStatus.status)
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {highlightedStatus ? (
+              <>
+                <p className="text-sm text-muted-foreground">{statusSummary(highlightedStatus)}</p>
+                <DetailGrid status={highlightedStatus} />
+                <Link
+                  className={buttonVariants({ variant: "outline" })}
+                  href={`/workspaces/${encodeURIComponent(highlightedWorkspaceId)}/terminal`}
+                >
+                  Open terminal
+                </Link>
+              </>
             ) : (
-              <Badge variant="outline">No row</Badge>
+              <p className="text-sm text-muted-foreground">
+                No active or recently-disconnected terminal connection is currently registered for
+                this workspace, or the workspace is not visible to your authenticated Coder session.
+              </p>
             )}
-          </div>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {state.error ? (
-            <p className="rounded-md border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">
-              Status fetch failed: {state.error}
-            </p>
-          ) : null}
-          {currentStatus ? (
-            <DetailGrid status={currentStatus} />
-          ) : (
-            <p className="text-sm text-muted-foreground">
-              No active or recently-disconnected terminal connection is currently registered for
-              this workspace.
-            </p>
-          )}
-          <p className="text-xs text-muted-foreground">
-            Last updated: {formatValue(state.lastUpdatedAt)}. Endpoint:{" "}
-            {formatValue(statusEndpoint)}. Diagnostics are sanitized and never include terminal
-            output, tokens, clone proofs, or raw Coder URLs.
-          </p>
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+      ) : null}
 
       <Card>
         <CardHeader>
-          <CardTitle>Terminal proxy workspace rows</CardTitle>
+          <CardTitle>Authorized terminal session rows</CardTitle>
           <CardDescription>
-            All active or recently-disconnected workspace rows currently reported by the terminal
-            proxy.
+            Active and recently-disconnected terminal rows returned for your authenticated Coder
+            session. Diagnostics are sanitized and never include terminal output, tokens, clone
+            proofs, raw Coder URLs, command input, or sensitive paths.
           </CardDescription>
         </CardHeader>
         <CardContent>
           {workspaceEntries.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No workspace rows reported.</p>
+            <p className="text-sm text-muted-foreground">
+              No terminal session rows are currently reported for your authorized workspaces.
+              {state.isLoading ? " Loading…" : ""}
+            </p>
           ) : (
             <div className="space-y-3">
               {workspaceEntries.map(([id, status]) => (
                 <div key={id} className="rounded-lg border p-3">
                   <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                    <code className="break-all text-xs text-muted-foreground">{id}</code>
+                    <div>
+                      <code className="break-all text-xs text-muted-foreground">{id}</code>
+                      <p className="mt-1 text-sm text-muted-foreground">{statusSummary(status)}</p>
+                    </div>
                     {statusBadge(status.status)}
                   </div>
                   <DetailGrid status={status} />
+                  <div className="mt-3">
+                    <Link
+                      className={buttonVariants({ variant: "outline", size: "sm" })}
+                      href={`/workspaces/${encodeURIComponent(id)}/terminal`}
+                    >
+                      Open terminal
+                    </Link>
+                  </div>
                 </div>
               ))}
             </div>
           )}
+          <p className="mt-4 text-xs text-muted-foreground">
+            Last updated: {formatValue(state.lastUpdatedAt)}.
+          </p>
         </CardContent>
       </Card>
     </main>

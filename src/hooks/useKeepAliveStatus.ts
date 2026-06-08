@@ -200,7 +200,9 @@ export function useKeepAliveStatus(workspaceId: string): KeepAliveStatus {
 
     async function poll() {
       try {
-        const res = await fetch(`${baseUrl}/keepalive/status`);
+        const res = await fetch(`${baseUrl}/keepalive/status`, {
+          credentials: "include",
+        });
         if (!res.ok) {
           if (mountedRef.current) setStatus((s) => ({ ...s, isLoading: false }));
           return;

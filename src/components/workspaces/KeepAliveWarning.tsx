@@ -30,7 +30,7 @@ export function KeepAliveWarning({ workspaceId }: KeepAliveWarningProps) {
         {diagnostic ? <span className="ml-1">{diagnostic}</span> : null}
         <Link
           className="ml-2 underline underline-offset-2"
-          href={`/workspaces/${workspaceId}/terminal/status`}
+          href={`/terminal/status?workspaceId=${encodeURIComponent(workspaceId)}`}
         >
           View terminal status
         </Link>

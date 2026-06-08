@@ -66,6 +66,7 @@ describe("useKeepAliveStatus", () => {
 
     expect(fetchMock).toHaveBeenCalledWith(
       "http://terminal-proxy.example.test/socket/keepalive/status",
+      { credentials: "include" },
     );
     expect(result.current).toEqual({
       status: "recently-disconnected",

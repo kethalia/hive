@@ -373,7 +373,7 @@ describe("/keepalive/status endpoint integration", () => {
 });
 
 describe("terminal-proxy server wiring", () => {
-  it("serves /keepalive/status through the index server factory without raw diagnostic fields", async () => {
+  it("serves authenticated /keepalive/status rows scoped to authorized workspaces", async () => {
     const fakeKeepAlive = createFakeKeepAliveManager({
       "ws-index": {
         status: "failing",
@@ -390,8 +390,77 @@ describe("terminal-proxy server wiring", () => {
         activeConnectionCount: 1,
         lastDisconnectedAt: null,
       },
+      "ws-other-user": {
+        status: "healthy",
+        consecutiveFailures: 0,
+        lastAttempt: "2026-06-07T19:00:00.000Z",
+        lastSuccess: "2026-06-07T19:00:00.000Z",
+        lastFailure: null,
+        lastFailureCategory: null,
+        lastFailureReason: null,
+        lastFailureDetail: null,
+        lastHttpStatus: null,
+        lastHttpStatusText: null,
+        lastAttemptDurationMs: 12,
+        activeConnectionCount: 1,
+        lastDisconnectedAt: null,
+      },
     });
-    const { server } = createTerminalProxyServer({ keepAliveManager: fakeKeepAlive });
+    const statusAuthenticator = vi.fn(async () => ({
+      ok: true as const,
+      value: {
+        token: "secret-token",
+        coderUrl: "http://coder.test",
+        sessionId: "sess-1",
+        username: "alice",
+      },
+    }));
+    const authorizedWorkspaceResolver = vi.fn(async () => new Set(["ws-index"]));
+    const { server } = createTerminalProxyServer({
+      keepAliveManager: fakeKeepAlive,
+      statusAuthenticator,
+      authorizedWorkspaceResolver,
+    });
+
+    try {
+      await new Promise<void>((resolve) => {
+        server.listen(0, "127.0.0.1", () => resolve());
+      });
+      const addr = server.address();
+      if (!addr || typeof addr === "string") throw new Error("unexpected address");
+
+      const res = await fetch(`http://127.0.0.1:${addr.port}/keepalive/status`, {
+        headers: { cookie: "hive-session=valid" },
+      });
+      const text = await res.text();
+      const data = JSON.parse(text);
+
+      expect(fakeKeepAlive.start).toHaveBeenCalledOnce();
+      expect(statusAuthenticator).toHaveBeenCalledOnce();
+      expect(authorizedWorkspaceResolver).toHaveBeenCalledOnce();
+      expect(data.workspaces["ws-index"].status).toBe("failing");
+      expect(data.workspaces["ws-index"].lastFailureCategory).toBe("http-server");
+      expect(data.workspaces["ws-other-user"]).toBeUndefined();
+      expect(text).not.toContain("lastError");
+      expect(text).not.toContain("secret-token");
+      expect(text).not.toContain("cloneProof");
+    } finally {
+      await closeServer(server);
+    }
+
+    expect(fakeKeepAlive.stop).toHaveBeenCalledOnce();
+  });
+
+  it("rejects unauthenticated /keepalive/status requests", async () => {
+    const fakeKeepAlive = createFakeKeepAliveManager();
+    const statusAuthenticator = vi.fn(async () => ({
+      ok: false as const,
+      value: { error: "No cookie provided", status: 401, reason: "no_cookie" },
+    }));
+    const { server } = createTerminalProxyServer({
+      keepAliveManager: fakeKeepAlive,
+      statusAuthenticator,
+    });
 
     try {
       await new Promise<void>((resolve) => {
@@ -401,20 +470,14 @@ describe("terminal-proxy server wiring", () => {
       if (!addr || typeof addr === "string") throw new Error("unexpected address");
 
       const res = await fetch(`http://127.0.0.1:${addr.port}/keepalive/status`);
-      const text = await res.text();
-      const data = JSON.parse(text);
+      const data = await res.json();
 
-      expect(fakeKeepAlive.start).toHaveBeenCalledOnce();
-      expect(data.workspaces["ws-index"].status).toBe("failing");
-      expect(data.workspaces["ws-index"].lastFailureCategory).toBe("http-server");
-      expect(text).not.toContain("lastError");
-      expect(text).not.toContain("secret-token");
-      expect(text).not.toContain("cloneProof");
+      expect(res.status).toBe(401);
+      expect(data).toEqual({ error: "Unauthorized" });
+      expect(fakeKeepAlive.getHealth).not.toHaveBeenCalled();
     } finally {
       await closeServer(server);
     }
-
-    expect(fakeKeepAlive.stop).toHaveBeenCalledOnce();
   });
 
   it("sanitizes unexpected top-level upgrade fallback errors before logging or writing to socket", async () => {

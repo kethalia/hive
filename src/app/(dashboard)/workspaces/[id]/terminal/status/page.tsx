@@ -1,10 +1,12 @@
-import { TerminalSessionStatusClient } from "@/components/workspaces/TerminalSessionStatusClient";
+import { redirect } from "next/navigation";
 
-interface TerminalStatusPageProps {
+interface TerminalStatusRedirectPageProps {
   params: Promise<{ id: string }>;
 }
 
-export default async function TerminalStatusPage({ params }: TerminalStatusPageProps) {
+export default async function TerminalStatusRedirectPage({
+  params,
+}: TerminalStatusRedirectPageProps) {
   const { id: workspaceId } = await params;
-  return <TerminalSessionStatusClient workspaceId={workspaceId} />;
+  redirect(`/terminal/status?workspaceId=${encodeURIComponent(workspaceId)}`);
 }

@@ -3,6 +3,7 @@ import { dirname, resolve } from "node:path";
 import type { Duplex } from "node:stream";
 import { fileURLToPath } from "node:url";
 import { config } from "dotenv";
+import { type AuthResult, type AuthSuccess, authenticateUpgrade } from "./auth.js";
 import {
   KeepAliveManager,
   serializeKeepAliveStatusPayload,
@@ -23,10 +24,14 @@ type KeepAliveStatusSource = {
   stop(): void;
   getHealth(): Record<string, WorkspaceHealth>;
 };
+type StatusAuthenticator = (req: IncomingMessage) => Promise<AuthResult>;
+type AuthorizedWorkspaceResolver = (auth: AuthSuccess) => Promise<Set<string>>;
 
 interface TerminalProxyServerOptions {
   keepAliveManager?: KeepAliveStatusSource;
   upgradeHandler?: UpgradeHandler;
+  statusAuthenticator?: StatusAuthenticator;
+  authorizedWorkspaceResolver?: AuthorizedWorkspaceResolver;
 }
 
 function createDefaultKeepAliveManager(): KeepAliveManager {
@@ -40,6 +45,8 @@ function setCorsHeaders(req: IncomingMessage, res: ServerResponse): boolean {
     res.setHeader("Access-Control-Allow-Origin", origin);
     res.setHeader("Access-Control-Allow-Methods", "GET, OPTIONS");
     res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+    res.setHeader("Access-Control-Allow-Credentials", "true");
+    res.setHeader("Vary", "Origin");
   }
   if (req.method === "OPTIONS") {
     res.writeHead(204);
@@ -60,9 +67,103 @@ function writeUpgradeFallbackResponse(socket: Duplex): void {
   }
 }
 
+function writeJson(res: ServerResponse, status: number, body: unknown): void {
+  res.writeHead(status, { "Content-Type": "application/json" });
+  res.end(JSON.stringify(body));
+}
+
+function responseStatusText(status: number): string {
+  if (status === 401) return "Unauthorized";
+  if (status === 405) return "Method Not Allowed";
+  return "Bad Gateway";
+}
+
+async function resolveAuthorizedWorkspaceIds(auth: AuthSuccess): Promise<Set<string>> {
+  const coderUrl = (
+    auth.coderUrl ||
+    process.env.CODER_URL ||
+    process.env.CODER_AGENT_URL ||
+    ""
+  ).replace(/\/+$/, "");
+  if (!coderUrl) throw new Error("coder_url_missing");
+
+  const res = await fetch(`${coderUrl}/api/v2/workspaces?q=${encodeURIComponent("owner:me")}`, {
+    headers: {
+      "Content-Type": "application/json",
+      "Coder-Session-Token": auth.token,
+    },
+  });
+  if (!res.ok) throw new Error(`coder_workspaces_unavailable:${res.status}`);
+
+  const payload: unknown = await res.json();
+  const workspaces =
+    typeof payload === "object" &&
+    payload !== null &&
+    Array.isArray((payload as { workspaces?: unknown }).workspaces)
+      ? (payload as { workspaces: unknown[] }).workspaces
+      : [];
+
+  return new Set(
+    workspaces
+      .map((workspace) =>
+        typeof workspace === "object" && workspace !== null
+          ? (workspace as { id?: unknown }).id
+          : null,
+      )
+      .filter((id): id is string => typeof id === "string" && id.length > 0),
+  );
+}
+
+function filterHealthByWorkspaceIds(
+  health: Record<string, WorkspaceHealth>,
+  authorizedWorkspaceIds: Set<string>,
+): Record<string, WorkspaceHealth> {
+  const filtered: Record<string, WorkspaceHealth> = {};
+  for (const [workspaceId, workspaceHealth] of Object.entries(health)) {
+    if (authorizedWorkspaceIds.has(workspaceId)) filtered[workspaceId] = workspaceHealth;
+  }
+  return filtered;
+}
+
+async function handleKeepAliveStatusRequest(
+  req: IncomingMessage,
+  res: ServerResponse,
+  keepAliveManager: KeepAliveStatusSource,
+  authenticateStatus: StatusAuthenticator,
+  resolveWorkspaceIds: AuthorizedWorkspaceResolver,
+): Promise<void> {
+  if (req.method !== "GET") {
+    writeJson(res, 405, { error: "Method not allowed" });
+    return;
+  }
+
+  const authResult = await authenticateStatus(req);
+  if (!authResult.ok) {
+    const { status } = authResult.value;
+    writeJson(res, status, { error: responseStatusText(status) });
+    return;
+  }
+
+  let authorizedWorkspaceIds: Set<string>;
+  try {
+    authorizedWorkspaceIds = await resolveWorkspaceIds(authResult.value);
+  } catch {
+    writeJson(res, 502, { error: "Workspace status unavailable" });
+    return;
+  }
+
+  const filteredHealth = filterHealthByWorkspaceIds(
+    keepAliveManager.getHealth(),
+    authorizedWorkspaceIds,
+  );
+  writeJson(res, 200, serializeKeepAliveStatusPayload(filteredHealth));
+}
+
 export function createTerminalProxyServer(options: TerminalProxyServerOptions = {}) {
   const keepAliveManager = options.keepAliveManager ?? createDefaultKeepAliveManager();
   const upgradeHandler = options.upgradeHandler ?? handleUpgrade;
+  const authenticateStatus = options.statusAuthenticator ?? authenticateUpgrade;
+  const resolveWorkspaceIds = options.authorizedWorkspaceResolver ?? resolveAuthorizedWorkspaceIds;
 
   keepAliveManager.start();
 
@@ -75,9 +176,14 @@ export function createTerminalProxyServer(options: TerminalProxyServerOptions = 
       return;
     }
 
-    if (req.url === "/keepalive/status") {
-      res.writeHead(200, { "Content-Type": "application/json" });
-      res.end(JSON.stringify(serializeKeepAliveStatusPayload(keepAliveManager.getHealth())));
+    if ((req.url?.split("?")[0] ?? "") === "/keepalive/status") {
+      void handleKeepAliveStatusRequest(
+        req,
+        res,
+        keepAliveManager,
+        authenticateStatus,
+        resolveWorkspaceIds,
+      );
       return;
     }
 
