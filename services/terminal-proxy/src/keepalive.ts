@@ -4,6 +4,7 @@ export interface ConnectionMeta {
 }
 
 export type KeepAliveFailureCategory =
+  | "manual-shutdown"
   | "http-auth"
   | "http-client"
   | "http-server"
@@ -11,7 +12,22 @@ export type KeepAliveFailureCategory =
   | "network"
   | "unknown";
 
-export type KeepAliveStatus = "healthy" | "failing" | "no-token" | "recently-disconnected";
+export type KeepAliveFailureReason =
+  | "manual-shutdown"
+  | "coder-auth-rejected"
+  | "workspace-not-found"
+  | "coder-client-error"
+  | "coder-server-error"
+  | "coder-timeout"
+  | "network-error"
+  | "unknown-error";
+
+export type KeepAliveStatus =
+  | "healthy"
+  | "failing"
+  | "not-applicable"
+  | "no-token"
+  | "recently-disconnected";
 
 export interface WorkspaceHealth {
   status: KeepAliveStatus;
@@ -20,6 +36,11 @@ export interface WorkspaceHealth {
   lastSuccess: string | null;
   lastFailure: string | null;
   lastFailureCategory: KeepAliveFailureCategory | null;
+  lastFailureReason: KeepAliveFailureReason | null;
+  lastFailureDetail: string | null;
+  lastHttpStatus: number | null;
+  lastHttpStatusText: string | null;
+  lastAttemptDurationMs: number | null;
   activeConnectionCount: number;
   lastDisconnectedAt: string | null;
 }
@@ -31,6 +52,11 @@ export interface SerializedWorkspaceHealth {
   status: KeepAliveStatus;
   lastAttempt: string | null;
   lastFailureCategory: KeepAliveFailureCategory | null;
+  lastFailureReason: KeepAliveFailureReason | null;
+  lastFailureDetail: string | null;
+  lastHttpStatus: number | null;
+  lastHttpStatusText: string | null;
+  lastAttemptDurationMs: number | null;
   activeConnectionCount: number;
   lastDisconnectedAt: string | null;
 }
@@ -52,6 +78,11 @@ export function serializeKeepAliveStatusPayload(
       status: workspaceHealth.status,
       lastAttempt: workspaceHealth.lastAttempt,
       lastFailureCategory: workspaceHealth.lastFailureCategory,
+      lastFailureReason: workspaceHealth.lastFailureReason,
+      lastFailureDetail: workspaceHealth.lastFailureDetail,
+      lastHttpStatus: workspaceHealth.lastHttpStatus,
+      lastHttpStatusText: workspaceHealth.lastHttpStatusText,
+      lastAttemptDurationMs: workspaceHealth.lastAttemptDurationMs,
       activeConnectionCount: workspaceHealth.activeConnectionCount,
       lastDisconnectedAt: workspaceHealth.lastDisconnectedAt,
     };
@@ -156,23 +187,183 @@ function emptyHealth(activeConnectionCount: number): WorkspaceHealth {
     lastSuccess: null,
     lastFailure: null,
     lastFailureCategory: null,
+    lastFailureReason: null,
+    lastFailureDetail: null,
+    lastHttpStatus: null,
+    lastHttpStatusText: null,
+    lastAttemptDurationMs: null,
     activeConnectionCount,
     lastDisconnectedAt: null,
   };
 }
 
-function classifyHttpStatus(status: number): KeepAliveFailureCategory {
-  if (status === 401 || status === 403) return "http-auth";
-  if (status >= 400 && status < 500) return "http-client";
-  if (status >= 500 && status < 600) return "http-server";
-  return "unknown";
+interface KeepAliveFailureDetails {
+  category: KeepAliveFailureCategory;
+  reason: KeepAliveFailureReason;
+  detail: string;
+  httpStatus: number | null;
+  httpStatusText: string | null;
 }
 
-function classifyThrownError(err: unknown): KeepAliveFailureCategory {
-  if (err instanceof DOMException && err.name === "AbortError") return "timeout";
-  if (err instanceof Error && err.name === "AbortError") return "timeout";
-  if (err instanceof Error) return "network";
-  return "unknown";
+const MAX_DIAGNOSTIC_DETAIL_LENGTH = 240;
+
+function boundedDiagnosticDetail(value: string): string {
+  const normalized = value.replace(/\s+/g, " ").trim();
+  return normalized.length > MAX_DIAGNOSTIC_DETAIL_LENGTH
+    ? `${normalized.slice(0, MAX_DIAGNOSTIC_DETAIL_LENGTH - 1)}…`
+    : normalized;
+}
+
+function extractCoderMessage(body: string): string | null {
+  if (!body.trim()) return null;
+
+  try {
+    const parsed: unknown = JSON.parse(body);
+    if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+      const record = parsed as Record<string, unknown>;
+      if (typeof record.message === "string") return record.message;
+      if (typeof record.detail === "string") return record.detail;
+      if (typeof record.error === "string") return record.error;
+    }
+  } catch {
+    // Fall back to sanitized body text below.
+  }
+
+  return body;
+}
+
+function sanitizeDiagnosticDetail(value: string): string {
+  return boundedDiagnosticDetail(value)
+    .replace(/https?:\/\/\S+/gi, "<url>")
+    .replace(/\b[\w-]*(?:token|secret|proof|password|credential|session)[\w-]*\b/gi, "<redacted>")
+    .replace(/\b[A-Za-z0-9_-]{24,}\b/g, "<redacted>")
+    .replace(/\bws-[A-Za-z0-9_-]+\b/g, "<workspace>")
+    .replace(
+      /\b[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\b/gi,
+      "<uuid>",
+    )
+    .replace(/(?:^|\s)\/[\w./-]+/g, " <path>")
+    .trim();
+}
+
+function safeStatusText(statusText: string): string | null {
+  const sanitized = sanitizeDiagnosticDetail(statusText);
+  return sanitized.length > 0 ? sanitized : null;
+}
+
+function httpFailureDetails(
+  status: number,
+  statusText: string,
+  body: string,
+): KeepAliveFailureDetails {
+  const coderMessage = extractCoderMessage(body);
+  const sanitizedMessage = coderMessage ? sanitizeDiagnosticDetail(coderMessage) : null;
+  const httpStatusText = safeStatusText(statusText);
+  const statusLabel = httpStatusText ? `HTTP ${status} ${httpStatusText}` : `HTTP ${status}`;
+
+  if (
+    status === 409 &&
+    sanitizedMessage &&
+    /workspace shutdown is manual/i.test(sanitizedMessage)
+  ) {
+    return {
+      category: "manual-shutdown",
+      reason: "manual-shutdown",
+      detail: "Coder reports workspace shutdown is manual; keepalive extension is not applicable.",
+      httpStatus: status,
+      httpStatusText,
+    };
+  }
+
+  if (status === 401 || status === 403) {
+    return {
+      category: "http-auth",
+      reason: "coder-auth-rejected",
+      detail: sanitizedMessage || `${statusLabel}: Coder rejected the keepalive token.`,
+      httpStatus: status,
+      httpStatusText,
+    };
+  }
+
+  if (status === 404) {
+    return {
+      category: "http-client",
+      reason: "workspace-not-found",
+      detail:
+        sanitizedMessage ||
+        `${statusLabel}: Coder could not find this workspace for the active token.`,
+      httpStatus: status,
+      httpStatusText,
+    };
+  }
+
+  if (status >= 400 && status < 500) {
+    return {
+      category: "http-client",
+      reason: "coder-client-error",
+      detail: sanitizedMessage || `${statusLabel}: Coder rejected the keepalive request.`,
+      httpStatus: status,
+      httpStatusText,
+    };
+  }
+
+  if (status >= 500 && status < 600) {
+    return {
+      category: "http-server",
+      reason: "coder-server-error",
+      detail: sanitizedMessage || `${statusLabel}: Coder failed while extending the workspace.`,
+      httpStatus: status,
+      httpStatusText,
+    };
+  }
+
+  return {
+    category: "unknown",
+    reason: "unknown-error",
+    detail: sanitizedMessage || `${statusLabel}: Coder returned an unexpected keepalive response.`,
+    httpStatus: status,
+    httpStatusText,
+  };
+}
+
+function thrownFailureDetails(err: unknown): KeepAliveFailureDetails {
+  if (err instanceof DOMException && err.name === "AbortError") {
+    return {
+      category: "timeout",
+      reason: "coder-timeout",
+      detail: `Keepalive request timed out after ${FETCH_TIMEOUT_MS}ms.`,
+      httpStatus: null,
+      httpStatusText: null,
+    };
+  }
+
+  if (err instanceof Error && err.name === "AbortError") {
+    return {
+      category: "timeout",
+      reason: "coder-timeout",
+      detail: `Keepalive request timed out after ${FETCH_TIMEOUT_MS}ms.`,
+      httpStatus: null,
+      httpStatusText: null,
+    };
+  }
+
+  if (err instanceof Error) {
+    return {
+      category: "network",
+      reason: "network-error",
+      detail: sanitizeDiagnosticDetail(err.message) || "Network error while contacting Coder API.",
+      httpStatus: null,
+      httpStatusText: null,
+    };
+  }
+
+  return {
+    category: "unknown",
+    reason: "unknown-error",
+    detail: "Unknown error while contacting Coder API.",
+    httpStatus: null,
+    httpStatusText: null,
+  };
 }
 
 export class KeepAliveManager {
@@ -261,8 +452,10 @@ export class KeepAliveManager {
 
     health.activeConnectionCount = activeConnectionCount;
     health.lastAttempt = new Date().toISOString();
+    health.lastAttemptDurationMs = null;
     health.lastDisconnectedAt = null;
 
+    const attemptStartedAt = Date.now();
     const meta = this.registry.getWorkspaceMeta(workspaceId);
     if (!meta) {
       health.status = "no-token";
@@ -296,7 +489,13 @@ export class KeepAliveManager {
       }
 
       if (!res.ok) {
-        this.recordFailure(health, classifyHttpStatus(res.status), activeConnectionCount);
+        const body = await res.text().catch(() => "");
+        this.recordFailure(
+          health,
+          httpFailureDetails(res.status, res.statusText ?? "", body),
+          activeConnectionCount,
+          attemptStartedAt,
+        );
         return;
       }
 
@@ -304,25 +503,42 @@ export class KeepAliveManager {
       health.consecutiveFailures = 0;
       health.lastSuccess = new Date().toISOString();
       health.lastFailureCategory = null;
+      health.lastFailureReason = null;
+      health.lastFailureDetail = null;
+      health.lastHttpStatus = null;
+      health.lastHttpStatusText = null;
+      health.lastAttemptDurationMs = Date.now() - attemptStartedAt;
       console.log(
-        `[keep-alive] event=ping-success status=healthy activeConnectionCount=${activeConnectionCount}`,
+        `[keep-alive] event=ping-success status=healthy activeConnectionCount=${activeConnectionCount} attemptDurationMs=${health.lastAttemptDurationMs}`,
       );
     } catch (err: unknown) {
-      this.recordFailure(health, classifyThrownError(err), activeConnectionCount);
+      this.recordFailure(
+        health,
+        thrownFailureDetails(err),
+        activeConnectionCount,
+        attemptStartedAt,
+      );
     }
   }
 
   private recordFailure(
     health: WorkspaceHealth,
-    failureCategory: KeepAliveFailureCategory,
+    failure: KeepAliveFailureDetails,
     activeConnectionCount: number,
+    attemptStartedAt: number,
   ): void {
-    health.status = "failing";
-    health.consecutiveFailures++;
+    health.status = failure.category === "manual-shutdown" ? "not-applicable" : "failing";
+    health.consecutiveFailures =
+      failure.category === "manual-shutdown" ? 0 : health.consecutiveFailures + 1;
     health.lastFailure = new Date().toISOString();
-    health.lastFailureCategory = failureCategory;
+    health.lastFailureCategory = failure.category;
+    health.lastFailureReason = failure.reason;
+    health.lastFailureDetail = failure.detail;
+    health.lastHttpStatus = failure.httpStatus;
+    health.lastHttpStatusText = failure.httpStatusText;
+    health.lastAttemptDurationMs = Date.now() - attemptStartedAt;
     console.error(
-      `[keep-alive] event=ping-failed status=failing failureCategory=${failureCategory} consecutiveFailures=${health.consecutiveFailures} activeConnectionCount=${activeConnectionCount}`,
+      `[keep-alive] event=ping-failed status=${health.status} failureCategory=${failure.category} failureReason=${failure.reason} httpStatus=${failure.httpStatus ?? "none"} consecutiveFailures=${health.consecutiveFailures} activeConnectionCount=${activeConnectionCount} attemptDurationMs=${health.lastAttemptDurationMs}`,
     );
   }
 }

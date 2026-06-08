@@ -4,6 +4,23 @@ import { cleanup, renderHook, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useKeepAliveStatus } from "@/hooks/useKeepAliveStatus";
 
+const loadedHealthyDefault = {
+  status: "healthy",
+  consecutiveFailures: 0,
+  lastAttempt: null,
+  lastSuccess: null,
+  lastFailure: null,
+  lastFailureCategory: null,
+  lastFailureReason: null,
+  lastFailureDetail: null,
+  lastHttpStatus: null,
+  lastHttpStatusText: null,
+  lastAttemptDurationMs: null,
+  activeConnectionCount: 0,
+  lastDisconnectedAt: null,
+  isLoading: false,
+};
+
 describe("useKeepAliveStatus", () => {
   beforeEach(() => {
     vi.restoreAllMocks();
@@ -31,6 +48,11 @@ describe("useKeepAliveStatus", () => {
           lastSuccess: "2026-06-07T18:59:00.000Z",
           lastFailure: "2026-06-07T19:01:00.000Z",
           lastFailureCategory: "timeout",
+          lastFailureReason: "coder-timeout",
+          lastFailureDetail: "Keepalive request timed out after 10000ms.",
+          lastHttpStatus: null,
+          lastHttpStatusText: null,
+          lastAttemptDurationMs: 10001,
           activeConnectionCount: 0,
           lastDisconnectedAt: "2026-06-07T19:02:00.000Z",
         },
@@ -52,10 +74,47 @@ describe("useKeepAliveStatus", () => {
       lastSuccess: "2026-06-07T18:59:00.000Z",
       lastFailure: "2026-06-07T19:01:00.000Z",
       lastFailureCategory: "timeout",
+      lastFailureReason: "coder-timeout",
+      lastFailureDetail: "Keepalive request timed out after 10000ms.",
+      lastHttpStatus: null,
+      lastHttpStatusText: null,
+      lastAttemptDurationMs: 10001,
       activeConnectionCount: 0,
       lastDisconnectedAt: "2026-06-07T19:02:00.000Z",
       isLoading: false,
     });
+  });
+
+  it("parses not-applicable manual shutdown status", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          workspaces: {
+            "workspace-1": {
+              status: "not-applicable",
+              consecutiveFailures: 0,
+              lastFailureCategory: "manual-shutdown",
+              lastFailureReason: "manual-shutdown",
+              lastFailureDetail:
+                "Coder reports workspace shutdown is manual; keepalive extension is not applicable.",
+              lastHttpStatus: 409,
+              lastHttpStatusText: "Conflict",
+              activeConnectionCount: 1,
+            },
+          },
+        }),
+        { status: 200 },
+      ),
+    );
+
+    const { result } = await renderLoadedStatus("workspace-1");
+
+    expect(result.current.status).toBe("not-applicable");
+    expect(result.current.consecutiveFailures).toBe(0);
+    expect(result.current.lastFailureCategory).toBe("manual-shutdown");
+    expect(result.current.lastFailureReason).toBe("manual-shutdown");
+    expect(result.current.lastHttpStatus).toBe(409);
+    expect(result.current.activeConnectionCount).toBe(1);
   });
 
   it("returns safe defaults when the requested workspace is missing", async () => {
@@ -76,17 +135,7 @@ describe("useKeepAliveStatus", () => {
 
     const { result } = await renderLoadedStatus("workspace-1");
 
-    expect(result.current).toEqual({
-      status: "healthy",
-      consecutiveFailures: 0,
-      lastAttempt: null,
-      lastSuccess: null,
-      lastFailure: null,
-      lastFailureCategory: null,
-      activeConnectionCount: 0,
-      lastDisconnectedAt: null,
-      isLoading: false,
-    });
+    expect(result.current).toEqual(loadedHealthyDefault);
   });
 
   it("drops unknown statuses, categories, counts, and raw timestamp-like material", async () => {
@@ -101,6 +150,11 @@ describe("useKeepAliveStatus", () => {
               lastSuccess: "https://proxy.example.test/session?token=secret",
               lastFailure: "Bearer raw-token-value",
               lastFailureCategory: "proxy-url-leak",
+              lastFailureReason: "secret-raw-reason",
+              lastFailureDetail: "a".repeat(301),
+              lastHttpStatus: 99,
+              lastHttpStatusText: "",
+              lastAttemptDurationMs: -1,
               activeConnectionCount: -3,
               lastDisconnectedAt: "workspace-name-with-token",
             },
@@ -112,17 +166,7 @@ describe("useKeepAliveStatus", () => {
 
     const { result } = await renderLoadedStatus("workspace-1");
 
-    expect(result.current).toEqual({
-      status: "healthy",
-      consecutiveFailures: 0,
-      lastAttempt: null,
-      lastSuccess: null,
-      lastFailure: null,
-      lastFailureCategory: null,
-      activeConnectionCount: 0,
-      lastDisconnectedAt: null,
-      isLoading: false,
-    });
+    expect(result.current).toEqual(loadedHealthyDefault);
   });
 
   it("returns safe defaults for malformed payloads", async () => {
@@ -135,6 +179,9 @@ describe("useKeepAliveStatus", () => {
     expect(result.current.status).toBe("healthy");
     expect(result.current.consecutiveFailures).toBe(0);
     expect(result.current.lastFailureCategory).toBeNull();
+    expect(result.current.lastFailureReason).toBeNull();
+    expect(result.current.lastFailureDetail).toBeNull();
+    expect(result.current.lastHttpStatus).toBeNull();
     expect(result.current.activeConnectionCount).toBe(0);
   });
 
@@ -145,17 +192,7 @@ describe("useKeepAliveStatus", () => {
     const { result } = await renderLoadedStatus("workspace-1");
 
     expect(json).not.toHaveBeenCalled();
-    expect(result.current).toEqual({
-      status: "healthy",
-      consecutiveFailures: 0,
-      lastAttempt: null,
-      lastSuccess: null,
-      lastFailure: null,
-      lastFailureCategory: null,
-      activeConnectionCount: 0,
-      lastDisconnectedAt: null,
-      isLoading: false,
-    });
+    expect(result.current).toEqual(loadedHealthyDefault);
   });
 
   it("keeps failed fetches non-destructive and secret-free", async () => {
@@ -165,16 +202,6 @@ describe("useKeepAliveStatus", () => {
 
     const { result } = await renderLoadedStatus("workspace-1");
 
-    expect(result.current).toEqual({
-      status: "healthy",
-      consecutiveFailures: 0,
-      lastAttempt: null,
-      lastSuccess: null,
-      lastFailure: null,
-      lastFailureCategory: null,
-      activeConnectionCount: 0,
-      lastDisconnectedAt: null,
-      isLoading: false,
-    });
+    expect(result.current).toEqual(loadedHealthyDefault);
   });
 });

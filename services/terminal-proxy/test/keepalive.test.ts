@@ -167,10 +167,38 @@ describe("KeepAliveManager", () => {
     expect(health.status).toBe("failing");
     expect(health.consecutiveFailures).toBe(2);
     expect(health.lastFailureCategory).toBe(category);
+    expect(health.lastFailureReason).toBeTruthy();
+    expect(health.lastFailureDetail).toBeTruthy();
+    expect(health.lastHttpStatus).toBe(status);
     expect(health.lastAttempt).toBeTruthy();
+    expect(health.lastAttemptDurationMs).toEqual(expect.any(Number));
     expect(health.lastFailure).toBeTruthy();
     expect(health.activeConnectionCount).toBe(1);
     expect(health).not.toHaveProperty("lastError");
+    expect(JSON.stringify(health)).not.toContain("secret-token");
+    expect(JSON.stringify(health)).not.toContain("/tmp/session");
+  });
+
+  it("classifies manual shutdown as not applicable instead of high keepalive failure", async () => {
+    fetchMock.mockResolvedValue({
+      ok: false,
+      status: 409,
+      statusText: "Conflict",
+      text: () => Promise.resolve(JSON.stringify({ message: "Workspace shutdown is manual." })),
+    });
+    registry.addConnection("ws-abc", "conn-1", testMeta);
+
+    await manager.ping("ws-abc");
+    await manager.ping("ws-abc");
+
+    const health = manager.getHealth()["ws-abc"];
+    expect(health.status).toBe("not-applicable");
+    expect(health.consecutiveFailures).toBe(0);
+    expect(health.lastFailureCategory).toBe("manual-shutdown");
+    expect(health.lastFailureReason).toBe("manual-shutdown");
+    expect(health.lastFailureDetail).toContain("shutdown is manual");
+    expect(health.lastHttpStatus).toBe(409);
+    expect(health.lastHttpStatusText).toBe("Conflict");
   });
 
   it("classifies network errors without storing the raw error message", async () => {

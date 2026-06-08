@@ -58,11 +58,6 @@ import {
   type SessionPaneLayoutDiagnostic,
 } from "@/lib/workspaces/session-pane-layout";
 import {
-  summarizeWorkspacePaneRecovery,
-  type WorkspaceGitPaneRefreshInput,
-  type WorkspacePaneRecoveryInput,
-} from "@/lib/workspaces/workspace-pane-recovery";
-import {
   addGitPaneToActiveWorkspaceBoard,
   addTerminalPaneToActiveWorkspaceBoard,
   createWorkspaceBoard,
@@ -82,6 +77,11 @@ import {
   type WorkspaceBoardStateDiagnostic,
   workspaceBoardStorageKey,
 } from "@/lib/workspaces/workspace-board-state";
+import {
+  summarizeWorkspacePaneRecovery,
+  type WorkspaceGitPaneRefreshInput,
+  type WorkspacePaneRecoveryInput,
+} from "@/lib/workspaces/workspace-pane-recovery";
 
 interface InteractiveTerminalComponentProps {
   agentId: string;

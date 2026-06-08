@@ -5,8 +5,8 @@ import { createTerminalProxyServer } from "../src/index.js";
 import {
   ConnectionRegistry,
   KeepAliveManager,
-  type WorkspaceHealth,
   serializeKeepAliveStatusPayload,
+  type WorkspaceHealth,
 } from "../src/keepalive.js";
 
 function createMockCoderApi(
@@ -161,8 +161,34 @@ describe("KeepAliveManager integration", () => {
     const health = manager.getHealth()["ws-auth"];
     expect(health.consecutiveFailures).toBe(1);
     expect(health.lastFailureCategory).toBe("http-auth");
+    expect(health.lastFailureReason).toBe("coder-auth-rejected");
+    expect(health.lastHttpStatus).toBe(401);
     expect(health.lastFailure).toBeTruthy();
     expect(health).not.toHaveProperty("lastError");
+  });
+
+  it("reports manual shutdown keepalive as not applicable", async () => {
+    responseStatus = 409;
+    await closeServer(server);
+
+    const mock = await createMockCoderApi((_req, res) => {
+      res.writeHead(409, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ message: "Workspace shutdown is manual." }));
+    });
+    server = mock.server;
+    mockUrl = mock.url;
+    manager = new KeepAliveManager(registry, mock.url);
+    addWithMeta(registry, "ws-manual", "conn-1", mockUrl);
+
+    await manager.ping("ws-manual");
+
+    const health = manager.getHealth()["ws-manual"];
+    expect(health.status).toBe("not-applicable");
+    expect(health.consecutiveFailures).toBe(0);
+    expect(health.lastFailureCategory).toBe("manual-shutdown");
+    expect(health.lastFailureReason).toBe("manual-shutdown");
+    expect(health.lastHttpStatus).toBe(409);
+    expect(health.lastFailureDetail).toContain("not applicable");
   });
 
   it("resets consecutiveFailures on recovery after failures", async () => {
@@ -299,6 +325,10 @@ describe("/keepalive/status endpoint integration", () => {
     expect(data.workspaces["ws-status"].status).toBe("healthy");
     expect(data.workspaces["ws-status"].lastAttempt).toBeTruthy();
     expect(data.workspaces["ws-status"].lastFailureCategory).toBeNull();
+    expect(data.workspaces["ws-status"].lastFailureReason).toBeNull();
+    expect(data.workspaces["ws-status"].lastFailureDetail).toBeNull();
+    expect(data.workspaces["ws-status"].lastHttpStatus).toBeNull();
+    expect(data.workspaces["ws-status"].lastAttemptDurationMs).toEqual(expect.any(Number));
     expect(data.workspaces["ws-status"].activeConnectionCount).toBe(1);
     expect(data.workspaces["ws-status"].lastDisconnectedAt).toBeNull();
     expect(data.workspaces["ws-status"]).not.toHaveProperty("lastError");
@@ -317,6 +347,8 @@ describe("/keepalive/status endpoint integration", () => {
     const data = JSON.parse(text);
     expect(data.workspaces["ws-failed"].status).toBe("failing");
     expect(data.workspaces["ws-failed"].lastFailureCategory).toBe("http-server");
+    expect(data.workspaces["ws-failed"].lastFailureReason).toBe("coder-server-error");
+    expect(data.workspaces["ws-failed"].lastFailureDetail).toBeTruthy();
     expect(text).not.toContain("secret-tok");
     expect(text).not.toContain("clone-proof-abc");
     expect(text).not.toContain("/Users/alice/projects/kethalia/hive");
@@ -350,6 +382,11 @@ describe("terminal-proxy server wiring", () => {
         lastSuccess: null,
         lastFailure: "2026-06-07T19:00:01.000Z",
         lastFailureCategory: "http-server",
+        lastFailureReason: "coder-server-error",
+        lastFailureDetail: "HTTP 500: Coder failed while extending the workspace.",
+        lastHttpStatus: 500,
+        lastHttpStatusText: "Internal Server Error",
+        lastAttemptDurationMs: 42,
         activeConnectionCount: 1,
         lastDisconnectedAt: null,
       },

@@ -3,15 +3,31 @@
 import { useEffect, useRef, useState } from "react";
 import { getClientRuntimeConfig } from "@/lib/runtime-config";
 
-export type KeepAliveHealthStatus = "healthy" | "failing" | "no-token" | "recently-disconnected";
+export type KeepAliveHealthStatus =
+  | "healthy"
+  | "failing"
+  | "not-applicable"
+  | "no-token"
+  | "recently-disconnected";
 
 export type KeepAliveFailureCategory =
+  | "manual-shutdown"
   | "http-auth"
   | "http-client"
   | "http-server"
   | "timeout"
   | "network"
   | "unknown";
+
+export type KeepAliveFailureReason =
+  | "manual-shutdown"
+  | "coder-auth-rejected"
+  | "workspace-not-found"
+  | "coder-client-error"
+  | "coder-server-error"
+  | "coder-timeout"
+  | "network-error"
+  | "unknown-error";
 
 export interface KeepAliveStatus {
   status: KeepAliveHealthStatus;
@@ -20,6 +36,11 @@ export interface KeepAliveStatus {
   lastSuccess: string | null;
   lastFailure: string | null;
   lastFailureCategory: KeepAliveFailureCategory | null;
+  lastFailureReason: KeepAliveFailureReason | null;
+  lastFailureDetail: string | null;
+  lastHttpStatus: number | null;
+  lastHttpStatusText: string | null;
+  lastAttemptDurationMs: number | null;
   activeConnectionCount: number;
   lastDisconnectedAt: string | null;
   isLoading: boolean;
@@ -29,16 +50,28 @@ const POLL_INTERVAL_MS = 30_000;
 const KEEP_ALIVE_HEALTH_STATUSES = new Set<KeepAliveHealthStatus>([
   "healthy",
   "failing",
+  "not-applicable",
   "no-token",
   "recently-disconnected",
 ]);
 const KEEP_ALIVE_FAILURE_CATEGORIES = new Set<KeepAliveFailureCategory>([
+  "manual-shutdown",
   "http-auth",
   "http-client",
   "http-server",
   "timeout",
   "network",
   "unknown",
+]);
+const KEEP_ALIVE_FAILURE_REASONS = new Set<KeepAliveFailureReason>([
+  "manual-shutdown",
+  "coder-auth-rejected",
+  "workspace-not-found",
+  "coder-client-error",
+  "coder-server-error",
+  "coder-timeout",
+  "network-error",
+  "unknown-error",
 ]);
 const ISO_TIMESTAMP_RE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{3})?Z$/;
 
@@ -49,12 +82,17 @@ const DEFAULT_KEEP_ALIVE_STATUS: KeepAliveStatus = {
   lastSuccess: null,
   lastFailure: null,
   lastFailureCategory: null,
+  lastFailureReason: null,
+  lastFailureDetail: null,
+  lastHttpStatus: null,
+  lastHttpStatusText: null,
+  lastAttemptDurationMs: null,
   activeConnectionCount: 0,
   lastDisconnectedAt: null,
   isLoading: true,
 };
 
-function wsUrlToHttp(wsUrl: string): string {
+export function terminalProxyHttpBaseUrl(wsUrl: string): string {
   return wsUrl.replace(/^ws(s?):\/\//, "http$1://");
 }
 
@@ -75,8 +113,31 @@ function parseFailureCategory(value: unknown): KeepAliveFailureCategory | null {
     : null;
 }
 
+function parseFailureReason(value: unknown): KeepAliveFailureReason | null {
+  return typeof value === "string" &&
+    KEEP_ALIVE_FAILURE_REASONS.has(value as KeepAliveFailureReason)
+    ? (value as KeepAliveFailureReason)
+    : null;
+}
+
 function parseCount(value: unknown): number {
   return typeof value === "number" && Number.isSafeInteger(value) && value >= 0 ? value : 0;
+}
+
+function parseNullableCount(value: unknown): number | null {
+  return typeof value === "number" && Number.isSafeInteger(value) && value >= 0 ? value : null;
+}
+
+function parseHttpStatus(value: unknown): number | null {
+  return typeof value === "number" && Number.isInteger(value) && value >= 100 && value <= 599
+    ? value
+    : null;
+}
+
+function parseNullableString(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  const trimmed = value.trim();
+  return trimmed.length > 0 && trimmed.length <= 300 ? trimmed : null;
 }
 
 function parseTimestamp(value: unknown): string | null {
@@ -84,7 +145,7 @@ function parseTimestamp(value: unknown): string | null {
   return Number.isNaN(Date.parse(value)) ? null : value;
 }
 
-function parseWorkspaceStatus(payload: unknown, workspaceId: string): KeepAliveStatus {
+export function parseWorkspaceStatus(payload: unknown, workspaceId: string): KeepAliveStatus {
   if (!isRecord(payload) || !isRecord(payload.workspaces)) {
     return { ...DEFAULT_KEEP_ALIVE_STATUS, isLoading: false };
   }
@@ -101,10 +162,25 @@ function parseWorkspaceStatus(payload: unknown, workspaceId: string): KeepAliveS
     lastSuccess: parseTimestamp(workspace.lastSuccess),
     lastFailure: parseTimestamp(workspace.lastFailure),
     lastFailureCategory: parseFailureCategory(workspace.lastFailureCategory),
+    lastFailureReason: parseFailureReason(workspace.lastFailureReason),
+    lastFailureDetail: parseNullableString(workspace.lastFailureDetail),
+    lastHttpStatus: parseHttpStatus(workspace.lastHttpStatus),
+    lastHttpStatusText: parseNullableString(workspace.lastHttpStatusText),
+    lastAttemptDurationMs: parseNullableCount(workspace.lastAttemptDurationMs),
     activeConnectionCount: parseCount(workspace.activeConnectionCount),
     lastDisconnectedAt: parseTimestamp(workspace.lastDisconnectedAt),
     isLoading: false,
   };
+}
+
+export function parseKeepAliveStatusPayload(payload: unknown): Record<string, KeepAliveStatus> {
+  if (!isRecord(payload) || !isRecord(payload.workspaces)) return {};
+
+  const workspaces: Record<string, KeepAliveStatus> = {};
+  for (const workspaceId of Object.keys(payload.workspaces)) {
+    workspaces[workspaceId] = parseWorkspaceStatus(payload, workspaceId);
+  }
+  return workspaces;
 }
 
 export function useKeepAliveStatus(workspaceId: string): KeepAliveStatus {
@@ -120,7 +196,7 @@ export function useKeepAliveStatus(workspaceId: string): KeepAliveStatus {
       return;
     }
 
-    const baseUrl = wsUrlToHttp(proxyWsUrl);
+    const baseUrl = terminalProxyHttpBaseUrl(proxyWsUrl);
 
     async function poll() {
       try {

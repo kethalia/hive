@@ -5,8 +5,8 @@ import { fileURLToPath } from "node:url";
 import { config } from "dotenv";
 import {
   KeepAliveManager,
-  type WorkspaceHealth,
   serializeKeepAliveStatusPayload,
+  type WorkspaceHealth,
 } from "./keepalive.js";
 import { connectionRegistry, handleUpgrade, isOriginAllowed } from "./proxy.js";
 
