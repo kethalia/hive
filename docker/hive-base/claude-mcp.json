@@ -2,7 +2,7 @@
   "mcpServers": {
     "obsidian": {
       "command": "npx",
-      "args": ["-y", "@bitbonsai/mcpvault@1.0.4", "/home/coder/vault"],
+      "args": ["-y", "@bitbonsai/mcpvault@0.11.0", "/home/coder/vault"],
       "env": {}
     },
     "playwright": {
