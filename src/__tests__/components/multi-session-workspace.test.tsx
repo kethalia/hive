@@ -14,7 +14,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import "@testing-library/jest-dom/vitest";
 import type { KeepAliveStatus } from "@/hooks/useKeepAliveStatus";
 import type { KeybindingContextValue } from "@/hooks/useKeybindings";
-import { LONG_PRESS_MS } from "@/lib/gestures/conventions";
 
 const mockCreateSession = vi.fn();
 const mockGetSessions = vi.fn();
@@ -534,55 +533,6 @@ describe("MultiSessionWorkspace", () => {
     expect(nativeContextMenu.defaultPrevented).toBe(false);
     expect(screen.queryByRole("menu", { name: /terminal context menu/i })).not.toBeInTheDocument();
     expect(mockSetActiveTerminal).not.toHaveBeenCalled();
-  });
-
-  it("opens the shared terminal context menu on touch long-press in multi-session panes", async () => {
-    Object.defineProperty(navigator, "clipboard", {
-      configurable: true,
-      value: {
-        writeText: vi.fn().mockResolvedValue(undefined),
-        readText: vi.fn().mockResolvedValue("printf ok"),
-      },
-    });
-    await renderTwoSessionWorkspace();
-    const devTerm = makeTerminal("dev-server");
-    const devSend = makeSender("dev-server");
-
-    act(() => {
-      terminalProps.get("dev-server")?.onTerminalReady?.(devTerm, devSend);
-    });
-
-    vi.useFakeTimers();
-    try {
-      fireEvent.pointerDown(screen.getByTestId("interactive-terminal-dev-server"), {
-        buttons: 1,
-        clientX: 180,
-        clientY: 220,
-        pointerId: 1,
-        pointerType: "touch",
-      });
-      act(() => {
-        vi.advanceTimersByTime(LONG_PRESS_MS);
-        vi.runOnlyPendingTimers();
-      });
-      fireEvent.pointerUp(screen.getByTestId("interactive-terminal-dev-server"), {
-        buttons: 0,
-        clientX: 180,
-        clientY: 220,
-        pointerId: 1,
-        pointerType: "touch",
-      });
-    } finally {
-      vi.useRealTimers();
-    }
-
-    const menu = screen.getByRole("menu", { name: /terminal context menu/i });
-    expect(menu).toBeInTheDocument();
-    expect(screen.getByRole("menuitem", { name: /copy/i })).toBeEnabled();
-    expect(mockSetActiveTerminal).toHaveBeenLastCalledWith(devTerm, devSend);
-
-    fireEvent.click(screen.getByRole("menuitem", { name: /copy/i }));
-    expect(devTerm.clearSelection).toHaveBeenCalledOnce();
   });
 
   it("does not consume space or enter typed inside terminal panes", async () => {

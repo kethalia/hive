@@ -16,8 +16,6 @@ import {
 import { toast } from "sonner";
 import { CommandPalette, type CommandPaletteAction } from "@/components/terminal/CommandPalette";
 import { ComposePanel } from "@/components/terminal/ComposePanel";
-import { TerminalContextMenu } from "@/components/terminal/TerminalContextMenu";
-import { TerminalGestureLayer } from "@/components/terminal/TerminalGestureLayer";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import {
@@ -52,7 +50,6 @@ import {
   isTextEntryEventTarget,
 } from "@/lib/keyboard-event-targets";
 import { formatShortcut } from "@/lib/keyboard-shortcuts";
-import { copyTerminalSelection, pasteToTerminal } from "@/lib/terminal/actions";
 import type { TerminalComposeRequest } from "@/lib/terminal/clipboard";
 import { cn } from "@/lib/utils";
 import {
@@ -799,8 +796,6 @@ export function MultiSessionWorkspace({
   const [gitFavoritesFailed, setGitFavoritesFailed] = useState(false);
   const [gitSearchOpen, setGitSearchOpen] = useState(false);
   const [paletteOpen, setPaletteOpen] = useState(false);
-  const [menuPosition, setMenuPosition] = useState<{ x: number; y: number } | null>(null);
-  const [menuSelection, setMenuSelection] = useState(false);
   const [composeOpen, setComposeOpen] = useState(false);
   const [composeDraft, setComposeDraft] = useState("");
   const [composeTargetLabel, setComposeTargetLabel] = useState<string | undefined>();
@@ -1260,38 +1255,6 @@ export function MultiSessionWorkspace({
     entry.send(draft);
     entry.send("\r");
   }, []);
-
-  const openTerminalContextMenu = useCallback(
-    (x: number, y: number, sessionName = activeSessionNameRef.current) => {
-      if (sessionName) {
-        selectSession(sessionName, { focusTerminal: false });
-      }
-
-      const activeName = sessionName ?? activeSessionNameRef.current;
-      const entry = activeName ? terminalsRef.current.get(activeName) : null;
-      setMenuSelection(!!entry?.term.getSelection());
-      setMenuPosition({ x, y });
-    },
-    [selectSession],
-  );
-
-  const copyActiveTerminalSelection = useCallback(() => {
-    const activeName = activeSessionNameRef.current;
-    const entry = activeName ? terminalsRef.current.get(activeName) : null;
-    if (entry) copyTerminalSelection(entry.term);
-  }, []);
-
-  const pasteToActiveTerminal = useCallback(() => {
-    const activeName = activeSessionNameRef.current;
-    const entry = activeName ? terminalsRef.current.get(activeName) : null;
-    if (!entry) return;
-
-    pasteToTerminal(entry.term, entry.send, {
-      onCompose: openComposeWithDraft,
-      targetLabel: activeLabel,
-      workspaceId,
-    });
-  }, [activeLabel, openComposeWithDraft, workspaceId]);
 
   const focusRelativeSession = useCallback(
     (direction: -1 | 1) => {
@@ -2583,10 +2546,7 @@ export function MultiSessionWorkspace({
         onMouseEnter={() => selectSession(pane.sessionName, { focusTerminal: false })}
         onClick={(event) => {
           const target = event.target;
-          if (
-            target instanceof HTMLElement &&
-            target.closest("[data-terminal-gesture-layer='true']")
-          ) {
+          if (target instanceof HTMLElement && target.closest("[data-terminal-surface='true']")) {
             return;
           }
           selectSession(pane.sessionName);
@@ -2624,34 +2584,29 @@ export function MultiSessionWorkspace({
             <X className="size-3" />
           </Button>
         </div>
-        <TerminalGestureLayer
-          onLongPress={(x, y) => openTerminalContextMenu(x, y, pane.sessionName)}
+        <InteractiveTerminal
+          agentId={agentId}
+          workspaceId={workspaceId}
+          sessionName={pane.sessionName}
+          clonePath={session?.clonePath}
+          cloneProof={session?.cloneProof}
+          refreshCloneTerminalIdentity={refreshCloneTerminalIdentity}
           className="min-h-0 flex-1"
-        >
-          <InteractiveTerminal
-            agentId={agentId}
-            workspaceId={workspaceId}
-            sessionName={pane.sessionName}
-            clonePath={session?.clonePath}
-            cloneProof={session?.cloneProof}
-            refreshCloneTerminalIdentity={refreshCloneTerminalIdentity}
-            className="min-h-0 flex-1"
-            layoutSignal={layoutSignal}
-            onConnectionStateChange={(state) =>
-              handlePaneConnectionStateChange(boardPaneSignal, boardPaneKind, state)
-            }
-            onRecoveryStateChange={(state) =>
-              handlePaneRecoveryStateChange(boardPaneSignal, boardPaneKind, state)
-            }
-            onTerminalReady={(term, send) => handleTerminalReady(pane.sessionName, term, send)}
-            onTerminalDestroy={() => {
-              handleTerminalDestroy(pane.sessionName);
-              clearPaneRecoveryState(boardPaneSignal);
-            }}
-            onComposeRequest={openComposeWithDraft}
-            targetLabel={pane.label}
-          />
-        </TerminalGestureLayer>
+          layoutSignal={layoutSignal}
+          onConnectionStateChange={(state) =>
+            handlePaneConnectionStateChange(boardPaneSignal, boardPaneKind, state)
+          }
+          onRecoveryStateChange={(state) =>
+            handlePaneRecoveryStateChange(boardPaneSignal, boardPaneKind, state)
+          }
+          onTerminalReady={(term, send) => handleTerminalReady(pane.sessionName, term, send)}
+          onTerminalDestroy={() => {
+            handleTerminalDestroy(pane.sessionName);
+            clearPaneRecoveryState(boardPaneSignal);
+          }}
+          onComposeRequest={openComposeWithDraft}
+          targetLabel={pane.label}
+        />
       </div>
     );
   };
@@ -2782,13 +2737,6 @@ export function MultiSessionWorkspace({
           </div>
         ) : null}
       </div>
-      <TerminalContextMenu
-        position={menuPosition}
-        onClose={() => setMenuPosition(null)}
-        hasSelection={menuSelection}
-        onCopy={copyActiveTerminalSelection}
-        onPaste={pasteToActiveTerminal}
-      />
     </section>
   );
 }

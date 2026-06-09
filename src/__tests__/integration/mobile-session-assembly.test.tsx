@@ -444,11 +444,8 @@ vi.mock("@/lib/terminal/config", () => ({
 import DashboardLayout from "@/app/(dashboard)/layout";
 import { AgentStreamPanel } from "@/app/(dashboard)/tasks/[id]/agent-stream-panel";
 import { CommandPalette } from "@/components/terminal/CommandPalette";
-import { TerminalContextMenu } from "@/components/terminal/TerminalContextMenu";
 import { PullToRefresh } from "@/components/ui/pull-to-refresh";
 import { InteractiveTerminal } from "@/components/workspaces/InteractiveTerminal";
-import { TerminalTabManager } from "@/components/workspaces/TerminalTabManager";
-import { LONG_PRESS_MS } from "@/lib/gestures/conventions";
 
 class ResizeObserverMock {
   observe = vi.fn();
@@ -686,61 +683,6 @@ describe("mobile session assembly", () => {
     expect(reducedContent.style.transition).toBe("");
   });
 
-  it("exposes the touch long-press close-session path and hides close when only one tab remains", async () => {
-    workspaceActions.getWorkspaceSessionsAction.mockResolvedValueOnce({
-      data: [
-        { created: 1000, name: "hive-main", windows: 1 },
-        { created: 2000, name: "dev-server", windows: 1 },
-      ],
-    });
-    workspaceActions.killSessionAction.mockResolvedValue({ data: { name: "hive-main" } });
-
-    render(<TerminalTabManager agentId="agent-1" workspaceId="workspace-1" />);
-
-    await waitFor(() => {
-      expect(screen.getAllByTestId("tab-label")).toHaveLength(2);
-    });
-
-    vi.useFakeTimers();
-    fireEvent.pointerDown(screen.getByTestId("terminal-hive-main"), {
-      buttons: 1,
-      clientX: 120,
-      clientY: 333,
-      pointerId: 1,
-      pointerType: "touch",
-    });
-    act(() => {
-      vi.advanceTimersByTime(LONG_PRESS_MS);
-    });
-    vi.useRealTimers();
-
-    const menu = screen.getByRole("menu", { name: /terminal context menu/i });
-    expect(menu).toHaveStyle({ left: "120px", top: "333px" });
-
-    await act(async () => {
-      fireEvent.click(screen.getByRole("menuitem", { name: /close session/i }));
-    });
-
-    await waitFor(() => {
-      expect(workspaceActions.killSessionAction).toHaveBeenCalledWith({
-        sessionName: "hive-main",
-        workspaceId: "workspace-1",
-      });
-    });
-
-    cleanup();
-    workspaceActions.getWorkspaceSessionsAction.mockResolvedValueOnce({
-      data: [{ created: 1000, name: "solo", windows: 1 }],
-    });
-
-    render(<TerminalTabManager agentId="agent-1" workspaceId="workspace-1" />);
-
-    await waitFor(() => {
-      expect(screen.getByTestId("tab-label")).toHaveTextContent("solo");
-    });
-    expect(screen.queryByTestId("close-tab")).not.toBeInTheDocument();
-  });
-
   it("binds terminal pinch zoom to the interactive terminal host", async () => {
     const onTerminalReady = vi.fn();
 
@@ -829,25 +771,6 @@ describe("mobile session assembly", () => {
       expect(terminalState.fit).toHaveBeenCalled();
     });
     expect(terminalState.scrollToBottom).not.toHaveBeenCalled();
-  });
-
-  it("keeps terminal context-menu actions touch-sized", () => {
-    render(
-      <TerminalContextMenu
-        position={{ x: 100, y: 120 }}
-        onClose={vi.fn()}
-        hasSelection={false}
-        onCopy={vi.fn()}
-        onPaste={vi.fn()}
-        onNewSession={vi.fn()}
-        onCloseSession={vi.fn()}
-      />,
-    );
-
-    for (const item of screen.getAllByRole("menuitem")) {
-      expect(item.className).toContain("min-h-11");
-      expect(item.className).toContain("touch-manipulation");
-    }
   });
 
   it("carries reduced-motion contracts on shared mobile primitives", async () => {

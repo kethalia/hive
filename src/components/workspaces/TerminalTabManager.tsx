@@ -6,8 +6,6 @@ import dynamic from "next/dynamic";
 import { useCallback, useEffect, useReducer, useRef, useState } from "react";
 import { CommandPalette } from "@/components/terminal/CommandPalette";
 import { ComposePanel } from "@/components/terminal/ComposePanel";
-import { TerminalContextMenu } from "@/components/terminal/TerminalContextMenu";
-import { TerminalGestureLayer } from "@/components/terminal/TerminalGestureLayer";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -23,7 +21,6 @@ import {
   renameSessionAction,
 } from "@/lib/actions/workspaces";
 import { SAFE_IDENTIFIER_RE } from "@/lib/constants";
-import { copyTerminalSelection, pasteToTerminal } from "@/lib/terminal/actions";
 import type { TerminalComposeRequest } from "@/lib/terminal/clipboard";
 import { isPwaStandalone } from "@/lib/terminal/pwa";
 import { cn } from "@/lib/utils";
@@ -99,8 +96,6 @@ export function TerminalTabManager({ agentId, workspaceId }: TerminalTabManagerP
   const [loadError, setLoadError] = useState<string | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
   const [paletteOpen, setPaletteOpen] = useState(false);
-  const [menuPosition, setMenuPosition] = useState<{ x: number; y: number } | null>(null);
-  const [menuSelection, setMenuSelection] = useState(false);
   const [composeOpen, setComposeOpen] = useState(false);
   const [composeDraft, setComposeDraft] = useState("");
   const [composeTargetLabel, setComposeTargetLabel] = useState<string | undefined>();
@@ -292,16 +287,6 @@ export function TerminalTabManager({ agentId, workspaceId }: TerminalTabManagerP
     },
     [tabs, workspaceId, agentId],
   );
-
-  const openTerminalContextMenu = useCallback((x: number, y: number) => {
-    const currentActiveId = activeTabIdRef.current;
-    const entry = currentActiveId ? terminalsRef.current.get(currentActiveId) : null;
-    setMenuSelection(!!entry?.term.getSelection());
-    setMenuPosition({ x, y });
-  }, []);
-
-  const activeTab = tabs.find((tab) => tab.id === activeTabId);
-  const activeTargetLabel = activeTab?.sessionName;
 
   const openComposeWithDraft = useCallback((request: TerminalComposeRequest) => {
     setComposeTargetLabel(request.targetLabel);
@@ -591,47 +576,19 @@ export function TerminalTabManager({ agentId, workspaceId }: TerminalTabManagerP
                 className={cn("absolute inset-0", activeTabId !== tab.id && "pointer-events-none")}
                 style={{ display: activeTabId === tab.id ? "block" : "none" }}
               >
-                <TerminalGestureLayer
-                  onLongPress={openTerminalContextMenu}
-                  style={{ display: activeTabId === tab.id ? "block" : "none" }}
-                >
-                  <InteractiveTerminal
-                    agentId={agentId}
-                    workspaceId={workspaceId}
-                    sessionName={tab.sessionName}
-                    className="h-full"
-                    onConnectionStateChange={(state) => handleConnectionStateChange(tab.id, state)}
-                    onTerminalReady={(term, send) => handleTerminalReady(tab.id, term, send)}
-                    onTerminalDestroy={() => handleTerminalDestroy(tab.id)}
-                    onComposeRequest={openComposeWithDraft}
-                    targetLabel={tab.sessionName}
-                  />
-                </TerminalGestureLayer>
+                <InteractiveTerminal
+                  agentId={agentId}
+                  workspaceId={workspaceId}
+                  sessionName={tab.sessionName}
+                  className="h-full"
+                  onConnectionStateChange={(state) => handleConnectionStateChange(tab.id, state)}
+                  onTerminalReady={(term, send) => handleTerminalReady(tab.id, term, send)}
+                  onTerminalDestroy={() => handleTerminalDestroy(tab.id)}
+                  onComposeRequest={openComposeWithDraft}
+                  targetLabel={tab.sessionName}
+                />
               </div>
             ))}
-            <TerminalContextMenu
-              position={menuPosition}
-              onClose={() => setMenuPosition(null)}
-              hasSelection={menuSelection}
-              onCopy={() => {
-                const entry = activeTabId ? terminalsRef.current.get(activeTabId) : null;
-                if (entry) copyTerminalSelection(entry.term);
-              }}
-              onPaste={() => {
-                const entry = activeTabId ? terminalsRef.current.get(activeTabId) : null;
-                if (entry) {
-                  pasteToTerminal(entry.term, entry.send, {
-                    onCompose: openComposeWithDraft,
-                    targetLabel: activeTargetLabel,
-                    workspaceId,
-                  });
-                }
-              }}
-              onNewSession={handleCreateTab}
-              onCloseSession={
-                tabs.length > 1 && activeTabId ? () => handleKillTab(activeTabId) : undefined
-              }
-            />
           </div>
         </ResizablePanel>
         {composeOpen && (
