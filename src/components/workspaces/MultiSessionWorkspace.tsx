@@ -1173,11 +1173,9 @@ export function MultiSessionWorkspace({
           !currentState ||
           currentState.boardPaneKey !== nextState.boardPaneKey ||
           currentState.kind !== nextState.kind ||
-          ("connectionState" in patch &&
-            currentState.connectionState !== patch.connectionState) ||
+          ("connectionState" in patch && currentState.connectionState !== patch.connectionState) ||
           ("recoveryState" in patch && currentState.recoveryState !== patch.recoveryState) ||
-          ("gitRefreshState" in patch &&
-            currentState.gitRefreshState !== patch.gitRefreshState);
+          ("gitRefreshState" in patch && currentState.gitRefreshState !== patch.gitRefreshState);
 
         if (!hasChanged) return current;
         return {
