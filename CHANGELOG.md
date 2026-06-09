@@ -1,5 +1,11 @@
 # hive-orchestrator
 
+## 2.5.0
+
+### Minor Changes
+
+- ebfc79f: Unify terminal paste handling across desktop, mobile, tabbed, and multi-session terminals with compose staging for multiline text and workspace image paste uploads.
+
 ## 2.4.7
 
 ### Patch Changes
