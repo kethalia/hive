@@ -1,11 +1,12 @@
 // @vitest-environment jsdom
 import { act, cleanup, render, waitFor } from "@testing-library/react";
-import type { Terminal } from "@xterm/xterm";
+import { Terminal } from "@xterm/xterm";
 import type * as React from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { KeybindingProvider } from "@/components/terminal/KeybindingProvider";
 import type { KeybindingContextValue } from "@/hooks/useKeybindings";
 import { useKeybindings } from "@/hooks/useKeybindings";
+import { copyTerminalSelection } from "@/lib/terminal/actions";
 import { TERMINAL_FOCUS_ACTIVE_EVENT } from "@/lib/terminal/events";
 
 vi.mock("@/lib/terminal/actions", () => ({
@@ -339,6 +340,40 @@ describe("KeybindingProvider", () => {
 
     expect(action).not.toHaveBeenCalled();
     expect(event.defaultPrevented).toBe(false);
+  });
+
+  it("lets terminal Ctrl+C pass through when no text is selected", async () => {
+    vi.mocked(copyTerminalSelection).mockReturnValueOnce(true);
+    const probe = renderWithProbe();
+    const terminal = new Terminal();
+    vi.spyOn(terminal, "getSelection").mockReturnValue("");
+    vi.spyOn(terminal, "clearSelection").mockImplementation(() => {});
+
+    act(() => {
+      probe.context?.setActiveTerminal(terminal, vi.fn());
+    });
+
+    const result = probe.context?.handleKeyEvent(makeKeyEvent({ key: "c", ctrlKey: true }));
+
+    expect(result).toBe(true);
+    expect(copyTerminalSelection).toHaveBeenCalledWith(terminal);
+  });
+
+  it("consumes terminal Ctrl+C for copy when text is selected", async () => {
+    vi.mocked(copyTerminalSelection).mockReturnValueOnce(false);
+    const probe = renderWithProbe();
+    const terminal = new Terminal();
+    vi.spyOn(terminal, "getSelection").mockReturnValue("selected");
+    vi.spyOn(terminal, "clearSelection").mockImplementation(() => {});
+
+    act(() => {
+      probe.context?.setActiveTerminal(terminal, vi.fn());
+    });
+
+    const result = probe.context?.handleKeyEvent(makeKeyEvent({ key: "c", ctrlKey: true }));
+
+    expect(result).toBe(false);
+    expect(copyTerminalSelection).toHaveBeenCalledWith(terminal);
   });
 
   it("focuses the active terminal when sidebar toggles request terminal focus", async () => {
