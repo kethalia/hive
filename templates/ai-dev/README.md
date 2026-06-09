@@ -95,7 +95,7 @@ npm uninstall -g get-shit-done-cc get-shit-done-redux gsd-pi @gsd-build/sdk @gsd
 npm install -g @openai/codex@latest @opengsd/get-shit-done-redux@latest @opengsd/gsd-pi@latest
 get-shit-done-redux --claude --global
 get-shit-done-redux --codex --global
-codex mcp add hive_obsidian -- npx -y @bitbonsai/mcpvault@1.0.4 /home/coder/vault || true
+codex mcp add hive_obsidian -- npx -y @bitbonsai/mcpvault@0.11.0 /home/coder/vault || true
 codex mcp add hive_playwright --env DISPLAY=:1 -- npx -y @playwright/mcp --no-sandbox || true
 if [ -f "$HOME/vault/Agents/AGENTS.md" ]; then mkdir -p "$HOME/.codex" && cp "$HOME/vault/Agents/AGENTS.md" "$HOME/.codex/AGENTS.md"; fi
 bash "$HOME/sync-vault.sh" || true
@@ -290,7 +290,7 @@ npm uninstall -g get-shit-done-cc get-shit-done-redux gsd-pi @gsd-build/sdk @gsd
 npm install -g @openai/codex@latest @opengsd/get-shit-done-redux@latest @opengsd/gsd-pi@latest
 get-shit-done-redux --claude --global
 get-shit-done-redux --codex --global
-codex mcp add hive_obsidian -- npx -y @bitbonsai/mcpvault@1.0.4 /home/coder/vault || true
+codex mcp add hive_obsidian -- npx -y @bitbonsai/mcpvault@0.11.0 /home/coder/vault || true
 codex mcp add hive_playwright --env DISPLAY=:1 -- npx -y @playwright/mcp --no-sandbox || true
 if [ -f "$HOME/vault/Agents/AGENTS.md" ]; then mkdir -p "$HOME/.codex" && cp "$HOME/vault/Agents/AGENTS.md" "$HOME/.codex/AGENTS.md"; fi
 bash "$HOME/sync-vault.sh" || true

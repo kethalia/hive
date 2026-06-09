@@ -141,7 +141,7 @@ end = "# <<< hive-managed-codex-mcp"
 block = f"""{start}
 [mcp_servers.hive_obsidian]
 command = "npx"
-args = ["-y", "@bitbonsai/mcpvault@1.0.4", "/home/coder/vault"]
+args = ["-y", "@bitbonsai/mcpvault@0.11.0", "/home/coder/vault"]
 
 [mcp_servers.hive_playwright]
 command = "npx"
