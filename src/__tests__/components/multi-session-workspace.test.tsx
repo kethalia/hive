@@ -1,7 +1,16 @@
 // @vitest-environment jsdom
 
-import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  act,
+  cleanup,
+  createEvent,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import type { Terminal } from "@xterm/xterm";
+import { useEffect } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import "@testing-library/jest-dom/vitest";
 import type { KeepAliveStatus } from "@/hooks/useKeepAliveStatus";
@@ -19,6 +28,7 @@ const mockRegister = vi.fn();
 const mockUnregister = vi.fn();
 const mockRouterPush = vi.fn();
 const mockToastInfo = vi.hoisted(() => vi.fn());
+let emitConnectionStateOnCallbackChange = false;
 const mockUseKeepAliveStatus = vi.hoisted(() =>
   vi.fn(
     (_workspaceId: string): KeepAliveStatus => ({
@@ -132,6 +142,11 @@ vi.mock("next/dynamic", () => ({
       onTerminalReady?: (term: Terminal, send: (data: string) => void) => void;
       onTerminalDestroy?: () => void;
     }) => {
+      useEffect(() => {
+        if (!emitConnectionStateOnCallbackChange) return;
+        onConnectionStateChange?.("connected");
+      }, [onConnectionStateChange]);
+
       terminalProps.set(sessionName, {
         agentId,
         workspaceId,
@@ -310,6 +325,8 @@ vi.mock("@/components/ui/input", () => ({
 
 vi.mock("lucide-react", () => ({
   AlertCircle: () => <span data-testid="icon-alert" />,
+  ClipboardPaste: () => <span data-testid="icon-paste" />,
+  Copy: () => <span data-testid="icon-copy" />,
   Loader2: () => <span data-testid="icon-loader" />,
   Minus: () => <span data-testid="icon-minus" />,
   Plus: () => <span data-testid="icon-plus" />,
@@ -366,6 +383,7 @@ function lastRegisteredEntry(id: string) {
 describe("MultiSessionWorkspace", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    emitConnectionStateOnCallbackChange = false;
     terminalProps.clear();
     window.localStorage.clear();
     mockGetSessions.mockResolvedValue({ data: [] });
@@ -432,6 +450,19 @@ describe("MultiSessionWorkspace", () => {
     expect(screen.queryByTestId("float-pane-pane-main-session")).not.toBeInTheDocument();
   });
 
+  it("ignores duplicate pane connection updates from callback identity changes", async () => {
+    emitConnectionStateOnCallbackChange = true;
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    await renderTwoSessionWorkspace();
+    await waitFor(() => {
+      expect(screen.getByTestId("interactive-terminal-main-session")).toBeInTheDocument();
+      expect(screen.getByTestId("interactive-terminal-dev-server")).toBeInTheDocument();
+    });
+
+    expect(consoleError.mock.calls.flat().join("\n")).not.toContain("Maximum update depth");
+  });
+
   it("gives the primary pane full height when three sessions are open", async () => {
     mockGetSessions.mockResolvedValue({
       data: [
@@ -467,9 +498,10 @@ describe("MultiSessionWorkspace", () => {
     );
   });
 
-  it("changes focus on hover and click while preserving terminal ownership", async () => {
+  it("changes active pane on hover without stealing terminal focus", async () => {
     await renderTwoSessionWorkspace();
-    const devTerm = makeTerminal("dev-server");
+    const focusDevTerminal = vi.fn();
+    const devTerm = makeTerminal("dev-server", focusDevTerminal);
     const devSend = makeSender("dev-server");
 
     act(() => {
@@ -480,6 +512,7 @@ describe("MultiSessionWorkspace", () => {
 
     expect(screen.getByTestId("active-pane-label")).toHaveTextContent("dev-server");
     expect(mockSetActiveTerminal).toHaveBeenLastCalledWith(devTerm, devSend);
+    expect(focusDevTerminal).not.toHaveBeenCalled();
     expect(
       JSON.parse(window.localStorage.getItem("workspace-board-state:workspace:ws-1") ?? "{}")
         .boards[0].activePaneKey,
@@ -488,6 +521,39 @@ describe("MultiSessionWorkspace", () => {
     fireEvent.click(screen.getByTestId("workspace-pane-main-session"));
 
     expect(screen.getByTestId("active-pane-label")).toHaveTextContent("main-session");
+  });
+
+  it("allows the native xterm context menu in multi-session panes", async () => {
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: {
+        writeText: vi.fn().mockResolvedValue(undefined),
+        readText: vi.fn().mockResolvedValue("printf ok"),
+      },
+    });
+    await renderTwoSessionWorkspace();
+    const devTerm = makeTerminal("dev-server");
+    const devSend = makeSender("dev-server");
+
+    act(() => {
+      terminalProps.get("dev-server")?.onTerminalReady?.(devTerm, devSend);
+    });
+    mockSetActiveTerminal.mockClear();
+
+    const nativeContextMenu = createEvent.contextMenu(
+      screen.getByTestId("interactive-terminal-dev-server"),
+      {
+        bubbles: true,
+        cancelable: true,
+        clientX: 180,
+        clientY: 220,
+      },
+    );
+    fireEvent(screen.getByTestId("interactive-terminal-dev-server"), nativeContextMenu);
+
+    expect(nativeContextMenu.defaultPrevented).toBe(false);
+    expect(screen.queryByRole("menu", { name: /terminal context menu/i })).not.toBeInTheDocument();
+    expect(mockSetActiveTerminal).not.toHaveBeenCalled();
   });
 
   it("does not consume space or enter typed inside terminal panes", async () => {

@@ -90,7 +90,6 @@ interface InteractiveTerminalProps {
 
 interface MobileTouchIntent {
   didScroll: boolean;
-  lineRemainder: number;
   touchIdentifier: number;
   startX: number;
   startY: number;
@@ -99,7 +98,6 @@ interface MobileTouchIntent {
 }
 
 const MOBILE_TERMINAL_SCROLL_THRESHOLD_PX = Math.max(TAP_THRESHOLD_PX + 3, 8);
-const FALLBACK_TERMINAL_LINE_HEIGHT_PX = 20;
 const FALLBACK_TERMINAL_ROWS = 24;
 const FALLBACK_TERMINAL_COLS = 80;
 
@@ -181,33 +179,37 @@ function validateRefreshedCloneTerminalIdentity(
   };
 }
 
-function terminalLineHeightPx(term: Terminal | null): number {
-  const fontSize = Number(term?.options?.fontSize);
-  const lineHeight = Number(term?.options?.lineHeight);
-  const estimated = fontSize * (Number.isFinite(lineHeight) && lineHeight > 0 ? lineHeight : 1.4);
-  return Number.isFinite(estimated) && estimated > 0 ? estimated : FALLBACK_TERMINAL_LINE_HEIGHT_PX;
-}
-
 function preventDefaultIfCancelable(event: { cancelable?: boolean; preventDefault: () => void }) {
   if (event.cancelable) {
     event.preventDefault();
   }
 }
 
-function scrollTerminalByTouchDelta(
+function terminalMouseTrackingActive(term: Terminal | null): boolean {
+  return term?.modes?.mouseTrackingMode !== undefined && term.modes.mouseTrackingMode !== "none";
+}
+
+function dispatchTmuxTouchWheel(
   term: Terminal | null,
-  intent: MobileTouchIntent,
+  container: HTMLElement | null,
+  touch: Pick<Touch, "clientX" | "clientY">,
   deltaY: number,
-) {
-  if (!term || typeof term.scrollLines !== "function") return;
+): boolean {
+  if (!terminalMouseTrackingActive(term) || !container) return false;
 
-  intent.lineRemainder += -deltaY / terminalLineHeightPx(term);
-  const wholeLines =
-    intent.lineRemainder > 0 ? Math.floor(intent.lineRemainder) : Math.ceil(intent.lineRemainder);
-  if (wholeLines === 0) return;
-
-  term.scrollLines(wholeLines);
-  intent.lineRemainder -= wholeLines;
+  const target =
+    container.querySelector<HTMLElement>(".xterm-screen") ??
+    container.querySelector<HTMLElement>(".xterm") ??
+    container;
+  const event = new WheelEvent("wheel", {
+    bubbles: true,
+    cancelable: true,
+    clientX: touch.clientX,
+    clientY: touch.clientY,
+    deltaY: -deltaY,
+  });
+  target.dispatchEvent(event);
+  return true;
 }
 
 function warnFitFailure(err: unknown) {
@@ -556,7 +558,6 @@ export function InteractiveTerminal({
   const beginMobileTouchScroll = useCallback((touch: Touch) => {
     mobileTouchIntentRef.current = {
       didScroll: false,
-      lineRemainder: 0,
       touchIdentifier: touch.identifier,
       startX: touch.clientX,
       startY: touch.clientY,
@@ -592,7 +593,7 @@ export function InteractiveTerminal({
     const deltaY = touch.clientY - intent.lastY;
     intent.lastY = touch.clientY;
     const term = termRef.current;
-    scrollTerminalByTouchDelta(term, intent, deltaY);
+    dispatchTmuxTouchWheel(term, containerRef.current, touch, deltaY);
     if (term) {
       pinnedToBottomRef.current = isTerminalScrolledToBottom(term);
     }
@@ -749,8 +750,10 @@ export function InteractiveTerminal({
       lineHeight: 1.4,
       cursorBlink: true,
       convertEol: true,
+      macOptionClickForcesSelection: true,
+      rightClickSelectsWord: true,
       scrollOnUserInput: true,
-      scrollback: 10000,
+      scrollback: 0,
     },
     recreateKey: [
       agentId,
@@ -872,7 +875,10 @@ export function InteractiveTerminal({
   });
 
   return (
-    <div className={cn("relative flex flex-col bg-[#0a0a0a] overflow-hidden", className)}>
+    <div
+      className={cn("relative flex flex-col bg-[#0a0a0a] overflow-hidden", className)}
+      data-terminal-surface="true"
+    >
       {connectionState === "workspace-offline" && (
         <Alert variant="destructive" className="rounded-none border-x-0 border-t-0">
           <AlertCircle />

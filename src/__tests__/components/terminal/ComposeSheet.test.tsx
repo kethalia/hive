@@ -101,11 +101,6 @@ vi.mock("@/hooks/useKeybindings", () => ({
   useKeybindings: () => mockCtx,
 }));
 
-vi.mock("@/components/terminal/TerminalContextMenu", () => ({
-  TerminalContextMenu: ({ position }: { position: { x: number; y: number } | null }) =>
-    position ? <div data-testid="terminal-context-menu" /> : null,
-}));
-
 vi.mock("@/components/terminal/ComposePanel", () => ({
   ComposePanel: ({ hideHeader }: { hideHeader?: boolean }) => (
     <div data-hide-header={hideHeader ? "true" : "false"} data-testid="compose-panel" />

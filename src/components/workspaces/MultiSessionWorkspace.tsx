@@ -1056,7 +1056,8 @@ export function MultiSessionWorkspace({
   );
 
   const selectSession = useCallback(
-    (sessionName: string) => {
+    (sessionName: string, options: { focusTerminal?: boolean } = {}) => {
+      const { focusTerminal = true } = options;
       setActiveSessionName(sessionName);
 
       const selectedPane = visibleSessions.find((session) => session.sessionName === sessionName);
@@ -1069,7 +1070,9 @@ export function MultiSessionWorkspace({
       const entry = terminalsRef.current.get(sessionName);
       if (entry) {
         setActiveTerminal(entry.term, entry.send);
-        entry.term.focus();
+        if (focusTerminal) {
+          entry.term.focus();
+        }
         return;
       }
       clearActiveTerminal();
@@ -1157,15 +1160,29 @@ export function MultiSessionWorkspace({
       kind: WorkspacePaneRecoveryInput["kind"],
       patch: Partial<WorkspacePaneRecoveryInput>,
     ) => {
-      setPaneRecoveryStates((current) => ({
-        ...current,
-        [boardPaneKey]: {
-          ...current[boardPaneKey],
+      setPaneRecoveryStates((current) => {
+        const currentState = current[boardPaneKey];
+        const nextState = {
+          ...currentState,
           boardPaneKey,
           kind,
           ...patch,
-        },
-      }));
+        };
+
+        const hasChanged =
+          !currentState ||
+          currentState.boardPaneKey !== nextState.boardPaneKey ||
+          currentState.kind !== nextState.kind ||
+          ("connectionState" in patch && currentState.connectionState !== patch.connectionState) ||
+          ("recoveryState" in patch && currentState.recoveryState !== patch.recoveryState) ||
+          ("gitRefreshState" in patch && currentState.gitRefreshState !== patch.gitRefreshState);
+
+        if (!hasChanged) return current;
+        return {
+          ...current,
+          [boardPaneKey]: nextState,
+        };
+      });
     },
     [],
   );
@@ -2540,8 +2557,14 @@ export function MultiSessionWorkspace({
         data-pane-mode="tiled"
         style={paneStyle}
         tabIndex={0}
-        onMouseEnter={() => selectSession(pane.sessionName)}
-        onClick={() => selectSession(pane.sessionName)}
+        onMouseEnter={() => selectSession(pane.sessionName, { focusTerminal: false })}
+        onClick={(event) => {
+          const target = event.target;
+          if (target instanceof HTMLElement && target.closest("[data-terminal-surface='true']")) {
+            return;
+          }
+          selectSession(pane.sessionName);
+        }}
         onFocus={(event) => {
           if (event.currentTarget !== event.target) return;
           selectSession(pane.sessionName);

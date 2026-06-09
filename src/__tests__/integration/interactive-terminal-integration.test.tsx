@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 import "@testing-library/jest-dom/vitest";
-import { act, cleanup, createEvent, fireEvent, render, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, waitFor } from "@testing-library/react";
 import type React from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ConnectionState, TerminalRecoveryState } from "@/hooks/useTerminalWebSocket";
@@ -19,12 +19,14 @@ const { mockUseTerminalWebSocket, mockFit, mockSend, mockResize, terminalInstanc
     terminalInstances: [] as Array<{
       attachCustomKeyEventHandler: ReturnType<typeof vi.fn>;
       buffer: { active: { baseY: number; viewportY: number } };
+      constructorOptions: Record<string, unknown>;
       dataHandler?: (data: string) => void;
       focus: ReturnType<typeof vi.fn>;
       onData: ReturnType<typeof vi.fn>;
       resizeHandler?: (dimensions: { rows: number; cols: number }) => void;
       scrollLines: ReturnType<typeof vi.fn>;
       scrollToBottom: ReturnType<typeof vi.fn>;
+      modes: { mouseTrackingMode: string };
     }>,
   }),
 );
@@ -107,7 +109,6 @@ const {
     },
     terminalRouteMockState: {
       commandPaletteProps: null as unknown,
-      gestureLayerProps: null as unknown,
       interactiveTerminalProps: null as null | {
         clonePath?: string;
         cloneProof?: string;
@@ -132,11 +133,15 @@ vi.mock("@xterm/xterm", () => ({
     rows = 24;
     cols = 80;
     buffer = { active: { baseY: 10, viewportY: 9 } };
+    modes = { mouseTrackingMode: "none" };
     open = vi.fn((element: HTMLElement) => {
       const terminal = document.createElement("div");
       terminal.className = "xterm";
+      const screen = document.createElement("div");
+      screen.className = "xterm-screen";
       const helper = document.createElement("textarea");
       helper.className = "xterm-helper-textarea";
+      terminal.appendChild(screen);
       terminal.appendChild(helper);
       element.appendChild(terminal);
     });
@@ -161,8 +166,10 @@ vi.mock("@xterm/xterm", () => ({
     getSelection = vi.fn(() => "");
     clearSelection = vi.fn();
     dataHandler?: (data: string) => void;
+    constructorOptions: Record<string, unknown>;
 
-    constructor() {
+    constructor(options: Record<string, unknown> = {}) {
+      this.constructorOptions = options;
       terminalInstances.push(this);
     }
   },
@@ -542,27 +549,6 @@ vi.mock("@/components/terminal/MobileTerminalShell", () => ({
   ),
 }));
 
-vi.mock("@/components/terminal/TerminalContextMenu", () => ({
-  TerminalContextMenu: () => null,
-}));
-
-vi.mock("@/components/terminal/TerminalGestureLayer", () => ({
-  TerminalGestureLayer: ({
-    children,
-    selectionModeEnabled,
-  }: React.PropsWithChildren<{ selectionModeEnabled?: boolean }>) => {
-    terminalRouteMockState.gestureLayerProps = { selectionModeEnabled };
-    return (
-      <div
-        data-selection-mode-enabled={selectionModeEnabled ? "true" : "false"}
-        data-testid="terminal-gesture-layer"
-      >
-        {children}
-      </div>
-    );
-  },
-}));
-
 vi.mock("@/components/ui/button", () => ({
   Button: ({ children, ...props }: React.ButtonHTMLAttributes<HTMLButtonElement>) => (
     <button type="button" {...props}>
@@ -673,7 +659,6 @@ beforeEach(() => {
     select: vi.fn(() => false),
   });
   terminalRouteMockState.commandPaletteProps = null;
-  terminalRouteMockState.gestureLayerProps = null;
   terminalRouteMockState.interactiveTerminalProps = null;
   terminalRouteMockState.mobileControlsProps = null;
   multiSessionRouteMockState.props = null;
@@ -897,6 +882,21 @@ function terminalRecoveryState(
 }
 
 describe("InteractiveTerminal integration — Connection state banners", () => {
+  it("configures xterm native selection options for tmux mouse mode", async () => {
+    const { unmount } = await renderTerminal();
+    const terminal = terminalInstances.at(-1);
+
+    expect(terminal?.constructorOptions).toEqual(
+      expect.objectContaining({
+        macOptionClickForcesSelection: true,
+        rightClickSelectsWord: true,
+        scrollback: 0,
+      }),
+    );
+
+    unmount();
+  });
+
   it("shows workspace offline banner", async () => {
     mockUseTerminalWebSocket.mockReturnValue({
       send: vi.fn(),
@@ -1597,10 +1597,6 @@ describe("TerminalClient integration — Mobile terminal route props", () => {
       "data-selection-mode-enabled",
       "false",
     );
-    expect(getByTestId("terminal-gesture-layer")).toHaveAttribute(
-      "data-selection-mode-enabled",
-      "false",
-    );
     expect(getByTestId("terminal-desktop-shell")).toBeInTheDocument();
     expect(getByTestId("terminal-desktop-shell")).toHaveClass(
       "h-[calc(var(--app-viewport-height)-var(--safe-area-inset-top)-3.5rem)]",
@@ -1922,7 +1918,7 @@ describe("TerminalClient integration — Mobile terminal route props", () => {
     unmount();
   });
 
-  it("forwards mobile selection mode to the gesture layer and terminal only on compose-sheet routes", async () => {
+  it("forwards mobile selection mode to the terminal only on compose-sheet routes", async () => {
     mockUseIsComposeSheet.mockReturnValue(true);
     const activeTerminal = {
       clearSelection: vi.fn(),
@@ -1948,20 +1944,9 @@ describe("TerminalClient integration — Mobile terminal route props", () => {
       );
     });
 
-    const suppressedContextMenu = createEvent.contextMenu(getByTestId("terminal-gesture-layer"), {
-      bubbles: true,
-      cancelable: true,
-    });
-    fireEvent(getByTestId("terminal-gesture-layer"), suppressedContextMenu);
-    expect(suppressedContextMenu.defaultPrevented).toBe(true);
-
     fireEvent.click(getByTestId("terminal-selection-toggle"));
 
     expect(getByTestId("terminal-mobile-controls")).toHaveAttribute(
-      "data-selection-mode-enabled",
-      "true",
-    );
-    expect(getByTestId("terminal-gesture-layer")).toHaveAttribute(
       "data-selection-mode-enabled",
       "true",
     );
@@ -1969,21 +1954,11 @@ describe("TerminalClient integration — Mobile terminal route props", () => {
       "data-selection-mode-enabled",
       "true",
     );
-    expect(getByTestId("terminal-gesture-layer").parentElement).toHaveAttribute(
+    expect(getByTestId("interactive-terminal").parentElement).toHaveAttribute(
       "data-sidebar-gesture-ignore",
       "true",
     );
     expect(getByTestId("terminal-clipboard-status")).toHaveTextContent("Selection mode on");
-
-    const nativeSelectionContextMenu = createEvent.contextMenu(
-      getByTestId("terminal-gesture-layer"),
-      {
-        bubbles: true,
-        cancelable: true,
-      },
-    );
-    fireEvent(getByTestId("terminal-gesture-layer"), nativeSelectionContextMenu);
-    expect(nativeSelectionContextMenu.defaultPrevented).toBe(false);
     unmount();
   });
 
@@ -2430,7 +2405,7 @@ describe("InteractiveTerminal integration — Mobile input adapter", () => {
     unmount();
   });
 
-  it("scrolls mobile terminal touch drags without allowing native page scroll or keyboard focus", async () => {
+  it("does not use browser scrollback for mobile terminal touch drags", async () => {
     const { container, unmount } = await renderTerminal({ mobileInputMode: true });
     const terminal = terminalInstances.at(-1);
     expect(terminal).toBeDefined();
@@ -2446,8 +2421,40 @@ describe("InteractiveTerminal integration — Mobile input adapter", () => {
     fireEvent.click(inputTarget as Element);
 
     expect(touchMove.defaultPrevented).toBe(true);
-    expect(terminal?.scrollLines).toHaveBeenCalledWith(4);
+    expect(terminal?.scrollLines).not.toHaveBeenCalled();
     expect(terminal?.focus).not.toHaveBeenCalled();
+    unmount();
+  });
+
+  it("forwards mobile terminal touch drags to tmux mouse scrollback when mouse tracking is active", async () => {
+    const { container, unmount } = await renderTerminal({ mobileInputMode: true });
+    const terminal = terminalInstances.at(-1);
+    expect(terminal).toBeDefined();
+
+    if (terminal) {
+      terminal.modes.mouseTrackingMode = "any";
+    }
+    terminal?.scrollLines.mockClear();
+    const inputTarget = container.querySelector('[data-testid="terminal-fit-host"]');
+    const screen = container.querySelector(".xterm-screen");
+    expect(inputTarget).toBeTruthy();
+    expect(screen).toBeTruthy();
+
+    const wheelEvents: WheelEvent[] = [];
+    screen?.addEventListener("wheel", (event) => {
+      wheelEvents.push(event as WheelEvent);
+    });
+
+    fireTouchEvent(inputTarget as Element, "touchstart", [touchPoint(1, 80, 320)]);
+    const touchMove = fireTouchEvent(inputTarget as Element, "touchmove", [touchPoint(1, 80, 240)]);
+    fireTouchEvent(inputTarget as Element, "touchend", [], [touchPoint(1, 80, 240)]);
+
+    expect(touchMove.defaultPrevented).toBe(true);
+    expect(terminal?.scrollLines).not.toHaveBeenCalled();
+    expect(wheelEvents).toHaveLength(1);
+    expect(wheelEvents[0]?.deltaY).toBe(80);
+    expect(wheelEvents[0]?.clientX).toBe(80);
+    expect(wheelEvents[0]?.clientY).toBe(240);
     unmount();
   });
 

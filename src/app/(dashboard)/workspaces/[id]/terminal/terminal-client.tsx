@@ -10,8 +10,6 @@ import { ComposePanel } from "@/components/terminal/ComposePanel";
 import { MobileTerminalControls } from "@/components/terminal/MobileTerminalControls";
 import { MobileTerminalDiagnosticsOverlay } from "@/components/terminal/MobileTerminalDiagnosticsOverlay";
 import { MobileTerminalShell } from "@/components/terminal/MobileTerminalShell";
-import { TerminalContextMenu } from "@/components/terminal/TerminalContextMenu";
-import { TerminalGestureLayer } from "@/components/terminal/TerminalGestureLayer";
 import { Button } from "@/components/ui/button";
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
@@ -169,8 +167,6 @@ function TerminalInner({
   const routeRelativePath = session ? searchParams.get("relativePath") || undefined : undefined;
   const debugViewportEnabled = searchParams.get("debugViewport") === "1";
   const { setActiveTerminal, activeTerminal, activeSend, register, unregister } = useKeybindings();
-  const [menuPosition, setMenuPosition] = useState<{ x: number; y: number } | null>(null);
-  const [menuSelection, setMenuSelection] = useState(false);
   const [composeOpen, setComposeOpen] = useState(false);
   const [composeDraft, setComposeDraft] = useState("");
   const [composeTargetLabel, setComposeTargetLabel] = useState<string | undefined>();
@@ -567,66 +563,33 @@ function TerminalInner({
       className="h-full"
       data-sidebar-gesture-ignore={controlsSelectionModeEnabled ? "true" : undefined}
       data-terminal-surface="true"
-      onContextMenu={(e) => {
-        if (controlsSelectionModeEnabled) return;
-
-        e.preventDefault();
-        setMenuSelection(!!activeTerminal?.getSelection());
-        setMenuPosition({ x: e.clientX, y: e.clientY });
-      }}
     >
-      <TerminalGestureLayer
+      <InteractiveTerminal
+        key={session}
+        agentId={agentId}
+        workspaceId={workspaceId}
+        sessionName={session}
+        clonePath={clonePath}
+        cloneProof={cloneProof}
+        refreshCloneTerminalIdentity={
+          canRefreshCloneIdentity ? refreshCloneTerminalIdentity : undefined
+        }
+        className="h-full rounded-none border-0"
+        onTerminalReady={handleTerminalReady}
+        onTerminalDestroy={handleTerminalDestroy}
+        onComposeRequest={openComposeWithDraft}
+        onClipboardStatus={(message) =>
+          setClipboardActionStatus({
+            action: "paste",
+            outcome: message === "Clipboard is empty." ? "empty" : "pasted",
+            method: "clipboard-api",
+          })
+        }
+        targetLabel={session}
+        layoutSignal={mobileLayoutSignal}
+        mobileInputMode={isComposeSheet}
+        pinToBottomOnResize={isComposeSheet}
         selectionModeEnabled={controlsSelectionModeEnabled}
-        onLongPress={(x, y) => {
-          setMenuSelection(!!activeTerminal?.getSelection());
-          setMenuPosition({ x, y });
-        }}
-      >
-        <InteractiveTerminal
-          key={session}
-          agentId={agentId}
-          workspaceId={workspaceId}
-          sessionName={session}
-          clonePath={clonePath}
-          cloneProof={cloneProof}
-          refreshCloneTerminalIdentity={
-            canRefreshCloneIdentity ? refreshCloneTerminalIdentity : undefined
-          }
-          className="h-full rounded-none border-0"
-          onTerminalReady={handleTerminalReady}
-          onTerminalDestroy={handleTerminalDestroy}
-          onComposeRequest={openComposeWithDraft}
-          onClipboardStatus={(message) =>
-            setClipboardActionStatus({
-              action: "paste",
-              outcome: message === "Clipboard is empty." ? "empty" : "pasted",
-              method: "clipboard-api",
-            })
-          }
-          targetLabel={session}
-          layoutSignal={mobileLayoutSignal}
-          mobileInputMode={isComposeSheet}
-          pinToBottomOnResize={isComposeSheet}
-          selectionModeEnabled={controlsSelectionModeEnabled}
-        />
-      </TerminalGestureLayer>
-      <TerminalContextMenu
-        position={menuPosition}
-        onClose={() => setMenuPosition(null)}
-        hasSelection={menuSelection}
-        onCopy={() => {
-          if (activeTerminal) copyTerminalSelection(activeTerminal);
-        }}
-        onPaste={() => {
-          if (activeTerminal && activeSend) {
-            pasteToTerminal(activeTerminal, activeSend, {
-              onStatus: setClipboardActionStatus,
-              onCompose: openComposeWithDraft,
-              targetLabel: session ?? undefined,
-              workspaceId,
-            });
-          }
-        }}
       />
     </div>
   );

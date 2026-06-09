@@ -32,7 +32,11 @@ export async function POST(request: Request) {
   try {
     const result = await getAuthServiceClient().login({ coderUrl, email, password });
     const response = NextResponse.json({ success: true as const });
-    appendSetSessionCookieHeaders(response.headers, createSignedSessionCookie(result.sessionId));
+    appendSetSessionCookieHeaders(
+      response.headers,
+      createSignedSessionCookie(result.sessionId),
+      new URL(request.url).hostname,
+    );
     console.log(`[login] Login successful for ${email}`);
     return response;
   } catch (error) {

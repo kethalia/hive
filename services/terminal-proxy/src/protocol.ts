@@ -14,6 +14,19 @@ function shellQuote(value: string): string {
   return `'${value.replace(/'/g, "'\\''")}'`;
 }
 
+const TMUX_MENU_BINDING_COMMAND = [
+  "bind-key -n F12 display-menu -T '#S:#W'",
+  "'Copy mode' c 'copy-mode'",
+  "'Choose tree' t 'choose-tree -Zw'",
+  "''",
+  "'Split horizontal' h 'split-window -h'",
+  "'Split vertical' v 'split-window -v'",
+  "'New window' n 'new-window'",
+  "'Rename window' r 'command-prompt -I \"#W\" \"rename-window -- %%\"'",
+  "''",
+  "'Kill pane' x 'confirm-before -p \"kill-pane #P? (y/n)\" kill-pane'",
+].join(" ");
+
 export function buildPtyUrl(
   baseUrl: string,
   agentId: string,
@@ -37,15 +50,14 @@ export function buildPtyUrl(
   //   -A        → attach to session if it exists, create if it doesn't
   //   -s <name> → session name
   // This makes the PTY run inside tmux, so the session survives disconnects.
-  // Hide the tmux status bar — the web UI tab manager already shows session
-  // names, so the green bar is redundant and wastes terminal real estate.
-  // status off    → hide green status bar (web UI tab manager already shows names)
-  // mouse off     → let xterm.js handle mouse events natively
-  // terminal-overrides smcup@:rmcup@ → disable alternate screen so xterm.js
-  //   stays in the normal buffer and mouse wheel scrolls the scrollback instead
-  //   of being converted to up/down arrow key sequences
+  // Hide the tmux status bar; the web UI tab manager already shows session
+  // names, so the green bar is redundant.
+  // Enable tmux mouse support so wheel/trackpad scrolling uses tmux-managed
+  // pane history, including output produced before the browser attached.
+  // Install the Hive menu binding on every attach so existing tmux servers pick
+  // up config changes without needing a server restart.
   const cwdArg = cwd ? ` -c ${shellQuote(cwd)}` : "";
-  const command = `tmux -L web new-session -A -s ${sessionName}${cwdArg} \\; set status off \\; set mouse off \\; set -g terminal-overrides ",xterm*:smcup@:rmcup@"`;
+  const command = `tmux -L web ${TMUX_MENU_BINDING_COMMAND} \\; new-session -A -s ${sessionName}${cwdArg} \\; set status off \\; set mouse on`;
 
   const params = new URLSearchParams({
     reconnect: reconnectId,

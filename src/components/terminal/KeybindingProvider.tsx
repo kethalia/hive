@@ -16,6 +16,8 @@ import { copyTerminalSelection } from "@/lib/terminal/actions";
 import { TERMINAL_FOCUS_ACTIVE_EVENT } from "@/lib/terminal/events";
 import { isPwaStandalone } from "@/lib/terminal/pwa";
 
+const TMUX_MENU_KEY_SEQUENCE = "\u001b[24~";
+
 export function KeybindingProvider({ children }: { children: React.ReactNode }) {
   const registryRef = React.useRef<Map<string, KeybindingEntry>>(new Map());
   const [activeTerminal, setActiveTerminalState] = React.useState<Terminal | null>(null);
@@ -127,6 +129,25 @@ export function KeybindingProvider({ children }: { children: React.ReactNode }) 
     });
     return () => {
       unregister("copy");
+    };
+  }, [register, unregister]);
+
+  React.useEffect(() => {
+    register({
+      id: "tmux-menu",
+      keys: ["ctrl+shift+m", "cmd+shift+m"],
+      action: (_term, send) => {
+        if (!send) return true;
+        send(TMUX_MENU_KEY_SEQUENCE);
+        return false;
+      },
+      description: "Open tmux menu",
+      category: "terminal",
+      enabledInBrowser: true,
+      global: true,
+    });
+    return () => {
+      unregister("tmux-menu");
     };
   }, [register, unregister]);
 

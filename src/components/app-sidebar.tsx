@@ -120,10 +120,6 @@ function useRelativeTime(date: Date | null, enabled: boolean): string {
   return `${diffHr}h ago`;
 }
 
-function openPopup(url: string, title: string) {
-  window.open(url, title, "width=1200,height=800,menubar=no,toolbar=no");
-}
-
 interface SectionState<T> {
   data: T[];
   isLoading: boolean;
@@ -159,7 +155,6 @@ const TERMINAL_CONTROLS_SWITCH_ID = "terminal-controls-beyond-mobile";
 const TERMINAL_CONTROLS_SWITCH_LABEL_ID = `${TERMINAL_CONTROLS_SWITCH_ID}-label`;
 const TERMINAL_CONTROLS_SWITCH_DESCRIPTION_ID = `${TERMINAL_CONTROLS_SWITCH_ID}-description`;
 const TERMINAL_CONTROLS_SWITCH_ERROR_ID = `${TERMINAL_CONTROLS_SWITCH_ID}-error`;
-
 function isGitCloneTerminalIdentity(value: unknown): value is GitCloneTerminalIdentity {
   if (!value || typeof value !== "object") return false;
 
@@ -764,6 +759,12 @@ export function AppSidebar() {
   );
 
   const coderUrl = sessionUser?.coderUrl ?? undefined;
+  const navigateInternal = useCallback(
+    (href: string) => {
+      router.push(href);
+    },
+    [router],
+  );
 
   const [workspacesOpen, setWorkspacesOpen] = useState(true);
   const [templatesOpen, setTemplatesOpen] = useState(true);
@@ -1260,12 +1261,12 @@ export function AppSidebar() {
             },
           };
         });
-        router.push(`/workspaces/${workspaceId}/terminal?session=${encodeURIComponent(name)}`);
+        navigateInternal(`/workspaces/${workspaceId}/terminal?session=${encodeURIComponent(name)}`);
       } else {
         console.error("[sidebar] create session failed:", result?.serverError);
       }
     },
-    [router],
+    [navigateInternal],
   );
 
   const handleKillSession = useCallback(
@@ -1357,7 +1358,9 @@ export function AppSidebar() {
           params.set("debugViewport", "1");
         }
 
-        router.push(`/workspaces/${encodeURIComponent(workspaceId)}/terminal?${params.toString()}`);
+        navigateInternal(
+          `/workspaces/${encodeURIComponent(workspaceId)}/terminal?${params.toString()}`,
+        );
       } catch {
         console.warn("[sidebar] Git terminal open failed: action rejected");
         setWorkspaceGitTerminalErrors((prev) => ({
@@ -1367,7 +1370,7 @@ export function AppSidebar() {
         setFavorites((prev) => ({ ...prev, error: GIT_TERMINAL_OPEN_ERROR_MESSAGE }));
       }
     },
-    [fetchAgentInfo, router, searchParams],
+    [fetchAgentInfo, navigateInternal, searchParams],
   );
 
   const handleGitRepositorySelect = useCallback(
@@ -1432,8 +1435,7 @@ export function AppSidebar() {
               {coderUrl && (
                 <SidebarMenuItem>
                   <SidebarMenuButton
-                    // biome-ignore lint/a11y/useAnchorContent: content is injected by Base UI render prop
-                    render={<a href={coderUrl} target="_blank" rel="noopener noreferrer" />}
+                    render={<Link href={coderUrl} target="_blank" rel="noopener noreferrer" />}
                   >
                     <LayoutDashboard className="h-4 w-4" />
                     <span>Dashboard</span>
@@ -1547,8 +1549,13 @@ export function AppSidebar() {
                                   <>
                                     <SidebarMenuSubItem>
                                       <SidebarMenuSubButton
-                                        className="cursor-pointer"
-                                        onClick={() => openPopup(urls.filebrowser, "Filebrowser")}
+                                        render={
+                                          <Link
+                                            href={urls.filebrowser}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                          />
+                                        }
                                       >
                                         <FolderOpen className="h-3 w-3 shrink-0" />
                                         <span>Filebrowser</span>
@@ -1556,8 +1563,13 @@ export function AppSidebar() {
                                     </SidebarMenuSubItem>
                                     <SidebarMenuSubItem>
                                       <SidebarMenuSubButton
-                                        className="cursor-pointer"
-                                        onClick={() => openPopup(urls.kasmvnc, "KasmVNC")}
+                                        render={
+                                          <Link
+                                            href={urls.kasmvnc}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                          />
+                                        }
                                       >
                                         <ScreenIcon className="h-3 w-3 shrink-0" />
                                         <span>KasmVNC</span>
@@ -1565,8 +1577,13 @@ export function AppSidebar() {
                                     </SidebarMenuSubItem>
                                     <SidebarMenuSubItem>
                                       <SidebarMenuSubButton
-                                        className="cursor-pointer"
-                                        onClick={() => openPopup(urls.codeServer, "Code Server")}
+                                        render={
+                                          <Link
+                                            href={urls.codeServer}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                          />
+                                        }
                                       >
                                         <Code className="h-3 w-3 shrink-0" />
                                         <span>Code Server</span>

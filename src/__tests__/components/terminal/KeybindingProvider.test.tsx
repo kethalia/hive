@@ -50,10 +50,12 @@ describe("KeybindingProvider", () => {
 
     await waitFor(() => {
       expect(probe.context?.getAll().some((entry) => entry.id === "copy")).toBe(true);
+      expect(probe.context?.getAll().some((entry) => entry.id === "tmux-menu")).toBe(true);
     });
 
     const entries = probe.context?.getAll() ?? [];
     expect(entries.map((entry) => entry.id)).toContain("copy");
+    expect(entries.map((entry) => entry.id)).toContain("tmux-menu");
     expect(entries.map((entry) => entry.id)).not.toContain("paste");
     expect(entries.flatMap((entry) => entry.keys)).not.toContain("ctrl+v");
     expect(entries.flatMap((entry) => entry.keys)).not.toContain("cmd+v");
@@ -269,6 +271,44 @@ describe("KeybindingProvider", () => {
     }
 
     expect(action).toHaveBeenCalledTimes(2);
+  });
+
+  it("opens the tmux menu from the xterm helper textarea", async () => {
+    const send = vi.fn();
+    const probe = renderWithProbe(
+      <div className="xterm">
+        <textarea aria-label="Terminal input" className="xterm-helper-textarea" />
+      </div>,
+    );
+
+    await waitFor(() => {
+      expect(probe.context?.getAll().some((entry) => entry.id === "tmux-menu")).toBe(true);
+    });
+
+    act(() => {
+      probe.context?.setActiveTerminal({ focus: vi.fn() } as unknown as Terminal, send);
+    });
+
+    const textarea = document.querySelector("textarea");
+    expect(textarea).not.toBeNull();
+
+    for (const event of [
+      makeKeyEvent({ key: "m", ctrlKey: true, shiftKey: true, bubbles: true, cancelable: true }),
+      makeKeyEvent({ key: "m", metaKey: true, shiftKey: true, bubbles: true, cancelable: true }),
+    ]) {
+      const stopImmediatePropagation = vi.spyOn(event, "stopImmediatePropagation");
+
+      act(() => {
+        textarea?.dispatchEvent(event);
+      });
+
+      expect(event.defaultPrevented).toBe(true);
+      expect(stopImmediatePropagation).toHaveBeenCalledTimes(1);
+    }
+
+    expect(send).toHaveBeenCalledTimes(2);
+    expect(send).toHaveBeenNthCalledWith(1, "\u001b[24~");
+    expect(send).toHaveBeenNthCalledWith(2, "\u001b[24~");
   });
 
   it("lets nearby non-board input pass through from the xterm helper textarea", async () => {

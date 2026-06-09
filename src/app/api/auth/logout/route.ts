@@ -3,7 +3,7 @@ import { getAuthServiceClient } from "@/lib/auth/service-client";
 import { getRequestSession } from "@/lib/auth/session";
 import { appendClearSessionCookieHeaders } from "@/lib/auth/session-cookie";
 
-export async function POST() {
+export async function POST(request: Request) {
   const session = await getRequestSession();
 
   if (session) {
@@ -16,6 +16,6 @@ export async function POST() {
   }
 
   const response = NextResponse.json({ success: true as const });
-  appendClearSessionCookieHeaders(response.headers);
+  appendClearSessionCookieHeaders(response.headers, new URL(request.url).hostname);
   return response;
 }

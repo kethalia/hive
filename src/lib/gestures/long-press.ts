@@ -1,7 +1,7 @@
 /**
  * Long-press detector with tap/drag disambiguation. Pure, framework-agnostic
  * timer + arming state so it can be unit-tested with fake timers and reused
- * across mobile touch surfaces such as terminal context menus and sheets.
+ * across mobile touch surfaces such as sheets.
  *
  * Arming rule (see `src/lib/gestures/conventions.ts`):
  *  - Arm if pointer is held for `LONG_PRESS_MS` without exceeding
