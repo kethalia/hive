@@ -1,5 +1,11 @@
 # hive-orchestrator
 
+## 2.5.1
+
+### Patch Changes
+
+- 8a2aba0: Fix terminal paste so Ctrl+V dispatches once and add the shared terminal context menu to multi-session workspace panes.
+
 ## 2.5.0
 
 ### Minor Changes
