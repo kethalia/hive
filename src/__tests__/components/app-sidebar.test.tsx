@@ -1626,9 +1626,7 @@ describe("AppSidebar", () => {
     expect(editingRow).toHaveClass("text-sm");
   });
 
-  it("renders external tools as text buttons that open popup windows", async () => {
-    const openSpy = vi.spyOn(window, "open").mockImplementation(() => null);
-
+  it("renders external tools as links that open in a new tab", async () => {
     render(<AppSidebar />);
 
     await waitFor(() => {
@@ -1646,37 +1644,21 @@ describe("AppSidebar", () => {
       expect(screen.getByText("Filebrowser")).toBeInTheDocument();
     });
 
-    const filebrowserBtn =
-      screen.getByText("Filebrowser").closest("[data-testid='collapsible-trigger']") ??
-      screen.getByText("Filebrowser").closest("button");
-    fireEvent.click(filebrowserBtn!);
-    expect(openSpy).toHaveBeenCalledWith(
+    expect(screen.getByText("Filebrowser").closest("a")).toHaveAttribute(
+      "href",
       "https://filebrowser.test",
-      "Filebrowser",
-      "width=1200,height=800,menubar=no,toolbar=no",
     );
-
-    const kasmBtn =
-      screen.getByText("KasmVNC").closest("[data-testid='collapsible-trigger']") ??
-      screen.getByText("KasmVNC").closest("button");
-    fireEvent.click(kasmBtn!);
-    expect(openSpy).toHaveBeenCalledWith(
+    expect(screen.getByText("Filebrowser").closest("a")).toHaveAttribute("target", "_blank");
+    expect(screen.getByText("KasmVNC").closest("a")).toHaveAttribute(
+      "href",
       "https://kasmvnc.test",
-      "KasmVNC",
-      "width=1200,height=800,menubar=no,toolbar=no",
     );
-
-    const codeBtn =
-      screen.getByText("Code Server").closest("[data-testid='collapsible-trigger']") ??
-      screen.getByText("Code Server").closest("button");
-    fireEvent.click(codeBtn!);
-    expect(openSpy).toHaveBeenCalledWith(
+    expect(screen.getByText("KasmVNC").closest("a")).toHaveAttribute("target", "_blank");
+    expect(screen.getByText("Code Server").closest("a")).toHaveAttribute(
+      "href",
       "https://code-server.test",
-      "Code Server",
-      "width=1200,height=800,menubar=no,toolbar=no",
     );
-
-    openSpy.mockRestore();
+    expect(screen.getByText("Code Server").closest("a")).toHaveAttribute("target", "_blank");
   });
 
   it("renders one unified Workspace link without replacing single-session terminal rows", async () => {

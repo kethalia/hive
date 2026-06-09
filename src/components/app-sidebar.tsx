@@ -26,14 +26,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import {
-  type MouseEvent as ReactMouseEvent,
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { GitCloneSidebarTree } from "@/components/git-clone-sidebar-tree";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -127,10 +120,6 @@ function useRelativeTime(date: Date | null, enabled: boolean): string {
   return `${diffHr}h ago`;
 }
 
-function openPopup(url: string, title: string) {
-  window.open(url, title, "width=1200,height=800,menubar=no,toolbar=no");
-}
-
 interface SectionState<T> {
   data: T[];
   isLoading: boolean;
@@ -160,14 +149,6 @@ const GIT_DISCOVERY_SERVER_ERROR_MESSAGE =
   "Git clone discovery is unavailable. Refresh and try again.";
 const GIT_TERMINAL_OPEN_ERROR_MESSAGE =
   "We couldn't open that Git repository. Refresh and try again.";
-
-function isMultiSessionWorkspacePath(pathname: string): boolean {
-  return pathname.endsWith("/terminal/workspace") || pathname.endsWith("/terminal/git-workspace");
-}
-
-function hardNavigateInternal(href: string): void {
-  window.location.assign(href);
-}
 const FAVORITES_UNAVAILABLE_MESSAGE = "Favorites unavailable. Terminal access is still available.";
 const TERMINAL_SETTINGS_ERROR_MESSAGE = "Terminal controls setting unavailable.";
 const TERMINAL_CONTROLS_SWITCH_ID = "terminal-controls-beyond-mobile";
@@ -779,42 +760,6 @@ export function AppSidebar() {
   );
 
   const coderUrl = sessionUser?.coderUrl ?? undefined;
-  const forceSidebarInternalNavigation = isMultiSessionWorkspacePath(pathname);
-
-  const navigateInternal = useCallback(
-    (href: string) => {
-      if (forceSidebarInternalNavigation) {
-        hardNavigateInternal(href);
-        return;
-      }
-      router.push(href);
-    },
-    [forceSidebarInternalNavigation, router],
-  );
-
-  const handleSidebarInternalLinkClick = useCallback(
-    (event: ReactMouseEvent<HTMLElement>) => {
-      if (!forceSidebarInternalNavigation) return;
-      if (event.defaultPrevented || event.button !== 0) return;
-      if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
-
-      const target = event.target;
-      if (!(target instanceof HTMLElement)) return;
-
-      const anchor = target.closest<HTMLAnchorElement>("a[href]");
-      if (!anchor || !event.currentTarget.contains(anchor)) return;
-      if (anchor.target && anchor.target !== "_self") return;
-
-      if (target.closest("button")) return;
-
-      const href = anchor.getAttribute("href");
-      if (!href?.startsWith("/")) return;
-
-      event.preventDefault();
-      hardNavigateInternal(href);
-    },
-    [forceSidebarInternalNavigation],
-  );
 
   const [workspacesOpen, setWorkspacesOpen] = useState(true);
   const [templatesOpen, setTemplatesOpen] = useState(true);
@@ -1311,12 +1256,12 @@ export function AppSidebar() {
             },
           };
         });
-        navigateInternal(`/workspaces/${workspaceId}/terminal?session=${encodeURIComponent(name)}`);
+        router.push(`/workspaces/${workspaceId}/terminal?session=${encodeURIComponent(name)}`);
       } else {
         console.error("[sidebar] create session failed:", result?.serverError);
       }
     },
-    [navigateInternal],
+    [router],
   );
 
   const handleKillSession = useCallback(
@@ -1408,9 +1353,7 @@ export function AppSidebar() {
           params.set("debugViewport", "1");
         }
 
-        navigateInternal(
-          `/workspaces/${encodeURIComponent(workspaceId)}/terminal?${params.toString()}`,
-        );
+        router.push(`/workspaces/${encodeURIComponent(workspaceId)}/terminal?${params.toString()}`);
       } catch {
         console.warn("[sidebar] Git terminal open failed: action rejected");
         setWorkspaceGitTerminalErrors((prev) => ({
@@ -1420,7 +1363,7 @@ export function AppSidebar() {
         setFavorites((prev) => ({ ...prev, error: GIT_TERMINAL_OPEN_ERROR_MESSAGE }));
       }
     },
-    [fetchAgentInfo, navigateInternal, searchParams],
+    [fetchAgentInfo, router, searchParams],
   );
 
   const handleGitRepositorySelect = useCallback(
@@ -1455,7 +1398,7 @@ export function AppSidebar() {
         <SidebarTrigger />
       </SidebarHeader>
 
-      <SidebarContent onClickCapture={handleSidebarInternalLinkClick}>
+      <SidebarContent>
         {/* Navigation */}
         <SidebarGroup className="pb-0">
           <SidebarGroupLabel>Navigation</SidebarGroupLabel>
@@ -1485,8 +1428,7 @@ export function AppSidebar() {
               {coderUrl && (
                 <SidebarMenuItem>
                   <SidebarMenuButton
-                    // biome-ignore lint/a11y/useAnchorContent: content is injected by Base UI render prop
-                    render={<a href={coderUrl} target="_blank" rel="noopener noreferrer" />}
+                    render={<Link href={coderUrl} target="_blank" rel="noopener noreferrer" />}
                   >
                     <LayoutDashboard className="h-4 w-4" />
                     <span>Dashboard</span>
@@ -1600,8 +1542,13 @@ export function AppSidebar() {
                                   <>
                                     <SidebarMenuSubItem>
                                       <SidebarMenuSubButton
-                                        className="cursor-pointer"
-                                        onClick={() => openPopup(urls.filebrowser, "Filebrowser")}
+                                        render={
+                                          <Link
+                                            href={urls.filebrowser}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                          />
+                                        }
                                       >
                                         <FolderOpen className="h-3 w-3 shrink-0" />
                                         <span>Filebrowser</span>
@@ -1609,8 +1556,13 @@ export function AppSidebar() {
                                     </SidebarMenuSubItem>
                                     <SidebarMenuSubItem>
                                       <SidebarMenuSubButton
-                                        className="cursor-pointer"
-                                        onClick={() => openPopup(urls.kasmvnc, "KasmVNC")}
+                                        render={
+                                          <Link
+                                            href={urls.kasmvnc}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                          />
+                                        }
                                       >
                                         <ScreenIcon className="h-3 w-3 shrink-0" />
                                         <span>KasmVNC</span>
@@ -1618,8 +1570,13 @@ export function AppSidebar() {
                                     </SidebarMenuSubItem>
                                     <SidebarMenuSubItem>
                                       <SidebarMenuSubButton
-                                        className="cursor-pointer"
-                                        onClick={() => openPopup(urls.codeServer, "Code Server")}
+                                        render={
+                                          <Link
+                                            href={urls.codeServer}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                          />
+                                        }
                                       >
                                         <Code className="h-3 w-3 shrink-0" />
                                         <span>Code Server</span>
