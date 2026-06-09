@@ -103,6 +103,14 @@ const testEntries = [
     enabledInBrowser: false,
   },
   {
+    id: "tmux-menu",
+    keys: ["ctrl+shift+m", "cmd+shift+m"],
+    action: () => false,
+    description: "Open tmux menu",
+    category: "terminal",
+    enabledInBrowser: true,
+  },
+  {
     id: "help:show",
     keys: ["ctrl+/", "cmd+/"],
     action: () => false,
@@ -146,6 +154,7 @@ describe("HelpOverlay", () => {
     expect(screen.getByTestId("dialog")).toBeInTheDocument();
     expect(screen.getByText("Copy selection")).toBeInTheDocument();
     expect(screen.getByText("New session")).toBeInTheDocument();
+    expect(screen.getByText("Open tmux menu")).toBeInTheDocument();
     expect(screen.getByText("Show keyboard shortcuts")).toBeInTheDocument();
   });
 
@@ -154,11 +163,13 @@ describe("HelpOverlay", () => {
     expect(screen.getByText("general")).toBeInTheDocument();
     expect(screen.getByText("clipboard")).toBeInTheDocument();
     expect(screen.getByText("session")).toBeInTheDocument();
+    expect(screen.getByText("terminal")).toBeInTheDocument();
   });
 
   it("formats key combos for display", () => {
     renderOpenOverlay();
     expect(screen.getByText("Ctrl + /")).toBeInTheDocument();
+    expect(screen.getByText("Ctrl + Shift + M")).toBeInTheDocument();
     expect(screen.queryByText("⇧ + ?")).not.toBeInTheDocument();
   });
 
