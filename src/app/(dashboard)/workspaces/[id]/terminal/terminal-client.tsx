@@ -241,6 +241,13 @@ function TerminalInner({
       isExpectedCloneSessionKey(routeCloneSessionKey) &&
       isSafeCloneRelativePath(routeRelativePath),
   );
+
+  const closeCompose = useCallback(() => {
+    setComposeOpen(false);
+    setComposeDraft("");
+    setComposeTargetLabel(undefined);
+  }, []);
+
   const refreshCloneTerminalIdentity = useCallback(async () => {
     if (
       !session ||
@@ -285,19 +292,22 @@ function TerminalInner({
     }
   }, []);
 
-  const handleComposeSheetDragEnd = useCallback((event: PointerEvent<HTMLButtonElement>) => {
-    const startY = composeSheetDragStartYRef.current;
-    composeSheetDragStartYRef.current = null;
+  const handleComposeSheetDragEnd = useCallback(
+    (event: PointerEvent<HTMLButtonElement>) => {
+      const startY = composeSheetDragStartYRef.current;
+      composeSheetDragStartYRef.current = null;
 
-    if (typeof event.currentTarget.releasePointerCapture === "function") {
-      event.currentTarget.releasePointerCapture(event.pointerId);
-    }
+      if (typeof event.currentTarget.releasePointerCapture === "function") {
+        event.currentTarget.releasePointerCapture(event.pointerId);
+      }
 
-    if (startY === null) return;
-    if (event.clientY - startY >= COMPOSE_SHEET_DISMISS_DRAG_PX) {
-      setComposeOpen(false);
-    }
-  }, []);
+      if (startY === null) return;
+      if (event.clientY - startY >= COMPOSE_SHEET_DISMISS_DRAG_PX) {
+        closeCompose();
+      }
+    },
+    [closeCompose],
+  );
 
   const handleComposeSheetDragCancel = useCallback(() => {
     composeSheetDragStartYRef.current = null;
@@ -331,12 +341,6 @@ function TerminalInner({
       return `${current.replace(/\s*$/, "")}\n${request.draft}`;
     });
     setComposeOpen(true);
-  }, []);
-
-  const closeCompose = useCallback(() => {
-    setComposeOpen(false);
-    setComposeDraft("");
-    setComposeTargetLabel(undefined);
   }, []);
 
   const sendComposeDraft = useCallback(

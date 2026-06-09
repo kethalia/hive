@@ -8,6 +8,14 @@ vi.mock("@/lib/auth/session", () => ({
 }));
 
 vi.mock("@/lib/workspace/paste-assets", () => ({
+  TERMINAL_PASTE_ASSET_MAX_BYTES: 5 * 1024 * 1024,
+  TERMINAL_PASTE_ASSET_MAX_FILES: 4,
+  TERMINAL_PASTE_ASSET_MIME_EXTENSIONS: new Map([
+    ["image/png", "png"],
+    ["image/jpeg", "jpg"],
+    ["image/webp", "webp"],
+    ["image/gif", "gif"],
+  ]),
   uploadTerminalPasteAssets: mockUploadTerminalPasteAssets,
 }));
 
@@ -57,7 +65,6 @@ describe("terminal paste asset upload route", () => {
   });
 
   it("returns validation errors without logging clipboard payloads", async () => {
-    mockUploadTerminalPasteAssets.mockRejectedValue(new Error("Unsupported paste asset type"));
     const body = new FormData();
     body.append("files", new File(["not-image"], "notes.txt", { type: "text/plain" }));
 
@@ -67,5 +74,22 @@ describe("terminal paste asset upload route", () => {
 
     expect(response.status).toBe(400);
     expect(await response.json()).toEqual({ error: "Unsupported paste asset type" });
+    expect(mockUploadTerminalPasteAssets).not.toHaveBeenCalled();
+  });
+
+  it("rejects oversized files before reading bytes", async () => {
+    const body = new FormData();
+    const file = new File([new Uint8Array(5 * 1024 * 1024 + 1)], "large.png", {
+      type: "image/png",
+    });
+    body.append("files", file);
+
+    const response = await POST(new Request("https://hive.test/upload", { method: "POST", body }), {
+      params: Promise.resolve({ workspaceId: "workspace-1" }),
+    });
+
+    expect(response.status).toBe(400);
+    expect(await response.json()).toEqual({ error: "Pasted image is too large" });
+    expect(mockUploadTerminalPasteAssets).not.toHaveBeenCalled();
   });
 });

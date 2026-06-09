@@ -73,4 +73,31 @@ describe("terminal paste dispatch", () => {
       targetLabel: "main",
     });
   });
+
+  it("reports image upload failure without throwing", async () => {
+    const imageFile = new File(["png"], "pasted.png", { type: "image/png" });
+    const openCompose = vi.fn();
+    const onStatus = vi.fn();
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: false,
+        json: vi.fn().mockResolvedValue({ error: "upload failed with payload details" }),
+      }),
+    );
+
+    await handleTerminalPasteOutcome(
+      { kind: "image-files", files: [imageFile] },
+      {
+        term: null,
+        send: vi.fn(),
+        openCompose,
+        workspaceId: "workspace-1",
+        onStatus,
+      },
+    );
+
+    expect(openCompose).not.toHaveBeenCalled();
+    expect(onStatus).toHaveBeenCalledWith("Image paste failed.");
+  });
 });

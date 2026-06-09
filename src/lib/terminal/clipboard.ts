@@ -123,13 +123,17 @@ export async function handleTerminalPasteOutcome(
       return;
     }
 
-    const paths = await uploadTerminalPasteImages(controller.workspaceId, outcome.files);
-    controller.openCompose({
-      draft: paths.join("\n"),
-      append: true,
-      targetLabel: controller.targetLabel,
-    });
-    controller.onStatus?.("Pasted image path added to compose.");
+    try {
+      const paths = await uploadTerminalPasteImages(controller.workspaceId, outcome.files);
+      controller.openCompose({
+        draft: paths.join("\n"),
+        append: true,
+        targetLabel: controller.targetLabel,
+      });
+      controller.onStatus?.("Pasted image path added to compose.");
+    } catch {
+      controller.onStatus?.("Image paste failed.");
+    }
     return;
   }
 

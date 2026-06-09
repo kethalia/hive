@@ -1,6 +1,11 @@
 import { NextResponse } from "next/server";
 import { getRequestSession } from "@/lib/auth/session";
-import { uploadTerminalPasteAssets } from "@/lib/workspace/paste-assets";
+import {
+  TERMINAL_PASTE_ASSET_MAX_BYTES,
+  TERMINAL_PASTE_ASSET_MAX_FILES,
+  TERMINAL_PASTE_ASSET_MIME_EXTENSIONS,
+  uploadTerminalPasteAssets,
+} from "@/lib/workspace/paste-assets";
 
 export async function POST(
   request: Request,
@@ -28,6 +33,18 @@ export async function POST(
     return NextResponse.json({ error: "No image files provided" }, { status: 400 });
   }
   const imageFiles = files.filter((file): file is File => file instanceof File);
+  if (imageFiles.length > TERMINAL_PASTE_ASSET_MAX_FILES) {
+    return NextResponse.json(
+      { error: `Paste up to ${TERMINAL_PASTE_ASSET_MAX_FILES} images at once` },
+      { status: 400 },
+    );
+  }
+  if (imageFiles.some((file) => !TERMINAL_PASTE_ASSET_MIME_EXTENSIONS.has(file.type))) {
+    return NextResponse.json({ error: "Unsupported paste asset type" }, { status: 400 });
+  }
+  if (imageFiles.some((file) => file.size > TERMINAL_PASTE_ASSET_MAX_BYTES)) {
+    return NextResponse.json({ error: "Pasted image is too large" }, { status: 400 });
+  }
 
   try {
     const paths = await uploadTerminalPasteAssets({
