@@ -1,5 +1,11 @@
 # hive-terminal-proxy
 
+## 2.0.11
+
+### Patch Changes
+
+- 8a2aba0: Enable native tmux mouse scrollback for persistent web terminal sessions.
+
 ## 2.0.10
 
 ### Patch Changes
