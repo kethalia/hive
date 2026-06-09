@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { buildPtyUrl } from "../src/protocol.js";
 
+const EXPECTED_TMUX_MENU_BINDING =
+  "bind-key -n F12 display-menu -T '#S:#W' 'Copy mode' c 'copy-mode' 'Choose tree' t 'choose-tree -Zw' '' 'Split horizontal' h 'split-window -h' 'Split vertical' v 'split-window -v' 'New window' n 'new-window' 'Rename window' r 'command-prompt -I \"#W\" \"rename-window -- %%\"' '' 'Kill pane' x 'confirm-before -p \"kill-pane #P? (y/n)\" kill-pane'";
+const EXPECTED_TMUX_PREFIX = `tmux -L web ${EXPECTED_TMUX_MENU_BINDING}`;
+
 describe("buildPtyUrl", () => {
   const defaults = {
     reconnectId: "550e8400-e29b-41d4-a716-446655440000",
@@ -18,7 +22,7 @@ describe("buildPtyUrl", () => {
     expect(parsed.searchParams.get("width")).toBe("80");
     expect(parsed.searchParams.get("height")).toBe("24");
     expect(parsed.searchParams.get("command")).toBe(
-      "tmux -L web new-session -A -s my-session \\; set status off \\; set mouse on",
+      `${EXPECTED_TMUX_PREFIX} \\; new-session -A -s my-session \\; set status off \\; set mouse on`,
     );
   });
 
@@ -51,15 +55,17 @@ describe("buildPtyUrl", () => {
     });
     const parsed = new URL(url);
     expect(parsed.searchParams.get("command")).toBe(
-      "tmux -L web new-session -A -s dev-shell \\; set status off \\; set mouse on",
+      `${EXPECTED_TMUX_PREFIX} \\; new-session -A -s dev-shell \\; set status off \\; set mouse on`,
     );
   });
 
-  it("enables tmux mouse mode without disabling alternate screen", () => {
+  it("enables tmux mouse mode and menu binding without disabling alternate screen", () => {
     const url = buildPtyUrl("https://coder.dev", agentId, defaults);
     const parsed = new URL(url);
     const command = parsed.searchParams.get("command");
 
+    expect(command).toContain(EXPECTED_TMUX_MENU_BINDING);
+    expect(command).toContain("\\; new-session -A -s my-session");
     expect(command).toContain("\\; set mouse on");
     expect(command).not.toContain("mouse off");
     expect(command).not.toContain("set-option -t");
@@ -76,7 +82,7 @@ describe("buildPtyUrl", () => {
     });
     const parsed = new URL(url);
     expect(parsed.searchParams.get("command")).toBe(
-      "tmux -L web new-session -A -s git-clone-deadbeef -c '/home/coder/projects/kethalia/hive' \\; set status off \\; set mouse on",
+      `${EXPECTED_TMUX_PREFIX} \\; new-session -A -s git-clone-deadbeef -c '/home/coder/projects/kethalia/hive' \\; set status off \\; set mouse on`,
     );
   });
 
@@ -88,7 +94,7 @@ describe("buildPtyUrl", () => {
     });
     const parsed = new URL(url);
     expect(parsed.searchParams.get("command")).toBe(
-      "tmux -L web new-session -A -s git-clone-deadbeef -c '/home/coder/projects/acme/bob'\\''s repo' \\; set status off \\; set mouse on",
+      `${EXPECTED_TMUX_PREFIX} \\; new-session -A -s git-clone-deadbeef -c '/home/coder/projects/acme/bob'\\''s repo' \\; set status off \\; set mouse on`,
     );
   });
 

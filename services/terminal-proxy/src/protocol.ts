@@ -14,6 +14,19 @@ function shellQuote(value: string): string {
   return `'${value.replace(/'/g, "'\\''")}'`;
 }
 
+const TMUX_MENU_BINDING_COMMAND = [
+  "bind-key -n F12 display-menu -T '#S:#W'",
+  "'Copy mode' c 'copy-mode'",
+  "'Choose tree' t 'choose-tree -Zw'",
+  "''",
+  "'Split horizontal' h 'split-window -h'",
+  "'Split vertical' v 'split-window -v'",
+  "'New window' n 'new-window'",
+  "'Rename window' r 'command-prompt -I \"#W\" \"rename-window -- %%\"'",
+  "''",
+  "'Kill pane' x 'confirm-before -p \"kill-pane #P? (y/n)\" kill-pane'",
+].join(" ");
+
 export function buildPtyUrl(
   baseUrl: string,
   agentId: string,
@@ -41,8 +54,10 @@ export function buildPtyUrl(
   // names, so the green bar is redundant.
   // Enable tmux mouse support so wheel/trackpad scrolling uses tmux-managed
   // pane history, including output produced before the browser attached.
+  // Install the Hive menu binding on every attach so existing tmux servers pick
+  // up config changes without needing a server restart.
   const cwdArg = cwd ? ` -c ${shellQuote(cwd)}` : "";
-  const command = `tmux -L web new-session -A -s ${sessionName}${cwdArg} \\; set status off \\; set mouse on`;
+  const command = `tmux -L web ${TMUX_MENU_BINDING_COMMAND} \\; new-session -A -s ${sessionName}${cwdArg} \\; set status off \\; set mouse on`;
 
   const params = new URLSearchParams({
     reconnect: reconnectId,

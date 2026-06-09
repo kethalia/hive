@@ -293,8 +293,8 @@ describe("KeybindingProvider", () => {
     expect(textarea).not.toBeNull();
 
     for (const event of [
-      makeKeyEvent({ key: "m", ctrlKey: true, altKey: true, bubbles: true, cancelable: true }),
-      makeKeyEvent({ key: "m", metaKey: true, altKey: true, bubbles: true, cancelable: true }),
+      makeKeyEvent({ key: "m", ctrlKey: true, shiftKey: true, bubbles: true, cancelable: true }),
+      makeKeyEvent({ key: "m", metaKey: true, shiftKey: true, bubbles: true, cancelable: true }),
     ]) {
       const stopImmediatePropagation = vi.spyOn(event, "stopImmediatePropagation");
 

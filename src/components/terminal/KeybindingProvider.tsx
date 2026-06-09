@@ -135,7 +135,7 @@ export function KeybindingProvider({ children }: { children: React.ReactNode }) 
   React.useEffect(() => {
     register({
       id: "tmux-menu",
-      keys: ["ctrl+alt+m", "cmd+alt+m"],
+      keys: ["ctrl+shift+m", "cmd+shift+m"],
       action: (_term, send) => {
         if (!send) return true;
         send(TMUX_MENU_KEY_SEQUENCE);
