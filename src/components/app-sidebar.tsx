@@ -26,7 +26,14 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  type MouseEvent as ReactMouseEvent,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { GitCloneSidebarTree } from "@/components/git-clone-sidebar-tree";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -155,6 +162,20 @@ const TERMINAL_CONTROLS_SWITCH_ID = "terminal-controls-beyond-mobile";
 const TERMINAL_CONTROLS_SWITCH_LABEL_ID = `${TERMINAL_CONTROLS_SWITCH_ID}-label`;
 const TERMINAL_CONTROLS_SWITCH_DESCRIPTION_ID = `${TERMINAL_CONTROLS_SWITCH_ID}-description`;
 const TERMINAL_CONTROLS_SWITCH_ERROR_ID = `${TERMINAL_CONTROLS_SWITCH_ID}-error`;
+const SIDEBAR_HARD_NAVIGATION_EVENT = "hive:sidebar-hard-navigation";
+
+function isMultiSessionWorkspacePath(pathname: string): boolean {
+  return pathname.endsWith("/terminal/workspace") || pathname.endsWith("/terminal/git-workspace");
+}
+
+function hardNavigateInternal(href: string): void {
+  const event = new CustomEvent(SIDEBAR_HARD_NAVIGATION_EVENT, {
+    cancelable: true,
+    detail: { href },
+  });
+  if (!window.dispatchEvent(event)) return;
+  window.location.href = href;
+}
 
 function isGitCloneTerminalIdentity(value: unknown): value is GitCloneTerminalIdentity {
   if (!value || typeof value !== "object") return false;
@@ -760,6 +781,41 @@ export function AppSidebar() {
   );
 
   const coderUrl = sessionUser?.coderUrl ?? undefined;
+  const forceSidebarInternalNavigation = isMultiSessionWorkspacePath(pathname);
+
+  const navigateInternal = useCallback(
+    (href: string) => {
+      if (forceSidebarInternalNavigation) {
+        hardNavigateInternal(href);
+        return;
+      }
+      router.push(href);
+    },
+    [forceSidebarInternalNavigation, router],
+  );
+
+  const handleSidebarInternalLinkClick = useCallback(
+    (event: ReactMouseEvent<HTMLElement>) => {
+      if (!forceSidebarInternalNavigation) return;
+      if (event.defaultPrevented || event.button !== 0) return;
+      if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+
+      const target = event.target;
+      if (!(target instanceof HTMLElement)) return;
+
+      const anchor = target.closest<HTMLAnchorElement>("a[href]");
+      if (!anchor || !event.currentTarget.contains(anchor)) return;
+      if (anchor.target && anchor.target !== "_self") return;
+      if (target.closest("button")) return;
+
+      const href = anchor.getAttribute("href");
+      if (!href?.startsWith("/")) return;
+
+      event.preventDefault();
+      hardNavigateInternal(href);
+    },
+    [forceSidebarInternalNavigation],
+  );
 
   const [workspacesOpen, setWorkspacesOpen] = useState(true);
   const [templatesOpen, setTemplatesOpen] = useState(true);
@@ -1256,12 +1312,12 @@ export function AppSidebar() {
             },
           };
         });
-        router.push(`/workspaces/${workspaceId}/terminal?session=${encodeURIComponent(name)}`);
+        navigateInternal(`/workspaces/${workspaceId}/terminal?session=${encodeURIComponent(name)}`);
       } else {
         console.error("[sidebar] create session failed:", result?.serverError);
       }
     },
-    [router],
+    [navigateInternal],
   );
 
   const handleKillSession = useCallback(
@@ -1353,7 +1409,9 @@ export function AppSidebar() {
           params.set("debugViewport", "1");
         }
 
-        router.push(`/workspaces/${encodeURIComponent(workspaceId)}/terminal?${params.toString()}`);
+        navigateInternal(
+          `/workspaces/${encodeURIComponent(workspaceId)}/terminal?${params.toString()}`,
+        );
       } catch {
         console.warn("[sidebar] Git terminal open failed: action rejected");
         setWorkspaceGitTerminalErrors((prev) => ({
@@ -1363,7 +1421,7 @@ export function AppSidebar() {
         setFavorites((prev) => ({ ...prev, error: GIT_TERMINAL_OPEN_ERROR_MESSAGE }));
       }
     },
-    [fetchAgentInfo, router, searchParams],
+    [fetchAgentInfo, navigateInternal, searchParams],
   );
 
   const handleGitRepositorySelect = useCallback(
@@ -1398,7 +1456,7 @@ export function AppSidebar() {
         <SidebarTrigger />
       </SidebarHeader>
 
-      <SidebarContent>
+      <SidebarContent onClickCapture={handleSidebarInternalLinkClick}>
         {/* Navigation */}
         <SidebarGroup className="pb-0">
           <SidebarGroupLabel>Navigation</SidebarGroupLabel>

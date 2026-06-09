@@ -33,8 +33,11 @@ vi.mock("@/components/ui/sidebar", async () => {
   const Passthrough = ({
     children,
     className,
-  }: React.PropsWithChildren<{ className?: string }>) => (
-    <div className={className}>{children}</div>
+    ...rest
+  }: React.PropsWithChildren<React.HTMLAttributes<HTMLDivElement>>) => (
+    <div className={className} {...rest}>
+      {children}
+    </div>
   );
   const Composable = ({
     children,
@@ -1697,6 +1700,51 @@ describe("AppSidebar", () => {
       "data-active",
       "true",
     );
+  });
+
+  it("hard-navigates internal sidebar links on full-bleed workspace routes", async () => {
+    mockNavigationState.pathname = "/workspaces/ws-1/terminal/workspace";
+    const hardNavigations: string[] = [];
+    const handleHardNavigation = (event: Event) => {
+      event.preventDefault();
+      const detail = (event as CustomEvent<{ href: string }>).detail;
+      hardNavigations.push(detail.href);
+    };
+    window.addEventListener("hive:sidebar-hard-navigation", handleHardNavigation);
+
+    try {
+      render(<AppSidebar />);
+
+      const tasksLink = await screen.findByRole("link", { name: /tasks/i });
+      const clickAllowed = fireEvent.click(tasksLink);
+
+      expect(clickAllowed).toBe(false);
+      expect(hardNavigations).toEqual(["/tasks"]);
+      expect(mockPush).not.toHaveBeenCalled();
+    } finally {
+      window.removeEventListener("hive:sidebar-hard-navigation", handleHardNavigation);
+    }
+  });
+
+  it("leaves internal sidebar links to Next navigation on normal routes", async () => {
+    const hardNavigations: string[] = [];
+    const handleHardNavigation = (event: Event) => {
+      const detail = (event as CustomEvent<{ href: string }>).detail;
+      hardNavigations.push(detail.href);
+    };
+    window.addEventListener("hive:sidebar-hard-navigation", handleHardNavigation);
+
+    try {
+      render(<AppSidebar />);
+
+      const tasksLink = await screen.findByRole("link", { name: /tasks/i });
+      const clickAllowed = fireEvent.click(tasksLink);
+
+      expect(clickAllowed).toBe(true);
+      expect(hardNavigations).toEqual([]);
+    } finally {
+      window.removeEventListener("hive:sidebar-hard-navigation", handleHardNavigation);
+    }
   });
 
   it("keeps the multi-session workspace link reachable when session loading fails", async () => {
