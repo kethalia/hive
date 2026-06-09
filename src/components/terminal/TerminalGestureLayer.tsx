@@ -1,7 +1,13 @@
 "use client";
 
-import { useGesture } from "@use-gesture/react";
-import { type CSSProperties, type ReactNode, useCallback, useEffect, useRef } from "react";
+import {
+  type CSSProperties,
+  type PointerEvent as ReactPointerEvent,
+  type ReactNode,
+  useCallback,
+  useEffect,
+  useRef,
+} from "react";
 import { DRAG_LONG_PRESS_MOVE_PX } from "@/lib/gestures/conventions";
 import { createLongPressDetector, type LongPressDetector } from "@/lib/gestures/long-press";
 
@@ -27,6 +33,12 @@ function isTouchLikePointerEvent(event: unknown): boolean {
   return event.pointerType === "touch" || event.pointerType === "pen";
 }
 
+interface ActivePointer {
+  id: number;
+  startX: number;
+  startY: number;
+}
+
 export function TerminalGestureLayer({
   children,
   onLongPress,
@@ -40,6 +52,7 @@ export function TerminalGestureLayer({
   const lastEventRef = useRef<Event | null>(null);
   const lastPointRef = useRef<{ x: number; y: number } | null>(null);
   const canceledByMovementRef = useRef(false);
+  const activePointerRef = useRef<ActivePointer | null>(null);
   const suppressNextContextMenuRef = useRef(false);
   const suppressContextMenuTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const detectorRef = useRef<LongPressDetector | null>(null);
@@ -79,6 +92,7 @@ export function TerminalGestureLayer({
 
     detectorRef.current?.end();
     canceledByMovementRef.current = false;
+    activePointerRef.current = null;
     lastEventRef.current = null;
     lastPointRef.current = null;
     suppressNextContextMenuRef.current = false;
@@ -95,54 +109,77 @@ export function TerminalGestureLayer({
     };
   }, []);
 
-  const bind = useGesture(
-    {
-      onDrag: ({ first, last, distance: [dx, dy], event, xy: [x, y] }) => {
-        if (selectionModeEnabled) return;
-        if (!isTouchLikePointerEvent(event)) return;
+  const resetPointerState = useCallback(() => {
+    detectorRef.current?.end();
+    canceledByMovementRef.current = false;
+    activePointerRef.current = null;
+    lastEventRef.current = null;
+    lastPointRef.current = null;
+  }, []);
 
-        const detector = detectorRef.current;
-        if (!detector) return;
+  const handlePointerDown = useCallback(
+    (event: ReactPointerEvent<HTMLDivElement>) => {
+      if (selectionModeEnabled) return;
+      if (!isTouchLikePointerEvent(event.nativeEvent)) return;
 
-        lastEventRef.current = event as Event;
-        lastPointRef.current = { x, y };
+      const detector = detectorRef.current;
+      if (!detector) return;
 
-        if (first) {
-          canceledByMovementRef.current = false;
-          detector.start();
-        }
-
-        const distance = Math.hypot(dx, dy);
-        if (!detector.armed && distance >= DRAG_LONG_PRESS_MOVE_PX) {
-          canceledByMovementRef.current = true;
-          detector.end();
-        }
-
-        if (last) {
-          if (detector.armed) {
-            preventDefaultIfCancelable(event as Event);
-          }
-          detector.end();
-          canceledByMovementRef.current = false;
-          lastEventRef.current = null;
-          lastPointRef.current = null;
-        }
-      },
+      activePointerRef.current = {
+        id: event.pointerId,
+        startX: event.clientX,
+        startY: event.clientY,
+      };
+      canceledByMovementRef.current = false;
+      lastEventRef.current = event.nativeEvent;
+      lastPointRef.current = { x: event.clientX, y: event.clientY };
+      detector.start();
     },
-    {
-      drag: {
-        eventOptions: { passive: false },
-        filterTaps: false,
-        pointer: { capture: false, keys: false },
-        threshold: 0,
-        triggerAllEvents: true,
-      },
+    [selectionModeEnabled],
+  );
+
+  const handlePointerMove = useCallback(
+    (event: ReactPointerEvent<HTMLDivElement>) => {
+      if (selectionModeEnabled) return;
+      if (!isTouchLikePointerEvent(event.nativeEvent)) return;
+
+      const activePointer = activePointerRef.current;
+      const detector = detectorRef.current;
+      if (!activePointer || !detector || activePointer.id !== event.pointerId) return;
+
+      lastEventRef.current = event.nativeEvent;
+      lastPointRef.current = { x: event.clientX, y: event.clientY };
+
+      const distance = Math.hypot(
+        event.clientX - activePointer.startX,
+        event.clientY - activePointer.startY,
+      );
+      if (!detector.armed && distance >= DRAG_LONG_PRESS_MOVE_PX) {
+        canceledByMovementRef.current = true;
+        detector.end();
+      }
     },
+    [selectionModeEnabled],
+  );
+
+  const handlePointerEnd = useCallback(
+    (event: ReactPointerEvent<HTMLDivElement>) => {
+      if (selectionModeEnabled) return;
+      if (!isTouchLikePointerEvent(event.nativeEvent)) return;
+
+      const activePointer = activePointerRef.current;
+      if (!activePointer || activePointer.id !== event.pointerId) return;
+
+      if (detectorRef.current?.armed) {
+        preventDefaultIfCancelable(event.nativeEvent);
+      }
+      resetPointerState();
+    },
+    [resetPointerState, selectionModeEnabled],
   );
 
   return (
     <div
-      {...bind()}
       data-terminal-gesture-layer="true"
       className={["h-full", className].filter(Boolean).join(" ")}
       style={{
@@ -150,6 +187,10 @@ export function TerminalGestureLayer({
         touchAction: selectionModeEnabled ? "auto" : "pan-x pan-y",
         WebkitTouchCallout: selectionModeEnabled ? undefined : "none",
       }}
+      onPointerDown={handlePointerDown}
+      onPointerMove={handlePointerMove}
+      onPointerUp={handlePointerEnd}
+      onPointerCancel={handlePointerEnd}
       onContextMenuCapture={(event) => {
         if (selectionModeEnabled) return;
         if (suppressNextContextMenuRef.current) {
