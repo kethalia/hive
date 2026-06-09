@@ -27,7 +27,6 @@ import {
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
-  type MouseEvent as ReactMouseEvent,
   useCallback,
   useEffect,
   useMemo,
@@ -162,21 +161,6 @@ const TERMINAL_CONTROLS_SWITCH_ID = "terminal-controls-beyond-mobile";
 const TERMINAL_CONTROLS_SWITCH_LABEL_ID = `${TERMINAL_CONTROLS_SWITCH_ID}-label`;
 const TERMINAL_CONTROLS_SWITCH_DESCRIPTION_ID = `${TERMINAL_CONTROLS_SWITCH_ID}-description`;
 const TERMINAL_CONTROLS_SWITCH_ERROR_ID = `${TERMINAL_CONTROLS_SWITCH_ID}-error`;
-const SIDEBAR_HARD_NAVIGATION_EVENT = "hive:sidebar-hard-navigation";
-
-function isMultiSessionWorkspacePath(pathname: string): boolean {
-  return pathname.endsWith("/terminal/workspace") || pathname.endsWith("/terminal/git-workspace");
-}
-
-function hardNavigateInternal(href: string): void {
-  const event = new CustomEvent(SIDEBAR_HARD_NAVIGATION_EVENT, {
-    cancelable: true,
-    detail: { href },
-  });
-  if (!window.dispatchEvent(event)) return;
-  window.location.href = href;
-}
-
 function isGitCloneTerminalIdentity(value: unknown): value is GitCloneTerminalIdentity {
   if (!value || typeof value !== "object") return false;
 
@@ -781,40 +765,11 @@ export function AppSidebar() {
   );
 
   const coderUrl = sessionUser?.coderUrl ?? undefined;
-  const forceSidebarInternalNavigation = isMultiSessionWorkspacePath(pathname);
-
   const navigateInternal = useCallback(
     (href: string) => {
-      if (forceSidebarInternalNavigation) {
-        hardNavigateInternal(href);
-        return;
-      }
       router.push(href);
     },
-    [forceSidebarInternalNavigation, router],
-  );
-
-  const handleSidebarInternalLinkClick = useCallback(
-    (event: ReactMouseEvent<HTMLElement>) => {
-      if (!forceSidebarInternalNavigation) return;
-      if (event.defaultPrevented || event.button !== 0) return;
-      if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
-
-      const target = event.target;
-      if (!(target instanceof HTMLElement)) return;
-
-      const anchor = target.closest<HTMLAnchorElement>("a[href]");
-      if (!anchor || !event.currentTarget.contains(anchor)) return;
-      if (anchor.target && anchor.target !== "_self") return;
-      if (target.closest("button")) return;
-
-      const href = anchor.getAttribute("href");
-      if (!href?.startsWith("/")) return;
-
-      event.preventDefault();
-      hardNavigateInternal(href);
-    },
-    [forceSidebarInternalNavigation],
+    [router],
   );
 
   const [workspacesOpen, setWorkspacesOpen] = useState(true);
@@ -1456,7 +1411,7 @@ export function AppSidebar() {
         <SidebarTrigger />
       </SidebarHeader>
 
-      <SidebarContent onClickCapture={handleSidebarInternalLinkClick}>
+      <SidebarContent>
         {/* Navigation */}
         <SidebarGroup className="pb-0">
           <SidebarGroupLabel>Navigation</SidebarGroupLabel>

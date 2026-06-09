@@ -10,6 +10,7 @@ import {
   waitFor,
 } from "@testing-library/react";
 import type { Terminal } from "@xterm/xterm";
+import { useEffect } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import "@testing-library/jest-dom/vitest";
 import type { KeepAliveStatus } from "@/hooks/useKeepAliveStatus";
@@ -27,6 +28,7 @@ const mockRegister = vi.fn();
 const mockUnregister = vi.fn();
 const mockRouterPush = vi.fn();
 const mockToastInfo = vi.hoisted(() => vi.fn());
+let emitConnectionStateOnCallbackChange = false;
 const mockUseKeepAliveStatus = vi.hoisted(() =>
   vi.fn(
     (_workspaceId: string): KeepAliveStatus => ({
@@ -140,6 +142,11 @@ vi.mock("next/dynamic", () => ({
       onTerminalReady?: (term: Terminal, send: (data: string) => void) => void;
       onTerminalDestroy?: () => void;
     }) => {
+      useEffect(() => {
+        if (!emitConnectionStateOnCallbackChange) return;
+        onConnectionStateChange?.("connected");
+      }, [onConnectionStateChange]);
+
       terminalProps.set(sessionName, {
         agentId,
         workspaceId,
@@ -376,6 +383,7 @@ function lastRegisteredEntry(id: string) {
 describe("MultiSessionWorkspace", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    emitConnectionStateOnCallbackChange = false;
     terminalProps.clear();
     window.localStorage.clear();
     mockGetSessions.mockResolvedValue({ data: [] });
@@ -440,6 +448,19 @@ describe("MultiSessionWorkspace", () => {
     expect(screen.queryByTestId("copy-active-pane")).not.toBeInTheDocument();
     expect(screen.queryByTestId("paste-active-pane")).not.toBeInTheDocument();
     expect(screen.queryByTestId("float-pane-pane-main-session")).not.toBeInTheDocument();
+  });
+
+  it("ignores duplicate pane connection updates from callback identity changes", async () => {
+    emitConnectionStateOnCallbackChange = true;
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    await renderTwoSessionWorkspace();
+    await waitFor(() => {
+      expect(screen.getByTestId("interactive-terminal-main-session")).toBeInTheDocument();
+      expect(screen.getByTestId("interactive-terminal-dev-server")).toBeInTheDocument();
+    });
+
+    expect(consoleError.mock.calls.flat().join("\n")).not.toContain("Maximum update depth");
   });
 
   it("gives the primary pane full height when three sessions are open", async () => {
