@@ -890,6 +890,7 @@ describe("InteractiveTerminal integration — Connection state banners", () => {
       expect.objectContaining({
         macOptionClickForcesSelection: true,
         rightClickSelectsWord: true,
+        scrollback: 0,
       }),
     );
 
@@ -2404,7 +2405,7 @@ describe("InteractiveTerminal integration — Mobile input adapter", () => {
     unmount();
   });
 
-  it("scrolls mobile terminal touch drags without allowing native page scroll or keyboard focus", async () => {
+  it("does not use browser scrollback for mobile terminal touch drags", async () => {
     const { container, unmount } = await renderTerminal({ mobileInputMode: true });
     const terminal = terminalInstances.at(-1);
     expect(terminal).toBeDefined();
@@ -2420,7 +2421,7 @@ describe("InteractiveTerminal integration — Mobile input adapter", () => {
     fireEvent.click(inputTarget as Element);
 
     expect(touchMove.defaultPrevented).toBe(true);
-    expect(terminal?.scrollLines).toHaveBeenCalledWith(4);
+    expect(terminal?.scrollLines).not.toHaveBeenCalled();
     expect(terminal?.focus).not.toHaveBeenCalled();
     unmount();
   });
