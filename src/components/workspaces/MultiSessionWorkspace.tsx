@@ -15,6 +15,7 @@ import {
 } from "react";
 import { toast } from "sonner";
 import { CommandPalette, type CommandPaletteAction } from "@/components/terminal/CommandPalette";
+import { ComposePanel } from "@/components/terminal/ComposePanel";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import {
@@ -49,6 +50,7 @@ import {
   isTextEntryEventTarget,
 } from "@/lib/keyboard-event-targets";
 import { formatShortcut } from "@/lib/keyboard-shortcuts";
+import type { TerminalComposeRequest } from "@/lib/terminal/clipboard";
 import { cn } from "@/lib/utils";
 import {
   type PersistedSessionPane,
@@ -103,6 +105,8 @@ interface InteractiveTerminalComponentProps {
   onRecoveryStateChange?: (state: TerminalRecoveryState) => void;
   onTerminalReady?: (term: Terminal, send: (data: string) => void) => void;
   onTerminalDestroy?: () => void;
+  onComposeRequest?: (request: TerminalComposeRequest) => void;
+  targetLabel?: string;
   layoutSignal?: unknown;
 }
 
@@ -792,6 +796,9 @@ export function MultiSessionWorkspace({
   const [gitFavoritesFailed, setGitFavoritesFailed] = useState(false);
   const [gitSearchOpen, setGitSearchOpen] = useState(false);
   const [paletteOpen, setPaletteOpen] = useState(false);
+  const [composeOpen, setComposeOpen] = useState(false);
+  const [composeDraft, setComposeDraft] = useState("");
+  const [composeTargetLabel, setComposeTargetLabel] = useState<string | undefined>();
   const [gitSearchQuery, setGitSearchQuery] = useState("");
   const [addingCloneKey, setAddingCloneKey] = useState<string | null>(null);
   const [gitAddFailed, setGitAddFailed] = useState(false);
@@ -1223,6 +1230,29 @@ export function MultiSessionWorkspace({
     [clearActiveTerminal],
   );
 
+  const openComposeWithDraft = useCallback((request: TerminalComposeRequest) => {
+    setComposeTargetLabel(request.targetLabel);
+    setComposeDraft((current) => {
+      if (!request.append || !current) return request.draft;
+      return `${current.replace(/\s*$/, "")}\n${request.draft}`;
+    });
+    setComposeOpen(true);
+  }, []);
+
+  const closeCompose = useCallback(() => {
+    setComposeOpen(false);
+    setComposeDraft("");
+    setComposeTargetLabel(undefined);
+  }, []);
+
+  const sendComposeDraft = useCallback((draft: string) => {
+    const activeName = activeSessionNameRef.current;
+    const entry = activeName ? terminalsRef.current.get(activeName) : null;
+    if (!entry) return;
+    entry.send(draft);
+    entry.send("\r");
+  }, []);
+
   const focusRelativeSession = useCallback(
     (direction: -1 | 1) => {
       if (visibleSessions.length === 0) return;
@@ -1414,6 +1444,17 @@ export function MultiSessionWorkspace({
       });
     }
     register({
+      id: `multi-session:${workspaceId}:compose`,
+      keys: ["ctrl+`", "cmd+`"],
+      action: () => {
+        setComposeOpen((current) => !current);
+        return false;
+      },
+      description: "Toggle compose panel",
+      category: "terminal",
+      enabledInBrowser: true,
+    });
+    register({
       id: "command-palette",
       keys: ["ctrl+k", "cmd+k"],
       action: () => {
@@ -1431,6 +1472,7 @@ export function MultiSessionWorkspace({
       unregister(`multi-session:${workspaceId}:next-pane`);
       unregister(`multi-session:${workspaceId}:previous-board`);
       unregister(`multi-session:${workspaceId}:next-board`);
+      unregister(`multi-session:${workspaceId}:compose`);
       for (const workspaceIndex of WORKSPACE_BOARD_INDEXES) {
         unregister(`multi-session:${workspaceId}:board-${workspaceIndex}`);
       }
@@ -2553,6 +2595,8 @@ export function MultiSessionWorkspace({
             handleTerminalDestroy(pane.sessionName);
             clearPaneRecoveryState(boardPaneSignal);
           }}
+          onComposeRequest={openComposeWithDraft}
+          targetLabel={pane.label}
         />
       </div>
     );
@@ -2652,25 +2696,37 @@ export function MultiSessionWorkspace({
 
       {renderBoardPersistenceStatus()}
 
-      <div
-        ref={workspaceBodyRef}
-        className="relative min-h-0 flex-1 overflow-hidden p-1"
-        data-testid="multi-session-body"
-      >
-        {visibleSessions.length === 0 ? (
-          renderEmptyWorkspaceBody()
-        ) : (
-          <div
-            className="grid h-full min-h-0 gap-1"
-            style={{
-              gridTemplateColumns: layout.tiled.gridTemplateColumns,
-              gridTemplateRows: layout.tiled.gridTemplateRows,
-            }}
-            data-testid="multi-session-grid"
-          >
-            {layout.panes.map(renderPane)}
+      <div className="flex min-h-0 flex-1 flex-col">
+        <div
+          ref={workspaceBodyRef}
+          className="relative min-h-0 flex-1 overflow-hidden p-1"
+          data-testid="multi-session-body"
+        >
+          {visibleSessions.length === 0 ? (
+            renderEmptyWorkspaceBody()
+          ) : (
+            <div
+              className="grid h-full min-h-0 gap-1"
+              style={{
+                gridTemplateColumns: layout.tiled.gridTemplateColumns,
+                gridTemplateRows: layout.tiled.gridTemplateRows,
+              }}
+              data-testid="multi-session-grid"
+            >
+              {layout.panes.map(renderPane)}
+            </div>
+          )}
+        </div>
+        {composeOpen ? (
+          <div className="h-[28%] min-h-40 shrink-0 border-t border-border">
+            <ComposePanel
+              initialDraft={composeDraft}
+              targetLabel={composeTargetLabel ?? activeLabel}
+              onSend={sendComposeDraft}
+              onClose={closeCompose}
+            />
           </div>
-        )}
+        ) : null}
       </div>
     </section>
   );

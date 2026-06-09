@@ -21,10 +21,15 @@ import {
   type TerminalRefreshUrlBeforeReconnect,
   useTerminalWebSocket,
 } from "@/hooks/useTerminalWebSocket";
+import { useXtermSurface } from "@/hooks/useXtermSurface";
 import { TAP_THRESHOLD_PX } from "@/lib/gestures/conventions";
 import { isCloneTerminalSessionName } from "@/lib/git/clone-terminal-session";
 import { getClientRuntimeConfig } from "@/lib/runtime-config";
-import { loadTerminalFont, TERMINAL_FONT_FAMILY, TERMINAL_THEME } from "@/lib/terminal/config";
+import {
+  dropDataTransferToTerminal,
+  pasteNativeClipboardEventToTerminal,
+} from "@/lib/terminal/actions";
+import type { TerminalComposeRequest } from "@/lib/terminal/clipboard";
 import { EVENT_NAME as FONT_SIZE_EVENT, getTerminalFontSize } from "@/lib/terminal/font-size";
 import {
   blurXtermMobileInput,
@@ -74,6 +79,9 @@ interface InteractiveTerminalProps {
   onRecoveryStateChange?: (state: TerminalRecoveryState) => void;
   onTerminalReady?: (term: Terminal, send: (data: string) => void) => void;
   onTerminalDestroy?: () => void;
+  onComposeRequest?: (request: TerminalComposeRequest) => void;
+  onClipboardStatus?: (message: string) => void;
+  targetLabel?: string;
   layoutSignal?: unknown;
   mobileInputMode?: boolean;
   pinToBottomOnResize?: boolean;
@@ -324,6 +332,9 @@ export function InteractiveTerminal({
   onRecoveryStateChange,
   onTerminalReady,
   onTerminalDestroy,
+  onComposeRequest,
+  onClipboardStatus,
+  targetLabel,
   layoutSignal,
   mobileInputMode = false,
   pinToBottomOnResize = false,
@@ -349,6 +360,12 @@ export function InteractiveTerminal({
   onTerminalReadyRef.current = onTerminalReady;
   const onTerminalDestroyRef = useRef(onTerminalDestroy);
   onTerminalDestroyRef.current = onTerminalDestroy;
+  const onComposeRequestRef = useRef(onComposeRequest);
+  onComposeRequestRef.current = onComposeRequest;
+  const onClipboardStatusRef = useRef(onClipboardStatus);
+  onClipboardStatusRef.current = onClipboardStatus;
+  const targetLabelRef = useRef(targetLabel);
+  targetLabelRef.current = targetLabel;
   const [reconnectId] = useState(() => {
     const RECONNECT_TTL_MS = 24 * 60 * 60 * 1000;
     const storageKey = `terminal:reconnect:${agentId}:${sessionName}`;
@@ -723,40 +740,27 @@ export function InteractiveTerminal({
     return () => cancelAnimationFrame(frame);
   }, [layoutSignal, fitResizeAndPreserveBottom]);
 
-  useEffect(() => {
-    if (!containerRef.current) return;
-
-    let mounted = true;
-    let term: Terminal | null = null;
-    let fit: FitAddon | null = null;
-
-    (async () => {
-      const [{ Terminal }, { FitAddon }] = await Promise.all([
-        import("@xterm/xterm"),
-        import("@xterm/addon-fit"),
-      ]);
-
-      if (!mounted || !containerRef.current) return;
-
-      await loadTerminalFont();
-
-      term = new Terminal({
-        theme: TERMINAL_THEME,
-        fontFamily: TERMINAL_FONT_FAMILY,
-        fontSize: getTerminalFontSize(),
-        lineHeight: 1.4,
-        cursorBlink: true,
-        convertEol: true,
-        scrollOnUserInput: true,
-        scrollback: 10000,
-      });
-
-      fit = new FitAddon();
-      term.loadAddon(fit);
-      term.open(containerRef.current);
-
-      termRef.current = term;
-      fitRef.current = fit;
+  useXtermSurface({
+    containerRef,
+    termRef,
+    fitRef,
+    terminalOptions: {
+      fontSize: getTerminalFontSize(),
+      lineHeight: 1.4,
+      cursorBlink: true,
+      convertEol: true,
+      scrollOnUserInput: true,
+      scrollback: 10000,
+    },
+    recreateKey: [
+      agentId,
+      workspaceId,
+      sessionName,
+      clonePath ?? "",
+      cloneProof ?? "",
+      reconnectId,
+    ].join(":"),
+    onReady: async (term, fit) => {
       applyMobileInputAdapter();
       if (!mobileInputModeRef.current) {
         term.focus();
@@ -770,7 +774,39 @@ export function InteractiveTerminal({
         return handleKeyEventRef.current(e);
       });
 
-      onTerminalReadyRef.current?.(term, (text) => sendRef.current(encodeInput(text)));
+      const sendRaw = (text: string) => sendRef.current(encodeInput(text));
+      onTerminalReadyRef.current?.(term, sendRaw);
+
+      const container = containerRef.current;
+      const handlePaste = (event: ClipboardEvent) => {
+        if (!onComposeRequestRef.current) return;
+        void pasteNativeClipboardEventToTerminal(event, {
+          term,
+          send: sendRaw,
+          onCompose: onComposeRequestRef.current,
+          workspaceId,
+          targetLabel: targetLabelRef.current,
+          onStatus: onClipboardStatusRef.current,
+        });
+      };
+      const handleDragOver = (event: DragEvent) => {
+        if (!onComposeRequestRef.current || !event.dataTransfer?.items.length) return;
+        event.preventDefault();
+      };
+      const handleDrop = (event: DragEvent) => {
+        if (!onComposeRequestRef.current) return;
+        void dropDataTransferToTerminal(event, {
+          term,
+          send: sendRaw,
+          onCompose: onComposeRequestRef.current,
+          workspaceId,
+          targetLabel: targetLabelRef.current,
+          onStatus: onClipboardStatusRef.current,
+        });
+      };
+      container?.addEventListener("paste", handlePaste, { capture: true });
+      container?.addEventListener("dragover", handleDragOver, { capture: true });
+      container?.addEventListener("drop", handleDrop, { capture: true });
 
       term.onData((data) => {
         sendRef.current(encodeInput(data));
@@ -784,7 +820,7 @@ export function InteractiveTerminal({
 
       if (typeof term.onScroll === "function") {
         term.onScroll(() => {
-          pinnedToBottomRef.current = isTerminalScrolledToBottom(term as Terminal);
+          pinnedToBottomRef.current = isTerminalScrolledToBottom(term);
         });
       }
 
@@ -792,12 +828,10 @@ export function InteractiveTerminal({
         scrollTerminalToBottom(term);
       }
 
-      // Wait for browser layout paint before reading dimensions
       await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
-      if (!mounted) return;
+      if (termRef.current !== term) return;
       fitResizeAndPreserveBottom(Boolean(pinToBottomOnResizeRef.current), "initial-layout-refit");
 
-      const dims = { rows: term.rows, cols: term.cols };
       const proxyUrl = getClientRuntimeConfig().terminalWsUrl;
       if (!proxyUrl) {
         console.error(
@@ -811,52 +845,31 @@ export function InteractiveTerminal({
           agentId,
           workspaceId,
           reconnectId,
-          rows: dims.rows,
-          cols: dims.cols,
+          rows: term.rows,
+          cols: term.cols,
           sessionName,
           clonePath,
           cloneProof,
         }),
       );
-    })();
 
-    let resizeTimer: ReturnType<typeof setTimeout> | null = null;
-    const resizeObserver = new ResizeObserver((entries) => {
-      for (const entry of entries) {
-        const { width, height } = entry.contentRect;
-        if (width > 0 && height > 0 && fitRef.current) {
-          if (resizeTimer) clearTimeout(resizeTimer);
-          resizeTimer = setTimeout(() => {
-            fitResizeAndPreserveBottom(false, "resize-observer-refit");
-          }, 50);
-        }
-      }
-    });
-    resizeObserver.observe(containerRef.current);
-
-    return () => {
-      mounted = false;
-      if (resizeTimer) clearTimeout(resizeTimer);
-      resizeObserver.disconnect();
+      return () => {
+        container?.removeEventListener("paste", handlePaste, { capture: true });
+        container?.removeEventListener("dragover", handleDragOver, { capture: true });
+        container?.removeEventListener("drop", handleDrop, { capture: true });
+      };
+    },
+    onResize: () => {
+      fitResizeAndPreserveBottom(false, "resize-observer-refit");
+    },
+    onDispose: () => {
       mobileTouchIntentRef.current = null;
       suppressNextClickFocusRef.current = false;
       mobileInputCleanupRef.current?.dispose();
       mobileInputCleanupRef.current = null;
       onTerminalDestroyRef.current?.();
-      termRef.current?.dispose();
-      termRef.current = null;
-      fitRef.current = null;
-    };
-  }, [
-    agentId,
-    applyMobileInputAdapter,
-    clonePath,
-    cloneProof,
-    fitResizeAndPreserveBottom,
-    reconnectId,
-    sessionName,
-    workspaceId,
-  ]);
+    },
+  });
 
   return (
     <div className={cn("relative flex flex-col bg-[#0a0a0a] overflow-hidden", className)}>

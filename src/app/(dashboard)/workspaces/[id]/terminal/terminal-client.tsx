@@ -32,6 +32,7 @@ import {
   copyTerminalSelection,
   pasteToTerminal,
 } from "@/lib/terminal/actions";
+import type { TerminalComposeRequest } from "@/lib/terminal/clipboard";
 import { COMPOSE_SHEET_DISMISS_DRAG_PX } from "@/lib/terminal/config";
 import { TERMINAL_COMPOSE_OPEN_EVENT } from "@/lib/terminal/events";
 import { composeSheetKeyboardStyle } from "@/lib/terminal/mobile-shell-layout";
@@ -171,6 +172,8 @@ function TerminalInner({
   const [menuPosition, setMenuPosition] = useState<{ x: number; y: number } | null>(null);
   const [menuSelection, setMenuSelection] = useState(false);
   const [composeOpen, setComposeOpen] = useState(false);
+  const [composeDraft, setComposeDraft] = useState("");
+  const [composeTargetLabel, setComposeTargetLabel] = useState<string | undefined>();
   const [windowSwitcherOpen, setWindowSwitcherOpen] = useState(false);
   const [selectionModeEnabled, setSelectionModeEnabled] = useState(false);
   const [terminalControlsBeyondMobile, setTerminalControlsBeyondMobile] = useState(
@@ -238,6 +241,13 @@ function TerminalInner({
       isExpectedCloneSessionKey(routeCloneSessionKey) &&
       isSafeCloneRelativePath(routeRelativePath),
   );
+
+  const closeCompose = useCallback(() => {
+    setComposeOpen(false);
+    setComposeDraft("");
+    setComposeTargetLabel(undefined);
+  }, []);
+
   const refreshCloneTerminalIdentity = useCallback(async () => {
     if (
       !session ||
@@ -282,19 +292,22 @@ function TerminalInner({
     }
   }, []);
 
-  const handleComposeSheetDragEnd = useCallback((event: PointerEvent<HTMLButtonElement>) => {
-    const startY = composeSheetDragStartYRef.current;
-    composeSheetDragStartYRef.current = null;
+  const handleComposeSheetDragEnd = useCallback(
+    (event: PointerEvent<HTMLButtonElement>) => {
+      const startY = composeSheetDragStartYRef.current;
+      composeSheetDragStartYRef.current = null;
 
-    if (typeof event.currentTarget.releasePointerCapture === "function") {
-      event.currentTarget.releasePointerCapture(event.pointerId);
-    }
+      if (typeof event.currentTarget.releasePointerCapture === "function") {
+        event.currentTarget.releasePointerCapture(event.pointerId);
+      }
 
-    if (startY === null) return;
-    if (event.clientY - startY >= COMPOSE_SHEET_DISMISS_DRAG_PX) {
-      setComposeOpen(false);
-    }
-  }, []);
+      if (startY === null) return;
+      if (event.clientY - startY >= COMPOSE_SHEET_DISMISS_DRAG_PX) {
+        closeCompose();
+      }
+    },
+    [closeCompose],
+  );
 
   const handleComposeSheetDragCancel = useCallback(() => {
     composeSheetDragStartYRef.current = null;
@@ -321,10 +334,33 @@ function TerminalInner({
     copyTerminalSelection(activeTerminal, { onStatus: setClipboardActionStatus });
   }, [activeTerminal]);
 
+  const openComposeWithDraft = useCallback((request: TerminalComposeRequest) => {
+    setComposeTargetLabel(request.targetLabel);
+    setComposeDraft((current) => {
+      if (!request.append || !current) return request.draft;
+      return `${current.replace(/\s*$/, "")}\n${request.draft}`;
+    });
+    setComposeOpen(true);
+  }, []);
+
+  const sendComposeDraft = useCallback(
+    (draft: string) => {
+      if (!activeSend) return;
+      activeSend(draft);
+      activeSend("\r");
+    },
+    [activeSend],
+  );
+
   const handleMobilePaste = useCallback(() => {
     if (!activeSend) return;
-    pasteToTerminal(activeTerminal ?? null, activeSend, { onStatus: setClipboardActionStatus });
-  }, [activeSend, activeTerminal]);
+    pasteToTerminal(activeTerminal ?? null, activeSend, {
+      onStatus: setClipboardActionStatus,
+      onCompose: openComposeWithDraft,
+      targetLabel: session ?? undefined,
+      workspaceId,
+    });
+  }, [activeSend, activeTerminal, openComposeWithDraft, session, workspaceId]);
 
   useEffect(() => {
     if (!session || isComposeSheet || composeOpen || selectionModeEnabled || !activeTerminal) {
@@ -559,6 +595,15 @@ function TerminalInner({
           className="h-full rounded-none border-0"
           onTerminalReady={handleTerminalReady}
           onTerminalDestroy={handleTerminalDestroy}
+          onComposeRequest={openComposeWithDraft}
+          onClipboardStatus={(message) =>
+            setClipboardActionStatus({
+              action: "paste",
+              outcome: message === "Clipboard is empty." ? "empty" : "pasted",
+              method: "clipboard-api",
+            })
+          }
+          targetLabel={session}
           layoutSignal={mobileLayoutSignal}
           mobileInputMode={isComposeSheet}
           pinToBottomOnResize={isComposeSheet}
@@ -573,7 +618,14 @@ function TerminalInner({
           if (activeTerminal) copyTerminalSelection(activeTerminal);
         }}
         onPaste={() => {
-          if (activeTerminal && activeSend) pasteToTerminal(activeTerminal, activeSend);
+          if (activeTerminal && activeSend) {
+            pasteToTerminal(activeTerminal, activeSend, {
+              onStatus: setClipboardActionStatus,
+              onCompose: openComposeWithDraft,
+              targetLabel: session ?? undefined,
+              workspaceId,
+            });
+          }
         }}
       />
     </div>
@@ -623,7 +675,16 @@ function TerminalInner({
           </section>
           {terminalControls}
         </div>
-        <Sheet open={composeOpen} onOpenChange={setComposeOpen}>
+        <Sheet
+          open={composeOpen}
+          onOpenChange={(open) => {
+            if (open) {
+              setComposeOpen(true);
+            } else {
+              closeCompose();
+            }
+          }}
+        >
           <SheetContent
             side="bottom"
             className="h-[var(--app-viewport-height)] max-h-[var(--app-viewport-height)] p-0 pt-safe"
@@ -633,7 +694,7 @@ function TerminalInner({
               type="button"
               aria-label="Dismiss compose panel"
               className="mx-auto mt-2 flex h-11 w-20 touch-none items-center justify-center rounded-full text-muted-foreground hover:text-foreground active:cursor-grabbing"
-              onClick={() => setComposeOpen(false)}
+              onClick={closeCompose}
               onPointerCancel={handleComposeSheetDragCancel}
               onPointerDown={handleComposeSheetDragStart}
               onPointerUp={handleComposeSheetDragEnd}
@@ -642,7 +703,13 @@ function TerminalInner({
             </button>
             <SheetTitle className="sr-only">Compose command</SheetTitle>
             <div className="min-h-0 flex-1">
-              <ComposePanel hideHeader onClose={() => setComposeOpen(false)} />
+              <ComposePanel
+                hideHeader
+                initialDraft={composeDraft}
+                targetLabel={composeTargetLabel}
+                onSend={sendComposeDraft}
+                onClose={closeCompose}
+              />
             </div>
           </SheetContent>
         </Sheet>
@@ -675,7 +742,12 @@ function TerminalInner({
             <>
               <ResizableHandle withHandle />
               <ResizablePanel defaultSize={25} minSize={10} maxSize={50}>
-                <ComposePanel onClose={() => setComposeOpen(false)} />
+                <ComposePanel
+                  initialDraft={composeDraft}
+                  targetLabel={composeTargetLabel}
+                  onSend={sendComposeDraft}
+                  onClose={closeCompose}
+                />
               </ResizablePanel>
             </>
           )}

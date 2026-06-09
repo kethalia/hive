@@ -166,16 +166,18 @@ describe("pasteToTerminal", () => {
     vi.restoreAllMocks();
   });
 
-  it("reads clipboard text once, sends it exactly, emits status, and returns false", async () => {
+  it("reads clipboard text once, uses xterm paste, emits status, and returns false", async () => {
     const send = vi.fn();
     const onStatus = vi.fn();
+    const term = { paste: vi.fn() };
 
-    const result = pasteToTerminal(null, send, { onStatus });
+    const result = pasteToTerminal(term as never, send, { onStatus });
 
     expect(result).toBe(false);
     expect(readText).toHaveBeenCalledOnce();
     await vi.waitFor(() => {
-      expect(send).toHaveBeenCalledWith("pasted terminal payload");
+      expect(term.paste).toHaveBeenCalledWith("pasted terminal payload");
+      expect(send).not.toHaveBeenCalled();
       expect(onStatus).toHaveBeenCalledWith({
         action: "paste",
         outcome: "pasted",
@@ -183,6 +185,34 @@ describe("pasteToTerminal", () => {
       });
     });
     expect(warningText()).not.toContain("pasted terminal payload");
+  });
+
+  it("stages multiline clipboard text in compose when a compose target is provided", async () => {
+    readText.mockResolvedValue("echo one\necho two");
+    const send = vi.fn();
+    const onCompose = vi.fn();
+    const onStatus = vi.fn();
+
+    const result = pasteToTerminal(null, send, {
+      onCompose,
+      onStatus,
+      targetLabel: "main",
+    });
+
+    expect(result).toBe(false);
+    await vi.waitFor(() => {
+      expect(onCompose).toHaveBeenCalledWith({
+        draft: "echo one\necho two",
+        append: true,
+        targetLabel: "main",
+      });
+      expect(onStatus).toHaveBeenCalledWith({
+        action: "paste",
+        outcome: "pasted",
+        method: "clipboard-api",
+      });
+    });
+    expect(send).not.toHaveBeenCalled();
   });
 
   it("does not send empty clipboard text and reports an empty outcome", async () => {

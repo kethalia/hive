@@ -24,6 +24,7 @@ import {
 } from "@/lib/actions/workspaces";
 import { SAFE_IDENTIFIER_RE } from "@/lib/constants";
 import { copyTerminalSelection, pasteToTerminal } from "@/lib/terminal/actions";
+import type { TerminalComposeRequest } from "@/lib/terminal/clipboard";
 import { isPwaStandalone } from "@/lib/terminal/pwa";
 import { cn } from "@/lib/utils";
 
@@ -101,6 +102,8 @@ export function TerminalTabManager({ agentId, workspaceId }: TerminalTabManagerP
   const [menuPosition, setMenuPosition] = useState<{ x: number; y: number } | null>(null);
   const [menuSelection, setMenuSelection] = useState(false);
   const [composeOpen, setComposeOpen] = useState(false);
+  const [composeDraft, setComposeDraft] = useState("");
+  const [composeTargetLabel, setComposeTargetLabel] = useState<string | undefined>();
 
   const [connStates, setConnStates] = useState<Record<string, ConnectionState>>({});
   const keybindingsCtx = useKeybindings();
@@ -295,6 +298,31 @@ export function TerminalTabManager({ agentId, workspaceId }: TerminalTabManagerP
     const entry = currentActiveId ? terminalsRef.current.get(currentActiveId) : null;
     setMenuSelection(!!entry?.term.getSelection());
     setMenuPosition({ x, y });
+  }, []);
+
+  const activeTab = tabs.find((tab) => tab.id === activeTabId);
+  const activeTargetLabel = activeTab?.sessionName;
+
+  const openComposeWithDraft = useCallback((request: TerminalComposeRequest) => {
+    setComposeTargetLabel(request.targetLabel);
+    setComposeDraft((current) => {
+      if (!request.append || !current) return request.draft;
+      return `${current.replace(/\s*$/, "")}\n${request.draft}`;
+    });
+    setComposeOpen(true);
+  }, []);
+
+  const closeCompose = useCallback(() => {
+    setComposeOpen(false);
+    setComposeDraft("");
+    setComposeTargetLabel(undefined);
+  }, []);
+
+  const sendComposeDraft = useCallback((draft: string) => {
+    const entry = activeTabIdRef.current ? terminalsRef.current.get(activeTabIdRef.current) : null;
+    if (!entry) return;
+    entry.send(draft);
+    entry.send("\r");
   }, []);
 
   const setComposeOpenRef = useRef(setComposeOpen);
@@ -581,6 +609,8 @@ export function TerminalTabManager({ agentId, workspaceId }: TerminalTabManagerP
                     onConnectionStateChange={(state) => handleConnectionStateChange(tab.id, state)}
                     onTerminalReady={(term, send) => handleTerminalReady(tab.id, term, send)}
                     onTerminalDestroy={() => handleTerminalDestroy(tab.id)}
+                    onComposeRequest={openComposeWithDraft}
+                    targetLabel={tab.sessionName}
                   />
                 </TerminalGestureLayer>
               </div>
@@ -595,7 +625,13 @@ export function TerminalTabManager({ agentId, workspaceId }: TerminalTabManagerP
               }}
               onPaste={() => {
                 const entry = activeTabId ? terminalsRef.current.get(activeTabId) : null;
-                if (entry) pasteToTerminal(entry.term, entry.send);
+                if (entry) {
+                  pasteToTerminal(entry.term, entry.send, {
+                    onCompose: openComposeWithDraft,
+                    targetLabel: activeTargetLabel,
+                    workspaceId,
+                  });
+                }
               }}
               onNewSession={handleCreateTab}
               onCloseSession={
@@ -608,7 +644,12 @@ export function TerminalTabManager({ agentId, workspaceId }: TerminalTabManagerP
           <>
             <ResizableHandle withHandle />
             <ResizablePanel defaultSize={25} minSize={10} maxSize={50}>
-              <ComposePanel onClose={() => setComposeOpen(false)} />
+              <ComposePanel
+                initialDraft={composeDraft}
+                targetLabel={composeTargetLabel}
+                onSend={sendComposeDraft}
+                onClose={closeCompose}
+              />
             </ResizablePanel>
           </>
         )}

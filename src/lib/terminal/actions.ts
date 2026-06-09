@@ -1,4 +1,10 @@
 import type { Terminal } from "@xterm/xterm";
+import {
+  handleTerminalPasteOutcome,
+  normalizeClipboardText,
+  pasteTextToXterm,
+  type TerminalComposeRequest,
+} from "@/lib/terminal/clipboard";
 
 export type ClipboardFallbackReason =
   | "clipboard-api-unavailable"
@@ -51,6 +57,9 @@ export type ClipboardStatusCallback = (status: ClipboardActionStatus) => void;
 
 export interface ClipboardActionOptions {
   onStatus?: ClipboardStatusCallback;
+  onCompose?: (request: TerminalComposeRequest) => void;
+  targetLabel?: string;
+  workspaceId?: string;
 }
 
 type TerminalSelection = Pick<Terminal, "getSelection" | "clearSelection">;
@@ -196,7 +205,7 @@ export function copyTerminalSelection(
 }
 
 export function pasteToTerminal(
-  _term: Terminal | null,
+  term: Terminal | null,
   send: (data: string) => void,
   options?: ClipboardActionOptions,
 ): boolean {
@@ -215,7 +224,8 @@ export function pasteToTerminal(
     const readResult = clipboard.readText();
     void readResult
       .then((text) => {
-        if (!text) {
+        const outcome = normalizeClipboardText(text);
+        if (outcome.kind === "empty") {
           emitStatus(options, {
             action: "paste",
             outcome: "empty",
@@ -224,7 +234,23 @@ export function pasteToTerminal(
           return;
         }
 
-        send(text);
+        if (outcome.kind !== "text") return;
+
+        if (outcome.multiline && options?.onCompose) {
+          options.onCompose({
+            draft: outcome.text,
+            append: true,
+            targetLabel: options.targetLabel,
+          });
+          emitStatus(options, {
+            action: "paste",
+            outcome: "pasted",
+            method: "clipboard-api",
+          });
+          return;
+        }
+
+        pasteTextToXterm(term, send, outcome.text);
         emitStatus(options, {
           action: "paste",
           outcome: "pasted",
@@ -239,4 +265,56 @@ export function pasteToTerminal(
   }
 
   return false;
+}
+
+export async function pasteNativeClipboardEventToTerminal(
+  event: ClipboardEvent,
+  controller: {
+    term: Terminal | null;
+    send: (data: string) => void;
+    onCompose: (request: TerminalComposeRequest) => void;
+    workspaceId?: string;
+    targetLabel?: string;
+    onStatus?: (message: string) => void;
+  },
+): Promise<void> {
+  const { readNativePasteOutcome } = await import("@/lib/terminal/clipboard");
+  const outcome = readNativePasteOutcome(event);
+  if (outcome.kind !== "empty") {
+    event.preventDefault();
+  }
+  await handleTerminalPasteOutcome(outcome, {
+    term: controller.term,
+    send: controller.send,
+    openCompose: controller.onCompose,
+    workspaceId: controller.workspaceId,
+    targetLabel: controller.targetLabel,
+    onStatus: controller.onStatus,
+  });
+}
+
+export async function dropDataTransferToTerminal(
+  event: DragEvent,
+  controller: {
+    term: Terminal | null;
+    send: (data: string) => void;
+    onCompose: (request: TerminalComposeRequest) => void;
+    workspaceId?: string;
+    targetLabel?: string;
+    onStatus?: (message: string) => void;
+  },
+): Promise<void> {
+  const { readDataTransferOutcome } = await import("@/lib/terminal/clipboard");
+  const outcome = readDataTransferOutcome(event.dataTransfer);
+  if (outcome.kind !== "empty") {
+    event.preventDefault();
+  }
+  await handleTerminalPasteOutcome(outcome, {
+    term: controller.term,
+    send: controller.send,
+    openCompose: controller.onCompose,
+    workspaceId: controller.workspaceId,
+    targetLabel: controller.targetLabel,
+    onStatus: controller.onStatus,
+  });
 }
