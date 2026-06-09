@@ -3,8 +3,8 @@
 import type { FitAddon } from "@xterm/addon-fit";
 import type { Terminal } from "@xterm/xterm";
 import { X } from "lucide-react";
-import { useEffect, useRef } from "react";
-import { loadTerminalFont, TERMINAL_FONT_FAMILY, TERMINAL_THEME } from "@/lib/terminal/config";
+import { useRef } from "react";
+import { useXtermSurface } from "@/hooks/useXtermSurface";
 import { cn } from "@/lib/utils";
 
 interface TerminalPanelProps {
@@ -30,69 +30,32 @@ export function TerminalPanel({ onClose, writeRef, onReady, className }: Termina
   const termRef = useRef<Terminal | null>(null);
   const fitRef = useRef<FitAddon | null>(null);
 
-  useEffect(() => {
-    if (!containerRef.current) return;
-
-    let mounted = true;
-    let term: Terminal | null = null;
-    let fit: FitAddon | null = null;
-
-    (async () => {
-      const [{ Terminal }, { FitAddon }] = await Promise.all([
-        import("@xterm/xterm"),
-        import("@xterm/addon-fit"),
-      ]);
-
-      if (!mounted || !containerRef.current) return;
-
-      await loadTerminalFont();
-
-      term = new Terminal({
-        theme: TERMINAL_THEME,
-        fontFamily: TERMINAL_FONT_FAMILY,
-        fontSize: 13,
-        lineHeight: 1.4,
-        cursorBlink: false,
-        convertEol: true,
-        scrollback: 5000,
-      });
-
-      fit = new FitAddon();
-      term.loadAddon(fit);
-      term.open(containerRef.current);
+  useXtermSurface({
+    containerRef,
+    termRef,
+    fitRef,
+    terminalOptions: {
+      fontSize: 13,
+      lineHeight: 1.4,
+      cursorBlink: false,
+      convertEol: true,
+      scrollback: 5000,
+    },
+    recreateKey: "template-terminal-panel",
+    onReady: (term, fit) => {
       fit.fit();
-
-      termRef.current = term;
-      fitRef.current = fit;
-
-      // Expose write function to caller
       writeRef.current = (line: string) => {
-        term?.writeln(line);
+        term.writeln(line);
       };
-
-      // Signal to caller that the terminal is ready to receive output
       onReady?.();
-    })();
-
-    const resizeObserver = new ResizeObserver((entries) => {
-      for (const entry of entries) {
-        const { width, height } = entry.contentRect;
-        if (width > 0 && height > 0 && fitRef.current) {
-          fitRef.current.fit();
-        }
-      }
-    });
-    resizeObserver.observe(containerRef.current);
-
-    return () => {
-      mounted = false;
-      resizeObserver.disconnect();
+    },
+    onResize: (_term, fit) => {
+      fit.fit();
+    },
+    onDispose: () => {
       writeRef.current = null;
-      termRef.current?.dispose();
-      termRef.current = null;
-      fitRef.current = null;
-    };
-  }, [writeRef, onReady]);
+    },
+  });
 
   return (
     <div

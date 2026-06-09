@@ -10,26 +10,48 @@ import { formatShortcut } from "@/lib/keyboard-shortcuts";
 interface ComposePanelProps {
   onClose: () => void;
   hideHeader?: boolean;
+  initialDraft?: string;
+  targetLabel?: string;
+  onSend?: (draft: string) => void;
 }
 
 const SEND_COMPOSE_SHORTCUT_KEYS = ["ctrl+enter", "cmd+enter"] as const;
 
-export function ComposePanel({ onClose, hideHeader = false }: ComposePanelProps) {
+export function ComposePanel({
+  onClose,
+  hideHeader = false,
+  initialDraft = "",
+  targetLabel,
+  onSend,
+}: ComposePanelProps) {
   const { activeSend } = useKeybindings();
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const [draft, setDraft] = useState("");
+  const [draft, setDraft] = useState(initialDraft);
+  const previousInitialDraftRef = useRef(initialDraft);
 
   const sendComposed = useCallback(() => {
-    if (!draft || !activeSend) return;
-    activeSend(draft);
-    activeSend("\r");
+    if (!draft) return;
+    if (onSend) {
+      onSend(draft);
+    } else if (activeSend) {
+      activeSend(draft);
+      activeSend("\r");
+    } else {
+      return;
+    }
     setDraft("");
     onClose();
-  }, [activeSend, draft, onClose]);
+  }, [activeSend, draft, onClose, onSend]);
 
   useEffect(() => {
     textareaRef.current?.focus();
   }, []);
+
+  useEffect(() => {
+    if (previousInitialDraftRef.current === initialDraft) return;
+    previousInitialDraftRef.current = initialDraft;
+    setDraft(initialDraft);
+  }, [initialDraft]);
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -47,7 +69,8 @@ export function ComposePanel({ onClose, hideHeader = false }: ComposePanelProps)
       {!hideHeader && (
         <div className="flex items-center border-b border-border px-3 py-1">
           <span className="text-xs font-medium text-muted-foreground">
-            Compose — {formatShortcut(SEND_COMPOSE_SHORTCUT_KEYS)} to send
+            Compose{targetLabel ? ` to ${targetLabel}` : ""} —{" "}
+            {formatShortcut(SEND_COMPOSE_SHORTCUT_KEYS)} to send
           </span>
         </div>
       )}
@@ -70,7 +93,7 @@ export function ComposePanel({ onClose, hideHeader = false }: ComposePanelProps)
             type="button"
             className="min-h-11 flex-1"
             onClick={sendComposed}
-            disabled={!activeSend || !draft}
+            disabled={!(onSend || activeSend) || !draft}
             aria-label="Send command"
           >
             <Send data-icon="inline-start" />

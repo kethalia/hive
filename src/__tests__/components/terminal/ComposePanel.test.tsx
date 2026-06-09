@@ -57,6 +57,26 @@ describe("ComposePanel", () => {
     expect(onClose).toHaveBeenCalledTimes(1);
   });
 
+  it("uses initial draft and explicit send target", () => {
+    const onClose = vi.fn();
+    const onSend = vi.fn();
+    render(
+      <ComposePanel
+        initialDraft="/tmp/hive-terminal-paste/image.png"
+        targetLabel="pane-1"
+        onSend={onSend}
+        onClose={onClose}
+      />,
+    );
+
+    expect(screen.getByText(/Compose to pane-1/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Send command" }));
+
+    expect(onSend).toHaveBeenCalledWith("/tmp/hive-terminal-paste/image.png");
+    expect(mockActiveSend).not.toHaveBeenCalled();
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
   it("sends with Ctrl+Enter", () => {
     const onClose = vi.fn();
     render(<ComposePanel onClose={onClose} />);
