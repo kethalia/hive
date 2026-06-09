@@ -47,9 +47,54 @@ function getCookieDomain(): string | undefined {
   return cookieDomain;
 }
 
+function normalizeHostname(hostname: string | null | undefined): string | null {
+  if (!hostname) return null;
+  const trimmed = hostname.trim().toLowerCase();
+  if (!trimmed) return null;
+  const bracketEndIndex = trimmed.indexOf("]");
+  const withoutPort =
+    trimmed.startsWith("[") && bracketEndIndex > 1
+      ? trimmed.slice(1, bracketEndIndex)
+      : trimmed.split(":")[0];
+  if (!withoutPort || withoutPort === "localhost") return null;
+  if (/^\d{1,3}(?:\.\d{1,3}){3}$/.test(withoutPort)) return null;
+  return withoutPort;
+}
+
+export function resolveSessionCookieDomain(hostname?: string | null): string | undefined {
+  const configuredDomain = getCookieDomain();
+  if (configuredDomain) return configuredDomain;
+
+  const normalizedHostname = normalizeHostname(hostname);
+  if (!normalizedHostname || !isHiveScopedCookieDomain(normalizedHostname)) return undefined;
+
+  return `.${normalizedHostname}`;
+}
+
+function parentHiveCookieDomain(hostname?: string | null): string | undefined {
+  if (getCookieDomain()) return undefined;
+
+  const normalizedHostname = normalizeHostname(hostname);
+  if (!normalizedHostname) return undefined;
+
+  const hiveIndex = normalizedHostname.indexOf("hive.");
+  if (hiveIndex <= 0) return undefined;
+
+  const parentDomain = `.${normalizedHostname.slice(hiveIndex)}`;
+  return isHiveScopedCookieDomain(parentDomain) ? parentDomain : undefined;
+}
+
+function sessionCookieDomainsToClear(hostname?: string | null): string[] {
+  const domain = resolveSessionCookieDomain(hostname);
+  const parentDomain = parentHiveCookieDomain(hostname);
+  return [domain, parentDomain].filter(
+    (value, index, values): value is string => Boolean(value) && values.indexOf(value) === index,
+  );
+}
+
 function sessionCookieOptions(
   maxAge: number,
-  domain: string | null | undefined = getCookieDomain(),
+  domain: string | null | undefined = resolveSessionCookieDomain(),
 ): SessionCookieOptions {
   const cookieDomain = domain ?? undefined;
   return {
@@ -124,21 +169,26 @@ function appendSessionCookie(headers: Headers, value: string, options: SessionCo
   headers.append("Set-Cookie", serializeSessionCookie(value, options));
 }
 
-export function appendSetSessionCookieHeaders(headers: Headers, signedValue: string): void {
-  const domain = getCookieDomain();
+export function appendSetSessionCookieHeaders(
+  headers: Headers,
+  signedValue: string,
+  hostname?: string | null,
+): void {
+  const domain = resolveSessionCookieDomain(hostname);
 
   if (domain) {
     appendSessionCookie(headers, "", sessionCookieOptions(0, null));
+  }
+  for (const domainToClear of sessionCookieDomainsToClear(hostname)) {
+    appendSessionCookie(headers, "", sessionCookieOptions(0, domainToClear));
   }
 
   appendSessionCookie(headers, signedValue, sessionCookieOptions(SESSION_MAX_AGE_SECONDS, domain));
 }
 
-export function appendClearSessionCookieHeaders(headers: Headers): void {
-  const domain = getCookieDomain();
-
-  if (domain) {
-    appendSessionCookie(headers, "", sessionCookieOptions(0, domain));
+export function appendClearSessionCookieHeaders(headers: Headers, hostname?: string | null): void {
+  for (const domainToClear of sessionCookieDomainsToClear(hostname)) {
+    appendSessionCookie(headers, "", sessionCookieOptions(0, domainToClear));
   }
 
   appendSessionCookie(headers, "", sessionCookieOptions(0, null));
@@ -147,8 +197,9 @@ export function appendClearSessionCookieHeaders(headers: Headers): void {
 export function setSessionCookieValue(
   cookieStore: WritableSessionCookieStore,
   signedValue: string,
+  hostname?: string | null,
 ): void {
-  const domain = getCookieDomain();
+  const domain = resolveSessionCookieDomain(hostname);
 
   cookieStore.set(
     SESSION_COOKIE_NAME,
@@ -161,8 +212,9 @@ export function refreshDomainSessionCookie(
   cookieStore: WritableSessionCookieStore,
   signedValue: string,
   issuedAtMs?: number,
+  hostname?: string | null,
 ): void {
-  const domain = getCookieDomain();
+  const domain = resolveSessionCookieDomain(hostname);
   if (!domain) return;
 
   const maxAge = remainingSessionCookieMaxAge(issuedAtMs);
@@ -171,12 +223,13 @@ export function refreshDomainSessionCookie(
   cookieStore.set(SESSION_COOKIE_NAME, signedValue, sessionCookieOptions(maxAge, domain));
 }
 
-export function clearSessionCookies(cookieStore: WritableSessionCookieStore): void {
-  const domain = getCookieDomain();
-
+export function clearSessionCookies(
+  cookieStore: WritableSessionCookieStore,
+  hostname?: string | null,
+): void {
   cookieStore.set(SESSION_COOKIE_NAME, "", sessionCookieOptions(0, null));
 
-  if (domain) {
-    cookieStore.set(SESSION_COOKIE_NAME, "", sessionCookieOptions(0, domain));
+  for (const domainToClear of sessionCookieDomainsToClear(hostname)) {
+    cookieStore.set(SESSION_COOKIE_NAME, "", sessionCookieOptions(0, domainToClear));
   }
 }

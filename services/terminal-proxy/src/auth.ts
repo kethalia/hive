@@ -19,17 +19,19 @@ export interface AuthFailure {
 
 export type AuthResult = { ok: true; value: AuthSuccess } | { ok: false; value: AuthFailure };
 
-function parseCookie(header: string, name: string): string | null {
+function parseCookieValues(header: string, name: string): string[] {
+  const values: string[] = [];
   const pairs = header.split(";");
   for (const pair of pairs) {
     const eq = pair.indexOf("=");
     if (eq === -1) continue;
     const key = pair.slice(0, eq).trim();
     if (key === name) {
-      return pair.slice(eq + 1).trim();
+      const value = pair.slice(eq + 1).trim();
+      if (value) values.push(value);
     }
   }
-  return null;
+  return [...new Set(values)];
 }
 
 export async function authenticateUpgrade(req: IncomingMessage): Promise<AuthResult> {
@@ -51,8 +53,8 @@ export async function authenticateUpgrade(req: IncomingMessage): Promise<AuthRes
     };
   }
 
-  const cookieValue = parseCookie(cookieHeader, "hive-session");
-  if (!cookieValue) {
+  const cookieValues = parseCookieValues(cookieHeader, "hive-session");
+  if (cookieValues.length === 0) {
     console.error("[terminal-proxy] auth: no_cookie → 401");
     return {
       ok: false,
@@ -60,8 +62,11 @@ export async function authenticateUpgrade(req: IncomingMessage): Promise<AuthRes
     };
   }
 
-  const verified = verifyCookie(cookieValue, cookieSecret);
-  if (!verified) {
+  const verifiedSessionCookie = cookieValues.flatMap((value) => {
+    const verified = verifyCookie(value, cookieSecret);
+    return verified ? [{ value, verified }] : [];
+  })[0];
+  if (!verifiedSessionCookie) {
     console.error("[terminal-proxy] auth: invalid_hmac → 401");
     return {
       ok: false,
@@ -69,7 +74,7 @@ export async function authenticateUpgrade(req: IncomingMessage): Promise<AuthRes
     };
   }
 
-  const { sessionId } = verified;
+  const { sessionId } = verifiedSessionCookie.verified;
   const truncatedId = sessionId.slice(0, 8);
 
   const authServiceUrl = (process.env.AUTH_SERVICE_URL || "http://localhost:4400").replace(

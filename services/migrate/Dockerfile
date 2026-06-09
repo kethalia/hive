@@ -4,8 +4,9 @@
 # migrations. Runs `prisma migrate deploy` against DATABASE_URL and exits.
 # Invoked by charts/hive/templates/migrate-job.yaml as a Helm hook.
 ARG PNPM_VERSION=10.32.1
+ARG NODE_IMAGE=public.ecr.aws/docker/library/node:20-alpine
 
-FROM node:20-alpine AS deps
+FROM ${NODE_IMAGE} AS deps
 ARG PNPM_VERSION
 RUN corepack enable && corepack prepare pnpm@${PNPM_VERSION} --activate
 WORKDIR /app
@@ -15,7 +16,7 @@ COPY packages/db/package.json packages/db/package.json
 COPY services/migrate/package.json services/migrate/package.json
 RUN pnpm install --frozen-lockfile --ignore-scripts
 
-FROM node:20-alpine AS deploy
+FROM ${NODE_IMAGE} AS deploy
 ARG PNPM_VERSION
 RUN corepack enable && corepack prepare pnpm@${PNPM_VERSION} --activate
 WORKDIR /app
@@ -37,7 +38,7 @@ RUN pnpm --filter @hive/db db:generate
 # CMD below can resolve it.
 RUN pnpm deploy --filter hive-migrate --prod --legacy /deploy
 
-FROM node:20-alpine AS runner
+FROM ${NODE_IMAGE} AS runner
 RUN apk add --no-cache tini
 WORKDIR /app
 ENV NODE_ENV=production

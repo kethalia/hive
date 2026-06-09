@@ -584,13 +584,7 @@ export function TerminalTabManager({ agentId, workspaceId }: TerminalTabManagerP
 
       <ResizablePanelGroup orientation="vertical" className="flex-1">
         <ResizablePanel defaultSize={composeOpen ? 75 : 100} minSize={30}>
-          <div
-            className="relative h-full"
-            onContextMenu={(e) => {
-              e.preventDefault();
-              openTerminalContextMenu(e.clientX, e.clientY);
-            }}
-          >
+          <div className="relative h-full">
             {tabs.map((tab) => (
               <div
                 key={tab.id}

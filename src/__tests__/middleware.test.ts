@@ -61,6 +61,43 @@ describe("middleware", () => {
     expect(setCookie).toContain("Domain=.pr-101.hive.local.kethalia.com");
   });
 
+  it("derives preview cookie domain when refreshing without COOKIE_DOMAIN", () => {
+    vi.stubEnv("COOKIE_SECRET", "preview-secret");
+    vi.stubEnv("COOKIE_DOMAIN", "");
+    mockVerifyCookie.mockReturnValue({ sessionId: "sess-preview", timestamp: Date.now() });
+
+    const request = new NextRequest("https://pr-113.hive.local.kethalia.com/tasks", {
+      headers: {
+        cookie: "hive-session=preview-cookie",
+      },
+    });
+
+    const response = middleware(request);
+    const setCookie = response.headers.get("set-cookie");
+
+    expect(response.headers.get("location")).toBeNull();
+    expect(mockVerifyCookie).toHaveBeenCalledWith("preview-cookie", "preview-secret");
+    expect(setCookie).toContain("hive-session=preview-cookie");
+    expect(setCookie).toContain("Domain=.pr-113.hive.local.kethalia.com");
+  });
+
+  it("does not derive a cookie domain for localhost", () => {
+    vi.stubEnv("COOKIE_SECRET", "test-secret");
+    vi.stubEnv("COOKIE_DOMAIN", "");
+    mockVerifyCookie.mockReturnValue({ sessionId: "sess-local", timestamp: Date.now() });
+
+    const request = new NextRequest("http://localhost:3000/tasks", {
+      headers: {
+        cookie: "hive-session=local-cookie",
+      },
+    });
+
+    const response = middleware(request);
+
+    expect(response.headers.get("location")).toBeNull();
+    expect(response.headers.get("set-cookie")).toBeNull();
+  });
+
   it("refreshes the newest verified duplicate session cookie deterministically", () => {
     vi.stubEnv("COOKIE_SECRET", "preview-secret");
     vi.stubEnv("COOKIE_DOMAIN", ".pr-101.hive.local.kethalia.com");

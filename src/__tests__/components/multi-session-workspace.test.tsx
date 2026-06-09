@@ -1,11 +1,20 @@
 // @vitest-environment jsdom
 
-import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  act,
+  cleanup,
+  createEvent,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import type { Terminal } from "@xterm/xterm";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import "@testing-library/jest-dom/vitest";
 import type { KeepAliveStatus } from "@/hooks/useKeepAliveStatus";
 import type { KeybindingContextValue } from "@/hooks/useKeybindings";
+import { LONG_PRESS_MS } from "@/lib/gestures/conventions";
 
 const mockCreateSession = vi.fn();
 const mockGetSessions = vi.fn();
@@ -310,6 +319,8 @@ vi.mock("@/components/ui/input", () => ({
 
 vi.mock("lucide-react", () => ({
   AlertCircle: () => <span data-testid="icon-alert" />,
+  ClipboardPaste: () => <span data-testid="icon-paste" />,
+  Copy: () => <span data-testid="icon-copy" />,
   Loader2: () => <span data-testid="icon-loader" />,
   Minus: () => <span data-testid="icon-minus" />,
   Plus: () => <span data-testid="icon-plus" />,
@@ -467,9 +478,10 @@ describe("MultiSessionWorkspace", () => {
     );
   });
 
-  it("changes focus on hover and click while preserving terminal ownership", async () => {
+  it("changes active pane on hover without stealing terminal focus", async () => {
     await renderTwoSessionWorkspace();
-    const devTerm = makeTerminal("dev-server");
+    const focusDevTerminal = vi.fn();
+    const devTerm = makeTerminal("dev-server", focusDevTerminal);
     const devSend = makeSender("dev-server");
 
     act(() => {
@@ -480,6 +492,7 @@ describe("MultiSessionWorkspace", () => {
 
     expect(screen.getByTestId("active-pane-label")).toHaveTextContent("dev-server");
     expect(mockSetActiveTerminal).toHaveBeenLastCalledWith(devTerm, devSend);
+    expect(focusDevTerminal).not.toHaveBeenCalled();
     expect(
       JSON.parse(window.localStorage.getItem("workspace-board-state:workspace:ws-1") ?? "{}")
         .boards[0].activePaneKey,
@@ -488,6 +501,88 @@ describe("MultiSessionWorkspace", () => {
     fireEvent.click(screen.getByTestId("workspace-pane-main-session"));
 
     expect(screen.getByTestId("active-pane-label")).toHaveTextContent("main-session");
+  });
+
+  it("allows the native xterm context menu in multi-session panes", async () => {
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: {
+        writeText: vi.fn().mockResolvedValue(undefined),
+        readText: vi.fn().mockResolvedValue("printf ok"),
+      },
+    });
+    await renderTwoSessionWorkspace();
+    const devTerm = makeTerminal("dev-server");
+    const devSend = makeSender("dev-server");
+
+    act(() => {
+      terminalProps.get("dev-server")?.onTerminalReady?.(devTerm, devSend);
+    });
+    mockSetActiveTerminal.mockClear();
+
+    const nativeContextMenu = createEvent.contextMenu(
+      screen.getByTestId("interactive-terminal-dev-server"),
+      {
+        bubbles: true,
+        cancelable: true,
+        clientX: 180,
+        clientY: 220,
+      },
+    );
+    fireEvent(screen.getByTestId("interactive-terminal-dev-server"), nativeContextMenu);
+
+    expect(nativeContextMenu.defaultPrevented).toBe(false);
+    expect(screen.queryByRole("menu", { name: /terminal context menu/i })).not.toBeInTheDocument();
+    expect(mockSetActiveTerminal).not.toHaveBeenCalled();
+  });
+
+  it("opens the shared terminal context menu on touch long-press in multi-session panes", async () => {
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: {
+        writeText: vi.fn().mockResolvedValue(undefined),
+        readText: vi.fn().mockResolvedValue("printf ok"),
+      },
+    });
+    await renderTwoSessionWorkspace();
+    const devTerm = makeTerminal("dev-server");
+    const devSend = makeSender("dev-server");
+
+    act(() => {
+      terminalProps.get("dev-server")?.onTerminalReady?.(devTerm, devSend);
+    });
+
+    vi.useFakeTimers();
+    try {
+      fireEvent.pointerDown(screen.getByTestId("interactive-terminal-dev-server"), {
+        buttons: 1,
+        clientX: 180,
+        clientY: 220,
+        pointerId: 1,
+        pointerType: "touch",
+      });
+      act(() => {
+        vi.advanceTimersByTime(LONG_PRESS_MS);
+        vi.runOnlyPendingTimers();
+      });
+      fireEvent.pointerUp(screen.getByTestId("interactive-terminal-dev-server"), {
+        buttons: 0,
+        clientX: 180,
+        clientY: 220,
+        pointerId: 1,
+        pointerType: "touch",
+      });
+    } finally {
+      vi.useRealTimers();
+    }
+
+    const menu = screen.getByRole("menu", { name: /terminal context menu/i });
+    expect(menu).toBeInTheDocument();
+    expect(screen.getByRole("menuitem", { name: /copy/i })).toBeEnabled();
+    expect(mockSetActiveTerminal).toHaveBeenLastCalledWith(devTerm, devSend);
+
+    fireEvent.click(screen.getByRole("menuitem", { name: /copy/i }));
+    expect(devTerm.clearSelection).toHaveBeenCalledOnce();
   });
 
   it("does not consume space or enter typed inside terminal panes", async () => {

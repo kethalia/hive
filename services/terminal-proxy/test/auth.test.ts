@@ -192,6 +192,57 @@ describe("authenticateUpgrade", () => {
     expect(result.ok).toBe(true);
   });
 
+  it("uses a valid duplicate hive-session cookie when a stale cookie is sent first", async () => {
+    mockVerifyCookie.mockImplementation((value: string) =>
+      value === "fresh" ? { sessionId: "sess-fresh", timestamp: Date.now() } : null,
+    );
+    fetchMock.mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      json: () => Promise.resolve({ token: "tok", coderUrl: "http://c", expiresAt: null }),
+    });
+    fetchMock.mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      json: () => Promise.resolve({ username: "u" }),
+    });
+
+    const result = await authenticateUpgrade(
+      makeReq({ cookie: "hive-session=stale; other=x; hive-session=fresh" }),
+    );
+
+    expect(mockVerifyCookie).toHaveBeenCalledWith("stale", "test-secret");
+    expect(mockVerifyCookie).toHaveBeenCalledWith("fresh", "test-secret");
+    expect(result.ok).toBe(true);
+    const [url] = fetchMock.mock.calls[0];
+    expect(url).toContain("/sessions/sess-fresh/token");
+  });
+
+  it("uses the first valid duplicate hive-session cookie in browser order", async () => {
+    mockVerifyCookie.mockImplementation((value: string) => ({
+      sessionId: value === "preview" ? "sess-preview" : "sess-parent",
+      timestamp: value === "preview" ? 1000 : 2000,
+    }));
+    fetchMock.mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      json: () => Promise.resolve({ token: "tok", coderUrl: "http://c", expiresAt: null }),
+    });
+    fetchMock.mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      json: () => Promise.resolve({ username: "u" }),
+    });
+
+    const result = await authenticateUpgrade(
+      makeReq({ cookie: "hive-session=preview; hive-session=parent" }),
+    );
+
+    expect(result.ok).toBe(true);
+    const [url] = fetchMock.mock.calls[0];
+    expect(url).toContain("/sessions/sess-preview/token");
+  });
+
   it("never logs token values", async () => {
     const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
     const errSpy = vi.spyOn(console, "error").mockImplementation(() => {});

@@ -1,6 +1,10 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { copyTerminalSelection, pasteToTerminal } from "@/lib/terminal/actions";
+import {
+  copyTerminalSelection,
+  pasteNativeClipboardEventToTerminal,
+  pasteToTerminal,
+} from "@/lib/terminal/actions";
 
 function makeMockTerminal(selection = "") {
   return {
@@ -295,5 +299,38 @@ describe("pasteToTerminal", () => {
     expect(send).not.toHaveBeenCalled();
     expect(warningText()).toContain("[clipboard] paste fallback attempted");
     expect(warningText()).not.toContain("pasted terminal payload");
+  });
+});
+
+describe("pasteNativeClipboardEventToTerminal", () => {
+  it("suppresses native paste propagation and dispatches text once through xterm", async () => {
+    const event = new Event("paste", { bubbles: true, cancelable: true }) as ClipboardEvent;
+    Object.defineProperty(event, "clipboardData", {
+      value: {
+        items: null,
+        getData: vi.fn(() => "printf ok"),
+      },
+    });
+    const stopPropagation = vi.spyOn(event, "stopPropagation");
+    const stopImmediatePropagation = vi.spyOn(event, "stopImmediatePropagation");
+    const term = { paste: vi.fn() };
+    const send = vi.fn();
+    const onCompose = vi.fn();
+
+    await pasteNativeClipboardEventToTerminal(event, {
+      term: term as never,
+      send,
+      onCompose,
+      workspaceId: "ws-1",
+      targetLabel: "main",
+    });
+
+    expect(event.defaultPrevented).toBe(true);
+    expect(stopPropagation).toHaveBeenCalledOnce();
+    expect(stopImmediatePropagation).toHaveBeenCalledOnce();
+    expect(term.paste).toHaveBeenCalledOnce();
+    expect(term.paste).toHaveBeenCalledWith("printf ok");
+    expect(send).not.toHaveBeenCalled();
+    expect(onCompose).not.toHaveBeenCalled();
   });
 });

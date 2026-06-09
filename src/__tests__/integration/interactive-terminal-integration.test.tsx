@@ -19,6 +19,7 @@ const { mockUseTerminalWebSocket, mockFit, mockSend, mockResize, terminalInstanc
     terminalInstances: [] as Array<{
       attachCustomKeyEventHandler: ReturnType<typeof vi.fn>;
       buffer: { active: { baseY: number; viewportY: number } };
+      constructorOptions: Record<string, unknown>;
       dataHandler?: (data: string) => void;
       focus: ReturnType<typeof vi.fn>;
       onData: ReturnType<typeof vi.fn>;
@@ -161,8 +162,10 @@ vi.mock("@xterm/xterm", () => ({
     getSelection = vi.fn(() => "");
     clearSelection = vi.fn();
     dataHandler?: (data: string) => void;
+    constructorOptions: Record<string, unknown>;
 
-    constructor() {
+    constructor(options: Record<string, unknown> = {}) {
+      this.constructorOptions = options;
       terminalInstances.push(this);
     }
   },
@@ -897,6 +900,20 @@ function terminalRecoveryState(
 }
 
 describe("InteractiveTerminal integration — Connection state banners", () => {
+  it("configures xterm native selection options for tmux mouse mode", async () => {
+    const { unmount } = await renderTerminal();
+    const terminal = terminalInstances.at(-1);
+
+    expect(terminal?.constructorOptions).toEqual(
+      expect.objectContaining({
+        macOptionClickForcesSelection: true,
+        rightClickSelectsWord: true,
+      }),
+    );
+
+    unmount();
+  });
+
   it("shows workspace offline banner", async () => {
     mockUseTerminalWebSocket.mockReturnValue({
       send: vi.fn(),

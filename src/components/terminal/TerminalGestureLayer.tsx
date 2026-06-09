@@ -2,7 +2,7 @@
 
 import { useGesture } from "@use-gesture/react";
 import { type CSSProperties, type ReactNode, useCallback, useEffect, useRef } from "react";
-import { DRAG_LONG_PRESS_MOVE_PX, NO_TOUCH_STYLE } from "@/lib/gestures/conventions";
+import { DRAG_LONG_PRESS_MOVE_PX } from "@/lib/gestures/conventions";
 import { createLongPressDetector, type LongPressDetector } from "@/lib/gestures/long-press";
 
 const CONTEXT_MENU_SUPPRESS_MS = 1200;
@@ -19,6 +19,12 @@ function preventDefaultIfCancelable(event: Event | null) {
   if (event?.cancelable) {
     event.preventDefault();
   }
+}
+
+function isTouchLikePointerEvent(event: unknown): boolean {
+  if (typeof event !== "object" || event === null) return false;
+  if (!("pointerType" in event)) return false;
+  return event.pointerType === "touch" || event.pointerType === "pen";
 }
 
 export function TerminalGestureLayer({
@@ -93,6 +99,7 @@ export function TerminalGestureLayer({
     {
       onDrag: ({ first, last, distance: [dx, dy], event, xy: [x, y] }) => {
         if (selectionModeEnabled) return;
+        if (!isTouchLikePointerEvent(event)) return;
 
         const detector = detectorRef.current;
         if (!detector) return;
@@ -136,19 +143,22 @@ export function TerminalGestureLayer({
   return (
     <div
       {...bind()}
+      data-terminal-gesture-layer="true"
       className={["h-full", className].filter(Boolean).join(" ")}
       style={{
-        ...(selectionModeEnabled ? {} : NO_TOUCH_STYLE),
         ...style,
         touchAction: selectionModeEnabled ? "auto" : "pan-x pan-y",
+        WebkitTouchCallout: selectionModeEnabled ? undefined : "none",
       }}
-      onContextMenu={(event) => {
+      onContextMenuCapture={(event) => {
         if (selectionModeEnabled) return;
-        if (!suppressNextContextMenuRef.current) return;
-        event.preventDefault();
-        event.stopPropagation();
-        suppressNextContextMenuRef.current = false;
-        clearSuppressContextMenuTimer();
+        if (suppressNextContextMenuRef.current) {
+          event.preventDefault();
+          event.stopPropagation();
+          suppressNextContextMenuRef.current = false;
+          clearSuppressContextMenuTimer();
+          return;
+        }
       }}
     >
       {children}

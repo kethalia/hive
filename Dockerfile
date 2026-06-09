@@ -1,6 +1,7 @@
 ARG PNPM_VERSION=10.32.1
+ARG NODE_IMAGE=public.ecr.aws/docker/library/node:20-alpine
 
-FROM node:20-alpine AS deps
+FROM ${NODE_IMAGE} AS deps
 ARG PNPM_VERSION
 RUN corepack enable && corepack prepare pnpm@${PNPM_VERSION} --activate
 WORKDIR /app
@@ -11,7 +12,7 @@ COPY services/auth/package.json services/auth/package.json
 COPY services/terminal-proxy/package.json services/terminal-proxy/package.json
 RUN pnpm install --frozen-lockfile --ignore-scripts
 
-FROM node:20-alpine AS builder
+FROM ${NODE_IMAGE} AS builder
 ARG PNPM_VERSION
 RUN corepack enable && corepack prepare pnpm@${PNPM_VERSION} --activate
 WORKDIR /app
@@ -24,7 +25,7 @@ COPY . .
 RUN pnpm --filter @hive/db db:generate
 RUN pnpm build
 
-FROM node:20-alpine AS runner
+FROM ${NODE_IMAGE} AS runner
 ARG CODER_VERSION=2.33.0
 ARG TARGETARCH
 WORKDIR /app

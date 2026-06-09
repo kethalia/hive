@@ -749,6 +749,8 @@ export function InteractiveTerminal({
       lineHeight: 1.4,
       cursorBlink: true,
       convertEol: true,
+      macOptionClickForcesSelection: true,
+      rightClickSelectsWord: true,
       scrollOnUserInput: true,
       scrollback: 10000,
     },

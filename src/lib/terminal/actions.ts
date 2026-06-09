@@ -278,11 +278,12 @@ export async function pasteNativeClipboardEventToTerminal(
     onStatus?: (message: string) => void;
   },
 ): Promise<void> {
+  event.preventDefault();
+  event.stopPropagation();
+  event.stopImmediatePropagation();
+
   const { readNativePasteOutcome } = await import("@/lib/terminal/clipboard");
   const outcome = readNativePasteOutcome(event);
-  if (outcome.kind !== "empty") {
-    event.preventDefault();
-  }
   await handleTerminalPasteOutcome(outcome, {
     term: controller.term,
     send: controller.send,

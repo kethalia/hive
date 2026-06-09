@@ -49,6 +49,7 @@ export function middleware(request: NextRequest) {
       response.cookies,
       verifiedSessionCookie.value,
       verifiedSessionCookie.verified.timestamp,
+      request.nextUrl.hostname,
     );
     return response;
   }

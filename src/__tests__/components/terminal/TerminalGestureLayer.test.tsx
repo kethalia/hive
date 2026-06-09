@@ -22,33 +22,33 @@ function renderLayer(
   };
 }
 
-function pointerDown(target: Element, x = 120, y = 240) {
+function pointerDown(target: Element, x = 120, y = 240, pointerType = "touch") {
   fireEvent.pointerDown(target, {
     buttons: 1,
     clientX: x,
     clientY: y,
     pointerId: 1,
-    pointerType: "touch",
+    pointerType,
   });
 }
 
-function pointerMove(target: Element, x: number, y: number) {
+function pointerMove(target: Element, x: number, y: number, pointerType = "touch") {
   fireEvent.pointerMove(target, {
     buttons: 1,
     clientX: x,
     clientY: y,
     pointerId: 1,
-    pointerType: "touch",
+    pointerType,
   });
 }
 
-function pointerUp(target: Element, x = 120, y = 240) {
+function pointerUp(target: Element, x = 120, y = 240, pointerType = "touch") {
   fireEvent.pointerUp(target, {
     buttons: 0,
     clientX: x,
     clientY: y,
     pointerId: 1,
-    pointerType: "touch",
+    pointerType,
   });
 }
 
@@ -66,7 +66,7 @@ describe("TerminalGestureLayer", () => {
   it("fires onLongPress with client coordinates after a held press", () => {
     const { child, layer, onLongPress } = renderLayer();
 
-    expect(layer.style.userSelect).toBe("none");
+    expect(layer.style.userSelect).toBe("");
     expect(layer.style.touchAction).toBe("pan-x pan-y");
 
     pointerDown(child, 123, 456);
@@ -76,6 +76,19 @@ describe("TerminalGestureLayer", () => {
 
     expect(onLongPress).toHaveBeenCalledTimes(1);
     expect(onLongPress).toHaveBeenCalledWith(123, 456);
+  });
+
+  it("does not start long-press handling for mouse drags", () => {
+    const { child, onLongPress } = renderLayer();
+
+    pointerDown(child, 123, 456, "mouse");
+    act(() => {
+      vi.advanceTimersByTime(LONG_PRESS_MS);
+    });
+    pointerMove(child, 124, 457, "mouse");
+    pointerUp(child, 124, 457, "mouse");
+
+    expect(onLongPress).not.toHaveBeenCalled();
   });
 
   it("does not fire onLongPress for a tap released before the hold timer", () => {
@@ -165,6 +178,29 @@ describe("TerminalGestureLayer", () => {
     const desktopContextMenu = createEvent.contextMenu(child, {
       bubbles: true,
       cancelable: true,
+    });
+    fireEvent(child, desktopContextMenu);
+
+    expect(desktopContextMenu.defaultPrevented).toBe(false);
+    expect(parentContextMenu).toHaveBeenCalledTimes(1);
+  });
+
+  it("allows native desktop context menus by default", () => {
+    const parentContextMenu = vi.fn();
+    render(
+      <div onContextMenu={parentContextMenu}>
+        <TerminalGestureLayer onLongPress={vi.fn()}>
+          <div data-testid="terminal-child">terminal</div>
+        </TerminalGestureLayer>
+      </div>,
+    );
+    const child = screen.getByTestId("terminal-child");
+
+    const desktopContextMenu = createEvent.contextMenu(child, {
+      bubbles: true,
+      cancelable: true,
+      clientX: 70,
+      clientY: 90,
     });
     fireEvent(child, desktopContextMenu);
 

@@ -18,7 +18,7 @@ describe("buildPtyUrl", () => {
     expect(parsed.searchParams.get("width")).toBe("80");
     expect(parsed.searchParams.get("height")).toBe("24");
     expect(parsed.searchParams.get("command")).toBe(
-      'tmux -L web new-session -A -s my-session \\; set status off \\; set mouse off \\; set -g terminal-overrides ",xterm*:smcup@:rmcup@"',
+      "tmux -L web new-session -A -s my-session \\; set status off \\; set mouse on",
     );
   });
 
@@ -51,8 +51,21 @@ describe("buildPtyUrl", () => {
     });
     const parsed = new URL(url);
     expect(parsed.searchParams.get("command")).toBe(
-      'tmux -L web new-session -A -s dev-shell \\; set status off \\; set mouse off \\; set -g terminal-overrides ",xterm*:smcup@:rmcup@"',
+      "tmux -L web new-session -A -s dev-shell \\; set status off \\; set mouse on",
     );
+  });
+
+  it("enables tmux mouse mode without disabling alternate screen", () => {
+    const url = buildPtyUrl("https://coder.dev", agentId, defaults);
+    const parsed = new URL(url);
+    const command = parsed.searchParams.get("command");
+
+    expect(command).toContain("\\; set mouse on");
+    expect(command).not.toContain("mouse off");
+    expect(command).not.toContain("set-option -t");
+    expect(command).not.toContain("terminal-overrides");
+    expect(command).not.toContain("smcup@");
+    expect(command).not.toContain("rmcup@");
   });
 
   it("includes shell-quoted cwd when provided", () => {
@@ -63,7 +76,7 @@ describe("buildPtyUrl", () => {
     });
     const parsed = new URL(url);
     expect(parsed.searchParams.get("command")).toBe(
-      "tmux -L web new-session -A -s git-clone-deadbeef -c '/home/coder/projects/kethalia/hive' \\; set status off \\; set mouse off \\; set -g terminal-overrides \",xterm*:smcup@:rmcup@\"",
+      "tmux -L web new-session -A -s git-clone-deadbeef -c '/home/coder/projects/kethalia/hive' \\; set status off \\; set mouse on",
     );
   });
 
@@ -75,7 +88,7 @@ describe("buildPtyUrl", () => {
     });
     const parsed = new URL(url);
     expect(parsed.searchParams.get("command")).toBe(
-      "tmux -L web new-session -A -s git-clone-deadbeef -c '/home/coder/projects/acme/bob'\\''s repo' \\; set status off \\; set mouse off \\; set -g terminal-overrides \",xterm*:smcup@:rmcup@\"",
+      "tmux -L web new-session -A -s git-clone-deadbeef -c '/home/coder/projects/acme/bob'\\''s repo' \\; set status off \\; set mouse on",
     );
   });
 

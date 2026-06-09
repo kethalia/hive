@@ -1,6 +1,7 @@
 ARG PNPM_VERSION=10.32.1
+ARG NODE_IMAGE=public.ecr.aws/docker/library/node:20-alpine
 
-FROM node:20-alpine AS deps
+FROM ${NODE_IMAGE} AS deps
 ARG PNPM_VERSION
 RUN corepack enable && corepack prepare pnpm@${PNPM_VERSION} --activate
 WORKDIR /app
@@ -10,7 +11,7 @@ COPY packages/db/package.json packages/db/package.json
 COPY services/terminal-proxy/package.json services/terminal-proxy/package.json
 RUN pnpm install --frozen-lockfile --ignore-scripts
 
-FROM node:20-alpine AS deploy
+FROM ${NODE_IMAGE} AS deploy
 ARG PNPM_VERSION
 RUN corepack enable && corepack prepare pnpm@${PNPM_VERSION} --activate
 WORKDIR /app
@@ -24,7 +25,7 @@ COPY services/terminal-proxy/ services/terminal-proxy/
 COPY package.json pnpm-workspace.yaml pnpm-lock.yaml ./
 RUN pnpm deploy --filter hive-terminal --prod --legacy --ignore-scripts /deploy
 
-FROM node:20-alpine AS runner
+FROM ${NODE_IMAGE} AS runner
 RUN apk add --no-cache tini
 WORKDIR /app
 ENV NODE_ENV=production

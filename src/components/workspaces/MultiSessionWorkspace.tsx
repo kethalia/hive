@@ -16,6 +16,8 @@ import {
 import { toast } from "sonner";
 import { CommandPalette, type CommandPaletteAction } from "@/components/terminal/CommandPalette";
 import { ComposePanel } from "@/components/terminal/ComposePanel";
+import { TerminalContextMenu } from "@/components/terminal/TerminalContextMenu";
+import { TerminalGestureLayer } from "@/components/terminal/TerminalGestureLayer";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import {
@@ -50,6 +52,7 @@ import {
   isTextEntryEventTarget,
 } from "@/lib/keyboard-event-targets";
 import { formatShortcut } from "@/lib/keyboard-shortcuts";
+import { copyTerminalSelection, pasteToTerminal } from "@/lib/terminal/actions";
 import type { TerminalComposeRequest } from "@/lib/terminal/clipboard";
 import { cn } from "@/lib/utils";
 import {
@@ -796,6 +799,8 @@ export function MultiSessionWorkspace({
   const [gitFavoritesFailed, setGitFavoritesFailed] = useState(false);
   const [gitSearchOpen, setGitSearchOpen] = useState(false);
   const [paletteOpen, setPaletteOpen] = useState(false);
+  const [menuPosition, setMenuPosition] = useState<{ x: number; y: number } | null>(null);
+  const [menuSelection, setMenuSelection] = useState(false);
   const [composeOpen, setComposeOpen] = useState(false);
   const [composeDraft, setComposeDraft] = useState("");
   const [composeTargetLabel, setComposeTargetLabel] = useState<string | undefined>();
@@ -1056,7 +1061,8 @@ export function MultiSessionWorkspace({
   );
 
   const selectSession = useCallback(
-    (sessionName: string) => {
+    (sessionName: string, options: { focusTerminal?: boolean } = {}) => {
+      const { focusTerminal = true } = options;
       setActiveSessionName(sessionName);
 
       const selectedPane = visibleSessions.find((session) => session.sessionName === sessionName);
@@ -1069,7 +1075,9 @@ export function MultiSessionWorkspace({
       const entry = terminalsRef.current.get(sessionName);
       if (entry) {
         setActiveTerminal(entry.term, entry.send);
-        entry.term.focus();
+        if (focusTerminal) {
+          entry.term.focus();
+        }
         return;
       }
       clearActiveTerminal();
@@ -1252,6 +1260,38 @@ export function MultiSessionWorkspace({
     entry.send(draft);
     entry.send("\r");
   }, []);
+
+  const openTerminalContextMenu = useCallback(
+    (x: number, y: number, sessionName = activeSessionNameRef.current) => {
+      if (sessionName) {
+        selectSession(sessionName, { focusTerminal: false });
+      }
+
+      const activeName = sessionName ?? activeSessionNameRef.current;
+      const entry = activeName ? terminalsRef.current.get(activeName) : null;
+      setMenuSelection(!!entry?.term.getSelection());
+      setMenuPosition({ x, y });
+    },
+    [selectSession],
+  );
+
+  const copyActiveTerminalSelection = useCallback(() => {
+    const activeName = activeSessionNameRef.current;
+    const entry = activeName ? terminalsRef.current.get(activeName) : null;
+    if (entry) copyTerminalSelection(entry.term);
+  }, []);
+
+  const pasteToActiveTerminal = useCallback(() => {
+    const activeName = activeSessionNameRef.current;
+    const entry = activeName ? terminalsRef.current.get(activeName) : null;
+    if (!entry) return;
+
+    pasteToTerminal(entry.term, entry.send, {
+      onCompose: openComposeWithDraft,
+      targetLabel: activeLabel,
+      workspaceId,
+    });
+  }, [activeLabel, openComposeWithDraft, workspaceId]);
 
   const focusRelativeSession = useCallback(
     (direction: -1 | 1) => {
@@ -2540,8 +2580,17 @@ export function MultiSessionWorkspace({
         data-pane-mode="tiled"
         style={paneStyle}
         tabIndex={0}
-        onMouseEnter={() => selectSession(pane.sessionName)}
-        onClick={() => selectSession(pane.sessionName)}
+        onMouseEnter={() => selectSession(pane.sessionName, { focusTerminal: false })}
+        onClick={(event) => {
+          const target = event.target;
+          if (
+            target instanceof HTMLElement &&
+            target.closest("[data-terminal-gesture-layer='true']")
+          ) {
+            return;
+          }
+          selectSession(pane.sessionName);
+        }}
         onFocus={(event) => {
           if (event.currentTarget !== event.target) return;
           selectSession(pane.sessionName);
@@ -2575,29 +2624,34 @@ export function MultiSessionWorkspace({
             <X className="size-3" />
           </Button>
         </div>
-        <InteractiveTerminal
-          agentId={agentId}
-          workspaceId={workspaceId}
-          sessionName={pane.sessionName}
-          clonePath={session?.clonePath}
-          cloneProof={session?.cloneProof}
-          refreshCloneTerminalIdentity={refreshCloneTerminalIdentity}
+        <TerminalGestureLayer
+          onLongPress={(x, y) => openTerminalContextMenu(x, y, pane.sessionName)}
           className="min-h-0 flex-1"
-          layoutSignal={layoutSignal}
-          onConnectionStateChange={(state) =>
-            handlePaneConnectionStateChange(boardPaneSignal, boardPaneKind, state)
-          }
-          onRecoveryStateChange={(state) =>
-            handlePaneRecoveryStateChange(boardPaneSignal, boardPaneKind, state)
-          }
-          onTerminalReady={(term, send) => handleTerminalReady(pane.sessionName, term, send)}
-          onTerminalDestroy={() => {
-            handleTerminalDestroy(pane.sessionName);
-            clearPaneRecoveryState(boardPaneSignal);
-          }}
-          onComposeRequest={openComposeWithDraft}
-          targetLabel={pane.label}
-        />
+        >
+          <InteractiveTerminal
+            agentId={agentId}
+            workspaceId={workspaceId}
+            sessionName={pane.sessionName}
+            clonePath={session?.clonePath}
+            cloneProof={session?.cloneProof}
+            refreshCloneTerminalIdentity={refreshCloneTerminalIdentity}
+            className="min-h-0 flex-1"
+            layoutSignal={layoutSignal}
+            onConnectionStateChange={(state) =>
+              handlePaneConnectionStateChange(boardPaneSignal, boardPaneKind, state)
+            }
+            onRecoveryStateChange={(state) =>
+              handlePaneRecoveryStateChange(boardPaneSignal, boardPaneKind, state)
+            }
+            onTerminalReady={(term, send) => handleTerminalReady(pane.sessionName, term, send)}
+            onTerminalDestroy={() => {
+              handleTerminalDestroy(pane.sessionName);
+              clearPaneRecoveryState(boardPaneSignal);
+            }}
+            onComposeRequest={openComposeWithDraft}
+            targetLabel={pane.label}
+          />
+        </TerminalGestureLayer>
       </div>
     );
   };
@@ -2728,6 +2782,13 @@ export function MultiSessionWorkspace({
           </div>
         ) : null}
       </div>
+      <TerminalContextMenu
+        position={menuPosition}
+        onClose={() => setMenuPosition(null)}
+        hasSelection={menuSelection}
+        onCopy={copyActiveTerminalSelection}
+        onPaste={pasteToActiveTerminal}
+      />
     </section>
   );
 }
