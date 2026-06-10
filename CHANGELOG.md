@@ -1,5 +1,11 @@
 # hive-orchestrator
 
+## 2.5.2
+
+### Patch Changes
+
+- 18b7d67: Fix workspace terminal panes so single-session boards use the full available height.
+
 ## 2.5.1
 
 ### Patch Changes
