@@ -80,6 +80,22 @@ function swipePage({
   });
 }
 
+function touchPoint(identifier: number, clientX: number, clientY: number) {
+  return { identifier, clientX, clientY };
+}
+
+function touchEvent(
+  type: "touchstart" | "touchmove" | "touchend" | "touchcancel",
+  touches: Array<{ identifier: number; clientX: number; clientY: number }>,
+  target: EventTarget = window,
+) {
+  const event = new Event(type, { bubbles: true, cancelable: true });
+  Object.defineProperty(event, "touches", { value: touches });
+  Object.defineProperty(event, "changedTouches", { value: touches });
+  target.dispatchEvent(event);
+  return event;
+}
+
 beforeAll(() => {
   originalPointerEvent = window.PointerEvent;
   if (!window.PointerEvent) {
@@ -204,6 +220,35 @@ describe("SidebarEdgeHandle", () => {
 
     swipePage({ target: screen.getByTestId("terminal-surface"), move: [310, 206] });
 
+    await waitFor(() => {
+      expect(sidebarState.setOpenMobile).toHaveBeenCalledWith(true);
+    });
+  });
+
+  it("opens from terminal panes with capture-phase touch events for iPad Safari", async () => {
+    sidebarState = {
+      isMobile: true,
+      openMobile: false,
+      setOpenMobile: vi.fn(),
+    };
+    mockUseSidebar.mockReturnValue(sidebarState);
+    const interactiveRole = "button";
+
+    render(
+      <main data-testid="page-content">
+        <div role={interactiveRole} tabIndex={0} data-pane-mode="tiled" data-testid="terminal-pane">
+          <div data-testid="terminal-surface">Terminal output</div>
+        </div>
+        <SidebarEdgeHandle />
+      </main>,
+    );
+
+    const surface = screen.getByTestId("terminal-surface");
+    touchEvent("touchstart", [touchPoint(1, 24, 200)], surface);
+    const move = touchEvent("touchmove", [touchPoint(1, 96, 204)]);
+    touchEvent("touchend", [touchPoint(1, 96, 204)]);
+
+    expect(move.defaultPrevented).toBe(true);
     await waitFor(() => {
       expect(sidebarState.setOpenMobile).toHaveBeenCalledWith(true);
     });

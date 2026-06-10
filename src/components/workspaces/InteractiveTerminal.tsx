@@ -634,19 +634,29 @@ export function InteractiveTerminal({
     const container = containerRef.current;
     if (!container) return;
 
+    const preventXtermTouchFocus = (event: TouchEvent | PointerEvent) => {
+      if (!mobileInputModeRef.current || selectionModeEnabledRef.current) return;
+      if (event.cancelable) event.preventDefault();
+    };
     const handleTouchStart = (event: TouchEvent) => {
       if (!mobileInputModeRef.current || event.touches.length !== 1) return;
+      preventXtermTouchFocus(event);
       beginMobileTouchScroll(event.touches[0]);
     };
     const handleTouchMove = (event: TouchEvent) => continueMobileTouchScroll(event);
     const handleTouchEnd = (event: TouchEvent) => endMobileTouchScroll(event);
+    const handlePointerDown = (event: PointerEvent) => {
+      if (event.pointerType === "touch") preventXtermTouchFocus(event);
+    };
 
-    container.addEventListener("touchstart", handleTouchStart, { capture: true, passive: true });
+    container.addEventListener("pointerdown", handlePointerDown, { capture: true, passive: false });
+    container.addEventListener("touchstart", handleTouchStart, { capture: true, passive: false });
     container.addEventListener("touchmove", handleTouchMove, { capture: true, passive: false });
     container.addEventListener("touchend", handleTouchEnd, { capture: true, passive: true });
     container.addEventListener("touchcancel", handleTouchEnd, { capture: true, passive: true });
 
     return () => {
+      container.removeEventListener("pointerdown", handlePointerDown, { capture: true });
       container.removeEventListener("touchstart", handleTouchStart, { capture: true });
       container.removeEventListener("touchmove", handleTouchMove, { capture: true });
       container.removeEventListener("touchend", handleTouchEnd, { capture: true });

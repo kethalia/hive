@@ -1,8 +1,7 @@
 "use client";
 
-import { ArrowLeft, CheckCircle, RefreshCw, Upload, XCircle } from "lucide-react";
+import { CheckCircle, RefreshCw, Upload, XCircle } from "lucide-react";
 import dynamic from "next/dynamic";
-import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { DashboardPageHeader } from "@/components/dashboard-page-header";
 import { Badge } from "@/components/ui/badge";
@@ -142,18 +141,6 @@ export function TemplateDetailClient({ status }: TemplateDetailClientProps) {
     <div className="space-y-6">
       <DashboardPageHeader
         title={status.name}
-        leading={
-          <Button
-            nativeButton={false}
-            render={<Link href="/templates" />}
-            variant="ghost"
-            size="sm"
-            className="-ml-2 h-7 px-2 text-muted-foreground"
-          >
-            <ArrowLeft className="h-4 w-4" />
-            Templates
-          </Button>
-        }
         actions={
           <StatusBadge
             stale={status.stale}

@@ -109,16 +109,19 @@ describe("TaskDetail mobile layout contracts", () => {
     );
   });
 
-  it("wraps the page header and scales the title at the small breakpoint", () => {
+  it("uses a compact one-line page header with a smaller non-bold title", () => {
     render(React.createElement(TaskDetail, { initialTask: makeTask() }));
 
     const title = screen.getByRole("heading", { name: /task task-mob/i });
-    expect(classTokens(title)).toEqual(expect.arrayContaining(["text-xl", "sm:text-2xl"]));
+    expect(classTokens(title)).toEqual(
+      expect.arrayContaining(["truncate", "text-sm", "font-normal"]),
+    );
+    expect(classTokens(title)).not.toEqual(expect.arrayContaining(["font-bold", "text-xl"]));
 
     const header = title.closest("[data-dashboard-page-nav]");
     expect(header).not.toBeNull();
     expect(classTokens(header as Element)).toEqual(
-      expect.arrayContaining(["grid", "items-start", "gap-2", "border-b"]),
+      expect.arrayContaining(["flex", "items-center", "gap-2", "border-b"]),
     );
   });
 

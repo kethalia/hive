@@ -206,10 +206,11 @@ describe("TemplateDetailClient", () => {
     });
   });
 
-  it("renders back link to /templates", () => {
+  it("does not render the old back link to /templates in the compact header", () => {
     render(<TemplateDetailClient status={makeStatus()} />);
-    const backLink = screen.getByText("Templates").closest("a");
-    expect(backLink).toHaveAttribute("href", "/templates");
+
+    expect(screen.queryByText("Templates")).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: /templates/i })).not.toBeInTheDocument();
   });
 
   it("renders the shared dashboard page navbar", () => {

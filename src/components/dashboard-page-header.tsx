@@ -22,19 +22,23 @@ export function DashboardPageHeader({
   return (
     <header
       className={cn(
-        "grid grid-cols-[auto_minmax(0,1fr)] items-start gap-2 border-b border-border pb-3 pt-[max(0.75rem,var(--safe-area-inset-top))] sm:grid-cols-[auto_minmax(0,1fr)_auto]",
+        "flex min-h-11 items-center gap-2 border-b border-border px-2 py-1 pt-[max(0.25rem,var(--safe-area-inset-top))]",
         className,
       )}
       data-dashboard-page-nav=""
     >
-      <SidebarTrigger className="mt-0.5 h-8 min-h-0 shrink-0" />
-      <div className="min-w-0 space-y-1">
+      <SidebarTrigger className="h-8 min-h-0 shrink-0" />
+      <div className="flex min-w-0 flex-1 items-center gap-2">
         {leading}
-        <h1 className="truncate text-xl font-bold tracking-tight sm:text-2xl">{title}</h1>
-        {description ? <p className="text-sm text-muted-foreground">{description}</p> : null}
+        <h1 className="truncate text-sm font-normal text-foreground">{title}</h1>
+        {description ? (
+          <p className="hidden min-w-0 truncate text-xs text-muted-foreground sm:block">
+            {description}
+          </p>
+        ) : null}
       </div>
       {actions ? (
-        <div className="col-span-2 flex min-w-0 items-center justify-end gap-2 sm:col-span-1">
+        <div className="flex min-w-0 shrink-0 items-center justify-end gap-2 overflow-hidden">
           {actions}
         </div>
       ) : null}

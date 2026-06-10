@@ -55,89 +55,91 @@ export default function NewTaskPage() {
   const validationErrors = result.validationErrors;
 
   return (
-    <div className="mx-auto max-w-2xl space-y-6">
+    <div className="flex h-full min-h-0 flex-col">
       <DashboardPageHeader title="New Task" />
 
-      {serverError && (
-        <Alert variant="destructive">
-          <AlertCircle className="h-4 w-4" />
-          <AlertTitle>Submission failed</AlertTitle>
-          <AlertDescription>{serverError}</AlertDescription>
-        </Alert>
-      )}
+      <div className="min-h-0 flex-1 space-y-4 overflow-y-auto p-2 pb-safe">
+        {serverError && (
+          <Alert variant="destructive">
+            <AlertCircle className="h-4 w-4" />
+            <AlertTitle>Submission failed</AlertTitle>
+            <AlertDescription>{serverError}</AlertDescription>
+          </Alert>
+        )}
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Task Details</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <form onSubmit={handleSubmit}>
-            <FieldGroup>
-              <Field data-invalid={!!validationErrors?.prompt}>
-                <FieldLabel htmlFor="prompt">
-                  Prompt <span className="text-destructive">*</span>
-                </FieldLabel>
-                <Textarea
-                  id="prompt"
-                  name="prompt"
-                  required
-                  rows={4}
-                  placeholder="Describe what you want built..."
-                />
-                <FieldError>{validationErrors?.prompt?._errors?.[0]}</FieldError>
-              </Field>
+        <Card>
+          <CardHeader>
+            <CardTitle>Task Details</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <form onSubmit={handleSubmit}>
+              <FieldGroup>
+                <Field data-invalid={!!validationErrors?.prompt}>
+                  <FieldLabel htmlFor="prompt">
+                    Prompt <span className="text-destructive">*</span>
+                  </FieldLabel>
+                  <Textarea
+                    id="prompt"
+                    name="prompt"
+                    required
+                    rows={4}
+                    placeholder="Describe what you want built..."
+                  />
+                  <FieldError>{validationErrors?.prompt?._errors?.[0]}</FieldError>
+                </Field>
 
-              <Field data-invalid={!!validationErrors?.repoUrl}>
-                <FieldLabel htmlFor="repoUrl">
-                  Repository URL <span className="text-destructive">*</span>
-                </FieldLabel>
-                <Input
-                  id="repoUrl"
-                  name="repoUrl"
-                  type="url"
-                  required
-                  placeholder="https://github.com/org/repo"
-                />
-                <FieldError>{validationErrors?.repoUrl?._errors?.[0]}</FieldError>
-              </Field>
+                <Field data-invalid={!!validationErrors?.repoUrl}>
+                  <FieldLabel htmlFor="repoUrl">
+                    Repository URL <span className="text-destructive">*</span>
+                  </FieldLabel>
+                  <Input
+                    id="repoUrl"
+                    name="repoUrl"
+                    type="url"
+                    required
+                    placeholder="https://github.com/org/repo"
+                  />
+                  <FieldError>{validationErrors?.repoUrl?._errors?.[0]}</FieldError>
+                </Field>
 
-              <Field data-invalid={!!validationErrors?.councilSize}>
-                <FieldLabel htmlFor="councilSize">Council Size</FieldLabel>
-                <Input
-                  id="councilSize"
-                  name="councilSize"
-                  type="number"
-                  inputMode="numeric"
-                  min={1}
-                  max={7}
-                  step={1}
-                  defaultValue={3}
-                />
-                <FieldDescription>Number of independent reviewers (1–7).</FieldDescription>
-                <FieldError>{validationErrors?.councilSize?._errors?.[0]}</FieldError>
-              </Field>
+                <Field data-invalid={!!validationErrors?.councilSize}>
+                  <FieldLabel htmlFor="councilSize">Council Size</FieldLabel>
+                  <Input
+                    id="councilSize"
+                    name="councilSize"
+                    type="number"
+                    inputMode="numeric"
+                    min={1}
+                    max={7}
+                    step={1}
+                    defaultValue={3}
+                  />
+                  <FieldDescription>Number of independent reviewers (1–7).</FieldDescription>
+                  <FieldError>{validationErrors?.councilSize?._errors?.[0]}</FieldError>
+                </Field>
 
-              <Field>
-                <FieldLabel htmlFor="attachments">File Attachments</FieldLabel>
-                <Input
-                  id="attachments"
-                  name="attachments"
-                  type="file"
-                  multiple
-                  ref={fileInputRef}
-                />
-                <FieldDescription>Attach any reference files for the task.</FieldDescription>
-              </Field>
+                <Field>
+                  <FieldLabel htmlFor="attachments">File Attachments</FieldLabel>
+                  <Input
+                    id="attachments"
+                    name="attachments"
+                    type="file"
+                    multiple
+                    ref={fileInputRef}
+                  />
+                  <FieldDescription>Attach any reference files for the task.</FieldDescription>
+                </Field>
 
-              <div className="pt-2">
-                <Button type="submit" disabled={isPending}>
-                  {isPending ? "Submitting…" : "Create Task"}
-                </Button>
-              </div>
-            </FieldGroup>
-          </form>
-        </CardContent>
-      </Card>
+                <div className="pt-2">
+                  <Button type="submit" disabled={isPending}>
+                    {isPending ? "Submitting…" : "Create Task"}
+                  </Button>
+                </div>
+              </FieldGroup>
+            </form>
+          </CardContent>
+        </Card>
+      </div>
     </div>
   );
 }

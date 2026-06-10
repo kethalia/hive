@@ -1,21 +1,33 @@
 "use client";
 
 import * as React from "react";
-import { COMPOSE_SHEET_BREAKPOINT } from "@/lib/terminal/config";
+import {
+  isMobileLikeViewport,
+  MOBILE_VIEWPORT_QUERY,
+  TOUCH_TABLET_VIEWPORT_QUERY,
+} from "@/hooks/use-mobile";
 
-const COMPOSE_SHEET_QUERY = `(max-width: ${COMPOSE_SHEET_BREAKPOINT - 1}px)`;
+const COMPOSE_SHEET_QUERIES = [MOBILE_VIEWPORT_QUERY, TOUCH_TABLET_VIEWPORT_QUERY] as const;
 
 export function useIsComposeSheet() {
   const [isComposeSheet, setIsComposeSheet] = React.useState<boolean | undefined>(undefined);
 
   React.useEffect(() => {
-    const mql = window.matchMedia(COMPOSE_SHEET_QUERY);
     const onChange = () => {
-      setIsComposeSheet(mql.matches);
+      setIsComposeSheet(isMobileLikeViewport(window));
     };
-    mql.addEventListener("change", onChange);
-    setIsComposeSheet(mql.matches);
-    return () => mql.removeEventListener("change", onChange);
+
+    onChange();
+    const mediaQueries = COMPOSE_SHEET_QUERIES.map((query) => window.matchMedia(query));
+    for (const mql of mediaQueries) {
+      mql.addEventListener("change", onChange);
+    }
+
+    return () => {
+      for (const mql of mediaQueries) {
+        mql.removeEventListener("change", onChange);
+      }
+    };
   }, []);
 
   return !!isComposeSheet;

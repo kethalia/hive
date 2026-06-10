@@ -2385,12 +2385,16 @@ describe("InteractiveTerminal integration — Mobile input adapter", () => {
     const inputTarget = container.querySelector('[data-testid="terminal-fit-host"]');
     expect(inputTarget).toBeTruthy();
 
-    fireEvent.pointerDown(inputTarget as Element, {
+    const pointerDownAllowed = fireEvent.pointerDown(inputTarget as Element, {
       clientX: 80,
       clientY: 240,
       pointerId: 1,
       pointerType: "touch",
+      cancelable: true,
     });
+    const touchStart = fireTouchEvent(inputTarget as Element, "touchstart", [
+      touchPoint(1, 80, 240),
+    ]);
     fireEvent.pointerUp(inputTarget as Element, {
       clientX: 82,
       clientY: 242,
@@ -2399,6 +2403,8 @@ describe("InteractiveTerminal integration — Mobile input adapter", () => {
     });
     fireEvent.click(inputTarget as Element);
 
+    expect(pointerDownAllowed).toBe(false);
+    expect(touchStart.defaultPrevented).toBe(true);
     expect(terminal?.focus).not.toHaveBeenCalled();
 
     act(() => {
