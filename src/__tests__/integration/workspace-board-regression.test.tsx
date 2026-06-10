@@ -121,10 +121,15 @@ vi.mock("@/lib/actions/navigation-favorites", () => ({
 
 vi.mock("@/lib/terminal/actions", () => ({
   copyTerminalSelection: vi.fn(() => false),
+  pasteToTerminal: vi.fn(),
 }));
 
 vi.mock("@/lib/utils", () => ({
   cn: (...classes: unknown[]) => classes.filter(Boolean).join(" "),
+}));
+
+vi.mock("@/components/terminal/MobileTerminalControls", () => ({
+  MobileTerminalControls: () => <div data-testid="terminal-mobile-controls" />,
 }));
 
 vi.mock("@/components/terminal/CommandPalette", () => ({
@@ -488,7 +493,7 @@ describe("workspace board shortcut integration", () => {
     expect(screen.getByTestId("active-pane-label")).toHaveTextContent("Main Board Pane");
     expect(screen.getByTestId("interactive-terminal-main-session")).toHaveAttribute(
       "data-layout-signal",
-      "main:terminal:main-session:1:1:1 / 1 / span 1 / span 1",
+      "main:terminal:main-session:1:1:1 / 1 / span 1 / span 1:viewport:0:0",
     );
     expect(screen.queryByTestId("board-persistence-status")).not.toBeInTheDocument();
     expect(readStoredActiveBoardKey()).toBe("main");
@@ -514,7 +519,7 @@ describe("workspace board shortcut integration", () => {
     expect(screen.getByTestId("active-pane-label")).toHaveTextContent("Review Board Pane");
     expect(screen.getByTestId("interactive-terminal-dev-server")).toHaveAttribute(
       "data-layout-signal",
-      "review:terminal:dev-server:1:1:1 / 1 / span 1 / span 1",
+      "review:terminal:dev-server:1:1:1 / 1 / span 1 / span 1:viewport:0:0",
     );
     expect(readStoredActiveBoardKey()).toBe("review");
 
@@ -536,7 +541,7 @@ describe("workspace board shortcut integration", () => {
     expect(screen.getByTestId("active-pane-label")).toHaveTextContent("Main Board Pane");
     expect(screen.getByTestId("interactive-terminal-main-session")).toHaveAttribute(
       "data-layout-signal",
-      "main:terminal:main-session:1:1:1 / 1 / span 1 / span 1",
+      "main:terminal:main-session:1:1:1 / 1 / span 1 / span 1:viewport:0:0",
     );
     expect(readStoredActiveBoardKey()).toBe("main");
 

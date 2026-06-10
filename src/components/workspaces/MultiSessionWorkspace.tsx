@@ -1,7 +1,7 @@
 "use client";
 
 import type { Terminal } from "@xterm/xterm";
-import { AlertCircle, Loader2, Minus, Plus, Search, TerminalSquare, X } from "lucide-react";
+import { AlertCircle, Loader2, Plus, Search, TerminalSquare } from "lucide-react";
 import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
 import {
@@ -16,6 +16,7 @@ import {
 import { toast } from "sonner";
 import { CommandPalette, type CommandPaletteAction } from "@/components/terminal/CommandPalette";
 import { ComposePanel } from "@/components/terminal/ComposePanel";
+import { MobileTerminalControls } from "@/components/terminal/MobileTerminalControls";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import {
@@ -26,11 +27,16 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { SidebarTrigger } from "@/components/ui/sidebar";
+import {
+  TerminalFontSizeControls,
+  TerminalSessionFrame,
+} from "@/components/workspaces/TerminalSessionFrame";
 import { WorkspaceBoardBar } from "@/components/workspaces/WorkspaceBoardBar";
+import { useIsComposeSheet } from "@/hooks/use-compose-sheet";
 import { useKeepAliveStatus } from "@/hooks/useKeepAliveStatus";
 import { useKeybindings } from "@/hooks/useKeybindings";
-import { useTerminalFontStep } from "@/hooks/useTerminalFontStep";
 import type { ConnectionState, TerminalRecoveryState } from "@/hooks/useTerminalWebSocket";
+import { useVisualViewportKeyboardOffset } from "@/hooks/useVisualViewportKeyboardOffset";
 import { listGitClonesAction, resolveGitCloneTerminalAction } from "@/lib/actions/git-clones";
 import {
   listNavigationFavoritesAction,
@@ -42,6 +48,7 @@ import {
   killSessionAction,
 } from "@/lib/actions/workspaces";
 import { SAFE_IDENTIFIER_RE } from "@/lib/constants";
+import { triggerHapticFeedback } from "@/lib/device/haptics";
 import type { GitCloneTerminalIdentity, PublicCloneTree } from "@/lib/git/clone-actions-contract";
 import type { CloneTreeNode, CloneTreeRepositoryNode } from "@/lib/git/clone-tree";
 import {
@@ -50,6 +57,11 @@ import {
   isTextEntryEventTarget,
 } from "@/lib/keyboard-event-targets";
 import { formatShortcut } from "@/lib/keyboard-shortcuts";
+import {
+  type ClipboardActionStatus,
+  copyTerminalSelection,
+  pasteToTerminal,
+} from "@/lib/terminal/actions";
 import type { TerminalComposeRequest } from "@/lib/terminal/clipboard";
 import { cn } from "@/lib/utils";
 import {
@@ -105,9 +117,13 @@ interface InteractiveTerminalComponentProps {
   onRecoveryStateChange?: (state: TerminalRecoveryState) => void;
   onTerminalReady?: (term: Terminal, send: (data: string) => void) => void;
   onTerminalDestroy?: () => void;
+  onUserFocusRequest?: () => void;
   onComposeRequest?: (request: TerminalComposeRequest) => void;
   targetLabel?: string;
   layoutSignal?: unknown;
+  mobileInputMode?: boolean;
+  pinToBottomOnResize?: boolean;
+  selectionModeEnabled?: boolean;
 }
 
 const InteractiveTerminal = dynamic<InteractiveTerminalComponentProps>(
@@ -294,6 +310,40 @@ function isGitCloneTerminalIdentity(value: unknown): value is GitCloneTerminalId
     typeof value.cloneProof === "string" &&
     value.cloneProof.length > 0
   );
+}
+
+function terminalHasSelection(term: {
+  hasSelection?: () => boolean;
+  getSelection?: () => string;
+}): boolean {
+  if (typeof term.hasSelection === "function") return term.hasSelection();
+  return Boolean(term.getSelection?.());
+}
+
+function clipboardStatusText(
+  status: ClipboardActionStatus | null,
+  {
+    canPaste,
+    hasTerminal,
+    selectionModeEnabled,
+  }: { canPaste: boolean; hasTerminal: boolean; selectionModeEnabled: boolean },
+): string {
+  if (status) {
+    switch (status.action) {
+      case "copy":
+        return status.outcome === "copied" ? "Selection copied" : "Select terminal text to copy";
+      case "paste":
+        if (status.outcome === "empty") return "Clipboard is empty";
+        if (status.outcome === "fallback") return "Use the browser paste control";
+        return "Paste complete";
+      default:
+        return "Terminal controls ready";
+    }
+  }
+  if (selectionModeEnabled) return "Selection mode on. Select terminal text, then copy.";
+  if (!hasTerminal) return "Terminal is not ready";
+  if (!canPaste) return "Paste is unavailable until the terminal sender is ready";
+  return "Terminal controls ready";
 }
 
 function isPublicCloneTree(value: unknown): value is PublicCloneTree {
@@ -547,28 +597,6 @@ function deriveVisibleSessionsFromBoard(
   return visibleSessions;
 }
 
-function resetWorkspaceBoardPaneOrderByLabel(
-  state: WorkspaceBoardState,
-  boardKey: string | undefined,
-): WorkspaceBoardState {
-  if (!boardKey) return state;
-
-  return {
-    ...state,
-    boards: state.boards.map((board) => {
-      if (board.key !== boardKey) return board;
-      const panes = [...board.panes]
-        .sort((left, right) => paneSortLabel(left).localeCompare(paneSortLabel(right)))
-        .map((pane, order) => ({ ...pane, order }));
-      return { ...board, panes };
-    }),
-  };
-}
-
-function paneSortLabel(pane: WorkspaceBoardPane): string {
-  return pane.label ?? (pane.kind === "git" ? pane.relativePath : pane.sessionName) ?? pane.key;
-}
-
 function reconcileGitPaneSessionNames(
   state: WorkspaceBoardState,
   sessions: readonly WorkspaceSessionPane[],
@@ -776,13 +804,6 @@ export function MultiSessionWorkspace({
 }: MultiSessionWorkspaceProps) {
   const router = useRouter();
   const { register, setActiveTerminal, unregister } = useKeybindings();
-  const {
-    size: fontSize,
-    increase: increaseFontSize,
-    decrease: decreaseFontSize,
-    canIncrease: canIncreaseFontSize,
-    canDecrease: canDecreaseFontSize,
-  } = useTerminalFontStep();
   const [sessions, setSessions] = useState<WorkspaceSessionPane[]>([]);
   const [activeSessionName, setActiveSessionName] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -799,6 +820,12 @@ export function MultiSessionWorkspace({
   const [composeOpen, setComposeOpen] = useState(false);
   const [composeDraft, setComposeDraft] = useState("");
   const [composeTargetLabel, setComposeTargetLabel] = useState<string | undefined>();
+  const [selectionModeEnabled, setSelectionModeEnabled] = useState(false);
+  const [hasTerminalSelection, setHasTerminalSelection] = useState(false);
+  const [clipboardActionStatus, setClipboardActionStatus] = useState<ClipboardActionStatus | null>(
+    null,
+  );
+  const [terminalStateVersion, setTerminalStateVersion] = useState(0);
   const [gitSearchQuery, setGitSearchQuery] = useState("");
   const [addingCloneKey, setAddingCloneKey] = useState<string | null>(null);
   const [gitAddFailed, setGitAddFailed] = useState(false);
@@ -823,6 +850,13 @@ export function MultiSessionWorkspace({
   const canCreateSession = true;
   const isUnifiedSource = source === "unified";
   const keepAliveStatus = useKeepAliveStatus(workspaceId);
+  const isComposeSheet = useIsComposeSheet();
+  const {
+    isKeyboardVisible: visualKeyboardVisible,
+    visualViewportHeightPx,
+    visualViewportOffsetTopPx,
+  } = useVisualViewportKeyboardOffset();
+  const isMobileKeyboardVisible = isComposeSheet && visualKeyboardVisible;
   const activeBoard = useMemo(() => findActiveWorkspaceBoard(boardState), [boardState]);
   const visibleSessions = useMemo(
     () => deriveVisibleSessionsFromBoard(sessions, activeBoard),
@@ -860,6 +894,10 @@ export function MultiSessionWorkspace({
   const activeLabel = visibleSessions.find(
     (session) => session.sessionName === activeSessionName,
   )?.label;
+  const activeTerminalEntry = useMemo(() => {
+    void terminalStateVersion;
+    return activeSessionName ? terminalsRef.current.get(activeSessionName) : undefined;
+  }, [activeSessionName, terminalStateVersion]);
   const activeBoardGitPaneIdentities = useMemo(
     () =>
       new Set(
@@ -1070,7 +1108,7 @@ export function MultiSessionWorkspace({
       const entry = terminalsRef.current.get(sessionName);
       if (entry) {
         setActiveTerminal(entry.term, entry.send);
-        if (focusTerminal) {
+        if (focusTerminal && !isComposeSheet) {
           entry.term.focus();
         }
         return;
@@ -1081,6 +1119,7 @@ export function MultiSessionWorkspace({
       activeBoard,
       boardState,
       clearActiveTerminal,
+      isComposeSheet,
       persistBoardState,
       setActiveTerminal,
       visibleSessions,
@@ -1231,10 +1270,13 @@ export function MultiSessionWorkspace({
       terminalsRef.current.set(sessionName, { term, send });
       if (activeSessionNameRef.current === sessionName) {
         setActiveTerminal(term, send);
-        term.focus();
+        if (!isComposeSheet) {
+          term.focus();
+        }
       }
+      setTerminalStateVersion((version) => version + 1);
     },
-    [setActiveTerminal],
+    [isComposeSheet, setActiveTerminal],
   );
 
   const handleTerminalDestroy = useCallback(
@@ -1243,6 +1285,7 @@ export function MultiSessionWorkspace({
       if (activeSessionNameRef.current === sessionName) {
         clearActiveTerminal();
       }
+      setTerminalStateVersion((version) => version + 1);
     },
     [clearActiveTerminal],
   );
@@ -1270,6 +1313,44 @@ export function MultiSessionWorkspace({
     entry.send("\r");
   }, []);
 
+  const handleSelectionModeChange = useCallback((enabled: boolean) => {
+    setSelectionModeEnabled(enabled);
+    setClipboardActionStatus(null);
+  }, []);
+
+  const handleMobileCopy = useCallback(() => {
+    const term = activeTerminalEntry?.term;
+    if (!term) return;
+    copyTerminalSelection(term, { onStatus: setClipboardActionStatus });
+  }, [activeTerminalEntry]);
+
+  const handleMobilePaste = useCallback(() => {
+    const entry = activeTerminalEntry;
+    if (!entry) return;
+    pasteToTerminal(entry.term, entry.send, {
+      onStatus: setClipboardActionStatus,
+      onCompose: openComposeWithDraft,
+      targetLabel: activeLabel,
+      workspaceId,
+    });
+  }, [activeLabel, activeTerminalEntry, openComposeWithDraft, workspaceId]);
+
+  useEffect(() => {
+    if (!activeTerminalEntry) {
+      setHasTerminalSelection(false);
+      return;
+    }
+
+    const updateSelectionState = () =>
+      setHasTerminalSelection(terminalHasSelection(activeTerminalEntry.term));
+    updateSelectionState();
+
+    if (typeof activeTerminalEntry.term.onSelectionChange !== "function") return;
+
+    const disposable = activeTerminalEntry.term.onSelectionChange(updateSelectionState);
+    return () => disposable.dispose();
+  }, [activeTerminalEntry]);
+
   const focusRelativeSession = useCallback(
     (direction: -1 | 1) => {
       if (visibleSessions.length === 0) return;
@@ -1285,6 +1366,49 @@ export function MultiSessionWorkspace({
     },
     [selectSession, visibleSessions],
   );
+
+  const mobileWindowNavigation = useMemo(() => {
+    const sessionsForControls = visibleSessions.map((session) => ({
+      id: session.sessionName,
+      name: session.label,
+    }));
+    const currentIndex = Math.max(
+      0,
+      visibleSessions.findIndex((session) => session.sessionName === activeSessionName),
+    );
+    const current = sessionsForControls[currentIndex] ?? null;
+    const previous =
+      sessionsForControls.length > 1
+        ? sessionsForControls[
+            (currentIndex - 1 + sessionsForControls.length) % sessionsForControls.length
+          ]
+        : null;
+    const next =
+      sessionsForControls.length > 1
+        ? sessionsForControls[(currentIndex + 1) % sessionsForControls.length]
+        : null;
+
+    return {
+      sessions: sessionsForControls,
+      current,
+      previous,
+      next,
+      canGoPrevious: Boolean(previous),
+      canGoNext: Boolean(next),
+      loading: false,
+      error: null,
+      reload: () => setReloadKey((value) => value + 1),
+      select: (id: string) => {
+        const target = visibleSessions.find(
+          (session) => session.sessionName === id || session.label === id,
+        );
+        if (!target) return false;
+        selectSession(target.sessionName, { focusTerminal: false });
+        return true;
+      },
+      onOpenSwitcher: () => setPaletteOpen(true),
+    };
+  }, [activeSessionName, selectSession, visibleSessions]);
 
   const switchRelativeWorkspaceBoard = useCallback(
     (direction: -1 | 1) => {
@@ -1370,11 +1494,6 @@ export function MultiSessionWorkspace({
     },
     [handleWorkspaceShortcutKeyDown],
   );
-
-  const handleResetLayout = useCallback(() => {
-    persistLayoutJson(null);
-    persistBoardState(resetWorkspaceBoardPaneOrderByLabel(boardState, activeBoard?.key));
-  }, [activeBoard?.key, boardState, persistBoardState, persistLayoutJson]);
 
   useEffect(() => {
     const handleCapturedWorkspaceKeyDown = (event: KeyboardEvent) => {
@@ -2146,39 +2265,13 @@ export function MultiSessionWorkspace({
     if (!isUnifiedSource) return null;
 
     return (
-      <fieldset
-        className="flex min-w-0 items-center gap-1 rounded-md border border-border px-1 py-0.5"
-        data-testid="git-terminal-font-size-controls"
-      >
-        <legend className="sr-only">Workspace terminal font size controls</legend>
-        <Button
-          type="button"
-          variant="ghost"
-          size="xs"
-          className="h-6 min-h-0 px-1.5 text-[10px]"
-          onClick={decreaseFontSize}
-          disabled={!canDecreaseFontSize}
-          aria-label="Decrease workspace terminal font size"
-          data-testid="decrease-git-terminal-font-size"
-        >
-          <Minus className="size-3" />
-        </Button>
-        <span className="min-w-10 text-center text-[10px] tabular-nums text-muted-foreground">
-          {fontSize}px
-        </span>
-        <Button
-          type="button"
-          variant="ghost"
-          size="xs"
-          className="h-6 min-h-0 px-1.5 text-[10px]"
-          onClick={increaseFontSize}
-          disabled={!canIncreaseFontSize}
-          aria-label="Increase workspace terminal font size"
-          data-testid="increase-git-terminal-font-size"
-        >
-          <Plus className="size-3" />
-        </Button>
-      </fieldset>
+      <TerminalFontSizeControls
+        className="shrink-0"
+        dataTestId="git-terminal-font-size-controls"
+        decreaseTestId="decrease-git-terminal-font-size"
+        increaseTestId="increase-git-terminal-font-size"
+        label="Workspace terminal font size controls"
+      />
     );
   };
 
@@ -2426,7 +2519,7 @@ export function MultiSessionWorkspace({
 
   const renderWorkspaceHeader = () => (
     <>
-      <header className="grid shrink-0 grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-1 border-b border-border px-1 py-1">
+      <header className="grid shrink-0 grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-1 border-b border-border px-1 py-1 pt-[max(1rem,var(--safe-area-inset-top))] lg:pt-[max(0.25rem,var(--safe-area-inset-top))]">
         <div className="flex min-w-0 items-center gap-1" data-testid="workspace-header-left">
           <SidebarTrigger className="h-7 min-h-0 shrink-0" />
           <div className="min-w-0 flex-1">
@@ -2451,17 +2544,6 @@ export function MultiSessionWorkspace({
           </span>
           {renderGitFontControls()}
           {renderGitRepositoryButton()}
-          <Button
-            type="button"
-            variant="outline"
-            size="xs"
-            onClick={handleResetLayout}
-            className="h-7 min-h-0 px-2 text-xs"
-            aria-label="Reset layout"
-            data-testid="reset-layout"
-          >
-            Reset
-          </Button>
           {canCreateSession && !isUnifiedSource ? (
             <Button
               type="button"
@@ -2516,6 +2598,39 @@ export function MultiSessionWorkspace({
     </div>
   );
 
+  const controlsSelectionModeEnabled = isComposeSheet && selectionModeEnabled;
+  const hasActiveTerminal = Boolean(activeTerminalEntry?.term);
+  const hasActiveSender = Boolean(activeTerminalEntry?.send);
+  const mobileClipboardStatus = clipboardStatusText(clipboardActionStatus, {
+    canPaste: hasActiveSender,
+    hasTerminal: hasActiveTerminal,
+    selectionModeEnabled: controlsSelectionModeEnabled,
+  });
+  const mobileTerminalControls = isComposeSheet ? (
+    <MobileTerminalControls
+      isKeyboardVisible={isMobileKeyboardVisible}
+      onHapticFeedback={triggerHapticFeedback}
+      windowNavigation={mobileWindowNavigation}
+      hasSelection={hasTerminalSelection}
+      selectionModeEnabled={controlsSelectionModeEnabled}
+      onToggleSelectionMode={handleSelectionModeChange}
+      onCopy={handleMobileCopy}
+      onPaste={handleMobilePaste}
+      clipboardStatusText={mobileClipboardStatus}
+      selectionModeDisabledReason={hasActiveTerminal ? undefined : "Terminal is not ready"}
+      copyDisabledReason={
+        hasActiveTerminal
+          ? hasTerminalSelection
+            ? undefined
+            : "Select terminal text before copying"
+          : "Terminal is not ready"
+      }
+      pasteDisabledReason={
+        hasActiveSender ? undefined : "Paste is unavailable until the terminal sender is ready"
+      }
+    />
+  ) : null;
+
   const renderPane = (pane: SessionPane) => {
     const visibleSession = visibleSessions.find(
       (candidate) => candidate.sessionName === pane.sessionName,
@@ -2537,67 +2652,34 @@ export function MultiSessionWorkspace({
               boardPaneSignal,
             )
         : undefined;
-    const layoutSignal = `${activeBoard?.key ?? "no-board"}:${boardPaneSignal}:${layout.tiled.rows}:${layout.tiled.columns}:${pane.gridArea}`;
+    const visualViewportSignal = visualKeyboardVisible
+      ? `keyboard:${visualViewportHeightPx}:${visualViewportOffsetTopPx}`
+      : `viewport:${visualViewportHeightPx}:${visualViewportOffsetTopPx}`;
+    const layoutSignal = `${activeBoard?.key ?? "no-board"}:${boardPaneSignal}:${layout.tiled.rows}:${layout.tiled.columns}:${pane.gridArea}:${visualViewportSignal}`;
     const paneStyle: CSSProperties = { gridArea: pane.gridArea };
 
     return (
-      // biome-ignore lint/a11y/useSemanticElements: selectable tile wraps a terminal surface, so a native button would be invalid
-      <div
+      <TerminalSessionFrame
         key={pane.id}
-        aria-label={`Terminal pane ${pane.label}`}
-        aria-current={isActive ? "true" : undefined}
-        aria-pressed={isActive}
-        role="button"
-        className={cn(
-          "flex min-h-0 resize-none flex-col overflow-hidden rounded-lg border bg-black shadow-sm outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring",
-          isActive ? "border-primary ring-1 ring-primary" : "border-border",
-        )}
-        data-testid={`workspace-${pane.id}`}
-        data-active={isActive ? "true" : "false"}
-        data-pane-mode="tiled"
+        label={pane.label}
+        active={isActive}
+        dataTestId={`workspace-${pane.id}`}
+        layoutMode="tiled"
         style={paneStyle}
-        tabIndex={0}
-        onMouseEnter={() => selectSession(pane.sessionName, { focusTerminal: false })}
-        onClick={(event) => {
-          const target = event.target;
-          if (target instanceof HTMLElement && target.closest("[data-terminal-surface='true']")) {
-            return;
-          }
-          selectSession(pane.sessionName);
+        onActivate={() => selectSession(pane.sessionName)}
+        onFocusActivate
+        closeLabel={`${isUnifiedSource ? "Remove" : "Close"} ${pane.label}`}
+        closeTestId={`remove-pane-${pane.id}`}
+        onClose={(event) => {
+          event.stopPropagation();
+          void handleRemovePane({
+            boardKey: activeBoard?.key,
+            boardPaneKey: visibleSession?.boardPaneKey,
+            sessionName: pane.sessionName,
+          });
         }}
-        onFocus={(event) => {
-          if (event.currentTarget !== event.target) return;
-          selectSession(pane.sessionName);
-        }}
-        onKeyDown={(event) => {
-          if (event.currentTarget !== event.target) return;
-          if (event.key === "Enter" || event.key === " ") {
-            event.preventDefault();
-            selectSession(pane.sessionName);
-          }
-        }}
+        onMouseEnter={() => selectSession(pane.sessionName)}
       >
-        <div className="flex min-h-8 shrink-0 items-center gap-1 border-b border-white/10 bg-zinc-950 px-2 py-1 text-white">
-          <span className="min-w-0 flex-1 truncate font-mono text-xs">{pane.label}</span>
-          <Button
-            type="button"
-            variant="destructive"
-            size="xs"
-            className="h-6 min-h-0 px-1.5 text-[10px]"
-            aria-label={`${isUnifiedSource ? "Remove" : "Close"} ${pane.label}`}
-            data-testid={`remove-pane-${pane.id}`}
-            onClick={(event) => {
-              event.stopPropagation();
-              void handleRemovePane({
-                boardKey: activeBoard?.key,
-                boardPaneKey: visibleSession?.boardPaneKey,
-                sessionName: pane.sessionName,
-              });
-            }}
-          >
-            <X className="size-3" />
-          </Button>
-        </div>
         <InteractiveTerminal
           agentId={agentId}
           workspaceId={workspaceId}
@@ -2607,6 +2689,9 @@ export function MultiSessionWorkspace({
           refreshCloneTerminalIdentity={refreshCloneTerminalIdentity}
           className="min-h-0 flex-1"
           layoutSignal={layoutSignal}
+          mobileInputMode={isComposeSheet}
+          pinToBottomOnResize={isComposeSheet}
+          selectionModeEnabled={controlsSelectionModeEnabled}
           onConnectionStateChange={(state) =>
             handlePaneConnectionStateChange(boardPaneSignal, boardPaneKind, state)
           }
@@ -2618,10 +2703,11 @@ export function MultiSessionWorkspace({
             handleTerminalDestroy(pane.sessionName);
             clearPaneRecoveryState(boardPaneSignal);
           }}
+          onUserFocusRequest={() => selectSession(pane.sessionName, { focusTerminal: false })}
           onComposeRequest={openComposeWithDraft}
           targetLabel={pane.label}
         />
-      </div>
+      </TerminalSessionFrame>
     );
   };
 
@@ -2740,6 +2826,7 @@ export function MultiSessionWorkspace({
             </div>
           )}
         </div>
+        {mobileTerminalControls}
         {composeOpen ? (
           <div className="h-[28%] min-h-40 shrink-0 border-t border-border">
             <ComposePanel

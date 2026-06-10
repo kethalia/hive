@@ -320,6 +320,11 @@ describe("Sidebar primitive layout contract", () => {
   });
 
   it("uses the widened desktop width while keeping floating gap at zero", async () => {
+    Object.defineProperty(window, "innerWidth", {
+      configurable: true,
+      value: 1200,
+    });
+
     const { Sidebar: ActualSidebar, SidebarProvider: ActualSidebarProvider } =
       await vi.importActual<typeof import("@/components/ui/sidebar")>("@/components/ui/sidebar");
 

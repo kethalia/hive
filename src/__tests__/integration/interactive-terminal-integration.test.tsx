@@ -337,6 +337,7 @@ vi.mock("lucide-react", () => ({
   ClipboardPaste: () => null,
   Copy: () => null,
   Loader2: () => null,
+  Minus: () => null,
   Plus: () => null,
   X: () => null,
 }));
@@ -724,6 +725,7 @@ type RenderTerminalOptions = {
   mobileInputMode?: boolean;
   onConnectionStateChange?: (state: ConnectionState) => void;
   onRecoveryStateChange?: (state: TerminalRecoveryState) => void;
+  onUserFocusRequest?: () => void;
   pinToBottomOnResize?: boolean;
   refreshCloneTerminalIdentity?: () =>
     | Promise<RefreshedCloneTerminalIdentity>
@@ -1572,7 +1574,7 @@ describe("WorkspaceTerminalPage integration — Multi-session route", () => {
         (terminal) => terminal.getAttribute("data-session-name") === "main-session",
       );
     expect(findMainTerminal()?.getAttribute("data-layout-signal")).toBe(
-      "default:terminal:main-session:1:2:1 / 1 / span 1 / span 1",
+      "default:terminal:main-session:1:2:1 / 1 / span 1 / span 1:viewport:0:0",
     );
     expect(getByTestId("workspace-pane-main-session")).toHaveAttribute("data-pane-mode", "tiled");
     expect(queryByTestId("move-pane-left-pane-dev-server")).not.toBeInTheDocument();
@@ -1583,7 +1585,8 @@ describe("WorkspaceTerminalPage integration — Multi-session route", () => {
 
 describe("TerminalClient integration — Mobile terminal route props", () => {
   it("leaves bottom-preserving refits disabled on desktop terminal routes", async () => {
-    const { getByTestId, unmount } = await renderTerminalClient("session=main");
+    const { getByTestId, queryByTestId, queryByText, unmount } =
+      await renderTerminalClient("session=main");
 
     await waitFor(() => {
       expect(getByTestId("interactive-terminal")).toBeInTheDocument();
@@ -1598,10 +1601,11 @@ describe("TerminalClient integration — Mobile terminal route props", () => {
       "false",
     );
     expect(getByTestId("terminal-desktop-shell")).toBeInTheDocument();
-    expect(getByTestId("terminal-desktop-shell")).toHaveClass(
-      "h-[calc(var(--app-viewport-height)-var(--safe-area-inset-top)-3.5rem)]",
-      "md:h-[calc(var(--app-viewport-height)-var(--safe-area-inset-top)-var(--safe-area-inset-bottom)-5rem)]",
-    );
+    expect(getByTestId("single-terminal-header")).toBeInTheDocument();
+    expect(getByTestId("active-pane-label")).toHaveTextContent("main");
+    expect(getByTestId("single-terminal-frame")).toBeInTheDocument();
+    expect(queryByText("Active pane")).not.toBeInTheDocument();
+    expect(queryByTestId("single-terminal-frame-header")).not.toBeInTheDocument();
     expect(document.querySelectorAll('[data-testid="interactive-terminal"]')).toHaveLength(1);
     expect(document.querySelector('[data-testid="terminal-mobile-controls"]')).toBeNull();
     expect(document.querySelector('[data-testid="terminal-window-command-palette"]')).toBeNull();
@@ -2372,8 +2376,12 @@ describe("InteractiveTerminal integration — Mobile input adapter", () => {
     desktop.unmount();
   });
 
-  it("does not focus xterm from mobile terminal surface touches", async () => {
-    const { container, unmount } = await renderTerminal({ mobileInputMode: true });
+  it("focuses xterm through the mobile input adapter after native terminal surface taps", async () => {
+    const onUserFocusRequest = vi.fn();
+    const { container, unmount } = await renderTerminal({
+      mobileInputMode: true,
+      onUserFocusRequest,
+    });
     const terminal = terminalInstances.at(-1);
     expect(terminal).toBeDefined();
     expect(terminal?.attachCustomKeyEventHandler).toHaveBeenCalledTimes(1);
@@ -2382,21 +2390,31 @@ describe("InteractiveTerminal integration — Mobile input adapter", () => {
     const inputTarget = container.querySelector('[data-testid="terminal-fit-host"]');
     expect(inputTarget).toBeTruthy();
 
-    fireEvent.pointerDown(inputTarget as Element, {
+    const pointerDownAllowed = fireEvent.pointerDown(inputTarget as Element, {
       clientX: 80,
       clientY: 240,
       pointerId: 1,
       pointerType: "touch",
+      cancelable: true,
     });
+    const touchStart = fireTouchEvent(inputTarget as Element, "touchstart", [
+      touchPoint(1, 80, 240),
+    ]);
     fireEvent.pointerUp(inputTarget as Element, {
       clientX: 82,
       clientY: 242,
       pointerId: 1,
       pointerType: "touch",
     });
-    fireEvent.click(inputTarget as Element);
+    fireTouchEvent(inputTarget as Element, "touchend", [], [touchPoint(1, 82, 242)]);
 
-    expect(terminal?.focus).not.toHaveBeenCalled();
+    expect(pointerDownAllowed).toBe(false);
+    expect(touchStart.defaultPrevented).toBe(true);
+    expect(terminal?.focus).toHaveBeenCalledTimes(1);
+    expect(onUserFocusRequest).toHaveBeenCalledTimes(1);
+
+    fireEvent.click(inputTarget as Element);
+    expect(terminal?.focus).toHaveBeenCalledTimes(1);
 
     act(() => {
       terminal?.dataHandler?.("echo mobile\r");

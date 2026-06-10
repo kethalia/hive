@@ -1,5 +1,6 @@
 import { PlusCircle } from "lucide-react";
 import Link from "next/link";
+import { DashboardPageHeader } from "@/components/dashboard-page-header";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -42,14 +43,15 @@ function truncatePrompt(prompt: string, maxLength = 80): string {
 export function TaskListContent({ taskList }: TaskListContentProps) {
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between gap-3">
-        <h1 className="text-2xl font-bold tracking-tight">Tasks</h1>
-        <Button render={<Link href="/tasks/new" />}>
-          <PlusCircle className="mr-2 h-4 w-4" />
-          New Task
-        </Button>
-      </div>
+      <DashboardPageHeader
+        title="Tasks"
+        actions={
+          <Button nativeButton={false} render={<Link href="/tasks/new" />}>
+            <PlusCircle className="mr-2 h-4 w-4" />
+            New Task
+          </Button>
+        }
+      />
 
       {/* Empty state */}
       {taskList.length === 0 ? (

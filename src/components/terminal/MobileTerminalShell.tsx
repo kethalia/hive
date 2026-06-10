@@ -12,12 +12,15 @@ import { cn } from "@/lib/utils";
 
 export const MOBILE_TERMINAL_SHELL_CLASS_NAME =
   "terminal-mobile-shell fixed inset-x-0 top-[calc(var(--safe-area-inset-top)+3.5rem)] flex flex-col overflow-hidden overscroll-none bg-background";
+export const MOBILE_TERMINAL_SAFE_SHELL_CLASS_NAME =
+  "terminal-mobile-shell fixed inset-x-0 top-[var(--safe-area-inset-top)] flex flex-col overflow-hidden overscroll-none bg-background";
 
 interface MobileTerminalShellProps {
   children: ReactNode;
   className?: string;
   diagnosticsEnabled?: boolean;
   isKeyboardVisible: boolean;
+  reserveDashboardTrigger?: boolean;
 }
 
 const SIDEBAR_SCROLL_ALLOW_SELECTOR = [
@@ -59,6 +62,7 @@ export function MobileTerminalShell({
   className,
   diagnosticsEnabled = false,
   isKeyboardVisible,
+  reserveDashboardTrigger = true,
 }: MobileTerminalShellProps) {
   useMobileTerminalViewportLock(isKeyboardVisible);
 
@@ -66,8 +70,13 @@ export function MobileTerminalShell({
     <div
       data-testid="terminal-mobile-shell"
       data-terminal-shell="true"
-      className={cn(MOBILE_TERMINAL_SHELL_CLASS_NAME, className)}
-      style={mobileTerminalFrameStyle(isKeyboardVisible)}
+      className={cn(
+        reserveDashboardTrigger
+          ? MOBILE_TERMINAL_SHELL_CLASS_NAME
+          : MOBILE_TERMINAL_SAFE_SHELL_CLASS_NAME,
+        className,
+      )}
+      style={mobileTerminalFrameStyle(isKeyboardVisible, reserveDashboardTrigger)}
       onKeyDown={(event) => event.stopPropagation()}
     >
       {children}

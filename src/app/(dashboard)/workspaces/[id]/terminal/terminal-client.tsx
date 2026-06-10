@@ -13,6 +13,10 @@ import { MobileTerminalShell } from "@/components/terminal/MobileTerminalShell";
 import { Button } from "@/components/ui/button";
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
+import {
+  SingleTerminalSessionHeader,
+  TerminalSessionFrame,
+} from "@/components/workspaces/TerminalSessionFrame";
 import { useIsComposeSheet } from "@/hooks/use-compose-sheet";
 import { useFavoriteWindowNavigation } from "@/hooks/useFavoriteWindowNavigation";
 import { useKeybindings } from "@/hooks/useKeybindings";
@@ -45,9 +49,7 @@ const InteractiveTerminal = dynamic(
 );
 
 const LAST_SESSION_STORAGE_PREFIX = "terminal:last-session:";
-const TERMINAL_WIDTH_CLASS_NAME = "-mx-6 w-[calc(100%+3rem)]";
-const TERMINAL_STATIC_HEIGHT_CLASS_NAME =
-  "h-[calc(var(--app-viewport-height)-var(--safe-area-inset-top)-3.5rem)] md:h-[calc(var(--app-viewport-height)-var(--safe-area-inset-top)-var(--safe-area-inset-bottom)-5rem)]";
+const TERMINAL_SHELL_CLASS_NAME = "h-full min-h-0 w-full";
 
 function terminalSessionHref(
   workspaceId: string,
@@ -542,6 +544,7 @@ function TerminalInner({
           className="items-center justify-center"
           diagnosticsEnabled={debugViewportEnabled}
           isKeyboardVisible={isMobileKeyboardVisible}
+          reserveDashboardTrigger={false}
         >
           {bootstrapCard}
         </MobileTerminalShell>
@@ -551,7 +554,7 @@ function TerminalInner({
     return (
       <div
         data-testid="terminal-bootstrap-shell"
-        className={`${TERMINAL_WIDTH_CLASS_NAME} ${TERMINAL_STATIC_HEIGHT_CLASS_NAME} flex items-center justify-center`}
+        className={`${TERMINAL_SHELL_CLASS_NAME} flex items-center justify-center`}
       >
         {bootstrapCard}
       </div>
@@ -627,15 +630,20 @@ function TerminalInner({
       <MobileTerminalShell
         diagnosticsEnabled={debugViewportEnabled}
         isKeyboardVisible={isMobileKeyboardVisible}
+        reserveDashboardTrigger={false}
       >
         <div className="flex h-full min-h-0 flex-col overflow-hidden overscroll-none bg-background">
-          <section
-            aria-label="Terminal emulator"
-            className="min-h-0 flex-1 overflow-hidden bg-black"
-            data-terminal-surface="true"
-          >
-            {terminalPane}
-          </section>
+          <SingleTerminalSessionHeader sessionLabel={session} />
+          <div className="min-h-0 flex-1 overflow-hidden p-1 pt-0">
+            <TerminalSessionFrame
+              label={session}
+              className="h-full rounded-lg"
+              dataTestId="single-terminal-frame"
+              showHeader={false}
+            >
+              {terminalPane}
+            </TerminalSessionFrame>
+          </div>
           {terminalControls}
         </div>
         <Sheet
@@ -693,13 +701,23 @@ function TerminalInner({
     <div
       data-testid="terminal-desktop-shell"
       data-terminal-shell="true"
-      className={`${TERMINAL_WIDTH_CLASS_NAME} ${TERMINAL_STATIC_HEIGHT_CLASS_NAME} flex flex-col overflow-hidden`}
+      className={`${TERMINAL_SHELL_CLASS_NAME} flex flex-col overflow-hidden bg-background`}
       onKeyDown={(e) => e.stopPropagation()}
     >
+      <SingleTerminalSessionHeader sessionLabel={session} />
       <div className="min-h-0 flex-1 overflow-hidden">
         <ResizablePanelGroup orientation="vertical" className="h-full">
           <ResizablePanel defaultSize={composeOpen ? 75 : 100} minSize={30}>
-            {terminalPane}
+            <div className="h-full min-h-0 p-1 pt-0">
+              <TerminalSessionFrame
+                label={session}
+                className="h-full rounded-lg"
+                dataTestId="single-terminal-frame"
+                showHeader={false}
+              >
+                {terminalPane}
+              </TerminalSessionFrame>
+            </div>
           </ResizablePanel>
           {composeOpen && (
             <>
@@ -739,7 +757,7 @@ export function TerminalClient({
       fallback={
         <div
           data-testid="terminal-suspense-shell"
-          className={`${TERMINAL_WIDTH_CLASS_NAME} ${TERMINAL_STATIC_HEIGHT_CLASS_NAME} flex items-center justify-center`}
+          className={`${TERMINAL_SHELL_CLASS_NAME} flex items-center justify-center`}
         >
           <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
         </div>

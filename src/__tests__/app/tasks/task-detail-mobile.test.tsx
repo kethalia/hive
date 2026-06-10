@@ -16,6 +16,15 @@ vi.mock("next-safe-action/hooks", () => ({
   useAction: vi.fn(() => ({ execute: vi.fn() })),
 }));
 
+vi.mock("@/components/ui/sidebar", () => ({
+  SidebarTrigger: ({ className }: { className?: string }) =>
+    React.createElement(
+      "button",
+      { type: "button", className, "data-testid": "dashboard-page-sidebar-trigger" },
+      "Toggle sidebar",
+    ),
+}));
+
 import { TaskDetail } from "@/app/(dashboard)/tasks/[id]/task-detail";
 
 const longRepoUrl =
@@ -100,23 +109,19 @@ describe("TaskDetail mobile layout contracts", () => {
     );
   });
 
-  it("wraps the page header and scales the title at the small breakpoint", () => {
+  it("uses a compact one-line page header with a smaller non-bold title", () => {
     render(React.createElement(TaskDetail, { initialTask: makeTask() }));
 
     const title = screen.getByRole("heading", { name: /task task-mob/i });
-    expect(classTokens(title)).toEqual(expect.arrayContaining(["text-xl", "sm:text-2xl"]));
+    expect(classTokens(title)).toEqual(
+      expect.arrayContaining(["truncate", "text-sm", "font-normal"]),
+    );
+    expect(classTokens(title)).not.toEqual(expect.arrayContaining(["font-bold", "text-xl"]));
 
-    const header = title.parentElement;
+    const header = title.closest("[data-dashboard-page-nav]");
     expect(header).not.toBeNull();
     expect(classTokens(header as Element)).toEqual(
-      expect.arrayContaining([
-        "flex",
-        "flex-wrap",
-        "items-start",
-        "gap-2",
-        "sm:items-center",
-        "sm:gap-3",
-      ]),
+      expect.arrayContaining(["flex", "items-center", "gap-2", "border-b"]),
     );
   });
 

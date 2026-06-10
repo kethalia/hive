@@ -1,6 +1,14 @@
 import * as React from "react";
 
-const MOBILE_BREAKPOINT = 768;
+export const MOBILE_BREAKPOINT = 1024;
+export const TOUCH_TABLET_BREAKPOINT = 1366;
+export const MOBILE_VIEWPORT_QUERY = `(max-width: ${MOBILE_BREAKPOINT}px)`;
+export const TOUCH_TABLET_VIEWPORT_QUERY = `(pointer: coarse) and (max-width: ${TOUCH_TABLET_BREAKPOINT}px)`;
+
+export function isMobileLikeViewport(win: Window): boolean {
+  if (win.innerWidth <= MOBILE_BREAKPOINT) return true;
+  return win.matchMedia?.(TOUCH_TABLET_VIEWPORT_QUERY).matches ?? false;
+}
 
 export function useIsMobile() {
   const [isMobile, setIsMobile] = React.useState<boolean | undefined>(undefined);
@@ -9,22 +17,31 @@ export function useIsMobile() {
     if (typeof window === "undefined") return;
 
     const onChange = () => {
-      setIsMobile(window.innerWidth < MOBILE_BREAKPOINT);
+      setIsMobile(isMobileLikeViewport(window));
     };
 
     onChange();
 
     if (typeof window.matchMedia !== "function") return;
 
-    const mql = window.matchMedia(`(max-width: ${MOBILE_BREAKPOINT - 1}px)`);
+    const mql = window.matchMedia(MOBILE_VIEWPORT_QUERY);
+    const touchTabletMql = window.matchMedia(TOUCH_TABLET_VIEWPORT_QUERY);
 
     if (typeof mql.addEventListener === "function") {
       mql.addEventListener("change", onChange);
-      return () => mql.removeEventListener("change", onChange);
+      touchTabletMql.addEventListener("change", onChange);
+      return () => {
+        mql.removeEventListener("change", onChange);
+        touchTabletMql.removeEventListener("change", onChange);
+      };
     }
 
     mql.addListener?.(onChange);
-    return () => mql.removeListener?.(onChange);
+    touchTabletMql.addListener?.(onChange);
+    return () => {
+      mql.removeListener?.(onChange);
+      touchTabletMql.removeListener?.(onChange);
+    };
   }, []);
 
   return !!isMobile;

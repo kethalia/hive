@@ -32,11 +32,13 @@ export default async function TerminalPage({ params }: TerminalPageProps) {
   }
 
   return (
-    <TerminalClient
-      agentId={agentResult.data.agentId}
-      agentName={agentResult.data.agentName}
-      terminalControlsBeyondMobile={terminalControlsBeyondMobile}
-      workspaceId={workspaceId}
-    />
+    <div className="h-full min-h-0 w-full overflow-hidden" data-dashboard-full-bleed="">
+      <TerminalClient
+        agentId={agentResult.data.agentId}
+        agentName={agentResult.data.agentName}
+        terminalControlsBeyondMobile={terminalControlsBeyondMobile}
+        workspaceId={workspaceId}
+      />
+    </div>
   );
 }

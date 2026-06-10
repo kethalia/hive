@@ -16,6 +16,14 @@ vi.mock("next/navigation", () => ({
   useRouter: () => ({ refresh }),
 }));
 
+vi.mock("@/components/ui/sidebar", () => ({
+  SidebarTrigger: ({ className }: { className?: string }) => (
+    <button type="button" className={className} data-testid="dashboard-page-sidebar-trigger">
+      Toggle sidebar
+    </button>
+  ),
+}));
+
 let originalPointerEvent: typeof window.PointerEvent | undefined;
 const originalSetPointerCapture = Element.prototype.setPointerCapture;
 const originalReleasePointerCapture = Element.prototype.releasePointerCapture;

@@ -21,23 +21,8 @@ jobs:
       node-version: 22
       lint-command: pnpm lint
       format-command: pnpm format:check
-      typecheck-command: |
-        export DATABASE_URL=postgresql://dummy:dummy@localhost:5432/dummy
-        export REDIS_URL=redis://localhost:6379
-        export AUTH_SERVICE_URL=http://localhost:4400
-        export COOKIE_SECRET=dummy
-        export ENCRYPTION_KEY=00000000000000000000000000000000
-        export NEXT_PUBLIC_TERMINAL_WS_URL=ws://localhost:3001
-        pnpm -r --if-present run typecheck
-      test-command: |
-        export DATABASE_URL=postgresql://dummy:dummy@localhost:5432/dummy
-        export REDIS_URL=redis://localhost:6379
-        export AUTH_SERVICE_URL=http://localhost:4400
-        export COOKIE_SECRET=dummy
-        export ENCRYPTION_KEY=00000000000000000000000000000000
-        export NEXT_PUBLIC_TERMINAL_WS_URL=ws://localhost:3001
-        pnpm test:coverage
-        pnpm -r --if-present run test:coverage
+      typecheck-command: ""
+      test-command: ""
       build-command: |
         export DATABASE_URL=postgresql://dummy:dummy@localhost:5432/dummy
         export REDIS_URL=redis://localhost:6379
@@ -46,8 +31,11 @@ jobs:
         export ENCRYPTION_KEY=00000000000000000000000000000000
         export NEXT_PUBLIC_TERMINAL_WS_URL=ws://localhost:3001
         pnpm build
+        pnpm -r --if-present run typecheck
+        pnpm test:coverage
+        pnpm -r --if-present run test:coverage
       test-node-versions: '[22]'
-      artifact-paths: .next
+      artifact-paths: .github/no-build-artifact
       build-cache-paths: .next/cache
     secrets: inherit
 
