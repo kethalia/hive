@@ -40,6 +40,14 @@ describe("DashboardSidebarTrigger", () => {
     expect(container).toBeEmptyDOMElement();
   });
 
+  it("does not render on single terminal routes", () => {
+    mockPathname = "/workspaces/ws-1/terminal";
+
+    const { container } = render(<DashboardSidebarTrigger />);
+
+    expect(container).toBeEmptyDOMElement();
+  });
+
   it("does not render on legacy full-bleed Git workspace routes", () => {
     mockPathname = "/workspaces/ws-1/terminal/git-workspace";
 

@@ -65,6 +65,23 @@ describe("MobileTerminalShell", () => {
     expect(screen.queryByTestId("mobile-terminal-diagnostics-overlay")).not.toBeInTheDocument();
   });
 
+  it("can use safe-area-only top spacing when dashboard trigger space is not reserved", () => {
+    render(
+      <MobileTerminalShell isKeyboardVisible={false} reserveDashboardTrigger={false}>
+        <div data-testid="terminal-content" />
+      </MobileTerminalShell>,
+    );
+
+    expect(screen.getByTestId("terminal-mobile-shell")).toHaveClass(
+      "top-[var(--safe-area-inset-top)]",
+    );
+    expect(screen.getByTestId("terminal-mobile-shell")).toHaveStyle({
+      height: "max(0px, calc(var(--app-visual-viewport-height) - var(--safe-area-inset-top)))",
+      maxHeight: "max(0px, calc(var(--app-visual-viewport-height) - var(--safe-area-inset-top)))",
+      top: "calc(var(--app-visual-viewport-offset-top) + var(--safe-area-inset-top))",
+    });
+  });
+
   it("locks document scrolling while mounted and restores previous styles on unmount", () => {
     document.documentElement.style.height = "92vh";
     document.documentElement.style.overflow = "auto";

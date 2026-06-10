@@ -337,6 +337,7 @@ vi.mock("lucide-react", () => ({
   ClipboardPaste: () => null,
   Copy: () => null,
   Loader2: () => null,
+  Minus: () => null,
   Plus: () => null,
   X: () => null,
 }));
@@ -1583,7 +1584,8 @@ describe("WorkspaceTerminalPage integration — Multi-session route", () => {
 
 describe("TerminalClient integration — Mobile terminal route props", () => {
   it("leaves bottom-preserving refits disabled on desktop terminal routes", async () => {
-    const { getByTestId, unmount } = await renderTerminalClient("session=main");
+    const { getByTestId, queryByTestId, queryByText, unmount } =
+      await renderTerminalClient("session=main");
 
     await waitFor(() => {
       expect(getByTestId("interactive-terminal")).toBeInTheDocument();
@@ -1598,10 +1600,11 @@ describe("TerminalClient integration — Mobile terminal route props", () => {
       "false",
     );
     expect(getByTestId("terminal-desktop-shell")).toBeInTheDocument();
-    expect(getByTestId("terminal-desktop-shell")).toHaveClass(
-      "h-[calc(var(--app-viewport-height)-var(--safe-area-inset-top)-3.5rem)]",
-      "md:h-[calc(var(--app-viewport-height)-var(--safe-area-inset-top)-var(--safe-area-inset-bottom)-5rem)]",
-    );
+    expect(getByTestId("single-terminal-header")).toBeInTheDocument();
+    expect(getByTestId("active-pane-label")).toHaveTextContent("main");
+    expect(getByTestId("single-terminal-frame")).toBeInTheDocument();
+    expect(queryByText("Active pane")).not.toBeInTheDocument();
+    expect(queryByTestId("single-terminal-frame-header")).not.toBeInTheDocument();
     expect(document.querySelectorAll('[data-testid="interactive-terminal"]')).toHaveLength(1);
     expect(document.querySelector('[data-testid="terminal-mobile-controls"]')).toBeNull();
     expect(document.querySelector('[data-testid="terminal-window-command-palette"]')).toBeNull();

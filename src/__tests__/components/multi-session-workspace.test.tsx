@@ -492,6 +492,11 @@ describe("MultiSessionWorkspace", () => {
       "flex-col",
       "min-h-0",
     );
+    expect(
+      screen
+        .getByTestId("workspace-pane-dev-server")
+        .querySelector("[data-terminal-frame-content='true']"),
+    ).toHaveClass("flex", "flex-col", "overflow-hidden");
     expect(screen.getByTestId("interactive-terminal-dev-server")).toHaveClass("min-h-0", "flex-1");
     expect(screen.getByTestId("interactive-terminal-dev-server").className).not.toContain(
       "calc(100%-2rem)",
@@ -1208,17 +1213,10 @@ describe("MultiSessionWorkspace", () => {
     );
   });
 
-  it("resets active board pane order instead of only clearing legacy layout storage", async () => {
+  it("does not render a reset layout control in the workspace header", async () => {
     await renderTwoSessionWorkspace();
 
-    fireEvent.click(screen.getByTestId("reset-layout"));
-
-    const stored = JSON.parse(
-      window.localStorage.getItem("workspace-board-state:workspace:ws-1") ?? "{}",
-    );
-    expect(stored.boards[0].panes.map((pane: { sessionName: string }) => pane.sessionName)).toEqual(
-      ["dev-server", "main-session"],
-    );
+    expect(screen.queryByTestId("reset-layout")).not.toBeInTheDocument();
   });
 
   it("falls back to live sessions when persisted board state has no usable boards", async () => {
@@ -1306,7 +1304,7 @@ describe("MultiSessionWorkspace", () => {
     await renderTwoSessionWorkspace();
 
     const labels = Array.from(screen.getByTestId("multi-session-grid").children).map((pane) =>
-      pane.getAttribute("aria-label")?.replace("Terminal pane ", ""),
+      pane.getAttribute("data-pane-label"),
     );
     expect(labels).toEqual(["dev-server", "main-session"]);
     expect(screen.getByTestId("active-pane-label")).toHaveTextContent("dev-server");

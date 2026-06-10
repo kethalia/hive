@@ -3,10 +3,15 @@ import type { CSSProperties } from "react";
 export const MOBILE_TERMINAL_TOP_OFFSET = "calc(var(--safe-area-inset-top) + 3.5rem)";
 export const MOBILE_TERMINAL_TOP_OFFSET_WITH_VISUAL_VIEWPORT =
   "calc(var(--app-visual-viewport-offset-top) + var(--safe-area-inset-top) + 3.5rem)";
+export const MOBILE_TERMINAL_SAFE_TOP_OFFSET = "var(--safe-area-inset-top)";
+export const MOBILE_TERMINAL_SAFE_TOP_OFFSET_WITH_VISUAL_VIEWPORT =
+  "calc(var(--app-visual-viewport-offset-top) + var(--safe-area-inset-top))";
 export const MOBILE_TERMINAL_FRAME_HEIGHT_WITH_LAYOUT_VIEWPORT =
   "max(0px, calc(var(--app-viewport-height) - var(--safe-area-inset-top) - 3.5rem))";
 export const MOBILE_TERMINAL_FRAME_HEIGHT_WITH_VISUAL_VIEWPORT =
   "max(0px, calc(var(--app-visual-viewport-height) - var(--safe-area-inset-top) - 3.5rem))";
+export const MOBILE_TERMINAL_SAFE_FRAME_HEIGHT_WITH_VISUAL_VIEWPORT =
+  "max(0px, calc(var(--app-visual-viewport-height) - var(--safe-area-inset-top)))";
 export const COMPOSE_SHEET_KEYBOARD_BOTTOM_OFFSET =
   "calc(var(--app-viewport-height) - var(--app-visual-viewport-height) - var(--app-visual-viewport-offset-top))";
 
@@ -36,13 +41,20 @@ export function mobileViewportLockedHeight(isKeyboardVisible: boolean): string {
   return isKeyboardVisible ? "var(--app-visual-viewport-height)" : "var(--app-viewport-height)";
 }
 
-export function mobileTerminalFrameStyle(_isKeyboardVisible: boolean): CSSProperties {
-  const height = MOBILE_TERMINAL_FRAME_HEIGHT_WITH_VISUAL_VIEWPORT;
+export function mobileTerminalFrameStyle(
+  _isKeyboardVisible: boolean,
+  reserveDashboardTrigger = true,
+): CSSProperties {
+  const height = reserveDashboardTrigger
+    ? MOBILE_TERMINAL_FRAME_HEIGHT_WITH_VISUAL_VIEWPORT
+    : MOBILE_TERMINAL_SAFE_FRAME_HEIGHT_WITH_VISUAL_VIEWPORT;
 
   return {
     height,
     maxHeight: height,
-    top: MOBILE_TERMINAL_TOP_OFFSET_WITH_VISUAL_VIEWPORT,
+    top: reserveDashboardTrigger
+      ? MOBILE_TERMINAL_TOP_OFFSET_WITH_VISUAL_VIEWPORT
+      : MOBILE_TERMINAL_SAFE_TOP_OFFSET_WITH_VISUAL_VIEWPORT,
   };
 }
 
