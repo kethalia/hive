@@ -145,6 +145,13 @@ interface VisibleWorkspaceSessionPane extends WorkspaceSessionPane {
   boardPaneKind: WorkspaceBoardPane["kind"];
 }
 
+interface WorkspaceBoardRenderModel {
+  board: WorkspaceBoard;
+  isActive: boolean;
+  visibleSessions: VisibleWorkspaceSessionPane[];
+  layout: ReturnType<typeof resolveSessionPaneLayout>;
+}
+
 interface RemoveWorkspacePaneTarget {
   sessionName: string;
   boardKey?: string;
@@ -858,10 +865,30 @@ export function MultiSessionWorkspace({
   } = useVisualViewportKeyboardOffset();
   const isMobileKeyboardVisible = isComposeSheet && visualKeyboardVisible;
   const activeBoard = useMemo(() => findActiveWorkspaceBoard(boardState), [boardState]);
-  const visibleSessions = useMemo(
-    () => deriveVisibleSessionsFromBoard(sessions, activeBoard),
-    [activeBoard, sessions],
+  const boardRenderModels = useMemo<WorkspaceBoardRenderModel[]>(
+    () =>
+      boardState.boards.map((board) => {
+        const boardVisibleSessions = deriveVisibleSessionsFromBoard(sessions, board);
+        return {
+          board,
+          isActive: board.key === activeBoard?.key,
+          visibleSessions: boardVisibleSessions,
+          layout: resolveSessionPaneLayout({
+            sessions: boardVisibleSessions.map((session) => ({
+              sessionName: session.sessionName,
+              label: session.label,
+            })),
+            persistedJson: persistedLayoutJson,
+          }),
+        };
+      }),
+    [activeBoard?.key, boardState.boards, persistedLayoutJson, sessions],
   );
+  const activeBoardRenderModel = useMemo(
+    () => boardRenderModels.find((model) => model.isActive) ?? boardRenderModels[0],
+    [boardRenderModels],
+  );
+  const visibleSessions = activeBoardRenderModel?.visibleSessions ?? [];
   const visibleSessionNames = useMemo(
     () => new Set(visibleSessions.map((session) => session.sessionName)),
     [visibleSessions],
@@ -880,17 +907,7 @@ export function MultiSessionWorkspace({
 
   activeSessionNameRef.current = activeSessionName;
 
-  const layout = useMemo(
-    () =>
-      resolveSessionPaneLayout({
-        sessions: visibleSessions.map((session) => ({
-          sessionName: session.sessionName,
-          label: session.label,
-        })),
-        persistedJson: persistedLayoutJson,
-      }),
-    [persistedLayoutJson, visibleSessions],
-  );
+  const layout = activeBoardRenderModel?.layout ?? resolveSessionPaneLayout({ sessions: [] });
   const activeLabel = visibleSessions.find(
     (session) => session.sessionName === activeSessionName,
   )?.label;
@@ -2631,13 +2648,13 @@ export function MultiSessionWorkspace({
     />
   ) : null;
 
-  const renderPane = (pane: SessionPane) => {
-    const visibleSession = visibleSessions.find(
+  const renderPane = (pane: SessionPane, model: WorkspaceBoardRenderModel) => {
+    const visibleSession = model.visibleSessions.find(
       (candidate) => candidate.sessionName === pane.sessionName,
     );
     const session =
       visibleSession ?? sessions.find((candidate) => candidate.sessionName === pane.sessionName);
-    const isActive = pane.sessionName === activeSessionName;
+    const isActive = model.isActive && pane.sessionName === activeSessionName;
     const cloneSessionKey = session?.cloneSessionKey;
     const relativePath = session?.relativePath;
     const boardPaneSignal = visibleSession?.boardPaneKey ?? pane.id;
@@ -2655,30 +2672,41 @@ export function MultiSessionWorkspace({
     const visualViewportSignal = visualKeyboardVisible
       ? `keyboard:${visualViewportHeightPx}:${visualViewportOffsetTopPx}`
       : `viewport:${visualViewportHeightPx}:${visualViewportOffsetTopPx}`;
-    const layoutSignal = `${activeBoard?.key ?? "no-board"}:${boardPaneSignal}:${layout.tiled.rows}:${layout.tiled.columns}:${pane.gridArea}:${visualViewportSignal}`;
+    const layoutSignal = `${model.board.key}:${boardPaneSignal}:${model.layout.tiled.rows}:${model.layout.tiled.columns}:${pane.gridArea}:${visualViewportSignal}`;
     const paneStyle: CSSProperties = { gridArea: pane.gridArea };
 
     return (
       <TerminalSessionFrame
-        key={pane.id}
+        key={`${model.board.key}:${pane.id}`}
         label={pane.label}
         active={isActive}
-        dataTestId={`workspace-${pane.id}`}
+        dataTestId={
+          model.isActive ? `workspace-${pane.id}` : `workspace-${model.board.key}-${pane.id}`
+        }
         layoutMode="tiled"
         style={paneStyle}
-        onActivate={() => selectSession(pane.sessionName)}
+        onActivate={() => {
+          if (!model.isActive) {
+            persistBoardState(selectWorkspaceBoard(boardState, model.board.key));
+          }
+          selectSession(pane.sessionName);
+        }}
         onFocusActivate
         closeLabel={`${isUnifiedSource ? "Remove" : "Close"} ${pane.label}`}
-        closeTestId={`remove-pane-${pane.id}`}
+        closeTestId={
+          model.isActive ? `remove-pane-${pane.id}` : `remove-pane-${model.board.key}-${pane.id}`
+        }
         onClose={(event) => {
           event.stopPropagation();
           void handleRemovePane({
-            boardKey: activeBoard?.key,
+            boardKey: model.board.key,
             boardPaneKey: visibleSession?.boardPaneKey,
             sessionName: pane.sessionName,
           });
         }}
-        onMouseEnter={() => selectSession(pane.sessionName)}
+        onMouseEnter={() => {
+          if (model.isActive) selectSession(pane.sessionName);
+        }}
       >
         <InteractiveTerminal
           agentId={agentId}
@@ -2703,11 +2731,48 @@ export function MultiSessionWorkspace({
             handleTerminalDestroy(pane.sessionName);
             clearPaneRecoveryState(boardPaneSignal);
           }}
-          onUserFocusRequest={() => selectSession(pane.sessionName, { focusTerminal: false })}
+          onUserFocusRequest={() => {
+            if (!model.isActive) {
+              persistBoardState(selectWorkspaceBoard(boardState, model.board.key));
+            }
+            selectSession(pane.sessionName, { focusTerminal: false });
+          }}
           onComposeRequest={openComposeWithDraft}
           targetLabel={pane.label}
         />
       </TerminalSessionFrame>
+    );
+  };
+
+  const renderBoardLayer = (model: WorkspaceBoardRenderModel) => {
+    if (model.visibleSessions.length === 0) {
+      return model.isActive ? (
+        <div key={model.board.key} className="absolute inset-1">
+          {renderEmptyWorkspaceBody()}
+        </div>
+      ) : null;
+    }
+
+    return (
+      <div
+        key={model.board.key}
+        className={cn(
+          "absolute inset-1 grid min-h-0 gap-1",
+          !model.isActive && "pointer-events-none opacity-0",
+        )}
+        style={{
+          gridTemplateColumns: model.layout.tiled.gridTemplateColumns,
+          gridTemplateRows: model.layout.tiled.gridTemplateRows,
+        }}
+        data-testid={
+          model.isActive ? "multi-session-grid" : `multi-session-grid-${model.board.key}`
+        }
+        data-board-key={model.board.key}
+        data-board-active={model.isActive ? "true" : "false"}
+        aria-hidden={model.isActive ? undefined : true}
+      >
+        {model.layout.panes.map((pane) => renderPane(pane, model))}
+      </div>
     );
   };
 
@@ -2811,20 +2876,7 @@ export function MultiSessionWorkspace({
           className="relative min-h-0 flex-1 overflow-hidden p-1"
           data-testid="multi-session-body"
         >
-          {visibleSessions.length === 0 ? (
-            renderEmptyWorkspaceBody()
-          ) : (
-            <div
-              className="grid h-full min-h-0 gap-1"
-              style={{
-                gridTemplateColumns: layout.tiled.gridTemplateColumns,
-                gridTemplateRows: layout.tiled.gridTemplateRows,
-              }}
-              data-testid="multi-session-grid"
-            >
-              {layout.panes.map(renderPane)}
-            </div>
-          )}
+          {boardRenderModels.map(renderBoardLayer)}
         </div>
         {mobileTerminalControls}
         {composeOpen ? (

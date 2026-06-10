@@ -100,6 +100,7 @@ const terminalProps = new Map<
     selectionModeEnabled?: boolean;
   }
 >();
+const terminalDestroyCounts = new Map<string, number>();
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: mockRouterPush }),
@@ -127,7 +128,6 @@ vi.mock("next/dynamic", () => ({
       onConnectionStateChange,
       onRecoveryStateChange,
       onTerminalReady,
-      onTerminalDestroy,
       onUserFocusRequest,
       mobileInputMode,
       pinToBottomOnResize,
@@ -158,6 +158,13 @@ vi.mock("next/dynamic", () => ({
       pinToBottomOnResize?: boolean;
       selectionModeEnabled?: boolean;
     }) => {
+      useEffect(
+        () => () => {
+          terminalDestroyCounts.set(sessionName, (terminalDestroyCounts.get(sessionName) ?? 0) + 1);
+        },
+        [sessionName],
+      );
+
       useEffect(() => {
         if (!emitConnectionStateOnCallbackChange) return;
         onConnectionStateChange?.("connected");
@@ -175,7 +182,6 @@ vi.mock("next/dynamic", () => ({
         onConnectionStateChange,
         onRecoveryStateChange,
         onTerminalReady,
-        onTerminalDestroy,
         onUserFocusRequest,
         mobileInputMode,
         pinToBottomOnResize,
@@ -504,6 +510,7 @@ describe("MultiSessionWorkspace", () => {
     vi.clearAllMocks();
     emitConnectionStateOnCallbackChange = false;
     terminalProps.clear();
+    terminalDestroyCounts.clear();
     window.localStorage.clear();
     mockGetSessions.mockResolvedValue({ data: [] });
     mockUseIsComposeSheet.mockReturnValue(false);
@@ -1188,6 +1195,7 @@ describe("MultiSessionWorkspace", () => {
     expect(screen.getByTestId("multi-session-pane-count")).toHaveTextContent("0");
     expect(screen.queryByTestId("workspace-pane-main-session")).not.toBeInTheDocument();
     expect(screen.queryByTestId("workspace-pane-dev-server")).not.toBeInTheDocument();
+    expect(screen.getByTestId("workspace-default-pane-dev-server")).toBeInTheDocument();
 
     fireEvent.click(screen.getByTestId("workspace-board-tab-default"));
 
@@ -1198,6 +1206,68 @@ describe("MultiSessionWorkspace", () => {
     expect(window.localStorage.getItem("workspace-board-state:workspace:ws-1")).toContain(
       "stale-session",
     );
+  });
+
+  it("keeps inactive workspace board terminals mounted and avoids reloading sessions on switch", async () => {
+    window.localStorage.setItem(
+      "workspace-board-state:workspace:ws-1",
+      JSON.stringify({
+        version: 1,
+        activeBoardKey: "default",
+        boards: [
+          {
+            key: "default",
+            name: "Default",
+            order: 0,
+            activePaneKey: "terminal:main-session",
+            panes: [
+              {
+                kind: "terminal",
+                key: "terminal:main-session",
+                sessionName: "main-session",
+                order: 0,
+              },
+            ],
+          },
+          {
+            key: "review",
+            name: "Review",
+            order: 1,
+            activePaneKey: "terminal:dev-server",
+            panes: [
+              {
+                kind: "terminal",
+                key: "terminal:dev-server",
+                sessionName: "dev-server",
+                order: 0,
+              },
+            ],
+          },
+        ],
+      }),
+    );
+    mockGetSessions.mockResolvedValueOnce(twoSessionPayload());
+
+    render(<MultiSessionWorkspace {...defaultProps} />);
+
+    expect(await screen.findByTestId("workspace-pane-main-session")).toBeInTheDocument();
+    expect(screen.getByTestId("workspace-review-pane-dev-server")).toBeInTheDocument();
+    expect(screen.getByTestId("interactive-terminal-main-session")).toBeInTheDocument();
+    expect(screen.getByTestId("interactive-terminal-dev-server")).toBeInTheDocument();
+    expect(mockGetSessions).toHaveBeenCalledTimes(1);
+
+    fireEvent.click(screen.getByTestId("workspace-board-tab-review"));
+
+    expect(screen.getByTestId("workspace-pane-dev-server")).toBeInTheDocument();
+    expect(screen.getByTestId("workspace-default-pane-main-session")).toBeInTheDocument();
+    expect(screen.getByTestId("interactive-terminal-main-session")).toBeInTheDocument();
+    expect(screen.getByTestId("interactive-terminal-dev-server")).toBeInTheDocument();
+    expect(screen.getByTestId("multi-session-pane-count")).toHaveTextContent("1");
+    expect(screen.getByTestId("active-pane-label")).toHaveTextContent("dev-server");
+    expect(screen.queryByTestId("multi-session-loading")).not.toBeInTheDocument();
+    expect(mockGetSessions).toHaveBeenCalledTimes(1);
+    expect(terminalDestroyCounts.get("main-session") ?? 0).toBe(0);
+    expect(terminalDestroyCounts.get("dev-server") ?? 0).toBe(0);
   });
 
   it("adds live backing sessions to an empty active board from the command palette", async () => {
@@ -1226,6 +1296,7 @@ describe("MultiSessionWorkspace", () => {
 
     expect(screen.getByTestId("workspace-pane-dev-server")).toBeInTheDocument();
     expect(screen.queryByTestId("workspace-pane-main-session")).not.toBeInTheDocument();
+    expect(screen.getByTestId("workspace-default-pane-main-session")).toBeInTheDocument();
     expect(screen.getByTestId("active-pane-label")).toHaveTextContent("dev-server");
     expect(screen.getByTestId("multi-session-pane-count")).toHaveTextContent("1");
     const storedState = JSON.parse(
@@ -1798,17 +1869,28 @@ describe("MultiSessionWorkspace", () => {
 
     render(<MultiSessionWorkspace {...defaultProps} source="unified" />);
 
-    expect(await screen.findByTestId("interactive-terminal-main-session")).toHaveAttribute(
-      "data-layout-signal",
-      "default:terminal:main-session:1:1:1 / 1 / span 1 / span 1:viewport:0:0",
-    );
+    await screen.findAllByTestId("interactive-terminal-main-session");
+    expect(
+      screen
+        .getAllByTestId("interactive-terminal-main-session")
+        .some(
+          (terminal) =>
+            terminal.getAttribute("data-layout-signal") ===
+            "default:terminal:main-session:1:1:1 / 1 / span 1 / span 1:viewport:0:0",
+        ),
+    ).toBe(true);
 
     fireEvent.click(screen.getByTestId("workspace-board-tab-review"));
 
-    expect(screen.getByTestId("interactive-terminal-main-session")).toHaveAttribute(
-      "data-layout-signal",
-      "review:terminal:main-session-review:1:1:1 / 1 / span 1 / span 1:viewport:0:0",
-    );
+    expect(
+      screen
+        .getAllByTestId("interactive-terminal-main-session")
+        .some(
+          (terminal) =>
+            terminal.getAttribute("data-layout-signal") ===
+            "review:terminal:main-session-review:1:1:1 / 1 / span 1 / span 1:viewport:0:0",
+        ),
+    ).toBe(true);
     expect(screen.getByTestId("active-pane-label")).toHaveTextContent("main-session");
     expect(mockKillSession).not.toHaveBeenCalled();
     expect(mockCloseGitCloneTerminal).not.toHaveBeenCalled();
