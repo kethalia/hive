@@ -125,6 +125,14 @@ vi.mock("@/components/terminal/MobileTerminalDiagnosticsOverlay", () => ({
     enabled ? <div data-testid="mobile-terminal-diagnostics-overlay" /> : null,
 }));
 
+vi.mock("@/components/ui/sidebar", () => ({
+  SidebarTrigger: ({ className }: { className?: string }) => (
+    <button type="button" className={className} data-testid="workspace-sidebar-trigger">
+      Toggle Sidebar
+    </button>
+  ),
+}));
+
 vi.mock("@/components/ui/resizable", () => ({
   ResizablePanelGroup: ({
     children,
@@ -310,14 +318,12 @@ describe("TerminalClient compose sheet", () => {
       "fixed",
       "overflow-hidden",
       "overscroll-none",
-      "top-[calc(var(--safe-area-inset-top)+3.5rem)]",
+      "top-[var(--safe-area-inset-top)]",
     );
     expect(screen.getByTestId("terminal-mobile-shell")).toHaveStyle({
-      height:
-        "max(0px, calc(var(--app-visual-viewport-height) - var(--safe-area-inset-top) - 3.5rem))",
-      maxHeight:
-        "max(0px, calc(var(--app-visual-viewport-height) - var(--safe-area-inset-top) - 3.5rem))",
-      top: "calc(var(--app-visual-viewport-offset-top) + var(--safe-area-inset-top) + 3.5rem)",
+      height: "max(0px, calc(var(--app-visual-viewport-height) - var(--safe-area-inset-top)))",
+      maxHeight: "max(0px, calc(var(--app-visual-viewport-height) - var(--safe-area-inset-top)))",
+      top: "calc(var(--app-visual-viewport-offset-top) + var(--safe-area-inset-top))",
     });
     expect(screen.getByTestId("terminal-mobile-shell")).not.toHaveClass(
       "-mb-[calc(var(--safe-area-inset-bottom)+1.5rem)]",
@@ -331,16 +337,8 @@ describe("TerminalClient compose sheet", () => {
       "overscroll-none",
     );
     expect(screen.queryByRole("heading", { name: "tmux-1" })).not.toBeInTheDocument();
-    expect(screen.getByRole("region", { name: "Terminal emulator" })).toHaveClass(
-      "min-h-0",
-      "flex-1",
-      "overflow-hidden",
-      "bg-black",
-    );
-    expect(screen.getByRole("region", { name: "Terminal emulator" })).not.toHaveClass(
-      "rounded-2xl",
-      "shadow-inner",
-    );
+    expect(screen.getByTestId("single-terminal-frame")).toHaveClass("h-full", "rounded-lg");
+    expect(document.querySelector("[data-terminal-surface='true']")).toHaveClass("h-full");
     expect(screen.getByTestId("terminal-mobile-controls")).toBeInTheDocument();
     expect(screen.queryByTestId("resizable-group")).not.toBeInTheDocument();
     expect(screen.getByTestId("compose-sheet")).toHaveAttribute("data-open", "false");
@@ -382,10 +380,7 @@ describe("TerminalClient compose sheet", () => {
       "data-terminal-shell",
       "true",
     );
-    expect(screen.getByRole("region", { name: "Terminal emulator" })).toHaveAttribute(
-      "data-terminal-surface",
-      "true",
-    );
+    expect(document.querySelector("[data-terminal-surface='true']")).toBeInTheDocument();
   });
 
   it("enables diagnostics overlay with a stable terminal shell selector in desktop debug mode", async () => {
@@ -484,11 +479,9 @@ describe("TerminalClient compose sheet", () => {
     await renderTerminalClient(true);
 
     expect(screen.getByTestId("terminal-mobile-shell")).toHaveStyle({
-      height:
-        "max(0px, calc(var(--app-visual-viewport-height) - var(--safe-area-inset-top) - 3.5rem))",
-      maxHeight:
-        "max(0px, calc(var(--app-visual-viewport-height) - var(--safe-area-inset-top) - 3.5rem))",
-      top: "calc(var(--app-visual-viewport-offset-top) + var(--safe-area-inset-top) + 3.5rem)",
+      height: "max(0px, calc(var(--app-visual-viewport-height) - var(--safe-area-inset-top)))",
+      maxHeight: "max(0px, calc(var(--app-visual-viewport-height) - var(--safe-area-inset-top)))",
+      top: "calc(var(--app-visual-viewport-offset-top) + var(--safe-area-inset-top))",
     });
     expect(screen.getByTestId("interactive-terminal")).toHaveAttribute(
       "data-layout-signal",
