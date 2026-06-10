@@ -4,7 +4,7 @@ import { cleanup, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import "@testing-library/jest-dom/vitest";
 
-let mockPathname = "/tasks";
+let mockPathname = "/settings";
 
 vi.mock("next/navigation", () => ({
   usePathname: () => mockPathname,
@@ -23,13 +23,42 @@ import { DashboardSidebarTrigger } from "@/components/dashboard-sidebar-trigger"
 describe("DashboardSidebarTrigger", () => {
   afterEach(() => {
     cleanup();
-    mockPathname = "/tasks";
+    mockPathname = "/settings";
   });
 
   it("renders on ordinary dashboard routes", () => {
     render(<DashboardSidebarTrigger />);
 
     expect(screen.getByTestId("dashboard-sidebar-trigger")).toHaveClass("mt-1", "shrink-0");
+  });
+
+  it("does not render on task routes that own the page navbar", () => {
+    mockPathname = "/tasks/task-1";
+
+    const { container } = render(<DashboardSidebarTrigger />);
+
+    expect(container).toBeEmptyDOMElement();
+  });
+
+  it("does not render on templates routes that own the page navbar", () => {
+    mockPathname = "/templates/hive";
+
+    const { container } = render(<DashboardSidebarTrigger />);
+
+    expect(container).toBeEmptyDOMElement();
+  });
+
+  it("does not render on workspace and terminal status list routes that own the page navbar", () => {
+    mockPathname = "/terminal/status";
+
+    const first = render(<DashboardSidebarTrigger />);
+    expect(first.container).toBeEmptyDOMElement();
+    first.unmount();
+
+    mockPathname = "/workspaces";
+
+    const second = render(<DashboardSidebarTrigger />);
+    expect(second.container).toBeEmptyDOMElement();
   });
 
   it("does not render on full-bleed workspace routes", () => {

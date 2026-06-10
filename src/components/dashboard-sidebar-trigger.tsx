@@ -12,9 +12,21 @@ function isFullBleedWorkspaceRoute(pathname: string | null): boolean {
   );
 }
 
+function hasPageNavbar(pathname: string | null): boolean {
+  if (!pathname) return false;
+  return (
+    pathname === "/tasks" ||
+    pathname.startsWith("/tasks/") ||
+    pathname === "/workspaces" ||
+    pathname === "/templates" ||
+    pathname.startsWith("/templates/") ||
+    pathname === "/terminal/status"
+  );
+}
+
 export function DashboardSidebarTrigger() {
   const pathname = usePathname();
-  if (isFullBleedWorkspaceRoute(pathname)) return null;
+  if (isFullBleedWorkspaceRoute(pathname) || hasPageNavbar(pathname)) return null;
 
   return <SidebarTrigger className="mt-1 shrink-0" data-dashboard-sidebar-trigger="" />;
 }

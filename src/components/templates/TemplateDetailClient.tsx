@@ -4,6 +4,7 @@ import { ArrowLeft, CheckCircle, RefreshCw, Upload, XCircle } from "lucide-react
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { DashboardPageHeader } from "@/components/dashboard-page-header";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -139,20 +140,29 @@ export function TemplateDetailClient({ status }: TemplateDetailClientProps) {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center gap-3">
-        <Link href="/templates">
-          <Button variant="ghost" size="icon">
+      <DashboardPageHeader
+        title={status.name}
+        leading={
+          <Button
+            nativeButton={false}
+            render={<Link href="/templates" />}
+            variant="ghost"
+            size="sm"
+            className="-ml-2 h-7 px-2 text-muted-foreground"
+          >
             <ArrowLeft className="h-4 w-4" />
+            Templates
           </Button>
-        </Link>
-        <h1 className="text-2xl font-bold tracking-tight font-mono">{status.name}</h1>
-        <StatusBadge
-          stale={status.stale}
-          remoteHash={status.remoteHash}
-          pushResult={pushState.result}
-          inProgress={pushState.inProgress}
-        />
-      </div>
+        }
+        actions={
+          <StatusBadge
+            stale={status.stale}
+            remoteHash={status.remoteHash}
+            pushResult={pushState.result}
+            inProgress={pushState.inProgress}
+          />
+        }
+      />
 
       <Card>
         <CardHeader>

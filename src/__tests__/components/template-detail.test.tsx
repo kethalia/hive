@@ -38,18 +38,26 @@ vi.mock("@/components/ui/button", () => ({
     children,
     onClick,
     disabled,
+    render: renderProp,
     ...rest
   }: React.PropsWithChildren<{
     onClick?: () => void;
     disabled?: boolean;
+    nativeButton?: boolean;
+    render?: React.ReactElement<{ href: string }>;
     variant?: string;
     size?: string;
     className?: string;
-  }>) => (
-    <button onClick={onClick} disabled={disabled} data-variant={rest.variant}>
-      {children}
-    </button>
-  ),
+  }>) => {
+    if (renderProp) {
+      return <a href={renderProp.props.href}>{children}</a>;
+    }
+    return (
+      <button onClick={onClick} disabled={disabled} data-variant={rest.variant}>
+        {children}
+      </button>
+    );
+  },
 }));
 
 vi.mock("@/components/ui/card", () => ({
@@ -57,6 +65,14 @@ vi.mock("@/components/ui/card", () => ({
   CardContent: ({ children }: React.PropsWithChildren) => <div>{children}</div>,
   CardHeader: ({ children }: React.PropsWithChildren) => <div>{children}</div>,
   CardTitle: ({ children }: React.PropsWithChildren) => <h3>{children}</h3>,
+}));
+
+vi.mock("@/components/ui/sidebar", () => ({
+  SidebarTrigger: ({ className }: { className?: string }) => (
+    <button type="button" className={className} data-testid="page-sidebar-trigger">
+      Toggle sidebar
+    </button>
+  ),
 }));
 
 vi.mock("lucide-react", () => ({
@@ -192,8 +208,15 @@ describe("TemplateDetailClient", () => {
 
   it("renders back link to /templates", () => {
     render(<TemplateDetailClient status={makeStatus()} />);
-    const backLink = screen.getByText("←").closest("a");
+    const backLink = screen.getByText("Templates").closest("a");
     expect(backLink).toHaveAttribute("href", "/templates");
+  });
+
+  it("renders the shared dashboard page navbar", () => {
+    render(<TemplateDetailClient status={makeStatus()} />);
+
+    expect(screen.getByTestId("page-sidebar-trigger")).toBeInTheDocument();
+    expect(screen.getByRole("banner")).toHaveAttribute("data-dashboard-page-nav");
   });
 
   it("shows Pushing… badge during push", async () => {

@@ -161,6 +161,54 @@ describe("SidebarEdgeHandle", () => {
     expect(sidebarState.setOpenMobile).not.toHaveBeenCalled();
   });
 
+  it("ignores swipes that start on ordinary role buttons", () => {
+    sidebarState = {
+      isMobile: true,
+      openMobile: false,
+      setOpenMobile: vi.fn(),
+    };
+    mockUseSidebar.mockReturnValue(sidebarState);
+    const interactiveRole = "button";
+
+    render(
+      <main data-testid="page-content">
+        <div role={interactiveRole} tabIndex={0} data-testid="custom-button">
+          Custom action
+        </div>
+        <SidebarEdgeHandle />
+      </main>,
+    );
+
+    swipePage({ target: screen.getByTestId("custom-button"), move: [310, 206] });
+
+    expect(sidebarState.setOpenMobile).not.toHaveBeenCalled();
+  });
+
+  it("opens from multi-session terminal pane frames", async () => {
+    sidebarState = {
+      isMobile: true,
+      openMobile: false,
+      setOpenMobile: vi.fn(),
+    };
+    mockUseSidebar.mockReturnValue(sidebarState);
+    const interactiveRole = "button";
+
+    render(
+      <main data-testid="page-content">
+        <div role={interactiveRole} tabIndex={0} data-pane-mode="tiled" data-testid="terminal-pane">
+          <div data-testid="terminal-surface">Terminal output</div>
+        </div>
+        <SidebarEdgeHandle />
+      </main>,
+    );
+
+    swipePage({ target: screen.getByTestId("terminal-surface"), move: [310, 206] });
+
+    await waitFor(() => {
+      expect(sidebarState.setOpenMobile).toHaveBeenCalledWith(true);
+    });
+  });
+
   it("ignores swipes that start inside gesture-ignored regions such as carousels", () => {
     sidebarState = {
       isMobile: true,

@@ -19,22 +19,23 @@ type PointerStart = {
 
 function isGestureIgnoredTarget(target: EventTarget | null): boolean {
   if (!(target instanceof HTMLElement)) return false;
-  return Boolean(
-    target.closest(
-      [
-        "button",
-        "a",
-        "input",
-        "textarea",
-        "select",
-        "summary",
-        "[contenteditable='true']",
-        "[role='button']",
-        "[role='menuitem']",
-        "[data-sidebar-gesture-ignore]",
-      ].join(","),
-    ),
+  const nativeInteractiveTarget = target.closest(
+    [
+      "button",
+      "a",
+      "input",
+      "textarea",
+      "select",
+      "summary",
+      "[contenteditable='true']",
+      "[role='menuitem']",
+      "[data-sidebar-gesture-ignore]",
+    ].join(","),
   );
+  if (nativeInteractiveTarget) return true;
+
+  const roleButtonTarget = target.closest("[role='button']");
+  return Boolean(roleButtonTarget && !roleButtonTarget.hasAttribute("data-pane-mode"));
 }
 
 /**
