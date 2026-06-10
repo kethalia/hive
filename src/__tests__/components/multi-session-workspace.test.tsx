@@ -94,6 +94,7 @@ const terminalProps = new Map<
     onRecoveryStateChange?: (state: StubRecoveryState) => void;
     onTerminalReady?: (term: Terminal, send: (data: string) => void) => void;
     onTerminalDestroy?: () => void;
+    onUserFocusRequest?: () => void;
     mobileInputMode?: boolean;
     pinToBottomOnResize?: boolean;
     selectionModeEnabled?: boolean;
@@ -127,6 +128,7 @@ vi.mock("next/dynamic", () => ({
       onRecoveryStateChange,
       onTerminalReady,
       onTerminalDestroy,
+      onUserFocusRequest,
       mobileInputMode,
       pinToBottomOnResize,
       selectionModeEnabled,
@@ -151,6 +153,7 @@ vi.mock("next/dynamic", () => ({
       onRecoveryStateChange?: (state: StubRecoveryState) => void;
       onTerminalReady?: (term: Terminal, send: (data: string) => void) => void;
       onTerminalDestroy?: () => void;
+      onUserFocusRequest?: () => void;
       mobileInputMode?: boolean;
       pinToBottomOnResize?: boolean;
       selectionModeEnabled?: boolean;
@@ -173,6 +176,7 @@ vi.mock("next/dynamic", () => ({
         onRecoveryStateChange,
         onTerminalReady,
         onTerminalDestroy,
+        onUserFocusRequest,
         mobileInputMode,
         pinToBottomOnResize,
         selectionModeEnabled,
@@ -183,6 +187,7 @@ vi.mock("next/dynamic", () => ({
           data-agent-id={agentId}
           data-workspace-id={workspaceId}
           data-session-name={sessionName}
+          data-terminal-surface="true"
           className={className}
           data-clone-path={clonePath}
           data-clone-proof={cloneProof}
@@ -190,6 +195,7 @@ vi.mock("next/dynamic", () => ({
           data-mobile-input-mode={mobileInputMode ? "true" : "false"}
           data-pin-to-bottom-on-resize={pinToBottomOnResize ? "true" : "false"}
           data-selection-mode-enabled={selectionModeEnabled ? "true" : "false"}
+          onClick={onUserFocusRequest}
         >
           Terminal: {sessionName}
           <textarea
@@ -680,7 +686,7 @@ describe("MultiSessionWorkspace", () => {
     );
   });
 
-  it("changes active pane on hover without stealing terminal focus", async () => {
+  it("changes active pane and terminal focus on hover", async () => {
     await renderTwoSessionWorkspace();
     const focusDevTerminal = vi.fn();
     const devTerm = makeTerminal("dev-server", focusDevTerminal);
@@ -694,7 +700,7 @@ describe("MultiSessionWorkspace", () => {
 
     expect(screen.getByTestId("active-pane-label")).toHaveTextContent("dev-server");
     expect(mockSetActiveTerminal).toHaveBeenLastCalledWith(devTerm, devSend);
-    expect(focusDevTerminal).not.toHaveBeenCalled();
+    expect(focusDevTerminal).toHaveBeenCalledTimes(1);
     expect(
       JSON.parse(window.localStorage.getItem("workspace-board-state:workspace:ws-1") ?? "{}")
         .boards[0].activePaneKey,
@@ -703,6 +709,23 @@ describe("MultiSessionWorkspace", () => {
     fireEvent.click(screen.getByTestId("workspace-pane-main-session"));
 
     expect(screen.getByTestId("active-pane-label")).toHaveTextContent("main-session");
+  });
+
+  it("activates inactive panes when the terminal surface requests focus", async () => {
+    await renderTwoSessionWorkspace();
+    const focusDevTerminal = vi.fn();
+    const devTerm = makeTerminal("dev-server", focusDevTerminal);
+    const devSend = makeSender("dev-server");
+
+    act(() => {
+      terminalProps.get("dev-server")?.onTerminalReady?.(devTerm, devSend);
+    });
+
+    fireEvent.click(screen.getByTestId("interactive-terminal-dev-server"));
+
+    expect(screen.getByTestId("active-pane-label")).toHaveTextContent("dev-server");
+    expect(mockSetActiveTerminal).toHaveBeenLastCalledWith(devTerm, devSend);
+    expect(focusDevTerminal).not.toHaveBeenCalled();
   });
 
   it("allows the native xterm context menu in multi-session panes", async () => {

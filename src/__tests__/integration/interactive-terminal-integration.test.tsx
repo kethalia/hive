@@ -725,6 +725,7 @@ type RenderTerminalOptions = {
   mobileInputMode?: boolean;
   onConnectionStateChange?: (state: ConnectionState) => void;
   onRecoveryStateChange?: (state: TerminalRecoveryState) => void;
+  onUserFocusRequest?: () => void;
   pinToBottomOnResize?: boolean;
   refreshCloneTerminalIdentity?: () =>
     | Promise<RefreshedCloneTerminalIdentity>
@@ -2375,8 +2376,12 @@ describe("InteractiveTerminal integration — Mobile input adapter", () => {
     desktop.unmount();
   });
 
-  it("focuses xterm through the mobile input adapter after terminal surface taps", async () => {
-    const { container, unmount } = await renderTerminal({ mobileInputMode: true });
+  it("focuses xterm through the mobile input adapter after native terminal surface taps", async () => {
+    const onUserFocusRequest = vi.fn();
+    const { container, unmount } = await renderTerminal({
+      mobileInputMode: true,
+      onUserFocusRequest,
+    });
     const terminal = terminalInstances.at(-1);
     expect(terminal).toBeDefined();
     expect(terminal?.attachCustomKeyEventHandler).toHaveBeenCalledTimes(1);
@@ -2401,10 +2406,14 @@ describe("InteractiveTerminal integration — Mobile input adapter", () => {
       pointerId: 1,
       pointerType: "touch",
     });
-    fireEvent.click(inputTarget as Element);
+    fireTouchEvent(inputTarget as Element, "touchend", [], [touchPoint(1, 82, 242)]);
 
     expect(pointerDownAllowed).toBe(false);
     expect(touchStart.defaultPrevented).toBe(true);
+    expect(terminal?.focus).toHaveBeenCalledTimes(1);
+    expect(onUserFocusRequest).toHaveBeenCalledTimes(1);
+
+    fireEvent.click(inputTarget as Element);
     expect(terminal?.focus).toHaveBeenCalledTimes(1);
 
     act(() => {

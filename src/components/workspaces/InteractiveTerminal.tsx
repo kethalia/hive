@@ -79,6 +79,7 @@ interface InteractiveTerminalProps {
   onRecoveryStateChange?: (state: TerminalRecoveryState) => void;
   onTerminalReady?: (term: Terminal, send: (data: string) => void) => void;
   onTerminalDestroy?: () => void;
+  onUserFocusRequest?: () => void;
   onComposeRequest?: (request: TerminalComposeRequest) => void;
   onClipboardStatus?: (message: string) => void;
   targetLabel?: string;
@@ -334,6 +335,7 @@ export function InteractiveTerminal({
   onRecoveryStateChange,
   onTerminalReady,
   onTerminalDestroy,
+  onUserFocusRequest,
   onComposeRequest,
   onClipboardStatus,
   targetLabel,
@@ -520,6 +522,8 @@ export function InteractiveTerminal({
     const term = termRef.current;
     if (!term || selectionModeEnabledRef.current) return;
 
+    onUserFocusRequest?.();
+
     if (mobileInputModeRef.current) {
       applyMobileInputAdapter();
       focusTerminalForMobileInput(term);
@@ -527,7 +531,7 @@ export function InteractiveTerminal({
     }
 
     term.focus();
-  }, [applyMobileInputAdapter]);
+  }, [applyMobileInputAdapter, onUserFocusRequest]);
 
   const stopTerminalEventForSelection = useCallback(
     (
@@ -598,18 +602,25 @@ export function InteractiveTerminal({
     }
   }, []);
 
-  const endMobileTouchScroll = useCallback((event: TouchEvent | ReactTouchEvent) => {
-    const intent = mobileTouchIntentRef.current;
-    if (!intent) return;
+  const endMobileTouchScroll = useCallback(
+    (event: TouchEvent | ReactTouchEvent) => {
+      const intent = mobileTouchIntentRef.current;
+      if (!intent) return;
 
-    const ended = Array.from(event.changedTouches).some(
-      (touch) => touch.identifier === intent.touchIdentifier,
-    );
-    if (!ended) return;
+      const ended = Array.from(event.changedTouches).some(
+        (touch) => touch.identifier === intent.touchIdentifier,
+      );
+      if (!ended) return;
 
-    mobileTouchIntentRef.current = null;
-    suppressNextClickFocusRef.current = intent.didScroll || intent.multiTouch;
-  }, []);
+      mobileTouchIntentRef.current = null;
+      suppressNextClickFocusRef.current = intent.didScroll || intent.multiTouch;
+      if (!intent.didScroll && !intent.multiTouch && !selectionModeEnabledRef.current) {
+        suppressNextClickFocusRef.current = true;
+        focusInteractiveTerminal();
+      }
+    },
+    [focusInteractiveTerminal],
+  );
 
   const handleTerminalClick = useCallback(
     (event: ReactMouseEvent<HTMLDivElement>) => {

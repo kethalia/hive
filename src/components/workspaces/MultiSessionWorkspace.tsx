@@ -117,6 +117,7 @@ interface InteractiveTerminalComponentProps {
   onRecoveryStateChange?: (state: TerminalRecoveryState) => void;
   onTerminalReady?: (term: Terminal, send: (data: string) => void) => void;
   onTerminalDestroy?: () => void;
+  onUserFocusRequest?: () => void;
   onComposeRequest?: (request: TerminalComposeRequest) => void;
   targetLabel?: string;
   layoutSignal?: unknown;
@@ -2677,7 +2678,7 @@ export function MultiSessionWorkspace({
             sessionName: pane.sessionName,
           });
         }}
-        onMouseEnter={() => selectSession(pane.sessionName, { focusTerminal: false })}
+        onMouseEnter={() => selectSession(pane.sessionName)}
       >
         <InteractiveTerminal
           agentId={agentId}
@@ -2702,6 +2703,7 @@ export function MultiSessionWorkspace({
             handleTerminalDestroy(pane.sessionName);
             clearPaneRecoveryState(boardPaneSignal);
           }}
+          onUserFocusRequest={() => selectSession(pane.sessionName, { focusTerminal: false })}
           onComposeRequest={openComposeWithDraft}
           targetLabel={pane.label}
         />
