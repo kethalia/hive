@@ -8,15 +8,19 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 const execFileAsync = promisify(execFile);
 
 const SYNC_SCRIPT = join(process.cwd(), "templates", "hive", "scripts", "sync-vault.sh");
+const SYNC_TEST_TIMEOUT_MS = 15_000;
+const SYNC_PROCESS_TIMEOUT_MS = 10_000;
 
 async function runSync(env: Record<string, string>): Promise<{ stdout: string; stderr: string }> {
   return execFileAsync("bash", [SYNC_SCRIPT], {
     env: { ...process.env, ...env },
     encoding: "utf-8",
+    killSignal: "SIGTERM",
+    timeout: SYNC_PROCESS_TIMEOUT_MS,
   });
 }
 
-describe("sync-vault.sh", () => {
+describe("sync-vault.sh", { timeout: SYNC_TEST_TIMEOUT_MS }, () => {
   let tempDir: string;
   let vaultDir: string;
   let agentsSrc: string;
