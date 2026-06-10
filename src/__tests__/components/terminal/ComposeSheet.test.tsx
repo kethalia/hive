@@ -107,6 +107,12 @@ vi.mock("@/components/terminal/ComposePanel", () => ({
   ),
 }));
 
+vi.mock("@/components/terminal/CommandPalette", () => ({
+  CommandPalette: ({ open }: { open: boolean }) => (
+    <div data-open={open ? "true" : "false"} data-testid="terminal-command-palette" />
+  ),
+}));
+
 vi.mock("@/components/terminal/MobileTerminalControls", () => ({
   MobileTerminalControls: ({ isKeyboardVisible }: { isKeyboardVisible?: boolean }) => (
     <button

@@ -24,8 +24,8 @@ function setInnerWidth(width: number) {
 function installMatchMedia(): StubMediaQueryList {
   const listeners = new Set<Listener>();
   const stub: StubMediaQueryList = {
-    media: "(max-width: 1023px)",
-    matches: window.innerWidth < 1024,
+    media: "(max-width: 1024px)",
+    matches: window.innerWidth <= 1024,
     onchange: null,
     listeners,
     addEventListener: vi.fn((_type: string, cb: Listener) => listeners.add(cb)),
@@ -73,7 +73,8 @@ describe("useIsMobile", () => {
   it.each([
     { width: 767, expected: true, label: "phone width" },
     { width: 768, expected: true, label: "tablet width" },
-    { width: 1024, expected: false, label: "at the desktop breakpoint" },
+    { width: 1024, expected: true, label: "iPad breakpoint" },
+    { width: 1025, expected: false, label: "desktop width" },
   ])("returns $expected when viewport is $label", async ({ width, expected }) => {
     setInnerWidth(width);
     installMatchMedia();
@@ -81,7 +82,7 @@ describe("useIsMobile", () => {
     const { result } = renderHook(() => useIsMobile());
 
     await waitFor(() => expect(result.current).toBe(expected));
-    expect(window.matchMedia).toHaveBeenCalledWith("(max-width: 1023px)");
+    expect(window.matchMedia).toHaveBeenCalledWith("(max-width: 1024px)");
   });
 
   it("falls back to window.innerWidth when matchMedia is unavailable", async () => {

@@ -9,14 +9,14 @@ export function useIsMobile() {
     if (typeof window === "undefined") return;
 
     const onChange = () => {
-      setIsMobile(window.innerWidth < MOBILE_BREAKPOINT);
+      setIsMobile(window.innerWidth <= MOBILE_BREAKPOINT);
     };
 
     onChange();
 
     if (typeof window.matchMedia !== "function") return;
 
-    const mql = window.matchMedia(`(max-width: ${MOBILE_BREAKPOINT - 1}px)`);
+    const mql = window.matchMedia(`(max-width: ${MOBILE_BREAKPOINT}px)`);
 
     if (typeof mql.addEventListener === "function") {
       mql.addEventListener("change", onChange);
