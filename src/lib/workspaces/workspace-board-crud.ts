@@ -326,24 +326,39 @@ function addPaneToBoard(
   boardKey: string,
   pane: WorkspaceBoardPane,
 ): WorkspaceBoardState {
+  const matchingGlobalPane = state.boards
+    .flatMap((board) => board.panes)
+    .find((candidate) => panesSharePlacement(candidate, pane));
+  const paneToAdd = matchingGlobalPane ? mergePaneForMove(matchingGlobalPane, pane) : pane;
+
   const boards = normalizeBoardOrder(
     state.boards.map((board) => {
-      if (board.key !== boardKey) return board;
-      const matchingPane = board.panes.find(
-        (candidate) => paneIdentity(candidate) === paneIdentity(pane),
+      const matchingPane = board.panes.find((candidate) =>
+        panesSharePlacement(candidate, paneToAdd),
       );
-      if (matchingPane) {
+      const panesWithoutDuplicate = board.panes.filter(
+        (candidate) => !panesSharePlacement(candidate, paneToAdd),
+      );
+
+      if (board.key !== boardKey) {
         return {
           ...board,
-          activePaneKey: matchingPane.key,
+          activePaneKey: normalizeActivePaneKey(board.activePaneKey, panesWithoutDuplicate),
+          panes: panesWithoutDuplicate,
         };
       }
+
+      if (matchingPane) {
+        const panes = normalizePaneOrder([...panesWithoutDuplicate, matchingPane]);
+        return { ...board, activePaneKey: matchingPane.key, panes };
+      }
+
       const panes = [
-        ...board.panes,
+        ...panesWithoutDuplicate,
         {
-          ...pane,
-          key: uniquePaneKey(pane.key, board.panes),
-          order: board.panes.length,
+          ...paneToAdd,
+          key: uniquePaneKey(paneToAdd.key, panesWithoutDuplicate),
+          order: panesWithoutDuplicate.length,
         },
       ];
       return {
@@ -358,6 +373,37 @@ function addPaneToBoard(
     ...state,
     boards,
   };
+}
+
+function mergePaneForMove(
+  existingPane: WorkspaceBoardPane,
+  requestedPane: WorkspaceBoardPane,
+): WorkspaceBoardPane {
+  if (requestedPane.kind === "terminal" || existingPane.kind !== "git") return requestedPane;
+  return {
+    ...requestedPane,
+    ...(requestedPane.sessionName
+      ? { sessionName: requestedPane.sessionName }
+      : existingPane.sessionName
+        ? { sessionName: existingPane.sessionName }
+        : {}),
+    ...(requestedPane.label
+      ? { label: requestedPane.label }
+      : existingPane.label
+        ? { label: existingPane.label }
+        : {}),
+  };
+}
+
+function panesSharePlacement(left: WorkspaceBoardPane, right: WorkspaceBoardPane): boolean {
+  const leftSessionName = paneSessionName(left);
+  const rightSessionName = paneSessionName(right);
+  if (leftSessionName && rightSessionName && leftSessionName === rightSessionName) return true;
+  return paneIdentity(left) === paneIdentity(right);
+}
+
+function paneSessionName(pane: WorkspaceBoardPane): string | undefined {
+  return pane.kind === "git" ? pane.sessionName : pane.sessionName;
 }
 
 function paneIdentity(pane: WorkspaceBoardPane): string {

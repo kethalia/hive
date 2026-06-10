@@ -664,9 +664,6 @@ function buildLayoutPersistenceMessage(
   if (diagnostics.some((diagnostic) => diagnostic.code === "persisted-layout-malformed")) {
     return "Stored layout was malformed. Safe tiled layout is active.";
   }
-  if (diagnostics.some((diagnostic) => diagnostic.code === "stale-pane-dropped")) {
-    return "Stored layout referenced closed sessions and was repaired.";
-  }
   return null;
 }
 
@@ -889,20 +886,13 @@ export function MultiSessionWorkspace({
     [boardRenderModels],
   );
   const visibleSessions = activeBoardRenderModel?.visibleSessions ?? [];
-  const visibleSessionNames = useMemo(
-    () => new Set(visibleSessions.map((session) => session.sessionName)),
-    [visibleSessions],
-  );
   const visibleBoardPaneKeys = useMemo(
     () => visibleSessions.map((session) => session.boardPaneKey),
     [visibleSessions],
   );
   const availableTerminalSessions = useMemo(
-    () =>
-      sessions.filter(
-        (session) => !session.cloneSessionKey && !visibleSessionNames.has(session.sessionName),
-      ),
-    [sessions, visibleSessionNames],
+    () => sessions.filter((session) => !session.cloneSessionKey),
+    [sessions],
   );
 
   activeSessionNameRef.current = activeSessionName;
@@ -924,6 +914,24 @@ export function MultiSessionWorkspace({
       ),
     [activeBoard],
   );
+  const activeBoardSessionNames = useMemo(
+    () =>
+      new Set(
+        (activeBoard?.panes ?? []).flatMap((pane) => (pane.sessionName ? [pane.sessionName] : [])),
+      ),
+    [activeBoard],
+  );
+  const boardNameBySessionName = useMemo(() => {
+    const boardNames = new Map<string, string>();
+    for (const board of boardState.boards) {
+      for (const pane of board.panes) {
+        if (pane.sessionName && !boardNames.has(pane.sessionName)) {
+          boardNames.set(pane.sessionName, board.name);
+        }
+      }
+    }
+    return boardNames;
+  }, [boardState.boards]);
   const favoriteGitRepositories = useMemo(() => {
     const repositoryByIdentity = new Map(
       gitRepositories.map((repository) => [
@@ -941,7 +949,6 @@ export function MultiSessionWorkspace({
       if (seen.has(favoriteIdentity)) return [];
       const repository = repositoryByIdentity.get(favoriteIdentity);
       if (!repository) return [];
-      if (activeBoardGitPaneIdentities.has(favoriteIdentity)) return [];
       if (
         query &&
         !repository.label.toLowerCase().includes(query) &&
@@ -958,7 +965,7 @@ export function MultiSessionWorkspace({
         },
       ];
     });
-  }, [activeBoardGitPaneIdentities, gitFavorites, gitRepositories, gitSearchQuery, workspaceId]);
+  }, [gitFavorites, gitRepositories, gitSearchQuery, workspaceId]);
   const favoriteGitRepositoryIdentities = useMemo(
     () =>
       new Set(
@@ -972,13 +979,6 @@ export function MultiSessionWorkspace({
     const query = gitSearchQuery.trim().toLowerCase();
     return gitRepositories.filter((repository) => {
       if (
-        activeBoardGitPaneIdentities.has(
-          gitPaneIdentity(repository.cloneSessionKey, repository.relativePath),
-        )
-      ) {
-        return false;
-      }
-      if (
         favoriteGitRepositoryIdentities.has(
           gitPaneIdentity(repository.cloneSessionKey, repository.relativePath),
         )
@@ -990,12 +990,7 @@ export function MultiSessionWorkspace({
         repository.relativePath.toLowerCase().includes(query)
       );
     });
-  }, [
-    activeBoardGitPaneIdentities,
-    favoriteGitRepositoryIdentities,
-    gitRepositories,
-    gitSearchQuery,
-  ]);
+  }, [favoriteGitRepositoryIdentities, gitRepositories, gitSearchQuery]);
   const filteredTerminalSessions = useMemo(() => {
     const query = gitSearchQuery.trim().toLowerCase();
     if (!query) return [];
@@ -2148,14 +2143,23 @@ export function MultiSessionWorkspace({
     }
 
     for (const session of availableTerminalSessions.slice(0, 8)) {
+      const alreadyInActiveBoard = activeBoardSessionNames.has(session.sessionName);
+      const currentBoardName = boardNameBySessionName.get(session.sessionName);
       actions.push({
         id: `workspace:add-session:${session.sessionName}`,
-        label: `Add ${session.label}`,
-        description: `Add this terminal to ${activeBoard?.name ?? "this board"}`,
+        label: alreadyInActiveBoard
+          ? `${session.label} is already in this board`
+          : `Add ${session.label}`,
+        description: alreadyInActiveBoard
+          ? "Already in this board"
+          : currentBoardName
+            ? `Move this terminal from ${currentBoardName} to ${activeBoard?.name ?? "this board"}`
+            : `Add this terminal to ${activeBoard?.name ?? "this board"}`,
         group: "Terminal sessions",
         value: `${session.label} ${session.sessionName} add workspace terminal session board`,
-        rightLabel: "Add",
+        rightLabel: alreadyInActiveBoard ? "Added" : currentBoardName ? "Move" : "Add",
         icon: "plus",
+        disabled: alreadyInActiveBoard,
         onSelect: () => handleAddExistingTerminalToBoard(session),
       });
     }
@@ -2167,19 +2171,22 @@ export function MultiSessionWorkspace({
         repository.relativePath,
       );
       const repositoryPending = addingCloneKey === repositoryIdentity;
-      if (!activeBoardGitPaneIdentities.has(repositoryIdentity)) {
-        actions.push({
-          id: `workspace:add-git:${gitRepositoryActionIdentity(repository)}`,
-          label: `Add ${repository.label}`,
-          description: "Open this Git repository as a workspace pane",
-          group: "Git repositories",
-          value: `${repository.label} ${repository.relativePath} add git repository workspace`,
-          rightLabel: repositoryPending ? "Adding…" : "Workspace",
-          icon: "plus",
-          disabled: repositoryPending,
-          onSelect: () => void handleAddGitRepository(repository),
-        });
-      }
+      const alreadyInActiveBoard = activeBoardGitPaneIdentities.has(repositoryIdentity);
+      actions.push({
+        id: `workspace:add-git:${gitRepositoryActionIdentity(repository)}`,
+        label: alreadyInActiveBoard
+          ? `${repository.label} is already in this board`
+          : `Add ${repository.label}`,
+        description: alreadyInActiveBoard
+          ? "Already in this board"
+          : "Open this Git repository as a workspace pane",
+        group: "Git repositories",
+        value: `${repository.label} ${repository.relativePath} add git repository workspace`,
+        rightLabel: repositoryPending ? "Adding…" : alreadyInActiveBoard ? "Added" : "Workspace",
+        icon: "plus",
+        disabled: repositoryPending || alreadyInActiveBoard,
+        onSelect: () => void handleAddGitRepository(repository),
+      });
       actions.push({
         id: `workspace:open-git:${gitRepositoryActionIdentity(repository)}`,
         label: `Open ${repository.label}`,
@@ -2197,8 +2204,10 @@ export function MultiSessionWorkspace({
   }, [
     activeBoard,
     activeBoardGitPaneIdentities,
+    activeBoardSessionNames,
     addingCloneKey,
     availableTerminalSessions,
+    boardNameBySessionName,
     creating,
     favoriteGitRepositories,
     filteredGitRepositories,
@@ -2315,7 +2324,7 @@ export function MultiSessionWorkspace({
   };
 
   const renderTerminalSessionRow = (session: WorkspaceSessionPane) => {
-    const isOnActiveBoard = visibleSessionNames.has(session.sessionName);
+    const isOnActiveBoard = activeBoardSessionNames.has(session.sessionName);
 
     return (
       <button

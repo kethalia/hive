@@ -304,7 +304,7 @@ function repairWorkspaceBoardState(
   const fallbackIdentities = paneIdentitySet(normalizedFallbackPanes);
   let staleCount = 0;
 
-  const boards = state.boards
+  const repairedBoards = state.boards
     .map((board): WorkspaceBoard => {
       const panes =
         fallbackIdentities.size === 0
@@ -321,6 +321,7 @@ function repairWorkspaceBoardState(
       };
     })
     .filter((board) => board.panes.length > 0 || normalizedFallbackPanes.length === 0);
+  const boards = dedupeBoardPanesBySessionName(repairedBoards, state.activeBoardKey, diagnostics);
 
   if (staleCount > 0) {
     diagnostics.push({
@@ -465,6 +466,63 @@ function paneIdentitySet(panes: readonly WorkspaceBoardPane[]): Set<string> {
 function paneIdentity(pane: WorkspaceBoardPane): string {
   if (pane.kind === "git") return `git:${pane.cloneSessionKey}:${pane.relativePath}`;
   return `terminal:${pane.sessionName}`;
+}
+
+function panePlacementKey(pane: WorkspaceBoardPane): string {
+  const sessionName = pane.kind === "git" ? pane.sessionName : pane.sessionName;
+  return sessionName ? `session:${sessionName}` : paneIdentity(pane);
+}
+
+function dedupeBoardPanesBySessionName(
+  boards: readonly WorkspaceBoard[],
+  activeBoardKey: string | undefined,
+  diagnostics: WorkspaceBoardStateDiagnostic[],
+): WorkspaceBoard[] {
+  const boardByKey = new Map(boards.map((board) => [board.key, board]));
+  const activeBoard = activeBoardKey ? boardByKey.get(activeBoardKey) : undefined;
+  const orderedBoards = [
+    ...(activeBoard ? [activeBoard] : []),
+    ...boards.filter((board) => board.key !== activeBoard?.key),
+  ];
+  const selectedPaneKeys = new Set<string>();
+  const seenPlacements = new Set<string>();
+  let duplicateCount = 0;
+
+  for (const board of orderedBoards) {
+    const orderedPanes = [
+      ...board.panes.filter((pane) => pane.key === board.activePaneKey),
+      ...board.panes.filter((pane) => pane.key !== board.activePaneKey),
+    ];
+
+    for (const pane of orderedPanes) {
+      const placementKey = panePlacementKey(pane);
+      if (seenPlacements.has(placementKey)) {
+        duplicateCount += 1;
+        continue;
+      }
+      seenPlacements.add(placementKey);
+      selectedPaneKeys.add(`${board.key}:${pane.key}`);
+    }
+  }
+
+  if (duplicateCount > 0) {
+    diagnostics.push({
+      code: "pane-repaired",
+      message: "Duplicate workspace board panes for the same terminal session were dropped.",
+      count: duplicateCount,
+    });
+  }
+
+  return boards.map((board) => {
+    const panes = board.panes
+      .filter((pane) => selectedPaneKeys.has(`${board.key}:${pane.key}`))
+      .map((pane, order) => ({ ...pane, order }));
+    return {
+      ...board,
+      activePaneKey: normalizeActivePaneKey(board.activePaneKey, panes),
+      panes,
+    };
+  });
 }
 
 function invalidMalformed(message: string): PersistedWorkspaceBoardStateParseResult {

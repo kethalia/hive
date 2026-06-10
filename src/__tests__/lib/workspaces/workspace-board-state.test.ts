@@ -88,6 +88,44 @@ describe("workspace board state model", () => {
     expect(state.diagnostics).toEqual([]);
   });
 
+  it("repairs persisted boards that reference the same session on multiple boards", () => {
+    const state = resolveWorkspaceBoardState({
+      persistedBoardJson: JSON.stringify({
+        version: WORKSPACE_BOARD_STATE_VERSION,
+        activeBoardKey: "review",
+        boards: [
+          {
+            key: "main",
+            name: "Main",
+            order: 0,
+            panes: [{ kind: "terminal", sessionName: "api", order: 0 }],
+          },
+          {
+            key: "review",
+            name: "Review",
+            order: 1,
+            activePaneKey: "terminal:api-review",
+            panes: [
+              {
+                kind: "terminal",
+                key: "terminal:api-review",
+                sessionName: "api",
+                order: 0,
+              },
+            ],
+          },
+        ],
+      }),
+    });
+
+    expect(state.activeBoardKey).toBe("review");
+    expect(state.boards[0].panes).toEqual([]);
+    expect(state.boards[1].panes).toEqual([
+      { kind: "terminal", key: "terminal:api-review", sessionName: "api", order: 0 },
+    ]);
+    expect(state.diagnostics.map((diagnostic) => diagnostic.code)).toContain("pane-repaired");
+  });
+
   it("resolves corrupt current state through legacy migration before using fallback panes", () => {
     const state = resolveWorkspaceBoardState({
       persistedBoardJson: "{not-json",
