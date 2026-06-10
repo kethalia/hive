@@ -3,6 +3,7 @@
 import { CheckCircle, RefreshCw, Upload, XCircle } from "lucide-react";
 import dynamic from "next/dynamic";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { DashboardPageHeader } from "@/components/dashboard-page-header";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -222,14 +223,15 @@ export function TemplatesClient({ initialStatuses }: TemplatesClientProps) {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold tracking-tight">Templates</h1>
-        <Button variant="outline" size="sm" onClick={refreshStatuses}>
-          <RefreshCw className="mr-1.5 h-3.5 w-3.5" />
-          Refresh
-        </Button>
-      </div>
+      <DashboardPageHeader
+        title="Templates"
+        actions={
+          <Button variant="outline" size="sm" onClick={refreshStatuses}>
+            <RefreshCw className="mr-1.5 h-3.5 w-3.5" />
+            Refresh
+          </Button>
+        }
+      />
 
       {/* Status list */}
       <PullToRefresh onRefresh={refreshStatuses} data-refresh-surface="templates-status-list">

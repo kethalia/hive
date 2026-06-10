@@ -3,6 +3,7 @@
 import { RefreshCw } from "lucide-react";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { DashboardPageHeader } from "@/components/dashboard-page-header";
 import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -204,24 +205,22 @@ export function TerminalSessionStatusClient({
 
   return (
     <main className="mx-auto flex w-full max-w-5xl flex-col gap-4 overflow-auto p-4 md:p-6">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <div>
-          <p className="text-sm text-muted-foreground">Terminal diagnostics</p>
-          <h1 className="text-2xl font-semibold tracking-tight">Terminal status</h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Aggregated keepalive status for terminal sessions authorized by your Coder account.
-          </p>
-        </div>
-        <div className="flex gap-2">
-          <Link className={buttonVariants({ variant: "outline" })} href="/workspaces">
-            Workspaces
-          </Link>
-          <Button onClick={() => void refresh()} disabled={state.isLoading}>
-            <RefreshCw className="mr-2 size-4" />
-            Refresh
-          </Button>
-        </div>
-      </div>
+      <DashboardPageHeader
+        title="Terminal status"
+        description="Aggregated keepalive status for terminal sessions authorized by your Coder account."
+        leading={<p className="text-sm text-muted-foreground">Terminal diagnostics</p>}
+        actions={
+          <>
+            <Link className={buttonVariants({ variant: "outline" })} href="/workspaces">
+              Workspaces
+            </Link>
+            <Button onClick={() => void refresh()} disabled={state.isLoading}>
+              <RefreshCw className="mr-2 size-4" />
+              Refresh
+            </Button>
+          </>
+        }
+      />
 
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <MetricCard label="Workspace rows" value={workspaceEntries.length} />

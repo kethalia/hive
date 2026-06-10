@@ -4,6 +4,7 @@ import { AlertCircle, ArrowLeft, ExternalLink, GitBranch, Paperclip } from "luci
 import Link from "next/link";
 import { useAction } from "next-safe-action/hooks";
 import { useCallback, useEffect, useState } from "react";
+import { DashboardPageHeader } from "@/components/dashboard-page-header";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -43,25 +44,22 @@ export function TaskDetail({ initialTask }: { initialTask: TaskWithRelations }) 
 
   return (
     <div className="space-y-4 pb-safe sm:space-y-6">
-      {/* Navigation */}
-      <div className="flex items-center gap-2">
-        <Button
-          variant="ghost"
-          size="sm"
-          nativeButton={false}
-          className="min-h-11 touch-manipulation sm:min-h-7"
-          render={<Link href="/tasks" />}
-        >
-          <ArrowLeft className="mr-1 h-4 w-4" />
-          Back to Tasks
-        </Button>
-      </div>
-
-      {/* Header */}
-      <div className="flex flex-wrap items-start gap-2 sm:items-center sm:gap-3">
-        <h1 className="text-xl font-bold tracking-tight sm:text-2xl">Task {shortId(task.id)}</h1>
-        <Badge variant={statusVariant[task.status] ?? "secondary"}>{task.status}</Badge>
-      </div>
+      <DashboardPageHeader
+        title={`Task ${shortId(task.id)}`}
+        leading={
+          <Button
+            variant="ghost"
+            size="sm"
+            nativeButton={false}
+            className="min-h-11 touch-manipulation sm:min-h-7"
+            render={<Link href="/tasks" />}
+          >
+            <ArrowLeft className="mr-1 h-4 w-4" />
+            Back to Tasks
+          </Button>
+        }
+        actions={<Badge variant={statusVariant[task.status] ?? "secondary"}>{task.status}</Badge>}
+      />
 
       {/* Error alert */}
       {task.errorMessage && (

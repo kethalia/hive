@@ -321,9 +321,9 @@ describe("TerminalClient compose sheet", () => {
       "top-[var(--safe-area-inset-top)]",
     );
     expect(screen.getByTestId("terminal-mobile-shell")).toHaveStyle({
-      height: "max(0px, calc(var(--app-visual-viewport-height) - var(--safe-area-inset-top)))",
-      maxHeight: "max(0px, calc(var(--app-visual-viewport-height) - var(--safe-area-inset-top)))",
-      top: "calc(var(--app-visual-viewport-offset-top) + var(--safe-area-inset-top))",
+      height: "var(--app-visual-viewport-height)",
+      maxHeight: "var(--app-visual-viewport-height)",
+      top: "var(--app-visual-viewport-offset-top)",
     });
     expect(screen.getByTestId("terminal-mobile-shell")).not.toHaveClass(
       "-mb-[calc(var(--safe-area-inset-bottom)+1.5rem)]",
@@ -479,9 +479,9 @@ describe("TerminalClient compose sheet", () => {
     await renderTerminalClient(true);
 
     expect(screen.getByTestId("terminal-mobile-shell")).toHaveStyle({
-      height: "max(0px, calc(var(--app-visual-viewport-height) - var(--safe-area-inset-top)))",
-      maxHeight: "max(0px, calc(var(--app-visual-viewport-height) - var(--safe-area-inset-top)))",
-      top: "calc(var(--app-visual-viewport-offset-top) + var(--safe-area-inset-top))",
+      height: "var(--app-visual-viewport-height)",
+      maxHeight: "var(--app-visual-viewport-height)",
+      top: "var(--app-visual-viewport-offset-top)",
     });
     expect(screen.getByTestId("interactive-terminal")).toHaveAttribute(
       "data-layout-signal",

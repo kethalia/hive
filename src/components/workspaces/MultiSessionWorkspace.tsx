@@ -34,6 +34,7 @@ import { WorkspaceBoardBar } from "@/components/workspaces/WorkspaceBoardBar";
 import { useKeepAliveStatus } from "@/hooks/useKeepAliveStatus";
 import { useKeybindings } from "@/hooks/useKeybindings";
 import type { ConnectionState, TerminalRecoveryState } from "@/hooks/useTerminalWebSocket";
+import { useVisualViewportKeyboardOffset } from "@/hooks/useVisualViewportKeyboardOffset";
 import { listGitClonesAction, resolveGitCloneTerminalAction } from "@/lib/actions/git-clones";
 import {
   listNavigationFavoritesAction,
@@ -111,6 +112,7 @@ interface InteractiveTerminalComponentProps {
   onComposeRequest?: (request: TerminalComposeRequest) => void;
   targetLabel?: string;
   layoutSignal?: unknown;
+  pinToBottomOnResize?: boolean;
 }
 
 const InteractiveTerminal = dynamic<InteractiveTerminalComponentProps>(
@@ -797,6 +799,11 @@ export function MultiSessionWorkspace({
   const canCreateSession = true;
   const isUnifiedSource = source === "unified";
   const keepAliveStatus = useKeepAliveStatus(workspaceId);
+  const {
+    isKeyboardVisible: visualKeyboardVisible,
+    visualViewportHeightPx,
+    visualViewportOffsetTopPx,
+  } = useVisualViewportKeyboardOffset();
   const activeBoard = useMemo(() => findActiveWorkspaceBoard(boardState), [boardState]);
   const visibleSessions = useMemo(
     () => deriveVisibleSessionsFromBoard(sessions, activeBoard),
@@ -2469,7 +2476,10 @@ export function MultiSessionWorkspace({
               boardPaneSignal,
             )
         : undefined;
-    const layoutSignal = `${activeBoard?.key ?? "no-board"}:${boardPaneSignal}:${layout.tiled.rows}:${layout.tiled.columns}:${pane.gridArea}`;
+    const visualViewportSignal = visualKeyboardVisible
+      ? `keyboard:${visualViewportHeightPx}:${visualViewportOffsetTopPx}`
+      : `viewport:${visualViewportHeightPx}:${visualViewportOffsetTopPx}`;
+    const layoutSignal = `${activeBoard?.key ?? "no-board"}:${boardPaneSignal}:${layout.tiled.rows}:${layout.tiled.columns}:${pane.gridArea}:${visualViewportSignal}`;
     const paneStyle: CSSProperties = { gridArea: pane.gridArea };
 
     return (
@@ -2503,6 +2513,7 @@ export function MultiSessionWorkspace({
           refreshCloneTerminalIdentity={refreshCloneTerminalIdentity}
           className="min-h-0 flex-1"
           layoutSignal={layoutSignal}
+          pinToBottomOnResize={visualKeyboardVisible}
           onConnectionStateChange={(state) =>
             handlePaneConnectionStateChange(boardPaneSignal, boardPaneKind, state)
           }

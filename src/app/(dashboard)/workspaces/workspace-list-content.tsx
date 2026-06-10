@@ -4,6 +4,7 @@ import { AlertCircle, Loader2, Monitor, Plus, TerminalSquare } from "lucide-reac
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { type FormEvent, useCallback, useEffect, useState } from "react";
+import { DashboardPageHeader } from "@/components/dashboard-page-header";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -285,26 +286,24 @@ export function WorkspaceListContent({ workspaces, error }: WorkspaceListContent
 
   return (
     <div className="space-y-6">
-      <div className="flex items-start justify-between gap-3">
-        <div className="space-y-1">
-          <h1 className="text-2xl font-bold tracking-tight">Workspaces</h1>
-          <p className="text-muted-foreground text-sm">
-            Open a workspace terminal or pull down to refresh the current Coder list.
-          </p>
-        </div>
-        <Button
-          type="button"
-          size="sm"
-          onClick={openCreateDialog}
-          data-testid="open-create-workspace-modal"
-        >
-          <Plus data-icon="inline-start" />
-          Add workspace
-          <span className="ml-1 hidden text-xs text-muted-foreground sm:inline">
-            {formatShortcut(CREATE_WORKSPACE_SHORTCUT_KEYS)}
-          </span>
-        </Button>
-      </div>
+      <DashboardPageHeader
+        title="Workspaces"
+        description="Open a workspace terminal or pull down to refresh the current Coder list."
+        actions={
+          <Button
+            type="button"
+            size="sm"
+            onClick={openCreateDialog}
+            data-testid="open-create-workspace-modal"
+          >
+            <Plus data-icon="inline-start" />
+            Add workspace
+            <span className="ml-1 hidden text-xs text-muted-foreground sm:inline">
+              {formatShortcut(CREATE_WORKSPACE_SHORTCUT_KEYS)}
+            </span>
+          </Button>
+        }
+      />
 
       <Dialog open={createOpen} onOpenChange={setCreateOpen}>
         <DialogContent data-testid="create-workspace-modal">
@@ -460,6 +459,7 @@ export function WorkspaceListContent({ workspaces, error }: WorkspaceListContent
                       <Button
                         variant="outline"
                         size="sm"
+                        nativeButton={false}
                         render={<Link href={terminalHref(workspace.id)} />}
                       >
                         <TerminalSquare data-icon="inline-start" />

@@ -22,6 +22,14 @@ vi.mock("lucide-react", () => ({
   RefreshCw: () => <span data-testid="refresh-icon" />,
 }));
 
+vi.mock("@/components/ui/sidebar", () => ({
+  SidebarTrigger: ({ className }: { className?: string }) => (
+    <button type="button" className={className} data-testid="dashboard-page-sidebar-trigger">
+      Toggle sidebar
+    </button>
+  ),
+}));
+
 describe("TerminalSessionStatusClient", () => {
   beforeEach(() => {
     vi.restoreAllMocks();

@@ -76,9 +76,9 @@ describe("MobileTerminalShell", () => {
       "top-[var(--safe-area-inset-top)]",
     );
     expect(screen.getByTestId("terminal-mobile-shell")).toHaveStyle({
-      height: "max(0px, calc(var(--app-visual-viewport-height) - var(--safe-area-inset-top)))",
-      maxHeight: "max(0px, calc(var(--app-visual-viewport-height) - var(--safe-area-inset-top)))",
-      top: "calc(var(--app-visual-viewport-offset-top) + var(--safe-area-inset-top))",
+      height: "var(--app-visual-viewport-height)",
+      maxHeight: "var(--app-visual-viewport-height)",
+      top: "var(--app-visual-viewport-offset-top)",
     });
   });
 

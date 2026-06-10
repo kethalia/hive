@@ -1573,7 +1573,7 @@ describe("WorkspaceTerminalPage integration — Multi-session route", () => {
         (terminal) => terminal.getAttribute("data-session-name") === "main-session",
       );
     expect(findMainTerminal()?.getAttribute("data-layout-signal")).toBe(
-      "default:terminal:main-session:1:2:1 / 1 / span 1 / span 1",
+      "default:terminal:main-session:1:2:1 / 1 / span 1 / span 1:viewport:0:0",
     );
     expect(getByTestId("workspace-pane-main-session")).toHaveAttribute("data-pane-mode", "tiled");
     expect(queryByTestId("move-pane-left-pane-dev-server")).not.toBeInTheDocument();

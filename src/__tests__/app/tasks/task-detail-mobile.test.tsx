@@ -16,6 +16,15 @@ vi.mock("next-safe-action/hooks", () => ({
   useAction: vi.fn(() => ({ execute: vi.fn() })),
 }));
 
+vi.mock("@/components/ui/sidebar", () => ({
+  SidebarTrigger: ({ className }: { className?: string }) =>
+    React.createElement(
+      "button",
+      { type: "button", className, "data-testid": "dashboard-page-sidebar-trigger" },
+      "Toggle sidebar",
+    ),
+}));
+
 import { TaskDetail } from "@/app/(dashboard)/tasks/[id]/task-detail";
 
 const longRepoUrl =
@@ -106,17 +115,10 @@ describe("TaskDetail mobile layout contracts", () => {
     const title = screen.getByRole("heading", { name: /task task-mob/i });
     expect(classTokens(title)).toEqual(expect.arrayContaining(["text-xl", "sm:text-2xl"]));
 
-    const header = title.parentElement;
+    const header = title.closest("[data-dashboard-page-nav]");
     expect(header).not.toBeNull();
     expect(classTokens(header as Element)).toEqual(
-      expect.arrayContaining([
-        "flex",
-        "flex-wrap",
-        "items-start",
-        "gap-2",
-        "sm:items-center",
-        "sm:gap-3",
-      ]),
+      expect.arrayContaining(["grid", "items-start", "gap-2", "border-b"]),
     );
   });
 

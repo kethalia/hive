@@ -4,6 +4,7 @@ import { AlertCircle } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useAction } from "next-safe-action/hooks";
 import { type FormEvent, useRef } from "react";
+import { DashboardPageHeader } from "@/components/dashboard-page-header";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -55,7 +56,7 @@ export default function NewTaskPage() {
 
   return (
     <div className="mx-auto max-w-2xl space-y-6">
-      <h1 className="text-2xl font-bold tracking-tight">New Task</h1>
+      <DashboardPageHeader title="New Task" />
 
       {serverError && (
         <Alert variant="destructive">

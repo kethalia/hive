@@ -485,7 +485,7 @@ describe("MultiSessionWorkspace", () => {
     });
     expect(screen.getByTestId("interactive-terminal-main-session")).toHaveAttribute(
       "data-layout-signal",
-      "default:terminal:main-session:2:2:1 / 1 / span 2 / span 1",
+      "default:terminal:main-session:2:2:1 / 1 / span 2 / span 1:viewport:0:0",
     );
     expect(screen.getByTestId("workspace-pane-dev-server")).toHaveClass(
       "flex",
@@ -660,7 +660,7 @@ describe("MultiSessionWorkspace", () => {
     expect(screen.getByTestId("multi-session-pane-count")).toHaveTextContent("1");
     expect(screen.getByTestId("interactive-terminal-main-session")).toHaveAttribute(
       "data-layout-signal",
-      "later:terminal:main-session:1:1:1 / 1 / span 1 / span 1",
+      "later:terminal:main-session:1:1:1 / 1 / span 1 / span 1:viewport:0:0",
     );
 
     const previousBoard = lastRegisteredEntry("multi-session:ws-1:previous-board");
@@ -692,7 +692,7 @@ describe("MultiSessionWorkspace", () => {
     expect(screen.getByTestId("multi-session-pane-count")).toHaveTextContent("1");
     expect(screen.getByTestId("interactive-terminal-dev-server")).toHaveAttribute(
       "data-layout-signal",
-      "earlier:terminal:dev-server:1:1:1 / 1 / span 1 / span 1",
+      "earlier:terminal:dev-server:1:1:1 / 1 / span 1 / span 1:viewport:0:0",
     );
     expect(
       JSON.parse(window.localStorage.getItem("workspace-board-state:workspace:ws-1") ?? "{}")
@@ -1600,14 +1600,14 @@ describe("MultiSessionWorkspace", () => {
 
     expect(await screen.findByTestId("interactive-terminal-main-session")).toHaveAttribute(
       "data-layout-signal",
-      "default:terminal:main-session:1:1:1 / 1 / span 1 / span 1",
+      "default:terminal:main-session:1:1:1 / 1 / span 1 / span 1:viewport:0:0",
     );
 
     fireEvent.click(screen.getByTestId("workspace-board-tab-review"));
 
     expect(screen.getByTestId("interactive-terminal-main-session")).toHaveAttribute(
       "data-layout-signal",
-      "review:terminal:main-session-review:1:1:1 / 1 / span 1 / span 1",
+      "review:terminal:main-session-review:1:1:1 / 1 / span 1 / span 1:viewport:0:0",
     );
     expect(screen.getByTestId("active-pane-label")).toHaveTextContent("main-session");
     expect(mockKillSession).not.toHaveBeenCalled();
