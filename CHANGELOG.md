@@ -1,5 +1,11 @@
 # hive-orchestrator
 
+## 2.5.3
+
+### Patch Changes
+
+- a320c32: Keep multi-session workspace panes warm while switching workspace boards so terminals stay mounted without reloading sessions.
+
 ## 2.5.2
 
 ### Patch Changes
