@@ -121,10 +121,15 @@ vi.mock("@/lib/actions/navigation-favorites", () => ({
 
 vi.mock("@/lib/terminal/actions", () => ({
   copyTerminalSelection: vi.fn(() => false),
+  pasteToTerminal: vi.fn(),
 }));
 
 vi.mock("@/lib/utils", () => ({
   cn: (...classes: unknown[]) => classes.filter(Boolean).join(" "),
+}));
+
+vi.mock("@/components/terminal/MobileTerminalControls", () => ({
+  MobileTerminalControls: () => <div data-testid="terminal-mobile-controls" />,
 }));
 
 vi.mock("@/components/terminal/CommandPalette", () => ({

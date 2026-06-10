@@ -546,7 +546,6 @@ export function InteractiveTerminal({
   const handleTerminalPointerDown = useCallback(
     (event: ReactPointerEvent<HTMLDivElement>) => {
       if (mobileInputModeRef.current && event.pointerType === "touch") {
-        suppressNextClickFocusRef.current = true;
         return;
       }
 
@@ -609,18 +608,24 @@ export function InteractiveTerminal({
     if (!ended) return;
 
     mobileTouchIntentRef.current = null;
-    suppressNextClickFocusRef.current = true;
+    suppressNextClickFocusRef.current = intent.didScroll || intent.multiTouch;
   }, []);
 
   const handleTerminalClick = useCallback(
     (event: ReactMouseEvent<HTMLDivElement>) => {
       if (mobileInputModeRef.current) {
-        suppressNextClickFocusRef.current = false;
         if (selectionModeEnabledRef.current) {
           event.stopPropagation();
           return;
         }
 
+        if (suppressNextClickFocusRef.current) {
+          suppressNextClickFocusRef.current = false;
+          event.preventDefault();
+          return;
+        }
+
+        focusInteractiveTerminal();
         event.preventDefault();
         return;
       }

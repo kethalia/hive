@@ -28,6 +28,10 @@ const mockRegister = vi.fn();
 const mockUnregister = vi.fn();
 const mockRouterPush = vi.fn();
 const mockToastInfo = vi.hoisted(() => vi.fn());
+const mockUseIsComposeSheet = vi.hoisted(() => vi.fn(() => false));
+const mockCopyTerminalSelection = vi.hoisted(() => vi.fn());
+const mockPasteToTerminal = vi.hoisted(() => vi.fn());
+const mockTriggerHapticFeedback = vi.hoisted(() => vi.fn());
 let emitConnectionStateOnCallbackChange = false;
 const mockUseKeepAliveStatus = vi.hoisted(() =>
   vi.fn(
@@ -90,6 +94,9 @@ const terminalProps = new Map<
     onRecoveryStateChange?: (state: StubRecoveryState) => void;
     onTerminalReady?: (term: Terminal, send: (data: string) => void) => void;
     onTerminalDestroy?: () => void;
+    mobileInputMode?: boolean;
+    pinToBottomOnResize?: boolean;
+    selectionModeEnabled?: boolean;
   }
 >();
 
@@ -120,6 +127,9 @@ vi.mock("next/dynamic", () => ({
       onRecoveryStateChange,
       onTerminalReady,
       onTerminalDestroy,
+      mobileInputMode,
+      pinToBottomOnResize,
+      selectionModeEnabled,
     }: {
       agentId: string;
       workspaceId: string;
@@ -141,6 +151,9 @@ vi.mock("next/dynamic", () => ({
       onRecoveryStateChange?: (state: StubRecoveryState) => void;
       onTerminalReady?: (term: Terminal, send: (data: string) => void) => void;
       onTerminalDestroy?: () => void;
+      mobileInputMode?: boolean;
+      pinToBottomOnResize?: boolean;
+      selectionModeEnabled?: boolean;
     }) => {
       useEffect(() => {
         if (!emitConnectionStateOnCallbackChange) return;
@@ -160,6 +173,9 @@ vi.mock("next/dynamic", () => ({
         onRecoveryStateChange,
         onTerminalReady,
         onTerminalDestroy,
+        mobileInputMode,
+        pinToBottomOnResize,
+        selectionModeEnabled,
       });
       return (
         <div
@@ -171,6 +187,9 @@ vi.mock("next/dynamic", () => ({
           data-clone-path={clonePath}
           data-clone-proof={cloneProof}
           data-layout-signal={String(layoutSignal ?? "")}
+          data-mobile-input-mode={mobileInputMode ? "true" : "false"}
+          data-pin-to-bottom-on-resize={pinToBottomOnResize ? "true" : "false"}
+          data-selection-mode-enabled={selectionModeEnabled ? "true" : "false"}
         >
           Terminal: {sessionName}
           <textarea
@@ -214,8 +233,102 @@ vi.mock("@/hooks/useKeepAliveStatus", () => ({
   useKeepAliveStatus: (workspaceId: string) => mockUseKeepAliveStatus(workspaceId),
 }));
 
+vi.mock("@/hooks/use-compose-sheet", () => ({
+  useIsComposeSheet: () => mockUseIsComposeSheet(),
+}));
+
+vi.mock("@/lib/device/haptics", () => ({
+  triggerHapticFeedback: () => mockTriggerHapticFeedback(),
+}));
+
+vi.mock("@/lib/terminal/actions", () => ({
+  copyTerminalSelection: (...args: unknown[]) => mockCopyTerminalSelection(...args),
+  pasteToTerminal: (...args: unknown[]) => mockPasteToTerminal(...args),
+}));
+
 vi.mock("@/lib/utils", () => ({
   cn: (...classes: unknown[]) => classes.filter(Boolean).join(" "),
+}));
+
+vi.mock("@/components/terminal/MobileTerminalControls", () => ({
+  MobileTerminalControls: ({
+    clipboardStatusText,
+    copyDisabledReason,
+    hasSelection,
+    isKeyboardVisible,
+    onCopy,
+    onPaste,
+    onToggleSelectionMode,
+    pasteDisabledReason,
+    selectionModeDisabledReason,
+    selectionModeEnabled,
+    windowNavigation,
+  }: {
+    clipboardStatusText?: string;
+    copyDisabledReason?: string;
+    hasSelection?: boolean;
+    isKeyboardVisible?: boolean;
+    onCopy?: () => void;
+    onPaste?: () => void;
+    onToggleSelectionMode?: (enabled: boolean) => void;
+    pasteDisabledReason?: string;
+    selectionModeDisabledReason?: string;
+    selectionModeEnabled?: boolean;
+    windowNavigation?: {
+      sessions: Array<{ id?: string; name: string }>;
+      current: { id?: string; name: string } | null;
+      previous: { id?: string; name: string } | null;
+      next: { id?: string; name: string } | null;
+      select?: (id: string) => boolean;
+      onOpenSwitcher?: () => void;
+    };
+  }) => (
+    <div
+      data-copy-disabled-reason={copyDisabledReason ?? ""}
+      data-current-session={windowNavigation?.current?.name ?? ""}
+      data-has-selection={hasSelection ? "true" : "false"}
+      data-is-keyboard-visible={isKeyboardVisible ? "true" : "false"}
+      data-next-session={windowNavigation?.next?.name ?? ""}
+      data-paste-disabled-reason={pasteDisabledReason ?? ""}
+      data-previous-session={windowNavigation?.previous?.name ?? ""}
+      data-selection-disabled-reason={selectionModeDisabledReason ?? ""}
+      data-selection-mode-enabled={selectionModeEnabled ? "true" : "false"}
+      data-session-count={String(windowNavigation?.sessions.length ?? 0)}
+      data-testid="terminal-mobile-controls"
+    >
+      <p data-testid="terminal-clipboard-status">{clipboardStatusText}</p>
+      <button type="button" data-testid="terminal-copy-selection" onClick={onCopy}>
+        Copy
+      </button>
+      <button type="button" data-testid="terminal-paste-clipboard" onClick={onPaste}>
+        Paste
+      </button>
+      <button
+        type="button"
+        data-testid="terminal-selection-toggle"
+        onClick={() => onToggleSelectionMode?.(!selectionModeEnabled)}
+      >
+        Selection
+      </button>
+      <button
+        type="button"
+        data-testid="terminal-window-next"
+        onClick={() => {
+          const next = windowNavigation?.next;
+          if (next) windowNavigation?.select?.(next.id ?? next.name);
+        }}
+      >
+        Next
+      </button>
+      <button
+        type="button"
+        data-testid="terminal-window-switcher"
+        onClick={windowNavigation?.onOpenSwitcher}
+      >
+        Switch
+      </button>
+    </div>
+  ),
 }));
 
 vi.mock("@/components/terminal/CommandPalette", () => ({
@@ -387,6 +500,10 @@ describe("MultiSessionWorkspace", () => {
     terminalProps.clear();
     window.localStorage.clear();
     mockGetSessions.mockResolvedValue({ data: [] });
+    mockUseIsComposeSheet.mockReturnValue(false);
+    mockCopyTerminalSelection.mockReset();
+    mockPasteToTerminal.mockReset();
+    mockTriggerHapticFeedback.mockReset();
     mockKillSession.mockResolvedValue({ data: { name: "main-session" } });
     mockCloseGitCloneTerminal.mockResolvedValue({ data: { sessionName: "git-clone-safe-hive" } });
     mockListNavigationFavorites.mockResolvedValue({ data: [] });
@@ -447,7 +564,67 @@ describe("MultiSessionWorkspace", () => {
     expect(screen.getByTestId("multi-session-grid")).toHaveClass("gap-1");
     expect(screen.queryByTestId("copy-active-pane")).not.toBeInTheDocument();
     expect(screen.queryByTestId("paste-active-pane")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("terminal-mobile-controls")).not.toBeInTheDocument();
     expect(screen.queryByTestId("float-pane-pane-main-session")).not.toBeInTheDocument();
+  });
+
+  it("shows mobile terminal controls in compose-sheet workspace mode", async () => {
+    mockUseIsComposeSheet.mockReturnValue(true);
+    await renderTwoSessionWorkspace();
+
+    const mainTerm = makeTerminal("main-session");
+    const mainSend = makeSender("main-session");
+    act(() => {
+      terminalProps.get("main-session")?.onTerminalReady?.(mainTerm, mainSend);
+    });
+
+    const controls = screen.getByTestId("terminal-mobile-controls");
+    expect(controls).toHaveAttribute("data-session-count", "2");
+    expect(controls).toHaveAttribute("data-current-session", "main-session");
+    expect(controls).toHaveAttribute("data-next-session", "dev-server");
+    expect(screen.getByTestId("interactive-terminal-main-session")).toHaveAttribute(
+      "data-mobile-input-mode",
+      "true",
+    );
+    expect(screen.getByTestId("interactive-terminal-main-session")).toHaveAttribute(
+      "data-pin-to-bottom-on-resize",
+      "true",
+    );
+    expect(mainTerm.focus).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByTestId("terminal-paste-clipboard"));
+    expect(mockPasteToTerminal).toHaveBeenCalledWith(
+      mainTerm,
+      mainSend,
+      expect.objectContaining({
+        targetLabel: "main-session",
+        workspaceId: "ws-1",
+      }),
+    );
+
+    fireEvent.click(screen.getByTestId("terminal-window-next"));
+    expect(screen.getByTestId("active-pane-label")).toHaveTextContent("dev-server");
+    expect(mainTerm.focus).not.toHaveBeenCalled();
+  });
+
+  it("passes multi-session selection mode to mobile workspace panes", async () => {
+    mockUseIsComposeSheet.mockReturnValue(true);
+    await renderTwoSessionWorkspace();
+
+    act(() => {
+      terminalProps.get("main-session")?.onTerminalReady?.(makeTerminal("main-session"), vi.fn());
+    });
+
+    fireEvent.click(screen.getByTestId("terminal-selection-toggle"));
+
+    expect(screen.getByTestId("terminal-mobile-controls")).toHaveAttribute(
+      "data-selection-mode-enabled",
+      "true",
+    );
+    expect(screen.getByTestId("interactive-terminal-main-session")).toHaveAttribute(
+      "data-selection-mode-enabled",
+      "true",
+    );
   });
 
   it("ignores duplicate pane connection updates from callback identity changes", async () => {

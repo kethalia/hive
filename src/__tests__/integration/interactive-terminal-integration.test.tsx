@@ -2375,7 +2375,7 @@ describe("InteractiveTerminal integration — Mobile input adapter", () => {
     desktop.unmount();
   });
 
-  it("does not focus xterm from mobile terminal surface touches", async () => {
+  it("focuses xterm through the mobile input adapter after terminal surface taps", async () => {
     const { container, unmount } = await renderTerminal({ mobileInputMode: true });
     const terminal = terminalInstances.at(-1);
     expect(terminal).toBeDefined();
@@ -2405,7 +2405,7 @@ describe("InteractiveTerminal integration — Mobile input adapter", () => {
 
     expect(pointerDownAllowed).toBe(false);
     expect(touchStart.defaultPrevented).toBe(true);
-    expect(terminal?.focus).not.toHaveBeenCalled();
+    expect(terminal?.focus).toHaveBeenCalledTimes(1);
 
     act(() => {
       terminal?.dataHandler?.("echo mobile\r");
