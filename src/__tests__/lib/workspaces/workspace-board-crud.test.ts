@@ -184,6 +184,21 @@ describe("workspace board CRUD helper", () => {
     expect(removedSelected.boards[1].activePaneKey).toBeUndefined();
   });
 
+  it("moves terminal panes from other boards instead of duplicating the same session", () => {
+    const withPlanning = createWorkspaceBoard(baseState(), "Planning");
+    const movedApi = addTerminalPaneToActiveWorkspaceBoard(withPlanning, {
+      sessionName: "api",
+      label: "API",
+    });
+
+    expect(movedApi.boards[0].panes).toEqual([]);
+    expect(movedApi.boards[0].activePaneKey).toBeUndefined();
+    expect(movedApi.boards[1].panes).toEqual([
+      { kind: "terminal", key: "terminal:api", sessionName: "api", label: "API", order: 0 },
+    ]);
+    expect(movedApi.boards[1].activePaneKey).toBe("terminal:api");
+  });
+
   it("repairs active pane fallback when removing the selected pane and ignores invalid pane operations", () => {
     const state = addTerminalPaneToActiveWorkspaceBoard(baseState(), {
       sessionName: "worker",
@@ -287,7 +302,7 @@ describe("workspace board CRUD helper", () => {
     expect(next.boards[0].activePaneKey).toBe("terminal:api");
   });
 
-  it("adds Git panes with safe metadata and allows the same identity on multiple boards", () => {
+  it("adds Git panes with safe metadata and moves the same session between boards", () => {
     const planning = createWorkspaceBoard(baseState(), "Planning");
     const withGitOnPlanning = addGitPaneToActiveWorkspaceBoard(planning, {
       cloneSessionKey: " git-clone:Git/projects/kethalia/hive ",
@@ -355,7 +370,7 @@ describe("workspace board CRUD helper", () => {
       ["terminal", "terminal:api", 0],
       ["git", "git:git-clone:Git/projects/kethalia/hive:kethalia/hive", 1],
     ]);
-    expect(sharedOnMain.boards[1].panes).toHaveLength(1);
+    expect(sharedOnMain.boards[1].panes).toHaveLength(0);
     expect(duplicateGitNoop).toEqual(sharedOnMain);
     expect(absoluteNoop).toEqual(sharedOnMain);
     expect(traversalNoop).toEqual(sharedOnMain);
@@ -365,7 +380,7 @@ describe("workspace board CRUD helper", () => {
     expect(missingRefsNoop).toEqual(sharedOnMain);
     expect(
       JSON.parse(serialized).boards.flatMap((board: { panes: unknown[] }) => board.panes),
-    ).toHaveLength(3);
+    ).toHaveLength(2);
     expect(serialized).not.toMatch(/cloneProof|clonePath|proof-should-not-persist|\/home\/coder/);
   });
 
