@@ -90,6 +90,17 @@ describe("ComposePanel", () => {
     expect(onClose).toHaveBeenCalledTimes(1);
   });
 
+  it("closes with Cmd+` while focus is inside the textarea", () => {
+    const onClose = vi.fn();
+    render(<ComposePanel onClose={onClose} />);
+    const textarea = screen.getByPlaceholderText("Type multi-line command...");
+
+    fireEvent.keyDown(textarea, { key: "`", metaKey: true });
+
+    expect(onClose).toHaveBeenCalledTimes(1);
+    expect(mockActiveSend).not.toHaveBeenCalled();
+  });
+
   it("hides the header while keeping footer actions in compose sheet mode", () => {
     render(<ComposePanel hideHeader onClose={vi.fn()} />);
 

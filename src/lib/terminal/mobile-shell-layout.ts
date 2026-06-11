@@ -59,7 +59,7 @@ export function mobileTerminalFrameStyle(
 }
 
 export function composeSheetKeyboardStyle(isKeyboardVisible: boolean): CSSProperties {
-  const height = mobileViewportLockedHeight(isKeyboardVisible);
+  const height = "var(--app-visual-viewport-height)";
 
   return {
     bottom: isKeyboardVisible ? COMPOSE_SHEET_KEYBOARD_BOTTOM_OFFSET : "0px",

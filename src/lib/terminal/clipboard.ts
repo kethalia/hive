@@ -1,21 +1,44 @@
 import type { Terminal } from "@xterm/xterm";
 
-export const TERMINAL_PASTE_ASSET_MAX_FILES = 4;
-export const TERMINAL_PASTE_ASSET_MAX_BYTES = 5 * 1024 * 1024;
-export const TERMINAL_PASTE_ASSET_MIME_TYPES = [
-  "image/png",
-  "image/jpeg",
-  "image/webp",
-  "image/gif",
-];
+export const TERMINAL_PASTE_ASSET_MAX_FILES = 10;
+export const TERMINAL_PASTE_ASSET_MAX_BYTES = 10 * 1024 * 1024;
+const TERMINAL_PASTE_ASSET_MIME_EXTENSIONS = new Map([
+  ["image/png", "png"],
+  ["image/jpeg", "jpg"],
+  ["image/webp", "webp"],
+  ["image/gif", "gif"],
+  ["text/plain", "txt"],
+]);
 
 export type TerminalPasteSource = "clipboard-api" | "native-paste" | "toolbar" | "context-menu";
 
 export type TerminalPasteOutcome =
   | { kind: "empty" }
   | { kind: "text"; text: string; multiline: boolean }
-  | { kind: "image-files"; files: File[] }
-  | { kind: "unsupported-files"; files: File[] };
+  | { kind: "asset-files"; files: File[] };
+
+export type TerminalPasteStatus =
+  | {
+      action: "paste";
+      outcome: "uploading";
+      method: "clipboard-api";
+    }
+  | {
+      action: "paste";
+      outcome: "pasted";
+      method: "clipboard-api";
+    }
+  | {
+      action: "paste";
+      outcome: "empty";
+      method: "clipboard-api";
+    }
+  | {
+      action: "paste";
+      outcome: "failed";
+      reason: "workspace-required" | "too-many-files" | "file-too-large" | "upload-failed";
+      message: string;
+    };
 
 export interface TerminalComposeRequest {
   draft: string;
@@ -29,7 +52,7 @@ export interface TerminalPasteController {
   openCompose: (request: TerminalComposeRequest) => void;
   workspaceId?: string;
   targetLabel?: string;
-  onStatus?: (message: string) => void;
+  onStatus?: (status: TerminalPasteStatus) => void;
 }
 
 export function isMultilinePaste(text: string): boolean {
@@ -50,10 +73,7 @@ export function normalizeClipboardItems(items: DataTransferItemList | null): Ter
     .filter((file): file is File => Boolean(file));
 
   if (files.length === 0) return { kind: "empty" };
-  const imageFiles = files.filter((file) => TERMINAL_PASTE_ASSET_MIME_TYPES.includes(file.type));
-  return imageFiles.length === files.length
-    ? { kind: "image-files", files: imageFiles }
-    : { kind: "unsupported-files", files };
+  return { kind: "asset-files", files };
 }
 
 export function pasteTextToXterm(
@@ -68,7 +88,7 @@ export function pasteTextToXterm(
   send(text);
 }
 
-export async function uploadTerminalPasteImages(
+export async function uploadTerminalPasteAssets(
   workspaceId: string,
   files: readonly File[],
 ): Promise<string[]> {
@@ -90,9 +110,45 @@ export async function uploadTerminalPasteImages(
     error?: string;
   } | null;
   if (!response.ok || !payload?.paths) {
-    throw new Error(payload?.error ?? "Failed to upload pasted image");
+    throw new Error(payload?.error ?? "Failed to upload pasted file");
   }
   return payload.paths;
+}
+
+function clipboardFileName(index: number, type: string): string {
+  const extension = TERMINAL_PASTE_ASSET_MIME_EXTENSIONS.get(type) ?? "bin";
+  return `clipboard-${index + 1}.${extension}`;
+}
+
+function preferredClipboardAssetType(item: ClipboardItem): string | null {
+  for (const type of TERMINAL_PASTE_ASSET_MIME_EXTENSIONS.keys()) {
+    if (type !== "text/plain" && item.types.includes(type)) return type;
+  }
+
+  return item.types.find((type) => type !== "text/plain" && type !== "text/html") ?? null;
+}
+
+export async function readClipboardApiOutcome(clipboard: Clipboard): Promise<TerminalPasteOutcome> {
+  if (typeof clipboard.read === "function") {
+    const items = await clipboard.read();
+    const files: File[] = [];
+
+    for (const item of items) {
+      const type = preferredClipboardAssetType(item);
+      if (!type) continue;
+      const blob = await item.getType(type);
+      files.push(
+        new File([blob], clipboardFileName(files.length, blob.type || type), {
+          type: blob.type || type,
+        }),
+      );
+    }
+
+    if (files.length > 0) return { kind: "asset-files", files };
+  }
+
+  if (typeof clipboard.readText !== "function") return { kind: "empty" };
+  return normalizeClipboardText(await clipboard.readText());
 }
 
 export async function handleTerminalPasteOutcome(
@@ -100,39 +156,62 @@ export async function handleTerminalPasteOutcome(
   controller: TerminalPasteController,
 ): Promise<void> {
   if (outcome.kind === "empty") {
-    controller.onStatus?.("Clipboard is empty.");
+    controller.onStatus?.({ action: "paste", outcome: "empty", method: "clipboard-api" });
     return;
   }
 
-  if (outcome.kind === "unsupported-files") {
-    controller.onStatus?.("Only png, jpeg, webp, and gif images can be pasted.");
-    return;
-  }
-
-  if (outcome.kind === "image-files") {
+  if (outcome.kind === "asset-files") {
     if (!controller.workspaceId) {
-      controller.onStatus?.("Image paste requires a workspace target.");
+      controller.onStatus?.({
+        action: "paste",
+        outcome: "failed",
+        reason: "workspace-required",
+        message: "File paste requires a workspace target.",
+      });
       return;
     }
     if (outcome.files.length > TERMINAL_PASTE_ASSET_MAX_FILES) {
-      controller.onStatus?.(`Paste up to ${TERMINAL_PASTE_ASSET_MAX_FILES} images at once.`);
+      controller.onStatus?.({
+        action: "paste",
+        outcome: "failed",
+        reason: "too-many-files",
+        message: `Paste up to ${TERMINAL_PASTE_ASSET_MAX_FILES} files at once.`,
+      });
       return;
     }
     if (outcome.files.some((file) => file.size > TERMINAL_PASTE_ASSET_MAX_BYTES)) {
-      controller.onStatus?.("Each pasted image must be 5 MiB or smaller.");
+      controller.onStatus?.({
+        action: "paste",
+        outcome: "failed",
+        reason: "file-too-large",
+        message: "Each pasted file must be 10 MiB or smaller.",
+      });
       return;
     }
 
     try {
-      const paths = await uploadTerminalPasteImages(controller.workspaceId, outcome.files);
+      controller.onStatus?.({ action: "paste", outcome: "uploading", method: "clipboard-api" });
+      const paths = await uploadTerminalPasteAssets(controller.workspaceId, outcome.files);
+      if (paths.length === 1) {
+        pasteTextToXterm(controller.term, controller.send, paths[0] ?? "");
+        controller.onStatus?.({ action: "paste", outcome: "pasted", method: "clipboard-api" });
+        return;
+      }
+
       controller.openCompose({
         draft: paths.join("\n"),
         append: true,
         targetLabel: controller.targetLabel,
       });
-      controller.onStatus?.("Pasted image path added to compose.");
-    } catch {
-      controller.onStatus?.("Image paste failed.");
+      controller.onStatus?.({ action: "paste", outcome: "pasted", method: "clipboard-api" });
+    } catch (error) {
+      const reason = error instanceof Error ? error.message : "Failed to upload pasted file";
+      controller.onStatus?.({
+        action: "paste",
+        outcome: "failed",
+        reason: "upload-failed",
+        message: `File paste failed: ${reason}`,
+      });
     }
     return;
   }
@@ -143,17 +222,17 @@ export async function handleTerminalPasteOutcome(
       append: true,
       targetLabel: controller.targetLabel,
     });
-    controller.onStatus?.("Multiline paste staged in compose.");
+    controller.onStatus?.({ action: "paste", outcome: "pasted", method: "clipboard-api" });
     return;
   }
 
   pasteTextToXterm(controller.term, controller.send, outcome.text);
-  controller.onStatus?.("Paste complete.");
+  controller.onStatus?.({ action: "paste", outcome: "pasted", method: "clipboard-api" });
 }
 
 export function readNativePasteOutcome(event: ClipboardEvent): TerminalPasteOutcome {
   const fileOutcome = normalizeClipboardItems(event.clipboardData?.items ?? null);
-  if (fileOutcome.kind === "image-files" || fileOutcome.kind === "unsupported-files") {
+  if (fileOutcome.kind === "asset-files") {
     return fileOutcome;
   }
 
@@ -163,7 +242,7 @@ export function readNativePasteOutcome(event: ClipboardEvent): TerminalPasteOutc
 
 export function readDataTransferOutcome(dataTransfer: DataTransfer | null): TerminalPasteOutcome {
   const fileOutcome = normalizeClipboardItems(dataTransfer?.items ?? null);
-  if (fileOutcome.kind === "image-files" || fileOutcome.kind === "unsupported-files") {
+  if (fileOutcome.kind === "asset-files") {
     return fileOutcome;
   }
 

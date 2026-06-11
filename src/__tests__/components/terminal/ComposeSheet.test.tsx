@@ -139,36 +139,6 @@ vi.mock("@/components/ui/sidebar", () => ({
   ),
 }));
 
-vi.mock("@/components/ui/resizable", () => ({
-  ResizablePanelGroup: ({
-    children,
-    className,
-    orientation,
-  }: React.PropsWithChildren<{ className?: string; orientation?: string }>) => (
-    <div className={className} data-orientation={orientation} data-testid="resizable-group">
-      {children}
-    </div>
-  ),
-  ResizablePanel: ({
-    children,
-    defaultSize,
-    minSize,
-    maxSize,
-  }: React.PropsWithChildren<{ defaultSize?: number; minSize?: number; maxSize?: number }>) => (
-    <div
-      data-default-size={defaultSize}
-      data-max-size={maxSize}
-      data-min-size={minSize}
-      data-testid="resizable-panel"
-    >
-      {children}
-    </div>
-  ),
-  ResizableHandle: ({ withHandle }: { withHandle?: boolean }) => (
-    <div data-testid="resizable-handle" data-with-handle={withHandle ? "true" : "false"} />
-  ),
-}));
-
 vi.mock("@/components/ui/sheet", () => ({
   Sheet: ({
     children,
@@ -270,7 +240,7 @@ describe("TerminalClient compose sheet", () => {
     cleanup();
   });
 
-  it("preserves the desktop ResizablePanelGroup compose layout", async () => {
+  it("uses a fixed-height collapsible desktop compose panel", async () => {
     await renderTerminalClient(false);
 
     expect(screen.getByTestId("interactive-terminal")).toHaveAttribute(
@@ -285,7 +255,7 @@ describe("TerminalClient compose sheet", () => {
       "data-pin-to-bottom-on-resize",
       "false",
     );
-    expect(screen.getByTestId("resizable-group")).toHaveAttribute("data-orientation", "vertical");
+    expect(screen.queryByTestId("resizable-group")).not.toBeInTheDocument();
     expect(screen.queryByTestId("compose-sheet")).not.toBeInTheDocument();
     expect(screen.queryByTestId("compose-panel")).not.toBeInTheDocument();
     expect(screen.getByTestId("terminal-desktop-shell")).toHaveAttribute(
@@ -300,11 +270,29 @@ describe("TerminalClient compose sheet", () => {
 
     toggleCompose();
 
-    const panels = screen.getAllByTestId("resizable-panel");
-    expect(panels).toHaveLength(2);
-    expect(panels[0]).toHaveAttribute("data-default-size", "75");
-    expect(screen.getByTestId("resizable-handle")).toHaveAttribute("data-with-handle", "true");
+    expect(screen.queryByTestId("resizable-panel")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("resizable-handle")).not.toBeInTheDocument();
     expect(screen.getByTestId("compose-panel")).toHaveAttribute("data-hide-header", "false");
+    expect(screen.getByTestId("compose-panel").parentElement).toHaveClass(
+      "flex",
+      "h-full",
+      "min-h-0",
+      "overflow-hidden",
+      "rounded-lg",
+      "border",
+      "border-primary",
+      "bg-black",
+      "shadow-sm",
+      "ring-1",
+      "ring-primary",
+    );
+    expect(screen.getByTestId("compose-panel").parentElement?.parentElement).toHaveClass(
+      "h-72",
+      "min-h-56",
+      "shrink-0",
+      "p-1",
+      "pt-0",
+    );
   });
 
   it("uses a full-height bottom Sheet below the compose breakpoint", async () => {
@@ -362,8 +350,8 @@ describe("TerminalClient compose sheet", () => {
     );
     expect(screen.getByTestId("compose-sheet-content")).toHaveStyle({
       bottom: "0px",
-      height: "var(--app-viewport-height)",
-      maxHeight: "var(--app-viewport-height)",
+      height: "var(--app-visual-viewport-height)",
+      maxHeight: "var(--app-visual-viewport-height)",
       paddingBottom: "var(--safe-area-inset-bottom)",
     });
     expect(screen.getByText("Compose command")).toHaveClass("sr-only");
@@ -454,8 +442,8 @@ describe("TerminalClient compose sheet", () => {
     expect(screen.getByTestId("compose-sheet-content")).toHaveAttribute("data-side", "bottom");
     expect(screen.getByTestId("compose-sheet-content")).toHaveStyle({
       bottom: "0px",
-      height: "var(--app-viewport-height)",
-      maxHeight: "var(--app-viewport-height)",
+      height: "var(--app-visual-viewport-height)",
+      maxHeight: "var(--app-visual-viewport-height)",
       paddingBottom: "var(--safe-area-inset-bottom)",
     });
     expect(screen.getByTestId("terminal-mobile-controls")).toBeInTheDocument();

@@ -28,9 +28,10 @@ const mockRegister = vi.fn();
 const mockUnregister = vi.fn();
 const mockRouterPush = vi.fn();
 const mockToastInfo = vi.hoisted(() => vi.fn());
+const mockToastError = vi.hoisted(() => vi.fn());
 const mockUseIsComposeSheet = vi.hoisted(() => vi.fn(() => false));
 const mockCopyTerminalSelection = vi.hoisted(() => vi.fn());
-const mockPasteToTerminal = vi.hoisted(() => vi.fn());
+const mockPasteClipboardApiToTerminal = vi.hoisted(() => vi.fn());
 const mockTriggerHapticFeedback = vi.hoisted(() => vi.fn());
 let emitConnectionStateOnCallbackChange = false;
 const mockUseKeepAliveStatus = vi.hoisted(() =>
@@ -108,6 +109,7 @@ vi.mock("next/navigation", () => ({
 
 vi.mock("sonner", () => ({
   toast: {
+    error: mockToastError,
     info: mockToastInfo,
   },
 }));
@@ -255,7 +257,8 @@ vi.mock("@/lib/device/haptics", () => ({
 
 vi.mock("@/lib/terminal/actions", () => ({
   copyTerminalSelection: (...args: unknown[]) => mockCopyTerminalSelection(...args),
-  pasteToTerminal: (...args: unknown[]) => mockPasteToTerminal(...args),
+  pasteClipboardApiToTerminal: (...args: unknown[]) => mockPasteClipboardApiToTerminal(...args),
+  pasteToTerminal: vi.fn(),
 }));
 
 vi.mock("@/lib/utils", () => ({
@@ -518,7 +521,7 @@ describe("MultiSessionWorkspace", () => {
     mockGetSessions.mockResolvedValue({ data: [] });
     mockUseIsComposeSheet.mockReturnValue(false);
     mockCopyTerminalSelection.mockReset();
-    mockPasteToTerminal.mockReset();
+    mockPasteClipboardApiToTerminal.mockReset();
     mockTriggerHapticFeedback.mockReset();
     mockKillSession.mockResolvedValue({ data: { name: "main-session" } });
     mockCloseGitCloneTerminal.mockResolvedValue({ data: { sessionName: "git-clone-safe-hive" } });
@@ -609,7 +612,7 @@ describe("MultiSessionWorkspace", () => {
     expect(mainTerm.focus).not.toHaveBeenCalled();
 
     fireEvent.click(screen.getByTestId("terminal-paste-clipboard"));
-    expect(mockPasteToTerminal).toHaveBeenCalledWith(
+    expect(mockPasteClipboardApiToTerminal).toHaveBeenCalledWith(
       mainTerm,
       mainSend,
       expect.objectContaining({
@@ -621,6 +624,33 @@ describe("MultiSessionWorkspace", () => {
     fireEvent.click(screen.getByTestId("terminal-window-next"));
     expect(screen.getByTestId("active-pane-label")).toHaveTextContent("dev-server");
     expect(mainTerm.focus).not.toHaveBeenCalled();
+  });
+
+  it("shows a toast with the exact paste limit error", async () => {
+    mockUseIsComposeSheet.mockReturnValue(true);
+    mockPasteClipboardApiToTerminal.mockImplementation((_term, _send, options) => {
+      options?.onStatus?.({
+        action: "paste",
+        outcome: "failed",
+        reason: "file-too-large",
+        message: "Each pasted file must be 10 MiB or smaller.",
+      });
+      return false;
+    });
+    await renderTwoSessionWorkspace();
+
+    const mainTerm = makeTerminal("main-session");
+    const mainSend = makeSender("main-session");
+    act(() => {
+      terminalProps.get("main-session")?.onTerminalReady?.(mainTerm, mainSend);
+    });
+
+    fireEvent.click(screen.getByTestId("terminal-paste-clipboard"));
+
+    expect(screen.getByTestId("terminal-clipboard-status")).toHaveTextContent(
+      "Each pasted file must be 10 MiB or smaller.",
+    );
+    expect(mockToastError).toHaveBeenCalledWith("Each pasted file must be 10 MiB or smaller.");
   });
 
   it("passes multi-session selection mode to mobile workspace panes", async () => {
@@ -2343,7 +2373,10 @@ describe("MultiSessionWorkspace", () => {
         },
       },
     });
+    const serverError =
+      "Configured home folder is not available. Mount the home root, then refresh.";
     mockResolveGitCloneTerminal.mockResolvedValueOnce({
+      serverError,
       data: {
         sessionName: "",
         clonePath: "/home/coder/projects/kethalia/hive",
@@ -2363,12 +2396,13 @@ describe("MultiSessionWorkspace", () => {
       fireEvent.click(screen.getByRole("button", { name: /Add kethalia\/hive/ }));
     });
 
-    expect(await screen.findByTestId("git-session-add-error")).toHaveTextContent(
-      "Could not add Git terminal. No terminal contents or clone proof were logged.",
-    );
+    expect(await screen.findByTestId("git-session-add-error")).toHaveTextContent(serverError);
     expect(screen.getByTestId("git-session-add-error").textContent).not.toMatch(
       /secret-proof|\/home\/coder/,
     );
+    expect(mockToastError).toHaveBeenCalledWith("Could not add Git terminal", {
+      description: serverError,
+    });
     expect(screen.getByTestId("multi-session-empty")).toBeInTheDocument();
     expect(window.localStorage.getItem("workspace-board-state:git:ws-1")).toBeNull();
   });

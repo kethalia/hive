@@ -5,6 +5,7 @@ import {
   normalizeClipboardItems,
   normalizeClipboardText,
   pasteTextToXterm,
+  readClipboardApiOutcome,
 } from "@/lib/terminal/clipboard";
 
 describe("terminal clipboard normalization", () => {
@@ -22,7 +23,7 @@ describe("terminal clipboard normalization", () => {
     });
   });
 
-  it("classifies image and unsupported file clipboard items", () => {
+  it("classifies image and generic file clipboard items", () => {
     const imageFile = new File(["png"], "pasted.png", { type: "image/png" });
     const textFile = new File(["txt"], "notes.txt", { type: "text/plain" });
     const imageItems = {
@@ -36,13 +37,38 @@ describe("terminal clipboard normalization", () => {
     } as unknown as DataTransferItemList;
 
     expect(normalizeClipboardItems(imageItems)).toEqual({
-      kind: "image-files",
+      kind: "asset-files",
       files: [imageFile],
     });
     expect(normalizeClipboardItems(mixedItems)).toEqual({
-      kind: "unsupported-files",
+      kind: "asset-files",
       files: [imageFile, textFile],
     });
+  });
+
+  it("selects one preferred asset type from each Clipboard API item", async () => {
+    const pngBlob = new Blob(["png"], { type: "image/png" });
+    const tiffBlob = new Blob(["tiff"], { type: "image/tiff" });
+    const getType = vi.fn(async (type: string) => (type === "image/png" ? pngBlob : tiffBlob));
+    const clipboard = {
+      read: vi.fn().mockResolvedValue([
+        {
+          types: ["text/html", "image/tiff", "image/png"],
+          getType,
+        },
+      ]),
+      readText: vi.fn(),
+    };
+
+    const outcome = await readClipboardApiOutcome(clipboard as unknown as Clipboard);
+
+    expect(outcome).toMatchObject({
+      kind: "asset-files",
+      files: [expect.objectContaining({ name: "clipboard-1.png", type: "image/png" })],
+    });
+    expect(getType).toHaveBeenCalledOnce();
+    expect(getType).toHaveBeenCalledWith("image/png");
+    expect(clipboard.readText).not.toHaveBeenCalled();
   });
 });
 
@@ -74,6 +100,92 @@ describe("terminal paste dispatch", () => {
     });
   });
 
+  it("pastes a single uploaded file path directly to the terminal", async () => {
+    const imageFile = new File(["png"], "pasted.png", { type: "image/png" });
+    const openCompose = vi.fn();
+    const onStatus = vi.fn();
+    const send = vi.fn();
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: true,
+        json: vi.fn().mockResolvedValue({
+          paths: ["/tmp/hive-terminal-paste/pasted.png"],
+        }),
+      }),
+    );
+
+    await handleTerminalPasteOutcome(
+      { kind: "asset-files", files: [imageFile] },
+      {
+        term: null,
+        send,
+        openCompose,
+        workspaceId: "workspace-1",
+        onStatus,
+      },
+    );
+
+    expect(send).toHaveBeenCalledWith("/tmp/hive-terminal-paste/pasted.png");
+    expect(openCompose).not.toHaveBeenCalled();
+    expect(onStatus).toHaveBeenCalledWith({
+      action: "paste",
+      outcome: "uploading",
+      method: "clipboard-api",
+    });
+    expect(onStatus).toHaveBeenCalledWith({
+      action: "paste",
+      outcome: "pasted",
+      method: "clipboard-api",
+    });
+  });
+
+  it("stages multiple uploaded file paths in compose", async () => {
+    const imageFile = new File(["png"], "pasted.png", { type: "image/png" });
+    const textFile = new File(["txt"], "notes.txt", { type: "text/plain" });
+    const openCompose = vi.fn();
+    const onStatus = vi.fn();
+    const send = vi.fn();
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: true,
+        json: vi.fn().mockResolvedValue({
+          paths: ["/tmp/hive-terminal-paste/pasted.png", "/tmp/hive-terminal-paste/notes.txt"],
+        }),
+      }),
+    );
+
+    await handleTerminalPasteOutcome(
+      { kind: "asset-files", files: [imageFile, textFile] },
+      {
+        term: null,
+        send,
+        openCompose,
+        workspaceId: "workspace-1",
+        targetLabel: "main",
+        onStatus,
+      },
+    );
+
+    expect(send).not.toHaveBeenCalled();
+    expect(openCompose).toHaveBeenCalledWith({
+      draft: "/tmp/hive-terminal-paste/pasted.png\n/tmp/hive-terminal-paste/notes.txt",
+      append: true,
+      targetLabel: "main",
+    });
+    expect(onStatus).toHaveBeenCalledWith({
+      action: "paste",
+      outcome: "uploading",
+      method: "clipboard-api",
+    });
+    expect(onStatus).toHaveBeenCalledWith({
+      action: "paste",
+      outcome: "pasted",
+      method: "clipboard-api",
+    });
+  });
+
   it("reports image upload failure without throwing", async () => {
     const imageFile = new File(["png"], "pasted.png", { type: "image/png" });
     const openCompose = vi.fn();
@@ -87,7 +199,7 @@ describe("terminal paste dispatch", () => {
     );
 
     await handleTerminalPasteOutcome(
-      { kind: "image-files", files: [imageFile] },
+      { kind: "asset-files", files: [imageFile] },
       {
         term: null,
         send: vi.fn(),
@@ -98,6 +210,11 @@ describe("terminal paste dispatch", () => {
     );
 
     expect(openCompose).not.toHaveBeenCalled();
-    expect(onStatus).toHaveBeenCalledWith("Image paste failed.");
+    expect(onStatus).toHaveBeenCalledWith({
+      action: "paste",
+      outcome: "failed",
+      reason: "upload-failed",
+      message: "File paste failed: upload failed with payload details",
+    });
   });
 });

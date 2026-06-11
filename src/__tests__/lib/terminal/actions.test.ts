@@ -2,6 +2,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   copyTerminalSelection,
+  pasteClipboardApiToTerminal,
   pasteNativeClipboardEventToTerminal,
   pasteToTerminal,
 } from "@/lib/terminal/actions";
@@ -16,12 +17,14 @@ function makeMockTerminal(selection = "") {
 function installClipboard(options: {
   writeText?: ReturnType<typeof vi.fn>;
   readText?: ReturnType<typeof vi.fn>;
+  read?: ReturnType<typeof vi.fn>;
 }) {
   Object.defineProperty(navigator, "clipboard", {
     configurable: true,
     value: {
       writeText: options.writeText,
       readText: options.readText,
+      read: options.read,
     },
   });
 }
@@ -299,6 +302,85 @@ describe("pasteToTerminal", () => {
     expect(send).not.toHaveBeenCalled();
     expect(warningText()).toContain("[clipboard] paste fallback attempted");
     expect(warningText()).not.toContain("pasted terminal payload");
+  });
+});
+
+describe("pasteClipboardApiToTerminal", () => {
+  beforeEach(() => {
+    installExecCommand(true);
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+    vi.unstubAllGlobals();
+  });
+
+  it("uploads image clipboard items and pastes a single returned workspace path directly", async () => {
+    const pngBlob = new Blob(["png"], { type: "image/png" });
+    const read = vi.fn().mockResolvedValue([
+      {
+        types: ["image/png"],
+        getType: vi.fn().mockResolvedValue(pngBlob),
+      },
+    ]);
+    installClipboard({ read, readText: vi.fn() });
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: true,
+        json: vi.fn().mockResolvedValue({ paths: ["/tmp/hive-terminal-paste/image.png"] }),
+      }),
+    );
+    const onCompose = vi.fn();
+    const onStatus = vi.fn();
+    const send = vi.fn();
+
+    const result = pasteClipboardApiToTerminal(null, send, {
+      onCompose,
+      onStatus,
+      workspaceId: "workspace-1",
+      targetLabel: "main",
+    });
+
+    expect(result).toBe(false);
+    await vi.waitFor(() => {
+      expect(fetch).toHaveBeenCalledWith(
+        "/api/workspaces/workspace-1/terminal/paste-assets",
+        expect.objectContaining({
+          method: "POST",
+          body: expect.any(FormData),
+        }),
+      );
+      expect(send).toHaveBeenCalledWith("/tmp/hive-terminal-paste/image.png");
+      expect(onStatus).toHaveBeenCalledWith({
+        action: "paste",
+        outcome: "uploading",
+        method: "clipboard-api",
+      });
+      expect(onStatus).toHaveBeenCalledWith({
+        action: "paste",
+        outcome: "pasted",
+        method: "clipboard-api",
+      });
+    });
+    expect(onCompose).not.toHaveBeenCalled();
+  });
+
+  it("falls back to native handling when the Clipboard API cannot read", () => {
+    removeClipboard();
+    const send = vi.fn();
+    const onStatus = vi.fn();
+
+    const result = pasteClipboardApiToTerminal(null, send, { onStatus });
+
+    expect(result).toBe(true);
+    expect(onStatus).toHaveBeenCalledWith({
+      action: "paste",
+      outcome: "fallback",
+      reason: "clipboard-api-unavailable",
+      method: "native-browser",
+    });
   });
 });
 

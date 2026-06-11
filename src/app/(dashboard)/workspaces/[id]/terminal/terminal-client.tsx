@@ -5,13 +5,13 @@ import dynamic from "next/dynamic";
 import { useRouter, useSearchParams } from "next/navigation";
 import type { PointerEvent } from "react";
 import { Suspense, useCallback, useEffect, useRef, useState } from "react";
+import { toast } from "sonner";
 import { CommandPalette } from "@/components/terminal/CommandPalette";
 import { ComposePanel } from "@/components/terminal/ComposePanel";
 import { MobileTerminalControls } from "@/components/terminal/MobileTerminalControls";
 import { MobileTerminalDiagnosticsOverlay } from "@/components/terminal/MobileTerminalDiagnosticsOverlay";
 import { MobileTerminalShell } from "@/components/terminal/MobileTerminalShell";
 import { Button } from "@/components/ui/button";
-import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import {
   SingleTerminalSessionHeader,
@@ -32,7 +32,7 @@ import {
 import {
   type ClipboardActionStatus,
   copyTerminalSelection,
-  pasteToTerminal,
+  pasteClipboardApiToTerminal,
 } from "@/lib/terminal/actions";
 import type { TerminalComposeRequest } from "@/lib/terminal/clipboard";
 import { COMPOSE_SHEET_DISMISS_DRAG_PX } from "@/lib/terminal/config";
@@ -129,7 +129,9 @@ function clipboardStatusText(
         return "No terminal selection. Terminal interrupt shortcuts remain available.";
       case "paste":
         if (status.outcome === "pasted") return "Paste complete.";
+        if (status.outcome === "uploading") return "Uploading pasted files...";
         if (status.outcome === "empty") return "Clipboard was empty.";
+        if (status.outcome === "failed") return status.message;
         if (status.reason === "clipboard-api-unavailable") {
           return clipboardFallbackText(status.reason);
         }
@@ -146,6 +148,11 @@ function clipboardStatusText(
     return "Terminal ready. Select terminal text to copy; paste will enable after connection.";
   }
   return "Terminal ready. Use Select for text selection, Copy, or Paste.";
+}
+
+function toastPasteError(status: ClipboardActionStatus): void {
+  if (status.action !== "paste" || status.outcome !== "failed") return;
+  toast.error(status.message ?? "Paste failed.");
 }
 
 function TerminalInner({
@@ -327,10 +334,15 @@ function TerminalInner({
     setClipboardActionStatus(null);
   }, []);
 
+  const handleClipboardActionStatus = useCallback((status: ClipboardActionStatus) => {
+    setClipboardActionStatus(status);
+    toastPasteError(status);
+  }, []);
+
   const handleMobileCopy = useCallback(() => {
     if (!activeTerminal) return;
-    copyTerminalSelection(activeTerminal, { onStatus: setClipboardActionStatus });
-  }, [activeTerminal]);
+    copyTerminalSelection(activeTerminal, { onStatus: handleClipboardActionStatus });
+  }, [activeTerminal, handleClipboardActionStatus]);
 
   const openComposeWithDraft = useCallback((request: TerminalComposeRequest) => {
     setComposeTargetLabel(request.targetLabel);
@@ -352,13 +364,20 @@ function TerminalInner({
 
   const handleMobilePaste = useCallback(() => {
     if (!activeSend) return;
-    pasteToTerminal(activeTerminal ?? null, activeSend, {
-      onStatus: setClipboardActionStatus,
+    pasteClipboardApiToTerminal(activeTerminal ?? null, activeSend, {
+      onStatus: handleClipboardActionStatus,
       onCompose: openComposeWithDraft,
       targetLabel: session ?? undefined,
       workspaceId,
     });
-  }, [activeSend, activeTerminal, openComposeWithDraft, session, workspaceId]);
+  }, [
+    activeSend,
+    activeTerminal,
+    handleClipboardActionStatus,
+    openComposeWithDraft,
+    session,
+    workspaceId,
+  ]);
 
   useEffect(() => {
     if (!session || isComposeSheet || composeOpen || selectionModeEnabled || !activeTerminal) {
@@ -581,13 +600,7 @@ function TerminalInner({
         onTerminalReady={handleTerminalReady}
         onTerminalDestroy={handleTerminalDestroy}
         onComposeRequest={openComposeWithDraft}
-        onClipboardStatus={(message) =>
-          setClipboardActionStatus({
-            action: "paste",
-            outcome: message === "Clipboard is empty." ? "empty" : "pasted",
-            method: "clipboard-api",
-          })
-        }
+        onClipboardStatus={handleClipboardActionStatus}
         targetLabel={session}
         layoutSignal={mobileLayoutSignal}
         mobileInputMode={isComposeSheet}
@@ -705,34 +718,29 @@ function TerminalInner({
       onKeyDown={(e) => e.stopPropagation()}
     >
       <SingleTerminalSessionHeader sessionLabel={session} />
-      <div className="min-h-0 flex-1 overflow-hidden">
-        <ResizablePanelGroup orientation="vertical" className="h-full">
-          <ResizablePanel defaultSize={composeOpen ? 75 : 100} minSize={30}>
-            <div className="h-full min-h-0 p-1 pt-0">
-              <TerminalSessionFrame
-                label={session}
-                className="h-full rounded-lg"
-                dataTestId="single-terminal-frame"
-                showHeader={false}
-              >
-                {terminalPane}
-              </TerminalSessionFrame>
+      <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+        <div className="min-h-0 flex-1 p-1 pt-0">
+          <TerminalSessionFrame
+            label={session}
+            className="h-full rounded-lg"
+            dataTestId="single-terminal-frame"
+            showHeader={false}
+          >
+            {terminalPane}
+          </TerminalSessionFrame>
+        </div>
+        {composeOpen ? (
+          <div className="h-72 min-h-56 shrink-0 p-1 pt-0">
+            <div className="flex h-full min-h-0 flex-col overflow-hidden rounded-lg border border-primary bg-black shadow-sm ring-1 ring-primary">
+              <ComposePanel
+                initialDraft={composeDraft}
+                targetLabel={composeTargetLabel}
+                onSend={sendComposeDraft}
+                onClose={closeCompose}
+              />
             </div>
-          </ResizablePanel>
-          {composeOpen && (
-            <>
-              <ResizableHandle withHandle />
-              <ResizablePanel defaultSize={25} minSize={10} maxSize={50}>
-                <ComposePanel
-                  initialDraft={composeDraft}
-                  targetLabel={composeTargetLabel}
-                  onSend={sendComposeDraft}
-                  onClose={closeCompose}
-                />
-              </ResizablePanel>
-            </>
-          )}
-        </ResizablePanelGroup>
+          </div>
+        ) : null}
       </div>
       {terminalControlsBeyondMobile ? terminalControls : null}
       <MobileTerminalDiagnosticsOverlay enabled={debugViewportEnabled} />

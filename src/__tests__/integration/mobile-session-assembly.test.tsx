@@ -328,6 +328,7 @@ vi.mock("@/lib/actions/workspaces", () => ({
 
 vi.mock("@/lib/terminal/actions", () => ({
   copyTerminalSelection: vi.fn(),
+  pasteClipboardApiToTerminal: vi.fn(),
   pasteToTerminal: vi.fn(),
 }));
 

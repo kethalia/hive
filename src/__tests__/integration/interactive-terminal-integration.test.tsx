@@ -47,6 +47,8 @@ const {
   mockGetWorkspaceAgentAction,
   mockGetWorkspaceSessionsAction,
   mockHandleKeyEvent,
+  mockPasteClipboardApiToTerminal,
+  mockPasteNativeClipboardEventToTerminal,
   mockUseFavoriteWindowNavigation,
   mockPasteToTerminal,
   mockRegisterKeybinding,
@@ -71,6 +73,8 @@ const {
     mockGetWorkspaceAgentAction: vi.fn(),
     mockGetWorkspaceSessionsAction: vi.fn(),
     mockHandleKeyEvent: handleKeyEvent,
+    mockPasteClipboardApiToTerminal: vi.fn(),
+    mockPasteNativeClipboardEventToTerminal: vi.fn(),
     mockUseFavoriteWindowNavigation: vi.fn(),
     mockPasteToTerminal: vi.fn(),
     mockRegisterKeybinding: register,
@@ -600,6 +604,9 @@ vi.mock("@/lib/device/haptics", () => ({
 
 vi.mock("@/lib/terminal/actions", () => ({
   copyTerminalSelection: mockCopyTerminalSelection,
+  dropDataTransferToTerminal: vi.fn(),
+  pasteClipboardApiToTerminal: mockPasteClipboardApiToTerminal,
+  pasteNativeClipboardEventToTerminal: mockPasteNativeClipboardEventToTerminal,
   pasteToTerminal: mockPasteToTerminal,
 }));
 
@@ -633,6 +640,8 @@ beforeEach(() => {
   navigationState.router.push.mockClear();
   navigationState.router.replace.mockClear();
   mockCopyTerminalSelection.mockReset();
+  mockPasteClipboardApiToTerminal.mockReset();
+  mockPasteNativeClipboardEventToTerminal.mockReset();
   mockPasteToTerminal.mockReset();
   mockCreateSessionAction.mockReset();
   mockGetTerminalSettingsAction.mockReset();
@@ -723,6 +732,7 @@ type RenderTerminalOptions = {
   cloneProof?: string;
   layoutSignal?: unknown;
   mobileInputMode?: boolean;
+  onComposeRequest?: (request: unknown) => void;
   onConnectionStateChange?: (state: ConnectionState) => void;
   onRecoveryStateChange?: (state: TerminalRecoveryState) => void;
   onUserFocusRequest?: () => void;
@@ -1870,7 +1880,7 @@ describe("TerminalClient integration — Mobile terminal route props", () => {
       options?.onStatus?.({ action: "copy", outcome: "copied", method: "clipboard-api" });
       return false;
     });
-    mockPasteToTerminal.mockImplementation((_term, _send, options) => {
+    mockPasteClipboardApiToTerminal.mockImplementation((_term, _send, options) => {
       options?.onStatus?.({ action: "paste", outcome: "pasted", method: "clipboard-api" });
       return false;
     });
@@ -1890,7 +1900,7 @@ describe("TerminalClient integration — Mobile terminal route props", () => {
     expect(getByTestId("terminal-clipboard-status")).not.toHaveTextContent("non-empty-selection");
 
     fireEvent.click(getByTestId("terminal-paste-clipboard"));
-    expect(mockPasteToTerminal).toHaveBeenCalledWith(
+    expect(mockPasteClipboardApiToTerminal).toHaveBeenCalledWith(
       activeTerminal,
       activeSend,
       expect.objectContaining({ onStatus: expect.any(Function) }),
@@ -1918,7 +1928,7 @@ describe("TerminalClient integration — Mobile terminal route props", () => {
     );
     expect(getByTestId("terminal-clipboard-status")).toHaveTextContent("Terminal is not ready");
     expect(mockCopyTerminalSelection).not.toHaveBeenCalled();
-    expect(mockPasteToTerminal).not.toHaveBeenCalled();
+    expect(mockPasteClipboardApiToTerminal).not.toHaveBeenCalled();
     unmount();
   });
 
@@ -2374,6 +2384,91 @@ describe("InteractiveTerminal integration — Mobile input adapter", () => {
     expect(desktopHelper).not.toHaveAttribute("data-terminal-mobile-input");
     expect(desktopHelper).not.toHaveAttribute("autocorrect");
     desktop.unmount();
+  });
+
+  it("intercepts terminal Ctrl+V through the browser clipboard before xterm sends it", async () => {
+    const onComposeRequest = vi.fn();
+    mockPasteClipboardApiToTerminal.mockReturnValue(false);
+    const { unmount } = await renderTerminal({ onComposeRequest });
+    const terminal = terminalInstances.at(-1);
+    expect(terminal).toBeDefined();
+    const keyHandler = terminal?.attachCustomKeyEventHandler.mock.calls.at(-1)?.[0];
+    expect(keyHandler).toEqual(expect.any(Function));
+
+    const result = keyHandler?.({
+      type: "keydown",
+      key: "v",
+      ctrlKey: true,
+      metaKey: false,
+      altKey: false,
+      shiftKey: false,
+    });
+
+    expect(result).toBe(false);
+    expect(mockPasteClipboardApiToTerminal).toHaveBeenCalledWith(
+      terminal,
+      expect.any(Function),
+      expect.objectContaining({
+        onCompose: onComposeRequest,
+        workspaceId: "test-ws",
+      }),
+    );
+    expect(mockHandleKeyEvent).not.toHaveBeenCalled();
+
+    const nativePaste = new Event("paste", { bubbles: true, cancelable: true }) as ClipboardEvent;
+    Object.defineProperty(nativePaste, "clipboardData", {
+      value: {
+        items: null,
+        getData: vi.fn(() => "echo duplicate"),
+      },
+    });
+    const xterm = document.querySelector(".xterm");
+    expect(xterm).not.toBeNull();
+    xterm?.dispatchEvent(nativePaste);
+
+    expect(nativePaste.defaultPrevented).toBe(true);
+    expect(mockPasteNativeClipboardEventToTerminal).not.toHaveBeenCalled();
+    unmount();
+  });
+
+  it("lets native file paste through after terminal Ctrl+V interception", async () => {
+    const onComposeRequest = vi.fn();
+    mockPasteClipboardApiToTerminal.mockReturnValue(false);
+    const { unmount } = await renderTerminal({ onComposeRequest });
+    const terminal = terminalInstances.at(-1);
+    const keyHandler = terminal?.attachCustomKeyEventHandler.mock.calls.at(-1)?.[0];
+
+    keyHandler?.({
+      type: "keydown",
+      key: "v",
+      ctrlKey: false,
+      metaKey: true,
+      altKey: false,
+      shiftKey: false,
+    });
+
+    const file = new File(["png"], "pasted.png", { type: "image/png" });
+    const nativePaste = new Event("paste", { bubbles: true, cancelable: true }) as ClipboardEvent;
+    Object.defineProperty(nativePaste, "clipboardData", {
+      value: {
+        items: {
+          length: 1,
+          0: { kind: "file", getAsFile: () => file },
+        },
+        getData: vi.fn(() => ""),
+      },
+    });
+    const xterm = document.querySelector(".xterm");
+    xterm?.dispatchEvent(nativePaste);
+
+    expect(mockPasteNativeClipboardEventToTerminal).toHaveBeenCalledWith(
+      nativePaste,
+      expect.objectContaining({
+        onCompose: onComposeRequest,
+        workspaceId: "test-ws",
+      }),
+    );
+    unmount();
   });
 
   it("focuses xterm through the mobile input adapter after native terminal surface taps", async () => {

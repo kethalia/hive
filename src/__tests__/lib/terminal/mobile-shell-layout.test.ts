@@ -32,8 +32,8 @@ describe("mobile shell layout", () => {
     });
     expect(composeSheetKeyboardStyle(false)).toEqual({
       bottom: "0px",
-      height: "var(--app-viewport-height)",
-      maxHeight: "var(--app-viewport-height)",
+      height: "var(--app-visual-viewport-height)",
+      maxHeight: "var(--app-visual-viewport-height)",
       paddingBottom: "var(--safe-area-inset-bottom)",
     });
   });
