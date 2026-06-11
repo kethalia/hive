@@ -11,7 +11,6 @@ import { MobileTerminalControls } from "@/components/terminal/MobileTerminalCont
 import { MobileTerminalDiagnosticsOverlay } from "@/components/terminal/MobileTerminalDiagnosticsOverlay";
 import { MobileTerminalShell } from "@/components/terminal/MobileTerminalShell";
 import { Button } from "@/components/ui/button";
-import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import {
   SingleTerminalSessionHeader,
@@ -709,34 +708,27 @@ function TerminalInner({
       onKeyDown={(e) => e.stopPropagation()}
     >
       <SingleTerminalSessionHeader sessionLabel={session} />
-      <div className="min-h-0 flex-1 overflow-hidden">
-        <ResizablePanelGroup orientation="vertical" className="h-full">
-          <ResizablePanel defaultSize={composeOpen ? 75 : 100} minSize={30}>
-            <div className="h-full min-h-0 p-1 pt-0">
-              <TerminalSessionFrame
-                label={session}
-                className="h-full rounded-lg"
-                dataTestId="single-terminal-frame"
-                showHeader={false}
-              >
-                {terminalPane}
-              </TerminalSessionFrame>
-            </div>
-          </ResizablePanel>
-          {composeOpen && (
-            <>
-              <ResizableHandle withHandle />
-              <ResizablePanel defaultSize={25} minSize={10} maxSize={50}>
-                <ComposePanel
-                  initialDraft={composeDraft}
-                  targetLabel={composeTargetLabel}
-                  onSend={sendComposeDraft}
-                  onClose={closeCompose}
-                />
-              </ResizablePanel>
-            </>
-          )}
-        </ResizablePanelGroup>
+      <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+        <div className="min-h-0 flex-1 p-1 pt-0">
+          <TerminalSessionFrame
+            label={session}
+            className="h-full rounded-lg"
+            dataTestId="single-terminal-frame"
+            showHeader={false}
+          >
+            {terminalPane}
+          </TerminalSessionFrame>
+        </div>
+        {composeOpen ? (
+          <div className="h-72 min-h-56 shrink-0 border-t border-border">
+            <ComposePanel
+              initialDraft={composeDraft}
+              targetLabel={composeTargetLabel}
+              onSend={sendComposeDraft}
+              onClose={closeCompose}
+            />
+          </div>
+        ) : null}
       </div>
       {terminalControlsBeyondMobile ? terminalControls : null}
       <MobileTerminalDiagnosticsOverlay enabled={debugViewportEnabled} />

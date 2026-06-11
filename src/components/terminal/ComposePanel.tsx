@@ -16,6 +16,7 @@ interface ComposePanelProps {
 }
 
 const SEND_COMPOSE_SHORTCUT_KEYS = ["ctrl+enter", "cmd+enter"] as const;
+const TOGGLE_COMPOSE_KEYS = ["`", "Dead"] as const;
 
 export function ComposePanel({
   onClose,
@@ -55,13 +56,19 @@ export function ComposePanel({
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+      if ((e.ctrlKey || e.metaKey) && TOGGLE_COMPOSE_KEYS.some((key) => key === e.key)) {
+        e.preventDefault();
+        onClose();
+        e.stopPropagation();
+        return;
+      }
       if ((e.ctrlKey || e.metaKey) && e.key === "Enter") {
         e.preventDefault();
         sendComposed();
       }
       e.stopPropagation();
     },
-    [sendComposed],
+    [onClose, sendComposed],
   );
 
   return (
