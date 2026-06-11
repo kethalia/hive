@@ -5,6 +5,7 @@ import {
   normalizeClipboardItems,
   normalizeClipboardText,
   pasteTextToXterm,
+  readClipboardApiOutcome,
 } from "@/lib/terminal/clipboard";
 
 describe("terminal clipboard normalization", () => {
@@ -43,6 +44,31 @@ describe("terminal clipboard normalization", () => {
       kind: "asset-files",
       files: [imageFile, textFile],
     });
+  });
+
+  it("selects one preferred asset type from each Clipboard API item", async () => {
+    const pngBlob = new Blob(["png"], { type: "image/png" });
+    const tiffBlob = new Blob(["tiff"], { type: "image/tiff" });
+    const getType = vi.fn(async (type: string) => (type === "image/png" ? pngBlob : tiffBlob));
+    const clipboard = {
+      read: vi.fn().mockResolvedValue([
+        {
+          types: ["text/html", "image/tiff", "image/png"],
+          getType,
+        },
+      ]),
+      readText: vi.fn(),
+    };
+
+    const outcome = await readClipboardApiOutcome(clipboard as unknown as Clipboard);
+
+    expect(outcome).toMatchObject({
+      kind: "asset-files",
+      files: [expect.objectContaining({ name: "clipboard-1.png", type: "image/png" })],
+    });
+    expect(getType).toHaveBeenCalledOnce();
+    expect(getType).toHaveBeenCalledWith("image/png");
+    expect(clipboard.readText).not.toHaveBeenCalled();
   });
 });
 
@@ -102,8 +128,16 @@ describe("terminal paste dispatch", () => {
 
     expect(send).toHaveBeenCalledWith("/tmp/hive-terminal-paste/pasted.png");
     expect(openCompose).not.toHaveBeenCalled();
-    expect(onStatus).toHaveBeenCalledWith("Uploading pasted file...");
-    expect(onStatus).toHaveBeenCalledWith("Paste complete.");
+    expect(onStatus).toHaveBeenCalledWith({
+      action: "paste",
+      outcome: "uploading",
+      method: "clipboard-api",
+    });
+    expect(onStatus).toHaveBeenCalledWith({
+      action: "paste",
+      outcome: "pasted",
+      method: "clipboard-api",
+    });
   });
 
   it("stages multiple uploaded file paths in compose", async () => {
@@ -140,8 +174,16 @@ describe("terminal paste dispatch", () => {
       append: true,
       targetLabel: "main",
     });
-    expect(onStatus).toHaveBeenCalledWith("Uploading pasted files...");
-    expect(onStatus).toHaveBeenCalledWith("Pasted file paths added to compose.");
+    expect(onStatus).toHaveBeenCalledWith({
+      action: "paste",
+      outcome: "uploading",
+      method: "clipboard-api",
+    });
+    expect(onStatus).toHaveBeenCalledWith({
+      action: "paste",
+      outcome: "pasted",
+      method: "clipboard-api",
+    });
   });
 
   it("reports image upload failure without throwing", async () => {
@@ -168,6 +210,11 @@ describe("terminal paste dispatch", () => {
     );
 
     expect(openCompose).not.toHaveBeenCalled();
-    expect(onStatus).toHaveBeenCalledWith("File paste failed.");
+    expect(onStatus).toHaveBeenCalledWith({
+      action: "paste",
+      outcome: "failed",
+      reason: "upload-failed",
+      message: "File paste failed: upload failed with payload details",
+    });
   });
 });

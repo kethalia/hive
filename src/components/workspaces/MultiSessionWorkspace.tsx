@@ -62,7 +62,7 @@ import {
   copyTerminalSelection,
   pasteClipboardApiToTerminal,
 } from "@/lib/terminal/actions";
-import type { TerminalComposeRequest } from "@/lib/terminal/clipboard";
+import type { TerminalComposeRequest, TerminalPasteStatus } from "@/lib/terminal/clipboard";
 import { cn } from "@/lib/utils";
 import {
   type PersistedSessionPane,
@@ -119,6 +119,7 @@ interface InteractiveTerminalComponentProps {
   onTerminalDestroy?: () => void;
   onUserFocusRequest?: () => void;
   onComposeRequest?: (request: TerminalComposeRequest) => void;
+  onClipboardStatus?: (status: TerminalPasteStatus) => void;
   targetLabel?: string;
   layoutSignal?: unknown;
   mobileInputMode?: boolean;
@@ -387,7 +388,7 @@ function clipboardStatusText(
       case "paste":
         if (status.outcome === "uploading") return "Uploading pasted files...";
         if (status.outcome === "empty") return "Clipboard is empty";
-        if (status.outcome === "failed") return "Paste failed";
+        if (status.outcome === "failed") return status.message;
         if (status.outcome === "fallback") return "Use the browser paste control";
         return "Paste complete";
       default:
@@ -2814,6 +2815,7 @@ export function MultiSessionWorkspace({
             selectSession(pane.sessionName, { focusTerminal: false });
           }}
           onComposeRequest={openComposeWithDraft}
+          onClipboardStatus={handleClipboardActionStatus}
           targetLabel={pane.label}
         />
       </TerminalSessionFrame>

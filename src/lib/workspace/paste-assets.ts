@@ -83,16 +83,18 @@ export async function uploadTerminalPasteAssets({
     throw new Error("Failed to store pasted file in workspace");
   }
 
-  for (const upload of plannedUploads) {
-    await writePasteAssetToWorkspace({
-      agentTarget,
-      baseUrl: client.getBaseUrl(),
-      sessionToken: client.getSessionToken(),
-      path: upload.path,
-      bytes: upload.bytes,
-      timeoutMs: Math.max(DEFAULT_EXEC_TIMEOUT_MS, 120_000),
-    });
-  }
+  await Promise.all(
+    plannedUploads.map((upload) =>
+      writePasteAssetToWorkspace({
+        agentTarget,
+        baseUrl: client.getBaseUrl(),
+        sessionToken: client.getSessionToken(),
+        path: upload.path,
+        bytes: upload.bytes,
+        timeoutMs: Math.max(DEFAULT_EXEC_TIMEOUT_MS, 120_000),
+      }),
+    ),
+  );
 
   return plannedUploads.map((upload) => upload.path);
 }

@@ -632,7 +632,7 @@ describe("MultiSessionWorkspace", () => {
       options?.onStatus?.({
         action: "paste",
         outcome: "failed",
-        reason: "clipboard-api-failed",
+        reason: "file-too-large",
         message: "Each pasted file must be 10 MiB or smaller.",
       });
       return false;
@@ -647,7 +647,9 @@ describe("MultiSessionWorkspace", () => {
 
     fireEvent.click(screen.getByTestId("terminal-paste-clipboard"));
 
-    expect(screen.getByTestId("terminal-clipboard-status")).toHaveTextContent("Paste failed");
+    expect(screen.getByTestId("terminal-clipboard-status")).toHaveTextContent(
+      "Each pasted file must be 10 MiB or smaller.",
+    );
     expect(mockToastError).toHaveBeenCalledWith("Each pasted file must be 10 MiB or smaller.");
   });
 

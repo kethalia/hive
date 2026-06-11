@@ -26,11 +26,12 @@ import { TAP_THRESHOLD_PX } from "@/lib/gestures/conventions";
 import { isCloneTerminalSessionName } from "@/lib/git/clone-terminal-session";
 import { getClientRuntimeConfig } from "@/lib/runtime-config";
 import {
+  type ClipboardActionStatus,
   dropDataTransferToTerminal,
   pasteClipboardApiToTerminal,
   pasteNativeClipboardEventToTerminal,
 } from "@/lib/terminal/actions";
-import type { TerminalComposeRequest } from "@/lib/terminal/clipboard";
+import type { TerminalComposeRequest, TerminalPasteStatus } from "@/lib/terminal/clipboard";
 import { EVENT_NAME as FONT_SIZE_EVENT, getTerminalFontSize } from "@/lib/terminal/font-size";
 import {
   blurXtermMobileInput,
@@ -82,7 +83,7 @@ interface InteractiveTerminalProps {
   onTerminalDestroy?: () => void;
   onUserFocusRequest?: () => void;
   onComposeRequest?: (request: TerminalComposeRequest) => void;
-  onClipboardStatus?: (message: string) => void;
+  onClipboardStatus?: (status: TerminalPasteStatus) => void;
   targetLabel?: string;
   layoutSignal?: unknown;
   mobileInputMode?: boolean;
@@ -102,6 +103,16 @@ interface MobileTouchIntent {
 const MOBILE_TERMINAL_SCROLL_THRESHOLD_PX = Math.max(TAP_THRESHOLD_PX + 3, 8);
 const FALLBACK_TERMINAL_ROWS = 24;
 const FALLBACK_TERMINAL_COLS = 80;
+
+function isTerminalPasteStatus(status: ClipboardActionStatus): status is TerminalPasteStatus {
+  return (
+    status.action === "paste" &&
+    (status.outcome === "empty" ||
+      status.outcome === "failed" ||
+      status.outcome === "pasted" ||
+      status.outcome === "uploading")
+  );
+}
 
 function isNonEmptyString(value: unknown): value is string {
   return typeof value === "string" && value.trim().length > 0;
@@ -817,26 +828,7 @@ export function InteractiveTerminal({
           workspaceId,
           targetLabel: targetLabelRef.current,
           onStatus: (status) => {
-            if (status.action !== "paste") return;
-            if (status.outcome === "empty") {
-              onClipboardStatusRef.current?.("Clipboard is empty.");
-              return;
-            }
-            if (status.outcome === "pasted") {
-              onClipboardStatusRef.current?.("Paste complete.");
-              return;
-            }
-            if (status.outcome === "uploading") {
-              onClipboardStatusRef.current?.("Uploading pasted files...");
-              return;
-            }
-            if (status.outcome === "failed") {
-              onClipboardStatusRef.current?.(status.message ?? "Paste failed.");
-              return;
-            }
-            if (status.outcome === "fallback") {
-              onClipboardStatusRef.current?.("Paste fallback was attempted.");
-            }
+            if (isTerminalPasteStatus(status)) onClipboardStatusRef.current?.(status);
           },
         });
         suppressNextNativePasteRef.current = !shouldContinue;
