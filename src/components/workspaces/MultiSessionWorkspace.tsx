@@ -277,10 +277,14 @@ function firstActionErrorMessage(value: unknown): string | null {
 
   if (!isObjectRecord(value)) return null;
 
-  for (const key of ["_errors", "formErrors", "fieldErrors"]) {
-    const message = firstActionErrorMessage(value[key]);
-    if (message) return message;
-  }
+  const directErrors = firstActionErrorMessage(value._errors);
+  if (directErrors) return directErrors;
+
+  const formErrors = firstActionErrorMessage(value.formErrors);
+  if (formErrors) return formErrors;
+
+  const fieldErrors = firstActionErrorMessage(value.fieldErrors);
+  if (fieldErrors) return fieldErrors;
 
   for (const nested of Object.values(value)) {
     const message = firstActionErrorMessage(nested);
