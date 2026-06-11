@@ -362,8 +362,8 @@ describe("TerminalClient compose sheet", () => {
     );
     expect(screen.getByTestId("compose-sheet-content")).toHaveStyle({
       bottom: "0px",
-      height: "var(--app-viewport-height)",
-      maxHeight: "var(--app-viewport-height)",
+      height: "var(--app-visual-viewport-height)",
+      maxHeight: "var(--app-visual-viewport-height)",
       paddingBottom: "var(--safe-area-inset-bottom)",
     });
     expect(screen.getByText("Compose command")).toHaveClass("sr-only");
@@ -454,8 +454,8 @@ describe("TerminalClient compose sheet", () => {
     expect(screen.getByTestId("compose-sheet-content")).toHaveAttribute("data-side", "bottom");
     expect(screen.getByTestId("compose-sheet-content")).toHaveStyle({
       bottom: "0px",
-      height: "var(--app-viewport-height)",
-      maxHeight: "var(--app-viewport-height)",
+      height: "var(--app-visual-viewport-height)",
+      maxHeight: "var(--app-visual-viewport-height)",
       paddingBottom: "var(--safe-area-inset-bottom)",
     });
     expect(screen.getByTestId("terminal-mobile-controls")).toBeInTheDocument();
