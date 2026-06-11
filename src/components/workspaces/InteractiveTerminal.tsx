@@ -191,6 +191,13 @@ function terminalMouseTrackingActive(term: Terminal | null): boolean {
   return term?.modes?.mouseTrackingMode !== undefined && term.modes.mouseTrackingMode !== "none";
 }
 
+function nativePasteHasFiles(event: ClipboardEvent): boolean {
+  const items = event.clipboardData?.items;
+  if (!items || items.length === 0) return false;
+
+  return Array.from(items).some((item) => item.kind === "file" && Boolean(item.getAsFile()));
+}
+
 function dispatchTmuxTouchWheel(
   term: Terminal | null,
   container: HTMLElement | null,
@@ -819,6 +826,10 @@ export function InteractiveTerminal({
               onClipboardStatusRef.current?.("Paste complete.");
               return;
             }
+            if (status.outcome === "uploading") {
+              onClipboardStatusRef.current?.("Uploading pasted files...");
+              return;
+            }
             if (status.outcome === "failed") {
               onClipboardStatusRef.current?.("Paste failed.");
               return;
@@ -857,6 +868,18 @@ export function InteractiveTerminal({
           if (suppressNextNativePasteTimerRef.current !== null) {
             window.clearTimeout(suppressNextNativePasteTimerRef.current);
             suppressNextNativePasteTimerRef.current = null;
+          }
+          if (nativePasteHasFiles(event)) {
+            if (!onComposeRequestRef.current) return;
+            void pasteNativeClipboardEventToTerminal(event, {
+              term,
+              send: sendRaw,
+              onCompose: onComposeRequestRef.current,
+              workspaceId,
+              targetLabel: targetLabelRef.current,
+              onStatus: onClipboardStatusRef.current,
+            });
+            return;
           }
           event.preventDefault();
           event.stopPropagation();

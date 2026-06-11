@@ -145,6 +145,9 @@ export async function handleTerminalPasteOutcome(
     }
 
     try {
+      controller.onStatus?.(
+        outcome.files.length === 1 ? "Uploading pasted file..." : "Uploading pasted files...",
+      );
       const paths = await uploadTerminalPasteAssets(controller.workspaceId, outcome.files);
       if (paths.length === 1) {
         pasteTextToXterm(controller.term, controller.send, paths[0] ?? "");

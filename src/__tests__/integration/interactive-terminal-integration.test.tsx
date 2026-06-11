@@ -2431,6 +2431,46 @@ describe("InteractiveTerminal integration — Mobile input adapter", () => {
     unmount();
   });
 
+  it("lets native file paste through after terminal Ctrl+V interception", async () => {
+    const onComposeRequest = vi.fn();
+    mockPasteClipboardApiToTerminal.mockReturnValue(false);
+    const { unmount } = await renderTerminal({ onComposeRequest });
+    const terminal = terminalInstances.at(-1);
+    const keyHandler = terminal?.attachCustomKeyEventHandler.mock.calls.at(-1)?.[0];
+
+    keyHandler?.({
+      type: "keydown",
+      key: "v",
+      ctrlKey: false,
+      metaKey: true,
+      altKey: false,
+      shiftKey: false,
+    });
+
+    const file = new File(["png"], "pasted.png", { type: "image/png" });
+    const nativePaste = new Event("paste", { bubbles: true, cancelable: true }) as ClipboardEvent;
+    Object.defineProperty(nativePaste, "clipboardData", {
+      value: {
+        items: {
+          length: 1,
+          0: { kind: "file", getAsFile: () => file },
+        },
+        getData: vi.fn(() => ""),
+      },
+    });
+    const xterm = document.querySelector(".xterm");
+    xterm?.dispatchEvent(nativePaste);
+
+    expect(mockPasteNativeClipboardEventToTerminal).toHaveBeenCalledWith(
+      nativePaste,
+      expect.objectContaining({
+        onCompose: onComposeRequest,
+        workspaceId: "test-ws",
+      }),
+    );
+    unmount();
+  });
+
   it("focuses xterm through the mobile input adapter after native terminal surface taps", async () => {
     const onUserFocusRequest = vi.fn();
     const { container, unmount } = await renderTerminal({

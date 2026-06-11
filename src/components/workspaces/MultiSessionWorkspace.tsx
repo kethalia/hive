@@ -340,6 +340,7 @@ function clipboardStatusText(
       case "copy":
         return status.outcome === "copied" ? "Selection copied" : "Select terminal text to copy";
       case "paste":
+        if (status.outcome === "uploading") return "Uploading pasted files...";
         if (status.outcome === "empty") return "Clipboard is empty";
         if (status.outcome === "failed") return "Paste failed";
         if (status.outcome === "fallback") return "Use the browser paste control";

@@ -31,6 +31,11 @@ export type ClipboardActionStatus =
     }
   | {
       action: "paste";
+      outcome: "uploading";
+      method: "clipboard-api";
+    }
+  | {
+      action: "paste";
       outcome: "pasted";
       method: "clipboard-api";
     }
@@ -257,6 +262,15 @@ function emitPasteOutcomeStatus(
       action: "paste",
       outcome: "failed",
       reason: "clipboard-api-failed",
+    });
+    return;
+  }
+
+  if (/uploading/i.test(message)) {
+    emitStatus(options, {
+      action: "paste",
+      outcome: "uploading",
+      method: "clipboard-api",
     });
     return;
   }

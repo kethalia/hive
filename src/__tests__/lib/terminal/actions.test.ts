@@ -355,6 +355,11 @@ describe("pasteClipboardApiToTerminal", () => {
       expect(send).toHaveBeenCalledWith("/tmp/hive-terminal-paste/image.png");
       expect(onStatus).toHaveBeenCalledWith({
         action: "paste",
+        outcome: "uploading",
+        method: "clipboard-api",
+      });
+      expect(onStatus).toHaveBeenCalledWith({
+        action: "paste",
         outcome: "pasted",
         method: "clipboard-api",
       });

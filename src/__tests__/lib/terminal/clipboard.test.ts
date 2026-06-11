@@ -102,6 +102,7 @@ describe("terminal paste dispatch", () => {
 
     expect(send).toHaveBeenCalledWith("/tmp/hive-terminal-paste/pasted.png");
     expect(openCompose).not.toHaveBeenCalled();
+    expect(onStatus).toHaveBeenCalledWith("Uploading pasted file...");
     expect(onStatus).toHaveBeenCalledWith("Paste complete.");
   });
 
@@ -139,6 +140,7 @@ describe("terminal paste dispatch", () => {
       append: true,
       targetLabel: "main",
     });
+    expect(onStatus).toHaveBeenCalledWith("Uploading pasted files...");
     expect(onStatus).toHaveBeenCalledWith("Pasted file paths added to compose.");
   });
 

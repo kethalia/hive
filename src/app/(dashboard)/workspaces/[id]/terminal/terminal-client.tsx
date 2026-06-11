@@ -128,6 +128,7 @@ function clipboardStatusText(
         return "No terminal selection. Terminal interrupt shortcuts remain available.";
       case "paste":
         if (status.outcome === "pasted") return "Paste complete.";
+        if (status.outcome === "uploading") return "Uploading pasted files...";
         if (status.outcome === "empty") return "Clipboard was empty.";
         if (status.outcome === "failed") return "Paste failed.";
         if (status.reason === "clipboard-api-unavailable") {
@@ -586,9 +587,11 @@ function TerminalInner({
             action: "paste",
             ...(message === "Clipboard is empty."
               ? { outcome: "empty", method: "clipboard-api" }
-              : /failed|requires|must be|up to/i.test(message)
-                ? { outcome: "failed", reason: "clipboard-api-failed" }
-                : { outcome: "pasted", method: "clipboard-api" }),
+              : /uploading/i.test(message)
+                ? { outcome: "uploading", method: "clipboard-api" }
+                : /failed|requires|must be|up to/i.test(message)
+                  ? { outcome: "failed", reason: "clipboard-api-failed" }
+                  : { outcome: "pasted", method: "clipboard-api" }),
           })
         }
         targetLabel={session}
