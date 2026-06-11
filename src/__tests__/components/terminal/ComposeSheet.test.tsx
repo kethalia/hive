@@ -274,10 +274,24 @@ describe("TerminalClient compose sheet", () => {
     expect(screen.queryByTestId("resizable-handle")).not.toBeInTheDocument();
     expect(screen.getByTestId("compose-panel")).toHaveAttribute("data-hide-header", "false");
     expect(screen.getByTestId("compose-panel").parentElement).toHaveClass(
+      "flex",
+      "h-full",
+      "min-h-0",
+      "overflow-hidden",
+      "rounded-lg",
+      "border",
+      "border-primary",
+      "bg-black",
+      "shadow-sm",
+      "ring-1",
+      "ring-primary",
+    );
+    expect(screen.getByTestId("compose-panel").parentElement?.parentElement).toHaveClass(
       "h-72",
       "min-h-56",
       "shrink-0",
-      "border-t",
+      "p-1",
+      "pt-0",
     );
   });
 

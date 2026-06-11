@@ -720,13 +720,15 @@ function TerminalInner({
           </TerminalSessionFrame>
         </div>
         {composeOpen ? (
-          <div className="h-72 min-h-56 shrink-0 border-t border-border">
-            <ComposePanel
-              initialDraft={composeDraft}
-              targetLabel={composeTargetLabel}
-              onSend={sendComposeDraft}
-              onClose={closeCompose}
-            />
+          <div className="h-72 min-h-56 shrink-0 p-1 pt-0">
+            <div className="flex h-full min-h-0 flex-col overflow-hidden rounded-lg border border-primary bg-black shadow-sm ring-1 ring-primary">
+              <ComposePanel
+                initialDraft={composeDraft}
+                targetLabel={composeTargetLabel}
+                onSend={sendComposeDraft}
+                onClose={closeCompose}
+              />
+            </div>
           </div>
         ) : null}
       </div>

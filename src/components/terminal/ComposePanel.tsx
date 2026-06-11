@@ -72,10 +72,10 @@ export function ComposePanel({
   );
 
   return (
-    <div className="flex h-full flex-col bg-background">
+    <div className="flex h-full flex-col bg-black text-white">
       {!hideHeader && (
-        <div className="flex items-center border-b border-border px-3 py-1">
-          <span className="text-xs font-medium text-muted-foreground">
+        <div className="flex min-h-8 shrink-0 items-center border-b border-white/10 bg-zinc-950 px-2 py-1">
+          <span className="min-w-0 flex-1 truncate font-mono text-xs text-white">
             Compose{targetLabel ? ` to ${targetLabel}` : ""} —{" "}
             {formatShortcut(SEND_COMPOSE_SHORTCUT_KEYS)} to send
           </span>
@@ -84,14 +84,14 @@ export function ComposePanel({
       <div className="min-h-0 flex-1">
         <textarea
           ref={textareaRef}
-          className="h-full w-full resize-none bg-[#0a0a0a] p-3 font-mono text-sm text-foreground placeholder:text-muted-foreground focus:outline-none"
+          className="h-full w-full resize-none bg-black p-3 font-mono text-sm text-white placeholder:text-zinc-500 focus:outline-none"
           placeholder="Type multi-line command..."
           value={draft}
           onChange={(event) => setDraft(event.currentTarget.value)}
           onKeyDown={handleKeyDown}
         />
       </div>
-      <div className="border-t border-border p-3">
+      <div className="border-t border-white/10 bg-zinc-950 p-3">
         <ButtonGroup aria-label="Compose actions" className="w-full rounded-none">
           <Button type="button" variant="outline" className="min-h-11 flex-1" onClick={onClose}>
             Cancel
