@@ -2371,7 +2371,10 @@ describe("MultiSessionWorkspace", () => {
         },
       },
     });
+    const serverError =
+      "Configured home folder is not available. Mount the home root, then refresh.";
     mockResolveGitCloneTerminal.mockResolvedValueOnce({
+      serverError,
       data: {
         sessionName: "",
         clonePath: "/home/coder/projects/kethalia/hive",
@@ -2391,12 +2394,13 @@ describe("MultiSessionWorkspace", () => {
       fireEvent.click(screen.getByRole("button", { name: /Add kethalia\/hive/ }));
     });
 
-    expect(await screen.findByTestId("git-session-add-error")).toHaveTextContent(
-      "Could not add Git terminal. No terminal contents or clone proof were logged.",
-    );
+    expect(await screen.findByTestId("git-session-add-error")).toHaveTextContent(serverError);
     expect(screen.getByTestId("git-session-add-error").textContent).not.toMatch(
       /secret-proof|\/home\/coder/,
     );
+    expect(mockToastError).toHaveBeenCalledWith("Could not add Git terminal", {
+      description: serverError,
+    });
     expect(screen.getByTestId("multi-session-empty")).toBeInTheDocument();
     expect(window.localStorage.getItem("workspace-board-state:git:ws-1")).toBeNull();
   });

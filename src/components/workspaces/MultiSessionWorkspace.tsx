@@ -256,6 +256,51 @@ function isObjectRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
 }
 
+const GIT_TERMINAL_ADD_ERROR_TITLE = "Could not add Git terminal";
+const GIT_TERMINAL_ADD_FALLBACK_MESSAGE =
+  "Could not add Git terminal. No terminal contents or clone proof were logged.";
+
+function firstActionErrorMessage(value: unknown): string | null {
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    return trimmed.length > 0 ? trimmed : null;
+  }
+
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      const message = firstActionErrorMessage(item);
+      if (message) return message;
+    }
+    return null;
+  }
+
+  if (!isObjectRecord(value)) return null;
+
+  for (const key of ["_errors", "formErrors", "fieldErrors"]) {
+    const message = firstActionErrorMessage(value[key]);
+    if (message) return message;
+  }
+
+  for (const nested of Object.values(value)) {
+    const message = firstActionErrorMessage(nested);
+    if (message) return message;
+  }
+
+  return null;
+}
+
+function actionFailureMessage(result: unknown, fallback: string): string {
+  if (!isObjectRecord(result)) return fallback;
+
+  const serverError = firstActionErrorMessage(result.serverError);
+  if (serverError) return serverError;
+
+  const validationError = firstActionErrorMessage(result.validationErrors);
+  if (validationError) return validationError;
+
+  return fallback;
+}
+
 function normalizeSessionName(value: unknown): string | null {
   if (typeof value !== "string") return null;
   const trimmed = value.trim();
@@ -839,7 +884,7 @@ export function MultiSessionWorkspace({
   const [terminalStateVersion, setTerminalStateVersion] = useState(0);
   const [gitSearchQuery, setGitSearchQuery] = useState("");
   const [addingCloneKey, setAddingCloneKey] = useState<string | null>(null);
-  const [gitAddFailed, setGitAddFailed] = useState(false);
+  const [gitAddError, setGitAddError] = useState<string | null>(null);
   const [gitRestoreFailed, setGitRestoreFailed] = useState(false);
   const [terminalCloseFailed, setTerminalCloseFailed] = useState(false);
   const [persistedLayoutJson, setPersistedLayoutJson] = useState<string | null>(null);
@@ -855,6 +900,11 @@ export function MultiSessionWorkspace({
   >({});
   const terminalsRef = useRef<Map<string, TerminalEntry>>(new Map());
   const activeSessionNameRef = useRef<string | null>(null);
+
+  const showGitAddFailure = useCallback((message: string) => {
+    setGitAddError(message);
+    toast.error(GIT_TERMINAL_ADD_ERROR_TITLE, { description: message });
+  }, []);
   const workspaceRootRef = useRef<HTMLElement>(null);
   const workspaceBodyRef = useRef<HTMLDivElement>(null);
   const gitSearchInputRef = useRef<HTMLInputElement>(null);
@@ -1476,13 +1526,13 @@ export function MultiSessionWorkspace({
   const openGitSearchModal = useCallback(() => {
     if (!isUnifiedSource) return;
     setGitSearchOpen(true);
-    setGitAddFailed(false);
+    setGitAddError(null);
   }, [isUnifiedSource]);
 
   const closeGitSearchModal = useCallback(() => {
     setGitSearchOpen(false);
     setGitSearchQuery("");
-    setGitAddFailed(false);
+    setGitAddError(null);
   }, []);
 
   const handleWorkspaceShortcutKeyDown = useCallback(
@@ -1678,7 +1728,7 @@ export function MultiSessionWorkspace({
     setGitFavoritesFailed(false);
     setGitSearchOpen(false);
     setGitSearchQuery("");
-    setGitAddFailed(false);
+    setGitAddError(null);
     setGitRestoreFailed(false);
     setTerminalCloseFailed(false);
     setPaneRecoveryStates({});
@@ -1944,19 +1994,18 @@ export function MultiSessionWorkspace({
   const openGitRepositoryTerminalPage = useCallback(
     async (repository: GitRepositoryOption) => {
       setAddingCloneKey(gitPaneIdentity(repository.cloneSessionKey, repository.relativePath));
-      setGitAddFailed(false);
+      setGitAddError(null);
 
       try {
-        const identity = unwrapActionData(
-          await resolveGitCloneTerminalAction({
-            agentId,
-            workspaceId,
-            cloneSessionKey: repository.cloneSessionKey,
-            relativePath: repository.relativePath,
-          }),
-        );
+        const result = await resolveGitCloneTerminalAction({
+          agentId,
+          workspaceId,
+          cloneSessionKey: repository.cloneSessionKey,
+          relativePath: repository.relativePath,
+        });
+        const identity = unwrapActionData(result);
         if (!isGitCloneTerminalIdentity(identity)) {
-          setGitAddFailed(true);
+          showGitAddFailure(actionFailureMessage(result, GIT_TERMINAL_ADD_FALLBACK_MESSAGE));
           return;
         }
 
@@ -1969,12 +2018,12 @@ export function MultiSessionWorkspace({
         });
         router.push(`/workspaces/${encodeURIComponent(workspaceId)}/terminal?${params.toString()}`);
       } catch {
-        setGitAddFailed(true);
+        showGitAddFailure(GIT_TERMINAL_ADD_FALLBACK_MESSAGE);
       } finally {
         setAddingCloneKey(null);
       }
     },
-    [agentId, router, workspaceId],
+    [agentId, router, showGitAddFailure, workspaceId],
   );
 
   useEffect(() => {
@@ -2007,7 +2056,7 @@ export function MultiSessionWorkspace({
           session.relativePath &&
           gitPaneIdentity(session.cloneSessionKey, session.relativePath) === repositoryIdentity,
       );
-      setGitAddFailed(false);
+      setGitAddError(null);
 
       if (existingSession) {
         persistBoardState(
@@ -2027,16 +2076,15 @@ export function MultiSessionWorkspace({
       setAddingCloneKey(repositoryIdentity);
 
       try {
-        const identity = unwrapActionData(
-          await resolveGitCloneTerminalAction({
-            agentId,
-            workspaceId,
-            cloneSessionKey: repository.cloneSessionKey,
-            relativePath: repository.relativePath,
-          }),
-        );
+        const result = await resolveGitCloneTerminalAction({
+          agentId,
+          workspaceId,
+          cloneSessionKey: repository.cloneSessionKey,
+          relativePath: repository.relativePath,
+        });
+        const identity = unwrapActionData(result);
         if (!isGitCloneTerminalIdentity(identity)) {
-          setGitAddFailed(true);
+          showGitAddFailure(actionFailureMessage(result, GIT_TERMINAL_ADD_FALLBACK_MESSAGE));
           return;
         }
 
@@ -2066,7 +2114,7 @@ export function MultiSessionWorkspace({
         setGitSearchOpen(false);
         setGitSearchQuery("");
       } catch {
-        setGitAddFailed(true);
+        showGitAddFailure(GIT_TERMINAL_ADD_FALLBACK_MESSAGE);
       } finally {
         setAddingCloneKey(null);
       }
@@ -2078,6 +2126,7 @@ export function MultiSessionWorkspace({
       persistBoardState,
       persistSessionOrder,
       selectSession,
+      showGitAddFailure,
       sessions,
       workspaceId,
     ],
@@ -2404,9 +2453,9 @@ export function MultiSessionWorkspace({
   };
 
   const renderGitAddFailureStatus = () =>
-    gitAddFailed ? (
+    gitAddError ? (
       <p className="text-xs text-destructive" data-testid="git-session-add-error">
-        Could not add Git terminal. No terminal contents or clone proof were logged.
+        {gitAddError}
       </p>
     ) : null;
 
