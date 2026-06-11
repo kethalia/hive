@@ -8,8 +8,8 @@ vi.mock("@/lib/auth/session", () => ({
 }));
 
 vi.mock("@/lib/workspace/paste-assets", () => ({
-  TERMINAL_PASTE_ASSET_MAX_BYTES: 5 * 1024 * 1024,
-  TERMINAL_PASTE_ASSET_MAX_FILES: 4,
+  TERMINAL_PASTE_ASSET_MAX_BYTES: 10 * 1024 * 1024,
+  TERMINAL_PASTE_ASSET_MAX_FILES: 10,
   uploadTerminalPasteAssets: mockUploadTerminalPasteAssets,
 }));
 
@@ -72,7 +72,7 @@ describe("terminal paste asset upload route", () => {
 
   it("rejects oversized files before reading bytes", async () => {
     const body = new FormData();
-    const file = new File([new Uint8Array(5 * 1024 * 1024 + 1)], "large.png", {
+    const file = new File([new Uint8Array(10 * 1024 * 1024 + 1)], "large.png", {
       type: "image/png",
     });
     body.append("files", file);

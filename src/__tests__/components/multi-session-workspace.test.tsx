@@ -633,7 +633,7 @@ describe("MultiSessionWorkspace", () => {
         action: "paste",
         outcome: "failed",
         reason: "clipboard-api-failed",
-        message: "Each pasted file must be 5 MiB or smaller.",
+        message: "Each pasted file must be 10 MiB or smaller.",
       });
       return false;
     });
@@ -648,7 +648,7 @@ describe("MultiSessionWorkspace", () => {
     fireEvent.click(screen.getByTestId("terminal-paste-clipboard"));
 
     expect(screen.getByTestId("terminal-clipboard-status")).toHaveTextContent("Paste failed");
-    expect(mockToastError).toHaveBeenCalledWith("Each pasted file must be 5 MiB or smaller.");
+    expect(mockToastError).toHaveBeenCalledWith("Each pasted file must be 10 MiB or smaller.");
   });
 
   it("passes multi-session selection mode to mobile workspace panes", async () => {

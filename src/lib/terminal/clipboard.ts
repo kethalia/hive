@@ -1,7 +1,7 @@
 import type { Terminal } from "@xterm/xterm";
 
-export const TERMINAL_PASTE_ASSET_MAX_FILES = 4;
-export const TERMINAL_PASTE_ASSET_MAX_BYTES = 5 * 1024 * 1024;
+export const TERMINAL_PASTE_ASSET_MAX_FILES = 10;
+export const TERMINAL_PASTE_ASSET_MAX_BYTES = 10 * 1024 * 1024;
 const TERMINAL_PASTE_ASSET_MIME_EXTENSIONS = new Map([
   ["image/png", "png"],
   ["image/jpeg", "jpg"],
@@ -140,7 +140,7 @@ export async function handleTerminalPasteOutcome(
       return;
     }
     if (outcome.files.some((file) => file.size > TERMINAL_PASTE_ASSET_MAX_BYTES)) {
-      controller.onStatus?.("Each pasted file must be 5 MiB or smaller.");
+      controller.onStatus?.("Each pasted file must be 10 MiB or smaller.");
       return;
     }
 
