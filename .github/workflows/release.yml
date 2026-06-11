@@ -48,7 +48,7 @@ jobs:
       github.event.workflow_run.conclusion == 'success' &&
       github.event.workflow_run.event == 'push' &&
       github.event.workflow_run.head_repository.full_name == github.repository
-    uses: kethalia/workflows/.github/workflows/retag-stack.yml@v3
+    uses: kethalia/workflows/.github/workflows/retag-stack.yml@v4
     with:
       ref: ${{ github.event.workflow_run.head_sha }}
       images: |
@@ -113,7 +113,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix: ${{ fromJSON(needs.recovery-expand.outputs.matrix) }}
-    uses: kethalia/workflows/.github/workflows/retag-image.yml@v3
+    uses: kethalia/workflows/.github/workflows/retag-image.yml@v4
     with:
       image: ${{ matrix.image }}
       source-tag: sha-${{ inputs.source-sha-short }}

@@ -1,5 +1,5 @@
 # Build images workflow — delegates to kethalia/workflows `build-stack.yml`,
-# which owns runner resolution, matrix fan-out, and tag policy.
+# which owns matrix fan-out, and tag policy.
 #
 # Tag policy (per-service):
 #   - always: ghcr.io/<owner>/<image>:sha-<short>
@@ -24,7 +24,7 @@ jobs:
     permissions:
       contents: read
       packages: write
-    uses: kethalia/workflows/.github/workflows/build-stack.yml@v3
+    uses: kethalia/workflows/.github/workflows/build-stack.yml@v4
     secrets: inherit
     with:
       push: ${{ github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository }}
