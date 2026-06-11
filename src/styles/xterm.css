@@ -43,9 +43,9 @@
     -webkit-user-select: none;
 }
 
-/* Allow text selection on the rendered rows so mobile users can long-press to copy. */
-.xterm .xterm-rows,
-.xterm .xterm-rows * {
+/* Allow native row selection only while Hive's explicit selection mode is active. */
+[data-terminal-selection-mode="true"] .xterm .xterm-rows,
+[data-terminal-selection-mode="true"] .xterm .xterm-rows * {
     user-select: text;
     -webkit-user-select: text;
     -ms-user-select: text;
