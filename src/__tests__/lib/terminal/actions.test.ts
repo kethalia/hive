@@ -316,7 +316,7 @@ describe("pasteClipboardApiToTerminal", () => {
     vi.unstubAllGlobals();
   });
 
-  it("uploads image clipboard items and stages returned workspace paths", async () => {
+  it("uploads image clipboard items and pastes a single returned workspace path directly", async () => {
     const pngBlob = new Blob(["png"], { type: "image/png" });
     const read = vi.fn().mockResolvedValue([
       {
@@ -352,18 +352,14 @@ describe("pasteClipboardApiToTerminal", () => {
           body: expect.any(FormData),
         }),
       );
-      expect(onCompose).toHaveBeenCalledWith({
-        draft: "/tmp/hive-terminal-paste/image.png",
-        append: true,
-        targetLabel: "main",
-      });
+      expect(send).toHaveBeenCalledWith("/tmp/hive-terminal-paste/image.png");
       expect(onStatus).toHaveBeenCalledWith({
         action: "paste",
         outcome: "pasted",
         method: "clipboard-api",
       });
     });
-    expect(send).not.toHaveBeenCalled();
+    expect(onCompose).not.toHaveBeenCalled();
   });
 
   it("falls back to native handling when the Clipboard API cannot read", () => {

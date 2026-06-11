@@ -146,12 +146,18 @@ export async function handleTerminalPasteOutcome(
 
     try {
       const paths = await uploadTerminalPasteAssets(controller.workspaceId, outcome.files);
+      if (paths.length === 1) {
+        pasteTextToXterm(controller.term, controller.send, paths[0] ?? "");
+        controller.onStatus?.("Paste complete.");
+        return;
+      }
+
       controller.openCompose({
         draft: paths.join("\n"),
         append: true,
         targetLabel: controller.targetLabel,
       });
-      controller.onStatus?.("Pasted file path added to compose.");
+      controller.onStatus?.("Pasted file paths added to compose.");
     } catch {
       controller.onStatus?.("File paste failed.");
     }

@@ -74,6 +74,74 @@ describe("terminal paste dispatch", () => {
     });
   });
 
+  it("pastes a single uploaded file path directly to the terminal", async () => {
+    const imageFile = new File(["png"], "pasted.png", { type: "image/png" });
+    const openCompose = vi.fn();
+    const onStatus = vi.fn();
+    const send = vi.fn();
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: true,
+        json: vi.fn().mockResolvedValue({
+          paths: ["/tmp/hive-terminal-paste/pasted.png"],
+        }),
+      }),
+    );
+
+    await handleTerminalPasteOutcome(
+      { kind: "asset-files", files: [imageFile] },
+      {
+        term: null,
+        send,
+        openCompose,
+        workspaceId: "workspace-1",
+        onStatus,
+      },
+    );
+
+    expect(send).toHaveBeenCalledWith("/tmp/hive-terminal-paste/pasted.png");
+    expect(openCompose).not.toHaveBeenCalled();
+    expect(onStatus).toHaveBeenCalledWith("Paste complete.");
+  });
+
+  it("stages multiple uploaded file paths in compose", async () => {
+    const imageFile = new File(["png"], "pasted.png", { type: "image/png" });
+    const textFile = new File(["txt"], "notes.txt", { type: "text/plain" });
+    const openCompose = vi.fn();
+    const onStatus = vi.fn();
+    const send = vi.fn();
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: true,
+        json: vi.fn().mockResolvedValue({
+          paths: ["/tmp/hive-terminal-paste/pasted.png", "/tmp/hive-terminal-paste/notes.txt"],
+        }),
+      }),
+    );
+
+    await handleTerminalPasteOutcome(
+      { kind: "asset-files", files: [imageFile, textFile] },
+      {
+        term: null,
+        send,
+        openCompose,
+        workspaceId: "workspace-1",
+        targetLabel: "main",
+        onStatus,
+      },
+    );
+
+    expect(send).not.toHaveBeenCalled();
+    expect(openCompose).toHaveBeenCalledWith({
+      draft: "/tmp/hive-terminal-paste/pasted.png\n/tmp/hive-terminal-paste/notes.txt",
+      append: true,
+      targetLabel: "main",
+    });
+    expect(onStatus).toHaveBeenCalledWith("Pasted file paths added to compose.");
+  });
+
   it("reports image upload failure without throwing", async () => {
     const imageFile = new File(["png"], "pasted.png", { type: "image/png" });
     const openCompose = vi.fn();
