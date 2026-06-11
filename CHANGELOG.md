@@ -1,5 +1,11 @@
 # hive-orchestrator
 
+## 2.5.4
+
+### Patch Changes
+
+- 73e91a1: Scope xterm row selection to explicit selection mode so normal tmux mouse scrollback does not show browser selection artifacts.
+
 ## 2.5.3
 
 ### Patch Changes
