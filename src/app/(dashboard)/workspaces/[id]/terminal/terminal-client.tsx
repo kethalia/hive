@@ -32,7 +32,7 @@ import {
 import {
   type ClipboardActionStatus,
   copyTerminalSelection,
-  pasteToTerminal,
+  pasteClipboardApiToTerminal,
 } from "@/lib/terminal/actions";
 import type { TerminalComposeRequest } from "@/lib/terminal/clipboard";
 import { COMPOSE_SHEET_DISMISS_DRAG_PX } from "@/lib/terminal/config";
@@ -130,6 +130,7 @@ function clipboardStatusText(
       case "paste":
         if (status.outcome === "pasted") return "Paste complete.";
         if (status.outcome === "empty") return "Clipboard was empty.";
+        if (status.outcome === "failed") return "Paste failed.";
         if (status.reason === "clipboard-api-unavailable") {
           return clipboardFallbackText(status.reason);
         }
@@ -352,7 +353,7 @@ function TerminalInner({
 
   const handleMobilePaste = useCallback(() => {
     if (!activeSend) return;
-    pasteToTerminal(activeTerminal ?? null, activeSend, {
+    pasteClipboardApiToTerminal(activeTerminal ?? null, activeSend, {
       onStatus: setClipboardActionStatus,
       onCompose: openComposeWithDraft,
       targetLabel: session ?? undefined,
@@ -584,8 +585,11 @@ function TerminalInner({
         onClipboardStatus={(message) =>
           setClipboardActionStatus({
             action: "paste",
-            outcome: message === "Clipboard is empty." ? "empty" : "pasted",
-            method: "clipboard-api",
+            ...(message === "Clipboard is empty."
+              ? { outcome: "empty", method: "clipboard-api" }
+              : /failed|requires|must be|up to/i.test(message)
+                ? { outcome: "failed", reason: "clipboard-api-failed" }
+                : { outcome: "pasted", method: "clipboard-api" }),
           })
         }
         targetLabel={session}

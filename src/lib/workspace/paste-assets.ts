@@ -7,12 +7,14 @@ import { execInWorkspace } from "@/lib/workspace/exec";
 export const TERMINAL_PASTE_ASSET_TARGET_DIR = "/tmp/hive-terminal-paste";
 export const TERMINAL_PASTE_ASSET_MAX_FILES = 4;
 export const TERMINAL_PASTE_ASSET_MAX_BYTES = 5 * 1024 * 1024;
-export const TERMINAL_PASTE_ASSET_MIME_EXTENSIONS = new Map([
+export const TERMINAL_PASTE_ASSET_PREFERRED_MIME_EXTENSIONS = new Map([
   ["image/png", "png"],
   ["image/jpeg", "jpg"],
   ["image/webp", "webp"],
   ["image/gif", "gif"],
+  ["text/plain", "txt"],
 ]);
+export const TERMINAL_PASTE_ASSET_MIME_EXTENSIONS = TERMINAL_PASTE_ASSET_PREFERRED_MIME_EXTENSIONS;
 
 export interface TerminalPasteAssetUpload {
   name: string;
@@ -22,6 +24,18 @@ export interface TerminalPasteAssetUpload {
 
 export function shellQuote(value: string): string {
   return `'${value.replace(/'/g, "'\\''")}'`;
+}
+
+function sanitizePasteAssetName(name: string, type: string): string {
+  const fallbackExtension = TERMINAL_PASTE_ASSET_PREFERRED_MIME_EXTENSIONS.get(type);
+  const fallbackName = fallbackExtension ? `clipboard.${fallbackExtension}` : "clipboard.bin";
+  const sourceName = name.trim() || fallbackName;
+  const normalized = sourceName
+    .normalize("NFKD")
+    .replace(/[^\w.-]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 96);
+  return normalized || fallbackName;
 }
 
 export async function uploadTerminalPasteAssets({
@@ -35,19 +49,20 @@ export async function uploadTerminalPasteAssets({
 }): Promise<string[]> {
   if (files.length === 0) throw new Error("No files provided");
   if (files.length > TERMINAL_PASTE_ASSET_MAX_FILES) {
-    throw new Error(`Paste up to ${TERMINAL_PASTE_ASSET_MAX_FILES} images at once`);
+    throw new Error(`Paste up to ${TERMINAL_PASTE_ASSET_MAX_FILES} files at once`);
   }
 
   const plannedUploads = files.map((file) => {
-    const extension = TERMINAL_PASTE_ASSET_MIME_EXTENSIONS.get(file.type);
-    if (!extension) throw new Error("Unsupported paste asset type");
     if (file.bytes.byteLength > TERMINAL_PASTE_ASSET_MAX_BYTES) {
-      throw new Error("Pasted image is too large");
+      throw new Error("Pasted file is too large");
     }
 
     return {
       bytes: file.bytes,
-      path: `${TERMINAL_PASTE_ASSET_TARGET_DIR}/${randomUUID()}.${extension}`,
+      path: `${TERMINAL_PASTE_ASSET_TARGET_DIR}/${randomUUID()}-${sanitizePasteAssetName(
+        file.name,
+        file.type,
+      )}`,
     };
   });
 
@@ -65,7 +80,7 @@ export async function uploadTerminalPasteAssets({
   );
 
   if (mkdirResult.exitCode !== 0) {
-    throw new Error("Failed to store pasted image in workspace");
+    throw new Error("Failed to store pasted file in workspace");
   }
 
   for (const upload of plannedUploads) {
@@ -103,8 +118,19 @@ function writePasteAssetToWorkspace({
     CODER_SESSION_TOKEN: sessionToken,
   };
   const child = spawn(
-    "coder",
-    ["ssh", "--wait=no", agentTarget, "--", "bash", "-lc", `base64 -d > ${shellQuote(path)}`],
+    "ssh",
+    [
+      "-o",
+      "LogLevel=ERROR",
+      "-o",
+      "StrictHostKeyChecking=no",
+      "-o",
+      "UserKnownHostsFile=/dev/null",
+      "-o",
+      "ProxyCommand=coder ssh --stdio %h",
+      agentTarget,
+      `bash -lc ${shellQuote(`base64 -d > ${shellQuote(path)}`)}`,
+    ],
     {
       env,
       stdio: ["pipe", "ignore", "pipe"],
@@ -116,7 +142,7 @@ function writePasteAssetToWorkspace({
     let stderr = "";
     const timer = setTimeout(() => {
       child.kill();
-      reject(new Error("Failed to store pasted image in workspace"));
+      reject(new Error("Failed to store pasted file in workspace"));
     }, timeoutMs);
 
     child.stderr.setEncoding("utf8");
@@ -125,7 +151,7 @@ function writePasteAssetToWorkspace({
     });
     child.on("error", () => {
       clearTimeout(timer);
-      reject(new Error("Failed to store pasted image in workspace"));
+      reject(new Error("Failed to store pasted file in workspace"));
     });
     child.on("close", (code) => {
       clearTimeout(timer);
@@ -134,9 +160,9 @@ function writePasteAssetToWorkspace({
         return;
       }
       if (stderr.trim()) {
-        console.warn("[paste-assets] workspace image write failed");
+        console.warn("[paste-assets] workspace file write failed");
       }
-      reject(new Error("Failed to store pasted image in workspace"));
+      reject(new Error("Failed to store pasted file in workspace"));
     });
 
     child.stdin.end(encoded);

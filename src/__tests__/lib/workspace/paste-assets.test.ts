@@ -48,17 +48,17 @@ describe("uploadTerminalPasteAssets", () => {
     });
   });
 
-  it("streams base64 image bytes through stdin instead of command argv", async () => {
+  it("streams base64 file bytes through stdin instead of command argv", async () => {
     const child = mockSpawnSuccess();
-    const bytes = new TextEncoder().encode("image-bytes");
+    const bytes = new TextEncoder().encode("file-bytes");
 
     const paths = await uploadTerminalPasteAssets({
       userId: "user-1",
       workspaceId: "workspace-1",
-      files: [{ name: "pasted.png", type: "image/png", bytes }],
+      files: [{ name: "../unsafe path.txt", type: "text/plain", bytes }],
     });
 
-    expect(paths[0]).toMatch(/^\/tmp\/hive-terminal-paste\/.+\.png$/);
+    expect(paths[0]).toMatch(/^\/tmp\/hive-terminal-paste\/.+-unsafe-path\.txt$/);
     expect(mockExecInWorkspace).toHaveBeenCalledWith(
       "workspace.agent",
       "umask 077 && mkdir -p '/tmp/hive-terminal-paste'",
@@ -68,15 +68,20 @@ describe("uploadTerminalPasteAssets", () => {
       }),
     );
     expect(mockSpawn).toHaveBeenCalledWith(
-      "coder",
+      "ssh",
       [
-        "ssh",
-        "--wait=no",
+        "-o",
+        "LogLevel=ERROR",
+        "-o",
+        "StrictHostKeyChecking=no",
+        "-o",
+        "UserKnownHostsFile=/dev/null",
+        "-o",
+        "ProxyCommand=coder ssh --stdio %h",
         "workspace.agent",
-        "--",
-        "bash",
-        "-lc",
-        expect.stringMatching(/^base64 -d > '\/tmp\/hive-terminal-paste\/.+\.png'$/),
+        expect.stringMatching(
+          /^bash -lc 'base64 -d > '\\''\/tmp\/hive-terminal-paste\/.+-unsafe-path\.txt'\\'''$/,
+        ),
       ],
       expect.objectContaining({
         env: expect.objectContaining({

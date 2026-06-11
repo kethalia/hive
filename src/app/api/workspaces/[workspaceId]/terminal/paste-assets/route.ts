@@ -3,7 +3,6 @@ import { getRequestSession } from "@/lib/auth/session";
 import {
   TERMINAL_PASTE_ASSET_MAX_BYTES,
   TERMINAL_PASTE_ASSET_MAX_FILES,
-  TERMINAL_PASTE_ASSET_MIME_EXTENSIONS,
   uploadTerminalPasteAssets,
 } from "@/lib/workspace/paste-assets";
 
@@ -30,20 +29,17 @@ export async function POST(
 
   const files = formData.getAll("files");
   if (files.length === 0 || files.some((file) => !(file instanceof File))) {
-    return NextResponse.json({ error: "No image files provided" }, { status: 400 });
+    return NextResponse.json({ error: "No files provided" }, { status: 400 });
   }
-  const imageFiles = files.filter((file): file is File => file instanceof File);
-  if (imageFiles.length > TERMINAL_PASTE_ASSET_MAX_FILES) {
+  const uploadFiles = files.filter((file): file is File => file instanceof File);
+  if (uploadFiles.length > TERMINAL_PASTE_ASSET_MAX_FILES) {
     return NextResponse.json(
-      { error: `Paste up to ${TERMINAL_PASTE_ASSET_MAX_FILES} images at once` },
+      { error: `Paste up to ${TERMINAL_PASTE_ASSET_MAX_FILES} files at once` },
       { status: 400 },
     );
   }
-  if (imageFiles.some((file) => !TERMINAL_PASTE_ASSET_MIME_EXTENSIONS.has(file.type))) {
-    return NextResponse.json({ error: "Unsupported paste asset type" }, { status: 400 });
-  }
-  if (imageFiles.some((file) => file.size > TERMINAL_PASTE_ASSET_MAX_BYTES)) {
-    return NextResponse.json({ error: "Pasted image is too large" }, { status: 400 });
+  if (uploadFiles.some((file) => file.size > TERMINAL_PASTE_ASSET_MAX_BYTES)) {
+    return NextResponse.json({ error: "Pasted file is too large" }, { status: 400 });
   }
 
   try {
@@ -51,7 +47,7 @@ export async function POST(
       userId: session.user.id,
       workspaceId,
       files: await Promise.all(
-        imageFiles.map(async (file) => ({
+        uploadFiles.map(async (file) => ({
           name: file.name,
           type: file.type,
           bytes: new Uint8Array(await file.arrayBuffer()),
@@ -60,7 +56,7 @@ export async function POST(
     });
     return NextResponse.json({ paths });
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Failed to upload pasted image";
+    const message = error instanceof Error ? error.message : "Failed to upload pasted file";
     return NextResponse.json({ error: message }, { status: 400 });
   }
 }

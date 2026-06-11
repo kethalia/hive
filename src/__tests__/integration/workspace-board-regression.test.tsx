@@ -121,6 +121,7 @@ vi.mock("@/lib/actions/navigation-favorites", () => ({
 
 vi.mock("@/lib/terminal/actions", () => ({
   copyTerminalSelection: vi.fn(() => false),
+  pasteClipboardApiToTerminal: vi.fn(),
   pasteToTerminal: vi.fn(),
 }));
 

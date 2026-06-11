@@ -30,7 +30,7 @@ const mockRouterPush = vi.fn();
 const mockToastInfo = vi.hoisted(() => vi.fn());
 const mockUseIsComposeSheet = vi.hoisted(() => vi.fn(() => false));
 const mockCopyTerminalSelection = vi.hoisted(() => vi.fn());
-const mockPasteToTerminal = vi.hoisted(() => vi.fn());
+const mockPasteClipboardApiToTerminal = vi.hoisted(() => vi.fn());
 const mockTriggerHapticFeedback = vi.hoisted(() => vi.fn());
 let emitConnectionStateOnCallbackChange = false;
 const mockUseKeepAliveStatus = vi.hoisted(() =>
@@ -255,7 +255,8 @@ vi.mock("@/lib/device/haptics", () => ({
 
 vi.mock("@/lib/terminal/actions", () => ({
   copyTerminalSelection: (...args: unknown[]) => mockCopyTerminalSelection(...args),
-  pasteToTerminal: (...args: unknown[]) => mockPasteToTerminal(...args),
+  pasteClipboardApiToTerminal: (...args: unknown[]) => mockPasteClipboardApiToTerminal(...args),
+  pasteToTerminal: vi.fn(),
 }));
 
 vi.mock("@/lib/utils", () => ({
@@ -518,7 +519,7 @@ describe("MultiSessionWorkspace", () => {
     mockGetSessions.mockResolvedValue({ data: [] });
     mockUseIsComposeSheet.mockReturnValue(false);
     mockCopyTerminalSelection.mockReset();
-    mockPasteToTerminal.mockReset();
+    mockPasteClipboardApiToTerminal.mockReset();
     mockTriggerHapticFeedback.mockReset();
     mockKillSession.mockResolvedValue({ data: { name: "main-session" } });
     mockCloseGitCloneTerminal.mockResolvedValue({ data: { sessionName: "git-clone-safe-hive" } });
@@ -609,7 +610,7 @@ describe("MultiSessionWorkspace", () => {
     expect(mainTerm.focus).not.toHaveBeenCalled();
 
     fireEvent.click(screen.getByTestId("terminal-paste-clipboard"));
-    expect(mockPasteToTerminal).toHaveBeenCalledWith(
+    expect(mockPasteClipboardApiToTerminal).toHaveBeenCalledWith(
       mainTerm,
       mainSend,
       expect.objectContaining({

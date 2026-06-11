@@ -27,6 +27,7 @@ import { isCloneTerminalSessionName } from "@/lib/git/clone-terminal-session";
 import { getClientRuntimeConfig } from "@/lib/runtime-config";
 import {
   dropDataTransferToTerminal,
+  pasteClipboardApiToTerminal,
   pasteNativeClipboardEventToTerminal,
 } from "@/lib/terminal/actions";
 import type { TerminalComposeRequest } from "@/lib/terminal/clipboard";
@@ -356,6 +357,8 @@ export function InteractiveTerminal({
   selectionModeEnabledRef.current = selectionModeEnabled;
   const mobileTouchIntentRef = useRef<MobileTouchIntent | null>(null);
   const suppressNextClickFocusRef = useRef(false);
+  const suppressNextNativePasteRef = useRef(false);
+  const suppressNextNativePasteTimerRef = useRef<number | null>(null);
   const mobileInputCleanupRef = useRef<MobileInputAdapterCleanup | null>(null);
   const { handleKeyEvent } = useKeybindings();
   const handleKeyEventRef = useRef(handleKeyEvent);
@@ -798,16 +801,68 @@ export function InteractiveTerminal({
         recordFitDiagnostics(term, "initial-open-fit");
       }
 
+      const sendRaw = (text: string) => sendRef.current(encodeInput(text));
+      onTerminalReadyRef.current?.(term, sendRaw);
+      const pasteFromBrowserClipboard = () => {
+        if (!onComposeRequestRef.current) return true;
+        const shouldContinue = pasteClipboardApiToTerminal(term, sendRaw, {
+          onCompose: onComposeRequestRef.current,
+          workspaceId,
+          targetLabel: targetLabelRef.current,
+          onStatus: (status) => {
+            if (status.action !== "paste") return;
+            if (status.outcome === "empty") {
+              onClipboardStatusRef.current?.("Clipboard is empty.");
+              return;
+            }
+            if (status.outcome === "pasted") {
+              onClipboardStatusRef.current?.("Paste complete.");
+              return;
+            }
+            if (status.outcome === "failed") {
+              onClipboardStatusRef.current?.("Paste failed.");
+              return;
+            }
+            if (status.outcome === "fallback") {
+              onClipboardStatusRef.current?.("Paste fallback was attempted.");
+            }
+          },
+        });
+        suppressNextNativePasteRef.current = !shouldContinue;
+        if (suppressNextNativePasteTimerRef.current !== null) {
+          window.clearTimeout(suppressNextNativePasteTimerRef.current);
+          suppressNextNativePasteTimerRef.current = null;
+        }
+        if (suppressNextNativePasteRef.current) {
+          suppressNextNativePasteTimerRef.current = window.setTimeout(() => {
+            suppressNextNativePasteRef.current = false;
+            suppressNextNativePasteTimerRef.current = null;
+          }, 750);
+        }
+        return shouldContinue;
+      };
+
       term.attachCustomKeyEventHandler((e) => {
         if (e.type !== "keydown") return true;
+        if ((e.ctrlKey || e.metaKey) && !e.altKey && !e.shiftKey && e.key.toLowerCase() === "v") {
+          return pasteFromBrowserClipboard();
+        }
         return handleKeyEventRef.current(e);
       });
 
-      const sendRaw = (text: string) => sendRef.current(encodeInput(text));
-      onTerminalReadyRef.current?.(term, sendRaw);
-
       const container = containerRef.current;
       const handlePaste = (event: ClipboardEvent) => {
+        if (suppressNextNativePasteRef.current) {
+          suppressNextNativePasteRef.current = false;
+          if (suppressNextNativePasteTimerRef.current !== null) {
+            window.clearTimeout(suppressNextNativePasteTimerRef.current);
+            suppressNextNativePasteTimerRef.current = null;
+          }
+          event.preventDefault();
+          event.stopPropagation();
+          event.stopImmediatePropagation();
+          return;
+        }
         if (!onComposeRequestRef.current) return;
         void pasteNativeClipboardEventToTerminal(event, {
           term,
@@ -894,6 +949,11 @@ export function InteractiveTerminal({
     onDispose: () => {
       mobileTouchIntentRef.current = null;
       suppressNextClickFocusRef.current = false;
+      suppressNextNativePasteRef.current = false;
+      if (suppressNextNativePasteTimerRef.current !== null) {
+        window.clearTimeout(suppressNextNativePasteTimerRef.current);
+        suppressNextNativePasteTimerRef.current = null;
+      }
       mobileInputCleanupRef.current?.dispose();
       mobileInputCleanupRef.current = null;
       onTerminalDestroyRef.current?.();

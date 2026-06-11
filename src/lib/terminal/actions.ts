@@ -2,7 +2,7 @@ import type { Terminal } from "@xterm/xterm";
 import {
   handleTerminalPasteOutcome,
   normalizeClipboardText,
-  pasteTextToXterm,
+  readClipboardApiOutcome,
   type TerminalComposeRequest,
 } from "@/lib/terminal/clipboard";
 
@@ -38,6 +38,11 @@ export type ClipboardActionStatus =
       action: "paste";
       outcome: "empty";
       method: "clipboard-api";
+    }
+  | {
+      action: "paste";
+      outcome: "failed";
+      reason: "clipboard-api-failed";
     }
   | {
       action: "paste";
@@ -224,37 +229,13 @@ export function pasteToTerminal(
     const readResult = clipboard.readText();
     void readResult
       .then((text) => {
-        const outcome = normalizeClipboardText(text);
-        if (outcome.kind === "empty") {
-          emitStatus(options, {
-            action: "paste",
-            outcome: "empty",
-            method: "clipboard-api",
-          });
-          return;
-        }
-
-        if (outcome.kind !== "text") return;
-
-        if (outcome.multiline && options?.onCompose) {
-          options.onCompose({
-            draft: outcome.text,
-            append: true,
-            targetLabel: options.targetLabel,
-          });
-          emitStatus(options, {
-            action: "paste",
-            outcome: "pasted",
-            method: "clipboard-api",
-          });
-          return;
-        }
-
-        pasteTextToXterm(term, send, outcome.text);
-        emitStatus(options, {
-          action: "paste",
-          outcome: "pasted",
-          method: "clipboard-api",
+        void handleTerminalPasteOutcome(normalizeClipboardText(text), {
+          term,
+          send,
+          openCompose: (request) => options?.onCompose?.(request),
+          workspaceId: options?.workspaceId,
+          targetLabel: options?.targetLabel,
+          onStatus: (message) => emitPasteOutcomeStatus(message, options),
         });
       })
       .catch((error: unknown) => {
@@ -263,6 +244,63 @@ export function pasteToTerminal(
   } catch (error) {
     completePasteFallback(classifyClipboardFailure(error), options);
   }
+
+  return false;
+}
+
+function emitPasteOutcomeStatus(
+  message: string,
+  options: ClipboardActionOptions | undefined,
+): void {
+  if (/failed|requires|must be|up to/i.test(message)) {
+    emitStatus(options, {
+      action: "paste",
+      outcome: "failed",
+      reason: "clipboard-api-failed",
+    });
+    return;
+  }
+
+  emitStatus(options, {
+    action: "paste",
+    outcome: message === "Clipboard is empty." ? "empty" : "pasted",
+    method: "clipboard-api",
+  });
+}
+
+export function pasteClipboardApiToTerminal(
+  term: Terminal | null,
+  send: (data: string) => void,
+  options?: ClipboardActionOptions,
+): boolean {
+  const clipboard = getClipboard();
+  if (
+    !clipboard ||
+    (typeof clipboard.read !== "function" && typeof clipboard.readText !== "function")
+  ) {
+    emitStatus(options, {
+      action: "paste",
+      outcome: "fallback",
+      reason: "clipboard-api-unavailable",
+      method: "native-browser",
+    });
+    return true;
+  }
+
+  void readClipboardApiOutcome(clipboard)
+    .then((outcome) =>
+      handleTerminalPasteOutcome(outcome, {
+        term,
+        send,
+        openCompose: (request) => options?.onCompose?.(request),
+        workspaceId: options?.workspaceId,
+        targetLabel: options?.targetLabel,
+        onStatus: (message) => emitPasteOutcomeStatus(message, options),
+      }),
+    )
+    .catch((error: unknown) => {
+      completePasteFallback(classifyClipboardFailure(error), options);
+    });
 
   return false;
 }

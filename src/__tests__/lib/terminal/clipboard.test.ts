@@ -22,7 +22,7 @@ describe("terminal clipboard normalization", () => {
     });
   });
 
-  it("classifies image and unsupported file clipboard items", () => {
+  it("classifies image and generic file clipboard items", () => {
     const imageFile = new File(["png"], "pasted.png", { type: "image/png" });
     const textFile = new File(["txt"], "notes.txt", { type: "text/plain" });
     const imageItems = {
@@ -36,11 +36,11 @@ describe("terminal clipboard normalization", () => {
     } as unknown as DataTransferItemList;
 
     expect(normalizeClipboardItems(imageItems)).toEqual({
-      kind: "image-files",
+      kind: "asset-files",
       files: [imageFile],
     });
     expect(normalizeClipboardItems(mixedItems)).toEqual({
-      kind: "unsupported-files",
+      kind: "asset-files",
       files: [imageFile, textFile],
     });
   });
@@ -87,7 +87,7 @@ describe("terminal paste dispatch", () => {
     );
 
     await handleTerminalPasteOutcome(
-      { kind: "image-files", files: [imageFile] },
+      { kind: "asset-files", files: [imageFile] },
       {
         term: null,
         send: vi.fn(),
@@ -98,6 +98,6 @@ describe("terminal paste dispatch", () => {
     );
 
     expect(openCompose).not.toHaveBeenCalled();
-    expect(onStatus).toHaveBeenCalledWith("Image paste failed.");
+    expect(onStatus).toHaveBeenCalledWith("File paste failed.");
   });
 });

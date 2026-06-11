@@ -31,7 +31,7 @@ ARG TARGETARCH
 WORKDIR /app
 ENV NODE_ENV=production
 ENV HOSTNAME=0.0.0.0
-RUN apk add --no-cache ca-certificates curl && \
+RUN apk add --no-cache ca-certificates curl openssh-client && \
     curl -fsSL https://coder.com/install.sh | sh && \
     coder version && \
     addgroup --system --gid 1001 nodejs && \

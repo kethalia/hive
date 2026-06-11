@@ -60,7 +60,7 @@ import { formatShortcut } from "@/lib/keyboard-shortcuts";
 import {
   type ClipboardActionStatus,
   copyTerminalSelection,
-  pasteToTerminal,
+  pasteClipboardApiToTerminal,
 } from "@/lib/terminal/actions";
 import type { TerminalComposeRequest } from "@/lib/terminal/clipboard";
 import { cn } from "@/lib/utils";
@@ -341,6 +341,7 @@ function clipboardStatusText(
         return status.outcome === "copied" ? "Selection copied" : "Select terminal text to copy";
       case "paste":
         if (status.outcome === "empty") return "Clipboard is empty";
+        if (status.outcome === "failed") return "Paste failed";
         if (status.outcome === "fallback") return "Use the browser paste control";
         return "Paste complete";
       default:
@@ -1339,7 +1340,7 @@ export function MultiSessionWorkspace({
   const handleMobilePaste = useCallback(() => {
     const entry = activeTerminalEntry;
     if (!entry) return;
-    pasteToTerminal(entry.term, entry.send, {
+    pasteClipboardApiToTerminal(entry.term, entry.send, {
       onStatus: setClipboardActionStatus,
       onCompose: openComposeWithDraft,
       targetLabel: activeLabel,
