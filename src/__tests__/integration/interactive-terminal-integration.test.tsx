@@ -347,8 +347,21 @@ vi.mock("lucide-react", () => ({
 }));
 
 vi.mock("@/components/terminal/ComposePanel", () => ({
-  ComposePanel: ({ hideHeader }: { hideHeader?: boolean }) => (
-    <div data-hide-header={hideHeader ? "true" : "false"} data-testid="compose-panel" />
+  ComposePanel: ({
+    hideHeader,
+    initialDraft = "",
+    targetLabel,
+  }: {
+    hideHeader?: boolean;
+    initialDraft?: string;
+    targetLabel?: string;
+  }) => (
+    <div
+      data-hide-header={hideHeader ? "true" : "false"}
+      data-initial-draft={initialDraft}
+      data-target-label={targetLabel ?? ""}
+      data-testid="compose-panel"
+    />
   ),
 }));
 
@@ -1905,6 +1918,61 @@ describe("TerminalClient integration — Mobile terminal route props", () => {
       activeSend,
       expect.objectContaining({ onStatus: expect.any(Function) }),
     );
+    expect(getByTestId("terminal-clipboard-status")).toHaveTextContent("Paste complete");
+    unmount();
+  });
+
+  it("stages multiple pasted file paths in compose on regular single terminal routes", async () => {
+    mockUseIsComposeSheet.mockReturnValue(true);
+    const activeTerminal = {
+      clearSelection: vi.fn(),
+      getSelection: vi.fn(() => ""),
+    };
+    const activeSend = vi.fn();
+    mockUseKeybindings.mockReturnValue({
+      activeSend,
+      activeTerminal,
+      getAll: vi.fn(() => []),
+      handleKeyEvent: mockHandleKeyEvent,
+      register: mockRegisterKeybinding,
+      setActiveTerminal: mockSetActiveTerminal,
+      unregister: mockUnregisterKeybinding,
+    });
+    mockPasteClipboardApiToTerminal.mockImplementation((_term, _send, options) => {
+      options?.onCompose?.({
+        draft: "/tmp/hive-terminal-paste/one.png\n/tmp/hive-terminal-paste/two.txt",
+        append: true,
+        targetLabel: "main",
+      });
+      options?.onStatus?.({ action: "paste", outcome: "pasted", method: "clipboard-api" });
+      return false;
+    });
+
+    const { getByTestId, unmount } = await renderTerminalClient("session=main");
+
+    await waitFor(() => {
+      expect(getByTestId("terminal-mobile-controls")).toHaveAttribute(
+        "data-paste-disabled",
+        "false",
+      );
+    });
+    fireEvent.click(getByTestId("terminal-paste-clipboard"));
+
+    expect(mockPasteClipboardApiToTerminal).toHaveBeenCalledWith(
+      activeTerminal,
+      activeSend,
+      expect.objectContaining({
+        onCompose: expect.any(Function),
+        targetLabel: "main",
+        workspaceId: "test-ws",
+      }),
+    );
+    expect(activeSend).not.toHaveBeenCalled();
+    expect(getByTestId("compose-panel")).toHaveAttribute(
+      "data-initial-draft",
+      "/tmp/hive-terminal-paste/one.png\n/tmp/hive-terminal-paste/two.txt",
+    );
+    expect(getByTestId("compose-panel")).toHaveAttribute("data-target-label", "main");
     expect(getByTestId("terminal-clipboard-status")).toHaveTextContent("Paste complete");
     unmount();
   });

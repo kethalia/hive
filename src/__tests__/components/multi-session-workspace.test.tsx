@@ -96,6 +96,14 @@ const terminalProps = new Map<
     onTerminalReady?: (term: Terminal, send: (data: string) => void) => void;
     onTerminalDestroy?: () => void;
     onUserFocusRequest?: () => void;
+    onComposeRequest?: (request: { draft: string; append?: boolean; targetLabel?: string }) => void;
+    onClipboardStatus?: (status: {
+      action: "paste";
+      outcome: "uploading" | "pasted" | "empty" | "failed";
+      method?: "clipboard-api";
+      reason?: string;
+      message?: string;
+    }) => void;
     mobileInputMode?: boolean;
     pinToBottomOnResize?: boolean;
     selectionModeEnabled?: boolean;
@@ -131,6 +139,8 @@ vi.mock("next/dynamic", () => ({
       onRecoveryStateChange,
       onTerminalReady,
       onUserFocusRequest,
+      onComposeRequest,
+      onClipboardStatus,
       mobileInputMode,
       pinToBottomOnResize,
       selectionModeEnabled,
@@ -156,6 +166,18 @@ vi.mock("next/dynamic", () => ({
       onTerminalReady?: (term: Terminal, send: (data: string) => void) => void;
       onTerminalDestroy?: () => void;
       onUserFocusRequest?: () => void;
+      onComposeRequest?: (request: {
+        draft: string;
+        append?: boolean;
+        targetLabel?: string;
+      }) => void;
+      onClipboardStatus?: (status: {
+        action: "paste";
+        outcome: "uploading" | "pasted" | "empty" | "failed";
+        method?: "clipboard-api";
+        reason?: string;
+        message?: string;
+      }) => void;
       mobileInputMode?: boolean;
       pinToBottomOnResize?: boolean;
       selectionModeEnabled?: boolean;
@@ -185,6 +207,8 @@ vi.mock("next/dynamic", () => ({
         onRecoveryStateChange,
         onTerminalReady,
         onUserFocusRequest,
+        onComposeRequest,
+        onClipboardStatus,
         mobileInputMode,
         pinToBottomOnResize,
         selectionModeEnabled,
@@ -462,6 +486,7 @@ vi.mock("lucide-react", () => ({
   Minus: () => <span data-testid="icon-minus" />,
   Plus: () => <span data-testid="icon-plus" />,
   Search: () => <span data-testid="icon-search" />,
+  Send: () => <span data-testid="icon-send" />,
   TerminalSquare: () => <span data-testid="icon-terminal-square" />,
   X: () => <span data-testid="icon-x" />,
 }));
@@ -651,6 +676,34 @@ describe("MultiSessionWorkspace", () => {
       "Each pasted file must be 10 MiB or smaller.",
     );
     expect(mockToastError).toHaveBeenCalledWith("Each pasted file must be 10 MiB or smaller.");
+  });
+
+  it("stages multiple pasted file paths in compose for the active multi-session pane", async () => {
+    mockUseIsComposeSheet.mockReturnValue(true);
+    await renderTwoSessionWorkspace();
+
+    act(() => {
+      terminalProps.get("main-session")?.onTerminalReady?.(makeTerminal("main-session"), vi.fn());
+    });
+
+    act(() => {
+      terminalProps.get("main-session")?.onComposeRequest?.({
+        draft: "/tmp/hive-terminal-paste/one.png\n/tmp/hive-terminal-paste/two.txt",
+        append: true,
+        targetLabel: "main-session",
+      });
+      terminalProps.get("main-session")?.onClipboardStatus?.({
+        action: "paste",
+        outcome: "pasted",
+        method: "clipboard-api",
+      });
+    });
+
+    expect(screen.getByText(/Compose to main-session/)).toBeInTheDocument();
+    expect(screen.getByPlaceholderText("Type multi-line command...")).toHaveValue(
+      "/tmp/hive-terminal-paste/one.png\n/tmp/hive-terminal-paste/two.txt",
+    );
+    expect(screen.getByTestId("terminal-clipboard-status")).toHaveTextContent("Paste complete");
   });
 
   it("passes multi-session selection mode to mobile workspace panes", async () => {
