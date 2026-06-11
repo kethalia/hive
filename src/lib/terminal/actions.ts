@@ -48,6 +48,7 @@ export type ClipboardActionStatus =
       action: "paste";
       outcome: "failed";
       reason: "clipboard-api-failed";
+      message?: string;
     }
   | {
       action: "paste";
@@ -262,6 +263,7 @@ function emitPasteOutcomeStatus(
       action: "paste",
       outcome: "failed",
       reason: "clipboard-api-failed",
+      message,
     });
     return;
   }

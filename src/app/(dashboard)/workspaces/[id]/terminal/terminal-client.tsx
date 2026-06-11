@@ -5,6 +5,7 @@ import dynamic from "next/dynamic";
 import { useRouter, useSearchParams } from "next/navigation";
 import type { PointerEvent } from "react";
 import { Suspense, useCallback, useEffect, useRef, useState } from "react";
+import { toast } from "sonner";
 import { CommandPalette } from "@/components/terminal/CommandPalette";
 import { ComposePanel } from "@/components/terminal/ComposePanel";
 import { MobileTerminalControls } from "@/components/terminal/MobileTerminalControls";
@@ -147,6 +148,11 @@ function clipboardStatusText(
     return "Terminal ready. Select terminal text to copy; paste will enable after connection.";
   }
   return "Terminal ready. Use Select for text selection, Copy, or Paste.";
+}
+
+function toastPasteError(status: ClipboardActionStatus): void {
+  if (status.action !== "paste" || status.outcome !== "failed") return;
+  toast.error(status.message ?? "Paste failed.");
 }
 
 function TerminalInner({
@@ -328,10 +334,15 @@ function TerminalInner({
     setClipboardActionStatus(null);
   }, []);
 
+  const handleClipboardActionStatus = useCallback((status: ClipboardActionStatus) => {
+    setClipboardActionStatus(status);
+    toastPasteError(status);
+  }, []);
+
   const handleMobileCopy = useCallback(() => {
     if (!activeTerminal) return;
-    copyTerminalSelection(activeTerminal, { onStatus: setClipboardActionStatus });
-  }, [activeTerminal]);
+    copyTerminalSelection(activeTerminal, { onStatus: handleClipboardActionStatus });
+  }, [activeTerminal, handleClipboardActionStatus]);
 
   const openComposeWithDraft = useCallback((request: TerminalComposeRequest) => {
     setComposeTargetLabel(request.targetLabel);
@@ -354,12 +365,19 @@ function TerminalInner({
   const handleMobilePaste = useCallback(() => {
     if (!activeSend) return;
     pasteClipboardApiToTerminal(activeTerminal ?? null, activeSend, {
-      onStatus: setClipboardActionStatus,
+      onStatus: handleClipboardActionStatus,
       onCompose: openComposeWithDraft,
       targetLabel: session ?? undefined,
       workspaceId,
     });
-  }, [activeSend, activeTerminal, openComposeWithDraft, session, workspaceId]);
+  }, [
+    activeSend,
+    activeTerminal,
+    handleClipboardActionStatus,
+    openComposeWithDraft,
+    session,
+    workspaceId,
+  ]);
 
   useEffect(() => {
     if (!session || isComposeSheet || composeOpen || selectionModeEnabled || !activeTerminal) {
@@ -582,18 +600,19 @@ function TerminalInner({
         onTerminalReady={handleTerminalReady}
         onTerminalDestroy={handleTerminalDestroy}
         onComposeRequest={openComposeWithDraft}
-        onClipboardStatus={(message) =>
-          setClipboardActionStatus({
+        onClipboardStatus={(message) => {
+          const status: ClipboardActionStatus = {
             action: "paste",
             ...(message === "Clipboard is empty."
               ? { outcome: "empty", method: "clipboard-api" }
               : /uploading/i.test(message)
                 ? { outcome: "uploading", method: "clipboard-api" }
                 : /failed|requires|must be|up to/i.test(message)
-                  ? { outcome: "failed", reason: "clipboard-api-failed" }
+                  ? { outcome: "failed", reason: "clipboard-api-failed", message }
                   : { outcome: "pasted", method: "clipboard-api" }),
-          })
-        }
+          };
+          handleClipboardActionStatus(status);
+        }}
         targetLabel={session}
         layoutSignal={mobileLayoutSignal}
         mobileInputMode={isComposeSheet}

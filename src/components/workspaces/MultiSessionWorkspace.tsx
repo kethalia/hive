@@ -355,6 +355,11 @@ function clipboardStatusText(
   return "Terminal controls ready";
 }
 
+function toastPasteError(status: ClipboardActionStatus): void {
+  if (status.action !== "paste" || status.outcome !== "failed") return;
+  toast.error(status.message ?? "Paste failed.");
+}
+
 function isPublicCloneTree(value: unknown): value is PublicCloneTree {
   return isObjectRecord(value) && Array.isArray(value.nodes);
 }
@@ -1332,22 +1337,33 @@ export function MultiSessionWorkspace({
     setClipboardActionStatus(null);
   }, []);
 
+  const handleClipboardActionStatus = useCallback((status: ClipboardActionStatus) => {
+    setClipboardActionStatus(status);
+    toastPasteError(status);
+  }, []);
+
   const handleMobileCopy = useCallback(() => {
     const term = activeTerminalEntry?.term;
     if (!term) return;
-    copyTerminalSelection(term, { onStatus: setClipboardActionStatus });
-  }, [activeTerminalEntry]);
+    copyTerminalSelection(term, { onStatus: handleClipboardActionStatus });
+  }, [activeTerminalEntry, handleClipboardActionStatus]);
 
   const handleMobilePaste = useCallback(() => {
     const entry = activeTerminalEntry;
     if (!entry) return;
     pasteClipboardApiToTerminal(entry.term, entry.send, {
-      onStatus: setClipboardActionStatus,
+      onStatus: handleClipboardActionStatus,
       onCompose: openComposeWithDraft,
       targetLabel: activeLabel,
       workspaceId,
     });
-  }, [activeLabel, activeTerminalEntry, openComposeWithDraft, workspaceId]);
+  }, [
+    activeLabel,
+    activeTerminalEntry,
+    handleClipboardActionStatus,
+    openComposeWithDraft,
+    workspaceId,
+  ]);
 
   useEffect(() => {
     if (!activeTerminalEntry) {

@@ -28,6 +28,7 @@ const mockRegister = vi.fn();
 const mockUnregister = vi.fn();
 const mockRouterPush = vi.fn();
 const mockToastInfo = vi.hoisted(() => vi.fn());
+const mockToastError = vi.hoisted(() => vi.fn());
 const mockUseIsComposeSheet = vi.hoisted(() => vi.fn(() => false));
 const mockCopyTerminalSelection = vi.hoisted(() => vi.fn());
 const mockPasteClipboardApiToTerminal = vi.hoisted(() => vi.fn());
@@ -108,6 +109,7 @@ vi.mock("next/navigation", () => ({
 
 vi.mock("sonner", () => ({
   toast: {
+    error: mockToastError,
     info: mockToastInfo,
   },
 }));
@@ -622,6 +624,31 @@ describe("MultiSessionWorkspace", () => {
     fireEvent.click(screen.getByTestId("terminal-window-next"));
     expect(screen.getByTestId("active-pane-label")).toHaveTextContent("dev-server");
     expect(mainTerm.focus).not.toHaveBeenCalled();
+  });
+
+  it("shows a toast with the exact paste limit error", async () => {
+    mockUseIsComposeSheet.mockReturnValue(true);
+    mockPasteClipboardApiToTerminal.mockImplementation((_term, _send, options) => {
+      options?.onStatus?.({
+        action: "paste",
+        outcome: "failed",
+        reason: "clipboard-api-failed",
+        message: "Each pasted file must be 5 MiB or smaller.",
+      });
+      return false;
+    });
+    await renderTwoSessionWorkspace();
+
+    const mainTerm = makeTerminal("main-session");
+    const mainSend = makeSender("main-session");
+    act(() => {
+      terminalProps.get("main-session")?.onTerminalReady?.(mainTerm, mainSend);
+    });
+
+    fireEvent.click(screen.getByTestId("terminal-paste-clipboard"));
+
+    expect(screen.getByTestId("terminal-clipboard-status")).toHaveTextContent("Paste failed");
+    expect(mockToastError).toHaveBeenCalledWith("Each pasted file must be 5 MiB or smaller.");
   });
 
   it("passes multi-session selection mode to mobile workspace panes", async () => {

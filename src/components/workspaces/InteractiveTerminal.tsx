@@ -831,7 +831,7 @@ export function InteractiveTerminal({
               return;
             }
             if (status.outcome === "failed") {
-              onClipboardStatusRef.current?.("Paste failed.");
+              onClipboardStatusRef.current?.(status.message ?? "Paste failed.");
               return;
             }
             if (status.outcome === "fallback") {
