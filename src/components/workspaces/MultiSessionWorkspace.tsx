@@ -119,6 +119,7 @@ interface InteractiveTerminalComponentProps {
   onTerminalDestroy?: () => void;
   onUserFocusRequest?: () => void;
   onComposeRequest?: (request: TerminalComposeRequest) => void;
+  onClipboardStatus?: (message: string) => void;
   targetLabel?: string;
   layoutSignal?: unknown;
   mobileInputMode?: boolean;
@@ -829,6 +830,7 @@ export function MultiSessionWorkspace({
   const [clipboardActionStatus, setClipboardActionStatus] = useState<ClipboardActionStatus | null>(
     null,
   );
+  const [clipboardStatusMessage, setClipboardStatusMessage] = useState<string | null>(null);
   const [terminalStateVersion, setTerminalStateVersion] = useState(0);
   const [gitSearchQuery, setGitSearchQuery] = useState("");
   const [addingCloneKey, setAddingCloneKey] = useState<string | null>(null);
@@ -1328,19 +1330,28 @@ export function MultiSessionWorkspace({
   const handleSelectionModeChange = useCallback((enabled: boolean) => {
     setSelectionModeEnabled(enabled);
     setClipboardActionStatus(null);
+    setClipboardStatusMessage(null);
   }, []);
 
   const handleMobileCopy = useCallback(() => {
     const term = activeTerminalEntry?.term;
     if (!term) return;
-    copyTerminalSelection(term, { onStatus: setClipboardActionStatus });
+    copyTerminalSelection(term, {
+      onStatus: (status) => {
+        setClipboardStatusMessage(null);
+        setClipboardActionStatus(status);
+      },
+    });
   }, [activeTerminalEntry]);
 
   const handleMobilePaste = useCallback(() => {
     const entry = activeTerminalEntry;
     if (!entry) return;
     pasteToTerminal(entry.term, entry.send, {
-      onStatus: setClipboardActionStatus,
+      onStatus: (status) => {
+        setClipboardStatusMessage(null);
+        setClipboardActionStatus(status);
+      },
       onCompose: openComposeWithDraft,
       targetLabel: activeLabel,
       workspaceId,
@@ -2627,11 +2638,13 @@ export function MultiSessionWorkspace({
   const controlsSelectionModeEnabled = isComposeSheet && selectionModeEnabled;
   const hasActiveTerminal = Boolean(activeTerminalEntry?.term);
   const hasActiveSender = Boolean(activeTerminalEntry?.send);
-  const mobileClipboardStatus = clipboardStatusText(clipboardActionStatus, {
-    canPaste: hasActiveSender,
-    hasTerminal: hasActiveTerminal,
-    selectionModeEnabled: controlsSelectionModeEnabled,
-  });
+  const mobileClipboardStatus =
+    clipboardStatusMessage ??
+    clipboardStatusText(clipboardActionStatus, {
+      canPaste: hasActiveSender,
+      hasTerminal: hasActiveTerminal,
+      selectionModeEnabled: controlsSelectionModeEnabled,
+    });
   const mobileTerminalControls = isComposeSheet ? (
     <MobileTerminalControls
       isKeyboardVisible={isMobileKeyboardVisible}
@@ -2747,6 +2760,10 @@ export function MultiSessionWorkspace({
             selectSession(pane.sessionName, { focusTerminal: false });
           }}
           onComposeRequest={openComposeWithDraft}
+          onClipboardStatus={(message) => {
+            setClipboardStatusMessage(message);
+            setClipboardActionStatus(null);
+          }}
           targetLabel={pane.label}
         />
       </TerminalSessionFrame>

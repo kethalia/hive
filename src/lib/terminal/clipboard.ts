@@ -131,8 +131,9 @@ export async function handleTerminalPasteOutcome(
         targetLabel: controller.targetLabel,
       });
       controller.onStatus?.("Pasted image path added to compose.");
-    } catch {
-      controller.onStatus?.("Image paste failed.");
+    } catch (error) {
+      const reason = error instanceof Error ? error.message : "Failed to upload pasted image";
+      controller.onStatus?.(`File paste failed: ${reason}`);
     }
     return;
   }

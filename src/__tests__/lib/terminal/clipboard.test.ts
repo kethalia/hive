@@ -98,6 +98,6 @@ describe("terminal paste dispatch", () => {
     );
 
     expect(openCompose).not.toHaveBeenCalled();
-    expect(onStatus).toHaveBeenCalledWith("Image paste failed.");
+    expect(onStatus).toHaveBeenCalledWith("File paste failed: upload failed with payload details");
   });
 });

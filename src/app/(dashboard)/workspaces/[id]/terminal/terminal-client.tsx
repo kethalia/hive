@@ -181,6 +181,7 @@ function TerminalInner({
   const [clipboardActionStatus, setClipboardActionStatus] = useState<ClipboardActionStatus | null>(
     null,
   );
+  const [clipboardStatusMessage, setClipboardStatusMessage] = useState<string | null>(null);
   const [bootstrapError, setBootstrapError] = useState<string | null>(null);
   const [bootstrapRetryKey, setBootstrapRetryKey] = useState(0);
   const [cloneIdentity, setCloneIdentity] = useState<{
@@ -222,11 +223,13 @@ function TerminalInner({
   const controlsSelectionModeEnabled = controlsVisible && selectionModeEnabled;
   const hasActiveTerminal = Boolean(activeTerminal);
   const hasActiveSender = Boolean(activeSend);
-  const clipboardStatus = clipboardStatusText(clipboardActionStatus, {
-    canPaste: hasActiveSender,
-    hasTerminal: hasActiveTerminal,
-    selectionModeEnabled: controlsSelectionModeEnabled,
-  });
+  const clipboardStatus =
+    clipboardStatusMessage ??
+    clipboardStatusText(clipboardActionStatus, {
+      canPaste: hasActiveSender,
+      hasTerminal: hasActiveTerminal,
+      selectionModeEnabled: controlsSelectionModeEnabled,
+    });
   const cloneIdentityMatchesRoute = cloneIdentity.sessionName === session;
   const clonePath = cloneIdentityMatchesRoute ? cloneIdentity.clonePath : routeClonePath;
   const cloneProof = cloneIdentityMatchesRoute ? cloneIdentity.cloneProof : routeCloneProof;
@@ -329,7 +332,12 @@ function TerminalInner({
 
   const handleMobileCopy = useCallback(() => {
     if (!activeTerminal) return;
-    copyTerminalSelection(activeTerminal, { onStatus: setClipboardActionStatus });
+    copyTerminalSelection(activeTerminal, {
+      onStatus: (status) => {
+        setClipboardStatusMessage(null);
+        setClipboardActionStatus(status);
+      },
+    });
   }, [activeTerminal]);
 
   const openComposeWithDraft = useCallback((request: TerminalComposeRequest) => {
@@ -353,7 +361,10 @@ function TerminalInner({
   const handleMobilePaste = useCallback(() => {
     if (!activeSend) return;
     pasteToTerminal(activeTerminal ?? null, activeSend, {
-      onStatus: setClipboardActionStatus,
+      onStatus: (status) => {
+        setClipboardStatusMessage(null);
+        setClipboardActionStatus(status);
+      },
       onCompose: openComposeWithDraft,
       targetLabel: session ?? undefined,
       workspaceId,
@@ -581,13 +592,10 @@ function TerminalInner({
         onTerminalReady={handleTerminalReady}
         onTerminalDestroy={handleTerminalDestroy}
         onComposeRequest={openComposeWithDraft}
-        onClipboardStatus={(message) =>
-          setClipboardActionStatus({
-            action: "paste",
-            outcome: message === "Clipboard is empty." ? "empty" : "pasted",
-            method: "clipboard-api",
-          })
-        }
+        onClipboardStatus={(message) => {
+          setClipboardStatusMessage(message);
+          setClipboardActionStatus(null);
+        }}
         targetLabel={session}
         layoutSignal={mobileLayoutSignal}
         mobileInputMode={isComposeSheet}
