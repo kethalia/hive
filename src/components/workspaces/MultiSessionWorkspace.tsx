@@ -15,8 +15,8 @@ import {
 } from "react";
 import { toast } from "sonner";
 import { CommandPalette, type CommandPaletteAction } from "@/components/terminal/CommandPalette";
-import { ComposePanel } from "@/components/terminal/ComposePanel";
 import { MobileTerminalControls } from "@/components/terminal/MobileTerminalControls";
+import { TerminalSessionCompose } from "@/components/terminal/TerminalSessionCompose";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import {
@@ -2728,6 +2728,36 @@ export function MultiSessionWorkspace({
       }
     />
   ) : null;
+  const desktopComposePanel =
+    composeOpen && !isComposeSheet ? (
+      <div className="h-72 min-h-56 shrink-0 p-1 pt-0" data-testid="multi-session-compose-inline">
+        <TerminalSessionCompose
+          variant="inline"
+          initialDraft={composeDraft}
+          targetLabel={composeTargetLabel ?? activeLabel}
+          onSend={sendComposeDraft}
+          onClose={closeCompose}
+        />
+      </div>
+    ) : null;
+  const mobileComposeSheet = isComposeSheet ? (
+    <TerminalSessionCompose
+      variant="sheet"
+      open={composeOpen}
+      onOpenChange={(open) => {
+        if (open) {
+          setComposeOpen(true);
+        } else {
+          closeCompose();
+        }
+      }}
+      isKeyboardVisible={isMobileKeyboardVisible}
+      initialDraft={composeDraft}
+      targetLabel={composeTargetLabel ?? activeLabel}
+      onSend={sendComposeDraft}
+      onClose={closeCompose}
+    />
+  ) : null;
 
   const renderPane = (pane: SessionPane, model: WorkspaceBoardRenderModel) => {
     const visibleSession = model.visibleSessions.find(
@@ -2961,17 +2991,9 @@ export function MultiSessionWorkspace({
           {boardRenderModels.map(renderBoardLayer)}
         </div>
         {mobileTerminalControls}
-        {composeOpen ? (
-          <div className="h-[28%] min-h-40 shrink-0 border-t border-border">
-            <ComposePanel
-              initialDraft={composeDraft}
-              targetLabel={composeTargetLabel ?? activeLabel}
-              onSend={sendComposeDraft}
-              onClose={closeCompose}
-            />
-          </div>
-        ) : null}
+        {desktopComposePanel}
       </div>
+      {mobileComposeSheet}
     </section>
   );
 }

@@ -248,6 +248,7 @@ vi.mock("lucide-react", () => ({
   Search: () => <span data-testid="icon-search" />,
   TerminalSquare: () => <span data-testid="icon-terminal-square" />,
   X: () => <span data-testid="icon-x" />,
+  XIcon: () => <span data-testid="icon-x" />,
 }));
 
 function twoSessionPayload() {
