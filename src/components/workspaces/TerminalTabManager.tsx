@@ -23,6 +23,7 @@ import {
 import { SAFE_IDENTIFIER_RE } from "@/lib/constants";
 import type { TerminalComposeRequest } from "@/lib/terminal/clipboard";
 import { TERMINAL_COMPOSE_TOGGLE_EVENT } from "@/lib/terminal/events";
+import { registerGlobalCommandPaletteSource } from "@/lib/terminal/global-command-palette";
 import { isPwaStandalone } from "@/lib/terminal/pwa";
 import { cn } from "@/lib/utils";
 
@@ -313,6 +314,24 @@ export function TerminalTabManager({ agentId, workspaceId }: TerminalTabManagerP
 
   const { register, unregister } = keybindingsCtx;
 
+  const handlePaletteSelectTab = useCallback((tabId: string) => {
+    dispatch({ type: "SET_ACTIVE", tabId });
+  }, []);
+
+  useEffect(
+    () =>
+      registerGlobalCommandPaletteSource({
+        id: `terminal-tabs:${workspaceId}`,
+        tabs,
+        onSelectTab: handlePaletteSelectTab,
+        onCreateSession: handleCreateTab,
+        searchPlaceholder: "Search workspace sessions…",
+        emptyText: "No workspace sessions found.",
+        groupHeading: "Workspace sessions",
+      }),
+    [handleCreateTab, handlePaletteSelectTab, tabs, workspaceId],
+  );
+
   useEffect(() => {
     const handleComposeToggle = () => {
       setComposeOpen((open) => !open);
@@ -591,7 +610,7 @@ export function TerminalTabManager({ agentId, workspaceId }: TerminalTabManagerP
         open={paletteOpen}
         onOpenChange={setPaletteOpen}
         tabs={tabs}
-        onSelectTab={(tabId) => dispatch({ type: "SET_ACTIVE", tabId })}
+        onSelectTab={handlePaletteSelectTab}
         onCreateSession={handleCreateTab}
       />
     </div>

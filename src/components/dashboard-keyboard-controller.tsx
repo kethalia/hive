@@ -10,6 +10,10 @@ import { listWorkspacesAction } from "@/lib/actions/workspaces";
 import { formatRelativeDate, shortId } from "@/lib/helpers/format";
 import { formatShortcut } from "@/lib/keyboard-shortcuts";
 import { TERMINAL_COMPOSE_TOGGLE_EVENT } from "@/lib/terminal/events";
+import {
+  getGlobalCommandPaletteSources,
+  subscribeGlobalCommandPaletteSources,
+} from "@/lib/terminal/global-command-palette";
 import { ACTIVE_STATUSES } from "@/lib/types/tasks";
 
 const GLOBAL_COMMAND_PALETTE_KEYS = ["ctrl+k", "cmd+k"] as const;
@@ -98,8 +102,10 @@ export function DashboardKeyboardController() {
   const [loading, setLoading] = useState(false);
   const [loadFailed, setLoadFailed] = useState(false);
   const [appFullscreen, setAppFullscreen] = useState(false);
+  const [paletteSources, setPaletteSources] = useState(getGlobalCommandPaletteSources);
   const appFullscreenRef = useRef(appFullscreen);
   appFullscreenRef.current = appFullscreen;
+  const activePaletteSource = paletteSources.at(-1) ?? null;
 
   const toggleDashboardFullscreen = useCallback(() => {
     const nextFullscreen = !appFullscreenRef.current;
@@ -166,6 +172,14 @@ export function DashboardKeyboardController() {
     };
   }, [paletteOpen]);
 
+  useEffect(
+    () =>
+      subscribeGlobalCommandPaletteSources(() => {
+        setPaletteSources(getGlobalCommandPaletteSources());
+      }),
+    [],
+  );
+
   useRegisterKeybinding({
     id: "dashboard:command-palette",
     keys: [...GLOBAL_COMMAND_PALETTE_KEYS],
@@ -222,7 +236,7 @@ export function DashboardKeyboardController() {
     allowTextEntry: true,
   });
 
-  const actions = useMemo<CommandPaletteAction[]>(() => {
+  const dashboardActions = useMemo<CommandPaletteAction[]>(() => {
     const activeTasks = tasks.filter((task) => ACTIVE_STATUSES.has(task.status));
     const recentTasks = tasks.filter((task) => !ACTIVE_STATUSES.has(task.status)).slice(0, 6);
     const workspaceActions = workspaces.slice(0, 8).map<CommandPaletteAction>((workspace) => ({
@@ -303,24 +317,41 @@ export function DashboardKeyboardController() {
     ];
   }, [appFullscreen, router, tasks, toggleDashboardFullscreen, workspaces]);
 
+  const sourceActions = activePaletteSource?.actions ?? [];
+  const actions = useMemo(
+    () => [...sourceActions, ...dashboardActions],
+    [dashboardActions, sourceActions],
+  );
+
+  const handleSearchValueChange = useCallback(
+    (value: string) => {
+      setPaletteQuery(value);
+      activePaletteSource?.onSearchValueChange?.(value);
+    },
+    [activePaletteSource],
+  );
+
   const emptyText = loading
     ? "Loading dashboard commands…"
     : loadFailed
       ? "Could not load dashboard commands."
-      : "No commands found.";
+      : (activePaletteSource?.emptyText ?? "No commands found.");
 
   return (
     <CommandPalette
       open={paletteOpen}
       onOpenChange={setPaletteOpen}
-      tabs={[]}
-      onSelectTab={() => undefined}
+      tabs={activePaletteSource?.tabs ?? []}
+      onSelectTab={activePaletteSource?.onSelectTab ?? (() => undefined)}
+      onCreateSession={activePaletteSource?.onCreateSession}
       actions={actions}
-      searchValue={paletteQuery}
-      onSearchValueChange={setPaletteQuery}
-      searchPlaceholder="Search commands, workspaces, and tasks…"
+      searchValue={activePaletteSource?.searchValue ?? paletteQuery}
+      onSearchValueChange={handleSearchValueChange}
+      searchPlaceholder={
+        activePaletteSource?.searchPlaceholder ?? "Search commands, workspaces, and tasks…"
+      }
       emptyText={emptyText}
-      groupHeading="Open"
+      groupHeading={activePaletteSource?.groupHeading ?? "Open"}
     />
   );
 }

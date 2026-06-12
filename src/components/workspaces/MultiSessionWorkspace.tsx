@@ -64,6 +64,7 @@ import {
 } from "@/lib/terminal/actions";
 import type { TerminalComposeRequest, TerminalPasteStatus } from "@/lib/terminal/clipboard";
 import { TERMINAL_COMPOSE_TOGGLE_EVENT } from "@/lib/terminal/events";
+import { registerGlobalCommandPaletteSource } from "@/lib/terminal/global-command-palette";
 import { isPwaStandalone } from "@/lib/terminal/pwa";
 import { cn } from "@/lib/utils";
 import {
@@ -2281,6 +2282,37 @@ export function MultiSessionWorkspace({
     selectSession,
     visibleSessions,
   ]);
+
+  useEffect(
+    () =>
+      registerGlobalCommandPaletteSource({
+        id: `multi-session:${workspaceId}`,
+        tabs: isUnifiedSource ? [] : commandPaletteTabs,
+        onSelectTab: handlePaletteSelect,
+        onCreateSession: isUnifiedSource
+          ? undefined
+          : () => {
+              void handleCreateSession();
+            },
+        actions: workspacePaletteActions,
+        searchValue: isUnifiedSource ? gitSearchQuery : undefined,
+        onSearchValueChange: isUnifiedSource ? setGitSearchQuery : undefined,
+        searchPlaceholder: isUnifiedSource
+          ? "Search terminal sessions, Git repositories, or type a new session name…"
+          : "Search workspace sessions…",
+        emptyText: isUnifiedSource ? "No command matches." : "No workspace sessions found.",
+        groupHeading: "Workspace sessions",
+      }),
+    [
+      commandPaletteTabs,
+      gitSearchQuery,
+      handleCreateSession,
+      handlePaletteSelect,
+      isUnifiedSource,
+      workspaceId,
+      workspacePaletteActions,
+    ],
+  );
 
   const handleRemovePane = useCallback(
     async ({ boardKey, boardPaneKey, sessionName }: RemoveWorkspacePaneTarget) => {

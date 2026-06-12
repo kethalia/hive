@@ -43,7 +43,10 @@ vi.mock("@/components/terminal/CommandPalette", () => ({
   CommandPalette: ({
     actions,
     emptyText,
+    onCreateSession,
+    onSelectTab,
     open,
+    tabs,
   }: {
     actions: Array<{
       id: string;
@@ -52,16 +55,31 @@ vi.mock("@/components/terminal/CommandPalette", () => ({
       onSelect: () => void;
     }>;
     emptyText: string;
+    onCreateSession?: () => void;
+    onSelectTab: (tabId: string) => void;
     open: boolean;
+    tabs: Array<{ id: string; sessionName: string }>;
   }) => (
     <div data-empty-text={emptyText} data-open={open ? "true" : "false"} data-testid="palette">
       {open
-        ? actions.map((action) => (
-            <button key={action.id} type="button" onClick={action.onSelect}>
-              <span>{action.label}</span>
-              {action.description ? <small>{action.description}</small> : null}
-            </button>
-          ))
+        ? [
+            ...actions.map((action) => (
+              <button key={action.id} type="button" onClick={action.onSelect}>
+                <span>{action.label}</span>
+                {action.description ? <small>{action.description}</small> : null}
+              </button>
+            )),
+            ...tabs.map((tab) => (
+              <button key={tab.id} type="button" onClick={() => onSelectTab(tab.id)}>
+                {tab.sessionName}
+              </button>
+            )),
+            onCreateSession ? (
+              <button key="create-session" type="button" onClick={onCreateSession}>
+                New Session
+              </button>
+            ) : null,
+          ]
         : null}
     </div>
   ),
@@ -69,6 +87,7 @@ vi.mock("@/components/terminal/CommandPalette", () => ({
 
 import { DashboardKeyboardController } from "@/components/dashboard-keyboard-controller";
 import { TERMINAL_COMPOSE_TOGGLE_EVENT } from "@/lib/terminal/events";
+import { registerGlobalCommandPaletteSource } from "@/lib/terminal/global-command-palette";
 
 function workspacePayload() {
   return {
@@ -164,6 +183,40 @@ describe("DashboardKeyboardController", () => {
 
     fireEvent.click(screen.getByText("Check task progress (1)"));
     expect(mockRouterPush).toHaveBeenCalledWith("/tasks");
+  });
+
+  it("includes commands from the active workspace palette source", async () => {
+    const onSelectTab = vi.fn();
+    const onCreateSession = vi.fn();
+    const cleanupSource = registerGlobalCommandPaletteSource({
+      id: "test-workspace-source",
+      tabs: [{ id: "tab-1", sessionName: "main-session" }],
+      onSelectTab,
+      onCreateSession,
+      actions: [
+        {
+          id: "workspace:add-terminal",
+          label: "Add dev-server",
+          description: "Add this terminal to the board",
+          group: "Terminal sessions",
+          onSelect: vi.fn(),
+        },
+      ],
+    });
+
+    render(<DashboardKeyboardController />);
+
+    act(() => {
+      expect(registeredBindings.get("dashboard:command-palette")?.action(null, null)).toBe(false);
+    });
+
+    expect(await screen.findByText("Add dev-server")).toBeInTheDocument();
+    fireEvent.click(screen.getByText("main-session"));
+    expect(onSelectTab).toHaveBeenCalledWith("tab-1");
+    fireEvent.click(screen.getByText("New Session"));
+    expect(onCreateSession).toHaveBeenCalled();
+
+    cleanupSource();
   });
 
   it("runs sidebar, compose, and fullscreen actions globally", () => {
