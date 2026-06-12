@@ -1,5 +1,6 @@
 import { Suspense } from "react";
 import { AppSidebar } from "@/components/app-sidebar";
+import { DashboardKeyboardController } from "@/components/dashboard-keyboard-controller";
 import { DashboardSidebarTrigger } from "@/components/dashboard-sidebar-trigger";
 import { PushPermissionPrompt } from "@/components/push-permission-prompt";
 import { SidebarEdgeHandle } from "@/components/sidebar-edge-handle";
@@ -37,6 +38,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
             </div>
           </main>
         </SidebarInset>
+        <DashboardKeyboardController />
         <HelpOverlay />
       </KeybindingProvider>
     </SidebarProvider>

@@ -22,6 +22,8 @@ import {
 } from "@/lib/actions/workspaces";
 import { SAFE_IDENTIFIER_RE } from "@/lib/constants";
 import type { TerminalComposeRequest } from "@/lib/terminal/clipboard";
+import { TERMINAL_COMPOSE_TOGGLE_EVENT } from "@/lib/terminal/events";
+import { registerGlobalCommandPaletteSource } from "@/lib/terminal/global-command-palette";
 import { isPwaStandalone } from "@/lib/terminal/pwa";
 import { cn } from "@/lib/utils";
 
@@ -310,10 +312,35 @@ export function TerminalTabManager({ agentId, workspaceId }: TerminalTabManagerP
     entry.send("\r");
   }, []);
 
-  const setComposeOpenRef = useRef(setComposeOpen);
-  setComposeOpenRef.current = setComposeOpen;
-
   const { register, unregister } = keybindingsCtx;
+
+  const handlePaletteSelectTab = useCallback((tabId: string) => {
+    dispatch({ type: "SET_ACTIVE", tabId });
+  }, []);
+
+  useEffect(
+    () =>
+      registerGlobalCommandPaletteSource({
+        id: `terminal-tabs:${workspaceId}`,
+        tabs,
+        onSelectTab: handlePaletteSelectTab,
+        onCreateSession: handleCreateTab,
+        searchPlaceholder: "Search workspace sessions…",
+        emptyText: "No workspace sessions found.",
+        groupHeading: "Workspace sessions",
+      }),
+    [handleCreateTab, handlePaletteSelectTab, tabs, workspaceId],
+  );
+
+  useEffect(() => {
+    const handleComposeToggle = () => {
+      setComposeOpen((open) => !open);
+    };
+    window.addEventListener(TERMINAL_COMPOSE_TOGGLE_EVENT, handleComposeToggle);
+    return () => {
+      window.removeEventListener(TERMINAL_COMPOSE_TOGGLE_EVENT, handleComposeToggle);
+    };
+  }, []);
 
   useEffect(() => {
     const createTabBinding = {
@@ -331,10 +358,10 @@ export function TerminalTabManager({ agentId, workspaceId }: TerminalTabManagerP
 
     const closeTabBinding = {
       id: "session:close",
-      keys: ["ctrl+w", "cmd+w"],
+      keys: ["ctrl+w"],
       action: () => {
         if (!isPwaStandalone()) return true;
-        if (tabsRef.current.length <= 1) return true;
+        if (tabsRef.current.length <= 1) return false;
         const currentActiveId = activeTabIdRef.current;
         if (currentActiveId) handleKillTab(currentActiveId);
         return false;
@@ -342,6 +369,7 @@ export function TerminalTabManager({ agentId, workspaceId }: TerminalTabManagerP
       description: "Close active session tab",
       category: "session",
       enabledInBrowser: false,
+      global: true,
     };
 
     const nextTabBinding = {
@@ -378,45 +406,16 @@ export function TerminalTabManager({ agentId, workspaceId }: TerminalTabManagerP
       enabledInBrowser: true,
     };
 
-    const composeToggleBinding = {
-      id: "compose:toggle:tab-manager",
-      keys: ["ctrl+`", "cmd+`"],
-      action: () => {
-        setComposeOpenRef.current((prev) => !prev);
-        return false;
-      },
-      description: "Toggle compose panel",
-      category: "terminal",
-      enabledInBrowser: true,
-    };
-
-    const commandPaletteBinding = {
-      id: "command-palette",
-      keys: ["ctrl+k", "cmd+k"],
-      action: () => {
-        setPaletteOpen(true);
-        return false;
-      },
-      description: "Open command palette",
-      category: "terminal",
-      enabledInBrowser: true,
-      global: true,
-    };
-
     register(createTabBinding);
     register(closeTabBinding);
     register(nextTabBinding);
     register(prevTabBinding);
-    register(composeToggleBinding);
-    register(commandPaletteBinding);
 
     return () => {
       unregister("session:create");
       unregister("session:close");
       unregister("session:next-tab");
       unregister("session:prev-tab");
-      unregister("compose:toggle:tab-manager");
-      unregister("command-palette");
     };
   }, [register, unregister, handleCreateTab, handleKillTab]);
 
@@ -611,7 +610,7 @@ export function TerminalTabManager({ agentId, workspaceId }: TerminalTabManagerP
         open={paletteOpen}
         onOpenChange={setPaletteOpen}
         tabs={tabs}
-        onSelectTab={(tabId) => dispatch({ type: "SET_ACTIVE", tabId })}
+        onSelectTab={handlePaletteSelectTab}
         onCreateSession={handleCreateTab}
       />
     </div>

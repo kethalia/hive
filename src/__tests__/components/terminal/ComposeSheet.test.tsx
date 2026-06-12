@@ -166,7 +166,7 @@ vi.mock("@/components/ui/sheet", () => ({
 }));
 
 import { TerminalClient } from "@/app/(dashboard)/workspaces/[id]/terminal/terminal-client";
-import { TERMINAL_COMPOSE_OPEN_EVENT } from "@/lib/terminal/events";
+import { TERMINAL_COMPOSE_OPEN_EVENT, TERMINAL_COMPOSE_TOGGLE_EVENT } from "@/lib/terminal/events";
 
 function createMockKeybindingsCtx(): KeybindingContextValue {
   return {
@@ -184,24 +184,19 @@ function createMockKeybindingsCtx(): KeybindingContextValue {
   };
 }
 
-async function renderTerminalClient(isComposeSheet: boolean) {
+async function renderTerminalClient(isComposeSheet: boolean, waitForTerminal = true) {
   mockUseIsComposeSheet.mockReturnValue(isComposeSheet);
   render(<TerminalClient agentId="agent-1" workspaceId="workspace-1" />);
+  if (!waitForTerminal) return;
   await waitFor(() => {
-    expect(registeredBindings.get("compose:toggle:fullscreen")).toBeDefined();
+    expect(screen.getByTestId("interactive-terminal")).toBeInTheDocument();
   });
 }
 
 function toggleCompose() {
-  const binding = registeredBindings.get("compose:toggle:fullscreen");
-  expect(binding).toBeDefined();
-
-  let result: boolean | undefined;
   act(() => {
-    result = binding?.action(null, null);
+    window.dispatchEvent(new CustomEvent(TERMINAL_COMPOSE_TOGGLE_EVENT));
   });
-
-  expect(result).toBe(false);
 }
 
 describe("TerminalClient compose sheet", () => {
@@ -296,7 +291,7 @@ describe("TerminalClient compose sheet", () => {
   });
 
   it("uses a full-height bottom Sheet below the compose breakpoint", async () => {
-    await renderTerminalClient(true);
+    await renderTerminalClient(true, false);
 
     expect(screen.getByTestId("interactive-terminal")).toBeInTheDocument();
     expect(screen.getByTestId("interactive-terminal")).toHaveAttribute(
@@ -359,7 +354,7 @@ describe("TerminalClient compose sheet", () => {
   });
 
   it("keeps diagnostics overlay hidden unless debugViewport query is enabled", async () => {
-    await renderTerminalClient(true);
+    await renderTerminalClient(true, false);
 
     expect(screen.queryByTestId("mobile-terminal-diagnostics-overlay")).not.toBeInTheDocument();
   });
@@ -367,7 +362,7 @@ describe("TerminalClient compose sheet", () => {
   it("enables diagnostics overlay with stable terminal telemetry selectors in mobile debug mode", async () => {
     navigationState.search = "session=tmux-1&debugViewport=1";
 
-    await renderTerminalClient(true);
+    await renderTerminalClient(true, false);
 
     expect(screen.getByTestId("mobile-terminal-diagnostics-overlay")).toBeInTheDocument();
     expect(screen.getByTestId("terminal-mobile-shell")).toHaveAttribute(
@@ -390,7 +385,7 @@ describe("TerminalClient compose sheet", () => {
   });
 
   it("locks document scrolling while the mobile terminal owns the viewport", async () => {
-    await renderTerminalClient(true);
+    await renderTerminalClient(true, false);
 
     expect(document.documentElement).toHaveStyle({
       height: "var(--app-viewport-height)",
@@ -428,7 +423,7 @@ describe("TerminalClient compose sheet", () => {
   });
 
   it("opens the mobile compose Sheet from the mobile controls action", async () => {
-    await renderTerminalClient(true);
+    await renderTerminalClient(true, false);
 
     expect(screen.getByTestId("interactive-terminal")).toHaveAttribute(
       "data-mobile-input-mode",
@@ -451,7 +446,7 @@ describe("TerminalClient compose sheet", () => {
   });
 
   it("opens the mobile compose Sheet from the global terminal compose event", async () => {
-    await renderTerminalClient(true);
+    await renderTerminalClient(true, false);
 
     expect(screen.getByTestId("compose-sheet")).toHaveAttribute("data-open", "false");
 
@@ -470,7 +465,7 @@ describe("TerminalClient compose sheet", () => {
       visualViewportHeightPx: 500,
       visualViewportOffsetTopPx: 240,
     });
-    await renderTerminalClient(true);
+    await renderTerminalClient(true, false);
 
     expect(screen.getByTestId("terminal-mobile-shell")).toHaveStyle({
       height: "var(--app-visual-viewport-height)",
@@ -514,7 +509,7 @@ describe("TerminalClient compose sheet", () => {
   });
 
   it("dismisses the mobile compose Sheet when its handle is dragged downward", async () => {
-    await renderTerminalClient(true);
+    await renderTerminalClient(true, false);
 
     toggleCompose();
     expect(screen.getByTestId("compose-sheet")).toHaveAttribute("data-open", "true");
@@ -538,7 +533,7 @@ describe("TerminalClient compose sheet", () => {
       ],
     });
 
-    await renderTerminalClient(true);
+    await renderTerminalClient(true, false);
 
     await waitFor(() => {
       expect(navigationState.replace).toHaveBeenCalledWith(
@@ -558,7 +553,7 @@ describe("TerminalClient compose sheet", () => {
       ],
     });
 
-    await renderTerminalClient(true);
+    await renderTerminalClient(true, false);
 
     await waitFor(() => {
       expect(navigationState.replace).toHaveBeenCalledWith(
@@ -573,7 +568,7 @@ describe("TerminalClient compose sheet", () => {
     mockGetWorkspaceSessionsAction.mockResolvedValueOnce({ data: [] });
     mockCreateSessionAction.mockResolvedValueOnce({ data: { name: "session-new" } });
 
-    await renderTerminalClient(true);
+    await renderTerminalClient(true, false);
 
     await waitFor(() => {
       expect(mockCreateSessionAction).toHaveBeenCalledWith({ workspaceId: "workspace-1" });
@@ -590,7 +585,7 @@ describe("TerminalClient compose sheet", () => {
         "Failed to list tmux sessions (exit 1): no diagnostics returned by workspace command",
     });
 
-    await renderTerminalClient(true);
+    await renderTerminalClient(true, false);
 
     expect(await screen.findByText("Could not load terminal sessions")).toBeInTheDocument();
     expect(screen.getByTestId("terminal-mobile-shell")).toHaveAttribute(

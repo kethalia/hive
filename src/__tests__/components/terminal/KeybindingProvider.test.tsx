@@ -145,6 +145,34 @@ describe("KeybindingProvider", () => {
     expect(event.defaultPrevented).toBe(false);
   });
 
+  it("captures opted-in global shortcuts from ordinary text-entry fields", async () => {
+    const action = vi.fn(() => false);
+    const probe = renderWithProbe(<input aria-label="Search sessions" />);
+
+    act(() => {
+      probe.context?.register({
+        id: "dashboard:command-palette",
+        keys: ["ctrl+k", "cmd+k"],
+        action,
+        description: "Open command palette",
+        category: "general",
+        enabledInBrowser: true,
+        global: true,
+        allowTextEntry: true,
+      });
+    });
+
+    const input = document.querySelector("input");
+    expect(input).not.toBeNull();
+    const event = makeKeyEvent({ key: "k", metaKey: true, bubbles: true, cancelable: true });
+    act(() => {
+      input?.dispatchEvent(event);
+    });
+
+    expect(action).toHaveBeenCalledTimes(1);
+    expect(event.defaultPrevented).toBe(true);
+  });
+
   it("does not capture global shortcuts from contenteditable fields", async () => {
     const action = vi.fn(() => false);
     const probe = renderWithProbe(

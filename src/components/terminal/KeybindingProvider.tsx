@@ -87,7 +87,11 @@ export function KeybindingProvider({ children }: { children: React.ReactNode }) 
       const combo = normalizeKeyCombo(event);
       const entry = registryRef.current.get(combo);
       if (!entry?.global) return;
-      if (isTextEntryEventTarget(event.target) && !isTerminalHelperTextAreaTarget(event.target)) {
+      if (
+        isTextEntryEventTarget(event.target) &&
+        !isTerminalHelperTextAreaTarget(event.target) &&
+        !entry.allowTextEntry
+      ) {
         return;
       }
       if (!entry.enabledInBrowser && !isPwaStandalone()) return;

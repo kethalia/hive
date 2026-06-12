@@ -51,7 +51,7 @@ vi.mock("@hive/db", () => ({
 
 // ── Import under test ────────────────────────────────────────────
 
-import { createTaskSchema } from "@/lib/actions/tasks";
+import { createTaskSchema } from "@/lib/actions/tasks-contract";
 import { createTask } from "@/lib/api/tasks";
 
 // ── Tests ─────────────────────────────────────────────────────────

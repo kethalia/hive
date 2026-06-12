@@ -3,21 +3,9 @@
 import { z } from "zod";
 import { createTask, getTask, listTasks } from "@/lib/api/tasks";
 import { authActionClient } from "@/lib/safe-action";
+import { createTaskSchema } from "./tasks-contract";
 
 // ── Schemas ───────────────────────────────────────────────────────
-
-const attachmentSchema = z.object({
-  name: z.string(),
-  data: z.string(),
-  type: z.string(),
-});
-
-export const createTaskSchema = z.object({
-  prompt: z.string().min(1, "Prompt is required"),
-  repoUrl: z.string().url("Must be a valid URL"),
-  attachments: z.array(attachmentSchema).optional(),
-  councilSize: z.coerce.number().int().min(1).max(7).default(3),
-});
 
 const getTaskSchema = z.object({
   id: z.string().uuid("Invalid task ID"),

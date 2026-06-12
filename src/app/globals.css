@@ -173,6 +173,16 @@
 }
 
 @layer components {
+  html[data-dashboard-fullscreen="true"] [data-slot="sidebar"],
+  html[data-dashboard-fullscreen="true"] [data-slot="sidebar-gap"],
+  html[data-dashboard-fullscreen="true"] [data-dashboard-sidebar-trigger] {
+    display: none;
+  }
+
+  html[data-dashboard-fullscreen="true"] [data-slot="sidebar-inset"] {
+    width: 100%;
+  }
+
   [data-dashboard-main]:has([data-dashboard-full-bleed]) {
     padding: 0;
   }
