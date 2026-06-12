@@ -39,19 +39,18 @@ function actionData(value: unknown): unknown {
   return isObjectRecord(value) && "data" in value ? value.data : undefined;
 }
 
-function stringField(record: Record<string, unknown>, key: string): string | null {
-  const value = record[key];
+function stringValue(value: unknown): string | null {
   return typeof value === "string" ? value : null;
 }
 
 function parseWorkspace(value: unknown): DashboardWorkspace | null {
   if (!isObjectRecord(value)) return null;
-  const id = stringField(value, "id");
-  const name = stringField(value, "name");
+  const id = stringValue(value.id);
+  const name = stringValue(value.name);
   const latestBuild = value.latest_build;
   if (!id || !name || !isObjectRecord(latestBuild)) return null;
-  const status = stringField(latestBuild, "status") ?? "unknown";
-  const lastUsedAt = stringField(value, "last_used_at");
+  const status = stringValue(latestBuild.status) ?? "unknown";
+  const lastUsedAt = stringValue(value.last_used_at);
 
   return {
     id,
@@ -63,10 +62,10 @@ function parseWorkspace(value: unknown): DashboardWorkspace | null {
 
 function parseTask(value: unknown): DashboardTask | null {
   if (!isObjectRecord(value)) return null;
-  const id = stringField(value, "id");
-  const prompt = stringField(value, "prompt");
-  const status = stringField(value, "status");
-  const updatedAt = stringField(value, "updatedAt");
+  const id = stringValue(value.id);
+  const prompt = stringValue(value.prompt);
+  const status = stringValue(value.status);
+  const updatedAt = stringValue(value.updatedAt);
   if (!id || !prompt || !status || !updatedAt) return null;
 
   return {
@@ -109,9 +108,9 @@ export function DashboardKeyboardController() {
     if (nextFullscreen) {
       setOpen(false);
       setOpenMobile(false);
-      const requestFullscreen = document.documentElement.requestFullscreen;
-      if (typeof requestFullscreen === "function" && !document.fullscreenElement) {
-        requestFullscreen.call(document.documentElement).catch(() => undefined);
+      const root = document.documentElement;
+      if (typeof root.requestFullscreen === "function" && !document.fullscreenElement) {
+        root.requestFullscreen().catch(() => undefined);
       }
       return;
     }
@@ -137,7 +136,9 @@ export function DashboardKeyboardController() {
       }
     };
     document.addEventListener("fullscreenchange", syncNativeFullscreen);
-    return () => document.removeEventListener("fullscreenchange", syncNativeFullscreen);
+    return () => {
+      document.removeEventListener("fullscreenchange", syncNativeFullscreen);
+    };
   }, []);
 
   useEffect(() => {
@@ -146,25 +147,20 @@ export function DashboardKeyboardController() {
     setLoading(true);
     setLoadFailed(false);
 
-    async function loadPaletteData() {
-      try {
-        const [workspaceResult, taskResult] = await Promise.all([
-          listWorkspacesAction(),
-          listTasksAction(),
-        ]);
+    Promise.all([listWorkspacesAction(), listTasksAction()])
+      .then(([workspaceResult, taskResult]) => {
         if (cancelled) return;
         setWorkspaces(parseArray(actionData(workspaceResult), parseWorkspace));
         setTasks(parseArray(actionData(taskResult), parseTask));
-      } catch {
+      })
+      .catch(() => {
         if (!cancelled) {
           setLoadFailed(true);
         }
-      } finally {
+      })
+      .finally(() => {
         if (!cancelled) setLoading(false);
-      }
-    }
-
-    void loadPaletteData();
+      });
     return () => {
       cancelled = true;
     };
@@ -237,7 +233,9 @@ export function DashboardKeyboardController() {
       value: `${workspace.name} ${workspace.status} workspace terminal multi session`,
       rightLabel: "Open",
       icon: "terminal",
-      onSelect: () => router.push(openWorkspaceHref(workspace.id)),
+      onSelect: () => {
+        router.push(openWorkspaceHref(workspace.id));
+      },
     }));
 
     return [
@@ -248,7 +246,9 @@ export function DashboardKeyboardController() {
         group: "Actions",
         value: "new task create hive task",
         icon: "plus",
-        onSelect: () => router.push("/tasks/new"),
+        onSelect: () => {
+          router.push("/tasks/new");
+        },
       },
       {
         id: "dashboard:tasks-progress",
@@ -261,7 +261,9 @@ export function DashboardKeyboardController() {
         value: "tasks progress status running queued verifying",
         rightLabel: "/tasks",
         icon: "search",
-        onSelect: () => router.push("/tasks"),
+        onSelect: () => {
+          router.push("/tasks");
+        },
       },
       {
         id: "dashboard:toggle-fullscreen-action",
@@ -282,7 +284,9 @@ export function DashboardKeyboardController() {
         value: `${task.id} ${task.status} ${task.prompt}`,
         rightLabel: task.updatedLabel,
         icon: "search",
-        onSelect: () => router.push(`/tasks/${task.id}`),
+        onSelect: () => {
+          router.push(`/tasks/${task.id}`);
+        },
       })),
       ...recentTasks.map<CommandPaletteAction>((task) => ({
         id: `dashboard:recent-task:${task.id}`,
@@ -292,7 +296,9 @@ export function DashboardKeyboardController() {
         value: `${task.id} ${task.status} ${task.prompt}`,
         rightLabel: task.updatedLabel,
         icon: "search",
-        onSelect: () => router.push(`/tasks/${task.id}`),
+        onSelect: () => {
+          router.push(`/tasks/${task.id}`);
+        },
       })),
     ];
   }, [appFullscreen, router, tasks, toggleDashboardFullscreen, workspaces]);

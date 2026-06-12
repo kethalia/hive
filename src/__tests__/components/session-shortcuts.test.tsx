@@ -146,6 +146,14 @@ describe("session keybinding registration", () => {
     });
   }
 
+  function registeredBinding(id: string) {
+    const binding = registeredBindings.get(id);
+    if (!binding) {
+      throw new Error(`missing expected keybinding: ${id}`);
+    }
+    return binding;
+  }
+
   it("registers tab keybindings with correct ids and categories", async () => {
     await renderWithTabs([{ name: "s1" }]);
 
@@ -158,21 +166,21 @@ describe("session keybinding registration", () => {
     for (const entry of registeredBindings.values()) {
       expect(["session", "terminal"]).toContain(entry.category);
     }
-    expect(registeredBindings.get("session:next-tab")!.enabledInBrowser).toBe(true);
-    expect(registeredBindings.get("session:prev-tab")!.enabledInBrowser).toBe(true);
-    expect(registeredBindings.get("session:create")!.enabledInBrowser).toBe(true);
-    expect(registeredBindings.get("session:create")!.global).toBe(true);
-    expect(registeredBindings.get("session:close")!.enabledInBrowser).toBe(false);
-    expect(registeredBindings.get("session:close")!.global).toBe(true);
+    expect(registeredBinding("session:next-tab").enabledInBrowser).toBe(true);
+    expect(registeredBinding("session:prev-tab").enabledInBrowser).toBe(true);
+    expect(registeredBinding("session:create").enabledInBrowser).toBe(true);
+    expect(registeredBinding("session:create").global).toBe(true);
+    expect(registeredBinding("session:close").enabledInBrowser).toBe(false);
+    expect(registeredBinding("session:close").global).toBe(true);
   });
 
   it("registers correct key combos for each binding", async () => {
     await renderWithTabs([{ name: "s1" }]);
 
-    expect(registeredBindings.get("session:create")!.keys).toEqual(["ctrl+shift+n", "cmd+shift+n"]);
-    expect(registeredBindings.get("session:close")!.keys).toEqual(["ctrl+w"]);
-    expect(registeredBindings.get("session:next-tab")!.keys).toEqual(["ctrl+tab"]);
-    expect(registeredBindings.get("session:prev-tab")!.keys).toEqual(["ctrl+shift+tab"]);
+    expect(registeredBinding("session:create").keys).toEqual(["ctrl+shift+n", "cmd+shift+n"]);
+    expect(registeredBinding("session:close").keys).toEqual(["ctrl+w"]);
+    expect(registeredBinding("session:next-tab").keys).toEqual(["ctrl+tab"]);
+    expect(registeredBinding("session:prev-tab").keys).toEqual(["ctrl+shift+tab"]);
   });
 
   describe("Ctrl/Cmd+Shift+N (session:create)", () => {
@@ -181,7 +189,7 @@ describe("session keybinding registration", () => {
       mockCreateSession.mockResolvedValue({ data: { name: "new-session" } });
       await renderWithTabs([{ name: "s1" }]);
 
-      const action = registeredBindings.get("session:create")!.action;
+      const action = registeredBinding("session:create").action;
       const result = action(null, null);
       expect(result).toBe(false);
 
@@ -196,7 +204,7 @@ describe("session keybinding registration", () => {
       await renderWithTabs([{ name: "s1" }, { name: "s2" }]);
       mockPwaStandalone = false;
 
-      const action = registeredBindings.get("session:close")!.action;
+      const action = registeredBinding("session:close").action;
       const result = action(null, null);
       expect(result).toBe(true);
       expect(mockKillSession).not.toHaveBeenCalled();
@@ -207,7 +215,7 @@ describe("session keybinding registration", () => {
       mockKillSession.mockResolvedValue({ data: { name: "s1" } });
       await renderWithTabs([{ name: "s1" }, { name: "s2" }]);
 
-      const action = registeredBindings.get("session:close")!.action;
+      const action = registeredBinding("session:close").action;
       const result = action(null, null);
       expect(result).toBe(false);
 
@@ -220,7 +228,7 @@ describe("session keybinding registration", () => {
       mockPwaStandalone = true;
       await renderWithTabs([{ name: "s1" }]);
 
-      const action = registeredBindings.get("session:close")!.action;
+      const action = registeredBinding("session:close").action;
       const result = action(null, null);
       expect(result).toBe(false);
       expect(mockKillSession).not.toHaveBeenCalled();
@@ -234,7 +242,7 @@ describe("session keybinding registration", () => {
       vi.stubGlobal("crypto", { randomUUID: () => uuids[uuidIdx++] });
       await renderWithTabs([{ name: "s1" }, { name: "s2" }, { name: "s3" }]);
 
-      const action = registeredBindings.get("session:next-tab")!.action;
+      const action = registeredBinding("session:next-tab").action;
       const result = action(null, null);
       expect(result).toBe(false);
     });
@@ -242,7 +250,7 @@ describe("session keybinding registration", () => {
     it("returns false but is no-op when single tab", async () => {
       await renderWithTabs([{ name: "s1" }]);
 
-      const action = registeredBindings.get("session:next-tab")!.action;
+      const action = registeredBinding("session:next-tab").action;
       const result = action(null, null);
       expect(result).toBe(false);
     });
@@ -252,7 +260,7 @@ describe("session keybinding registration", () => {
     it("cycles to the previous tab (wraps first to last)", async () => {
       await renderWithTabs([{ name: "s1" }, { name: "s2" }, { name: "s3" }]);
 
-      const action = registeredBindings.get("session:prev-tab")!.action;
+      const action = registeredBinding("session:prev-tab").action;
       const result = action(null, null);
       expect(result).toBe(false);
     });
@@ -260,7 +268,7 @@ describe("session keybinding registration", () => {
     it("returns false but is no-op when single tab", async () => {
       await renderWithTabs([{ name: "s1" }]);
 
-      const action = registeredBindings.get("session:prev-tab")!.action;
+      const action = registeredBinding("session:prev-tab").action;
       const result = action(null, null);
       expect(result).toBe(false);
     });

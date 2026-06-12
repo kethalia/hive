@@ -169,7 +169,9 @@ function CommandPaletteBody({
               <CommandItem
                 key={tab.id}
                 value={tab.sessionName}
-                onSelect={() => handleSelect(tab.id)}
+                onSelect={() => {
+                  handleSelect(tab.id);
+                }}
               >
                 <Terminal className="mr-2 size-4 shrink-0 opacity-70" />
                 <span className="font-mono text-sm">{tab.sessionName}</span>

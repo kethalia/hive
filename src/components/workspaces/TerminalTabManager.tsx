@@ -314,9 +314,13 @@ export function TerminalTabManager({ agentId, workspaceId }: TerminalTabManagerP
   const { register, unregister } = keybindingsCtx;
 
   useEffect(() => {
-    const handleComposeToggle = () => setComposeOpen((open) => !open);
+    const handleComposeToggle = () => {
+      setComposeOpen((open) => !open);
+    };
     window.addEventListener(TERMINAL_COMPOSE_TOGGLE_EVENT, handleComposeToggle);
-    return () => window.removeEventListener(TERMINAL_COMPOSE_TOGGLE_EVENT, handleComposeToggle);
+    return () => {
+      window.removeEventListener(TERMINAL_COMPOSE_TOGGLE_EVENT, handleComposeToggle);
+    };
   }, []);
 
   useEffect(() => {

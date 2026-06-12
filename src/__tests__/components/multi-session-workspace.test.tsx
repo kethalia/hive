@@ -3242,20 +3242,21 @@ describe("MultiSessionWorkspace", () => {
 
     const closeBinding = lastRegisteredEntry("multi-session:ws-1:close-active-pane");
     expect(closeBinding).toBeDefined();
-    expect(closeBinding!.keys).toEqual(["ctrl+w"]);
-    expect(closeBinding!.enabledInBrowser).toBe(false);
-    expect(closeBinding!.global).toBe(true);
+    if (!closeBinding) throw new Error("missing close-active-pane binding");
+    expect(closeBinding.keys).toEqual(["ctrl+w"]);
+    expect(closeBinding.enabledInBrowser).toBe(false);
+    expect(closeBinding.global).toBe(true);
 
     setPwaStandalone(false);
     act(() => {
-      expect(closeBinding!.action(null, null)).toBe(true);
+      expect(closeBinding.action(null, null)).toBe(true);
     });
     expect(mockKillSession).not.toHaveBeenCalled();
     expect(screen.getByTestId("workspace-pane-main-session")).toBeInTheDocument();
 
     setPwaStandalone(true);
     act(() => {
-      expect(closeBinding!.action(null, null)).toBe(false);
+      expect(closeBinding.action(null, null)).toBe(false);
     });
     await waitFor(() => {
       expect(screen.queryByTestId("workspace-pane-main-session")).not.toBeInTheDocument();

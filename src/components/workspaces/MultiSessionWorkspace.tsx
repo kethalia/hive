@@ -1391,9 +1391,13 @@ export function MultiSessionWorkspace({
   }, []);
 
   useEffect(() => {
-    const handleComposeToggle = () => setComposeOpen((open) => !open);
+    const handleComposeToggle = () => {
+      setComposeOpen((open) => !open);
+    };
     window.addEventListener(TERMINAL_COMPOSE_TOGGLE_EVENT, handleComposeToggle);
-    return () => window.removeEventListener(TERMINAL_COMPOSE_TOGGLE_EVENT, handleComposeToggle);
+    return () => {
+      window.removeEventListener(TERMINAL_COMPOSE_TOGGLE_EVENT, handleComposeToggle);
+    };
   }, []);
 
   const handleSelectionModeChange = useCallback((enabled: boolean) => {
@@ -2351,7 +2355,7 @@ export function MultiSessionWorkspace({
         const target =
           visibleSessions.find((session) => session.sessionName === activeSessionNameRef.current) ??
           visibleSessions[0];
-        if (!activeBoard?.key || !target) return false;
+        if (!activeBoard?.key) return false;
         void handleRemovePane({
           boardKey: activeBoard.key,
           boardPaneKey: target.boardPaneKey,

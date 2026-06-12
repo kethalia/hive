@@ -395,8 +395,12 @@ function TerminalInner({
   }, [initialTerminalControlsBeyondMobile]);
 
   useEffect(() => {
-    const handleComposeOpen = () => setComposeOpen(true);
-    const handleComposeToggle = () => setComposeOpen((open) => !open);
+    const handleComposeOpen = () => {
+      setComposeOpen(true);
+    };
+    const handleComposeToggle = () => {
+      setComposeOpen((open) => !open);
+    };
     window.addEventListener(TERMINAL_COMPOSE_OPEN_EVENT, handleComposeOpen);
     window.addEventListener(TERMINAL_COMPOSE_TOGGLE_EVENT, handleComposeToggle);
     return () => {
