@@ -5,7 +5,7 @@ import { Pencil, Plus, X } from "lucide-react";
 import dynamic from "next/dynamic";
 import { useCallback, useEffect, useReducer, useRef, useState } from "react";
 import { CommandPalette } from "@/components/terminal/CommandPalette";
-import { ComposePanel } from "@/components/terminal/ComposePanel";
+import { TerminalSessionCompose } from "@/components/terminal/TerminalSessionCompose";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -595,7 +595,8 @@ export function TerminalTabManager({ agentId, workspaceId }: TerminalTabManagerP
           <>
             <ResizableHandle withHandle />
             <ResizablePanel defaultSize={25} minSize={10} maxSize={50}>
-              <ComposePanel
+              <TerminalSessionCompose
+                variant="inline"
                 initialDraft={composeDraft}
                 targetLabel={composeTargetLabel}
                 onSend={sendComposeDraft}

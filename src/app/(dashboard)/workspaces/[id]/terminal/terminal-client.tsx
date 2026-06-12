@@ -3,16 +3,14 @@
 import { Loader2 } from "lucide-react";
 import dynamic from "next/dynamic";
 import { useRouter, useSearchParams } from "next/navigation";
-import type { PointerEvent } from "react";
 import { Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { CommandPalette } from "@/components/terminal/CommandPalette";
-import { ComposePanel } from "@/components/terminal/ComposePanel";
 import { MobileTerminalControls } from "@/components/terminal/MobileTerminalControls";
 import { MobileTerminalDiagnosticsOverlay } from "@/components/terminal/MobileTerminalDiagnosticsOverlay";
 import { MobileTerminalShell } from "@/components/terminal/MobileTerminalShell";
+import { TerminalSessionCompose } from "@/components/terminal/TerminalSessionCompose";
 import { Button } from "@/components/ui/button";
-import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import {
   SingleTerminalSessionHeader,
   TerminalSessionFrame,
@@ -35,9 +33,7 @@ import {
   pasteClipboardApiToTerminal,
 } from "@/lib/terminal/actions";
 import type { TerminalComposeRequest } from "@/lib/terminal/clipboard";
-import { COMPOSE_SHEET_DISMISS_DRAG_PX } from "@/lib/terminal/config";
 import { TERMINAL_COMPOSE_OPEN_EVENT } from "@/lib/terminal/events";
-import { composeSheetKeyboardStyle } from "@/lib/terminal/mobile-shell-layout";
 import {
   isTerminalSettingsChangedDetail,
   TERMINAL_SETTINGS_CHANGED_EVENT,
@@ -200,7 +196,6 @@ function TerminalInner({
     cloneProof: routeCloneProof,
   }));
   const previousSessionRef = useRef(session);
-  const composeSheetDragStartYRef = useRef<number | null>(null);
   const isComposeSheet = useIsComposeSheet();
   const {
     liftPx: visualKeyboardLiftPx,
@@ -221,7 +216,6 @@ function TerminalInner({
   );
   const isMobileKeyboardVisible = isComposeSheet && visualKeyboardVisible;
   const keyboardLiftPx = isComposeSheet ? visualKeyboardLiftPx : 0;
-  const composeSheetStyle = composeSheetKeyboardStyle(isMobileKeyboardVisible);
   const mobileLayoutSignal = isMobileKeyboardVisible
     ? `keyboard:${visualViewportHeightPx}:${visualViewportOffsetTopPx}`
     : `lift:${keyboardLiftPx}`;
@@ -289,34 +283,6 @@ function TerminalInner({
       cloneProof: identity.cloneProof,
     };
   }, [agentId, routeCloneSessionKey, routeRelativePath, session, workspaceId]);
-
-  const handleComposeSheetDragStart = useCallback((event: PointerEvent<HTMLButtonElement>) => {
-    composeSheetDragStartYRef.current = event.clientY;
-    if (typeof event.currentTarget.setPointerCapture === "function") {
-      event.currentTarget.setPointerCapture(event.pointerId);
-    }
-  }, []);
-
-  const handleComposeSheetDragEnd = useCallback(
-    (event: PointerEvent<HTMLButtonElement>) => {
-      const startY = composeSheetDragStartYRef.current;
-      composeSheetDragStartYRef.current = null;
-
-      if (typeof event.currentTarget.releasePointerCapture === "function") {
-        event.currentTarget.releasePointerCapture(event.pointerId);
-      }
-
-      if (startY === null) return;
-      if (event.clientY - startY >= COMPOSE_SHEET_DISMISS_DRAG_PX) {
-        closeCompose();
-      }
-    },
-    [closeCompose],
-  );
-
-  const handleComposeSheetDragCancel = useCallback(() => {
-    composeSheetDragStartYRef.current = null;
-  }, []);
 
   const handleTerminalReady = useCallback(
     (term: import("@xterm/xterm").Terminal, send: (data: string) => void) => {
@@ -659,7 +625,8 @@ function TerminalInner({
           </div>
           {terminalControls}
         </div>
-        <Sheet
+        <TerminalSessionCompose
+          variant="sheet"
           open={composeOpen}
           onOpenChange={(open) => {
             if (open) {
@@ -668,35 +635,12 @@ function TerminalInner({
               closeCompose();
             }
           }}
-        >
-          <SheetContent
-            side="bottom"
-            className="h-[var(--app-viewport-height)] max-h-[var(--app-viewport-height)] p-0 pt-safe"
-            style={composeSheetStyle}
-          >
-            <button
-              type="button"
-              aria-label="Dismiss compose panel"
-              className="mx-auto mt-2 flex h-11 w-20 touch-none items-center justify-center rounded-full text-muted-foreground hover:text-foreground active:cursor-grabbing"
-              onClick={closeCompose}
-              onPointerCancel={handleComposeSheetDragCancel}
-              onPointerDown={handleComposeSheetDragStart}
-              onPointerUp={handleComposeSheetDragEnd}
-            >
-              <span className="h-1 w-10 rounded-full bg-current opacity-40" />
-            </button>
-            <SheetTitle className="sr-only">Compose command</SheetTitle>
-            <div className="min-h-0 flex-1">
-              <ComposePanel
-                hideHeader
-                initialDraft={composeDraft}
-                targetLabel={composeTargetLabel}
-                onSend={sendComposeDraft}
-                onClose={closeCompose}
-              />
-            </div>
-          </SheetContent>
-        </Sheet>
+          isKeyboardVisible={isMobileKeyboardVisible}
+          initialDraft={composeDraft}
+          targetLabel={composeTargetLabel}
+          onSend={sendComposeDraft}
+          onClose={closeCompose}
+        />
         <CommandPalette
           open={windowSwitcherOpen}
           onOpenChange={setWindowSwitcherOpen}
@@ -731,14 +675,13 @@ function TerminalInner({
         </div>
         {composeOpen ? (
           <div className="h-72 min-h-56 shrink-0 p-1 pt-0">
-            <div className="flex h-full min-h-0 flex-col overflow-hidden rounded-lg border border-primary bg-black shadow-sm ring-1 ring-primary">
-              <ComposePanel
-                initialDraft={composeDraft}
-                targetLabel={composeTargetLabel}
-                onSend={sendComposeDraft}
-                onClose={closeCompose}
-              />
-            </div>
+            <TerminalSessionCompose
+              variant="inline"
+              initialDraft={composeDraft}
+              targetLabel={composeTargetLabel}
+              onSend={sendComposeDraft}
+              onClose={closeCompose}
+            />
           </div>
         ) : null}
       </div>
