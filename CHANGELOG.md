@@ -1,5 +1,11 @@
 # hive-orchestrator
 
+## 2.5.6
+
+### Patch Changes
+
+- dfda039: Add regression coverage for compose paste parity across regular terminal and multi-session workspace surfaces.
+
 ## 2.5.5
 
 ### Patch Changes
