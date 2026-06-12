@@ -1,5 +1,11 @@
 # hive-orchestrator
 
+## 2.5.7
+
+### Patch Changes
+
+- 42d00b0: Release the global dashboard keybinding and command palette fixes.
+
 ## 2.5.6
 
 ### Patch Changes
