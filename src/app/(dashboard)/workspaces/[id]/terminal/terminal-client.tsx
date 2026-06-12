@@ -33,7 +33,7 @@ import {
   pasteClipboardApiToTerminal,
 } from "@/lib/terminal/actions";
 import type { TerminalComposeRequest } from "@/lib/terminal/clipboard";
-import { TERMINAL_COMPOSE_OPEN_EVENT } from "@/lib/terminal/events";
+import { TERMINAL_COMPOSE_OPEN_EVENT, TERMINAL_COMPOSE_TOGGLE_EVENT } from "@/lib/terminal/events";
 import {
   isTerminalSettingsChangedDetail,
   TERMINAL_SETTINGS_CHANGED_EVENT,
@@ -171,7 +171,7 @@ function TerminalInner({
     : undefined;
   const routeRelativePath = session ? searchParams.get("relativePath") || undefined : undefined;
   const debugViewportEnabled = searchParams.get("debugViewport") === "1";
-  const { setActiveTerminal, activeTerminal, activeSend, register, unregister } = useKeybindings();
+  const { setActiveTerminal, activeTerminal, activeSend } = useKeybindings();
   const [composeOpen, setComposeOpen] = useState(false);
   const [composeDraft, setComposeDraft] = useState("");
   const [composeTargetLabel, setComposeTargetLabel] = useState<string | undefined>();
@@ -391,29 +391,18 @@ function TerminalInner({
   }, [activeTerminal]);
 
   useEffect(() => {
-    const binding = {
-      id: "compose:toggle:fullscreen",
-      keys: ["ctrl+`", "cmd+`"],
-      action: () => {
-        setComposeOpen((prev) => !prev);
-        return false;
-      },
-      description: "Toggle compose panel",
-      category: "terminal",
-      enabledInBrowser: true,
-    };
-    register(binding);
-    return () => unregister("compose:toggle:fullscreen");
-  }, [register, unregister]);
-
-  useEffect(() => {
     setTerminalControlsBeyondMobile(initialTerminalControlsBeyondMobile);
   }, [initialTerminalControlsBeyondMobile]);
 
   useEffect(() => {
     const handleComposeOpen = () => setComposeOpen(true);
+    const handleComposeToggle = () => setComposeOpen((open) => !open);
     window.addEventListener(TERMINAL_COMPOSE_OPEN_EVENT, handleComposeOpen);
-    return () => window.removeEventListener(TERMINAL_COMPOSE_OPEN_EVENT, handleComposeOpen);
+    window.addEventListener(TERMINAL_COMPOSE_TOGGLE_EVENT, handleComposeToggle);
+    return () => {
+      window.removeEventListener(TERMINAL_COMPOSE_OPEN_EVENT, handleComposeOpen);
+      window.removeEventListener(TERMINAL_COMPOSE_TOGGLE_EVENT, handleComposeToggle);
+    };
   }, []);
 
   useEffect(() => {

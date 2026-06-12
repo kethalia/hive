@@ -142,42 +142,35 @@ describe("session keybinding registration", () => {
       expect(screen.getAllByTestId("tab-label")).toHaveLength(sessions.length);
     });
     await waitFor(() => {
-      expect(registeredBindings.size).toBe(6);
+      expect(registeredBindings.size).toBe(4);
     });
   }
 
-  it("registers all 6 keybindings with correct ids and categories", async () => {
+  it("registers tab keybindings with correct ids and categories", async () => {
     await renderWithTabs([{ name: "s1" }]);
 
     const ids = Array.from(registeredBindings.keys());
-    expect(ids).toContain("command-palette");
     expect(ids).toContain("session:create");
     expect(ids).toContain("session:close");
     expect(ids).toContain("session:next-tab");
     expect(ids).toContain("session:prev-tab");
-    expect(ids).toContain("compose:toggle:tab-manager");
 
     for (const entry of registeredBindings.values()) {
       expect(["session", "terminal"]).toContain(entry.category);
     }
-    expect(registeredBindings.get("compose:toggle:tab-manager")!.category).toBe("terminal");
-    expect(registeredBindings.get("command-palette")!.category).toBe("terminal");
-    expect(registeredBindings.get("compose:toggle:tab-manager")!.enabledInBrowser).toBe(true);
-    expect(registeredBindings.get("command-palette")!.enabledInBrowser).toBe(true);
     expect(registeredBindings.get("session:next-tab")!.enabledInBrowser).toBe(true);
     expect(registeredBindings.get("session:prev-tab")!.enabledInBrowser).toBe(true);
     expect(registeredBindings.get("session:create")!.enabledInBrowser).toBe(true);
     expect(registeredBindings.get("session:create")!.global).toBe(true);
-    expect(registeredBindings.get("command-palette")!.global).toBe(true);
     expect(registeredBindings.get("session:close")!.enabledInBrowser).toBe(false);
+    expect(registeredBindings.get("session:close")!.global).toBe(true);
   });
 
   it("registers correct key combos for each binding", async () => {
     await renderWithTabs([{ name: "s1" }]);
 
-    expect(registeredBindings.get("command-palette")!.keys).toEqual(["ctrl+k", "cmd+k"]);
     expect(registeredBindings.get("session:create")!.keys).toEqual(["ctrl+shift+n", "cmd+shift+n"]);
-    expect(registeredBindings.get("session:close")!.keys).toEqual(["ctrl+w", "cmd+w"]);
+    expect(registeredBindings.get("session:close")!.keys).toEqual(["ctrl+w"]);
     expect(registeredBindings.get("session:next-tab")!.keys).toEqual(["ctrl+tab"]);
     expect(registeredBindings.get("session:prev-tab")!.keys).toEqual(["ctrl+shift+tab"]);
   });
@@ -223,13 +216,13 @@ describe("session keybinding registration", () => {
       });
     });
 
-    it("returns true (no-op) when PWA but only one tab", async () => {
+    it("returns false (consumed no-op) when PWA but only one tab", async () => {
       mockPwaStandalone = true;
       await renderWithTabs([{ name: "s1" }]);
 
       const action = registeredBindings.get("session:close")!.action;
       const result = action(null, null);
-      expect(result).toBe(true);
+      expect(result).toBe(false);
       expect(mockKillSession).not.toHaveBeenCalled();
     });
   });
@@ -284,12 +277,10 @@ describe("session keybinding registration", () => {
 
       unmount();
 
-      expect(mockCtx.unregister).toHaveBeenCalledWith("command-palette");
       expect(mockCtx.unregister).toHaveBeenCalledWith("session:create");
       expect(mockCtx.unregister).toHaveBeenCalledWith("session:close");
       expect(mockCtx.unregister).toHaveBeenCalledWith("session:next-tab");
       expect(mockCtx.unregister).toHaveBeenCalledWith("session:prev-tab");
-      expect(mockCtx.unregister).toHaveBeenCalledWith("compose:toggle:tab-manager");
     });
   });
 });

@@ -94,6 +94,10 @@ vi.mock("@/components/app-sidebar", () => ({
   AppSidebar: () => <aside data-testid="app-sidebar">Navigation</aside>,
 }));
 
+vi.mock("@/components/dashboard-keyboard-controller", () => ({
+  DashboardKeyboardController: () => <div data-testid="dashboard-keyboard-controller" />,
+}));
+
 vi.mock("@/components/push-permission-prompt", () => ({
   PushPermissionPrompt: () => <div data-testid="push-permission-prompt" />,
 }));

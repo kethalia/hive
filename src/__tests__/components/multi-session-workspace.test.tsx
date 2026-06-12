@@ -581,6 +581,23 @@ function lastRegisteredEntry(id: string) {
     .at(-1);
 }
 
+function setPwaStandalone(matches: boolean) {
+  Object.defineProperty(window, "matchMedia", {
+    configurable: true,
+    writable: true,
+    value: vi.fn().mockImplementation((query: string) => ({
+      matches: query === "(display-mode: standalone)" ? matches : false,
+      media: query,
+      onchange: null,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      dispatchEvent: vi.fn(),
+    })),
+  });
+}
+
 describe("MultiSessionWorkspace", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -588,6 +605,7 @@ describe("MultiSessionWorkspace", () => {
     terminalProps.clear();
     terminalDestroyCounts.clear();
     window.localStorage.clear();
+    setPwaStandalone(false);
     mockGetSessions.mockResolvedValue({ data: [] });
     mockUseIsComposeSheet.mockReturnValue(false);
     mockCopyTerminalSelection.mockReset();
@@ -3167,7 +3185,7 @@ describe("MultiSessionWorkspace", () => {
     expect(pushed.searchParams.get("cloneProof")).toBe("proof-token");
   });
 
-  it("registers command palette and immediate plain terminal shortcuts", async () => {
+  it("opens the workspace palette from the button and registers immediate plain terminal shortcuts", async () => {
     mockListGitClones.mockResolvedValueOnce({
       data: {
         ok: true,
@@ -3190,21 +3208,14 @@ describe("MultiSessionWorkspace", () => {
     render(<MultiSessionWorkspace {...defaultProps} source="unified" />);
     await screen.findByTestId("multi-session-empty");
 
-    const paletteBinding = mockRegister.mock.calls
-      .filter(([entry]) => entry.id === "command-palette")
-      .at(-1)?.[0];
-    expect(paletteBinding.keys).toEqual(["ctrl+k", "cmd+k"]);
-    expect(paletteBinding.global).toBe(true);
-
     expect(
       mockRegister.mock.calls.some(
         ([entry]) => entry.id === "multi-session:ws-1:open-session-search",
       ),
     ).toBe(false);
-    act(() => {
-      expect(paletteBinding.action(null, null)).toBe(false);
-    });
+    expect(mockRegister.mock.calls.some(([entry]) => entry.id === "command-palette")).toBe(false);
 
+    fireEvent.click(screen.getByTestId("open-git-session-search"));
     expect(await screen.findByTestId("multi-session-command-palette")).toBeInTheDocument();
     expect(mockListNavigationFavorites).toHaveBeenCalledWith({ workspaceId: "ws-1", kind: "git" });
 
@@ -3220,6 +3231,37 @@ describe("MultiSessionWorkspace", () => {
     await waitFor(() => {
       expect(mockCreateSession).toHaveBeenCalledWith({ workspaceId: "ws-1" });
     });
+  });
+
+  it("registers Ctrl+W as a PWA-only close-active-pane shortcut", async () => {
+    mockGetSessions.mockResolvedValueOnce(twoSessionPayload());
+    mockListGitClones.mockResolvedValueOnce({ data: { ok: true, tree: { nodes: [] } } });
+
+    render(<MultiSessionWorkspace {...defaultProps} source="unified" />);
+    await screen.findByTestId("workspace-pane-main-session");
+
+    const closeBinding = lastRegisteredEntry("multi-session:ws-1:close-active-pane");
+    expect(closeBinding).toBeDefined();
+    expect(closeBinding!.keys).toEqual(["ctrl+w"]);
+    expect(closeBinding!.enabledInBrowser).toBe(false);
+    expect(closeBinding!.global).toBe(true);
+
+    setPwaStandalone(false);
+    act(() => {
+      expect(closeBinding!.action(null, null)).toBe(true);
+    });
+    expect(mockKillSession).not.toHaveBeenCalled();
+    expect(screen.getByTestId("workspace-pane-main-session")).toBeInTheDocument();
+
+    setPwaStandalone(true);
+    act(() => {
+      expect(closeBinding!.action(null, null)).toBe(false);
+    });
+    await waitFor(() => {
+      expect(screen.queryByTestId("workspace-pane-main-session")).not.toBeInTheDocument();
+    });
+    expect(screen.getByTestId("workspace-pane-dev-server")).toBeInTheDocument();
+    expect(mockKillSession).not.toHaveBeenCalled();
   });
 
   it("shows Git terminal font size controls that update mounted terminals", async () => {

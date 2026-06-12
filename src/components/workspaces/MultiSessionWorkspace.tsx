@@ -63,6 +63,8 @@ import {
   pasteClipboardApiToTerminal,
 } from "@/lib/terminal/actions";
 import type { TerminalComposeRequest, TerminalPasteStatus } from "@/lib/terminal/clipboard";
+import { TERMINAL_COMPOSE_TOGGLE_EVENT } from "@/lib/terminal/events";
+import { isPwaStandalone } from "@/lib/terminal/pwa";
 import { cn } from "@/lib/utils";
 import {
   type PersistedSessionPane,
@@ -217,6 +219,7 @@ type BoardPersistenceNotice = {
 };
 
 const CREATE_TERMINAL_SESSION_SHORTCUT_KEYS = ["ctrl+shift+n", "cmd+shift+n"] as const;
+const CLOSE_TERMINAL_PANE_SHORTCUT_KEYS = ["ctrl+w"] as const;
 const WORKSPACE_BOARD_INDEXES = [1, 2, 3, 4, 5, 6, 7, 8, 9] as const;
 type WorkspaceBoardIndex = (typeof WORKSPACE_BOARD_INDEXES)[number];
 
@@ -1387,6 +1390,12 @@ export function MultiSessionWorkspace({
     entry.send("\r");
   }, []);
 
+  useEffect(() => {
+    const handleComposeToggle = () => setComposeOpen((open) => !open);
+    window.addEventListener(TERMINAL_COMPOSE_TOGGLE_EVENT, handleComposeToggle);
+    return () => window.removeEventListener(TERMINAL_COMPOSE_TOGGLE_EVENT, handleComposeToggle);
+  }, []);
+
   const handleSelectionModeChange = useCallback((enabled: boolean) => {
     setSelectionModeEnabled(enabled);
     setClipboardActionStatus(null);
@@ -1664,40 +1673,14 @@ export function MultiSessionWorkspace({
         global: true,
       });
     }
-    register({
-      id: `multi-session:${workspaceId}:compose`,
-      keys: ["ctrl+`", "cmd+`"],
-      action: () => {
-        setComposeOpen((current) => !current);
-        return false;
-      },
-      description: "Toggle compose panel",
-      category: "terminal",
-      enabledInBrowser: true,
-    });
-    register({
-      id: "command-palette",
-      keys: ["ctrl+k", "cmd+k"],
-      action: () => {
-        setPaletteOpen(true);
-        return false;
-      },
-      description: "Open command palette",
-      category: "terminal",
-      enabledInBrowser: true,
-      global: true,
-    });
-
     return () => {
       unregister(`multi-session:${workspaceId}:previous-pane`);
       unregister(`multi-session:${workspaceId}:next-pane`);
       unregister(`multi-session:${workspaceId}:previous-board`);
       unregister(`multi-session:${workspaceId}:next-board`);
-      unregister(`multi-session:${workspaceId}:compose`);
       for (const workspaceIndex of WORKSPACE_BOARD_INDEXES) {
         unregister(`multi-session:${workspaceId}:board-${workspaceIndex}`);
       }
-      unregister("command-palette");
     };
   }, [
     focusRelativeSession,
@@ -2359,6 +2342,32 @@ export function MultiSessionWorkspace({
     ],
   );
 
+  useEffect(() => {
+    register({
+      id: `multi-session:${workspaceId}:close-active-pane`,
+      keys: [...CLOSE_TERMINAL_PANE_SHORTCUT_KEYS],
+      action: () => {
+        if (!isPwaStandalone()) return true;
+        const target =
+          visibleSessions.find((session) => session.sessionName === activeSessionNameRef.current) ??
+          visibleSessions[0];
+        if (!activeBoard?.key || !target) return false;
+        void handleRemovePane({
+          boardKey: activeBoard.key,
+          boardPaneKey: target.boardPaneKey,
+          sessionName: target.sessionName,
+        });
+        return false;
+      },
+      description: "Close active terminal pane",
+      category: "terminal",
+      enabledInBrowser: false,
+      global: true,
+    });
+
+    return () => unregister(`multi-session:${workspaceId}:close-active-pane`);
+  }, [activeBoard?.key, handleRemovePane, register, unregister, visibleSessions, workspaceId]);
+
   const renderGitFontControls = () => {
     if (!isUnifiedSource) return null;
 
@@ -2388,9 +2397,6 @@ export function MultiSessionWorkspace({
       >
         <Search className="size-3" />
         Add session
-        <span className="ml-1 hidden text-[10px] text-muted-foreground sm:inline">
-          {formatShortcut(["ctrl+k", "cmd+k"])}
-        </span>
       </Button>
     );
   };
