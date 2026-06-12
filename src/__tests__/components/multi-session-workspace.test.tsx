@@ -10,6 +10,7 @@ import {
   waitFor,
 } from "@testing-library/react";
 import type { Terminal } from "@xterm/xterm";
+import type React from "react";
 import { useEffect } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import "@testing-library/jest-dom/vitest";
@@ -474,6 +475,50 @@ vi.mock("@/components/ui/dialog", () => ({
   DialogTitle: ({ children }: React.PropsWithChildren) => <h2>{children}</h2>,
 }));
 
+vi.mock("@/components/ui/sheet", () => ({
+  Sheet: ({
+    children,
+    open,
+    onOpenChange,
+  }: React.PropsWithChildren<{
+    open?: boolean;
+    onOpenChange?: (open: boolean) => void;
+  }>) => (
+    <div data-testid="compose-sheet" data-open={open ? "true" : "false"}>
+      {open ? children : null}
+      <button
+        type="button"
+        data-testid="compose-sheet-close-proxy"
+        onClick={() => onOpenChange?.(false)}
+      >
+        Close sheet
+      </button>
+    </div>
+  ),
+  SheetContent: ({
+    children,
+    className,
+    side,
+    style,
+  }: React.PropsWithChildren<{
+    className?: string;
+    side?: string;
+    style?: React.CSSProperties;
+  }>) => (
+    <section
+      className={className}
+      data-testid="compose-sheet-content"
+      data-side={side}
+      style={style}
+    >
+      {children}
+    </section>
+  ),
+  SheetTitle: ({ children, className }: React.PropsWithChildren<{ className?: string }>) => (
+    <h2 className={className}>{children}</h2>
+  ),
+}));
+
 vi.mock("@/components/ui/input", () => ({
   Input: (props: React.InputHTMLAttributes<HTMLInputElement>) => <input {...props} />,
 }));
@@ -678,7 +723,7 @@ describe("MultiSessionWorkspace", () => {
     expect(mockToastError).toHaveBeenCalledWith("Each pasted file must be 10 MiB or smaller.");
   });
 
-  it("stages multiple pasted file paths in compose for the active multi-session pane", async () => {
+  it("stages multiple pasted file paths in the mobile compose sheet for the active multi-session pane", async () => {
     mockUseIsComposeSheet.mockReturnValue(true);
     await renderTwoSessionWorkspace();
 
@@ -699,11 +744,36 @@ describe("MultiSessionWorkspace", () => {
       });
     });
 
-    expect(screen.getByText(/Compose to main-session/)).toBeInTheDocument();
+    expect(screen.getByTestId("compose-sheet")).toHaveAttribute("data-open", "true");
+    expect(screen.getByTestId("compose-sheet-content")).toHaveAttribute("data-side", "bottom");
+    expect(screen.getByTestId("compose-sheet-content")).toHaveClass(
+      "h-[var(--app-viewport-height)]",
+      "max-h-[var(--app-viewport-height)]",
+    );
+    expect(screen.getByLabelText("Dismiss compose panel")).toBeInTheDocument();
+    expect(screen.queryByText(/Compose to main-session/)).not.toBeInTheDocument();
+    expect(screen.queryByTestId("multi-session-compose-inline")).not.toBeInTheDocument();
     expect(screen.getByPlaceholderText("Type multi-line command...")).toHaveValue(
       "/tmp/hive-terminal-paste/one.png\n/tmp/hive-terminal-paste/two.txt",
     );
     expect(screen.getByTestId("terminal-clipboard-status")).toHaveTextContent("Paste complete");
+  });
+
+  it("keeps the compose panel inline on desktop multi-session workspaces", async () => {
+    mockUseIsComposeSheet.mockReturnValue(false);
+    await renderTwoSessionWorkspace();
+
+    act(() => {
+      terminalProps.get("main-session")?.onComposeRequest?.({
+        draft: "printf desktop",
+        targetLabel: "main-session",
+      });
+    });
+
+    expect(screen.queryByTestId("compose-sheet-content")).not.toBeInTheDocument();
+    expect(screen.getByTestId("multi-session-compose-inline")).toBeInTheDocument();
+    expect(screen.getByText(/Compose to main-session/)).toBeInTheDocument();
+    expect(screen.getByPlaceholderText("Type multi-line command...")).toHaveValue("printf desktop");
   });
 
   it("passes multi-session selection mode to mobile workspace panes", async () => {

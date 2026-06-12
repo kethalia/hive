@@ -7,6 +7,7 @@ import { useRouter } from "next/navigation";
 import {
   type CSSProperties,
   type KeyboardEvent as ReactKeyboardEvent,
+  type PointerEvent as ReactPointerEvent,
   useCallback,
   useEffect,
   useMemo,
@@ -26,6 +27,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import {
   TerminalFontSizeControls,
@@ -63,6 +65,8 @@ import {
   pasteClipboardApiToTerminal,
 } from "@/lib/terminal/actions";
 import type { TerminalComposeRequest, TerminalPasteStatus } from "@/lib/terminal/clipboard";
+import { COMPOSE_SHEET_DISMISS_DRAG_PX } from "@/lib/terminal/config";
+import { composeSheetKeyboardStyle } from "@/lib/terminal/mobile-shell-layout";
 import { cn } from "@/lib/utils";
 import {
   type PersistedSessionPane,
@@ -905,6 +909,7 @@ export function MultiSessionWorkspace({
   >({});
   const terminalsRef = useRef<Map<string, TerminalEntry>>(new Map());
   const activeSessionNameRef = useRef<string | null>(null);
+  const composeSheetDragStartYRef = useRef<number | null>(null);
 
   const showGitAddFailure = useCallback((message: string) => {
     setGitAddError(message);
@@ -1377,6 +1382,34 @@ export function MultiSessionWorkspace({
     setComposeOpen(false);
     setComposeDraft("");
     setComposeTargetLabel(undefined);
+  }, []);
+
+  const handleComposeSheetDragStart = useCallback((event: ReactPointerEvent<HTMLButtonElement>) => {
+    composeSheetDragStartYRef.current = event.clientY;
+    if (typeof event.currentTarget.setPointerCapture === "function") {
+      event.currentTarget.setPointerCapture(event.pointerId);
+    }
+  }, []);
+
+  const handleComposeSheetDragEnd = useCallback(
+    (event: ReactPointerEvent<HTMLButtonElement>) => {
+      const startY = composeSheetDragStartYRef.current;
+      composeSheetDragStartYRef.current = null;
+
+      if (typeof event.currentTarget.releasePointerCapture === "function") {
+        event.currentTarget.releasePointerCapture(event.pointerId);
+      }
+
+      if (startY === null) return;
+      if (event.clientY - startY >= COMPOSE_SHEET_DISMISS_DRAG_PX) {
+        closeCompose();
+      }
+    },
+    [closeCompose],
+  );
+
+  const handleComposeSheetDragCancel = useCallback(() => {
+    composeSheetDragStartYRef.current = null;
   }, []);
 
   const sendComposeDraft = useCallback((draft: string) => {
@@ -2699,6 +2732,7 @@ export function MultiSessionWorkspace({
   const controlsSelectionModeEnabled = isComposeSheet && selectionModeEnabled;
   const hasActiveTerminal = Boolean(activeTerminalEntry?.term);
   const hasActiveSender = Boolean(activeTerminalEntry?.send);
+  const composeSheetStyle = composeSheetKeyboardStyle(isMobileKeyboardVisible);
   const mobileClipboardStatus = clipboardStatusText(clipboardActionStatus, {
     canPaste: hasActiveSender,
     hasTerminal: hasActiveTerminal,
@@ -2727,6 +2761,59 @@ export function MultiSessionWorkspace({
         hasActiveSender ? undefined : "Paste is unavailable until the terminal sender is ready"
       }
     />
+  ) : null;
+  const desktopComposePanel =
+    composeOpen && !isComposeSheet ? (
+      <div className="h-72 min-h-56 shrink-0 p-1 pt-0" data-testid="multi-session-compose-inline">
+        <div className="flex h-full min-h-0 flex-col overflow-hidden rounded-lg border border-primary bg-black shadow-sm ring-1 ring-primary">
+          <ComposePanel
+            initialDraft={composeDraft}
+            targetLabel={composeTargetLabel ?? activeLabel}
+            onSend={sendComposeDraft}
+            onClose={closeCompose}
+          />
+        </div>
+      </div>
+    ) : null;
+  const mobileComposeSheet = isComposeSheet ? (
+    <Sheet
+      open={composeOpen}
+      onOpenChange={(open) => {
+        if (open) {
+          setComposeOpen(true);
+        } else {
+          closeCompose();
+        }
+      }}
+    >
+      <SheetContent
+        side="bottom"
+        className="h-[var(--app-viewport-height)] max-h-[var(--app-viewport-height)] p-0 pt-safe"
+        style={composeSheetStyle}
+      >
+        <button
+          type="button"
+          aria-label="Dismiss compose panel"
+          className="mx-auto mt-2 flex h-11 w-20 touch-none items-center justify-center rounded-full text-muted-foreground hover:text-foreground active:cursor-grabbing"
+          onClick={closeCompose}
+          onPointerCancel={handleComposeSheetDragCancel}
+          onPointerDown={handleComposeSheetDragStart}
+          onPointerUp={handleComposeSheetDragEnd}
+        >
+          <span className="h-1 w-10 rounded-full bg-current opacity-40" />
+        </button>
+        <SheetTitle className="sr-only">Compose command</SheetTitle>
+        <div className="min-h-0 flex-1">
+          <ComposePanel
+            hideHeader
+            initialDraft={composeDraft}
+            targetLabel={composeTargetLabel ?? activeLabel}
+            onSend={sendComposeDraft}
+            onClose={closeCompose}
+          />
+        </div>
+      </SheetContent>
+    </Sheet>
   ) : null;
 
   const renderPane = (pane: SessionPane, model: WorkspaceBoardRenderModel) => {
@@ -2961,17 +3048,9 @@ export function MultiSessionWorkspace({
           {boardRenderModels.map(renderBoardLayer)}
         </div>
         {mobileTerminalControls}
-        {composeOpen ? (
-          <div className="h-[28%] min-h-40 shrink-0 border-t border-border">
-            <ComposePanel
-              initialDraft={composeDraft}
-              targetLabel={composeTargetLabel ?? activeLabel}
-              onSend={sendComposeDraft}
-              onClose={closeCompose}
-            />
-          </div>
-        ) : null}
+        {desktopComposePanel}
       </div>
+      {mobileComposeSheet}
     </section>
   );
 }
