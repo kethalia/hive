@@ -70,7 +70,13 @@ vi.mock("@/components/terminal/CommandPalette", () => ({
               </button>
             )),
             ...tabs.map((tab) => (
-              <button key={tab.id} type="button" onClick={() => onSelectTab(tab.id)}>
+              <button
+                key={tab.id}
+                type="button"
+                onClick={() => {
+                  onSelectTab(tab.id);
+                }}
+              >
                 {tab.sessionName}
               </button>
             )),

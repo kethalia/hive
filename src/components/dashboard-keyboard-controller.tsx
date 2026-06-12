@@ -133,6 +133,9 @@ export function DashboardKeyboardController() {
     } else {
       delete root.dataset.dashboardFullscreen;
     }
+    return () => {
+      delete root.dataset.dashboardFullscreen;
+    };
   }, [appFullscreen]);
 
   useEffect(() => {
