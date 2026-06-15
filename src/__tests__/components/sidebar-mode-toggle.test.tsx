@@ -319,7 +319,7 @@ describe("Sidebar primitive layout contract", () => {
     });
   });
 
-  it("uses the widened desktop width while keeping floating gap at zero", async () => {
+  it("uses the widened desktop width while reserving floating sidebar space", async () => {
     Object.defineProperty(window, "innerWidth", {
       configurable: true,
       value: 1200,
@@ -346,9 +346,43 @@ describe("Sidebar primitive layout contract", () => {
     expect(wrapper?.style.getPropertyValue("--sidebar-width")).toBe("18rem");
     expect(wrapper?.style.getPropertyValue("--sidebar-width-icon")).toBe("3rem");
     expect(root).toHaveAttribute("data-variant", "floating");
-    expect(gap?.className).toContain("w-0");
-    expect(gap?.className).not.toContain("w-(--sidebar-width)");
+    expect(gap?.className).toContain("w-(--sidebar-width)");
     expect(sidebarContainer?.className).toContain("w-(--sidebar-width)");
+  });
+
+  it("keeps the floating sidebar gap removable when collapsed offcanvas", async () => {
+    Object.defineProperty(window, "innerWidth", {
+      configurable: true,
+      value: 1200,
+    });
+
+    const {
+      Sidebar: ActualSidebar,
+      SidebarProvider: ActualSidebarProvider,
+      SidebarTrigger: ActualSidebarTrigger,
+    } = await vi.importActual<typeof import("@/components/ui/sidebar")>("@/components/ui/sidebar");
+
+    const { container } = render(
+      <ActualSidebarProvider>
+        <ActualSidebarTrigger />
+        <ActualSidebar variant="floating">
+          <nav aria-label="Workspace navigation">Navigation</nav>
+        </ActualSidebar>
+      </ActualSidebarProvider>,
+    );
+
+    const trigger = container.querySelector<HTMLElement>('[data-slot="sidebar-trigger"]');
+    expect(trigger).not.toBeNull();
+    fireEvent.click(trigger!);
+
+    await waitFor(() => {
+      const root = container.querySelector<HTMLElement>('[data-slot="sidebar"]');
+      const gap = container.querySelector<HTMLElement>('[data-slot="sidebar-gap"]');
+
+      expect(root).toHaveAttribute("data-collapsible", "offcanvas");
+      expect(gap?.className).toContain("group-data-[collapsible=offcanvas]:w-0");
+      expect(gap?.className).toContain("w-(--sidebar-width)");
+    });
   });
 
   it("preserves the mobile drawer width token", async () => {
