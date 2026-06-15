@@ -1174,6 +1174,11 @@ export function MultiSessionWorkspace({
 
   const selectSession = useCallback(
     (sessionName: string, options: { focusTerminal?: boolean } = {}) => {
+      const lockedSessionName = composeOpen
+        ? (composeTargetSessionName ?? activeSessionNameRef.current)
+        : null;
+      if (lockedSessionName && sessionName !== lockedSessionName) return;
+
       const { focusTerminal = true } = options;
       setActiveSessionName(sessionName);
 
@@ -1198,6 +1203,8 @@ export function MultiSessionWorkspace({
       activeBoard,
       boardState,
       clearActiveTerminal,
+      composeOpen,
+      composeTargetSessionName,
       isComposeSheet,
       persistBoardState,
       setActiveTerminal,
@@ -2820,6 +2827,9 @@ export function MultiSessionWorkspace({
       onClose={closeCompose}
     />
   ) : null;
+  const composeLockedSessionName = composeOpen
+    ? (composeTargetSessionName ?? activeSessionName)
+    : null;
 
   const renderPane = (pane: SessionPane, model: WorkspaceBoardRenderModel) => {
     const visibleSession = model.visibleSessions.find(
@@ -2828,6 +2838,8 @@ export function MultiSessionWorkspace({
     const session =
       visibleSession ?? sessions.find((candidate) => candidate.sessionName === pane.sessionName);
     const isActive = model.isActive && pane.sessionName === activeSessionName;
+    const isComposeDisabled =
+      Boolean(composeLockedSessionName) && pane.sessionName !== composeLockedSessionName;
     const cloneSessionKey = session?.cloneSessionKey;
     const relativePath = session?.relativePath;
     const boardPaneSignal = visibleSession?.boardPaneKey ?? pane.id;
@@ -2858,6 +2870,8 @@ export function MultiSessionWorkspace({
         }
         layoutMode="tiled"
         style={paneStyle}
+        disabled={isComposeDisabled}
+        disabledLabel="Compose locked"
         onActivate={() => {
           if (!model.isActive) {
             persistBoardState(selectWorkspaceBoard(boardState, model.board.key));
@@ -2878,7 +2892,7 @@ export function MultiSessionWorkspace({
           });
         }}
         onMouseEnter={() => {
-          if (model.isActive) selectSession(pane.sessionName);
+          if (model.isActive && !isComposeDisabled) selectSession(pane.sessionName);
         }}
       >
         <InteractiveTerminal
