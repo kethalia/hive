@@ -2899,7 +2899,9 @@ export function MultiSessionWorkspace({
             }
             selectSession(pane.sessionName, { focusTerminal: false });
           }}
-          onComposeRequest={(request) => openComposeWithDraft(request, pane.sessionName)}
+          onComposeRequest={(request) => {
+            openComposeWithDraft(request, pane.sessionName);
+          }}
           onClipboardStatus={handleClipboardActionStatus}
           targetLabel={pane.label}
         />
