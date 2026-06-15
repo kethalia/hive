@@ -794,6 +794,31 @@ describe("MultiSessionWorkspace", () => {
     expect(screen.getByPlaceholderText("Type multi-line command...")).toHaveValue("printf desktop");
   });
 
+  it("sends compose drafts to the pane that opened compose", async () => {
+    mockUseIsComposeSheet.mockReturnValue(false);
+    await renderTwoSessionWorkspace();
+    const mainSend = makeSender("main-session");
+    const devSend = makeSender("dev-server");
+
+    act(() => {
+      terminalProps.get("main-session")?.onTerminalReady?.(makeTerminal("main-session"), mainSend);
+      terminalProps.get("dev-server")?.onTerminalReady?.(makeTerminal("dev-server"), devSend);
+      terminalProps.get("dev-server")?.onComposeRequest?.({
+        draft: "printf dev",
+        targetLabel: "dev-server",
+      });
+    });
+
+    expect(screen.getByTestId("active-pane-label")).toHaveTextContent("main-session");
+    expect(screen.getByText(/Compose to dev-server/)).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Send command" }));
+
+    expect(devSend).toHaveBeenNthCalledWith(1, "printf dev");
+    expect(devSend).toHaveBeenNthCalledWith(2, "\r");
+    expect(mainSend).not.toHaveBeenCalled();
+  });
+
   it("passes multi-session selection mode to mobile workspace panes", async () => {
     mockUseIsComposeSheet.mockReturnValue(true);
     await renderTwoSessionWorkspace();

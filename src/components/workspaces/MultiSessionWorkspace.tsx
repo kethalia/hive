@@ -884,6 +884,7 @@ export function MultiSessionWorkspace({
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [composeOpen, setComposeOpen] = useState(false);
   const [composeDraft, setComposeDraft] = useState("");
+  const [composeTargetSessionName, setComposeTargetSessionName] = useState<string | null>(null);
   const [composeTargetLabel, setComposeTargetLabel] = useState<string | undefined>();
   const [selectionModeEnabled, setSelectionModeEnabled] = useState(false);
   const [hasTerminalSelection, setHasTerminalSelection] = useState(false);
@@ -1368,28 +1369,36 @@ export function MultiSessionWorkspace({
     [clearActiveTerminal],
   );
 
-  const openComposeWithDraft = useCallback((request: TerminalComposeRequest) => {
-    setComposeTargetLabel(request.targetLabel);
-    setComposeDraft((current) => {
-      if (!request.append || !current) return request.draft;
-      return `${current.replace(/\s*$/, "")}\n${request.draft}`;
-    });
-    setComposeOpen(true);
-  }, []);
+  const openComposeWithDraft = useCallback(
+    (request: TerminalComposeRequest, sessionName = activeSessionNameRef.current) => {
+      setComposeTargetSessionName(sessionName);
+      setComposeTargetLabel(request.targetLabel);
+      setComposeDraft((current) => {
+        if (!request.append || !current) return request.draft;
+        return `${current.replace(/\s*$/, "")}\n${request.draft}`;
+      });
+      setComposeOpen(true);
+    },
+    [],
+  );
 
   const closeCompose = useCallback(() => {
     setComposeOpen(false);
     setComposeDraft("");
+    setComposeTargetSessionName(null);
     setComposeTargetLabel(undefined);
   }, []);
 
-  const sendComposeDraft = useCallback((draft: string) => {
-    const activeName = activeSessionNameRef.current;
-    const entry = activeName ? terminalsRef.current.get(activeName) : null;
-    if (!entry) return;
-    entry.send(draft);
-    entry.send("\r");
-  }, []);
+  const sendComposeDraft = useCallback(
+    (draft: string) => {
+      const targetName = composeTargetSessionName ?? activeSessionNameRef.current;
+      const entry = targetName ? terminalsRef.current.get(targetName) : null;
+      if (!entry) return;
+      entry.send(draft);
+      entry.send("\r");
+    },
+    [composeTargetSessionName],
+  );
 
   useEffect(() => {
     const handleComposeToggle = () => {
@@ -2890,7 +2899,7 @@ export function MultiSessionWorkspace({
             }
             selectSession(pane.sessionName, { focusTerminal: false });
           }}
-          onComposeRequest={openComposeWithDraft}
+          onComposeRequest={(request) => openComposeWithDraft(request, pane.sessionName)}
           onClipboardStatus={handleClipboardActionStatus}
           targetLabel={pane.label}
         />
