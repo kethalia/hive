@@ -16,6 +16,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import "@testing-library/jest-dom/vitest";
 import type { KeepAliveStatus } from "@/hooks/useKeepAliveStatus";
 import type { KeybindingContextValue } from "@/hooks/useKeybindings";
+import { TERMINAL_COMPOSE_TOGGLE_EVENT } from "@/lib/terminal/events";
 
 const mockCreateSession = vi.fn();
 const mockGetSessions = vi.fn();
@@ -817,6 +818,35 @@ describe("MultiSessionWorkspace", () => {
     expect(devSend).toHaveBeenNthCalledWith(1, "printf dev");
     expect(devSend).toHaveBeenNthCalledWith(2, "\r");
     expect(mainSend).not.toHaveBeenCalled();
+  });
+
+  it("keeps global compose locked to the session focused when compose opened", async () => {
+    mockUseIsComposeSheet.mockReturnValue(false);
+    await renderTwoSessionWorkspace();
+    const mainSend = makeSender("main-session");
+    const devSend = makeSender("dev-server");
+
+    act(() => {
+      terminalProps.get("main-session")?.onTerminalReady?.(makeTerminal("main-session"), mainSend);
+      terminalProps.get("dev-server")?.onTerminalReady?.(makeTerminal("dev-server"), devSend);
+      window.dispatchEvent(new Event(TERMINAL_COMPOSE_TOGGLE_EVENT));
+    });
+
+    expect(screen.getByText(/Compose to main-session/)).toBeInTheDocument();
+
+    fireEvent.change(screen.getByPlaceholderText("Type multi-line command..."), {
+      target: { value: "printf main" },
+    });
+    fireEvent.mouseEnter(screen.getByTestId("workspace-pane-dev-server"));
+
+    expect(screen.getByTestId("active-pane-label")).toHaveTextContent("dev-server");
+    expect(screen.getByText(/Compose to main-session/)).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Send command" }));
+
+    expect(mainSend).toHaveBeenNthCalledWith(1, "printf main");
+    expect(mainSend).toHaveBeenNthCalledWith(2, "\r");
+    expect(devSend).not.toHaveBeenCalled();
   });
 
   it("passes multi-session selection mode to mobile workspace panes", async () => {

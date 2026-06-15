@@ -1402,13 +1402,24 @@ export function MultiSessionWorkspace({
 
   useEffect(() => {
     const handleComposeToggle = () => {
-      setComposeOpen((open) => !open);
+      setComposeOpen((open) => {
+        if (open) {
+          setComposeTargetSessionName(null);
+          setComposeTargetLabel(undefined);
+          return false;
+        }
+
+        const targetSessionName = activeSessionNameRef.current;
+        setComposeTargetSessionName(targetSessionName);
+        setComposeTargetLabel(activeLabel ?? targetSessionName ?? undefined);
+        return true;
+      });
     };
     window.addEventListener(TERMINAL_COMPOSE_TOGGLE_EVENT, handleComposeToggle);
     return () => {
       window.removeEventListener(TERMINAL_COMPOSE_TOGGLE_EVENT, handleComposeToggle);
     };
-  }, []);
+  }, [activeLabel]);
 
   const handleSelectionModeChange = useCallback((enabled: boolean) => {
     setSelectionModeEnabled(enabled);
