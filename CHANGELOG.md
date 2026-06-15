@@ -1,5 +1,11 @@
 # hive-orchestrator
 
+## 2.5.8
+
+### Patch Changes
+
+- 88c7d90: Fix multi-session compose so commands send to the pane that opened compose.
+
 ## 2.5.7
 
 ### Patch Changes
