@@ -16,6 +16,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import "@testing-library/jest-dom/vitest";
 import type { KeepAliveStatus } from "@/hooks/useKeepAliveStatus";
 import type { KeybindingContextValue } from "@/hooks/useKeybindings";
+import { TERMINAL_COMPOSE_TOGGLE_EVENT } from "@/lib/terminal/events";
 
 const mockCreateSession = vi.fn();
 const mockGetSessions = vi.fn();
@@ -528,6 +529,7 @@ vi.mock("lucide-react", () => ({
   ClipboardPaste: () => <span data-testid="icon-paste" />,
   Copy: () => <span data-testid="icon-copy" />,
   Loader2: () => <span data-testid="icon-loader" />,
+  Lock: () => <span data-testid="icon-lock" />,
   Minus: () => <span data-testid="icon-minus" />,
   Plus: () => <span data-testid="icon-plus" />,
   Search: () => <span data-testid="icon-search" />,
@@ -792,6 +794,86 @@ describe("MultiSessionWorkspace", () => {
     expect(screen.getByTestId("multi-session-compose-inline")).toBeInTheDocument();
     expect(screen.getByText(/Compose to main-session/)).toBeInTheDocument();
     expect(screen.getByPlaceholderText("Type multi-line command...")).toHaveValue("printf desktop");
+  });
+
+  it("sends compose drafts to the pane that opened compose", async () => {
+    mockUseIsComposeSheet.mockReturnValue(false);
+    await renderTwoSessionWorkspace();
+    const mainSend = makeSender("main-session");
+    const devSend = makeSender("dev-server");
+
+    act(() => {
+      terminalProps.get("main-session")?.onTerminalReady?.(makeTerminal("main-session"), mainSend);
+      terminalProps.get("dev-server")?.onTerminalReady?.(makeTerminal("dev-server"), devSend);
+      terminalProps.get("dev-server")?.onComposeRequest?.({
+        draft: "printf dev",
+        targetLabel: "dev-server",
+      });
+    });
+
+    expect(screen.getByTestId("active-pane-label")).toHaveTextContent("main-session");
+    expect(screen.getByText(/Compose to dev-server/)).toBeInTheDocument();
+    expect(screen.getByTestId("workspace-pane-dev-server")).toHaveAttribute(
+      "data-compose-disabled",
+      "false",
+    );
+    expect(screen.getByTestId("workspace-pane-main-session")).toHaveAttribute(
+      "data-compose-disabled",
+      "true",
+    );
+    expect(screen.getByTestId("workspace-pane-main-session-disabled-overlay")).toHaveTextContent(
+      "Compose locked",
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Send command" }));
+
+    expect(devSend).toHaveBeenNthCalledWith(1, "printf dev");
+    expect(devSend).toHaveBeenNthCalledWith(2, "\r");
+    expect(mainSend).not.toHaveBeenCalled();
+  });
+
+  it("keeps global compose locked to the session focused when compose opened", async () => {
+    mockUseIsComposeSheet.mockReturnValue(false);
+    await renderTwoSessionWorkspace();
+    const mainSend = makeSender("main-session");
+    const devSend = makeSender("dev-server");
+
+    act(() => {
+      terminalProps.get("main-session")?.onTerminalReady?.(makeTerminal("main-session"), mainSend);
+      terminalProps.get("dev-server")?.onTerminalReady?.(makeTerminal("dev-server"), devSend);
+      window.dispatchEvent(new Event(TERMINAL_COMPOSE_TOGGLE_EVENT));
+    });
+
+    expect(screen.getByText(/Compose to main-session/)).toBeInTheDocument();
+    expect(screen.getByTestId("workspace-pane-main-session")).toHaveAttribute(
+      "data-compose-disabled",
+      "false",
+    );
+    expect(screen.getByTestId("workspace-pane-dev-server")).toHaveAttribute(
+      "data-compose-disabled",
+      "true",
+    );
+    expect(screen.getByTestId("workspace-pane-dev-server-disabled-overlay")).toHaveTextContent(
+      "Compose locked",
+    );
+
+    fireEvent.change(screen.getByPlaceholderText("Type multi-line command..."), {
+      target: { value: "printf main" },
+    });
+    fireEvent.mouseEnter(screen.getByTestId("workspace-pane-dev-server"));
+
+    expect(screen.getByTestId("active-pane-label")).toHaveTextContent("main-session");
+    expect(screen.getByText(/Compose to main-session/)).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Send command" }));
+
+    expect(mainSend).toHaveBeenNthCalledWith(1, "printf main");
+    expect(mainSend).toHaveBeenNthCalledWith(2, "\r");
+    expect(devSend).not.toHaveBeenCalled();
+    expect(screen.getByTestId("workspace-pane-dev-server")).toHaveAttribute(
+      "data-compose-disabled",
+      "false",
+    );
   });
 
   it("passes multi-session selection mode to mobile workspace panes", async () => {

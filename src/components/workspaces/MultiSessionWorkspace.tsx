@@ -884,6 +884,7 @@ export function MultiSessionWorkspace({
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [composeOpen, setComposeOpen] = useState(false);
   const [composeDraft, setComposeDraft] = useState("");
+  const [composeTargetSessionName, setComposeTargetSessionName] = useState<string | null>(null);
   const [composeTargetLabel, setComposeTargetLabel] = useState<string | undefined>();
   const [selectionModeEnabled, setSelectionModeEnabled] = useState(false);
   const [hasTerminalSelection, setHasTerminalSelection] = useState(false);
@@ -1173,6 +1174,11 @@ export function MultiSessionWorkspace({
 
   const selectSession = useCallback(
     (sessionName: string, options: { focusTerminal?: boolean } = {}) => {
+      const lockedSessionName = composeOpen
+        ? (composeTargetSessionName ?? activeSessionNameRef.current)
+        : null;
+      if (lockedSessionName && sessionName !== lockedSessionName) return;
+
       const { focusTerminal = true } = options;
       setActiveSessionName(sessionName);
 
@@ -1197,6 +1203,8 @@ export function MultiSessionWorkspace({
       activeBoard,
       boardState,
       clearActiveTerminal,
+      composeOpen,
+      composeTargetSessionName,
       isComposeSheet,
       persistBoardState,
       setActiveTerminal,
@@ -1368,38 +1376,57 @@ export function MultiSessionWorkspace({
     [clearActiveTerminal],
   );
 
-  const openComposeWithDraft = useCallback((request: TerminalComposeRequest) => {
-    setComposeTargetLabel(request.targetLabel);
-    setComposeDraft((current) => {
-      if (!request.append || !current) return request.draft;
-      return `${current.replace(/\s*$/, "")}\n${request.draft}`;
-    });
-    setComposeOpen(true);
-  }, []);
+  const openComposeWithDraft = useCallback(
+    (request: TerminalComposeRequest, sessionName = activeSessionNameRef.current) => {
+      setComposeTargetSessionName(sessionName);
+      setComposeTargetLabel(request.targetLabel);
+      setComposeDraft((current) => {
+        if (!request.append || !current) return request.draft;
+        return `${current.replace(/\s*$/, "")}\n${request.draft}`;
+      });
+      setComposeOpen(true);
+    },
+    [],
+  );
 
   const closeCompose = useCallback(() => {
     setComposeOpen(false);
     setComposeDraft("");
+    setComposeTargetSessionName(null);
     setComposeTargetLabel(undefined);
   }, []);
 
-  const sendComposeDraft = useCallback((draft: string) => {
-    const activeName = activeSessionNameRef.current;
-    const entry = activeName ? terminalsRef.current.get(activeName) : null;
-    if (!entry) return;
-    entry.send(draft);
-    entry.send("\r");
-  }, []);
+  const sendComposeDraft = useCallback(
+    (draft: string) => {
+      const targetName = composeTargetSessionName ?? activeSessionNameRef.current;
+      const entry = targetName ? terminalsRef.current.get(targetName) : null;
+      if (!entry) return;
+      entry.send(draft);
+      entry.send("\r");
+    },
+    [composeTargetSessionName],
+  );
 
   useEffect(() => {
     const handleComposeToggle = () => {
-      setComposeOpen((open) => !open);
+      setComposeOpen((open) => {
+        if (open) {
+          setComposeTargetSessionName(null);
+          setComposeTargetLabel(undefined);
+          return false;
+        }
+
+        const targetSessionName = activeSessionNameRef.current;
+        setComposeTargetSessionName(targetSessionName);
+        setComposeTargetLabel(activeLabel ?? targetSessionName ?? undefined);
+        return true;
+      });
     };
     window.addEventListener(TERMINAL_COMPOSE_TOGGLE_EVENT, handleComposeToggle);
     return () => {
       window.removeEventListener(TERMINAL_COMPOSE_TOGGLE_EVENT, handleComposeToggle);
     };
-  }, []);
+  }, [activeLabel]);
 
   const handleSelectionModeChange = useCallback((enabled: boolean) => {
     setSelectionModeEnabled(enabled);
@@ -2800,6 +2827,9 @@ export function MultiSessionWorkspace({
       onClose={closeCompose}
     />
   ) : null;
+  const composeLockedSessionName = composeOpen
+    ? (composeTargetSessionName ?? activeSessionName)
+    : null;
 
   const renderPane = (pane: SessionPane, model: WorkspaceBoardRenderModel) => {
     const visibleSession = model.visibleSessions.find(
@@ -2808,6 +2838,8 @@ export function MultiSessionWorkspace({
     const session =
       visibleSession ?? sessions.find((candidate) => candidate.sessionName === pane.sessionName);
     const isActive = model.isActive && pane.sessionName === activeSessionName;
+    const isComposeDisabled =
+      Boolean(composeLockedSessionName) && pane.sessionName !== composeLockedSessionName;
     const cloneSessionKey = session?.cloneSessionKey;
     const relativePath = session?.relativePath;
     const boardPaneSignal = visibleSession?.boardPaneKey ?? pane.id;
@@ -2838,6 +2870,8 @@ export function MultiSessionWorkspace({
         }
         layoutMode="tiled"
         style={paneStyle}
+        disabled={isComposeDisabled}
+        disabledLabel="Compose locked"
         onActivate={() => {
           if (!model.isActive) {
             persistBoardState(selectWorkspaceBoard(boardState, model.board.key));
@@ -2858,7 +2892,7 @@ export function MultiSessionWorkspace({
           });
         }}
         onMouseEnter={() => {
-          if (model.isActive) selectSession(pane.sessionName);
+          if (model.isActive && !isComposeDisabled) selectSession(pane.sessionName);
         }}
       >
         <InteractiveTerminal
@@ -2890,7 +2924,9 @@ export function MultiSessionWorkspace({
             }
             selectSession(pane.sessionName, { focusTerminal: false });
           }}
-          onComposeRequest={openComposeWithDraft}
+          onComposeRequest={(request) => {
+            openComposeWithDraft(request, pane.sessionName);
+          }}
           onClipboardStatus={handleClipboardActionStatus}
           targetLabel={pane.label}
         />

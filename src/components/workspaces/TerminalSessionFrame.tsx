@@ -1,6 +1,6 @@
 "use client";
 
-import { Minus, Plus, X } from "lucide-react";
+import { Lock, Minus, Plus, X } from "lucide-react";
 import type { CSSProperties, FocusEvent, KeyboardEvent, MouseEvent, ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 import { SidebarTrigger } from "@/components/ui/sidebar";
@@ -116,6 +116,8 @@ interface TerminalSessionFrameProps {
   onClose?: (event: MouseEvent<HTMLButtonElement>) => void;
   onMouseEnter?: () => void;
   onFocusActivate?: boolean;
+  disabled?: boolean;
+  disabledLabel?: string;
   closeLabel?: string;
   closeTestId?: string;
   style?: CSSProperties;
@@ -134,13 +136,16 @@ export function TerminalSessionFrame({
   onClose,
   onMouseEnter,
   onFocusActivate = false,
+  disabled = false,
+  disabledLabel,
   closeLabel,
   closeTestId,
   style,
 }: TerminalSessionFrameProps) {
-  const interactive = Boolean(onActivate);
+  const interactive = Boolean(onActivate) && !disabled;
 
   function handleFrameClick(event: MouseEvent<HTMLDivElement>) {
+    if (disabled) return;
     if (!onActivate) return;
     const target = event.target;
     if (target instanceof HTMLElement && target.closest("[data-terminal-surface='true']")) return;
@@ -148,11 +153,13 @@ export function TerminalSessionFrame({
   }
 
   function handleFrameFocus(event: FocusEvent<HTMLDivElement>) {
+    if (disabled) return;
     if (!onFocusActivate || event.currentTarget !== event.target) return;
     onActivate?.();
   }
 
   function handleFrameKeyDown(event: KeyboardEvent<HTMLDivElement>) {
+    if (disabled) return;
     if (!interactive || event.currentTarget !== event.target) return;
     if (event.key !== "Enter" && event.key !== " ") return;
     event.preventDefault();
@@ -163,11 +170,14 @@ export function TerminalSessionFrame({
     <div
       role={interactive ? "button" : "group"}
       className={cn(
-        "flex min-h-0 resize-none flex-col overflow-hidden rounded-lg border bg-black shadow-sm outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring",
+        "relative flex min-h-0 resize-none flex-col overflow-hidden rounded-lg border bg-black shadow-sm outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring",
         active ? "border-primary ring-1 ring-primary" : "border-border",
+        disabled && "border-white/10 opacity-45 grayscale-[0.35] saturate-50",
         className,
       )}
+      aria-disabled={disabled || undefined}
       data-active={active ? "true" : "false"}
+      data-compose-disabled={disabled ? "true" : "false"}
       data-pane-label={label}
       data-pane-mode={layoutMode}
       data-testid={dataTestId}
@@ -176,7 +186,7 @@ export function TerminalSessionFrame({
       onClick={handleFrameClick}
       onFocus={handleFrameFocus}
       onKeyDown={handleFrameKeyDown}
-      onMouseEnter={onMouseEnter}
+      onMouseEnter={disabled ? undefined : onMouseEnter}
     >
       {showHeader ? (
         <div
@@ -192,6 +202,7 @@ export function TerminalSessionFrame({
               className="h-6 min-h-0 px-1.5 text-[10px]"
               aria-label={closeLabel ?? `Close ${label}`}
               data-testid={closeTestId}
+              disabled={disabled}
               onClick={onClose}
             >
               <X className="size-3" />
@@ -200,11 +211,26 @@ export function TerminalSessionFrame({
         </div>
       ) : null}
       <div
-        className={cn("flex min-h-0 flex-1 flex-col overflow-hidden", contentClassName)}
+        className={cn(
+          "flex min-h-0 flex-1 flex-col overflow-hidden",
+          disabled && "pointer-events-none",
+          contentClassName,
+        )}
         data-terminal-frame-content="true"
       >
         {children}
       </div>
+      {disabled ? (
+        <div
+          className="pointer-events-none absolute inset-0 z-10 flex items-start justify-end bg-black/35 p-2"
+          data-testid={dataTestId ? `${dataTestId}-disabled-overlay` : undefined}
+        >
+          <span className="inline-flex items-center gap-1 rounded-md border border-white/15 bg-black/80 px-2 py-1 font-mono text-[10px] text-white/80 shadow-sm">
+            <Lock className="size-3" />
+            {disabledLabel ?? "Compose locked"}
+          </span>
+        </div>
+      ) : null}
     </div>
   );
 }
