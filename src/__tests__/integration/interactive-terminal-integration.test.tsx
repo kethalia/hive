@@ -2505,7 +2505,7 @@ describe("InteractiveTerminal integration — Mobile input adapter", () => {
 
   it("lets native file paste through after terminal Ctrl+V when clipboard item reads are unavailable", async () => {
     const onComposeRequest = vi.fn();
-    mockPasteClipboardApiToTerminal.mockReturnValue(false);
+    mockPasteClipboardApiToTerminal.mockReturnValue(true);
     const { unmount } = await renderTerminal({ onComposeRequest });
     const terminal = terminalInstances.at(-1);
     const keyHandler = terminal?.attachCustomKeyEventHandler.mock.calls.at(-1)?.[0];
@@ -2580,6 +2580,61 @@ describe("InteractiveTerminal integration — Mobile input adapter", () => {
     expect(nativePaste.defaultPrevented).toBe(true);
     expect(mockPasteClipboardApiToTerminal).toHaveBeenCalledOnce();
     expect(mockPasteNativeClipboardEventToTerminal).not.toHaveBeenCalled();
+    unmount();
+  });
+
+  it("uses captured native files when Clipboard API paste does not provide files", async () => {
+    const onComposeRequest = vi.fn();
+    mockPasteClipboardApiToTerminal.mockReturnValue(false);
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: true,
+        json: vi.fn().mockResolvedValue({ paths: ["/tmp/hive-terminal-paste/pasted.txt"] }),
+      }),
+    );
+    const { unmount } = await renderTerminal({ onComposeRequest });
+    const terminal = terminalInstances.at(-1);
+    const keyHandler = terminal?.attachCustomKeyEventHandler.mock.calls.at(-1)?.[0];
+
+    keyHandler?.({
+      type: "keydown",
+      key: "v",
+      ctrlKey: true,
+      metaKey: false,
+      altKey: false,
+      shiftKey: false,
+    });
+
+    const file = new File(["file"], "pasted.txt", { type: "text/plain" });
+    const nativePaste = new Event("paste", { bubbles: true, cancelable: true }) as ClipboardEvent;
+    Object.defineProperty(nativePaste, "clipboardData", {
+      value: {
+        items: {
+          length: 1,
+          0: { kind: "file", getAsFile: () => file },
+        },
+        getData: vi.fn(() => ""),
+      },
+    });
+    const xterm = document.querySelector(".xterm");
+    xterm?.dispatchEvent(nativePaste);
+
+    expect(nativePaste.defaultPrevented).toBe(true);
+    expect(mockPasteNativeClipboardEventToTerminal).not.toHaveBeenCalled();
+    const pasteOptions = mockPasteClipboardApiToTerminal.mock.calls.at(-1)?.[2];
+    pasteOptions?.onPasteOutcome?.({ kind: "empty" });
+
+    await waitFor(() => {
+      expect(fetch).toHaveBeenCalledWith(
+        "/api/workspaces/test-ws/terminal/paste-assets",
+        expect.objectContaining({
+          method: "POST",
+          body: expect.any(FormData),
+        }),
+      );
+      expect(mockSend).toHaveBeenCalledWith("/tmp/hive-terminal-paste/pasted.txt");
+    });
     unmount();
   });
 
