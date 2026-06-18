@@ -715,6 +715,10 @@ beforeEach(() => {
     connectionState: "disconnected",
   });
 
+  Object.defineProperty(navigator, "clipboard", {
+    value: undefined,
+    configurable: true,
+  });
   Object.defineProperty(document, "fonts", {
     value: { ready: Promise.resolve() },
     configurable: true,
@@ -2499,7 +2503,7 @@ describe("InteractiveTerminal integration — Mobile input adapter", () => {
     unmount();
   });
 
-  it("lets native file paste through after terminal Ctrl+V interception", async () => {
+  it("lets native file paste through after terminal Ctrl+V when clipboard item reads are unavailable", async () => {
     const onComposeRequest = vi.fn();
     mockPasteClipboardApiToTerminal.mockReturnValue(false);
     const { unmount } = await renderTerminal({ onComposeRequest });
@@ -2536,6 +2540,46 @@ describe("InteractiveTerminal integration — Mobile input adapter", () => {
         workspaceId: "test-ws",
       }),
     );
+    unmount();
+  });
+
+  it("suppresses the native file paste after terminal Ctrl+V when clipboard item reads are available", async () => {
+    Object.defineProperty(navigator, "clipboard", {
+      value: { read: vi.fn() },
+      configurable: true,
+    });
+    const onComposeRequest = vi.fn();
+    mockPasteClipboardApiToTerminal.mockReturnValue(false);
+    const { unmount } = await renderTerminal({ onComposeRequest });
+    const terminal = terminalInstances.at(-1);
+    const keyHandler = terminal?.attachCustomKeyEventHandler.mock.calls.at(-1)?.[0];
+
+    keyHandler?.({
+      type: "keydown",
+      key: "v",
+      ctrlKey: true,
+      metaKey: false,
+      altKey: false,
+      shiftKey: false,
+    });
+
+    const file = new File(["png"], "pasted.png", { type: "image/png" });
+    const nativePaste = new Event("paste", { bubbles: true, cancelable: true }) as ClipboardEvent;
+    Object.defineProperty(nativePaste, "clipboardData", {
+      value: {
+        items: {
+          length: 1,
+          0: { kind: "file", getAsFile: () => file },
+        },
+        getData: vi.fn(() => ""),
+      },
+    });
+    const xterm = document.querySelector(".xterm");
+    xterm?.dispatchEvent(nativePaste);
+
+    expect(nativePaste.defaultPrevented).toBe(true);
+    expect(mockPasteClipboardApiToTerminal).toHaveBeenCalledOnce();
+    expect(mockPasteNativeClipboardEventToTerminal).not.toHaveBeenCalled();
     unmount();
   });
 

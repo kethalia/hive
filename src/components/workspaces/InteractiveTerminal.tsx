@@ -209,6 +209,15 @@ function nativePasteHasFiles(event: ClipboardEvent): boolean {
   return Array.from(items).some((item) => item.kind === "file" && Boolean(item.getAsFile()));
 }
 
+function canReadClipboardItems(): boolean {
+  if (typeof navigator === "undefined") return false;
+  try {
+    return typeof Reflect.get(Reflect.get(navigator, "clipboard"), "read") === "function";
+  } catch {
+    return false;
+  }
+}
+
 function dispatchTmuxTouchWheel(
   term: Terminal | null,
   container: HTMLElement | null,
@@ -861,7 +870,7 @@ export function InteractiveTerminal({
             window.clearTimeout(suppressNextNativePasteTimerRef.current);
             suppressNextNativePasteTimerRef.current = null;
           }
-          if (nativePasteHasFiles(event)) {
+          if (nativePasteHasFiles(event) && !canReadClipboardItems()) {
             if (!onComposeRequestRef.current) return;
             void pasteNativeClipboardEventToTerminal(event, {
               term,
