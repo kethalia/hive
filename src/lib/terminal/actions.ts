@@ -5,6 +5,7 @@ import {
   readClipboardApiOutcome,
   type TerminalComposeRequest,
   type TerminalPasteController,
+  type TerminalPasteOutcome,
   type TerminalPasteStatus,
 } from "@/lib/terminal/clipboard";
 
@@ -51,6 +52,8 @@ export type ClipboardStatusCallback = (status: ClipboardActionStatus) => void;
 export interface ClipboardActionOptions {
   onStatus?: ClipboardStatusCallback;
   onCompose?: (request: TerminalComposeRequest) => void;
+  onPasteOutcome?: (outcome: TerminalPasteOutcome) => void;
+  onPasteFailure?: () => void;
   targetLabel?: string;
   workspaceId?: string;
 }
@@ -65,6 +68,25 @@ function emitStatus(
     options?.onStatus?.(status);
   } catch {
     console.warn("[clipboard] status callback failed");
+  }
+}
+
+function notifyPasteOutcome(
+  options: ClipboardActionOptions | undefined,
+  outcome: TerminalPasteOutcome,
+): void {
+  try {
+    options?.onPasteOutcome?.(outcome);
+  } catch {
+    console.warn("[clipboard] paste outcome callback failed");
+  }
+}
+
+function notifyPasteFailure(options: ClipboardActionOptions | undefined): void {
+  try {
+    options?.onPasteFailure?.();
+  } catch {
+    console.warn("[clipboard] paste failure callback failed");
   }
 }
 
@@ -267,10 +289,15 @@ export function pasteClipboardApiToTerminal(
   }
 
   void readClipboardApiOutcome(clipboard)
-    .then((outcome) =>
-      handleTerminalPasteOutcome(outcome, createTerminalPasteController(term, send, options)),
-    )
+    .then((outcome) => {
+      notifyPasteOutcome(options, outcome);
+      return handleTerminalPasteOutcome(
+        outcome,
+        createTerminalPasteController(term, send, options),
+      );
+    })
     .catch((error: unknown) => {
+      notifyPasteFailure(options);
       completePasteFallback(classifyClipboardFailure(error), options);
     });
 

@@ -31,7 +31,13 @@ import {
   pasteClipboardApiToTerminal,
   pasteNativeClipboardEventToTerminal,
 } from "@/lib/terminal/actions";
-import type { TerminalComposeRequest, TerminalPasteStatus } from "@/lib/terminal/clipboard";
+import {
+  handleTerminalPasteOutcome,
+  readNativePasteOutcome,
+  type TerminalComposeRequest,
+  type TerminalPasteOutcome,
+  type TerminalPasteStatus,
+} from "@/lib/terminal/clipboard";
 import { EVENT_NAME as FONT_SIZE_EVENT, getTerminalFontSize } from "@/lib/terminal/font-size";
 import {
   blurXtermMobileInput,
@@ -209,15 +215,6 @@ function nativePasteHasFiles(event: ClipboardEvent): boolean {
   return Array.from(items).some((item) => item.kind === "file" && Boolean(item.getAsFile()));
 }
 
-function canReadClipboardItems(): boolean {
-  if (typeof navigator === "undefined") return false;
-  try {
-    return typeof Reflect.get(Reflect.get(navigator, "clipboard"), "read") === "function";
-  } catch {
-    return false;
-  }
-}
-
 function dispatchTmuxTouchWheel(
   term: Terminal | null,
   container: HTMLElement | null,
@@ -386,6 +383,10 @@ export function InteractiveTerminal({
   const suppressNextClickFocusRef = useRef(false);
   const suppressNextNativePasteRef = useRef(false);
   const suppressNextNativePasteTimerRef = useRef<number | null>(null);
+  const suppressedClipboardPasteStateRef = useRef<
+    "pending" | "clipboard-handled-file" | "prefer-native-file" | null
+  >(null);
+  const pendingNativeFilePasteRef = useRef<TerminalPasteOutcome | null>(null);
   const mobileInputCleanupRef = useRef<MobileInputAdapterCleanup | null>(null);
   const { handleKeyEvent } = useKeybindings();
   const handleKeyEventRef = useRef(handleKeyEvent);
@@ -830,17 +831,49 @@ export function InteractiveTerminal({
 
       const sendRaw = (text: string) => sendRef.current(encodeInput(text));
       onTerminalReadyRef.current?.(term, sendRaw);
+      const handleCapturedNativeFilePaste = (outcome: TerminalPasteOutcome) => {
+        if (outcome.kind !== "asset-files" || !onComposeRequestRef.current) return;
+        void handleTerminalPasteOutcome(outcome, {
+          term,
+          send: sendRaw,
+          openCompose: onComposeRequestRef.current,
+          workspaceId,
+          targetLabel: targetLabelRef.current,
+          onStatus: onClipboardStatusRef.current,
+        });
+      };
+      const preferCapturedNativeFilePaste = () => {
+        const pendingOutcome = pendingNativeFilePasteRef.current;
+        pendingNativeFilePasteRef.current = null;
+        if (pendingOutcome?.kind === "asset-files") {
+          suppressedClipboardPasteStateRef.current = null;
+          handleCapturedNativeFilePaste(pendingOutcome);
+          return;
+        }
+        suppressedClipboardPasteStateRef.current = "prefer-native-file";
+      };
       const pasteFromBrowserClipboard = () => {
         if (!onComposeRequestRef.current) return true;
         const shouldContinue = pasteClipboardApiToTerminal(term, sendRaw, {
           onCompose: onComposeRequestRef.current,
           workspaceId,
           targetLabel: targetLabelRef.current,
+          onPasteFailure: preferCapturedNativeFilePaste,
+          onPasteOutcome: (outcome) => {
+            if (outcome.kind === "asset-files") {
+              pendingNativeFilePasteRef.current = null;
+              suppressedClipboardPasteStateRef.current = "clipboard-handled-file";
+              return;
+            }
+            preferCapturedNativeFilePaste();
+          },
           onStatus: (status) => {
             if (isTerminalPasteStatus(status)) onClipboardStatusRef.current?.(status);
           },
         });
         suppressNextNativePasteRef.current = !shouldContinue;
+        suppressedClipboardPasteStateRef.current = shouldContinue ? null : "pending";
+        pendingNativeFilePasteRef.current = null;
         if (suppressNextNativePasteTimerRef.current !== null) {
           window.clearTimeout(suppressNextNativePasteTimerRef.current);
           suppressNextNativePasteTimerRef.current = null;
@@ -848,6 +881,8 @@ export function InteractiveTerminal({
         if (suppressNextNativePasteRef.current) {
           suppressNextNativePasteTimerRef.current = window.setTimeout(() => {
             suppressNextNativePasteRef.current = false;
+            suppressedClipboardPasteStateRef.current = null;
+            pendingNativeFilePasteRef.current = null;
             suppressNextNativePasteTimerRef.current = null;
           }, 750);
         }
@@ -870,21 +905,29 @@ export function InteractiveTerminal({
             window.clearTimeout(suppressNextNativePasteTimerRef.current);
             suppressNextNativePasteTimerRef.current = null;
           }
-          if (nativePasteHasFiles(event) && !canReadClipboardItems()) {
-            if (!onComposeRequestRef.current) return;
-            void pasteNativeClipboardEventToTerminal(event, {
-              term,
-              send: sendRaw,
-              onCompose: onComposeRequestRef.current,
-              workspaceId,
-              targetLabel: targetLabelRef.current,
-              onStatus: onClipboardStatusRef.current,
-            });
+          if (nativePasteHasFiles(event)) {
+            event.preventDefault();
+            event.stopPropagation();
+            event.stopImmediatePropagation();
+            const nativeOutcome = readNativePasteOutcome(event);
+            if (nativeOutcome.kind === "asset-files") {
+              if (suppressedClipboardPasteStateRef.current === "prefer-native-file") {
+                suppressedClipboardPasteStateRef.current = null;
+                pendingNativeFilePasteRef.current = null;
+                handleCapturedNativeFilePaste(nativeOutcome);
+                return;
+              }
+              if (suppressedClipboardPasteStateRef.current === "pending") {
+                pendingNativeFilePasteRef.current = nativeOutcome;
+              }
+            }
             return;
           }
           event.preventDefault();
           event.stopPropagation();
           event.stopImmediatePropagation();
+          suppressedClipboardPasteStateRef.current = null;
+          pendingNativeFilePasteRef.current = null;
           return;
         }
         if (!onComposeRequestRef.current) return;
@@ -965,6 +1008,8 @@ export function InteractiveTerminal({
         container?.removeEventListener("paste", handlePaste, { capture: true });
         container?.removeEventListener("dragover", handleDragOver, { capture: true });
         container?.removeEventListener("drop", handleDrop, { capture: true });
+        suppressedClipboardPasteStateRef.current = null;
+        pendingNativeFilePasteRef.current = null;
       };
     },
     onResize: () => {
