@@ -211,12 +211,11 @@ function nativePasteHasFiles(event: ClipboardEvent): boolean {
 
 function canReadClipboardItems(): boolean {
   if (typeof navigator === "undefined") return false;
-  const clipboard = Reflect.get(navigator, "clipboard");
-  return (
-    typeof clipboard === "object" &&
-    clipboard !== null &&
-    typeof Reflect.get(clipboard, "read") === "function"
-  );
+  try {
+    return typeof Reflect.get(Reflect.get(navigator, "clipboard"), "read") === "function";
+  } catch {
+    return false;
+  }
 }
 
 function dispatchTmuxTouchWheel(
