@@ -210,7 +210,10 @@ function nativePasteHasFiles(event: ClipboardEvent): boolean {
 }
 
 function canReadClipboardItems(): boolean {
-  return typeof navigator !== "undefined" && typeof navigator.clipboard?.read === "function";
+  if (typeof navigator === "undefined") return false;
+  const clipboard = navigator.clipboard;
+  if (!clipboard) return false;
+  return typeof clipboard.read === "function";
 }
 
 function dispatchTmuxTouchWheel(
