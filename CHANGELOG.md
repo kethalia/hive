@@ -1,5 +1,11 @@
 # hive-orchestrator
 
+## 2.5.10
+
+### Patch Changes
+
+- f728e8e: Restore terminal file paste when the browser Clipboard API does not expose copied files.
+
 ## 2.5.9
 
 ### Patch Changes
