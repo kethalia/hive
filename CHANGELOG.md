@@ -1,5 +1,11 @@
 # hive-orchestrator
 
+## 2.5.9
+
+### Patch Changes
+
+- f05d2f4: Prevent Ctrl+V image paste from dispatching through both the Clipboard API and native paste event paths.
+
 ## 2.5.8
 
 ### Patch Changes
