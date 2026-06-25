@@ -525,7 +525,11 @@ export function TerminalTabManager({ agentId, workspaceId }: TerminalTabManagerP
   const renderCodeServerFrameDialog = () => (
     <Dialog
       open={Boolean(codeServerFrame)}
-      onOpenChange={(open) => !open && setCodeServerFrame(null)}
+      onOpenChange={(open) => {
+        if (!open) {
+          setCodeServerFrame(null);
+        }
+      }}
     >
       {codeServerFrame ? (
         <DialogContent
@@ -685,7 +689,9 @@ export function TerminalTabManager({ agentId, workspaceId }: TerminalTabManagerP
                   title="Open code-server"
                   data-testid={`open-code-server-${activeTab.sessionName}`}
                   disabled={openingCodeServerTabId === activeTab.id}
-                  onClick={() => void openCodeServerForTab(activeTab)}
+                  onClick={() => {
+                    void openCodeServerForTab(activeTab);
+                  }}
                 >
                   <Code2 className="size-3.5" />
                 </Button>

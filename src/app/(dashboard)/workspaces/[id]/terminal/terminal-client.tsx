@@ -674,7 +674,9 @@ function TerminalInner({
       variant="outline"
       size="xs"
       className="h-7 min-h-0 px-2 text-xs"
-      onClick={() => void openCodeServerForSession()}
+      onClick={() => {
+        void openCodeServerForSession();
+      }}
       disabled={openingCodeServer}
       aria-label={`Open code-server for ${session}`}
       data-testid="open-code-server-single-session"
@@ -686,7 +688,11 @@ function TerminalInner({
   const codeServerFrameDialog = (
     <Dialog
       open={Boolean(codeServerFrame)}
-      onOpenChange={(open) => !open && setCodeServerFrame(null)}
+      onOpenChange={(open) => {
+        if (!open) {
+          setCodeServerFrame(null);
+        }
+      }}
     >
       {codeServerFrame ? (
         <DialogContent

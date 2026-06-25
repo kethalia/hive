@@ -2244,7 +2244,11 @@ export function MultiSessionWorkspace({
   const renderCodeServerFrameDialog = () => (
     <Dialog
       open={Boolean(codeServerFrame)}
-      onOpenChange={(open) => !open && setCodeServerFrame(null)}
+      onOpenChange={(open) => {
+        if (!open) {
+          setCodeServerFrame(null);
+        }
+      }}
     >
       {codeServerFrame ? (
         <DialogContent
@@ -2316,7 +2320,9 @@ export function MultiSessionWorkspace({
       shortcut: formatShortcut(CREATE_TERMINAL_SESSION_SHORTCUT_KEYS),
       icon: "plus",
       disabled: creating,
-      onSelect: () => void handleCreateSession(typedSessionName),
+      onSelect: () => {
+        void handleCreateSession(typedSessionName);
+      },
     };
 
     if (!paletteQuery || !paletteMatchesExisting) {
@@ -2389,7 +2395,9 @@ export function MultiSessionWorkspace({
         rightLabel: repositoryPending ? "Adding…" : alreadyInActiveBoard ? "Added" : "Workspace",
         icon: "plus",
         disabled: repositoryPending || alreadyInActiveBoard,
-        onSelect: () => void handleAddGitRepository(repository),
+        onSelect: () => {
+          void handleAddGitRepository(repository);
+        },
       });
       actions.push({
         id: `workspace:open-git:${gitRepositoryActionIdentity(repository)}`,
@@ -2400,7 +2408,9 @@ export function MultiSessionWorkspace({
         rightLabel: repositoryPending ? "Opening…" : "Open",
         icon: "search",
         disabled: repositoryPending,
-        onSelect: () => void openGitRepositoryTerminalPage(repository),
+        onSelect: () => {
+          void openGitRepositoryTerminalPage(repository);
+        },
       });
     }
 
@@ -2648,7 +2658,9 @@ export function MultiSessionWorkspace({
         type="button"
         key={repositoryIdentity}
         className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-xs hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-wait disabled:opacity-70"
-        onClick={() => void handleAddGitRepository(repository)}
+        onClick={() => {
+          void handleAddGitRepository(repository);
+        }}
         disabled={repositoryPending}
         data-testid={`add-git-session-${gitRepositoryActionIdentity(repository)}`}
       >
@@ -2709,7 +2721,13 @@ export function MultiSessionWorkspace({
     return (
       <Dialog
         open={gitSearchOpen}
-        onOpenChange={(open) => (open ? openGitSearchModal() : closeGitSearchModal())}
+        onOpenChange={(open) => {
+          if (open) {
+            openGitSearchModal();
+          } else {
+            closeGitSearchModal();
+          }
+        }}
       >
         {gitSearchOpen ? (
           <DialogContent className="max-w-xl" data-testid="git-session-search-modal">
@@ -2857,7 +2875,9 @@ export function MultiSessionWorkspace({
             <Button
               type="button"
               size="xs"
-              onClick={() => void handleCreateSession()}
+              onClick={() => {
+                void handleCreateSession();
+              }}
               disabled={creating}
               className="h-7 min-h-0 px-2 text-xs"
               data-testid={
@@ -2878,7 +2898,13 @@ export function MultiSessionWorkspace({
         onOpenChange={setPaletteOpen}
         tabs={isUnifiedSource ? [] : commandPaletteTabs}
         onSelectTab={handlePaletteSelect}
-        onCreateSession={isUnifiedSource ? undefined : () => void handleCreateSession()}
+        onCreateSession={
+          isUnifiedSource
+            ? undefined
+            : () => {
+                void handleCreateSession();
+              }
+        }
         actions={workspacePaletteActions}
         searchValue={isUnifiedSource ? gitSearchQuery : undefined}
         onSearchValueChange={isUnifiedSource ? setGitSearchQuery : undefined}
