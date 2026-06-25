@@ -1,6 +1,6 @@
 "use client";
 
-import { Loader2 } from "lucide-react";
+import { Code2, ExternalLink, Loader2 } from "lucide-react";
 import dynamic from "next/dynamic";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useCallback, useEffect, useRef, useState } from "react";
@@ -12,6 +12,13 @@ import { MobileTerminalShell } from "@/components/terminal/MobileTerminalShell";
 import { TerminalSessionCompose } from "@/components/terminal/TerminalSessionCompose";
 import { Button } from "@/components/ui/button";
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
   SingleTerminalSessionHeader,
   TerminalSessionFrame,
 } from "@/components/workspaces/TerminalSessionFrame";
@@ -20,7 +27,11 @@ import { useFavoriteWindowNavigation } from "@/hooks/useFavoriteWindowNavigation
 import { useKeybindings } from "@/hooks/useKeybindings";
 import { useVisualViewportKeyboardOffset } from "@/hooks/useVisualViewportKeyboardOffset";
 import { resolveGitCloneTerminalAction } from "@/lib/actions/git-clones";
-import { createSessionAction, getWorkspaceSessionsAction } from "@/lib/actions/workspaces";
+import {
+  createSessionAction,
+  getCodeServerSessionUrlAction,
+  getWorkspaceSessionsAction,
+} from "@/lib/actions/workspaces";
 import { triggerHapticFeedback } from "@/lib/device/haptics";
 import type { GitCloneTerminalIdentity } from "@/lib/git/clone-actions-contract";
 import {
@@ -38,6 +49,12 @@ import {
   isTerminalSettingsChangedDetail,
   TERMINAL_SETTINGS_CHANGED_EVENT,
 } from "@/lib/terminal/settings-events";
+import {
+  navigateCodeServerPopupWindow,
+  openCodeServerPopupUrl,
+  openCodeServerPopupWindow,
+  shouldEmbedCodeServerInCurrentBrowser,
+} from "@/lib/workspaces/code-server-embed";
 
 const InteractiveTerminal = dynamic(
   () => import("@/components/workspaces/InteractiveTerminal").then((m) => m.InteractiveTerminal),
@@ -93,6 +110,19 @@ function isGitCloneTerminalIdentity(value: unknown): value is GitCloneTerminalId
     typeof value.cloneProof === "string" &&
     value.cloneProof.length > 0
   );
+}
+
+function isCodeServerSessionUrlResult(value: unknown): value is {
+  url: string;
+  folderPath?: unknown;
+} {
+  return isObjectRecord(value) && typeof value.url === "string" && value.url.length > 0;
+}
+
+interface CodeServerFrameState {
+  url: string;
+  label: string;
+  folderPath: string | null;
 }
 
 function isTextEntryElement(element: Element | null): boolean {
@@ -186,6 +216,8 @@ function TerminalInner({
   );
   const [bootstrapError, setBootstrapError] = useState<string | null>(null);
   const [bootstrapRetryKey, setBootstrapRetryKey] = useState(0);
+  const [openingCodeServer, setOpeningCodeServer] = useState(false);
+  const [codeServerFrame, setCodeServerFrame] = useState<CodeServerFrameState | null>(null);
   const [cloneIdentity, setCloneIdentity] = useState<{
     clonePath?: string;
     cloneProof?: string;
@@ -344,6 +376,46 @@ function TerminalInner({
     session,
     workspaceId,
   ]);
+
+  const openCodeServerForSession = useCallback(async () => {
+    if (!session) return;
+    setOpeningCodeServer(true);
+    const shouldEmbed = shouldEmbedCodeServerInCurrentBrowser();
+    const popup = shouldEmbed ? null : openCodeServerPopupWindow();
+
+    try {
+      const result = await getCodeServerSessionUrlAction({
+        workspaceId,
+        sessionName: session,
+        fallbackPath: clonePath,
+      });
+      const data = unwrapActionData(result);
+      if (!isCodeServerSessionUrlResult(data)) {
+        popup?.close();
+        toast.error("Could not open code-server for this session.");
+        return;
+      }
+
+      if (!shouldEmbed) {
+        if (!navigateCodeServerPopupWindow(popup, data.url)) {
+          openCodeServerPopupUrl(data.url);
+        }
+        return;
+      }
+
+      setCodeServerFrame({
+        url: data.url,
+        label: session,
+        folderPath:
+          isObjectRecord(data) && typeof data.folderPath === "string" ? data.folderPath : null,
+      });
+    } catch {
+      popup?.close();
+      toast.error("Could not open code-server for this session.");
+    } finally {
+      setOpeningCodeServer(false);
+    }
+  }, [clonePath, session, workspaceId]);
 
   useEffect(() => {
     if (!session || isComposeSheet || composeOpen || selectionModeEnabled || !activeTerminal) {
@@ -596,6 +668,61 @@ function TerminalInner({
       }}
     />
   );
+  const codeServerHeaderActions = (
+    <Button
+      type="button"
+      variant="outline"
+      size="xs"
+      className="h-7 min-h-0 px-2 text-xs"
+      onClick={() => void openCodeServerForSession()}
+      disabled={openingCodeServer}
+      aria-label={`Open code-server for ${session}`}
+      data-testid="open-code-server-single-session"
+    >
+      <Code2 className="size-3" />
+      Code
+    </Button>
+  );
+  const codeServerFrameDialog = (
+    <Dialog
+      open={Boolean(codeServerFrame)}
+      onOpenChange={(open) => !open && setCodeServerFrame(null)}
+    >
+      {codeServerFrame ? (
+        <DialogContent
+          className="grid h-[min(88vh,900px)] w-[min(96vw,1500px)] max-w-none grid-rows-[auto_minmax(0,1fr)] gap-2 p-2"
+          data-testid="code-server-frame-dialog"
+        >
+          <DialogHeader className="flex-row items-center gap-3 pr-10 text-left">
+            <div className="min-w-0 flex-1">
+              <DialogTitle className="truncate text-sm">Code: {codeServerFrame.label}</DialogTitle>
+              <DialogDescription className="truncate text-xs">
+                {codeServerFrame.folderPath ?? "code-server"}
+              </DialogDescription>
+            </div>
+            <Button
+              type="button"
+              variant="outline"
+              size="xs"
+              className="h-7 min-h-0 px-2 text-xs"
+              onClick={() => openCodeServerPopupUrl(codeServerFrame.url)}
+              data-testid="pop-out-code-server"
+            >
+              <ExternalLink className="size-3" />
+              Pop Out
+            </Button>
+          </DialogHeader>
+          <iframe
+            src={codeServerFrame.url}
+            title={`code-server for ${codeServerFrame.label}`}
+            className="h-full min-h-0 w-full rounded-md border border-border bg-black"
+            allow="clipboard-read; clipboard-write"
+            data-testid="code-server-frame"
+          />
+        </DialogContent>
+      ) : null}
+    </Dialog>
+  );
 
   if (isComposeSheet) {
     return (
@@ -605,7 +732,8 @@ function TerminalInner({
         reserveDashboardTrigger={false}
       >
         <div className="flex h-full min-h-0 flex-col overflow-hidden overscroll-none bg-background">
-          <SingleTerminalSessionHeader sessionLabel={session} />
+          <SingleTerminalSessionHeader sessionLabel={session} actions={codeServerHeaderActions} />
+          {codeServerFrameDialog}
           <div className="min-h-0 flex-1 overflow-hidden p-1 pt-0">
             <TerminalSessionFrame
               label={session}
@@ -654,7 +782,8 @@ function TerminalInner({
       className={`${TERMINAL_SHELL_CLASS_NAME} flex flex-col overflow-hidden bg-background`}
       onKeyDown={(e) => e.stopPropagation()}
     >
-      <SingleTerminalSessionHeader sessionLabel={session} />
+      <SingleTerminalSessionHeader sessionLabel={session} actions={codeServerHeaderActions} />
+      {codeServerFrameDialog}
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
         <div className="min-h-0 flex-1 p-1 pt-0">
           <TerminalSessionFrame

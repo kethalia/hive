@@ -73,11 +73,13 @@ export function TerminalFontSizeControls({
 interface SingleTerminalSessionHeaderProps {
   sessionLabel: string;
   className?: string;
+  actions?: ReactNode;
 }
 
 export function SingleTerminalSessionHeader({
   sessionLabel,
   className,
+  actions,
 }: SingleTerminalSessionHeaderProps) {
   return (
     <header
@@ -97,6 +99,7 @@ export function SingleTerminalSessionHeader({
         className="flex min-w-0 items-center justify-end gap-1"
         data-testid="single-terminal-header-right"
       >
+        {actions}
         <TerminalFontSizeControls label="Single terminal font size controls" />
       </div>
     </header>
@@ -118,6 +121,7 @@ interface TerminalSessionFrameProps {
   onFocusActivate?: boolean;
   disabled?: boolean;
   disabledLabel?: string;
+  headerActions?: ReactNode;
   closeLabel?: string;
   closeTestId?: string;
   style?: CSSProperties;
@@ -138,6 +142,7 @@ export function TerminalSessionFrame({
   onFocusActivate = false,
   disabled = false,
   disabledLabel,
+  headerActions,
   closeLabel,
   closeTestId,
   style,
@@ -194,6 +199,7 @@ export function TerminalSessionFrame({
           data-testid={dataTestId ? `${dataTestId}-header` : undefined}
         >
           <span className="min-w-0 flex-1 truncate font-mono text-xs">{label}</span>
+          {headerActions}
           {onClose ? (
             <Button
               type="button"

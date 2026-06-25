@@ -1,13 +1,20 @@
 "use client";
 
 import type { Terminal } from "@xterm/xterm";
-import { Pencil, Plus, X } from "lucide-react";
+import { Code2, ExternalLink, Pencil, Plus, X } from "lucide-react";
 import dynamic from "next/dynamic";
 import { useCallback, useEffect, useReducer, useRef, useState } from "react";
 import { CommandPalette } from "@/components/terminal/CommandPalette";
 import { TerminalSessionCompose } from "@/components/terminal/TerminalSessionCompose";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
 import { connectionBadgeProps } from "@/components/workspaces/InteractiveTerminal";
@@ -16,6 +23,7 @@ import { useKeybindings } from "@/hooks/useKeybindings";
 import type { ConnectionState } from "@/hooks/useTerminalWebSocket";
 import {
   createSessionAction,
+  getCodeServerSessionUrlAction,
   getWorkspaceSessionsAction,
   killSessionAction,
   renameSessionAction,
@@ -26,6 +34,12 @@ import { TERMINAL_COMPOSE_TOGGLE_EVENT } from "@/lib/terminal/events";
 import { registerGlobalCommandPaletteSource } from "@/lib/terminal/global-command-palette";
 import { isPwaStandalone } from "@/lib/terminal/pwa";
 import { cn } from "@/lib/utils";
+import {
+  navigateCodeServerPopupWindow,
+  openCodeServerPopupUrl,
+  openCodeServerPopupWindow,
+  shouldEmbedCodeServerInCurrentBrowser,
+} from "@/lib/workspaces/code-server-embed";
 
 const InteractiveTerminal = dynamic(
   () => import("@/components/workspaces/InteractiveTerminal").then((m) => m.InteractiveTerminal),
@@ -40,6 +54,12 @@ interface Tab {
 interface TabState {
   tabs: Tab[];
   activeTabId: string | null;
+}
+
+interface CodeServerFrameState {
+  url: string;
+  label: string;
+  folderPath: string | null;
 }
 
 type TabAction =
@@ -101,6 +121,8 @@ export function TerminalTabManager({ agentId, workspaceId }: TerminalTabManagerP
   const [composeOpen, setComposeOpen] = useState(false);
   const [composeDraft, setComposeDraft] = useState("");
   const [composeTargetLabel, setComposeTargetLabel] = useState<string | undefined>();
+  const [openingCodeServerTabId, setOpeningCodeServerTabId] = useState<string | null>(null);
+  const [codeServerFrame, setCodeServerFrame] = useState<CodeServerFrameState | null>(null);
 
   const [connStates, setConnStates] = useState<Record<string, ConnectionState>>({});
   const keybindingsCtx = useKeybindings();
@@ -290,6 +312,49 @@ export function TerminalTabManager({ agentId, workspaceId }: TerminalTabManagerP
     [tabs, workspaceId, agentId],
   );
 
+  const openCodeServerForTab = useCallback(
+    async (tab: Tab) => {
+      setOpeningCodeServerTabId(tab.id);
+      const shouldEmbed = shouldEmbedCodeServerInCurrentBrowser();
+      const popup = shouldEmbed ? null : openCodeServerPopupWindow();
+      try {
+        const result = await getCodeServerSessionUrlAction({
+          workspaceId,
+          sessionName: tab.sessionName,
+        });
+        const data =
+          result && typeof result === "object" && "data" in result
+            ? (result.data as unknown)
+            : result;
+        if (!data || typeof data !== "object" || !("url" in data) || typeof data.url !== "string") {
+          popup?.close();
+          console.error("[terminal-tabs] Failed to resolve code-server URL");
+          return;
+        }
+
+        if (!shouldEmbed) {
+          if (!navigateCodeServerPopupWindow(popup, data.url)) {
+            openCodeServerPopupUrl(data.url);
+          }
+          return;
+        }
+
+        setCodeServerFrame({
+          url: data.url,
+          label: tab.sessionName,
+          folderPath:
+            "folderPath" in data && typeof data.folderPath === "string" ? data.folderPath : null,
+        });
+      } catch (err) {
+        popup?.close();
+        console.error("[terminal-tabs] Failed to open code-server:", err);
+      } finally {
+        setOpeningCodeServerTabId(null);
+      }
+    },
+    [workspaceId],
+  );
+
   const openComposeWithDraft = useCallback((request: TerminalComposeRequest) => {
     setComposeTargetLabel(request.targetLabel);
     setComposeDraft((current) => {
@@ -457,8 +522,50 @@ export function TerminalTabManager({ agentId, workspaceId }: TerminalTabManagerP
     );
   }
 
+  const renderCodeServerFrameDialog = () => (
+    <Dialog
+      open={Boolean(codeServerFrame)}
+      onOpenChange={(open) => !open && setCodeServerFrame(null)}
+    >
+      {codeServerFrame ? (
+        <DialogContent
+          className="grid h-[min(88vh,900px)] w-[min(96vw,1500px)] max-w-none grid-rows-[auto_minmax(0,1fr)] gap-2 p-2"
+          data-testid="code-server-frame-dialog"
+        >
+          <DialogHeader className="flex-row items-center gap-3 pr-10 text-left">
+            <div className="min-w-0 flex-1">
+              <DialogTitle className="truncate text-sm">Code: {codeServerFrame.label}</DialogTitle>
+              <DialogDescription className="truncate text-xs">
+                {codeServerFrame.folderPath ?? "code-server"}
+              </DialogDescription>
+            </div>
+            <Button
+              type="button"
+              variant="outline"
+              size="xs"
+              className="h-7 min-h-0 px-2 text-xs"
+              onClick={() => openCodeServerPopupUrl(codeServerFrame.url)}
+              data-testid="pop-out-code-server"
+            >
+              <ExternalLink className="size-3" />
+              Pop Out
+            </Button>
+          </DialogHeader>
+          <iframe
+            src={codeServerFrame.url}
+            title={`code-server for ${codeServerFrame.label}`}
+            className="h-full min-h-0 w-full rounded-md border border-border bg-black"
+            allow="clipboard-read; clipboard-write"
+            data-testid="code-server-frame"
+          />
+        </DialogContent>
+      ) : null}
+    </Dialog>
+  );
+
   return (
     <div className="flex h-full flex-col bg-background">
+      {renderCodeServerFrameDialog()}
       <KeepAliveWarning workspaceId={workspaceId} />
       <div className="flex items-center border-b border-border bg-background px-1">
         <div className="flex items-center gap-0.5 overflow-x-auto py-1">
@@ -564,6 +671,27 @@ export function TerminalTabManager({ agentId, workspaceId }: TerminalTabManagerP
               </Badge>
             );
           })()}
+        {activeTabId
+          ? (() => {
+              const activeTab = tabs.find((tab) => tab.id === activeTabId);
+              if (!activeTab) return null;
+              return (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="mr-1 shrink-0 px-1.5"
+                  aria-label={`Open code-server for ${activeTab.sessionName}`}
+                  title="Open code-server"
+                  data-testid={`open-code-server-${activeTab.sessionName}`}
+                  disabled={openingCodeServerTabId === activeTab.id}
+                  onClick={() => void openCodeServerForTab(activeTab)}
+                >
+                  <Code2 className="size-3.5" />
+                </Button>
+              );
+            })()
+          : null}
       </div>
 
       <ResizablePanelGroup orientation="vertical" className="flex-1">

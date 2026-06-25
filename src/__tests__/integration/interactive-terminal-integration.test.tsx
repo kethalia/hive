@@ -338,8 +338,10 @@ vi.mock("@/components/ui/alert", () => ({
 
 vi.mock("lucide-react", () => ({
   AlertCircle: () => null,
+  Code2: () => null,
   ClipboardPaste: () => null,
   Copy: () => null,
+  ExternalLink: () => null,
   Loader2: () => null,
   Minus: () => null,
   Plus: () => null,

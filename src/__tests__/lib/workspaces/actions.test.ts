@@ -49,6 +49,7 @@ describe("workspace server actions", () => {
   const mockListWorkspaces = vi.fn();
   const mockGetWorkspaceAgentName = vi.fn();
   const mockGetWorkspace = vi.fn();
+  const mockGetWorkspaceResources = vi.fn();
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -67,6 +68,7 @@ describe("workspace server actions", () => {
       listWorkspaces: mockListWorkspaces,
       getWorkspaceAgentName: mockGetWorkspaceAgentName,
       getWorkspace: mockGetWorkspace,
+      getWorkspaceResources: mockGetWorkspaceResources,
       getBaseUrl: () => "https://coder.example.com",
       getSessionToken: () => "coder-session-token",
     } as never);
@@ -332,5 +334,85 @@ describe("workspace server actions", () => {
 
     expect(result?.data).toBeUndefined();
     expect(result?.serverError).toMatch(/timed out/i);
+  });
+
+  it("getCodeServerSessionUrlAction opens code-server at the current tmux pane directory", async () => {
+    mockGetWorkspace.mockResolvedValueOnce({
+      id: "ws-1",
+      name: "dev-box",
+      owner_name: "alice",
+      template_id: "tpl-1",
+      latest_build: {
+        id: "build-1",
+        status: "running",
+        job: { status: "succeeded", error: "" },
+      },
+    });
+    mockGetWorkspaceResources.mockResolvedValueOnce([
+      { id: "resource-1", name: "main", type: "docker", agents: [{ id: "agent-1", name: "main" }] },
+    ]);
+    mockedExec.mockResolvedValueOnce({
+      stdout: "/home/coder/projects/kethalia/hive\n",
+      stderr: "",
+      exitCode: 0,
+    });
+
+    const { getCodeServerSessionUrlAction } = await import("@/lib/actions/workspaces");
+    const result = await getCodeServerSessionUrlAction({
+      workspaceId: "ws-1",
+      sessionName: "main-session",
+      fallbackPath: "/home/coder/fallback",
+    });
+
+    expect(mockGetWorkspace).toHaveBeenCalledWith("ws-1");
+    expect(mockGetWorkspaceResources).toHaveBeenCalledWith("ws-1");
+    expect(mockedExec).toHaveBeenCalledWith(
+      "dev-box.main",
+      "tmux -L web display-message -p -t main-session: '#{pane_current_path}'",
+      {
+        coderUrl: "https://coder.example.com",
+        sessionToken: "coder-session-token",
+      },
+    );
+    expect(result?.data).toEqual({
+      url: "https://code-server--main--dev-box--alice.coder.example.com/?folder=%2Fhome%2Fcoder%2Fprojects%2Fkethalia%2Fhive",
+      folderPath: "/home/coder/projects/kethalia/hive",
+      source: "tmux",
+    });
+  });
+
+  it("getCodeServerSessionUrlAction falls back to a trusted clone path when tmux cwd is unavailable", async () => {
+    mockGetWorkspace.mockResolvedValueOnce({
+      id: "ws-1",
+      name: "dev-box",
+      owner_name: "alice",
+      template_id: "tpl-1",
+      latest_build: {
+        id: "build-1",
+        status: "running",
+        job: { status: "succeeded", error: "" },
+      },
+    });
+    mockGetWorkspaceResources.mockResolvedValueOnce([
+      { id: "resource-1", name: "main", type: "docker", agents: [{ id: "agent-1", name: "main" }] },
+    ]);
+    mockedExec.mockResolvedValueOnce({
+      stdout: "",
+      stderr: "can't find session",
+      exitCode: 1,
+    });
+
+    const { getCodeServerSessionUrlAction } = await import("@/lib/actions/workspaces");
+    const result = await getCodeServerSessionUrlAction({
+      workspaceId: "ws-1",
+      sessionName: "git-clone-safe-hive",
+      fallbackPath: "/home/coder/projects/kethalia/hive",
+    });
+
+    expect(result?.data).toEqual({
+      url: "https://code-server--main--dev-box--alice.coder.example.com/?folder=%2Fhome%2Fcoder%2Fprojects%2Fkethalia%2Fhive",
+      folderPath: "/home/coder/projects/kethalia/hive",
+      source: "fallback",
+    });
   });
 });

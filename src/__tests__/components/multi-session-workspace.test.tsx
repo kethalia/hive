@@ -19,6 +19,7 @@ import type { KeybindingContextValue } from "@/hooks/useKeybindings";
 import { TERMINAL_COMPOSE_TOGGLE_EVENT } from "@/lib/terminal/events";
 
 const mockCreateSession = vi.fn();
+const mockGetCodeServerSessionUrl = vi.fn();
 const mockGetSessions = vi.fn();
 const mockKillSession = vi.fn();
 const mockListGitClones = vi.fn();
@@ -253,6 +254,7 @@ vi.mock("@/lib/actions/git-clones", () => ({
 
 vi.mock("@/lib/actions/workspaces", () => ({
   createSessionAction: (...args: unknown[]) => mockCreateSession(...args),
+  getCodeServerSessionUrlAction: (...args: unknown[]) => mockGetCodeServerSessionUrl(...args),
   getWorkspaceSessionsAction: (...args: unknown[]) => mockGetSessions(...args),
   killSessionAction: (...args: unknown[]) => mockKillSession(...args),
 }));
@@ -526,8 +528,10 @@ vi.mock("@/components/ui/input", () => ({
 
 vi.mock("lucide-react", () => ({
   AlertCircle: () => <span data-testid="icon-alert" />,
+  Code2: () => <span data-testid="icon-code" />,
   ClipboardPaste: () => <span data-testid="icon-paste" />,
   Copy: () => <span data-testid="icon-copy" />,
+  ExternalLink: () => <span data-testid="icon-external-link" />,
   Loader2: () => <span data-testid="icon-loader" />,
   Lock: () => <span data-testid="icon-lock" />,
   Minus: () => <span data-testid="icon-minus" />,
@@ -539,6 +543,10 @@ vi.mock("lucide-react", () => ({
 }));
 
 import { MultiSessionWorkspace } from "@/components/workspaces/MultiSessionWorkspace";
+import {
+  CODE_SERVER_POPUP_FEATURES,
+  CODE_SERVER_POPUP_TARGET,
+} from "@/lib/workspaces/code-server-embed";
 
 const defaultProps = {
   agentId: "agent-1",
@@ -609,6 +617,10 @@ describe("MultiSessionWorkspace", () => {
     window.localStorage.clear();
     setPwaStandalone(false);
     mockGetSessions.mockResolvedValue({ data: [] });
+    mockGetCodeServerSessionUrl.mockResolvedValue({
+      data: { url: "https://code-server.test/?folder=%2Fhome%2Fcoder" },
+    });
+    vi.stubGlobal("open", vi.fn());
     mockUseIsComposeSheet.mockReturnValue(false);
     mockCopyTerminalSelection.mockReset();
     mockPasteClipboardApiToTerminal.mockReset();
@@ -675,6 +687,34 @@ describe("MultiSessionWorkspace", () => {
     expect(screen.queryByTestId("paste-active-pane")).not.toBeInTheDocument();
     expect(screen.queryByTestId("terminal-mobile-controls")).not.toBeInTheDocument();
     expect(screen.queryByTestId("float-pane-pane-main-session")).not.toBeInTheDocument();
+  });
+
+  it("opens code-server for a plain terminal session", async () => {
+    await renderTwoSessionWorkspace();
+
+    fireEvent.click(screen.getByTestId("open-code-server-main-session"));
+
+    await waitFor(() => {
+      expect(mockGetCodeServerSessionUrl).toHaveBeenCalledWith({
+        workspaceId: "ws-1",
+        sessionName: "main-session",
+        fallbackPath: undefined,
+      });
+    });
+    const frame = screen.getByTestId("code-server-frame");
+    expect(frame).toHaveAttribute("src", "https://code-server.test/?folder=%2Fhome%2Fcoder");
+    expect(screen.getByTestId("code-server-frame-dialog")).toHaveTextContent("Code: main-session");
+    expect(screen.getByTestId("code-server-frame-dialog")).toHaveClass("grid");
+    expect(screen.getByTestId("code-server-frame-dialog")).not.toHaveClass("flex");
+    expect(frame).toHaveClass("h-full");
+    expect(window.open).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByTestId("pop-out-code-server"));
+    expect(window.open).toHaveBeenCalledWith(
+      "https://code-server.test/?folder=%2Fhome%2Fcoder",
+      CODE_SERVER_POPUP_TARGET,
+      CODE_SERVER_POPUP_FEATURES,
+    );
   });
 
   it("shows mobile terminal controls in compose-sheet workspace mode", async () => {

@@ -1,7 +1,15 @@
 "use client";
 
 import type { Terminal } from "@xterm/xterm";
-import { AlertCircle, Loader2, Plus, Search, TerminalSquare } from "lucide-react";
+import {
+  AlertCircle,
+  Code2,
+  ExternalLink,
+  Loader2,
+  Plus,
+  Search,
+  TerminalSquare,
+} from "lucide-react";
 import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
 import {
@@ -44,6 +52,7 @@ import {
 } from "@/lib/actions/navigation-favorites";
 import {
   createSessionAction,
+  getCodeServerSessionUrlAction,
   getWorkspaceSessionsAction,
   killSessionAction,
 } from "@/lib/actions/workspaces";
@@ -67,6 +76,12 @@ import { TERMINAL_COMPOSE_TOGGLE_EVENT } from "@/lib/terminal/events";
 import { registerGlobalCommandPaletteSource } from "@/lib/terminal/global-command-palette";
 import { isPwaStandalone } from "@/lib/terminal/pwa";
 import { cn } from "@/lib/utils";
+import {
+  navigateCodeServerPopupWindow,
+  openCodeServerPopupUrl,
+  openCodeServerPopupWindow,
+  shouldEmbedCodeServerInCurrentBrowser,
+} from "@/lib/workspaces/code-server-embed";
 import {
   type PersistedSessionPane,
   resolveSessionPaneLayout,
@@ -219,6 +234,12 @@ type BoardPersistenceNotice = {
   message: string;
 };
 
+type CodeServerFrameState = {
+  url: string;
+  label: string;
+  folderPath: string | null;
+};
+
 const CREATE_TERMINAL_SESSION_SHORTCUT_KEYS = ["ctrl+shift+n", "cmd+shift+n"] as const;
 const CLOSE_TERMINAL_PANE_SHORTCUT_KEYS = ["ctrl+w"] as const;
 const WORKSPACE_BOARD_INDEXES = [1, 2, 3, 4, 5, 6, 7, 8, 9] as const;
@@ -264,6 +285,8 @@ function isObjectRecord(value: unknown): value is Record<string, unknown> {
 const GIT_TERMINAL_ADD_ERROR_TITLE = "Could not add Git terminal";
 const GIT_TERMINAL_ADD_FALLBACK_MESSAGE =
   "Could not add Git terminal. No terminal contents or clone proof were logged.";
+const CODE_SERVER_OPEN_FALLBACK_MESSAGE =
+  "Could not open code-server for this session. No terminal contents were logged.";
 
 function firstActionErrorMessage(value: unknown): string | null {
   if (typeof value === "string") {
@@ -371,6 +394,13 @@ function isGitCloneTerminalIdentity(value: unknown): value is GitCloneTerminalId
     typeof value.cloneProof === "string" &&
     value.cloneProof.length > 0
   );
+}
+
+function isCodeServerSessionUrlResult(value: unknown): value is {
+  url: string;
+  folderPath?: unknown;
+} {
+  return isObjectRecord(value) && typeof value.url === "string" && value.url.length > 0;
 }
 
 function terminalHasSelection(term: {
@@ -896,6 +926,10 @@ export function MultiSessionWorkspace({
   const [addingCloneKey, setAddingCloneKey] = useState<string | null>(null);
   const [gitAddError, setGitAddError] = useState<string | null>(null);
   const [gitRestoreFailed, setGitRestoreFailed] = useState(false);
+  const [openingCodeServerSessionName, setOpeningCodeServerSessionName] = useState<string | null>(
+    null,
+  );
+  const [codeServerFrame, setCodeServerFrame] = useState<CodeServerFrameState | null>(null);
   const [terminalCloseFailed, setTerminalCloseFailed] = useState(false);
   const [persistedLayoutJson, setPersistedLayoutJson] = useState<string | null>(null);
   const [layoutPersistenceNotice, setLayoutPersistenceNotice] =
@@ -2165,6 +2199,89 @@ export function MultiSessionWorkspace({
     [boardState, persistBoardState, selectSession],
   );
 
+  const openCodeServerForSession = useCallback(
+    async (session: WorkspaceSessionPane) => {
+      setOpeningCodeServerSessionName(session.sessionName);
+      const shouldEmbed = shouldEmbedCodeServerInCurrentBrowser();
+      const popup = shouldEmbed ? null : openCodeServerPopupWindow();
+
+      try {
+        const result = await getCodeServerSessionUrlAction({
+          workspaceId,
+          sessionName: session.sessionName,
+          fallbackPath: session.clonePath,
+        });
+        const data = unwrapActionData(result);
+        if (!isCodeServerSessionUrlResult(data)) {
+          popup?.close();
+          toast.error(actionFailureMessage(result, CODE_SERVER_OPEN_FALLBACK_MESSAGE));
+          return;
+        }
+
+        if (!shouldEmbed) {
+          if (!navigateCodeServerPopupWindow(popup, data.url)) {
+            openCodeServerPopupUrl(data.url);
+          }
+          return;
+        }
+
+        setCodeServerFrame({
+          url: data.url,
+          label: session.label,
+          folderPath:
+            isObjectRecord(data) && typeof data.folderPath === "string" ? data.folderPath : null,
+        });
+      } catch {
+        popup?.close();
+        toast.error(CODE_SERVER_OPEN_FALLBACK_MESSAGE);
+      } finally {
+        setOpeningCodeServerSessionName(null);
+      }
+    },
+    [workspaceId],
+  );
+
+  const renderCodeServerFrameDialog = () => (
+    <Dialog
+      open={Boolean(codeServerFrame)}
+      onOpenChange={(open) => !open && setCodeServerFrame(null)}
+    >
+      {codeServerFrame ? (
+        <DialogContent
+          className="grid h-[min(88vh,900px)] w-[min(96vw,1500px)] max-w-none grid-rows-[auto_minmax(0,1fr)] gap-2 p-2"
+          data-testid="code-server-frame-dialog"
+        >
+          <DialogHeader className="flex-row items-center gap-3 pr-10 text-left">
+            <div className="min-w-0 flex-1">
+              <DialogTitle className="truncate text-sm">Code: {codeServerFrame.label}</DialogTitle>
+              <DialogDescription className="truncate text-xs">
+                {codeServerFrame.folderPath ?? "code-server"}
+              </DialogDescription>
+            </div>
+            <Button
+              type="button"
+              variant="outline"
+              size="xs"
+              className="h-7 min-h-0 px-2 text-xs"
+              onClick={() => openCodeServerPopupUrl(codeServerFrame.url)}
+              data-testid="pop-out-code-server"
+            >
+              <ExternalLink className="size-3" />
+              Pop Out
+            </Button>
+          </DialogHeader>
+          <iframe
+            src={codeServerFrame.url}
+            title={`code-server for ${codeServerFrame.label}`}
+            className="h-full min-h-0 w-full rounded-md border border-border bg-black"
+            allow="clipboard-read; clipboard-write"
+            data-testid="code-server-frame"
+          />
+        </DialogContent>
+      ) : null}
+    </Dialog>
+  );
+
   const paletteQuery = gitSearchQuery.trim();
   const paletteQueryLower = paletteQuery.toLowerCase();
   const paletteMatchesExisting =
@@ -2442,6 +2559,31 @@ export function MultiSessionWorkspace({
         increaseTestId="increase-git-terminal-font-size"
         label="Workspace terminal font size controls"
       />
+    );
+  };
+
+  const renderCodeServerButton = (session: WorkspaceSessionPane | undefined) => {
+    if (!session) return null;
+    const isOpening = openingCodeServerSessionName === session.sessionName;
+
+    return (
+      <Button
+        type="button"
+        variant="ghost"
+        size="xs"
+        className="h-6 min-h-0 px-1.5 text-[10px] text-white/80 hover:bg-white/10 hover:text-white"
+        aria-label={`Open code-server for ${session.label}`}
+        title="Open code-server"
+        data-testid={`open-code-server-${session.sessionName}`}
+        disabled={isOpening}
+        onClick={(event) => {
+          event.stopPropagation();
+          void openCodeServerForSession(session);
+        }}
+      >
+        <Code2 className="size-3" />
+        <span className="sr-only">Code</span>
+      </Button>
     );
   };
 
@@ -2872,6 +3014,7 @@ export function MultiSessionWorkspace({
         style={paneStyle}
         disabled={isComposeDisabled}
         disabledLabel="Compose locked"
+        headerActions={renderCodeServerButton(session)}
         onActivate={() => {
           if (!model.isActive) {
             persistBoardState(selectWorkspaceBoard(boardState, model.board.key));
@@ -3021,6 +3164,7 @@ export function MultiSessionWorkspace({
       onKeyDown={handleWorkspaceKeyDown}
     >
       {renderWorkspaceHeader()}
+      {renderCodeServerFrameDialog()}
       {renderWorkspaceRecoveryStatus()}
 
       {createFailed ? (

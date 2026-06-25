@@ -8,6 +8,10 @@
 export async function register() {
   // Only run in the Node.js runtime (not Edge), and only on the server
   if (process.env.NEXT_RUNTIME !== "nodejs") return;
+  if (process.env.HIVE_DISABLE_BACKGROUND_WORKERS === "1") {
+    console.log("[instrumentation] Background workers disabled");
+    return;
+  }
 
   const { createTemplatePushWorker } = await import("@/lib/templates/push-queue");
   const { createTokenRotationWorker, scheduleTokenRotation } = await import(

@@ -16,12 +16,14 @@ vi.mock("next/dynamic", () => ({
 }));
 
 const mockCreateSession = vi.fn();
+const mockGetCodeServerSessionUrl = vi.fn();
 const mockRenameSession = vi.fn();
 const mockKillSession = vi.fn();
 const mockGetSessions = vi.fn();
 
 vi.mock("@/lib/actions/workspaces", () => ({
   createSessionAction: (...args: unknown[]) => mockCreateSession(...args),
+  getCodeServerSessionUrlAction: (...args: unknown[]) => mockGetCodeServerSessionUrl(...args),
   renameSessionAction: (...args: unknown[]) => mockRenameSession(...args),
   killSessionAction: (...args: unknown[]) => mockKillSession(...args),
   getWorkspaceSessionsAction: (...args: unknown[]) => mockGetSessions(...args),
@@ -60,6 +62,23 @@ vi.mock("@/components/ui/button", () => ({
   ),
 }));
 
+vi.mock("@/components/ui/dialog", () => ({
+  Dialog: ({ children, open }: React.PropsWithChildren<{ open?: boolean }>) =>
+    open ? <div data-testid="dialog-root">{children}</div> : null,
+  DialogContent: ({
+    children,
+    className,
+    ...rest
+  }: React.PropsWithChildren<{ className?: string; "data-testid"?: string }>) => (
+    <div className={className} data-testid={rest["data-testid"]}>
+      {children}
+    </div>
+  ),
+  DialogDescription: ({ children }: React.PropsWithChildren) => <p>{children}</p>,
+  DialogHeader: ({ children }: React.PropsWithChildren) => <div>{children}</div>,
+  DialogTitle: ({ children }: React.PropsWithChildren) => <h2>{children}</h2>,
+}));
+
 vi.mock("@/components/ui/input", () => ({
   Input: (props: React.InputHTMLAttributes<HTMLInputElement> & { "data-testid"?: string }) => (
     <input {...props} data-testid={props["data-testid"]} />
@@ -73,6 +92,8 @@ vi.mock("@/components/ui/resizable", () => ({
 }));
 
 vi.mock("lucide-react", () => ({
+  Code2: () => <span data-testid="icon-code" />,
+  ExternalLink: () => <span data-testid="icon-external-link" />,
   X: () => <span data-testid="icon-x">×</span>,
   Plus: () => <span data-testid="icon-plus">+</span>,
   Pencil: () => <span data-testid="icon-pencil">✎</span>,
@@ -84,6 +105,10 @@ vi.mock("lucide-react", () => ({
 }));
 
 import { TerminalTabManager } from "@/components/workspaces/TerminalTabManager";
+import {
+  CODE_SERVER_POPUP_FEATURES,
+  CODE_SERVER_POPUP_TARGET,
+} from "@/lib/workspaces/code-server-embed";
 
 const defaultProps = {
   agentId: "agent-1",
@@ -98,6 +123,10 @@ describe("TerminalTabManager", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.stubGlobal("crypto", { randomUUID: () => `uuid-${Math.random()}` });
+    vi.stubGlobal("open", vi.fn());
+    mockGetCodeServerSessionUrl.mockResolvedValue({
+      data: { url: "https://code-server.test/?folder=%2Fhome%2Fcoder" },
+    });
   });
 
   describe("auto-load sessions on mount", () => {
@@ -165,6 +194,43 @@ describe("TerminalTabManager", () => {
         expect(labels).toHaveLength(2);
         expect(labels[1]).toHaveTextContent("session-456");
       });
+    });
+  });
+
+  describe("code-server", () => {
+    it("opens code-server for the active tab", async () => {
+      mockGetSessions.mockResolvedValue({
+        data: [{ name: "hive-main", created: 1000, windows: 1 }],
+      });
+
+      render(<TerminalTabManager {...defaultProps} />);
+
+      await waitFor(() => {
+        expect(screen.getByTestId("tab-label")).toHaveTextContent("hive-main");
+      });
+
+      fireEvent.click(screen.getByTestId("open-code-server-hive-main"));
+
+      await waitFor(() => {
+        expect(mockGetCodeServerSessionUrl).toHaveBeenCalledWith({
+          workspaceId: "ws-1",
+          sessionName: "hive-main",
+        });
+      });
+      const frame = screen.getByTestId("code-server-frame");
+      expect(frame).toHaveAttribute("src", "https://code-server.test/?folder=%2Fhome%2Fcoder");
+      expect(screen.getByTestId("code-server-frame-dialog")).toHaveTextContent("Code: hive-main");
+      expect(screen.getByTestId("code-server-frame-dialog")).toHaveClass("grid");
+      expect(screen.getByTestId("code-server-frame-dialog")).not.toHaveClass("flex");
+      expect(frame).toHaveClass("h-full");
+      expect(window.open).not.toHaveBeenCalled();
+
+      fireEvent.click(screen.getByTestId("pop-out-code-server"));
+      expect(window.open).toHaveBeenCalledWith(
+        "https://code-server.test/?folder=%2Fhome%2Fcoder",
+        CODE_SERVER_POPUP_TARGET,
+        CODE_SERVER_POPUP_FEATURES,
+      );
     });
   });
 

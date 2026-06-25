@@ -24,3 +24,17 @@ export function buildWorkspaceUrls(
     dashboard: `${stripped}/@${workspace.owner_name}/${workspace.name}`,
   };
 }
+
+export function buildCodeServerFolderUrl(
+  codeServerUrl: string,
+  folderPath?: string | null,
+): string {
+  if (!folderPath) return codeServerUrl;
+
+  const trimmed = folderPath.trim();
+  if (!trimmed) return codeServerUrl;
+
+  const url = new URL(codeServerUrl);
+  url.searchParams.set("folder", trimmed);
+  return url.toString();
+}

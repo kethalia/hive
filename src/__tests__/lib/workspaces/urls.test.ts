@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildWorkspaceUrls } from "@/lib/workspaces/urls";
+import { buildCodeServerFolderUrl, buildWorkspaceUrls } from "@/lib/workspaces/urls";
 
 describe("buildWorkspaceUrls", () => {
   const workspace = { name: "dev-box", owner_name: "alice" };
@@ -47,5 +47,28 @@ describe("buildWorkspaceUrls", () => {
     expect(urls!.kasmvnc).not.toContain("coder_session_token");
     expect(urls!.codeServer).not.toContain("coder_session_token");
     expect(urls!.dashboard).not.toContain("coder_session_token");
+  });
+
+  it("adds a code-server folder query without changing the app URL", () => {
+    expect(
+      buildCodeServerFolderUrl(
+        "https://code-server--main--dev-box--alice.coder.example.com",
+        "/home/coder/projects/kethalia/hive",
+      ),
+    ).toBe(
+      "https://code-server--main--dev-box--alice.coder.example.com/?folder=%2Fhome%2Fcoder%2Fprojects%2Fkethalia%2Fhive",
+    );
+  });
+
+  it("preserves existing code-server query params when adding the folder", () => {
+    expect(buildCodeServerFolderUrl("https://code.example.com/?reuse=true", "/home/coder")).toBe(
+      "https://code.example.com/?reuse=true&folder=%2Fhome%2Fcoder",
+    );
+  });
+
+  it("leaves code-server URLs untouched when no folder is available", () => {
+    expect(buildCodeServerFolderUrl("https://code.example.com", " ")).toBe(
+      "https://code.example.com",
+    );
   });
 });
