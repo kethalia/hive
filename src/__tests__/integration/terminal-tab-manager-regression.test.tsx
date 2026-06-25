@@ -121,6 +121,8 @@ vi.mock("@/components/ui/resizable", () => ({
 }));
 
 vi.mock("lucide-react", () => ({
+  Code2: () => <span data-testid="icon-code" />,
+  ExternalLink: () => <span data-testid="icon-external-link" />,
   X: () => <span data-testid="icon-x">×</span>,
   Plus: () => <span data-testid="icon-plus">+</span>,
   Pencil: () => <span data-testid="icon-pencil">✎</span>,

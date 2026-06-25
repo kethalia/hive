@@ -71,6 +71,8 @@ vi.mock("@/components/ui/badge", () => ({
 }));
 
 vi.mock("lucide-react", () => ({
+  Code2: () => <span>Code</span>,
+  ExternalLink: () => <span>↗</span>,
   X: () => <span>×</span>,
   Plus: () => <span>+</span>,
   Pencil: () => <span>✎</span>,
