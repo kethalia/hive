@@ -52,6 +52,10 @@ async function advanceTimersAndFlush(ms: number) {
   });
 }
 
+function mockVisibilityState(state: "hidden" | "visible") {
+  vi.spyOn(document, "visibilityState", "get").mockReturnValue(state);
+}
+
 describe("useTerminalWebSocket reconnect loop", () => {
   beforeEach(() => {
     instances.length = 0;
@@ -114,7 +118,7 @@ describe("useTerminalWebSocket reconnect loop", () => {
       });
       expect(instances).toHaveLength(attemptIndex + 2);
       expect(result.current.connectionState).toBe("reconnecting");
-      expect(vi.getTimerCount()).toBe(0);
+      expect(vi.getTimerCount()).toBe(1);
     }
 
     expect(onRecoveryStateChange).toHaveBeenCalledWith(
@@ -201,6 +205,116 @@ describe("useTerminalWebSocket reconnect loop", () => {
       refreshFailureCategory: null,
       isRecoverable: true,
     });
+    unmount();
+  });
+
+  it("forces a refreshed reconnect when a PWA returns after a long background period", async () => {
+    const refreshUrlBeforeReconnect = vi
+      .fn()
+      .mockResolvedValue("ws://terminal.example/ws?proof=fresh");
+    const { result, unmount } = renderHook(() =>
+      useTerminalWebSocket({
+        url: "ws://terminal.example/ws?proof=stale",
+        onData: vi.fn(),
+        refreshUrlBeforeReconnect,
+      }),
+    );
+    const socket = openSocket();
+
+    mockVisibilityState("hidden");
+    act(() => {
+      document.dispatchEvent(new Event("visibilitychange"));
+    });
+    await advanceTimersAndFlush(10000);
+    mockVisibilityState("visible");
+    await act(async () => {
+      document.dispatchEvent(new Event("visibilitychange"));
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(refreshUrlBeforeReconnect).toHaveBeenCalledWith(
+      expect.objectContaining({
+        currentUrl: "ws://terminal.example/ws?proof=stale",
+        reason: "manual-reconnect",
+        retryCount: 1,
+      }),
+    );
+    expect(socket.close).toHaveBeenCalledTimes(1);
+    expect(instances).toHaveLength(2);
+    expect(instances.at(-1)?.url).toBe("ws://terminal.example/ws?proof=fresh");
+    expect(result.current.connectionState).toBe("reconnecting");
+    expect(result.current.recoveryState).toMatchObject({
+      phase: "recovering",
+      retryCount: 1,
+      lastRecoveryAction: "manual-reconnect",
+      lastRefreshAction: "refresh-succeeded",
+      isRecoverable: true,
+    });
+    unmount();
+  });
+
+  it("keeps an open socket alive across short visibility changes", async () => {
+    const refreshUrlBeforeReconnect = vi
+      .fn()
+      .mockResolvedValue("ws://terminal.example/ws?proof=fresh");
+    const { result, unmount } = renderHook(() =>
+      useTerminalWebSocket({
+        url: "ws://terminal.example/ws?proof=stale",
+        onData: vi.fn(),
+        refreshUrlBeforeReconnect,
+      }),
+    );
+    const socket = openSocket();
+
+    mockVisibilityState("hidden");
+    act(() => {
+      document.dispatchEvent(new Event("visibilitychange"));
+    });
+    await advanceTimersAndFlush(9999);
+    mockVisibilityState("visible");
+    act(() => {
+      document.dispatchEvent(new Event("visibilitychange"));
+    });
+
+    expect(refreshUrlBeforeReconnect).not.toHaveBeenCalled();
+    expect(socket.close).not.toHaveBeenCalled();
+    expect(instances).toHaveLength(1);
+    expect(result.current.connectionState).toBe("connected");
+    unmount();
+  });
+
+  it("recovers when a WebSocket handshake stalls without open or close", async () => {
+    const { result, unmount } = renderHook(() =>
+      useTerminalWebSocket({
+        url: "ws://terminal.example/ws",
+        onData: vi.fn(),
+      }),
+    );
+    const stalledSocket = instances.at(-1)!;
+
+    await advanceTimersAndFlush(15000);
+
+    expect(stalledSocket.close).toHaveBeenCalledTimes(1);
+    expect(result.current.connectionState).toBe("disconnected");
+    expect(result.current.recoveryState).toMatchObject({
+      phase: "recovering",
+      retryCount: 1,
+      lastCloseCategory: "transient",
+      lastReasonCategory: "timeout",
+      lastDelayMs: 1000,
+      lastRecoveryAction: "schedule-reconnect",
+      isRecoverable: true,
+      canRetry: true,
+    });
+    expect(instances).toHaveLength(1);
+
+    act(() => {
+      vi.advanceTimersByTime(1000);
+    });
+
+    expect(instances).toHaveLength(2);
+    expect(result.current.connectionState).toBe("reconnecting");
     unmount();
   });
 
@@ -452,7 +566,7 @@ describe("useTerminalWebSocket reconnect loop", () => {
 
     rerender({ url: "ws://terminal.example/two" });
 
-    expect(vi.getTimerCount()).toBe(0);
+    expect(vi.getTimerCount()).toBe(1);
     expect(instances).toHaveLength(2);
     expect(instances.at(-1)?.url).toBe("ws://terminal.example/two");
 
