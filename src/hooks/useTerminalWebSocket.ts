@@ -273,6 +273,21 @@ type ConnectOptions = {
   generation?: number;
 };
 
+type MutableRef<T> = {
+  current: T;
+};
+
+type StartManualReconnectOptions = {
+  preserveRetryCount?: boolean;
+};
+
+type UseBrowserLifecycleReconnectionOptions = {
+  backgroundedAtRef: MutableRef<number | null>;
+  connectionStateRef: MutableRef<ConnectionState>;
+  getSocket: () => WebSocket | null;
+  startManualReconnect: (options?: StartManualReconnectOptions) => void;
+};
+
 function normalizeResizeDimension(value: number): number | null {
   if (!Number.isFinite(value) || value <= 0) return null;
   return Math.trunc(value);
@@ -287,6 +302,78 @@ function isTerminalRefreshFailure(value: unknown): value is TerminalRefreshUrlFa
     category === "malformed-identity" ||
     category === "session-name-mismatch"
   );
+}
+
+function useBrowserLifecycleReconnection({
+  backgroundedAtRef,
+  connectionStateRef,
+  getSocket,
+  startManualReconnect,
+}: UseBrowserLifecycleReconnectionOptions) {
+  useEffect(() => {
+    if (typeof document === "undefined" || typeof window === "undefined") return;
+
+    const handleBackground = () => {
+      backgroundedAtRef.current = Date.now();
+    };
+
+    const handleForeground = ({ persisted = false }: { persisted?: boolean } = {}) => {
+      const backgroundedAt = backgroundedAtRef.current;
+      backgroundedAtRef.current = null;
+
+      const state = connectionStateRef.current;
+      const shouldReconnectState =
+        state === "connected" ||
+        state === "connecting" ||
+        state === "reconnecting" ||
+        state === "disconnected";
+      if (!shouldReconnectState) return;
+
+      const hiddenDuration = backgroundedAt === null ? null : Date.now() - backgroundedAt;
+      const hasOpenSocket = getSocket()?.readyState === WebSocket.OPEN;
+      if (
+        !persisted &&
+        hasOpenSocket &&
+        (hiddenDuration === null || hiddenDuration < FOREGROUND_RECONNECT_AFTER_MS)
+      ) {
+        return;
+      }
+
+      startManualReconnect({ preserveRetryCount: true });
+    };
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "hidden") {
+        handleBackground();
+      } else if (document.visibilityState === "visible") {
+        handleForeground();
+      }
+    };
+
+    const handlePageShow = (event: PageTransitionEvent) => {
+      if (document.visibilityState !== "hidden") {
+        handleForeground({ persisted: event.persisted });
+      }
+    };
+
+    const handleOnline = () => {
+      if (connectionStateRef.current !== "connected") {
+        startManualReconnect({ preserveRetryCount: true });
+      }
+    };
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    window.addEventListener("pagehide", handleBackground);
+    window.addEventListener("pageshow", handlePageShow);
+    window.addEventListener("online", handleOnline);
+
+    return () => {
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      window.removeEventListener("pagehide", handleBackground);
+      window.removeEventListener("pageshow", handlePageShow);
+      window.removeEventListener("online", handleOnline);
+    };
+  }, [backgroundedAtRef, connectionStateRef, getSocket, startManualReconnect]);
 }
 
 export function useTerminalWebSocket({
@@ -667,35 +754,9 @@ export function useTerminalWebSocket({
     };
   }, [connect, clearReconnectTimer, clearConnectingStallTimer, url]);
 
-  const manualReconnect = useCallback(() => {
-    if (!(currentUrlRef.current ?? url) || !mountedRef.current) return;
-    connectionGenerationRef.current += 1;
-    const generation = connectionGenerationRef.current;
-    clearReconnectTimer();
-    clearConnectingStallTimer();
-    attemptRef.current = 0;
-    updateRecoveryState((current) => ({
-      ...current,
-      phase: "recovering",
-      retryCount: 0,
-      lastDelayMs: null,
-      lastRecoveryAction: "manual-reconnect",
-      isRecoverable: true,
-      canRetry: false,
-    }));
-    void connect({
-      recoveryAction: "manual-reconnect",
-      reconnectReason: "manual-reconnect",
-      refreshBeforeConnect: Boolean(refreshUrlBeforeReconnectRef.current),
-      generation,
-    });
-  }, [url, connect, updateRecoveryState, clearReconnectTimer, clearConnectingStallTimer]);
-
-  useEffect(() => {
-    if (typeof document === "undefined" || typeof window === "undefined") return;
-
-    const forceForegroundReconnect = () => {
-      if (!mountedRef.current || !(currentUrlRef.current ?? url)) return;
+  const startManualReconnect = useCallback(
+    ({ preserveRetryCount = false }: StartManualReconnectOptions = {}) => {
+      if (!(currentUrlRef.current ?? url) || !mountedRef.current) return;
       const recovery = recoveryStateRef.current;
       if (recovery.phase === "final-failure" && recovery.isRecoverable === false) return;
 
@@ -703,12 +764,11 @@ export function useTerminalWebSocket({
       const generation = connectionGenerationRef.current;
       clearReconnectTimer();
       clearConnectingStallTimer();
-      attemptRef.current = Math.max(attemptRef.current, 1);
-
+      attemptRef.current = preserveRetryCount ? Math.max(attemptRef.current, 1) : 0;
       updateRecoveryState((current) => ({
         ...current,
         phase: "recovering",
-        retryCount: Math.max(current.retryCount, 1),
+        retryCount: preserveRetryCount ? Math.max(current.retryCount, 1) : 0,
         lastDelayMs: null,
         lastRecoveryAction: "manual-reconnect",
         isRecoverable: true,
@@ -720,74 +780,22 @@ export function useTerminalWebSocket({
         refreshBeforeConnect: Boolean(refreshUrlBeforeReconnectRef.current),
         generation,
       });
-    };
+    },
+    [url, connect, updateRecoveryState, clearReconnectTimer, clearConnectingStallTimer],
+  );
 
-    const handleBackground = () => {
-      backgroundedAtRef.current = Date.now();
-    };
+  const manualReconnect = useCallback(() => {
+    startManualReconnect();
+  }, [startManualReconnect]);
 
-    const handleForeground = () => {
-      const backgroundedAt = backgroundedAtRef.current;
-      backgroundedAtRef.current = null;
+  const getSocket = useCallback(() => wsRef.current, []);
 
-      const state = connectionStateRef.current;
-      const shouldReconnectState =
-        state === "connected" ||
-        state === "connecting" ||
-        state === "reconnecting" ||
-        state === "disconnected";
-      if (!shouldReconnectState) return;
-
-      const hiddenDuration = backgroundedAt === null ? null : Date.now() - backgroundedAt;
-      const hasOpenSocket = wsRef.current?.readyState === WebSocket.OPEN;
-      if (
-        hasOpenSocket &&
-        hiddenDuration !== null &&
-        hiddenDuration < FOREGROUND_RECONNECT_AFTER_MS
-      ) {
-        return;
-      }
-
-      forceForegroundReconnect();
-    };
-
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === "hidden") {
-        handleBackground();
-        return;
-      }
-      if (document.visibilityState === "visible") {
-        handleForeground();
-      }
-    };
-
-    const handlePageShow = (event: PageTransitionEvent) => {
-      if (
-        document.visibilityState !== "hidden" &&
-        (backgroundedAtRef.current !== null || event.persisted)
-      ) {
-        handleForeground();
-      }
-    };
-
-    const handleOnline = () => {
-      if (connectionStateRef.current !== "connected") {
-        forceForegroundReconnect();
-      }
-    };
-
-    document.addEventListener("visibilitychange", handleVisibilityChange);
-    window.addEventListener("pagehide", handleBackground);
-    window.addEventListener("pageshow", handlePageShow);
-    window.addEventListener("online", handleOnline);
-
-    return () => {
-      document.removeEventListener("visibilitychange", handleVisibilityChange);
-      window.removeEventListener("pagehide", handleBackground);
-      window.removeEventListener("pageshow", handlePageShow);
-      window.removeEventListener("online", handleOnline);
-    };
-  }, [url, connect, clearReconnectTimer, clearConnectingStallTimer, updateRecoveryState]);
+  useBrowserLifecycleReconnection({
+    backgroundedAtRef,
+    connectionStateRef,
+    getSocket,
+    startManualReconnect,
+  });
 
   const send = useCallback((data: string) => {
     if (wsRef.current?.readyState === WebSocket.OPEN) {
