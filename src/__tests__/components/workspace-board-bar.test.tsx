@@ -107,9 +107,47 @@ describe("WorkspaceBoardBar", () => {
     expect(screen.getByTestId("workspace-board-delete")).toBeInTheDocument();
     expect(activeTab).toHaveAccessibleName("Delete workspace 1");
 
+    fireEvent.focus(activeTab);
+    expect(screen.getByTestId("workspace-board-delete")).toBeInTheDocument();
+
     fireEvent.click(activeTab);
 
     expect(onDelete).toHaveBeenCalledWith("main");
+  });
+
+  it("arms a selected workspace for deletion without requiring the pointer to leave and re-enter", () => {
+    const onDelete = vi.fn();
+    const onSelect = vi.fn();
+
+    const boards = [board("main", "Main", 0), board("planning", "Planning", 1)];
+    const { rerender } = render(
+      <WorkspaceBoardBar
+        boards={boards}
+        activeBoardKey="main"
+        onDelete={onDelete}
+        onSelect={onSelect}
+      />,
+    );
+
+    const inactiveTab = screen.getByTestId("workspace-board-tab-planning");
+    fireEvent.click(inactiveTab);
+
+    expect(onSelect).toHaveBeenCalledWith("planning");
+
+    rerender(
+      <WorkspaceBoardBar
+        boards={boards}
+        activeBoardKey="planning"
+        onDelete={onDelete}
+        onSelect={onSelect}
+      />,
+    );
+
+    expect(screen.getByTestId("workspace-board-delete")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId("workspace-board-tab-planning"));
+
+    expect(onDelete).toHaveBeenCalledWith("planning");
   });
 
   it("does not arm delete from keyboard focus alone", () => {
@@ -148,6 +186,53 @@ describe("WorkspaceBoardBar", () => {
 
     expect(screen.queryByTestId("workspace-board-delete")).not.toBeInTheDocument();
     expect(onDelete).not.toHaveBeenCalled();
+  });
+
+  it("clears armed delete state when the armed workspace is removed", () => {
+    const boards = [board("main", "Main", 0), board("planning", "Planning", 1)];
+    const { rerender } = render(
+      <WorkspaceBoardBar boards={boards} activeBoardKey="planning" onDelete={vi.fn()} />,
+    );
+
+    fireEvent.mouseEnter(screen.getByTestId("workspace-board-tab-planning"));
+    expect(screen.getByTestId("workspace-board-delete")).toBeInTheDocument();
+
+    rerender(
+      <WorkspaceBoardBar
+        boards={[board("main", "Main", 0), board("review", "Review", 1)]}
+        activeBoardKey="review"
+        onDelete={vi.fn()}
+      />,
+    );
+
+    expect(screen.queryByTestId("workspace-board-delete")).not.toBeInTheDocument();
+    expect(screen.getByTestId("workspace-board-tab-review")).toHaveAccessibleName(
+      "Open workspace 2",
+    );
+  });
+
+  it("clears armed delete state when only one workspace remains", () => {
+    const { rerender } = render(
+      <WorkspaceBoardBar
+        boards={[board("main", "Main", 0), board("planning", "Planning", 1)]}
+        activeBoardKey="main"
+        onDelete={vi.fn()}
+      />,
+    );
+
+    fireEvent.mouseEnter(screen.getByTestId("workspace-board-tab-main"));
+    expect(screen.getByTestId("workspace-board-delete")).toBeInTheDocument();
+
+    rerender(
+      <WorkspaceBoardBar
+        boards={[board("main", "Main", 0)]}
+        activeBoardKey="main"
+        onDelete={vi.fn()}
+      />,
+    );
+
+    expect(screen.queryByTestId("workspace-board-delete")).not.toBeInTheDocument();
+    expect(screen.getByTestId("workspace-board-tab-main")).toHaveAccessibleName("Open workspace 1");
   });
 
   it("does not throw for an empty board list and keeps create available", () => {
