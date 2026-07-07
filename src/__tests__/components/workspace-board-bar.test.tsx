@@ -188,6 +188,53 @@ describe("WorkspaceBoardBar", () => {
     expect(onDelete).not.toHaveBeenCalled();
   });
 
+  it("clears armed delete state when the armed workspace is removed", () => {
+    const boards = [board("main", "Main", 0), board("planning", "Planning", 1)];
+    const { rerender } = render(
+      <WorkspaceBoardBar boards={boards} activeBoardKey="planning" onDelete={vi.fn()} />,
+    );
+
+    fireEvent.mouseEnter(screen.getByTestId("workspace-board-tab-planning"));
+    expect(screen.getByTestId("workspace-board-delete")).toBeInTheDocument();
+
+    rerender(
+      <WorkspaceBoardBar
+        boards={[board("main", "Main", 0), board("review", "Review", 1)]}
+        activeBoardKey="review"
+        onDelete={vi.fn()}
+      />,
+    );
+
+    expect(screen.queryByTestId("workspace-board-delete")).not.toBeInTheDocument();
+    expect(screen.getByTestId("workspace-board-tab-review")).toHaveAccessibleName(
+      "Open workspace 2",
+    );
+  });
+
+  it("clears armed delete state when only one workspace remains", () => {
+    const { rerender } = render(
+      <WorkspaceBoardBar
+        boards={[board("main", "Main", 0), board("planning", "Planning", 1)]}
+        activeBoardKey="main"
+        onDelete={vi.fn()}
+      />,
+    );
+
+    fireEvent.mouseEnter(screen.getByTestId("workspace-board-tab-main"));
+    expect(screen.getByTestId("workspace-board-delete")).toBeInTheDocument();
+
+    rerender(
+      <WorkspaceBoardBar
+        boards={[board("main", "Main", 0)]}
+        activeBoardKey="main"
+        onDelete={vi.fn()}
+      />,
+    );
+
+    expect(screen.queryByTestId("workspace-board-delete")).not.toBeInTheDocument();
+    expect(screen.getByTestId("workspace-board-tab-main")).toHaveAccessibleName("Open workspace 1");
+  });
+
   it("does not throw for an empty board list and keeps create available", () => {
     const onCreate = vi.fn();
 

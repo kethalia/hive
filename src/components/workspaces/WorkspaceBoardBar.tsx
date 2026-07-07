@@ -32,12 +32,10 @@ export function WorkspaceBoardBar({
   const canDelete = orderedBoards.length > 1;
 
   useEffect(() => {
-    if (!dangerBoardKey || !canDelete) {
-      if (dangerBoardKey) setDangerBoardKey(null);
-      return;
-    }
-
-    if (!orderedBoards.some((board) => board.key === dangerBoardKey)) {
+    if (
+      dangerBoardKey &&
+      (!canDelete || !orderedBoards.some((board) => board.key === dangerBoardKey))
+    ) {
       setDangerBoardKey(null);
     }
   }, [canDelete, dangerBoardKey, orderedBoards]);
