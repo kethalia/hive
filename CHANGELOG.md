@@ -1,5 +1,11 @@
 # hive-orchestrator
 
+## 2.5.12
+
+### Patch Changes
+
+- f3cd568: Stabilize the multi-session workspace close button so active boards can be closed reliably.
+
 ## 2.5.11
 
 ### Patch Changes
