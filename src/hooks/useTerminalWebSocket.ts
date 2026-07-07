@@ -345,7 +345,7 @@ function useBrowserLifecycleReconnection({
     const handleVisibilityChange = () => {
       if (document.visibilityState === "hidden") {
         handleBackground();
-      } else if (document.visibilityState === "visible") {
+      } else {
         handleForeground();
       }
     };
