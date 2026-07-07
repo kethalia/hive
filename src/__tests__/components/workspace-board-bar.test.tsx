@@ -107,9 +107,47 @@ describe("WorkspaceBoardBar", () => {
     expect(screen.getByTestId("workspace-board-delete")).toBeInTheDocument();
     expect(activeTab).toHaveAccessibleName("Delete workspace 1");
 
+    fireEvent.focus(activeTab);
+    expect(screen.getByTestId("workspace-board-delete")).toBeInTheDocument();
+
     fireEvent.click(activeTab);
 
     expect(onDelete).toHaveBeenCalledWith("main");
+  });
+
+  it("arms a selected workspace for deletion without requiring the pointer to leave and re-enter", () => {
+    const onDelete = vi.fn();
+    const onSelect = vi.fn();
+
+    const boards = [board("main", "Main", 0), board("planning", "Planning", 1)];
+    const { rerender } = render(
+      <WorkspaceBoardBar
+        boards={boards}
+        activeBoardKey="main"
+        onDelete={onDelete}
+        onSelect={onSelect}
+      />,
+    );
+
+    const inactiveTab = screen.getByTestId("workspace-board-tab-planning");
+    fireEvent.click(inactiveTab);
+
+    expect(onSelect).toHaveBeenCalledWith("planning");
+
+    rerender(
+      <WorkspaceBoardBar
+        boards={boards}
+        activeBoardKey="planning"
+        onDelete={onDelete}
+        onSelect={onSelect}
+      />,
+    );
+
+    expect(screen.getByTestId("workspace-board-delete")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId("workspace-board-tab-planning"));
+
+    expect(onDelete).toHaveBeenCalledWith("planning");
   });
 
   it("does not arm delete from keyboard focus alone", () => {

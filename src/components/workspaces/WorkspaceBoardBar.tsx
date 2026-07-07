@@ -2,7 +2,7 @@
 
 import { X } from "lucide-react";
 import type { KeyboardEvent } from "react";
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import type { WorkspaceBoard } from "@/lib/workspaces/workspace-board-state";
@@ -25,11 +25,22 @@ export function WorkspaceBoardBar({
   className,
 }: WorkspaceBoardBarProps) {
   const [dangerBoardKey, setDangerBoardKey] = useState<string | null>(null);
-  const orderedBoards = orderedWorkspaceBoards(boards);
+  const orderedBoards = useMemo(() => orderedWorkspaceBoards(boards), [boards]);
   const activeKey = orderedBoards.some((board) => board.key === activeBoardKey)
     ? activeBoardKey
     : orderedBoards[0]?.key;
   const canDelete = orderedBoards.length > 1;
+
+  useEffect(() => {
+    if (!dangerBoardKey || !canDelete) {
+      if (dangerBoardKey) setDangerBoardKey(null);
+      return;
+    }
+
+    if (!orderedBoards.some((board) => board.key === dangerBoardKey)) {
+      setDangerBoardKey(null);
+    }
+  }, [canDelete, dangerBoardKey, orderedBoards]);
 
   function selectBoard(boardKey: string) {
     if (boardKey === activeKey) return;
@@ -41,6 +52,9 @@ export function WorkspaceBoardBar({
       onDelete?.(boardKey);
       setDangerBoardKey(null);
       return;
+    }
+    if (canDelete && boardKey !== activeKey) {
+      setDangerBoardKey(boardKey);
     }
     selectBoard(boardKey);
   }
@@ -104,9 +118,6 @@ export function WorkspaceBoardBar({
                 if (canDelete && isActive) setDangerBoardKey(board.key);
               }}
               onMouseLeave={() => {
-                if (dangerBoardKey === board.key) setDangerBoardKey(null);
-              }}
-              onFocus={() => {
                 if (dangerBoardKey === board.key) setDangerBoardKey(null);
               }}
               onBlur={() => {
