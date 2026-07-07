@@ -1,5 +1,11 @@
 # hive-orchestrator
 
+## 2.5.11
+
+### Patch Changes
+
+- a2d1527: Stabilize terminal websocket reconnects across browser lifecycle events.
+
 ## 2.5.10
 
 ### Patch Changes
