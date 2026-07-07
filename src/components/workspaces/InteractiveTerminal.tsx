@@ -109,6 +109,10 @@ interface MobileTouchIntent {
 const MOBILE_TERMINAL_SCROLL_THRESHOLD_PX = Math.max(TAP_THRESHOLD_PX + 3, 8);
 const FALLBACK_TERMINAL_ROWS = 24;
 const FALLBACK_TERMINAL_COLS = 80;
+const ESC = String.fromCharCode(27);
+const XTERM_PRIMARY_DEVICE_ANSWERBACK = `${ESC}[?1;2c`;
+const XTERM_SECONDARY_DEVICE_ANSWERBACK_PREFIX = `${ESC}[>0;`;
+const XTERM_SECONDARY_DEVICE_ANSWERBACK_SUFFIX = ";0c";
 
 function isTerminalPasteStatus(status: ClipboardActionStatus): status is TerminalPasteStatus {
   return (
@@ -136,6 +140,30 @@ function readDimensionFromUrl(url: string, param: "width" | "height", fallback: 
   } catch {
     return fallback;
   }
+}
+
+function stripXtermDeviceAnswerbacks(data: string): string {
+  let filtered = data.split(XTERM_PRIMARY_DEVICE_ANSWERBACK).join("");
+  let prefixIndex = filtered.indexOf(XTERM_SECONDARY_DEVICE_ANSWERBACK_PREFIX);
+
+  while (prefixIndex !== -1) {
+    const codeStart = prefixIndex + XTERM_SECONDARY_DEVICE_ANSWERBACK_PREFIX.length;
+    const suffixIndex = filtered.indexOf(XTERM_SECONDARY_DEVICE_ANSWERBACK_SUFFIX, codeStart);
+    if (suffixIndex === -1) break;
+
+    const terminalVersion = filtered.slice(codeStart, suffixIndex);
+    if (!/^\d+$/.test(terminalVersion)) {
+      prefixIndex = filtered.indexOf(XTERM_SECONDARY_DEVICE_ANSWERBACK_PREFIX, codeStart);
+      continue;
+    }
+
+    filtered =
+      filtered.slice(0, prefixIndex) +
+      filtered.slice(suffixIndex + XTERM_SECONDARY_DEVICE_ANSWERBACK_SUFFIX.length);
+    prefixIndex = filtered.indexOf(XTERM_SECONDARY_DEVICE_ANSWERBACK_PREFIX, prefixIndex);
+  }
+
+  return filtered;
 }
 
 function buildTerminalWebSocketUrl({
@@ -960,7 +988,9 @@ export function InteractiveTerminal({
       container?.addEventListener("drop", handleDrop, { capture: true });
 
       term.onData((data) => {
-        sendRef.current(encodeInput(data));
+        const filteredData = stripXtermDeviceAnswerbacks(data);
+        if (filteredData.length === 0) return;
+        sendRef.current(encodeInput(filteredData));
       });
 
       term.onResize(({ rows, cols }) => {

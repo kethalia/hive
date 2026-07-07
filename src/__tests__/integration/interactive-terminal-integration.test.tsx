@@ -911,6 +911,23 @@ function terminalRecoveryState(
 }
 
 describe("InteractiveTerminal integration — Connection state banners", () => {
+  it("drops xterm device answerbacks before forwarding terminal input", async () => {
+    const { unmount } = await renderTerminal();
+    const terminal = terminalInstances.at(-1);
+
+    act(() => {
+      terminal?.dataHandler?.("\x1b[?1;2c\x1b[>0;276;0c");
+    });
+    expect(mockSend).not.toHaveBeenCalled();
+
+    act(() => {
+      terminal?.dataHandler?.("echo ok\x1b[?1;2c\r");
+    });
+    expect(mockSend).toHaveBeenCalledWith("echo ok\r");
+
+    unmount();
+  });
+
   it("configures xterm native selection options for tmux mouse mode", async () => {
     const { unmount } = await renderTerminal();
     const terminal = terminalInstances.at(-1);
