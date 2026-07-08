@@ -910,6 +910,7 @@ export function MultiSessionWorkspace({
   >({});
   const terminalsRef = useRef<Map<string, TerminalEntry>>(new Map());
   const activeSessionNameRef = useRef<string | null>(null);
+  const pendingTerminalFocusSessionNameRef = useRef<string | null>(null);
 
   const showGitAddFailure = useCallback((message: string) => {
     setGitAddError(message);
@@ -1180,6 +1181,8 @@ export function MultiSessionWorkspace({
       if (lockedSessionName && sessionName !== lockedSessionName) return;
 
       const { focusTerminal = true } = options;
+      const shouldFocusTerminal = focusTerminal && !isComposeSheet;
+      pendingTerminalFocusSessionNameRef.current = shouldFocusTerminal ? sessionName : null;
       setActiveSessionName(sessionName);
 
       const selectedPane = visibleSessions.find((session) => session.sessionName === sessionName);
@@ -1192,8 +1195,9 @@ export function MultiSessionWorkspace({
       const entry = terminalsRef.current.get(sessionName);
       if (entry) {
         setActiveTerminal(entry.term, entry.send);
-        if (focusTerminal && !isComposeSheet) {
+        if (shouldFocusTerminal) {
           entry.term.focus();
+          pendingTerminalFocusSessionNameRef.current = null;
         }
         return;
       }
@@ -1356,8 +1360,9 @@ export function MultiSessionWorkspace({
       terminalsRef.current.set(sessionName, { term, send });
       if (activeSessionNameRef.current === sessionName) {
         setActiveTerminal(term, send);
-        if (!isComposeSheet) {
+        if (!isComposeSheet && pendingTerminalFocusSessionNameRef.current === sessionName) {
           term.focus();
+          pendingTerminalFocusSessionNameRef.current = null;
         }
       }
       setTerminalStateVersion((version) => version + 1);
@@ -1757,6 +1762,7 @@ export function MultiSessionWorkspace({
     setBoardState(restoredBoardState);
     setBoardPersistenceNotice(storedBoard.notice);
     terminalsRef.current.clear();
+    pendingTerminalFocusSessionNameRef.current = null;
     clearActiveTerminal();
 
     async function loadSessions() {
@@ -1826,6 +1832,7 @@ export function MultiSessionWorkspace({
     return () => {
       cancelled = true;
       terminalsRef.current.clear();
+      pendingTerminalFocusSessionNameRef.current = null;
       clearActiveTerminal();
     };
   }, [agentId, clearActiveTerminal, reloadKey, source, workspaceId]);
@@ -1852,7 +1859,7 @@ export function MultiSessionWorkspace({
     );
     if (nextActiveSessionName === activeSessionName) return;
     if (nextActiveSessionName) {
-      selectSession(nextActiveSessionName);
+      selectSession(nextActiveSessionName, { focusTerminal: false });
       return;
     }
     setActiveSessionName(null);

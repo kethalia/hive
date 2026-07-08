@@ -677,6 +677,21 @@ describe("MultiSessionWorkspace", () => {
     expect(screen.queryByTestId("float-pane-pane-main-session")).not.toBeInTheDocument();
   });
 
+  it("does not focus terminals when sessions mount from passive load or recovery", async () => {
+    await renderTwoSessionWorkspace();
+    const focusMainTerminal = vi.fn();
+    const mainTerm = makeTerminal("main-session", focusMainTerminal);
+    const mainSend = makeSender("main-session");
+
+    act(() => {
+      terminalProps.get("main-session")?.onTerminalReady?.(mainTerm, mainSend);
+    });
+
+    expect(screen.getByTestId("active-pane-label")).toHaveTextContent("main-session");
+    expect(mockSetActiveTerminal).toHaveBeenLastCalledWith(mainTerm, mainSend);
+    expect(focusMainTerminal).not.toHaveBeenCalled();
+  });
+
   it("shows mobile terminal controls in compose-sheet workspace mode", async () => {
     mockUseIsComposeSheet.mockReturnValue(true);
     await renderTwoSessionWorkspace();
@@ -989,6 +1004,24 @@ describe("MultiSessionWorkspace", () => {
     expect(screen.getByTestId("active-pane-label")).toHaveTextContent("dev-server");
     expect(mockSetActiveTerminal).toHaveBeenLastCalledWith(devTerm, devSend);
     expect(focusDevTerminal).not.toHaveBeenCalled();
+  });
+
+  it("focuses a terminal that becomes ready after an explicit pane activation", async () => {
+    await renderTwoSessionWorkspace();
+    const focusDevTerminal = vi.fn();
+    const devTerm = makeTerminal("dev-server", focusDevTerminal);
+    const devSend = makeSender("dev-server");
+
+    fireEvent.click(screen.getByTestId("workspace-pane-dev-server"));
+    expect(screen.getByTestId("active-pane-label")).toHaveTextContent("dev-server");
+    expect(mockSetActiveTerminal).toHaveBeenLastCalledWith(null, null);
+
+    act(() => {
+      terminalProps.get("dev-server")?.onTerminalReady?.(devTerm, devSend);
+    });
+
+    expect(mockSetActiveTerminal).toHaveBeenLastCalledWith(devTerm, devSend);
+    expect(focusDevTerminal).toHaveBeenCalledTimes(1);
   });
 
   it("allows the native xterm context menu in multi-session panes", async () => {
