@@ -1,5 +1,11 @@
 # hive-orchestrator
 
+## 2.5.13
+
+### Patch Changes
+
+- 5e09cee: Release the multi-session terminal focus fix so passive session reloads and recovery no longer move keyboard focus into hidden workspace panes.
+
 ## 2.5.12
 
 ### Patch Changes
