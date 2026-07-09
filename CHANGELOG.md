@@ -1,5 +1,12 @@
 # hive-orchestrator
 
+## 2.5.14
+
+### Patch Changes
+
+- 0eeb00e: Fix multi-session workspace loading so terminal panes stay covered until every mounted session is connected and healthy.
+- 831172c: Make terminal reconnects resilient to browser focus changes so healthy sessions stay connected and lost sessions refresh once.
+
 ## 2.5.13
 
 ### Patch Changes
