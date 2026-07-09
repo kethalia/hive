@@ -972,13 +972,17 @@ export function MultiSessionWorkspace({
       ),
     [boardRenderModels],
   );
+  const paneRecoveryStateMap = useMemo(
+    () => new Map(Object.entries(paneRecoveryStates)),
+    [paneRecoveryStates],
+  );
   const workspaceHealthLoading = useMemo(
     () =>
       !loading &&
       !loadFailed &&
       mountedBoardPaneKeys.length > 0 &&
-      mountedBoardPaneKeys.some((key) => !isWorkspacePaneHealthy(paneRecoveryStates[key])),
-    [loadFailed, loading, mountedBoardPaneKeys, paneRecoveryStates],
+      mountedBoardPaneKeys.some((key) => !isWorkspacePaneHealthy(paneRecoveryStateMap.get(key))),
+    [loadFailed, loading, mountedBoardPaneKeys, paneRecoveryStateMap],
   );
   const availableTerminalSessions = useMemo(
     () => sessions.filter((session) => !session.cloneSessionKey),
