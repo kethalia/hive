@@ -126,6 +126,7 @@ interface InteractiveTerminalComponentProps {
   targetLabel?: string;
   layoutSignal?: unknown;
   mobileInputMode?: boolean;
+  suppressAutoFocus?: boolean;
   pinToBottomOnResize?: boolean;
   selectionModeEnabled?: boolean;
 }
@@ -711,6 +712,12 @@ function activeSessionNameForVisibleSessions(
   return activePaneSession?.sessionName ?? visibleSessions[0]?.sessionName ?? null;
 }
 
+function isWorkspacePaneHealthy(pane: WorkspacePaneRecoveryInput | null | undefined): boolean {
+  if (!pane || pane.connectionState !== "connected") return false;
+  const phase = pane.recoveryState?.phase;
+  return phase === undefined || phase === "idle" || phase === "connected";
+}
+
 function buildLayoutPersistenceMessage(
   notice: LayoutPersistenceNotice | null,
   diagnostics: readonly SessionPaneLayoutDiagnostic[],
@@ -957,6 +964,25 @@ export function MultiSessionWorkspace({
   const visibleBoardPaneKeys = useMemo(
     () => visibleSessions.map((session) => session.boardPaneKey),
     [visibleSessions],
+  );
+  const mountedBoardPaneKeys = useMemo(
+    () =>
+      boardRenderModels.flatMap((model) =>
+        model.visibleSessions.map((session) => session.boardPaneKey),
+      ),
+    [boardRenderModels],
+  );
+  const paneRecoveryStateMap = useMemo(
+    () => new Map(Object.entries(paneRecoveryStates)),
+    [paneRecoveryStates],
+  );
+  const workspaceHealthLoading = useMemo(
+    () =>
+      !loading &&
+      !loadFailed &&
+      mountedBoardPaneKeys.length > 0 &&
+      mountedBoardPaneKeys.some((key) => !isWorkspacePaneHealthy(paneRecoveryStateMap.get(key))),
+    [loadFailed, loading, mountedBoardPaneKeys, paneRecoveryStateMap],
   );
   const availableTerminalSessions = useMemo(
     () => sessions.filter((session) => !session.cloneSessionKey),
@@ -1843,13 +1869,13 @@ export function MultiSessionWorkspace({
   }, [gitSearchOpen]);
 
   useEffect(() => {
-    const visibleKeys = new Set(visibleBoardPaneKeys);
+    const mountedKeys = new Set(mountedBoardPaneKeys);
     setPaneRecoveryStates((current) => {
-      const nextEntries = Object.entries(current).filter(([key]) => visibleKeys.has(key));
+      const nextEntries = Object.entries(current).filter(([key]) => mountedKeys.has(key));
       if (nextEntries.length === Object.keys(current).length) return current;
       return Object.fromEntries(nextEntries);
     });
-  }, [visibleBoardPaneKeys]);
+  }, [mountedBoardPaneKeys]);
 
   useEffect(() => {
     const nextActiveSessionName = activeSessionNameForVisibleSessions(
@@ -2912,6 +2938,7 @@ export function MultiSessionWorkspace({
           className="min-h-0 flex-1"
           layoutSignal={layoutSignal}
           mobileInputMode={isComposeSheet}
+          suppressAutoFocus={workspaceHealthLoading}
           pinToBottomOnResize={isComposeSheet}
           selectionModeEnabled={controlsSelectionModeEnabled}
           onConnectionStateChange={(state) =>
@@ -2955,6 +2982,7 @@ export function MultiSessionWorkspace({
         key={model.board.key}
         className={cn(
           "absolute inset-1 grid min-h-0 gap-1",
+          workspaceHealthLoading && "pointer-events-none opacity-0",
           !model.isActive && "pointer-events-none opacity-0",
         )}
         style={{
@@ -2966,7 +2994,7 @@ export function MultiSessionWorkspace({
         }
         data-board-key={model.board.key}
         data-board-active={model.isActive ? "true" : "false"}
-        aria-hidden={model.isActive ? undefined : true}
+        aria-hidden={model.isActive && !workspaceHealthLoading ? undefined : true}
       >
         {model.layout.panes.map((pane) => renderPane(pane, model))}
       </div>
@@ -3074,6 +3102,18 @@ export function MultiSessionWorkspace({
           data-testid="multi-session-body"
         >
           {boardRenderModels.map(renderBoardLayer)}
+          {workspaceHealthLoading ? (
+            <div
+              className="absolute inset-0 z-10 flex items-center justify-center bg-background"
+              data-testid="multi-session-loading"
+              data-workspace-loading-phase="health"
+            >
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <Loader2 className="size-4 animate-spin" />
+                Loading workspace sessions…
+              </div>
+            </div>
+          ) : null}
         </div>
         {mobileTerminalControls}
         {desktopComposePanel}
