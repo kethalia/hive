@@ -117,7 +117,6 @@ const BASE_DELAY_MS = 1000;
 const MAX_DELAY_MS = 30000;
 const BACKOFF_FACTOR = 2;
 const JITTER_MS = 500;
-const FOREGROUND_RECONNECT_AFTER_MS = 10000;
 const CONNECTING_STALL_MS = 15000;
 const WORKSPACE_OFFLINE_CODE = 4404;
 const AUTH_EXPIRED_CODE = 4401;
@@ -279,12 +278,11 @@ type MutableRef<T> = {
 
 type StartManualReconnectOptions = {
   preserveRetryCount?: boolean;
+  onlyWhenConnectionLost?: boolean;
 };
 
 type UseBrowserLifecycleReconnectionOptions = {
   backgroundedAtRef: MutableRef<number | null>;
-  connectionStateRef: MutableRef<ConnectionState>;
-  getSocket: () => WebSocket | null;
   startManualReconnect: (options?: StartManualReconnectOptions) => void;
 };
 
@@ -306,8 +304,6 @@ function isTerminalRefreshFailure(value: unknown): value is TerminalRefreshUrlFa
 
 function useBrowserLifecycleReconnection({
   backgroundedAtRef,
-  connectionStateRef,
-  getSocket,
   startManualReconnect,
 }: UseBrowserLifecycleReconnectionOptions) {
   useEffect(() => {
@@ -317,29 +313,13 @@ function useBrowserLifecycleReconnection({
       backgroundedAtRef.current = Date.now();
     };
 
-    const handleForeground = ({ persisted = false }: { persisted?: boolean } = {}) => {
-      const backgroundedAt = backgroundedAtRef.current;
+    const handleForeground = () => {
       backgroundedAtRef.current = null;
 
-      const state = connectionStateRef.current;
-      const shouldReconnectState =
-        state === "connected" ||
-        state === "connecting" ||
-        state === "reconnecting" ||
-        state === "disconnected";
-      if (!shouldReconnectState) return;
-
-      const hiddenDuration = backgroundedAt === null ? null : Date.now() - backgroundedAt;
-      const hasOpenSocket = getSocket()?.readyState === WebSocket.OPEN;
-      if (
-        !persisted &&
-        hasOpenSocket &&
-        (hiddenDuration === null || hiddenDuration < FOREGROUND_RECONNECT_AFTER_MS)
-      ) {
-        return;
-      }
-
-      startManualReconnect({ preserveRetryCount: true });
+      startManualReconnect({
+        preserveRetryCount: true,
+        onlyWhenConnectionLost: true,
+      });
     };
 
     const handleVisibilityChange = () => {
@@ -350,16 +330,17 @@ function useBrowserLifecycleReconnection({
       }
     };
 
-    const handlePageShow = (event: PageTransitionEvent) => {
+    const handlePageShow = () => {
       if (document.visibilityState !== "hidden") {
-        handleForeground({ persisted: event.persisted });
+        handleForeground();
       }
     };
 
     const handleOnline = () => {
-      if (connectionStateRef.current !== "connected") {
-        startManualReconnect({ preserveRetryCount: true });
-      }
+      startManualReconnect({
+        preserveRetryCount: true,
+        onlyWhenConnectionLost: true,
+      });
     };
 
     document.addEventListener("visibilitychange", handleVisibilityChange);
@@ -373,7 +354,7 @@ function useBrowserLifecycleReconnection({
       window.removeEventListener("pageshow", handlePageShow);
       window.removeEventListener("online", handleOnline);
     };
-  }, [backgroundedAtRef, connectionStateRef, getSocket, startManualReconnect]);
+  }, [backgroundedAtRef, startManualReconnect]);
 }
 
 export function useTerminalWebSocket({
@@ -389,6 +370,8 @@ export function useTerminalWebSocket({
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const connectingStallTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const connectInFlightRef = useRef(false);
+  const connectInFlightGenerationRef = useRef<number | null>(null);
   const attemptRef = useRef(0);
   const mountedRef = useRef(true);
   const connectionGenerationRef = useRef(0);
@@ -438,6 +421,12 @@ export function useTerminalWebSocket({
     }
   }, []);
 
+  const finishConnectAttempt = useCallback((generation: number) => {
+    if (connectInFlightGenerationRef.current !== generation) return;
+    connectInFlightRef.current = false;
+    connectInFlightGenerationRef.current = null;
+  }, []);
+
   const connect = useCallback(
     async ({
       recoveryAction,
@@ -447,6 +436,11 @@ export function useTerminalWebSocket({
     }: ConnectOptions = {}) => {
       const baseUrl = currentUrlRef.current ?? url;
       if (!baseUrl || !mountedRef.current) return;
+      if (connectInFlightRef.current && connectInFlightGenerationRef.current === generation) {
+        return;
+      }
+      connectInFlightRef.current = true;
+      connectInFlightGenerationRef.current = generation;
 
       clearReconnectTimer();
       clearConnectingStallTimer();
@@ -458,6 +452,7 @@ export function useTerminalWebSocket({
 
       const scheduleRefreshFailureRetry = (failureCategory: TerminalRefreshFailureCategory) => {
         if (!mountedRef.current || generation !== connectionGenerationRef.current) return;
+        finishConnectAttempt(generation);
 
         const delay = computeBackoff(attemptRef.current);
         attemptRef.current += 1;
@@ -577,6 +572,7 @@ export function useTerminalWebSocket({
           ws.close();
           return;
         }
+        finishConnectAttempt(generation);
         clearConnectingStallTimer();
         attemptRef.current = 0;
         updateState("connected");
@@ -604,6 +600,7 @@ export function useTerminalWebSocket({
 
       ws.onclose = (event: CloseEvent) => {
         if (!mountedRef.current) return;
+        finishConnectAttempt(generation);
         clearConnectingStallTimer();
         wsRef.current = null;
 
@@ -692,6 +689,7 @@ export function useTerminalWebSocket({
         }
 
         console.log("[terminal] WebSocket connection stalled; forcing reconnect");
+        finishConnectAttempt(generation);
         ws.onclose = null;
         ws.onerror = null;
         ws.close();
@@ -727,7 +725,14 @@ export function useTerminalWebSocket({
         }, delay);
       }, CONNECTING_STALL_MS);
     },
-    [url, updateState, updateRecoveryState, clearReconnectTimer, clearConnectingStallTimer],
+    [
+      url,
+      updateState,
+      updateRecoveryState,
+      clearReconnectTimer,
+      clearConnectingStallTimer,
+      finishConnectAttempt,
+    ],
   );
 
   useEffect(() => {
@@ -744,6 +749,8 @@ export function useTerminalWebSocket({
     return () => {
       mountedRef.current = false;
       connectionGenerationRef.current += 1;
+      connectInFlightRef.current = false;
+      connectInFlightGenerationRef.current = null;
       clearReconnectTimer();
       clearConnectingStallTimer();
       if (wsRef.current) {
@@ -755,10 +762,28 @@ export function useTerminalWebSocket({
   }, [connect, clearReconnectTimer, clearConnectingStallTimer, url]);
 
   const startManualReconnect = useCallback(
-    ({ preserveRetryCount = false }: StartManualReconnectOptions = {}) => {
+    ({
+      preserveRetryCount = false,
+      onlyWhenConnectionLost = false,
+    }: StartManualReconnectOptions = {}) => {
       if (!(currentUrlRef.current ?? url) || !mountedRef.current) return;
       const recovery = recoveryStateRef.current;
       if (recovery.phase === "final-failure" && recovery.isRecoverable === false) return;
+      const currentSocket = wsRef.current;
+      const hasOpenSocket = currentSocket?.readyState === WebSocket.OPEN;
+      const hasActiveConnectAttempt =
+        connectInFlightRef.current &&
+        connectInFlightGenerationRef.current === connectionGenerationRef.current;
+      if (onlyWhenConnectionLost) {
+        const state = connectionStateRef.current;
+        const connectionIsLost =
+          state === "disconnected" ||
+          state === "workspace-offline" ||
+          state === "failed" ||
+          (state === "connected" && !hasOpenSocket);
+        if (!connectionIsLost) return;
+      }
+      if (hasActiveConnectAttempt) return;
 
       connectionGenerationRef.current += 1;
       const generation = connectionGenerationRef.current;
@@ -788,12 +813,8 @@ export function useTerminalWebSocket({
     startManualReconnect();
   }, [startManualReconnect]);
 
-  const getSocket = useCallback(() => wsRef.current, []);
-
   useBrowserLifecycleReconnection({
     backgroundedAtRef,
-    connectionStateRef,
-    getSocket,
     startManualReconnect,
   });
 
