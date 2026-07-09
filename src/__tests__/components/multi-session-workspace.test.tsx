@@ -107,6 +107,7 @@ const terminalProps = new Map<
       message?: string;
     }) => void;
     mobileInputMode?: boolean;
+    suppressAutoFocus?: boolean;
     pinToBottomOnResize?: boolean;
     selectionModeEnabled?: boolean;
   }
@@ -144,6 +145,7 @@ vi.mock("next/dynamic", () => ({
       onComposeRequest,
       onClipboardStatus,
       mobileInputMode,
+      suppressAutoFocus,
       pinToBottomOnResize,
       selectionModeEnabled,
     }: {
@@ -181,6 +183,7 @@ vi.mock("next/dynamic", () => ({
         message?: string;
       }) => void;
       mobileInputMode?: boolean;
+      suppressAutoFocus?: boolean;
       pinToBottomOnResize?: boolean;
       selectionModeEnabled?: boolean;
     }) => {
@@ -212,6 +215,7 @@ vi.mock("next/dynamic", () => ({
         onComposeRequest,
         onClipboardStatus,
         mobileInputMode,
+        suppressAutoFocus,
         pinToBottomOnResize,
         selectionModeEnabled,
       });
@@ -227,6 +231,7 @@ vi.mock("next/dynamic", () => ({
           data-clone-proof={cloneProof}
           data-layout-signal={String(layoutSignal ?? "")}
           data-mobile-input-mode={mobileInputMode ? "true" : "false"}
+          data-suppress-auto-focus={suppressAutoFocus ? "true" : "false"}
           data-pin-to-bottom-on-resize={pinToBottomOnResize ? "true" : "false"}
           data-selection-mode-enabled={selectionModeEnabled ? "true" : "false"}
           onClick={onUserFocusRequest}
@@ -567,13 +572,36 @@ function twoSessionPayload() {
   };
 }
 
-async function renderTwoSessionWorkspace() {
+function markSessionConnected(sessionName: string) {
+  act(() => {
+    terminalProps.get(sessionName)?.onConnectionStateChange?.("connected");
+    terminalProps.get(sessionName)?.onRecoveryStateChange?.({
+      phase: "connected",
+      lastRecoveryAction: "connected",
+      isRecoverable: true,
+    });
+  });
+}
+
+function markTwoSessionsConnected() {
+  markSessionConnected("main-session");
+  markSessionConnected("dev-server");
+}
+
+async function renderTwoSessionWorkspace(options: { connect?: boolean } = {}) {
   mockGetSessions.mockResolvedValue(twoSessionPayload());
   render(<MultiSessionWorkspace {...defaultProps} />);
 
   await waitFor(() => {
     expect(screen.getByTestId("workspace-pane-main-session")).toBeInTheDocument();
   });
+
+  if (options.connect !== false) {
+    markTwoSessionsConnected();
+    await waitFor(() => {
+      expect(screen.queryByTestId("multi-session-loading")).not.toBeInTheDocument();
+    });
+  }
 }
 
 function lastRegisteredEntry(id: string) {
@@ -675,6 +703,94 @@ describe("MultiSessionWorkspace", () => {
     expect(screen.queryByTestId("paste-active-pane")).not.toBeInTheDocument();
     expect(screen.queryByTestId("terminal-mobile-controls")).not.toBeInTheDocument();
     expect(screen.queryByTestId("float-pane-pane-main-session")).not.toBeInTheDocument();
+  });
+
+  it("keeps loading stable until every mounted terminal session is connected", async () => {
+    await renderTwoSessionWorkspace({ connect: false });
+
+    expect(screen.getByTestId("multi-session-loading")).toHaveAttribute(
+      "data-workspace-loading-phase",
+      "health",
+    );
+    expect(screen.getByTestId("interactive-terminal-main-session")).toHaveAttribute(
+      "data-suppress-auto-focus",
+      "true",
+    );
+    expect(screen.getByTestId("interactive-terminal-dev-server")).toHaveAttribute(
+      "data-suppress-auto-focus",
+      "true",
+    );
+
+    markSessionConnected("main-session");
+
+    expect(screen.getByTestId("multi-session-loading")).toBeInTheDocument();
+
+    markSessionConnected("dev-server");
+
+    await waitFor(() => {
+      expect(screen.queryByTestId("multi-session-loading")).not.toBeInTheDocument();
+    });
+    expect(screen.getByTestId("interactive-terminal-main-session")).toHaveAttribute(
+      "data-suppress-auto-focus",
+      "false",
+    );
+    expect(screen.getByTestId("interactive-terminal-dev-server")).toHaveAttribute(
+      "data-suppress-auto-focus",
+      "false",
+    );
+  });
+
+  it("waits for hidden board sessions before revealing the loaded workspace", async () => {
+    window.localStorage.setItem(
+      "workspace-board-state:workspace:ws-1",
+      JSON.stringify({
+        version: 1,
+        activeBoardKey: "default",
+        boards: [
+          {
+            key: "default",
+            name: "Default",
+            order: 0,
+            activePaneKey: "terminal:main-session",
+            panes: [
+              {
+                kind: "terminal",
+                key: "terminal:main-session",
+                sessionName: "main-session",
+                order: 0,
+              },
+            ],
+          },
+          {
+            key: "review",
+            name: "Review",
+            order: 1,
+            activePaneKey: "terminal:dev-server",
+            panes: [
+              {
+                kind: "terminal",
+                key: "terminal:dev-server",
+                sessionName: "dev-server",
+                order: 0,
+              },
+            ],
+          },
+        ],
+      }),
+    );
+    await renderTwoSessionWorkspace({ connect: false });
+
+    expect(screen.getByTestId("workspace-review-pane-dev-server")).toBeInTheDocument();
+
+    markSessionConnected("main-session");
+
+    expect(screen.getByTestId("multi-session-loading")).toBeInTheDocument();
+
+    markSessionConnected("dev-server");
+
+    await waitFor(() => {
+      expect(screen.queryByTestId("multi-session-loading")).not.toBeInTheDocument();
+    });
   });
 
   it("does not focus terminals when sessions mount from passive load or recovery", async () => {
@@ -1544,6 +1660,7 @@ describe("MultiSessionWorkspace", () => {
     expect(screen.getByTestId("interactive-terminal-main-session")).toBeInTheDocument();
     expect(screen.getByTestId("interactive-terminal-dev-server")).toBeInTheDocument();
     expect(mockGetSessions).toHaveBeenCalledTimes(1);
+    markTwoSessionsConnected();
 
     fireEvent.click(screen.getByTestId("workspace-board-tab-review"));
 

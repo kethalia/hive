@@ -93,6 +93,7 @@ interface InteractiveTerminalProps {
   targetLabel?: string;
   layoutSignal?: unknown;
   mobileInputMode?: boolean;
+  suppressAutoFocus?: boolean;
   pinToBottomOnResize?: boolean;
   selectionModeEnabled?: boolean;
 }
@@ -394,6 +395,7 @@ export function InteractiveTerminal({
   targetLabel,
   layoutSignal,
   mobileInputMode = false,
+  suppressAutoFocus = false,
   pinToBottomOnResize = false,
   selectionModeEnabled = false,
 }: InteractiveTerminalProps) {
@@ -405,6 +407,8 @@ export function InteractiveTerminal({
   pinToBottomOnResizeRef.current = pinToBottomOnResize;
   const mobileInputModeRef = useRef(mobileInputMode);
   mobileInputModeRef.current = mobileInputMode;
+  const suppressAutoFocusRef = useRef(suppressAutoFocus);
+  suppressAutoFocusRef.current = suppressAutoFocus;
   const selectionModeEnabledRef = useRef(selectionModeEnabled);
   selectionModeEnabledRef.current = selectionModeEnabled;
   const mobileTouchIntentRef = useRef<MobileTouchIntent | null>(null);
@@ -850,7 +854,7 @@ export function InteractiveTerminal({
     ].join(":"),
     onReady: async (term, fit) => {
       applyMobileInputAdapter();
-      if (!mobileInputModeRef.current) {
+      if (!mobileInputModeRef.current && !suppressAutoFocusRef.current) {
         term.focus();
       }
       if (safeFit(fit)) {
