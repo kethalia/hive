@@ -220,7 +220,7 @@ describe("useTerminalWebSocket reconnect loop", () => {
     unmount();
   });
 
-  it("forces a refreshed reconnect when a PWA returns after a long background period", async () => {
+  it("keeps an open socket alive when a PWA returns after a long background period", async () => {
     const refreshUrlBeforeReconnect = vi
       .fn()
       .mockResolvedValue("ws://terminal.example/ws?proof=fresh");
@@ -237,7 +237,7 @@ describe("useTerminalWebSocket reconnect loop", () => {
     act(() => {
       document.dispatchEvent(new Event("visibilitychange"));
     });
-    await advanceTimersAndFlush(10000);
+    await advanceTimersAndFlush(20000);
     mockVisibilityState("visible");
     await act(async () => {
       document.dispatchEvent(new Event("visibilitychange"));
@@ -245,24 +245,10 @@ describe("useTerminalWebSocket reconnect loop", () => {
       await Promise.resolve();
     });
 
-    expect(refreshUrlBeforeReconnect).toHaveBeenCalledWith(
-      expect.objectContaining({
-        currentUrl: "ws://terminal.example/ws?proof=stale",
-        reason: "manual-reconnect",
-        retryCount: 1,
-      }),
-    );
-    expect(socket.close).toHaveBeenCalledTimes(1);
-    expect(instances).toHaveLength(2);
-    expect(instances.at(-1)?.url).toBe("ws://terminal.example/ws?proof=fresh");
-    expect(result.current.connectionState).toBe("reconnecting");
-    expect(result.current.recoveryState).toMatchObject({
-      phase: "recovering",
-      retryCount: 1,
-      lastRecoveryAction: "manual-reconnect",
-      lastRefreshAction: "refresh-succeeded",
-      isRecoverable: true,
-    });
+    expect(refreshUrlBeforeReconnect).not.toHaveBeenCalled();
+    expect(socket.close).not.toHaveBeenCalled();
+    expect(instances).toHaveLength(1);
+    expect(result.current.connectionState).toBe("connected");
     unmount();
   });
 
@@ -369,7 +355,64 @@ describe("useTerminalWebSocket reconnect loop", () => {
     unmount();
   });
 
-  it("uses pagehide and pageshow to reconnect after a long PWA suspension", async () => {
+  it("does not reconnect on online when the socket is still open", async () => {
+    const refreshUrlBeforeReconnect = vi
+      .fn()
+      .mockResolvedValue("ws://terminal.example/ws?proof=fresh");
+    const { result, unmount } = renderHook(() =>
+      useTerminalWebSocket({
+        url: "ws://terminal.example/ws?proof=stale",
+        onData: vi.fn(),
+        refreshUrlBeforeReconnect,
+      }),
+    );
+    const socket = openSocket();
+
+    await act(async () => {
+      window.dispatchEvent(new Event("online"));
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(refreshUrlBeforeReconnect).not.toHaveBeenCalled();
+    expect(socket.close).not.toHaveBeenCalled();
+    expect(instances).toHaveLength(1);
+    expect(result.current.connectionState).toBe("connected");
+    unmount();
+  });
+
+  it("reconnects once when lifecycle events find a connected state with a closed socket", async () => {
+    const refreshUrlBeforeReconnect = vi
+      .fn()
+      .mockResolvedValue("ws://terminal.example/ws?proof=fresh");
+    const { result, unmount } = renderHook(() =>
+      useTerminalWebSocket({
+        url: "ws://terminal.example/ws?proof=stale",
+        onData: vi.fn(),
+        refreshUrlBeforeReconnect,
+      }),
+    );
+    const socket = openSocket();
+    socket.readyState = MockWebSocket.CLOSED;
+
+    mockVisibilityState("visible");
+    await act(async () => {
+      dispatchPageTransitionEvent("pageshow");
+      document.dispatchEvent(new Event("visibilitychange"));
+      window.dispatchEvent(new Event("online"));
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(refreshUrlBeforeReconnect).toHaveBeenCalledTimes(1);
+    expect(socket.close).toHaveBeenCalledTimes(1);
+    expect(instances).toHaveLength(2);
+    expect(instances.at(-1)?.url).toBe("ws://terminal.example/ws?proof=fresh");
+    expect(result.current.connectionState).toBe("reconnecting");
+    unmount();
+  });
+
+  it("keeps an open socket alive across pagehide and pageshow", async () => {
     const refreshUrlBeforeReconnect = vi
       .fn()
       .mockResolvedValue("ws://terminal.example/ws?proof=fresh");
@@ -385,26 +428,21 @@ describe("useTerminalWebSocket reconnect loop", () => {
     act(() => {
       dispatchPageTransitionEvent("pagehide");
     });
-    await advanceTimersAndFlush(10000);
+    await advanceTimersAndFlush(999);
     await act(async () => {
       dispatchPageTransitionEvent("pageshow");
       await Promise.resolve();
       await Promise.resolve();
     });
 
-    expect(refreshUrlBeforeReconnect).toHaveBeenCalledTimes(1);
-    expect(socket.close).toHaveBeenCalledTimes(1);
-    expect(instances).toHaveLength(2);
-    expect(instances.at(-1)?.url).toBe("ws://terminal.example/ws?proof=fresh");
-    expect(result.current.recoveryState).toMatchObject({
-      phase: "recovering",
-      retryCount: 1,
-      lastRecoveryAction: "manual-reconnect",
-    });
+    expect(refreshUrlBeforeReconnect).not.toHaveBeenCalled();
+    expect(socket.close).not.toHaveBeenCalled();
+    expect(instances).toHaveLength(1);
+    expect(result.current.connectionState).toBe("connected");
     unmount();
   });
 
-  it("does not duplicate reconnect when pageshow is followed by visibilitychange", async () => {
+  it("does not duplicate reconnect when a lost socket gets pageshow followed by visibilitychange", async () => {
     const refreshUrlBeforeReconnect = vi
       .fn()
       .mockResolvedValue("ws://terminal.example/ws?proof=fresh");
@@ -415,10 +453,15 @@ describe("useTerminalWebSocket reconnect loop", () => {
         refreshUrlBeforeReconnect,
       }),
     );
-    openSocket();
+    const socket = openSocket();
 
     act(() => {
       dispatchPageTransitionEvent("pagehide");
+    });
+    closeSocket(socket, {
+      code: 1006,
+      reason: "transient network error",
+      wasClean: false,
     });
     await advanceTimersAndFlush(10000);
     mockVisibilityState("visible");

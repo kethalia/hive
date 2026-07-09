@@ -85,6 +85,8 @@ target/
 vendor/
 *.log
 coverage/
+playwright-report/
+test-results/
 .cache/
 tmp/
 
