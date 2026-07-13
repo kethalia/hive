@@ -27,7 +27,7 @@ vi.mock("@/lib/templates/push-queue", () => ({
 }));
 
 vi.mock("@/lib/templates/staleness", () => ({
-  KNOWN_TEMPLATES: ["hive", "ai-dev"] as const,
+  KNOWN_TEMPLATES: ["hive", "ai-dev", "ai-dev-k8s"] as const,
 }));
 
 const MOCK_SESSION = {
@@ -137,6 +137,20 @@ describe("POST /api/templates/[name]/push", () => {
     expect(response.status).toBe(200);
     const body = await response.json();
     expect(body.jobId).toBeDefined();
+  });
+
+  it("accepts ai-dev-k8s as a valid template", async () => {
+    const response = await POST(makeRequest(), {
+      params: Promise.resolve({ name: "ai-dev-k8s" }),
+    });
+    expect(response.status).toBe(200);
+    const body = await response.json();
+    expect(body.jobId).toBeDefined();
+    expect(mockAdd).toHaveBeenCalledWith(
+      "push-ai-dev-k8s",
+      expect.objectContaining({ templateName: "ai-dev-k8s" }),
+      expect.any(Object),
+    );
   });
 });
 

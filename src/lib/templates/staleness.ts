@@ -5,7 +5,7 @@ import extract from "tar-stream";
 import { getCoderClientForUser } from "@/lib/coder/user-client";
 
 /** Templates known to this orchestrator. */
-export const KNOWN_TEMPLATES = ["hive", "ai-dev"] as const;
+export const KNOWN_TEMPLATES = ["hive", "ai-dev", "ai-dev-k8s"] as const;
 
 export type KnownTemplate = (typeof KNOWN_TEMPLATES)[number];
 

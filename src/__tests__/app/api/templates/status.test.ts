@@ -6,7 +6,7 @@ const mockCompareTemplates = vi.fn();
 
 vi.mock("@/lib/templates/staleness", () => ({
   compareTemplates: (...args: unknown[]) => mockCompareTemplates(...args),
-  KNOWN_TEMPLATES: ["hive", "ai-dev"] as const,
+  KNOWN_TEMPLATES: ["hive", "ai-dev", "ai-dev-k8s"] as const,
 }));
 
 const MOCK_SESSION = {
@@ -68,7 +68,7 @@ describe("GET /api/templates/status", () => {
     expect(response.status).toBe(200);
     const body = await response.json();
     expect(body).toEqual(statuses);
-    expect(mockCompareTemplates).toHaveBeenCalledWith(["hive", "ai-dev"], "user-1");
+    expect(mockCompareTemplates).toHaveBeenCalledWith(["hive", "ai-dev", "ai-dev-k8s"], "user-1");
   });
 
   it("returns 500 when compareTemplates throws", async () => {
@@ -89,6 +89,7 @@ describe("GET /api/templates/status", () => {
     const calledWith = mockCompareTemplates.mock.calls[0][0];
     expect(calledWith).toContain("hive");
     expect(calledWith).toContain("ai-dev");
-    expect(calledWith).toHaveLength(2);
+    expect(calledWith).toContain("ai-dev-k8s");
+    expect(calledWith).toHaveLength(3);
   });
 });
