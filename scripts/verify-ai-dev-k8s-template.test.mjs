@@ -82,6 +82,7 @@ function verifyFileLoadedScripts() {
     "scripts/symlinks.sh",
     "scripts/tools-ai.sh",
     "scripts/tools-browser.sh",
+    "scripts/tools-filebrowser.sh",
     "scripts/tools-node.sh",
     "scripts/tools-shell.sh",
     "scripts/tools-web3.sh",
@@ -117,6 +118,30 @@ function verifySafeBootstrap() {
   assert.match(cloneScript, /! -name \.obsidian/);
   assert.doesNotMatch(terraform, /git-clone-vault|github-upload-public-key/);
   assert.doesNotMatch(initScript, /docker (info|version)/);
+}
+
+function verifyNonRootSupplementalTools() {
+  const terraform = readTemplateFile("main.tf");
+  const filebrowser = readTemplateFile("scripts/tools-filebrowser.sh");
+  const initScript = readTemplateFile("scripts/init.sh");
+
+  assert.ok(!terraform.includes('module "filebrowser"'));
+  assert.ok(!terraform.includes('module "nodejs"'));
+  assert.match(terraform, /resource "coder_script" "filebrowser"/);
+  assert.match(terraform, /resource "coder_app" "filebrowser"/);
+  assert.match(terraform, /start_blocks_login\s*=\s*false/);
+  assert.match(terraform, /name\s*=\s*"vault_repo"[\s\S]*?mutable\s*=\s*false/);
+  assert.ok(filebrowser.includes('filebrowser_version="2.63.18"'));
+  assert.ok(
+    filebrowser.includes("cd599c34afad0e8e61c577d1061c820bccb7feaa3c5a4477a12db586a1cd93ff"),
+  );
+  assert.ok(
+    filebrowser.includes("29b3935c222d91522874e98dfa33195ee7d2acdac5dfbf37c1361a73704a28de"),
+  );
+  assert.ok(filebrowser.includes("$HOME/.local/bin/filebrowser"));
+  assert.doesNotMatch(filebrowser, /\bsudo\b/);
+  assert.ok(initScript.includes("- **Node.js**: v24"));
+  assert.ok(!initScript.includes("also available: 18, 20, 22"));
 }
 
 function verifyAiAgentSelection() {
@@ -258,6 +283,7 @@ test(
 );
 test("CI tooling installs without root and uses verified GitHub CLI artifacts", verifyCiTooling);
 test("workspace bootstrap does not delete vault content or require Docker", verifySafeBootstrap);
+test("supplemental tools support the non-root workspace", verifyNonRootSupplementalTools);
 test("workspace only provisions Claude and Codex AI agents", verifyAiAgentSelection);
 test("shell setup retries incomplete Oh My Zsh installations", verifyShellRetry);
 test("GitHub helpers retrieve fresh Coder credentials on demand", verifyGithubHelpers);

@@ -21,7 +21,7 @@ data "coder_parameter" "vault_repo" {
   description  = "GitHub owner/repository for your Obsidian vault. Cloned to ~/vault once and never overwritten on startup. Leave empty to skip."
   type         = "string"
   default      = "kethalia/second-brain"
-  mutable      = true
+  mutable      = false
   order        = 1
 }
 
@@ -364,14 +364,32 @@ module "code-server" {
 }
 
 # =============================================================================
-# File Browser
+# File Browser — user-writable install for the non-root workspace pod
 # =============================================================================
 
-module "filebrowser" {
-  count    = data.coder_workspace.me.start_count
-  source   = "registry.coder.com/coder/filebrowser/coder"
-  version  = "1.1.4"
-  agent_id = coder_agent.main.id
+resource "coder_script" "filebrowser" {
+  agent_id           = coder_agent.main.id
+  display_name       = "File Browser"
+  icon               = "/icon/filebrowser.svg"
+  run_on_start       = true
+  start_blocks_login = false
+  script             = file("${path.module}/scripts/tools-filebrowser.sh")
+}
+
+resource "coder_app" "filebrowser" {
+  agent_id     = coder_agent.main.id
+  slug         = "filebrowser"
+  display_name = "File Browser"
+  url          = "http://localhost:13339"
+  icon         = "/icon/filebrowser.svg"
+  subdomain    = true
+  share        = "owner"
+
+  healthcheck {
+    url       = "http://localhost:13339/health"
+    interval  = 5
+    threshold = 6
+  }
 }
 
 # =============================================================================
@@ -415,19 +433,6 @@ module "kasmvnc" {
   agent_id            = coder_agent.main.id
   desktop_environment = "xfce"
   port                = 6080
-}
-
-# =============================================================================
-# Node.js via nvm (module replaces tools-nvm.sh)
-# =============================================================================
-
-module "nodejs" {
-  count                = data.coder_workspace.me.start_count
-  source               = "registry.coder.com/thezoker/nodejs/coder"
-  version              = "1.0.13"
-  agent_id             = coder_agent.main.id
-  node_versions        = ["18", "20", "22", "24"]
-  default_node_version = "24"
 }
 
 # =============================================================================

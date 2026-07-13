@@ -29,7 +29,7 @@ if [ ! -f ~/.workspace_initialized ]; then
 - **Codex CLI**: `codex` in terminal with Playwright MCP and vault skills wired
 
 ### Available Tools & Versions
-- **Node.js**: v24 (default), also available: 18, 20, 22
+- **Node.js**: v24
 - **Package Managers**: PNPM, Yarn, Bun
 - **Foundry**: Ethereum development toolkit
 - **act**: Run GitHub Actions locally

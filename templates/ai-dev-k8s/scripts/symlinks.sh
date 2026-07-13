@@ -22,7 +22,7 @@ done
 hash -r 2>/dev/null || true
 
 # Symlink globally installed npm packages (claude, etc.)
-# The Coder nodejs module installs to /opt/node*/bin/, so check there too
+# Check system and optional tool-managed Node.js locations.
 NPM_GLOBAL_BIN=$(npm -g bin 2>/dev/null || echo "")
 for bindir in $NPM_GLOBAL_BIN /usr/lib/node_modules/.bin /opt/node*/bin; do
   if [ -d "$bindir" ]; then
