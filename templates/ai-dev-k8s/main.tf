@@ -546,6 +546,8 @@ resource "kubernetes_deployment_v1" "workspace" {
       }
 
       spec {
+        automount_service_account_token = false
+
         security_context {
           run_as_non_root = true
           run_as_user     = 1000

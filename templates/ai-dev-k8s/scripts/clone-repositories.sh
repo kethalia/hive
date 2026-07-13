@@ -8,8 +8,11 @@ if [ ! -f "$repositories_file" ]; then
 fi
 
 if [ -z "${GH_TOKEN:-}" ] && command -v coder >/dev/null 2>&1; then
-  GH_TOKEN="$(coder external-auth access-token github)" || true
-  export GH_TOKEN
+  external_auth_token=""
+  if external_auth_token="$(coder external-auth access-token github)"; then
+    GH_TOKEN="$external_auth_token"
+    export GH_TOKEN
+  fi
 fi
 
 if ! command -v gh >/dev/null 2>&1 || [ -z "${GH_TOKEN:-}" ]; then

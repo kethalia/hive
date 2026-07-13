@@ -47,6 +47,10 @@ function installFakeCoder(bin) {
     `#!/bin/sh
 set -eu
 [ "$1 $2 $3" = "external-auth access-token github" ]
+if [ "\${CODER_AUTH_FAIL:-}" = "1" ]; then
+  printf 'https://coder.example.test/external-auth/github\n'
+  exit 1
+fi
 printf 'fresh-test-token\\n'
 `,
   );
@@ -62,6 +66,7 @@ function verifyPodSecurity() {
   assert.match(terraform, /cp -a \/home\/coder\/\. \/target\//);
   assert.match(terraform, /allow_privilege_escalation\s*=\s*false/);
   assert.doesNotMatch(terraform, /allow_privilege_escalation\s*=\s*true/);
+  assert.match(terraform, /automount_service_account_token\s*=\s*false/);
   assert.match(terraform, /"app\.kubernetes\.io\/name"\s*=\s*"coder-workspace"/);
   assert.doesNotMatch(terraform, /ignore_changes\s*=\s*all/);
   assert.match(terraform, /name\s*=\s*"home_disk_size"[\s\S]*?mutable\s*=\s*false/);
@@ -226,6 +231,26 @@ function verifyRepositoryBootstrap() {
   assert.match(second.stdout, /preserving local changes/);
 }
 
+function verifyFailedExternalAuth() {
+  const { bin, home, manifest } = createBootstrapFixture();
+  installFakeCoder(bin);
+  const env = {
+    ...process.env,
+    CODER_AUTH_FAIL: "1",
+    HOME: home,
+    PATH: `${bin}:${process.env.PATH}`,
+    REPOSITORIES_FILE: manifest,
+  };
+  delete env.GH_TOKEN;
+
+  const script = join(TEMPLATE_ROOT, "scripts/clone-repositories.sh");
+  const result = spawnSync("bash", [script], { encoding: "utf8", env });
+
+  assert.equal(result.status, 1);
+  assert.match(result.stderr, /external-auth token is unavailable/);
+  assert.doesNotMatch(result.stdout, /coder\.example\.test/);
+}
+
 test("Kubernetes workspace remains non-root and seeds image home into the PVC", verifyPodSecurity);
 test(
   "file-loaded startup scripts do not contain Terraform dollar escaping or sudo",
@@ -241,3 +266,4 @@ test(
   "repository bootstrap is idempotent and preserves local vault content",
   verifyRepositoryBootstrap,
 );
+test("repository bootstrap rejects failed external authentication", verifyFailedExternalAuth);
