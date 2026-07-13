@@ -34,13 +34,21 @@ install_if_missing() {
 
 # Install Oh My Zsh (without powerlevel10k — we use Starship)
 # shellcheck disable=SC2016 # Commands are intentionally evaluated by install_if_missing.
-install_if_missing "Oh My Zsh" "" "$HOME/.oh-my-zsh" '
-  RUNZSH=no CHSH=no sh -c "$(curl -fsSL https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh)" "" --unattended &&
-  git clone --quiet https://github.com/zsh-users/zsh-autosuggestions.git "$HOME/.oh-my-zsh/custom/plugins/zsh-autosuggestions" &&
-  git clone --quiet https://github.com/zsh-users/zsh-syntax-highlighting.git "$HOME/.oh-my-zsh/custom/plugins/zsh-syntax-highlighting" &&
-  git clone --quiet https://github.com/zsh-users/zsh-completions.git "$HOME/.oh-my-zsh/custom/plugins/zsh-completions" &&
+install_if_missing "Oh My Zsh" "" "$HOME/.oh-my-zsh/.hive-install-complete" '
+  if [ ! -f "$HOME/.oh-my-zsh/oh-my-zsh.sh" ]; then
+    rm -rf "$HOME/.oh-my-zsh" &&
+    RUNZSH=no CHSH=no sh -c "$(curl -fsSL https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh)" "" --unattended
+  fi &&
+  for plugin in zsh-autosuggestions zsh-syntax-highlighting zsh-completions; do
+    destination="$HOME/.oh-my-zsh/custom/plugins/$plugin"
+    if [ ! -d "$destination/.git" ]; then
+      rm -rf "$destination"
+      git clone --quiet "https://github.com/zsh-users/$plugin.git" "$destination" || exit 1
+    fi
+  done &&
   sed -i "s|^ZSH_THEME.*|ZSH_THEME=\"\"|g" "$HOME/.zshrc" &&
-  sed -i "s|^plugins=.*|plugins=(git zsh-autosuggestions zsh-syntax-highlighting zsh-completions direnv tmux)|g" "$HOME/.zshrc"
+  sed -i "s|^plugins=.*|plugins=(git zsh-autosuggestions zsh-syntax-highlighting zsh-completions direnv tmux)|g" "$HOME/.zshrc" &&
+  touch "$HOME/.oh-my-zsh/.hive-install-complete"
 '
 
 # Install Starship prompt

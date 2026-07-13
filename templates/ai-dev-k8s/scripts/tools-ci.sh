@@ -35,18 +35,25 @@ install_if_missing() {
 
 # act is pinned and preinstalled in hive-base. Install GitHub CLI into the
 # persistent home without requiring root or privilege escalation.
+mkdir -p "$HOME/.local/bin" "$HOME/.local/libexec"
 # shellcheck disable=SC2016 # The command is intentionally evaluated after Terraform rendering.
-install_if_missing "GitHub CLI" "gh" "" '
+install_if_missing "GitHub CLI" "" "$HOME/.local/libexec/gh" '
   GH_VERSION=2.96.0 &&
   GH_ARCHIVE="gh_$${GH_VERSION}_linux_amd64.tar.gz" &&
   curl -fsSLo "/tmp/$${GH_ARCHIVE}" "https://github.com/cli/cli/releases/download/v$${GH_VERSION}/$${GH_ARCHIVE}" &&
   printf "%s  %s\n" "83d5c2ccad5498f58bf6368acb1ab32588cf43ab3a4b1c301bf36328b1c8bd60" "/tmp/$${GH_ARCHIVE}" | sha256sum --check --status &&
   tar -xzf "/tmp/$${GH_ARCHIVE}" -C /tmp &&
-  install -m 0755 "/tmp/gh_$${GH_VERSION}_linux_amd64/bin/gh" "$HOME/.local/bin/gh" &&
+  install -m 0755 "/tmp/gh_$${GH_VERSION}_linux_amd64/bin/gh" "$HOME/.local/libexec/gh" &&
   rm -rf "/tmp/$${GH_ARCHIVE}" "/tmp/gh_$${GH_VERSION}_linux_amd64"
 '
 
 # shellcheck disable=SC2154 # Values below are populated by Terraform templatefile().
+printf '%s' "${github_cli_script_b64}" | base64 -d > "$HOME/.local/bin/gh"
+chmod +x "$HOME/.local/bin/gh"
+printf '%s' "${github_credential_script_b64}" | base64 -d > "$HOME/.local/bin/coder-github-credential"
+chmod +x "$HOME/.local/bin/coder-github-credential"
+git config --global --replace-all credential.https://github.com.helper "$HOME/.local/bin/coder-github-credential"
+
 printf '%s' "${clone_repositories_script_b64}" | base64 -d > "$HOME/clone-repositories.sh"
 chmod +x "$HOME/clone-repositories.sh"
 printf '%s' "${repositories_manifest_b64}" | base64 -d > "$HOME/repositories.txt"

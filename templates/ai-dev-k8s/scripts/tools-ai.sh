@@ -91,17 +91,28 @@ else
 fi
 
 # Install OpenGSD core globally so hooks and slash commands resolve the maintained
-# gsd-sdk shim, then refresh Claude Code and Codex command/skill surfaces.
+# gsd-sdk shim.
 # shellcheck disable=SC2016 # The command is intentionally evaluated by run_step.
 if npm_global_has "@opengsd/get-shit-done-redux" && command_exists gsd-sdk && command_exists get-shit-done-redux; then
   printf '%b[ok] OpenGSD core already installed%b\n' "$GREEN" "$RESET"
 else
   run_step "OpenGSD core (Claude Code + Codex)" '
     mkdir -p "$HOME/.codex" &&
-    npm install -g --force @opengsd/get-shit-done-redux@latest &&
+    npm install -g --force @opengsd/get-shit-done-redux@latest
+  '
+fi
+
+# Refresh both integrations on every start. If either command failed after a
+# successful npm install, the next workspace start retries the missing surface.
+if command_exists get-shit-done-redux; then
+  # shellcheck disable=SC2016 # The command is intentionally evaluated by run_step.
+  run_step "OpenGSD command surfaces" '
+    mkdir -p "$HOME/.codex" &&
     get-shit-done-redux --claude --global &&
     get-shit-done-redux --codex --global
   '
+else
+  printf '%b[warn] OpenGSD surface refresh skipped because the CLI is unavailable%b\n' "$YELLOW" "$RESET"
 fi
 
 # Install the maintained standalone CLI harness. This provides gsd and gsd-cli.

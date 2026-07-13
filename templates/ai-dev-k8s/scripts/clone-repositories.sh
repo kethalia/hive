@@ -17,11 +17,6 @@ if ! command -v gh >/dev/null 2>&1 || [ -z "${GH_TOKEN:-}" ]; then
   exit 1
 fi
 
-if ! gh auth setup-git; then
-  printf '[error] unable to configure Git authentication for private repository fetches\n' >&2
-  exit 1
-fi
-
 mkdir -p "$HOME/projects"
 failures=()
 
@@ -57,6 +52,15 @@ if [ -n "$vault_repository" ]; then
   if [ -d "$HOME/vault/.git" ]; then
     printf '[skip] vault checkout already exists; preserving local changes\n'
     git -C "$HOME/vault" fetch --prune || failures+=("$vault_repository (vault fetch)")
+  elif [ -d "$HOME/vault/.obsidian" ] && [ -z "$(find "$HOME/vault" -mindepth 1 -maxdepth 1 ! -name .obsidian -print -quit)" ]; then
+    vault_clone_tmp="$(mktemp -d)"
+    if gh repo clone "$vault_repository" "$vault_clone_tmp/repository"; then
+      rm -rf "$vault_clone_tmp/repository/.obsidian"
+      cp -a "$vault_clone_tmp/repository/." "$HOME/vault/" || failures+=("$vault_repository (vault copy)")
+    else
+      failures+=("$vault_repository (vault)")
+    fi
+    rm -rf "$vault_clone_tmp"
   elif [ -e "$HOME/vault" ] && [ -n "$(find "$HOME/vault" -mindepth 1 -maxdepth 1 -print -quit)" ]; then
     printf '[warn] refusing to overwrite non-empty non-Git vault directory\n' >&2
     failures+=("$vault_repository (vault destination occupied)")

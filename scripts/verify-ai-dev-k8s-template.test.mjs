@@ -26,9 +26,6 @@ function createBootstrapFixture() {
     join(bin, "gh"),
     `#!/bin/sh
 set -eu
-if [ "$1 $2" = "auth setup-git" ]; then
-  exit 0
-fi
 [ "$1 $2" = "repo clone" ]
 mkdir -p "$4/.git"
 printf '%s\\n' "$3|$4" >> "$GH_CALLS"
@@ -41,6 +38,18 @@ printf '%s\\n' "$3|$4" >> "$GH_CALLS"
   chmodSync(join(home, "sync-vault.sh"), 0o755);
 
   return { bin, calls, home, manifest };
+}
+
+function installFakeCoder(bin) {
+  writeFileSync(
+    join(bin, "coder"),
+    `#!/bin/sh
+set -eu
+[ "$1 $2 $3" = "external-auth access-token github" ]
+printf 'fresh-test-token\\n'
+`,
+  );
+  chmodSync(join(bin, "coder"), 0o755);
 }
 
 test("Kubernetes workspace remains non-root and seeds image home into the PVC", () => {
@@ -62,6 +71,8 @@ test("Kubernetes workspace remains non-root and seeds image home into the PVC", 
 test("file-loaded startup scripts do not contain Terraform dollar escaping or sudo", () => {
   for (const relativePath of [
     "scripts/init.sh",
+    "scripts/github-cli.sh",
+    "scripts/github-credential.sh",
     "scripts/symlinks.sh",
     "scripts/tools-ai.sh",
     "scripts/tools-browser.sh",
@@ -86,6 +97,8 @@ test("CI tooling installs without root and uses verified GitHub CLI artifacts", 
   assert.match(script, /GH_VERSION=2\.96\.0/);
   assert.match(script, /83d5c2ccad5498f58bf6368acb1ab32588cf43ab3a4b1c301bf36328b1c8bd60/);
   assert.match(script, /sha256sum --check --status/);
+  assert.match(script, /credential\.https:\/\/github\.com\.helper/);
+  assert.match(script, /\.local\/libexec\/gh/);
 });
 
 test("workspace bootstrap does not delete vault content or require Docker", () => {
@@ -94,7 +107,8 @@ test("workspace bootstrap does not delete vault content or require Docker", () =
   const terraform = readTemplateFile("main.tf");
 
   assert.doesNotMatch(cloneScript, /rsync\s+.*--delete/);
-  assert.match(cloneScript, /gh auth setup-git/);
+  assert.doesNotMatch(cloneScript, /gh auth setup-git/);
+  assert.match(cloneScript, /! -name \.obsidian/);
   assert.doesNotMatch(terraform, /git-clone-vault|github-upload-public-key/);
   assert.doesNotMatch(initScript, /docker (info|version)/);
 });
@@ -105,6 +119,41 @@ test("AI tool refresh preserves existing shims when installation fails", () => {
   assert.doesNotMatch(script, /rm -f[\s\\]+"\$HOME\/\.local\/bin\/(?:gsd|codex)/);
   assert.match(script, /npm_global_has "@openai\/codex" && command_exists codex/);
   assert.match(script, /npm_global_has "@opengsd\/gsd-pi" && command_exists gsd/);
+  assert.match(script, /if command_exists get-shit-done-redux; then/);
+  assert.match(script, /run_step "OpenGSD command surfaces"/);
+});
+
+test("shell setup retries incomplete Oh My Zsh installations", () => {
+  const script = readTemplateFile("scripts/tools-shell.sh");
+
+  assert.match(script, /"\$HOME\/\.oh-my-zsh\/\.hive-install-complete"/);
+  assert.match(script, /touch "\$HOME\/\.oh-my-zsh\/\.hive-install-complete"/);
+  assert.doesNotMatch(script, /install_if_missing "Oh My Zsh" "" "\$HOME\/\.oh-my-zsh"/);
+});
+
+test("GitHub helpers retrieve fresh Coder credentials on demand", () => {
+  const { bin, home } = createBootstrapFixture();
+  installFakeCoder(bin);
+  const env = { ...process.env, HOME: home, PATH: `${bin}:${process.env.PATH}` };
+  const credential = join(TEMPLATE_ROOT, "scripts/github-credential.sh");
+  const credentialResult = spawnSync("sh", [credential, "get"], {
+    encoding: "utf8",
+    env,
+    input: "protocol=https\nhost=github.com\n\n",
+  });
+  assert.equal(credentialResult.status, 0, credentialResult.stderr);
+  assert.match(credentialResult.stdout, /password=fresh-test-token/);
+
+  const realGh = join(bin, "gh-real");
+  writeFileSync(realGh, '#!/bin/sh\nprintf "%s|%s\\n" "$GH_TOKEN" "$*"\n');
+  chmodSync(realGh, 0o755);
+  const cli = join(TEMPLATE_ROOT, "scripts/github-cli.sh");
+  const cliResult = spawnSync("sh", [cli, "repo", "view"], {
+    encoding: "utf8",
+    env: { ...env, GH_REAL_BIN: realGh },
+  });
+  assert.equal(cliResult.status, 0, cliResult.stderr);
+  assert.equal(cliResult.stdout.trim(), "fresh-test-token|repo view");
 });
 
 test("repository manifest preserves the requested 25-checkout layout", () => {
@@ -118,6 +167,8 @@ test("repository manifest preserves the requested 25-checkout layout", () => {
 
 test("repository bootstrap is idempotent and preserves local vault content", () => {
   const { bin, calls, home, manifest } = createBootstrapFixture();
+  mkdirSync(join(home, "vault", ".obsidian"), { recursive: true });
+  writeFileSync(join(home, "vault", ".obsidian", "workspace.json"), "metadata\n");
 
   const env = {
     ...process.env,
@@ -132,6 +183,10 @@ test("repository bootstrap is idempotent and preserves local vault content", () 
 
   const first = spawnSync("bash", [script], { encoding: "utf8", env });
   assert.equal(first.status, 0, first.stderr);
+  assert.equal(
+    readFileSync(join(home, "vault", ".obsidian", "workspace.json"), "utf8"),
+    "metadata\n",
+  );
   writeFileSync(join(home, "vault", "local-note.md"), "uncommitted\n");
 
   const second = spawnSync("bash", [script], { encoding: "utf8", env });
