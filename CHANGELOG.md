@@ -1,5 +1,11 @@
 # hive-orchestrator
 
+## 2.6.0
+
+### Minor Changes
+
+- 5fc3379: Add the Kubernetes Coder workspace template for Claude and Codex development environments.
+
 ## 2.5.14
 
 ### Patch Changes
