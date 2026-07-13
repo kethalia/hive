@@ -4,6 +4,8 @@ Hive's web runtime currently relies on Node child processes, local template file
 and long-lived terminal services. Those responsibilities remain on the Kubernetes origin. This
 Worker is the Cloudflare front door: it proxies HTTP and WebSocket upgrades, caches only anonymous
 public assets, preserves private responses as `no-store`, and applies edge security headers.
+Origin cookie domains are removed at the edge so session cookies remain host-only on the public
+Worker or custom domain instead of leaking the private GitOps hostname into browser policy.
 
 ## Configure and preview
 

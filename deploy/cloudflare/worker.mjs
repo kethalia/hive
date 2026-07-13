@@ -9,6 +9,21 @@ function applySecurityHeaders(headers) {
   return headers;
 }
 
+function scopeResponseCookiesToPublicHost(headers) {
+  const getSetCookie = headers.getSetCookie;
+  const cookies =
+    typeof getSetCookie === "function"
+      ? getSetCookie.call(headers)
+      : [headers.get("Set-Cookie")].filter(Boolean);
+  if (cookies.length === 0) return headers;
+
+  headers.delete("Set-Cookie");
+  for (const cookie of cookies) {
+    headers.append("Set-Cookie", cookie.replace(/;\s*Domain=[^;]*/gi, ""));
+  }
+  return headers;
+}
+
 function isPublicCacheRequest(request, url) {
   const staticAsset = url.pathname.startsWith("/_next/static/");
   return (
@@ -55,7 +70,9 @@ async function proxyRequest(request, env, ctx) {
   const originResponse = await fetch(originRequest);
   if (originResponse.status === 101) return originResponse;
 
-  const headers = applySecurityHeaders(new Headers(originResponse.headers));
+  const headers = scopeResponseCookiesToPublicHost(
+    applySecurityHeaders(new Headers(originResponse.headers)),
+  );
   if (cacheable && originResponse.ok) {
     headers.set("Cache-Control", "public, max-age=0, s-maxage=300, stale-while-revalidate=86400");
   } else {
@@ -75,7 +92,12 @@ async function proxyRequest(request, env, ctx) {
   return response;
 }
 
-export { applySecurityHeaders, buildOriginRequest, isPublicCacheRequest };
+export {
+  applySecurityHeaders,
+  buildOriginRequest,
+  isPublicCacheRequest,
+  scopeResponseCookiesToPublicHost,
+};
 
 export default {
   fetch: proxyRequest,

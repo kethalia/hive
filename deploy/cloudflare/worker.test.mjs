@@ -1,6 +1,11 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { applySecurityHeaders, buildOriginRequest, isPublicCacheRequest } from "./worker.mjs";
+import {
+  applySecurityHeaders,
+  buildOriginRequest,
+  isPublicCacheRequest,
+  scopeResponseCookiesToPublicHost,
+} from "./worker.mjs";
 
 test("caches only anonymous public GET requests", () => {
   const publicRequest = new Request("https://hive.example.com/");
@@ -33,4 +38,23 @@ test("routes with the origin host while preserving the public forwarded host", (
   assert.equal(originRequest.url, "https://hive-origin.example.net/tasks");
   assert.equal(originRequest.headers.get("Host"), null);
   assert.equal(originRequest.headers.get("X-Forwarded-Host"), "hive.example.com");
+});
+
+test("scopes origin cookies to the public Worker host", () => {
+  const headers = new Headers();
+  headers.append(
+    "Set-Cookie",
+    "hive-session=expired; Path=/; Domain=.pr-157.hive.local.kethalia.com; Max-Age=0; Secure; HttpOnly; SameSite=Lax",
+  );
+  headers.append(
+    "Set-Cookie",
+    "hive-session=signed; Path=/; Domain=.pr-157.hive.local.kethalia.com; Max-Age=604800; Secure; HttpOnly; SameSite=Lax",
+  );
+
+  scopeResponseCookiesToPublicHost(headers);
+
+  assert.deepEqual(headers.getSetCookie(), [
+    "hive-session=expired; Path=/; Max-Age=0; Secure; HttpOnly; SameSite=Lax",
+    "hive-session=signed; Path=/; Max-Age=604800; Secure; HttpOnly; SameSite=Lax",
+  ]);
 });
