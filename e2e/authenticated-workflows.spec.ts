@@ -56,6 +56,10 @@ async function capture(page: Page, testInfo: TestInfo, name: string) {
   await page.screenshot({ path: testInfo.outputPath(`${name}.png`), fullPage: true });
 }
 
+async function waitForDashboardReady(page: Page) {
+  await expect(page.locator("html")).toHaveAttribute("data-dashboard-keybindings-ready", "true");
+}
+
 test.describe("authenticated Hive workflows", () => {
   test.describe.configure({ mode: "serial" });
   test.skip(!credentialsReady, "Set the Hive preview URL and Coder test credentials.");
@@ -63,7 +67,7 @@ test.describe("authenticated Hive workflows", () => {
   test.beforeEach(async ({ page }) => {
     await page.goto(new URL("/tasks", appUrl).toString());
     await expect(page.getByRole("heading", { name: "Tasks" })).toBeVisible();
-    await expect(page.locator("html")).toHaveAttribute("data-dashboard-keybindings-ready", "true");
+    await waitForDashboardReady(page);
     await dismissNotificationPrompt(page);
   });
 
@@ -95,6 +99,7 @@ test.describe("authenticated Hive workflows", () => {
 
     await page.goto(new URL("/tasks/new", appUrl).toString());
     await expect(page.getByRole("heading", { name: "New Task" })).toBeVisible();
+    await waitForDashboardReady(page);
     await page.getByLabel("Prompt *").fill("Polish the public release workflow");
     await expect(page.getByText("34 chars")).toBeVisible();
     await expect(
@@ -129,6 +134,7 @@ test.describe("authenticated Hive workflows", () => {
     await capture(page, testInfo, "templates");
 
     await page.goto(new URL("/templates/hive", appUrl).toString());
+    await waitForDashboardReady(page);
     await page.getByRole("button", { name: "Push" }).click();
     await expect(page.getByRole("heading", { name: "Push hive?" })).toBeVisible();
     await expect(page.getByText(/Existing workspaces are not rebuilt automatically/)).toBeVisible();
@@ -136,6 +142,7 @@ test.describe("authenticated Hive workflows", () => {
 
     await page.goto(new URL("/workspaces", appUrl).toString());
     await expect(page.getByRole("heading", { name: "Workspaces" })).toBeVisible();
+    await waitForDashboardReady(page);
     await page.getByRole("button", { name: /Add workspace/ }).click();
     await expect(page.getByRole("heading", { name: "Add workspace" })).toBeVisible();
     await expect(page.getByLabel("Workspace name")).toBeVisible();
@@ -161,6 +168,7 @@ test.describe("authenticated Hive workflows", () => {
 
   test("opens a live workspace terminal when one is available", async ({ page }, testInfo) => {
     await page.goto(new URL("/workspaces", appUrl).toString());
+    await waitForDashboardReady(page);
     const workspaceLink = page.getByRole("link", { name: /Open workspace for/ }).first();
     test.skip(
       !(await workspaceLink.isVisible().catch(() => false)),
