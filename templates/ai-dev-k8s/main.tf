@@ -76,10 +76,10 @@ data "coder_parameter" "claude_code_system_prompt" {
 data "coder_parameter" "home_disk_size" {
   name         = "home_disk_size"
   display_name = "Home disk size"
-  description  = "Persistent Longhorn volume size in GiB."
+  description  = "Persistent Longhorn volume size in GiB. Choose at workspace creation; bound Kubernetes PVCs cannot be shrunk."
   type         = "number"
   default      = 100
-  mutable      = true
+  mutable      = false
   order        = 10
 
   validation {
@@ -636,6 +636,16 @@ resource "kubernetes_deployment_v1" "workspace" {
           env {
             name  = "CODER_AGENT_TOKEN"
             value = coder_agent.main.token
+          }
+
+          env {
+            name  = "USER"
+            value = "coder"
+          }
+
+          env {
+            name  = "HOME"
+            value = "/home/coder"
           }
 
           resources {

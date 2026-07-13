@@ -79,49 +79,41 @@ export npm_config_prefix="$HOME/.local"
 
 repair_node_shims || true
 
-# Remove stale command shims before installing. Otherwise a failed npm run can
-# leave abandoned pre-OpenGSD binaries in place and produce a false green check.
-rm -f \
-  "$HOME/.local/bin/gsd" \
-  "$HOME/.local/bin/gsd-cli" \
-  "$HOME/.local/bin/gsd-sdk" \
-  "$HOME/.local/bin/gsd-tools" \
-  "$HOME/.local/bin/get-shit-done-redux" \
-  "$HOME/.local/bin/codex"
-hash -r 2>/dev/null || true
-
-# Remove abandoned pre-OpenGSD packages first. Otherwise stale gsd/gsd-sdk shims can
-# remain first on PATH and mask the maintained @opengsd packages.
-run_step "Remove legacy GSD packages" '
-  npm uninstall -g \
-    get-shit-done-cc \
-    get-shit-done-redux \
-    gsd-pi \
-    @gsd-build/sdk \
-    @gsd-redux/sdk \
-    @gsd-redux/get-shit-done-redux \
-    >/dev/null 2>&1 || true
-'
-
-# Install Codex before refreshing OpenGSD's Codex surface.
-run_step "Codex CLI" '
-  npm install -g @openai/codex@latest
-'
+# Keep verified persistent installs in place. New packages are installed with
+# npm's own replacement handling, so a transient registry failure never starts
+# by deleting working command shims.
+if npm_global_has "@openai/codex" && command_exists codex; then
+  printf '%b[ok] Codex CLI already installed%b\n' "$GREEN" "$RESET"
+else
+  run_step "Codex CLI" '
+    npm install -g --force @openai/codex@latest
+  '
+fi
 
 # Install OpenGSD core globally so hooks and slash commands resolve the maintained
 # gsd-sdk shim, then refresh Claude Code and Codex command/skill surfaces.
 # shellcheck disable=SC2016 # The command is intentionally evaluated by run_step.
-run_step "OpenGSD core (Claude Code + Codex)" '
-  mkdir -p "$HOME/.codex" &&
-  npm install -g @opengsd/get-shit-done-redux@latest &&
-  get-shit-done-redux --claude --global &&
-  get-shit-done-redux --codex --global
-'
+if npm_global_has "@opengsd/get-shit-done-redux" && command_exists gsd-sdk && command_exists get-shit-done-redux; then
+  printf '%b[ok] OpenGSD core already installed%b\n' "$GREEN" "$RESET"
+else
+  run_step "OpenGSD core (Claude Code + Codex)" '
+    mkdir -p "$HOME/.codex" &&
+    npm install -g --force @opengsd/get-shit-done-redux@latest &&
+    get-shit-done-redux --claude --global &&
+    get-shit-done-redux --codex --global
+  '
+fi
 
 # Install the maintained standalone CLI harness. This provides gsd and gsd-cli.
-run_step "OpenGSD Pi CLI" '
-  npm install -g @opengsd/gsd-pi@latest
-'
+if npm_global_has "@opengsd/gsd-pi" && command_exists gsd && command_exists gsd-cli; then
+  printf '%b[ok] OpenGSD Pi CLI already installed%b\n' "$GREEN" "$RESET"
+else
+  run_step "OpenGSD Pi CLI" '
+    npm install -g --force @opengsd/gsd-pi@latest
+  '
+fi
+
+hash -r 2>/dev/null || true
 
 gsd_path="$(command -v gsd 2>/dev/null || true)"
 gsd_sdk_path="$(command -v gsd-sdk 2>/dev/null || true)"

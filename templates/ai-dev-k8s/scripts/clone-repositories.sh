@@ -17,6 +17,11 @@ if ! command -v gh >/dev/null 2>&1 || [ -z "${GH_TOKEN:-}" ]; then
   exit 1
 fi
 
+if ! gh auth setup-git; then
+  printf '[error] unable to configure Git authentication for private repository fetches\n' >&2
+  exit 1
+fi
+
 mkdir -p "$HOME/projects"
 failures=()
 

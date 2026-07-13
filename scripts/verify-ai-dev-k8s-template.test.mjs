@@ -22,6 +22,9 @@ test("Kubernetes workspace remains non-root and seeds image home into the PVC", 
   assert.doesNotMatch(terraform, /allow_privilege_escalation\s*=\s*true/);
   assert.match(terraform, /"app\.kubernetes\.io\/name"\s*=\s*"coder-workspace"/);
   assert.doesNotMatch(terraform, /ignore_changes\s*=\s*all/);
+  assert.match(terraform, /name\s*=\s*"home_disk_size"[\s\S]*?mutable\s*=\s*false/);
+  assert.match(terraform, /name\s*=\s*"USER"[\s\S]*?value\s*=\s*"coder"/);
+  assert.match(terraform, /name\s*=\s*"HOME"[\s\S]*?value\s*=\s*"\/home\/coder"/);
 });
 
 test("file-loaded startup scripts do not contain Terraform dollar escaping or sudo", () => {
@@ -59,8 +62,17 @@ test("workspace bootstrap does not delete vault content or require Docker", () =
   const terraform = readTemplateFile("main.tf");
 
   assert.doesNotMatch(cloneScript, /rsync\s+.*--delete/);
+  assert.match(cloneScript, /gh auth setup-git/);
   assert.doesNotMatch(terraform, /git-clone-vault|github-upload-public-key/);
   assert.doesNotMatch(initScript, /docker (info|version)/);
+});
+
+test("AI tool refresh preserves existing shims when installation fails", () => {
+  const script = readTemplateFile("scripts/tools-ai.sh");
+
+  assert.doesNotMatch(script, /rm -f[\s\\]+"\$HOME\/\.local\/bin\/(?:gsd|codex)/);
+  assert.match(script, /npm_global_has "@openai\/codex" && command_exists codex/);
+  assert.match(script, /npm_global_has "@opengsd\/gsd-pi" && command_exists gsd/);
 });
 
 test("repository manifest preserves the requested 25-checkout layout", () => {
@@ -84,6 +96,9 @@ test("repository bootstrap is idempotent and preserves local vault content", () 
 
   const fakeGh = `#!/bin/sh
 set -eu
+if [ "$1 $2" = "auth setup-git" ]; then
+  exit 0
+fi
 [ "$1 $2" = "repo clone" ]
 mkdir -p "$4/.git"
 printf '%s\\n' "$3|$4" >> "$GH_CALLS"
