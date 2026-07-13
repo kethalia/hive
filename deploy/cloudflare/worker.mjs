@@ -17,6 +17,21 @@ function isPublicCacheRequest(request, url) {
   );
 }
 
+function buildOriginRequest(request, incomingUrl, originUrl) {
+  const targetUrl = new URL(`${incomingUrl.pathname}${incomingUrl.search}`, originUrl);
+  const requestHeaders = new Headers(request.headers);
+  requestHeaders.delete("Host");
+  requestHeaders.set("X-Forwarded-Host", incomingUrl.host);
+  requestHeaders.set("X-Forwarded-Proto", "https");
+
+  return new Request(targetUrl, {
+    method: request.method,
+    headers: requestHeaders,
+    body: request.body,
+    redirect: "manual",
+  });
+}
+
 async function proxyRequest(request, env, ctx) {
   if (!env.HIVE_ORIGIN) {
     return new Response("Hive edge origin is not configured.", { status: 503 });
@@ -28,17 +43,7 @@ async function proxyRequest(request, env, ctx) {
     return new Response("Hive edge origin must use HTTPS.", { status: 503 });
   }
 
-  const targetUrl = new URL(`${incomingUrl.pathname}${incomingUrl.search}`, originUrl);
-  const requestHeaders = new Headers(request.headers);
-  requestHeaders.set("X-Forwarded-Host", incomingUrl.host);
-  requestHeaders.set("X-Forwarded-Proto", "https");
-
-  const originRequest = new Request(targetUrl, {
-    method: request.method,
-    headers: requestHeaders,
-    body: request.body,
-    redirect: "manual",
-  });
+  const originRequest = buildOriginRequest(request, incomingUrl, originUrl);
 
   const cacheable = isPublicCacheRequest(request, incomingUrl);
   const cache = caches.default;
@@ -70,7 +75,7 @@ async function proxyRequest(request, env, ctx) {
   return response;
 }
 
-export { applySecurityHeaders, isPublicCacheRequest };
+export { applySecurityHeaders, buildOriginRequest, isPublicCacheRequest };
 
 export default {
   fetch: proxyRequest,
