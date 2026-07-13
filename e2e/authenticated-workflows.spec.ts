@@ -147,9 +147,10 @@ test.describe("authenticated Hive workflows", () => {
     await expect(
       page.getByRole("heading", { name: "Workspace session is unavailable" }),
     ).toBeVisible();
-    await expect(page.getByRole("link", { name: "Workspaces" })).toBeVisible();
-    await expect(page.getByRole("link", { name: "Diagnostics" })).toBeVisible();
-    await expect(page.getByRole("button", { name: "Retry" })).toBeVisible();
+    const workspaceRecovery = page.locator("#main-content");
+    await expect(workspaceRecovery.getByRole("link", { name: "Workspaces" })).toBeVisible();
+    await expect(workspaceRecovery.getByRole("link", { name: "Diagnostics" })).toBeVisible();
+    await expect(workspaceRecovery.getByRole("button", { name: "Retry" })).toBeVisible();
   });
 
   test("opens a live workspace terminal when one is available", async ({ page }, testInfo) => {
