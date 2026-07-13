@@ -185,6 +185,14 @@ describe("DashboardKeyboardController", () => {
     }
   });
 
+  it("publishes keybinding readiness only while the controller is mounted", () => {
+    const { unmount } = render(<DashboardKeyboardController />);
+
+    expect(document.documentElement.dataset.dashboardKeybindingsReady).toBe("true");
+    unmount();
+    expect(document.documentElement.dataset.dashboardKeybindingsReady).toBeUndefined();
+  });
+
   it("loads dashboard commands and navigates from the global palette", async () => {
     render(<DashboardKeyboardController />);
 

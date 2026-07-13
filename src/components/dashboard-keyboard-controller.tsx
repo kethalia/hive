@@ -299,6 +299,14 @@ export function DashboardKeyboardController() {
     allowTextEntry: true,
   });
 
+  useEffect(() => {
+    const root = document.documentElement;
+    root.dataset.dashboardKeybindingsReady = "true";
+    return () => {
+      delete root.dataset.dashboardKeybindingsReady;
+    };
+  }, []);
+
   const dashboardActions = useMemo<CommandPaletteAction[]>(() => {
     const activeTasks = tasks.filter((task) => ACTIVE_STATUSES.has(task.status));
     const recentTasks = tasks.filter((task) => !ACTIVE_STATUSES.has(task.status)).slice(0, 6);

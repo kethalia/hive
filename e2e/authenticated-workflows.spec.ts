@@ -63,6 +63,7 @@ test.describe("authenticated Hive workflows", () => {
   test.beforeEach(async ({ page }) => {
     await page.goto(new URL("/tasks", appUrl).toString());
     await expect(page.getByRole("heading", { name: "Tasks" })).toBeVisible();
+    await expect(page.locator("html")).toHaveAttribute("data-dashboard-keybindings-ready", "true");
     await dismissNotificationPrompt(page);
   });
 
