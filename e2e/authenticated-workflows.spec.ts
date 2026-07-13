@@ -108,8 +108,9 @@ test.describe("authenticated Hive workflows", () => {
     await expect(
       page.getByRole("heading", { name: "This task is no longer available." }),
     ).toBeVisible();
-    await expect(page.getByRole("link", { name: "Tasks" })).toBeVisible();
-    await expect(page.getByRole("link", { name: "New task" })).toBeVisible();
+    const taskRecovery = page.locator("#main-content");
+    await expect(taskRecovery.getByRole("link", { name: "Tasks" })).toBeVisible();
+    await expect(taskRecovery.getByRole("link", { name: "New task" })).toBeVisible();
 
     expect(
       pageErrors.filter((message) => /hydration|Minified React error #418/i.test(message)),
