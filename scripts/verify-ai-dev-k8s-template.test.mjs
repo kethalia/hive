@@ -116,11 +116,12 @@ function verifySafeBootstrap() {
 function verifyAiToolRefresh() {
   const script = readTemplateFile("scripts/tools-ai.sh");
 
-  assert.doesNotMatch(script, /rm -f[\s\\]+"\$HOME\/\.local\/bin\/(?:gsd|codex)/);
-  assert.match(script, /npm_global_has "@openai\/codex" && command_exists codex/);
-  assert.match(script, /npm_global_has "@opengsd\/gsd-pi" && command_exists gsd/);
-  assert.match(script, /if command_exists get-shit-done-redux; then/);
-  assert.match(script, /run_step "OpenGSD command surfaces"/);
+  assert.ok(!script.includes('rm -f "$HOME/.local/bin/gsd"'));
+  assert.ok(!script.includes('rm -f "$HOME/.local/bin/codex"'));
+  assert.ok(script.includes('npm_global_has "@openai/codex" && command_exists codex'));
+  assert.ok(script.includes('npm_global_has "@opengsd/gsd-pi" && command_exists gsd'));
+  assert.ok(script.includes("if command_exists get-shit-done-redux; then"));
+  assert.ok(script.includes('run_step "OpenGSD command surfaces"'));
 }
 
 function verifyShellRetry() {
