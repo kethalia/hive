@@ -1,3 +1,4 @@
+/* eslint-disable security/detect-non-literal-fs-filename -- Test paths are created under an isolated mkdtemp fixture. */
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { chmodSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
@@ -9,6 +10,37 @@ const TEMPLATE_ROOT = join(process.cwd(), "templates/ai-dev-k8s");
 
 function readTemplateFile(relativePath) {
   return readFileSync(join(TEMPLATE_ROOT, relativePath), "utf8");
+}
+
+function createBootstrapFixture() {
+  const fixtureRoot = mkdtempSync(join(tmpdir(), "ai-dev-k8s-bootstrap-"));
+  const home = join(fixtureRoot, "home");
+  const bin = join(fixtureRoot, "bin");
+  const manifest = join(fixtureRoot, "repositories.txt");
+  const calls = join(fixtureRoot, "gh-calls.log");
+  mkdirSync(home, { recursive: true });
+  mkdirSync(bin, { recursive: true });
+  writeFileSync(manifest, "example/one|example/one\nexample/two|nested/two\n");
+
+  writeFileSync(
+    join(bin, "gh"),
+    `#!/bin/sh
+set -eu
+if [ "$1 $2" = "auth setup-git" ]; then
+  exit 0
+fi
+[ "$1 $2" = "repo clone" ]
+mkdir -p "$4/.git"
+printf '%s\\n' "$3|$4" >> "$GH_CALLS"
+`,
+  );
+  chmodSync(join(bin, "gh"), 0o755);
+  writeFileSync(join(bin, "git"), "#!/bin/sh\nexit 0\n");
+  chmodSync(join(bin, "git"), 0o755);
+  writeFileSync(join(home, "sync-vault.sh"), '#!/bin/sh\ntouch "$HOME/.vault-synced"\n');
+  chmodSync(join(home, "sync-vault.sh"), 0o755);
+
+  return { bin, calls, home, manifest };
 }
 
 test("Kubernetes workspace remains non-root and seeds image home into the PVC", () => {
@@ -85,38 +117,7 @@ test("repository manifest preserves the requested 25-checkout layout", () => {
 });
 
 test("repository bootstrap is idempotent and preserves local vault content", () => {
-  const fixtureRoot = mkdtempSync(join(tmpdir(), "ai-dev-k8s-bootstrap-"));
-  const home = join(fixtureRoot, "home");
-  const bin = join(fixtureRoot, "bin");
-  const manifest = join(fixtureRoot, "repositories.txt");
-  const calls = join(fixtureRoot, "gh-calls.log");
-  mkdirSync(home, { recursive: true });
-  mkdirSync(bin, { recursive: true });
-  writeFileSync(manifest, "example/one|example/one\nexample/two|nested/two\n");
-
-  const fakeGh = `#!/bin/sh
-set -eu
-if [ "$1 $2" = "auth setup-git" ]; then
-  exit 0
-fi
-[ "$1 $2" = "repo clone" ]
-mkdir -p "$4/.git"
-printf '%s\\n' "$3|$4" >> "$GH_CALLS"
-`;
-  writeFileSync(join(bin, "gh"), fakeGh);
-  chmodSync(join(bin, "gh"), 0o755);
-
-  const fakeGit = `#!/bin/sh
-exit 0
-`;
-  writeFileSync(join(bin, "git"), fakeGit);
-  chmodSync(join(bin, "git"), 0o755);
-
-  const syncVault = `#!/bin/sh
-touch "$HOME/.vault-synced"
-`;
-  writeFileSync(join(home, "sync-vault.sh"), syncVault);
-  chmodSync(join(home, "sync-vault.sh"), 0o755);
+  const { bin, calls, home, manifest } = createBootstrapFixture();
 
   const env = {
     ...process.env,

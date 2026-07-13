@@ -1,4 +1,5 @@
 #!/bin/bash
+# shellcheck disable=SC2034,SC2154 # Variables are referenced or populated after Terraform rendering.
 set -e
 
 BOLD='\033[0;1m'
