@@ -52,7 +52,7 @@ printf 'fresh-test-token\\n'
   chmodSync(join(bin, "coder"), 0o755);
 }
 
-test("Kubernetes workspace remains non-root and seeds image home into the PVC", () => {
+test("Kubernetes workspace remains non-root and seeds image home into the PVC", function verifyPodSecurity() {
   const terraform = readTemplateFile("main.tf");
 
   assert.match(terraform, /startup_script_behavior\s*=\s*"blocking"/);
@@ -68,7 +68,7 @@ test("Kubernetes workspace remains non-root and seeds image home into the PVC", 
   assert.match(terraform, /name\s*=\s*"HOME"[\s\S]*?value\s*=\s*"\/home\/coder"/);
 });
 
-test("file-loaded startup scripts do not contain Terraform dollar escaping or sudo", () => {
+test("file-loaded startup scripts do not contain Terraform dollar escaping or sudo", function verifyFileLoadedScripts() {
   for (const relativePath of [
     "scripts/init.sh",
     "scripts/github-cli.sh",
@@ -90,7 +90,7 @@ test("file-loaded startup scripts do not contain Terraform dollar escaping or su
   }
 });
 
-test("CI tooling installs without root and uses verified GitHub CLI artifacts", () => {
+test("CI tooling installs without root and uses verified GitHub CLI artifacts", function verifyCiTooling() {
   const script = readTemplateFile("scripts/tools-ci.sh");
 
   assert.doesNotMatch(script, /\bsudo\b/);
@@ -101,7 +101,7 @@ test("CI tooling installs without root and uses verified GitHub CLI artifacts", 
   assert.match(script, /\.local\/libexec\/gh/);
 });
 
-test("workspace bootstrap does not delete vault content or require Docker", () => {
+test("workspace bootstrap does not delete vault content or require Docker", function verifySafeBootstrap() {
   const cloneScript = readTemplateFile("scripts/clone-repositories.sh");
   const initScript = readTemplateFile("scripts/init.sh");
   const terraform = readTemplateFile("main.tf");
@@ -113,7 +113,7 @@ test("workspace bootstrap does not delete vault content or require Docker", () =
   assert.doesNotMatch(initScript, /docker (info|version)/);
 });
 
-test("AI tool refresh preserves existing shims when installation fails", () => {
+test("AI tool refresh preserves existing shims when installation fails", function verifyAiToolRefresh() {
   const script = readTemplateFile("scripts/tools-ai.sh");
 
   assert.doesNotMatch(script, /rm -f[\s\\]+"\$HOME\/\.local\/bin\/(?:gsd|codex)/);
@@ -123,7 +123,7 @@ test("AI tool refresh preserves existing shims when installation fails", () => {
   assert.match(script, /run_step "OpenGSD command surfaces"/);
 });
 
-test("shell setup retries incomplete Oh My Zsh installations", () => {
+test("shell setup retries incomplete Oh My Zsh installations", function verifyShellRetry() {
   const script = readTemplateFile("scripts/tools-shell.sh");
 
   assert.match(script, /"\$HOME\/\.oh-my-zsh\/\.hive-install-complete"/);
@@ -131,7 +131,7 @@ test("shell setup retries incomplete Oh My Zsh installations", () => {
   assert.doesNotMatch(script, /install_if_missing "Oh My Zsh" "" "\$HOME\/\.oh-my-zsh"/);
 });
 
-test("GitHub helpers retrieve fresh Coder credentials on demand", () => {
+test("GitHub helpers retrieve fresh Coder credentials on demand", function verifyGithubHelpers() {
   const { bin, home } = createBootstrapFixture();
   installFakeCoder(bin);
   const env = { ...process.env, HOME: home, PATH: `${bin}:${process.env.PATH}` };
@@ -156,7 +156,7 @@ test("GitHub helpers retrieve fresh Coder credentials on demand", () => {
   assert.equal(cliResult.stdout.trim(), "fresh-test-token|repo view");
 });
 
-test("repository manifest preserves the requested 25-checkout layout", () => {
+test("repository manifest preserves the requested 25-checkout layout", function verifyRepositoryManifest() {
   const entries = readTemplateFile("repositories.txt").trim().split("\n");
 
   assert.equal(entries.length, 25);
@@ -165,7 +165,7 @@ test("repository manifest preserves the requested 25-checkout layout", () => {
   assert.ok(entries.includes("phlox-labs/service-routing-api|phlox-labs/service-routing-api"));
 });
 
-test("repository bootstrap is idempotent and preserves local vault content", () => {
+test("repository bootstrap is idempotent and preserves local vault content", function verifyRepositoryBootstrap() {
   const { bin, calls, home, manifest } = createBootstrapFixture();
   mkdirSync(join(home, "vault", ".obsidian"), { recursive: true });
   writeFileSync(join(home, "vault", ".obsidian", "workspace.json"), "metadata\n");
