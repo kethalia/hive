@@ -90,61 +90,9 @@ else
   '
 fi
 
-# Install OpenGSD core globally so hooks and slash commands resolve the maintained
-# gsd-sdk shim.
-# shellcheck disable=SC2016 # The command is intentionally evaluated by run_step.
-if npm_global_has "@opengsd/get-shit-done-redux" && command_exists gsd-sdk && command_exists get-shit-done-redux; then
-  printf '%b[ok] OpenGSD core already installed%b\n' "$GREEN" "$RESET"
-else
-  run_step "OpenGSD core (Claude Code + Codex)" '
-    mkdir -p "$HOME/.codex" &&
-    npm install -g --force @opengsd/get-shit-done-redux@latest
-  '
-fi
-
-# Refresh both integrations on every start. If either command failed after a
-# successful npm install, the next workspace start retries the missing surface.
-if command_exists get-shit-done-redux; then
-  # shellcheck disable=SC2016 # The command is intentionally evaluated by run_step.
-  run_step "OpenGSD command surfaces" '
-    mkdir -p "$HOME/.codex" &&
-    get-shit-done-redux --claude --global &&
-    get-shit-done-redux --codex --global
-  '
-else
-  printf '%b[warn] OpenGSD surface refresh skipped because the CLI is unavailable%b\n' "$YELLOW" "$RESET"
-fi
-
-# Install the maintained standalone CLI harness. This provides gsd and gsd-cli.
-if npm_global_has "@opengsd/gsd-pi" && command_exists gsd && command_exists gsd-cli; then
-  printf '%b[ok] OpenGSD Pi CLI already installed%b\n' "$GREEN" "$RESET"
-else
-  run_step "OpenGSD Pi CLI" '
-    npm install -g --force @opengsd/gsd-pi@latest
-  '
-fi
-
 hash -r 2>/dev/null || true
 
-gsd_path="$(command -v gsd 2>/dev/null || true)"
-gsd_sdk_path="$(command -v gsd-sdk 2>/dev/null || true)"
 codex_path="$(command -v codex 2>/dev/null || true)"
-
-if [ "$gsd_path" = "$HOME/.local/bin/gsd" ] && npm_global_has "@opengsd/gsd-pi"; then
-  printf "${GREEN}[ok] OpenGSD CLI available: %s${RESET}\n" "$gsd_path"
-elif [ -n "$gsd_path" ]; then
-  printf "${YELLOW}[warn] gsd is present but @opengsd/gsd-pi is not verified: %s${RESET}\n" "$gsd_path"
-else
-  printf '%b[warn] gsd was not found on PATH after installation%b\n' "$YELLOW" "$RESET"
-fi
-
-if [ "$gsd_sdk_path" = "$HOME/.local/bin/gsd-sdk" ] && npm_global_has "@opengsd/get-shit-done-redux"; then
-  printf "${GREEN}[ok] OpenGSD SDK available: %s${RESET}\n" "$gsd_sdk_path"
-elif [ -n "$gsd_sdk_path" ]; then
-  printf "${YELLOW}[warn] gsd-sdk is present but @opengsd/get-shit-done-redux is not verified: %s${RESET}\n" "$gsd_sdk_path"
-else
-  printf '%b[warn] gsd-sdk was not found on PATH after installation%b\n' "$YELLOW" "$RESET"
-fi
 
 if [ "$codex_path" = "$HOME/.local/bin/codex" ] && npm_global_has "@openai/codex"; then
   printf "${GREEN}[ok] Codex CLI available: %s${RESET}\n" "$codex_path"

@@ -114,15 +114,24 @@ function verifySafeBootstrap() {
   assert.doesNotMatch(initScript, /docker (info|version)/);
 }
 
-function verifyAiToolRefresh() {
+function verifyAiAgentSelection() {
   const script = readTemplateFile("scripts/tools-ai.sh");
+  const terraform = readTemplateFile("main.tf");
+  const initScript = readTemplateFile("scripts/init.sh");
+  const syncScript = readTemplateFile("scripts/sync-vault.sh");
 
-  assert.ok(!script.includes('rm -f "$HOME/.local/bin/gsd"'));
-  assert.ok(!script.includes('rm -f "$HOME/.local/bin/codex"'));
   assert.ok(script.includes('npm_global_has "@openai/codex" && command_exists codex'));
-  assert.ok(script.includes('npm_global_has "@opengsd/gsd-pi" && command_exists gsd'));
-  assert.ok(script.includes("if command_exists get-shit-done-redux; then"));
-  assert.ok(script.includes('run_step "OpenGSD command surfaces"'));
+  assert.ok(terraform.includes('module "claude-code"'));
+  assert.ok(!terraform.includes('resource "coder_app" "gsd"'));
+
+  for (const content of [script, terraform, initScript]) {
+    assert.ok(!content.toLowerCase().includes("opengsd"));
+    assert.ok(!content.toLowerCase().includes("gsd-pi"));
+    assert.ok(!content.toLowerCase().includes("get-shit-done"));
+  }
+  assert.ok(!syncScript.includes("$HOME/.pi"));
+  assert.ok(syncScript.includes("[Pp][Ii]-*"));
+  assert.ok(syncScript.includes("*[Gg][Ss][Dd]*) return 1"));
 }
 
 function verifyShellRetry() {
@@ -224,7 +233,7 @@ test(
 );
 test("CI tooling installs without root and uses verified GitHub CLI artifacts", verifyCiTooling);
 test("workspace bootstrap does not delete vault content or require Docker", verifySafeBootstrap);
-test("AI tool refresh preserves existing shims when installation fails", verifyAiToolRefresh);
+test("workspace only provisions Claude and Codex AI agents", verifyAiAgentSelection);
 test("shell setup retries incomplete Oh My Zsh installations", verifyShellRetry);
 test("GitHub helpers retrieve fresh Coder credentials on demand", verifyGithubHelpers);
 test("repository manifest only includes approved organizations", verifyRepositoryManifest);

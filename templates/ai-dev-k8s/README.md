@@ -65,5 +65,5 @@ coder create --template ai-dev-k8s ai-dev-k8s-01
 ```
 
 Verify `coder ssh`, `~/projects`, `~/vault`, the web terminal, code-server,
-Codex, Claude Code, OpenGSD, Node.js, Foundry, and persistence after a stop/start
-cycle before treating this template as the default.
+Codex, Claude Code, Node.js, Foundry, and persistence after a stop/start cycle
+before treating this template as the default.

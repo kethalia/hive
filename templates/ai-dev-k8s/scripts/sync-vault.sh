@@ -23,7 +23,6 @@ AGENTS_SRC="$VAULT_DIR/Agents"
 CLAUDE_DIR="$HOME/.claude"
 AGENTS_CONV_DIR="$HOME/.agents"
 CODEX_DIR="$HOME/.codex"
-PI_DIR="$HOME/.pi/agent"
 
 # Track what changed for logging
 changes=()
@@ -60,14 +59,14 @@ sync_file() {
 # CLAUDE.md — sync to all agent directories
 # -----------------------------------------------------------------------------
 sync_claude_md() {
-  sync_file "$AGENTS_SRC/CLAUDE.md" "CLAUDE.md" "$CLAUDE_DIR" "$AGENTS_CONV_DIR" "$PI_DIR"
+  sync_file "$AGENTS_SRC/CLAUDE.md" "CLAUDE.md" "$CLAUDE_DIR" "$AGENTS_CONV_DIR"
 }
 
 # -----------------------------------------------------------------------------
 # AGENTS.md — sync to all agent directories
 # -----------------------------------------------------------------------------
 sync_agents_md() {
-  sync_file "$AGENTS_SRC/AGENTS.md" "AGENTS.md" "$CLAUDE_DIR" "$AGENTS_CONV_DIR" "$CODEX_DIR" "$PI_DIR"
+  sync_file "$AGENTS_SRC/AGENTS.md" "AGENTS.md" "$CLAUDE_DIR" "$AGENTS_CONV_DIR" "$CODEX_DIR"
 }
 
 # -----------------------------------------------------------------------------
@@ -86,12 +85,13 @@ sync_skills() {
     [ -d "$skill_dir" ] || continue
     local skill_name
     skill_name=$(basename "$skill_dir")
+    skill_is_allowed "$skill_name" || continue
     vault_hashes["$skill_name"]=$(cd "$skill_dir" && find . -type f -exec md5sum {} + 2>/dev/null | sort | md5sum | cut -d' ' -f1)
   done
 
   # Codex scans ~/.agents/skills for user skills, so AGENTS_CONV_DIR/skills is
   # intentionally shared between generic agent tooling and Codex.
-  local skill_targets=("$CLAUDE_DIR/skills" "$AGENTS_CONV_DIR/skills" "$PI_DIR/skills")
+  local skill_targets=("$CLAUDE_DIR/skills" "$AGENTS_CONV_DIR/skills")
 
   for skills_target in "${skill_targets[@]}"; do
     mkdir -p "$skills_target"
@@ -109,7 +109,7 @@ sync_skills() {
           echo "WARNING: ignoring suspicious manifest entry: $managed_name"
           continue
         fi
-        if [ -d "$skills_target/$managed_name" ] && [ ! -d "$VAULT_DIR/Skills/$managed_name" ]; then
+        if [ -d "$skills_target/$managed_name" ] && { [ ! -d "$VAULT_DIR/Skills/$managed_name" ] || ! skill_is_allowed "$managed_name"; }; then
           rm -rf "${skills_target:?}/$managed_name"
           removed=$((removed + 1))
         fi
@@ -120,6 +120,7 @@ sync_skills() {
       [ -d "$skill_dir" ] || continue
       local skill_name
       skill_name=$(basename "$skill_dir")
+      skill_is_allowed "$skill_name" || continue
 
       local needs_sync=false
       if [ ! -d "$skills_target/$skill_name" ]; then
@@ -144,7 +145,10 @@ sync_skills() {
     local managed_list=""
     for skill_dir in "$VAULT_DIR/Skills"/*/; do
       [ -d "$skill_dir" ] || continue
-      managed_list+="$(basename "$skill_dir")"$'\n'
+      local skill_name
+      skill_name=$(basename "$skill_dir")
+      skill_is_allowed "$skill_name" || continue
+      managed_list+="$skill_name"$'\n'
     done
     printf '%s' "$managed_list" > "$skills_target/.vault-managed"
 
@@ -154,6 +158,13 @@ sync_skills() {
     fi
     echo "Skills ($skills_target): $synced updated, $removed removed, $unchanged unchanged (total: $total)"
   done
+}
+
+skill_is_allowed() {
+  case "$1" in
+    [Pp][Ii] | [Pp][Ii]-* | *-[Pp][Ii] | *-[Pp][Ii]-* | *[Gg][Ss][Dd]*) return 1 ;;
+    *) return 0 ;;
+  esac
 }
 
 # -----------------------------------------------------------------------------

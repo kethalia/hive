@@ -27,8 +27,6 @@ if [ ! -f ~/.workspace_initialized ]; then
 ### AI-Assisted Development
 - **Claude Code**: `claude` in terminal or use the web app
 - **Codex CLI**: `codex` in terminal with Playwright MCP and vault skills wired
-- **OpenGSD core**: `/gsd-new-project` or `/gsd-progress --next` inside Claude Code and Codex
-- **OpenGSD Pi**: `gsd` standalone CLI (`gsd --version` to verify)
 
 ### Available Tools & Versions
 - **Node.js**: v24 (default), also available: 18, 20, 22
@@ -53,7 +51,6 @@ Claude Code and Codex can see what you're developing in a browser:
 # AI Agents
 claude                       # Start Claude Code
 codex                        # Start Codex CLI
-gsd                          # Start OpenGSD Pi
 
 # Node.js
 node --version               # Check Node version
@@ -82,13 +79,6 @@ fi
 
 # Ensure tools are on PATH (prepend without overriding agent PATH)
 export PATH="$HOME/.local/bin:$HOME/.local/share/pnpm:$HOME/.bun/bin:$HOME/.foundry/bin:$PATH"
-
-# Home fallback so pi picks up MCP config when run from ~.
-if [ -f /home/coder/.claude/mcp.json ] && [ ! -f /home/coder/.mcp.json ]; then
-  cp /home/coder/.claude/mcp.json /home/coder/.mcp.json
-  chmod 600 /home/coder/.mcp.json
-  echo "Seeded pi MCP config at /home/coder/.mcp.json"
-fi
 
 # Codex MCP config — user-level config is shared by the Codex CLI and IDE.
 # Managed as a marked block so user settings outside the block are preserved.
@@ -149,7 +139,7 @@ fi
 # =============================================================================
 # Vault sync — deploy sync-vault.sh and run it
 # sync-vault.sh is the single source of truth for syncing CLAUDE.md, AGENTS.md,
-# Skills, and GSD skills symlinks from the vault.
+# Skills from the vault.
 # It's also called by the post_clone_script in main.tf after every vault fetch.
 # Obsidian creates .obsidian/ automatically on first launch.
 # mcp.json is baked into the Docker image (docker/hive-base/claude-mcp.json).
@@ -171,7 +161,7 @@ CLAUDEEOF
   echo "CLAUDE.md: written from template fallback (vault not available yet)"
 fi
 
-# Run vault sync (syncs CLAUDE.md, AGENTS.md, Skills, GSD skills symlink)
+# Run vault sync (syncs CLAUDE.md, AGENTS.md, and Skills)
 "$HOME/sync-vault.sh"
 
 echo ""
