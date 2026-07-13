@@ -3,8 +3,8 @@
 import { Activity, AlertCircle, ArrowLeft, RefreshCw } from "lucide-react";
 import Link from "next/link";
 import { useEffect } from "react";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Button } from "@/components/ui/button";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Button, buttonVariants } from "@/components/ui/button";
 
 export function StaleEntryAlert({ workspaceId }: { workspaceId: string }) {
   useEffect(() => {
@@ -21,25 +21,22 @@ export function StaleEntryAlert({ workspaceId }: { workspaceId: string }) {
     >
       <Alert variant="destructive" className="max-w-xl">
         <AlertCircle className="size-5" />
-        <AlertTitle>Workspace session is unavailable</AlertTitle>
+        <h1 className="col-start-2 font-medium">Workspace session is unavailable</h1>
         <AlertDescription className="space-y-5">
           <p>
             Hive could not find a running agent for this workspace. It may have stopped, rebuilt, or
             been removed in Coder.
           </p>
           <div className="flex flex-wrap gap-3">
-            <Button variant="outline" nativeButton={false} render={<Link href="/workspaces" />}>
+            <Link className={buttonVariants({ variant: "outline" })} href="/workspaces">
               <ArrowLeft className="size-4" aria-hidden="true" /> Workspaces
-            </Button>
-            <Button
-              variant="outline"
-              nativeButton={false}
-              render={
-                <Link href={`/terminal/status?workspaceId=${encodeURIComponent(workspaceId)}`} />
-              }
+            </Link>
+            <Link
+              className={buttonVariants({ variant: "outline" })}
+              href={`/terminal/status?workspaceId=${encodeURIComponent(workspaceId)}`}
             >
               <Activity className="size-4" aria-hidden="true" /> Diagnostics
-            </Button>
+            </Link>
             <Button type="button" onClick={() => window.location.reload()}>
               <RefreshCw className="size-4" aria-hidden="true" /> Retry
             </Button>

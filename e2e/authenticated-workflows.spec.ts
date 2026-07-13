@@ -81,9 +81,12 @@ test.describe("authenticated Hive workflows", () => {
     await expect(page.getByText("Terminal status", { exact: true }).last()).toBeVisible();
     await page.keyboard.press("Escape");
 
-    await page.keyboard.press("Control+Shift+2");
+    const navigationModifier = await page.evaluate(() =>
+      /Mac|iPhone|iPad/.test(navigator.platform) ? "Meta" : "Control",
+    );
+    await page.keyboard.press(`${navigationModifier}+Shift+2`);
     await expect(page).toHaveURL(/\/workspaces$/);
-    await page.keyboard.press("Control+Shift+1");
+    await page.keyboard.press(`${navigationModifier}+Shift+1`);
     await expect(page).toHaveURL(/\/tasks$/);
 
     await page.goto(new URL("/tasks/new", appUrl).toString());

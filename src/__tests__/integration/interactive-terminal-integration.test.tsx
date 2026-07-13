@@ -572,6 +572,7 @@ vi.mock("@/components/terminal/MobileTerminalShell", () => ({
 }));
 
 vi.mock("@/components/ui/button", () => ({
+  buttonVariants: () => "button-variant",
   Button: ({ children, ...props }: React.ButtonHTMLAttributes<HTMLButtonElement>) => (
     <button type="button" {...props}>
       {children}

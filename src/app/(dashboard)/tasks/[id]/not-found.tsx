@@ -1,6 +1,6 @@
 import { ArrowLeft, PlusCircle, SearchX } from "lucide-react";
 import Link from "next/link";
-import { Button } from "@/components/ui/button";
+import { buttonVariants } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 
 export default function TaskNotFound() {
@@ -16,12 +16,12 @@ export default function TaskNotFound() {
             session.
           </p>
           <div className="mt-8 flex flex-wrap gap-3">
-            <Button nativeButton={false} render={<Link href="/tasks" />} variant="outline">
+            <Link className={buttonVariants({ variant: "outline" })} href="/tasks">
               <ArrowLeft className="size-4" aria-hidden="true" /> Tasks
-            </Button>
-            <Button nativeButton={false} render={<Link href="/tasks/new" />}>
+            </Link>
+            <Link className={buttonVariants()} href="/tasks/new">
               <PlusCircle className="size-4" aria-hidden="true" /> New task
-            </Button>
+            </Link>
           </div>
         </CardContent>
       </Card>
