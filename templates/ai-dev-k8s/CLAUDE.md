@@ -5,6 +5,7 @@ Your user maintains a personal knowledge vault at `~/vault`, accessible via the 
 ## How to use the vault
 
 Before starting any task, use the obsidian MCP to load relevant context:
+
 - `mcp__obsidian__search_notes` — search by keyword across the whole vault
 - `mcp__obsidian__read_note` — read a specific note
 - `mcp__obsidian__list_notes` — list notes in a folder

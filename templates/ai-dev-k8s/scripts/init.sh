@@ -33,9 +33,9 @@ if [ ! -f ~/.workspace_initialized ]; then
 ### Available Tools & Versions
 - **Node.js**: v24 (default), also available: 18, 20, 22
 - **Package Managers**: PNPM, Yarn, Bun
-- **Docker & Docker Compose**: Latest
 - **Foundry**: Ethereum development toolkit
 - **act**: Run GitHub Actions locally
+- **Container builds**: Use a rootless or remote builder; no host Docker socket is mounted
 
 ### Shell
 - **ZSH** with Starship prompt
@@ -54,10 +54,6 @@ Claude Code and Codex can see what you're developing in a browser:
 claude                       # Start Claude Code
 codex                        # Start Codex CLI
 gsd                          # Start OpenGSD Pi
-
-# Docker
-docker ps                    # List running containers
-docker-compose up -d         # Start services
 
 # Node.js
 node --version               # Check Node version
@@ -160,6 +156,7 @@ fi
 # =============================================================================
 
 # Deploy sync-vault.sh to ~/sync-vault.sh (used by post_clone_script too)
+# shellcheck disable=SC2154 # Populated by Terraform templatefile().
 printf '%s' "${sync_vault_script_b64}" | base64 -d > "$HOME/sync-vault.sh"
 chmod +x "$HOME/sync-vault.sh"
 
@@ -176,13 +173,6 @@ fi
 
 # Run vault sync (syncs CLAUDE.md, AGENTS.md, Skills, GSD skills symlink)
 "$HOME/sync-vault.sh"
-
-# Verify Docker access
-if docker info &> /dev/null; then
-  echo "Docker is accessible"
-else
-  echo "Warning: Docker is not accessible. Check socket mount."
-fi
 
 echo ""
 echo "Workspace is ready!"

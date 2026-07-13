@@ -110,7 +110,7 @@ sync_skills() {
           continue
         fi
         if [ -d "$skills_target/$managed_name" ] && [ ! -d "$VAULT_DIR/Skills/$managed_name" ]; then
-          rm -rf "$skills_target/$managed_name"
+          rm -rf "${skills_target:?}/$managed_name"
           removed=$((removed + 1))
         fi
       done < "$manifest"
@@ -133,7 +133,7 @@ sync_skills() {
       fi
 
       if [ "$needs_sync" = true ]; then
-        rm -rf "$skills_target/$skill_name"
+        rm -rf "${skills_target:?}/$skill_name"
         cp -a "$skill_dir" "$skills_target/$skill_name"
         synced=$((synced + 1))
       else

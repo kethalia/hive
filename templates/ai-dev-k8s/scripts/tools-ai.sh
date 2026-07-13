@@ -14,11 +14,11 @@ run_step() {
   local name=$1
   local install_cmd=$2
 
-  printf "${BOLD}[install] $name...${RESET}\n"
+  printf '%b[install] %s...%b\n' "$BOLD" "$name" "$RESET"
   if eval "$install_cmd"; then
-    printf "${GREEN}[ok] $name completed successfully${RESET}\n\n"
+    printf '%b[ok] %s completed successfully%b\n\n' "$GREEN" "$name" "$RESET"
   else
-    printf "${YELLOW}[warn] $name failed, continuing...${RESET}\n\n"
+    printf '%b[warn] %s failed, continuing...%b\n\n' "$YELLOW" "$name" "$RESET"
   fi
 }
 
@@ -48,7 +48,7 @@ repair_node_shims() {
   done
 
   if [ -z "$node_dir" ]; then
-    printf "${YELLOW}[warn] Node.js runtime not found; npm-based AI installs may fail${RESET}\n"
+    printf '%b[warn] Node.js runtime not found; npm-based AI installs may fail%b\n' "$YELLOW" "$RESET"
     return 1
   fi
 
@@ -61,7 +61,7 @@ repair_node_shims() {
   hash -r 2>/dev/null || true
 
   if ! node --version >/dev/null 2>&1 || ! npm --version >/dev/null 2>&1; then
-    printf "${YELLOW}[warn] Node.js shims are still not usable; npm-based AI installs may fail${RESET}\n"
+    printf '%b[warn] Node.js shims are still not usable; npm-based AI installs may fail%b\n' "$YELLOW" "$RESET"
     return 1
   fi
 }
@@ -110,6 +110,7 @@ run_step "Codex CLI" '
 
 # Install OpenGSD core globally so hooks and slash commands resolve the maintained
 # gsd-sdk shim, then refresh Claude Code and Codex command/skill surfaces.
+# shellcheck disable=SC2016 # The command is intentionally evaluated by run_step.
 run_step "OpenGSD core (Claude Code + Codex)" '
   mkdir -p "$HOME/.codex" &&
   npm install -g @opengsd/get-shit-done-redux@latest &&
@@ -131,7 +132,7 @@ if [ "$gsd_path" = "$HOME/.local/bin/gsd" ] && npm_global_has "@opengsd/gsd-pi";
 elif [ -n "$gsd_path" ]; then
   printf "${YELLOW}[warn] gsd is present but @opengsd/gsd-pi is not verified: %s${RESET}\n" "$gsd_path"
 else
-  printf "${YELLOW}[warn] gsd was not found on PATH after installation${RESET}\n"
+  printf '%b[warn] gsd was not found on PATH after installation%b\n' "$YELLOW" "$RESET"
 fi
 
 if [ "$gsd_sdk_path" = "$HOME/.local/bin/gsd-sdk" ] && npm_global_has "@opengsd/get-shit-done-redux"; then
@@ -139,7 +140,7 @@ if [ "$gsd_sdk_path" = "$HOME/.local/bin/gsd-sdk" ] && npm_global_has "@opengsd/
 elif [ -n "$gsd_sdk_path" ]; then
   printf "${YELLOW}[warn] gsd-sdk is present but @opengsd/get-shit-done-redux is not verified: %s${RESET}\n" "$gsd_sdk_path"
 else
-  printf "${YELLOW}[warn] gsd-sdk was not found on PATH after installation${RESET}\n"
+  printf '%b[warn] gsd-sdk was not found on PATH after installation%b\n' "$YELLOW" "$RESET"
 fi
 
 if [ "$codex_path" = "$HOME/.local/bin/codex" ] && npm_global_has "@openai/codex"; then
@@ -147,5 +148,5 @@ if [ "$codex_path" = "$HOME/.local/bin/codex" ] && npm_global_has "@openai/codex
 elif [ -n "$codex_path" ]; then
   printf "${YELLOW}[warn] codex is present but @openai/codex is not verified: %s${RESET}\n" "$codex_path"
 else
-  printf "${YELLOW}[warn] codex was not found on PATH after installation${RESET}\n"
+  printf '%b[warn] codex was not found on PATH after installation%b\n' "$YELLOW" "$RESET"
 fi

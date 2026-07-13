@@ -17,34 +17,36 @@ install_if_missing() {
   local install_cmd=$4
 
   if [ -n "$check_cmd" ] && command_exists "$check_cmd"; then
-    printf "$${GREEN}[ok] $name already installed$${RESET}\n"
+    printf "${GREEN}[ok] %s already installed${RESET}\n" "$name"
     return 0
   elif [ -n "$check_path" ] && [ -e "$check_path" ]; then
-    printf "$${GREEN}[ok] $name already installed$${RESET}\n"
+    printf "${GREEN}[ok] %s already installed${RESET}\n" "$name"
     return 0
   fi
 
-  printf "$${BOLD}[install] $name...$${RESET}\n"
+  printf "${BOLD}[install] %s...${RESET}\n" "$name"
   if eval "$install_cmd"; then
-    printf "$${GREEN}[ok] $name installed successfully$${RESET}\n\n"
+    printf "${GREEN}[ok] %s installed successfully${RESET}\n\n" "$name"
   else
-    printf "$${YELLOW}[warn] $name installation failed, continuing...$${RESET}\n\n"
+    printf "${YELLOW}[warn] %s installation failed, continuing...${RESET}\n\n" "$name"
   fi
 }
 
 # Install Oh My Zsh (without powerlevel10k — we use Starship)
+# shellcheck disable=SC2016 # Commands are intentionally evaluated by install_if_missing.
 install_if_missing "Oh My Zsh" "" "$HOME/.oh-my-zsh" '
   RUNZSH=no CHSH=no sh -c "$(curl -fsSL https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh)" "" --unattended &&
-  git clone --quiet https://github.com/zsh-users/zsh-autosuggestions.git $HOME/.oh-my-zsh/custom/plugins/zsh-autosuggestions &&
-  git clone --quiet https://github.com/zsh-users/zsh-syntax-highlighting.git $HOME/.oh-my-zsh/custom/plugins/zsh-syntax-highlighting &&
-  git clone --quiet https://github.com/zsh-users/zsh-completions.git $HOME/.oh-my-zsh/custom/plugins/zsh-completions &&
-  sed -i "s|^ZSH_THEME.*|ZSH_THEME=\"\"|g" $HOME/.zshrc &&
-  sed -i "s|^plugins=.*|plugins=(git docker docker-compose zsh-autosuggestions zsh-syntax-highlighting zsh-completions direnv tmux)|g" $HOME/.zshrc
+  git clone --quiet https://github.com/zsh-users/zsh-autosuggestions.git "$HOME/.oh-my-zsh/custom/plugins/zsh-autosuggestions" &&
+  git clone --quiet https://github.com/zsh-users/zsh-syntax-highlighting.git "$HOME/.oh-my-zsh/custom/plugins/zsh-syntax-highlighting" &&
+  git clone --quiet https://github.com/zsh-users/zsh-completions.git "$HOME/.oh-my-zsh/custom/plugins/zsh-completions" &&
+  sed -i "s|^ZSH_THEME.*|ZSH_THEME=\"\"|g" "$HOME/.zshrc" &&
+  sed -i "s|^plugins=.*|plugins=(git zsh-autosuggestions zsh-syntax-highlighting zsh-completions direnv tmux)|g" "$HOME/.zshrc"
 '
 
 # Install Starship prompt
+# shellcheck disable=SC2016 # Commands are intentionally evaluated by install_if_missing.
 install_if_missing "Starship" "starship" "" '
-  curl -sS https://starship.rs/install.sh | sh -s -- --yes
+  curl -sS https://starship.rs/install.sh | sh -s -- --yes --bin-dir "$HOME/.local/bin"
 '
 
 # Configure Starship — hide [Docker] container indicator
@@ -63,11 +65,9 @@ echo 'unalias gsd 2>/dev/null' > "$HOME/.oh-my-zsh/custom/unalias-gsd.zsh"
 
 # Append shell config only if not already present (idempotency guard)
 if ! grep -q '# Custom aliases' "$HOME/.zshrc" 2>/dev/null; then
-  cat >> $HOME/.zshrc << 'ZSHEOF'
+  cat >> "$HOME/.zshrc" << 'ZSHEOF'
 
 # Custom aliases
-alias d="docker"
-alias dc="docker-compose"
 alias g="git"
 alias gs="git status"
 alias gp="git pull"

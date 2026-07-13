@@ -18,9 +18,9 @@ terraform {
 data "coder_parameter" "vault_repo" {
   name         = "vault_repo"
   display_name = "Obsidian Vault Repo"
-  description  = "Git SSH URL for your Obsidian second-brain vault (e.g. git@github.com:you/vault.git). Cloned to ~/vault on start. Leave empty to skip."
+  description  = "GitHub owner/repository for your Obsidian vault. Cloned to ~/vault once and never overwritten on startup. Leave empty to skip."
   type         = "string"
-  default      = "git@github.com:kethalia/second-brain.git"
+  default      = "kethalia/second-brain"
   mutable      = true
   order        = 1
 }
@@ -79,7 +79,7 @@ data "coder_parameter" "home_disk_size" {
   description  = "Persistent Longhorn volume size in GiB."
   type         = "number"
   default      = 100
-  mutable      = false
+  mutable      = true
   order        = 10
 
   validation {
@@ -113,8 +113,9 @@ data "coder_external_auth" "github" {
 # =============================================================================
 
 resource "coder_agent" "main" {
-  arch = data.coder_provisioner.me.arch
-  os   = "linux"
+  arch                    = data.coder_provisioner.me.arch
+  os                      = "linux"
+  startup_script_behavior = "blocking"
 
   startup_script = templatefile("${path.module}/scripts/init.sh", {
     workspace_name        = data.coder_workspace.me.name
@@ -245,6 +246,8 @@ resource "coder_script" "tools_ci" {
   script = templatefile("${path.module}/scripts/tools-ci.sh", {
     github_token                  = data.coder_external_auth.github.access_token
     clone_repositories_script_b64 = base64encode(file("${path.module}/scripts/clone-repositories.sh"))
+    repositories_manifest_b64     = base64encode(file("${path.module}/repositories.txt"))
+    vault_repository_b64          = base64encode(data.coder_parameter.vault_repo.value)
   })
 }
 
@@ -382,14 +385,6 @@ module "filebrowser" {
 # GitHub Integration
 # =============================================================================
 
-module "github-upload-public-key" {
-  count            = data.coder_workspace.me.start_count
-  source           = "registry.coder.com/coder/github-upload-public-key/coder"
-  version          = "1.0.32"
-  agent_id         = coder_agent.main.id
-  external_auth_id = data.coder_external_auth.github.id
-}
-
 module "git-commit-signing" {
   count    = data.coder_workspace.me.start_count
   source   = "registry.coder.com/coder/git-commit-signing/coder"
@@ -402,52 +397,6 @@ module "git-config" {
   source   = "registry.coder.com/coder/git-config/coder"
   version  = "1.0.33"
   agent_id = coder_agent.main.id
-}
-
-# =============================================================================
-# Obsidian Vault (optional)
-# =============================================================================
-
-module "git-clone-vault" {
-  count       = data.coder_parameter.vault_repo.value != "" ? data.coder_workspace.me.start_count : 0
-  source      = "registry.coder.com/coder/git-clone/coder"
-  version     = "1.2.3"
-  agent_id    = coder_agent.main.id
-  url         = data.coder_parameter.vault_repo.value
-  folder_name = "vault_clone_tmp"
-
-  # The git-clone module skips cloning when the target dir is non-empty, but
-  # post_clone_script runs ALWAYS (even on skip).  We clone into a temp dir,
-  # then rsync into ~/vault so the vault is refreshed on every workspace start.
-  # The git-clone module clones into a temp dir; we rsync into ~/vault then
-  # call ~/sync-vault.sh (deployed by init.sh) to sync config files.
-  post_clone_script = <<-EOT
-    #!/bin/bash
-    set -e
-    VAULT_DIR="$HOME/vault"
-    CLONE_DIR="$HOME/vault_clone_tmp"
-    if [ -d "$CLONE_DIR/.git" ]; then
-      mkdir -p "$VAULT_DIR"
-      rsync -a --delete --exclude '.obsidian' "$CLONE_DIR/" "$VAULT_DIR/"
-      # The git-clone module runs this script from inside the clone directory.
-      # Leave it before deleting the temp clone, otherwise later commands emit
-      # noisy getcwd/chdir errors because their current directory disappeared.
-      cd "$HOME"
-      rm -rf "$CLONE_DIR"
-      echo "Vault synced to $VAULT_DIR"
-
-      # Sync config files (CLAUDE.md, AGENTS.md, Skills, GSD symlinks)
-      if [ -x "$HOME/sync-vault.sh" ]; then
-        "$HOME/sync-vault.sh"
-      else
-        echo "WARNING: ~/sync-vault.sh not found — config sync skipped" >&2
-      fi
-    else
-      echo "ERROR: Vault clone failed — $CLONE_DIR has no .git directory" >&2
-      rm -rf "$CLONE_DIR"
-      exit 1
-    fi
-  EOT
 }
 
 # =============================================================================
@@ -555,9 +504,6 @@ resource "kubernetes_persistent_volume_claim_v1" "home" {
     }
   }
 
-  lifecycle {
-    ignore_changes = all
-  }
 }
 
 resource "kubernetes_deployment_v1" "workspace" {
@@ -632,6 +578,43 @@ resource "kubernetes_deployment_v1" "workspace" {
 
         image_pull_secrets {
           name = "ghcr-pull-kethalia"
+        }
+
+        init_container {
+          name              = "seed-home"
+          image             = "ghcr.io/kethalia/hive-base@sha256:3d1942a23c132385c55e1ffe41c45dfb9b1a7896238be14034e10c9109d47c03"
+          image_pull_policy = "IfNotPresent"
+          command = [
+            "sh",
+            "-c",
+            "if [ ! -e /target/.hive-image-seeded ]; then cp -a /home/coder/. /target/ && touch /target/.hive-image-seeded; fi",
+          ]
+
+          security_context {
+            allow_privilege_escalation = false
+            run_as_non_root            = true
+            run_as_user                = 1000
+
+            capabilities {
+              drop = ["ALL"]
+            }
+          }
+
+          resources {
+            requests = {
+              cpu    = "100m"
+              memory = "128Mi"
+            }
+            limits = {
+              cpu    = "500m"
+              memory = "512Mi"
+            }
+          }
+
+          volume_mount {
+            name       = "home"
+            mount_path = "/target"
+          }
         }
 
         container {

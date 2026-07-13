@@ -17,48 +17,38 @@ install_if_missing() {
   local install_cmd=$4
 
   if [ -n "$check_cmd" ] && command_exists "$check_cmd"; then
-    printf "$${GREEN}[ok] $name already installed$${RESET}\n"
+    printf '%b[ok] %s already installed%b\n' "$${GREEN}" "$name" "$${RESET}"
     return 0
   elif [ -n "$check_path" ] && [ -e "$check_path" ]; then
-    printf "$${GREEN}[ok] $name already installed$${RESET}\n"
+    printf '%b[ok] %s already installed%b\n' "$${GREEN}" "$name" "$${RESET}"
     return 0
   fi
 
-  printf "$${BOLD}[install] $name...$${RESET}\n"
+  printf '%b[install] %s...%b\n' "$${BOLD}" "$name" "$${RESET}"
   if eval "$install_cmd"; then
-    printf "$${GREEN}[ok] $name installed successfully$${RESET}\n\n"
+    printf '%b[ok] %s installed successfully%b\n\n' "$${GREEN}" "$name" "$${RESET}"
   else
-    printf "$${YELLOW}[warn] $name installation failed, continuing...$${RESET}\n\n"
+    printf '%b[warn] %s installation failed, continuing...%b\n\n' "$${YELLOW}" "$name" "$${RESET}"
   fi
 }
 
-# Install act (GitHub Actions locally)
-install_if_missing "act" "act" "" '
-  wget -qO /tmp/act.tar.gz https://github.com/nektos/act/releases/latest/download/act_Linux_x86_64.tar.gz &&
-  sudo tar xf /tmp/act.tar.gz -C /usr/local/bin act &&
-  rm /tmp/act.tar.gz
-'
-
-# Install GitHub CLI
+# act is pinned and preinstalled in hive-base. Install GitHub CLI into the
+# persistent home without requiring root or privilege escalation.
+# shellcheck disable=SC2016 # The command is intentionally evaluated after Terraform rendering.
 install_if_missing "GitHub CLI" "gh" "" '
-  curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg | sudo dd of=/usr/share/keyrings/githubcli-archive-keyring.gpg &&
-  sudo chmod go+r /usr/share/keyrings/githubcli-archive-keyring.gpg &&
-  echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" | sudo tee /etc/apt/sources.list.d/github-cli.list > /dev/null &&
-  sudo apt-get update &&
-  sudo apt-get install gh -y
+  GH_VERSION=2.96.0 &&
+  GH_ARCHIVE="gh_$${GH_VERSION}_linux_amd64.tar.gz" &&
+  curl -fsSLo "/tmp/$${GH_ARCHIVE}" "https://github.com/cli/cli/releases/download/v$${GH_VERSION}/$${GH_ARCHIVE}" &&
+  printf "%s  %s\n" "83d5c2ccad5498f58bf6368acb1ab32588cf43ab3a4b1c301bf36328b1c8bd60" "/tmp/$${GH_ARCHIVE}" | sha256sum --check --status &&
+  tar -xzf "/tmp/$${GH_ARCHIVE}" -C /tmp &&
+  install -m 0755 "/tmp/gh_$${GH_VERSION}_linux_amd64/bin/gh" "$HOME/.local/bin/gh" &&
+  rm -rf "/tmp/$${GH_ARCHIVE}" "/tmp/gh_$${GH_VERSION}_linux_amd64"
 '
 
-# Configure GitHub CLI authentication using Coder external auth token
-if command_exists gh && [ -n "${github_token}" ]; then
-  if ! gh auth status &>/dev/null; then
-    printf "$${BOLD}Configuring GitHub CLI authentication...$${RESET}\n"
-    echo "${github_token}" | gh auth login --with-token
-    printf "$${GREEN}[ok] GitHub CLI authenticated$${RESET}\n\n"
-  else
-    printf "$${GREEN}[ok] GitHub CLI already authenticated$${RESET}\n\n"
-  fi
-fi
-
+# shellcheck disable=SC2154 # Values below are populated by Terraform templatefile().
 printf '%s' "${clone_repositories_script_b64}" | base64 -d > "$HOME/clone-repositories.sh"
 chmod +x "$HOME/clone-repositories.sh"
-"$HOME/clone-repositories.sh"
+printf '%s' "${repositories_manifest_b64}" | base64 -d > "$HOME/repositories.txt"
+chmod 600 "$HOME/repositories.txt"
+export GH_TOKEN="${github_token}"
+VAULT_REPOSITORY="$(printf '%s' "${vault_repository_b64}" | base64 -d)" "$HOME/clone-repositories.sh"

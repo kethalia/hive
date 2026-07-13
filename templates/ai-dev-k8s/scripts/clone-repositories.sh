@@ -1,38 +1,37 @@
 #!/bin/bash
 set -uo pipefail
 
-repositories=(
-  "MadsLorentzen/ai-job-search|ai-job-search"
-  "kethalia/pearl-mining-web|cansitki/pearl-mining-web"
-  "cansitki/salad|cansitki/salad"
-  "chillwhales/.github|chillwhales/.github"
-  "chillwhales/chillpass|chillwhales/chillpass"
-  "chillwhales/chillwhales-frontend|chillwhales/chillwhales-frontend"
-  "chillwhales/lsp-indexer|chillwhales/lsp-indexer"
-  "chillwhales/LSPs|chillwhales/LSPs"
-  "chillwhales/realm-of-chill|chillwhales/realm-of-chill"
-  "chillwhales/rng-request-listener|chillwhales/rng-request-listener"
-  "kethalia/.github|kethalia/.github"
-  "kethalia/business-indexer|kethalia/business-indexer"
-  "kethalia/github-runners|kethalia/github-runners"
-  "kethalia/hive|kethalia/hive"
-  "kethalia/house-of-slabs|kethalia/house-of-slabs"
-  "kethalia/house-of-slabs-new|kethalia/house-of-slabs-new"
-  "kethalia/job-hunter|kethalia/job-hunter"
-  "kethalia/k8s-cluster|kethalia/k8s-cluster"
-  "kethalia/marketing|kethalia/marketing"
-  "kethalia/second-brain|kethalia/second-brain"
-  "kethalia/top-decor|kethalia/top-decor"
-  "kethalia/workflows|kethalia/workflows"
-  "phlox-labs/contracts|phlox-labs/contracts"
-  "phlox-labs/deployment-docs|phlox-labs/deployment-docs"
-  "phlox-labs/service-routing-api|phlox-labs/service-routing-api"
-)
+repositories_file="${REPOSITORIES_FILE:-$HOME/repositories.txt}"
+if [ ! -f "$repositories_file" ]; then
+  printf '[error] repository manifest not found: %s\n' "$repositories_file" >&2
+  exit 1
+fi
+
+if [ -z "${GH_TOKEN:-}" ] && command -v coder >/dev/null 2>&1; then
+  GH_TOKEN="$(coder external-auth access-token github)" || true
+  export GH_TOKEN
+fi
+
+if ! command -v gh >/dev/null 2>&1 || [ -z "${GH_TOKEN:-}" ]; then
+  printf '[error] GitHub CLI or external-auth token is unavailable\n' >&2
+  exit 1
+fi
 
 mkdir -p "$HOME/projects"
 failures=()
 
-for entry in "${repositories[@]}"; do
+while IFS= read -r entry || [ -n "$entry" ]; do
+  [ -n "$entry" ] || continue
+  case "$entry" in
+    \#*) continue ;;
+  esac
+
+  if [[ "$entry" != *"|"* ]]; then
+    printf '[warn] invalid repository manifest entry: %s\n' "$entry" >&2
+    failures+=("$entry")
+    continue
+  fi
+
   repository="${entry%%|*}"
   relative_destination="${entry#*|}"
   destination="$HOME/projects/$relative_destination"
@@ -46,7 +45,26 @@ for entry in "${repositories[@]}"; do
   if ! gh repo clone "$repository" "$destination"; then
     failures+=("$repository")
   fi
-done
+done < "$repositories_file"
+
+vault_repository="${VAULT_REPOSITORY:-}"
+if [ -n "$vault_repository" ]; then
+  if [ -d "$HOME/vault/.git" ]; then
+    printf '[skip] vault checkout already exists; preserving local changes\n'
+    git -C "$HOME/vault" fetch --prune || failures+=("$vault_repository (vault fetch)")
+  elif [ -e "$HOME/vault" ] && [ -n "$(find "$HOME/vault" -mindepth 1 -maxdepth 1 -print -quit)" ]; then
+    printf '[warn] refusing to overwrite non-empty non-Git vault directory\n' >&2
+    failures+=("$vault_repository (vault destination occupied)")
+  else
+    mkdir -p "$HOME/vault"
+    rmdir "$HOME/vault" 2>/dev/null || true
+    gh repo clone "$vault_repository" "$HOME/vault" || failures+=("$vault_repository (vault)")
+  fi
+
+  if [ -x "$HOME/sync-vault.sh" ] && [ -d "$HOME/vault/.git" ]; then
+    "$HOME/sync-vault.sh"
+  fi
+fi
 
 if ((${#failures[@]} > 0)); then
   printf '[warn] failed to clone: %s\n' "${failures[*]}" >&2

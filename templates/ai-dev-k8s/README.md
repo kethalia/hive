@@ -28,11 +28,11 @@ rootless or remote builder in a later template iteration.
 
 ## Repository Bootstrap
 
-After GitHub authentication is configured, the first startup clones the
-repositories represented in the source workspace under `~/projects`, retaining
-its owner/repository directory layout. The script is idempotent: directories
-that already contain a Git checkout are skipped, and failures are summarized
-without deleting successful clones.
+After GitHub authentication is configured, the first startup reads
+`repositories.txt` and clones the represented repositories under `~/projects`,
+retaining the source workspace's owner/repository directory layout. The script
+is idempotent: directories that already contain a Git checkout are skipped, and
+failures are summarized without deleting successful clones.
 
 The generated helper can be rerun after correcting authentication:
 
@@ -40,9 +40,10 @@ The generated helper can be rerun after correcting authentication:
 ~/clone-repositories.sh
 ```
 
-The second-brain repository is also cloned to `~/vault` by default so the vault
-context and agent skills are available independently of its checkout under
-`~/projects/kethalia/second-brain`.
+The second-brain repository is also cloned to `~/vault` once by default so the
+vault context and agent skills are available independently of its checkout
+under `~/projects/kethalia/second-brain`. Subsequent starts only fetch remote
+metadata and never reset or delete local vault changes.
 
 ## Publish
 

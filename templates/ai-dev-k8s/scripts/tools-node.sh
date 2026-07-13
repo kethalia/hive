@@ -17,18 +17,18 @@ install_if_missing() {
   local install_cmd=$4
 
   if [ -n "$check_cmd" ] && command_exists "$check_cmd"; then
-    printf "$${GREEN}[ok] $name already installed$${RESET}\n"
+    printf "${GREEN}[ok] %s already installed${RESET}\n" "$name"
     return 0
   elif [ -n "$check_path" ] && [ -e "$check_path" ]; then
-    printf "$${GREEN}[ok] $name already installed$${RESET}\n"
+    printf "${GREEN}[ok] %s already installed${RESET}\n" "$name"
     return 0
   fi
 
-  printf "$${BOLD}[install] $name...$${RESET}\n"
+  printf "${BOLD}[install] %s...${RESET}\n" "$name"
   if eval "$install_cmd"; then
-    printf "$${GREEN}[ok] $name installed successfully$${RESET}\n\n"
+    printf "${GREEN}[ok] %s installed successfully${RESET}\n\n" "$name"
   else
-    printf "$${YELLOW}[warn] $name installation failed, continuing...$${RESET}\n\n"
+    printf "${YELLOW}[warn] %s installation failed, continuing...${RESET}\n\n" "$name"
   fi
 }
 

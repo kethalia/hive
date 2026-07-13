@@ -5,14 +5,14 @@ BOLD='\033[0;1m'
 GREEN='\033[0;32m'
 RESET='\033[0m'
 
-printf "${BOLD}Creating tool symlinks in ~/.local/bin...${RESET}\n"
-mkdir -p $HOME/.local/bin
+printf "%sCreating tool symlinks in ~/.local/bin...%s\n" "$BOLD" "$RESET"
+mkdir -p "$HOME/.local/bin"
 
 # Node.js / npm / npx — prefer known system/module locations. Do not use
 # command -v against PATH here: persistent homes can contain stale
 # ~/.local/bin/node self-symlinks, and resolving those recreates the loop.
 for bin in node npm npx corepack; do
-  for candidate in /usr/bin/$bin /usr/local/bin/$bin /opt/node*/bin/$bin; do
+  for candidate in "/usr/bin/$bin" "/usr/local/bin/$bin" /opt/node*/bin/"$bin"; do
     if [ -x "$candidate" ]; then
       ln -sf "$candidate" "$HOME/.local/bin/$bin"
       break
@@ -31,7 +31,7 @@ for bindir in $NPM_GLOBAL_BIN /usr/lib/node_modules/.bin /opt/node*/bin; do
     done
   fi
 done
-printf "${GREEN}[ok] Node.js symlinked${RESET}\n"
+printf "%s[ok] Node.js symlinked%s\n" "$GREEN" "$RESET"
 
 # PNPM
 [ -f "$HOME/.local/share/pnpm/pnpm" ] && ln -sf "$HOME/.local/share/pnpm/pnpm" "$HOME/.local/bin/pnpm"
@@ -46,11 +46,11 @@ for bin in forge cast anvil chisel; do
   [ -f "$HOME/.foundry/bin/$bin" ] && ln -sf "$HOME/.foundry/bin/$bin" "$HOME/.local/bin/$bin"
 done
 
-# Chrome — Playwright looks for /usr/bin/chromium-browser by default
-[ -x /usr/bin/google-chrome-stable ] && sudo ln -sf /usr/bin/google-chrome-stable /usr/bin/chromium-browser
+# User-writable compatibility name for tools that invoke chromium-browser via PATH.
+[ -x /usr/bin/google-chrome-stable ] && ln -sf /usr/bin/google-chrome-stable "$HOME/.local/bin/chromium-browser"
 
-printf "${GREEN}[ok] All tool symlinks created${RESET}\n"
+printf "%s[ok] All tool symlinks created%s\n" "$GREEN" "$RESET"
 
 echo ""
-printf "${GREEN}All development tools are ready!${RESET}\n"
+printf "%sAll development tools are ready!%s\n" "$GREEN" "$RESET"
 echo ""
