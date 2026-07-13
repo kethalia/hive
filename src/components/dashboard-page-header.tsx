@@ -22,7 +22,7 @@ export function DashboardPageHeader({
   return (
     <header
       className={cn(
-        "flex min-h-14 items-center gap-3 border-b border-primary/15 bg-background/85 px-3 py-2 pt-[max(0.5rem,var(--safe-area-inset-top))] backdrop-blur-md sm:px-4",
+        "flex min-h-14 flex-wrap items-center gap-3 border-b border-primary/15 bg-background/85 px-3 py-2 pt-[max(0.5rem,var(--safe-area-inset-top))] backdrop-blur-md sm:flex-nowrap sm:px-4",
         className,
       )}
       data-dashboard-page-nav=""
@@ -40,7 +40,7 @@ export function DashboardPageHeader({
         ) : null}
       </div>
       {actions ? (
-        <div className="flex min-w-0 shrink-0 items-center justify-end gap-2 overflow-hidden">
+        <div className="flex w-full min-w-0 shrink-0 items-center justify-end gap-2 overflow-hidden pl-11 sm:w-auto sm:pl-0">
           {actions}
         </div>
       ) : null}

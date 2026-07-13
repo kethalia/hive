@@ -80,8 +80,10 @@ test.describe("authenticated Hive workflows", () => {
     );
     await page.keyboard.press(`${navigationModifier}+Shift+2`);
     await expect(page).toHaveURL(/\/workspaces$/);
+    await expect(page.getByRole("heading", { name: "Workspaces" })).toBeVisible();
     await page.keyboard.press(`${navigationModifier}+Shift+1`);
     await expect(page).toHaveURL(/\/tasks$/);
+    await expect(page.getByRole("heading", { name: "Tasks" })).toBeVisible();
 
     await page.keyboard.press("Control+K");
     await expect(page.getByText("Workspaces", { exact: true }).last()).toBeVisible();
