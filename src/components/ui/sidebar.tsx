@@ -147,7 +147,10 @@ function Sidebar({
   variant?: "sidebar" | "floating" | "inset";
   collapsible?: "offcanvas" | "icon" | "none";
 }) {
-  const { isMobile, state, openMobile, setOpenMobile } = useSidebar();
+  const { isMobile: mobileViewport, state, openMobile, setOpenMobile } = useSidebar();
+  const [responsiveReady, setResponsiveReady] = React.useState(false);
+  React.useEffect(() => setResponsiveReady(true), []);
+  const isMobile = responsiveReady && mobileViewport;
 
   if (collapsible === "none") {
     return (
