@@ -18,11 +18,16 @@ terraform {
 data "coder_parameter" "vault_repo" {
   name         = "vault_repo"
   display_name = "Obsidian Vault Repo"
-  description  = "GitHub owner/repository for your Obsidian vault. Cloned to ~/vault once and never overwritten on startup. Leave empty to skip."
+  description  = "GitHub owner/repository for your Obsidian vault. Initialized in ~/vault and safely fast-forwarded on startup. Leave empty to skip."
   type         = "string"
   default      = "kethalia/second-brain"
   mutable      = false
   order        = 1
+
+  validation {
+    regex = "^$|^(chillwhales|kethalia|phlox-labs)/[A-Za-z0-9._-]+$"
+    error = "Vault repository must be empty or use owner/repository from chillwhales, kethalia, or phlox-labs."
+  }
 }
 
 data "coder_parameter" "claude_code_model" {

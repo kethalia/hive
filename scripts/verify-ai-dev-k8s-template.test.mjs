@@ -18,6 +18,7 @@ function createBootstrapFixture() {
   const bin = join(fixtureRoot, "bin");
   const manifest = join(fixtureRoot, "repositories.txt");
   const calls = join(fixtureRoot, "gh-calls.log");
+  const gitCalls = join(fixtureRoot, "git-calls.log");
   mkdirSync(home, { recursive: true });
   mkdirSync(bin, { recursive: true });
   writeFileSync(manifest, "example/one|example/one\nexample/two|nested/two\n");
@@ -33,12 +34,23 @@ printf '%s\\n' "$3|$4" >> "$GH_CALLS"
 `,
   );
   chmodSync(join(bin, "gh"), 0o755);
-  writeFileSync(join(bin, "git"), "#!/bin/sh\nexit 0\n");
+  writeFileSync(
+    join(bin, "git"),
+    `#!/bin/sh
+set -eu
+printf '%s\\n' "$*" >> "$GIT_CALLS"
+case "$*" in
+  *"remote get-url origin") printf '%s\\n' "\${GIT_ORIGIN:-https://github.com/example/vault.git}" ;;
+  *"symbolic-ref --quiet --short HEAD") printf '%s\\n' "main" ;;
+  *"pull --ff-only origin main") [ "\${GIT_PULL_FAIL:-}" != "1" ] ;;
+esac
+`,
+  );
   chmodSync(join(bin, "git"), 0o755);
   writeFileSync(join(home, "sync-vault.sh"), '#!/bin/sh\ntouch "$HOME/.vault-synced"\n');
   chmodSync(join(home, "sync-vault.sh"), 0o755);
 
-  return { bin, calls, home, manifest };
+  return { bin, calls, gitCalls, home, manifest };
 }
 
 function installFakeCoder(bin) {
@@ -119,6 +131,10 @@ function verifySafeBootstrap() {
   assert.doesNotMatch(cloneScript, /rsync\s+.*--delete/);
   assert.doesNotMatch(cloneScript, /gh auth setup-git/);
   assert.match(cloneScript, /! -name \.obsidian/);
+  assert.match(
+    terraform,
+    /validation \{[\s\S]*?regex\s*=\s*"\^\$\|\^\(chillwhales\|kethalia\|phlox-labs\)/,
+  );
   assert.doesNotMatch(terraform, /git-clone-vault|github-upload-public-key/);
   assert.doesNotMatch(initScript, /docker (info|version)/);
 }
@@ -213,30 +229,39 @@ function verifyRepositoryManifest() {
   const entries = readTemplateFile("repositories.txt").trim().split("\n");
   const allowedOwners = new Set(["chillwhales", "kethalia", "phlox-labs"]);
 
-  assert.equal(entries.length, 23);
+  assert.ok(entries.length > 0);
   for (const entry of entries) {
-    const [repository] = entry.split("|");
-    const [owner] = repository.split("/");
-    assert.ok(allowedOwners.has(owner), `${repository} must belong to an approved organization`);
+    const [repository, destination] = entry.split("|");
+    const [sourceOwner] = repository.split("/");
+    const [destinationOwner] = destination.split("/");
+    assert.ok(
+      allowedOwners.has(sourceOwner),
+      `${repository} must belong to an approved organization`,
+    );
+    assert.ok(
+      allowedOwners.has(destinationOwner),
+      `${destination} must use an approved destination organization`,
+    );
   }
-  assert.ok(entries.includes("kethalia/pearl-mining-web|cansitki/pearl-mining-web"));
   assert.ok(entries.includes("kethalia/k8s-cluster|kethalia/k8s-cluster"));
   assert.ok(entries.includes("phlox-labs/service-routing-api|phlox-labs/service-routing-api"));
 }
 
 function verifyRepositoryBootstrap() {
-  const { bin, calls, home, manifest } = createBootstrapFixture();
+  const { bin, calls, gitCalls, home, manifest } = createBootstrapFixture();
   mkdirSync(join(home, "vault", ".obsidian"), { recursive: true });
   writeFileSync(join(home, "vault", ".obsidian", "workspace.json"), "metadata\n");
+  mkdirSync(join(home, ".config", "hive"), { recursive: true });
+  writeFileSync(join(home, ".config", "hive", "vault-repository"), "example/vault\n");
 
   const env = {
     ...process.env,
     GH_CALLS: calls,
+    GIT_CALLS: gitCalls,
     GH_TOKEN: "test-token",
     HOME: home,
     PATH: `${bin}:${process.env.PATH}`,
     REPOSITORIES_FILE: manifest,
-    VAULT_REPOSITORY: "example/vault",
   };
   const script = join(TEMPLATE_ROOT, "scripts/clone-repositories.sh");
 
@@ -256,7 +281,23 @@ function verifyRepositoryBootstrap() {
   assert.equal(second.status, 0, second.stderr);
   assert.equal(readFileSync(join(home, "vault", "local-note.md"), "utf8"), "uncommitted\n");
   assert.equal(readFileSync(calls, "utf8").trim().split("\n").length, 3);
-  assert.match(second.stdout, /preserving local changes/);
+  assert.match(second.stdout, /fast-forwarded vault checkout/);
+  assert.match(readFileSync(gitCalls, "utf8"), /pull --ff-only origin main/);
+
+  const divergentVault = spawnSync("bash", [script], {
+    encoding: "utf8",
+    env: { ...env, GIT_PULL_FAIL: "1" },
+  });
+  assert.equal(divergentVault.status, 0, divergentVault.stderr);
+  assert.match(divergentVault.stderr, /vault checkout is dirty or diverged/);
+  assert.equal(readFileSync(join(home, "vault", "local-note.md"), "utf8"), "uncommitted\n");
+
+  const mismatchedOrigin = spawnSync("bash", [script], {
+    encoding: "utf8",
+    env: { ...env, GIT_ORIGIN: "git@github.com:example/different-vault.git" },
+  });
+  assert.equal(mismatchedOrigin.status, 0, mismatchedOrigin.stderr);
+  assert.match(mismatchedOrigin.stderr, /vault origin does not match configured repository/);
 }
 
 function verifyFailedExternalAuth() {

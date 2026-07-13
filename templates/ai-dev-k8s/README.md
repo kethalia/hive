@@ -40,10 +40,12 @@ The generated helper can be rerun after correcting authentication:
 ~/clone-repositories.sh
 ```
 
-The second-brain repository is also cloned to `~/vault` once by default so the
+The second-brain repository is also initialized in `~/vault` by default so the
 vault context and agent skills are available independently of its checkout
-under `~/projects/kethalia/second-brain`. Subsequent starts only fetch remote
-metadata and never reset or delete local vault changes.
+under `~/projects/kethalia/second-brain`. Every startup safely fast-forwards the
+vault checkout, then syncs agent instructions and skills. The generated helper
+persists the configured vault repository, so manual retries also initialize or
+update `~/vault` without requiring extra environment variables.
 
 ## Publish
 
