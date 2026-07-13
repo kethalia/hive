@@ -37,7 +37,11 @@ export function StaleEntryAlert({ workspaceId }: { workspaceId: string }) {
             >
               <Activity className="size-4" aria-hidden="true" /> Diagnostics
             </Link>
-            <Button type="button" onClick={() => window.location.reload()}>
+            <Button
+              type="button"
+              aria-label="Retry workspace session"
+              onClick={() => window.location.reload()}
+            >
               <RefreshCw className="size-4" aria-hidden="true" /> Retry
             </Button>
           </div>

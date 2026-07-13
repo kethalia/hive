@@ -10,39 +10,42 @@ export function isMobileLikeViewport(win: Window): boolean {
   return win.matchMedia?.(TOUCH_TABLET_VIEWPORT_QUERY).matches ?? false;
 }
 
-export function useIsMobile() {
-  const [isMobile, setIsMobile] = React.useState<boolean | undefined>(undefined);
+function subscribeToMobileViewport(onChange: () => void): () => void {
+  if (typeof window === "undefined") return () => undefined;
 
-  React.useEffect(() => {
-    if (typeof window === "undefined") return;
+  if (typeof window.matchMedia !== "function") {
+    window.addEventListener("resize", onChange);
+    return () => window.removeEventListener("resize", onChange);
+  }
 
-    const onChange = () => {
-      setIsMobile(isMobileLikeViewport(window));
-    };
+  const mql = window.matchMedia(MOBILE_VIEWPORT_QUERY);
+  const touchTabletMql = window.matchMedia(TOUCH_TABLET_VIEWPORT_QUERY);
 
-    onChange();
-
-    if (typeof window.matchMedia !== "function") return;
-
-    const mql = window.matchMedia(MOBILE_VIEWPORT_QUERY);
-    const touchTabletMql = window.matchMedia(TOUCH_TABLET_VIEWPORT_QUERY);
-
-    if (typeof mql.addEventListener === "function") {
-      mql.addEventListener("change", onChange);
-      touchTabletMql.addEventListener("change", onChange);
-      return () => {
-        mql.removeEventListener("change", onChange);
-        touchTabletMql.removeEventListener("change", onChange);
-      };
-    }
-
-    mql.addListener?.(onChange);
-    touchTabletMql.addListener?.(onChange);
+  if (typeof mql.addEventListener === "function") {
+    mql.addEventListener("change", onChange);
+    touchTabletMql.addEventListener("change", onChange);
     return () => {
-      mql.removeListener?.(onChange);
-      touchTabletMql.removeListener?.(onChange);
+      mql.removeEventListener("change", onChange);
+      touchTabletMql.removeEventListener("change", onChange);
     };
-  }, []);
+  }
 
-  return !!isMobile;
+  mql.addListener?.(onChange);
+  touchTabletMql.addListener?.(onChange);
+  return () => {
+    mql.removeListener?.(onChange);
+    touchTabletMql.removeListener?.(onChange);
+  };
+}
+
+function getMobileViewportSnapshot(): boolean {
+  return typeof window !== "undefined" && isMobileLikeViewport(window);
+}
+
+export function useIsMobile() {
+  return React.useSyncExternalStore(
+    subscribeToMobileViewport,
+    getMobileViewportSnapshot,
+    () => false,
+  );
 }
