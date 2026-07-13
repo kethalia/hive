@@ -1,9 +1,10 @@
 "use client";
 
-import { AlertCircle } from "lucide-react";
+import { Activity, AlertCircle, ArrowLeft, RefreshCw } from "lucide-react";
 import Link from "next/link";
 import { useEffect } from "react";
-import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
 
 export function StaleEntryAlert({ workspaceId }: { workspaceId: string }) {
   useEffect(() => {
@@ -14,14 +15,35 @@ export function StaleEntryAlert({ workspaceId }: { workspaceId: string }) {
   }, [workspaceId]);
 
   return (
-    <div className="-m-6 -mt-14 flex h-[100vh] w-[calc(100%+3rem)] items-center justify-center">
-      <Alert variant="destructive" className="max-w-md">
-        <AlertCircle />
-        <AlertDescription className="space-y-2">
-          <p>Could not find a running agent for this workspace.</p>
-          <Link href="/tasks" className="text-sm underline">
-            Back to home
-          </Link>
+    <div
+      className="flex h-full min-h-0 w-full items-center justify-center overflow-y-auto p-4"
+      data-dashboard-full-bleed=""
+    >
+      <Alert variant="destructive" className="max-w-xl">
+        <AlertCircle className="size-5" />
+        <AlertTitle>Workspace session is unavailable</AlertTitle>
+        <AlertDescription className="space-y-5">
+          <p>
+            Hive could not find a running agent for this workspace. It may have stopped, rebuilt, or
+            been removed in Coder.
+          </p>
+          <div className="flex flex-wrap gap-3">
+            <Button variant="outline" nativeButton={false} render={<Link href="/workspaces" />}>
+              <ArrowLeft className="size-4" aria-hidden="true" /> Workspaces
+            </Button>
+            <Button
+              variant="outline"
+              nativeButton={false}
+              render={
+                <Link href={`/terminal/status?workspaceId=${encodeURIComponent(workspaceId)}`} />
+              }
+            >
+              <Activity className="size-4" aria-hidden="true" /> Diagnostics
+            </Button>
+            <Button type="button" onClick={() => window.location.reload()}>
+              <RefreshCw className="size-4" aria-hidden="true" /> Retry
+            </Button>
+          </div>
         </AlertDescription>
       </Alert>
     </div>

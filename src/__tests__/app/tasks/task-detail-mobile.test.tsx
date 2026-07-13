@@ -109,19 +109,19 @@ describe("TaskDetail mobile layout contracts", () => {
     );
   });
 
-  it("uses a compact one-line page header with a smaller non-bold title", () => {
+  it("uses a compact one-line page header with an operator-style title", () => {
     render(React.createElement(TaskDetail, { initialTask: makeTask() }));
 
     const title = screen.getByRole("heading", { name: /task task-mob/i });
     expect(classTokens(title)).toEqual(
-      expect.arrayContaining(["truncate", "text-sm", "font-normal"]),
+      expect.arrayContaining(["truncate", "text-sm", "font-medium", "uppercase"]),
     );
     expect(classTokens(title)).not.toEqual(expect.arrayContaining(["font-bold", "text-xl"]));
 
     const header = title.closest("[data-dashboard-page-nav]");
     expect(header).not.toBeNull();
     expect(classTokens(header as Element)).toEqual(
-      expect.arrayContaining(["flex", "items-center", "gap-2", "border-b"]),
+      expect.arrayContaining(["flex", "items-center", "gap-3", "border-b"]),
     );
   });
 

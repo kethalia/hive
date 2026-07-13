@@ -6,10 +6,10 @@ import {
   refreshDomainSessionCookie,
 } from "./lib/auth/session-cookie";
 
-const PUBLIC_PATHS = ["/login", "/api/auth", "/manifest.webmanifest"];
+const PUBLIC_PATHS = ["/login", "/api/auth", "/manifest.webmanifest", "/robots.txt"];
 const STATIC_PREFIXES = ["/_next", "/favicon.ico"];
 
-export function middleware(request: NextRequest) {
+export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   if (
@@ -19,7 +19,7 @@ export function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
-  if (PUBLIC_PATHS.some((path) => pathname.startsWith(path))) {
+  if (pathname === "/" || PUBLIC_PATHS.some((path) => pathname.startsWith(path))) {
     return NextResponse.next();
   }
 
@@ -31,7 +31,7 @@ export function middleware(request: NextRequest) {
 
   const cookieSecret = process.env.COOKIE_SECRET;
   if (!cookieSecret) {
-    console.error("[middleware] COOKIE_SECRET is not configured");
+    console.error("[proxy] COOKIE_SECRET is not configured");
     const loginUrl = new URL("/login", request.url);
     return NextResponse.redirect(loginUrl);
   }
@@ -57,8 +57,6 @@ export function middleware(request: NextRequest) {
   const loginUrl = new URL("/login", request.url);
   return NextResponse.redirect(loginUrl);
 }
-
-export const runtime = "nodejs";
 
 export const config = {
   matcher: ["/((?!_next/static|_next/image|favicon.ico).*)"],

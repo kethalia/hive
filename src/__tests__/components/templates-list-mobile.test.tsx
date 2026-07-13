@@ -263,6 +263,7 @@ describe("templates mobile list", () => {
     const mobilePush = within(card).getByRole("button", { name: /Push/ });
 
     fireEvent.click(mobilePush);
+    fireEvent.click(screen.getByRole("button", { name: /Confirm push/ }));
 
     await waitFor(() => {
       expect(fetchMock).toHaveBeenCalledWith("/api/templates/hive/push", { method: "POST" });

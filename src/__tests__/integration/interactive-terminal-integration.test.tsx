@@ -334,12 +334,16 @@ vi.mock("@/components/ui/alert", () => ({
   AlertDescription: ({ children }: { children: React.ReactNode; className?: string }) => (
     <div>{children}</div>
   ),
+  AlertTitle: ({ children }: { children: React.ReactNode }) => <h2>{children}</h2>,
 }));
 
 vi.mock("lucide-react", () => ({
+  Activity: () => null,
   AlertCircle: () => null,
+  ArrowLeft: () => null,
   ClipboardPaste: () => null,
   Copy: () => null,
+  RefreshCw: () => null,
   Loader2: () => null,
   Minus: () => null,
   Plus: () => null,
@@ -1591,7 +1595,11 @@ describe("WorkspaceTerminalPage integration — Multi-session route", () => {
     const { getByText, queryByTestId, unmount } = await renderWorkspaceTerminalPage();
 
     expect(mockGetWorkspaceAgentAction).toHaveBeenCalledWith({ workspaceId: "test-ws" });
-    expect(getByText("Could not find a running agent for this workspace.")).toBeInTheDocument();
+    expect(getByText("Workspace session is unavailable")).toBeInTheDocument();
+    expect(getByText(/Hive could not find a running agent/)).toBeInTheDocument();
+    expect(getByText("Workspaces")).toBeInTheDocument();
+    expect(getByText("Diagnostics")).toBeInTheDocument();
+    expect(getByText("Retry")).toBeInTheDocument();
     expect(queryByTestId("multi-session-workspace-route")).not.toBeInTheDocument();
     expect(document.querySelector('[data-testid="interactive-terminal"]')).toBeNull();
     expect(document.body.innerHTML).not.toContain("/private/path");

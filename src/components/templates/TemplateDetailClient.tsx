@@ -4,6 +4,7 @@ import { CheckCircle, RefreshCw, Upload, XCircle } from "lucide-react";
 import dynamic from "next/dynamic";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { DashboardPageHeader } from "@/components/dashboard-page-header";
+import { TemplatePushConfirmation } from "@/components/templates/TemplatePushConfirmation";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -45,6 +46,7 @@ interface TemplateDetailClientProps {
 }
 
 export function TemplateDetailClient({ status }: TemplateDetailClientProps) {
+  const [confirmOpen, setConfirmOpen] = useState(false);
   const [pushState, setPushState] = useState<PushState>({
     jobId: null,
     inProgress: false,
@@ -139,6 +141,15 @@ export function TemplateDetailClient({ status }: TemplateDetailClientProps) {
 
   return (
     <div className="space-y-6">
+      <TemplatePushConfirmation
+        name={status.name}
+        open={confirmOpen}
+        onOpenChange={setConfirmOpen}
+        onConfirm={() => {
+          setConfirmOpen(false);
+          void handlePush();
+        }}
+      />
       <DashboardPageHeader
         title={status.name}
         actions={
@@ -181,7 +192,7 @@ export function TemplateDetailClient({ status }: TemplateDetailClientProps) {
         <Button
           variant={status.stale ? "default" : "outline"}
           disabled={pushState.inProgress}
-          onClick={handlePush}
+          onClick={() => setConfirmOpen(true)}
         >
           {pushState.inProgress ? (
             <>

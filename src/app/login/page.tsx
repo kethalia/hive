@@ -34,7 +34,7 @@ export default function LoginPage() {
         return;
       }
 
-      router.push("/");
+      router.push("/tasks");
       router.refresh();
     } catch {
       setError("Login failed. Please try again.");
@@ -44,7 +44,7 @@ export default function LoginPage() {
   }
 
   return (
-    <form onSubmit={handleSubmit} className="w-full space-y-4">
+    <form onSubmit={handleSubmit} className="w-full space-y-5">
       {error && (
         <Alert variant="destructive">
           <AlertCircle className="h-4 w-4" />
@@ -62,6 +62,7 @@ export default function LoginPage() {
           value={coderUrl}
           onChange={(e) => setCoderUrl(e.target.value)}
           required
+          autoComplete="url"
           disabled={isPending}
         />
       </div>
@@ -76,6 +77,7 @@ export default function LoginPage() {
           value={email}
           onChange={(e) => setEmail(e.target.value)}
           required
+          autoComplete="email"
           disabled={isPending}
         />
       </div>
@@ -90,10 +92,11 @@ export default function LoginPage() {
           value={password}
           onChange={(e) => setPassword(e.target.value)}
           required
+          autoComplete="current-password"
           disabled={isPending}
         />
       </div>
-      <Button type="submit" className="w-full" disabled={isPending}>
+      <Button type="submit" className="mt-2 w-full" size="lg" disabled={isPending}>
         {isPending ? (
           <>
             <Loader2 className="h-4 w-4 animate-spin" />

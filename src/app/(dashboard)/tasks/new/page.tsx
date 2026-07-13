@@ -3,7 +3,7 @@
 import { AlertCircle } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useAction } from "next-safe-action/hooks";
-import { type FormEvent, useRef } from "react";
+import { type FormEvent, useRef, useState } from "react";
 import { DashboardPageHeader } from "@/components/dashboard-page-header";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -18,6 +18,7 @@ import type { TaskAttachment } from "@/lib/types/tasks";
 export default function NewTaskPage() {
   const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [prompt, setPrompt] = useState("");
 
   const { execute, result, isPending } = useAction(createTaskAction, {
     onSuccess: ({ data }) => {
@@ -27,13 +28,13 @@ export default function NewTaskPage() {
     },
   });
 
-  async function handleSubmit(e: FormEvent) {
+  async function handleSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    const form = e.target as HTMLFormElement;
-    const formData = new FormData(form);
+    const formData = new FormData(e.currentTarget);
 
-    const prompt = formData.get("prompt") as string;
-    const repoUrl = formData.get("repoUrl") as string;
+    const promptValue = formData.get("prompt");
+    const repoUrl = formData.get("repoUrl");
+    if (typeof promptValue !== "string" || typeof repoUrl !== "string") return;
 
     let attachments: TaskAttachment[] | undefined;
     const files = fileInputRef.current?.files;
@@ -48,7 +49,7 @@ export default function NewTaskPage() {
     }
 
     const councilSize = Number(formData.get("councilSize")) || 3;
-    execute({ prompt, repoUrl, attachments, councilSize });
+    execute({ prompt: promptValue, repoUrl, attachments, councilSize });
   }
 
   const serverError = result.serverError;
@@ -84,7 +85,14 @@ export default function NewTaskPage() {
                     required
                     rows={4}
                     placeholder="Describe what you want built..."
+                    value={prompt}
+                    onChange={(event) => setPrompt(event.target.value)}
+                    aria-describedby="prompt-guidance"
                   />
+                  <FieldDescription id="prompt-guidance" className="flex justify-between gap-4">
+                    <span>Include the outcome, constraints, and proof you expect.</span>
+                    <span className="shrink-0 tabular-nums">{prompt.length} chars</span>
+                  </FieldDescription>
                   <FieldError>{validationErrors?.prompt?._errors?.[0]}</FieldError>
                 </Field>
 

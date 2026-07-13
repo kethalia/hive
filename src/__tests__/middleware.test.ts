@@ -8,14 +8,22 @@ vi.mock("@hive/auth", async (importOriginal) => ({
 }));
 
 import { NextRequest } from "next/server";
-import { middleware } from "../middleware";
+import { proxy } from "../proxy";
 
 afterEach(() => {
   vi.unstubAllEnvs();
   vi.clearAllMocks();
 });
 
-describe("middleware", () => {
+describe("proxy", () => {
+  it("keeps the marketing homepage public without exposing dashboard routes", () => {
+    const homepageResponse = proxy(new NextRequest("https://hive.local.kethalia.com/"));
+    const dashboardResponse = proxy(new NextRequest("https://hive.local.kethalia.com/tasks"));
+
+    expect(homepageResponse.headers.get("location")).toBeNull();
+    expect(dashboardResponse.headers.get("location")).toBe("https://hive.local.kethalia.com/login");
+  });
+
   it("refreshes a valid session cookie onto COOKIE_DOMAIN", () => {
     vi.stubEnv("COOKIE_SECRET", "test-secret");
     vi.stubEnv("COOKIE_DOMAIN", ".hive.local.kethalia.com");
@@ -27,7 +35,7 @@ describe("middleware", () => {
       },
     });
 
-    const response = middleware(request);
+    const response = proxy(request);
     const setCookie = response.headers.get("set-cookie");
 
     expect(mockVerifyCookie).toHaveBeenCalledWith("signed-value", "test-secret");
@@ -52,7 +60,7 @@ describe("middleware", () => {
       },
     });
 
-    const response = middleware(request);
+    const response = proxy(request);
     const setCookie = response.headers.get("set-cookie");
 
     expect(response.headers.get("location")).toBeNull();
@@ -72,7 +80,7 @@ describe("middleware", () => {
       },
     });
 
-    const response = middleware(request);
+    const response = proxy(request);
     const setCookie = response.headers.get("set-cookie");
 
     expect(response.headers.get("location")).toBeNull();
@@ -92,7 +100,7 @@ describe("middleware", () => {
       },
     });
 
-    const response = middleware(request);
+    const response = proxy(request);
 
     expect(response.headers.get("location")).toBeNull();
     expect(response.headers.get("set-cookie")).toBeNull();
@@ -114,7 +122,7 @@ describe("middleware", () => {
       },
     });
 
-    const response = middleware(request);
+    const response = proxy(request);
     const setCookie = response.headers.get("set-cookie");
 
     expect(response.headers.get("location")).toBeNull();
