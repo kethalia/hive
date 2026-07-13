@@ -62,16 +62,11 @@ export function useIsMobile() {
     const firstFrame = window.requestAnimationFrame(() => {
       secondFrame = window.requestAnimationFrame(settle);
     });
-    const idleId =
-      typeof window.requestIdleCallback === "function"
-        ? window.requestIdleCallback(settle)
-        : undefined;
 
     return () => {
       settled = true;
       window.cancelAnimationFrame(firstFrame);
       window.cancelAnimationFrame(secondFrame);
-      if (idleId !== undefined) window.cancelIdleCallback(idleId);
     };
   }, []);
 
