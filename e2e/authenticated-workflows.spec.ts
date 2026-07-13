@@ -80,6 +80,7 @@ test.describe("authenticated Hive workflows", () => {
     await expect(page.getByText("Templates", { exact: true }).last()).toBeVisible();
     await expect(page.getByText("Terminal status", { exact: true }).last()).toBeVisible();
     await page.keyboard.press("Escape");
+    await expect(page.getByRole("dialog")).toBeHidden();
 
     const navigationModifier = await page.evaluate(() =>
       /Mac|iPhone|iPad/.test(navigator.platform) ? "Meta" : "Control",
