@@ -374,6 +374,9 @@ describe("Sidebar primitive layout contract", () => {
 
     const trigger = document.querySelector<HTMLElement>('[data-slot="sidebar-trigger"]');
     expect(trigger).not.toBeNull();
+    await act(async () => {
+      await new Promise((resolve) => window.setTimeout(resolve, 50));
+    });
     fireEvent.click(trigger!);
 
     await waitFor(() => {

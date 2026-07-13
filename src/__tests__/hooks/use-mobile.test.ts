@@ -136,6 +136,10 @@ describe("useIsMobile", () => {
     expect(mediaQuery.listeners.size).toBe(1);
     expect(touchTabletQuery.listeners.size).toBe(1);
 
+    await act(async () => {
+      await new Promise((resolve) => window.setTimeout(resolve, 50));
+    });
+
     act(() => {
       setInnerWidth(900);
       mediaQuery.dispatch();

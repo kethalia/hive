@@ -43,9 +43,37 @@ function getMobileViewportSnapshot(): boolean {
 }
 
 export function useIsMobile() {
-  return React.useSyncExternalStore(
+  const [hydrationSettled, setHydrationSettled] = React.useState(false);
+  const isMobile = React.useSyncExternalStore(
     subscribeToMobileViewport,
     getMobileViewportSnapshot,
     () => false,
   );
+
+  React.useEffect(() => {
+    let settled = false;
+    const settle = () => {
+      if (settled) return;
+      settled = true;
+      setHydrationSettled(true);
+    };
+
+    let secondFrame = 0;
+    const firstFrame = window.requestAnimationFrame(() => {
+      secondFrame = window.requestAnimationFrame(settle);
+    });
+    const idleId =
+      typeof window.requestIdleCallback === "function"
+        ? window.requestIdleCallback(settle)
+        : undefined;
+
+    return () => {
+      settled = true;
+      window.cancelAnimationFrame(firstFrame);
+      window.cancelAnimationFrame(secondFrame);
+      if (idleId !== undefined) window.cancelIdleCallback(idleId);
+    };
+  }, []);
+
+  return hydrationSettled && isMobile;
 }
