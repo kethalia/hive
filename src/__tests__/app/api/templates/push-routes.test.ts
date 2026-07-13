@@ -1,5 +1,6 @@
 import { Readable } from "node:stream";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { KNOWN_TEMPLATES } from "@/lib/templates/staleness";
 
 // ── Mocks ────────────────────────────────────────────────────────
 
@@ -24,10 +25,6 @@ const mockAdd = vi.fn().mockResolvedValue(undefined);
 vi.mock("@/lib/templates/push-queue", () => ({
   getTemplatePushQueue: vi.fn(() => ({ add: mockAdd })),
   pushLogPath: vi.fn((jobId: string) => `/tmp/template-push-${jobId}.log`),
-}));
-
-vi.mock("@/lib/templates/staleness", () => ({
-  KNOWN_TEMPLATES: ["hive", "ai-dev", "ai-dev-k8s"] as const,
 }));
 
 const MOCK_SESSION = {
@@ -101,9 +98,9 @@ describe("POST /api/templates/[name]/push", () => {
     expect(body.error).toContain("Unknown template");
   });
 
-  it("enqueues a job and returns jobId for valid template", async () => {
+  it.each(KNOWN_TEMPLATES)("enqueues a push job for the %s template", async (templateName) => {
     const response = await POST(makeRequest(), {
-      params: Promise.resolve({ name: "hive" }),
+      params: Promise.resolve({ name: templateName }),
     });
     expect(response.status).toBe(200);
     const body = await response.json();
@@ -113,8 +110,8 @@ describe("POST /api/templates/[name]/push", () => {
 
     expect(mockAdd).toHaveBeenCalledOnce();
     const [jobName, jobData, opts] = mockAdd.mock.calls[0];
-    expect(jobName).toBe("push-hive");
-    expect(jobData.templateName).toBe("hive");
+    expect(jobName).toBe(`push-${templateName}`);
+    expect(jobData.templateName).toBe(templateName);
     expect(jobData.jobId).toBe(body.jobId);
     expect(jobData.userId).toBe("user-1");
     expect(opts.jobId).toBe(body.jobId);
@@ -128,29 +125,6 @@ describe("POST /api/templates/[name]/push", () => {
     expect(response.status).toBe(500);
     const body = await response.json();
     expect(body.error).toBe("Failed to enqueue push job");
-  });
-
-  it("accepts ai-dev as a valid template", async () => {
-    const response = await POST(makeRequest(), {
-      params: Promise.resolve({ name: "ai-dev" }),
-    });
-    expect(response.status).toBe(200);
-    const body = await response.json();
-    expect(body.jobId).toBeDefined();
-  });
-
-  it("accepts ai-dev-k8s as a valid template", async () => {
-    const response = await POST(makeRequest(), {
-      params: Promise.resolve({ name: "ai-dev-k8s" }),
-    });
-    expect(response.status).toBe(200);
-    const body = await response.json();
-    expect(body.jobId).toBeDefined();
-    expect(mockAdd).toHaveBeenCalledWith(
-      "push-ai-dev-k8s",
-      expect.objectContaining({ templateName: "ai-dev-k8s" }),
-      expect.any(Object),
-    );
   });
 });
 
