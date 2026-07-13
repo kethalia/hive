@@ -23,6 +23,15 @@ fi
 mkdir -p "$HOME/projects"
 failures=()
 
+normalize_github_repository() {
+  local repository="$1"
+  repository="${repository#https://github.com/}"
+  repository="${repository#git@github.com:}"
+  repository="${repository#ssh://git@github.com/}"
+  repository="${repository%.git}"
+  printf '%s\n' "$repository"
+}
+
 while IFS= read -r entry || [ -n "$entry" ]; do
   [ -n "$entry" ] || continue
   case "$entry" in
@@ -57,14 +66,37 @@ if [ -z "$vault_repository" ] && [ -f "$vault_repository_file" ]; then
 fi
 
 if [ -n "$vault_repository" ]; then
+  vault_ready=false
   if [ -d "$HOME/vault/.git" ]; then
-    printf '[update] fast-forwarding vault checkout\n'
-    git -C "$HOME/vault" pull --ff-only || failures+=("$vault_repository (vault update)")
+    vault_origin="$(git -C "$HOME/vault" remote get-url origin 2>/dev/null || true)"
+    if [ -z "$vault_origin" ]; then
+      printf '[warn] vault checkout has no origin remote; refusing to update\n' >&2
+      failures+=("$vault_repository (vault origin missing)")
+    elif [ "$(normalize_github_repository "$vault_origin")" != "$(normalize_github_repository "$vault_repository")" ]; then
+      printf '[warn] vault origin does not match configured repository; refusing to update\n' >&2
+      failures+=("$vault_repository (vault origin mismatch)")
+    else
+      vault_branch="$(git -C "$HOME/vault" symbolic-ref --quiet --short HEAD 2>/dev/null || true)"
+      if [ -z "$vault_branch" ]; then
+        printf '[warn] vault checkout has no current branch; refusing to update\n' >&2
+        failures+=("$vault_repository (vault branch missing)")
+      elif git -C "$HOME/vault" pull --ff-only origin "$vault_branch"; then
+        printf '[update] fast-forwarded vault checkout\n'
+        vault_ready=true
+      else
+        printf '[warn] vault checkout is dirty or diverged; preserving local state\n' >&2
+        failures+=("$vault_repository (vault update)")
+      fi
+    fi
   elif [ -d "$HOME/vault/.obsidian" ] && [ -z "$(find "$HOME/vault" -mindepth 1 -maxdepth 1 ! -name .obsidian -print -quit)" ]; then
     vault_clone_tmp="$(mktemp -d)"
     if gh repo clone "$vault_repository" "$vault_clone_tmp/repository"; then
       rm -rf "$vault_clone_tmp/repository/.obsidian"
-      cp -a "$vault_clone_tmp/repository/." "$HOME/vault/" || failures+=("$vault_repository (vault copy)")
+      if cp -a "$vault_clone_tmp/repository/." "$HOME/vault/"; then
+        vault_ready=true
+      else
+        failures+=("$vault_repository (vault copy)")
+      fi
     else
       failures+=("$vault_repository (vault)")
     fi
@@ -75,10 +107,14 @@ if [ -n "$vault_repository" ]; then
   else
     mkdir -p "$HOME/vault"
     rmdir "$HOME/vault" 2>/dev/null || true
-    gh repo clone "$vault_repository" "$HOME/vault" || failures+=("$vault_repository (vault)")
+    if gh repo clone "$vault_repository" "$HOME/vault"; then
+      vault_ready=true
+    else
+      failures+=("$vault_repository (vault)")
+    fi
   fi
 
-  if [ -x "$HOME/sync-vault.sh" ] && [ -d "$HOME/vault/.git" ]; then
+  if [ "$vault_ready" = true ] && [ -x "$HOME/sync-vault.sh" ]; then
     "$HOME/sync-vault.sh"
   fi
 fi

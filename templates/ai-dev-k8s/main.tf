@@ -23,6 +23,11 @@ data "coder_parameter" "vault_repo" {
   default      = "kethalia/second-brain"
   mutable      = false
   order        = 1
+
+  validation {
+    regex = "^$|^(chillwhales|kethalia|phlox-labs)/[A-Za-z0-9._-]+$"
+    error = "Vault repository must be empty or use owner/repository from chillwhales, kethalia, or phlox-labs."
+  }
 }
 
 data "coder_parameter" "claude_code_model" {
