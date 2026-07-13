@@ -1,5 +1,11 @@
 # hive-orchestrator
 
+## 2.6.2
+
+### Patch Changes
+
+- e90281f: Initialize and fast-forward the Kubernetes workspace vault during startup, persist its repository for retries, and restrict repository destinations to the approved organizations.
+
 ## 2.6.1
 
 ### Patch Changes
