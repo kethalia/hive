@@ -61,12 +61,15 @@ function verifyPodSecurity() {
   const terraform = readTemplateFile("main.tf");
 
   assert.match(terraform, /startup_script_behavior\s*=\s*"blocking"/);
+  assert.match(terraform, /resource "coder_agent" "main"[\s\S]*?arch\s*=\s*"amd64"/);
   assert.match(terraform, /init_container \{/);
   assert.match(terraform, /name\s*=\s*"seed-home"/);
-  assert.match(terraform, /cp -a \/home\/coder\/\. \/target\//);
+  assert.match(terraform, /cp -R --no-preserve=ownership,timestamps \/home\/coder\/\. \/target\//);
+  assert.doesNotMatch(terraform, /cp -a \/home\/coder\/\. \/target\//);
   assert.match(terraform, /allow_privilege_escalation\s*=\s*false/);
   assert.doesNotMatch(terraform, /allow_privilege_escalation\s*=\s*true/);
   assert.match(terraform, /automount_service_account_token\s*=\s*false/);
+  assert.match(terraform, /fs_group_change_policy\s*=\s*"OnRootMismatch"/);
   assert.match(terraform, /"app\.kubernetes\.io\/name"\s*=\s*"coder-workspace"/);
   assert.doesNotMatch(terraform, /ignore_changes\s*=\s*all/);
   assert.match(terraform, /name\s*=\s*"home_disk_size"[\s\S]*?mutable\s*=\s*false/);

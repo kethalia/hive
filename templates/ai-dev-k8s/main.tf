@@ -113,7 +113,7 @@ data "coder_external_auth" "github" {
 # =============================================================================
 
 resource "coder_agent" "main" {
-  arch                    = data.coder_provisioner.me.arch
+  arch                    = "amd64"
   os                      = "linux"
   startup_script_behavior = "blocking"
 
@@ -554,10 +554,11 @@ resource "kubernetes_deployment_v1" "workspace" {
         automount_service_account_token = false
 
         security_context {
-          run_as_non_root = true
-          run_as_user     = 1000
-          run_as_group    = 1000
-          fs_group        = 1000
+          run_as_non_root        = true
+          run_as_user            = 1000
+          run_as_group           = 1000
+          fs_group               = 1000
+          fs_group_change_policy = "OnRootMismatch"
         }
 
         affinity {
@@ -587,7 +588,7 @@ resource "kubernetes_deployment_v1" "workspace" {
           command = [
             "sh",
             "-c",
-            "if [ ! -e /target/.hive-image-seeded ]; then cp -a /home/coder/. /target/ && touch /target/.hive-image-seeded; fi",
+            "if [ ! -e /target/.hive-image-seeded ]; then cp -R --no-preserve=ownership,timestamps /home/coder/. /target/ && touch /target/.hive-image-seeded; fi",
           ]
 
           security_context {
