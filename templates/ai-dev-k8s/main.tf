@@ -18,7 +18,7 @@ terraform {
 data "coder_parameter" "vault_repo" {
   name         = "vault_repo"
   display_name = "Obsidian Vault Repo"
-  description  = "GitHub owner/repository for your Obsidian vault. Cloned to ~/vault once and never overwritten on startup. Leave empty to skip."
+  description  = "GitHub owner/repository for your Obsidian vault. Initialized in ~/vault and safely fast-forwarded on startup. Leave empty to skip."
   type         = "string"
   default      = "kethalia/second-brain"
   mutable      = false

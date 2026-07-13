@@ -1,4 +1,3 @@
-kethalia/pearl-mining-web|cansitki/pearl-mining-web
 chillwhales/.github|chillwhales/.github
 chillwhales/chillpass|chillwhales/chillpass
 chillwhales/chillwhales-frontend|chillwhales/chillwhales-frontend

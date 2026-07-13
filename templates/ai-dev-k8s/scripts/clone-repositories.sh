@@ -50,11 +50,16 @@ while IFS= read -r entry || [ -n "$entry" ]; do
   fi
 done < "$repositories_file"
 
+vault_repository_file="${VAULT_REPOSITORY_FILE:-$HOME/.config/hive/vault-repository}"
 vault_repository="${VAULT_REPOSITORY:-}"
+if [ -z "$vault_repository" ] && [ -f "$vault_repository_file" ]; then
+  IFS= read -r vault_repository < "$vault_repository_file" || true
+fi
+
 if [ -n "$vault_repository" ]; then
   if [ -d "$HOME/vault/.git" ]; then
-    printf '[skip] vault checkout already exists; preserving local changes\n'
-    git -C "$HOME/vault" fetch --prune || failures+=("$vault_repository (vault fetch)")
+    printf '[update] fast-forwarding vault checkout\n'
+    git -C "$HOME/vault" pull --ff-only || failures+=("$vault_repository (vault update)")
   elif [ -d "$HOME/vault/.obsidian" ] && [ -z "$(find "$HOME/vault" -mindepth 1 -maxdepth 1 ! -name .obsidian -print -quit)" ]; then
     vault_clone_tmp="$(mktemp -d)"
     if gh repo clone "$vault_repository" "$vault_clone_tmp/repository"; then

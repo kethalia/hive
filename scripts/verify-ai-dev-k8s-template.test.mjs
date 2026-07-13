@@ -213,13 +213,21 @@ function verifyRepositoryManifest() {
   const entries = readTemplateFile("repositories.txt").trim().split("\n");
   const allowedOwners = new Set(["chillwhales", "kethalia", "phlox-labs"]);
 
-  assert.equal(entries.length, 23);
+  assert.equal(entries.length, 22);
   for (const entry of entries) {
-    const [repository] = entry.split("|");
-    const [owner] = repository.split("/");
-    assert.ok(allowedOwners.has(owner), `${repository} must belong to an approved organization`);
+    const [repository, destination] = entry.split("|");
+    const [sourceOwner] = repository.split("/");
+    const [destinationOwner] = destination.split("/");
+    assert.ok(
+      allowedOwners.has(sourceOwner),
+      `${repository} must belong to an approved organization`,
+    );
+    assert.ok(
+      allowedOwners.has(destinationOwner),
+      `${destination} must use an approved destination organization`,
+    );
   }
-  assert.ok(entries.includes("kethalia/pearl-mining-web|cansitki/pearl-mining-web"));
+  assert.ok(!entries.some((entry) => entry.includes("cansitki/")));
   assert.ok(entries.includes("kethalia/k8s-cluster|kethalia/k8s-cluster"));
   assert.ok(entries.includes("phlox-labs/service-routing-api|phlox-labs/service-routing-api"));
 }
@@ -228,6 +236,8 @@ function verifyRepositoryBootstrap() {
   const { bin, calls, home, manifest } = createBootstrapFixture();
   mkdirSync(join(home, "vault", ".obsidian"), { recursive: true });
   writeFileSync(join(home, "vault", ".obsidian", "workspace.json"), "metadata\n");
+  mkdirSync(join(home, ".config", "hive"), { recursive: true });
+  writeFileSync(join(home, ".config", "hive", "vault-repository"), "example/vault\n");
 
   const env = {
     ...process.env,
@@ -236,7 +246,6 @@ function verifyRepositoryBootstrap() {
     HOME: home,
     PATH: `${bin}:${process.env.PATH}`,
     REPOSITORIES_FILE: manifest,
-    VAULT_REPOSITORY: "example/vault",
   };
   const script = join(TEMPLATE_ROOT, "scripts/clone-repositories.sh");
 
@@ -256,7 +265,7 @@ function verifyRepositoryBootstrap() {
   assert.equal(second.status, 0, second.stderr);
   assert.equal(readFileSync(join(home, "vault", "local-note.md"), "utf8"), "uncommitted\n");
   assert.equal(readFileSync(calls, "utf8").trim().split("\n").length, 3);
-  assert.match(second.stdout, /preserving local changes/);
+  assert.match(second.stdout, /fast-forwarding vault checkout/);
 }
 
 function verifyFailedExternalAuth() {

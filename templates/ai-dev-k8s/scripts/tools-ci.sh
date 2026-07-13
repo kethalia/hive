@@ -58,5 +58,13 @@ printf '%s' "${clone_repositories_script_b64}" | base64 -d > "$HOME/clone-reposi
 chmod +x "$HOME/clone-repositories.sh"
 printf '%s' "${repositories_manifest_b64}" | base64 -d > "$HOME/repositories.txt"
 chmod 600 "$HOME/repositories.txt"
+mkdir -p "$HOME/.config/hive"
+vault_repository="$(printf '%s' "${vault_repository_b64}" | base64 -d)"
+if [ -n "$vault_repository" ]; then
+  printf '%s\n' "$vault_repository" > "$HOME/.config/hive/vault-repository"
+  chmod 600 "$HOME/.config/hive/vault-repository"
+else
+  rm -f "$HOME/.config/hive/vault-repository"
+fi
 export GH_TOKEN="${github_token}"
-VAULT_REPOSITORY="$(printf '%s' "${vault_repository_b64}" | base64 -d)" "$HOME/clone-repositories.sh"
+VAULT_REPOSITORY="$vault_repository" "$HOME/clone-repositories.sh"
