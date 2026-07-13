@@ -1,5 +1,11 @@
 # hive-orchestrator
 
+## 2.6.1
+
+### Patch Changes
+
+- de10cc4: Register the Kubernetes Coder workspace template in the Hive templates UI and push API.
+
 ## 2.6.0
 
 ### Minor Changes
