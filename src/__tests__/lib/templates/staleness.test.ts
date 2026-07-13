@@ -3,7 +3,18 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import * as tar from "tar-stream";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { compareTemplates, hashLocalTemplate, hashRemoteTar } from "@/lib/templates/staleness";
+import {
+  compareTemplates,
+  hashLocalTemplate,
+  hashRemoteTar,
+  KNOWN_TEMPLATES,
+} from "@/lib/templates/staleness";
+
+describe("KNOWN_TEMPLATES", () => {
+  it("registers every template exposed by the Hive UI", () => {
+    expect(KNOWN_TEMPLATES).toEqual(["hive", "ai-dev", "ai-dev-k8s"]);
+  });
+});
 
 // ── Mock getCoderClientForUser ──────────────────────────────────
 
