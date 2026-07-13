@@ -27,6 +27,7 @@ function createBootstrapFixture() {
     `#!/bin/sh
 set -eu
 [ "$1 $2" = "repo clone" ]
+[ "\${FAIL_REPOSITORY:-}" != "$3" ] || exit 1
 mkdir -p "$4/.git"
 printf '%s\\n' "$3|$4" >> "$GH_CALLS"
 `,
@@ -136,14 +137,23 @@ function verifyGithubHelpers() {
   const { bin, home } = createBootstrapFixture();
   installFakeCoder(bin);
   const env = { ...process.env, HOME: home, PATH: `${bin}:${process.env.PATH}` };
+  delete env.GH_TOKEN;
   const credential = join(TEMPLATE_ROOT, "scripts/github-credential.sh");
-  const credentialResult = spawnSync("sh", [credential, "get"], {
+  const credentialResult = spawnSync("/bin/sh", [credential, "get"], {
     encoding: "utf8",
     env,
     input: "protocol=https\nhost=github.com\n\n",
   });
   assert.equal(credentialResult.status, 0, credentialResult.stderr);
   assert.match(credentialResult.stdout, /password=fresh-test-token/);
+
+  const providedTokenResult = spawnSync("/bin/sh", [credential, "get"], {
+    encoding: "utf8",
+    env: { ...env, GH_TOKEN: "provided-test-token", PATH: "/nonexistent" },
+    input: "protocol=https\nhost=github.com\n\n",
+  });
+  assert.equal(providedTokenResult.status, 0, providedTokenResult.stderr);
+  assert.match(providedTokenResult.stdout, /password=provided-test-token/);
 
   const realGh = join(bin, "gh-real");
   writeFileSync(realGh, '#!/bin/sh\nprintf "%s|%s\\n" "$GH_TOKEN" "$*"\n');
@@ -159,8 +169,14 @@ function verifyGithubHelpers() {
 
 function verifyRepositoryManifest() {
   const entries = readTemplateFile("repositories.txt").trim().split("\n");
+  const allowedOwners = new Set(["chillwhales", "kethalia", "phlox-labs"]);
 
-  assert.equal(entries.length, 25);
+  assert.equal(entries.length, 23);
+  for (const entry of entries) {
+    const [repository] = entry.split("|");
+    const [owner] = repository.split("/");
+    assert.ok(allowedOwners.has(owner), `${repository} must belong to an approved organization`);
+  }
   assert.ok(entries.includes("kethalia/pearl-mining-web|cansitki/pearl-mining-web"));
   assert.ok(entries.includes("kethalia/k8s-cluster|kethalia/k8s-cluster"));
   assert.ok(entries.includes("phlox-labs/service-routing-api|phlox-labs/service-routing-api"));
@@ -182,8 +198,12 @@ function verifyRepositoryBootstrap() {
   };
   const script = join(TEMPLATE_ROOT, "scripts/clone-repositories.sh");
 
-  const first = spawnSync("bash", [script], { encoding: "utf8", env });
+  const first = spawnSync("bash", [script], {
+    encoding: "utf8",
+    env: { ...env, FAIL_REPOSITORY: "example/two" },
+  });
   assert.equal(first.status, 0, first.stderr);
+  assert.match(first.stderr, /completed with 1 failure/);
   assert.equal(
     readFileSync(join(home, "vault", ".obsidian", "workspace.json"), "utf8"),
     "metadata\n",
@@ -207,7 +227,7 @@ test("workspace bootstrap does not delete vault content or require Docker", veri
 test("AI tool refresh preserves existing shims when installation fails", verifyAiToolRefresh);
 test("shell setup retries incomplete Oh My Zsh installations", verifyShellRetry);
 test("GitHub helpers retrieve fresh Coder credentials on demand", verifyGithubHelpers);
-test("repository manifest preserves the requested 25-checkout layout", verifyRepositoryManifest);
+test("repository manifest only includes approved organizations", verifyRepositoryManifest);
 test(
   "repository bootstrap is idempotent and preserves local vault content",
   verifyRepositoryBootstrap,

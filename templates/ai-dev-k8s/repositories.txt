@@ -1,6 +1,4 @@
-MadsLorentzen/ai-job-search|ai-job-search
 kethalia/pearl-mining-web|cansitki/pearl-mining-web
-cansitki/salad|cansitki/salad
 chillwhales/.github|chillwhales/.github
 chillwhales/chillpass|chillwhales/chillpass
 chillwhales/chillwhales-frontend|chillwhales/chillwhales-frontend

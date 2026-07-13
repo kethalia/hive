@@ -78,7 +78,7 @@ fi
 if ((${#failures[@]} > 0)); then
   printf '[warn] failed to clone: %s\n' "${failures[*]}" >&2
   printf '[warn] verify GitHub external authentication, then rerun %s\n' "$HOME/clone-repositories.sh" >&2
-  exit 1
+  printf '[warn] repository bootstrap completed with %d failure(s)\n' "${#failures[@]}" >&2
+else
+  printf '[ok] repository bootstrap complete\n'
 fi
-
-printf '[ok] repository bootstrap complete\n'
