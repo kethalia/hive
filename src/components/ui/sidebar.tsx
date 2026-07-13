@@ -212,7 +212,7 @@ function Sidebar({
           "group-data-[collapsible=offcanvas]:w-0",
           "group-data-[side=right]:rotate-180",
           variant === "floating"
-            ? "w-0"
+            ? "w-(--sidebar-width) group-data-[collapsible=icon]:w-[calc(var(--sidebar-width-icon)+(--spacing(4)))]"
             : variant === "inset"
               ? "w-(--sidebar-width) group-data-[collapsible=icon]:w-[calc(var(--sidebar-width-icon)+(--spacing(4)))]"
               : "w-(--sidebar-width) group-data-[collapsible=icon]:w-(--sidebar-width-icon)",

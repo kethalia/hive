@@ -6,6 +6,7 @@ export default defineConfig({
   reporter: [["list"]],
   outputDir: "test-results/playwright",
   use: {
+    ignoreHTTPSErrors: process.env.HIVE_E2E_IGNORE_HTTPS_ERRORS === "true",
     trace: "retain-on-failure",
     screenshot: "only-on-failure",
   },

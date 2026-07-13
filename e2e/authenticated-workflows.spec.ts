@@ -1,10 +1,38 @@
-import { expect, type Page, type TestInfo, test } from "@playwright/test";
+import {
+  type BrowserContextOptions,
+  test as base,
+  expect,
+  type Page,
+  type TestInfo,
+} from "@playwright/test";
 
 const appUrl = process.env.PLAYWRIGHT_BASE_URL;
 const coderUrl = process.env.HIVE_E2E_CODER_URL;
 const email = process.env.HIVE_E2E_EMAIL;
 const password = process.env.HIVE_E2E_PASSWORD;
 const credentialsReady = Boolean(appUrl && coderUrl && email && password);
+const ignoreHTTPSErrors = process.env.HIVE_E2E_IGNORE_HTTPS_ERRORS === "true";
+type AuthenticatedStorageState = Exclude<BrowserContextOptions["storageState"], string | undefined>;
+
+const test = base.extend<
+  { storageState: BrowserContextOptions["storageState"] },
+  { authenticatedStorageState: AuthenticatedStorageState }
+>({
+  storageState: async ({ authenticatedStorageState }, use) => {
+    await use(authenticatedStorageState);
+  },
+  authenticatedStorageState: [
+    async ({ browser }, use) => {
+      const context = await browser.newContext({ ignoreHTTPSErrors });
+      const page = await context.newPage();
+      await login(page);
+      const storageState = await context.storageState();
+      await context.close();
+      await use(storageState);
+    },
+    { scope: "worker" },
+  ],
+});
 
 async function login(page: Page) {
   await page.goto(new URL("/login", appUrl).toString());
@@ -13,8 +41,12 @@ async function login(page: Page) {
   await page.getByLabel("Password").fill(password ?? "");
   await page.getByRole("button", { name: "Sign in" }).click();
   await expect(page).toHaveURL(/\/tasks$/);
+}
 
-  const dismissNotifications = page.getByRole("button", { name: "Dismiss notification prompt" });
+async function dismissNotificationPrompt(page: Page) {
+  const dismissNotifications = page.getByRole("button", {
+    name: /Dismiss(?: notification prompt)?/,
+  });
   if (await dismissNotifications.isVisible().catch(() => false)) {
     await dismissNotifications.click();
   }
@@ -25,10 +57,13 @@ async function capture(page: Page, testInfo: TestInfo, name: string) {
 }
 
 test.describe("authenticated Hive workflows", () => {
+  test.describe.configure({ mode: "serial" });
   test.skip(!credentialsReady, "Set the Hive preview URL and Coder test credentials.");
 
   test.beforeEach(async ({ page }) => {
-    await login(page);
+    await page.goto(new URL("/tasks", appUrl).toString());
+    await expect(page.getByRole("heading", { name: "Tasks" })).toBeVisible();
+    await dismissNotificationPrompt(page);
   });
 
   test("covers tasks, forms, recovery states, and global navigation", async ({
@@ -102,7 +137,7 @@ test.describe("authenticated Hive workflows", () => {
 
     await page.goto(new URL("/terminal/status", appUrl).toString());
     await expect(page.getByRole("heading", { name: "Terminal status" })).toBeVisible();
-    await expect(page.getByText(/does not include terminal content/i)).toBeVisible();
+    await expect(page.getByText(/never include terminal output/i)).toBeVisible();
 
     await page.goto(new URL("/workspaces/not-a-real-workspace/terminal", appUrl).toString());
     await expect(

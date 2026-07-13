@@ -319,7 +319,7 @@ describe("Sidebar primitive layout contract", () => {
     });
   });
 
-  it("uses the widened desktop width while keeping floating gap at zero", async () => {
+  it("reserves the widened desktop width for the floating sidebar", async () => {
     Object.defineProperty(window, "innerWidth", {
       configurable: true,
       value: 1200,
@@ -346,8 +346,8 @@ describe("Sidebar primitive layout contract", () => {
     expect(wrapper?.style.getPropertyValue("--sidebar-width")).toBe("18rem");
     expect(wrapper?.style.getPropertyValue("--sidebar-width-icon")).toBe("3rem");
     expect(root).toHaveAttribute("data-variant", "floating");
-    expect(gap?.className).toContain("w-0");
-    expect(gap?.className).not.toContain("w-(--sidebar-width)");
+    expect(gap?.className).toContain("group-data-[collapsible=offcanvas]:w-0");
+    expect(gap?.className).toContain("w-(--sidebar-width)");
     expect(sidebarContainer?.className).toContain("w-(--sidebar-width)");
   });
 

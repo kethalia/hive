@@ -212,6 +212,7 @@ export function DashboardKeyboardController() {
     category: "navigation",
     enabledInBrowser: true,
     global: true,
+    allowTextEntry: true,
   });
 
   useRegisterKeybinding({
@@ -225,6 +226,7 @@ export function DashboardKeyboardController() {
     category: "navigation",
     enabledInBrowser: true,
     global: true,
+    allowTextEntry: true,
   });
 
   useRegisterKeybinding({
@@ -238,6 +240,7 @@ export function DashboardKeyboardController() {
     category: "navigation",
     enabledInBrowser: true,
     global: true,
+    allowTextEntry: true,
   });
 
   useRegisterKeybinding({
@@ -251,6 +254,7 @@ export function DashboardKeyboardController() {
     category: "navigation",
     enabledInBrowser: true,
     global: true,
+    allowTextEntry: true,
   });
 
   useRegisterKeybinding({

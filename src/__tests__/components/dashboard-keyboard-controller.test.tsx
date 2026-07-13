@@ -175,6 +175,10 @@ describe("DashboardKeyboardController", () => {
       "dashboard:toggle-sidebar",
       "dashboard:toggle-compose",
       "dashboard:toggle-fullscreen",
+      "dashboard:navigate-tasks",
+      "dashboard:navigate-workspaces",
+      "dashboard:navigate-templates",
+      "dashboard:navigate-terminal-status",
     ]) {
       expect(registeredBindings.get(id)?.allowTextEntry).toBe(true);
       expect(registeredBindings.get(id)?.global).toBe(true);
