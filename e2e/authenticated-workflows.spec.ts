@@ -75,13 +75,6 @@ test.describe("authenticated Hive workflows", () => {
     await expect(page.getByRole("heading", { name: "Tasks" })).toBeVisible();
     await capture(page, testInfo, "tasks");
 
-    await page.keyboard.press("Control+K");
-    await expect(page.getByText("Workspaces", { exact: true }).last()).toBeVisible();
-    await expect(page.getByText("Templates", { exact: true }).last()).toBeVisible();
-    await expect(page.getByText("Terminal status", { exact: true }).last()).toBeVisible();
-    await page.keyboard.press("Escape");
-    await expect(page.getByRole("dialog")).toBeHidden();
-
     const navigationModifier = await page.evaluate(() =>
       /Mac|iPhone|iPad/.test(navigator.platform) ? "Meta" : "Control",
     );
@@ -89,6 +82,13 @@ test.describe("authenticated Hive workflows", () => {
     await expect(page).toHaveURL(/\/workspaces$/);
     await page.keyboard.press(`${navigationModifier}+Shift+1`);
     await expect(page).toHaveURL(/\/tasks$/);
+
+    await page.keyboard.press("Control+K");
+    await expect(page.getByText("Workspaces", { exact: true }).last()).toBeVisible();
+    await expect(page.getByText("Templates", { exact: true }).last()).toBeVisible();
+    await expect(page.getByText("Terminal status", { exact: true }).last()).toBeVisible();
+    await page.keyboard.press("Escape");
+    await expect(page.getByRole("dialog")).toBeHidden();
 
     await page.goto(new URL("/tasks/new", appUrl).toString());
     await expect(page.getByRole("heading", { name: "New Task" })).toBeVisible();
