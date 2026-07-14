@@ -9,7 +9,7 @@ function applySecurityHeaders(headers) {
   return headers;
 }
 
-function scopeResponseCookiesToPublicHost(headers) {
+function scopeResponseCookiesToPublicHost(headers, publicCookieDomain) {
   const getSetCookie = headers.getSetCookie;
   const cookies =
     typeof getSetCookie === "function"
@@ -19,8 +19,22 @@ function scopeResponseCookiesToPublicHost(headers) {
 
   headers.delete("Set-Cookie");
   for (const cookie of cookies) {
-    headers.append("Set-Cookie", cookie.replace(/;\s*Domain=[^;]*/gi, ""));
+    const domainAttribute = publicCookieDomain ? `; Domain=${publicCookieDomain}` : "";
+    headers.append("Set-Cookie", cookie.replace(/;\s*Domain=[^;]*/gi, domainAttribute));
   }
+  return headers;
+}
+
+function rewriteOriginRedirect(headers, originUrl, incomingUrl) {
+  const location = headers.get("Location");
+  if (!location) return headers;
+
+  const redirectUrl = new URL(location, originUrl);
+  if (redirectUrl.origin !== originUrl.origin) return headers;
+
+  redirectUrl.protocol = incomingUrl.protocol;
+  redirectUrl.host = incomingUrl.host;
+  headers.set("Location", redirectUrl.toString());
   return headers;
 }
 
@@ -33,9 +47,18 @@ function isPublicCacheRequest(request, url) {
 }
 
 function buildOriginRequest(request, incomingUrl, originUrl) {
-  const targetUrl = new URL(`${incomingUrl.pathname}${incomingUrl.search}`, originUrl);
+  const targetUrl = new URL(originUrl);
+  targetUrl.pathname = incomingUrl.pathname;
+  targetUrl.search = incomingUrl.search;
   const requestHeaders = new Headers(request.headers);
   requestHeaders.delete("Host");
+  requestHeaders.delete("X-Forwarded-For");
+  requestHeaders.delete("X-Real-IP");
+  const clientIp = request.headers.get("CF-Connecting-IP");
+  if (clientIp) {
+    requestHeaders.set("X-Forwarded-For", clientIp);
+    requestHeaders.set("X-Real-IP", clientIp);
+  }
   requestHeaders.set("X-Forwarded-Host", incomingUrl.host);
   requestHeaders.set("X-Forwarded-Proto", "https");
 
@@ -67,11 +90,21 @@ async function proxyRequest(request, env, ctx) {
     if (cached) return cached;
   }
 
-  const originResponse = await fetch(originRequest);
+  let originResponse;
+  try {
+    originResponse = await fetch(originRequest);
+  } catch {
+    return new Response("Hive edge origin is unavailable.", { status: 502 });
+  }
   if (originResponse.status === 101) return originResponse;
 
-  const headers = scopeResponseCookiesToPublicHost(
-    applySecurityHeaders(new Headers(originResponse.headers)),
+  const headers = rewriteOriginRedirect(
+    scopeResponseCookiesToPublicHost(
+      applySecurityHeaders(new Headers(originResponse.headers)),
+      env.PUBLIC_COOKIE_DOMAIN,
+    ),
+    originUrl,
+    incomingUrl,
   );
   if (cacheable && originResponse.ok) {
     headers.set("Cache-Control", "public, max-age=0, s-maxage=300, stale-while-revalidate=86400");
@@ -96,6 +129,8 @@ export {
   applySecurityHeaders,
   buildOriginRequest,
   isPublicCacheRequest,
+  proxyRequest,
+  rewriteOriginRedirect,
   scopeResponseCookiesToPublicHost,
 };
 

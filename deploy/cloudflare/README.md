@@ -14,15 +14,18 @@ Worker or custom domain instead of leaking the private GitOps hostname into brow
 
    ```sh
    cd deploy/cloudflare
-   printf '%s' "$HIVE_ORIGIN" | pnpm exec wrangler secret put HIVE_ORIGIN
+   printf '%s' "$HIVE_ORIGIN" | pnpm dlx wrangler@4 secret put HIVE_ORIGIN
    ```
 
    `HIVE_ORIGIN` must be the HTTPS GitOps origin, not the public hostname routed to this Worker.
+   When the terminal uses a sibling hostname, also configure `PUBLIC_COOKIE_DOMAIN` to the shared
+   parent domain (for example `.hive.example.com`) so authenticated WebSocket upgrades receive the
+   session cookie.
 
 3. Upload a preview version:
 
    ```sh
-   pnpm exec wrangler versions upload
+   pnpm dlx wrangler@4 versions upload
    ```
 
 4. Exercise the generated `workers.dev` URL before attaching a custom route. Confirm that `/` is
@@ -32,7 +35,7 @@ Worker or custom domain instead of leaking the private GitOps hostname into brow
 5. After preview validation, deploy and attach the intended custom domain in Cloudflare:
 
    ```sh
-   pnpm exec wrangler deploy
+   pnpm dlx wrangler@4 deploy
    ```
 
 Do not route the terminal hostname through this Worker unless the runtime config and origin support

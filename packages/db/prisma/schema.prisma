@@ -146,6 +146,7 @@ model NavigationFavorite {
 
   @@unique([userId, kind, workspaceId, targetKey])
   @@index([userId, kind, workspaceId])
+  @@index([userId, position])
   @@map("navigation_favorites")
 }
 

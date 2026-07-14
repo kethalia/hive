@@ -1,3 +1,4 @@
+import Script from "next/script";
 import { Suspense } from "react";
 import { AppSidebar } from "@/components/app-sidebar";
 import { AppViewportSize } from "@/components/app-viewport-size";
@@ -20,7 +21,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
   return (
     <>
       {/* Authenticated clients read this before terminal components hydrate. */}
-      <script src="/runtime-config.js" />
+      <Script src="/runtime-config.js" strategy="beforeInteractive" />
       <ServiceWorkerRegister />
       <AppViewportSize />
       <TooltipProvider>

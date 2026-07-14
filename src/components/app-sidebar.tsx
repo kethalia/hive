@@ -1017,38 +1017,44 @@ export function AppSidebar() {
     return null;
   }, []);
 
-  const fetchSessions = useCallback(async (workspaceId: string) => {
-    if (sessionsInFlightRef.current.has(workspaceId)) return;
-    sessionsInFlightRef.current.add(workspaceId);
-    setWorkspaceSessions((prev) => ({
-      ...prev,
-      [workspaceId]: { ...(prev[workspaceId] ?? { data: [] }), isLoading: true, error: null },
-    }));
-    try {
-      const result = await getWorkspaceSessionsAction({ workspaceId });
-      if (result?.data) {
-        const sessions = result.data.filter((session) => !isCloneTerminalSessionName(session.name));
-        setWorkspaceSessions((prev) => ({
-          ...prev,
-          [workspaceId]: { data: sessions, isLoading: false, error: null },
-        }));
-      } else {
-        const msg = result?.serverError ?? "Failed to load sessions";
+  const fetchSessions = useCallback(
+    async (workspaceId: string) => {
+      if (sessionsInFlightRef.current.has(workspaceId)) return;
+      sessionsInFlightRef.current.add(workspaceId);
+      setWorkspaceSessions((prev) => ({
+        ...prev,
+        [workspaceId]: { ...(prev[workspaceId] ?? { data: [] }), isLoading: true, error: null },
+      }));
+      try {
+        await fetchAgentInfo(workspaceId);
+        const result = await getWorkspaceSessionsAction({ workspaceId });
+        if (result?.data) {
+          const sessions = result.data.filter(
+            (session) => !isCloneTerminalSessionName(session.name),
+          );
+          setWorkspaceSessions((prev) => ({
+            ...prev,
+            [workspaceId]: { data: sessions, isLoading: false, error: null },
+          }));
+        } else {
+          const msg = result?.serverError ?? "Failed to load sessions";
+          setWorkspaceSessions((prev) => ({
+            ...prev,
+            [workspaceId]: { ...(prev[workspaceId] ?? { data: [] }), isLoading: false, error: msg },
+          }));
+        }
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : "Failed to load sessions";
         setWorkspaceSessions((prev) => ({
           ...prev,
           [workspaceId]: { ...(prev[workspaceId] ?? { data: [] }), isLoading: false, error: msg },
         }));
+      } finally {
+        sessionsInFlightRef.current.delete(workspaceId);
       }
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : "Failed to load sessions";
-      setWorkspaceSessions((prev) => ({
-        ...prev,
-        [workspaceId]: { ...(prev[workspaceId] ?? { data: [] }), isLoading: false, error: msg },
-      }));
-    } finally {
-      sessionsInFlightRef.current.delete(workspaceId);
-    }
-  }, []);
+    },
+    [fetchAgentInfo],
+  );
 
   const handleRestartWorkspace = useCallback(
     async (workspaceId: string) => {

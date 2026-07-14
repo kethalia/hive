@@ -40,7 +40,7 @@ async function login(page: Page) {
   await page.getByLabel("Email").fill(email ?? "");
   await page.getByLabel("Password").fill(password ?? "");
   await page.getByRole("button", { name: "Sign in" }).click();
-  await expect(page).toHaveURL(/\/tasks$/);
+  await expect(page).toHaveURL(/\/workspaces$/);
 }
 
 async function dismissNotificationPrompt(page: Page) {
@@ -83,10 +83,10 @@ test.describe("authenticated Hive workflows", () => {
     const navigationModifier = await page.evaluate(() =>
       /Mac|iPhone|iPad/.test(navigator.platform) ? "Meta" : "Control",
     );
-    await page.keyboard.press(`${navigationModifier}+Shift+2`);
+    await page.keyboard.press(`${navigationModifier}+Shift+1`);
     await expect(page).toHaveURL(/\/workspaces$/);
     await expect(page.getByRole("heading", { name: "Workspaces" })).toBeVisible();
-    await page.keyboard.press(`${navigationModifier}+Shift+1`);
+    await page.keyboard.press(`${navigationModifier}+Shift+2`);
     await expect(page).toHaveURL(/\/tasks$/);
     await expect(page.getByRole("heading", { name: "Tasks" })).toBeVisible();
 

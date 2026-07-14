@@ -3,10 +3,14 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({
   getRequestSession: vi.fn(),
   getTask: vi.fn(),
+  notFound: vi.fn(() => {
+    throw new Error("NEXT_NOT_FOUND");
+  }),
   redirect: vi.fn(),
 }));
 
 vi.mock("next/navigation", () => ({
+  notFound: mocks.notFound,
   redirect: mocks.redirect,
 }));
 
@@ -22,7 +26,6 @@ vi.mock("@/app/(dashboard)/tasks/[id]/task-detail", () => ({
   TaskDetail: vi.fn(),
 }));
 
-import TaskNotFound from "@/app/(dashboard)/tasks/[id]/not-found";
 import TaskDetailPage from "@/app/(dashboard)/tasks/[id]/page";
 
 describe("TaskDetailPage", () => {
@@ -32,11 +35,11 @@ describe("TaskDetailPage", () => {
   });
 
   it("routes malformed task IDs to the recovery page without querying Postgres", async () => {
-    const result = await TaskDetailPage({
-      params: Promise.resolve({ id: "not-a-real-task" }),
-    });
+    await expect(
+      TaskDetailPage({ params: Promise.resolve({ id: "not-a-real-task" }) }),
+    ).rejects.toThrow("NEXT_NOT_FOUND");
 
-    expect(result.type).toBe(TaskNotFound);
+    expect(mocks.notFound).toHaveBeenCalledOnce();
     expect(mocks.getTask).not.toHaveBeenCalled();
   });
 
@@ -44,9 +47,11 @@ describe("TaskDetailPage", () => {
     const taskId = "11111111-2222-3333-4444-555555555555";
     mocks.getTask.mockResolvedValue(null);
 
-    const result = await TaskDetailPage({ params: Promise.resolve({ id: taskId }) });
+    await expect(TaskDetailPage({ params: Promise.resolve({ id: taskId }) })).rejects.toThrow(
+      "NEXT_NOT_FOUND",
+    );
 
     expect(mocks.getTask).toHaveBeenCalledWith(taskId, "user-1");
-    expect(result.type).toBe(TaskNotFound);
+    expect(mocks.notFound).toHaveBeenCalledOnce();
   });
 });

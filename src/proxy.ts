@@ -14,7 +14,7 @@ export function proxy(request: NextRequest) {
 
   if (
     STATIC_PREFIXES.some((prefix) => pathname.startsWith(prefix)) ||
-    pathname.match(/\.(?:svg|png|jpg|jpeg|gif|ico|css|js|woff2?)$/)
+    pathname.match(/\.(?:svg|png|jpg|jpeg|gif|ico|css|js|woff2?|ttf)$/)
   ) {
     return NextResponse.next();
   }
