@@ -63,12 +63,24 @@ describe("Prisma schema", () => {
     expect(schema).toContain('workspaceId  String                 @map("workspace_id")');
     expect(schema).toContain('targetKey    String                 @map("target_key")');
     expect(schema).toContain('relativePath String?                @map("relative_path")');
+    expect(schema).toContain("position     Int                    @default(2147483647)");
     expect(schema).toContain(
       "user User @relation(fields: [userId], references: [id], onDelete: Cascade)",
     );
     expect(schema).toContain("@@unique([userId, kind, workspaceId, targetKey])");
     expect(schema).toContain("@@index([userId, kind, workspaceId])");
     expect(schema).toContain('@@map("navigation_favorites")');
+  });
+
+  it("ships persisted ordering for navigation favorites", () => {
+    const migrationPath = path.resolve(
+      __dirname,
+      "../../../../packages/db/prisma/migrations/20260714000000_add_navigation_favorite_position/migration.sql",
+    );
+    const migration = fs.readFileSync(migrationPath, "utf-8");
+
+    expect(migration).toContain('ADD COLUMN "position" INTEGER NOT NULL DEFAULT 2147483647;');
+    expect(migration).toContain('CREATE INDEX "navigation_favorites_user_id_position_idx"');
   });
 
   it("ships a navigation favorites migration with relation, unique key, and lookup index", () => {

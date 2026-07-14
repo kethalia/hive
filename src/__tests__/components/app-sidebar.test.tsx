@@ -298,6 +298,7 @@ vi.mock("lucide-react", () => ({
   FolderOpen: () => <span>FolderOpen</span>,
   Folder: () => <span>Folder</span>,
   GitBranch: () => <span>GitBranch</span>,
+  GripVertical: () => <span>GripVertical</span>,
   Code: () => <span>Code</span>,
   ExternalLink: () => <span>ExternalLink</span>,
   ChevronDown: () => <span>ChevronDown</span>,
@@ -321,6 +322,7 @@ const mockRenameSession = vi.fn();
 const mockListNavigationFavorites = vi.fn();
 const mockUpsertNavigationFavorite = vi.fn();
 const mockRemoveNavigationFavorite = vi.fn();
+const mockReorderNavigationFavorites = vi.fn();
 const mockGetTerminalSettings = vi.fn();
 const mockUpdateTerminalSettings = vi.fn();
 
@@ -356,6 +358,7 @@ vi.mock("@/lib/actions/navigation-favorites", () => ({
   listNavigationFavoritesAction: (...args: unknown[]) => mockListNavigationFavorites(...args),
   upsertNavigationFavoriteAction: (...args: unknown[]) => mockUpsertNavigationFavorite(...args),
   removeNavigationFavoriteAction: (...args: unknown[]) => mockRemoveNavigationFavorite(...args),
+  reorderNavigationFavoritesAction: (...args: unknown[]) => mockReorderNavigationFavorites(...args),
 }));
 
 vi.mock("@/lib/actions/user-settings", () => ({
@@ -512,6 +515,7 @@ function makeFavorite(overrides: Record<string, unknown> = {}) {
     label: "dev",
     relativePath: null,
     createdAt: "2026-06-02T00:00:00.000Z",
+    position: 0,
     ...overrides,
   };
 }
@@ -578,6 +582,7 @@ describe("AppSidebar", () => {
     mockRemoveNavigationFavorite.mockResolvedValue({
       data: { success: true },
     });
+    mockReorderNavigationFavorites.mockResolvedValue({ data: { success: true } });
     mockGetTerminalSettings.mockResolvedValue({
       data: { terminalControlsBeyondMobile: false },
     });
@@ -824,6 +829,29 @@ describe("AppSidebar", () => {
     const terminalLink = screen.getByText("Main shell").closest("a");
     expect(terminalLink).toHaveAttribute("href", "/workspaces/ws-1/terminal?session=dev");
     expect(document.body.innerHTML).not.toContain("userId");
+  });
+
+  it("reorders pinned actions from the drag handle keyboard controls", async () => {
+    mockListNavigationFavorites.mockResolvedValueOnce({
+      data: [
+        makeFavorite({ id: "fav-first", label: "First", position: 0 }),
+        makeFavorite({ id: "fav-second", label: "Second", targetKey: "second", position: 1 }),
+      ],
+    });
+    render(<AppSidebar />);
+
+    const firstHandle = await screen.findByRole("button", { name: "Reorder First" });
+    expect(screen.getByRole("button", { name: "Reorder Second" })).toBeInTheDocument();
+    fireEvent.keyDown(firstHandle, { key: "ArrowDown" });
+
+    await waitFor(() => {
+      expect(mockReorderNavigationFavorites).toHaveBeenCalledWith({
+        favoriteIds: ["fav-second", "fav-first"],
+      });
+    });
+    const first = screen.getByText("First");
+    const second = screen.getByText("Second");
+    expect(second.compareDocumentPosition(first)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
   });
 
   it("hides Pinned when no favorites are returned", async () => {

@@ -8,6 +8,7 @@ import {
   ExternalLink,
   FolderOpen,
   GitBranch,
+  GripVertical,
   Hexagon,
   LayoutDashboard,
   LayoutTemplate,
@@ -69,6 +70,7 @@ import {
   listNavigationFavoritesAction,
   type NavigationFavoriteDto,
   removeNavigationFavoriteAction,
+  reorderNavigationFavoritesAction,
   upsertNavigationFavoriteAction,
 } from "@/lib/actions/navigation-favorites";
 import { listTemplateStatusesAction } from "@/lib/actions/templates";
@@ -205,7 +207,11 @@ function dedupeFavorites(favorites: NavigationFavoriteDto[]): NavigationFavorite
     const key = favoriteIdentity(favorite.kind, favorite.workspaceId, favorite.targetKey);
     if (!byKey.has(key)) byKey.set(key, favorite);
   }
-  return [...byKey.values()];
+  return [...byKey.values()].sort(
+    (a, b) =>
+      (a.position ?? Number.MAX_SAFE_INTEGER) - (b.position ?? Number.MAX_SAFE_INTEGER) ||
+      a.createdAt.localeCompare(b.createdAt),
+  );
 }
 
 function isSafeFavoriteLabel(label: string | null): label is string {
@@ -425,14 +431,57 @@ function FavoritesSection({
   activeSession,
   activeClonePath,
   onGitFavoriteLaunch,
+  onReorder,
 }: {
   favorites: FavoritesState;
   pathname: string;
   activeSession: string | null;
   activeClonePath: string | null;
   onGitFavoriteLaunch: (favorite: NavigationFavoriteDto) => void;
+  onReorder: (favoriteIds: string[]) => void;
 }) {
   const visibleFavorites = useMemo(() => dedupeFavorites(favorites.data), [favorites.data]);
+  const [draggedFavoriteId, setDraggedFavoriteId] = useState<string | null>(null);
+
+  const reorderAround = (sourceId: string, targetId: string) => {
+    if (sourceId === targetId) return;
+    const next = [...visibleFavorites];
+    const sourceIndex = next.findIndex((favorite) => favorite.id === sourceId);
+    const targetIndex = next.findIndex((favorite) => favorite.id === targetId);
+    if (sourceIndex < 0 || targetIndex < 0) return;
+    const [moved] = next.splice(sourceIndex, 1);
+    next.splice(targetIndex, 0, moved);
+    onReorder(next.map((favorite) => favorite.id));
+  };
+
+  const moveByKeyboard = (favoriteId: string, direction: -1 | 1) => {
+    const index = visibleFavorites.findIndex((favorite) => favorite.id === favoriteId);
+    const target = visibleFavorites[index + direction];
+    if (target) reorderAround(favoriteId, target.id);
+  };
+
+  const dragHandle = (favorite: NavigationFavoriteDto) => (
+    <button
+      type="button"
+      draggable
+      aria-label={`Reorder ${favoriteLabel(favorite)}`}
+      className="flex size-8 shrink-0 cursor-grab touch-none items-center justify-center rounded-md text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2 focus-visible:ring-sidebar-ring active:cursor-grabbing max-md:size-11"
+      onDragStart={(event) => {
+        setDraggedFavoriteId(favorite.id);
+        event.dataTransfer.effectAllowed = "move";
+        event.dataTransfer.setData("text/plain", favorite.id);
+      }}
+      onDragEnd={() => setDraggedFavoriteId(null)}
+      onKeyDown={(event) => {
+        if (event.key === "ArrowUp" || event.key === "ArrowDown") {
+          event.preventDefault();
+          moveByKeyboard(favorite.id, event.key === "ArrowUp" ? -1 : 1);
+        }
+      }}
+    >
+      <GripVertical aria-hidden="true" className="size-4" />
+    </button>
+  );
 
   if (!favorites.isLoading && visibleFavorites.length === 0 && !favorites.error) return null;
 
@@ -459,7 +508,19 @@ function FavoritesSection({
               const label = favoriteLabel(favorite);
               if (favorite.kind === "terminal") {
                 return (
-                  <SidebarMenuItem key={favorite.id}>
+                  <SidebarMenuItem
+                    key={favorite.id}
+                    className="flex items-center gap-1"
+                    onDragOver={(event) => event.preventDefault()}
+                    onDrop={(event) => {
+                      event.preventDefault();
+                      reorderAround(
+                        draggedFavoriteId ?? event.dataTransfer.getData("text/plain"),
+                        favorite.id,
+                      );
+                      setDraggedFavoriteId(null);
+                    }}
+                  >
                     <SidebarMenuButton
                       render={
                         <Link
@@ -474,10 +535,12 @@ function FavoritesSection({
                         activeSession === favorite.targetKey
                       }
                       data-testid={`favorite-terminal-link-${favorite.workspaceId}-${favorite.targetKey}`}
+                      className="min-w-0 flex-1"
                     >
                       <Terminal className="h-4 w-4" />
                       <span className="truncate">{label}</span>
                     </SidebarMenuButton>
+                    {dragHandle(favorite)}
                   </SidebarMenuItem>
                 );
               }
@@ -485,10 +548,25 @@ function FavoritesSection({
               const canLaunch =
                 typeof favorite.relativePath === "string" && favorite.relativePath.length > 0;
               return (
-                <SidebarMenuItem key={favorite.id}>
+                <SidebarMenuItem
+                  key={favorite.id}
+                  className="flex items-center gap-1"
+                  onDragOver={(event) => event.preventDefault()}
+                  onDrop={(event) => {
+                    event.preventDefault();
+                    reorderAround(
+                      draggedFavoriteId ?? event.dataTransfer.getData("text/plain"),
+                      favorite.id,
+                    );
+                    setDraggedFavoriteId(null);
+                  }}
+                >
                   <SidebarMenuButton
                     disabled={!canLaunch}
-                    className={cn("cursor-pointer", !canLaunch && "cursor-not-allowed opacity-50")}
+                    className={cn(
+                      "min-w-0 flex-1 cursor-pointer",
+                      !canLaunch && "cursor-not-allowed opacity-50",
+                    )}
                     isActive={
                       pathname === `/workspaces/${favorite.workspaceId}/terminal` &&
                       activeClonePath === favorite.relativePath
@@ -501,6 +579,7 @@ function FavoritesSection({
                     <GitBranch className="h-4 w-4" />
                     <span className="truncate">{label}</span>
                   </SidebarMenuButton>
+                  {dragHandle(favorite)}
                 </SidebarMenuItem>
               );
             })}
@@ -1182,6 +1261,34 @@ export function AppSidebar() {
     });
   }, []);
 
+  const handleFavoriteReorder = useCallback(
+    async (favoriteIds: string[]) => {
+      const previousData = favorites.data;
+      const positions = new Map(favoriteIds.map((id, position) => [id, position]));
+      setFavorites((prev) => ({
+        ...prev,
+        error: null,
+        data: dedupeFavorites(
+          prev.data.map((favorite) => ({
+            ...favorite,
+            position: positions.get(favorite.id) ?? favorite.position,
+          })),
+        ),
+      }));
+      try {
+        const result = await reorderNavigationFavoritesAction({ favoriteIds });
+        if (!result?.data) throw new Error("favorite_reorder_failed");
+      } catch {
+        setFavorites((prev) => ({
+          ...prev,
+          data: previousData,
+          error: FAVORITES_UNAVAILABLE_MESSAGE,
+        }));
+      }
+    },
+    [favorites.data],
+  );
+
   const handleTerminalFavoriteToggle = useCallback(
     async (workspaceId: string, sessionName: string, nextFavorited: boolean) => {
       const key = favoriteIdentity("terminal", workspaceId, sessionName);
@@ -1468,6 +1575,7 @@ export function AppSidebar() {
             activeSession={activeSession}
             activeClonePath={activeClonePath}
             onGitFavoriteLaunch={handleGitFavoriteLaunch}
+            onReorder={handleFavoriteReorder}
           />
 
           <SidebarGroup className="pb-0">

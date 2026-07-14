@@ -139,6 +139,7 @@ model NavigationFavorite {
   targetKey    String                 @map("target_key")
   label        String?
   relativePath String?                @map("relative_path")
+  position     Int                    @default(2147483647)
   createdAt    DateTime               @default(now()) @map("created_at") @db.Timestamptz
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
