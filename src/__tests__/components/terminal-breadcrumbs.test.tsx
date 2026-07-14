@@ -122,9 +122,9 @@ describe("TerminalBreadcrumbs", () => {
     render(<TerminalBreadcrumbs workspaceId="ws-1" />);
 
     await waitFor(() => {
-      expect(screen.getByText("Home")).toBeInTheDocument();
+      expect(screen.getByText("Workspaces")).toBeInTheDocument();
       expect(screen.getByText("dev-box")).toBeInTheDocument();
-      expect(screen.getByText("Terminal")).toBeInTheDocument();
+      expect(screen.queryByText("Terminal")).not.toBeInTheDocument();
     });
   });
 
@@ -226,7 +226,7 @@ describe("TerminalBreadcrumbs", () => {
     });
   });
 
-  it("renders Workspaces link pointing to /tasks", async () => {
+  it("renders Workspaces as the workspace-home link", async () => {
     mockGetWorkspace.mockResolvedValue({ data: { name: "dev-box" } });
     mockGetSessions.mockResolvedValue({
       data: [{ name: "s1", created: 1000, windows: 1 }],
@@ -235,8 +235,8 @@ describe("TerminalBreadcrumbs", () => {
     render(<TerminalBreadcrumbs workspaceId="ws-1" />);
 
     await waitFor(() => {
-      const link = screen.getByText("Home").closest("a");
-      expect(link).toHaveAttribute("href", "/tasks");
+      const link = screen.getByText("Workspaces").closest("a");
+      expect(link).toHaveAttribute("href", "/workspaces");
     });
   });
 });

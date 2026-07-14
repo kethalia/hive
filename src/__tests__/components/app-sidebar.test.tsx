@@ -823,12 +823,13 @@ describe("AppSidebar", () => {
     expect(document.body.innerHTML).not.toContain("userId");
   });
 
-  it("renders an empty favorites state when no favorites are returned", async () => {
+  it("hides Pinned when no favorites are returned", async () => {
     render(<AppSidebar />);
 
     await waitFor(() => {
-      expect(screen.getByText("No favorites yet.")).toBeInTheDocument();
+      expect(mockListNavigationFavorites).toHaveBeenCalledWith({ workspaceId: "ws-1" });
     });
+    expect(screen.queryByTestId("favorites-section")).not.toBeInTheDocument();
   });
 
   it("upserts and removes terminal favorites without user-scoped payload fields", async () => {
@@ -1632,11 +1633,25 @@ describe("AppSidebar", () => {
       expect(screen.getByText("Files")).toBeInTheDocument();
     });
 
+    const sessionsSection = screen.getByText("Sessions");
+    const repositoriesSection = screen.getByText("Repositories");
+    const toolsSection = screen.getByText("Tools");
+    expect(
+      sessionsSection.compareDocumentPosition(repositoriesSection) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    expect(
+      repositoriesSection.compareDocumentPosition(toolsSection) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+
     expect(screen.getByText("Files").closest("a")).toHaveAttribute(
       "href",
       "https://filebrowser.test",
     );
     expect(screen.getByText("Files").closest("a")).toHaveAttribute("target", "_blank");
+    expect(screen.getByText("Files").closest("a")).toHaveAccessibleName(
+      "Files (opens in a new tab)",
+    );
     expect(screen.getByText("Desktop").closest("a")).toHaveAttribute(
       "href",
       "https://kasmvnc.test",

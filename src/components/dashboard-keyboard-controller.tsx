@@ -20,8 +20,8 @@ const GLOBAL_COMMAND_PALETTE_KEYS = ["ctrl+k", "cmd+k"] as const;
 const GLOBAL_SIDEBAR_KEYS = ["ctrl+b", "cmd+b"] as const;
 const GLOBAL_COMPOSE_KEYS = ["ctrl+`", "cmd+`"] as const;
 const GLOBAL_FULLSCREEN_KEYS = ["ctrl+enter", "cmd+enter"] as const;
-const NAV_TASKS_KEYS = ["ctrl+shift+1", "cmd+shift+1"] as const;
-const NAV_WORKSPACES_KEYS = ["ctrl+shift+2", "cmd+shift+2"] as const;
+const NAV_WORKSPACES_KEYS = ["ctrl+shift+1", "cmd+shift+1"] as const;
+const NAV_TASKS_KEYS = ["ctrl+shift+2", "cmd+shift+2"] as const;
 const NAV_TEMPLATES_KEYS = ["ctrl+shift+3", "cmd+shift+3"] as const;
 const NAV_STATUS_KEYS = ["ctrl+shift+4", "cmd+shift+4"] as const;
 
@@ -325,17 +325,6 @@ export function DashboardKeyboardController() {
 
     return [
       {
-        id: "dashboard:new-task",
-        label: "New task",
-        description: "Create a Hive task",
-        group: "Actions",
-        value: "new task create hive task",
-        icon: "plus",
-        onSelect: () => {
-          router.push("/tasks/new");
-        },
-      },
-      {
         id: "dashboard:open-workspaces",
         label: "Workspaces",
         description: "Open Coder workspaces and terminal sessions",
@@ -345,6 +334,18 @@ export function DashboardKeyboardController() {
         icon: "terminal",
         onSelect: () => {
           router.push("/workspaces");
+        },
+      },
+      ...workspaceActions,
+      {
+        id: "dashboard:new-task",
+        label: "New task",
+        description: "Create an automation task",
+        group: "Automation",
+        value: "new task create hive automation task",
+        icon: "plus",
+        onSelect: () => {
+          router.push("/tasks/new");
         },
       },
       {
@@ -397,7 +398,6 @@ export function DashboardKeyboardController() {
         icon: "search",
         onSelect: toggleDashboardFullscreen,
       },
-      ...workspaceActions,
       ...activeTasks.slice(0, 6).map<CommandPaletteAction>((task) => ({
         id: `dashboard:active-task:${task.id}`,
         label: `${shortId(task.id)} • ${task.status}`,

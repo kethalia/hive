@@ -288,7 +288,7 @@ export function WorkspaceListContent({ workspaces, error }: WorkspaceListContent
     <div className="space-y-6">
       <DashboardPageHeader
         title="Workspaces"
-        description="Open a workspace terminal or pull down to refresh the current Coder list."
+        description="Persistent development environments. Open one to resume its terminal sessions."
         actions={
           <Button
             type="button"
@@ -409,8 +409,12 @@ export function WorkspaceListContent({ workspaces, error }: WorkspaceListContent
             <Monitor className="mb-3 h-8 w-8 text-muted-foreground" aria-hidden="true" />
             <p className="text-muted-foreground text-lg">No workspaces found.</p>
             <p className="text-muted-foreground mt-1 text-sm">
-              Pull down to refresh after creating a workspace in Coder.
+              Create a workspace to start persistent terminal sessions.
             </p>
+            <Button type="button" className="mt-4" onClick={openCreateDialog}>
+              <Plus data-icon="inline-start" />
+              Create workspace
+            </Button>
           </CardContent>
         </Card>
       ) : (

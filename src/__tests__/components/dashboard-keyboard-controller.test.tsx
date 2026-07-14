@@ -155,12 +155,12 @@ describe("DashboardKeyboardController", () => {
       "cmd+enter",
     ]);
     expect(registeredBindings.get("dashboard:navigate-tasks")?.keys).toEqual([
-      "ctrl+shift+1",
-      "cmd+shift+1",
-    ]);
-    expect(registeredBindings.get("dashboard:navigate-workspaces")?.keys).toEqual([
       "ctrl+shift+2",
       "cmd+shift+2",
+    ]);
+    expect(registeredBindings.get("dashboard:navigate-workspaces")?.keys).toEqual([
+      "ctrl+shift+1",
+      "cmd+shift+1",
     ]);
     expect(registeredBindings.get("dashboard:navigate-templates")?.keys).toEqual([
       "ctrl+shift+3",

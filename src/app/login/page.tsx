@@ -34,7 +34,7 @@ export default function LoginPage() {
         return;
       }
 
-      router.push("/tasks");
+      router.push("/workspaces");
       router.refresh();
     } catch {
       setError("Login failed. Please try again.");

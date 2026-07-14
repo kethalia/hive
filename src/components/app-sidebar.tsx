@@ -5,6 +5,7 @@ import {
   ChevronDown,
   ChevronRight,
   Code,
+  ExternalLink,
   FolderOpen,
   GitBranch,
   Hexagon,
@@ -431,9 +432,11 @@ function FavoritesSection({
 }) {
   const visibleFavorites = useMemo(() => dedupeFavorites(favorites.data), [favorites.data]);
 
+  if (!favorites.isLoading && visibleFavorites.length === 0 && !favorites.error) return null;
+
   return (
     <SidebarGroup className="pb-0" data-testid="favorites-section">
-      <SidebarGroupLabel>Favorites</SidebarGroupLabel>
+      <SidebarGroupLabel>Pinned</SidebarGroupLabel>
       <SidebarGroupContent>
         {favorites.error && (
           <Alert variant="destructive" className="mx-4 my-1" data-testid="favorites-error">
@@ -445,12 +448,7 @@ function FavoritesSection({
         )}
         {favorites.isLoading && visibleFavorites.length === 0 && (
           <p className="px-6 py-2 text-xs text-muted-foreground" role="status">
-            Loading favorites…
-          </p>
-        )}
-        {!favorites.isLoading && visibleFavorites.length === 0 && !favorites.error && (
-          <p className="px-6 py-2 text-xs text-muted-foreground" role="status">
-            No favorites yet.
+            Loading pinned items…
           </p>
         )}
         {visibleFavorites.length > 0 && (
@@ -1395,7 +1393,7 @@ export function AppSidebar() {
   return (
     <Sidebar variant={sidebarMode} collapsible="offcanvas">
       <SidebarHeader className="h-14 flex-row items-center justify-between border-b border-sidebar-border px-4">
-        <Link href="/tasks" className="flex items-center gap-2">
+        <Link href="/workspaces" className="flex items-center gap-2">
           <Hexagon className="h-6 w-6 text-primary" />
           <span className="text-lg font-bold tracking-tight">Hive</span>
         </Link>
@@ -1403,448 +1401,493 @@ export function AppSidebar() {
       </SidebarHeader>
 
       <SidebarContent>
-        {/* Navigation */}
-        <SidebarGroup className="pb-0">
-          <SidebarGroupLabel>Navigation</SidebarGroupLabel>
-          <SidebarGroupContent>
+        <nav aria-label="Workspace navigation" className="flex flex-col gap-0">
+          <SidebarGroup className="pb-0">
+            <SidebarGroupLabel>Workspaces</SidebarGroupLabel>
+            <SidebarMenu>
+              <Collapsible
+                open={workspacesOpen}
+                onOpenChange={setWorkspacesOpen}
+                className="group/collapsible"
+              >
+                <SidebarMenuItem>
+                  <div className="flex items-center gap-1">
+                    <SidebarMenuButton
+                      render={<Link href="/workspaces" />}
+                      isActive={pathname === "/workspaces"}
+                      aria-current={pathname === "/workspaces" ? "page" : undefined}
+                      className="min-w-0 flex-1"
+                    >
+                      <Monitor className="h-4 w-4" />
+                      <span>Workspaces</span>
+                    </SidebarMenuButton>
+                    <CollapsibleTrigger
+                      render={<button type="button" />}
+                      aria-label={`${workspacesOpen ? "Collapse" : "Expand"} workspace navigation`}
+                      className="flex size-8 shrink-0 items-center justify-center rounded-md outline-hidden max-md:size-11 hover:bg-sidebar-accent focus-visible:ring-2 focus-visible:ring-sidebar-ring"
+                      data-testid="workspaces-disclosure"
+                    >
+                      <ChevronRight
+                        aria-hidden="true"
+                        className={cn("size-4 transition-transform", workspacesOpen && "rotate-90")}
+                      />
+                    </CollapsibleTrigger>
+                  </div>
+                  <CollapsibleContent id="workspace-navigation-tree">
+                    {workspaces.error && (
+                      <Alert variant="destructive" className="mx-4 my-1">
+                        <AlertCircle className="h-4 w-4" />
+                        <AlertDescription className="flex items-center justify-between">
+                          <span className="text-xs">{workspaces.error}</span>
+                          <button
+                            type="button"
+                            onClick={fetchWorkspaces}
+                            className="ml-2 text-xs underline"
+                          >
+                            Retry
+                          </button>
+                        </AlertDescription>
+                      </Alert>
+                    )}
+                    {workspaces.isLoading && workspaces.data.length === 0 && (
+                      <p className="px-6 py-2 text-xs text-muted-foreground">Loading...</p>
+                    )}
+                    <SidebarMenuSub className="!mr-0 !pr-0">
+                      {workspaces.data.map((ws) => {
+                        const agent = workspaceAgents[ws.id];
+                        const urls =
+                          agent && coderUrl
+                            ? buildWorkspaceUrls(ws, agent.agentName, coderUrl)
+                            : null;
+                        const sessions = workspaceSessions[ws.id];
+                        const gitState = workspaceGitDiscovery[ws.id] ?? {
+                          result: null,
+                          isLoading: false,
+                          serverError: null,
+                        };
+                        const gitTerminalError = workspaceGitTerminalErrors[ws.id];
+                        const isExpanded = expandedWorkspaces[ws.id] ?? false;
+                        const isGitSectionExpanded = expandedGitSections[ws.id] ?? false;
+                        const encodedWorkspaceId = encodeURIComponent(ws.id);
+                        const multiSessionWorkspaceHref = `/workspaces/${encodedWorkspaceId}/terminal/workspace`;
+                        const gitMultiSessionWorkspaceHref = `/workspaces/${encodedWorkspaceId}/terminal/git-workspace`;
+                        const isWorkspacePageActive =
+                          pathname === multiSessionWorkspaceHref ||
+                          pathname === gitMultiSessionWorkspaceHref;
+                        const isWorkspaceRouteActive = pathname.startsWith(
+                          `/workspaces/${encodedWorkspaceId}/`,
+                        );
+                        return (
+                          <Collapsible
+                            key={ws.id}
+                            open={isExpanded}
+                            onOpenChange={(open) => handleWorkspaceExpand(ws.id, open)}
+                          >
+                            <SidebarMenuSubItem>
+                              <div className="flex min-w-0 items-center gap-1">
+                                <SidebarMenuSubButton
+                                  render={<Link href={multiSessionWorkspaceHref} />}
+                                  isActive={isWorkspaceRouteActive}
+                                  aria-current={isWorkspacePageActive ? "page" : undefined}
+                                  className="min-w-0 flex-1"
+                                  data-testid={`workspace-link-${ws.id}`}
+                                  title={ws.name}
+                                >
+                                  <Monitor aria-hidden="true" className="size-3 shrink-0" />
+                                  <span className="truncate">{ws.name}</span>
+                                  <Badge
+                                    variant={
+                                      ws.latest_build.status === "running" ? "default" : "secondary"
+                                    }
+                                    className="ml-auto px-1 py-0 text-[10px]"
+                                  >
+                                    {ws.latest_build.status}
+                                  </Badge>
+                                </SidebarMenuSubButton>
+                                <CollapsibleTrigger
+                                  render={<button type="button" />}
+                                  aria-label={`${isExpanded ? "Collapse" : "Expand"} ${ws.name} navigation`}
+                                  className="flex size-7 shrink-0 items-center justify-center rounded-md outline-hidden max-md:size-11 hover:bg-sidebar-accent focus-visible:ring-2 focus-visible:ring-sidebar-ring"
+                                  data-testid={`workspace-disclosure-${ws.id}`}
+                                >
+                                  <ChevronRight
+                                    aria-hidden="true"
+                                    className={cn(
+                                      "size-3 transition-transform",
+                                      isExpanded && "rotate-90",
+                                    )}
+                                  />
+                                </CollapsibleTrigger>
+                              </div>
+                              <CollapsibleContent id={`workspace-navigation-${ws.id}`}>
+                                <SidebarMenuSub className="!mr-0 !pr-0">
+                                  <Collapsible
+                                    open={expandedTerminals[ws.id] ?? false}
+                                    onOpenChange={(open) =>
+                                      setExpandedTerminals((prev) => ({ ...prev, [ws.id]: open }))
+                                    }
+                                    data-testid={`terminal-section-${ws.id}`}
+                                  >
+                                    <SidebarMenuSubItem>
+                                      <SidebarMenuSubButton
+                                        render={<CollapsibleTrigger />}
+                                        className="w-full cursor-pointer"
+                                      >
+                                        <Terminal className="h-3 w-3 shrink-0" />
+                                        <span>Sessions</span>
+                                        <ChevronRight
+                                          className={`ml-auto h-3 w-3 transition-transform ${expandedTerminals[ws.id] ? "rotate-90" : ""}`}
+                                        />
+                                      </SidebarMenuSubButton>
+                                      <CollapsibleContent>
+                                        {sessions?.error && (
+                                          <Alert variant="destructive" className="mx-2 mb-1">
+                                            <AlertCircle className="h-3 w-3" />
+                                            <AlertDescription className="flex items-center justify-between">
+                                              <span className="text-xs">{sessions.error}</span>
+                                              <button
+                                                type="button"
+                                                onClick={() => fetchSessions(ws.id)}
+                                                className="ml-2 text-xs underline"
+                                              >
+                                                Retry
+                                              </button>
+                                            </AlertDescription>
+                                          </Alert>
+                                        )}
+                                        <SidebarMenuSub className="!mr-0 !pr-0">
+                                          <SidebarMenuSubItem>
+                                            {!sessions || sessions.isLoading ? (
+                                              <SidebarMenuSubButton
+                                                className="cursor-not-allowed opacity-50"
+                                                data-testid={`create-session-loading-${ws.id}`}
+                                              >
+                                                <Loader2 className="h-3 w-3 shrink-0 animate-spin" />
+                                                <span>Loading…</span>
+                                              </SidebarMenuSubButton>
+                                            ) : (
+                                              <SidebarMenuSubButton
+                                                className="cursor-pointer"
+                                                data-testid={`create-session-${ws.id}`}
+                                                onClick={() => handleCreateSession(ws.id)}
+                                              >
+                                                <Plus className="h-3 w-3 shrink-0" />
+                                                <span>Add session</span>
+                                              </SidebarMenuSubButton>
+                                            )}
+                                          </SidebarMenuSubItem>
+                                          <SessionList
+                                            sessions={sessions?.data ?? []}
+                                            workspaceId={ws.id}
+                                            pathname={pathname}
+                                            activeSession={activeSession}
+                                            favoriteKeys={favoriteKeySet}
+                                            mutatingFavoriteKeys={favorites.mutatingKeys}
+                                            onFavoriteToggle={handleTerminalFavoriteToggle}
+                                            onKill={handleKillSession}
+                                            onRename={handleRenameSession}
+                                          />
+                                        </SidebarMenuSub>
+                                      </CollapsibleContent>
+                                    </SidebarMenuSubItem>
+                                  </Collapsible>
+                                  <Collapsible
+                                    open={isGitSectionExpanded}
+                                    onOpenChange={(open) => handleGitSectionExpand(ws.id, open)}
+                                    data-testid={`git-section-${ws.id}`}
+                                  >
+                                    <SidebarMenuSubItem>
+                                      <SidebarMenuSubButton
+                                        render={<CollapsibleTrigger />}
+                                        className="w-full cursor-pointer"
+                                      >
+                                        <GitBranch
+                                          aria-hidden="true"
+                                          className="h-3 w-3 shrink-0"
+                                        />
+                                        <span>Repositories</span>
+                                        <ChevronRight
+                                          aria-hidden="true"
+                                          className={`ml-auto h-3 w-3 transition-transform ${isGitSectionExpanded ? "rotate-90" : ""}`}
+                                          data-testid={`git-section-chevron-${ws.id}`}
+                                        />
+                                      </SidebarMenuSubButton>
+                                      <CollapsibleContent>
+                                        <GitDiscoveryPanel
+                                          state={gitState}
+                                          activeClonePath={
+                                            pathname === `/workspaces/${ws.id}/terminal`
+                                              ? activeClonePath
+                                              : null
+                                          }
+                                          favoriteKeys={
+                                            gitFavoriteKeysByWorkspace.get(ws.id) ?? new Set()
+                                          }
+                                          mutatingFavoriteKeys={
+                                            mutatingGitFavoriteKeysByWorkspace.get(ws.id) ??
+                                            new Set()
+                                          }
+                                          onFavoriteToggle={(repository, nextFavorited) =>
+                                            handleGitFavoriteToggle(
+                                              ws.id,
+                                              repository,
+                                              nextFavorited,
+                                            )
+                                          }
+                                          onRetry={() => fetchGitClones(ws.id)}
+                                          onRepositorySelect={(repository) =>
+                                            handleGitRepositorySelect(ws.id, repository)
+                                          }
+                                        />
+                                        {gitTerminalError && (
+                                          <Alert
+                                            variant="destructive"
+                                            className="mx-2 mb-1"
+                                            data-testid={`git-terminal-open-error-${ws.id}`}
+                                          >
+                                            <AlertCircle className="h-3 w-3" />
+                                            <AlertDescription>
+                                              <span className="text-xs">{gitTerminalError}</span>
+                                            </AlertDescription>
+                                          </Alert>
+                                        )}
+                                      </CollapsibleContent>
+                                    </SidebarMenuSubItem>
+                                  </Collapsible>
+                                  {urls && (
+                                    <SidebarMenuSubItem>
+                                      <p className="px-2 pb-1 pt-2 text-[10px] font-medium uppercase tracking-wider text-sidebar-foreground/50">
+                                        Tools
+                                      </p>
+                                      <SidebarMenuSub className="!mr-0 !pr-0">
+                                        <SidebarMenuSubItem>
+                                          <SidebarMenuSubButton
+                                            render={
+                                              <Link
+                                                href={urls.filebrowser}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                              />
+                                            }
+                                            aria-label="Files (opens in a new tab)"
+                                          >
+                                            <FolderOpen
+                                              aria-hidden="true"
+                                              className="h-3 w-3 shrink-0"
+                                            />
+                                            <span>Files</span>
+                                            <ExternalLink
+                                              aria-hidden="true"
+                                              className="ml-auto size-3"
+                                            />
+                                          </SidebarMenuSubButton>
+                                        </SidebarMenuSubItem>
+                                        <SidebarMenuSubItem>
+                                          <SidebarMenuSubButton
+                                            render={
+                                              <Link
+                                                href={urls.codeServer}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                              />
+                                            }
+                                            aria-label="VS Code (opens in a new tab)"
+                                          >
+                                            <Code aria-hidden="true" className="h-3 w-3 shrink-0" />
+                                            <span>VS Code</span>
+                                            <ExternalLink
+                                              aria-hidden="true"
+                                              className="ml-auto size-3"
+                                            />
+                                          </SidebarMenuSubButton>
+                                        </SidebarMenuSubItem>
+                                        <SidebarMenuSubItem>
+                                          <SidebarMenuSubButton
+                                            render={
+                                              <Link
+                                                href={urls.kasmvnc}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                              />
+                                            }
+                                            aria-label="Desktop (opens in a new tab)"
+                                          >
+                                            <ScreenIcon
+                                              aria-hidden="true"
+                                              className="h-3 w-3 shrink-0"
+                                            />
+                                            <span>Desktop</span>
+                                            <ExternalLink
+                                              aria-hidden="true"
+                                              className="ml-auto size-3"
+                                            />
+                                          </SidebarMenuSubButton>
+                                        </SidebarMenuSubItem>
+                                      </SidebarMenuSub>
+                                    </SidebarMenuSubItem>
+                                  )}
+                                </SidebarMenuSub>
+                              </CollapsibleContent>
+                            </SidebarMenuSubItem>
+                          </Collapsible>
+                        );
+                      })}
+                    </SidebarMenuSub>
+                  </CollapsibleContent>
+                </SidebarMenuItem>
+              </Collapsible>
+            </SidebarMenu>
+          </SidebarGroup>
+
+          <FavoritesSection
+            favorites={favorites}
+            pathname={pathname}
+            activeSession={activeSession}
+            activeClonePath={activeClonePath}
+            onGitFavoriteLaunch={handleGitFavoriteLaunch}
+          />
+
+          <SidebarGroup className="pt-0">
+            <SidebarGroupLabel>Automation</SidebarGroupLabel>
+            <SidebarGroupContent>
+              <SidebarMenu>
+                <SidebarMenuItem>
+                  <SidebarMenuButton
+                    render={<Link href="/tasks" />}
+                    isActive={
+                      pathname === "/tasks" ||
+                      (pathname.startsWith("/tasks/") && !pathname.startsWith("/tasks/new"))
+                    }
+                    aria-current={
+                      pathname === "/tasks" ||
+                      (pathname.startsWith("/tasks/") && !pathname.startsWith("/tasks/new"))
+                        ? "page"
+                        : undefined
+                    }
+                  >
+                    <ListTodo aria-hidden="true" className="h-4 w-4" />
+                    <span>Tasks</span>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+                <SidebarMenuItem>
+                  <SidebarMenuButton
+                    render={<Link href="/tasks/new" />}
+                    isActive={pathname === "/tasks/new"}
+                    aria-current={pathname === "/tasks/new" ? "page" : undefined}
+                  >
+                    <PlusCircle aria-hidden="true" className="h-4 w-4" />
+                    <span>New Task</span>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+
+          <SidebarGroup className="pt-0">
+            <SidebarGroupLabel>Administration</SidebarGroupLabel>
+            <SidebarMenu>
+              <Collapsible
+                open={templatesOpen}
+                onOpenChange={setTemplatesOpen}
+                className="group/collapsible-templates"
+              >
+                <SidebarMenuItem>
+                  <div className="flex items-center gap-1">
+                    <SidebarMenuButton
+                      render={<Link href="/templates" />}
+                      isActive={pathname === "/templates"}
+                      aria-current={pathname === "/templates" ? "page" : undefined}
+                      className="min-w-0 flex-1"
+                    >
+                      <LayoutTemplate className="h-4 w-4" />
+                      <span>Templates</span>
+                    </SidebarMenuButton>
+                    <CollapsibleTrigger
+                      render={<button type="button" />}
+                      aria-label={`${templatesOpen ? "Collapse" : "Expand"} template navigation`}
+                      className="flex size-8 shrink-0 items-center justify-center rounded-md outline-hidden max-md:size-11 hover:bg-sidebar-accent focus-visible:ring-2 focus-visible:ring-sidebar-ring"
+                      data-testid="templates-disclosure"
+                    >
+                      <ChevronRight
+                        aria-hidden="true"
+                        className={cn("size-4 transition-transform", templatesOpen && "rotate-90")}
+                      />
+                    </CollapsibleTrigger>
+                  </div>
+                  <CollapsibleContent id="template-navigation-tree">
+                    {templates.error && (
+                      <Alert variant="destructive" className="mx-4 my-1">
+                        <AlertCircle className="h-4 w-4" />
+                        <AlertDescription className="flex items-center justify-between">
+                          <span className="text-xs">{templates.error}</span>
+                          <button
+                            type="button"
+                            onClick={fetchTemplates}
+                            className="ml-2 text-xs underline"
+                          >
+                            Retry
+                          </button>
+                        </AlertDescription>
+                      </Alert>
+                    )}
+                    {templates.isLoading && templates.data.length === 0 && (
+                      <p className="px-6 py-2 text-xs text-muted-foreground">Loading...</p>
+                    )}
+                    <SidebarMenuSub className="!mr-0 !pr-0">
+                      {templates.data.map((tpl) => (
+                        <SidebarMenuSubItem key={tpl.name}>
+                          <SidebarMenuSubButton
+                            render={<Link href={`/templates/${tpl.name}`} />}
+                            isActive={pathname === `/templates/${tpl.name}`}
+                          >
+                            <span className="truncate">{tpl.name}</span>
+                            <Badge
+                              variant={tpl.stale ? "destructive" : "secondary"}
+                              className="ml-auto text-[10px] px-1 py-0"
+                            >
+                              {tpl.stale ? "stale" : "fresh"}
+                            </Badge>
+                          </SidebarMenuSubButton>
+                        </SidebarMenuSubItem>
+                      ))}
+                    </SidebarMenuSub>
+                  </CollapsibleContent>
+                </SidebarMenuItem>
+              </Collapsible>
+            </SidebarMenu>
+          </SidebarGroup>
+
+          <SidebarGroup className="pt-0">
             <SidebarMenu>
               <SidebarMenuItem>
                 <SidebarMenuButton
-                  render={<Link href="/tasks" />}
-                  isActive={
-                    pathname === "/tasks" ||
-                    (pathname.startsWith("/tasks/") && !pathname.startsWith("/tasks/new"))
-                  }
+                  render={<Link href="/terminal/status" />}
+                  isActive={pathname === "/terminal/status"}
+                  aria-current={pathname === "/terminal/status" ? "page" : undefined}
                 >
-                  <ListTodo className="h-4 w-4" />
-                  <span>Tasks</span>
+                  <Stethoscope className="h-4 w-4" />
+                  <span>Diagnostics</span>
                 </SidebarMenuButton>
               </SidebarMenuItem>
-              <SidebarMenuItem>
-                <SidebarMenuButton
-                  render={<Link href="/tasks/new" />}
-                  isActive={pathname === "/tasks/new"}
-                >
-                  <PlusCircle className="h-4 w-4" />
-                  <span>New Task</span>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-              {coderUrl && (
-                <SidebarMenuItem>
-                  <SidebarMenuButton
-                    render={<Link href={coderUrl} target="_blank" rel="noopener noreferrer" />}
-                  >
-                    <LayoutDashboard className="h-4 w-4" />
-                    <span>Coder dashboard</span>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              )}
             </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
-
-        <FavoritesSection
-          favorites={favorites}
-          pathname={pathname}
-          activeSession={activeSession}
-          activeClonePath={activeClonePath}
-          onGitFavoriteLaunch={handleGitFavoriteLaunch}
-        />
-
-        {/* Workspaces */}
-        <SidebarGroup className="py-0">
-          <SidebarMenu>
-            <Collapsible
-              open={workspacesOpen}
-              onOpenChange={setWorkspacesOpen}
-              className="group/collapsible"
-            >
-              <SidebarMenuItem>
-                <div className="flex items-center gap-1">
-                  <SidebarMenuButton
-                    render={<Link href="/workspaces" />}
-                    isActive={pathname === "/workspaces"}
-                    aria-current={pathname === "/workspaces" ? "page" : undefined}
-                    className="min-w-0 flex-1"
-                  >
-                    <Monitor className="h-4 w-4" />
-                    <span>Workspaces</span>
-                  </SidebarMenuButton>
-                  <CollapsibleTrigger
-                    render={<button type="button" />}
-                    aria-label={`${workspacesOpen ? "Collapse" : "Expand"} workspace navigation`}
-                    className="flex size-8 shrink-0 items-center justify-center rounded-md outline-hidden hover:bg-sidebar-accent focus-visible:ring-2 focus-visible:ring-sidebar-ring"
-                    data-testid="workspaces-disclosure"
-                  >
-                    <ChevronRight
-                      aria-hidden="true"
-                      className={cn("size-4 transition-transform", workspacesOpen && "rotate-90")}
-                    />
-                  </CollapsibleTrigger>
-                </div>
-                <CollapsibleContent id="workspace-navigation-tree">
-                  {workspaces.error && (
-                    <Alert variant="destructive" className="mx-4 my-1">
-                      <AlertCircle className="h-4 w-4" />
-                      <AlertDescription className="flex items-center justify-between">
-                        <span className="text-xs">{workspaces.error}</span>
-                        <button
-                          type="button"
-                          onClick={fetchWorkspaces}
-                          className="ml-2 text-xs underline"
-                        >
-                          Retry
-                        </button>
-                      </AlertDescription>
-                    </Alert>
-                  )}
-                  {workspaces.isLoading && workspaces.data.length === 0 && (
-                    <p className="px-6 py-2 text-xs text-muted-foreground">Loading...</p>
-                  )}
-                  <SidebarMenuSub className="!mr-0 !pr-0">
-                    {workspaces.data.map((ws) => {
-                      const agent = workspaceAgents[ws.id];
-                      const urls =
-                        agent && coderUrl
-                          ? buildWorkspaceUrls(ws, agent.agentName, coderUrl)
-                          : null;
-                      const sessions = workspaceSessions[ws.id];
-                      const gitState = workspaceGitDiscovery[ws.id] ?? {
-                        result: null,
-                        isLoading: false,
-                        serverError: null,
-                      };
-                      const gitTerminalError = workspaceGitTerminalErrors[ws.id];
-                      const isExpanded = expandedWorkspaces[ws.id] ?? false;
-                      const isGitSectionExpanded = expandedGitSections[ws.id] ?? false;
-                      const encodedWorkspaceId = encodeURIComponent(ws.id);
-                      const multiSessionWorkspaceHref = `/workspaces/${encodedWorkspaceId}/terminal/workspace`;
-                      const gitMultiSessionWorkspaceHref = `/workspaces/${encodedWorkspaceId}/terminal/git-workspace`;
-                      const isWorkspacePageActive =
-                        pathname === multiSessionWorkspaceHref ||
-                        pathname === gitMultiSessionWorkspaceHref;
-                      const isWorkspaceRouteActive = pathname.startsWith(
-                        `/workspaces/${encodedWorkspaceId}/`,
-                      );
-                      return (
-                        <Collapsible
-                          key={ws.id}
-                          open={isExpanded}
-                          onOpenChange={(open) => handleWorkspaceExpand(ws.id, open)}
-                        >
-                          <SidebarMenuSubItem>
-                            <div className="flex min-w-0 items-center gap-1">
-                              <SidebarMenuSubButton
-                                render={<Link href={multiSessionWorkspaceHref} />}
-                                isActive={isWorkspaceRouteActive}
-                                aria-current={isWorkspacePageActive ? "page" : undefined}
-                                className="min-w-0 flex-1"
-                                data-testid={`workspace-link-${ws.id}`}
-                                title={ws.name}
-                              >
-                                <Monitor aria-hidden="true" className="size-3 shrink-0" />
-                                <span className="truncate">{ws.name}</span>
-                                <Badge
-                                  variant={
-                                    ws.latest_build.status === "running" ? "default" : "secondary"
-                                  }
-                                  className="ml-auto px-1 py-0 text-[10px]"
-                                >
-                                  {ws.latest_build.status}
-                                </Badge>
-                              </SidebarMenuSubButton>
-                              <CollapsibleTrigger
-                                render={<button type="button" />}
-                                aria-label={`${isExpanded ? "Collapse" : "Expand"} ${ws.name} navigation`}
-                                className="flex size-7 shrink-0 items-center justify-center rounded-md outline-hidden hover:bg-sidebar-accent focus-visible:ring-2 focus-visible:ring-sidebar-ring"
-                                data-testid={`workspace-disclosure-${ws.id}`}
-                              >
-                                <ChevronRight
-                                  aria-hidden="true"
-                                  className={cn(
-                                    "size-3 transition-transform",
-                                    isExpanded && "rotate-90",
-                                  )}
-                                />
-                              </CollapsibleTrigger>
-                            </div>
-                            <CollapsibleContent id={`workspace-navigation-${ws.id}`}>
-                              <SidebarMenuSub className="!mr-0 !pr-0">
-                                {urls && (
-                                  <>
-                                    <SidebarMenuSubItem>
-                                      <SidebarMenuSubButton
-                                        render={
-                                          <Link
-                                            href={urls.filebrowser}
-                                            target="_blank"
-                                            rel="noopener noreferrer"
-                                          />
-                                        }
-                                      >
-                                        <FolderOpen className="h-3 w-3 shrink-0" />
-                                        <span>Files</span>
-                                      </SidebarMenuSubButton>
-                                    </SidebarMenuSubItem>
-                                    <SidebarMenuSubItem>
-                                      <SidebarMenuSubButton
-                                        render={
-                                          <Link
-                                            href={urls.kasmvnc}
-                                            target="_blank"
-                                            rel="noopener noreferrer"
-                                          />
-                                        }
-                                      >
-                                        <ScreenIcon className="h-3 w-3 shrink-0" />
-                                        <span>Desktop</span>
-                                      </SidebarMenuSubButton>
-                                    </SidebarMenuSubItem>
-                                    <SidebarMenuSubItem>
-                                      <SidebarMenuSubButton
-                                        render={
-                                          <Link
-                                            href={urls.codeServer}
-                                            target="_blank"
-                                            rel="noopener noreferrer"
-                                          />
-                                        }
-                                      >
-                                        <Code className="h-3 w-3 shrink-0" />
-                                        <span>VS Code</span>
-                                      </SidebarMenuSubButton>
-                                    </SidebarMenuSubItem>
-                                  </>
-                                )}
-                                <Collapsible
-                                  open={isGitSectionExpanded}
-                                  onOpenChange={(open) => handleGitSectionExpand(ws.id, open)}
-                                  data-testid={`git-section-${ws.id}`}
-                                >
-                                  <SidebarMenuSubItem>
-                                    <SidebarMenuSubButton
-                                      render={<CollapsibleTrigger />}
-                                      className="w-full cursor-pointer"
-                                    >
-                                      <GitBranch className="h-3 w-3 shrink-0" />
-                                      <span>Repositories</span>
-                                      <ChevronRight
-                                        className={`ml-auto h-3 w-3 transition-transform ${isGitSectionExpanded ? "rotate-90" : ""}`}
-                                        data-testid={`git-section-chevron-${ws.id}`}
-                                      />
-                                    </SidebarMenuSubButton>
-                                    <CollapsibleContent>
-                                      <GitDiscoveryPanel
-                                        state={gitState}
-                                        activeClonePath={
-                                          pathname === `/workspaces/${ws.id}/terminal`
-                                            ? activeClonePath
-                                            : null
-                                        }
-                                        favoriteKeys={
-                                          gitFavoriteKeysByWorkspace.get(ws.id) ?? new Set()
-                                        }
-                                        mutatingFavoriteKeys={
-                                          mutatingGitFavoriteKeysByWorkspace.get(ws.id) ?? new Set()
-                                        }
-                                        onFavoriteToggle={(repository, nextFavorited) =>
-                                          handleGitFavoriteToggle(ws.id, repository, nextFavorited)
-                                        }
-                                        onRetry={() => fetchGitClones(ws.id)}
-                                        onRepositorySelect={(repository) =>
-                                          handleGitRepositorySelect(ws.id, repository)
-                                        }
-                                      />
-                                      {gitTerminalError && (
-                                        <Alert
-                                          variant="destructive"
-                                          className="mx-2 mb-1"
-                                          data-testid={`git-terminal-open-error-${ws.id}`}
-                                        >
-                                          <AlertCircle className="h-3 w-3" />
-                                          <AlertDescription>
-                                            <span className="text-xs">{gitTerminalError}</span>
-                                          </AlertDescription>
-                                        </Alert>
-                                      )}
-                                    </CollapsibleContent>
-                                  </SidebarMenuSubItem>
-                                </Collapsible>
-                                <Collapsible
-                                  open={expandedTerminals[ws.id] ?? false}
-                                  onOpenChange={(open) =>
-                                    setExpandedTerminals((prev) => ({ ...prev, [ws.id]: open }))
-                                  }
-                                  data-testid={`terminal-section-${ws.id}`}
-                                >
-                                  <SidebarMenuSubItem>
-                                    <SidebarMenuSubButton
-                                      render={<CollapsibleTrigger />}
-                                      className="w-full cursor-pointer"
-                                    >
-                                      <Terminal className="h-3 w-3 shrink-0" />
-                                      <span>Sessions</span>
-                                      <ChevronRight
-                                        className={`ml-auto h-3 w-3 transition-transform ${expandedTerminals[ws.id] ? "rotate-90" : ""}`}
-                                      />
-                                    </SidebarMenuSubButton>
-                                    <CollapsibleContent>
-                                      {sessions?.error && (
-                                        <Alert variant="destructive" className="mx-2 mb-1">
-                                          <AlertCircle className="h-3 w-3" />
-                                          <AlertDescription className="flex items-center justify-between">
-                                            <span className="text-xs">{sessions.error}</span>
-                                            <button
-                                              type="button"
-                                              onClick={() => fetchSessions(ws.id)}
-                                              className="ml-2 text-xs underline"
-                                            >
-                                              Retry
-                                            </button>
-                                          </AlertDescription>
-                                        </Alert>
-                                      )}
-                                      <SidebarMenuSub className="!mr-0 !pr-0">
-                                        <SidebarMenuSubItem>
-                                          {!sessions || sessions.isLoading ? (
-                                            <SidebarMenuSubButton
-                                              className="cursor-not-allowed opacity-50"
-                                              data-testid={`create-session-loading-${ws.id}`}
-                                            >
-                                              <Loader2 className="h-3 w-3 shrink-0 animate-spin" />
-                                              <span>Loading…</span>
-                                            </SidebarMenuSubButton>
-                                          ) : (
-                                            <SidebarMenuSubButton
-                                              className="cursor-pointer"
-                                              data-testid={`create-session-${ws.id}`}
-                                              onClick={() => handleCreateSession(ws.id)}
-                                            >
-                                              <Plus className="h-3 w-3 shrink-0" />
-                                              <span>Add session</span>
-                                            </SidebarMenuSubButton>
-                                          )}
-                                        </SidebarMenuSubItem>
-                                        <SessionList
-                                          sessions={sessions?.data ?? []}
-                                          workspaceId={ws.id}
-                                          pathname={pathname}
-                                          activeSession={activeSession}
-                                          favoriteKeys={favoriteKeySet}
-                                          mutatingFavoriteKeys={favorites.mutatingKeys}
-                                          onFavoriteToggle={handleTerminalFavoriteToggle}
-                                          onKill={handleKillSession}
-                                          onRename={handleRenameSession}
-                                        />
-                                      </SidebarMenuSub>
-                                    </CollapsibleContent>
-                                  </SidebarMenuSubItem>
-                                </Collapsible>
-                              </SidebarMenuSub>
-                            </CollapsibleContent>
-                          </SidebarMenuSubItem>
-                        </Collapsible>
-                      );
-                    })}
-                  </SidebarMenuSub>
-                </CollapsibleContent>
-              </SidebarMenuItem>
-            </Collapsible>
-          </SidebarMenu>
-        </SidebarGroup>
-
-        {/* Templates */}
-        <SidebarGroup className="pt-0">
-          <SidebarMenu>
-            <Collapsible
-              open={templatesOpen}
-              onOpenChange={setTemplatesOpen}
-              className="group/collapsible-templates"
-            >
-              <SidebarMenuItem>
-                <div className="flex items-center gap-1">
-                  <SidebarMenuButton
-                    render={<Link href="/templates" />}
-                    isActive={pathname === "/templates"}
-                    aria-current={pathname === "/templates" ? "page" : undefined}
-                    className="min-w-0 flex-1"
-                  >
-                    <LayoutTemplate className="h-4 w-4" />
-                    <span>Templates</span>
-                  </SidebarMenuButton>
-                  <CollapsibleTrigger
-                    render={<button type="button" />}
-                    aria-label={`${templatesOpen ? "Collapse" : "Expand"} template navigation`}
-                    className="flex size-8 shrink-0 items-center justify-center rounded-md outline-hidden hover:bg-sidebar-accent focus-visible:ring-2 focus-visible:ring-sidebar-ring"
-                    data-testid="templates-disclosure"
-                  >
-                    <ChevronRight
-                      aria-hidden="true"
-                      className={cn("size-4 transition-transform", templatesOpen && "rotate-90")}
-                    />
-                  </CollapsibleTrigger>
-                </div>
-                <CollapsibleContent id="template-navigation-tree">
-                  {templates.error && (
-                    <Alert variant="destructive" className="mx-4 my-1">
-                      <AlertCircle className="h-4 w-4" />
-                      <AlertDescription className="flex items-center justify-between">
-                        <span className="text-xs">{templates.error}</span>
-                        <button
-                          type="button"
-                          onClick={fetchTemplates}
-                          className="ml-2 text-xs underline"
-                        >
-                          Retry
-                        </button>
-                      </AlertDescription>
-                    </Alert>
-                  )}
-                  {templates.isLoading && templates.data.length === 0 && (
-                    <p className="px-6 py-2 text-xs text-muted-foreground">Loading...</p>
-                  )}
-                  <SidebarMenuSub className="!mr-0 !pr-0">
-                    {templates.data.map((tpl) => (
-                      <SidebarMenuSubItem key={tpl.name}>
-                        <SidebarMenuSubButton
-                          render={<Link href={`/templates/${tpl.name}`} />}
-                          isActive={pathname === `/templates/${tpl.name}`}
-                        >
-                          <span className="truncate">{tpl.name}</span>
-                          <Badge
-                            variant={tpl.stale ? "destructive" : "secondary"}
-                            className="ml-auto text-[10px] px-1 py-0"
-                          >
-                            {tpl.stale ? "stale" : "fresh"}
-                          </Badge>
-                        </SidebarMenuSubButton>
-                      </SidebarMenuSubItem>
-                    ))}
-                  </SidebarMenuSub>
-                </CollapsibleContent>
-              </SidebarMenuItem>
-            </Collapsible>
-          </SidebarMenu>
-        </SidebarGroup>
-
-        <SidebarGroup className="pt-0">
-          <SidebarMenu>
-            <SidebarMenuItem>
-              <SidebarMenuButton
-                render={<Link href="/terminal/status" />}
-                isActive={pathname === "/terminal/status"}
-                aria-current={pathname === "/terminal/status" ? "page" : undefined}
-              >
-                <Stethoscope className="h-4 w-4" />
-                <span>Diagnostics</span>
-              </SidebarMenuButton>
-            </SidebarMenuItem>
-          </SidebarMenu>
-        </SidebarGroup>
+          </SidebarGroup>
+        </nav>
       </SidebarContent>
 
       <SidebarFooter className="border-t border-sidebar-border">
         <SidebarMenu>
+          {coderUrl && (
+            <SidebarMenuItem>
+              <SidebarMenuButton
+                render={<Link href={coderUrl} target="_blank" rel="noopener noreferrer" />}
+                aria-label="Open Coder (opens in a new tab)"
+              >
+                <LayoutDashboard aria-hidden="true" className="h-4 w-4" />
+                <span>Open Coder</span>
+                <ExternalLink aria-hidden="true" className="ml-auto size-3" />
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+          )}
           <Collapsible open={settingsOpen} onOpenChange={setSettingsOpen}>
             <SidebarMenuItem>
               <SidebarMenuButton render={<CollapsibleTrigger />}>
