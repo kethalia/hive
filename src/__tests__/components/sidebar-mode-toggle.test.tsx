@@ -354,6 +354,26 @@ describe("Sidebar primitive layout contract", () => {
     expect(sidebarContainer?.className).toContain("w-(--sidebar-width)");
   });
 
+  it("uses the same row height for root and nested sidebar buttons", async () => {
+    const {
+      SidebarMenuButton: RootButton,
+      SidebarMenuSubButton: NestedButton,
+      SidebarProvider: ActualSidebarProvider,
+    } = await vi.importActual<typeof import("@/components/ui/sidebar")>("@/components/ui/sidebar");
+
+    render(
+      <ActualSidebarProvider>
+        <div>
+          <RootButton>Root</RootButton>
+          <NestedButton>Nested</NestedButton>
+        </div>
+      </ActualSidebarProvider>,
+    );
+
+    expect(screen.getByRole("button", { name: "Root" })).toHaveClass("h-8");
+    expect(screen.getByText("Nested")).toHaveClass("h-8");
+  });
+
   it("preserves the mobile drawer width token", async () => {
     Object.defineProperty(window, "innerWidth", {
       configurable: true,
