@@ -106,7 +106,16 @@ describe("TerminalSessionStatusClient", () => {
       "/workspaces/workspace-1/terminal",
     );
     const pageShell = document.querySelector("[data-dashboard-page-shell]");
-    expect(pageShell).toHaveClass("w-full", "flex-1");
+    expect(pageShell).toHaveClass(
+      "h-full",
+      "min-h-0",
+      "w-full",
+      "flex-1",
+      "touch-pan-y",
+      "overflow-y-auto",
+      "overscroll-y-contain",
+      "[-webkit-overflow-scrolling:touch]",
+    );
     expect(pageShell).not.toHaveClass("max-w-5xl", "mx-auto");
   });
 });
