@@ -23,7 +23,7 @@ export function resolveTerminalWsUrl(
   configuredUrl: string,
   browserLocation?: BrowserLocation,
 ): string {
-  if (!configuredUrl.startsWith("/")) return configuredUrl;
+  if (!configuredUrl.startsWith("/") || configuredUrl.startsWith("//")) return configuredUrl;
   if (!browserLocation?.host) return "";
 
   const protocol = browserLocation.protocol === "https:" ? "wss:" : "ws:";

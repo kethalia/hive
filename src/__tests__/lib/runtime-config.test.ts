@@ -68,6 +68,15 @@ describe("runtime-config", () => {
       ).toBe("wss://terminal.example.com");
     });
 
+    it("keeps a protocol-relative terminal URL unchanged", () => {
+      expect(
+        resolveTerminalWsUrl("//terminal.example.com", {
+          host: "hive.example.com",
+          protocol: "https:",
+        }),
+      ).toBe("//terminal.example.com");
+    });
+
     it("resolves a root-relative URL against an HTTPS browser host", () => {
       expect(
         resolveTerminalWsUrl("/", {
