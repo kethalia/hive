@@ -20,7 +20,10 @@ function scopeResponseCookiesToPublicHost(headers, publicCookieDomain) {
   headers.delete("Set-Cookie");
   for (const cookie of cookies) {
     const domainAttribute = publicCookieDomain ? `; Domain=${publicCookieDomain}` : "";
-    headers.append("Set-Cookie", cookie.replace(/;\s*Domain=[^;]*/gi, domainAttribute));
+    const scopedCookie = /;\s*Domain=[^;]*/i.test(cookie)
+      ? cookie.replace(/;\s*Domain=[^;]*/gi, domainAttribute)
+      : `${cookie}${domainAttribute}`;
+    headers.append("Set-Cookie", scopedCookie);
   }
   return headers;
 }

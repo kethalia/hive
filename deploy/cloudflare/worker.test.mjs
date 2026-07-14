@@ -100,6 +100,19 @@ test("rewrites cookie scope to a configured public parent domain", () => {
   assert.doesNotMatch(headers.get("Set-Cookie") ?? "", /internal\.example/);
 });
 
+test("adds the configured public domain to host-only origin cookies", () => {
+  const headers = new Headers({
+    "Set-Cookie": "hive-session=signed; Path=/; Secure; HttpOnly; SameSite=Lax",
+  });
+
+  scopeResponseCookiesToPublicHost(headers, ".hive.example.com");
+
+  assert.equal(
+    headers.get("Set-Cookie"),
+    "hive-session=signed; Path=/; Secure; HttpOnly; SameSite=Lax; Domain=.hive.example.com",
+  );
+});
+
 test("returns 502 when the origin fetch fails", async (t) => {
   t.mock.method(globalThis, "fetch", async () => {
     throw new Error("origin unavailable");

@@ -14,7 +14,7 @@ export default function manifest(): MetadataRoute.Manifest {
     short_name: "Hive",
     description:
       "Hive is a developer orchestrator for managing workspaces, tasks, and agents from any device.",
-    start_url: "/",
+    start_url: "/workspaces",
     scope: "/",
     display: "standalone",
     orientation: "any",
