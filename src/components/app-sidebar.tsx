@@ -27,7 +27,6 @@ import {
   FolderOpen,
   GitBranch,
   GripVertical,
-  Hexagon,
   LayoutDashboard,
   LayoutTemplate,
   ListTodo,
@@ -49,6 +48,7 @@ import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { GitCloneSidebarTree } from "@/components/git-clone-sidebar-tree";
+import { HiveLogo } from "@/components/hive-logo";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -1571,8 +1571,7 @@ export function AppSidebar() {
     <Sidebar variant={sidebarMode} collapsible="offcanvas">
       <SidebarHeader className="h-14 flex-row items-center justify-between border-b border-sidebar-border px-4">
         <Link href="/workspaces" className="flex items-center gap-2">
-          <Hexagon className="h-6 w-6 text-primary" />
-          <span className="text-lg font-bold tracking-tight">Hive</span>
+          <HiveLogo className="gap-2" wordmarkClassName="text-base tracking-[0.12em]" />
         </Link>
         <SidebarTrigger />
       </SidebarHeader>

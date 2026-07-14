@@ -1,6 +1,7 @@
 import { ArrowRight, Boxes, Check, Github, Keyboard, ShieldCheck, Terminal } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
+import { HiveLogo } from "@/components/hive-logo";
 
 export const metadata: Metadata = {
   title: "Autonomous development, under your control",
@@ -44,13 +45,7 @@ export default function MarketingPage() {
       <header className="sticky top-0 z-40 border-b border-primary/15 bg-background/90 backdrop-blur-md">
         <div className="mx-auto flex min-h-16 w-full max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
           <Link href="/" className="flex min-h-11 items-center gap-3">
-            <span
-              className="grid size-9 place-items-center border border-primary/40 bg-primary/10 text-primary shadow-[3px_3px_0_rgb(141_255_157/0.12)]"
-              aria-hidden="true"
-            >
-              H_
-            </span>
-            <span className="font-medium tracking-[0.18em]">HIVE</span>
+            <HiveLogo className="[&>span:first-child]:shadow-[3px_3px_0_rgb(141_255_157/0.12)]" />
           </Link>
           <nav aria-label="Primary" className="flex items-center gap-2 sm:gap-4">
             <a

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { HiveMark } from "@/components/hive-logo";
 
 export default function LoginLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -11,12 +12,7 @@ export default function LoginLayout({ children }: { children: React.ReactNode })
           href="/"
           className="mb-8 inline-flex min-h-11 items-center gap-3 text-sm text-muted-foreground hover:text-primary"
         >
-          <span
-            className="grid size-9 place-items-center border border-primary/40 bg-primary/10 text-primary"
-            aria-hidden="true"
-          >
-            H_
-          </span>
+          <HiveMark />
           Return to hive.dev
         </Link>
         <div className="pixel-panel border border-primary/25 bg-card p-6 shadow-[0_0_60px_rgb(141_255_157/0.07)] sm:p-8">

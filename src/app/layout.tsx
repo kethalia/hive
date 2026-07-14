@@ -10,7 +10,7 @@ export const metadata: Metadata = {
     "Turn an engineering brief into an isolated workspace, verified implementation, and review-ready pull request.",
   manifest: "/manifest.webmanifest",
   icons: {
-    icon: "/icons/icon-192.png",
+    icon: "/icons/hive-mark.svg",
     apple: "/apple-touch-icon.png",
   },
   applicationName: "Hive",
