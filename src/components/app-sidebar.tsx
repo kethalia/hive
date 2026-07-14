@@ -470,6 +470,10 @@ function FavoritesSection({
         setDraggedFavoriteId(favorite.id);
         event.dataTransfer.effectAllowed = "move";
         event.dataTransfer.setData("text/plain", favorite.id);
+        const row = event.currentTarget.closest<HTMLElement>("[data-sidebar='menu-item']");
+        if (row) {
+          event.dataTransfer.setDragImage(row, 0, Math.round(row.offsetHeight / 2));
+        }
       }}
       onDragEnd={() => setDraggedFavoriteId(null)}
       onKeyDown={(event) => {

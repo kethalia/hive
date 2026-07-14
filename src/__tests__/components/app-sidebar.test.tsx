@@ -842,6 +842,13 @@ describe("AppSidebar", () => {
 
     const firstHandle = await screen.findByRole("button", { name: "Reorder First" });
     expect(screen.getByRole("button", { name: "Reorder Second" })).toBeInTheDocument();
+    const firstRow = firstHandle.parentElement;
+    firstRow?.setAttribute("data-sidebar", "menu-item");
+    const setDragImage = vi.fn();
+    fireEvent.dragStart(firstHandle, {
+      dataTransfer: { effectAllowed: "none", setData: vi.fn(), setDragImage },
+    });
+    expect(setDragImage).toHaveBeenCalledWith(firstRow, 0, 0);
     fireEvent.keyDown(firstHandle, { key: "ArrowDown" });
 
     await waitFor(() => {
