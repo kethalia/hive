@@ -848,7 +848,13 @@ describe("AppSidebar", () => {
     fireEvent.dragStart(firstHandle, {
       dataTransfer: { effectAllowed: "none", setData: vi.fn(), setDragImage },
     });
-    expect(setDragImage).toHaveBeenCalledWith(firstRow, 0, 0);
+    const dragPreview = setDragImage.mock.calls[0]?.[0];
+    expect(dragPreview).toBeInstanceOf(HTMLElement);
+    if (!(dragPreview instanceof HTMLElement)) throw new Error("Expected an HTML drag preview");
+    expect(dragPreview).not.toBe(firstRow);
+    expect(dragPreview).toHaveAttribute("data-drag-preview", "pinned-row");
+    expect(dragPreview).toHaveStyle({ width: "220px", height: "32px" });
+    expect(setDragImage).toHaveBeenCalledWith(dragPreview, 16, 16);
     fireEvent.keyDown(firstHandle, { key: "ArrowDown" });
 
     await waitFor(() => {

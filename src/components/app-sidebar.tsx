@@ -470,9 +470,27 @@ function FavoritesSection({
         setDraggedFavoriteId(favorite.id);
         event.dataTransfer.effectAllowed = "move";
         event.dataTransfer.setData("text/plain", favorite.id);
-        const row = event.currentTarget.closest<HTMLElement>("[data-sidebar='menu-item']");
+        const row = event.currentTarget.parentElement;
         if (row) {
-          event.dataTransfer.setDragImage(row, 0, Math.round(row.offsetHeight / 2));
+          const preview = row.cloneNode(true);
+          if (!(preview instanceof HTMLElement)) return;
+          const bounds = row.getBoundingClientRect();
+          preview.setAttribute("aria-hidden", "true");
+          preview.dataset.dragPreview = "pinned-row";
+          preview.style.position = "fixed";
+          preview.style.inset = "-1000px auto auto -1000px";
+          preview.style.width = `${Math.max(bounds.width, 220)}px`;
+          preview.style.height = `${Math.max(bounds.height, 32)}px`;
+          preview.style.padding = "2px";
+          preview.style.background = "hsl(var(--sidebar))";
+          preview.style.border = "1px solid hsl(var(--sidebar-border))";
+          preview.style.borderRadius = "0.5rem";
+          preview.style.boxShadow = "0 10px 28px rgb(0 0 0 / 35%)";
+          preview.style.opacity = "0.96";
+          preview.style.pointerEvents = "none";
+          document.body.append(preview);
+          event.dataTransfer.setDragImage(preview, 16, Math.round(Math.max(bounds.height, 32) / 2));
+          window.setTimeout(() => preview.remove(), 0);
         }
       }}
       onDragEnd={() => setDraggedFavoriteId(null)}
