@@ -3,7 +3,7 @@
 import "@testing-library/jest-dom/vitest";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import LoginPage from "@/app/login/page";
+import { LoginForm } from "@/app/login/login-form";
 
 const mockPush = vi.fn();
 const mockRefresh = vi.fn();
@@ -32,7 +32,7 @@ describe("LoginPage", () => {
   });
 
   it("opens the workspace home after successful authentication", async () => {
-    render(<LoginPage />);
+    render(<LoginForm />);
 
     fireEvent.change(screen.getByLabelText("Coder URL"), {
       target: { value: "https://coder.kethalia.com" },
