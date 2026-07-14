@@ -4,6 +4,7 @@ import { RefreshCw } from "lucide-react";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { DashboardPageHeader } from "@/components/dashboard-page-header";
+import { DashboardPageShell } from "@/components/dashboard-page-shell";
 import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -204,7 +205,7 @@ export function TerminalSessionStatusClient({
   ).length;
 
   return (
-    <main className="mx-auto flex w-full max-w-5xl flex-col gap-4 overflow-auto p-4 md:p-6">
+    <DashboardPageShell className="flex w-full flex-1 flex-col gap-4 space-y-0 overflow-auto">
       <DashboardPageHeader
         title="Terminal status"
         description="Aggregated keepalive status for terminal sessions authorized by your Coder account."
@@ -318,6 +319,6 @@ export function TerminalSessionStatusClient({
           </p>
         </CardContent>
       </Card>
-    </main>
+    </DashboardPageShell>
   );
 }

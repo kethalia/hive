@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { type FormEvent, useCallback, useEffect, useState } from "react";
 import { DashboardPageHeader } from "@/components/dashboard-page-header";
+import { DashboardPageShell } from "@/components/dashboard-page-shell";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -285,7 +286,7 @@ export function WorkspaceListContent({ workspaces, error }: WorkspaceListContent
   );
 
   return (
-    <div className="space-y-6">
+    <DashboardPageShell>
       <DashboardPageHeader
         title="Workspaces"
         description="Persistent development environments. Open one to resume its terminal sessions."
@@ -477,6 +478,6 @@ export function WorkspaceListContent({ workspaces, error }: WorkspaceListContent
           </Card>
         </>
       )}
-    </div>
+    </DashboardPageShell>
   );
 }

@@ -59,7 +59,7 @@ export default function NewTaskPage() {
     <div className="flex h-full min-h-0 flex-col">
       <DashboardPageHeader title="New Task" />
 
-      <div className="min-h-0 flex-1 space-y-4 overflow-y-auto p-2 pb-safe">
+      <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-3 py-4 pb-safe sm:px-4 lg:px-6">
         {serverError && (
           <Alert variant="destructive">
             <AlertCircle className="h-4 w-4" />

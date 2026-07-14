@@ -4,6 +4,7 @@ import { CheckCircle, RefreshCw, Upload, XCircle } from "lucide-react";
 import dynamic from "next/dynamic";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { DashboardPageHeader } from "@/components/dashboard-page-header";
+import { DashboardPageShell } from "@/components/dashboard-page-shell";
 import { TemplatePushConfirmation } from "@/components/templates/TemplatePushConfirmation";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -140,7 +141,7 @@ export function TemplateDetailClient({ status }: TemplateDetailClientProps) {
   }, []);
 
   return (
-    <div className="space-y-6">
+    <DashboardPageShell>
       <TemplatePushConfirmation
         name={status.name}
         open={confirmOpen}
@@ -228,7 +229,7 @@ export function TemplateDetailClient({ status }: TemplateDetailClientProps) {
           className="h-64"
         />
       )}
-    </div>
+    </DashboardPageShell>
   );
 }
 
