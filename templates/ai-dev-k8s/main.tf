@@ -557,7 +557,7 @@ resource "kubernetes_deployment_v1" "workspace" {
 
       spec {
         automount_service_account_token = false
-        hostname                        = data.coder_workspace.me.name
+        hostname                        = lower(data.coder_workspace.me.name)
 
         security_context {
           run_as_non_root        = true
