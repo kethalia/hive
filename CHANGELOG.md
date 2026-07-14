@@ -1,5 +1,11 @@
 # hive-orchestrator
 
+## 2.7.0
+
+### Minor Changes
+
+- 55d05f0: Launch the public CRT marketing experience, refresh authenticated workflows with responsive phosphor styling and keyboard navigation, add recovery and confirmation states, and ship an optional Cloudflare edge proxy with cross-device workflow coverage.
+
 ## 2.6.2
 
 ### Patch Changes
