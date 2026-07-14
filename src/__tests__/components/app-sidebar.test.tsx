@@ -835,6 +835,18 @@ describe("AppSidebar", () => {
     expect(screen.queryByTestId("favorites-section")).not.toBeInTheDocument();
   });
 
+  it("places Pinned before Workspaces in the primary navigation", async () => {
+    mockListNavigationFavorites.mockResolvedValueOnce({
+      data: [makeFavorite({ id: "fav-terminal", label: "Main shell" })],
+    });
+    render(<AppSidebar />);
+
+    const pinned = await screen.findByTestId("favorites-section");
+    const workspaces = screen.getByTestId("workspaces-disclosure");
+
+    expect(pinned.compareDocumentPosition(workspaces)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+  });
+
   it("upserts and removes terminal favorites without user-scoped payload fields", async () => {
     await expandWorkspaceAndTerminalSessions();
 

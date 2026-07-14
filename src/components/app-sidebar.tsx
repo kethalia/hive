@@ -1462,6 +1462,14 @@ export function AppSidebar() {
 
       <SidebarContent>
         <nav aria-label="Workspace navigation" className="flex flex-col gap-0">
+          <FavoritesSection
+            favorites={favorites}
+            pathname={pathname}
+            activeSession={activeSession}
+            activeClonePath={activeClonePath}
+            onGitFavoriteLaunch={handleGitFavoriteLaunch}
+          />
+
           <SidebarGroup className="pb-0">
             <SidebarGroupLabel>Workspaces</SidebarGroupLabel>
             <SidebarMenu>
@@ -1836,14 +1844,6 @@ export function AppSidebar() {
               </Collapsible>
             </SidebarMenu>
           </SidebarGroup>
-
-          <FavoritesSection
-            favorites={favorites}
-            pathname={pathname}
-            activeSession={activeSession}
-            activeClonePath={activeClonePath}
-            onGitFavoriteLaunch={handleGitFavoriteLaunch}
-          />
 
           <SidebarGroup className="pt-0">
             <SidebarGroupLabel>Automation</SidebarGroupLabel>
