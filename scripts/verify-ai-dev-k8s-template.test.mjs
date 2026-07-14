@@ -81,7 +81,15 @@ function verifyPodSecurity() {
   assert.match(terraform, /allow_privilege_escalation\s*=\s*false/);
   assert.doesNotMatch(terraform, /allow_privilege_escalation\s*=\s*true/);
   assert.match(terraform, /automount_service_account_token\s*=\s*false/);
-  assert.match(terraform, /hostname\s*=\s*lower\(data\.coder_workspace\.me\.name\)/);
+  assert.match(
+    terraform,
+    /workspace_hostname_candidate\s*=\s*trim\(substr\(replace\(lower\(data\.coder_workspace\.me\.name\), "\/\[\^a-z0-9-\]\/", "-"\), 0, 63\), "-"\)/,
+  );
+  assert.match(
+    terraform,
+    /workspace_hostname\s*=\s*local\.workspace_hostname_candidate != "" \? local\.workspace_hostname_candidate : "workspace"/,
+  );
+  assert.match(terraform, /hostname\s*=\s*local\.workspace_hostname/);
   assert.match(
     terraform,
     /resource "kubernetes_deployment_v1" "workspace" \{[\s\S]*?name\s*=\s*"coder-\$\{data\.coder_workspace\.me\.id\}"/,
