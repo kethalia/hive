@@ -30,11 +30,9 @@ describe("WorkspaceBoardBar", () => {
       />,
     );
 
-    expect(screen.getByTestId("workspace-board-tablist")).toHaveClass(
-      "min-w-0",
-      "flex-1",
-      "overflow-x-auto",
-    );
+    const tablist = screen.getByTestId("workspace-board-tablist");
+    expect(tablist).toHaveClass("min-w-0", "flex-1", "overflow-x-auto");
+    expect(tablist).toHaveAttribute("data-mobile-scroll-allow", "true");
   });
 
   afterEach(() => {

@@ -90,6 +90,7 @@ export function WorkspaceBoardBar({
         role="tablist"
         aria-label="Workspaces"
         className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto"
+        data-mobile-scroll-allow="true"
         data-testid="workspace-board-tablist"
       >
         {orderedBoards.map((board, index) => {

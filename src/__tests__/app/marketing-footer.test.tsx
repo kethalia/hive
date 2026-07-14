@@ -16,6 +16,10 @@ describe("marketing footer", () => {
     expect(header.firstElementChild).toHaveClass(
       "pl-[max(1rem,var(--safe-area-inset-left))]",
       "pr-[max(1rem,var(--safe-area-inset-right))]",
+      "sm:pl-[max(1.5rem,var(--safe-area-inset-left))]",
+      "sm:pr-[max(1.5rem,var(--safe-area-inset-right))]",
+      "lg:pl-[max(2rem,var(--safe-area-inset-left))]",
+      "lg:pr-[max(2rem,var(--safe-area-inset-right))]",
     );
   });
 
