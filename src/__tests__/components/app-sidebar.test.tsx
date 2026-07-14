@@ -1714,6 +1714,19 @@ describe("AppSidebar", () => {
     );
   });
 
+  it("uses one disclosure size contract throughout the workspace tree", async () => {
+    render(<AppSidebar />);
+
+    await screen.findByText("dev-box");
+    const workspaceDisclosure = screen.getByTestId("workspace-disclosure-ws-1");
+    expect(screen.getByTestId("workspaces-disclosure")).toHaveClass("size-8", "max-md:size-11");
+    expect(workspaceDisclosure).toHaveClass("size-8", "max-md:size-11");
+
+    fireEvent.click(workspaceDisclosure);
+    expect(await screen.findByTestId("terminal-section-chevron-ws-1")).toHaveClass("size-4");
+    expect(screen.getByTestId("git-section-chevron-ws-1")).toHaveClass("size-4");
+  });
+
   it("marks the workspace-name link active on workspace routes", async () => {
     mockNavigationState.pathname = "/workspaces/ws-1/terminal/workspace";
 

@@ -1507,13 +1507,13 @@ export function AppSidebar() {
                                 <CollapsibleTrigger
                                   render={<button type="button" />}
                                   aria-label={`${isExpanded ? "Collapse" : "Expand"} ${ws.name} navigation`}
-                                  className="flex size-7 shrink-0 items-center justify-center rounded-md outline-hidden max-md:size-11 hover:bg-sidebar-accent focus-visible:ring-2 focus-visible:ring-sidebar-ring"
+                                  className="flex size-8 shrink-0 items-center justify-center rounded-md outline-hidden max-md:size-11 hover:bg-sidebar-accent focus-visible:ring-2 focus-visible:ring-sidebar-ring"
                                   data-testid={`workspace-disclosure-${ws.id}`}
                                 >
                                   <ChevronRight
                                     aria-hidden="true"
                                     className={cn(
-                                      "size-3 transition-transform",
+                                      "size-4 transition-transform",
                                       isExpanded && "rotate-90",
                                     )}
                                   />
@@ -1531,12 +1531,13 @@ export function AppSidebar() {
                                     <SidebarMenuSubItem>
                                       <SidebarMenuSubButton
                                         render={<CollapsibleTrigger />}
-                                        className="w-full cursor-pointer"
+                                        className="min-h-8 w-full cursor-pointer"
                                       >
                                         <Terminal className="h-3 w-3 shrink-0" />
                                         <span>Sessions</span>
                                         <ChevronRight
-                                          className={`ml-auto h-3 w-3 transition-transform ${expandedTerminals[ws.id] ? "rotate-90" : ""}`}
+                                          className={`ml-auto size-4 transition-transform ${expandedTerminals[ws.id] ? "rotate-90" : ""}`}
+                                          data-testid={`terminal-section-chevron-${ws.id}`}
                                         />
                                       </SidebarMenuSubButton>
                                       <CollapsibleContent>
@@ -1599,7 +1600,7 @@ export function AppSidebar() {
                                     <SidebarMenuSubItem>
                                       <SidebarMenuSubButton
                                         render={<CollapsibleTrigger />}
-                                        className="w-full cursor-pointer"
+                                        className="min-h-8 w-full cursor-pointer"
                                       >
                                         <GitBranch
                                           aria-hidden="true"
@@ -1608,7 +1609,7 @@ export function AppSidebar() {
                                         <span>Repositories</span>
                                         <ChevronRight
                                           aria-hidden="true"
-                                          className={`ml-auto h-3 w-3 transition-transform ${isGitSectionExpanded ? "rotate-90" : ""}`}
+                                          className={`ml-auto size-4 transition-transform ${isGitSectionExpanded ? "rotate-90" : ""}`}
                                           data-testid={`git-section-chevron-${ws.id}`}
                                         />
                                       </SidebarMenuSubButton>
