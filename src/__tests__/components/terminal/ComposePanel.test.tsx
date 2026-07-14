@@ -105,6 +105,10 @@ describe("ComposePanel", () => {
     render(<ComposePanel hideHeader onClose={vi.fn()} />);
 
     expect(screen.queryByText(/Compose — .*Enter to send/)).not.toBeInTheDocument();
+    expect(screen.getByPlaceholderText("Type multi-line command...")).toHaveAttribute(
+      "data-mobile-scroll-allow",
+      "true",
+    );
     expect(screen.getByRole("group", { name: "Compose actions" })).toBeInTheDocument();
   });
 });

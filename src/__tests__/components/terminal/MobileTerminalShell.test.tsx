@@ -202,4 +202,35 @@ describe("MobileTerminalShell", () => {
     fireEvent(nestedMobileInnerRegion, mobileInnerTouchMove);
     expect(mobileInnerTouchMove.defaultPrevented).toBe(false);
   });
+
+  it("allows explicitly marked overlay lists to scroll", () => {
+    render(
+      <MobileTerminalShell isKeyboardVisible={false}>
+        <div data-mobile-scroll-allow="true">
+          <div data-testid="overlay-list-item" />
+        </div>
+      </MobileTerminalShell>,
+    );
+
+    const touchMove = new Event("touchmove", { bubbles: true, cancelable: true });
+    fireEvent(screen.getByTestId("overlay-list-item"), touchMove);
+    expect(touchMove.defaultPrevented).toBe(false);
+  });
+
+  it("can preserve keyboard propagation for multi-session shortcuts", () => {
+    const parentKeyDown = vi.fn();
+    render(
+      <div onKeyDown={parentKeyDown}>
+        <MobileTerminalShell isKeyboardVisible={false} stopKeyboardPropagation={false}>
+          <button type="button">Terminal key target</button>
+        </MobileTerminalShell>
+      </div>,
+    );
+
+    fireEvent.keyDown(screen.getByRole("button", { name: "Terminal key target" }), {
+      key: "ArrowRight",
+      ctrlKey: true,
+    });
+    expect(parentKeyDown).toHaveBeenCalledOnce();
+  });
 });

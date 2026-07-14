@@ -42,8 +42,8 @@ const capabilities = [
 export default function MarketingPage() {
   return (
     <div className="crt-grid crt-scanlines min-h-[var(--app-viewport-height)] bg-background text-foreground">
-      <header className="sticky top-0 z-40 border-b border-primary/15 bg-background/90 backdrop-blur-md">
-        <div className="mx-auto flex min-h-16 w-full max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
+      <header className="sticky top-0 z-40 border-b border-primary/15 bg-background/90 pt-safe backdrop-blur-md">
+        <div className="mx-auto flex min-h-16 w-full max-w-7xl items-center justify-between gap-3 pl-[max(1rem,var(--safe-area-inset-left))] pr-[max(1rem,var(--safe-area-inset-right))] sm:pl-[max(1.5rem,var(--safe-area-inset-left))] sm:pr-[max(1.5rem,var(--safe-area-inset-right))] lg:pl-[max(2rem,var(--safe-area-inset-left))] lg:pr-[max(2rem,var(--safe-area-inset-right))]">
           <Link href="/" className="flex min-h-11 items-center gap-3">
             <HiveLogo className="[&>span:first-child]:shadow-[3px_3px_0_rgb(141_255_157/0.12)]" />
           </Link>
@@ -64,7 +64,8 @@ export default function MarketingPage() {
               href="/login"
               className="inline-flex min-h-11 items-center gap-2 bg-primary px-4 text-sm font-semibold text-primary-foreground shadow-[4px_4px_0_rgb(141_255_157/0.16)] transition-[scale,box-shadow] duration-150 active:scale-[0.96]"
             >
-              Open console <ArrowRight className="size-4" aria-hidden="true" />
+              <span className="hidden min-[380px]:inline">Open </span>console
+              <ArrowRight className="size-4" aria-hidden="true" />
             </Link>
           </nav>
         </div>

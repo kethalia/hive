@@ -84,6 +84,7 @@ export function ComposePanel({
       <div className="min-h-0 flex-1">
         <textarea
           ref={textareaRef}
+          data-mobile-scroll-allow="true"
           className="h-full w-full resize-none bg-black p-3 font-mono text-sm text-white placeholder:text-zinc-500 focus:outline-none"
           placeholder="Type multi-line command..."
           value={draft}

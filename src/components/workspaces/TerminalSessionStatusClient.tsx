@@ -205,11 +205,12 @@ export function TerminalSessionStatusClient({
   ).length;
 
   return (
-    <DashboardPageShell className="flex w-full flex-1 flex-col gap-4 space-y-0 overflow-auto">
+    <DashboardPageShell className="flex h-full min-h-0 w-full flex-1 touch-pan-y flex-col gap-4 space-y-0 overflow-y-auto overscroll-y-contain [-webkit-overflow-scrolling:touch]">
       <DashboardPageHeader
         title="Terminal status"
         description="Aggregated keepalive status for terminal sessions authorized by your Coder account."
         leading={<p className="text-sm text-muted-foreground">Terminal diagnostics</p>}
+        hideLeadingOnMobile
         actions={
           <>
             <Link className={buttonVariants({ variant: "outline" })} href="/workspaces">

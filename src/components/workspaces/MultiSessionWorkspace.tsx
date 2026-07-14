@@ -7,6 +7,7 @@ import { useRouter } from "next/navigation";
 import {
   type CSSProperties,
   type KeyboardEvent as ReactKeyboardEvent,
+  type ReactNode,
   useCallback,
   useEffect,
   useMemo,
@@ -16,6 +17,7 @@ import {
 import { toast } from "sonner";
 import { CommandPalette, type CommandPaletteAction } from "@/components/terminal/CommandPalette";
 import { MobileTerminalControls } from "@/components/terminal/MobileTerminalControls";
+import { MobileTerminalShell } from "@/components/terminal/MobileTerminalShell";
 import { TerminalSessionCompose } from "@/components/terminal/TerminalSessionCompose";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -1275,7 +1277,7 @@ export function MultiSessionWorkspace({
       onCreate={handleCreateBoard}
       onDelete={handleDeleteBoard}
       onSelect={handleSelectBoard}
-      className="shrink-0"
+      className="w-full min-w-0 max-w-full"
     />
   );
 
@@ -2648,7 +2650,11 @@ export function MultiSessionWorkspace({
                 Favorites are unavailable. Search still works.
               </p>
             ) : null}
-            <div className="max-h-80 space-y-3 overflow-auto" data-testid="git-session-results">
+            <div
+              className="max-h-80 space-y-3 overflow-auto"
+              data-mobile-scroll-allow="true"
+              data-testid="git-session-results"
+            >
               {query ? (
                 <section
                   aria-label="Terminal session search results"
@@ -2719,7 +2725,7 @@ export function MultiSessionWorkspace({
 
   const renderWorkspaceHeader = () => (
     <>
-      <header className="grid h-14 min-h-14 shrink-0 grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-1 border-b border-sidebar-border px-1 py-1 pt-[max(1rem,var(--safe-area-inset-top))] lg:pt-[max(0.25rem,var(--safe-area-inset-top))]">
+      <header className="grid min-h-[calc(5.75rem+var(--safe-area-inset-top))] shrink-0 grid-cols-[minmax(0,1fr)_auto] grid-rows-[auto_auto] items-center gap-x-2 gap-y-1 border-b border-sidebar-border px-[max(0.5rem,var(--safe-area-inset-left))] pb-1 pt-[calc(var(--safe-area-inset-top)+0.25rem)] pr-[max(0.5rem,var(--safe-area-inset-right))] min-[1025px]:min-h-14 min-[1025px]:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] min-[1025px]:grid-rows-1 min-[1025px]:gap-1 min-[1025px]:px-2 min-[1025px]:py-1">
         <div className="flex min-w-0 items-center gap-1" data-testid="workspace-header-left">
           <SidebarTrigger className="h-7 min-h-0 shrink-0" />
           <div className="min-w-0 flex-1">
@@ -2730,13 +2736,13 @@ export function MultiSessionWorkspace({
           </div>
         </div>
         <div
-          className="flex min-w-0 items-center justify-center"
+          className="col-span-2 row-start-2 flex min-w-0 items-center justify-center min-[1025px]:col-span-1 min-[1025px]:col-start-2 min-[1025px]:row-start-1"
           data-testid="workspace-header-board-controls"
         >
           {renderBoardBar()}
         </div>
         <div
-          className="flex min-w-0 items-center justify-end gap-1"
+          className="col-start-2 row-start-1 flex min-w-0 items-center justify-end gap-1 min-[1025px]:col-start-3"
           data-testid="workspace-header-right"
         >
           <span className="sr-only" data-testid="multi-session-pane-count">
@@ -3001,8 +3007,21 @@ export function MultiSessionWorkspace({
     );
   };
 
+  const wrapMobileWorkspace = (content: ReactNode) =>
+    isComposeSheet ? (
+      <MobileTerminalShell
+        isKeyboardVisible={isMobileKeyboardVisible}
+        reserveDashboardTrigger={false}
+        stopKeyboardPropagation={false}
+      >
+        {content}
+      </MobileTerminalShell>
+    ) : (
+      content
+    );
+
   if (loading) {
-    return (
+    const loadingState = (
       <div
         className={cn("flex h-full items-center justify-center bg-background", className)}
         data-testid="multi-session-loading"
@@ -3013,10 +3032,11 @@ export function MultiSessionWorkspace({
         </div>
       </div>
     );
+    return wrapMobileWorkspace(loadingState);
   }
 
   if (loadFailed) {
-    return (
+    const failedState = (
       <div
         className={cn(
           "flex h-full flex-col items-center justify-center gap-4 bg-background px-6 text-center",
@@ -3040,11 +3060,12 @@ export function MultiSessionWorkspace({
         </Button>
       </div>
     );
+    return wrapMobileWorkspace(failedState);
   }
 
   const isEmptyWorkspace = sessions.length === 0;
 
-  return (
+  const workspace = (
     <section
       ref={workspaceRootRef}
       className={cn("flex h-full min-h-0 flex-col bg-background", className)}
@@ -3121,4 +3142,6 @@ export function MultiSessionWorkspace({
       {mobileComposeSheet}
     </section>
   );
+
+  return wrapMobileWorkspace(workspace);
 }

@@ -9,6 +9,7 @@ interface DashboardPageHeaderProps {
   description?: string;
   actions?: ReactNode;
   leading?: ReactNode;
+  hideLeadingOnMobile?: boolean;
   className?: string;
 }
 
@@ -17,19 +18,24 @@ export function DashboardPageHeader({
   description,
   actions,
   leading,
+  hideLeadingOnMobile = false,
   className,
 }: DashboardPageHeaderProps) {
   return (
     <header
       className={cn(
-        "flex h-14 min-h-14 shrink-0 flex-wrap items-center gap-3 border-b border-sidebar-border bg-background/85 px-3 py-2 pt-[max(0.5rem,var(--safe-area-inset-top))] backdrop-blur-md sm:flex-nowrap sm:px-4",
+        "flex min-h-[calc(3.5rem+var(--safe-area-inset-top))] shrink-0 flex-wrap items-center gap-3 border-b border-sidebar-border bg-background/85 px-3 pb-2 pt-[calc(var(--safe-area-inset-top)+0.5rem)] backdrop-blur-md sm:flex-nowrap sm:px-4",
         className,
       )}
       data-dashboard-page-nav=""
     >
       <SidebarTrigger className="h-8 min-h-0 shrink-0" />
       <div className="flex min-w-0 flex-1 items-center gap-2">
-        {leading}
+        {leading ? (
+          <div className={cn("min-w-0 shrink-0", hideLeadingOnMobile && "hidden sm:block")}>
+            {leading}
+          </div>
+        ) : null}
         <h1 className="truncate text-sm font-medium uppercase tracking-[0.08em] text-foreground">
           {title}
         </h1>

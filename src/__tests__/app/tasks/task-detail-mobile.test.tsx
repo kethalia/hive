@@ -107,6 +107,7 @@ describe("TaskDetail mobile layout contracts", () => {
     expect(classTokens(backTarget as Element)).toEqual(
       expect.arrayContaining(["min-h-11", "touch-manipulation", "sm:min-h-7"]),
     );
+    expect(classTokens(backTarget?.parentElement as Element)).not.toContain("hidden");
   });
 
   it("uses a compact one-line page header with an operator-style title", () => {
