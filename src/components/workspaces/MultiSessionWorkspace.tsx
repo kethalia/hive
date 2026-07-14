@@ -2447,7 +2447,7 @@ export function MultiSessionWorkspace({
         const target =
           visibleSessions.find((session) => session.sessionName === activeSessionNameRef.current) ??
           visibleSessions[0];
-        if (!activeBoard?.key) return false;
+        if (!activeBoard?.key || !target) return false;
         void handleRemovePane({
           boardKey: activeBoard.key,
           boardPaneKey: target.boardPaneKey,
