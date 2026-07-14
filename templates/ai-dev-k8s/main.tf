@@ -103,6 +103,11 @@ data "coder_provisioner" "me" {}
 data "coder_workspace" "me" {}
 data "coder_workspace_owner" "me" {}
 
+locals {
+  workspace_hostname_candidate = trim(substr(replace(lower(data.coder_workspace.me.name), "/[^a-z0-9-]/", "-"), 0, 63), "-")
+  workspace_hostname           = local.workspace_hostname_candidate != "" ? local.workspace_hostname_candidate : "workspace"
+}
+
 # =============================================================================
 # External Auth
 # =============================================================================
@@ -557,6 +562,7 @@ resource "kubernetes_deployment_v1" "workspace" {
 
       spec {
         automount_service_account_token = false
+        hostname                        = local.workspace_hostname
 
         security_context {
           run_as_non_root        = true
