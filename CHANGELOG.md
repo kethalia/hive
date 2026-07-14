@@ -1,5 +1,11 @@
 # hive-orchestrator
 
+## 2.7.2
+
+### Patch Changes
+
+- 839c62c: Repair iPhone safe-area spacing, mobile terminal viewport locking, and narrow workspace header layout.
+
 ## 2.7.1
 
 ### Patch Changes
