@@ -1,5 +1,11 @@
 # hive-orchestrator
 
+## 2.7.1
+
+### Patch Changes
+
+- d56032b: Allow the terminal WebSocket URL to be configured relative to the current browser host.
+
 ## 2.7.0
 
 ### Minor Changes
