@@ -4,6 +4,8 @@ import { CheckCircle, RefreshCw, Upload, XCircle } from "lucide-react";
 import dynamic from "next/dynamic";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { DashboardPageHeader } from "@/components/dashboard-page-header";
+import { DashboardPageShell } from "@/components/dashboard-page-shell";
+import { TemplatePushConfirmation } from "@/components/templates/TemplatePushConfirmation";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -71,6 +73,7 @@ function formatDate(iso: string | null): string {
 export function TemplatesClient({ initialStatuses }: TemplatesClientProps) {
   const [statuses, setStatuses] = useState<TemplateStatus[]>(initialStatuses);
   const [pushStates, setPushStates] = useState<Record<string, PushState>>({});
+  const [templatePendingPush, setTemplatePendingPush] = useState<string | null>(null);
 
   // writeRef per template — populated when TerminalPanel mounts
   const writeRefs = useRef<Record<string, React.MutableRefObject<((line: string) => void) | null>>>(
@@ -222,7 +225,20 @@ export function TemplatesClient({ initialStatuses }: TemplatesClientProps) {
   // ── Render ─────────────────────────────────────────────────────
 
   return (
-    <div className="space-y-6">
+    <DashboardPageShell>
+      <TemplatePushConfirmation
+        name={templatePendingPush}
+        open={templatePendingPush !== null}
+        onOpenChange={(open) => {
+          if (!open) setTemplatePendingPush(null);
+        }}
+        onConfirm={() => {
+          if (!templatePendingPush) return;
+          const name = templatePendingPush;
+          setTemplatePendingPush(null);
+          void handlePush(name);
+        }}
+      />
       <DashboardPageHeader
         title="Templates"
         actions={
@@ -275,7 +291,9 @@ export function TemplatesClient({ initialStatuses }: TemplatesClientProps) {
                           size="sm"
                           variant={status.stale ? "default" : "outline"}
                           disabled={isInProgress}
-                          onClick={() => handlePush(status.name)}
+                          onClick={() => {
+                            setTemplatePendingPush(status.name);
+                          }}
                         >
                           {isInProgress ? (
                             <>
@@ -353,7 +371,7 @@ export function TemplatesClient({ initialStatuses }: TemplatesClientProps) {
                     <ListCardAction
                       type="button"
                       disabled={isInProgress}
-                      onClick={() => handlePush(status.name)}
+                      onClick={() => setTemplatePendingPush(status.name)}
                     >
                       {isInProgress ? (
                         <>
@@ -403,7 +421,7 @@ export function TemplatesClient({ initialStatuses }: TemplatesClientProps) {
           </div>
         );
       })}
-    </div>
+    </DashboardPageShell>
   );
 }
 

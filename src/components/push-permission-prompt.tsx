@@ -175,7 +175,7 @@ export function PushPermissionPrompt() {
   }
 
   return (
-    <div className="fixed bottom-4 right-4 z-50 pb-safe w-96">
+    <div className="fixed right-2 bottom-2 z-50 w-[calc(100vw-1rem)] max-w-sm pb-safe sm:right-4 sm:bottom-4">
       <Alert className="relative">
         <div className="flex items-center gap-2">
           <Bell className="size-4 shrink-0" />

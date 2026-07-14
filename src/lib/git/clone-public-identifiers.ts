@@ -28,6 +28,20 @@ export function getCloneSessionKeySuffix(cloneSessionKey: string): string | null
   return isSafeSlashDelimitedPath(suffix) ? suffix : null;
 }
 
+export function getCloneDisplayLabel(relativePath: string): string | null {
+  const trimmedValue = relativePath.trim();
+  if (!isSafeCloneRelativePath(trimmedValue)) return null;
+
+  const segments = trimmedValue.split("/");
+  const projectsIndex = segments.lastIndexOf("projects");
+  const displaySegments =
+    projectsIndex >= 0 && segments.length - projectsIndex > 2
+      ? segments.slice(projectsIndex + 1)
+      : segments;
+
+  return displaySegments.join("/");
+}
+
 export function isSafePublicCloneIdentifier(identifier: PublicCloneIdentifier): boolean {
   return (
     isExpectedCloneSessionKey(identifier.cloneSessionKey) &&

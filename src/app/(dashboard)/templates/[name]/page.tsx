@@ -14,7 +14,7 @@ export default async function TemplateDetailPage({ params }: Props) {
     redirect("/login");
   }
 
-  if (!KNOWN_TEMPLATES.includes(name as (typeof KNOWN_TEMPLATES)[number])) {
+  if (!KNOWN_TEMPLATES.some((templateName) => templateName === name)) {
     notFound();
   }
 

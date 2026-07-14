@@ -106,6 +106,10 @@ vi.mock("@/components/token-expiry-banner", () => ({
   TokenExpiryBanner: () => <div data-testid="token-expiry-banner" />,
 }));
 
+vi.mock("@/components/ui/sonner", () => ({
+  Toaster: () => <div data-testid="toaster" />,
+}));
+
 vi.mock("@/components/sidebar-edge-handle", () => ({
   SidebarEdgeHandle: () => null,
 }));
@@ -238,18 +242,23 @@ vi.mock("lucide-react", () => ({
   ArrowRight: () => <span data-testid="icon-arrow-right" />,
   ArrowUp: () => <span data-testid="icon-arrow-up" />,
   ClipboardPaste: () => <span data-testid="icon-paste" />,
+  CircleCheckIcon: () => <span data-testid="icon-success" />,
   Copy: () => <span data-testid="icon-copy" />,
   CornerDownLeft: () => <span data-testid="icon-enter" />,
   Ellipsis: () => <span data-testid="icon-ellipsis" />,
+  InfoIcon: () => <span data-testid="icon-info" />,
   Keyboard: () => <span data-testid="icon-keyboard" />,
+  Loader2Icon: () => <span data-testid="icon-loading" />,
   MessageSquareText: () => <span data-testid="icon-compose" />,
   Minus: () => <span data-testid="icon-minus" />,
+  OctagonXIcon: () => <span data-testid="icon-error" />,
   PanelLeftIcon: () => <span data-testid="icon-panel-left" />,
   Pencil: () => <span data-testid="icon-pencil" />,
   Plus: () => <span data-testid="icon-plus" />,
   SearchIcon: () => <span data-testid="icon-search" />,
   Send: () => <span data-testid="icon-send" />,
   Terminal: () => <span data-testid="icon-terminal" />,
+  TriangleAlertIcon: () => <span data-testid="icon-warning" />,
   X: () => <span data-testid="icon-x" />,
   XIcon: () => <span data-testid="icon-x-icon" />,
 }));

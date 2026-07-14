@@ -1,6 +1,7 @@
 import { PlusCircle } from "lucide-react";
 import Link from "next/link";
 import { DashboardPageHeader } from "@/components/dashboard-page-header";
+import { DashboardPageShell } from "@/components/dashboard-page-shell";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -42,7 +43,7 @@ function truncatePrompt(prompt: string, maxLength = 80): string {
 
 export function TaskListContent({ taskList }: TaskListContentProps) {
   return (
-    <div className="space-y-6">
+    <DashboardPageShell>
       <DashboardPageHeader
         title="Tasks"
         actions={
@@ -134,6 +135,6 @@ export function TaskListContent({ taskList }: TaskListContentProps) {
           </Card>
         </>
       )}
-    </div>
+    </DashboardPageShell>
   );
 }

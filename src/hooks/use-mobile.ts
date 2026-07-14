@@ -10,39 +10,67 @@ export function isMobileLikeViewport(win: Window): boolean {
   return win.matchMedia?.(TOUCH_TABLET_VIEWPORT_QUERY).matches ?? false;
 }
 
+function subscribeToMobileViewport(onChange: () => void): () => void {
+  if (typeof window === "undefined") return () => undefined;
+
+  if (typeof window.matchMedia !== "function") {
+    window.addEventListener("resize", onChange);
+    return () => {
+      window.removeEventListener("resize", onChange);
+    };
+  }
+
+  const mql = window.matchMedia(MOBILE_VIEWPORT_QUERY);
+  const touchTabletMql = window.matchMedia(TOUCH_TABLET_VIEWPORT_QUERY);
+
+  if (typeof mql.addEventListener === "function") {
+    mql.addEventListener("change", onChange);
+    touchTabletMql.addEventListener("change", onChange);
+    return () => {
+      mql.removeEventListener("change", onChange);
+      touchTabletMql.removeEventListener("change", onChange);
+    };
+  }
+
+  mql.addListener?.(onChange);
+  touchTabletMql.addListener?.(onChange);
+  return () => {
+    mql.removeListener?.(onChange);
+    touchTabletMql.removeListener?.(onChange);
+  };
+}
+
+function getMobileViewportSnapshot(): boolean {
+  return typeof window !== "undefined" && isMobileLikeViewport(window);
+}
+
 export function useIsMobile() {
-  const [isMobile, setIsMobile] = React.useState<boolean | undefined>(undefined);
+  const [hydrationSettled, setHydrationSettled] = React.useState(false);
+  const isMobile = React.useSyncExternalStore(
+    subscribeToMobileViewport,
+    getMobileViewportSnapshot,
+    () => false,
+  );
 
   React.useEffect(() => {
-    if (typeof window === "undefined") return;
-
-    const onChange = () => {
-      setIsMobile(isMobileLikeViewport(window));
+    let settled = false;
+    const settle = () => {
+      if (settled) return;
+      settled = true;
+      setHydrationSettled(true);
     };
 
-    onChange();
+    let secondFrame = 0;
+    const firstFrame = window.requestAnimationFrame(() => {
+      secondFrame = window.requestAnimationFrame(settle);
+    });
 
-    if (typeof window.matchMedia !== "function") return;
-
-    const mql = window.matchMedia(MOBILE_VIEWPORT_QUERY);
-    const touchTabletMql = window.matchMedia(TOUCH_TABLET_VIEWPORT_QUERY);
-
-    if (typeof mql.addEventListener === "function") {
-      mql.addEventListener("change", onChange);
-      touchTabletMql.addEventListener("change", onChange);
-      return () => {
-        mql.removeEventListener("change", onChange);
-        touchTabletMql.removeEventListener("change", onChange);
-      };
-    }
-
-    mql.addListener?.(onChange);
-    touchTabletMql.addListener?.(onChange);
     return () => {
-      mql.removeListener?.(onChange);
-      touchTabletMql.removeListener?.(onChange);
+      settled = true;
+      window.cancelAnimationFrame(firstFrame);
+      window.cancelAnimationFrame(secondFrame);
     };
   }, []);
 
-  return !!isMobile;
+  return hydrationSettled && isMobile;
 }

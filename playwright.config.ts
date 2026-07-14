@@ -6,13 +6,22 @@ export default defineConfig({
   reporter: [["list"]],
   outputDir: "test-results/playwright",
   use: {
+    ignoreHTTPSErrors: process.env.HIVE_E2E_IGNORE_HTTPS_ERRORS === "true",
     trace: "retain-on-failure",
     screenshot: "only-on-failure",
   },
   projects: [
     {
-      name: "chromium",
+      name: "desktop-chromium",
       use: { ...devices["Desktop Chrome"] },
+    },
+    {
+      name: "tablet-chromium",
+      use: { ...devices["iPad Pro 11"], browserName: "chromium" },
+    },
+    {
+      name: "mobile-chromium",
+      use: { ...devices["Pixel 7"], browserName: "chromium" },
     },
   ],
 });

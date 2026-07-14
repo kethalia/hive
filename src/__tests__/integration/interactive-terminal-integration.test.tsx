@@ -334,12 +334,16 @@ vi.mock("@/components/ui/alert", () => ({
   AlertDescription: ({ children }: { children: React.ReactNode; className?: string }) => (
     <div>{children}</div>
   ),
+  AlertTitle: ({ children }: { children: React.ReactNode }) => <h2>{children}</h2>,
 }));
 
 vi.mock("lucide-react", () => ({
+  Activity: () => null,
   AlertCircle: () => null,
+  ArrowLeft: () => null,
   ClipboardPaste: () => null,
   Copy: () => null,
+  RefreshCw: () => null,
   Loader2: () => null,
   Minus: () => null,
   Plus: () => null,
@@ -568,6 +572,7 @@ vi.mock("@/components/terminal/MobileTerminalShell", () => ({
 }));
 
 vi.mock("@/components/ui/button", () => ({
+  buttonVariants: () => "button-variant",
   Button: ({ children, ...props }: React.ButtonHTMLAttributes<HTMLButtonElement>) => (
     <button type="button" {...props}>
       {children}
@@ -1591,7 +1596,11 @@ describe("WorkspaceTerminalPage integration — Multi-session route", () => {
     const { getByText, queryByTestId, unmount } = await renderWorkspaceTerminalPage();
 
     expect(mockGetWorkspaceAgentAction).toHaveBeenCalledWith({ workspaceId: "test-ws" });
-    expect(getByText("Could not find a running agent for this workspace.")).toBeInTheDocument();
+    expect(getByText("Workspace session is unavailable")).toBeInTheDocument();
+    expect(getByText(/Hive could not find a running agent/)).toBeInTheDocument();
+    expect(getByText("Workspaces")).toBeInTheDocument();
+    expect(getByText("Diagnostics")).toBeInTheDocument();
+    expect(getByText("Retry")).toBeInTheDocument();
     expect(queryByTestId("multi-session-workspace-route")).not.toBeInTheDocument();
     expect(document.querySelector('[data-testid="interactive-terminal"]')).toBeNull();
     expect(document.body.innerHTML).not.toContain("/private/path");
@@ -2314,9 +2323,23 @@ describe("TerminalClient integration — Clone route parameters", () => {
     );
     expect(getByTestId("interactive-terminal")).toHaveAttribute("data-clone-path", "kethalia/hive");
     expect(getByTestId("interactive-terminal")).toHaveAttribute("data-clone-proof", "proof-token");
+    expect(getByTestId("active-pane-label")).toHaveTextContent("kethalia/hive");
     expect(getByTestId("mobile-terminal-diagnostics-overlay")).toBeInTheDocument();
     expect(mockGetWorkspaceSessionsAction).not.toHaveBeenCalled();
     expect(mockCreateSessionAction).not.toHaveBeenCalled();
+    unmount();
+  });
+
+  it("uses the repository path instead of the opaque clone session name in the header", async () => {
+    const { getByTestId, unmount } = await renderTerminalClient(
+      "session=git-clone-aabbcc&clonePath=projects%2Fkethalia%2Fhive&cloneProof=proof-token",
+    );
+
+    await waitFor(() => {
+      expect(getByTestId("interactive-terminal")).toBeInTheDocument();
+    });
+    expect(getByTestId("active-pane-label")).toHaveTextContent("kethalia/hive");
+    expect(getByTestId("active-pane-label")).not.toHaveTextContent("git-clone-aabbcc");
     unmount();
   });
 

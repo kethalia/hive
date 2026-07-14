@@ -3497,6 +3497,26 @@ describe("MultiSessionWorkspace", () => {
     expect(mockKillSession).not.toHaveBeenCalled();
   });
 
+  it("ignores the PWA close-pane shortcut while no pane is available", async () => {
+    mockGetSessions.mockResolvedValueOnce({ data: [] });
+    mockListGitClones.mockResolvedValueOnce({ data: { ok: true, tree: { nodes: [] } } });
+
+    render(<MultiSessionWorkspace {...defaultProps} source="unified" />);
+    await screen.findByTestId("multi-session-empty");
+
+    const closeBinding = lastRegisteredEntry("multi-session:ws-1:close-active-pane");
+    expect(closeBinding).toBeDefined();
+    if (!closeBinding) throw new Error("missing close-active-pane binding");
+
+    setPwaStandalone(true);
+    expect(() => {
+      act(() => {
+        expect(closeBinding.action(null, null)).toBe(false);
+      });
+    }).not.toThrow();
+    expect(mockKillSession).not.toHaveBeenCalled();
+  });
+
   it("shows Git terminal font size controls that update mounted terminals", async () => {
     mockListGitClones.mockResolvedValueOnce({
       data: {

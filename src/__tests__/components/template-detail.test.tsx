@@ -81,6 +81,7 @@ vi.mock("lucide-react", () => ({
   Upload: () => <span>Upload</span>,
   CheckCircle: () => <span data-testid="check-circle">✓</span>,
   XCircle: () => <span data-testid="x-circle">✗</span>,
+  XIcon: () => <span>Close</span>,
 }));
 
 import { TemplateDetailClient } from "@/components/templates/TemplateDetailClient";
@@ -170,6 +171,7 @@ describe("TemplateDetailClient", () => {
 
     render(<TemplateDetailClient status={makeStatus()} />);
     fireEvent.click(screen.getByText("Push"));
+    fireEvent.click(screen.getByText("Confirm push"));
 
     await waitFor(() => {
       expect(mockFetch).toHaveBeenCalledWith("/api/templates/hive-worker/push", {
@@ -187,6 +189,7 @@ describe("TemplateDetailClient", () => {
 
     render(<TemplateDetailClient status={makeStatus()} />);
     fireEvent.click(screen.getByText("Push"));
+    fireEvent.click(screen.getByText("Confirm push"));
 
     await waitFor(() => {
       expect(screen.getByTestId("x-circle")).toBeInTheDocument();
@@ -200,6 +203,7 @@ describe("TemplateDetailClient", () => {
 
     render(<TemplateDetailClient status={makeStatus()} />);
     fireEvent.click(screen.getByText("Push"));
+    fireEvent.click(screen.getByText("Confirm push"));
 
     await waitFor(() => {
       expect(screen.getByText("Push failed")).toBeInTheDocument();
@@ -231,6 +235,7 @@ describe("TemplateDetailClient", () => {
 
     render(<TemplateDetailClient status={makeStatus()} />);
     fireEvent.click(screen.getByText("Push"));
+    fireEvent.click(screen.getByText("Confirm push"));
 
     await waitFor(() => {
       const matches = screen.getAllByText("Pushing…");

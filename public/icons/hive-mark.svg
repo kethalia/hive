@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Hive">
+  <rect width="512" height="512" fill="#07100b"/>
+  <rect x="96" y="96" width="320" height="320" fill="#0f2417" stroke="#8dff9d" stroke-width="12"/>
+  <text x="256" y="308" fill="#8dff9d" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="144" font-weight="600" text-anchor="middle">H_</text>
+</svg>

@@ -53,7 +53,7 @@ From the Hive repository root, authenticate the Coder CLI against the new
 deployment and push the template:
 
 ```bash
-coder login https://coder-new.local.kethalia.com
+coder login https://coder.kethalia.com
 coder templates push ai-dev-k8s \
   --directory templates/ai-dev-k8s \
   --message "Initial Kubernetes workspace template" \

@@ -6,5 +6,5 @@ interface WorkspaceDetailPageProps {
 
 export default async function WorkspaceDetailPage({ params }: WorkspaceDetailPageProps) {
   const { id } = await params;
-  redirect(`/workspaces/${id}/terminal`);
+  redirect(`/workspaces/${encodeURIComponent(id)}/terminal/workspace`);
 }

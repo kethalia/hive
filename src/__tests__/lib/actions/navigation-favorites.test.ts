@@ -3,6 +3,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const mockFindMany = vi.hoisted(() => vi.fn());
 const mockUpsert = vi.hoisted(() => vi.fn());
 const mockDeleteMany = vi.hoisted(() => vi.fn());
+const mockUpdateMany = vi.hoisted(() => vi.fn());
+const mockTransaction = vi.hoisted(() => vi.fn());
 const mockGetSession = vi.hoisted(() => vi.fn());
 const mockCookieStore = vi.hoisted(() => ({
   get: vi.fn(),
@@ -19,7 +21,9 @@ vi.mock("@hive/db", () => ({
       findMany: (...args: unknown[]) => mockFindMany(...args),
       upsert: (...args: unknown[]) => mockUpsert(...args),
       deleteMany: (...args: unknown[]) => mockDeleteMany(...args),
+      updateMany: (...args: unknown[]) => mockUpdateMany(...args),
     },
+    $transaction: (...args: unknown[]) => mockTransaction(...args),
   }),
 }));
 
@@ -31,6 +35,7 @@ vi.mock("@/lib/auth/session", () => ({
 import {
   listNavigationFavoritesAction,
   removeNavigationFavoriteAction,
+  reorderNavigationFavoritesAction,
   upsertNavigationFavoriteAction,
 } from "@/lib/actions/navigation-favorites";
 
@@ -57,6 +62,7 @@ const favoriteRow = {
   targetKey: "git-clone:kethalia/hive",
   label: "Hive",
   relativePath: "kethalia/hive",
+  position: 0,
   createdAt: new Date("2026-06-02T00:00:00.000Z"),
 };
 
@@ -68,6 +74,8 @@ describe("navigation favorites actions", () => {
     mockFindMany.mockResolvedValue([favoriteRow]);
     mockUpsert.mockResolvedValue(favoriteRow);
     mockDeleteMany.mockResolvedValue({ count: 1 });
+    mockUpdateMany.mockResolvedValue({ count: 1 });
+    mockTransaction.mockResolvedValue([]);
   });
 
   it("lists authenticated favorites scoped by user and workspace", async () => {
@@ -82,6 +90,7 @@ describe("navigation favorites actions", () => {
         targetKey: "git-clone:kethalia/hive",
         label: "Hive",
         relativePath: "kethalia/hive",
+        position: 0,
         createdAt: "2026-06-02T00:00:00.000Z",
       },
     ]);
@@ -90,7 +99,7 @@ describe("navigation favorites actions", () => {
         userId: "user-123",
         workspaceId: "workspace-1",
       },
-      orderBy: [{ kind: "asc" }, { createdAt: "asc" }, { id: "asc" }],
+      orderBy: [{ position: "asc" }, { createdAt: "asc" }, { id: "asc" }],
     });
   });
 
@@ -200,6 +209,29 @@ describe("navigation favorites actions", () => {
         targetKey: "git-clone:kethalia/hive",
       },
     });
+  });
+
+  it("persists a user-scoped favorite order", async () => {
+    mockFindMany.mockResolvedValueOnce([{ id: "fav-2" }, { id: "fav-1" }]);
+
+    const result = await reorderNavigationFavoritesAction({
+      favoriteIds: ["fav-2", "fav-1"],
+    });
+
+    expect(result?.data).toEqual({ success: true });
+    expect(mockFindMany).toHaveBeenCalledWith({
+      where: { userId: "user-123", id: { in: ["fav-2", "fav-1"] } },
+      select: { id: true },
+    });
+    expect(mockUpdateMany).toHaveBeenNthCalledWith(1, {
+      where: { id: "fav-2", userId: "user-123" },
+      data: { position: 0 },
+    });
+    expect(mockUpdateMany).toHaveBeenNthCalledWith(2, {
+      where: { id: "fav-1", userId: "user-123" },
+      data: { position: 1 },
+    });
+    expect(mockTransaction).toHaveBeenCalledTimes(1);
   });
 
   it("does not cross user boundaries when another authenticated user mutates the same target", async () => {

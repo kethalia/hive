@@ -105,5 +105,8 @@ describe("TerminalSessionStatusClient", () => {
       "href",
       "/workspaces/workspace-1/terminal",
     );
+    const pageShell = document.querySelector("[data-dashboard-page-shell]");
+    expect(pageShell).toHaveClass("w-full", "flex-1");
+    expect(pageShell).not.toHaveClass("max-w-5xl", "mx-auto");
   });
 });

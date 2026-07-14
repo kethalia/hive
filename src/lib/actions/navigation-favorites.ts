@@ -23,6 +23,7 @@ export interface NavigationFavoriteDto {
   targetKey: string;
   label: string | null;
   relativePath: string | null;
+  position?: number;
   createdAt: string;
 }
 
@@ -127,6 +128,13 @@ const removeNavigationFavoriteSchema = z
     }
   });
 
+const reorderNavigationFavoritesSchema = z
+  .object({ favoriteIds: z.array(z.string().min(1)).max(200) })
+  .strict()
+  .refine((input) => new Set(input.favoriteIds).size === input.favoriteIds.length, {
+    message: "favoriteIds must be unique",
+  });
+
 export const listNavigationFavoritesAction = authActionClient
   .inputSchema(listNavigationFavoritesSchema)
   .action(async ({ parsedInput, ctx }): Promise<NavigationFavoriteDto[]> => {
@@ -138,7 +146,7 @@ export const listNavigationFavoritesAction = authActionClient
           workspaceId: parsedInput.workspaceId,
           ...(parsedInput.kind ? { kind: parsedInput.kind } : {}),
         },
-        orderBy: [{ kind: "asc" }, { createdAt: "asc" }, { id: "asc" }],
+        orderBy: [{ position: "asc" }, { createdAt: "asc" }, { id: "asc" }],
       });
 
       return rows.map(serializeFavorite);
@@ -206,6 +214,33 @@ export const removeNavigationFavoriteAction = authActionClient
     }
   });
 
+export const reorderNavigationFavoritesAction = authActionClient
+  .inputSchema(reorderNavigationFavoritesSchema)
+  .action(async ({ parsedInput, ctx }): Promise<{ success: true }> => {
+    try {
+      const db = getDb();
+      const owned = await db.navigationFavorite.findMany({
+        where: { userId: ctx.user.id, id: { in: parsedInput.favoriteIds } },
+        select: { id: true },
+      });
+      if (owned.length !== parsedInput.favoriteIds.length) {
+        throw new Error("favorite_order_scope_mismatch");
+      }
+      await db.$transaction(
+        parsedInput.favoriteIds.map((id, position) =>
+          db.navigationFavorite.updateMany({
+            where: { id, userId: ctx.user.id },
+            data: { position },
+          }),
+        ),
+      );
+      return { success: true };
+    } catch (error) {
+      logFavoriteError("reorder", error);
+      throw new Error(FAVORITE_UNAVAILABLE_MESSAGE);
+    }
+  });
+
 function serializeFavorite(row: NavigationFavorite): NavigationFavoriteDto {
   if (
     !row ||
@@ -213,6 +248,7 @@ function serializeFavorite(row: NavigationFavorite): NavigationFavoriteDto {
     !isNavigationFavoriteKind(row.kind) ||
     typeof row.workspaceId !== "string" ||
     typeof row.targetKey !== "string" ||
+    typeof row.position !== "number" ||
     !(row.createdAt instanceof Date)
   ) {
     throw new Error("navigation_favorite_row_malformed");
@@ -225,6 +261,7 @@ function serializeFavorite(row: NavigationFavorite): NavigationFavoriteDto {
     targetKey: row.targetKey,
     label: typeof row.label === "string" ? row.label : null,
     relativePath: typeof row.relativePath === "string" ? row.relativePath : null,
+    position: row.position,
     createdAt: row.createdAt.toISOString(),
   };
 }

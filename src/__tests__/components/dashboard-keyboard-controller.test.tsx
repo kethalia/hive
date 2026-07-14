@@ -154,15 +154,43 @@ describe("DashboardKeyboardController", () => {
       "ctrl+enter",
       "cmd+enter",
     ]);
+    expect(registeredBindings.get("dashboard:navigate-tasks")?.keys).toEqual([
+      "ctrl+shift+2",
+      "cmd+shift+2",
+    ]);
+    expect(registeredBindings.get("dashboard:navigate-workspaces")?.keys).toEqual([
+      "ctrl+shift+1",
+      "cmd+shift+1",
+    ]);
+    expect(registeredBindings.get("dashboard:navigate-templates")?.keys).toEqual([
+      "ctrl+shift+3",
+      "cmd+shift+3",
+    ]);
+    expect(registeredBindings.get("dashboard:navigate-terminal-status")?.keys).toEqual([
+      "ctrl+shift+4",
+      "cmd+shift+4",
+    ]);
     for (const id of [
       "dashboard:command-palette",
       "dashboard:toggle-sidebar",
       "dashboard:toggle-compose",
       "dashboard:toggle-fullscreen",
+      "dashboard:navigate-tasks",
+      "dashboard:navigate-workspaces",
+      "dashboard:navigate-templates",
+      "dashboard:navigate-terminal-status",
     ]) {
       expect(registeredBindings.get(id)?.allowTextEntry).toBe(true);
       expect(registeredBindings.get(id)?.global).toBe(true);
     }
+  });
+
+  it("publishes keybinding readiness only while the controller is mounted", () => {
+    const { unmount } = render(<DashboardKeyboardController />);
+
+    expect(document.documentElement.dataset.dashboardKeybindingsReady).toBe("true");
+    unmount();
+    expect(document.documentElement.dataset.dashboardKeybindingsReady).toBeUndefined();
   });
 
   it("loads dashboard commands and navigates from the global palette", async () => {
@@ -243,5 +271,21 @@ describe("DashboardKeyboardController", () => {
     expect(document.documentElement.dataset.dashboardFullscreen).toBe("true");
 
     window.removeEventListener(TERMINAL_COMPOSE_TOGGLE_EVENT, composeListener);
+  });
+
+  it("navigates to primary dashboard surfaces from global shortcuts", () => {
+    render(<DashboardKeyboardController />);
+
+    for (const [id, route] of [
+      ["dashboard:navigate-tasks", "/tasks"],
+      ["dashboard:navigate-workspaces", "/workspaces"],
+      ["dashboard:navigate-templates", "/templates"],
+      ["dashboard:navigate-terminal-status", "/terminal/status"],
+    ]) {
+      act(() => {
+        expect(registeredBindings.get(id)?.action(null, null)).toBe(false);
+      });
+      expect(mockRouterPush).toHaveBeenLastCalledWith(route);
+    }
   });
 });

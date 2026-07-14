@@ -82,6 +82,15 @@ ingress:
           pathType: Prefix
   tls: []
 
+# Optional second ingress for a public edge/tunnel whose origin policy differs
+# from the private ingress (for example Cloudflare Tunnel over in-cluster HTTP).
+publicIngress:
+  enabled: false
+  className: nginx
+  annotations: {}
+  hosts: []
+  tls: []
+
 resources:
   requests:
     cpu: 100m

@@ -2447,7 +2447,7 @@ export function MultiSessionWorkspace({
         const target =
           visibleSessions.find((session) => session.sessionName === activeSessionNameRef.current) ??
           visibleSessions[0];
-        if (!activeBoard?.key) return false;
+        if (!activeBoard?.key || !target) return false;
         void handleRemovePane({
           boardKey: activeBoard.key,
           boardPaneKey: target.boardPaneKey,
@@ -2719,7 +2719,7 @@ export function MultiSessionWorkspace({
 
   const renderWorkspaceHeader = () => (
     <>
-      <header className="grid shrink-0 grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-1 border-b border-border px-1 py-1 pt-[max(1rem,var(--safe-area-inset-top))] lg:pt-[max(0.25rem,var(--safe-area-inset-top))]">
+      <header className="grid h-14 min-h-14 shrink-0 grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-1 border-b border-sidebar-border px-1 py-1 pt-[max(1rem,var(--safe-area-inset-top))] lg:pt-[max(0.25rem,var(--safe-area-inset-top))]">
         <div className="flex min-w-0 items-center gap-1" data-testid="workspace-header-left">
           <SidebarTrigger className="h-7 min-h-0 shrink-0" />
           <div className="min-w-0 flex-1">

@@ -20,6 +20,10 @@ const GLOBAL_COMMAND_PALETTE_KEYS = ["ctrl+k", "cmd+k"] as const;
 const GLOBAL_SIDEBAR_KEYS = ["ctrl+b", "cmd+b"] as const;
 const GLOBAL_COMPOSE_KEYS = ["ctrl+`", "cmd+`"] as const;
 const GLOBAL_FULLSCREEN_KEYS = ["ctrl+enter", "cmd+enter"] as const;
+const NAV_WORKSPACES_KEYS = ["ctrl+shift+1", "cmd+shift+1"] as const;
+const NAV_TASKS_KEYS = ["ctrl+shift+2", "cmd+shift+2"] as const;
+const NAV_TEMPLATES_KEYS = ["ctrl+shift+3", "cmd+shift+3"] as const;
+const NAV_STATUS_KEYS = ["ctrl+shift+4", "cmd+shift+4"] as const;
 
 type DashboardWorkspace = {
   id: string;
@@ -198,6 +202,62 @@ export function DashboardKeyboardController() {
   });
 
   useRegisterKeybinding({
+    id: "dashboard:navigate-tasks",
+    keys: [...NAV_TASKS_KEYS],
+    action: () => {
+      router.push("/tasks");
+      return false;
+    },
+    description: "Open tasks",
+    category: "navigation",
+    enabledInBrowser: true,
+    global: true,
+    allowTextEntry: true,
+  });
+
+  useRegisterKeybinding({
+    id: "dashboard:navigate-workspaces",
+    keys: [...NAV_WORKSPACES_KEYS],
+    action: () => {
+      router.push("/workspaces");
+      return false;
+    },
+    description: "Open workspaces",
+    category: "navigation",
+    enabledInBrowser: true,
+    global: true,
+    allowTextEntry: true,
+  });
+
+  useRegisterKeybinding({
+    id: "dashboard:navigate-templates",
+    keys: [...NAV_TEMPLATES_KEYS],
+    action: () => {
+      router.push("/templates");
+      return false;
+    },
+    description: "Open templates",
+    category: "navigation",
+    enabledInBrowser: true,
+    global: true,
+    allowTextEntry: true,
+  });
+
+  useRegisterKeybinding({
+    id: "dashboard:navigate-terminal-status",
+    keys: [...NAV_STATUS_KEYS],
+    action: () => {
+      router.push("/terminal/status");
+      return false;
+    },
+    description: "Open terminal status",
+    category: "navigation",
+    enabledInBrowser: true,
+    global: true,
+    allowTextEntry: true,
+  });
+
+  useRegisterKeybinding({
     id: "dashboard:toggle-sidebar",
     keys: [...GLOBAL_SIDEBAR_KEYS],
     action: () => {
@@ -239,6 +299,14 @@ export function DashboardKeyboardController() {
     allowTextEntry: true,
   });
 
+  useEffect(() => {
+    const root = document.documentElement;
+    root.dataset.dashboardKeybindingsReady = "true";
+    return () => {
+      delete root.dataset.dashboardKeybindingsReady;
+    };
+  }, []);
+
   const dashboardActions = useMemo<CommandPaletteAction[]>(() => {
     const activeTasks = tasks.filter((task) => ACTIVE_STATUSES.has(task.status));
     const recentTasks = tasks.filter((task) => !ACTIVE_STATUSES.has(task.status)).slice(0, 6);
@@ -257,14 +325,51 @@ export function DashboardKeyboardController() {
 
     return [
       {
+        id: "dashboard:open-workspaces",
+        label: "Workspaces",
+        description: "Open Coder workspaces and terminal sessions",
+        group: "Navigate",
+        value: "workspaces coder terminals sessions",
+        shortcut: formatShortcut(NAV_WORKSPACES_KEYS),
+        icon: "terminal",
+        onSelect: () => {
+          router.push("/workspaces");
+        },
+      },
+      ...workspaceActions,
+      {
         id: "dashboard:new-task",
         label: "New task",
-        description: "Create a Hive task",
-        group: "Actions",
-        value: "new task create hive task",
+        description: "Create an automation task",
+        group: "Automation",
+        value: "new task create hive automation task",
         icon: "plus",
         onSelect: () => {
           router.push("/tasks/new");
+        },
+      },
+      {
+        id: "dashboard:open-templates",
+        label: "Templates",
+        description: "Review and push Coder templates",
+        group: "Navigate",
+        value: "templates coder push",
+        shortcut: formatShortcut(NAV_TEMPLATES_KEYS),
+        icon: "search",
+        onSelect: () => {
+          router.push("/templates");
+        },
+      },
+      {
+        id: "dashboard:open-terminal-status",
+        label: "Terminal status",
+        description: "Inspect safe connection diagnostics",
+        group: "Navigate",
+        value: "terminal status diagnostics connections",
+        shortcut: formatShortcut(NAV_STATUS_KEYS),
+        icon: "search",
+        onSelect: () => {
+          router.push("/terminal/status");
         },
       },
       {
@@ -277,6 +382,7 @@ export function DashboardKeyboardController() {
         group: "Actions",
         value: "tasks progress status running queued verifying",
         rightLabel: "/tasks",
+        shortcut: formatShortcut(NAV_TASKS_KEYS),
         icon: "search",
         onSelect: () => {
           router.push("/tasks");
@@ -292,7 +398,6 @@ export function DashboardKeyboardController() {
         icon: "search",
         onSelect: toggleDashboardFullscreen,
       },
-      ...workspaceActions,
       ...activeTasks.slice(0, 6).map<CommandPaletteAction>((task) => ({
         id: `dashboard:active-task:${task.id}`,
         label: `${shortId(task.id)} • ${task.status}`,

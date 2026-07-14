@@ -116,7 +116,7 @@ vi.mock("@/components/ui/collapsible", () => {
           data-onchange={onOpenChange ? "true" : undefined}
           onClick={(e) => {
             const target = e.target as HTMLElement;
-            if (target.closest("[data-testid='collapsible-trigger']") && onOpenChange) {
+            if (target.closest("[data-collapsible-trigger]") && onOpenChange) {
               onOpenChange(!isOpen);
             }
           }}
@@ -131,8 +131,21 @@ vi.mock("@/components/ui/collapsible", () => {
     CollapsibleTrigger: ({
       children,
       className,
-    }: React.PropsWithChildren<{ className?: string }>) => (
-      <button data-testid="collapsible-trigger" className={className}>
+      render: _render,
+      "data-testid": dataTestId,
+      ...rest
+    }: React.PropsWithChildren<
+      React.ButtonHTMLAttributes<HTMLButtonElement> & {
+        render?: React.ReactElement;
+        "data-testid"?: string;
+      }
+    >) => (
+      <button
+        data-collapsible-trigger=""
+        data-testid={dataTestId ?? "collapsible-trigger"}
+        className={className}
+        {...rest}
+      >
         {children}
       </button>
     ),
@@ -285,11 +298,13 @@ vi.mock("lucide-react", () => ({
   FolderOpen: () => <span>FolderOpen</span>,
   Folder: () => <span>Folder</span>,
   GitBranch: () => <span>GitBranch</span>,
+  GripVertical: () => <span>GripVertical</span>,
   Code: () => <span>Code</span>,
   ExternalLink: () => <span>ExternalLink</span>,
   ChevronDown: () => <span>ChevronDown</span>,
   Pencil: () => <span>Pencil</span>,
   Star: () => <span>Star</span>,
+  Stethoscope: () => <span>Stethoscope</span>,
   Loader2: () => <span data-testid="loader-icon">Loader2</span>,
   LogOut: () => <span data-testid="logout-icon">LogOut</span>,
 }));
@@ -300,12 +315,14 @@ const mockListGitClones = vi.fn();
 const mockResolveGitCloneTerminal = vi.fn();
 const mockGetWorkspaceAgent = vi.fn();
 const mockGetWorkspaceSessions = vi.fn();
+const mockRestartWorkspace = vi.fn();
 const mockCreateSession = vi.fn();
 const mockKillSession = vi.fn();
 const mockRenameSession = vi.fn();
 const mockListNavigationFavorites = vi.fn();
 const mockUpsertNavigationFavorite = vi.fn();
 const mockRemoveNavigationFavorite = vi.fn();
+const mockReorderNavigationFavorites = vi.fn();
 const mockGetTerminalSettings = vi.fn();
 const mockUpdateTerminalSettings = vi.fn();
 
@@ -313,6 +330,7 @@ vi.mock("@/lib/actions/workspaces", () => ({
   listWorkspacesAction: (...args: unknown[]) => mockListWorkspaces(...args),
   getWorkspaceAgentAction: (...args: unknown[]) => mockGetWorkspaceAgent(...args),
   getWorkspaceSessionsAction: (...args: unknown[]) => mockGetWorkspaceSessions(...args),
+  restartWorkspaceAction: (...args: unknown[]) => mockRestartWorkspace(...args),
   createSessionAction: (...args: unknown[]) => mockCreateSession(...args),
   killSessionAction: (...args: unknown[]) => mockKillSession(...args),
   renameSessionAction: (...args: unknown[]) => mockRenameSession(...args),
@@ -340,6 +358,7 @@ vi.mock("@/lib/actions/navigation-favorites", () => ({
   listNavigationFavoritesAction: (...args: unknown[]) => mockListNavigationFavorites(...args),
   upsertNavigationFavoriteAction: (...args: unknown[]) => mockUpsertNavigationFavorite(...args),
   removeNavigationFavoriteAction: (...args: unknown[]) => mockRemoveNavigationFavorite(...args),
+  reorderNavigationFavoritesAction: (...args: unknown[]) => mockReorderNavigationFavorites(...args),
 }));
 
 vi.mock("@/lib/actions/user-settings", () => ({
@@ -496,6 +515,7 @@ function makeFavorite(overrides: Record<string, unknown> = {}) {
     label: "dev",
     relativePath: null,
     createdAt: "2026-06-02T00:00:00.000Z",
+    position: 0,
     ...overrides,
   };
 }
@@ -507,9 +527,7 @@ async function expandWorkspaceAndTerminalSessions(workspaceId = "ws-1") {
     expect(screen.getByText("dev-box")).toBeInTheDocument();
   });
 
-  const wsTrigger = screen.getByText("dev-box").closest("[data-testid='collapsible-trigger']");
-  expect(wsTrigger).not.toBeNull();
-  fireEvent.click(wsTrigger!);
+  fireEvent.click(screen.getByTestId(`workspace-disclosure-${workspaceId}`));
 
   await waitFor(() => {
     expect(screen.getByTestId(`terminal-section-${workspaceId}`)).toBeInTheDocument();
@@ -564,6 +582,7 @@ describe("AppSidebar", () => {
     mockRemoveNavigationFavorite.mockResolvedValue({
       data: { success: true },
     });
+    mockReorderNavigationFavorites.mockResolvedValue({ data: { success: true } });
     mockGetTerminalSettings.mockResolvedValue({
       data: { terminalControlsBeyondMobile: false },
     });
@@ -581,8 +600,9 @@ describe("AppSidebar", () => {
       },
     });
     mockGetWorkspaceAgent.mockResolvedValue({
-      data: { agentId: "agent-1", agentName: "main" },
+      data: { agentId: "agent-1", agentName: "main", agentStatus: "connected" },
     });
+    mockRestartWorkspace.mockResolvedValue({ data: { workspaceId: "ws-1", status: "running" } });
     mockGetWorkspaceSessions.mockResolvedValue({
       data: [makeSession("dev")],
     });
@@ -811,12 +831,52 @@ describe("AppSidebar", () => {
     expect(document.body.innerHTML).not.toContain("userId");
   });
 
-  it("renders an empty favorites state when no favorites are returned", async () => {
+  it("uses sortable drag handles for pinned actions", async () => {
+    mockListNavigationFavorites.mockResolvedValueOnce({
+      data: [
+        makeFavorite({ id: "fav-first", label: "First", position: 0 }),
+        makeFavorite({ id: "fav-second", label: "Second", targetKey: "second", position: 1 }),
+      ],
+    });
+    render(<AppSidebar />);
+
+    const firstHandle = await screen.findByRole("button", { name: "Reorder First" });
+    expect(screen.getByRole("button", { name: "Reorder Second" })).toBeInTheDocument();
+    expect(firstHandle).not.toHaveAttribute("draggable");
+    expect(firstHandle).toHaveAttribute("aria-roledescription", "sortable");
+    expect(screen.getByTestId("sortable-favorite-fav-first")).toBeInTheDocument();
+    firstHandle.focus();
+    fireEvent.keyDown(firstHandle, { key: " ", code: "Space" });
+    await waitFor(() => expect(firstHandle).toHaveAttribute("aria-pressed", "true"));
+    expect(screen.getByTestId("sortable-favorite-fav-first")).toHaveClass("shadow-lg");
+    fireEvent.keyDown(firstHandle, { key: "Escape", code: "Escape" });
+  });
+
+  it("hides Pinned when no favorites are returned", async () => {
     render(<AppSidebar />);
 
     await waitFor(() => {
-      expect(screen.getByText("No favorites yet.")).toBeInTheDocument();
+      expect(mockListNavigationFavorites).toHaveBeenCalledWith({ workspaceId: "ws-1" });
     });
+    expect(screen.queryByTestId("favorites-section")).not.toBeInTheDocument();
+  });
+
+  it("places Pinned before Workspaces in the primary navigation", async () => {
+    mockListNavigationFavorites.mockResolvedValueOnce({
+      data: [makeFavorite({ id: "fav-terminal", label: "Main shell" })],
+    });
+    render(<AppSidebar />);
+
+    const pinned = await screen.findByTestId("favorites-section");
+    const workspaces = screen.getByTestId("workspaces-disclosure");
+
+    expect(pinned.compareDocumentPosition(workspaces)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+  });
+
+  it("separates the Tasks and New Task actions", async () => {
+    render(<AppSidebar />);
+
+    expect(await screen.findByTestId("automation-menu")).toHaveClass("gap-1");
   });
 
   it("upserts and removes terminal favorites without user-scoped payload fields", async () => {
@@ -858,9 +918,7 @@ describe("AppSidebar", () => {
     render(<AppSidebar />);
 
     await screen.findByText("dev-box");
-    const wsTrigger = screen.getByText("dev-box").closest("[data-testid='collapsible-trigger']");
-    expect(wsTrigger).not.toBeNull();
-    fireEvent.click(wsTrigger!);
+    fireEvent.click(screen.getByTestId("workspace-disclosure-ws-1"));
 
     fireEvent.click(
       await screen.findByRole("button", {
@@ -931,7 +989,7 @@ describe("AppSidebar", () => {
         relativePath: "kethalia/hive",
       });
       expect(mockPush).toHaveBeenCalledWith(
-        "/workspaces/ws-1/terminal?session=git-clone-safe-hive&clonePath=kethalia%2Fhive&cloneProof=proof-token",
+        "/workspaces/ws-1/terminal?session=git-clone-safe-hive&clonePath=kethalia%2Fhive&cloneSessionKey=git-clone%3Akethalia%2Fhive&cloneProof=proof-token&relativePath=kethalia%2Fhive",
       );
     });
   });
@@ -991,9 +1049,7 @@ describe("AppSidebar", () => {
     expect(document.body.innerHTML).not.toContain(PRIVATE_ROOT);
     expect(document.body.innerHTML).not.toContain("cloneProof=secret");
 
-    const wsTrigger = screen.getByText("dev-box").closest("[data-testid='collapsible-trigger']");
-    expect(wsTrigger).not.toBeNull();
-    fireEvent.click(wsTrigger!);
+    fireEvent.click(screen.getByTestId("workspace-disclosure-ws-1"));
     expect(
       await screen.findByRole("button", { name: "Open Git repository kethalia / hive" }),
     ).toBeInTheDocument();
@@ -1023,9 +1079,7 @@ describe("AppSidebar", () => {
     render(<AppSidebar />);
 
     await screen.findByText("dev-box");
-    const wsTrigger = screen.getByText("dev-box").closest("[data-testid='collapsible-trigger']");
-    expect(wsTrigger).not.toBeNull();
-    fireEvent.click(wsTrigger!);
+    fireEvent.click(screen.getByTestId("workspace-disclosure-ws-1"));
 
     const repoButton = await screen.findByRole("button", {
       name: "Open Git repository kethalia / hive",
@@ -1035,7 +1089,7 @@ describe("AppSidebar", () => {
     expect(screen.getByTestId("git-section-ws-1")).toBeInTheDocument();
     expect(repoButton).toHaveAttribute("data-clone-session-key", "git-clone:kethalia/hive");
     expect(repoButton).toHaveAttribute("data-relative-path", "kethalia/hive");
-    expect(screen.getByText("Git")).toBeInTheDocument();
+    expect(screen.getByText("Repositories")).toBeInTheDocument();
     expect(screen.getByText("home")).toBeInTheDocument();
     expect(screen.getByText("kethalia")).toBeInTheDocument();
     expect(screen.getByRole("group", { name: "Git clone scan diagnostics" })).toHaveTextContent(
@@ -1049,9 +1103,7 @@ describe("AppSidebar", () => {
     render(<AppSidebar />);
 
     await screen.findByText("dev-box");
-    const wsTrigger = screen.getByText("dev-box").closest("[data-testid='collapsible-trigger']");
-    expect(wsTrigger).not.toBeNull();
-    fireEvent.click(wsTrigger!);
+    fireEvent.click(screen.getByTestId("workspace-disclosure-ws-1"));
 
     const gitSection = await screen.findByTestId("git-section-ws-1");
     expect(gitSection).toHaveAttribute("data-open", "false");
@@ -1086,11 +1138,7 @@ describe("AppSidebar", () => {
     render(<AppSidebar />);
 
     await screen.findByText("running-box");
-    const runningTrigger = screen
-      .getByText("running-box")
-      .closest("[data-testid='collapsible-trigger']");
-    expect(runningTrigger).not.toBeNull();
-    fireEvent.click(runningTrigger!);
+    fireEvent.click(screen.getByTestId("workspace-disclosure-ws-running"));
 
     fireEvent.click(
       await screen.findByRole("button", { name: "Open Git repository kethalia / hive" }),
@@ -1105,7 +1153,7 @@ describe("AppSidebar", () => {
         relativePath: "kethalia/hive",
       });
       expect(mockPush).toHaveBeenCalledWith(
-        "/workspaces/ws-running/terminal?session=git-clone-safe-hive&clonePath=kethalia%2Fhive&cloneProof=proof-token",
+        "/workspaces/ws-running/terminal?session=git-clone-safe-hive&clonePath=kethalia%2Fhive&cloneSessionKey=git-clone%3Akethalia%2Fhive&cloneProof=proof-token&relativePath=kethalia%2Fhive",
       );
     });
     expect(mockCreateSession).not.toHaveBeenCalled();
@@ -1133,7 +1181,7 @@ describe("AppSidebar", () => {
         relativePath: "kethalia/hive",
       });
       expect(mockPush).toHaveBeenCalledWith(
-        "/workspaces/ws-active/terminal?session=git-clone-safe-hive&clonePath=kethalia%2Fhive&cloneProof=proof-token&debugViewport=1",
+        "/workspaces/ws-active/terminal?session=git-clone-safe-hive&clonePath=kethalia%2Fhive&cloneSessionKey=git-clone%3Akethalia%2Fhive&cloneProof=proof-token&relativePath=kethalia%2Fhive&debugViewport=1",
       );
     });
     expect(mockCreateSession).not.toHaveBeenCalled();
@@ -1172,9 +1220,7 @@ describe("AppSidebar", () => {
     render(<AppSidebar />);
 
     await screen.findByText("dev-box");
-    const wsTrigger = screen.getByText("dev-box").closest("[data-testid='collapsible-trigger']");
-    expect(wsTrigger).not.toBeNull();
-    fireEvent.click(wsTrigger!);
+    fireEvent.click(screen.getByTestId("workspace-disclosure-ws-1"));
     fireEvent.click(
       await screen.findByRole("button", { name: "Open Git repository kethalia / hive" }),
     );
@@ -1196,9 +1242,7 @@ describe("AppSidebar", () => {
     render(<AppSidebar />);
 
     await screen.findByText("dev-box");
-    const wsTrigger = screen.getByText("dev-box").closest("[data-testid='collapsible-trigger']");
-    expect(wsTrigger).not.toBeNull();
-    fireEvent.click(wsTrigger!);
+    fireEvent.click(screen.getByTestId("workspace-disclosure-ws-1"));
     fireEvent.click(
       await screen.findByRole("button", { name: "Open Git repository kethalia / hive" }),
     );
@@ -1223,9 +1267,7 @@ describe("AppSidebar", () => {
     render(<AppSidebar />);
 
     await screen.findByText("dev-box");
-    const wsTrigger = screen.getByText("dev-box").closest("[data-testid='collapsible-trigger']");
-    expect(wsTrigger).not.toBeNull();
-    fireEvent.click(wsTrigger!);
+    fireEvent.click(screen.getByTestId("workspace-disclosure-ws-1"));
 
     expect(screen.getByText("Loading Git repositories…")).toBeInTheDocument();
 
@@ -1239,9 +1281,7 @@ describe("AppSidebar", () => {
     render(<AppSidebar />);
 
     await screen.findByText("dev-box");
-    const wsTrigger = screen.getByText("dev-box").closest("[data-testid='collapsible-trigger']");
-    expect(wsTrigger).not.toBeNull();
-    fireEvent.click(wsTrigger!);
+    fireEvent.click(screen.getByTestId("workspace-disclosure-ws-1"));
 
     await waitFor(() => {
       expect(screen.getByTestId("git-discovery-empty-state")).toBeInTheDocument();
@@ -1282,9 +1322,7 @@ describe("AppSidebar", () => {
     render(<AppSidebar />);
 
     await screen.findByText("dev-box");
-    const wsTrigger = screen.getByText("dev-box").closest("[data-testid='collapsible-trigger']");
-    expect(wsTrigger).not.toBeNull();
-    fireEvent.click(wsTrigger!);
+    fireEvent.click(screen.getByTestId("workspace-disclosure-ws-1"));
 
     await waitFor(() => {
       expect(screen.getByTestId("git-discovery-missing-root")).toBeInTheDocument();
@@ -1329,9 +1367,7 @@ describe("AppSidebar", () => {
     render(<AppSidebar />);
 
     await screen.findByText("dev-box");
-    const wsTrigger = screen.getByText("dev-box").closest("[data-testid='collapsible-trigger']");
-    expect(wsTrigger).not.toBeNull();
-    fireEvent.click(wsTrigger!);
+    fireEvent.click(screen.getByTestId("workspace-disclosure-ws-1"));
 
     await waitFor(() => {
       expect(screen.getByTestId("git-discovery-server-error")).toBeInTheDocument();
@@ -1372,9 +1408,7 @@ describe("AppSidebar", () => {
     await waitFor(() => {
       expect(screen.getByText("dev-box")).toBeInTheDocument();
     });
-    const wsTrigger = screen.getByText("dev-box").closest("[data-testid='collapsible-trigger']");
-    expect(wsTrigger).not.toBeNull();
-    fireEvent.click(wsTrigger!);
+    fireEvent.click(screen.getByTestId("workspace-disclosure-ws-1"));
 
     await waitFor(() => {
       expect(mockListGitClones).toHaveBeenCalledWith({ workspaceId: "ws-1" });
@@ -1510,9 +1544,7 @@ describe("AppSidebar", () => {
       expect(screen.getByText("dev-box")).toBeInTheDocument();
     });
 
-    const wsTrigger = screen.getByText("dev-box").closest("[data-testid='collapsible-trigger']");
-    expect(wsTrigger).not.toBeNull();
-    fireEvent.click(wsTrigger!);
+    fireEvent.click(screen.getByTestId("workspace-disclosure-ws-1"));
 
     await waitFor(() => {
       expect(mockGetWorkspaceAgent).toHaveBeenCalledWith({ workspaceId: "ws-1" });
@@ -1528,8 +1560,7 @@ describe("AppSidebar", () => {
       expect(screen.getByText("dev-box")).toBeInTheDocument();
     });
 
-    const wsTrigger = screen.getByText("dev-box").closest("[data-testid='collapsible-trigger']");
-    fireEvent.click(wsTrigger!);
+    fireEvent.click(screen.getByTestId("workspace-disclosure-ws-1"));
 
     await waitFor(() => {
       expect(screen.getByTestId("terminal-section-ws-1")).toBeInTheDocument();
@@ -1568,13 +1599,16 @@ describe("AppSidebar", () => {
 
     const row = screen.getByText("dev").closest("a");
     expect(row).not.toBeNull();
-    expect(row).toHaveClass("group/session");
+    expect(row).toHaveClass("pr-24");
     expect(row).not.toHaveClass("min-h-11");
+    expect(row?.parentElement).toHaveClass("group/session-row");
+    expect(row).not.toContainElement(screen.getByTestId("rename-session-dev"));
+    expect(row).not.toContainElement(screen.getByTestId("kill-session-dev"));
 
     const actions = screen.getByTestId("rename-session-dev").parentElement;
     expect(actions).not.toBeNull();
     expect(actions).toHaveClass("opacity-0");
-    expect(actions).toHaveClass("group-hover/session:opacity-100");
+    expect(actions).toHaveClass("group-hover/session-row:opacity-100");
     expect(actions).toHaveClass("focus-within:opacity-100");
 
     expect(screen.getByTestId("rename-session-dev")).toHaveClass("p-0.5");
@@ -1636,40 +1670,53 @@ describe("AppSidebar", () => {
       expect(screen.getByText("dev-box")).toBeInTheDocument();
     });
 
-    const wsTrigger = screen.getByText("dev-box").closest("[data-testid='collapsible-trigger']");
-    fireEvent.click(wsTrigger!);
+    fireEvent.click(screen.getByTestId("workspace-disclosure-ws-1"));
 
     await waitFor(() => {
       expect(mockGetWorkspaceAgent).toHaveBeenCalled();
     });
 
     await waitFor(() => {
-      expect(screen.getByText("Filebrowser")).toBeInTheDocument();
+      expect(screen.getByText("Files")).toBeInTheDocument();
     });
 
-    expect(screen.getByText("Filebrowser").closest("a")).toHaveAttribute(
+    const sessionsSection = screen.getByText("Sessions");
+    const repositoriesSection = screen.getByText("Repositories");
+    const toolsSection = screen.getByText("Tools");
+    expect(
+      sessionsSection.compareDocumentPosition(repositoriesSection) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    expect(
+      repositoriesSection.compareDocumentPosition(toolsSection) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+
+    expect(screen.getByText("Files").closest("a")).toHaveAttribute(
       "href",
       "https://filebrowser.test",
     );
-    expect(screen.getByText("Filebrowser").closest("a")).toHaveAttribute("target", "_blank");
-    expect(screen.getByText("KasmVNC").closest("a")).toHaveAttribute(
+    expect(screen.getByText("Files").closest("a")).toHaveAttribute("target", "_blank");
+    expect(screen.getByText("Files").closest("a")).toHaveAccessibleName(
+      "Files (opens in a new tab)",
+    );
+    expect(screen.getByText("Desktop").closest("a")).toHaveAttribute(
       "href",
       "https://kasmvnc.test",
     );
-    expect(screen.getByText("KasmVNC").closest("a")).toHaveAttribute("target", "_blank");
-    expect(screen.getByText("Code Server").closest("a")).toHaveAttribute(
+    expect(screen.getByText("Desktop").closest("a")).toHaveAttribute("target", "_blank");
+    expect(screen.getByText("VS Code").closest("a")).toHaveAttribute(
       "href",
       "https://code-server.test",
     );
-    expect(screen.getByText("Code Server").closest("a")).toHaveAttribute("target", "_blank");
+    expect(screen.getByText("VS Code").closest("a")).toHaveAttribute("target", "_blank");
   });
 
-  it("renders one unified Workspace link without replacing single-session terminal rows", async () => {
+  it("uses the workspace name as the unified workspace link without a redundant child", async () => {
     await expandWorkspaceAndTerminalSessions();
 
-    const workspaceLink = screen.getByTestId("multi-session-workspace-link-ws-1");
+    const workspaceLink = screen.getByTestId("workspace-link-ws-1");
     expect(workspaceLink).toHaveAttribute("href", "/workspaces/ws-1/terminal/workspace");
-    expect(workspaceLink).toHaveTextContent("Workspace");
+    expect(workspaceLink).toHaveTextContent("dev-box");
     expect(workspaceLink).toHaveAttribute("data-active", "false");
 
     expect(screen.queryByTestId("git-workspace-link-ws-1")).not.toBeInTheDocument();
@@ -1679,12 +1726,60 @@ describe("AppSidebar", () => {
     expect(screen.getByTestId("create-session-ws-1")).toBeInTheDocument();
   });
 
-  it("marks only the unified Workspace link active on workspace routes", async () => {
+  it("separates collection navigation from disclosure controls", async () => {
+    render(<AppSidebar />);
+
+    const workspacesLink = await screen.findByRole("link", { name: /Workspaces/ });
+    const workspacesDisclosure = screen.getByTestId("workspaces-disclosure");
+    const workspacesCollapsible = workspacesDisclosure.closest("[data-testid='collapsible']");
+    const initialWorkspacesOpen = workspacesCollapsible?.getAttribute("data-open");
+
+    expect(workspacesLink).toHaveAttribute("href", "/workspaces");
+    expect(workspacesDisclosure).toHaveAccessibleName(
+      initialWorkspacesOpen === "true"
+        ? "Collapse workspace navigation"
+        : "Expand workspace navigation",
+    );
+
+    fireEvent.click(workspacesLink);
+    expect(workspacesCollapsible).toHaveAttribute("data-open", initialWorkspacesOpen);
+
+    fireEvent.click(workspacesDisclosure);
+    expect(workspacesCollapsible).toHaveAttribute(
+      "data-open",
+      initialWorkspacesOpen === "true" ? "false" : "true",
+    );
+
+    const templatesLink = screen.getByRole("link", { name: /Templates/ });
+    const templatesDisclosure = screen.getByTestId("templates-disclosure");
+    expect(templatesLink).toHaveAttribute("href", "/templates");
+    expect(templatesDisclosure).toHaveAccessibleName(/^(Expand|Collapse) template navigation$/);
+
+    expect(screen.getByRole("link", { name: /Diagnostics/ })).toHaveAttribute(
+      "href",
+      "/terminal/status",
+    );
+  });
+
+  it("uses one disclosure size contract throughout the workspace tree", async () => {
+    render(<AppSidebar />);
+
+    await screen.findByText("dev-box");
+    const workspaceDisclosure = screen.getByTestId("workspace-disclosure-ws-1");
+    expect(screen.getByTestId("workspaces-disclosure")).toHaveClass("size-8", "max-md:size-11");
+    expect(workspaceDisclosure).toHaveClass("size-8", "max-md:size-11");
+
+    fireEvent.click(workspaceDisclosure);
+    expect(await screen.findByTestId("terminal-section-chevron-ws-1")).toHaveClass("size-4");
+    expect(screen.getByTestId("git-section-chevron-ws-1")).toHaveClass("size-4");
+  });
+
+  it("marks the workspace-name link active on workspace routes", async () => {
     mockNavigationState.pathname = "/workspaces/ws-1/terminal/workspace";
 
     render(<AppSidebar />);
 
-    const workspaceLink = await screen.findByTestId("multi-session-workspace-link-ws-1");
+    const workspaceLink = await screen.findByTestId("workspace-link-ws-1");
     expect(workspaceLink).toHaveAttribute("href", "/workspaces/ws-1/terminal/workspace");
     expect(workspaceLink).toHaveAttribute("data-active", "true");
 
@@ -1696,10 +1791,7 @@ describe("AppSidebar", () => {
     cleanup();
     mockNavigationState.pathname = "/workspaces/ws-1/terminal/git-workspace";
     render(<AppSidebar />);
-    expect(await screen.findByTestId("multi-session-workspace-link-ws-1")).toHaveAttribute(
-      "data-active",
-      "true",
-    );
+    expect(await screen.findByTestId("workspace-link-ws-1")).toHaveAttribute("data-active", "true");
   });
 
   it("leaves internal sidebar links to Next navigation on full-bleed workspace routes", async () => {
@@ -1731,11 +1823,9 @@ describe("AppSidebar", () => {
     render(<AppSidebar />);
 
     await screen.findByText("dev-box");
-    const wsTrigger = screen.getByText("dev-box").closest("[data-testid='collapsible-trigger']");
-    expect(wsTrigger).not.toBeNull();
-    fireEvent.click(wsTrigger!);
+    fireEvent.click(screen.getByTestId("workspace-disclosure-ws-1"));
 
-    expect(screen.getByTestId("multi-session-workspace-link-ws-1")).toHaveAttribute(
+    expect(screen.getByTestId("workspace-link-ws-1")).toHaveAttribute(
       "href",
       "/workspaces/ws-1/terminal/workspace",
     );
@@ -1744,15 +1834,15 @@ describe("AppSidebar", () => {
     });
   });
 
-  it("does not mark clone terminal URLs as active workspace links or create reserved clone sessions", async () => {
+  it("keeps the parent workspace active on clone terminal URLs without creating reserved sessions", async () => {
     mockNavigationState.pathname = "/workspaces/ws-1/terminal";
     mockNavigationState.searchParams =
       "session=git-clone-safe-hive&clonePath=kethalia%2Fhive&cloneProof=proof-token";
 
     render(<AppSidebar />);
 
-    const workspaceLink = await screen.findByTestId("multi-session-workspace-link-ws-1");
-    expect(workspaceLink).toHaveAttribute("data-active", "false");
+    const workspaceLink = await screen.findByTestId("workspace-link-ws-1");
+    expect(workspaceLink).toHaveAttribute("data-active", "true");
     expect(workspaceLink).toHaveAttribute("href", "/workspaces/ws-1/terminal/workspace");
     expect(mockCreateSession).not.toHaveBeenCalled();
   });
@@ -1764,8 +1854,7 @@ describe("AppSidebar", () => {
       expect(screen.getByText("dev-box")).toBeInTheDocument();
     });
 
-    const wsTrigger = screen.getByText("dev-box").closest("[data-testid='collapsible-trigger']");
-    fireEvent.click(wsTrigger!);
+    fireEvent.click(screen.getByTestId("workspace-disclosure-ws-1"));
 
     await waitFor(() => {
       expect(screen.getByTestId("terminal-section-ws-1")).toBeInTheDocument();
@@ -1795,8 +1884,7 @@ describe("AppSidebar", () => {
       expect(screen.getByText("dev-box")).toBeInTheDocument();
     });
 
-    const wsTrigger = screen.getByText("dev-box").closest("[data-testid='collapsible-trigger']");
-    fireEvent.click(wsTrigger!);
+    fireEvent.click(screen.getByTestId("workspace-disclosure-ws-1"));
 
     await waitFor(() => {
       expect(screen.getByTestId("terminal-section-ws-1")).toBeInTheDocument();
@@ -1829,8 +1917,7 @@ describe("AppSidebar", () => {
       expect(screen.getByText("dev-box")).toBeInTheDocument();
     });
 
-    const wsTrigger = screen.getByText("dev-box").closest("[data-testid='collapsible-trigger']");
-    fireEvent.click(wsTrigger!);
+    fireEvent.click(screen.getByTestId("workspace-disclosure-ws-1"));
 
     await waitFor(() => {
       expect(screen.getByTestId("terminal-section-ws-1")).toBeInTheDocument();
@@ -1856,8 +1943,7 @@ describe("AppSidebar", () => {
     });
 
     // Expand workspace to register it for session refresh
-    const wsTrigger = screen.getByText("dev-box").closest("[data-testid='collapsible-trigger']");
-    if (wsTrigger) fireEvent.click(wsTrigger);
+    fireEvent.click(screen.getByTestId("workspace-disclosure-ws-1"));
 
     await waitFor(() => {
       expect(mockGetWorkspaceSessions).toHaveBeenCalled();
@@ -1905,15 +1991,14 @@ describe("AppSidebar", () => {
       expect(screen.getByText("dev-box")).toBeInTheDocument();
     });
 
-    const wsTrigger = screen.getByText("dev-box").closest("[data-testid='collapsible-trigger']");
-    fireEvent.click(wsTrigger!);
+    fireEvent.click(screen.getByTestId("workspace-disclosure-ws-1"));
 
     await waitFor(() => {
       expect(mockGetWorkspaceAgent).toHaveBeenCalled();
     });
 
-    expect(screen.queryByText("Filebrowser")).not.toBeInTheDocument();
-    expect(screen.queryByText("KasmVNC")).not.toBeInTheDocument();
-    expect(screen.queryByText("Code Server")).not.toBeInTheDocument();
+    expect(screen.queryByText("Files")).not.toBeInTheDocument();
+    expect(screen.queryByText("Desktop")).not.toBeInTheDocument();
+    expect(screen.queryByText("VS Code")).not.toBeInTheDocument();
   });
 });
