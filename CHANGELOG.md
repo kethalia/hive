@@ -1,5 +1,11 @@
 # hive-orchestrator
 
+## 2.7.3
+
+### Patch Changes
+
+- 0a9a909: Use the Coder workspace name as the Kubernetes workspace hostname.
+
 ## 2.7.2
 
 ### Patch Changes
