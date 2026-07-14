@@ -1,6 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { getClientRuntimeConfig, getServerRuntimeConfig } from "@/lib/runtime-config";
+import {
+  getClientRuntimeConfig,
+  getServerRuntimeConfig,
+  resolveTerminalWsUrl,
+} from "@/lib/runtime-config";
 
 describe("runtime-config", () => {
   afterEach(() => {
@@ -51,6 +55,48 @@ describe("runtime-config", () => {
     it("returns empty string when neither source provides a value", () => {
       vi.stubEnv("NEXT_PUBLIC_TERMINAL_WS_URL", "");
       expect(getClientRuntimeConfig()).toEqual({ terminalWsUrl: "" });
+    });
+  });
+
+  describe("resolveTerminalWsUrl", () => {
+    it("keeps an absolute terminal URL unchanged", () => {
+      expect(
+        resolveTerminalWsUrl("wss://terminal.example.com", {
+          host: "hive.example.com",
+          protocol: "https:",
+        }),
+      ).toBe("wss://terminal.example.com");
+    });
+
+    it("keeps a protocol-relative terminal URL unchanged", () => {
+      expect(
+        resolveTerminalWsUrl("//terminal.example.com", {
+          host: "hive.example.com",
+          protocol: "https:",
+        }),
+      ).toBe("//terminal.example.com");
+    });
+
+    it("resolves a root-relative URL against an HTTPS browser host", () => {
+      expect(
+        resolveTerminalWsUrl("/", {
+          host: "hive.kethalia.com",
+          protocol: "https:",
+        }),
+      ).toBe("wss://hive.kethalia.com");
+    });
+
+    it("preserves a relative path and uses ws for HTTP", () => {
+      expect(
+        resolveTerminalWsUrl("/terminal/", {
+          host: "localhost:3000",
+          protocol: "http:",
+        }),
+      ).toBe("ws://localhost:3000/terminal");
+    });
+
+    it("returns an empty URL when a relative URL has no browser host", () => {
+      expect(resolveTerminalWsUrl("/")).toBe("");
     });
   });
 });
