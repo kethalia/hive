@@ -225,14 +225,27 @@ export default function MarketingPage() {
       <footer className="border-t border-primary/15">
         <div className="mx-auto flex min-h-20 w-full max-w-7xl flex-col justify-center gap-3 px-4 py-5 text-xs text-muted-foreground sm:flex-row sm:items-center sm:justify-between sm:px-6 lg:px-8">
           <span>HIVE / autonomous development control plane</span>
-          <a
-            className="inline-flex min-h-10 items-center gap-2 hover:text-primary"
-            href="https://github.com/kethalia/hive"
-            target="_blank"
-            rel="noreferrer"
-          >
-            <Github className="size-4" aria-hidden="true" /> Source
-          </a>
+          <div className="flex flex-wrap items-center gap-x-5 gap-y-1 sm:justify-end">
+            <a
+              className="inline-flex min-h-10 items-center gap-2 hover:text-primary"
+              href="https://github.com/kethalia/hive"
+              target="_blank"
+              rel="noreferrer"
+            >
+              <Github className="size-4" aria-hidden="true" /> Source
+            </a>
+            <span className="whitespace-nowrap text-muted-foreground/80">
+              UI / UX by{" "}
+              <a
+                className="text-foreground underline-offset-4 hover:text-primary hover:underline"
+                href="https://kethalia.com"
+                target="_blank"
+                rel="noreferrer"
+              >
+                Kethalia
+              </a>
+            </span>
+          </div>
         </div>
       </footer>
     </div>
