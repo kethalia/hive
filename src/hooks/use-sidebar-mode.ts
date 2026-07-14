@@ -2,12 +2,12 @@
 
 import { useCallback, useEffect, useState } from "react";
 
-type SidebarVariant = "floating";
+type SidebarVariant = "sidebar";
 
 const STORAGE_KEY = "sidebar_variant";
-const DEFAULT_VARIANT: SidebarVariant = "floating";
+const DEFAULT_VARIANT: SidebarVariant = "sidebar";
 
-function persistFloatingVariant() {
+function persistIntegratedVariant() {
   if (typeof window === "undefined") return;
   try {
     localStorage.setItem(STORAGE_KEY, DEFAULT_VARIANT);
@@ -16,15 +16,15 @@ function persistFloatingVariant() {
   }
 }
 
-export function useSidebarMode(): [SidebarVariant, (_floating: boolean) => void] {
+export function useSidebarMode(): [SidebarVariant, (_integrated: boolean) => void] {
   const [variant, setVariant] = useState<SidebarVariant>(DEFAULT_VARIANT);
 
   useEffect(() => {
-    persistFloatingVariant();
+    persistIntegratedVariant();
   }, []);
 
-  const setSidebarMode = useCallback((_floating: boolean) => {
-    persistFloatingVariant();
+  const setSidebarMode = useCallback((_integrated: boolean) => {
+    persistIntegratedVariant();
     setVariant(DEFAULT_VARIANT);
   }, []);
 

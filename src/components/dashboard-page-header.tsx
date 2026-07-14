@@ -22,7 +22,7 @@ export function DashboardPageHeader({
   return (
     <header
       className={cn(
-        "flex min-h-14 flex-wrap items-center gap-3 border-b border-primary/15 bg-background/85 px-3 py-2 pt-[max(0.5rem,var(--safe-area-inset-top))] backdrop-blur-md sm:flex-nowrap sm:px-4",
+        "flex h-14 min-h-14 shrink-0 flex-wrap items-center gap-3 border-b border-sidebar-border bg-background/85 px-3 py-2 pt-[max(0.5rem,var(--safe-area-inset-top))] backdrop-blur-md sm:flex-nowrap sm:px-4",
         className,
       )}
       data-dashboard-page-nav=""

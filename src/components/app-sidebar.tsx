@@ -78,7 +78,6 @@ import {
   SidebarMenuSub,
   SidebarMenuSubButton,
   SidebarMenuSubItem,
-  SidebarTrigger,
 } from "@/components/ui/sidebar";
 import { Switch } from "@/components/ui/switch";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -1569,11 +1568,10 @@ export function AppSidebar() {
 
   return (
     <Sidebar variant={sidebarMode} collapsible="offcanvas">
-      <SidebarHeader className="h-14 flex-row items-center justify-between border-b border-sidebar-border px-4">
+      <SidebarHeader className="h-14 shrink-0 flex-row items-center border-b border-sidebar-border px-4">
         <Link href="/workspaces" className="flex items-center gap-2">
           <HiveLogo className="gap-2" wordmarkClassName="text-base tracking-[0.12em]" />
         </Link>
-        <SidebarTrigger />
       </SidebarHeader>
 
       <SidebarContent>

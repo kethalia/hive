@@ -25,69 +25,69 @@ describe("useSidebarMode", () => {
     cleanup();
   });
 
-  it("defaults to floating when localStorage is empty", () => {
+  it("defaults to sidebar when localStorage is empty", () => {
     const { result } = renderHook(() => useSidebarMode());
-    expect(result.current[0]).toBe("floating");
+    expect(result.current[0]).toBe("sidebar");
   });
 
-  it("reads floating mode from localStorage", () => {
-    localStorage.setItem("sidebar_variant", "floating");
-    const { result } = renderHook(() => useSidebarMode());
-    expect(result.current[0]).toBe("floating");
-  });
-
-  it("setSidebarMode(true) stays floating", () => {
-    const { result } = renderHook(() => useSidebarMode());
-    expect(result.current[0]).toBe("floating");
-
-    act(() => {
-      result.current[1](true);
-    });
-
-    expect(result.current[0]).toBe("floating");
-  });
-
-  it("setSidebarMode(false) still forces floating", () => {
-    localStorage.setItem("sidebar_variant", "floating");
-    const { result } = renderHook(() => useSidebarMode());
-    expect(result.current[0]).toBe("floating");
-
-    act(() => {
-      result.current[1](false);
-    });
-
-    expect(result.current[0]).toBe("floating");
-    expect(localStorage.getItem("sidebar_variant")).toBe("floating");
-  });
-
-  it("persists only floating mode to localStorage", () => {
-    const { result } = renderHook(() => useSidebarMode());
-
-    act(() => {
-      result.current[1](true);
-    });
-
-    expect(localStorage.getItem("sidebar_variant")).toBe("floating");
-
-    act(() => {
-      result.current[1](false);
-    });
-
-    expect(localStorage.getItem("sidebar_variant")).toBe("floating");
-  });
-
-  it("migrates unknown localStorage value to floating", () => {
-    localStorage.setItem("sidebar_variant", "bogus");
-    const { result } = renderHook(() => useSidebarMode());
-    expect(result.current[0]).toBe("floating");
-    expect(localStorage.getItem("sidebar_variant")).toBe("floating");
-  });
-
-  it("migrates stale sidebar localStorage value to floating", () => {
+  it("reads sidebar mode from localStorage", () => {
     localStorage.setItem("sidebar_variant", "sidebar");
     const { result } = renderHook(() => useSidebarMode());
-    expect(result.current[0]).toBe("floating");
-    expect(localStorage.getItem("sidebar_variant")).toBe("floating");
+    expect(result.current[0]).toBe("sidebar");
+  });
+
+  it("setSidebarMode(true) stays sidebar", () => {
+    const { result } = renderHook(() => useSidebarMode());
+    expect(result.current[0]).toBe("sidebar");
+
+    act(() => {
+      result.current[1](true);
+    });
+
+    expect(result.current[0]).toBe("sidebar");
+  });
+
+  it("setSidebarMode(false) still forces sidebar", () => {
+    localStorage.setItem("sidebar_variant", "sidebar");
+    const { result } = renderHook(() => useSidebarMode());
+    expect(result.current[0]).toBe("sidebar");
+
+    act(() => {
+      result.current[1](false);
+    });
+
+    expect(result.current[0]).toBe("sidebar");
+    expect(localStorage.getItem("sidebar_variant")).toBe("sidebar");
+  });
+
+  it("persists only sidebar mode to localStorage", () => {
+    const { result } = renderHook(() => useSidebarMode());
+
+    act(() => {
+      result.current[1](true);
+    });
+
+    expect(localStorage.getItem("sidebar_variant")).toBe("sidebar");
+
+    act(() => {
+      result.current[1](false);
+    });
+
+    expect(localStorage.getItem("sidebar_variant")).toBe("sidebar");
+  });
+
+  it("migrates unknown localStorage value to sidebar", () => {
+    localStorage.setItem("sidebar_variant", "bogus");
+    const { result } = renderHook(() => useSidebarMode());
+    expect(result.current[0]).toBe("sidebar");
+    expect(localStorage.getItem("sidebar_variant")).toBe("sidebar");
+  });
+
+  it("migrates stale floating localStorage value to sidebar", () => {
+    localStorage.setItem("sidebar_variant", "floating");
+    const { result } = renderHook(() => useSidebarMode());
+    expect(result.current[0]).toBe("sidebar");
+    expect(localStorage.getItem("sidebar_variant")).toBe("sidebar");
   });
 });
 
@@ -325,7 +325,7 @@ describe("Sidebar primitive layout contract", () => {
     });
   });
 
-  it("reserves the widened desktop width for the floating sidebar", async () => {
+  it("reserves the widened desktop width for the integrated sidebar", async () => {
     Object.defineProperty(window, "innerWidth", {
       configurable: true,
       value: 1200,
@@ -336,7 +336,7 @@ describe("Sidebar primitive layout contract", () => {
 
     const { container } = render(
       <ActualSidebarProvider>
-        <ActualSidebar variant="floating">
+        <ActualSidebar variant="sidebar">
           <nav aria-label="Workspace navigation">Navigation</nav>
         </ActualSidebar>
       </ActualSidebarProvider>,
@@ -351,7 +351,7 @@ describe("Sidebar primitive layout contract", () => {
 
     expect(wrapper?.style.getPropertyValue("--sidebar-width")).toBe("21rem");
     expect(wrapper?.style.getPropertyValue("--sidebar-width-icon")).toBe("3rem");
-    expect(root).toHaveAttribute("data-variant", "floating");
+    expect(root).toHaveAttribute("data-variant", "sidebar");
     expect(gap?.className).toContain("group-data-[collapsible=offcanvas]:w-0");
     expect(gap?.className).toContain("w-(--sidebar-width)");
     expect(sidebarContainer?.className).toContain("w-(--sidebar-width)");
@@ -392,7 +392,7 @@ describe("Sidebar primitive layout contract", () => {
     render(
       <ActualSidebarProvider>
         <ActualSidebarTrigger />
-        <ActualSidebar variant="floating">
+        <ActualSidebar variant="sidebar">
           <nav aria-label="Mobile workspace navigation">Navigation</nav>
         </ActualSidebar>
       </ActualSidebarProvider>,
@@ -415,7 +415,7 @@ describe("Sidebar primitive layout contract", () => {
 
 import { AppSidebar } from "@/components/app-sidebar";
 
-describe("AppSidebar floating-only mode", () => {
+describe("AppSidebar integrated mode", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     localStorage.clear();
@@ -445,23 +445,24 @@ describe("AppSidebar floating-only mode", () => {
     expect(screen.queryByText("Float sidebar")).not.toBeInTheDocument();
   });
 
-  it("uses floating sidebar variant by default", async () => {
+  it("uses the integrated sidebar variant without a duplicate header trigger", async () => {
     render(<AppSidebar />);
 
     await waitFor(() => {
-      expect(screen.getByTestId("app-sidebar-root")).toHaveAttribute("data-variant", "floating");
+      expect(screen.getByTestId("app-sidebar-root")).toHaveAttribute("data-variant", "sidebar");
     });
+    expect(screen.queryByTestId("sidebar-trigger")).not.toBeInTheDocument();
   });
 
-  it("ignores and migrates stale non-floating storage", async () => {
-    localStorage.setItem("sidebar_variant", "sidebar");
+  it("ignores and migrates stale floating storage", async () => {
+    localStorage.setItem("sidebar_variant", "floating");
 
     render(<AppSidebar />);
 
     await waitFor(() => {
-      expect(screen.getByTestId("app-sidebar-root")).toHaveAttribute("data-variant", "floating");
+      expect(screen.getByTestId("app-sidebar-root")).toHaveAttribute("data-variant", "sidebar");
     });
-    expect(localStorage.getItem("sidebar_variant")).toBe("floating");
+    expect(localStorage.getItem("sidebar_variant")).toBe("sidebar");
     expect(screen.queryByTestId("sidebar-mode-toggle")).not.toBeInTheDocument();
   });
 });
