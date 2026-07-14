@@ -847,6 +847,12 @@ describe("AppSidebar", () => {
     expect(pinned.compareDocumentPosition(workspaces)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
   });
 
+  it("separates the Tasks and New Task actions", async () => {
+    render(<AppSidebar />);
+
+    expect(await screen.findByTestId("automation-menu")).toHaveClass("gap-1");
+  });
+
   it("upserts and removes terminal favorites without user-scoped payload fields", async () => {
     await expandWorkspaceAndTerminalSessions();
 

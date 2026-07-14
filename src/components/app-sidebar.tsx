@@ -1848,7 +1848,7 @@ export function AppSidebar() {
           <SidebarGroup className="pt-0">
             <SidebarGroupLabel>Automation</SidebarGroupLabel>
             <SidebarGroupContent>
-              <SidebarMenu>
+              <SidebarMenu className="gap-1" data-testid="automation-menu">
                 <SidebarMenuItem>
                   <SidebarMenuButton
                     render={<Link href="/tasks" />}
