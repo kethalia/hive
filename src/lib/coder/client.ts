@@ -133,6 +133,15 @@ export class CoderClient {
     });
   }
 
+  /** Trigger a start build for a workspace. */
+  async startWorkspace(workspaceId: string): Promise<void> {
+    console.log(`[coder] Starting workspace ${workspaceId}`);
+    await this.request(`/api/v2/workspaces/${workspaceId}/builds`, {
+      method: "POST",
+      body: JSON.stringify({ transition: "start" }),
+    });
+  }
+
   /** Trigger a delete build for a workspace. */
   async deleteWorkspace(workspaceId: string): Promise<void> {
     console.log(`[coder] Deleting workspace ${workspaceId}`);

@@ -16,6 +16,10 @@ export default async function WorkspaceTerminalPage({ params }: WorkspaceTermina
     return <StaleEntryAlert workspaceId={workspaceId} />;
   }
 
+  if (agentResult.data.agentStatus && agentResult.data.agentStatus !== "connected") {
+    return <StaleEntryAlert workspaceId={workspaceId} agentStatus={agentResult.data.agentStatus} />;
+  }
+
   return (
     <div className="h-full min-h-0 w-full overflow-hidden" data-dashboard-full-bleed="">
       <MultiSessionWorkspace

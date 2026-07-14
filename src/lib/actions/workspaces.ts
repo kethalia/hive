@@ -71,7 +71,11 @@ export const getWorkspaceAgentAction = authActionClient
     const resources = await client.getWorkspaceResources(parsedInput.workspaceId);
     for (const resource of resources) {
       if (resource.agents && resource.agents.length > 0) {
-        return { agentId: resource.agents[0].id, agentName: resource.agents[0].name };
+        return {
+          agentId: resource.agents[0].id,
+          agentName: resource.agents[0].name,
+          agentStatus: resource.agents[0].status,
+        };
       }
     }
     throw new Error(`No agents found for workspace ${parsedInput.workspaceId}`);
@@ -85,6 +89,15 @@ export const getWorkspaceSessionsAction = authActionClient
   .inputSchema(getWorkspaceSessionsSchema)
   .action(async ({ parsedInput, ctx }) => {
     const client = await getCoderClientForUser(ctx.user.id);
+
+    const resources = await client.getWorkspaceResources(parsedInput.workspaceId);
+    const agent = resources.flatMap((resource) => resource.agents ?? [])[0];
+    if (!agent) return [];
+    if (agent.status !== "connected") {
+      throw new Error(
+        `Workspace agent is ${agent.status}. Restart the workspace or wait for the agent to reconnect.`,
+      );
+    }
 
     let agentTarget: string;
     try {
@@ -130,6 +143,26 @@ export const getWorkspaceSessionsAction = authActionClient
     }
 
     return filterGenericTmuxSessions(parseTmuxSessions(result.stdout));
+  });
+
+const restartWorkspaceSchema = z.object({
+  workspaceId: z.string().min(1, "workspaceId is required"),
+});
+
+export const restartWorkspaceAction = authActionClient
+  .inputSchema(restartWorkspaceSchema)
+  .action(async ({ parsedInput, ctx }) => {
+    const client = await getCoderClientForUser(ctx.user.id);
+    const workspace = await client.getWorkspace(parsedInput.workspaceId);
+
+    if (workspace.latest_build.status !== "stopped") {
+      await client.stopWorkspace(parsedInput.workspaceId);
+      await client.waitForBuild(parsedInput.workspaceId, "stopped");
+    }
+
+    await client.startWorkspace(parsedInput.workspaceId);
+    await client.waitForBuild(parsedInput.workspaceId, "running");
+    return { workspaceId: parsedInput.workspaceId, status: "running" };
   });
 
 const createSessionSchema = z.object({

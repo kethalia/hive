@@ -84,10 +84,11 @@ import {
   killSessionAction,
   listWorkspacesAction,
   renameSessionAction,
+  restartWorkspaceAction,
 } from "@/lib/actions/workspaces";
 import { refreshInstalledApp } from "@/lib/app-update";
 import { getSessionAction } from "@/lib/auth/actions";
-import type { CoderWorkspace } from "@/lib/coder/types";
+import type { CoderWorkspace, WorkspaceAgentStatus } from "@/lib/coder/types";
 import { SAFE_IDENTIFIER_RE } from "@/lib/constants";
 import type {
   GitCloneDiscoveryActionResult,
@@ -228,6 +229,7 @@ function favoriteLabel(favorite: NavigationFavoriteDto): string {
 interface AgentInfo {
   agentId: string;
   agentName: string;
+  agentStatus: WorkspaceAgentStatus;
 }
 
 const SESSION_MAX_HEIGHT = 160;
@@ -796,9 +798,11 @@ export function AppSidebar() {
   const [workspaceSessions, setWorkspaceSessions] = useState<Record<string, WorkspaceSessionState>>(
     {},
   );
+  const [restartingWorkspaces, setRestartingWorkspaces] = useState<Set<string>>(new Set());
 
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const sessionIntervalRefs = useRef<Record<string, ReturnType<typeof setInterval>>>({});
+  const sessionsInFlightRef = useRef<Set<string>>(new Set());
 
   const fetchWorkspaces = useCallback(async () => {
     setWorkspaces((prev) => ({ ...prev, isLoading: true, error: null }));
@@ -926,6 +930,8 @@ export function AppSidebar() {
   }, []);
 
   const fetchSessions = useCallback(async (workspaceId: string) => {
+    if (sessionsInFlightRef.current.has(workspaceId)) return;
+    sessionsInFlightRef.current.add(workspaceId);
     setWorkspaceSessions((prev) => ({
       ...prev,
       [workspaceId]: { ...(prev[workspaceId] ?? { data: [] }), isLoading: true, error: null },
@@ -951,8 +957,62 @@ export function AppSidebar() {
         ...prev,
         [workspaceId]: { ...(prev[workspaceId] ?? { data: [] }), isLoading: false, error: msg },
       }));
+    } finally {
+      sessionsInFlightRef.current.delete(workspaceId);
     }
   }, []);
+
+  const handleRestartWorkspace = useCallback(
+    async (workspaceId: string) => {
+      setRestartingWorkspaces((prev) => new Set(prev).add(workspaceId));
+      try {
+        const result = await restartWorkspaceAction({ workspaceId });
+        if (!result?.data) {
+          const message = result?.serverError ?? "Failed to restart workspace";
+          setWorkspaceSessions((prev) => ({
+            ...prev,
+            [workspaceId]: {
+              ...(prev[workspaceId] ?? { data: [] }),
+              isLoading: false,
+              error: message,
+            },
+          }));
+          return;
+        }
+        await fetchWorkspaces();
+        const agent = await fetchAgentInfo(workspaceId);
+        if (agent?.agentStatus === "connected") {
+          await fetchSessions(workspaceId);
+        } else {
+          setWorkspaceSessions((prev) => ({
+            ...prev,
+            [workspaceId]: {
+              ...(prev[workspaceId] ?? { data: [] }),
+              isLoading: false,
+              error: "Workspace restarted. Its agent is still connecting; retry in a moment.",
+            },
+          }));
+        }
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "Failed to restart workspace";
+        setWorkspaceSessions((prev) => ({
+          ...prev,
+          [workspaceId]: {
+            ...(prev[workspaceId] ?? { data: [] }),
+            isLoading: false,
+            error: message,
+          },
+        }));
+      } finally {
+        setRestartingWorkspaces((prev) => {
+          const next = new Set(prev);
+          next.delete(workspaceId);
+          return next;
+        });
+      }
+    },
+    [fetchAgentInfo, fetchSessions, fetchWorkspaces],
+  );
 
   const expandedWorkspacesRef = useRef(expandedWorkspaces);
   expandedWorkspacesRef.current = expandedWorkspaces;
@@ -1460,6 +1520,8 @@ export function AppSidebar() {
                             ? buildWorkspaceUrls(ws, agent.agentName, coderUrl)
                             : null;
                         const sessions = workspaceSessions[ws.id];
+                        const agentUnavailable = agent && agent.agentStatus !== "connected";
+                        const isRestarting = restartingWorkspaces.has(ws.id);
                         const gitState = workspaceGitDiscovery[ws.id] ?? {
                           result: null,
                           isLoading: false,
@@ -1544,27 +1606,62 @@ export function AppSidebar() {
                                         {sessions?.error && (
                                           <Alert variant="destructive" className="mx-2 mb-1">
                                             <AlertCircle className="h-3 w-3" />
-                                            <AlertDescription className="flex items-center justify-between">
+                                            <AlertDescription className="flex items-start justify-between gap-2">
                                               <span className="text-xs">{sessions.error}</span>
                                               <button
                                                 type="button"
-                                                onClick={() => fetchSessions(ws.id)}
-                                                className="ml-2 text-xs underline"
+                                                onClick={() =>
+                                                  agentUnavailable
+                                                    ? handleRestartWorkspace(ws.id)
+                                                    : fetchSessions(ws.id)
+                                                }
+                                                disabled={isRestarting}
+                                                className="shrink-0 text-xs underline disabled:opacity-50"
                                               >
-                                                Retry
+                                                {isRestarting
+                                                  ? "Restarting…"
+                                                  : agentUnavailable
+                                                    ? "Restart workspace"
+                                                    : "Retry"}
+                                              </button>
+                                            </AlertDescription>
+                                          </Alert>
+                                        )}
+                                        {agentUnavailable && !sessions?.error && (
+                                          <Alert variant="destructive" className="mx-2 mb-1">
+                                            <AlertCircle className="h-3 w-3" />
+                                            <AlertDescription className="space-y-1 text-xs">
+                                              <p>
+                                                Agent {agent.agentStatus}. Sessions are unavailable.
+                                              </p>
+                                              <button
+                                                type="button"
+                                                onClick={() => handleRestartWorkspace(ws.id)}
+                                                disabled={isRestarting}
+                                                className="underline disabled:opacity-50"
+                                              >
+                                                {isRestarting ? "Restarting…" : "Restart workspace"}
                                               </button>
                                             </AlertDescription>
                                           </Alert>
                                         )}
                                         <SidebarMenuSub className="!mr-0 !pr-0">
                                           <SidebarMenuSubItem>
-                                            {!sessions || sessions.isLoading ? (
+                                            {!sessions || sessions.isLoading || agentUnavailable ? (
                                               <SidebarMenuSubButton
                                                 className="cursor-not-allowed opacity-50"
                                                 data-testid={`create-session-loading-${ws.id}`}
                                               >
-                                                <Loader2 className="h-3 w-3 shrink-0 animate-spin" />
-                                                <span>Loading…</span>
+                                                {sessions?.isLoading ? (
+                                                  <Loader2 className="h-3 w-3 shrink-0 animate-spin" />
+                                                ) : (
+                                                  <AlertCircle className="h-3 w-3 shrink-0" />
+                                                )}
+                                                <span>
+                                                  {agentUnavailable
+                                                    ? "Agent unavailable"
+                                                    : "Loading…"}
+                                                </span>
                                               </SidebarMenuSubButton>
                                             ) : (
                                               <SidebarMenuSubButton

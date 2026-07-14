@@ -107,6 +107,17 @@ describe("CoderClient", () => {
     expect(JSON.parse(init.body)).toEqual({ transition: "stop" });
   });
 
+  it("startWorkspace calls builds endpoint with transition:start", async () => {
+    fetchSpy.mockResolvedValueOnce(jsonResponse({}));
+
+    await makeClient().startWorkspace("ws-start");
+
+    const [url, init] = fetchSpy.mock.calls[0];
+    expect(url).toBe(`${BASE_URL}/api/v2/workspaces/ws-start/builds`);
+    expect(init.method).toBe("POST");
+    expect(JSON.parse(init.body)).toEqual({ transition: "start" });
+  });
+
   // ── deleteWorkspace ────────────────────────────────────────────
 
   it("deleteWorkspace calls builds endpoint with transition:delete", async () => {

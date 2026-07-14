@@ -258,6 +258,7 @@ const mockListWorkspaces = vi.fn();
 const mockListTemplates = vi.fn();
 const mockGetWorkspaceAgent = vi.fn();
 const mockGetWorkspaceSessions = vi.fn();
+const mockRestartWorkspace = vi.fn();
 const mockCreateSession = vi.fn();
 const mockKillSession = vi.fn();
 const mockListGitClones = vi.fn();
@@ -273,6 +274,7 @@ vi.mock("@/lib/actions/workspaces", () => ({
   listWorkspacesAction: (...args: unknown[]) => mockListWorkspaces(...args),
   getWorkspaceAgentAction: (...args: unknown[]) => mockGetWorkspaceAgent(...args),
   getWorkspaceSessionsAction: (...args: unknown[]) => mockGetWorkspaceSessions(...args),
+  restartWorkspaceAction: (...args: unknown[]) => mockRestartWorkspace(...args),
   createSessionAction: (...args: unknown[]) => mockCreateSession(...args),
   killSessionAction: (...args: unknown[]) => mockKillSession(...args),
   renameSessionAction: vi.fn().mockResolvedValue({ data: null }),

@@ -49,6 +49,10 @@ describe("workspace server actions", () => {
   const mockListWorkspaces = vi.fn();
   const mockGetWorkspaceAgentName = vi.fn();
   const mockGetWorkspace = vi.fn();
+  const mockGetWorkspaceResources = vi.fn();
+  const mockStopWorkspace = vi.fn();
+  const mockStartWorkspace = vi.fn();
+  const mockWaitForBuild = vi.fn();
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -67,9 +71,21 @@ describe("workspace server actions", () => {
       listWorkspaces: mockListWorkspaces,
       getWorkspaceAgentName: mockGetWorkspaceAgentName,
       getWorkspace: mockGetWorkspace,
+      getWorkspaceResources: mockGetWorkspaceResources,
+      stopWorkspace: mockStopWorkspace,
+      startWorkspace: mockStartWorkspace,
+      waitForBuild: mockWaitForBuild,
       getBaseUrl: () => "https://coder.example.com",
       getSessionToken: () => "coder-session-token",
     } as never);
+    mockGetWorkspaceResources.mockResolvedValue([
+      {
+        id: "resource-1",
+        name: "workspace",
+        type: "docker",
+        agents: [{ id: "agent-1", name: "main", status: "connected" }],
+      },
+    ]);
   });
 
   afterEach(() => {
@@ -187,13 +203,47 @@ describe("workspace server actions", () => {
   });
 
   it("getWorkspaceSessionsAction returns empty array when no agents found", async () => {
-    mockGetWorkspaceAgentName.mockRejectedValueOnce(new Error("No agents found"));
+    mockGetWorkspaceResources.mockResolvedValueOnce([]);
 
     const { getWorkspaceSessionsAction } = await import("@/lib/actions/workspaces");
     const result = await getWorkspaceSessionsAction({ workspaceId: "ws-no-agents" });
 
     expect(result?.data).toEqual([]);
     expect(mockedExec).not.toHaveBeenCalled();
+  });
+
+  it("getWorkspaceSessionsAction fails fast when the workspace agent is disconnected", async () => {
+    mockGetWorkspaceResources.mockResolvedValueOnce([
+      {
+        id: "resource-1",
+        name: "workspace",
+        type: "docker",
+        agents: [{ id: "agent-1", name: "main", status: "disconnected" }],
+      },
+    ]);
+
+    const { getWorkspaceSessionsAction } = await import("@/lib/actions/workspaces");
+    const result = await getWorkspaceSessionsAction({ workspaceId: "ws-1" });
+
+    expect(result?.serverError).toMatch(/agent is disconnected/i);
+    expect(mockGetWorkspaceAgentName).not.toHaveBeenCalled();
+    expect(mockedExec).not.toHaveBeenCalled();
+  });
+
+  it("restartWorkspaceAction stops, starts, and waits for a running workspace", async () => {
+    mockGetWorkspace.mockResolvedValueOnce({
+      id: "ws-1",
+      latest_build: { status: "running" },
+    });
+
+    const { restartWorkspaceAction } = await import("@/lib/actions/workspaces");
+    const result = await restartWorkspaceAction({ workspaceId: "ws-1" });
+
+    expect(mockStopWorkspace).toHaveBeenCalledWith("ws-1");
+    expect(mockWaitForBuild).toHaveBeenNthCalledWith(1, "ws-1", "stopped");
+    expect(mockStartWorkspace).toHaveBeenCalledWith("ws-1");
+    expect(mockWaitForBuild).toHaveBeenNthCalledWith(2, "ws-1", "running");
+    expect(result?.data).toEqual({ workspaceId: "ws-1", status: "running" });
   });
 
   it("getWorkspaceAction returns workspace by ID", async () => {

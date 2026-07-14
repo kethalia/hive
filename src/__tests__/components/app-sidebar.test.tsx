@@ -314,6 +314,7 @@ const mockListGitClones = vi.fn();
 const mockResolveGitCloneTerminal = vi.fn();
 const mockGetWorkspaceAgent = vi.fn();
 const mockGetWorkspaceSessions = vi.fn();
+const mockRestartWorkspace = vi.fn();
 const mockCreateSession = vi.fn();
 const mockKillSession = vi.fn();
 const mockRenameSession = vi.fn();
@@ -327,6 +328,7 @@ vi.mock("@/lib/actions/workspaces", () => ({
   listWorkspacesAction: (...args: unknown[]) => mockListWorkspaces(...args),
   getWorkspaceAgentAction: (...args: unknown[]) => mockGetWorkspaceAgent(...args),
   getWorkspaceSessionsAction: (...args: unknown[]) => mockGetWorkspaceSessions(...args),
+  restartWorkspaceAction: (...args: unknown[]) => mockRestartWorkspace(...args),
   createSessionAction: (...args: unknown[]) => mockCreateSession(...args),
   killSessionAction: (...args: unknown[]) => mockKillSession(...args),
   renameSessionAction: (...args: unknown[]) => mockRenameSession(...args),
@@ -593,8 +595,9 @@ describe("AppSidebar", () => {
       },
     });
     mockGetWorkspaceAgent.mockResolvedValue({
-      data: { agentId: "agent-1", agentName: "main" },
+      data: { agentId: "agent-1", agentName: "main", agentStatus: "connected" },
     });
+    mockRestartWorkspace.mockResolvedValue({ data: { workspaceId: "ws-1", status: "running" } });
     mockGetWorkspaceSessions.mockResolvedValue({
       data: [makeSession("dev")],
     });
