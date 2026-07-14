@@ -56,7 +56,9 @@ export function LoginForm() {
           type="url"
           placeholder="https://coder.example.com"
           value={coderUrl}
-          onChange={(event) => setCoderUrl(event.target.value)}
+          onChange={(event) => {
+            setCoderUrl(event.target.value);
+          }}
           required
           autoComplete="url"
           disabled={isPending}
@@ -71,7 +73,9 @@ export function LoginForm() {
           type="email"
           placeholder="you@example.com"
           value={email}
-          onChange={(event) => setEmail(event.target.value)}
+          onChange={(event) => {
+            setEmail(event.target.value);
+          }}
           required
           autoComplete="email"
           disabled={isPending}
@@ -86,7 +90,9 @@ export function LoginForm() {
           type="password"
           placeholder="••••••••"
           value={password}
-          onChange={(event) => setPassword(event.target.value)}
+          onChange={(event) => {
+            setPassword(event.target.value);
+          }}
           required
           autoComplete="current-password"
           disabled={isPending}

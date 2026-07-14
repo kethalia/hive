@@ -291,7 +291,9 @@ export function TemplatesClient({ initialStatuses }: TemplatesClientProps) {
                           size="sm"
                           variant={status.stale ? "default" : "outline"}
                           disabled={isInProgress}
-                          onClick={() => setTemplatePendingPush(status.name)}
+                          onClick={() => {
+                            setTemplatePendingPush(status.name);
+                          }}
                         >
                           {isInProgress ? (
                             <>

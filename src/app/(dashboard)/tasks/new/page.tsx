@@ -86,7 +86,9 @@ export default function NewTaskPage() {
                     rows={4}
                     placeholder="Describe what you want built..."
                     value={prompt}
-                    onChange={(event) => setPrompt(event.target.value)}
+                    onChange={(event) => {
+                      setPrompt(event.target.value);
+                    }}
                     aria-describedby="prompt-guidance"
                   />
                   <FieldDescription id="prompt-guidance" className="flex justify-between gap-4">

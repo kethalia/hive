@@ -193,7 +193,9 @@ export function TemplateDetailClient({ status }: TemplateDetailClientProps) {
         <Button
           variant={status.stale ? "default" : "outline"}
           disabled={pushState.inProgress}
-          onClick={() => setConfirmOpen(true)}
+          onClick={() => {
+            setConfirmOpen(true);
+          }}
         >
           {pushState.inProgress ? (
             <>

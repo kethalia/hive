@@ -15,7 +15,9 @@ function subscribeToMobileViewport(onChange: () => void): () => void {
 
   if (typeof window.matchMedia !== "function") {
     window.addEventListener("resize", onChange);
-    return () => window.removeEventListener("resize", onChange);
+    return () => {
+      window.removeEventListener("resize", onChange);
+    };
   }
 
   const mql = window.matchMedia(MOBILE_VIEWPORT_QUERY);

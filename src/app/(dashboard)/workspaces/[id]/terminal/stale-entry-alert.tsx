@@ -72,7 +72,9 @@ export function StaleEntryAlert({
             <Button
               type="button"
               aria-label="Retry workspace session"
-              onClick={() => window.location.reload()}
+              onClick={() => {
+                window.location.reload();
+              }}
             >
               <RefreshCw className="size-4" aria-hidden="true" /> Retry
             </Button>

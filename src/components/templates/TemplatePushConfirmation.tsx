@@ -39,7 +39,13 @@ export function TemplatePushConfirmation({
           visible until you close it.
         </div>
         <DialogFooter>
-          <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => {
+              onOpenChange(false);
+            }}
+          >
             Cancel
           </Button>
           <Button type="button" onClick={onConfirm}>

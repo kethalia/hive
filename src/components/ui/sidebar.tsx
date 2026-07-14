@@ -149,7 +149,9 @@ function Sidebar({
 }) {
   const { isMobile: mobileViewport, state, openMobile, setOpenMobile } = useSidebar();
   const [responsiveReady, setResponsiveReady] = React.useState(false);
-  React.useEffect(() => setResponsiveReady(true), []);
+  React.useEffect(() => {
+    setResponsiveReady(true);
+  }, []);
   const isMobile = responsiveReady && mobileViewport;
 
   if (collapsible === "none") {
