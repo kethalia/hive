@@ -117,5 +117,9 @@ describe("TerminalSessionStatusClient", () => {
       "[-webkit-overflow-scrolling:touch]",
     );
     expect(pageShell).not.toHaveClass("max-w-5xl", "mx-auto");
+    expect(screen.getByText("Terminal diagnostics").parentElement).toHaveClass(
+      "hidden",
+      "sm:block",
+    );
   });
 });

@@ -681,6 +681,16 @@ describe("MultiSessionWorkspace", () => {
       screen.getByTestId("workspace-board-bar"),
     );
     expect(screen.getByTestId("workspace-header-board-controls")).toHaveClass("justify-center");
+    expect(screen.getByTestId("workspace-header-board-controls")).toHaveClass(
+      "col-span-2",
+      "row-start-2",
+      "min-[1025px]:row-start-1",
+    );
+    expect(screen.getByTestId("workspace-board-bar")).toHaveClass(
+      "w-full",
+      "min-w-0",
+      "max-w-full",
+    );
     expect(screen.queryByTestId("board-persistence-status")).not.toBeInTheDocument();
     expect(screen.getByTestId("multi-session-pane-count")).toHaveTextContent("2");
     expect(screen.getByTestId("workspace-sidebar-trigger")).toHaveClass("h-7", "shrink-0");
@@ -812,6 +822,10 @@ describe("MultiSessionWorkspace", () => {
     mockUseIsComposeSheet.mockReturnValue(true);
     await renderTwoSessionWorkspace();
 
+    expect(screen.getByTestId("terminal-mobile-shell")).toContainElement(
+      screen.getByTestId("multi-session-workspace"),
+    );
+
     const mainTerm = makeTerminal("main-session");
     const mainSend = makeSender("main-session");
     act(() => {
@@ -845,6 +859,25 @@ describe("MultiSessionWorkspace", () => {
     fireEvent.click(screen.getByTestId("terminal-window-next"));
     expect(screen.getByTestId("active-pane-label")).toHaveTextContent("dev-server");
     expect(mainTerm.focus).not.toHaveBeenCalled();
+  });
+
+  it("wraps loading and failure states in the visual viewport shell on mobile", async () => {
+    mockUseIsComposeSheet.mockReturnValue(true);
+    mockGetSessions.mockReturnValueOnce(new Promise(() => undefined));
+    render(<MultiSessionWorkspace {...defaultProps} />);
+
+    expect(screen.getByTestId("terminal-mobile-shell")).toContainElement(
+      screen.getByTestId("multi-session-loading"),
+    );
+
+    cleanup();
+    mockGetSessions.mockRejectedValueOnce(new Error("private load failure"));
+    render(<MultiSessionWorkspace {...defaultProps} />);
+
+    expect(await screen.findByTestId("session-load-error")).toBeInTheDocument();
+    expect(screen.getByTestId("terminal-mobile-shell")).toContainElement(
+      screen.getByTestId("session-load-error"),
+    );
   });
 
   it("shows a toast with the exact paste limit error", async () => {

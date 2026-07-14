@@ -43,7 +43,7 @@ export default function MarketingPage() {
   return (
     <div className="crt-grid crt-scanlines min-h-[var(--app-viewport-height)] bg-background text-foreground">
       <header className="sticky top-0 z-40 border-b border-primary/15 bg-background/90 pt-safe backdrop-blur-md">
-        <div className="mx-auto flex min-h-16 w-full max-w-7xl items-center justify-between gap-3 px-[max(1rem,var(--safe-area-inset-left))] pr-[max(1rem,var(--safe-area-inset-right))] sm:px-6 lg:px-8">
+        <div className="mx-auto flex min-h-16 w-full max-w-7xl items-center justify-between gap-3 pl-[max(1rem,var(--safe-area-inset-left))] pr-[max(1rem,var(--safe-area-inset-right))] sm:px-6 lg:px-8">
           <Link href="/" className="flex min-h-11 items-center gap-3">
             <HiveLogo className="[&>span:first-child]:shadow-[3px_3px_0_rgb(141_255_157/0.12)]" />
           </Link>

@@ -89,7 +89,7 @@ export function WorkspaceBoardBar({
       <div
         role="tablist"
         aria-label="Workspaces"
-        className="flex min-w-0 items-center gap-1 overflow-x-auto"
+        className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto"
         data-testid="workspace-board-tablist"
       >
         {orderedBoards.map((board, index) => {

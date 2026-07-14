@@ -7,6 +7,7 @@ import { useRouter } from "next/navigation";
 import {
   type CSSProperties,
   type KeyboardEvent as ReactKeyboardEvent,
+  type ReactNode,
   useCallback,
   useEffect,
   useMemo,
@@ -1276,7 +1277,7 @@ export function MultiSessionWorkspace({
       onCreate={handleCreateBoard}
       onDelete={handleDeleteBoard}
       onSelect={handleSelectBoard}
-      className="shrink-0"
+      className="w-full min-w-0 max-w-full"
     />
   );
 
@@ -2649,7 +2650,11 @@ export function MultiSessionWorkspace({
                 Favorites are unavailable. Search still works.
               </p>
             ) : null}
-            <div className="max-h-80 space-y-3 overflow-auto" data-testid="git-session-results">
+            <div
+              className="max-h-80 space-y-3 overflow-auto"
+              data-mobile-scroll-allow="true"
+              data-testid="git-session-results"
+            >
               {query ? (
                 <section
                   aria-label="Terminal session search results"
@@ -2720,7 +2725,7 @@ export function MultiSessionWorkspace({
 
   const renderWorkspaceHeader = () => (
     <>
-      <header className="grid min-h-[calc(5.75rem+var(--safe-area-inset-top))] shrink-0 grid-cols-[minmax(0,1fr)_auto] grid-rows-[auto_auto] items-center gap-x-2 gap-y-1 border-b border-sidebar-border px-[max(0.5rem,var(--safe-area-inset-left))] pb-1 pt-[calc(var(--safe-area-inset-top)+0.25rem)] pr-[max(0.5rem,var(--safe-area-inset-right))] sm:min-h-[calc(3.5rem+var(--safe-area-inset-top))] sm:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] sm:grid-rows-1 sm:gap-1 sm:px-1 sm:pb-1 lg:min-h-14 lg:py-1 lg:pt-1">
+      <header className="grid min-h-[calc(5.75rem+var(--safe-area-inset-top))] shrink-0 grid-cols-[minmax(0,1fr)_auto] grid-rows-[auto_auto] items-center gap-x-2 gap-y-1 border-b border-sidebar-border px-[max(0.5rem,var(--safe-area-inset-left))] pb-1 pt-[calc(var(--safe-area-inset-top)+0.25rem)] pr-[max(0.5rem,var(--safe-area-inset-right))] min-[1025px]:min-h-14 min-[1025px]:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] min-[1025px]:grid-rows-1 min-[1025px]:gap-1 min-[1025px]:px-2 min-[1025px]:py-1">
         <div className="flex min-w-0 items-center gap-1" data-testid="workspace-header-left">
           <SidebarTrigger className="h-7 min-h-0 shrink-0" />
           <div className="min-w-0 flex-1">
@@ -2731,13 +2736,13 @@ export function MultiSessionWorkspace({
           </div>
         </div>
         <div
-          className="col-span-2 row-start-2 flex min-w-0 items-center justify-center overflow-hidden sm:col-span-1 sm:col-start-2 sm:row-start-1"
+          className="col-span-2 row-start-2 flex min-w-0 items-center justify-center min-[1025px]:col-span-1 min-[1025px]:col-start-2 min-[1025px]:row-start-1"
           data-testid="workspace-header-board-controls"
         >
           {renderBoardBar()}
         </div>
         <div
-          className="col-start-2 row-start-1 flex min-w-0 items-center justify-end gap-1 sm:col-start-3"
+          className="col-start-2 row-start-1 flex min-w-0 items-center justify-end gap-1 min-[1025px]:col-start-3"
           data-testid="workspace-header-right"
         >
           <span className="sr-only" data-testid="multi-session-pane-count">
@@ -3002,6 +3007,19 @@ export function MultiSessionWorkspace({
     );
   };
 
+  const wrapMobileWorkspace = (content: ReactNode) =>
+    isComposeSheet ? (
+      <MobileTerminalShell
+        isKeyboardVisible={isMobileKeyboardVisible}
+        reserveDashboardTrigger={false}
+        stopKeyboardPropagation={false}
+      >
+        {content}
+      </MobileTerminalShell>
+    ) : (
+      content
+    );
+
   if (loading) {
     const loadingState = (
       <div
@@ -3014,17 +3032,7 @@ export function MultiSessionWorkspace({
         </div>
       </div>
     );
-    return isComposeSheet ? (
-      <MobileTerminalShell
-        isKeyboardVisible={isMobileKeyboardVisible}
-        reserveDashboardTrigger={false}
-        stopKeyboardPropagation={false}
-      >
-        {loadingState}
-      </MobileTerminalShell>
-    ) : (
-      loadingState
-    );
+    return wrapMobileWorkspace(loadingState);
   }
 
   if (loadFailed) {
@@ -3052,17 +3060,7 @@ export function MultiSessionWorkspace({
         </Button>
       </div>
     );
-    return isComposeSheet ? (
-      <MobileTerminalShell
-        isKeyboardVisible={isMobileKeyboardVisible}
-        reserveDashboardTrigger={false}
-        stopKeyboardPropagation={false}
-      >
-        {failedState}
-      </MobileTerminalShell>
-    ) : (
-      failedState
-    );
+    return wrapMobileWorkspace(failedState);
   }
 
   const isEmptyWorkspace = sessions.length === 0;
@@ -3145,15 +3143,5 @@ export function MultiSessionWorkspace({
     </section>
   );
 
-  return isComposeSheet ? (
-    <MobileTerminalShell
-      isKeyboardVisible={isMobileKeyboardVisible}
-      reserveDashboardTrigger={false}
-      stopKeyboardPropagation={false}
-    >
-      {workspace}
-    </MobileTerminalShell>
-  ) : (
-    workspace
-  );
+  return wrapMobileWorkspace(workspace);
 }

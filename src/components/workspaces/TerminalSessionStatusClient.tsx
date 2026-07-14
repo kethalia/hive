@@ -210,6 +210,7 @@ export function TerminalSessionStatusClient({
         title="Terminal status"
         description="Aggregated keepalive status for terminal sessions authorized by your Coder account."
         leading={<p className="text-sm text-muted-foreground">Terminal diagnostics</p>}
+        hideLeadingOnMobile
         actions={
           <>
             <Link className={buttonVariants({ variant: "outline" })} href="/workspaces">

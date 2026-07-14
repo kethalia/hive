@@ -22,6 +22,21 @@ function board(key: string, name: string, order: number): WorkspaceBoard {
 }
 
 describe("WorkspaceBoardBar", () => {
+  it("constrains the tab list so overflowing phone boards remain scrollable", () => {
+    render(
+      <WorkspaceBoardBar
+        boards={[board("main", "Main", 0), board("review", "Review", 1)]}
+        activeBoardKey="review"
+      />,
+    );
+
+    expect(screen.getByTestId("workspace-board-tablist")).toHaveClass(
+      "min-w-0",
+      "flex-1",
+      "overflow-x-auto",
+    );
+  });
+
   afterEach(() => {
     cleanup();
   });

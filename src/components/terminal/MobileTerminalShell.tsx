@@ -29,6 +29,7 @@ const SIDEBAR_SCROLL_ALLOW_SELECTOR = [
   '[data-sidebar="content"]',
   '[data-slot="sidebar-mobile-inner"]',
   '[data-slot="sidebar-content"]',
+  '[data-mobile-scroll-allow="true"]',
 ].join(", ");
 
 function isSidebarScrollTarget(target: EventTarget | null): boolean {
@@ -79,7 +80,13 @@ export function MobileTerminalShell({
         className,
       )}
       style={mobileTerminalFrameStyle(isKeyboardVisible, reserveDashboardTrigger)}
-      onKeyDown={stopKeyboardPropagation ? (event) => event.stopPropagation() : undefined}
+      onKeyDown={
+        stopKeyboardPropagation
+          ? (event) => {
+              event.stopPropagation();
+            }
+          : undefined
+      }
     >
       {children}
       <MobileTerminalDiagnosticsOverlay enabled={diagnosticsEnabled} />
