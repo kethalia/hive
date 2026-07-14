@@ -989,7 +989,7 @@ describe("AppSidebar", () => {
         relativePath: "kethalia/hive",
       });
       expect(mockPush).toHaveBeenCalledWith(
-        "/workspaces/ws-1/terminal?session=git-clone-safe-hive&clonePath=kethalia%2Fhive&cloneProof=proof-token",
+        "/workspaces/ws-1/terminal?session=git-clone-safe-hive&clonePath=kethalia%2Fhive&cloneSessionKey=git-clone%3Akethalia%2Fhive&cloneProof=proof-token&relativePath=kethalia%2Fhive",
       );
     });
   });
@@ -1153,7 +1153,7 @@ describe("AppSidebar", () => {
         relativePath: "kethalia/hive",
       });
       expect(mockPush).toHaveBeenCalledWith(
-        "/workspaces/ws-running/terminal?session=git-clone-safe-hive&clonePath=kethalia%2Fhive&cloneProof=proof-token",
+        "/workspaces/ws-running/terminal?session=git-clone-safe-hive&clonePath=kethalia%2Fhive&cloneSessionKey=git-clone%3Akethalia%2Fhive&cloneProof=proof-token&relativePath=kethalia%2Fhive",
       );
     });
     expect(mockCreateSession).not.toHaveBeenCalled();
@@ -1181,7 +1181,7 @@ describe("AppSidebar", () => {
         relativePath: "kethalia/hive",
       });
       expect(mockPush).toHaveBeenCalledWith(
-        "/workspaces/ws-active/terminal?session=git-clone-safe-hive&clonePath=kethalia%2Fhive&cloneProof=proof-token&debugViewport=1",
+        "/workspaces/ws-active/terminal?session=git-clone-safe-hive&clonePath=kethalia%2Fhive&cloneSessionKey=git-clone%3Akethalia%2Fhive&cloneProof=proof-token&relativePath=kethalia%2Fhive&debugViewport=1",
       );
     });
     expect(mockCreateSession).not.toHaveBeenCalled();

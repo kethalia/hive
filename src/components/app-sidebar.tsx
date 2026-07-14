@@ -1523,7 +1523,9 @@ export function AppSidebar() {
         const params = new URLSearchParams({
           session: identity.sessionName,
           clonePath: identity.clonePath,
+          cloneSessionKey,
           cloneProof: identity.cloneProof,
+          relativePath,
         });
         if (searchParams.get("debugViewport") === "1") {
           params.set("debugViewport", "1");
