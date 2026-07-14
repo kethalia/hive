@@ -249,6 +249,7 @@ vi.mock("lucide-react", () => ({
   ChevronDown: () => <span>ChevronDown</span>,
   Pencil: () => <span>Pencil</span>,
   Star: () => <span>Star</span>,
+  Stethoscope: () => <span>Stethoscope</span>,
   Loader2: () => <span>Loader2</span>,
   LogOut: () => <span>LogOut</span>,
 }));
@@ -343,7 +344,7 @@ describe("Sidebar primitive layout contract", () => {
       '[data-slot="sidebar-container"]',
     );
 
-    expect(wrapper?.style.getPropertyValue("--sidebar-width")).toBe("18rem");
+    expect(wrapper?.style.getPropertyValue("--sidebar-width")).toBe("21rem");
     expect(wrapper?.style.getPropertyValue("--sidebar-width-icon")).toBe("3rem");
     expect(root).toHaveAttribute("data-variant", "floating");
     expect(gap?.className).toContain("group-data-[collapsible=offcanvas]:w-0");
