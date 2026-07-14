@@ -16,6 +16,7 @@ import {
 import { toast } from "sonner";
 import { CommandPalette, type CommandPaletteAction } from "@/components/terminal/CommandPalette";
 import { MobileTerminalControls } from "@/components/terminal/MobileTerminalControls";
+import { MobileTerminalShell } from "@/components/terminal/MobileTerminalShell";
 import { TerminalSessionCompose } from "@/components/terminal/TerminalSessionCompose";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -2719,7 +2720,7 @@ export function MultiSessionWorkspace({
 
   const renderWorkspaceHeader = () => (
     <>
-      <header className="grid h-14 min-h-14 shrink-0 grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-1 border-b border-sidebar-border px-1 py-1 pt-[max(1rem,var(--safe-area-inset-top))] lg:pt-[max(0.25rem,var(--safe-area-inset-top))]">
+      <header className="grid min-h-[calc(5.75rem+var(--safe-area-inset-top))] shrink-0 grid-cols-[minmax(0,1fr)_auto] grid-rows-[auto_auto] items-center gap-x-2 gap-y-1 border-b border-sidebar-border px-[max(0.5rem,var(--safe-area-inset-left))] pb-1 pt-[calc(var(--safe-area-inset-top)+0.25rem)] pr-[max(0.5rem,var(--safe-area-inset-right))] sm:min-h-[calc(3.5rem+var(--safe-area-inset-top))] sm:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] sm:grid-rows-1 sm:gap-1 sm:px-1 sm:pb-1 lg:min-h-14 lg:py-1 lg:pt-1">
         <div className="flex min-w-0 items-center gap-1" data-testid="workspace-header-left">
           <SidebarTrigger className="h-7 min-h-0 shrink-0" />
           <div className="min-w-0 flex-1">
@@ -2730,13 +2731,13 @@ export function MultiSessionWorkspace({
           </div>
         </div>
         <div
-          className="flex min-w-0 items-center justify-center"
+          className="col-span-2 row-start-2 flex min-w-0 items-center justify-center overflow-hidden sm:col-span-1 sm:col-start-2 sm:row-start-1"
           data-testid="workspace-header-board-controls"
         >
           {renderBoardBar()}
         </div>
         <div
-          className="flex min-w-0 items-center justify-end gap-1"
+          className="col-start-2 row-start-1 flex min-w-0 items-center justify-end gap-1 sm:col-start-3"
           data-testid="workspace-header-right"
         >
           <span className="sr-only" data-testid="multi-session-pane-count">
@@ -3002,7 +3003,7 @@ export function MultiSessionWorkspace({
   };
 
   if (loading) {
-    return (
+    const loadingState = (
       <div
         className={cn("flex h-full items-center justify-center bg-background", className)}
         data-testid="multi-session-loading"
@@ -3013,10 +3014,21 @@ export function MultiSessionWorkspace({
         </div>
       </div>
     );
+    return isComposeSheet ? (
+      <MobileTerminalShell
+        isKeyboardVisible={isMobileKeyboardVisible}
+        reserveDashboardTrigger={false}
+        stopKeyboardPropagation={false}
+      >
+        {loadingState}
+      </MobileTerminalShell>
+    ) : (
+      loadingState
+    );
   }
 
   if (loadFailed) {
-    return (
+    const failedState = (
       <div
         className={cn(
           "flex h-full flex-col items-center justify-center gap-4 bg-background px-6 text-center",
@@ -3040,11 +3052,22 @@ export function MultiSessionWorkspace({
         </Button>
       </div>
     );
+    return isComposeSheet ? (
+      <MobileTerminalShell
+        isKeyboardVisible={isMobileKeyboardVisible}
+        reserveDashboardTrigger={false}
+        stopKeyboardPropagation={false}
+      >
+        {failedState}
+      </MobileTerminalShell>
+    ) : (
+      failedState
+    );
   }
 
   const isEmptyWorkspace = sessions.length === 0;
 
-  return (
+  const workspace = (
     <section
       ref={workspaceRootRef}
       className={cn("flex h-full min-h-0 flex-col bg-background", className)}
@@ -3120,5 +3143,17 @@ export function MultiSessionWorkspace({
       </div>
       {mobileComposeSheet}
     </section>
+  );
+
+  return isComposeSheet ? (
+    <MobileTerminalShell
+      isKeyboardVisible={isMobileKeyboardVisible}
+      reserveDashboardTrigger={false}
+      stopKeyboardPropagation={false}
+    >
+      {workspace}
+    </MobileTerminalShell>
+  ) : (
+    workspace
   );
 }

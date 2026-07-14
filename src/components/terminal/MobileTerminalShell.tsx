@@ -21,6 +21,7 @@ interface MobileTerminalShellProps {
   diagnosticsEnabled?: boolean;
   isKeyboardVisible: boolean;
   reserveDashboardTrigger?: boolean;
+  stopKeyboardPropagation?: boolean;
 }
 
 const SIDEBAR_SCROLL_ALLOW_SELECTOR = [
@@ -63,6 +64,7 @@ export function MobileTerminalShell({
   diagnosticsEnabled = false,
   isKeyboardVisible,
   reserveDashboardTrigger = true,
+  stopKeyboardPropagation = true,
 }: MobileTerminalShellProps) {
   useMobileTerminalViewportLock(isKeyboardVisible);
 
@@ -77,7 +79,7 @@ export function MobileTerminalShell({
         className,
       )}
       style={mobileTerminalFrameStyle(isKeyboardVisible, reserveDashboardTrigger)}
-      onKeyDown={(event) => event.stopPropagation()}
+      onKeyDown={stopKeyboardPropagation ? (event) => event.stopPropagation() : undefined}
     >
       {children}
       <MobileTerminalDiagnosticsOverlay enabled={diagnosticsEnabled} />
