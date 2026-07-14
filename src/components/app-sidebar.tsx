@@ -1,6 +1,23 @@
 "use client";
 
 import {
+  closestCenter,
+  DndContext,
+  type DragEndEvent,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+} from "@dnd-kit/core";
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
+import {
   AlertCircle,
   ChevronDown,
   ChevronRight,
@@ -425,6 +442,41 @@ function SessionList({
   );
 }
 
+function SortableFavoriteRow({
+  favorite,
+  children,
+}: {
+  favorite: NavigationFavoriteDto;
+  children: React.ReactNode;
+}) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id: favorite.id,
+  });
+
+  return (
+    <SidebarMenuItem
+      ref={setNodeRef}
+      className={cn(
+        "flex items-center gap-1",
+        isDragging && "relative z-10 rounded-md bg-sidebar-accent shadow-lg",
+      )}
+      style={{ transform: CSS.Transform.toString(transform), transition }}
+      data-testid={`sortable-favorite-${favorite.id}`}
+    >
+      {children}
+      <button
+        type="button"
+        aria-label={`Reorder ${favoriteLabel(favorite)}`}
+        className="flex size-8 shrink-0 cursor-grab touch-none items-center justify-center rounded-md text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2 focus-visible:ring-sidebar-ring active:cursor-grabbing max-md:size-11"
+        {...attributes}
+        {...listeners}
+      >
+        <GripVertical aria-hidden="true" className="size-4" />
+      </button>
+    </SidebarMenuItem>
+  );
+}
+
 function FavoritesSection({
   favorites,
   pathname,
@@ -441,69 +493,18 @@ function FavoritesSection({
   onReorder: (favoriteIds: string[]) => void;
 }) {
   const visibleFavorites = useMemo(() => dedupeFavorites(favorites.data), [favorites.data]);
-  const [draggedFavoriteId, setDraggedFavoriteId] = useState<string | null>(null);
-
-  const reorderAround = (sourceId: string, targetId: string) => {
-    if (sourceId === targetId) return;
-    const next = [...visibleFavorites];
-    const sourceIndex = next.findIndex((favorite) => favorite.id === sourceId);
-    const targetIndex = next.findIndex((favorite) => favorite.id === targetId);
-    if (sourceIndex < 0 || targetIndex < 0) return;
-    const [moved] = next.splice(sourceIndex, 1);
-    next.splice(targetIndex, 0, moved);
-    onReorder(next.map((favorite) => favorite.id));
-  };
-
-  const moveByKeyboard = (favoriteId: string, direction: -1 | 1) => {
-    const index = visibleFavorites.findIndex((favorite) => favorite.id === favoriteId);
-    const target = visibleFavorites[index + direction];
-    if (target) reorderAround(favoriteId, target.id);
-  };
-
-  const dragHandle = (favorite: NavigationFavoriteDto) => (
-    <button
-      type="button"
-      draggable
-      aria-label={`Reorder ${favoriteLabel(favorite)}`}
-      className="flex size-8 shrink-0 cursor-grab touch-none items-center justify-center rounded-md text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2 focus-visible:ring-sidebar-ring active:cursor-grabbing max-md:size-11"
-      onDragStart={(event) => {
-        setDraggedFavoriteId(favorite.id);
-        event.dataTransfer.effectAllowed = "move";
-        event.dataTransfer.setData("text/plain", favorite.id);
-        const row = event.currentTarget.parentElement;
-        if (row) {
-          const preview = row.cloneNode(true);
-          if (!(preview instanceof HTMLElement)) return;
-          const bounds = row.getBoundingClientRect();
-          preview.setAttribute("aria-hidden", "true");
-          preview.dataset.dragPreview = "pinned-row";
-          preview.style.position = "fixed";
-          preview.style.inset = "-1000px auto auto -1000px";
-          preview.style.width = `${Math.max(bounds.width, 220)}px`;
-          preview.style.height = `${Math.max(bounds.height, 32)}px`;
-          preview.style.padding = "2px";
-          preview.style.background = "hsl(var(--sidebar))";
-          preview.style.border = "1px solid hsl(var(--sidebar-border))";
-          preview.style.borderRadius = "0.5rem";
-          preview.style.boxShadow = "0 10px 28px rgb(0 0 0 / 35%)";
-          preview.style.opacity = "0.96";
-          preview.style.pointerEvents = "none";
-          document.body.append(preview);
-          event.dataTransfer.setDragImage(preview, 16, Math.round(Math.max(bounds.height, 32) / 2));
-          window.setTimeout(() => preview.remove(), 0);
-        }
-      }}
-      onDragEnd={() => setDraggedFavoriteId(null)}
-      onKeyDown={(event) => {
-        if (event.key === "ArrowUp" || event.key === "ArrowDown") {
-          event.preventDefault();
-          moveByKeyboard(favorite.id, event.key === "ArrowUp" ? -1 : 1);
-        }
-      }}
-    >
-      <GripVertical aria-hidden="true" className="size-4" />
-    </button>
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
   );
+
+  const handleDragEnd = ({ active, over }: DragEndEvent) => {
+    if (!over || active.id === over.id) return;
+    const oldIndex = visibleFavorites.findIndex((favorite) => favorite.id === active.id);
+    const newIndex = visibleFavorites.findIndex((favorite) => favorite.id === over.id);
+    if (oldIndex < 0 || newIndex < 0) return;
+    onReorder(arrayMove(visibleFavorites, oldIndex, newIndex).map((favorite) => favorite.id));
+  };
 
   if (!favorites.isLoading && visibleFavorites.length === 0 && !favorites.error) return null;
 
@@ -525,87 +526,72 @@ function FavoritesSection({
           </p>
         )}
         {visibleFavorites.length > 0 && (
-          <SidebarMenu>
-            {visibleFavorites.map((favorite) => {
-              const label = favoriteLabel(favorite);
-              if (favorite.kind === "terminal") {
-                return (
-                  <SidebarMenuItem
-                    key={favorite.id}
-                    className="flex items-center gap-1"
-                    onDragOver={(event) => event.preventDefault()}
-                    onDrop={(event) => {
-                      event.preventDefault();
-                      reorderAround(
-                        draggedFavoriteId ?? event.dataTransfer.getData("text/plain"),
-                        favorite.id,
-                      );
-                      setDraggedFavoriteId(null);
-                    }}
-                  >
-                    <SidebarMenuButton
-                      render={
-                        <Link
-                          href={`/workspaces/${encodeURIComponent(
-                            favorite.workspaceId,
-                          )}/terminal?session=${encodeURIComponent(favorite.targetKey)}`}
-                        />
-                      }
-                      isActive={
-                        pathname === `/workspaces/${favorite.workspaceId}/terminal` &&
-                        !activeClonePath &&
-                        activeSession === favorite.targetKey
-                      }
-                      data-testid={`favorite-terminal-link-${favorite.workspaceId}-${favorite.targetKey}`}
-                      className="min-w-0 flex-1"
-                    >
-                      <Terminal className="h-4 w-4" />
-                      <span className="truncate">{label}</span>
-                    </SidebarMenuButton>
-                    {dragHandle(favorite)}
-                  </SidebarMenuItem>
-                );
-              }
-
-              const canLaunch =
-                typeof favorite.relativePath === "string" && favorite.relativePath.length > 0;
-              return (
-                <SidebarMenuItem
-                  key={favorite.id}
-                  className="flex items-center gap-1"
-                  onDragOver={(event) => event.preventDefault()}
-                  onDrop={(event) => {
-                    event.preventDefault();
-                    reorderAround(
-                      draggedFavoriteId ?? event.dataTransfer.getData("text/plain"),
-                      favorite.id,
+          <DndContext
+            sensors={sensors}
+            collisionDetection={closestCenter}
+            onDragEnd={handleDragEnd}
+          >
+            <SortableContext
+              items={visibleFavorites.map((favorite) => favorite.id)}
+              strategy={verticalListSortingStrategy}
+            >
+              <SidebarMenu>
+                {visibleFavorites.map((favorite) => {
+                  const label = favoriteLabel(favorite);
+                  if (favorite.kind === "terminal") {
+                    return (
+                      <SortableFavoriteRow key={favorite.id} favorite={favorite}>
+                        <SidebarMenuButton
+                          render={
+                            <Link
+                              href={`/workspaces/${encodeURIComponent(
+                                favorite.workspaceId,
+                              )}/terminal?session=${encodeURIComponent(favorite.targetKey)}`}
+                            />
+                          }
+                          isActive={
+                            pathname === `/workspaces/${favorite.workspaceId}/terminal` &&
+                            !activeClonePath &&
+                            activeSession === favorite.targetKey
+                          }
+                          data-testid={`favorite-terminal-link-${favorite.workspaceId}-${favorite.targetKey}`}
+                          className="min-w-0 flex-1"
+                        >
+                          <Terminal className="h-4 w-4" />
+                          <span className="truncate">{label}</span>
+                        </SidebarMenuButton>
+                      </SortableFavoriteRow>
                     );
-                    setDraggedFavoriteId(null);
-                  }}
-                >
-                  <SidebarMenuButton
-                    disabled={!canLaunch}
-                    className={cn(
-                      "min-w-0 flex-1 cursor-pointer",
-                      !canLaunch && "cursor-not-allowed opacity-50",
-                    )}
-                    isActive={
-                      pathname === `/workspaces/${favorite.workspaceId}/terminal` &&
-                      activeClonePath === favorite.relativePath
-                    }
-                    data-testid={`favorite-git-link-${favorite.workspaceId}-${favorite.targetKey}`}
-                    onClick={() => {
-                      if (canLaunch) onGitFavoriteLaunch(favorite);
-                    }}
-                  >
-                    <GitBranch className="h-4 w-4" />
-                    <span className="truncate">{label}</span>
-                  </SidebarMenuButton>
-                  {dragHandle(favorite)}
-                </SidebarMenuItem>
-              );
-            })}
-          </SidebarMenu>
+                  }
+
+                  const canLaunch =
+                    typeof favorite.relativePath === "string" && favorite.relativePath.length > 0;
+                  return (
+                    <SortableFavoriteRow key={favorite.id} favorite={favorite}>
+                      <SidebarMenuButton
+                        disabled={!canLaunch}
+                        className={cn(
+                          "min-w-0 flex-1 cursor-pointer",
+                          !canLaunch && "cursor-not-allowed opacity-50",
+                        )}
+                        isActive={
+                          pathname === `/workspaces/${favorite.workspaceId}/terminal` &&
+                          activeClonePath === favorite.relativePath
+                        }
+                        data-testid={`favorite-git-link-${favorite.workspaceId}-${favorite.targetKey}`}
+                        onClick={() => {
+                          if (canLaunch) onGitFavoriteLaunch(favorite);
+                        }}
+                      >
+                        <GitBranch className="h-4 w-4" />
+                        <span className="truncate">{label}</span>
+                      </SidebarMenuButton>
+                    </SortableFavoriteRow>
+                  );
+                })}
+              </SidebarMenu>
+            </SortableContext>
+          </DndContext>
         )}
       </SidebarGroupContent>
     </SidebarGroup>

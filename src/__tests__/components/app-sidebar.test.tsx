@@ -831,7 +831,7 @@ describe("AppSidebar", () => {
     expect(document.body.innerHTML).not.toContain("userId");
   });
 
-  it("reorders pinned actions from the drag handle keyboard controls", async () => {
+  it("uses sortable drag handles for pinned actions", async () => {
     mockListNavigationFavorites.mockResolvedValueOnce({
       data: [
         makeFavorite({ id: "fav-first", label: "First", position: 0 }),
@@ -842,29 +842,14 @@ describe("AppSidebar", () => {
 
     const firstHandle = await screen.findByRole("button", { name: "Reorder First" });
     expect(screen.getByRole("button", { name: "Reorder Second" })).toBeInTheDocument();
-    const firstRow = firstHandle.parentElement;
-    firstRow?.setAttribute("data-sidebar", "menu-item");
-    const setDragImage = vi.fn();
-    fireEvent.dragStart(firstHandle, {
-      dataTransfer: { effectAllowed: "none", setData: vi.fn(), setDragImage },
-    });
-    const dragPreview = setDragImage.mock.calls[0]?.[0];
-    expect(dragPreview).toBeInstanceOf(HTMLElement);
-    if (!(dragPreview instanceof HTMLElement)) throw new Error("Expected an HTML drag preview");
-    expect(dragPreview).not.toBe(firstRow);
-    expect(dragPreview).toHaveAttribute("data-drag-preview", "pinned-row");
-    expect(dragPreview).toHaveStyle({ width: "220px", height: "32px" });
-    expect(setDragImage).toHaveBeenCalledWith(dragPreview, 16, 16);
-    fireEvent.keyDown(firstHandle, { key: "ArrowDown" });
-
-    await waitFor(() => {
-      expect(mockReorderNavigationFavorites).toHaveBeenCalledWith({
-        favoriteIds: ["fav-second", "fav-first"],
-      });
-    });
-    const first = screen.getByText("First");
-    const second = screen.getByText("Second");
-    expect(second.compareDocumentPosition(first)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+    expect(firstHandle).not.toHaveAttribute("draggable");
+    expect(firstHandle).toHaveAttribute("aria-roledescription", "sortable");
+    expect(screen.getByTestId("sortable-favorite-fav-first")).toBeInTheDocument();
+    firstHandle.focus();
+    fireEvent.keyDown(firstHandle, { key: " ", code: "Space" });
+    await waitFor(() => expect(firstHandle).toHaveAttribute("aria-pressed", "true"));
+    expect(screen.getByTestId("sortable-favorite-fav-first")).toHaveClass("shadow-lg");
+    fireEvent.keyDown(firstHandle, { key: "Escape", code: "Escape" });
   });
 
   it("hides Pinned when no favorites are returned", async () => {
