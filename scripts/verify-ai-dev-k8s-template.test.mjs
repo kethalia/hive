@@ -142,6 +142,9 @@ function verifyNonRootSupplementalTools() {
     filebrowser.includes("29b3935c222d91522874e98dfa33195ee7d2acdac5dfbf37c1361a73704a28de"),
   );
   assert.ok(filebrowser.includes("$HOME/.local/bin/filebrowser"));
+  assert.match(filebrowser, /--auth\.method="noauth"/);
+  assert.match(filebrowser, /users find 1/);
+  assert.match(filebrowser, /users add coder .* --perm\.admin/);
   assert.doesNotMatch(filebrowser, /\bsudo\b/);
   assert.ok(initScript.includes("- **Node.js**: v24"));
   assert.ok(!initScript.includes("also available: 18, 20, 22"));
