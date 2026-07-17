@@ -58,5 +58,12 @@ fi
   --auth.method="noauth" \
   --root="$HOME"
 
+# noauth still needs an internal user to supply scope and permissions. Without
+# user ID 1, the web client loops on the login screen and /api/login returns 500.
+if ! "$binary" users find 1 >/dev/null 2>&1; then
+  internal_password="$(openssl rand -hex 24)"
+  "$binary" users add coder "$internal_password" --perm.admin
+fi
+
 nohup "$binary" >> "$log_file" 2>&1 &
 printf '[ok] File Browser %s started on port %s\n' "$filebrowser_version" "$filebrowser_port"
