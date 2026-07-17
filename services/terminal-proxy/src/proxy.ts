@@ -8,7 +8,7 @@ import { authenticateUpgrade } from "./auth.js";
 import { ConnectionRegistry } from "./keepalive.js";
 import { buildPtyUrl, SAFE_IDENTIFIER_RE, UUID_RE } from "./protocol.js";
 
-const PING_INTERVAL_MS = 30_000;
+const PING_INTERVAL_MS = 15_000;
 const UPSTREAM_CONNECT_TIMEOUT_MS = 10_000;
 const BROWSER_CLOSE_UPSTREAM_CLOSED_CODE = 1013;
 const BROWSER_CLOSE_UPSTREAM_CLOSED_REASON = "upstream closed";

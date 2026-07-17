@@ -326,13 +326,13 @@ describe("handleUpgrade", () => {
 
     getSocketHandler(browserWs, "pong")();
     getSocketHandler(upstreamWs, "pong")();
-    await vi.advanceTimersByTimeAsync(30_000);
+    await vi.advanceTimersByTimeAsync(15_000);
 
     expect(browserWs.ping).toHaveBeenCalledTimes(2);
     expect(upstreamWs.ping).toHaveBeenCalledTimes(2);
     getSocketHandler(browserWs, "pong")();
     getSocketHandler(upstreamWs, "pong")();
-    await vi.advanceTimersByTimeAsync(30_000);
+    await vi.advanceTimersByTimeAsync(15_000);
 
     expect(browserWs.terminate).not.toHaveBeenCalled();
     expect(upstreamWs.terminate).not.toHaveBeenCalled();
@@ -355,7 +355,7 @@ describe("handleUpgrade", () => {
     expect(browserWs.terminate).not.toHaveBeenCalled();
 
     getSocketHandler(upstreamWs, "pong")();
-    await vi.advanceTimersByTimeAsync(30_000);
+    await vi.advanceTimersByTimeAsync(15_000);
 
     expect(browserWs.terminate).toHaveBeenCalledTimes(1);
     expect(upstreamWs.terminate).not.toHaveBeenCalled();
@@ -377,7 +377,7 @@ describe("handleUpgrade", () => {
     expect(upstreamWs.terminate).not.toHaveBeenCalled();
 
     getSocketHandler(browserWs, "pong")();
-    await vi.advanceTimersByTimeAsync(30_000);
+    await vi.advanceTimersByTimeAsync(15_000);
 
     expect(upstreamWs.terminate).toHaveBeenCalledTimes(1);
     expect(browserWs.terminate).not.toHaveBeenCalled();

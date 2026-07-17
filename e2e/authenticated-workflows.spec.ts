@@ -62,7 +62,9 @@ async function waitForDashboardReady(page: Page) {
 }
 
 async function expectConnectedTerminal(page: Page) {
-  const terminal = page.locator('[data-terminal-surface="true"]:visible').first();
+  const terminal = page
+    .locator('[data-terminal-surface="true"][data-connection-state]:visible')
+    .first();
   await expect(terminal).toBeVisible({ timeout: 30_000 });
   await expect(terminal).toHaveAttribute("data-connection-state", "connected", {
     timeout: 30_000,
@@ -187,13 +189,17 @@ test.describe("authenticated Hive workflows", () => {
   });
 
   test("opens a live workspace terminal when one is available", async ({ page }, testInfo) => {
+    const terminalSocketUrls: string[] = [];
+    page.on("websocket", (socket) => {
+      if (new URL(socket.url()).pathname.startsWith("/ws")) {
+        terminalSocketUrls.push(socket.url());
+      }
+    });
+
     await page.goto(new URL("/workspaces", appUrl).toString());
     await waitForDashboardReady(page);
-    const workspaceLink = page.getByRole("link", { name: /Open workspace for/ }).first();
-    test.skip(
-      !(await workspaceLink.isVisible().catch(() => false)),
-      "No running workspace available.",
-    );
+    const workspaceLink = page.locator('a[href$="/terminal/workspace"]:visible').first();
+    await expect(workspaceLink).toBeVisible({ timeout: 15_000 });
 
     await workspaceLink.click();
     await expect(page).toHaveURL(/\/workspaces\/[^/]+\/terminal\/workspace/);
@@ -204,6 +210,12 @@ test.describe("authenticated Hive workflows", () => {
     ).toBeVisible({ timeout: 30_000 });
     const workspaceTerminal = await expectConnectedTerminal(page);
     await proveTerminalAcceptsInput(page, workspaceTerminal);
+    const healthySocketCount = terminalSocketUrls.length;
+    expect(healthySocketCount).toBeGreaterThan(0);
+
+    await page.waitForTimeout(20_000);
+    await expect(workspaceTerminal).toHaveAttribute("data-connection-state", "connected");
+    expect(terminalSocketUrls).toHaveLength(healthySocketCount);
     await capture(page, testInfo, "workspace-terminal-connected");
 
     const sessionName = (await page.getByTestId("active-pane-label").textContent())?.trim();
