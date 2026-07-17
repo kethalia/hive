@@ -430,6 +430,8 @@ function connectUpstream(browserWs: WebSocket, upstreamUrl: string, token: strin
   });
 
   let pingTimer: ReturnType<typeof setInterval> | null = null;
+  let browserResponsive = true;
+  let upstreamResponsive = true;
 
   function cleanup() {
     if (pingTimer) {
@@ -446,11 +448,42 @@ function connectUpstream(browserWs: WebSocket, upstreamUrl: string, token: strin
 
   upstream.on("open", () => {
     logProxyEvent("log", "upstream_connected", { category: "upstream_connected" });
-    pingTimer = setInterval(() => {
+    const runHeartbeat = () => {
+      if (!browserResponsive || !upstreamResponsive) {
+        const unresponsiveLeg = !browserResponsive ? "browser" : "upstream";
+        logProxyEvent("error", "heartbeat_timeout", {
+          category: "heartbeat_timeout",
+          leg: unresponsiveLeg,
+        });
+        if (!browserResponsive && browserWs.readyState === WebSocket.OPEN) {
+          browserWs.terminate();
+        }
+        if (!upstreamResponsive && upstream.readyState === WebSocket.OPEN) {
+          upstream.terminate();
+        }
+        cleanup();
+        return;
+      }
+
+      browserResponsive = false;
+      upstreamResponsive = false;
+      if (browserWs.readyState === WebSocket.OPEN) {
+        browserWs.ping();
+      }
       if (upstream.readyState === WebSocket.OPEN) {
         upstream.ping();
       }
-    }, PING_INTERVAL_MS);
+    };
+    runHeartbeat();
+    pingTimer = setInterval(runHeartbeat, PING_INTERVAL_MS);
+  });
+
+  browserWs.on("pong", () => {
+    browserResponsive = true;
+  });
+
+  upstream.on("pong", () => {
+    upstreamResponsive = true;
   });
 
   upstream.on("message", (data, isBinary) => {

@@ -1,4 +1,3 @@
-import Script from "next/script";
 import { Suspense } from "react";
 import { AppSidebar } from "@/components/app-sidebar";
 import { AppViewportSize } from "@/components/app-viewport-size";
@@ -14,14 +13,17 @@ import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { getTokenStatusAction } from "@/lib/auth/actions";
+import { getServerRuntimeConfig, serializeRuntimeConfig } from "@/lib/runtime-config";
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
   const bannerStatus = await getTokenStatusAction();
+  const runtimeConfig = serializeRuntimeConfig(getServerRuntimeConfig());
 
   return (
     <>
-      {/* Authenticated clients read this before terminal components hydrate. */}
-      <Script src="/runtime-config.js" strategy="beforeInteractive" />
+      {/* Inline server values so terminal components cannot hydrate before config is available. */}
+      {/* biome-ignore lint/security/noDangerouslySetInnerHtml: serializeRuntimeConfig escapes script-breaking input. */}
+      <script dangerouslySetInnerHTML={{ __html: runtimeConfig }} />
       <ServiceWorkerRegister />
       <AppViewportSize />
       <TooltipProvider>

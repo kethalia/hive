@@ -4,6 +4,7 @@ import {
   getClientRuntimeConfig,
   getServerRuntimeConfig,
   resolveTerminalWsUrl,
+  serializeRuntimeConfig,
 } from "@/lib/runtime-config";
 
 describe("runtime-config", () => {
@@ -55,6 +56,25 @@ describe("runtime-config", () => {
     it("returns empty string when neither source provides a value", () => {
       vi.stubEnv("NEXT_PUBLIC_TERMINAL_WS_URL", "");
       expect(getClientRuntimeConfig()).toEqual({ terminalWsUrl: "" });
+    });
+  });
+
+  describe("serializeRuntimeConfig", () => {
+    it("creates an immediately executable browser assignment", () => {
+      expect(serializeRuntimeConfig({ terminalWsUrl: "/" })).toBe(
+        'window.__HIVE_CONFIG__={"terminalWsUrl":"/"};',
+      );
+    });
+
+    it("escapes script-breaking characters", () => {
+      const serialized = serializeRuntimeConfig({
+        terminalWsUrl: "</script>\u2028\u2029",
+      });
+
+      expect(serialized).not.toContain("</script>");
+      expect(serialized).toContain("\\u003c/script>");
+      expect(serialized).toContain("\\u2028");
+      expect(serialized).toContain("\\u2029");
     });
   });
 

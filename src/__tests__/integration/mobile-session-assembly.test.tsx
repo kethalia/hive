@@ -447,6 +447,8 @@ vi.mock("@/hooks/useTerminalWebSocket", () => ({
 
 vi.mock("@/lib/runtime-config", () => ({
   getClientRuntimeConfig: () => ({ terminalWsUrl: "ws://terminal.example.test" }),
+  getServerRuntimeConfig: () => ({ terminalWsUrl: "/" }),
+  serializeRuntimeConfig: () => 'window.__HIVE_CONFIG__={"terminalWsUrl":"/"};',
 }));
 
 vi.mock("@/lib/terminal/config", () => ({
@@ -604,6 +606,9 @@ describe("mobile session assembly", () => {
     render(element);
 
     expect(screen.getByText("Workspace body")).toBeInTheDocument();
+    expect(document.querySelector("script")?.textContent).toBe(
+      'window.__HIVE_CONFIG__={"terminalWsUrl":"/"};',
+    );
     const sidebarInset = document.querySelector('[data-slot="sidebar-inset"]');
     const dashboardMain = document.querySelector("[data-dashboard-main]");
     const dashboardContent = document.querySelector("[data-dashboard-content]");

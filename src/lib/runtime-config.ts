@@ -19,6 +19,14 @@ export function getServerRuntimeConfig(): RuntimeConfig {
   };
 }
 
+export function serializeRuntimeConfig(config: RuntimeConfig): string {
+  const json = JSON.stringify(config)
+    .replace(/</g, "\\u003c")
+    .replace(/\u2028/g, "\\u2028")
+    .replace(/\u2029/g, "\\u2029");
+  return `window.__HIVE_CONFIG__=${json};`;
+}
+
 export function resolveTerminalWsUrl(
   configuredUrl: string,
   browserLocation?: BrowserLocation,
