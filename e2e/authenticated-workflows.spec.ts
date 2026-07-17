@@ -2,6 +2,7 @@ import {
   type BrowserContextOptions,
   test as base,
   expect,
+  type Locator,
   type Page,
   type TestInfo,
 } from "@playwright/test";
@@ -58,6 +59,25 @@ async function capture(page: Page, testInfo: TestInfo, name: string) {
 
 async function waitForDashboardReady(page: Page) {
   await expect(page.locator("html")).toHaveAttribute("data-dashboard-keybindings-ready", "true");
+}
+
+async function expectConnectedTerminal(page: Page) {
+  const terminal = page.locator('[data-terminal-surface="true"]:visible').first();
+  await expect(terminal).toBeVisible({ timeout: 30_000 });
+  await expect(terminal).toHaveAttribute("data-connection-state", "connected", {
+    timeout: 30_000,
+  });
+  await expect(page.getByTestId("multi-session-loading")).toHaveCount(0);
+  return terminal;
+}
+
+async function proveTerminalAcceptsInput(page: Page, terminal: Locator) {
+  const marker = `hive-terminal-e2e-${Date.now()}`;
+  const input = terminal.locator("textarea.xterm-helper-textarea");
+  await input.focus();
+  await page.keyboard.type(`printf '${marker}\\n'`);
+  await page.keyboard.press("Enter");
+  await expect(terminal.locator(".xterm-rows")).toContainText(marker, { timeout: 15_000 });
 }
 
 test.describe("authenticated Hive workflows", () => {
@@ -182,6 +202,22 @@ test.describe("authenticated Hive workflows", () => {
         '[data-testid="multi-session-workspace"], [data-testid="multi-session-empty"], [data-testid="session-load-error"]',
       ),
     ).toBeVisible({ timeout: 30_000 });
-    await capture(page, testInfo, "workspace-terminal");
+    const workspaceTerminal = await expectConnectedTerminal(page);
+    await proveTerminalAcceptsInput(page, workspaceTerminal);
+    await capture(page, testInfo, "workspace-terminal-connected");
+
+    const sessionName = (await page.getByTestId("active-pane-label").textContent())?.trim();
+    expect(sessionName).toBeTruthy();
+    const workspaceUrl = new URL(page.url());
+    await page.goto(
+      new URL(
+        `/workspaces/${workspaceUrl.pathname.split("/")[2]}/terminal?session=${encodeURIComponent(sessionName ?? "")}`,
+        appUrl,
+      ).toString(),
+    );
+    await expect(page.getByTestId("single-terminal-header")).toBeVisible();
+    const singleTerminal = await expectConnectedTerminal(page);
+    await proveTerminalAcceptsInput(page, singleTerminal);
+    await capture(page, testInfo, "single-terminal-connected");
   });
 });

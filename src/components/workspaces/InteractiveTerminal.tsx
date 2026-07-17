@@ -1066,6 +1066,7 @@ export function InteractiveTerminal({
   return (
     <div
       className={cn("relative flex flex-col bg-[#0a0a0a] overflow-hidden", className)}
+      data-connection-state={connectionState}
       data-terminal-surface="true"
     >
       {connectionState === "workspace-offline" && (
