@@ -340,7 +340,7 @@ describe("handleUpgrade", () => {
     expect(upstreamWs.close).not.toHaveBeenCalled();
   });
 
-  it("terminates a browser leg only after a heartbeat goes unanswered", async () => {
+  it("tolerates two missed browser heartbeats before terminating the browser leg", async () => {
     vi.useFakeTimers();
     const socket = makeSocket();
     await handleUpgrade(makeReq(validParams), socket, Buffer.alloc(0));
@@ -357,12 +357,20 @@ describe("handleUpgrade", () => {
     getSocketHandler(upstreamWs, "pong")();
     await vi.advanceTimersByTimeAsync(15_000);
 
+    expect(browserWs.terminate).not.toHaveBeenCalled();
+    getSocketHandler(upstreamWs, "pong")();
+    await vi.advanceTimersByTimeAsync(15_000);
+
+    expect(browserWs.terminate).not.toHaveBeenCalled();
+    getSocketHandler(upstreamWs, "pong")();
+    await vi.advanceTimersByTimeAsync(15_000);
+
     expect(browserWs.terminate).toHaveBeenCalledTimes(1);
     expect(upstreamWs.terminate).not.toHaveBeenCalled();
     expect(upstreamWs.close).toHaveBeenCalledTimes(1);
   });
 
-  it("terminates an upstream leg only after a heartbeat goes unanswered", async () => {
+  it("tolerates two missed upstream heartbeats before terminating the upstream leg", async () => {
     vi.useFakeTimers();
     const socket = makeSocket();
     await handleUpgrade(makeReq(validParams), socket, Buffer.alloc(0));
@@ -376,6 +384,14 @@ describe("handleUpgrade", () => {
     getSocketHandler(upstreamWs, "open")();
     expect(upstreamWs.terminate).not.toHaveBeenCalled();
 
+    getSocketHandler(browserWs, "pong")();
+    await vi.advanceTimersByTimeAsync(15_000);
+
+    expect(upstreamWs.terminate).not.toHaveBeenCalled();
+    getSocketHandler(browserWs, "pong")();
+    await vi.advanceTimersByTimeAsync(15_000);
+
+    expect(upstreamWs.terminate).not.toHaveBeenCalled();
     getSocketHandler(browserWs, "pong")();
     await vi.advanceTimersByTimeAsync(15_000);
 

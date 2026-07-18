@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { DashboardPageHeader } from "@/components/dashboard-page-header";
 import { DashboardPageShell } from "@/components/dashboard-page-shell";
+import { useRuntimeConfig } from "@/components/runtime-config-provider";
 import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -13,7 +14,6 @@ import {
   parseKeepAliveStatusPayload,
   terminalProxyHttpBaseUrl,
 } from "@/hooks/useKeepAliveStatus";
-import { getClientRuntimeConfig } from "@/lib/runtime-config";
 
 interface TerminalSessionStatusClientProps {
   highlightedWorkspaceId?: string;
@@ -135,6 +135,7 @@ function MetricCard({ label, value }: { label: string; value: number }) {
 export function TerminalSessionStatusClient({
   highlightedWorkspaceId,
 }: TerminalSessionStatusClientProps) {
+  const { terminalWsUrl } = useRuntimeConfig();
   const mountedRef = useRef(true);
   const [state, setState] = useState<StatusState>({
     error: null,
@@ -144,9 +145,8 @@ export function TerminalSessionStatusClient({
   });
 
   const statusEndpoint = useMemo(() => {
-    const terminalWsUrl = getClientRuntimeConfig().terminalWsUrl;
     return terminalWsUrl ? `${terminalProxyHttpBaseUrl(terminalWsUrl)}/keepalive/status` : null;
-  }, []);
+  }, [terminalWsUrl]);
 
   const refresh = useCallback(async () => {
     if (!statusEndpoint) {

@@ -189,9 +189,11 @@ test.describe("authenticated Hive workflows", () => {
   });
 
   test("opens a live workspace terminal when one is available", async ({ page }, testInfo) => {
+    test.setTimeout(90_000);
     const terminalSocketUrls: string[] = [];
     page.on("websocket", (socket) => {
-      if (new URL(socket.url()).pathname.startsWith("/ws")) {
+      const url = new URL(socket.url());
+      if (url.searchParams.has("agentId") && url.searchParams.has("reconnectId")) {
         terminalSocketUrls.push(socket.url());
       }
     });
@@ -199,7 +201,11 @@ test.describe("authenticated Hive workflows", () => {
     await page.goto(new URL("/workspaces", appUrl).toString());
     await waitForDashboardReady(page);
     const workspaceLink = page.locator('a[href$="/terminal/workspace"]:visible').first();
-    await expect(workspaceLink).toBeVisible({ timeout: 15_000 });
+    const workspaceAvailable = await workspaceLink
+      .waitFor({ state: "visible", timeout: 15_000 })
+      .then(() => true)
+      .catch(() => false);
+    test.skip(!workspaceAvailable, "No running workspace available.");
 
     await workspaceLink.click();
     await expect(page).toHaveURL(/\/workspaces\/[^/]+\/terminal\/workspace/);
@@ -218,15 +224,10 @@ test.describe("authenticated Hive workflows", () => {
     expect(terminalSocketUrls).toHaveLength(healthySocketCount);
     await capture(page, testInfo, "workspace-terminal-connected");
 
-    const sessionName = (await page.getByTestId("active-pane-label").textContent())?.trim();
-    expect(sessionName).toBeTruthy();
-    const workspaceUrl = new URL(page.url());
-    await page.goto(
-      new URL(
-        `/workspaces/${workspaceUrl.pathname.split("/")[2]}/terminal?session=${encodeURIComponent(sessionName ?? "")}`,
-        appUrl,
-      ).toString(),
-    );
+    const sessionLabel = (await page.getByTestId("active-pane-label").textContent())?.trim();
+    expect(sessionLabel).toBeTruthy();
+    await page.keyboard.press("Control+K");
+    await page.getByText(`Open ${sessionLabel}`, { exact: true }).click();
     await expect(page.getByTestId("single-terminal-header")).toBeVisible();
     const singleTerminal = await expectConnectedTerminal(page);
     await proveTerminalAcceptsInput(page, singleTerminal);

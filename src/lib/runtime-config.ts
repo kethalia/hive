@@ -2,6 +2,8 @@ export interface RuntimeConfig {
   terminalWsUrl: string;
 }
 
+export const RUNTIME_CONFIG_ELEMENT_ID = "hive-runtime-config";
+
 interface BrowserLocation {
   host: string;
   protocol: string;
@@ -20,11 +22,30 @@ export function getServerRuntimeConfig(): RuntimeConfig {
 }
 
 export function serializeRuntimeConfig(config: RuntimeConfig): string {
-  const json = JSON.stringify(config)
+  return JSON.stringify(config)
     .replace(/</g, "\\u003c")
     .replace(/\u2028/g, "\\u2028")
     .replace(/\u2029/g, "\\u2029");
-  return `window.__HIVE_CONFIG__=${json};`;
+}
+
+export function parseRuntimeConfig(value: string | null | undefined): RuntimeConfig | null {
+  if (!value) return null;
+
+  try {
+    const parsed: unknown = JSON.parse(value);
+    if (
+      typeof parsed === "object" &&
+      parsed !== null &&
+      "terminalWsUrl" in parsed &&
+      typeof parsed.terminalWsUrl === "string"
+    ) {
+      return { terminalWsUrl: parsed.terminalWsUrl };
+    }
+  } catch {
+    // Invalid runtime data falls through to the build-time development fallback.
+  }
+
+  return null;
 }
 
 export function resolveTerminalWsUrl(
@@ -40,13 +61,19 @@ export function resolveTerminalWsUrl(
 }
 
 export function getClientRuntimeConfig(): RuntimeConfig {
+  const domConfig =
+    typeof document !== "undefined"
+      ? parseRuntimeConfig(document.getElementById(RUNTIME_CONFIG_ELEMENT_ID)?.textContent)
+      : null;
   const runtimeConfig =
     typeof window !== "undefined" && window.__HIVE_CONFIG__
       ? window.__HIVE_CONFIG__
-      : {
-          // Fallback for dev (Next inlines NEXT_PUBLIC_* at build time) and tests.
-          terminalWsUrl: process.env.NEXT_PUBLIC_TERMINAL_WS_URL ?? "",
-        };
+      : domConfig
+        ? domConfig
+        : {
+            // Fallback for dev (Next inlines NEXT_PUBLIC_* at build time) and tests.
+            terminalWsUrl: process.env.NEXT_PUBLIC_TERMINAL_WS_URL ?? "",
+          };
 
   const browserLocation = typeof window !== "undefined" ? window.location : undefined;
 

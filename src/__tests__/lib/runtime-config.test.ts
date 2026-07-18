@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   getClientRuntimeConfig,
   getServerRuntimeConfig,
+  RUNTIME_CONFIG_ELEMENT_ID,
   resolveTerminalWsUrl,
   serializeRuntimeConfig,
 } from "@/lib/runtime-config";
@@ -10,6 +11,7 @@ import {
 describe("runtime-config", () => {
   afterEach(() => {
     vi.unstubAllEnvs();
+    vi.unstubAllGlobals();
     if (typeof globalThis !== "undefined") {
       delete (globalThis as { window?: unknown }).window;
     }
@@ -53,6 +55,20 @@ describe("runtime-config", () => {
       });
     });
 
+    it("reads the non-executable JSON data island when the window assignment is absent", () => {
+      vi.stubEnv("NEXT_PUBLIC_TERMINAL_WS_URL", "wss://from-env.example.com/ws");
+      vi.stubGlobal("document", {
+        getElementById: (id: string) =>
+          id === RUNTIME_CONFIG_ELEMENT_ID
+            ? { textContent: '{"terminalWsUrl":"wss://from-dom.example.com/ws"}' }
+            : null,
+      });
+
+      expect(getClientRuntimeConfig()).toEqual({
+        terminalWsUrl: "wss://from-dom.example.com/ws",
+      });
+    });
+
     it("returns empty string when neither source provides a value", () => {
       vi.stubEnv("NEXT_PUBLIC_TERMINAL_WS_URL", "");
       expect(getClientRuntimeConfig()).toEqual({ terminalWsUrl: "" });
@@ -60,10 +76,8 @@ describe("runtime-config", () => {
   });
 
   describe("serializeRuntimeConfig", () => {
-    it("creates an immediately executable browser assignment", () => {
-      expect(serializeRuntimeConfig({ terminalWsUrl: "/" })).toBe(
-        'window.__HIVE_CONFIG__={"terminalWsUrl":"/"};',
-      );
+    it("creates JSON for a non-executable data island", () => {
+      expect(serializeRuntimeConfig({ terminalWsUrl: "/" })).toBe('{"terminalWsUrl":"/"}');
     });
 
     it("escapes script-breaking characters", () => {

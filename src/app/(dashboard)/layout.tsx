@@ -4,6 +4,7 @@ import { AppViewportSize } from "@/components/app-viewport-size";
 import { DashboardKeyboardController } from "@/components/dashboard-keyboard-controller";
 import { DashboardSidebarTrigger } from "@/components/dashboard-sidebar-trigger";
 import { PushPermissionPrompt } from "@/components/push-permission-prompt";
+import { RuntimeConfigProvider } from "@/components/runtime-config-provider";
 import { ServiceWorkerRegister } from "@/components/service-worker-register";
 import { SidebarEdgeHandle } from "@/components/sidebar-edge-handle";
 import { HelpOverlay } from "@/components/terminal/HelpOverlay";
@@ -13,17 +14,21 @@ import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { getTokenStatusAction } from "@/lib/auth/actions";
-import { getServerRuntimeConfig, serializeRuntimeConfig } from "@/lib/runtime-config";
+import {
+  getServerRuntimeConfig,
+  RUNTIME_CONFIG_ELEMENT_ID,
+  serializeRuntimeConfig,
+} from "@/lib/runtime-config";
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
   const bannerStatus = await getTokenStatusAction();
-  const runtimeConfig = serializeRuntimeConfig(getServerRuntimeConfig());
+  const runtimeConfig = getServerRuntimeConfig();
 
   return (
-    <>
-      {/* Inline server values so terminal components cannot hydrate before config is available. */}
-      {/* biome-ignore lint/security/noDangerouslySetInnerHtml: serializeRuntimeConfig escapes script-breaking input. */}
-      <script dangerouslySetInnerHTML={{ __html: runtimeConfig }} />
+    <RuntimeConfigProvider config={runtimeConfig}>
+      <script id={RUNTIME_CONFIG_ELEMENT_ID} type="application/json">
+        {serializeRuntimeConfig(runtimeConfig)}
+      </script>
       <ServiceWorkerRegister />
       <AppViewportSize />
       <TooltipProvider>
@@ -61,6 +66,6 @@ export default async function DashboardLayout({ children }: { children: React.Re
         </SidebarProvider>
       </TooltipProvider>
       <Toaster />
-    </>
+    </RuntimeConfigProvider>
   );
 }

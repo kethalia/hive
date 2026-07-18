@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { getClientRuntimeConfig } from "@/lib/runtime-config";
+import { useRuntimeConfig } from "@/components/runtime-config-provider";
 
 export type KeepAliveHealthStatus =
   | "healthy"
@@ -184,13 +184,14 @@ export function parseKeepAliveStatusPayload(payload: unknown): Record<string, Ke
 }
 
 export function useKeepAliveStatus(workspaceId: string): KeepAliveStatus {
+  const { terminalWsUrl } = useRuntimeConfig();
   const [status, setStatus] = useState<KeepAliveStatus>(DEFAULT_KEEP_ALIVE_STATUS);
   const mountedRef = useRef(true);
 
   useEffect(() => {
     mountedRef.current = true;
 
-    const proxyWsUrl = getClientRuntimeConfig().terminalWsUrl;
+    const proxyWsUrl = terminalWsUrl;
     if (!proxyWsUrl) {
       setStatus((s) => ({ ...s, isLoading: false }));
       return;
@@ -225,7 +226,7 @@ export function useKeepAliveStatus(workspaceId: string): KeepAliveStatus {
       mountedRef.current = false;
       clearInterval(intervalId);
     };
-  }, [workspaceId]);
+  }, [terminalWsUrl, workspaceId]);
 
   return status;
 }

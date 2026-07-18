@@ -12,6 +12,7 @@ import {
   useRef,
   useState,
 } from "react";
+import { useRuntimeConfig } from "@/components/runtime-config-provider";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useKeybindings } from "@/hooks/useKeybindings";
 import { useTerminalPinchZoom } from "@/hooks/useTerminalPinchZoom";
@@ -24,7 +25,6 @@ import {
 import { useXtermSurface } from "@/hooks/useXtermSurface";
 import { TAP_THRESHOLD_PX } from "@/lib/gestures/conventions";
 import { isCloneTerminalSessionName } from "@/lib/git/clone-terminal-session";
-import { getClientRuntimeConfig } from "@/lib/runtime-config";
 import {
   type ClipboardActionStatus,
   dropDataTransferToTerminal,
@@ -399,6 +399,7 @@ export function InteractiveTerminal({
   pinToBottomOnResize = false,
   selectionModeEnabled = false,
 }: InteractiveTerminalProps) {
+  const { terminalWsUrl } = useRuntimeConfig();
   const containerRef = useRef<HTMLDivElement>(null);
   const termRef = useRef<Terminal | null>(null);
   const fitRef = useRef<FitAddon | null>(null);
@@ -489,7 +490,7 @@ export function InteractiveTerminal({
         return { failureCategory: "session-name-mismatch" };
       }
 
-      const proxyUrl = getClientRuntimeConfig().terminalWsUrl;
+      const proxyUrl = terminalWsUrl;
       if (!proxyUrl) {
         return { failureCategory: "malformed-identity" };
       }
@@ -520,7 +521,15 @@ export function InteractiveTerminal({
         cloneProof: validatedIdentity.cloneProof,
       });
     },
-    [agentId, clonePath, reconnectId, refreshCloneTerminalIdentity, sessionName, workspaceId],
+    [
+      agentId,
+      clonePath,
+      reconnectId,
+      refreshCloneTerminalIdentity,
+      sessionName,
+      terminalWsUrl,
+      workspaceId,
+    ],
   );
 
   const handleData = useCallback((data: Uint8Array | string) => {
@@ -1017,7 +1026,7 @@ export function InteractiveTerminal({
       if (termRef.current !== term) return;
       fitResizeAndPreserveBottom(Boolean(pinToBottomOnResizeRef.current), "initial-layout-refit");
 
-      const proxyUrl = getClientRuntimeConfig().terminalWsUrl;
+      const proxyUrl = terminalWsUrl;
       if (!proxyUrl) {
         console.error(
           "runtime config terminalWsUrl is not set (check NEXT_PUBLIC_TERMINAL_WS_URL on the server)",
