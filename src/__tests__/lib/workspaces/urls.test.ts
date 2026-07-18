@@ -39,6 +39,19 @@ describe("buildWorkspaceUrls", () => {
     expect(urls!.codeServer).toBe("https://code-server--gpu-agent--dev-box--alice.coder.dev");
   });
 
+  it("uses Coder's configured wildcard app host when it differs from the access URL", () => {
+    const urls = buildWorkspaceUrls(
+      workspace,
+      agent,
+      "https://coder.kethalia.com",
+      "*.kethalia.com",
+    );
+
+    expect(urls!.filebrowser).toBe("https://filebrowser--main--dev-box--alice.kethalia.com");
+    expect(urls!.codeServer).toBe("https://code-server--main--dev-box--alice.kethalia.com");
+    expect(urls!.dashboard).toBe("https://coder.kethalia.com/@alice/dev-box");
+  });
+
   it("returns null for empty coderUrl", () => {
     const urls = buildWorkspaceUrls(workspace, agent, "");
     expect(urls).toBeNull();

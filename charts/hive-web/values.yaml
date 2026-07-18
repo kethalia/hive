@@ -149,6 +149,9 @@ config:
   # Service renders as `<umbrella-release>-hive-auth`).
   AUTH_SERVICE_URL: "http://hive-auth"
   CODER_URL: ""
+  # Coder's configured wildcard app URL (for example `*.coder.example.com`).
+  # Leave empty only when workspace apps live below the CODER_URL hostname.
+  CODER_WILDCARD_ACCESS_URL: ""
   NEXT_PUBLIC_TERMINAL_WS_URL: ""
   # Absolute POSIX workspace home tree path used for Git clone discovery/sidebar scans.
   # The web service scans this path inside Coder workspaces via coder ssh.

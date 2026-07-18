@@ -11,18 +11,29 @@ export function buildWorkspaceUrls(
   workspace: Pick<CoderWorkspace, "name" | "owner_name">,
   agentName: string,
   coderUrl: string,
+  wildcardAccessUrl?: string,
 ): WorkspaceUrls | null {
   if (!coderUrl) return null;
 
   const stripped = coderUrl.replace(/\/+$/, "");
   const coderHost = new URL(stripped).host;
+  const workspaceAppHost = getWorkspaceAppHost(coderHost, wildcardAccessUrl);
 
   return {
-    filebrowser: `https://filebrowser--${agentName}--${workspace.name}--${workspace.owner_name}.${coderHost}`,
-    kasmvnc: `https://kasm-vnc--${agentName}--${workspace.name}--${workspace.owner_name}.${coderHost}`,
-    codeServer: `https://code-server--${agentName}--${workspace.name}--${workspace.owner_name}.${coderHost}`,
+    filebrowser: `https://filebrowser--${agentName}--${workspace.name}--${workspace.owner_name}.${workspaceAppHost}`,
+    kasmvnc: `https://kasm-vnc--${agentName}--${workspace.name}--${workspace.owner_name}.${workspaceAppHost}`,
+    codeServer: `https://code-server--${agentName}--${workspace.name}--${workspace.owner_name}.${workspaceAppHost}`,
     dashboard: `${stripped}/@${workspace.owner_name}/${workspace.name}`,
   };
+}
+
+export function getWorkspaceAppHost(coderHost: string, wildcardAccessUrl?: string): string {
+  if (!wildcardAccessUrl?.trim()) return coderHost;
+
+  const withProtocol = wildcardAccessUrl.includes("://")
+    ? wildcardAccessUrl
+    : `https://${wildcardAccessUrl}`;
+  return new URL(withProtocol.replace("*.", "placeholder.")).host.replace(/^placeholder\./, "");
 }
 
 export function buildCodeServerFolderUrl(

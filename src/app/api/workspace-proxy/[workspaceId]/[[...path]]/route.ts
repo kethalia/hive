@@ -2,6 +2,7 @@ import { cookies } from "next/headers";
 import { type NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/auth/session";
 import { getCoderClientForUser } from "@/lib/coder/user-client";
+import { getWorkspaceAppHost } from "@/lib/workspaces/urls";
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -96,14 +97,24 @@ function buildTargetUrl(
   subPath: string,
   search: string,
 ): string {
-  const base = `https://${appSlug}--${meta.agent}--${meta.name}--${meta.owner}.${coderHost}`;
+  const appHost = getWorkspaceAppHost(coderHost, process.env.CODER_WILDCARD_ACCESS_URL);
+  const base = `https://${appSlug}--${meta.agent}--${meta.name}--${meta.owner}.${appHost}`;
   return `${base}/${subPath}${search}`;
 }
 
 function isCoderOrigin(url: URL, coderHost: string): boolean {
   const targetHost = url.host.toLowerCase();
   const lowerCoderHost = coderHost.toLowerCase();
-  return targetHost === lowerCoderHost || targetHost.endsWith(`.${lowerCoderHost}`);
+  const appHost = getWorkspaceAppHost(
+    coderHost,
+    process.env.CODER_WILDCARD_ACCESS_URL,
+  ).toLowerCase();
+  return (
+    targetHost === lowerCoderHost ||
+    targetHost.endsWith(`.${lowerCoderHost}`) ||
+    targetHost === appHost ||
+    targetHost.endsWith(`.${appHost}`)
+  );
 }
 
 async function proxyRequest(
