@@ -5,6 +5,8 @@ const scriptSource =
     ? "script-src 'self' 'unsafe-inline' 'unsafe-eval'"
     : "script-src 'self' 'unsafe-inline'";
 
+export const contentSecurityPolicy = `default-src 'self'; base-uri 'self'; frame-ancestors 'self'; frame-src 'self' https:; form-action 'self'; object-src 'none'; ${scriptSource}; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data: blob:; connect-src 'self' http: https: wss: ws:; worker-src 'self' blob:`;
+
 const nextConfig: NextConfig = {
   output: "standalone",
   async headers() {
@@ -21,7 +23,7 @@ const nextConfig: NextConfig = {
           },
           {
             key: "Content-Security-Policy",
-            value: `default-src 'self'; base-uri 'self'; frame-ancestors 'self'; form-action 'self'; object-src 'none'; ${scriptSource}; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data: blob:; connect-src 'self' http: https: wss: ws:; worker-src 'self' blob:`,
+            value: contentSecurityPolicy,
           },
         ],
       },

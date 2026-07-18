@@ -225,7 +225,7 @@ test.describe("authenticated Hive workflows", () => {
     await capture(page, testInfo, "workspace-terminal-connected");
 
     await page
-      .getByRole("button", { name: /Browse files for/ })
+      .getByRole("button", { name: /^Browse files for / })
       .first()
       .click();
     const workspaceToolDialog = page.getByTestId("workspace-tool-dialog");
