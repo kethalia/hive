@@ -1,5 +1,11 @@
 # hive-terminal-proxy
 
+## 2.0.12
+
+### Patch Changes
+
+- 42e2778: Load terminal runtime configuration before dashboard hydration and verify both browser and Coder WebSocket legs with acknowledged heartbeats so healthy sessions stay connected while half-open sessions recover automatically.
+
 ## 2.0.11
 
 ### Patch Changes
