@@ -168,7 +168,7 @@ test.describe("authenticated Hive workflows", () => {
     await page.getByRole("button", { name: /Add workspace/ }).click();
     await expect(page.getByRole("heading", { name: "Add workspace" })).toBeVisible();
     await expect(page.getByLabel("Workspace name")).toBeVisible();
-    await expect(page.getByLabel("Template")).toBeVisible();
+    await expect(page.getByTestId("create-workspace-template")).toBeVisible();
     await page.getByRole("button", { name: "Cancel" }).click();
     await capture(page, testInfo, "workspaces");
 
