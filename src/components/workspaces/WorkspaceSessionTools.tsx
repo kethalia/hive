@@ -14,12 +14,14 @@ export interface WorkspaceSessionToolUrls {
   folderPath: string | null;
 }
 
+type OpenWorkspaceTool = (...args: [WorkspaceTool, WorkspaceSessionToolUrls]) => void;
+
 interface WorkspaceSessionToolsProps {
   workspaceId: string;
   sessionName: string;
   label: string;
   fallbackPath?: string;
-  onOpenTool: (tool: WorkspaceTool, urls: WorkspaceSessionToolUrls) => void;
+  onOpenTool: OpenWorkspaceTool;
 }
 
 function isWorkspaceSessionToolUrls(value: unknown): value is WorkspaceSessionToolUrls {

@@ -2927,7 +2927,9 @@ export function MultiSessionWorkspace({
           dataTestId={`workspace-tool-pane-${toolPane.tool}`}
           layoutMode="tiled"
           style={paneStyle}
-          onActivate={() => selectSession(toolPane.sourceSessionName, { focusTerminal: false })}
+          onActivate={() => {
+            selectSession(toolPane.sourceSessionName, { focusTerminal: false });
+          }}
           closeLabel={`Close ${toolPane.label}`}
           closeTestId={`remove-workspace-tool-${toolPane.tool}`}
           onClose={(event) => {
@@ -2995,9 +2997,9 @@ export function MultiSessionWorkspace({
               sessionName={session.sessionName}
               label={session.label}
               fallbackPath={session.clonePath}
-              onOpenTool={(tool, urls) =>
-                openWorkspaceToolPane(model.board.key, session, tool, urls)
-              }
+              onOpenTool={(tool, urls) => {
+                openWorkspaceToolPane(model.board.key, session, tool, urls);
+              }}
             />
           ) : null
         }
