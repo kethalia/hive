@@ -860,6 +860,7 @@ export function InteractiveTerminal({
       clonePath ?? "",
       cloneProof ?? "",
       reconnectId,
+      terminalWsUrl,
     ].join(":"),
     onReady: async (term, fit) => {
       applyMobileInputAdapter();

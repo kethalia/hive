@@ -28,6 +28,10 @@ export function serializeRuntimeConfig(config: RuntimeConfig): string {
     .replace(/\u2029/g, "\\u2029");
 }
 
+export function serializeRuntimeConfigScript(config: RuntimeConfig): string {
+  return `window.__HIVE_CONFIG__=${serializeRuntimeConfig(config)};`;
+}
+
 export function parseRuntimeConfig(value: string | null | undefined): RuntimeConfig | null {
   if (!value) return null;
 

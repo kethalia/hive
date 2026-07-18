@@ -6,6 +6,7 @@ import {
   RUNTIME_CONFIG_ELEMENT_ID,
   resolveTerminalWsUrl,
   serializeRuntimeConfig,
+  serializeRuntimeConfigScript,
 } from "@/lib/runtime-config";
 
 describe("runtime-config", () => {
@@ -89,6 +90,20 @@ describe("runtime-config", () => {
       expect(serialized).toContain("\\u003c/script>");
       expect(serialized).toContain("\\u2028");
       expect(serialized).toContain("\\u2029");
+    });
+  });
+
+  describe("serializeRuntimeConfigScript", () => {
+    it("creates an executable assignment for the legacy JavaScript route", () => {
+      expect(serializeRuntimeConfigScript({ terminalWsUrl: "/" })).toBe(
+        'window.__HIVE_CONFIG__={"terminalWsUrl":"/"};',
+      );
+    });
+
+    it("retains script-breaking escaping in executable compatibility output", () => {
+      expect(serializeRuntimeConfigScript({ terminalWsUrl: "</script>" })).toBe(
+        'window.__HIVE_CONFIG__={"terminalWsUrl":"\\u003c/script>"};',
+      );
     });
   });
 

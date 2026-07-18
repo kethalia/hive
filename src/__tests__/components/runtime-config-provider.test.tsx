@@ -2,6 +2,7 @@
 
 import { renderHook } from "@testing-library/react";
 import type { ReactNode } from "react";
+import { renderToString } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import { RuntimeConfigProvider, useRuntimeConfig } from "@/components/runtime-config-provider";
 
@@ -28,5 +29,19 @@ describe("RuntimeConfigProvider", () => {
     const { result } = renderHook(() => useRuntimeConfig(), { wrapper });
 
     expect(result.current).toEqual({ terminalWsUrl: "ws://localhost:3000/terminal" });
+  });
+
+  it("withholds a relative URL from hydration until the browser host can resolve it", () => {
+    function RuntimeConfigValue() {
+      return <span>{useRuntimeConfig().terminalWsUrl}</span>;
+    }
+
+    expect(
+      renderToString(
+        <RuntimeConfigProvider config={{ terminalWsUrl: "/" }}>
+          <RuntimeConfigValue />
+        </RuntimeConfigProvider>,
+      ),
+    ).toBe("<span></span>");
   });
 });

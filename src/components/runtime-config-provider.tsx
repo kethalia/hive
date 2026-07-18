@@ -28,7 +28,7 @@ export function useRuntimeConfig(): RuntimeConfig {
         configuredUrl ?? getClientRuntimeConfig().terminalWsUrl,
         window.location,
       ),
-    () => configuredUrl ?? getClientRuntimeConfig().terminalWsUrl,
+    () => resolveTerminalWsUrl(configuredUrl ?? getClientRuntimeConfig().terminalWsUrl),
   );
 
   return useMemo(() => ({ terminalWsUrl }), [terminalWsUrl]);

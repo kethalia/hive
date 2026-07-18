@@ -1,11 +1,11 @@
 import { NextResponse } from "next/server";
-import { getServerRuntimeConfig, serializeRuntimeConfig } from "@/lib/runtime-config";
+import { getServerRuntimeConfig, serializeRuntimeConfigScript } from "@/lib/runtime-config";
 
 export const dynamic = "force-dynamic";
 
 export function GET() {
   const config = getServerRuntimeConfig();
-  const body = serializeRuntimeConfig(config);
+  const body = serializeRuntimeConfigScript(config);
   return new NextResponse(body, {
     headers: {
       "content-type": "application/javascript; charset=utf-8",
