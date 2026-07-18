@@ -217,9 +217,17 @@ export const getWorkspaceSessionToolsAction = authActionClient
         folderPath,
       ),
       folderPath: folderPath ?? null,
-      source: currentDirectory ? "tmux" : folderPath ? "fallback" : "default",
+      source: getWorkspaceDirectorySource(currentDirectory, folderPath),
     };
   });
+
+function getWorkspaceDirectorySource(
+  currentDirectory: string | null,
+  folderPath: string | undefined,
+): "tmux" | "fallback" | "default" {
+  if (currentDirectory) return "tmux";
+  return folderPath ? "fallback" : "default";
+}
 
 const restartWorkspaceSchema = z.object({
   workspaceId: z.string().min(1, "workspaceId is required"),

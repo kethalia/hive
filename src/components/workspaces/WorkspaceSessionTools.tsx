@@ -12,10 +12,9 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { getWorkspaceSessionToolsAction } from "@/lib/actions/workspaces";
-import {
-  type EmbeddedWorkspaceTool,
-  openWorkspaceToolPopup,
-} from "@/lib/workspaces/embedded-tools";
+import { openWorkspaceToolPopup } from "@/lib/workspaces/embedded-tools";
+
+type WorkspaceTool = "code" | "files";
 
 interface WorkspaceSessionToolsProps {
   workspaceId: string;
@@ -33,14 +32,20 @@ interface WorkspaceSessionToolUrls {
 function isWorkspaceSessionToolUrls(value: unknown): value is WorkspaceSessionToolUrls {
   if (typeof value !== "object" || value === null) return false;
   return (
-    "codeUrl" in value &&
-    typeof value.codeUrl === "string" &&
-    value.codeUrl.length > 0 &&
-    "filesUrl" in value &&
-    typeof value.filesUrl === "string" &&
-    value.filesUrl.length > 0 &&
-    "folderPath" in value &&
-    (value.folderPath === null || typeof value.folderPath === "string")
+    hasNonEmptyString(value, "codeUrl") &&
+    hasNonEmptyString(value, "filesUrl") &&
+    hasFolderPath(value)
+  );
+}
+
+function hasNonEmptyString(value: object, key: string): boolean {
+  const property = Object.entries(value).find(([propertyKey]) => propertyKey === key)?.[1];
+  return typeof property === "string" && property.length > 0;
+}
+
+function hasFolderPath(value: object): boolean {
+  return (
+    "folderPath" in value && (value.folderPath === null || typeof value.folderPath === "string")
   );
 }
 
@@ -50,11 +55,11 @@ export function WorkspaceSessionTools({
   label,
   fallbackPath,
 }: WorkspaceSessionToolsProps) {
-  const [activeTool, setActiveTool] = useState<EmbeddedWorkspaceTool | null>(null);
-  const [loadingTool, setLoadingTool] = useState<EmbeddedWorkspaceTool | null>(null);
+  const [activeTool, setActiveTool] = useState<WorkspaceTool | null>(null);
+  const [loadingTool, setLoadingTool] = useState<WorkspaceTool | null>(null);
   const [urls, setUrls] = useState<WorkspaceSessionToolUrls | null>(null);
 
-  async function openTool(tool: EmbeddedWorkspaceTool) {
+  async function openTool(tool: WorkspaceTool) {
     setLoadingTool(tool);
     try {
       const result = await getWorkspaceSessionToolsAction({
@@ -75,9 +80,6 @@ export function WorkspaceSessionTools({
     }
   }
 
-  const activeUrl = activeTool === "code" ? urls?.codeUrl : urls?.filesUrl;
-  const title = activeTool === "code" ? "VS Code" : "Files";
-
   return (
     <>
       <div className="flex items-center gap-0.5" data-testid={`workspace-tools-${sessionName}`}>
@@ -94,70 +96,129 @@ export function WorkspaceSessionTools({
           onClick={() => void openTool("code")}
         />
       </div>
-      <Dialog
-        open={activeTool !== null}
-        onOpenChange={(open) => {
-          if (!open) setActiveTool(null);
-        }}
-      >
-        {activeTool && urls && activeUrl ? (
-          <DialogContent
-            className="grid h-[min(92dvh,1000px)] w-[min(98vw,1600px)] max-w-none grid-rows-[auto_minmax(0,1fr)] gap-2 overflow-hidden p-2"
-            data-testid="workspace-tool-dialog"
-          >
-            <DialogHeader className="flex-row items-center gap-2 pr-10 text-left">
-              <div className="min-w-0 flex-1">
-                <DialogTitle className="truncate text-sm">
-                  {title}: {label}
-                </DialogTitle>
-                <DialogDescription className="truncate font-mono text-xs">
-                  {urls.folderPath ?? "/home/coder"}
-                </DialogDescription>
-              </div>
-              <div className="flex items-center gap-1" role="tablist" aria-label="Workspace tools">
-                <Button
-                  type="button"
-                  role="tab"
-                  size="xs"
-                  variant={activeTool === "files" ? "secondary" : "ghost"}
-                  aria-selected={activeTool === "files"}
-                  onClick={() => setActiveTool("files")}
-                >
-                  <FolderOpen className="size-3" /> Files
-                </Button>
-                <Button
-                  type="button"
-                  role="tab"
-                  size="xs"
-                  variant={activeTool === "code" ? "secondary" : "ghost"}
-                  aria-selected={activeTool === "code"}
-                  onClick={() => setActiveTool("code")}
-                >
-                  <Code2 className="size-3" /> VS Code
-                </Button>
-                <Button
-                  type="button"
-                  size="xs"
-                  variant="outline"
-                  onClick={() => openWorkspaceToolPopup(activeUrl, activeTool)}
-                  aria-label={`Open ${title} in a new window`}
-                >
-                  <ExternalLink className="size-3" /> Pop out
-                </Button>
-              </div>
-            </DialogHeader>
-            <iframe
-              key={activeUrl}
-              src={activeUrl}
-              title={`${title} for ${label}`}
-              className="h-full min-h-0 w-full rounded-md border border-border bg-background"
-              allow="clipboard-read; clipboard-write"
-              data-testid="workspace-tool-frame"
-            />
-          </DialogContent>
-        ) : null}
-      </Dialog>
+      <WorkspaceToolDialog
+        activeTool={activeTool}
+        urls={urls}
+        label={label}
+        onActiveToolChange={setActiveTool}
+      />
     </>
+  );
+}
+
+function WorkspaceToolDialog({
+  activeTool,
+  urls,
+  label,
+  onActiveToolChange,
+}: {
+  activeTool: WorkspaceTool | null;
+  urls: WorkspaceSessionToolUrls | null;
+  label: string;
+  onActiveToolChange: (tool: WorkspaceTool | null) => void;
+}) {
+  const activeUrl = activeTool === "code" ? urls?.codeUrl : urls?.filesUrl;
+  const title = activeTool === "code" ? "VS Code" : "Files";
+  return (
+    <Dialog
+      open={activeTool !== null}
+      onOpenChange={(open) => {
+        if (!open) onActiveToolChange(null);
+      }}
+    >
+      {activeTool && urls && activeUrl ? (
+        <DialogContent
+          className="grid h-[min(92dvh,1000px)] w-[min(98vw,1600px)] max-w-none grid-rows-[auto_minmax(0,1fr)] gap-2 overflow-hidden p-2"
+          data-testid="workspace-tool-dialog"
+        >
+          <WorkspaceToolHeader
+            activeTool={activeTool}
+            activeUrl={activeUrl}
+            title={title}
+            label={label}
+            folderPath={urls.folderPath}
+            onActiveToolChange={onActiveToolChange}
+          />
+          <iframe
+            key={activeUrl}
+            src={activeUrl}
+            title={`${title} for ${label}`}
+            className="h-full min-h-0 w-full rounded-md border border-border bg-background"
+            allow="clipboard-read; clipboard-write"
+            data-testid="workspace-tool-frame"
+          />
+        </DialogContent>
+      ) : null}
+    </Dialog>
+  );
+}
+
+function WorkspaceToolHeader({
+  activeTool,
+  activeUrl,
+  title,
+  label,
+  folderPath,
+  onActiveToolChange,
+}: {
+  activeTool: WorkspaceTool;
+  activeUrl: string;
+  title: string;
+  label: string;
+  folderPath: string | null;
+  onActiveToolChange: (tool: WorkspaceTool | null) => void;
+}) {
+  return (
+    <DialogHeader className="flex-row items-center gap-2 pr-10 text-left">
+      <div className="min-w-0 flex-1">
+        <DialogTitle className="truncate text-sm">
+          {title}: {label}
+        </DialogTitle>
+        <DialogDescription className="truncate font-mono text-xs">
+          {folderPath ?? "/home/coder"}
+        </DialogDescription>
+      </div>
+      <div className="flex items-center gap-1" role="tablist" aria-label="Workspace tools">
+        <ToolTab tool="files" activeTool={activeTool} onActiveToolChange={onActiveToolChange} />
+        <ToolTab tool="code" activeTool={activeTool} onActiveToolChange={onActiveToolChange} />
+        <Button
+          type="button"
+          size="xs"
+          variant="outline"
+          onClick={() => openWorkspaceToolPopup(activeUrl, activeTool)}
+          aria-label={`Open ${title} in a new window`}
+        >
+          <ExternalLink className="size-3" /> Pop out
+        </Button>
+      </div>
+    </DialogHeader>
+  );
+}
+
+function ToolTab({
+  tool,
+  activeTool,
+  onActiveToolChange,
+}: {
+  tool: WorkspaceTool;
+  activeTool: WorkspaceTool;
+  onActiveToolChange: (tool: WorkspaceTool | null) => void;
+}) {
+  const isCode = tool === "code";
+  return (
+    <Button
+      type="button"
+      role="tab"
+      size="xs"
+      variant={activeTool === tool ? "secondary" : "ghost"}
+      aria-selected={activeTool === tool}
+      onClick={() => {
+        onActiveToolChange(tool);
+      }}
+    >
+      {isCode ? <Code2 className="size-3" /> : <FolderOpen className="size-3" />}
+      {isCode ? "VS Code" : "Files"}
+    </Button>
   );
 }
 
@@ -167,7 +228,7 @@ function ToolButton({
   loading,
   onClick,
 }: {
-  tool: EmbeddedWorkspaceTool;
+  tool: WorkspaceTool;
   label: string;
   loading: boolean;
   onClick: () => void;
