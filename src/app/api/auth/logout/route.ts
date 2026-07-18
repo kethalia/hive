@@ -18,6 +18,9 @@ export async function POST(request: Request) {
 
   const response = NextResponse.json({ success: true as const });
   appendClearSessionCookieHeaders(response.headers, new URL(request.url).hostname);
-  response.headers.append("set-cookie", `${CODER_HOST_COOKIE}=; Path=/; Max-Age=0; HttpOnly`);
+  response.headers.append(
+    "set-cookie",
+    `${CODER_HOST_COOKIE}=; Path=/; Max-Age=0; HttpOnly; Secure; SameSite=Lax`,
+  );
   return response;
 }

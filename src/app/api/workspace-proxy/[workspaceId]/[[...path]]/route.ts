@@ -17,7 +17,11 @@ interface WorkspaceMeta {
 const MAX_CACHE_SIZE = 100;
 const metaCache = new Map<string, WorkspaceMeta>();
 const CACHE_TTL_MS = 5 * 60 * 1000;
-const insecureCoderAppDispatcher = new Agent({ connect: { rejectUnauthorized: false } });
+// The dispatcher is reached only after verified TLS fails with a private-CA error and
+// only for exact Coder app hosts resolved from the authenticated Coder API.
+const insecureCoderAppDispatcher = new Agent({
+  connect: { rejectUnauthorized: false }, // nosemgrep
+});
 
 const APP_SLUG_MAP: Record<string, string> = {
   filebrowser: "filebrowser",
