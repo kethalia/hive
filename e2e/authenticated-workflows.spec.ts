@@ -207,7 +207,10 @@ test.describe("authenticated Hive workflows", () => {
       .catch(() => false);
     test.skip(!workspaceAvailable, "No running workspace available.");
 
-    await workspaceLink.click();
+    const workspaceHref = await workspaceLink.getAttribute("href");
+    expect(workspaceHref).toBeTruthy();
+    if (!workspaceHref) throw new Error("Running workspace link has no destination.");
+    await page.goto(new URL(workspaceHref, appUrl).toString());
     await expect(page).toHaveURL(/\/workspaces\/[^/]+\/terminal\/workspace/);
     await expect(
       page.locator(
