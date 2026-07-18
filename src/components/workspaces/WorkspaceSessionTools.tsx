@@ -118,8 +118,6 @@ function WorkspaceToolDialog({
   label: string;
   onActiveToolChange: ActiveToolChangeHandler;
 }) {
-  const activeUrl = activeTool === "code" ? urls?.codeUrl : urls?.filesUrl;
-  const title = activeTool === "code" ? "VS Code" : "Files";
   return (
     <Dialog
       open={activeTool !== null}
@@ -127,30 +125,53 @@ function WorkspaceToolDialog({
         if (!open) onActiveToolChange(null);
       }}
     >
-      {activeTool && urls && activeUrl ? (
-        <DialogContent
-          className="grid h-[min(92dvh,1000px)] w-[min(98vw,1600px)] max-w-none grid-rows-[auto_minmax(0,1fr)] gap-2 overflow-hidden p-2"
-          data-testid="workspace-tool-dialog"
-        >
-          <WorkspaceToolHeader
-            activeTool={activeTool}
-            activeUrl={activeUrl}
-            title={title}
-            label={label}
-            folderPath={urls.folderPath}
-            onActiveToolChange={onActiveToolChange}
-          />
-          <iframe
-            key={activeUrl}
-            src={activeUrl}
-            title={`${title} for ${label}`}
-            className="h-full min-h-0 w-full rounded-md border border-border bg-background"
-            allow="clipboard-read; clipboard-write"
-            data-testid="workspace-tool-frame"
-          />
-        </DialogContent>
+      {activeTool && urls ? (
+        <WorkspaceToolDialogContent
+          activeTool={activeTool}
+          urls={urls}
+          label={label}
+          onActiveToolChange={onActiveToolChange}
+        />
       ) : null}
     </Dialog>
+  );
+}
+
+function WorkspaceToolDialogContent({
+  activeTool,
+  urls,
+  label,
+  onActiveToolChange,
+}: {
+  activeTool: WorkspaceTool;
+  urls: WorkspaceSessionToolUrls;
+  label: string;
+  onActiveToolChange: ActiveToolChangeHandler;
+}) {
+  const activeUrl = activeTool === "code" ? urls.codeUrl : urls.filesUrl;
+  const title = activeTool === "code" ? "VS Code" : "Files";
+  return (
+    <DialogContent
+      className="grid h-[min(92dvh,1000px)] w-[min(98vw,1600px)] max-w-none grid-rows-[auto_minmax(0,1fr)] gap-2 overflow-hidden p-2"
+      data-testid="workspace-tool-dialog"
+    >
+      <WorkspaceToolHeader
+        activeTool={activeTool}
+        activeUrl={activeUrl}
+        title={title}
+        label={label}
+        folderPath={urls.folderPath}
+        onActiveToolChange={onActiveToolChange}
+      />
+      <iframe
+        key={activeUrl}
+        src={activeUrl}
+        title={`${title} for ${label}`}
+        className="h-full min-h-0 w-full rounded-md border border-border bg-background"
+        allow="clipboard-read; clipboard-write"
+        data-testid="workspace-tool-frame"
+      />
+    </DialogContent>
   );
 }
 
