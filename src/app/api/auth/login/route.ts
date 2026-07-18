@@ -4,6 +4,7 @@ import { loginRateLimiter } from "@/lib/auth/rate-limit";
 import { getAuthServiceClient } from "@/lib/auth/service-client";
 import { createSignedSessionCookie } from "@/lib/auth/session";
 import { appendSetSessionCookieHeaders } from "@/lib/auth/session-cookie";
+import { CODER_HOST_COOKIE } from "@/lib/security/content-security-policy";
 
 export async function POST(request: Request) {
   let body: unknown;
@@ -36,6 +37,10 @@ export async function POST(request: Request) {
       response.headers,
       createSignedSessionCookie(result.sessionId),
       new URL(request.url).hostname,
+    );
+    response.headers.append(
+      "set-cookie",
+      `${CODER_HOST_COOKIE}=${encodeURIComponent(new URL(coderUrl).host)}; Path=/; HttpOnly; Secure; SameSite=Lax`,
     );
     console.log(`[login] Login successful for ${email}`);
     return response;

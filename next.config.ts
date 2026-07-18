@@ -1,36 +1,7 @@
 import type { NextConfig } from "next";
+import { buildContentSecurityPolicy } from "./src/lib/security/content-security-policy";
 
-const scriptSource =
-  process.env.NODE_ENV === "development"
-    ? "script-src 'self' 'unsafe-inline' 'unsafe-eval'"
-    : "script-src 'self' 'unsafe-inline'";
-
-function coderFrameSources(): string {
-  const configuredUrls = [
-    process.env.CODER_URL,
-    ...(process.env.ALLOWED_CODER_URLS?.split(",") ?? []),
-  ]
-    .map((value) => value?.trim())
-    .filter((value): value is string => Boolean(value));
-  const sources = new Set<string>();
-  for (const configuredUrl of configuredUrls) {
-    try {
-      const url = new URL(configuredUrl);
-      sources.add(url.origin);
-      const labels = url.hostname.split(".");
-      if (labels.length >= 3) {
-        sources.add(`${url.protocol}//*.${labels.slice(1).join(".")}`);
-      }
-    } catch {
-      // Invalid values are rejected by runtime configuration validation.
-    }
-  }
-  return [...sources].join(" ");
-}
-
-const frameSources = ["'self'", coderFrameSources()].filter(Boolean).join(" ");
-
-export const contentSecurityPolicy = `default-src 'self'; base-uri 'self'; frame-ancestors 'self'; frame-src ${frameSources}; form-action 'self'; object-src 'none'; ${scriptSource}; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data: blob:; connect-src 'self' http: https: wss: ws:; worker-src 'self' blob:`;
+export const contentSecurityPolicy = buildContentSecurityPolicy();
 
 const nextConfig: NextConfig = {
   output: "standalone",

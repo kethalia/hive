@@ -5,6 +5,10 @@ import {
   getSessionCookieValuesFromHeader,
   refreshDomainSessionCookie,
 } from "./lib/auth/session-cookie";
+import {
+  buildContentSecurityPolicy,
+  CODER_HOST_COOKIE,
+} from "./lib/security/content-security-policy";
 
 const PUBLIC_PATHS = ["/login", "/api/auth", "/manifest.webmanifest", "/robots.txt"];
 const STATIC_PREFIXES = ["/_next", "/favicon.ico"];
@@ -45,6 +49,11 @@ export function proxy(request: NextRequest) {
 
   if (verifiedSessionCookie) {
     const response = NextResponse.next();
+    const coderHost = request.cookies.get(CODER_HOST_COOKIE)?.value;
+    response.headers.set(
+      "Content-Security-Policy",
+      buildContentSecurityPolicy(coderHost ? [`https://${coderHost}`] : []),
+    );
     refreshDomainSessionCookie(
       response.cookies,
       verifiedSessionCookie.value,

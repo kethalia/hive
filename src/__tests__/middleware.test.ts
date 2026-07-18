@@ -31,7 +31,7 @@ describe("proxy", () => {
 
     const request = new NextRequest("https://hive.local.kethalia.com/templates", {
       headers: {
-        cookie: "hive-session=signed-value",
+        cookie: "hive-session=signed-value; hive-coder-host=coder.example.com",
       },
     });
 
@@ -43,6 +43,12 @@ describe("proxy", () => {
     expect(setCookie).toContain("Domain=.hive.local.kethalia.com");
     expect(setCookie).toContain("HttpOnly");
     expect(setCookie).toContain("SameSite=lax");
+    expect(response.headers.get("content-security-policy")).toContain(
+      "frame-src 'self' https://coder.example.com https://*.example.com",
+    );
+    expect(response.headers.get("content-security-policy")).not.toContain(
+      "frame-src 'self' https:;",
+    );
 
     vi.unstubAllEnvs();
   });
