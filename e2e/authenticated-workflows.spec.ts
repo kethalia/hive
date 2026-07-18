@@ -261,7 +261,18 @@ test.describe("authenticated Hive workflows", () => {
     const sessionLabel = (await page.getByTestId("active-pane-label").textContent())?.trim();
     expect(sessionLabel).toBeTruthy();
     await page.keyboard.press("Control+K");
-    await page.getByText(`Open ${sessionLabel}`, { exact: true }).click();
+    const paletteSearch = page.getByPlaceholder(/Search terminal sessions/);
+    await paletteSearch.fill(sessionLabel ?? "");
+    await page.keyboard.press("ArrowDown");
+    await page.keyboard.press("ArrowRight");
+    await page.keyboard.press("Enter");
+    await expect(page.getByTestId("workspace-tool-pane-code")).toBeVisible({ timeout: 30_000 });
+    await page.getByTestId("remove-workspace-tool-code").click();
+
+    await page.keyboard.press("Control+K");
+    await page.getByPlaceholder(/Search terminal sessions/).fill(sessionLabel ?? "");
+    await page.keyboard.press("ArrowDown");
+    await page.keyboard.press("Enter");
     await expect(page.getByTestId("single-terminal-header")).toBeVisible();
     const singleTerminal = await expectConnectedTerminal(page);
     await proveTerminalAcceptsInput(page, singleTerminal);

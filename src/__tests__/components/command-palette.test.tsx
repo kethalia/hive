@@ -144,14 +144,17 @@ vi.mock("@/components/ui/command", () => {
       value,
       onSelect,
       className,
+      "data-action-id": actionId,
     }: {
       children: ReactNode;
       value?: string;
       onSelect?: () => void;
       className?: string;
+      "data-action-id"?: string;
     }) => (
       <div
         cmdk-item=""
+        data-action-id={actionId}
         data-testid={`command-item-${value ?? "action"}`}
         data-value={value}
         role="option"
@@ -709,6 +712,51 @@ describe("CommandPalette", () => {
 
     expect(action).toHaveBeenCalledTimes(1);
     expect(onOpenChange).toHaveBeenCalledWith(false);
+  });
+
+  it("chooses a row action with Left and Right before Enter selection", () => {
+    const add = vi.fn();
+    const open = vi.fn();
+    const vscode = vi.fn();
+
+    render(
+      <CommandPalette
+        open={true}
+        onOpenChange={vi.fn()}
+        tabs={[]}
+        onSelectTab={vi.fn()}
+        actions={[
+          {
+            id: "workspace:session:dev",
+            label: "dev",
+            group: "Terminal sessions",
+            onSelect: add,
+            options: [
+              { id: "add", label: "Add", onSelect: add },
+              { id: "open", label: "Open", onSelect: open },
+              { id: "vscode", label: "VS Code", onSelect: vscode },
+              { id: "filebrowser", label: "Files", onSelect: vi.fn() },
+            ],
+          },
+        ]}
+      />,
+    );
+
+    const item = screen.getByText("dev").closest('[cmdk-item=""]');
+    expect(item).not.toBeNull();
+    if (!item) return;
+    item.setAttribute("aria-selected", "true");
+    fireEvent.keyDown(screen.getByTestId("command-input"), { key: "ArrowRight" });
+    fireEvent.keyDown(screen.getByTestId("command-input"), { key: "ArrowRight" });
+
+    expect(screen.getByTestId("command-option-workspace:session:dev-vscode")).toHaveAttribute(
+      "data-selected",
+      "true",
+    );
+    fireEvent.click(item);
+    expect(vscode).toHaveBeenCalledTimes(1);
+    expect(add).not.toHaveBeenCalled();
+    expect(open).not.toHaveBeenCalled();
   });
 
   it("controls search input value when search props are provided", () => {

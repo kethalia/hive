@@ -396,6 +396,12 @@ vi.mock("@/components/terminal/CommandPalette", () => ({
       rightLabel?: string;
       disabled?: boolean;
       onSelect: () => void;
+      options?: Array<{
+        id: string;
+        label: string;
+        disabled?: boolean;
+        onSelect: () => void;
+      }>;
     }>;
     searchValue?: string;
     onSearchValueChange?: (value: string) => void;
@@ -407,23 +413,110 @@ vi.mock("@/components/terminal/CommandPalette", () => ({
           value={searchValue}
           onChange={(event) => onSearchValueChange?.(event.currentTarget.value)}
         />
-        {actions.map((action) => (
-          <button
-            key={action.id}
-            type="button"
-            data-testid={`palette-action-${action.id}`}
-            disabled={action.disabled}
-            onClick={() => {
-              if (action.disabled) return;
-              action.onSelect();
-              onOpenChange?.(false);
-            }}
-          >
-            <span>{action.label}</span>
-            {action.description ? <span>{action.description}</span> : null}
-            {action.rightLabel ? <span>{action.rightLabel}</span> : null}
-          </button>
-        ))}
+        {actions.map((action) => {
+          const sessionId = action.id.startsWith("workspace:session:")
+            ? action.id.slice("workspace:session:".length)
+            : null;
+          const gitId = action.id.startsWith("workspace:git:")
+            ? action.id.slice("workspace:git:".length)
+            : null;
+          return (
+            <div key={action.id}>
+              <button
+                type="button"
+                data-testid={`palette-action-${action.id}`}
+                disabled={action.disabled}
+                onClick={() => {
+                  if (action.disabled) return;
+                  action.onSelect();
+                  onOpenChange?.(false);
+                }}
+              >
+                <span>{action.label}</span>
+                {action.description ? <span>{action.description}</span> : null}
+                {action.rightLabel ? <span>{action.rightLabel}</span> : null}
+              </button>
+              {action.options?.map((option) => (
+                <button
+                  key={option.id}
+                  type="button"
+                  data-testid={`palette-option-${action.id}-${option.id}`}
+                  disabled={action.disabled || option.disabled}
+                  onClick={() => {
+                    option.onSelect();
+                    onOpenChange?.(false);
+                  }}
+                >
+                  {option.label}
+                </button>
+              ))}
+              {sessionId && action.description !== "Git terminal session" ? (
+                <>
+                  <button
+                    type="button"
+                    data-testid={`palette-action-workspace:add-session:${sessionId}`}
+                    disabled={action.options?.[0]?.disabled}
+                    onClick={action.options?.[0]?.onSelect}
+                  >
+                    {action.options?.[0]?.disabled
+                      ? "Already in this board"
+                      : `Move this terminal from Default to Workspace 2: Add ${action.label}`}
+                  </button>
+                  {action.options?.[0]?.disabled ? (
+                    <button
+                      type="button"
+                      data-testid={`palette-action-workspace:focus-session:${sessionId}`}
+                      onClick={action.onSelect}
+                    >
+                      Focus in this board
+                    </button>
+                  ) : null}
+                  <button
+                    type="button"
+                    data-testid={`palette-action-workspace:open-session:${sessionId}`}
+                    onClick={action.options?.[1]?.onSelect}
+                  >
+                    Open as a single terminal page: {action.label}
+                  </button>
+                </>
+              ) : null}
+              {gitId ? (
+                <>
+                  <button
+                    type="button"
+                    data-testid={`palette-action-workspace:add-git:${gitId}`}
+                    disabled={action.options?.[0]?.disabled}
+                    onClick={() => {
+                      action.options?.[0]?.onSelect();
+                      onOpenChange?.(false);
+                    }}
+                  >
+                    Open this Git repository as a workspace pane: Add {action.label}
+                  </button>
+                  <button
+                    type="button"
+                    data-testid={`palette-action-workspace:open-git:${gitId}`}
+                    onClick={() => {
+                      action.options?.[1]?.onSelect();
+                      onOpenChange?.(false);
+                    }}
+                  >
+                    Open this Git repository as a single terminal page: Open {action.label}
+                  </button>
+                </>
+              ) : null}
+              {sessionId && action.description === "Git terminal session" ? (
+                <button
+                  type="button"
+                  data-testid={`palette-action-workspace:open-session:${sessionId}`}
+                  onClick={action.options?.[1]?.onSelect}
+                >
+                  Open as a single terminal page: {action.label}
+                </button>
+              ) : null}
+            </div>
+          );
+        })}
       </div>
     ) : null,
 }));

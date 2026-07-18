@@ -35,6 +35,7 @@ import {
 } from "@/components/workspaces/TerminalSessionFrame";
 import { WorkspaceBoardBar } from "@/components/workspaces/WorkspaceBoardBar";
 import {
+  isWorkspaceSessionToolUrls,
   WorkspaceSessionTools,
   type WorkspaceSessionToolUrls,
   type WorkspaceTool,
@@ -53,6 +54,7 @@ import {
 import {
   createSessionAction,
   getWorkspaceSessionsAction,
+  getWorkspaceSessionToolsAction,
   killSessionAction,
 } from "@/lib/actions/workspaces";
 import { SAFE_IDENTIFIER_RE } from "@/lib/constants";
@@ -1009,11 +1011,6 @@ export function MultiSessionWorkspace({
       mountedBoardPaneKeys.some((key) => !isWorkspacePaneHealthy(paneRecoveryStateMap.get(key))),
     [loadFailed, loading, mountedBoardPaneKeys, paneRecoveryStateMap],
   );
-  const availableTerminalSessions = useMemo(
-    () => sessions.filter((session) => !session.cloneSessionKey),
-    [sessions],
-  );
-
   activeSessionNameRef.current = activeSessionName;
 
   const layout = activeBoardRenderModel?.layout ?? resolveSessionPaneLayout({ sessions: [] });
@@ -1040,17 +1037,6 @@ export function MultiSessionWorkspace({
       ),
     [activeBoard],
   );
-  const boardNameBySessionName = useMemo(() => {
-    const boardNames = new Map<string, string>();
-    for (const board of boardState.boards) {
-      for (const pane of board.panes) {
-        if (pane.sessionName && !boardNames.has(pane.sessionName)) {
-          boardNames.set(pane.sessionName, board.name);
-        }
-      }
-    }
-    return boardNames;
-  }, [boardState.boards]);
   const favoriteGitRepositories = useMemo(() => {
     const repositoryByIdentity = new Map(
       gitRepositories.map((repository) => [
@@ -2223,6 +2209,102 @@ export function MultiSessionWorkspace({
     [boardState, persistBoardState, selectSession],
   );
 
+  const openWorkspaceToolPane = useCallback(
+    (
+      boardKey: string,
+      session: WorkspaceSessionPane,
+      tool: WorkspaceTool,
+      urls: WorkspaceSessionToolUrls,
+    ) => {
+      const key = `workspace-tool:${boardKey}:${session.sessionName}:${tool}`;
+      const label = `${tool === "code" ? "VS Code" : "Files"} · ${session.label}`;
+      setWorkspaceToolPanes((current) => [
+        ...current.filter((pane) => pane.key !== key),
+        {
+          key,
+          boardKey,
+          sourceSessionName: session.sessionName,
+          tool,
+          url: tool === "code" ? urls.codeUrl : urls.filesUrl,
+          label,
+          folderPath: urls.folderPath,
+        },
+      ]);
+    },
+    [],
+  );
+
+  const openWorkspaceToolForSession = useCallback(
+    async (session: WorkspaceSessionPane, tool: WorkspaceTool) => {
+      if (!activeBoard) return;
+      try {
+        const result = await getWorkspaceSessionToolsAction({
+          workspaceId,
+          sessionName: session.sessionName,
+          fallbackPath: session.clonePath,
+        });
+        const urls = unwrapActionData(result);
+        if (!isWorkspaceSessionToolUrls(urls)) {
+          toast.error("Could not open workspace tools for this session.");
+          return;
+        }
+        openWorkspaceToolPane(activeBoard.key, session, tool, urls);
+      } catch {
+        toast.error("Could not open workspace tools for this session.");
+      }
+    },
+    [activeBoard, openWorkspaceToolPane, workspaceId],
+  );
+
+  const openWorkspaceToolForGitRepository = useCallback(
+    async (repository: GitRepositoryOption, tool: WorkspaceTool) => {
+      if (!activeBoard) return;
+      const repositoryIdentity = gitPaneIdentity(
+        repository.cloneSessionKey,
+        repository.relativePath,
+      );
+      setAddingCloneKey(repositoryIdentity);
+      setGitAddError(null);
+      try {
+        const existingSession = sessions.find(
+          (session) =>
+            session.cloneSessionKey === repository.cloneSessionKey &&
+            session.relativePath === repository.relativePath,
+        );
+        let session = existingSession;
+        if (!session) {
+          const result = await resolveGitCloneTerminalAction({
+            agentId,
+            workspaceId,
+            cloneSessionKey: repository.cloneSessionKey,
+            relativePath: repository.relativePath,
+          });
+          const identity = unwrapActionData(result);
+          if (!isGitCloneTerminalIdentity(identity)) {
+            showGitAddFailure(actionFailureMessage(result, GIT_TERMINAL_ADD_FALLBACK_MESSAGE));
+            return;
+          }
+          session = {
+            sessionName: identity.sessionName,
+            label: repository.label,
+            clonePath: identity.clonePath,
+            cloneProof: identity.cloneProof,
+            cloneSessionKey: repository.cloneSessionKey,
+            relativePath: repository.relativePath,
+          };
+          const resolvedSession = session;
+          setSessions((current) => uniqueSessions([...current, resolvedSession]));
+        }
+        await openWorkspaceToolForSession(session, tool);
+      } catch {
+        showGitAddFailure(GIT_TERMINAL_ADD_FALLBACK_MESSAGE);
+      } finally {
+        setAddingCloneKey(null);
+      }
+    },
+    [activeBoard, agentId, openWorkspaceToolForSession, sessions, showGitAddFailure, workspaceId],
+  );
+
   const paletteQuery = gitSearchQuery.trim();
   const paletteQueryLower = paletteQuery.toLowerCase();
   const paletteMatchesExisting =
@@ -2264,48 +2346,35 @@ export function MultiSessionWorkspace({
       actions.push(typedCreateAction);
     }
 
-    for (const session of visibleSessions.slice(0, 8)) {
-      actions.push({
-        id: `workspace:focus-session:${session.sessionName}`,
-        label: session.label,
-        description: "Focus in this board",
-        group: "Terminal sessions",
-        value: `${session.label} ${session.sessionName} focus workspace terminal session`,
-        rightLabel: "Focus",
-        icon: "terminal",
-        onSelect: () => selectSession(session.sessionName),
-      });
-      actions.push({
-        id: `workspace:open-session:${session.sessionName}`,
-        label: `Open ${session.label}`,
-        description: "Open as a single terminal page",
-        group: "Terminal sessions",
-        value: `${session.label} ${session.sessionName} open terminal page`,
-        rightLabel: "Open",
-        icon: "terminal",
-        onSelect: () => openTerminalSessionPage(session),
-      });
-    }
-
-    for (const session of availableTerminalSessions.slice(0, 8)) {
+    for (const session of sessions.slice(0, 16)) {
       const alreadyInActiveBoard = activeBoardSessionNames.has(session.sessionName);
-      const currentBoardName = boardNameBySessionName.get(session.sessionName);
       actions.push({
-        id: `workspace:add-session:${session.sessionName}`,
-        label: alreadyInActiveBoard
-          ? `${session.label} is already in this board`
-          : `Add ${session.label}`,
-        description: alreadyInActiveBoard
-          ? "Already in this board"
-          : currentBoardName
-            ? `Move this terminal from ${currentBoardName} to ${activeBoard?.name ?? "this board"}`
-            : `Add this terminal to ${activeBoard?.name ?? "this board"}`,
+        id: `workspace:session:${session.sessionName}`,
+        label: session.label,
+        description: session.cloneSessionKey ? "Git terminal session" : "Terminal session",
         group: "Terminal sessions",
-        value: `${session.label} ${session.sessionName} add workspace terminal session board`,
-        rightLabel: alreadyInActiveBoard ? "Added" : currentBoardName ? "Move" : "Add",
-        icon: "plus",
-        disabled: alreadyInActiveBoard,
+        value: `${session.label} ${session.sessionName} add open vscode filebrowser workspace terminal session`,
+        icon: "terminal",
         onSelect: () => handleAddExistingTerminalToBoard(session),
+        options: [
+          {
+            id: "add",
+            label: "Add",
+            disabled: alreadyInActiveBoard,
+            onSelect: () => handleAddExistingTerminalToBoard(session),
+          },
+          { id: "open", label: "Open", onSelect: () => openTerminalSessionPage(session) },
+          {
+            id: "vscode",
+            label: "VS Code",
+            onSelect: () => void openWorkspaceToolForSession(session, "code"),
+          },
+          {
+            id: "filebrowser",
+            label: "Files",
+            onSelect: () => void openWorkspaceToolForSession(session, "files"),
+          },
+        ],
       });
     }
 
@@ -2318,41 +2387,45 @@ export function MultiSessionWorkspace({
       const repositoryPending = addingCloneKey === repositoryIdentity;
       const alreadyInActiveBoard = activeBoardGitPaneIdentities.has(repositoryIdentity);
       actions.push({
-        id: `workspace:add-git:${gitRepositoryActionIdentity(repository)}`,
-        label: alreadyInActiveBoard
-          ? `${repository.label} is already in this board`
-          : `Add ${repository.label}`,
-        description: alreadyInActiveBoard
-          ? "Already in this board"
-          : "Open this Git repository as a workspace pane",
+        id: `workspace:git:${gitRepositoryActionIdentity(repository)}`,
+        label: repository.label,
+        description: "Git repository",
         group: "Git repositories",
-        value: `${repository.label} ${repository.relativePath} add git repository workspace`,
-        rightLabel: repositoryPending ? "Adding…" : alreadyInActiveBoard ? "Added" : "Workspace",
-        icon: "plus",
-        disabled: repositoryPending || alreadyInActiveBoard,
-        onSelect: () => void handleAddGitRepository(repository),
-      });
-      actions.push({
-        id: `workspace:open-git:${gitRepositoryActionIdentity(repository)}`,
-        label: `Open ${repository.label}`,
-        description: "Open this Git repository as a single terminal page",
-        group: "Git repositories",
-        value: `${repository.label} ${repository.relativePath} open git repository terminal`,
-        rightLabel: repositoryPending ? "Opening…" : "Open",
+        value: `${repository.label} ${repository.relativePath} add open vscode filebrowser git repository workspace`,
         icon: "search",
         disabled: repositoryPending,
-        onSelect: () => void openGitRepositoryTerminalPage(repository),
+        onSelect: () => void handleAddGitRepository(repository),
+        options: [
+          {
+            id: "add",
+            label: "Add",
+            disabled: alreadyInActiveBoard,
+            onSelect: () => void handleAddGitRepository(repository),
+          },
+          {
+            id: "open",
+            label: "Open",
+            onSelect: () => void openGitRepositoryTerminalPage(repository),
+          },
+          {
+            id: "vscode",
+            label: "VS Code",
+            onSelect: () => void openWorkspaceToolForGitRepository(repository, "code"),
+          },
+          {
+            id: "filebrowser",
+            label: "Files",
+            onSelect: () => void openWorkspaceToolForGitRepository(repository, "files"),
+          },
+        ],
       });
     }
 
     return actions;
   }, [
-    activeBoard,
     activeBoardGitPaneIdentities,
     activeBoardSessionNames,
     addingCloneKey,
-    availableTerminalSessions,
-    boardNameBySessionName,
     creating,
     favoriteGitRepositories,
     filteredGitRepositories,
@@ -2362,10 +2435,11 @@ export function MultiSessionWorkspace({
     isUnifiedSource,
     openGitRepositoryTerminalPage,
     openTerminalSessionPage,
+    openWorkspaceToolForGitRepository,
+    openWorkspaceToolForSession,
     paletteMatchesExisting,
     paletteQuery,
-    selectSession,
-    visibleSessions,
+    sessions,
   ]);
 
   useEffect(
@@ -2892,29 +2966,6 @@ export function MultiSessionWorkspace({
   const composeLockedSessionName = composeOpen
     ? (composeTargetSessionName ?? activeSessionName)
     : null;
-
-  const openWorkspaceToolPane = (
-    boardKey: string,
-    session: WorkspaceSessionPane,
-    tool: WorkspaceTool,
-    urls: WorkspaceSessionToolUrls,
-  ) => {
-    const key = `workspace-tool:${boardKey}:${session.sessionName}:${tool}`;
-    const label = `${tool === "code" ? "VS Code" : "Files"} · ${session.label}`;
-    const url = tool === "code" ? urls.codeUrl : urls.filesUrl;
-    setWorkspaceToolPanes((current) => [
-      ...current.filter((pane) => pane.key !== key),
-      {
-        key,
-        boardKey,
-        sourceSessionName: session.sessionName,
-        tool,
-        url,
-        label,
-        folderPath: urls.folderPath,
-      },
-    ]);
-  };
 
   const renderPane = (pane: SessionPane, model: WorkspaceBoardRenderModel) => {
     const toolPane = model.toolPanes.find((candidate) => candidate.key === pane.sessionName);

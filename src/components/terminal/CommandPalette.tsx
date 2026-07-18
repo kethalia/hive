@@ -2,7 +2,7 @@
 
 import { useDrag } from "@use-gesture/react";
 import { Plus, Search, Terminal } from "lucide-react";
-import type { CSSProperties } from "react";
+import type { CSSProperties, KeyboardEvent } from "react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Command,
@@ -24,6 +24,7 @@ import {
   NO_TOUCH_STYLE,
 } from "@/lib/gestures/conventions";
 import { formatShortcut } from "@/lib/keyboard-shortcuts";
+import { cn } from "@/lib/utils";
 
 const CREATE_SESSION_SHORTCUT_KEYS = ["ctrl+shift+n", "cmd+shift+n"] as const;
 
@@ -37,6 +38,14 @@ export interface CommandPaletteAction {
   rightLabel?: string;
   disabled?: boolean;
   icon?: "plus" | "search" | "terminal";
+  onSelect: () => void;
+  options?: CommandPaletteActionOption[];
+}
+
+export interface CommandPaletteActionOption {
+  id: string;
+  label: string;
+  disabled?: boolean;
   onSelect: () => void;
 }
 
@@ -89,6 +98,16 @@ function actionIcon(icon: CommandPaletteAction["icon"]) {
   return <Terminal className="mr-2 size-4 shrink-0 opacity-70" />;
 }
 
+function selectedOptionIndex(
+  action: CommandPaletteAction,
+  selectedOptionIndexes: Record<string, number>,
+): number {
+  const storedIndex = selectedOptionIndexes[action.id];
+  if (storedIndex !== undefined && !action.options?.[storedIndex]?.disabled) return storedIndex;
+  const firstEnabledIndex = action.options?.findIndex((option) => !option.disabled) ?? -1;
+  return firstEnabledIndex >= 0 ? firstEnabledIndex : 0;
+}
+
 function CommandPaletteBody({
   tabs,
   onSelectTab,
@@ -113,6 +132,7 @@ function CommandPaletteBody({
     onCreateSession?.();
     onOpenChange(false);
   }, [onCreateSession, onOpenChange]);
+  const [selectedOptionIndexes, setSelectedOptionIndexes] = useState<Record<string, number>>({});
 
   const actionGroups = useMemo(() => {
     const groups = new Map<string, CommandPaletteAction[]>();
@@ -124,8 +144,50 @@ function CommandPaletteBody({
     return [...groups.entries()];
   }, [actions]);
 
+  const selectAction = useCallback(
+    (action: CommandPaletteAction) => {
+      const optionIndex = selectedOptionIndex(action, selectedOptionIndexes);
+      const option = action.options?.[optionIndex];
+      if (option) {
+        if (option.disabled) return;
+        option.onSelect();
+      } else {
+        action.onSelect();
+      }
+      onOpenChange(false);
+    },
+    [onOpenChange, selectedOptionIndexes],
+  );
+
+  const handleActionArrowKey = useCallback(
+    (event: KeyboardEvent<HTMLDivElement>) => {
+      if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
+      const selectedItem = event.currentTarget.querySelector<HTMLElement>(
+        '[cmdk-item][aria-selected="true"][data-action-id]',
+      );
+      const actionId = selectedItem?.dataset.actionId;
+      const action = actionId ? actions.find((candidate) => candidate.id === actionId) : undefined;
+      const options = action?.options;
+      if (!action || !options || options.length < 2) return;
+
+      event.preventDefault();
+      event.stopPropagation();
+      setSelectedOptionIndexes((current) => {
+        const currentIndex = selectedOptionIndex(action, current);
+        const delta = event.key === "ArrowRight" ? 1 : -1;
+        let nextIndex = currentIndex;
+        for (let offset = 0; offset < options.length; offset += 1) {
+          nextIndex = (nextIndex + delta + options.length) % options.length;
+          if (!options[nextIndex]?.disabled) break;
+        }
+        return { ...current, [action.id]: nextIndex };
+      });
+    },
+    [actions],
+  );
+
   return (
-    <>
+    <div onKeyDownCapture={handleActionArrowKey}>
       <CommandInput
         placeholder={searchPlaceholder}
         value={searchValue}
@@ -138,11 +200,11 @@ function CommandPaletteBody({
             {groupActions.map((action) => (
               <CommandItem
                 key={action.id}
+                data-action-id={action.id}
                 value={action.value ?? `${action.label} ${action.description ?? ""}`}
                 onSelect={() => {
                   if (action.disabled) return;
-                  action.onSelect();
-                  onOpenChange(false);
+                  selectAction(action);
                 }}
                 disabled={action.disabled}
               >
@@ -156,7 +218,32 @@ function CommandPaletteBody({
                   ) : null}
                 </span>
                 {action.shortcut ? <CommandShortcut>{action.shortcut}</CommandShortcut> : null}
-                {action.rightLabel ? (
+                {action.options ? (
+                  <span
+                    className="ml-auto flex shrink-0 items-center gap-0.5 rounded-md border border-border/70 bg-background/70 p-0.5"
+                    title="Choose action with Left and Right arrow keys"
+                  >
+                    {action.options.map((option, index) => (
+                      <span
+                        key={option.id}
+                        className={cn(
+                          "rounded px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground",
+                          index === selectedOptionIndex(action, selectedOptionIndexes) &&
+                            "bg-primary text-primary-foreground",
+                          option.disabled && "opacity-40",
+                        )}
+                        data-testid={`command-option-${action.id}-${option.id}`}
+                        data-selected={
+                          index === selectedOptionIndex(action, selectedOptionIndexes)
+                            ? "true"
+                            : "false"
+                        }
+                      >
+                        {option.label}
+                      </span>
+                    ))}
+                  </span>
+                ) : action.rightLabel ? (
                   <span className="ml-auto text-xs text-muted-foreground">{action.rightLabel}</span>
                 ) : null}
               </CommandItem>
@@ -189,7 +276,7 @@ function CommandPaletteBody({
           </CommandGroup>
         )}
       </CommandList>
-    </>
+    </div>
   );
 }
 

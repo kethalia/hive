@@ -27,7 +27,7 @@ interface WorkspaceSessionToolsProps {
   onOpenTool: Dispatch<WorkspaceToolOpenRequest>;
 }
 
-function isWorkspaceSessionToolUrls(value: unknown): value is WorkspaceSessionToolUrls {
+export function isWorkspaceSessionToolUrls(value: unknown): value is WorkspaceSessionToolUrls {
   if (typeof value !== "object" || value === null) return false;
   const properties = Object.fromEntries(Object.entries(value));
   return (
