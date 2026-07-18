@@ -131,11 +131,15 @@ function isCoderOrigin(url: URL, allowedHosts: string[]): boolean {
 }
 
 function isUntrustedCertificateError(error: unknown): boolean {
-  if (!(error instanceof Error)) return false;
-  if (/self-signed certificate|unable to verify the first certificate/i.test(error.message)) {
+  if (typeof error !== "object" || error === null) return false;
+  if (
+    "message" in error &&
+    typeof error.message === "string" &&
+    /self-signed certificate|unable to verify the first certificate/i.test(error.message)
+  ) {
     return true;
   }
-  return isUntrustedCertificateError(error.cause);
+  return "cause" in error && isUntrustedCertificateError(error.cause);
 }
 
 async function fetchCoderApp(url: string, init: RequestInit): Promise<Response> {
