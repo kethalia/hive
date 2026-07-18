@@ -70,6 +70,7 @@ vi.mock("@/hooks/useTerminalWebSocket", () => ({
 
 vi.mock("@/lib/runtime-config", () => ({
   getClientRuntimeConfig: () => ({ terminalWsUrl: "ws://terminal.example.test" }),
+  resolveTerminalWsUrl: (value: string) => value,
 }));
 
 vi.mock("@/lib/terminal/config", () => ({

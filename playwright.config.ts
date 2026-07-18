@@ -1,5 +1,7 @@
 import { defineConfig, devices } from "@playwright/test";
 
+const hostResolverRules = process.env.HIVE_E2E_HOST_RESOLVER_RULES;
+
 export default defineConfig({
   testDir: "./e2e",
   fullyParallel: true,
@@ -7,6 +9,9 @@ export default defineConfig({
   outputDir: "test-results/playwright",
   use: {
     ignoreHTTPSErrors: process.env.HIVE_E2E_IGNORE_HTTPS_ERRORS === "true",
+    launchOptions: hostResolverRules
+      ? { args: [`--host-resolver-rules=${hostResolverRules}`] }
+      : {},
     trace: "retain-on-failure",
     screenshot: "only-on-failure",
   },

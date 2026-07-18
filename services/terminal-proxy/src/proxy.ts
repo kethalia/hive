@@ -8,7 +8,8 @@ import { authenticateUpgrade } from "./auth.js";
 import { ConnectionRegistry } from "./keepalive.js";
 import { buildPtyUrl, SAFE_IDENTIFIER_RE, UUID_RE } from "./protocol.js";
 
-const PING_INTERVAL_MS = 30_000;
+const PING_INTERVAL_MS = 15_000;
+const MAX_MISSED_HEARTBEATS = 2;
 const UPSTREAM_CONNECT_TIMEOUT_MS = 10_000;
 const BROWSER_CLOSE_UPSTREAM_CLOSED_CODE = 1013;
 const BROWSER_CLOSE_UPSTREAM_CLOSED_REASON = "upstream closed";
@@ -430,6 +431,10 @@ function connectUpstream(browserWs: WebSocket, upstreamUrl: string, token: strin
   });
 
   let pingTimer: ReturnType<typeof setInterval> | null = null;
+  let browserResponsive = true;
+  let upstreamResponsive = true;
+  let browserMissedHeartbeats = 0;
+  let upstreamMissedHeartbeats = 0;
 
   function cleanup() {
     if (pingTimer) {
@@ -446,11 +451,55 @@ function connectUpstream(browserWs: WebSocket, upstreamUrl: string, token: strin
 
   upstream.on("open", () => {
     logProxyEvent("log", "upstream_connected", { category: "upstream_connected" });
-    pingTimer = setInterval(() => {
+    const runHeartbeat = () => {
+      browserMissedHeartbeats = browserResponsive ? 0 : browserMissedHeartbeats + 1;
+      upstreamMissedHeartbeats = upstreamResponsive ? 0 : upstreamMissedHeartbeats + 1;
+
+      if (
+        browserMissedHeartbeats > MAX_MISSED_HEARTBEATS ||
+        upstreamMissedHeartbeats > MAX_MISSED_HEARTBEATS
+      ) {
+        const unresponsiveLeg =
+          browserMissedHeartbeats > MAX_MISSED_HEARTBEATS ? "browser" : "upstream";
+        logProxyEvent("error", "heartbeat_timeout", {
+          category: "heartbeat_timeout",
+          leg: unresponsiveLeg,
+        });
+        if (
+          browserMissedHeartbeats > MAX_MISSED_HEARTBEATS &&
+          browserWs.readyState === WebSocket.OPEN
+        ) {
+          browserWs.terminate();
+        }
+        if (
+          upstreamMissedHeartbeats > MAX_MISSED_HEARTBEATS &&
+          upstream.readyState === WebSocket.OPEN
+        ) {
+          upstream.terminate();
+        }
+        cleanup();
+        return;
+      }
+
+      browserResponsive = false;
+      upstreamResponsive = false;
+      if (browserWs.readyState === WebSocket.OPEN) {
+        browserWs.ping();
+      }
       if (upstream.readyState === WebSocket.OPEN) {
         upstream.ping();
       }
-    }, PING_INTERVAL_MS);
+    };
+    runHeartbeat();
+    pingTimer = setInterval(runHeartbeat, PING_INTERVAL_MS);
+  });
+
+  browserWs.on("pong", () => {
+    browserResponsive = true;
+  });
+
+  upstream.on("pong", () => {
+    upstreamResponsive = true;
   });
 
   upstream.on("message", (data, isBinary) => {

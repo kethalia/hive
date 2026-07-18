@@ -3,12 +3,16 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   getClientRuntimeConfig,
   getServerRuntimeConfig,
+  RUNTIME_CONFIG_ELEMENT_ID,
   resolveTerminalWsUrl,
+  serializeRuntimeConfig,
+  serializeRuntimeConfigScript,
 } from "@/lib/runtime-config";
 
 describe("runtime-config", () => {
   afterEach(() => {
     vi.unstubAllEnvs();
+    vi.unstubAllGlobals();
     if (typeof globalThis !== "undefined") {
       delete (globalThis as { window?: unknown }).window;
     }
@@ -52,9 +56,54 @@ describe("runtime-config", () => {
       });
     });
 
+    it("reads the non-executable JSON data island when the window assignment is absent", () => {
+      vi.stubEnv("NEXT_PUBLIC_TERMINAL_WS_URL", "wss://from-env.example.com/ws");
+      vi.stubGlobal("document", {
+        getElementById: (id: string) =>
+          id === RUNTIME_CONFIG_ELEMENT_ID
+            ? { textContent: '{"terminalWsUrl":"wss://from-dom.example.com/ws"}' }
+            : null,
+      });
+
+      expect(getClientRuntimeConfig()).toEqual({
+        terminalWsUrl: "wss://from-dom.example.com/ws",
+      });
+    });
+
     it("returns empty string when neither source provides a value", () => {
       vi.stubEnv("NEXT_PUBLIC_TERMINAL_WS_URL", "");
       expect(getClientRuntimeConfig()).toEqual({ terminalWsUrl: "" });
+    });
+  });
+
+  describe("serializeRuntimeConfig", () => {
+    it("creates JSON for a non-executable data island", () => {
+      expect(serializeRuntimeConfig({ terminalWsUrl: "/" })).toBe('{"terminalWsUrl":"/"}');
+    });
+
+    it("escapes script-breaking characters", () => {
+      const serialized = serializeRuntimeConfig({
+        terminalWsUrl: "</script>\u2028\u2029",
+      });
+
+      expect(serialized).not.toContain("</script>");
+      expect(serialized).toContain("\\u003c/script>");
+      expect(serialized).toContain("\\u2028");
+      expect(serialized).toContain("\\u2029");
+    });
+  });
+
+  describe("serializeRuntimeConfigScript", () => {
+    it("creates an executable assignment for the legacy JavaScript route", () => {
+      expect(serializeRuntimeConfigScript({ terminalWsUrl: "/" })).toBe(
+        'window.__HIVE_CONFIG__={"terminalWsUrl":"/"};',
+      );
+    });
+
+    it("retains script-breaking escaping in executable compatibility output", () => {
+      expect(serializeRuntimeConfigScript({ terminalWsUrl: "</script>" })).toBe(
+        'window.__HIVE_CONFIG__={"terminalWsUrl":"\\u003c/script>"};',
+      );
     });
   });
 

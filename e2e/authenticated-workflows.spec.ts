@@ -2,6 +2,7 @@ import {
   type BrowserContextOptions,
   test as base,
   expect,
+  type Locator,
   type Page,
   type TestInfo,
 } from "@playwright/test";
@@ -58,6 +59,27 @@ async function capture(page: Page, testInfo: TestInfo, name: string) {
 
 async function waitForDashboardReady(page: Page) {
   await expect(page.locator("html")).toHaveAttribute("data-dashboard-keybindings-ready", "true");
+}
+
+async function expectConnectedTerminal(page: Page) {
+  const terminal = page
+    .locator('[data-terminal-surface="true"][data-connection-state]:visible')
+    .first();
+  await expect(terminal).toBeVisible({ timeout: 30_000 });
+  await expect(terminal).toHaveAttribute("data-connection-state", "connected", {
+    timeout: 30_000,
+  });
+  await expect(page.getByTestId("multi-session-loading")).toHaveCount(0);
+  return terminal;
+}
+
+async function proveTerminalAcceptsInput(page: Page, terminal: Locator) {
+  const marker = `hive-terminal-e2e-${Date.now()}`;
+  const input = terminal.locator("textarea.xterm-helper-textarea");
+  await input.focus();
+  await page.keyboard.type(`printf '${marker}\\n'`);
+  await page.keyboard.press("Enter");
+  await expect(terminal.locator(".xterm-rows")).toContainText(marker, { timeout: 15_000 });
 }
 
 test.describe("authenticated Hive workflows", () => {
@@ -167,13 +189,23 @@ test.describe("authenticated Hive workflows", () => {
   });
 
   test("opens a live workspace terminal when one is available", async ({ page }, testInfo) => {
+    test.setTimeout(90_000);
+    const terminalSocketUrls: string[] = [];
+    page.on("websocket", (socket) => {
+      const url = new URL(socket.url());
+      if (url.searchParams.has("agentId") && url.searchParams.has("reconnectId")) {
+        terminalSocketUrls.push(socket.url());
+      }
+    });
+
     await page.goto(new URL("/workspaces", appUrl).toString());
     await waitForDashboardReady(page);
-    const workspaceLink = page.getByRole("link", { name: /Open workspace for/ }).first();
-    test.skip(
-      !(await workspaceLink.isVisible().catch(() => false)),
-      "No running workspace available.",
-    );
+    const workspaceLink = page.locator('a[href$="/terminal/workspace"]:visible').first();
+    const workspaceAvailable = await workspaceLink
+      .waitFor({ state: "visible", timeout: 15_000 })
+      .then(() => true)
+      .catch(() => false);
+    test.skip(!workspaceAvailable, "No running workspace available.");
 
     await workspaceLink.click();
     await expect(page).toHaveURL(/\/workspaces\/[^/]+\/terminal\/workspace/);
@@ -182,6 +214,23 @@ test.describe("authenticated Hive workflows", () => {
         '[data-testid="multi-session-workspace"], [data-testid="multi-session-empty"], [data-testid="session-load-error"]',
       ),
     ).toBeVisible({ timeout: 30_000 });
-    await capture(page, testInfo, "workspace-terminal");
+    const workspaceTerminal = await expectConnectedTerminal(page);
+    await proveTerminalAcceptsInput(page, workspaceTerminal);
+    const healthySocketCount = terminalSocketUrls.length;
+    expect(healthySocketCount).toBeGreaterThan(0);
+
+    await page.waitForTimeout(20_000);
+    await expect(workspaceTerminal).toHaveAttribute("data-connection-state", "connected");
+    expect(terminalSocketUrls).toHaveLength(healthySocketCount);
+    await capture(page, testInfo, "workspace-terminal-connected");
+
+    const sessionLabel = (await page.getByTestId("active-pane-label").textContent())?.trim();
+    expect(sessionLabel).toBeTruthy();
+    await page.keyboard.press("Control+K");
+    await page.getByText(`Open ${sessionLabel}`, { exact: true }).click();
+    await expect(page.getByTestId("single-terminal-header")).toBeVisible();
+    const singleTerminal = await expectConnectedTerminal(page);
+    await proveTerminalAcceptsInput(page, singleTerminal);
+    await capture(page, testInfo, "single-terminal-connected");
   });
 });

@@ -23,6 +23,7 @@ type MockWebSocket = {
   send: ReturnType<typeof vi.fn>;
   close: ReturnType<typeof vi.fn>;
   ping: ReturnType<typeof vi.fn>;
+  terminate: ReturnType<typeof vi.fn>;
   readyState: number;
 };
 
@@ -32,6 +33,7 @@ const wsMockState = vi.hoisted(() => {
     send: vi.fn(),
     close: vi.fn(),
     ping: vi.fn(),
+    terminate: vi.fn(),
     readyState: 1,
   });
 
@@ -305,6 +307,97 @@ describe("handleUpgrade", () => {
     expect(url).toContain(validParams.agentId);
     expect(url).toContain("/pty?");
     expect(opts.headers["Coder-Session-Token"]).toBe("per-user-token");
+  });
+
+  it("keeps responsive browser and upstream websocket legs alive", async () => {
+    vi.useFakeTimers();
+    const socket = makeSocket();
+    await handleUpgrade(makeReq(validParams), socket, Buffer.alloc(0));
+
+    const browserWs = wsMockState.browserSockets.at(-1);
+    const upstreamWs = wsMockState.upstreamSockets.at(-1);
+    expect(browserWs).toBeDefined();
+    expect(upstreamWs).toBeDefined();
+    if (!browserWs || !upstreamWs) return;
+
+    getSocketHandler(upstreamWs, "open")();
+    expect(browserWs.ping).toHaveBeenCalledTimes(1);
+    expect(upstreamWs.ping).toHaveBeenCalledTimes(1);
+
+    getSocketHandler(browserWs, "pong")();
+    getSocketHandler(upstreamWs, "pong")();
+    await vi.advanceTimersByTimeAsync(15_000);
+
+    expect(browserWs.ping).toHaveBeenCalledTimes(2);
+    expect(upstreamWs.ping).toHaveBeenCalledTimes(2);
+    getSocketHandler(browserWs, "pong")();
+    getSocketHandler(upstreamWs, "pong")();
+    await vi.advanceTimersByTimeAsync(15_000);
+
+    expect(browserWs.terminate).not.toHaveBeenCalled();
+    expect(upstreamWs.terminate).not.toHaveBeenCalled();
+    expect(browserWs.close).not.toHaveBeenCalled();
+    expect(upstreamWs.close).not.toHaveBeenCalled();
+  });
+
+  it("tolerates two missed browser heartbeats before terminating the browser leg", async () => {
+    vi.useFakeTimers();
+    const socket = makeSocket();
+    await handleUpgrade(makeReq(validParams), socket, Buffer.alloc(0));
+
+    const browserWs = wsMockState.browserSockets.at(-1);
+    const upstreamWs = wsMockState.upstreamSockets.at(-1);
+    expect(browserWs).toBeDefined();
+    expect(upstreamWs).toBeDefined();
+    if (!browserWs || !upstreamWs) return;
+
+    getSocketHandler(upstreamWs, "open")();
+    expect(browserWs.terminate).not.toHaveBeenCalled();
+
+    getSocketHandler(upstreamWs, "pong")();
+    await vi.advanceTimersByTimeAsync(15_000);
+
+    expect(browserWs.terminate).not.toHaveBeenCalled();
+    getSocketHandler(upstreamWs, "pong")();
+    await vi.advanceTimersByTimeAsync(15_000);
+
+    expect(browserWs.terminate).not.toHaveBeenCalled();
+    getSocketHandler(upstreamWs, "pong")();
+    await vi.advanceTimersByTimeAsync(15_000);
+
+    expect(browserWs.terminate).toHaveBeenCalledTimes(1);
+    expect(upstreamWs.terminate).not.toHaveBeenCalled();
+    expect(upstreamWs.close).toHaveBeenCalledTimes(1);
+  });
+
+  it("tolerates two missed upstream heartbeats before terminating the upstream leg", async () => {
+    vi.useFakeTimers();
+    const socket = makeSocket();
+    await handleUpgrade(makeReq(validParams), socket, Buffer.alloc(0));
+
+    const browserWs = wsMockState.browserSockets.at(-1);
+    const upstreamWs = wsMockState.upstreamSockets.at(-1);
+    expect(browserWs).toBeDefined();
+    expect(upstreamWs).toBeDefined();
+    if (!browserWs || !upstreamWs) return;
+
+    getSocketHandler(upstreamWs, "open")();
+    expect(upstreamWs.terminate).not.toHaveBeenCalled();
+
+    getSocketHandler(browserWs, "pong")();
+    await vi.advanceTimersByTimeAsync(15_000);
+
+    expect(upstreamWs.terminate).not.toHaveBeenCalled();
+    getSocketHandler(browserWs, "pong")();
+    await vi.advanceTimersByTimeAsync(15_000);
+
+    expect(upstreamWs.terminate).not.toHaveBeenCalled();
+    getSocketHandler(browserWs, "pong")();
+    await vi.advanceTimersByTimeAsync(15_000);
+
+    expect(upstreamWs.terminate).toHaveBeenCalledTimes(1);
+    expect(browserWs.terminate).not.toHaveBeenCalled();
+    expect(browserWs.close).toHaveBeenCalledTimes(1);
   });
 
   it("forwards browser resize frames unchanged to open upstream websocket", async () => {
