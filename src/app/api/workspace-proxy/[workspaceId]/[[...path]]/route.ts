@@ -217,6 +217,7 @@ async function proxyRequest(
       }
       html = html.replace('"BaseURL":""', `"BaseURL":"${proxyBase}/filebrowser"`);
       html = html.replace('"StaticURL":"/static"', `"StaticURL":"${proxyBase}/filebrowser/static"`);
+      html = html.replaceAll('"/static/', `"${proxyBase}/filebrowser/static/`);
       responseHeaders.delete("content-length");
       responseHeaders.delete("content-encoding");
       return new NextResponse(html, {
