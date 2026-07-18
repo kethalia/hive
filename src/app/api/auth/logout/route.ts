@@ -17,10 +17,13 @@ export async function POST(request: Request) {
   }
 
   const response = NextResponse.json({ success: true as const });
+  response.cookies.set(CODER_HOST_COOKIE, "", {
+    httpOnly: true,
+    maxAge: 0,
+    sameSite: "lax",
+    secure: true,
+    path: "/",
+  });
   appendClearSessionCookieHeaders(response.headers, new URL(request.url).hostname);
-  response.headers.append(
-    "set-cookie",
-    `${CODER_HOST_COOKIE}=; Path=/; Max-Age=0; HttpOnly; Secure; SameSite=Lax`,
-  );
   return response;
 }

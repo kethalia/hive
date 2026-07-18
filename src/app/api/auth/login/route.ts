@@ -33,14 +33,16 @@ export async function POST(request: Request) {
   try {
     const result = await getAuthServiceClient().login({ coderUrl, email, password });
     const response = NextResponse.json({ success: true as const });
+    response.cookies.set(CODER_HOST_COOKIE, new URL(coderUrl).host, {
+      httpOnly: true,
+      sameSite: "lax",
+      secure: true,
+      path: "/",
+    });
     appendSetSessionCookieHeaders(
       response.headers,
       createSignedSessionCookie(result.sessionId),
       new URL(request.url).hostname,
-    );
-    response.headers.append(
-      "set-cookie",
-      `${CODER_HOST_COOKIE}=${encodeURIComponent(new URL(coderUrl).host)}; Path=/; HttpOnly; Secure; SameSite=Lax`,
     );
     console.log(`[login] Login successful for ${email}`);
     return response;

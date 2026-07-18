@@ -86,16 +86,16 @@ describe("auth route cookies", () => {
 
     const setCookies = getSetCookies(response);
     expect(setCookies).toHaveLength(4);
-    expect(setCookies[0]).toContain("hive-session=; Path=/; Max-Age=0");
-    expect(setCookies[0]).not.toContain("Domain=");
+    expect(setCookies[0]).toContain("hive-coder-host=coder.example.com");
+    expect(setCookies[0]).toContain("HttpOnly");
     expect(setCookies[1]).toContain("hive-session=; Path=/; Max-Age=0");
-    expect(setCookies[1]).toContain("Domain=.hive.local.kethalia.com");
-    expect(setCookies[2]).toContain("hive-session=sess-123.");
+    expect(setCookies[1]).not.toContain("Domain=");
+    expect(setCookies[2]).toContain("hive-session=; Path=/; Max-Age=0");
     expect(setCookies[2]).toContain("Domain=.hive.local.kethalia.com");
-    expect(setCookies[2]).toContain("HttpOnly");
-    expect(setCookies[2]).toContain("SameSite=Lax");
-    expect(setCookies[3]).toContain("hive-coder-host=coder.example.com");
+    expect(setCookies[3]).toContain("hive-session=sess-123.");
+    expect(setCookies[3]).toContain("Domain=.hive.local.kethalia.com");
     expect(setCookies[3]).toContain("HttpOnly");
+    expect(setCookies[3]).toContain("SameSite=Lax");
   });
 
   it("login derives a preview-scoped cookie domain when COOKIE_DOMAIN is unset", async () => {
@@ -120,13 +120,13 @@ describe("auth route cookies", () => {
     expect(response.status).toBe(200);
     const setCookies = getSetCookies(response);
     expect(setCookies).toHaveLength(5);
-    expect(setCookies[0]).not.toContain("Domain=");
-    expect(setCookies[1]).toContain("hive-session=; Path=/; Max-Age=0");
-    expect(setCookies[1]).toContain("Domain=.pr-113.hive.local.kethalia.com");
+    expect(setCookies[1]).not.toContain("Domain=");
     expect(setCookies[2]).toContain("hive-session=; Path=/; Max-Age=0");
-    expect(setCookies[2]).toContain("Domain=.hive.local.kethalia.com");
-    expect(setCookies[3]).toContain("hive-session=sess-preview.");
-    expect(setCookies[3]).toContain("Domain=.pr-113.hive.local.kethalia.com");
+    expect(setCookies[2]).toContain("Domain=.pr-113.hive.local.kethalia.com");
+    expect(setCookies[3]).toContain("hive-session=; Path=/; Max-Age=0");
+    expect(setCookies[3]).toContain("Domain=.hive.local.kethalia.com");
+    expect(setCookies[4]).toContain("hive-session=sess-preview.");
+    expect(setCookies[4]).toContain("Domain=.pr-113.hive.local.kethalia.com");
   });
 
   it("login rejects invalid input without calling auth service", async () => {
@@ -211,11 +211,11 @@ describe("auth route cookies", () => {
 
     const setCookies = getSetCookies(response);
     expect(setCookies).toHaveLength(3);
-    expect(setCookies[0]).toContain("hive-session=; Path=/; Max-Age=0");
-    expect(setCookies[0]).toContain("Domain=.hive.local.kethalia.com");
+    expect(setCookies[0]).toContain("hive-coder-host=; Path=/; Max-Age=0");
     expect(setCookies[1]).toContain("hive-session=; Path=/; Max-Age=0");
-    expect(setCookies[1]).not.toContain("Domain=");
-    expect(setCookies[2]).toContain("hive-coder-host=; Path=/; Max-Age=0");
+    expect(setCookies[1]).toContain("Domain=.hive.local.kethalia.com");
+    expect(setCookies[2]).toContain("hive-session=; Path=/; Max-Age=0");
+    expect(setCookies[2]).not.toContain("Domain=");
     expect(setCookies.join("\n")).toContain("Expires=Thu, 01 Jan 1970 00:00:00 GMT");
   });
 
@@ -242,11 +242,11 @@ describe("auth route cookies", () => {
 
     const setCookies = getSetCookies(response);
     expect(setCookies).toHaveLength(4);
-    expect(setCookies[0]).toContain("hive-session=; Path=/; Max-Age=0");
-    expect(setCookies[0]).toContain("Domain=.pr-113.hive.local.kethalia.com");
     expect(setCookies[1]).toContain("hive-session=; Path=/; Max-Age=0");
-    expect(setCookies[1]).toContain("Domain=.hive.local.kethalia.com");
+    expect(setCookies[1]).toContain("Domain=.pr-113.hive.local.kethalia.com");
     expect(setCookies[2]).toContain("hive-session=; Path=/; Max-Age=0");
-    expect(setCookies[2]).not.toContain("Domain=");
+    expect(setCookies[2]).toContain("Domain=.hive.local.kethalia.com");
+    expect(setCookies[3]).toContain("hive-session=; Path=/; Max-Age=0");
+    expect(setCookies[3]).not.toContain("Domain=");
   });
 });
