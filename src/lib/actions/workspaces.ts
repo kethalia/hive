@@ -7,6 +7,11 @@ import { isCloneTerminalSessionName } from "@/lib/git/clone-terminal-session";
 import { authActionClient } from "@/lib/safe-action";
 import { execInWorkspace } from "@/lib/workspace/exec";
 import { filterGenericTmuxSessions, parseTmuxSessions } from "@/lib/workspaces/sessions";
+import {
+  buildCodeServerFolderUrl,
+  buildFileBrowserFolderUrl,
+  buildWorkspaceUrls,
+} from "@/lib/workspaces/urls";
 
 export const listWorkspacesAction = authActionClient.action(async ({ ctx }) => {
   const client = await getCoderClientForUser(ctx.user.id);
@@ -85,6 +90,42 @@ const getWorkspaceSessionsSchema = z.object({
   workspaceId: z.string().min(1, "workspaceId is required"),
 });
 
+const workspaceSessionToolsSchema = z.object({
+  workspaceId: z.string().min(1, "workspaceId is required"),
+  sessionName: z
+    .string()
+    .trim()
+    .min(1, "sessionName is required")
+    .regex(SAFE_IDENTIFIER_RE, "Invalid session name"),
+  fallbackPath: z.string().trim().min(1).optional(),
+});
+
+function normalizeWorkspaceDirectory(value: string | undefined | null): string | null {
+  const trimmed = value?.trim();
+  if (!trimmed?.startsWith("/")) return null;
+  if (trimmed.includes("\0") || trimmed.includes("\n") || trimmed.includes("\r")) return null;
+  return trimmed;
+}
+
+async function getSessionCurrentDirectory({
+  agentTarget,
+  coderUrl,
+  sessionName,
+  sessionToken,
+}: {
+  agentTarget: string;
+  coderUrl: string;
+  sessionName: string;
+  sessionToken: string;
+}): Promise<string | null> {
+  const result = await execInWorkspace(
+    agentTarget,
+    `tmux -L web display-message -p -t ${sessionName}: '#{pane_current_path}'`,
+    { coderUrl, sessionToken },
+  );
+  return result.exitCode === 0 ? normalizeWorkspaceDirectory(result.stdout) : null;
+}
+
 export const getWorkspaceSessionsAction = authActionClient
   .inputSchema(getWorkspaceSessionsSchema)
   .action(async ({ parsedInput, ctx }) => {
@@ -143,6 +184,38 @@ export const getWorkspaceSessionsAction = authActionClient
     }
 
     return filterGenericTmuxSessions(parseTmuxSessions(result.stdout));
+  });
+
+export const getWorkspaceSessionToolsAction = authActionClient
+  .inputSchema(workspaceSessionToolsSchema)
+  .action(async ({ parsedInput, ctx }) => {
+    const client = await getCoderClientForUser(ctx.user.id);
+    const workspace = await client.getWorkspace(parsedInput.workspaceId);
+    const resources = await client.getWorkspaceResources(parsedInput.workspaceId);
+    const agent = resources.flatMap((resource) => resource.agents ?? [])[0];
+    if (!agent) throw new Error(`No agents found for workspace ${parsedInput.workspaceId}`);
+
+    const urls = buildWorkspaceUrls(workspace, agent.name, client.getBaseUrl());
+    if (!urls) throw new Error("Coder URL is unavailable for workspace tools");
+
+    const currentDirectory = await getSessionCurrentDirectory({
+      agentTarget: `${workspace.name}.${agent.name}`,
+      coderUrl: client.getBaseUrl(),
+      sessionName: parsedInput.sessionName,
+      sessionToken: client.getSessionToken(),
+    });
+    const folderPath =
+      currentDirectory ?? normalizeWorkspaceDirectory(parsedInput.fallbackPath) ?? undefined;
+
+    return {
+      codeUrl: buildCodeServerFolderUrl(urls.codeServer, folderPath),
+      filesUrl: buildFileBrowserFolderUrl(
+        `/api/workspace-proxy/${encodeURIComponent(parsedInput.workspaceId)}/filebrowser`,
+        folderPath,
+      ),
+      folderPath: folderPath ?? null,
+      source: currentDirectory ? "tmux" : folderPath ? "fallback" : "default",
+    };
   });
 
 const restartWorkspaceSchema = z.object({

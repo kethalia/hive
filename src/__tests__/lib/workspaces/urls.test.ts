@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { buildWorkspaceUrls } from "@/lib/workspaces/urls";
+import {
+  buildCodeServerFolderUrl,
+  buildFileBrowserFolderUrl,
+  buildWorkspaceUrls,
+} from "@/lib/workspaces/urls";
 
 describe("buildWorkspaceUrls", () => {
   const workspace = { name: "dev-box", owner_name: "alice" };
@@ -47,5 +51,25 @@ describe("buildWorkspaceUrls", () => {
     expect(urls!.kasmvnc).not.toContain("coder_session_token");
     expect(urls!.codeServer).not.toContain("coder_session_token");
     expect(urls!.dashboard).not.toContain("coder_session_token");
+  });
+});
+
+describe("workspace tool folder URLs", () => {
+  it("opens VS Code and File Browser at the selected session directory", () => {
+    expect(
+      buildCodeServerFolderUrl("https://code.example.com", "/home/coder/projects/kethalia/hive"),
+    ).toBe("https://code.example.com/?folder=%2Fhome%2Fcoder%2Fprojects%2Fkethalia%2Fhive");
+    expect(
+      buildFileBrowserFolderUrl("https://files.example.com", "/home/coder/projects/kethalia/hive"),
+    ).toBe("https://files.example.com/files/home/coder/projects/kethalia/hive");
+  });
+
+  it("keeps app roots unchanged when no directory is available", () => {
+    expect(buildCodeServerFolderUrl("https://code.example.com", null)).toBe(
+      "https://code.example.com",
+    );
+    expect(buildFileBrowserFolderUrl("https://files.example.com", " ")).toBe(
+      "https://files.example.com",
+    );
   });
 });

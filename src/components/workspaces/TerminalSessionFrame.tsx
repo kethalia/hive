@@ -120,6 +120,7 @@ interface TerminalSessionFrameProps {
   disabledLabel?: string;
   closeLabel?: string;
   closeTestId?: string;
+  headerActions?: ReactNode;
   style?: CSSProperties;
 }
 
@@ -140,6 +141,7 @@ export function TerminalSessionFrame({
   disabledLabel,
   closeLabel,
   closeTestId,
+  headerActions,
   style,
 }: TerminalSessionFrameProps) {
   const interactive = Boolean(onActivate) && !disabled;
@@ -194,6 +196,7 @@ export function TerminalSessionFrame({
           data-testid={dataTestId ? `${dataTestId}-header` : undefined}
         >
           <span className="min-w-0 flex-1 truncate font-mono text-xs">{label}</span>
+          {headerActions}
           {onClose ? (
             <Button
               type="button"

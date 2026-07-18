@@ -383,4 +383,59 @@ describe("workspace server actions", () => {
     expect(result?.data).toBeUndefined();
     expect(result?.serverError).toMatch(/timed out/i);
   });
+
+  it("resolves embedded VS Code and File Browser URLs from the tmux pane directory", async () => {
+    mockGetWorkspace.mockResolvedValueOnce({
+      id: "ws-1",
+      name: "dev-box",
+      owner_name: "alice",
+      template_id: "tpl-1",
+      latest_build: { id: "build-1", status: "running", job: { status: "succeeded" } },
+    });
+    mockedExec.mockResolvedValueOnce({
+      stdout: "/home/coder/projects/kethalia/hive\n",
+      stderr: "",
+      exitCode: 0,
+    });
+
+    const { getWorkspaceSessionToolsAction } = await import("@/lib/actions/workspaces");
+    const result = await getWorkspaceSessionToolsAction({
+      workspaceId: "ws-1",
+      sessionName: "git-hive",
+    });
+
+    expect(mockedExec).toHaveBeenCalledWith(
+      "dev-box.main",
+      "tmux -L web display-message -p -t git-hive: '#{pane_current_path}'",
+      { coderUrl: "https://coder.example.com", sessionToken: "coder-session-token" },
+    );
+    expect(result?.data).toEqual({
+      codeUrl:
+        "https://code-server--main--dev-box--alice.coder.example.com/?folder=%2Fhome%2Fcoder%2Fprojects%2Fkethalia%2Fhive",
+      filesUrl: "/api/workspace-proxy/ws-1/filebrowser/files/home/coder/projects/kethalia/hive",
+      folderPath: "/home/coder/projects/kethalia/hive",
+      source: "tmux",
+    });
+  });
+
+  it("uses a trusted absolute fallback directory when the tmux pane is unavailable", async () => {
+    mockGetWorkspace.mockResolvedValueOnce({
+      id: "ws-1",
+      name: "dev-box",
+      owner_name: "alice",
+      template_id: "tpl-1",
+      latest_build: { id: "build-1", status: "running", job: { status: "succeeded" } },
+    });
+    mockedExec.mockResolvedValueOnce({ stdout: "", stderr: "missing session", exitCode: 1 });
+
+    const { getWorkspaceSessionToolsAction } = await import("@/lib/actions/workspaces");
+    const result = await getWorkspaceSessionToolsAction({
+      workspaceId: "ws-1",
+      sessionName: "git-hive",
+      fallbackPath: "/home/coder/projects/kethalia/hive",
+    });
+
+    expect(result?.data?.folderPath).toBe("/home/coder/projects/kethalia/hive");
+    expect(result?.data?.source).toBe("fallback");
+  });
 });

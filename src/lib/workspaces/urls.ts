@@ -24,3 +24,29 @@ export function buildWorkspaceUrls(
     dashboard: `${stripped}/@${workspace.owner_name}/${workspace.name}`,
   };
 }
+
+export function buildCodeServerFolderUrl(
+  codeServerUrl: string,
+  folderPath?: string | null,
+): string {
+  if (!folderPath?.trim()) return codeServerUrl;
+
+  const url = new URL(codeServerUrl);
+  url.searchParams.set("folder", folderPath.trim());
+  return url.toString();
+}
+
+export function buildFileBrowserFolderUrl(
+  fileBrowserUrl: string,
+  folderPath?: string | null,
+): string {
+  if (!folderPath?.trim()) return fileBrowserUrl;
+
+  const isRelative = fileBrowserUrl.startsWith("/");
+  const url = new URL(fileBrowserUrl, "https://hive.local");
+  url.pathname = `/files${folderPath.trim()}`;
+  if (!isRelative) return url.toString();
+
+  const proxyPrefix = fileBrowserUrl.replace(/\/+$/, "");
+  return `${proxyPrefix}/files${folderPath.trim()}`;
+}

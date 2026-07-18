@@ -34,6 +34,7 @@ import {
   TerminalSessionFrame,
 } from "@/components/workspaces/TerminalSessionFrame";
 import { WorkspaceBoardBar } from "@/components/workspaces/WorkspaceBoardBar";
+import { WorkspaceSessionTools } from "@/components/workspaces/WorkspaceSessionTools";
 import { useIsComposeSheet } from "@/hooks/use-compose-sheet";
 import { useKeepAliveStatus } from "@/hooks/useKeepAliveStatus";
 import { useKeybindings } from "@/hooks/useKeybindings";
@@ -2911,6 +2912,16 @@ export function MultiSessionWorkspace({
         style={paneStyle}
         disabled={isComposeDisabled}
         disabledLabel="Compose locked"
+        headerActions={
+          session ? (
+            <WorkspaceSessionTools
+              workspaceId={workspaceId}
+              sessionName={session.sessionName}
+              label={session.label}
+              fallbackPath={session.clonePath}
+            />
+          ) : null
+        }
         onActivate={() => {
           if (!model.isActive) {
             persistBoardState(selectWorkspaceBoard(boardState, model.board.key));
