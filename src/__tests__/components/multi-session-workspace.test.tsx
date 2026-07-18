@@ -413,110 +413,38 @@ vi.mock("@/components/terminal/CommandPalette", () => ({
           value={searchValue}
           onChange={(event) => onSearchValueChange?.(event.currentTarget.value)}
         />
-        {actions.map((action) => {
-          const sessionId = action.id.startsWith("workspace:session:")
-            ? action.id.slice("workspace:session:".length)
-            : null;
-          const gitId = action.id.startsWith("workspace:git:")
-            ? action.id.slice("workspace:git:".length)
-            : null;
-          return (
-            <div key={action.id}>
+        {actions.map((action) => (
+          <div key={action.id}>
+            <button
+              type="button"
+              data-testid={`palette-action-${action.id}`}
+              disabled={action.disabled}
+              onClick={() => {
+                if (action.disabled) return;
+                action.onSelect();
+                onOpenChange?.(false);
+              }}
+            >
+              <span>{action.label}</span>
+              {action.description ? <span>{action.description}</span> : null}
+              {action.rightLabel ? <span>{action.rightLabel}</span> : null}
+            </button>
+            {action.options?.map((option) => (
               <button
+                key={option.id}
                 type="button"
-                data-testid={`palette-action-${action.id}`}
-                disabled={action.disabled}
+                data-testid={`palette-option-${action.id}-${option.id}`}
+                disabled={action.disabled || option.disabled}
                 onClick={() => {
-                  if (action.disabled) return;
-                  action.onSelect();
+                  option.onSelect();
                   onOpenChange?.(false);
                 }}
               >
-                <span>{action.label}</span>
-                {action.description ? <span>{action.description}</span> : null}
-                {action.rightLabel ? <span>{action.rightLabel}</span> : null}
+                {option.label}
               </button>
-              {action.options?.map((option) => (
-                <button
-                  key={option.id}
-                  type="button"
-                  data-testid={`palette-option-${action.id}-${option.id}`}
-                  disabled={action.disabled || option.disabled}
-                  onClick={() => {
-                    option.onSelect();
-                    onOpenChange?.(false);
-                  }}
-                >
-                  {option.label}
-                </button>
-              ))}
-              {sessionId && action.description !== "Git terminal session" ? (
-                <>
-                  <button
-                    type="button"
-                    data-testid={`palette-action-workspace:add-session:${sessionId}`}
-                    disabled={action.options?.[0]?.disabled}
-                    onClick={action.options?.[0]?.onSelect}
-                  >
-                    {action.options?.[0]?.disabled
-                      ? "Already in this board"
-                      : `Move this terminal from Default to Workspace 2: Add ${action.label}`}
-                  </button>
-                  {action.options?.[0]?.disabled ? (
-                    <button
-                      type="button"
-                      data-testid={`palette-action-workspace:focus-session:${sessionId}`}
-                      onClick={action.onSelect}
-                    >
-                      Focus in this board
-                    </button>
-                  ) : null}
-                  <button
-                    type="button"
-                    data-testid={`palette-action-workspace:open-session:${sessionId}`}
-                    onClick={action.options?.[1]?.onSelect}
-                  >
-                    Open as a single terminal page: {action.label}
-                  </button>
-                </>
-              ) : null}
-              {gitId ? (
-                <>
-                  <button
-                    type="button"
-                    data-testid={`palette-action-workspace:add-git:${gitId}`}
-                    disabled={action.options?.[0]?.disabled}
-                    onClick={() => {
-                      action.options?.[0]?.onSelect();
-                      onOpenChange?.(false);
-                    }}
-                  >
-                    Open this Git repository as a workspace pane: Add {action.label}
-                  </button>
-                  <button
-                    type="button"
-                    data-testid={`palette-action-workspace:open-git:${gitId}`}
-                    onClick={() => {
-                      action.options?.[1]?.onSelect();
-                      onOpenChange?.(false);
-                    }}
-                  >
-                    Open this Git repository as a single terminal page: Open {action.label}
-                  </button>
-                </>
-              ) : null}
-              {sessionId && action.description === "Git terminal session" ? (
-                <button
-                  type="button"
-                  data-testid={`palette-action-workspace:open-session:${sessionId}`}
-                  onClick={action.options?.[1]?.onSelect}
-                >
-                  Open as a single terminal page: {action.label}
-                </button>
-              ) : null}
-            </div>
-          );
-        })}
+            ))}
+          </div>
+        ))}
       </div>
     ) : null,
 }));
@@ -1854,14 +1782,12 @@ describe("MultiSessionWorkspace", () => {
       target: { value: "dev" },
     });
 
-    expect(
-      screen.queryByTestId("palette-action-workspace:focus-session:dev-server"),
-    ).not.toBeInTheDocument();
-    expect(screen.getByTestId("palette-action-workspace:add-session:dev-server")).toHaveTextContent(
-      "Move this terminal from Default to Workspace 2",
+    expect(screen.getByTestId("palette-action-workspace:session:dev-server")).toBeInTheDocument();
+    expect(screen.getByTestId("palette-option-workspace:session:dev-server-add")).toHaveTextContent(
+      "Add",
     );
 
-    fireEvent.click(screen.getByTestId("palette-action-workspace:add-session:dev-server"));
+    fireEvent.click(screen.getByTestId("palette-option-workspace:session:dev-server-add"));
 
     expect(screen.getByTestId("workspace-pane-dev-server")).toBeInTheDocument();
     expect(screen.queryByTestId("workspace-pane-main-session")).not.toBeInTheDocument();
@@ -1890,10 +1816,10 @@ describe("MultiSessionWorkspace", () => {
     await screen.findByTestId("workspace-pane-main-session");
 
     fireEvent.click(screen.getByTestId("open-git-session-search"));
-    const action = await screen.findByTestId("palette-action-workspace:add-session:main-session");
+    const action = await screen.findByTestId("palette-option-workspace:session:main-session-add");
 
     expect(action).toBeDisabled();
-    expect(action).toHaveTextContent("Already in this board");
+    expect(action).toHaveTextContent("Add");
   });
 
   it("restores persisted boards from git-scoped storage and writes selection back to the git key", async () => {
@@ -2217,24 +2143,24 @@ describe("MultiSessionWorkspace", () => {
       target: { value: "dev" },
     });
 
+    expect(screen.getByTestId("palette-action-workspace:session:dev-server")).toHaveTextContent(
+      "dev-server",
+    );
     expect(
-      screen.getByTestId("palette-action-workspace:focus-session:dev-server"),
-    ).toHaveTextContent("Focus in this board");
-    expect(
-      screen.getByTestId("palette-action-workspace:open-session:dev-server"),
-    ).toHaveTextContent("Open as a single terminal page");
+      screen.getByTestId("palette-option-workspace:session:dev-server-open"),
+    ).toHaveTextContent("Open");
 
     fireEvent.change(screen.getByTestId("workspace-command-palette-search"), {
       target: { value: "hive" },
     });
     expect(
-      screen.getByTestId("palette-action-workspace:add-git:git-clone:kethalia/hive:kethalia/hive"),
-    ).toHaveTextContent("Open this Git repository as a workspace pane");
+      screen.getByTestId("palette-option-workspace:git:git-clone:kethalia/hive:kethalia/hive-add"),
+    ).toHaveTextContent("Add");
     expect(
-      screen.getByTestId("palette-action-workspace:open-git:git-clone:kethalia/hive:kethalia/hive"),
-    ).toHaveTextContent("Open this Git repository as a single terminal page");
+      screen.getByTestId("palette-option-workspace:git:git-clone:kethalia/hive:kethalia/hive-open"),
+    ).toHaveTextContent("Open");
 
-    fireEvent.click(screen.getByTestId("palette-action-workspace:focus-session:dev-server"));
+    fireEvent.click(screen.getByTestId("palette-action-workspace:session:dev-server"));
 
     expect(screen.getByTestId("active-pane-label")).toHaveTextContent("dev-server");
   });
@@ -2278,16 +2204,16 @@ describe("MultiSessionWorkspace", () => {
     });
 
     expect(
-      screen.getByTestId("palette-action-workspace:add-git:git-clone:kethalia:kethalia/hive"),
+      screen.getByTestId("palette-action-workspace:git:git-clone:kethalia:kethalia/hive"),
     ).toHaveTextContent("kethalia/hive");
     expect(
-      screen.getByTestId("palette-action-workspace:add-git:git-clone:kethalia:kethalia/docs"),
+      screen.getByTestId("palette-action-workspace:git:git-clone:kethalia:kethalia/docs"),
     ).toHaveTextContent("kethalia/docs");
     expect(
-      screen.getByTestId("palette-action-workspace:open-git:git-clone:kethalia:kethalia/hive"),
+      screen.getByTestId("palette-option-workspace:git:git-clone:kethalia:kethalia/hive-open"),
     ).toBeInTheDocument();
     expect(
-      screen.getByTestId("palette-action-workspace:open-git:git-clone:kethalia:kethalia/docs"),
+      screen.getByTestId("palette-option-workspace:git:git-clone:kethalia:kethalia/docs-open"),
     ).toBeInTheDocument();
   });
 
@@ -2365,7 +2291,7 @@ describe("MultiSessionWorkspace", () => {
     fireEvent.change(await screen.findByTestId("workspace-command-palette-search"), {
       target: { value: "main" },
     });
-    fireEvent.click(screen.getByTestId("palette-action-workspace:add-session:main-session"));
+    fireEvent.click(screen.getByTestId("palette-option-workspace:session:main-session-add"));
 
     expect(screen.getByTestId("workspace-pane-main-session")).toBeInTheDocument();
     expect(screen.getByTestId("active-pane-label")).toHaveTextContent("main-session");
@@ -2535,7 +2461,11 @@ describe("MultiSessionWorkspace", () => {
     });
 
     await act(async () => {
-      fireEvent.click(screen.getByRole("button", { name: /Add kethalia\/hive/ }));
+      fireEvent.click(
+        screen.getByTestId(
+          "palette-option-workspace:git:git-clone:kethalia/hive:kethalia/hive-add",
+        ),
+      );
     });
 
     expect(screen.getByTestId("workspace-pane-git-clone-safe-hive")).toBeInTheDocument();
@@ -2630,8 +2560,12 @@ describe("MultiSessionWorkspace", () => {
       target: { value: "docs" },
     });
 
-    expect(screen.queryByRole("button", { name: /Add kethalia\/hive/ })).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /Add kethalia\/docs/ })).toBeInTheDocument();
+    expect(
+      screen.queryByTestId("palette-option-workspace:git:git-clone:monorepo:kethalia/hive-add"),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByTestId("palette-option-workspace:git:git-clone:monorepo:kethalia/docs-add"),
+    ).toBeInTheDocument();
   });
 
   it("surfaces sanitized restore failures for malformed persisted Git pane resolver output", async () => {
@@ -2798,7 +2732,9 @@ describe("MultiSessionWorkspace", () => {
     fireEvent.change(await screen.findByTestId("workspace-command-palette-search"), {
       target: { value: "docs" },
     });
-    expect(screen.getByRole("button", { name: /Add kethalia\/docs/ })).toBeInTheDocument();
+    expect(
+      screen.getByTestId("palette-option-workspace:git:git-clone:kethalia/docs:kethalia/docs-add"),
+    ).toBeInTheDocument();
     fireEvent.click(screen.getByTestId("retry-git-session-restore"));
 
     expect(await screen.findByTestId("interactive-terminal-git-clone-safe-hive")).toHaveAttribute(
@@ -2929,7 +2865,11 @@ describe("MultiSessionWorkspace", () => {
     });
 
     await act(async () => {
-      fireEvent.click(screen.getByRole("button", { name: /Add kethalia\/hive/ }));
+      fireEvent.click(
+        screen.getByTestId(
+          "palette-option-workspace:git:git-clone:kethalia/hive:kethalia/hive-add",
+        ),
+      );
     });
 
     expect(await screen.findByTestId("git-session-add-error")).toHaveTextContent(serverError);
@@ -2992,13 +2932,13 @@ describe("MultiSessionWorkspace", () => {
       target: { value: "hive" },
     });
     expect(
-      screen.getByTestId("palette-action-workspace:add-git:git-clone:kethalia/hive:kethalia/hive"),
-    ).toHaveTextContent("kethalia/hive");
+      screen.getByTestId("palette-option-workspace:git:git-clone:kethalia/hive:kethalia/hive-add"),
+    ).toHaveTextContent("Add");
 
     await act(async () => {
       fireEvent.click(
         screen.getByTestId(
-          "palette-action-workspace:add-git:git-clone:kethalia/hive:kethalia/hive",
+          "palette-option-workspace:git:git-clone:kethalia/hive:kethalia/hive-add",
         ),
       );
     });
@@ -3326,7 +3266,7 @@ describe("MultiSessionWorkspace", () => {
     fireEvent.change(await screen.findByTestId("workspace-command-palette-search"), {
       target: { value: "main" },
     });
-    fireEvent.click(screen.getByTestId("palette-action-workspace:add-session:main-session"));
+    fireEvent.click(screen.getByTestId("palette-option-workspace:session:main-session-add"));
     expect(screen.getByTestId("workspace-pane-main-session")).toBeInTheDocument();
     expect(screen.queryByTestId("workspace-recovery-status")).not.toBeInTheDocument();
   });
@@ -3379,7 +3319,7 @@ describe("MultiSessionWorkspace", () => {
     await act(async () => {
       fireEvent.click(
         screen.getByTestId(
-          "palette-action-workspace:add-git:git-clone:kethalia/hive:kethalia/hive",
+          "palette-option-workspace:git:git-clone:kethalia/hive:kethalia/hive-add",
         ),
       );
     });
@@ -3476,7 +3416,7 @@ describe("MultiSessionWorkspace", () => {
     await act(async () => {
       fireEvent.click(
         screen.getByTestId(
-          "palette-action-workspace:add-git:git-clone:kethalia/hive:kethalia/hive",
+          "palette-option-workspace:git:git-clone:kethalia/hive:kethalia/hive-add",
         ),
       );
     });
@@ -3542,7 +3482,7 @@ describe("MultiSessionWorkspace", () => {
     await act(async () => {
       fireEvent.click(
         screen.getByTestId(
-          "palette-action-workspace:open-git:git-clone:kethalia/hive:kethalia/hive",
+          "palette-option-workspace:git:git-clone:kethalia/hive:kethalia/hive-open",
         ),
       );
     });
@@ -3562,7 +3502,7 @@ describe("MultiSessionWorkspace", () => {
     await act(async () => {
       fireEvent.click(
         screen.getByTestId(
-          "palette-action-workspace:add-git:git-clone:kethalia/hive:kethalia/hive",
+          "palette-option-workspace:git:git-clone:kethalia/hive:kethalia/hive-add",
         ),
       );
     });
@@ -3571,7 +3511,7 @@ describe("MultiSessionWorkspace", () => {
       target: { value: "hive" },
     });
     fireEvent.click(
-      screen.getByTestId("palette-action-workspace:open-session:git-clone-safe-hive"),
+      screen.getByTestId("palette-option-workspace:session:git-clone-safe-hive-open"),
     );
 
     pushed = new URL(mockRouterPush.mock.calls.at(-1)?.[0] ?? "", "https://example.test");
@@ -3718,7 +3658,7 @@ describe("MultiSessionWorkspace", () => {
     await act(async () => {
       fireEvent.click(
         await screen.findByTestId(
-          "palette-action-workspace:add-git:git-clone:kethalia/hive:kethalia/hive",
+          "palette-option-workspace:git:git-clone:kethalia/hive:kethalia/hive-add",
         ),
       );
     });
@@ -3779,9 +3719,9 @@ describe("MultiSessionWorkspace", () => {
     await waitFor(() => {
       expect(
         screen.getByTestId(
-          "palette-action-workspace:add-git:git-clone:kethalia/docs:kethalia/docs",
+          "palette-option-workspace:git:git-clone:kethalia/docs:kethalia/docs-add",
         ),
-      ).toHaveTextContent("kethalia/docs");
+      ).toHaveTextContent("Add");
     });
 
     fireEvent.change(screen.getByTestId("workspace-command-palette-search"), {
@@ -3789,7 +3729,7 @@ describe("MultiSessionWorkspace", () => {
     });
     const resultButtons = screen
       .getAllByRole("button")
-      .filter((button) => button.dataset.testid?.startsWith("palette-action-workspace:add-git:"))
+      .filter((button) => button.dataset.testid?.startsWith("palette-action-workspace:git:"))
       .map((button) => button.textContent);
     expect(resultButtons[0]).toContain("kethalia/docs");
     expect(resultButtons[1]).toContain("kethalia/hive");
