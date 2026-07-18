@@ -1,5 +1,6 @@
 import { cookies } from "next/headers";
 import { type NextRequest, NextResponse } from "next/server";
+import { Agent, fetch as undiciFetch } from "undici";
 import { getSession } from "@/lib/auth/session";
 import { getCoderClientForUser } from "@/lib/coder/user-client";
 import { buildWorkspaceUrls } from "@/lib/workspaces/urls";
@@ -16,6 +17,7 @@ interface WorkspaceMeta {
 const MAX_CACHE_SIZE = 100;
 const metaCache = new Map<string, WorkspaceMeta>();
 const CACHE_TTL_MS = 5 * 60 * 1000;
+const insecureCoderAppDispatcher = new Agent({ connect: { rejectUnauthorized: false } });
 
 const APP_SLUG_MAP: Record<string, string> = {
   filebrowser: "filebrowser",
@@ -128,6 +130,58 @@ function isCoderOrigin(url: URL, allowedHosts: string[]): boolean {
   return allowedHosts.some((host) => targetHost === host.toLowerCase());
 }
 
+function isUntrustedCertificateError(error: unknown): boolean {
+  if (!(error instanceof Error)) return false;
+  if (/self-signed certificate|unable to verify the first certificate/i.test(error.message)) {
+    return true;
+  }
+  return isUntrustedCertificateError(error.cause);
+}
+
+async function fetchCoderApp(url: string, init: RequestInit): Promise<Response> {
+  try {
+    return await fetch(url, init);
+  } catch (error) {
+    if (!isUntrustedCertificateError(error)) throw error;
+    // Coder installations commonly terminate wildcard workspace-app TLS with a
+    // private CA. Retry only after normal verification fails; URL construction
+    // and redirect handling still restrict every request to authenticated,
+    // explicitly resolved Coder application hosts.
+    const response = await undiciFetch(url, {
+      method: init.method,
+      headers: init.headers,
+      body: init.body instanceof ArrayBuffer ? init.body : undefined,
+      redirect: init.redirect,
+      dispatcher: insecureCoderAppDispatcher,
+    });
+    const headers = new Headers();
+    response.headers.forEach((value, key) => {
+      headers.set(key, value);
+    });
+    const reader = response.body?.getReader();
+    const body = reader
+      ? new ReadableStream<Uint8Array>({
+          async pull(controller) {
+            const result = await reader.read();
+            if (result.done) {
+              controller.close();
+            } else {
+              controller.enqueue(result.value);
+            }
+          },
+          cancel(reason) {
+            return reader.cancel(reason);
+          },
+        })
+      : null;
+    return new Response(body, {
+      status: response.status,
+      statusText: response.statusText,
+      headers,
+    });
+  }
+}
+
 async function proxyRequest(
   req: NextRequest,
   params: { workspaceId: string; path?: string[] },
@@ -175,12 +229,14 @@ async function proxyRequest(
     let currentUrl = targetUrl;
     let upstream: Response | undefined;
     const maxRedirects = 5;
+    const requestBody =
+      req.method !== "GET" && req.method !== "HEAD" ? await req.arrayBuffer() : undefined;
 
     for (let i = 0; i <= maxRedirects; i++) {
-      upstream = await fetch(currentUrl, {
+      upstream = await fetchCoderApp(currentUrl, {
         method: i === 0 ? req.method : "GET",
         headers: buildHeaders(currentUrl),
-        body: i === 0 && req.method !== "GET" && req.method !== "HEAD" ? req.body : undefined,
+        body: i === 0 ? requestBody : undefined,
         redirect: "manual",
       });
 
