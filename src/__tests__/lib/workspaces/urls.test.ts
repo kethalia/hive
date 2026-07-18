@@ -52,6 +52,33 @@ describe("buildWorkspaceUrls", () => {
     expect(urls!.dashboard).toBe("https://coder.kethalia.com/@alice/dev-box");
   });
 
+  it("preserves suffix-style wildcard app hosts", () => {
+    const urls = buildWorkspaceUrls(
+      workspace,
+      agent,
+      "https://coder.example.com",
+      "*--suffix.au.example.com",
+    );
+
+    expect(urls!.filebrowser).toBe(
+      "https://filebrowser--main--dev-box--alice--suffix.au.example.com",
+    );
+    expect(urls!.codeServer).toBe(
+      "https://code-server--main--dev-box--alice--suffix.au.example.com",
+    );
+  });
+
+  it("treats an application host without a wildcard as a dot suffix", () => {
+    const urls = buildWorkspaceUrls(
+      workspace,
+      agent,
+      "https://coder.example.com",
+      "apps.example.com",
+    );
+
+    expect(urls!.filebrowser).toBe("https://filebrowser--main--dev-box--alice.apps.example.com");
+  });
+
   it("returns null for empty coderUrl", () => {
     const urls = buildWorkspaceUrls(workspace, agent, "");
     expect(urls).toBeNull();

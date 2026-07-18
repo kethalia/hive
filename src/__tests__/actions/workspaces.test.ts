@@ -188,6 +188,33 @@ describe("workspace actions use authActionClient + getCoderClientForUser", () =>
     );
   });
 
+  it("recognizes local-issuer certificate failures", async () => {
+    mockedGetCoderClientForUser.mockResolvedValue({
+      getWorkspace: vi.fn().mockResolvedValue({ name: "dev-box", owner_name: "alice" }),
+      getWorkspaceAgentName: vi.fn().mockResolvedValue("dev-box.main"),
+      getApplicationsHost: vi.fn().mockResolvedValue("*.apps.example.com"),
+      getBaseUrl: () => "https://coder.example.com",
+      getSessionToken: () => "coder-session-token",
+    } as never);
+    vi.spyOn(globalThis, "fetch").mockRejectedValue(
+      Object.assign(new Error("fetch failed"), {
+        cause: { code: "UNABLE_TO_GET_ISSUER_CERT_LOCALLY" },
+      }),
+    );
+    const { GET } = await import("@/app/api/workspace-proxy/[workspaceId]/[[...path]]/route");
+    const workspaceId = "eeeeeeee-1111-2222-3333-444444444444";
+    const url = `http://localhost/api/workspace-proxy/${workspaceId}/filebrowser/files/home`;
+    const req = new Request(url);
+    Object.defineProperty(req, "nextUrl", { value: new URL(url) });
+
+    const response = await GET(req as never, {
+      params: Promise.resolve({ workspaceId, path: ["filebrowser", "files", "home"] }),
+    });
+
+    expect(response.status).toBe(200);
+    expect(mockedUndiciFetch).toHaveBeenCalledOnce();
+  });
+
   it("streams File Browser uploads without buffering the request in Hive", async () => {
     mockedGetCoderClientForUser.mockResolvedValue({
       getWorkspace: vi.fn().mockResolvedValue({ name: "dev-box", owner_name: "alice" }),
@@ -196,7 +223,9 @@ describe("workspace actions use authActionClient + getCoderClientForUser", () =>
       getBaseUrl: () => "https://coder.example.com",
       getSessionToken: () => "coder-session-token",
     } as never);
-    const fetchSpy = vi.spyOn(globalThis, "fetch");
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(new Response("ok", { status: 200 }));
     const { POST } = await import("@/app/api/workspace-proxy/[workspaceId]/[[...path]]/route");
     const workspaceId = "dddddddd-1111-2222-3333-444444444444";
     const url = `http://localhost/api/workspace-proxy/${workspaceId}/filebrowser/api/resources/home`;
@@ -214,7 +243,44 @@ describe("workspace actions use authActionClient + getCoderClientForUser", () =>
     expect(response.status).toBe(200);
     expect(await response.text()).toBe("ok");
     expect(arrayBufferSpy).not.toHaveBeenCalled();
-    expect(fetchSpy).not.toHaveBeenCalled();
+    expect(fetchSpy).toHaveBeenCalledWith(
+      "https://filebrowser--main--dev-box--alice.apps.example.com/api/resources/home",
+      expect.objectContaining({
+        body: expect.any(ReadableStream),
+        duplex: "half",
+        method: "POST",
+      }),
+    );
+    expect(mockedUndiciFetch).not.toHaveBeenCalled();
+  });
+
+  it("retries streaming writes only after verified TLS fails", async () => {
+    mockedGetCoderClientForUser.mockResolvedValue({
+      getWorkspace: vi.fn().mockResolvedValue({ name: "dev-box", owner_name: "alice" }),
+      getWorkspaceAgentName: vi.fn().mockResolvedValue("dev-box.main"),
+      getApplicationsHost: vi.fn().mockResolvedValue("*.apps.example.com"),
+      getBaseUrl: () => "https://coder.example.com",
+      getSessionToken: () => "coder-session-token",
+    } as never);
+    vi.spyOn(globalThis, "fetch").mockRejectedValue(
+      Object.assign(new Error("unable to get local issuer certificate"), {
+        code: "UNABLE_TO_GET_ISSUER_CERT_LOCALLY",
+      }),
+    );
+    const { POST } = await import("@/app/api/workspace-proxy/[workspaceId]/[[...path]]/route");
+    const workspaceId = "ffffffff-1111-2222-3333-444444444444";
+    const url = `http://localhost/api/workspace-proxy/${workspaceId}/filebrowser/api/resources/home`;
+    const req = new Request(url, { method: "POST", body: "streamed-upload" });
+    Object.defineProperty(req, "nextUrl", { value: new URL(url) });
+
+    const response = await POST(req as never, {
+      params: Promise.resolve({
+        workspaceId,
+        path: ["filebrowser", "api", "resources", "home"],
+      }),
+    });
+
+    expect(response.status).toBe(200);
     expect(mockedUndiciFetch).toHaveBeenCalledWith(
       "https://filebrowser--main--dev-box--alice.apps.example.com/api/resources/home",
       expect.objectContaining({

@@ -132,9 +132,18 @@ function isCoderOrigin(url: URL, allowedHosts: string[]): boolean {
 function isUntrustedCertificateError(error: unknown): boolean {
   if (typeof error !== "object" || error === null) return false;
   if (
+    "code" in error &&
+    typeof error.code === "string" &&
+    error.code === "UNABLE_TO_GET_ISSUER_CERT_LOCALLY"
+  ) {
+    return true;
+  }
+  if (
     "message" in error &&
     typeof error.message === "string" &&
-    /self-signed certificate|unable to verify the first certificate/i.test(error.message)
+    /self-signed certificate|unable to verify the first certificate|unable to get local issuer certificate/i.test(
+      error.message,
+    )
   ) {
     return true;
   }
@@ -144,7 +153,7 @@ function isUntrustedCertificateError(error: unknown): boolean {
 interface CoderFetchInit {
   method: string;
   headers: Headers;
-  body?: AsyncIterable<Uint8Array>;
+  body?: ReadableStream<Uint8Array>;
   redirect: "manual";
 }
 
@@ -170,7 +179,7 @@ async function fetchWithPrivateCoderCa(url: string, init: CoderFetchInit): Promi
     response = await undiciFetch(url, {
       method: init.method,
       headers: init.headers,
-      body: init.body,
+      body: init.body ? streamRequestBody(init.body) : undefined,
       duplex: init.body ? "half" : undefined,
       redirect: init.redirect,
       dispatcher,
@@ -210,23 +219,28 @@ async function fetchWithPrivateCoderCa(url: string, init: CoderFetchInit): Promi
 }
 
 async function fetchCoderApp(url: string, init: CoderFetchInit): Promise<Response> {
-  // A streamed request cannot be replayed after TLS negotiation consumes it.
-  // Writes therefore go directly through the exact-host private-CA transport;
-  // bodyless requests retain verified-TLS-first behavior.
-  if (init.body) return fetchWithPrivateCoderCa(url, init);
+  const [verifiedBody, privateCaBody] = init.body ? init.body.tee() : [undefined, undefined];
   try {
-    return await fetch(url, {
+    const verifiedInit: RequestInit & { duplex?: "half" } = {
       method: init.method,
       headers: init.headers,
+      body: verifiedBody,
+      duplex: verifiedBody ? "half" : undefined,
       redirect: init.redirect,
-    });
+    };
+    const response = await fetch(url, verifiedInit);
+    void privateCaBody?.cancel();
+    return response;
   } catch (error) {
-    if (!isUntrustedCertificateError(error)) throw error;
+    if (!isUntrustedCertificateError(error)) {
+      void privateCaBody?.cancel(error);
+      throw error;
+    }
     // Coder installations commonly terminate wildcard workspace-app TLS with a
     // private CA. Retry only after normal verification fails; URL construction
     // and redirect handling still restrict every request to authenticated,
     // explicitly resolved Coder application hosts.
-    return fetchWithPrivateCoderCa(url, init);
+    return fetchWithPrivateCoderCa(url, { ...init, body: privateCaBody });
   }
 }
 
@@ -277,7 +291,7 @@ async function proxyRequest(
     let currentUrl = targetUrl;
     let upstream: Response | undefined;
     const maxRedirects = 5;
-    const requestBody = req.body ? streamRequestBody(req.body) : undefined;
+    const requestBody = req.body ?? undefined;
 
     for (let i = 0; i <= maxRedirects; i++) {
       upstream = await fetchCoderApp(currentUrl, {

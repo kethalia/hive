@@ -18,22 +18,28 @@ export function buildWorkspaceUrls(
   const stripped = coderUrl.replace(/\/+$/, "");
   const coderHost = new URL(stripped).host;
   const workspaceAppHost = getWorkspaceAppHost(coderHost, wildcardAccessUrl);
+  const appHost = (slug: string) => `${slug}${workspaceAppHost}`;
+  const appSlug = (application: string) =>
+    `${application}--${agentName}--${workspace.name}--${workspace.owner_name}`;
 
   return {
-    filebrowser: `https://filebrowser--${agentName}--${workspace.name}--${workspace.owner_name}.${workspaceAppHost}`,
-    kasmvnc: `https://kasm-vnc--${agentName}--${workspace.name}--${workspace.owner_name}.${workspaceAppHost}`,
-    codeServer: `https://code-server--${agentName}--${workspace.name}--${workspace.owner_name}.${workspaceAppHost}`,
+    filebrowser: `https://${appHost(appSlug("filebrowser"))}`,
+    kasmvnc: `https://${appHost(appSlug("kasm-vnc"))}`,
+    codeServer: `https://${appHost(appSlug("code-server"))}`,
     dashboard: `${stripped}/@${workspace.owner_name}/${workspace.name}`,
   };
 }
 
 export function getWorkspaceAppHost(coderHost: string, wildcardAccessUrl?: string): string {
-  if (!wildcardAccessUrl?.trim()) return coderHost;
+  if (!wildcardAccessUrl?.trim()) return `.${coderHost}`;
 
   const withProtocol = wildcardAccessUrl.includes("://")
     ? wildcardAccessUrl
     : `https://${wildcardAccessUrl}`;
-  return new URL(withProtocol.replace("*.", "placeholder.")).host.replace(/^placeholder\./, "");
+  if (!withProtocol.includes("*")) return `.${new URL(withProtocol).host}`;
+  const placeholder = "hive-workspace-app-placeholder";
+  const host = new URL(withProtocol.replace("*", placeholder)).host;
+  return host.replace(placeholder, "");
 }
 
 export function buildCodeServerFolderUrl(
