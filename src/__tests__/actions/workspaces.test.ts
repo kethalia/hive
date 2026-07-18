@@ -4,7 +4,9 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const mockedUndiciFetch = vi.hoisted(() => vi.fn());
 
 vi.mock("undici", () => ({
-  Agent: class MockAgent {},
+  Agent: class MockAgent {
+    close = vi.fn().mockResolvedValue(undefined);
+  },
   fetch: mockedUndiciFetch,
 }));
 
@@ -179,6 +181,7 @@ describe("workspace actions use authActionClient + getCoderClientForUser", () =>
     });
 
     expect(response.status).toBe(200);
+    expect(await response.text()).toBe("ok");
     expect(mockedUndiciFetch).toHaveBeenCalledWith(
       "https://filebrowser--main--dev-box--alice.apps.example.com/files/home",
       expect.objectContaining({ redirect: "manual" }),

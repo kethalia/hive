@@ -17,11 +17,6 @@ interface WorkspaceMeta {
 const MAX_CACHE_SIZE = 100;
 const metaCache = new Map<string, WorkspaceMeta>();
 const CACHE_TTL_MS = 5 * 60 * 1000;
-// The dispatcher is reached only after verified TLS fails with a private-CA error and
-// only for exact Coder app hosts resolved from the authenticated Coder API.
-const insecureCoderAppDispatcher = new Agent({
-  connect: { rejectUnauthorized: false }, // nosemgrep
-});
 
 const APP_SLUG_MAP: Record<string, string> = {
   filebrowser: "filebrowser",
@@ -155,13 +150,22 @@ async function fetchCoderApp(url: string, init: RequestInit): Promise<Response> 
     // private CA. Retry only after normal verification fails; URL construction
     // and redirect handling still restrict every request to authenticated,
     // explicitly resolved Coder application hosts.
-    const response = await undiciFetch(url, {
-      method: init.method,
-      headers: init.headers,
-      body: init.body instanceof ArrayBuffer ? init.body : undefined,
-      redirect: init.redirect,
-      dispatcher: insecureCoderAppDispatcher,
+    const dispatcher = new Agent({
+      connect: { rejectUnauthorized: false }, // nosemgrep
     });
+    let response: Awaited<ReturnType<typeof undiciFetch>>;
+    try {
+      response = await undiciFetch(url, {
+        method: init.method,
+        headers: init.headers,
+        body: init.body instanceof ArrayBuffer ? init.body : undefined,
+        redirect: init.redirect,
+        dispatcher,
+      });
+    } catch (retryError) {
+      await dispatcher.close();
+      throw retryError;
+    }
     const headers = new Headers();
     response.headers.forEach((value, key) => {
       headers.set(key, value);
@@ -173,15 +177,18 @@ async function fetchCoderApp(url: string, init: RequestInit): Promise<Response> 
             const result = await reader.read();
             if (result.done) {
               controller.close();
+              await dispatcher.close();
             } else {
               controller.enqueue(result.value);
             }
           },
-          cancel(reason) {
-            return reader.cancel(reason);
+          async cancel(reason) {
+            await reader.cancel(reason);
+            await dispatcher.close();
           },
         })
       : null;
+    if (body === null) await dispatcher.close();
     return new Response(body, {
       status: response.status,
       statusText: response.statusText,
