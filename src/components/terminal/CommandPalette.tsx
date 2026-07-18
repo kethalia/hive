@@ -100,10 +100,10 @@ function actionIcon(icon: CommandPaletteAction["icon"]) {
 
 function selectedOptionIndex(
   action: CommandPaletteAction,
-  selectedOptionIndexes: Record<string, number>,
+  selectedOptionIndexes: ReadonlyMap<string, number>,
 ): number {
-  const storedIndex = selectedOptionIndexes[action.id];
-  if (storedIndex !== undefined && !action.options?.[storedIndex]?.disabled) return storedIndex;
+  const storedIndex = selectedOptionIndexes.get(action.id);
+  if (storedIndex !== undefined && !action.options?.at(storedIndex)?.disabled) return storedIndex;
   const firstEnabledIndex = action.options?.findIndex((option) => !option.disabled) ?? -1;
   return firstEnabledIndex >= 0 ? firstEnabledIndex : 0;
 }
@@ -132,7 +132,9 @@ function CommandPaletteBody({
     onCreateSession?.();
     onOpenChange(false);
   }, [onCreateSession, onOpenChange]);
-  const [selectedOptionIndexes, setSelectedOptionIndexes] = useState<Record<string, number>>({});
+  const [selectedOptionIndexes, setSelectedOptionIndexes] = useState<ReadonlyMap<string, number>>(
+    () => new Map(),
+  );
 
   const actionGroups = useMemo(() => {
     const groups = new Map<string, CommandPaletteAction[]>();
@@ -147,7 +149,7 @@ function CommandPaletteBody({
   const selectAction = useCallback(
     (action: CommandPaletteAction) => {
       const optionIndex = selectedOptionIndex(action, selectedOptionIndexes);
-      const option = action.options?.[optionIndex];
+      const option = action.options?.at(optionIndex);
       if (option) {
         if (option.disabled) return;
         option.onSelect();
@@ -175,12 +177,12 @@ function CommandPaletteBody({
       setSelectedOptionIndexes((current) => {
         const currentIndex = selectedOptionIndex(action, current);
         const delta = event.key === "ArrowRight" ? 1 : -1;
-        let nextIndex = currentIndex;
-        for (let offset = 0; offset < options.length; offset += 1) {
-          nextIndex = (nextIndex + delta + options.length) % options.length;
-          if (!options[nextIndex]?.disabled) break;
-        }
-        return { ...current, [action.id]: nextIndex };
+        const enabledIndexes = options.flatMap((option, index) => (option.disabled ? [] : [index]));
+        const currentPosition = enabledIndexes.indexOf(currentIndex);
+        const nextPosition =
+          (currentPosition + delta + enabledIndexes.length) % enabledIndexes.length;
+        const nextIndex = enabledIndexes.at(nextPosition) ?? currentIndex;
+        return new Map(current).set(action.id, nextIndex);
       });
     },
     [actions],

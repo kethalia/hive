@@ -2363,7 +2363,13 @@ export function MultiSessionWorkspace({
             disabled: alreadyInActiveBoard,
             onSelect: () => handleAddExistingTerminalToBoard(session),
           },
-          { id: "open", label: "Open", onSelect: () => openTerminalSessionPage(session) },
+          {
+            id: "open",
+            label: "Open",
+            onSelect: () => {
+              openTerminalSessionPage(session);
+            },
+          },
           {
             id: "vscode",
             label: "VS Code",

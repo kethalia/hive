@@ -396,12 +396,12 @@ vi.mock("@/components/terminal/CommandPalette", () => ({
       rightLabel?: string;
       disabled?: boolean;
       onSelect: () => void;
-      options?: Array<{
+      options?: {
         id: string;
         label: string;
         disabled?: boolean;
         onSelect: () => void;
-      }>;
+      }[];
     }>;
     searchValue?: string;
     onSearchValueChange?: (value: string) => void;
@@ -434,7 +434,7 @@ vi.mock("@/components/terminal/CommandPalette", () => ({
                 key={option.id}
                 type="button"
                 data-testid={`palette-option-${action.id}-${option.id}`}
-                disabled={action.disabled || option.disabled}
+                disabled={action.disabled ?? option.disabled}
                 onClick={() => {
                   option.onSelect();
                   onOpenChange?.(false);
