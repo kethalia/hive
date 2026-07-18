@@ -1,7 +1,7 @@
 "use client";
 
 import { Code2, ExternalLink, FolderOpen, Loader2 } from "lucide-react";
-import { useState } from "react";
+import { type Dispatch, type SetStateAction, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import {
@@ -15,6 +15,7 @@ import { getWorkspaceSessionToolsAction } from "@/lib/actions/workspaces";
 import { openWorkspaceToolPopup } from "@/lib/workspaces/embedded-tools";
 
 type WorkspaceTool = "code" | "files";
+type ActiveToolChangeHandler = Dispatch<SetStateAction<WorkspaceTool | null>>;
 
 interface WorkspaceSessionToolsProps {
   workspaceId: string;
@@ -115,7 +116,7 @@ function WorkspaceToolDialog({
   activeTool: WorkspaceTool | null;
   urls: WorkspaceSessionToolUrls | null;
   label: string;
-  onActiveToolChange: (tool: WorkspaceTool | null) => void;
+  onActiveToolChange: ActiveToolChangeHandler;
 }) {
   const activeUrl = activeTool === "code" ? urls?.codeUrl : urls?.filesUrl;
   const title = activeTool === "code" ? "VS Code" : "Files";
@@ -166,7 +167,7 @@ function WorkspaceToolHeader({
   title: string;
   label: string;
   folderPath: string | null;
-  onActiveToolChange: (tool: WorkspaceTool | null) => void;
+  onActiveToolChange: ActiveToolChangeHandler;
 }) {
   return (
     <DialogHeader className="flex-row items-center gap-2 pr-10 text-left">
@@ -202,7 +203,7 @@ function ToolTab({
 }: {
   tool: WorkspaceTool;
   activeTool: WorkspaceTool;
-  onActiveToolChange: (tool: WorkspaceTool | null) => void;
+  onActiveToolChange: ActiveToolChangeHandler;
 }) {
   const isCode = tool === "code";
   return (
