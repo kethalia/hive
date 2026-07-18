@@ -113,7 +113,6 @@ async function verifyPaletteToolAndOpenActions(page: Page, testInfo: TestInfo) {
   expect(sessionLabel).toBeTruthy();
   await page.keyboard.press("Control+K");
   await page.getByPlaceholder(/Search terminal sessions/).fill(sessionLabel ?? "");
-  await page.keyboard.press("ArrowDown");
   await page.keyboard.press("ArrowRight");
   await page.keyboard.press("Enter");
   await expect(page.getByTestId("workspace-tool-pane-code")).toBeVisible({ timeout: 30_000 });
@@ -121,7 +120,6 @@ async function verifyPaletteToolAndOpenActions(page: Page, testInfo: TestInfo) {
 
   await page.keyboard.press("Control+K");
   await page.getByPlaceholder(/Search terminal sessions/).fill(sessionLabel ?? "");
-  await page.keyboard.press("ArrowDown");
   await page.keyboard.press("Enter");
   await expect(page.getByTestId("single-terminal-header")).toBeVisible();
   const singleTerminal = await expectConnectedTerminal(page);
