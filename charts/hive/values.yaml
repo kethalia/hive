@@ -19,8 +19,6 @@
 hive-web:
   enabled: true
   existingSecret: hive-secrets
-  config:
-    CODER_WILDCARD_ACCESS_URL: "*.kethalia.com"
   extraEnv:
     - name: DATABASE_URL
       secretName: "{{ .Release.Name }}-pg-app"

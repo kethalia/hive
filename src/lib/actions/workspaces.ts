@@ -195,12 +195,8 @@ export const getWorkspaceSessionToolsAction = authActionClient
     const agent = resources.flatMap((resource) => resource.agents ?? [])[0];
     if (!agent) throw new Error(`No agents found for workspace ${parsedInput.workspaceId}`);
 
-    const urls = buildWorkspaceUrls(
-      workspace,
-      agent.name,
-      client.getBaseUrl(),
-      process.env.CODER_WILDCARD_ACCESS_URL,
-    );
+    const applicationsHost = await client.getApplicationsHost();
+    const urls = buildWorkspaceUrls(workspace, agent.name, client.getBaseUrl(), applicationsHost);
     if (!urls) throw new Error("Coder URL is unavailable for workspace tools");
 
     const currentDirectory = await getSessionCurrentDirectory({
@@ -213,7 +209,9 @@ export const getWorkspaceSessionToolsAction = authActionClient
       currentDirectory ?? normalizeWorkspaceDirectory(parsedInput.fallbackPath) ?? undefined;
 
     return {
-      codeUrl: buildCodeServerFolderUrl(urls.codeServer, folderPath),
+      codeUrl: await client.getApplicationAuthRedirect(
+        buildCodeServerFolderUrl(urls.codeServer, folderPath),
+      ),
       filesUrl: buildFileBrowserFolderUrl(
         `/api/workspace-proxy/${encodeURIComponent(parsedInput.workspaceId)}/filebrowser`,
         folderPath,

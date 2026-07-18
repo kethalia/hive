@@ -94,6 +94,27 @@ describe("CoderClient", () => {
     expect(result).toEqual(ws);
   });
 
+  it("resolves the configured applications host", async () => {
+    fetchSpy.mockResolvedValueOnce(jsonResponse({ host: "*.apps.example.com" }));
+
+    await expect(makeClient().getApplicationsHost()).resolves.toBe("*.apps.example.com");
+    expect(fetchSpy.mock.calls[0][0]).toBe(`${BASE_URL}/api/v2/applications/host`);
+  });
+
+  it("creates a Coder-authenticated redirect scoped to the workspace app host", async () => {
+    const target = "https://code--workspace--alice.apps.example.com/?folder=%2Fworkspace";
+    const encrypted = `${target}&coder_application_connect_api_key=encrypted`;
+    fetchSpy.mockResolvedValueOnce(
+      new Response(null, { status: 303, headers: { location: encrypted } }),
+    );
+
+    await expect(makeClient().getApplicationAuthRedirect(target)).resolves.toBe(encrypted);
+    const [url, init] = fetchSpy.mock.calls[0];
+    expect(url.searchParams.get("redirect_uri")).toBe(target);
+    expect(init.headers["Coder-Session-Token"]).toBe(TOKEN);
+    expect(init.redirect).toBe("manual");
+  });
+
   // ── stopWorkspace ──────────────────────────────────────────────
 
   it("stopWorkspace calls builds endpoint with transition:stop", async () => {

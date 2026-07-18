@@ -44,6 +44,30 @@ export class CoderClient {
     return this.baseUrl;
   }
 
+  async getApplicationsHost(): Promise<string> {
+    const response = await this.request<{ host: string }>("/api/v2/applications/host");
+    return response.host;
+  }
+
+  async getApplicationAuthRedirect(redirectUri: string): Promise<string> {
+    const endpoint = new URL("/api/v2/applications/auth-redirect", this.baseUrl);
+    endpoint.searchParams.set("redirect_uri", redirectUri);
+    const response = await fetch(endpoint, {
+      headers: { "Coder-Session-Token": this.sessionToken },
+      redirect: "manual",
+    });
+    const location = response.headers.get("location");
+    if (response.status < 300 || response.status >= 400 || !location) {
+      throw new Error(`[coder] Failed to create workspace app redirect: ${response.status}`);
+    }
+
+    const resolvedLocation = new URL(location, this.baseUrl);
+    if (resolvedLocation.hostname !== new URL(redirectUri).hostname) {
+      throw new Error("[coder] Workspace app redirect returned an unexpected host");
+    }
+    return resolvedLocation.toString();
+  }
+
   // ── Private helpers ──────────────────────────────────────────────
 
   /**

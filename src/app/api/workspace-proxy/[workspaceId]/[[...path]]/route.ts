@@ -92,23 +92,21 @@ function resolveApp(pathSegments: string[]): { appSlug: string; subPath: string 
 
 function buildTargetUrl(
   coderHost: string,
+  applicationsHost: string,
   meta: WorkspaceMeta,
   appSlug: string,
   subPath: string,
   search: string,
 ): string {
-  const appHost = getWorkspaceAppHost(coderHost, process.env.CODER_WILDCARD_ACCESS_URL);
+  const appHost = getWorkspaceAppHost(coderHost, applicationsHost);
   const base = `https://${appSlug}--${meta.agent}--${meta.name}--${meta.owner}.${appHost}`;
   return `${base}/${subPath}${search}`;
 }
 
-function isCoderOrigin(url: URL, coderHost: string): boolean {
+function isCoderOrigin(url: URL, coderHost: string, applicationsHost: string): boolean {
   const targetHost = url.host.toLowerCase();
   const lowerCoderHost = coderHost.toLowerCase();
-  const appHost = getWorkspaceAppHost(
-    coderHost,
-    process.env.CODER_WILDCARD_ACCESS_URL,
-  ).toLowerCase();
+  const appHost = getWorkspaceAppHost(coderHost, applicationsHost).toLowerCase();
   return (
     targetHost === lowerCoderHost ||
     targetHost.endsWith(`.${lowerCoderHost}`) ||
@@ -146,11 +144,18 @@ async function proxyRequest(
     );
   }
 
-  const { appSlug, subPath } = resolveApp(pathSegments);
-  const targetUrl = buildTargetUrl(coderHost, meta, appSlug, subPath, req.nextUrl.search);
-
   const client = await getCoderClientForUser(userId);
   const sessionToken = client.getSessionToken();
+  const applicationsHost = await client.getApplicationsHost();
+  const { appSlug, subPath } = resolveApp(pathSegments);
+  const targetUrl = buildTargetUrl(
+    coderHost,
+    applicationsHost,
+    meta,
+    appSlug,
+    subPath,
+    req.nextUrl.search,
+  );
 
   function buildHeaders(target: string): Headers {
     const h = new Headers();
@@ -182,7 +187,7 @@ async function proxyRequest(
 
       const resolvedLocation = new URL(location, currentUrl);
 
-      if (!isCoderOrigin(resolvedLocation, coderHost)) {
+      if (!isCoderOrigin(resolvedLocation, coderHost, applicationsHost)) {
         break;
       }
 
@@ -203,7 +208,7 @@ async function proxyRequest(
       const location = upstream.headers.get("location");
       if (location) {
         const locUrl = new URL(location, currentUrl);
-        if (isCoderOrigin(locUrl, coderHost)) {
+        if (isCoderOrigin(locUrl, coderHost, applicationsHost)) {
           const proxyBase = `/api/workspace-proxy/${workspaceId}`;
           responseHeaders.set("location", `${proxyBase}${locUrl.pathname}${locUrl.search}`);
         } else {

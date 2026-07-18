@@ -77,6 +77,8 @@ describe("workspace server actions", () => {
       waitForBuild: mockWaitForBuild,
       getBaseUrl: () => "https://coder.example.com",
       getSessionToken: () => "coder-session-token",
+      getApplicationsHost: vi.fn().mockResolvedValue("*.coder.example.com"),
+      getApplicationAuthRedirect: vi.fn(async (url: string) => url),
     } as never);
     mockGetWorkspaceResources.mockResolvedValue([
       {
