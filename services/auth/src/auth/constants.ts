@@ -16,6 +16,7 @@ export const CODER_API_PATHS = {
   BUILD_INFO: "/api/v2/buildinfo",
   LOGIN: "/api/v2/users/login",
   ME: "/api/v2/users/me",
+  APPLICATIONS_HOST: "/api/v2/applications/host",
   USER_KEYS: (userId: string) => `/api/v2/users/${userId}/keys`,
 } as const;
 

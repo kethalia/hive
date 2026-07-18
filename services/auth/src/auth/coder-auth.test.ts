@@ -88,6 +88,9 @@ describe("coderLogin", () => {
           }),
           { status: 200 },
         ),
+      )
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ host: "*.apps.example.com" }), { status: 200 }),
       );
 
     const result = await coderLogin(BASE_URL, "alice@test.com", "password123");
@@ -95,6 +98,7 @@ describe("coderLogin", () => {
       sessionToken: "tok_abc123",
       userId: "user-uuid",
       username: "alice",
+      applicationsHost: "*.apps.example.com",
     });
   });
 
@@ -124,6 +128,9 @@ describe("coderLogin", () => {
       )
       .mockResolvedValueOnce(
         new Response(JSON.stringify({ id: "u", username: "a", email: "a@b.com" }), { status: 200 }),
+      )
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ host: "*.apps.example.com" }), { status: 200 }),
       );
 
     await coderLogin(`${BASE_URL}/`, "a@b.com", "pw");

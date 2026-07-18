@@ -13,10 +13,13 @@ import {
 const PUBLIC_PATHS = ["/login", "/api/auth", "/manifest.webmanifest", "/robots.txt"];
 const STATIC_PREFIXES = ["/_next", "/favicon.ico"];
 
-function withContentSecurityPolicy(response: NextResponse, coderHost?: string): NextResponse {
+function withContentSecurityPolicy(
+  response: NextResponse,
+  coderHosts: readonly string[] = [],
+): NextResponse {
   response.headers.set(
     "Content-Security-Policy",
-    buildContentSecurityPolicy(coderHost ? [`https://${coderHost}`] : []),
+    buildContentSecurityPolicy(coderHosts.map((host) => `https://${host}`)),
   );
   return response;
 }
@@ -57,8 +60,8 @@ export function proxy(request: NextRequest) {
 
   if (verifiedSessionCookie) {
     const response = NextResponse.next();
-    const coderHost = request.cookies.get(CODER_HOST_COOKIE)?.value;
-    withContentSecurityPolicy(response, coderHost);
+    const coderHosts = request.cookies.get(CODER_HOST_COOKIE)?.value.split("~") ?? [];
+    withContentSecurityPolicy(response, coderHosts);
     refreshDomainSessionCookie(
       response.cookies,
       verifiedSessionCookie.value,

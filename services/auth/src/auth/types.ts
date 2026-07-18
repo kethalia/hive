@@ -19,6 +19,7 @@ export interface CoderLoginResult {
   sessionToken: string;
   userId: string;
   username: string;
+  applicationsHost: string;
 }
 
 export interface CoderLoginRequest {
@@ -53,6 +54,7 @@ export interface CreateApiKeyResponse {
 
 export interface LoginResult {
   sessionId: string;
+  applicationsHost: string;
   user: {
     id: string;
     username: string;

@@ -66,24 +66,36 @@ export async function coderLogin(
 
   const loginData = (await res.json()) as CoderLoginResponse;
 
-  const meRes = await fetch(`${url}${CODER_API_PATHS.ME}`, {
-    headers: {
-      "Content-Type": "application/json",
-      [CODER_SESSION_TOKEN_HEADER]: loginData.session_token,
-    },
-    signal: AbortSignal.timeout(CODER_API_TIMEOUT_MS),
-  });
+  const authenticatedHeaders = {
+    "Content-Type": "application/json",
+    [CODER_SESSION_TOKEN_HEADER]: loginData.session_token,
+  };
+  const [meRes, applicationsHostRes] = await Promise.all([
+    fetch(`${url}${CODER_API_PATHS.ME}`, {
+      headers: authenticatedHeaders,
+      signal: AbortSignal.timeout(CODER_API_TIMEOUT_MS),
+    }),
+    fetch(`${url}${CODER_API_PATHS.APPLICATIONS_HOST}`, {
+      headers: authenticatedHeaders,
+      signal: AbortSignal.timeout(CODER_API_TIMEOUT_MS),
+    }),
+  ]);
 
   if (!meRes.ok) {
     throw new Error("failed to fetch user info after login");
   }
+  if (!applicationsHostRes.ok) {
+    throw new Error("failed to fetch applications host after login");
+  }
 
   const user = (await meRes.json()) as CoderUserResponse;
+  const applicationsHost = (await applicationsHostRes.json()) as { host: string };
 
   return {
     sessionToken: loginData.session_token,
     userId: user.id,
     username: user.username,
+    applicationsHost: applicationsHost.host,
   };
 }
 

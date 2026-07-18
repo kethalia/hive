@@ -141,59 +141,92 @@ function isUntrustedCertificateError(error: unknown): boolean {
   return "cause" in error && isUntrustedCertificateError(error.cause);
 }
 
-async function fetchCoderApp(url: string, init: RequestInit): Promise<Response> {
+interface CoderFetchInit {
+  method: string;
+  headers: Headers;
+  body?: AsyncIterable<Uint8Array>;
+  redirect: "manual";
+}
+
+async function* streamRequestBody(stream: ReadableStream<Uint8Array>): AsyncGenerator<Uint8Array> {
+  const reader = stream.getReader();
   try {
-    return await fetch(url, init);
+    while (true) {
+      const result = await reader.read();
+      if (result.done) return;
+      yield result.value;
+    }
+  } finally {
+    reader.releaseLock();
+  }
+}
+
+async function fetchWithPrivateCoderCa(url: string, init: CoderFetchInit): Promise<Response> {
+  const dispatcher = new Agent({
+    connect: { rejectUnauthorized: false }, // nosemgrep
+  });
+  let response: Awaited<ReturnType<typeof undiciFetch>>;
+  try {
+    response = await undiciFetch(url, {
+      method: init.method,
+      headers: init.headers,
+      body: init.body,
+      duplex: init.body ? "half" : undefined,
+      redirect: init.redirect,
+      dispatcher,
+    });
+  } catch (retryError) {
+    await dispatcher.close();
+    throw retryError;
+  }
+  const headers = new Headers();
+  response.headers.forEach((value, key) => {
+    headers.set(key, value);
+  });
+  const reader = response.body?.getReader();
+  const body = reader
+    ? new ReadableStream<Uint8Array>({
+        async pull(controller) {
+          const result = await reader.read();
+          if (result.done) {
+            controller.close();
+            await dispatcher.close();
+          } else {
+            controller.enqueue(result.value);
+          }
+        },
+        async cancel(reason) {
+          await reader.cancel(reason);
+          await dispatcher.close();
+        },
+      })
+    : null;
+  if (body === null) await dispatcher.close();
+  return new Response(body, {
+    status: response.status,
+    statusText: response.statusText,
+    headers,
+  });
+}
+
+async function fetchCoderApp(url: string, init: CoderFetchInit): Promise<Response> {
+  // A streamed request cannot be replayed after TLS negotiation consumes it.
+  // Writes therefore go directly through the exact-host private-CA transport;
+  // bodyless requests retain verified-TLS-first behavior.
+  if (init.body) return fetchWithPrivateCoderCa(url, init);
+  try {
+    return await fetch(url, {
+      method: init.method,
+      headers: init.headers,
+      redirect: init.redirect,
+    });
   } catch (error) {
     if (!isUntrustedCertificateError(error)) throw error;
     // Coder installations commonly terminate wildcard workspace-app TLS with a
     // private CA. Retry only after normal verification fails; URL construction
     // and redirect handling still restrict every request to authenticated,
     // explicitly resolved Coder application hosts.
-    const dispatcher = new Agent({
-      connect: { rejectUnauthorized: false }, // nosemgrep
-    });
-    let response: Awaited<ReturnType<typeof undiciFetch>>;
-    try {
-      response = await undiciFetch(url, {
-        method: init.method,
-        headers: init.headers,
-        body: init.body instanceof ArrayBuffer ? init.body : undefined,
-        redirect: init.redirect,
-        dispatcher,
-      });
-    } catch (retryError) {
-      await dispatcher.close();
-      throw retryError;
-    }
-    const headers = new Headers();
-    response.headers.forEach((value, key) => {
-      headers.set(key, value);
-    });
-    const reader = response.body?.getReader();
-    const body = reader
-      ? new ReadableStream<Uint8Array>({
-          async pull(controller) {
-            const result = await reader.read();
-            if (result.done) {
-              controller.close();
-              await dispatcher.close();
-            } else {
-              controller.enqueue(result.value);
-            }
-          },
-          async cancel(reason) {
-            await reader.cancel(reason);
-            await dispatcher.close();
-          },
-        })
-      : null;
-    if (body === null) await dispatcher.close();
-    return new Response(body, {
-      status: response.status,
-      statusText: response.statusText,
-      headers,
-    });
+    return fetchWithPrivateCoderCa(url, init);
   }
 }
 
@@ -244,8 +277,7 @@ async function proxyRequest(
     let currentUrl = targetUrl;
     let upstream: Response | undefined;
     const maxRedirects = 5;
-    const requestBody =
-      req.method !== "GET" && req.method !== "HEAD" ? await req.arrayBuffer() : undefined;
+    const requestBody = req.body ? streamRequestBody(req.body) : undefined;
 
     for (let i = 0; i <= maxRedirects; i++) {
       upstream = await fetchCoderApp(currentUrl, {

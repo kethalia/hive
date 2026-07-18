@@ -58,7 +58,10 @@ describe("auth route cookies", () => {
   });
 
   it("login sets a domain cookie and clears the stale host-only cookie", async () => {
-    mockServiceClient.login.mockResolvedValue({ sessionId: "sess-123" });
+    mockServiceClient.login.mockResolvedValue({
+      sessionId: "sess-123",
+      applicationsHost: "*.apps.example.com",
+    });
 
     const response = await loginPOST(
       new Request("https://hive.local.kethalia.com/api/auth/login", {
@@ -86,7 +89,8 @@ describe("auth route cookies", () => {
 
     const setCookies = getSetCookies(response);
     expect(setCookies).toHaveLength(4);
-    expect(setCookies[0]).toContain("hive-coder-host=coder.example.com");
+    expect(setCookies[0]).toContain("hive-coder-host=coder.example.com~apps.example.com");
+    expect(setCookies[0]).toContain(`Max-Age=${30 * 24 * 60 * 60}`);
     expect(setCookies[0]).toContain("HttpOnly");
     expect(setCookies[1]).toContain("hive-session=; Path=/; Max-Age=0");
     expect(setCookies[1]).not.toContain("Domain=");
@@ -100,7 +104,10 @@ describe("auth route cookies", () => {
 
   it("login derives a preview-scoped cookie domain when COOKIE_DOMAIN is unset", async () => {
     vi.stubEnv("COOKIE_DOMAIN", "");
-    mockServiceClient.login.mockResolvedValue({ sessionId: "sess-preview" });
+    mockServiceClient.login.mockResolvedValue({
+      sessionId: "sess-preview",
+      applicationsHost: "*.apps.example.com",
+    });
 
     const response = await loginPOST(
       new Request("https://pr-113.hive.local.kethalia.com/api/auth/login", {

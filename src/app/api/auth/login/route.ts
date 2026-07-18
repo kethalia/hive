@@ -1,3 +1,4 @@
+import { SESSION_MAX_AGE_SECONDS } from "@hive/auth";
 import { NextResponse } from "next/server";
 import { getClientIp, loginSchema } from "@/lib/auth/login";
 import { loginRateLimiter } from "@/lib/auth/rate-limit";
@@ -33,8 +34,12 @@ export async function POST(request: Request) {
   try {
     const result = await getAuthServiceClient().login({ coderUrl, email, password });
     const response = NextResponse.json({ success: true as const });
-    response.cookies.set(CODER_HOST_COOKIE, new URL(coderUrl).host, {
+    const coderHosts = [new URL(coderUrl).host, result.applicationsHost.replace(/^\*\./, "")].join(
+      "~",
+    );
+    response.cookies.set(CODER_HOST_COOKIE, coderHosts, {
       httpOnly: true,
+      maxAge: SESSION_MAX_AGE_SECONDS,
       sameSite: "lax",
       secure: true,
       path: "/",

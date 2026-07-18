@@ -109,6 +109,7 @@ describe("HTTP handlers", () => {
     it("returns 200 with session on successful login", async () => {
       vi.mocked(performLogin).mockResolvedValue({
         sessionId: "sess-123",
+        applicationsHost: "*.apps.coder.test",
         user: {
           id: "u1",
           username: "alice",
@@ -130,6 +131,7 @@ describe("HTTP handlers", () => {
       expect(res.status).toBe(200);
       const body = await res.json();
       expect(body.sessionId).toBe("sess-123");
+      expect(body.applicationsHost).toBe("*.apps.coder.test");
       expect(body.user.username).toBe("alice");
     });
 

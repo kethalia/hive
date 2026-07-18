@@ -187,4 +187,41 @@ describe("workspace actions use authActionClient + getCoderClientForUser", () =>
       expect.objectContaining({ redirect: "manual" }),
     );
   });
+
+  it("streams File Browser uploads without buffering the request in Hive", async () => {
+    mockedGetCoderClientForUser.mockResolvedValue({
+      getWorkspace: vi.fn().mockResolvedValue({ name: "dev-box", owner_name: "alice" }),
+      getWorkspaceAgentName: vi.fn().mockResolvedValue("dev-box.main"),
+      getApplicationsHost: vi.fn().mockResolvedValue("*.apps.example.com"),
+      getBaseUrl: () => "https://coder.example.com",
+      getSessionToken: () => "coder-session-token",
+    } as never);
+    const fetchSpy = vi.spyOn(globalThis, "fetch");
+    const { POST } = await import("@/app/api/workspace-proxy/[workspaceId]/[[...path]]/route");
+    const workspaceId = "dddddddd-1111-2222-3333-444444444444";
+    const url = `http://localhost/api/workspace-proxy/${workspaceId}/filebrowser/api/resources/home`;
+    const req = new Request(url, { method: "POST", body: "streamed-upload" });
+    Object.defineProperty(req, "nextUrl", { value: new URL(url) });
+    const arrayBufferSpy = vi.spyOn(req, "arrayBuffer");
+
+    const response = await POST(req as never, {
+      params: Promise.resolve({
+        workspaceId,
+        path: ["filebrowser", "api", "resources", "home"],
+      }),
+    });
+
+    expect(response.status).toBe(200);
+    expect(await response.text()).toBe("ok");
+    expect(arrayBufferSpy).not.toHaveBeenCalled();
+    expect(fetchSpy).not.toHaveBeenCalled();
+    expect(mockedUndiciFetch).toHaveBeenCalledWith(
+      "https://filebrowser--main--dev-box--alice.apps.example.com/api/resources/home",
+      expect.objectContaining({
+        body: expect.objectContaining({ [Symbol.asyncIterator]: expect.any(Function) }),
+        duplex: "half",
+        method: "POST",
+      }),
+    );
+  });
 });
