@@ -759,6 +759,69 @@ describe("CommandPalette", () => {
     expect(open).not.toHaveBeenCalled();
   });
 
+  it("runs a specific option when its visible label is clicked", () => {
+    const add = vi.fn();
+    const vscode = vi.fn();
+    const onOpenChange = vi.fn();
+    render(
+      <CommandPalette
+        open={true}
+        onOpenChange={onOpenChange}
+        tabs={[]}
+        onSelectTab={vi.fn()}
+        actions={[
+          {
+            id: "workspace:session:dev",
+            label: "dev",
+            group: "Terminal sessions",
+            onSelect: add,
+            options: [
+              { id: "add", label: "Add", onSelect: add },
+              { id: "vscode", label: "VS Code", onSelect: vscode },
+            ],
+          },
+        ]}
+      />,
+    );
+
+    fireEvent.click(screen.getByTestId("command-option-workspace:session:dev-vscode"));
+    expect(vscode).toHaveBeenCalledOnce();
+    expect(add).not.toHaveBeenCalled();
+    expect(onOpenChange).toHaveBeenCalledWith(false);
+  });
+
+  it("keeps arrow navigation stable when every row option is disabled", () => {
+    const action = vi.fn();
+    render(
+      <CommandPalette
+        open={true}
+        onOpenChange={vi.fn()}
+        tabs={[]}
+        onSelectTab={vi.fn()}
+        actions={[
+          {
+            id: "workspace:session:disabled",
+            label: "disabled",
+            group: "Terminal sessions",
+            onSelect: action,
+            options: [
+              { id: "add", label: "Add", disabled: true, onSelect: action },
+              { id: "open", label: "Open", disabled: true, onSelect: action },
+            ],
+          },
+        ]}
+      />,
+    );
+
+    const item = screen.getByText("disabled").closest('[cmdk-item=""]');
+    expect(item).not.toBeNull();
+    if (!item) return;
+    item.setAttribute("aria-selected", "true");
+    fireEvent.keyDown(screen.getByTestId("command-input"), { key: "ArrowRight" });
+    fireEvent.click(item);
+    expect(action).not.toHaveBeenCalled();
+  });
+
   it("controls search input value when search props are provided", () => {
     const onSearchValueChange = vi.fn();
 

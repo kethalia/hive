@@ -178,6 +178,7 @@ function CommandPaletteBody({
         const currentIndex = selectedOptionIndex(action, current);
         const delta = event.key === "ArrowRight" ? 1 : -1;
         const enabledIndexes = options.flatMap((option, index) => (option.disabled ? [] : [index]));
+        if (enabledIndexes.length === 0) return current;
         const currentPosition = enabledIndexes.indexOf(currentIndex);
         const nextPosition =
           (currentPosition + delta + enabledIndexes.length) % enabledIndexes.length;
@@ -226,8 +227,9 @@ function CommandPaletteBody({
                     title="Choose action with Left and Right arrow keys"
                   >
                     {action.options.map((option, index) => (
-                      <span
+                      <button
                         key={option.id}
+                        type="button"
                         className={cn(
                           "rounded px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground",
                           index === selectedOptionIndex(action, selectedOptionIndexes) &&
@@ -240,9 +242,17 @@ function CommandPaletteBody({
                             ? "true"
                             : "false"
                         }
+                        disabled={option.disabled}
+                        onClick={(event) => {
+                          event.preventDefault();
+                          event.stopPropagation();
+                          if (option.disabled) return;
+                          option.onSelect();
+                          onOpenChange(false);
+                        }}
                       >
                         {option.label}
-                      </span>
+                      </button>
                     ))}
                   </span>
                 ) : action.rightLabel ? (

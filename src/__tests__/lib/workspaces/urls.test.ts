@@ -85,4 +85,16 @@ describe("workspace tool folder URLs", () => {
       "https://files.example.com",
     );
   });
+
+  it("preserves app path prefixes and encodes URL delimiters in folders", () => {
+    expect(
+      buildFileBrowserFolderUrl(
+        "/api/workspace-proxy/ws-1/filebrowser",
+        "/home/coder/project #1/query?source",
+      ),
+    ).toBe("/api/workspace-proxy/ws-1/filebrowser/files/home/coder/project%20%231/query%3Fsource");
+    expect(
+      buildFileBrowserFolderUrl("https://files.example.com/prefix", "/home/coder/project #1"),
+    ).toBe("https://files.example.com/prefix/files/home/coder/project%20%231");
+  });
 });

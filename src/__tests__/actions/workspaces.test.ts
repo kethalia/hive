@@ -26,7 +26,7 @@ import { cookies } from "next/headers";
 import { getRequestSession, getSession } from "@/lib/auth/session";
 import { getCoderClientForUser } from "@/lib/coder/user-client";
 
-const _mockedGetCoderClientForUser = vi.mocked(getCoderClientForUser);
+const mockedGetCoderClientForUser = vi.mocked(getCoderClientForUser);
 const mockedGetRequestSession = vi.mocked(getRequestSession);
 const mockedGetSession = vi.mocked(getSession);
 const mockedCookies = vi.mocked(cookies);
@@ -111,5 +111,36 @@ describe("workspace actions use authActionClient + getCoderClientForUser", () =>
       "utf-8",
     );
     expect(source).toMatch(/\$\{userId\}:\$\{workspaceId\}/);
+  });
+
+  it("proxies workspace apps through Coder's configured wildcard application host", async () => {
+    mockedGetCoderClientForUser.mockResolvedValue({
+      getWorkspace: vi.fn().mockResolvedValue({ name: "dev-box", owner_name: "alice" }),
+      getWorkspaceAgentName: vi.fn().mockResolvedValue("dev-box.main"),
+      getApplicationsHost: vi.fn().mockResolvedValue("*.apps.example.com"),
+      getBaseUrl: () => "https://coder.example.com",
+      getSessionToken: () => "coder-session-token",
+    } as never);
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(new Response("ok", { status: 200 }));
+    const { GET } = await import("@/app/api/workspace-proxy/[workspaceId]/[[...path]]/route");
+    const workspaceId = "bbbbbbbb-1111-2222-3333-444444444444";
+    const url = `http://localhost/api/workspace-proxy/${workspaceId}/filebrowser/files/home`;
+    const req = new Request(url);
+    Object.defineProperty(req, "nextUrl", { value: new URL(url) });
+
+    const response = await GET(req as never, {
+      params: Promise.resolve({
+        workspaceId,
+        path: ["filebrowser", "files", "home"],
+      }),
+    });
+
+    expect(response.status).toBe(200);
+    expect(fetchSpy).toHaveBeenCalledWith(
+      "https://filebrowser--main--dev-box--alice.apps.example.com/files/home",
+      expect.objectContaining({ redirect: "manual" }),
+    );
   });
 });

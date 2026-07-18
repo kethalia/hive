@@ -2,13 +2,14 @@ import { cookies } from "next/headers";
 import { type NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/auth/session";
 import { getCoderClientForUser } from "@/lib/coder/user-client";
+import { buildWorkspaceUrls } from "@/lib/workspaces/urls";
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 interface WorkspaceMeta {
-  owner: string;
-  name: string;
-  agent: string;
+  fileBrowserBaseUrl: string;
+  kasmVncBaseUrl: string;
+  allowedHosts: string[];
   expiresAt: number;
 }
 
@@ -57,14 +58,28 @@ async function getWorkspaceMeta(userId: string, workspaceId: string): Promise<Wo
 
   const client = await getCoderClientForUser(userId);
 
-  const workspace = await client.getWorkspace(workspaceId);
-  const sshTarget = await client.getWorkspaceAgentName(workspaceId);
+  const [workspace, sshTarget, applicationsHost] = await Promise.all([
+    client.getWorkspace(workspaceId),
+    client.getWorkspaceAgentName(workspaceId),
+    client.getApplicationsHost(),
+  ]);
   const agentName = sshTarget.includes(".") ? (sshTarget.split(".").pop() ?? sshTarget) : sshTarget;
+  const workspaceUrls = buildWorkspaceUrls(
+    workspace,
+    agentName,
+    client.getBaseUrl(),
+    applicationsHost,
+  );
+  if (!workspaceUrls) throw new Error("Coder URL is unavailable for workspace tools");
+  const appBaseUrls = [workspaceUrls.filebrowser, workspaceUrls.kasmvnc];
 
   const meta: WorkspaceMeta = {
-    owner: workspace.owner_name,
-    name: workspace.name,
-    agent: agentName,
+    fileBrowserBaseUrl: workspaceUrls.filebrowser,
+    kasmVncBaseUrl: workspaceUrls.kasmvnc,
+    allowedHosts: [
+      new URL(client.getBaseUrl()).host,
+      ...appBaseUrls.map((url) => new URL(url).host),
+    ],
     expiresAt: Date.now() + CACHE_TTL_MS,
   };
   if (metaCache.size >= MAX_CACHE_SIZE) {
@@ -90,21 +105,27 @@ function resolveApp(pathSegments: string[]): { appSlug: string; subPath: string 
 }
 
 function buildTargetUrl(
-  coderHost: string,
   meta: WorkspaceMeta,
   appSlug: string,
   subPath: string,
   search: string,
 ): string {
-  const workspace = `${encodeURIComponent(meta.name)}.${encodeURIComponent(meta.agent)}`;
-  const base = `https://${coderHost}/@${encodeURIComponent(meta.owner)}/${workspace}/apps/${encodeURIComponent(appSlug)}`;
-  return `${base}/${subPath}${search}`;
+  const base =
+    appSlug === "filebrowser"
+      ? meta.fileBrowserBaseUrl
+      : appSlug === "kasm-vnc"
+        ? meta.kasmVncBaseUrl
+        : null;
+  if (base === null) throw new Error(`Unsupported workspace application: ${appSlug}`);
+  const url = new URL(base);
+  url.pathname = `${url.pathname.replace(/\/+$/, "")}/${subPath}`;
+  url.search = search;
+  return url.toString();
 }
 
-function isCoderOrigin(url: URL, coderHost: string): boolean {
+function isCoderOrigin(url: URL, allowedHosts: string[]): boolean {
   const targetHost = url.host.toLowerCase();
-  const lowerCoderHost = coderHost.toLowerCase();
-  return targetHost === lowerCoderHost || targetHost.endsWith(`.${lowerCoderHost}`);
+  return allowedHosts.some((host) => targetHost === host.toLowerCase());
 }
 
 async function proxyRequest(
@@ -124,8 +145,6 @@ async function proxyRequest(
   }
 
   const userId = session.user.id;
-  const coderHost = session.user.coderUrl.replace(/^https?:\/\//, "").replace(/\/+$/, "");
-
   let meta: WorkspaceMeta;
   try {
     meta = await getWorkspaceMeta(userId, workspaceId);
@@ -139,7 +158,7 @@ async function proxyRequest(
   const client = await getCoderClientForUser(userId);
   const sessionToken = client.getSessionToken();
   const { appSlug, subPath } = resolveApp(pathSegments);
-  const targetUrl = buildTargetUrl(coderHost, meta, appSlug, subPath, req.nextUrl.search);
+  const targetUrl = buildTargetUrl(meta, appSlug, subPath, req.nextUrl.search);
 
   function buildHeaders(target: string): Headers {
     const h = new Headers();
@@ -171,7 +190,7 @@ async function proxyRequest(
 
       const resolvedLocation = new URL(location, currentUrl);
 
-      if (!isCoderOrigin(resolvedLocation, coderHost)) {
+      if (!isCoderOrigin(resolvedLocation, meta.allowedHosts)) {
         break;
       }
 
@@ -192,7 +211,7 @@ async function proxyRequest(
       const location = upstream.headers.get("location");
       if (location) {
         const locUrl = new URL(location, currentUrl);
-        if (isCoderOrigin(locUrl, coderHost)) {
+        if (isCoderOrigin(locUrl, meta.allowedHosts)) {
           const proxyBase = `/api/workspace-proxy/${workspaceId}`;
           responseHeaders.set("location", `${proxyBase}${locUrl.pathname}${locUrl.search}`);
         } else {

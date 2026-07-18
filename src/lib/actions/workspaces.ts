@@ -1,8 +1,10 @@
 "use server";
 
+import { posix } from "node:path";
 import { z } from "zod";
 import { getCoderClientForUser } from "@/lib/coder/user-client";
 import { SAFE_IDENTIFIER_RE } from "@/lib/constants";
+import { resolveConfiguredProjectsRoot } from "@/lib/git/clone-actions-contract";
 import { isCloneTerminalSessionName } from "@/lib/git/clone-terminal-session";
 import { authActionClient } from "@/lib/safe-action";
 import { execInWorkspace } from "@/lib/workspace/exec";
@@ -107,6 +109,30 @@ function normalizeWorkspaceDirectory(value: string | undefined | null): string |
   return trimmed;
 }
 
+function resolveWorkspaceFallbackDirectory(value: string | undefined): string | null {
+  const absolute = normalizeWorkspaceDirectory(value);
+  if (absolute) return absolute;
+  const trimmed = value?.trim();
+  if (!trimmed || trimmed.includes("\0") || trimmed.includes("\n") || trimmed.includes("\r")) {
+    return null;
+  }
+  const projectsRoot = resolveConfiguredProjectsRoot();
+  const resolved = posix.resolve(projectsRoot, trimmed);
+  return resolved === projectsRoot || resolved.startsWith(`${projectsRoot}/`) ? resolved : null;
+}
+
+async function getWorkspaceWithAgent(userId: string, workspaceId: string) {
+  const client = await getCoderClientForUser(userId);
+  const [workspace, resources, applicationsHost] = await Promise.all([
+    client.getWorkspace(workspaceId),
+    client.getWorkspaceResources(workspaceId),
+    client.getApplicationsHost(),
+  ]);
+  const agent = resources.flatMap((resource) => resource.agents ?? [])[0];
+  if (!agent) throw new Error(`No agents found for workspace ${workspaceId}`);
+  return { agent, applicationsHost, client, workspace };
+}
+
 async function getSessionCurrentDirectory({
   agentTarget,
   coderUrl,
@@ -189,15 +215,10 @@ export const getWorkspaceSessionsAction = authActionClient
 export const getWorkspaceSessionToolsAction = authActionClient
   .inputSchema(workspaceSessionToolsSchema)
   .action(async ({ parsedInput, ctx }) => {
-    const client = await getCoderClientForUser(ctx.user.id);
-    const workspace = await client.getWorkspace(parsedInput.workspaceId);
-    const resources = await client.getWorkspaceResources(parsedInput.workspaceId);
-    const agent = resources.flatMap((resource) => resource.agents ?? [])[0];
-    if (!agent) throw new Error(`No agents found for workspace ${parsedInput.workspaceId}`);
-
-    const applicationsHost = await client.getApplicationsHost();
-    const urls = buildWorkspaceUrls(workspace, agent.name, client.getBaseUrl(), applicationsHost);
-    if (!urls) throw new Error("Coder URL is unavailable for workspace tools");
+    const { agent, applicationsHost, client, workspace } = await getWorkspaceWithAgent(
+      ctx.user.id,
+      parsedInput.workspaceId,
+    );
 
     const currentDirectory = await getSessionCurrentDirectory({
       agentTarget: `${workspace.name}.${agent.name}`,
@@ -206,16 +227,16 @@ export const getWorkspaceSessionToolsAction = authActionClient
       sessionToken: client.getSessionToken(),
     });
     const folderPath =
-      currentDirectory ?? normalizeWorkspaceDirectory(parsedInput.fallbackPath) ?? undefined;
+      currentDirectory ?? resolveWorkspaceFallbackDirectory(parsedInput.fallbackPath) ?? undefined;
+    const proxyBase = `/api/workspace-proxy/${encodeURIComponent(parsedInput.workspaceId)}`;
+    const urls = buildWorkspaceUrls(workspace, agent.name, client.getBaseUrl(), applicationsHost);
+    if (!urls) throw new Error("Coder URL is unavailable for workspace tools");
 
     return {
       codeUrl: await client.getApplicationAuthRedirect(
         buildCodeServerFolderUrl(urls.codeServer, folderPath),
       ),
-      filesUrl: buildFileBrowserFolderUrl(
-        `/api/workspace-proxy/${encodeURIComponent(parsedInput.workspaceId)}/filebrowser`,
-        folderPath,
-      ),
+      filesUrl: buildFileBrowserFolderUrl(`${proxyBase}/filebrowser`, folderPath),
       folderPath: folderPath ?? null,
       source: getWorkspaceDirectorySource(currentDirectory, folderPath),
     };

@@ -73,6 +73,62 @@ async function expectConnectedTerminal(page: Page) {
   return terminal;
 }
 
+async function verifyEmbeddedFileBrowser(page: Page, testInfo: TestInfo) {
+  await page
+    .getByRole("button", { name: /^Browse files for / })
+    .first()
+    .click();
+  await expect(page.getByTestId("workspace-tool-pane-files")).toBeVisible({ timeout: 30_000 });
+  const fileBrowserFrame = page.getByTestId("workspace-tool-frame-files");
+  await expect(fileBrowserFrame).toHaveAttribute(
+    "src",
+    /\/api\/workspace-proxy\/[^/]+\/filebrowser\/files\//,
+  );
+  const fileBrowserBody = page
+    .frameLocator('[data-testid="workspace-tool-frame-files"]')
+    .locator("body");
+  await expect(fileBrowserBody).toBeVisible({ timeout: 30_000 });
+  await expect(fileBrowserBody).not.toContainText(/login|unauthorized|proxy error/i);
+  await capture(page, testInfo, "workspace-file-browser-embedded");
+}
+
+async function verifyEmbeddedVsCode(page: Page, testInfo: TestInfo) {
+  await page
+    .getByRole("button", { name: /^Open VS Code for / })
+    .first()
+    .click();
+  await expect(page.getByTestId("workspace-tool-pane-code")).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByTestId("workspace-tool-frame-code")).toHaveAttribute(
+    "src",
+    /code-server--/,
+  );
+  await expect(
+    page.frameLocator('[data-testid="workspace-tool-frame-code"]').locator(".monaco-workbench"),
+  ).toBeVisible({ timeout: 45_000 });
+  await capture(page, testInfo, "workspace-vscode-embedded");
+}
+
+async function verifyPaletteToolAndOpenActions(page: Page, testInfo: TestInfo) {
+  const sessionLabel = (await page.getByTestId("active-pane-label").textContent())?.trim();
+  expect(sessionLabel).toBeTruthy();
+  await page.keyboard.press("Control+K");
+  await page.getByPlaceholder(/Search terminal sessions/).fill(sessionLabel ?? "");
+  await page.keyboard.press("ArrowDown");
+  await page.keyboard.press("ArrowRight");
+  await page.keyboard.press("Enter");
+  await expect(page.getByTestId("workspace-tool-pane-code")).toBeVisible({ timeout: 30_000 });
+  await page.getByTestId("remove-workspace-tool-code").click();
+
+  await page.keyboard.press("Control+K");
+  await page.getByPlaceholder(/Search terminal sessions/).fill(sessionLabel ?? "");
+  await page.keyboard.press("ArrowDown");
+  await page.keyboard.press("Enter");
+  await expect(page.getByTestId("single-terminal-header")).toBeVisible();
+  const singleTerminal = await expectConnectedTerminal(page);
+  await proveTerminalAcceptsInput(page, singleTerminal);
+  await capture(page, testInfo, "single-terminal-connected");
+}
+
 async function proveTerminalAcceptsInput(page: Page, terminal: Locator) {
   const marker = `hive-terminal-e2e-${Date.now()}`;
   const input = terminal.locator("textarea.xterm-helper-textarea");
@@ -227,55 +283,16 @@ test.describe("authenticated Hive workflows", () => {
     expect(terminalSocketUrls).toHaveLength(healthySocketCount);
     await capture(page, testInfo, "workspace-terminal-connected");
 
-    await page
-      .getByRole("button", { name: /^Browse files for / })
-      .first()
-      .click();
-    await expect(page.getByTestId("workspace-tool-pane-files")).toBeVisible({ timeout: 30_000 });
-    const fileBrowserFrame = page.getByTestId("workspace-tool-frame-files");
-    await expect(fileBrowserFrame).toHaveAttribute(
-      "src",
-      /\/api\/workspace-proxy\/[^/]+\/filebrowser\/files\//,
-    );
-    const fileBrowserBody = page
-      .frameLocator('[data-testid="workspace-tool-frame-files"]')
-      .locator("body");
-    await expect(fileBrowserBody).toBeVisible({ timeout: 30_000 });
-    await expect(fileBrowserBody).not.toContainText(/login|unauthorized|proxy error/i);
-    await capture(page, testInfo, "workspace-file-browser-embedded");
-
-    await page
-      .getByRole("button", { name: /^Open VS Code for / })
-      .first()
-      .click();
-    await expect(page.getByTestId("workspace-tool-pane-code")).toBeVisible({ timeout: 30_000 });
-    const codeFrame = page.getByTestId("workspace-tool-frame-code");
-    await expect(codeFrame).toHaveAttribute("src", /code-server--/);
-    await expect(
-      page.frameLocator('[data-testid="workspace-tool-frame-code"]').locator(".monaco-workbench"),
-    ).toBeVisible({ timeout: 45_000 });
-    await capture(page, testInfo, "workspace-vscode-embedded");
+    await test.step("embed File Browser through the same-origin proxy", async () => {
+      await verifyEmbeddedFileBrowser(page, testInfo);
+    });
+    await test.step("embed VS Code from the configured Coder application host", async () => {
+      await verifyEmbeddedVsCode(page, testInfo);
+    });
     await page.getByTestId("remove-workspace-tool-files").click();
     await page.getByTestId("remove-workspace-tool-code").click();
-
-    const sessionLabel = (await page.getByTestId("active-pane-label").textContent())?.trim();
-    expect(sessionLabel).toBeTruthy();
-    await page.keyboard.press("Control+K");
-    const paletteSearch = page.getByPlaceholder(/Search terminal sessions/);
-    await paletteSearch.fill(sessionLabel ?? "");
-    await page.keyboard.press("ArrowDown");
-    await page.keyboard.press("ArrowRight");
-    await page.keyboard.press("Enter");
-    await expect(page.getByTestId("workspace-tool-pane-code")).toBeVisible({ timeout: 30_000 });
-    await page.getByTestId("remove-workspace-tool-code").click();
-
-    await page.keyboard.press("Control+K");
-    await page.getByPlaceholder(/Search terminal sessions/).fill(sessionLabel ?? "");
-    await page.keyboard.press("ArrowDown");
-    await page.keyboard.press("Enter");
-    await expect(page.getByTestId("single-terminal-header")).toBeVisible();
-    const singleTerminal = await expectConnectedTerminal(page);
-    await proveTerminalAcceptsInput(page, singleTerminal);
-    await capture(page, testInfo, "single-terminal-connected");
+    await test.step("choose VS Code and Open with palette arrow keys", async () => {
+      await verifyPaletteToolAndOpenActions(page, testInfo);
+    });
   });
 });

@@ -42,9 +42,10 @@ export function buildCodeServerFolderUrl(
 ): string {
   if (!folderPath?.trim()) return codeServerUrl;
 
-  const url = new URL(codeServerUrl);
+  const isRelative = codeServerUrl.startsWith("/");
+  const url = new URL(codeServerUrl, "https://hive.local");
   url.searchParams.set("folder", folderPath.trim());
-  return url.toString();
+  return isRelative ? `${url.pathname}${url.search}` : url.toString();
 }
 
 export function buildFileBrowserFolderUrl(
@@ -53,11 +54,13 @@ export function buildFileBrowserFolderUrl(
 ): string {
   if (!folderPath?.trim()) return fileBrowserUrl;
 
-  const isRelative = fileBrowserUrl.startsWith("/");
   const url = new URL(fileBrowserUrl, "https://hive.local");
-  url.pathname = `/files${folderPath.trim()}`;
-  if (!isRelative) return url.toString();
+  const basePath = url.pathname.replace(/\/+$/, "");
+  const normalizedFolderPath = folderPath.trim().startsWith("/")
+    ? folderPath.trim()
+    : `/${folderPath.trim()}`;
+  url.pathname = `${basePath}/files${normalizedFolderPath}`;
+  if (!fileBrowserUrl.startsWith("/")) return url.toString();
 
-  const proxyPrefix = fileBrowserUrl.replace(/\/+$/, "");
-  return `${proxyPrefix}/files${folderPath.trim()}`;
+  return `${url.pathname}${url.search}${url.hash}`;
 }

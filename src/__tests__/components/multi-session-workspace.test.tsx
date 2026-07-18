@@ -702,6 +702,7 @@ describe("MultiSessionWorkspace", () => {
   });
 
   it("adds File Browser and VS Code as tiled workspace panes instead of dialogs", async () => {
+    const openSpy = vi.spyOn(window, "open").mockImplementation(() => null);
     await renderTwoSessionWorkspace();
 
     fireEvent.click(screen.getByRole("button", { name: "Browse files for main-session" }));
@@ -720,10 +721,34 @@ describe("MultiSessionWorkspace", () => {
       "src",
       "https://code.test/?folder=%2Fhome%2Fcoder",
     );
+    fireEvent.click(screen.getByTestId("pop-out-workspace-tool-code"));
+    expect(openSpy).toHaveBeenCalledWith(
+      "https://code.test/?folder=%2Fhome%2Fcoder",
+      "_blank",
+      "noopener,noreferrer",
+    );
 
     fireEvent.click(screen.getByTestId("remove-workspace-tool-files"));
     expect(screen.queryByTestId("workspace-tool-pane-files")).not.toBeInTheDocument();
     expect(screen.getByTestId("workspace-tool-pane-code")).toBeInTheDocument();
+  });
+
+  it("clears embedded tool panes when the workspace identity changes", async () => {
+    mockGetSessions.mockResolvedValue(twoSessionPayload());
+    const { rerender } = render(<MultiSessionWorkspace {...defaultProps} />);
+    await screen.findByTestId("workspace-pane-main-session");
+    markTwoSessionsConnected();
+    await waitFor(() => {
+      expect(screen.queryByTestId("multi-session-loading")).not.toBeInTheDocument();
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Browse files for main-session" }));
+    expect(await screen.findByTestId("workspace-tool-pane-files")).toBeInTheDocument();
+
+    rerender(<MultiSessionWorkspace agentId="agent-2" workspaceId="ws-2" />);
+
+    await waitFor(() => {
+      expect(screen.queryByTestId("workspace-tool-pane-files")).not.toBeInTheDocument();
+    });
   });
 
   it("renders tiled real panes with InteractiveTerminal props and active diagnostics", async () => {
