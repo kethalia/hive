@@ -231,27 +231,32 @@ test.describe("authenticated Hive workflows", () => {
       .getByRole("button", { name: /^Browse files for / })
       .first()
       .click();
-    const workspaceToolDialog = page.getByTestId("workspace-tool-dialog");
-    await expect(workspaceToolDialog).toBeVisible({ timeout: 30_000 });
-    const workspaceToolFrame = page.getByTestId("workspace-tool-frame");
-    await expect(workspaceToolFrame).toHaveAttribute(
+    await expect(page.getByTestId("workspace-tool-pane-files")).toBeVisible({ timeout: 30_000 });
+    const fileBrowserFrame = page.getByTestId("workspace-tool-frame-files");
+    await expect(fileBrowserFrame).toHaveAttribute(
       "src",
       /\/api\/workspace-proxy\/[^/]+\/filebrowser\/files\//,
     );
     const fileBrowserBody = page
-      .frameLocator('[data-testid="workspace-tool-frame"]')
+      .frameLocator('[data-testid="workspace-tool-frame-files"]')
       .locator("body");
     await expect(fileBrowserBody).toBeVisible({ timeout: 30_000 });
     await expect(fileBrowserBody).not.toContainText(/login|unauthorized|proxy error/i);
     await capture(page, testInfo, "workspace-file-browser-embedded");
 
-    await workspaceToolDialog.getByRole("tab", { name: /VS Code/ }).click();
-    await expect(workspaceToolFrame).toHaveAttribute("src", /code-server--/);
+    await page
+      .getByRole("button", { name: /^Open VS Code for / })
+      .first()
+      .click();
+    await expect(page.getByTestId("workspace-tool-pane-code")).toBeVisible({ timeout: 30_000 });
+    const codeFrame = page.getByTestId("workspace-tool-frame-code");
+    await expect(codeFrame).toHaveAttribute("src", /code-server--/);
     await expect(
-      page.frameLocator('[data-testid="workspace-tool-frame"]').locator(".monaco-workbench"),
+      page.frameLocator('[data-testid="workspace-tool-frame-code"]').locator(".monaco-workbench"),
     ).toBeVisible({ timeout: 45_000 });
     await capture(page, testInfo, "workspace-vscode-embedded");
-    await workspaceToolDialog.getByRole("button", { name: "Close" }).click();
+    await page.getByTestId("remove-workspace-tool-files").click();
+    await page.getByTestId("remove-workspace-tool-code").click();
 
     const sessionLabel = (await page.getByTestId("active-pane-label").textContent())?.trim();
     expect(sessionLabel).toBeTruthy();

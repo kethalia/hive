@@ -2,4 +2,4 @@
 "hive-web": minor
 ---
 
-Add embedded File Browser and VS Code tabs to terminal and Git workspace panes.
+Add File Browser and VS Code as embedded tiled windows alongside terminal and Git workspace panes.

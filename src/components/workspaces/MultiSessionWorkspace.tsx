@@ -34,7 +34,11 @@ import {
   TerminalSessionFrame,
 } from "@/components/workspaces/TerminalSessionFrame";
 import { WorkspaceBoardBar } from "@/components/workspaces/WorkspaceBoardBar";
-import { WorkspaceSessionTools } from "@/components/workspaces/WorkspaceSessionTools";
+import {
+  WorkspaceSessionTools,
+  type WorkspaceSessionToolUrls,
+  type WorkspaceTool,
+} from "@/components/workspaces/WorkspaceSessionTools";
 import { useIsComposeSheet } from "@/hooks/use-compose-sheet";
 import { useKeepAliveStatus } from "@/hooks/useKeepAliveStatus";
 import { useKeybindings } from "@/hooks/useKeybindings";
@@ -157,7 +161,18 @@ interface WorkspaceBoardRenderModel {
   board: WorkspaceBoard;
   isActive: boolean;
   visibleSessions: VisibleWorkspaceSessionPane[];
+  toolPanes: WorkspaceToolPane[];
   layout: ReturnType<typeof resolveSessionPaneLayout>;
+}
+
+interface WorkspaceToolPane {
+  key: string;
+  boardKey: string;
+  sourceSessionName: string;
+  tool: WorkspaceTool;
+  url: string;
+  label: string;
+  folderPath: string | null;
 }
 
 interface RemoveWorkspacePaneTarget {
@@ -915,6 +930,7 @@ export function MultiSessionWorkspace({
   );
   const [boardPersistenceNotice, setBoardPersistenceNotice] =
     useState<BoardPersistenceNotice | null>(null);
+  const [workspaceToolPanes, setWorkspaceToolPanes] = useState<WorkspaceToolPane[]>([]);
   const [paneRecoveryStates, setPaneRecoveryStates] = useState<
     Record<string, WorkspacePaneRecoveryInput>
   >({});
@@ -944,20 +960,25 @@ export function MultiSessionWorkspace({
     () =>
       boardState.boards.map((board) => {
         const boardVisibleSessions = deriveVisibleSessionsFromBoard(sessions, board);
+        const boardToolPanes = workspaceToolPanes.filter((pane) => pane.boardKey === board.key);
         return {
           board,
           isActive: board.key === activeBoard?.key,
           visibleSessions: boardVisibleSessions,
+          toolPanes: boardToolPanes,
           layout: resolveSessionPaneLayout({
-            sessions: boardVisibleSessions.map((session) => ({
-              sessionName: session.sessionName,
-              label: session.label,
-            })),
+            sessions: [
+              ...boardVisibleSessions.map((session) => ({
+                sessionName: session.sessionName,
+                label: session.label,
+              })),
+              ...boardToolPanes.map((pane) => ({ sessionName: pane.key, label: pane.label })),
+            ],
             persistedJson: persistedLayoutJson,
           }),
         };
       }),
-    [activeBoard?.key, boardState.boards, persistedLayoutJson, sessions],
+    [activeBoard?.key, boardState.boards, persistedLayoutJson, sessions, workspaceToolPanes],
   );
   const activeBoardRenderModel = useMemo(
     () => boardRenderModels.find((model) => model.isActive) ?? boardRenderModels[0],
@@ -2871,7 +2892,62 @@ export function MultiSessionWorkspace({
     ? (composeTargetSessionName ?? activeSessionName)
     : null;
 
+  const openWorkspaceToolPane = (
+    boardKey: string,
+    session: WorkspaceSessionPane,
+    tool: WorkspaceTool,
+    urls: WorkspaceSessionToolUrls,
+  ) => {
+    const key = `workspace-tool:${boardKey}:${session.sessionName}:${tool}`;
+    const label = `${tool === "code" ? "VS Code" : "Files"} · ${session.label}`;
+    const url = tool === "code" ? urls.codeUrl : urls.filesUrl;
+    setWorkspaceToolPanes((current) => [
+      ...current.filter((pane) => pane.key !== key),
+      {
+        key,
+        boardKey,
+        sourceSessionName: session.sessionName,
+        tool,
+        url,
+        label,
+        folderPath: urls.folderPath,
+      },
+    ]);
+  };
+
   const renderPane = (pane: SessionPane, model: WorkspaceBoardRenderModel) => {
+    const toolPane = model.toolPanes.find((candidate) => candidate.key === pane.sessionName);
+    if (toolPane) {
+      const paneStyle: CSSProperties = { gridArea: pane.gridArea };
+      return (
+        <TerminalSessionFrame
+          key={`${model.board.key}:${toolPane.key}`}
+          label={toolPane.label}
+          active={false}
+          dataTestId={`workspace-tool-pane-${toolPane.tool}`}
+          layoutMode="tiled"
+          style={paneStyle}
+          onActivate={() => selectSession(toolPane.sourceSessionName, { focusTerminal: false })}
+          closeLabel={`Close ${toolPane.label}`}
+          closeTestId={`remove-workspace-tool-${toolPane.tool}`}
+          onClose={(event) => {
+            event.stopPropagation();
+            setWorkspaceToolPanes((current) =>
+              current.filter((candidate) => candidate.key !== toolPane.key),
+            );
+          }}
+        >
+          <iframe
+            src={toolPane.url}
+            title={toolPane.label}
+            className="min-h-0 flex-1 border-0 bg-background"
+            allow="clipboard-read; clipboard-write"
+            data-testid={`workspace-tool-frame-${toolPane.tool}`}
+          />
+        </TerminalSessionFrame>
+      );
+    }
+
     const visibleSession = model.visibleSessions.find(
       (candidate) => candidate.sessionName === pane.sessionName,
     );
@@ -2919,6 +2995,9 @@ export function MultiSessionWorkspace({
               sessionName={session.sessionName}
               label={session.label}
               fallbackPath={session.clonePath}
+              onOpenTool={(tool, urls) =>
+                openWorkspaceToolPane(model.board.key, session, tool, urls)
+              }
             />
           ) : null
         }
@@ -2986,7 +3065,7 @@ export function MultiSessionWorkspace({
   };
 
   const renderBoardLayer = (model: WorkspaceBoardRenderModel) => {
-    if (model.visibleSessions.length === 0) {
+    if (model.visibleSessions.length === 0 && model.toolPanes.length === 0) {
       return model.isActive ? (
         <div key={model.board.key} className="absolute inset-1">
           {renderEmptyWorkspaceBody()}

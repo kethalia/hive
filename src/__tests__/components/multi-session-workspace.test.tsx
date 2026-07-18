@@ -20,6 +20,7 @@ import { TERMINAL_COMPOSE_TOGGLE_EVENT } from "@/lib/terminal/events";
 
 const mockCreateSession = vi.fn();
 const mockGetSessions = vi.fn();
+const mockGetWorkspaceSessionTools = vi.fn();
 const mockKillSession = vi.fn();
 const mockListGitClones = vi.fn();
 const mockResolveGitCloneTerminal = vi.fn();
@@ -259,6 +260,7 @@ vi.mock("@/lib/actions/git-clones", () => ({
 vi.mock("@/lib/actions/workspaces", () => ({
   createSessionAction: (...args: unknown[]) => mockCreateSession(...args),
   getWorkspaceSessionsAction: (...args: unknown[]) => mockGetSessions(...args),
+  getWorkspaceSessionToolsAction: (...args: unknown[]) => mockGetWorkspaceSessionTools(...args),
   killSessionAction: (...args: unknown[]) => mockKillSession(...args),
 }));
 
@@ -640,6 +642,13 @@ describe("MultiSessionWorkspace", () => {
     window.localStorage.clear();
     setPwaStandalone(false);
     mockGetSessions.mockResolvedValue({ data: [] });
+    mockGetWorkspaceSessionTools.mockResolvedValue({
+      data: {
+        codeUrl: "https://code.test/?folder=%2Fhome%2Fcoder",
+        filesUrl: "/api/workspace-proxy/ws-1/filebrowser/files/home/coder",
+        folderPath: "/home/coder",
+      },
+    });
     mockUseIsComposeSheet.mockReturnValue(false);
     mockCopyTerminalSelection.mockReset();
     mockPasteClipboardApiToTerminal.mockReset();
@@ -669,6 +678,31 @@ describe("MultiSessionWorkspace", () => {
   afterEach(() => {
     cleanup();
     vi.restoreAllMocks();
+  });
+
+  it("adds File Browser and VS Code as tiled workspace panes instead of dialogs", async () => {
+    await renderTwoSessionWorkspace();
+
+    fireEvent.click(screen.getByRole("button", { name: "Browse files for main-session" }));
+    const filesPane = await screen.findByTestId("workspace-tool-pane-files");
+    expect(filesPane).toBeInTheDocument();
+    expect(screen.getByTestId("workspace-tool-frame-files")).toHaveAttribute(
+      "src",
+      "/api/workspace-proxy/ws-1/filebrowser/files/home/coder",
+    );
+    expect(screen.getByTestId("interactive-terminal-main-session")).toBeInTheDocument();
+    expect(screen.queryByTestId("workspace-tool-dialog")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Open VS Code for main-session" }));
+    expect(await screen.findByTestId("workspace-tool-pane-code")).toBeInTheDocument();
+    expect(screen.getByTestId("workspace-tool-frame-code")).toHaveAttribute(
+      "src",
+      "https://code.test/?folder=%2Fhome%2Fcoder",
+    );
+
+    fireEvent.click(screen.getByTestId("remove-workspace-tool-files"));
+    expect(screen.queryByTestId("workspace-tool-pane-files")).not.toBeInTheDocument();
+    expect(screen.getByTestId("workspace-tool-pane-code")).toBeInTheDocument();
   });
 
   it("renders tiled real panes with InteractiveTerminal props and active diagnostics", async () => {
