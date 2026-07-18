@@ -38,6 +38,7 @@ import {
   WorkspaceSessionTools,
   type WorkspaceSessionToolUrls,
   type WorkspaceTool,
+  type WorkspaceToolOpenRequest,
 } from "@/components/workspaces/WorkspaceSessionTools";
 import { useIsComposeSheet } from "@/hooks/use-compose-sheet";
 import { useKeepAliveStatus } from "@/hooks/useKeepAliveStatus";
@@ -2997,8 +2998,8 @@ export function MultiSessionWorkspace({
               sessionName={session.sessionName}
               label={session.label}
               fallbackPath={session.clonePath}
-              onOpenTool={(tool, urls) => {
-                openWorkspaceToolPane(model.board.key, session, tool, urls);
+              onOpenTool={(request: WorkspaceToolOpenRequest) => {
+                openWorkspaceToolPane(model.board.key, session, request.tool, request.urls);
               }}
             />
           ) : null

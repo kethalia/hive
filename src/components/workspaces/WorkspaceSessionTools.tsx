@@ -1,7 +1,7 @@
 "use client";
 
 import { Code2, FolderOpen, Loader2 } from "lucide-react";
-import { useState } from "react";
+import { type Dispatch, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { getWorkspaceSessionToolsAction } from "@/lib/actions/workspaces";
@@ -14,14 +14,17 @@ export interface WorkspaceSessionToolUrls {
   folderPath: string | null;
 }
 
-type OpenWorkspaceTool = (...args: [WorkspaceTool, WorkspaceSessionToolUrls]) => void;
+export interface WorkspaceToolOpenRequest {
+  tool: WorkspaceTool;
+  urls: WorkspaceSessionToolUrls;
+}
 
 interface WorkspaceSessionToolsProps {
   workspaceId: string;
   sessionName: string;
   label: string;
   fallbackPath?: string;
-  onOpenTool: OpenWorkspaceTool;
+  onOpenTool: Dispatch<WorkspaceToolOpenRequest>;
 }
 
 function isWorkspaceSessionToolUrls(value: unknown): value is WorkspaceSessionToolUrls {
@@ -57,7 +60,7 @@ export function WorkspaceSessionTools({
         toast.error("Could not open workspace tools for this session.");
         return;
       }
-      onOpenTool(tool, result.data);
+      onOpenTool({ tool, urls: result.data });
     } catch {
       toast.error("Could not open workspace tools for this session.");
     } finally {

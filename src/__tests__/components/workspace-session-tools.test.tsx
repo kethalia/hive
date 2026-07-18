@@ -53,10 +53,13 @@ describe("WorkspaceSessionTools", () => {
       sessionName: "git-hive",
       fallbackPath: "/home/coder/hive",
     });
-    expect(onOpenTool).toHaveBeenCalledWith("files", {
-      codeUrl: "https://code.test/?folder=%2Fhome%2Fcoder%2Fhive",
-      filesUrl: "https://files.test/files/home/coder/hive",
-      folderPath: "/home/coder/hive",
+    expect(onOpenTool).toHaveBeenCalledWith({
+      tool: "files",
+      urls: {
+        codeUrl: "https://code.test/?folder=%2Fhome%2Fcoder%2Fhive",
+        filesUrl: "https://files.test/files/home/coder/hive",
+        folderPath: "/home/coder/hive",
+      },
     });
   });
 
@@ -72,11 +75,11 @@ describe("WorkspaceSessionTools", () => {
     );
     fireEvent.click(screen.getByRole("button", { name: "Open VS Code for Shell" }));
     await waitFor(() => expect(onOpenTool).toHaveBeenCalled());
-    expect(onOpenTool).toHaveBeenCalledWith(
-      "code",
-      expect.objectContaining({
+    expect(onOpenTool).toHaveBeenCalledWith({
+      tool: "code",
+      urls: expect.objectContaining({
         codeUrl: "https://code.test/?folder=%2Fhome%2Fcoder%2Fhive",
       }),
-    );
+    });
   });
 });
