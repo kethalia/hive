@@ -2,7 +2,6 @@ import { cookies } from "next/headers";
 import { type NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/auth/session";
 import { getCoderClientForUser } from "@/lib/coder/user-client";
-import { getWorkspaceAppHost } from "@/lib/workspaces/urls";
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -92,27 +91,20 @@ function resolveApp(pathSegments: string[]): { appSlug: string; subPath: string 
 
 function buildTargetUrl(
   coderHost: string,
-  applicationsHost: string,
   meta: WorkspaceMeta,
   appSlug: string,
   subPath: string,
   search: string,
 ): string {
-  const appHost = getWorkspaceAppHost(coderHost, applicationsHost);
-  const base = `https://${appSlug}--${meta.agent}--${meta.name}--${meta.owner}.${appHost}`;
+  const workspace = `${encodeURIComponent(meta.name)}.${encodeURIComponent(meta.agent)}`;
+  const base = `https://${coderHost}/@${encodeURIComponent(meta.owner)}/${workspace}/apps/${encodeURIComponent(appSlug)}`;
   return `${base}/${subPath}${search}`;
 }
 
-function isCoderOrigin(url: URL, coderHost: string, applicationsHost: string): boolean {
+function isCoderOrigin(url: URL, coderHost: string): boolean {
   const targetHost = url.host.toLowerCase();
   const lowerCoderHost = coderHost.toLowerCase();
-  const appHost = getWorkspaceAppHost(coderHost, applicationsHost).toLowerCase();
-  return (
-    targetHost === lowerCoderHost ||
-    targetHost.endsWith(`.${lowerCoderHost}`) ||
-    targetHost === appHost ||
-    targetHost.endsWith(`.${appHost}`)
-  );
+  return targetHost === lowerCoderHost || targetHost.endsWith(`.${lowerCoderHost}`);
 }
 
 async function proxyRequest(
@@ -146,16 +138,8 @@ async function proxyRequest(
 
   const client = await getCoderClientForUser(userId);
   const sessionToken = client.getSessionToken();
-  const applicationsHost = await client.getApplicationsHost();
   const { appSlug, subPath } = resolveApp(pathSegments);
-  const targetUrl = buildTargetUrl(
-    coderHost,
-    applicationsHost,
-    meta,
-    appSlug,
-    subPath,
-    req.nextUrl.search,
-  );
+  const targetUrl = buildTargetUrl(coderHost, meta, appSlug, subPath, req.nextUrl.search);
 
   function buildHeaders(target: string): Headers {
     const h = new Headers();
@@ -187,7 +171,7 @@ async function proxyRequest(
 
       const resolvedLocation = new URL(location, currentUrl);
 
-      if (!isCoderOrigin(resolvedLocation, coderHost, applicationsHost)) {
+      if (!isCoderOrigin(resolvedLocation, coderHost)) {
         break;
       }
 
@@ -208,7 +192,7 @@ async function proxyRequest(
       const location = upstream.headers.get("location");
       if (location) {
         const locUrl = new URL(location, currentUrl);
-        if (isCoderOrigin(locUrl, coderHost, applicationsHost)) {
+        if (isCoderOrigin(locUrl, coderHost)) {
           const proxyBase = `/api/workspace-proxy/${workspaceId}`;
           responseHeaders.set("location", `${proxyBase}${locUrl.pathname}${locUrl.search}`);
         } else {
