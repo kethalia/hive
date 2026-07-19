@@ -1,4 +1,5 @@
 export const CODER_API_TIMEOUT_MS = 10_000;
+export const CODER_APPLICATIONS_HOST_TIMEOUT_MS = 2_000;
 
 export const API_KEY_CREATION_RETRIES = 3;
 

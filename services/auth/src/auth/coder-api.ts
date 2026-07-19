@@ -1,5 +1,10 @@
 import { fetchCoderApi } from "./coder-fetch.js";
-import { CODER_API_PATHS, CODER_API_TIMEOUT_MS, CODER_SESSION_TOKEN_HEADER } from "./constants.js";
+import {
+  CODER_API_PATHS,
+  CODER_API_TIMEOUT_MS,
+  CODER_APPLICATIONS_HOST_TIMEOUT_MS,
+  CODER_SESSION_TOKEN_HEADER,
+} from "./constants.js";
 import type {
   BuildInfoResponse,
   CoderLoginRequest,
@@ -97,7 +102,7 @@ export async function coderLogin(
     }),
     fetchCoderApi(`${url}${CODER_API_PATHS.APPLICATIONS_HOST}`, {
       headers: authenticatedHeaders,
-      signal: AbortSignal.timeout(CODER_API_TIMEOUT_MS),
+      signal: AbortSignal.timeout(CODER_APPLICATIONS_HOST_TIMEOUT_MS),
     }).catch(() => null),
   ]);
 

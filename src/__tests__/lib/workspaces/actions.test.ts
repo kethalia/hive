@@ -542,6 +542,33 @@ describe("workspace server actions", () => {
     );
   });
 
+  it("requires a reload when the document lacks the primary Coder frame origin", async () => {
+    mockGetApplicationsHost.mockResolvedValueOnce("");
+    mockGetWorkspace.mockResolvedValueOnce({
+      id: "ws-1",
+      name: "dev-box",
+      owner_name: "alice",
+      template_id: "tpl-1",
+      latest_build: { id: "build-1", status: "running", job: { status: "succeeded" } },
+    });
+    mockedExec.mockResolvedValueOnce({ stdout: "/home/coder\n", stderr: "", exitCode: 0 });
+
+    const { getWorkspaceSessionToolsAction } = await import("@/lib/actions/workspaces");
+    const result = await getWorkspaceSessionToolsAction({
+      workspaceId: "ws-1",
+      sessionName: "git-hive",
+      documentFrameHosts: [],
+      tool: "files",
+    });
+
+    expect(result?.data?.reloadRequired).toBe(true);
+    expect(mockCookieSet).toHaveBeenCalledWith(
+      "hive-coder-host",
+      "https://coder.example.com",
+      expect.objectContaining({ httpOnly: true, maxAge: expect.any(Number), path: "/" }),
+    );
+  });
+
   it("does not update the frame-host cookie when application authentication fails", async () => {
     mockGetApplicationsHost.mockResolvedValueOnce("*.apps.example.com");
     mockGetWorkspace.mockResolvedValueOnce({

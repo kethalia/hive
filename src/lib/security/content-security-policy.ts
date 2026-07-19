@@ -6,10 +6,10 @@ const scriptSource =
 export const CODER_HOST_COOKIE = "hive-coder-host";
 export const CODER_FRAME_HOSTS_META = "hive-coder-frame-hosts";
 
-export function coderFrameConfiguredUrls(coderUrl: string, applicationsHost: string): string[] {
+export function coderFrameConfiguredUrls(coderUrl: string, applicationsHost?: string): string[] {
   const coderOrigin = new URL(coderUrl);
   const sources = [coderOrigin.origin];
-  const trimmedHost = applicationsHost.trim();
+  const trimmedHost = applicationsHost?.trim() ?? "";
   if (!trimmedHost) return sources;
 
   const placeholder = "hive-workspace-app-placeholder";

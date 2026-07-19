@@ -152,10 +152,8 @@ async function synchronizeCoderFrameHosts(
   documentFrameHosts: readonly string[],
 ): Promise<boolean> {
   const coderFrameUrls = coderFrameConfiguredUrls(coderUrl, applicationsHost);
-  const applicationsFrameUrl = coderFrameUrls[1];
-  if (!applicationsFrameUrl) return false;
   const cookieStore = await cookies();
-  const reloadRequired = !documentFrameHosts.includes(applicationsFrameUrl);
+  const reloadRequired = coderFrameUrls.some((frameUrl) => !documentFrameHosts.includes(frameUrl));
   cookieStore.set(CODER_HOST_COOKIE, coderFrameUrls.join("~"), {
     httpOnly: true,
     maxAge: SESSION_MAX_AGE_SECONDS,

@@ -101,6 +101,28 @@ describe("validateCoderInstance", () => {
     });
   });
 
+  it("uses a shorter timeout for ancillary applications-host discovery", async () => {
+    const timeoutSpy = vi.spyOn(AbortSignal, "timeout");
+    vi.mocked(fetch)
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ session_token: "tok" }), { status: 200 }),
+      )
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ id: "u", username: "a", email: "a@b.com" }), {
+          status: 200,
+        }),
+      )
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ host: "*.apps.example.com" }), { status: 200 }),
+      );
+
+    await coderLogin(BASE_URL, "a@b.com", "pw");
+
+    expect(timeoutSpy).toHaveBeenNthCalledWith(1, 10_000);
+    expect(timeoutSpy).toHaveBeenNthCalledWith(2, 10_000);
+    expect(timeoutSpy).toHaveBeenNthCalledWith(3, 2_000);
+  });
+
   it.each([
     ["malformed JSON", "not-json"],
     ["a missing host", JSON.stringify({ enabled: true })],
