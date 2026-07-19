@@ -28,6 +28,8 @@ const STRIP_RESPONSE_HEADERS = new Set([
   "x-frame-options",
   "content-security-policy",
   "content-security-policy-report-only",
+  "content-encoding",
+  "content-length",
   "strict-transport-security",
   "coder-session-token",
 ]);

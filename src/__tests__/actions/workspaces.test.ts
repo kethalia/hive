@@ -528,6 +528,39 @@ describe("workspace actions use authActionClient + getCoderClientForUser", () =>
     expect(html).not.toContain(`${workspaceId}/filebrowser`);
   });
 
+  it("removes stale compression headers from decoded workspace assets", async () => {
+    mockedGetCoderClientForUser.mockResolvedValue({
+      getWorkspace: vi.fn().mockResolvedValue({ name: "dev-box", owner_name: "alice" }),
+      getWorkspaceAgentName: vi.fn().mockResolvedValue("dev-box.main"),
+      getApplicationsHost: vi.fn().mockResolvedValue("*.apps.example.com"),
+      getBaseUrl: () => "https://coder.example.com",
+      getSessionToken: () => "coder-session-token",
+    } as never);
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response("decoded javascript", {
+        status: 200,
+        headers: {
+          "content-encoding": "gzip",
+          "content-length": "8",
+          "content-type": "text/javascript",
+        },
+      }),
+    );
+    const { GET } = await import("@/app/api/workspace-proxy/[workspaceId]/[[...path]]/route");
+    const workspaceId = "dededede-1111-2222-3333-444444444444";
+    const url = `http://localhost/api/workspace-proxy/${workspaceId}/kasmvnc/static/app.js`;
+    const req = new Request(url);
+    Object.defineProperty(req, "nextUrl", { value: new URL(url) });
+
+    const response = await GET(req as never, {
+      params: Promise.resolve({ workspaceId, path: ["kasmvnc", "static", "app.js"] }),
+    });
+
+    expect(await response.text()).toBe("decoded javascript");
+    expect(response.headers.get("content-encoding")).toBeNull();
+    expect(response.headers.get("content-length")).toBeNull();
+  });
+
   it("streams writes through the explicitly configured CA transport", async () => {
     vi.stubEnv("CODER_CA_CERT", "trusted-private-ca");
     mockedGetCoderClientForUser.mockResolvedValue({
