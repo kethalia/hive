@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import "@testing-library/jest-dom/vitest";
 
@@ -85,5 +85,49 @@ describe("WorkspaceSessionTools", () => {
         codeUrl: "https://code.test/?folder=%2Fhome%2Fcoder%2Fhive",
       }),
     });
+  });
+
+  it("ignores a pending tool response after the workspace changes", async () => {
+    const pending = Promise.withResolvers<{
+      data: {
+        codeUrl: string;
+        filesUrl: string;
+        folderPath: string | null;
+      };
+    }>();
+    mockGetWorkspaceSessionTools.mockReturnValueOnce(pending.promise);
+    const onOpenTool = vi.fn();
+    const { rerender } = render(
+      <WorkspaceSessionTools
+        workspaceId="ws-old"
+        sessionName="shell"
+        label="Shell"
+        onOpenTool={onOpenTool}
+      />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Browse files for Shell" }));
+
+    rerender(
+      <WorkspaceSessionTools
+        workspaceId="ws-new"
+        sessionName="shell"
+        label="Shell"
+        onOpenTool={onOpenTool}
+      />,
+    );
+    await act(async () => {
+      pending.resolve({
+        data: {
+          codeUrl: "https://old-code.test",
+          filesUrl: "https://old-files.test",
+          folderPath: "/old",
+        },
+      });
+      await pending.promise;
+    });
+
+    expect(mockGetWorkspaceSessionTools).toHaveBeenCalledOnce();
+    expect(onOpenTool).not.toHaveBeenCalled();
+    expect(screen.getByRole("button", { name: "Browse files for Shell" })).toBeEnabled();
   });
 });

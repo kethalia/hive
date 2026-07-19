@@ -1,7 +1,7 @@
 "use client";
 
 import { Code2, FolderOpen, Loader2 } from "lucide-react";
-import { type Dispatch, useState } from "react";
+import { type Dispatch, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { getWorkspaceSessionToolsAction } from "@/lib/actions/workspaces";
@@ -47,8 +47,21 @@ export function WorkspaceSessionTools({
   onOpenTool,
 }: WorkspaceSessionToolsProps) {
   const [loadingTool, setLoadingTool] = useState<WorkspaceTool | null>(null);
+  const latestWorkspaceIdRef = useRef(workspaceId);
+  const requestIdRef = useRef(0);
+  latestWorkspaceIdRef.current = workspaceId;
+
+  useEffect(() => {
+    latestWorkspaceIdRef.current = workspaceId;
+    requestIdRef.current += 1;
+    setLoadingTool(null);
+  }, [workspaceId]);
 
   async function openTool(tool: WorkspaceTool) {
+    const requestWorkspaceId = workspaceId;
+    const requestId = ++requestIdRef.current;
+    const isCurrentRequest = () =>
+      latestWorkspaceIdRef.current === requestWorkspaceId && requestIdRef.current === requestId;
     setLoadingTool(tool);
     try {
       const result = await getWorkspaceSessionToolsAction({
@@ -58,14 +71,21 @@ export function WorkspaceSessionTools({
         tool,
       });
       if (!isWorkspaceSessionToolUrls(result?.data)) {
-        toast.error("Could not open workspace tools for this session.");
+        if (isCurrentRequest()) {
+          toast.error("Could not open workspace tools for this session.");
+        }
         return;
       }
+      if (!isCurrentRequest()) return;
       onOpenTool({ tool, urls: result.data });
     } catch {
-      toast.error("Could not open workspace tools for this session.");
+      if (isCurrentRequest()) {
+        toast.error("Could not open workspace tools for this session.");
+      }
     } finally {
-      setLoadingTool(null);
+      if (isCurrentRequest()) {
+        setLoadingTool(null);
+      }
     }
   }
 

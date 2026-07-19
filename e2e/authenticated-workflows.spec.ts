@@ -80,10 +80,7 @@ async function verifyEmbeddedFileBrowser(page: Page, testInfo: TestInfo) {
     .click();
   await expect(page.getByTestId("workspace-tool-pane-files")).toBeVisible({ timeout: 30_000 });
   const fileBrowserFrame = page.getByTestId("workspace-tool-frame-files");
-  await expect(fileBrowserFrame).toHaveAttribute(
-    "src",
-    /\/api\/workspace-proxy\/[^/]+\/filebrowser\/files\//,
-  );
+  await expect(fileBrowserFrame).toHaveAttribute("src", /^https:\/\/filebrowser--[^/]+\/files\//);
   const fileBrowserBody = page
     .frameLocator('[data-testid="workspace-tool-frame-files"]')
     .locator("body");
