@@ -7,6 +7,7 @@ import {
 } from "./lib/auth/session-cookie";
 import {
   buildContentSecurityPolicy,
+  buildPermissionsPolicy,
   CODER_HOST_COOKIE,
 } from "./lib/security/content-security-policy";
 
@@ -18,6 +19,7 @@ function withContentSecurityPolicy(
   coderFrameUrls: readonly string[] = [],
 ): NextResponse {
   response.headers.set("Content-Security-Policy", buildContentSecurityPolicy(coderFrameUrls));
+  response.headers.set("Permissions-Policy", buildPermissionsPolicy(coderFrameUrls));
   return response;
 }
 

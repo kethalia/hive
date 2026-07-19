@@ -52,6 +52,12 @@ describe("proxy", () => {
     expect(response.headers.get("content-security-policy")).not.toContain(
       "frame-src 'self' https:;",
     );
+    expect(response.headers.get("permissions-policy")).toContain(
+      'clipboard-read=(self "https://coder.example.com" "https://*.coder.example.com"',
+    );
+    expect(response.headers.get("permissions-policy")).toContain(
+      '"https://apps.coder.test" "https://*.apps.coder.test")',
+    );
 
     vi.unstubAllEnvs();
   });

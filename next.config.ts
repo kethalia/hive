@@ -1,5 +1,8 @@
 import type { NextConfig } from "next";
-import { buildContentSecurityPolicy } from "./src/lib/security/content-security-policy";
+import {
+  buildContentSecurityPolicy,
+  buildPermissionsPolicy,
+} from "./src/lib/security/content-security-policy";
 
 export const contentSecurityPolicy = buildContentSecurityPolicy();
 
@@ -15,7 +18,7 @@ const nextConfig: NextConfig = {
           { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
           {
             key: "Permissions-Policy",
-            value: "camera=(), geolocation=(), microphone=(), payment=(), usb=()",
+            value: buildPermissionsPolicy(),
           },
         ],
       },

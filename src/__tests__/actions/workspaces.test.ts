@@ -155,6 +155,29 @@ describe("workspace actions use authActionClient + getCoderClientForUser", () =>
     expect(mockedGetCoderClientForUser).not.toHaveBeenCalled();
   });
 
+  it("rejects cross-origin subresource mutations before resolving credentials", async () => {
+    const { POST } = await import("@/app/api/workspace-proxy/[workspaceId]/[[...path]]/route");
+    const workspaceId = "adadadad-1111-2222-3333-444444444444";
+    const url = `http://localhost/api/workspace-proxy/${workspaceId}/filebrowser/api/resources`;
+    const req = new Request(url, {
+      method: "POST",
+      body: "upload",
+      headers: {
+        "Sec-Fetch-Dest": "empty",
+        "Sec-Fetch-Site": "same-site",
+      },
+    });
+    Object.defineProperty(req, "nextUrl", { value: new URL(url) });
+
+    const response = await POST(req as never, {
+      params: Promise.resolve({ workspaceId, path: ["filebrowser", "api", "resources"] }),
+    });
+
+    expect(response.status).toBe(403);
+    expect(response.headers.get("cross-origin-resource-policy")).toBe("same-origin");
+    expect(mockedGetCoderClientForUser).not.toHaveBeenCalled();
+  });
+
   it("proxy route does not use env var credentials", async () => {
     const source = await readFile(
       "src/app/api/workspace-proxy/[workspaceId]/[[...path]]/route.ts",
@@ -412,6 +435,39 @@ describe("workspace actions use authActionClient + getCoderClientForUser", () =>
     );
   });
 
+  it("does not follow redirects that downgrade the configured Coder origin", async () => {
+    mockedGetCoderClientForUser.mockResolvedValue({
+      getWorkspace: vi.fn().mockResolvedValue({ name: "dev-box", owner_name: "alice" }),
+      getWorkspaceAgentName: vi.fn().mockResolvedValue("dev-box.main"),
+      getApplicationsHost: vi.fn().mockResolvedValue("*.apps.example.com"),
+      getBaseUrl: () => "https://coder.example.com",
+      getSessionToken: () => "coder-session-token",
+    } as never);
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(null, {
+        status: 302,
+        headers: {
+          location: "http://filebrowser--main--dev-box--alice.apps.example.com/insecure",
+        },
+      }),
+    );
+    const { GET } = await import("@/app/api/workspace-proxy/[workspaceId]/[[...path]]/route");
+    const workspaceId = "bcbcbcbc-1111-2222-3333-444444444444";
+    const url = `http://localhost/api/workspace-proxy/${workspaceId}/filebrowser`;
+    const req = new Request(url);
+    Object.defineProperty(req, "nextUrl", { value: new URL(url) });
+
+    const response = await GET(req as never, {
+      params: Promise.resolve({ workspaceId, path: ["filebrowser"] }),
+    });
+
+    expect(fetchSpy).toHaveBeenCalledOnce();
+    expect(response.status).toBe(302);
+    expect(response.headers.get("location")).toBe(
+      "http://filebrowser--main--dev-box--alice.apps.example.com/insecure",
+    );
+  });
+
   it("preserves the KasmVNC app slug on body-replay redirects", async () => {
     mockedGetCoderClientForUser.mockResolvedValue({
       getWorkspace: vi.fn().mockResolvedValue({ name: "dev-box", owner_name: "alice" }),
@@ -437,6 +493,39 @@ describe("workspace actions use authActionClient + getCoderClientForUser", () =>
     expect(response.headers.get("location")).toBe(
       `/api/workspace-proxy/${workspaceId}/kasmvnc/api/session/canonical`,
     );
+  });
+
+  it("rewrites KasmVNC HTML assets beneath the KasmVNC proxy prefix", async () => {
+    mockedGetCoderClientForUser.mockResolvedValue({
+      getWorkspace: vi.fn().mockResolvedValue({ name: "dev-box", owner_name: "alice" }),
+      getWorkspaceAgentName: vi.fn().mockResolvedValue("dev-box.main"),
+      getApplicationsHost: vi.fn().mockResolvedValue("*.apps.example.com"),
+      getBaseUrl: () => "https://coder.example.com",
+      getSessionToken: () => "coder-session-token",
+    } as never);
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(
+        '<html><head></head><body><script src="/static/app.js"></script></body></html>',
+        {
+          status: 200,
+          headers: { "content-type": "text/html" },
+        },
+      ),
+    );
+    const { GET } = await import("@/app/api/workspace-proxy/[workspaceId]/[[...path]]/route");
+    const workspaceId = "cdcdcdcd-1111-2222-3333-444444444444";
+    const url = `http://localhost/api/workspace-proxy/${workspaceId}/kasmvnc`;
+    const req = new Request(url);
+    Object.defineProperty(req, "nextUrl", { value: new URL(url) });
+
+    const response = await GET(req as never, {
+      params: Promise.resolve({ workspaceId, path: ["kasmvnc"] }),
+    });
+    const html = await response.text();
+
+    expect(html).toContain(`<base href="/api/workspace-proxy/${workspaceId}/kasmvnc/" />`);
+    expect(html).toContain(`src="/api/workspace-proxy/${workspaceId}/kasmvnc/static/app.js"`);
+    expect(html).not.toContain(`${workspaceId}/filebrowser`);
   });
 
   it("streams writes through the explicitly configured CA transport", async () => {

@@ -11,7 +11,7 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 interface WorkspaceMeta {
   fileBrowserBaseUrl: string;
   kasmVncBaseUrl: string;
-  allowedHosts: string[];
+  allowedOrigins: string[];
   expiresAt: number;
 }
 
@@ -78,9 +78,9 @@ async function getWorkspaceMeta(userId: string, workspaceId: string): Promise<Wo
   const meta: WorkspaceMeta = {
     fileBrowserBaseUrl: workspaceUrls.filebrowser,
     kasmVncBaseUrl: workspaceUrls.kasmvnc,
-    allowedHosts: [
-      new URL(client.getBaseUrl()).host,
-      ...appBaseUrls.map((url) => new URL(url).host),
+    allowedOrigins: [
+      new URL(client.getBaseUrl()).origin,
+      ...appBaseUrls.map((url) => new URL(url).origin),
     ],
     expiresAt: Date.now() + CACHE_TTL_MS,
   };
@@ -125,9 +125,9 @@ function buildTargetUrl(
   return url.toString();
 }
 
-function isCoderOrigin(url: URL, allowedHosts: string[]): boolean {
-  const targetHost = url.host.toLowerCase();
-  return allowedHosts.some((host) => targetHost === host.toLowerCase());
+function isCoderOrigin(url: URL, allowedOrigins: string[]): boolean {
+  const targetOrigin = url.origin.toLowerCase();
+  return allowedOrigins.some((origin) => targetOrigin === origin.toLowerCase());
 }
 
 function isUntrustedCertificateError(error: unknown): boolean {
@@ -265,12 +265,10 @@ async function proxyRequest(
     return NextResponse.json({ error: "Invalid workspace ID" }, { status: 400 });
   }
 
-  const fetchDestination = req.headers.get("sec-fetch-dest");
   const fetchSite = req.headers.get("sec-fetch-site");
-  const isDocumentNavigation = fetchDestination === "iframe" || fetchDestination === "document";
-  if (isDocumentNavigation && fetchSite !== null && fetchSite !== "same-origin") {
+  if (fetchSite !== null && fetchSite !== "same-origin") {
     return NextResponse.json(
-      { error: "Cross-origin workspace proxy navigation is not allowed" },
+      { error: "Cross-origin workspace proxy requests are not allowed" },
       {
         status: 403,
         headers: { "Cross-Origin-Resource-Policy": "same-origin" },
@@ -332,7 +330,7 @@ async function proxyRequest(
 
       const resolvedLocation = new URL(location, currentUrl);
 
-      if (!isCoderOrigin(resolvedLocation, meta.allowedHosts)) {
+      if (!isCoderOrigin(resolvedLocation, meta.allowedOrigins)) {
         break;
       }
 
@@ -362,7 +360,7 @@ async function proxyRequest(
       const location = upstream.headers.get("location");
       if (location) {
         const locUrl = new URL(location, currentUrl);
-        if (isCoderOrigin(locUrl, meta.allowedHosts)) {
+        if (isCoderOrigin(locUrl, meta.allowedOrigins)) {
           const proxyBase = `/api/workspace-proxy/${workspaceId}`;
           const appPrefix = pathSegments[0] in APP_SLUG_MAP ? `/${pathSegments[0]}` : "";
           responseHeaders.set(
@@ -380,8 +378,10 @@ async function proxyRequest(
 
     if (isHtml && upstream.body) {
       const proxyBase = `/api/workspace-proxy/${workspaceId}`;
+      const proxyAppSlug = pathSegments[0] in APP_SLUG_MAP ? pathSegments[0] : "filebrowser";
+      const appProxyBase = `${proxyBase}/${proxyAppSlug}`;
       let html = await upstream.text();
-      const baseTag = `<base href="${proxyBase}/" />`;
+      const baseTag = `<base href="${appProxyBase}/" />`;
       if (html.includes("<head>")) {
         html = html.replace("<head>", `<head>${baseTag}`);
       } else if (html.includes("<HEAD>")) {
@@ -389,10 +389,12 @@ async function proxyRequest(
       } else {
         html = baseTag + html;
       }
-      html = html.replace('"BaseURL":""', `"BaseURL":"${proxyBase}/filebrowser"`);
-      html = html.replace('"StaticURL":"/static"', `"StaticURL":"${proxyBase}/filebrowser/static"`);
+      if (appSlug === "filebrowser") {
+        html = html.replace('"BaseURL":""', `"BaseURL":"${appProxyBase}"`);
+        html = html.replace('"StaticURL":"/static"', `"StaticURL":"${appProxyBase}/static"`);
+      }
       // eslint-disable-next-line xss/no-mixed-html -- proxyBase contains only a validated UUID.
-      html = html.replaceAll('"/static/', `"${proxyBase}/filebrowser/static/`);
+      html = html.replaceAll('"/static/', `"${appProxyBase}/static/`);
       responseHeaders.delete("content-length");
       responseHeaders.delete("content-encoding");
       return new NextResponse(html, {
