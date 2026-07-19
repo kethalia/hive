@@ -15,12 +15,9 @@ const STATIC_PREFIXES = ["/_next", "/favicon.ico"];
 
 function withContentSecurityPolicy(
   response: NextResponse,
-  coderHosts: readonly string[] = [],
+  coderFrameUrls: readonly string[] = [],
 ): NextResponse {
-  response.headers.set(
-    "Content-Security-Policy",
-    buildContentSecurityPolicy(coderHosts.map((host) => `https://${host}`)),
-  );
+  response.headers.set("Content-Security-Policy", buildContentSecurityPolicy(coderFrameUrls));
   return response;
 }
 
@@ -60,8 +57,12 @@ export function proxy(request: NextRequest) {
 
   if (verifiedSessionCookie) {
     const response = NextResponse.next();
-    const coderHosts = request.cookies.get(CODER_HOST_COOKIE)?.value.split("~") ?? [];
-    withContentSecurityPolicy(response, coderHosts);
+    const coderFrameUrls =
+      request.cookies
+        .get(CODER_HOST_COOKIE)
+        ?.value.split("~")
+        .map((value) => (value.includes("://") ? value : `https://${value}`)) ?? [];
+    withContentSecurityPolicy(response, coderFrameUrls);
     refreshDomainSessionCookie(
       response.cookies,
       verifiedSessionCookie.value,

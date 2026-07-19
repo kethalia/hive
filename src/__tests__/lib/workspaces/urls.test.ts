@@ -31,6 +31,15 @@ describe("buildWorkspaceUrls", () => {
     expect(urls!.dashboard).toBe("https://coder.example.com/@alice/dev-box");
   });
 
+  it("preserves HTTP for non-TLS Coder workspace applications", () => {
+    const urls = buildWorkspaceUrls(workspace, agent, "http://localhost:7080", "*.localhost:7080");
+
+    expect(urls!.filebrowser).toBe("http://filebrowser--main--dev-box--alice.localhost:7080");
+    expect(urls!.kasmvnc).toBe("http://kasm-vnc--main--dev-box--alice.localhost:7080");
+    expect(urls!.codeServer).toBe("http://code-server--main--dev-box--alice.localhost:7080");
+    expect(urls!.dashboard).toBe("http://localhost:7080/@alice/dev-box");
+  });
+
   it("uses the provided agent name in subdomain URLs", () => {
     const urls = buildWorkspaceUrls(workspace, "gpu-agent", "https://coder.dev");
 

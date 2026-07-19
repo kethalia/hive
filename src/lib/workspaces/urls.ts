@@ -16,16 +16,18 @@ export function buildWorkspaceUrls(
   if (!coderUrl) return null;
 
   const stripped = coderUrl.replace(/\/+$/, "");
-  const coderHost = new URL(stripped).host;
+  const coderOrigin = new URL(stripped);
+  const coderHost = coderOrigin.host;
+  const appProtocol = coderOrigin.protocol;
   const workspaceAppHost = getWorkspaceAppHost(coderHost, wildcardAccessUrl);
   const appHost = (slug: string) => `${slug}${workspaceAppHost}`;
   const appSlug = (application: string) =>
     `${application}--${agentName}--${workspace.name}--${workspace.owner_name}`;
 
   return {
-    filebrowser: `https://${appHost(appSlug("filebrowser"))}`,
-    kasmvnc: `https://${appHost(appSlug("kasm-vnc"))}`,
-    codeServer: `https://${appHost(appSlug("code-server"))}`,
+    filebrowser: `${appProtocol}//${appHost(appSlug("filebrowser"))}`,
+    kasmvnc: `${appProtocol}//${appHost(appSlug("kasm-vnc"))}`,
+    codeServer: `${appProtocol}//${appHost(appSlug("code-server"))}`,
     dashboard: `${stripped}/@${workspace.owner_name}/${workspace.name}`,
   };
 }

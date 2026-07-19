@@ -82,6 +82,19 @@ describe("proxy", () => {
     expect(policy).not.toContain("https://*.*--suffix.au.example.com");
   });
 
+  it("preserves HTTP frame sources stored for a non-TLS Coder deployment", () => {
+    vi.stubEnv("COOKIE_SECRET", "test-secret");
+    mockVerifyCookie.mockReturnValue({ sessionId: "sess-123", timestamp: Date.now() });
+    const frameSources = encodeURIComponent("http://localhost:7080~http://apps.localhost:7080");
+    const request = new NextRequest("http://localhost:3000/workspaces", {
+      headers: { cookie: `hive-session=signed-value; hive-coder-host=${frameSources}` },
+    });
+
+    const policy = proxy(request).headers.get("content-security-policy") ?? "";
+    expect(policy).toContain("http://localhost:7080 http://*.localhost:7080");
+    expect(policy).toContain("http://apps.localhost:7080 http://*.apps.localhost:7080");
+  });
+
   it("accepts a valid scoped cookie when a stale parent-domain cookie with the same name is last", () => {
     vi.stubEnv("COOKIE_SECRET", "preview-secret");
     vi.stubEnv("COOKIE_DOMAIN", ".pr-101.hive.local.kethalia.com");

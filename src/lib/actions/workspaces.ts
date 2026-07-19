@@ -10,7 +10,10 @@ import { SAFE_IDENTIFIER_RE } from "@/lib/constants";
 import { resolveConfiguredProjectsRoot } from "@/lib/git/clone-actions-contract";
 import { isCloneTerminalSessionName } from "@/lib/git/clone-terminal-session";
 import { authActionClient } from "@/lib/safe-action";
-import { CODER_HOST_COOKIE } from "@/lib/security/content-security-policy";
+import {
+  CODER_HOST_COOKIE,
+  coderFrameConfiguredUrls,
+} from "@/lib/security/content-security-policy";
 import { execInWorkspace } from "@/lib/workspace/exec";
 import { filterGenericTmuxSessions, parseTmuxSessions } from "@/lib/workspaces/sessions";
 import {
@@ -148,13 +151,12 @@ async function synchronizeCoderFrameHosts(
   applicationsHost: string,
   documentFrameHosts: readonly string[],
 ): Promise<boolean> {
-  const normalizedApplicationsHost = applicationsHost.trim().replace(/^\*\./, "");
-  if (!normalizedApplicationsHost) return false;
-  const coderHost = new URL(coderUrl).host;
+  const coderFrameUrls = coderFrameConfiguredUrls(coderUrl, applicationsHost);
+  const applicationsFrameUrl = coderFrameUrls[1];
+  if (!applicationsFrameUrl) return false;
   const cookieStore = await cookies();
-  const nextValue = `${coderHost}~${normalizedApplicationsHost}`;
-  const reloadRequired = !documentFrameHosts.includes(normalizedApplicationsHost);
-  cookieStore.set(CODER_HOST_COOKIE, nextValue, {
+  const reloadRequired = !documentFrameHosts.includes(applicationsFrameUrl);
+  cookieStore.set(CODER_HOST_COOKIE, coderFrameUrls.join("~"), {
     httpOnly: true,
     maxAge: SESSION_MAX_AGE_SECONDS,
     sameSite: "lax",

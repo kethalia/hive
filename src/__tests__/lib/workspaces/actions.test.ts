@@ -414,7 +414,7 @@ describe("workspace server actions", () => {
     const result = await getWorkspaceSessionToolsAction({
       workspaceId: "ws-1",
       sessionName: "git-hive",
-      documentFrameHosts: ["coder.example.com"],
+      documentFrameHosts: ["https://coder.example.com"],
       tool: "code",
     });
 
@@ -448,7 +448,7 @@ describe("workspace server actions", () => {
       workspaceId: "ws-1",
       sessionName: "git-hive",
       fallbackPath: "/home/coder/projects/kethalia/hive",
-      documentFrameHosts: ["coder.example.com"],
+      documentFrameHosts: ["https://coder.example.com"],
       tool: "files",
     });
 
@@ -471,7 +471,7 @@ describe("workspace server actions", () => {
       workspaceId: "ws-1",
       sessionName: "git-hive",
       fallbackPath: "projects/kethalia/hive",
-      documentFrameHosts: ["coder.example.com"],
+      documentFrameHosts: ["https://coder.example.com"],
       tool: "files",
     });
 
@@ -495,7 +495,7 @@ describe("workspace server actions", () => {
       workspaceId: "ws-1",
       sessionName: "git-hive",
       fallbackPath: "workspace/repo",
-      documentFrameHosts: ["coder.example.com"],
+      documentFrameHosts: ["https://coder.example.com"],
       tool: "files",
     });
 
@@ -506,7 +506,7 @@ describe("workspace server actions", () => {
   it("uses the requesting document policy when another tab already updated the cookie", async () => {
     mockGetApplicationsHost.mockResolvedValueOnce("*.apps.example.com");
     mockedCookies.mockResolvedValueOnce({
-      get: () => ({ value: "coder.example.com~apps.example.com" }),
+      get: () => ({ value: "https://coder.example.com~https://apps.example.com" }),
       set: mockCookieSet,
     } as never);
     mockGetWorkspace.mockResolvedValueOnce({
@@ -522,7 +522,7 @@ describe("workspace server actions", () => {
     const result = await getWorkspaceSessionToolsAction({
       workspaceId: "ws-1",
       sessionName: "git-hive",
-      documentFrameHosts: ["coder.example.com"],
+      documentFrameHosts: ["https://coder.example.com"],
       tool: "files",
     });
     const client = await mockedGetCoderClientForUser.mock.results.at(-1)?.value;
@@ -537,7 +537,7 @@ describe("workspace server actions", () => {
     );
     expect(mockCookieSet).toHaveBeenCalledWith(
       "hive-coder-host",
-      "coder.example.com~apps.example.com",
+      "https://coder.example.com~https://apps.example.com",
       expect.objectContaining({ httpOnly: true, maxAge: expect.any(Number), path: "/" }),
     );
   });
@@ -558,7 +558,7 @@ describe("workspace server actions", () => {
     const result = await getWorkspaceSessionToolsAction({
       workspaceId: "ws-1",
       sessionName: "git-hive",
-      documentFrameHosts: ["coder.example.com"],
+      documentFrameHosts: ["https://coder.example.com"],
       tool: "files",
     });
 

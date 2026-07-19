@@ -5,7 +5,10 @@ import { loginRateLimiter } from "@/lib/auth/rate-limit";
 import { getAuthServiceClient } from "@/lib/auth/service-client";
 import { createSignedSessionCookie } from "@/lib/auth/session";
 import { appendSetSessionCookieHeaders, usesSecureSessionCookies } from "@/lib/auth/session-cookie";
-import { CODER_HOST_COOKIE } from "@/lib/security/content-security-policy";
+import {
+  CODER_HOST_COOKIE,
+  coderFrameConfiguredUrls,
+} from "@/lib/security/content-security-policy";
 
 export async function POST(request: Request) {
   let body: unknown;
@@ -34,10 +37,8 @@ export async function POST(request: Request) {
   try {
     const result = await getAuthServiceClient().login({ coderUrl, email, password });
     const response = NextResponse.json({ success: true as const });
-    const coderHosts = [new URL(coderUrl).host, result.applicationsHost.replace(/^\*\./, "")].join(
-      "~",
-    );
-    response.cookies.set(CODER_HOST_COOKIE, coderHosts, {
+    const coderFrameUrls = coderFrameConfiguredUrls(coderUrl, result.applicationsHost).join("~");
+    response.cookies.set(CODER_HOST_COOKIE, coderFrameUrls, {
       httpOnly: true,
       maxAge: SESSION_MAX_AGE_SECONDS,
       sameSite: "lax",

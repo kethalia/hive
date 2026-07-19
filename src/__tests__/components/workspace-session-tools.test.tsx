@@ -39,7 +39,7 @@ describe("WorkspaceSessionTools", () => {
     const onOpenTool = vi.fn();
     const frameHostsMeta = document.createElement("meta");
     frameHostsMeta.name = "hive-coder-frame-hosts";
-    frameHostsMeta.content = "coder.example.com~apps.example.com";
+    frameHostsMeta.content = "https://coder.example.com~https://apps.example.com";
     document.head.append(frameHostsMeta);
     render(
       <WorkspaceSessionTools
@@ -57,7 +57,7 @@ describe("WorkspaceSessionTools", () => {
       workspaceId: "ws-1",
       sessionName: "git-hive",
       fallbackPath: "/home/coder/hive",
-      documentFrameHosts: ["coder.example.com", "apps.example.com"],
+      documentFrameHosts: ["https://coder.example.com", "https://apps.example.com"],
       tool: "files",
     });
     expect(onOpenTool).toHaveBeenCalledWith({

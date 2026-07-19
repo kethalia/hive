@@ -89,7 +89,9 @@ describe("auth route cookies", () => {
 
     const setCookies = getSetCookies(response);
     expect(setCookies).toHaveLength(4);
-    expect(setCookies[0]).toContain("hive-coder-host=coder.example.com~apps.example.com");
+    expect(setCookies[0]).toContain(
+      "hive-coder-host=https%3A%2F%2Fcoder.example.com~https%3A%2F%2Fapps.example.com",
+    );
     expect(setCookies[0]).toContain(`Max-Age=${30 * 24 * 60 * 60}`);
     expect(setCookies[0]).toContain("HttpOnly");
     expect(setCookies[0]).not.toContain("Secure");

@@ -6,6 +6,21 @@ const scriptSource =
 export const CODER_HOST_COOKIE = "hive-coder-host";
 export const CODER_FRAME_HOSTS_META = "hive-coder-frame-hosts";
 
+export function coderFrameConfiguredUrls(coderUrl: string, applicationsHost: string): string[] {
+  const coderOrigin = new URL(coderUrl);
+  const sources = [coderOrigin.origin];
+  const trimmedHost = applicationsHost.trim();
+  if (!trimmedHost) return sources;
+
+  const placeholder = "hive-workspace-app-placeholder";
+  const hostUrl = trimmedHost.includes("://")
+    ? new URL(trimmedHost.replace("*", placeholder))
+    : new URL(`${coderOrigin.protocol}//${trimmedHost.replace("*", placeholder)}`);
+  const normalizedHost = hostUrl.host.replace(placeholder, "*").replace(/^\*\./, "");
+  sources.push(`${coderOrigin.protocol}//${normalizedHost}`);
+  return sources;
+}
+
 export function coderFrameSources(configuredUrls: readonly string[]): string {
   const sources = new Set<string>();
   for (const configuredUrl of configuredUrls) {
