@@ -100,6 +100,27 @@ describe("validateCoderInstance", () => {
       applicationsHost: "",
     });
   });
+
+  it.each([
+    ["malformed JSON", "not-json"],
+    ["a missing host", JSON.stringify({ enabled: true })],
+  ])("allows login when applications-host returns %s", async (_scenario, responseBody) => {
+    vi.mocked(fetch)
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ session_token: "tok" }), { status: 200 }),
+      )
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ id: "u", username: "a", email: "a@b.com" }), {
+          status: 200,
+        }),
+      )
+      .mockResolvedValueOnce(new Response(responseBody, { status: 200 }));
+
+    await expect(coderLogin(BASE_URL, "a@b.com", "pw")).resolves.toMatchObject({
+      userId: "u",
+      applicationsHost: "",
+    });
+  });
 });
 
 describe("coderLogin", () => {

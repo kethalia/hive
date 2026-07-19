@@ -13,6 +13,25 @@ import type {
 
 export type { CoderLoginResult, ValidateInstanceResult };
 
+async function readApplicationsHost(response: Response | null): Promise<string> {
+  if (!response?.ok) return "";
+
+  try {
+    const payload: unknown = await response.json();
+    if (
+      typeof payload === "object" &&
+      payload !== null &&
+      "host" in payload &&
+      typeof payload.host === "string"
+    ) {
+      return payload.host;
+    }
+  } catch {
+    // Application-host discovery is ancillary to a successful login.
+  }
+  return "";
+}
+
 export async function validateCoderInstance(url: string): Promise<ValidateInstanceResult> {
   const baseUrl = url.replace(/\/+$/, "");
   try {
@@ -86,9 +105,7 @@ export async function coderLogin(
     throw new Error("failed to fetch user info after login");
   }
   const user = (await meRes.json()) as CoderUserResponse;
-  const applicationsHost = applicationsHostRes?.ok
-    ? ((await applicationsHostRes.json()) as { host: string }).host
-    : "";
+  const applicationsHost = await readApplicationsHost(applicationsHostRes);
 
   return {
     sessionToken: loginData.session_token,

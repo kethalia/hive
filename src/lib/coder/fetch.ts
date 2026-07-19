@@ -1,4 +1,7 @@
+import { rootCertificates } from "node:tls";
 import { Agent, fetch as undiciFetch } from "undici";
+
+const NULL_BODY_STATUSES = new Set([204, 205, 304]);
 
 export async function fetchCoderApi(
   input: string | URL,
@@ -7,7 +10,7 @@ export async function fetchCoderApi(
   const configuredCa = process.env.CODER_CA_CERT?.trim();
   if (!configuredCa) return fetch(input, init);
 
-  const dispatcher = new Agent({ connect: { ca: configuredCa } });
+  const dispatcher = new Agent({ connect: { ca: [...rootCertificates, configuredCa] } });
   try {
     const response = await undiciFetch(input, {
       method: init.method,
@@ -17,7 +20,7 @@ export async function fetchCoderApi(
       signal: init.signal ?? undefined,
       dispatcher,
     });
-    const body = await response.arrayBuffer();
+    const body = NULL_BODY_STATUSES.has(response.status) ? null : await response.arrayBuffer();
     const headers = new Headers();
     response.headers.forEach((value, key) => {
       headers.set(key, value);

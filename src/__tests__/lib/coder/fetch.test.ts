@@ -1,3 +1,4 @@
+import { rootCertificates } from "node:tls";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const { mockAgentClose, mockAgentOptions, mockUndiciFetch } = vi.hoisted(() => ({
@@ -33,11 +34,26 @@ describe("fetchCoderApi", () => {
     const response = await fetchCoderApi("https://coder.example.com/api/v2/buildinfo");
 
     expect(await response.json()).toEqual({ ok: true });
-    expect(mockAgentOptions).toHaveBeenCalledWith({ connect: { ca: "trusted-private-ca" } });
+    expect(mockAgentOptions).toHaveBeenCalledWith({
+      connect: { ca: [...rootCertificates, "trusted-private-ca"] },
+    });
     expect(mockUndiciFetch).toHaveBeenCalledWith(
       "https://coder.example.com/api/v2/buildinfo",
       expect.objectContaining({ dispatcher: expect.anything() }),
     );
+    expect(mockAgentClose).toHaveBeenCalledOnce();
+  });
+
+  it("preserves a null body for no-content responses", async () => {
+    mockUndiciFetch.mockResolvedValue(new Response(null, { status: 204 }));
+    const { fetchCoderApi } = await import("@/lib/coder/fetch");
+
+    const response = await fetchCoderApi("https://coder.example.com/api/v2/users/me/keys/key", {
+      method: "DELETE",
+    });
+
+    expect(response.status).toBe(204);
+    expect(response.body).toBeNull();
     expect(mockAgentClose).toHaveBeenCalledOnce();
   });
 });
