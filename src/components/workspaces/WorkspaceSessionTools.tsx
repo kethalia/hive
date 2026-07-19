@@ -5,6 +5,7 @@ import { type Dispatch, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { getWorkspaceSessionToolsAction } from "@/lib/actions/workspaces";
+import { readDocumentCoderFrameHosts } from "@/lib/workspaces/document-frame-hosts";
 
 export type WorkspaceTool = "code" | "files";
 
@@ -70,6 +71,7 @@ export function WorkspaceSessionTools({
         workspaceId,
         sessionName,
         fallbackPath,
+        documentFrameHosts: readDocumentCoderFrameHosts(),
         tool,
       });
       if (!isWorkspaceSessionToolUrls(result?.data)) {

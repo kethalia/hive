@@ -77,6 +77,7 @@ import { TERMINAL_COMPOSE_TOGGLE_EVENT } from "@/lib/terminal/events";
 import { registerGlobalCommandPaletteSource } from "@/lib/terminal/global-command-palette";
 import { isPwaStandalone } from "@/lib/terminal/pwa";
 import { cn } from "@/lib/utils";
+import { readDocumentCoderFrameHosts } from "@/lib/workspaces/document-frame-hosts";
 import {
   type PersistedSessionPane,
   resolveSessionPaneLayout,
@@ -2289,6 +2290,7 @@ export function MultiSessionWorkspace({
           workspaceId,
           sessionName: session.sessionName,
           fallbackPath: session.clonePath,
+          documentFrameHosts: readDocumentCoderFrameHosts(),
           tool,
         });
         if (latestWorkspaceIdRef.current !== requestWorkspaceId) return;

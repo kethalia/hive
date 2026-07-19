@@ -790,6 +790,7 @@ describe("MultiSessionWorkspace", () => {
       workspaceId: "ws-1",
       sessionName: "main-session",
       fallbackPath: undefined,
+      documentFrameHosts: [],
       tool: "files",
     });
   });
@@ -828,6 +829,7 @@ describe("MultiSessionWorkspace", () => {
       workspaceId: "ws-1",
       sessionName: "git-clone-safe-hive",
       fallbackPath: "kethalia/hive",
+      documentFrameHosts: [],
       tool: "files",
     });
   });

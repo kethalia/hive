@@ -1,4 +1,6 @@
 import type { Metadata, Viewport } from "next";
+import { cookies } from "next/headers";
+import { CODER_FRAME_HOSTS_META, CODER_HOST_COOKIE } from "@/lib/security/content-security-policy";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -26,14 +28,17 @@ export const viewport: Viewport = {
   interactiveWidget: "resizes-content",
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const documentCoderFrameHosts = (await cookies()).get(CODER_HOST_COOKIE)?.value ?? "";
+
   return (
     <html lang="en" className="dark" suppressHydrationWarning>
       <head>
+        <meta name={CODER_FRAME_HOSTS_META} content={documentCoderFrameHosts} />
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
         <meta name="apple-mobile-web-app-title" content="Hive" />

@@ -31,11 +31,16 @@ describe("WorkspaceSessionTools", () => {
 
   afterEach(() => {
     cleanup();
+    document.head.querySelector('meta[name="hive-coder-frame-hosts"]')?.remove();
     vi.clearAllMocks();
   });
 
   it("resolves File Browser and asks the workspace to add it as a pane", async () => {
     const onOpenTool = vi.fn();
+    const frameHostsMeta = document.createElement("meta");
+    frameHostsMeta.name = "hive-coder-frame-hosts";
+    frameHostsMeta.content = "coder.example.com~apps.example.com";
+    document.head.append(frameHostsMeta);
     render(
       <WorkspaceSessionTools
         workspaceId="ws-1"
@@ -52,6 +57,7 @@ describe("WorkspaceSessionTools", () => {
       workspaceId: "ws-1",
       sessionName: "git-hive",
       fallbackPath: "/home/coder/hive",
+      documentFrameHosts: ["coder.example.com", "apps.example.com"],
       tool: "files",
     });
     expect(onOpenTool).toHaveBeenCalledWith({

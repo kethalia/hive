@@ -104,6 +104,7 @@ const workspaceSessionToolsSchema = z.object({
     .min(1, "sessionName is required")
     .regex(SAFE_IDENTIFIER_RE, "Invalid session name"),
   fallbackPath: z.string().trim().min(1).optional(),
+  documentFrameHosts: z.array(z.string().trim().min(1).max(253)).max(8),
   tool: z.enum(["code", "files"]),
 });
 
@@ -145,14 +146,14 @@ async function getWorkspaceWithAgent(userId: string, workspaceId: string) {
 async function synchronizeCoderFrameHosts(
   coderUrl: string,
   applicationsHost: string,
+  documentFrameHosts: readonly string[],
 ): Promise<boolean> {
   const normalizedApplicationsHost = applicationsHost.trim().replace(/^\*\./, "");
   if (!normalizedApplicationsHost) return false;
   const coderHost = new URL(coderUrl).host;
   const cookieStore = await cookies();
   const nextValue = `${coderHost}~${normalizedApplicationsHost}`;
-  const currentHosts = cookieStore.get(CODER_HOST_COOKIE)?.value.split("~") ?? [];
-  const reloadRequired = !currentHosts.includes(normalizedApplicationsHost);
+  const reloadRequired = !documentFrameHosts.includes(normalizedApplicationsHost);
   cookieStore.set(CODER_HOST_COOKIE, nextValue, {
     httpOnly: true,
     maxAge: SESSION_MAX_AGE_SECONDS,
@@ -274,7 +275,11 @@ export const getWorkspaceSessionToolsAction = authActionClient
             buildFileBrowserFolderUrl(urls.filebrowser, folderPath),
           )
         : buildFileBrowserFolderUrl(`${proxyBase}/filebrowser`, folderPath);
-    const reloadRequired = await synchronizeCoderFrameHosts(client.getBaseUrl(), applicationsHost);
+    const reloadRequired = await synchronizeCoderFrameHosts(
+      client.getBaseUrl(),
+      applicationsHost,
+      parsedInput.documentFrameHosts,
+    );
 
     return {
       codeUrl,

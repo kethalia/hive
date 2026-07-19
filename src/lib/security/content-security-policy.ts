@@ -4,6 +4,7 @@ const scriptSource =
     : "script-src 'self' 'unsafe-inline'";
 
 export const CODER_HOST_COOKIE = "hive-coder-host";
+export const CODER_FRAME_HOSTS_META = "hive-coder-frame-hosts";
 
 export function coderFrameSources(configuredUrls: readonly string[]): string {
   const sources = new Set<string>();
