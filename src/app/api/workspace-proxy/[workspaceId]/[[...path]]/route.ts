@@ -350,7 +350,11 @@ async function proxyRequest(
         const locUrl = new URL(location, currentUrl);
         if (isCoderOrigin(locUrl, meta.allowedHosts)) {
           const proxyBase = `/api/workspace-proxy/${workspaceId}`;
-          responseHeaders.set("location", `${proxyBase}${locUrl.pathname}${locUrl.search}`);
+          const appPrefix = pathSegments[0] in APP_SLUG_MAP ? `/${pathSegments[0]}` : "";
+          responseHeaders.set(
+            "location",
+            `${proxyBase}${appPrefix}${locUrl.pathname}${locUrl.search}`,
+          );
         } else {
           responseHeaders.set("location", locUrl.toString());
         }

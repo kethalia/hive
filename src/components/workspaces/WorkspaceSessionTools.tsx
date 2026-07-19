@@ -12,6 +12,7 @@ export interface WorkspaceSessionToolUrls {
   codeUrl: string;
   filesUrl: string;
   folderPath: string | null;
+  reloadRequired?: boolean;
 }
 
 export interface WorkspaceToolOpenRequest {
@@ -35,7 +36,8 @@ export function isWorkspaceSessionToolUrls(value: unknown): value is WorkspaceSe
     properties.codeUrl.length > 0 &&
     typeof properties.filesUrl === "string" &&
     properties.filesUrl.length > 0 &&
-    (properties.folderPath === null || typeof properties.folderPath === "string")
+    (properties.folderPath === null || typeof properties.folderPath === "string") &&
+    (properties.reloadRequired === undefined || typeof properties.reloadRequired === "boolean")
   );
 }
 

@@ -64,7 +64,12 @@ describe("workspace server actions", () => {
     mockedGetRequestSession.mockResolvedValue(MOCK_SESSION);
     mockedGetSession.mockResolvedValue(MOCK_SESSION);
     mockedCookies.mockResolvedValue({
-      get: () => ({ value: "session-cookie-value" }),
+      get: (name: string) => ({
+        value:
+          name === "hive-coder-host"
+            ? "coder.example.com~coder.example.com"
+            : "session-cookie-value",
+      }),
       set: mockCookieSet,
     } as never);
 
@@ -420,6 +425,7 @@ describe("workspace server actions", () => {
         "https://code-server--main--dev-box--alice.coder.example.com/?folder=%2Fhome%2Fcoder%2Fprojects%2Fkethalia%2Fhive",
       filesUrl: "/api/workspace-proxy/ws-1/filebrowser/files/home/coder/projects/kethalia/hive",
       folderPath: "/home/coder/projects/kethalia/hive",
+      reloadRequired: false,
       source: "tmux",
     });
   });
@@ -513,6 +519,7 @@ describe("workspace server actions", () => {
     expect(result?.data?.filesUrl).toBe(
       "https://filebrowser--main--dev-box--alice.apps.example.com/files/home/coder",
     );
+    expect(result?.data?.reloadRequired).toBe(true);
     expect(client?.getApplicationAuthRedirect).toHaveBeenCalledOnce();
     expect(client?.getApplicationAuthRedirect).toHaveBeenCalledWith(
       "https://filebrowser--main--dev-box--alice.apps.example.com/files/home/coder",

@@ -110,8 +110,14 @@ async function verifyPaletteToolAndOpenActions(page: Page, testInfo: TestInfo) {
   expect(sessionLabel).toBeTruthy();
   await page.keyboard.press("Control+K");
   await page.getByPlaceholder(/Search terminal sessions/).fill(sessionLabel ?? "");
-  await page.keyboard.press("ArrowRight");
-  await page.keyboard.press("Enter");
+  const sessionRow = page
+    .locator('[cmdk-item][data-action-id^="workspace:session:"]')
+    .filter({ hasText: sessionLabel ?? "" })
+    .first();
+  await sessionRow.focus();
+  await sessionRow.press("ArrowRight");
+  await sessionRow.press("ArrowRight");
+  await sessionRow.press("Enter");
   await expect(page.getByTestId("workspace-tool-pane-code")).toBeVisible({ timeout: 30_000 });
   await page.getByTestId("remove-workspace-tool-code").click();
 

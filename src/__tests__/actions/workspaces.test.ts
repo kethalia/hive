@@ -358,12 +358,39 @@ describe("workspace actions use authActionClient + getCoderClientForUser", () =>
 
     expect(response.status).toBe(307);
     expect(response.headers.get("location")).toBe(
-      `/api/workspace-proxy/${workspaceId}/api/resources/canonical`,
+      `/api/workspace-proxy/${workspaceId}/filebrowser/api/resources/canonical`,
     );
     expect(fetchSpy).toHaveBeenCalledOnce();
     expect(fetchSpy).toHaveBeenCalledWith(
       expect.any(String),
       expect.objectContaining({ method: "POST", body: expect.any(ReadableStream) }),
+    );
+  });
+
+  it("preserves the KasmVNC app slug on body-replay redirects", async () => {
+    mockedGetCoderClientForUser.mockResolvedValue({
+      getWorkspace: vi.fn().mockResolvedValue({ name: "dev-box", owner_name: "alice" }),
+      getWorkspaceAgentName: vi.fn().mockResolvedValue("dev-box.main"),
+      getApplicationsHost: vi.fn().mockResolvedValue("*.apps.example.com"),
+      getBaseUrl: () => "https://coder.example.com",
+      getSessionToken: () => "coder-session-token",
+    } as never);
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(null, { status: 308, headers: { location: "/api/session/canonical" } }),
+    );
+    const { POST } = await import("@/app/api/workspace-proxy/[workspaceId]/[[...path]]/route");
+    const workspaceId = "acacacac-1111-2222-3333-444444444444";
+    const url = `http://localhost/api/workspace-proxy/${workspaceId}/kasmvnc/api/session`;
+    const req = new Request(url, { method: "POST", body: "mutation" });
+    Object.defineProperty(req, "nextUrl", { value: new URL(url) });
+
+    const response = await POST(req as never, {
+      params: Promise.resolve({ workspaceId, path: ["kasmvnc", "api", "session"] }),
+    });
+
+    expect(response.status).toBe(308);
+    expect(response.headers.get("location")).toBe(
+      `/api/workspace-proxy/${workspaceId}/kasmvnc/api/session/canonical`,
     );
   });
 

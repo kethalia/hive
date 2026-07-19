@@ -36,6 +36,9 @@ const mockUseIsComposeSheet = vi.hoisted(() => vi.fn(() => false));
 const mockCopyTerminalSelection = vi.hoisted(() => vi.fn());
 const mockPasteClipboardApiToTerminal = vi.hoisted(() => vi.fn());
 const mockTriggerHapticFeedback = vi.hoisted(() => vi.fn());
+const mockReadPendingWorkspaceToolIntent = vi.hoisted(() => vi.fn());
+const mockClearPendingWorkspaceToolIntent = vi.hoisted(() => vi.fn());
+const mockReloadForWorkspaceTool = vi.hoisted(() => vi.fn());
 let emitConnectionStateOnCallbackChange = false;
 const mockUseKeepAliveStatus = vi.hoisted(() =>
   vi.fn(
@@ -262,6 +265,12 @@ vi.mock("@/lib/actions/workspaces", () => ({
   getWorkspaceSessionsAction: (...args: unknown[]) => mockGetSessions(...args),
   getWorkspaceSessionToolsAction: (...args: unknown[]) => mockGetWorkspaceSessionTools(...args),
   killSessionAction: (...args: unknown[]) => mockKillSession(...args),
+}));
+
+vi.mock("@/lib/workspaces/tool-reload", () => ({
+  readPendingWorkspaceToolIntent: mockReadPendingWorkspaceToolIntent,
+  clearPendingWorkspaceToolIntent: mockClearPendingWorkspaceToolIntent,
+  reloadForWorkspaceTool: mockReloadForWorkspaceTool,
 }));
 
 vi.mock("@/lib/actions/navigation-favorites", () => ({
@@ -670,6 +679,7 @@ describe("MultiSessionWorkspace", () => {
         folderPath: "/home/coder",
       },
     });
+    mockReadPendingWorkspaceToolIntent.mockReturnValue(null);
     mockUseIsComposeSheet.mockReturnValue(false);
     mockCopyTerminalSelection.mockReset();
     mockPasteClipboardApiToTerminal.mockReset();
@@ -739,6 +749,51 @@ describe("MultiSessionWorkspace", () => {
     expect(screen.getByTestId("workspace-tool-pane-code")).toBeInTheDocument();
   });
 
+  it("reloads under the refreshed CSP before opening a recovered application host", async () => {
+    mockGetWorkspaceSessionTools.mockResolvedValueOnce({
+      data: {
+        codeUrl: "https://code.apps.test",
+        filesUrl: "https://files.apps.test",
+        folderPath: "/home/coder",
+        reloadRequired: true,
+      },
+    });
+    await renderTwoSessionWorkspace();
+
+    fireEvent.click(screen.getByRole("button", { name: "Browse files for main-session" }));
+    await waitFor(() => {
+      expect(mockReloadForWorkspaceTool).toHaveBeenCalledWith({
+        workspaceId: "ws-1",
+        boardKey: "default",
+        sessionName: "main-session",
+        tool: "files",
+      });
+    });
+    expect(screen.queryByTestId("workspace-tool-pane-files")).not.toBeInTheDocument();
+  });
+
+  it("replays the pending tool intent after the refreshed CSP document loads", async () => {
+    mockReadPendingWorkspaceToolIntent
+      .mockReturnValueOnce({
+        workspaceId: "ws-1",
+        boardKey: "default",
+        sessionName: "main-session",
+        tool: "files",
+      })
+      .mockReturnValue(null);
+
+    await renderTwoSessionWorkspace();
+
+    expect(await screen.findByTestId("workspace-tool-pane-files")).toBeInTheDocument();
+    expect(mockClearPendingWorkspaceToolIntent).toHaveBeenCalledOnce();
+    expect(mockGetWorkspaceSessionTools).toHaveBeenCalledWith({
+      workspaceId: "ws-1",
+      sessionName: "main-session",
+      fallbackPath: undefined,
+      tool: "files",
+    });
+  });
+
   it("removes workspace tool panes when their board is deleted", async () => {
     mockGetSessions.mockResolvedValueOnce(twoSessionPayload());
     mockListGitClones.mockResolvedValueOnce({ data: { ok: true, tree: { nodes: [] } } });
@@ -765,6 +820,52 @@ describe("MultiSessionWorkspace", () => {
     expect(screen.queryByTestId("workspace-board-tab-workspace-2")).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByTestId("workspace-board-new"));
+    expect(screen.getByTestId("workspace-board-tab-workspace-2")).toBeInTheDocument();
+    expect(screen.queryByTestId("workspace-tool-pane-files")).not.toBeInTheDocument();
+  });
+
+  it("invalidates pending tool requests when their board is deleted and recreated", async () => {
+    const pending = Promise.withResolvers<{
+      data: {
+        codeUrl: string;
+        filesUrl: string;
+        folderPath: string | null;
+      };
+    }>();
+    mockGetSessions.mockResolvedValueOnce(twoSessionPayload());
+    mockListGitClones.mockResolvedValueOnce({ data: { ok: true, tree: { nodes: [] } } });
+    mockGetWorkspaceSessionTools.mockReturnValueOnce(pending.promise);
+    render(<MultiSessionWorkspace {...defaultProps} source="unified" />);
+    await screen.findByTestId("workspace-pane-main-session");
+    fireEvent.click(screen.getByTestId("workspace-board-new"));
+    fireEvent.click(screen.getByTestId("open-git-session-search"));
+    fireEvent.change(await screen.findByTestId("workspace-command-palette-search"), {
+      target: { value: "main" },
+    });
+    fireEvent.click(screen.getByTestId("palette-option-workspace:session:main-session-add"));
+    fireEvent.click(screen.getByTestId("open-git-session-search"));
+    fireEvent.change(await screen.findByTestId("workspace-command-palette-search"), {
+      target: { value: "main" },
+    });
+    fireEvent.click(
+      screen.getByTestId("palette-option-workspace:session:main-session-filebrowser"),
+    );
+
+    const secondBoard = screen.getByTestId("workspace-board-tab-workspace-2");
+    fireEvent.mouseEnter(secondBoard);
+    fireEvent.click(secondBoard);
+    fireEvent.click(screen.getByTestId("workspace-board-new"));
+    await act(async () => {
+      pending.resolve({
+        data: {
+          codeUrl: "https://old-code.test",
+          filesUrl: "https://old-files.test",
+          folderPath: "/old",
+        },
+      });
+      await pending.promise;
+    });
+
     expect(screen.getByTestId("workspace-board-tab-workspace-2")).toBeInTheDocument();
     expect(screen.queryByTestId("workspace-tool-pane-files")).not.toBeInTheDocument();
   });

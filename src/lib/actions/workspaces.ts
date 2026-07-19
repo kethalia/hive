@@ -142,18 +142,25 @@ async function getWorkspaceWithAgent(userId: string, workspaceId: string) {
   return { agent, applicationsHost, client, workspace };
 }
 
-async function synchronizeCoderFrameHosts(coderUrl: string, applicationsHost: string) {
+async function synchronizeCoderFrameHosts(
+  coderUrl: string,
+  applicationsHost: string,
+): Promise<boolean> {
   const normalizedApplicationsHost = applicationsHost.trim().replace(/^\*\./, "");
-  if (!normalizedApplicationsHost) return;
+  if (!normalizedApplicationsHost) return false;
   const coderHost = new URL(coderUrl).host;
   const cookieStore = await cookies();
-  cookieStore.set(CODER_HOST_COOKIE, `${coderHost}~${normalizedApplicationsHost}`, {
+  const nextValue = `${coderHost}~${normalizedApplicationsHost}`;
+  const currentHosts = cookieStore.get(CODER_HOST_COOKIE)?.value.split("~") ?? [];
+  const reloadRequired = !currentHosts.includes(normalizedApplicationsHost);
+  cookieStore.set(CODER_HOST_COOKIE, nextValue, {
     httpOnly: true,
     maxAge: SESSION_MAX_AGE_SECONDS,
     sameSite: "lax",
     secure: usesSecureSessionCookies(),
     path: "/",
   });
+  return reloadRequired;
 }
 
 async function getSessionCurrentDirectory({
@@ -242,7 +249,7 @@ export const getWorkspaceSessionToolsAction = authActionClient
       ctx.user.id,
       parsedInput.workspaceId,
     );
-    await synchronizeCoderFrameHosts(client.getBaseUrl(), applicationsHost);
+    const reloadRequired = await synchronizeCoderFrameHosts(client.getBaseUrl(), applicationsHost);
 
     const currentDirectory = await getSessionCurrentDirectory({
       agentTarget: `${workspace.name}.${agent.name}`,
@@ -270,6 +277,7 @@ export const getWorkspaceSessionToolsAction = authActionClient
             )
           : buildFileBrowserFolderUrl(`${proxyBase}/filebrowser`, folderPath),
       folderPath: folderPath ?? null,
+      reloadRequired,
       source: getWorkspaceDirectorySource(currentDirectory, folderPath),
     };
   });
