@@ -269,12 +269,7 @@ export const getWorkspaceSessionToolsAction = authActionClient
             buildCodeServerFolderUrl(urls.codeServer, folderPath),
           )
         : buildCodeServerFolderUrl(urls.codeServer, folderPath);
-    const filesUrl =
-      parsedInput.tool === "files"
-        ? await client.getApplicationAuthRedirect(
-            buildFileBrowserFolderUrl(urls.filebrowser, folderPath),
-          )
-        : buildFileBrowserFolderUrl(`${proxyBase}/filebrowser`, folderPath);
+    const filesUrl = buildFileBrowserFolderUrl(`${proxyBase}/filebrowser`, folderPath);
     const reloadRequired = await synchronizeCoderFrameHosts(
       client.getBaseUrl(),
       applicationsHost,

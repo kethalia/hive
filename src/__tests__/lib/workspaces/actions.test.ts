@@ -449,7 +449,7 @@ describe("workspace server actions", () => {
       sessionName: "git-hive",
       fallbackPath: "/home/coder/projects/kethalia/hive",
       documentFrameHosts: ["https://coder.example.com"],
-      tool: "files",
+      tool: "code",
     });
 
     expect(result?.data?.folderPath).toBe("/home/coder/projects/kethalia/hive");
@@ -527,14 +527,9 @@ describe("workspace server actions", () => {
     });
     const client = await mockedGetCoderClientForUser.mock.results.at(-1)?.value;
 
-    expect(result?.data?.filesUrl).toBe(
-      "https://filebrowser--main--dev-box--alice.apps.example.com/files/home/coder",
-    );
+    expect(result?.data?.filesUrl).toBe("/api/workspace-proxy/ws-1/filebrowser/files/home/coder");
     expect(result?.data?.reloadRequired).toBe(true);
-    expect(client?.getApplicationAuthRedirect).toHaveBeenCalledOnce();
-    expect(client?.getApplicationAuthRedirect).toHaveBeenCalledWith(
-      "https://filebrowser--main--dev-box--alice.apps.example.com/files/home/coder",
-    );
+    expect(client?.getApplicationAuthRedirect).not.toHaveBeenCalled();
     expect(mockCookieSet).toHaveBeenCalledWith(
       "hive-coder-host",
       "https://coder.example.com~https://apps.example.com",
@@ -586,7 +581,7 @@ describe("workspace server actions", () => {
       workspaceId: "ws-1",
       sessionName: "git-hive",
       documentFrameHosts: ["https://coder.example.com"],
-      tool: "files",
+      tool: "code",
     });
 
     expect(result?.data).toBeUndefined();
