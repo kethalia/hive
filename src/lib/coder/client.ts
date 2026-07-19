@@ -46,8 +46,13 @@ export class CoderClient {
   }
 
   async getApplicationsHost(): Promise<string> {
-    const response = await this.request<{ host: string }>("/api/v2/applications/host");
-    return response.host;
+    const response = await this.request<unknown>("/api/v2/applications/host");
+    return typeof response === "object" &&
+      response !== null &&
+      "host" in response &&
+      typeof response.host === "string"
+      ? response.host
+      : "";
   }
 
   async getApplicationAuthRedirect(redirectUri: string): Promise<string> {

@@ -1,3 +1,5 @@
+import { fetchCoderApi } from "./coder-fetch.js";
+
 export interface ConnectionMeta {
   token: string;
   coderUrl: string;
@@ -475,7 +477,7 @@ export class KeepAliveManager {
 
       let res: Response;
       try {
-        res = await fetch(url, {
+        res = await fetchCoderApi(url, {
           method: "PUT",
           headers: {
             "Content-Type": "application/json",

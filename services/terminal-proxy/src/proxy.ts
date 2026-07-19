@@ -5,6 +5,7 @@ import type { Duplex } from "node:stream";
 import { verifyCloneTerminalProof } from "@hive/auth";
 import { WebSocket, WebSocketServer } from "ws";
 import { authenticateUpgrade } from "./auth.js";
+import { getCoderCaCertificates } from "./coder-fetch.js";
 import { ConnectionRegistry } from "./keepalive.js";
 import { buildPtyUrl, SAFE_IDENTIFIER_RE, UUID_RE } from "./protocol.js";
 
@@ -424,10 +425,12 @@ export async function handleUpgrade(
 
 function connectUpstream(browserWs: WebSocket, upstreamUrl: string, token: string): void {
   logProxyEvent("log", "upstream_connecting", { category: "upstream_connecting" });
+  const ca = getCoderCaCertificates();
 
   const upstream = new WebSocket(upstreamUrl, {
     headers: { "Coder-Session-Token": token },
     handshakeTimeout: UPSTREAM_CONNECT_TIMEOUT_MS,
+    ...(ca ? { ca } : {}),
   });
 
   let pingTimer: ReturnType<typeof setInterval> | null = null;

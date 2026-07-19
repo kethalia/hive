@@ -101,6 +101,16 @@ describe("CoderClient", () => {
     expect(fetchSpy.mock.calls[0][0]).toBe(`${BASE_URL}/api/v2/applications/host`);
   });
 
+  it.each([
+    {},
+    { host: null },
+    { host: 42 },
+  ])("returns an empty applications host for an invalid payload", async (payload) => {
+    fetchSpy.mockResolvedValueOnce(jsonResponse(payload));
+
+    await expect(makeClient().getApplicationsHost()).resolves.toBe("");
+  });
+
   it("creates a Coder-authenticated redirect scoped to the workspace app host", async () => {
     const target = "https://code--workspace--alice.apps.example.com/?folder=%2Fworkspace";
     const encrypted = `${target}&coder_application_connect_api_key=encrypted`;

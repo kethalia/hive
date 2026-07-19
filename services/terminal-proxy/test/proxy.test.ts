@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import type { IncomingMessage } from "node:http";
 import type { Duplex } from "node:stream";
+import { rootCertificates } from "node:tls";
 import { createCloneTerminalProof, verifyCloneTerminalProof } from "@hive/auth";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -841,6 +842,16 @@ describe("handleUpgrade", () => {
     const WsCtor = WebSocket as unknown as ReturnType<typeof vi.fn>;
     const [, opts] = WsCtor.mock.calls[0];
     expect(opts.handshakeTimeout).toBe(10_000);
+  });
+
+  it("extends public CA trust for the upstream WebSocket", async () => {
+    process.env.CODER_CA_CERT = "trusted-private-ca";
+    const socket = makeSocket();
+    await handleUpgrade(makeReq(validParams), socket, Buffer.alloc(0));
+
+    const WsCtor = WebSocket as unknown as ReturnType<typeof vi.fn>;
+    const [, opts] = WsCtor.mock.calls[0];
+    expect(opts.ca).toEqual([...rootCertificates, "trusted-private-ca"]);
   });
 
   it("accepts valid UUID agentId formats", async () => {

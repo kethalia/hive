@@ -51,6 +51,7 @@ services:
     environment:
       - AUTH_SERVICE_URL=http://auth:4400
       - COOKIE_SECRET=${COOKIE_SECRET:-}
+      - CODER_CA_CERT=${CODER_CA_CERT:-}
       - HIVE_PROJECTS_ROOT=${HIVE_PROJECTS_ROOT:-/home/coder}
 
   postgres:
