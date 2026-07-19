@@ -217,8 +217,11 @@ async function fetchWithConfiguredCoderCa(
           }
         },
         async cancel(reason) {
-          await reader.cancel(reason);
-          await dispatcher.close();
+          try {
+            await reader.cancel(reason);
+          } finally {
+            await dispatcher.close();
+          }
         },
       })
     : null;

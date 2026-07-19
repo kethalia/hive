@@ -144,12 +144,14 @@ vi.mock("@/components/ui/command", () => {
       value,
       onSelect,
       className,
+      tabIndex,
       "data-action-id": actionId,
     }: {
       children: ReactNode;
       value?: string;
       onSelect?: () => void;
       className?: string;
+      tabIndex?: number;
       "data-action-id"?: string;
     }) => (
       <div
@@ -159,7 +161,7 @@ vi.mock("@/components/ui/command", () => {
         data-value={value}
         role="option"
         aria-selected={false}
-        tabIndex={-1}
+        tabIndex={tabIndex}
         className={className}
         onClick={onSelect}
       >
@@ -745,9 +747,10 @@ describe("CommandPalette", () => {
     const item = screen.getByText("dev").closest('[cmdk-item=""]');
     expect(item).not.toBeNull();
     if (!item) return;
+    expect(item).toHaveAttribute("tabindex", "0");
     item.setAttribute("aria-selected", "true");
-    fireEvent.keyDown(screen.getByTestId("command-input"), { key: "ArrowRight" });
-    fireEvent.keyDown(screen.getByTestId("command-input"), { key: "ArrowRight" });
+    fireEvent.keyDown(item, { key: "ArrowRight" });
+    fireEvent.keyDown(item, { key: "ArrowRight" });
 
     expect(screen.getByTestId("command-option-workspace:session:dev-vscode")).toHaveAttribute(
       "data-selected",
@@ -757,6 +760,50 @@ describe("CommandPalette", () => {
     expect(vscode).toHaveBeenCalledTimes(1);
     expect(add).not.toHaveBeenCalled();
     expect(open).not.toHaveBeenCalled();
+  });
+
+  it("leaves Left and Right available for editing the search input", () => {
+    render(
+      <CommandPalette
+        open={true}
+        onOpenChange={vi.fn()}
+        tabs={[]}
+        onSelectTab={vi.fn()}
+        searchValue="dev"
+        onSearchValueChange={vi.fn()}
+        actions={[
+          {
+            id: "workspace:session:dev",
+            label: "dev",
+            group: "Terminal sessions",
+            onSelect: vi.fn(),
+            options: [
+              { id: "add", label: "Add", onSelect: vi.fn() },
+              { id: "open", label: "Open", onSelect: vi.fn() },
+            ],
+          },
+        ]}
+      />,
+    );
+
+    const item = screen
+      .getByText("dev", { selector: "[cmdk-item] span" })
+      .closest('[cmdk-item=""]');
+    expect(item).not.toBeNull();
+    item?.setAttribute("aria-selected", "true");
+    const input = screen.getByTestId("command-input");
+    const event = new KeyboardEvent("keydown", {
+      key: "ArrowRight",
+      bubbles: true,
+      cancelable: true,
+    });
+    input.dispatchEvent(event);
+
+    expect(event.defaultPrevented).toBe(false);
+    expect(screen.getByTestId("command-option-workspace:session:dev-add")).toHaveAttribute(
+      "data-selected",
+      "true",
+    );
   });
 
   it("runs a specific option when its visible label is clicked", () => {
@@ -817,7 +864,7 @@ describe("CommandPalette", () => {
     expect(item).not.toBeNull();
     if (!item) return;
     item.setAttribute("aria-selected", "true");
-    fireEvent.keyDown(screen.getByTestId("command-input"), { key: "ArrowRight" });
+    fireEvent.keyDown(item, { key: "ArrowRight" });
     fireEvent.click(item);
     expect(action).not.toHaveBeenCalled();
   });

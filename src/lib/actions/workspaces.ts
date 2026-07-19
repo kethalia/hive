@@ -1,12 +1,16 @@
 "use server";
 
 import { posix } from "node:path";
+import { SESSION_MAX_AGE_SECONDS } from "@hive/auth";
+import { cookies } from "next/headers";
 import { z } from "zod";
+import { usesSecureSessionCookies } from "@/lib/auth/session-cookie";
 import { getCoderClientForUser } from "@/lib/coder/user-client";
 import { SAFE_IDENTIFIER_RE } from "@/lib/constants";
 import { resolveConfiguredProjectsRoot } from "@/lib/git/clone-actions-contract";
 import { isCloneTerminalSessionName } from "@/lib/git/clone-terminal-session";
 import { authActionClient } from "@/lib/safe-action";
+import { CODER_HOST_COOKIE } from "@/lib/security/content-security-policy";
 import { execInWorkspace } from "@/lib/workspace/exec";
 import { filterGenericTmuxSessions, parseTmuxSessions } from "@/lib/workspaces/sessions";
 import {
@@ -138,6 +142,20 @@ async function getWorkspaceWithAgent(userId: string, workspaceId: string) {
   return { agent, applicationsHost, client, workspace };
 }
 
+async function synchronizeCoderFrameHosts(coderUrl: string, applicationsHost: string) {
+  const normalizedApplicationsHost = applicationsHost.trim().replace(/^\*\./, "");
+  if (!normalizedApplicationsHost) return;
+  const coderHost = new URL(coderUrl).host;
+  const cookieStore = await cookies();
+  cookieStore.set(CODER_HOST_COOKIE, `${coderHost}~${normalizedApplicationsHost}`, {
+    httpOnly: true,
+    maxAge: SESSION_MAX_AGE_SECONDS,
+    sameSite: "lax",
+    secure: usesSecureSessionCookies(),
+    path: "/",
+  });
+}
+
 async function getSessionCurrentDirectory({
   agentTarget,
   coderUrl,
@@ -224,6 +242,7 @@ export const getWorkspaceSessionToolsAction = authActionClient
       ctx.user.id,
       parsedInput.workspaceId,
     );
+    await synchronizeCoderFrameHosts(client.getBaseUrl(), applicationsHost);
 
     const currentDirectory = await getSessionCurrentDirectory({
       agentTarget: `${workspace.name}.${agent.name}`,

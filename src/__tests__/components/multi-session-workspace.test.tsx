@@ -771,7 +771,7 @@ describe("MultiSessionWorkspace", () => {
 
   it("clears embedded tool panes when the workspace identity changes", async () => {
     mockGetSessions.mockResolvedValue(twoSessionPayload());
-    const { rerender } = render(<MultiSessionWorkspace {...defaultProps} />);
+    const { rerender } = render(<MultiSessionWorkspace {...defaultProps} source="unified" />);
     await screen.findByTestId("workspace-pane-main-session");
     markTwoSessionsConnected();
     await waitFor(() => {
@@ -780,11 +780,47 @@ describe("MultiSessionWorkspace", () => {
     fireEvent.click(screen.getByRole("button", { name: "Browse files for main-session" }));
     expect(await screen.findByTestId("workspace-tool-pane-files")).toBeInTheDocument();
 
-    rerender(<MultiSessionWorkspace agentId="agent-2" workspaceId="ws-2" />);
+    rerender(<MultiSessionWorkspace agentId="agent-2" workspaceId="ws-2" source="unified" />);
 
     await waitFor(() => {
       expect(screen.queryByTestId("workspace-tool-pane-files")).not.toBeInTheDocument();
     });
+  });
+
+  it("ignores pending command-palette tool responses after the workspace changes", async () => {
+    const pending = Promise.withResolvers<{
+      data: {
+        codeUrl: string;
+        filesUrl: string;
+        folderPath: string | null;
+      };
+    }>();
+    mockGetSessions.mockResolvedValue(twoSessionPayload());
+    mockGetWorkspaceSessionTools.mockReturnValueOnce(pending.promise);
+    const { rerender } = render(<MultiSessionWorkspace {...defaultProps} source="unified" />);
+    await screen.findByTestId("workspace-pane-main-session");
+
+    fireEvent.click(screen.getByTestId("open-git-session-search"));
+    fireEvent.change(await screen.findByTestId("workspace-command-palette-search"), {
+      target: { value: "main" },
+    });
+    fireEvent.click(
+      screen.getByTestId("palette-option-workspace:session:main-session-filebrowser"),
+    );
+
+    rerender(<MultiSessionWorkspace agentId="agent-2" workspaceId="ws-2" source="unified" />);
+    await act(async () => {
+      pending.resolve({
+        data: {
+          codeUrl: "https://old-code.test",
+          filesUrl: "https://old-files.test",
+          folderPath: "/old",
+        },
+      });
+      await pending.promise;
+    });
+
+    expect(screen.queryByTestId("workspace-tool-pane-files")).not.toBeInTheDocument();
   });
 
   it("renders tiled real panes with InteractiveTerminal props and active diagnostics", async () => {

@@ -27,6 +27,7 @@ const mockedGetRequestSession = vi.mocked(getRequestSession);
 const mockedGetSession = vi.mocked(getSession);
 const mockedCookies = vi.mocked(cookies);
 const mockedExec = vi.mocked(execInWorkspace);
+const mockCookieSet = vi.fn();
 
 const MOCK_SESSION = {
   user: {
@@ -53,6 +54,7 @@ describe("workspace server actions", () => {
   const mockStopWorkspace = vi.fn();
   const mockStartWorkspace = vi.fn();
   const mockWaitForBuild = vi.fn();
+  const mockGetApplicationsHost = vi.fn();
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -63,6 +65,7 @@ describe("workspace server actions", () => {
     mockedGetSession.mockResolvedValue(MOCK_SESSION);
     mockedCookies.mockResolvedValue({
       get: () => ({ value: "session-cookie-value" }),
+      set: mockCookieSet,
     } as never);
 
     mockedGetCoderClientForUser.mockResolvedValue({
@@ -77,7 +80,7 @@ describe("workspace server actions", () => {
       waitForBuild: mockWaitForBuild,
       getBaseUrl: () => "https://coder.example.com",
       getSessionToken: () => "coder-session-token",
-      getApplicationsHost: vi.fn().mockResolvedValue("*.coder.example.com"),
+      getApplicationsHost: mockGetApplicationsHost.mockResolvedValue("*.coder.example.com"),
       getApplicationAuthRedirect: vi.fn(async (url: string) => url),
     } as never);
     mockGetWorkspaceResources.mockResolvedValue([
@@ -489,6 +492,7 @@ describe("workspace server actions", () => {
   });
 
   it("authenticates Files independently from the VS Code URL", async () => {
+    mockGetApplicationsHost.mockResolvedValueOnce("*.apps.example.com");
     mockGetWorkspace.mockResolvedValueOnce({
       id: "ws-1",
       name: "dev-box",
@@ -507,11 +511,16 @@ describe("workspace server actions", () => {
     const client = await mockedGetCoderClientForUser.mock.results.at(-1)?.value;
 
     expect(result?.data?.filesUrl).toBe(
-      "https://filebrowser--main--dev-box--alice.coder.example.com/files/home/coder",
+      "https://filebrowser--main--dev-box--alice.apps.example.com/files/home/coder",
     );
     expect(client?.getApplicationAuthRedirect).toHaveBeenCalledOnce();
     expect(client?.getApplicationAuthRedirect).toHaveBeenCalledWith(
-      "https://filebrowser--main--dev-box--alice.coder.example.com/files/home/coder",
+      "https://filebrowser--main--dev-box--alice.apps.example.com/files/home/coder",
+    );
+    expect(mockCookieSet).toHaveBeenCalledWith(
+      "hive-coder-host",
+      "coder.example.com~apps.example.com",
+      expect.objectContaining({ httpOnly: true, maxAge: expect.any(Number), path: "/" }),
     );
   });
 });

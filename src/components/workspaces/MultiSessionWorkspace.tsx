@@ -940,6 +940,8 @@ export function MultiSessionWorkspace({
   const terminalsRef = useRef<Map<string, TerminalEntry>>(new Map());
   const activeSessionNameRef = useRef<string | null>(null);
   const pendingTerminalFocusSessionNameRef = useRef<string | null>(null);
+  const latestWorkspaceIdRef = useRef(workspaceId);
+  latestWorkspaceIdRef.current = workspaceId;
 
   const showGitAddFailure = useCallback((message: string) => {
     setGitAddError(message);
@@ -2248,6 +2250,7 @@ export function MultiSessionWorkspace({
   const openWorkspaceToolForSession = useCallback(
     async (session: WorkspaceSessionPane, tool: WorkspaceTool) => {
       if (!activeBoard) return;
+      const requestWorkspaceId = workspaceId;
       try {
         const result = await getWorkspaceSessionToolsAction({
           workspaceId,
@@ -2255,6 +2258,7 @@ export function MultiSessionWorkspace({
           fallbackPath: session.clonePath,
           tool,
         });
+        if (latestWorkspaceIdRef.current !== requestWorkspaceId) return;
         const urls = unwrapActionData(result);
         if (!isWorkspaceSessionToolUrls(urls)) {
           toast.error("Could not open workspace tools for this session.");
@@ -2262,7 +2266,9 @@ export function MultiSessionWorkspace({
         }
         openWorkspaceToolPane(activeBoard.key, session, tool, urls);
       } catch {
-        toast.error("Could not open workspace tools for this session.");
+        if (latestWorkspaceIdRef.current === requestWorkspaceId) {
+          toast.error("Could not open workspace tools for this session.");
+        }
       }
     },
     [activeBoard, openWorkspaceToolPane, workspaceId],
@@ -2271,6 +2277,7 @@ export function MultiSessionWorkspace({
   const openWorkspaceToolForGitRepository = useCallback(
     async (repository: GitRepositoryOption, tool: WorkspaceTool) => {
       if (!activeBoard) return;
+      const requestWorkspaceId = workspaceId;
       const repositoryIdentity = gitPaneIdentity(
         repository.cloneSessionKey,
         repository.relativePath,
@@ -2292,6 +2299,7 @@ export function MultiSessionWorkspace({
             relativePath: repository.relativePath,
           });
           const identity = unwrapActionData(result);
+          if (latestWorkspaceIdRef.current !== requestWorkspaceId) return;
           if (!isGitCloneTerminalIdentity(identity)) {
             showGitAddFailure(actionFailureMessage(result, GIT_TERMINAL_ADD_FALLBACK_MESSAGE));
             return;
@@ -2309,9 +2317,13 @@ export function MultiSessionWorkspace({
         }
         await openWorkspaceToolForSession(session, tool);
       } catch {
-        showGitAddFailure(GIT_TERMINAL_ADD_FALLBACK_MESSAGE);
+        if (latestWorkspaceIdRef.current === requestWorkspaceId) {
+          showGitAddFailure(GIT_TERMINAL_ADD_FALLBACK_MESSAGE);
+        }
       } finally {
-        setAddingCloneKey(null);
+        if (latestWorkspaceIdRef.current === requestWorkspaceId) {
+          setAddingCloneKey(null);
+        }
       }
     },
     [activeBoard, agentId, openWorkspaceToolForSession, sessions, showGitAddFailure, workspaceId],

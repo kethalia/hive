@@ -167,6 +167,7 @@ function CommandPaletteBody({
       const selectedItem = event.currentTarget.querySelector<HTMLElement>(
         '[cmdk-item][aria-selected="true"][data-action-id]',
       );
+      if (event.target !== selectedItem) return;
       const actionId = selectedItem?.dataset.actionId;
       const action = actionId ? actions.find((candidate) => candidate.id === actionId) : undefined;
       const options = action?.options;
@@ -204,6 +205,7 @@ function CommandPaletteBody({
               <CommandItem
                 key={action.id}
                 data-action-id={action.id}
+                tabIndex={0}
                 value={action.value ?? `${action.label} ${action.description ?? ""}`}
                 onSelect={() => {
                   if (action.disabled) return;
