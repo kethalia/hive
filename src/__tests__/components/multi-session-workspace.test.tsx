@@ -2530,6 +2530,29 @@ describe("MultiSessionWorkspace", () => {
     expect(screen.getByTestId("active-pane-label")).toHaveTextContent("dev-server");
   });
 
+  it("searches terminal sessions beyond the first sixteen results", async () => {
+    mockGetSessions.mockResolvedValueOnce({
+      data: Array.from({ length: 17 }, (_, index) => ({
+        name: `session-${String(index + 1).padStart(2, "0")}`,
+        created: index + 1,
+        windows: 1,
+      })),
+    });
+    mockListGitClones.mockResolvedValueOnce({ data: { ok: true, tree: { nodes: [] } } });
+
+    render(<MultiSessionWorkspace {...defaultProps} source="unified" />);
+    await screen.findByTestId("workspace-pane-session-01");
+    fireEvent.click(screen.getByTestId("open-git-session-search"));
+    fireEvent.change(await screen.findByTestId("workspace-command-palette-search"), {
+      target: { value: "session-17" },
+    });
+
+    expect(screen.getByTestId("palette-action-workspace:session:session-17")).toBeInTheDocument();
+    expect(
+      screen.queryByTestId("palette-option-workspace:new-terminal-from-query"),
+    ).not.toBeInTheDocument();
+  });
+
   it("uses clone key plus relative path for Git command palette identities", async () => {
     mockGetSessions.mockResolvedValueOnce({ data: [] });
     mockListGitClones.mockResolvedValueOnce({

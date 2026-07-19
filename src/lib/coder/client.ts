@@ -1,3 +1,4 @@
+import { fetchCoderApi } from "./fetch";
 import type {
   ApiKeyInfo,
   BuildInfoResponse,
@@ -52,7 +53,7 @@ export class CoderClient {
   async getApplicationAuthRedirect(redirectUri: string): Promise<string> {
     const endpoint = new URL("/api/v2/applications/auth-redirect", this.baseUrl);
     endpoint.searchParams.set("redirect_uri", redirectUri);
-    const response = await fetch(endpoint, {
+    const response = await fetchCoderApi(endpoint, {
       headers: { "Coder-Session-Token": this.sessionToken },
       redirect: "manual",
     });
@@ -76,7 +77,7 @@ export class CoderClient {
    */
   private async request<T>(path: string, init?: RequestInit): Promise<T> {
     const url = `${this.baseUrl}${path}`;
-    const res = await fetch(url, {
+    const res = await fetchCoderApi(url, {
       ...init,
       headers: {
         "Content-Type": "application/json",
@@ -292,7 +293,7 @@ export class CoderClient {
    */
   async fetchTemplateFiles(fileId: string): Promise<Buffer> {
     const url = `${this.baseUrl}/api/v2/files/${fileId}`;
-    const res = await fetch(url, {
+    const res = await fetchCoderApi(url, {
       headers: {
         "Coder-Session-Token": this.sessionToken,
       },
@@ -319,7 +320,7 @@ export class CoderClient {
   static async validateInstance(url: string): Promise<ValidateInstanceResult> {
     const baseUrl = url.replace(/\/+$/, "");
     try {
-      const res = await fetch(`${baseUrl}/api/v2/buildinfo`, {
+      const res = await fetchCoderApi(`${baseUrl}/api/v2/buildinfo`, {
         signal: AbortSignal.timeout(10_000),
       });
       if (!res.ok) {
@@ -353,7 +354,7 @@ export class CoderClient {
   static async login(baseUrl: string, email: string, password: string): Promise<LoginResult> {
     const url = baseUrl.replace(/\/+$/, "");
     const body: LoginRequest = { email, password };
-    const res = await fetch(`${url}/api/v2/users/login`, {
+    const res = await fetchCoderApi(`${url}/api/v2/users/login`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
@@ -370,7 +371,7 @@ export class CoderClient {
 
     const loginData = (await res.json()) as LoginResponse;
 
-    const meRes = await fetch(`${url}/api/v2/users/me`, {
+    const meRes = await fetchCoderApi(`${url}/api/v2/users/me`, {
       headers: {
         "Content-Type": "application/json",
         "Coder-Session-Token": loginData.session_token,
@@ -400,7 +401,7 @@ export class CoderClient {
     const url = baseUrl.replace(/\/+$/, "");
     const body: CreateApiKeyRequest = lifetimeSeconds ? { lifetime_seconds: lifetimeSeconds } : {};
     try {
-      const res = await fetch(`${url}/api/v2/users/${userId}/keys`, {
+      const res = await fetchCoderApi(`${url}/api/v2/users/${userId}/keys`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -432,7 +433,7 @@ export class CoderClient {
   ): Promise<ApiKeyInfo[]> {
     const url = baseUrl.replace(/\/+$/, "");
     try {
-      const res = await fetch(`${url}/api/v2/users/${userId}/keys`, {
+      const res = await fetchCoderApi(`${url}/api/v2/users/${userId}/keys`, {
         headers: {
           "Content-Type": "application/json",
           "Coder-Session-Token": sessionToken,
@@ -467,7 +468,7 @@ export class CoderClient {
   ): Promise<boolean> {
     const url = baseUrl.replace(/\/+$/, "");
     try {
-      const res = await fetch(`${url}/api/v2/users/${userId}/keys/${keyId}`, {
+      const res = await fetchCoderApi(`${url}/api/v2/users/${userId}/keys/${keyId}`, {
         method: "DELETE",
         headers: {
           "Coder-Session-Token": sessionToken,

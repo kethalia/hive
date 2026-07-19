@@ -1,3 +1,4 @@
+import { fetchCoderApi } from "./coder-fetch.js";
 import { CODER_API_PATHS, CODER_API_TIMEOUT_MS, CODER_SESSION_TOKEN_HEADER } from "./constants.js";
 import type {
   BuildInfoResponse,
@@ -15,7 +16,7 @@ export type { CoderLoginResult, ValidateInstanceResult };
 export async function validateCoderInstance(url: string): Promise<ValidateInstanceResult> {
   const baseUrl = url.replace(/\/+$/, "");
   try {
-    const res = await fetch(`${baseUrl}${CODER_API_PATHS.BUILD_INFO}`, {
+    const res = await fetchCoderApi(`${baseUrl}${CODER_API_PATHS.BUILD_INFO}`, {
       signal: AbortSignal.timeout(CODER_API_TIMEOUT_MS),
     });
     if (!res.ok) {
@@ -49,7 +50,7 @@ export async function coderLogin(
 ): Promise<CoderLoginResult> {
   const url = baseUrl.replace(/\/+$/, "");
   const body: CoderLoginRequest = { email, password };
-  const res = await fetch(`${url}${CODER_API_PATHS.LOGIN}`, {
+  const res = await fetchCoderApi(`${url}${CODER_API_PATHS.LOGIN}`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
@@ -71,11 +72,11 @@ export async function coderLogin(
     [CODER_SESSION_TOKEN_HEADER]: loginData.session_token,
   };
   const [meRes, applicationsHostRes] = await Promise.all([
-    fetch(`${url}${CODER_API_PATHS.ME}`, {
+    fetchCoderApi(`${url}${CODER_API_PATHS.ME}`, {
       headers: authenticatedHeaders,
       signal: AbortSignal.timeout(CODER_API_TIMEOUT_MS),
     }),
-    fetch(`${url}${CODER_API_PATHS.APPLICATIONS_HOST}`, {
+    fetchCoderApi(`${url}${CODER_API_PATHS.APPLICATIONS_HOST}`, {
       headers: authenticatedHeaders,
       signal: AbortSignal.timeout(CODER_API_TIMEOUT_MS),
     }).catch(() => null),
@@ -106,7 +107,7 @@ export async function createCoderApiKey(
   const url = baseUrl.replace(/\/+$/, "");
   const body: CreateApiKeyRequest = lifetimeSeconds ? { lifetime_seconds: lifetimeSeconds } : {};
   try {
-    const res = await fetch(`${url}${CODER_API_PATHS.USER_KEYS(userId)}`, {
+    const res = await fetchCoderApi(`${url}${CODER_API_PATHS.USER_KEYS(userId)}`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",

@@ -2457,7 +2457,7 @@ export function MultiSessionWorkspace({
       actions.push(typedCreateAction);
     }
 
-    for (const session of sessions.slice(0, 16)) {
+    for (const session of sessions) {
       const alreadyInActiveBoard = activeBoardSessionNames.has(session.sessionName);
       actions.push({
         id: `workspace:session:${session.sessionName}`,

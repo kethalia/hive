@@ -11,6 +11,7 @@ services:
       - DATABASE_URL=postgresql://${POSTGRES_USER:-hive}:${POSTGRES_PASSWORD:-hive}@postgres:5432/${POSTGRES_DB:-hive}
       - ENCRYPTION_KEY=${ENCRYPTION_KEY:-}
       - COOKIE_SECRET=${COOKIE_SECRET:-}
+      - CODER_CA_CERT=${CODER_CA_CERT:-}
     healthcheck:
       test: ["CMD", "wget", "--spider", "-q", "http://localhost:4400/health"]
       interval: 5s
