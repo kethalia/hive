@@ -118,7 +118,11 @@ function resolveWorkspaceFallbackDirectory(value: string | undefined): string | 
   }
   const projectsRoot = resolveConfiguredProjectsRoot();
   const resolved = posix.resolve(projectsRoot, trimmed);
-  return resolved === projectsRoot || resolved.startsWith(`${projectsRoot}/`) ? resolved : null;
+  return projectsRoot === "/" ||
+    resolved === projectsRoot ||
+    resolved.startsWith(`${projectsRoot}/`)
+    ? resolved
+    : null;
 }
 
 async function getWorkspaceWithAgent(userId: string, workspaceId: string) {

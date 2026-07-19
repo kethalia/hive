@@ -12,10 +12,7 @@ export function coderFrameSources(configuredUrls: readonly string[]): string {
       const url = new URL(configuredUrl);
       if (url.protocol !== "https:" && url.protocol !== "http:") continue;
       sources.add(url.origin);
-      const labels = url.hostname.split(".");
-      if (labels.length >= 3) {
-        sources.add(`${url.protocol}//*.${labels.slice(1).join(".")}`);
-      }
+      sources.add(`${url.protocol}//*.${url.host}`);
     } catch {
       // Ignore malformed configuration and cookie values.
     }

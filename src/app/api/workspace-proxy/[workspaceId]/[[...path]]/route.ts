@@ -311,6 +311,7 @@ async function proxyRequest(
         break;
       }
 
+      await upstream.body?.cancel();
       currentUrl = resolvedLocation.toString();
     }
 

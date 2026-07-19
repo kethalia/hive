@@ -44,16 +44,29 @@ describe("proxy", () => {
     expect(setCookie).toContain("HttpOnly");
     expect(setCookie).toContain("SameSite=lax");
     expect(response.headers.get("content-security-policy")).toContain(
-      "frame-src 'self' https://coder.example.com https://*.example.com",
+      "frame-src 'self' https://coder.example.com https://*.coder.example.com",
     );
     expect(response.headers.get("content-security-policy")).toContain(
-      "https://apps.coder.test https://*.coder.test",
+      "https://apps.coder.test https://*.apps.coder.test",
     );
     expect(response.headers.get("content-security-policy")).not.toContain(
       "frame-src 'self' https:;",
     );
 
     vi.unstubAllEnvs();
+  });
+
+  it("allows workspace applications beneath an apex Coder application host", () => {
+    vi.stubEnv("COOKIE_SECRET", "test-secret");
+    mockVerifyCookie.mockReturnValue({ sessionId: "sess-123", timestamp: Date.now() });
+
+    const request = new NextRequest("https://hive.example.com/workspaces", {
+      headers: { cookie: "hive-session=signed-value; hive-coder-host=example.com" },
+    });
+
+    expect(proxy(request).headers.get("content-security-policy")).toContain(
+      "https://example.com https://*.example.com",
+    );
   });
 
   it("accepts a valid scoped cookie when a stale parent-domain cookie with the same name is last", () => {

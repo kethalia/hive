@@ -1,11 +1,14 @@
 import { readFile } from "node:fs/promises";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const mockedUndiciFetch = vi.hoisted(() => vi.fn());
+const { mockedAgentClose, mockedUndiciFetch } = vi.hoisted(() => ({
+  mockedAgentClose: vi.fn(),
+  mockedUndiciFetch: vi.fn(),
+}));
 
 vi.mock("undici", () => ({
   Agent: class MockAgent {
-    close = vi.fn().mockResolvedValue(undefined);
+    close = mockedAgentClose;
   },
   fetch: mockedUndiciFetch,
 }));
@@ -289,5 +292,41 @@ describe("workspace actions use authActionClient + getCoderClientForUser", () =>
         method: "POST",
       }),
     );
+  });
+
+  it("closes the private-CA dispatcher before following an allowed redirect", async () => {
+    mockedGetCoderClientForUser.mockResolvedValue({
+      getWorkspace: vi.fn().mockResolvedValue({ name: "dev-box", owner_name: "alice" }),
+      getWorkspaceAgentName: vi.fn().mockResolvedValue("dev-box.main"),
+      getApplicationsHost: vi.fn().mockResolvedValue("*.apps.example.com"),
+      getBaseUrl: () => "https://coder.example.com",
+      getSessionToken: () => "coder-session-token",
+    } as never);
+    vi.spyOn(globalThis, "fetch").mockRejectedValue(
+      Object.assign(new Error("fetch failed"), {
+        cause: { message: "self-signed certificate" },
+      }),
+    );
+    mockedUndiciFetch
+      .mockResolvedValueOnce(
+        new Response("redirect", {
+          status: 302,
+          headers: { location: "/files/home" },
+        }),
+      )
+      .mockResolvedValueOnce(new Response("ok", { status: 200 }));
+    const { GET } = await import("@/app/api/workspace-proxy/[workspaceId]/[[...path]]/route");
+    const workspaceId = "abababab-1111-2222-3333-444444444444";
+    const url = `http://localhost/api/workspace-proxy/${workspaceId}/filebrowser`;
+    const req = new Request(url);
+    Object.defineProperty(req, "nextUrl", { value: new URL(url) });
+
+    const response = await GET(req as never, {
+      params: Promise.resolve({ workspaceId, path: ["filebrowser"] }),
+    });
+
+    expect(response.status).toBe(200);
+    expect(mockedUndiciFetch).toHaveBeenCalledTimes(2);
+    expect(mockedAgentClose).toHaveBeenCalledOnce();
   });
 });

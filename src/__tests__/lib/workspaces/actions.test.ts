@@ -461,4 +461,26 @@ describe("workspace server actions", () => {
     expect(result?.data?.folderPath).toBe("/home/coder/projects/kethalia/hive");
     expect(result?.data?.source).toBe("fallback");
   });
+
+  it("resolves a repository-relative fallback when the configured projects root is slash", async () => {
+    vi.stubEnv("HIVE_PROJECTS_ROOT", "/");
+    mockGetWorkspace.mockResolvedValueOnce({
+      id: "ws-1",
+      name: "dev-box",
+      owner_name: "alice",
+      template_id: "tpl-1",
+      latest_build: { id: "build-1", status: "running", job: { status: "succeeded" } },
+    });
+    mockedExec.mockResolvedValueOnce({ stdout: "", stderr: "missing session", exitCode: 1 });
+
+    const { getWorkspaceSessionToolsAction } = await import("@/lib/actions/workspaces");
+    const result = await getWorkspaceSessionToolsAction({
+      workspaceId: "ws-1",
+      sessionName: "git-hive",
+      fallbackPath: "workspace/repo",
+    });
+
+    expect(result?.data?.folderPath).toBe("/workspace/repo");
+    expect(result?.data?.source).toBe("fallback");
+  });
 });
