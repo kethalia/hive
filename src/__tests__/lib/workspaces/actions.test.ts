@@ -55,6 +55,7 @@ describe("workspace server actions", () => {
   const mockStartWorkspace = vi.fn();
   const mockWaitForBuild = vi.fn();
   const mockGetApplicationsHost = vi.fn();
+  const mockGetApplicationAuthRedirect = vi.fn();
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -63,6 +64,7 @@ describe("workspace server actions", () => {
 
     mockedGetRequestSession.mockResolvedValue(MOCK_SESSION);
     mockedGetSession.mockResolvedValue(MOCK_SESSION);
+    mockGetApplicationAuthRedirect.mockImplementation(async (url: string) => url);
     mockedCookies.mockResolvedValue({
       get: (name: string) => ({
         value:
@@ -86,7 +88,7 @@ describe("workspace server actions", () => {
       getBaseUrl: () => "https://coder.example.com",
       getSessionToken: () => "coder-session-token",
       getApplicationsHost: mockGetApplicationsHost.mockResolvedValue("*.coder.example.com"),
-      getApplicationAuthRedirect: vi.fn(async (url: string) => url),
+      getApplicationAuthRedirect: mockGetApplicationAuthRedirect,
     } as never);
     mockGetWorkspaceResources.mockResolvedValue([
       {
@@ -529,5 +531,29 @@ describe("workspace server actions", () => {
       "coder.example.com~apps.example.com",
       expect.objectContaining({ httpOnly: true, maxAge: expect.any(Number), path: "/" }),
     );
+  });
+
+  it("does not update the frame-host cookie when application authentication fails", async () => {
+    mockGetApplicationsHost.mockResolvedValueOnce("*.apps.example.com");
+    mockGetWorkspace.mockResolvedValueOnce({
+      id: "ws-1",
+      name: "dev-box",
+      owner_name: "alice",
+      template_id: "tpl-1",
+      latest_build: { id: "build-1", status: "running", job: { status: "succeeded" } },
+    });
+    mockedExec.mockResolvedValueOnce({ stdout: "/home/coder\n", stderr: "", exitCode: 0 });
+    mockGetApplicationAuthRedirect.mockRejectedValueOnce(new Error("application auth failed"));
+
+    const { getWorkspaceSessionToolsAction } = await import("@/lib/actions/workspaces");
+    const result = await getWorkspaceSessionToolsAction({
+      workspaceId: "ws-1",
+      sessionName: "git-hive",
+      tool: "files",
+    });
+
+    expect(result?.data).toBeUndefined();
+    expect(result?.serverError).toMatch(/application auth failed/i);
+    expect(mockCookieSet).not.toHaveBeenCalled();
   });
 });

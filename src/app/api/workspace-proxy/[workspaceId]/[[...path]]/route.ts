@@ -266,9 +266,10 @@ async function proxyRequest(
 
   const fetchDestination = req.headers.get("sec-fetch-dest");
   const fetchSite = req.headers.get("sec-fetch-site");
-  if (fetchDestination === "iframe" && fetchSite !== null && fetchSite !== "same-origin") {
+  const isDocumentNavigation = fetchDestination === "iframe" || fetchDestination === "document";
+  if (isDocumentNavigation && fetchSite !== null && fetchSite !== "same-origin") {
     return NextResponse.json(
-      { error: "Cross-origin iframe navigation is not allowed" },
+      { error: "Cross-origin workspace proxy navigation is not allowed" },
       {
         status: 403,
         headers: { "Cross-Origin-Resource-Policy": "same-origin" },

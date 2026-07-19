@@ -249,7 +249,6 @@ export const getWorkspaceSessionToolsAction = authActionClient
       ctx.user.id,
       parsedInput.workspaceId,
     );
-    const reloadRequired = await synchronizeCoderFrameHosts(client.getBaseUrl(), applicationsHost);
 
     const currentDirectory = await getSessionCurrentDirectory({
       agentTarget: `${workspace.name}.${agent.name}`,
@@ -263,19 +262,23 @@ export const getWorkspaceSessionToolsAction = authActionClient
     const urls = buildWorkspaceUrls(workspace, agent.name, client.getBaseUrl(), applicationsHost);
     if (!urls) throw new Error("Coder URL is unavailable for workspace tools");
 
+    const codeUrl =
+      parsedInput.tool === "code"
+        ? await client.getApplicationAuthRedirect(
+            buildCodeServerFolderUrl(urls.codeServer, folderPath),
+          )
+        : buildCodeServerFolderUrl(urls.codeServer, folderPath);
+    const filesUrl =
+      parsedInput.tool === "files"
+        ? await client.getApplicationAuthRedirect(
+            buildFileBrowserFolderUrl(urls.filebrowser, folderPath),
+          )
+        : buildFileBrowserFolderUrl(`${proxyBase}/filebrowser`, folderPath);
+    const reloadRequired = await synchronizeCoderFrameHosts(client.getBaseUrl(), applicationsHost);
+
     return {
-      codeUrl:
-        parsedInput.tool === "code"
-          ? await client.getApplicationAuthRedirect(
-              buildCodeServerFolderUrl(urls.codeServer, folderPath),
-            )
-          : buildCodeServerFolderUrl(urls.codeServer, folderPath),
-      filesUrl:
-        parsedInput.tool === "files"
-          ? await client.getApplicationAuthRedirect(
-              buildFileBrowserFolderUrl(urls.filebrowser, folderPath),
-            )
-          : buildFileBrowserFolderUrl(`${proxyBase}/filebrowser`, folderPath),
+      codeUrl,
+      filesUrl,
       folderPath: folderPath ?? null,
       reloadRequired,
       source: getWorkspaceDirectorySource(currentDirectory, folderPath),

@@ -133,6 +133,27 @@ describe("workspace actions use authActionClient + getCoderClientForUser", () =>
     expect(mockedGetCoderClientForUser).not.toHaveBeenCalled();
   });
 
+  it("rejects popup navigations from a Coder application origin", async () => {
+    const { GET } = await import("@/app/api/workspace-proxy/[workspaceId]/[[...path]]/route");
+    const workspaceId = "acacacac-1111-2222-3333-444444444444";
+    const url = `http://localhost/api/workspace-proxy/${workspaceId}/filebrowser`;
+    const req = new Request(url, {
+      headers: {
+        "Sec-Fetch-Dest": "document",
+        "Sec-Fetch-Site": "same-site",
+      },
+    });
+    Object.defineProperty(req, "nextUrl", { value: new URL(url) });
+
+    const response = await GET(req as never, {
+      params: Promise.resolve({ workspaceId, path: ["filebrowser"] }),
+    });
+
+    expect(response.status).toBe(403);
+    expect(response.headers.get("cross-origin-resource-policy")).toBe("same-origin");
+    expect(mockedGetCoderClientForUser).not.toHaveBeenCalled();
+  });
+
   it("proxy route does not use env var credentials", async () => {
     const source = await readFile(
       "src/app/api/workspace-proxy/[workspaceId]/[[...path]]/route.ts",
