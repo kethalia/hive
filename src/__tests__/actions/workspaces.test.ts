@@ -329,4 +329,41 @@ describe("workspace actions use authActionClient + getCoderClientForUser", () =>
     expect(mockedUndiciFetch).toHaveBeenCalledTimes(2);
     expect(mockedAgentClose).toHaveBeenCalledOnce();
   });
+
+  it("closes the private-CA dispatcher when streaming the response fails", async () => {
+    mockedGetCoderClientForUser.mockResolvedValue({
+      getWorkspace: vi.fn().mockResolvedValue({ name: "dev-box", owner_name: "alice" }),
+      getWorkspaceAgentName: vi.fn().mockResolvedValue("dev-box.main"),
+      getApplicationsHost: vi.fn().mockResolvedValue("*.apps.example.com"),
+      getBaseUrl: () => "https://coder.example.com",
+      getSessionToken: () => "coder-session-token",
+    } as never);
+    vi.spyOn(globalThis, "fetch").mockRejectedValue(
+      Object.assign(new Error("fetch failed"), {
+        cause: { message: "self-signed certificate" },
+      }),
+    );
+    mockedUndiciFetch.mockResolvedValueOnce(
+      new Response(
+        new ReadableStream({
+          pull(controller) {
+            controller.error(new Error("upstream reset"));
+          },
+        }),
+        { status: 200 },
+      ),
+    );
+    const { GET } = await import("@/app/api/workspace-proxy/[workspaceId]/[[...path]]/route");
+    const workspaceId = "cdcdcdcd-1111-2222-3333-444444444444";
+    const url = `http://localhost/api/workspace-proxy/${workspaceId}/filebrowser`;
+    const req = new Request(url);
+    Object.defineProperty(req, "nextUrl", { value: new URL(url) });
+
+    const response = await GET(req as never, {
+      params: Promise.resolve({ workspaceId, path: ["filebrowser"] }),
+    });
+
+    await expect(response.text()).rejects.toThrow("upstream reset");
+    expect(mockedAgentClose).toHaveBeenCalledOnce();
+  });
 });

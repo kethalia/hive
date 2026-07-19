@@ -404,6 +404,7 @@ describe("workspace server actions", () => {
     const result = await getWorkspaceSessionToolsAction({
       workspaceId: "ws-1",
       sessionName: "git-hive",
+      tool: "code",
     });
 
     expect(mockedExec).toHaveBeenCalledWith(
@@ -435,6 +436,7 @@ describe("workspace server actions", () => {
       workspaceId: "ws-1",
       sessionName: "git-hive",
       fallbackPath: "/home/coder/projects/kethalia/hive",
+      tool: "files",
     });
 
     expect(result?.data?.folderPath).toBe("/home/coder/projects/kethalia/hive");
@@ -456,6 +458,7 @@ describe("workspace server actions", () => {
       workspaceId: "ws-1",
       sessionName: "git-hive",
       fallbackPath: "projects/kethalia/hive",
+      tool: "files",
     });
 
     expect(result?.data?.folderPath).toBe("/home/coder/projects/kethalia/hive");
@@ -478,9 +481,32 @@ describe("workspace server actions", () => {
       workspaceId: "ws-1",
       sessionName: "git-hive",
       fallbackPath: "workspace/repo",
+      tool: "files",
     });
 
     expect(result?.data?.folderPath).toBe("/workspace/repo");
     expect(result?.data?.source).toBe("fallback");
+  });
+
+  it("opens Files without requesting a VS Code authentication redirect", async () => {
+    mockGetWorkspace.mockResolvedValueOnce({
+      id: "ws-1",
+      name: "dev-box",
+      owner_name: "alice",
+      template_id: "tpl-1",
+      latest_build: { id: "build-1", status: "running", job: { status: "succeeded" } },
+    });
+    mockedExec.mockResolvedValueOnce({ stdout: "/home/coder\n", stderr: "", exitCode: 0 });
+
+    const { getWorkspaceSessionToolsAction } = await import("@/lib/actions/workspaces");
+    const result = await getWorkspaceSessionToolsAction({
+      workspaceId: "ws-1",
+      sessionName: "git-hive",
+      tool: "files",
+    });
+    const client = await mockedGetCoderClientForUser.mock.results.at(-1)?.value;
+
+    expect(result?.data?.filesUrl).toBe("/api/workspace-proxy/ws-1/filebrowser/files/home/coder");
+    expect(client?.getApplicationAuthRedirect).not.toHaveBeenCalled();
   });
 });

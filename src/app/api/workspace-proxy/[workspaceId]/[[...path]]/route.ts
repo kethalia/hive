@@ -196,12 +196,20 @@ async function fetchWithPrivateCoderCa(url: string, init: CoderFetchInit): Promi
   const body = reader
     ? new ReadableStream<Uint8Array>({
         async pull(controller) {
-          const result = await reader.read();
-          if (result.done) {
+          let shouldCloseDispatcher = false;
+          try {
+            const result = await reader.read();
+            if (!result.done) {
+              controller.enqueue(result.value);
+              return;
+            }
+            shouldCloseDispatcher = true;
             controller.close();
-            await dispatcher.close();
-          } else {
-            controller.enqueue(result.value);
+          } catch (error) {
+            shouldCloseDispatcher = true;
+            controller.error(error);
+          } finally {
+            if (shouldCloseDispatcher) await dispatcher.close();
           }
         },
         async cancel(reason) {

@@ -69,6 +69,19 @@ describe("proxy", () => {
     );
   });
 
+  it("allows workspace applications beneath a suffix-style Coder application host", () => {
+    vi.stubEnv("COOKIE_SECRET", "test-secret");
+    mockVerifyCookie.mockReturnValue({ sessionId: "sess-123", timestamp: Date.now() });
+
+    const request = new NextRequest("https://hive.example.com/workspaces", {
+      headers: { cookie: "hive-session=signed-value; hive-coder-host=*--suffix.au.example.com" },
+    });
+    const policy = proxy(request).headers.get("content-security-policy") ?? "";
+
+    expect(policy).toContain("https://*.au.example.com");
+    expect(policy).not.toContain("https://*.*--suffix.au.example.com");
+  });
+
   it("accepts a valid scoped cookie when a stale parent-domain cookie with the same name is last", () => {
     vi.stubEnv("COOKIE_SECRET", "preview-secret");
     vi.stubEnv("COOKIE_DOMAIN", ".pr-101.hive.local.kethalia.com");

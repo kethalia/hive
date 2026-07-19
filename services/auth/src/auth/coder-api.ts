@@ -78,24 +78,22 @@ export async function coderLogin(
     fetch(`${url}${CODER_API_PATHS.APPLICATIONS_HOST}`, {
       headers: authenticatedHeaders,
       signal: AbortSignal.timeout(CODER_API_TIMEOUT_MS),
-    }),
+    }).catch(() => null),
   ]);
 
   if (!meRes.ok) {
     throw new Error("failed to fetch user info after login");
   }
-  if (!applicationsHostRes.ok) {
-    throw new Error("failed to fetch applications host after login");
-  }
-
   const user = (await meRes.json()) as CoderUserResponse;
-  const applicationsHost = (await applicationsHostRes.json()) as { host: string };
+  const applicationsHost = applicationsHostRes?.ok
+    ? ((await applicationsHostRes.json()) as { host: string }).host
+    : "";
 
   return {
     sessionToken: loginData.session_token,
     userId: user.id,
     username: user.username,
-    applicationsHost: applicationsHost.host,
+    applicationsHost,
   };
 }
 

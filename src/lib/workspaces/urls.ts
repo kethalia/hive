@@ -65,7 +65,8 @@ export function buildFileBrowserFolderUrl(
   const normalizedFolderPath = folderPath.trim().startsWith("/")
     ? folderPath.trim()
     : `/${folderPath.trim()}`;
-  url.pathname = `${basePath}/files${normalizedFolderPath}`;
+  const encodedFolderPath = normalizedFolderPath.split("/").map(encodeURIComponent).join("/");
+  url.pathname = `${basePath}/files${encodedFolderPath}`;
   if (!fileBrowserUrl.startsWith("/")) return url.toString();
 
   return `${url.pathname}${url.search}${url.hash}`;

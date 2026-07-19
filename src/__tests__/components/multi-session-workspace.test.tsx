@@ -1833,6 +1833,71 @@ describe("MultiSessionWorkspace", () => {
     expect(mockCloseGitCloneTerminal).not.toHaveBeenCalled();
   });
 
+  it("preserves Git identity when adding an existing clone session to another board", async () => {
+    mockListGitClones.mockResolvedValueOnce({
+      data: {
+        ok: true,
+        tree: {
+          nodes: [
+            {
+              id: "repo-hive",
+              kind: "repository",
+              label: "hive",
+              relativePath: "kethalia/hive",
+              relativePathSegments: ["kethalia", "hive"],
+              displaySegments: ["Git", "home", "kethalia", "hive"],
+              cloneSessionKey: "git-clone:kethalia/hive",
+            },
+          ],
+        },
+      },
+    });
+    mockResolveGitCloneTerminal.mockResolvedValueOnce({
+      data: {
+        sessionName: "git-clone-safe-hive",
+        clonePath: "kethalia/hive",
+        cloneSessionKey: "git-clone:kethalia/hive",
+        cloneProof: "proof-token",
+      },
+    });
+
+    render(<MultiSessionWorkspace {...defaultProps} source="unified" />);
+    await screen.findByTestId("multi-session-empty");
+    fireEvent.click(screen.getByTestId("open-git-session-search"));
+    fireEvent.change(await screen.findByTestId("workspace-command-palette-search"), {
+      target: { value: "hive" },
+    });
+    await act(async () => {
+      fireEvent.click(
+        screen.getByTestId(
+          "palette-option-workspace:git:git-clone:kethalia/hive:kethalia/hive-add",
+        ),
+      );
+    });
+
+    fireEvent.click(screen.getByTestId("workspace-board-new"));
+    expect(screen.getByTestId("active-board-empty")).toBeInTheDocument();
+    fireEvent.click(screen.getByTestId("open-git-session-search"));
+    fireEvent.change(await screen.findByTestId("workspace-command-palette-search"), {
+      target: { value: "git-clone-safe-hive" },
+    });
+    fireEvent.click(screen.getByTestId("palette-option-workspace:session:git-clone-safe-hive-add"));
+
+    const storedState = JSON.parse(
+      window.localStorage.getItem("workspace-board-state:git:ws-1") ?? "{}",
+    );
+    expect(
+      storedState.boards.find((board: { key: string }) => board.key === "workspace-2").panes,
+    ).toEqual([
+      expect.objectContaining({
+        kind: "git",
+        sessionName: "git-clone-safe-hive",
+        cloneSessionKey: "git-clone:kethalia/hive",
+        relativePath: "kethalia/hive",
+      }),
+    ]);
+  });
+
   it("shows sessions already in the active board as disabled add actions", async () => {
     mockGetSessions.mockResolvedValueOnce(twoSessionPayload());
     mockListGitClones.mockResolvedValueOnce({ data: { ok: true, tree: { nodes: [] } } });

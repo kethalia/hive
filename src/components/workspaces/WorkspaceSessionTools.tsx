@@ -55,6 +55,7 @@ export function WorkspaceSessionTools({
         workspaceId,
         sessionName,
         fallbackPath,
+        tool,
       });
       if (!isWorkspaceSessionToolUrls(result?.data)) {
         toast.error("Could not open workspace tools for this session.");

@@ -62,6 +62,44 @@ describe("validateCoderInstance", () => {
     await validateCoderInstance(`${BASE_URL}/`);
     expect(fetch).toHaveBeenCalledWith(`${BASE_URL}/api/v2/buildinfo`, expect.anything());
   });
+
+  it("allows login when the applications-host lookup is unavailable", async () => {
+    vi.mocked(fetch)
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ session_token: "tok" }), { status: 200 }),
+      )
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ id: "u", username: "a", email: "a@b.com" }), {
+          status: 200,
+        }),
+      )
+      .mockResolvedValueOnce(new Response("missing", { status: 404 }));
+
+    await expect(coderLogin(BASE_URL, "a@b.com", "pw")).resolves.toEqual({
+      sessionToken: "tok",
+      userId: "u",
+      username: "a",
+      applicationsHost: "",
+    });
+  });
+
+  it("allows login when the applications-host lookup has a network failure", async () => {
+    vi.mocked(fetch)
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ session_token: "tok" }), { status: 200 }),
+      )
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ id: "u", username: "a", email: "a@b.com" }), {
+          status: 200,
+        }),
+      )
+      .mockRejectedValueOnce(new Error("applications host unavailable"));
+
+    await expect(coderLogin(BASE_URL, "a@b.com", "pw")).resolves.toMatchObject({
+      userId: "u",
+      applicationsHost: "",
+    });
+  });
 });
 
 describe("coderLogin", () => {

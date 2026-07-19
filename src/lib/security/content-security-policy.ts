@@ -11,6 +11,11 @@ export function coderFrameSources(configuredUrls: readonly string[]): string {
     try {
       const url = new URL(configuredUrl);
       if (url.protocol !== "https:" && url.protocol !== "http:") continue;
+      const suffixWildcard = url.hostname.match(/^\*--[^.]+(\..+)$/);
+      if (suffixWildcard) {
+        sources.add(`${url.protocol}//*${suffixWildcard[1]}${url.port ? `:${url.port}` : ""}`);
+        continue;
+      }
       sources.add(url.origin);
       sources.add(`${url.protocol}//*.${url.host}`);
     } catch {

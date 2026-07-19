@@ -124,4 +124,10 @@ describe("workspace tool folder URLs", () => {
       buildFileBrowserFolderUrl("https://files.example.com/prefix", "/home/coder/project #1"),
     ).toBe("https://files.example.com/prefix/files/home/coder/project%20%231");
   });
+
+  it("encodes literal percent signs in File Browser folder segments", () => {
+    expect(buildFileBrowserFolderUrl("/api/files", "/home/100%20done")).toBe(
+      "/api/files/files/home/100%2520done",
+    );
+  });
 });

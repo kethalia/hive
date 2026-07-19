@@ -52,6 +52,7 @@ describe("WorkspaceSessionTools", () => {
       workspaceId: "ws-1",
       sessionName: "git-hive",
       fallbackPath: "/home/coder/hive",
+      tool: "files",
     });
     expect(onOpenTool).toHaveBeenCalledWith({
       tool: "files",
@@ -75,6 +76,9 @@ describe("WorkspaceSessionTools", () => {
     );
     fireEvent.click(screen.getByRole("button", { name: "Open VS Code for Shell" }));
     await waitFor(() => expect(onOpenTool).toHaveBeenCalled());
+    expect(mockGetWorkspaceSessionTools).toHaveBeenCalledWith(
+      expect.objectContaining({ tool: "code" }),
+    );
     expect(onOpenTool).toHaveBeenCalledWith({
       tool: "code",
       urls: expect.objectContaining({

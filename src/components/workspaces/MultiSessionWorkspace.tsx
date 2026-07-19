@@ -2199,12 +2199,19 @@ export function MultiSessionWorkspace({
 
   const handleAddExistingTerminalToBoard = useCallback(
     (session: WorkspaceSessionPane) => {
-      persistBoardState(
-        addTerminalPaneToActiveWorkspaceBoard(boardState, {
-          sessionName: session.sessionName,
-          label: session.label,
-        }),
-      );
+      const nextState =
+        session.cloneSessionKey && session.relativePath
+          ? addGitPaneToActiveWorkspaceBoard(boardState, {
+              cloneSessionKey: session.cloneSessionKey,
+              relativePath: session.relativePath,
+              sessionName: session.sessionName,
+              label: session.label,
+            })
+          : addTerminalPaneToActiveWorkspaceBoard(boardState, {
+              sessionName: session.sessionName,
+              label: session.label,
+            });
+      persistBoardState(nextState);
       selectSession(session.sessionName);
     },
     [boardState, persistBoardState, selectSession],
@@ -2243,6 +2250,7 @@ export function MultiSessionWorkspace({
           workspaceId,
           sessionName: session.sessionName,
           fallbackPath: session.clonePath,
+          tool,
         });
         const urls = unwrapActionData(result);
         if (!isWorkspaceSessionToolUrls(urls)) {

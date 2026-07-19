@@ -100,6 +100,7 @@ const workspaceSessionToolsSchema = z.object({
     .min(1, "sessionName is required")
     .regex(SAFE_IDENTIFIER_RE, "Invalid session name"),
   fallbackPath: z.string().trim().min(1).optional(),
+  tool: z.enum(["code", "files"]),
 });
 
 function normalizeWorkspaceDirectory(value: string | undefined | null): string | null {
@@ -237,9 +238,12 @@ export const getWorkspaceSessionToolsAction = authActionClient
     if (!urls) throw new Error("Coder URL is unavailable for workspace tools");
 
     return {
-      codeUrl: await client.getApplicationAuthRedirect(
-        buildCodeServerFolderUrl(urls.codeServer, folderPath),
-      ),
+      codeUrl:
+        parsedInput.tool === "code"
+          ? await client.getApplicationAuthRedirect(
+              buildCodeServerFolderUrl(urls.codeServer, folderPath),
+            )
+          : buildCodeServerFolderUrl(urls.codeServer, folderPath),
       filesUrl: buildFileBrowserFolderUrl(`${proxyBase}/filebrowser`, folderPath),
       folderPath: folderPath ?? null,
       source: getWorkspaceDirectorySource(currentDirectory, folderPath),
