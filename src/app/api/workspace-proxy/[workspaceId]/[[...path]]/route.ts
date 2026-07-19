@@ -264,6 +264,18 @@ async function proxyRequest(
     return NextResponse.json({ error: "Invalid workspace ID" }, { status: 400 });
   }
 
+  const fetchDestination = req.headers.get("sec-fetch-dest");
+  const fetchSite = req.headers.get("sec-fetch-site");
+  if (fetchDestination === "iframe" && fetchSite !== null && fetchSite !== "same-origin") {
+    return NextResponse.json(
+      { error: "Cross-origin iframe navigation is not allowed" },
+      {
+        status: 403,
+        headers: { "Cross-Origin-Resource-Policy": "same-origin" },
+      },
+    );
+  }
+
   const session = await getSession(await cookies(), req.headers.get("cookie"));
   if (!session) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });

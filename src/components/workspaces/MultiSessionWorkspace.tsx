@@ -2244,6 +2244,13 @@ export function MultiSessionWorkspace({
           boardKey,
           sessionName: session.sessionName,
           tool,
+          ...(session.cloneSessionKey && session.relativePath
+            ? {
+                cloneSessionKey: session.cloneSessionKey,
+                relativePath: session.relativePath,
+                label: session.label,
+              }
+            : {}),
         });
         return;
       }
@@ -2266,11 +2273,17 @@ export function MultiSessionWorkspace({
   );
 
   const openWorkspaceToolForSession = useCallback(
-    async (session: WorkspaceSessionPane, tool: WorkspaceTool) => {
-      if (!activeBoard) return;
+    async (
+      session: WorkspaceSessionPane,
+      tool: WorkspaceTool,
+      origin?: { boardKey: string; boardGeneration: number },
+    ) => {
+      if (!activeBoard && !origin) return;
       const requestWorkspaceId = workspaceId;
-      const requestBoardKey = activeBoard.key;
-      const requestBoardGeneration = boardGenerationRef.current.get(requestBoardKey) ?? 0;
+      const requestBoardKey = origin?.boardKey ?? activeBoard?.key;
+      if (!requestBoardKey) return;
+      const requestBoardGeneration =
+        origin?.boardGeneration ?? boardGenerationRef.current.get(requestBoardKey) ?? 0;
       try {
         const result = await getWorkspaceSessionToolsAction({
           workspaceId,
@@ -2294,40 +2307,12 @@ export function MultiSessionWorkspace({
     [activeBoard, openWorkspaceToolPane, workspaceId],
   );
 
-  useEffect(() => {
-    if (loading || !activeBoard) return;
-    const intent = readPendingWorkspaceToolIntent();
-    if (!intent) return;
-    if (intent.workspaceId !== workspaceId) {
-      clearPendingWorkspaceToolIntent();
-      return;
-    }
-    const intentBoard = boardState.boards.find((board) => board.key === intent.boardKey);
-    const intentSession = sessions.find((session) => session.sessionName === intent.sessionName);
-    if (!intentBoard || !intentSession) {
-      clearPendingWorkspaceToolIntent();
-      return;
-    }
-    if (activeBoard.key !== intentBoard.key) {
-      persistBoardState(selectWorkspaceBoard(boardState, intentBoard.key));
-      return;
-    }
-    clearPendingWorkspaceToolIntent();
-    void openWorkspaceToolForSession(intentSession, intent.tool);
-  }, [
-    activeBoard,
-    boardState,
-    loading,
-    openWorkspaceToolForSession,
-    persistBoardState,
-    sessions,
-    workspaceId,
-  ]);
-
   const openWorkspaceToolForGitRepository = useCallback(
     async (repository: GitRepositoryOption, tool: WorkspaceTool) => {
       if (!activeBoard) return;
       const requestWorkspaceId = workspaceId;
+      const requestBoardKey = activeBoard.key;
+      const requestBoardGeneration = boardGenerationRef.current.get(requestBoardKey) ?? 0;
       const repositoryIdentity = gitPaneIdentity(
         repository.cloneSessionKey,
         repository.relativePath,
@@ -2350,6 +2335,9 @@ export function MultiSessionWorkspace({
           });
           const identity = unwrapActionData(result);
           if (latestWorkspaceIdRef.current !== requestWorkspaceId) return;
+          if ((boardGenerationRef.current.get(requestBoardKey) ?? 0) !== requestBoardGeneration) {
+            return;
+          }
           if (!isGitCloneTerminalIdentity(identity)) {
             showGitAddFailure(actionFailureMessage(result, GIT_TERMINAL_ADD_FALLBACK_MESSAGE));
             return;
@@ -2365,7 +2353,10 @@ export function MultiSessionWorkspace({
           const resolvedSession = session;
           setSessions((current) => uniqueSessions([...current, resolvedSession]));
         }
-        await openWorkspaceToolForSession(session, tool);
+        await openWorkspaceToolForSession(session, tool, {
+          boardKey: requestBoardKey,
+          boardGeneration: requestBoardGeneration,
+        });
       } catch {
         if (latestWorkspaceIdRef.current === requestWorkspaceId) {
           showGitAddFailure(GIT_TERMINAL_ADD_FALLBACK_MESSAGE);
@@ -2378,6 +2369,50 @@ export function MultiSessionWorkspace({
     },
     [activeBoard, agentId, openWorkspaceToolForSession, sessions, showGitAddFailure, workspaceId],
   );
+
+  useEffect(() => {
+    if (loading || !activeBoard) return;
+    const intent = readPendingWorkspaceToolIntent();
+    if (!intent) return;
+    if (intent.workspaceId !== workspaceId) {
+      clearPendingWorkspaceToolIntent();
+      return;
+    }
+    const intentBoard = boardState.boards.find((board) => board.key === intent.boardKey);
+    if (!intentBoard) {
+      clearPendingWorkspaceToolIntent();
+      return;
+    }
+    if (activeBoard.key !== intentBoard.key) {
+      persistBoardState(selectWorkspaceBoard(boardState, intentBoard.key));
+      return;
+    }
+    const intentSession = sessions.find((session) => session.sessionName === intent.sessionName);
+    clearPendingWorkspaceToolIntent();
+    if (intentSession) {
+      void openWorkspaceToolForSession(intentSession, intent.tool);
+      return;
+    }
+    if (intent.cloneSessionKey && intent.relativePath && intent.label) {
+      void openWorkspaceToolForGitRepository(
+        {
+          cloneSessionKey: intent.cloneSessionKey,
+          relativePath: intent.relativePath,
+          label: intent.label,
+        },
+        intent.tool,
+      );
+    }
+  }, [
+    activeBoard,
+    boardState,
+    loading,
+    openWorkspaceToolForGitRepository,
+    openWorkspaceToolForSession,
+    persistBoardState,
+    sessions,
+    workspaceId,
+  ]);
 
   const paletteQuery = gitSearchQuery.trim();
   const paletteQueryLower = paletteQuery.toLowerCase();

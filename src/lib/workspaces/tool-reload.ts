@@ -7,11 +7,23 @@ export interface PendingWorkspaceToolIntent {
   boardKey: string;
   sessionName: string;
   tool: WorkspaceTool;
+  cloneSessionKey?: string;
+  relativePath?: string;
+  label?: string;
 }
 
 function isPendingWorkspaceToolIntent(value: unknown): value is PendingWorkspaceToolIntent {
   if (typeof value !== "object" || value === null) return false;
   const properties = Object.fromEntries(Object.entries(value));
+  const cloneIdentityValues = [
+    properties.cloneSessionKey,
+    properties.relativePath,
+    properties.label,
+  ];
+  const hasNoCloneIdentity = cloneIdentityValues.every((candidate) => candidate === undefined);
+  const hasCompleteCloneIdentity = cloneIdentityValues.every(
+    (candidate) => typeof candidate === "string" && candidate.length > 0,
+  );
   return (
     typeof properties.workspaceId === "string" &&
     properties.workspaceId.length > 0 &&
@@ -19,7 +31,8 @@ function isPendingWorkspaceToolIntent(value: unknown): value is PendingWorkspace
     properties.boardKey.length > 0 &&
     typeof properties.sessionName === "string" &&
     properties.sessionName.length > 0 &&
-    (properties.tool === "code" || properties.tool === "files")
+    (properties.tool === "code" || properties.tool === "files") &&
+    (hasNoCloneIdentity || hasCompleteCloneIdentity)
   );
 }
 

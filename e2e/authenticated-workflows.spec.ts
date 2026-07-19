@@ -116,7 +116,6 @@ async function verifyPaletteToolAndOpenActions(page: Page, testInfo: TestInfo) {
     .first();
   await sessionRow.focus();
   await sessionRow.press("ArrowRight");
-  await sessionRow.press("ArrowRight");
   await sessionRow.press("Enter");
   await expect(page.getByTestId("workspace-tool-pane-code")).toBeVisible({ timeout: 30_000 });
   await page.getByTestId("remove-workspace-tool-code").click();

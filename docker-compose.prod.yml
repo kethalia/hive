@@ -33,6 +33,7 @@ services:
       - DATABASE_URL=postgresql://${POSTGRES_USER:-hive}:${POSTGRES_PASSWORD:-hive}@postgres:5432/${POSTGRES_DB:-hive}
       - REDIS_URL=redis://:${REDIS_PASSWORD:-changeme}@redis:6379
       - CODER_URL=${CODER_URL:-}
+      - CODER_CA_CERT=${CODER_CA_CERT:-}
       - HIVE_PROJECTS_ROOT=${HIVE_PROJECTS_ROOT:-/home/coder}
       - AUTH_SERVICE_URL=http://auth:4400
       - COOKIE_SECRET=${COOKIE_SECRET:-}

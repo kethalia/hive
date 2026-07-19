@@ -794,6 +794,44 @@ describe("MultiSessionWorkspace", () => {
     });
   });
 
+  it("re-resolves a Git session when replaying a pending tool intent", async () => {
+    mockReadPendingWorkspaceToolIntent
+      .mockReturnValueOnce({
+        workspaceId: "ws-1",
+        boardKey: "default",
+        sessionName: "git-clone-safe-hive",
+        tool: "files",
+        cloneSessionKey: "git-clone:kethalia/hive",
+        relativePath: "kethalia/hive",
+        label: "hive",
+      })
+      .mockReturnValue(null);
+    mockResolveGitCloneTerminal.mockResolvedValueOnce({
+      data: {
+        sessionName: "git-clone-safe-hive",
+        clonePath: "kethalia/hive",
+        cloneSessionKey: "git-clone:kethalia/hive",
+        cloneProof: "proof-token",
+      },
+    });
+
+    render(<MultiSessionWorkspace {...defaultProps} source="unified" />);
+
+    expect(await screen.findByTestId("workspace-tool-pane-files")).toBeInTheDocument();
+    expect(mockResolveGitCloneTerminal).toHaveBeenCalledWith({
+      agentId: "agent-1",
+      workspaceId: "ws-1",
+      cloneSessionKey: "git-clone:kethalia/hive",
+      relativePath: "kethalia/hive",
+    });
+    expect(mockGetWorkspaceSessionTools).toHaveBeenCalledWith({
+      workspaceId: "ws-1",
+      sessionName: "git-clone-safe-hive",
+      fallbackPath: "kethalia/hive",
+      tool: "files",
+    });
+  });
+
   it("removes workspace tool panes when their board is deleted", async () => {
     mockGetSessions.mockResolvedValueOnce(twoSessionPayload());
     mockListGitClones.mockResolvedValueOnce({ data: { ok: true, tree: { nodes: [] } } });
@@ -867,6 +905,68 @@ describe("MultiSessionWorkspace", () => {
     });
 
     expect(screen.getByTestId("workspace-board-tab-workspace-2")).toBeInTheDocument();
+    expect(screen.queryByTestId("workspace-tool-pane-files")).not.toBeInTheDocument();
+  });
+
+  it("invalidates a pending Git resolution when its board is deleted and recreated", async () => {
+    const pending = Promise.withResolvers<{
+      data: {
+        sessionName: string;
+        clonePath: string;
+        cloneSessionKey: string;
+        cloneProof: string;
+      };
+    }>();
+    mockListGitClones.mockResolvedValueOnce({
+      data: {
+        ok: true,
+        tree: {
+          nodes: [
+            {
+              id: "repo-hive",
+              kind: "repository",
+              label: "hive",
+              relativePath: "kethalia/hive",
+              relativePathSegments: ["kethalia", "hive"],
+              displaySegments: ["Git", "home", "kethalia", "hive"],
+              cloneSessionKey: "git-clone:kethalia/hive",
+            },
+          ],
+        },
+      },
+    });
+    mockResolveGitCloneTerminal.mockReturnValueOnce(pending.promise);
+    render(<MultiSessionWorkspace {...defaultProps} source="unified" />);
+    await screen.findByTestId("multi-session-empty");
+    fireEvent.click(screen.getByTestId("workspace-board-new"));
+    fireEvent.click(screen.getByTestId("open-git-session-search"));
+    fireEvent.change(await screen.findByTestId("workspace-command-palette-search"), {
+      target: { value: "hive" },
+    });
+    fireEvent.click(
+      screen.getByTestId(
+        "palette-option-workspace:git:git-clone:kethalia/hive:kethalia/hive-filebrowser",
+      ),
+    );
+
+    const secondBoard = screen.getByTestId("workspace-board-tab-workspace-2");
+    fireEvent.mouseEnter(secondBoard);
+    fireEvent.click(secondBoard);
+    fireEvent.click(screen.getByTestId("workspace-board-new"));
+    await act(async () => {
+      pending.resolve({
+        data: {
+          sessionName: "git-clone-safe-hive",
+          clonePath: "kethalia/hive",
+          cloneSessionKey: "git-clone:kethalia/hive",
+          cloneProof: "proof-token",
+        },
+      });
+      await pending.promise;
+    });
+
+    expect(screen.getByTestId("workspace-board-tab-workspace-2")).toBeInTheDocument();
+    expect(mockGetWorkspaceSessionTools).not.toHaveBeenCalled();
     expect(screen.queryByTestId("workspace-tool-pane-files")).not.toBeInTheDocument();
   });
 
