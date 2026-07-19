@@ -1,4 +1,5 @@
 import { readFile } from "node:fs/promises";
+import { rootCertificates } from "node:tls";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const { mockedAgentClose, mockedAgentOptions, mockedUndiciFetch } = vi.hoisted(() => ({
@@ -266,7 +267,9 @@ describe("workspace actions use authActionClient + getCoderClientForUser", () =>
       "https://filebrowser--main--dev-box--alice.apps.example.com/files/home",
       expect.objectContaining({ redirect: "manual" }),
     );
-    expect(mockedAgentOptions).toHaveBeenCalledWith({ connect: { ca: "trusted-private-ca" } });
+    expect(mockedAgentOptions).toHaveBeenCalledWith({
+      connect: { ca: [...rootCertificates, "trusted-private-ca"] },
+    });
   });
 
   it("recognizes local-issuer certificate failures", async () => {
@@ -469,6 +472,9 @@ describe("workspace actions use authActionClient + getCoderClientForUser", () =>
         method: "POST",
       }),
     );
+    expect(mockedAgentOptions).toHaveBeenCalledWith({
+      connect: { ca: [...rootCertificates, "trusted-private-ca"] },
+    });
   });
 
   it("closes the private-CA dispatcher before following an allowed redirect", async () => {

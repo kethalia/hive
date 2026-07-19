@@ -1,3 +1,4 @@
+import { rootCertificates } from "node:tls";
 import { cookies } from "next/headers";
 import { type NextRequest, NextResponse } from "next/server";
 import { Agent, fetch as undiciFetch } from "undici";
@@ -176,7 +177,7 @@ async function fetchWithConfiguredCoderCa(
   ca: string,
 ): Promise<Response> {
   const dispatcher = new Agent({
-    connect: { ca },
+    connect: { ca: [...rootCertificates, ca] },
   });
   let response: Awaited<ReturnType<typeof undiciFetch>>;
   try {
