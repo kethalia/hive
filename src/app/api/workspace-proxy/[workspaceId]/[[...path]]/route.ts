@@ -62,7 +62,7 @@ async function getWorkspaceMeta(userId: string, workspaceId: string): Promise<Wo
   const [workspace, sshTarget, applicationsHost] = await Promise.all([
     client.getWorkspace(workspaceId),
     client.getWorkspaceAgentName(workspaceId),
-    client.getApplicationsHost(),
+    client.getApplicationsHost().catch(() => ""),
   ]);
   const agentName = sshTarget.includes(".") ? (sshTarget.split(".").pop() ?? sshTarget) : sshTarget;
   const workspaceUrls = buildWorkspaceUrls(
@@ -96,12 +96,12 @@ function resolveApp(pathSegments: string[]): { appSlug: string; subPath: string 
   if (first && first in APP_SLUG_MAP) {
     return {
       appSlug: APP_SLUG_MAP[first],
-      subPath: pathSegments.slice(1).join("/"),
+      subPath: pathSegments.slice(1).map(encodeURIComponent).join("/"),
     };
   }
   return {
     appSlug: "filebrowser",
-    subPath: pathSegments.join("/"),
+    subPath: pathSegments.map(encodeURIComponent).join("/"),
   };
 }
 
@@ -170,9 +170,13 @@ async function* streamRequestBody(stream: ReadableStream<Uint8Array>): AsyncGene
   }
 }
 
-async function fetchWithPrivateCoderCa(url: string, init: CoderFetchInit): Promise<Response> {
+async function fetchWithConfiguredCoderCa(
+  url: string,
+  init: CoderFetchInit,
+  ca: string,
+): Promise<Response> {
   const dispatcher = new Agent({
-    connect: { rejectUnauthorized: false }, // nosemgrep
+    connect: { ca },
   });
   let response: Awaited<ReturnType<typeof undiciFetch>>;
   try {
@@ -227,28 +231,22 @@ async function fetchWithPrivateCoderCa(url: string, init: CoderFetchInit): Promi
 }
 
 async function fetchCoderApp(url: string, init: CoderFetchInit): Promise<Response> {
-  const [verifiedBody, privateCaBody] = init.body ? init.body.tee() : [undefined, undefined];
+  const configuredCa = process.env.CODER_CA_CERT?.trim();
+  if (init.body && configuredCa) {
+    return fetchWithConfiguredCoderCa(url, init, configuredCa);
+  }
   try {
     const verifiedInit: RequestInit & { duplex?: "half" } = {
       method: init.method,
       headers: init.headers,
-      body: verifiedBody,
-      duplex: verifiedBody ? "half" : undefined,
+      body: init.body,
+      duplex: init.body ? "half" : undefined,
       redirect: init.redirect,
     };
-    const response = await fetch(url, verifiedInit);
-    void privateCaBody?.cancel();
-    return response;
+    return await fetch(url, verifiedInit);
   } catch (error) {
-    if (!isUntrustedCertificateError(error)) {
-      void privateCaBody?.cancel(error);
-      throw error;
-    }
-    // Coder installations commonly terminate wildcard workspace-app TLS with a
-    // private CA. Retry only after normal verification fails; URL construction
-    // and redirect handling still restrict every request to authenticated,
-    // explicitly resolved Coder application hosts.
-    return fetchWithPrivateCoderCa(url, { ...init, body: privateCaBody });
+    if (!configuredCa || !isUntrustedCertificateError(error)) throw error;
+    return fetchWithConfiguredCoderCa(url, init, configuredCa);
   }
 }
 
@@ -300,12 +298,14 @@ async function proxyRequest(
     let upstream: Response | undefined;
     const maxRedirects = 5;
     const requestBody = req.body ?? undefined;
+    let currentMethod = req.method;
+    let currentBody = requestBody;
 
     for (let i = 0; i <= maxRedirects; i++) {
       upstream = await fetchCoderApp(currentUrl, {
-        method: i === 0 ? req.method : "GET",
+        method: currentMethod,
         headers: buildHeaders(currentUrl),
-        body: i === 0 ? requestBody : undefined,
+        body: currentBody,
         redirect: "manual",
       });
 
@@ -319,7 +319,15 @@ async function proxyRequest(
         break;
       }
 
+      const switchToGet =
+        upstream.status === 303 ||
+        ((upstream.status === 301 || upstream.status === 302) && currentMethod === "POST");
+      if (currentBody && !switchToGet) break;
       await upstream.body?.cancel();
+      if (switchToGet) {
+        currentMethod = "GET";
+        currentBody = undefined;
+      }
       currentUrl = resolvedLocation.toString();
     }
 

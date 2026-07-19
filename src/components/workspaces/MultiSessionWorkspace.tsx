@@ -1270,7 +1270,10 @@ export function MultiSessionWorkspace({
   }, [boardState, persistBoardState]);
 
   const handleDeleteBoard = useCallback(
-    (boardKey: string) => persistBoardState(deleteWorkspaceBoard(boardState, boardKey)),
+    (boardKey: string) => {
+      setWorkspaceToolPanes((current) => current.filter((pane) => pane.boardKey !== boardKey));
+      persistBoardState(deleteWorkspaceBoard(boardState, boardKey));
+    },
     [boardState, persistBoardState],
   );
 
@@ -3028,6 +3031,11 @@ export function MultiSessionWorkspace({
             title={toolPane.label}
             className="min-h-0 flex-1 border-0 bg-background"
             allow="clipboard-read; clipboard-write"
+            sandbox={
+              toolPane.url.startsWith("/api/workspace-proxy/")
+                ? "allow-downloads allow-forms allow-modals allow-popups allow-scripts"
+                : "allow-downloads allow-forms allow-modals allow-popups allow-same-origin allow-scripts"
+            }
             data-testid={`workspace-tool-frame-${toolPane.tool}`}
           />
         </TerminalSessionFrame>

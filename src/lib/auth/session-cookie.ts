@@ -92,6 +92,10 @@ function sessionCookieDomainsToClear(hostname?: string | null): string[] {
   );
 }
 
+export function usesSecureSessionCookies(): boolean {
+  return process.env.NODE_ENV === "production";
+}
+
 function sessionCookieOptions(
   maxAge: number,
   domain: string | null | undefined = resolveSessionCookieDomain(),
@@ -99,7 +103,7 @@ function sessionCookieOptions(
   const cookieDomain = domain ?? undefined;
   return {
     httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
+    secure: usesSecureSessionCookies(),
     sameSite: "lax",
     path: "/",
     maxAge,

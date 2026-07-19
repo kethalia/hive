@@ -705,12 +705,15 @@ describe("MultiSessionWorkspace", () => {
     const openSpy = vi.spyOn(window, "open").mockImplementation(() => null);
     await renderTwoSessionWorkspace();
 
-    fireEvent.click(screen.getByRole("button", { name: "Browse files for main-session" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Browse files for main-session" }));
     const filesPane = await screen.findByTestId("workspace-tool-pane-files");
     expect(filesPane).toBeInTheDocument();
     expect(screen.getByTestId("workspace-tool-frame-files")).toHaveAttribute(
       "src",
       "/api/workspace-proxy/ws-1/filebrowser/files/home/coder",
+    );
+    expect(screen.getByTestId("workspace-tool-frame-files").getAttribute("sandbox")).not.toContain(
+      "allow-same-origin",
     );
     expect(screen.getByTestId("interactive-terminal-main-session")).toBeInTheDocument();
     expect(screen.queryByTestId("workspace-tool-dialog")).not.toBeInTheDocument();
@@ -720,6 +723,9 @@ describe("MultiSessionWorkspace", () => {
     expect(screen.getByTestId("workspace-tool-frame-code")).toHaveAttribute(
       "src",
       "https://code.test/?folder=%2Fhome%2Fcoder",
+    );
+    expect(screen.getByTestId("workspace-tool-frame-code").getAttribute("sandbox")).toContain(
+      "allow-same-origin",
     );
     fireEvent.click(screen.getByTestId("pop-out-workspace-tool-code"));
     expect(openSpy).toHaveBeenCalledWith(
@@ -731,6 +737,36 @@ describe("MultiSessionWorkspace", () => {
     fireEvent.click(screen.getByTestId("remove-workspace-tool-files"));
     expect(screen.queryByTestId("workspace-tool-pane-files")).not.toBeInTheDocument();
     expect(screen.getByTestId("workspace-tool-pane-code")).toBeInTheDocument();
+  });
+
+  it("removes workspace tool panes when their board is deleted", async () => {
+    mockGetSessions.mockResolvedValueOnce(twoSessionPayload());
+    mockListGitClones.mockResolvedValueOnce({ data: { ok: true, tree: { nodes: [] } } });
+    render(<MultiSessionWorkspace {...defaultProps} source="unified" />);
+    await screen.findByTestId("workspace-pane-main-session");
+    fireEvent.click(screen.getByTestId("workspace-board-new"));
+    fireEvent.click(screen.getByTestId("open-git-session-search"));
+    fireEvent.change(await screen.findByTestId("workspace-command-palette-search"), {
+      target: { value: "main" },
+    });
+    fireEvent.click(screen.getByTestId("palette-option-workspace:session:main-session-add"));
+    fireEvent.click(screen.getByTestId("open-git-session-search"));
+    fireEvent.change(await screen.findByTestId("workspace-command-palette-search"), {
+      target: { value: "main" },
+    });
+    fireEvent.click(
+      screen.getByTestId("palette-option-workspace:session:main-session-filebrowser"),
+    );
+    expect(await screen.findByTestId("workspace-tool-pane-files")).toBeInTheDocument();
+
+    const secondBoard = screen.getByTestId("workspace-board-tab-workspace-2");
+    fireEvent.mouseEnter(secondBoard);
+    fireEvent.click(secondBoard);
+    expect(screen.queryByTestId("workspace-board-tab-workspace-2")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId("workspace-board-new"));
+    expect(screen.getByTestId("workspace-board-tab-workspace-2")).toBeInTheDocument();
+    expect(screen.queryByTestId("workspace-tool-pane-files")).not.toBeInTheDocument();
   });
 
   it("clears embedded tool panes when the workspace identity changes", async () => {

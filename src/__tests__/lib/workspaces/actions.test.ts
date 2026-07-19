@@ -488,7 +488,7 @@ describe("workspace server actions", () => {
     expect(result?.data?.source).toBe("fallback");
   });
 
-  it("opens Files without requesting a VS Code authentication redirect", async () => {
+  it("authenticates Files independently from the VS Code URL", async () => {
     mockGetWorkspace.mockResolvedValueOnce({
       id: "ws-1",
       name: "dev-box",
@@ -506,7 +506,12 @@ describe("workspace server actions", () => {
     });
     const client = await mockedGetCoderClientForUser.mock.results.at(-1)?.value;
 
-    expect(result?.data?.filesUrl).toBe("/api/workspace-proxy/ws-1/filebrowser/files/home/coder");
-    expect(client?.getApplicationAuthRedirect).not.toHaveBeenCalled();
+    expect(result?.data?.filesUrl).toBe(
+      "https://filebrowser--main--dev-box--alice.coder.example.com/files/home/coder",
+    );
+    expect(client?.getApplicationAuthRedirect).toHaveBeenCalledOnce();
+    expect(client?.getApplicationAuthRedirect).toHaveBeenCalledWith(
+      "https://filebrowser--main--dev-box--alice.coder.example.com/files/home/coder",
+    );
   });
 });

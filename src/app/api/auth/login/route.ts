@@ -4,7 +4,7 @@ import { getClientIp, loginSchema } from "@/lib/auth/login";
 import { loginRateLimiter } from "@/lib/auth/rate-limit";
 import { getAuthServiceClient } from "@/lib/auth/service-client";
 import { createSignedSessionCookie } from "@/lib/auth/session";
-import { appendSetSessionCookieHeaders } from "@/lib/auth/session-cookie";
+import { appendSetSessionCookieHeaders, usesSecureSessionCookies } from "@/lib/auth/session-cookie";
 import { CODER_HOST_COOKIE } from "@/lib/security/content-security-policy";
 
 export async function POST(request: Request) {
@@ -41,7 +41,7 @@ export async function POST(request: Request) {
       httpOnly: true,
       maxAge: SESSION_MAX_AGE_SECONDS,
       sameSite: "lax",
-      secure: true,
+      secure: usesSecureSessionCookies(),
       path: "/",
     });
     appendSetSessionCookieHeaders(

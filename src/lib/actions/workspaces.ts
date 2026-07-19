@@ -131,7 +131,7 @@ async function getWorkspaceWithAgent(userId: string, workspaceId: string) {
   const [workspace, resources, applicationsHost] = await Promise.all([
     client.getWorkspace(workspaceId),
     client.getWorkspaceResources(workspaceId),
-    client.getApplicationsHost(),
+    client.getApplicationsHost().catch(() => ""),
   ]);
   const agent = resources.flatMap((resource) => resource.agents ?? [])[0];
   if (!agent) throw new Error(`No agents found for workspace ${workspaceId}`);
@@ -244,7 +244,12 @@ export const getWorkspaceSessionToolsAction = authActionClient
               buildCodeServerFolderUrl(urls.codeServer, folderPath),
             )
           : buildCodeServerFolderUrl(urls.codeServer, folderPath),
-      filesUrl: buildFileBrowserFolderUrl(`${proxyBase}/filebrowser`, folderPath),
+      filesUrl:
+        parsedInput.tool === "files"
+          ? await client.getApplicationAuthRedirect(
+              buildFileBrowserFolderUrl(urls.filebrowser, folderPath),
+            )
+          : buildFileBrowserFolderUrl(`${proxyBase}/filebrowser`, folderPath),
       folderPath: folderPath ?? null,
       source: getWorkspaceDirectorySource(currentDirectory, folderPath),
     };
