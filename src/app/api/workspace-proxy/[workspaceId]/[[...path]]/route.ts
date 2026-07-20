@@ -38,6 +38,8 @@ const STRIP_RESPONSE_HEADERS = new Set([
   "content-length",
   "strict-transport-security",
   "coder-session-token",
+  "set-cookie",
+  "set-cookie2",
 ]);
 
 const SKIP_REQUEST_HEADERS = new Set([

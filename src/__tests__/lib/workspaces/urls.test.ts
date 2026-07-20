@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   buildCodeServerFolderUrl,
+  buildCodeServerPathAppUrl,
   buildFileBrowserFolderUrl,
   buildWorkspaceUrls,
 } from "@/lib/workspaces/urls";
@@ -104,6 +105,16 @@ describe("buildWorkspaceUrls", () => {
 });
 
 describe("workspace tool folder URLs", () => {
+  it("builds a Code Server path app on Coder's browser-facing origin", () => {
+    expect(
+      buildCodeServerPathAppUrl(
+        { name: "dev-box", owner_name: "alice" },
+        "main",
+        "https://coder.example.com/",
+      ),
+    ).toBe("https://coder.example.com/@alice/dev-box.main/apps/code-server");
+  });
+
   it("opens VS Code and File Browser at the selected session directory", () => {
     expect(
       buildCodeServerFolderUrl("https://code.example.com", "/home/coder/projects/kethalia/hive"),

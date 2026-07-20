@@ -101,6 +101,7 @@ describe("workspace server actions", () => {
   });
 
   afterEach(() => {
+    vi.unstubAllEnvs();
     vi.restoreAllMocks();
   });
 
@@ -431,6 +432,35 @@ describe("workspace server actions", () => {
       reloadRequired: false,
       source: "tmux",
     });
+  });
+
+  it("keeps VS Code on Coder's browser-facing origin when Hive uses a private CA", async () => {
+    vi.stubEnv("CODER_CA_CERT", "trusted-private-ca");
+    mockGetWorkspace.mockResolvedValueOnce({
+      id: "ws-1",
+      name: "dev-box",
+      owner_name: "alice",
+      template_id: "tpl-1",
+      latest_build: { id: "build-1", status: "running", job: { status: "succeeded" } },
+    });
+    mockedExec.mockResolvedValueOnce({
+      stdout: "/home/coder/projects/kethalia/hive\n",
+      stderr: "",
+      exitCode: 0,
+    });
+
+    const { getWorkspaceSessionToolsAction } = await import("@/lib/actions/workspaces");
+    const result = await getWorkspaceSessionToolsAction({
+      workspaceId: "ws-1",
+      sessionName: "git-hive",
+      documentFrameHosts: ["https://coder.example.com"],
+      tool: "code",
+    });
+
+    const expectedUrl =
+      "https://coder.example.com/@alice/dev-box.main/apps/code-server?folder=%2Fhome%2Fcoder%2Fprojects%2Fkethalia%2Fhive";
+    expect(result?.data?.codeUrl).toBe(expectedUrl);
+    expect(mockGetApplicationAuthRedirect).toHaveBeenCalledWith(expectedUrl);
   });
 
   it("uses a trusted absolute fallback directory when the tmux pane is unavailable", async () => {

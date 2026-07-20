@@ -404,6 +404,43 @@ describe("workspace actions use authActionClient + getCoderClientForUser", () =>
     expect(source).not.toContain("rejectUnauthorized: false");
   });
 
+  it("strips workspace-app cookies from proxied responses", async () => {
+    mockedGetCoderClientForUser.mockResolvedValue({
+      getWorkspace: vi.fn().mockResolvedValue({ name: "dev-box", owner_name: "alice" }),
+      getWorkspaceAgentName: vi.fn().mockResolvedValue("dev-box.main"),
+      getApplicationsHost: vi.fn().mockResolvedValue("*.apps.example.com"),
+      getBaseUrl: () => "https://coder.example.com",
+      getSessionToken: () => "coder-session-token",
+    } as never);
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response("asset", {
+        status: 200,
+        headers: {
+          "Set-Cookie": "hive_session=deleted; Max-Age=0; Path=/",
+          "Set-Cookie2": "hive-coder-host=attacker; Path=/",
+          "X-Upstream-Header": "preserved",
+        },
+      }),
+    );
+    const { GET } = await import("@/app/api/workspace-proxy/[workspaceId]/[[...path]]/route");
+    const workspaceId = "bcbcbcbc-1111-2222-3333-444444444444";
+    const url = `http://localhost/api/workspace-proxy/${workspaceId}/filebrowser/static/app.js`;
+    const request = new Request(url);
+    Object.defineProperty(request, "nextUrl", { value: new URL(url) });
+
+    const response = await GET(request as never, {
+      params: Promise.resolve({
+        workspaceId,
+        path: ["filebrowser", "static", "app.js"],
+      }),
+    });
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get("set-cookie")).toBeNull();
+    expect(response.headers.get("set-cookie2")).toBeNull();
+    expect(response.headers.get("x-upstream-header")).toBe("preserved");
+  });
+
   it("falls back to the Coder host when runtime application-host discovery fails", async () => {
     mockedGetCoderClientForUser.mockResolvedValue({
       getWorkspace: vi.fn().mockResolvedValue({ name: "dev-box", owner_name: "alice" }),
