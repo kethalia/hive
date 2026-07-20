@@ -33,7 +33,7 @@ describe("TerminalSessionFrame", () => {
 
     expect(header).toHaveAttribute("data-window-drag-surface", "true");
     expect(header).toHaveClass("cursor-grab", "touch-none", "select-none");
-    expect(grip).toHaveClass("size-6");
+    expect(grip).toHaveClass("h-6", "px-1.5");
     expect(close).toHaveClass("h-6");
 
     fireEvent.pointerDown(screen.getByText("VS Code"));

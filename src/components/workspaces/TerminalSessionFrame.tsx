@@ -238,15 +238,17 @@ export function TerminalSessionFrame({
           onPointerDown={handleHeaderPointerDown}
         >
           {!disabled && (dragHandleAttributes || dragHandleListeners) ? (
-            <button
+            <Button
               type="button"
-              className="relative flex size-6 shrink-0 touch-none items-center justify-center rounded text-white/55 outline-none transition-[color,background-color] after:absolute after:-inset-2 after:content-[''] hover:bg-white/10 hover:text-white focus-visible:bg-white/10 focus-visible:text-white"
+              variant="ghost"
+              size="xs"
+              className="relative h-6 min-h-0 touch-none px-1.5 text-white/55 after:absolute after:-inset-2 after:content-[''] hover:bg-white/10 hover:text-white focus-visible:bg-white/10 focus-visible:text-white"
               aria-label={`Drag ${label}`}
               {...dragHandleAttributes}
               {...dragHandleListeners}
             >
-              <GripVertical aria-hidden="true" />
-            </button>
+              <GripVertical className="size-3" aria-hidden="true" />
+            </Button>
           ) : null}
           <span className="min-w-0 flex-1 truncate font-mono text-xs">{label}</span>
           {headerActions}
