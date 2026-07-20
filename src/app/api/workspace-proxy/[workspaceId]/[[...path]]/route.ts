@@ -22,6 +22,7 @@ const metaCache = new Map<string, WorkspaceMeta>();
 const CACHE_TTL_MS = 5 * 60 * 1000;
 const PROXY_GRANT_TTL_MS = 8 * 60 * 60 * 1000;
 const PROXY_GRANT_HEADER = "x-hive-workspace-proxy-grant";
+const PROXY_GRANT_PATH_SEGMENT = "_grant";
 const PROXY_PREFLIGHT_HEADERS = new Set([PROXY_GRANT_HEADER, "content-type"]);
 
 const APP_SLUG_MAP: Record<string, string> = {
@@ -180,16 +181,6 @@ function isSandboxedProxySubresource(req: NextRequest): boolean {
   } catch {
     return false;
   }
-}
-
-function isOpaqueSandboxStaticAsset(req: NextRequest, pathSegments: string[]): boolean {
-  return (
-    req.method === "GET" &&
-    req.headers.get("origin") === "null" &&
-    pathSegments.length > 2 &&
-    pathSegments[0] in APP_SLUG_MAP &&
-    pathSegments[1] === "static"
-  );
 }
 
 function resolveApp(pathSegments: string[]): { appSlug: string; subPath: string } {
@@ -360,21 +351,22 @@ async function proxyRequest(
 ): Promise<NextResponse> {
   const { workspaceId } = params;
   const pathSegments = params.path ?? [];
+  const pathGrant =
+    pathSegments[0] === PROXY_GRANT_PATH_SEGMENT && pathSegments[1] ? pathSegments[1] : null;
+  const targetPathSegments = pathGrant ? pathSegments.slice(2) : pathSegments;
 
   if (!UUID_RE.test(workspaceId)) {
     return NextResponse.json({ error: "Invalid workspace ID" }, { status: 400 });
   }
 
+  if (pathSegments[0] === PROXY_GRANT_PATH_SEGMENT && !pathGrant) {
+    return NextResponse.json({ error: "Invalid workspace proxy grant path" }, { status: 400 });
+  }
+
   const fetchSite = req.headers.get("sec-fetch-site");
   const isSandboxedSubresource =
     fetchSite !== null && fetchSite !== "same-origin" && isSandboxedProxySubresource(req);
-  const isOpaqueStaticAsset = isOpaqueSandboxStaticAsset(req, pathSegments);
-  if (
-    fetchSite !== null &&
-    fetchSite !== "same-origin" &&
-    !isSandboxedSubresource &&
-    !isOpaqueStaticAsset
-  ) {
+  if (fetchSite !== null && fetchSite !== "same-origin" && !isSandboxedSubresource && !pathGrant) {
     return NextResponse.json(
       { error: "Cross-origin workspace proxy requests are not allowed" },
       {
@@ -384,7 +376,7 @@ async function proxyRequest(
     );
   }
 
-  const suppliedGrant = req.headers.get(PROXY_GRANT_HEADER);
+  const suppliedGrant = req.headers.get(PROXY_GRANT_HEADER) ?? pathGrant;
   const grantPayload = suppliedGrant ? verifyProxyGrant(suppliedGrant, workspaceId) : null;
   let grantUserId: string | null = null;
   if (grantPayload) {
@@ -417,7 +409,7 @@ async function proxyRequest(
 
   const client = await getCoderClientForUser(userId);
   const sessionToken = client.getSessionToken();
-  const { appSlug, subPath } = resolveApp(pathSegments);
+  const { appSlug, subPath } = resolveApp(targetPathSegments);
   const targetUrl = buildTargetUrl(meta, appSlug, subPath, req.nextUrl.search);
 
   function buildHeaders(target: string): Headers {
@@ -478,11 +470,8 @@ async function proxyRequest(
       if (STRIP_RESPONSE_HEADERS.has(key.toLowerCase())) continue;
       responseHeaders.set(key, value);
     }
-    if (grantUserId || isSandboxedSubresource || isOpaqueStaticAsset) {
+    if (grantUserId || isSandboxedSubresource) {
       setGrantCorsHeaders(responseHeaders);
-    }
-    if (isOpaqueStaticAsset) {
-      responseHeaders.set("Access-Control-Allow-Credentials", "true");
     }
 
     if (upstream.status >= 300 && upstream.status < 400) {
@@ -491,10 +480,14 @@ async function proxyRequest(
         const locUrl = new URL(location, currentUrl);
         if (isCoderOrigin(locUrl, meta.allowedOrigins)) {
           const proxyBase = `/api/workspace-proxy/${workspaceId}`;
-          const appPrefix = pathSegments[0] in APP_SLUG_MAP ? `/${pathSegments[0]}` : "";
+          const responseProxyBase = pathGrant
+            ? `${proxyBase}/${PROXY_GRANT_PATH_SEGMENT}/${encodeURIComponent(pathGrant)}`
+            : proxyBase;
+          const appPrefix =
+            targetPathSegments[0] in APP_SLUG_MAP ? `/${targetPathSegments[0]}` : "";
           responseHeaders.set(
             "location",
-            `${proxyBase}${appPrefix}${locUrl.pathname}${locUrl.search}`,
+            `${responseProxyBase}${appPrefix}${locUrl.pathname}${locUrl.search}`,
           );
         } else {
           responseHeaders.set("location", locUrl.toString());
@@ -512,11 +505,10 @@ async function proxyRequest(
       let html = await upstream.text();
       const sessionId = grantPayload?.sessionId ?? session?.session.sessionId;
       if (!sessionId) throw new Error("Active Hive session is required for workspace proxy HTML");
-      const grantBridge = buildProxyGrantBridge(
-        signProxyGrant(userId, sessionId, workspaceId),
-        proxyBase,
-      );
-      const baseTag = `<base href="${appProxyBase}/" />`;
+      const proxyGrant = signProxyGrant(userId, sessionId, workspaceId);
+      const grantedAppProxyBase = `${proxyBase}/${PROXY_GRANT_PATH_SEGMENT}/${encodeURIComponent(proxyGrant)}/${proxyAppSlug}`;
+      const grantBridge = buildProxyGrantBridge(proxyGrant, proxyBase);
+      const baseTag = `<base href="${grantedAppProxyBase}/" />`;
       if (html.includes("<head>")) {
         html = html.replace("<head>", `<head>${baseTag}${grantBridge}`);
       } else if (html.includes("<HEAD>")) {
@@ -526,11 +518,10 @@ async function proxyRequest(
       }
       if (appSlug === "filebrowser") {
         html = html.replace('"BaseURL":""', `"BaseURL":"${appProxyBase}"`);
-        html = html.replace('"StaticURL":"/static"', `"StaticURL":"${appProxyBase}/static"`);
+        html = html.replace('"StaticURL":"/static"', `"StaticURL":"${grantedAppProxyBase}/static"`);
       }
       // eslint-disable-next-line xss/no-mixed-html -- proxyBase contains only a validated UUID.
-      html = html.replaceAll('"/static/', `"${appProxyBase}/static/`);
-      html = html.replace(/\bcrossorigin(?=[\s>])/gi, 'crossorigin="use-credentials"');
+      html = html.replaceAll('"/static/', `"${grantedAppProxyBase}/static/`);
       responseHeaders.delete("content-length");
       responseHeaders.delete("content-encoding");
       return new NextResponse(html, {

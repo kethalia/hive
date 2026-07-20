@@ -186,7 +186,7 @@ describe("workspace actions use authActionClient + getCoderClientForUser", () =>
     expect(mockedGetCoderClientForUser).not.toHaveBeenCalled();
   });
 
-  it("allows credentialed static assets from an opaque sandbox origin", async () => {
+  it("allows sandboxed workspace-app subresources with a same-proxy referrer", async () => {
     mockedGetCoderClientForUser.mockResolvedValue({
       getWorkspace: vi.fn().mockResolvedValue({ name: "dev-box", owner_name: "alice" }),
       getWorkspaceAgentName: vi.fn().mockResolvedValue("dev-box.main"),
@@ -203,7 +203,7 @@ describe("workspace actions use authActionClient + getCoderClientForUser", () =>
     const url = `${proxyBase}/static/app.js`;
     const req = new Request(url, {
       headers: {
-        Origin: "null",
+        Referer: `${proxyBase}/files/home/coder`,
         "Sec-Fetch-Dest": "script",
         "Sec-Fetch-Site": "cross-site",
       },
@@ -218,8 +218,6 @@ describe("workspace actions use authActionClient + getCoderClientForUser", () =>
     });
 
     expect(response.status).toBe(200);
-    expect(response.headers.get("access-control-allow-origin")).toBe("null");
-    expect(response.headers.get("access-control-allow-credentials")).toBe("true");
     expect(fetchSpy).toHaveBeenCalledOnce();
   });
 
@@ -231,7 +229,8 @@ describe("workspace actions use authActionClient + getCoderClientForUser", () =>
       getBaseUrl: () => "https://coder.example.com",
       getSessionToken: () => "coder-session-token",
     } as never);
-    vi.spyOn(globalThis, "fetch")
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
       .mockResolvedValueOnce(
         new Response(
           '<html><head><script type="module" crossorigin src="/static/app.js"></script></head><body>files</body></html>',
@@ -241,6 +240,7 @@ describe("workspace actions use authActionClient + getCoderClientForUser", () =>
           },
         ),
       )
+      .mockResolvedValueOnce(new Response("asset", { status: 200 }))
       .mockResolvedValueOnce(
         new Response('{"items":[]}', {
           status: 200,
@@ -251,7 +251,9 @@ describe("workspace actions use authActionClient + getCoderClientForUser", () =>
       "@/app/api/workspace-proxy/[workspaceId]/[[...path]]/route"
     );
     const workspaceId = "bdbdbdbd-1111-2222-3333-444444444444";
-    const proxyBase = `http://localhost/api/workspace-proxy/${workspaceId}/filebrowser`;
+    const proxyRoot = `http://localhost/api/workspace-proxy/${workspaceId}`;
+    const proxyPath = new URL(proxyRoot).pathname;
+    const proxyBase = `${proxyRoot}/filebrowser`;
     const documentRequest = new Request(proxyBase);
     Object.defineProperty(documentRequest, "nextUrl", { value: new URL(proxyBase) });
     const documentResponse = await GET(documentRequest as never, {
@@ -260,7 +262,32 @@ describe("workspace actions use authActionClient + getCoderClientForUser", () =>
     const html = await documentResponse.text();
     const grant = html.match(/const g="([A-Za-z0-9_.-]+)"/)?.[1];
     expect(grant).toBeTruthy();
-    expect(html).toContain('crossorigin="use-credentials"');
+    expect(html).toContain(`<base href="${proxyPath}/_grant/${grant}/filebrowser/" />`);
+    expect(html).toContain(
+      `crossorigin src="${proxyPath}/_grant/${grant}/filebrowser/static/app.js"`,
+    );
+
+    mockedGetSession.mockClear();
+    const staticUrl = `${proxyRoot}/_grant/${grant}/filebrowser/static/app.js`;
+    const staticRequest = new Request(staticUrl, {
+      headers: { Origin: "null", "Sec-Fetch-Site": "cross-site" },
+    });
+    Object.defineProperty(staticRequest, "nextUrl", { value: new URL(staticUrl) });
+    const staticResponse = await GET(staticRequest as never, {
+      params: Promise.resolve({
+        workspaceId,
+        path: ["_grant", grant ?? "", "filebrowser", "static", "app.js"],
+      }),
+    });
+    expect(staticResponse.status).toBe(200);
+    expect(staticResponse.headers.get("access-control-allow-origin")).toBe("null");
+    expect(await staticResponse.text()).toBe("asset");
+    expect(mockedGetSession).not.toHaveBeenCalled();
+    expect(fetchSpy).toHaveBeenNthCalledWith(
+      2,
+      "https://filebrowser--main--dev-box--alice.apps.example.com/static/app.js",
+      expect.anything(),
+    );
 
     const preflightRequest = new Request(`${proxyBase}/api/resources`, {
       method: "OPTIONS",
@@ -701,9 +728,15 @@ describe("workspace actions use authActionClient + getCoderClientForUser", () =>
       params: Promise.resolve({ workspaceId, path: ["kasmvnc"] }),
     });
     const html = await response.text();
+    const grant = html.match(/const g="([A-Za-z0-9_.-]+)"/)?.[1];
 
-    expect(html).toContain(`<base href="/api/workspace-proxy/${workspaceId}/kasmvnc/" />`);
-    expect(html).toContain(`src="/api/workspace-proxy/${workspaceId}/kasmvnc/static/app.js"`);
+    expect(grant).toBeTruthy();
+    expect(html).toContain(
+      `<base href="/api/workspace-proxy/${workspaceId}/_grant/${grant}/kasmvnc/" />`,
+    );
+    expect(html).toContain(
+      `src="/api/workspace-proxy/${workspaceId}/_grant/${grant}/kasmvnc/static/app.js"`,
+    );
     expect(html).not.toContain(`${workspaceId}/filebrowser`);
   });
 
