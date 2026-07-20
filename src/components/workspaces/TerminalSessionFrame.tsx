@@ -7,6 +7,8 @@ import type {
   FocusEvent,
   KeyboardEvent,
   MouseEvent,
+  PointerEvent,
+  PointerEventHandler,
   ReactNode,
 } from "react";
 import { Button } from "@/components/ui/button";
@@ -130,6 +132,7 @@ interface TerminalSessionFrameProps {
   headerActions?: ReactNode;
   dragHandleAttributes?: ButtonHTMLAttributes<HTMLButtonElement>;
   dragHandleListeners?: ButtonHTMLAttributes<HTMLButtonElement>;
+  onHeaderPointerDown?: PointerEventHandler<HTMLDivElement>;
   isDragging?: boolean;
   isDropTarget?: boolean;
   style?: CSSProperties;
@@ -156,6 +159,7 @@ export function TerminalSessionFrame({
   headerActions,
   dragHandleAttributes,
   dragHandleListeners,
+  onHeaderPointerDown,
   isDragging = false,
   isDropTarget = false,
   style,
@@ -183,6 +187,18 @@ export function TerminalSessionFrame({
     if (event.key !== "Enter" && event.key !== " ") return;
     event.preventDefault();
     onActivate?.();
+  }
+
+  function handleHeaderPointerDown(event: PointerEvent<HTMLDivElement>) {
+    if (disabled || !onHeaderPointerDown) return;
+    const target = event.target;
+    if (
+      target instanceof Element &&
+      target.closest("button, a, input, select, textarea, [role='button'], [role='link']")
+    ) {
+      return;
+    }
+    onHeaderPointerDown(event);
   }
 
   return (
@@ -213,13 +229,18 @@ export function TerminalSessionFrame({
     >
       {showHeader ? (
         <div
-          className="flex min-h-10 shrink-0 items-center gap-1 border-b border-white/10 bg-zinc-950 pr-2 text-white"
+          className={cn(
+            "flex min-h-10 shrink-0 select-none items-center gap-1 border-b border-white/10 bg-zinc-950 px-2 text-white",
+            !disabled && onHeaderPointerDown && "touch-none cursor-grab active:cursor-grabbing",
+          )}
+          data-window-drag-surface={!disabled && onHeaderPointerDown ? "true" : "false"}
           data-testid={dataTestId ? `${dataTestId}-header` : undefined}
+          onPointerDown={handleHeaderPointerDown}
         >
           {!disabled && (dragHandleAttributes || dragHandleListeners) ? (
             <button
               type="button"
-              className="flex min-h-10 min-w-10 touch-none items-center justify-center text-white/55 outline-none transition-[color,background-color] hover:bg-white/10 hover:text-white focus-visible:bg-white/10 focus-visible:text-white"
+              className="relative flex size-6 shrink-0 touch-none items-center justify-center rounded text-white/55 outline-none transition-[color,background-color] after:absolute after:-inset-2 after:content-[''] hover:bg-white/10 hover:text-white focus-visible:bg-white/10 focus-visible:text-white"
               aria-label={`Drag ${label}`}
               {...dragHandleAttributes}
               {...dragHandleListeners}

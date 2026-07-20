@@ -3812,7 +3812,7 @@ export function MultiSessionWorkspace({
           previewStyle={panePreviewStyle}
           style={paneStyle}
         >
-          {({ dragHandleAttributes, dragHandleListeners, isDragging }) => (
+          {({ dragHandleAttributes, dragHandleListeners, isDragging, onHeaderPointerDown }) => (
             <TerminalSessionFrame
               label={toolPane.label}
               active={model.isActive && pane.sessionName === activeWindowId}
@@ -3821,6 +3821,7 @@ export function MultiSessionWorkspace({
               paneState={toolPane.loadState}
               dragHandleAttributes={dragHandleAttributes}
               dragHandleListeners={dragHandleListeners}
+              onHeaderPointerDown={onHeaderPointerDown}
               isDragging={isDragging}
               headerActions={
                 !toolUrl || toolUrl.startsWith("/api/workspace-proxy/") ? null : (
@@ -3941,7 +3942,7 @@ export function MultiSessionWorkspace({
         previewStyle={panePreviewStyle}
         style={paneStyle}
       >
-        {({ dragHandleAttributes, dragHandleListeners, isDragging }) => (
+        {({ dragHandleAttributes, dragHandleListeners, isDragging, onHeaderPointerDown }) => (
           <TerminalSessionFrame
             label={pane.label}
             active={isActive}
@@ -3951,6 +3952,7 @@ export function MultiSessionWorkspace({
             layoutMode="tiled"
             dragHandleAttributes={dragHandleAttributes}
             dragHandleListeners={dragHandleListeners}
+            onHeaderPointerDown={onHeaderPointerDown}
             isDragging={isDragging}
             disabled={isComposeDisabled}
             disabledLabel="Compose locked"

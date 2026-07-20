@@ -2,7 +2,7 @@
 
 import { useDraggable, useDroppable } from "@dnd-kit/core";
 import { CSS } from "@dnd-kit/utilities";
-import { type CSSProperties, type ReactNode, useCallback } from "react";
+import { type CSSProperties, type PointerEventHandler, type ReactNode, useCallback } from "react";
 import { cn } from "@/lib/utils";
 import type { WorkspaceWindowDropPosition } from "@/lib/workspaces/workspace-window-layout";
 
@@ -10,6 +10,7 @@ interface WorkspaceWindowRenderState {
   dragHandleAttributes: ReturnType<typeof useDraggable>["attributes"];
   dragHandleListeners: ReturnType<typeof useDraggable>["listeners"];
   isDragging: boolean;
+  onHeaderPointerDown: PointerEventHandler<HTMLDivElement>;
 }
 
 interface WorkspaceWindowProps {
@@ -45,6 +46,12 @@ export function WorkspaceWindow({
     },
     [setDraggableNodeRef, setDroppableNodeRef],
   );
+  const onHeaderPointerDown = useCallback<PointerEventHandler<HTMLDivElement>>(
+    (event) => {
+      listeners?.onPointerDown?.(event);
+    },
+    [listeners],
+  );
 
   return (
     <div
@@ -67,6 +74,7 @@ export function WorkspaceWindow({
         dragHandleAttributes: attributes,
         dragHandleListeners: listeners,
         isDragging,
+        onHeaderPointerDown,
       })}
     </div>
   );

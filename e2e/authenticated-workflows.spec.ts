@@ -286,6 +286,15 @@ async function verifyWorkspaceWindowChrome(page: Page) {
   expect(windowBox.width - paneBox.width).toBeGreaterThanOrEqual(2);
   expect(windowBox.height - paneBox.height).toBeGreaterThanOrEqual(2);
   expect(await pane.evaluate((element) => getComputedStyle(element).borderRadius)).not.toBe("0px");
+
+  const codeHeader = page.getByTestId("workspace-tool-pane-code-header");
+  const dragButtonBox = await codeHeader.getByRole("button", { name: /^Drag / }).boundingBox();
+  const closeButtonBox = await page.getByTestId("remove-workspace-tool-code").boundingBox();
+  if (!dragButtonBox || !closeButtonBox) {
+    throw new Error("Workspace window header controls could not be measured.");
+  }
+  expect(Math.abs(dragButtonBox.width - closeButtonBox.width)).toBeLessThan(1);
+  expect(Math.abs(dragButtonBox.height - closeButtonBox.height)).toBeLessThan(1);
 }
 
 function closestWorkspaceEdge(bodyBox: WorkspaceRect, rects: ReadonlyMap<string, WorkspaceRect>) {
@@ -398,7 +407,7 @@ async function verifySiblingWorkspaceWindowSwap(page: Page) {
 
   await startWorkspaceWindowDrag(
     page,
-    page.locator('button[aria-label^="Drag VS Code"]'),
+    page.getByTestId("workspace-tool-pane-code-header"),
     targetPoint,
   );
   await expect(codeWindow).toHaveCSS("opacity", "0.6");
