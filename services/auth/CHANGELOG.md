@@ -1,5 +1,11 @@
 # hive-auth
 
+## 1.1.0
+
+### Minor Changes
+
+- e705af6: Add File Browser and VS Code as embedded tiled windows alongside terminal and Git workspace panes.
+
 ## 1.0.11
 
 ### Patch Changes
