@@ -182,6 +182,16 @@ function isSandboxedProxySubresource(req: NextRequest): boolean {
   }
 }
 
+function isOpaqueSandboxStaticAsset(req: NextRequest, pathSegments: string[]): boolean {
+  return (
+    req.method === "GET" &&
+    req.headers.get("origin") === "null" &&
+    pathSegments.length > 2 &&
+    pathSegments[0] in APP_SLUG_MAP &&
+    pathSegments[1] === "static"
+  );
+}
+
 function resolveApp(pathSegments: string[]): { appSlug: string; subPath: string } {
   const first = pathSegments[0];
   if (first && first in APP_SLUG_MAP) {
@@ -358,7 +368,13 @@ async function proxyRequest(
   const fetchSite = req.headers.get("sec-fetch-site");
   const isSandboxedSubresource =
     fetchSite !== null && fetchSite !== "same-origin" && isSandboxedProxySubresource(req);
-  if (fetchSite !== null && fetchSite !== "same-origin" && !isSandboxedSubresource) {
+  const isOpaqueStaticAsset = isOpaqueSandboxStaticAsset(req, pathSegments);
+  if (
+    fetchSite !== null &&
+    fetchSite !== "same-origin" &&
+    !isSandboxedSubresource &&
+    !isOpaqueStaticAsset
+  ) {
     return NextResponse.json(
       { error: "Cross-origin workspace proxy requests are not allowed" },
       {
@@ -462,7 +478,12 @@ async function proxyRequest(
       if (STRIP_RESPONSE_HEADERS.has(key.toLowerCase())) continue;
       responseHeaders.set(key, value);
     }
-    if (grantUserId || isSandboxedSubresource) setGrantCorsHeaders(responseHeaders);
+    if (grantUserId || isSandboxedSubresource || isOpaqueStaticAsset) {
+      setGrantCorsHeaders(responseHeaders);
+    }
+    if (isOpaqueStaticAsset) {
+      responseHeaders.set("Access-Control-Allow-Credentials", "true");
+    }
 
     if (upstream.status >= 300 && upstream.status < 400) {
       const location = upstream.headers.get("location");
@@ -509,6 +530,7 @@ async function proxyRequest(
       }
       // eslint-disable-next-line xss/no-mixed-html -- proxyBase contains only a validated UUID.
       html = html.replaceAll('"/static/', `"${appProxyBase}/static/`);
+      html = html.replace(/\bcrossorigin(?=[\s>])/gi, 'crossorigin="use-credentials"');
       responseHeaders.delete("content-length");
       responseHeaders.delete("content-encoding");
       return new NextResponse(html, {

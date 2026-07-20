@@ -186,7 +186,7 @@ describe("workspace actions use authActionClient + getCoderClientForUser", () =>
     expect(mockedGetCoderClientForUser).not.toHaveBeenCalled();
   });
 
-  it("allows sandboxed workspace-app subresources with a same-proxy referrer", async () => {
+  it("allows credentialed static assets from an opaque sandbox origin", async () => {
     mockedGetCoderClientForUser.mockResolvedValue({
       getWorkspace: vi.fn().mockResolvedValue({ name: "dev-box", owner_name: "alice" }),
       getWorkspaceAgentName: vi.fn().mockResolvedValue("dev-box.main"),
@@ -204,7 +204,6 @@ describe("workspace actions use authActionClient + getCoderClientForUser", () =>
     const req = new Request(url, {
       headers: {
         Origin: "null",
-        Referer: `${proxyBase}/files/home/coder`,
         "Sec-Fetch-Dest": "script",
         "Sec-Fetch-Site": "cross-site",
       },
@@ -220,6 +219,7 @@ describe("workspace actions use authActionClient + getCoderClientForUser", () =>
 
     expect(response.status).toBe(200);
     expect(response.headers.get("access-control-allow-origin")).toBe("null");
+    expect(response.headers.get("access-control-allow-credentials")).toBe("true");
     expect(fetchSpy).toHaveBeenCalledOnce();
   });
 
@@ -233,10 +233,13 @@ describe("workspace actions use authActionClient + getCoderClientForUser", () =>
     } as never);
     vi.spyOn(globalThis, "fetch")
       .mockResolvedValueOnce(
-        new Response("<html><head></head><body>files</body></html>", {
-          status: 200,
-          headers: { "content-type": "text/html" },
-        }),
+        new Response(
+          '<html><head><script type="module" crossorigin src="/static/app.js"></script></head><body>files</body></html>',
+          {
+            status: 200,
+            headers: { "content-type": "text/html" },
+          },
+        ),
       )
       .mockResolvedValueOnce(
         new Response('{"items":[]}', {
@@ -257,6 +260,7 @@ describe("workspace actions use authActionClient + getCoderClientForUser", () =>
     const html = await documentResponse.text();
     const grant = html.match(/const g="([A-Za-z0-9_.-]+)"/)?.[1];
     expect(grant).toBeTruthy();
+    expect(html).toContain('crossorigin="use-credentials"');
 
     const preflightRequest = new Request(`${proxyBase}/api/resources`, {
       method: "OPTIONS",
