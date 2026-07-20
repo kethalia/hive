@@ -49,12 +49,16 @@ describe("WorkspaceWindowDropPlaceholder", () => {
   it("renders a standalone empty destination slot with the predicted geometry", () => {
     render(
       <WorkspaceWindowDropPlaceholder
+        kind="destination"
+        position="left"
         style={{ left: "50%", top: "50%", width: "25%", height: "50%" }}
       />,
     );
 
     const placeholder = screen.getByTestId("workspace-window-drop-placeholder");
     expect(placeholder).toHaveClass("absolute", "p-0.5", "pointer-events-none");
+    expect(placeholder).toHaveAttribute("data-workspace-window-drop-kind", "destination");
+    expect(placeholder).toHaveAttribute("data-workspace-window-drop-position", "left");
     expect(placeholder).toHaveStyle({ left: "50%", top: "50%", width: "25%", height: "50%" });
     expect(placeholder).not.toHaveAttribute("data-workspace-window-id");
     expect(placeholder.firstElementChild).toHaveClass(
@@ -64,5 +68,24 @@ describe("WorkspaceWindowDropPlaceholder", () => {
       "border-primary/80",
     );
     expect(placeholder.firstElementChild).toBeEmptyDOMElement();
+  });
+
+  it("renders the same green slot at the drag origin before a destination is selected", () => {
+    render(
+      <WorkspaceWindowDropPlaceholder
+        kind="origin"
+        style={{ left: "0%", top: "0%", width: "50%", height: "100%" }}
+      />,
+    );
+
+    const placeholder = screen.getByTestId("workspace-window-drop-placeholder");
+    expect(placeholder).toHaveAttribute("data-workspace-window-drop-kind", "origin");
+    expect(placeholder).not.toHaveAttribute("data-workspace-window-drop-position");
+    expect(placeholder).toHaveStyle({ left: "0%", top: "0%", width: "50%", height: "100%" });
+    expect(placeholder.firstElementChild).toHaveClass(
+      "rounded-md",
+      "border-primary/80",
+      "bg-primary/10",
+    );
   });
 });

@@ -62,11 +62,13 @@ export function WorkspaceWindow({ children, id, previewStyle, style }: Workspace
 }
 
 interface WorkspaceWindowDropPlaceholderProps {
+  kind: "destination" | "origin";
   position?: WorkspaceWindowDropPosition;
   style: CSSProperties;
 }
 
 export function WorkspaceWindowDropPlaceholder({
+  kind,
   position,
   style,
 }: WorkspaceWindowDropPlaceholderProps) {
@@ -74,6 +76,7 @@ export function WorkspaceWindowDropPlaceholder({
     <div
       aria-hidden="true"
       className="pointer-events-none absolute z-10 min-h-0 min-w-0 p-0.5 transition-[left,top,width,height] duration-150 ease-out motion-reduce:transition-none"
+      data-workspace-window-drop-kind={kind}
       data-workspace-window-drop-placeholder="true"
       data-workspace-window-drop-position={position}
       data-testid="workspace-window-drop-placeholder"

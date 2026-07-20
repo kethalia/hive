@@ -220,6 +220,11 @@ interface WorkspaceWindowDropPreview {
   targetWindowId: string;
 }
 
+interface WorkspaceWindowDragOrigin {
+  boardKey: string;
+  windowId: string;
+}
+
 interface WorkspaceWindowLayoutPreview {
   boardKey: string;
   draggedWindowId: string;
@@ -1151,7 +1156,7 @@ export function MultiSessionWorkspace({
   const [windowDropPreview, setWindowDropPreview] = useState<WorkspaceWindowDropPreview | null>(
     null,
   );
-  const [windowDragActive, setWindowDragActive] = useState(false);
+  const [windowDragOrigin, setWindowDragOrigin] = useState<WorkspaceWindowDragOrigin | null>(null);
   const [workspaceViewport, setWorkspaceViewport] = useState({ width: 0, height: 0 });
   const [paneRecoveryStates, setPaneRecoveryStates] = useState<
     Record<string, WorkspacePaneRecoveryInput>
@@ -3675,11 +3680,14 @@ export function MultiSessionWorkspace({
     ? (composeTargetSessionName ?? activeSessionName)
     : null;
 
-  const handleWindowDragStart = (event: DragStartEvent) => {
+  const handleWindowDragStart = (model: WorkspaceBoardRenderModel, event: DragStartEvent) => {
     windowDropPreviewRef.current = null;
     setWindowDropPreview(null);
-    if (typeof event.active.id !== "string") return;
-    setWindowDragActive(true);
+    if (typeof event.active.id !== "string") {
+      setWindowDragOrigin(null);
+      return;
+    }
+    setWindowDragOrigin({ boardKey: model.board.key, windowId: event.active.id });
     selectWorkspaceWindow(event.active.id);
   };
 
@@ -3716,7 +3724,7 @@ export function MultiSessionWorkspace({
   const clearWindowDropPreview = () => {
     windowDropPreviewRef.current = null;
     setWindowDropPreview(null);
-    setWindowDragActive(false);
+    setWindowDragOrigin(null);
   };
 
   const handleWindowDragEnd = (model: WorkspaceBoardRenderModel, event: DragEndEvent) => {
@@ -4021,11 +4029,33 @@ export function MultiSessionWorkspace({
       ) : null;
     }
 
+    const dragOriginRect =
+      windowDragOrigin?.boardKey === model.board.key
+        ? model.windowRects.get(windowDragOrigin.windowId)
+        : undefined;
+    const dropPlaceholder =
+      windowDropPreview?.boardKey === model.board.key &&
+      windowLayoutPreview?.boardKey === model.board.key ? (
+        <WorkspaceWindowDropPlaceholder
+          kind="destination"
+          position={windowDropPreview.position}
+          style={workspaceWindowStyle(
+            windowLayoutPreview.windowRects.get(windowLayoutPreview.draggedWindowId),
+            "auto",
+          )}
+        />
+      ) : dragOriginRect ? (
+        <WorkspaceWindowDropPlaceholder
+          kind="origin"
+          style={workspaceWindowStyle(dragOriginRect, "auto")}
+        />
+      ) : null;
+
     return (
       <DndContext
         key={model.board.key}
         collisionDetection={workspaceWindowCollisionDetection}
-        onDragStart={handleWindowDragStart}
+        onDragStart={(event) => handleWindowDragStart(model, event)}
         onDragMove={(event) => handleWindowDragMove(model, event)}
         onDragCancel={clearWindowDropPreview}
         onDragEnd={(event) => handleWindowDragEnd(model, event)}
@@ -4033,7 +4063,7 @@ export function MultiSessionWorkspace({
         <div
           className={cn(
             "absolute inset-0 min-h-0 overflow-hidden overscroll-none",
-            windowDragActive && "[&_iframe]:pointer-events-none",
+            windowDragOrigin && "[&_iframe]:pointer-events-none",
             !model.isActive && "pointer-events-none opacity-0",
           )}
           data-testid={
@@ -4045,16 +4075,7 @@ export function MultiSessionWorkspace({
           aria-hidden={model.isActive ? undefined : true}
         >
           {model.layout.panes.map((pane) => renderPane(pane, model))}
-          {windowDropPreview?.boardKey === model.board.key &&
-          windowLayoutPreview?.boardKey === model.board.key ? (
-            <WorkspaceWindowDropPlaceholder
-              position={windowDropPreview.position}
-              style={workspaceWindowStyle(
-                windowLayoutPreview.windowRects.get(windowLayoutPreview.draggedWindowId),
-                "auto",
-              )}
-            />
-          ) : null}
+          {dropPlaceholder}
         </div>
       </DndContext>
     );

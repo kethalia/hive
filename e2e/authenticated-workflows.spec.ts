@@ -353,9 +353,10 @@ async function verifyNoopWorkspaceWindowDrags(page: Page) {
   expect(await persistedWorkspaceWindowLayout(page)).toBe(persistedLayoutBefore);
 
   await startWorkspaceWindowDrag(page, dragHandle, pointOutsideWorkspace(page, bodyBox));
-  await expect(page.getByTestId("workspace-window-drop-placeholder")).toHaveCount(0);
+  await expectOriginWorkspacePlaceholder(page, windowBoxBefore);
   await page.mouse.up();
   await waitForTwoAnimationFrames(page);
+  await expect(page.getByTestId("workspace-window-drop-placeholder")).toHaveCount(0);
   await expectWorkspaceRect(codeWindow, windowBoxBefore);
   expect(await persistedWorkspaceWindowLayout(page)).toBe(persistedLayoutBefore);
 }
@@ -452,10 +453,19 @@ async function expectStandaloneWorkspacePlaceholder(
 ) {
   const placeholder = page.getByTestId("workspace-window-drop-placeholder");
   await expect(placeholder).toBeVisible();
+  await expect(placeholder).toHaveAttribute("data-workspace-window-drop-kind", "destination");
   await expect(placeholder).toHaveAttribute("data-workspace-window-drop-position", dropPosition);
   expect(
     await placeholder.evaluate((element) => Boolean(element.closest("[data-workspace-window-id]"))),
   ).toBe(false);
+  await expectWorkspaceRect(placeholder, expected);
+}
+
+async function expectOriginWorkspacePlaceholder(page: Page, expected: WorkspaceRect) {
+  const placeholder = page.getByTestId("workspace-window-drop-placeholder");
+  await expect(placeholder).toBeVisible();
+  await expect(placeholder).toHaveAttribute("data-workspace-window-drop-kind", "origin");
+  await expect(placeholder).not.toHaveAttribute("data-workspace-window-drop-position");
   await expectWorkspaceRect(placeholder, expected);
 }
 
