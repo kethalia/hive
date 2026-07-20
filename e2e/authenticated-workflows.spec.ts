@@ -108,6 +108,35 @@ async function verifyEmbeddedVsCode(page: Page, testInfo: TestInfo) {
   await capture(page, testInfo, "workspace-vscode-embedded");
 }
 
+async function verifyEmbeddedToolsSurviveRefresh(page: Page, testInfo: TestInfo) {
+  const originalCodeUrl = await page.getByTestId("workspace-tool-frame-code").getAttribute("src");
+  expect(originalCodeUrl).toBeTruthy();
+  const persistedUrls = await page.evaluate(() =>
+    Object.entries(window.localStorage)
+      .filter(([key]) => key.startsWith("workspace-tool-panes:"))
+      .some(([, value]) =>
+        /coder_application_connect_api_key|\/api\/workspace-proxy\//.test(value),
+      ),
+  );
+  expect(persistedUrls).toBe(false);
+
+  await page.reload({ waitUntil: "domcontentloaded" });
+  await expectConnectedTerminal(page);
+  await expect(page.getByTestId("workspace-tool-pane-files")).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByTestId("workspace-tool-pane-code")).toBeVisible({ timeout: 30_000 });
+  await expect(
+    page.frameLocator('[data-testid="workspace-tool-frame-files"]').locator("body"),
+  ).toBeVisible({ timeout: 30_000 });
+  await expect(
+    page.frameLocator('[data-testid="workspace-tool-frame-code"]').locator(".monaco-workbench"),
+  ).toBeVisible({ timeout: 45_000 });
+
+  const restoredCodeUrl = await page.getByTestId("workspace-tool-frame-code").getAttribute("src");
+  expect(restoredCodeUrl).toMatch(/code-server--/);
+  expect(restoredCodeUrl).not.toBe(originalCodeUrl);
+  await capture(page, testInfo, "workspace-tools-restored-after-refresh");
+}
+
 async function verifyPaletteToolAndOpenActions(page: Page, testInfo: TestInfo) {
   const sessionLabel = (await page.getByTestId("active-pane-label").textContent())?.trim();
   expect(sessionLabel).toBeTruthy();
@@ -293,6 +322,9 @@ test.describe("authenticated Hive workflows", () => {
     });
     await test.step("embed VS Code from the configured Coder application host", async () => {
       await verifyEmbeddedVsCode(page, testInfo);
+    });
+    await test.step("restore embedded tools with fresh authorization after refresh", async () => {
+      await verifyEmbeddedToolsSurviveRefresh(page, testInfo);
     });
     await page.getByTestId("remove-workspace-tool-files").click();
     await page.getByTestId("remove-workspace-tool-code").click();

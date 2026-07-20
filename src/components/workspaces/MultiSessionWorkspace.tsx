@@ -115,6 +115,12 @@ import {
   type WorkspaceGitPaneRefreshInput,
   type WorkspacePaneRecoveryInput,
 } from "@/lib/workspaces/workspace-pane-recovery";
+import {
+  type PersistedWorkspaceToolPane,
+  parsePersistedWorkspaceToolPanes,
+  serializeWorkspaceToolPanes,
+  workspaceToolPaneStorageKey,
+} from "@/lib/workspaces/workspace-tool-pane-state";
 
 interface InteractiveTerminalComponentProps {
   agentId: string;
@@ -181,7 +187,10 @@ interface WorkspaceToolPane {
   tool: WorkspaceTool;
   url: string;
   label: string;
+  sourceLabel: string;
   folderPath: string | null;
+  cloneSessionKey?: string;
+  relativePath?: string;
 }
 
 interface RemoveWorkspacePaneTarget {
@@ -570,6 +579,49 @@ function readWorkspaceBoardStorage(storageKey: string): {
   }
 }
 
+function readWorkspaceToolPaneStorage(storageKey: string): PersistedWorkspaceToolPane[] {
+  if (typeof window === "undefined") return [];
+  try {
+    return parsePersistedWorkspaceToolPanes(window.localStorage.getItem(storageKey));
+  } catch {
+    return [];
+  }
+}
+
+function persistedWorkspaceToolPane(pane: WorkspaceToolPane): PersistedWorkspaceToolPane {
+  return {
+    boardKey: pane.boardKey,
+    sessionName: pane.sourceSessionName,
+    tool: pane.tool,
+    label: pane.sourceLabel,
+    ...(pane.cloneSessionKey && pane.relativePath
+      ? { cloneSessionKey: pane.cloneSessionKey, relativePath: pane.relativePath }
+      : {}),
+  };
+}
+
+function resolvedWorkspaceToolPane(
+  descriptor: PersistedWorkspaceToolPane,
+  urls: WorkspaceSessionToolUrls,
+): WorkspaceToolPane {
+  return {
+    key: `workspace-tool:${descriptor.boardKey}:${descriptor.sessionName}:${descriptor.tool}`,
+    boardKey: descriptor.boardKey,
+    sourceSessionName: descriptor.sessionName,
+    tool: descriptor.tool,
+    url: descriptor.tool === "code" ? urls.codeUrl : urls.filesUrl,
+    label: `${descriptor.tool === "code" ? "VS Code" : "Files"} · ${descriptor.label}`,
+    sourceLabel: descriptor.label,
+    folderPath: urls.folderPath,
+    ...(descriptor.cloneSessionKey && descriptor.relativePath
+      ? {
+          cloneSessionKey: descriptor.cloneSessionKey,
+          relativePath: descriptor.relativePath,
+        }
+      : {}),
+  };
+}
+
 function parsePersistedActiveSessionName(persistedJson: string | null): string | null {
   if (!persistedJson) return null;
 
@@ -944,6 +996,7 @@ export function MultiSessionWorkspace({
     Record<string, WorkspacePaneRecoveryInput>
   >({});
   const terminalsRef = useRef<Map<string, TerminalEntry>>(new Map());
+  const workspaceToolPanesRef = useRef<WorkspaceToolPane[]>([]);
   const activeSessionNameRef = useRef<string | null>(null);
   const pendingTerminalFocusSessionNameRef = useRef<string | null>(null);
   const latestWorkspaceIdRef = useRef(workspaceId);
@@ -1219,6 +1272,35 @@ export function MultiSessionWorkspace({
     [source, workspaceId],
   );
 
+  const persistWorkspaceToolPanes = useCallback(
+    (panes: readonly WorkspaceToolPane[]) => {
+      if (typeof window === "undefined") return;
+      try {
+        const storageKey = workspaceToolPaneStorageKey(workspaceId, source);
+        if (panes.length === 0) {
+          window.localStorage.removeItem(storageKey);
+          return;
+        }
+        window.localStorage.setItem(
+          storageKey,
+          serializeWorkspaceToolPanes(panes.map(persistedWorkspaceToolPane)),
+        );
+      } catch {
+        toast.error("Workspace tool panes could not be saved for the next visit.");
+      }
+    },
+    [source, workspaceId],
+  );
+
+  const replaceWorkspaceToolPanes = useCallback(
+    (panes: WorkspaceToolPane[]) => {
+      workspaceToolPanesRef.current = panes;
+      setWorkspaceToolPanes(panes);
+      persistWorkspaceToolPanes(panes);
+    },
+    [persistWorkspaceToolPanes],
+  );
+
   const selectSession = useCallback(
     (sessionName: string, options: { focusTerminal?: boolean } = {}) => {
       const lockedSessionName = composeOpen
@@ -1281,10 +1363,12 @@ export function MultiSessionWorkspace({
   const handleDeleteBoard = useCallback(
     (boardKey: string) => {
       boardGenerationRef.current.set(boardKey, (boardGenerationRef.current.get(boardKey) ?? 0) + 1);
-      setWorkspaceToolPanes((current) => current.filter((pane) => pane.boardKey !== boardKey));
+      replaceWorkspaceToolPanes(
+        workspaceToolPanesRef.current.filter((pane) => pane.boardKey !== boardKey),
+      );
       persistBoardState(deleteWorkspaceBoard(boardState, boardKey));
     },
-    [boardState, persistBoardState],
+    [boardState, persistBoardState, replaceWorkspaceToolPanes],
   );
 
   const handleSelectBoard = useCallback(
@@ -1782,8 +1866,10 @@ export function MultiSessionWorkspace({
   useEffect(() => {
     const storageKey = storageKeyForWorkspace(workspaceId, source);
     const boardStorageKey = workspaceBoardStorageKey(workspaceId, source);
+    const toolPaneStorageKey = workspaceToolPaneStorageKey(workspaceId, source);
     const storedLayout = readWorkspaceLayoutStorage(storageKey);
     const storedBoard = readWorkspaceBoardStorage(boardStorageKey);
+    const storedToolPanes = readWorkspaceToolPaneStorage(toolPaneStorageKey);
     const restoredBoardState = resolveWorkspaceBoardState({
       persistedBoardJson: storedBoard.raw,
       legacyPaneLayoutJson: storedLayout.raw,
@@ -1807,6 +1893,7 @@ export function MultiSessionWorkspace({
     setGitRestoreFailed(false);
     setTerminalCloseFailed(false);
     setPaneRecoveryStates({});
+    workspaceToolPanesRef.current = [];
     setWorkspaceToolPanes([]);
     setPersistedLayoutJson(storedLayout.raw);
     setLayoutPersistenceNotice(storedLayout.notice);
@@ -1815,6 +1902,73 @@ export function MultiSessionWorkspace({
     terminalsRef.current.clear();
     pendingTerminalFocusSessionNameRef.current = null;
     clearActiveTerminal();
+
+    async function restoreWorkspaceToolPanes(
+      nextBoardState: WorkspaceBoardState,
+      loadedSessions: readonly WorkspaceSessionPane[],
+    ): Promise<void> {
+      const boardKeys = new Set(nextBoardState.boards.map((board) => board.key));
+      const descriptors = storedToolPanes.filter((pane) => boardKeys.has(pane.boardKey));
+      const restored: WorkspaceToolPane[] = [];
+      const retainedDescriptors: PersistedWorkspaceToolPane[] = [];
+
+      for (const descriptor of descriptors) {
+        const loadedSession = loadedSessions.find(
+          (session) => session.sessionName === descriptor.sessionName,
+        );
+        if (!loadedSession && !(descriptor.cloneSessionKey && descriptor.relativePath)) continue;
+        retainedDescriptors.push(descriptor);
+        const fallbackPath = loadedSession?.clonePath ?? descriptor.relativePath;
+
+        try {
+          const result = await getWorkspaceSessionToolsAction({
+            workspaceId,
+            sessionName: descriptor.sessionName,
+            fallbackPath,
+            documentFrameHosts: readDocumentCoderFrameHosts(),
+            tool: descriptor.tool,
+          });
+          if (cancelled || latestWorkspaceIdRef.current !== workspaceId) return;
+          const urls = unwrapActionData(result);
+          if (!isWorkspaceSessionToolUrls(urls)) continue;
+          if (urls.reloadRequired) {
+            reloadForWorkspaceTool({
+              workspaceId,
+              boardKey: descriptor.boardKey,
+              sessionName: descriptor.sessionName,
+              tool: descriptor.tool,
+              ...(descriptor.cloneSessionKey && descriptor.relativePath
+                ? {
+                    cloneSessionKey: descriptor.cloneSessionKey,
+                    relativePath: descriptor.relativePath,
+                    label: descriptor.label,
+                  }
+                : {}),
+            });
+            return;
+          }
+          restored.push(resolvedWorkspaceToolPane(descriptor, urls));
+        } catch {
+          // A stale tool descriptor must not prevent terminal sessions from loading.
+        }
+      }
+
+      if (cancelled) return;
+      workspaceToolPanesRef.current = restored;
+      setWorkspaceToolPanes(restored);
+      try {
+        if (retainedDescriptors.length === 0) {
+          window.localStorage.removeItem(toolPaneStorageKey);
+        } else {
+          window.localStorage.setItem(
+            toolPaneStorageKey,
+            serializeWorkspaceToolPanes(retainedDescriptors),
+          );
+        }
+      } catch {
+        // The panes remain usable for this visit even when persistence is unavailable.
+      }
+    }
 
     async function loadSessions() {
       try {
@@ -1855,6 +2009,7 @@ export function MultiSessionWorkspace({
               storedActiveSessionName,
             ),
           );
+          await restoreWorkspaceToolPanes(nextBoardState, parsed.sessions);
           return;
         }
 
@@ -1867,6 +2022,7 @@ export function MultiSessionWorkspace({
           setBoardState(nextBoardState);
           setSessions([]);
           setActiveSessionName(null);
+          await restoreWorkspaceToolPanes(nextBoardState, []);
           return;
         }
 
@@ -2255,22 +2411,27 @@ export function MultiSessionWorkspace({
         });
         return;
       }
-      const key = `workspace-tool:${boardKey}:${session.sessionName}:${tool}`;
-      const label = `${tool === "code" ? "VS Code" : "Files"} · ${session.label}`;
-      setWorkspaceToolPanes((current) => [
-        ...current.filter((pane) => pane.key !== key),
+      const pane = resolvedWorkspaceToolPane(
         {
-          key,
           boardKey,
-          sourceSessionName: session.sessionName,
+          sessionName: session.sessionName,
           tool,
-          url: tool === "code" ? urls.codeUrl : urls.filesUrl,
-          label,
-          folderPath: urls.folderPath,
+          label: session.label,
+          ...(session.cloneSessionKey && session.relativePath
+            ? {
+                cloneSessionKey: session.cloneSessionKey,
+                relativePath: session.relativePath,
+              }
+            : {}),
         },
+        urls,
+      );
+      replaceWorkspaceToolPanes([
+        ...workspaceToolPanesRef.current.filter((candidate) => candidate.key !== pane.key),
+        pane,
       ]);
     },
-    [workspaceId],
+    [replaceWorkspaceToolPanes, workspaceId],
   );
 
   const openWorkspaceToolForSession = useCallback(
@@ -3122,8 +3283,8 @@ export function MultiSessionWorkspace({
           closeTestId={`remove-workspace-tool-${toolPane.tool}`}
           onClose={(event) => {
             event.stopPropagation();
-            setWorkspaceToolPanes((current) =>
-              current.filter((candidate) => candidate.key !== toolPane.key),
+            replaceWorkspaceToolPanes(
+              workspaceToolPanesRef.current.filter((candidate) => candidate.key !== toolPane.key),
             );
           }}
         >

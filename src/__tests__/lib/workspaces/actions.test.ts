@@ -434,7 +434,7 @@ describe("workspace server actions", () => {
     });
   });
 
-  it("keeps VS Code on Coder's browser-facing origin when Hive uses a private CA", async () => {
+  it("keeps VS Code on Coder's isolated app subdomain when Hive uses a private CA", async () => {
     vi.stubEnv("CODER_CA_CERT", "trusted-private-ca");
     mockGetWorkspace.mockResolvedValueOnce({
       id: "ws-1",
@@ -458,7 +458,7 @@ describe("workspace server actions", () => {
     });
 
     const expectedUrl =
-      "https://coder.example.com/@alice/dev-box.main/apps/code-server?folder=%2Fhome%2Fcoder%2Fprojects%2Fkethalia%2Fhive";
+      "https://code-server--main--dev-box--alice.coder.example.com/?folder=%2Fhome%2Fcoder%2Fprojects%2Fkethalia%2Fhive";
     expect(result?.data?.codeUrl).toBe(expectedUrl);
     expect(mockGetApplicationAuthRedirect).toHaveBeenCalledWith(expectedUrl);
   });

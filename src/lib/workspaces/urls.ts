@@ -56,20 +56,6 @@ export function buildCodeServerFolderUrl(
   return isRelative ? `${url.pathname}${url.search}` : url.toString();
 }
 
-export function buildCodeServerPathAppUrl(
-  workspace: Pick<CoderWorkspace, "name" | "owner_name">,
-  agentName: string,
-  coderUrl: string,
-): string {
-  const url = new URL(coderUrl);
-  const owner = encodeURIComponent(workspace.owner_name);
-  const workspaceAndAgent = `${encodeURIComponent(workspace.name)}.${encodeURIComponent(agentName)}`;
-  url.pathname = `/@${owner}/${workspaceAndAgent}/apps/code-server`;
-  url.search = "";
-  url.hash = "";
-  return url.toString();
-}
-
 export function buildFileBrowserFolderUrl(
   fileBrowserUrl: string,
   folderPath?: string | null,

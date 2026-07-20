@@ -18,7 +18,6 @@ import { execInWorkspace } from "@/lib/workspace/exec";
 import { filterGenericTmuxSessions, parseTmuxSessions } from "@/lib/workspaces/sessions";
 import {
   buildCodeServerFolderUrl,
-  buildCodeServerPathAppUrl,
   buildFileBrowserFolderUrl,
   buildWorkspaceUrls,
 } from "@/lib/workspaces/urls";
@@ -263,14 +262,11 @@ export const getWorkspaceSessionToolsAction = authActionClient
     const proxyBase = `/api/workspace-proxy/${encodeURIComponent(parsedInput.workspaceId)}`;
     const urls = buildWorkspaceUrls(workspace, agent.name, client.getBaseUrl(), applicationsHost);
     if (!urls) throw new Error("Coder URL is unavailable for workspace tools");
-    // A configured CA can make app-subdomain requests work on the server while the
-    // browser still rejects that certificate. Coder's path app stays on the access
-    // URL (and retains Coder's native HTTP/WebSocket proxying), so use it whenever
-    // Hive needs extra trust material for Coder connections.
-    const codeServerBaseUrl = process.env.CODER_CA_CERT?.trim()
-      ? buildCodeServerPathAppUrl(workspace, agent.name, client.getBaseUrl())
-      : urls.codeServer;
-    const requestedCodeUrl = buildCodeServerFolderUrl(codeServerBaseUrl, folderPath);
+    // Coder app subdomains are isolated browser origins and are the supported
+    // browser-facing surface for embedded workspace apps. CODER_CA_CERT only
+    // extends trust for Hive's server-side requests; it must not switch the browser
+    // to a same-origin Coder path app, whose framing and sharing rules differ.
+    const requestedCodeUrl = buildCodeServerFolderUrl(urls.codeServer, folderPath);
 
     const codeUrl =
       parsedInput.tool === "code"

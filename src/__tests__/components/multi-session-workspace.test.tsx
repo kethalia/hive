@@ -750,6 +750,97 @@ describe("MultiSessionWorkspace", () => {
     expect(screen.getByTestId("workspace-tool-pane-code")).toBeInTheDocument();
   });
 
+  it("restores File Browser and VS Code panes with fresh URLs after remount", async () => {
+    mockGetSessions.mockResolvedValue(twoSessionPayload());
+    const firstRender = render(<MultiSessionWorkspace {...defaultProps} />);
+    await screen.findByTestId("workspace-pane-main-session");
+    markTwoSessionsConnected();
+    await waitFor(() => {
+      expect(screen.queryByTestId("multi-session-loading")).not.toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Browse files for main-session" }));
+    await screen.findByTestId("workspace-tool-pane-files");
+    fireEvent.click(screen.getByRole("button", { name: "Open VS Code for main-session" }));
+    await screen.findByTestId("workspace-tool-pane-code");
+
+    const persisted = window.localStorage.getItem("workspace-tool-panes:workspace:ws-1");
+    expect(persisted).toContain('"tool":"files"');
+    expect(persisted).toContain('"tool":"code"');
+    expect(persisted).not.toContain("https://code.test");
+    expect(persisted).not.toContain("/api/workspace-proxy/");
+
+    firstRender.unmount();
+    mockGetWorkspaceSessionTools.mockClear();
+    mockGetWorkspaceSessionTools.mockImplementation(() => ({
+      data: {
+        codeUrl: "https://fresh-code.test/?coder_application_connect_api_key=fresh",
+        filesUrl: "/api/workspace-proxy/ws-1/filebrowser/files/home/coder/fresh",
+        folderPath: "/home/coder/fresh",
+        source: "tmux",
+      },
+    }));
+
+    render(<MultiSessionWorkspace {...defaultProps} />);
+
+    expect(await screen.findByTestId("workspace-tool-frame-files")).toHaveAttribute(
+      "src",
+      "/api/workspace-proxy/ws-1/filebrowser/files/home/coder/fresh",
+    );
+    expect(await screen.findByTestId("workspace-tool-frame-code")).toHaveAttribute(
+      "src",
+      "https://fresh-code.test/?coder_application_connect_api_key=fresh",
+    );
+    expect(mockGetWorkspaceSessionTools).toHaveBeenCalledTimes(2);
+    expect(mockGetWorkspaceSessionTools).toHaveBeenCalledWith({
+      workspaceId: "ws-1",
+      sessionName: "main-session",
+      fallbackPath: undefined,
+      documentFrameHosts: [],
+      tool: "files",
+    });
+    expect(mockGetWorkspaceSessionTools).toHaveBeenCalledWith({
+      workspaceId: "ws-1",
+      sessionName: "main-session",
+      fallbackPath: undefined,
+      documentFrameHosts: [],
+      tool: "code",
+    });
+  });
+
+  it("restores a repository tool pane even when its Git terminal is not on the board", async () => {
+    window.localStorage.setItem(
+      "workspace-tool-panes:unified:ws-1",
+      JSON.stringify({
+        version: 1,
+        panes: [
+          {
+            boardKey: "default",
+            sessionName: "git-clone-safe-hive",
+            tool: "files",
+            label: "hive",
+            cloneSessionKey: "git-clone:kethalia/hive",
+            relativePath: "kethalia/hive",
+          },
+        ],
+      }),
+    );
+    mockListGitClones.mockResolvedValueOnce({ data: { ok: true, tree: { nodes: [] } } });
+
+    render(<MultiSessionWorkspace {...defaultProps} source="unified" />);
+
+    expect(await screen.findByTestId("workspace-tool-pane-files")).toBeInTheDocument();
+    expect(screen.getByTestId("workspace-tool-pane-files")).toHaveTextContent("Files · hive");
+    expect(mockGetWorkspaceSessionTools).toHaveBeenCalledWith({
+      workspaceId: "ws-1",
+      sessionName: "git-clone-safe-hive",
+      fallbackPath: "kethalia/hive",
+      documentFrameHosts: [],
+      tool: "files",
+    });
+    expect(mockResolveGitCloneTerminal).not.toHaveBeenCalled();
+  });
+
   it("reloads under the refreshed CSP before opening a recovered application host", async () => {
     mockGetWorkspaceSessionTools.mockResolvedValueOnce({
       data: {
