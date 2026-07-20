@@ -88,6 +88,21 @@ function trackFileBrowserResourceLoads(page: Page) {
   return () => successfulLoads;
 }
 
+function trackVsCodeWorkbenchLoads(page: Page) {
+  let successfulLoads = 0;
+  page.on("response", (response) => {
+    const url = new URL(response.url());
+    if (
+      url.hostname.startsWith("code-server--") &&
+      url.pathname.endsWith("/vs/code/browser/workbench/workbench.js") &&
+      response.ok()
+    ) {
+      successfulLoads += 1;
+    }
+  });
+  return () => successfulLoads;
+}
+
 async function expectFileBrowserReady(
   page: Page,
   getSuccessfulLoads: () => number,
@@ -114,7 +129,12 @@ async function verifyEmbeddedFileBrowser(
   await capture(page, testInfo, "workspace-file-browser-embedded");
 }
 
-async function verifyEmbeddedVsCode(page: Page, testInfo: TestInfo) {
+async function verifyEmbeddedVsCode(
+  page: Page,
+  testInfo: TestInfo,
+  getSuccessfulLoads: () => number,
+) {
+  const previousLoadCount = getSuccessfulLoads();
   await page
     .getByRole("button", { name: /^Open VS Code for / })
     .first()
@@ -124,16 +144,15 @@ async function verifyEmbeddedVsCode(page: Page, testInfo: TestInfo) {
     "src",
     /code-server--/,
   );
-  await expect(
-    page.frameLocator('[data-testid="workspace-tool-frame-code"]').locator(".monaco-workbench"),
-  ).toBeVisible({ timeout: 45_000 });
+  await expect.poll(getSuccessfulLoads, { timeout: 45_000 }).toBeGreaterThan(previousLoadCount);
   await capture(page, testInfo, "workspace-vscode-embedded");
 }
 
 async function verifyEmbeddedToolsSurviveRefresh(
   page: Page,
   testInfo: TestInfo,
-  getSuccessfulLoads: () => number,
+  getSuccessfulFileBrowserLoads: () => number,
+  getSuccessfulVsCodeLoads: () => number,
 ) {
   const originalCodeUrl = await page.getByTestId("workspace-tool-frame-code").getAttribute("src");
   expect(originalCodeUrl).toBeTruthy();
@@ -146,15 +165,16 @@ async function verifyEmbeddedToolsSurviveRefresh(
   );
   expect(persistedUrls).toBe(false);
 
-  const previousFileBrowserLoadCount = getSuccessfulLoads();
+  const previousFileBrowserLoadCount = getSuccessfulFileBrowserLoads();
+  const previousVsCodeLoadCount = getSuccessfulVsCodeLoads();
   await page.reload({ waitUntil: "domcontentloaded" });
   await expectConnectedTerminal(page);
   await expect(page.getByTestId("workspace-tool-pane-files")).toBeVisible({ timeout: 30_000 });
   await expect(page.getByTestId("workspace-tool-pane-code")).toBeVisible({ timeout: 30_000 });
-  await expectFileBrowserReady(page, getSuccessfulLoads, previousFileBrowserLoadCount);
-  await expect(
-    page.frameLocator('[data-testid="workspace-tool-frame-code"]').locator(".monaco-workbench"),
-  ).toBeVisible({ timeout: 45_000 });
+  await expectFileBrowserReady(page, getSuccessfulFileBrowserLoads, previousFileBrowserLoadCount);
+  await expect
+    .poll(getSuccessfulVsCodeLoads, { timeout: 45_000 })
+    .toBeGreaterThan(previousVsCodeLoadCount);
 
   const restoredCodeUrl = await page.getByTestId("workspace-tool-frame-code").getAttribute("src");
   expect(restoredCodeUrl).toMatch(/code-server--/);
@@ -316,6 +336,7 @@ test.describe("authenticated Hive workflows", () => {
   test("opens a live workspace terminal when one is available", async ({ page }, testInfo) => {
     test.setTimeout(90_000);
     const getSuccessfulFileBrowserLoads = trackFileBrowserResourceLoads(page);
+    const getSuccessfulVsCodeLoads = trackVsCodeWorkbenchLoads(page);
     const terminalSocketUrls: string[] = [];
     page.on("websocket", (socket) => {
       const url = new URL(socket.url());
@@ -357,10 +378,15 @@ test.describe("authenticated Hive workflows", () => {
       await verifyEmbeddedFileBrowser(page, testInfo, getSuccessfulFileBrowserLoads);
     });
     await test.step("embed VS Code from the configured Coder application host", async () => {
-      await verifyEmbeddedVsCode(page, testInfo);
+      await verifyEmbeddedVsCode(page, testInfo, getSuccessfulVsCodeLoads);
     });
     await test.step("restore embedded tools with fresh authorization after refresh", async () => {
-      await verifyEmbeddedToolsSurviveRefresh(page, testInfo, getSuccessfulFileBrowserLoads);
+      await verifyEmbeddedToolsSurviveRefresh(
+        page,
+        testInfo,
+        getSuccessfulFileBrowserLoads,
+        getSuccessfulVsCodeLoads,
+      );
     });
     await page.getByTestId("remove-workspace-tool-files").click();
     await page.getByTestId("remove-workspace-tool-code").click();
