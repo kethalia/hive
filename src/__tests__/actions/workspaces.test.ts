@@ -66,6 +66,7 @@ const MOCK_SESSION = {
 describe("workspace actions use authActionClient + getCoderClientForUser", () => {
   beforeEach(() => {
     vi.unstubAllEnvs();
+    vi.stubEnv("COOKIE_SECRET", "workspace-proxy-test-secret");
     vi.clearAllMocks();
     mockedUndiciFetch.mockResolvedValue(new Response("ok", { status: 200 }));
     mockedGetRequestSession.mockResolvedValue(MOCK_SESSION);
@@ -211,6 +212,79 @@ describe("workspace actions use authActionClient + getCoderClientForUser", () =>
 
     expect(response.status).toBe(200);
     expect(fetchSpy).toHaveBeenCalledOnce();
+  });
+
+  it("authenticates opaque-frame fetches with a signed workspace-scoped grant", async () => {
+    mockedGetCoderClientForUser.mockResolvedValue({
+      getWorkspace: vi.fn().mockResolvedValue({ name: "dev-box", owner_name: "alice" }),
+      getWorkspaceAgentName: vi.fn().mockResolvedValue("dev-box.main"),
+      getApplicationsHost: vi.fn().mockResolvedValue("*.apps.example.com"),
+      getBaseUrl: () => "https://coder.example.com",
+      getSessionToken: () => "coder-session-token",
+    } as never);
+    vi.spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(
+        new Response("<html><head></head><body>files</body></html>", {
+          status: 200,
+          headers: { "content-type": "text/html" },
+        }),
+      )
+      .mockResolvedValueOnce(
+        new Response('{"items":[]}', {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        }),
+      );
+    const { GET, OPTIONS } = await import(
+      "@/app/api/workspace-proxy/[workspaceId]/[[...path]]/route"
+    );
+    const workspaceId = "bdbdbdbd-1111-2222-3333-444444444444";
+    const proxyBase = `http://localhost/api/workspace-proxy/${workspaceId}/filebrowser`;
+    const documentRequest = new Request(proxyBase);
+    Object.defineProperty(documentRequest, "nextUrl", { value: new URL(proxyBase) });
+    const documentResponse = await GET(documentRequest as never, {
+      params: Promise.resolve({ workspaceId, path: ["filebrowser"] }),
+    });
+    const html = await documentResponse.text();
+    const grant = html.match(/const g="([A-Za-z0-9_.-]+)"/)?.[1];
+    expect(grant).toBeTruthy();
+
+    const preflightRequest = new Request(`${proxyBase}/api/resources`, {
+      method: "OPTIONS",
+      headers: {
+        Origin: "null",
+        "Access-Control-Request-Headers": "x-hive-workspace-proxy-grant",
+        "Access-Control-Request-Method": "GET",
+      },
+    });
+    const preflightResponse = await OPTIONS(preflightRequest as never, {
+      params: Promise.resolve({ workspaceId, path: ["filebrowser", "api", "resources"] }),
+    });
+    expect(preflightResponse.status).toBe(204);
+    expect(preflightResponse.headers.get("access-control-allow-origin")).toBe("null");
+
+    mockedGetSession.mockClear();
+    const apiUrl = `${proxyBase}/api/resources`;
+    const apiRequest = new Request(apiUrl, {
+      headers: {
+        Origin: "null",
+        Referer: proxyBase,
+        "Sec-Fetch-Site": "cross-site",
+        "x-hive-workspace-proxy-grant": grant ?? "",
+      },
+    });
+    Object.defineProperty(apiRequest, "nextUrl", { value: new URL(apiUrl) });
+    const apiResponse = await GET(apiRequest as never, {
+      params: Promise.resolve({
+        workspaceId,
+        path: ["filebrowser", "api", "resources"],
+      }),
+    });
+
+    expect(apiResponse.status).toBe(200);
+    expect(apiResponse.headers.get("access-control-allow-origin")).toBe("null");
+    expect(await apiResponse.json()).toEqual({ items: [] });
+    expect(mockedGetSession).not.toHaveBeenCalled();
   });
 
   it("does not cache fallback app URLs after transient host discovery failure", async () => {

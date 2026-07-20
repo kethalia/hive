@@ -259,4 +259,19 @@ describe("auth route cookies", () => {
     expect(setCookies[3]).toContain("hive-session=; Path=/; Max-Age=0");
     expect(setCookies[3]).not.toContain("Domain=");
   });
+
+  it("clears the frame-host cookie without Secure on an HTTP development host", async () => {
+    vi.stubEnv("COOKIE_DOMAIN", "");
+    mockServiceClient.getSession.mockResolvedValue(null);
+
+    const response = await logoutPOST(
+      new Request("http://hive.dev.test/api/auth/logout", { method: "POST" }),
+    );
+    const frameHostCookie = getSetCookies(response).find((cookie) =>
+      cookie.startsWith("hive-coder-host="),
+    );
+
+    expect(frameHostCookie).toContain("Max-Age=0");
+    expect(frameHostCookie).not.toContain("Secure");
+  });
 });

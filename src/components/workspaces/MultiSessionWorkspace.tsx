@@ -3097,21 +3097,23 @@ export function MultiSessionWorkspace({
           layoutMode="tiled"
           style={paneStyle}
           headerActions={
-            <Button
-              type="button"
-              variant="ghost"
-              size="xs"
-              className="h-6 min-h-0 px-1.5 text-[10px] text-white hover:bg-white/10 hover:text-white"
-              aria-label={`Open ${toolPane.label} in a new tab`}
-              data-testid={`pop-out-workspace-tool-${toolPane.tool}`}
-              onClick={(event) => {
-                event.stopPropagation();
-                window.open(toolPane.url, "_blank", "noopener,noreferrer");
-              }}
-            >
-              <ExternalLink className="size-3" />
-              Pop Out
-            </Button>
+            toolPane.url.startsWith("/api/workspace-proxy/") ? null : (
+              <Button
+                type="button"
+                variant="ghost"
+                size="xs"
+                className="h-6 min-h-0 px-1.5 text-[10px] text-white hover:bg-white/10 hover:text-white"
+                aria-label={`Open ${toolPane.label} in a new tab`}
+                data-testid={`pop-out-workspace-tool-${toolPane.tool}`}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  window.open(toolPane.url, "_blank", "noopener,noreferrer");
+                }}
+              >
+                <ExternalLink className="size-3" />
+                Pop Out
+              </Button>
+            )
           }
           onActivate={() => {
             selectSession(toolPane.sourceSessionName, { focusTerminal: false });

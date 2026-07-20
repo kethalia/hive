@@ -1,7 +1,10 @@
 import { NextResponse } from "next/server";
 import { getAuthServiceClient } from "@/lib/auth/service-client";
 import { getRequestSession } from "@/lib/auth/session";
-import { appendClearSessionCookieHeaders } from "@/lib/auth/session-cookie";
+import {
+  appendClearSessionCookieHeaders,
+  usesSecureSessionCookies,
+} from "@/lib/auth/session-cookie";
 import { CODER_HOST_COOKIE } from "@/lib/security/content-security-policy";
 
 export async function POST(request: Request) {
@@ -21,7 +24,7 @@ export async function POST(request: Request) {
     httpOnly: true,
     maxAge: 0,
     sameSite: "lax",
-    secure: true,
+    secure: usesSecureSessionCookies(),
     path: "/",
   });
   appendClearSessionCookieHeaders(response.headers, new URL(request.url).hostname);

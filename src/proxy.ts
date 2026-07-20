@@ -13,6 +13,8 @@ import {
 
 const PUBLIC_PATHS = ["/login", "/api/auth", "/manifest.webmanifest", "/robots.txt"];
 const STATIC_PREFIXES = ["/_next", "/favicon.ico"];
+const WORKSPACE_PROXY_PREFIX = "/api/workspace-proxy/";
+const WORKSPACE_PROXY_GRANT_HEADER = "x-hive-workspace-proxy-grant";
 
 function withContentSecurityPolicy(
   response: NextResponse,
@@ -25,6 +27,13 @@ function withContentSecurityPolicy(
 
 export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
+
+  if (
+    pathname.startsWith(WORKSPACE_PROXY_PREFIX) &&
+    (request.method === "OPTIONS" || request.headers.has(WORKSPACE_PROXY_GRANT_HEADER))
+  ) {
+    return withContentSecurityPolicy(NextResponse.next());
+  }
 
   if (
     STATIC_PREFIXES.some((prefix) => pathname.startsWith(prefix)) ||

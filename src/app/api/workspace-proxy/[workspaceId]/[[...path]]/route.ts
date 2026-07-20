@@ -1,3 +1,4 @@
+import { createHmac, timingSafeEqual } from "node:crypto";
 import { rootCertificates } from "node:tls";
 import { cookies } from "next/headers";
 import { type NextRequest, NextResponse } from "next/server";
@@ -18,6 +19,8 @@ interface WorkspaceMeta {
 const MAX_CACHE_SIZE = 100;
 const metaCache = new Map<string, WorkspaceMeta>();
 const CACHE_TTL_MS = 5 * 60 * 1000;
+const PROXY_GRANT_TTL_MS = 8 * 60 * 60 * 1000;
+const PROXY_GRANT_HEADER = "x-hive-workspace-proxy-grant";
 
 const APP_SLUG_MAP: Record<string, string> = {
   filebrowser: "filebrowser",
@@ -35,6 +38,7 @@ const STRIP_RESPONSE_HEADERS = new Set([
 ]);
 
 const SKIP_REQUEST_HEADERS = new Set([
+  PROXY_GRANT_HEADER,
   "host",
   "cookie",
   "connection",
@@ -54,6 +58,66 @@ const SKIP_REQUEST_HEADERS = new Set([
   "next-router-prefetch",
   "next-url",
 ]);
+
+function signProxyGrant(userId: string, workspaceId: string): string {
+  const secret = process.env.COOKIE_SECRET;
+  if (!secret) throw new Error("COOKIE_SECRET is not configured");
+  const payload = Buffer.from(
+    JSON.stringify({ expiresAt: Date.now() + PROXY_GRANT_TTL_MS, userId, workspaceId }),
+  ).toString("base64url");
+  const signature = createHmac("sha256", secret).update(payload).digest("base64url");
+  return `${payload}.${signature}`;
+}
+
+function verifyProxyGrant(grant: string, workspaceId: string): string | null {
+  const secret = process.env.COOKIE_SECRET;
+  if (!secret) return null;
+  const separator = grant.indexOf(".");
+  if (separator < 1) return null;
+  const payload = grant.slice(0, separator);
+  const suppliedSignature = grant.slice(separator + 1);
+  const expectedSignature = createHmac("sha256", secret).update(payload).digest();
+  let suppliedSignatureBytes: Buffer;
+  try {
+    suppliedSignatureBytes = Buffer.from(suppliedSignature, "base64url");
+  } catch {
+    return null;
+  }
+  if (
+    suppliedSignatureBytes.length !== expectedSignature.length ||
+    !timingSafeEqual(suppliedSignatureBytes, expectedSignature)
+  ) {
+    return null;
+  }
+  try {
+    const parsed: unknown = JSON.parse(Buffer.from(payload, "base64url").toString("utf8"));
+    if (
+      typeof parsed !== "object" ||
+      parsed === null ||
+      !("expiresAt" in parsed) ||
+      typeof parsed.expiresAt !== "number" ||
+      parsed.expiresAt <= Date.now() ||
+      !("userId" in parsed) ||
+      typeof parsed.userId !== "string" ||
+      !("workspaceId" in parsed) ||
+      parsed.workspaceId !== workspaceId
+    ) {
+      return null;
+    }
+    return parsed.userId;
+  } catch {
+    return null;
+  }
+}
+
+function setGrantCorsHeaders(headers: Headers): void {
+  headers.set("Access-Control-Allow-Origin", "null");
+  headers.append("Vary", "Origin");
+}
+
+function buildProxyGrantBridge(grant: string, proxyBase: string): string {
+  return `<script>(()=>{const g="${grant}",p="${proxyBase}",h="${PROXY_GRANT_HEADER}";const u=i=>{try{const v=new URL(typeof i==="string"?i:i instanceof URL?i.href:i.url,location.href);return v.origin===new URL(location.href).origin&&(v.pathname===p||v.pathname.startsWith(p+"/"))}catch{return false}};const f=window.fetch.bind(window);window.fetch=(i,n={})=>{if(!u(i))return f(i,n);const x=new Headers(n.headers||(i instanceof Request?i.headers:undefined));x.set(h,g);return f(i,{...n,headers:x})};const o=XMLHttpRequest.prototype.open,s=XMLHttpRequest.prototype.send;XMLHttpRequest.prototype.open=function(m,url,...r){this.__hiveProxyUrl=new URL(url,location.href).href;return o.call(this,m,url,...r)};XMLHttpRequest.prototype.send=function(body){if(u(this.__hiveProxyUrl))this.setRequestHeader(h,g);return s.call(this,body)}})();</script>`;
+}
 
 async function getWorkspaceMeta(userId: string, workspaceId: string): Promise<WorkspaceMeta> {
   const cacheKey = `${userId}:${workspaceId}`;
@@ -295,12 +359,20 @@ async function proxyRequest(
     );
   }
 
-  const session = await getSession(await cookies(), req.headers.get("cookie"));
-  if (!session) {
+  const suppliedGrant = req.headers.get(PROXY_GRANT_HEADER);
+  const grantUserId = suppliedGrant ? verifyProxyGrant(suppliedGrant, workspaceId) : null;
+  if (suppliedGrant && !grantUserId) {
+    const response = NextResponse.json({ error: "Invalid workspace proxy grant" }, { status: 401 });
+    setGrantCorsHeaders(response.headers);
+    return response;
+  }
+  const session = grantUserId ? null : await getSession(await cookies(), req.headers.get("cookie"));
+  if (!grantUserId && !session) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const userId = session.user.id;
+  const userId = grantUserId ?? session?.user.id;
+  if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   let meta: WorkspaceMeta;
   try {
     meta = await getWorkspaceMeta(userId, workspaceId);
@@ -374,6 +446,7 @@ async function proxyRequest(
       if (STRIP_RESPONSE_HEADERS.has(key.toLowerCase())) continue;
       responseHeaders.set(key, value);
     }
+    if (grantUserId) setGrantCorsHeaders(responseHeaders);
 
     if (upstream.status >= 300 && upstream.status < 400) {
       const location = upstream.headers.get("location");
@@ -400,13 +473,14 @@ async function proxyRequest(
       const proxyAppSlug = pathSegments[0] in APP_SLUG_MAP ? pathSegments[0] : "filebrowser";
       const appProxyBase = `${proxyBase}/${proxyAppSlug}`;
       let html = await upstream.text();
+      const grantBridge = buildProxyGrantBridge(signProxyGrant(userId, workspaceId), proxyBase);
       const baseTag = `<base href="${appProxyBase}/" />`;
       if (html.includes("<head>")) {
-        html = html.replace("<head>", `<head>${baseTag}`);
+        html = html.replace("<head>", `<head>${baseTag}${grantBridge}`);
       } else if (html.includes("<HEAD>")) {
-        html = html.replace("<HEAD>", `<HEAD>${baseTag}`);
+        html = html.replace("<HEAD>", `<HEAD>${baseTag}${grantBridge}`);
       } else {
-        html = baseTag + html;
+        html = baseTag + grantBridge + html;
       }
       if (appSlug === "filebrowser") {
         html = html.replace('"BaseURL":""', `"BaseURL":"${appProxyBase}"`);
@@ -454,4 +528,26 @@ export async function DELETE(req: NextRequest, { params }: RouteParams) {
 
 export async function PATCH(req: NextRequest, { params }: RouteParams) {
   return proxyRequest(req, await params);
+}
+
+export async function OPTIONS(req: NextRequest, { params }: RouteParams) {
+  const { workspaceId } = await params;
+  const requestedHeaders = req.headers.get("access-control-request-headers")?.toLowerCase() ?? "";
+  if (
+    !UUID_RE.test(workspaceId) ||
+    req.headers.get("origin") !== "null" ||
+    !requestedHeaders.split(",").some((header) => header.trim() === PROXY_GRANT_HEADER)
+  ) {
+    return new NextResponse(null, { status: 403 });
+  }
+  return new NextResponse(null, {
+    status: 204,
+    headers: {
+      "Access-Control-Allow-Headers": PROXY_GRANT_HEADER,
+      "Access-Control-Allow-Methods": "GET, POST, PUT, PATCH, DELETE, OPTIONS",
+      "Access-Control-Allow-Origin": "null",
+      "Access-Control-Max-Age": "600",
+      Vary: "Origin, Access-Control-Request-Headers",
+    },
+  });
 }

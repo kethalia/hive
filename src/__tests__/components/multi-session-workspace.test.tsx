@@ -725,6 +725,7 @@ describe("MultiSessionWorkspace", () => {
     expect(screen.getByTestId("workspace-tool-frame-files").getAttribute("sandbox")).not.toContain(
       "allow-same-origin",
     );
+    expect(screen.queryByTestId("pop-out-workspace-tool-files")).not.toBeInTheDocument();
     expect(screen.getByTestId("interactive-terminal-main-session")).toBeInTheDocument();
     expect(screen.queryByTestId("workspace-tool-dialog")).not.toBeInTheDocument();
 
