@@ -17,8 +17,8 @@ case "$filebrowser_root" in
     ;;
 esac
 
-if [ ! -d "$filebrowser_root" ]; then
-  printf '[error] File Browser root does not exist: %s\n' "$filebrowser_root" >&2
+if ! mkdir -p "$filebrowser_root"; then
+  printf '[error] File Browser root could not be created: %s\n' "$filebrowser_root" >&2
   exit 1
 fi
 

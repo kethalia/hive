@@ -1963,6 +1963,9 @@ export function MultiSessionWorkspace({
               return;
             }
             if (urls.reloadRequired) {
+              if (!workspaceToolPanesRef.current.some((pane) => pane.key === pendingPaneKey)) {
+                return;
+              }
               reloadForWorkspaceTool({
                 workspaceId,
                 boardKey: descriptor.boardKey,

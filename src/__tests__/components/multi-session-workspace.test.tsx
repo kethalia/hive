@@ -919,6 +919,57 @@ describe("MultiSessionWorkspace", () => {
     expect(screen.getByTestId("active-pane-label")).toHaveTextContent("dev-server");
   });
 
+  it("does not reload for a restored tool pane closed while authorization is pending", async () => {
+    const filesRequest = Promise.withResolvers<{
+      data: {
+        codeUrl: string;
+        filesUrl: string;
+        folderPath: string;
+        reloadRequired: true;
+      };
+    }>();
+    window.localStorage.setItem(
+      "workspace-tool-panes:workspace:ws-1",
+      JSON.stringify({
+        version: 1,
+        panes: [
+          {
+            boardKey: "default",
+            sessionName: "main-session",
+            tool: "files",
+            label: "main-session",
+          },
+        ],
+      }),
+    );
+    mockGetSessions.mockResolvedValue(twoSessionPayload());
+    mockGetWorkspaceSessionTools.mockReturnValue(filesRequest.promise);
+
+    render(<MultiSessionWorkspace {...defaultProps} />);
+
+    expect(await screen.findByTestId("workspace-tool-pane-files")).toHaveAttribute(
+      "data-pane-state",
+      "authorizing",
+    );
+    fireEvent.click(screen.getByTestId("remove-workspace-tool-files"));
+    expect(screen.queryByTestId("workspace-tool-pane-files")).not.toBeInTheDocument();
+
+    await act(async () => {
+      filesRequest.resolve({
+        data: {
+          codeUrl: "https://fresh-code.test",
+          filesUrl: "https://fresh-files.test/files/",
+          folderPath: "/home/coder",
+          reloadRequired: true,
+        },
+      });
+      await filesRequest.promise;
+    });
+
+    expect(mockReloadForWorkspaceTool).not.toHaveBeenCalled();
+    expect(screen.queryByTestId("workspace-tool-pane-files")).not.toBeInTheDocument();
+  });
+
   it("restores a repository tool pane even when its Git terminal is not on the board", async () => {
     window.localStorage.setItem(
       "workspace-tool-panes:unified:ws-1",

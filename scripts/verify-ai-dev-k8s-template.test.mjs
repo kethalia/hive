@@ -1,7 +1,7 @@
 /* eslint-disable security/detect-non-literal-fs-filename -- Test paths are created under an isolated mkdtemp fixture. */
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { chmodSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { chmodSync, mkdirSync, mkdtempSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
@@ -205,6 +205,44 @@ function verifyDockerFileBrowser() {
   assert.equal(filebrowser, readTemplateFile("scripts/tools-filebrowser.sh"));
 }
 
+function verifyCustomFileBrowserRootCreation() {
+  const fixtureRoot = mkdtempSync(join(tmpdir(), "ai-dev-k8s-filebrowser-"));
+  const home = join(fixtureRoot, "home");
+  const bin = join(fixtureRoot, "bin");
+  const customRoot = join(fixtureRoot, "custom", "projects");
+  const filebrowserBin = join(home, ".local", "bin", "filebrowser");
+  mkdirSync(join(home, ".local", "bin"), { recursive: true });
+  mkdirSync(join(home, ".local", "share"), { recursive: true });
+  mkdirSync(bin, { recursive: true });
+  writeFileSync(filebrowserBin, "#!/bin/sh\nexit 0\n");
+  chmodSync(filebrowserBin, 0o755);
+  writeFileSync(join(home, ".local", "share", "filebrowser-version"), "2.63.18\n");
+  writeFileSync(
+    join(bin, "curl"),
+    `#!/bin/sh
+case "$*" in
+  */health*) exit 1 ;;
+  *) printf '200' ;;
+esac
+`,
+  );
+  chmodSync(join(bin, "curl"), 0o755);
+
+  const result = spawnSync("bash", [join(TEMPLATE_ROOT, "scripts/tools-filebrowser.sh")], {
+    encoding: "utf8",
+    env: {
+      ...process.env,
+      HIVE_PROJECTS_ROOT: customRoot,
+      HOME: home,
+      PATH: `${bin}:${process.env.PATH}`,
+    },
+  });
+
+  assert.equal(result.status, 0, result.stderr);
+  assert.match(result.stdout, /File Browser 2\.63\.18 started/);
+  assert.equal(statSync(customRoot).isDirectory(), true);
+}
+
 function verifyAiAgentSelection() {
   const script = readTemplateFile("scripts/tools-ai.sh");
   const terraform = readTemplateFile("main.tf");
@@ -371,6 +409,10 @@ test("CI tooling installs without root and uses verified GitHub CLI artifacts", 
 test("workspace bootstrap does not delete vault content or require Docker", verifySafeBootstrap);
 test("supplemental tools support the non-root workspace", verifyNonRootSupplementalTools);
 test("Docker workspaces use the same repairable File Browser runtime", verifyDockerFileBrowser);
+test(
+  "File Browser creates a configured projects root before startup",
+  verifyCustomFileBrowserRootCreation,
+);
 test("workspace only provisions Claude and Codex AI agents", verifyAiAgentSelection);
 test("shell setup retries incomplete Oh My Zsh installations", verifyShellRetry);
 test("GitHub helpers retrieve fresh Coder credentials on demand", verifyGithubHelpers);
