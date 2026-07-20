@@ -1722,7 +1722,7 @@ describe("MultiSessionWorkspace", () => {
     );
   });
 
-  it("changes active pane and terminal focus on hover", async () => {
+  it("changes active pane on pointer movement without reacting to passive boundary changes", async () => {
     await renderTwoSessionWorkspace();
     const focusDevTerminal = vi.fn();
     const devTerm = makeTerminal("dev-server", focusDevTerminal);
@@ -1732,7 +1732,13 @@ describe("MultiSessionWorkspace", () => {
       terminalProps.get("dev-server")?.onTerminalReady?.(devTerm, devSend);
     });
 
-    fireEvent.mouseEnter(screen.getByTestId("workspace-pane-dev-server"));
+    const devPane = screen.getByTestId("workspace-pane-dev-server");
+    fireEvent.mouseEnter(devPane);
+
+    expect(screen.getByTestId("active-pane-label")).toHaveTextContent("main-session");
+    expect(focusDevTerminal).not.toHaveBeenCalled();
+
+    fireEvent.mouseMove(devPane);
 
     expect(screen.getByTestId("active-pane-label")).toHaveTextContent("dev-server");
     expect(mockSetActiveTerminal).toHaveBeenLastCalledWith(devTerm, devSend);

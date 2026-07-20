@@ -3443,8 +3443,14 @@ export function MultiSessionWorkspace({
             sessionName: pane.sessionName,
           });
         }}
-        onMouseEnter={() => {
-          if (model.isActive && !isComposeDisabled) selectSession(pane.sessionName);
+        onMouseMove={() => {
+          if (
+            model.isActive &&
+            !isComposeDisabled &&
+            activeSessionNameRef.current !== pane.sessionName
+          ) {
+            selectSession(pane.sessionName);
+          }
         }}
       >
         <InteractiveTerminal

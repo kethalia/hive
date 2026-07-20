@@ -114,7 +114,7 @@ interface TerminalSessionFrameProps {
   showHeader?: boolean;
   onActivate?: () => void;
   onClose?: (event: MouseEvent<HTMLButtonElement>) => void;
-  onMouseEnter?: () => void;
+  onMouseMove?: () => void;
   onFocusActivate?: boolean;
   disabled?: boolean;
   disabledLabel?: string;
@@ -136,7 +136,7 @@ export function TerminalSessionFrame({
   showHeader = true,
   onActivate,
   onClose,
-  onMouseEnter,
+  onMouseMove,
   onFocusActivate = false,
   disabled = false,
   disabledLabel,
@@ -191,7 +191,7 @@ export function TerminalSessionFrame({
       onClick={handleFrameClick}
       onFocus={handleFrameFocus}
       onKeyDown={handleFrameKeyDown}
-      onMouseEnter={disabled ? undefined : onMouseEnter}
+      onMouseMove={disabled ? undefined : onMouseMove}
     >
       {showHeader ? (
         <div
