@@ -303,15 +303,10 @@ function isRectInDirection(
   candidate: WorkspaceWindowRect,
   direction: WorkspaceWindowDirection,
 ): boolean {
-  const currentCenterX = current.x + current.width / 2;
-  const currentCenterY = current.y + current.height / 2;
-  const candidateCenterX = candidate.x + candidate.width / 2;
-  const candidateCenterY = candidate.y + candidate.height / 2;
-
-  if (direction === "left") return candidateCenterX < currentCenterX;
-  if (direction === "right") return candidateCenterX > currentCenterX;
-  if (direction === "up") return candidateCenterY < currentCenterY;
-  return candidateCenterY > currentCenterY;
+  if (direction === "left") return candidate.x + candidate.width <= current.x;
+  if (direction === "right") return candidate.x >= current.x + current.width;
+  if (direction === "up") return candidate.y + candidate.height <= current.y;
+  return candidate.y >= current.y + current.height;
 }
 
 function directionalScore(

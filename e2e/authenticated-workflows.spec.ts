@@ -235,13 +235,15 @@ async function verifyDirectionalWorkspaceFocus(
   if (!directionToFiles) {
     throw new Error("The files pane is not the closest directional neighbor of the code pane.");
   }
+  await codeWindow.locator('button[aria-label^="Drag VS Code"]').click();
+  await expect(codePane).toHaveAttribute("data-active", "true");
   const keyDirection = `${directionToFiles[0]?.toUpperCase()}${directionToFiles.slice(1)}`;
   await page.keyboard.press(`Control+Arrow${keyDirection}`);
   await expect(filesPane).toHaveAttribute("data-active", "true");
 
   const edgeCandidate = closestWorkspaceEdge(bodyBox, renderedRects);
   const edgeWindow = page.locator(`[data-workspace-window-id="${edgeCandidate.id}"]:visible`);
-  await edgeWindow.getByRole("button", { name: /^Drag / }).click();
+  await edgeWindow.locator('button[aria-label^="Drag "]').click();
   await expect(edgeWindow.locator('[data-active="true"]')).toHaveCount(1);
   await page.keyboard.press(`Control+Arrow${edgeCandidate.direction}`);
   await expect(edgeWindow.locator('[data-active="true"]')).toHaveCount(1);
@@ -280,7 +282,7 @@ async function verifyWorkspaceWindowDrag(page: Page) {
   if (!codeBoxBefore || !terminalBoxBefore) {
     throw new Error("Workspace windows could not be measured before drag.");
   }
-  await page.getByRole("button", { name: /^Drag VS Code/ }).dragTo(terminalWindow);
+  await page.locator('button[aria-label^="Drag VS Code"]').dragTo(terminalWindow);
   await expect.poll(() => rectDelta(codeWindow, "x", terminalBoxBefore.x)).toBeLessThan(2);
   await expect.poll(() => rectDelta(codeWindow, "y", terminalBoxBefore.y)).toBeLessThan(2);
   await expect.poll(() => rectDelta(terminalWindow, "x", codeBoxBefore.x)).toBeLessThan(2);

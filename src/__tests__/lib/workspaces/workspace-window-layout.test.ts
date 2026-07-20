@@ -99,6 +99,18 @@ describe("workspace window layout", () => {
     expect(findWorkspaceWindowInDirection(rects, "top-right", "up")).toBeNull();
   });
 
+  it("does not treat a narrower window sharing an outer edge as a side neighbor", () => {
+    const rects = new Map([
+      ["wide-top", { x: 0, y: 0, width: 0.5, height: 0.5 }],
+      ["narrow-bottom-left", { x: 0, y: 0.5, width: 0.25, height: 0.5 }],
+      ["narrow-bottom-right", { x: 0.25, y: 0.5, width: 0.25, height: 0.5 }],
+    ]);
+
+    expect(findWorkspaceWindowInDirection(rects, "wide-top", "left")).toBeNull();
+    expect(findWorkspaceWindowInDirection(rects, "narrow-bottom-left", "left")).toBeNull();
+    expect(findWorkspaceWindowInDirection(rects, "narrow-bottom-left", "up")).toBe("wide-top");
+  });
+
   it("round-trips valid persisted trees and safely rejects corrupt state", () => {
     const root = reconcileWorkspaceWindowLayout(null, ["main", "build"], {
       viewportWidth: 1200,
