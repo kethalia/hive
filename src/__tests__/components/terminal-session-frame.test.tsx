@@ -20,6 +20,7 @@ describe("TerminalSessionFrame", () => {
         dragHandleAttributes={{ "aria-describedby": "drag-instructions" }}
         dragHandleListeners={{ onPointerDown: onGripPointerDown }}
         onHeaderPointerDown={onHeaderPointerDown}
+        onActivate={vi.fn()}
         headerActions={<button type="button">Pop out</button>}
         onClose={vi.fn()}
       >

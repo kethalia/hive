@@ -192,10 +192,11 @@ export function TerminalSessionFrame({
   function handleHeaderPointerDown(event: PointerEvent<HTMLDivElement>) {
     if (disabled || !onHeaderPointerDown) return;
     const target = event.target;
-    if (
-      target instanceof Element &&
-      target.closest("button, a, input, select, textarea, [role='button'], [role='link']")
-    ) {
+    const interactiveTarget =
+      target instanceof Element
+        ? target.closest("button, a, input, select, textarea, [role='button'], [role='link']")
+        : null;
+    if (interactiveTarget && event.currentTarget.contains(interactiveTarget)) {
       return;
     }
     onHeaderPointerDown(event);
