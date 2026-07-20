@@ -427,7 +427,8 @@ describe("workspace server actions", () => {
     expect(result?.data).toEqual({
       codeUrl:
         "https://code-server--main--dev-box--alice.coder.example.com/?folder=%2Fhome%2Fcoder%2Fprojects%2Fkethalia%2Fhive",
-      filesUrl: "/api/workspace-proxy/ws-1/filebrowser/files/home/coder/projects/kethalia/hive",
+      filesUrl:
+        "https://filebrowser--main--dev-box--alice.coder.example.com/files/projects/kethalia/hive",
       folderPath: "/home/coder/projects/kethalia/hive",
       reloadRequired: false,
       source: "tmux",
@@ -557,9 +558,10 @@ describe("workspace server actions", () => {
     });
     const client = await mockedGetCoderClientForUser.mock.results.at(-1)?.value;
 
-    expect(result?.data?.filesUrl).toBe("/api/workspace-proxy/ws-1/filebrowser/files/home/coder");
+    const expectedUrl = "https://filebrowser--main--dev-box--alice.apps.example.com/files/";
+    expect(result?.data?.filesUrl).toBe(expectedUrl);
     expect(result?.data?.reloadRequired).toBe(true);
-    expect(client?.getApplicationAuthRedirect).not.toHaveBeenCalled();
+    expect(client?.getApplicationAuthRedirect).toHaveBeenCalledWith(expectedUrl);
     expect(mockCookieSet).toHaveBeenCalledWith(
       "hive-coder-host",
       "https://coder.example.com~https://apps.example.com",

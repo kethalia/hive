@@ -259,7 +259,6 @@ export const getWorkspaceSessionToolsAction = authActionClient
     });
     const folderPath =
       currentDirectory ?? resolveWorkspaceFallbackDirectory(parsedInput.fallbackPath) ?? undefined;
-    const proxyBase = `/api/workspace-proxy/${encodeURIComponent(parsedInput.workspaceId)}`;
     const urls = buildWorkspaceUrls(workspace, agent.name, client.getBaseUrl(), applicationsHost);
     if (!urls) throw new Error("Coder URL is unavailable for workspace tools");
     // Coder app subdomains are isolated browser origins and are the supported
@@ -267,12 +266,16 @@ export const getWorkspaceSessionToolsAction = authActionClient
     // extends trust for Hive's server-side requests; it must not switch the browser
     // to a same-origin Coder path app, whose framing and sharing rules differ.
     const requestedCodeUrl = buildCodeServerFolderUrl(urls.codeServer, folderPath);
+    const requestedFilesUrl = buildFileBrowserFolderUrl(urls.filebrowser, folderPath);
 
     const codeUrl =
       parsedInput.tool === "code"
         ? await client.getApplicationAuthRedirect(requestedCodeUrl)
         : requestedCodeUrl;
-    const filesUrl = buildFileBrowserFolderUrl(`${proxyBase}/filebrowser`, folderPath);
+    const filesUrl =
+      parsedInput.tool === "files"
+        ? await client.getApplicationAuthRedirect(requestedFilesUrl)
+        : requestedFilesUrl;
     const reloadRequired = await synchronizeCoderFrameHosts(
       client.getBaseUrl(),
       applicationsHost,

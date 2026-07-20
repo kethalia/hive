@@ -7,6 +7,7 @@ import { join } from "node:path";
 import { test } from "node:test";
 
 const TEMPLATE_ROOT = join(process.cwd(), "templates/ai-dev-k8s");
+const DOCKER_TEMPLATE_ROOT = join(process.cwd(), "templates/ai-dev");
 
 function readTemplateFile(relativePath) {
   return readFileSync(join(TEMPLATE_ROOT, relativePath), "utf8");
@@ -178,9 +179,26 @@ function verifyNonRootSupplementalTools() {
   assert.match(filebrowser, /--auth\.method="noauth"/);
   assert.match(filebrowser, /users find 1/);
   assert.match(filebrowser, /users add coder .* --perm\.admin/);
+  assert.match(filebrowser, /api\/login/);
+  assert.match(filebrowser, /login_status/);
+  assert.match(filebrowser, /pkill -x filebrowser/);
   assert.doesNotMatch(filebrowser, /\bsudo\b/);
   assert.ok(initScript.includes("- **Node.js**: v24"));
   assert.ok(!initScript.includes("also available: 18, 20, 22"));
+}
+
+function verifyDockerFileBrowser() {
+  const terraform = readFileSync(join(DOCKER_TEMPLATE_ROOT, "main.tf"), "utf8");
+  const filebrowser = readFileSync(
+    join(DOCKER_TEMPLATE_ROOT, "scripts/tools-filebrowser.sh"),
+    "utf8",
+  );
+
+  assert.doesNotMatch(terraform, /module "filebrowser"/);
+  assert.match(terraform, /resource "coder_script" "filebrowser"/);
+  assert.match(terraform, /resource "coder_app" "filebrowser"/);
+  assert.match(terraform, /start_blocks_login\s*=\s*false/);
+  assert.equal(filebrowser, readTemplateFile("scripts/tools-filebrowser.sh"));
 }
 
 function verifyAiAgentSelection() {
@@ -348,6 +366,7 @@ test(
 test("CI tooling installs without root and uses verified GitHub CLI artifacts", verifyCiTooling);
 test("workspace bootstrap does not delete vault content or require Docker", verifySafeBootstrap);
 test("supplemental tools support the non-root workspace", verifyNonRootSupplementalTools);
+test("Docker workspaces use the same repairable File Browser runtime", verifyDockerFileBrowser);
 test("workspace only provisions Claude and Codex AI agents", verifyAiAgentSelection);
 test("shell setup retries incomplete Oh My Zsh installations", verifyShellRetry);
 test("GitHub helpers retrieve fresh Coder credentials on demand", verifyGithubHelpers);

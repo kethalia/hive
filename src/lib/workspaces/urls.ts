@@ -64,9 +64,16 @@ export function buildFileBrowserFolderUrl(
 
   const url = new URL(fileBrowserUrl, "https://hive.local");
   const basePath = url.pathname.replace(/\/+$/, "");
-  const normalizedFolderPath = folderPath.trim().startsWith("/")
+  const absoluteFolderPath = folderPath.trim().startsWith("/")
     ? folderPath.trim()
     : `/${folderPath.trim()}`;
+  const fileBrowserRoot = "/home/coder";
+  const normalizedFolderPath =
+    absoluteFolderPath === fileBrowserRoot
+      ? "/"
+      : absoluteFolderPath.startsWith(`${fileBrowserRoot}/`)
+        ? absoluteFolderPath.slice(fileBrowserRoot.length)
+        : "/";
   const encodedFolderPath = normalizedFolderPath.split("/").map(encodeURIComponent).join("/");
   url.pathname = `${basePath}/files${encodedFolderPath}`;
   if (!fileBrowserUrl.startsWith("/")) return url.toString();

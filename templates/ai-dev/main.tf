@@ -381,11 +381,31 @@ resource "coder_app" "gsd" {
 # File Browser
 # =============================================================================
 
-module "filebrowser" {
-  count    = data.coder_workspace.me.start_count
-  source   = "registry.coder.com/coder/filebrowser/coder"
-  version  = "1.1.4"
-  agent_id = coder_agent.main.id
+resource "coder_script" "filebrowser" {
+  count              = data.coder_workspace.me.start_count
+  agent_id           = coder_agent.main.id
+  display_name       = "File Browser"
+  icon               = "/icon/filebrowser.svg"
+  run_on_start       = true
+  start_blocks_login = false
+  script             = file("${path.module}/scripts/tools-filebrowser.sh")
+}
+
+resource "coder_app" "filebrowser" {
+  count        = data.coder_workspace.me.start_count
+  agent_id     = coder_agent.main.id
+  slug         = "filebrowser"
+  display_name = "File Browser"
+  url          = "http://localhost:13339"
+  icon         = "/icon/filebrowser.svg"
+  subdomain    = true
+  share        = "owner"
+
+  healthcheck {
+    url       = "http://localhost:13339/health"
+    interval  = 5
+    threshold = 6
+  }
 }
 
 # =============================================================================

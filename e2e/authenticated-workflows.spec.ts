@@ -73,6 +73,29 @@ async function expectConnectedTerminal(page: Page) {
   return terminal;
 }
 
+async function expectFileBrowserReady(page: Page) {
+  const fileBrowserFrame = page.frameLocator('[data-testid="workspace-tool-frame-files"]');
+  const fileBrowserBody = fileBrowserFrame.locator("body");
+  const passwordInput = fileBrowserFrame.locator('input[type="password"]');
+  await expect(fileBrowserBody).toBeVisible({ timeout: 30_000 });
+  await expect
+    .poll(
+      async () => {
+        if (await passwordInput.isVisible()) return "login";
+        const text = (await fileBrowserBody.innerText()).trim();
+        if (/\bfile browser\b[\s\S]*\blogin\b/i.test(text)) return "login";
+        if (
+          /unauthorized|proxy error|internal server error|location can.t be reached/i.test(text)
+        ) {
+          return "error";
+        }
+        return /\bname\b[\s\S]*\bsize\b[\s\S]*\blast modified\b/i.test(text) ? "ready" : "loading";
+      },
+      { timeout: 30_000 },
+    )
+    .toBe("ready");
+}
+
 async function verifyEmbeddedFileBrowser(page: Page, testInfo: TestInfo) {
   await page
     .getByRole("button", { name: /^Browse files for / })
@@ -80,15 +103,8 @@ async function verifyEmbeddedFileBrowser(page: Page, testInfo: TestInfo) {
     .click();
   await expect(page.getByTestId("workspace-tool-pane-files")).toBeVisible({ timeout: 30_000 });
   const fileBrowserFrame = page.getByTestId("workspace-tool-frame-files");
-  await expect(fileBrowserFrame).toHaveAttribute(
-    "src",
-    /^\/api\/workspace-proxy\/[^/]+\/filebrowser\/files\//,
-  );
-  const fileBrowserBody = page
-    .frameLocator('[data-testid="workspace-tool-frame-files"]')
-    .locator("body");
-  await expect(fileBrowserBody).toBeVisible({ timeout: 30_000 });
-  await expect(fileBrowserBody).not.toContainText(/login|unauthorized|proxy error/i);
+  await expect(fileBrowserFrame).toHaveAttribute("src", /filebrowser--.*\/files\//);
+  await expectFileBrowserReady(page);
   await capture(page, testInfo, "workspace-file-browser-embedded");
 }
 
@@ -124,9 +140,7 @@ async function verifyEmbeddedToolsSurviveRefresh(page: Page, testInfo: TestInfo)
   await expectConnectedTerminal(page);
   await expect(page.getByTestId("workspace-tool-pane-files")).toBeVisible({ timeout: 30_000 });
   await expect(page.getByTestId("workspace-tool-pane-code")).toBeVisible({ timeout: 30_000 });
-  await expect(
-    page.frameLocator('[data-testid="workspace-tool-frame-files"]').locator("body"),
-  ).toBeVisible({ timeout: 30_000 });
+  await expectFileBrowserReady(page);
   await expect(
     page.frameLocator('[data-testid="workspace-tool-frame-code"]').locator(".monaco-workbench"),
   ).toBeVisible({ timeout: 45_000 });

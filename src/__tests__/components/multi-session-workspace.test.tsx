@@ -675,7 +675,7 @@ describe("MultiSessionWorkspace", () => {
     mockGetWorkspaceSessionTools.mockResolvedValue({
       data: {
         codeUrl: "https://code.test/?folder=%2Fhome%2Fcoder",
-        filesUrl: "/api/workspace-proxy/ws-1/filebrowser/files/home/coder",
+        filesUrl: "https://filebrowser.test/files/home/coder",
         folderPath: "/home/coder",
       },
     });
@@ -720,12 +720,12 @@ describe("MultiSessionWorkspace", () => {
     expect(filesPane).toBeInTheDocument();
     expect(screen.getByTestId("workspace-tool-frame-files")).toHaveAttribute(
       "src",
-      "/api/workspace-proxy/ws-1/filebrowser/files/home/coder",
+      "https://filebrowser.test/files/home/coder",
     );
-    expect(screen.getByTestId("workspace-tool-frame-files").getAttribute("sandbox")).not.toContain(
+    expect(screen.getByTestId("workspace-tool-frame-files").getAttribute("sandbox")).toContain(
       "allow-same-origin",
     );
-    expect(screen.queryByTestId("pop-out-workspace-tool-files")).not.toBeInTheDocument();
+    expect(screen.getByTestId("pop-out-workspace-tool-files")).toBeInTheDocument();
     expect(screen.getByTestId("interactive-terminal-main-session")).toBeInTheDocument();
     expect(screen.queryByTestId("workspace-tool-dialog")).not.toBeInTheDocument();
 
@@ -775,7 +775,7 @@ describe("MultiSessionWorkspace", () => {
     mockGetWorkspaceSessionTools.mockImplementation(() => ({
       data: {
         codeUrl: "https://fresh-code.test/?coder_application_connect_api_key=fresh",
-        filesUrl: "/api/workspace-proxy/ws-1/filebrowser/files/home/coder/fresh",
+        filesUrl: "https://filebrowser.test/files/home/coder/fresh",
         folderPath: "/home/coder/fresh",
         source: "tmux",
       },
@@ -785,7 +785,7 @@ describe("MultiSessionWorkspace", () => {
 
     expect(await screen.findByTestId("workspace-tool-frame-files")).toHaveAttribute(
       "src",
-      "/api/workspace-proxy/ws-1/filebrowser/files/home/coder/fresh",
+      "https://filebrowser.test/files/home/coder/fresh",
     );
     expect(await screen.findByTestId("workspace-tool-frame-code")).toHaveAttribute(
       "src",
