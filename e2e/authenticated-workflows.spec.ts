@@ -73,30 +73,36 @@ async function expectConnectedTerminal(page: Page) {
   return terminal;
 }
 
-async function expectFileBrowserReady(page: Page) {
-  const fileBrowserFrame = page.frameLocator('[data-testid="workspace-tool-frame-files"]');
-  const fileBrowserBody = fileBrowserFrame.locator("body");
-  const passwordInput = fileBrowserFrame.locator('input[type="password"]');
-  await expect(fileBrowserBody).toBeVisible({ timeout: 30_000 });
-  await expect
-    .poll(
-      async () => {
-        if (await passwordInput.isVisible()) return "login";
-        const text = (await fileBrowserBody.innerText()).trim();
-        if (/\bfile browser\b[\s\S]*\blogin\b/i.test(text)) return "login";
-        if (
-          /unauthorized|proxy error|internal server error|location can.t be reached/i.test(text)
-        ) {
-          return "error";
-        }
-        return /\bname\b[\s\S]*\bsize\b/i.test(text) ? "ready" : "loading";
-      },
-      { timeout: 30_000 },
-    )
-    .toBe("ready");
+function trackFileBrowserResourceLoads(page: Page) {
+  let successfulLoads = 0;
+  page.on("response", (response) => {
+    const url = new URL(response.url());
+    if (
+      url.hostname.startsWith("filebrowser--") &&
+      url.pathname === "/api/resources/" &&
+      response.ok()
+    ) {
+      successfulLoads += 1;
+    }
+  });
+  return () => successfulLoads;
 }
 
-async function verifyEmbeddedFileBrowser(page: Page, testInfo: TestInfo) {
+async function expectFileBrowserReady(
+  page: Page,
+  getSuccessfulLoads: () => number,
+  previousLoadCount: number,
+) {
+  await expect(page.getByTestId("workspace-tool-frame-files")).toBeVisible({ timeout: 30_000 });
+  await expect.poll(getSuccessfulLoads, { timeout: 30_000 }).toBeGreaterThan(previousLoadCount);
+}
+
+async function verifyEmbeddedFileBrowser(
+  page: Page,
+  testInfo: TestInfo,
+  getSuccessfulLoads: () => number,
+) {
+  const previousLoadCount = getSuccessfulLoads();
   await page
     .getByRole("button", { name: /^Browse files for / })
     .first()
@@ -104,7 +110,7 @@ async function verifyEmbeddedFileBrowser(page: Page, testInfo: TestInfo) {
   await expect(page.getByTestId("workspace-tool-pane-files")).toBeVisible({ timeout: 30_000 });
   const fileBrowserFrame = page.getByTestId("workspace-tool-frame-files");
   await expect(fileBrowserFrame).toHaveAttribute("src", /filebrowser--.*\/files\//);
-  await expectFileBrowserReady(page);
+  await expectFileBrowserReady(page, getSuccessfulLoads, previousLoadCount);
   await capture(page, testInfo, "workspace-file-browser-embedded");
 }
 
@@ -124,7 +130,11 @@ async function verifyEmbeddedVsCode(page: Page, testInfo: TestInfo) {
   await capture(page, testInfo, "workspace-vscode-embedded");
 }
 
-async function verifyEmbeddedToolsSurviveRefresh(page: Page, testInfo: TestInfo) {
+async function verifyEmbeddedToolsSurviveRefresh(
+  page: Page,
+  testInfo: TestInfo,
+  getSuccessfulLoads: () => number,
+) {
   const originalCodeUrl = await page.getByTestId("workspace-tool-frame-code").getAttribute("src");
   expect(originalCodeUrl).toBeTruthy();
   const persistedUrls = await page.evaluate(() =>
@@ -136,11 +146,12 @@ async function verifyEmbeddedToolsSurviveRefresh(page: Page, testInfo: TestInfo)
   );
   expect(persistedUrls).toBe(false);
 
+  const previousFileBrowserLoadCount = getSuccessfulLoads();
   await page.reload({ waitUntil: "domcontentloaded" });
   await expectConnectedTerminal(page);
   await expect(page.getByTestId("workspace-tool-pane-files")).toBeVisible({ timeout: 30_000 });
   await expect(page.getByTestId("workspace-tool-pane-code")).toBeVisible({ timeout: 30_000 });
-  await expectFileBrowserReady(page);
+  await expectFileBrowserReady(page, getSuccessfulLoads, previousFileBrowserLoadCount);
   await expect(
     page.frameLocator('[data-testid="workspace-tool-frame-code"]').locator(".monaco-workbench"),
   ).toBeVisible({ timeout: 45_000 });
@@ -164,14 +175,24 @@ async function verifyPaletteToolAndOpenActions(page: Page, testInfo: TestInfo) {
   const searchInput = page.getByPlaceholder(/Search terminal sessions/);
   await expect(searchInput).toBeFocused();
   await searchInput.press("ArrowRight");
+  await expect(sessionRow.getByRole("button", { name: "VS Code" })).toHaveAttribute(
+    "data-selected",
+    "true",
+  );
   await searchInput.press("Enter");
   await expect(page.getByTestId("workspace-tool-pane-code")).toBeVisible({ timeout: 30_000 });
   await page.getByTestId("remove-workspace-tool-code").click();
 
   await page.keyboard.press("Control+K");
   await page.getByPlaceholder(/Search terminal sessions/).fill(sessionLabel ?? "");
-  await page.keyboard.press("Enter");
-  await expect(page.getByTestId("single-terminal-header")).toBeVisible();
+  const openOption = sessionRow.getByRole("button", { name: "Open", exact: true });
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    await searchInput.press("ArrowLeft");
+    if ((await openOption.getAttribute("data-selected")) === "true") break;
+  }
+  await expect(openOption).toHaveAttribute("data-selected", "true");
+  await searchInput.press("Enter");
+  await expect(page.getByTestId("single-terminal-header")).toBeVisible({ timeout: 15_000 });
   const singleTerminal = await expectConnectedTerminal(page);
   await proveTerminalAcceptsInput(page, singleTerminal);
   await capture(page, testInfo, "single-terminal-connected");
@@ -294,6 +315,7 @@ test.describe("authenticated Hive workflows", () => {
 
   test("opens a live workspace terminal when one is available", async ({ page }, testInfo) => {
     test.setTimeout(90_000);
+    const getSuccessfulFileBrowserLoads = trackFileBrowserResourceLoads(page);
     const terminalSocketUrls: string[] = [];
     page.on("websocket", (socket) => {
       const url = new URL(socket.url());
@@ -332,13 +354,13 @@ test.describe("authenticated Hive workflows", () => {
     await capture(page, testInfo, "workspace-terminal-connected");
 
     await test.step("embed File Browser from its isolated Coder application host", async () => {
-      await verifyEmbeddedFileBrowser(page, testInfo);
+      await verifyEmbeddedFileBrowser(page, testInfo, getSuccessfulFileBrowserLoads);
     });
     await test.step("embed VS Code from the configured Coder application host", async () => {
       await verifyEmbeddedVsCode(page, testInfo);
     });
     await test.step("restore embedded tools with fresh authorization after refresh", async () => {
-      await verifyEmbeddedToolsSurviveRefresh(page, testInfo);
+      await verifyEmbeddedToolsSurviveRefresh(page, testInfo, getSuccessfulFileBrowserLoads);
     });
     await page.getByTestId("remove-workspace-tool-files").click();
     await page.getByTestId("remove-workspace-tool-code").click();
