@@ -103,6 +103,7 @@ describe("validateCoderInstance", () => {
 
   it("uses a shorter timeout for ancillary applications-host discovery", async () => {
     const timeoutSpy = vi.spyOn(AbortSignal, "timeout");
+    vi.spyOn(Date, "now").mockReturnValue(1_000);
     vi.mocked(fetch)
       .mockResolvedValueOnce(
         new Response(JSON.stringify({ session_token: "tok" }), { status: 200 }),
@@ -121,6 +122,25 @@ describe("validateCoderInstance", () => {
     expect(timeoutSpy).toHaveBeenNthCalledWith(1, 10_000);
     expect(timeoutSpy).toHaveBeenNthCalledWith(2, 10_000);
     expect(timeoutSpy).toHaveBeenNthCalledWith(3, 2_000);
+  });
+
+  it("skips ancillary applications-host discovery after the login deadline", async () => {
+    vi.spyOn(Date, "now").mockReturnValueOnce(1_000).mockReturnValueOnce(9_000);
+    vi.mocked(fetch)
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ session_token: "tok" }), { status: 200 }),
+      )
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ id: "u", username: "a", email: "a@b.com" }), {
+          status: 200,
+        }),
+      );
+
+    await expect(coderLogin(BASE_URL, "a@b.com", "pw")).resolves.toMatchObject({
+      userId: "u",
+      applicationsHost: "",
+    });
+    expect(fetch).toHaveBeenCalledTimes(2);
   });
 
   it.each([

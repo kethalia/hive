@@ -20,6 +20,8 @@ import type {
   WorkspaceResource,
 } from "./types";
 
+const APPLICATIONS_HOST_TIMEOUT_MS = 2_000;
+
 function parseApplicationsHost(host: string): string {
   const trimmedHost = host.trim();
   if (!trimmedHost) return "";
@@ -72,7 +74,9 @@ export class CoderClient {
   }
 
   async getApplicationsHost(): Promise<string> {
-    const response = await this.request<unknown>("/api/v2/applications/host");
+    const response = await this.request<unknown>("/api/v2/applications/host", {
+      signal: AbortSignal.timeout(APPLICATIONS_HOST_TIMEOUT_MS),
+    });
     return typeof response === "object" &&
       response !== null &&
       "host" in response &&

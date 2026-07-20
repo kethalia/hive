@@ -35,6 +35,9 @@ describe("proxy", () => {
     const dashboardResponse = proxy(new NextRequest("https://hive.local.kethalia.com/tasks"));
 
     expect(homepageResponse.headers.get("location")).toBeNull();
+    expect(
+      homepageResponse.headers.get("x-middleware-request-x-hive-coder-frame-hosts"),
+    ).toBeNull();
     expect(dashboardResponse.headers.get("location")).toBe("https://hive.local.kethalia.com/login");
   });
 
@@ -71,6 +74,9 @@ describe("proxy", () => {
     );
     expect(response.headers.get("permissions-policy")).toContain(
       '"https://apps.coder.test" "https://*.apps.coder.test")',
+    );
+    expect(response.headers.get("x-middleware-request-x-hive-coder-frame-hosts")).toBe(
+      "https://coder.example.com~https://apps.coder.test",
     );
 
     vi.unstubAllEnvs();

@@ -5,6 +5,7 @@ const scriptSource =
 
 export const CODER_HOST_COOKIE = "hive-coder-host";
 export const CODER_FRAME_HOSTS_META = "hive-coder-frame-hosts";
+export const CODER_FRAME_HOSTS_REQUEST_HEADER = "x-hive-coder-frame-hosts";
 
 export function coderFrameConfiguredUrls(coderUrl: string, applicationsHost?: string): string[] {
   const coderOrigin = new URL(coderUrl);

@@ -3,6 +3,7 @@ import { rootCertificates } from "node:tls";
 import { cookies } from "next/headers";
 import { type NextRequest, NextResponse } from "next/server";
 import { Agent, fetch as undiciFetch } from "undici";
+import { getAuthServiceClient } from "@/lib/auth/service-client";
 import { getSession } from "@/lib/auth/session";
 import { getCoderClientForUser } from "@/lib/coder/user-client";
 import { buildWorkspaceUrls } from "@/lib/workspaces/urls";
@@ -21,6 +22,7 @@ const metaCache = new Map<string, WorkspaceMeta>();
 const CACHE_TTL_MS = 5 * 60 * 1000;
 const PROXY_GRANT_TTL_MS = 8 * 60 * 60 * 1000;
 const PROXY_GRANT_HEADER = "x-hive-workspace-proxy-grant";
+const PROXY_PREFLIGHT_HEADERS = new Set([PROXY_GRANT_HEADER, "content-type"]);
 
 const APP_SLUG_MAP: Record<string, string> = {
   filebrowser: "filebrowser",
@@ -59,17 +61,20 @@ const SKIP_REQUEST_HEADERS = new Set([
   "next-url",
 ]);
 
-function signProxyGrant(userId: string, workspaceId: string): string {
+function signProxyGrant(userId: string, sessionId: string, workspaceId: string): string {
   const secret = process.env.COOKIE_SECRET;
   if (!secret) throw new Error("COOKIE_SECRET is not configured");
   const payload = Buffer.from(
-    JSON.stringify({ expiresAt: Date.now() + PROXY_GRANT_TTL_MS, userId, workspaceId }),
+    JSON.stringify({ expiresAt: Date.now() + PROXY_GRANT_TTL_MS, sessionId, userId, workspaceId }),
   ).toString("base64url");
   const signature = createHmac("sha256", secret).update(payload).digest("base64url");
   return `${payload}.${signature}`;
 }
 
-function verifyProxyGrant(grant: string, workspaceId: string): string | null {
+function verifyProxyGrant(
+  grant: string,
+  workspaceId: string,
+): { sessionId: string; userId: string } | null {
   const secret = process.env.COOKIE_SECRET;
   if (!secret) return null;
   const separator = grant.indexOf(".");
@@ -99,12 +104,14 @@ function verifyProxyGrant(grant: string, workspaceId: string): string | null {
       parsed.expiresAt <= Date.now() ||
       !("userId" in parsed) ||
       typeof parsed.userId !== "string" ||
+      !("sessionId" in parsed) ||
+      typeof parsed.sessionId !== "string" ||
       !("workspaceId" in parsed) ||
       parsed.workspaceId !== workspaceId
     ) {
       return null;
     }
-    return parsed.userId;
+    return { sessionId: parsed.sessionId, userId: parsed.userId };
   } catch {
     return null;
   }
@@ -360,7 +367,14 @@ async function proxyRequest(
   }
 
   const suppliedGrant = req.headers.get(PROXY_GRANT_HEADER);
-  const grantUserId = suppliedGrant ? verifyProxyGrant(suppliedGrant, workspaceId) : null;
+  const grantPayload = suppliedGrant ? verifyProxyGrant(suppliedGrant, workspaceId) : null;
+  let grantUserId: string | null = null;
+  if (grantPayload) {
+    const activeSession = await getAuthServiceClient()
+      .getSession(grantPayload.sessionId)
+      .catch(() => null);
+    if (activeSession?.userId === grantPayload.userId) grantUserId = grantPayload.userId;
+  }
   if (suppliedGrant && !grantUserId) {
     const response = NextResponse.json({ error: "Invalid workspace proxy grant" }, { status: 401 });
     setGrantCorsHeaders(response.headers);
@@ -473,7 +487,12 @@ async function proxyRequest(
       const proxyAppSlug = pathSegments[0] in APP_SLUG_MAP ? pathSegments[0] : "filebrowser";
       const appProxyBase = `${proxyBase}/${proxyAppSlug}`;
       let html = await upstream.text();
-      const grantBridge = buildProxyGrantBridge(signProxyGrant(userId, workspaceId), proxyBase);
+      const sessionId = grantPayload?.sessionId ?? session?.session.sessionId;
+      if (!sessionId) throw new Error("Active Hive session is required for workspace proxy HTML");
+      const grantBridge = buildProxyGrantBridge(
+        signProxyGrant(userId, sessionId, workspaceId),
+        proxyBase,
+      );
       const baseTag = `<base href="${appProxyBase}/" />`;
       if (html.includes("<head>")) {
         html = html.replace("<head>", `<head>${baseTag}${grantBridge}`);
@@ -532,18 +551,25 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
 
 export async function OPTIONS(req: NextRequest, { params }: RouteParams) {
   const { workspaceId } = await params;
-  const requestedHeaders = req.headers.get("access-control-request-headers")?.toLowerCase() ?? "";
+  const requestedHeaders =
+    req.headers
+      .get("access-control-request-headers")
+      ?.toLowerCase()
+      .split(",")
+      .map((header) => header.trim())
+      .filter(Boolean) ?? [];
   if (
     !UUID_RE.test(workspaceId) ||
     req.headers.get("origin") !== "null" ||
-    !requestedHeaders.split(",").some((header) => header.trim() === PROXY_GRANT_HEADER)
+    !requestedHeaders.includes(PROXY_GRANT_HEADER) ||
+    requestedHeaders.some((header) => !PROXY_PREFLIGHT_HEADERS.has(header))
   ) {
     return new NextResponse(null, { status: 403 });
   }
   return new NextResponse(null, {
     status: 204,
     headers: {
-      "Access-Control-Allow-Headers": PROXY_GRANT_HEADER,
+      "Access-Control-Allow-Headers": requestedHeaders.join(", "),
       "Access-Control-Allow-Methods": "GET, POST, PUT, PATCH, DELETE, OPTIONS",
       "Access-Control-Allow-Origin": "null",
       "Access-Control-Max-Age": "600",

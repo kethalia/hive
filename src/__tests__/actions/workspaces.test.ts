@@ -2,11 +2,13 @@ import { readFile } from "node:fs/promises";
 import { rootCertificates } from "node:tls";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { mockedAgentClose, mockedAgentOptions, mockedUndiciFetch } = vi.hoisted(() => ({
-  mockedAgentClose: vi.fn(),
-  mockedAgentOptions: vi.fn(),
-  mockedUndiciFetch: vi.fn(),
-}));
+const { mockedAgentClose, mockedAgentOptions, mockedAuthServiceGetSession, mockedUndiciFetch } =
+  vi.hoisted(() => ({
+    mockedAgentClose: vi.fn(),
+    mockedAgentOptions: vi.fn(),
+    mockedAuthServiceGetSession: vi.fn(),
+    mockedUndiciFetch: vi.fn(),
+  }));
 
 vi.mock("undici", () => ({
   Agent: class MockAgent {
@@ -37,6 +39,10 @@ vi.mock("next/headers", () => ({
 vi.mock("@/lib/auth/session", () => ({
   getRequestSession: vi.fn(),
   getSession: vi.fn(),
+}));
+
+vi.mock("@/lib/auth/service-client", () => ({
+  getAuthServiceClient: () => ({ getSession: mockedAuthServiceGetSession }),
 }));
 
 import { cookies } from "next/headers";
@@ -71,6 +77,7 @@ describe("workspace actions use authActionClient + getCoderClientForUser", () =>
     mockedUndiciFetch.mockResolvedValue(new Response("ok", { status: 200 }));
     mockedGetRequestSession.mockResolvedValue(MOCK_SESSION);
     mockedGetSession.mockResolvedValue(MOCK_SESSION);
+    mockedAuthServiceGetSession.mockResolvedValue({ userId: MOCK_SESSION.user.id });
     mockedCookies.mockResolvedValue({
       get: () => ({ value: "session-cookie-value" }),
     } as never);
@@ -253,7 +260,7 @@ describe("workspace actions use authActionClient + getCoderClientForUser", () =>
       method: "OPTIONS",
       headers: {
         Origin: "null",
-        "Access-Control-Request-Headers": "x-hive-workspace-proxy-grant",
+        "Access-Control-Request-Headers": "content-type, x-hive-workspace-proxy-grant",
         "Access-Control-Request-Method": "GET",
       },
     });
@@ -262,6 +269,9 @@ describe("workspace actions use authActionClient + getCoderClientForUser", () =>
     });
     expect(preflightResponse.status).toBe(204);
     expect(preflightResponse.headers.get("access-control-allow-origin")).toBe("null");
+    expect(preflightResponse.headers.get("access-control-allow-headers")).toBe(
+      "content-type, x-hive-workspace-proxy-grant",
+    );
 
     mockedGetSession.mockClear();
     const apiUrl = `${proxyBase}/api/resources`;
@@ -285,6 +295,26 @@ describe("workspace actions use authActionClient + getCoderClientForUser", () =>
     expect(apiResponse.headers.get("access-control-allow-origin")).toBe("null");
     expect(await apiResponse.json()).toEqual({ items: [] });
     expect(mockedGetSession).not.toHaveBeenCalled();
+    expect(mockedAuthServiceGetSession).toHaveBeenCalledWith(MOCK_SESSION.session.sessionId);
+
+    mockedAuthServiceGetSession.mockResolvedValueOnce(null);
+    const revokedRequest = new Request(apiUrl, {
+      headers: {
+        Origin: "null",
+        Referer: proxyBase,
+        "Sec-Fetch-Site": "cross-site",
+        "x-hive-workspace-proxy-grant": grant ?? "",
+      },
+    });
+    Object.defineProperty(revokedRequest, "nextUrl", { value: new URL(apiUrl) });
+    const revokedResponse = await GET(revokedRequest as never, {
+      params: Promise.resolve({
+        workspaceId,
+        path: ["filebrowser", "api", "resources"],
+      }),
+    });
+
+    expect(revokedResponse.status).toBe(401);
   });
 
   it("does not cache fallback app URLs after transient host discovery failure", async () => {

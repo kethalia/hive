@@ -1,6 +1,9 @@
 import type { Metadata, Viewport } from "next";
-import { cookies } from "next/headers";
-import { CODER_FRAME_HOSTS_META, CODER_HOST_COOKIE } from "@/lib/security/content-security-policy";
+import { headers } from "next/headers";
+import {
+  CODER_FRAME_HOSTS_META,
+  CODER_FRAME_HOSTS_REQUEST_HEADER,
+} from "@/lib/security/content-security-policy";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -33,7 +36,7 @@ export default async function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  const documentCoderFrameHosts = (await cookies()).get(CODER_HOST_COOKIE)?.value ?? "";
+  const documentCoderFrameHosts = (await headers()).get(CODER_FRAME_HOSTS_REQUEST_HEADER) ?? "";
 
   return (
     <html lang="en" className="dark" suppressHydrationWarning>

@@ -8,6 +8,7 @@ import {
 import {
   buildContentSecurityPolicy,
   buildPermissionsPolicy,
+  CODER_FRAME_HOSTS_REQUEST_HEADER,
   CODER_HOST_COOKIE,
 } from "./lib/security/content-security-policy";
 
@@ -67,12 +68,14 @@ export function proxy(request: NextRequest) {
     .sort((left, right) => right.verified.timestamp - left.verified.timestamp)[0];
 
   if (verifiedSessionCookie) {
-    const response = NextResponse.next();
     const coderFrameUrls =
       request.cookies
         .get(CODER_HOST_COOKIE)
         ?.value.split("~")
         .map((value) => (value.includes("://") ? value : `https://${value}`)) ?? [];
+    const requestHeaders = new Headers(request.headers);
+    requestHeaders.set(CODER_FRAME_HOSTS_REQUEST_HEADER, coderFrameUrls.join("~"));
+    const response = NextResponse.next({ request: { headers: requestHeaders } });
     withContentSecurityPolicy(response, coderFrameUrls);
     refreshDomainSessionCookie(
       response.cookies,

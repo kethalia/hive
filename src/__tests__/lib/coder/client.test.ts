@@ -95,10 +95,12 @@ describe("CoderClient", () => {
   });
 
   it("resolves the configured applications host", async () => {
+    const timeoutSpy = vi.spyOn(AbortSignal, "timeout");
     fetchSpy.mockResolvedValueOnce(jsonResponse({ host: "*.apps.example.com" }));
 
     await expect(makeClient().getApplicationsHost()).resolves.toBe("*.apps.example.com");
     expect(fetchSpy.mock.calls[0][0]).toBe(`${BASE_URL}/api/v2/applications/host`);
+    expect(timeoutSpy).toHaveBeenCalledWith(2_000);
   });
 
   it.each([

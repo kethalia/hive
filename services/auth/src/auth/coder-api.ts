@@ -3,6 +3,7 @@ import {
   CODER_API_PATHS,
   CODER_API_TIMEOUT_MS,
   CODER_APPLICATIONS_HOST_TIMEOUT_MS,
+  CODER_LOGIN_ANCILLARY_DEADLINE_MS,
   CODER_SESSION_TOKEN_HEADER,
 } from "./constants.js";
 import type {
@@ -98,6 +99,7 @@ export async function coderLogin(
   email: string,
   password: string,
 ): Promise<CoderLoginResult> {
+  const loginStartedAt = Date.now();
   const url = baseUrl.replace(/\/+$/, "");
   const body: CoderLoginRequest = { email, password };
   const res = await fetchCoderApi(`${url}${CODER_API_PATHS.LOGIN}`, {
@@ -121,15 +123,21 @@ export async function coderLogin(
     "Content-Type": "application/json",
     [CODER_SESSION_TOKEN_HEADER]: loginData.session_token,
   };
+  const discoveryTimeoutMs = Math.min(
+    CODER_APPLICATIONS_HOST_TIMEOUT_MS,
+    Math.max(0, CODER_LOGIN_ANCILLARY_DEADLINE_MS - (Date.now() - loginStartedAt)),
+  );
   const [meRes, applicationsHostRes] = await Promise.all([
     fetchCoderApi(`${url}${CODER_API_PATHS.ME}`, {
       headers: authenticatedHeaders,
       signal: AbortSignal.timeout(CODER_API_TIMEOUT_MS),
     }),
-    fetchCoderApi(`${url}${CODER_API_PATHS.APPLICATIONS_HOST}`, {
-      headers: authenticatedHeaders,
-      signal: AbortSignal.timeout(CODER_APPLICATIONS_HOST_TIMEOUT_MS),
-    }).catch(() => null),
+    discoveryTimeoutMs > 0
+      ? fetchCoderApi(`${url}${CODER_API_PATHS.APPLICATIONS_HOST}`, {
+          headers: authenticatedHeaders,
+          signal: AbortSignal.timeout(discoveryTimeoutMs),
+        }).catch(() => null)
+      : Promise.resolve(null),
   ]);
 
   if (!meRes.ok) {
