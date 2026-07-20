@@ -216,7 +216,7 @@ export function TerminalSessionFrame({
           className="flex min-h-10 shrink-0 items-center gap-1 border-b border-white/10 bg-zinc-950 pr-2 text-white"
           data-testid={dataTestId ? `${dataTestId}-header` : undefined}
         >
-          {dragHandleAttributes || dragHandleListeners ? (
+          {!disabled && (dragHandleAttributes || dragHandleListeners) ? (
             <button
               type="button"
               className="flex min-h-10 min-w-10 touch-none items-center justify-center text-white/55 outline-none transition-[color,background-color] hover:bg-white/10 hover:text-white focus-visible:bg-white/10 focus-visible:text-white"

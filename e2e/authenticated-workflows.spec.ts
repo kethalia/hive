@@ -261,8 +261,14 @@ async function verifyDirectionalWorkspaceFocus(
 async function verifyHoverWorkspaceFocus(page: Page) {
   const filesPane = page.getByTestId("workspace-tool-pane-files");
   const codePane = page.getByTestId("workspace-tool-pane-code");
+  const filesFrame = page.getByTestId("workspace-tool-frame-files");
+  const codeFrame = page.getByTestId("workspace-tool-frame-code");
 
   await page.getByTestId("workspace-tool-pane-files-header").hover();
+  await expect(filesPane).toHaveAttribute("data-active", "true");
+  await codeFrame.focus();
+  await expect(codePane).toHaveAttribute("data-active", "true");
+  await filesFrame.hover();
   await expect(filesPane).toHaveAttribute("data-active", "true");
   await page.getByTestId("workspace-tool-pane-code-header").hover();
   await expect(codePane).toHaveAttribute("data-active", "true");

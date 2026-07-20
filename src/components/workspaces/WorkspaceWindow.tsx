@@ -14,20 +14,30 @@ interface WorkspaceWindowRenderState {
 
 interface WorkspaceWindowProps {
   children: (state: WorkspaceWindowRenderState) => ReactNode;
+  disabled?: boolean;
   id: string;
   previewStyle?: CSSProperties;
   style: CSSProperties;
 }
 
-export function WorkspaceWindow({ children, id, previewStyle, style }: WorkspaceWindowProps) {
+export function WorkspaceWindow({
+  children,
+  disabled = false,
+  id,
+  previewStyle,
+  style,
+}: WorkspaceWindowProps) {
   const {
     attributes,
     listeners,
     setNodeRef: setDraggableNodeRef,
     transform,
     isDragging,
-  } = useDraggable({ id });
-  const { setNodeRef: setDroppableNodeRef } = useDroppable({ id, disabled: isDragging });
+  } = useDraggable({ id, disabled });
+  const { setNodeRef: setDroppableNodeRef } = useDroppable({
+    id,
+    disabled: disabled || isDragging,
+  });
   const setNodeRef = useCallback(
     (node: HTMLDivElement | null) => {
       setDraggableNodeRef(node);
@@ -43,6 +53,7 @@ export function WorkspaceWindow({ children, id, previewStyle, style }: Workspace
         "absolute min-h-0 min-w-0 overflow-hidden p-0.5 transition-[left,top,width,height,opacity] duration-150 ease-out motion-reduce:transition-none",
         isDragging && "pointer-events-none opacity-60",
       )}
+      data-workspace-window-disabled={disabled ? "true" : "false"}
       data-workspace-window-id={id}
       data-workspace-window-dragging={isDragging ? "true" : "false"}
       data-workspace-window-previewing={previewStyle && !isDragging ? "true" : "false"}

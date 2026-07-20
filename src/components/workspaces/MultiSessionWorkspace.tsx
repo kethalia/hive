@@ -1162,6 +1162,8 @@ export function MultiSessionWorkspace({
     Record<string, WorkspacePaneRecoveryInput>
   >({});
   const terminalsRef = useRef<Map<string, TerminalEntry>>(new Map());
+  const sessionsRef = useRef(sessions);
+  const boardStateRef = useRef(boardState);
   const workspaceToolPanesRef = useRef<WorkspaceToolPane[]>([]);
   const activeSessionNameRef = useRef<string | null>(null);
   const activeWindowIdRef = useRef<string | null>(null);
@@ -1170,6 +1172,8 @@ export function MultiSessionWorkspace({
   const pendingTerminalFocusSessionNameRef = useRef<string | null>(null);
   const latestWorkspaceIdRef = useRef(workspaceId);
   const boardGenerationRef = useRef(new Map<string, number>());
+  sessionsRef.current = sessions;
+  boardStateRef.current = boardState;
   latestWorkspaceIdRef.current = workspaceId;
 
   const showGitAddFailure = useCallback((message: string) => {
@@ -1534,6 +1538,7 @@ export function MultiSessionWorkspace({
 
   const persistBoardState = useCallback(
     (nextState: WorkspaceBoardState) => {
+      boardStateRef.current = nextState;
       setBoardState(nextState);
       if (typeof window === "undefined") return;
 
@@ -1610,10 +1615,26 @@ export function MultiSessionWorkspace({
       setActiveSessionName(sessionName);
       setActiveWindowId(windowId);
 
-      const selectedPane = visibleSessions.find((session) => session.sessionName === sessionName);
-      if (activeBoard && selectedPane && activeBoard.activePaneKey !== selectedPane.boardPaneKey) {
+      const currentBoardState = boardStateRef.current;
+      const currentActiveBoard = currentBoardState.boards.find(
+        (board) => board.key === currentBoardState.activeBoardKey,
+      );
+      const selectedPane = currentActiveBoard
+        ? deriveVisibleSessionsFromBoard(sessionsRef.current, currentActiveBoard).find(
+            (session) => session.sessionName === sessionName,
+          )
+        : undefined;
+      if (
+        currentActiveBoard &&
+        selectedPane &&
+        currentActiveBoard.activePaneKey !== selectedPane.boardPaneKey
+      ) {
         persistBoardState(
-          selectWorkspaceBoardPane(boardState, activeBoard.key, selectedPane.boardPaneKey),
+          selectWorkspaceBoardPane(
+            currentBoardState,
+            currentActiveBoard.key,
+            selectedPane.boardPaneKey,
+          ),
         );
       }
 
@@ -1629,15 +1650,12 @@ export function MultiSessionWorkspace({
       clearActiveTerminal();
     },
     [
-      activeBoard,
-      boardState,
       clearActiveTerminal,
       composeOpen,
       composeTargetSessionName,
       isComposeSheet,
       persistBoardState,
       setActiveTerminal,
-      visibleSessions,
     ],
   );
 
@@ -2841,6 +2859,7 @@ export function MultiSessionWorkspace({
         ...workspaceToolPanesRef.current.filter((candidate) => candidate.key !== pane.key),
         pane,
       ]);
+      if (boardStateRef.current.activeBoardKey !== boardKey) return;
       selectSession(session.sessionName, { focusTerminal: false, windowId: pane.key });
     },
     [markPendingWindowInsertion, replaceWorkspaceToolPanes, selectSession, workspaceId],
@@ -3776,6 +3795,16 @@ export function MultiSessionWorkspace({
             : toolPane.loadState === "error"
               ? `${toolPane.label} could not be restored.`
               : null;
+      const activateToolPane = () => {
+        selectSession(toolPane.sourceSessionName, {
+          focusTerminal: false,
+          windowId: toolPane.key,
+        });
+      };
+      const activateToolPaneFromPointer = () => {
+        if (!model.isActive || activeWindowIdRef.current === toolPane.key) return;
+        activateToolPane();
+      };
       return (
         <WorkspaceWindow
           key={`${model.board.key}:${toolPane.key}`}
@@ -3812,19 +3841,8 @@ export function MultiSessionWorkspace({
                   </Button>
                 )
               }
-              onActivate={() => {
-                selectSession(toolPane.sourceSessionName, {
-                  focusTerminal: false,
-                  windowId: toolPane.key,
-                });
-              }}
-              onMouseMove={() => {
-                if (!model.isActive || activeWindowIdRef.current === toolPane.key) return;
-                selectSession(toolPane.sourceSessionName, {
-                  focusTerminal: false,
-                  windowId: toolPane.key,
-                });
-              }}
+              onActivate={activateToolPane}
+              onMouseMove={activateToolPaneFromPointer}
               closeLabel={`Close ${toolPane.label}`}
               closeTestId={`remove-workspace-tool-${toolPane.tool}`}
               onClose={(event) => {
@@ -3850,6 +3868,8 @@ export function MultiSessionWorkspace({
                         : "allow-downloads allow-forms allow-modals allow-popups allow-same-origin allow-scripts"
                     }
                     data-testid={`workspace-tool-frame-${toolPane.tool}`}
+                    onFocus={activateToolPane}
+                    onPointerEnter={activateToolPaneFromPointer}
                     onLoad={() => {
                       updateWorkspaceToolPane(toolPane.key, (current) => ({
                         ...current,
@@ -3915,6 +3935,7 @@ export function MultiSessionWorkspace({
 
     return (
       <WorkspaceWindow
+        disabled={isComposeDisabled}
         key={`${model.board.key}:${pane.id}`}
         id={pane.sessionName}
         previewStyle={panePreviewStyle}

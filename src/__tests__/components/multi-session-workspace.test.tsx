@@ -785,6 +785,25 @@ describe("MultiSessionWorkspace", () => {
     expect(screen.getByTestId("workspace-tool-pane-code")).toBeInTheDocument();
   });
 
+  it("activates embedded tool windows from iframe focus and pointer entry", async () => {
+    await renderTwoSessionWorkspace();
+
+    fireEvent.click(await screen.findByRole("button", { name: "Browse files for main-session" }));
+    fireEvent.click(screen.getByRole("button", { name: "Open VS Code for main-session" }));
+
+    const filesPane = await screen.findByTestId("workspace-tool-pane-files");
+    const codePane = await screen.findByTestId("workspace-tool-pane-code");
+    const filesFrame = screen.getByTestId("workspace-tool-frame-files");
+    const codeFrame = screen.getByTestId("workspace-tool-frame-code");
+
+    expect(codePane).toHaveAttribute("data-active", "true");
+    fireEvent.focus(filesFrame);
+    expect(filesPane).toHaveAttribute("data-active", "true");
+
+    fireEvent.pointerEnter(codeFrame);
+    expect(codePane).toHaveAttribute("data-active", "true");
+  });
+
   it("chooses the initial split from the measured portrait workspace", async () => {
     mockWorkspaceViewport(600, 1_000);
 
@@ -1221,6 +1240,48 @@ describe("MultiSessionWorkspace", () => {
 
     expect(screen.getByTestId("workspace-board-tab-workspace-2")).toBeInTheDocument();
     expect(screen.queryByTestId("workspace-tool-pane-files")).not.toBeInTheDocument();
+  });
+
+  it("does not restore stale board state when a tool request finishes after switching boards", async () => {
+    const pending = Promise.withResolvers<{
+      data: {
+        codeUrl: string;
+        filesUrl: string;
+        folderPath: string | null;
+      };
+    }>();
+    mockGetWorkspaceSessionTools.mockReturnValueOnce(pending.promise);
+    await renderTwoSessionWorkspace();
+
+    fireEvent.click(screen.getByRole("button", { name: "Browse files for dev-server" }));
+    fireEvent.click(screen.getByTestId("workspace-board-new"));
+    expect(screen.getByTestId("workspace-board-tab-workspace-2")).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+
+    await act(async () => {
+      pending.resolve({
+        data: {
+          codeUrl: "https://fresh-code.test",
+          filesUrl: "https://fresh-files.test",
+          folderPath: "/home/coder",
+        },
+      });
+      await pending.promise;
+    });
+
+    expect(screen.getByTestId("workspace-board-tab-workspace-2")).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+    expect(screen.getByTestId("workspace-board-tab-default")).toBeInTheDocument();
+    expect(
+      JSON.parse(window.localStorage.getItem("workspace-board-state:workspace:ws-1") ?? "{}"),
+    ).toMatchObject({
+      activeBoardKey: "workspace-2",
+      boards: [{ key: "default" }, { key: "workspace-2" }],
+    });
   });
 
   it("invalidates a pending Git resolution when its board is deleted and recreated", async () => {
@@ -1700,6 +1761,12 @@ describe("MultiSessionWorkspace", () => {
     expect(screen.getByTestId("workspace-pane-dev-server-disabled-overlay")).toHaveTextContent(
       "Compose locked",
     );
+    expect(screen.queryByRole("button", { name: "Drag dev-server" })).not.toBeInTheDocument();
+    expect(document.querySelector('[data-workspace-window-id="dev-server"]')).toHaveAttribute(
+      "data-workspace-window-disabled",
+      "true",
+    );
+    expect(screen.getByRole("button", { name: "Drag main-session" })).toBeInTheDocument();
 
     fireEvent.change(screen.getByPlaceholderText("Type multi-line command..."), {
       target: { value: "printf main" },

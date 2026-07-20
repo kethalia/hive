@@ -8,23 +8,54 @@ import {
   WorkspaceWindowDropPlaceholder,
 } from "@/components/workspaces/WorkspaceWindow";
 
-const draggableState = vi.hoisted(() => ({ isDragging: false }));
+const draggableState = vi.hoisted(() => ({
+  draggableDisabled: false,
+  droppableDisabled: false,
+  isDragging: false,
+}));
 
 vi.mock("@dnd-kit/core", () => ({
-  useDraggable: () => ({
-    attributes: {},
-    listeners: {},
-    setNodeRef: vi.fn(),
-    transform: draggableState.isDragging ? { x: 48, y: 32, scaleX: 1, scaleY: 1 } : null,
-    isDragging: draggableState.isDragging,
-  }),
-  useDroppable: () => ({ setNodeRef: vi.fn() }),
+  useDraggable: ({ disabled = false }: { disabled?: boolean }) => {
+    draggableState.draggableDisabled = disabled;
+    return {
+      attributes: {},
+      listeners: {},
+      setNodeRef: vi.fn(),
+      transform: draggableState.isDragging ? { x: 48, y: 32, scaleX: 1, scaleY: 1 } : null,
+      isDragging: draggableState.isDragging,
+    };
+  },
+  useDroppable: ({ disabled = false }: { disabled?: boolean }) => {
+    draggableState.droppableDisabled = disabled;
+    return { setNodeRef: vi.fn() };
+  },
 }));
 
 describe("WorkspaceWindow", () => {
   afterEach(() => {
+    draggableState.draggableDisabled = false;
+    draggableState.droppableDisabled = false;
     draggableState.isDragging = false;
     cleanup();
+  });
+
+  it("disables both drag and drop behavior for a compose-locked pane", () => {
+    render(
+      <WorkspaceWindow
+        disabled
+        id="locked"
+        style={{ left: "0%", top: "0%", width: "50%", height: "50%" }}
+      >
+        {() => <div>Locked terminal</div>}
+      </WorkspaceWindow>,
+    );
+
+    expect(draggableState.draggableDisabled).toBe(true);
+    expect(draggableState.droppableDisabled).toBe(true);
+    expect(screen.getByText("Locked terminal").parentElement).toHaveAttribute(
+      "data-workspace-window-disabled",
+      "true",
+    );
   });
 
   it("removes the pane from its slot while a translucent copy follows the pointer", () => {
