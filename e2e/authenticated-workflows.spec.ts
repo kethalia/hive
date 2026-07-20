@@ -317,7 +317,8 @@ async function verifyWorkspaceWindowDrag(page: Page) {
     terminalBoxBefore,
     dropPosition,
   );
-  await expect(codeWindow).toHaveCSS("opacity", "0");
+  await expect(codeWindow).toHaveCSS("opacity", "0.6");
+  await expectPointerInsideWorkspaceWindow(codeWindow, targetPoint);
   await expectStandaloneWorkspacePlaceholder(page, codeExpected, dropPosition);
   await expectWorkspaceRect(terminalWindow, terminalExpected);
   await page.mouse.up();
@@ -341,7 +342,8 @@ async function verifySiblingWorkspaceWindowSwap(page: Page) {
     page.locator('button[aria-label^="Drag VS Code"]'),
     targetPoint,
   );
-  await expect(codeWindow).toHaveCSS("opacity", "0");
+  await expect(codeWindow).toHaveCSS("opacity", "0.6");
+  await expectPointerInsideWorkspaceWindow(codeWindow, targetPoint);
   await expectStandaloneWorkspacePlaceholder(page, filesBefore, dropPosition);
   await expectWorkspaceRect(filesWindow, codeBefore);
   await page.mouse.up();
@@ -394,6 +396,24 @@ async function expectStandaloneWorkspacePlaceholder(
     await placeholder.evaluate((element) => Boolean(element.closest("[data-workspace-window-id]"))),
   ).toBe(false);
   await expectWorkspaceRect(placeholder, expected);
+}
+
+async function expectPointerInsideWorkspaceWindow(
+  window: Locator,
+  pointer: { x: number; y: number },
+) {
+  await expect
+    .poll(async () => {
+      const rect = await window.boundingBox();
+      if (!rect) return false;
+      return (
+        pointer.x >= rect.x &&
+        pointer.x <= rect.x + rect.width &&
+        pointer.y >= rect.y &&
+        pointer.y <= rect.y + rect.height
+      );
+    })
+    .toBe(true);
 }
 
 function workspaceSplitRects(

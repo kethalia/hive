@@ -41,7 +41,7 @@ export function WorkspaceWindow({ children, id, previewStyle, style }: Workspace
       ref={setNodeRef}
       className={cn(
         "absolute min-h-0 min-w-0 overflow-hidden p-0.5 transition-[left,top,width,height,opacity] duration-150 ease-out motion-reduce:transition-none",
-        isDragging && "pointer-events-none opacity-0",
+        isDragging && "pointer-events-none opacity-60",
       )}
       data-workspace-window-id={id}
       data-workspace-window-dragging={isDragging ? "true" : "false"}
