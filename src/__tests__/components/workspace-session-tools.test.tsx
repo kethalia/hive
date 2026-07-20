@@ -136,4 +136,40 @@ describe("WorkspaceSessionTools", () => {
     expect(onOpenTool).not.toHaveBeenCalled();
     expect(screen.getByRole("button", { name: "Browse files for Shell" })).toBeEnabled();
   });
+
+  it("ignores a pending tool response after the source controls unmount", async () => {
+    const pending = Promise.withResolvers<{
+      data: {
+        codeUrl: string;
+        filesUrl: string;
+        folderPath: string | null;
+      };
+    }>();
+    mockGetWorkspaceSessionTools.mockReturnValueOnce(pending.promise);
+    const onOpenTool = vi.fn();
+    const { unmount } = render(
+      <WorkspaceSessionTools
+        workspaceId="ws-1"
+        sessionName="shell"
+        label="Shell"
+        onOpenTool={onOpenTool}
+      />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Open VS Code for Shell" }));
+
+    unmount();
+    await act(async () => {
+      pending.resolve({
+        data: {
+          codeUrl: "https://code.test",
+          filesUrl: "https://files.test",
+          folderPath: "/workspace",
+        },
+      });
+      await pending.promise;
+    });
+
+    expect(mockGetWorkspaceSessionTools).toHaveBeenCalledOnce();
+    expect(onOpenTool).not.toHaveBeenCalled();
+  });
 });

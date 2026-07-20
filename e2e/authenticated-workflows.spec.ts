@@ -117,9 +117,11 @@ async function verifyPaletteToolAndOpenActions(page: Page, testInfo: TestInfo) {
     .locator('[cmdk-item][data-action-id^="workspace:session:"]')
     .filter({ hasText: sessionLabel ?? "" })
     .first();
-  await sessionRow.focus();
-  await sessionRow.press("ArrowRight");
-  await sessionRow.press("Enter");
+  await expect(sessionRow).toHaveAttribute("aria-selected", "true");
+  const searchInput = page.getByPlaceholder(/Search terminal sessions/);
+  await expect(searchInput).toBeFocused();
+  await searchInput.press("ArrowRight");
+  await searchInput.press("Enter");
   await expect(page.getByTestId("workspace-tool-pane-code")).toBeVisible({ timeout: 30_000 });
   await page.getByTestId("remove-workspace-tool-code").click();
 

@@ -58,6 +58,9 @@ export function WorkspaceSessionTools({
     latestWorkspaceIdRef.current = workspaceId;
     requestIdRef.current += 1;
     setLoadingTool(null);
+    return () => {
+      requestIdRef.current += 1;
+    };
   }, [workspaceId]);
 
   async function openTool(tool: WorkspaceTool) {

@@ -122,6 +122,7 @@ vi.mock("@/components/ui/command", () => {
     }) => (
       <input
         data-testid="command-input"
+        data-slot="command-input"
         placeholder={placeholder}
         className={className}
         value={value ?? ""}
@@ -716,7 +717,7 @@ describe("CommandPalette", () => {
     expect(onOpenChange).toHaveBeenCalledWith(false);
   });
 
-  it("chooses a row action with Left and Right before Enter selection", () => {
+  it("chooses a row action with Left and Right while the search input remains focused", () => {
     const add = vi.fn();
     const open = vi.fn();
     const vscode = vi.fn();
@@ -749,9 +750,12 @@ describe("CommandPalette", () => {
     if (!item) return;
     expect(item).toHaveAttribute("tabindex", "0");
     item.setAttribute("aria-selected", "true");
-    fireEvent.keyDown(item, { key: "ArrowRight" });
-    fireEvent.keyDown(item, { key: "ArrowRight" });
+    const input = screen.getByTestId("command-input");
+    input.focus();
+    fireEvent.keyDown(input, { key: "ArrowRight" });
+    fireEvent.keyDown(input, { key: "ArrowRight" });
 
+    expect(input).toHaveFocus();
     expect(screen.getByTestId("command-option-workspace:session:dev-vscode")).toHaveAttribute(
       "data-selected",
       "true",
@@ -762,7 +766,7 @@ describe("CommandPalette", () => {
     expect(open).not.toHaveBeenCalled();
   });
 
-  it("leaves Left and Right available for editing the search input", () => {
+  it("leaves Left and Right available when the selected row has no action options", () => {
     render(
       <CommandPalette
         open={true}
@@ -777,10 +781,6 @@ describe("CommandPalette", () => {
             label: "dev",
             group: "Terminal sessions",
             onSelect: vi.fn(),
-            options: [
-              { id: "add", label: "Add", onSelect: vi.fn() },
-              { id: "open", label: "Open", onSelect: vi.fn() },
-            ],
           },
         ]}
       />,
@@ -800,10 +800,6 @@ describe("CommandPalette", () => {
     input.dispatchEvent(event);
 
     expect(event.defaultPrevented).toBe(false);
-    expect(screen.getByTestId("command-option-workspace:session:dev-add")).toHaveAttribute(
-      "data-selected",
-      "true",
-    );
   });
 
   it("runs a specific option when its visible label is clicked", () => {

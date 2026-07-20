@@ -167,7 +167,10 @@ function CommandPaletteBody({
       const selectedItem = event.currentTarget.querySelector<HTMLElement>(
         '[cmdk-item][aria-selected="true"][data-action-id]',
       );
-      if (event.target !== selectedItem) return;
+      const searchInput = event.currentTarget.querySelector<HTMLElement>(
+        '[data-slot="command-input"]',
+      );
+      if (event.target !== selectedItem && event.target !== searchInput) return;
       const actionId = selectedItem?.dataset.actionId;
       const action = actionId ? actions.find((candidate) => candidate.id === actionId) : undefined;
       const options = action?.options;
