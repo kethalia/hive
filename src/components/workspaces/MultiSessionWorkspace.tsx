@@ -800,6 +800,11 @@ function activeSessionNameForVisibleSessions(
   activeBoard: WorkspaceBoard | undefined,
   preferredSessionName: string | null,
 ): string | null {
+  const activePaneSession = activeBoard?.activePaneKey
+    ? visibleSessions.find((session) => session.boardPaneKey === activeBoard.activePaneKey)
+    : undefined;
+  if (activePaneSession) return activePaneSession.sessionName;
+
   if (
     preferredSessionName &&
     visibleSessions.some((session) => session.sessionName === preferredSessionName)
@@ -807,10 +812,7 @@ function activeSessionNameForVisibleSessions(
     return preferredSessionName;
   }
 
-  const activePaneSession = activeBoard?.activePaneKey
-    ? visibleSessions.find((session) => session.boardPaneKey === activeBoard.activePaneKey)
-    : undefined;
-  return activePaneSession?.sessionName ?? visibleSessions[0]?.sessionName ?? null;
+  return visibleSessions[0]?.sessionName ?? null;
 }
 
 function buildLayoutPersistenceMessage(

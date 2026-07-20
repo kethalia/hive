@@ -717,7 +717,7 @@ describe("CommandPalette", () => {
     expect(onOpenChange).toHaveBeenCalledWith(false);
   });
 
-  it("chooses a row action with Left and Right while the search input remains focused", () => {
+  it("chooses and runs a row action with Left, Right, and Enter while search stays focused", () => {
     const add = vi.fn();
     const open = vi.fn();
     const vscode = vi.fn();
@@ -760,7 +760,7 @@ describe("CommandPalette", () => {
       "data-selected",
       "true",
     );
-    fireEvent.click(item);
+    fireEvent.keyDown(input, { key: "Enter" });
     expect(vscode).toHaveBeenCalledTimes(1);
     expect(add).not.toHaveBeenCalled();
     expect(open).not.toHaveBeenCalled();

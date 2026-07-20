@@ -161,9 +161,15 @@ function CommandPaletteBody({
     [onOpenChange, selectedOptionIndexes],
   );
 
-  const handleActionArrowKey = useCallback(
+  const handleActionKey = useCallback(
     (event: KeyboardEvent<HTMLDivElement>) => {
-      if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
+      if (
+        event.key !== "ArrowLeft" &&
+        event.key !== "ArrowRight" &&
+        (event.key !== "Enter" || event.nativeEvent.isComposing)
+      ) {
+        return;
+      }
       const selectedItem = event.currentTarget.querySelector<HTMLElement>(
         '[cmdk-item][aria-selected="true"][data-action-id]',
       );
@@ -174,10 +180,15 @@ function CommandPaletteBody({
       const actionId = selectedItem?.dataset.actionId;
       const action = actionId ? actions.find((candidate) => candidate.id === actionId) : undefined;
       const options = action?.options;
-      if (!action || !options || options.length < 2) return;
+      if (!action || !options) return;
+      if (event.key !== "Enter" && options.length < 2) return;
 
       event.preventDefault();
       event.stopPropagation();
+      if (event.key === "Enter") {
+        selectAction(action);
+        return;
+      }
       setSelectedOptionIndexes((current) => {
         const currentIndex = selectedOptionIndex(action, current);
         const delta = event.key === "ArrowRight" ? 1 : -1;
@@ -190,11 +201,11 @@ function CommandPaletteBody({
         return new Map(current).set(action.id, nextIndex);
       });
     },
-    [actions],
+    [actions, selectAction],
   );
 
   return (
-    <div onKeyDownCapture={handleActionArrowKey}>
+    <div onKeyDownCapture={handleActionKey}>
       <CommandInput
         placeholder={searchPlaceholder}
         value={searchValue}

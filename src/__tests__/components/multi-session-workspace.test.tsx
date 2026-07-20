@@ -2652,6 +2652,53 @@ describe("MultiSessionWorkspace", () => {
     expect(screen.getByTestId("active-pane-label")).toHaveTextContent("dev-server");
   });
 
+  it("restores focus from the active board instead of stale legacy layout state", async () => {
+    window.localStorage.setItem(
+      "multi-session-layout:workspace:ws-1",
+      JSON.stringify({
+        version: 1,
+        activeSessionName: "main-session",
+        panes: [
+          { sessionName: "main-session", mode: "tiled", order: 0 },
+          { sessionName: "dev-server", mode: "tiled", order: 1 },
+        ],
+      }),
+    );
+    window.localStorage.setItem(
+      "workspace-board-state:workspace:ws-1",
+      JSON.stringify({
+        version: 1,
+        activeBoardKey: "default",
+        boards: [
+          {
+            key: "default",
+            name: "Default",
+            order: 0,
+            activePaneKey: "terminal:dev-server",
+            panes: [
+              {
+                kind: "terminal",
+                key: "terminal:main-session",
+                sessionName: "main-session",
+                order: 0,
+              },
+              {
+                kind: "terminal",
+                key: "terminal:dev-server",
+                sessionName: "dev-server",
+                order: 1,
+              },
+            ],
+          },
+        ],
+      }),
+    );
+
+    await renderTwoSessionWorkspace();
+
+    expect(screen.getByTestId("active-pane-label")).toHaveTextContent("dev-server");
+  });
+
   it("creates generic workspace sessions while unified source creation lives in the command palette", async () => {
     await renderTwoSessionWorkspace();
     mockCreateSession.mockResolvedValueOnce({ data: { name: "created-main" } });
