@@ -6,6 +6,7 @@ import {
   type Page,
   type TestInfo,
 } from "@playwright/test";
+import { findWorkspaceWindowInDirection } from "../src/lib/workspaces/workspace-window-layout";
 
 const appUrl = process.env.PLAYWRIGHT_BASE_URL;
 const coderUrl = process.env.HIVE_E2E_CODER_URL;
@@ -150,6 +151,119 @@ async function verifyEmbeddedToolsOpenInParallel(
     "ready",
   );
   await capture(page, testInfo, "workspace-tools-embedded-in-parallel");
+}
+
+async function verifyWorkspaceWindowManagement(page: Page, testInfo: TestInfo) {
+  const body = page.getByTestId("multi-session-body");
+  const windows = page.locator("[data-workspace-window-id]:visible");
+  await expect.poll(() => windows.count()).toBeGreaterThanOrEqual(3);
+  await expect(page.getByTestId("multi-session-grid")).toHaveAttribute(
+    "data-layout-mode",
+    "binary-split",
+  );
+
+  const bodyBox = await body.boundingBox();
+  if (!bodyBox) throw new Error("Workspace body has no measurable bounds.");
+  let totalWindowArea = 0;
+  for (let index = 0; index < (await windows.count()); index += 1) {
+    const windowBox = await windows.nth(index).boundingBox();
+    if (!windowBox) throw new Error(`Workspace window ${index} has no measurable bounds.`);
+    expect(windowBox.x).toBeGreaterThanOrEqual(bodyBox.x - 1);
+    expect(windowBox.y).toBeGreaterThanOrEqual(bodyBox.y - 1);
+    expect(windowBox.x + windowBox.width).toBeLessThanOrEqual(bodyBox.x + bodyBox.width + 1);
+    expect(windowBox.y + windowBox.height).toBeLessThanOrEqual(bodyBox.y + bodyBox.height + 1);
+    totalWindowArea += windowBox.width * windowBox.height;
+  }
+  expect(totalWindowArea).toBeGreaterThan(bodyBox.width * bodyBox.height * 0.98);
+  expect(totalWindowArea).toBeLessThan(bodyBox.width * bodyBox.height * 1.02);
+  expect(
+    await body.evaluate((element) => ({
+      horizontal: element.scrollWidth - element.clientWidth,
+      vertical: element.scrollHeight - element.clientHeight,
+    })),
+  ).toEqual({ horizontal: 0, vertical: 0 });
+
+  const codePane = page.getByTestId("workspace-tool-pane-code");
+  const filesPane = page.getByTestId("workspace-tool-pane-files");
+  await expect(codePane).toHaveAttribute("data-active", "true");
+  const codeWindow = codePane.locator("..");
+  const codeWindowId = await codeWindow.getAttribute("data-workspace-window-id");
+  const filesWindowId = await filesPane.locator("..").getAttribute("data-workspace-window-id");
+  if (!codeWindowId || !filesWindowId) throw new Error("Tool windows have no window IDs.");
+  const renderedRects = new Map<string, { x: number; y: number; width: number; height: number }>();
+  for (let index = 0; index < (await windows.count()); index += 1) {
+    const window = windows.nth(index);
+    const id = await window.getAttribute("data-workspace-window-id");
+    const rect = await window.boundingBox();
+    if (!id || !rect) throw new Error(`Workspace window ${index} has incomplete geometry.`);
+    renderedRects.set(id, rect);
+  }
+  const directions = ["left", "right", "up", "down"] as const;
+  const directionToFiles = directions.find(
+    (direction) =>
+      findWorkspaceWindowInDirection(renderedRects, codeWindowId, direction) === filesWindowId,
+  );
+  if (!directionToFiles) {
+    throw new Error("The files pane is not the closest directional neighbor of the code pane.");
+  }
+  const keyDirection = `${directionToFiles[0]?.toUpperCase()}${directionToFiles.slice(1)}`;
+  await page.keyboard.press(`Control+Arrow${keyDirection}`);
+  await expect(filesPane).toHaveAttribute("data-active", "true");
+
+  const edgeCandidates = [...renderedRects.entries()].flatMap(([id, rect]) => [
+    { id, direction: "Left", distance: Math.abs(rect.x - bodyBox.x) },
+    {
+      id,
+      direction: "Right",
+      distance: Math.abs(bodyBox.x + bodyBox.width - (rect.x + rect.width)),
+    },
+    { id, direction: "Up", distance: Math.abs(rect.y - bodyBox.y) },
+    {
+      id,
+      direction: "Down",
+      distance: Math.abs(bodyBox.y + bodyBox.height - (rect.y + rect.height)),
+    },
+  ]);
+  edgeCandidates.sort((left, right) => left.distance - right.distance);
+  const edgeCandidate = edgeCandidates[0];
+  if (!edgeCandidate || edgeCandidate.distance > 2) {
+    throw new Error("No workspace window reaches the workspace edge.");
+  }
+  const edgeWindow = page.locator(`[data-workspace-window-id="${edgeCandidate.id}"]:visible`);
+  await edgeWindow.getByRole("button", { name: /^Drag / }).click();
+  await expect(edgeWindow.locator('[data-active="true"]')).toHaveCount(1);
+  await page.keyboard.press(`Control+Arrow${edgeCandidate.direction}`);
+  await expect(edgeWindow.locator('[data-active="true"]')).toHaveCount(1);
+
+  const terminalWindow = page
+    .locator('[data-workspace-window-id]:has([data-terminal-surface="true"]):visible')
+    .first();
+  const codeBoxBefore = await codeWindow.boundingBox();
+  const terminalBoxBefore = await terminalWindow.boundingBox();
+  if (!codeBoxBefore || !terminalBoxBefore) {
+    throw new Error("Workspace windows could not be measured before drag.");
+  }
+  await page.getByRole("button", { name: /^Drag VS Code/ }).dragTo(terminalWindow);
+  await expect
+    .poll(async () => Math.abs(((await codeWindow.boundingBox())?.x ?? 0) - terminalBoxBefore.x))
+    .toBeLessThan(2);
+  await expect
+    .poll(async () => Math.abs(((await codeWindow.boundingBox())?.y ?? 0) - terminalBoxBefore.y))
+    .toBeLessThan(2);
+  await expect
+    .poll(async () => Math.abs(((await terminalWindow.boundingBox())?.x ?? 0) - codeBoxBefore.x))
+    .toBeLessThan(2);
+  await expect
+    .poll(async () => Math.abs(((await terminalWindow.boundingBox())?.y ?? 0) - codeBoxBefore.y))
+    .toBeLessThan(2);
+  await expect
+    .poll(() =>
+      page.evaluate(() =>
+        Object.keys(window.localStorage).some((key) => key.startsWith("workspace-window-layout:")),
+      ),
+    )
+    .toBe(true);
+  await capture(page, testInfo, "workspace-window-management");
 }
 
 async function verifyEmbeddedToolsSurviveRefresh(
@@ -411,6 +525,9 @@ test.describe("authenticated Hive workflows", () => {
         getSuccessfulFileBrowserLoads,
         getSuccessfulVsCodeLoads,
       );
+    });
+    await test.step("tile, focus, and drag workspace windows without overflow", async () => {
+      await verifyWorkspaceWindowManagement(page, testInfo);
     });
     await test.step("restore embedded tools with fresh authorization after refresh", async () => {
       await verifyEmbeddedToolsSurviveRefresh(

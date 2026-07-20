@@ -1,7 +1,14 @@
 "use client";
 
-import { Lock, Minus, Plus, X } from "lucide-react";
-import type { CSSProperties, FocusEvent, KeyboardEvent, MouseEvent, ReactNode } from "react";
+import { GripVertical, Lock, Minus, Plus, X } from "lucide-react";
+import type {
+  ButtonHTMLAttributes,
+  CSSProperties,
+  FocusEvent,
+  KeyboardEvent,
+  MouseEvent,
+  ReactNode,
+} from "react";
 import { Button } from "@/components/ui/button";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { useTerminalFontStep } from "@/hooks/useTerminalFontStep";
@@ -121,6 +128,10 @@ interface TerminalSessionFrameProps {
   closeLabel?: string;
   closeTestId?: string;
   headerActions?: ReactNode;
+  dragHandleAttributes?: ButtonHTMLAttributes<HTMLButtonElement>;
+  dragHandleListeners?: ButtonHTMLAttributes<HTMLButtonElement>;
+  isDragging?: boolean;
+  isDropTarget?: boolean;
   style?: CSSProperties;
   paneState?: string;
 }
@@ -143,6 +154,10 @@ export function TerminalSessionFrame({
   closeLabel,
   closeTestId,
   headerActions,
+  dragHandleAttributes,
+  dragHandleListeners,
+  isDragging = false,
+  isDropTarget = false,
   style,
   paneState,
 }: TerminalSessionFrameProps) {
@@ -174,8 +189,11 @@ export function TerminalSessionFrame({
     <div
       role={interactive ? "button" : "group"}
       className={cn(
-        "relative flex min-h-0 resize-none flex-col overflow-hidden rounded-lg border bg-black shadow-sm outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring",
+        "relative flex h-full min-h-0 resize-none flex-col overflow-hidden border bg-black shadow-sm outline-none transition-[border-color,box-shadow,opacity] focus-visible:ring-2 focus-visible:ring-ring",
+        layoutMode === "single" ? "rounded-lg" : "rounded-none",
         active ? "border-primary ring-1 ring-primary" : "border-border",
+        isDropTarget && "border-primary/80 ring-2 ring-inset ring-primary/60",
+        isDragging && "shadow-xl shadow-black/40",
         disabled && "border-white/10 opacity-45 grayscale-[0.35] saturate-50",
         className,
       )}
@@ -195,9 +213,20 @@ export function TerminalSessionFrame({
     >
       {showHeader ? (
         <div
-          className="flex min-h-8 shrink-0 items-center gap-1 border-b border-white/10 bg-zinc-950 px-2 py-1 text-white"
+          className="flex min-h-10 shrink-0 items-center gap-1 border-b border-white/10 bg-zinc-950 pr-2 text-white"
           data-testid={dataTestId ? `${dataTestId}-header` : undefined}
         >
+          {dragHandleAttributes || dragHandleListeners ? (
+            <button
+              type="button"
+              className="flex min-h-10 min-w-10 touch-none items-center justify-center text-white/55 outline-none transition-[color,background-color] hover:bg-white/10 hover:text-white focus-visible:bg-white/10 focus-visible:text-white"
+              aria-label={`Drag ${label}`}
+              {...dragHandleAttributes}
+              {...dragHandleListeners}
+            >
+              <GripVertical aria-hidden="true" />
+            </button>
+          ) : null}
           <span className="min-w-0 flex-1 truncate font-mono text-xs">{label}</span>
           {headerActions}
           {onClose ? (

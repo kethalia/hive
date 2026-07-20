@@ -568,6 +568,7 @@ vi.mock("lucide-react", () => ({
   Copy: () => <span data-testid="icon-copy" />,
   ExternalLink: () => <span data-testid="icon-external-link" />,
   FolderOpen: () => <span data-testid="icon-folder" />,
+  GripVertical: () => <span data-testid="icon-grip" />,
   Loader2: () => <span data-testid="icon-loader" />,
   Lock: () => <span data-testid="icon-lock" />,
   Minus: () => <span data-testid="icon-minus" />,
@@ -737,6 +738,26 @@ describe("MultiSessionWorkspace", () => {
     );
     expect(screen.getByTestId("workspace-tool-frame-code").getAttribute("sandbox")).toContain(
       "allow-same-origin",
+    );
+    expect(screen.getByTestId("workspace-tool-pane-code")).toHaveAttribute("data-active", "true");
+    expect(document.querySelector('[data-workspace-window-id="main-session"]')).toHaveStyle({
+      left: "0%",
+      top: "0%",
+      width: "50%",
+      height: "50%",
+    });
+    expect(
+      document.querySelector(
+        '[data-workspace-window-id="workspace-tool:default:main-session:files"]',
+      ),
+    ).toHaveStyle({ left: "0%", top: "50%", width: "25%", height: "50%" });
+    expect(
+      document.querySelector(
+        '[data-workspace-window-id="workspace-tool:default:main-session:code"]',
+      ),
+    ).toHaveStyle({ left: "25%", top: "50%", width: "25%", height: "50%" });
+    expect(window.localStorage.getItem("workspace-window-layout:workspace:ws-1")).toContain(
+      '"axis":"x"',
     );
     fireEvent.click(screen.getByTestId("pop-out-workspace-tool-code"));
     expect(openSpy).toHaveBeenCalledWith(
@@ -1319,8 +1340,16 @@ describe("MultiSessionWorkspace", () => {
       "data-pane-mode",
       "tiled",
     );
-    expect(screen.getByTestId("multi-session-body")).toHaveClass("p-1");
-    expect(screen.getByTestId("multi-session-grid")).toHaveClass("gap-1");
+    expect(screen.getByTestId("multi-session-body")).toHaveClass(
+      "overflow-hidden",
+      "overscroll-none",
+    );
+    expect(screen.getByTestId("multi-session-body")).not.toHaveClass("p-1");
+    expect(screen.getByTestId("multi-session-grid")).toHaveAttribute(
+      "data-layout-mode",
+      "binary-split",
+    );
+    expect(screen.getByTestId("multi-session-grid")).not.toHaveClass("gap-1");
     expect(screen.queryByTestId("copy-active-pane")).not.toBeInTheDocument();
     expect(screen.queryByTestId("paste-active-pane")).not.toBeInTheDocument();
     expect(screen.queryByTestId("terminal-mobile-controls")).not.toBeInTheDocument();
@@ -1682,7 +1711,7 @@ describe("MultiSessionWorkspace", () => {
     expect(consoleError.mock.calls.flat().join("\n")).not.toContain("Maximum update depth");
   });
 
-  it("gives the primary pane full height when three sessions are open", async () => {
+  it("fills the viewport with a focused-window split tree when three sessions are open", async () => {
     mockGetSessions.mockResolvedValue({
       data: [
         { name: "main-session", created: 1, windows: 1 },
@@ -1693,14 +1722,24 @@ describe("MultiSessionWorkspace", () => {
 
     render(<MultiSessionWorkspace {...defaultProps} />);
 
-    expect(await screen.findByTestId("workspace-pane-main-session")).toHaveStyle({
-      gridArea: "1 / 1 / span 2 / span 1",
+    await screen.findByTestId("workspace-pane-main-session");
+    expect(document.querySelector('[data-workspace-window-id="main-session"]')).toHaveStyle({
+      left: "0%",
+      top: "0%",
+      width: "50%",
+      height: "100%",
     });
-    expect(screen.getByTestId("workspace-pane-dev-server")).toHaveStyle({
-      gridArea: "1 / 2 / span 1 / span 1",
+    expect(document.querySelector('[data-workspace-window-id="dev-server"]')).toHaveStyle({
+      left: "50%",
+      top: "0%",
+      width: "50%",
+      height: "50%",
     });
-    expect(screen.getByTestId("workspace-pane-shell")).toHaveStyle({
-      gridArea: "2 / 2 / span 1 / span 1",
+    expect(document.querySelector('[data-workspace-window-id="shell"]')).toHaveStyle({
+      left: "50%",
+      top: "50%",
+      width: "50%",
+      height: "50%",
     });
     expect(screen.getByTestId("interactive-terminal-main-session")).toHaveAttribute(
       "data-layout-signal",
@@ -1722,7 +1761,7 @@ describe("MultiSessionWorkspace", () => {
     );
   });
 
-  it("changes active pane on pointer movement without reacting to passive boundary changes", async () => {
+  it("changes active pane only on explicit interaction, never passive pointer movement", async () => {
     await renderTwoSessionWorkspace();
     const focusDevTerminal = vi.fn();
     const devTerm = makeTerminal("dev-server", focusDevTerminal);
@@ -1739,6 +1778,11 @@ describe("MultiSessionWorkspace", () => {
     expect(focusDevTerminal).not.toHaveBeenCalled();
 
     fireEvent.mouseMove(devPane);
+
+    expect(screen.getByTestId("active-pane-label")).toHaveTextContent("main-session");
+    expect(focusDevTerminal).not.toHaveBeenCalled();
+
+    fireEvent.click(devPane);
 
     expect(screen.getByTestId("active-pane-label")).toHaveTextContent("dev-server");
     expect(mockSetActiveTerminal).toHaveBeenLastCalledWith(devTerm, devSend);
@@ -1844,7 +1888,7 @@ describe("MultiSessionWorkspace", () => {
     expect(enterEvent.defaultPrevented).toBe(false);
   });
 
-  it("switches active pane with Ctrl/Cmd arrow keys and focuses xterm", async () => {
+  it("focuses the closest directional pane without wrapping at an edge", async () => {
     await renderTwoSessionWorkspace();
     const workspace = screen.getByTestId("multi-session-workspace");
     const devTerm = makeTerminal("dev-server");
@@ -1861,7 +1905,12 @@ describe("MultiSessionWorkspace", () => {
     fireEvent.keyDown(workspace, { key: "ArrowLeft", metaKey: true });
     expect(screen.getByTestId("active-pane-label")).toHaveTextContent("main-session");
 
-    const nextBinding = lastRegisteredEntry("multi-session:ws-1:next-pane");
+    const nextBinding = lastRegisteredEntry("multi-session:ws-1:focus-right-pane");
+    act(() => {
+      expect(nextBinding.action(null, null)).toBe(false);
+    });
+    expect(screen.getByTestId("active-pane-label")).toHaveTextContent("dev-server");
+
     act(() => {
       expect(nextBinding.action(null, null)).toBe(false);
     });
@@ -2142,9 +2191,11 @@ describe("MultiSessionWorkspace", () => {
     expect(mockCreateSession).not.toHaveBeenCalled();
   });
 
-  it("keeps pane headers compact without reorder controls or status badges", async () => {
+  it("exposes dedicated drag handles without legacy reorder controls or status badges", async () => {
     await renderTwoSessionWorkspace();
 
+    expect(screen.getByRole("button", { name: "Drag main-session" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Drag dev-server" })).toBeInTheDocument();
     expect(screen.queryByTestId("move-pane-left-pane-dev-server")).not.toBeInTheDocument();
     expect(screen.queryByTestId("move-pane-right-pane-dev-server")).not.toBeInTheDocument();
     expect(screen.queryByText("Active")).not.toBeInTheDocument();
@@ -2702,10 +2753,10 @@ describe("MultiSessionWorkspace", () => {
 
     await renderTwoSessionWorkspace();
 
-    const labels = Array.from(screen.getByTestId("multi-session-grid").children).map((pane) =>
-      pane.getAttribute("data-pane-label"),
-    );
-    expect(labels).toEqual(["dev-server", "main-session"]);
+    const windowIds = Array.from(
+      screen.getByTestId("multi-session-grid").querySelectorAll("[data-workspace-window-id]"),
+    ).map((pane) => pane.getAttribute("data-workspace-window-id"));
+    expect(windowIds).toEqual(["dev-server", "main-session"]);
     expect(screen.getByTestId("active-pane-label")).toHaveTextContent("dev-server");
   });
 

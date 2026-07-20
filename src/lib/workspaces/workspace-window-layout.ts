@@ -1,0 +1,409 @@
+export const WORKSPACE_WINDOW_LAYOUT_VERSION = 1;
+
+export type WorkspaceWindowSplitAxis = "x" | "y";
+export type WorkspaceWindowDirection = "left" | "right" | "up" | "down";
+
+export interface WorkspaceWindowLeaf {
+  type: "leaf";
+  id: string;
+}
+
+export interface WorkspaceWindowSplit {
+  type: "split";
+  axis: WorkspaceWindowSplitAxis;
+  first: WorkspaceWindowLayoutNode;
+  second: WorkspaceWindowLayoutNode;
+}
+
+export type WorkspaceWindowLayoutNode = WorkspaceWindowLeaf | WorkspaceWindowSplit;
+
+export interface WorkspaceWindowRect {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+export interface WorkspaceWindowBoardLayout {
+  boardKey: string;
+  root: WorkspaceWindowLayoutNode;
+}
+
+export interface WorkspaceWindowLayoutState {
+  version: typeof WORKSPACE_WINDOW_LAYOUT_VERSION;
+  boards: WorkspaceWindowBoardLayout[];
+}
+
+interface ReconcileWorkspaceWindowLayoutOptions {
+  focusedWindowId?: string | null;
+  viewportWidth: number;
+  viewportHeight: number;
+}
+
+const ROOT_RECT: WorkspaceWindowRect = { x: 0, y: 0, width: 1, height: 1 };
+const MAX_LAYOUT_DEPTH = 100;
+
+export function emptyWorkspaceWindowLayoutState(): WorkspaceWindowLayoutState {
+  return { version: WORKSPACE_WINDOW_LAYOUT_VERSION, boards: [] };
+}
+
+export function workspaceWindowLayoutStorageKey(
+  workspaceId: string,
+  source: "workspace" | "unified",
+): string {
+  return `workspace-window-layout:${source === "unified" ? "git" : "workspace"}:${workspaceId}`;
+}
+
+export function parseWorkspaceWindowLayoutState(
+  persistedJson?: string | null,
+): WorkspaceWindowLayoutState {
+  if (typeof persistedJson !== "string" || persistedJson.trim().length === 0) {
+    return emptyWorkspaceWindowLayoutState();
+  }
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(persistedJson);
+  } catch {
+    return emptyWorkspaceWindowLayoutState();
+  }
+
+  if (
+    !isRecord(parsed) ||
+    parsed.version !== WORKSPACE_WINDOW_LAYOUT_VERSION ||
+    !Array.isArray(parsed.boards)
+  ) {
+    return emptyWorkspaceWindowLayoutState();
+  }
+
+  const boardKeys = new Set<string>();
+  const boards: WorkspaceWindowBoardLayout[] = [];
+  for (const value of parsed.boards) {
+    if (!isRecord(value)) continue;
+    const boardKey = normalizeId(value.boardKey);
+    if (!boardKey || boardKeys.has(boardKey)) continue;
+    const root = parseLayoutNode(value.root, new Set<string>(), 0);
+    if (!root) continue;
+    boardKeys.add(boardKey);
+    boards.push({ boardKey, root });
+  }
+
+  return { version: WORKSPACE_WINDOW_LAYOUT_VERSION, boards };
+}
+
+export function serializeWorkspaceWindowLayoutState(state: WorkspaceWindowLayoutState): string {
+  return JSON.stringify({
+    version: WORKSPACE_WINDOW_LAYOUT_VERSION,
+    boards: state.boards,
+  } satisfies WorkspaceWindowLayoutState);
+}
+
+export function reconcileWorkspaceWindowLayout(
+  root: WorkspaceWindowLayoutNode | null | undefined,
+  windowIds: readonly string[],
+  options: ReconcileWorkspaceWindowLayoutOptions,
+): WorkspaceWindowLayoutNode | null {
+  const normalizedWindowIds = uniqueWindowIds(windowIds);
+  if (normalizedWindowIds.length === 0) return null;
+
+  const allowedWindowIds = new Set(normalizedWindowIds);
+  let nextRoot = root
+    ? pruneWorkspaceWindowLayout(root, allowedWindowIds, new Set<string>())
+    : null;
+  if (!nextRoot) {
+    nextRoot = { type: "leaf", id: normalizedWindowIds[0] };
+  }
+
+  const placedWindowIds = new Set(workspaceWindowIds(nextRoot));
+  let focusedWindowId =
+    normalizeId(options.focusedWindowId) ?? lastWorkspaceWindowId(nextRoot) ?? undefined;
+
+  for (const windowId of normalizedWindowIds) {
+    if (placedWindowIds.has(windowId)) continue;
+    const targetWindowId =
+      focusedWindowId && placedWindowIds.has(focusedWindowId)
+        ? focusedWindowId
+        : lastWorkspaceWindowId(nextRoot);
+    if (!targetWindowId) {
+      nextRoot = { type: "leaf", id: windowId };
+    } else {
+      const targetRect = computeWorkspaceWindowRects(nextRoot).get(targetWindowId) ?? ROOT_RECT;
+      nextRoot = splitWorkspaceWindow(
+        nextRoot,
+        targetWindowId,
+        windowId,
+        chooseWorkspaceWindowSplitAxis(targetRect, options),
+      );
+    }
+    placedWindowIds.add(windowId);
+    focusedWindowId = windowId;
+  }
+
+  return nextRoot;
+}
+
+export function computeWorkspaceWindowRects(
+  root: WorkspaceWindowLayoutNode | null | undefined,
+): Map<string, WorkspaceWindowRect> {
+  const rects = new Map<string, WorkspaceWindowRect>();
+  if (!root) return rects;
+
+  visitWorkspaceWindowRects(root, ROOT_RECT, rects);
+  return rects;
+}
+
+export function swapWorkspaceWindows(
+  root: WorkspaceWindowLayoutNode,
+  firstWindowId: string,
+  secondWindowId: string,
+): WorkspaceWindowLayoutNode {
+  const firstId = normalizeId(firstWindowId);
+  const secondId = normalizeId(secondWindowId);
+  if (!firstId || !secondId || firstId === secondId) return root;
+
+  const windowIds = new Set(workspaceWindowIds(root));
+  if (!windowIds.has(firstId) || !windowIds.has(secondId)) return root;
+  return mapWorkspaceWindowLeaves(root, (id) => {
+    if (id === firstId) return secondId;
+    if (id === secondId) return firstId;
+    return id;
+  });
+}
+
+export function findWorkspaceWindowInDirection(
+  rects: ReadonlyMap<string, WorkspaceWindowRect>,
+  currentWindowId: string,
+  direction: WorkspaceWindowDirection,
+): string | null {
+  const current = rects.get(currentWindowId);
+  if (!current) return null;
+
+  const candidates = [...rects.entries()].flatMap(([id, rect]) => {
+    if (id === currentWindowId || !isRectInDirection(current, rect, direction)) return [];
+    return [{ id, rect, score: directionalScore(current, rect, direction) }];
+  });
+
+  candidates.sort((left, right) => {
+    for (let index = 0; index < left.score.length; index += 1) {
+      const difference = left.score[index] - right.score[index];
+      if (difference !== 0) return difference;
+    }
+    return left.id.localeCompare(right.id);
+  });
+
+  return candidates[0]?.id ?? null;
+}
+
+export function workspaceWindowIds(root: WorkspaceWindowLayoutNode): string[] {
+  if (root.type === "leaf") return [root.id];
+  return [...workspaceWindowIds(root.first), ...workspaceWindowIds(root.second)];
+}
+
+function chooseWorkspaceWindowSplitAxis(
+  rect: WorkspaceWindowRect,
+  options: Pick<ReconcileWorkspaceWindowLayoutOptions, "viewportWidth" | "viewportHeight">,
+): WorkspaceWindowSplitAxis {
+  const width = rect.width * positiveDimension(options.viewportWidth);
+  const height = rect.height * positiveDimension(options.viewportHeight);
+  return height > width ? "x" : "y";
+}
+
+function splitWorkspaceWindow(
+  node: WorkspaceWindowLayoutNode,
+  targetWindowId: string,
+  newWindowId: string,
+  axis: WorkspaceWindowSplitAxis,
+): WorkspaceWindowLayoutNode {
+  if (node.type === "leaf") {
+    if (node.id !== targetWindowId) return node;
+    return {
+      type: "split",
+      axis,
+      first: node,
+      second: { type: "leaf", id: newWindowId },
+    };
+  }
+
+  return {
+    ...node,
+    first: splitWorkspaceWindow(node.first, targetWindowId, newWindowId, axis),
+    second: splitWorkspaceWindow(node.second, targetWindowId, newWindowId, axis),
+  };
+}
+
+function pruneWorkspaceWindowLayout(
+  node: WorkspaceWindowLayoutNode,
+  allowedWindowIds: ReadonlySet<string>,
+  placedWindowIds: Set<string>,
+): WorkspaceWindowLayoutNode | null {
+  if (node.type === "leaf") {
+    if (!allowedWindowIds.has(node.id) || placedWindowIds.has(node.id)) return null;
+    placedWindowIds.add(node.id);
+    return node;
+  }
+
+  const first = pruneWorkspaceWindowLayout(node.first, allowedWindowIds, placedWindowIds);
+  const second = pruneWorkspaceWindowLayout(node.second, allowedWindowIds, placedWindowIds);
+  if (!first) return second;
+  if (!second) return first;
+  return { ...node, first, second };
+}
+
+function visitWorkspaceWindowRects(
+  node: WorkspaceWindowLayoutNode,
+  rect: WorkspaceWindowRect,
+  rects: Map<string, WorkspaceWindowRect>,
+): void {
+  if (node.type === "leaf") {
+    rects.set(node.id, rect);
+    return;
+  }
+
+  if (node.axis === "x") {
+    const halfHeight = rect.height / 2;
+    visitWorkspaceWindowRects(node.first, { ...rect, height: halfHeight }, rects);
+    visitWorkspaceWindowRects(
+      node.second,
+      { ...rect, y: rect.y + halfHeight, height: halfHeight },
+      rects,
+    );
+    return;
+  }
+
+  const halfWidth = rect.width / 2;
+  visitWorkspaceWindowRects(node.first, { ...rect, width: halfWidth }, rects);
+  visitWorkspaceWindowRects(
+    node.second,
+    { ...rect, x: rect.x + halfWidth, width: halfWidth },
+    rects,
+  );
+}
+
+function isRectInDirection(
+  current: WorkspaceWindowRect,
+  candidate: WorkspaceWindowRect,
+  direction: WorkspaceWindowDirection,
+): boolean {
+  const currentCenterX = current.x + current.width / 2;
+  const currentCenterY = current.y + current.height / 2;
+  const candidateCenterX = candidate.x + candidate.width / 2;
+  const candidateCenterY = candidate.y + candidate.height / 2;
+
+  if (direction === "left") return candidateCenterX < currentCenterX;
+  if (direction === "right") return candidateCenterX > currentCenterX;
+  if (direction === "up") return candidateCenterY < currentCenterY;
+  return candidateCenterY > currentCenterY;
+}
+
+function directionalScore(
+  current: WorkspaceWindowRect,
+  candidate: WorkspaceWindowRect,
+  direction: WorkspaceWindowDirection,
+): number[] {
+  const horizontal = direction === "left" || direction === "right";
+  const primaryGap = horizontal
+    ? direction === "left"
+      ? Math.max(0, current.x - (candidate.x + candidate.width))
+      : Math.max(0, candidate.x - (current.x + current.width))
+    : direction === "up"
+      ? Math.max(0, current.y - (candidate.y + candidate.height))
+      : Math.max(0, candidate.y - (current.y + current.height));
+  const orthogonalGap = horizontal
+    ? intervalGap(
+        current.y,
+        current.y + current.height,
+        candidate.y,
+        candidate.y + candidate.height,
+      )
+    : intervalGap(current.x, current.x + current.width, candidate.x, candidate.x + candidate.width);
+  const orthogonalCenterDistance = horizontal
+    ? Math.abs(current.y + current.height / 2 - (candidate.y + candidate.height / 2))
+    : Math.abs(current.x + current.width / 2 - (candidate.x + candidate.width / 2));
+  const centerDistance = Math.hypot(
+    current.x + current.width / 2 - (candidate.x + candidate.width / 2),
+    current.y + current.height / 2 - (candidate.y + candidate.height / 2),
+  );
+
+  return [
+    orthogonalGap > 0 ? 1 : 0,
+    primaryGap,
+    orthogonalGap,
+    orthogonalCenterDistance,
+    centerDistance,
+  ];
+}
+
+function intervalGap(
+  firstStart: number,
+  firstEnd: number,
+  secondStart: number,
+  secondEnd: number,
+): number {
+  if (secondEnd < firstStart) return firstStart - secondEnd;
+  if (secondStart > firstEnd) return secondStart - firstEnd;
+  return 0;
+}
+
+function mapWorkspaceWindowLeaves(
+  node: WorkspaceWindowLayoutNode,
+  mapId: (id: string) => string,
+): WorkspaceWindowLayoutNode {
+  if (node.type === "leaf") return { ...node, id: mapId(node.id) };
+  return {
+    ...node,
+    first: mapWorkspaceWindowLeaves(node.first, mapId),
+    second: mapWorkspaceWindowLeaves(node.second, mapId),
+  };
+}
+
+function lastWorkspaceWindowId(root: WorkspaceWindowLayoutNode): string | null {
+  if (root.type === "leaf") return root.id;
+  return lastWorkspaceWindowId(root.second) ?? lastWorkspaceWindowId(root.first);
+}
+
+function uniqueWindowIds(values: readonly string[]): string[] {
+  const ids: string[] = [];
+  const seen = new Set<string>();
+  for (const value of values) {
+    const id = normalizeId(value);
+    if (!id || seen.has(id)) continue;
+    seen.add(id);
+    ids.push(id);
+  }
+  return ids;
+}
+
+function parseLayoutNode(
+  value: unknown,
+  windowIds: Set<string>,
+  depth: number,
+): WorkspaceWindowLayoutNode | null {
+  if (!isRecord(value) || depth > MAX_LAYOUT_DEPTH) return null;
+  if (value.type === "leaf") {
+    const id = normalizeId(value.id);
+    if (!id || windowIds.has(id)) return null;
+    windowIds.add(id);
+    return { type: "leaf", id };
+  }
+  if (value.type !== "split" || (value.axis !== "x" && value.axis !== "y")) return null;
+
+  const first = parseLayoutNode(value.first, windowIds, depth + 1);
+  const second = parseLayoutNode(value.second, windowIds, depth + 1);
+  if (!first) return second;
+  if (!second) return first;
+  return { type: "split", axis: value.axis, first, second };
+}
+
+function normalizeId(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  const normalized = value.trim();
+  return normalized.length > 0 && normalized.length <= 512 ? normalized : null;
+}
+
+function positiveDimension(value: number): number {
+  return Number.isFinite(value) && value > 0 ? value : 1;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}

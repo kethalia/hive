@@ -346,6 +346,7 @@ vi.mock("lucide-react", () => ({
   Copy: () => null,
   ExternalLink: () => null,
   FolderOpen: () => null,
+  GripVertical: () => null,
   RefreshCw: () => null,
   Loader2: () => null,
   Minus: () => null,
