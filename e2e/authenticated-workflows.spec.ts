@@ -587,6 +587,10 @@ async function verifyEmbeddedToolsSurviveRefresh(
   )?.trim();
   expect(explicitlyFocusedLabel).toBeTruthy();
 
+  // Keep the stationary pointer outside the board while panes remount. Otherwise an iframe
+  // restored beneath it correctly wins focus through the workspace's hover-focus behavior.
+  await page.mouse.move(1, 1);
+
   const previousFileBrowserLoadCount = getSuccessfulFileBrowserLoads();
   const previousVsCodeLoadCount = getSuccessfulVsCodeLoads();
   await page.reload({ waitUntil: "domcontentloaded" });
