@@ -1185,6 +1185,7 @@ export function MultiSessionWorkspace({
   } = useVisualViewportKeyboardOffset();
   const isMobileKeyboardVisible = isComposeSheet && visualKeyboardVisible;
   const activeBoard = useMemo(() => findActiveWorkspaceBoard(boardState), [boardState]);
+  const workspaceViewportReady = workspaceViewport.width > 0 && workspaceViewport.height > 0;
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: loading replaces the rendered body node that must be measured.
   useLayoutEffect(() => {
@@ -1224,15 +1225,14 @@ export function MultiSessionWorkspace({
           pendingWindowSplitTargetByBoardRef.current.get(board.key) ??
           (board.key === activeBoard?.key ? activeWindowId : null) ??
           boardActiveSessionName;
-        const windowLayoutRoot = reconcileWorkspaceWindowLayout(
-          workspaceWindowLayoutRoot(windowLayoutState, board.key),
-          windowIds,
-          {
-            focusedWindowId,
-            viewportWidth: workspaceViewport.width,
-            viewportHeight: workspaceViewport.height,
-          },
-        );
+        const storedWindowLayoutRoot = workspaceWindowLayoutRoot(windowLayoutState, board.key);
+        const windowLayoutRoot = workspaceViewportReady
+          ? reconcileWorkspaceWindowLayout(storedWindowLayoutRoot, windowIds, {
+              focusedWindowId,
+              viewportWidth: workspaceViewport.width,
+              viewportHeight: workspaceViewport.height,
+            })
+          : storedWindowLayoutRoot;
         return {
           board,
           isActive: board.key === activeBoard?.key,
@@ -1262,6 +1262,7 @@ export function MultiSessionWorkspace({
       workspaceToolPanes,
       workspaceViewport.height,
       workspaceViewport.width,
+      workspaceViewportReady,
     ],
   );
   const activeBoardRenderModel = useMemo(
@@ -1316,7 +1317,7 @@ export function MultiSessionWorkspace({
   );
 
   useEffect(() => {
-    if (loading) return;
+    if (loading || loadFailed || !workspaceViewportReady) return;
     pendingWindowSplitTargetByBoardRef.current.clear();
     if (
       serializeWorkspaceWindowLayoutState(windowLayoutState) ===
@@ -1325,7 +1326,14 @@ export function MultiSessionWorkspace({
       return;
     }
     persistWindowLayoutState(resolvedWindowLayoutState);
-  }, [loading, persistWindowLayoutState, resolvedWindowLayoutState, windowLayoutState]);
+  }, [
+    loading,
+    loadFailed,
+    persistWindowLayoutState,
+    resolvedWindowLayoutState,
+    windowLayoutState,
+    workspaceViewportReady,
+  ]);
 
   const visibleSessions = activeBoardRenderModel?.visibleSessions ?? [];
   const visibleBoardPaneKeys = useMemo(
@@ -2236,6 +2244,7 @@ export function MultiSessionWorkspace({
     setGitAddError(null);
     setGitRestoreFailed(false);
     setTerminalCloseFailed(false);
+    setWorkspaceViewport({ width: 0, height: 0 });
     setPaneRecoveryStates({});
     workspaceToolPanesRef.current = [];
     setWorkspaceToolPanes([]);

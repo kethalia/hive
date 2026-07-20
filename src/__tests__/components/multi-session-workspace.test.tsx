@@ -640,6 +640,12 @@ async function renderTwoSessionWorkspace(options: { connect?: boolean } = {}) {
   }
 }
 
+let workspaceViewportRect = { width: 1_200, height: 800 };
+
+function mockWorkspaceViewport(width: number, height: number) {
+  workspaceViewportRect = { width, height };
+}
+
 function lastRegisteredEntry(id: string) {
   return mockRegister.mock.calls
     .map(([entry]) => entry)
@@ -667,6 +673,14 @@ function setPwaStandalone(matches: boolean) {
 describe("MultiSessionWorkspace", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockWorkspaceViewport(1_200, 800);
+    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function (
+      this: HTMLElement,
+    ) {
+      return this.getAttribute("data-testid") === "multi-session-body"
+        ? DOMRect.fromRect(workspaceViewportRect)
+        : DOMRect.fromRect();
+    });
     emitConnectionStateOnCallbackChange = false;
     terminalProps.clear();
     terminalDestroyCounts.clear();
@@ -769,6 +783,30 @@ describe("MultiSessionWorkspace", () => {
     fireEvent.click(screen.getByTestId("remove-workspace-tool-files"));
     expect(screen.queryByTestId("workspace-tool-pane-files")).not.toBeInTheDocument();
     expect(screen.getByTestId("workspace-tool-pane-code")).toBeInTheDocument();
+  });
+
+  it("chooses the initial split from the measured portrait workspace", async () => {
+    mockWorkspaceViewport(600, 1_000);
+
+    await renderTwoSessionWorkspace();
+
+    await waitFor(() => {
+      expect(window.localStorage.getItem("workspace-window-layout:workspace:ws-1")).toContain(
+        '"axis":"x"',
+      );
+    });
+    expect(document.querySelector('[data-workspace-window-id="main-session"]')).toHaveStyle({
+      left: "0%",
+      top: "0%",
+      width: "100%",
+      height: "50%",
+    });
+    expect(document.querySelector('[data-workspace-window-id="dev-server"]')).toHaveStyle({
+      left: "0%",
+      top: "50%",
+      width: "100%",
+      height: "50%",
+    });
   });
 
   it("restores File Browser and VS Code panes with fresh URLs after remount", async () => {
@@ -4578,5 +4616,31 @@ describe("MultiSessionWorkspace", () => {
       "Could not create a terminal session.",
     );
     expect(screen.queryByText(/secret create failure/)).not.toBeInTheDocument();
+  });
+
+  it("preserves the stored window layout when session loading fails", async () => {
+    const storedWindowLayout = JSON.stringify({
+      version: 1,
+      boards: [
+        {
+          boardKey: "default",
+          root: {
+            type: "split",
+            axis: "y",
+            first: { type: "leaf", id: "main-session" },
+            second: { type: "leaf", id: "dev-server" },
+          },
+        },
+      ],
+    });
+    window.localStorage.setItem("workspace-window-layout:workspace:ws-1", storedWindowLayout);
+    mockGetSessions.mockRejectedValueOnce(new Error("private load failure"));
+
+    render(<MultiSessionWorkspace {...defaultProps} />);
+
+    expect(await screen.findByTestId("session-load-error")).toBeInTheDocument();
+    expect(window.localStorage.getItem("workspace-window-layout:workspace:ws-1")).toBe(
+      storedWindowLayout,
+    );
   });
 });
