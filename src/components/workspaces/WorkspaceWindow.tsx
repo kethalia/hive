@@ -7,8 +7,6 @@ import { cn } from "@/lib/utils";
 import type { WorkspaceWindowDropPosition } from "@/lib/workspaces/workspace-window-layout";
 
 interface WorkspaceWindowRenderState {
-  dragHandleAttributes: ReturnType<typeof useDraggable>["attributes"];
-  dragHandleListeners: ReturnType<typeof useDraggable>["listeners"];
   isDragging: boolean;
   onHeaderPointerDown: PointerEventHandler<HTMLDivElement>;
 }
@@ -29,7 +27,6 @@ export function WorkspaceWindow({
   style,
 }: WorkspaceWindowProps) {
   const {
-    attributes,
     listeners,
     setNodeRef: setDraggableNodeRef,
     transform,
@@ -71,8 +68,6 @@ export function WorkspaceWindow({
       }}
     >
       {children({
-        dragHandleAttributes: attributes,
-        dragHandleListeners: listeners,
         isDragging,
         onHeaderPointerDown,
       })}

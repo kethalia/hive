@@ -10,15 +10,12 @@ describe("TerminalSessionFrame", () => {
 
   it("uses the titlebar as a drag surface without capturing header controls", () => {
     const onHeaderPointerDown = vi.fn();
-    const onGripPointerDown = vi.fn();
 
     render(
       <TerminalSessionFrame
         label="VS Code"
         dataTestId="tool-frame"
         layoutMode="tiled"
-        dragHandleAttributes={{ "aria-describedby": "drag-instructions" }}
-        dragHandleListeners={{ onPointerDown: onGripPointerDown }}
         onHeaderPointerDown={onHeaderPointerDown}
         onActivate={vi.fn()}
         headerActions={<button type="button">Pop out</button>}
@@ -29,23 +26,27 @@ describe("TerminalSessionFrame", () => {
     );
 
     const header = screen.getByTestId("tool-frame-header");
-    const grip = screen.getByRole("button", { name: "Drag VS Code" });
+    const grip = screen.getByTestId("tool-frame-drag-icon");
+    const title = screen.getByTestId("tool-frame-title");
     const close = screen.getByRole("button", { name: "Close VS Code" });
 
     expect(header).toHaveAttribute("data-window-drag-surface", "true");
     expect(header).toHaveClass("cursor-grab", "touch-none", "select-none");
-    expect(grip).toHaveClass("h-6", "px-1.5");
+    expect(screen.queryByRole("button", { name: "Drag VS Code" })).not.toBeInTheDocument();
+    expect(grip).toHaveClass("size-3", "shrink-0");
+    expect(grip).toHaveAttribute("aria-hidden", "true");
+    expect(grip.closest("button")).toBeNull();
+    expect(title.parentElement).toHaveClass("items-center");
     expect(close).toHaveClass("h-6");
 
-    fireEvent.pointerDown(screen.getByText("VS Code"));
-    expect(onHeaderPointerDown).toHaveBeenCalledOnce();
-
-    fireEvent.pointerDown(screen.getByRole("button", { name: "Pop out" }));
-    fireEvent.pointerDown(close);
+    fireEvent.pointerDown(title);
     expect(onHeaderPointerDown).toHaveBeenCalledOnce();
 
     fireEvent.pointerDown(grip);
-    expect(onGripPointerDown).toHaveBeenCalledOnce();
-    expect(onHeaderPointerDown).toHaveBeenCalledOnce();
+    expect(onHeaderPointerDown).toHaveBeenCalledTimes(2);
+
+    fireEvent.pointerDown(screen.getByRole("button", { name: "Pop out" }));
+    fireEvent.pointerDown(close);
+    expect(onHeaderPointerDown).toHaveBeenCalledTimes(2);
   });
 });

@@ -2,7 +2,6 @@
 
 import { GripVertical, Lock, Minus, Plus, X } from "lucide-react";
 import type {
-  ButtonHTMLAttributes,
   CSSProperties,
   FocusEvent,
   KeyboardEvent,
@@ -130,8 +129,6 @@ interface TerminalSessionFrameProps {
   closeLabel?: string;
   closeTestId?: string;
   headerActions?: ReactNode;
-  dragHandleAttributes?: ButtonHTMLAttributes<HTMLButtonElement>;
-  dragHandleListeners?: ButtonHTMLAttributes<HTMLButtonElement>;
   onHeaderPointerDown?: PointerEventHandler<HTMLDivElement>;
   isDragging?: boolean;
   isDropTarget?: boolean;
@@ -157,8 +154,6 @@ export function TerminalSessionFrame({
   closeLabel,
   closeTestId,
   headerActions,
-  dragHandleAttributes,
-  dragHandleListeners,
   onHeaderPointerDown,
   isDragging = false,
   isDropTarget = false,
@@ -238,20 +233,21 @@ export function TerminalSessionFrame({
           data-testid={dataTestId ? `${dataTestId}-header` : undefined}
           onPointerDown={handleHeaderPointerDown}
         >
-          {!disabled && (dragHandleAttributes || dragHandleListeners) ? (
-            <Button
-              type="button"
-              variant="ghost"
-              size="xs"
-              className="relative h-6 min-h-0 touch-none px-1.5 text-white/55 after:absolute after:-inset-2 after:content-[''] hover:bg-white/10 hover:text-white focus-visible:bg-white/10 focus-visible:text-white"
-              aria-label={`Drag ${label}`}
-              {...dragHandleAttributes}
-              {...dragHandleListeners}
+          <div className="flex min-w-0 flex-1 items-center gap-1.5">
+            {!disabled && onHeaderPointerDown ? (
+              <GripVertical
+                className="size-3 shrink-0 text-white/55"
+                aria-hidden="true"
+                data-testid={dataTestId ? `${dataTestId}-drag-icon` : undefined}
+              />
+            ) : null}
+            <span
+              className="min-w-0 truncate font-mono text-xs"
+              data-testid={dataTestId ? `${dataTestId}-title` : undefined}
             >
-              <GripVertical className="size-3" aria-hidden="true" />
-            </Button>
-          ) : null}
-          <span className="min-w-0 flex-1 truncate font-mono text-xs">{label}</span>
+              {label}
+            </span>
+          </div>
           {headerActions}
           {onClose ? (
             <Button

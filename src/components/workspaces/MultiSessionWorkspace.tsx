@@ -3812,15 +3812,13 @@ export function MultiSessionWorkspace({
           previewStyle={panePreviewStyle}
           style={paneStyle}
         >
-          {({ dragHandleAttributes, dragHandleListeners, isDragging, onHeaderPointerDown }) => (
+          {({ isDragging, onHeaderPointerDown }) => (
             <TerminalSessionFrame
               label={toolPane.label}
               active={model.isActive && pane.sessionName === activeWindowId}
               dataTestId={`workspace-tool-pane-${toolPane.tool}`}
               layoutMode="tiled"
               paneState={toolPane.loadState}
-              dragHandleAttributes={dragHandleAttributes}
-              dragHandleListeners={dragHandleListeners}
               onHeaderPointerDown={onHeaderPointerDown}
               isDragging={isDragging}
               headerActions={
@@ -3942,7 +3940,7 @@ export function MultiSessionWorkspace({
         previewStyle={panePreviewStyle}
         style={paneStyle}
       >
-        {({ dragHandleAttributes, dragHandleListeners, isDragging, onHeaderPointerDown }) => (
+        {({ isDragging, onHeaderPointerDown }) => (
           <TerminalSessionFrame
             label={pane.label}
             active={isActive}
@@ -3950,8 +3948,6 @@ export function MultiSessionWorkspace({
               model.isActive ? `workspace-${pane.id}` : `workspace-${model.board.key}-${pane.id}`
             }
             layoutMode="tiled"
-            dragHandleAttributes={dragHandleAttributes}
-            dragHandleListeners={dragHandleListeners}
             onHeaderPointerDown={onHeaderPointerDown}
             isDragging={isDragging}
             disabled={isComposeDisabled}

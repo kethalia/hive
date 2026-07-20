@@ -1761,12 +1761,16 @@ describe("MultiSessionWorkspace", () => {
     expect(screen.getByTestId("workspace-pane-dev-server-disabled-overlay")).toHaveTextContent(
       "Compose locked",
     );
-    expect(screen.queryByRole("button", { name: "Drag dev-server" })).not.toBeInTheDocument();
+    expect(
+      screen.getByTestId("workspace-pane-dev-server").querySelector('[data-testid="icon-grip"]'),
+    ).not.toBeInTheDocument();
     expect(document.querySelector('[data-workspace-window-id="dev-server"]')).toHaveAttribute(
       "data-workspace-window-disabled",
       "true",
     );
-    expect(screen.getByRole("button", { name: "Drag main-session" })).toBeInTheDocument();
+    expect(
+      screen.getByTestId("workspace-pane-main-session").querySelector('[data-testid="icon-grip"]'),
+    ).toBeInTheDocument();
 
     fireEvent.change(screen.getByPlaceholderText("Type multi-line command..."), {
       target: { value: "printf main" },
@@ -2295,11 +2299,11 @@ describe("MultiSessionWorkspace", () => {
     expect(mockCreateSession).not.toHaveBeenCalled();
   });
 
-  it("exposes dedicated drag handles without legacy reorder controls or status badges", async () => {
+  it("exposes decorative drag indicators without legacy reorder controls or status badges", async () => {
     await renderTwoSessionWorkspace();
 
-    expect(screen.getByRole("button", { name: "Drag main-session" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Drag dev-server" })).toBeInTheDocument();
+    expect(screen.getAllByTestId("icon-grip")).toHaveLength(2);
+    expect(screen.queryByRole("button", { name: /^Drag / })).not.toBeInTheDocument();
     expect(screen.queryByTestId("move-pane-left-pane-dev-server")).not.toBeInTheDocument();
     expect(screen.queryByTestId("move-pane-right-pane-dev-server")).not.toBeInTheDocument();
     expect(screen.queryByText("Active")).not.toBeInTheDocument();

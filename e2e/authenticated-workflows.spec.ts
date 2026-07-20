@@ -244,7 +244,7 @@ async function verifyDirectionalWorkspaceFocus(
   if (!directionToFiles) {
     throw new Error("The files pane is not the closest directional neighbor of the code pane.");
   }
-  await codeWindow.locator('button[aria-label^="Drag VS Code"]').click();
+  await codeWindow.locator('[data-window-drag-surface="true"]').click();
   await expect(codePane).toHaveAttribute("data-active", "true");
   const keyDirection = `${directionToFiles[0]?.toUpperCase()}${directionToFiles.slice(1)}`;
   await page.keyboard.press(`Control+Arrow${keyDirection}`);
@@ -252,7 +252,7 @@ async function verifyDirectionalWorkspaceFocus(
 
   const edgeCandidate = closestWorkspaceEdge(bodyBox, renderedRects);
   const edgeWindow = page.locator(`[data-workspace-window-id="${edgeCandidate.id}"]:visible`);
-  await edgeWindow.locator('button[aria-label^="Drag "]').click();
+  await edgeWindow.locator('[data-window-drag-surface="true"]').click();
   await expect(edgeWindow.locator('[data-active="true"]')).toHaveCount(1);
   await page.keyboard.press(`Control+Arrow${edgeCandidate.direction}`);
   await expect(edgeWindow.locator('[data-active="true"]')).toHaveCount(1);
@@ -288,13 +288,19 @@ async function verifyWorkspaceWindowChrome(page: Page) {
   expect(await pane.evaluate((element) => getComputedStyle(element).borderRadius)).not.toBe("0px");
 
   const codeHeader = page.getByTestId("workspace-tool-pane-code-header");
-  const dragButtonBox = await codeHeader.getByRole("button", { name: /^Drag / }).boundingBox();
-  const closeButtonBox = await page.getByTestId("remove-workspace-tool-code").boundingBox();
-  if (!dragButtonBox || !closeButtonBox) {
-    throw new Error("Workspace window header controls could not be measured.");
+  const dragIcon = page.getByTestId("workspace-tool-pane-code-drag-icon");
+  const title = page.getByTestId("workspace-tool-pane-code-title");
+  const dragIconBox = await dragIcon.boundingBox();
+  const titleBox = await title.boundingBox();
+  if (!dragIconBox || !titleBox) {
+    throw new Error("Workspace window title could not be measured.");
   }
-  expect(Math.abs(dragButtonBox.width - closeButtonBox.width)).toBeLessThan(1);
-  expect(Math.abs(dragButtonBox.height - closeButtonBox.height)).toBeLessThan(1);
+  await expect(codeHeader.getByRole("button", { name: /^Drag / })).toHaveCount(0);
+  expect(Math.abs(dragIconBox.width - 12)).toBeLessThan(1);
+  expect(Math.abs(dragIconBox.height - 12)).toBeLessThan(1);
+  expect(
+    Math.abs(dragIconBox.y + dragIconBox.height / 2 - (titleBox.y + titleBox.height / 2)),
+  ).toBeLessThan(1);
 }
 
 function closestWorkspaceEdge(bodyBox: WorkspaceRect, rects: ReadonlyMap<string, WorkspaceRect>) {
@@ -334,8 +340,8 @@ async function verifyWorkspaceWindowDrag(page: Page) {
   }
   const persistedLayoutBefore = await persistedWorkspaceWindowLayout(page);
   const { dropPosition, targetPoint } = workspaceDropTarget(terminalBoxBefore);
-  const dragHandle = page.locator('button[aria-label^="Drag VS Code"]');
-  await startWorkspaceWindowDrag(page, dragHandle, targetPoint);
+  const dragSurface = page.getByTestId("workspace-tool-pane-code-header");
+  await startWorkspaceWindowDrag(page, dragSurface, targetPoint);
   const { dragged: codeExpected, target: terminalExpected } = workspaceSplitRects(
     terminalBoxBefore,
     dropPosition,
@@ -353,7 +359,7 @@ async function verifyWorkspaceWindowDrag(page: Page) {
 
 async function verifyNoopWorkspaceWindowDrags(page: Page) {
   const codeWindow = workspaceWindowContaining(page, page.getByTestId("workspace-tool-pane-code"));
-  const dragHandle = page.locator('button[aria-label^="Drag VS Code"]');
+  const dragSurface = page.getByTestId("workspace-tool-pane-code-header");
   const bodyBox = await page.getByTestId("multi-session-body").boundingBox();
   const windowBoxBefore = await codeWindow.boundingBox();
   if (!bodyBox || !windowBoxBefore) {
@@ -361,13 +367,13 @@ async function verifyNoopWorkspaceWindowDrags(page: Page) {
   }
   const persistedLayoutBefore = await persistedWorkspaceWindowLayout(page);
 
-  await dragHandle.click();
+  await dragSurface.click();
   await waitForTwoAnimationFrames(page);
   await expect(page.getByTestId("workspace-window-drop-placeholder")).toHaveCount(0);
   await expectWorkspaceRect(codeWindow, windowBoxBefore);
   expect(await persistedWorkspaceWindowLayout(page)).toBe(persistedLayoutBefore);
 
-  await startWorkspaceWindowDrag(page, dragHandle, pointOutsideWorkspace(page, bodyBox));
+  await startWorkspaceWindowDrag(page, dragSurface, pointOutsideWorkspace(page, bodyBox));
   await expectOriginWorkspacePlaceholder(page, windowBoxBefore);
   await page.mouse.up();
   await waitForTwoAnimationFrames(page);
