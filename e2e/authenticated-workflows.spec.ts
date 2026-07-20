@@ -89,7 +89,7 @@ async function expectFileBrowserReady(page: Page) {
         ) {
           return "error";
         }
-        return /\bname\b[\s\S]*\bsize\b[\s\S]*\blast modified\b/i.test(text) ? "ready" : "loading";
+        return /\bname\b[\s\S]*\bsize\b/i.test(text) ? "ready" : "loading";
       },
       { timeout: 30_000 },
     )
@@ -331,7 +331,7 @@ test.describe("authenticated Hive workflows", () => {
     expect(terminalSocketUrls).toHaveLength(healthySocketCount);
     await capture(page, testInfo, "workspace-terminal-connected");
 
-    await test.step("embed File Browser through the same-origin proxy", async () => {
+    await test.step("embed File Browser from its isolated Coder application host", async () => {
       await verifyEmbeddedFileBrowser(page, testInfo);
     });
     await test.step("embed VS Code from the configured Coder application host", async () => {
