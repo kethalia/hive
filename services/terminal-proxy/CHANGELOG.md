@@ -1,5 +1,11 @@
 # hive-terminal-proxy
 
+## 2.1.0
+
+### Minor Changes
+
+- e705af6: Add File Browser and VS Code as embedded tiled windows alongside terminal and Git workspace panes.
+
 ## 2.0.12
 
 ### Patch Changes

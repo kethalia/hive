@@ -1,5 +1,11 @@
 # hive-orchestrator
 
+## 2.8.0
+
+### Minor Changes
+
+- e705af6: Add File Browser and VS Code as embedded tiled windows alongside terminal and Git workspace panes.
+
 ## 2.7.4
 
 ### Patch Changes
