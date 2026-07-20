@@ -1350,6 +1350,10 @@ describe("MultiSessionWorkspace", () => {
       "binary-split",
     );
     expect(screen.getByTestId("multi-session-grid")).not.toHaveClass("gap-1");
+    expect(
+      screen.getByTestId("workspace-pane-main-session").closest("[data-workspace-window-id]"),
+    ).toHaveClass("p-0.5");
+    expect(screen.getByTestId("workspace-pane-main-session")).toHaveClass("rounded-md");
     expect(screen.queryByTestId("copy-active-pane")).not.toBeInTheDocument();
     expect(screen.queryByTestId("paste-active-pane")).not.toBeInTheDocument();
     expect(screen.queryByTestId("terminal-mobile-controls")).not.toBeInTheDocument();
@@ -1761,7 +1765,7 @@ describe("MultiSessionWorkspace", () => {
     );
   });
 
-  it("changes active pane only on explicit interaction, never passive pointer movement", async () => {
+  it("changes active pane when the pointer moves over a different window", async () => {
     await renderTwoSessionWorkspace();
     const focusDevTerminal = vi.fn();
     const devTerm = makeTerminal("dev-server", focusDevTerminal);
@@ -1779,11 +1783,6 @@ describe("MultiSessionWorkspace", () => {
 
     fireEvent.mouseMove(devPane);
 
-    expect(screen.getByTestId("active-pane-label")).toHaveTextContent("main-session");
-    expect(focusDevTerminal).not.toHaveBeenCalled();
-
-    fireEvent.click(devPane);
-
     expect(screen.getByTestId("active-pane-label")).toHaveTextContent("dev-server");
     expect(mockSetActiveTerminal).toHaveBeenLastCalledWith(devTerm, devSend);
     expect(focusDevTerminal).toHaveBeenCalledTimes(1);
@@ -1792,7 +1791,7 @@ describe("MultiSessionWorkspace", () => {
         .boards[0].activePaneKey,
     ).toBe("terminal:dev-server");
 
-    fireEvent.click(screen.getByTestId("workspace-pane-main-session"));
+    fireEvent.mouseMove(screen.getByTestId("workspace-pane-main-session"));
 
     expect(screen.getByTestId("active-pane-label")).toHaveTextContent("main-session");
   });

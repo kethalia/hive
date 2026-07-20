@@ -2,6 +2,7 @@ export const WORKSPACE_WINDOW_LAYOUT_VERSION = 1;
 
 export type WorkspaceWindowSplitAxis = "x" | "y";
 export type WorkspaceWindowDirection = "left" | "right" | "up" | "down";
+export type WorkspaceWindowDropPosition = "top" | "bottom" | "left" | "right";
 
 export interface WorkspaceWindowLeaf {
   type: "leaf";
@@ -171,22 +172,32 @@ export function computeWorkspaceWindowRects(
   return rects;
 }
 
-export function swapWorkspaceWindows(
+export function moveWorkspaceWindow(
   root: WorkspaceWindowLayoutNode,
-  firstWindowId: string,
-  secondWindowId: string,
+  draggedWindowId: string,
+  targetWindowId: string,
+  position: WorkspaceWindowDropPosition,
 ): WorkspaceWindowLayoutNode {
-  const firstId = normalizeId(firstWindowId);
-  const secondId = normalizeId(secondWindowId);
-  if (!firstId || !secondId || firstId === secondId) return root;
+  const draggedId = normalizeId(draggedWindowId);
+  const targetId = normalizeId(targetWindowId);
+  if (!draggedId || !targetId || draggedId === targetId) return root;
 
   const windowIds = new Set(workspaceWindowIds(root));
-  if (!windowIds.has(firstId) || !windowIds.has(secondId)) return root;
-  return mapWorkspaceWindowLeaves(root, (id) => {
-    if (id === firstId) return secondId;
-    if (id === secondId) return firstId;
-    return id;
-  });
+  if (!windowIds.has(draggedId) || !windowIds.has(targetId)) return root;
+
+  const withoutDraggedWindow = removeWorkspaceWindow(root, draggedId);
+  if (!withoutDraggedWindow) return root;
+  return insertWorkspaceWindow(withoutDraggedWindow, targetId, draggedId, position);
+}
+
+export function workspaceWindowDropPosition(
+  rect: WorkspaceWindowRect,
+  point: Pick<WorkspaceWindowRect, "x" | "y">,
+): WorkspaceWindowDropPosition {
+  if (rect.height > rect.width) {
+    return point.y < rect.y + rect.height / 2 ? "top" : "bottom";
+  }
+  return point.x < rect.x + rect.width / 2 ? "left" : "right";
 }
 
 export function findWorkspaceWindowInDirection(
@@ -358,15 +369,41 @@ function intervalGap(
   return 0;
 }
 
-function mapWorkspaceWindowLeaves(
+function removeWorkspaceWindow(
   node: WorkspaceWindowLayoutNode,
-  mapId: (id: string) => string,
+  windowId: string,
+): WorkspaceWindowLayoutNode | null {
+  if (node.type === "leaf") return node.id === windowId ? null : node;
+
+  const first = removeWorkspaceWindow(node.first, windowId);
+  const second = removeWorkspaceWindow(node.second, windowId);
+  if (!first) return second;
+  if (!second) return first;
+  return { ...node, first, second };
+}
+
+function insertWorkspaceWindow(
+  node: WorkspaceWindowLayoutNode,
+  targetWindowId: string,
+  draggedWindowId: string,
+  position: WorkspaceWindowDropPosition,
 ): WorkspaceWindowLayoutNode {
-  if (node.type === "leaf") return { ...node, id: mapId(node.id) };
+  if (node.type === "leaf") {
+    if (node.id !== targetWindowId) return node;
+    const dragged: WorkspaceWindowLeaf = { type: "leaf", id: draggedWindowId };
+    const draggedFirst = position === "top" || position === "left";
+    return {
+      type: "split",
+      axis: position === "top" || position === "bottom" ? "x" : "y",
+      first: draggedFirst ? dragged : node,
+      second: draggedFirst ? node : dragged,
+    };
+  }
+
   return {
     ...node,
-    first: mapWorkspaceWindowLeaves(node.first, mapId),
-    second: mapWorkspaceWindowLeaves(node.second, mapId),
+    first: insertWorkspaceWindow(node.first, targetWindowId, draggedWindowId, position),
+    second: insertWorkspaceWindow(node.second, targetWindowId, draggedWindowId, position),
   };
 }
 

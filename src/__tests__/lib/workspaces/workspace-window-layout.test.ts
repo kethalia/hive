@@ -3,10 +3,11 @@ import {
   computeWorkspaceWindowRects,
   emptyWorkspaceWindowLayoutState,
   findWorkspaceWindowInDirection,
+  moveWorkspaceWindow,
   parseWorkspaceWindowLayoutState,
   reconcileWorkspaceWindowLayout,
   serializeWorkspaceWindowLayoutState,
-  swapWorkspaceWindows,
+  workspaceWindowDropPosition,
   workspaceWindowIds,
 } from "@/lib/workspaces/workspace-window-layout";
 
@@ -68,7 +69,7 @@ describe("workspace window layout", () => {
     }
   });
 
-  it("swaps dragged windows without changing the split geometry", () => {
+  it("removes a dragged window, collapses its vacancy, and splits the drop target", () => {
     const initial = reconcileWorkspaceWindowLayout(null, ["main", "build", "logs"], {
       viewportWidth: 1200,
       viewportHeight: 800,
@@ -76,13 +77,64 @@ describe("workspace window layout", () => {
     expect(initial).not.toBeNull();
     if (!initial) return;
 
-    const before = computeWorkspaceWindowRects(initial);
-    const swapped = swapWorkspaceWindows(initial, "main", "logs");
-    const after = computeWorkspaceWindowRects(swapped);
+    const moved = moveWorkspaceWindow(initial, "logs", "build", "top");
+    const after = computeWorkspaceWindowRects(moved);
 
-    expect(after.get("main")).toEqual(before.get("logs"));
-    expect(after.get("logs")).toEqual(before.get("main"));
-    expect(workspaceWindowIds(swapped)).toEqual(["logs", "build", "main"]);
+    expect(after.get("main")).toEqual({ x: 0, y: 0, width: 0.5, height: 1 });
+    expect(after.get("logs")).toEqual({ x: 0.5, y: 0, width: 0.5, height: 0.5 });
+    expect(after.get("build")).toEqual({ x: 0.5, y: 0.5, width: 0.5, height: 0.5 });
+    expect(workspaceWindowIds(moved)).toEqual(["main", "logs", "build"]);
+  });
+
+  it("inserts on every requested side and ignores invalid drag targets", () => {
+    const initial = reconcileWorkspaceWindowLayout(null, ["main", "build"], {
+      viewportWidth: 1200,
+      viewportHeight: 800,
+    });
+    expect(initial).not.toBeNull();
+    if (!initial) return;
+
+    expect(
+      computeWorkspaceWindowRects(moveWorkspaceWindow(initial, "build", "main", "left")),
+    ).toEqual(
+      new Map([
+        ["build", { x: 0, y: 0, width: 0.5, height: 1 }],
+        ["main", { x: 0.5, y: 0, width: 0.5, height: 1 }],
+      ]),
+    );
+    expect(
+      computeWorkspaceWindowRects(moveWorkspaceWindow(initial, "build", "main", "bottom")),
+    ).toEqual(
+      new Map([
+        ["main", { x: 0, y: 0, width: 1, height: 0.5 }],
+        ["build", { x: 0, y: 0.5, width: 1, height: 0.5 }],
+      ]),
+    );
+    expect(
+      computeWorkspaceWindowRects(moveWorkspaceWindow(initial, "build", "main", "right")),
+    ).toEqual(
+      new Map([
+        ["main", { x: 0, y: 0, width: 0.5, height: 1 }],
+        ["build", { x: 0.5, y: 0, width: 0.5, height: 1 }],
+      ]),
+    );
+    expect(moveWorkspaceWindow(initial, "missing", "main", "right")).toBe(initial);
+    expect(moveWorkspaceWindow(initial, "main", "main", "right")).toBe(initial);
+  });
+
+  it("uses top and bottom zones for tall targets and side zones for wide targets", () => {
+    expect(
+      workspaceWindowDropPosition({ x: 100, y: 50, width: 300, height: 600 }, { x: 250, y: 200 }),
+    ).toBe("top");
+    expect(
+      workspaceWindowDropPosition({ x: 100, y: 50, width: 300, height: 600 }, { x: 250, y: 500 }),
+    ).toBe("bottom");
+    expect(
+      workspaceWindowDropPosition({ x: 100, y: 50, width: 600, height: 300 }, { x: 200, y: 200 }),
+    ).toBe("left");
+    expect(
+      workspaceWindowDropPosition({ x: 100, y: 50, width: 600, height: 300 }, { x: 650, y: 200 }),
+    ).toBe("right");
   });
 
   it("finds the closest window in the requested direction and never wraps at an edge", () => {

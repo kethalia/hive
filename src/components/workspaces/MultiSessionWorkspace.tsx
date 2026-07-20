@@ -1,6 +1,15 @@
 "use client";
 
-import { closestCenter, DndContext, type DragEndEvent, type DragStartEvent } from "@dnd-kit/core";
+import {
+  type CollisionDetection,
+  closestCenter,
+  DndContext,
+  type DragEndEvent,
+  type DragMoveEvent,
+  type DragStartEvent,
+  pointerWithin,
+} from "@dnd-kit/core";
+import { getEventCoordinates } from "@dnd-kit/utilities";
 import type { Terminal } from "@xterm/xterm";
 import { AlertCircle, ExternalLink, Loader2, Plus, Search, TerminalSquare } from "lucide-react";
 import dynamic from "next/dynamic";
@@ -128,14 +137,16 @@ import {
   computeWorkspaceWindowRects,
   emptyWorkspaceWindowLayoutState,
   findWorkspaceWindowInDirection,
+  moveWorkspaceWindow,
   parseWorkspaceWindowLayoutState,
   reconcileWorkspaceWindowLayout,
   serializeWorkspaceWindowLayoutState,
-  swapWorkspaceWindows,
   type WorkspaceWindowDirection,
+  type WorkspaceWindowDropPosition,
   type WorkspaceWindowLayoutNode,
   type WorkspaceWindowLayoutState,
   type WorkspaceWindowRect,
+  workspaceWindowDropPosition,
   workspaceWindowLayoutStorageKey,
 } from "@/lib/workspaces/workspace-window-layout";
 
@@ -198,6 +209,17 @@ interface WorkspaceBoardRenderModel {
   windowLayoutRoot: WorkspaceWindowLayoutNode | null;
   windowRects: ReadonlyMap<string, WorkspaceWindowRect>;
 }
+
+interface WorkspaceWindowDropPreview {
+  boardKey: string;
+  position: WorkspaceWindowDropPosition;
+  targetWindowId: string;
+}
+
+const workspaceWindowCollisionDetection: CollisionDetection = (args) => {
+  const pointerCollisions = pointerWithin(args);
+  return pointerCollisions.length > 0 ? pointerCollisions : closestCenter(args);
+};
 
 interface WorkspaceToolPane {
   key: string;
@@ -628,6 +650,48 @@ function workspaceWindowStyle(
     top: `${safeRect.y * 100}%`,
     width: `${safeRect.width * 100}%`,
     height: `${safeRect.height * 100}%`,
+  };
+}
+
+function workspaceWindowDropPreview(
+  boardKey: string,
+  event: DragMoveEvent,
+): WorkspaceWindowDropPreview | null {
+  if (
+    !event.over ||
+    typeof event.active.id !== "string" ||
+    typeof event.over.id !== "string" ||
+    event.active.id === event.over.id
+  ) {
+    return null;
+  }
+
+  const origin = getEventCoordinates(event.activatorEvent);
+  const translatedRect = event.active.rect.current.translated;
+  const targetRect = event.over.rect;
+  let pointer: { x: number; y: number };
+  if (origin) {
+    pointer = { x: origin.x + event.delta.x, y: origin.y + event.delta.y };
+  } else if (translatedRect) {
+    pointer = {
+      x: translatedRect.left + translatedRect.width / 2,
+      y: translatedRect.top + translatedRect.height / 2,
+    };
+  } else {
+    return null;
+  }
+  return {
+    boardKey,
+    targetWindowId: event.over.id,
+    position: workspaceWindowDropPosition(
+      {
+        x: targetRect.left,
+        y: targetRect.top,
+        width: targetRect.width,
+        height: targetRect.height,
+      },
+      pointer,
+    ),
   };
 }
 
@@ -1063,6 +1127,10 @@ export function MultiSessionWorkspace({
   const [windowLayoutState, setWindowLayoutState] = useState<WorkspaceWindowLayoutState>(
     emptyWorkspaceWindowLayoutState,
   );
+  const [windowDropPreview, setWindowDropPreview] = useState<WorkspaceWindowDropPreview | null>(
+    null,
+  );
+  const [windowDragActive, setWindowDragActive] = useState(false);
   const [workspaceViewport, setWorkspaceViewport] = useState({ width: 0, height: 0 });
   const [paneRecoveryStates, setPaneRecoveryStates] = useState<
     Record<string, WorkspacePaneRecoveryInput>
@@ -1071,6 +1139,7 @@ export function MultiSessionWorkspace({
   const workspaceToolPanesRef = useRef<WorkspaceToolPane[]>([]);
   const activeSessionNameRef = useRef<string | null>(null);
   const activeWindowIdRef = useRef<string | null>(null);
+  const windowDropPreviewRef = useRef<WorkspaceWindowDropPreview | null>(null);
   const pendingWindowSplitTargetByBoardRef = useRef(new Map<string, string>());
   const pendingTerminalFocusSessionNameRef = useRef<string | null>(null);
   const latestWorkspaceIdRef = useRef(workspaceId);
@@ -1484,6 +1553,8 @@ export function MultiSessionWorkspace({
       const { focusTerminal = true, windowId = sessionName } = options;
       const shouldFocusTerminal = focusTerminal && !isComposeSheet;
       pendingTerminalFocusSessionNameRef.current = shouldFocusTerminal ? sessionName : null;
+      activeSessionNameRef.current = sessionName;
+      activeWindowIdRef.current = windowId;
       setActiveSessionName(sessionName);
       setActiveWindowId(windowId);
 
@@ -3557,8 +3628,31 @@ export function MultiSessionWorkspace({
     : null;
 
   const handleWindowDragStart = (event: DragStartEvent) => {
+    windowDropPreviewRef.current = null;
+    setWindowDropPreview(null);
     if (typeof event.active.id !== "string") return;
+    setWindowDragActive(true);
     selectWorkspaceWindow(event.active.id);
+  };
+
+  const handleWindowDragMove = (boardKey: string, event: DragMoveEvent) => {
+    const preview = workspaceWindowDropPreview(boardKey, event);
+    const current = windowDropPreviewRef.current;
+    if (
+      preview?.boardKey === current?.boardKey &&
+      preview?.targetWindowId === current?.targetWindowId &&
+      preview?.position === current?.position
+    ) {
+      return;
+    }
+    windowDropPreviewRef.current = preview;
+    setWindowDropPreview(preview);
+  };
+
+  const clearWindowDropPreview = () => {
+    windowDropPreviewRef.current = null;
+    setWindowDropPreview(null);
+    setWindowDragActive(false);
   };
 
   const handleWindowDragEnd = (
@@ -3566,17 +3660,23 @@ export function MultiSessionWorkspace({
     root: WorkspaceWindowLayoutNode | null,
     event: DragEndEvent,
   ) => {
+    const preview = workspaceWindowDropPreview(boardKey, event) ?? windowDropPreviewRef.current;
+    clearWindowDropPreview();
     if (
       !root ||
-      !event.over ||
       typeof event.active.id !== "string" ||
-      typeof event.over.id !== "string" ||
-      event.active.id === event.over.id
+      !preview ||
+      event.active.id === preview.targetWindowId
     ) {
       return;
     }
 
-    const nextRoot = swapWorkspaceWindows(root, event.active.id, event.over.id);
+    const nextRoot = moveWorkspaceWindow(
+      root,
+      event.active.id,
+      preview.targetWindowId,
+      preview.position,
+    );
     persistWindowLayoutState({
       ...resolvedWindowLayoutState,
       boards: resolvedWindowLayoutState.boards.map((board) =>
@@ -3603,6 +3703,12 @@ export function MultiSessionWorkspace({
               : null;
       return (
         <WorkspaceWindow
+          dropPosition={
+            windowDropPreview?.boardKey === model.board.key &&
+            windowDropPreview.targetWindowId === pane.sessionName
+              ? windowDropPreview.position
+              : undefined
+          }
           key={`${model.board.key}:${toolPane.key}`}
           id={pane.sessionName}
           style={paneStyle}
@@ -3638,6 +3744,13 @@ export function MultiSessionWorkspace({
                 )
               }
               onActivate={() => {
+                selectSession(toolPane.sourceSessionName, {
+                  focusTerminal: false,
+                  windowId: toolPane.key,
+                });
+              }}
+              onMouseMove={() => {
+                if (!model.isActive || activeWindowIdRef.current === toolPane.key) return;
                 selectSession(toolPane.sourceSessionName, {
                   focusTerminal: false,
                   windowId: toolPane.key,
@@ -3729,6 +3842,12 @@ export function MultiSessionWorkspace({
 
     return (
       <WorkspaceWindow
+        dropPosition={
+          windowDropPreview?.boardKey === model.board.key &&
+          windowDropPreview.targetWindowId === pane.sessionName
+            ? windowDropPreview.position
+            : undefined
+        }
         key={`${model.board.key}:${pane.id}`}
         id={pane.sessionName}
         style={paneStyle}
@@ -3770,6 +3889,10 @@ export function MultiSessionWorkspace({
               if (!model.isActive) {
                 persistBoardState(selectWorkspaceBoard(boardState, model.board.key));
               }
+              selectSession(pane.sessionName);
+            }}
+            onMouseMove={() => {
+              if (!model.isActive || activeWindowIdRef.current === pane.sessionName) return;
               selectSession(pane.sessionName);
             }}
             onFocusActivate
@@ -3842,13 +3965,16 @@ export function MultiSessionWorkspace({
     return (
       <DndContext
         key={model.board.key}
-        collisionDetection={closestCenter}
+        collisionDetection={workspaceWindowCollisionDetection}
         onDragStart={handleWindowDragStart}
+        onDragMove={(event) => handleWindowDragMove(model.board.key, event)}
+        onDragCancel={clearWindowDropPreview}
         onDragEnd={(event) => handleWindowDragEnd(model.board.key, model.windowLayoutRoot, event)}
       >
         <div
           className={cn(
             "absolute inset-0 min-h-0 overflow-hidden overscroll-none",
+            windowDragActive && "[&_iframe]:pointer-events-none",
             !model.isActive && "pointer-events-none opacity-0",
           )}
           data-testid={

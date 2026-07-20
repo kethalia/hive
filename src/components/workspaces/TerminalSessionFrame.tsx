@@ -190,7 +190,7 @@ export function TerminalSessionFrame({
       role={interactive ? "button" : "group"}
       className={cn(
         "relative flex h-full min-h-0 resize-none flex-col overflow-hidden border bg-black shadow-sm outline-none transition-[border-color,box-shadow,opacity] focus-visible:ring-2 focus-visible:ring-ring",
-        layoutMode === "single" ? "rounded-lg" : "rounded-none",
+        layoutMode === "single" ? "rounded-lg" : "rounded-md",
         active ? "border-primary ring-1 ring-primary" : "border-border",
         isDropTarget && "border-primary/80 ring-2 ring-inset ring-primary/60",
         isDragging && "shadow-xl shadow-black/40",

@@ -249,6 +249,30 @@ async function verifyDirectionalWorkspaceFocus(
   await expect(edgeWindow.locator('[data-active="true"]')).toHaveCount(1);
 }
 
+async function verifyHoverWorkspaceFocus(page: Page) {
+  const filesPane = page.getByTestId("workspace-tool-pane-files");
+  const codePane = page.getByTestId("workspace-tool-pane-code");
+
+  await page.getByTestId("workspace-tool-pane-files-header").hover();
+  await expect(filesPane).toHaveAttribute("data-active", "true");
+  await page.getByTestId("workspace-tool-pane-code-header").hover();
+  await expect(codePane).toHaveAttribute("data-active", "true");
+}
+
+async function verifyWorkspaceWindowChrome(page: Page) {
+  const pane = page.locator('[data-pane-mode="tiled"]:visible').first();
+  const window = pane.locator("..");
+  const paneBox = await pane.boundingBox();
+  const windowBox = await window.boundingBox();
+  if (!paneBox || !windowBox) throw new Error("Workspace window chrome could not be measured.");
+
+  expect(paneBox.x - windowBox.x).toBeGreaterThanOrEqual(1);
+  expect(paneBox.y - windowBox.y).toBeGreaterThanOrEqual(1);
+  expect(windowBox.width - paneBox.width).toBeGreaterThanOrEqual(2);
+  expect(windowBox.height - paneBox.height).toBeGreaterThanOrEqual(2);
+  expect(await pane.evaluate((element) => getComputedStyle(element).borderRadius)).not.toBe("0px");
+}
+
 function closestWorkspaceEdge(bodyBox: WorkspaceRect, rects: ReadonlyMap<string, WorkspaceRect>) {
   const candidates = [...rects.entries()].flatMap(([id, rect]) => [
     { id, direction: "Left", distance: Math.abs(rect.x - bodyBox.x) },
@@ -277,34 +301,97 @@ async function verifyWorkspaceWindowDrag(page: Page) {
   const terminalWindow = page
     .locator('[data-workspace-window-id]:has([data-terminal-surface="true"]):visible')
     .first();
-  const codeBoxBefore = await codeWindow.boundingBox();
   const terminalBoxBefore = await terminalWindow.boundingBox();
-  if (!codeBoxBefore || !terminalBoxBefore) {
+  if (!(await codeWindow.boundingBox()) || !terminalBoxBefore) {
     throw new Error("Workspace windows could not be measured before drag.");
   }
-  await page.locator('button[aria-label^="Drag VS Code"]').dragTo(terminalWindow);
-  await expect.poll(() => rectDelta(codeWindow, "x", terminalBoxBefore.x)).toBeLessThan(2);
-  await expect.poll(() => rectDelta(codeWindow, "y", terminalBoxBefore.y)).toBeLessThan(2);
-  await expect.poll(() => rectDelta(terminalWindow, "x", codeBoxBefore.x)).toBeLessThan(2);
-  await expect.poll(() => rectDelta(terminalWindow, "y", codeBoxBefore.y)).toBeLessThan(2);
-  await expect
-    .poll(() =>
-      page.evaluate(() =>
-        Object.keys(window.localStorage).some((key) => key.startsWith("workspace-window-layout:")),
-      ),
-    )
-    .toBe(true);
+  const persistedLayoutBefore = await persistedWorkspaceWindowLayout(page);
+  const dropPosition = terminalBoxBefore.height > terminalBoxBefore.width ? "top" : "left";
+  const targetPoint =
+    dropPosition === "top"
+      ? {
+          x: terminalBoxBefore.x + terminalBoxBefore.width / 2,
+          y: terminalBoxBefore.y + terminalBoxBefore.height / 4,
+        }
+      : {
+          x: terminalBoxBefore.x + terminalBoxBefore.width / 4,
+          y: terminalBoxBefore.y + terminalBoxBefore.height / 2,
+        };
+  const dragHandle = page.locator('button[aria-label^="Drag VS Code"]');
+  const dragHandleBox = await dragHandle.boundingBox();
+  if (!dragHandleBox) throw new Error("VS Code drag handle could not be measured.");
+
+  await page.mouse.move(
+    dragHandleBox.x + dragHandleBox.width / 2,
+    dragHandleBox.y + dragHandleBox.height / 2,
+  );
+  await page.mouse.down();
+  await page.mouse.move(targetPoint.x, targetPoint.y, { steps: 12 });
+  await expect(terminalWindow).toHaveAttribute("data-workspace-window-drop-position", dropPosition);
+  const preview = terminalWindow.locator('[data-workspace-window-drop-preview="true"]');
+  await expect(preview).toBeVisible();
+  const previewBox = await preview.boundingBox();
+  if (!previewBox) throw new Error("Workspace drop preview could not be measured.");
+  if (dropPosition === "top") {
+    expect(Math.abs(previewBox.height - terminalBoxBefore.height / 2)).toBeLessThan(8);
+    expect(Math.abs(previewBox.y - terminalBoxBefore.y)).toBeLessThan(8);
+  } else {
+    expect(Math.abs(previewBox.width - terminalBoxBefore.width / 2)).toBeLessThan(8);
+    expect(Math.abs(previewBox.x - terminalBoxBefore.x)).toBeLessThan(8);
+  }
+  await page.mouse.up();
+
+  const codeExpected =
+    dropPosition === "top"
+      ? { ...terminalBoxBefore, height: terminalBoxBefore.height / 2 }
+      : { ...terminalBoxBefore, width: terminalBoxBefore.width / 2 };
+  const terminalExpected =
+    dropPosition === "top"
+      ? {
+          ...codeExpected,
+          y: terminalBoxBefore.y + terminalBoxBefore.height / 2,
+        }
+      : {
+          ...codeExpected,
+          x: terminalBoxBefore.x + terminalBoxBefore.width / 2,
+        };
+  await expectWorkspaceRect(codeWindow, codeExpected);
+  await expectWorkspaceRect(terminalWindow, terminalExpected);
+  await expect.poll(() => persistedWorkspaceWindowLayout(page)).not.toBe(persistedLayoutBefore);
 }
 
-async function rectDelta(window: Locator, axis: "x" | "y", target: number): Promise<number> {
+async function persistedWorkspaceWindowLayout(page: Page) {
+  return page.evaluate(() =>
+    Object.entries(window.localStorage)
+      .filter(([key]) => key.startsWith("workspace-window-layout:"))
+      .map(([key, value]) => `${key}:${value}`)
+      .sort()
+      .join("\n"),
+  );
+}
+
+async function expectWorkspaceRect(window: Locator, expected: WorkspaceRect) {
+  for (const axis of ["x", "y", "width", "height"] as const) {
+    await expect.poll(() => rectDelta(window, axis, expected[axis])).toBeLessThan(2);
+  }
+}
+
+async function rectDelta(
+  window: Locator,
+  axis: "x" | "y" | "width" | "height",
+  target: number,
+): Promise<number> {
   return Math.abs(((await window.boundingBox())?.[axis] ?? 0) - target);
 }
 
 async function verifyWorkspaceWindowManagement(page: Page, testInfo: TestInfo) {
   const measurement = await measureWorkspaceWindows(page);
   await verifyWorkspaceCoverage(measurement);
+  await verifyWorkspaceWindowChrome(page);
+  await verifyHoverWorkspaceFocus(page);
   await verifyDirectionalWorkspaceFocus(page, measurement);
   await verifyWorkspaceWindowDrag(page);
+  await verifyWorkspaceCoverage(await measureWorkspaceWindows(page));
   await capture(page, testInfo, "workspace-window-management");
 }
 
