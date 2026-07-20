@@ -163,6 +163,8 @@ interface WorkspaceRect {
   height: number;
 }
 
+type WorkspaceTestDropPosition = "top" | "left";
+
 interface WorkspaceMeasurement {
   body: Locator;
   bodyBox: WorkspaceRect;
@@ -306,58 +308,81 @@ async function verifyWorkspaceWindowDrag(page: Page) {
     throw new Error("Workspace windows could not be measured before drag.");
   }
   const persistedLayoutBefore = await persistedWorkspaceWindowLayout(page);
-  const dropPosition = terminalBoxBefore.height > terminalBoxBefore.width ? "top" : "left";
-  const targetPoint =
-    dropPosition === "top"
-      ? {
-          x: terminalBoxBefore.x + terminalBoxBefore.width / 2,
-          y: terminalBoxBefore.y + terminalBoxBefore.height / 4,
-        }
-      : {
-          x: terminalBoxBefore.x + terminalBoxBefore.width / 4,
-          y: terminalBoxBefore.y + terminalBoxBefore.height / 2,
-        };
+  const { dropPosition, targetPoint } = workspaceDropTarget(terminalBoxBefore);
   const dragHandle = page.locator('button[aria-label^="Drag VS Code"]');
+  await startWorkspaceWindowDrag(page, dragHandle, targetPoint);
+  await expect(terminalWindow).toHaveAttribute("data-workspace-window-drop-position", dropPosition);
+  await expectWorkspaceDropPreview(terminalWindow, terminalBoxBefore, dropPosition);
+  await page.mouse.up();
+
+  const { dragged: codeExpected, target: terminalExpected } = workspaceSplitRects(
+    terminalBoxBefore,
+    dropPosition,
+  );
+  await expectWorkspaceRect(codeWindow, codeExpected);
+  await expectWorkspaceRect(terminalWindow, terminalExpected);
+  await expect.poll(() => persistedWorkspaceWindowLayout(page)).not.toBe(persistedLayoutBefore);
+}
+
+function workspaceDropTarget(target: WorkspaceRect): {
+  dropPosition: WorkspaceTestDropPosition;
+  targetPoint: { x: number; y: number };
+} {
+  if (target.height > target.width) {
+    return {
+      dropPosition: "top",
+      targetPoint: { x: target.x + target.width / 2, y: target.y + target.height / 4 },
+    };
+  }
+  return {
+    dropPosition: "left",
+    targetPoint: { x: target.x + target.width / 4, y: target.y + target.height / 2 },
+  };
+}
+
+async function startWorkspaceWindowDrag(
+  page: Page,
+  dragHandle: Locator,
+  targetPoint: { x: number; y: number },
+) {
   const dragHandleBox = await dragHandle.boundingBox();
   if (!dragHandleBox) throw new Error("VS Code drag handle could not be measured.");
-
   await page.mouse.move(
     dragHandleBox.x + dragHandleBox.width / 2,
     dragHandleBox.y + dragHandleBox.height / 2,
   );
   await page.mouse.down();
   await page.mouse.move(targetPoint.x, targetPoint.y, { steps: 12 });
-  await expect(terminalWindow).toHaveAttribute("data-workspace-window-drop-position", dropPosition);
-  const preview = terminalWindow.locator('[data-workspace-window-drop-preview="true"]');
+}
+
+async function expectWorkspaceDropPreview(
+  target: Locator,
+  targetRect: WorkspaceRect,
+  dropPosition: WorkspaceTestDropPosition,
+) {
+  const preview = target.locator('[data-workspace-window-drop-preview="true"]');
   await expect(preview).toBeVisible();
   const previewBox = await preview.boundingBox();
   if (!previewBox) throw new Error("Workspace drop preview could not be measured.");
-  if (dropPosition === "top") {
-    expect(Math.abs(previewBox.height - terminalBoxBefore.height / 2)).toBeLessThan(8);
-    expect(Math.abs(previewBox.y - terminalBoxBefore.y)).toBeLessThan(8);
-  } else {
-    expect(Math.abs(previewBox.width - terminalBoxBefore.width / 2)).toBeLessThan(8);
-    expect(Math.abs(previewBox.x - terminalBoxBefore.x)).toBeLessThan(8);
-  }
-  await page.mouse.up();
+  const sizeAxis = dropPosition === "top" ? "height" : "width";
+  const positionAxis = dropPosition === "top" ? "y" : "x";
+  expect(Math.abs(previewBox[sizeAxis] - targetRect[sizeAxis] / 2)).toBeLessThan(8);
+  expect(Math.abs(previewBox[positionAxis] - targetRect[positionAxis])).toBeLessThan(8);
+}
 
-  const codeExpected =
+function workspaceSplitRects(
+  target: WorkspaceRect,
+  dropPosition: WorkspaceTestDropPosition,
+): { dragged: WorkspaceRect; target: WorkspaceRect } {
+  const dragged =
     dropPosition === "top"
-      ? { ...terminalBoxBefore, height: terminalBoxBefore.height / 2 }
-      : { ...terminalBoxBefore, width: terminalBoxBefore.width / 2 };
-  const terminalExpected =
+      ? { ...target, height: target.height / 2 }
+      : { ...target, width: target.width / 2 };
+  const remainingTarget =
     dropPosition === "top"
-      ? {
-          ...codeExpected,
-          y: terminalBoxBefore.y + terminalBoxBefore.height / 2,
-        }
-      : {
-          ...codeExpected,
-          x: terminalBoxBefore.x + terminalBoxBefore.width / 2,
-        };
-  await expectWorkspaceRect(codeWindow, codeExpected);
-  await expectWorkspaceRect(terminalWindow, terminalExpected);
-  await expect.poll(() => persistedWorkspaceWindowLayout(page)).not.toBe(persistedLayoutBefore);
+      ? { ...dragged, y: target.y + target.height / 2 }
+      : { ...dragged, x: target.x + target.width / 2 };
+  return { dragged, target: remainingTarget };
 }
 
 async function persistedWorkspaceWindowLayout(page: Page) {
