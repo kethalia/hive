@@ -167,6 +167,8 @@ function verifyNonRootSupplementalTools() {
   assert.match(terraform, /resource "coder_script" "filebrowser"/);
   assert.match(terraform, /resource "coder_app" "filebrowser"/);
   assert.match(terraform, /start_blocks_login\s*=\s*false/);
+  assert.match(terraform, /name\s*=\s*"projects_root"[\s\S]*?default\s*=\s*"\/home\/coder"/);
+  assert.match(terraform, /HIVE_PROJECTS_ROOT\s*=\s*data\.coder_parameter\.projects_root\.value/);
   assert.match(terraform, /name\s*=\s*"vault_repo"[\s\S]*?mutable\s*=\s*false/);
   assert.ok(filebrowser.includes('filebrowser_version="2.63.18"'));
   assert.ok(
@@ -177,6 +179,8 @@ function verifyNonRootSupplementalTools() {
   );
   assert.ok(filebrowser.includes("$HOME/.local/bin/filebrowser"));
   assert.match(filebrowser, /--auth\.method="noauth"/);
+  assert.match(filebrowser, /filebrowser_root="\$\{HIVE_PROJECTS_ROOT:-\$HOME\}"/);
+  assert.match(filebrowser, /--root="\$filebrowser_root"/);
   assert.match(filebrowser, /users find 1/);
   assert.match(filebrowser, /users add coder .* --perm\.admin/);
   assert.match(filebrowser, /api\/login/);

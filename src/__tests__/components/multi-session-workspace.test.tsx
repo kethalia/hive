@@ -808,6 +808,117 @@ describe("MultiSessionWorkspace", () => {
     });
   });
 
+  it("restores tool panes in parallel without blocking sessions or changing explicit focus", async () => {
+    const filesRequest = Promise.withResolvers<{
+      data: {
+        codeUrl: string;
+        filesUrl: string;
+        folderPath: string;
+        source: "tmux";
+      };
+    }>();
+    const codeRequest = Promise.withResolvers<{
+      data: {
+        codeUrl: string;
+        filesUrl: string;
+        folderPath: string;
+        source: "tmux";
+      };
+    }>();
+    window.localStorage.setItem(
+      "workspace-tool-panes:workspace:ws-1",
+      JSON.stringify({
+        version: 1,
+        panes: [
+          {
+            boardKey: "default",
+            sessionName: "main-session",
+            tool: "files",
+            label: "main-session",
+          },
+          {
+            boardKey: "default",
+            sessionName: "main-session",
+            tool: "code",
+            label: "main-session",
+          },
+        ],
+      }),
+    );
+    mockGetSessions.mockResolvedValue(twoSessionPayload());
+    mockGetWorkspaceSessionTools.mockImplementation(({ tool }: { tool: "code" | "files" }) =>
+      tool === "files" ? filesRequest.promise : codeRequest.promise,
+    );
+
+    render(<MultiSessionWorkspace {...defaultProps} />);
+
+    expect(await screen.findByTestId("workspace-pane-main-session")).toBeInTheDocument();
+    expect(screen.queryByTestId("multi-session-loading")).not.toBeInTheDocument();
+    expect(screen.getByTestId("workspace-tool-pane-files")).toHaveAttribute(
+      "data-pane-state",
+      "authorizing",
+    );
+    expect(screen.getByTestId("workspace-tool-pane-code")).toHaveAttribute(
+      "data-pane-state",
+      "authorizing",
+    );
+    expect(mockGetWorkspaceSessionTools).toHaveBeenCalledTimes(2);
+
+    fireEvent.click(screen.getByTestId("workspace-pane-dev-server"));
+    expect(screen.getByTestId("active-pane-label")).toHaveTextContent("dev-server");
+
+    await act(async () => {
+      codeRequest.resolve({
+        data: {
+          codeUrl: "https://fresh-code.test",
+          filesUrl: "https://fresh-files.test/files/",
+          folderPath: "/home/coder",
+          source: "tmux",
+        },
+      });
+      await codeRequest.promise;
+    });
+
+    expect(await screen.findByTestId("workspace-tool-frame-code")).toHaveAttribute(
+      "src",
+      "https://fresh-code.test",
+    );
+    expect(screen.getByTestId("workspace-tool-pane-code")).toHaveAttribute(
+      "data-pane-state",
+      "loading",
+    );
+    expect(screen.getByTestId("workspace-tool-pane-files")).toHaveAttribute(
+      "data-pane-state",
+      "authorizing",
+    );
+    expect(screen.getByTestId("active-pane-label")).toHaveTextContent("dev-server");
+
+    fireEvent.load(screen.getByTestId("workspace-tool-frame-code"));
+    expect(screen.getByTestId("workspace-tool-pane-code")).toHaveAttribute(
+      "data-pane-state",
+      "ready",
+    );
+
+    await act(async () => {
+      filesRequest.resolve({
+        data: {
+          codeUrl: "https://fresh-code.test",
+          filesUrl: "https://fresh-files.test/files/",
+          folderPath: "/home/coder",
+          source: "tmux",
+        },
+      });
+      await filesRequest.promise;
+    });
+    fireEvent.load(await screen.findByTestId("workspace-tool-frame-files"));
+
+    expect(screen.getByTestId("workspace-tool-pane-files")).toHaveAttribute(
+      "data-pane-state",
+      "ready",
+    );
+    expect(screen.getByTestId("active-pane-label")).toHaveTextContent("dev-server");
+  });
+
   it("restores a repository tool pane even when its Git terminal is not on the board", async () => {
     window.localStorage.setItem(
       "workspace-tool-panes:unified:ws-1",
@@ -1165,13 +1276,10 @@ describe("MultiSessionWorkspace", () => {
     expect(screen.queryByTestId("float-pane-pane-main-session")).not.toBeInTheDocument();
   });
 
-  it("keeps loading stable until every mounted terminal session is connected", async () => {
+  it("loads terminal panes independently without aggregate loading or passive focus", async () => {
     await renderTwoSessionWorkspace({ connect: false });
 
-    expect(screen.getByTestId("multi-session-loading")).toHaveAttribute(
-      "data-workspace-loading-phase",
-      "health",
-    );
+    expect(screen.queryByTestId("multi-session-loading")).not.toBeInTheDocument();
     expect(screen.getByTestId("interactive-terminal-main-session")).toHaveAttribute(
       "data-suppress-auto-focus",
       "true",
@@ -1183,24 +1291,24 @@ describe("MultiSessionWorkspace", () => {
 
     markSessionConnected("main-session");
 
-    expect(screen.getByTestId("multi-session-loading")).toBeInTheDocument();
+    expect(screen.queryByTestId("multi-session-loading")).not.toBeInTheDocument();
+    expect(screen.getByTestId("active-pane-label")).toHaveTextContent("main-session");
 
     markSessionConnected("dev-server");
 
-    await waitFor(() => {
-      expect(screen.queryByTestId("multi-session-loading")).not.toBeInTheDocument();
-    });
+    expect(screen.queryByTestId("multi-session-loading")).not.toBeInTheDocument();
     expect(screen.getByTestId("interactive-terminal-main-session")).toHaveAttribute(
       "data-suppress-auto-focus",
-      "false",
+      "true",
     );
     expect(screen.getByTestId("interactive-terminal-dev-server")).toHaveAttribute(
       "data-suppress-auto-focus",
-      "false",
+      "true",
     );
+    expect(screen.getByTestId("active-pane-label")).toHaveTextContent("main-session");
   });
 
-  it("waits for hidden board sessions before revealing the loaded workspace", async () => {
+  it("mounts hidden board sessions without blocking the active workspace", async () => {
     window.localStorage.setItem(
       "workspace-board-state:workspace:ws-1",
       JSON.stringify({
@@ -1241,16 +1349,16 @@ describe("MultiSessionWorkspace", () => {
     await renderTwoSessionWorkspace({ connect: false });
 
     expect(screen.getByTestId("workspace-review-pane-dev-server")).toBeInTheDocument();
+    expect(screen.queryByTestId("multi-session-loading")).not.toBeInTheDocument();
 
     markSessionConnected("main-session");
 
-    expect(screen.getByTestId("multi-session-loading")).toBeInTheDocument();
+    expect(screen.queryByTestId("multi-session-loading")).not.toBeInTheDocument();
 
     markSessionConnected("dev-server");
 
-    await waitFor(() => {
-      expect(screen.queryByTestId("multi-session-loading")).not.toBeInTheDocument();
-    });
+    expect(screen.queryByTestId("multi-session-loading")).not.toBeInTheDocument();
+    expect(screen.getByTestId("active-pane-label")).toHaveTextContent("main-session");
   });
 
   it("does not focus terminals when sessions mount from passive load or recovery", async () => {

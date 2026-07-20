@@ -185,7 +185,8 @@ interface WorkspaceToolPane {
   boardKey: string;
   sourceSessionName: string;
   tool: WorkspaceTool;
-  url: string;
+  url: string | null;
+  loadState: "authorizing" | "loading" | "ready" | "error";
   label: string;
   sourceLabel: string;
   folderPath: string | null;
@@ -610,9 +611,30 @@ function resolvedWorkspaceToolPane(
     sourceSessionName: descriptor.sessionName,
     tool: descriptor.tool,
     url: descriptor.tool === "code" ? urls.codeUrl : urls.filesUrl,
+    loadState: "loading",
     label: `${descriptor.tool === "code" ? "VS Code" : "Files"} · ${descriptor.label}`,
     sourceLabel: descriptor.label,
     folderPath: urls.folderPath,
+    ...(descriptor.cloneSessionKey && descriptor.relativePath
+      ? {
+          cloneSessionKey: descriptor.cloneSessionKey,
+          relativePath: descriptor.relativePath,
+        }
+      : {}),
+  };
+}
+
+function pendingWorkspaceToolPane(descriptor: PersistedWorkspaceToolPane): WorkspaceToolPane {
+  return {
+    key: `workspace-tool:${descriptor.boardKey}:${descriptor.sessionName}:${descriptor.tool}`,
+    boardKey: descriptor.boardKey,
+    sourceSessionName: descriptor.sessionName,
+    tool: descriptor.tool,
+    url: null,
+    loadState: "authorizing",
+    label: `${descriptor.tool === "code" ? "VS Code" : "Files"} · ${descriptor.label}`,
+    sourceLabel: descriptor.label,
+    folderPath: null,
     ...(descriptor.cloneSessionKey && descriptor.relativePath
       ? {
           cloneSessionKey: descriptor.cloneSessionKey,
@@ -789,12 +811,6 @@ function activeSessionNameForVisibleSessions(
     ? visibleSessions.find((session) => session.boardPaneKey === activeBoard.activePaneKey)
     : undefined;
   return activePaneSession?.sessionName ?? visibleSessions[0]?.sessionName ?? null;
-}
-
-function isWorkspacePaneHealthy(pane: WorkspacePaneRecoveryInput | null | undefined): boolean {
-  if (!pane || pane.connectionState !== "connected") return false;
-  const phase = pane.recoveryState?.phase;
-  return phase === undefined || phase === "idle" || phase === "connected";
 }
 
 function buildLayoutPersistenceMessage(
@@ -1061,18 +1077,6 @@ export function MultiSessionWorkspace({
       ),
     [boardRenderModels],
   );
-  const paneRecoveryStateMap = useMemo(
-    () => new Map(Object.entries(paneRecoveryStates)),
-    [paneRecoveryStates],
-  );
-  const workspaceHealthLoading = useMemo(
-    () =>
-      !loading &&
-      !loadFailed &&
-      mountedBoardPaneKeys.length > 0 &&
-      mountedBoardPaneKeys.some((key) => !isWorkspacePaneHealthy(paneRecoveryStateMap.get(key))),
-    [loadFailed, loading, mountedBoardPaneKeys, paneRecoveryStateMap],
-  );
   activeSessionNameRef.current = activeSessionName;
 
   const layout = activeBoardRenderModel?.layout ?? resolveSessionPaneLayout({ sessions: [] });
@@ -1299,6 +1303,19 @@ export function MultiSessionWorkspace({
       persistWorkspaceToolPanes(panes);
     },
     [persistWorkspaceToolPanes],
+  );
+
+  const updateWorkspaceToolPane = useCallback(
+    (paneKey: string, update: (pane: WorkspaceToolPane) => WorkspaceToolPane) => {
+      const currentIndex = workspaceToolPanesRef.current.findIndex((pane) => pane.key === paneKey);
+      if (currentIndex === -1) return;
+      const currentPane = workspaceToolPanesRef.current[currentIndex];
+      const next = [...workspaceToolPanesRef.current];
+      next[currentIndex] = update(currentPane);
+      workspaceToolPanesRef.current = next;
+      setWorkspaceToolPanes(next);
+    },
+    [],
   );
 
   const selectSession = useCallback(
@@ -1903,70 +1920,73 @@ export function MultiSessionWorkspace({
     pendingTerminalFocusSessionNameRef.current = null;
     clearActiveTerminal();
 
-    async function restoreWorkspaceToolPanes(
+    function restoreWorkspaceToolPanes(
       nextBoardState: WorkspaceBoardState,
       loadedSessions: readonly WorkspaceSessionPane[],
-    ): Promise<void> {
+    ): void {
       const boardKeys = new Set(nextBoardState.boards.map((board) => board.key));
       const descriptors = storedToolPanes.filter((pane) => boardKeys.has(pane.boardKey));
-      const restored: WorkspaceToolPane[] = [];
-      const retainedDescriptors: PersistedWorkspaceToolPane[] = [];
-
-      for (const descriptor of descriptors) {
+      const restorableDescriptors = descriptors.filter((descriptor) => {
         const loadedSession = loadedSessions.find(
           (session) => session.sessionName === descriptor.sessionName,
         );
-        if (!loadedSession && !(descriptor.cloneSessionKey && descriptor.relativePath)) continue;
-        retainedDescriptors.push(descriptor);
+        return Boolean(loadedSession || (descriptor.cloneSessionKey && descriptor.relativePath));
+      });
+
+      replaceWorkspaceToolPanes(restorableDescriptors.map(pendingWorkspaceToolPane));
+
+      for (const descriptor of restorableDescriptors) {
+        const loadedSession = loadedSessions.find(
+          (session) => session.sessionName === descriptor.sessionName,
+        );
         const fallbackPath = loadedSession?.clonePath ?? descriptor.relativePath;
+        const pendingPaneKey = pendingWorkspaceToolPane(descriptor).key;
 
-        try {
-          const result = await getWorkspaceSessionToolsAction({
-            workspaceId,
-            sessionName: descriptor.sessionName,
-            fallbackPath,
-            documentFrameHosts: readDocumentCoderFrameHosts(),
-            tool: descriptor.tool,
-          });
-          if (cancelled || latestWorkspaceIdRef.current !== workspaceId) return;
-          const urls = unwrapActionData(result);
-          if (!isWorkspaceSessionToolUrls(urls)) continue;
-          if (urls.reloadRequired) {
-            reloadForWorkspaceTool({
+        void (async () => {
+          try {
+            const result = await getWorkspaceSessionToolsAction({
               workspaceId,
-              boardKey: descriptor.boardKey,
               sessionName: descriptor.sessionName,
+              fallbackPath,
+              documentFrameHosts: readDocumentCoderFrameHosts(),
               tool: descriptor.tool,
-              ...(descriptor.cloneSessionKey && descriptor.relativePath
-                ? {
-                    cloneSessionKey: descriptor.cloneSessionKey,
-                    relativePath: descriptor.relativePath,
-                    label: descriptor.label,
-                  }
-                : {}),
             });
-            return;
+            if (cancelled || latestWorkspaceIdRef.current !== workspaceId) return;
+            const urls = unwrapActionData(result);
+            if (!isWorkspaceSessionToolUrls(urls)) {
+              updateWorkspaceToolPane(pendingPaneKey, (pane) => ({
+                ...pane,
+                loadState: "error",
+              }));
+              return;
+            }
+            if (urls.reloadRequired) {
+              reloadForWorkspaceTool({
+                workspaceId,
+                boardKey: descriptor.boardKey,
+                sessionName: descriptor.sessionName,
+                tool: descriptor.tool,
+                ...(descriptor.cloneSessionKey && descriptor.relativePath
+                  ? {
+                      cloneSessionKey: descriptor.cloneSessionKey,
+                      relativePath: descriptor.relativePath,
+                      label: descriptor.label,
+                    }
+                  : {}),
+              });
+              return;
+            }
+            updateWorkspaceToolPane(pendingPaneKey, () =>
+              resolvedWorkspaceToolPane(descriptor, urls),
+            );
+          } catch {
+            if (cancelled || latestWorkspaceIdRef.current !== workspaceId) return;
+            updateWorkspaceToolPane(pendingPaneKey, (pane) => ({
+              ...pane,
+              loadState: "error",
+            }));
           }
-          restored.push(resolvedWorkspaceToolPane(descriptor, urls));
-        } catch {
-          // A stale tool descriptor must not prevent terminal sessions from loading.
-        }
-      }
-
-      if (cancelled) return;
-      workspaceToolPanesRef.current = restored;
-      setWorkspaceToolPanes(restored);
-      try {
-        if (retainedDescriptors.length === 0) {
-          window.localStorage.removeItem(toolPaneStorageKey);
-        } else {
-          window.localStorage.setItem(
-            toolPaneStorageKey,
-            serializeWorkspaceToolPanes(retainedDescriptors),
-          );
-        }
-      } catch {
-        // The panes remain usable for this visit even when persistence is unavailable.
+        })();
       }
     }
 
@@ -2009,7 +2029,7 @@ export function MultiSessionWorkspace({
               storedActiveSessionName,
             ),
           );
-          await restoreWorkspaceToolPanes(nextBoardState, parsed.sessions);
+          restoreWorkspaceToolPanes(nextBoardState, parsed.sessions);
           return;
         }
 
@@ -2022,7 +2042,7 @@ export function MultiSessionWorkspace({
           setBoardState(nextBoardState);
           setSessions([]);
           setActiveSessionName(null);
-          await restoreWorkspaceToolPanes(nextBoardState, []);
+          restoreWorkspaceToolPanes(nextBoardState, []);
           return;
         }
 
@@ -3249,6 +3269,15 @@ export function MultiSessionWorkspace({
     const toolPane = model.toolPanes.find((candidate) => candidate.key === pane.sessionName);
     if (toolPane) {
       const paneStyle: CSSProperties = { gridArea: pane.gridArea };
+      const toolUrl = toolPane.url;
+      const toolLoadingMessage =
+        toolPane.loadState === "authorizing"
+          ? `Authorizing ${toolPane.label}…`
+          : toolPane.loadState === "loading"
+            ? `Loading ${toolPane.label}…`
+            : toolPane.loadState === "error"
+              ? `${toolPane.label} could not be restored.`
+              : null;
       return (
         <TerminalSessionFrame
           key={`${model.board.key}:${toolPane.key}`}
@@ -3256,9 +3285,10 @@ export function MultiSessionWorkspace({
           active={false}
           dataTestId={`workspace-tool-pane-${toolPane.tool}`}
           layoutMode="tiled"
+          paneState={toolPane.loadState}
           style={paneStyle}
           headerActions={
-            toolPane.url.startsWith("/api/workspace-proxy/") ? null : (
+            !toolUrl || toolUrl.startsWith("/api/workspace-proxy/") ? null : (
               <Button
                 type="button"
                 variant="ghost"
@@ -3268,7 +3298,7 @@ export function MultiSessionWorkspace({
                 data-testid={`pop-out-workspace-tool-${toolPane.tool}`}
                 onClick={(event) => {
                   event.stopPropagation();
-                  window.open(toolPane.url, "_blank", "noopener,noreferrer");
+                  window.open(toolUrl, "_blank", "noopener,noreferrer");
                 }}
               >
                 <ExternalLink className="size-3" />
@@ -3288,18 +3318,43 @@ export function MultiSessionWorkspace({
             );
           }}
         >
-          <iframe
-            src={toolPane.url}
-            title={toolPane.label}
-            className="min-h-0 flex-1 border-0 bg-background"
-            allow="clipboard-read; clipboard-write"
-            sandbox={
-              toolPane.url.startsWith("/api/workspace-proxy/")
-                ? "allow-downloads allow-forms allow-modals allow-popups allow-scripts"
-                : "allow-downloads allow-forms allow-modals allow-popups allow-same-origin allow-scripts"
-            }
-            data-testid={`workspace-tool-frame-${toolPane.tool}`}
-          />
+          <div className="relative flex min-h-0 flex-1">
+            {toolUrl ? (
+              <iframe
+                src={toolUrl}
+                title={toolPane.label}
+                className="min-h-0 flex-1 border-0 bg-background"
+                allow="clipboard-read; clipboard-write"
+                sandbox={
+                  toolUrl.startsWith("/api/workspace-proxy/")
+                    ? "allow-downloads allow-forms allow-modals allow-popups allow-scripts"
+                    : "allow-downloads allow-forms allow-modals allow-popups allow-same-origin allow-scripts"
+                }
+                data-testid={`workspace-tool-frame-${toolPane.tool}`}
+                onLoad={() => {
+                  updateWorkspaceToolPane(toolPane.key, (current) => ({
+                    ...current,
+                    loadState: "ready",
+                  }));
+                }}
+              />
+            ) : null}
+            {toolLoadingMessage ? (
+              <div
+                className="absolute inset-0 z-10 flex items-center justify-center bg-background"
+                data-testid={`workspace-tool-loading-${toolPane.tool}`}
+              >
+                <div className="flex items-center gap-2 px-4 text-center text-sm text-muted-foreground">
+                  {toolPane.loadState === "error" ? (
+                    <AlertCircle className="size-4 shrink-0" />
+                  ) : (
+                    <Loader2 className="size-4 shrink-0 animate-spin" />
+                  )}
+                  <span>{toolLoadingMessage}</span>
+                </div>
+              </div>
+            ) : null}
+          </div>
         </TerminalSessionFrame>
       );
     }
@@ -3397,7 +3452,7 @@ export function MultiSessionWorkspace({
           className="min-h-0 flex-1"
           layoutSignal={layoutSignal}
           mobileInputMode={isComposeSheet}
-          suppressAutoFocus={workspaceHealthLoading}
+          suppressAutoFocus
           pinToBottomOnResize={isComposeSheet}
           selectionModeEnabled={controlsSelectionModeEnabled}
           onConnectionStateChange={(state) =>
@@ -3441,7 +3496,6 @@ export function MultiSessionWorkspace({
         key={model.board.key}
         className={cn(
           "absolute inset-1 grid min-h-0 gap-1",
-          workspaceHealthLoading && "pointer-events-none opacity-0",
           !model.isActive && "pointer-events-none opacity-0",
         )}
         style={{
@@ -3453,7 +3507,7 @@ export function MultiSessionWorkspace({
         }
         data-board-key={model.board.key}
         data-board-active={model.isActive ? "true" : "false"}
-        aria-hidden={model.isActive && !workspaceHealthLoading ? undefined : true}
+        aria-hidden={model.isActive ? undefined : true}
       >
         {model.layout.panes.map((pane) => renderPane(pane, model))}
       </div>
@@ -3576,18 +3630,6 @@ export function MultiSessionWorkspace({
           data-testid="multi-session-body"
         >
           {boardRenderModels.map(renderBoardLayer)}
-          {workspaceHealthLoading ? (
-            <div
-              className="absolute inset-0 z-10 flex items-center justify-center bg-background"
-              data-testid="multi-session-loading"
-              data-workspace-loading-phase="health"
-            >
-              <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                <Loader2 className="size-4 animate-spin" />
-                Loading workspace sessions…
-              </div>
-            </div>
-          ) : null}
         </div>
         {mobileTerminalControls}
         {desktopComposePanel}

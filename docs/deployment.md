@@ -50,6 +50,7 @@ Use the same value everywhere:
 
 - The web service scans `HIVE_PROJECTS_ROOT` inside the selected Coder workspace via `coder ssh`, looking for directory or file `.git` metadata.
 - The terminal proxy validates clone terminal requests and passes the requested clone path under the same root to the Coder agent PTY command as the tmux cwd.
+- The Coder template's `projects_root` parameter exports the same path as `HIVE_PROJECTS_ROOT`; File Browser uses it as its runtime root and Hive derives embedded File Browser paths relative to it.
 - The Coder agent runtime must have the repository tree at that exact path string. The web and terminal-proxy containers do not need the repository tree mounted locally; they need Coder API access and the shared root string.
 
 If the configured workspace home root is missing, the workspace-scoped Git section reports that the home folder is unavailable. If the root exists but contains no discoverable Git repositories, the workspace-scoped Git section reports that no Git clones were found. Discovery runs when a workspace row is expanded, when the active workspace route auto-expands, and on manual refresh for expanded workspaces; it does not currently auto-poll for filesystem changes.

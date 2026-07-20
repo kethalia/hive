@@ -93,6 +93,79 @@ describe("WorkspaceSessionTools", () => {
     });
   });
 
+  it("opens File Browser and VS Code concurrently with independent loading states", async () => {
+    const filesRequest = Promise.withResolvers<{
+      data: { codeUrl: string; filesUrl: string; folderPath: string | null };
+    }>();
+    const codeRequest = Promise.withResolvers<{
+      data: { codeUrl: string; filesUrl: string; folderPath: string | null };
+    }>();
+    mockGetWorkspaceSessionTools.mockImplementation(({ tool }: { tool: "code" | "files" }) =>
+      tool === "files" ? filesRequest.promise : codeRequest.promise,
+    );
+    const onOpenTool = vi.fn();
+    render(
+      <WorkspaceSessionTools
+        workspaceId="ws-1"
+        sessionName="shell"
+        label="Shell"
+        onOpenTool={onOpenTool}
+      />,
+    );
+
+    const filesButton = screen.getByRole("button", { name: "Browse files for Shell" });
+    const codeButton = screen.getByRole("button", { name: "Open VS Code for Shell" });
+    fireEvent.click(filesButton);
+    fireEvent.click(codeButton);
+
+    expect(mockGetWorkspaceSessionTools).toHaveBeenCalledTimes(2);
+    expect(filesButton).toBeDisabled();
+    expect(codeButton).toBeDisabled();
+
+    await act(async () => {
+      codeRequest.resolve({
+        data: {
+          codeUrl: "https://code.test",
+          filesUrl: "https://files.test",
+          folderPath: "/home/coder",
+        },
+      });
+      await codeRequest.promise;
+    });
+
+    expect(codeButton).toBeEnabled();
+    expect(filesButton).toBeDisabled();
+    expect(onOpenTool).toHaveBeenCalledWith({
+      tool: "code",
+      urls: {
+        codeUrl: "https://code.test",
+        filesUrl: "https://files.test",
+        folderPath: "/home/coder",
+      },
+    });
+
+    await act(async () => {
+      filesRequest.resolve({
+        data: {
+          codeUrl: "https://code.test",
+          filesUrl: "https://files.test",
+          folderPath: "/home/coder",
+        },
+      });
+      await filesRequest.promise;
+    });
+
+    expect(filesButton).toBeEnabled();
+    expect(onOpenTool).toHaveBeenCalledWith({
+      tool: "files",
+      urls: {
+        codeUrl: "https://code.test",
+        filesUrl: "https://files.test",
+        folderPath: "/home/coder",
+      },
+    });
+  });
+
   it("ignores a pending tool response after the workspace changes", async () => {
     const pending = Promise.withResolvers<{
       data: {

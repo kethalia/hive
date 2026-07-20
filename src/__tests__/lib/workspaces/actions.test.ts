@@ -531,7 +531,39 @@ describe("workspace server actions", () => {
     });
 
     expect(result?.data?.folderPath).toBe("/workspace/repo");
+    expect(result?.data?.filesUrl).toBe(
+      "https://filebrowser--main--dev-box--alice.coder.example.com/files/workspace/repo",
+    );
     expect(result?.data?.source).toBe("fallback");
+  });
+
+  it("opens File Browser relative to a non-default configured projects root", async () => {
+    vi.stubEnv("HIVE_PROJECTS_ROOT", "/tmp/repos");
+    mockGetWorkspace.mockResolvedValueOnce({
+      id: "ws-1",
+      name: "dev-box",
+      owner_name: "alice",
+      template_id: "tpl-1",
+      latest_build: { id: "build-1", status: "running", job: { status: "succeeded" } },
+    });
+    mockedExec.mockResolvedValueOnce({
+      stdout: "/tmp/repos/kethalia/hive\n",
+      stderr: "",
+      exitCode: 0,
+    });
+
+    const { getWorkspaceSessionToolsAction } = await import("@/lib/actions/workspaces");
+    const result = await getWorkspaceSessionToolsAction({
+      workspaceId: "ws-1",
+      sessionName: "git-hive",
+      documentFrameHosts: ["https://coder.example.com"],
+      tool: "files",
+    });
+
+    expect(result?.data?.filesUrl).toBe(
+      "https://filebrowser--main--dev-box--alice.coder.example.com/files/kethalia/hive",
+    );
+    expect(result?.data?.folderPath).toBe("/tmp/repos/kethalia/hive");
   });
 
   it("uses the requesting document policy when another tab already updated the cookie", async () => {

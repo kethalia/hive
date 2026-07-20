@@ -112,40 +112,44 @@ async function expectFileBrowserReady(
   await expect.poll(getSuccessfulLoads, { timeout: 30_000 }).toBeGreaterThan(previousLoadCount);
 }
 
-async function verifyEmbeddedFileBrowser(
+async function verifyEmbeddedToolsOpenInParallel(
   page: Page,
   testInfo: TestInfo,
-  getSuccessfulLoads: () => number,
+  getSuccessfulFileBrowserLoads: () => number,
+  getSuccessfulVsCodeLoads: () => number,
 ) {
-  const previousLoadCount = getSuccessfulLoads();
-  await page
-    .getByRole("button", { name: /^Browse files for / })
-    .first()
-    .click();
+  const previousFileBrowserLoadCount = getSuccessfulFileBrowserLoads();
+  const previousVsCodeLoadCount = getSuccessfulVsCodeLoads();
+  const fileBrowserButton = page.getByRole("button", { name: /^Browse files for / }).first();
+  const vsCodeButton = page.getByRole("button", { name: /^Open VS Code for / }).first();
+
+  await fileBrowserButton.click();
+  await expect(vsCodeButton).toBeEnabled();
+  await vsCodeButton.click();
+
   await expect(page.getByTestId("workspace-tool-pane-files")).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByTestId("workspace-tool-pane-code")).toBeVisible({ timeout: 30_000 });
   const fileBrowserFrame = page.getByTestId("workspace-tool-frame-files");
   await expect(fileBrowserFrame).toHaveAttribute("src", /filebrowser--.*\/files\//);
-  await expectFileBrowserReady(page, getSuccessfulLoads, previousLoadCount);
-  await capture(page, testInfo, "workspace-file-browser-embedded");
-}
-
-async function verifyEmbeddedVsCode(
-  page: Page,
-  testInfo: TestInfo,
-  getSuccessfulLoads: () => number,
-) {
-  const previousLoadCount = getSuccessfulLoads();
-  await page
-    .getByRole("button", { name: /^Open VS Code for / })
-    .first()
-    .click();
-  await expect(page.getByTestId("workspace-tool-pane-code")).toBeVisible({ timeout: 30_000 });
   await expect(page.getByTestId("workspace-tool-frame-code")).toHaveAttribute(
     "src",
     /code-server--/,
   );
-  await expect.poll(getSuccessfulLoads, { timeout: 45_000 }).toBeGreaterThan(previousLoadCount);
-  await capture(page, testInfo, "workspace-vscode-embedded");
+  await Promise.all([
+    expectFileBrowserReady(page, getSuccessfulFileBrowserLoads, previousFileBrowserLoadCount),
+    expect
+      .poll(getSuccessfulVsCodeLoads, { timeout: 45_000 })
+      .toBeGreaterThan(previousVsCodeLoadCount),
+  ]);
+  await expect(page.getByTestId("workspace-tool-pane-files")).toHaveAttribute(
+    "data-pane-state",
+    "ready",
+  );
+  await expect(page.getByTestId("workspace-tool-pane-code")).toHaveAttribute(
+    "data-pane-state",
+    "ready",
+  );
+  await capture(page, testInfo, "workspace-tools-embedded-in-parallel");
 }
 
 async function verifyEmbeddedToolsSurviveRefresh(
@@ -165,16 +169,42 @@ async function verifyEmbeddedToolsSurviveRefresh(
   );
   expect(persistedUrls).toBe(false);
 
+  const inactiveTerminalPane = page
+    .getByTestId("multi-session-grid")
+    .locator('[data-testid^="workspace-pane-"][data-active="false"]')
+    .first();
+  if ((await inactiveTerminalPane.count()) > 0) {
+    await inactiveTerminalPane.dispatchEvent("click");
+  }
+  const explicitlyFocusedLabel = (
+    await page.getByTestId("active-pane-label").textContent()
+  )?.trim();
+  expect(explicitlyFocusedLabel).toBeTruthy();
+
   const previousFileBrowserLoadCount = getSuccessfulFileBrowserLoads();
   const previousVsCodeLoadCount = getSuccessfulVsCodeLoads();
   await page.reload({ waitUntil: "domcontentloaded" });
-  await expectConnectedTerminal(page);
+  await expect(page.getByTestId("multi-session-workspace")).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByTestId("multi-session-loading")).toHaveCount(0);
+  await expect(page.getByTestId("active-pane-label")).toHaveText(explicitlyFocusedLabel ?? "");
   await expect(page.getByTestId("workspace-tool-pane-files")).toBeVisible({ timeout: 30_000 });
   await expect(page.getByTestId("workspace-tool-pane-code")).toBeVisible({ timeout: 30_000 });
-  await expectFileBrowserReady(page, getSuccessfulFileBrowserLoads, previousFileBrowserLoadCount);
-  await expect
-    .poll(getSuccessfulVsCodeLoads, { timeout: 45_000 })
-    .toBeGreaterThan(previousVsCodeLoadCount);
+  await Promise.all([
+    expectFileBrowserReady(page, getSuccessfulFileBrowserLoads, previousFileBrowserLoadCount),
+    expect
+      .poll(getSuccessfulVsCodeLoads, { timeout: 45_000 })
+      .toBeGreaterThan(previousVsCodeLoadCount),
+    expectConnectedTerminal(page),
+  ]);
+  await expect(page.getByTestId("workspace-tool-pane-files")).toHaveAttribute(
+    "data-pane-state",
+    "ready",
+  );
+  await expect(page.getByTestId("workspace-tool-pane-code")).toHaveAttribute(
+    "data-pane-state",
+    "ready",
+  );
+  await expect(page.getByTestId("active-pane-label")).toHaveText(explicitlyFocusedLabel ?? "");
 
   const restoredCodeUrl = await page.getByTestId("workspace-tool-frame-code").getAttribute("src");
   expect(restoredCodeUrl).toMatch(/code-server--/);
@@ -374,11 +404,13 @@ test.describe("authenticated Hive workflows", () => {
     expect(terminalSocketUrls).toHaveLength(healthySocketCount);
     await capture(page, testInfo, "workspace-terminal-connected");
 
-    await test.step("embed File Browser from its isolated Coder application host", async () => {
-      await verifyEmbeddedFileBrowser(page, testInfo, getSuccessfulFileBrowserLoads);
-    });
-    await test.step("embed VS Code from the configured Coder application host", async () => {
-      await verifyEmbeddedVsCode(page, testInfo, getSuccessfulVsCodeLoads);
+    await test.step("embed File Browser and VS Code with independent parallel loading", async () => {
+      await verifyEmbeddedToolsOpenInParallel(
+        page,
+        testInfo,
+        getSuccessfulFileBrowserLoads,
+        getSuccessfulVsCodeLoads,
+      );
     });
     await test.step("restore embedded tools with fresh authorization after refresh", async () => {
       await verifyEmbeddedToolsSurviveRefresh(

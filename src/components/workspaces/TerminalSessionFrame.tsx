@@ -122,6 +122,7 @@ interface TerminalSessionFrameProps {
   closeTestId?: string;
   headerActions?: ReactNode;
   style?: CSSProperties;
+  paneState?: string;
 }
 
 export function TerminalSessionFrame({
@@ -143,6 +144,7 @@ export function TerminalSessionFrame({
   closeTestId,
   headerActions,
   style,
+  paneState,
 }: TerminalSessionFrameProps) {
   const interactive = Boolean(onActivate) && !disabled;
 
@@ -182,6 +184,7 @@ export function TerminalSessionFrame({
       data-compose-disabled={disabled ? "true" : "false"}
       data-pane-label={label}
       data-pane-mode={layoutMode}
+      data-pane-state={paneState}
       data-testid={dataTestId}
       style={style}
       tabIndex={interactive ? 0 : undefined}

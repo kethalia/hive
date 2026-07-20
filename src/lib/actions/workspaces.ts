@@ -266,7 +266,11 @@ export const getWorkspaceSessionToolsAction = authActionClient
     // extends trust for Hive's server-side requests; it must not switch the browser
     // to a same-origin Coder path app, whose framing and sharing rules differ.
     const requestedCodeUrl = buildCodeServerFolderUrl(urls.codeServer, folderPath);
-    const requestedFilesUrl = buildFileBrowserFolderUrl(urls.filebrowser, folderPath);
+    const requestedFilesUrl = buildFileBrowserFolderUrl(
+      urls.filebrowser,
+      folderPath,
+      resolveConfiguredProjectsRoot(),
+    );
 
     const codeUrl =
       parsedInput.tool === "code"

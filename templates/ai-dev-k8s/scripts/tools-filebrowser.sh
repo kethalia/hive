@@ -3,10 +3,24 @@ set -euo pipefail
 
 filebrowser_version="2.63.18"
 filebrowser_port="${FILEBROWSER_PORT:-13339}"
+filebrowser_root="${HIVE_PROJECTS_ROOT:-$HOME}"
 binary="$HOME/.local/bin/filebrowser"
 database="$HOME/.config/filebrowser/filebrowser.db"
 log_file="$HOME/.local/state/filebrowser/filebrowser.log"
 version_marker="$HOME/.local/share/filebrowser-version"
+
+case "$filebrowser_root" in
+  /*) ;;
+  *)
+    printf '[error] HIVE_PROJECTS_ROOT must be an absolute POSIX path: %s\n' "$filebrowser_root" >&2
+    exit 1
+    ;;
+esac
+
+if [ ! -d "$filebrowser_root" ]; then
+  printf '[error] File Browser root does not exist: %s\n' "$filebrowser_root" >&2
+  exit 1
+fi
 
 case "$(uname -m)" in
   x86_64)
@@ -86,7 +100,7 @@ fi
   --address="127.0.0.1" \
   --port="$filebrowser_port" \
   --auth.method="noauth" \
-  --root="$HOME"
+  --root="$filebrowser_root"
 
 # noauth still needs an internal user to supply scope and permissions. Without
 # user ID 1, the web client loops on the login screen and /api/login returns 500.

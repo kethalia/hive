@@ -49,26 +49,29 @@ export function WorkspaceSessionTools({
   fallbackPath,
   onOpenTool,
 }: WorkspaceSessionToolsProps) {
-  const [loadingTool, setLoadingTool] = useState<WorkspaceTool | null>(null);
+  const [loadingTools, setLoadingTools] = useState<Set<WorkspaceTool>>(() => new Set());
   const latestWorkspaceIdRef = useRef(workspaceId);
-  const requestIdRef = useRef(0);
+  const requestIdsRef = useRef({ code: 0, files: 0 });
   latestWorkspaceIdRef.current = workspaceId;
 
   useEffect(() => {
     latestWorkspaceIdRef.current = workspaceId;
-    requestIdRef.current += 1;
-    setLoadingTool(null);
+    requestIdsRef.current.code += 1;
+    requestIdsRef.current.files += 1;
+    setLoadingTools(new Set());
     return () => {
-      requestIdRef.current += 1;
+      requestIdsRef.current.code += 1;
+      requestIdsRef.current.files += 1;
     };
   }, [workspaceId]);
 
   async function openTool(tool: WorkspaceTool) {
     const requestWorkspaceId = workspaceId;
-    const requestId = ++requestIdRef.current;
+    const requestId = ++requestIdsRef.current[tool];
     const isCurrentRequest = () =>
-      latestWorkspaceIdRef.current === requestWorkspaceId && requestIdRef.current === requestId;
-    setLoadingTool(tool);
+      latestWorkspaceIdRef.current === requestWorkspaceId &&
+      requestIdsRef.current[tool] === requestId;
+    setLoadingTools((current) => new Set(current).add(tool));
     try {
       const result = await getWorkspaceSessionToolsAction({
         workspaceId,
@@ -91,7 +94,11 @@ export function WorkspaceSessionTools({
       }
     } finally {
       if (isCurrentRequest()) {
-        setLoadingTool(null);
+        setLoadingTools((current) => {
+          const next = new Set(current);
+          next.delete(tool);
+          return next;
+        });
       }
     }
   }
@@ -101,13 +108,13 @@ export function WorkspaceSessionTools({
       <ToolButton
         tool="files"
         label={`Browse files for ${label}`}
-        loading={loadingTool === "files"}
+        loading={loadingTools.has("files")}
         onClick={() => void openTool("files")}
       />
       <ToolButton
         tool="code"
         label={`Open VS Code for ${label}`}
-        loading={loadingTool === "code"}
+        loading={loadingTools.has("code")}
         onClick={() => void openTool("code")}
       />
     </div>

@@ -58,7 +58,8 @@ export function buildCodeServerFolderUrl(
 
 export function buildFileBrowserFolderUrl(
   fileBrowserUrl: string,
-  folderPath?: string | null,
+  folderPath: string | null | undefined,
+  fileBrowserRoot: string,
 ): string {
   if (!folderPath?.trim()) return fileBrowserUrl;
 
@@ -67,13 +68,15 @@ export function buildFileBrowserFolderUrl(
   const absoluteFolderPath = folderPath.trim().startsWith("/")
     ? folderPath.trim()
     : `/${folderPath.trim()}`;
-  const fileBrowserRoot = "/home/coder";
+  const normalizedFileBrowserRoot = fileBrowserRoot.trim().replace(/\/+$/, "") || "/";
   const normalizedFolderPath =
-    absoluteFolderPath === fileBrowserRoot
-      ? "/"
-      : absoluteFolderPath.startsWith(`${fileBrowserRoot}/`)
-        ? absoluteFolderPath.slice(fileBrowserRoot.length)
-        : "/";
+    normalizedFileBrowserRoot === "/"
+      ? absoluteFolderPath
+      : absoluteFolderPath === normalizedFileBrowserRoot
+        ? "/"
+        : absoluteFolderPath.startsWith(`${normalizedFileBrowserRoot}/`)
+          ? absoluteFolderPath.slice(normalizedFileBrowserRoot.length)
+          : "/";
   const encodedFolderPath = normalizedFolderPath.split("/").map(encodeURIComponent).join("/");
   url.pathname = `${basePath}/files${encodedFolderPath}`;
   if (!fileBrowserUrl.startsWith("/")) return url.toString();

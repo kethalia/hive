@@ -109,15 +109,32 @@ describe("workspace tool folder URLs", () => {
       buildCodeServerFolderUrl("https://code.example.com", "/home/coder/projects/kethalia/hive"),
     ).toBe("https://code.example.com/?folder=%2Fhome%2Fcoder%2Fprojects%2Fkethalia%2Fhive");
     expect(
-      buildFileBrowserFolderUrl("https://files.example.com", "/home/coder/projects/kethalia/hive"),
+      buildFileBrowserFolderUrl(
+        "https://files.example.com",
+        "/home/coder/projects/kethalia/hive",
+        "/home/coder",
+      ),
     ).toBe("https://files.example.com/files/projects/kethalia/hive");
+  });
+
+  it("maps File Browser folders relative to the configured workspace root", () => {
+    expect(
+      buildFileBrowserFolderUrl(
+        "https://files.example.com",
+        "/tmp/repos/kethalia/hive",
+        "/tmp/repos",
+      ),
+    ).toBe("https://files.example.com/files/kethalia/hive");
+    expect(buildFileBrowserFolderUrl("https://files.example.com", "/tmp/repos/hive", "/")).toBe(
+      "https://files.example.com/files/tmp/repos/hive",
+    );
   });
 
   it("keeps app roots unchanged when no directory is available", () => {
     expect(buildCodeServerFolderUrl("https://code.example.com", null)).toBe(
       "https://code.example.com",
     );
-    expect(buildFileBrowserFolderUrl("https://files.example.com", " ")).toBe(
+    expect(buildFileBrowserFolderUrl("https://files.example.com", " ", "/home/coder")).toBe(
       "https://files.example.com",
     );
   });
@@ -127,22 +144,31 @@ describe("workspace tool folder URLs", () => {
       buildFileBrowserFolderUrl(
         "/api/workspace-proxy/ws-1/filebrowser",
         "/home/coder/project #1/query?source",
+        "/home/coder",
       ),
     ).toBe("/api/workspace-proxy/ws-1/filebrowser/files/project%20%231/query%3Fsource");
     expect(
-      buildFileBrowserFolderUrl("https://files.example.com/prefix", "/home/coder/project #1"),
+      buildFileBrowserFolderUrl(
+        "https://files.example.com/prefix",
+        "/home/coder/project #1",
+        "/home/coder",
+      ),
     ).toBe("https://files.example.com/prefix/files/project%20%231");
   });
 
   it("encodes literal percent signs in File Browser folder segments", () => {
-    expect(buildFileBrowserFolderUrl("/api/files", "/home/coder/100%20done")).toBe(
+    expect(buildFileBrowserFolderUrl("/api/files", "/home/coder/100%20done", "/home/coder")).toBe(
       "/api/files/files/100%2520done",
     );
   });
 
   it("falls back to the File Browser root for directories outside its configured scope", () => {
-    expect(buildFileBrowserFolderUrl("https://files.example.com", "/workspace/repository")).toBe(
-      "https://files.example.com/files/",
-    );
+    expect(
+      buildFileBrowserFolderUrl(
+        "https://files.example.com",
+        "/workspace/repository",
+        "/home/coder",
+      ),
+    ).toBe("https://files.example.com/files/");
   });
 });
