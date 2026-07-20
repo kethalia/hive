@@ -6,7 +6,10 @@ import {
   type Page,
   type TestInfo,
 } from "@playwright/test";
-import { findWorkspaceWindowInDirection } from "../src/lib/workspaces/workspace-window-layout";
+import {
+  findWorkspaceWindowInDirection,
+  type WorkspaceWindowDirection,
+} from "../src/lib/workspaces/workspace-window-layout";
 
 const appUrl = process.env.PLAYWRIGHT_BASE_URL;
 const coderUrl = process.env.HIVE_E2E_CODER_URL;
@@ -153,7 +156,20 @@ async function verifyEmbeddedToolsOpenInParallel(
   await capture(page, testInfo, "workspace-tools-embedded-in-parallel");
 }
 
-async function verifyWorkspaceWindowManagement(page: Page, testInfo: TestInfo) {
+interface WorkspaceRect {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+interface WorkspaceMeasurement {
+  body: Locator;
+  bodyBox: WorkspaceRect;
+  renderedRects: Map<string, WorkspaceRect>;
+}
+
+async function measureWorkspaceWindows(page: Page): Promise<WorkspaceMeasurement> {
   const body = page.getByTestId("multi-session-body");
   const windows = page.locator("[data-workspace-window-id]:visible");
   await expect.poll(() => windows.count()).toBeGreaterThanOrEqual(3);
@@ -164,10 +180,21 @@ async function verifyWorkspaceWindowManagement(page: Page, testInfo: TestInfo) {
 
   const bodyBox = await body.boundingBox();
   if (!bodyBox) throw new Error("Workspace body has no measurable bounds.");
-  let totalWindowArea = 0;
+  const renderedRects = new Map<string, WorkspaceRect>();
   for (let index = 0; index < (await windows.count()); index += 1) {
-    const windowBox = await windows.nth(index).boundingBox();
-    if (!windowBox) throw new Error(`Workspace window ${index} has no measurable bounds.`);
+    const window = windows.nth(index);
+    const id = await window.getAttribute("data-workspace-window-id");
+    const rect = await window.boundingBox();
+    if (!id || !rect) throw new Error(`Workspace window ${index} has incomplete geometry.`);
+    renderedRects.set(id, rect);
+  }
+  return { body, bodyBox, renderedRects };
+}
+
+async function verifyWorkspaceCoverage(measurement: WorkspaceMeasurement) {
+  const { body, bodyBox, renderedRects } = measurement;
+  let totalWindowArea = 0;
+  for (const windowBox of renderedRects.values()) {
     expect(windowBox.x).toBeGreaterThanOrEqual(bodyBox.x - 1);
     expect(windowBox.y).toBeGreaterThanOrEqual(bodyBox.y - 1);
     expect(windowBox.x + windowBox.width).toBeLessThanOrEqual(bodyBox.x + bodyBox.width + 1);
@@ -182,23 +209,25 @@ async function verifyWorkspaceWindowManagement(page: Page, testInfo: TestInfo) {
       vertical: element.scrollHeight - element.clientHeight,
     })),
   ).toEqual({ horizontal: 0, vertical: 0 });
+}
 
+async function workspaceWindowId(window: Locator, label: string): Promise<string> {
+  const id = await window.getAttribute("data-workspace-window-id");
+  if (!id) throw new Error(`${label} has no window ID.`);
+  return id;
+}
+
+async function verifyDirectionalWorkspaceFocus(
+  page: Page,
+  { bodyBox, renderedRects }: WorkspaceMeasurement,
+) {
   const codePane = page.getByTestId("workspace-tool-pane-code");
   const filesPane = page.getByTestId("workspace-tool-pane-files");
   await expect(codePane).toHaveAttribute("data-active", "true");
   const codeWindow = codePane.locator("..");
-  const codeWindowId = await codeWindow.getAttribute("data-workspace-window-id");
-  const filesWindowId = await filesPane.locator("..").getAttribute("data-workspace-window-id");
-  if (!codeWindowId || !filesWindowId) throw new Error("Tool windows have no window IDs.");
-  const renderedRects = new Map<string, { x: number; y: number; width: number; height: number }>();
-  for (let index = 0; index < (await windows.count()); index += 1) {
-    const window = windows.nth(index);
-    const id = await window.getAttribute("data-workspace-window-id");
-    const rect = await window.boundingBox();
-    if (!id || !rect) throw new Error(`Workspace window ${index} has incomplete geometry.`);
-    renderedRects.set(id, rect);
-  }
-  const directions = ["left", "right", "up", "down"] as const;
+  const codeWindowId = await workspaceWindowId(codeWindow, "Code window");
+  const filesWindowId = await workspaceWindowId(filesPane.locator(".."), "Files window");
+  const directions: WorkspaceWindowDirection[] = ["left", "right", "up", "down"];
   const directionToFiles = directions.find(
     (direction) =>
       findWorkspaceWindowInDirection(renderedRects, codeWindowId, direction) === filesWindowId,
@@ -210,7 +239,16 @@ async function verifyWorkspaceWindowManagement(page: Page, testInfo: TestInfo) {
   await page.keyboard.press(`Control+Arrow${keyDirection}`);
   await expect(filesPane).toHaveAttribute("data-active", "true");
 
-  const edgeCandidates = [...renderedRects.entries()].flatMap(([id, rect]) => [
+  const edgeCandidate = closestWorkspaceEdge(bodyBox, renderedRects);
+  const edgeWindow = page.locator(`[data-workspace-window-id="${edgeCandidate.id}"]:visible`);
+  await edgeWindow.getByRole("button", { name: /^Drag / }).click();
+  await expect(edgeWindow.locator('[data-active="true"]')).toHaveCount(1);
+  await page.keyboard.press(`Control+Arrow${edgeCandidate.direction}`);
+  await expect(edgeWindow.locator('[data-active="true"]')).toHaveCount(1);
+}
+
+function closestWorkspaceEdge(bodyBox: WorkspaceRect, rects: ReadonlyMap<string, WorkspaceRect>) {
+  const candidates = [...rects.entries()].flatMap(([id, rect]) => [
     { id, direction: "Left", distance: Math.abs(rect.x - bodyBox.x) },
     {
       id,
@@ -224,17 +262,16 @@ async function verifyWorkspaceWindowManagement(page: Page, testInfo: TestInfo) {
       distance: Math.abs(bodyBox.y + bodyBox.height - (rect.y + rect.height)),
     },
   ]);
-  edgeCandidates.sort((left, right) => left.distance - right.distance);
-  const edgeCandidate = edgeCandidates[0];
+  candidates.sort((left, right) => left.distance - right.distance);
+  const edgeCandidate = candidates[0];
   if (!edgeCandidate || edgeCandidate.distance > 2) {
     throw new Error("No workspace window reaches the workspace edge.");
   }
-  const edgeWindow = page.locator(`[data-workspace-window-id="${edgeCandidate.id}"]:visible`);
-  await edgeWindow.getByRole("button", { name: /^Drag / }).click();
-  await expect(edgeWindow.locator('[data-active="true"]')).toHaveCount(1);
-  await page.keyboard.press(`Control+Arrow${edgeCandidate.direction}`);
-  await expect(edgeWindow.locator('[data-active="true"]')).toHaveCount(1);
+  return edgeCandidate;
+}
 
+async function verifyWorkspaceWindowDrag(page: Page) {
+  const codeWindow = page.getByTestId("workspace-tool-pane-code").locator("..");
   const terminalWindow = page
     .locator('[data-workspace-window-id]:has([data-terminal-surface="true"]):visible')
     .first();
@@ -244,18 +281,10 @@ async function verifyWorkspaceWindowManagement(page: Page, testInfo: TestInfo) {
     throw new Error("Workspace windows could not be measured before drag.");
   }
   await page.getByRole("button", { name: /^Drag VS Code/ }).dragTo(terminalWindow);
-  await expect
-    .poll(async () => Math.abs(((await codeWindow.boundingBox())?.x ?? 0) - terminalBoxBefore.x))
-    .toBeLessThan(2);
-  await expect
-    .poll(async () => Math.abs(((await codeWindow.boundingBox())?.y ?? 0) - terminalBoxBefore.y))
-    .toBeLessThan(2);
-  await expect
-    .poll(async () => Math.abs(((await terminalWindow.boundingBox())?.x ?? 0) - codeBoxBefore.x))
-    .toBeLessThan(2);
-  await expect
-    .poll(async () => Math.abs(((await terminalWindow.boundingBox())?.y ?? 0) - codeBoxBefore.y))
-    .toBeLessThan(2);
+  await expect.poll(() => rectDelta(codeWindow, "x", terminalBoxBefore.x)).toBeLessThan(2);
+  await expect.poll(() => rectDelta(codeWindow, "y", terminalBoxBefore.y)).toBeLessThan(2);
+  await expect.poll(() => rectDelta(terminalWindow, "x", codeBoxBefore.x)).toBeLessThan(2);
+  await expect.poll(() => rectDelta(terminalWindow, "y", codeBoxBefore.y)).toBeLessThan(2);
   await expect
     .poll(() =>
       page.evaluate(() =>
@@ -263,6 +292,17 @@ async function verifyWorkspaceWindowManagement(page: Page, testInfo: TestInfo) {
       ),
     )
     .toBe(true);
+}
+
+async function rectDelta(window: Locator, axis: "x" | "y", target: number): Promise<number> {
+  return Math.abs(((await window.boundingBox())?.[axis] ?? 0) - target);
+}
+
+async function verifyWorkspaceWindowManagement(page: Page, testInfo: TestInfo) {
+  const measurement = await measureWorkspaceWindows(page);
+  await verifyWorkspaceCoverage(measurement);
+  await verifyDirectionalWorkspaceFocus(page, measurement);
+  await verifyWorkspaceWindowDrag(page);
   await capture(page, testInfo, "workspace-window-management");
 }
 

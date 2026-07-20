@@ -57,16 +57,7 @@ export function workspaceWindowLayoutStorageKey(
 export function parseWorkspaceWindowLayoutState(
   persistedJson?: string | null,
 ): WorkspaceWindowLayoutState {
-  if (typeof persistedJson !== "string" || persistedJson.trim().length === 0) {
-    return emptyWorkspaceWindowLayoutState();
-  }
-
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(persistedJson);
-  } catch {
-    return emptyWorkspaceWindowLayoutState();
-  }
+  const parsed = parsePersistedLayoutJson(persistedJson);
 
   if (
     !isRecord(parsed) ||
@@ -76,9 +67,25 @@ export function parseWorkspaceWindowLayoutState(
     return emptyWorkspaceWindowLayoutState();
   }
 
+  return {
+    version: WORKSPACE_WINDOW_LAYOUT_VERSION,
+    boards: parseWorkspaceWindowBoards(parsed.boards),
+  };
+}
+
+function parsePersistedLayoutJson(persistedJson?: string | null): unknown {
+  if (typeof persistedJson !== "string" || persistedJson.trim().length === 0) return null;
+  try {
+    return JSON.parse(persistedJson);
+  } catch {
+    return null;
+  }
+}
+
+function parseWorkspaceWindowBoards(values: unknown[]): WorkspaceWindowBoardLayout[] {
   const boardKeys = new Set<string>();
   const boards: WorkspaceWindowBoardLayout[] = [];
-  for (const value of parsed.boards) {
+  for (const value of values) {
     if (!isRecord(value)) continue;
     const boardKey = normalizeId(value.boardKey);
     if (!boardKey || boardKeys.has(boardKey)) continue;
@@ -87,8 +94,7 @@ export function parseWorkspaceWindowLayoutState(
     boardKeys.add(boardKey);
     boards.push({ boardKey, root });
   }
-
-  return { version: WORKSPACE_WINDOW_LAYOUT_VERSION, boards };
+  return boards;
 }
 
 export function serializeWorkspaceWindowLayoutState(state: WorkspaceWindowLayoutState): string {
@@ -107,39 +113,52 @@ export function reconcileWorkspaceWindowLayout(
   if (normalizedWindowIds.length === 0) return null;
 
   const allowedWindowIds = new Set(normalizedWindowIds);
-  let nextRoot = root
+  const nextRoot = root
     ? pruneWorkspaceWindowLayout(root, allowedWindowIds, new Set<string>())
     : null;
-  if (!nextRoot) {
-    nextRoot = { type: "leaf", id: normalizedWindowIds[0] };
-  }
+  const initialRoot = nextRoot ?? { type: "leaf", id: normalizedWindowIds[0] };
 
-  const placedWindowIds = new Set(workspaceWindowIds(nextRoot));
-  let focusedWindowId =
-    normalizeId(options.focusedWindowId) ?? lastWorkspaceWindowId(nextRoot) ?? undefined;
+  return appendMissingWorkspaceWindows(initialRoot, normalizedWindowIds, options);
+}
 
-  for (const windowId of normalizedWindowIds) {
+function appendMissingWorkspaceWindows(
+  initialRoot: WorkspaceWindowLayoutNode,
+  windowIds: readonly string[],
+  options: ReconcileWorkspaceWindowLayoutOptions,
+): WorkspaceWindowLayoutNode {
+  let nextRoot = initialRoot;
+  const placedWindowIds = new Set(workspaceWindowIds(initialRoot));
+  let focusedWindowId = preferredPlacedWindowId(
+    options.focusedWindowId,
+    placedWindowIds,
+    initialRoot,
+  );
+
+  for (const windowId of windowIds) {
     if (placedWindowIds.has(windowId)) continue;
-    const targetWindowId =
-      focusedWindowId && placedWindowIds.has(focusedWindowId)
-        ? focusedWindowId
-        : lastWorkspaceWindowId(nextRoot);
-    if (!targetWindowId) {
-      nextRoot = { type: "leaf", id: windowId };
-    } else {
-      const targetRect = computeWorkspaceWindowRects(nextRoot).get(targetWindowId) ?? ROOT_RECT;
-      nextRoot = splitWorkspaceWindow(
-        nextRoot,
-        targetWindowId,
-        windowId,
-        chooseWorkspaceWindowSplitAxis(targetRect, options),
-      );
-    }
+    const targetWindowId = preferredPlacedWindowId(focusedWindowId, placedWindowIds, nextRoot);
+    const targetRect = computeWorkspaceWindowRects(nextRoot).get(targetWindowId) ?? ROOT_RECT;
+    nextRoot = splitWorkspaceWindow(
+      nextRoot,
+      targetWindowId,
+      windowId,
+      chooseWorkspaceWindowSplitAxis(targetRect, options),
+    );
     placedWindowIds.add(windowId);
     focusedWindowId = windowId;
   }
 
   return nextRoot;
+}
+
+function preferredPlacedWindowId(
+  preferredWindowId: string | null | undefined,
+  placedWindowIds: ReadonlySet<string>,
+  root: WorkspaceWindowLayoutNode,
+): string {
+  const normalizedWindowId = normalizeId(preferredWindowId);
+  if (normalizedWindowId && placedWindowIds.has(normalizedWindowId)) return normalizedWindowId;
+  return lastWorkspaceWindowId(root);
 }
 
 export function computeWorkspaceWindowRects(
@@ -356,9 +375,9 @@ function mapWorkspaceWindowLeaves(
   };
 }
 
-function lastWorkspaceWindowId(root: WorkspaceWindowLayoutNode): string | null {
+function lastWorkspaceWindowId(root: WorkspaceWindowLayoutNode): string {
   if (root.type === "leaf") return root.id;
-  return lastWorkspaceWindowId(root.second) ?? lastWorkspaceWindowId(root.first);
+  return lastWorkspaceWindowId(root.second);
 }
 
 function uniqueWindowIds(values: readonly string[]): string[] {
@@ -379,19 +398,33 @@ function parseLayoutNode(
   depth: number,
 ): WorkspaceWindowLayoutNode | null {
   if (!isRecord(value) || depth > MAX_LAYOUT_DEPTH) return null;
-  if (value.type === "leaf") {
-    const id = normalizeId(value.id);
-    if (!id || windowIds.has(id)) return null;
-    windowIds.add(id);
-    return { type: "leaf", id };
-  }
-  if (value.type !== "split" || (value.axis !== "x" && value.axis !== "y")) return null;
+  if (value.type === "leaf") return parseLayoutLeaf(value.id, windowIds);
+  if (value.type !== "split" || !isWorkspaceWindowSplitAxis(value.axis)) return null;
+  return parseLayoutSplit(value, value.axis, windowIds, depth);
+}
 
+function parseLayoutLeaf(value: unknown, windowIds: Set<string>): WorkspaceWindowLeaf | null {
+  const id = normalizeId(value);
+  if (!id || windowIds.has(id)) return null;
+  windowIds.add(id);
+  return { type: "leaf", id };
+}
+
+function parseLayoutSplit(
+  value: Record<string, unknown>,
+  axis: WorkspaceWindowSplitAxis,
+  windowIds: Set<string>,
+  depth: number,
+): WorkspaceWindowLayoutNode | null {
   const first = parseLayoutNode(value.first, windowIds, depth + 1);
   const second = parseLayoutNode(value.second, windowIds, depth + 1);
   if (!first) return second;
   if (!second) return first;
-  return { type: "split", axis: value.axis, first, second };
+  return { type: "split", axis, first, second };
+}
+
+function isWorkspaceWindowSplitAxis(value: unknown): value is WorkspaceWindowSplitAxis {
+  return value === "x" || value === "y";
 }
 
 function normalizeId(value: unknown): string | null {
