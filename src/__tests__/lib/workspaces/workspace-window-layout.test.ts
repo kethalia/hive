@@ -69,7 +69,7 @@ describe("workspace window layout", () => {
     }
   });
 
-  it("removes a dragged window, collapses its vacancy, and splits the drop target", () => {
+  it("swaps direct siblings without changing their parent split", () => {
     const initial = reconcileWorkspaceWindowLayout(null, ["main", "build", "logs"], {
       viewportWidth: 1200,
       viewportHeight: 800,
@@ -77,7 +77,7 @@ describe("workspace window layout", () => {
     expect(initial).not.toBeNull();
     if (!initial) return;
 
-    const moved = moveWorkspaceWindow(initial, "logs", "build", "top");
+    const moved = moveWorkspaceWindow(initial, "logs", "build", "left");
     const after = computeWorkspaceWindowRects(moved);
 
     expect(after.get("main")).toEqual({ x: 0, y: 0, width: 0.5, height: 1 });
@@ -86,7 +86,26 @@ describe("workspace window layout", () => {
     expect(workspaceWindowIds(moved)).toEqual(["main", "logs", "build"]);
   });
 
-  it("inserts on every requested side and ignores invalid drag targets", () => {
+  it("removes a non-sibling window, collapses its vacancy, and splits the target", () => {
+    const initial = reconcileWorkspaceWindowLayout(null, ["main", "build", "logs"], {
+      viewportWidth: 1200,
+      viewportHeight: 800,
+    });
+    expect(initial).not.toBeNull();
+    if (!initial) return;
+
+    const moved = moveWorkspaceWindow(initial, "main", "build", "left");
+
+    expect(computeWorkspaceWindowRects(moved)).toEqual(
+      new Map([
+        ["main", { x: 0, y: 0, width: 0.5, height: 0.5 }],
+        ["build", { x: 0.5, y: 0, width: 0.5, height: 0.5 }],
+        ["logs", { x: 0, y: 0.5, width: 1, height: 0.5 }],
+      ]),
+    );
+  });
+
+  it("preserves a two-window split when reordering its leaves", () => {
     const initial = reconcileWorkspaceWindowLayout(null, ["main", "build"], {
       viewportWidth: 1200,
       viewportHeight: 800,
@@ -95,27 +114,11 @@ describe("workspace window layout", () => {
     if (!initial) return;
 
     expect(
-      computeWorkspaceWindowRects(moveWorkspaceWindow(initial, "build", "main", "left")),
+      computeWorkspaceWindowRects(moveWorkspaceWindow(initial, "build", "main", "bottom")),
     ).toEqual(
       new Map([
         ["build", { x: 0, y: 0, width: 0.5, height: 1 }],
         ["main", { x: 0.5, y: 0, width: 0.5, height: 1 }],
-      ]),
-    );
-    expect(
-      computeWorkspaceWindowRects(moveWorkspaceWindow(initial, "build", "main", "bottom")),
-    ).toEqual(
-      new Map([
-        ["main", { x: 0, y: 0, width: 1, height: 0.5 }],
-        ["build", { x: 0, y: 0.5, width: 1, height: 0.5 }],
-      ]),
-    );
-    expect(
-      computeWorkspaceWindowRects(moveWorkspaceWindow(initial, "build", "main", "right")),
-    ).toEqual(
-      new Map([
-        ["main", { x: 0, y: 0, width: 0.5, height: 1 }],
-        ["build", { x: 0.5, y: 0, width: 0.5, height: 1 }],
       ]),
     );
     expect(moveWorkspaceWindow(initial, "missing", "main", "right")).toBe(initial);

@@ -299,6 +299,8 @@ function closestWorkspaceEdge(bodyBox: WorkspaceRect, rects: ReadonlyMap<string,
 }
 
 async function verifyWorkspaceWindowDrag(page: Page) {
+  await verifySiblingWorkspaceWindowSwap(page);
+
   const codeWindow = page.getByTestId("workspace-tool-pane-code").locator("..");
   const terminalWindow = page
     .locator('[data-workspace-window-id]:has([data-terminal-surface="true"]):visible')
@@ -311,16 +313,41 @@ async function verifyWorkspaceWindowDrag(page: Page) {
   const { dropPosition, targetPoint } = workspaceDropTarget(terminalBoxBefore);
   const dragHandle = page.locator('button[aria-label^="Drag VS Code"]');
   await startWorkspaceWindowDrag(page, dragHandle, targetPoint);
-  await expect(terminalWindow).toHaveAttribute("data-workspace-window-drop-position", dropPosition);
-  await expectWorkspaceDropPreview(terminalWindow, terminalBoxBefore, dropPosition);
-  await page.mouse.up();
-
   const { dragged: codeExpected, target: terminalExpected } = workspaceSplitRects(
     terminalBoxBefore,
     dropPosition,
   );
+  await expect(codeWindow).toHaveCSS("opacity", "0");
+  await expectStandaloneWorkspacePlaceholder(page, codeExpected, dropPosition);
+  await expectWorkspaceRect(terminalWindow, terminalExpected);
+  await page.mouse.up();
+
   await expectWorkspaceRect(codeWindow, codeExpected);
   await expectWorkspaceRect(terminalWindow, terminalExpected);
+  await expect.poll(() => persistedWorkspaceWindowLayout(page)).not.toBe(persistedLayoutBefore);
+}
+
+async function verifySiblingWorkspaceWindowSwap(page: Page) {
+  const codeWindow = page.getByTestId("workspace-tool-pane-code").locator("..");
+  const filesWindow = page.getByTestId("workspace-tool-pane-files").locator("..");
+  const codeBefore = await codeWindow.boundingBox();
+  const filesBefore = await filesWindow.boundingBox();
+  if (!codeBefore || !filesBefore) throw new Error("Sibling tool windows could not be measured.");
+  const persistedLayoutBefore = await persistedWorkspaceWindowLayout(page);
+  const { dropPosition, targetPoint } = workspaceDropTarget(filesBefore);
+
+  await startWorkspaceWindowDrag(
+    page,
+    page.locator('button[aria-label^="Drag VS Code"]'),
+    targetPoint,
+  );
+  await expect(codeWindow).toHaveCSS("opacity", "0");
+  await expectStandaloneWorkspacePlaceholder(page, filesBefore, dropPosition);
+  await expectWorkspaceRect(filesWindow, codeBefore);
+  await page.mouse.up();
+
+  await expectWorkspaceRect(codeWindow, filesBefore);
+  await expectWorkspaceRect(filesWindow, codeBefore);
   await expect.poll(() => persistedWorkspaceWindowLayout(page)).not.toBe(persistedLayoutBefore);
 }
 
@@ -355,19 +382,18 @@ async function startWorkspaceWindowDrag(
   await page.mouse.move(targetPoint.x, targetPoint.y, { steps: 12 });
 }
 
-async function expectWorkspaceDropPreview(
-  target: Locator,
-  targetRect: WorkspaceRect,
+async function expectStandaloneWorkspacePlaceholder(
+  page: Page,
+  expected: WorkspaceRect,
   dropPosition: WorkspaceTestDropPosition,
 ) {
-  const preview = target.locator('[data-workspace-window-drop-preview="true"]');
-  await expect(preview).toBeVisible();
-  const previewBox = await preview.boundingBox();
-  if (!previewBox) throw new Error("Workspace drop preview could not be measured.");
-  const sizeAxis = dropPosition === "top" ? "height" : "width";
-  const positionAxis = dropPosition === "top" ? "y" : "x";
-  expect(Math.abs(previewBox[sizeAxis] - targetRect[sizeAxis] / 2)).toBeLessThan(8);
-  expect(Math.abs(previewBox[positionAxis] - targetRect[positionAxis])).toBeLessThan(8);
+  const placeholder = page.getByTestId("workspace-window-drop-placeholder");
+  await expect(placeholder).toBeVisible();
+  await expect(placeholder).toHaveAttribute("data-workspace-window-drop-position", dropPosition);
+  expect(
+    await placeholder.evaluate((element) => Boolean(element.closest("[data-workspace-window-id]"))),
+  ).toBe(false);
+  await expectWorkspaceRect(placeholder, expected);
 }
 
 function workspaceSplitRects(

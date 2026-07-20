@@ -10,17 +10,16 @@ interface WorkspaceWindowRenderState {
   dragHandleAttributes: ReturnType<typeof useDraggable>["attributes"];
   dragHandleListeners: ReturnType<typeof useDraggable>["listeners"];
   isDragging: boolean;
-  isDropTarget: boolean;
 }
 
 interface WorkspaceWindowProps {
   children: (state: WorkspaceWindowRenderState) => ReactNode;
-  dropPosition?: WorkspaceWindowDropPosition;
   id: string;
+  previewStyle?: CSSProperties;
   style: CSSProperties;
 }
 
-export function WorkspaceWindow({ children, dropPosition, id, style }: WorkspaceWindowProps) {
+export function WorkspaceWindow({ children, id, previewStyle, style }: WorkspaceWindowProps) {
   const {
     attributes,
     listeners,
@@ -41,15 +40,14 @@ export function WorkspaceWindow({ children, dropPosition, id, style }: Workspace
     <div
       ref={setNodeRef}
       className={cn(
-        "absolute min-h-0 min-w-0 overflow-hidden p-0.5 transition-opacity duration-150",
-        isDragging && "pointer-events-none opacity-70",
+        "absolute min-h-0 min-w-0 overflow-hidden p-0.5 transition-[left,top,width,height,opacity] duration-150 ease-out motion-reduce:transition-none",
+        isDragging && "pointer-events-none opacity-0",
       )}
       data-workspace-window-id={id}
       data-workspace-window-dragging={isDragging ? "true" : "false"}
-      data-workspace-window-drop-position={dropPosition}
-      data-workspace-window-drop-target={dropPosition && !isDragging ? "true" : "false"}
+      data-workspace-window-previewing={previewStyle && !isDragging ? "true" : "false"}
       style={{
-        ...style,
+        ...(isDragging ? style : (previewStyle ?? style)),
         transform: transform ? CSS.Translate.toString(transform) : undefined,
         zIndex: isDragging ? 20 : undefined,
       }}
@@ -58,21 +56,30 @@ export function WorkspaceWindow({ children, dropPosition, id, style }: Workspace
         dragHandleAttributes: attributes,
         dragHandleListeners: listeners,
         isDragging,
-        isDropTarget: Boolean(dropPosition) && !isDragging,
       })}
-      {dropPosition && !isDragging ? (
-        <div
-          aria-hidden="true"
-          className={cn(
-            "pointer-events-none absolute z-30 rounded-md bg-primary/20 ring-2 ring-inset ring-primary/80 shadow-[0_0_24px_rgb(141_255_157/0.18)]",
-            dropPosition === "top" && "inset-x-1 top-1 bottom-1/2",
-            dropPosition === "bottom" && "inset-x-1 top-1/2 bottom-1",
-            dropPosition === "left" && "inset-y-1 left-1 right-1/2",
-            dropPosition === "right" && "inset-y-1 right-1 left-1/2",
-          )}
-          data-workspace-window-drop-preview="true"
-        />
-      ) : null}
+    </div>
+  );
+}
+
+interface WorkspaceWindowDropPlaceholderProps {
+  position?: WorkspaceWindowDropPosition;
+  style: CSSProperties;
+}
+
+export function WorkspaceWindowDropPlaceholder({
+  position,
+  style,
+}: WorkspaceWindowDropPlaceholderProps) {
+  return (
+    <div
+      aria-hidden="true"
+      className="pointer-events-none absolute z-10 min-h-0 min-w-0 p-0.5 transition-[left,top,width,height] duration-150 ease-out motion-reduce:transition-none"
+      data-workspace-window-drop-placeholder="true"
+      data-workspace-window-drop-position={position}
+      data-testid="workspace-window-drop-placeholder"
+      style={style}
+    >
+      <div className="h-full w-full rounded-md border-2 border-primary/80 bg-primary/10 shadow-[0_0_24px_rgb(141_255_157/0.18)]" />
     </div>
   );
 }

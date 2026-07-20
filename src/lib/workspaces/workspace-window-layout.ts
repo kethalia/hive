@@ -185,6 +185,9 @@ export function moveWorkspaceWindow(
   const windowIds = new Set(workspaceWindowIds(root));
   if (!windowIds.has(draggedId) || !windowIds.has(targetId)) return root;
 
+  const reorderedSiblings = reorderDirectWorkspaceWindowSiblings(root, draggedId, targetId);
+  if (reorderedSiblings) return reorderedSiblings;
+
   const withoutDraggedWindow = removeWorkspaceWindow(root, draggedId);
   if (!withoutDraggedWindow) return root;
   return insertWorkspaceWindow(withoutDraggedWindow, targetId, draggedId, position);
@@ -380,6 +383,29 @@ function removeWorkspaceWindow(
   if (!first) return second;
   if (!second) return first;
   return { ...node, first, second };
+}
+
+function reorderDirectWorkspaceWindowSiblings(
+  node: WorkspaceWindowLayoutNode,
+  draggedWindowId: string,
+  targetWindowId: string,
+): WorkspaceWindowLayoutNode | null {
+  if (node.type === "leaf") return null;
+
+  if (
+    node.first.type === "leaf" &&
+    node.second.type === "leaf" &&
+    ((node.first.id === draggedWindowId && node.second.id === targetWindowId) ||
+      (node.first.id === targetWindowId && node.second.id === draggedWindowId))
+  ) {
+    return { ...node, first: node.second, second: node.first };
+  }
+
+  const first = reorderDirectWorkspaceWindowSiblings(node.first, draggedWindowId, targetWindowId);
+  if (first) return { ...node, first };
+
+  const second = reorderDirectWorkspaceWindowSiblings(node.second, draggedWindowId, targetWindowId);
+  return second ? { ...node, second } : null;
 }
 
 function insertWorkspaceWindow(

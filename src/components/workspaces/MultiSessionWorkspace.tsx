@@ -52,7 +52,10 @@ import {
   type WorkspaceTool,
   type WorkspaceToolOpenRequest,
 } from "@/components/workspaces/WorkspaceSessionTools";
-import { WorkspaceWindow } from "@/components/workspaces/WorkspaceWindow";
+import {
+  WorkspaceWindow,
+  WorkspaceWindowDropPlaceholder,
+} from "@/components/workspaces/WorkspaceWindow";
 import { useIsComposeSheet } from "@/hooks/use-compose-sheet";
 import { useKeepAliveStatus } from "@/hooks/useKeepAliveStatus";
 import { useKeybindings } from "@/hooks/useKeybindings";
@@ -212,8 +215,15 @@ interface WorkspaceBoardRenderModel {
 
 interface WorkspaceWindowDropPreview {
   boardKey: string;
+  draggedWindowId: string;
   position: WorkspaceWindowDropPosition;
   targetWindowId: string;
+}
+
+interface WorkspaceWindowLayoutPreview {
+  boardKey: string;
+  draggedWindowId: string;
+  windowRects: ReadonlyMap<string, WorkspaceWindowRect>;
 }
 
 const workspaceWindowCollisionDetection: CollisionDetection = (args) => {
@@ -654,21 +664,14 @@ function workspaceWindowStyle(
 }
 
 function workspaceWindowDropPreview(
-  boardKey: string,
+  model: WorkspaceBoardRenderModel,
+  viewportRect: WorkspaceWindowRect,
   event: DragMoveEvent,
 ): WorkspaceWindowDropPreview | null {
-  if (
-    !event.over ||
-    typeof event.active.id !== "string" ||
-    typeof event.over.id !== "string" ||
-    event.active.id === event.over.id
-  ) {
-    return null;
-  }
+  if (typeof event.active.id !== "string") return null;
 
   const origin = getEventCoordinates(event.activatorEvent);
   const translatedRect = event.active.rect.current.translated;
-  const targetRect = event.over.rect;
   let pointer: { x: number; y: number };
   if (origin) {
     pointer = { x: origin.x + event.delta.x, y: origin.y + event.delta.y };
@@ -680,15 +683,33 @@ function workspaceWindowDropPreview(
   } else {
     return null;
   }
+
+  if (viewportRect.width <= 0 || viewportRect.height <= 0) return null;
+  const normalizedPointer = {
+    x: (pointer.x - viewportRect.x) / viewportRect.width,
+    y: (pointer.y - viewportRect.y) / viewportRect.height,
+  };
+  const target = [...model.windowRects.entries()].find(
+    ([windowId, rect]) =>
+      windowId !== event.active.id &&
+      normalizedPointer.x >= rect.x &&
+      normalizedPointer.x <= rect.x + rect.width &&
+      normalizedPointer.y >= rect.y &&
+      normalizedPointer.y <= rect.y + rect.height,
+  );
+  if (!target) return null;
+  const [targetWindowId, targetRect] = target;
+
   return {
-    boardKey,
-    targetWindowId: event.over.id,
+    boardKey: model.board.key,
+    draggedWindowId: event.active.id,
+    targetWindowId,
     position: workspaceWindowDropPosition(
       {
-        x: targetRect.left,
-        y: targetRect.top,
-        width: targetRect.width,
-        height: targetRect.height,
+        x: viewportRect.x + targetRect.x * viewportRect.width,
+        y: viewportRect.y + targetRect.y * viewportRect.height,
+        width: targetRect.width * viewportRect.width,
+        height: targetRect.height * viewportRect.height,
       },
       pointer,
     ),
@@ -1247,6 +1268,24 @@ export function MultiSessionWorkspace({
     () => boardRenderModels.find((model) => model.isActive) ?? boardRenderModels[0],
     [boardRenderModels],
   );
+  const windowLayoutPreview = useMemo<WorkspaceWindowLayoutPreview | null>(() => {
+    if (!windowDropPreview) return null;
+    const model = boardRenderModels.find(
+      (candidate) => candidate.board.key === windowDropPreview.boardKey,
+    );
+    if (!model?.windowLayoutRoot) return null;
+    const previewRoot = moveWorkspaceWindow(
+      model.windowLayoutRoot,
+      windowDropPreview.draggedWindowId,
+      windowDropPreview.targetWindowId,
+      windowDropPreview.position,
+    );
+    return {
+      boardKey: model.board.key,
+      draggedWindowId: windowDropPreview.draggedWindowId,
+      windowRects: computeWorkspaceWindowRects(previewRoot),
+    };
+  }, [boardRenderModels, windowDropPreview]);
   const resolvedWindowLayoutState = useMemo<WorkspaceWindowLayoutState>(
     () => ({
       version: 1,
@@ -3635,11 +3674,27 @@ export function MultiSessionWorkspace({
     selectWorkspaceWindow(event.active.id);
   };
 
-  const handleWindowDragMove = (boardKey: string, event: DragMoveEvent) => {
-    const preview = workspaceWindowDropPreview(boardKey, event);
+  const windowDropPreviewFromEvent = (model: WorkspaceBoardRenderModel, event: DragMoveEvent) => {
+    const viewportRect = workspaceBodyRef.current?.getBoundingClientRect();
+    if (!viewportRect) return null;
+    return workspaceWindowDropPreview(
+      model,
+      {
+        x: viewportRect.x,
+        y: viewportRect.y,
+        width: viewportRect.width,
+        height: viewportRect.height,
+      },
+      event,
+    );
+  };
+
+  const handleWindowDragMove = (model: WorkspaceBoardRenderModel, event: DragMoveEvent) => {
+    const preview = windowDropPreviewFromEvent(model, event);
     const current = windowDropPreviewRef.current;
     if (
       preview?.boardKey === current?.boardKey &&
+      preview?.draggedWindowId === current?.draggedWindowId &&
       preview?.targetWindowId === current?.targetWindowId &&
       preview?.position === current?.position
     ) {
@@ -3655,15 +3710,11 @@ export function MultiSessionWorkspace({
     setWindowDragActive(false);
   };
 
-  const handleWindowDragEnd = (
-    boardKey: string,
-    root: WorkspaceWindowLayoutNode | null,
-    event: DragEndEvent,
-  ) => {
-    const preview = workspaceWindowDropPreview(boardKey, event) ?? windowDropPreviewRef.current;
+  const handleWindowDragEnd = (model: WorkspaceBoardRenderModel, event: DragEndEvent) => {
+    const preview = windowDropPreviewFromEvent(model, event) ?? windowDropPreviewRef.current;
     clearWindowDropPreview();
     if (
-      !root ||
+      !model.windowLayoutRoot ||
       typeof event.active.id !== "string" ||
       !preview ||
       event.active.id === preview.targetWindowId
@@ -3672,7 +3723,7 @@ export function MultiSessionWorkspace({
     }
 
     const nextRoot = moveWorkspaceWindow(
-      root,
+      model.windowLayoutRoot,
       event.active.id,
       preview.targetWindowId,
       preview.position,
@@ -3680,7 +3731,7 @@ export function MultiSessionWorkspace({
     persistWindowLayoutState({
       ...resolvedWindowLayoutState,
       boards: resolvedWindowLayoutState.boards.map((board) =>
-        board.boardKey === boardKey ? { ...board, root: nextRoot } : board,
+        board.boardKey === model.board.key ? { ...board, root: nextRoot } : board,
       ),
     });
   };
@@ -3692,6 +3743,13 @@ export function MultiSessionWorkspace({
         model.windowRects.get(pane.sessionName),
         pane.gridArea,
       );
+      const panePreviewStyle =
+        windowLayoutPreview?.boardKey === model.board.key
+          ? workspaceWindowStyle(
+              windowLayoutPreview.windowRects.get(pane.sessionName),
+              pane.gridArea,
+            )
+          : undefined;
       const toolUrl = toolPane.url;
       const toolLoadingMessage =
         toolPane.loadState === "authorizing"
@@ -3703,17 +3761,12 @@ export function MultiSessionWorkspace({
               : null;
       return (
         <WorkspaceWindow
-          dropPosition={
-            windowDropPreview?.boardKey === model.board.key &&
-            windowDropPreview.targetWindowId === pane.sessionName
-              ? windowDropPreview.position
-              : undefined
-          }
           key={`${model.board.key}:${toolPane.key}`}
           id={pane.sessionName}
+          previewStyle={panePreviewStyle}
           style={paneStyle}
         >
-          {({ dragHandleAttributes, dragHandleListeners, isDragging, isDropTarget }) => (
+          {({ dragHandleAttributes, dragHandleListeners, isDragging }) => (
             <TerminalSessionFrame
               label={toolPane.label}
               active={model.isActive && pane.sessionName === activeWindowId}
@@ -3723,7 +3776,6 @@ export function MultiSessionWorkspace({
               dragHandleAttributes={dragHandleAttributes}
               dragHandleListeners={dragHandleListeners}
               isDragging={isDragging}
-              isDropTarget={isDropTarget}
               headerActions={
                 !toolUrl || toolUrl.startsWith("/api/workspace-proxy/") ? null : (
                   <Button
@@ -3839,20 +3891,19 @@ export function MultiSessionWorkspace({
       : `viewport:${visualViewportHeightPx}:${visualViewportOffsetTopPx}`;
     const layoutSignal = `${model.board.key}:${boardPaneSignal}:${model.layout.tiled.rows}:${model.layout.tiled.columns}:${pane.gridArea}:${visualViewportSignal}`;
     const paneStyle = workspaceWindowStyle(model.windowRects.get(pane.sessionName), pane.gridArea);
+    const panePreviewStyle =
+      windowLayoutPreview?.boardKey === model.board.key
+        ? workspaceWindowStyle(windowLayoutPreview.windowRects.get(pane.sessionName), pane.gridArea)
+        : undefined;
 
     return (
       <WorkspaceWindow
-        dropPosition={
-          windowDropPreview?.boardKey === model.board.key &&
-          windowDropPreview.targetWindowId === pane.sessionName
-            ? windowDropPreview.position
-            : undefined
-        }
         key={`${model.board.key}:${pane.id}`}
         id={pane.sessionName}
+        previewStyle={panePreviewStyle}
         style={paneStyle}
       >
-        {({ dragHandleAttributes, dragHandleListeners, isDragging, isDropTarget }) => (
+        {({ dragHandleAttributes, dragHandleListeners, isDragging }) => (
           <TerminalSessionFrame
             label={pane.label}
             active={isActive}
@@ -3863,7 +3914,6 @@ export function MultiSessionWorkspace({
             dragHandleAttributes={dragHandleAttributes}
             dragHandleListeners={dragHandleListeners}
             isDragging={isDragging}
-            isDropTarget={isDropTarget}
             disabled={isComposeDisabled}
             disabledLabel="Compose locked"
             headerActions={
@@ -3967,9 +4017,9 @@ export function MultiSessionWorkspace({
         key={model.board.key}
         collisionDetection={workspaceWindowCollisionDetection}
         onDragStart={handleWindowDragStart}
-        onDragMove={(event) => handleWindowDragMove(model.board.key, event)}
+        onDragMove={(event) => handleWindowDragMove(model, event)}
         onDragCancel={clearWindowDropPreview}
-        onDragEnd={(event) => handleWindowDragEnd(model.board.key, model.windowLayoutRoot, event)}
+        onDragEnd={(event) => handleWindowDragEnd(model, event)}
       >
         <div
           className={cn(
@@ -3986,6 +4036,16 @@ export function MultiSessionWorkspace({
           aria-hidden={model.isActive ? undefined : true}
         >
           {model.layout.panes.map((pane) => renderPane(pane, model))}
+          {windowDropPreview?.boardKey === model.board.key &&
+          windowLayoutPreview?.boardKey === model.board.key ? (
+            <WorkspaceWindowDropPlaceholder
+              position={windowDropPreview.position}
+              style={workspaceWindowStyle(
+                windowLayoutPreview.windowRects.get(windowLayoutPreview.draggedWindowId),
+                "auto",
+              )}
+            />
+          ) : null}
         </div>
       </DndContext>
     );
