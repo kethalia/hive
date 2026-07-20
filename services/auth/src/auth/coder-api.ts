@@ -18,6 +18,32 @@ import type {
 
 export type { CoderLoginResult, ValidateInstanceResult };
 
+function parseApplicationsHost(host: string): string {
+  const trimmedHost = host.trim();
+  if (!trimmedHost) return "";
+  const placeholder = "hive-workspace-app-placeholder";
+  try {
+    const url = new URL(
+      trimmedHost.includes("://")
+        ? trimmedHost.replace("*", placeholder)
+        : `https://${trimmedHost.replace("*", placeholder)}`,
+    );
+    if (
+      (url.protocol !== "https:" && url.protocol !== "http:") ||
+      url.username ||
+      url.password ||
+      url.pathname !== "/" ||
+      url.search ||
+      url.hash
+    ) {
+      return "";
+    }
+    return trimmedHost;
+  } catch {
+    return "";
+  }
+}
+
 async function readApplicationsHost(response: Response | null): Promise<string> {
   if (!response?.ok) return "";
 
@@ -29,7 +55,7 @@ async function readApplicationsHost(response: Response | null): Promise<string> 
       "host" in payload &&
       typeof payload.host === "string"
     ) {
-      return payload.host;
+      return parseApplicationsHost(payload.host);
     }
   } catch {
     // Application-host discovery is ancillary to a successful login.

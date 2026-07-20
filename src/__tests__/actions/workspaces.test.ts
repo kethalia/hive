@@ -178,6 +178,75 @@ describe("workspace actions use authActionClient + getCoderClientForUser", () =>
     expect(mockedGetCoderClientForUser).not.toHaveBeenCalled();
   });
 
+  it("allows sandboxed workspace-app subresources with a same-proxy referrer", async () => {
+    mockedGetCoderClientForUser.mockResolvedValue({
+      getWorkspace: vi.fn().mockResolvedValue({ name: "dev-box", owner_name: "alice" }),
+      getWorkspaceAgentName: vi.fn().mockResolvedValue("dev-box.main"),
+      getApplicationsHost: vi.fn().mockResolvedValue("*.apps.example.com"),
+      getBaseUrl: () => "https://coder.example.com",
+      getSessionToken: () => "coder-session-token",
+    } as never);
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(new Response("asset", { status: 200 }));
+    const { GET } = await import("@/app/api/workspace-proxy/[workspaceId]/[[...path]]/route");
+    const workspaceId = "aeaeaeae-1111-2222-3333-444444444444";
+    const proxyBase = `http://localhost/api/workspace-proxy/${workspaceId}/filebrowser`;
+    const url = `${proxyBase}/static/app.js`;
+    const req = new Request(url, {
+      headers: {
+        Referer: `${proxyBase}/files/home/coder`,
+        "Sec-Fetch-Dest": "script",
+        "Sec-Fetch-Site": "cross-site",
+      },
+    });
+    Object.defineProperty(req, "nextUrl", { value: new URL(url) });
+
+    const response = await GET(req as never, {
+      params: Promise.resolve({
+        workspaceId,
+        path: ["filebrowser", "static", "app.js"],
+      }),
+    });
+
+    expect(response.status).toBe(200);
+    expect(fetchSpy).toHaveBeenCalledOnce();
+  });
+
+  it("does not cache fallback app URLs after transient host discovery failure", async () => {
+    const getApplicationsHost = vi
+      .fn()
+      .mockRejectedValueOnce(new Error("temporary discovery failure"))
+      .mockResolvedValue("*.apps.example.com");
+    mockedGetCoderClientForUser.mockResolvedValue({
+      getWorkspace: vi.fn().mockResolvedValue({ name: "dev-box", owner_name: "alice" }),
+      getWorkspaceAgentName: vi.fn().mockResolvedValue("dev-box.main"),
+      getApplicationsHost,
+      getBaseUrl: () => "https://coder.example.com",
+      getSessionToken: () => "coder-session-token",
+    } as never);
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(new Response("ok", { status: 200 }));
+    const { GET } = await import("@/app/api/workspace-proxy/[workspaceId]/[[...path]]/route");
+    const workspaceId = "afafafaf-1111-2222-3333-444444444444";
+    const url = `http://localhost/api/workspace-proxy/${workspaceId}/filebrowser`;
+    const req = new Request(url);
+    Object.defineProperty(req, "nextUrl", { value: new URL(url) });
+    const routeParams = {
+      params: Promise.resolve({ workspaceId, path: ["filebrowser"] }),
+    };
+
+    await GET(req as never, routeParams);
+    await GET(req as never, routeParams);
+
+    expect(getApplicationsHost).toHaveBeenCalledTimes(2);
+    expect(fetchSpy).toHaveBeenLastCalledWith(
+      "https://filebrowser--main--dev-box--alice.apps.example.com/",
+      expect.anything(),
+    );
+  });
+
   it("proxy route does not use env var credentials", async () => {
     const source = await readFile(
       "src/app/api/workspace-proxy/[workspaceId]/[[...path]]/route.ts",

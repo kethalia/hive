@@ -183,6 +183,21 @@ describe("coderLogin", () => {
     });
   });
 
+  it("falls back to an empty application host when discovery returns malformed text", async () => {
+    vi.mocked(fetch)
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ session_token: "tok_abc123" }), { status: 200 }),
+      )
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ id: "user-uuid", username: "alice" }), { status: 200 }),
+      )
+      .mockResolvedValueOnce(new Response(JSON.stringify({ host: "%" }), { status: 200 }));
+
+    await expect(coderLogin(BASE_URL, "alice@test.com", "password123")).resolves.toMatchObject({
+      applicationsHost: "",
+    });
+  });
+
   it("throws 'invalid credentials' on 401", async () => {
     vi.mocked(fetch).mockResolvedValueOnce(new Response("unauthorized", { status: 401 }));
 

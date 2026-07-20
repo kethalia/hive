@@ -20,6 +20,32 @@ import type {
   WorkspaceResource,
 } from "./types";
 
+function parseApplicationsHost(host: string): string {
+  const trimmedHost = host.trim();
+  if (!trimmedHost) return "";
+  const placeholder = "hive-workspace-app-placeholder";
+  try {
+    const url = new URL(
+      trimmedHost.includes("://")
+        ? trimmedHost.replace("*", placeholder)
+        : `https://${trimmedHost.replace("*", placeholder)}`,
+    );
+    if (
+      (url.protocol !== "https:" && url.protocol !== "http:") ||
+      url.username ||
+      url.password ||
+      url.pathname !== "/" ||
+      url.search ||
+      url.hash
+    ) {
+      return "";
+    }
+    return trimmedHost;
+  } catch {
+    return "";
+  }
+}
+
 /**
  * Typed REST client for the Coder API.
  *
@@ -51,7 +77,7 @@ export class CoderClient {
       response !== null &&
       "host" in response &&
       typeof response.host === "string"
-      ? response.host
+      ? parseApplicationsHost(response.host)
       : "";
   }
 
@@ -68,8 +94,8 @@ export class CoderClient {
     }
 
     const resolvedLocation = new URL(location, this.baseUrl);
-    if (resolvedLocation.hostname !== new URL(redirectUri).hostname) {
-      throw new Error("[coder] Workspace app redirect returned an unexpected host");
+    if (resolvedLocation.origin !== new URL(redirectUri).origin) {
+      throw new Error("[coder] Workspace app redirect returned an unexpected origin");
     }
     return resolvedLocation.toString();
   }

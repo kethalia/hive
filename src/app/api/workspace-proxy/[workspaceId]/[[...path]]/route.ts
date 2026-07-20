@@ -62,17 +62,20 @@ async function getWorkspaceMeta(userId: string, workspaceId: string): Promise<Wo
 
   const client = await getCoderClientForUser(userId);
 
-  const [workspace, sshTarget, applicationsHost] = await Promise.all([
+  const [workspace, sshTarget, applicationsHostResult] = await Promise.all([
     client.getWorkspace(workspaceId),
     client.getWorkspaceAgentName(workspaceId),
-    client.getApplicationsHost().catch(() => ""),
+    client
+      .getApplicationsHost()
+      .then((host) => ({ host, discovered: true }))
+      .catch(() => ({ host: "", discovered: false })),
   ]);
   const agentName = sshTarget.includes(".") ? (sshTarget.split(".").pop() ?? sshTarget) : sshTarget;
   const workspaceUrls = buildWorkspaceUrls(
     workspace,
     agentName,
     client.getBaseUrl(),
-    applicationsHost,
+    applicationsHostResult.host,
   );
   if (!workspaceUrls) throw new Error("Coder URL is unavailable for workspace tools");
   const appBaseUrls = [workspaceUrls.filebrowser, workspaceUrls.kasmvnc];
@@ -90,8 +93,22 @@ async function getWorkspaceMeta(userId: string, workspaceId: string): Promise<Wo
     const oldest = metaCache.keys().next().value;
     if (oldest) metaCache.delete(oldest);
   }
-  metaCache.set(cacheKey, meta);
+  if (applicationsHostResult.discovered) metaCache.set(cacheKey, meta);
   return meta;
+}
+
+function isSandboxedProxySubresource(req: NextRequest): boolean {
+  const referer = req.headers.get("referer");
+  if (!referer) return false;
+  try {
+    const refererUrl = new URL(referer);
+    // Sandboxed proxy documents have opaque origins, so Fetch Metadata reports their
+    // subresources as cross-site. Browsers control Referer; a Hive-origin referrer proves
+    // the request was initiated by content already loaded through this authenticated origin.
+    return refererUrl.origin === req.nextUrl.origin;
+  } catch {
+    return false;
+  }
 }
 
 function resolveApp(pathSegments: string[]): { appSlug: string; subPath: string } {
@@ -268,7 +285,7 @@ async function proxyRequest(
   }
 
   const fetchSite = req.headers.get("sec-fetch-site");
-  if (fetchSite !== null && fetchSite !== "same-origin") {
+  if (fetchSite !== null && fetchSite !== "same-origin" && !isSandboxedProxySubresource(req)) {
     return NextResponse.json(
       { error: "Cross-origin workspace proxy requests are not allowed" },
       {

@@ -105,6 +105,8 @@ describe("CoderClient", () => {
     {},
     { host: null },
     { host: 42 },
+    { host: "%" },
+    { host: "*.apps.example.com/path" },
   ])("returns an empty applications host for an invalid payload", async (payload) => {
     fetchSpy.mockResolvedValueOnce(jsonResponse(payload));
 
@@ -123,6 +125,18 @@ describe("CoderClient", () => {
     expect(url.searchParams.get("redirect_uri")).toBe(target);
     expect(init.headers["Coder-Session-Token"]).toBe(TOKEN);
     expect(init.redirect).toBe("manual");
+  });
+
+  it.each([
+    "http://code--workspace--alice.apps.example.com/?folder=%2Fworkspace",
+    "https://code--workspace--alice.apps.example.com:8443/?folder=%2Fworkspace",
+  ])("rejects an application redirect outside the complete target origin", async (location) => {
+    const target = "https://code--workspace--alice.apps.example.com/?folder=%2Fworkspace";
+    fetchSpy.mockResolvedValueOnce(new Response(null, { status: 303, headers: { location } }));
+
+    await expect(makeClient().getApplicationAuthRedirect(target)).rejects.toThrow(
+      "unexpected origin",
+    );
   });
 
   // ── stopWorkspace ──────────────────────────────────────────────
