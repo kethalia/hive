@@ -14,9 +14,6 @@ import {
 
 const PUBLIC_PATHS = ["/login", "/api/auth", "/manifest.webmanifest", "/robots.txt"];
 const STATIC_PREFIXES = ["/_next", "/favicon.ico"];
-const WORKSPACE_PROXY_PREFIX = "/api/workspace-proxy/";
-const WORKSPACE_PROXY_GRANT_HEADER = "x-hive-workspace-proxy-grant";
-const WORKSPACE_PROXY_GRANT_PATH_SEGMENT = "/_grant/";
 
 function withContentSecurityPolicy(
   response: NextResponse,
@@ -29,15 +26,6 @@ function withContentSecurityPolicy(
 
 export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
-
-  if (
-    pathname.startsWith(WORKSPACE_PROXY_PREFIX) &&
-    (request.method === "OPTIONS" ||
-      request.headers.has(WORKSPACE_PROXY_GRANT_HEADER) ||
-      pathname.includes(WORKSPACE_PROXY_GRANT_PATH_SEGMENT))
-  ) {
-    return withContentSecurityPolicy(NextResponse.next());
-  }
 
   if (
     STATIC_PREFIXES.some((prefix) => pathname.startsWith(prefix)) ||

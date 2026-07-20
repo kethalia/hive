@@ -29,16 +29,15 @@ function parseApplicationsHost(host: string): string {
         ? trimmedHost.replace("*", placeholder)
         : `https://${trimmedHost.replace("*", placeholder)}`,
     );
-    if (
-      (url.protocol !== "https:" && url.protocol !== "http:") ||
-      url.username ||
-      url.password ||
-      url.pathname !== "/" ||
-      url.search ||
-      url.hash
-    ) {
-      return "";
-    }
+    const invalidUrlParts = [
+      !["https:", "http:"].includes(url.protocol),
+      Boolean(url.username),
+      Boolean(url.password),
+      url.pathname !== "/",
+      Boolean(url.search),
+      Boolean(url.hash),
+    ];
+    if (invalidUrlParts.includes(true)) return "";
     return trimmedHost;
   } catch {
     return "";

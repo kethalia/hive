@@ -38,25 +38,35 @@ function safeRelativePath(value: unknown): string | null {
   return relativePath;
 }
 
+function safeTool(value: unknown): PersistedWorkspaceTool | null {
+  if (value === "code") return value;
+  if (value === "files") return value;
+  return null;
+}
+
 function parsePane(value: unknown): PersistedWorkspaceToolPane | null {
   if (!isRecord(value)) return null;
   const boardKey = safeString(value.boardKey);
   const sessionName = safeString(value.sessionName);
   const label = safeString(value.label);
-  const tool = value.tool === "code" || value.tool === "files" ? value.tool : null;
-  if (!boardKey || !sessionName || !label || !tool) return null;
+  const tool = safeTool(value.tool);
+  if (!boardKey) return null;
+  if (!sessionName) return null;
+  if (!label) return null;
+  if (!tool) return null;
 
   const cloneSessionKey = safeString(value.cloneSessionKey);
   const relativePath = safeRelativePath(value.relativePath);
-  if ((cloneSessionKey && !relativePath) || (!cloneSessionKey && relativePath)) return null;
+  if (Boolean(cloneSessionKey) !== Boolean(relativePath)) return null;
 
-  return {
+  const pane = {
     boardKey,
     sessionName,
     tool,
     label,
-    ...(cloneSessionKey && relativePath ? { cloneSessionKey, relativePath } : {}),
   };
+  if (cloneSessionKey && relativePath) return { ...pane, cloneSessionKey, relativePath };
+  return pane;
 }
 
 export function workspaceToolPaneStorageKey(

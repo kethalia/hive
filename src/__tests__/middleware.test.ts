@@ -16,24 +16,6 @@ afterEach(() => {
 });
 
 describe("proxy", () => {
-  it("passes workspace proxy grant requests to the route for scoped validation", () => {
-    const grantRequest = new NextRequest(
-      "https://hive.example.com/api/workspace-proxy/workspace-id/filebrowser/api/resources",
-      { headers: { "x-hive-workspace-proxy-grant": "signed-grant" } },
-    );
-    const preflightRequest = new NextRequest(
-      "https://hive.example.com/api/workspace-proxy/workspace-id/filebrowser/api/resources",
-      { method: "OPTIONS", headers: { origin: "null" } },
-    );
-    const pathGrantRequest = new NextRequest(
-      "https://hive.example.com/api/workspace-proxy/workspace-id/_grant/signed-grant/filebrowser/static/app.js",
-    );
-
-    expect(proxy(grantRequest).headers.get("location")).toBeNull();
-    expect(proxy(preflightRequest).headers.get("location")).toBeNull();
-    expect(proxy(pathGrantRequest).headers.get("location")).toBeNull();
-  });
-
   it("keeps the marketing homepage public without exposing dashboard routes", () => {
     const homepageResponse = proxy(new NextRequest("https://hive.local.kethalia.com/"));
     const dashboardResponse = proxy(new NextRequest("https://hive.local.kethalia.com/tasks"));

@@ -12,28 +12,28 @@ export interface PendingWorkspaceToolIntent {
   label?: string;
 }
 
-function isPendingWorkspaceToolIntent(value: unknown): value is PendingWorkspaceToolIntent {
-  if (typeof value !== "object" || value === null) return false;
-  const properties = Object.fromEntries(Object.entries(value));
+function isNonEmptyString(value: unknown): value is string {
+  return typeof value === "string" && value.length > 0;
+}
+
+function hasValidOptionalCloneIdentity(properties: Record<string, unknown>): boolean {
   const cloneIdentityValues = [
     properties.cloneSessionKey,
     properties.relativePath,
     properties.label,
   ];
   const hasNoCloneIdentity = cloneIdentityValues.every((candidate) => candidate === undefined);
-  const hasCompleteCloneIdentity = cloneIdentityValues.every(
-    (candidate) => typeof candidate === "string" && candidate.length > 0,
-  );
-  return (
-    typeof properties.workspaceId === "string" &&
-    properties.workspaceId.length > 0 &&
-    typeof properties.boardKey === "string" &&
-    properties.boardKey.length > 0 &&
-    typeof properties.sessionName === "string" &&
-    properties.sessionName.length > 0 &&
-    (properties.tool === "code" || properties.tool === "files") &&
-    (hasNoCloneIdentity || hasCompleteCloneIdentity)
-  );
+  const hasCompleteCloneIdentity = cloneIdentityValues.every(isNonEmptyString);
+  return hasNoCloneIdentity || hasCompleteCloneIdentity;
+}
+
+function isPendingWorkspaceToolIntent(value: unknown): value is PendingWorkspaceToolIntent {
+  if (typeof value !== "object" || value === null) return false;
+  const properties = Object.fromEntries(Object.entries(value));
+  const requiredIdentifiers = [properties.workspaceId, properties.boardKey, properties.sessionName];
+  const hasRequiredIdentifiers = requiredIdentifiers.every(isNonEmptyString);
+  const hasValidTool = ["code", "files"].includes(String(properties.tool));
+  return hasRequiredIdentifiers && hasValidTool && hasValidOptionalCloneIdentity(properties);
 }
 
 export function readPendingWorkspaceToolIntent(): PendingWorkspaceToolIntent | null {
