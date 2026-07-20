@@ -21,6 +21,7 @@ import type {
 } from "./types";
 
 const APPLICATIONS_HOST_TIMEOUT_MS = 2_000;
+const APPLICATION_AUTH_REDIRECT_TIMEOUT_MS = 5_000;
 
 function parseApplicationsHost(host: string): string {
   const trimmedHost = host.trim();
@@ -90,6 +91,7 @@ export class CoderClient {
     const response = await fetchCoderApi(endpoint, {
       headers: { "Coder-Session-Token": this.sessionToken },
       redirect: "manual",
+      signal: AbortSignal.timeout(APPLICATION_AUTH_REDIRECT_TIMEOUT_MS),
     });
     const location = response.headers.get("location");
     if (response.status < 300 || response.status >= 400 || !location) {

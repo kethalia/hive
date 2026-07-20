@@ -116,6 +116,7 @@ describe("CoderClient", () => {
   });
 
   it("creates a Coder-authenticated redirect scoped to the workspace app host", async () => {
+    const timeoutSpy = vi.spyOn(AbortSignal, "timeout");
     const target = "https://code--workspace--alice.apps.example.com/?folder=%2Fworkspace";
     const encrypted = `${target}&coder_application_connect_api_key=encrypted`;
     fetchSpy.mockResolvedValueOnce(
@@ -127,6 +128,8 @@ describe("CoderClient", () => {
     expect(url.searchParams.get("redirect_uri")).toBe(target);
     expect(init.headers["Coder-Session-Token"]).toBe(TOKEN);
     expect(init.redirect).toBe("manual");
+    expect(timeoutSpy).toHaveBeenCalledWith(5_000);
+    expect(init.signal).toBeInstanceOf(AbortSignal);
   });
 
   it.each([

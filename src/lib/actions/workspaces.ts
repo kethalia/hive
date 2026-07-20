@@ -22,6 +22,8 @@ import {
   buildWorkspaceUrls,
 } from "@/lib/workspaces/urls";
 
+const WORKSPACE_TOOL_DIRECTORY_TIMEOUT_MS = 5_000;
+
 export const listWorkspacesAction = authActionClient.action(async ({ ctx }) => {
   const client = await getCoderClientForUser(ctx.user.id);
   const result = await client.listWorkspaces({ owner: "me" });
@@ -178,7 +180,7 @@ async function getSessionCurrentDirectory({
   const result = await execInWorkspace(
     agentTarget,
     `tmux -L web display-message -p -t ${sessionName}: '#{pane_current_path}'`,
-    { coderUrl, sessionToken },
+    { coderUrl, sessionToken, timeoutMs: WORKSPACE_TOOL_DIRECTORY_TIMEOUT_MS },
   );
   return result.exitCode === 0 ? normalizeWorkspaceDirectory(result.stdout) : null;
 }

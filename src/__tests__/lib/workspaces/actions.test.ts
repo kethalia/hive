@@ -422,7 +422,11 @@ describe("workspace server actions", () => {
     expect(mockedExec).toHaveBeenCalledWith(
       "dev-box.main",
       "tmux -L web display-message -p -t git-hive: '#{pane_current_path}'",
-      { coderUrl: "https://coder.example.com", sessionToken: "coder-session-token" },
+      {
+        coderUrl: "https://coder.example.com",
+        sessionToken: "coder-session-token",
+        timeoutMs: 5_000,
+      },
     );
     expect(result?.data).toEqual({
       codeUrl:
