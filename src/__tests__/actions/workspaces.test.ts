@@ -203,6 +203,7 @@ describe("workspace actions use authActionClient + getCoderClientForUser", () =>
     const url = `${proxyBase}/static/app.js`;
     const req = new Request(url, {
       headers: {
+        Origin: "null",
         Referer: `${proxyBase}/files/home/coder`,
         "Sec-Fetch-Dest": "script",
         "Sec-Fetch-Site": "cross-site",
@@ -218,6 +219,7 @@ describe("workspace actions use authActionClient + getCoderClientForUser", () =>
     });
 
     expect(response.status).toBe(200);
+    expect(response.headers.get("access-control-allow-origin")).toBe("null");
     expect(fetchSpy).toHaveBeenCalledOnce();
   });
 

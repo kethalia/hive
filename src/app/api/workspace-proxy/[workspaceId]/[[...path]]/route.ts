@@ -356,7 +356,9 @@ async function proxyRequest(
   }
 
   const fetchSite = req.headers.get("sec-fetch-site");
-  if (fetchSite !== null && fetchSite !== "same-origin" && !isSandboxedProxySubresource(req)) {
+  const isSandboxedSubresource =
+    fetchSite !== null && fetchSite !== "same-origin" && isSandboxedProxySubresource(req);
+  if (fetchSite !== null && fetchSite !== "same-origin" && !isSandboxedSubresource) {
     return NextResponse.json(
       { error: "Cross-origin workspace proxy requests are not allowed" },
       {
@@ -460,7 +462,7 @@ async function proxyRequest(
       if (STRIP_RESPONSE_HEADERS.has(key.toLowerCase())) continue;
       responseHeaders.set(key, value);
     }
-    if (grantUserId) setGrantCorsHeaders(responseHeaders);
+    if (grantUserId || isSandboxedSubresource) setGrantCorsHeaders(responseHeaders);
 
     if (upstream.status >= 300 && upstream.status < 400) {
       const location = upstream.headers.get("location");
