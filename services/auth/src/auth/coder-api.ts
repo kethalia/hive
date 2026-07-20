@@ -1,4 +1,11 @@
-import { CODER_API_PATHS, CODER_API_TIMEOUT_MS, CODER_SESSION_TOKEN_HEADER } from "./constants.js";
+import { fetchCoderApi } from "./coder-fetch.js";
+import {
+  CODER_API_PATHS,
+  CODER_API_TIMEOUT_MS,
+  CODER_APPLICATIONS_HOST_TIMEOUT_MS,
+  CODER_LOGIN_ANCILLARY_DEADLINE_MS,
+  CODER_SESSION_TOKEN_HEADER,
+} from "./constants.js";
 import type {
   BuildInfoResponse,
   CoderLoginRequest,
@@ -12,10 +19,54 @@ import type {
 
 export type { CoderLoginResult, ValidateInstanceResult };
 
+function parseApplicationsHost(host: string): string {
+  const trimmedHost = host.trim();
+  if (!trimmedHost) return "";
+  const placeholder = "hive-workspace-app-placeholder";
+  try {
+    const url = new URL(
+      trimmedHost.includes("://")
+        ? trimmedHost.replace("*", placeholder)
+        : `https://${trimmedHost.replace("*", placeholder)}`,
+    );
+    const invalidUrlParts = [
+      !["https:", "http:"].includes(url.protocol),
+      Boolean(url.username),
+      Boolean(url.password),
+      url.pathname !== "/",
+      Boolean(url.search),
+      Boolean(url.hash),
+    ];
+    if (invalidUrlParts.includes(true)) return "";
+    return trimmedHost;
+  } catch {
+    return "";
+  }
+}
+
+async function readApplicationsHost(response: Response | null): Promise<string> {
+  if (!response?.ok) return "";
+
+  try {
+    const payload: unknown = await response.json();
+    if (
+      typeof payload === "object" &&
+      payload !== null &&
+      "host" in payload &&
+      typeof payload.host === "string"
+    ) {
+      return parseApplicationsHost(payload.host);
+    }
+  } catch {
+    // Application-host discovery is ancillary to a successful login.
+  }
+  return "";
+}
+
 export async function validateCoderInstance(url: string): Promise<ValidateInstanceResult> {
   const baseUrl = url.replace(/\/+$/, "");
   try {
-    const res = await fetch(`${baseUrl}${CODER_API_PATHS.BUILD_INFO}`, {
+    const res = await fetchCoderApi(`${baseUrl}${CODER_API_PATHS.BUILD_INFO}`, {
       signal: AbortSignal.timeout(CODER_API_TIMEOUT_MS),
     });
     if (!res.ok) {
@@ -47,9 +98,10 @@ export async function coderLogin(
   email: string,
   password: string,
 ): Promise<CoderLoginResult> {
+  const loginStartedAt = Date.now();
   const url = baseUrl.replace(/\/+$/, "");
   const body: CoderLoginRequest = { email, password };
-  const res = await fetch(`${url}${CODER_API_PATHS.LOGIN}`, {
+  const res = await fetchCoderApi(`${url}${CODER_API_PATHS.LOGIN}`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
@@ -66,24 +118,38 @@ export async function coderLogin(
 
   const loginData = (await res.json()) as CoderLoginResponse;
 
-  const meRes = await fetch(`${url}${CODER_API_PATHS.ME}`, {
-    headers: {
-      "Content-Type": "application/json",
-      [CODER_SESSION_TOKEN_HEADER]: loginData.session_token,
-    },
-    signal: AbortSignal.timeout(CODER_API_TIMEOUT_MS),
-  });
+  const authenticatedHeaders = {
+    "Content-Type": "application/json",
+    [CODER_SESSION_TOKEN_HEADER]: loginData.session_token,
+  };
+  const discoveryTimeoutMs = Math.min(
+    CODER_APPLICATIONS_HOST_TIMEOUT_MS,
+    Math.max(0, CODER_LOGIN_ANCILLARY_DEADLINE_MS - (Date.now() - loginStartedAt)),
+  );
+  const [meRes, applicationsHostRes] = await Promise.all([
+    fetchCoderApi(`${url}${CODER_API_PATHS.ME}`, {
+      headers: authenticatedHeaders,
+      signal: AbortSignal.timeout(CODER_API_TIMEOUT_MS),
+    }),
+    discoveryTimeoutMs > 0
+      ? fetchCoderApi(`${url}${CODER_API_PATHS.APPLICATIONS_HOST}`, {
+          headers: authenticatedHeaders,
+          signal: AbortSignal.timeout(discoveryTimeoutMs),
+        }).catch(() => null)
+      : Promise.resolve(null),
+  ]);
 
   if (!meRes.ok) {
     throw new Error("failed to fetch user info after login");
   }
-
   const user = (await meRes.json()) as CoderUserResponse;
+  const applicationsHost = await readApplicationsHost(applicationsHostRes);
 
   return {
     sessionToken: loginData.session_token,
     userId: user.id,
     username: user.username,
+    applicationsHost,
   };
 }
 
@@ -96,7 +162,7 @@ export async function createCoderApiKey(
   const url = baseUrl.replace(/\/+$/, "");
   const body: CreateApiKeyRequest = lifetimeSeconds ? { lifetime_seconds: lifetimeSeconds } : {};
   try {
-    const res = await fetch(`${url}${CODER_API_PATHS.USER_KEYS(userId)}`, {
+    const res = await fetchCoderApi(`${url}${CODER_API_PATHS.USER_KEYS(userId)}`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",

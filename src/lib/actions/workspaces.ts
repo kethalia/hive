@@ -1,12 +1,28 @@
 "use server";
 
+import { posix } from "node:path";
+import { SESSION_MAX_AGE_SECONDS } from "@hive/auth";
+import { cookies } from "next/headers";
 import { z } from "zod";
+import { usesSecureSessionCookies } from "@/lib/auth/session-cookie";
 import { getCoderClientForUser } from "@/lib/coder/user-client";
 import { SAFE_IDENTIFIER_RE } from "@/lib/constants";
+import { resolveConfiguredProjectsRoot } from "@/lib/git/clone-actions-contract";
 import { isCloneTerminalSessionName } from "@/lib/git/clone-terminal-session";
 import { authActionClient } from "@/lib/safe-action";
+import {
+  CODER_HOST_COOKIE,
+  coderFrameConfiguredUrls,
+} from "@/lib/security/content-security-policy";
 import { execInWorkspace } from "@/lib/workspace/exec";
 import { filterGenericTmuxSessions, parseTmuxSessions } from "@/lib/workspaces/sessions";
+import {
+  buildCodeServerFolderUrl,
+  buildFileBrowserFolderUrl,
+  buildWorkspaceUrls,
+} from "@/lib/workspaces/urls";
+
+const WORKSPACE_TOOL_DIRECTORY_TIMEOUT_MS = 5_000;
 
 export const listWorkspacesAction = authActionClient.action(async ({ ctx }) => {
   const client = await getCoderClientForUser(ctx.user.id);
@@ -85,6 +101,90 @@ const getWorkspaceSessionsSchema = z.object({
   workspaceId: z.string().min(1, "workspaceId is required"),
 });
 
+const workspaceSessionToolsSchema = z.object({
+  workspaceId: z.string().min(1, "workspaceId is required"),
+  sessionName: z
+    .string()
+    .trim()
+    .min(1, "sessionName is required")
+    .regex(SAFE_IDENTIFIER_RE, "Invalid session name"),
+  fallbackPath: z.string().trim().min(1).optional(),
+  documentFrameHosts: z.array(z.string().trim().min(1).max(253)).max(8),
+  tool: z.enum(["code", "files"]),
+});
+
+function normalizeWorkspaceDirectory(value: string | undefined | null): string | null {
+  const trimmed = value?.trim();
+  if (!trimmed?.startsWith("/")) return null;
+  if (trimmed.includes("\0") || trimmed.includes("\n") || trimmed.includes("\r")) return null;
+  return trimmed;
+}
+
+function resolveWorkspaceFallbackDirectory(value: string | undefined): string | null {
+  const absolute = normalizeWorkspaceDirectory(value);
+  if (absolute) return absolute;
+  const trimmed = value?.trim();
+  if (!trimmed || trimmed.includes("\0") || trimmed.includes("\n") || trimmed.includes("\r")) {
+    return null;
+  }
+  const projectsRoot = resolveConfiguredProjectsRoot();
+  const resolved = posix.resolve(projectsRoot, trimmed);
+  return projectsRoot === "/" ||
+    resolved === projectsRoot ||
+    resolved.startsWith(`${projectsRoot}/`)
+    ? resolved
+    : null;
+}
+
+async function getWorkspaceWithAgent(userId: string, workspaceId: string) {
+  const client = await getCoderClientForUser(userId);
+  const [workspace, resources, applicationsHost] = await Promise.all([
+    client.getWorkspace(workspaceId),
+    client.getWorkspaceResources(workspaceId),
+    client.getApplicationsHost().catch(() => ""),
+  ]);
+  const agent = resources.flatMap((resource) => resource.agents ?? [])[0];
+  if (!agent) throw new Error(`No agents found for workspace ${workspaceId}`);
+  return { agent, applicationsHost, client, workspace };
+}
+
+async function synchronizeCoderFrameHosts(
+  coderUrl: string,
+  applicationsHost: string,
+  documentFrameHosts: readonly string[],
+): Promise<boolean> {
+  const coderFrameUrls = coderFrameConfiguredUrls(coderUrl, applicationsHost);
+  const cookieStore = await cookies();
+  const reloadRequired = coderFrameUrls.some((frameUrl) => !documentFrameHosts.includes(frameUrl));
+  cookieStore.set(CODER_HOST_COOKIE, coderFrameUrls.join("~"), {
+    httpOnly: true,
+    maxAge: SESSION_MAX_AGE_SECONDS,
+    sameSite: "lax",
+    secure: usesSecureSessionCookies(),
+    path: "/",
+  });
+  return reloadRequired;
+}
+
+async function getSessionCurrentDirectory({
+  agentTarget,
+  coderUrl,
+  sessionName,
+  sessionToken,
+}: {
+  agentTarget: string;
+  coderUrl: string;
+  sessionName: string;
+  sessionToken: string;
+}): Promise<string | null> {
+  const result = await execInWorkspace(
+    agentTarget,
+    `tmux -L web display-message -p -t ${sessionName}: '#{pane_current_path}'`,
+    { coderUrl, sessionToken, timeoutMs: WORKSPACE_TOOL_DIRECTORY_TIMEOUT_MS },
+  );
+  return result.exitCode === 0 ? normalizeWorkspaceDirectory(result.stdout) : null;
+}
+
 export const getWorkspaceSessionsAction = authActionClient
   .inputSchema(getWorkspaceSessionsSchema)
   .action(async ({ parsedInput, ctx }) => {
@@ -144,6 +244,66 @@ export const getWorkspaceSessionsAction = authActionClient
 
     return filterGenericTmuxSessions(parseTmuxSessions(result.stdout));
   });
+
+export const getWorkspaceSessionToolsAction = authActionClient
+  .inputSchema(workspaceSessionToolsSchema)
+  .action(async ({ parsedInput, ctx }) => {
+    const { agent, applicationsHost, client, workspace } = await getWorkspaceWithAgent(
+      ctx.user.id,
+      parsedInput.workspaceId,
+    );
+
+    const currentDirectory = await getSessionCurrentDirectory({
+      agentTarget: `${workspace.name}.${agent.name}`,
+      coderUrl: client.getBaseUrl(),
+      sessionName: parsedInput.sessionName,
+      sessionToken: client.getSessionToken(),
+    });
+    const folderPath =
+      currentDirectory ?? resolveWorkspaceFallbackDirectory(parsedInput.fallbackPath) ?? undefined;
+    const urls = buildWorkspaceUrls(workspace, agent.name, client.getBaseUrl(), applicationsHost);
+    if (!urls) throw new Error("Coder URL is unavailable for workspace tools");
+    // Coder app subdomains are isolated browser origins and are the supported
+    // browser-facing surface for embedded workspace apps. CODER_CA_CERT only
+    // extends trust for Hive's server-side requests; it must not switch the browser
+    // to a same-origin Coder path app, whose framing and sharing rules differ.
+    const requestedCodeUrl = buildCodeServerFolderUrl(urls.codeServer, folderPath);
+    const requestedFilesUrl = buildFileBrowserFolderUrl(
+      urls.filebrowser,
+      folderPath,
+      resolveConfiguredProjectsRoot(),
+    );
+
+    const codeUrl =
+      parsedInput.tool === "code"
+        ? await client.getApplicationAuthRedirect(requestedCodeUrl)
+        : requestedCodeUrl;
+    const filesUrl =
+      parsedInput.tool === "files"
+        ? await client.getApplicationAuthRedirect(requestedFilesUrl)
+        : requestedFilesUrl;
+    const reloadRequired = await synchronizeCoderFrameHosts(
+      client.getBaseUrl(),
+      applicationsHost,
+      parsedInput.documentFrameHosts,
+    );
+
+    return {
+      codeUrl,
+      filesUrl,
+      folderPath: folderPath ?? null,
+      reloadRequired,
+      source: getWorkspaceDirectorySource(currentDirectory, folderPath),
+    };
+  });
+
+function getWorkspaceDirectorySource(
+  currentDirectory: string | null,
+  folderPath: string | undefined,
+): "tmux" | "fallback" | "default" {
+  if (currentDirectory) return "tmux";
+  return folderPath ? "fallback" : "default";
+}
 
 const restartWorkspaceSchema = z.object({
   workspaceId: z.string().min(1, "workspaceId is required"),

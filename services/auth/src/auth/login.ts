@@ -154,6 +154,7 @@ export async function performLogin(
 
   return {
     sessionId,
+    applicationsHost: loginResult.applicationsHost,
     user: {
       id: user.id,
       username: loginResult.username,

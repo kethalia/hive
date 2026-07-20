@@ -21,6 +21,9 @@ describe("proxy", () => {
     const dashboardResponse = proxy(new NextRequest("https://hive.local.kethalia.com/tasks"));
 
     expect(homepageResponse.headers.get("location")).toBeNull();
+    expect(
+      homepageResponse.headers.get("x-middleware-request-x-hive-coder-frame-hosts"),
+    ).toBeNull();
     expect(dashboardResponse.headers.get("location")).toBe("https://hive.local.kethalia.com/login");
   });
 
@@ -31,7 +34,7 @@ describe("proxy", () => {
 
     const request = new NextRequest("https://hive.local.kethalia.com/templates", {
       headers: {
-        cookie: "hive-session=signed-value",
+        cookie: "hive-session=signed-value; hive-coder-host=coder.example.com~apps.coder.test",
       },
     });
 
@@ -43,8 +46,65 @@ describe("proxy", () => {
     expect(setCookie).toContain("Domain=.hive.local.kethalia.com");
     expect(setCookie).toContain("HttpOnly");
     expect(setCookie).toContain("SameSite=lax");
+    expect(response.headers.get("content-security-policy")).toContain(
+      "frame-src 'self' https://coder.example.com https://*.coder.example.com",
+    );
+    expect(response.headers.get("content-security-policy")).toContain(
+      "https://apps.coder.test https://*.apps.coder.test",
+    );
+    expect(response.headers.get("content-security-policy")).not.toContain(
+      "frame-src 'self' https:;",
+    );
+    expect(response.headers.get("permissions-policy")).toContain(
+      'clipboard-read=(self "https://coder.example.com" "https://*.coder.example.com"',
+    );
+    expect(response.headers.get("permissions-policy")).toContain(
+      '"https://apps.coder.test" "https://*.apps.coder.test")',
+    );
+    expect(response.headers.get("x-middleware-request-x-hive-coder-frame-hosts")).toBe(
+      "https://coder.example.com~https://apps.coder.test",
+    );
 
     vi.unstubAllEnvs();
+  });
+
+  it("allows workspace applications beneath an apex Coder application host", () => {
+    vi.stubEnv("COOKIE_SECRET", "test-secret");
+    mockVerifyCookie.mockReturnValue({ sessionId: "sess-123", timestamp: Date.now() });
+
+    const request = new NextRequest("https://hive.example.com/workspaces", {
+      headers: { cookie: "hive-session=signed-value; hive-coder-host=example.com" },
+    });
+
+    expect(proxy(request).headers.get("content-security-policy")).toContain(
+      "https://example.com https://*.example.com",
+    );
+  });
+
+  it("allows workspace applications beneath a suffix-style Coder application host", () => {
+    vi.stubEnv("COOKIE_SECRET", "test-secret");
+    mockVerifyCookie.mockReturnValue({ sessionId: "sess-123", timestamp: Date.now() });
+
+    const request = new NextRequest("https://hive.example.com/workspaces", {
+      headers: { cookie: "hive-session=signed-value; hive-coder-host=*--suffix.au.example.com" },
+    });
+    const policy = proxy(request).headers.get("content-security-policy") ?? "";
+
+    expect(policy).toContain("https://*.au.example.com");
+    expect(policy).not.toContain("https://*.*--suffix.au.example.com");
+  });
+
+  it("preserves HTTP frame sources stored for a non-TLS Coder deployment", () => {
+    vi.stubEnv("COOKIE_SECRET", "test-secret");
+    mockVerifyCookie.mockReturnValue({ sessionId: "sess-123", timestamp: Date.now() });
+    const frameSources = encodeURIComponent("http://localhost:7080~http://apps.localhost:7080");
+    const request = new NextRequest("http://localhost:3000/workspaces", {
+      headers: { cookie: `hive-session=signed-value; hive-coder-host=${frameSources}` },
+    });
+
+    const policy = proxy(request).headers.get("content-security-policy") ?? "";
+    expect(policy).toContain("http://localhost:7080 http://*.localhost:7080");
+    expect(policy).toContain("http://apps.localhost:7080 http://*.apps.localhost:7080");
   });
 
   it("accepts a valid scoped cookie when a stale parent-domain cookie with the same name is last", () => {

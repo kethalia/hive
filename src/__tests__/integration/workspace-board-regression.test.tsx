@@ -242,6 +242,9 @@ vi.mock("@/components/ui/input", () => ({
 
 vi.mock("lucide-react", () => ({
   AlertCircle: () => <span data-testid="icon-alert" />,
+  Code2: () => <span data-testid="icon-code" />,
+  ExternalLink: () => <span data-testid="icon-external-link" />,
+  FolderOpen: () => <span data-testid="icon-folder" />,
   Loader2: () => <span data-testid="icon-loader" />,
   Minus: () => <span data-testid="icon-minus" />,
   Plus: () => <span data-testid="icon-plus" />,

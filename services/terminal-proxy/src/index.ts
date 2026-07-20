@@ -4,6 +4,7 @@ import type { Duplex } from "node:stream";
 import { fileURLToPath } from "node:url";
 import { config } from "dotenv";
 import { type AuthResult, type AuthSuccess, authenticateUpgrade } from "./auth.js";
+import { fetchCoderApi } from "./coder-fetch.js";
 import {
   KeepAliveManager,
   serializeKeepAliveStatusPayload,
@@ -87,12 +88,15 @@ async function resolveAuthorizedWorkspaceIds(auth: AuthSuccess): Promise<Set<str
   ).replace(/\/+$/, "");
   if (!coderUrl) throw new Error("coder_url_missing");
 
-  const res = await fetch(`${coderUrl}/api/v2/workspaces?q=${encodeURIComponent("owner:me")}`, {
-    headers: {
-      "Content-Type": "application/json",
-      "Coder-Session-Token": auth.token,
+  const res = await fetchCoderApi(
+    `${coderUrl}/api/v2/workspaces?q=${encodeURIComponent("owner:me")}`,
+    {
+      headers: {
+        "Content-Type": "application/json",
+        "Coder-Session-Token": auth.token,
+      },
     },
-  });
+  );
   if (!res.ok) throw new Error(`coder_workspaces_unavailable:${res.status}`);
 
   const payload: unknown = await res.json();

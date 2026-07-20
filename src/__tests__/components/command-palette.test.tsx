@@ -122,6 +122,7 @@ vi.mock("@/components/ui/command", () => {
     }) => (
       <input
         data-testid="command-input"
+        data-slot="command-input"
         placeholder={placeholder}
         className={className}
         value={value ?? ""}
@@ -144,19 +145,24 @@ vi.mock("@/components/ui/command", () => {
       value,
       onSelect,
       className,
+      tabIndex,
+      "data-action-id": actionId,
     }: {
       children: ReactNode;
       value?: string;
       onSelect?: () => void;
       className?: string;
+      tabIndex?: number;
+      "data-action-id"?: string;
     }) => (
       <div
         cmdk-item=""
+        data-action-id={actionId}
         data-testid={`command-item-${value ?? "action"}`}
         data-value={value}
         role="option"
         aria-selected={false}
-        tabIndex={-1}
+        tabIndex={tabIndex}
         className={className}
         onClick={onSelect}
       >
@@ -709,6 +715,154 @@ describe("CommandPalette", () => {
 
     expect(action).toHaveBeenCalledTimes(1);
     expect(onOpenChange).toHaveBeenCalledWith(false);
+  });
+
+  it("chooses and runs a row action with Left, Right, and Enter while search stays focused", () => {
+    const add = vi.fn();
+    const open = vi.fn();
+    const vscode = vi.fn();
+
+    render(
+      <CommandPalette
+        open={true}
+        onOpenChange={vi.fn()}
+        tabs={[]}
+        onSelectTab={vi.fn()}
+        actions={[
+          {
+            id: "workspace:session:dev",
+            label: "dev",
+            group: "Terminal sessions",
+            onSelect: add,
+            options: [
+              { id: "add", label: "Add", onSelect: add },
+              { id: "open", label: "Open", onSelect: open },
+              { id: "vscode", label: "VS Code", onSelect: vscode },
+              { id: "filebrowser", label: "Files", onSelect: vi.fn() },
+            ],
+          },
+        ]}
+      />,
+    );
+
+    const item = screen.getByText("dev").closest('[cmdk-item=""]');
+    expect(item).not.toBeNull();
+    if (!item) return;
+    expect(item).toHaveAttribute("tabindex", "0");
+    item.setAttribute("aria-selected", "true");
+    const input = screen.getByTestId("command-input");
+    input.focus();
+    fireEvent.keyDown(input, { key: "ArrowRight" });
+    fireEvent.keyDown(input, { key: "ArrowRight" });
+
+    expect(input).toHaveFocus();
+    expect(screen.getByTestId("command-option-workspace:session:dev-vscode")).toHaveAttribute(
+      "data-selected",
+      "true",
+    );
+    fireEvent.keyDown(input, { key: "Enter" });
+    expect(vscode).toHaveBeenCalledTimes(1);
+    expect(add).not.toHaveBeenCalled();
+    expect(open).not.toHaveBeenCalled();
+  });
+
+  it("leaves Left and Right available when the selected row has no action options", () => {
+    render(
+      <CommandPalette
+        open={true}
+        onOpenChange={vi.fn()}
+        tabs={[]}
+        onSelectTab={vi.fn()}
+        searchValue="dev"
+        onSearchValueChange={vi.fn()}
+        actions={[
+          {
+            id: "workspace:session:dev",
+            label: "dev",
+            group: "Terminal sessions",
+            onSelect: vi.fn(),
+          },
+        ]}
+      />,
+    );
+
+    const item = screen
+      .getByText("dev", { selector: "[cmdk-item] span" })
+      .closest('[cmdk-item=""]');
+    expect(item).not.toBeNull();
+    item?.setAttribute("aria-selected", "true");
+    const input = screen.getByTestId("command-input");
+    const event = new KeyboardEvent("keydown", {
+      key: "ArrowRight",
+      bubbles: true,
+      cancelable: true,
+    });
+    input.dispatchEvent(event);
+
+    expect(event.defaultPrevented).toBe(false);
+  });
+
+  it("runs a specific option when its visible label is clicked", () => {
+    const add = vi.fn();
+    const vscode = vi.fn();
+    const onOpenChange = vi.fn();
+    render(
+      <CommandPalette
+        open={true}
+        onOpenChange={onOpenChange}
+        tabs={[]}
+        onSelectTab={vi.fn()}
+        actions={[
+          {
+            id: "workspace:session:dev",
+            label: "dev",
+            group: "Terminal sessions",
+            onSelect: add,
+            options: [
+              { id: "add", label: "Add", onSelect: add },
+              { id: "vscode", label: "VS Code", onSelect: vscode },
+            ],
+          },
+        ]}
+      />,
+    );
+
+    fireEvent.click(screen.getByTestId("command-option-workspace:session:dev-vscode"));
+    expect(vscode).toHaveBeenCalledOnce();
+    expect(add).not.toHaveBeenCalled();
+    expect(onOpenChange).toHaveBeenCalledWith(false);
+  });
+
+  it("keeps arrow navigation stable when every row option is disabled", () => {
+    const action = vi.fn();
+    render(
+      <CommandPalette
+        open={true}
+        onOpenChange={vi.fn()}
+        tabs={[]}
+        onSelectTab={vi.fn()}
+        actions={[
+          {
+            id: "workspace:session:disabled",
+            label: "disabled",
+            group: "Terminal sessions",
+            onSelect: action,
+            options: [
+              { id: "add", label: "Add", disabled: true, onSelect: action },
+              { id: "open", label: "Open", disabled: true, onSelect: action },
+            ],
+          },
+        ]}
+      />,
+    );
+
+    const item = screen.getByText("disabled").closest('[cmdk-item=""]');
+    expect(item).not.toBeNull();
+    if (!item) return;
+    item.setAttribute("aria-selected", "true");
+    fireEvent.keyDown(item, { key: "ArrowRight" });
+    fireEvent.click(item);
+    expect(action).not.toHaveBeenCalled();
   });
 
   it("controls search input value when search props are provided", () => {

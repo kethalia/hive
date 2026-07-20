@@ -58,7 +58,10 @@ describe("auth route cookies", () => {
   });
 
   it("login sets a domain cookie and clears the stale host-only cookie", async () => {
-    mockServiceClient.login.mockResolvedValue({ sessionId: "sess-123" });
+    mockServiceClient.login.mockResolvedValue({
+      sessionId: "sess-123",
+      applicationsHost: "*.apps.example.com",
+    });
 
     const response = await loginPOST(
       new Request("https://hive.local.kethalia.com/api/auth/login", {
@@ -85,20 +88,29 @@ describe("auth route cookies", () => {
     });
 
     const setCookies = getSetCookies(response);
-    expect(setCookies).toHaveLength(3);
-    expect(setCookies[0]).toContain("hive-session=; Path=/; Max-Age=0");
-    expect(setCookies[0]).not.toContain("Domain=");
+    expect(setCookies).toHaveLength(4);
+    expect(setCookies[0]).toContain(
+      "hive-coder-host=https%3A%2F%2Fcoder.example.com~https%3A%2F%2Fapps.example.com",
+    );
+    expect(setCookies[0]).toContain(`Max-Age=${30 * 24 * 60 * 60}`);
+    expect(setCookies[0]).toContain("HttpOnly");
+    expect(setCookies[0]).not.toContain("Secure");
     expect(setCookies[1]).toContain("hive-session=; Path=/; Max-Age=0");
-    expect(setCookies[1]).toContain("Domain=.hive.local.kethalia.com");
-    expect(setCookies[2]).toContain("hive-session=sess-123.");
+    expect(setCookies[1]).not.toContain("Domain=");
+    expect(setCookies[2]).toContain("hive-session=; Path=/; Max-Age=0");
     expect(setCookies[2]).toContain("Domain=.hive.local.kethalia.com");
-    expect(setCookies[2]).toContain("HttpOnly");
-    expect(setCookies[2]).toContain("SameSite=Lax");
+    expect(setCookies[3]).toContain("hive-session=sess-123.");
+    expect(setCookies[3]).toContain("Domain=.hive.local.kethalia.com");
+    expect(setCookies[3]).toContain("HttpOnly");
+    expect(setCookies[3]).toContain("SameSite=Lax");
   });
 
   it("login derives a preview-scoped cookie domain when COOKIE_DOMAIN is unset", async () => {
     vi.stubEnv("COOKIE_DOMAIN", "");
-    mockServiceClient.login.mockResolvedValue({ sessionId: "sess-preview" });
+    mockServiceClient.login.mockResolvedValue({
+      sessionId: "sess-preview",
+      applicationsHost: "*.apps.example.com",
+    });
 
     const response = await loginPOST(
       new Request("https://pr-113.hive.local.kethalia.com/api/auth/login", {
@@ -117,14 +129,14 @@ describe("auth route cookies", () => {
 
     expect(response.status).toBe(200);
     const setCookies = getSetCookies(response);
-    expect(setCookies).toHaveLength(4);
-    expect(setCookies[0]).not.toContain("Domain=");
-    expect(setCookies[1]).toContain("hive-session=; Path=/; Max-Age=0");
-    expect(setCookies[1]).toContain("Domain=.pr-113.hive.local.kethalia.com");
+    expect(setCookies).toHaveLength(5);
+    expect(setCookies[1]).not.toContain("Domain=");
     expect(setCookies[2]).toContain("hive-session=; Path=/; Max-Age=0");
-    expect(setCookies[2]).toContain("Domain=.hive.local.kethalia.com");
-    expect(setCookies[3]).toContain("hive-session=sess-preview.");
-    expect(setCookies[3]).toContain("Domain=.pr-113.hive.local.kethalia.com");
+    expect(setCookies[2]).toContain("Domain=.pr-113.hive.local.kethalia.com");
+    expect(setCookies[3]).toContain("hive-session=; Path=/; Max-Age=0");
+    expect(setCookies[3]).toContain("Domain=.hive.local.kethalia.com");
+    expect(setCookies[4]).toContain("hive-session=sess-preview.");
+    expect(setCookies[4]).toContain("Domain=.pr-113.hive.local.kethalia.com");
   });
 
   it("login rejects invalid input without calling auth service", async () => {
@@ -208,11 +220,12 @@ describe("auth route cookies", () => {
     expect(mockServiceClient.logout).toHaveBeenCalledWith("sess-123");
 
     const setCookies = getSetCookies(response);
-    expect(setCookies).toHaveLength(2);
-    expect(setCookies[0]).toContain("hive-session=; Path=/; Max-Age=0");
-    expect(setCookies[0]).toContain("Domain=.hive.local.kethalia.com");
+    expect(setCookies).toHaveLength(3);
+    expect(setCookies[0]).toContain("hive-coder-host=; Path=/; Max-Age=0");
     expect(setCookies[1]).toContain("hive-session=; Path=/; Max-Age=0");
-    expect(setCookies[1]).not.toContain("Domain=");
+    expect(setCookies[1]).toContain("Domain=.hive.local.kethalia.com");
+    expect(setCookies[2]).toContain("hive-session=; Path=/; Max-Age=0");
+    expect(setCookies[2]).not.toContain("Domain=");
     expect(setCookies.join("\n")).toContain("Expires=Thu, 01 Jan 1970 00:00:00 GMT");
   });
 
@@ -238,12 +251,27 @@ describe("auth route cookies", () => {
     expect(response.status).toBe(200);
 
     const setCookies = getSetCookies(response);
-    expect(setCookies).toHaveLength(3);
-    expect(setCookies[0]).toContain("hive-session=; Path=/; Max-Age=0");
-    expect(setCookies[0]).toContain("Domain=.pr-113.hive.local.kethalia.com");
+    expect(setCookies).toHaveLength(4);
     expect(setCookies[1]).toContain("hive-session=; Path=/; Max-Age=0");
-    expect(setCookies[1]).toContain("Domain=.hive.local.kethalia.com");
+    expect(setCookies[1]).toContain("Domain=.pr-113.hive.local.kethalia.com");
     expect(setCookies[2]).toContain("hive-session=; Path=/; Max-Age=0");
-    expect(setCookies[2]).not.toContain("Domain=");
+    expect(setCookies[2]).toContain("Domain=.hive.local.kethalia.com");
+    expect(setCookies[3]).toContain("hive-session=; Path=/; Max-Age=0");
+    expect(setCookies[3]).not.toContain("Domain=");
+  });
+
+  it("clears the frame-host cookie without Secure on an HTTP development host", async () => {
+    vi.stubEnv("COOKIE_DOMAIN", "");
+    mockServiceClient.getSession.mockResolvedValue(null);
+
+    const response = await logoutPOST(
+      new Request("http://hive.dev.test/api/auth/logout", { method: "POST" }),
+    );
+    const frameHostCookie = getSetCookies(response).find((cookie) =>
+      cookie.startsWith("hive-coder-host="),
+    );
+
+    expect(frameHostCookie).toContain("Max-Age=0");
+    expect(frameHostCookie).not.toContain("Secure");
   });
 });

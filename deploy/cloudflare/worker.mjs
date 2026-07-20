@@ -5,7 +5,12 @@ function applySecurityHeaders(headers) {
   headers.set("X-Content-Type-Options", "nosniff");
   headers.set("X-Frame-Options", "SAMEORIGIN");
   headers.set("Referrer-Policy", "strict-origin-when-cross-origin");
-  headers.set("Permissions-Policy", "camera=(), geolocation=(), microphone=(), payment=(), usb=()");
+  if (!headers.has("Permissions-Policy")) {
+    headers.set(
+      "Permissions-Policy",
+      "camera=(), geolocation=(), microphone=(), payment=(), usb=()",
+    );
+  }
   return headers;
 }
 

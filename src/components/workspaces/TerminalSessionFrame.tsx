@@ -114,13 +114,15 @@ interface TerminalSessionFrameProps {
   showHeader?: boolean;
   onActivate?: () => void;
   onClose?: (event: MouseEvent<HTMLButtonElement>) => void;
-  onMouseEnter?: () => void;
+  onMouseMove?: () => void;
   onFocusActivate?: boolean;
   disabled?: boolean;
   disabledLabel?: string;
   closeLabel?: string;
   closeTestId?: string;
+  headerActions?: ReactNode;
   style?: CSSProperties;
+  paneState?: string;
 }
 
 export function TerminalSessionFrame({
@@ -134,13 +136,15 @@ export function TerminalSessionFrame({
   showHeader = true,
   onActivate,
   onClose,
-  onMouseEnter,
+  onMouseMove,
   onFocusActivate = false,
   disabled = false,
   disabledLabel,
   closeLabel,
   closeTestId,
+  headerActions,
   style,
+  paneState,
 }: TerminalSessionFrameProps) {
   const interactive = Boolean(onActivate) && !disabled;
 
@@ -180,13 +184,14 @@ export function TerminalSessionFrame({
       data-compose-disabled={disabled ? "true" : "false"}
       data-pane-label={label}
       data-pane-mode={layoutMode}
+      data-pane-state={paneState}
       data-testid={dataTestId}
       style={style}
       tabIndex={interactive ? 0 : undefined}
       onClick={handleFrameClick}
       onFocus={handleFrameFocus}
       onKeyDown={handleFrameKeyDown}
-      onMouseEnter={disabled ? undefined : onMouseEnter}
+      onMouseMove={disabled ? undefined : onMouseMove}
     >
       {showHeader ? (
         <div
@@ -194,6 +199,7 @@ export function TerminalSessionFrame({
           data-testid={dataTestId ? `${dataTestId}-header` : undefined}
         >
           <span className="min-w-0 flex-1 truncate font-mono text-xs">{label}</span>
+          {headerActions}
           {onClose ? (
             <Button
               type="button"

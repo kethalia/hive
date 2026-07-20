@@ -83,6 +83,21 @@ data "coder_parameter" "docker_socket" {
   order        = 10
 }
 
+data "coder_parameter" "projects_root" {
+  name         = "projects_root"
+  display_name = "Workspace projects root"
+  description  = "Absolute workspace path shared by Hive Git discovery, terminals, VS Code, and File Browser. Must match Hive's HIVE_PROJECTS_ROOT."
+  type         = "string"
+  default      = "/home/coder"
+  mutable      = false
+  order        = 11
+
+  validation {
+    regex = "^/([^/\\x00]+(/[^/\\x00]+)*)?/?$"
+    error = "Workspace projects root must be an absolute POSIX path."
+  }
+}
+
 # =============================================================================
 # Providers & Data Sources
 # =============================================================================
@@ -142,6 +157,7 @@ resource "coder_agent" "main" {
       GIT_COMMITTER_NAME  = coalesce(data.coder_workspace_owner.me.full_name, data.coder_workspace_owner.me.name)
       GIT_COMMITTER_EMAIL = data.coder_workspace_owner.me.email
       EXTENSIONS_GALLERY  = "{\"serviceUrl\":\"https://marketplace.visualstudio.com/_apis/public/gallery\"}"
+      HIVE_PROJECTS_ROOT  = data.coder_parameter.projects_root.value
     },
     data.coder_parameter.claude_code_model.value != "" ? { CLAUDE_CODE_DEFAULT_MODEL = data.coder_parameter.claude_code_model.value } : {},
     data.coder_parameter.claude_code_system_prompt.value != "" ? { CLAUDE_CODE_SYSTEM_PROMPT = data.coder_parameter.claude_code_system_prompt.value } : {}
@@ -381,11 +397,31 @@ resource "coder_app" "gsd" {
 # File Browser
 # =============================================================================
 
-module "filebrowser" {
-  count    = data.coder_workspace.me.start_count
-  source   = "registry.coder.com/coder/filebrowser/coder"
-  version  = "1.1.4"
-  agent_id = coder_agent.main.id
+resource "coder_script" "filebrowser" {
+  count              = data.coder_workspace.me.start_count
+  agent_id           = coder_agent.main.id
+  display_name       = "File Browser"
+  icon               = "/icon/filebrowser.svg"
+  run_on_start       = true
+  start_blocks_login = false
+  script             = file("${path.module}/scripts/tools-filebrowser.sh")
+}
+
+resource "coder_app" "filebrowser" {
+  count        = data.coder_workspace.me.start_count
+  agent_id     = coder_agent.main.id
+  slug         = "filebrowser"
+  display_name = "File Browser"
+  url          = "http://localhost:13339"
+  icon         = "/icon/filebrowser.svg"
+  subdomain    = true
+  share        = "owner"
+
+  healthcheck {
+    url       = "http://localhost:13339/health"
+    interval  = 5
+    threshold = 6
+  }
 }
 
 # =============================================================================

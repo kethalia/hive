@@ -5,9 +5,24 @@ import {
   getSessionCookieValuesFromHeader,
   refreshDomainSessionCookie,
 } from "./lib/auth/session-cookie";
+import {
+  buildContentSecurityPolicy,
+  buildPermissionsPolicy,
+  CODER_FRAME_HOSTS_REQUEST_HEADER,
+  CODER_HOST_COOKIE,
+} from "./lib/security/content-security-policy";
 
 const PUBLIC_PATHS = ["/login", "/api/auth", "/manifest.webmanifest", "/robots.txt"];
 const STATIC_PREFIXES = ["/_next", "/favicon.ico"];
+
+function withContentSecurityPolicy(
+  response: NextResponse,
+  coderFrameUrls: readonly string[] = [],
+): NextResponse {
+  response.headers.set("Content-Security-Policy", buildContentSecurityPolicy(coderFrameUrls));
+  response.headers.set("Permissions-Policy", buildPermissionsPolicy(coderFrameUrls));
+  return response;
+}
 
 export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
@@ -16,24 +31,24 @@ export function proxy(request: NextRequest) {
     STATIC_PREFIXES.some((prefix) => pathname.startsWith(prefix)) ||
     pathname.match(/\.(?:svg|png|jpg|jpeg|gif|ico|css|js|woff2?|ttf)$/)
   ) {
-    return NextResponse.next();
+    return withContentSecurityPolicy(NextResponse.next());
   }
 
   if (pathname === "/" || PUBLIC_PATHS.some((path) => pathname.startsWith(path))) {
-    return NextResponse.next();
+    return withContentSecurityPolicy(NextResponse.next());
   }
 
   const sessionCookieValues = getSessionCookieValuesFromHeader(request.headers.get("cookie"));
   if (sessionCookieValues.length === 0) {
     const loginUrl = new URL("/login", request.url);
-    return NextResponse.redirect(loginUrl);
+    return withContentSecurityPolicy(NextResponse.redirect(loginUrl));
   }
 
   const cookieSecret = process.env.COOKIE_SECRET;
   if (!cookieSecret) {
     console.error("[proxy] COOKIE_SECRET is not configured");
     const loginUrl = new URL("/login", request.url);
-    return NextResponse.redirect(loginUrl);
+    return withContentSecurityPolicy(NextResponse.redirect(loginUrl));
   }
 
   const verifiedSessionCookie = [...new Set(sessionCookieValues)]
@@ -44,7 +59,15 @@ export function proxy(request: NextRequest) {
     .sort((left, right) => right.verified.timestamp - left.verified.timestamp)[0];
 
   if (verifiedSessionCookie) {
-    const response = NextResponse.next();
+    const coderFrameUrls =
+      request.cookies
+        .get(CODER_HOST_COOKIE)
+        ?.value.split("~")
+        .map((value) => (value.includes("://") ? value : `https://${value}`)) ?? [];
+    const requestHeaders = new Headers(request.headers);
+    requestHeaders.set(CODER_FRAME_HOSTS_REQUEST_HEADER, coderFrameUrls.join("~"));
+    const response = NextResponse.next({ request: { headers: requestHeaders } });
+    withContentSecurityPolicy(response, coderFrameUrls);
     refreshDomainSessionCookie(
       response.cookies,
       verifiedSessionCookie.value,
@@ -55,7 +78,7 @@ export function proxy(request: NextRequest) {
   }
 
   const loginUrl = new URL("/login", request.url);
-  return NextResponse.redirect(loginUrl);
+  return withContentSecurityPolicy(NextResponse.redirect(loginUrl));
 }
 
 export const config = {

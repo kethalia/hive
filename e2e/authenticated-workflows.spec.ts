@@ -73,6 +73,181 @@ async function expectConnectedTerminal(page: Page) {
   return terminal;
 }
 
+function trackFileBrowserResourceLoads(page: Page) {
+  let successfulLoads = 0;
+  page.on("response", (response) => {
+    const url = new URL(response.url());
+    if (
+      url.hostname.startsWith("filebrowser--") &&
+      url.pathname === "/api/resources/" &&
+      response.ok()
+    ) {
+      successfulLoads += 1;
+    }
+  });
+  return () => successfulLoads;
+}
+
+function trackVsCodeWorkbenchLoads(page: Page) {
+  let successfulLoads = 0;
+  page.on("response", (response) => {
+    const url = new URL(response.url());
+    if (
+      url.hostname.startsWith("code-server--") &&
+      url.pathname.endsWith("/vs/code/browser/workbench/workbench.js") &&
+      response.ok()
+    ) {
+      successfulLoads += 1;
+    }
+  });
+  return () => successfulLoads;
+}
+
+async function expectFileBrowserReady(
+  page: Page,
+  getSuccessfulLoads: () => number,
+  previousLoadCount: number,
+) {
+  await expect(page.getByTestId("workspace-tool-frame-files")).toBeVisible({ timeout: 30_000 });
+  await expect.poll(getSuccessfulLoads, { timeout: 30_000 }).toBeGreaterThan(previousLoadCount);
+}
+
+async function verifyEmbeddedToolsOpenInParallel(
+  page: Page,
+  testInfo: TestInfo,
+  getSuccessfulFileBrowserLoads: () => number,
+  getSuccessfulVsCodeLoads: () => number,
+) {
+  const previousFileBrowserLoadCount = getSuccessfulFileBrowserLoads();
+  const previousVsCodeLoadCount = getSuccessfulVsCodeLoads();
+  const fileBrowserButton = page.getByRole("button", { name: /^Browse files for / }).first();
+  const vsCodeButton = page.getByRole("button", { name: /^Open VS Code for / }).first();
+
+  await fileBrowserButton.click();
+  await expect(vsCodeButton).toBeEnabled();
+  await vsCodeButton.click();
+
+  await expect(page.getByTestId("workspace-tool-pane-files")).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByTestId("workspace-tool-pane-code")).toBeVisible({ timeout: 30_000 });
+  const fileBrowserFrame = page.getByTestId("workspace-tool-frame-files");
+  await expect(fileBrowserFrame).toHaveAttribute("src", /filebrowser--.*\/files\//);
+  await expect(page.getByTestId("workspace-tool-frame-code")).toHaveAttribute(
+    "src",
+    /code-server--/,
+  );
+  await Promise.all([
+    expectFileBrowserReady(page, getSuccessfulFileBrowserLoads, previousFileBrowserLoadCount),
+    expect
+      .poll(getSuccessfulVsCodeLoads, { timeout: 45_000 })
+      .toBeGreaterThan(previousVsCodeLoadCount),
+  ]);
+  await expect(page.getByTestId("workspace-tool-pane-files")).toHaveAttribute(
+    "data-pane-state",
+    "ready",
+  );
+  await expect(page.getByTestId("workspace-tool-pane-code")).toHaveAttribute(
+    "data-pane-state",
+    "ready",
+  );
+  await capture(page, testInfo, "workspace-tools-embedded-in-parallel");
+}
+
+async function verifyEmbeddedToolsSurviveRefresh(
+  page: Page,
+  testInfo: TestInfo,
+  getSuccessfulFileBrowserLoads: () => number,
+  getSuccessfulVsCodeLoads: () => number,
+) {
+  const originalCodeUrl = await page.getByTestId("workspace-tool-frame-code").getAttribute("src");
+  expect(originalCodeUrl).toBeTruthy();
+  const persistedUrls = await page.evaluate(() =>
+    Object.entries(window.localStorage)
+      .filter(([key]) => key.startsWith("workspace-tool-panes:"))
+      .some(([, value]) =>
+        /coder_application_connect_api_key|\/api\/workspace-proxy\//.test(value),
+      ),
+  );
+  expect(persistedUrls).toBe(false);
+
+  const inactiveTerminalPane = page
+    .getByTestId("multi-session-grid")
+    .locator('[data-testid^="workspace-pane-"][data-active="false"]')
+    .first();
+  if ((await inactiveTerminalPane.count()) > 0) {
+    await inactiveTerminalPane.dispatchEvent("click");
+  }
+  const explicitlyFocusedLabel = (
+    await page.getByTestId("active-pane-label").textContent()
+  )?.trim();
+  expect(explicitlyFocusedLabel).toBeTruthy();
+
+  const previousFileBrowserLoadCount = getSuccessfulFileBrowserLoads();
+  const previousVsCodeLoadCount = getSuccessfulVsCodeLoads();
+  await page.reload({ waitUntil: "domcontentloaded" });
+  await expect(page.getByTestId("multi-session-workspace")).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByTestId("multi-session-loading")).toHaveCount(0);
+  await expect(page.getByTestId("active-pane-label")).toHaveText(explicitlyFocusedLabel ?? "");
+  await expect(page.getByTestId("workspace-tool-pane-files")).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByTestId("workspace-tool-pane-code")).toBeVisible({ timeout: 30_000 });
+  await Promise.all([
+    expectFileBrowserReady(page, getSuccessfulFileBrowserLoads, previousFileBrowserLoadCount),
+    expect
+      .poll(getSuccessfulVsCodeLoads, { timeout: 45_000 })
+      .toBeGreaterThan(previousVsCodeLoadCount),
+    expectConnectedTerminal(page),
+  ]);
+  await expect(page.getByTestId("workspace-tool-pane-files")).toHaveAttribute(
+    "data-pane-state",
+    "ready",
+  );
+  await expect(page.getByTestId("workspace-tool-pane-code")).toHaveAttribute(
+    "data-pane-state",
+    "ready",
+  );
+  await expect(page.getByTestId("active-pane-label")).toHaveText(explicitlyFocusedLabel ?? "");
+
+  const restoredCodeUrl = await page.getByTestId("workspace-tool-frame-code").getAttribute("src");
+  expect(restoredCodeUrl).toMatch(/code-server--/);
+  expect(restoredCodeUrl).not.toBe(originalCodeUrl);
+  await capture(page, testInfo, "workspace-tools-restored-after-refresh");
+}
+
+async function verifyPaletteToolAndOpenActions(page: Page, testInfo: TestInfo) {
+  const sessionLabel = (await page.getByTestId("active-pane-label").textContent())?.trim();
+  expect(sessionLabel).toBeTruthy();
+  await page.keyboard.press("Control+K");
+  await page.getByPlaceholder(/Search terminal sessions/).fill(sessionLabel ?? "");
+  const sessionRow = page
+    .locator('[cmdk-item][data-action-id^="workspace:session:"]')
+    .filter({ hasText: sessionLabel ?? "" })
+    .first();
+  await expect(sessionRow).toHaveAttribute("aria-selected", "true");
+  const searchInput = page.getByPlaceholder(/Search terminal sessions/);
+  await expect(searchInput).toBeFocused();
+  await searchInput.press("ArrowRight");
+  await expect(sessionRow.getByRole("button", { name: "VS Code" })).toHaveAttribute(
+    "data-selected",
+    "true",
+  );
+  await searchInput.press("Enter");
+  await expect(page.getByTestId("workspace-tool-pane-code")).toBeVisible({ timeout: 30_000 });
+  await page.getByTestId("remove-workspace-tool-code").click();
+
+  await page.keyboard.press("Control+K");
+  await page.getByPlaceholder(/Search terminal sessions/).fill(sessionLabel ?? "");
+  const openOption = sessionRow.getByRole("button", { name: "Open", exact: true });
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    await searchInput.press("ArrowLeft");
+    if ((await openOption.getAttribute("data-selected")) === "true") break;
+  }
+  await expect(openOption).toHaveAttribute("data-selected", "true");
+  await searchInput.press("Enter");
+  await expect(page.getByTestId("single-terminal-header")).toBeVisible({ timeout: 15_000 });
+  const singleTerminal = await expectConnectedTerminal(page);
+  await proveTerminalAcceptsInput(page, singleTerminal);
+  await capture(page, testInfo, "single-terminal-connected");
+}
+
 async function proveTerminalAcceptsInput(page: Page, terminal: Locator) {
   const marker = `hive-terminal-e2e-${Date.now()}`;
   const input = terminal.locator("textarea.xterm-helper-textarea");
@@ -168,7 +343,7 @@ test.describe("authenticated Hive workflows", () => {
     await page.getByRole("button", { name: /Add workspace/ }).click();
     await expect(page.getByRole("heading", { name: "Add workspace" })).toBeVisible();
     await expect(page.getByLabel("Workspace name")).toBeVisible();
-    await expect(page.getByLabel("Template")).toBeVisible();
+    await expect(page.getByTestId("create-workspace-template")).toBeVisible();
     await page.getByRole("button", { name: "Cancel" }).click();
     await capture(page, testInfo, "workspaces");
 
@@ -190,6 +365,8 @@ test.describe("authenticated Hive workflows", () => {
 
   test("opens a live workspace terminal when one is available", async ({ page }, testInfo) => {
     test.setTimeout(90_000);
+    const getSuccessfulFileBrowserLoads = trackFileBrowserResourceLoads(page);
+    const getSuccessfulVsCodeLoads = trackVsCodeWorkbenchLoads(page);
     const terminalSocketUrls: string[] = [];
     page.on("websocket", (socket) => {
       const url = new URL(socket.url());
@@ -207,7 +384,10 @@ test.describe("authenticated Hive workflows", () => {
       .catch(() => false);
     test.skip(!workspaceAvailable, "No running workspace available.");
 
-    await workspaceLink.click();
+    const workspaceHref = await workspaceLink.getAttribute("href");
+    expect(workspaceHref).toBeTruthy();
+    if (!workspaceHref) throw new Error("Running workspace link has no destination.");
+    await page.goto(new URL(workspaceHref, appUrl).toString());
     await expect(page).toHaveURL(/\/workspaces\/[^/]+\/terminal\/workspace/);
     await expect(
       page.locator(
@@ -224,13 +404,26 @@ test.describe("authenticated Hive workflows", () => {
     expect(terminalSocketUrls).toHaveLength(healthySocketCount);
     await capture(page, testInfo, "workspace-terminal-connected");
 
-    const sessionLabel = (await page.getByTestId("active-pane-label").textContent())?.trim();
-    expect(sessionLabel).toBeTruthy();
-    await page.keyboard.press("Control+K");
-    await page.getByText(`Open ${sessionLabel}`, { exact: true }).click();
-    await expect(page.getByTestId("single-terminal-header")).toBeVisible();
-    const singleTerminal = await expectConnectedTerminal(page);
-    await proveTerminalAcceptsInput(page, singleTerminal);
-    await capture(page, testInfo, "single-terminal-connected");
+    await test.step("embed File Browser and VS Code with independent parallel loading", async () => {
+      await verifyEmbeddedToolsOpenInParallel(
+        page,
+        testInfo,
+        getSuccessfulFileBrowserLoads,
+        getSuccessfulVsCodeLoads,
+      );
+    });
+    await test.step("restore embedded tools with fresh authorization after refresh", async () => {
+      await verifyEmbeddedToolsSurviveRefresh(
+        page,
+        testInfo,
+        getSuccessfulFileBrowserLoads,
+        getSuccessfulVsCodeLoads,
+      );
+    });
+    await page.getByTestId("remove-workspace-tool-files").click();
+    await page.getByTestId("remove-workspace-tool-code").click();
+    await test.step("choose VS Code and Open with palette arrow keys", async () => {
+      await verifyPaletteToolAndOpenActions(page, testInfo);
+    });
   });
 });

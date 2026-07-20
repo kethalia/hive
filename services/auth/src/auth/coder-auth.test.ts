@@ -62,6 +62,107 @@ describe("validateCoderInstance", () => {
     await validateCoderInstance(`${BASE_URL}/`);
     expect(fetch).toHaveBeenCalledWith(`${BASE_URL}/api/v2/buildinfo`, expect.anything());
   });
+
+  it("allows login when the applications-host lookup is unavailable", async () => {
+    vi.mocked(fetch)
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ session_token: "tok" }), { status: 200 }),
+      )
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ id: "u", username: "a", email: "a@b.com" }), {
+          status: 200,
+        }),
+      )
+      .mockResolvedValueOnce(new Response("missing", { status: 404 }));
+
+    await expect(coderLogin(BASE_URL, "a@b.com", "pw")).resolves.toEqual({
+      sessionToken: "tok",
+      userId: "u",
+      username: "a",
+      applicationsHost: "",
+    });
+  });
+
+  it("allows login when the applications-host lookup has a network failure", async () => {
+    vi.mocked(fetch)
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ session_token: "tok" }), { status: 200 }),
+      )
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ id: "u", username: "a", email: "a@b.com" }), {
+          status: 200,
+        }),
+      )
+      .mockRejectedValueOnce(new Error("applications host unavailable"));
+
+    await expect(coderLogin(BASE_URL, "a@b.com", "pw")).resolves.toMatchObject({
+      userId: "u",
+      applicationsHost: "",
+    });
+  });
+
+  it("uses a shorter timeout for ancillary applications-host discovery", async () => {
+    const timeoutSpy = vi.spyOn(AbortSignal, "timeout");
+    vi.spyOn(Date, "now").mockReturnValue(1_000);
+    vi.mocked(fetch)
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ session_token: "tok" }), { status: 200 }),
+      )
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ id: "u", username: "a", email: "a@b.com" }), {
+          status: 200,
+        }),
+      )
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ host: "*.apps.example.com" }), { status: 200 }),
+      );
+
+    await coderLogin(BASE_URL, "a@b.com", "pw");
+
+    expect(timeoutSpy).toHaveBeenNthCalledWith(1, 10_000);
+    expect(timeoutSpy).toHaveBeenNthCalledWith(2, 10_000);
+    expect(timeoutSpy).toHaveBeenNthCalledWith(3, 2_000);
+  });
+
+  it("skips ancillary applications-host discovery after the login deadline", async () => {
+    vi.spyOn(Date, "now").mockReturnValueOnce(1_000).mockReturnValueOnce(9_000);
+    vi.mocked(fetch)
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ session_token: "tok" }), { status: 200 }),
+      )
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ id: "u", username: "a", email: "a@b.com" }), {
+          status: 200,
+        }),
+      );
+
+    await expect(coderLogin(BASE_URL, "a@b.com", "pw")).resolves.toMatchObject({
+      userId: "u",
+      applicationsHost: "",
+    });
+    expect(fetch).toHaveBeenCalledTimes(2);
+  });
+
+  it.each([
+    ["malformed JSON", "not-json"],
+    ["a missing host", JSON.stringify({ enabled: true })],
+  ])("allows login when applications-host returns %s", async (_scenario, responseBody) => {
+    vi.mocked(fetch)
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ session_token: "tok" }), { status: 200 }),
+      )
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ id: "u", username: "a", email: "a@b.com" }), {
+          status: 200,
+        }),
+      )
+      .mockResolvedValueOnce(new Response(responseBody, { status: 200 }));
+
+    await expect(coderLogin(BASE_URL, "a@b.com", "pw")).resolves.toMatchObject({
+      userId: "u",
+      applicationsHost: "",
+    });
+  });
 });
 
 describe("coderLogin", () => {
@@ -88,6 +189,9 @@ describe("coderLogin", () => {
           }),
           { status: 200 },
         ),
+      )
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ host: "*.apps.example.com" }), { status: 200 }),
       );
 
     const result = await coderLogin(BASE_URL, "alice@test.com", "password123");
@@ -95,6 +199,22 @@ describe("coderLogin", () => {
       sessionToken: "tok_abc123",
       userId: "user-uuid",
       username: "alice",
+      applicationsHost: "*.apps.example.com",
+    });
+  });
+
+  it("falls back to an empty application host when discovery returns malformed text", async () => {
+    vi.mocked(fetch)
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ session_token: "tok_abc123" }), { status: 200 }),
+      )
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ id: "user-uuid", username: "alice" }), { status: 200 }),
+      )
+      .mockResolvedValueOnce(new Response(JSON.stringify({ host: "%" }), { status: 200 }));
+
+    await expect(coderLogin(BASE_URL, "alice@test.com", "password123")).resolves.toMatchObject({
+      applicationsHost: "",
     });
   });
 
@@ -124,6 +244,9 @@ describe("coderLogin", () => {
       )
       .mockResolvedValueOnce(
         new Response(JSON.stringify({ id: "u", username: "a", email: "a@b.com" }), { status: 200 }),
+      )
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ host: "*.apps.example.com" }), { status: 200 }),
       );
 
     await coderLogin(`${BASE_URL}/`, "a@b.com", "pw");

@@ -94,6 +94,56 @@ describe("CoderClient", () => {
     expect(result).toEqual(ws);
   });
 
+  it("resolves the configured applications host", async () => {
+    const timeoutSpy = vi.spyOn(AbortSignal, "timeout");
+    fetchSpy.mockResolvedValueOnce(jsonResponse({ host: "*.apps.example.com" }));
+
+    await expect(makeClient().getApplicationsHost()).resolves.toBe("*.apps.example.com");
+    expect(fetchSpy.mock.calls[0][0]).toBe(`${BASE_URL}/api/v2/applications/host`);
+    expect(timeoutSpy).toHaveBeenCalledWith(2_000);
+  });
+
+  it.each([
+    {},
+    { host: null },
+    { host: 42 },
+    { host: "%" },
+    { host: "*.apps.example.com/path" },
+  ])("returns an empty applications host for an invalid payload", async (payload) => {
+    fetchSpy.mockResolvedValueOnce(jsonResponse(payload));
+
+    await expect(makeClient().getApplicationsHost()).resolves.toBe("");
+  });
+
+  it("creates a Coder-authenticated redirect scoped to the workspace app host", async () => {
+    const timeoutSpy = vi.spyOn(AbortSignal, "timeout");
+    const target = "https://code--workspace--alice.apps.example.com/?folder=%2Fworkspace";
+    const encrypted = `${target}&coder_application_connect_api_key=encrypted`;
+    fetchSpy.mockResolvedValueOnce(
+      new Response(null, { status: 303, headers: { location: encrypted } }),
+    );
+
+    await expect(makeClient().getApplicationAuthRedirect(target)).resolves.toBe(encrypted);
+    const [url, init] = fetchSpy.mock.calls[0];
+    expect(url.searchParams.get("redirect_uri")).toBe(target);
+    expect(init.headers["Coder-Session-Token"]).toBe(TOKEN);
+    expect(init.redirect).toBe("manual");
+    expect(timeoutSpy).toHaveBeenCalledWith(5_000);
+    expect(init.signal).toBeInstanceOf(AbortSignal);
+  });
+
+  it.each([
+    "http://code--workspace--alice.apps.example.com/?folder=%2Fworkspace",
+    "https://code--workspace--alice.apps.example.com:8443/?folder=%2Fworkspace",
+  ])("rejects an application redirect outside the complete target origin", async (location) => {
+    const target = "https://code--workspace--alice.apps.example.com/?folder=%2Fworkspace";
+    fetchSpy.mockResolvedValueOnce(new Response(null, { status: 303, headers: { location } }));
+
+    await expect(makeClient().getApplicationAuthRedirect(target)).rejects.toThrow(
+      "unexpected origin",
+    );
+  });
+
   // ── stopWorkspace ──────────────────────────────────────────────
 
   it("stopWorkspace calls builds endpoint with transition:stop", async () => {

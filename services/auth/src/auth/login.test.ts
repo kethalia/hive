@@ -62,6 +62,12 @@ describe("performLogin", () => {
 
     mockPrisma.coderToken.upsert.mockResolvedValue({});
     mockCreateSession.mockResolvedValue("new-session-id");
+    mockLogin.mockResolvedValue({
+      sessionToken: "session-token-123",
+      userId: "coder-uid",
+      username: "testuser",
+      applicationsHost: "*.apps.example.com",
+    });
   });
 
   it("succeeds with API key creation", async () => {

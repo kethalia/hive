@@ -20,6 +20,7 @@ import { TERMINAL_COMPOSE_TOGGLE_EVENT } from "@/lib/terminal/events";
 
 const mockCreateSession = vi.fn();
 const mockGetSessions = vi.fn();
+const mockGetWorkspaceSessionTools = vi.fn();
 const mockKillSession = vi.fn();
 const mockListGitClones = vi.fn();
 const mockResolveGitCloneTerminal = vi.fn();
@@ -35,6 +36,9 @@ const mockUseIsComposeSheet = vi.hoisted(() => vi.fn(() => false));
 const mockCopyTerminalSelection = vi.hoisted(() => vi.fn());
 const mockPasteClipboardApiToTerminal = vi.hoisted(() => vi.fn());
 const mockTriggerHapticFeedback = vi.hoisted(() => vi.fn());
+const mockReadPendingWorkspaceToolIntent = vi.hoisted(() => vi.fn());
+const mockClearPendingWorkspaceToolIntent = vi.hoisted(() => vi.fn());
+const mockReloadForWorkspaceTool = vi.hoisted(() => vi.fn());
 let emitConnectionStateOnCallbackChange = false;
 const mockUseKeepAliveStatus = vi.hoisted(() =>
   vi.fn(
@@ -259,7 +263,14 @@ vi.mock("@/lib/actions/git-clones", () => ({
 vi.mock("@/lib/actions/workspaces", () => ({
   createSessionAction: (...args: unknown[]) => mockCreateSession(...args),
   getWorkspaceSessionsAction: (...args: unknown[]) => mockGetSessions(...args),
+  getWorkspaceSessionToolsAction: (...args: unknown[]) => mockGetWorkspaceSessionTools(...args),
   killSessionAction: (...args: unknown[]) => mockKillSession(...args),
+}));
+
+vi.mock("@/lib/workspaces/tool-reload", () => ({
+  readPendingWorkspaceToolIntent: mockReadPendingWorkspaceToolIntent,
+  clearPendingWorkspaceToolIntent: mockClearPendingWorkspaceToolIntent,
+  reloadForWorkspaceTool: mockReloadForWorkspaceTool,
 }));
 
 vi.mock("@/lib/actions/navigation-favorites", () => ({
@@ -394,6 +405,12 @@ vi.mock("@/components/terminal/CommandPalette", () => ({
       rightLabel?: string;
       disabled?: boolean;
       onSelect: () => void;
+      options?: {
+        id: string;
+        label: string;
+        disabled?: boolean;
+        onSelect: () => void;
+      }[];
     }>;
     searchValue?: string;
     onSearchValueChange?: (value: string) => void;
@@ -406,21 +423,36 @@ vi.mock("@/components/terminal/CommandPalette", () => ({
           onChange={(event) => onSearchValueChange?.(event.currentTarget.value)}
         />
         {actions.map((action) => (
-          <button
-            key={action.id}
-            type="button"
-            data-testid={`palette-action-${action.id}`}
-            disabled={action.disabled}
-            onClick={() => {
-              if (action.disabled) return;
-              action.onSelect();
-              onOpenChange?.(false);
-            }}
-          >
-            <span>{action.label}</span>
-            {action.description ? <span>{action.description}</span> : null}
-            {action.rightLabel ? <span>{action.rightLabel}</span> : null}
-          </button>
+          <div key={action.id}>
+            <button
+              type="button"
+              data-testid={`palette-action-${action.id}`}
+              disabled={action.disabled}
+              onClick={() => {
+                if (action.disabled) return;
+                action.onSelect();
+                onOpenChange?.(false);
+              }}
+            >
+              <span>{action.label}</span>
+              {action.description ? <span>{action.description}</span> : null}
+              {action.rightLabel ? <span>{action.rightLabel}</span> : null}
+            </button>
+            {action.options?.map((option) => (
+              <button
+                key={option.id}
+                type="button"
+                data-testid={`palette-option-${action.id}-${option.id}`}
+                disabled={action.disabled ?? option.disabled}
+                onClick={() => {
+                  option.onSelect();
+                  onOpenChange?.(false);
+                }}
+              >
+                {option.label}
+              </button>
+            ))}
+          </div>
         ))}
       </div>
     ) : null,
@@ -531,8 +563,11 @@ vi.mock("@/components/ui/input", () => ({
 
 vi.mock("lucide-react", () => ({
   AlertCircle: () => <span data-testid="icon-alert" />,
+  Code2: () => <span data-testid="icon-code" />,
   ClipboardPaste: () => <span data-testid="icon-paste" />,
   Copy: () => <span data-testid="icon-copy" />,
+  ExternalLink: () => <span data-testid="icon-external-link" />,
+  FolderOpen: () => <span data-testid="icon-folder" />,
   Loader2: () => <span data-testid="icon-loader" />,
   Lock: () => <span data-testid="icon-lock" />,
   Minus: () => <span data-testid="icon-minus" />,
@@ -637,6 +672,14 @@ describe("MultiSessionWorkspace", () => {
     window.localStorage.clear();
     setPwaStandalone(false);
     mockGetSessions.mockResolvedValue({ data: [] });
+    mockGetWorkspaceSessionTools.mockResolvedValue({
+      data: {
+        codeUrl: "https://code.test/?folder=%2Fhome%2Fcoder",
+        filesUrl: "https://filebrowser.test/files/home/coder",
+        folderPath: "/home/coder",
+      },
+    });
+    mockReadPendingWorkspaceToolIntent.mockReturnValue(null);
     mockUseIsComposeSheet.mockReturnValue(false);
     mockCopyTerminalSelection.mockReset();
     mockPasteClipboardApiToTerminal.mockReset();
@@ -666,6 +709,575 @@ describe("MultiSessionWorkspace", () => {
   afterEach(() => {
     cleanup();
     vi.restoreAllMocks();
+  });
+
+  it("adds File Browser and VS Code as tiled workspace panes instead of dialogs", async () => {
+    const openSpy = vi.spyOn(window, "open").mockImplementation(() => null);
+    await renderTwoSessionWorkspace();
+
+    fireEvent.click(await screen.findByRole("button", { name: "Browse files for main-session" }));
+    const filesPane = await screen.findByTestId("workspace-tool-pane-files");
+    expect(filesPane).toBeInTheDocument();
+    expect(screen.getByTestId("workspace-tool-frame-files")).toHaveAttribute(
+      "src",
+      "https://filebrowser.test/files/home/coder",
+    );
+    expect(screen.getByTestId("workspace-tool-frame-files").getAttribute("sandbox")).toContain(
+      "allow-same-origin",
+    );
+    expect(screen.getByTestId("pop-out-workspace-tool-files")).toBeInTheDocument();
+    expect(screen.getByTestId("interactive-terminal-main-session")).toBeInTheDocument();
+    expect(screen.queryByTestId("workspace-tool-dialog")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Open VS Code for main-session" }));
+    expect(await screen.findByTestId("workspace-tool-pane-code")).toBeInTheDocument();
+    expect(screen.getByTestId("workspace-tool-frame-code")).toHaveAttribute(
+      "src",
+      "https://code.test/?folder=%2Fhome%2Fcoder",
+    );
+    expect(screen.getByTestId("workspace-tool-frame-code").getAttribute("sandbox")).toContain(
+      "allow-same-origin",
+    );
+    fireEvent.click(screen.getByTestId("pop-out-workspace-tool-code"));
+    expect(openSpy).toHaveBeenCalledWith(
+      "https://code.test/?folder=%2Fhome%2Fcoder",
+      "_blank",
+      "noopener,noreferrer",
+    );
+
+    fireEvent.click(screen.getByTestId("remove-workspace-tool-files"));
+    expect(screen.queryByTestId("workspace-tool-pane-files")).not.toBeInTheDocument();
+    expect(screen.getByTestId("workspace-tool-pane-code")).toBeInTheDocument();
+  });
+
+  it("restores File Browser and VS Code panes with fresh URLs after remount", async () => {
+    mockGetSessions.mockResolvedValue(twoSessionPayload());
+    const firstRender = render(<MultiSessionWorkspace {...defaultProps} />);
+    await screen.findByTestId("workspace-pane-main-session");
+    markTwoSessionsConnected();
+    await waitFor(() => {
+      expect(screen.queryByTestId("multi-session-loading")).not.toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Browse files for main-session" }));
+    await screen.findByTestId("workspace-tool-pane-files");
+    fireEvent.click(screen.getByRole("button", { name: "Open VS Code for main-session" }));
+    await screen.findByTestId("workspace-tool-pane-code");
+
+    const persisted = window.localStorage.getItem("workspace-tool-panes:workspace:ws-1");
+    expect(persisted).toContain('"tool":"files"');
+    expect(persisted).toContain('"tool":"code"');
+    expect(persisted).not.toContain("https://code.test");
+    expect(persisted).not.toContain("/api/workspace-proxy/");
+
+    firstRender.unmount();
+    mockGetWorkspaceSessionTools.mockClear();
+    mockGetWorkspaceSessionTools.mockImplementation(() => ({
+      data: {
+        codeUrl: "https://fresh-code.test/?coder_application_connect_api_key=fresh",
+        filesUrl: "https://filebrowser.test/files/home/coder/fresh",
+        folderPath: "/home/coder/fresh",
+        source: "tmux",
+      },
+    }));
+
+    render(<MultiSessionWorkspace {...defaultProps} />);
+
+    expect(await screen.findByTestId("workspace-tool-frame-files")).toHaveAttribute(
+      "src",
+      "https://filebrowser.test/files/home/coder/fresh",
+    );
+    expect(await screen.findByTestId("workspace-tool-frame-code")).toHaveAttribute(
+      "src",
+      "https://fresh-code.test/?coder_application_connect_api_key=fresh",
+    );
+    expect(mockGetWorkspaceSessionTools).toHaveBeenCalledTimes(2);
+    expect(mockGetWorkspaceSessionTools).toHaveBeenCalledWith({
+      workspaceId: "ws-1",
+      sessionName: "main-session",
+      fallbackPath: undefined,
+      documentFrameHosts: [],
+      tool: "files",
+    });
+    expect(mockGetWorkspaceSessionTools).toHaveBeenCalledWith({
+      workspaceId: "ws-1",
+      sessionName: "main-session",
+      fallbackPath: undefined,
+      documentFrameHosts: [],
+      tool: "code",
+    });
+  });
+
+  it("restores tool panes in parallel without blocking sessions or changing explicit focus", async () => {
+    const filesRequest = Promise.withResolvers<{
+      data: {
+        codeUrl: string;
+        filesUrl: string;
+        folderPath: string;
+        source: "tmux";
+      };
+    }>();
+    const codeRequest = Promise.withResolvers<{
+      data: {
+        codeUrl: string;
+        filesUrl: string;
+        folderPath: string;
+        source: "tmux";
+      };
+    }>();
+    window.localStorage.setItem(
+      "workspace-tool-panes:workspace:ws-1",
+      JSON.stringify({
+        version: 1,
+        panes: [
+          {
+            boardKey: "default",
+            sessionName: "main-session",
+            tool: "files",
+            label: "main-session",
+          },
+          {
+            boardKey: "default",
+            sessionName: "main-session",
+            tool: "code",
+            label: "main-session",
+          },
+        ],
+      }),
+    );
+    mockGetSessions.mockResolvedValue(twoSessionPayload());
+    mockGetWorkspaceSessionTools.mockImplementation(({ tool }: { tool: "code" | "files" }) =>
+      tool === "files" ? filesRequest.promise : codeRequest.promise,
+    );
+
+    render(<MultiSessionWorkspace {...defaultProps} />);
+
+    expect(await screen.findByTestId("workspace-pane-main-session")).toBeInTheDocument();
+    expect(screen.queryByTestId("multi-session-loading")).not.toBeInTheDocument();
+    expect(screen.getByTestId("workspace-tool-pane-files")).toHaveAttribute(
+      "data-pane-state",
+      "authorizing",
+    );
+    expect(screen.getByTestId("workspace-tool-pane-code")).toHaveAttribute(
+      "data-pane-state",
+      "authorizing",
+    );
+    expect(mockGetWorkspaceSessionTools).toHaveBeenCalledTimes(2);
+
+    fireEvent.click(screen.getByTestId("workspace-pane-dev-server"));
+    expect(screen.getByTestId("active-pane-label")).toHaveTextContent("dev-server");
+
+    await act(async () => {
+      codeRequest.resolve({
+        data: {
+          codeUrl: "https://fresh-code.test",
+          filesUrl: "https://fresh-files.test/files/",
+          folderPath: "/home/coder",
+          source: "tmux",
+        },
+      });
+      await codeRequest.promise;
+    });
+
+    expect(await screen.findByTestId("workspace-tool-frame-code")).toHaveAttribute(
+      "src",
+      "https://fresh-code.test",
+    );
+    expect(screen.getByTestId("workspace-tool-pane-code")).toHaveAttribute(
+      "data-pane-state",
+      "loading",
+    );
+    expect(screen.getByTestId("workspace-tool-pane-files")).toHaveAttribute(
+      "data-pane-state",
+      "authorizing",
+    );
+    expect(screen.getByTestId("active-pane-label")).toHaveTextContent("dev-server");
+
+    fireEvent.load(screen.getByTestId("workspace-tool-frame-code"));
+    expect(screen.getByTestId("workspace-tool-pane-code")).toHaveAttribute(
+      "data-pane-state",
+      "ready",
+    );
+
+    await act(async () => {
+      filesRequest.resolve({
+        data: {
+          codeUrl: "https://fresh-code.test",
+          filesUrl: "https://fresh-files.test/files/",
+          folderPath: "/home/coder",
+          source: "tmux",
+        },
+      });
+      await filesRequest.promise;
+    });
+    fireEvent.load(await screen.findByTestId("workspace-tool-frame-files"));
+
+    expect(screen.getByTestId("workspace-tool-pane-files")).toHaveAttribute(
+      "data-pane-state",
+      "ready",
+    );
+    expect(screen.getByTestId("active-pane-label")).toHaveTextContent("dev-server");
+  });
+
+  it("does not reload for a restored tool pane closed while authorization is pending", async () => {
+    const filesRequest = Promise.withResolvers<{
+      data: {
+        codeUrl: string;
+        filesUrl: string;
+        folderPath: string;
+        reloadRequired: true;
+      };
+    }>();
+    window.localStorage.setItem(
+      "workspace-tool-panes:workspace:ws-1",
+      JSON.stringify({
+        version: 1,
+        panes: [
+          {
+            boardKey: "default",
+            sessionName: "main-session",
+            tool: "files",
+            label: "main-session",
+          },
+        ],
+      }),
+    );
+    mockGetSessions.mockResolvedValue(twoSessionPayload());
+    mockGetWorkspaceSessionTools.mockReturnValue(filesRequest.promise);
+
+    render(<MultiSessionWorkspace {...defaultProps} />);
+
+    expect(await screen.findByTestId("workspace-tool-pane-files")).toHaveAttribute(
+      "data-pane-state",
+      "authorizing",
+    );
+    fireEvent.click(screen.getByTestId("remove-workspace-tool-files"));
+    expect(screen.queryByTestId("workspace-tool-pane-files")).not.toBeInTheDocument();
+
+    await act(async () => {
+      filesRequest.resolve({
+        data: {
+          codeUrl: "https://fresh-code.test",
+          filesUrl: "https://fresh-files.test/files/",
+          folderPath: "/home/coder",
+          reloadRequired: true,
+        },
+      });
+      await filesRequest.promise;
+    });
+
+    expect(mockReloadForWorkspaceTool).not.toHaveBeenCalled();
+    expect(screen.queryByTestId("workspace-tool-pane-files")).not.toBeInTheDocument();
+  });
+
+  it("restores a repository tool pane even when its Git terminal is not on the board", async () => {
+    window.localStorage.setItem(
+      "workspace-tool-panes:unified:ws-1",
+      JSON.stringify({
+        version: 1,
+        panes: [
+          {
+            boardKey: "default",
+            sessionName: "git-clone-safe-hive",
+            tool: "files",
+            label: "hive",
+            cloneSessionKey: "git-clone:kethalia/hive",
+            relativePath: "kethalia/hive",
+          },
+        ],
+      }),
+    );
+    mockListGitClones.mockResolvedValueOnce({ data: { ok: true, tree: { nodes: [] } } });
+
+    render(<MultiSessionWorkspace {...defaultProps} source="unified" />);
+
+    expect(await screen.findByTestId("workspace-tool-pane-files")).toBeInTheDocument();
+    expect(screen.getByTestId("workspace-tool-pane-files")).toHaveTextContent("Files · hive");
+    expect(mockGetWorkspaceSessionTools).toHaveBeenCalledWith({
+      workspaceId: "ws-1",
+      sessionName: "git-clone-safe-hive",
+      fallbackPath: "kethalia/hive",
+      documentFrameHosts: [],
+      tool: "files",
+    });
+    expect(mockResolveGitCloneTerminal).not.toHaveBeenCalled();
+  });
+
+  it("reloads under the refreshed CSP before opening a recovered application host", async () => {
+    mockGetWorkspaceSessionTools.mockResolvedValueOnce({
+      data: {
+        codeUrl: "https://code.apps.test",
+        filesUrl: "https://files.apps.test",
+        folderPath: "/home/coder",
+        reloadRequired: true,
+      },
+    });
+    await renderTwoSessionWorkspace();
+
+    fireEvent.click(screen.getByRole("button", { name: "Browse files for main-session" }));
+    await waitFor(() => {
+      expect(mockReloadForWorkspaceTool).toHaveBeenCalledWith({
+        workspaceId: "ws-1",
+        boardKey: "default",
+        sessionName: "main-session",
+        tool: "files",
+      });
+    });
+    expect(screen.queryByTestId("workspace-tool-pane-files")).not.toBeInTheDocument();
+  });
+
+  it("replays the pending tool intent after the refreshed CSP document loads", async () => {
+    mockReadPendingWorkspaceToolIntent
+      .mockReturnValueOnce({
+        workspaceId: "ws-1",
+        boardKey: "default",
+        sessionName: "main-session",
+        tool: "files",
+      })
+      .mockReturnValue(null);
+
+    await renderTwoSessionWorkspace();
+
+    expect(await screen.findByTestId("workspace-tool-pane-files")).toBeInTheDocument();
+    expect(mockClearPendingWorkspaceToolIntent).toHaveBeenCalledOnce();
+    expect(mockGetWorkspaceSessionTools).toHaveBeenCalledWith({
+      workspaceId: "ws-1",
+      sessionName: "main-session",
+      fallbackPath: undefined,
+      documentFrameHosts: [],
+      tool: "files",
+    });
+  });
+
+  it("re-resolves a Git session when replaying a pending tool intent", async () => {
+    mockReadPendingWorkspaceToolIntent
+      .mockReturnValueOnce({
+        workspaceId: "ws-1",
+        boardKey: "default",
+        sessionName: "git-clone-safe-hive",
+        tool: "files",
+        cloneSessionKey: "git-clone:kethalia/hive",
+        relativePath: "kethalia/hive",
+        label: "hive",
+      })
+      .mockReturnValue(null);
+    mockResolveGitCloneTerminal.mockResolvedValueOnce({
+      data: {
+        sessionName: "git-clone-safe-hive",
+        clonePath: "kethalia/hive",
+        cloneSessionKey: "git-clone:kethalia/hive",
+        cloneProof: "proof-token",
+      },
+    });
+
+    render(<MultiSessionWorkspace {...defaultProps} source="unified" />);
+
+    expect(await screen.findByTestId("workspace-tool-pane-files")).toBeInTheDocument();
+    expect(mockResolveGitCloneTerminal).toHaveBeenCalledWith({
+      agentId: "agent-1",
+      workspaceId: "ws-1",
+      cloneSessionKey: "git-clone:kethalia/hive",
+      relativePath: "kethalia/hive",
+    });
+    expect(mockGetWorkspaceSessionTools).toHaveBeenCalledWith({
+      workspaceId: "ws-1",
+      sessionName: "git-clone-safe-hive",
+      fallbackPath: "kethalia/hive",
+      documentFrameHosts: [],
+      tool: "files",
+    });
+  });
+
+  it("removes workspace tool panes when their board is deleted", async () => {
+    mockGetSessions.mockResolvedValueOnce(twoSessionPayload());
+    mockListGitClones.mockResolvedValueOnce({ data: { ok: true, tree: { nodes: [] } } });
+    render(<MultiSessionWorkspace {...defaultProps} source="unified" />);
+    await screen.findByTestId("workspace-pane-main-session");
+    fireEvent.click(screen.getByTestId("workspace-board-new"));
+    fireEvent.click(screen.getByTestId("open-git-session-search"));
+    fireEvent.change(await screen.findByTestId("workspace-command-palette-search"), {
+      target: { value: "main" },
+    });
+    fireEvent.click(screen.getByTestId("palette-option-workspace:session:main-session-add"));
+    fireEvent.click(screen.getByTestId("open-git-session-search"));
+    fireEvent.change(await screen.findByTestId("workspace-command-palette-search"), {
+      target: { value: "main" },
+    });
+    fireEvent.click(
+      screen.getByTestId("palette-option-workspace:session:main-session-filebrowser"),
+    );
+    expect(await screen.findByTestId("workspace-tool-pane-files")).toBeInTheDocument();
+
+    const secondBoard = screen.getByTestId("workspace-board-tab-workspace-2");
+    fireEvent.mouseEnter(secondBoard);
+    fireEvent.click(secondBoard);
+    expect(screen.queryByTestId("workspace-board-tab-workspace-2")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId("workspace-board-new"));
+    expect(screen.getByTestId("workspace-board-tab-workspace-2")).toBeInTheDocument();
+    expect(screen.queryByTestId("workspace-tool-pane-files")).not.toBeInTheDocument();
+  });
+
+  it("invalidates pending tool requests when their board is deleted and recreated", async () => {
+    const pending = Promise.withResolvers<{
+      data: {
+        codeUrl: string;
+        filesUrl: string;
+        folderPath: string | null;
+      };
+    }>();
+    mockGetSessions.mockResolvedValueOnce(twoSessionPayload());
+    mockListGitClones.mockResolvedValueOnce({ data: { ok: true, tree: { nodes: [] } } });
+    mockGetWorkspaceSessionTools.mockReturnValueOnce(pending.promise);
+    render(<MultiSessionWorkspace {...defaultProps} source="unified" />);
+    await screen.findByTestId("workspace-pane-main-session");
+    fireEvent.click(screen.getByTestId("workspace-board-new"));
+    fireEvent.click(screen.getByTestId("open-git-session-search"));
+    fireEvent.change(await screen.findByTestId("workspace-command-palette-search"), {
+      target: { value: "main" },
+    });
+    fireEvent.click(screen.getByTestId("palette-option-workspace:session:main-session-add"));
+    fireEvent.click(screen.getByTestId("open-git-session-search"));
+    fireEvent.change(await screen.findByTestId("workspace-command-palette-search"), {
+      target: { value: "main" },
+    });
+    fireEvent.click(
+      screen.getByTestId("palette-option-workspace:session:main-session-filebrowser"),
+    );
+
+    const secondBoard = screen.getByTestId("workspace-board-tab-workspace-2");
+    fireEvent.mouseEnter(secondBoard);
+    fireEvent.click(secondBoard);
+    fireEvent.click(screen.getByTestId("workspace-board-new"));
+    await act(async () => {
+      pending.resolve({
+        data: {
+          codeUrl: "https://old-code.test",
+          filesUrl: "https://old-files.test",
+          folderPath: "/old",
+        },
+      });
+      await pending.promise;
+    });
+
+    expect(screen.getByTestId("workspace-board-tab-workspace-2")).toBeInTheDocument();
+    expect(screen.queryByTestId("workspace-tool-pane-files")).not.toBeInTheDocument();
+  });
+
+  it("invalidates a pending Git resolution when its board is deleted and recreated", async () => {
+    const pending = Promise.withResolvers<{
+      data: {
+        sessionName: string;
+        clonePath: string;
+        cloneSessionKey: string;
+        cloneProof: string;
+      };
+    }>();
+    mockListGitClones.mockResolvedValueOnce({
+      data: {
+        ok: true,
+        tree: {
+          nodes: [
+            {
+              id: "repo-hive",
+              kind: "repository",
+              label: "hive",
+              relativePath: "kethalia/hive",
+              relativePathSegments: ["kethalia", "hive"],
+              displaySegments: ["Git", "home", "kethalia", "hive"],
+              cloneSessionKey: "git-clone:kethalia/hive",
+            },
+          ],
+        },
+      },
+    });
+    mockResolveGitCloneTerminal.mockReturnValueOnce(pending.promise);
+    render(<MultiSessionWorkspace {...defaultProps} source="unified" />);
+    await screen.findByTestId("multi-session-empty");
+    fireEvent.click(screen.getByTestId("workspace-board-new"));
+    fireEvent.click(screen.getByTestId("open-git-session-search"));
+    fireEvent.change(await screen.findByTestId("workspace-command-palette-search"), {
+      target: { value: "hive" },
+    });
+    fireEvent.click(
+      screen.getByTestId(
+        "palette-option-workspace:git:git-clone:kethalia/hive:kethalia/hive-filebrowser",
+      ),
+    );
+
+    const secondBoard = screen.getByTestId("workspace-board-tab-workspace-2");
+    fireEvent.mouseEnter(secondBoard);
+    fireEvent.click(secondBoard);
+    fireEvent.click(screen.getByTestId("workspace-board-new"));
+    await act(async () => {
+      pending.resolve({
+        data: {
+          sessionName: "git-clone-safe-hive",
+          clonePath: "kethalia/hive",
+          cloneSessionKey: "git-clone:kethalia/hive",
+          cloneProof: "proof-token",
+        },
+      });
+      await pending.promise;
+    });
+
+    expect(screen.getByTestId("workspace-board-tab-workspace-2")).toBeInTheDocument();
+    expect(mockGetWorkspaceSessionTools).not.toHaveBeenCalled();
+    expect(screen.queryByTestId("workspace-tool-pane-files")).not.toBeInTheDocument();
+  });
+
+  it("clears embedded tool panes when the workspace identity changes", async () => {
+    mockGetSessions.mockResolvedValue(twoSessionPayload());
+    const { rerender } = render(<MultiSessionWorkspace {...defaultProps} source="unified" />);
+    await screen.findByTestId("workspace-pane-main-session");
+    markTwoSessionsConnected();
+    await waitFor(() => {
+      expect(screen.queryByTestId("multi-session-loading")).not.toBeInTheDocument();
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Browse files for main-session" }));
+    expect(await screen.findByTestId("workspace-tool-pane-files")).toBeInTheDocument();
+
+    rerender(<MultiSessionWorkspace agentId="agent-2" workspaceId="ws-2" source="unified" />);
+
+    await waitFor(() => {
+      expect(screen.queryByTestId("workspace-tool-pane-files")).not.toBeInTheDocument();
+    });
+  });
+
+  it("ignores pending command-palette tool responses after the workspace changes", async () => {
+    const pending = Promise.withResolvers<{
+      data: {
+        codeUrl: string;
+        filesUrl: string;
+        folderPath: string | null;
+      };
+    }>();
+    mockGetSessions.mockResolvedValue(twoSessionPayload());
+    mockGetWorkspaceSessionTools.mockReturnValueOnce(pending.promise);
+    const { rerender } = render(<MultiSessionWorkspace {...defaultProps} source="unified" />);
+    await screen.findByTestId("workspace-pane-main-session");
+
+    fireEvent.click(screen.getByTestId("open-git-session-search"));
+    fireEvent.change(await screen.findByTestId("workspace-command-palette-search"), {
+      target: { value: "main" },
+    });
+    fireEvent.click(
+      screen.getByTestId("palette-option-workspace:session:main-session-filebrowser"),
+    );
+
+    rerender(<MultiSessionWorkspace agentId="agent-2" workspaceId="ws-2" source="unified" />);
+    await act(async () => {
+      pending.resolve({
+        data: {
+          codeUrl: "https://old-code.test",
+          filesUrl: "https://old-files.test",
+          folderPath: "/old",
+        },
+      });
+      await pending.promise;
+    });
+
+    expect(screen.queryByTestId("workspace-tool-pane-files")).not.toBeInTheDocument();
   });
 
   it("renders tiled real panes with InteractiveTerminal props and active diagnostics", async () => {
@@ -715,13 +1327,10 @@ describe("MultiSessionWorkspace", () => {
     expect(screen.queryByTestId("float-pane-pane-main-session")).not.toBeInTheDocument();
   });
 
-  it("keeps loading stable until every mounted terminal session is connected", async () => {
+  it("loads terminal panes independently without aggregate loading or passive focus", async () => {
     await renderTwoSessionWorkspace({ connect: false });
 
-    expect(screen.getByTestId("multi-session-loading")).toHaveAttribute(
-      "data-workspace-loading-phase",
-      "health",
-    );
+    expect(screen.queryByTestId("multi-session-loading")).not.toBeInTheDocument();
     expect(screen.getByTestId("interactive-terminal-main-session")).toHaveAttribute(
       "data-suppress-auto-focus",
       "true",
@@ -733,24 +1342,24 @@ describe("MultiSessionWorkspace", () => {
 
     markSessionConnected("main-session");
 
-    expect(screen.getByTestId("multi-session-loading")).toBeInTheDocument();
+    expect(screen.queryByTestId("multi-session-loading")).not.toBeInTheDocument();
+    expect(screen.getByTestId("active-pane-label")).toHaveTextContent("main-session");
 
     markSessionConnected("dev-server");
 
-    await waitFor(() => {
-      expect(screen.queryByTestId("multi-session-loading")).not.toBeInTheDocument();
-    });
+    expect(screen.queryByTestId("multi-session-loading")).not.toBeInTheDocument();
     expect(screen.getByTestId("interactive-terminal-main-session")).toHaveAttribute(
       "data-suppress-auto-focus",
-      "false",
+      "true",
     );
     expect(screen.getByTestId("interactive-terminal-dev-server")).toHaveAttribute(
       "data-suppress-auto-focus",
-      "false",
+      "true",
     );
+    expect(screen.getByTestId("active-pane-label")).toHaveTextContent("main-session");
   });
 
-  it("waits for hidden board sessions before revealing the loaded workspace", async () => {
+  it("mounts hidden board sessions without blocking the active workspace", async () => {
     window.localStorage.setItem(
       "workspace-board-state:workspace:ws-1",
       JSON.stringify({
@@ -791,16 +1400,16 @@ describe("MultiSessionWorkspace", () => {
     await renderTwoSessionWorkspace({ connect: false });
 
     expect(screen.getByTestId("workspace-review-pane-dev-server")).toBeInTheDocument();
+    expect(screen.queryByTestId("multi-session-loading")).not.toBeInTheDocument();
 
     markSessionConnected("main-session");
 
-    expect(screen.getByTestId("multi-session-loading")).toBeInTheDocument();
+    expect(screen.queryByTestId("multi-session-loading")).not.toBeInTheDocument();
 
     markSessionConnected("dev-server");
 
-    await waitFor(() => {
-      expect(screen.queryByTestId("multi-session-loading")).not.toBeInTheDocument();
-    });
+    expect(screen.queryByTestId("multi-session-loading")).not.toBeInTheDocument();
+    expect(screen.getByTestId("active-pane-label")).toHaveTextContent("main-session");
   });
 
   it("does not focus terminals when sessions mount from passive load or recovery", async () => {
@@ -1113,7 +1722,7 @@ describe("MultiSessionWorkspace", () => {
     );
   });
 
-  it("changes active pane and terminal focus on hover", async () => {
+  it("changes active pane on pointer movement without reacting to passive boundary changes", async () => {
     await renderTwoSessionWorkspace();
     const focusDevTerminal = vi.fn();
     const devTerm = makeTerminal("dev-server", focusDevTerminal);
@@ -1123,7 +1732,13 @@ describe("MultiSessionWorkspace", () => {
       terminalProps.get("dev-server")?.onTerminalReady?.(devTerm, devSend);
     });
 
-    fireEvent.mouseEnter(screen.getByTestId("workspace-pane-dev-server"));
+    const devPane = screen.getByTestId("workspace-pane-dev-server");
+    fireEvent.mouseEnter(devPane);
+
+    expect(screen.getByTestId("active-pane-label")).toHaveTextContent("main-session");
+    expect(focusDevTerminal).not.toHaveBeenCalled();
+
+    fireEvent.mouseMove(devPane);
 
     expect(screen.getByTestId("active-pane-label")).toHaveTextContent("dev-server");
     expect(mockSetActiveTerminal).toHaveBeenLastCalledWith(devTerm, devSend);
@@ -1724,14 +2339,12 @@ describe("MultiSessionWorkspace", () => {
       target: { value: "dev" },
     });
 
-    expect(
-      screen.queryByTestId("palette-action-workspace:focus-session:dev-server"),
-    ).not.toBeInTheDocument();
-    expect(screen.getByTestId("palette-action-workspace:add-session:dev-server")).toHaveTextContent(
-      "Move this terminal from Default to Workspace 2",
+    expect(screen.getByTestId("palette-action-workspace:session:dev-server")).toBeInTheDocument();
+    expect(screen.getByTestId("palette-option-workspace:session:dev-server-add")).toHaveTextContent(
+      "Add",
     );
 
-    fireEvent.click(screen.getByTestId("palette-action-workspace:add-session:dev-server"));
+    fireEvent.click(screen.getByTestId("palette-option-workspace:session:dev-server-add"));
 
     expect(screen.getByTestId("workspace-pane-dev-server")).toBeInTheDocument();
     expect(screen.queryByTestId("workspace-pane-main-session")).not.toBeInTheDocument();
@@ -1752,6 +2365,71 @@ describe("MultiSessionWorkspace", () => {
     expect(mockCloseGitCloneTerminal).not.toHaveBeenCalled();
   });
 
+  it("preserves Git identity when adding an existing clone session to another board", async () => {
+    mockListGitClones.mockResolvedValueOnce({
+      data: {
+        ok: true,
+        tree: {
+          nodes: [
+            {
+              id: "repo-hive",
+              kind: "repository",
+              label: "hive",
+              relativePath: "kethalia/hive",
+              relativePathSegments: ["kethalia", "hive"],
+              displaySegments: ["Git", "home", "kethalia", "hive"],
+              cloneSessionKey: "git-clone:kethalia/hive",
+            },
+          ],
+        },
+      },
+    });
+    mockResolveGitCloneTerminal.mockResolvedValueOnce({
+      data: {
+        sessionName: "git-clone-safe-hive",
+        clonePath: "kethalia/hive",
+        cloneSessionKey: "git-clone:kethalia/hive",
+        cloneProof: "proof-token",
+      },
+    });
+
+    render(<MultiSessionWorkspace {...defaultProps} source="unified" />);
+    await screen.findByTestId("multi-session-empty");
+    fireEvent.click(screen.getByTestId("open-git-session-search"));
+    fireEvent.change(await screen.findByTestId("workspace-command-palette-search"), {
+      target: { value: "hive" },
+    });
+    await act(async () => {
+      fireEvent.click(
+        screen.getByTestId(
+          "palette-option-workspace:git:git-clone:kethalia/hive:kethalia/hive-add",
+        ),
+      );
+    });
+
+    fireEvent.click(screen.getByTestId("workspace-board-new"));
+    expect(screen.getByTestId("active-board-empty")).toBeInTheDocument();
+    fireEvent.click(screen.getByTestId("open-git-session-search"));
+    fireEvent.change(await screen.findByTestId("workspace-command-palette-search"), {
+      target: { value: "git-clone-safe-hive" },
+    });
+    fireEvent.click(screen.getByTestId("palette-option-workspace:session:git-clone-safe-hive-add"));
+
+    const storedState = JSON.parse(
+      window.localStorage.getItem("workspace-board-state:git:ws-1") ?? "{}",
+    );
+    expect(
+      storedState.boards.find((board: { key: string }) => board.key === "workspace-2").panes,
+    ).toEqual([
+      expect.objectContaining({
+        kind: "git",
+        sessionName: "git-clone-safe-hive",
+        cloneSessionKey: "git-clone:kethalia/hive",
+        relativePath: "kethalia/hive",
+      }),
+    ]);
+  });
+
   it("shows sessions already in the active board as disabled add actions", async () => {
     mockGetSessions.mockResolvedValueOnce(twoSessionPayload());
     mockListGitClones.mockResolvedValueOnce({ data: { ok: true, tree: { nodes: [] } } });
@@ -1760,10 +2438,10 @@ describe("MultiSessionWorkspace", () => {
     await screen.findByTestId("workspace-pane-main-session");
 
     fireEvent.click(screen.getByTestId("open-git-session-search"));
-    const action = await screen.findByTestId("palette-action-workspace:add-session:main-session");
+    const action = await screen.findByTestId("palette-option-workspace:session:main-session-add");
 
     expect(action).toBeDisabled();
-    expect(action).toHaveTextContent("Already in this board");
+    expect(action).toHaveTextContent("Add");
   });
 
   it("restores persisted boards from git-scoped storage and writes selection back to the git key", async () => {
@@ -2031,6 +2709,53 @@ describe("MultiSessionWorkspace", () => {
     expect(screen.getByTestId("active-pane-label")).toHaveTextContent("dev-server");
   });
 
+  it("restores focus from the active board instead of stale legacy layout state", async () => {
+    window.localStorage.setItem(
+      "multi-session-layout:workspace:ws-1",
+      JSON.stringify({
+        version: 1,
+        activeSessionName: "main-session",
+        panes: [
+          { sessionName: "main-session", mode: "tiled", order: 0 },
+          { sessionName: "dev-server", mode: "tiled", order: 1 },
+        ],
+      }),
+    );
+    window.localStorage.setItem(
+      "workspace-board-state:workspace:ws-1",
+      JSON.stringify({
+        version: 1,
+        activeBoardKey: "default",
+        boards: [
+          {
+            key: "default",
+            name: "Default",
+            order: 0,
+            activePaneKey: "terminal:dev-server",
+            panes: [
+              {
+                kind: "terminal",
+                key: "terminal:main-session",
+                sessionName: "main-session",
+                order: 0,
+              },
+              {
+                kind: "terminal",
+                key: "terminal:dev-server",
+                sessionName: "dev-server",
+                order: 1,
+              },
+            ],
+          },
+        ],
+      }),
+    );
+
+    await renderTwoSessionWorkspace();
+
+    expect(screen.getByTestId("active-pane-label")).toHaveTextContent("dev-server");
+  });
+
   it("creates generic workspace sessions while unified source creation lives in the command palette", async () => {
     await renderTwoSessionWorkspace();
     mockCreateSession.mockResolvedValueOnce({ data: { name: "created-main" } });
@@ -2087,26 +2812,49 @@ describe("MultiSessionWorkspace", () => {
       target: { value: "dev" },
     });
 
+    expect(screen.getByTestId("palette-action-workspace:session:dev-server")).toHaveTextContent(
+      "dev-server",
+    );
     expect(
-      screen.getByTestId("palette-action-workspace:focus-session:dev-server"),
-    ).toHaveTextContent("Focus in this board");
-    expect(
-      screen.getByTestId("palette-action-workspace:open-session:dev-server"),
-    ).toHaveTextContent("Open as a single terminal page");
+      screen.getByTestId("palette-option-workspace:session:dev-server-open"),
+    ).toHaveTextContent("Open");
 
     fireEvent.change(screen.getByTestId("workspace-command-palette-search"), {
       target: { value: "hive" },
     });
     expect(
-      screen.getByTestId("palette-action-workspace:add-git:git-clone:kethalia/hive:kethalia/hive"),
-    ).toHaveTextContent("Open this Git repository as a workspace pane");
+      screen.getByTestId("palette-option-workspace:git:git-clone:kethalia/hive:kethalia/hive-add"),
+    ).toHaveTextContent("Add");
     expect(
-      screen.getByTestId("palette-action-workspace:open-git:git-clone:kethalia/hive:kethalia/hive"),
-    ).toHaveTextContent("Open this Git repository as a single terminal page");
+      screen.getByTestId("palette-option-workspace:git:git-clone:kethalia/hive:kethalia/hive-open"),
+    ).toHaveTextContent("Open");
 
-    fireEvent.click(screen.getByTestId("palette-action-workspace:focus-session:dev-server"));
+    fireEvent.click(screen.getByTestId("palette-action-workspace:session:dev-server"));
 
     expect(screen.getByTestId("active-pane-label")).toHaveTextContent("dev-server");
+  });
+
+  it("searches terminal sessions beyond the first sixteen results", async () => {
+    mockGetSessions.mockResolvedValueOnce({
+      data: Array.from({ length: 17 }, (_, index) => ({
+        name: `session-${String(index + 1).padStart(2, "0")}`,
+        created: index + 1,
+        windows: 1,
+      })),
+    });
+    mockListGitClones.mockResolvedValueOnce({ data: { ok: true, tree: { nodes: [] } } });
+
+    render(<MultiSessionWorkspace {...defaultProps} source="unified" />);
+    await screen.findByTestId("workspace-pane-session-01");
+    fireEvent.click(screen.getByTestId("open-git-session-search"));
+    fireEvent.change(await screen.findByTestId("workspace-command-palette-search"), {
+      target: { value: "session-17" },
+    });
+
+    expect(screen.getByTestId("palette-action-workspace:session:session-17")).toBeInTheDocument();
+    expect(
+      screen.queryByTestId("palette-option-workspace:new-terminal-from-query"),
+    ).not.toBeInTheDocument();
   });
 
   it("uses clone key plus relative path for Git command palette identities", async () => {
@@ -2148,16 +2896,16 @@ describe("MultiSessionWorkspace", () => {
     });
 
     expect(
-      screen.getByTestId("palette-action-workspace:add-git:git-clone:kethalia:kethalia/hive"),
+      screen.getByTestId("palette-action-workspace:git:git-clone:kethalia:kethalia/hive"),
     ).toHaveTextContent("kethalia/hive");
     expect(
-      screen.getByTestId("palette-action-workspace:add-git:git-clone:kethalia:kethalia/docs"),
+      screen.getByTestId("palette-action-workspace:git:git-clone:kethalia:kethalia/docs"),
     ).toHaveTextContent("kethalia/docs");
     expect(
-      screen.getByTestId("palette-action-workspace:open-git:git-clone:kethalia:kethalia/hive"),
+      screen.getByTestId("palette-option-workspace:git:git-clone:kethalia:kethalia/hive-open"),
     ).toBeInTheDocument();
     expect(
-      screen.getByTestId("palette-action-workspace:open-git:git-clone:kethalia:kethalia/docs"),
+      screen.getByTestId("palette-option-workspace:git:git-clone:kethalia:kethalia/docs-open"),
     ).toBeInTheDocument();
   });
 
@@ -2235,7 +2983,7 @@ describe("MultiSessionWorkspace", () => {
     fireEvent.change(await screen.findByTestId("workspace-command-palette-search"), {
       target: { value: "main" },
     });
-    fireEvent.click(screen.getByTestId("palette-action-workspace:add-session:main-session"));
+    fireEvent.click(screen.getByTestId("palette-option-workspace:session:main-session-add"));
 
     expect(screen.getByTestId("workspace-pane-main-session")).toBeInTheDocument();
     expect(screen.getByTestId("active-pane-label")).toHaveTextContent("main-session");
@@ -2405,7 +3153,11 @@ describe("MultiSessionWorkspace", () => {
     });
 
     await act(async () => {
-      fireEvent.click(screen.getByRole("button", { name: /Add kethalia\/hive/ }));
+      fireEvent.click(
+        screen.getByTestId(
+          "palette-option-workspace:git:git-clone:kethalia/hive:kethalia/hive-add",
+        ),
+      );
     });
 
     expect(screen.getByTestId("workspace-pane-git-clone-safe-hive")).toBeInTheDocument();
@@ -2500,8 +3252,12 @@ describe("MultiSessionWorkspace", () => {
       target: { value: "docs" },
     });
 
-    expect(screen.queryByRole("button", { name: /Add kethalia\/hive/ })).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /Add kethalia\/docs/ })).toBeInTheDocument();
+    expect(
+      screen.queryByTestId("palette-option-workspace:git:git-clone:monorepo:kethalia/hive-add"),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByTestId("palette-option-workspace:git:git-clone:monorepo:kethalia/docs-add"),
+    ).toBeInTheDocument();
   });
 
   it("surfaces sanitized restore failures for malformed persisted Git pane resolver output", async () => {
@@ -2668,7 +3424,9 @@ describe("MultiSessionWorkspace", () => {
     fireEvent.change(await screen.findByTestId("workspace-command-palette-search"), {
       target: { value: "docs" },
     });
-    expect(screen.getByRole("button", { name: /Add kethalia\/docs/ })).toBeInTheDocument();
+    expect(
+      screen.getByTestId("palette-option-workspace:git:git-clone:kethalia/docs:kethalia/docs-add"),
+    ).toBeInTheDocument();
     fireEvent.click(screen.getByTestId("retry-git-session-restore"));
 
     expect(await screen.findByTestId("interactive-terminal-git-clone-safe-hive")).toHaveAttribute(
@@ -2799,7 +3557,11 @@ describe("MultiSessionWorkspace", () => {
     });
 
     await act(async () => {
-      fireEvent.click(screen.getByRole("button", { name: /Add kethalia\/hive/ }));
+      fireEvent.click(
+        screen.getByTestId(
+          "palette-option-workspace:git:git-clone:kethalia/hive:kethalia/hive-add",
+        ),
+      );
     });
 
     expect(await screen.findByTestId("git-session-add-error")).toHaveTextContent(serverError);
@@ -2862,13 +3624,13 @@ describe("MultiSessionWorkspace", () => {
       target: { value: "hive" },
     });
     expect(
-      screen.getByTestId("palette-action-workspace:add-git:git-clone:kethalia/hive:kethalia/hive"),
-    ).toHaveTextContent("kethalia/hive");
+      screen.getByTestId("palette-option-workspace:git:git-clone:kethalia/hive:kethalia/hive-add"),
+    ).toHaveTextContent("Add");
 
     await act(async () => {
       fireEvent.click(
         screen.getByTestId(
-          "palette-action-workspace:add-git:git-clone:kethalia/hive:kethalia/hive",
+          "palette-option-workspace:git:git-clone:kethalia/hive:kethalia/hive-add",
         ),
       );
     });
@@ -3196,7 +3958,7 @@ describe("MultiSessionWorkspace", () => {
     fireEvent.change(await screen.findByTestId("workspace-command-palette-search"), {
       target: { value: "main" },
     });
-    fireEvent.click(screen.getByTestId("palette-action-workspace:add-session:main-session"));
+    fireEvent.click(screen.getByTestId("palette-option-workspace:session:main-session-add"));
     expect(screen.getByTestId("workspace-pane-main-session")).toBeInTheDocument();
     expect(screen.queryByTestId("workspace-recovery-status")).not.toBeInTheDocument();
   });
@@ -3249,7 +4011,7 @@ describe("MultiSessionWorkspace", () => {
     await act(async () => {
       fireEvent.click(
         screen.getByTestId(
-          "palette-action-workspace:add-git:git-clone:kethalia/hive:kethalia/hive",
+          "palette-option-workspace:git:git-clone:kethalia/hive:kethalia/hive-add",
         ),
       );
     });
@@ -3346,7 +4108,7 @@ describe("MultiSessionWorkspace", () => {
     await act(async () => {
       fireEvent.click(
         screen.getByTestId(
-          "palette-action-workspace:add-git:git-clone:kethalia/hive:kethalia/hive",
+          "palette-option-workspace:git:git-clone:kethalia/hive:kethalia/hive-add",
         ),
       );
     });
@@ -3412,7 +4174,7 @@ describe("MultiSessionWorkspace", () => {
     await act(async () => {
       fireEvent.click(
         screen.getByTestId(
-          "palette-action-workspace:open-git:git-clone:kethalia/hive:kethalia/hive",
+          "palette-option-workspace:git:git-clone:kethalia/hive:kethalia/hive-open",
         ),
       );
     });
@@ -3432,7 +4194,7 @@ describe("MultiSessionWorkspace", () => {
     await act(async () => {
       fireEvent.click(
         screen.getByTestId(
-          "palette-action-workspace:add-git:git-clone:kethalia/hive:kethalia/hive",
+          "palette-option-workspace:git:git-clone:kethalia/hive:kethalia/hive-add",
         ),
       );
     });
@@ -3441,7 +4203,7 @@ describe("MultiSessionWorkspace", () => {
       target: { value: "hive" },
     });
     fireEvent.click(
-      screen.getByTestId("palette-action-workspace:open-session:git-clone-safe-hive"),
+      screen.getByTestId("palette-option-workspace:session:git-clone-safe-hive-open"),
     );
 
     pushed = new URL(mockRouterPush.mock.calls.at(-1)?.[0] ?? "", "https://example.test");
@@ -3588,7 +4350,7 @@ describe("MultiSessionWorkspace", () => {
     await act(async () => {
       fireEvent.click(
         await screen.findByTestId(
-          "palette-action-workspace:add-git:git-clone:kethalia/hive:kethalia/hive",
+          "palette-option-workspace:git:git-clone:kethalia/hive:kethalia/hive-add",
         ),
       );
     });
@@ -3649,9 +4411,9 @@ describe("MultiSessionWorkspace", () => {
     await waitFor(() => {
       expect(
         screen.getByTestId(
-          "palette-action-workspace:add-git:git-clone:kethalia/docs:kethalia/docs",
+          "palette-option-workspace:git:git-clone:kethalia/docs:kethalia/docs-add",
         ),
-      ).toHaveTextContent("kethalia/docs");
+      ).toHaveTextContent("Add");
     });
 
     fireEvent.change(screen.getByTestId("workspace-command-palette-search"), {
@@ -3659,7 +4421,7 @@ describe("MultiSessionWorkspace", () => {
     });
     const resultButtons = screen
       .getAllByRole("button")
-      .filter((button) => button.dataset.testid?.startsWith("palette-action-workspace:add-git:"))
+      .filter((button) => button.dataset.testid?.startsWith("palette-action-workspace:git:"))
       .map((button) => button.textContent);
     expect(resultButtons[0]).toContain("kethalia/docs");
     expect(resultButtons[1]).toContain("kethalia/hive");

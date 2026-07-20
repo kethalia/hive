@@ -95,6 +95,9 @@ importers:
       tw-animate-css:
         specifier: ^1.4.0
         version: 1.4.0
+      undici:
+        specifier: ^7.25.0
+        version: 7.25.0
       uuid:
         specifier: ^11.0.0
         version: 11.1.0
@@ -205,6 +208,9 @@ importers:
       tsx:
         specifier: ^4.21.0
         version: 4.21.0
+      undici:
+        specifier: ^7.25.0
+        version: 7.25.0
     devDependencies:
       '@types/node':
         specifier: ^22
@@ -236,6 +242,9 @@ importers:
       tsx:
         specifier: ^4.21.0
         version: 4.21.0
+      undici:
+        specifier: ^7.25.0
+        version: 7.25.0
       ws:
         specifier: ^8.20.0
         version: 8.20.0

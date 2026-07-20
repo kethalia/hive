@@ -1,3 +1,4 @@
+import { fetchCoderApi } from "./fetch";
 import type {
   ApiKeyInfo,
   BuildInfoResponse,
@@ -18,6 +19,34 @@ import type {
   WorkspaceBuildStatus,
   WorkspaceResource,
 } from "./types";
+
+const APPLICATIONS_HOST_TIMEOUT_MS = 2_000;
+const APPLICATION_AUTH_REDIRECT_TIMEOUT_MS = 5_000;
+
+function parseApplicationsHost(host: string): string {
+  const trimmedHost = host.trim();
+  if (!trimmedHost) return "";
+  const placeholder = "hive-workspace-app-placeholder";
+  try {
+    const url = new URL(
+      trimmedHost.includes("://")
+        ? trimmedHost.replace("*", placeholder)
+        : `https://${trimmedHost.replace("*", placeholder)}`,
+    );
+    const invalidUrlParts = [
+      !["https:", "http:"].includes(url.protocol),
+      Boolean(url.username),
+      Boolean(url.password),
+      url.pathname !== "/",
+      Boolean(url.search),
+      Boolean(url.hash),
+    ];
+    if (invalidUrlParts.includes(true)) return "";
+    return trimmedHost;
+  } catch {
+    return "";
+  }
+}
 
 /**
  * Typed REST client for the Coder API.
@@ -44,6 +73,38 @@ export class CoderClient {
     return this.baseUrl;
   }
 
+  async getApplicationsHost(): Promise<string> {
+    const response = await this.request<unknown>("/api/v2/applications/host", {
+      signal: AbortSignal.timeout(APPLICATIONS_HOST_TIMEOUT_MS),
+    });
+    return typeof response === "object" &&
+      response !== null &&
+      "host" in response &&
+      typeof response.host === "string"
+      ? parseApplicationsHost(response.host)
+      : "";
+  }
+
+  async getApplicationAuthRedirect(redirectUri: string): Promise<string> {
+    const endpoint = new URL("/api/v2/applications/auth-redirect", this.baseUrl);
+    endpoint.searchParams.set("redirect_uri", redirectUri);
+    const response = await fetchCoderApi(endpoint, {
+      headers: { "Coder-Session-Token": this.sessionToken },
+      redirect: "manual",
+      signal: AbortSignal.timeout(APPLICATION_AUTH_REDIRECT_TIMEOUT_MS),
+    });
+    const location = response.headers.get("location");
+    if (response.status < 300 || response.status >= 400 || !location) {
+      throw new Error(`[coder] Failed to create workspace app redirect: ${response.status}`);
+    }
+
+    const resolvedLocation = new URL(location, this.baseUrl);
+    if (resolvedLocation.origin !== new URL(redirectUri).origin) {
+      throw new Error("[coder] Workspace app redirect returned an unexpected origin");
+    }
+    return resolvedLocation.toString();
+  }
+
   // ── Private helpers ──────────────────────────────────────────────
 
   /**
@@ -52,7 +113,7 @@ export class CoderClient {
    */
   private async request<T>(path: string, init?: RequestInit): Promise<T> {
     const url = `${this.baseUrl}${path}`;
-    const res = await fetch(url, {
+    const res = await fetchCoderApi(url, {
       ...init,
       headers: {
         "Content-Type": "application/json",
@@ -268,7 +329,7 @@ export class CoderClient {
    */
   async fetchTemplateFiles(fileId: string): Promise<Buffer> {
     const url = `${this.baseUrl}/api/v2/files/${fileId}`;
-    const res = await fetch(url, {
+    const res = await fetchCoderApi(url, {
       headers: {
         "Coder-Session-Token": this.sessionToken,
       },
@@ -295,7 +356,7 @@ export class CoderClient {
   static async validateInstance(url: string): Promise<ValidateInstanceResult> {
     const baseUrl = url.replace(/\/+$/, "");
     try {
-      const res = await fetch(`${baseUrl}/api/v2/buildinfo`, {
+      const res = await fetchCoderApi(`${baseUrl}/api/v2/buildinfo`, {
         signal: AbortSignal.timeout(10_000),
       });
       if (!res.ok) {
@@ -329,7 +390,7 @@ export class CoderClient {
   static async login(baseUrl: string, email: string, password: string): Promise<LoginResult> {
     const url = baseUrl.replace(/\/+$/, "");
     const body: LoginRequest = { email, password };
-    const res = await fetch(`${url}/api/v2/users/login`, {
+    const res = await fetchCoderApi(`${url}/api/v2/users/login`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
@@ -346,7 +407,7 @@ export class CoderClient {
 
     const loginData = (await res.json()) as LoginResponse;
 
-    const meRes = await fetch(`${url}/api/v2/users/me`, {
+    const meRes = await fetchCoderApi(`${url}/api/v2/users/me`, {
       headers: {
         "Content-Type": "application/json",
         "Coder-Session-Token": loginData.session_token,
@@ -376,7 +437,7 @@ export class CoderClient {
     const url = baseUrl.replace(/\/+$/, "");
     const body: CreateApiKeyRequest = lifetimeSeconds ? { lifetime_seconds: lifetimeSeconds } : {};
     try {
-      const res = await fetch(`${url}/api/v2/users/${userId}/keys`, {
+      const res = await fetchCoderApi(`${url}/api/v2/users/${userId}/keys`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -408,7 +469,7 @@ export class CoderClient {
   ): Promise<ApiKeyInfo[]> {
     const url = baseUrl.replace(/\/+$/, "");
     try {
-      const res = await fetch(`${url}/api/v2/users/${userId}/keys`, {
+      const res = await fetchCoderApi(`${url}/api/v2/users/${userId}/keys`, {
         headers: {
           "Content-Type": "application/json",
           "Coder-Session-Token": sessionToken,
@@ -443,7 +504,7 @@ export class CoderClient {
   ): Promise<boolean> {
     const url = baseUrl.replace(/\/+$/, "");
     try {
-      const res = await fetch(`${url}/api/v2/users/${userId}/keys/${keyId}`, {
+      const res = await fetchCoderApi(`${url}/api/v2/users/${userId}/keys/${keyId}`, {
         method: "DELETE",
         headers: {
           "Coder-Session-Token": sessionToken,

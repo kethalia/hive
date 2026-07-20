@@ -1,9 +1,10 @@
 import type { NextConfig } from "next";
+import {
+  buildContentSecurityPolicy,
+  buildPermissionsPolicy,
+} from "./src/lib/security/content-security-policy";
 
-const scriptSource =
-  process.env.NODE_ENV === "development"
-    ? "script-src 'self' 'unsafe-inline' 'unsafe-eval'"
-    : "script-src 'self' 'unsafe-inline'";
+export const contentSecurityPolicy = buildContentSecurityPolicy();
 
 const nextConfig: NextConfig = {
   output: "standalone",
@@ -17,11 +18,7 @@ const nextConfig: NextConfig = {
           { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
           {
             key: "Permissions-Policy",
-            value: "camera=(), geolocation=(), microphone=(), payment=(), usb=()",
-          },
-          {
-            key: "Content-Security-Policy",
-            value: `default-src 'self'; base-uri 'self'; frame-ancestors 'self'; form-action 'self'; object-src 'none'; ${scriptSource}; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data: blob:; connect-src 'self' http: https: wss: ws:; worker-src 'self' blob:`,
+            value: buildPermissionsPolicy(),
           },
         ],
       },

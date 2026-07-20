@@ -51,6 +51,7 @@ export async function handleLogin(req: IncomingMessage, res: ServerResponse): Pr
     console.log(`[auth-service] POST /login → 200 user=${result.user.id}`);
     sendJson(res, 200, {
       sessionId: result.sessionId,
+      applicationsHost: result.applicationsHost,
       user: result.user,
     });
   } catch (err) {

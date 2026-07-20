@@ -1,4 +1,6 @@
 export const CODER_API_TIMEOUT_MS = 10_000;
+export const CODER_APPLICATIONS_HOST_TIMEOUT_MS = 2_000;
+export const CODER_LOGIN_ANCILLARY_DEADLINE_MS = 7_500;
 
 export const API_KEY_CREATION_RETRIES = 3;
 
@@ -16,6 +18,7 @@ export const CODER_API_PATHS = {
   BUILD_INFO: "/api/v2/buildinfo",
   LOGIN: "/api/v2/users/login",
   ME: "/api/v2/users/me",
+  APPLICATIONS_HOST: "/api/v2/applications/host",
   USER_KEYS: (userId: string) => `/api/v2/users/${userId}/keys`,
 } as const;
 

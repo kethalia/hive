@@ -27,6 +27,7 @@ const mockedGetRequestSession = vi.mocked(getRequestSession);
 const mockedGetSession = vi.mocked(getSession);
 const mockedCookies = vi.mocked(cookies);
 const mockedExec = vi.mocked(execInWorkspace);
+const mockCookieSet = vi.fn();
 
 const MOCK_SESSION = {
   user: {
@@ -53,6 +54,8 @@ describe("workspace server actions", () => {
   const mockStopWorkspace = vi.fn();
   const mockStartWorkspace = vi.fn();
   const mockWaitForBuild = vi.fn();
+  const mockGetApplicationsHost = vi.fn();
+  const mockGetApplicationAuthRedirect = vi.fn();
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -61,8 +64,15 @@ describe("workspace server actions", () => {
 
     mockedGetRequestSession.mockResolvedValue(MOCK_SESSION);
     mockedGetSession.mockResolvedValue(MOCK_SESSION);
+    mockGetApplicationAuthRedirect.mockImplementation(async (url: string) => url);
     mockedCookies.mockResolvedValue({
-      get: () => ({ value: "session-cookie-value" }),
+      get: (name: string) => ({
+        value:
+          name === "hive-coder-host"
+            ? "coder.example.com~coder.example.com"
+            : "session-cookie-value",
+      }),
+      set: mockCookieSet,
     } as never);
 
     mockedGetCoderClientForUser.mockResolvedValue({
@@ -77,6 +87,8 @@ describe("workspace server actions", () => {
       waitForBuild: mockWaitForBuild,
       getBaseUrl: () => "https://coder.example.com",
       getSessionToken: () => "coder-session-token",
+      getApplicationsHost: mockGetApplicationsHost.mockResolvedValue("*.coder.example.com"),
+      getApplicationAuthRedirect: mockGetApplicationAuthRedirect,
     } as never);
     mockGetWorkspaceResources.mockResolvedValue([
       {
@@ -89,6 +101,7 @@ describe("workspace server actions", () => {
   });
 
   afterEach(() => {
+    vi.unstubAllEnvs();
     vi.restoreAllMocks();
   });
 
@@ -382,5 +395,265 @@ describe("workspace server actions", () => {
 
     expect(result?.data).toBeUndefined();
     expect(result?.serverError).toMatch(/timed out/i);
+  });
+
+  it("resolves embedded VS Code and File Browser URLs from the tmux pane directory", async () => {
+    mockGetWorkspace.mockResolvedValueOnce({
+      id: "ws-1",
+      name: "dev-box",
+      owner_name: "alice",
+      template_id: "tpl-1",
+      latest_build: { id: "build-1", status: "running", job: { status: "succeeded" } },
+    });
+    mockedExec.mockResolvedValueOnce({
+      stdout: "/home/coder/projects/kethalia/hive\n",
+      stderr: "",
+      exitCode: 0,
+    });
+
+    const { getWorkspaceSessionToolsAction } = await import("@/lib/actions/workspaces");
+    const result = await getWorkspaceSessionToolsAction({
+      workspaceId: "ws-1",
+      sessionName: "git-hive",
+      documentFrameHosts: ["https://coder.example.com"],
+      tool: "code",
+    });
+
+    expect(mockedExec).toHaveBeenCalledWith(
+      "dev-box.main",
+      "tmux -L web display-message -p -t git-hive: '#{pane_current_path}'",
+      {
+        coderUrl: "https://coder.example.com",
+        sessionToken: "coder-session-token",
+        timeoutMs: 5_000,
+      },
+    );
+    expect(result?.data).toEqual({
+      codeUrl:
+        "https://code-server--main--dev-box--alice.coder.example.com/?folder=%2Fhome%2Fcoder%2Fprojects%2Fkethalia%2Fhive",
+      filesUrl:
+        "https://filebrowser--main--dev-box--alice.coder.example.com/files/projects/kethalia/hive",
+      folderPath: "/home/coder/projects/kethalia/hive",
+      reloadRequired: false,
+      source: "tmux",
+    });
+  });
+
+  it("keeps VS Code on Coder's isolated app subdomain when Hive uses a private CA", async () => {
+    vi.stubEnv("CODER_CA_CERT", "trusted-private-ca");
+    mockGetWorkspace.mockResolvedValueOnce({
+      id: "ws-1",
+      name: "dev-box",
+      owner_name: "alice",
+      template_id: "tpl-1",
+      latest_build: { id: "build-1", status: "running", job: { status: "succeeded" } },
+    });
+    mockedExec.mockResolvedValueOnce({
+      stdout: "/home/coder/projects/kethalia/hive\n",
+      stderr: "",
+      exitCode: 0,
+    });
+
+    const { getWorkspaceSessionToolsAction } = await import("@/lib/actions/workspaces");
+    const result = await getWorkspaceSessionToolsAction({
+      workspaceId: "ws-1",
+      sessionName: "git-hive",
+      documentFrameHosts: ["https://coder.example.com"],
+      tool: "code",
+    });
+
+    const expectedUrl =
+      "https://code-server--main--dev-box--alice.coder.example.com/?folder=%2Fhome%2Fcoder%2Fprojects%2Fkethalia%2Fhive";
+    expect(result?.data?.codeUrl).toBe(expectedUrl);
+    expect(mockGetApplicationAuthRedirect).toHaveBeenCalledWith(expectedUrl);
+  });
+
+  it("uses a trusted absolute fallback directory when the tmux pane is unavailable", async () => {
+    mockGetWorkspace.mockResolvedValueOnce({
+      id: "ws-1",
+      name: "dev-box",
+      owner_name: "alice",
+      template_id: "tpl-1",
+      latest_build: { id: "build-1", status: "running", job: { status: "succeeded" } },
+    });
+    mockedExec.mockResolvedValueOnce({ stdout: "", stderr: "missing session", exitCode: 1 });
+
+    const { getWorkspaceSessionToolsAction } = await import("@/lib/actions/workspaces");
+    const result = await getWorkspaceSessionToolsAction({
+      workspaceId: "ws-1",
+      sessionName: "git-hive",
+      fallbackPath: "/home/coder/projects/kethalia/hive",
+      documentFrameHosts: ["https://coder.example.com"],
+      tool: "code",
+    });
+
+    expect(result?.data?.folderPath).toBe("/home/coder/projects/kethalia/hive");
+    expect(result?.data?.source).toBe("fallback");
+  });
+
+  it("resolves a repository-relative fallback beneath the configured projects root", async () => {
+    mockGetWorkspace.mockResolvedValueOnce({
+      id: "ws-1",
+      name: "dev-box",
+      owner_name: "alice",
+      template_id: "tpl-1",
+      latest_build: { id: "build-1", status: "running", job: { status: "succeeded" } },
+    });
+    mockedExec.mockResolvedValueOnce({ stdout: "", stderr: "missing session", exitCode: 1 });
+
+    const { getWorkspaceSessionToolsAction } = await import("@/lib/actions/workspaces");
+    const result = await getWorkspaceSessionToolsAction({
+      workspaceId: "ws-1",
+      sessionName: "git-hive",
+      fallbackPath: "projects/kethalia/hive",
+      documentFrameHosts: ["https://coder.example.com"],
+      tool: "files",
+    });
+
+    expect(result?.data?.folderPath).toBe("/home/coder/projects/kethalia/hive");
+    expect(result?.data?.source).toBe("fallback");
+  });
+
+  it("resolves a repository-relative fallback when the configured projects root is slash", async () => {
+    vi.stubEnv("HIVE_PROJECTS_ROOT", "/");
+    mockGetWorkspace.mockResolvedValueOnce({
+      id: "ws-1",
+      name: "dev-box",
+      owner_name: "alice",
+      template_id: "tpl-1",
+      latest_build: { id: "build-1", status: "running", job: { status: "succeeded" } },
+    });
+    mockedExec.mockResolvedValueOnce({ stdout: "", stderr: "missing session", exitCode: 1 });
+
+    const { getWorkspaceSessionToolsAction } = await import("@/lib/actions/workspaces");
+    const result = await getWorkspaceSessionToolsAction({
+      workspaceId: "ws-1",
+      sessionName: "git-hive",
+      fallbackPath: "workspace/repo",
+      documentFrameHosts: ["https://coder.example.com"],
+      tool: "files",
+    });
+
+    expect(result?.data?.folderPath).toBe("/workspace/repo");
+    expect(result?.data?.filesUrl).toBe(
+      "https://filebrowser--main--dev-box--alice.coder.example.com/files/workspace/repo",
+    );
+    expect(result?.data?.source).toBe("fallback");
+  });
+
+  it("opens File Browser relative to a non-default configured projects root", async () => {
+    vi.stubEnv("HIVE_PROJECTS_ROOT", "/tmp/repos");
+    mockGetWorkspace.mockResolvedValueOnce({
+      id: "ws-1",
+      name: "dev-box",
+      owner_name: "alice",
+      template_id: "tpl-1",
+      latest_build: { id: "build-1", status: "running", job: { status: "succeeded" } },
+    });
+    mockedExec.mockResolvedValueOnce({
+      stdout: "/tmp/repos/kethalia/hive\n",
+      stderr: "",
+      exitCode: 0,
+    });
+
+    const { getWorkspaceSessionToolsAction } = await import("@/lib/actions/workspaces");
+    const result = await getWorkspaceSessionToolsAction({
+      workspaceId: "ws-1",
+      sessionName: "git-hive",
+      documentFrameHosts: ["https://coder.example.com"],
+      tool: "files",
+    });
+
+    expect(result?.data?.filesUrl).toBe(
+      "https://filebrowser--main--dev-box--alice.coder.example.com/files/kethalia/hive",
+    );
+    expect(result?.data?.folderPath).toBe("/tmp/repos/kethalia/hive");
+  });
+
+  it("uses the requesting document policy when another tab already updated the cookie", async () => {
+    mockGetApplicationsHost.mockResolvedValueOnce("*.apps.example.com");
+    mockedCookies.mockResolvedValueOnce({
+      get: () => ({ value: "https://coder.example.com~https://apps.example.com" }),
+      set: mockCookieSet,
+    } as never);
+    mockGetWorkspace.mockResolvedValueOnce({
+      id: "ws-1",
+      name: "dev-box",
+      owner_name: "alice",
+      template_id: "tpl-1",
+      latest_build: { id: "build-1", status: "running", job: { status: "succeeded" } },
+    });
+    mockedExec.mockResolvedValueOnce({ stdout: "/home/coder\n", stderr: "", exitCode: 0 });
+
+    const { getWorkspaceSessionToolsAction } = await import("@/lib/actions/workspaces");
+    const result = await getWorkspaceSessionToolsAction({
+      workspaceId: "ws-1",
+      sessionName: "git-hive",
+      documentFrameHosts: ["https://coder.example.com"],
+      tool: "files",
+    });
+    const client = await mockedGetCoderClientForUser.mock.results.at(-1)?.value;
+
+    const expectedUrl = "https://filebrowser--main--dev-box--alice.apps.example.com/files/";
+    expect(result?.data?.filesUrl).toBe(expectedUrl);
+    expect(result?.data?.reloadRequired).toBe(true);
+    expect(client?.getApplicationAuthRedirect).toHaveBeenCalledWith(expectedUrl);
+    expect(mockCookieSet).toHaveBeenCalledWith(
+      "hive-coder-host",
+      "https://coder.example.com~https://apps.example.com",
+      expect.objectContaining({ httpOnly: true, maxAge: expect.any(Number), path: "/" }),
+    );
+  });
+
+  it("requires a reload when the document lacks the primary Coder frame origin", async () => {
+    mockGetApplicationsHost.mockResolvedValueOnce("");
+    mockGetWorkspace.mockResolvedValueOnce({
+      id: "ws-1",
+      name: "dev-box",
+      owner_name: "alice",
+      template_id: "tpl-1",
+      latest_build: { id: "build-1", status: "running", job: { status: "succeeded" } },
+    });
+    mockedExec.mockResolvedValueOnce({ stdout: "/home/coder\n", stderr: "", exitCode: 0 });
+
+    const { getWorkspaceSessionToolsAction } = await import("@/lib/actions/workspaces");
+    const result = await getWorkspaceSessionToolsAction({
+      workspaceId: "ws-1",
+      sessionName: "git-hive",
+      documentFrameHosts: [],
+      tool: "files",
+    });
+
+    expect(result?.data?.reloadRequired).toBe(true);
+    expect(mockCookieSet).toHaveBeenCalledWith(
+      "hive-coder-host",
+      "https://coder.example.com",
+      expect.objectContaining({ httpOnly: true, maxAge: expect.any(Number), path: "/" }),
+    );
+  });
+
+  it("does not update the frame-host cookie when application authentication fails", async () => {
+    mockGetApplicationsHost.mockResolvedValueOnce("*.apps.example.com");
+    mockGetWorkspace.mockResolvedValueOnce({
+      id: "ws-1",
+      name: "dev-box",
+      owner_name: "alice",
+      template_id: "tpl-1",
+      latest_build: { id: "build-1", status: "running", job: { status: "succeeded" } },
+    });
+    mockedExec.mockResolvedValueOnce({ stdout: "/home/coder\n", stderr: "", exitCode: 0 });
+    mockGetApplicationAuthRedirect.mockRejectedValueOnce(new Error("application auth failed"));
+
+    const { getWorkspaceSessionToolsAction } = await import("@/lib/actions/workspaces");
+    const result = await getWorkspaceSessionToolsAction({
+      workspaceId: "ws-1",
+      sessionName: "git-hive",
+      documentFrameHosts: ["https://coder.example.com"],
+      tool: "code",
+    });
+
+    expect(result?.data).toBeUndefined();
+    expect(result?.serverError).toMatch(/application auth failed/i);
+    expect(mockCookieSet).not.toHaveBeenCalled();
   });
 });

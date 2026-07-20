@@ -71,6 +71,7 @@ export interface LoginRequest {
 
 export interface LoginResponse {
   sessionId: string;
+  applicationsHost: string;
   user: {
     id: string;
     username: string;
