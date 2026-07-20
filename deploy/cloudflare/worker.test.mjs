@@ -27,6 +27,14 @@ test("sets edge security headers", () => {
   assert.match(headers.get("Strict-Transport-Security") ?? "", /includeSubDomains/);
 });
 
+test("preserves the origin clipboard permissions policy", () => {
+  const originPolicy =
+    'camera=(), clipboard-read=(self "https://coder.example.com"), clipboard-write=(self "https://coder.example.com")';
+  const headers = applySecurityHeaders(new Headers({ "Permissions-Policy": originPolicy }));
+
+  assert.equal(headers.get("Permissions-Policy"), originPolicy);
+});
+
 test("routes with the origin host while preserving the public forwarded host", () => {
   const request = new Request("https://hive.example.com/tasks", {
     headers: {
