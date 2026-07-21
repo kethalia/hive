@@ -736,6 +736,110 @@ describe("useTerminalWebSocket reconnect loop", () => {
     unmount();
   });
 
+  it("uses one socket snapshot when a close races terminal input", () => {
+    const { result, unmount } = renderHook(() =>
+      useTerminalWebSocket({
+        url: "ws://terminal.example/ws",
+        onData: vi.fn(),
+      }),
+    );
+    const socket = openSocket();
+    let readyStateReads = 0;
+    Object.defineProperty(socket, "readyState", {
+      configurable: true,
+      get() {
+        readyStateReads += 1;
+        if (readyStateReads === 1) {
+          socket.onclose?.(
+            new CloseEvent("close", {
+              code: 1013,
+              reason: "upstream closed",
+              wasClean: false,
+            }),
+          );
+        }
+        return MockWebSocket.OPEN;
+      },
+    });
+
+    expect(() => {
+      act(() => result.current.send("input"));
+    }).not.toThrow();
+    expect(socket.send).toHaveBeenCalledWith("input");
+    expect(readyStateReads).toBe(1);
+    unmount();
+  });
+
+  it("uses one socket snapshot when a close races a window refit", () => {
+    const onResizeSent = vi.fn();
+    const { result, unmount } = renderHook(() =>
+      useTerminalWebSocket({
+        url: "ws://terminal.example/ws",
+        onData: vi.fn(),
+        onResizeSent,
+      }),
+    );
+    const socket = openSocket();
+    let readyStateReads = 0;
+    Object.defineProperty(socket, "readyState", {
+      configurable: true,
+      get() {
+        readyStateReads += 1;
+        if (readyStateReads === 1) {
+          socket.onclose?.(
+            new CloseEvent("close", {
+              code: 1013,
+              reason: "upstream closed",
+              wasClean: false,
+            }),
+          );
+        }
+        return MockWebSocket.OPEN;
+      },
+    });
+
+    expect(() => {
+      act(() => result.current.resize(42, 120, "window-layout"));
+    }).not.toThrow();
+    expect(socket.send).toHaveBeenCalledWith(JSON.stringify({ height: 42, width: 120 }));
+    expect(onResizeSent).toHaveBeenCalledWith(
+      expect.objectContaining({ rows: 42, cols: 120, source: "window-layout" }),
+    );
+    expect(readyStateReads).toBe(1);
+    unmount();
+  });
+
+  it("ignores a stale close after a replacement socket is installed", () => {
+    const { result, rerender, unmount } = renderHook(
+      ({ url }: { url: string }) =>
+        useTerminalWebSocket({
+          url,
+          onData: vi.fn(),
+        }),
+      { initialProps: { url: "ws://terminal.example/one" } },
+    );
+    const firstSocket = openSocket();
+    const staleClose = firstSocket.onclose;
+
+    rerender({ url: "ws://terminal.example/two" });
+    const replacementSocket = openSocket();
+    act(() => {
+      staleClose?.(
+        new CloseEvent("close", {
+          code: 1013,
+          reason: "late close",
+          wasClean: false,
+        }),
+      );
+      result.current.send("still-connected");
+    });
+
+    expect(replacementSocket.send).toHaveBeenCalledWith("still-connected");
+    expect(result.current.connectionState).toBe("connected");
+    expect(vi.getTimerCount()).toBe(0);
+    unmount();
+  });
+
   it("still treats explicitly unrecoverable closes as final failures", () => {
     const { result, unmount } = renderHook(() =>
       useTerminalWebSocket({

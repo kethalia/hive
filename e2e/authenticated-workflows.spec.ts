@@ -667,6 +667,59 @@ async function proveTerminalAcceptsInput(page: Page, terminal: Locator) {
   await expect(terminal.locator(".xterm-rows")).toContainText(marker, { timeout: 15_000 });
 }
 
+async function verifySustainedTerminalActivity(page: Page, testInfo: TestInfo, terminal: Locator) {
+  const marker = `hive-window-stress-${Date.now()}`;
+  const windows = page.locator("[data-workspace-window-id]:visible");
+  const initialWindowIds = await windows.evaluateAll((elements) =>
+    elements
+      .map((element) => element.getAttribute("data-workspace-window-id"))
+      .filter((id): id is string => id !== null)
+      .sort(),
+  );
+
+  await page
+    .getByRole("button", { name: /^Open session logs for / })
+    .first()
+    .click();
+  const eventLogPane = page.getByTestId("workspace-tool-pane-logs");
+  await expect(eventLogPane).toBeVisible({ timeout: 15_000 });
+
+  const input = terminal.locator("textarea.xterm-helper-textarea");
+  await input.focus();
+  await page.keyboard.type(
+    `i=0; while [ "$i" -lt 15 ]; do i=$((i+1)); printf '${marker} %s %s\\n' "$(date -Is)" "$i"; sleep 1; done`,
+  );
+  await page.keyboard.press("Enter");
+
+  for (let second = 1; second <= 15; second += 1) {
+    await page.waitForTimeout(1_000);
+    await page.screenshot({
+      path: testInfo.outputPath(
+        `workspace-sustained-activity-${String(second).padStart(2, "0")}.png`,
+      ),
+      fullPage: true,
+    });
+    await expect(terminal).toHaveAttribute("data-connection-state", "connected");
+  }
+
+  await expect(terminal.locator(".xterm-rows")).toContainText(marker);
+  await expect(eventLogPane.getByRole("log")).toContainText(/browser_input|upstream_output/, {
+    timeout: 15_000,
+  });
+  const finalWindowIds = await windows.evaluateAll((elements) =>
+    elements
+      .map((element) => element.getAttribute("data-workspace-window-id"))
+      .filter((id): id is string => id !== null)
+      .sort(),
+  );
+  expect(finalWindowIds).toHaveLength(initialWindowIds.length + 1);
+  expect(initialWindowIds.every((id) => finalWindowIds.includes(id))).toBe(true);
+  expect(finalWindowIds.some((id) => id.includes(":logs"))).toBe(true);
+
+  await page.getByTestId("remove-workspace-tool-logs").click();
+  await expect(eventLogPane).toHaveCount(0);
+}
+
 test.describe("authenticated Hive workflows", () => {
   test.describe.configure({ mode: "serial" });
   test.skip(!credentialsReady, "Set the Hive preview URL and Coder test credentials.");
@@ -774,7 +827,9 @@ test.describe("authenticated Hive workflows", () => {
   });
 
   test("opens a live workspace terminal when one is available", async ({ page }, testInfo) => {
-    test.setTimeout(90_000);
+    test.setTimeout(120_000);
+    const pageErrors: string[] = [];
+    page.on("pageerror", (error) => pageErrors.push(error.message));
     const getSuccessfulFileBrowserLoads = trackFileBrowserResourceLoads(page);
     const getSuccessfulVsCodeLoads = trackVsCodeWorkbenchLoads(page);
     const terminalSocketUrls: string[] = [];
@@ -821,6 +876,10 @@ test.describe("authenticated Hive workflows", () => {
         getSuccessfulFileBrowserLoads,
         getSuccessfulVsCodeLoads,
       );
+    });
+    await test.step("keeps every window stable under sustained terminal activity", async () => {
+      await verifySustainedTerminalActivity(page, testInfo, workspaceTerminal);
+      expect(pageErrors).toEqual([]);
     });
     await test.step("tile, focus, and drag workspace windows without overflow", async () => {
       await verifyWorkspaceWindowManagement(page, testInfo);

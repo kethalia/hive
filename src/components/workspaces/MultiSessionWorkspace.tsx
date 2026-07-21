@@ -40,6 +40,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { SidebarTrigger } from "@/components/ui/sidebar";
+import { TerminalSessionEventLog } from "@/components/workspaces/TerminalSessionEventLog";
 import {
   TerminalFontSizeControls,
   TerminalSessionFrame,
@@ -240,7 +241,7 @@ interface WorkspaceToolPane {
   key: string;
   boardKey: string;
   sourceSessionName: string;
-  tool: WorkspaceTool;
+  tool: WorkspaceTool | "logs";
   url: string | null;
   loadState: "authorizing" | "loading" | "ready" | "error";
   label: string;
@@ -763,6 +764,26 @@ function resolvedWorkspaceToolPane(
   };
 }
 
+function sessionLogWorkspaceToolPane(descriptor: PersistedWorkspaceToolPane): WorkspaceToolPane {
+  return {
+    key: `workspace-tool:${descriptor.boardKey}:${descriptor.sessionName}:logs`,
+    boardKey: descriptor.boardKey,
+    sourceSessionName: descriptor.sessionName,
+    tool: "logs",
+    url: null,
+    loadState: "ready",
+    label: `Session Logs · ${descriptor.label}`,
+    sourceLabel: descriptor.label,
+    folderPath: null,
+    ...(descriptor.cloneSessionKey && descriptor.relativePath
+      ? {
+          cloneSessionKey: descriptor.cloneSessionKey,
+          relativePath: descriptor.relativePath,
+        }
+      : {}),
+  };
+}
+
 function pendingWorkspaceToolPane(descriptor: PersistedWorkspaceToolPane): WorkspaceToolPane {
   return {
     key: `workspace-tool:${descriptor.boardKey}:${descriptor.sessionName}:${descriptor.tool}`,
@@ -771,7 +792,7 @@ function pendingWorkspaceToolPane(descriptor: PersistedWorkspaceToolPane): Works
     tool: descriptor.tool,
     url: null,
     loadState: "authorizing",
-    label: `${descriptor.tool === "code" ? "VS Code" : "Files"} · ${descriptor.label}`,
+    label: `${descriptor.tool === "code" ? "VS Code" : descriptor.tool === "files" ? "Files" : "Session Logs"} · ${descriptor.label}`,
     sourceLabel: descriptor.label,
     folderPath: null,
     ...(descriptor.cloneSessionKey && descriptor.relativePath
@@ -2294,9 +2315,17 @@ export function MultiSessionWorkspace({
         return Boolean(loadedSession || (descriptor.cloneSessionKey && descriptor.relativePath));
       });
 
-      replaceWorkspaceToolPanes(restorableDescriptors.map(pendingWorkspaceToolPane));
+      replaceWorkspaceToolPanes(
+        restorableDescriptors.map((descriptor) =>
+          descriptor.tool === "logs"
+            ? sessionLogWorkspaceToolPane(descriptor)
+            : pendingWorkspaceToolPane(descriptor),
+        ),
+      );
 
       for (const descriptor of restorableDescriptors) {
+        if (descriptor.tool === "logs") continue;
+        const externalTool = descriptor.tool;
         const loadedSession = loadedSessions.find(
           (session) => session.sessionName === descriptor.sessionName,
         );
@@ -2310,7 +2339,7 @@ export function MultiSessionWorkspace({
               sessionName: descriptor.sessionName,
               fallbackPath,
               documentFrameHosts: readDocumentCoderFrameHosts(),
-              tool: descriptor.tool,
+              tool: externalTool,
             });
             if (cancelled || latestWorkspaceIdRef.current !== workspaceId) return;
             const urls = unwrapActionData(result);
@@ -2329,7 +2358,7 @@ export function MultiSessionWorkspace({
                 workspaceId,
                 boardKey: descriptor.boardKey,
                 sessionName: descriptor.sessionName,
-                tool: descriptor.tool,
+                tool: externalTool,
                 ...(descriptor.cloneSessionKey && descriptor.relativePath
                   ? {
                       cloneSessionKey: descriptor.cloneSessionKey,
@@ -2863,6 +2892,32 @@ export function MultiSessionWorkspace({
       selectSession(session.sessionName, { focusTerminal: false, windowId: pane.key });
     },
     [markPendingWindowInsertion, replaceWorkspaceToolPanes, selectSession, workspaceId],
+  );
+
+  const openWorkspaceSessionLogs = useCallback(
+    (boardKey: string, session: WorkspaceSessionPane, expectedBoardGeneration: number) => {
+      if ((boardGenerationRef.current.get(boardKey) ?? 0) !== expectedBoardGeneration) return;
+      const pane = sessionLogWorkspaceToolPane({
+        boardKey,
+        sessionName: session.sessionName,
+        tool: "logs",
+        label: session.label,
+        ...(session.cloneSessionKey && session.relativePath
+          ? {
+              cloneSessionKey: session.cloneSessionKey,
+              relativePath: session.relativePath,
+            }
+          : {}),
+      });
+      markPendingWindowInsertion(boardKey);
+      replaceWorkspaceToolPanes([
+        ...workspaceToolPanesRef.current.filter((candidate) => candidate.key !== pane.key),
+        pane,
+      ]);
+      if (boardStateRef.current.activeBoardKey !== boardKey) return;
+      selectSession(session.sessionName, { focusTerminal: false, windowId: pane.key });
+    },
+    [markPendingWindowInsertion, replaceWorkspaceToolPanes, selectSession],
   );
 
   const openWorkspaceToolForSession = useCallback(
@@ -3855,7 +3910,13 @@ export function MultiSessionWorkspace({
               }}
             >
               <div className="relative flex min-h-0 flex-1">
-                {toolUrl ? (
+                {toolPane.tool === "logs" ? (
+                  <TerminalSessionEventLog
+                    workspaceId={workspaceId}
+                    sessionName={toolPane.sourceSessionName}
+                    compact
+                  />
+                ) : toolUrl ? (
                   <iframe
                     src={toolUrl}
                     title={toolPane.label}
@@ -3967,6 +4028,9 @@ export function MultiSessionWorkspace({
                       request.urls,
                       boardGeneration,
                     );
+                  }}
+                  onOpenLogs={() => {
+                    openWorkspaceSessionLogs(model.board.key, session, boardGeneration);
                   }}
                 />
               ) : null

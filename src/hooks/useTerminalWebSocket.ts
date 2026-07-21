@@ -599,7 +599,13 @@ export function useTerminalWebSocket({
       };
 
       ws.onclose = (event: CloseEvent) => {
-        if (!mountedRef.current) return;
+        if (
+          !mountedRef.current ||
+          generation !== connectionGenerationRef.current ||
+          wsRef.current !== ws
+        ) {
+          return;
+        }
         finishConnectAttempt(generation);
         clearConnectingStallTimer();
         wsRef.current = null;
@@ -819,8 +825,9 @@ export function useTerminalWebSocket({
   });
 
   const send = useCallback((data: string) => {
-    if (wsRef.current?.readyState === WebSocket.OPEN) {
-      wsRef.current.send(data);
+    const socket = wsRef.current;
+    if (socket?.readyState === WebSocket.OPEN) {
+      socket.send(data);
     }
   }, []);
 
@@ -829,8 +836,9 @@ export function useTerminalWebSocket({
     const normalizedCols = normalizeResizeDimension(cols);
     if (normalizedRows === null || normalizedCols === null) return;
 
-    if (wsRef.current?.readyState === WebSocket.OPEN) {
-      wsRef.current.send(encodeResize(normalizedRows, normalizedCols));
+    const socket = wsRef.current;
+    if (socket?.readyState === WebSocket.OPEN) {
+      socket.send(encodeResize(normalizedRows, normalizedCols));
       onResizeSentRef.current?.({
         rows: normalizedRows,
         cols: normalizedCols,

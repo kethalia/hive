@@ -245,6 +245,7 @@ vi.mock("lucide-react", () => ({
   Code2: () => <span data-testid="icon-code" />,
   ExternalLink: () => <span data-testid="icon-external-link" />,
   FolderOpen: () => <span data-testid="icon-folder" />,
+  ScrollText: () => <span data-testid="icon-logs" />,
   GripVertical: () => <span data-testid="icon-grip" />,
   Loader2: () => <span data-testid="icon-loader" />,
   Minus: () => <span data-testid="icon-minus" />,

@@ -9,6 +9,7 @@ import { useRuntimeConfig } from "@/components/runtime-config-provider";
 import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { TerminalSessionEventLog } from "@/components/workspaces/TerminalSessionEventLog";
 import {
   type KeepAliveStatus,
   parseKeepAliveStatusPayload,
@@ -275,6 +276,19 @@ export function TerminalSessionStatusClient({
           </CardContent>
         </Card>
       ) : null}
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Live session events</CardTitle>
+          <CardDescription>
+            Real-time, sanitized terminal and Git session lifecycle, traffic, resize, heartbeat, and
+            recovery metadata from the terminal proxy.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="flex h-[28rem] min-h-0 p-0">
+          <TerminalSessionEventLog workspaceId={highlightedWorkspaceId} />
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader>

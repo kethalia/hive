@@ -1,6 +1,6 @@
 "use client";
 
-import { Code2, FolderOpen, Loader2 } from "lucide-react";
+import { Code2, FolderOpen, Loader2, ScrollText } from "lucide-react";
 import { type Dispatch, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -27,6 +27,7 @@ interface WorkspaceSessionToolsProps {
   label: string;
   fallbackPath?: string;
   onOpenTool: Dispatch<WorkspaceToolOpenRequest>;
+  onOpenLogs?: () => void;
 }
 
 export function isWorkspaceSessionToolUrls(value: unknown): value is WorkspaceSessionToolUrls {
@@ -48,6 +49,7 @@ export function WorkspaceSessionTools({
   label,
   fallbackPath,
   onOpenTool,
+  onOpenLogs,
 }: WorkspaceSessionToolsProps) {
   const [loadingTools, setLoadingTools] = useState<Set<WorkspaceTool>>(() => new Set());
   const latestWorkspaceIdRef = useRef(workspaceId);
@@ -117,6 +119,24 @@ export function WorkspaceSessionTools({
         loading={loadingTools.has("code")}
         onClick={() => void openTool("code")}
       />
+      {onOpenLogs ? (
+        <Button
+          type="button"
+          variant="ghost"
+          size="xs"
+          className="h-6 min-h-0 px-1.5 text-[10px] text-white/80 hover:bg-white/10 hover:text-white"
+          aria-label={`Open session logs for ${label}`}
+          title="Session logs"
+          data-testid="open-logs"
+          onClick={(event) => {
+            event.stopPropagation();
+            onOpenLogs();
+          }}
+        >
+          <ScrollText className="size-3" />
+          <span className="sr-only">Session logs</span>
+        </Button>
+      ) : null}
     </div>
   );
 }

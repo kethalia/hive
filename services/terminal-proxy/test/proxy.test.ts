@@ -71,6 +71,7 @@ vi.mock("ws", () => {
 import { WebSocket } from "ws";
 import { authenticateUpgrade } from "../src/auth.js";
 import { handleUpgrade, isOriginAllowed } from "../src/proxy.js";
+import { terminalSessionEventStore } from "../src/session-events.js";
 
 const mockAuth = authenticateUpgrade as ReturnType<typeof vi.fn>;
 
@@ -209,6 +210,7 @@ describe("handleUpgrade", () => {
     vi.clearAllMocks();
     wsMockState.browserSockets.length = 0;
     wsMockState.upstreamSockets.length = 0;
+    terminalSessionEventStore.clear();
     mockAuth.mockResolvedValue(mockAuthResult);
   });
 
@@ -424,9 +426,62 @@ describe("handleUpgrade", () => {
 
       expect(upstreamWs?.send).toHaveBeenCalledWith(resizeFrame);
       expect(logSpy.mock.calls.flat().join("\n")).not.toContain(resizeFrame);
+      expect(
+        terminalSessionEventStore.list({
+          authorizedWorkspaceIds: new Set([validParams.workspaceId]),
+        }).events,
+      ).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            workspaceId: validParams.workspaceId,
+            sessionName: validParams.sessionName,
+            sessionKind: "terminal",
+            type: "browser_input",
+            details: expect.objectContaining({ frame: "resize", rows: 42, cols: 120 }),
+          }),
+        ]),
+      );
     } finally {
       logSpy.mockRestore();
     }
+  });
+
+  it("aggregates sustained input and output traffic once per second without recording content", async () => {
+    vi.useFakeTimers();
+    const socket = makeSocket();
+    await handleUpgrade(makeReq(validParams), socket, Buffer.alloc(0));
+    const browserWs = wsMockState.browserSockets.at(-1);
+    const upstreamWs = wsMockState.upstreamSockets.at(-1);
+    expect(browserWs).toBeDefined();
+    expect(upstreamWs).toBeDefined();
+    if (!browserWs || !upstreamWs) return;
+
+    getSocketHandler(upstreamWs, "open")();
+    const browserMessage = getSocketHandler(browserWs, "message");
+    const upstreamMessage = getSocketHandler(upstreamWs, "message");
+    browserMessage(Buffer.from("secret-command"), true);
+    browserMessage(Buffer.from("more-secret-input"), true);
+    upstreamMessage(Buffer.from("private-terminal-output"), true);
+    await vi.advanceTimersByTimeAsync(1_000);
+
+    const payload = terminalSessionEventStore.list({
+      authorizedWorkspaceIds: new Set([validParams.workspaceId]),
+    });
+    expect(payload.events).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          type: "browser_input",
+          details: { bytes: 31, frames: 2 },
+        }),
+        expect.objectContaining({
+          type: "upstream_output",
+          details: { bytes: 23, frames: 1 },
+        }),
+      ]),
+    );
+    const serialized = JSON.stringify(payload);
+    expect(serialized).not.toContain("secret-command");
+    expect(serialized).not.toContain("private-terminal-output");
   });
 
   it("does not forward browser messages when upstream websocket is closed", async () => {

@@ -11,6 +11,7 @@ import {
   type WorkspaceHealth,
 } from "./keepalive.js";
 import { connectionRegistry, handleUpgrade, isOriginAllowed } from "./proxy.js";
+import { type TerminalSessionEventStore, terminalSessionEventStore } from "./session-events.js";
 
 const INDEX_FILE = fileURLToPath(import.meta.url);
 
@@ -30,6 +31,7 @@ type AuthorizedWorkspaceResolver = (auth: AuthSuccess) => Promise<Set<string>>;
 
 interface TerminalProxyServerOptions {
   keepAliveManager?: KeepAliveStatusSource;
+  sessionEventStore?: TerminalSessionEventStore;
   upgradeHandler?: UpgradeHandler;
   statusAuthenticator?: StatusAuthenticator;
   authorizedWorkspaceResolver?: AuthorizedWorkspaceResolver;
@@ -163,9 +165,66 @@ async function handleKeepAliveStatusRequest(
   writeJson(res, 200, serializeKeepAliveStatusPayload(filteredHealth));
 }
 
+function parsePositiveInteger(value: string | null): number | undefined {
+  if (!value) return undefined;
+  const parsed = Number(value);
+  return Number.isSafeInteger(parsed) && parsed >= 0 ? parsed : undefined;
+}
+
+async function handleSessionEventsRequest(
+  req: IncomingMessage,
+  res: ServerResponse,
+  eventStore: TerminalSessionEventStore,
+  authenticateStatus: StatusAuthenticator,
+  resolveWorkspaceIds: AuthorizedWorkspaceResolver,
+): Promise<void> {
+  if (req.method !== "GET") {
+    writeJson(res, 405, { error: "Method not allowed" });
+    return;
+  }
+
+  const authResult = await authenticateStatus(req);
+  if (!authResult.ok) {
+    const { status } = authResult.value;
+    writeJson(res, status, { error: responseStatusText(status) });
+    return;
+  }
+
+  let authorizedWorkspaceIds: Set<string>;
+  try {
+    authorizedWorkspaceIds = await resolveWorkspaceIds(authResult.value);
+  } catch {
+    writeJson(res, 502, { error: "Workspace session events unavailable" });
+    return;
+  }
+
+  const url = new URL(req.url ?? "/session-events", `http://${req.headers.host ?? "localhost"}`);
+  const workspaceId = url.searchParams.get("workspaceId");
+  if (workspaceId && !authorizedWorkspaceIds.has(workspaceId)) {
+    writeJson(res, 404, { error: "Workspace session events unavailable" });
+    return;
+  }
+
+  res.setHeader("Cache-Control", "no-store");
+  writeJson(
+    res,
+    200,
+    eventStore.list({
+      authorizedWorkspaceIds,
+      workspaceId,
+      afterId: parsePositiveInteger(url.searchParams.get("after")),
+      limit: parsePositiveInteger(url.searchParams.get("limit")),
+    }),
+  );
+}
+
 export function createTerminalProxyServer(options: TerminalProxyServerOptions = {}) {
   const keepAliveManager = options.keepAliveManager ?? createDefaultKeepAliveManager();
-  const upgradeHandler = options.upgradeHandler ?? handleUpgrade;
+  const eventStore = options.sessionEventStore ?? terminalSessionEventStore;
+  const upgradeHandler =
+    options.upgradeHandler ??
+    ((req: IncomingMessage, socket: Duplex, head: Buffer) =>
+      handleUpgrade(req, socket, head, eventStore));
   const authenticateStatus = options.statusAuthenticator ?? authenticateUpgrade;
   const resolveWorkspaceIds = options.authorizedWorkspaceResolver ?? resolveAuthorizedWorkspaceIds;
 
@@ -185,6 +244,17 @@ export function createTerminalProxyServer(options: TerminalProxyServerOptions = 
         req,
         res,
         keepAliveManager,
+        authenticateStatus,
+        resolveWorkspaceIds,
+      );
+      return;
+    }
+
+    if ((req.url?.split("?")[0] ?? "") === "/session-events") {
+      void handleSessionEventsRequest(
+        req,
+        res,
+        eventStore,
         authenticateStatus,
         resolveWorkspaceIds,
       );

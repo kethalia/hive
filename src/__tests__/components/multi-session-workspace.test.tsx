@@ -561,6 +561,20 @@ vi.mock("@/components/ui/input", () => ({
   Input: (props: React.InputHTMLAttributes<HTMLInputElement>) => <input {...props} />,
 }));
 
+vi.mock("@/components/workspaces/TerminalSessionEventLog", () => ({
+  TerminalSessionEventLog: ({
+    workspaceId,
+    sessionName,
+  }: {
+    workspaceId?: string;
+    sessionName?: string;
+  }) => (
+    <div data-testid="mock-session-event-log">
+      {workspaceId}:{sessionName}
+    </div>
+  ),
+}));
+
 vi.mock("lucide-react", () => ({
   AlertCircle: () => <span data-testid="icon-alert" />,
   Code2: () => <span data-testid="icon-code" />,
@@ -574,6 +588,7 @@ vi.mock("lucide-react", () => ({
   Minus: () => <span data-testid="icon-minus" />,
   Plus: () => <span data-testid="icon-plus" />,
   Search: () => <span data-testid="icon-search" />,
+  ScrollText: () => <span data-testid="icon-logs" />,
   Send: () => <span data-testid="icon-send" />,
   TerminalSquare: () => <span data-testid="icon-terminal-square" />,
   X: () => <span data-testid="icon-x" />,
@@ -783,6 +798,28 @@ describe("MultiSessionWorkspace", () => {
     fireEvent.click(screen.getByTestId("remove-workspace-tool-files"));
     expect(screen.queryByTestId("workspace-tool-pane-files")).not.toBeInTheDocument();
     expect(screen.getByTestId("workspace-tool-pane-code")).toBeInTheDocument();
+  });
+
+  it("opens and restores a live session log as a tiled workspace pane", async () => {
+    mockGetSessions.mockResolvedValue(twoSessionPayload());
+    const firstRender = render(<MultiSessionWorkspace {...defaultProps} />);
+    await screen.findByTestId("workspace-pane-main-session");
+
+    fireEvent.click(screen.getByRole("button", { name: "Open session logs for main-session" }));
+
+    expect(await screen.findByTestId("workspace-tool-pane-logs")).toBeInTheDocument();
+    expect(screen.getByTestId("mock-session-event-log")).toHaveTextContent("ws-1:main-session");
+    expect(mockGetWorkspaceSessionTools).not.toHaveBeenCalled();
+    expect(window.localStorage.getItem("workspace-tool-panes:workspace:ws-1")).toContain(
+      '"tool":"logs"',
+    );
+
+    firstRender.unmount();
+    mockGetWorkspaceSessionTools.mockClear();
+    render(<MultiSessionWorkspace {...defaultProps} />);
+
+    expect(await screen.findByTestId("workspace-tool-pane-logs")).toBeInTheDocument();
+    expect(mockGetWorkspaceSessionTools).not.toHaveBeenCalled();
   });
 
   it("activates embedded tool windows from iframe focus and pointer entry", async () => {

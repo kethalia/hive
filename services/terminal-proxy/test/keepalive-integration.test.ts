@@ -1,6 +1,7 @@
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
 import type { Duplex } from "node:stream";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { AuthResult } from "../src/auth.js";
 import { createTerminalProxyServer } from "../src/index.js";
 import {
   ConnectionRegistry,
@@ -8,6 +9,7 @@ import {
   serializeKeepAliveStatusPayload,
   type WorkspaceHealth,
 } from "../src/keepalive.js";
+import { TerminalSessionEventStore } from "../src/session-events.js";
 
 function createMockCoderApi(
   handler: (req: IncomingMessage, res: ServerResponse) => void,
@@ -373,6 +375,76 @@ describe("/keepalive/status endpoint integration", () => {
 });
 
 describe("terminal-proxy server wiring", () => {
+  it("serves authenticated session events scoped to authorized workspaces", async () => {
+    const fakeKeepAlive = createFakeKeepAliveManager();
+    const eventStore = new TerminalSessionEventStore();
+    eventStore.record({
+      workspaceId: "ws-index",
+      connectionId: "connection-1",
+      sessionName: "terminal-1",
+      sessionKind: "terminal",
+      type: "upstream_connected",
+    });
+    eventStore.record({
+      workspaceId: "ws-other-user",
+      connectionId: "connection-2",
+      sessionName: "private-session",
+      sessionKind: "terminal",
+      type: "upstream_connected",
+    });
+    const statusAuthenticator = vi.fn(
+      async () =>
+        ({
+          ok: true,
+          value: {
+            token: "secret-token",
+            coderUrl: "http://coder.test",
+            sessionId: "sess-1",
+            username: "alice",
+          },
+        }) satisfies AuthResult,
+    );
+    const authorizedWorkspaceResolver = vi.fn(async () => new Set(["ws-index"]));
+    const { server } = createTerminalProxyServer({
+      keepAliveManager: fakeKeepAlive,
+      sessionEventStore: eventStore,
+      statusAuthenticator,
+      authorizedWorkspaceResolver,
+    });
+
+    try {
+      await new Promise<void>((resolve) => {
+        server.listen(0, "127.0.0.1", () => resolve());
+      });
+      const addr = server.address();
+      if (!addr || typeof addr === "string") throw new Error("unexpected address");
+
+      const res = await fetch(`http://127.0.0.1:${addr.port}/session-events?workspaceId=ws-index`, {
+        headers: { cookie: "hive-session=valid" },
+      });
+      const text = await res.text();
+      const data = JSON.parse(text);
+
+      expect(res.status).toBe(200);
+      expect(data.events).toHaveLength(1);
+      expect(data.events[0]).toMatchObject({
+        workspaceId: "ws-index",
+        sessionName: "terminal-1",
+        type: "upstream_connected",
+      });
+      expect(text).not.toContain("ws-other-user");
+      expect(text).not.toContain("private-session");
+
+      const unauthorized = await fetch(
+        `http://127.0.0.1:${addr.port}/session-events?workspaceId=ws-other-user`,
+        { headers: { cookie: "hive-session=valid" } },
+      );
+      expect(unauthorized.status).toBe(404);
+    } finally {
+      await closeServer(server);
+    }
+  });
+
   it("serves authenticated /keepalive/status rows scoped to authorized workspaces", async () => {
     const fakeKeepAlive = createFakeKeepAliveManager({
       "ws-index": {

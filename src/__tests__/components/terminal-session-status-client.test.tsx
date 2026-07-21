@@ -19,6 +19,8 @@ vi.mock("next/link", () => ({
 }));
 
 vi.mock("lucide-react", () => ({
+  Pause: () => <span data-testid="pause-icon" />,
+  Play: () => <span data-testid="play-icon" />,
   RefreshCw: () => <span data-testid="refresh-icon" />,
 }));
 
@@ -42,8 +44,32 @@ describe("TerminalSessionStatusClient", () => {
   });
 
   it("fetches authenticated aggregate status rows and highlights the requested workspace", async () => {
-    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
-      new Response(
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
+      if (String(input).includes("/session-events")) {
+        return new Response(
+          JSON.stringify({
+            version: 1,
+            instanceId: "proxy-instance-1",
+            startedAt: "2026-07-21T08:00:00.000Z",
+            generatedAt: "2026-07-21T08:00:01.000Z",
+            events: [
+              {
+                id: 1,
+                timestamp: "2026-07-21T08:00:01.000Z",
+                workspaceId: "workspace-1",
+                connectionId: "connection-1",
+                sessionName: "git-session",
+                sessionKind: "git",
+                level: "info",
+                type: "upstream_connected",
+                details: {},
+              },
+            ],
+          }),
+          { status: 200 },
+        );
+      }
+      return new Response(
         JSON.stringify({
           workspaces: {
             "workspace-1": {
@@ -80,8 +106,8 @@ describe("TerminalSessionStatusClient", () => {
           },
         }),
         { status: 200 },
-      ),
-    );
+      );
+    });
 
     render(<TerminalSessionStatusClient highlightedWorkspaceId="workspace-1" />);
 
@@ -120,6 +146,12 @@ describe("TerminalSessionStatusClient", () => {
     expect(screen.getByText("Terminal diagnostics").parentElement).toHaveClass(
       "hidden",
       "sm:block",
+    );
+    expect(screen.getByText("Live session events")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("upstream_connected")).toBeInTheDocument());
+    expect(fetchMock).toHaveBeenCalledWith(
+      "https://terminal.example.test/session-events?limit=500&workspaceId=workspace-1",
+      { cache: "no-store", credentials: "include" },
     );
   });
 });
