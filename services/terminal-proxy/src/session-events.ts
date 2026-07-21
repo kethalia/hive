@@ -45,6 +45,7 @@ export interface RecordTerminalSessionEventInput {
 export interface TerminalSessionEventQuery {
   authorizedWorkspaceIds: ReadonlySet<string>;
   workspaceId?: string | null;
+  sessionName?: string | null;
   afterId?: number | null;
   limit?: number;
 }
@@ -67,6 +68,9 @@ function boundedLimit(value: number | undefined): number {
 }
 
 export class TerminalSessionEventStore {
+  // Event payloads are diagnostic metadata, not durable audit records. The
+  // ingress pins a browser's WebSocket and polling traffic to one replica;
+  // instanceId lets clients detect a rollout/restart and reset their cursor.
   readonly instanceId = randomUUID();
   readonly startedAt = new Date().toISOString();
   private events: TerminalSessionEvent[] = [];
@@ -94,11 +98,13 @@ export class TerminalSessionEventStore {
 
   list(query: TerminalSessionEventQuery): TerminalSessionEventPayload {
     const requestedWorkspaceId = query.workspaceId?.trim() || null;
+    const requestedSessionName = query.sessionName?.trim() || null;
     const afterId = Number.isFinite(query.afterId) ? Math.max(0, query.afterId ?? 0) : 0;
     const limit = boundedLimit(query.limit);
     const events = this.events.filter((event) => {
       if (!query.authorizedWorkspaceIds.has(event.workspaceId)) return false;
       if (requestedWorkspaceId && event.workspaceId !== requestedWorkspaceId) return false;
+      if (requestedSessionName && event.sessionName !== requestedSessionName) return false;
       return event.id > afterId;
     });
 
@@ -107,7 +113,7 @@ export class TerminalSessionEventStore {
       instanceId: this.instanceId,
       startedAt: this.startedAt,
       generatedAt: new Date().toISOString(),
-      events: events.slice(-limit),
+      events: afterId > 0 ? events.slice(0, limit) : events.slice(-limit),
     };
   }
 

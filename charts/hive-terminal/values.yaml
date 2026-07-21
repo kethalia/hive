@@ -64,6 +64,9 @@ ingress:
     # WebSocket terminations require long upstream timeouts on most ingress controllers.
     nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
     nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+    # Session-event history is intentionally bounded and process-local. Keep a
+    # browser's WebSocket and event polling requests on the same proxy replica.
+    nginx.ingress.kubernetes.io/upstream-hash-by: "$remote_addr"
   hosts:
     - host: terminal.hive.local
       paths:
@@ -79,6 +82,7 @@ publicIngress:
   annotations:
     nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
     nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+    nginx.ingress.kubernetes.io/upstream-hash-by: "$remote_addr"
   hosts: []
   tls: []
 

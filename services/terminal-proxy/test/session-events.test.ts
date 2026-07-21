@@ -47,6 +47,39 @@ describe("TerminalSessionEventStore", () => {
     expect(payload.events).toEqual([second]);
   });
 
+  it("returns the next incremental page without skipping intermediate events", () => {
+    const store = new TerminalSessionEventStore();
+    const events = Array.from({ length: 8 }, (_, index) =>
+      recordEvent(store, "workspace-a", "terminal-a", index + 1),
+    );
+
+    const payload = store.list({
+      authorizedWorkspaceIds: new Set(["workspace-a"]),
+      afterId: events[0]?.id,
+      limit: 3,
+    });
+
+    expect(payload.events.map((event) => event.id)).toEqual([2, 3, 4]);
+  });
+
+  it("filters by session before applying the response limit", () => {
+    const store = new TerminalSessionEventStore();
+    recordEvent(store, "workspace-a", "target-session", 1);
+    for (let index = 0; index < 10; index += 1) {
+      recordEvent(store, "workspace-a", "busy-session", index + 2);
+    }
+
+    const payload = store.list({
+      authorizedWorkspaceIds: new Set(["workspace-a"]),
+      workspaceId: "workspace-a",
+      sessionName: "target-session",
+      limit: 3,
+    });
+
+    expect(payload.events).toHaveLength(1);
+    expect(payload.events[0]?.sessionName).toBe("target-session");
+  });
+
   it("retains a bounded history under sustained terminal output", () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-07-21T08:00:00.000Z"));

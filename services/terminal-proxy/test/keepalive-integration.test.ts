@@ -1,4 +1,5 @@
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
+import { connect } from "node:net";
 import type { Duplex } from "node:stream";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { AuthResult } from "../src/auth.js";
@@ -446,7 +447,96 @@ describe("terminal-proxy server wiring", () => {
         { headers: { cookie: "hive-session=valid" } },
       );
       expect(unauthorized.status).toBe(404);
+
+      const sessionScoped = await fetch(
+        `http://127.0.0.1:${addr.port}/session-events?workspaceId=ws-index&sessionName=terminal-1`,
+        { headers: { cookie: "hive-session=valid" } },
+      );
+      const sessionData = await sessionScoped.json();
+      expect(sessionScoped.status).toBe(200);
+      expect(sessionData.events).toHaveLength(1);
+      expect(sessionData.events[0].sessionName).toBe("terminal-1");
     } finally {
+      await closeServer(server);
+    }
+  });
+
+  it("deduplicates overlapping workspace authorization lookups", async () => {
+    const fakeKeepAlive = createFakeKeepAliveManager();
+    const eventStore = sessionEventFixtures();
+    const statusAuthenticator = vi.fn(successfulStatusAuthentication);
+    let finishLookup: ((workspaceIds: Set<string>) => void) | undefined;
+    let signalLookupStarted: (() => void) | undefined;
+    const lookupStarted = new Promise<void>((resolve) => {
+      signalLookupStarted = resolve;
+    });
+    const authorizedWorkspaceResolver = vi.fn(
+      () =>
+        new Promise<Set<string>>((resolve) => {
+          signalLookupStarted?.();
+          finishLookup = resolve;
+        }),
+    );
+    const { server } = createTerminalProxyServer({
+      keepAliveManager: fakeKeepAlive,
+      sessionEventStore: eventStore,
+      statusAuthenticator,
+      authorizedWorkspaceResolver,
+    });
+
+    try {
+      await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+      const addr = server.address();
+      if (!addr || typeof addr === "string") throw new Error("unexpected address");
+      const baseUrl = `http://127.0.0.1:${addr.port}`;
+
+      const first = fetch(`${baseUrl}/session-events?workspaceId=ws-index`);
+      const second = fetch(`${baseUrl}/keepalive/status`);
+      await lookupStarted;
+      expect(authorizedWorkspaceResolver).toHaveBeenCalledOnce();
+      finishLookup?.(new Set(["ws-index"]));
+
+      expect((await first).status).toBe(200);
+      expect((await second).status).toBe(200);
+    } finally {
+      await closeServer(server);
+    }
+  });
+
+  it("returns 400 for malformed request hosts without an unhandled rejection", async () => {
+    const fakeKeepAlive = createFakeKeepAliveManager();
+    const statusAuthenticator = vi.fn(successfulStatusAuthentication);
+    const authorizedWorkspaceResolver = vi.fn(async () => new Set(["ws-index"]));
+    const { server } = createTerminalProxyServer({
+      keepAliveManager: fakeKeepAlive,
+      statusAuthenticator,
+      authorizedWorkspaceResolver,
+    });
+    const unhandled = vi.fn();
+    process.on("unhandledRejection", unhandled);
+
+    try {
+      await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+      const addr = server.address();
+      if (!addr || typeof addr === "string") throw new Error("unexpected address");
+
+      const responseText = await new Promise<string>((resolve, reject) => {
+        const socket = connect(addr.port, "127.0.0.1", () => {
+          socket.write("GET /session-events HTTP/1.1\r\nHost: %\r\nConnection: close\r\n\r\n");
+        });
+        let body = "";
+        socket.on("data", (chunk: Buffer) => {
+          body += chunk.toString();
+        });
+        socket.on("end", () => resolve(body));
+        socket.on("error", reject);
+      });
+      await new Promise((resolve) => setImmediate(resolve));
+
+      expect(responseText).toContain("400 Bad Request");
+      expect(unhandled).not.toHaveBeenCalled();
+    } finally {
+      process.off("unhandledRejection", unhandled);
       await closeServer(server);
     }
   });

@@ -9,11 +9,17 @@ import { getCoderCaCertificates } from "./coder-fetch.js";
 import { ConnectionRegistry } from "./keepalive.js";
 import { buildPtyUrl, SAFE_IDENTIFIER_RE, UUID_RE } from "./protocol.js";
 import {
-  type TerminalSessionEventDetails,
+  browserMessageDetails,
+  messageByteLength,
+  recordProxyEvent,
+  type TerminalConnectionContext,
+} from "./proxy-telemetry.js";
+import {
   type TerminalSessionEventStore,
   type TerminalSessionKind,
   terminalSessionEventStore,
 } from "./session-events.js";
+import { verifyWorkspaceAgentAccess } from "./workspace-authorization.js";
 
 const PING_INTERVAL_MS = 15_000;
 const MAX_MISSED_HEARTBEATS = 2;
@@ -174,63 +180,6 @@ function logProxyEvent(
     ? `[terminal-proxy] event=${event} ${suffix}`
     : `[terminal-proxy] event=${event}`;
   console[level](message);
-}
-
-interface TerminalConnectionContext {
-  connectionId: string;
-  workspaceId: string;
-  sessionName: string;
-  sessionKind: TerminalSessionKind;
-}
-
-function recordProxyEvent(
-  eventStore: TerminalSessionEventStore,
-  context: TerminalConnectionContext,
-  type: Parameters<TerminalSessionEventStore["record"]>[0]["type"],
-  details: TerminalSessionEventDetails = {},
-  level: "error" | "info" | "warning" = "info",
-): void {
-  eventStore.record({ ...context, type, details, level });
-}
-
-function messageByteLength(data: unknown): number {
-  if (typeof data === "string") return Buffer.byteLength(data);
-  if (Buffer.isBuffer(data)) return data.byteLength;
-  if (data instanceof ArrayBuffer) return data.byteLength;
-  if (ArrayBuffer.isView(data)) return data.byteLength;
-  if (Array.isArray(data)) {
-    return data.reduce((total, part) => total + messageByteLength(part), 0);
-  }
-  return 0;
-}
-
-function textMessage(data: unknown): string | null {
-  if (typeof data === "string") return data;
-  return Buffer.isBuffer(data) ? data.toString() : null;
-}
-
-function resizeFrameDetails(text: string | null): TerminalSessionEventDetails | null {
-  if (!text || text.length > 256) return null;
-  try {
-    const parsed: unknown = JSON.parse(text);
-    if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) return null;
-    const height = Reflect.get(parsed, "height");
-    const width = Reflect.get(parsed, "width");
-    if (typeof height !== "number" || typeof width !== "number") return null;
-    return { frame: "resize", rows: height, cols: width };
-  } catch {
-    return null;
-  }
-}
-
-function browserMessageDetails(data: unknown, isBinary: boolean): TerminalSessionEventDetails {
-  const details: TerminalSessionEventDetails = {
-    bytes: messageByteLength(data),
-    frame: isBinary ? "input" : "text",
-  };
-  if (isBinary) return details;
-  const resize = resizeFrameDetails(textMessage(data));
-  return resize ? { ...details, ...resize } : details;
 }
 
 function getCloneTerminalProofSecret(): string | null {
@@ -460,6 +409,26 @@ export async function handleUpgrade(
     return;
   }
 
+  if (workspaceId) {
+    const workspaceAgentAccess = await verifyWorkspaceAgentAccess({
+      coderUrl,
+      token,
+      workspaceId,
+      agentId,
+    });
+    if (!workspaceAgentAccess.ok) {
+      logPostAuthRejection(
+        workspaceAgentAccess.status === 403
+          ? "workspace_agent_mismatch"
+          : "workspace_agent_verification_unavailable",
+      );
+      const statusLine = workspaceAgentAccess.status === 403 ? "403 Forbidden" : "502 Bad Gateway";
+      socket.write(`HTTP/1.1 ${statusLine}\r\n\r\n`);
+      socket.destroy();
+      return;
+    }
+  }
+
   const upstreamUrl = buildPtyUrl(coderUrl, agentId, {
     reconnectId,
     width: Number(width) || 80,
@@ -530,6 +499,10 @@ function connectUpstream(
   let upstreamMissedHeartbeats = 0;
   let browserInputBytes = 0;
   let browserInputFrames = 0;
+  let browserResizeBytes = 0;
+  let browserResizeFrames = 0;
+  let browserResizeRows = 0;
+  let browserResizeCols = 0;
   let upstreamOutputBytes = 0;
   let upstreamOutputFrames = 0;
 
@@ -540,6 +513,15 @@ function connectUpstream(
         frames: browserInputFrames,
       });
     }
+    if (context && browserResizeFrames > 0) {
+      recordProxyEvent(eventStore, context, "browser_input", {
+        frame: "resize",
+        bytes: browserResizeBytes,
+        frames: browserResizeFrames,
+        rows: browserResizeRows,
+        cols: browserResizeCols,
+      });
+    }
     if (context && upstreamOutputFrames > 0) {
       recordProxyEvent(eventStore, context, "upstream_output", {
         bytes: upstreamOutputBytes,
@@ -548,6 +530,10 @@ function connectUpstream(
     }
     browserInputBytes = 0;
     browserInputFrames = 0;
+    browserResizeBytes = 0;
+    browserResizeFrames = 0;
+    browserResizeRows = 0;
+    browserResizeCols = 0;
     upstreamOutputBytes = 0;
     upstreamOutputFrames = 0;
   }
@@ -570,6 +556,49 @@ function connectUpstream(
     }
   }
 
+  function handleHeartbeatTimeout(): boolean {
+    if (
+      browserMissedHeartbeats <= MAX_MISSED_HEARTBEATS &&
+      upstreamMissedHeartbeats <= MAX_MISSED_HEARTBEATS
+    ) {
+      return false;
+    }
+
+    const unresponsiveLeg =
+      browserMissedHeartbeats > MAX_MISSED_HEARTBEATS ? "browser" : "upstream";
+    logProxyEvent("error", "heartbeat_timeout", {
+      category: "heartbeat_timeout",
+      leg: unresponsiveLeg,
+    });
+    if (context) {
+      recordProxyEvent(
+        eventStore,
+        context,
+        "heartbeat_timeout",
+        {
+          leg: unresponsiveLeg,
+          browserMissed: browserMissedHeartbeats,
+          upstreamMissed: upstreamMissedHeartbeats,
+        },
+        "error",
+      );
+    }
+    if (
+      browserMissedHeartbeats > MAX_MISSED_HEARTBEATS &&
+      browserWs.readyState === WebSocket.OPEN
+    ) {
+      browserWs.terminate();
+    }
+    if (
+      upstreamMissedHeartbeats > MAX_MISSED_HEARTBEATS &&
+      upstream.readyState === WebSocket.OPEN
+    ) {
+      upstream.terminate();
+    }
+    cleanup();
+    return true;
+  }
+
   upstream.on("open", () => {
     logProxyEvent("log", "upstream_connected", { category: "upstream_connected" });
     if (context) recordProxyEvent(eventStore, context, "upstream_connected");
@@ -577,44 +606,7 @@ function connectUpstream(
       browserMissedHeartbeats = browserResponsive ? 0 : browserMissedHeartbeats + 1;
       upstreamMissedHeartbeats = upstreamResponsive ? 0 : upstreamMissedHeartbeats + 1;
 
-      if (
-        browserMissedHeartbeats > MAX_MISSED_HEARTBEATS ||
-        upstreamMissedHeartbeats > MAX_MISSED_HEARTBEATS
-      ) {
-        const unresponsiveLeg =
-          browserMissedHeartbeats > MAX_MISSED_HEARTBEATS ? "browser" : "upstream";
-        logProxyEvent("error", "heartbeat_timeout", {
-          category: "heartbeat_timeout",
-          leg: unresponsiveLeg,
-        });
-        if (context) {
-          recordProxyEvent(
-            eventStore,
-            context,
-            "heartbeat_timeout",
-            {
-              leg: unresponsiveLeg,
-              browserMissed: browserMissedHeartbeats,
-              upstreamMissed: upstreamMissedHeartbeats,
-            },
-            "error",
-          );
-        }
-        if (
-          browserMissedHeartbeats > MAX_MISSED_HEARTBEATS &&
-          browserWs.readyState === WebSocket.OPEN
-        ) {
-          browserWs.terminate();
-        }
-        if (
-          upstreamMissedHeartbeats > MAX_MISSED_HEARTBEATS &&
-          upstream.readyState === WebSocket.OPEN
-        ) {
-          upstream.terminate();
-        }
-        cleanup();
-        return;
-      }
+      if (handleHeartbeatTimeout()) return;
 
       if (context) {
         recordProxyEvent(eventStore, context, "heartbeat", {
@@ -674,7 +666,10 @@ function connectUpstream(
   browserWs.on("message", (data, isBinary) => {
     const details = browserMessageDetails(data, isBinary);
     if (details.frame === "resize") {
-      if (context) recordProxyEvent(eventStore, context, "browser_input", details);
+      browserResizeBytes += messageByteLength(data);
+      browserResizeFrames += 1;
+      if (typeof details.rows === "number") browserResizeRows = details.rows;
+      if (typeof details.cols === "number") browserResizeCols = details.cols;
     } else {
       browserInputBytes += messageByteLength(data);
       browserInputFrames += 1;

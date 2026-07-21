@@ -54,14 +54,18 @@ function formatTime(timestamp: string): string {
 async function fetchSessionEvents(
   endpoint: string,
   workspaceId: string | undefined,
+  sessionName: string | undefined,
   afterId: number,
+  signal: AbortSignal,
 ): Promise<TerminalSessionEventPayload> {
   const params = new URLSearchParams({ limit: String(MAX_RENDERED_EVENTS) });
   if (workspaceId) params.set("workspaceId", workspaceId);
+  if (sessionName) params.set("sessionName", sessionName);
   if (afterId > 0) params.set("after", String(afterId));
   const response = await fetch(`${endpoint}?${params.toString()}`, {
     cache: "no-store",
     credentials: "include",
+    signal,
   });
   if (!response.ok) throw new Error(`HTTP ${response.status}`);
   const payload = parseTerminalSessionEventPayload(await response.json());
@@ -96,7 +100,10 @@ function nextEventId(
 function useEventRefresh(
   endpoint: string | null,
   workspaceId: string | undefined,
-  mountedRef: RefObject<boolean>,
+  sessionName: string | undefined,
+  generationRef: RefObject<number>,
+  requestControllerRef: RefObject<AbortController | null>,
+  inFlightRef: RefObject<Promise<void> | null>,
   instanceIdRef: RefObject<string | null>,
   lastEventIdRef: RefObject<number>,
   setEvents: Dispatch<SetStateAction<TerminalSessionEvent[]>>,
@@ -105,33 +112,57 @@ function useEventRefresh(
 ) {
   return useCallback(
     async (replace = false) => {
+      if (inFlightRef.current && !replace) return inFlightRef.current;
       if (!endpoint) {
-        if (mountedRef.current) setError("Terminal proxy event logging is not configured.");
+        setError("Terminal proxy event logging is not configured.");
         return;
       }
-      try {
-        const afterId = replace ? 0 : lastEventIdRef.current;
-        const payload = await fetchSessionEvents(endpoint, workspaceId, afterId);
-        if (!mountedRef.current) return;
-        const instanceChanged = instanceIdRef.current !== payload.instanceId;
-        instanceIdRef.current = payload.instanceId;
-        setEvents((current) => mergeEvents(current, payload.events, replace || instanceChanged));
-        lastEventIdRef.current = nextEventId(
-          payload.events,
-          instanceChanged,
-          lastEventIdRef.current,
-        );
-        setError(null);
-        setLastUpdatedAt(payload.generatedAt);
-      } catch (refreshError) {
-        if (!mountedRef.current) return;
-        setError(eventRefreshErrorMessage(refreshError));
-      }
+
+      if (replace) requestControllerRef.current?.abort();
+      const controller = new AbortController();
+      requestControllerRef.current = controller;
+      const generation = generationRef.current;
+      const request = (async () => {
+        try {
+          const afterId = replace ? 0 : lastEventIdRef.current;
+          const payload = await fetchSessionEvents(
+            endpoint,
+            workspaceId,
+            sessionName,
+            afterId,
+            controller.signal,
+          );
+          if (controller.signal.aborted || generationRef.current !== generation) return;
+          const instanceChanged = instanceIdRef.current !== payload.instanceId;
+          instanceIdRef.current = payload.instanceId;
+          setEvents((current) => mergeEvents(current, payload.events, replace || instanceChanged));
+          lastEventIdRef.current = nextEventId(
+            payload.events,
+            instanceChanged,
+            lastEventIdRef.current,
+          );
+          setError(null);
+          setLastUpdatedAt(payload.generatedAt);
+        } catch (refreshError) {
+          if (controller.signal.aborted || generationRef.current !== generation) return;
+          setError(eventRefreshErrorMessage(refreshError));
+        } finally {
+          if (requestControllerRef.current === controller) {
+            requestControllerRef.current = null;
+            inFlightRef.current = null;
+          }
+        }
+      })();
+      inFlightRef.current = request;
+      return request;
     },
     [
       endpoint,
       workspaceId,
-      mountedRef,
+      sessionName,
+      generationRef,
+      requestControllerRef,
+      inFlightRef,
       instanceIdRef,
       lastEventIdRef,
       setEvents,
@@ -143,21 +174,37 @@ function useEventRefresh(
 
 function useResetEventLog(
   refresh: (replace?: boolean) => Promise<void>,
-  mountedRef: RefObject<boolean>,
+  generationRef: RefObject<number>,
+  requestControllerRef: RefObject<AbortController | null>,
+  inFlightRef: RefObject<Promise<void> | null>,
   instanceIdRef: RefObject<string | null>,
   lastEventIdRef: RefObject<number>,
   setEvents: Dispatch<SetStateAction<TerminalSessionEvent[]>>,
 ) {
   useEffect(() => {
-    mountedRef.current = true;
+    generationRef.current += 1;
+    requestControllerRef.current?.abort();
+    requestControllerRef.current = null;
+    inFlightRef.current = null;
     instanceIdRef.current = null;
     lastEventIdRef.current = 0;
     setEvents([]);
     void refresh(true);
     return () => {
-      mountedRef.current = false;
+      generationRef.current += 1;
+      requestControllerRef.current?.abort();
+      requestControllerRef.current = null;
+      inFlightRef.current = null;
     };
-  }, [refresh, mountedRef, instanceIdRef, lastEventIdRef, setEvents]);
+  }, [
+    refresh,
+    generationRef,
+    requestControllerRef,
+    inFlightRef,
+    instanceIdRef,
+    lastEventIdRef,
+    setEvents,
+  ]);
 }
 
 function useEventPolling(paused: boolean, refresh: (replace?: boolean) => Promise<void>) {
@@ -168,25 +215,42 @@ function useEventPolling(paused: boolean, refresh: (replace?: boolean) => Promis
   }, [paused, refresh]);
 }
 
-function useSessionEventLog(endpoint: string | null, workspaceId?: string): SessionEventLogState {
+function useSessionEventLog(
+  endpoint: string | null,
+  workspaceId?: string,
+  sessionName?: string,
+): SessionEventLogState {
   const [events, setEvents] = useState<TerminalSessionEvent[]>([]);
   const [paused, setPaused] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [lastUpdatedAt, setLastUpdatedAt] = useState<string | null>(null);
-  const mountedRef = useRef(true);
+  const generationRef = useRef(0);
+  const requestControllerRef = useRef<AbortController | null>(null);
+  const inFlightRef = useRef<Promise<void> | null>(null);
   const instanceIdRef = useRef<string | null>(null);
   const lastEventIdRef = useRef(0);
   const refresh = useEventRefresh(
     endpoint,
     workspaceId,
-    mountedRef,
+    sessionName,
+    generationRef,
+    requestControllerRef,
+    inFlightRef,
     instanceIdRef,
     lastEventIdRef,
     setEvents,
     setError,
     setLastUpdatedAt,
   );
-  useResetEventLog(refresh, mountedRef, instanceIdRef, lastEventIdRef, setEvents);
+  useResetEventLog(
+    refresh,
+    generationRef,
+    requestControllerRef,
+    inFlightRef,
+    instanceIdRef,
+    lastEventIdRef,
+    setEvents,
+  );
   useEventPolling(paused, refresh);
 
   return { events, paused, setPaused, error, lastUpdatedAt, refresh };
@@ -317,6 +381,7 @@ export function TerminalSessionEventLog({
   const { events, paused, setPaused, error, lastUpdatedAt, refresh } = useSessionEventLog(
     endpoint,
     workspaceId,
+    sessionName,
   );
   const scrollRef = useRef<HTMLDivElement>(null);
 

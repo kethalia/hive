@@ -160,7 +160,7 @@ describe("TerminalSessionStatusClient", () => {
     await waitFor(() => expect(screen.getByText("upstream_connected")).toBeInTheDocument());
     expect(fetchMock).toHaveBeenCalledWith(
       "https://terminal.example.test/session-events?limit=500&workspaceId=workspace-1",
-      { cache: "no-store", credentials: "include" },
+      expect.objectContaining({ cache: "no-store", credentials: "include" }),
     );
   });
 });

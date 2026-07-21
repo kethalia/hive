@@ -19,6 +19,10 @@ vi.mock("../src/auth.js", () => ({
   authenticateUpgrade: vi.fn(() => Promise.resolve(mockAuthResult)),
 }));
 
+vi.mock("../src/workspace-authorization.js", () => ({
+  verifyWorkspaceAgentAccess: vi.fn(async () => ({ ok: true as const })),
+}));
+
 type MockWebSocket = {
   on: ReturnType<typeof vi.fn>;
   send: ReturnType<typeof vi.fn>;
@@ -72,8 +76,10 @@ import { WebSocket } from "ws";
 import { authenticateUpgrade } from "../src/auth.js";
 import { handleUpgrade, isOriginAllowed } from "../src/proxy.js";
 import { terminalSessionEventStore } from "../src/session-events.js";
+import { verifyWorkspaceAgentAccess } from "../src/workspace-authorization.js";
 
 const mockAuth = authenticateUpgrade as ReturnType<typeof vi.fn>;
+const mockVerifyWorkspaceAgentAccess = verifyWorkspaceAgentAccess as ReturnType<typeof vi.fn>;
 
 function makeReq(query: Record<string, string>, origin = "http://localhost:3000"): IncomingMessage {
   const params = new URLSearchParams(query);
@@ -212,6 +218,7 @@ describe("handleUpgrade", () => {
     wsMockState.upstreamSockets.length = 0;
     terminalSessionEventStore.clear();
     mockAuth.mockResolvedValue(mockAuthResult);
+    mockVerifyWorkspaceAgentAccess.mockResolvedValue({ ok: true });
   });
 
   afterEach(() => {
@@ -404,6 +411,7 @@ describe("handleUpgrade", () => {
   });
 
   it("forwards browser resize frames unchanged to open upstream websocket", async () => {
+    vi.useFakeTimers();
     const resizeFrame = JSON.stringify({ height: 42, width: 120 });
     const logSpy = vi.spyOn(console, "log").mockImplementation(() => undefined);
 
@@ -417,14 +425,20 @@ describe("handleUpgrade", () => {
       expect(upstreamWs).toBeDefined();
       expect(browserWs).not.toBe(upstreamWs);
 
+      if (!upstreamWs) return;
+      getSocketHandler(upstreamWs, "open")();
+
       const browserMessageHandler = browserWs?.on.mock.calls.find(
         ([event]) => event === "message",
       )?.[1];
       expect(browserMessageHandler).toBeTypeOf("function");
 
-      browserMessageHandler?.(resizeFrame);
+      for (let index = 0; index < 1_000; index += 1) {
+        browserMessageHandler?.(resizeFrame);
+      }
+      await vi.advanceTimersByTimeAsync(1_000);
 
-      expect(upstreamWs?.send).toHaveBeenCalledWith(resizeFrame);
+      expect(upstreamWs.send).toHaveBeenCalledWith(resizeFrame);
       expect(logSpy.mock.calls.flat().join("\n")).not.toContain(resizeFrame);
       expect(
         terminalSessionEventStore.list({
@@ -437,13 +451,39 @@ describe("handleUpgrade", () => {
             sessionName: validParams.sessionName,
             sessionKind: "terminal",
             type: "browser_input",
-            details: expect.objectContaining({ frame: "resize", rows: 42, cols: 120 }),
+            details: expect.objectContaining({
+              frame: "resize",
+              rows: 42,
+              cols: 120,
+              frames: 1_000,
+            }),
           }),
         ]),
       );
+      const resizeEvents = terminalSessionEventStore
+        .list({ authorizedWorkspaceIds: new Set([validParams.workspaceId]) })
+        .events.filter((event) => event.details.frame === "resize");
+      expect(resizeEvents).toHaveLength(1);
     } finally {
       logSpy.mockRestore();
     }
+  });
+
+  it("rejects a workspace id that does not own the authenticated agent", async () => {
+    mockVerifyWorkspaceAgentAccess.mockResolvedValue({ ok: false, status: 403 });
+    const socket = makeSocket();
+
+    await handleUpgrade(makeReq(validParams), socket, Buffer.alloc(0));
+
+    expect(mockVerifyWorkspaceAgentAccess).toHaveBeenCalledWith({
+      coderUrl: mockAuthResult.value.coderUrl,
+      token: mockAuthResult.value.token,
+      workspaceId: validParams.workspaceId,
+      agentId: validParams.agentId,
+    });
+    expect(socket.written[0]).toContain("403");
+    expect(socket.destroy).toHaveBeenCalledOnce();
+    expect(WebSocket).not.toHaveBeenCalled();
   });
 
   it("aggregates sustained input and output traffic once per second without recording content", async () => {
