@@ -1,7 +1,15 @@
 "use client";
 
-import { Lock, Minus, Plus, X } from "lucide-react";
-import type { CSSProperties, FocusEvent, KeyboardEvent, MouseEvent, ReactNode } from "react";
+import { GripVertical, Lock, Minus, Plus, X } from "lucide-react";
+import type {
+  CSSProperties,
+  FocusEvent,
+  KeyboardEvent,
+  MouseEvent,
+  PointerEvent,
+  PointerEventHandler,
+  ReactNode,
+} from "react";
 import { Button } from "@/components/ui/button";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { useTerminalFontStep } from "@/hooks/useTerminalFontStep";
@@ -121,6 +129,9 @@ interface TerminalSessionFrameProps {
   closeLabel?: string;
   closeTestId?: string;
   headerActions?: ReactNode;
+  onHeaderPointerDown?: PointerEventHandler<HTMLDivElement>;
+  isDragging?: boolean;
+  isDropTarget?: boolean;
   style?: CSSProperties;
   paneState?: string;
 }
@@ -143,6 +154,9 @@ export function TerminalSessionFrame({
   closeLabel,
   closeTestId,
   headerActions,
+  onHeaderPointerDown,
+  isDragging = false,
+  isDropTarget = false,
   style,
   paneState,
 }: TerminalSessionFrameProps) {
@@ -170,12 +184,28 @@ export function TerminalSessionFrame({
     onActivate?.();
   }
 
+  function handleHeaderPointerDown(event: PointerEvent<HTMLDivElement>) {
+    if (disabled || !onHeaderPointerDown) return;
+    const target = event.target;
+    const interactiveTarget =
+      target instanceof Element
+        ? target.closest("button, a, input, select, textarea, [role='button'], [role='link']")
+        : null;
+    if (interactiveTarget && event.currentTarget.contains(interactiveTarget)) {
+      return;
+    }
+    onHeaderPointerDown(event);
+  }
+
   return (
     <div
       role={interactive ? "button" : "group"}
       className={cn(
-        "relative flex min-h-0 resize-none flex-col overflow-hidden rounded-lg border bg-black shadow-sm outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring",
+        "relative flex h-full min-h-0 resize-none flex-col overflow-hidden border bg-black shadow-sm outline-none transition-[border-color,box-shadow,opacity] focus-visible:ring-2 focus-visible:ring-ring",
+        layoutMode === "single" ? "rounded-lg" : "rounded-md",
         active ? "border-primary ring-1 ring-primary" : "border-border",
+        isDropTarget && "border-primary/80 ring-2 ring-inset ring-primary/60",
+        isDragging && "shadow-xl shadow-black/40",
         disabled && "border-white/10 opacity-45 grayscale-[0.35] saturate-50",
         className,
       )}
@@ -195,10 +225,29 @@ export function TerminalSessionFrame({
     >
       {showHeader ? (
         <div
-          className="flex min-h-8 shrink-0 items-center gap-1 border-b border-white/10 bg-zinc-950 px-2 py-1 text-white"
+          className={cn(
+            "flex min-h-10 shrink-0 select-none items-center gap-1 border-b border-white/10 bg-zinc-950 px-2 text-white",
+            !disabled && onHeaderPointerDown && "touch-none cursor-grab active:cursor-grabbing",
+          )}
+          data-window-drag-surface={!disabled && onHeaderPointerDown ? "true" : "false"}
           data-testid={dataTestId ? `${dataTestId}-header` : undefined}
+          onPointerDown={handleHeaderPointerDown}
         >
-          <span className="min-w-0 flex-1 truncate font-mono text-xs">{label}</span>
+          <div className="flex min-w-0 flex-1 items-center gap-1.5">
+            {!disabled && onHeaderPointerDown ? (
+              <GripVertical
+                className="size-3 shrink-0 text-white/55"
+                aria-hidden="true"
+                data-testid={dataTestId ? `${dataTestId}-drag-icon` : undefined}
+              />
+            ) : null}
+            <span
+              className="min-w-0 truncate font-mono text-xs"
+              data-testid={dataTestId ? `${dataTestId}-title` : undefined}
+            >
+              {label}
+            </span>
+          </div>
           {headerActions}
           {onClose ? (
             <Button

@@ -6,6 +6,10 @@ import {
   type Page,
   type TestInfo,
 } from "@playwright/test";
+import {
+  findWorkspaceWindowInDirection,
+  type WorkspaceWindowDirection,
+} from "../src/lib/workspaces/workspace-window-layout";
 
 const appUrl = process.env.PLAYWRIGHT_BASE_URL;
 const coderUrl = process.env.HIVE_E2E_CODER_URL;
@@ -152,6 +156,408 @@ async function verifyEmbeddedToolsOpenInParallel(
   await capture(page, testInfo, "workspace-tools-embedded-in-parallel");
 }
 
+interface WorkspaceRect {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+type WorkspaceTestDropPosition = "top" | "left";
+
+interface WorkspaceMeasurement {
+  body: Locator;
+  bodyBox: WorkspaceRect;
+  renderedRects: Map<string, WorkspaceRect>;
+}
+
+async function measureWorkspaceWindows(page: Page): Promise<WorkspaceMeasurement> {
+  const body = page.getByTestId("multi-session-body");
+  const windows = page.locator("[data-workspace-window-id]:visible");
+  await expect.poll(() => windows.count()).toBeGreaterThanOrEqual(3);
+  await expect(page.getByTestId("multi-session-grid")).toHaveAttribute(
+    "data-layout-mode",
+    "binary-split",
+  );
+
+  const bodyBox = await body.boundingBox();
+  if (!bodyBox) throw new Error("Workspace body has no measurable bounds.");
+  const renderedRects = new Map<string, WorkspaceRect>();
+  for (let index = 0; index < (await windows.count()); index += 1) {
+    const window = windows.nth(index);
+    const id = await window.getAttribute("data-workspace-window-id");
+    const rect = await window.boundingBox();
+    if (!id || !rect) throw new Error(`Workspace window ${index} has incomplete geometry.`);
+    renderedRects.set(id, rect);
+  }
+  return { body, bodyBox, renderedRects };
+}
+
+async function verifyWorkspaceCoverage(measurement: WorkspaceMeasurement) {
+  const { body, bodyBox, renderedRects } = measurement;
+  let totalWindowArea = 0;
+  for (const windowBox of renderedRects.values()) {
+    expect(windowBox.x).toBeGreaterThanOrEqual(bodyBox.x - 1);
+    expect(windowBox.y).toBeGreaterThanOrEqual(bodyBox.y - 1);
+    expect(windowBox.x + windowBox.width).toBeLessThanOrEqual(bodyBox.x + bodyBox.width + 1);
+    expect(windowBox.y + windowBox.height).toBeLessThanOrEqual(bodyBox.y + bodyBox.height + 1);
+    totalWindowArea += windowBox.width * windowBox.height;
+  }
+  expect(totalWindowArea).toBeGreaterThan(bodyBox.width * bodyBox.height * 0.98);
+  expect(totalWindowArea).toBeLessThan(bodyBox.width * bodyBox.height * 1.02);
+  expect(
+    await body.evaluate((element) => ({
+      horizontal: element.scrollWidth - element.clientWidth,
+      vertical: element.scrollHeight - element.clientHeight,
+    })),
+  ).toEqual({ horizontal: 0, vertical: 0 });
+}
+
+async function workspaceWindowId(window: Locator, label: string): Promise<string> {
+  const id = await window.getAttribute("data-workspace-window-id");
+  if (!id) throw new Error(`${label} has no window ID.`);
+  return id;
+}
+
+function workspaceWindowContaining(page: Page, pane: Locator): Locator {
+  return page.locator("[data-workspace-window-id]:visible").filter({ has: pane }).first();
+}
+
+async function verifyDirectionalWorkspaceFocus(
+  page: Page,
+  { bodyBox, renderedRects }: WorkspaceMeasurement,
+) {
+  const codePane = page.getByTestId("workspace-tool-pane-code");
+  const filesPane = page.getByTestId("workspace-tool-pane-files");
+  await expect(codePane).toHaveAttribute("data-active", "true");
+  const codeWindow = workspaceWindowContaining(page, codePane);
+  const codeWindowId = await workspaceWindowId(codeWindow, "Code window");
+  const filesWindowId = await workspaceWindowId(
+    workspaceWindowContaining(page, filesPane),
+    "Files window",
+  );
+  const directions: WorkspaceWindowDirection[] = ["left", "right", "up", "down"];
+  const directionToFiles = directions.find(
+    (direction) =>
+      findWorkspaceWindowInDirection(renderedRects, codeWindowId, direction) === filesWindowId,
+  );
+  if (!directionToFiles) {
+    throw new Error("The files pane is not the closest directional neighbor of the code pane.");
+  }
+  await codeWindow.locator('[data-window-drag-surface="true"]').click();
+  await expect(codePane).toHaveAttribute("data-active", "true");
+  const keyDirection = `${directionToFiles[0]?.toUpperCase()}${directionToFiles.slice(1)}`;
+  await page.keyboard.press(`Control+Arrow${keyDirection}`);
+  await expect(filesPane).toHaveAttribute("data-active", "true");
+
+  const edgeCandidate = closestWorkspaceEdge(bodyBox, renderedRects);
+  const edgeWindow = page.locator(`[data-workspace-window-id="${edgeCandidate.id}"]:visible`);
+  await edgeWindow.locator('[data-window-drag-surface="true"]').click();
+  await expect(edgeWindow.locator('[data-active="true"]')).toHaveCount(1);
+  await page.keyboard.press(`Control+Arrow${edgeCandidate.direction}`);
+  await expect(edgeWindow.locator('[data-active="true"]')).toHaveCount(1);
+}
+
+async function verifyHoverWorkspaceFocus(page: Page) {
+  const filesPane = page.getByTestId("workspace-tool-pane-files");
+  const codePane = page.getByTestId("workspace-tool-pane-code");
+  const filesFrame = page.getByTestId("workspace-tool-frame-files");
+  const codeFrame = page.getByTestId("workspace-tool-frame-code");
+
+  await page.getByTestId("workspace-tool-pane-files-header").hover();
+  await expect(filesPane).toHaveAttribute("data-active", "true");
+  await codeFrame.focus();
+  await expect(codePane).toHaveAttribute("data-active", "true");
+  await filesFrame.hover();
+  await expect(filesPane).toHaveAttribute("data-active", "true");
+  await page.getByTestId("workspace-tool-pane-code-header").hover();
+  await expect(codePane).toHaveAttribute("data-active", "true");
+}
+
+async function verifyWorkspaceWindowChrome(page: Page) {
+  const pane = page.locator('[data-pane-mode="tiled"]:visible').first();
+  const window = workspaceWindowContaining(page, pane);
+  const paneBox = await pane.boundingBox();
+  const windowBox = await window.boundingBox();
+  if (!paneBox || !windowBox) throw new Error("Workspace window chrome could not be measured.");
+
+  expect(paneBox.x - windowBox.x).toBeGreaterThanOrEqual(1);
+  expect(paneBox.y - windowBox.y).toBeGreaterThanOrEqual(1);
+  expect(windowBox.width - paneBox.width).toBeGreaterThanOrEqual(2);
+  expect(windowBox.height - paneBox.height).toBeGreaterThanOrEqual(2);
+  expect(await pane.evaluate((element) => getComputedStyle(element).borderRadius)).not.toBe("0px");
+
+  const codeHeader = page.getByTestId("workspace-tool-pane-code-header");
+  const dragIcon = page.getByTestId("workspace-tool-pane-code-drag-icon");
+  const title = page.getByTestId("workspace-tool-pane-code-title");
+  const dragIconBox = await dragIcon.boundingBox();
+  const titleBox = await title.boundingBox();
+  if (!dragIconBox || !titleBox) {
+    throw new Error("Workspace window title could not be measured.");
+  }
+  await expect(codeHeader.getByRole("button", { name: /^Drag / })).toHaveCount(0);
+  expect(Math.abs(dragIconBox.width - 12)).toBeLessThan(1);
+  expect(Math.abs(dragIconBox.height - 12)).toBeLessThan(1);
+  expect(
+    Math.abs(dragIconBox.y + dragIconBox.height / 2 - (titleBox.y + titleBox.height / 2)),
+  ).toBeLessThan(1);
+}
+
+function closestWorkspaceEdge(bodyBox: WorkspaceRect, rects: ReadonlyMap<string, WorkspaceRect>) {
+  const candidates = [...rects.entries()].flatMap(([id, rect]) => [
+    { id, direction: "Left", distance: Math.abs(rect.x - bodyBox.x) },
+    {
+      id,
+      direction: "Right",
+      distance: Math.abs(bodyBox.x + bodyBox.width - (rect.x + rect.width)),
+    },
+    { id, direction: "Up", distance: Math.abs(rect.y - bodyBox.y) },
+    {
+      id,
+      direction: "Down",
+      distance: Math.abs(bodyBox.y + bodyBox.height - (rect.y + rect.height)),
+    },
+  ]);
+  candidates.sort((left, right) => left.distance - right.distance);
+  const edgeCandidate = candidates[0];
+  if (!edgeCandidate || edgeCandidate.distance > 2) {
+    throw new Error("No workspace window reaches the workspace edge.");
+  }
+  return edgeCandidate;
+}
+
+async function verifyWorkspaceWindowDrag(page: Page) {
+  await verifyNoopWorkspaceWindowDrags(page);
+  await verifySiblingWorkspaceWindowSwap(page);
+
+  const codeWindow = workspaceWindowContaining(page, page.getByTestId("workspace-tool-pane-code"));
+  const terminalWindow = page
+    .locator('[data-workspace-window-id]:has([data-terminal-surface="true"]):visible')
+    .first();
+  const terminalBoxBefore = await terminalWindow.boundingBox();
+  if (!(await codeWindow.boundingBox()) || !terminalBoxBefore) {
+    throw new Error("Workspace windows could not be measured before drag.");
+  }
+  const persistedLayoutBefore = await persistedWorkspaceWindowLayout(page);
+  const { dropPosition, targetPoint } = workspaceDropTarget(terminalBoxBefore);
+  const dragSurface = page.getByTestId("workspace-tool-pane-code-header");
+  await startWorkspaceWindowDrag(page, dragSurface, targetPoint);
+  const { dragged: codeExpected, target: terminalExpected } = workspaceSplitRects(
+    terminalBoxBefore,
+    dropPosition,
+  );
+  await expect(codeWindow).toHaveCSS("opacity", "0.6");
+  await expectPointerInsideWorkspaceWindow(codeWindow, targetPoint);
+  await expectStandaloneWorkspacePlaceholder(page, codeExpected, dropPosition);
+  await expectWorkspaceRect(terminalWindow, terminalExpected);
+  await page.mouse.up();
+
+  await expectWorkspaceRect(codeWindow, codeExpected);
+  await expectWorkspaceRect(terminalWindow, terminalExpected);
+  await expect.poll(() => persistedWorkspaceWindowLayout(page)).not.toBe(persistedLayoutBefore);
+}
+
+async function verifyNoopWorkspaceWindowDrags(page: Page) {
+  const codeWindow = workspaceWindowContaining(page, page.getByTestId("workspace-tool-pane-code"));
+  const dragSurface = page.getByTestId("workspace-tool-pane-code-header");
+  const bodyBox = await page.getByTestId("multi-session-body").boundingBox();
+  const windowBoxBefore = await codeWindow.boundingBox();
+  if (!bodyBox || !windowBoxBefore) {
+    throw new Error("Workspace bounds could not be measured before no-op drag validation.");
+  }
+  const persistedLayoutBefore = await persistedWorkspaceWindowLayout(page);
+
+  await dragSurface.click();
+  await waitForTwoAnimationFrames(page);
+  await expect(page.getByTestId("workspace-window-drop-placeholder")).toHaveCount(0);
+  await expectWorkspaceRect(codeWindow, windowBoxBefore);
+  expect(await persistedWorkspaceWindowLayout(page)).toBe(persistedLayoutBefore);
+
+  await startWorkspaceWindowDrag(page, dragSurface, pointOutsideWorkspace(page, bodyBox));
+  await expectOriginWorkspacePlaceholder(page, windowBoxBefore);
+  await page.mouse.up();
+  await waitForTwoAnimationFrames(page);
+  await expect(page.getByTestId("workspace-window-drop-placeholder")).toHaveCount(0);
+  await expectWorkspaceRect(codeWindow, windowBoxBefore);
+  expect(await persistedWorkspaceWindowLayout(page)).toBe(persistedLayoutBefore);
+}
+
+function pointOutsideWorkspace(page: Page, bodyBox: WorkspaceRect) {
+  const viewport = page.viewportSize();
+  if (bodyBox.x >= 16) {
+    return { x: bodyBox.x - 8, y: bodyBox.y + bodyBox.height / 2 };
+  }
+  if (bodyBox.y >= 16) {
+    return { x: bodyBox.x + bodyBox.width / 2, y: bodyBox.y - 8 };
+  }
+  if (viewport && bodyBox.x + bodyBox.width + 8 < viewport.width) {
+    return { x: bodyBox.x + bodyBox.width + 8, y: bodyBox.y + bodyBox.height / 2 };
+  }
+  if (viewport && bodyBox.y + bodyBox.height + 8 < viewport.height) {
+    return { x: bodyBox.x + bodyBox.width / 2, y: bodyBox.y + bodyBox.height + 8 };
+  }
+  throw new Error("The workspace fills the viewport, so an outside drop point is unavailable.");
+}
+
+async function verifySiblingWorkspaceWindowSwap(page: Page) {
+  const codeWindow = workspaceWindowContaining(page, page.getByTestId("workspace-tool-pane-code"));
+  const filesWindow = workspaceWindowContaining(
+    page,
+    page.getByTestId("workspace-tool-pane-files"),
+  );
+  const codeBefore = await codeWindow.boundingBox();
+  const filesBefore = await filesWindow.boundingBox();
+  if (!codeBefore || !filesBefore) throw new Error("Sibling tool windows could not be measured.");
+  const persistedLayoutBefore = await persistedWorkspaceWindowLayout(page);
+  const { dropPosition, targetPoint } = workspaceDropTarget(filesBefore);
+
+  await startWorkspaceWindowDrag(
+    page,
+    page.getByTestId("workspace-tool-pane-code-header"),
+    targetPoint,
+  );
+  await expect(codeWindow).toHaveCSS("opacity", "0.6");
+  await expectPointerInsideWorkspaceWindow(codeWindow, targetPoint);
+  await expectStandaloneWorkspacePlaceholder(page, filesBefore, dropPosition);
+  await expectWorkspaceRect(filesWindow, codeBefore);
+  await page.mouse.up();
+
+  await expectWorkspaceRect(codeWindow, filesBefore);
+  await expectWorkspaceRect(filesWindow, codeBefore);
+  await expect.poll(() => persistedWorkspaceWindowLayout(page)).not.toBe(persistedLayoutBefore);
+}
+
+function workspaceDropTarget(target: WorkspaceRect): {
+  dropPosition: WorkspaceTestDropPosition;
+  targetPoint: { x: number; y: number };
+} {
+  if (target.height > target.width) {
+    return {
+      dropPosition: "top",
+      targetPoint: { x: target.x + target.width / 2, y: target.y + target.height / 4 },
+    };
+  }
+  return {
+    dropPosition: "left",
+    targetPoint: { x: target.x + target.width / 4, y: target.y + target.height / 2 },
+  };
+}
+
+async function startWorkspaceWindowDrag(
+  page: Page,
+  dragHandle: Locator,
+  targetPoint: { x: number; y: number },
+) {
+  const dragHandleBox = await dragHandle.boundingBox();
+  if (!dragHandleBox) throw new Error("VS Code drag handle could not be measured.");
+  await page.mouse.move(
+    dragHandleBox.x + dragHandleBox.width / 2,
+    dragHandleBox.y + dragHandleBox.height / 2,
+  );
+  await page.mouse.down();
+  await page.mouse.move(targetPoint.x, targetPoint.y, { steps: 12 });
+}
+
+async function waitForTwoAnimationFrames(page: Page) {
+  await page.evaluate(
+    () =>
+      new Promise<void>((resolve) => {
+        requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
+      }),
+  );
+}
+
+async function expectStandaloneWorkspacePlaceholder(
+  page: Page,
+  expected: WorkspaceRect,
+  dropPosition: WorkspaceTestDropPosition,
+) {
+  const placeholder = page.getByTestId("workspace-window-drop-placeholder");
+  await expect(placeholder).toBeVisible();
+  await expect(placeholder).toHaveAttribute("data-workspace-window-drop-kind", "destination");
+  await expect(placeholder).toHaveAttribute("data-workspace-window-drop-position", dropPosition);
+  expect(
+    await placeholder.evaluate((element) => Boolean(element.closest("[data-workspace-window-id]"))),
+  ).toBe(false);
+  await expectWorkspaceRect(placeholder, expected);
+}
+
+async function expectOriginWorkspacePlaceholder(page: Page, expected: WorkspaceRect) {
+  const placeholder = page.getByTestId("workspace-window-drop-placeholder");
+  await expect(placeholder).toBeVisible();
+  await expect(placeholder).toHaveAttribute("data-workspace-window-drop-kind", "origin");
+  await expect(placeholder).not.toHaveAttribute("data-workspace-window-drop-position");
+  await expectWorkspaceRect(placeholder, expected);
+}
+
+async function expectPointerInsideWorkspaceWindow(
+  window: Locator,
+  pointer: { x: number; y: number },
+) {
+  await expect
+    .poll(async () => {
+      const rect = await window.boundingBox();
+      if (!rect) return false;
+      return (
+        pointer.x >= rect.x &&
+        pointer.x <= rect.x + rect.width &&
+        pointer.y >= rect.y &&
+        pointer.y <= rect.y + rect.height
+      );
+    })
+    .toBe(true);
+}
+
+function workspaceSplitRects(
+  target: WorkspaceRect,
+  dropPosition: WorkspaceTestDropPosition,
+): { dragged: WorkspaceRect; target: WorkspaceRect } {
+  const dragged =
+    dropPosition === "top"
+      ? { ...target, height: target.height / 2 }
+      : { ...target, width: target.width / 2 };
+  const remainingTarget =
+    dropPosition === "top"
+      ? { ...dragged, y: target.y + target.height / 2 }
+      : { ...dragged, x: target.x + target.width / 2 };
+  return { dragged, target: remainingTarget };
+}
+
+async function persistedWorkspaceWindowLayout(page: Page) {
+  return page.evaluate(() =>
+    Object.entries(window.localStorage)
+      .filter(([key]) => key.startsWith("workspace-window-layout:"))
+      .map(([key, value]) => `${key}:${value}`)
+      .sort()
+      .join("\n"),
+  );
+}
+
+async function expectWorkspaceRect(window: Locator, expected: WorkspaceRect) {
+  for (const axis of ["x", "y", "width", "height"] as const) {
+    await expect.poll(() => rectDelta(window, axis, expected[axis])).toBeLessThan(2);
+  }
+}
+
+async function rectDelta(
+  window: Locator,
+  axis: "x" | "y" | "width" | "height",
+  target: number,
+): Promise<number> {
+  return Math.abs(((await window.boundingBox())?.[axis] ?? 0) - target);
+}
+
+async function verifyWorkspaceWindowManagement(page: Page, testInfo: TestInfo) {
+  const measurement = await measureWorkspaceWindows(page);
+  await verifyWorkspaceCoverage(measurement);
+  await verifyWorkspaceWindowChrome(page);
+  await verifyHoverWorkspaceFocus(page);
+  await verifyDirectionalWorkspaceFocus(page, measurement);
+  await verifyWorkspaceWindowDrag(page);
+  await verifyWorkspaceCoverage(await measureWorkspaceWindows(page));
+  await capture(page, testInfo, "workspace-window-management");
+}
+
 async function verifyEmbeddedToolsSurviveRefresh(
   page: Page,
   testInfo: TestInfo,
@@ -180,6 +586,10 @@ async function verifyEmbeddedToolsSurviveRefresh(
     await page.getByTestId("active-pane-label").textContent()
   )?.trim();
   expect(explicitlyFocusedLabel).toBeTruthy();
+
+  // Keep the stationary pointer outside the board while panes remount. Otherwise an iframe
+  // restored beneath it correctly wins focus through the workspace's hover-focus behavior.
+  await page.mouse.move(1, 1);
 
   const previousFileBrowserLoadCount = getSuccessfulFileBrowserLoads();
   const previousVsCodeLoadCount = getSuccessfulVsCodeLoads();
@@ -411,6 +821,9 @@ test.describe("authenticated Hive workflows", () => {
         getSuccessfulFileBrowserLoads,
         getSuccessfulVsCodeLoads,
       );
+    });
+    await test.step("tile, focus, and drag workspace windows without overflow", async () => {
+      await verifyWorkspaceWindowManagement(page, testInfo);
     });
     await test.step("restore embedded tools with fresh authorization after refresh", async () => {
       await verifyEmbeddedToolsSurviveRefresh(

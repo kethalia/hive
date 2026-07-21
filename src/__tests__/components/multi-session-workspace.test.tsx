@@ -568,6 +568,7 @@ vi.mock("lucide-react", () => ({
   Copy: () => <span data-testid="icon-copy" />,
   ExternalLink: () => <span data-testid="icon-external-link" />,
   FolderOpen: () => <span data-testid="icon-folder" />,
+  GripVertical: () => <span data-testid="icon-grip" />,
   Loader2: () => <span data-testid="icon-loader" />,
   Lock: () => <span data-testid="icon-lock" />,
   Minus: () => <span data-testid="icon-minus" />,
@@ -639,6 +640,12 @@ async function renderTwoSessionWorkspace(options: { connect?: boolean } = {}) {
   }
 }
 
+let workspaceViewportRect = { width: 1_200, height: 800 };
+
+function mockWorkspaceViewport(width: number, height: number) {
+  workspaceViewportRect = { width, height };
+}
+
 function lastRegisteredEntry(id: string) {
   return mockRegister.mock.calls
     .map(([entry]) => entry)
@@ -666,6 +673,14 @@ function setPwaStandalone(matches: boolean) {
 describe("MultiSessionWorkspace", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockWorkspaceViewport(1_200, 800);
+    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function (
+      this: HTMLElement,
+    ) {
+      return this.getAttribute("data-testid") === "multi-session-body"
+        ? DOMRect.fromRect(workspaceViewportRect)
+        : DOMRect.fromRect();
+    });
     emitConnectionStateOnCallbackChange = false;
     terminalProps.clear();
     terminalDestroyCounts.clear();
@@ -738,6 +753,26 @@ describe("MultiSessionWorkspace", () => {
     expect(screen.getByTestId("workspace-tool-frame-code").getAttribute("sandbox")).toContain(
       "allow-same-origin",
     );
+    expect(screen.getByTestId("workspace-tool-pane-code")).toHaveAttribute("data-active", "true");
+    expect(document.querySelector('[data-workspace-window-id="main-session"]')).toHaveStyle({
+      left: "0%",
+      top: "0%",
+      width: "50%",
+      height: "50%",
+    });
+    expect(
+      document.querySelector(
+        '[data-workspace-window-id="workspace-tool:default:main-session:files"]',
+      ),
+    ).toHaveStyle({ left: "0%", top: "50%", width: "25%", height: "50%" });
+    expect(
+      document.querySelector(
+        '[data-workspace-window-id="workspace-tool:default:main-session:code"]',
+      ),
+    ).toHaveStyle({ left: "25%", top: "50%", width: "25%", height: "50%" });
+    expect(window.localStorage.getItem("workspace-window-layout:workspace:ws-1")).toContain(
+      '"axis":"x"',
+    );
     fireEvent.click(screen.getByTestId("pop-out-workspace-tool-code"));
     expect(openSpy).toHaveBeenCalledWith(
       "https://code.test/?folder=%2Fhome%2Fcoder",
@@ -748,6 +783,49 @@ describe("MultiSessionWorkspace", () => {
     fireEvent.click(screen.getByTestId("remove-workspace-tool-files"));
     expect(screen.queryByTestId("workspace-tool-pane-files")).not.toBeInTheDocument();
     expect(screen.getByTestId("workspace-tool-pane-code")).toBeInTheDocument();
+  });
+
+  it("activates embedded tool windows from iframe focus and pointer entry", async () => {
+    await renderTwoSessionWorkspace();
+
+    fireEvent.click(await screen.findByRole("button", { name: "Browse files for main-session" }));
+    fireEvent.click(screen.getByRole("button", { name: "Open VS Code for main-session" }));
+
+    const filesPane = await screen.findByTestId("workspace-tool-pane-files");
+    const codePane = await screen.findByTestId("workspace-tool-pane-code");
+    const filesFrame = screen.getByTestId("workspace-tool-frame-files");
+    const codeFrame = screen.getByTestId("workspace-tool-frame-code");
+
+    expect(codePane).toHaveAttribute("data-active", "true");
+    fireEvent.focus(filesFrame);
+    expect(filesPane).toHaveAttribute("data-active", "true");
+
+    fireEvent.pointerEnter(codeFrame);
+    expect(codePane).toHaveAttribute("data-active", "true");
+  });
+
+  it("chooses the initial split from the measured portrait workspace", async () => {
+    mockWorkspaceViewport(600, 1_000);
+
+    await renderTwoSessionWorkspace();
+
+    await waitFor(() => {
+      expect(window.localStorage.getItem("workspace-window-layout:workspace:ws-1")).toContain(
+        '"axis":"x"',
+      );
+    });
+    expect(document.querySelector('[data-workspace-window-id="main-session"]')).toHaveStyle({
+      left: "0%",
+      top: "0%",
+      width: "100%",
+      height: "50%",
+    });
+    expect(document.querySelector('[data-workspace-window-id="dev-server"]')).toHaveStyle({
+      left: "0%",
+      top: "50%",
+      width: "100%",
+      height: "50%",
+    });
   });
 
   it("restores File Browser and VS Code panes with fresh URLs after remount", async () => {
@@ -1164,6 +1242,48 @@ describe("MultiSessionWorkspace", () => {
     expect(screen.queryByTestId("workspace-tool-pane-files")).not.toBeInTheDocument();
   });
 
+  it("does not restore stale board state when a tool request finishes after switching boards", async () => {
+    const pending = Promise.withResolvers<{
+      data: {
+        codeUrl: string;
+        filesUrl: string;
+        folderPath: string | null;
+      };
+    }>();
+    mockGetWorkspaceSessionTools.mockReturnValueOnce(pending.promise);
+    await renderTwoSessionWorkspace();
+
+    fireEvent.click(screen.getByRole("button", { name: "Browse files for dev-server" }));
+    fireEvent.click(screen.getByTestId("workspace-board-new"));
+    expect(screen.getByTestId("workspace-board-tab-workspace-2")).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+
+    await act(async () => {
+      pending.resolve({
+        data: {
+          codeUrl: "https://fresh-code.test",
+          filesUrl: "https://fresh-files.test",
+          folderPath: "/home/coder",
+        },
+      });
+      await pending.promise;
+    });
+
+    expect(screen.getByTestId("workspace-board-tab-workspace-2")).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+    expect(screen.getByTestId("workspace-board-tab-default")).toBeInTheDocument();
+    expect(
+      JSON.parse(window.localStorage.getItem("workspace-board-state:workspace:ws-1") ?? "{}"),
+    ).toMatchObject({
+      activeBoardKey: "workspace-2",
+      boards: [{ key: "default" }, { key: "workspace-2" }],
+    });
+  });
+
   it("invalidates a pending Git resolution when its board is deleted and recreated", async () => {
     const pending = Promise.withResolvers<{
       data: {
@@ -1319,8 +1439,20 @@ describe("MultiSessionWorkspace", () => {
       "data-pane-mode",
       "tiled",
     );
-    expect(screen.getByTestId("multi-session-body")).toHaveClass("p-1");
-    expect(screen.getByTestId("multi-session-grid")).toHaveClass("gap-1");
+    expect(screen.getByTestId("multi-session-body")).toHaveClass(
+      "overflow-hidden",
+      "overscroll-none",
+    );
+    expect(screen.getByTestId("multi-session-body")).not.toHaveClass("p-1");
+    expect(screen.getByTestId("multi-session-grid")).toHaveAttribute(
+      "data-layout-mode",
+      "binary-split",
+    );
+    expect(screen.getByTestId("multi-session-grid")).not.toHaveClass("gap-1");
+    expect(
+      screen.getByTestId("workspace-pane-main-session").closest("[data-workspace-window-id]"),
+    ).toHaveClass("p-0.5");
+    expect(screen.getByTestId("workspace-pane-main-session")).toHaveClass("rounded-md");
     expect(screen.queryByTestId("copy-active-pane")).not.toBeInTheDocument();
     expect(screen.queryByTestId("paste-active-pane")).not.toBeInTheDocument();
     expect(screen.queryByTestId("terminal-mobile-controls")).not.toBeInTheDocument();
@@ -1629,6 +1761,16 @@ describe("MultiSessionWorkspace", () => {
     expect(screen.getByTestId("workspace-pane-dev-server-disabled-overlay")).toHaveTextContent(
       "Compose locked",
     );
+    expect(
+      screen.getByTestId("workspace-pane-dev-server").querySelector('[data-testid="icon-grip"]'),
+    ).not.toBeInTheDocument();
+    expect(document.querySelector('[data-workspace-window-id="dev-server"]')).toHaveAttribute(
+      "data-workspace-window-disabled",
+      "true",
+    );
+    expect(
+      screen.getByTestId("workspace-pane-main-session").querySelector('[data-testid="icon-grip"]'),
+    ).toBeInTheDocument();
 
     fireEvent.change(screen.getByPlaceholderText("Type multi-line command..."), {
       target: { value: "printf main" },
@@ -1682,7 +1824,7 @@ describe("MultiSessionWorkspace", () => {
     expect(consoleError.mock.calls.flat().join("\n")).not.toContain("Maximum update depth");
   });
 
-  it("gives the primary pane full height when three sessions are open", async () => {
+  it("fills the viewport with a focused-window split tree when three sessions are open", async () => {
     mockGetSessions.mockResolvedValue({
       data: [
         { name: "main-session", created: 1, windows: 1 },
@@ -1693,14 +1835,24 @@ describe("MultiSessionWorkspace", () => {
 
     render(<MultiSessionWorkspace {...defaultProps} />);
 
-    expect(await screen.findByTestId("workspace-pane-main-session")).toHaveStyle({
-      gridArea: "1 / 1 / span 2 / span 1",
+    await screen.findByTestId("workspace-pane-main-session");
+    expect(document.querySelector('[data-workspace-window-id="main-session"]')).toHaveStyle({
+      left: "0%",
+      top: "0%",
+      width: "50%",
+      height: "100%",
     });
-    expect(screen.getByTestId("workspace-pane-dev-server")).toHaveStyle({
-      gridArea: "1 / 2 / span 1 / span 1",
+    expect(document.querySelector('[data-workspace-window-id="dev-server"]')).toHaveStyle({
+      left: "50%",
+      top: "0%",
+      width: "50%",
+      height: "50%",
     });
-    expect(screen.getByTestId("workspace-pane-shell")).toHaveStyle({
-      gridArea: "2 / 2 / span 1 / span 1",
+    expect(document.querySelector('[data-workspace-window-id="shell"]')).toHaveStyle({
+      left: "50%",
+      top: "50%",
+      width: "50%",
+      height: "50%",
     });
     expect(screen.getByTestId("interactive-terminal-main-session")).toHaveAttribute(
       "data-layout-signal",
@@ -1722,7 +1874,7 @@ describe("MultiSessionWorkspace", () => {
     );
   });
 
-  it("changes active pane on pointer movement without reacting to passive boundary changes", async () => {
+  it("changes active pane when the pointer moves over a different window", async () => {
     await renderTwoSessionWorkspace();
     const focusDevTerminal = vi.fn();
     const devTerm = makeTerminal("dev-server", focusDevTerminal);
@@ -1748,7 +1900,7 @@ describe("MultiSessionWorkspace", () => {
         .boards[0].activePaneKey,
     ).toBe("terminal:dev-server");
 
-    fireEvent.click(screen.getByTestId("workspace-pane-main-session"));
+    fireEvent.mouseMove(screen.getByTestId("workspace-pane-main-session"));
 
     expect(screen.getByTestId("active-pane-label")).toHaveTextContent("main-session");
   });
@@ -1844,7 +1996,7 @@ describe("MultiSessionWorkspace", () => {
     expect(enterEvent.defaultPrevented).toBe(false);
   });
 
-  it("switches active pane with Ctrl/Cmd arrow keys and focuses xterm", async () => {
+  it("focuses the closest directional pane without wrapping at an edge", async () => {
     await renderTwoSessionWorkspace();
     const workspace = screen.getByTestId("multi-session-workspace");
     const devTerm = makeTerminal("dev-server");
@@ -1861,7 +2013,12 @@ describe("MultiSessionWorkspace", () => {
     fireEvent.keyDown(workspace, { key: "ArrowLeft", metaKey: true });
     expect(screen.getByTestId("active-pane-label")).toHaveTextContent("main-session");
 
-    const nextBinding = lastRegisteredEntry("multi-session:ws-1:next-pane");
+    const nextBinding = lastRegisteredEntry("multi-session:ws-1:focus-right-pane");
+    act(() => {
+      expect(nextBinding.action(null, null)).toBe(false);
+    });
+    expect(screen.getByTestId("active-pane-label")).toHaveTextContent("dev-server");
+
     act(() => {
       expect(nextBinding.action(null, null)).toBe(false);
     });
@@ -2142,9 +2299,11 @@ describe("MultiSessionWorkspace", () => {
     expect(mockCreateSession).not.toHaveBeenCalled();
   });
 
-  it("keeps pane headers compact without reorder controls or status badges", async () => {
+  it("exposes decorative drag indicators without legacy reorder controls or status badges", async () => {
     await renderTwoSessionWorkspace();
 
+    expect(screen.getAllByTestId("icon-grip")).toHaveLength(2);
+    expect(screen.queryByRole("button", { name: /^Drag / })).not.toBeInTheDocument();
     expect(screen.queryByTestId("move-pane-left-pane-dev-server")).not.toBeInTheDocument();
     expect(screen.queryByTestId("move-pane-right-pane-dev-server")).not.toBeInTheDocument();
     expect(screen.queryByText("Active")).not.toBeInTheDocument();
@@ -2702,10 +2861,10 @@ describe("MultiSessionWorkspace", () => {
 
     await renderTwoSessionWorkspace();
 
-    const labels = Array.from(screen.getByTestId("multi-session-grid").children).map((pane) =>
-      pane.getAttribute("data-pane-label"),
-    );
-    expect(labels).toEqual(["dev-server", "main-session"]);
+    const windowIds = Array.from(
+      screen.getByTestId("multi-session-grid").querySelectorAll("[data-workspace-window-id]"),
+    ).map((pane) => pane.getAttribute("data-workspace-window-id"));
+    expect(windowIds).toEqual(["dev-server", "main-session"]);
     expect(screen.getByTestId("active-pane-label")).toHaveTextContent("dev-server");
   });
 
@@ -4528,5 +4687,31 @@ describe("MultiSessionWorkspace", () => {
       "Could not create a terminal session.",
     );
     expect(screen.queryByText(/secret create failure/)).not.toBeInTheDocument();
+  });
+
+  it("preserves the stored window layout when session loading fails", async () => {
+    const storedWindowLayout = JSON.stringify({
+      version: 1,
+      boards: [
+        {
+          boardKey: "default",
+          root: {
+            type: "split",
+            axis: "y",
+            first: { type: "leaf", id: "main-session" },
+            second: { type: "leaf", id: "dev-server" },
+          },
+        },
+      ],
+    });
+    window.localStorage.setItem("workspace-window-layout:workspace:ws-1", storedWindowLayout);
+    mockGetSessions.mockRejectedValueOnce(new Error("private load failure"));
+
+    render(<MultiSessionWorkspace {...defaultProps} />);
+
+    expect(await screen.findByTestId("session-load-error")).toBeInTheDocument();
+    expect(window.localStorage.getItem("workspace-window-layout:workspace:ws-1")).toBe(
+      storedWindowLayout,
+    );
   });
 });
