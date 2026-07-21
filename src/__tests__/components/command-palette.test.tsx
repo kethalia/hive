@@ -449,6 +449,7 @@ describe("CommandPalette", () => {
     );
 
     const command = screen.getByTestId("command");
+    expect(command).toHaveClass("rounded-none", "bg-transparent", "shadow-none");
     expect(command.className).toContain("[&_[cmdk-input]]:h-12");
     expect(command.className).toContain("[&_[cmdk-item]]:py-3");
   });

@@ -41,7 +41,7 @@ function renderHandle(overrides: Partial<SidebarState> = {}) {
 
 function swipePage({
   target,
-  start = [240, 200],
+  start = [24, 200],
   move,
   end = move,
 }: {
@@ -153,7 +153,7 @@ describe("SidebarEdgeHandle", () => {
   it("ignores mostly vertical movement", () => {
     renderHandle();
 
-    swipePage({ target: screen.getByTestId("page-content"), move: [256, 280] });
+    swipePage({ target: screen.getByTestId("page-content"), move: [40, 280] });
 
     expect(sidebarState.setOpenMobile).not.toHaveBeenCalled();
   });
@@ -161,7 +161,31 @@ describe("SidebarEdgeHandle", () => {
   it("ignores leftward horizontal movement", () => {
     renderHandle();
 
-    swipePage({ target: screen.getByTestId("page-content"), start: [300, 200], move: [230, 204] });
+    swipePage({ target: screen.getByTestId("page-content"), start: [64, 200], move: [20, 204] });
+
+    expect(sidebarState.setOpenMobile).not.toHaveBeenCalled();
+  });
+
+  it("ignores broad page swipes that do not start near the left edge", () => {
+    renderHandle();
+
+    swipePage({
+      target: screen.getByTestId("page-content"),
+      start: [180, 200],
+      move: [260, 204],
+    });
+
+    expect(sidebarState.setOpenMobile).not.toHaveBeenCalled();
+  });
+
+  it("does not claim the operating-system edge itself", () => {
+    renderHandle();
+
+    swipePage({
+      target: screen.getByTestId("page-content"),
+      start: [4, 200],
+      move: [80, 204],
+    });
 
     expect(sidebarState.setOpenMobile).not.toHaveBeenCalled();
   });

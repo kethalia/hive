@@ -61,6 +61,24 @@ export const DRAG_DISMISS_VELOCITY = 0.5;
  */
 export const DRAG_LONG_PRESS_MOVE_PX = 8;
 
+/** Minimum horizontal centroid travel before a two-finger swipe owns the gesture. */
+export const TWO_FINGER_SWIPE_INTENT_PX = 18;
+
+/** Horizontal centroid travel required before release navigates to another surface. */
+export const TWO_FINGER_SWIPE_TRIGGER_PX = 64;
+
+/** Horizontal travel must exceed vertical travel by this ratio. */
+export const TWO_FINGER_SWIPE_HORIZONTAL_RATIO = 1.5;
+
+/** Maximum vertical centroid drift allowed for a horizontal navigation swipe. */
+export const TWO_FINGER_SWIPE_MAX_VERTICAL_PX = 32;
+
+/**
+ * Maximum relative change in finger spacing before the gesture belongs to
+ * pinch-to-zoom instead of navigation.
+ */
+export const TWO_FINGER_SWIPE_MAX_SCALE_DELTA = 0.08;
+
 /**
  * Shared style that suppresses iOS text selection/callout chrome on touch
  * gesture surfaces while leaving each caller free to choose its touch-action.

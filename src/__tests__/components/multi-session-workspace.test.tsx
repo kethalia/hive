@@ -230,6 +230,7 @@ vi.mock("next/dynamic", () => ({
           data-workspace-id={workspaceId}
           data-session-name={sessionName}
           data-terminal-surface="true"
+          data-terminal-navigation-surface={mobileInputMode ? "true" : undefined}
           className={className}
           data-clone-path={clonePath}
           data-clone-proof={cloneProof}
@@ -521,31 +522,34 @@ vi.mock("@/components/ui/sheet", () => ({
   }: React.PropsWithChildren<{
     open?: boolean;
     onOpenChange?: (open: boolean) => void;
-  }>) => (
-    <div data-testid="compose-sheet" data-open={open ? "true" : "false"}>
-      {open ? children : null}
-      <button
-        type="button"
-        data-testid="compose-sheet-close-proxy"
-        onClick={() => onOpenChange?.(false)}
-      >
-        Close sheet
-      </button>
-    </div>
-  ),
+  }>) =>
+    open ? (
+      <div data-testid="compose-sheet" data-open="true">
+        {children}
+        <button
+          type="button"
+          data-testid="compose-sheet-close-proxy"
+          onClick={() => onOpenChange?.(false)}
+        >
+          Close sheet
+        </button>
+      </div>
+    ) : null,
   SheetContent: ({
     children,
     className,
     side,
     style,
+    "data-testid": dataTestId,
   }: React.PropsWithChildren<{
     className?: string;
     side?: string;
     style?: React.CSSProperties;
+    "data-testid"?: string;
   }>) => (
     <section
       className={className}
-      data-testid="compose-sheet-content"
+      data-testid={dataTestId ?? "compose-sheet-content"}
       data-side={side}
       style={style}
     >
@@ -554,6 +558,10 @@ vi.mock("@/components/ui/sheet", () => ({
   ),
   SheetTitle: ({ children, className }: React.PropsWithChildren<{ className?: string }>) => (
     <h2 className={className}>{children}</h2>
+  ),
+  SheetDescription: ({ children }: React.PropsWithChildren) => <p>{children}</p>,
+  SheetHeader: ({ children, className }: React.PropsWithChildren<{ className?: string }>) => (
+    <div className={className}>{children}</div>
   ),
 }));
 
@@ -577,11 +585,18 @@ vi.mock("@/components/workspaces/TerminalSessionEventLog", () => ({
 
 vi.mock("lucide-react", () => ({
   AlertCircle: () => <span data-testid="icon-alert" />,
+  ArrowDown: () => <span data-testid="icon-arrow-down" />,
+  ArrowLeft: () => <span data-testid="icon-arrow-left" />,
+  ArrowRight: () => <span data-testid="icon-arrow-right" />,
+  ArrowUp: () => <span data-testid="icon-arrow-up" />,
   Code2: () => <span data-testid="icon-code" />,
   ClipboardPaste: () => <span data-testid="icon-paste" />,
   Copy: () => <span data-testid="icon-copy" />,
   ExternalLink: () => <span data-testid="icon-external-link" />,
+  Ellipsis: () => <span data-testid="icon-ellipsis" />,
+  Files: () => <span data-testid="icon-files" />,
   FolderOpen: () => <span data-testid="icon-folder" />,
+  Focus: () => <span data-testid="icon-focus" />,
   GripVertical: () => <span data-testid="icon-grip" />,
   Loader2: () => <span data-testid="icon-loader" />,
   Lock: () => <span data-testid="icon-lock" />,
@@ -621,6 +636,29 @@ function twoSessionPayload() {
       { name: "dev-server", created: 2, windows: 1 },
     ],
   };
+}
+
+function dispatchTwoFingerSwipe(target: Element, direction: "left" | "right"): { move: Event } {
+  const startX = direction === "left" ? 180 : 80;
+  const endX = direction === "left" ? 100 : 160;
+  const event = (type: "touchstart" | "touchmove" | "touchend", x?: number) => {
+    const touchEvent = new Event(type, { bubbles: true, cancelable: true });
+    const touches =
+      x === undefined
+        ? []
+        : [
+            { identifier: 1, clientX: x, clientY: 100 },
+            { identifier: 2, clientX: x + 60, clientY: 102 },
+          ];
+    Object.defineProperty(touchEvent, "touches", { value: touches });
+    target.dispatchEvent(touchEvent);
+    return touchEvent;
+  };
+
+  event("touchstart", startX);
+  const move = event("touchmove", endX);
+  event("touchend");
+  return { move };
 }
 
 function markSessionConnected(sessionName: string) {
@@ -1637,6 +1675,103 @@ describe("MultiSessionWorkspace", () => {
     fireEvent.click(screen.getByTestId("terminal-window-next"));
     expect(screen.getByTestId("active-pane-label")).toHaveTextContent("dev-server");
     expect(mainTerm.focus).not.toHaveBeenCalled();
+  });
+
+  it("navigates terminals with a scoped two-finger swipe on touch layouts", async () => {
+    mockUseIsComposeSheet.mockReturnValue(true);
+    await renderTwoSessionWorkspace();
+
+    const terminal = screen.getByTestId("interactive-terminal-main-session");
+    expect(terminal).toHaveAttribute("data-terminal-navigation-surface", "true");
+    let move: Event | undefined;
+    act(() => {
+      move = dispatchTwoFingerSwipe(terminal, "left").move;
+    });
+
+    expect(move?.defaultPrevented).toBe(true);
+    await waitFor(() => {
+      expect(screen.getByTestId("active-pane-label")).toHaveTextContent("dev-server");
+    });
+    expect(mockTriggerHapticFeedback).toHaveBeenCalled();
+  });
+
+  it("navigates workspaces with a two-finger swipe on workspace touch surfaces", async () => {
+    mockUseIsComposeSheet.mockReturnValue(true);
+    window.localStorage.setItem(
+      "workspace-board-state:workspace:ws-1",
+      JSON.stringify({
+        version: 1,
+        activeBoardKey: "main",
+        boards: [
+          {
+            key: "main",
+            name: "Main",
+            order: 0,
+            activePaneKey: "terminal:main-session",
+            panes: [
+              {
+                kind: "terminal",
+                key: "terminal:main-session",
+                sessionName: "main-session",
+                label: "Main terminal",
+                order: 0,
+              },
+            ],
+          },
+          {
+            key: "review",
+            name: "Review",
+            order: 1,
+            activePaneKey: "terminal:dev-server",
+            panes: [
+              {
+                kind: "terminal",
+                key: "terminal:dev-server",
+                sessionName: "dev-server",
+                label: "Review terminal",
+                order: 0,
+              },
+            ],
+          },
+        ],
+      }),
+    );
+    await renderTwoSessionWorkspace();
+
+    act(() => {
+      dispatchTwoFingerSwipe(screen.getByTestId("workspace-board-bar"), "left");
+    });
+
+    await waitFor(() => {
+      expect(screen.getByTestId("workspace-board-tab-review")).toHaveAttribute(
+        "aria-selected",
+        "true",
+      );
+    });
+    expect(screen.getByTestId("active-pane-label")).toHaveTextContent("Review terminal");
+    expect(mockTriggerHapticFeedback).toHaveBeenCalled();
+  });
+
+  it("opens direct native pane actions from the touch-sized More control", async () => {
+    mockUseIsComposeSheet.mockReturnValue(true);
+    await renderTwoSessionWorkspace();
+
+    const more = screen.getByTestId("workspace-pane-main-session-actions");
+    expect(more).toHaveClass("size-11", "min-h-11");
+    fireEvent.click(more);
+
+    expect(screen.getByTestId("workspace-pane-action-sheet")).toBeInTheDocument();
+    expect(screen.getByTestId("workspace-pane-action-activate")).toBeInTheDocument();
+    expect(screen.getByTestId("workspace-pane-action-files")).toBeInTheDocument();
+    expect(screen.getByTestId("workspace-pane-action-remove")).toBeInTheDocument();
+    expect(document.querySelector("[cmdk-root]")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId("workspace-pane-action-files"));
+    await waitFor(() => {
+      expect(mockGetWorkspaceSessionTools).toHaveBeenCalledWith(
+        expect.objectContaining({ sessionName: "main-session", tool: "files" }),
+      );
+    });
   });
 
   it("wraps loading and failure states in the visual viewport shell on mobile", async () => {

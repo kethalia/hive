@@ -242,9 +242,16 @@ vi.mock("@/components/ui/input", () => ({
 
 vi.mock("lucide-react", () => ({
   AlertCircle: () => <span data-testid="icon-alert" />,
+  ArrowDown: () => <span data-testid="icon-arrow-down" />,
+  ArrowLeft: () => <span data-testid="icon-arrow-left" />,
+  ArrowRight: () => <span data-testid="icon-arrow-right" />,
+  ArrowUp: () => <span data-testid="icon-arrow-up" />,
   Code2: () => <span data-testid="icon-code" />,
+  Ellipsis: () => <span data-testid="icon-ellipsis" />,
   ExternalLink: () => <span data-testid="icon-external-link" />,
+  Files: () => <span data-testid="icon-files" />,
   FolderOpen: () => <span data-testid="icon-folder" />,
+  Focus: () => <span data-testid="icon-focus" />,
   ScrollText: () => <span data-testid="icon-logs" />,
   GripVertical: () => <span data-testid="icon-grip" />,
   Loader2: () => <span data-testid="icon-loader" />,

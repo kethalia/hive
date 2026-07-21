@@ -5,7 +5,8 @@ import { useSidebar } from "@/components/ui/sidebar";
 import { TAP_THRESHOLD_PX } from "@/lib/gestures/conventions";
 
 const OPEN_SWIPE_DISTANCE_PX = 56;
-const MAX_START_X_RATIO = 0.72;
+const MIN_START_X_PX = 16;
+const MAX_START_X_PX = 72;
 
 export interface SidebarEdgeHandleProps {
   className?: string;
@@ -80,9 +81,7 @@ export function SidebarEdgeHandle(_props: SidebarEdgeHandleProps) {
     }): PointerStart | null => {
       if (isGestureIgnoredTarget(target)) return null;
 
-      const viewportWidth = window.innerWidth || document.documentElement.clientWidth || 1;
-      const maxStartX = viewportWidth * MAX_START_X_RATIO;
-      if (x > maxStartX) return null;
+      if (x < MIN_START_X_PX || x > MAX_START_X_PX) return null;
 
       return { id, x, y };
     };

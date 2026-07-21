@@ -340,12 +340,18 @@ vi.mock("@/components/ui/alert", () => ({
 vi.mock("lucide-react", () => ({
   Activity: () => null,
   AlertCircle: () => null,
+  ArrowDown: () => null,
   ArrowLeft: () => null,
+  ArrowRight: () => null,
+  ArrowUp: () => null,
   Code2: () => null,
   ClipboardPaste: () => null,
   Copy: () => null,
+  Ellipsis: () => null,
   ExternalLink: () => null,
+  Files: () => null,
   FolderOpen: () => null,
+  Focus: () => null,
   ScrollText: () => null,
   GripVertical: () => null,
   RefreshCw: () => null,
@@ -608,16 +614,19 @@ vi.mock("@/components/ui/resizable", () => ({
 }));
 
 vi.mock("@/components/ui/sheet", () => ({
-  Sheet: ({ children, open }: React.PropsWithChildren<{ open?: boolean }>) => (
-    <div data-open={open ? "true" : "false"} data-testid="compose-sheet">
-      {open ? children : null}
-    </div>
-  ),
+  Sheet: ({ children, open }: React.PropsWithChildren<{ open?: boolean }>) =>
+    open ? (
+      <div data-open={open ? "true" : "false"} data-testid="compose-sheet">
+        {children}
+      </div>
+    ) : null,
   SheetContent: ({ children, side }: React.PropsWithChildren<{ side?: string }>) => (
     <section data-side={side} data-testid="compose-sheet-content">
       {children}
     </section>
   ),
+  SheetDescription: ({ children }: React.PropsWithChildren) => <p>{children}</p>,
+  SheetHeader: ({ children }: React.PropsWithChildren) => <div>{children}</div>,
   SheetTitle: ({ children }: React.PropsWithChildren) => <h2>{children}</h2>,
 }));
 

@@ -53,4 +53,75 @@ describe("TerminalSessionFrame", () => {
     fireEvent.pointerDown(close);
     expect(onHeaderPointerDown).toHaveBeenCalledTimes(2);
   });
+
+  it("provides visible, context-menu, and long-press access to pane actions", () => {
+    vi.useFakeTimers();
+    const onOpenActions = vi.fn();
+
+    render(
+      <TerminalSessionFrame
+        label="Terminal one"
+        dataTestId="terminal-one"
+        layoutMode="tiled"
+        onOpenActions={onOpenActions}
+        touchOptimizedActions
+      >
+        <div>Terminal</div>
+      </TerminalSessionFrame>,
+    );
+
+    const more = screen.getByRole("button", { name: "Open actions for Terminal one" });
+    expect(more).toHaveClass("size-11", "min-h-11");
+    fireEvent.click(more);
+    expect(onOpenActions).toHaveBeenCalledTimes(1);
+
+    const header = screen.getByTestId("terminal-one-header");
+    fireEvent.contextMenu(header);
+    expect(onOpenActions).toHaveBeenCalledTimes(2);
+
+    fireEvent.pointerDown(header, {
+      pointerId: 7,
+      pointerType: "touch",
+      clientX: 40,
+      clientY: 20,
+    });
+    vi.advanceTimersByTime(500);
+    expect(onOpenActions).toHaveBeenCalledTimes(3);
+
+    vi.useRealTimers();
+  });
+
+  it("cancels a header long press when touch movement exceeds the drag threshold", () => {
+    vi.useFakeTimers();
+    const onOpenActions = vi.fn();
+
+    render(
+      <TerminalSessionFrame
+        label="Terminal one"
+        dataTestId="terminal-one"
+        layoutMode="tiled"
+        onOpenActions={onOpenActions}
+      >
+        <div>Terminal</div>
+      </TerminalSessionFrame>,
+    );
+
+    const header = screen.getByTestId("terminal-one-header");
+    fireEvent.pointerDown(header, {
+      pointerId: 7,
+      pointerType: "touch",
+      clientX: 40,
+      clientY: 20,
+    });
+    fireEvent.pointerMove(header, {
+      pointerId: 7,
+      pointerType: "touch",
+      clientX: 52,
+      clientY: 20,
+    });
+    vi.advanceTimersByTime(500);
+    expect(onOpenActions).not.toHaveBeenCalled();
+
+    vi.useRealTimers();
+  });
 });

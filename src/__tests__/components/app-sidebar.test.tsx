@@ -278,6 +278,7 @@ vi.mock("@/components/ui/switch", () => ({
 }));
 
 vi.mock("lucide-react", () => ({
+  Ellipsis: () => <span>Ellipsis</span>,
   ListTodo: () => <span>ListTodo</span>,
   PlusCircle: () => <span>PlusCircle</span>,
   Settings: () => <span>Settings</span>,
@@ -1638,10 +1639,17 @@ describe("AppSidebar", () => {
     expect(row).toHaveClass("min-h-11");
     expect(row).toHaveClass("py-2");
     expect(row).toHaveClass("text-sm");
+    expect(row).toHaveClass("pr-12");
+
+    const showActions = screen.getByTestId("show-terminal-session-actions-dev");
+    expect(showActions).toHaveAccessibleName("Show actions for terminal session dev");
+    expect(showActions).toHaveClass("h-11", "w-11");
+    expect(screen.queryByTestId("rename-session-dev")).not.toBeInTheDocument();
+
+    fireEvent.click(showActions);
 
     const actions = screen.getByTestId("rename-session-dev").parentElement;
     expect(actions).not.toBeNull();
-    expect(actions).toHaveClass("opacity-100");
     expect(actions).not.toHaveClass("opacity-0");
     expect(actions).not.toHaveClass("group-hover/session:opacity-100");
 
@@ -1667,6 +1675,28 @@ describe("AppSidebar", () => {
     expect(editingRow).toHaveClass("min-h-11");
     expect(editingRow).toHaveClass("py-2");
     expect(editingRow).toHaveClass("text-sm");
+  });
+
+  it("reveals mobile session actions with a left swipe without invoking them", async () => {
+    mockUseIsMobile.mockReturnValue(true);
+
+    await expandWorkspaceAndTerminalSessions();
+
+    const row = screen.getByText("dev").closest("a")?.parentElement;
+    expect(row).not.toBeNull();
+    fireEvent.touchStart(row!, {
+      touches: [{ identifier: 1, clientX: 240, clientY: 20 }],
+    });
+    fireEvent.touchMove(row!, {
+      touches: [{ identifier: 1, clientX: 170, clientY: 22 }],
+    });
+    fireEvent.touchEnd(row!, {
+      changedTouches: [{ identifier: 1, clientX: 170, clientY: 22 }],
+    });
+
+    expect(screen.getByTestId("rename-session-dev")).toBeInTheDocument();
+    expect(screen.getByTestId("kill-session-dev")).toBeInTheDocument();
+    expect(mockKillSession).not.toHaveBeenCalled();
   });
 
   it("renders external tools as links that open in a new tab", async () => {

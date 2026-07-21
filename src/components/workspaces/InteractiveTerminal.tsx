@@ -1078,6 +1078,7 @@ export function InteractiveTerminal({
       className={cn("relative flex flex-col bg-[#0a0a0a] overflow-hidden", className)}
       data-connection-state={connectionState}
       data-terminal-surface="true"
+      data-terminal-navigation-surface={mobileInputMode ? "true" : undefined}
     >
       {connectionState === "workspace-offline" && (
         <Alert variant="destructive" className="rounded-none border-x-0 border-t-0">

@@ -1,6 +1,6 @@
 "use client";
 
-import { GripVertical, Lock, Minus, Plus, X } from "lucide-react";
+import { Ellipsis, GripVertical, Lock, Minus, Plus, X } from "lucide-react";
 import type {
   CSSProperties,
   FocusEvent,
@@ -10,9 +10,12 @@ import type {
   PointerEventHandler,
   ReactNode,
 } from "react";
+import { useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { useTerminalFontStep } from "@/hooks/useTerminalFontStep";
+import { triggerHapticFeedback } from "@/lib/device/haptics";
+import { DRAG_LONG_PRESS_MOVE_PX, LONG_PRESS_MS } from "@/lib/gestures/conventions";
 import { cn } from "@/lib/utils";
 
 interface TerminalFontSizeControlsProps {
@@ -143,6 +146,8 @@ interface TerminalSessionFrameProps {
   closeTestId?: string;
   headerActions?: ReactNode;
   onHeaderPointerDown?: PointerEventHandler<HTMLDivElement>;
+  onOpenActions?: () => void;
+  touchOptimizedActions?: boolean;
   isDragging?: boolean;
   isDropTarget?: boolean;
   style?: CSSProperties;
@@ -169,12 +174,33 @@ export function TerminalSessionFrame({
   closeTestId,
   headerActions,
   onHeaderPointerDown,
+  onOpenActions,
+  touchOptimizedActions = false,
   isDragging = false,
   isDropTarget = false,
   style,
   paneState,
 }: TerminalSessionFrameProps) {
   const interactive = Boolean(onActivate) && !disabled;
+  const longPressTimerRef = useRef<number | null>(null);
+  const longPressPointerRef = useRef<{ id: number; x: number; y: number } | null>(null);
+
+  function clearHeaderLongPress() {
+    if (longPressTimerRef.current !== null) {
+      window.clearTimeout(longPressTimerRef.current);
+      longPressTimerRef.current = null;
+    }
+    longPressPointerRef.current = null;
+  }
+
+  useEffect(
+    () => () => {
+      if (longPressTimerRef.current !== null) {
+        window.clearTimeout(longPressTimerRef.current);
+      }
+    },
+    [],
+  );
 
   function handleFrameClick(event: MouseEvent<HTMLDivElement>) {
     if (disabled) return;
@@ -199,7 +225,7 @@ export function TerminalSessionFrame({
   }
 
   function handleHeaderPointerDown(event: PointerEvent<HTMLDivElement>) {
-    if (disabled || !onHeaderPointerDown) return;
+    if (disabled) return;
     const target = event.target;
     const interactiveTarget =
       target instanceof Element
@@ -208,7 +234,45 @@ export function TerminalSessionFrame({
     if (interactiveTarget && event.currentTarget.contains(interactiveTarget)) {
       return;
     }
-    onHeaderPointerDown(event);
+
+    clearHeaderLongPress();
+    if (event.pointerType === "touch" && onOpenActions) {
+      longPressPointerRef.current = {
+        id: event.pointerId,
+        x: event.clientX,
+        y: event.clientY,
+      };
+      longPressTimerRef.current = window.setTimeout(() => {
+        longPressTimerRef.current = null;
+        longPressPointerRef.current = null;
+        triggerHapticFeedback();
+        onOpenActions();
+      }, LONG_PRESS_MS);
+    }
+
+    onHeaderPointerDown?.(event);
+  }
+
+  function handleHeaderPointerMove(event: PointerEvent<HTMLDivElement>) {
+    const start = longPressPointerRef.current;
+    if (!start || start.id !== event.pointerId) return;
+    if (Math.hypot(event.clientX - start.x, event.clientY - start.y) >= DRAG_LONG_PRESS_MOVE_PX) {
+      clearHeaderLongPress();
+    }
+  }
+
+  function handleHeaderContextMenu(event: MouseEvent<HTMLDivElement>) {
+    if (disabled || !onOpenActions) return;
+    const target = event.target;
+    const interactiveTarget =
+      target instanceof Element
+        ? target.closest("button, a, input, select, textarea, [role='button'], [role='link']")
+        : null;
+    if (interactiveTarget && event.currentTarget.contains(interactiveTarget)) {
+      return;
+    }
+    event.preventDefault();
+    onOpenActions();
   }
 
   return (
@@ -245,7 +309,12 @@ export function TerminalSessionFrame({
           )}
           data-window-drag-surface={!disabled && onHeaderPointerDown ? "true" : "false"}
           data-testid={dataTestId ? `${dataTestId}-header` : undefined}
+          onContextMenu={handleHeaderContextMenu}
           onPointerDown={handleHeaderPointerDown}
+          onPointerMove={handleHeaderPointerMove}
+          onPointerUp={clearHeaderLongPress}
+          onPointerCancel={clearHeaderLongPress}
+          onPointerLeave={clearHeaderLongPress}
         >
           <div className="flex min-w-0 flex-1 items-center gap-1.5">
             {!disabled && onHeaderPointerDown ? (
@@ -273,12 +342,35 @@ export function TerminalSessionFrame({
             </span>
           </div>
           {headerActions}
+          {onOpenActions ? (
+            <Button
+              type="button"
+              variant="ghost"
+              size="xs"
+              className={cn(
+                "shrink-0 text-white hover:bg-white/10 hover:text-white",
+                touchOptimizedActions ? "size-11 min-h-11 px-0" : "h-6 min-h-0 px-1.5",
+              )}
+              aria-label={`Open actions for ${label}`}
+              data-testid={dataTestId ? `${dataTestId}-actions` : undefined}
+              disabled={disabled}
+              onClick={(event) => {
+                event.stopPropagation();
+                onOpenActions();
+              }}
+            >
+              <Ellipsis className="size-3" />
+            </Button>
+          ) : null}
           {onClose ? (
             <Button
               type="button"
               variant="destructive"
               size="xs"
-              className="h-6 min-h-0 px-1.5 text-[10px]"
+              className={cn(
+                "text-[10px]",
+                touchOptimizedActions ? "size-11 min-h-11 px-0" : "h-6 min-h-0 px-1.5",
+              )}
               aria-label={closeLabel ?? `Close ${label}`}
               data-testid={closeTestId}
               disabled={disabled}

@@ -14,6 +14,7 @@ export interface WorkspaceBoardBarProps {
   onDelete?: (boardKey: string) => void;
   onSelect?: (boardKey: string) => void;
   className?: string;
+  touchOptimized?: boolean;
 }
 
 export function WorkspaceBoardBar({
@@ -23,6 +24,7 @@ export function WorkspaceBoardBar({
   onDelete,
   onSelect,
   className,
+  touchOptimized = false,
 }: WorkspaceBoardBarProps) {
   const [dangerBoardKey, setDangerBoardKey] = useState<string | null>(null);
   const orderedBoards = useMemo(() => orderedWorkspaceBoards(boards), [boards]);
@@ -85,6 +87,7 @@ export function WorkspaceBoardBar({
       className={cn("flex min-w-0 items-center gap-1", className)}
       aria-label="Workspaces"
       data-testid="workspace-board-bar"
+      data-workspace-navigation-surface={touchOptimized ? "true" : undefined}
     >
       <div
         role="tablist"
@@ -110,7 +113,10 @@ export function WorkspaceBoardBar({
               tabIndex={isActive ? 0 : -1}
               data-active={isActive ? "true" : "false"}
               data-testid={`workspace-board-tab-${board.key}`}
-              className="h-7 min-h-0 w-7 shrink-0 px-0 font-mono text-xs tabular-nums"
+              className={cn(
+                "shrink-0 px-0 font-mono text-xs tabular-nums",
+                touchOptimized ? "size-11 min-h-11" : "h-7 min-h-0 w-7",
+              )}
               onClick={() => handleBoardPress(board.key)}
               onKeyDown={(event) => handleTabKeyDown(event, board.key)}
               onMouseEnter={() => {
@@ -133,7 +139,10 @@ export function WorkspaceBoardBar({
         variant="outline"
         size="xs"
         onClick={onCreate}
-        className="h-7 min-h-0 w-7 shrink-0 px-0 font-mono text-xs"
+        className={cn(
+          "shrink-0 px-0 font-mono text-xs",
+          touchOptimized ? "size-11 min-h-11" : "h-7 min-h-0 w-7",
+        )}
         aria-label="Create workspace"
         data-testid="workspace-board-new"
       >
