@@ -80,11 +80,13 @@ export function TerminalFontSizeControls({
 
 interface SingleTerminalSessionHeaderProps {
   sessionLabel: string;
+  sessionSubtitle?: string;
   className?: string;
 }
 
 export function SingleTerminalSessionHeader({
   sessionLabel,
+  sessionSubtitle,
   className,
 }: SingleTerminalSessionHeaderProps) {
   return (
@@ -97,9 +99,19 @@ export function SingleTerminalSessionHeader({
     >
       <div className="flex min-w-0 items-center gap-1" data-testid="single-terminal-header-left">
         <SidebarTrigger className="h-7 min-h-0 shrink-0" />
-        <p className="min-w-0 flex-1 truncate font-mono text-xs" data-testid="active-pane-label">
-          {sessionLabel}
-        </p>
+        <span className="min-w-0 flex-1">
+          <span className="block truncate font-mono text-xs" data-testid="active-pane-label">
+            {sessionLabel}
+          </span>
+          {sessionSubtitle ? (
+            <span
+              className="block truncate font-mono text-[10px] text-muted-foreground"
+              data-testid="active-pane-subtitle"
+            >
+              {sessionSubtitle}
+            </span>
+          ) : null}
+        </span>
       </div>
       <div
         className="flex min-w-0 items-center justify-end gap-1"
@@ -114,6 +126,7 @@ export function SingleTerminalSessionHeader({
 interface TerminalSessionFrameProps {
   children: ReactNode;
   label: string;
+  subtitle?: string;
   active?: boolean;
   className?: string;
   contentClassName?: string;
@@ -139,6 +152,7 @@ interface TerminalSessionFrameProps {
 export function TerminalSessionFrame({
   children,
   label,
+  subtitle,
   active = true,
   className,
   contentClassName,
@@ -241,11 +255,21 @@ export function TerminalSessionFrame({
                 data-testid={dataTestId ? `${dataTestId}-drag-icon` : undefined}
               />
             ) : null}
-            <span
-              className="min-w-0 truncate font-mono text-xs"
-              data-testid={dataTestId ? `${dataTestId}-title` : undefined}
-            >
-              {label}
+            <span className="min-w-0 flex-1">
+              <span
+                className="block truncate font-mono text-xs"
+                data-testid={dataTestId ? `${dataTestId}-title` : undefined}
+              >
+                {label}
+              </span>
+              {subtitle ? (
+                <span
+                  className="block truncate font-mono text-[10px] text-white/55"
+                  data-testid={dataTestId ? `${dataTestId}-subtitle` : undefined}
+                >
+                  {subtitle}
+                </span>
+              ) : null}
             </span>
           </div>
           {headerActions}

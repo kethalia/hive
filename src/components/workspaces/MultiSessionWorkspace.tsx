@@ -40,6 +40,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { SidebarTrigger } from "@/components/ui/sidebar";
+import { TerminalSessionEventLog } from "@/components/workspaces/TerminalSessionEventLog";
 import {
   TerminalFontSizeControls,
   TerminalSessionFrame,
@@ -75,6 +76,7 @@ import {
 import { SAFE_IDENTIFIER_RE } from "@/lib/constants";
 import { triggerHapticFeedback } from "@/lib/device/haptics";
 import type { GitCloneTerminalIdentity, PublicCloneTree } from "@/lib/git/clone-actions-contract";
+import { getGitRepositoryPresentation } from "@/lib/git/clone-public-identifiers";
 import type { CloneTreeNode, CloneTreeRepositoryNode } from "@/lib/git/clone-tree";
 import {
   eventTargetElement,
@@ -240,7 +242,7 @@ interface WorkspaceToolPane {
   key: string;
   boardKey: string;
   sourceSessionName: string;
-  tool: WorkspaceTool;
+  tool: WorkspaceTool | "logs";
   url: string | null;
   loadState: "authorizing" | "loading" | "ready" | "error";
   label: string;
@@ -543,7 +545,7 @@ function toGitRepositoryOption(repository: CloneTreeRepositoryNode): GitReposito
   return {
     cloneSessionKey: repository.cloneSessionKey,
     relativePath: repository.relativePath,
-    label: repository.relativePath || repository.label,
+    label: repository.label,
   };
 }
 
@@ -763,6 +765,26 @@ function resolvedWorkspaceToolPane(
   };
 }
 
+function sessionLogWorkspaceToolPane(descriptor: PersistedWorkspaceToolPane): WorkspaceToolPane {
+  return {
+    key: `workspace-tool:${descriptor.boardKey}:${descriptor.sessionName}:logs`,
+    boardKey: descriptor.boardKey,
+    sourceSessionName: descriptor.sessionName,
+    tool: "logs",
+    url: null,
+    loadState: "ready",
+    label: `Session Logs · ${descriptor.label}`,
+    sourceLabel: descriptor.label,
+    folderPath: null,
+    ...(descriptor.cloneSessionKey && descriptor.relativePath
+      ? {
+          cloneSessionKey: descriptor.cloneSessionKey,
+          relativePath: descriptor.relativePath,
+        }
+      : {}),
+  };
+}
+
 function pendingWorkspaceToolPane(descriptor: PersistedWorkspaceToolPane): WorkspaceToolPane {
   return {
     key: `workspace-tool:${descriptor.boardKey}:${descriptor.sessionName}:${descriptor.tool}`,
@@ -771,7 +793,7 @@ function pendingWorkspaceToolPane(descriptor: PersistedWorkspaceToolPane): Works
     tool: descriptor.tool,
     url: null,
     loadState: "authorizing",
-    label: `${descriptor.tool === "code" ? "VS Code" : "Files"} · ${descriptor.label}`,
+    label: `${descriptor.tool === "code" ? "VS Code" : descriptor.tool === "files" ? "Files" : "Session Logs"} · ${descriptor.label}`,
     sourceLabel: descriptor.label,
     folderPath: null,
     ...(descriptor.cloneSessionKey && descriptor.relativePath
@@ -816,13 +838,14 @@ function buildFallbackBoardPanes(
 ): WorkspaceBoardFallbackPane[] {
   return sessions.map((session, order): WorkspaceBoardFallbackPane => {
     if (session.cloneSessionKey && session.relativePath) {
+      const presentation = workspaceSessionPresentation(session);
       return {
         kind: "git",
         key: `git:${session.cloneSessionKey}:${session.relativePath}`,
         cloneSessionKey: session.cloneSessionKey,
         relativePath: session.relativePath,
         sessionName: session.sessionName,
-        label: session.label,
+        label: presentation.title,
         order,
       };
     }
@@ -866,6 +889,29 @@ function gitPaneActionIdentity(cloneSessionKey: string, relativePath: string): s
 
 function gitRepositoryActionIdentity(repository: GitRepositoryOption): string {
   return gitPaneActionIdentity(repository.cloneSessionKey, repository.relativePath);
+}
+
+interface WorkspacePanePresentation {
+  title: string;
+  subtitle?: string;
+}
+
+function workspaceSessionPresentation(
+  session: Pick<WorkspaceSessionPane, "cloneSessionKey" | "label" | "relativePath">,
+): WorkspacePanePresentation {
+  if (!session.cloneSessionKey || !session.relativePath) return { title: session.label };
+  return (
+    getGitRepositoryPresentation(session.relativePath, session.label) ?? { title: session.label }
+  );
+}
+
+function workspaceToolPanePresentation(pane: WorkspaceToolPane): WorkspacePanePresentation {
+  if (!pane.cloneSessionKey || !pane.relativePath) return { title: pane.label };
+  const repository = getGitRepositoryPresentation(pane.relativePath, pane.sourceLabel);
+  if (!repository) return { title: pane.label };
+  const toolLabel =
+    pane.tool === "code" ? "VS Code" : pane.tool === "files" ? "Files" : "Session Logs";
+  return { title: `${toolLabel} · ${repository.title}`, subtitle: repository.subtitle };
 }
 
 function deriveVisibleSessionsFromBoard(
@@ -1055,7 +1101,9 @@ async function loadGitSessions(
       if (!isGitCloneTerminalIdentity(identity)) return null;
       return {
         sessionName: identity.sessionName,
-        label: ref.label ?? repository.label,
+        label:
+          getGitRepositoryPresentation(ref.relativePath, ref.label ?? repository.label)?.title ??
+          repository.label,
         clonePath: identity.clonePath,
         cloneProof: identity.cloneProof,
         cloneSessionKey: ref.cloneSessionKey,
@@ -1251,9 +1299,12 @@ export function MultiSessionWorkspace({
             sessions: [
               ...boardVisibleSessions.map((session) => ({
                 sessionName: session.sessionName,
-                label: session.label,
+                label: workspaceSessionPresentation(session).title,
               })),
-              ...boardToolPanes.map((pane) => ({ sessionName: pane.key, label: pane.label })),
+              ...boardToolPanes.map((pane) => ({
+                sessionName: pane.key,
+                label: workspaceToolPanePresentation(pane).title,
+              })),
             ],
             persistedJson: persistedLayoutJson,
           }),
@@ -1360,10 +1411,20 @@ export function MultiSessionWorkspace({
   activeWindowIdRef.current = activeWindowId;
 
   const layout = activeBoardRenderModel?.layout ?? resolveSessionPaneLayout({ sessions: [] });
-  const activeLabel =
-    visibleSessions.find((session) => session.sessionName === activeWindowId)?.label ??
-    activeBoardRenderModel?.toolPanes.find((pane) => pane.key === activeWindowId)?.label ??
-    visibleSessions.find((session) => session.sessionName === activeSessionName)?.label;
+  const activePanePresentation = (() => {
+    const activeSession = visibleSessions.find((session) => session.sessionName === activeWindowId);
+    if (activeSession) return workspaceSessionPresentation(activeSession);
+    const activeToolPane = activeBoardRenderModel?.toolPanes.find(
+      (pane) => pane.key === activeWindowId,
+    );
+    if (activeToolPane) return workspaceToolPanePresentation(activeToolPane);
+    const fallbackSession = visibleSessions.find(
+      (session) => session.sessionName === activeSessionName,
+    );
+    return fallbackSession ? workspaceSessionPresentation(fallbackSession) : undefined;
+  })();
+  const activeLabel = activePanePresentation?.title;
+  const activeSubtitle = activePanePresentation?.subtitle;
   const activeTerminalEntry = useMemo(() => {
     void terminalStateVersion;
     return activeSessionName ? terminalsRef.current.get(activeSessionName) : undefined;
@@ -1601,20 +1662,24 @@ export function MultiSessionWorkspace({
   );
 
   const selectSession = useCallback(
-    (sessionName: string, options: { focusTerminal?: boolean; windowId?: string } = {}) => {
+    (
+      sessionName: string,
+      options: {
+        focusTerminal?: boolean;
+        preserveActiveSessionWhenSourceHidden?: boolean;
+        windowId?: string;
+      } = {},
+    ) => {
       const lockedSessionName = composeOpen
         ? (composeTargetSessionName ?? activeSessionNameRef.current)
         : null;
       if (lockedSessionName && sessionName !== lockedSessionName) return;
 
-      const { focusTerminal = true, windowId = sessionName } = options;
-      const shouldFocusTerminal = focusTerminal && !isComposeSheet;
-      pendingTerminalFocusSessionNameRef.current = shouldFocusTerminal ? sessionName : null;
-      activeSessionNameRef.current = sessionName;
-      activeWindowIdRef.current = windowId;
-      setActiveSessionName(sessionName);
-      setActiveWindowId(windowId);
-
+      const {
+        focusTerminal = true,
+        preserveActiveSessionWhenSourceHidden = false,
+        windowId = sessionName,
+      } = options;
       const currentBoardState = boardStateRef.current;
       const currentActiveBoard = currentBoardState.boards.find(
         (board) => board.key === currentBoardState.activeBoardKey,
@@ -1624,6 +1689,19 @@ export function MultiSessionWorkspace({
             (session) => session.sessionName === sessionName,
           )
         : undefined;
+
+      activeWindowIdRef.current = windowId;
+      setActiveWindowId(windowId);
+      if (preserveActiveSessionWhenSourceHidden && !selectedPane) {
+        pendingTerminalFocusSessionNameRef.current = null;
+        clearActiveTerminal();
+        return;
+      }
+
+      const shouldFocusTerminal = focusTerminal && !isComposeSheet;
+      pendingTerminalFocusSessionNameRef.current = shouldFocusTerminal ? sessionName : null;
+      activeSessionNameRef.current = sessionName;
+      setActiveSessionName(sessionName);
       if (
         currentActiveBoard &&
         selectedPane &&
@@ -1677,7 +1755,10 @@ export function MultiSessionWorkspace({
   );
   const commandPaletteTabs = useMemo(
     () =>
-      visibleSessions.map((session) => ({ id: session.sessionName, sessionName: session.label })),
+      visibleSessions.map((session) => ({
+        id: session.sessionName,
+        sessionName: workspaceSessionPresentation(session).title,
+      })),
     [visibleSessions],
   );
   const handlePaletteSelect = useCallback(
@@ -1954,6 +2035,7 @@ export function MultiSessionWorkspace({
       if (toolPane) {
         selectSession(toolPane.sourceSessionName, {
           focusTerminal: false,
+          preserveActiveSessionWhenSourceHidden: true,
           windowId: toolPane.key,
         });
         return;
@@ -1981,7 +2063,7 @@ export function MultiSessionWorkspace({
   const mobileWindowNavigation = useMemo(() => {
     const sessionsForControls = visibleSessions.map((session) => ({
       id: session.sessionName,
-      name: session.label,
+      name: workspaceSessionPresentation(session).title,
     }));
     const currentIndex = Math.max(
       0,
@@ -2294,9 +2376,17 @@ export function MultiSessionWorkspace({
         return Boolean(loadedSession || (descriptor.cloneSessionKey && descriptor.relativePath));
       });
 
-      replaceWorkspaceToolPanes(restorableDescriptors.map(pendingWorkspaceToolPane));
+      replaceWorkspaceToolPanes(
+        restorableDescriptors.map((descriptor) =>
+          descriptor.tool === "logs"
+            ? sessionLogWorkspaceToolPane(descriptor)
+            : pendingWorkspaceToolPane(descriptor),
+        ),
+      );
 
       for (const descriptor of restorableDescriptors) {
+        if (descriptor.tool === "logs") continue;
+        const externalTool = descriptor.tool;
         const loadedSession = loadedSessions.find(
           (session) => session.sessionName === descriptor.sessionName,
         );
@@ -2310,7 +2400,7 @@ export function MultiSessionWorkspace({
               sessionName: descriptor.sessionName,
               fallbackPath,
               documentFrameHosts: readDocumentCoderFrameHosts(),
-              tool: descriptor.tool,
+              tool: externalTool,
             });
             if (cancelled || latestWorkspaceIdRef.current !== workspaceId) return;
             const urls = unwrapActionData(result);
@@ -2329,7 +2419,7 @@ export function MultiSessionWorkspace({
                 workspaceId,
                 boardKey: descriptor.boardKey,
                 sessionName: descriptor.sessionName,
-                tool: descriptor.tool,
+                tool: externalTool,
                 ...(descriptor.cloneSessionKey && descriptor.relativePath
                   ? {
                       cloneSessionKey: descriptor.cloneSessionKey,
@@ -2474,6 +2564,7 @@ export function MultiSessionWorkspace({
     if (toolPane) {
       selectSession(toolPane.sourceSessionName, {
         focusTerminal: false,
+        preserveActiveSessionWhenSourceHidden: true,
         windowId: toolPane.key,
       });
       return;
@@ -2802,7 +2893,7 @@ export function MultiSessionWorkspace({
               cloneSessionKey: session.cloneSessionKey,
               relativePath: session.relativePath,
               sessionName: session.sessionName,
-              label: session.label,
+              label: workspaceSessionPresentation(session).title,
             })
           : addTerminalPaneToActiveWorkspaceBoard(boardState, {
               sessionName: session.sessionName,
@@ -2833,7 +2924,7 @@ export function MultiSessionWorkspace({
             ? {
                 cloneSessionKey: session.cloneSessionKey,
                 relativePath: session.relativePath,
-                label: session.label,
+                label: workspaceSessionPresentation(session).title,
               }
             : {}),
         });
@@ -2844,7 +2935,7 @@ export function MultiSessionWorkspace({
           boardKey,
           sessionName: session.sessionName,
           tool,
-          label: session.label,
+          label: workspaceSessionPresentation(session).title,
           ...(session.cloneSessionKey && session.relativePath
             ? {
                 cloneSessionKey: session.cloneSessionKey,
@@ -2860,9 +2951,55 @@ export function MultiSessionWorkspace({
         pane,
       ]);
       if (boardStateRef.current.activeBoardKey !== boardKey) return;
-      selectSession(session.sessionName, { focusTerminal: false, windowId: pane.key });
+      selectSession(session.sessionName, {
+        focusTerminal: false,
+        preserveActiveSessionWhenSourceHidden: true,
+        windowId: pane.key,
+      });
     },
     [markPendingWindowInsertion, replaceWorkspaceToolPanes, selectSession, workspaceId],
+  );
+
+  const openWorkspaceSessionLogs = useCallback(
+    (boardKey: string, session: WorkspaceSessionPane, expectedBoardGeneration: number) => {
+      if ((boardGenerationRef.current.get(boardKey) ?? 0) !== expectedBoardGeneration) return;
+      const pane = sessionLogWorkspaceToolPane({
+        boardKey,
+        sessionName: session.sessionName,
+        tool: "logs",
+        label: workspaceSessionPresentation(session).title,
+        ...(session.cloneSessionKey && session.relativePath
+          ? {
+              cloneSessionKey: session.cloneSessionKey,
+              relativePath: session.relativePath,
+            }
+          : {}),
+      });
+      markPendingWindowInsertion(boardKey);
+      replaceWorkspaceToolPanes([
+        ...workspaceToolPanesRef.current.filter((candidate) => candidate.key !== pane.key),
+        pane,
+      ]);
+      if (boardStateRef.current.activeBoardKey !== boardKey) return;
+      selectSession(session.sessionName, {
+        focusTerminal: false,
+        preserveActiveSessionWhenSourceHidden: true,
+        windowId: pane.key,
+      });
+    },
+    [markPendingWindowInsertion, replaceWorkspaceToolPanes, selectSession],
+  );
+
+  const openWorkspaceLogsForSession = useCallback(
+    (session: WorkspaceSessionPane, origin?: { boardKey: string; boardGeneration: number }) => {
+      if (!activeBoard && !origin) return;
+      const requestBoardKey = origin?.boardKey ?? activeBoard?.key;
+      if (!requestBoardKey) return;
+      const requestBoardGeneration =
+        origin?.boardGeneration ?? boardGenerationRef.current.get(requestBoardKey) ?? 0;
+      openWorkspaceSessionLogs(requestBoardKey, session, requestBoardGeneration);
+    },
+    [activeBoard, openWorkspaceSessionLogs],
   );
 
   const openWorkspaceToolForSession = useCallback(
@@ -2902,7 +3039,7 @@ export function MultiSessionWorkspace({
   );
 
   const openWorkspaceToolForGitRepository = useCallback(
-    async (repository: GitRepositoryOption, tool: WorkspaceTool) => {
+    async (repository: GitRepositoryOption, tool: WorkspaceTool | "logs") => {
       if (!activeBoard) return;
       const requestWorkspaceId = workspaceId;
       const requestBoardKey = activeBoard.key;
@@ -2947,10 +3084,17 @@ export function MultiSessionWorkspace({
           const resolvedSession = session;
           setSessions((current) => uniqueSessions([...current, resolvedSession]));
         }
-        await openWorkspaceToolForSession(session, tool, {
-          boardKey: requestBoardKey,
-          boardGeneration: requestBoardGeneration,
-        });
+        if (tool === "logs") {
+          openWorkspaceLogsForSession(session, {
+            boardKey: requestBoardKey,
+            boardGeneration: requestBoardGeneration,
+          });
+        } else {
+          await openWorkspaceToolForSession(session, tool, {
+            boardKey: requestBoardKey,
+            boardGeneration: requestBoardGeneration,
+          });
+        }
       } catch {
         if (latestWorkspaceIdRef.current === requestWorkspaceId) {
           showGitAddFailure(GIT_TERMINAL_ADD_FALLBACK_MESSAGE);
@@ -2961,7 +3105,15 @@ export function MultiSessionWorkspace({
         }
       }
     },
-    [activeBoard, agentId, openWorkspaceToolForSession, sessions, showGitAddFailure, workspaceId],
+    [
+      activeBoard,
+      agentId,
+      openWorkspaceLogsForSession,
+      openWorkspaceToolForSession,
+      sessions,
+      showGitAddFailure,
+      workspaceId,
+    ],
   );
 
   useEffect(() => {
@@ -3051,12 +3203,13 @@ export function MultiSessionWorkspace({
 
     for (const session of sessions) {
       const alreadyInActiveBoard = activeBoardSessionNames.has(session.sessionName);
+      const presentation = workspaceSessionPresentation(session);
       actions.push({
         id: `workspace:session:${session.sessionName}`,
-        label: session.label,
-        description: session.cloneSessionKey ? "Git terminal session" : "Terminal session",
+        label: presentation.title,
+        description: presentation.subtitle ?? "Terminal session",
         group: "Terminal sessions",
-        value: `${session.label} ${session.sessionName} add open vscode filebrowser workspace terminal session`,
+        value: `${session.label} ${session.sessionName} add open vscode filebrowser logs workspace terminal session`,
         icon: "terminal",
         onSelect: () => handleAddExistingTerminalToBoard(session),
         options: [
@@ -3083,6 +3236,11 @@ export function MultiSessionWorkspace({
             label: "Files",
             onSelect: () => void openWorkspaceToolForSession(session, "files"),
           },
+          {
+            id: "logs",
+            label: "Logs",
+            onSelect: () => openWorkspaceLogsForSession(session),
+          },
         ],
       });
     }
@@ -3095,12 +3253,19 @@ export function MultiSessionWorkspace({
       );
       const repositoryPending = addingCloneKey === repositoryIdentity;
       const alreadyInActiveBoard = activeBoardGitPaneIdentities.has(repositoryIdentity);
+      const presentation = getGitRepositoryPresentation(
+        repository.relativePath,
+        repository.label,
+      ) ?? {
+        title: repository.label,
+        subtitle: repository.relativePath,
+      };
       actions.push({
         id: `workspace:git:${gitRepositoryActionIdentity(repository)}`,
-        label: repository.label,
-        description: "Git repository",
+        label: presentation.title,
+        description: presentation.subtitle,
         group: "Git repositories",
-        value: `${repository.label} ${repository.relativePath} add open vscode filebrowser git repository workspace`,
+        value: `${repository.label} ${repository.relativePath} add open vscode filebrowser logs git repository workspace`,
         icon: "search",
         disabled: repositoryPending,
         onSelect: () => void handleAddGitRepository(repository),
@@ -3126,6 +3291,11 @@ export function MultiSessionWorkspace({
             label: "Files",
             onSelect: () => void openWorkspaceToolForGitRepository(repository, "files"),
           },
+          {
+            id: "logs",
+            label: "Logs",
+            onSelect: () => void openWorkspaceToolForGitRepository(repository, "logs"),
+          },
         ],
       });
     }
@@ -3144,6 +3314,7 @@ export function MultiSessionWorkspace({
     isUnifiedSource,
     openGitRepositoryTerminalPage,
     openTerminalSessionPage,
+    openWorkspaceLogsForSession,
     openWorkspaceToolForGitRepository,
     openWorkspaceToolForSession,
     paletteMatchesExisting,
@@ -3330,6 +3501,7 @@ export function MultiSessionWorkspace({
 
   const renderTerminalSessionRow = (session: WorkspaceSessionPane) => {
     const isOnActiveBoard = activeBoardSessionNames.has(session.sessionName);
+    const presentation = workspaceSessionPresentation(session);
 
     return (
       <button
@@ -3348,8 +3520,10 @@ export function MultiSessionWorkspace({
       >
         <TerminalSquare className="size-3 shrink-0" />
         <span className="min-w-0 flex-1">
-          <span className="block truncate font-mono">{session.label}</span>
-          <span className="block truncate text-[10px] text-muted-foreground">Terminal session</span>
+          <span className="block truncate font-mono">{presentation.title}</span>
+          <span className="block truncate text-[10px] text-muted-foreground">
+            {presentation.subtitle ?? "Terminal session"}
+          </span>
         </span>
         <span className="text-[10px] text-muted-foreground">
           {isOnActiveBoard ? "Focus" : "Add to board"}
@@ -3364,6 +3538,13 @@ export function MultiSessionWorkspace({
   ) => {
     const repositoryIdentity = gitPaneIdentity(repository.cloneSessionKey, repository.relativePath);
     const repositoryPending = addingCloneKey === repositoryIdentity;
+    const presentation = getGitRepositoryPresentation(
+      repository.relativePath,
+      repository.label,
+    ) ?? {
+      title: repository.label,
+      subtitle: repository.relativePath,
+    };
 
     return (
       <button
@@ -3376,10 +3557,13 @@ export function MultiSessionWorkspace({
       >
         <Plus className="size-3 shrink-0" />
         <span className="min-w-0 flex-1">
-          <span className="block truncate font-mono">{repository.label}</span>
+          <span className="block truncate font-mono">{presentation.title}</span>
+          <span className="block truncate text-[10px] text-muted-foreground">
+            {presentation.subtitle}
+          </span>
           {options?.pinnedLabel ? (
             <span className="block truncate text-[10px] text-muted-foreground">
-              Pinned favorite · {options.pinnedLabel}
+              Pinned · {options.pinnedLabel}
             </span>
           ) : null}
         </span>
@@ -3562,6 +3746,14 @@ export function MultiSessionWorkspace({
             <p className="truncate font-mono text-xs" data-testid="active-pane-label">
               {activeLabel ?? "No active pane"}
             </p>
+            {activeSubtitle ? (
+              <p
+                className="truncate font-mono text-[10px] text-muted-foreground"
+                data-testid="active-pane-subtitle"
+              >
+                {activeSubtitle}
+              </p>
+            ) : null}
           </div>
         </div>
         <div
@@ -3775,6 +3967,7 @@ export function MultiSessionWorkspace({
   const renderPane = (pane: SessionPane, model: WorkspaceBoardRenderModel) => {
     const toolPane = model.toolPanes.find((candidate) => candidate.key === pane.sessionName);
     if (toolPane) {
+      const presentation = workspaceToolPanePresentation(toolPane);
       const paneStyle = workspaceWindowStyle(
         model.windowRects.get(pane.sessionName),
         pane.gridArea,
@@ -3789,15 +3982,16 @@ export function MultiSessionWorkspace({
       const toolUrl = toolPane.url;
       const toolLoadingMessage =
         toolPane.loadState === "authorizing"
-          ? `Authorizing ${toolPane.label}…`
+          ? `Authorizing ${presentation.title}…`
           : toolPane.loadState === "loading"
-            ? `Loading ${toolPane.label}…`
+            ? `Loading ${presentation.title}…`
             : toolPane.loadState === "error"
-              ? `${toolPane.label} could not be restored.`
+              ? `${presentation.title} could not be restored.`
               : null;
       const activateToolPane = () => {
         selectSession(toolPane.sourceSessionName, {
           focusTerminal: false,
+          preserveActiveSessionWhenSourceHidden: true,
           windowId: toolPane.key,
         });
       };
@@ -3814,7 +4008,8 @@ export function MultiSessionWorkspace({
         >
           {({ isDragging, onHeaderPointerDown }) => (
             <TerminalSessionFrame
-              label={toolPane.label}
+              label={presentation.title}
+              subtitle={presentation.subtitle}
               active={model.isActive && pane.sessionName === activeWindowId}
               dataTestId={`workspace-tool-pane-${toolPane.tool}`}
               layoutMode="tiled"
@@ -3828,7 +4023,7 @@ export function MultiSessionWorkspace({
                     variant="ghost"
                     size="xs"
                     className="h-6 min-h-0 px-1.5 text-[10px] text-white hover:bg-white/10 hover:text-white"
-                    aria-label={`Open ${toolPane.label} in a new tab`}
+                    aria-label={`Open ${presentation.title} in a new tab`}
                     data-testid={`pop-out-workspace-tool-${toolPane.tool}`}
                     onClick={(event) => {
                       event.stopPropagation();
@@ -3842,7 +4037,7 @@ export function MultiSessionWorkspace({
               }
               onActivate={activateToolPane}
               onMouseMove={activateToolPaneFromPointer}
-              closeLabel={`Close ${toolPane.label}`}
+              closeLabel={`Close ${presentation.title}`}
               closeTestId={`remove-workspace-tool-${toolPane.tool}`}
               onClose={(event) => {
                 event.stopPropagation();
@@ -3855,10 +4050,16 @@ export function MultiSessionWorkspace({
               }}
             >
               <div className="relative flex min-h-0 flex-1">
-                {toolUrl ? (
+                {toolPane.tool === "logs" ? (
+                  <TerminalSessionEventLog
+                    workspaceId={workspaceId}
+                    sessionName={toolPane.sourceSessionName}
+                    compact
+                  />
+                ) : toolUrl ? (
                   <iframe
                     src={toolUrl}
-                    title={toolPane.label}
+                    title={presentation.title}
                     className="min-h-0 flex-1 border-0 bg-background"
                     allow="clipboard-read; clipboard-write"
                     sandbox={
@@ -3904,6 +4105,7 @@ export function MultiSessionWorkspace({
     );
     const session =
       visibleSession ?? sessions.find((candidate) => candidate.sessionName === pane.sessionName);
+    const presentation = session ? workspaceSessionPresentation(session) : { title: pane.label };
     const isActive = model.isActive && pane.sessionName === activeWindowId;
     const isComposeDisabled =
       Boolean(composeLockedSessionName) && pane.sessionName !== composeLockedSessionName;
@@ -3942,7 +4144,8 @@ export function MultiSessionWorkspace({
       >
         {({ isDragging, onHeaderPointerDown }) => (
           <TerminalSessionFrame
-            label={pane.label}
+            label={presentation.title}
+            subtitle={presentation.subtitle}
             active={isActive}
             dataTestId={
               model.isActive ? `workspace-${pane.id}` : `workspace-${model.board.key}-${pane.id}`
@@ -3957,7 +4160,7 @@ export function MultiSessionWorkspace({
                 <WorkspaceSessionTools
                   workspaceId={workspaceId}
                   sessionName={session.sessionName}
-                  label={session.label}
+                  label={presentation.title}
                   fallbackPath={session.clonePath}
                   onOpenTool={(request: WorkspaceToolOpenRequest) => {
                     openWorkspaceToolPane(
@@ -3967,6 +4170,9 @@ export function MultiSessionWorkspace({
                       request.urls,
                       boardGeneration,
                     );
+                  }}
+                  onOpenLogs={() => {
+                    openWorkspaceSessionLogs(model.board.key, session, boardGeneration);
                   }}
                 />
               ) : null
@@ -3982,7 +4188,7 @@ export function MultiSessionWorkspace({
               selectSession(pane.sessionName);
             }}
             onFocusActivate
-            closeLabel={`${isUnifiedSource ? "Remove" : "Close"} ${pane.label}`}
+            closeLabel={`${isUnifiedSource ? "Remove" : "Close"} ${presentation.title}`}
             closeTestId={
               model.isActive
                 ? `remove-pane-${pane.id}`
@@ -4031,7 +4237,7 @@ export function MultiSessionWorkspace({
                 openComposeWithDraft(request, pane.sessionName);
               }}
               onClipboardStatus={handleClipboardActionStatus}
-              targetLabel={pane.label}
+              targetLabel={presentation.title}
             />
           </TerminalSessionFrame>
         )}

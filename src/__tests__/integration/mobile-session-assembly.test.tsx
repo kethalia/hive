@@ -258,6 +258,7 @@ vi.mock("lucide-react", () => ({
   SearchIcon: () => <span data-testid="icon-search" />,
   Send: () => <span data-testid="icon-send" />,
   Terminal: () => <span data-testid="icon-terminal" />,
+  Triangle: () => <span data-testid="icon-triangle" />,
   TriangleAlertIcon: () => <span data-testid="icon-warning" />,
   X: () => <span data-testid="icon-x" />,
   XIcon: () => <span data-testid="icon-x-icon" />,

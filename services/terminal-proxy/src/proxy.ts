@@ -8,6 +8,18 @@ import { authenticateUpgrade } from "./auth.js";
 import { getCoderCaCertificates } from "./coder-fetch.js";
 import { ConnectionRegistry } from "./keepalive.js";
 import { buildPtyUrl, SAFE_IDENTIFIER_RE, UUID_RE } from "./protocol.js";
+import {
+  browserMessageDetails,
+  messageByteLength,
+  recordProxyEvent,
+  type TerminalConnectionContext,
+} from "./proxy-telemetry.js";
+import {
+  type TerminalSessionEventStore,
+  type TerminalSessionKind,
+  terminalSessionEventStore,
+} from "./session-events.js";
+import { verifyWorkspaceAgentAccess } from "./workspace-authorization.js";
 
 const PING_INTERVAL_MS = 15_000;
 const MAX_MISSED_HEARTBEATS = 2;
@@ -288,6 +300,7 @@ export async function handleUpgrade(
   req: IncomingMessage,
   socket: Duplex,
   head: Buffer,
+  eventStore: TerminalSessionEventStore = terminalSessionEventStore,
 ): Promise<void> {
   const origin = req.headers.origin as string | undefined;
   if (!isOriginAllowed(origin)) {
@@ -396,6 +409,26 @@ export async function handleUpgrade(
     return;
   }
 
+  if (workspaceId) {
+    const workspaceAgentAccess = await verifyWorkspaceAgentAccess({
+      coderUrl,
+      token,
+      workspaceId,
+      agentId,
+    });
+    if (!workspaceAgentAccess.ok) {
+      logPostAuthRejection(
+        workspaceAgentAccess.status === 403
+          ? "workspace_agent_mismatch"
+          : "workspace_agent_verification_unavailable",
+      );
+      const statusLine = workspaceAgentAccess.status === 403 ? "403 Forbidden" : "502 Bad Gateway";
+      socket.write(`HTTP/1.1 ${statusLine}\r\n\r\n`);
+      socket.destroy();
+      return;
+    }
+  }
+
   const upstreamUrl = buildPtyUrl(coderUrl, agentId, {
     reconnectId,
     width: Number(width) || 80,
@@ -405,9 +438,27 @@ export async function handleUpgrade(
   });
 
   const connectionId = randomUUID();
+  const sessionKind: TerminalSessionKind = sessionName.startsWith(CLONE_TERMINAL_SESSION_PREFIX)
+    ? "git"
+    : "terminal";
+  const connectionContext: TerminalConnectionContext | null = workspaceId
+    ? {
+        connectionId,
+        workspaceId,
+        sessionName,
+        sessionKind,
+      }
+    : null;
 
   wss.handleUpgrade(req, socket, head, (browserWs) => {
     wss.emit("connection", browserWs, req);
+
+    if (connectionContext) {
+      recordProxyEvent(eventStore, connectionContext, "connection_accepted", {
+        rows: Number(height) || 24,
+        cols: Number(width) || 80,
+      });
+    }
 
     if (workspaceId) {
       connectionRegistry.addConnection(workspaceId, connectionId, {
@@ -419,12 +470,19 @@ export async function handleUpgrade(
       });
     }
 
-    connectUpstream(browserWs, upstreamUrl, token);
+    connectUpstream(browserWs, upstreamUrl, token, connectionContext, eventStore);
   });
 }
 
-function connectUpstream(browserWs: WebSocket, upstreamUrl: string, token: string): void {
+function connectUpstream(
+  browserWs: WebSocket,
+  upstreamUrl: string,
+  token: string,
+  context: TerminalConnectionContext | null,
+  eventStore: TerminalSessionEventStore,
+): void {
   logProxyEvent("log", "upstream_connecting", { category: "upstream_connecting" });
+  if (context) recordProxyEvent(eventStore, context, "upstream_connecting");
   const ca = getCoderCaCertificates();
 
   const upstream = new WebSocket(upstreamUrl, {
@@ -434,16 +492,62 @@ function connectUpstream(browserWs: WebSocket, upstreamUrl: string, token: strin
   });
 
   let pingTimer: ReturnType<typeof setInterval> | null = null;
+  let trafficTimer: ReturnType<typeof setInterval> | null = null;
   let browserResponsive = true;
   let upstreamResponsive = true;
   let browserMissedHeartbeats = 0;
   let upstreamMissedHeartbeats = 0;
+  let browserInputBytes = 0;
+  let browserInputFrames = 0;
+  let browserResizeBytes = 0;
+  let browserResizeFrames = 0;
+  let browserResizeRows = 0;
+  let browserResizeCols = 0;
+  let upstreamOutputBytes = 0;
+  let upstreamOutputFrames = 0;
+
+  function flushTraffic() {
+    if (context && browserInputFrames > 0) {
+      recordProxyEvent(eventStore, context, "browser_input", {
+        bytes: browserInputBytes,
+        frames: browserInputFrames,
+      });
+    }
+    if (context && browserResizeFrames > 0) {
+      recordProxyEvent(eventStore, context, "browser_input", {
+        frame: "resize",
+        bytes: browserResizeBytes,
+        frames: browserResizeFrames,
+        rows: browserResizeRows,
+        cols: browserResizeCols,
+      });
+    }
+    if (context && upstreamOutputFrames > 0) {
+      recordProxyEvent(eventStore, context, "upstream_output", {
+        bytes: upstreamOutputBytes,
+        frames: upstreamOutputFrames,
+      });
+    }
+    browserInputBytes = 0;
+    browserInputFrames = 0;
+    browserResizeBytes = 0;
+    browserResizeFrames = 0;
+    browserResizeRows = 0;
+    browserResizeCols = 0;
+    upstreamOutputBytes = 0;
+    upstreamOutputFrames = 0;
+  }
 
   function cleanup() {
     if (pingTimer) {
       clearInterval(pingTimer);
       pingTimer = null;
     }
+    if (trafficTimer) {
+      clearInterval(trafficTimer);
+      trafficTimer = null;
+    }
+    flushTraffic();
     if (upstream.readyState === WebSocket.OPEN || upstream.readyState === WebSocket.CONNECTING) {
       upstream.close();
     }
@@ -452,36 +556,63 @@ function connectUpstream(browserWs: WebSocket, upstreamUrl: string, token: strin
     }
   }
 
+  function handleHeartbeatTimeout(): boolean {
+    if (
+      browserMissedHeartbeats <= MAX_MISSED_HEARTBEATS &&
+      upstreamMissedHeartbeats <= MAX_MISSED_HEARTBEATS
+    ) {
+      return false;
+    }
+
+    const unresponsiveLeg =
+      browserMissedHeartbeats > MAX_MISSED_HEARTBEATS ? "browser" : "upstream";
+    logProxyEvent("error", "heartbeat_timeout", {
+      category: "heartbeat_timeout",
+      leg: unresponsiveLeg,
+    });
+    if (context) {
+      recordProxyEvent(
+        eventStore,
+        context,
+        "heartbeat_timeout",
+        {
+          leg: unresponsiveLeg,
+          browserMissed: browserMissedHeartbeats,
+          upstreamMissed: upstreamMissedHeartbeats,
+        },
+        "error",
+      );
+    }
+    if (
+      browserMissedHeartbeats > MAX_MISSED_HEARTBEATS &&
+      browserWs.readyState === WebSocket.OPEN
+    ) {
+      browserWs.terminate();
+    }
+    if (
+      upstreamMissedHeartbeats > MAX_MISSED_HEARTBEATS &&
+      upstream.readyState === WebSocket.OPEN
+    ) {
+      upstream.terminate();
+    }
+    cleanup();
+    return true;
+  }
+
   upstream.on("open", () => {
     logProxyEvent("log", "upstream_connected", { category: "upstream_connected" });
+    if (context) recordProxyEvent(eventStore, context, "upstream_connected");
     const runHeartbeat = () => {
       browserMissedHeartbeats = browserResponsive ? 0 : browserMissedHeartbeats + 1;
       upstreamMissedHeartbeats = upstreamResponsive ? 0 : upstreamMissedHeartbeats + 1;
 
-      if (
-        browserMissedHeartbeats > MAX_MISSED_HEARTBEATS ||
-        upstreamMissedHeartbeats > MAX_MISSED_HEARTBEATS
-      ) {
-        const unresponsiveLeg =
-          browserMissedHeartbeats > MAX_MISSED_HEARTBEATS ? "browser" : "upstream";
-        logProxyEvent("error", "heartbeat_timeout", {
-          category: "heartbeat_timeout",
-          leg: unresponsiveLeg,
+      if (handleHeartbeatTimeout()) return;
+
+      if (context) {
+        recordProxyEvent(eventStore, context, "heartbeat", {
+          browserMissed: browserMissedHeartbeats,
+          upstreamMissed: upstreamMissedHeartbeats,
         });
-        if (
-          browserMissedHeartbeats > MAX_MISSED_HEARTBEATS &&
-          browserWs.readyState === WebSocket.OPEN
-        ) {
-          browserWs.terminate();
-        }
-        if (
-          upstreamMissedHeartbeats > MAX_MISSED_HEARTBEATS &&
-          upstream.readyState === WebSocket.OPEN
-        ) {
-          upstream.terminate();
-        }
-        cleanup();
-        return;
       }
 
       browserResponsive = false;
@@ -495,6 +626,7 @@ function connectUpstream(browserWs: WebSocket, upstreamUrl: string, token: strin
     };
     runHeartbeat();
     pingTimer = setInterval(runHeartbeat, PING_INTERVAL_MS);
+    trafficTimer = setInterval(flushTraffic, 1_000);
   });
 
   browserWs.on("pong", () => {
@@ -506,6 +638,8 @@ function connectUpstream(browserWs: WebSocket, upstreamUrl: string, token: strin
   });
 
   upstream.on("message", (data, isBinary) => {
+    upstreamOutputBytes += messageByteLength(data);
+    upstreamOutputFrames += 1;
     if (browserWs.readyState === WebSocket.OPEN) {
       browserWs.send(data, { binary: isBinary });
     }
@@ -513,6 +647,7 @@ function connectUpstream(browserWs: WebSocket, upstreamUrl: string, token: strin
 
   upstream.on("error", () => {
     logProxyEvent("error", "upstream_error", { category: "upstream_error" });
+    if (context) recordProxyEvent(eventStore, context, "upstream_error", {}, "error");
     if (browserWs.readyState === WebSocket.OPEN) {
       browserWs.close(BROWSER_CLOSE_UPSTREAM_ERROR_CODE, BROWSER_CLOSE_UPSTREAM_ERROR_REASON);
     }
@@ -521,13 +656,24 @@ function connectUpstream(browserWs: WebSocket, upstreamUrl: string, token: strin
 
   upstream.on("close", (code) => {
     logProxyEvent("log", "upstream_closed", { category: "upstream_closed", code });
+    if (context) recordProxyEvent(eventStore, context, "upstream_closed", { code });
     if (browserWs.readyState === WebSocket.OPEN) {
       browserWs.close(BROWSER_CLOSE_UPSTREAM_CLOSED_CODE, BROWSER_CLOSE_UPSTREAM_CLOSED_REASON);
     }
     cleanup();
   });
 
-  browserWs.on("message", (data) => {
+  browserWs.on("message", (data, isBinary) => {
+    const details = browserMessageDetails(data, isBinary);
+    if (details.frame === "resize") {
+      browserResizeBytes += messageByteLength(data);
+      browserResizeFrames += 1;
+      if (typeof details.rows === "number") browserResizeRows = details.rows;
+      if (typeof details.cols === "number") browserResizeCols = details.cols;
+    } else {
+      browserInputBytes += messageByteLength(data);
+      browserInputFrames += 1;
+    }
     if (upstream.readyState === WebSocket.OPEN) {
       upstream.send(data);
     }
@@ -535,11 +681,13 @@ function connectUpstream(browserWs: WebSocket, upstreamUrl: string, token: strin
 
   browserWs.on("close", () => {
     logProxyEvent("log", "browser_disconnected", { category: "browser_disconnected" });
+    if (context) recordProxyEvent(eventStore, context, "browser_disconnected");
     cleanup();
   });
 
   browserWs.on("error", () => {
     logProxyEvent("error", "browser_error", { category: "browser_error" });
+    if (context) recordProxyEvent(eventStore, context, "browser_error", {}, "error");
     cleanup();
   });
 
@@ -548,6 +696,9 @@ function connectUpstream(browserWs: WebSocket, upstreamUrl: string, token: strin
       logProxyEvent("error", "upstream_connect_timeout", {
         category: "upstream_connect_timeout",
       });
+      if (context) {
+        recordProxyEvent(eventStore, context, "upstream_connect_timeout", {}, "error");
+      }
       if (browserWs.readyState === WebSocket.OPEN) {
         browserWs.close(BROWSER_CLOSE_UPSTREAM_TIMEOUT_CODE, BROWSER_CLOSE_UPSTREAM_TIMEOUT_REASON);
       }

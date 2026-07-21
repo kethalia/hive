@@ -1,6 +1,6 @@
 export const WORKSPACE_TOOL_PANE_STATE_VERSION = 1;
 
-export type PersistedWorkspaceTool = "code" | "files";
+export type PersistedWorkspaceTool = "code" | "files" | "logs";
 
 export interface PersistedWorkspaceToolPane {
   boardKey: string;
@@ -41,6 +41,7 @@ function safeRelativePath(value: unknown): string | null {
 function safeTool(value: unknown): PersistedWorkspaceTool | null {
   if (value === "code") return value;
   if (value === "files") return value;
+  if (value === "logs") return value;
   return null;
 }
 

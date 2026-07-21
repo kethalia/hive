@@ -24,7 +24,7 @@ import { createSessionAction, getWorkspaceSessionsAction } from "@/lib/actions/w
 import { triggerHapticFeedback } from "@/lib/device/haptics";
 import type { GitCloneTerminalIdentity } from "@/lib/git/clone-actions-contract";
 import {
-  getCloneDisplayLabel,
+  getGitRepositoryPresentation,
   isExpectedCloneSessionKey,
   isSafeCloneRelativePath,
 } from "@/lib/git/clone-public-identifiers";
@@ -171,8 +171,12 @@ function TerminalInner({
     ? searchParams.get("cloneSessionKey") || undefined
     : undefined;
   const routeRelativePath = session ? searchParams.get("relativePath") || undefined : undefined;
-  const terminalDisplayLabel =
-    getCloneDisplayLabel(routeRelativePath ?? routeClonePath ?? "") ?? session ?? "Terminal";
+  const gitRepositoryPresentation = getGitRepositoryPresentation(
+    routeRelativePath ?? routeClonePath ?? "",
+    session ?? "Terminal",
+  );
+  const terminalDisplayLabel = gitRepositoryPresentation?.title ?? session ?? "Terminal";
+  const terminalDisplaySubtitle = gitRepositoryPresentation?.subtitle;
   const debugViewportEnabled = searchParams.get("debugViewport") === "1";
   const { setActiveTerminal, activeTerminal, activeSend } = useKeybindings();
   const [composeOpen, setComposeOpen] = useState(false);
@@ -608,7 +612,10 @@ function TerminalInner({
         reserveDashboardTrigger={false}
       >
         <div className="flex h-full min-h-0 flex-col overflow-hidden overscroll-none bg-background">
-          <SingleTerminalSessionHeader sessionLabel={terminalDisplayLabel} />
+          <SingleTerminalSessionHeader
+            sessionLabel={terminalDisplayLabel}
+            sessionSubtitle={terminalDisplaySubtitle}
+          />
           <div className="min-h-0 flex-1 overflow-hidden p-1 pt-0">
             <TerminalSessionFrame
               label={terminalDisplayLabel}
@@ -657,7 +664,10 @@ function TerminalInner({
       className={`${TERMINAL_SHELL_CLASS_NAME} flex flex-col overflow-hidden bg-background`}
       onKeyDown={(e) => e.stopPropagation()}
     >
-      <SingleTerminalSessionHeader sessionLabel={terminalDisplayLabel} />
+      <SingleTerminalSessionHeader
+        sessionLabel={terminalDisplayLabel}
+        sessionSubtitle={terminalDisplaySubtitle}
+      />
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
         <div className="min-h-0 flex-1 p-1 pt-0">
           <TerminalSessionFrame

@@ -19,6 +19,8 @@ vi.mock("next/link", () => ({
 }));
 
 vi.mock("lucide-react", () => ({
+  Pause: () => <span data-testid="pause-icon" />,
+  Play: () => <span data-testid="play-icon" />,
   RefreshCw: () => <span data-testid="refresh-icon" />,
 }));
 
@@ -29,6 +31,87 @@ vi.mock("@/components/ui/sidebar", () => ({
     </button>
   ),
 }));
+
+function sessionEventsResponse() {
+  return new Response(
+    JSON.stringify({
+      version: 1,
+      instanceId: "proxy-instance-1",
+      startedAt: "2026-07-21T08:00:00.000Z",
+      generatedAt: "2026-07-21T08:00:01.000Z",
+      events: [
+        {
+          id: 1,
+          timestamp: "2026-07-21T08:00:01.000Z",
+          workspaceId: "workspace-1",
+          connectionId: "connection-1",
+          sessionName: "git-session",
+          sessionKind: "git",
+          level: "info",
+          type: "upstream_connected",
+          details: {},
+        },
+      ],
+    }),
+    { status: 200 },
+  );
+}
+
+function keepAliveStatusResponse() {
+  return new Response(
+    JSON.stringify({
+      workspaces: {
+        "workspace-1": {
+          status: "failing",
+          consecutiveFailures: 3,
+          lastAttempt: "2026-06-07T19:00:00.000Z",
+          lastSuccess: null,
+          lastFailure: "2026-06-07T19:01:00.000Z",
+          lastFailureCategory: "http-server",
+          lastFailureReason: "coder-server-error",
+          lastFailureDetail: "HTTP 500: Coder failed while extending the workspace.",
+          lastHttpStatus: 500,
+          lastHttpStatusText: "Internal Server Error",
+          lastAttemptDurationMs: 42,
+          activeConnectionCount: 2,
+          lastDisconnectedAt: null,
+        },
+        "workspace-2": {
+          status: "not-applicable",
+          consecutiveFailures: 0,
+          lastAttempt: "2026-06-07T19:02:00.000Z",
+          lastSuccess: null,
+          lastFailure: "2026-06-07T19:02:00.000Z",
+          lastFailureCategory: "manual-shutdown",
+          lastFailureReason: "manual-shutdown",
+          lastFailureDetail: "Coder reports manual shutdown; keepalive is not applicable.",
+          lastHttpStatus: 409,
+          lastHttpStatusText: "Conflict",
+          lastAttemptDurationMs: 15,
+          activeConnectionCount: 1,
+          lastDisconnectedAt: null,
+        },
+      },
+    }),
+    { status: 200 },
+  );
+}
+
+function expectDiagnosticsLayout() {
+  const pageShell = document.querySelector("[data-dashboard-page-shell]");
+  expect(pageShell).toHaveClass(
+    "h-full",
+    "min-h-0",
+    "w-full",
+    "flex-1",
+    "touch-pan-y",
+    "overflow-y-auto",
+    "overscroll-y-contain",
+    "[-webkit-overflow-scrolling:touch]",
+  );
+  expect(pageShell).not.toHaveClass("max-w-5xl", "mx-auto");
+  expect(screen.getByText("Terminal diagnostics").parentElement).toHaveClass("hidden", "sm:block");
+}
 
 describe("TerminalSessionStatusClient", () => {
   beforeEach(() => {
@@ -42,46 +125,13 @@ describe("TerminalSessionStatusClient", () => {
   });
 
   it("fetches authenticated aggregate status rows and highlights the requested workspace", async () => {
-    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
-      new Response(
-        JSON.stringify({
-          workspaces: {
-            "workspace-1": {
-              status: "failing",
-              consecutiveFailures: 3,
-              lastAttempt: "2026-06-07T19:00:00.000Z",
-              lastSuccess: null,
-              lastFailure: "2026-06-07T19:01:00.000Z",
-              lastFailureCategory: "http-server",
-              lastFailureReason: "coder-server-error",
-              lastFailureDetail: "HTTP 500: Coder failed while extending the workspace.",
-              lastHttpStatus: 500,
-              lastHttpStatusText: "Internal Server Error",
-              lastAttemptDurationMs: 42,
-              activeConnectionCount: 2,
-              lastDisconnectedAt: null,
-            },
-            "workspace-2": {
-              status: "not-applicable",
-              consecutiveFailures: 0,
-              lastAttempt: "2026-06-07T19:02:00.000Z",
-              lastSuccess: null,
-              lastFailure: "2026-06-07T19:02:00.000Z",
-              lastFailureCategory: "manual-shutdown",
-              lastFailureReason: "manual-shutdown",
-              lastFailureDetail:
-                "Coder reports workspace shutdown is manual; keepalive extension is not applicable.",
-              lastHttpStatus: 409,
-              lastHttpStatusText: "Conflict",
-              lastAttemptDurationMs: 15,
-              activeConnectionCount: 1,
-              lastDisconnectedAt: null,
-            },
-          },
-        }),
-        { status: 200 },
-      ),
-    );
+    const fetchMock = vi
+      .spyOn(globalThis, "fetch")
+      .mockImplementation(async (input) =>
+        String(input).includes("/session-events")
+          ? sessionEventsResponse()
+          : keepAliveStatusResponse(),
+      );
 
     render(<TerminalSessionStatusClient highlightedWorkspaceId="workspace-1" />);
 
@@ -105,21 +155,12 @@ describe("TerminalSessionStatusClient", () => {
       "href",
       "/workspaces/workspace-1/terminal",
     );
-    const pageShell = document.querySelector("[data-dashboard-page-shell]");
-    expect(pageShell).toHaveClass(
-      "h-full",
-      "min-h-0",
-      "w-full",
-      "flex-1",
-      "touch-pan-y",
-      "overflow-y-auto",
-      "overscroll-y-contain",
-      "[-webkit-overflow-scrolling:touch]",
-    );
-    expect(pageShell).not.toHaveClass("max-w-5xl", "mx-auto");
-    expect(screen.getByText("Terminal diagnostics").parentElement).toHaveClass(
-      "hidden",
-      "sm:block",
+    expectDiagnosticsLayout();
+    expect(screen.getByText("Live session events")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("upstream_connected")).toBeInTheDocument());
+    expect(fetchMock).toHaveBeenCalledWith(
+      "https://terminal.example.test/session-events?limit=500&workspaceId=workspace-1",
+      expect.objectContaining({ cache: "no-store", credentials: "include" }),
     );
   });
 });

@@ -14,6 +14,7 @@ vi.mock("lucide-react", () => ({
   Code2: () => <span>Code icon</span>,
   FolderOpen: () => <span>Folder icon</span>,
   Loader2: () => <span>Loading</span>,
+  ScrollText: () => <span>Logs icon</span>,
 }));
 
 import { WorkspaceSessionTools } from "@/components/workspaces/WorkspaceSessionTools";
@@ -91,6 +92,26 @@ describe("WorkspaceSessionTools", () => {
         codeUrl: "https://code.test/?folder=%2Fhome%2Fcoder%2Fhive",
       }),
     });
+  });
+
+  it("opens live session logs without requesting a Coder app URL", () => {
+    const onOpenTool = vi.fn();
+    const onOpenLogs = vi.fn();
+    render(
+      <WorkspaceSessionTools
+        workspaceId="ws-1"
+        sessionName="git-hive"
+        label="Hive"
+        onOpenTool={onOpenTool}
+        onOpenLogs={onOpenLogs}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Open session logs for Hive" }));
+
+    expect(onOpenLogs).toHaveBeenCalledOnce();
+    expect(mockGetWorkspaceSessionTools).not.toHaveBeenCalled();
+    expect(onOpenTool).not.toHaveBeenCalled();
   });
 
   it("opens File Browser and VS Code concurrently with independent loading states", async () => {

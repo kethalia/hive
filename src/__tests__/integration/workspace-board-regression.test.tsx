@@ -245,6 +245,7 @@ vi.mock("lucide-react", () => ({
   Code2: () => <span data-testid="icon-code" />,
   ExternalLink: () => <span data-testid="icon-external-link" />,
   FolderOpen: () => <span data-testid="icon-folder" />,
+  ScrollText: () => <span data-testid="icon-logs" />,
   GripVertical: () => <span data-testid="icon-grip" />,
   Loader2: () => <span data-testid="icon-loader" />,
   Minus: () => <span data-testid="icon-minus" />,
@@ -664,7 +665,8 @@ describe("workspace board shortcut integration", () => {
       "kethalia/hive",
     );
     expect(screen.queryByTestId("interactive-terminal-stale-session-name")).not.toBeInTheDocument();
-    expect(screen.getByTestId("active-pane-label")).toHaveTextContent("Hive Review");
+    expect(screen.getByTestId("active-pane-label")).toHaveTextContent("hive");
+    expect(screen.getByTestId("active-pane-subtitle")).toHaveTextContent("kethalia/hive");
     expect(
       screen.queryByText(/persisted-proof|fresh-proof|stale-session-name|\/home\/coder|token/),
     ).not.toBeInTheDocument();

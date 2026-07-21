@@ -63,4 +63,26 @@ describe("workspace tool pane persistence", () => {
       "workspace-tool-panes:unified:ws-1",
     );
   });
+
+  it("persists session log windows without authenticated URLs", () => {
+    const serialized = serializeWorkspaceToolPanes([
+      {
+        boardKey: "workspace-2",
+        sessionName: "git-hive",
+        tool: "logs",
+        label: "Hive",
+      },
+    ]);
+
+    expect(parsePersistedWorkspaceToolPanes(serialized)).toEqual([
+      {
+        boardKey: "workspace-2",
+        sessionName: "git-hive",
+        tool: "logs",
+        label: "Hive",
+      },
+    ]);
+    expect(serialized).not.toContain("codeUrl");
+    expect(serialized).not.toContain("filesUrl");
+  });
 });

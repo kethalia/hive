@@ -59,7 +59,9 @@ Clone terminal sessions are deterministic and reconnectable through the terminal
 
 Hive does not yet expose a dedicated UI control to terminate a clone session. Use the underlying Coder workspace/session tooling when an operator must clean one up before that product surface exists.
 
-Production diagnostics for this flow are intentionally limited today: the web app returns sanitized UI errors for missing roots, empty results, and scan failures; the web and terminal services log reason-code/count summaries without exposing local root paths, tokens, or terminal payloads. There are no dedicated production metrics for clone discovery or clone terminal startup yet.
+The terminal proxy keeps a bounded in-memory history of authorized terminal and Git session events. Operators can inspect it from **Diagnostics → Live session events** or open **Session logs** from a terminal/Git window header to tile the live log beside the session. The `/session-events` endpoint supports workspace-scoped incremental reads and applies the same Coder-session authorization boundary as keepalive status.
+
+Events cover connection acceptance, upstream connect/close/error, browser disconnect/error, heartbeat state, resize frames, and one-second input/output traffic summaries. Traffic events contain byte and frame counts only. Command input, terminal output, tokens, clone proofs, Coder URLs, and filesystem paths are never retained. History is process-local and bounded, so a terminal-proxy restart is visible as a new instance identifier and starts a fresh event history.
 
 ## Deploy
 
