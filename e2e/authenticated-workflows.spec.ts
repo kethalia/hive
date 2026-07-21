@@ -647,8 +647,8 @@ async function verifyPaletteToolAndOpenActions(page: Page, testInfo: TestInfo) {
   await page.getByPlaceholder(/Search terminal sessions/).fill(sessionLabel ?? "");
   const openOption = sessionRow.getByRole("button", { name: "Open", exact: true });
   for (let attempt = 0; attempt < 3; attempt += 1) {
-    await searchInput.press("ArrowLeft");
     if ((await openOption.getAttribute("data-selected")) === "true") break;
+    await searchInput.press("ArrowLeft");
   }
   await expect(openOption).toHaveAttribute("data-selected", "true");
   await searchInput.press("Enter");
