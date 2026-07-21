@@ -35,6 +35,12 @@ interface SwipeSnapshot {
   distance: number;
 }
 
+interface SwipeMovement {
+  classification: GestureClassification;
+  current: SwipeSnapshot;
+  progress: TwoFingerSwipeProgress;
+}
+
 type GestureClassification = "pending" | "swipe" | "pinch" | "cancelled";
 
 function classifyMovement(
@@ -100,23 +106,18 @@ export function createTwoFingerSwipeDetector(): TwoFingerSwipeDetector {
       return true;
     },
     move(points) {
-      if (!startSnapshot || classification === "cancelled") {
+      if (!startSnapshot) {
         return { ownsGesture: false, direction: null };
       }
 
-      const current = snapshotForPoints(points, startSnapshot.firstId, startSnapshot.secondId);
-      if (!current) {
+      const movement = resolveMovement(startSnapshot, classification, points);
+      if (!movement) {
         reset();
         return { ownsGesture: false, direction: null };
       }
-      lastSnapshot = current;
-
-      const deltaX = current.centerX - startSnapshot.centerX;
-      const deltaY = current.centerY - startSnapshot.centerY;
-      const scaleDelta = Math.abs(current.distance / startSnapshot.distance - 1);
-      classification = classifyMovement(classification, deltaX, deltaY, scaleDelta);
-      if (classification !== "swipe") return { ownsGesture: false, direction: null };
-      return { ownsGesture: true, direction: deltaX < 0 ? "left" : "right" };
+      lastSnapshot = movement.current;
+      classification = movement.classification;
+      return movement.progress;
     },
     end() {
       if (!startSnapshot || !lastSnapshot || classification !== "swipe") {
@@ -141,4 +142,24 @@ export function createTwoFingerSwipeDetector(): TwoFingerSwipeDetector {
       return startSnapshot !== null;
     },
   };
+}
+
+function resolveMovement(
+  start: SwipeSnapshot,
+  classification: GestureClassification,
+  points: readonly GestureTouchPoint[],
+): SwipeMovement | null {
+  if (classification === "cancelled") return null;
+  const current = snapshotForPoints(points, start.firstId, start.secondId);
+  if (!current) return null;
+
+  const deltaX = current.centerX - start.centerX;
+  const deltaY = current.centerY - start.centerY;
+  const scaleDelta = Math.abs(current.distance / start.distance - 1);
+  const nextClassification = classifyMovement(classification, deltaX, deltaY, scaleDelta);
+  const progress: TwoFingerSwipeProgress =
+    nextClassification === "swipe"
+      ? { ownsGesture: true, direction: deltaX < 0 ? "left" : "right" }
+      : { ownsGesture: false, direction: null };
+  return { classification: nextClassification, current, progress };
 }
