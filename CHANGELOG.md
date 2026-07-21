@@ -1,5 +1,11 @@
 # hive-orchestrator
 
+## 2.9.1
+
+### Patch Changes
+
+- 64e4139: Prevent terminal and Git workspace windows from crashing during concurrent socket teardown and resize activity, and add authorized live session event logs to workspace windows and terminal diagnostics.
+
 ## 2.9.0
 
 ### Minor Changes
