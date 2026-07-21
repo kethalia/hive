@@ -57,13 +57,13 @@ function classifyMovement(
   return classification;
 }
 
-function swipeProgress(
+const swipeProgress = (
   classification: GestureClassification,
   deltaX: number,
-): TwoFingerSwipeProgress {
+): TwoFingerSwipeProgress => {
   if (classification !== "swipe") return { ownsGesture: false, direction: null };
   return { ownsGesture: true, direction: deltaX < 0 ? "left" : "right" };
-}
+};
 
 function snapshotForPoints(
   points: readonly GestureTouchPoint[],
