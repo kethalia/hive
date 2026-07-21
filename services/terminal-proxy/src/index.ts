@@ -5,7 +5,7 @@ import type { Duplex } from "node:stream";
 import { fileURLToPath } from "node:url";
 import { config } from "dotenv";
 import { type AuthResult, type AuthSuccess, authenticateUpgrade } from "./auth.js";
-import { fetchCoderApi } from "./coder-fetch.js";
+import { resolveAuthorizedWorkspaceIds } from "./authorized-workspaces.js";
 import {
   KeepAliveManager,
   serializeKeepAliveStatusPayload,
@@ -126,45 +126,6 @@ function createCachedAuthorizedWorkspaceResolver(
     cache.set(key, { expiresAt: currentTime + WORKSPACE_AUTHORIZATION_CACHE_TTL_MS, value });
     return value;
   };
-}
-
-async function resolveAuthorizedWorkspaceIds(auth: AuthSuccess): Promise<Set<string>> {
-  const coderUrl = (
-    auth.coderUrl ||
-    process.env.CODER_URL ||
-    process.env.CODER_AGENT_URL ||
-    ""
-  ).replace(/\/+$/, "");
-  if (!coderUrl) throw new Error("coder_url_missing");
-
-  const res = await fetchCoderApi(
-    `${coderUrl}/api/v2/workspaces?q=${encodeURIComponent("owner:me")}`,
-    {
-      headers: {
-        "Content-Type": "application/json",
-        "Coder-Session-Token": auth.token,
-      },
-    },
-  );
-  if (!res.ok) throw new Error(`coder_workspaces_unavailable:${res.status}`);
-
-  const payload: unknown = await res.json();
-  const workspaces =
-    typeof payload === "object" &&
-    payload !== null &&
-    Array.isArray((payload as { workspaces?: unknown }).workspaces)
-      ? (payload as { workspaces: unknown[] }).workspaces
-      : [];
-
-  return new Set(
-    workspaces
-      .map((workspace) =>
-        typeof workspace === "object" && workspace !== null
-          ? (workspace as { id?: unknown }).id
-          : null,
-      )
-      .filter((id): id is string => typeof id === "string" && id.length > 0),
-  );
 }
 
 function filterHealthByWorkspaceIds(
