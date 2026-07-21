@@ -348,16 +348,33 @@ function attachUpgradeRouting(
   });
 }
 
+function resolveUpgradeHandler(
+  configuredHandler: UpgradeHandler | undefined,
+  eventStore: TerminalSessionEventStore,
+): UpgradeHandler {
+  if (configuredHandler) return configuredHandler;
+  return (req, socket, head) => handleUpgrade(req, socket, head, eventStore);
+}
+
+function resolveServerAuthorization(
+  configuredAuthenticator: StatusAuthenticator | undefined,
+  configuredResolver: AuthorizedWorkspaceResolver | undefined,
+) {
+  return {
+    authenticateStatus: configuredAuthenticator ?? authenticateUpgrade,
+    resolveWorkspaceIds: createCachedAuthorizedWorkspaceResolver(
+      configuredResolver ?? resolveAuthorizedWorkspaceIds,
+    ),
+  };
+}
+
 export function createTerminalProxyServer(options: TerminalProxyServerOptions = {}) {
   const keepAliveManager = options.keepAliveManager ?? createDefaultKeepAliveManager();
   const eventStore = options.sessionEventStore ?? terminalSessionEventStore;
-  const upgradeHandler =
-    options.upgradeHandler ??
-    ((req: IncomingMessage, socket: Duplex, head: Buffer) =>
-      handleUpgrade(req, socket, head, eventStore));
-  const authenticateStatus = options.statusAuthenticator ?? authenticateUpgrade;
-  const resolveWorkspaceIds = createCachedAuthorizedWorkspaceResolver(
-    options.authorizedWorkspaceResolver ?? resolveAuthorizedWorkspaceIds,
+  const upgradeHandler = resolveUpgradeHandler(options.upgradeHandler, eventStore);
+  const { authenticateStatus, resolveWorkspaceIds } = resolveServerAuthorization(
+    options.statusAuthenticator,
+    options.authorizedWorkspaceResolver,
   );
 
   keepAliveManager.start();

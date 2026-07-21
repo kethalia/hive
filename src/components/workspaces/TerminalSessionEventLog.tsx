@@ -97,19 +97,33 @@ function nextEventId(
   return instanceChanged ? 0 : currentId;
 }
 
-function useEventRefresh(
-  endpoint: string | null,
-  workspaceId: string | undefined,
-  sessionName: string | undefined,
-  generationRef: RefObject<number>,
-  requestControllerRef: RefObject<AbortController | null>,
-  inFlightRef: RefObject<Promise<void> | null>,
-  instanceIdRef: RefObject<string | null>,
-  lastEventIdRef: RefObject<number>,
-  setEvents: Dispatch<SetStateAction<TerminalSessionEvent[]>>,
-  setError: Dispatch<SetStateAction<string | null>>,
-  setLastUpdatedAt: Dispatch<SetStateAction<string | null>>,
-) {
+interface EventRefreshDependencies {
+  endpoint: string | null;
+  workspaceId: string | undefined;
+  sessionName: string | undefined;
+  generationRef: RefObject<number>;
+  requestControllerRef: RefObject<AbortController | null>;
+  inFlightRef: RefObject<Promise<void> | null>;
+  instanceIdRef: RefObject<string | null>;
+  lastEventIdRef: RefObject<number>;
+  setEvents: Dispatch<SetStateAction<TerminalSessionEvent[]>>;
+  setError: Dispatch<SetStateAction<string | null>>;
+  setLastUpdatedAt: Dispatch<SetStateAction<string | null>>;
+}
+
+function useEventRefresh({
+  endpoint,
+  workspaceId,
+  sessionName,
+  generationRef,
+  requestControllerRef,
+  inFlightRef,
+  instanceIdRef,
+  lastEventIdRef,
+  setEvents,
+  setError,
+  setLastUpdatedAt,
+}: EventRefreshDependencies) {
   return useCallback(
     async (replace = false) => {
       if (inFlightRef.current && !replace) return inFlightRef.current;
@@ -229,7 +243,7 @@ function useSessionEventLog(
   const inFlightRef = useRef<Promise<void> | null>(null);
   const instanceIdRef = useRef<string | null>(null);
   const lastEventIdRef = useRef(0);
-  const refresh = useEventRefresh(
+  const refresh = useEventRefresh({
     endpoint,
     workspaceId,
     sessionName,
@@ -241,7 +255,7 @@ function useSessionEventLog(
     setEvents,
     setError,
     setLastUpdatedAt,
-  );
+  });
   useResetEventLog(
     refresh,
     generationRef,
