@@ -1,5 +1,7 @@
 import { fetchCoderApi } from "./coder-fetch.js";
 
+const WORKSPACE_AUTHORIZATION_TIMEOUT_MS = 5_000;
+
 export type WorkspaceAgentAccessResult = { ok: true } | { ok: false; status: 403 | 502 };
 
 interface WorkspaceAgentAccessInput {
@@ -31,21 +33,28 @@ export async function verifyWorkspaceAgentAccess({
   agentId,
 }: WorkspaceAgentAccessInput): Promise<WorkspaceAgentAccessResult> {
   try {
-    const response = await fetchCoderApi(
-      `${coderUrl.replace(/\/+$/, "")}/api/v2/workspaces/${encodeURIComponent(workspaceId)}`,
-      {
-        headers: {
-          "Content-Type": "application/json",
-          "Coder-Session-Token": token,
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), WORKSPACE_AUTHORIZATION_TIMEOUT_MS);
+    try {
+      const response = await fetchCoderApi(
+        `${coderUrl.replace(/\/+$/, "")}/api/v2/workspaces/${encodeURIComponent(workspaceId)}`,
+        {
+          headers: {
+            "Content-Type": "application/json",
+            "Coder-Session-Token": token,
+          },
+          signal: controller.signal,
         },
-      },
-    );
-    if (!response.ok) {
-      return { ok: false, status: response.status >= 500 ? 502 : 403 };
-    }
+      );
+      if (!response.ok) {
+        return { ok: false, status: response.status >= 500 ? 502 : 403 };
+      }
 
-    const workspace: unknown = await response.json();
-    return workspaceContainsAgent(workspace, agentId) ? { ok: true } : { ok: false, status: 403 };
+      const workspace: unknown = await response.json();
+      return workspaceContainsAgent(workspace, agentId) ? { ok: true } : { ok: false, status: 403 };
+    } finally {
+      clearTimeout(timeoutId);
+    }
   } catch {
     return { ok: false, status: 502 };
   }

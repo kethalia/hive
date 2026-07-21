@@ -9,7 +9,10 @@ const input = {
 };
 
 describe("verifyWorkspaceAgentAccess", () => {
-  afterEach(() => vi.restoreAllMocks());
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.restoreAllMocks();
+  });
 
   it("accepts an agent in the authenticated workspace build", async () => {
     const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
@@ -47,5 +50,22 @@ describe("verifyWorkspaceAgentAccess", () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response("private body", { status: 503 }));
 
     await expect(verifyWorkspaceAgentAccess(input)).resolves.toEqual({ ok: false, status: 502 });
+  });
+
+  it("aborts stalled workspace lookups after the authorization deadline", async () => {
+    vi.useFakeTimers();
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation((_input, init) => {
+      return new Promise((_resolve, reject) => {
+        init?.signal?.addEventListener("abort", () => {
+          reject(new DOMException("The operation was aborted", "AbortError"));
+        });
+      });
+    });
+
+    const verification = verifyWorkspaceAgentAccess(input);
+    await vi.advanceTimersByTimeAsync(5_000);
+
+    await expect(verification).resolves.toEqual({ ok: false, status: 502 });
+    expect(fetchMock.mock.calls[0]?.[1]?.signal).toHaveProperty("aborted", true);
   });
 });
