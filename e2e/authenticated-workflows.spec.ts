@@ -267,10 +267,12 @@ async function cleanupTestSession(page: Page, sessionName: string) {
   }
   const revealActions = page.getByTestId(`show-terminal-session-actions-${sessionName}`);
   const sessionsToggle = page.getByRole("button", { name: "Sessions" });
-  const sessionsToggleInViewport = await sessionsToggle.evaluate((element) => {
-    const rect = element.getBoundingClientRect();
-    return rect.bottom > 0 && rect.right > 0 && rect.top < innerHeight && rect.left < innerWidth;
-  });
+  const sessionsToggleInViewport =
+    (await sessionsToggle.count()) > 0 &&
+    (await sessionsToggle.evaluate((element) => {
+      const rect = element.getBoundingClientRect();
+      return rect.bottom > 0 && rect.right > 0 && rect.top < innerHeight && rect.left < innerWidth;
+    }));
   if (!sessionsToggleInViewport) {
     await page.getByRole("button", { name: "Toggle Sidebar" }).click();
   }
@@ -279,13 +281,27 @@ async function cleanupTestSession(page: Page, sessionName: string) {
     await sessionsToggle.click();
   }
   const killSession = page.getByTestId(`kill-session-${sessionName}`);
-  if (!(await killSession.isVisible().catch(() => false))) {
-    await expect(revealActions).toBeVisible();
-    await revealActions.click();
+  const sessionLink = page.getByRole("link", { name: sessionName, exact: true });
+  for (let attempt = 0; attempt < 10; attempt += 1) {
+    if ((await sessionLink.count()) === 0) return;
+    if ((await killSession.count()) > 0) {
+      const clicked = await killSession
+        .evaluate((element: HTMLButtonElement) => element.click())
+        .then(() => true)
+        .catch(() => false);
+      if (clicked) {
+        await expect.poll(() => sessionLink.count()).toBe(0);
+        return;
+      }
+    }
+    if ((await revealActions.count()) > 0) {
+      await revealActions
+        .evaluate((element: HTMLButtonElement) => element.click())
+        .catch(() => undefined);
+    }
+    await page.waitForTimeout(200);
   }
-  await expect(killSession).toBeVisible();
-  await killSession.click();
-  await expect(killSession).toHaveCount(0);
+  throw new Error(`Could not clean up test terminal session ${sessionName}.`);
 }
 
 async function waitForDashboardReady(page: Page) {
