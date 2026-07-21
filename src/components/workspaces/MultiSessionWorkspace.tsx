@@ -889,8 +889,8 @@ function gitRepositoryActionIdentity(repository: GitRepositoryOption): string {
   return gitPaneActionIdentity(repository.cloneSessionKey, repository.relativePath);
 }
 
-function gitRepositoryDisplayName(repository: GitRepositoryOption): string {
-  return repository.relativePath.split("/").filter(Boolean).at(-1) ?? repository.label;
+function gitRepositoryDisplayName(relativePath: string, fallbackLabel: string): string {
+  return relativePath.split("/").filter(Boolean).at(-1) ?? fallbackLabel;
 }
 
 function deriveVisibleSessionsFromBoard(
@@ -3137,10 +3137,15 @@ export function MultiSessionWorkspace({
 
     for (const session of sessions) {
       const alreadyInActiveBoard = activeBoardSessionNames.has(session.sessionName);
+      const gitSessionDirectory = session.cloneSessionKey
+        ? (session.relativePath ?? session.label)
+        : undefined;
       actions.push({
         id: `workspace:session:${session.sessionName}`,
-        label: session.label,
-        description: session.cloneSessionKey ? "Git terminal session" : "Terminal session",
+        label: gitSessionDirectory
+          ? gitRepositoryDisplayName(gitSessionDirectory, session.label)
+          : session.label,
+        description: gitSessionDirectory ?? "Terminal session",
         group: "Terminal sessions",
         value: `${session.label} ${session.sessionName} add open vscode filebrowser logs workspace terminal session`,
         icon: "terminal",
@@ -3188,7 +3193,7 @@ export function MultiSessionWorkspace({
       const alreadyInActiveBoard = activeBoardGitPaneIdentities.has(repositoryIdentity);
       actions.push({
         id: `workspace:git:${gitRepositoryActionIdentity(repository)}`,
-        label: gitRepositoryDisplayName(repository),
+        label: gitRepositoryDisplayName(repository.relativePath, repository.label),
         description: repository.relativePath,
         group: "Git repositories",
         value: `${repository.label} ${repository.relativePath} add open vscode filebrowser logs git repository workspace`,

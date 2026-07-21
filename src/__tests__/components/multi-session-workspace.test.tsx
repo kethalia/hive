@@ -2609,6 +2609,12 @@ describe("MultiSessionWorkspace", () => {
     fireEvent.change(await screen.findByTestId("workspace-command-palette-search"), {
       target: { value: "git-clone-safe-hive" },
     });
+    const gitSessionAction = screen.getByTestId(
+      "palette-action-workspace:session:git-clone-safe-hive",
+    );
+    const gitSessionLabels = gitSessionAction.querySelectorAll("span");
+    expect(gitSessionLabels.item(0)).toHaveTextContent("hive");
+    expect(gitSessionLabels.item(1)).toHaveTextContent("kethalia/hive");
     fireEvent.click(screen.getByTestId("palette-option-workspace:session:git-clone-safe-hive-add"));
 
     const storedState = JSON.parse(
