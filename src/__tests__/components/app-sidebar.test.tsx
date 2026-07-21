@@ -823,7 +823,8 @@ describe("AppSidebar", () => {
     await waitFor(() => {
       expect(mockListNavigationFavorites).toHaveBeenCalledWith({ workspaceId: "ws-1" });
       expect(screen.getByText("Main shell")).toBeInTheDocument();
-      expect(screen.getByText("Hive repo")).toBeInTheDocument();
+      expect(screen.getByText("hive")).toBeInTheDocument();
+      expect(screen.getByText("kethalia/hive")).toBeInTheDocument();
     });
 
     const terminalLink = screen.getByText("Main shell").closest("a");
@@ -978,8 +979,12 @@ describe("AppSidebar", () => {
 
     render(<AppSidebar />);
 
-    const favoriteButton = await screen.findByText("Hive repo");
-    fireEvent.click(favoriteButton.closest("button")!);
+    const favoriteButton = await screen.findByTestId(
+      "favorite-git-link-ws-1-git-clone:kethalia/hive",
+    );
+    expect(favoriteButton).toHaveTextContent("hive");
+    expect(favoriteButton).toHaveTextContent("kethalia/hive");
+    fireEvent.click(favoriteButton);
 
     await waitFor(() => {
       expect(mockResolveGitCloneTerminal).toHaveBeenCalledWith({

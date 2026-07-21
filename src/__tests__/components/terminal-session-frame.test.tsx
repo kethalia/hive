@@ -14,6 +14,7 @@ describe("TerminalSessionFrame", () => {
     render(
       <TerminalSessionFrame
         label="VS Code"
+        subtitle="projects/kethalia/hive"
         dataTestId="tool-frame"
         layoutMode="tiled"
         onHeaderPointerDown={onHeaderPointerDown}
@@ -28,6 +29,7 @@ describe("TerminalSessionFrame", () => {
     const header = screen.getByTestId("tool-frame-header");
     const grip = screen.getByTestId("tool-frame-drag-icon");
     const title = screen.getByTestId("tool-frame-title");
+    const subtitle = screen.getByTestId("tool-frame-subtitle");
     const close = screen.getByRole("button", { name: "Close VS Code" });
 
     expect(header).toHaveAttribute("data-window-drag-surface", "true");
@@ -36,7 +38,9 @@ describe("TerminalSessionFrame", () => {
     expect(grip).toHaveClass("size-3", "shrink-0");
     expect(grip).toHaveAttribute("aria-hidden", "true");
     expect(grip.closest("button")).toBeNull();
-    expect(title.parentElement).toHaveClass("items-center");
+    expect(title).toHaveTextContent("VS Code");
+    expect(subtitle).toHaveTextContent("projects/kethalia/hive");
+    expect(title.parentElement?.parentElement).toHaveClass("items-center");
     expect(close).toHaveClass("h-6");
 
     fireEvent.pointerDown(title);

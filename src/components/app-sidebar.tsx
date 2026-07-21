@@ -113,6 +113,7 @@ import type {
   GitCloneDiscoveryActionResult,
   GitCloneTerminalIdentity,
 } from "@/lib/git/clone-actions-contract";
+import { getGitRepositoryPresentation } from "@/lib/git/clone-public-identifiers";
 import { isCloneTerminalSessionName } from "@/lib/git/clone-terminal-session";
 import type { CloneTreeDiagnostics, CloneTreeRepositoryNode } from "@/lib/git/clone-tree";
 import type { TemplateStatus } from "@/lib/templates/staleness";
@@ -244,9 +245,21 @@ function isSafeFavoriteLabel(label: string | null): label is string {
 }
 
 function favoriteLabel(favorite: NavigationFavoriteDto): string {
+  if (favorite.kind === "git" && favorite.relativePath) {
+    return (
+      getGitRepositoryPresentation(favorite.relativePath, favorite.label ?? "Git repository")
+        ?.title ?? "Git repository"
+    );
+  }
   if (isSafeFavoriteLabel(favorite.label)) return favorite.label.trim();
-  if (favorite.kind === "git") return favorite.relativePath ?? "Git repository";
+  if (favorite.kind === "git") return "Git repository";
   return favorite.targetKey;
+}
+
+function favoriteSubtitle(favorite: NavigationFavoriteDto): string | undefined {
+  if (favorite.kind !== "git" || !favorite.relativePath) return undefined;
+  return getGitRepositoryPresentation(favorite.relativePath, favorite.label ?? "Git repository")
+    ?.subtitle;
 }
 
 interface AgentInfo {
@@ -539,6 +552,7 @@ function FavoritesSection({
               <SidebarMenu>
                 {visibleFavorites.map((favorite) => {
                   const label = favoriteLabel(favorite);
+                  const subtitle = favoriteSubtitle(favorite);
                   if (favorite.kind === "terminal") {
                     return (
                       <SortableFavoriteRow key={favorite.id} favorite={favorite}>
@@ -572,7 +586,7 @@ function FavoritesSection({
                       <SidebarMenuButton
                         disabled={!canLaunch}
                         className={cn(
-                          "min-w-0 flex-1 cursor-pointer",
+                          "h-auto min-h-8 min-w-0 flex-1 cursor-pointer py-1",
                           !canLaunch && "cursor-not-allowed opacity-50",
                         )}
                         isActive={
@@ -585,7 +599,14 @@ function FavoritesSection({
                         }}
                       >
                         <GitBranch className="h-4 w-4" />
-                        <span className="truncate">{label}</span>
+                        <span className="min-w-0 flex-1">
+                          <span className="block truncate">{label}</span>
+                          {subtitle ? (
+                            <span className="block truncate text-[10px] text-sidebar-foreground/60">
+                              {subtitle}
+                            </span>
+                          ) : null}
+                        </span>
                       </SidebarMenuButton>
                     </SortableFavoriteRow>
                   );

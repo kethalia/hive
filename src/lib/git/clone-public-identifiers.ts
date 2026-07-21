@@ -5,6 +5,11 @@ export interface PublicCloneIdentifier {
   relativePath: string;
 }
 
+export interface GitRepositoryPresentation {
+  title: string;
+  subtitle: string;
+}
+
 export function isExpectedCloneSessionKey(value: string): boolean {
   const trimmedValue = value.trim();
   if (!trimmedValue.startsWith(CLONE_SESSION_KEY_PREFIX)) {
@@ -40,6 +45,19 @@ export function getCloneDisplayLabel(relativePath: string): string | null {
       : segments;
 
   return displaySegments.join("/");
+}
+
+export function getGitRepositoryPresentation(
+  relativePath: string,
+  fallbackTitle = "Git repository",
+): GitRepositoryPresentation | null {
+  const trimmedPath = relativePath.trim();
+  if (!isSafeCloneRelativePath(trimmedPath)) return null;
+
+  return {
+    title: trimmedPath.split("/").at(-1) ?? fallbackTitle,
+    subtitle: trimmedPath,
+  };
 }
 
 export function isSafePublicCloneIdentifier(identifier: PublicCloneIdentifier): boolean {

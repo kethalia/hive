@@ -231,7 +231,7 @@ function RepositoryTreeNode({
     <SidebarMenuSubItem>
       <SidebarMenuSubButton
         render={<button type="button" />}
-        className="w-full cursor-pointer pr-10"
+        className="h-auto min-h-8 w-full cursor-pointer py-1 pr-10"
         isActive={isActive}
         aria-label={accessibleName}
         data-clone-session-key={node.cloneSessionKey}
@@ -239,7 +239,12 @@ function RepositoryTreeNode({
         onClick={() => onRepositorySelect?.(node)}
       >
         <GitBranch aria-hidden="true" className="size-3 shrink-0" />
-        <span className="truncate">{node.label}</span>
+        <span className="min-w-0 flex-1">
+          <span className="block truncate">{node.label}</span>
+          <span className="block truncate text-[10px] text-sidebar-foreground/60">
+            {node.relativePath}
+          </span>
+        </span>
       </SidebarMenuSubButton>
       <button
         type="button"

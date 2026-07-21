@@ -665,7 +665,8 @@ describe("workspace board shortcut integration", () => {
       "kethalia/hive",
     );
     expect(screen.queryByTestId("interactive-terminal-stale-session-name")).not.toBeInTheDocument();
-    expect(screen.getByTestId("active-pane-label")).toHaveTextContent("Hive Review");
+    expect(screen.getByTestId("active-pane-label")).toHaveTextContent("hive");
+    expect(screen.getByTestId("active-pane-subtitle")).toHaveTextContent("kethalia/hive");
     expect(
       screen.queryByText(/persisted-proof|fresh-proof|stale-session-name|\/home\/coder|token/),
     ).not.toBeInTheDocument();

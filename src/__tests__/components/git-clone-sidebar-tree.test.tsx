@@ -103,6 +103,8 @@ describe("GitCloneSidebarTree", () => {
     const repoButton = screen.getByRole("button", {
       name: "Open Git repository kethalia / hive",
     });
+    expect(repoButton).toHaveTextContent("hive");
+    expect(repoButton).toHaveTextContent("kethalia/hive");
     expect(repoButton).toHaveAttribute("data-clone-session-key", "git-clone:kethalia/hive");
     expect(repoButton).toHaveAttribute("data-relative-path", "kethalia/hive");
     expect(
