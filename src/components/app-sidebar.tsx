@@ -256,12 +256,6 @@ function favoriteLabel(favorite: NavigationFavoriteDto): string {
   return favorite.targetKey;
 }
 
-function favoriteSubtitle(favorite: NavigationFavoriteDto): string | undefined {
-  if (favorite.kind !== "git" || !favorite.relativePath) return undefined;
-  return getGitRepositoryPresentation(favorite.relativePath, favorite.label ?? "Git repository")
-    ?.subtitle;
-}
-
 interface AgentInfo {
   agentId: string;
   agentName: string;
@@ -552,7 +546,6 @@ function FavoritesSection({
               <SidebarMenu>
                 {visibleFavorites.map((favorite) => {
                   const label = favoriteLabel(favorite);
-                  const subtitle = favoriteSubtitle(favorite);
                   if (favorite.kind === "terminal") {
                     return (
                       <SortableFavoriteRow key={favorite.id} favorite={favorite}>
@@ -586,7 +579,7 @@ function FavoritesSection({
                       <SidebarMenuButton
                         disabled={!canLaunch}
                         className={cn(
-                          "h-auto min-h-8 min-w-0 flex-1 cursor-pointer py-1",
+                          "h-auto min-h-8 min-w-0 flex-1 cursor-pointer py-1 text-left",
                           !canLaunch && "cursor-not-allowed opacity-50",
                         )}
                         isActive={
@@ -599,14 +592,7 @@ function FavoritesSection({
                         }}
                       >
                         <GitBranch className="h-4 w-4" />
-                        <span className="min-w-0 flex-1">
-                          <span className="block truncate">{label}</span>
-                          {subtitle ? (
-                            <span className="block truncate text-[10px] text-sidebar-foreground/60">
-                              {subtitle}
-                            </span>
-                          ) : null}
-                        </span>
+                        <span className="min-w-0 flex-1 truncate text-left">{label}</span>
                       </SidebarMenuButton>
                     </SortableFavoriteRow>
                   );

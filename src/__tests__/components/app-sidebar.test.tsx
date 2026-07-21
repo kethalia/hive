@@ -824,7 +824,7 @@ describe("AppSidebar", () => {
       expect(mockListNavigationFavorites).toHaveBeenCalledWith({ workspaceId: "ws-1" });
       expect(screen.getByText("Main shell")).toBeInTheDocument();
       expect(screen.getByText("hive")).toBeInTheDocument();
-      expect(screen.getByText("kethalia/hive")).toBeInTheDocument();
+      expect(screen.queryByText("kethalia/hive")).not.toBeInTheDocument();
     });
 
     const terminalLink = screen.getByText("Main shell").closest("a");
@@ -983,7 +983,8 @@ describe("AppSidebar", () => {
       "favorite-git-link-ws-1-git-clone:kethalia/hive",
     );
     expect(favoriteButton).toHaveTextContent("hive");
-    expect(favoriteButton).toHaveTextContent("kethalia/hive");
+    expect(favoriteButton).not.toHaveTextContent("kethalia/hive");
+    expect(favoriteButton).toHaveClass("text-left");
     fireEvent.click(favoriteButton);
 
     await waitFor(() => {
