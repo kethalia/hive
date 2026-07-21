@@ -184,7 +184,6 @@ export function TerminalSessionFrame({
 }: TerminalSessionFrameProps) {
   const interactive = Boolean(onActivate) && !disabled;
   const longPressTimerRef = useRef<number | null>(null);
-  const longPressReadyRef = useRef(false);
   const longPressTouchRef = useRef<{ id: number; x: number; y: number } | null>(null);
 
   function clearHeaderLongPress() {
@@ -192,7 +191,6 @@ export function TerminalSessionFrame({
       window.clearTimeout(longPressTimerRef.current);
       longPressTimerRef.current = null;
     }
-    longPressReadyRef.current = false;
     longPressTouchRef.current = null;
   }
 
@@ -259,8 +257,9 @@ export function TerminalSessionFrame({
     };
     longPressTimerRef.current = window.setTimeout(() => {
       longPressTimerRef.current = null;
-      longPressReadyRef.current = true;
+      longPressTouchRef.current = null;
       triggerHapticFeedback();
+      onOpenActions();
     }, LONG_PRESS_MS);
   }
 
@@ -274,15 +273,6 @@ export function TerminalSessionFrame({
     ) {
       clearHeaderLongPress();
     }
-  }
-
-  function handleHeaderTouchEnd(event: TouchEvent<HTMLDivElement>) {
-    const shouldOpenActions = longPressReadyRef.current;
-    clearHeaderLongPress();
-    if (!shouldOpenActions || !onOpenActions) return;
-    if (event.cancelable) event.preventDefault();
-    event.stopPropagation();
-    onOpenActions();
   }
 
   function handleHeaderContextMenu(event: MouseEvent<HTMLDivElement>) {
@@ -337,7 +327,7 @@ export function TerminalSessionFrame({
           onPointerDown={handleHeaderPointerDown}
           onTouchStart={handleHeaderTouchStart}
           onTouchMove={handleHeaderTouchMove}
-          onTouchEnd={handleHeaderTouchEnd}
+          onTouchEnd={clearHeaderLongPress}
           onTouchCancel={clearHeaderLongPress}
         >
           <div className="flex min-w-0 flex-1 items-center gap-1.5">

@@ -251,6 +251,7 @@ async function verifyNativePaneActions(page: Page, testInfo: TestInfo) {
   ).toBe(true);
   await capture(page, testInfo, "mobile-native-pane-actions");
   await actionSheet.getByRole("button", { name: "Close pane actions" }).click();
+  await expect(actionSheet).toBeHidden();
 
   await dispatchTouchLongPress(page, frame.locator('[data-testid$="-header"]'));
   await expect(actionSheet).toBeVisible();

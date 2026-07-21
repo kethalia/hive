@@ -83,10 +83,6 @@ describe("TerminalSessionFrame", () => {
       touches: [{ identifier: 7, clientX: 40, clientY: 20 }],
     });
     vi.advanceTimersByTime(500);
-    expect(onOpenActions).toHaveBeenCalledTimes(2);
-    fireEvent.touchEnd(header, {
-      changedTouches: [{ identifier: 7, clientX: 40, clientY: 20 }],
-    });
     expect(onOpenActions).toHaveBeenCalledTimes(3);
 
     vi.useRealTimers();
