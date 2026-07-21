@@ -263,6 +263,11 @@ async function cleanupGestureSession(page: Page, sessionName: string) {
   if (!(await revealActions.isVisible().catch(() => false))) {
     await page.getByRole("button", { name: "Toggle Sidebar" }).click();
   }
+  const sessionsToggle = page.getByRole("button", { name: "Sessions" });
+  await expect(sessionsToggle).toBeVisible();
+  if ((await sessionsToggle.getAttribute("aria-expanded")) !== "true") {
+    await sessionsToggle.click();
+  }
   await expect(revealActions).toBeVisible();
   await revealActions.click();
   const killSession = page.getByTestId(`kill-session-${sessionName}`);
