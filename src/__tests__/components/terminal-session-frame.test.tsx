@@ -79,11 +79,8 @@ describe("TerminalSessionFrame", () => {
     fireEvent.contextMenu(header);
     expect(onOpenActions).toHaveBeenCalledTimes(2);
 
-    fireEvent.pointerDown(header, {
-      pointerId: 7,
-      pointerType: "touch",
-      clientX: 40,
-      clientY: 20,
+    fireEvent.touchStart(header, {
+      touches: [{ identifier: 7, clientX: 40, clientY: 20 }],
     });
     vi.advanceTimersByTime(500);
     expect(onOpenActions).toHaveBeenCalledTimes(3);
@@ -107,17 +104,11 @@ describe("TerminalSessionFrame", () => {
     );
 
     const header = screen.getByTestId("terminal-one-header");
-    fireEvent.pointerDown(header, {
-      pointerId: 7,
-      pointerType: "touch",
-      clientX: 40,
-      clientY: 20,
+    fireEvent.touchStart(header, {
+      touches: [{ identifier: 7, clientX: 40, clientY: 20 }],
     });
-    fireEvent.pointerMove(header, {
-      pointerId: 7,
-      pointerType: "touch",
-      clientX: 52,
-      clientY: 20,
+    fireEvent.touchMove(header, {
+      touches: [{ identifier: 7, clientX: 52, clientY: 20 }],
     });
     vi.advanceTimersByTime(500);
     expect(onOpenActions).not.toHaveBeenCalled();

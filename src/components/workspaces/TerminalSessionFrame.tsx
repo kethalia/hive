@@ -9,6 +9,7 @@ import type {
   PointerEvent,
   PointerEventHandler,
   ReactNode,
+  TouchEvent,
 } from "react";
 import { useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
@@ -183,14 +184,14 @@ export function TerminalSessionFrame({
 }: TerminalSessionFrameProps) {
   const interactive = Boolean(onActivate) && !disabled;
   const longPressTimerRef = useRef<number | null>(null);
-  const longPressPointerRef = useRef<{ id: number; x: number; y: number } | null>(null);
+  const longPressTouchRef = useRef<{ id: number; x: number; y: number } | null>(null);
 
   function clearHeaderLongPress() {
     if (longPressTimerRef.current !== null) {
       window.clearTimeout(longPressTimerRef.current);
       longPressTimerRef.current = null;
     }
-    longPressPointerRef.current = null;
+    longPressTouchRef.current = null;
   }
 
   useEffect(
@@ -235,28 +236,41 @@ export function TerminalSessionFrame({
       return;
     }
 
-    clearHeaderLongPress();
-    if (event.pointerType === "touch" && onOpenActions) {
-      longPressPointerRef.current = {
-        id: event.pointerId,
-        x: event.clientX,
-        y: event.clientY,
-      };
-      longPressTimerRef.current = window.setTimeout(() => {
-        longPressTimerRef.current = null;
-        longPressPointerRef.current = null;
-        triggerHapticFeedback();
-        onOpenActions();
-      }, LONG_PRESS_MS);
-    }
-
     onHeaderPointerDown?.(event);
   }
 
-  function handleHeaderPointerMove(event: PointerEvent<HTMLDivElement>) {
-    const start = longPressPointerRef.current;
-    if (!start || start.id !== event.pointerId) return;
-    if (Math.hypot(event.clientX - start.x, event.clientY - start.y) >= DRAG_LONG_PRESS_MOVE_PX) {
+  function handleHeaderTouchStart(event: TouchEvent<HTMLDivElement>) {
+    if (disabled || !onOpenActions || event.touches.length !== 1) return;
+    const target = event.target;
+    const interactiveTarget =
+      target instanceof Element
+        ? target.closest("button, a, input, select, textarea, [role='button'], [role='link']")
+        : null;
+    if (interactiveTarget && event.currentTarget.contains(interactiveTarget)) return;
+
+    const touch = event.touches[0];
+    clearHeaderLongPress();
+    longPressTouchRef.current = {
+      id: touch.identifier,
+      x: touch.clientX,
+      y: touch.clientY,
+    };
+    longPressTimerRef.current = window.setTimeout(() => {
+      longPressTimerRef.current = null;
+      longPressTouchRef.current = null;
+      triggerHapticFeedback();
+      onOpenActions();
+    }, LONG_PRESS_MS);
+  }
+
+  function handleHeaderTouchMove(event: TouchEvent<HTMLDivElement>) {
+    const start = longPressTouchRef.current;
+    if (!start) return;
+    const touch = Array.from(event.touches).find((candidate) => candidate.identifier === start.id);
+    if (
+      !touch ||
+      Math.hypot(touch.clientX - start.x, touch.clientY - start.y) >= DRAG_LONG_PRESS_MOVE_PX
+    ) {
       clearHeaderLongPress();
     }
   }
@@ -311,10 +325,10 @@ export function TerminalSessionFrame({
           data-testid={dataTestId ? `${dataTestId}-header` : undefined}
           onContextMenu={handleHeaderContextMenu}
           onPointerDown={handleHeaderPointerDown}
-          onPointerMove={handleHeaderPointerMove}
-          onPointerUp={clearHeaderLongPress}
-          onPointerCancel={clearHeaderLongPress}
-          onPointerLeave={clearHeaderLongPress}
+          onTouchStart={handleHeaderTouchStart}
+          onTouchMove={handleHeaderTouchMove}
+          onTouchEnd={clearHeaderLongPress}
+          onTouchCancel={clearHeaderLongPress}
         >
           <div className="flex min-w-0 flex-1 items-center gap-1.5">
             {!disabled && onHeaderPointerDown ? (

@@ -61,6 +61,108 @@ async function capture(page: Page, testInfo: TestInfo, name: string) {
   await page.screenshot({ path: testInfo.outputPath(`${name}.png`), fullPage: true });
 }
 
+interface TouchCoordinates {
+  x: number;
+  y: number;
+}
+
+function cdpTouchPoint(id: number, coordinates: TouchCoordinates) {
+  return {
+    id,
+    x: coordinates.x,
+    y: coordinates.y,
+    radiusX: 5,
+    radiusY: 5,
+    force: 1,
+  };
+}
+
+async function dispatchTwoFingerSwipe(page: Page, target: Locator, direction: "left" | "right") {
+  const box = await target.boundingBox();
+  if (!box) throw new Error("Gesture target has no measurable bounds.");
+
+  const session = await page.context().newCDPSession(page);
+  const travel = Math.min(Math.max(box.width * 0.4, 80), box.width * 0.6);
+  const startX = direction === "left" ? box.x + box.width * 0.75 : box.x + box.width * 0.25;
+  const endX = direction === "left" ? startX - travel : startX + travel;
+  const centerY = box.y + box.height * 0.55;
+
+  try {
+    await session.send("Input.dispatchTouchEvent", {
+      type: "touchStart",
+      touchPoints: [
+        cdpTouchPoint(1, { x: startX, y: centerY - 18 }),
+        cdpTouchPoint(2, { x: startX, y: centerY + 18 }),
+      ],
+    });
+    for (const progress of [0.25, 0.5, 0.75, 1]) {
+      const x = startX + (endX - startX) * progress;
+      await session.send("Input.dispatchTouchEvent", {
+        type: "touchMove",
+        touchPoints: [
+          cdpTouchPoint(1, { x, y: centerY - 18 }),
+          cdpTouchPoint(2, { x, y: centerY + 18 }),
+        ],
+      });
+    }
+    await session.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+    await page.waitForTimeout(100);
+  } finally {
+    await session.detach();
+  }
+}
+
+async function dispatchTwoFingerPinch(page: Page, target: Locator) {
+  const box = await target.boundingBox();
+  if (!box) throw new Error("Gesture target has no measurable bounds.");
+
+  const session = await page.context().newCDPSession(page);
+  const centerX = box.x + box.width * 0.5;
+  const centerY = box.y + box.height * 0.55;
+
+  try {
+    await session.send("Input.dispatchTouchEvent", {
+      type: "touchStart",
+      touchPoints: [
+        cdpTouchPoint(1, { x: centerX, y: centerY - 10 }),
+        cdpTouchPoint(2, { x: centerX, y: centerY + 10 }),
+      ],
+    });
+    await session.send("Input.dispatchTouchEvent", {
+      type: "touchMove",
+      touchPoints: [
+        cdpTouchPoint(1, { x: centerX, y: centerY - 42 }),
+        cdpTouchPoint(2, { x: centerX, y: centerY + 42 }),
+      ],
+    });
+    await session.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+  } finally {
+    await session.detach();
+  }
+}
+
+async function dispatchTouchLongPress(page: Page, target: Locator) {
+  const box = await target.boundingBox();
+  if (!box) throw new Error("Long-press target has no measurable bounds.");
+
+  const session = await page.context().newCDPSession(page);
+  const point = cdpTouchPoint(1, {
+    x: box.x + Math.min(96, box.width * 0.3),
+    y: box.y + box.height * 0.5,
+  });
+
+  try {
+    await session.send("Input.dispatchTouchEvent", {
+      type: "touchStart",
+      touchPoints: [point],
+    });
+    await page.waitForTimeout(650);
+    await session.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+  } finally {
+    await session.detach();
+  }
+}
+
 async function waitForDashboardReady(page: Page) {
   await expect(page.locator("html")).toHaveAttribute("data-dashboard-keybindings-ready", "true");
 }
@@ -890,6 +992,138 @@ test.describe("authenticated Hive workflows", () => {
     await expect(
       workspaceRecovery.getByRole("button", { name: "Retry workspace session" }),
     ).toBeVisible();
+  });
+
+  test("supports touch navigation and native pane actions", async ({
+    browserName,
+    isMobile,
+    page,
+  }, testInfo) => {
+    test.skip(browserName !== "chromium" || !isMobile, "Requires Chromium touch CDP events.");
+    test.setTimeout(90_000);
+
+    await page.goto(new URL("/workspaces", appUrl).toString());
+    await waitForDashboardReady(page);
+    const workspaceLink = page.locator('a[href$="/terminal/workspace"]:visible').first();
+    const workspaceAvailable = await workspaceLink
+      .waitFor({ state: "visible", timeout: 15_000 })
+      .then(() => true)
+      .catch(() => false);
+    test.skip(!workspaceAvailable, "No running workspace available.");
+
+    const workspaceHref = await workspaceLink.getAttribute("href");
+    if (!workspaceHref) throw new Error("Running workspace link has no destination.");
+    await page.goto(new URL(workspaceHref, appUrl).toString());
+    await expect(page.getByTestId("multi-session-workspace")).toBeVisible({ timeout: 30_000 });
+    await expectConnectedTerminal(page);
+
+    const terminalSurfaces = page.locator('[data-terminal-navigation-surface="true"]:visible');
+    let createdSessionName: string | null = null;
+    try {
+      if ((await terminalSurfaces.count()) < 2) {
+        createdSessionName = `gesture-e2e-${Date.now()}`;
+        await page.getByRole("button", { name: "Open workspace command palette" }).click();
+        await page.getByRole("combobox").fill(createdSessionName);
+        await page
+          .getByRole("option", {
+            name: new RegExp(`^New terminal session named ${createdSessionName}`),
+          })
+          .click();
+      }
+      await expect.poll(() => terminalSurfaces.count()).toBeGreaterThanOrEqual(2);
+      const activePaneLabel = page.getByTestId("active-pane-label").first();
+      const activeTerminalFrame = () =>
+        page
+          .locator('[data-pane-mode][data-active="true"]:visible')
+          .filter({ has: page.locator('[data-terminal-navigation-surface="true"]') })
+          .first();
+
+      const firstTerminalLabel = (await activePaneLabel.textContent())?.trim();
+      if (!firstTerminalLabel) throw new Error("Active terminal has no label.");
+      await dispatchTwoFingerSwipe(
+        page,
+        activeTerminalFrame().locator('[data-terminal-navigation-surface="true"]'),
+        "left",
+      );
+      await expect
+        .poll(async () => (await activePaneLabel.textContent())?.trim())
+        .not.toBe(firstTerminalLabel);
+
+      await dispatchTwoFingerSwipe(
+        page,
+        activeTerminalFrame().locator('[data-terminal-navigation-surface="true"]'),
+        "right",
+      );
+      await expect(activePaneLabel).toHaveText(firstTerminalLabel);
+
+      await dispatchTwoFingerPinch(
+        page,
+        activeTerminalFrame().locator('[data-terminal-navigation-surface="true"]'),
+      );
+      await expect(activePaneLabel).toHaveText(firstTerminalLabel);
+
+      const boardTabs = page.getByRole("tab", { name: /workspace/i });
+      const initialBoardCount = await boardTabs.count();
+      await page.getByTestId("workspace-board-new").click();
+      await expect(boardTabs).toHaveCount(initialBoardCount + 1);
+      const createdBoard = boardTabs.last();
+      await expect(createdBoard).toHaveAttribute("aria-selected", "true");
+
+      const boardBar = page.getByTestId("workspace-board-bar");
+      await dispatchTwoFingerSwipe(page, boardBar, "right");
+      await expect(boardTabs.first()).toHaveAttribute("aria-selected", "true");
+      await dispatchTwoFingerSwipe(page, boardBar, "left");
+      await expect(createdBoard).toHaveAttribute("aria-selected", "true");
+      await boardTabs.first().click();
+
+      const moreButton = activeTerminalFrame().getByRole("button", {
+        name: /^Open actions for /,
+      });
+      const moreButtonBox = await moreButton.boundingBox();
+      if (!moreButtonBox) throw new Error("Pane action button has no measurable bounds.");
+      expect(moreButtonBox.width).toBeGreaterThanOrEqual(44);
+      expect(moreButtonBox.height).toBeGreaterThanOrEqual(44);
+
+      await moreButton.click();
+      const actionSheet = page.getByTestId("workspace-pane-action-sheet");
+      await expect(actionSheet).toBeVisible();
+      await expect(actionSheet.locator("[cmdk-root]")).toHaveCount(0);
+      const directActions = actionSheet.locator("fieldset > button");
+      await expect.poll(() => directActions.count()).toBeGreaterThanOrEqual(5);
+      expect(
+        await directActions.evaluateAll((buttons) =>
+          buttons.every((button) => button.getBoundingClientRect().height >= 44),
+        ),
+      ).toBe(true);
+      await capture(page, testInfo, "mobile-native-pane-actions");
+      await actionSheet.getByRole("button", { name: "Close pane actions" }).click();
+
+      await dispatchTouchLongPress(page, activeTerminalFrame().locator('[data-testid$="-header"]'));
+      await expect(actionSheet).toBeVisible();
+      await actionSheet.getByRole("button", { name: "Close pane actions" }).click();
+
+      await createdBoard.click();
+      await expect(createdBoard).toHaveAttribute("aria-selected", "true");
+      await createdBoard.click();
+      await expect(boardTabs).toHaveCount(initialBoardCount);
+      await capture(page, testInfo, "mobile-touch-workspace-navigation");
+    } finally {
+      if (createdSessionName) {
+        await page.keyboard.press("Escape").catch(() => undefined);
+        const revealActions = page.getByTestId(
+          `show-terminal-session-actions-${createdSessionName}`,
+        );
+        if (!(await revealActions.isVisible().catch(() => false))) {
+          await page.getByRole("button", { name: "Toggle Sidebar" }).click();
+        }
+        await expect(revealActions).toBeVisible();
+        await revealActions.click();
+        const killSession = page.getByTestId(`kill-session-${createdSessionName}`);
+        await expect(killSession).toBeVisible();
+        await killSession.click();
+        await expect(killSession).toHaveCount(0);
+      }
+    }
   });
 
   test("opens a live workspace terminal when one is available", async ({ page }, testInfo) => {
