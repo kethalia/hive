@@ -1,9 +1,9 @@
 "use client";
 
 import { useDrag } from "@use-gesture/react";
-import { Plus, Search, Terminal } from "lucide-react";
+import { Plus, Search, Terminal, Triangle } from "lucide-react";
 import type { CSSProperties, KeyboardEvent } from "react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import {
   Command,
   CommandDialog,
@@ -120,6 +120,19 @@ function CommandPaletteBody({
   emptyText,
   groupHeading,
 }: CommandPaletteBodyProps) {
+  const commandListRef = useRef<HTMLDivElement>(null);
+  const [canScrollUp, setCanScrollUp] = useState(false);
+  const [canScrollDown, setCanScrollDown] = useState(false);
+
+  const updateScrollHints = useCallback(() => {
+    const list = commandListRef.current;
+    if (!list) return;
+    const nextCanScrollUp = list.scrollTop > 1;
+    const nextCanScrollDown = list.scrollTop + list.clientHeight < list.scrollHeight - 1;
+    setCanScrollUp((current) => (current === nextCanScrollUp ? current : nextCanScrollUp));
+    setCanScrollDown((current) => (current === nextCanScrollDown ? current : nextCanScrollDown));
+  }, []);
+
   const handleSelect = useCallback(
     (tabId: string) => {
       onSelectTab(tabId);
@@ -145,6 +158,33 @@ function CommandPaletteBody({
     }
     return [...groups.entries()];
   }, [actions]);
+
+  useLayoutEffect(() => {
+    updateScrollHints();
+  });
+
+  useEffect(() => {
+    const list = commandListRef.current;
+    if (!list) return;
+
+    const mutationObserver = new MutationObserver(updateScrollHints);
+    mutationObserver.observe(list, {
+      attributes: true,
+      childList: true,
+      subtree: true,
+    });
+
+    if (typeof ResizeObserver === "undefined") {
+      return () => mutationObserver.disconnect();
+    }
+
+    const resizeObserver = new ResizeObserver(updateScrollHints);
+    resizeObserver.observe(list);
+    return () => {
+      mutationObserver.disconnect();
+      resizeObserver.disconnect();
+    };
+  }, [updateScrollHints]);
 
   const selectAction = useCallback(
     (action: CommandPaletteAction) => {
@@ -211,99 +251,129 @@ function CommandPaletteBody({
         value={searchValue}
         onValueChange={onSearchValueChange}
       />
-      <CommandList>
-        <CommandEmpty>{emptyText}</CommandEmpty>
-        {actionGroups.map(([heading, groupActions]) => (
-          <CommandGroup key={heading} heading={heading}>
-            {groupActions.map((action) => (
-              <CommandItem
-                key={action.id}
-                data-action-id={action.id}
-                tabIndex={0}
-                value={action.value ?? `${action.label} ${action.description ?? ""}`}
-                onSelect={() => {
-                  if (action.disabled) return;
-                  selectAction(action);
-                }}
-                disabled={action.disabled}
-              >
-                {actionIcon(action.icon)}
-                <span className="min-w-0 flex-1">
-                  <span className="block truncate text-sm">{action.label}</span>
-                  {action.description ? (
-                    <span className="block truncate text-xs text-muted-foreground">
-                      {action.description}
+      <div className="relative">
+        <div
+          aria-hidden="true"
+          data-testid="command-scroll-hint-up"
+          data-visible={canScrollUp ? "true" : "false"}
+          className={cn(
+            "pointer-events-none absolute inset-x-0 top-0 z-10 flex h-7 items-start justify-center bg-gradient-to-b from-popover via-popover/85 to-transparent pt-1 text-muted-foreground transition-[opacity,transform] duration-150 motion-reduce:transition-none",
+            canScrollUp ? "translate-y-0 opacity-100" : "-translate-y-1 opacity-0",
+          )}
+        >
+          <Triangle className="size-3 fill-current" />
+        </div>
+        <CommandList
+          ref={commandListRef}
+          className="[scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+          onScroll={updateScrollHints}
+        >
+          <CommandEmpty>{emptyText}</CommandEmpty>
+          {actionGroups.map(([heading, groupActions]) => (
+            <CommandGroup key={heading} heading={heading}>
+              {groupActions.map((action) => (
+                <CommandItem
+                  key={action.id}
+                  data-action-id={action.id}
+                  tabIndex={0}
+                  value={action.value ?? `${action.label} ${action.description ?? ""}`}
+                  onSelect={() => {
+                    if (action.disabled) return;
+                    selectAction(action);
+                  }}
+                  disabled={action.disabled}
+                >
+                  {actionIcon(action.icon)}
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-sm">{action.label}</span>
+                    {action.description ? (
+                      <span className="block truncate text-xs text-muted-foreground">
+                        {action.description}
+                      </span>
+                    ) : null}
+                  </span>
+                  {action.shortcut ? <CommandShortcut>{action.shortcut}</CommandShortcut> : null}
+                  {action.options ? (
+                    <span
+                      className="ml-auto flex shrink-0 items-center gap-0.5 rounded-md border border-border/70 bg-background/70 p-0.5"
+                      title="Choose action with Left and Right arrow keys"
+                    >
+                      {action.options.map((option, index) => (
+                        <button
+                          key={option.id}
+                          type="button"
+                          className={cn(
+                            "rounded px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground",
+                            index === selectedOptionIndex(action, selectedOptionIndexes) &&
+                              "bg-primary text-primary-foreground",
+                            option.disabled && "opacity-40",
+                          )}
+                          data-testid={`command-option-${action.id}-${option.id}`}
+                          data-selected={
+                            index === selectedOptionIndex(action, selectedOptionIndexes)
+                              ? "true"
+                              : "false"
+                          }
+                          disabled={option.disabled}
+                          onClick={(event) => {
+                            event.preventDefault();
+                            event.stopPropagation();
+                            if (option.disabled) return;
+                            option.onSelect();
+                            onOpenChange(false);
+                          }}
+                        >
+                          {option.label}
+                        </button>
+                      ))}
+                    </span>
+                  ) : action.rightLabel ? (
+                    <span className="ml-auto text-xs text-muted-foreground">
+                      {action.rightLabel}
                     </span>
                   ) : null}
-                </span>
-                {action.shortcut ? <CommandShortcut>{action.shortcut}</CommandShortcut> : null}
-                {action.options ? (
-                  <span
-                    className="ml-auto flex shrink-0 items-center gap-0.5 rounded-md border border-border/70 bg-background/70 p-0.5"
-                    title="Choose action with Left and Right arrow keys"
-                  >
-                    {action.options.map((option, index) => (
-                      <button
-                        key={option.id}
-                        type="button"
-                        className={cn(
-                          "rounded px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground",
-                          index === selectedOptionIndex(action, selectedOptionIndexes) &&
-                            "bg-primary text-primary-foreground",
-                          option.disabled && "opacity-40",
-                        )}
-                        data-testid={`command-option-${action.id}-${option.id}`}
-                        data-selected={
-                          index === selectedOptionIndex(action, selectedOptionIndexes)
-                            ? "true"
-                            : "false"
-                        }
-                        disabled={option.disabled}
-                        onClick={(event) => {
-                          event.preventDefault();
-                          event.stopPropagation();
-                          if (option.disabled) return;
-                          option.onSelect();
-                          onOpenChange(false);
-                        }}
-                      >
-                        {option.label}
-                      </button>
-                    ))}
-                  </span>
-                ) : action.rightLabel ? (
-                  <span className="ml-auto text-xs text-muted-foreground">{action.rightLabel}</span>
-                ) : null}
+                </CommandItem>
+              ))}
+            </CommandGroup>
+          ))}
+          {tabs.length > 0 ? (
+            <CommandGroup heading={groupHeading}>
+              {tabs.map((tab) => (
+                <CommandItem
+                  key={tab.id}
+                  value={tab.sessionName}
+                  onSelect={() => {
+                    handleSelect(tab.id);
+                  }}
+                >
+                  <Terminal className="mr-2 size-4 shrink-0 opacity-70" />
+                  <span className="font-mono text-sm">{tab.sessionName}</span>
+                </CommandItem>
+              ))}
+            </CommandGroup>
+          ) : null}
+          {onCreateSession && (
+            <CommandGroup heading="Actions">
+              <CommandItem onSelect={handleCreate}>
+                <Plus className="mr-2 size-4 shrink-0 opacity-70" />
+                <span>New Session</span>
+                <CommandShortcut>{formatShortcut(CREATE_SESSION_SHORTCUT_KEYS)}</CommandShortcut>
               </CommandItem>
-            ))}
-          </CommandGroup>
-        ))}
-        {tabs.length > 0 ? (
-          <CommandGroup heading={groupHeading}>
-            {tabs.map((tab) => (
-              <CommandItem
-                key={tab.id}
-                value={tab.sessionName}
-                onSelect={() => {
-                  handleSelect(tab.id);
-                }}
-              >
-                <Terminal className="mr-2 size-4 shrink-0 opacity-70" />
-                <span className="font-mono text-sm">{tab.sessionName}</span>
-              </CommandItem>
-            ))}
-          </CommandGroup>
-        ) : null}
-        {onCreateSession && (
-          <CommandGroup heading="Actions">
-            <CommandItem onSelect={handleCreate}>
-              <Plus className="mr-2 size-4 shrink-0 opacity-70" />
-              <span>New Session</span>
-              <CommandShortcut>{formatShortcut(CREATE_SESSION_SHORTCUT_KEYS)}</CommandShortcut>
-            </CommandItem>
-          </CommandGroup>
-        )}
-      </CommandList>
+            </CommandGroup>
+          )}
+        </CommandList>
+        <div
+          aria-hidden="true"
+          data-testid="command-scroll-hint-down"
+          data-visible={canScrollDown ? "true" : "false"}
+          className={cn(
+            "pointer-events-none absolute inset-x-0 bottom-0 z-10 flex h-7 items-end justify-center bg-gradient-to-t from-popover via-popover/85 to-transparent pb-1 text-muted-foreground transition-[opacity,transform] duration-150 motion-reduce:transition-none",
+            canScrollDown ? "translate-y-0 opacity-100" : "translate-y-1 opacity-0",
+          )}
+        >
+          <Triangle className="size-3 rotate-180 fill-current" />
+        </div>
+      </div>
     </div>
   );
 }
@@ -445,7 +515,7 @@ export function CommandPalette({
   }
 
   return (
-    <CommandDialog open={open} onOpenChange={onOpenChange}>
+    <CommandDialog open={open} onOpenChange={onOpenChange} contentClassName="max-w-2xl">
       <CommandPaletteBody
         tabs={tabs}
         onSelectTab={onSelectTab}

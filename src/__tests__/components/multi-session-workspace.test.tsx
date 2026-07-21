@@ -3030,6 +3030,93 @@ describe("MultiSessionWorkspace", () => {
     expect(screen.getByTestId("active-pane-label")).toHaveTextContent("dev-server");
   });
 
+  it("opens session logs from the command palette immediately after the Files action", async () => {
+    mockGetSessions.mockResolvedValueOnce(twoSessionPayload());
+    mockListGitClones.mockResolvedValueOnce({ data: { ok: true, tree: { nodes: [] } } });
+
+    render(<MultiSessionWorkspace {...defaultProps} source="unified" />);
+    await screen.findByTestId("multi-session-workspace");
+
+    fireEvent.click(screen.getByTestId("open-git-session-search"));
+    fireEvent.change(await screen.findByTestId("workspace-command-palette-search"), {
+      target: { value: "main" },
+    });
+
+    const filesAction = screen.getByTestId(
+      "palette-option-workspace:session:main-session-filebrowser",
+    );
+    const logsAction = screen.getByTestId("palette-option-workspace:session:main-session-logs");
+    expect(filesAction.compareDocumentPosition(logsAction)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+
+    fireEvent.click(logsAction);
+
+    expect(await screen.findByTestId("workspace-tool-pane-logs")).toBeInTheDocument();
+    expect(screen.getByTestId("mock-session-event-log")).toHaveTextContent("ws-1:main-session");
+    expect(mockGetWorkspaceSessionTools).not.toHaveBeenCalled();
+  });
+
+  it("shows Git repository names above their directories and opens repository logs", async () => {
+    mockGetSessions.mockResolvedValueOnce({ data: [] });
+    mockListGitClones.mockResolvedValueOnce({
+      data: {
+        ok: true,
+        tree: {
+          nodes: [
+            {
+              id: "repo-hive",
+              kind: "repository",
+              label: "hive",
+              relativePath: "kethalia/hive",
+              relativePathSegments: ["kethalia", "hive"],
+              displaySegments: ["Git", "home", "kethalia", "hive"],
+              cloneSessionKey: "git-clone:kethalia/hive",
+            },
+          ],
+        },
+      },
+    });
+    mockResolveGitCloneTerminal.mockResolvedValueOnce({
+      data: {
+        sessionName: "git-clone-safe-hive",
+        clonePath: "kethalia/hive",
+        cloneSessionKey: "git-clone:kethalia/hive",
+        cloneProof: "proof-token",
+      },
+    });
+
+    render(<MultiSessionWorkspace {...defaultProps} source="unified" />);
+    await screen.findByTestId("multi-session-empty");
+    fireEvent.click(screen.getByTestId("open-git-session-search"));
+    fireEvent.change(await screen.findByTestId("workspace-command-palette-search"), {
+      target: { value: "hive" },
+    });
+
+    const repositoryAction = screen.getByTestId(
+      "palette-action-workspace:git:git-clone:kethalia/hive:kethalia/hive",
+    );
+    const repositoryLabels = repositoryAction.querySelectorAll("span");
+    expect(repositoryLabels.item(0)).toHaveTextContent("hive");
+    expect(repositoryLabels.item(1)).toHaveTextContent("kethalia/hive");
+    const filesAction = screen.getByTestId(
+      "palette-option-workspace:git:git-clone:kethalia/hive:kethalia/hive-filebrowser",
+    );
+    const logsAction = screen.getByTestId(
+      "palette-option-workspace:git:git-clone:kethalia/hive:kethalia/hive-logs",
+    );
+    expect(filesAction.compareDocumentPosition(logsAction)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+
+    fireEvent.click(logsAction);
+
+    expect(await screen.findByTestId("workspace-tool-pane-logs")).toBeInTheDocument();
+    expect(mockResolveGitCloneTerminal).toHaveBeenCalledWith({
+      agentId: "agent-1",
+      workspaceId: "ws-1",
+      cloneSessionKey: "git-clone:kethalia/hive",
+      relativePath: "kethalia/hive",
+    });
+    expect(mockGetWorkspaceSessionTools).not.toHaveBeenCalled();
+  });
+
   it("searches terminal sessions beyond the first sixteen results", async () => {
     mockGetSessions.mockResolvedValueOnce({
       data: Array.from({ length: 17 }, (_, index) => ({

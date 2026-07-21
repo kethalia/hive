@@ -889,6 +889,10 @@ function gitRepositoryActionIdentity(repository: GitRepositoryOption): string {
   return gitPaneActionIdentity(repository.cloneSessionKey, repository.relativePath);
 }
 
+function gitRepositoryDisplayName(repository: GitRepositoryOption): string {
+  return repository.relativePath.split("/").filter(Boolean).at(-1) ?? repository.label;
+}
+
 function deriveVisibleSessionsFromBoard(
   sessions: readonly WorkspaceSessionPane[],
   activeBoard: WorkspaceBoard | undefined,
@@ -2920,6 +2924,18 @@ export function MultiSessionWorkspace({
     [markPendingWindowInsertion, replaceWorkspaceToolPanes, selectSession],
   );
 
+  const openWorkspaceLogsForSession = useCallback(
+    (session: WorkspaceSessionPane, origin?: { boardKey: string; boardGeneration: number }) => {
+      if (!activeBoard && !origin) return;
+      const requestBoardKey = origin?.boardKey ?? activeBoard?.key;
+      if (!requestBoardKey) return;
+      const requestBoardGeneration =
+        origin?.boardGeneration ?? boardGenerationRef.current.get(requestBoardKey) ?? 0;
+      openWorkspaceSessionLogs(requestBoardKey, session, requestBoardGeneration);
+    },
+    [activeBoard, openWorkspaceSessionLogs],
+  );
+
   const openWorkspaceToolForSession = useCallback(
     async (
       session: WorkspaceSessionPane,
@@ -2957,7 +2973,7 @@ export function MultiSessionWorkspace({
   );
 
   const openWorkspaceToolForGitRepository = useCallback(
-    async (repository: GitRepositoryOption, tool: WorkspaceTool) => {
+    async (repository: GitRepositoryOption, tool: WorkspaceTool | "logs") => {
       if (!activeBoard) return;
       const requestWorkspaceId = workspaceId;
       const requestBoardKey = activeBoard.key;
@@ -3002,10 +3018,17 @@ export function MultiSessionWorkspace({
           const resolvedSession = session;
           setSessions((current) => uniqueSessions([...current, resolvedSession]));
         }
-        await openWorkspaceToolForSession(session, tool, {
-          boardKey: requestBoardKey,
-          boardGeneration: requestBoardGeneration,
-        });
+        if (tool === "logs") {
+          openWorkspaceLogsForSession(session, {
+            boardKey: requestBoardKey,
+            boardGeneration: requestBoardGeneration,
+          });
+        } else {
+          await openWorkspaceToolForSession(session, tool, {
+            boardKey: requestBoardKey,
+            boardGeneration: requestBoardGeneration,
+          });
+        }
       } catch {
         if (latestWorkspaceIdRef.current === requestWorkspaceId) {
           showGitAddFailure(GIT_TERMINAL_ADD_FALLBACK_MESSAGE);
@@ -3016,7 +3039,15 @@ export function MultiSessionWorkspace({
         }
       }
     },
-    [activeBoard, agentId, openWorkspaceToolForSession, sessions, showGitAddFailure, workspaceId],
+    [
+      activeBoard,
+      agentId,
+      openWorkspaceLogsForSession,
+      openWorkspaceToolForSession,
+      sessions,
+      showGitAddFailure,
+      workspaceId,
+    ],
   );
 
   useEffect(() => {
@@ -3111,7 +3142,7 @@ export function MultiSessionWorkspace({
         label: session.label,
         description: session.cloneSessionKey ? "Git terminal session" : "Terminal session",
         group: "Terminal sessions",
-        value: `${session.label} ${session.sessionName} add open vscode filebrowser workspace terminal session`,
+        value: `${session.label} ${session.sessionName} add open vscode filebrowser logs workspace terminal session`,
         icon: "terminal",
         onSelect: () => handleAddExistingTerminalToBoard(session),
         options: [
@@ -3138,6 +3169,11 @@ export function MultiSessionWorkspace({
             label: "Files",
             onSelect: () => void openWorkspaceToolForSession(session, "files"),
           },
+          {
+            id: "logs",
+            label: "Logs",
+            onSelect: () => openWorkspaceLogsForSession(session),
+          },
         ],
       });
     }
@@ -3152,10 +3188,10 @@ export function MultiSessionWorkspace({
       const alreadyInActiveBoard = activeBoardGitPaneIdentities.has(repositoryIdentity);
       actions.push({
         id: `workspace:git:${gitRepositoryActionIdentity(repository)}`,
-        label: repository.label,
-        description: "Git repository",
+        label: gitRepositoryDisplayName(repository),
+        description: repository.relativePath,
         group: "Git repositories",
-        value: `${repository.label} ${repository.relativePath} add open vscode filebrowser git repository workspace`,
+        value: `${repository.label} ${repository.relativePath} add open vscode filebrowser logs git repository workspace`,
         icon: "search",
         disabled: repositoryPending,
         onSelect: () => void handleAddGitRepository(repository),
@@ -3181,6 +3217,11 @@ export function MultiSessionWorkspace({
             label: "Files",
             onSelect: () => void openWorkspaceToolForGitRepository(repository, "files"),
           },
+          {
+            id: "logs",
+            label: "Logs",
+            onSelect: () => void openWorkspaceToolForGitRepository(repository, "logs"),
+          },
         ],
       });
     }
@@ -3199,6 +3240,7 @@ export function MultiSessionWorkspace({
     isUnifiedSource,
     openGitRepositoryTerminalPage,
     openTerminalSessionPage,
+    openWorkspaceLogsForSession,
     openWorkspaceToolForGitRepository,
     openWorkspaceToolForSession,
     paletteMatchesExisting,

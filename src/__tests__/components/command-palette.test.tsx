@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
-import type { CSSProperties, ReactNode } from "react";
+import type { ComponentProps, CSSProperties, ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import "@testing-library/jest-dom/vitest";
 
@@ -37,6 +37,7 @@ vi.mock("lucide-react", () => ({
   Plus: () => <span data-testid="icon-plus">+</span>,
   Search: () => <span data-testid="icon-search-action">🔎</span>,
   SearchIcon: () => <span data-testid="icon-search">🔍</span>,
+  Triangle: () => <span data-testid="icon-triangle">▲</span>,
 }));
 
 vi.mock("@/components/ui/dialog", () => ({
@@ -94,15 +95,21 @@ vi.mock("@/components/ui/command", () => {
     ),
     CommandDialog: ({
       children,
+      contentClassName,
       open,
       onOpenChange,
     }: {
       children: ReactNode;
+      contentClassName?: string;
       open: boolean;
       onOpenChange: (open: boolean) => void;
     }) =>
       open ? (
-        <div data-testid="command-dialog" data-open={open}>
+        <div
+          data-testid="command-dialog"
+          data-open={open}
+          data-content-class-name={contentClassName}
+        >
           <button data-testid="close-dialog" onClick={() => onOpenChange(false)}>
             Close
           </button>
@@ -129,8 +136,10 @@ vi.mock("@/components/ui/command", () => {
         onChange={(event) => onValueChange?.(event.currentTarget.value)}
       />
     ),
-    CommandList: ({ children }: { children: ReactNode }) => (
-      <div data-testid="command-list">{children}</div>
+    CommandList: ({ children, ...props }: ComponentProps<"div">) => (
+      <div {...props} data-testid="command-list" data-slot="command-list">
+        {children}
+      </div>
     ),
     CommandEmpty: ({ children }: { children: ReactNode }) => (
       <div data-testid="command-empty">{children}</div>
@@ -344,6 +353,39 @@ describe("CommandPalette", () => {
     expect(screen.getByTestId("command-item-hive-main")).toBeInTheDocument();
     expect(screen.getByTestId("command-item-dev-server")).toBeInTheDocument();
     expect(screen.getByTestId("command-item-test-runner")).toBeInTheDocument();
+    expect(screen.getByTestId("command-dialog")).toHaveAttribute(
+      "data-content-class-name",
+      "max-w-2xl",
+    );
+  });
+
+  it("hides the scrollbar and shows directional triangles only where more content exists", () => {
+    render(
+      <CommandPalette open={true} onOpenChange={vi.fn()} tabs={mockTabs} onSelectTab={vi.fn()} />,
+    );
+
+    const list = screen.getByTestId("command-list");
+    Object.defineProperties(list, {
+      clientHeight: { configurable: true, value: 300 },
+      scrollHeight: { configurable: true, value: 600 },
+      scrollTop: { configurable: true, value: 0, writable: true },
+    });
+
+    fireEvent.scroll(list);
+    expect(list.className).toContain("[scrollbar-width:none]");
+    expect(list.className).toContain("[&::-webkit-scrollbar]:hidden");
+    expect(screen.getByTestId("command-scroll-hint-up")).toHaveAttribute("data-visible", "false");
+    expect(screen.getByTestId("command-scroll-hint-down")).toHaveAttribute("data-visible", "true");
+
+    list.scrollTop = 150;
+    fireEvent.scroll(list);
+    expect(screen.getByTestId("command-scroll-hint-up")).toHaveAttribute("data-visible", "true");
+    expect(screen.getByTestId("command-scroll-hint-down")).toHaveAttribute("data-visible", "true");
+
+    list.scrollTop = 300;
+    fireEvent.scroll(list);
+    expect(screen.getByTestId("command-scroll-hint-up")).toHaveAttribute("data-visible", "true");
+    expect(screen.getByTestId("command-scroll-hint-down")).toHaveAttribute("data-visible", "false");
   });
 
   it("renders mobile sheet content and not command dialog", () => {
