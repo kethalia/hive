@@ -290,8 +290,12 @@ async function cleanupTestSession(page: Page, sessionName: string) {
         .then(() => true)
         .catch(() => false);
       if (clicked) {
-        await expect.poll(() => sessionLink.count()).toBe(0);
-        return;
+        const removed = await expect
+          .poll(() => sessionLink.count(), { timeout: 2_000 })
+          .toBe(0)
+          .then(() => true)
+          .catch(() => false);
+        if (removed) return;
       }
     }
     if ((await revealActions.count()) > 0) {
