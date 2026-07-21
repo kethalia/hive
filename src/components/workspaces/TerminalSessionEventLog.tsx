@@ -111,19 +111,20 @@ interface EventRefreshDependencies {
   setLastUpdatedAt: Dispatch<SetStateAction<string | null>>;
 }
 
-function useEventRefresh({
-  endpoint,
-  workspaceId,
-  sessionName,
-  generationRef,
-  requestControllerRef,
-  inFlightRef,
-  instanceIdRef,
-  lastEventIdRef,
-  setEvents,
-  setError,
-  setLastUpdatedAt,
-}: EventRefreshDependencies) {
+function useEventRefresh(dependencies: EventRefreshDependencies) {
+  const {
+    endpoint,
+    workspaceId,
+    sessionName,
+    generationRef,
+    requestControllerRef,
+    inFlightRef,
+    instanceIdRef,
+    lastEventIdRef,
+    setEvents,
+    setError,
+    setLastUpdatedAt,
+  } = dependencies;
   return useCallback(
     async (replace = false) => {
       if (inFlightRef.current && !replace) return inFlightRef.current;
