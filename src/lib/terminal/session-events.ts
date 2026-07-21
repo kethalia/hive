@@ -43,34 +43,57 @@ function parseDetails(value: unknown): Record<string, boolean | number | string 
   return details;
 }
 
-function parseEvent(value: unknown): TerminalSessionEvent | null {
-  if (!isRecord(value)) return null;
-  const details = parseDetails(value.details);
-  const sessionKind = value.sessionKind;
-  const level = value.level;
+interface TerminalSessionEventIdentity {
+  id: number;
+  timestamp: string;
+  workspaceId: string;
+  connectionId: string;
+  sessionName: string;
+  type: string;
+}
+
+function parseEventIdentity(value: Record<string, unknown>): TerminalSessionEventIdentity | null {
+  if (typeof value.id !== "number" || !Number.isSafeInteger(value.id)) return null;
+  const stringFields = [
+    value.timestamp,
+    value.workspaceId,
+    value.connectionId,
+    value.sessionName,
+    value.type,
+  ];
+  if (!stringFields.every((field) => typeof field === "string")) return null;
+  const [timestamp, workspaceId, connectionId, sessionName, type] = stringFields;
   if (
-    typeof value.id !== "number" ||
-    !Number.isSafeInteger(value.id) ||
-    typeof value.timestamp !== "string" ||
-    typeof value.workspaceId !== "string" ||
-    typeof value.connectionId !== "string" ||
-    typeof value.sessionName !== "string" ||
-    (sessionKind !== "git" && sessionKind !== "terminal") ||
-    (level !== "error" && level !== "info" && level !== "warning") ||
-    typeof value.type !== "string" ||
-    !details
+    typeof timestamp !== "string" ||
+    typeof workspaceId !== "string" ||
+    typeof connectionId !== "string" ||
+    typeof sessionName !== "string" ||
+    typeof type !== "string"
   ) {
     return null;
   }
+  return { id: value.id, timestamp, workspaceId, connectionId, sessionName, type };
+}
+
+function parseSessionKind(value: unknown): TerminalSessionKind | null {
+  return value === "git" || value === "terminal" ? value : null;
+}
+
+function parseEventLevel(value: unknown): TerminalSessionEventLevel | null {
+  return value === "error" || value === "info" || value === "warning" ? value : null;
+}
+
+function parseEvent(value: unknown): TerminalSessionEvent | null {
+  if (!isRecord(value)) return null;
+  const identity = parseEventIdentity(value);
+  const details = parseDetails(value.details);
+  const sessionKind = parseSessionKind(value.sessionKind);
+  const level = parseEventLevel(value.level);
+  if (!identity || !details || !sessionKind || !level) return null;
   return {
-    id: value.id,
-    timestamp: value.timestamp,
-    workspaceId: value.workspaceId,
-    connectionId: value.connectionId,
-    sessionName: value.sessionName,
+    ...identity,
     sessionKind,
     level,
-    type: value.type,
     details,
   };
 }

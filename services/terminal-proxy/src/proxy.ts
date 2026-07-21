@@ -204,25 +204,33 @@ function messageByteLength(data: unknown): number {
   return 0;
 }
 
+function textMessage(data: unknown): string | null {
+  if (typeof data === "string") return data;
+  return Buffer.isBuffer(data) ? data.toString() : null;
+}
+
+function resizeFrameDetails(text: string | null): TerminalSessionEventDetails | null {
+  if (!text || text.length > 256) return null;
+  try {
+    const parsed: unknown = JSON.parse(text);
+    if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) return null;
+    const height = Reflect.get(parsed, "height");
+    const width = Reflect.get(parsed, "width");
+    if (typeof height !== "number" || typeof width !== "number") return null;
+    return { frame: "resize", rows: height, cols: width };
+  } catch {
+    return null;
+  }
+}
+
 function browserMessageDetails(data: unknown, isBinary: boolean): TerminalSessionEventDetails {
   const details: TerminalSessionEventDetails = {
     bytes: messageByteLength(data),
     frame: isBinary ? "input" : "text",
   };
   if (isBinary) return details;
-
-  const text = typeof data === "string" ? data : Buffer.isBuffer(data) ? data.toString() : null;
-  if (!text || text.length > 256) return details;
-  try {
-    const parsed: unknown = JSON.parse(text);
-    if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) return details;
-    const height = Reflect.get(parsed, "height");
-    const width = Reflect.get(parsed, "width");
-    if (typeof height !== "number" || typeof width !== "number") return details;
-    return { ...details, frame: "resize", rows: height, cols: width };
-  } catch {
-    return details;
-  }
+  const resize = resizeFrameDetails(textMessage(data));
+  return resize ? { ...details, ...resize } : details;
 }
 
 function getCloneTerminalProofSecret(): string | null {

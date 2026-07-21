@@ -46,6 +46,37 @@ function createFakeKeepAliveManager(health: Record<string, WorkspaceHealth> = {}
   };
 }
 
+function sessionEventFixtures(): TerminalSessionEventStore {
+  const eventStore = new TerminalSessionEventStore();
+  eventStore.record({
+    workspaceId: "ws-index",
+    connectionId: "connection-1",
+    sessionName: "terminal-1",
+    sessionKind: "terminal",
+    type: "upstream_connected",
+  });
+  eventStore.record({
+    workspaceId: "ws-other-user",
+    connectionId: "connection-2",
+    sessionName: "private-session",
+    sessionKind: "terminal",
+    type: "upstream_connected",
+  });
+  return eventStore;
+}
+
+async function successfulStatusAuthentication(): Promise<AuthResult> {
+  return {
+    ok: true,
+    value: {
+      token: "secret-token",
+      coderUrl: "http://coder.test",
+      sessionId: "sess-1",
+      username: "alice",
+    },
+  };
+}
+
 function makeUpgradeReq(url = "/ws"): IncomingMessage {
   return {
     url,
@@ -377,33 +408,8 @@ describe("/keepalive/status endpoint integration", () => {
 describe("terminal-proxy server wiring", () => {
   it("serves authenticated session events scoped to authorized workspaces", async () => {
     const fakeKeepAlive = createFakeKeepAliveManager();
-    const eventStore = new TerminalSessionEventStore();
-    eventStore.record({
-      workspaceId: "ws-index",
-      connectionId: "connection-1",
-      sessionName: "terminal-1",
-      sessionKind: "terminal",
-      type: "upstream_connected",
-    });
-    eventStore.record({
-      workspaceId: "ws-other-user",
-      connectionId: "connection-2",
-      sessionName: "private-session",
-      sessionKind: "terminal",
-      type: "upstream_connected",
-    });
-    const statusAuthenticator = vi.fn(
-      async () =>
-        ({
-          ok: true,
-          value: {
-            token: "secret-token",
-            coderUrl: "http://coder.test",
-            sessionId: "sess-1",
-            username: "alice",
-          },
-        }) satisfies AuthResult,
-    );
+    const eventStore = sessionEventFixtures();
+    const statusAuthenticator = vi.fn(successfulStatusAuthentication);
     const authorizedWorkspaceResolver = vi.fn(async () => new Set(["ws-index"]));
     const { server } = createTerminalProxyServer({
       keepAliveManager: fakeKeepAlive,
