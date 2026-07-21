@@ -57,14 +57,6 @@ function classifyMovement(
   return classification;
 }
 
-const swipeProgress = (
-  classification: GestureClassification,
-  deltaX: number,
-): TwoFingerSwipeProgress => {
-  if (classification !== "swipe") return { ownsGesture: false, direction: null };
-  return { ownsGesture: true, direction: deltaX < 0 ? "left" : "right" };
-};
-
 function snapshotForPoints(
   points: readonly GestureTouchPoint[],
   firstId?: number,
@@ -123,7 +115,8 @@ export function createTwoFingerSwipeDetector(): TwoFingerSwipeDetector {
       const deltaY = current.centerY - startSnapshot.centerY;
       const scaleDelta = Math.abs(current.distance / startSnapshot.distance - 1);
       classification = classifyMovement(classification, deltaX, deltaY, scaleDelta);
-      return swipeProgress(classification, deltaX);
+      if (classification !== "swipe") return { ownsGesture: false, direction: null };
+      return { ownsGesture: true, direction: deltaX < 0 ? "left" : "right" };
     },
     end() {
       if (!startSnapshot || !lastSnapshot || classification !== "swipe") {

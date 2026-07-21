@@ -163,6 +163,114 @@ async function dispatchTouchLongPress(page: Page, target: Locator) {
   }
 }
 
+function activeTouchTerminalFrame(page: Page) {
+  return page
+    .locator('[data-pane-mode][data-active="true"]:visible')
+    .filter({ has: page.locator('[data-terminal-navigation-surface="true"]') })
+    .first();
+}
+
+async function ensureTwoTouchTerminals(page: Page) {
+  const terminalSurfaces = page.locator('[data-terminal-navigation-surface="true"]:visible');
+  let createdSessionName: string | null = null;
+  if ((await terminalSurfaces.count()) < 2) {
+    createdSessionName = `gesture-e2e-${Date.now()}`;
+    await page.getByRole("button", { name: "Open workspace command palette" }).click();
+    await page.getByRole("combobox").fill(createdSessionName);
+    await page
+      .getByRole("option", {
+        name: new RegExp(`^New terminal session named ${createdSessionName}`),
+      })
+      .click();
+  }
+  await expect.poll(() => terminalSurfaces.count()).toBeGreaterThanOrEqual(2);
+  return createdSessionName;
+}
+
+async function verifyTerminalTouchNavigation(page: Page) {
+  const activePaneLabel = page.getByTestId("active-pane-label").first();
+  const firstTerminalLabel = (await activePaneLabel.textContent())?.trim();
+  if (!firstTerminalLabel) throw new Error("Active terminal has no label.");
+
+  await dispatchTwoFingerSwipe(
+    page,
+    activeTouchTerminalFrame(page).locator('[data-terminal-navigation-surface="true"]'),
+    "left",
+  );
+  await expect
+    .poll(async () => (await activePaneLabel.textContent())?.trim())
+    .not.toBe(firstTerminalLabel);
+  await dispatchTwoFingerSwipe(
+    page,
+    activeTouchTerminalFrame(page).locator('[data-terminal-navigation-surface="true"]'),
+    "right",
+  );
+  await expect(activePaneLabel).toHaveText(firstTerminalLabel);
+  await dispatchTwoFingerPinch(
+    page,
+    activeTouchTerminalFrame(page).locator('[data-terminal-navigation-surface="true"]'),
+  );
+  await expect(activePaneLabel).toHaveText(firstTerminalLabel);
+}
+
+async function verifyWorkspaceTouchNavigation(page: Page) {
+  const boardTabs = page.getByRole("tab", { name: /workspace/i });
+  const initialBoardCount = await boardTabs.count();
+  await page.getByTestId("workspace-board-new").click();
+  await expect(boardTabs).toHaveCount(initialBoardCount + 1);
+  const createdBoard = boardTabs.last();
+  await expect(createdBoard).toHaveAttribute("aria-selected", "true");
+
+  const boardBar = page.getByTestId("workspace-board-bar");
+  await dispatchTwoFingerSwipe(page, boardBar, "right");
+  await expect(boardTabs.first()).toHaveAttribute("aria-selected", "true");
+  await dispatchTwoFingerSwipe(page, boardBar, "left");
+  await expect(createdBoard).toHaveAttribute("aria-selected", "true");
+  await boardTabs.first().click();
+  return { boardTabs, createdBoard, initialBoardCount };
+}
+
+async function verifyNativePaneActions(page: Page, testInfo: TestInfo) {
+  const frame = activeTouchTerminalFrame(page);
+  const moreButton = frame.getByRole("button", { name: /^Open actions for / });
+  const moreButtonBox = await moreButton.boundingBox();
+  if (!moreButtonBox) throw new Error("Pane action button has no measurable bounds.");
+  expect(moreButtonBox.width).toBeGreaterThanOrEqual(44);
+  expect(moreButtonBox.height).toBeGreaterThanOrEqual(44);
+
+  await moreButton.click();
+  const actionSheet = page.getByTestId("workspace-pane-action-sheet");
+  await expect(actionSheet).toBeVisible();
+  await expect(actionSheet.locator("[cmdk-root]")).toHaveCount(0);
+  const directActions = actionSheet.locator("fieldset > button");
+  await expect.poll(() => directActions.count()).toBeGreaterThanOrEqual(5);
+  expect(
+    await directActions.evaluateAll((buttons) =>
+      buttons.every((button) => button.getBoundingClientRect().height >= 44),
+    ),
+  ).toBe(true);
+  await capture(page, testInfo, "mobile-native-pane-actions");
+  await actionSheet.getByRole("button", { name: "Close pane actions" }).click();
+
+  await dispatchTouchLongPress(page, frame.locator('[data-testid$="-header"]'));
+  await expect(actionSheet).toBeVisible();
+  await actionSheet.getByRole("button", { name: "Close pane actions" }).click();
+}
+
+async function cleanupGestureSession(page: Page, sessionName: string) {
+  await page.keyboard.press("Escape").catch(() => undefined);
+  const revealActions = page.getByTestId(`show-terminal-session-actions-${sessionName}`);
+  if (!(await revealActions.isVisible().catch(() => false))) {
+    await page.getByRole("button", { name: "Toggle Sidebar" }).click();
+  }
+  await expect(revealActions).toBeVisible();
+  await revealActions.click();
+  const killSession = page.getByTestId(`kill-session-${sessionName}`);
+  await expect(killSession).toBeVisible();
+  await killSession.click();
+  await expect(killSession).toHaveCount(0);
+}
+
 async function waitForDashboardReady(page: Page) {
   await expect(page.locator("html")).toHaveAttribute("data-dashboard-keybindings-ready", "true");
 }
@@ -1017,91 +1125,13 @@ test.describe("authenticated Hive workflows", () => {
     await expect(page.getByTestId("multi-session-workspace")).toBeVisible({ timeout: 30_000 });
     await expectConnectedTerminal(page);
 
-    const terminalSurfaces = page.locator('[data-terminal-navigation-surface="true"]:visible');
     let createdSessionName: string | null = null;
     try {
-      if ((await terminalSurfaces.count()) < 2) {
-        createdSessionName = `gesture-e2e-${Date.now()}`;
-        await page.getByRole("button", { name: "Open workspace command palette" }).click();
-        await page.getByRole("combobox").fill(createdSessionName);
-        await page
-          .getByRole("option", {
-            name: new RegExp(`^New terminal session named ${createdSessionName}`),
-          })
-          .click();
-      }
-      await expect.poll(() => terminalSurfaces.count()).toBeGreaterThanOrEqual(2);
-      const activePaneLabel = page.getByTestId("active-pane-label").first();
-      const activeTerminalFrame = () =>
-        page
-          .locator('[data-pane-mode][data-active="true"]:visible')
-          .filter({ has: page.locator('[data-terminal-navigation-surface="true"]') })
-          .first();
-
-      const firstTerminalLabel = (await activePaneLabel.textContent())?.trim();
-      if (!firstTerminalLabel) throw new Error("Active terminal has no label.");
-      await dispatchTwoFingerSwipe(
-        page,
-        activeTerminalFrame().locator('[data-terminal-navigation-surface="true"]'),
-        "left",
-      );
-      await expect
-        .poll(async () => (await activePaneLabel.textContent())?.trim())
-        .not.toBe(firstTerminalLabel);
-
-      await dispatchTwoFingerSwipe(
-        page,
-        activeTerminalFrame().locator('[data-terminal-navigation-surface="true"]'),
-        "right",
-      );
-      await expect(activePaneLabel).toHaveText(firstTerminalLabel);
-
-      await dispatchTwoFingerPinch(
-        page,
-        activeTerminalFrame().locator('[data-terminal-navigation-surface="true"]'),
-      );
-      await expect(activePaneLabel).toHaveText(firstTerminalLabel);
-
-      const boardTabs = page.getByRole("tab", { name: /workspace/i });
-      const initialBoardCount = await boardTabs.count();
-      await page.getByTestId("workspace-board-new").click();
-      await expect(boardTabs).toHaveCount(initialBoardCount + 1);
-      const createdBoard = boardTabs.last();
-      await expect(createdBoard).toHaveAttribute("aria-selected", "true");
-
-      const boardBar = page.getByTestId("workspace-board-bar");
-      await dispatchTwoFingerSwipe(page, boardBar, "right");
-      await expect(boardTabs.first()).toHaveAttribute("aria-selected", "true");
-      await dispatchTwoFingerSwipe(page, boardBar, "left");
-      await expect(createdBoard).toHaveAttribute("aria-selected", "true");
-      await boardTabs.first().click();
-
-      const moreButton = activeTerminalFrame().getByRole("button", {
-        name: /^Open actions for /,
-      });
-      const moreButtonBox = await moreButton.boundingBox();
-      if (!moreButtonBox) throw new Error("Pane action button has no measurable bounds.");
-      expect(moreButtonBox.width).toBeGreaterThanOrEqual(44);
-      expect(moreButtonBox.height).toBeGreaterThanOrEqual(44);
-
-      await moreButton.click();
-      const actionSheet = page.getByTestId("workspace-pane-action-sheet");
-      await expect(actionSheet).toBeVisible();
-      await expect(actionSheet.locator("[cmdk-root]")).toHaveCount(0);
-      const directActions = actionSheet.locator("fieldset > button");
-      await expect.poll(() => directActions.count()).toBeGreaterThanOrEqual(5);
-      expect(
-        await directActions.evaluateAll((buttons) =>
-          buttons.every((button) => button.getBoundingClientRect().height >= 44),
-        ),
-      ).toBe(true);
-      await capture(page, testInfo, "mobile-native-pane-actions");
-      await actionSheet.getByRole("button", { name: "Close pane actions" }).click();
-
-      await dispatchTouchLongPress(page, activeTerminalFrame().locator('[data-testid$="-header"]'));
-      await expect(actionSheet).toBeVisible();
-      await actionSheet.getByRole("button", { name: "Close pane actions" }).click();
-
+      createdSessionName = await ensureTwoTouchTerminals(page);
+      await verifyTerminalTouchNavigation(page);
+      const { boardTabs, createdBoard, initialBoardCount } =
+        await verifyWorkspaceTouchNavigation(page);
+      await verifyNativePaneActions(page, testInfo);
       await createdBoard.click();
       await expect(createdBoard).toHaveAttribute("aria-selected", "true");
       await createdBoard.click();
@@ -1109,19 +1139,7 @@ test.describe("authenticated Hive workflows", () => {
       await capture(page, testInfo, "mobile-touch-workspace-navigation");
     } finally {
       if (createdSessionName) {
-        await page.keyboard.press("Escape").catch(() => undefined);
-        const revealActions = page.getByTestId(
-          `show-terminal-session-actions-${createdSessionName}`,
-        );
-        if (!(await revealActions.isVisible().catch(() => false))) {
-          await page.getByRole("button", { name: "Toggle Sidebar" }).click();
-        }
-        await expect(revealActions).toBeVisible();
-        await revealActions.click();
-        const killSession = page.getByTestId(`kill-session-${createdSessionName}`);
-        await expect(killSession).toBeVisible();
-        await killSession.click();
-        await expect(killSession).toHaveCount(0);
+        await cleanupGestureSession(page, createdSessionName);
       }
     }
   });
