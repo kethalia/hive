@@ -1,5 +1,11 @@
 # hive-orchestrator
 
+## 2.9.0
+
+### Minor Changes
+
+- 32a16e6: Add persistent Omarchy-style workspace window tiling, drag-and-drop rearrangement, and geometric directional focus navigation.
+
 ## 2.8.0
 
 ### Minor Changes
