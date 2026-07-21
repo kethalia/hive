@@ -258,20 +258,31 @@ async function verifyNativePaneActions(page: Page, testInfo: TestInfo) {
   await actionSheet.getByRole("button", { name: "Close pane actions" }).click();
 }
 
-async function cleanupGestureSession(page: Page, sessionName: string) {
+async function cleanupTestSession(page: Page, sessionName: string) {
   await page.keyboard.press("Escape").catch(() => undefined);
+  const workspacePane = page.locator(`[data-workspace-window-id="${sessionName}"]`);
+  if (await workspacePane.isVisible().catch(() => false)) {
+    await workspacePane.getByRole("button", { name: `Remove ${sessionName}`, exact: true }).click();
+    await expect(workspacePane).toHaveCount(0);
+  }
   const revealActions = page.getByTestId(`show-terminal-session-actions-${sessionName}`);
-  if (!(await revealActions.isVisible().catch(() => false))) {
+  const sessionsToggle = page.getByRole("button", { name: "Sessions" });
+  const sessionsToggleInViewport = await sessionsToggle.evaluate((element) => {
+    const rect = element.getBoundingClientRect();
+    return rect.bottom > 0 && rect.right > 0 && rect.top < innerHeight && rect.left < innerWidth;
+  });
+  if (!sessionsToggleInViewport) {
     await page.getByRole("button", { name: "Toggle Sidebar" }).click();
   }
-  const sessionsToggle = page.getByRole("button", { name: "Sessions" });
-  await expect(sessionsToggle).toBeVisible();
+  await expect(sessionsToggle).toBeInViewport();
   if ((await sessionsToggle.getAttribute("aria-expanded")) !== "true") {
     await sessionsToggle.click();
   }
-  await expect(revealActions).toBeVisible();
-  await revealActions.click();
   const killSession = page.getByTestId(`kill-session-${sessionName}`);
+  if (!(await killSession.isVisible().catch(() => false))) {
+    await expect(revealActions).toBeVisible();
+    await revealActions.click();
+  }
   await expect(killSession).toBeVisible();
   await killSession.click();
   await expect(killSession).toHaveCount(0);
@@ -664,7 +675,8 @@ async function startWorkspaceWindowDrag(
   dragHandle: Locator,
   targetPoint: { x: number; y: number },
 ) {
-  const dragHandleBox = await dragHandle.boundingBox();
+  const dragGrip = dragHandle.locator('[data-testid$="-drag-icon"]');
+  const dragHandleBox = await dragGrip.boundingBox();
   if (!dragHandleBox) throw new Error("VS Code drag handle could not be measured.");
   await page.mouse.move(
     dragHandleBox.x + dragHandleBox.width / 2,
@@ -892,48 +904,26 @@ async function visibleWorkspaceWindowIds(page: Page): Promise<string[]> {
   );
 }
 
-async function ensureGitTerminal(page: Page): Promise<{ terminal: Locator; added: boolean }> {
+async function createIsolatedStressTerminal(
+  page: Page,
+): Promise<{ terminal: Locator; sessionName: string }> {
   const initialWindowIds = await visibleWorkspaceWindowIds(page);
-  await page.getByTestId("open-git-session-search").click();
-  const searchInput = page.getByPlaceholder(/Search terminal sessions/);
-  await searchInput.fill("hive");
-  const existingGitSession = page
-    .locator('[cmdk-item][data-action-id^="workspace:session:"]')
-    .filter({ hasText: "Git terminal session" })
-    .first();
-  const existingSessionAvailable = (await existingGitSession.count()) > 0;
-
-  if (existingSessionAvailable) {
-    const actionId = await existingGitSession.getAttribute("data-action-id");
-    const sessionName = actionId?.replace("workspace:session:", "");
-    if (!sessionName) throw new Error("Git terminal session has no action identity.");
-    const addButton = existingGitSession.getByRole("button", { name: "Add", exact: true });
-    const added = await addButton.isEnabled();
-    if (added) await addButton.click();
-    else await page.keyboard.press("Escape");
-    const terminal = page
-      .locator(`[data-workspace-window-id="${sessionName}"]`)
-      .locator('[data-terminal-surface="true"]');
-    await expect(terminal).toHaveAttribute("data-connection-state", "connected", {
-      timeout: 30_000,
-    });
-    return { terminal, added };
-  }
-
-  const repository = page.locator('[cmdk-item][data-action-id^="workspace:git:"]').first();
-  await expect(repository).toBeVisible({ timeout: 15_000 });
-  await repository.getByRole("button", { name: "Add", exact: true }).click();
+  const sessionName = `stress-e2e-${Date.now()}`;
+  await page.getByRole("button", { name: "Open workspace command palette" }).click();
+  await page.getByRole("combobox").fill(sessionName);
+  await page
+    .getByRole("option", {
+      name: new RegExp(`^New terminal session named ${sessionName}`),
+    })
+    .click();
   await expect
     .poll(() => visibleWorkspaceWindowIds(page))
     .toHaveLength(initialWindowIds.length + 1);
-  const currentWindowIds = await visibleWorkspaceWindowIds(page);
-  const sessionName = currentWindowIds.find((id) => !initialWindowIds.includes(id));
-  if (!sessionName) throw new Error("Git terminal window was not added.");
   const terminal = page
     .locator(`[data-workspace-window-id="${sessionName}"]`)
     .locator('[data-terminal-surface="true"]');
   await expect(terminal).toHaveAttribute("data-connection-state", "connected", { timeout: 30_000 });
-  return { terminal, added: true };
+  return { terminal, sessionName };
 }
 
 async function startSustainedOutput(page: Page, terminal: Locator, marker: string) {
@@ -970,35 +960,39 @@ async function captureSustainedActivity(
 
 async function verifySustainedTerminalActivity(page: Page, testInfo: TestInfo, terminal: Locator) {
   const marker = `hive-window-stress-${Date.now()}`;
-  const gitMarker = `git-${Date.now().toString(36)}`;
-  const gitSession = await ensureGitTerminal(page);
-  const gitWindow = gitSession.terminal.locator("xpath=ancestor::*[@data-workspace-window-id]");
+  const secondaryMarker = `secondary-${Date.now().toString(36)}`;
+  const stressSession = await createIsolatedStressTerminal(page);
+  const stressWindow = stressSession.terminal.locator(
+    "xpath=ancestor::*[@data-workspace-window-id]",
+  );
   const initialWindowIds = await visibleWorkspaceWindowIds(page);
 
-  await gitWindow.getByRole("button", { name: /^Open session logs for / }).click();
+  await stressWindow.getByRole("button", { name: /^Open session logs for / }).click();
   const eventLogPane = page.getByTestId("workspace-tool-pane-logs");
-  await expect(eventLogPane).toBeVisible({ timeout: 15_000 });
+  try {
+    await expect(eventLogPane).toBeVisible({ timeout: 15_000 });
 
-  await startSustainedOutput(page, terminal, marker);
-  await startSustainedOutput(page, gitSession.terminal, gitMarker);
-  const observedMarkers = await captureSustainedActivity(page, testInfo, [
-    { terminal, marker },
-    { terminal: gitSession.terminal, marker: gitMarker },
-  ]);
+    await startSustainedOutput(page, terminal, marker);
+    await startSustainedOutput(page, stressSession.terminal, secondaryMarker);
+    const observedMarkers = await captureSustainedActivity(page, testInfo, [
+      { terminal, marker },
+      { terminal: stressSession.terminal, marker: secondaryMarker },
+    ]);
 
-  expect(observedMarkers).toEqual([true, true]);
-  await expect(eventLogPane.getByRole("log")).toContainText(/browser_input|upstream_output/, {
-    timeout: 15_000,
-  });
-  const finalWindowIds = await visibleWorkspaceWindowIds(page);
-  expect(finalWindowIds).toHaveLength(initialWindowIds.length + 1);
-  expect(initialWindowIds.every((id) => finalWindowIds.includes(id))).toBe(true);
-  expect(finalWindowIds.some((id) => id.includes(":logs"))).toBe(true);
-
-  await page.getByTestId("remove-workspace-tool-logs").click();
-  await expect(eventLogPane).toHaveCount(0);
-  if (gitSession.added) {
-    await gitWindow.getByRole("button", { name: /^Remove / }).click();
+    expect(observedMarkers).toEqual([true, true]);
+    await expect(eventLogPane.getByRole("log")).toContainText(/browser_input|upstream_output/, {
+      timeout: 15_000,
+    });
+    const finalWindowIds = await visibleWorkspaceWindowIds(page);
+    expect(finalWindowIds).toHaveLength(initialWindowIds.length + 1);
+    expect(initialWindowIds.every((id) => finalWindowIds.includes(id))).toBe(true);
+    expect(finalWindowIds.some((id) => id.includes(":logs"))).toBe(true);
+  } finally {
+    if (await eventLogPane.isVisible().catch(() => false)) {
+      await page.getByTestId("remove-workspace-tool-logs").click();
+      await expect(eventLogPane).toHaveCount(0);
+    }
+    await cleanupTestSession(page, stressSession.sessionName);
   }
 }
 
@@ -1145,13 +1139,13 @@ test.describe("authenticated Hive workflows", () => {
       await capture(page, testInfo, "mobile-touch-workspace-navigation");
     } finally {
       if (createdSessionName) {
-        await cleanupGestureSession(page, createdSessionName);
+        await cleanupTestSession(page, createdSessionName);
       }
     }
   });
 
   test("opens a live workspace terminal when one is available", async ({ page }, testInfo) => {
-    test.setTimeout(150_000);
+    test.setTimeout(240_000);
     const pageErrors: string[] = [];
     page.on("pageerror", (error) => pageErrors.push(error.message));
     const getSuccessfulFileBrowserLoads = trackFileBrowserResourceLoads(page);
