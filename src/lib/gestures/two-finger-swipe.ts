@@ -37,6 +37,34 @@ interface SwipeSnapshot {
 
 type GestureClassification = "pending" | "swipe" | "pinch" | "cancelled";
 
+function classifyMovement(
+  classification: GestureClassification,
+  deltaX: number,
+  deltaY: number,
+  scaleDelta: number,
+): GestureClassification {
+  if (scaleDelta > TWO_FINGER_SWIPE_MAX_SCALE_DELTA) return "pinch";
+  if (classification !== "pending") return classification;
+
+  const horizontalDominates =
+    Math.abs(deltaX) >= Math.abs(deltaY) * TWO_FINGER_SWIPE_HORIZONTAL_RATIO;
+  if (Math.abs(deltaY) > TWO_FINGER_SWIPE_MAX_VERTICAL_PX && !horizontalDominates) {
+    return "cancelled";
+  }
+  if (Math.abs(deltaX) >= TWO_FINGER_SWIPE_INTENT_PX && horizontalDominates) {
+    return "swipe";
+  }
+  return classification;
+}
+
+function swipeProgress(
+  classification: GestureClassification,
+  deltaX: number,
+): TwoFingerSwipeProgress {
+  if (classification !== "swipe") return { ownsGesture: false, direction: null };
+  return { ownsGesture: true, direction: deltaX < 0 ? "left" : "right" };
+}
+
 function snapshotForPoints(
   points: readonly GestureTouchPoint[],
   firstId?: number,
@@ -94,29 +122,8 @@ export function createTwoFingerSwipeDetector(): TwoFingerSwipeDetector {
       const deltaX = current.centerX - startSnapshot.centerX;
       const deltaY = current.centerY - startSnapshot.centerY;
       const scaleDelta = Math.abs(current.distance / startSnapshot.distance - 1);
-      const horizontalDominates =
-        Math.abs(deltaX) >= Math.abs(deltaY) * TWO_FINGER_SWIPE_HORIZONTAL_RATIO;
-
-      if (scaleDelta > TWO_FINGER_SWIPE_MAX_SCALE_DELTA) {
-        classification = "pinch";
-      } else if (
-        classification === "pending" &&
-        Math.abs(deltaY) > TWO_FINGER_SWIPE_MAX_VERTICAL_PX &&
-        !horizontalDominates
-      ) {
-        classification = "cancelled";
-      } else if (
-        classification === "pending" &&
-        Math.abs(deltaX) >= TWO_FINGER_SWIPE_INTENT_PX &&
-        horizontalDominates
-      ) {
-        classification = "swipe";
-      }
-
-      return {
-        ownsGesture: classification === "swipe",
-        direction: classification === "swipe" ? (deltaX < 0 ? "left" : "right") : null,
-      };
+      classification = classifyMovement(classification, deltaX, deltaY, scaleDelta);
+      return swipeProgress(classification, deltaX);
     },
     end() {
       if (!startSnapshot || !lastSnapshot || classification !== "swipe") {
