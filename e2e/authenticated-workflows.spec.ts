@@ -286,7 +286,7 @@ async function cleanupTestSession(page: Page, sessionName: string) {
     if ((await sessionLink.count()) === 0) return;
     if ((await killSession.count()) > 0) {
       const clicked = await killSession
-        .evaluate((element: HTMLButtonElement) => element.click())
+        .click({ force: true, timeout: 2_000 })
         .then(() => true)
         .catch(() => false);
       if (clicked) {
@@ -299,9 +299,7 @@ async function cleanupTestSession(page: Page, sessionName: string) {
       }
     }
     if ((await revealActions.count()) > 0) {
-      await revealActions
-        .evaluate((element: HTMLButtonElement) => element.click())
-        .catch(() => undefined);
+      await revealActions.click({ force: true, timeout: 2_000 }).catch(() => undefined);
     }
     await page.waitForTimeout(200);
   }
