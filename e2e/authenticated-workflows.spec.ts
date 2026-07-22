@@ -303,6 +303,7 @@ async function verifyMobileWorkspaceWindowDrag(page: Page) {
       type: "touchStart",
       touchPoints: [cdpTouchPoint(1, start)],
     });
+    await page.waitForTimeout(50);
     for (const progress of [0.2, 0.4, 0.6, 0.8, 1]) {
       await session.send("Input.dispatchTouchEvent", {
         type: "touchMove",
@@ -313,6 +314,7 @@ async function verifyMobileWorkspaceWindowDrag(page: Page) {
           }),
         ],
       });
+      await page.waitForTimeout(16);
     }
     await expect(draggedWindow).toHaveAttribute("data-workspace-window-dragging", "true");
     await expect(page.getByTestId("workspace-window-drop-placeholder")).toBeVisible();

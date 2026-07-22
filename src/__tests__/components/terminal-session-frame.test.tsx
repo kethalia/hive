@@ -10,6 +10,7 @@ describe("TerminalSessionFrame", () => {
 
   it("uses the titlebar as a drag surface without capturing header controls", () => {
     const onHeaderMouseDown = vi.fn();
+    const onHeaderPointerDown = vi.fn();
 
     render(
       <TerminalSessionFrame
@@ -17,7 +18,10 @@ describe("TerminalSessionFrame", () => {
         subtitle="projects/kethalia/hive"
         dataTestId="tool-frame"
         layoutMode="tiled"
-        dragHandleListeners={{ onMouseDown: onHeaderMouseDown }}
+        dragHandleListeners={{
+          onMouseDown: onHeaderMouseDown,
+          onPointerDown: onHeaderPointerDown,
+        }}
         onActivate={vi.fn()}
         headerActions={<button type="button">Pop out</button>}
         onClose={vi.fn()}
@@ -49,9 +53,15 @@ describe("TerminalSessionFrame", () => {
     fireEvent.mouseDown(grip);
     expect(onHeaderMouseDown).toHaveBeenCalledTimes(2);
 
+    fireEvent.pointerDown(title);
+    expect(onHeaderPointerDown).toHaveBeenCalledOnce();
+
     fireEvent.mouseDown(screen.getByRole("button", { name: "Pop out" }));
     fireEvent.mouseDown(close);
+    fireEvent.pointerDown(screen.getByRole("button", { name: "Pop out" }));
+    fireEvent.pointerDown(close);
     expect(onHeaderMouseDown).toHaveBeenCalledTimes(2);
+    expect(onHeaderPointerDown).toHaveBeenCalledOnce();
   });
 
   it("provides visible, context-menu, and long-press access to pane actions", () => {

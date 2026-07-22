@@ -218,7 +218,7 @@ export function TerminalSessionFrame({
   }
 
   function handleFrameFocus(event: FocusEvent<HTMLDivElement>) {
-    if (disabled) return;
+    if (disabled || isHeaderControl(event.target, event.currentTarget)) return;
     if (!onFocusActivate || event.currentTarget !== event.target) return;
     onActivate?.();
   }
@@ -239,21 +239,12 @@ export function TerminalSessionFrame({
     return Boolean(interactiveTarget && header.contains(interactiveTarget));
   }
 
-  function handleHeaderMouseDown(event: MouseEvent<HTMLDivElement>) {
-    if (!draggableHeader) return;
-    if (isHeaderControl(event.target, event.currentTarget)) return;
-
-    dragHandleListeners?.onMouseDown?.(event);
-  }
-
   function handleHeaderTouchStart(event: TouchEvent<HTMLDivElement>) {
     if (event.touches.length !== 1) {
       clearHeaderLongPress();
       return;
     }
-    if (disabled || isHeaderControl(event.target, event.currentTarget)) return;
-
-    dragHandleListeners?.onTouchStart?.(event);
+    if (disabled) return;
     if (!onOpenActions) return;
 
     const touch = event.touches[0];
@@ -334,13 +325,15 @@ export function TerminalSessionFrame({
           data-window-drag-surface={draggableHeader ? "true" : undefined}
           data-testid={dataTestId ? `${dataTestId}-header` : undefined}
           onContextMenu={handleHeaderContextMenu}
-          onMouseDown={handleHeaderMouseDown}
-          onTouchStart={handleHeaderTouchStart}
-          onTouchMove={handleHeaderTouchMove}
-          onTouchEnd={clearHeaderLongPress}
-          onTouchCancel={clearHeaderLongPress}
+          onTouchStartCapture={handleHeaderTouchStart}
+          onTouchMoveCapture={handleHeaderTouchMove}
+          onTouchEndCapture={clearHeaderLongPress}
+          onTouchCancelCapture={clearHeaderLongPress}
         >
-          <div className="flex min-w-0 flex-1 items-center gap-1.5">
+          <div
+            className="flex min-w-0 flex-1 items-center gap-1.5 self-stretch"
+            {...dragHandleListeners}
+          >
             {draggableHeader ? (
               <GripVertical
                 className="size-3 shrink-0 text-white/55"
