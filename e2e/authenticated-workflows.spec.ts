@@ -420,7 +420,9 @@ async function verifyGlobalCommandDrawerGesture(page: Page) {
 
   await dispatchOneFingerLeftSwipe(page, terminalSurface, "surface");
 
-  const globalDrawer = page.getByRole("dialog").filter({ has: page.getByRole("combobox") });
+  const globalDrawer = page
+    .getByRole("dialog")
+    .filter({ has: page.getByRole("searchbox", { name: "Search global navigation" }) });
   await expect(globalDrawer).toBeVisible();
   await expect(globalDrawer).toHaveAttribute("data-side", "right");
   const drawerBox = await globalDrawer.boundingBox();
@@ -428,16 +430,37 @@ async function verifyGlobalCommandDrawerGesture(page: Page) {
   if (!drawerBox || !viewport) throw new Error("Global navigation sidebar could not be measured.");
   expect(drawerBox.height).toBeGreaterThanOrEqual(viewport.height - 1);
   expect(drawerBox.width).toBeLessThanOrEqual(289);
+  const globalSearch = globalDrawer.getByRole("searchbox", { name: "Search global navigation" });
+  await expect(globalSearch).toBeVisible();
+  expect(await globalSearch.evaluate((input) => getComputedStyle(input).fontSize)).toBe("16px");
   await expect(
-    globalDrawer.getByRole("option", { name: /Workspaces Open Coder workspaces/ }),
+    globalDrawer.getByRole("button", { name: /Workspaces Open Coder workspaces/ }),
   ).toBeVisible();
   await expect(
-    globalDrawer.getByRole("option", { name: /Templates Review and push/ }),
+    globalDrawer.getByRole("button", { name: /Templates Review and push/ }),
   ).toBeVisible();
-  await expect(globalDrawer.getByRole("option", { name: /Terminal status Inspect/ })).toBeVisible();
+  await expect(globalDrawer.getByRole("button", { name: /Terminal status Inspect/ })).toBeVisible();
   await expect(
-    globalDrawer.getByRole("option", { name: /New terminal session in workspace/ }),
+    globalDrawer.getByRole("button", { name: /New terminal session in workspace/ }),
   ).toBeVisible();
+  await expect(globalDrawer.locator('[data-slot="command-shortcut"]')).toHaveCount(0);
+
+  const sessionDisclosure = globalDrawer
+    .locator('[data-testid^="mobile-command-disclosure-workspace:session:"]')
+    .first();
+  await expect(sessionDisclosure).toBeVisible();
+  await expect(sessionDisclosure).toHaveAttribute("aria-expanded", "false");
+  const sessionTitle = (await sessionDisclosure.textContent())?.trim();
+  if (!sessionTitle) throw new Error("Terminal session disclosure has no visible title.");
+  await sessionDisclosure.click();
+  await expect(sessionDisclosure).toHaveAttribute("aria-expanded", "true");
+  const sessionActions = globalDrawer.getByRole("group", { name: /actions$/ }).first();
+  await expect(sessionActions).toBeVisible();
+  await expect(sessionActions.getByRole("button", { name: "Add" })).toBeVisible();
+  await expect(sessionActions.getByRole("button", { name: "Open" })).toBeVisible();
+  await expect(sessionActions.getByRole("button", { name: "VS Code" })).toBeVisible();
+  await expect(sessionActions.getByRole("button", { name: "Files" })).toBeVisible();
+  await expect(sessionActions.getByRole("button", { name: "Logs" })).toBeVisible();
 
   await dispatchOneFingerRightSwipe(page, globalDrawer, "surface");
   const leftSidebar = page.locator(

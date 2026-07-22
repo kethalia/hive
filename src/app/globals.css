@@ -327,3 +327,12 @@
     transition-duration: 0.01ms;
   }
 }
+
+/* iOS Safari zooms focused form controls whose computed text is below 16px. */
+@media (pointer: coarse) and (max-width: 1366px) {
+  :root input,
+  :root select,
+  :root textarea {
+    font-size: 16px;
+  }
+}

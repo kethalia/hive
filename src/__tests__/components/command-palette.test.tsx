@@ -2,6 +2,7 @@
 
 import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import type { ComponentProps, CSSProperties, ReactNode } from "react";
+import { cloneElement, isValidElement } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import "@testing-library/jest-dom/vitest";
 
@@ -34,6 +35,7 @@ vi.mock("@/lib/utils", () => ({
 
 vi.mock("lucide-react", () => ({
   Terminal: () => <span data-testid="icon-terminal">⊞</span>,
+  ChevronRight: () => <span data-testid="icon-chevron-right">›</span>,
   Plus: () => <span data-testid="icon-plus">+</span>,
   Search: () => <span data-testid="icon-search-action">🔎</span>,
   SearchIcon: () => <span data-testid="icon-search">🔍</span>,
@@ -72,6 +74,35 @@ vi.mock("@/components/ui/sidebar", () => ({
       {children}
     </div>
   ),
+  SidebarGroupLabel: ({ children, ...props }: ComponentProps<"div">) => (
+    <div data-testid="sidebar-group-label" {...props}>
+      {children}
+    </div>
+  ),
+  SidebarInput: (props: ComponentProps<"input">) => <input data-slot="sidebar-input" {...props} />,
+  SidebarMenu: ({ children, ...props }: ComponentProps<"ul">) => (
+    <ul data-testid="sidebar-menu" {...props}>
+      {children}
+    </ul>
+  ),
+  SidebarMenuItem: ({ children, ...props }: ComponentProps<"li">) => (
+    <li data-testid="sidebar-menu-item" {...props}>
+      {children}
+    </li>
+  ),
+  SidebarMenuButton: ({
+    children,
+    render,
+    size: _size,
+    ...props
+  }: ComponentProps<"button"> & { render?: ReactNode; size?: string }) =>
+    isValidElement<ComponentProps<"button">>(render) ? (
+      cloneElement(render, props, children)
+    ) : (
+      <button type="button" {...props}>
+        {children}
+      </button>
+    ),
 }));
 
 vi.mock("@/components/ui/dialog", () => ({
@@ -488,10 +519,74 @@ describe("CommandPalette", () => {
     expect(screen.queryByTestId("sheet-content")).not.toBeInTheDocument();
     expect(screen.getByTestId("sidebar-header")).toHaveTextContent("Navigate");
     expect(screen.getByTestId("sidebar-content")).toBeInTheDocument();
-    expect(screen.getByTestId("sidebar-group")).toBeInTheDocument();
+    expect(screen.getAllByTestId("sidebar-group").length).toBeGreaterThan(0);
     expect(screen.getByRole("button", { name: "Close global navigation" })).toBeInTheDocument();
-    expect(screen.getByTestId("command")).toHaveClass("bg-sidebar", "text-sidebar-foreground");
+    expect(screen.getByRole("searchbox", { name: "Search global navigation" })).toHaveClass(
+      "text-base",
+    );
+    expect(screen.queryByTestId("command")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("command-shortcut")).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Drag to dismiss command palette" })).toBeNull();
+  });
+
+  it("expands mobile terminal and Git rows to show actions below their titles", async () => {
+    mobileState.isMobile = true;
+    const add = vi.fn();
+    const open = vi.fn();
+    const onOpenChange = vi.fn();
+
+    render(
+      <CommandPalette
+        open={true}
+        onOpenChange={onOpenChange}
+        tabs={[]}
+        onSelectTab={vi.fn()}
+        mobileSide="right"
+        actions={[
+          {
+            id: "workspace:session:dev-server",
+            label: "dev-server",
+            description: "Terminal session",
+            group: "Terminal sessions",
+            shortcut: "Ctrl + 1",
+            icon: "terminal",
+            onSelect: add,
+            options: [
+              { id: "add", label: "Add", onSelect: add },
+              { id: "open", label: "Open", onSelect: open },
+            ],
+          },
+          {
+            id: "workspace:git:hive",
+            label: "hive",
+            description: "kethalia/hive",
+            group: "Git repositories",
+            shortcut: "Ctrl + 2",
+            icon: "search",
+            onSelect: add,
+            options: [{ id: "open", label: "Open", onSelect: open }],
+          },
+        ]}
+      />,
+    );
+
+    expect(screen.getByText("dev-server")).toBeVisible();
+    expect(screen.getByText("hive")).toBeVisible();
+    expect(screen.queryByText("Ctrl + 1")).not.toBeInTheDocument();
+    expect(screen.queryByText("Ctrl + 2")).not.toBeInTheDocument();
+    expect(screen.queryByRole("group", { name: "dev-server actions" })).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId("mobile-command-disclosure-workspace:session:dev-server"));
+
+    const terminalActions = await screen.findByRole("group", { name: "dev-server actions" });
+    expect(terminalActions).toBeVisible();
+    expect(terminalActions).toHaveTextContent("Add");
+    expect(terminalActions).toHaveTextContent("Open");
+    expect(add).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByTestId("mobile-command-option-workspace:session:dev-server-open"));
+    expect(open).toHaveBeenCalledOnce();
+    expect(onOpenChange).toHaveBeenCalledWith(false);
   });
 
   it("falls back to 100dvh when visualViewport is unavailable on mobile", () => {
