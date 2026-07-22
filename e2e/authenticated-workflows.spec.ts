@@ -206,7 +206,9 @@ function activeTouchTerminalFrame(page: Page) {
 }
 
 async function ensureTwoTouchTerminals(page: Page) {
-  const terminalSurfaces = page.locator('[data-terminal-navigation-surface="true"]:visible');
+  const terminalFrames = page
+    .locator("[data-pane-mode]:visible")
+    .filter({ has: page.locator('[data-terminal-navigation-surface="true"]') });
   const createdSessionNames = await page
     .locator('[data-workspace-window-id^="gesture-e2e-"]:visible')
     .evaluateAll((panes) =>
@@ -215,8 +217,8 @@ async function ensureTwoTouchTerminals(page: Page) {
         return sessionName ? [sessionName] : [];
       }),
     );
-  while ((await terminalSurfaces.count()) < 2) {
-    const sessionCountBefore = await terminalSurfaces.count();
+  while ((await terminalFrames.count()) < 2) {
+    const sessionCountBefore = await terminalFrames.count();
     const createdSessionName = `gesture-e2e-${Date.now()}-${createdSessionNames.length + 1}`;
     createdSessionNames.push(createdSessionName);
     await page.getByRole("button", { name: "Open workspace command palette" }).click();
@@ -226,9 +228,9 @@ async function ensureTwoTouchTerminals(page: Page) {
         name: new RegExp(`^New terminal session named ${createdSessionName}`),
       })
       .click();
-    await expect.poll(() => terminalSurfaces.count()).toBeGreaterThan(sessionCountBefore);
+    await expect.poll(() => terminalFrames.count()).toBeGreaterThan(sessionCountBefore);
   }
-  await expect.poll(() => terminalSurfaces.count()).toBeGreaterThanOrEqual(2);
+  await expect.poll(() => terminalFrames.count()).toBeGreaterThanOrEqual(2);
   return createdSessionNames;
 }
 
@@ -278,7 +280,7 @@ async function verifyWorkspaceTouchNavigation(page: Page) {
   const boardBar = page.getByTestId("workspace-board-bar");
   await dispatchTwoFingerSwipe(page, boardBar, "right");
   await expect(boardTabs.first()).toHaveAttribute("aria-selected", "true");
-  await dispatchTwoFingerSwipe(page, page.getByTestId("multi-session-body"), "left");
+  await dispatchTwoFingerSwipe(page, boardBar, "left");
   await expect(createdBoard).toHaveAttribute("aria-selected", "true");
   await boardTabs.first().click();
   return { boardTabs, createdBoard, initialBoardCount };
