@@ -320,13 +320,13 @@ describe("DashboardKeyboardController", () => {
     expect(mockSetOpenMobile).not.toHaveBeenCalledWith(false);
   });
 
-  it("disables the global swipe while either mobile sidebar is open", () => {
+  it("keeps sidebar replacement enabled until the global drawer is open", () => {
     mobileState.isMobile = true;
     mobileState.openMobile = true;
     const { rerender } = render(<DashboardKeyboardController />);
 
     expect(mockUseGlobalCommandPaletteGesture).toHaveBeenLastCalledWith(
-      expect.objectContaining({ enabled: false }),
+      expect.objectContaining({ enabled: true }),
     );
 
     mobileState.openMobile = false;

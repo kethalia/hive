@@ -489,7 +489,7 @@ async function cleanupTestSession(page: Page, sessionName: string) {
     await expect(workspacePane).toHaveCount(0);
   }
   const revealActions = page.getByTestId(`show-terminal-session-actions-${sessionName}`);
-  const sessionsToggle = page.getByRole("button", { name: "Sessions" });
+  const sessionsToggle = page.getByRole("button", { name: "Sessions", exact: true });
   const sessionsToggleInViewport =
     (await sessionsToggle.count()) > 0 &&
     (await sessionsToggle.evaluate((element) => {
