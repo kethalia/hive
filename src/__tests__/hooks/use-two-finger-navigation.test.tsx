@@ -115,7 +115,7 @@ describe("useTwoFingerNavigation", () => {
     expect(onNavigate).toHaveBeenLastCalledWith("workspace", "right");
   });
 
-  it("tracks staggered Safari touch pointers and cancels the native gesture stream", async () => {
+  it("uses Safari multi-touch events even when a pointer event arrives first", async () => {
     const onNavigate = vi.fn();
     render(<NavigationHarness onNavigate={onNavigate} />);
 
@@ -124,12 +124,18 @@ describe("useTwoFingerNavigation", () => {
     terminalInput.addEventListener(TERMINAL_MULTI_TOUCH_CLAIM_EVENT, onClaim);
 
     dispatchPointer(terminalInput, "pointerdown", 11, 200, 100);
-    const secondDown = dispatchPointer(terminalInput, "pointerdown", 22, 240, 140);
+    dispatchTouch(terminalInput, "touchstart", [touch(11, 200, 100)]);
+    const secondDown = dispatchTouch(terminalInput, "touchstart", [
+      touch(11, 200, 100),
+      touch(22, 240, 140),
+    ]);
     const nativeGesture = new Event("gesturestart", { bubbles: true, cancelable: true });
     terminalInput.dispatchEvent(nativeGesture);
-    dispatchPointer(terminalInput, "pointermove", 11, 130, 102);
-    const secondMove = dispatchPointer(terminalInput, "pointermove", 22, 170, 142);
-    dispatchPointer(terminalInput, "pointerup", 11, 130, 102);
+    const secondMove = dispatchTouch(terminalInput, "touchmove", [
+      touch(11, 130, 102),
+      touch(22, 170, 142),
+    ]);
+    dispatchTouch(terminalInput, "touchend", []);
     await Promise.resolve();
 
     expect(secondDown.defaultPrevented).toBe(true);

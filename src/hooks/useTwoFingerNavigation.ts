@@ -71,8 +71,6 @@ interface TwoFingerGesture {
   surface: TwoFingerNavigationSurface;
 }
 
-type InputMode = "pointer" | "touch";
-
 export function useTwoFingerNavigation({
   enabled,
   onNavigate,
@@ -88,18 +86,18 @@ export function useTwoFingerNavigation({
     const root = rootRef.current;
     if (!enabled || !root) return;
 
+    // Match the working one-finger gestures and use Touch Events as the single
+    // source of truth. Safari can emit an initial PointerEvent without a
+    // complete multi-pointer stream, so arbitrating between both APIs can hide
+    // the TouchEvent sequence that contains all active contacts.
     let gesture: TwoFingerGesture | null = null;
     let firstTouchSurface: TwoFingerNavigationSurface | null = null;
     let firstTouchTarget: EventTarget | null = null;
-    let inputMode: InputMode | null = null;
-    const activePointers = new Map<number, TouchPoint>();
 
     const reset = () => {
       gesture = null;
       firstTouchSurface = null;
       firstTouchTarget = null;
-      inputMode = null;
-      activePointers.clear();
     };
 
     const completeGesture = () => {
@@ -146,8 +144,6 @@ export function useTwoFingerNavigation({
     };
 
     const handleTouchStart = (event: TouchEvent) => {
-      if (inputMode === "pointer") return;
-      inputMode = "touch";
       if (event.touches.length === 1) {
         firstTouchSurface = navigationSurface(root, event.target);
         firstTouchTarget = event.target;
@@ -167,77 +163,17 @@ export function useTwoFingerNavigation({
     };
 
     const handleTouchMove = (event: TouchEvent) => {
-      if (inputMode !== "touch") return;
       updateGesture(touchPoints(event.touches), event);
     };
 
     const handleTouchEnd = (event: TouchEvent) => {
-      if (inputMode !== "touch") return;
       if (event.touches.length > 0) return;
       if (gesture) completeGesture();
       else reset();
     };
 
     const handleTouchCancel = () => {
-      if (inputMode !== "touch") return;
       if (gesture?.surface === "terminal" && gesture.direction) {
-        completeGesture();
-        return;
-      }
-      reset();
-    };
-
-    const handlePointerDown = (event: PointerEvent) => {
-      if (event.pointerType !== "touch" || inputMode === "touch") return;
-      inputMode = "pointer";
-
-      const surface = navigationSurface(root, event.target);
-      activePointers.set(event.pointerId, {
-        id: event.pointerId,
-        x: event.clientX,
-        y: event.clientY,
-      });
-
-      if (activePointers.size === 1) {
-        firstTouchSurface = surface;
-        firstTouchTarget = event.target;
-        return;
-      }
-      if (activePointers.size !== 2) {
-        reset();
-        return;
-      }
-
-      beginGesture(
-        Array.from(activePointers.values()),
-        firstTouchSurface ?? surface,
-        event.target,
-        event,
-      );
-    };
-
-    const handlePointerMove = (event: PointerEvent) => {
-      if (inputMode !== "pointer" || event.pointerType !== "touch") return;
-      const point = activePointers.get(event.pointerId);
-      if (!point) return;
-      point.x = event.clientX;
-      point.y = event.clientY;
-      updateGesture(Array.from(activePointers.values()), event);
-    };
-
-    const handlePointerEnd = (event: PointerEvent) => {
-      if (inputMode !== "pointer" || event.pointerType !== "touch") return;
-      activePointers.delete(event.pointerId);
-      if (gesture) {
-        completeGesture();
-        return;
-      }
-      if (activePointers.size === 0) reset();
-    };
-
-    const handlePointerCancel = (event: PointerEvent) => {
-      if (inputMode !== "pointer" || event.pointerType !== "touch") return;
-      if (gesture?.direction) {
         completeGesture();
         return;
       }
@@ -251,10 +187,6 @@ export function useTwoFingerNavigation({
       if (gesture) event.stopPropagation();
     };
 
-    window.addEventListener("pointerdown", handlePointerDown, { capture: true, passive: false });
-    window.addEventListener("pointermove", handlePointerMove, { capture: true, passive: false });
-    window.addEventListener("pointerup", handlePointerEnd, { capture: true, passive: true });
-    window.addEventListener("pointercancel", handlePointerCancel, { capture: true, passive: true });
     window.addEventListener("touchstart", handleTouchStart, { capture: true, passive: false });
     window.addEventListener("touchmove", handleTouchMove, { capture: true, passive: false });
     window.addEventListener("touchend", handleTouchEnd, { capture: true, passive: true });
@@ -267,10 +199,6 @@ export function useTwoFingerNavigation({
     window.addEventListener("gestureend", handleNativeGesture, { capture: true, passive: false });
 
     return () => {
-      window.removeEventListener("pointerdown", handlePointerDown, { capture: true });
-      window.removeEventListener("pointermove", handlePointerMove, { capture: true });
-      window.removeEventListener("pointerup", handlePointerEnd, { capture: true });
-      window.removeEventListener("pointercancel", handlePointerCancel, { capture: true });
       window.removeEventListener("touchstart", handleTouchStart, { capture: true });
       window.removeEventListener("touchmove", handleTouchMove, { capture: true });
       window.removeEventListener("touchend", handleTouchEnd, { capture: true });
