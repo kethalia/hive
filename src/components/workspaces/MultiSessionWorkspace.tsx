@@ -4460,10 +4460,14 @@ export function MultiSessionWorkspace({
               }
               selectSession(pane.sessionName);
             }}
-            onMouseMove={() => {
-              if (!model.isActive || activeWindowIdRef.current === pane.sessionName) return;
-              selectSession(pane.sessionName);
-            }}
+            onMouseMove={
+              isComposeSheet
+                ? undefined
+                : () => {
+                    if (!model.isActive || activeWindowIdRef.current === pane.sessionName) return;
+                    selectSession(pane.sessionName);
+                  }
+            }
             onFocusActivate
             closeLabel={`${isUnifiedSource ? "Remove" : "Close"} ${presentation.title}`}
             closeTestId={

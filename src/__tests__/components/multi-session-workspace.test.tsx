@@ -1759,6 +1759,22 @@ describe("MultiSessionWorkspace", () => {
     expect(mockTriggerHapticFeedback).toHaveBeenCalledTimes(2);
   });
 
+  it("does not let compatibility mouse movement override touch gesture navigation", async () => {
+    mockUseIsComposeSheet.mockReturnValue(true);
+    await renderThreeSessionWorkspace();
+
+    act(() => {
+      dispatchTwoFingerSwipe(screen.getByTestId("workspace-pane-main-session"), "left");
+    });
+    await waitFor(() => {
+      expect(screen.getByTestId("active-pane-label")).toHaveTextContent("ops-shell");
+    });
+
+    fireEvent.mouseMove(screen.getByTestId("workspace-pane-main-session"));
+
+    expect(screen.getByTestId("active-pane-label")).toHaveTextContent("ops-shell");
+  });
+
   it("navigates workspaces with a two-finger swipe on workspace touch surfaces", async () => {
     mockUseIsComposeSheet.mockReturnValue(true);
     window.localStorage.setItem(
