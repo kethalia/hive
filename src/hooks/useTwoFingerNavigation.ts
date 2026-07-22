@@ -1,7 +1,7 @@
 "use client";
 
 import type { RefObject } from "react";
-import { useEffect, useLayoutEffect, useRef } from "react";
+import { useEffect, useRef } from "react";
 import {
   createTwoFingerSwipeDetector,
   type GestureTouchPoint,
@@ -38,7 +38,7 @@ export function useTwoFingerNavigation({
 }: TwoFingerNavigationOptions) {
   const onNavigateRef = useRef(onNavigate);
 
-  useLayoutEffect(() => {
+  useEffect(() => {
     onNavigateRef.current = onNavigate;
   }, [onNavigate]);
 
@@ -70,13 +70,17 @@ export function useTwoFingerNavigation({
 
     const handleTouchMove = (event: TouchEvent) => {
       if (!surface || !detector.active) return;
-      detector.move(gestureTouchPoints(event.touches));
       if (event.cancelable) event.preventDefault();
       event.stopPropagation();
+      if (event.touches.length !== 2) return;
+      detector.move(gestureTouchPoints(event.touches));
     };
 
     const handleTouchEnd = (event: TouchEvent) => {
-      if (!surface || !detector.active || event.touches.length >= 2) return;
+      if (!surface || !detector.active) return;
+      if (event.cancelable) event.preventDefault();
+      event.stopPropagation();
+      if (event.touches.length > 0) return;
       const completedSurface = surface;
       const direction = detector.end();
       surface = null;
@@ -85,7 +89,7 @@ export function useTwoFingerNavigation({
 
     root.addEventListener("touchstart", handleTouchStart, { capture: true, passive: false });
     root.addEventListener("touchmove", handleTouchMove, { capture: true, passive: false });
-    root.addEventListener("touchend", handleTouchEnd, { capture: true, passive: true });
+    root.addEventListener("touchend", handleTouchEnd, { capture: true, passive: false });
     root.addEventListener("touchcancel", reset, { capture: true, passive: true });
 
     return () => {

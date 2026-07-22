@@ -110,4 +110,26 @@ describe("useTwoFingerNavigation", () => {
     expect(nestedMove).not.toHaveBeenCalled();
     expect(onNavigate).toHaveBeenCalledWith("terminal", "left");
   });
+
+  it("owns touch end until both fingers lift so the terminal cannot restore its old focus", () => {
+    const onNavigate = vi.fn();
+    render(<NavigationHarness onNavigate={onNavigate} />);
+
+    const terminal = screen.getByTestId("terminal-surface");
+    const nestedEnd = vi.fn();
+    terminal.addEventListener("touchend", nestedEnd);
+    dispatchTouch(terminal, "touchstart", [touch(1, 180, 80), touch(2, 220, 120)]);
+    dispatchTouch(terminal, "touchmove", [touch(1, 110, 82), touch(2, 150, 122)]);
+    const firstEnd = dispatchTouch(terminal, "touchend", [touch(2, 150, 122)]);
+
+    expect(firstEnd.defaultPrevented).toBe(true);
+    expect(nestedEnd).not.toHaveBeenCalled();
+    expect(onNavigate).not.toHaveBeenCalled();
+
+    const finalEnd = dispatchTouch(terminal, "touchend", []);
+
+    expect(finalEnd.defaultPrevented).toBe(true);
+    expect(nestedEnd).not.toHaveBeenCalled();
+    expect(onNavigate).toHaveBeenCalledWith("terminal", "left");
+  });
 });
