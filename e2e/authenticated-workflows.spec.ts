@@ -337,14 +337,13 @@ async function verifyTerminalTouchNavigation(page: Page) {
   if (terminalLabels.length < 3) throw new Error("Three terminal labels are required.");
   const firstTerminalIndex = terminalLabels.indexOf(firstTerminalLabel);
   if (firstTerminalIndex < 0) throw new Error("Active terminal is absent from terminal order.");
-  const previousTerminalLabel =
-    terminalLabels[(firstTerminalIndex - 1 + terminalLabels.length) % terminalLabels.length];
-  if (!previousTerminalLabel) throw new Error("Previous terminal label could not be resolved.");
+  const nextTerminalLabel = terminalLabels[(firstTerminalIndex + 1) % terminalLabels.length];
+  if (!nextTerminalLabel) throw new Error("Next terminal label could not be resolved.");
 
   await dispatchTwoFingerSwipe(page, stableTerminalGestureSurface, "left");
   await expect
     .poll(async () => (await activePaneLabel.textContent())?.trim())
-    .toBe(previousTerminalLabel);
+    .toBe(nextTerminalLabel);
   const terminalLabelAfterLeftSwipe = (await activePaneLabel.textContent())?.trim();
   if (!terminalLabelAfterLeftSwipe)
     throw new Error("Active terminal has no label after left swipe.");

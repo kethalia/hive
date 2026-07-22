@@ -65,6 +65,24 @@ function dispatchTouch(
   return event;
 }
 
+function dispatchPointer(
+  target: Element,
+  type: "pointerdown" | "pointermove" | "pointerup" | "pointercancel",
+  pointerId: number,
+  clientX: number,
+  clientY: number,
+) {
+  const event = new Event(type, { bubbles: true, cancelable: true });
+  Object.defineProperties(event, {
+    pointerId: { value: pointerId },
+    pointerType: { value: "touch" },
+    clientX: { value: clientX },
+    clientY: { value: clientY },
+  });
+  target.dispatchEvent(event);
+  return event;
+}
+
 describe("useTwoFingerNavigation", () => {
   afterEach(cleanup);
 
@@ -95,6 +113,31 @@ describe("useTwoFingerNavigation", () => {
     await Promise.resolve();
 
     expect(onNavigate).toHaveBeenLastCalledWith("workspace", "right");
+  });
+
+  it("tracks staggered Safari touch pointers and cancels the native gesture stream", async () => {
+    const onNavigate = vi.fn();
+    render(<NavigationHarness onNavigate={onNavigate} />);
+
+    const terminalInput = screen.getByTestId("terminal-fit-host");
+    const onClaim = vi.fn();
+    terminalInput.addEventListener(TERMINAL_MULTI_TOUCH_CLAIM_EVENT, onClaim);
+
+    dispatchPointer(terminalInput, "pointerdown", 11, 200, 100);
+    const secondDown = dispatchPointer(terminalInput, "pointerdown", 22, 240, 140);
+    const nativeGesture = new Event("gesturestart", { bubbles: true, cancelable: true });
+    terminalInput.dispatchEvent(nativeGesture);
+    dispatchPointer(terminalInput, "pointermove", 11, 130, 102);
+    const secondMove = dispatchPointer(terminalInput, "pointermove", 22, 170, 142);
+    dispatchPointer(terminalInput, "pointerup", 11, 130, 102);
+    await Promise.resolve();
+
+    expect(secondDown.defaultPrevented).toBe(true);
+    expect(nativeGesture.defaultPrevented).toBe(true);
+    expect(secondMove.defaultPrevented).toBe(true);
+    expect(onClaim).toHaveBeenCalled();
+    expect(onNavigate).toHaveBeenCalledOnce();
+    expect(onNavigate).toHaveBeenCalledWith("terminal", "left");
   });
 
   it("uses the latest navigation state before passive effects flush", async () => {

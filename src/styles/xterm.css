@@ -137,6 +137,15 @@
     touch-action: none;
 }
 
+/*
+ * iPadOS decides pointer ownership before JavaScript movement handlers run.
+ * Declare the workspace surface as app-owned up front so horizontal two-finger
+ * navigation receives a complete pointer stream instead of a native gesture.
+ */
+.terminal-mobile-shell [data-workspace-navigation-surface="true"] {
+    touch-action: none;
+}
+
 .xterm .xterm-screen {
     position: relative;
 }

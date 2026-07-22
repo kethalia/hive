@@ -1730,11 +1730,11 @@ describe("MultiSessionWorkspace", () => {
 
     expect(move?.defaultPrevented).toBe(true);
     await waitFor(() => {
-      expect(screen.getByTestId("active-pane-label")).toHaveTextContent("ops-shell");
+      expect(screen.getByTestId("active-pane-label")).toHaveTextContent("dev-server");
     });
 
     act(() => {
-      dispatchTwoFingerSwipe(screen.getByTestId("workspace-pane-ops-shell-header"), "right");
+      dispatchTwoFingerSwipe(screen.getByTestId("workspace-pane-dev-server-header"), "right");
     });
 
     await waitFor(() => {
@@ -1767,12 +1767,12 @@ describe("MultiSessionWorkspace", () => {
       dispatchTwoFingerSwipe(screen.getByTestId("workspace-pane-main-session"), "left");
     });
     await waitFor(() => {
-      expect(screen.getByTestId("active-pane-label")).toHaveTextContent("ops-shell");
+      expect(screen.getByTestId("active-pane-label")).toHaveTextContent("dev-server");
     });
 
     fireEvent.mouseMove(screen.getByTestId("workspace-pane-main-session"));
 
-    expect(screen.getByTestId("active-pane-label")).toHaveTextContent("ops-shell");
+    expect(screen.getByTestId("active-pane-label")).toHaveTextContent("dev-server");
   });
 
   it("navigates workspaces with a two-finger swipe on workspace touch surfaces", async () => {
@@ -1843,7 +1843,7 @@ describe("MultiSessionWorkspace", () => {
     });
 
     await waitFor(() => {
-      expect(screen.getByTestId("workspace-board-tab-ops")).toHaveAttribute(
+      expect(screen.getByTestId("workspace-board-tab-review")).toHaveAttribute(
         "aria-selected",
         "true",
       );

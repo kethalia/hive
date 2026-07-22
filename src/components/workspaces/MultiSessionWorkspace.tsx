@@ -2187,14 +2187,14 @@ export function MultiSessionWorkspace({
   const handleTwoFingerNavigate = useCallback(
     (surface: "terminal" | "workspace", direction: "left" | "right") => {
       if (surface === "terminal") {
-        const target = selectRelativeMobileTerminal(direction === "left" ? -1 : 1);
+        const target = selectRelativeMobileTerminal(direction === "left" ? 1 : -1);
         if (!target) return;
         setGestureAnnouncement(`Active terminal: ${target.title}`);
         triggerHapticFeedback();
         return;
       }
 
-      const nextBoard = switchRelativeWorkspaceBoard(direction === "left" ? -1 : 1);
+      const nextBoard = switchRelativeWorkspaceBoard(direction === "left" ? 1 : -1);
       if (!nextBoard) return;
       const boardNumber =
         orderedWorkspaceBoards(boardState.boards).findIndex(
