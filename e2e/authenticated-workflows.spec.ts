@@ -61,6 +61,31 @@ async function capture(page: Page, testInfo: TestInfo, name: string) {
   await page.screenshot({ path: testInfo.outputPath(`${name}.png`), fullPage: true });
 }
 
+async function verifyTabletLandscapeSafeArea(page: Page, testInfo: TestInfo) {
+  await page.setViewportSize({ width: 1366, height: 1024 });
+  await page.evaluate(() => {
+    document.documentElement.style.setProperty("--safe-area-inset-top", "24px");
+  });
+
+  const headerLeft = page.getByTestId("workspace-header-left");
+  const header = headerLeft.locator("..");
+  await expect(header).toBeVisible();
+  const metrics = await header.evaluate((element) => {
+    const styles = getComputedStyle(element);
+    const label = element.querySelector('[data-testid="active-pane-label"]');
+    return {
+      height: element.getBoundingClientRect().height,
+      labelTop: label?.getBoundingClientRect().top ?? 0,
+      paddingTop: Number.parseFloat(styles.paddingTop),
+    };
+  });
+
+  expect(metrics.height).toBeGreaterThanOrEqual(80);
+  expect(metrics.paddingTop).toBeGreaterThanOrEqual(28);
+  expect(metrics.labelTop).toBeGreaterThanOrEqual(24);
+  await capture(page, testInfo, "tablet-landscape-safe-area");
+}
+
 interface TouchCoordinates {
   x: number;
   y: number;
@@ -1438,6 +1463,9 @@ test.describe("authenticated Hive workflows", () => {
       await expect(createdBoard).toHaveAttribute("aria-selected", "true");
       await createdBoard.click();
       await expect(boardTabs).toHaveCount(initialBoardCount);
+      if (testInfo.project.name === "tablet-chromium") {
+        await verifyTabletLandscapeSafeArea(page, testInfo);
+      }
       await capture(page, testInfo, "mobile-touch-workspace-navigation");
     } finally {
       for (const createdSessionName of createdSessionNames) {

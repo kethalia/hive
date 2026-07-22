@@ -2142,6 +2142,28 @@ export function MultiSessionWorkspace({
     };
   }, [activeSessionName, selectSession, visibleSessions]);
 
+  const selectRelativeMobileTerminal = useCallback(
+    (direction: -1 | 1) => {
+      if (visibleSessions.length <= 1) return null;
+
+      const currentIndex = Math.max(
+        0,
+        visibleSessions.findIndex(
+          (session) => session.sessionName === activeSessionNameRef.current,
+        ),
+      );
+      const target =
+        visibleSessions[
+          (currentIndex + direction + visibleSessions.length) % visibleSessions.length
+        ];
+      if (!target) return null;
+
+      selectSession(target.sessionName, { focusTerminal: false });
+      return workspaceSessionPresentation(target);
+    },
+    [selectSession, visibleSessions],
+  );
+
   const switchRelativeWorkspaceBoard = useCallback(
     (direction: -1 | 1) => {
       const orderedBoards = orderedWorkspaceBoards(boardState.boards);
@@ -2165,10 +2187,9 @@ export function MultiSessionWorkspace({
   const handleTwoFingerNavigate = useCallback(
     (surface: "terminal" | "workspace", direction: "left" | "right") => {
       if (surface === "terminal") {
-        const target =
-          direction === "left" ? mobileWindowNavigation.previous : mobileWindowNavigation.next;
-        if (!target || !mobileWindowNavigation.select(target.id)) return;
-        setGestureAnnouncement(`Active terminal: ${target.name}`);
+        const target = selectRelativeMobileTerminal(direction === "left" ? -1 : 1);
+        if (!target) return;
+        setGestureAnnouncement(`Active terminal: ${target.title}`);
         triggerHapticFeedback();
         return;
       }
@@ -2182,7 +2203,7 @@ export function MultiSessionWorkspace({
       setGestureAnnouncement(`Active workspace: ${boardNumber}`);
       triggerHapticFeedback();
     },
-    [boardState.boards, mobileWindowNavigation, switchRelativeWorkspaceBoard],
+    [boardState.boards, selectRelativeMobileTerminal, switchRelativeWorkspaceBoard],
   );
 
   useTwoFingerNavigation({

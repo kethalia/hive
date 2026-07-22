@@ -1743,6 +1743,22 @@ describe("MultiSessionWorkspace", () => {
     expect(mockTriggerHapticFeedback).toHaveBeenCalled();
   });
 
+  it("resolves consecutive terminal swipes from the synchronously selected session", async () => {
+    mockUseIsComposeSheet.mockReturnValue(true);
+    await renderThreeSessionWorkspace();
+
+    const terminalFrame = screen.getByTestId("workspace-pane-main-session");
+    await act(async () => {
+      dispatchTwoFingerSwipe(terminalFrame, "left");
+      await Promise.resolve();
+      dispatchTwoFingerSwipe(terminalFrame, "right");
+      await Promise.resolve();
+    });
+
+    expect(screen.getByTestId("active-pane-label")).toHaveTextContent("main-session");
+    expect(mockTriggerHapticFeedback).toHaveBeenCalledTimes(2);
+  });
+
   it("navigates workspaces with a two-finger swipe on workspace touch surfaces", async () => {
     mockUseIsComposeSheet.mockReturnValue(true);
     window.localStorage.setItem(
