@@ -341,9 +341,15 @@ function SessionList({
   );
 
   const handleRowTouchStart = (event: ReactTouchEvent<HTMLLIElement>, sessionName: string) => {
-    if (!isMobile || event.touches.length !== 1) return;
+    if (!isMobile || event.touches.length !== 1) {
+      rowTouchStartRef.current = null;
+      return;
+    }
     const target = event.target;
-    if (target instanceof Element && target.closest("button, input, textarea, select")) return;
+    if (target instanceof Element && target.closest("button, input, textarea, select")) {
+      rowTouchStartRef.current = null;
+      return;
+    }
     const touch = event.touches[0];
     rowTouchStartRef.current = {
       id: touch.identifier,
@@ -354,21 +360,22 @@ function SessionList({
   };
 
   const handleRowTouchMove = (event: ReactTouchEvent<HTMLLIElement>) => {
+    if (event.touches.length !== 1) {
+      rowTouchStartRef.current = null;
+      return;
+    }
     const start = rowTouchStartRef.current;
     if (!start) return;
     const touch = Array.from(event.touches).find((candidate) => candidate.identifier === start.id);
-    if (!touch) return;
-    const deltaX = touch.clientX - start.x;
-    const deltaY = touch.clientY - start.y;
-    if (Math.abs(deltaX) >= 8 && Math.abs(deltaX) > Math.abs(deltaY) && event.cancelable) {
-      event.preventDefault();
+    if (!touch) {
+      rowTouchStartRef.current = null;
     }
   };
 
   const handleRowTouchEnd = (event: ReactTouchEvent<HTMLLIElement>) => {
     const start = rowTouchStartRef.current;
     rowTouchStartRef.current = null;
-    if (!start) return;
+    if (!start || event.touches.length > 0) return;
     const touch = Array.from(event.changedTouches).find(
       (candidate) => candidate.identifier === start.id,
     );
@@ -396,7 +403,7 @@ function SessionList({
           return (
             <SidebarMenuSubItem
               key={session.name}
-              className="group/session-row overflow-hidden"
+              className={cn("group/session-row overflow-hidden", isMobile && "touch-pan-y")}
               onTouchStart={(event) => handleRowTouchStart(event, session.name)}
               onTouchMove={handleRowTouchMove}
               onTouchEnd={handleRowTouchEnd}
@@ -435,7 +442,7 @@ function SessionList({
                     className={cn(
                       isMobile
                         ? revealedSession === session.name
-                          ? "pr-[8.5rem]"
+                          ? "pr-[11.25rem]"
                           : "pr-12"
                         : "pr-24",
                       mobileSessionRowClassName,
@@ -445,27 +452,45 @@ function SessionList({
                     <Terminal className="h-3 w-3 shrink-0" />
                     <span className="truncate">{session.name}</span>
                   </SidebarMenuSubButton>
-                  <span
+                  <div
                     className={cn(
                       "absolute inset-y-0 right-1 flex items-center gap-0.5",
                       isMobile ? "bg-sidebar" : actionVisibilityClassName,
                     )}
                   >
-                    {isMobile && revealedSession !== session.name ? (
+                    {isMobile ? (
                       <button
                         type="button"
-                        title="Show session actions"
-                        aria-label={`Show actions for terminal session ${session.name}`}
-                        aria-expanded={false}
+                        title={
+                          revealedSession === session.name
+                            ? "Hide session actions"
+                            : "Show session actions"
+                        }
+                        aria-label={`${
+                          revealedSession === session.name ? "Hide" : "Show"
+                        } actions for terminal session ${session.name}`}
+                        aria-controls={`terminal-session-actions-${session.name}`}
+                        aria-expanded={revealedSession === session.name}
                         data-testid={`show-terminal-session-actions-${session.name}`}
                         className={cn("rounded hover:bg-sidebar-accent", actionButtonClassName)}
-                        onClick={() => setRevealedSession(session.name)}
+                        onClick={() =>
+                          setRevealedSession((current) =>
+                            current === session.name ? null : session.name,
+                          )
+                        }
                       >
                         <Ellipsis className="h-4 w-4" />
                       </button>
                     ) : null}
                     {!isMobile || revealedSession === session.name ? (
-                      <>
+                      <fieldset
+                        id={`terminal-session-actions-${session.name}`}
+                        aria-label={`Actions for terminal session ${session.name}`}
+                        className="contents"
+                      >
+                        <legend className="sr-only">
+                          {`Actions for terminal session ${session.name}`}
+                        </legend>
                         <button
                           type="button"
                           title={isFavorited ? "Remove from favorites" : "Add to favorites"}
@@ -509,9 +534,9 @@ function SessionList({
                         >
                           <X className="h-3 w-3" />
                         </button>
-                      </>
+                      </fieldset>
                     ) : null}
-                  </span>
+                  </div>
                 </>
               )}
             </SidebarMenuSubItem>

@@ -126,14 +126,16 @@ vi.mock("@/components/ui/sheet", () => ({
     side,
     style,
     showCloseButton,
+    ...props
   }: {
     children: ReactNode;
     className?: string;
     side?: string;
     style?: CSSProperties;
     showCloseButton?: boolean;
-  }) => (
+  } & Record<string, unknown>) => (
     <div
+      {...props}
       data-testid="sheet-content"
       data-slot="sheet-content"
       data-side={side}
@@ -491,6 +493,7 @@ describe("CommandPalette", () => {
     const sheet = screen.getByTestId("sheet-content");
     expect(sheet).toHaveAttribute("data-side", "bottom");
     expect(sheet).toHaveAttribute("data-show-close-button", "false");
+    expect(sheet).toHaveAttribute("data-sidebar-gesture-ignore", "true");
     expect(sheet).toHaveClass("pb-safe");
     expect(sheet).toHaveClass("overflow-hidden");
     expect(sheet).toHaveClass("rounded-t-2xl");

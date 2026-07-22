@@ -15,6 +15,12 @@ function GestureHarness({ enabled = true, onOpen }: { enabled?: boolean; onOpen:
       <div data-sidebar-gesture-ignore="true" data-testid="terminal-controls">
         Terminal controls
       </div>
+      <div data-mobile-scroll-allow="true" data-testid="workspace-tabs">
+        Workspace tabs
+      </div>
+      <div role="dialog" aria-label="Pane actions">
+        <button type="button">Modal action</button>
+      </div>
     </main>
   );
 }
@@ -54,7 +60,7 @@ describe("useGlobalCommandPaletteGesture", () => {
     dispatchTouch("touchend", []);
     await Promise.resolve();
 
-    expect(start.defaultPrevented).toBe(true);
+    expect(start.defaultPrevented).toBe(false);
     expect(move.defaultPrevented).toBe(true);
     expect(onOpen).toHaveBeenCalledOnce();
   });
@@ -113,6 +119,27 @@ describe("useGlobalCommandPaletteGesture", () => {
     const start = dispatchTouch("touchstart", [touch(1, 300, 700)], controls);
     const move = dispatchTouch("touchmove", [touch(1, 220, 704)], controls);
     dispatchTouch("touchend", [], controls);
+    await Promise.resolve();
+
+    expect(start.defaultPrevented).toBe(false);
+    expect(move.defaultPrevented).toBe(false);
+    expect(onOpen).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["workspace-tabs", "horizontal scrollers"],
+    ["Modal action", "modal dialogs"],
+  ])("reserves %s for %s", async (targetName) => {
+    const onOpen = vi.fn();
+    const { getByRole, getByTestId } = render(<GestureHarness onOpen={onOpen} />);
+    const target =
+      targetName === "Modal action"
+        ? getByRole("button", { name: targetName })
+        : getByTestId(targetName);
+
+    const start = dispatchTouch("touchstart", [touch(1, 300, 200)], target);
+    const move = dispatchTouch("touchmove", [touch(1, 220, 204)], target);
+    dispatchTouch("touchend", [], target);
     await Promise.resolve();
 
     expect(start.defaultPrevented).toBe(false);

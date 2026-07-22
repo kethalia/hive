@@ -1737,6 +1737,21 @@ describe("MultiSessionWorkspace", () => {
     );
   });
 
+  it("clears an open pane action target when the workspace identity changes", async () => {
+    mockUseIsComposeSheet.mockReturnValue(true);
+    mockGetSessions.mockResolvedValue(twoSessionPayload());
+    const { rerender } = render(<MultiSessionWorkspace {...defaultProps} source="unified" />);
+    await screen.findByTestId("workspace-pane-main-session");
+
+    fireEvent.click(screen.getByTestId("workspace-pane-main-session-actions"));
+    expect(screen.getByTestId("workspace-pane-action-sheet")).toBeInTheDocument();
+
+    rerender(<MultiSessionWorkspace agentId="agent-2" workspaceId="ws-2" source="unified" />);
+    await screen.findByTestId("workspace-pane-main-session");
+
+    expect(screen.queryByTestId("workspace-pane-action-sheet")).not.toBeInTheDocument();
+  });
+
   it("wraps loading and failure states in the visual viewport shell on mobile", async () => {
     mockUseIsComposeSheet.mockReturnValue(true);
     mockGetSessions.mockReturnValueOnce(new Promise(() => undefined));

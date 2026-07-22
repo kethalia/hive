@@ -1612,7 +1612,7 @@ describe("AppSidebar", () => {
     expect(row).not.toContainElement(screen.getByTestId("rename-session-dev"));
     expect(row).not.toContainElement(screen.getByTestId("kill-session-dev"));
 
-    const actions = screen.getByTestId("rename-session-dev").parentElement;
+    const actions = screen.getByTestId("rename-session-dev").parentElement?.parentElement;
     expect(actions).not.toBeNull();
     expect(actions).toHaveClass("opacity-0");
     expect(actions).toHaveClass("group-hover/session-row:opacity-100");
@@ -1640,13 +1640,19 @@ describe("AppSidebar", () => {
     expect(row).toHaveClass("py-2");
     expect(row).toHaveClass("text-sm");
     expect(row).toHaveClass("pr-12");
+    expect(row?.parentElement).toHaveClass("touch-pan-y");
 
     const showActions = screen.getByTestId("show-terminal-session-actions-dev");
     expect(showActions).toHaveAccessibleName("Show actions for terminal session dev");
+    expect(showActions).toHaveAttribute("aria-expanded", "false");
     expect(showActions).toHaveClass("h-11", "w-11");
     expect(screen.queryByTestId("rename-session-dev")).not.toBeInTheDocument();
 
+    showActions.focus();
     fireEvent.click(showActions);
+    expect(showActions).toHaveFocus();
+    expect(showActions).toHaveAccessibleName("Hide actions for terminal session dev");
+    expect(showActions).toHaveAttribute("aria-expanded", "true");
 
     const actions = screen.getByTestId("rename-session-dev").parentElement;
     expect(actions).not.toBeNull();
@@ -1697,6 +1703,34 @@ describe("AppSidebar", () => {
     expect(screen.getByTestId("rename-session-dev")).toBeInTheDocument();
     expect(screen.getByTestId("kill-session-dev")).toBeInTheDocument();
     expect(mockKillSession).not.toHaveBeenCalled();
+  });
+
+  it("cancels a mobile session-row swipe when a second finger joins", async () => {
+    mockUseIsMobile.mockReturnValue(true);
+
+    await expandWorkspaceAndTerminalSessions();
+
+    const row = screen.getByText("dev").closest("a")?.parentElement;
+    expect(row).not.toBeNull();
+    fireEvent.touchStart(row!, {
+      touches: [{ identifier: 1, clientX: 240, clientY: 20 }],
+    });
+    fireEvent.touchMove(row!, {
+      touches: [
+        { identifier: 1, clientX: 170, clientY: 22 },
+        { identifier: 2, clientX: 200, clientY: 40 },
+      ],
+    });
+    fireEvent.touchEnd(row!, {
+      touches: [],
+      changedTouches: [{ identifier: 1, clientX: 170, clientY: 22 }],
+    });
+
+    expect(screen.queryByTestId("rename-session-dev")).not.toBeInTheDocument();
+    expect(screen.getByTestId("show-terminal-session-actions-dev")).toHaveAttribute(
+      "aria-expanded",
+      "false",
+    );
   });
 
   it("renders external tools as links that open in a new tab", async () => {

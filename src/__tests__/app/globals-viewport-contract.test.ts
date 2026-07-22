@@ -20,4 +20,10 @@ describe("global viewport sizing contract", () => {
     );
     expect(css).not.toMatch(/user-scalable\s*=\s*no|maximum-scale\s*=\s*1/);
   });
+
+  it("disables browser history overscroll without suppressing edge taps", () => {
+    const css = readFileSync(join(process.cwd(), "src/app/globals.css"), "utf8");
+
+    expect(css).toMatch(/html,\s*body\s*{\s*overscroll-behavior-x:\s*none;/);
+  });
 });

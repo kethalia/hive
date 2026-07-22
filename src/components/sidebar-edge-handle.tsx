@@ -7,8 +7,6 @@ import {
   resolveHorizontalSwipe,
 } from "@/lib/gestures/horizontal-swipe";
 
-const NATIVE_HISTORY_EDGE_PX = 24;
-
 export interface SidebarEdgeHandleProps {
   className?: string;
 }
@@ -79,9 +77,6 @@ export function SidebarEdgeHandle(_props: SidebarEdgeHandleProps) {
       const touch = event.touches[0];
       if (isSidebarGestureIgnoredTarget(event.target)) {
         reset();
-        if (touch.clientX <= NATIVE_HISTORY_EDGE_PX && event.cancelable) {
-          event.preventDefault();
-        }
         return;
       }
       const start = trackStart({
@@ -90,9 +85,6 @@ export function SidebarEdgeHandle(_props: SidebarEdgeHandleProps) {
         y: touch.clientY,
       });
       touchStartRef.current = start;
-      if (start && start.x <= NATIVE_HISTORY_EDGE_PX && event.cancelable) {
-        event.preventDefault();
-      }
     };
 
     const onTouchMove = (event: TouchEvent) => {

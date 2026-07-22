@@ -1,6 +1,5 @@
 "use client";
 
-import { useDrag } from "@use-gesture/react";
 import {
   ArrowDown,
   ArrowLeft,
@@ -14,7 +13,6 @@ import {
   X,
 } from "lucide-react";
 import type { CSSProperties } from "react";
-import { useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Sheet,
@@ -24,12 +22,8 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { useIsMobile } from "@/hooks/use-mobile";
-import { usePrefersReducedMotion } from "@/hooks/usePrefersReducedMotion";
-import {
-  DRAG_DISMISS_DISTANCE_PX,
-  DRAG_DISMISS_VELOCITY,
-  NO_TOUCH_STYLE,
-} from "@/lib/gestures/conventions";
+import { useSwipeToDismiss } from "@/hooks/useSwipeToDismiss";
+import { NO_TOUCH_STYLE } from "@/lib/gestures/conventions";
 import { cn } from "@/lib/utils";
 
 export type WorkspacePaneActionIcon =
@@ -62,14 +56,7 @@ interface WorkspacePaneActionSheetProps {
   open: boolean;
 }
 
-const SNAP_BACK_TRANSITION = "transform 150ms ease-out";
 const dragHandleStyle: CSSProperties = { ...NO_TOUCH_STYLE, touchAction: "none" };
-
-function vectorValue(vector: unknown, index: number): number {
-  if (!Array.isArray(vector)) return 0;
-  const value = vector[index];
-  return typeof value === "number" && Number.isFinite(value) ? value : 0;
-}
 
 function ActionIcon({ icon }: { icon: WorkspacePaneActionIcon }) {
   if (icon === "move-left") return <ArrowLeft data-icon="inline-start" />;
@@ -92,61 +79,12 @@ export function WorkspacePaneActionSheet({
   open,
 }: WorkspacePaneActionSheetProps) {
   const isMobile = useIsMobile();
-  const prefersReducedMotion = usePrefersReducedMotion();
-  const [dragY, setDragY] = useState(0);
-  const [isDragging, setIsDragging] = useState(false);
-  const [isSnapBack, setIsSnapBack] = useState(false);
-
-  useEffect(() => {
-    if (!open) {
-      setDragY(0);
-      setIsDragging(false);
-      setIsSnapBack(false);
-    }
-  }, [open]);
-
-  useEffect(() => {
-    if (!isSnapBack) return;
-    const timeoutId = window.setTimeout(() => setIsSnapBack(false), 150);
-    return () => window.clearTimeout(timeoutId);
-  }, [isSnapBack]);
-
-  const bindDragHandle = useDrag(
-    ({ active, direction, event, movement, velocity }) => {
-      if (!isMobile) return;
-      const movementY = Math.max(0, vectorValue(movement, 1));
-      const directionY = vectorValue(direction, 1);
-      const velocityY = directionY > 0 ? vectorValue(velocity, 1) : 0;
-
-      if ((active || movementY > 0) && event?.cancelable) event.preventDefault();
-      if (active) {
-        setIsDragging(true);
-        setIsSnapBack(false);
-        setDragY(movementY);
-        return;
-      }
-
-      setIsDragging(false);
-      if (movementY >= DRAG_DISMISS_DISTANCE_PX || velocityY >= DRAG_DISMISS_VELOCITY) {
-        setDragY(0);
-        setIsSnapBack(false);
-        onOpenChange(false);
-        return;
-      }
-      setDragY(0);
-      setIsSnapBack(!prefersReducedMotion);
-    },
-    { axis: "y", eventOptions: { passive: false }, filterTaps: true },
-  );
-
-  const sheetStyle = useMemo<CSSProperties>(() => {
-    if (!isMobile || prefersReducedMotion) return {};
-    if (isDragging) return { transform: `translateY(${dragY}px)`, transition: "none" };
-    if (dragY > 0 || isSnapBack) {
-      return { transform: `translateY(${dragY}px)`, transition: SNAP_BACK_TRANSITION };
-    }
-    return {};
-  }, [dragY, isDragging, isMobile, isSnapBack, prefersReducedMotion]);
+  const { bindDragHandle, sheetStyle } = useSwipeToDismiss({
+    enabled: isMobile,
+    maxHeight: "min(42rem, calc(var(--app-visual-viewport-height) - 2rem))",
+    onDismiss: () => onOpenChange(false),
+    open,
+  });
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -155,9 +93,10 @@ export function WorkspacePaneActionSheet({
         showCloseButton={false}
         className={cn(
           "gap-0 overflow-hidden overscroll-contain p-0 motion-reduce:transition-none motion-reduce:duration-0",
-          isMobile && "max-h-[min(42rem,calc(100dvh-2rem))] rounded-t-2xl pb-safe",
+          isMobile && "rounded-t-2xl pb-safe",
         )}
         style={sheetStyle}
+        data-sidebar-gesture-ignore="true"
         data-testid="workspace-pane-action-sheet"
       >
         {isMobile ? (

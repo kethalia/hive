@@ -1,6 +1,5 @@
 "use client";
 
-import { useDrag } from "@use-gesture/react";
 import { ChevronRight, Plus, Search, Terminal, Triangle, X } from "lucide-react";
 import type { CSSProperties, KeyboardEvent } from "react";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
@@ -30,13 +29,9 @@ import {
   SidebarMenuItem,
 } from "@/components/ui/sidebar";
 import { useIsMobile } from "@/hooks/use-mobile";
-import { usePrefersReducedMotion } from "@/hooks/usePrefersReducedMotion";
+import { useSwipeToDismiss } from "@/hooks/useSwipeToDismiss";
 import { useVisualViewportHeight } from "@/hooks/useVisualViewportHeight";
-import {
-  DRAG_DISMISS_DISTANCE_PX,
-  DRAG_DISMISS_VELOCITY,
-  NO_TOUCH_STYLE,
-} from "@/lib/gestures/conventions";
+import { NO_TOUCH_STYLE } from "@/lib/gestures/conventions";
 import { formatShortcut } from "@/lib/keyboard-shortcuts";
 import { cn } from "@/lib/utils";
 
@@ -81,8 +76,6 @@ interface CommandPaletteProps {
 const mobileCommandClassName =
   "rounded-none bg-transparent shadow-none [&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:font-medium [&_[cmdk-group-heading]]:text-muted-foreground [&_[cmdk-group]:not([hidden])_~[cmdk-group]]:pt-0 [&_[cmdk-input-wrapper]_svg]:h-5 [&_[cmdk-input-wrapper]_svg]:w-5 [&_[cmdk-input]]:h-12 [&_[cmdk-item]]:px-2 [&_[cmdk-item]]:py-3 [&_[cmdk-group]]:px-2";
 
-const SNAP_BACK_TRANSITION = "transform 150ms ease-out";
-
 const dragHandleStyle: CSSProperties = {
   ...NO_TOUCH_STYLE,
   touchAction: "none",
@@ -99,12 +92,6 @@ interface CommandPaletteBodyProps {
   searchPlaceholder: string;
   emptyText: string;
   groupHeading: string;
-}
-
-function getVectorValue(vector: unknown, index: number): number {
-  if (!Array.isArray(vector)) return 0;
-  const value = vector[index];
-  return typeof value === "number" && Number.isFinite(value) ? value : 0;
 }
 
 function actionIcon(
@@ -653,87 +640,13 @@ export function CommandPalette({
 }: CommandPaletteProps) {
   const isMobile = useIsMobile();
   const { height } = useVisualViewportHeight();
-  const prefersReducedMotion = usePrefersReducedMotion();
-  const [dragY, setDragY] = useState(0);
-  const [isDragging, setIsDragging] = useState(false);
-  const [isSnapBack, setIsSnapBack] = useState(false);
   const sheetMaxHeight = height !== null ? `${height}px` : "100dvh";
-
-  useEffect(() => {
-    if (!open) {
-      setDragY(0);
-      setIsDragging(false);
-      setIsSnapBack(false);
-    }
-  }, [open]);
-
-  useEffect(() => {
-    if (!isSnapBack) return;
-
-    const timeoutId = window.setTimeout(() => {
-      setIsSnapBack(false);
-    }, 150);
-
-    return () => window.clearTimeout(timeoutId);
-  }, [isSnapBack]);
-
-  const bindDragHandle = useDrag(
-    ({ active, direction, event, movement, velocity }) => {
-      const movementY = Math.max(0, getVectorValue(movement, 1));
-      const directionY = getVectorValue(direction, 1);
-      const velocityY = directionY > 0 ? getVectorValue(velocity, 1) : 0;
-      const isDownwardDrag = Boolean(active) || movementY > 0;
-
-      if (isDownwardDrag && event && typeof event.preventDefault === "function") {
-        event.preventDefault();
-      }
-
-      if (active) {
-        setIsDragging(true);
-        setIsSnapBack(false);
-        setDragY(movementY);
-        return;
-      }
-
-      setIsDragging(false);
-
-      const shouldDismiss =
-        movementY >= DRAG_DISMISS_DISTANCE_PX || velocityY >= DRAG_DISMISS_VELOCITY;
-
-      if (shouldDismiss) {
-        setDragY(0);
-        setIsSnapBack(false);
-        onOpenChange(false);
-        return;
-      }
-
-      setDragY(0);
-      setIsSnapBack(!prefersReducedMotion);
-    },
-    {
-      axis: "y",
-      eventOptions: { passive: false },
-      filterTaps: true,
-    },
-  );
-
-  const sheetStyle = useMemo<CSSProperties>(() => {
-    const style: CSSProperties = { maxHeight: sheetMaxHeight };
-
-    if (!prefersReducedMotion) {
-      if (dragY > 0 || isSnapBack) {
-        style.transform = `translateY(${dragY}px)`;
-      }
-
-      if (isDragging) {
-        style.transition = "none";
-      } else if (isSnapBack) {
-        style.transition = SNAP_BACK_TRANSITION;
-      }
-    }
-
-    return style;
-  }, [dragY, isDragging, isSnapBack, prefersReducedMotion, sheetMaxHeight]);
+  const { bindDragHandle, sheetStyle } = useSwipeToDismiss({
+    enabled: isMobile && mobileSide === "bottom",
+    maxHeight: sheetMaxHeight,
+    onDismiss: () => onOpenChange(false),
+    open,
+  });
 
   if (isMobile) {
     if (mobileSide === "right") {
@@ -774,6 +687,7 @@ export function CommandPalette({
         <SheetContent
           side="bottom"
           showCloseButton={false}
+          data-sidebar-gesture-ignore="true"
           className="gap-0 overflow-hidden overscroll-contain rounded-t-2xl p-0 pb-safe motion-reduce:transition-none motion-reduce:duration-0"
           style={sheetStyle}
         >

@@ -209,21 +209,17 @@ function stableTerminalFrame(page: Page) {
     .first();
 }
 
-async function ensureThreeTouchTerminals(page: Page) {
+async function ensureThreeTouchTerminals(
+  page: Page,
+  testInfo: TestInfo,
+  createdSessionNames: string[],
+) {
   const terminalFrames = page
     .locator("[data-pane-mode]:visible")
     .filter({ has: page.getByTestId("terminal-fit-host") });
-  const createdSessionNames = await page
-    .locator('[data-workspace-window-id^="gesture-e2e-"]:visible')
-    .evaluateAll((panes) =>
-      panes.flatMap((pane) => {
-        const sessionName = pane.getAttribute("data-workspace-window-id");
-        return sessionName ? [sessionName] : [];
-      }),
-    );
   while ((await terminalFrames.count()) < 3) {
     const sessionCountBefore = await terminalFrames.count();
-    const createdSessionName = `gesture-e2e-${Date.now()}-${createdSessionNames.length + 1}`;
+    const createdSessionName = `gesture-e2e-${testInfo.project.name}-${Date.now()}-${createdSessionNames.length + 1}`;
     createdSessionNames.push(createdSessionName);
     await page.getByRole("button", { name: "Open workspace command palette" }).click();
     const globalDrawer = page.getByRole("dialog", { name: "Global navigation", exact: true });
@@ -239,7 +235,6 @@ async function ensureThreeTouchTerminals(page: Page) {
     await expect.poll(() => terminalFrames.count()).toBeGreaterThan(sessionCountBefore);
   }
   await expect.poll(() => terminalFrames.count()).toBeGreaterThanOrEqual(3);
-  return createdSessionNames;
 }
 
 async function verifyMobileWorkspaceWindowDrag(page: Page) {
@@ -297,8 +292,11 @@ async function verifyWorkspaceTabNavigation(page: Page) {
   const initialBoardCount = await boardTabs.count();
   await page.getByTestId("workspace-board-new").click();
   await expect(boardTabs).toHaveCount(initialBoardCount + 1);
-  const createdBoard = boardTabs.last();
-  await expect(createdBoard).toHaveAttribute("aria-selected", "true");
+  const newestBoard = boardTabs.last();
+  await expect(newestBoard).toHaveAttribute("aria-selected", "true");
+  const createdBoardTestId = await newestBoard.getAttribute("data-testid");
+  if (!createdBoardTestId) throw new Error("Created workspace board has no stable identity.");
+  const createdBoard = page.getByTestId(createdBoardTestId);
 
   await boardTabs.first().click();
   await expect(boardTabs.first()).toHaveAttribute("aria-selected", "true");
@@ -306,6 +304,22 @@ async function verifyWorkspaceTabNavigation(page: Page) {
   await expect(createdBoard).toHaveAttribute("aria-selected", "true");
   await boardTabs.first().click();
   return { boardTabs, createdBoard, initialBoardCount };
+}
+
+async function deleteCreatedWorkspaceBoard(page: Page, createdBoard: Locator) {
+  if ((await createdBoard.count()) === 0) return;
+  await page.keyboard.press("Escape").catch(() => undefined);
+  if ((await createdBoard.getAttribute("aria-selected")) === "true") {
+    await page
+      .getByRole("tab", { name: /workspace/i })
+      .first()
+      .click();
+    await expect(createdBoard).toHaveAttribute("aria-selected", "false");
+  }
+  await createdBoard.click();
+  await expect(createdBoard).toHaveAttribute("aria-selected", "true");
+  await createdBoard.click();
+  await expect(createdBoard).toHaveCount(0);
 }
 
 async function verifyTerminalControlsOwnHorizontalSwipes(page: Page) {
@@ -1141,11 +1155,8 @@ async function visibleWorkspaceWindowIds(page: Page): Promise<string[]> {
   );
 }
 
-async function createIsolatedStressTerminal(
-  page: Page,
-): Promise<{ terminal: Locator; sessionName: string }> {
+async function createIsolatedStressTerminal(page: Page, sessionName: string): Promise<Locator> {
   const initialWindowIds = await visibleWorkspaceWindowIds(page);
-  const sessionName = `stress-e2e-${Date.now()}`;
   await page.getByRole("button", { name: "Open workspace command palette" }).click();
   await page.getByRole("combobox").fill(sessionName);
   await page
@@ -1160,7 +1171,7 @@ async function createIsolatedStressTerminal(
     .locator(`[data-workspace-window-id="${sessionName}"]`)
     .locator('[data-terminal-surface="true"]');
   await expect(terminal).toHaveAttribute("data-connection-state", "connected", { timeout: 30_000 });
-  return { terminal, sessionName };
+  return terminal;
 }
 
 async function startSustainedOutput(page: Page, terminal: Locator, marker: string) {
@@ -1198,13 +1209,12 @@ async function captureSustainedActivity(
 async function verifySustainedTerminalActivity(page: Page, testInfo: TestInfo, terminal: Locator) {
   const marker = `hive-window-stress-${Date.now()}`;
   const secondaryMarker = `secondary-${Date.now().toString(36)}`;
-  const stressSession = await createIsolatedStressTerminal(page);
-  const stressWindow = stressSession.terminal.locator(
-    "xpath=ancestor::*[@data-workspace-window-id]",
-  );
-  const initialWindowIds = await visibleWorkspaceWindowIds(page);
+  const stressSessionName = `stress-e2e-${testInfo.project.name}-${Date.now()}`;
   const eventLogPane = page.getByTestId("workspace-tool-pane-logs");
   try {
+    const stressTerminal = await createIsolatedStressTerminal(page, stressSessionName);
+    const stressWindow = stressTerminal.locator("xpath=ancestor::*[@data-workspace-window-id]");
+    const initialWindowIds = await visibleWorkspaceWindowIds(page);
     const openLogsButton = stressWindow.getByRole("button", {
       name: /^Open session logs for /,
     });
@@ -1217,10 +1227,10 @@ async function verifySustainedTerminalActivity(page: Page, testInfo: TestInfo, t
     await expect(eventLogPane).toBeVisible({ timeout: 15_000 });
 
     await startSustainedOutput(page, terminal, marker);
-    await startSustainedOutput(page, stressSession.terminal, secondaryMarker);
+    await startSustainedOutput(page, stressTerminal, secondaryMarker);
     const observedMarkers = await captureSustainedActivity(page, testInfo, [
       { terminal, marker },
-      { terminal: stressSession.terminal, marker: secondaryMarker },
+      { terminal: stressTerminal, marker: secondaryMarker },
     ]);
 
     expect(observedMarkers).toEqual([true, true]);
@@ -1236,7 +1246,7 @@ async function verifySustainedTerminalActivity(page: Page, testInfo: TestInfo, t
       await page.getByTestId("remove-workspace-tool-logs").click();
       await expect(eventLogPane).toHaveCount(0);
     }
-    await cleanupTestSession(page, stressSession.sessionName);
+    await cleanupTestSession(page, stressSessionName);
   }
 }
 
@@ -1370,27 +1380,30 @@ test.describe("authenticated Hive workflows", () => {
       page.locator('[data-testid="multi-session-workspace"], [data-testid="multi-session-empty"]'),
     ).toBeVisible({ timeout: 30_000 });
 
-    let createdSessionNames: string[] = [];
+    const createdSessionNames: string[] = [];
+    let createdBoard: Locator | null = null;
     try {
-      createdSessionNames = await ensureThreeTouchTerminals(page);
+      await ensureThreeTouchTerminals(page, testInfo, createdSessionNames);
       await expectConnectedTerminal(page);
       await verifyMobileAddSessionUsesRightSidebar(page);
       await verifyTerminalControlsOwnHorizontalSwipes(page);
       await verifySidebarEdgeNavigation(page);
       await verifyGlobalCommandDrawerGesture(page);
       await verifyMobileWorkspaceWindowDrag(page);
-      const { boardTabs, createdBoard, initialBoardCount } =
-        await verifyWorkspaceTabNavigation(page);
+      const boardNavigation = await verifyWorkspaceTabNavigation(page);
+      createdBoard = boardNavigation.createdBoard;
       await verifyNativePaneActions(page, testInfo);
-      await createdBoard.click();
-      await expect(createdBoard).toHaveAttribute("aria-selected", "true");
-      await createdBoard.click();
-      await expect(boardTabs).toHaveCount(initialBoardCount);
+      await deleteCreatedWorkspaceBoard(page, createdBoard);
+      createdBoard = null;
+      await expect(boardNavigation.boardTabs).toHaveCount(boardNavigation.initialBoardCount);
       if (testInfo.project.name === "tablet-chromium") {
         await verifyTabletLandscapeSafeArea(page, testInfo);
       }
       await capture(page, testInfo, "mobile-touch-workspace-navigation");
     } finally {
+      if (createdBoard) {
+        await deleteCreatedWorkspaceBoard(page, createdBoard);
+      }
       for (const createdSessionName of createdSessionNames) {
         await cleanupTestSession(page, createdSessionName);
       }

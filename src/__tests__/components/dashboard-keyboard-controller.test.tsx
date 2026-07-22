@@ -10,7 +10,12 @@ const mockToggleSidebar = vi.hoisted(() => vi.fn());
 const mockSetOpen = vi.hoisted(() => vi.fn());
 const mockSetOpenMobile = vi.hoisted(() => vi.fn());
 const mockSetOpenMobileRight = vi.hoisted(() => vi.fn());
-const mobileState = vi.hoisted(() => ({ isMobile: false, openMobileRight: false }));
+const mockUseGlobalCommandPaletteGesture = vi.hoisted(() => vi.fn());
+const mobileState = vi.hoisted(() => ({
+  isMobile: false,
+  openMobile: false,
+  openMobileRight: false,
+}));
 const mockListWorkspaces = vi.hoisted(() => vi.fn());
 const mockListTasks = vi.hoisted(() => vi.fn());
 const registeredBindings = vi.hoisted(() => new Map<string, KeybindingEntry>());
@@ -21,12 +26,17 @@ vi.mock("next/navigation", () => ({
 
 vi.mock("@/components/ui/sidebar", () => ({
   useSidebar: () => ({
+    openMobile: mobileState.openMobile,
     setOpen: mockSetOpen,
     setOpenMobile: mockSetOpenMobile,
     openMobileRight: mobileState.openMobileRight,
     setOpenMobileRight: mockSetOpenMobileRight,
     toggleSidebar: mockToggleSidebar,
   }),
+}));
+
+vi.mock("@/hooks/useGlobalCommandPaletteGesture", () => ({
+  useGlobalCommandPaletteGesture: mockUseGlobalCommandPaletteGesture,
 }));
 
 vi.mock("@/hooks/use-mobile", () => ({
@@ -146,6 +156,7 @@ describe("DashboardKeyboardController", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mobileState.isMobile = false;
+    mobileState.openMobile = false;
     mobileState.openMobileRight = false;
     registeredBindings.clear();
     mockListWorkspaces.mockResolvedValue(workspacePayload());
@@ -307,6 +318,55 @@ describe("DashboardKeyboardController", () => {
 
     expect(mockSetOpenMobileRight).toHaveBeenCalledWith(true);
     expect(mockSetOpenMobile).not.toHaveBeenCalledWith(false);
+  });
+
+  it("disables the global swipe while either mobile sidebar is open", () => {
+    mobileState.isMobile = true;
+    mobileState.openMobile = true;
+    const { rerender } = render(<DashboardKeyboardController />);
+
+    expect(mockUseGlobalCommandPaletteGesture).toHaveBeenLastCalledWith(
+      expect.objectContaining({ enabled: false }),
+    );
+
+    mobileState.openMobile = false;
+    mobileState.openMobileRight = true;
+    rerender(<DashboardKeyboardController />);
+
+    expect(mockUseGlobalCommandPaletteGesture).toHaveBeenLastCalledWith(
+      expect.objectContaining({ enabled: false }),
+    );
+  });
+
+  it("moves an open desktop palette into the mobile right sidebar", async () => {
+    const { rerender } = render(<DashboardKeyboardController />);
+    act(() => {
+      expect(registeredBindings.get("dashboard:command-palette")?.action(null, null)).toBe(false);
+    });
+    expect(screen.getByTestId("palette")).toHaveAttribute("data-open", "true");
+
+    mobileState.isMobile = true;
+    rerender(<DashboardKeyboardController />);
+
+    await waitFor(() => {
+      expect(mockSetOpenMobileRight).toHaveBeenCalledWith(true);
+    });
+    expect(screen.getByTestId("palette")).toHaveAttribute("data-open", "false");
+  });
+
+  it("moves an open mobile drawer into the desktop palette", async () => {
+    mobileState.isMobile = true;
+    mobileState.openMobileRight = true;
+    const { rerender } = render(<DashboardKeyboardController />);
+    expect(screen.getByTestId("palette")).toHaveAttribute("data-open", "true");
+
+    mobileState.isMobile = false;
+    rerender(<DashboardKeyboardController />);
+
+    await waitFor(() => {
+      expect(mockSetOpenMobileRight).toHaveBeenCalledWith(false);
+      expect(screen.getByTestId("palette")).toHaveAttribute("data-open", "true");
+    });
   });
 
   it("navigates to primary dashboard surfaces from global shortcuts", () => {

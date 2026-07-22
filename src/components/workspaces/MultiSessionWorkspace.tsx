@@ -2396,6 +2396,7 @@ export function MultiSessionWorkspace({
     setGitRestoreFailed(false);
     setTerminalCloseFailed(false);
     setWorkspaceViewport({ width: 0, height: 0 });
+    setPaneActionTarget(null);
     setPaneRecoveryStates({});
     workspaceToolPanesRef.current = [];
     setWorkspaceToolPanes([]);

@@ -6,8 +6,6 @@ import {
   resolveHorizontalSwipe,
 } from "@/lib/gestures/horizontal-swipe";
 
-const NATIVE_HISTORY_EDGE_PX = 24;
-
 interface GlobalCommandPaletteGestureOptions {
   enabled: boolean;
   onOpen: () => void;
@@ -19,12 +17,6 @@ type TouchStart = {
   y: number;
   qualified: boolean;
 };
-
-function preventNativeForwardGesture(event: TouchEvent, clientX: number) {
-  if (clientX >= window.innerWidth - NATIVE_HISTORY_EDGE_PX && event.cancelable) {
-    event.preventDefault();
-  }
-}
 
 /** Opens the global command drawer with a deliberate one-finger leftward swipe. */
 export function useGlobalCommandPaletteGesture({
@@ -55,7 +47,6 @@ export function useGlobalCommandPaletteGesture({
       const touch = event.touches[0];
       if (isSidebarGestureIgnoredTarget(event.target)) {
         reset();
-        preventNativeForwardGesture(event, touch.clientX);
         return;
       }
       if (touch.clientX < 0 || touch.clientX > window.innerWidth) {
@@ -69,7 +60,6 @@ export function useGlobalCommandPaletteGesture({
         y: touch.clientY,
         qualified: false,
       };
-      preventNativeForwardGesture(event, touch.clientX);
     };
 
     const handleTouchMove = (event: TouchEvent) => {

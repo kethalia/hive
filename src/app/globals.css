@@ -293,6 +293,10 @@
   * {
     @apply border-border outline-ring/50;
   }
+  html,
+  body {
+    overscroll-behavior-x: none;
+  }
   body {
     min-height: var(--app-viewport-height);
     text-wrap: pretty;

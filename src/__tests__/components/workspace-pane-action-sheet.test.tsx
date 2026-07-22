@@ -64,7 +64,12 @@ describe("WorkspacePaneActionSheet", () => {
       />,
     );
 
-    expect(screen.getByTestId("workspace-pane-action-sheet")).toBeInTheDocument();
+    const sheet = screen.getByTestId("workspace-pane-action-sheet");
+    expect(sheet).toBeInTheDocument();
+    expect(sheet).toHaveAttribute("data-sidebar-gesture-ignore", "true");
+    expect(sheet.style.maxHeight).toBe(
+      "min(42rem, calc(var(--app-visual-viewport-height) - 2rem))",
+    );
     expect(screen.getByRole("group", { name: "Actions for Terminal one" })).toBeInTheDocument();
     expect(document.querySelector("[cmdk-root]")).not.toBeInTheDocument();
 

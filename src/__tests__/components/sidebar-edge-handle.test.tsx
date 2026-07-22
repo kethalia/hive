@@ -15,6 +15,7 @@ import { SidebarEdgeHandle } from "@/components/sidebar-edge-handle";
 type SidebarState = {
   isMobile: boolean;
   openMobile: boolean;
+  openMobileRight: boolean;
   setOpenMobile: ReturnType<typeof vi.fn>;
 };
 
@@ -24,6 +25,7 @@ function renderHandle(overrides: Partial<SidebarState> = {}) {
   sidebarState = {
     isMobile: true,
     openMobile: false,
+    openMobileRight: false,
     setOpenMobile: vi.fn(),
     ...overrides,
   };
@@ -142,7 +144,7 @@ describe("SidebarEdgeHandle", () => {
     });
   });
 
-  it("claims the operating-system edge before browser history navigation can start", async () => {
+  it("claims the operating-system edge only after horizontal intent is established", async () => {
     renderHandle();
 
     const content = screen.getByTestId("page-content");
@@ -150,7 +152,7 @@ describe("SidebarEdgeHandle", () => {
     const move = touchEvent("touchmove", [touchPoint(1, 80, 204)]);
     touchEvent("touchend", []);
 
-    expect(start.defaultPrevented).toBe(true);
+    expect(start.defaultPrevented).toBe(false);
     expect(move.defaultPrevented).toBe(true);
     await waitFor(() => {
       expect(sidebarState.setOpenMobile).toHaveBeenCalledWith(true);
@@ -188,6 +190,7 @@ describe("SidebarEdgeHandle", () => {
     sidebarState = {
       isMobile: true,
       openMobile: false,
+      openMobileRight: false,
       setOpenMobile: vi.fn(),
     };
     mockUseSidebar.mockReturnValue(sidebarState);
@@ -213,6 +216,7 @@ describe("SidebarEdgeHandle", () => {
     sidebarState = {
       isMobile: true,
       openMobile: false,
+      openMobileRight: false,
       setOpenMobile: vi.fn(),
     };
     mockUseSidebar.mockReturnValue(sidebarState);
@@ -238,6 +242,7 @@ describe("SidebarEdgeHandle", () => {
     sidebarState = {
       isMobile: true,
       openMobile: false,
+      openMobileRight: false,
       setOpenMobile: vi.fn(),
     };
     mockUseSidebar.mockReturnValue(sidebarState);
@@ -257,7 +262,7 @@ describe("SidebarEdgeHandle", () => {
     const move = touchEvent("touchmove", [touchPoint(1, 96, 204)]);
     touchEvent("touchend", []);
 
-    expect(start.defaultPrevented).toBe(true);
+    expect(start.defaultPrevented).toBe(false);
     expect(move.defaultPrevented).toBe(true);
     await waitFor(() => {
       expect(sidebarState.setOpenMobile).toHaveBeenCalledWith(true);
@@ -287,6 +292,7 @@ describe("SidebarEdgeHandle", () => {
     sidebarState = {
       isMobile: true,
       openMobile: false,
+      openMobileRight: false,
       setOpenMobile: vi.fn(),
     };
     mockUseSidebar.mockReturnValue(sidebarState);
@@ -309,6 +315,7 @@ describe("SidebarEdgeHandle", () => {
     sidebarState = {
       isMobile: true,
       openMobile: false,
+      openMobileRight: false,
       setOpenMobile: vi.fn(),
     };
     mockUseSidebar.mockReturnValue(sidebarState);
@@ -330,6 +337,47 @@ describe("SidebarEdgeHandle", () => {
     expect(start.defaultPrevented).toBe(false);
     expect(move.defaultPrevented).toBe(false);
     expect(sidebarState.setOpenMobile).not.toHaveBeenCalled();
+  });
+
+  it("reserves explicitly horizontal scroll regions", () => {
+    renderHandle();
+    render(
+      <div data-mobile-scroll-allow="true" data-testid="workspace-tabs">
+        Workspace tabs
+      </div>,
+    );
+
+    const tabs = screen.getByTestId("workspace-tabs");
+    const start = touchEvent("touchstart", [touchPoint(1, 180, 40)], tabs);
+    const move = touchEvent("touchmove", [touchPoint(1, 280, 44)], tabs);
+    touchEvent("touchend", [], tabs);
+
+    expect(start.defaultPrevented).toBe(false);
+    expect(move.defaultPrevented).toBe(false);
+    expect(sidebarState.setOpenMobile).not.toHaveBeenCalled();
+  });
+
+  it("reserves non-sidebar modal dialogs", () => {
+    renderHandle();
+    render(
+      <div role="dialog" aria-label="Pane actions">
+        <button type="button">Modal action</button>
+      </div>,
+    );
+
+    swipePage({ target: screen.getByRole("button", { name: "Modal action" }), move: [310, 206] });
+
+    expect(sidebarState.setOpenMobile).not.toHaveBeenCalled();
+  });
+
+  it("keeps the intentional right-to-left sidebar replacement gesture", async () => {
+    renderHandle({ openMobileRight: true });
+
+    swipePage({ target: screen.getByTestId("page-content"), move: [310, 206] });
+
+    await waitFor(() => {
+      expect(sidebarState.setOpenMobile).toHaveBeenCalledWith(true);
+    });
   });
 
   it("cancels the one-finger drawer gesture as soon as a second finger joins", () => {
