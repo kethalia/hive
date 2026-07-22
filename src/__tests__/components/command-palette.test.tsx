@@ -256,7 +256,7 @@ vi.mock("@/components/ui/command", () => {
   };
 });
 
-import { CommandPalette } from "@/components/terminal/CommandPalette";
+import { CommandPalette, type CommandPaletteAction } from "@/components/terminal/CommandPalette";
 import {
   DRAG_DISMISS_DISTANCE_PX,
   DRAG_DISMISS_VELOCITY,
@@ -375,6 +375,34 @@ const mockTabs = [
   { id: "tab-2", sessionName: "dev-server" },
   { id: "tab-3", sessionName: "test-runner" },
 ];
+
+function expandableMobileActions(add: () => void, open: () => void): CommandPaletteAction[] {
+  return [
+    {
+      id: "workspace:session:dev-server",
+      label: "dev-server",
+      description: "Terminal session",
+      group: "Terminal sessions",
+      shortcut: "Ctrl + 1",
+      icon: "terminal",
+      onSelect: add,
+      options: [
+        { id: "add", label: "Add", onSelect: add },
+        { id: "open", label: "Open", onSelect: open },
+      ],
+    },
+    {
+      id: "workspace:git:hive",
+      label: "hive",
+      description: "kethalia/hive",
+      group: "Git repositories",
+      shortcut: "Ctrl + 2",
+      icon: "search",
+      onSelect: add,
+      options: [{ id: "open", label: "Open", onSelect: open }],
+    },
+  ];
+}
 
 describe("CommandPalette", () => {
   beforeEach(() => {
@@ -545,31 +573,7 @@ describe("CommandPalette", () => {
         tabs={[]}
         onSelectTab={vi.fn()}
         mobileSide="right"
-        actions={[
-          {
-            id: "workspace:session:dev-server",
-            label: "dev-server",
-            description: "Terminal session",
-            group: "Terminal sessions",
-            shortcut: "Ctrl + 1",
-            icon: "terminal",
-            onSelect: add,
-            options: [
-              { id: "add", label: "Add", onSelect: add },
-              { id: "open", label: "Open", onSelect: open },
-            ],
-          },
-          {
-            id: "workspace:git:hive",
-            label: "hive",
-            description: "kethalia/hive",
-            group: "Git repositories",
-            shortcut: "Ctrl + 2",
-            icon: "search",
-            onSelect: add,
-            options: [{ id: "open", label: "Open", onSelect: open }],
-          },
-        ]}
+        actions={expandableMobileActions(add, open)}
       />,
     );
 
