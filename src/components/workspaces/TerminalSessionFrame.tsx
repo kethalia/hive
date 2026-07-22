@@ -87,7 +87,7 @@ export function SingleTerminalSessionHeader({
   return (
     <header
       className={cn(
-        "grid min-h-[calc(3.5rem+var(--safe-area-inset-top))] shrink-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-1 border-b border-sidebar-border px-[max(0.25rem,var(--safe-area-inset-left))] pb-1 pt-[calc(var(--safe-area-inset-top)+0.25rem)] pr-[max(0.25rem,var(--safe-area-inset-right))] min-[1025px]:min-h-14 min-[1025px]:py-1",
+        "grid min-h-[calc(3.5rem+var(--safe-area-inset-top))] shrink-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-1 border-b border-sidebar-border px-[max(0.25rem,var(--safe-area-inset-left))] pb-1 pt-[calc(var(--safe-area-inset-top)+0.25rem)] pr-[max(0.25rem,var(--safe-area-inset-right))]",
         className,
       )}
       data-testid="single-terminal-header"

@@ -2166,14 +2166,14 @@ export function MultiSessionWorkspace({
     (surface: "terminal" | "workspace", direction: "left" | "right") => {
       if (surface === "terminal") {
         const target =
-          direction === "left" ? mobileWindowNavigation.next : mobileWindowNavigation.previous;
+          direction === "left" ? mobileWindowNavigation.previous : mobileWindowNavigation.next;
         if (!target || !mobileWindowNavigation.select(target.id)) return;
         setGestureAnnouncement(`Active terminal: ${target.name}`);
         triggerHapticFeedback();
         return;
       }
 
-      const nextBoard = switchRelativeWorkspaceBoard(direction === "left" ? 1 : -1);
+      const nextBoard = switchRelativeWorkspaceBoard(direction === "left" ? -1 : 1);
       if (!nextBoard) return;
       const boardNumber =
         orderedWorkspaceBoards(boardState.boards).findIndex(
@@ -3814,7 +3814,7 @@ export function MultiSessionWorkspace({
 
   const renderWorkspaceHeader = () => (
     <>
-      <header className="grid min-h-[calc(5.75rem+var(--safe-area-inset-top))] shrink-0 grid-cols-[minmax(0,1fr)_auto] grid-rows-[auto_auto] items-center gap-x-2 gap-y-1 border-b border-sidebar-border px-[max(0.5rem,var(--safe-area-inset-left))] pb-1 pt-[calc(var(--safe-area-inset-top)+0.25rem)] pr-[max(0.5rem,var(--safe-area-inset-right))] min-[1025px]:min-h-14 min-[1025px]:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] min-[1025px]:grid-rows-1 min-[1025px]:gap-1 min-[1025px]:px-2 min-[1025px]:py-1">
+      <header className="grid min-h-[calc(5.75rem+var(--safe-area-inset-top))] shrink-0 grid-cols-[minmax(0,1fr)_auto] grid-rows-[auto_auto] items-center gap-x-2 gap-y-1 border-b border-sidebar-border px-[max(0.5rem,var(--safe-area-inset-left))] pb-1 pt-[calc(var(--safe-area-inset-top)+0.25rem)] pr-[max(0.5rem,var(--safe-area-inset-right))] min-[1025px]:min-h-[calc(3.5rem+var(--safe-area-inset-top))] min-[1025px]:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] min-[1025px]:grid-rows-1 min-[1025px]:gap-1">
         <div className="flex min-w-0 items-center gap-1" data-testid="workspace-header-left">
           <SidebarTrigger className="h-7 min-h-0 shrink-0" />
           <div className="min-w-0 flex-1">

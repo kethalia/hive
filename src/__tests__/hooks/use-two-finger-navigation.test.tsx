@@ -130,6 +130,26 @@ describe("useTwoFingerNavigation", () => {
     expect(onNavigate).toHaveBeenCalledWith("terminal", "left");
   });
 
+  it("completes before xterm-style document touch-end consumption", async () => {
+    const onNavigate = vi.fn();
+    render(<NavigationHarness onNavigate={onNavigate} />);
+
+    const consumeTouchEnd = (event: TouchEvent) => event.stopPropagation();
+    document.addEventListener("touchend", consumeTouchEnd);
+
+    try {
+      const terminal = screen.getByTestId("terminal-surface");
+      dispatchTouch(terminal, "touchstart", [touch(1, 180, 80), touch(2, 220, 120)]);
+      dispatchTouch(terminal, "touchmove", [touch(1, 110, 82), touch(2, 150, 122)]);
+      dispatchTouch(terminal, "touchend", []);
+      await Promise.resolve();
+
+      expect(onNavigate).toHaveBeenCalledWith("terminal", "left");
+    } finally {
+      document.removeEventListener("touchend", consumeTouchEnd);
+    }
+  });
+
   it("navigates after nested touch-end handlers finish and pending sensors release", async () => {
     const onNavigate = vi.fn();
     render(<NavigationHarness onNavigate={onNavigate} />);

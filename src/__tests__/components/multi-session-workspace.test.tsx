@@ -638,6 +638,16 @@ function twoSessionPayload() {
   };
 }
 
+function threeSessionPayload() {
+  return {
+    data: [
+      { name: "main-session", created: 1, windows: 1 },
+      { name: "dev-server", created: 2, windows: 1 },
+      { name: "ops-shell", created: 3, windows: 1 },
+    ],
+  };
+}
+
 function dispatchTwoFingerSwipe(target: Element, direction: "left" | "right"): { move: Event } {
   const startX = direction === "left" ? 180 : 80;
   const endX = direction === "left" ? 100 : 160;
@@ -691,6 +701,24 @@ async function renderTwoSessionWorkspace(options: { connect?: boolean } = {}) {
       expect(screen.queryByTestId("multi-session-loading")).not.toBeInTheDocument();
     });
   }
+}
+
+async function renderThreeSessionWorkspace(options: { readyTestId?: string } = {}) {
+  mockGetSessions.mockResolvedValue(threeSessionPayload());
+  render(<MultiSessionWorkspace {...defaultProps} />);
+
+  await waitFor(() => {
+    expect(
+      screen.getByTestId(options.readyTestId ?? "workspace-pane-ops-shell"),
+    ).toBeInTheDocument();
+  });
+
+  markSessionConnected("main-session");
+  markSessionConnected("dev-server");
+  markSessionConnected("ops-shell");
+  await waitFor(() => {
+    expect(screen.queryByTestId("multi-session-loading")).not.toBeInTheDocument();
+  });
 }
 
 let workspaceViewportRect = { width: 1_200, height: 800 };
@@ -1493,6 +1521,13 @@ describe("MultiSessionWorkspace", () => {
       "row-start-2",
       "min-[1025px]:row-start-1",
     );
+    expect(screen.getByTestId("workspace-header-left").parentElement).toHaveClass(
+      "pt-[calc(var(--safe-area-inset-top)+0.25rem)]",
+      "min-[1025px]:min-h-[calc(3.5rem+var(--safe-area-inset-top))]",
+    );
+    expect(screen.getByTestId("workspace-header-left").parentElement).not.toHaveClass(
+      "min-[1025px]:py-1",
+    );
     expect(screen.getByTestId("workspace-board-bar")).toHaveClass(
       "w-full",
       "min-w-0",
@@ -1677,9 +1712,9 @@ describe("MultiSessionWorkspace", () => {
     expect(mainTerm.focus).not.toHaveBeenCalled();
   });
 
-  it("navigates terminals with a scoped two-finger swipe on touch layouts", async () => {
+  it("navigates terminals in the physical swipe direction on touch layouts", async () => {
     mockUseIsComposeSheet.mockReturnValue(true);
-    await renderTwoSessionWorkspace();
+    await renderThreeSessionWorkspace();
 
     const terminal = screen.getByTestId("interactive-terminal-main-session");
     const terminalFrame = screen.getByTestId("workspace-pane-main-session");
@@ -1695,11 +1730,11 @@ describe("MultiSessionWorkspace", () => {
 
     expect(move?.defaultPrevented).toBe(true);
     await waitFor(() => {
-      expect(screen.getByTestId("active-pane-label")).toHaveTextContent("dev-server");
+      expect(screen.getByTestId("active-pane-label")).toHaveTextContent("ops-shell");
     });
 
     act(() => {
-      dispatchTwoFingerSwipe(screen.getByTestId("workspace-pane-dev-server-header"), "right");
+      dispatchTwoFingerSwipe(screen.getByTestId("workspace-pane-ops-shell-header"), "right");
     });
 
     await waitFor(() => {
@@ -1746,10 +1781,25 @@ describe("MultiSessionWorkspace", () => {
               },
             ],
           },
+          {
+            key: "ops",
+            name: "Ops",
+            order: 2,
+            activePaneKey: "terminal:ops-shell",
+            panes: [
+              {
+                kind: "terminal",
+                key: "terminal:ops-shell",
+                sessionName: "ops-shell",
+                label: "Ops terminal",
+                order: 0,
+              },
+            ],
+          },
         ],
       }),
     );
-    await renderTwoSessionWorkspace();
+    await renderThreeSessionWorkspace({ readyTestId: "workspace-board-tab-ops" });
 
     expect(screen.getByTestId("multi-session-workspace")).toHaveAttribute(
       "data-workspace-navigation-surface",
@@ -1761,12 +1811,22 @@ describe("MultiSessionWorkspace", () => {
     });
 
     await waitFor(() => {
-      expect(screen.getByTestId("workspace-board-tab-review")).toHaveAttribute(
+      expect(screen.getByTestId("workspace-board-tab-ops")).toHaveAttribute(
         "aria-selected",
         "true",
       );
     });
-    expect(screen.getByTestId("active-pane-label")).toHaveTextContent("Review terminal");
+
+    act(() => {
+      dispatchTwoFingerSwipe(screen.getByTestId("workspace-header-left"), "right");
+    });
+
+    await waitFor(() => {
+      expect(screen.getByTestId("workspace-board-tab-main")).toHaveAttribute(
+        "aria-selected",
+        "true",
+      );
+    });
     expect(mockTriggerHapticFeedback).toHaveBeenCalled();
   });
 

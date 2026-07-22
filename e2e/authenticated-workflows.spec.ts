@@ -256,7 +256,7 @@ function activeTouchTerminalFrame(page: Page) {
     .first();
 }
 
-async function ensureTwoTouchTerminals(page: Page) {
+async function ensureThreeTouchTerminals(page: Page) {
   const terminalFrames = page
     .locator("[data-pane-mode]:visible")
     .filter({ has: page.locator('[data-terminal-navigation-surface="true"]') });
@@ -268,7 +268,7 @@ async function ensureTwoTouchTerminals(page: Page) {
         return sessionName ? [sessionName] : [];
       }),
     );
-  while ((await terminalFrames.count()) < 2) {
+  while ((await terminalFrames.count()) < 3) {
     const sessionCountBefore = await terminalFrames.count();
     const createdSessionName = `gesture-e2e-${Date.now()}-${createdSessionNames.length + 1}`;
     createdSessionNames.push(createdSessionName);
@@ -281,7 +281,7 @@ async function ensureTwoTouchTerminals(page: Page) {
       .click();
     await expect.poll(() => terminalFrames.count()).toBeGreaterThan(sessionCountBefore);
   }
-  await expect.poll(() => terminalFrames.count()).toBeGreaterThanOrEqual(2);
+  await expect.poll(() => terminalFrames.count()).toBeGreaterThanOrEqual(3);
   return createdSessionNames;
 }
 
@@ -290,32 +290,48 @@ async function verifyTerminalTouchNavigation(page: Page) {
   const firstTerminalLabel = (await activePaneLabel.textContent())?.trim();
   if (!firstTerminalLabel) throw new Error("Active terminal has no label.");
 
+  const terminalLabels = await page
+    .locator("[data-pane-mode]:visible")
+    .filter({ has: page.locator('[data-terminal-navigation-surface="true"]') })
+    .evaluateAll((frames) =>
+      frames.flatMap((frame) => {
+        const label = frame.getAttribute("data-pane-label")?.trim();
+        return label ? [label] : [];
+      }),
+    );
+  if (terminalLabels.length < 3) throw new Error("Three terminal labels are required.");
+  const firstTerminalIndex = terminalLabels.indexOf(firstTerminalLabel);
+  if (firstTerminalIndex < 0) throw new Error("Active terminal is absent from terminal order.");
+  const previousTerminalLabel =
+    terminalLabels[(firstTerminalIndex - 1 + terminalLabels.length) % terminalLabels.length];
+  if (!previousTerminalLabel) throw new Error("Previous terminal label could not be resolved.");
+
   await dispatchTwoFingerSwipe(
     page,
-    activeTouchTerminalFrame(page).locator('[data-testid$="-header"]'),
+    activeTouchTerminalFrame(page).getByTestId("terminal-fit-host"),
     "left",
   );
   await expect
     .poll(async () => (await activePaneLabel.textContent())?.trim())
-    .not.toBe(firstTerminalLabel);
+    .toBe(previousTerminalLabel);
   const terminalLabelAfterLeftSwipe = (await activePaneLabel.textContent())?.trim();
   if (!terminalLabelAfterLeftSwipe)
     throw new Error("Active terminal has no label after left swipe.");
   await dispatchTwoFingerSwipe(
     page,
-    activeTouchTerminalFrame(page).locator('[data-terminal-navigation-surface="true"]'),
+    activeTouchTerminalFrame(page).getByTestId("terminal-fit-host"),
     "right",
   );
   await expect
     .poll(async () => (await activePaneLabel.textContent())?.trim())
-    .not.toBe(terminalLabelAfterLeftSwipe);
+    .toBe(firstTerminalLabel);
   const terminalLabelAfterRightSwipe = (await activePaneLabel.textContent())?.trim();
   if (!terminalLabelAfterRightSwipe) {
     throw new Error("Active terminal has no label after right swipe.");
   }
   await dispatchTwoFingerPinch(
     page,
-    activeTouchTerminalFrame(page).locator('[data-terminal-navigation-surface="true"]'),
+    activeTouchTerminalFrame(page).getByTestId("terminal-fit-host"),
   );
   await expect(activePaneLabel).toHaveText(terminalLabelAfterRightSwipe);
 }
@@ -1410,7 +1426,7 @@ test.describe("authenticated Hive workflows", () => {
 
     let createdSessionNames: string[] = [];
     try {
-      createdSessionNames = await ensureTwoTouchTerminals(page);
+      createdSessionNames = await ensureThreeTouchTerminals(page);
       await expectConnectedTerminal(page);
       await verifySidebarEdgeNavigation(page);
       await verifyGlobalCommandDrawerGesture(page);

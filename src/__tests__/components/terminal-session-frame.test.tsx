@@ -3,7 +3,29 @@
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import "@testing-library/jest-dom/vitest";
-import { TerminalSessionFrame } from "@/components/workspaces/TerminalSessionFrame";
+import {
+  SingleTerminalSessionHeader,
+  TerminalSessionFrame,
+} from "@/components/workspaces/TerminalSessionFrame";
+
+vi.mock("@/components/ui/sidebar", () => ({
+  SidebarTrigger: () => <button type="button">Open navigation</button>,
+}));
+
+describe("SingleTerminalSessionHeader", () => {
+  afterEach(cleanup);
+
+  it("preserves top safe-area spacing at tablet landscape widths", () => {
+    render(<SingleTerminalSessionHeader sessionLabel="main" />);
+
+    const header = screen.getByTestId("single-terminal-header");
+    expect(header).toHaveClass(
+      "min-h-[calc(3.5rem+var(--safe-area-inset-top))]",
+      "pt-[calc(var(--safe-area-inset-top)+0.25rem)]",
+    );
+    expect(header).not.toHaveClass("min-[1025px]:min-h-14", "min-[1025px]:py-1");
+  });
+});
 
 describe("TerminalSessionFrame", () => {
   afterEach(cleanup);
