@@ -231,11 +231,14 @@ describe("DashboardKeyboardController", () => {
   it("includes commands from the active workspace palette source", async () => {
     const onSelectTab = vi.fn();
     const onCreateSession = vi.fn();
+    const onSearchValueChange = vi.fn();
     const cleanupSource = registerGlobalCommandPaletteSource({
       id: "test-workspace-source",
       tabs: [{ id: "tab-1", sessionName: "main-session" }],
       onSelectTab,
       onCreateSession,
+      searchValue: "stale terminal query",
+      onSearchValueChange,
       actions: [
         {
           id: "workspace:add-terminal",
@@ -253,6 +256,8 @@ describe("DashboardKeyboardController", () => {
       expect(registeredBindings.get("dashboard:command-palette")?.action(null, null)).toBe(false);
     });
 
+    expect(onSearchValueChange).toHaveBeenCalledWith("");
+    expect(mockSetOpenMobile).toHaveBeenCalledWith(false);
     expect(await screen.findByText("Add dev-server")).toBeInTheDocument();
     fireEvent.click(screen.getByText("main-session"));
     expect(onSelectTab).toHaveBeenCalledWith("tab-1");

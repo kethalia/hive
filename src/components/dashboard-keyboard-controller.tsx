@@ -114,12 +114,16 @@ export function DashboardKeyboardController() {
   appFullscreenRef.current = appFullscreen;
   const activePaletteSource = paletteSources.at(-1) ?? null;
 
+  const openGlobalCommandPalette = useCallback(() => {
+    setPaletteQuery("");
+    activePaletteSource?.onSearchValueChange?.("");
+    setOpenMobile(false);
+    setPaletteOpen(true);
+  }, [activePaletteSource, setOpenMobile]);
+
   useGlobalCommandPaletteGesture({
     enabled: isMobile && !paletteOpen,
-    onOpen: () => {
-      setOpenMobile(false);
-      setPaletteOpen(true);
-    },
+    onOpen: openGlobalCommandPalette,
   });
 
   const toggleDashboardFullscreen = useCallback(() => {
@@ -202,7 +206,7 @@ export function DashboardKeyboardController() {
     id: "dashboard:command-palette",
     keys: [...GLOBAL_COMMAND_PALETTE_KEYS],
     action: () => {
-      setPaletteOpen(true);
+      openGlobalCommandPalette();
       return false;
     },
     description: "Open command palette",
