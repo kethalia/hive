@@ -25,7 +25,6 @@ import {
   type ReactNode,
   useCallback,
   useEffect,
-  useId,
   useLayoutEffect,
   useMemo,
   useRef,
@@ -71,7 +70,6 @@ import { useIsComposeSheet } from "@/hooks/use-compose-sheet";
 import { useKeepAliveStatus } from "@/hooks/useKeepAliveStatus";
 import { useKeybindings } from "@/hooks/useKeybindings";
 import type { ConnectionState, TerminalRecoveryState } from "@/hooks/useTerminalWebSocket";
-import { useTwoFingerNavigation } from "@/hooks/useTwoFingerNavigation";
 import { useVisualViewportKeyboardOffset } from "@/hooks/useVisualViewportKeyboardOffset";
 import { listGitClonesAction, resolveGitCloneTerminalAction } from "@/lib/actions/git-clones";
 import {
@@ -1181,7 +1179,6 @@ export function MultiSessionWorkspace({
   source = "workspace",
 }: MultiSessionWorkspaceProps) {
   const router = useRouter();
-  const touchNavigationHintId = useId();
   const { register, setActiveTerminal, unregister } = useKeybindings();
   const [sessions, setSessions] = useState<WorkspaceSessionPane[]>([]);
   const [activeSessionName, setActiveSessionName] = useState<string | null>(null);
@@ -1229,7 +1226,6 @@ export function MultiSessionWorkspace({
   );
   const [windowDragOrigin, setWindowDragOrigin] = useState<WorkspaceWindowDragOrigin | null>(null);
   const [paneActionTarget, setPaneActionTarget] = useState<WorkspacePaneActionTarget | null>(null);
-  const [gestureAnnouncement, setGestureAnnouncement] = useState("");
   const [workspaceViewport, setWorkspaceViewport] = useState({ width: 0, height: 0 });
   const [paneRecoveryStates, setPaneRecoveryStates] = useState<
     Record<string, WorkspacePaneRecoveryInput>
@@ -2142,28 +2138,6 @@ export function MultiSessionWorkspace({
     };
   }, [activeSessionName, selectSession, visibleSessions]);
 
-  const selectRelativeMobileTerminal = useCallback(
-    (direction: -1 | 1) => {
-      if (visibleSessions.length <= 1) return null;
-
-      const currentIndex = Math.max(
-        0,
-        visibleSessions.findIndex(
-          (session) => session.sessionName === activeSessionNameRef.current,
-        ),
-      );
-      const target =
-        visibleSessions[
-          (currentIndex + direction + visibleSessions.length) % visibleSessions.length
-        ];
-      if (!target) return null;
-
-      selectSession(target.sessionName, { focusTerminal: false });
-      return workspaceSessionPresentation(target);
-    },
-    [selectSession, visibleSessions],
-  );
-
   const switchRelativeWorkspaceBoard = useCallback(
     (direction: -1 | 1) => {
       const orderedBoards = orderedWorkspaceBoards(boardState.boards);
@@ -2183,34 +2157,6 @@ export function MultiSessionWorkspace({
     },
     [activeBoard?.key, boardState, persistBoardState],
   );
-
-  const handleTwoFingerNavigate = useCallback(
-    (surface: "terminal" | "workspace", direction: "left" | "right") => {
-      if (surface === "terminal") {
-        const target = selectRelativeMobileTerminal(direction === "left" ? 1 : -1);
-        if (!target) return;
-        setGestureAnnouncement(`Active terminal: ${target.title}`);
-        triggerHapticFeedback();
-        return;
-      }
-
-      const nextBoard = switchRelativeWorkspaceBoard(direction === "left" ? 1 : -1);
-      if (!nextBoard) return;
-      const boardNumber =
-        orderedWorkspaceBoards(boardState.boards).findIndex(
-          (board) => board.key === nextBoard.key,
-        ) + 1;
-      setGestureAnnouncement(`Active workspace: ${boardNumber}`);
-      triggerHapticFeedback();
-    },
-    [boardState.boards, selectRelativeMobileTerminal, switchRelativeWorkspaceBoard],
-  );
-
-  useTwoFingerNavigation({
-    enabled: isComposeSheet && !loading && !loadFailed,
-    onNavigate: handleTwoFingerNavigate,
-    rootRef: workspaceRootRef,
-  });
 
   const switchToWorkspaceBoardIndex = useCallback(
     (workspaceIndex: number) => {
@@ -4415,7 +4361,6 @@ export function MultiSessionWorkspace({
               model.isActive ? `workspace-${pane.id}` : `workspace-${model.board.key}-${pane.id}`
             }
             layoutMode="tiled"
-            navigationSurface={isComposeSheet ? "terminal" : undefined}
             dragHandleListeners={dragHandleListeners}
             onOpenActions={() =>
               setPaneActionTarget({
@@ -4658,24 +4603,8 @@ export function MultiSessionWorkspace({
       aria-label={
         source === "unified" ? "Workspace terminal sessions" : "Multi-session terminal workspace"
       }
-      aria-describedby={isComposeSheet ? touchNavigationHintId : undefined}
-      data-workspace-navigation-surface={isComposeSheet ? "true" : undefined}
       onKeyDown={handleWorkspaceKeyDown}
     >
-      {isComposeSheet ? (
-        <>
-          <p id={touchNavigationHintId} className="sr-only">
-            Swipe right with one finger outside pane headers to open the sidebar. Swipe left or
-            right with two fingers anywhere in a terminal pane to change terminals. Swipe left with
-            one finger outside pane headers to open global navigation. Swipe left or right with two
-            fingers elsewhere in the workspace to change workspaces. Drag a pane header with one
-            finger to rearrange it. Open pane actions from the More button.
-          </p>
-          <p className="sr-only" aria-live="polite" aria-atomic="true">
-            {gestureAnnouncement}
-          </p>
-        </>
-      ) : null}
       {renderWorkspaceHeader()}
       {renderWorkspaceRecoveryStatus()}
 
@@ -4721,7 +4650,6 @@ export function MultiSessionWorkspace({
           ref={workspaceBodyRef}
           className="relative min-h-0 flex-1 overflow-hidden overscroll-none"
           data-testid="multi-session-body"
-          data-workspace-navigation-surface={isComposeSheet ? "true" : undefined}
         >
           {boardRenderModels.map(renderBoardLayer)}
         </div>

@@ -146,7 +146,6 @@ interface TerminalSessionFrameProps {
   isDropTarget?: boolean;
   style?: CSSProperties;
   paneState?: string;
-  navigationSurface?: "terminal" | "workspace";
 }
 
 export function TerminalSessionFrame({
@@ -175,7 +174,6 @@ export function TerminalSessionFrame({
   isDropTarget = false,
   style,
   paneState,
-  navigationSurface,
 }: TerminalSessionFrameProps) {
   const interactive = Boolean(onActivate) && !disabled;
   const draggableHeader = !disabled && Boolean(dragHandleListeners);
@@ -242,8 +240,6 @@ export function TerminalSessionFrame({
       data-pane-label={label}
       data-pane-mode={layoutMode}
       data-pane-state={paneState}
-      data-terminal-navigation-surface={navigationSurface === "terminal" ? "true" : undefined}
-      data-workspace-navigation-surface={navigationSurface === "workspace" ? "true" : undefined}
       data-testid={dataTestId}
       style={style}
       tabIndex={interactive ? 0 : undefined}

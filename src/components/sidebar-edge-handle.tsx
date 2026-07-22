@@ -22,8 +22,8 @@ type TouchStart = {
  * handle. The previous fixed left-side pill was too easy to hit accidentally
  * in the terminal; opening now happens through a deliberate one-finger
  * rightward swipe from anywhere on the page. Touch Events are used instead of
- * parallel Touch + Pointer listeners so a second finger cancels this path
- * deterministically before two-finger workspace navigation takes ownership.
+ * parallel Touch + Pointer listeners so additional fingers cancel this path
+ * deterministically.
  */
 export function SidebarEdgeHandle(_props: SidebarEdgeHandleProps) {
   const { isMobile, openMobile, setOpenMobile } = useSidebar();

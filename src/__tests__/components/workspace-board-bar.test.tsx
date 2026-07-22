@@ -35,7 +35,7 @@ describe("WorkspaceBoardBar", () => {
     expect(tablist).toHaveAttribute("data-mobile-scroll-allow", "true");
   });
 
-  it("exposes a touch navigation surface and 44px controls in touch mode", () => {
+  it("renders 44px workspace controls in touch mode", () => {
     render(
       <WorkspaceBoardBar
         boards={[board("main", "Main", 0)]}
@@ -44,10 +44,6 @@ describe("WorkspaceBoardBar", () => {
       />,
     );
 
-    expect(screen.getByTestId("workspace-board-bar")).toHaveAttribute(
-      "data-workspace-navigation-surface",
-      "true",
-    );
     expect(screen.getByTestId("workspace-board-tab-main")).toHaveClass("size-11", "min-h-11");
     expect(screen.getByTestId("workspace-board-new")).toHaveClass("size-11", "min-h-11");
   });

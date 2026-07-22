@@ -102,85 +102,6 @@ function cdpTouchPoint(id: number, coordinates: TouchCoordinates) {
   };
 }
 
-async function dispatchTwoFingerSwipe(page: Page, target: Locator, direction: "left" | "right") {
-  const box = await target.boundingBox();
-  if (!box) throw new Error("Gesture target has no measurable bounds.");
-
-  const session = await page.context().newCDPSession(page);
-
-  const travel = Math.min(Math.max(box.width * 0.4, 80), box.width * 0.6);
-  const startX = direction === "left" ? box.x + box.width * 0.75 : box.x + box.width * 0.25;
-  const endX = direction === "left" ? startX - travel : startX + travel;
-  const centerY = box.y + box.height * 0.55;
-
-  try {
-    await session.send("Input.dispatchTouchEvent", {
-      type: "touchStart",
-      touchPoints: [cdpTouchPoint(1, { x: startX, y: centerY - 18 })],
-    });
-    await page.waitForTimeout(40);
-    await session.send("Input.dispatchTouchEvent", {
-      type: "touchStart",
-      touchPoints: [
-        cdpTouchPoint(1, { x: startX, y: centerY - 18 }),
-        cdpTouchPoint(2, { x: startX, y: centerY + 18 }),
-      ],
-    });
-    let previousX = startX;
-    for (const progress of [0.25, 0.5, 0.75, 1]) {
-      const x = startX + (endX - startX) * progress;
-      await session.send("Input.dispatchTouchEvent", {
-        type: "touchMove",
-        touchPoints: [
-          cdpTouchPoint(1, { x, y: centerY - 18 }),
-          cdpTouchPoint(2, { x: previousX, y: centerY + 18 }),
-        ],
-      });
-      await session.send("Input.dispatchTouchEvent", {
-        type: "touchMove",
-        touchPoints: [
-          cdpTouchPoint(1, { x, y: centerY - 18 }),
-          cdpTouchPoint(2, { x, y: centerY + 18 }),
-        ],
-      });
-      previousX = x;
-    }
-    await session.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
-    await page.waitForTimeout(100);
-  } finally {
-    await session.detach();
-  }
-}
-
-async function dispatchTwoFingerPinch(page: Page, target: Locator) {
-  const box = await target.boundingBox();
-  if (!box) throw new Error("Gesture target has no measurable bounds.");
-
-  const session = await page.context().newCDPSession(page);
-  const centerX = box.x + box.width * 0.5;
-  const centerY = box.y + box.height * 0.55;
-
-  try {
-    await session.send("Input.dispatchTouchEvent", {
-      type: "touchStart",
-      touchPoints: [
-        cdpTouchPoint(1, { x: centerX, y: centerY - 10 }),
-        cdpTouchPoint(2, { x: centerX, y: centerY + 10 }),
-      ],
-    });
-    await session.send("Input.dispatchTouchEvent", {
-      type: "touchMove",
-      touchPoints: [
-        cdpTouchPoint(1, { x: centerX, y: centerY - 42 }),
-        cdpTouchPoint(2, { x: centerX, y: centerY + 42 }),
-      ],
-    });
-    await session.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
-  } finally {
-    await session.detach();
-  }
-}
-
 async function dispatchOneFingerRightSwipe(
   page: Page,
   target: Locator,
@@ -274,24 +195,24 @@ async function dispatchTouchLongPress(page: Page, target: Locator) {
   }
 }
 
-function activeTouchTerminalFrame(page: Page) {
+function activeTerminalFrame(page: Page) {
   return page
     .locator('[data-pane-mode][data-active="true"]:visible')
-    .filter({ has: page.locator('[data-terminal-navigation-surface="true"]') })
+    .filter({ has: page.getByTestId("terminal-fit-host") })
     .first();
 }
 
-function stableTouchTerminalFrame(page: Page) {
+function stableTerminalFrame(page: Page) {
   return page
     .locator("[data-pane-mode]:visible")
-    .filter({ has: page.locator('[data-terminal-navigation-surface="true"]') })
+    .filter({ has: page.getByTestId("terminal-fit-host") })
     .first();
 }
 
 async function ensureThreeTouchTerminals(page: Page) {
   const terminalFrames = page
     .locator("[data-pane-mode]:visible")
-    .filter({ has: page.locator('[data-terminal-navigation-surface="true"]') });
+    .filter({ has: page.getByTestId("terminal-fit-host") });
   const createdSessionNames = await page
     .locator('[data-workspace-window-id^="gesture-e2e-"]:visible')
     .evaluateAll((panes) =>
@@ -317,54 +238,10 @@ async function ensureThreeTouchTerminals(page: Page) {
   return createdSessionNames;
 }
 
-async function verifyTerminalTouchNavigation(page: Page) {
-  const activePaneLabel = page.getByTestId("active-pane-label").first();
-  const stableTerminalGestureSurface =
-    stableTouchTerminalFrame(page).getByTestId("terminal-fit-host");
-  await expect(stableTerminalGestureSurface.locator(".xterm")).toHaveCSS("touch-action", "none");
-  const firstTerminalLabel = (await activePaneLabel.textContent())?.trim();
-  if (!firstTerminalLabel) throw new Error("Active terminal has no label.");
-
-  const terminalLabels = await page
-    .locator("[data-pane-mode]:visible")
-    .filter({ has: page.locator('[data-terminal-navigation-surface="true"]') })
-    .evaluateAll((frames) =>
-      frames.flatMap((frame) => {
-        const label = frame.getAttribute("data-pane-label")?.trim();
-        return label ? [label] : [];
-      }),
-    );
-  if (terminalLabels.length < 3) throw new Error("Three terminal labels are required.");
-  const firstTerminalIndex = terminalLabels.indexOf(firstTerminalLabel);
-  if (firstTerminalIndex < 0) throw new Error("Active terminal is absent from terminal order.");
-  const nextTerminalLabel = terminalLabels[(firstTerminalIndex + 1) % terminalLabels.length];
-  if (!nextTerminalLabel) throw new Error("Next terminal label could not be resolved.");
-
-  await dispatchTwoFingerSwipe(page, stableTerminalGestureSurface, "left");
-  await expect
-    .poll(async () => (await activePaneLabel.textContent())?.trim())
-    .toBe(nextTerminalLabel);
-  const terminalLabelAfterLeftSwipe = (await activePaneLabel.textContent())?.trim();
-  if (!terminalLabelAfterLeftSwipe)
-    throw new Error("Active terminal has no label after left swipe.");
-  // Navigate from a different terminal surface after the active pane changes.
-  // This also avoids constraining the synthetic swipe to a tiny edge tile.
-  await dispatchTwoFingerSwipe(page, stableTerminalGestureSurface, "right");
-  await expect
-    .poll(async () => (await activePaneLabel.textContent())?.trim())
-    .toBe(firstTerminalLabel);
-  const terminalLabelAfterRightSwipe = (await activePaneLabel.textContent())?.trim();
-  if (!terminalLabelAfterRightSwipe) {
-    throw new Error("Active terminal has no label after right swipe.");
-  }
-  await dispatchTwoFingerPinch(page, stableTerminalGestureSurface);
-  await expect(activePaneLabel).toHaveText(terminalLabelAfterRightSwipe);
-}
-
 async function verifyMobileWorkspaceWindowDrag(page: Page) {
   const terminalWindows = page
     .locator("[data-workspace-window-id]:visible")
-    .filter({ has: page.locator('[data-terminal-navigation-surface="true"]') });
+    .filter({ has: page.getByTestId("terminal-fit-host") });
   await expect.poll(() => terminalWindows.count()).toBeGreaterThanOrEqual(2);
   const draggedWindow = terminalWindows.first();
   const targetWindow = terminalWindows.nth(1);
@@ -411,7 +288,7 @@ async function verifyMobileWorkspaceWindowDrag(page: Page) {
   await expect.poll(() => persistedWorkspaceWindowLayout(page)).not.toBe(persistedLayoutBefore);
 }
 
-async function verifyWorkspaceTouchNavigation(page: Page) {
+async function verifyWorkspaceTabNavigation(page: Page) {
   const boardTabs = page.getByRole("tab", { name: /workspace/i });
   const initialBoardCount = await boardTabs.count();
   await page.getByTestId("workspace-board-new").click();
@@ -419,10 +296,9 @@ async function verifyWorkspaceTouchNavigation(page: Page) {
   const createdBoard = boardTabs.last();
   await expect(createdBoard).toHaveAttribute("aria-selected", "true");
 
-  const boardBar = page.getByTestId("workspace-board-bar");
-  await dispatchTwoFingerSwipe(page, boardBar, "right");
+  await boardTabs.first().click();
   await expect(boardTabs.first()).toHaveAttribute("aria-selected", "true");
-  await dispatchTwoFingerSwipe(page, boardBar, "left");
+  await createdBoard.click();
   await expect(createdBoard).toHaveAttribute("aria-selected", "true");
   await boardTabs.first().click();
   return { boardTabs, createdBoard, initialBoardCount };
@@ -431,9 +307,7 @@ async function verifyWorkspaceTouchNavigation(page: Page) {
 async function verifySidebarEdgeNavigation(page: Page) {
   const urlBeforeSwipe = page.url();
   const historyLengthBeforeSwipe = await page.evaluate(() => history.length);
-  const terminalSurface = stableTouchTerminalFrame(page).locator(
-    '[data-terminal-navigation-surface="true"]',
-  );
+  const terminalSurface = stableTerminalFrame(page).getByTestId("terminal-fit-host");
   await dispatchOneFingerRightSwipe(page, terminalSurface, "surface");
 
   const touchSidebar = page.locator('[data-sidebar="sidebar"][data-side="left"]:visible');
@@ -456,9 +330,7 @@ async function verifySidebarEdgeNavigation(page: Page) {
 async function verifyGlobalCommandDrawerGesture(page: Page) {
   const urlBeforeSwipe = page.url();
   const historyLengthBeforeSwipe = await page.evaluate(() => history.length);
-  const terminalSurface = stableTouchTerminalFrame(page).locator(
-    '[data-terminal-navigation-surface="true"]',
-  );
+  const terminalSurface = stableTerminalFrame(page).getByTestId("terminal-fit-host");
 
   await dispatchOneFingerLeftSwipe(page, terminalSurface, "surface");
 
@@ -525,7 +397,7 @@ async function verifyGlobalCommandDrawerGesture(page: Page) {
 }
 
 async function verifyNativePaneActions(page: Page, testInfo: TestInfo) {
-  const frame = activeTouchTerminalFrame(page);
+  const frame = activeTerminalFrame(page);
   const paneHeader = frame.locator('[data-testid$="-header"]');
   const moreButton = frame.getByRole("button", { name: /^Open actions for / });
   await expect(paneHeader.getByRole("button")).toHaveCount(1);
@@ -1471,10 +1343,9 @@ test.describe("authenticated Hive workflows", () => {
       await expectConnectedTerminal(page);
       await verifySidebarEdgeNavigation(page);
       await verifyGlobalCommandDrawerGesture(page);
-      await verifyTerminalTouchNavigation(page);
       await verifyMobileWorkspaceWindowDrag(page);
       const { boardTabs, createdBoard, initialBoardCount } =
-        await verifyWorkspaceTouchNavigation(page);
+        await verifyWorkspaceTabNavigation(page);
       await verifyNativePaneActions(page, testInfo);
       await createdBoard.click();
       await expect(createdBoard).toHaveAttribute("aria-selected", "true");

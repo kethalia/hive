@@ -24,11 +24,11 @@ describe("mobile terminal reference decisions doc", () => {
     const doc = await readReferenceDoc();
 
     expect(doc).toMatch(/D023[\s\S]*Coder/i);
-    expect(doc).toMatch(/D026[\s\S]*two-finger swipe/i);
+    expect(doc).toMatch(/D026[\s\S]*multi-touch navigation/i);
     expect(doc).toMatch(/D030[\s\S]*xterm\/FitAddon/i);
     expect(doc).toMatch(/Keep xterm and FitAddon for now/i);
     expect(doc).toMatch(/Visible accessible controls are the baseline/i);
-    expect(doc).toMatch(/Gestures are additive proof items/i);
+    expect(doc).toMatch(/Multi-touch navigation is rejected/i);
   });
 
   it("defines the diagnostics redaction boundary", async () => {

@@ -5,7 +5,6 @@ import { act, cleanup, fireEvent, render, waitFor } from "@testing-library/react
 import type React from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ConnectionState, TerminalRecoveryState } from "@/hooks/useTerminalWebSocket";
-import { TERMINAL_MULTI_TOUCH_CLAIM_EVENT } from "@/lib/terminal/events";
 import {
   getMobileTerminalDiagnosticsState,
   resetMobileTerminalDiagnosticsState,
@@ -2742,7 +2741,7 @@ describe("InteractiveTerminal integration — Mobile input adapter", () => {
     unmount();
   });
 
-  it("does not refocus a terminal after two-finger navigation claims the touch", async () => {
+  it("does not refocus a terminal after a multi-touch sequence", async () => {
     const onUserFocusRequest = vi.fn();
     const { container, unmount } = await renderTerminal({
       mobileInputMode: true,
@@ -2755,8 +2754,8 @@ describe("InteractiveTerminal integration — Mobile input adapter", () => {
 
     terminal?.focus.mockClear();
     fireTouchEvent(inputTarget, "touchstart", [touchPoint(1, 80, 240)]);
-    inputTarget.dispatchEvent(new Event(TERMINAL_MULTI_TOUCH_CLAIM_EVENT));
-    fireTouchEvent(inputTarget, "touchend", [], [touchPoint(1, 82, 242)]);
+    fireTouchEvent(inputTarget, "touchmove", [touchPoint(1, 82, 242), touchPoint(2, 120, 242)]);
+    fireTouchEvent(inputTarget, "touchend", [], [touchPoint(1, 82, 242), touchPoint(2, 120, 242)]);
     fireEvent.click(inputTarget);
 
     expect(terminal?.focus).not.toHaveBeenCalled();
@@ -2764,7 +2763,7 @@ describe("InteractiveTerminal integration — Mobile input adapter", () => {
     unmount();
   });
 
-  it("does not resume one-finger terminal scrolling after multi-touch navigation claims the sequence", async () => {
+  it("does not resume one-finger terminal scrolling after a multi-touch sequence", async () => {
     const { container, unmount } = await renderTerminal({ mobileInputMode: true });
     const terminal = terminalInstances.at(-1);
     const inputTarget = container.querySelector('[data-testid="terminal-fit-host"]');
@@ -2779,7 +2778,7 @@ describe("InteractiveTerminal integration — Mobile input adapter", () => {
     });
 
     fireTouchEvent(inputTarget, "touchstart", [touchPoint(1, 80, 320)]);
-    inputTarget.dispatchEvent(new Event(TERMINAL_MULTI_TOUCH_CLAIM_EVENT));
+    fireTouchEvent(inputTarget, "touchmove", [touchPoint(1, 80, 300), touchPoint(2, 120, 300)]);
     const remainingFingerMove = fireTouchEvent(inputTarget, "touchmove", [touchPoint(1, 80, 240)]);
     fireTouchEvent(inputTarget, "touchend", [], [touchPoint(1, 80, 240)]);
 

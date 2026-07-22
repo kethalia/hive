@@ -693,7 +693,7 @@ describe("mobile session assembly", () => {
     expect(reducedContent.style.transition).toBe("");
   });
 
-  it("keeps terminal pinch zoom unbound so two-finger navigation owns the gesture", async () => {
+  it("keeps terminal pinch zoom unbound", async () => {
     const onTerminalReady = vi.fn();
 
     const { container } = render(

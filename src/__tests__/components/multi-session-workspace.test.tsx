@@ -230,7 +230,6 @@ vi.mock("next/dynamic", () => ({
           data-workspace-id={workspaceId}
           data-session-name={sessionName}
           data-terminal-surface="true"
-          data-terminal-navigation-surface={mobileInputMode ? "true" : undefined}
           className={className}
           data-clone-path={clonePath}
           data-clone-proof={cloneProof}
@@ -638,39 +637,6 @@ function twoSessionPayload() {
   };
 }
 
-function threeSessionPayload() {
-  return {
-    data: [
-      { name: "main-session", created: 1, windows: 1 },
-      { name: "dev-server", created: 2, windows: 1 },
-      { name: "ops-shell", created: 3, windows: 1 },
-    ],
-  };
-}
-
-function dispatchTwoFingerSwipe(target: Element, direction: "left" | "right"): { move: Event } {
-  const startX = direction === "left" ? 180 : 80;
-  const endX = direction === "left" ? 100 : 160;
-  const event = (type: "touchstart" | "touchmove" | "touchend", x?: number) => {
-    const touchEvent = new Event(type, { bubbles: true, cancelable: true });
-    const touches =
-      x === undefined
-        ? []
-        : [
-            { identifier: 1, clientX: x, clientY: 100 },
-            { identifier: 2, clientX: x + 60, clientY: 102 },
-          ];
-    Object.defineProperty(touchEvent, "touches", { value: touches });
-    target.dispatchEvent(touchEvent);
-    return touchEvent;
-  };
-
-  event("touchstart", startX);
-  const move = event("touchmove", endX);
-  event("touchend");
-  return { move };
-}
-
 function markSessionConnected(sessionName: string) {
   act(() => {
     terminalProps.get(sessionName)?.onConnectionStateChange?.("connected");
@@ -701,24 +667,6 @@ async function renderTwoSessionWorkspace(options: { connect?: boolean } = {}) {
       expect(screen.queryByTestId("multi-session-loading")).not.toBeInTheDocument();
     });
   }
-}
-
-async function renderThreeSessionWorkspace(options: { readyTestId?: string } = {}) {
-  mockGetSessions.mockResolvedValue(threeSessionPayload());
-  render(<MultiSessionWorkspace {...defaultProps} />);
-
-  await waitFor(() => {
-    expect(
-      screen.getByTestId(options.readyTestId ?? "workspace-pane-ops-shell"),
-    ).toBeInTheDocument();
-  });
-
-  markSessionConnected("main-session");
-  markSessionConnected("dev-server");
-  markSessionConnected("ops-shell");
-  await waitFor(() => {
-    expect(screen.queryByTestId("multi-session-loading")).not.toBeInTheDocument();
-  });
 }
 
 let workspaceViewportRect = { width: 1_200, height: 800 };
@@ -1710,156 +1658,6 @@ describe("MultiSessionWorkspace", () => {
     fireEvent.click(screen.getByTestId("terminal-window-next"));
     expect(screen.getByTestId("active-pane-label")).toHaveTextContent("dev-server");
     expect(mainTerm.focus).not.toHaveBeenCalled();
-  });
-
-  it("navigates terminals in the physical swipe direction on touch layouts", async () => {
-    mockUseIsComposeSheet.mockReturnValue(true);
-    await renderThreeSessionWorkspace();
-
-    const terminal = screen.getByTestId("interactive-terminal-main-session");
-    const terminalFrame = screen.getByTestId("workspace-pane-main-session");
-    expect(terminal).toHaveAttribute("data-terminal-navigation-surface", "true");
-    expect(terminalFrame).toHaveAttribute("data-terminal-navigation-surface", "true");
-    let move: Event | undefined;
-    act(() => {
-      move = dispatchTwoFingerSwipe(
-        screen.getByTestId("workspace-pane-main-session-header"),
-        "left",
-      ).move;
-    });
-
-    expect(move?.defaultPrevented).toBe(true);
-    await waitFor(() => {
-      expect(screen.getByTestId("active-pane-label")).toHaveTextContent("dev-server");
-    });
-
-    act(() => {
-      dispatchTwoFingerSwipe(screen.getByTestId("workspace-pane-dev-server-header"), "right");
-    });
-
-    await waitFor(() => {
-      expect(screen.getByTestId("active-pane-label")).toHaveTextContent("main-session");
-    });
-    expect(mockTriggerHapticFeedback).toHaveBeenCalled();
-  });
-
-  it("resolves consecutive terminal swipes from the synchronously selected session", async () => {
-    mockUseIsComposeSheet.mockReturnValue(true);
-    await renderThreeSessionWorkspace();
-
-    const terminalFrame = screen.getByTestId("workspace-pane-main-session");
-    await act(async () => {
-      dispatchTwoFingerSwipe(terminalFrame, "left");
-      await Promise.resolve();
-      dispatchTwoFingerSwipe(terminalFrame, "right");
-      await Promise.resolve();
-    });
-
-    expect(screen.getByTestId("active-pane-label")).toHaveTextContent("main-session");
-    expect(mockTriggerHapticFeedback).toHaveBeenCalledTimes(2);
-  });
-
-  it("does not let compatibility mouse movement override touch gesture navigation", async () => {
-    mockUseIsComposeSheet.mockReturnValue(true);
-    await renderThreeSessionWorkspace();
-
-    act(() => {
-      dispatchTwoFingerSwipe(screen.getByTestId("workspace-pane-main-session"), "left");
-    });
-    await waitFor(() => {
-      expect(screen.getByTestId("active-pane-label")).toHaveTextContent("dev-server");
-    });
-
-    fireEvent.mouseMove(screen.getByTestId("workspace-pane-main-session"));
-
-    expect(screen.getByTestId("active-pane-label")).toHaveTextContent("dev-server");
-  });
-
-  it("navigates workspaces with a two-finger swipe on workspace touch surfaces", async () => {
-    mockUseIsComposeSheet.mockReturnValue(true);
-    window.localStorage.setItem(
-      "workspace-board-state:workspace:ws-1",
-      JSON.stringify({
-        version: 1,
-        activeBoardKey: "main",
-        boards: [
-          {
-            key: "main",
-            name: "Main",
-            order: 0,
-            activePaneKey: "terminal:main-session",
-            panes: [
-              {
-                kind: "terminal",
-                key: "terminal:main-session",
-                sessionName: "main-session",
-                label: "Main terminal",
-                order: 0,
-              },
-            ],
-          },
-          {
-            key: "review",
-            name: "Review",
-            order: 1,
-            activePaneKey: "terminal:dev-server",
-            panes: [
-              {
-                kind: "terminal",
-                key: "terminal:dev-server",
-                sessionName: "dev-server",
-                label: "Review terminal",
-                order: 0,
-              },
-            ],
-          },
-          {
-            key: "ops",
-            name: "Ops",
-            order: 2,
-            activePaneKey: "terminal:ops-shell",
-            panes: [
-              {
-                kind: "terminal",
-                key: "terminal:ops-shell",
-                sessionName: "ops-shell",
-                label: "Ops terminal",
-                order: 0,
-              },
-            ],
-          },
-        ],
-      }),
-    );
-    await renderThreeSessionWorkspace({ readyTestId: "workspace-board-tab-ops" });
-
-    expect(screen.getByTestId("multi-session-workspace")).toHaveAttribute(
-      "data-workspace-navigation-surface",
-      "true",
-    );
-
-    act(() => {
-      dispatchTwoFingerSwipe(screen.getByTestId("workspace-header-left"), "left");
-    });
-
-    await waitFor(() => {
-      expect(screen.getByTestId("workspace-board-tab-review")).toHaveAttribute(
-        "aria-selected",
-        "true",
-      );
-    });
-
-    act(() => {
-      dispatchTwoFingerSwipe(screen.getByTestId("workspace-header-left"), "right");
-    });
-
-    await waitFor(() => {
-      expect(screen.getByTestId("workspace-board-tab-main")).toHaveAttribute(
-        "aria-selected",
-        "true",
-      );
-    });
-    expect(mockTriggerHapticFeedback).toHaveBeenCalled();
   });
 
   it("opens direct native pane actions from the touch-sized More control", async () => {

@@ -14,7 +14,7 @@
 
 ## Blink Mobile Terminal Affordances
 
-- **Source context:** D026 says two-finger swipe is only a candidate interaction; accessible controls must win if gestures conflict with scrollback, selection, pinch zoom, long-press menus, or OS gestures.
+- **Source context:** D026 considered multi-touch navigation as a candidate interaction; accessible controls must win when gestures conflict with scrollback, selection, pinch zoom, long-press menus, or OS gestures.
 - **Public references:** Blink Shell's public app listing describes Smart Keys on the software keyboard for touch navigation, multiple windows/tabs, and hardware-keyboard support. A public Lifehacker overview describes Blink as gesture-heavy and notes that users may need help/configuration to discover those gestures.
 - **What Hive can learn:** mobile terminal ergonomics benefit from visible modifier/navigation affordances near the keyboard, plus later gesture enhancements when they can be proven not to fight terminal scrolling or selection.
 - **What Hive should not infer:** Blink is a native iOS terminal; its selection, keyboard, and gesture stack is not the same as Hive's browser/xterm stack. Native-like selection and gesture parity are proof items, not assumptions.
@@ -24,7 +24,7 @@
 - **Keep xterm and FitAddon for now.** D030 is treated as the conservative engine boundary for this slice: Hive continues using xterm/FitAddon unless S01/S02 evidence proves the engine is the root blocker.
 - **Diagnose before changing layout.** S02 should first collect viewport, terminal frame, xterm rows/cols, fit timing, and resize-send evidence from Hive's own route before changing keyboard behavior.
 - **Visible accessible controls are the baseline.** Navigation, favorites, terminal switching, and future smart-key actions should ship as discoverable controls before any hidden gesture becomes required.
-- **Gestures are additive proof items.** Two-finger swipe, native-like selection, long-press copy/paste, and other Blink-like affordances can be tested later, but they must not replace accessible controls or regress terminal scrollback.
+- **Multi-touch navigation is rejected.** It was unreliable across iPhone, iPad, terminal, and embedded-tool surfaces. Workspace tabs, terminal controls, keyboard shortcuts, and one-finger sidebar gestures remain the supported navigation paths.
 - **Redaction is part of the feature.** Diagnostics must never sample terminal buffer text, helper textarea values, command input, clone proof material, tokens, secrets, or local filesystem paths.
 - **Conflicts become S02 questions.** If a Coder or Blink reference conflicts with keeping xterm/FitAddon, S02 should record a revisitable question and continue diagnostics rather than swapping engines in this slice.
 

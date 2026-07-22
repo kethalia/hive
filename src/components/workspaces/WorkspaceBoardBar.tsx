@@ -87,7 +87,6 @@ export function WorkspaceBoardBar({
       className={cn("flex min-w-0 items-center gap-1", className)}
       aria-label="Workspaces"
       data-testid="workspace-board-bar"
-      data-workspace-navigation-surface={touchOptimized ? "true" : undefined}
     >
       <div
         role="tablist"
