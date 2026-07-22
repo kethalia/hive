@@ -47,10 +47,10 @@ export function useTwoFingerNavigation({
   rootRef,
 }: TwoFingerNavigationOptions) {
   const onNavigateRef = useRef(onNavigate);
-
-  useEffect(() => {
-    onNavigateRef.current = onNavigate;
-  }, [onNavigate]);
+  // Keep rapid consecutive gestures on the callback from the latest render.
+  // A passive effect is too late when the next touch starts after the DOM
+  // commits but before effects flush.
+  onNavigateRef.current = onNavigate;
 
   useEffect(() => {
     const root = rootRef.current;

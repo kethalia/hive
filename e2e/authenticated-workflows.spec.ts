@@ -411,10 +411,11 @@ async function verifySidebarEdgeNavigation(page: Page) {
   );
   await dispatchOneFingerRightSwipe(page, terminalSurface, "surface");
 
-  const mobileSidebar = page.locator(
-    '[data-sidebar="sidebar"][data-mobile="true"][data-side="left"]',
-  );
+  const mobileSidebar = page.getByRole("dialog", { name: "Navigation", exact: true });
   await expect(mobileSidebar).toBeVisible();
+  const sidebarBox = await mobileSidebar.boundingBox();
+  if (!sidebarBox) throw new Error("Mobile navigation sidebar could not be measured.");
+  expect(sidebarBox.x).toBeLessThanOrEqual(1);
   await page.keyboard.press("Escape");
   await expect(mobileSidebar).toBeHidden();
 
@@ -436,16 +437,14 @@ async function verifyGlobalCommandDrawerGesture(page: Page) {
 
   await dispatchOneFingerLeftSwipe(page, terminalSurface, "surface");
 
-  const globalDrawer = page
-    .getByRole("dialog")
-    .filter({ has: page.getByRole("searchbox", { name: "Search global navigation" }) });
+  const globalDrawer = page.getByRole("dialog", { name: "Global navigation", exact: true });
   await expect(globalDrawer).toBeVisible();
-  await expect(globalDrawer).toHaveAttribute("data-side", "right");
   const drawerBox = await globalDrawer.boundingBox();
   const viewport = page.viewportSize();
   if (!drawerBox || !viewport) throw new Error("Global navigation sidebar could not be measured.");
   expect(drawerBox.height).toBeGreaterThanOrEqual(viewport.height - 1);
   expect(drawerBox.width).toBeLessThanOrEqual(289);
+  expect(drawerBox.x + drawerBox.width).toBeGreaterThanOrEqual(viewport.width - 1);
   const globalSearch = globalDrawer.getByRole("searchbox", { name: "Search global navigation" });
   await expect(globalSearch).toBeVisible();
   expect(await globalSearch.evaluate((input) => getComputedStyle(input).fontSize)).toBe("16px");

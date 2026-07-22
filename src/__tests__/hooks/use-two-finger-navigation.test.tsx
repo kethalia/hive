@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
-import { cleanup, render, screen } from "@testing-library/react";
-import { useRef } from "react";
+import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import { useLayoutEffect, useRef, useState } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { useTwoFingerNavigation } from "@/hooks/useTwoFingerNavigation";
 
@@ -15,6 +15,35 @@ function NavigationHarness({ onNavigate }: { onNavigate: ReturnType<typeof vi.fn
       </div>
       <div data-workspace-navigation-surface="true" data-testid="workspace-surface" />
       <div data-testid="workspace-root-surface">Workspace header</div>
+    </section>
+  );
+}
+
+function RapidNavigationHarness({ onNavigate }: { onNavigate: ReturnType<typeof vi.fn> }) {
+  const [index, setIndex] = useState(0);
+  const rootRef = useRef<HTMLElement>(null);
+
+  useTwoFingerNavigation({
+    enabled: true,
+    rootRef,
+    onNavigate: (surface, direction) => {
+      onNavigate(index, surface, direction);
+      setIndex((current) => current + (direction === "left" ? -1 : 1));
+    },
+  });
+
+  useLayoutEffect(() => {
+    if (index !== -1) return;
+    const terminal = rootRef.current?.querySelector('[data-testid="rapid-terminal-surface"]');
+    if (!terminal) return;
+    dispatchTouch(terminal, "touchstart", [touch(3, 80, 80), touch(4, 140, 80)]);
+    dispatchTouch(terminal, "touchmove", [touch(3, 150, 82), touch(4, 210, 82)]);
+    dispatchTouch(terminal, "touchend", []);
+  }, [index]);
+
+  return (
+    <section ref={rootRef} data-workspace-navigation-surface="true">
+      <div data-terminal-navigation-surface="true" data-testid="rapid-terminal-surface" />
     </section>
   );
 }
@@ -64,6 +93,20 @@ describe("useTwoFingerNavigation", () => {
     await Promise.resolve();
 
     expect(onNavigate).toHaveBeenLastCalledWith("workspace", "right");
+  });
+
+  it("uses the latest navigation state before passive effects flush", async () => {
+    const onNavigate = vi.fn();
+    render(<RapidNavigationHarness onNavigate={onNavigate} />);
+
+    const terminal = screen.getByTestId("rapid-terminal-surface");
+    dispatchTouch(terminal, "touchstart", [touch(1, 140, 80), touch(2, 200, 80)]);
+    dispatchTouch(terminal, "touchmove", [touch(1, 70, 82), touch(2, 130, 82)]);
+    dispatchTouch(terminal, "touchend", []);
+
+    await waitFor(() => expect(onNavigate).toHaveBeenCalledTimes(2));
+    expect(onNavigate).toHaveBeenNthCalledWith(1, 0, "terminal", "left");
+    expect(onNavigate).toHaveBeenNthCalledWith(2, -1, "terminal", "right");
   });
 
   it("blocks native pinch zoom without navigating", () => {
