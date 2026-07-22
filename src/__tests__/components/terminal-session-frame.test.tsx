@@ -145,4 +145,35 @@ describe("TerminalSessionFrame", () => {
 
     vi.useRealTimers();
   });
+
+  it("cancels a header long press when a second finger joins", () => {
+    vi.useFakeTimers();
+    const onOpenActions = vi.fn();
+
+    render(
+      <TerminalSessionFrame
+        label="Terminal one"
+        dataTestId="terminal-one"
+        layoutMode="tiled"
+        onOpenActions={onOpenActions}
+      >
+        <div>Terminal</div>
+      </TerminalSessionFrame>,
+    );
+
+    const header = screen.getByTestId("terminal-one-header");
+    fireEvent.touchStart(header, {
+      touches: [{ identifier: 7, clientX: 40, clientY: 20 }],
+    });
+    fireEvent.touchStart(header, {
+      touches: [
+        { identifier: 7, clientX: 40, clientY: 20 },
+        { identifier: 8, clientX: 80, clientY: 20 },
+      ],
+    });
+    vi.advanceTimersByTime(500);
+    expect(onOpenActions).not.toHaveBeenCalled();
+
+    vi.useRealTimers();
+  });
 });

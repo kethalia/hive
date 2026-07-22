@@ -157,6 +157,7 @@ interface TerminalSessionFrameProps {
   isDropTarget?: boolean;
   style?: CSSProperties;
   paneState?: string;
+  navigationSurface?: "terminal" | "workspace";
 }
 
 export function TerminalSessionFrame({
@@ -185,6 +186,7 @@ export function TerminalSessionFrame({
   isDropTarget = false,
   style,
   paneState,
+  navigationSurface,
 }: TerminalSessionFrameProps) {
   const interactive = Boolean(onActivate) && !disabled;
   const draggableHeader = !disabled && !touchOptimizedActions && Boolean(onHeaderPointerDown);
@@ -245,7 +247,11 @@ export function TerminalSessionFrame({
   }
 
   function handleHeaderTouchStart(event: TouchEvent<HTMLDivElement>) {
-    if (disabled || !onOpenActions || event.touches.length !== 1) return;
+    if (event.touches.length !== 1) {
+      clearHeaderLongPress();
+      return;
+    }
+    if (disabled || !onOpenActions) return;
     const target = event.target;
     const interactiveTarget =
       target instanceof Element
@@ -312,6 +318,8 @@ export function TerminalSessionFrame({
       data-pane-label={label}
       data-pane-mode={layoutMode}
       data-pane-state={paneState}
+      data-terminal-navigation-surface={navigationSurface === "terminal" ? "true" : undefined}
+      data-workspace-navigation-surface={navigationSurface === "workspace" ? "true" : undefined}
       data-testid={dataTestId}
       style={style}
       tabIndex={interactive ? 0 : undefined}

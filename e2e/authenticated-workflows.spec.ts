@@ -141,13 +141,17 @@ async function dispatchTwoFingerPinch(page: Page, target: Locator) {
   }
 }
 
-async function dispatchLeftEdgeSwipe(page: Page, target: Locator) {
+async function dispatchOneFingerRightSwipe(
+  page: Page,
+  target: Locator,
+  origin: "edge" | "surface",
+) {
   const box = await target.boundingBox();
-  if (!box) throw new Error("Edge-swipe target has no measurable bounds.");
+  if (!box) throw new Error("One-finger swipe target has no measurable bounds.");
 
   const session = await page.context().newCDPSession(page);
-  const startX = 4;
-  const endX = 88;
+  const startX = origin === "edge" ? 4 : box.x + box.width * 0.45;
+  const endX = Math.min(startX + 88, page.viewportSize()?.width ?? startX + 88);
   const y = box.y + box.height * 0.55;
 
   try {
@@ -235,7 +239,7 @@ async function verifyTerminalTouchNavigation(page: Page) {
 
   await dispatchTwoFingerSwipe(
     page,
-    activeTouchTerminalFrame(page).locator('[data-terminal-navigation-surface="true"]'),
+    activeTouchTerminalFrame(page).locator('[data-testid$="-header"]'),
     "left",
   );
   await expect
@@ -274,7 +278,7 @@ async function verifyWorkspaceTouchNavigation(page: Page) {
   const boardBar = page.getByTestId("workspace-board-bar");
   await dispatchTwoFingerSwipe(page, boardBar, "right");
   await expect(boardTabs.first()).toHaveAttribute("aria-selected", "true");
-  await dispatchTwoFingerSwipe(page, boardBar, "left");
+  await dispatchTwoFingerSwipe(page, page.getByTestId("multi-session-body"), "left");
   await expect(createdBoard).toHaveAttribute("aria-selected", "true");
   await boardTabs.first().click();
   return { boardTabs, createdBoard, initialBoardCount };
@@ -283,12 +287,18 @@ async function verifyWorkspaceTouchNavigation(page: Page) {
 async function verifySidebarEdgeNavigation(page: Page) {
   const urlBeforeSwipe = page.url();
   const historyLengthBeforeSwipe = await page.evaluate(() => history.length);
-  await dispatchLeftEdgeSwipe(
-    page,
-    activeTouchTerminalFrame(page).locator('[data-terminal-navigation-surface="true"]'),
+  const terminalSurface = activeTouchTerminalFrame(page).locator(
+    '[data-terminal-navigation-surface="true"]',
   );
+  await dispatchOneFingerRightSwipe(page, terminalSurface, "surface");
 
   const mobileSidebar = page.locator('[data-sidebar="sidebar"][data-mobile="true"]');
+  await expect(mobileSidebar).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(mobileSidebar).toBeHidden();
+
+  await dispatchOneFingerRightSwipe(page, terminalSurface, "edge");
+
   await expect(mobileSidebar).toBeVisible();
   await expect(page).toHaveURL(urlBeforeSwipe);
   expect(await page.evaluate(() => history.length)).toBe(historyLengthBeforeSwipe);

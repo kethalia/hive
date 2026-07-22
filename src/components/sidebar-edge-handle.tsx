@@ -5,110 +5,53 @@ import { useSidebar } from "@/components/ui/sidebar";
 import { TAP_THRESHOLD_PX } from "@/lib/gestures/conventions";
 
 const OPEN_SWIPE_DISTANCE_PX = 56;
-const MAX_START_X_PX = 72;
 const NATIVE_HISTORY_EDGE_PX = 24;
 
 export interface SidebarEdgeHandleProps {
   className?: string;
 }
 
-type PointerStart = {
-  id: number;
-  x: number;
-  y: number;
-};
-
 type TouchStart = {
   id: number;
   x: number;
   y: number;
+  qualified: boolean;
 };
-
-function isGestureIgnoredTarget(target: EventTarget | null): boolean {
-  if (!(target instanceof HTMLElement)) return false;
-  const nativeInteractiveTarget = target.closest(
-    [
-      "button",
-      "a",
-      "input",
-      "textarea",
-      "select",
-      "summary",
-      "[contenteditable='true']",
-      "[role='menuitem']",
-      "[data-sidebar-gesture-ignore]",
-    ].join(","),
-  );
-  if (nativeInteractiveTarget) return true;
-
-  const roleButtonTarget = target.closest("[role='button']");
-  return Boolean(roleButtonTarget && !roleButtonTarget.hasAttribute("data-pane-mode"));
-}
 
 /**
  * Registers the mobile drawer-open gesture without rendering a visible edge
  * handle. The previous fixed left-side pill was too easy to hit accidentally
- * in the terminal; opening now happens through a rightward page swipe that
- * starts on non-interactive content.
+ * in the terminal; opening now happens through a deliberate one-finger
+ * rightward swipe from anywhere on the page. Touch Events are used instead of
+ * parallel Touch + Pointer listeners so a second finger cancels this path
+ * deterministically before two-finger workspace navigation takes ownership.
  */
 export function SidebarEdgeHandle(_props: SidebarEdgeHandleProps) {
   const { isMobile, openMobile, setOpenMobile } = useSidebar();
-  const startRef = useRef<PointerStart | null>(null);
   const touchStartRef = useRef<TouchStart | null>(null);
 
   useEffect(() => {
     if (!isMobile || openMobile) {
-      startRef.current = null;
       touchStartRef.current = null;
       return;
     }
 
     const reset = () => {
-      startRef.current = null;
       touchStartRef.current = null;
     };
 
-    const trackStart = ({
-      id,
-      target,
-      x,
-      y,
-    }: {
-      id: number;
-      target: EventTarget | null;
-      x: number;
-      y: number;
-    }): PointerStart | null => {
-      if (isGestureIgnoredTarget(target)) return null;
-
-      if (x < 0 || x > MAX_START_X_PX) return null;
-
-      return { id, x, y };
-    };
-
-    const onPointerDown = (event: PointerEvent) => {
-      if (event.pointerType && event.pointerType !== "touch") return;
-      if (event.button !== 0) return;
-
-      const start = trackStart({
-        id: event.pointerId,
-        x: event.clientX,
-        y: event.clientY,
-        target: event.target,
-      });
-      startRef.current = start;
-      if (start && start.x <= NATIVE_HISTORY_EDGE_PX && event.cancelable) {
-        event.preventDefault();
-      }
+    const trackStart = ({ id, x, y }: Omit<TouchStart, "qualified">): TouchStart | null => {
+      if (x < 0 || x > window.innerWidth) return null;
+      return { id, x, y, qualified: false };
     };
 
     const maybeOpen = (
-      start: PointerStart | TouchStart | null,
+      start: TouchStart | null,
       x: number,
       y: number,
       event: { cancelable?: boolean; preventDefault: () => void },
-    ): boolean => {
-      if (!start) return false;
+    ) => {
+      if (!start) return;
       const dx = x - start.x;
       const dy = y - start.y;
       const horizontalDominates = Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > TAP_THRESHOLD_PX;
@@ -117,28 +60,27 @@ export function SidebarEdgeHandle(_props: SidebarEdgeHandleProps) {
         event.preventDefault();
       }
 
-      if (dx >= OPEN_SWIPE_DISTANCE_PX && horizontalDominates) {
-        setOpenMobile(true);
-        reset();
-        return true;
-      }
-      return false;
+      start.qualified = dx >= OPEN_SWIPE_DISTANCE_PX && horizontalDominates;
     };
 
-    const onPointerMove = (event: PointerEvent) => {
-      const start = startRef.current;
-      if (!start || start.id !== event.pointerId) return;
-      maybeOpen(start, event.clientX, event.clientY, event);
+    const onTouchEnd = (event: TouchEvent) => {
+      const completed = touchStartRef.current;
+      if (completed?.qualified && event.touches.length === 0) {
+        setOpenMobile(true);
+      }
+      reset();
     };
 
     const onTouchStart = (event: TouchEvent) => {
-      if (event.touches.length !== 1) return;
+      if (event.touches.length !== 1) {
+        reset();
+        return;
+      }
       const touch = event.touches[0];
       const start = trackStart({
         id: touch.identifier,
         x: touch.clientX,
         y: touch.clientY,
-        target: event.target,
       });
       touchStartRef.current = start;
       if (start && start.x <= NATIVE_HISTORY_EDGE_PX && event.cancelable) {
@@ -147,6 +89,10 @@ export function SidebarEdgeHandle(_props: SidebarEdgeHandleProps) {
     };
 
     const onTouchMove = (event: TouchEvent) => {
+      if (event.touches.length !== 1) {
+        reset();
+        return;
+      }
       const start = touchStartRef.current;
       if (!start) return;
       const touch = Array.from(event.touches).find(
@@ -156,23 +102,15 @@ export function SidebarEdgeHandle(_props: SidebarEdgeHandleProps) {
       maybeOpen(start, touch.clientX, touch.clientY, event);
     };
 
-    window.addEventListener("pointerdown", onPointerDown, { passive: false });
-    window.addEventListener("pointermove", onPointerMove, { passive: false });
     window.addEventListener("touchstart", onTouchStart, { capture: true, passive: false });
     window.addEventListener("touchmove", onTouchMove, { capture: true, passive: false });
-    window.addEventListener("pointerup", reset, { passive: true });
-    window.addEventListener("pointercancel", reset, { passive: true });
-    window.addEventListener("touchend", reset, { passive: true });
+    window.addEventListener("touchend", onTouchEnd, { passive: true });
     window.addEventListener("touchcancel", reset, { passive: true });
 
     return () => {
-      window.removeEventListener("pointerdown", onPointerDown);
-      window.removeEventListener("pointermove", onPointerMove);
       window.removeEventListener("touchstart", onTouchStart, { capture: true });
       window.removeEventListener("touchmove", onTouchMove, { capture: true });
-      window.removeEventListener("pointerup", reset);
-      window.removeEventListener("pointercancel", reset);
-      window.removeEventListener("touchend", reset);
+      window.removeEventListener("touchend", onTouchEnd);
       window.removeEventListener("touchcancel", reset);
     };
   }, [isMobile, openMobile, setOpenMobile]);

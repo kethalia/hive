@@ -4375,6 +4375,7 @@ export function MultiSessionWorkspace({
               model.isActive ? `workspace-${pane.id}` : `workspace-${model.board.key}-${pane.id}`
             }
             layoutMode="tiled"
+            navigationSurface={isComposeSheet ? "terminal" : undefined}
             onHeaderPointerDown={onHeaderPointerDown}
             onOpenActions={() =>
               setPaneActionTarget({
@@ -4613,15 +4614,16 @@ export function MultiSessionWorkspace({
         source === "unified" ? "Workspace terminal sessions" : "Multi-session terminal workspace"
       }
       aria-describedby={isComposeSheet ? touchNavigationHintId : undefined}
+      data-workspace-navigation-surface={isComposeSheet ? "true" : undefined}
       onKeyDown={handleWorkspaceKeyDown}
     >
       {isComposeSheet ? (
         <>
           <p id={touchNavigationHintId} className="sr-only">
-            Swipe left or right with two fingers on a terminal to change terminals. Swipe left or
-            right with two fingers on the workspace controls or empty workspace to change
-            workspaces. Pane actions are available from each pane&apos;s More button or by holding
-            its header.
+            Swipe right with one finger from anywhere to open the sidebar. Swipe left or right with
+            two fingers anywhere in a terminal pane to change terminals. Swipe left or right with
+            two fingers elsewhere in the workspace to change workspaces. Open pane actions from the
+            More button or by touching and holding the pane header for half a second.
           </p>
           <p className="sr-only" aria-live="polite" aria-atomic="true">
             {gestureAnnouncement}

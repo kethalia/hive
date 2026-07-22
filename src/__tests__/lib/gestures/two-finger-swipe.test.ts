@@ -31,6 +31,14 @@ describe("createTwoFingerSwipeDetector", () => {
     expect(detector.end()).toBe("right");
   });
 
+  it("tolerates ordinary finger-spacing variation during a swipe", () => {
+    const detector = createTwoFingerSwipeDetector();
+    detector.start(points(100, 200));
+    detector.move(points(30, 150));
+
+    expect(detector.end()).toBe("left");
+  });
+
   it("does not navigate when horizontal travel stays below the release threshold", () => {
     const detector = createTwoFingerSwipeDetector();
     detector.start(points(100, 200));

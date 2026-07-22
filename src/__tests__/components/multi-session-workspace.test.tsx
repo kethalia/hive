@@ -1682,10 +1682,15 @@ describe("MultiSessionWorkspace", () => {
     await renderTwoSessionWorkspace();
 
     const terminal = screen.getByTestId("interactive-terminal-main-session");
+    const terminalFrame = screen.getByTestId("workspace-pane-main-session");
     expect(terminal).toHaveAttribute("data-terminal-navigation-surface", "true");
+    expect(terminalFrame).toHaveAttribute("data-terminal-navigation-surface", "true");
     let move: Event | undefined;
     act(() => {
-      move = dispatchTwoFingerSwipe(terminal, "left").move;
+      move = dispatchTwoFingerSwipe(
+        screen.getByTestId("workspace-pane-main-session-header"),
+        "left",
+      ).move;
     });
 
     expect(move?.defaultPrevented).toBe(true);
@@ -1738,8 +1743,13 @@ describe("MultiSessionWorkspace", () => {
     );
     await renderTwoSessionWorkspace();
 
+    expect(screen.getByTestId("multi-session-workspace")).toHaveAttribute(
+      "data-workspace-navigation-surface",
+      "true",
+    );
+
     act(() => {
-      dispatchTwoFingerSwipe(screen.getByTestId("workspace-board-bar"), "left");
+      dispatchTwoFingerSwipe(screen.getByTestId("workspace-header-left"), "left");
     });
 
     await waitFor(() => {

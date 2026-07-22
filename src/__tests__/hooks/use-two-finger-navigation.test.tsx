@@ -9,9 +9,12 @@ function NavigationHarness({ onNavigate }: { onNavigate: ReturnType<typeof vi.fn
   const rootRef = useRef<HTMLElement>(null);
   useTwoFingerNavigation({ enabled: true, onNavigate, rootRef });
   return (
-    <section ref={rootRef}>
-      <div data-terminal-navigation-surface="true" data-testid="terminal-surface" />
+    <section ref={rootRef} data-workspace-navigation-surface="true">
+      <div data-terminal-navigation-surface="true" data-testid="terminal-surface">
+        <div data-testid="terminal-header">Terminal header</div>
+      </div>
       <div data-workspace-navigation-surface="true" data-testid="workspace-surface" />
+      <div data-testid="workspace-root-surface">Workspace header</div>
     </section>
   );
 }
@@ -73,5 +76,22 @@ describe("useTwoFingerNavigation", () => {
     expect(start.defaultPrevented).toBe(true);
     expect(move.defaultPrevented).toBe(true);
     expect(onNavigate).not.toHaveBeenCalled();
+  });
+
+  it("routes gestures from the full terminal pane and workspace root", () => {
+    const onNavigate = vi.fn();
+    render(<NavigationHarness onNavigate={onNavigate} />);
+
+    const terminalHeader = screen.getByTestId("terminal-header");
+    dispatchTouch(terminalHeader, "touchstart", [touch(1, 180, 80), touch(2, 220, 120)]);
+    dispatchTouch(terminalHeader, "touchmove", [touch(1, 110, 82), touch(2, 150, 122)]);
+    dispatchTouch(terminalHeader, "touchend", []);
+    expect(onNavigate).toHaveBeenLastCalledWith("terminal", "left");
+
+    const workspaceRootSurface = screen.getByTestId("workspace-root-surface");
+    dispatchTouch(workspaceRootSurface, "touchstart", [touch(3, 80, 80), touch(4, 120, 120)]);
+    dispatchTouch(workspaceRootSurface, "touchmove", [touch(3, 150, 82), touch(4, 190, 122)]);
+    dispatchTouch(workspaceRootSurface, "touchend", []);
+    expect(onNavigate).toHaveBeenLastCalledWith("workspace", "right");
   });
 });
