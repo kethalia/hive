@@ -72,6 +72,16 @@ export function useTwoFingerNavigation({
       firstTouchSurface = null;
     };
 
+    const completeGesture = () => {
+      if (!gesture) return;
+      const completed = gesture;
+      const completedDirection = completed.direction;
+      reset();
+      if (completedDirection) {
+        queueMicrotask(() => onNavigateRef.current(completed.surface, completedDirection));
+      }
+    };
+
     const handleTouchStart = (event: TouchEvent) => {
       if (event.touches.length === 1) {
         firstTouchSurface = navigationSurface(root, event.target);
@@ -110,24 +120,27 @@ export function useTwoFingerNavigation({
     const handleTouchEnd = (event: TouchEvent) => {
       if (!gesture) return;
       if (event.touches.length > 0) return;
-      const completed = gesture;
-      const completedDirection = completed.direction;
-      reset();
-      if (completedDirection) {
-        queueMicrotask(() => onNavigateRef.current(completed.surface, completedDirection));
+      completeGesture();
+    };
+
+    const handleTouchCancel = () => {
+      if (gesture?.surface === "terminal" && gesture.direction) {
+        completeGesture();
+        return;
       }
+      reset();
     };
 
     window.addEventListener("touchstart", handleTouchStart, { capture: true, passive: false });
     window.addEventListener("touchmove", handleTouchMove, { capture: true, passive: false });
     window.addEventListener("touchend", handleTouchEnd, { capture: true, passive: true });
-    window.addEventListener("touchcancel", reset, { capture: true, passive: true });
+    window.addEventListener("touchcancel", handleTouchCancel, { capture: true, passive: true });
 
     return () => {
       window.removeEventListener("touchstart", handleTouchStart, { capture: true });
       window.removeEventListener("touchmove", handleTouchMove, { capture: true });
       window.removeEventListener("touchend", handleTouchEnd, { capture: true });
-      window.removeEventListener("touchcancel", reset, { capture: true });
+      window.removeEventListener("touchcancel", handleTouchCancel, { capture: true });
     };
   }, [enabled, rootRef]);
 }

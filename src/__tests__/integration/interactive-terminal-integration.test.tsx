@@ -2764,6 +2764,30 @@ describe("InteractiveTerminal integration — Mobile input adapter", () => {
     unmount();
   });
 
+  it("does not resume one-finger terminal scrolling after multi-touch navigation claims the sequence", async () => {
+    const { container, unmount } = await renderTerminal({ mobileInputMode: true });
+    const terminal = terminalInstances.at(-1);
+    const inputTarget = container.querySelector('[data-testid="terminal-fit-host"]');
+    const screen = container.querySelector(".xterm-screen");
+    expect(terminal).toBeDefined();
+    if (!inputTarget || !screen || !terminal) throw new Error("Terminal touch surface is missing.");
+
+    terminal.modes.mouseTrackingMode = "any";
+    let wheelEventCount = 0;
+    screen.addEventListener("wheel", () => {
+      wheelEventCount += 1;
+    });
+
+    fireTouchEvent(inputTarget, "touchstart", [touchPoint(1, 80, 320)]);
+    inputTarget.dispatchEvent(new Event(TERMINAL_MULTI_TOUCH_CLAIM_EVENT));
+    const remainingFingerMove = fireTouchEvent(inputTarget, "touchmove", [touchPoint(1, 80, 240)]);
+    fireTouchEvent(inputTarget, "touchend", [], [touchPoint(1, 80, 240)]);
+
+    expect(remainingFingerMove.defaultPrevented).toBe(false);
+    expect(wheelEventCount).toBe(0);
+    unmount();
+  });
+
   it("does not use browser scrollback for mobile terminal touch drags", async () => {
     const { container, unmount } = await renderTerminal({ mobileInputMode: true });
     const terminal = terminalInstances.at(-1);

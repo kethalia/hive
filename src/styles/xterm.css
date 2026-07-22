@@ -126,6 +126,17 @@
     overflow: hidden !important;
 }
 
+/*
+ * Terminal scrolling is implemented by Hive on touch layouts. Claim the full
+ * pane before Safari can turn a second touch into native pan, pinch, or page
+ * navigation and cancel the app-level gesture sequence.
+ */
+.terminal-mobile-shell [data-terminal-navigation-surface="true"],
+.terminal-mobile-shell [data-terminal-navigation-surface="true"] .xterm,
+.terminal-mobile-shell [data-terminal-navigation-surface="true"] .xterm * {
+    touch-action: none;
+}
+
 .xterm .xterm-screen {
     position: relative;
 }

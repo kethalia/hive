@@ -56,7 +56,7 @@ function touch(identifier: number, clientX: number, clientY: number) {
 
 function dispatchTouch(
   target: Element,
-  type: "touchstart" | "touchmove" | "touchend",
+  type: "touchstart" | "touchmove" | "touchend" | "touchcancel",
   touches: ReturnType<typeof touch>[],
 ) {
   const event = new Event(type, { bubbles: true, cancelable: true });
@@ -206,6 +206,46 @@ describe("useTwoFingerNavigation", () => {
     } finally {
       document.removeEventListener("touchend", consumeTouchEnd);
     }
+  });
+
+  it("completes a claimed terminal swipe when the browser cancels the touch sequence", async () => {
+    const onNavigate = vi.fn();
+    render(<NavigationHarness onNavigate={onNavigate} />);
+
+    const terminalInput = screen.getByTestId("terminal-fit-host");
+    dispatchTouch(terminalInput, "touchstart", [touch(1, 180, 80), touch(2, 220, 120)]);
+    dispatchTouch(terminalInput, "touchmove", [touch(1, 110, 82), touch(2, 150, 122)]);
+    dispatchTouch(terminalInput, "touchcancel", []);
+    await Promise.resolve();
+
+    expect(onNavigate).toHaveBeenCalledOnce();
+    expect(onNavigate).toHaveBeenCalledWith("terminal", "left");
+  });
+
+  it("discards a canceled terminal touch before it crosses the swipe threshold", async () => {
+    const onNavigate = vi.fn();
+    render(<NavigationHarness onNavigate={onNavigate} />);
+
+    const terminalInput = screen.getByTestId("terminal-fit-host");
+    dispatchTouch(terminalInput, "touchstart", [touch(1, 180, 80), touch(2, 220, 120)]);
+    dispatchTouch(terminalInput, "touchmove", [touch(1, 160, 82), touch(2, 200, 122)]);
+    dispatchTouch(terminalInput, "touchcancel", []);
+    await Promise.resolve();
+
+    expect(onNavigate).not.toHaveBeenCalled();
+  });
+
+  it("does not complete a canceled workspace swipe", async () => {
+    const onNavigate = vi.fn();
+    render(<NavigationHarness onNavigate={onNavigate} />);
+
+    const workspace = screen.getByTestId("workspace-surface");
+    dispatchTouch(workspace, "touchstart", [touch(1, 180, 80), touch(2, 220, 120)]);
+    dispatchTouch(workspace, "touchmove", [touch(1, 110, 82), touch(2, 150, 122)]);
+    dispatchTouch(workspace, "touchcancel", []);
+    await Promise.resolve();
+
+    expect(onNavigate).not.toHaveBeenCalled();
   });
 
   it("navigates after nested touch-end handlers finish and pending sensors release", async () => {

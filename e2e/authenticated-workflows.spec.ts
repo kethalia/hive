@@ -321,6 +321,7 @@ async function verifyTerminalTouchNavigation(page: Page) {
   const activePaneLabel = page.getByTestId("active-pane-label").first();
   const stableTerminalGestureSurface =
     stableTouchTerminalFrame(page).getByTestId("terminal-fit-host");
+  await expect(stableTerminalGestureSurface.locator(".xterm")).toHaveCSS("touch-action", "none");
   const firstTerminalLabel = (await activePaneLabel.textContent())?.trim();
   if (!firstTerminalLabel) throw new Error("Active terminal has no label.");
 

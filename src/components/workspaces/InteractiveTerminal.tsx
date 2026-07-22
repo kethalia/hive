@@ -646,6 +646,7 @@ export function InteractiveTerminal({
       intent.multiTouch = true;
       return;
     }
+    if (intent.multiTouch) return;
 
     const touch = Array.from(event.touches).find(
       (candidate) => candidate.identifier === intent.touchIdentifier,
