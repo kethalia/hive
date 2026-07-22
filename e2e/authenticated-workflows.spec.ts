@@ -675,10 +675,20 @@ async function verifyEmbeddedToolsOpenInParallel(
   const previousVsCodeLoadCount = getSuccessfulVsCodeLoads();
   const fileBrowserButton = page.getByRole("button", { name: /^Browse files for / }).first();
   const vsCodeButton = page.getByRole("button", { name: /^Open VS Code for / }).first();
+  const mobilePaneActions = page
+    .locator('[data-testid^="workspace-pane-"][data-testid$="-actions"]:visible')
+    .first();
 
-  await fileBrowserButton.click();
-  await expect(vsCodeButton).toBeEnabled();
-  await vsCodeButton.click();
+  if (await mobilePaneActions.isVisible().catch(() => false)) {
+    await mobilePaneActions.click();
+    await page.getByTestId("workspace-pane-action-files").click();
+    await mobilePaneActions.click();
+    await page.getByTestId("workspace-pane-action-code").click();
+  } else {
+    await fileBrowserButton.click();
+    await expect(vsCodeButton).toBeEnabled();
+    await vsCodeButton.click();
+  }
 
   await expect(page.getByTestId("workspace-tool-pane-files")).toBeVisible({ timeout: 30_000 });
   await expect(page.getByTestId("workspace-tool-pane-code")).toBeVisible({ timeout: 30_000 });
