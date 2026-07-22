@@ -226,9 +226,13 @@ async function ensureThreeTouchTerminals(page: Page) {
     const createdSessionName = `gesture-e2e-${Date.now()}-${createdSessionNames.length + 1}`;
     createdSessionNames.push(createdSessionName);
     await page.getByRole("button", { name: "Open workspace command palette" }).click();
-    await page.getByRole("combobox").fill(createdSessionName);
-    await page
-      .getByRole("option", {
+    const globalDrawer = page.getByRole("dialog", { name: "Global navigation", exact: true });
+    await expect(globalDrawer).toBeVisible();
+    await globalDrawer
+      .getByRole("searchbox", { name: "Search global navigation" })
+      .fill(createdSessionName);
+    await globalDrawer
+      .getByRole("button", {
         name: new RegExp(`^New terminal session named ${createdSessionName}`),
       })
       .click();
@@ -302,6 +306,39 @@ async function verifyWorkspaceTabNavigation(page: Page) {
   await expect(createdBoard).toHaveAttribute("aria-selected", "true");
   await boardTabs.first().click();
   return { boardTabs, createdBoard, initialBoardCount };
+}
+
+async function verifyTerminalControlsOwnHorizontalSwipes(page: Page) {
+  const controls = page.getByRole("region", { name: "Terminal mobile controls" });
+  const carousel = page.getByRole("region", { name: "Terminal controls carousel" });
+  const visibleLeftSidebar = page.locator('[data-sidebar="sidebar"][data-side="left"]:visible');
+  const globalDrawer = page.getByRole("dialog", { name: "Global navigation", exact: true });
+
+  await expect(controls).toHaveAttribute("data-sidebar-gesture-ignore", "true");
+  await dispatchOneFingerRightSwipe(page, carousel, "surface");
+  await expect(visibleLeftSidebar).toHaveCount(0);
+  await expect(globalDrawer).toBeHidden();
+
+  await dispatchOneFingerLeftSwipe(page, carousel, "surface");
+  await expect(visibleLeftSidebar).toHaveCount(0);
+  await expect(globalDrawer).toBeHidden();
+}
+
+async function verifyMobileCommandEntryPointsUseRightSidebar(page: Page) {
+  const globalDrawer = page.getByRole("dialog", { name: "Global navigation", exact: true });
+  const legacyDrawer = page.getByRole("dialog", { name: "Command palette", exact: true });
+
+  await page.getByRole("button", { name: "Open workspace command palette" }).click();
+  await expect(globalDrawer).toBeVisible();
+  await expect(legacyDrawer).toHaveCount(0);
+  await page.keyboard.press("Escape");
+  await expect(globalDrawer).toBeHidden();
+
+  await page.getByRole("button", { name: "Open favorite window switcher" }).click();
+  await expect(globalDrawer).toBeVisible();
+  await expect(legacyDrawer).toHaveCount(0);
+  await page.keyboard.press("Escape");
+  await expect(globalDrawer).toBeHidden();
 }
 
 async function verifySidebarEdgeNavigation(page: Page) {
@@ -1341,6 +1378,8 @@ test.describe("authenticated Hive workflows", () => {
     try {
       createdSessionNames = await ensureThreeTouchTerminals(page);
       await expectConnectedTerminal(page);
+      await verifyMobileCommandEntryPointsUseRightSidebar(page);
+      await verifyTerminalControlsOwnHorizontalSwipes(page);
       await verifySidebarEdgeNavigation(page);
       await verifyGlobalCommandDrawerGesture(page);
       await verifyMobileWorkspaceWindowDrag(page);

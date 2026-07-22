@@ -1,7 +1,10 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { resolveHorizontalSwipe } from "@/lib/gestures/horizontal-swipe";
+import {
+  isSidebarGestureIgnoredTarget,
+  resolveHorizontalSwipe,
+} from "@/lib/gestures/horizontal-swipe";
 
 const NATIVE_HISTORY_EDGE_PX = 24;
 
@@ -16,10 +19,6 @@ type TouchStart = {
   y: number;
   qualified: boolean;
 };
-
-function startsOnPaneHeader(target: EventTarget | null): boolean {
-  return target instanceof Element && target.closest('[data-window-drag-surface="true"]') !== null;
-}
 
 function preventNativeForwardGesture(event: TouchEvent, clientX: number) {
   if (clientX >= window.innerWidth - NATIVE_HISTORY_EDGE_PX && event.cancelable) {
@@ -54,7 +53,7 @@ export function useGlobalCommandPaletteGesture({
       }
 
       const touch = event.touches[0];
-      if (startsOnPaneHeader(event.target)) {
+      if (isSidebarGestureIgnoredTarget(event.target)) {
         reset();
         preventNativeForwardGesture(event, touch.clientX);
         return;

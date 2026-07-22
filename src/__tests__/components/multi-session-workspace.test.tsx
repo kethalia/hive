@@ -33,6 +33,7 @@ const mockRouterPush = vi.fn();
 const mockToastInfo = vi.hoisted(() => vi.fn());
 const mockToastError = vi.hoisted(() => vi.fn());
 const mockUseIsComposeSheet = vi.hoisted(() => vi.fn(() => false));
+const mockSetOpenMobileRight = vi.hoisted(() => vi.fn());
 const mockCopyTerminalSelection = vi.hoisted(() => vi.fn());
 const mockPasteClipboardApiToTerminal = vi.hoisted(() => vi.fn());
 const mockTriggerHapticFeedback = vi.hoisted(() => vi.fn());
@@ -464,6 +465,10 @@ vi.mock("@/components/ui/sidebar", () => ({
       Toggle sidebar
     </button>
   ),
+  useSidebar: () => ({
+    openMobileRight: false,
+    setOpenMobileRight: mockSetOpenMobileRight,
+  }),
 }));
 
 vi.mock("@/components/ui/button", () => ({
@@ -725,6 +730,7 @@ describe("MultiSessionWorkspace", () => {
     });
     mockReadPendingWorkspaceToolIntent.mockReturnValue(null);
     mockUseIsComposeSheet.mockReturnValue(false);
+    mockSetOpenMobileRight.mockReset();
     mockCopyTerminalSelection.mockReset();
     mockPasteClipboardApiToTerminal.mockReset();
     mockTriggerHapticFeedback.mockReset();
@@ -1658,6 +1664,29 @@ describe("MultiSessionWorkspace", () => {
     fireEvent.click(screen.getByTestId("terminal-window-next"));
     expect(screen.getByTestId("active-pane-label")).toHaveTextContent("dev-server");
     expect(mainTerm.focus).not.toHaveBeenCalled();
+  });
+
+  it("opens the integrated right sidebar from the mobile window switcher", async () => {
+    mockUseIsComposeSheet.mockReturnValue(true);
+    await renderTwoSessionWorkspace();
+
+    fireEvent.click(screen.getByTestId("terminal-window-switcher"));
+
+    expect(mockSetOpenMobileRight).toHaveBeenCalledWith(true);
+    expect(screen.queryByTestId("multi-session-command-palette")).not.toBeInTheDocument();
+  });
+
+  it("opens the integrated right sidebar instead of a local mobile Add session drawer", async () => {
+    mockUseIsComposeSheet.mockReturnValue(true);
+    mockGetSessions.mockResolvedValueOnce(twoSessionPayload());
+    mockListGitClones.mockResolvedValueOnce({ data: { ok: true, tree: { nodes: [] } } });
+    render(<MultiSessionWorkspace {...defaultProps} source="unified" />);
+    await screen.findByTestId("workspace-pane-main-session");
+
+    fireEvent.click(screen.getByTestId("open-git-session-search"));
+
+    expect(mockSetOpenMobileRight).toHaveBeenCalledWith(true);
+    expect(screen.queryByTestId("multi-session-command-palette")).not.toBeInTheDocument();
   });
 
   it("opens direct native pane actions from the touch-sized More control", async () => {

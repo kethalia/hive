@@ -305,7 +305,7 @@ describe("SidebarEdgeHandle", () => {
     expect(sidebarState.setOpenMobile).not.toHaveBeenCalled();
   });
 
-  it("opens from gesture-marked carousel regions after horizontal intent", async () => {
+  it("reserves gesture-marked carousel swipes for the carousel", () => {
     sidebarState = {
       isMobile: true,
       openMobile: false,
@@ -322,11 +322,14 @@ describe("SidebarEdgeHandle", () => {
       </main>,
     );
 
-    swipePage({ target: screen.getByTestId("carousel-region"), move: [310, 206] });
+    const carousel = screen.getByTestId("carousel-region");
+    const start = touchEvent("touchstart", [touchPoint(1, 180, 200)], carousel);
+    const move = touchEvent("touchmove", [touchPoint(1, 280, 206)], carousel);
+    touchEvent("touchend", [], carousel);
 
-    await waitFor(() => {
-      expect(sidebarState.setOpenMobile).toHaveBeenCalledWith(true);
-    });
+    expect(start.defaultPrevented).toBe(false);
+    expect(move.defaultPrevented).toBe(false);
+    expect(sidebarState.setOpenMobile).not.toHaveBeenCalled();
   });
 
   it("cancels the one-finger drawer gesture as soon as a second finger joins", () => {

@@ -12,6 +12,9 @@ function GestureHarness({ enabled = true, onOpen }: { enabled?: boolean; onOpen:
       <div data-testid="pane-header" data-window-drag-surface="true">
         Pane header
       </div>
+      <div data-sidebar-gesture-ignore="true" data-testid="terminal-controls">
+        Terminal controls
+      </div>
     </main>
   );
 }
@@ -99,6 +102,21 @@ describe("useGlobalCommandPaletteGesture", () => {
     dispatchTouch("touchend", [], header);
     await Promise.resolve();
 
+    expect(onOpen).not.toHaveBeenCalled();
+  });
+
+  it("reserves terminal control swipes for the controls carousel", async () => {
+    const onOpen = vi.fn();
+    const { getByTestId } = render(<GestureHarness onOpen={onOpen} />);
+    const controls = getByTestId("terminal-controls");
+
+    const start = dispatchTouch("touchstart", [touch(1, 300, 700)], controls);
+    const move = dispatchTouch("touchmove", [touch(1, 220, 704)], controls);
+    dispatchTouch("touchend", [], controls);
+    await Promise.resolve();
+
+    expect(start.defaultPrevented).toBe(false);
+    expect(move.defaultPrevented).toBe(false);
     expect(onOpen).not.toHaveBeenCalled();
   });
 

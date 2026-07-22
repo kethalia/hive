@@ -44,7 +44,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { SidebarTrigger } from "@/components/ui/sidebar";
+import { SidebarTrigger, useSidebar } from "@/components/ui/sidebar";
 import { TerminalSessionEventLog } from "@/components/workspaces/TerminalSessionEventLog";
 import {
   TerminalFontSizeControls,
@@ -1256,6 +1256,7 @@ export function MultiSessionWorkspace({
   const isUnifiedSource = source === "unified";
   const keepAliveStatus = useKeepAliveStatus(workspaceId);
   const isComposeSheet = useIsComposeSheet();
+  const { openMobileRight, setOpenMobileRight } = useSidebar();
   const pointerWindowDragSensor = useSensor(PointerSensor, {
     activationConstraint: { distance: DRAG_LONG_PRESS_MOVE_PX },
   });
@@ -2095,6 +2096,15 @@ export function MultiSessionWorkspace({
     [activeBoardRenderModel, selectWorkspaceWindow],
   );
 
+  const openWorkspaceCommandPalette = useCallback(() => {
+    if (isComposeSheet) {
+      setGitSearchQuery("");
+      setOpenMobileRight(true);
+      return;
+    }
+    setPaletteOpen(true);
+  }, [isComposeSheet, setOpenMobileRight]);
+
   const mobileWindowNavigation = useMemo(() => {
     const sessionsForControls = visibleSessions.map((session) => ({
       id: session.sessionName,
@@ -2134,9 +2144,9 @@ export function MultiSessionWorkspace({
         selectSession(target.sessionName, { focusTerminal: false });
         return true;
       },
-      onOpenSwitcher: () => setPaletteOpen(true),
+      onOpenSwitcher: openWorkspaceCommandPalette,
     };
-  }, [activeSessionName, selectSession, visibleSessions]);
+  }, [activeSessionName, openWorkspaceCommandPalette, selectSession, visibleSessions]);
 
   const switchRelativeWorkspaceBoard = useCallback(
     (direction: -1 | 1) => {
@@ -2615,7 +2625,7 @@ export function MultiSessionWorkspace({
   ]);
 
   useEffect(() => {
-    if (!isUnifiedSource || (!gitSearchOpen && !paletteOpen)) return;
+    if (!isUnifiedSource || (!gitSearchOpen && !paletteOpen && !openMobileRight)) return;
 
     let cancelled = false;
     setGitFavoritesLoading(true);
@@ -2643,7 +2653,7 @@ export function MultiSessionWorkspace({
     return () => {
       cancelled = true;
     };
-  }, [gitSearchOpen, isUnifiedSource, paletteOpen, workspaceId]);
+  }, [gitSearchOpen, isUnifiedSource, openMobileRight, paletteOpen, workspaceId]);
 
   const handleCreateSession = useCallback(
     async (sessionName?: string): Promise<boolean> => {
@@ -3531,7 +3541,7 @@ export function MultiSessionWorkspace({
         type="button"
         variant="outline"
         size="xs"
-        onClick={() => setPaletteOpen(true)}
+        onClick={openWorkspaceCommandPalette}
         className="h-7 min-h-0 px-2 text-xs"
         aria-label="Open workspace command palette"
         data-testid="open-git-session-search"
@@ -3834,23 +3844,25 @@ export function MultiSessionWorkspace({
       {renderGitRepositorySearchModal()}
       {renderGitAddFailureStatus()}
       {renderGitRestoreFailureStatus()}
-      <CommandPalette
-        open={paletteOpen}
-        onOpenChange={setPaletteOpen}
-        tabs={isUnifiedSource ? [] : commandPaletteTabs}
-        onSelectTab={handlePaletteSelect}
-        onCreateSession={isUnifiedSource ? undefined : () => void handleCreateSession()}
-        actions={workspacePaletteActions}
-        searchValue={isUnifiedSource ? gitSearchQuery : undefined}
-        onSearchValueChange={isUnifiedSource ? setGitSearchQuery : undefined}
-        searchPlaceholder={
-          isUnifiedSource
-            ? "Search terminal sessions, Git repositories, or type a new session name…"
-            : "Search workspace sessions…"
-        }
-        emptyText={isUnifiedSource ? "No command matches." : "No workspace sessions found."}
-        groupHeading="Workspace sessions"
-      />
+      {!isComposeSheet ? (
+        <CommandPalette
+          open={paletteOpen}
+          onOpenChange={setPaletteOpen}
+          tabs={isUnifiedSource ? [] : commandPaletteTabs}
+          onSelectTab={handlePaletteSelect}
+          onCreateSession={isUnifiedSource ? undefined : () => void handleCreateSession()}
+          actions={workspacePaletteActions}
+          searchValue={isUnifiedSource ? gitSearchQuery : undefined}
+          onSearchValueChange={isUnifiedSource ? setGitSearchQuery : undefined}
+          searchPlaceholder={
+            isUnifiedSource
+              ? "Search terminal sessions, Git repositories, or type a new session name…"
+              : "Search workspace sessions…"
+          }
+          emptyText={isUnifiedSource ? "No command matches." : "No workspace sessions found."}
+          groupHeading="Workspace sessions"
+        />
+      ) : null}
     </>
   );
 

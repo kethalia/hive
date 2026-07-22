@@ -9,7 +9,17 @@ export interface HorizontalSwipeProgress {
   horizontalIntent: boolean;
 }
 
-/** Resolves a horizontal swipe using the same intent and distance rules for every finger count. */
+const SIDEBAR_GESTURE_IGNORE_SELECTOR = [
+  '[data-sidebar-gesture-ignore="true"]',
+  '[data-window-drag-surface="true"]',
+].join(", ");
+
+/** Returns true when a nested horizontal interaction owns the touch sequence. */
+export function isSidebarGestureIgnoredTarget(target: EventTarget | null): boolean {
+  return target instanceof Element && target.closest(SIDEBAR_GESTURE_IGNORE_SELECTOR) !== null;
+}
+
+/** Resolves a one-finger horizontal swipe using the shared intent and distance rules. */
 export function resolveHorizontalSwipe(
   startX: number,
   startY: number,

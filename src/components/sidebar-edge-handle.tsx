@@ -2,7 +2,10 @@
 
 import { useEffect, useRef } from "react";
 import { useSidebar } from "@/components/ui/sidebar";
-import { resolveHorizontalSwipe } from "@/lib/gestures/horizontal-swipe";
+import {
+  isSidebarGestureIgnoredTarget,
+  resolveHorizontalSwipe,
+} from "@/lib/gestures/horizontal-swipe";
 
 const NATIVE_HISTORY_EDGE_PX = 24;
 
@@ -74,10 +77,7 @@ export function SidebarEdgeHandle(_props: SidebarEdgeHandleProps) {
         return;
       }
       const touch = event.touches[0];
-      const startsOnPaneHeader =
-        event.target instanceof Element &&
-        event.target.closest('[data-window-drag-surface="true"]') !== null;
-      if (startsOnPaneHeader) {
+      if (isSidebarGestureIgnoredTarget(event.target)) {
         reset();
         if (touch.clientX <= NATIVE_HISTORY_EDGE_PX && event.cancelable) {
           event.preventDefault();

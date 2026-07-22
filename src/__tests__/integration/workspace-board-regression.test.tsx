@@ -17,6 +17,7 @@ const mockCloseGitCloneTerminal = vi.fn();
 const mockListNavigationFavorites = vi.fn();
 const mockRouterPush = vi.fn();
 const mockToastInfo = vi.hoisted(() => vi.fn());
+const mockSetOpenMobileRight = vi.hoisted(() => vi.fn());
 const terminalProps = new Map<
   string,
   {
@@ -188,6 +189,10 @@ vi.mock("@/components/ui/sidebar", () => ({
       Toggle sidebar
     </button>
   ),
+  useSidebar: () => ({
+    openMobileRight: false,
+    setOpenMobileRight: mockSetOpenMobileRight,
+  }),
 }));
 
 vi.mock("@/components/ui/button", () => ({

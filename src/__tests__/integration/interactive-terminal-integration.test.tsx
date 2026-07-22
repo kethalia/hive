@@ -254,6 +254,10 @@ vi.mock("@/components/ui/sidebar", () => ({
       Toggle sidebar
     </button>
   ),
+  useSidebar: () => ({
+    openMobileRight: false,
+    setOpenMobileRight: vi.fn(),
+  }),
 }));
 
 vi.mock("@/components/workspaces/MultiSessionWorkspace", () => ({
