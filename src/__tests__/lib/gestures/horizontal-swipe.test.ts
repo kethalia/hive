@@ -44,6 +44,24 @@ describe("resolveHorizontalSwipe", () => {
     expect(isSidebarGestureIgnoredTarget(dialogChild)).toBe(true);
   });
 
+  it("reserves editable controls for selection and cursor gestures", () => {
+    const input = document.createElement("input");
+    const textarea = document.createElement("textarea");
+    const select = document.createElement("select");
+    const editor = document.createElement("div");
+    editor.setAttribute("contenteditable", "true");
+    const editorChild = document.createElement("span");
+    editor.append(editorChild);
+    const disabledEditor = document.createElement("div");
+    disabledEditor.setAttribute("contenteditable", "false");
+
+    expect(isSidebarGestureIgnoredTarget(input)).toBe(true);
+    expect(isSidebarGestureIgnoredTarget(textarea)).toBe(true);
+    expect(isSidebarGestureIgnoredTarget(select)).toBe(true);
+    expect(isSidebarGestureIgnoredTarget(editorChild)).toBe(true);
+    expect(isSidebarGestureIgnoredTarget(disabledEditor)).toBe(false);
+  });
+
   it("allows coordinated mobile sidebars to replace one another", () => {
     const dialog = document.createElement("div");
     dialog.setAttribute("role", "dialog");

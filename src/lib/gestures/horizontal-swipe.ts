@@ -13,6 +13,10 @@ const SIDEBAR_GESTURE_IGNORE_SELECTOR = [
   '[data-sidebar-gesture-ignore="true"]',
   '[data-mobile-scroll-allow="true"]',
   '[data-window-drag-surface="true"]',
+  "input",
+  "textarea",
+  "select",
+  '[contenteditable]:not([contenteditable="false"])',
 ].join(", ");
 
 /** Returns true when a nested horizontal interaction owns the touch sequence. */
