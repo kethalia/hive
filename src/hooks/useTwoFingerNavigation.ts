@@ -6,6 +6,7 @@ import {
   type HorizontalSwipeDirection,
   resolveHorizontalSwipe,
 } from "@/lib/gestures/horizontal-swipe";
+import { TERMINAL_MULTI_TOUCH_CLAIM_EVENT } from "@/lib/terminal/events";
 
 export type TwoFingerNavigationSurface = "terminal" | "workspace";
 
@@ -32,6 +33,13 @@ function touchCenter(touches: TouchList): { x: number; y: number } | null {
     x: (touches[0].clientX + touches[1].clientX) / 2,
     y: (touches[0].clientY + touches[1].clientY) / 2,
   };
+}
+
+function claimTerminalMultiTouch(target: EventTarget | null) {
+  if (!(target instanceof Element)) return;
+  target
+    .closest('[data-testid="terminal-fit-host"]')
+    ?.dispatchEvent(new Event(TERMINAL_MULTI_TOUCH_CLAIM_EVENT));
 }
 
 interface TwoFingerGesture {
@@ -80,6 +88,7 @@ export function useTwoFingerNavigation({
         reset();
         return;
       }
+      if (surface === "terminal") claimTerminalMultiTouch(event.target);
       gesture = { direction: null, startX: center.x, startY: center.y, surface };
       if (event.cancelable) event.preventDefault();
     };

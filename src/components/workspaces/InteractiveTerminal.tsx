@@ -37,6 +37,7 @@ import {
   type TerminalPasteOutcome,
   type TerminalPasteStatus,
 } from "@/lib/terminal/clipboard";
+import { TERMINAL_MULTI_TOUCH_CLAIM_EVENT } from "@/lib/terminal/events";
 import { EVENT_NAME as FONT_SIZE_EVENT, getTerminalFontSize } from "@/lib/terminal/font-size";
 import {
   blurXtermMobileInput,
@@ -729,10 +730,15 @@ export function InteractiveTerminal({
     };
     const handleTouchMove = (event: TouchEvent) => continueMobileTouchScroll(event);
     const handleTouchEnd = (event: TouchEvent) => endMobileTouchScroll(event);
+    const handleMultiTouchClaim = () => {
+      suppressNextClickFocusRef.current = true;
+      if (mobileTouchIntentRef.current) mobileTouchIntentRef.current.multiTouch = true;
+    };
     const handlePointerDown = (event: PointerEvent) => {
       if (event.pointerType === "touch") preventXtermTouchFocus(event);
     };
 
+    container.addEventListener(TERMINAL_MULTI_TOUCH_CLAIM_EVENT, handleMultiTouchClaim);
     container.addEventListener("pointerdown", handlePointerDown, { capture: true, passive: false });
     container.addEventListener("touchstart", handleTouchStart, { capture: true, passive: false });
     container.addEventListener("touchmove", handleTouchMove, { capture: true, passive: false });
@@ -740,6 +746,7 @@ export function InteractiveTerminal({
     container.addEventListener("touchcancel", handleTouchEnd, { capture: true, passive: true });
 
     return () => {
+      container.removeEventListener(TERMINAL_MULTI_TOUCH_CLAIM_EVENT, handleMultiTouchClaim);
       container.removeEventListener("pointerdown", handlePointerDown, { capture: true });
       container.removeEventListener("touchstart", handleTouchStart, { capture: true });
       container.removeEventListener("touchmove", handleTouchMove, { capture: true });

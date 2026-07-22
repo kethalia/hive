@@ -5,6 +5,7 @@ import { act, cleanup, fireEvent, render, waitFor } from "@testing-library/react
 import type React from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ConnectionState, TerminalRecoveryState } from "@/hooks/useTerminalWebSocket";
+import { TERMINAL_MULTI_TOUCH_CLAIM_EVENT } from "@/lib/terminal/events";
 import {
   getMobileTerminalDiagnosticsState,
   resetMobileTerminalDiagnosticsState,
@@ -2738,6 +2739,28 @@ describe("InteractiveTerminal integration — Mobile input adapter", () => {
       terminal?.dataHandler?.("echo mobile\r");
     });
     expect(mockSend).toHaveBeenCalledWith("echo mobile\r");
+    unmount();
+  });
+
+  it("does not refocus a terminal after two-finger navigation claims the touch", async () => {
+    const onUserFocusRequest = vi.fn();
+    const { container, unmount } = await renderTerminal({
+      mobileInputMode: true,
+      onUserFocusRequest,
+    });
+    const terminal = terminalInstances.at(-1);
+    const inputTarget = container.querySelector('[data-testid="terminal-fit-host"]');
+    expect(terminal).toBeDefined();
+    if (!inputTarget) throw new Error("Terminal input surface is missing.");
+
+    terminal?.focus.mockClear();
+    fireTouchEvent(inputTarget, "touchstart", [touchPoint(1, 80, 240)]);
+    inputTarget.dispatchEvent(new Event(TERMINAL_MULTI_TOUCH_CLAIM_EVENT));
+    fireTouchEvent(inputTarget, "touchend", [], [touchPoint(1, 82, 242)]);
+    fireEvent.click(inputTarget);
+
+    expect(terminal?.focus).not.toHaveBeenCalled();
+    expect(onUserFocusRequest).not.toHaveBeenCalled();
     unmount();
   });
 

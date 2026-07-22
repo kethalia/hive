@@ -4,6 +4,7 @@ import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import { useLayoutEffect, useRef, useState } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { useTwoFingerNavigation } from "@/hooks/useTwoFingerNavigation";
+import { TERMINAL_MULTI_TOUCH_CLAIM_EVENT } from "@/lib/terminal/events";
 
 function NavigationHarness({ onNavigate }: { onNavigate: ReturnType<typeof vi.fn> }) {
   const rootRef = useRef<HTMLElement>(null);
@@ -12,6 +13,7 @@ function NavigationHarness({ onNavigate }: { onNavigate: ReturnType<typeof vi.fn
     <section ref={rootRef} data-workspace-navigation-surface="true">
       <div data-terminal-navigation-surface="true" data-testid="terminal-surface">
         <div data-testid="terminal-header">Terminal header</div>
+        <div data-testid="terminal-fit-host" />
       </div>
       <div data-workspace-navigation-surface="true" data-testid="workspace-surface" />
       <div data-testid="workspace-root-surface">Workspace header</div>
@@ -171,6 +173,19 @@ describe("useTwoFingerNavigation", () => {
     expect(move.defaultPrevented).toBe(true);
     expect(nestedMove).not.toHaveBeenCalled();
     expect(onNavigate).toHaveBeenCalledWith("terminal", "left");
+  });
+
+  it("claims terminal multi-touch before nested movement is consumed", () => {
+    const onNavigate = vi.fn();
+    render(<NavigationHarness onNavigate={onNavigate} />);
+
+    const terminalInput = screen.getByTestId("terminal-fit-host");
+    const onClaim = vi.fn();
+    terminalInput.addEventListener(TERMINAL_MULTI_TOUCH_CLAIM_EVENT, onClaim);
+    dispatchTouch(terminalInput, "touchstart", [touch(1, 180, 80)]);
+    dispatchTouch(terminalInput, "touchstart", [touch(1, 180, 80), touch(2, 220, 120)]);
+
+    expect(onClaim).toHaveBeenCalledOnce();
   });
 
   it("completes before xterm-style document touch-end consumption", async () => {
