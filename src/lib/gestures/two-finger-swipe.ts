@@ -47,6 +47,41 @@ interface SwipeMovement {
 
 type GestureClassification = "pending" | "swipe" | "pinch" | "cancelled";
 
+function isHorizontalMovement(deltaX: number, deltaY: number): boolean {
+  return (
+    Math.abs(deltaX) >= TWO_FINGER_SWIPE_INTENT_PX &&
+    Math.abs(deltaX) >= Math.abs(deltaY) * TWO_FINGER_SWIPE_HORIZONTAL_RATIO
+  );
+}
+
+function isCoordinatedHorizontalSwipe(
+  firstDeltaX: number,
+  firstDeltaY: number,
+  secondDeltaX: number,
+  secondDeltaY: number,
+): boolean {
+  return (
+    isHorizontalMovement(firstDeltaX, firstDeltaY) &&
+    isHorizontalMovement(secondDeltaX, secondDeltaY) &&
+    firstDeltaX * secondDeltaX > 0
+  );
+}
+
+function isPinchMovement(
+  firstDeltaX: number,
+  firstDeltaY: number,
+  secondDeltaX: number,
+  secondDeltaY: number,
+  scaleDelta: number,
+): boolean {
+  const firstMoved = Math.hypot(firstDeltaX, firstDeltaY) >= TWO_FINGER_SWIPE_INTENT_PX;
+  const secondMoved = Math.hypot(secondDeltaX, secondDeltaY) >= TWO_FINGER_SWIPE_INTENT_PX;
+  const movementsOppose = firstDeltaX * secondDeltaX + firstDeltaY * secondDeltaY < 0;
+  return (
+    scaleDelta > TWO_FINGER_SWIPE_MAX_SCALE_DELTA && firstMoved && secondMoved && movementsOppose
+  );
+}
+
 function classifyMovement(
   classification: GestureClassification,
   start: SwipeSnapshot,
@@ -59,24 +94,10 @@ function classifyMovement(
   const firstDeltaY = current.firstY - start.firstY;
   const secondDeltaX = current.secondX - start.secondX;
   const secondDeltaY = current.secondY - start.secondY;
-  const firstHorizontal =
-    Math.abs(firstDeltaX) >= TWO_FINGER_SWIPE_INTENT_PX &&
-    Math.abs(firstDeltaX) >= Math.abs(firstDeltaY) * TWO_FINGER_SWIPE_HORIZONTAL_RATIO;
-  const secondHorizontal =
-    Math.abs(secondDeltaX) >= TWO_FINGER_SWIPE_INTENT_PX &&
-    Math.abs(secondDeltaX) >= Math.abs(secondDeltaY) * TWO_FINGER_SWIPE_HORIZONTAL_RATIO;
-  const sameHorizontalDirection = firstDeltaX * secondDeltaX > 0;
-  if (firstHorizontal && secondHorizontal && sameHorizontalDirection) return "swipe";
-
-  const firstMoved = Math.hypot(firstDeltaX, firstDeltaY) >= TWO_FINGER_SWIPE_INTENT_PX;
-  const secondMoved = Math.hypot(secondDeltaX, secondDeltaY) >= TWO_FINGER_SWIPE_INTENT_PX;
-  const movementsOppose = firstDeltaX * secondDeltaX + firstDeltaY * secondDeltaY < 0;
-  if (
-    scaleDelta > TWO_FINGER_SWIPE_MAX_SCALE_DELTA &&
-    firstMoved &&
-    secondMoved &&
-    movementsOppose
-  ) {
+  if (isCoordinatedHorizontalSwipe(firstDeltaX, firstDeltaY, secondDeltaX, secondDeltaY)) {
+    return "swipe";
+  }
+  if (isPinchMovement(firstDeltaX, firstDeltaY, secondDeltaX, secondDeltaY, scaleDelta)) {
     return "pinch";
   }
 

@@ -18,6 +18,16 @@ type TouchStart = {
   qualified: boolean;
 };
 
+function startsOnPaneHeader(target: EventTarget | null): boolean {
+  return target instanceof Element && target.closest('[data-window-drag-surface="true"]') !== null;
+}
+
+function preventNativeForwardGesture(event: TouchEvent, clientX: number) {
+  if (clientX >= window.innerWidth - NATIVE_HISTORY_EDGE_PX && event.cancelable) {
+    event.preventDefault();
+  }
+}
+
 /** Opens the global command drawer with a deliberate one-finger leftward swipe. */
 export function useGlobalCommandPaletteGesture({
   enabled,
@@ -45,18 +55,13 @@ export function useGlobalCommandPaletteGesture({
       }
 
       const touch = event.touches[0];
-      const startsOnPaneHeader =
-        event.target instanceof Element &&
-        event.target.closest('[data-window-drag-surface="true"]') !== null;
-      if (startsOnPaneHeader || touch.clientX < 0 || touch.clientX > window.innerWidth) {
+      if (startsOnPaneHeader(event.target)) {
         reset();
-        if (
-          startsOnPaneHeader &&
-          touch.clientX >= window.innerWidth - NATIVE_HISTORY_EDGE_PX &&
-          event.cancelable
-        ) {
-          event.preventDefault();
-        }
+        preventNativeForwardGesture(event, touch.clientX);
+        return;
+      }
+      if (touch.clientX < 0 || touch.clientX > window.innerWidth) {
+        reset();
         return;
       }
 
@@ -66,9 +71,7 @@ export function useGlobalCommandPaletteGesture({
         y: touch.clientY,
         qualified: false,
       };
-      if (touch.clientX >= window.innerWidth - NATIVE_HISTORY_EDGE_PX && event.cancelable) {
-        event.preventDefault();
-      }
+      preventNativeForwardGesture(event, touch.clientX);
     };
 
     const handleTouchMove = (event: TouchEvent) => {
