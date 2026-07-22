@@ -2,20 +2,10 @@
 
 import type { DraggableSyntheticListeners } from "@dnd-kit/core";
 import { Ellipsis, GripVertical, Lock, Minus, Plus, X } from "lucide-react";
-import type {
-  CSSProperties,
-  FocusEvent,
-  KeyboardEvent,
-  MouseEvent,
-  ReactNode,
-  TouchEvent,
-} from "react";
-import { useEffect, useRef } from "react";
+import type { CSSProperties, FocusEvent, KeyboardEvent, MouseEvent, ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { useTerminalFontStep } from "@/hooks/useTerminalFontStep";
-import { triggerHapticFeedback } from "@/lib/device/haptics";
-import { DRAG_LONG_PRESS_MOVE_PX, LONG_PRESS_MS } from "@/lib/gestures/conventions";
 import { cn } from "@/lib/utils";
 
 interface TerminalFontSizeControlsProps {
@@ -189,25 +179,6 @@ export function TerminalSessionFrame({
 }: TerminalSessionFrameProps) {
   const interactive = Boolean(onActivate) && !disabled;
   const draggableHeader = !disabled && Boolean(dragHandleListeners);
-  const longPressTimerRef = useRef<number | null>(null);
-  const longPressTouchRef = useRef<{ id: number; x: number; y: number } | null>(null);
-
-  function clearHeaderLongPress() {
-    if (longPressTimerRef.current !== null) {
-      window.clearTimeout(longPressTimerRef.current);
-      longPressTimerRef.current = null;
-    }
-    longPressTouchRef.current = null;
-  }
-
-  useEffect(
-    () => () => {
-      if (longPressTimerRef.current !== null) {
-        window.clearTimeout(longPressTimerRef.current);
-      }
-    },
-    [],
-  );
 
   function handleFrameClick(event: MouseEvent<HTMLDivElement>) {
     if (disabled) return;
@@ -237,41 +208,6 @@ export function TerminalSessionFrame({
         ? target.closest("button, a, input, select, textarea, [role='button'], [role='link']")
         : null;
     return Boolean(interactiveTarget && header.contains(interactiveTarget));
-  }
-
-  function handleHeaderTouchStart(event: TouchEvent<HTMLDivElement>) {
-    if (event.touches.length !== 1) {
-      clearHeaderLongPress();
-      return;
-    }
-    if (disabled) return;
-    if (!onOpenActions) return;
-
-    const touch = event.touches[0];
-    clearHeaderLongPress();
-    longPressTouchRef.current = {
-      id: touch.identifier,
-      x: touch.clientX,
-      y: touch.clientY,
-    };
-    longPressTimerRef.current = window.setTimeout(() => {
-      longPressTimerRef.current = null;
-      longPressTouchRef.current = null;
-      triggerHapticFeedback();
-      onOpenActions();
-    }, LONG_PRESS_MS);
-  }
-
-  function handleHeaderTouchMove(event: TouchEvent<HTMLDivElement>) {
-    const start = longPressTouchRef.current;
-    if (!start) return;
-    const touch = Array.from(event.touches).find((candidate) => candidate.identifier === start.id);
-    if (
-      !touch ||
-      Math.hypot(touch.clientX - start.x, touch.clientY - start.y) >= DRAG_LONG_PRESS_MOVE_PX
-    ) {
-      clearHeaderLongPress();
-    }
   }
 
   function handleHeaderContextMenu(event: MouseEvent<HTMLDivElement>) {
@@ -325,10 +261,6 @@ export function TerminalSessionFrame({
           data-window-drag-surface={draggableHeader ? "true" : undefined}
           data-testid={dataTestId ? `${dataTestId}-header` : undefined}
           onContextMenu={handleHeaderContextMenu}
-          onTouchStartCapture={handleHeaderTouchStart}
-          onTouchMoveCapture={handleHeaderTouchMove}
-          onTouchEndCapture={clearHeaderLongPress}
-          onTouchCancelCapture={clearHeaderLongPress}
         >
           <div
             className="flex min-w-0 flex-1 items-center gap-1.5 self-stretch"

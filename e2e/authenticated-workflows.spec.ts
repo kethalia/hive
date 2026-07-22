@@ -91,6 +91,11 @@ async function dispatchTwoFingerSwipe(page: Page, target: Locator, direction: "l
   try {
     await session.send("Input.dispatchTouchEvent", {
       type: "touchStart",
+      touchPoints: [cdpTouchPoint(1, { x: startX, y: centerY - 18 })],
+    });
+    await page.waitForTimeout(40);
+    await session.send("Input.dispatchTouchEvent", {
+      type: "touchStart",
       touchPoints: [
         cdpTouchPoint(1, { x: startX, y: centerY - 18 }),
         cdpTouchPoint(2, { x: startX, y: centerY + 18 }),
@@ -162,6 +167,40 @@ async function dispatchOneFingerRightSwipe(
   const session = await page.context().newCDPSession(page);
   const startX = origin === "edge" ? 4 : box.x + box.width * 0.45;
   const endX = Math.min(startX + 88, page.viewportSize()?.width ?? startX + 88);
+  const y = box.y + box.height * 0.55;
+
+  try {
+    await session.send("Input.dispatchTouchEvent", {
+      type: "touchStart",
+      touchPoints: [cdpTouchPoint(1, { x: startX, y })],
+    });
+    await page.waitForTimeout(32);
+    for (const progress of [0.25, 0.5, 0.75, 1]) {
+      await session.send("Input.dispatchTouchEvent", {
+        type: "touchMove",
+        touchPoints: [
+          cdpTouchPoint(1, {
+            x: startX + (endX - startX) * progress,
+            y,
+          }),
+        ],
+      });
+      await page.waitForTimeout(16);
+    }
+    await session.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+  } finally {
+    await session.detach();
+  }
+}
+
+async function dispatchOneFingerLeftSwipeFromRightEdge(page: Page, target: Locator) {
+  const box = await target.boundingBox();
+  const viewport = page.viewportSize();
+  if (!box || !viewport) throw new Error("Global navigation gesture target could not be measured.");
+
+  const session = await page.context().newCDPSession(page);
+  const startX = viewport.width - 4;
+  const endX = startX - 88;
   const y = box.y + box.height * 0.55;
 
   try {
@@ -370,6 +409,26 @@ async function verifySidebarEdgeNavigation(page: Page) {
   await expect(mobileSidebar).toBeHidden();
 }
 
+async function verifyGlobalCommandDrawerGesture(page: Page) {
+  const urlBeforeSwipe = page.url();
+  const historyLengthBeforeSwipe = await page.evaluate(() => history.length);
+  const terminalSurface = activeTouchTerminalFrame(page).locator(
+    '[data-terminal-navigation-surface="true"]',
+  );
+
+  await dispatchOneFingerLeftSwipeFromRightEdge(page, terminalSurface);
+
+  await expect(page.getByRole("dialog").last()).toBeVisible();
+  await expect(page.getByText("Workspaces", { exact: true }).last()).toBeVisible();
+  await expect(page.getByText("Templates", { exact: true }).last()).toBeVisible();
+  await expect(page.getByText("Terminal status", { exact: true }).last()).toBeVisible();
+  await expect(page.getByText("New terminal session in workspace", { exact: true })).toBeVisible();
+  await expect(page).toHaveURL(urlBeforeSwipe);
+  expect(await page.evaluate(() => history.length)).toBe(historyLengthBeforeSwipe);
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("dialog").last()).toBeHidden();
+}
+
 async function verifyNativePaneActions(page: Page, testInfo: TestInfo) {
   const frame = activeTouchTerminalFrame(page);
   const paneHeader = frame.locator('[data-testid$="-header"]');
@@ -401,8 +460,6 @@ async function verifyNativePaneActions(page: Page, testInfo: TestInfo) {
   await expect(actionSheet).toBeHidden();
 
   await dispatchTouchLongPress(page, frame.locator('[data-testid$="-header"]'));
-  await expect(actionSheet).toBeVisible();
-  await page.keyboard.press("Escape");
   await expect(actionSheet).toBeHidden();
 }
 
@@ -1301,6 +1358,7 @@ test.describe("authenticated Hive workflows", () => {
       createdSessionNames = await ensureTwoTouchTerminals(page);
       await expectConnectedTerminal(page);
       await verifySidebarEdgeNavigation(page);
+      await verifyGlobalCommandDrawerGesture(page);
       await verifyTerminalTouchNavigation(page);
       await verifyMobileWorkspaceWindowDrag(page);
       const { boardTabs, createdBoard, initialBoardCount } =

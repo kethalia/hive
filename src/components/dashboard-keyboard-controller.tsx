@@ -4,6 +4,8 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { CommandPalette, type CommandPaletteAction } from "@/components/terminal/CommandPalette";
 import { useSidebar } from "@/components/ui/sidebar";
+import { useIsMobile } from "@/hooks/use-mobile";
+import { useGlobalCommandPaletteGesture } from "@/hooks/useGlobalCommandPaletteGesture";
 import { useRegisterKeybinding } from "@/hooks/useKeybindings";
 import { listTasksAction } from "@/lib/actions/tasks";
 import { listWorkspacesAction } from "@/lib/actions/workspaces";
@@ -98,7 +100,8 @@ function openWorkspaceHref(workspaceId: string): string {
 
 export function DashboardKeyboardController() {
   const router = useRouter();
-  const { setOpen, setOpenMobile, toggleSidebar } = useSidebar();
+  const { openMobile, setOpen, setOpenMobile, toggleSidebar } = useSidebar();
+  const isMobile = useIsMobile();
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [paletteQuery, setPaletteQuery] = useState("");
   const [workspaces, setWorkspaces] = useState<DashboardWorkspace[]>([]);
@@ -110,6 +113,11 @@ export function DashboardKeyboardController() {
   const appFullscreenRef = useRef(appFullscreen);
   appFullscreenRef.current = appFullscreen;
   const activePaletteSource = paletteSources.at(-1) ?? null;
+
+  useGlobalCommandPaletteGesture({
+    enabled: isMobile && !openMobile && !paletteOpen,
+    onOpen: () => setPaletteOpen(true),
+  });
 
   const toggleDashboardFullscreen = useCallback(() => {
     const nextFullscreen = !appFullscreenRef.current;

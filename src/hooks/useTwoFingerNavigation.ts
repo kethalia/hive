@@ -16,8 +16,12 @@ interface TwoFingerNavigationOptions {
   rootRef: RefObject<HTMLElement | null>;
 }
 
-function navigationSurface(target: EventTarget | null): TwoFingerNavigationSurface | null {
+function navigationSurface(
+  root: HTMLElement,
+  target: EventTarget | null,
+): TwoFingerNavigationSurface | null {
   if (!(target instanceof Element)) return null;
+  if (!root.contains(target)) return null;
   if (target.closest('[data-terminal-navigation-surface="true"]')) return "terminal";
   if (target.closest('[data-workspace-navigation-surface="true"]')) return "workspace";
   return null;
@@ -48,19 +52,25 @@ export function useTwoFingerNavigation({
 
     const detector = createTwoFingerSwipeDetector();
     let surface: TwoFingerNavigationSurface | null = null;
+    let firstTouchSurface: TwoFingerNavigationSurface | null = null;
 
     const reset = () => {
       detector.cancel();
       surface = null;
+      firstTouchSurface = null;
     };
 
     const handleTouchStart = (event: TouchEvent) => {
+      if (event.touches.length === 1) {
+        firstTouchSurface = navigationSurface(root, event.target);
+        return;
+      }
       if (event.touches.length !== 2) {
         if (event.touches.length > 2) reset();
         return;
       }
 
-      surface = navigationSurface(event.target);
+      surface = firstTouchSurface ?? navigationSurface(root, event.target);
       if (!surface || !detector.start(gestureTouchPoints(event.touches))) {
         reset();
         return;
@@ -78,26 +88,26 @@ export function useTwoFingerNavigation({
 
     const handleTouchEnd = (event: TouchEvent) => {
       if (!surface || !detector.active) return;
-      if (event.cancelable) event.preventDefault();
       if (event.touches.length > 0) return;
       const completedSurface = surface;
       const direction = detector.end();
       surface = null;
+      firstTouchSurface = null;
       if (direction) {
         queueMicrotask(() => onNavigateRef.current(completedSurface, direction));
       }
     };
 
-    root.addEventListener("touchstart", handleTouchStart, { capture: true, passive: false });
-    root.addEventListener("touchmove", handleTouchMove, { capture: true, passive: false });
-    root.addEventListener("touchend", handleTouchEnd, { capture: true, passive: false });
-    root.addEventListener("touchcancel", reset, { capture: true, passive: true });
+    window.addEventListener("touchstart", handleTouchStart, { capture: true, passive: false });
+    window.addEventListener("touchmove", handleTouchMove, { capture: true, passive: false });
+    window.addEventListener("touchend", handleTouchEnd, { passive: true });
+    window.addEventListener("touchcancel", reset, { passive: true });
 
     return () => {
-      root.removeEventListener("touchstart", handleTouchStart, { capture: true });
-      root.removeEventListener("touchmove", handleTouchMove, { capture: true });
-      root.removeEventListener("touchend", handleTouchEnd, { capture: true });
-      root.removeEventListener("touchcancel", reset, { capture: true });
+      window.removeEventListener("touchstart", handleTouchStart, { capture: true });
+      window.removeEventListener("touchmove", handleTouchMove, { capture: true });
+      window.removeEventListener("touchend", handleTouchEnd);
+      window.removeEventListener("touchcancel", reset);
     };
   }, [enabled, rootRef]);
 }

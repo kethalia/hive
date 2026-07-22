@@ -4641,10 +4641,10 @@ export function MultiSessionWorkspace({
         <>
           <p id={touchNavigationHintId} className="sr-only">
             Swipe right with one finger outside pane headers to open the sidebar. Swipe left or
-            right with two fingers anywhere in a terminal pane to change terminals. Swipe left or
-            right with two fingers elsewhere in the workspace to change workspaces. Drag a pane
-            header with one finger to rearrange it. Open pane actions from the More button or by
-            touching and holding the pane header for half a second.
+            right with two fingers anywhere in a terminal pane to change terminals. Swipe left from
+            the right screen edge with one finger to open global navigation. Swipe left or right
+            with two fingers elsewhere in the workspace to change workspaces. Drag a pane header
+            with one finger to rearrange it. Open pane actions from the More button.
           </p>
           <p className="sr-only" aria-live="polite" aria-atomic="true">
             {gestureAnnouncement}

@@ -127,18 +127,37 @@ describe("useTwoFingerNavigation", () => {
     dispatchTouch(terminal, "touchmove", [touch(1, 110, 82), touch(2, 150, 122)]);
     const firstEnd = dispatchTouch(terminal, "touchend", [touch(2, 150, 122)]);
 
-    expect(firstEnd.defaultPrevented).toBe(true);
+    expect(firstEnd.defaultPrevented).toBe(false);
     expect(nestedEnd).toHaveBeenCalledOnce();
     expect(onNavigate).not.toHaveBeenCalled();
 
     const finalEnd = dispatchTouch(terminal, "touchend", []);
 
-    expect(finalEnd.defaultPrevented).toBe(true);
+    expect(finalEnd.defaultPrevented).toBe(false);
     expect(nestedEnd).toHaveBeenCalledTimes(2);
     expect(onNavigate).not.toHaveBeenCalled();
 
     await Promise.resolve();
 
+    expect(onNavigate).toHaveBeenCalledWith("terminal", "left");
+  });
+
+  it("keeps the first finger surface when the second finger lands elsewhere", async () => {
+    const onNavigate = vi.fn();
+    render(<NavigationHarness onNavigate={onNavigate} />);
+
+    const terminal = screen.getByTestId("terminal-surface");
+    const workspace = screen.getByTestId("workspace-surface");
+    dispatchTouch(terminal, "touchstart", [touch(1, 180, 80)]);
+    const secondStart = dispatchTouch(workspace, "touchstart", [
+      touch(1, 180, 80),
+      touch(2, 220, 120),
+    ]);
+    dispatchTouch(workspace, "touchmove", [touch(1, 110, 82), touch(2, 150, 122)]);
+    dispatchTouch(workspace, "touchend", []);
+    await Promise.resolve();
+
+    expect(secondStart.defaultPrevented).toBe(true);
     expect(onNavigate).toHaveBeenCalledWith("terminal", "left");
   });
 });

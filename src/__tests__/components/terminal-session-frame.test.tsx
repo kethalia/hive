@@ -64,8 +64,7 @@ describe("TerminalSessionFrame", () => {
     expect(onHeaderPointerDown).toHaveBeenCalledOnce();
   });
 
-  it("provides visible, context-menu, and long-press access to pane actions", () => {
-    vi.useFakeTimers();
+  it("provides visible and desktop context-menu access to pane actions", () => {
     const onOpenActions = vi.fn();
 
     render(
@@ -92,10 +91,7 @@ describe("TerminalSessionFrame", () => {
     fireEvent.touchStart(header, {
       touches: [{ identifier: 7, clientX: 40, clientY: 20 }],
     });
-    vi.advanceTimersByTime(500);
-    expect(onOpenActions).toHaveBeenCalledTimes(3);
-
-    vi.useRealTimers();
+    expect(onOpenActions).toHaveBeenCalledTimes(2);
   });
 
   it("shows only the More action while keeping touch header dragging", () => {
@@ -129,64 +125,5 @@ describe("TerminalSessionFrame", () => {
       touches: [{ identifier: 7, clientX: 40, clientY: 20 }],
     });
     expect(onHeaderTouchStart).toHaveBeenCalledOnce();
-  });
-
-  it("cancels a header long press when touch movement exceeds the drag threshold", () => {
-    vi.useFakeTimers();
-    const onOpenActions = vi.fn();
-
-    render(
-      <TerminalSessionFrame
-        label="Terminal one"
-        dataTestId="terminal-one"
-        layoutMode="tiled"
-        onOpenActions={onOpenActions}
-      >
-        <div>Terminal</div>
-      </TerminalSessionFrame>,
-    );
-
-    const header = screen.getByTestId("terminal-one-header");
-    fireEvent.touchStart(header, {
-      touches: [{ identifier: 7, clientX: 40, clientY: 20 }],
-    });
-    fireEvent.touchMove(header, {
-      touches: [{ identifier: 7, clientX: 52, clientY: 20 }],
-    });
-    vi.advanceTimersByTime(500);
-    expect(onOpenActions).not.toHaveBeenCalled();
-
-    vi.useRealTimers();
-  });
-
-  it("cancels a header long press when a second finger joins", () => {
-    vi.useFakeTimers();
-    const onOpenActions = vi.fn();
-
-    render(
-      <TerminalSessionFrame
-        label="Terminal one"
-        dataTestId="terminal-one"
-        layoutMode="tiled"
-        onOpenActions={onOpenActions}
-      >
-        <div>Terminal</div>
-      </TerminalSessionFrame>,
-    );
-
-    const header = screen.getByTestId("terminal-one-header");
-    fireEvent.touchStart(header, {
-      touches: [{ identifier: 7, clientX: 40, clientY: 20 }],
-    });
-    fireEvent.touchStart(header, {
-      touches: [
-        { identifier: 7, clientX: 40, clientY: 20 },
-        { identifier: 8, clientX: 80, clientY: 20 },
-      ],
-    });
-    vi.advanceTimersByTime(500);
-    expect(onOpenActions).not.toHaveBeenCalled();
-
-    vi.useRealTimers();
   });
 });
