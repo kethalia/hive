@@ -437,23 +437,21 @@ async function verifySidebarEdgeNavigation(page: Page) {
   );
   await dispatchOneFingerRightSwipe(page, terminalSurface, "surface");
 
-  const mobileSidebar = page.locator(
-    '[data-sidebar="sidebar"][data-mobile="true"][data-side="left"]',
-  );
-  await expect(mobileSidebar).toBeVisible();
-  const sidebarBox = await mobileSidebar.boundingBox();
-  if (!sidebarBox) throw new Error("Mobile navigation sidebar could not be measured.");
+  const touchSidebar = page.locator('[data-sidebar="sidebar"][data-side="left"]:visible');
+  await expect(touchSidebar).toBeVisible();
+  const sidebarBox = await touchSidebar.boundingBox();
+  if (!sidebarBox) throw new Error("Touch navigation sidebar could not be measured.");
   expect(sidebarBox.x).toBeLessThanOrEqual(1);
   await page.keyboard.press("Escape");
-  await expect(mobileSidebar).toBeHidden();
+  await expect(touchSidebar).toBeHidden();
 
   await dispatchOneFingerRightSwipe(page, terminalSurface, "edge");
 
-  await expect(mobileSidebar).toBeVisible();
+  await expect(touchSidebar).toBeVisible();
   await expect(page).toHaveURL(urlBeforeSwipe);
   expect(await page.evaluate(() => history.length)).toBe(historyLengthBeforeSwipe);
   await page.keyboard.press("Escape");
-  await expect(mobileSidebar).toBeHidden();
+  await expect(touchSidebar).toBeHidden();
 }
 
 async function verifyGlobalCommandDrawerGesture(page: Page) {
