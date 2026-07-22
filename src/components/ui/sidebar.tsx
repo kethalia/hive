@@ -214,7 +214,7 @@ function Sidebar({
           data-sidebar="sidebar"
           data-slot="sidebar"
           data-mobile="true"
-          className="w-(--sidebar-width) !gap-0 overflow-hidden bg-sidebar p-0 text-sidebar-foreground motion-reduce:transition-none motion-reduce:duration-0 data-[side=left]:!top-0 data-[side=left]:!bottom-auto data-[side=left]:!h-[var(--app-viewport-height)] data-[side=left]:!min-h-0 data-[side=left]:!max-h-none data-[side=right]:!top-0 data-[side=right]:!bottom-auto data-[side=right]:!h-[var(--app-viewport-height)] data-[side=right]:!min-h-0 data-[side=right]:!max-h-none [&>button]:hidden"
+          className="!w-(--sidebar-width) !gap-0 overflow-hidden bg-sidebar p-0 text-sidebar-foreground motion-reduce:transition-none motion-reduce:duration-0 data-[side=left]:!top-0 data-[side=left]:!bottom-auto data-[side=left]:!h-[var(--app-viewport-height)] data-[side=left]:!min-h-0 data-[side=left]:!max-h-none data-[side=right]:!top-0 data-[side=right]:!bottom-auto data-[side=right]:!h-[var(--app-viewport-height)] data-[side=right]:!min-h-0 data-[side=right]:!max-h-none [&>button]:hidden"
           style={
             {
               "--sidebar-width": SIDEBAR_WIDTH_MOBILE,

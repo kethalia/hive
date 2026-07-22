@@ -113,6 +113,7 @@ describe("reduced-motion class contracts", () => {
       '[data-mobile="true"][data-side="right"]',
     );
     expect(rightDrawer).not.toBeNull();
+    expect(rightDrawer?.className).toContain("!w-(--sidebar-width)");
     expect(rightDrawer?.className).toContain("data-[side=right]:!h-[var(--app-viewport-height)]");
     expect(rightDrawer).toHaveStyle({ "--sidebar-width": "18rem" });
     expect(screen.queryByRole("navigation", { name: "Left navigation" })).not.toBeInTheDocument();
