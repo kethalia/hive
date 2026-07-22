@@ -9,6 +9,8 @@ const mockRouterPush = vi.hoisted(() => vi.fn());
 const mockToggleSidebar = vi.hoisted(() => vi.fn());
 const mockSetOpen = vi.hoisted(() => vi.fn());
 const mockSetOpenMobile = vi.hoisted(() => vi.fn());
+const mockSetOpenMobileRight = vi.hoisted(() => vi.fn());
+const mobileState = vi.hoisted(() => ({ isMobile: false, openMobileRight: false }));
 const mockListWorkspaces = vi.hoisted(() => vi.fn());
 const mockListTasks = vi.hoisted(() => vi.fn());
 const registeredBindings = vi.hoisted(() => new Map<string, KeybindingEntry>());
@@ -21,8 +23,14 @@ vi.mock("@/components/ui/sidebar", () => ({
   useSidebar: () => ({
     setOpen: mockSetOpen,
     setOpenMobile: mockSetOpenMobile,
+    openMobileRight: mobileState.openMobileRight,
+    setOpenMobileRight: mockSetOpenMobileRight,
     toggleSidebar: mockToggleSidebar,
   }),
+}));
+
+vi.mock("@/hooks/use-mobile", () => ({
+  useIsMobile: () => mobileState.isMobile,
 }));
 
 vi.mock("@/hooks/useKeybindings", () => ({
@@ -137,6 +145,8 @@ function tasksPayload() {
 describe("DashboardKeyboardController", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mobileState.isMobile = false;
+    mobileState.openMobileRight = false;
     registeredBindings.clear();
     mockListWorkspaces.mockResolvedValue(workspacePayload());
     mockListTasks.mockResolvedValue(tasksPayload());
@@ -257,7 +267,6 @@ describe("DashboardKeyboardController", () => {
     });
 
     expect(onSearchValueChange).toHaveBeenCalledWith("");
-    expect(mockSetOpenMobile).toHaveBeenCalledWith(false);
     expect(await screen.findByText("Add dev-server")).toBeInTheDocument();
     fireEvent.click(screen.getByText("main-session"));
     expect(onSelectTab).toHaveBeenCalledWith("tab-1");
@@ -282,9 +291,22 @@ describe("DashboardKeyboardController", () => {
     expect(composeListener).toHaveBeenCalled();
     expect(mockSetOpen).toHaveBeenCalledWith(false);
     expect(mockSetOpenMobile).toHaveBeenCalledWith(false);
+    expect(mockSetOpenMobileRight).toHaveBeenCalledWith(false);
     expect(document.documentElement.dataset.dashboardFullscreen).toBe("true");
 
     window.removeEventListener(TERMINAL_COMPOSE_TOGGLE_EVENT, composeListener);
+  });
+
+  it("opens the coordinated right sidebar on mobile", () => {
+    mobileState.isMobile = true;
+    render(<DashboardKeyboardController />);
+
+    act(() => {
+      expect(registeredBindings.get("dashboard:command-palette")?.action(null, null)).toBe(false);
+    });
+
+    expect(mockSetOpenMobileRight).toHaveBeenCalledWith(true);
+    expect(mockSetOpenMobile).not.toHaveBeenCalledWith(false);
   });
 
   it("navigates to primary dashboard surfaces from global shortcuts", () => {

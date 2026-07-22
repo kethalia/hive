@@ -1,9 +1,10 @@
 "use client";
 
 import { useDrag } from "@use-gesture/react";
-import { Plus, Search, Terminal, Triangle } from "lucide-react";
+import { Plus, Search, Terminal, Triangle, X } from "lucide-react";
 import type { CSSProperties, KeyboardEvent } from "react";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { Button } from "@/components/ui/button";
 import {
   Command,
   CommandDialog,
@@ -14,7 +15,14 @@ import {
   CommandList,
   CommandShortcut,
 } from "@/components/ui/command";
-import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
+import {
+  Sidebar,
+  SidebarContent,
+  SidebarGroup,
+  SidebarGroupContent,
+  SidebarHeader,
+} from "@/components/ui/sidebar";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { usePrefersReducedMotion } from "@/hooks/usePrefersReducedMotion";
 import { useVisualViewportHeight } from "@/hooks/useVisualViewportHeight";
@@ -85,6 +93,7 @@ interface CommandPaletteBodyProps {
   searchPlaceholder: string;
   emptyText: string;
   groupHeading: string;
+  fillAvailableHeight?: boolean;
 }
 
 function getVectorValue(vector: unknown, index: number): number {
@@ -120,6 +129,7 @@ function CommandPaletteBody({
   searchPlaceholder,
   emptyText,
   groupHeading,
+  fillAvailableHeight = false,
 }: CommandPaletteBodyProps) {
   const commandListRef = useRef<HTMLDivElement>(null);
   const [canScrollUp, setCanScrollUp] = useState(false);
@@ -246,13 +256,16 @@ function CommandPaletteBody({
   );
 
   return (
-    <div onKeyDownCapture={handleActionKey}>
+    <div
+      className={cn(fillAvailableHeight && "flex min-h-0 flex-1 flex-col")}
+      onKeyDownCapture={handleActionKey}
+    >
       <CommandInput
         placeholder={searchPlaceholder}
         value={searchValue}
         onValueChange={onSearchValueChange}
       />
-      <div className="relative">
+      <div className={cn("relative", fillAvailableHeight && "min-h-0 flex-1")}>
         <div
           aria-hidden="true"
           data-testid="command-scroll-hint-up"
@@ -266,7 +279,10 @@ function CommandPaletteBody({
         </div>
         <CommandList
           ref={commandListRef}
-          className="[scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+          className={cn(
+            "[scrollbar-width:none] [&::-webkit-scrollbar]:hidden",
+            fillAvailableHeight && "h-full max-h-none",
+          )}
           onScroll={updateScrollHints}
         >
           <CommandEmpty>{emptyText}</CommandEmpty>
@@ -480,31 +496,46 @@ export function CommandPalette({
   if (isMobile) {
     if (mobileSide === "right") {
       return (
-        <Sheet open={open} onOpenChange={onOpenChange}>
-          <SheetContent
-            side="right"
-            className="gap-0 overflow-hidden overscroll-contain p-0 pb-safe pt-safe motion-reduce:transition-none motion-reduce:duration-0"
-            style={{ width: "92vw", maxWidth: "30rem" }}
-          >
-            <SheetHeader className="min-h-14 shrink-0 justify-center border-b px-4 py-3 pr-16">
-              <SheetTitle>Navigate</SheetTitle>
-            </SheetHeader>
-            <Command className={cn(mobileCommandClassName, "min-h-0 flex-1")}>
-              <CommandPaletteBody
-                tabs={tabs}
-                onSelectTab={onSelectTab}
-                onOpenChange={onOpenChange}
-                onCreateSession={onCreateSession}
-                actions={actions}
-                searchValue={searchValue}
-                onSearchValueChange={onSearchValueChange}
-                searchPlaceholder={searchPlaceholder}
-                emptyText={emptyText}
-                groupHeading={groupHeading}
-              />
-            </Command>
-          </SheetContent>
-        </Sheet>
+        <Sidebar side="right" mobileOnly data-testid="global-command-sidebar">
+          <SidebarHeader className="h-14 shrink-0 flex-row items-center justify-between border-b border-sidebar-border px-4">
+            <h2 className="text-sm font-medium">Navigate</h2>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              aria-label="Close global navigation"
+              onClick={() => onOpenChange(false)}
+            >
+              <X />
+            </Button>
+          </SidebarHeader>
+          <SidebarContent className="overflow-hidden">
+            <SidebarGroup className="min-h-0 flex-1 p-0">
+              <SidebarGroupContent className="flex min-h-0 flex-1">
+                <Command
+                  className={cn(
+                    mobileCommandClassName,
+                    "min-h-0 flex-1 rounded-none bg-sidebar text-sidebar-foreground [&_[cmdk-item]]:min-h-11 [&_[cmdk-item][data-selected=true]]:bg-sidebar-accent [&_[cmdk-item][data-selected=true]]:text-sidebar-accent-foreground",
+                  )}
+                >
+                  <CommandPaletteBody
+                    tabs={tabs}
+                    onSelectTab={onSelectTab}
+                    onOpenChange={onOpenChange}
+                    onCreateSession={onCreateSession}
+                    actions={actions}
+                    searchValue={searchValue}
+                    onSearchValueChange={onSearchValueChange}
+                    searchPlaceholder={searchPlaceholder}
+                    emptyText={emptyText}
+                    groupHeading={groupHeading}
+                    fillAvailableHeight
+                  />
+                </Command>
+              </SidebarGroupContent>
+            </SidebarGroup>
+          </SidebarContent>
+        </Sidebar>
       );
     }
 

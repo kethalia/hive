@@ -1,9 +1,8 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { TAP_THRESHOLD_PX } from "@/lib/gestures/conventions";
+import { resolveHorizontalSwipe } from "@/lib/gestures/horizontal-swipe";
 
-const OPEN_SWIPE_DISTANCE_PX = 56;
 const NATIVE_HISTORY_EDGE_PX = 24;
 
 interface GlobalCommandPaletteGestureOptions {
@@ -86,11 +85,14 @@ export function useGlobalCommandPaletteGesture({
       );
       if (!touch) return;
 
-      const dx = touch.clientX - touchStart.x;
-      const dy = touch.clientY - touchStart.y;
-      const horizontalDominates = Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > TAP_THRESHOLD_PX;
-      if (horizontalDominates && event.cancelable) event.preventDefault();
-      touchStart.qualified = dx <= -OPEN_SWIPE_DISTANCE_PX && horizontalDominates;
+      const progress = resolveHorizontalSwipe(
+        touchStart.x,
+        touchStart.y,
+        touch.clientX,
+        touch.clientY,
+      );
+      if (progress.horizontalIntent && event.cancelable) event.preventDefault();
+      touchStart.qualified = progress.direction === "left";
     };
 
     const handleTouchEnd = (event: TouchEvent) => {

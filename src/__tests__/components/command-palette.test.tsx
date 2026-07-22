@@ -38,6 +38,40 @@ vi.mock("lucide-react", () => ({
   Search: () => <span data-testid="icon-search-action">🔎</span>,
   SearchIcon: () => <span data-testid="icon-search">🔍</span>,
   Triangle: () => <span data-testid="icon-triangle">▲</span>,
+  X: () => <span data-testid="icon-close">×</span>,
+}));
+
+vi.mock("@/components/ui/sidebar", () => ({
+  Sidebar: ({
+    children,
+    side,
+    mobileOnly: _mobileOnly,
+    ...props
+  }: ComponentProps<"aside"> & { side?: string; mobileOnly?: boolean }) => (
+    <aside {...props} data-side={side}>
+      {children}
+    </aside>
+  ),
+  SidebarContent: ({ children, ...props }: ComponentProps<"div">) => (
+    <div data-testid="sidebar-content" {...props}>
+      {children}
+    </div>
+  ),
+  SidebarGroup: ({ children, ...props }: ComponentProps<"div">) => (
+    <div data-testid="sidebar-group" {...props}>
+      {children}
+    </div>
+  ),
+  SidebarGroupContent: ({ children, ...props }: ComponentProps<"div">) => (
+    <div data-testid="sidebar-group-content" {...props}>
+      {children}
+    </div>
+  ),
+  SidebarHeader: ({ children, ...props }: ComponentProps<"div">) => (
+    <div data-testid="sidebar-header" {...props}>
+      {children}
+    </div>
+  ),
 }));
 
 vi.mock("@/components/ui/dialog", () => ({
@@ -436,7 +470,7 @@ describe("CommandPalette", () => {
     await waitFor(() => expect(sheet).toHaveStyle({ maxHeight: "512px" }));
   });
 
-  it("renders the global mobile palette as a native right-side navigation sheet", () => {
+  it("renders the global mobile palette in the shared right sidebar shell", () => {
     mobileState.isMobile = true;
 
     render(
@@ -449,12 +483,14 @@ describe("CommandPalette", () => {
       />,
     );
 
-    const sheet = screen.getByTestId("sheet-content");
-    expect(sheet).toHaveAttribute("data-side", "right");
-    expect(sheet).toHaveAttribute("data-show-close-button", "undefined");
-    expect(sheet).toHaveStyle({ width: "92vw", maxWidth: "30rem" });
-    expect(screen.getByTestId("sheet-title")).toHaveTextContent("Navigate");
-    expect(screen.getByTestId("sheet-title")).not.toHaveClass("sr-only");
+    const sidebar = screen.getByTestId("global-command-sidebar");
+    expect(sidebar).toHaveAttribute("data-side", "right");
+    expect(screen.queryByTestId("sheet-content")).not.toBeInTheDocument();
+    expect(screen.getByTestId("sidebar-header")).toHaveTextContent("Navigate");
+    expect(screen.getByTestId("sidebar-content")).toBeInTheDocument();
+    expect(screen.getByTestId("sidebar-group")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Close global navigation" })).toBeInTheDocument();
+    expect(screen.getByTestId("command")).toHaveClass("bg-sidebar", "text-sidebar-foreground");
     expect(screen.queryByRole("button", { name: "Drag to dismiss command palette" })).toBeNull();
   });
 

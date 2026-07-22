@@ -3,16 +3,15 @@
 import type { RefObject } from "react";
 import { useEffect, useRef } from "react";
 import {
-  createTwoFingerSwipeDetector,
-  type GestureTouchPoint,
-  type TwoFingerSwipeDirection,
-} from "@/lib/gestures/two-finger-swipe";
+  type HorizontalSwipeDirection,
+  resolveHorizontalSwipe,
+} from "@/lib/gestures/horizontal-swipe";
 
 export type TwoFingerNavigationSurface = "terminal" | "workspace";
 
 interface TwoFingerNavigationOptions {
   enabled: boolean;
-  onNavigate: (surface: TwoFingerNavigationSurface, direction: TwoFingerSwipeDirection) => void;
+  onNavigate: (surface: TwoFingerNavigationSurface, direction: HorizontalSwipeDirection) => void;
   rootRef: RefObject<HTMLElement | null>;
 }
 
@@ -27,12 +26,19 @@ function navigationSurface(
   return null;
 }
 
-function gestureTouchPoints(touches: TouchList): GestureTouchPoint[] {
-  return Array.from(touches, (touch) => ({
-    id: touch.identifier,
-    x: touch.clientX,
-    y: touch.clientY,
-  }));
+function touchCenter(touches: TouchList): { x: number; y: number } | null {
+  if (touches.length !== 2) return null;
+  return {
+    x: (touches[0].clientX + touches[1].clientX) / 2,
+    y: (touches[0].clientY + touches[1].clientY) / 2,
+  };
+}
+
+interface TwoFingerGesture {
+  direction: HorizontalSwipeDirection | null;
+  startX: number;
+  startY: number;
+  surface: TwoFingerNavigationSurface;
 }
 
 export function useTwoFingerNavigation({
@@ -50,13 +56,11 @@ export function useTwoFingerNavigation({
     const root = rootRef.current;
     if (!enabled || !root) return;
 
-    const detector = createTwoFingerSwipeDetector();
-    let surface: TwoFingerNavigationSurface | null = null;
+    let gesture: TwoFingerGesture | null = null;
     let firstTouchSurface: TwoFingerNavigationSurface | null = null;
 
     const reset = () => {
-      detector.cancel();
-      surface = null;
+      gesture = null;
       firstTouchSurface = null;
     };
 
@@ -70,31 +74,38 @@ export function useTwoFingerNavigation({
         return;
       }
 
-      surface = firstTouchSurface ?? navigationSurface(root, event.target);
-      if (!surface || !detector.start(gestureTouchPoints(event.touches))) {
+      const surface = firstTouchSurface ?? navigationSurface(root, event.target);
+      const center = touchCenter(event.touches);
+      if (!surface || !center) {
         reset();
         return;
       }
+      gesture = { direction: null, startX: center.x, startY: center.y, surface };
       if (event.cancelable) event.preventDefault();
     };
 
     const handleTouchMove = (event: TouchEvent) => {
-      if (!surface || !detector.active) return;
+      if (!gesture) return;
       if (event.cancelable) event.preventDefault();
       event.stopPropagation();
-      if (event.touches.length !== 2) return;
-      detector.move(gestureTouchPoints(event.touches));
+      const center = touchCenter(event.touches);
+      if (!center) return;
+      gesture.direction = resolveHorizontalSwipe(
+        gesture.startX,
+        gesture.startY,
+        center.x,
+        center.y,
+      ).direction;
     };
 
     const handleTouchEnd = (event: TouchEvent) => {
-      if (!surface || !detector.active) return;
+      if (!gesture) return;
       if (event.touches.length > 0) return;
-      const completedSurface = surface;
-      const direction = detector.end();
-      surface = null;
-      firstTouchSurface = null;
-      if (direction) {
-        queueMicrotask(() => onNavigateRef.current(completedSurface, direction));
+      const completed = gesture;
+      const completedDirection = completed.direction;
+      reset();
+      if (completedDirection) {
+        queueMicrotask(() => onNavigateRef.current(completed.surface, completedDirection));
       }
     };
 

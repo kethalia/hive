@@ -80,6 +80,20 @@ describe("useTwoFingerNavigation", () => {
     expect(onNavigate).not.toHaveBeenCalled();
   });
 
+  it("uses the one-pointer swipe rule for the two-touch centroid when touch updates arrive unevenly", async () => {
+    const onNavigate = vi.fn();
+    render(<NavigationHarness onNavigate={onNavigate} />);
+
+    const terminal = screen.getByTestId("terminal-surface");
+    dispatchTouch(terminal, "touchstart", [touch(1, 140, 80)]);
+    dispatchTouch(terminal, "touchstart", [touch(1, 140, 80), touch(2, 180, 80)]);
+    dispatchTouch(terminal, "touchmove", [touch(1, 10, 84), touch(2, 180, 80)]);
+    dispatchTouch(terminal, "touchend", []);
+    await Promise.resolve();
+
+    expect(onNavigate).toHaveBeenCalledWith("terminal", "left");
+  });
+
   it("routes gestures from the full terminal pane and workspace root", async () => {
     const onNavigate = vi.fn();
     render(<NavigationHarness onNavigate={onNavigate} />);

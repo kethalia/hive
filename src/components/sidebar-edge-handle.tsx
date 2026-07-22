@@ -2,9 +2,8 @@
 
 import { useEffect, useRef } from "react";
 import { useSidebar } from "@/components/ui/sidebar";
-import { TAP_THRESHOLD_PX } from "@/lib/gestures/conventions";
+import { resolveHorizontalSwipe } from "@/lib/gestures/horizontal-swipe";
 
-const OPEN_SWIPE_DISTANCE_PX = 56;
 const NATIVE_HISTORY_EDGE_PX = 24;
 
 export interface SidebarEdgeHandleProps {
@@ -52,15 +51,13 @@ export function SidebarEdgeHandle(_props: SidebarEdgeHandleProps) {
       event: { cancelable?: boolean; preventDefault: () => void },
     ) => {
       if (!start) return;
-      const dx = x - start.x;
-      const dy = y - start.y;
-      const horizontalDominates = Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > TAP_THRESHOLD_PX;
+      const progress = resolveHorizontalSwipe(start.x, start.y, x, y);
 
-      if (horizontalDominates && event.cancelable) {
+      if (progress.horizontalIntent && event.cancelable) {
         event.preventDefault();
       }
 
-      start.qualified = dx >= OPEN_SWIPE_DISTANCE_PX && horizontalDominates;
+      start.qualified = progress.direction === "right";
     };
 
     const onTouchEnd = (event: TouchEvent) => {

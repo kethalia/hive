@@ -395,7 +395,9 @@ async function verifySidebarEdgeNavigation(page: Page) {
   );
   await dispatchOneFingerRightSwipe(page, terminalSurface, "surface");
 
-  const mobileSidebar = page.locator('[data-sidebar="sidebar"][data-mobile="true"]');
+  const mobileSidebar = page.locator(
+    '[data-sidebar="sidebar"][data-mobile="true"][data-side="left"]',
+  );
   await expect(mobileSidebar).toBeVisible();
   await page.keyboard.press("Escape");
   await expect(mobileSidebar).toBeHidden();
@@ -421,6 +423,11 @@ async function verifyGlobalCommandDrawerGesture(page: Page) {
   const globalDrawer = page.getByRole("dialog").filter({ has: page.getByRole("combobox") });
   await expect(globalDrawer).toBeVisible();
   await expect(globalDrawer).toHaveAttribute("data-side", "right");
+  const drawerBox = await globalDrawer.boundingBox();
+  const viewport = page.viewportSize();
+  if (!drawerBox || !viewport) throw new Error("Global navigation sidebar could not be measured.");
+  expect(drawerBox.height).toBeGreaterThanOrEqual(viewport.height - 1);
+  expect(drawerBox.width).toBeLessThanOrEqual(289);
   await expect(
     globalDrawer.getByRole("option", { name: /Workspaces Open Coder workspaces/ }),
   ).toBeVisible();
@@ -431,6 +438,17 @@ async function verifyGlobalCommandDrawerGesture(page: Page) {
   await expect(
     globalDrawer.getByRole("option", { name: /New terminal session in workspace/ }),
   ).toBeVisible();
+
+  await dispatchOneFingerRightSwipe(page, globalDrawer, "surface");
+  const leftSidebar = page.locator(
+    '[data-sidebar="sidebar"][data-mobile="true"][data-side="left"]',
+  );
+  await expect(leftSidebar).toBeVisible();
+  await expect(globalDrawer).toBeHidden();
+
+  await dispatchOneFingerLeftSwipe(page, leftSidebar, "surface");
+  await expect(globalDrawer).toBeVisible();
+  await expect(leftSidebar).toBeHidden();
   await page.keyboard.press("Escape");
   await expect(globalDrawer).toBeHidden();
 
