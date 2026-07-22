@@ -169,6 +169,7 @@ async function dispatchOneFingerRightSwipe(
       type: "touchStart",
       touchPoints: [cdpTouchPoint(1, { x: startX, y })],
     });
+    await page.waitForTimeout(32);
     for (const progress of [0.25, 0.5, 0.75, 1]) {
       await session.send("Input.dispatchTouchEvent", {
         type: "touchMove",
@@ -179,6 +180,7 @@ async function dispatchOneFingerRightSwipe(
           }),
         ],
       });
+      await page.waitForTimeout(16);
     }
     await session.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
   } finally {
@@ -373,7 +375,7 @@ async function verifyNativePaneActions(page: Page, testInfo: TestInfo) {
   const paneHeader = frame.locator('[data-testid$="-header"]');
   const moreButton = frame.getByRole("button", { name: /^Open actions for / });
   await expect(paneHeader.getByRole("button")).toHaveCount(1);
-  await expect(paneHeader.locator('[data-testid$="-drag-icon"]')).toHaveCount(0);
+  await expect(paneHeader.locator('[data-testid$="-drag-icon"]')).toHaveCount(1);
   await expect(page.getByTestId("git-terminal-font-size-controls")).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Decrease font size" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Increase font size" })).toBeVisible();
