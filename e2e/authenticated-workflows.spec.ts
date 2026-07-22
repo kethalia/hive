@@ -436,7 +436,9 @@ async function verifySidebarEdgeNavigation(page: Page) {
   );
   await dispatchOneFingerRightSwipe(page, terminalSurface, "surface");
 
-  const mobileSidebar = page.getByRole("dialog", { name: "Navigation", exact: true });
+  const mobileSidebar = page.locator(
+    '[data-sidebar="sidebar"][data-mobile="true"][data-side="left"]',
+  );
   await expect(mobileSidebar).toBeVisible();
   const sidebarBox = await mobileSidebar.boundingBox();
   if (!sidebarBox) throw new Error("Mobile navigation sidebar could not be measured.");
