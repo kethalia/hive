@@ -1,7 +1,7 @@
 "use client";
 
 import type { RefObject } from "react";
-import { useEffect, useRef } from "react";
+import { useEffect, useLayoutEffect, useRef } from "react";
 import {
   createTwoFingerSwipeDetector,
   type GestureTouchPoint,
@@ -38,7 +38,7 @@ export function useTwoFingerNavigation({
 }: TwoFingerNavigationOptions) {
   const onNavigateRef = useRef(onNavigate);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     onNavigateRef.current = onNavigate;
   }, [onNavigate]);
 

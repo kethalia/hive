@@ -1697,6 +1697,14 @@ describe("MultiSessionWorkspace", () => {
     await waitFor(() => {
       expect(screen.getByTestId("active-pane-label")).toHaveTextContent("dev-server");
     });
+
+    act(() => {
+      dispatchTwoFingerSwipe(screen.getByTestId("workspace-pane-dev-server-header"), "right");
+    });
+
+    await waitFor(() => {
+      expect(screen.getByTestId("active-pane-label")).toHaveTextContent("main-session");
+    });
     expect(mockTriggerHapticFeedback).toHaveBeenCalled();
   });
 
