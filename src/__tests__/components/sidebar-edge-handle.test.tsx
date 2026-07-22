@@ -264,6 +264,28 @@ describe("SidebarEdgeHandle", () => {
     });
   });
 
+  it("reserves pane headers for drag and long-press gestures", () => {
+    sidebarState = {
+      isMobile: true,
+      openMobile: false,
+      setOpenMobile: vi.fn(),
+    };
+    mockUseSidebar.mockReturnValue(sidebarState);
+
+    render(
+      <main data-testid="page-content">
+        <div data-window-drag-surface="true" data-testid="pane-header">
+          Terminal header
+        </div>
+        <SidebarEdgeHandle />
+      </main>,
+    );
+
+    swipePage({ target: screen.getByTestId("pane-header"), start: [80, 40], move: [180, 44] });
+
+    expect(sidebarState.setOpenMobile).not.toHaveBeenCalled();
+  });
+
   it("opens from gesture-marked carousel regions after horizontal intent", async () => {
     sidebarState = {
       isMobile: true,

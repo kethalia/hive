@@ -77,6 +77,16 @@ export function SidebarEdgeHandle(_props: SidebarEdgeHandleProps) {
         return;
       }
       const touch = event.touches[0];
+      const startsOnPaneHeader =
+        event.target instanceof Element &&
+        event.target.closest('[data-window-drag-surface="true"]') !== null;
+      if (startsOnPaneHeader) {
+        reset();
+        if (touch.clientX <= NATIVE_HISTORY_EDGE_PX && event.cancelable) {
+          event.preventDefault();
+        }
+        return;
+      }
       const start = trackStart({
         id: touch.identifier,
         x: touch.clientX,

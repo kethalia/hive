@@ -1773,7 +1773,8 @@ describe("MultiSessionWorkspace", () => {
     expect(header.querySelectorAll("button")).toHaveLength(1);
     expect(screen.queryByTestId("workspace-tools-main-session")).not.toBeInTheDocument();
     expect(screen.queryByTestId("remove-pane-pane-main-session")).not.toBeInTheDocument();
-    expect(screen.queryByTestId("workspace-pane-main-session-drag-icon")).not.toBeInTheDocument();
+    expect(header).toHaveAttribute("data-window-drag-surface", "true");
+    expect(header.querySelector('[data-testid="icon-grip"]')).toBeInTheDocument();
     expect(screen.queryByTestId("git-terminal-font-size-controls")).not.toBeInTheDocument();
     fireEvent.click(more);
 

@@ -39,6 +39,17 @@ describe("createTwoFingerSwipeDetector", () => {
     expect(detector.end()).toBe("left");
   });
 
+  it("tolerates staggered real-device updates while both fingers move together", () => {
+    const detector = createTwoFingerSwipeDetector();
+    detector.start(points(100, 200));
+
+    expect(detector.move(points(55, 200))).toEqual({ ownsGesture: false, direction: null });
+    expect(detector.move(points(55, 155))).toEqual({ ownsGesture: true, direction: "left" });
+    detector.move(points(30, 130));
+
+    expect(detector.end()).toBe("left");
+  });
+
   it("does not navigate when horizontal travel stays below the release threshold", () => {
     const detector = createTwoFingerSwipeDetector();
     detector.start(points(100, 200));
@@ -57,15 +68,15 @@ describe("createTwoFingerSwipeDetector", () => {
     expect(detector.end()).toBeNull();
   });
 
-  it("yields when a horizontal gesture becomes a pinch before release", () => {
+  it("does not downgrade an owned swipe when finger updates briefly diverge", () => {
     const detector = createTwoFingerSwipeDetector();
     detector.start(points(100, 200));
     expect(detector.move(points(75, 175)).ownsGesture).toBe(true);
 
     const progress = detector.move(points(20, 160));
 
-    expect(progress).toEqual({ ownsGesture: false, direction: null });
-    expect(detector.end()).toBeNull();
+    expect(progress).toEqual({ ownsGesture: true, direction: "left" });
+    expect(detector.end()).toBe("left");
   });
 
   it("yields to vertical terminal scrolling", () => {

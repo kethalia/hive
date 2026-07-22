@@ -30,6 +30,10 @@ export interface TwoFingerSwipeDetector {
 interface SwipeSnapshot {
   firstId: number;
   secondId: number;
+  firstX: number;
+  firstY: number;
+  secondX: number;
+  secondY: number;
   centerX: number;
   centerY: number;
   distance: number;
@@ -45,20 +49,44 @@ type GestureClassification = "pending" | "swipe" | "pinch" | "cancelled";
 
 function classifyMovement(
   classification: GestureClassification,
-  deltaX: number,
-  deltaY: number,
+  start: SwipeSnapshot,
+  current: SwipeSnapshot,
   scaleDelta: number,
 ): GestureClassification {
-  if (scaleDelta > TWO_FINGER_SWIPE_MAX_SCALE_DELTA) return "pinch";
   if (classification !== "pending") return classification;
+
+  const firstDeltaX = current.firstX - start.firstX;
+  const firstDeltaY = current.firstY - start.firstY;
+  const secondDeltaX = current.secondX - start.secondX;
+  const secondDeltaY = current.secondY - start.secondY;
+  const firstHorizontal =
+    Math.abs(firstDeltaX) >= TWO_FINGER_SWIPE_INTENT_PX &&
+    Math.abs(firstDeltaX) >= Math.abs(firstDeltaY) * TWO_FINGER_SWIPE_HORIZONTAL_RATIO;
+  const secondHorizontal =
+    Math.abs(secondDeltaX) >= TWO_FINGER_SWIPE_INTENT_PX &&
+    Math.abs(secondDeltaX) >= Math.abs(secondDeltaY) * TWO_FINGER_SWIPE_HORIZONTAL_RATIO;
+  const sameHorizontalDirection = firstDeltaX * secondDeltaX > 0;
+  if (firstHorizontal && secondHorizontal && sameHorizontalDirection) return "swipe";
+
+  const firstMoved = Math.hypot(firstDeltaX, firstDeltaY) >= TWO_FINGER_SWIPE_INTENT_PX;
+  const secondMoved = Math.hypot(secondDeltaX, secondDeltaY) >= TWO_FINGER_SWIPE_INTENT_PX;
+  const movementsOppose = firstDeltaX * secondDeltaX + firstDeltaY * secondDeltaY < 0;
+  if (
+    scaleDelta > TWO_FINGER_SWIPE_MAX_SCALE_DELTA &&
+    firstMoved &&
+    secondMoved &&
+    movementsOppose
+  ) {
+    return "pinch";
+  }
+
+  const deltaX = current.centerX - start.centerX;
+  const deltaY = current.centerY - start.centerY;
 
   const horizontalDominates =
     Math.abs(deltaX) >= Math.abs(deltaY) * TWO_FINGER_SWIPE_HORIZONTAL_RATIO;
   if (Math.abs(deltaY) > TWO_FINGER_SWIPE_MAX_VERTICAL_PX && !horizontalDominates) {
     return "cancelled";
-  }
-  if (Math.abs(deltaX) >= TWO_FINGER_SWIPE_INTENT_PX && horizontalDominates) {
-    return "swipe";
   }
   return classification;
 }
@@ -76,6 +104,10 @@ function snapshotForPoints(
   return {
     firstId: first.id,
     secondId: second.id,
+    firstX: first.x,
+    firstY: first.y,
+    secondX: second.x,
+    secondY: second.y,
     centerX: (first.x + second.x) / 2,
     centerY: (first.y + second.y) / 2,
     distance: Math.hypot(second.x - first.x, second.y - first.y),
@@ -154,9 +186,8 @@ function resolveMovement(
   if (!current) return null;
 
   const deltaX = current.centerX - start.centerX;
-  const deltaY = current.centerY - start.centerY;
   const scaleDelta = Math.abs(current.distance / start.distance - 1);
-  const nextClassification = classifyMovement(classification, deltaX, deltaY, scaleDelta);
+  const nextClassification = classifyMovement(classification, start, current, scaleDelta);
   const progress: TwoFingerSwipeProgress =
     nextClassification === "swipe"
       ? { ownsGesture: true, direction: deltaX < 0 ? "left" : "right" }

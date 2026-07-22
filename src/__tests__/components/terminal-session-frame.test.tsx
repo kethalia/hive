@@ -9,7 +9,7 @@ describe("TerminalSessionFrame", () => {
   afterEach(cleanup);
 
   it("uses the titlebar as a drag surface without capturing header controls", () => {
-    const onHeaderPointerDown = vi.fn();
+    const onHeaderMouseDown = vi.fn();
 
     render(
       <TerminalSessionFrame
@@ -17,7 +17,7 @@ describe("TerminalSessionFrame", () => {
         subtitle="projects/kethalia/hive"
         dataTestId="tool-frame"
         layoutMode="tiled"
-        onHeaderPointerDown={onHeaderPointerDown}
+        dragHandleListeners={{ onMouseDown: onHeaderMouseDown }}
         onActivate={vi.fn()}
         headerActions={<button type="button">Pop out</button>}
         onClose={vi.fn()}
@@ -43,15 +43,15 @@ describe("TerminalSessionFrame", () => {
     expect(title.parentElement?.parentElement).toHaveClass("items-center");
     expect(close).toHaveClass("h-6");
 
-    fireEvent.pointerDown(title);
-    expect(onHeaderPointerDown).toHaveBeenCalledOnce();
+    fireEvent.mouseDown(title);
+    expect(onHeaderMouseDown).toHaveBeenCalledOnce();
 
-    fireEvent.pointerDown(grip);
-    expect(onHeaderPointerDown).toHaveBeenCalledTimes(2);
+    fireEvent.mouseDown(grip);
+    expect(onHeaderMouseDown).toHaveBeenCalledTimes(2);
 
-    fireEvent.pointerDown(screen.getByRole("button", { name: "Pop out" }));
-    fireEvent.pointerDown(close);
-    expect(onHeaderPointerDown).toHaveBeenCalledTimes(2);
+    fireEvent.mouseDown(screen.getByRole("button", { name: "Pop out" }));
+    fireEvent.mouseDown(close);
+    expect(onHeaderMouseDown).toHaveBeenCalledTimes(2);
   });
 
   it("provides visible, context-menu, and long-press access to pane actions", () => {
@@ -88,15 +88,15 @@ describe("TerminalSessionFrame", () => {
     vi.useRealTimers();
   });
 
-  it("shows only the More action and disables rearranging on touch layouts", () => {
-    const onHeaderPointerDown = vi.fn();
+  it("shows only the More action while keeping touch header dragging", () => {
+    const onHeaderTouchStart = vi.fn();
 
     render(
       <TerminalSessionFrame
         label="Terminal one"
         dataTestId="terminal-one"
         layoutMode="tiled"
-        onHeaderPointerDown={onHeaderPointerDown}
+        dragHandleListeners={{ onTouchStart: onHeaderTouchStart }}
         onOpenActions={vi.fn()}
         touchOptimizedActions
         headerActions={<button type="button">Files</button>}
@@ -111,11 +111,14 @@ describe("TerminalSessionFrame", () => {
     expect(screen.getByRole("button", { name: "Open actions for Terminal one" })).toBeVisible();
     expect(screen.queryByRole("button", { name: "Files" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Close Terminal one" })).not.toBeInTheDocument();
-    expect(screen.queryByTestId("terminal-one-drag-icon")).not.toBeInTheDocument();
-    expect(header).not.toHaveAttribute("data-window-drag-surface");
+    expect(screen.getByTestId("terminal-one-drag-icon")).toBeInTheDocument();
+    expect(header).toHaveAttribute("data-window-drag-surface", "true");
+    expect(header).toHaveClass("touch-none");
 
-    fireEvent.pointerDown(screen.getByTestId("terminal-one-title"));
-    expect(onHeaderPointerDown).not.toHaveBeenCalled();
+    fireEvent.touchStart(screen.getByTestId("terminal-one-title"), {
+      touches: [{ identifier: 7, clientX: 40, clientY: 20 }],
+    });
+    expect(onHeaderTouchStart).toHaveBeenCalledOnce();
   });
 
   it("cancels a header long press when touch movement exceeds the drag threshold", () => {

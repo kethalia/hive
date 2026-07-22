@@ -1,13 +1,12 @@
 "use client";
 
+import type { DraggableSyntheticListeners } from "@dnd-kit/core";
 import { Ellipsis, GripVertical, Lock, Minus, Plus, X } from "lucide-react";
 import type {
   CSSProperties,
   FocusEvent,
   KeyboardEvent,
   MouseEvent,
-  PointerEvent,
-  PointerEventHandler,
   ReactNode,
   TouchEvent,
 } from "react";
@@ -150,7 +149,7 @@ interface TerminalSessionFrameProps {
   closeLabel?: string;
   closeTestId?: string;
   headerActions?: ReactNode;
-  onHeaderPointerDown?: PointerEventHandler<HTMLDivElement>;
+  dragHandleListeners?: DraggableSyntheticListeners;
   onOpenActions?: () => void;
   touchOptimizedActions?: boolean;
   isDragging?: boolean;
@@ -179,7 +178,7 @@ export function TerminalSessionFrame({
   closeLabel,
   closeTestId,
   headerActions,
-  onHeaderPointerDown,
+  dragHandleListeners,
   onOpenActions,
   touchOptimizedActions = false,
   isDragging = false,
@@ -189,7 +188,7 @@ export function TerminalSessionFrame({
   navigationSurface,
 }: TerminalSessionFrameProps) {
   const interactive = Boolean(onActivate) && !disabled;
-  const draggableHeader = !disabled && !touchOptimizedActions && Boolean(onHeaderPointerDown);
+  const draggableHeader = !disabled && Boolean(dragHandleListeners);
   const longPressTimerRef = useRef<number | null>(null);
   const longPressTouchRef = useRef<{ id: number; x: number; y: number } | null>(null);
 
@@ -232,18 +231,19 @@ export function TerminalSessionFrame({
     onActivate?.();
   }
 
-  function handleHeaderPointerDown(event: PointerEvent<HTMLDivElement>) {
-    if (!draggableHeader) return;
-    const target = event.target;
+  function isHeaderControl(target: EventTarget | null, header: HTMLDivElement) {
     const interactiveTarget =
       target instanceof Element
         ? target.closest("button, a, input, select, textarea, [role='button'], [role='link']")
         : null;
-    if (interactiveTarget && event.currentTarget.contains(interactiveTarget)) {
-      return;
-    }
+    return Boolean(interactiveTarget && header.contains(interactiveTarget));
+  }
 
-    onHeaderPointerDown?.(event);
+  function handleHeaderMouseDown(event: MouseEvent<HTMLDivElement>) {
+    if (!draggableHeader) return;
+    if (isHeaderControl(event.target, event.currentTarget)) return;
+
+    dragHandleListeners?.onMouseDown?.(event);
   }
 
   function handleHeaderTouchStart(event: TouchEvent<HTMLDivElement>) {
@@ -251,13 +251,10 @@ export function TerminalSessionFrame({
       clearHeaderLongPress();
       return;
     }
-    if (disabled || !onOpenActions) return;
-    const target = event.target;
-    const interactiveTarget =
-      target instanceof Element
-        ? target.closest("button, a, input, select, textarea, [role='button'], [role='link']")
-        : null;
-    if (interactiveTarget && event.currentTarget.contains(interactiveTarget)) return;
+    if (disabled || isHeaderControl(event.target, event.currentTarget)) return;
+
+    dragHandleListeners?.onTouchStart?.(event);
+    if (!onOpenActions) return;
 
     const touch = event.touches[0];
     clearHeaderLongPress();
@@ -337,7 +334,7 @@ export function TerminalSessionFrame({
           data-window-drag-surface={draggableHeader ? "true" : undefined}
           data-testid={dataTestId ? `${dataTestId}-header` : undefined}
           onContextMenu={handleHeaderContextMenu}
-          onPointerDown={handleHeaderPointerDown}
+          onMouseDown={handleHeaderMouseDown}
           onTouchStart={handleHeaderTouchStart}
           onTouchMove={handleHeaderTouchMove}
           onTouchEnd={clearHeaderLongPress}

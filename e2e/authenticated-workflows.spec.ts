@@ -95,8 +95,16 @@ async function dispatchTwoFingerSwipe(page: Page, target: Locator, direction: "l
         cdpTouchPoint(2, { x: startX, y: centerY + 18 }),
       ],
     });
+    let previousX = startX;
     for (const progress of [0.25, 0.5, 0.75, 1]) {
       const x = startX + (endX - startX) * progress;
+      await session.send("Input.dispatchTouchEvent", {
+        type: "touchMove",
+        touchPoints: [
+          cdpTouchPoint(1, { x, y: centerY - 18 }),
+          cdpTouchPoint(2, { x: previousX, y: centerY + 18 }),
+        ],
+      });
       await session.send("Input.dispatchTouchEvent", {
         type: "touchMove",
         touchPoints: [
@@ -104,6 +112,7 @@ async function dispatchTwoFingerSwipe(page: Page, target: Locator, direction: "l
           cdpTouchPoint(2, { x, y: centerY + 18 }),
         ],
       });
+      previousX = x;
     }
     await session.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
     await page.waitForTimeout(100);
@@ -267,6 +276,53 @@ async function verifyTerminalTouchNavigation(page: Page) {
     activeTouchTerminalFrame(page).locator('[data-terminal-navigation-surface="true"]'),
   );
   await expect(activePaneLabel).toHaveText(terminalLabelAfterRightSwipe);
+}
+
+async function verifyMobileWorkspaceWindowDrag(page: Page) {
+  const terminalWindows = page
+    .locator("[data-workspace-window-id]:visible")
+    .filter({ has: page.locator('[data-terminal-navigation-surface="true"]') });
+  await expect.poll(() => terminalWindows.count()).toBeGreaterThanOrEqual(2);
+  const draggedWindow = terminalWindows.first();
+  const targetWindow = terminalWindows.nth(1);
+  const dragHeader = draggedWindow.locator('[data-testid$="-header"]');
+  const dragBox = await dragHeader.boundingBox();
+  const targetBox = await targetWindow.boundingBox();
+  if (!dragBox || !targetBox) throw new Error("Mobile workspace windows could not be measured.");
+
+  const persistedLayoutBefore = await persistedWorkspaceWindowLayout(page);
+  const { targetPoint } = workspaceDropTarget(targetBox);
+  const start = {
+    x: dragBox.x + dragBox.width * 0.35,
+    y: dragBox.y + dragBox.height * 0.5,
+  };
+  const session = await page.context().newCDPSession(page);
+
+  try {
+    await session.send("Input.dispatchTouchEvent", {
+      type: "touchStart",
+      touchPoints: [cdpTouchPoint(1, start)],
+    });
+    for (const progress of [0.2, 0.4, 0.6, 0.8, 1]) {
+      await session.send("Input.dispatchTouchEvent", {
+        type: "touchMove",
+        touchPoints: [
+          cdpTouchPoint(1, {
+            x: start.x + (targetPoint.x - start.x) * progress,
+            y: start.y + (targetPoint.y - start.y) * progress,
+          }),
+        ],
+      });
+    }
+    await expect(draggedWindow).toHaveAttribute("data-workspace-window-dragging", "true");
+    await expect(page.getByTestId("workspace-window-drop-placeholder")).toBeVisible();
+    await session.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+  } finally {
+    await session.detach();
+  }
+
+  await expect(page.getByTestId("workspace-window-drop-placeholder")).toHaveCount(0);
+  await expect.poll(() => persistedWorkspaceWindowLayout(page)).not.toBe(persistedLayoutBefore);
 }
 
 async function verifyWorkspaceTouchNavigation(page: Page) {
@@ -1240,6 +1296,7 @@ test.describe("authenticated Hive workflows", () => {
       await expectConnectedTerminal(page);
       await verifySidebarEdgeNavigation(page);
       await verifyTerminalTouchNavigation(page);
+      await verifyMobileWorkspaceWindowDrag(page);
       const { boardTabs, createdBoard, initialBoardCount } =
         await verifyWorkspaceTouchNavigation(page);
       await verifyNativePaneActions(page, testInfo);

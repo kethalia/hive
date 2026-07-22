@@ -58,6 +58,18 @@ describe("WorkspaceWindow", () => {
     );
   });
 
+  it("always exposes stable drag handle listeners to its pane frame", () => {
+    render(
+      <WorkspaceWindow id="terminal" style={{ left: "0%", top: "0%", width: "50%", height: "50%" }}>
+        {({ dragHandleListeners }) => (
+          <div data-testid="drag-listeners">{String(Boolean(dragHandleListeners))}</div>
+        )}
+      </WorkspaceWindow>,
+    );
+
+    expect(screen.getByTestId("drag-listeners")).toHaveTextContent("true");
+  });
+
   it("removes the pane from its slot while a translucent copy follows the pointer", () => {
     draggableState.isDragging = true;
     render(

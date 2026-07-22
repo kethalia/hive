@@ -72,6 +72,7 @@ export function useTwoFingerNavigation({
       if (!surface || !detector.active) return;
       detector.move(gestureTouchPoints(event.touches));
       if (event.cancelable) event.preventDefault();
+      event.stopPropagation();
     };
 
     const handleTouchEnd = (event: TouchEvent) => {

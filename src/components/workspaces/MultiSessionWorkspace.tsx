@@ -7,7 +7,12 @@ import {
   type DragEndEvent,
   type DragMoveEvent,
   type DragStartEvent,
+  MouseSensor,
+  PointerSensor,
   pointerWithin,
+  TouchSensor,
+  useSensor,
+  useSensors,
 } from "@dnd-kit/core";
 import { getEventCoordinates } from "@dnd-kit/utilities";
 import type { Terminal } from "@xterm/xterm";
@@ -81,6 +86,7 @@ import {
 } from "@/lib/actions/workspaces";
 import { SAFE_IDENTIFIER_RE } from "@/lib/constants";
 import { triggerHapticFeedback } from "@/lib/device/haptics";
+import { DRAG_LONG_PRESS_MOVE_PX } from "@/lib/gestures/conventions";
 import type { GitCloneTerminalIdentity, PublicCloneTree } from "@/lib/git/clone-actions-contract";
 import { getGitRepositoryPresentation } from "@/lib/git/clone-public-identifiers";
 import type { CloneTreeNode, CloneTreeRepositoryNode } from "@/lib/git/clone-tree";
@@ -1254,6 +1260,19 @@ export function MultiSessionWorkspace({
   const isUnifiedSource = source === "unified";
   const keepAliveStatus = useKeepAliveStatus(workspaceId);
   const isComposeSheet = useIsComposeSheet();
+  const pointerWindowDragSensor = useSensor(PointerSensor, {
+    activationConstraint: { distance: DRAG_LONG_PRESS_MOVE_PX },
+  });
+  const mouseWindowDragSensor = useSensor(MouseSensor, {
+    activationConstraint: { distance: DRAG_LONG_PRESS_MOVE_PX },
+  });
+  const touchWindowDragSensor = useSensor(TouchSensor, {
+    activationConstraint: { distance: DRAG_LONG_PRESS_MOVE_PX },
+  });
+  const windowDragSensors = useSensors(
+    isComposeSheet ? mouseWindowDragSensor : pointerWindowDragSensor,
+    isComposeSheet ? touchWindowDragSensor : null,
+  );
   const {
     isKeyboardVisible: visualKeyboardVisible,
     visualViewportHeightPx,
@@ -4224,7 +4243,7 @@ export function MultiSessionWorkspace({
           previewStyle={panePreviewStyle}
           style={paneStyle}
         >
-          {({ isDragging, onHeaderPointerDown }) => (
+          {({ dragHandleListeners, isDragging }) => (
             <TerminalSessionFrame
               label={presentation.title}
               subtitle={presentation.subtitle}
@@ -4232,7 +4251,7 @@ export function MultiSessionWorkspace({
               dataTestId={`workspace-tool-pane-${toolPane.tool}`}
               layoutMode="tiled"
               paneState={toolPane.loadState}
-              onHeaderPointerDown={onHeaderPointerDown}
+              dragHandleListeners={dragHandleListeners}
               onOpenActions={() =>
                 setPaneActionTarget({
                   boardKey: model.board.key,
@@ -4366,7 +4385,7 @@ export function MultiSessionWorkspace({
         previewStyle={panePreviewStyle}
         style={paneStyle}
       >
-        {({ isDragging, onHeaderPointerDown }) => (
+        {({ dragHandleListeners, isDragging }) => (
           <TerminalSessionFrame
             label={presentation.title}
             subtitle={presentation.subtitle}
@@ -4376,7 +4395,7 @@ export function MultiSessionWorkspace({
             }
             layoutMode="tiled"
             navigationSurface={isComposeSheet ? "terminal" : undefined}
-            onHeaderPointerDown={onHeaderPointerDown}
+            dragHandleListeners={dragHandleListeners}
             onOpenActions={() =>
               setPaneActionTarget({
                 boardKey: model.board.key,
@@ -4516,6 +4535,7 @@ export function MultiSessionWorkspace({
     return (
       <DndContext
         key={model.board.key}
+        sensors={windowDragSensors}
         collisionDetection={workspaceWindowCollisionDetection}
         onDragStart={(event) => handleWindowDragStart(model, event)}
         onDragMove={(event) => handleWindowDragMove(model, event)}
@@ -4620,10 +4640,11 @@ export function MultiSessionWorkspace({
       {isComposeSheet ? (
         <>
           <p id={touchNavigationHintId} className="sr-only">
-            Swipe right with one finger from anywhere to open the sidebar. Swipe left or right with
-            two fingers anywhere in a terminal pane to change terminals. Swipe left or right with
-            two fingers elsewhere in the workspace to change workspaces. Open pane actions from the
-            More button or by touching and holding the pane header for half a second.
+            Swipe right with one finger outside pane headers to open the sidebar. Swipe left or
+            right with two fingers anywhere in a terminal pane to change terminals. Swipe left or
+            right with two fingers elsewhere in the workspace to change workspaces. Drag a pane
+            header with one finger to rearrange it. Open pane actions from the More button or by
+            touching and holding the pane header for half a second.
           </p>
           <p className="sr-only" aria-live="polite" aria-atomic="true">
             {gestureAnnouncement}

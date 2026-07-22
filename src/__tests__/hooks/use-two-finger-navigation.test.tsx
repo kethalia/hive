@@ -94,4 +94,20 @@ describe("useTwoFingerNavigation", () => {
     dispatchTouch(workspaceRootSurface, "touchend", []);
     expect(onNavigate).toHaveBeenLastCalledWith("workspace", "right");
   });
+
+  it("owns two-finger movement before nested one-finger handlers can consume it", () => {
+    const onNavigate = vi.fn();
+    render(<NavigationHarness onNavigate={onNavigate} />);
+
+    const terminal = screen.getByTestId("terminal-surface");
+    const nestedMove = vi.fn();
+    terminal.addEventListener("touchmove", nestedMove);
+    dispatchTouch(terminal, "touchstart", [touch(1, 180, 80), touch(2, 220, 120)]);
+    const move = dispatchTouch(terminal, "touchmove", [touch(1, 110, 82), touch(2, 150, 122)]);
+    dispatchTouch(terminal, "touchend", []);
+
+    expect(move.defaultPrevented).toBe(true);
+    expect(nestedMove).not.toHaveBeenCalled();
+    expect(onNavigate).toHaveBeenCalledWith("terminal", "left");
+  });
 });
