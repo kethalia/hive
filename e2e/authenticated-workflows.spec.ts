@@ -193,13 +193,13 @@ async function dispatchOneFingerRightSwipe(
   }
 }
 
-async function dispatchOneFingerLeftSwipeFromRightEdge(page: Page, target: Locator) {
+async function dispatchOneFingerLeftSwipe(page: Page, target: Locator, origin: "edge" | "surface") {
   const box = await target.boundingBox();
   const viewport = page.viewportSize();
   if (!box || !viewport) throw new Error("Global navigation gesture target could not be measured.");
 
   const session = await page.context().newCDPSession(page);
-  const startX = viewport.width - 4;
+  const startX = origin === "edge" ? viewport.width - 4 : box.x + box.width * 0.55;
   const endX = startX - 88;
   const y = box.y + box.height * 0.55;
 
@@ -416,10 +416,11 @@ async function verifyGlobalCommandDrawerGesture(page: Page) {
     '[data-terminal-navigation-surface="true"]',
   );
 
-  await dispatchOneFingerLeftSwipeFromRightEdge(page, terminalSurface);
+  await dispatchOneFingerLeftSwipe(page, terminalSurface, "surface");
 
   const globalDrawer = page.getByRole("dialog").filter({ has: page.getByRole("combobox") });
   await expect(globalDrawer).toBeVisible();
+  await expect(globalDrawer).toHaveAttribute("data-side", "right");
   await expect(
     globalDrawer.getByRole("option", { name: /Workspaces Open Coder workspaces/ }),
   ).toBeVisible();
@@ -430,6 +431,12 @@ async function verifyGlobalCommandDrawerGesture(page: Page) {
   await expect(
     globalDrawer.getByRole("option", { name: /New terminal session in workspace/ }),
   ).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(globalDrawer).toBeHidden();
+
+  await dispatchOneFingerLeftSwipe(page, terminalSurface, "edge");
+
+  await expect(globalDrawer).toBeVisible();
   await expect(page).toHaveURL(urlBeforeSwipe);
   expect(await page.evaluate(() => history.length)).toBe(historyLengthBeforeSwipe);
   await page.keyboard.press("Escape");

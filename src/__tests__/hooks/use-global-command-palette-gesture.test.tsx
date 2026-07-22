@@ -6,7 +6,14 @@ import { useGlobalCommandPaletteGesture } from "@/hooks/useGlobalCommandPaletteG
 
 function GestureHarness({ enabled = true, onOpen }: { enabled?: boolean; onOpen: () => void }) {
   useGlobalCommandPaletteGesture({ enabled, onOpen });
-  return <main data-testid="content">Content</main>;
+  return (
+    <main data-testid="content">
+      Content
+      <div data-testid="pane-header" data-window-drag-surface="true">
+        Pane header
+      </div>
+    </main>
+  );
 }
 
 function touch(identifier: number, clientX: number, clientY: number) {
@@ -16,10 +23,11 @@ function touch(identifier: number, clientX: number, clientY: number) {
 function dispatchTouch(
   type: "touchstart" | "touchmove" | "touchend",
   touches: ReturnType<typeof touch>[],
+  target: EventTarget = window,
 ) {
   const event = new Event(type, { bubbles: true, cancelable: true });
   Object.defineProperty(event, "touches", { value: touches });
-  window.dispatchEvent(event);
+  target.dispatchEvent(event);
   return event;
 }
 
@@ -48,13 +56,28 @@ describe("useGlobalCommandPaletteGesture", () => {
     expect(onOpen).toHaveBeenCalledOnce();
   });
 
-  it("ignores swipes that do not start at the right edge", async () => {
+  it("opens from anywhere after leftward intent is clear", async () => {
     const onOpen = vi.fn();
     render(<GestureHarness onOpen={onOpen} />);
 
-    dispatchTouch("touchstart", [touch(1, 300, 200)]);
-    dispatchTouch("touchmove", [touch(1, 220, 204)]);
+    const start = dispatchTouch("touchstart", [touch(1, 300, 200)]);
+    const move = dispatchTouch("touchmove", [touch(1, 220, 204)]);
     dispatchTouch("touchend", []);
+    await Promise.resolve();
+
+    expect(start.defaultPrevented).toBe(false);
+    expect(move.defaultPrevented).toBe(true);
+    expect(onOpen).toHaveBeenCalledOnce();
+  });
+
+  it("reserves pane headers for window dragging", async () => {
+    const onOpen = vi.fn();
+    const { getByTestId } = render(<GestureHarness onOpen={onOpen} />);
+    const header = getByTestId("pane-header");
+
+    dispatchTouch("touchstart", [touch(1, 300, 40)], header);
+    dispatchTouch("touchmove", [touch(1, 220, 44)], header);
+    dispatchTouch("touchend", [], header);
     await Promise.resolve();
 
     expect(onOpen).not.toHaveBeenCalled();

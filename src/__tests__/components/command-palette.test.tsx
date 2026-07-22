@@ -84,6 +84,11 @@ vi.mock("@/components/ui/sheet", () => ({
       {children}
     </div>
   ),
+  SheetHeader: ({ children, className }: { children: ReactNode; className?: string }) => (
+    <div data-testid="sheet-header" data-slot="sheet-header" className={className}>
+      {children}
+    </div>
+  ),
 }));
 
 vi.mock("@/components/ui/command", () => {
@@ -429,6 +434,28 @@ describe("CommandPalette", () => {
     expect(sheet).toHaveClass("motion-reduce:duration-0");
 
     await waitFor(() => expect(sheet).toHaveStyle({ maxHeight: "512px" }));
+  });
+
+  it("renders the global mobile palette as a native right-side navigation sheet", () => {
+    mobileState.isMobile = true;
+
+    render(
+      <CommandPalette
+        open={true}
+        onOpenChange={vi.fn()}
+        tabs={mockTabs}
+        onSelectTab={vi.fn()}
+        mobileSide="right"
+      />,
+    );
+
+    const sheet = screen.getByTestId("sheet-content");
+    expect(sheet).toHaveAttribute("data-side", "right");
+    expect(sheet).toHaveAttribute("data-show-close-button", "undefined");
+    expect(sheet).toHaveStyle({ width: "92vw", maxWidth: "30rem" });
+    expect(screen.getByTestId("sheet-title")).toHaveTextContent("Navigate");
+    expect(screen.getByTestId("sheet-title")).not.toHaveClass("sr-only");
+    expect(screen.queryByRole("button", { name: "Drag to dismiss command palette" })).toBeNull();
   });
 
   it("falls back to 100dvh when visualViewport is unavailable on mobile", () => {

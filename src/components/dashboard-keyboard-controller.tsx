@@ -471,6 +471,7 @@ export function DashboardKeyboardController() {
       }
       emptyText={emptyText}
       groupHeading={activePaletteSource?.groupHeading ?? "Open"}
+      mobileSide="right"
     />
   );
 }

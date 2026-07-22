@@ -47,6 +47,7 @@ vi.mock("@/components/terminal/CommandPalette", () => ({
     onSelectTab,
     open,
     tabs,
+    mobileSide,
   }: {
     actions: Array<{
       id: string;
@@ -59,8 +60,14 @@ vi.mock("@/components/terminal/CommandPalette", () => ({
     onSelectTab: (tabId: string) => void;
     open: boolean;
     tabs: Array<{ id: string; sessionName: string }>;
+    mobileSide?: "bottom" | "right";
   }) => (
-    <div data-empty-text={emptyText} data-open={open ? "true" : "false"} data-testid="palette">
+    <div
+      data-empty-text={emptyText}
+      data-mobile-side={mobileSide}
+      data-open={open ? "true" : "false"}
+      data-testid="palette"
+    >
       {open
         ? [
             ...actions.map((action) => (
@@ -146,6 +153,8 @@ describe("DashboardKeyboardController", () => {
 
   it("registers global dashboard keybindings", () => {
     render(<DashboardKeyboardController />);
+
+    expect(screen.getByTestId("palette")).toHaveAttribute("data-mobile-side", "right");
 
     expect(registeredBindings.get("dashboard:command-palette")?.keys).toEqual(["ctrl+k", "cmd+k"]);
     expect(registeredBindings.get("dashboard:toggle-sidebar")?.keys).toEqual(["ctrl+b", "cmd+b"]);

@@ -14,7 +14,7 @@ import {
   CommandList,
   CommandShortcut,
 } from "@/components/ui/command";
-import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { usePrefersReducedMotion } from "@/hooks/usePrefersReducedMotion";
 import { useVisualViewportHeight } from "@/hooks/useVisualViewportHeight";
@@ -61,6 +61,7 @@ interface CommandPaletteProps {
   searchPlaceholder?: string;
   emptyText?: string;
   groupHeading?: string;
+  mobileSide?: "bottom" | "right";
 }
 
 const mobileCommandClassName =
@@ -390,6 +391,7 @@ export function CommandPalette({
   searchPlaceholder = "Search sessions…",
   emptyText = "No sessions found.",
   groupHeading = "Sessions",
+  mobileSide = "bottom",
 }: CommandPaletteProps) {
   const isMobile = useIsMobile();
   const { height } = useVisualViewportHeight();
@@ -476,6 +478,36 @@ export function CommandPalette({
   }, [dragY, isDragging, isSnapBack, prefersReducedMotion, sheetMaxHeight]);
 
   if (isMobile) {
+    if (mobileSide === "right") {
+      return (
+        <Sheet open={open} onOpenChange={onOpenChange}>
+          <SheetContent
+            side="right"
+            className="gap-0 overflow-hidden overscroll-contain p-0 pb-safe pt-safe motion-reduce:transition-none motion-reduce:duration-0"
+            style={{ width: "92vw", maxWidth: "30rem" }}
+          >
+            <SheetHeader className="min-h-14 shrink-0 justify-center border-b px-4 py-3 pr-16">
+              <SheetTitle>Navigate</SheetTitle>
+            </SheetHeader>
+            <Command className={cn(mobileCommandClassName, "min-h-0 flex-1")}>
+              <CommandPaletteBody
+                tabs={tabs}
+                onSelectTab={onSelectTab}
+                onOpenChange={onOpenChange}
+                onCreateSession={onCreateSession}
+                actions={actions}
+                searchValue={searchValue}
+                onSearchValueChange={onSearchValueChange}
+                searchPlaceholder={searchPlaceholder}
+                emptyText={emptyText}
+                groupHeading={groupHeading}
+              />
+            </Command>
+          </SheetContent>
+        </Sheet>
+      );
+    }
+
     return (
       <Sheet open={open} onOpenChange={onOpenChange}>
         <SheetContent

@@ -18,7 +18,7 @@ type TouchStart = {
   qualified: boolean;
 };
 
-/** Opens the global command drawer with a one-finger swipe from the right edge. */
+/** Opens the global command drawer with a deliberate one-finger leftward swipe. */
 export function useGlobalCommandPaletteGesture({
   enabled,
   onOpen,
@@ -45,8 +45,18 @@ export function useGlobalCommandPaletteGesture({
       }
 
       const touch = event.touches[0];
-      if (touch.clientX < window.innerWidth - NATIVE_HISTORY_EDGE_PX) {
+      const startsOnPaneHeader =
+        event.target instanceof Element &&
+        event.target.closest('[data-window-drag-surface="true"]') !== null;
+      if (startsOnPaneHeader || touch.clientX < 0 || touch.clientX > window.innerWidth) {
         reset();
+        if (
+          startsOnPaneHeader &&
+          touch.clientX >= window.innerWidth - NATIVE_HISTORY_EDGE_PX &&
+          event.cancelable
+        ) {
+          event.preventDefault();
+        }
         return;
       }
 
@@ -56,7 +66,9 @@ export function useGlobalCommandPaletteGesture({
         y: touch.clientY,
         qualified: false,
       };
-      if (event.cancelable) event.preventDefault();
+      if (touch.clientX >= window.innerWidth - NATIVE_HISTORY_EDGE_PX && event.cancelable) {
+        event.preventDefault();
+      }
     };
 
     const handleTouchMove = (event: TouchEvent) => {
