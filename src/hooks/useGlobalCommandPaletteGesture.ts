@@ -105,14 +105,14 @@ export function useGlobalCommandPaletteGesture({
 
     window.addEventListener("touchstart", handleTouchStart, { capture: true, passive: false });
     window.addEventListener("touchmove", handleTouchMove, { capture: true, passive: false });
-    window.addEventListener("touchend", handleTouchEnd, { passive: true });
-    window.addEventListener("touchcancel", reset, { passive: true });
+    window.addEventListener("touchend", handleTouchEnd, { capture: true, passive: true });
+    window.addEventListener("touchcancel", reset, { capture: true, passive: true });
 
     return () => {
       window.removeEventListener("touchstart", handleTouchStart, { capture: true });
       window.removeEventListener("touchmove", handleTouchMove, { capture: true });
-      window.removeEventListener("touchend", handleTouchEnd);
-      window.removeEventListener("touchcancel", reset);
+      window.removeEventListener("touchend", handleTouchEnd, { capture: true });
+      window.removeEventListener("touchcancel", reset, { capture: true });
     };
   }, [enabled]);
 }

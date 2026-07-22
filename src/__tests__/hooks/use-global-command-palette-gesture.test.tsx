@@ -70,6 +70,25 @@ describe("useGlobalCommandPaletteGesture", () => {
     expect(onOpen).toHaveBeenCalledOnce();
   });
 
+  it("opens before xterm-style document touch-end consumption", async () => {
+    const onOpen = vi.fn();
+    const { getByTestId } = render(<GestureHarness onOpen={onOpen} />);
+    const content = getByTestId("content");
+    const consumeTouchEnd = (event: Event) => event.stopPropagation();
+    document.addEventListener("touchend", consumeTouchEnd);
+
+    try {
+      dispatchTouch("touchstart", [touch(1, 300, 200)], content);
+      dispatchTouch("touchmove", [touch(1, 220, 204)], content);
+      dispatchTouch("touchend", [], content);
+      await Promise.resolve();
+
+      expect(onOpen).toHaveBeenCalledOnce();
+    } finally {
+      document.removeEventListener("touchend", consumeTouchEnd);
+    }
+  });
+
   it("reserves pane headers for window dragging", async () => {
     const onOpen = vi.fn();
     const { getByTestId } = render(<GestureHarness onOpen={onOpen} />);

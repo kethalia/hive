@@ -256,6 +256,13 @@ function activeTouchTerminalFrame(page: Page) {
     .first();
 }
 
+function stableTouchTerminalFrame(page: Page) {
+  return page
+    .locator("[data-pane-mode]:visible")
+    .filter({ has: page.locator('[data-terminal-navigation-surface="true"]') })
+    .first();
+}
+
 async function ensureThreeTouchTerminals(page: Page) {
   const terminalFrames = page
     .locator("[data-pane-mode]:visible")
@@ -287,6 +294,8 @@ async function ensureThreeTouchTerminals(page: Page) {
 
 async function verifyTerminalTouchNavigation(page: Page) {
   const activePaneLabel = page.getByTestId("active-pane-label").first();
+  const stableTerminalGestureSurface =
+    stableTouchTerminalFrame(page).getByTestId("terminal-fit-host");
   const firstTerminalLabel = (await activePaneLabel.textContent())?.trim();
   if (!firstTerminalLabel) throw new Error("Active terminal has no label.");
 
@@ -306,22 +315,16 @@ async function verifyTerminalTouchNavigation(page: Page) {
     terminalLabels[(firstTerminalIndex - 1 + terminalLabels.length) % terminalLabels.length];
   if (!previousTerminalLabel) throw new Error("Previous terminal label could not be resolved.");
 
-  await dispatchTwoFingerSwipe(
-    page,
-    activeTouchTerminalFrame(page).getByTestId("terminal-fit-host"),
-    "left",
-  );
+  await dispatchTwoFingerSwipe(page, stableTerminalGestureSurface, "left");
   await expect
     .poll(async () => (await activePaneLabel.textContent())?.trim())
     .toBe(previousTerminalLabel);
   const terminalLabelAfterLeftSwipe = (await activePaneLabel.textContent())?.trim();
   if (!terminalLabelAfterLeftSwipe)
     throw new Error("Active terminal has no label after left swipe.");
-  await dispatchTwoFingerSwipe(
-    page,
-    activeTouchTerminalFrame(page).getByTestId("terminal-fit-host"),
-    "right",
-  );
+  // Navigate from a different terminal surface after the active pane changes.
+  // This also avoids constraining the synthetic swipe to a tiny edge tile.
+  await dispatchTwoFingerSwipe(page, stableTerminalGestureSurface, "right");
   await expect
     .poll(async () => (await activePaneLabel.textContent())?.trim())
     .toBe(firstTerminalLabel);
@@ -329,10 +332,7 @@ async function verifyTerminalTouchNavigation(page: Page) {
   if (!terminalLabelAfterRightSwipe) {
     throw new Error("Active terminal has no label after right swipe.");
   }
-  await dispatchTwoFingerPinch(
-    page,
-    activeTouchTerminalFrame(page).getByTestId("terminal-fit-host"),
-  );
+  await dispatchTwoFingerPinch(page, stableTerminalGestureSurface);
   await expect(activePaneLabel).toHaveText(terminalLabelAfterRightSwipe);
 }
 
@@ -406,7 +406,7 @@ async function verifyWorkspaceTouchNavigation(page: Page) {
 async function verifySidebarEdgeNavigation(page: Page) {
   const urlBeforeSwipe = page.url();
   const historyLengthBeforeSwipe = await page.evaluate(() => history.length);
-  const terminalSurface = activeTouchTerminalFrame(page).locator(
+  const terminalSurface = stableTouchTerminalFrame(page).locator(
     '[data-terminal-navigation-surface="true"]',
   );
   await dispatchOneFingerRightSwipe(page, terminalSurface, "surface");
@@ -430,7 +430,7 @@ async function verifySidebarEdgeNavigation(page: Page) {
 async function verifyGlobalCommandDrawerGesture(page: Page) {
   const urlBeforeSwipe = page.url();
   const historyLengthBeforeSwipe = await page.evaluate(() => history.length);
-  const terminalSurface = activeTouchTerminalFrame(page).locator(
+  const terminalSurface = stableTouchTerminalFrame(page).locator(
     '[data-terminal-navigation-surface="true"]',
   );
 

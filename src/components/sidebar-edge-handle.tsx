@@ -111,14 +111,14 @@ export function SidebarEdgeHandle(_props: SidebarEdgeHandleProps) {
 
     window.addEventListener("touchstart", onTouchStart, { capture: true, passive: false });
     window.addEventListener("touchmove", onTouchMove, { capture: true, passive: false });
-    window.addEventListener("touchend", onTouchEnd, { passive: true });
-    window.addEventListener("touchcancel", reset, { passive: true });
+    window.addEventListener("touchend", onTouchEnd, { capture: true, passive: true });
+    window.addEventListener("touchcancel", reset, { capture: true, passive: true });
 
     return () => {
       window.removeEventListener("touchstart", onTouchStart, { capture: true });
       window.removeEventListener("touchmove", onTouchMove, { capture: true });
-      window.removeEventListener("touchend", onTouchEnd);
-      window.removeEventListener("touchcancel", reset);
+      window.removeEventListener("touchend", onTouchEnd, { capture: true });
+      window.removeEventListener("touchcancel", reset, { capture: true });
     };
   }, [isMobile, openMobile, setOpenMobile]);
 

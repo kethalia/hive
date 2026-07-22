@@ -264,6 +264,25 @@ describe("SidebarEdgeHandle", () => {
     });
   });
 
+  it("opens before xterm-style document touch-end consumption", async () => {
+    renderHandle();
+    const surface = screen.getByTestId("page-content");
+    const consumeTouchEnd = (event: Event) => event.stopPropagation();
+    document.addEventListener("touchend", consumeTouchEnd);
+
+    try {
+      touchEvent("touchstart", [touchPoint(1, 180, 200)], surface);
+      touchEvent("touchmove", [touchPoint(1, 280, 204)], surface);
+      touchEvent("touchend", [], surface);
+
+      await waitFor(() => {
+        expect(sidebarState.setOpenMobile).toHaveBeenCalledWith(true);
+      });
+    } finally {
+      document.removeEventListener("touchend", consumeTouchEnd);
+    }
+  });
+
   it("reserves pane headers for drag and long-press gestures", () => {
     sidebarState = {
       isMobile: true,
