@@ -141,6 +141,37 @@ async function dispatchTwoFingerPinch(page: Page, target: Locator) {
   }
 }
 
+async function dispatchLeftEdgeSwipe(page: Page, target: Locator) {
+  const box = await target.boundingBox();
+  if (!box) throw new Error("Edge-swipe target has no measurable bounds.");
+
+  const session = await page.context().newCDPSession(page);
+  const startX = 4;
+  const endX = 88;
+  const y = box.y + box.height * 0.55;
+
+  try {
+    await session.send("Input.dispatchTouchEvent", {
+      type: "touchStart",
+      touchPoints: [cdpTouchPoint(1, { x: startX, y })],
+    });
+    for (const progress of [0.25, 0.5, 0.75, 1]) {
+      await session.send("Input.dispatchTouchEvent", {
+        type: "touchMove",
+        touchPoints: [
+          cdpTouchPoint(1, {
+            x: startX + (endX - startX) * progress,
+            y,
+          }),
+        ],
+      });
+    }
+    await session.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+  } finally {
+    await session.detach();
+  }
+}
+
 async function dispatchTouchLongPress(page: Page, target: Locator) {
   const box = await target.boundingBox();
   if (!box) throw new Error("Long-press target has no measurable bounds.");
@@ -172,9 +203,18 @@ function activeTouchTerminalFrame(page: Page) {
 
 async function ensureTwoTouchTerminals(page: Page) {
   const terminalSurfaces = page.locator('[data-terminal-navigation-surface="true"]:visible');
-  let createdSessionName: string | null = null;
-  if ((await terminalSurfaces.count()) < 2) {
-    createdSessionName = `gesture-e2e-${Date.now()}`;
+  const createdSessionNames = await page
+    .locator('[data-workspace-window-id^="gesture-e2e-"]:visible')
+    .evaluateAll((panes) =>
+      panes.flatMap((pane) => {
+        const sessionName = pane.getAttribute("data-workspace-window-id");
+        return sessionName ? [sessionName] : [];
+      }),
+    );
+  while ((await terminalSurfaces.count()) < 2) {
+    const sessionCountBefore = await terminalSurfaces.count();
+    const createdSessionName = `gesture-e2e-${Date.now()}-${createdSessionNames.length + 1}`;
+    createdSessionNames.push(createdSessionName);
     await page.getByRole("button", { name: "Open workspace command palette" }).click();
     await page.getByRole("combobox").fill(createdSessionName);
     await page
@@ -182,9 +222,10 @@ async function ensureTwoTouchTerminals(page: Page) {
         name: new RegExp(`^New terminal session named ${createdSessionName}`),
       })
       .click();
+    await expect.poll(() => terminalSurfaces.count()).toBeGreaterThan(sessionCountBefore);
   }
   await expect.poll(() => terminalSurfaces.count()).toBeGreaterThanOrEqual(2);
-  return createdSessionName;
+  return createdSessionNames;
 }
 
 async function verifyTerminalTouchNavigation(page: Page) {
@@ -200,17 +241,26 @@ async function verifyTerminalTouchNavigation(page: Page) {
   await expect
     .poll(async () => (await activePaneLabel.textContent())?.trim())
     .not.toBe(firstTerminalLabel);
+  const terminalLabelAfterLeftSwipe = (await activePaneLabel.textContent())?.trim();
+  if (!terminalLabelAfterLeftSwipe)
+    throw new Error("Active terminal has no label after left swipe.");
   await dispatchTwoFingerSwipe(
     page,
     activeTouchTerminalFrame(page).locator('[data-terminal-navigation-surface="true"]'),
     "right",
   );
-  await expect(activePaneLabel).toHaveText(firstTerminalLabel);
+  await expect
+    .poll(async () => (await activePaneLabel.textContent())?.trim())
+    .not.toBe(terminalLabelAfterLeftSwipe);
+  const terminalLabelAfterRightSwipe = (await activePaneLabel.textContent())?.trim();
+  if (!terminalLabelAfterRightSwipe) {
+    throw new Error("Active terminal has no label after right swipe.");
+  }
   await dispatchTwoFingerPinch(
     page,
     activeTouchTerminalFrame(page).locator('[data-terminal-navigation-surface="true"]'),
   );
-  await expect(activePaneLabel).toHaveText(firstTerminalLabel);
+  await expect(activePaneLabel).toHaveText(terminalLabelAfterRightSwipe);
 }
 
 async function verifyWorkspaceTouchNavigation(page: Page) {
@@ -230,9 +280,31 @@ async function verifyWorkspaceTouchNavigation(page: Page) {
   return { boardTabs, createdBoard, initialBoardCount };
 }
 
+async function verifySidebarEdgeNavigation(page: Page) {
+  const urlBeforeSwipe = page.url();
+  const historyLengthBeforeSwipe = await page.evaluate(() => history.length);
+  await dispatchLeftEdgeSwipe(
+    page,
+    activeTouchTerminalFrame(page).locator('[data-terminal-navigation-surface="true"]'),
+  );
+
+  const mobileSidebar = page.locator('[data-sidebar="sidebar"][data-mobile="true"]');
+  await expect(mobileSidebar).toBeVisible();
+  await expect(page).toHaveURL(urlBeforeSwipe);
+  expect(await page.evaluate(() => history.length)).toBe(historyLengthBeforeSwipe);
+  await page.keyboard.press("Escape");
+  await expect(mobileSidebar).toBeHidden();
+}
+
 async function verifyNativePaneActions(page: Page, testInfo: TestInfo) {
   const frame = activeTouchTerminalFrame(page);
+  const paneHeader = frame.locator('[data-testid$="-header"]');
   const moreButton = frame.getByRole("button", { name: /^Open actions for / });
+  await expect(paneHeader.getByRole("button")).toHaveCount(1);
+  await expect(paneHeader.locator('[data-testid$="-drag-icon"]')).toHaveCount(0);
+  await expect(page.getByTestId("git-terminal-font-size-controls")).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Decrease font size" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Increase font size" })).toBeVisible();
   const moreButtonBox = await moreButton.boundingBox();
   if (!moreButtonBox) throw new Error("Pane action button has no measurable bounds.");
   expect(moreButtonBox.width).toBeGreaterThanOrEqual(44);
@@ -244,6 +316,7 @@ async function verifyNativePaneActions(page: Page, testInfo: TestInfo) {
   await expect(actionSheet.locator("[cmdk-root]")).toHaveCount(0);
   const directActions = actionSheet.locator("fieldset > button");
   await expect.poll(() => directActions.count()).toBeGreaterThanOrEqual(5);
+  await expect(actionSheet.locator('[data-testid^="workspace-pane-action-move-"]')).toHaveCount(0);
   expect(
     await directActions.evaluateAll((buttons) =>
       buttons.every((button) => button.getBoundingClientRect().height >= 44),
@@ -255,14 +328,19 @@ async function verifyNativePaneActions(page: Page, testInfo: TestInfo) {
 
   await dispatchTouchLongPress(page, frame.locator('[data-testid$="-header"]'));
   await expect(actionSheet).toBeVisible();
-  await actionSheet.getByRole("button", { name: "Close pane actions" }).click();
+  await page.keyboard.press("Escape");
+  await expect(actionSheet).toBeHidden();
 }
 
 async function cleanupTestSession(page: Page, sessionName: string) {
   await page.keyboard.press("Escape").catch(() => undefined);
   const workspacePane = page.locator(`[data-workspace-window-id="${sessionName}"]`);
   if (await workspacePane.isVisible().catch(() => false)) {
-    await workspacePane.getByRole("button", { name: `Remove ${sessionName}`, exact: true }).click();
+    await workspacePane.getByRole("button", { name: /^Open actions for / }).click();
+    await page
+      .getByTestId("workspace-pane-action-sheet")
+      .getByRole("button", { name: /^Remove terminal/ })
+      .click();
     await expect(workspacePane).toHaveCount(0);
   }
   const revealActions = page.getByTestId(`show-terminal-session-actions-${sessionName}`);
@@ -1140,12 +1218,15 @@ test.describe("authenticated Hive workflows", () => {
     const workspaceHref = await workspaceLink.getAttribute("href");
     if (!workspaceHref) throw new Error("Running workspace link has no destination.");
     await page.goto(new URL(workspaceHref, appUrl).toString());
-    await expect(page.getByTestId("multi-session-workspace")).toBeVisible({ timeout: 30_000 });
-    await expectConnectedTerminal(page);
+    await expect(
+      page.locator('[data-testid="multi-session-workspace"], [data-testid="multi-session-empty"]'),
+    ).toBeVisible({ timeout: 30_000 });
 
-    let createdSessionName: string | null = null;
+    let createdSessionNames: string[] = [];
     try {
-      createdSessionName = await ensureTwoTouchTerminals(page);
+      createdSessionNames = await ensureTwoTouchTerminals(page);
+      await expectConnectedTerminal(page);
+      await verifySidebarEdgeNavigation(page);
       await verifyTerminalTouchNavigation(page);
       const { boardTabs, createdBoard, initialBoardCount } =
         await verifyWorkspaceTouchNavigation(page);
@@ -1156,7 +1237,7 @@ test.describe("authenticated Hive workflows", () => {
       await expect(boardTabs).toHaveCount(initialBoardCount);
       await capture(page, testInfo, "mobile-touch-workspace-navigation");
     } finally {
-      if (createdSessionName) {
+      for (const createdSessionName of createdSessionNames) {
         await cleanupTestSession(page, createdSessionName);
       }
     }
