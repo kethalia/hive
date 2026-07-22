@@ -1299,7 +1299,15 @@ async function verifySustainedTerminalActivity(page: Page, testInfo: TestInfo, t
   );
   const initialWindowIds = await visibleWorkspaceWindowIds(page);
 
-  await stressWindow.getByRole("button", { name: /^Open session logs for / }).click();
+  const openLogsButton = stressWindow.getByRole("button", {
+    name: /^Open session logs for /,
+  });
+  if (await openLogsButton.isVisible().catch(() => false)) {
+    await openLogsButton.click();
+  } else {
+    await stressWindow.getByRole("button", { name: /^Open actions for / }).click();
+    await page.getByTestId("workspace-pane-action-logs").click();
+  }
   const eventLogPane = page.getByTestId("workspace-tool-pane-logs");
   try {
     await expect(eventLogPane).toBeVisible({ timeout: 15_000 });
