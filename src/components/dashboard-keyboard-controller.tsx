@@ -100,7 +100,7 @@ function openWorkspaceHref(workspaceId: string): string {
 
 export function DashboardKeyboardController() {
   const router = useRouter();
-  const { openMobile, setOpen, setOpenMobile, toggleSidebar } = useSidebar();
+  const { setOpen, setOpenMobile, toggleSidebar } = useSidebar();
   const isMobile = useIsMobile();
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [paletteQuery, setPaletteQuery] = useState("");
@@ -115,8 +115,11 @@ export function DashboardKeyboardController() {
   const activePaletteSource = paletteSources.at(-1) ?? null;
 
   useGlobalCommandPaletteGesture({
-    enabled: isMobile && !openMobile && !paletteOpen,
-    onOpen: () => setPaletteOpen(true),
+    enabled: isMobile && !paletteOpen,
+    onOpen: () => {
+      setOpenMobile(false);
+      setPaletteOpen(true);
+    },
   });
 
   const toggleDashboardFullscreen = useCallback(() => {

@@ -418,15 +418,22 @@ async function verifyGlobalCommandDrawerGesture(page: Page) {
 
   await dispatchOneFingerLeftSwipeFromRightEdge(page, terminalSurface);
 
-  await expect(page.getByRole("dialog").last()).toBeVisible();
-  await expect(page.getByText("Workspaces", { exact: true }).last()).toBeVisible();
-  await expect(page.getByText("Templates", { exact: true }).last()).toBeVisible();
-  await expect(page.getByText("Terminal status", { exact: true }).last()).toBeVisible();
-  await expect(page.getByText("New terminal session in workspace", { exact: true })).toBeVisible();
+  const globalDrawer = page.getByRole("dialog").filter({ has: page.getByRole("combobox") });
+  await expect(globalDrawer).toBeVisible();
+  await expect(
+    globalDrawer.getByRole("option", { name: /Workspaces Open Coder workspaces/ }),
+  ).toBeVisible();
+  await expect(
+    globalDrawer.getByRole("option", { name: /Templates Review and push/ }),
+  ).toBeVisible();
+  await expect(globalDrawer.getByRole("option", { name: /Terminal status Inspect/ })).toBeVisible();
+  await expect(
+    globalDrawer.getByRole("option", { name: /New terminal session in workspace/ }),
+  ).toBeVisible();
   await expect(page).toHaveURL(urlBeforeSwipe);
   expect(await page.evaluate(() => history.length)).toBe(historyLengthBeforeSwipe);
   await page.keyboard.press("Escape");
-  await expect(page.getByRole("dialog").last()).toBeHidden();
+  await expect(globalDrawer).toBeHidden();
 }
 
 async function verifyNativePaneActions(page: Page, testInfo: TestInfo) {
