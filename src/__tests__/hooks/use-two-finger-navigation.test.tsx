@@ -37,7 +37,7 @@ function dispatchTouch(
 describe("useTwoFingerNavigation", () => {
   afterEach(cleanup);
 
-  it("routes horizontal two-finger swipes by their navigation surface", () => {
+  it("routes horizontal two-finger swipes by their navigation surface", async () => {
     const onNavigate = vi.fn();
     render(<NavigationHarness onNavigate={onNavigate} />);
 
@@ -51,6 +51,7 @@ describe("useTwoFingerNavigation", () => {
       touch(2, 130, 82),
     ]);
     dispatchTouch(terminal, "touchend", []);
+    await Promise.resolve();
 
     expect(terminalStart.defaultPrevented).toBe(true);
     expect(terminalMove.defaultPrevented).toBe(true);
@@ -60,6 +61,7 @@ describe("useTwoFingerNavigation", () => {
     dispatchTouch(workspace, "touchstart", [touch(3, 80, 80), touch(4, 140, 80)]);
     dispatchTouch(workspace, "touchmove", [touch(3, 150, 82), touch(4, 210, 82)]);
     dispatchTouch(workspace, "touchend", []);
+    await Promise.resolve();
 
     expect(onNavigate).toHaveBeenLastCalledWith("workspace", "right");
   });
@@ -78,7 +80,7 @@ describe("useTwoFingerNavigation", () => {
     expect(onNavigate).not.toHaveBeenCalled();
   });
 
-  it("routes gestures from the full terminal pane and workspace root", () => {
+  it("routes gestures from the full terminal pane and workspace root", async () => {
     const onNavigate = vi.fn();
     render(<NavigationHarness onNavigate={onNavigate} />);
 
@@ -86,16 +88,18 @@ describe("useTwoFingerNavigation", () => {
     dispatchTouch(terminalHeader, "touchstart", [touch(1, 180, 80), touch(2, 220, 120)]);
     dispatchTouch(terminalHeader, "touchmove", [touch(1, 110, 82), touch(2, 150, 122)]);
     dispatchTouch(terminalHeader, "touchend", []);
+    await Promise.resolve();
     expect(onNavigate).toHaveBeenLastCalledWith("terminal", "left");
 
     const workspaceRootSurface = screen.getByTestId("workspace-root-surface");
     dispatchTouch(workspaceRootSurface, "touchstart", [touch(3, 80, 80), touch(4, 120, 120)]);
     dispatchTouch(workspaceRootSurface, "touchmove", [touch(3, 150, 82), touch(4, 190, 122)]);
     dispatchTouch(workspaceRootSurface, "touchend", []);
+    await Promise.resolve();
     expect(onNavigate).toHaveBeenLastCalledWith("workspace", "right");
   });
 
-  it("owns two-finger movement before nested one-finger handlers can consume it", () => {
+  it("owns two-finger movement before nested one-finger handlers can consume it", async () => {
     const onNavigate = vi.fn();
     render(<NavigationHarness onNavigate={onNavigate} />);
 
@@ -105,13 +109,14 @@ describe("useTwoFingerNavigation", () => {
     dispatchTouch(terminal, "touchstart", [touch(1, 180, 80), touch(2, 220, 120)]);
     const move = dispatchTouch(terminal, "touchmove", [touch(1, 110, 82), touch(2, 150, 122)]);
     dispatchTouch(terminal, "touchend", []);
+    await Promise.resolve();
 
     expect(move.defaultPrevented).toBe(true);
     expect(nestedMove).not.toHaveBeenCalled();
     expect(onNavigate).toHaveBeenCalledWith("terminal", "left");
   });
 
-  it("owns touch end until both fingers lift so the terminal cannot restore its old focus", () => {
+  it("navigates after nested touch-end handlers finish and pending sensors release", async () => {
     const onNavigate = vi.fn();
     render(<NavigationHarness onNavigate={onNavigate} />);
 
@@ -123,13 +128,17 @@ describe("useTwoFingerNavigation", () => {
     const firstEnd = dispatchTouch(terminal, "touchend", [touch(2, 150, 122)]);
 
     expect(firstEnd.defaultPrevented).toBe(true);
-    expect(nestedEnd).not.toHaveBeenCalled();
+    expect(nestedEnd).toHaveBeenCalledOnce();
     expect(onNavigate).not.toHaveBeenCalled();
 
     const finalEnd = dispatchTouch(terminal, "touchend", []);
 
     expect(finalEnd.defaultPrevented).toBe(true);
-    expect(nestedEnd).not.toHaveBeenCalled();
+    expect(nestedEnd).toHaveBeenCalledTimes(2);
+    expect(onNavigate).not.toHaveBeenCalled();
+
+    await Promise.resolve();
+
     expect(onNavigate).toHaveBeenCalledWith("terminal", "left");
   });
 });

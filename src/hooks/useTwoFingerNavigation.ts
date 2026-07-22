@@ -79,12 +79,13 @@ export function useTwoFingerNavigation({
     const handleTouchEnd = (event: TouchEvent) => {
       if (!surface || !detector.active) return;
       if (event.cancelable) event.preventDefault();
-      event.stopPropagation();
       if (event.touches.length > 0) return;
       const completedSurface = surface;
       const direction = detector.end();
       surface = null;
-      if (direction) onNavigateRef.current(completedSurface, direction);
+      if (direction) {
+        queueMicrotask(() => onNavigateRef.current(completedSurface, direction));
+      }
     };
 
     root.addEventListener("touchstart", handleTouchStart, { capture: true, passive: false });

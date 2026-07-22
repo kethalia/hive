@@ -82,6 +82,7 @@ async function dispatchTwoFingerSwipe(page: Page, target: Locator, direction: "l
   if (!box) throw new Error("Gesture target has no measurable bounds.");
 
   const session = await page.context().newCDPSession(page);
+
   const travel = Math.min(Math.max(box.width * 0.4, 80), box.width * 0.6);
   const startX = direction === "left" ? box.x + box.width * 0.75 : box.x + box.width * 0.25;
   const endX = direction === "left" ? startX - travel : startX + travel;
@@ -286,7 +287,8 @@ async function verifyMobileWorkspaceWindowDrag(page: Page) {
   const draggedWindow = terminalWindows.first();
   const targetWindow = terminalWindows.nth(1);
   const dragHeader = draggedWindow.locator('[data-testid$="-header"]');
-  const dragBox = await dragHeader.boundingBox();
+  const dragActivator = dragHeader.locator('[data-testid$="-title"]');
+  const dragBox = await dragActivator.boundingBox();
   const targetBox = await targetWindow.boundingBox();
   if (!dragBox || !targetBox) throw new Error("Mobile workspace windows could not be measured.");
 
