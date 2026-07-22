@@ -315,6 +315,8 @@ async function verifyTerminalControlsOwnHorizontalSwipes(page: Page) {
   const globalDrawer = page.getByRole("dialog", { name: "Global navigation", exact: true });
 
   await expect(controls).toHaveAttribute("data-sidebar-gesture-ignore", "true");
+  await expect(carousel.getByRole("group", { name: "Favorite window controls" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Show Windows controls" })).toHaveCount(0);
   await dispatchOneFingerRightSwipe(page, carousel, "surface");
   await expect(visibleLeftSidebar).toHaveCount(0);
   await expect(globalDrawer).toBeHidden();
@@ -324,17 +326,11 @@ async function verifyTerminalControlsOwnHorizontalSwipes(page: Page) {
   await expect(globalDrawer).toBeHidden();
 }
 
-async function verifyMobileCommandEntryPointsUseRightSidebar(page: Page) {
+async function verifyMobileAddSessionUsesRightSidebar(page: Page) {
   const globalDrawer = page.getByRole("dialog", { name: "Global navigation", exact: true });
   const legacyDrawer = page.getByRole("dialog", { name: "Command palette", exact: true });
 
   await page.getByRole("button", { name: "Open workspace command palette" }).click();
-  await expect(globalDrawer).toBeVisible();
-  await expect(legacyDrawer).toHaveCount(0);
-  await page.keyboard.press("Escape");
-  await expect(globalDrawer).toBeHidden();
-
-  await page.getByRole("button", { name: "Open favorite window switcher" }).click();
   await expect(globalDrawer).toBeVisible();
   await expect(legacyDrawer).toHaveCount(0);
   await page.keyboard.press("Escape");
@@ -1378,7 +1374,7 @@ test.describe("authenticated Hive workflows", () => {
     try {
       createdSessionNames = await ensureThreeTouchTerminals(page);
       await expectConnectedTerminal(page);
-      await verifyMobileCommandEntryPointsUseRightSidebar(page);
+      await verifyMobileAddSessionUsesRightSidebar(page);
       await verifyTerminalControlsOwnHorizontalSwipes(page);
       await verifySidebarEdgeNavigation(page);
       await verifyGlobalCommandDrawerGesture(page);
