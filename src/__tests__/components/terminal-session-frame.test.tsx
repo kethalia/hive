@@ -88,6 +88,36 @@ describe("TerminalSessionFrame", () => {
     vi.useRealTimers();
   });
 
+  it("shows only the More action and disables rearranging on touch layouts", () => {
+    const onHeaderPointerDown = vi.fn();
+
+    render(
+      <TerminalSessionFrame
+        label="Terminal one"
+        dataTestId="terminal-one"
+        layoutMode="tiled"
+        onHeaderPointerDown={onHeaderPointerDown}
+        onOpenActions={vi.fn()}
+        touchOptimizedActions
+        headerActions={<button type="button">Files</button>}
+        onClose={vi.fn()}
+      >
+        <div>Terminal</div>
+      </TerminalSessionFrame>,
+    );
+
+    const header = screen.getByTestId("terminal-one-header");
+    expect(header.querySelectorAll("button")).toHaveLength(1);
+    expect(screen.getByRole("button", { name: "Open actions for Terminal one" })).toBeVisible();
+    expect(screen.queryByRole("button", { name: "Files" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Close Terminal one" })).not.toBeInTheDocument();
+    expect(screen.queryByTestId("terminal-one-drag-icon")).not.toBeInTheDocument();
+    expect(header).not.toHaveAttribute("data-window-drag-surface");
+
+    fireEvent.pointerDown(screen.getByTestId("terminal-one-title"));
+    expect(onHeaderPointerDown).not.toHaveBeenCalled();
+  });
+
   it("cancels a header long press when touch movement exceeds the drag threshold", () => {
     vi.useFakeTimers();
     const onOpenActions = vi.fn();

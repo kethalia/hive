@@ -3524,7 +3524,7 @@ export function MultiSessionWorkspace({
   ]);
 
   const renderGitFontControls = () => {
-    if (!isUnifiedSource) return null;
+    if (!isUnifiedSource || isComposeSheet) return null;
 
     return (
       <TerminalFontSizeControls
@@ -4027,6 +4027,14 @@ export function MultiSessionWorkspace({
   const paneActionSession = paneActionTarget
     ? sessions.find((session) => session.sessionName === paneActionTarget.sessionName)
     : undefined;
+  const paneActionTool =
+    paneActionTarget?.kind === "tool"
+      ? paneActionModel?.toolPanes.find((pane) => pane.key === paneActionTarget.windowId)
+      : undefined;
+  const paneActionToolUrl =
+    paneActionTool?.url && !paneActionTool.url.startsWith("/api/workspace-proxy/")
+      ? paneActionTool.url
+      : null;
 
   const activatePaneActionTarget = () => {
     if (!paneActionTarget) return;
@@ -4076,6 +4084,19 @@ export function MultiSessionWorkspace({
           icon: "activate",
           onSelect: activatePaneActionTarget,
         },
+        ...(paneActionToolUrl
+          ? [
+              {
+                id: "pop-out",
+                label: "Open in new tab",
+                description: "Open this workspace tool separately",
+                icon: "pop-out" as const,
+                onSelect: () => {
+                  window.open(paneActionToolUrl, "_blank", "noopener,noreferrer");
+                },
+              },
+            ]
+          : []),
         ...(paneActionTarget.kind === "terminal" && paneActionSession
           ? [
               {
@@ -4116,18 +4137,20 @@ export function MultiSessionWorkspace({
               },
             ]
           : []),
-        ...(["left", "right", "up", "down"] as const).map((direction) => ({
-          id: `move-${direction}`,
-          label: `Move ${direction}`,
-          description: "Rearrange the tiled layout",
-          icon: `move-${direction}` as const,
-          disabled: !findWorkspaceWindowInDirection(
-            paneActionModel?.windowRects ?? new Map(),
-            paneActionTarget.windowId,
-            direction,
-          ),
-          onSelect: () => movePaneActionTarget(direction),
-        })),
+        ...(isComposeSheet
+          ? []
+          : (["left", "right", "up", "down"] as const).map((direction) => ({
+              id: `move-${direction}`,
+              label: `Move ${direction}`,
+              description: "Rearrange the tiled layout",
+              icon: `move-${direction}` as const,
+              disabled: !findWorkspaceWindowInDirection(
+                paneActionModel?.windowRects ?? new Map(),
+                paneActionTarget.windowId,
+                direction,
+              ),
+              onSelect: () => movePaneActionTarget(direction),
+            }))),
         {
           id: "remove",
           label:

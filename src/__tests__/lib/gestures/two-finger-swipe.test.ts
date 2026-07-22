@@ -40,7 +40,7 @@ describe("createTwoFingerSwipeDetector", () => {
     expect(detector.end()).toBeNull();
   });
 
-  it("yields to pinch zoom when finger spacing changes materially", () => {
+  it("rejects navigation when finger spacing changes materially", () => {
     const detector = createTwoFingerSwipeDetector();
     detector.start(points(100, 200));
     const progress = detector.move(points(70, 230));

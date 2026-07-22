@@ -75,7 +75,7 @@ export const TWO_FINGER_SWIPE_MAX_VERTICAL_PX = 32;
 
 /**
  * Maximum relative change in finger spacing before the gesture belongs to
- * pinch-to-zoom instead of navigation.
+ * a pinch that must not trigger navigation.
  */
 export const TWO_FINGER_SWIPE_MAX_SCALE_DELTA = 0.08;
 

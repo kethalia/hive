@@ -39,13 +39,17 @@ describe("useTwoFingerNavigation", () => {
     render(<NavigationHarness onNavigate={onNavigate} />);
 
     const terminal = screen.getByTestId("terminal-surface");
-    dispatchTouch(terminal, "touchstart", [touch(1, 140, 80), touch(2, 200, 80)]);
+    const terminalStart = dispatchTouch(terminal, "touchstart", [
+      touch(1, 140, 80),
+      touch(2, 200, 80),
+    ]);
     const terminalMove = dispatchTouch(terminal, "touchmove", [
       touch(1, 70, 82),
       touch(2, 130, 82),
     ]);
     dispatchTouch(terminal, "touchend", []);
 
+    expect(terminalStart.defaultPrevented).toBe(true);
     expect(terminalMove.defaultPrevented).toBe(true);
     expect(onNavigate).toHaveBeenCalledWith("terminal", "left");
 
@@ -57,16 +61,17 @@ describe("useTwoFingerNavigation", () => {
     expect(onNavigate).toHaveBeenLastCalledWith("workspace", "right");
   });
 
-  it("leaves pinch gestures unclaimed", () => {
+  it("blocks native pinch zoom without navigating", () => {
     const onNavigate = vi.fn();
     render(<NavigationHarness onNavigate={onNavigate} />);
 
     const terminal = screen.getByTestId("terminal-surface");
-    dispatchTouch(terminal, "touchstart", [touch(1, 100, 80), touch(2, 160, 80)]);
+    const start = dispatchTouch(terminal, "touchstart", [touch(1, 100, 80), touch(2, 160, 80)]);
     const move = dispatchTouch(terminal, "touchmove", [touch(1, 60, 80), touch(2, 200, 80)]);
     dispatchTouch(terminal, "touchend", []);
 
-    expect(move.defaultPrevented).toBe(false);
+    expect(start.defaultPrevented).toBe(true);
+    expect(move.defaultPrevented).toBe(true);
     expect(onNavigate).not.toHaveBeenCalled();
   });
 });

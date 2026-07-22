@@ -61,13 +61,17 @@ export function useTwoFingerNavigation({
       }
 
       surface = navigationSurface(event.target);
-      if (!surface || !detector.start(gestureTouchPoints(event.touches))) reset();
+      if (!surface || !detector.start(gestureTouchPoints(event.touches))) {
+        reset();
+        return;
+      }
+      if (event.cancelable) event.preventDefault();
     };
 
     const handleTouchMove = (event: TouchEvent) => {
       if (!surface || !detector.active) return;
-      const progress = detector.move(gestureTouchPoints(event.touches));
-      if (progress.ownsGesture && event.cancelable) event.preventDefault();
+      detector.move(gestureTouchPoints(event.touches));
+      if (event.cancelable) event.preventDefault();
     };
 
     const handleTouchEnd = (event: TouchEvent) => {
@@ -78,7 +82,7 @@ export function useTwoFingerNavigation({
       if (direction) onNavigateRef.current(completedSurface, direction);
     };
 
-    root.addEventListener("touchstart", handleTouchStart, { capture: true, passive: true });
+    root.addEventListener("touchstart", handleTouchStart, { capture: true, passive: false });
     root.addEventListener("touchmove", handleTouchMove, { capture: true, passive: false });
     root.addEventListener("touchend", handleTouchEnd, { capture: true, passive: true });
     root.addEventListener("touchcancel", reset, { capture: true, passive: true });

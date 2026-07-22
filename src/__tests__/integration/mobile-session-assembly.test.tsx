@@ -51,10 +51,6 @@ const terminalState = vi.hoisted(() => ({
   }>,
 }));
 
-const pinchZoomState = vi.hoisted(() => ({
-  bindCallCount: 0,
-}));
-
 const gestureState = vi.hoisted(() => ({
   dragConfigs: [] as unknown[],
   dragHandlers: [] as Array<(state: Record<string, unknown>) => void>,
@@ -391,13 +387,6 @@ vi.mock("@/components/ui/command", () => ({
   CommandShortcut: ({ children }: { children: ReactNode }) => <span>{children}</span>,
 }));
 
-vi.mock("@/hooks/useTerminalPinchZoom", () => ({
-  useTerminalPinchZoom: () => () => {
-    pinchZoomState.bindCallCount += 1;
-    return { "data-terminal-pinch-zoom": "bound" };
-  },
-}));
-
 vi.mock("@xterm/addon-fit", () => {
   class FitAddon {
     fit = terminalState.fit;
@@ -571,7 +560,6 @@ beforeEach(() => {
   terminalState.scrollToBottom.mockClear();
   terminalState.send.mockClear();
   terminalState.terminalInstances.length = 0;
-  pinchZoomState.bindCallCount = 0;
   gestureState.dragConfigs.length = 0;
   gestureState.dragHandlers.length = 0;
   gestureState.gestureConfigs.length = 0;
@@ -705,7 +693,7 @@ describe("mobile session assembly", () => {
     expect(reducedContent.style.transition).toBe("");
   });
 
-  it("binds terminal pinch zoom to the interactive terminal host", async () => {
+  it("keeps terminal pinch zoom unbound so two-finger navigation owns the gesture", async () => {
     const onTerminalReady = vi.fn();
 
     const { container } = render(
@@ -717,8 +705,7 @@ describe("mobile session assembly", () => {
       />,
     );
 
-    expect(container.querySelector('[data-terminal-pinch-zoom="bound"]')).not.toBeNull();
-    expect(pinchZoomState.bindCallCount).toBeGreaterThan(0);
+    expect(container.querySelector("[data-terminal-pinch-zoom]")).toBeNull();
 
     await waitFor(() => {
       expect(onTerminalReady).toHaveBeenCalledTimes(1);

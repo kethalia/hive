@@ -1754,16 +1754,27 @@ describe("MultiSessionWorkspace", () => {
 
   it("opens direct native pane actions from the touch-sized More control", async () => {
     mockUseIsComposeSheet.mockReturnValue(true);
+    const openSpy = vi.spyOn(window, "open").mockImplementation(() => null);
     await renderTwoSessionWorkspace();
 
     const more = screen.getByTestId("workspace-pane-main-session-actions");
     expect(more).toHaveClass("size-11", "min-h-11");
+    const header = screen.getByTestId("workspace-pane-main-session-header");
+    expect(header.querySelectorAll("button")).toHaveLength(1);
+    expect(screen.queryByTestId("workspace-tools-main-session")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("remove-pane-pane-main-session")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("workspace-pane-main-session-drag-icon")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("git-terminal-font-size-controls")).not.toBeInTheDocument();
     fireEvent.click(more);
 
     expect(screen.getByTestId("workspace-pane-action-sheet")).toBeInTheDocument();
     expect(screen.getByTestId("workspace-pane-action-activate")).toBeInTheDocument();
     expect(screen.getByTestId("workspace-pane-action-files")).toBeInTheDocument();
     expect(screen.getByTestId("workspace-pane-action-remove")).toBeInTheDocument();
+    expect(screen.queryByTestId("workspace-pane-action-move-left")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("workspace-pane-action-move-right")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("workspace-pane-action-move-up")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("workspace-pane-action-move-down")).not.toBeInTheDocument();
     expect(document.querySelector("[cmdk-root]")).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByTestId("workspace-pane-action-files"));
@@ -1772,6 +1783,20 @@ describe("MultiSessionWorkspace", () => {
         expect.objectContaining({ sessionName: "main-session", tool: "files" }),
       );
     });
+
+    const toolHeader = await screen.findByTestId("workspace-tool-pane-files-header");
+    expect(toolHeader.querySelectorAll("button")).toHaveLength(1);
+    expect(screen.queryByTestId("pop-out-workspace-tool-files")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("remove-workspace-tool-files")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByTestId("workspace-tool-pane-files-actions"));
+    expect(screen.getByTestId("workspace-pane-action-pop-out")).toBeInTheDocument();
+    expect(screen.queryByTestId("workspace-pane-action-move-left")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByTestId("workspace-pane-action-pop-out"));
+    expect(openSpy).toHaveBeenCalledWith(
+      "https://filebrowser.test/files/home/coder",
+      "_blank",
+      "noopener,noreferrer",
+    );
   });
 
   it("wraps loading and failure states in the visual viewport shell on mobile", async () => {

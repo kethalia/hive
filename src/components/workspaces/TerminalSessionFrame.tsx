@@ -86,12 +86,14 @@ interface SingleTerminalSessionHeaderProps {
   sessionLabel: string;
   sessionSubtitle?: string;
   className?: string;
+  showFontSizeControls?: boolean;
 }
 
 export function SingleTerminalSessionHeader({
   sessionLabel,
   sessionSubtitle,
   className,
+  showFontSizeControls = true,
 }: SingleTerminalSessionHeaderProps) {
   return (
     <header
@@ -121,7 +123,9 @@ export function SingleTerminalSessionHeader({
         className="flex min-w-0 items-center justify-end gap-1"
         data-testid="single-terminal-header-right"
       >
-        <TerminalFontSizeControls label="Single terminal font size controls" />
+        {showFontSizeControls ? (
+          <TerminalFontSizeControls label="Single terminal font size controls" />
+        ) : null}
       </div>
     </header>
   );
@@ -183,6 +187,7 @@ export function TerminalSessionFrame({
   paneState,
 }: TerminalSessionFrameProps) {
   const interactive = Boolean(onActivate) && !disabled;
+  const draggableHeader = !disabled && !touchOptimizedActions && Boolean(onHeaderPointerDown);
   const longPressTimerRef = useRef<number | null>(null);
   const longPressTouchRef = useRef<{ id: number; x: number; y: number } | null>(null);
 
@@ -226,7 +231,7 @@ export function TerminalSessionFrame({
   }
 
   function handleHeaderPointerDown(event: PointerEvent<HTMLDivElement>) {
-    if (disabled) return;
+    if (!draggableHeader) return;
     const target = event.target;
     const interactiveTarget =
       target instanceof Element
@@ -319,9 +324,9 @@ export function TerminalSessionFrame({
         <div
           className={cn(
             "flex min-h-10 shrink-0 select-none items-center gap-1 border-b border-white/10 bg-zinc-950 px-2 text-white",
-            !disabled && onHeaderPointerDown && "touch-none cursor-grab active:cursor-grabbing",
+            draggableHeader && "touch-none cursor-grab active:cursor-grabbing",
           )}
-          data-window-drag-surface={!disabled && onHeaderPointerDown ? "true" : "false"}
+          data-window-drag-surface={draggableHeader ? "true" : undefined}
           data-testid={dataTestId ? `${dataTestId}-header` : undefined}
           onContextMenu={handleHeaderContextMenu}
           onPointerDown={handleHeaderPointerDown}
@@ -331,7 +336,7 @@ export function TerminalSessionFrame({
           onTouchCancel={clearHeaderLongPress}
         >
           <div className="flex min-w-0 flex-1 items-center gap-1.5">
-            {!disabled && onHeaderPointerDown ? (
+            {draggableHeader ? (
               <GripVertical
                 className="size-3 shrink-0 text-white/55"
                 aria-hidden="true"
@@ -355,7 +360,7 @@ export function TerminalSessionFrame({
               ) : null}
             </span>
           </div>
-          {headerActions}
+          {touchOptimizedActions ? null : headerActions}
           {onOpenActions ? (
             <Button
               type="button"
@@ -376,7 +381,7 @@ export function TerminalSessionFrame({
               <Ellipsis className="size-3" />
             </Button>
           ) : null}
-          {onClose ? (
+          {!touchOptimizedActions && onClose ? (
             <Button
               type="button"
               variant="destructive"

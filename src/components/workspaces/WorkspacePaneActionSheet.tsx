@@ -7,6 +7,7 @@ import {
   ArrowRight,
   ArrowUp,
   Code2,
+  ExternalLink,
   Files,
   Focus,
   ScrollText,
@@ -34,6 +35,7 @@ import { cn } from "@/lib/utils";
 export type WorkspacePaneActionIcon =
   | "activate"
   | "code"
+  | "pop-out"
   | "files"
   | "logs"
   | "move-down"
@@ -77,6 +79,7 @@ function ActionIcon({ icon }: { icon: WorkspacePaneActionIcon }) {
   if (icon === "files") return <Files data-icon="inline-start" />;
   if (icon === "code") return <Code2 data-icon="inline-start" />;
   if (icon === "logs") return <ScrollText data-icon="inline-start" />;
+  if (icon === "pop-out") return <ExternalLink data-icon="inline-start" />;
   if (icon === "remove") return <X data-icon="inline-start" />;
   return <Focus data-icon="inline-start" />;
 }

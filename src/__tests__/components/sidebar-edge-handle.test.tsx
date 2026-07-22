@@ -178,15 +178,32 @@ describe("SidebarEdgeHandle", () => {
     expect(sidebarState.setOpenMobile).not.toHaveBeenCalled();
   });
 
-  it("does not claim the operating-system edge itself", () => {
+  it("claims the operating-system edge before browser history navigation can start", async () => {
     renderHandle();
 
-    swipePage({
-      target: screen.getByTestId("page-content"),
-      start: [4, 200],
-      move: [80, 204],
-    });
+    const content = screen.getByTestId("page-content");
+    const start = touchEvent("touchstart", [touchPoint(1, 4, 200)], content);
+    const move = touchEvent("touchmove", [touchPoint(1, 80, 204)]);
+    touchEvent("touchend", [touchPoint(1, 80, 204)]);
 
+    expect(start.defaultPrevented).toBe(true);
+    expect(move.defaultPrevented).toBe(true);
+    await waitFor(() => {
+      expect(sidebarState.setOpenMobile).toHaveBeenCalledWith(true);
+    });
+  });
+
+  it("does not suppress an ordinary touch inside the wider recognition band", () => {
+    renderHandle();
+
+    const start = touchEvent(
+      "touchstart",
+      [touchPoint(1, 40, 200)],
+      screen.getByTestId("page-content"),
+    );
+    touchEvent("touchend", [touchPoint(1, 40, 200)]);
+
+    expect(start.defaultPrevented).toBe(false);
     expect(sidebarState.setOpenMobile).not.toHaveBeenCalled();
   });
 
@@ -268,10 +285,11 @@ describe("SidebarEdgeHandle", () => {
     );
 
     const surface = screen.getByTestId("terminal-surface");
-    touchEvent("touchstart", [touchPoint(1, 24, 200)], surface);
+    const start = touchEvent("touchstart", [touchPoint(1, 24, 200)], surface);
     const move = touchEvent("touchmove", [touchPoint(1, 96, 204)]);
     touchEvent("touchend", [touchPoint(1, 96, 204)]);
 
+    expect(start.defaultPrevented).toBe(true);
     expect(move.defaultPrevented).toBe(true);
     await waitFor(() => {
       expect(sidebarState.setOpenMobile).toHaveBeenCalledWith(true);

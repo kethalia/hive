@@ -5,8 +5,8 @@ import { useSidebar } from "@/components/ui/sidebar";
 import { TAP_THRESHOLD_PX } from "@/lib/gestures/conventions";
 
 const OPEN_SWIPE_DISTANCE_PX = 56;
-const MIN_START_X_PX = 16;
 const MAX_START_X_PX = 72;
+const NATIVE_HISTORY_EDGE_PX = 24;
 
 export interface SidebarEdgeHandleProps {
   className?: string;
@@ -81,7 +81,7 @@ export function SidebarEdgeHandle(_props: SidebarEdgeHandleProps) {
     }): PointerStart | null => {
       if (isGestureIgnoredTarget(target)) return null;
 
-      if (x < MIN_START_X_PX || x > MAX_START_X_PX) return null;
+      if (x < 0 || x > MAX_START_X_PX) return null;
 
       return { id, x, y };
     };
@@ -90,12 +90,16 @@ export function SidebarEdgeHandle(_props: SidebarEdgeHandleProps) {
       if (event.pointerType && event.pointerType !== "touch") return;
       if (event.button !== 0) return;
 
-      startRef.current = trackStart({
+      const start = trackStart({
         id: event.pointerId,
         x: event.clientX,
         y: event.clientY,
         target: event.target,
       });
+      startRef.current = start;
+      if (start && start.x <= NATIVE_HISTORY_EDGE_PX && event.cancelable) {
+        event.preventDefault();
+      }
     };
 
     const maybeOpen = (
@@ -130,12 +134,16 @@ export function SidebarEdgeHandle(_props: SidebarEdgeHandleProps) {
     const onTouchStart = (event: TouchEvent) => {
       if (event.touches.length !== 1) return;
       const touch = event.touches[0];
-      touchStartRef.current = trackStart({
+      const start = trackStart({
         id: touch.identifier,
         x: touch.clientX,
         y: touch.clientY,
         target: event.target,
       });
+      touchStartRef.current = start;
+      if (start && start.x <= NATIVE_HISTORY_EDGE_PX && event.cancelable) {
+        event.preventDefault();
+      }
     };
 
     const onTouchMove = (event: TouchEvent) => {
@@ -148,9 +156,9 @@ export function SidebarEdgeHandle(_props: SidebarEdgeHandleProps) {
       maybeOpen(start, touch.clientX, touch.clientY, event);
     };
 
-    window.addEventListener("pointerdown", onPointerDown, { passive: true });
+    window.addEventListener("pointerdown", onPointerDown, { passive: false });
     window.addEventListener("pointermove", onPointerMove, { passive: false });
-    window.addEventListener("touchstart", onTouchStart, { capture: true, passive: true });
+    window.addEventListener("touchstart", onTouchStart, { capture: true, passive: false });
     window.addEventListener("touchmove", onTouchMove, { capture: true, passive: false });
     window.addEventListener("pointerup", reset, { passive: true });
     window.addEventListener("pointercancel", reset, { passive: true });

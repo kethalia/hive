@@ -740,7 +740,8 @@ describe("workspace board shortcut integration", () => {
     expect(
       await screen.findByTestId("workspace-pane-git-clone-safe-hive-fresh-b"),
     ).toBeInTheDocument();
-    fireEvent.click(screen.getByTestId("remove-pane-pane-git-clone-safe-hive-fresh-b"));
+    fireEvent.click(screen.getByTestId("workspace-pane-git-clone-safe-hive-fresh-b-actions"));
+    fireEvent.click(screen.getByTestId("workspace-pane-action-remove"));
 
     expect(
       screen.queryByTestId("workspace-pane-git-clone-safe-hive-fresh-b"),
