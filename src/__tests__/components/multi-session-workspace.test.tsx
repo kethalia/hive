@@ -33,6 +33,7 @@ const mockRouterPush = vi.fn();
 const mockToastInfo = vi.hoisted(() => vi.fn());
 const mockToastError = vi.hoisted(() => vi.fn());
 const mockUseIsComposeSheet = vi.hoisted(() => vi.fn(() => false));
+const mockSetOpenMobileRight = vi.hoisted(() => vi.fn());
 const mockCopyTerminalSelection = vi.hoisted(() => vi.fn());
 const mockPasteClipboardApiToTerminal = vi.hoisted(() => vi.fn());
 const mockTriggerHapticFeedback = vi.hoisted(() => vi.fn());
@@ -464,6 +465,10 @@ vi.mock("@/components/ui/sidebar", () => ({
       Toggle sidebar
     </button>
   ),
+  useSidebar: () => ({
+    openMobileRight: false,
+    setOpenMobileRight: mockSetOpenMobileRight,
+  }),
 }));
 
 vi.mock("@/components/ui/button", () => ({
@@ -521,31 +526,34 @@ vi.mock("@/components/ui/sheet", () => ({
   }: React.PropsWithChildren<{
     open?: boolean;
     onOpenChange?: (open: boolean) => void;
-  }>) => (
-    <div data-testid="compose-sheet" data-open={open ? "true" : "false"}>
-      {open ? children : null}
-      <button
-        type="button"
-        data-testid="compose-sheet-close-proxy"
-        onClick={() => onOpenChange?.(false)}
-      >
-        Close sheet
-      </button>
-    </div>
-  ),
+  }>) =>
+    open ? (
+      <div data-testid="compose-sheet" data-open="true">
+        {children}
+        <button
+          type="button"
+          data-testid="compose-sheet-close-proxy"
+          onClick={() => onOpenChange?.(false)}
+        >
+          Close sheet
+        </button>
+      </div>
+    ) : null,
   SheetContent: ({
     children,
     className,
     side,
     style,
+    "data-testid": dataTestId,
   }: React.PropsWithChildren<{
     className?: string;
     side?: string;
     style?: React.CSSProperties;
+    "data-testid"?: string;
   }>) => (
     <section
       className={className}
-      data-testid="compose-sheet-content"
+      data-testid={dataTestId ?? "compose-sheet-content"}
       data-side={side}
       style={style}
     >
@@ -554,6 +562,10 @@ vi.mock("@/components/ui/sheet", () => ({
   ),
   SheetTitle: ({ children, className }: React.PropsWithChildren<{ className?: string }>) => (
     <h2 className={className}>{children}</h2>
+  ),
+  SheetDescription: ({ children }: React.PropsWithChildren) => <p>{children}</p>,
+  SheetHeader: ({ children, className }: React.PropsWithChildren<{ className?: string }>) => (
+    <div className={className}>{children}</div>
   ),
 }));
 
@@ -577,11 +589,18 @@ vi.mock("@/components/workspaces/TerminalSessionEventLog", () => ({
 
 vi.mock("lucide-react", () => ({
   AlertCircle: () => <span data-testid="icon-alert" />,
+  ArrowDown: () => <span data-testid="icon-arrow-down" />,
+  ArrowLeft: () => <span data-testid="icon-arrow-left" />,
+  ArrowRight: () => <span data-testid="icon-arrow-right" />,
+  ArrowUp: () => <span data-testid="icon-arrow-up" />,
   Code2: () => <span data-testid="icon-code" />,
   ClipboardPaste: () => <span data-testid="icon-paste" />,
   Copy: () => <span data-testid="icon-copy" />,
   ExternalLink: () => <span data-testid="icon-external-link" />,
+  Ellipsis: () => <span data-testid="icon-ellipsis" />,
+  Files: () => <span data-testid="icon-files" />,
   FolderOpen: () => <span data-testid="icon-folder" />,
+  Focus: () => <span data-testid="icon-focus" />,
   GripVertical: () => <span data-testid="icon-grip" />,
   Loader2: () => <span data-testid="icon-loader" />,
   Lock: () => <span data-testid="icon-lock" />,
@@ -711,6 +730,7 @@ describe("MultiSessionWorkspace", () => {
     });
     mockReadPendingWorkspaceToolIntent.mockReturnValue(null);
     mockUseIsComposeSheet.mockReturnValue(false);
+    mockSetOpenMobileRight.mockReset();
     mockCopyTerminalSelection.mockReset();
     mockPasteClipboardApiToTerminal.mockReset();
     mockTriggerHapticFeedback.mockReset();
@@ -1455,6 +1475,13 @@ describe("MultiSessionWorkspace", () => {
       "row-start-2",
       "min-[1025px]:row-start-1",
     );
+    expect(screen.getByTestId("workspace-header-left").parentElement).toHaveClass(
+      "pt-[calc(var(--safe-area-inset-top)+0.25rem)]",
+      "min-[1025px]:min-h-[calc(3.5rem+var(--safe-area-inset-top))]",
+    );
+    expect(screen.getByTestId("workspace-header-left").parentElement).not.toHaveClass(
+      "min-[1025px]:py-1",
+    );
     expect(screen.getByTestId("workspace-board-bar")).toHaveClass(
       "w-full",
       "min-w-0",
@@ -1637,6 +1664,92 @@ describe("MultiSessionWorkspace", () => {
     fireEvent.click(screen.getByTestId("terminal-window-next"));
     expect(screen.getByTestId("active-pane-label")).toHaveTextContent("dev-server");
     expect(mainTerm.focus).not.toHaveBeenCalled();
+  });
+
+  it("opens the integrated right sidebar from the mobile window switcher", async () => {
+    mockUseIsComposeSheet.mockReturnValue(true);
+    await renderTwoSessionWorkspace();
+
+    fireEvent.click(screen.getByTestId("terminal-window-switcher"));
+
+    expect(mockSetOpenMobileRight).toHaveBeenCalledWith(true);
+    expect(screen.queryByTestId("multi-session-command-palette")).not.toBeInTheDocument();
+  });
+
+  it("opens the integrated right sidebar instead of a local mobile Add session drawer", async () => {
+    mockUseIsComposeSheet.mockReturnValue(true);
+    mockGetSessions.mockResolvedValueOnce(twoSessionPayload());
+    mockListGitClones.mockResolvedValueOnce({ data: { ok: true, tree: { nodes: [] } } });
+    render(<MultiSessionWorkspace {...defaultProps} source="unified" />);
+    await screen.findByTestId("workspace-pane-main-session");
+
+    fireEvent.click(screen.getByTestId("open-git-session-search"));
+
+    expect(mockSetOpenMobileRight).toHaveBeenCalledWith(true);
+    expect(screen.queryByTestId("multi-session-command-palette")).not.toBeInTheDocument();
+  });
+
+  it("opens direct native pane actions from the touch-sized More control", async () => {
+    mockUseIsComposeSheet.mockReturnValue(true);
+    const openSpy = vi.spyOn(window, "open").mockImplementation(() => null);
+    await renderTwoSessionWorkspace();
+
+    const more = screen.getByTestId("workspace-pane-main-session-actions");
+    expect(more).toHaveClass("size-11", "min-h-11");
+    const header = screen.getByTestId("workspace-pane-main-session-header");
+    expect(header.querySelectorAll("button")).toHaveLength(1);
+    expect(screen.queryByTestId("workspace-tools-main-session")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("remove-pane-pane-main-session")).not.toBeInTheDocument();
+    expect(header).toHaveAttribute("data-window-drag-surface", "true");
+    expect(header.querySelector('[data-testid="icon-grip"]')).toBeInTheDocument();
+    expect(screen.queryByTestId("git-terminal-font-size-controls")).not.toBeInTheDocument();
+    fireEvent.click(more);
+
+    expect(screen.getByTestId("workspace-pane-action-sheet")).toBeInTheDocument();
+    expect(screen.getByTestId("workspace-pane-action-activate")).toBeInTheDocument();
+    expect(screen.getByTestId("workspace-pane-action-files")).toBeInTheDocument();
+    expect(screen.getByTestId("workspace-pane-action-remove")).toBeInTheDocument();
+    expect(screen.queryByTestId("workspace-pane-action-move-left")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("workspace-pane-action-move-right")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("workspace-pane-action-move-up")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("workspace-pane-action-move-down")).not.toBeInTheDocument();
+    expect(document.querySelector("[cmdk-root]")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId("workspace-pane-action-files"));
+    await waitFor(() => {
+      expect(mockGetWorkspaceSessionTools).toHaveBeenCalledWith(
+        expect.objectContaining({ sessionName: "main-session", tool: "files" }),
+      );
+    });
+
+    const toolHeader = await screen.findByTestId("workspace-tool-pane-files-header");
+    expect(toolHeader.querySelectorAll("button")).toHaveLength(1);
+    expect(screen.queryByTestId("pop-out-workspace-tool-files")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("remove-workspace-tool-files")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByTestId("workspace-tool-pane-files-actions"));
+    expect(screen.getByTestId("workspace-pane-action-pop-out")).toBeInTheDocument();
+    expect(screen.queryByTestId("workspace-pane-action-move-left")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByTestId("workspace-pane-action-pop-out"));
+    expect(openSpy).toHaveBeenCalledWith(
+      "https://filebrowser.test/files/home/coder",
+      "_blank",
+      "noopener,noreferrer",
+    );
+  });
+
+  it("clears an open pane action target when the workspace identity changes", async () => {
+    mockUseIsComposeSheet.mockReturnValue(true);
+    mockGetSessions.mockResolvedValue(twoSessionPayload());
+    const { rerender } = render(<MultiSessionWorkspace {...defaultProps} source="unified" />);
+    await screen.findByTestId("workspace-pane-main-session");
+
+    fireEvent.click(screen.getByTestId("workspace-pane-main-session-actions"));
+    expect(screen.getByTestId("workspace-pane-action-sheet")).toBeInTheDocument();
+
+    rerender(<MultiSessionWorkspace agentId="agent-2" workspaceId="ws-2" source="unified" />);
+    await screen.findByTestId("workspace-pane-main-session");
+
+    expect(screen.queryByTestId("workspace-pane-action-sheet")).not.toBeInTheDocument();
   });
 
   it("wraps loading and failure states in the visual viewport shell on mobile", async () => {

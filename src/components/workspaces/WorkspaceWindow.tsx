@@ -1,14 +1,14 @@
 "use client";
 
-import { useDraggable, useDroppable } from "@dnd-kit/core";
+import { type DraggableSyntheticListeners, useDraggable, useDroppable } from "@dnd-kit/core";
 import { CSS } from "@dnd-kit/utilities";
-import { type CSSProperties, type PointerEventHandler, type ReactNode, useCallback } from "react";
+import { type CSSProperties, type ReactNode, useCallback } from "react";
 import { cn } from "@/lib/utils";
 import type { WorkspaceWindowDropPosition } from "@/lib/workspaces/workspace-window-layout";
 
 interface WorkspaceWindowRenderState {
+  dragHandleListeners: DraggableSyntheticListeners;
   isDragging: boolean;
-  onHeaderPointerDown: PointerEventHandler<HTMLDivElement>;
 }
 
 interface WorkspaceWindowProps {
@@ -18,6 +18,8 @@ interface WorkspaceWindowProps {
   previewStyle?: CSSProperties;
   style: CSSProperties;
 }
+
+const EMPTY_DRAG_HANDLE_LISTENERS: NonNullable<DraggableSyntheticListeners> = {};
 
 export function WorkspaceWindow({
   children,
@@ -43,13 +45,6 @@ export function WorkspaceWindow({
     },
     [setDraggableNodeRef, setDroppableNodeRef],
   );
-  const onHeaderPointerDown = useCallback<PointerEventHandler<HTMLDivElement>>(
-    (event) => {
-      listeners?.onPointerDown?.(event);
-    },
-    [listeners],
-  );
-
   return (
     <div
       ref={setNodeRef}
@@ -68,8 +63,8 @@ export function WorkspaceWindow({
       }}
     >
       {children({
+        dragHandleListeners: listeners ?? EMPTY_DRAG_HANDLE_LISTENERS,
         isDragging,
-        onHeaderPointerDown,
       })}
     </div>
   );

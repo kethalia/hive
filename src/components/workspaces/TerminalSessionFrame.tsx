@@ -1,15 +1,8 @@
 "use client";
 
-import { GripVertical, Lock, Minus, Plus, X } from "lucide-react";
-import type {
-  CSSProperties,
-  FocusEvent,
-  KeyboardEvent,
-  MouseEvent,
-  PointerEvent,
-  PointerEventHandler,
-  ReactNode,
-} from "react";
+import type { DraggableSyntheticListeners } from "@dnd-kit/core";
+import { Ellipsis, GripVertical, Lock, Minus, Plus, X } from "lucide-react";
+import type { CSSProperties, FocusEvent, KeyboardEvent, MouseEvent, ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { useTerminalFontStep } from "@/hooks/useTerminalFontStep";
@@ -82,17 +75,19 @@ interface SingleTerminalSessionHeaderProps {
   sessionLabel: string;
   sessionSubtitle?: string;
   className?: string;
+  showFontSizeControls?: boolean;
 }
 
 export function SingleTerminalSessionHeader({
   sessionLabel,
   sessionSubtitle,
   className,
+  showFontSizeControls = true,
 }: SingleTerminalSessionHeaderProps) {
   return (
     <header
       className={cn(
-        "grid min-h-[calc(3.5rem+var(--safe-area-inset-top))] shrink-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-1 border-b border-sidebar-border px-[max(0.25rem,var(--safe-area-inset-left))] pb-1 pt-[calc(var(--safe-area-inset-top)+0.25rem)] pr-[max(0.25rem,var(--safe-area-inset-right))] min-[1025px]:min-h-14 min-[1025px]:py-1",
+        "grid min-h-[calc(3.5rem+var(--safe-area-inset-top))] shrink-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-1 border-b border-sidebar-border px-[max(0.25rem,var(--safe-area-inset-left))] pb-1 pt-[calc(var(--safe-area-inset-top)+0.25rem)] pr-[max(0.25rem,var(--safe-area-inset-right))]",
         className,
       )}
       data-testid="single-terminal-header"
@@ -117,7 +112,9 @@ export function SingleTerminalSessionHeader({
         className="flex min-w-0 items-center justify-end gap-1"
         data-testid="single-terminal-header-right"
       >
-        <TerminalFontSizeControls label="Single terminal font size controls" />
+        {showFontSizeControls ? (
+          <TerminalFontSizeControls label="Single terminal font size controls" />
+        ) : null}
       </div>
     </header>
   );
@@ -142,7 +139,9 @@ interface TerminalSessionFrameProps {
   closeLabel?: string;
   closeTestId?: string;
   headerActions?: ReactNode;
-  onHeaderPointerDown?: PointerEventHandler<HTMLDivElement>;
+  dragHandleListeners?: DraggableSyntheticListeners;
+  onOpenActions?: () => void;
+  touchOptimizedActions?: boolean;
   isDragging?: boolean;
   isDropTarget?: boolean;
   style?: CSSProperties;
@@ -168,13 +167,16 @@ export function TerminalSessionFrame({
   closeLabel,
   closeTestId,
   headerActions,
-  onHeaderPointerDown,
+  dragHandleListeners,
+  onOpenActions,
+  touchOptimizedActions = false,
   isDragging = false,
   isDropTarget = false,
   style,
   paneState,
 }: TerminalSessionFrameProps) {
   const interactive = Boolean(onActivate) && !disabled;
+  const draggableHeader = !disabled && Boolean(dragHandleListeners);
 
   function handleFrameClick(event: MouseEvent<HTMLDivElement>) {
     if (disabled) return;
@@ -185,7 +187,7 @@ export function TerminalSessionFrame({
   }
 
   function handleFrameFocus(event: FocusEvent<HTMLDivElement>) {
-    if (disabled) return;
+    if (disabled || isHeaderControl(event.target, event.currentTarget)) return;
     if (!onFocusActivate || event.currentTarget !== event.target) return;
     onActivate?.();
   }
@@ -198,8 +200,16 @@ export function TerminalSessionFrame({
     onActivate?.();
   }
 
-  function handleHeaderPointerDown(event: PointerEvent<HTMLDivElement>) {
-    if (disabled || !onHeaderPointerDown) return;
+  function isHeaderControl(target: EventTarget | null, header: HTMLDivElement) {
+    const interactiveTarget =
+      target instanceof Element
+        ? target.closest("button, a, input, select, textarea, [role='button'], [role='link']")
+        : null;
+    return Boolean(interactiveTarget && header.contains(interactiveTarget));
+  }
+
+  function handleHeaderContextMenu(event: MouseEvent<HTMLDivElement>) {
+    if (disabled || !onOpenActions) return;
     const target = event.target;
     const interactiveTarget =
       target instanceof Element
@@ -208,7 +218,8 @@ export function TerminalSessionFrame({
     if (interactiveTarget && event.currentTarget.contains(interactiveTarget)) {
       return;
     }
-    onHeaderPointerDown(event);
+    event.preventDefault();
+    onOpenActions();
   }
 
   return (
@@ -241,14 +252,17 @@ export function TerminalSessionFrame({
         <div
           className={cn(
             "flex min-h-10 shrink-0 select-none items-center gap-1 border-b border-white/10 bg-zinc-950 px-2 text-white",
-            !disabled && onHeaderPointerDown && "touch-none cursor-grab active:cursor-grabbing",
+            draggableHeader && "touch-none cursor-grab active:cursor-grabbing",
           )}
-          data-window-drag-surface={!disabled && onHeaderPointerDown ? "true" : "false"}
+          data-window-drag-surface={draggableHeader ? "true" : undefined}
           data-testid={dataTestId ? `${dataTestId}-header` : undefined}
-          onPointerDown={handleHeaderPointerDown}
+          onContextMenu={handleHeaderContextMenu}
         >
-          <div className="flex min-w-0 flex-1 items-center gap-1.5">
-            {!disabled && onHeaderPointerDown ? (
+          <div
+            className="flex min-w-0 flex-1 items-center gap-1.5 self-stretch"
+            {...dragHandleListeners}
+          >
+            {draggableHeader ? (
               <GripVertical
                 className="size-3 shrink-0 text-white/55"
                 aria-hidden="true"
@@ -272,13 +286,36 @@ export function TerminalSessionFrame({
               ) : null}
             </span>
           </div>
-          {headerActions}
-          {onClose ? (
+          {touchOptimizedActions ? null : headerActions}
+          {onOpenActions ? (
+            <Button
+              type="button"
+              variant="ghost"
+              size="xs"
+              className={cn(
+                "shrink-0 text-white hover:bg-white/10 hover:text-white",
+                touchOptimizedActions ? "size-11 min-h-11 px-0" : "h-6 min-h-0 px-1.5",
+              )}
+              aria-label={`Open actions for ${label}`}
+              data-testid={dataTestId ? `${dataTestId}-actions` : undefined}
+              disabled={disabled}
+              onClick={(event) => {
+                event.stopPropagation();
+                onOpenActions();
+              }}
+            >
+              <Ellipsis className="size-3" />
+            </Button>
+          ) : null}
+          {!touchOptimizedActions && onClose ? (
             <Button
               type="button"
               variant="destructive"
               size="xs"
-              className="h-6 min-h-0 px-1.5 text-[10px]"
+              className={cn(
+                "text-[10px]",
+                touchOptimizedActions ? "size-11 min-h-11 px-0" : "h-6 min-h-0 px-1.5",
+              )}
               aria-label={closeLabel ?? `Close ${label}`}
               data-testid={closeTestId}
               disabled={disabled}

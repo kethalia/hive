@@ -293,6 +293,11 @@
   * {
     @apply border-border outline-ring/50;
   }
+
+  html,
+  body {
+    overscroll-behavior-x: none;
+  }
   body {
     min-height: var(--app-viewport-height);
     text-wrap: pretty;
@@ -325,5 +330,14 @@
     animation-duration: 0.01ms;
     animation-iteration-count: 1;
     transition-duration: 0.01ms;
+  }
+}
+
+/* iOS Safari zooms focused form controls whose computed text is below 16px. */
+@media (pointer: coarse) and (width <= 1366px) {
+  :root input,
+  :root select,
+  :root textarea {
+    font-size: 16px;
   }
 }

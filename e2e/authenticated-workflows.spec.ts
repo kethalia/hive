@@ -61,6 +61,474 @@ async function capture(page: Page, testInfo: TestInfo, name: string) {
   await page.screenshot({ path: testInfo.outputPath(`${name}.png`), fullPage: true });
 }
 
+async function verifyTabletLandscapeSafeArea(page: Page, testInfo: TestInfo) {
+  await page.setViewportSize({ width: 1366, height: 1024 });
+  await page.evaluate(() => {
+    document.documentElement.style.setProperty("--safe-area-inset-top", "24px");
+  });
+
+  const headerLeft = page.getByTestId("workspace-header-left");
+  const header = headerLeft.locator("..");
+  await expect(header).toBeVisible();
+  const metrics = await header.evaluate((element) => {
+    const styles = getComputedStyle(element);
+    const label = element.querySelector('[data-testid="active-pane-label"]');
+    return {
+      height: element.getBoundingClientRect().height,
+      labelTop: label?.getBoundingClientRect().top ?? 0,
+      paddingTop: Number.parseFloat(styles.paddingTop),
+    };
+  });
+
+  expect(metrics.height).toBeGreaterThanOrEqual(80);
+  expect(metrics.paddingTop).toBeGreaterThanOrEqual(28);
+  expect(metrics.labelTop).toBeGreaterThanOrEqual(24);
+  await capture(page, testInfo, "tablet-landscape-safe-area");
+}
+
+interface TouchCoordinates {
+  x: number;
+  y: number;
+}
+
+function cdpTouchPoint(id: number, coordinates: TouchCoordinates) {
+  return {
+    id,
+    x: coordinates.x,
+    y: coordinates.y,
+    radiusX: 5,
+    radiusY: 5,
+    force: 1,
+  };
+}
+
+async function dispatchOneFingerRightSwipe(
+  page: Page,
+  target: Locator,
+  origin: "edge" | "surface",
+) {
+  const box = await target.boundingBox();
+  if (!box) throw new Error("One-finger swipe target has no measurable bounds.");
+
+  const session = await page.context().newCDPSession(page);
+  const startX = origin === "edge" ? 4 : box.x + box.width * 0.45;
+  const endX = Math.min(startX + 88, page.viewportSize()?.width ?? startX + 88);
+  const y = box.y + box.height * 0.55;
+
+  try {
+    await session.send("Input.dispatchTouchEvent", {
+      type: "touchStart",
+      touchPoints: [cdpTouchPoint(1, { x: startX, y })],
+    });
+    await page.waitForTimeout(32);
+    for (const progress of [0.25, 0.5, 0.75, 1]) {
+      await session.send("Input.dispatchTouchEvent", {
+        type: "touchMove",
+        touchPoints: [
+          cdpTouchPoint(1, {
+            x: startX + (endX - startX) * progress,
+            y,
+          }),
+        ],
+      });
+      await page.waitForTimeout(16);
+    }
+    await session.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+  } finally {
+    await session.detach();
+  }
+}
+
+async function dispatchOneFingerLeftSwipe(page: Page, target: Locator, origin: "edge" | "surface") {
+  const box = await target.boundingBox();
+  const viewport = page.viewportSize();
+  if (!box || !viewport) throw new Error("Global navigation gesture target could not be measured.");
+
+  const session = await page.context().newCDPSession(page);
+  const startX = origin === "edge" ? viewport.width - 4 : box.x + box.width * 0.55;
+  const endX = startX - 88;
+  const y = box.y + box.height * 0.55;
+
+  try {
+    await session.send("Input.dispatchTouchEvent", {
+      type: "touchStart",
+      touchPoints: [cdpTouchPoint(1, { x: startX, y })],
+    });
+    await page.waitForTimeout(32);
+    for (const progress of [0.25, 0.5, 0.75, 1]) {
+      await session.send("Input.dispatchTouchEvent", {
+        type: "touchMove",
+        touchPoints: [
+          cdpTouchPoint(1, {
+            x: startX + (endX - startX) * progress,
+            y,
+          }),
+        ],
+      });
+      await page.waitForTimeout(16);
+    }
+    await session.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+  } finally {
+    await session.detach();
+  }
+}
+
+async function dispatchTouchLongPress(page: Page, target: Locator) {
+  const box = await target.boundingBox();
+  if (!box) throw new Error("Long-press target has no measurable bounds.");
+
+  const session = await page.context().newCDPSession(page);
+  const point = cdpTouchPoint(1, {
+    x: box.x + Math.min(96, box.width * 0.3),
+    y: box.y + box.height * 0.5,
+  });
+
+  try {
+    await session.send("Input.dispatchTouchEvent", {
+      type: "touchStart",
+      touchPoints: [point],
+    });
+    await page.waitForTimeout(650);
+    await session.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+  } finally {
+    await session.detach();
+  }
+}
+
+function activeTerminalFrame(page: Page) {
+  return page
+    .locator('[data-pane-mode][data-active="true"]:visible')
+    .filter({ has: page.getByTestId("terminal-fit-host") })
+    .first();
+}
+
+function stableTerminalFrame(page: Page) {
+  return page
+    .locator("[data-pane-mode]:visible")
+    .filter({ has: page.getByTestId("terminal-fit-host") })
+    .first();
+}
+
+async function ensureThreeTouchTerminals(
+  page: Page,
+  testInfo: TestInfo,
+  createdSessionNames: string[],
+) {
+  const terminalFrames = page
+    .locator("[data-pane-mode]:visible")
+    .filter({ has: page.getByTestId("terminal-fit-host") });
+  while ((await terminalFrames.count()) < 3) {
+    const sessionCountBefore = await terminalFrames.count();
+    const createdSessionName = `gesture-e2e-${testInfo.project.name}-${Date.now()}-${createdSessionNames.length + 1}`;
+    createdSessionNames.push(createdSessionName);
+    await page.getByRole("button", { name: "Open workspace command palette" }).click();
+    const globalDrawer = page.getByRole("dialog", { name: "Global navigation", exact: true });
+    await expect(globalDrawer).toBeVisible();
+    await globalDrawer
+      .getByRole("searchbox", { name: "Search global navigation" })
+      .fill(createdSessionName);
+    await globalDrawer
+      .getByRole("button", {
+        name: new RegExp(`^New terminal session named ${createdSessionName}`),
+      })
+      .click();
+    await expect.poll(() => terminalFrames.count()).toBeGreaterThan(sessionCountBefore);
+  }
+  await expect.poll(() => terminalFrames.count()).toBeGreaterThanOrEqual(3);
+}
+
+async function verifyMobileWorkspaceWindowDrag(page: Page) {
+  const terminalWindows = page
+    .locator("[data-workspace-window-id]:visible")
+    .filter({ has: page.getByTestId("terminal-fit-host") });
+  await expect.poll(() => terminalWindows.count()).toBeGreaterThanOrEqual(2);
+  const draggedWindow = terminalWindows.first();
+  const targetWindow = terminalWindows.nth(1);
+  const dragHeader = draggedWindow.locator('[data-testid$="-header"]');
+  const dragActivator = dragHeader.locator('[data-testid$="-title"]');
+  const dragBox = await dragActivator.boundingBox();
+  const targetBox = await targetWindow.boundingBox();
+  if (!dragBox || !targetBox) throw new Error("Mobile workspace windows could not be measured.");
+
+  const persistedLayoutBefore = await persistedWorkspaceWindowLayout(page);
+  const { targetPoint } = workspaceDropTarget(targetBox);
+  const start = {
+    x: dragBox.x + dragBox.width * 0.35,
+    y: dragBox.y + dragBox.height * 0.5,
+  };
+  const session = await page.context().newCDPSession(page);
+
+  try {
+    await session.send("Input.dispatchTouchEvent", {
+      type: "touchStart",
+      touchPoints: [cdpTouchPoint(1, start)],
+    });
+    await page.waitForTimeout(50);
+    for (const progress of [0.2, 0.4, 0.6, 0.8, 1]) {
+      await session.send("Input.dispatchTouchEvent", {
+        type: "touchMove",
+        touchPoints: [
+          cdpTouchPoint(1, {
+            x: start.x + (targetPoint.x - start.x) * progress,
+            y: start.y + (targetPoint.y - start.y) * progress,
+          }),
+        ],
+      });
+      await page.waitForTimeout(16);
+    }
+    await expect(draggedWindow).toHaveAttribute("data-workspace-window-dragging", "true");
+    await expect(page.getByTestId("workspace-window-drop-placeholder")).toBeVisible();
+    await session.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+  } finally {
+    await session.detach();
+  }
+
+  await expect(page.getByTestId("workspace-window-drop-placeholder")).toHaveCount(0);
+  await expect.poll(() => persistedWorkspaceWindowLayout(page)).not.toBe(persistedLayoutBefore);
+}
+
+async function verifyWorkspaceTabNavigation(page: Page) {
+  const boardTabs = page.getByRole("tab", { name: /workspace/i });
+  const initialBoardCount = await boardTabs.count();
+  await page.getByTestId("workspace-board-new").click();
+  await expect(boardTabs).toHaveCount(initialBoardCount + 1);
+  const newestBoard = boardTabs.last();
+  await expect(newestBoard).toHaveAttribute("aria-selected", "true");
+  const createdBoardTestId = await newestBoard.getAttribute("data-testid");
+  if (!createdBoardTestId) throw new Error("Created workspace board has no stable identity.");
+  const createdBoard = page.getByTestId(createdBoardTestId);
+
+  await boardTabs.first().click();
+  await expect(boardTabs.first()).toHaveAttribute("aria-selected", "true");
+  await createdBoard.click();
+  await expect(createdBoard).toHaveAttribute("aria-selected", "true");
+  await boardTabs.first().click();
+  return { boardTabs, createdBoard, initialBoardCount };
+}
+
+async function deleteCreatedWorkspaceBoard(page: Page, createdBoard: Locator) {
+  if ((await createdBoard.count()) === 0) return;
+  await page.keyboard.press("Escape").catch(() => undefined);
+  if ((await createdBoard.getAttribute("aria-selected")) === "true") {
+    await page
+      .getByRole("tab", { name: /workspace/i })
+      .first()
+      .click();
+    await expect(createdBoard).toHaveAttribute("aria-selected", "false");
+  }
+  await createdBoard.click();
+  await expect(createdBoard).toHaveAttribute("aria-selected", "true");
+  await createdBoard.click();
+  await expect(createdBoard).toHaveCount(0);
+}
+
+async function verifyTerminalControlsOwnHorizontalSwipes(page: Page) {
+  const controls = page.getByRole("region", { name: "Terminal mobile controls" });
+  const carousel = page.getByRole("region", { name: "Terminal controls carousel" });
+  const visibleLeftSidebar = page.locator('[data-sidebar="sidebar"][data-side="left"]:visible');
+  const globalDrawer = page.getByRole("dialog", { name: "Global navigation", exact: true });
+
+  await expect(controls).toHaveAttribute("data-sidebar-gesture-ignore", "true");
+  await expect(carousel.getByRole("group", { name: "Favorite window controls" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Show Windows controls" })).toHaveCount(0);
+  await dispatchOneFingerRightSwipe(page, carousel, "surface");
+  await expect(visibleLeftSidebar).toHaveCount(0);
+  await expect(globalDrawer).toBeHidden();
+
+  await dispatchOneFingerLeftSwipe(page, carousel, "surface");
+  await expect(visibleLeftSidebar).toHaveCount(0);
+  await expect(globalDrawer).toBeHidden();
+}
+
+async function verifyMobileAddSessionUsesRightSidebar(page: Page) {
+  const globalDrawer = page.getByRole("dialog", { name: "Global navigation", exact: true });
+  const legacyDrawer = page.getByRole("dialog", { name: "Command palette", exact: true });
+
+  await page.getByRole("button", { name: "Open workspace command palette" }).click();
+  await expect(globalDrawer).toBeVisible();
+  await expect(legacyDrawer).toHaveCount(0);
+  await page.keyboard.press("Escape");
+  await expect(globalDrawer).toBeHidden();
+}
+
+async function verifySidebarEdgeNavigation(page: Page) {
+  const urlBeforeSwipe = page.url();
+  const historyLengthBeforeSwipe = await page.evaluate(() => history.length);
+  const terminalSurface = stableTerminalFrame(page).getByTestId("terminal-fit-host");
+  await dispatchOneFingerRightSwipe(page, terminalSurface, "surface");
+
+  const touchSidebar = page.locator('[data-sidebar="sidebar"][data-side="left"]:visible');
+  await expect(touchSidebar).toBeVisible();
+  const sidebarBox = await touchSidebar.boundingBox();
+  if (!sidebarBox) throw new Error("Touch navigation sidebar could not be measured.");
+  expect(sidebarBox.x).toBeLessThanOrEqual(1);
+  await page.keyboard.press("Escape");
+  await expect(touchSidebar).toBeHidden();
+
+  await dispatchOneFingerRightSwipe(page, terminalSurface, "edge");
+
+  await expect(touchSidebar).toBeVisible();
+  await expect(page).toHaveURL(urlBeforeSwipe);
+  expect(await page.evaluate(() => history.length)).toBe(historyLengthBeforeSwipe);
+  await page.keyboard.press("Escape");
+  await expect(touchSidebar).toBeHidden();
+}
+
+async function verifyGlobalCommandDrawerGesture(page: Page) {
+  const urlBeforeSwipe = page.url();
+  const historyLengthBeforeSwipe = await page.evaluate(() => history.length);
+  const terminalSurface = stableTerminalFrame(page).getByTestId("terminal-fit-host");
+
+  await dispatchOneFingerLeftSwipe(page, terminalSurface, "surface");
+
+  const globalDrawer = page.getByRole("dialog", { name: "Global navigation", exact: true });
+  await expect(globalDrawer).toBeVisible();
+  const drawerBox = await globalDrawer.boundingBox();
+  const viewport = page.viewportSize();
+  if (!drawerBox || !viewport) throw new Error("Global navigation sidebar could not be measured.");
+  expect(drawerBox.height).toBeGreaterThanOrEqual(viewport.height - 1);
+  expect(drawerBox.width).toBeLessThanOrEqual(289);
+  expect(drawerBox.x + drawerBox.width).toBeGreaterThanOrEqual(viewport.width - 1);
+  const globalSearch = globalDrawer.getByRole("searchbox", { name: "Search global navigation" });
+  await expect(globalSearch).toBeVisible();
+  expect(await globalSearch.evaluate((input) => getComputedStyle(input).fontSize)).toBe("16px");
+  await expect(
+    globalDrawer.getByRole("button", { name: /Workspaces Open Coder workspaces/ }),
+  ).toBeVisible();
+  await expect(
+    globalDrawer.getByRole("button", { name: /Templates Review and push/ }),
+  ).toBeVisible();
+  await expect(globalDrawer.getByRole("button", { name: /Terminal status Inspect/ })).toBeVisible();
+  await expect(
+    globalDrawer.getByRole("button", { name: /New terminal session in workspace/ }),
+  ).toBeVisible();
+  await expect(globalDrawer.locator('[data-slot="command-shortcut"]')).toHaveCount(0);
+
+  const sessionDisclosure = globalDrawer
+    .locator('[data-testid^="mobile-command-disclosure-workspace:session:"]')
+    .first();
+  await expect(sessionDisclosure).toBeVisible();
+  await expect(sessionDisclosure).toHaveAttribute("aria-expanded", "false");
+  const sessionTitle = (await sessionDisclosure.textContent())?.trim();
+  if (!sessionTitle) throw new Error("Terminal session disclosure has no visible title.");
+  await sessionDisclosure.click();
+  await expect(sessionDisclosure).toHaveAttribute("aria-expanded", "true");
+  const sessionActions = globalDrawer.getByRole("group", { name: /actions$/ }).first();
+  await expect(sessionActions).toBeVisible();
+  await expect(sessionActions.getByRole("button", { name: "Add" })).toBeVisible();
+  await expect(sessionActions.getByRole("button", { name: "Open" })).toBeVisible();
+  await expect(sessionActions.getByRole("button", { name: "VS Code" })).toBeVisible();
+  await expect(sessionActions.getByRole("button", { name: "Files" })).toBeVisible();
+  await expect(sessionActions.getByRole("button", { name: "Logs" })).toBeVisible();
+
+  await dispatchOneFingerRightSwipe(page, globalDrawer, "surface");
+  const leftSidebar = page.locator(
+    '[data-sidebar="sidebar"][data-mobile="true"][data-side="left"]',
+  );
+  await expect(leftSidebar).toBeVisible();
+  await expect(globalDrawer).toBeHidden();
+
+  await dispatchOneFingerLeftSwipe(page, leftSidebar, "surface");
+  await expect(globalDrawer).toBeVisible();
+  await expect(leftSidebar).toBeHidden();
+  await page.keyboard.press("Escape");
+  await expect(globalDrawer).toBeHidden();
+
+  await dispatchOneFingerLeftSwipe(page, terminalSurface, "edge");
+
+  await expect(globalDrawer).toBeVisible();
+  await expect(page).toHaveURL(urlBeforeSwipe);
+  expect(await page.evaluate(() => history.length)).toBe(historyLengthBeforeSwipe);
+  await page.keyboard.press("Escape");
+  await expect(globalDrawer).toBeHidden();
+}
+
+async function verifyNativePaneActions(page: Page, testInfo: TestInfo) {
+  const frame = activeTerminalFrame(page);
+  const paneHeader = frame.locator('[data-testid$="-header"]');
+  const moreButton = frame.getByRole("button", { name: /^Open actions for / });
+  await expect(paneHeader.getByRole("button")).toHaveCount(1);
+  await expect(paneHeader.locator('[data-testid$="-drag-icon"]')).toHaveCount(1);
+  await expect(page.getByTestId("git-terminal-font-size-controls")).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Decrease font size" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Increase font size" })).toBeVisible();
+  const moreButtonBox = await moreButton.boundingBox();
+  if (!moreButtonBox) throw new Error("Pane action button has no measurable bounds.");
+  expect(moreButtonBox.width).toBeGreaterThanOrEqual(44);
+  expect(moreButtonBox.height).toBeGreaterThanOrEqual(44);
+
+  await moreButton.click();
+  const actionSheet = page.getByTestId("workspace-pane-action-sheet");
+  await expect(actionSheet).toBeVisible();
+  await expect(actionSheet.locator("[cmdk-root]")).toHaveCount(0);
+  const directActions = actionSheet.locator("fieldset > button");
+  await expect.poll(() => directActions.count()).toBeGreaterThanOrEqual(5);
+  await expect(actionSheet.locator('[data-testid^="workspace-pane-action-move-"]')).toHaveCount(0);
+  expect(
+    await directActions.evaluateAll((buttons) =>
+      buttons.every((button) => button.getBoundingClientRect().height >= 44),
+    ),
+  ).toBe(true);
+  await capture(page, testInfo, "mobile-native-pane-actions");
+  await actionSheet.getByRole("button", { name: "Close pane actions" }).click();
+  await expect(actionSheet).toBeHidden();
+
+  await dispatchTouchLongPress(page, frame.locator('[data-testid$="-header"]'));
+  await expect(actionSheet).toBeHidden();
+}
+
+async function cleanupTestSession(page: Page, sessionName: string) {
+  await page.keyboard.press("Escape").catch(() => undefined);
+  const workspacePane = page.locator(`[data-workspace-window-id="${sessionName}"]`);
+  if (await workspacePane.isVisible().catch(() => false)) {
+    await workspacePane.getByRole("button", { name: /^Open actions for / }).click();
+    await page
+      .getByTestId("workspace-pane-action-sheet")
+      .getByRole("button", { name: /^Remove terminal/ })
+      .click();
+    await expect(workspacePane).toHaveCount(0);
+  }
+  const revealActions = page.getByTestId(`show-terminal-session-actions-${sessionName}`);
+  const sessionsToggle = page.getByRole("button", { name: "Sessions", exact: true });
+  const sessionsToggleInViewport =
+    (await sessionsToggle.count()) > 0 &&
+    (await sessionsToggle.evaluate((element) => {
+      const rect = element.getBoundingClientRect();
+      return rect.bottom > 0 && rect.right > 0 && rect.top < innerHeight && rect.left < innerWidth;
+    }));
+  if (!sessionsToggleInViewport) {
+    await page.getByRole("button", { name: "Toggle Sidebar" }).click();
+  }
+  await expect(sessionsToggle).toBeInViewport();
+  if ((await sessionsToggle.getAttribute("aria-expanded")) !== "true") {
+    await sessionsToggle.click();
+  }
+  const killSession = page.getByTestId(`kill-session-${sessionName}`);
+  const sessionLink = page.getByRole("link", { name: sessionName, exact: true });
+  for (let attempt = 0; attempt < 10; attempt += 1) {
+    if ((await sessionLink.count()) === 0) return;
+    if ((await killSession.count()) > 0) {
+      const clicked = await killSession
+        .click({ force: true, timeout: 2_000 })
+        .then(() => true)
+        .catch(() => false);
+      if (clicked) {
+        const removed = await expect
+          .poll(() => sessionLink.count(), { timeout: 2_000 })
+          .toBe(0)
+          .then(() => true)
+          .catch(() => false);
+        if (removed) return;
+      }
+    }
+    if ((await revealActions.count()) > 0) {
+      await revealActions.click({ force: true, timeout: 2_000 }).catch(() => undefined);
+    }
+    await page.waitForTimeout(200);
+  }
+  throw new Error(`Could not clean up test terminal session ${sessionName}.`);
+}
+
 async function waitForDashboardReady(page: Page) {
   await expect(page.locator("html")).toHaveAttribute("data-dashboard-keybindings-ready", "true");
 }
@@ -126,10 +594,20 @@ async function verifyEmbeddedToolsOpenInParallel(
   const previousVsCodeLoadCount = getSuccessfulVsCodeLoads();
   const fileBrowserButton = page.getByRole("button", { name: /^Browse files for / }).first();
   const vsCodeButton = page.getByRole("button", { name: /^Open VS Code for / }).first();
+  const mobilePaneActions = page
+    .locator('[data-testid^="workspace-pane-"][data-testid$="-actions"]:visible')
+    .first();
 
-  await fileBrowserButton.click();
-  await expect(vsCodeButton).toBeEnabled();
-  await vsCodeButton.click();
+  if (await mobilePaneActions.isVisible().catch(() => false)) {
+    await mobilePaneActions.click();
+    await page.getByTestId("workspace-pane-action-files").click();
+    await mobilePaneActions.click();
+    await page.getByTestId("workspace-pane-action-code").click();
+  } else {
+    await fileBrowserButton.click();
+    await expect(vsCodeButton).toBeEnabled();
+    await vsCodeButton.click();
+  }
 
   await expect(page.getByTestId("workspace-tool-pane-files")).toBeVisible({ timeout: 30_000 });
   await expect(page.getByTestId("workspace-tool-pane-code")).toBeVisible({ timeout: 30_000 });
@@ -448,7 +926,8 @@ async function startWorkspaceWindowDrag(
   dragHandle: Locator,
   targetPoint: { x: number; y: number },
 ) {
-  const dragHandleBox = await dragHandle.boundingBox();
+  const dragGrip = dragHandle.locator('[data-testid$="-drag-icon"]');
+  const dragHandleBox = await dragGrip.boundingBox();
   if (!dragHandleBox) throw new Error("VS Code drag handle could not be measured.");
   await page.mouse.move(
     dragHandleBox.x + dragHandleBox.width / 2,
@@ -676,48 +1155,23 @@ async function visibleWorkspaceWindowIds(page: Page): Promise<string[]> {
   );
 }
 
-async function ensureGitTerminal(page: Page): Promise<{ terminal: Locator; added: boolean }> {
+async function createIsolatedStressTerminal(page: Page, sessionName: string): Promise<Locator> {
   const initialWindowIds = await visibleWorkspaceWindowIds(page);
-  await page.getByTestId("open-git-session-search").click();
-  const searchInput = page.getByPlaceholder(/Search terminal sessions/);
-  await searchInput.fill("hive");
-  const existingGitSession = page
-    .locator('[cmdk-item][data-action-id^="workspace:session:"]')
-    .filter({ hasText: "Git terminal session" })
-    .first();
-  const existingSessionAvailable = (await existingGitSession.count()) > 0;
-
-  if (existingSessionAvailable) {
-    const actionId = await existingGitSession.getAttribute("data-action-id");
-    const sessionName = actionId?.replace("workspace:session:", "");
-    if (!sessionName) throw new Error("Git terminal session has no action identity.");
-    const addButton = existingGitSession.getByRole("button", { name: "Add", exact: true });
-    const added = await addButton.isEnabled();
-    if (added) await addButton.click();
-    else await page.keyboard.press("Escape");
-    const terminal = page
-      .locator(`[data-workspace-window-id="${sessionName}"]`)
-      .locator('[data-terminal-surface="true"]');
-    await expect(terminal).toHaveAttribute("data-connection-state", "connected", {
-      timeout: 30_000,
-    });
-    return { terminal, added };
-  }
-
-  const repository = page.locator('[cmdk-item][data-action-id^="workspace:git:"]').first();
-  await expect(repository).toBeVisible({ timeout: 15_000 });
-  await repository.getByRole("button", { name: "Add", exact: true }).click();
+  await page.getByRole("button", { name: "Open workspace command palette" }).click();
+  await page.getByRole("combobox").fill(sessionName);
+  await page
+    .getByRole("option", {
+      name: new RegExp(`^New terminal session named ${sessionName}`),
+    })
+    .click();
   await expect
     .poll(() => visibleWorkspaceWindowIds(page))
     .toHaveLength(initialWindowIds.length + 1);
-  const currentWindowIds = await visibleWorkspaceWindowIds(page);
-  const sessionName = currentWindowIds.find((id) => !initialWindowIds.includes(id));
-  if (!sessionName) throw new Error("Git terminal window was not added.");
   const terminal = page
     .locator(`[data-workspace-window-id="${sessionName}"]`)
     .locator('[data-terminal-surface="true"]');
   await expect(terminal).toHaveAttribute("data-connection-state", "connected", { timeout: 30_000 });
-  return { terminal, added: true };
+  return terminal;
 }
 
 async function startSustainedOutput(page: Page, terminal: Locator, marker: string) {
@@ -754,35 +1208,45 @@ async function captureSustainedActivity(
 
 async function verifySustainedTerminalActivity(page: Page, testInfo: TestInfo, terminal: Locator) {
   const marker = `hive-window-stress-${Date.now()}`;
-  const gitMarker = `git-${Date.now().toString(36)}`;
-  const gitSession = await ensureGitTerminal(page);
-  const gitWindow = gitSession.terminal.locator("xpath=ancestor::*[@data-workspace-window-id]");
-  const initialWindowIds = await visibleWorkspaceWindowIds(page);
-
-  await gitWindow.getByRole("button", { name: /^Open session logs for / }).click();
+  const secondaryMarker = `secondary-${Date.now().toString(36)}`;
+  const stressSessionName = `stress-e2e-${testInfo.project.name}-${Date.now()}`;
   const eventLogPane = page.getByTestId("workspace-tool-pane-logs");
-  await expect(eventLogPane).toBeVisible({ timeout: 15_000 });
+  try {
+    const stressTerminal = await createIsolatedStressTerminal(page, stressSessionName);
+    const stressWindow = stressTerminal.locator("xpath=ancestor::*[@data-workspace-window-id]");
+    const initialWindowIds = await visibleWorkspaceWindowIds(page);
+    const openLogsButton = stressWindow.getByRole("button", {
+      name: /^Open session logs for /,
+    });
+    if (await openLogsButton.isVisible().catch(() => false)) {
+      await openLogsButton.click();
+    } else {
+      await stressWindow.getByRole("button", { name: /^Open actions for / }).click();
+      await page.getByTestId("workspace-pane-action-logs").click();
+    }
+    await expect(eventLogPane).toBeVisible({ timeout: 15_000 });
 
-  await startSustainedOutput(page, terminal, marker);
-  await startSustainedOutput(page, gitSession.terminal, gitMarker);
-  const observedMarkers = await captureSustainedActivity(page, testInfo, [
-    { terminal, marker },
-    { terminal: gitSession.terminal, marker: gitMarker },
-  ]);
+    await startSustainedOutput(page, terminal, marker);
+    await startSustainedOutput(page, stressTerminal, secondaryMarker);
+    const observedMarkers = await captureSustainedActivity(page, testInfo, [
+      { terminal, marker },
+      { terminal: stressTerminal, marker: secondaryMarker },
+    ]);
 
-  expect(observedMarkers).toEqual([true, true]);
-  await expect(eventLogPane.getByRole("log")).toContainText(/browser_input|upstream_output/, {
-    timeout: 15_000,
-  });
-  const finalWindowIds = await visibleWorkspaceWindowIds(page);
-  expect(finalWindowIds).toHaveLength(initialWindowIds.length + 1);
-  expect(initialWindowIds.every((id) => finalWindowIds.includes(id))).toBe(true);
-  expect(finalWindowIds.some((id) => id.includes(":logs"))).toBe(true);
-
-  await page.getByTestId("remove-workspace-tool-logs").click();
-  await expect(eventLogPane).toHaveCount(0);
-  if (gitSession.added) {
-    await gitWindow.getByRole("button", { name: /^Remove / }).click();
+    expect(observedMarkers).toEqual([true, true]);
+    await expect(eventLogPane.getByRole("log")).toContainText(/browser_input|upstream_output/, {
+      timeout: 15_000,
+    });
+    const finalWindowIds = await visibleWorkspaceWindowIds(page);
+    expect(finalWindowIds).toHaveLength(initialWindowIds.length + 1);
+    expect(initialWindowIds.every((id) => finalWindowIds.includes(id))).toBe(true);
+    expect(finalWindowIds.some((id) => id.includes(":logs"))).toBe(true);
+  } finally {
+    if (await eventLogPane.isVisible().catch(() => false)) {
+      await page.getByTestId("remove-workspace-tool-logs").click();
+      await expect(eventLogPane).toHaveCount(0);
+    }
+    await cleanupTestSession(page, stressSessionName);
   }
 }
 
@@ -892,8 +1356,62 @@ test.describe("authenticated Hive workflows", () => {
     ).toBeVisible();
   });
 
+  test("supports touch navigation and native pane actions", async ({
+    browserName,
+    isMobile,
+    page,
+  }, testInfo) => {
+    test.skip(browserName !== "chromium" || !isMobile, "Requires Chromium touch CDP events.");
+    test.setTimeout(90_000);
+
+    await page.goto(new URL("/workspaces", appUrl).toString());
+    await waitForDashboardReady(page);
+    const workspaceLink = page.locator('a[href$="/terminal/workspace"]:visible').first();
+    const workspaceAvailable = await workspaceLink
+      .waitFor({ state: "visible", timeout: 15_000 })
+      .then(() => true)
+      .catch(() => false);
+    test.skip(!workspaceAvailable, "No running workspace available.");
+
+    const workspaceHref = await workspaceLink.getAttribute("href");
+    if (!workspaceHref) throw new Error("Running workspace link has no destination.");
+    await page.goto(new URL(workspaceHref, appUrl).toString());
+    await expect(
+      page.locator('[data-testid="multi-session-workspace"], [data-testid="multi-session-empty"]'),
+    ).toBeVisible({ timeout: 30_000 });
+
+    const createdSessionNames: string[] = [];
+    let createdBoard: Locator | null = null;
+    try {
+      await ensureThreeTouchTerminals(page, testInfo, createdSessionNames);
+      await expectConnectedTerminal(page);
+      await verifyMobileAddSessionUsesRightSidebar(page);
+      await verifyTerminalControlsOwnHorizontalSwipes(page);
+      await verifySidebarEdgeNavigation(page);
+      await verifyGlobalCommandDrawerGesture(page);
+      await verifyMobileWorkspaceWindowDrag(page);
+      const boardNavigation = await verifyWorkspaceTabNavigation(page);
+      createdBoard = boardNavigation.createdBoard;
+      await verifyNativePaneActions(page, testInfo);
+      await deleteCreatedWorkspaceBoard(page, createdBoard);
+      createdBoard = null;
+      await expect(boardNavigation.boardTabs).toHaveCount(boardNavigation.initialBoardCount);
+      if (testInfo.project.name === "tablet-chromium") {
+        await verifyTabletLandscapeSafeArea(page, testInfo);
+      }
+      await capture(page, testInfo, "mobile-touch-workspace-navigation");
+    } finally {
+      if (createdBoard) {
+        await deleteCreatedWorkspaceBoard(page, createdBoard);
+      }
+      for (const createdSessionName of createdSessionNames) {
+        await cleanupTestSession(page, createdSessionName);
+      }
+    }
+  });
+
   test("opens a live workspace terminal when one is available", async ({ page }, testInfo) => {
-    test.setTimeout(150_000);
+    test.setTimeout(240_000);
     const pageErrors: string[] = [];
     page.on("pageerror", (error) => pageErrors.push(error.message));
     const getSuccessfulFileBrowserLoads = trackFileBrowserResourceLoads(page);

@@ -2,6 +2,7 @@
 
 import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import type { ComponentProps, CSSProperties, ReactNode } from "react";
+import { cloneElement, isValidElement } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import "@testing-library/jest-dom/vitest";
 
@@ -34,10 +35,74 @@ vi.mock("@/lib/utils", () => ({
 
 vi.mock("lucide-react", () => ({
   Terminal: () => <span data-testid="icon-terminal">⊞</span>,
+  ChevronRight: () => <span data-testid="icon-chevron-right">›</span>,
   Plus: () => <span data-testid="icon-plus">+</span>,
   Search: () => <span data-testid="icon-search-action">🔎</span>,
   SearchIcon: () => <span data-testid="icon-search">🔍</span>,
   Triangle: () => <span data-testid="icon-triangle">▲</span>,
+  X: () => <span data-testid="icon-close">×</span>,
+}));
+
+vi.mock("@/components/ui/sidebar", () => ({
+  Sidebar: ({
+    children,
+    side,
+    mobileOnly: _mobileOnly,
+    ...props
+  }: ComponentProps<"aside"> & { side?: string; mobileOnly?: boolean }) => (
+    <aside {...props} data-side={side}>
+      {children}
+    </aside>
+  ),
+  SidebarContent: ({ children, ...props }: ComponentProps<"div">) => (
+    <div data-testid="sidebar-content" {...props}>
+      {children}
+    </div>
+  ),
+  SidebarGroup: ({ children, ...props }: ComponentProps<"div">) => (
+    <div data-testid="sidebar-group" {...props}>
+      {children}
+    </div>
+  ),
+  SidebarGroupContent: ({ children, ...props }: ComponentProps<"div">) => (
+    <div data-testid="sidebar-group-content" {...props}>
+      {children}
+    </div>
+  ),
+  SidebarHeader: ({ children, ...props }: ComponentProps<"div">) => (
+    <div data-testid="sidebar-header" {...props}>
+      {children}
+    </div>
+  ),
+  SidebarGroupLabel: ({ children, ...props }: ComponentProps<"div">) => (
+    <div data-testid="sidebar-group-label" {...props}>
+      {children}
+    </div>
+  ),
+  SidebarInput: (props: ComponentProps<"input">) => <input data-slot="sidebar-input" {...props} />,
+  SidebarMenu: ({ children, ...props }: ComponentProps<"ul">) => (
+    <ul data-testid="sidebar-menu" {...props}>
+      {children}
+    </ul>
+  ),
+  SidebarMenuItem: ({ children, ...props }: ComponentProps<"li">) => (
+    <li data-testid="sidebar-menu-item" {...props}>
+      {children}
+    </li>
+  ),
+  SidebarMenuButton: ({
+    children,
+    render,
+    size: _size,
+    ...props
+  }: ComponentProps<"button"> & { render?: ReactNode; size?: string }) =>
+    isValidElement<ComponentProps<"button">>(render) ? (
+      cloneElement(render, props, children)
+    ) : (
+      <button type="button" {...props}>
+        {children}
+      </button>
+    ),
 }));
 
 vi.mock("@/components/ui/dialog", () => ({
@@ -61,14 +126,16 @@ vi.mock("@/components/ui/sheet", () => ({
     side,
     style,
     showCloseButton,
+    ...props
   }: {
     children: ReactNode;
     className?: string;
     side?: string;
     style?: CSSProperties;
     showCloseButton?: boolean;
-  }) => (
+  } & Record<string, unknown>) => (
     <div
+      {...props}
       data-testid="sheet-content"
       data-slot="sheet-content"
       data-side={side}
@@ -81,6 +148,11 @@ vi.mock("@/components/ui/sheet", () => ({
   ),
   SheetTitle: ({ children, className }: { children: ReactNode; className?: string }) => (
     <div data-testid="sheet-title" data-slot="sheet-title" className={className}>
+      {children}
+    </div>
+  ),
+  SheetHeader: ({ children, className }: { children: ReactNode; className?: string }) => (
+    <div data-testid="sheet-header" data-slot="sheet-header" className={className}>
       {children}
     </div>
   ),
@@ -184,7 +256,7 @@ vi.mock("@/components/ui/command", () => {
   };
 });
 
-import { CommandPalette } from "@/components/terminal/CommandPalette";
+import { CommandPalette, type CommandPaletteAction } from "@/components/terminal/CommandPalette";
 import {
   DRAG_DISMISS_DISTANCE_PX,
   DRAG_DISMISS_VELOCITY,
@@ -304,6 +376,34 @@ const mockTabs = [
   { id: "tab-3", sessionName: "test-runner" },
 ];
 
+function expandableMobileActions(add: () => void, open: () => void): CommandPaletteAction[] {
+  return [
+    {
+      id: "workspace:session:dev-server",
+      label: "dev-server",
+      description: "Terminal session",
+      group: "Terminal sessions",
+      shortcut: "Ctrl + 1",
+      icon: "terminal",
+      onSelect: add,
+      options: [
+        { id: "add", label: "Add", onSelect: add },
+        { id: "open", label: "Open", onSelect: open },
+      ],
+    },
+    {
+      id: "workspace:git:hive",
+      label: "hive",
+      description: "kethalia/hive",
+      group: "Git repositories",
+      shortcut: "Ctrl + 2",
+      icon: "search",
+      onSelect: add,
+      options: [{ id: "open", label: "Open", onSelect: open }],
+    },
+  ];
+}
+
 describe("CommandPalette", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -421,6 +521,7 @@ describe("CommandPalette", () => {
     const sheet = screen.getByTestId("sheet-content");
     expect(sheet).toHaveAttribute("data-side", "bottom");
     expect(sheet).toHaveAttribute("data-show-close-button", "false");
+    expect(sheet).toHaveAttribute("data-sidebar-gesture-ignore", "true");
     expect(sheet).toHaveClass("pb-safe");
     expect(sheet).toHaveClass("overflow-hidden");
     expect(sheet).toHaveClass("rounded-t-2xl");
@@ -429,6 +530,70 @@ describe("CommandPalette", () => {
     expect(sheet).toHaveClass("motion-reduce:duration-0");
 
     await waitFor(() => expect(sheet).toHaveStyle({ maxHeight: "512px" }));
+  });
+
+  it("renders the global mobile palette in the shared right sidebar shell", () => {
+    mobileState.isMobile = true;
+
+    render(
+      <CommandPalette
+        open={true}
+        onOpenChange={vi.fn()}
+        tabs={mockTabs}
+        onSelectTab={vi.fn()}
+        mobileSide="right"
+      />,
+    );
+
+    const sidebar = screen.getByTestId("global-command-sidebar");
+    expect(sidebar).toHaveAttribute("data-side", "right");
+    expect(screen.queryByTestId("sheet-content")).not.toBeInTheDocument();
+    expect(screen.getByTestId("sidebar-header")).toHaveTextContent("Navigate");
+    expect(screen.getByTestId("sidebar-content")).toBeInTheDocument();
+    expect(screen.getAllByTestId("sidebar-group").length).toBeGreaterThan(0);
+    expect(screen.getByRole("button", { name: "Close global navigation" })).toBeInTheDocument();
+    expect(screen.getByRole("searchbox", { name: "Search global navigation" })).toHaveClass(
+      "text-base",
+    );
+    expect(screen.queryByTestId("command")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("command-shortcut")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Drag to dismiss command palette" })).toBeNull();
+  });
+
+  it("expands mobile terminal and Git rows to show actions below their titles", async () => {
+    mobileState.isMobile = true;
+    const add = vi.fn();
+    const open = vi.fn();
+    const onOpenChange = vi.fn();
+
+    render(
+      <CommandPalette
+        open={true}
+        onOpenChange={onOpenChange}
+        tabs={[]}
+        onSelectTab={vi.fn()}
+        mobileSide="right"
+        actions={expandableMobileActions(add, open)}
+      />,
+    );
+
+    expect(screen.getByText("dev-server")).toBeVisible();
+    expect(screen.getByText("hive")).toBeVisible();
+    expect(screen.queryByText("Ctrl + 1")).not.toBeInTheDocument();
+    expect(screen.queryByText("Ctrl + 2")).not.toBeInTheDocument();
+    expect(screen.queryByRole("group", { name: "dev-server actions" })).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId("mobile-command-disclosure-workspace:session:dev-server"));
+
+    const terminalActions = await screen.findByRole("group", { name: "dev-server actions" });
+    expect(terminalActions).toBeVisible();
+    expect(terminalActions).toHaveTextContent("Add");
+    expect(terminalActions).toHaveTextContent("Open");
+    expect(add).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByTestId("mobile-command-option-workspace:session:dev-server-open"));
+    expect(open).toHaveBeenCalledOnce();
+    expect(onOpenChange).toHaveBeenCalledWith(false);
   });
 
   it("falls back to 100dvh when visualViewport is unavailable on mobile", () => {
@@ -449,6 +614,7 @@ describe("CommandPalette", () => {
     );
 
     const command = screen.getByTestId("command");
+    expect(command).toHaveClass("rounded-none", "bg-transparent", "shadow-none");
     expect(command.className).toContain("[&_[cmdk-input]]:h-12");
     expect(command.className).toContain("[&_[cmdk-item]]:py-3");
   });

@@ -254,6 +254,10 @@ vi.mock("@/components/ui/sidebar", () => ({
       Toggle sidebar
     </button>
   ),
+  useSidebar: () => ({
+    openMobileRight: false,
+    setOpenMobileRight: vi.fn(),
+  }),
 }));
 
 vi.mock("@/components/workspaces/MultiSessionWorkspace", () => ({
@@ -340,12 +344,18 @@ vi.mock("@/components/ui/alert", () => ({
 vi.mock("lucide-react", () => ({
   Activity: () => null,
   AlertCircle: () => null,
+  ArrowDown: () => null,
   ArrowLeft: () => null,
+  ArrowRight: () => null,
+  ArrowUp: () => null,
   Code2: () => null,
   ClipboardPaste: () => null,
   Copy: () => null,
+  Ellipsis: () => null,
   ExternalLink: () => null,
+  Files: () => null,
   FolderOpen: () => null,
+  Focus: () => null,
   ScrollText: () => null,
   GripVertical: () => null,
   RefreshCw: () => null,
@@ -608,16 +618,19 @@ vi.mock("@/components/ui/resizable", () => ({
 }));
 
 vi.mock("@/components/ui/sheet", () => ({
-  Sheet: ({ children, open }: React.PropsWithChildren<{ open?: boolean }>) => (
-    <div data-open={open ? "true" : "false"} data-testid="compose-sheet">
-      {open ? children : null}
-    </div>
-  ),
+  Sheet: ({ children, open }: React.PropsWithChildren<{ open?: boolean }>) =>
+    open ? (
+      <div data-open={open ? "true" : "false"} data-testid="compose-sheet">
+        {children}
+      </div>
+    ) : null,
   SheetContent: ({ children, side }: React.PropsWithChildren<{ side?: string }>) => (
     <section data-side={side} data-testid="compose-sheet-content">
       {children}
     </section>
   ),
+  SheetDescription: ({ children }: React.PropsWithChildren) => <p>{children}</p>,
+  SheetHeader: ({ children }: React.PropsWithChildren) => <div>{children}</div>,
   SheetTitle: ({ children }: React.PropsWithChildren) => <h2>{children}</h2>,
 }));
 
@@ -2729,6 +2742,52 @@ describe("InteractiveTerminal integration — Mobile input adapter", () => {
       terminal?.dataHandler?.("echo mobile\r");
     });
     expect(mockSend).toHaveBeenCalledWith("echo mobile\r");
+    unmount();
+  });
+
+  it("does not refocus a terminal after a multi-touch sequence", async () => {
+    const onUserFocusRequest = vi.fn();
+    const { container, unmount } = await renderTerminal({
+      mobileInputMode: true,
+      onUserFocusRequest,
+    });
+    const terminal = terminalInstances.at(-1);
+    const inputTarget = container.querySelector('[data-testid="terminal-fit-host"]');
+    expect(terminal).toBeDefined();
+    if (!inputTarget) throw new Error("Terminal input surface is missing.");
+
+    terminal?.focus.mockClear();
+    fireTouchEvent(inputTarget, "touchstart", [touchPoint(1, 80, 240)]);
+    fireTouchEvent(inputTarget, "touchmove", [touchPoint(1, 82, 242), touchPoint(2, 120, 242)]);
+    fireTouchEvent(inputTarget, "touchend", [], [touchPoint(1, 82, 242), touchPoint(2, 120, 242)]);
+    fireEvent.click(inputTarget);
+
+    expect(terminal?.focus).not.toHaveBeenCalled();
+    expect(onUserFocusRequest).not.toHaveBeenCalled();
+    unmount();
+  });
+
+  it("does not resume one-finger terminal scrolling after a multi-touch sequence", async () => {
+    const { container, unmount } = await renderTerminal({ mobileInputMode: true });
+    const terminal = terminalInstances.at(-1);
+    const inputTarget = container.querySelector('[data-testid="terminal-fit-host"]');
+    const screen = container.querySelector(".xterm-screen");
+    expect(terminal).toBeDefined();
+    if (!inputTarget || !screen || !terminal) throw new Error("Terminal touch surface is missing.");
+
+    terminal.modes.mouseTrackingMode = "any";
+    let wheelEventCount = 0;
+    screen.addEventListener("wheel", () => {
+      wheelEventCount += 1;
+    });
+
+    fireTouchEvent(inputTarget, "touchstart", [touchPoint(1, 80, 320)]);
+    fireTouchEvent(inputTarget, "touchmove", [touchPoint(1, 80, 300), touchPoint(2, 120, 300)]);
+    const remainingFingerMove = fireTouchEvent(inputTarget, "touchmove", [touchPoint(1, 80, 240)]);
+    fireTouchEvent(inputTarget, "touchend", [], [touchPoint(1, 80, 240)]);
+
+    expect(remainingFingerMove.defaultPrevented).toBe(false);
+    expect(wheelEventCount).toBe(0);
     unmount();
   });
 

@@ -23,10 +23,7 @@ vi.mock("@/hooks/useTerminalFontStep", () => ({
   useTerminalFontStep: mockUseTerminalFontStep,
 }));
 
-import {
-  MobileTerminalControls,
-  type MobileTerminalWindowNavigation,
-} from "@/components/terminal/MobileTerminalControls";
+import { MobileTerminalControls } from "@/components/terminal/MobileTerminalControls";
 
 function expectStackedLabelThenIcon(button: HTMLElement, label: string) {
   expect(button).toHaveClass("flex-col", "text-xs", "leading-none");
@@ -77,27 +74,6 @@ function installObserverMocks() {
 
   vi.stubGlobal("IntersectionObserver", IntersectionObserverMock);
   vi.stubGlobal("ResizeObserver", ResizeObserverMock);
-}
-
-function makeWindowNavigation(
-  overrides: Partial<MobileTerminalWindowNavigation> = {},
-): MobileTerminalWindowNavigation {
-  const sessions = [{ name: "window-one" }, { name: "window-two" }, { name: "window-three" }];
-
-  return {
-    sessions,
-    current: sessions[1],
-    previous: sessions[0],
-    next: sessions[2],
-    canGoPrevious: true,
-    canGoNext: true,
-    loading: false,
-    error: null,
-    select: vi.fn(() => true),
-    reload: vi.fn(),
-    onOpenSwitcher: vi.fn(),
-    ...overrides,
-  };
 }
 
 afterEach(() => {
@@ -161,7 +137,6 @@ describe("MobileTerminalControls", () => {
       "Control controls",
       "Navigation controls",
       "Clipboard controls",
-      "Windows controls",
       "Compose controls",
       "Font size controls",
     ]);
@@ -233,24 +208,6 @@ describe("MobileTerminalControls", () => {
       "polite",
     );
 
-    const windowControls = within(carousel).getByRole("group", {
-      name: "Favorite window controls",
-    });
-    expect(windowControls).toHaveClass("grid", "w-full", "grid-cols-4", "rounded-none");
-    expect(
-      within(windowControls).getByRole("button", { name: "Switch to previous favorite window" }),
-    ).toHaveClass("min-h-14", "min-w-0");
-    expect(
-      within(windowControls).getByRole("button", { name: "Open favorite window switcher" }),
-    ).toHaveClass("min-h-14", "min-w-0");
-    expect(
-      within(windowControls).getByRole("button", { name: "Switch to next favorite window" }),
-    ).toHaveClass("min-h-14", "min-w-0");
-    expect(
-      within(windowControls).getByRole("button", { name: "Reload favorite window list" }),
-    ).toHaveClass("min-h-14", "min-w-0");
-    expect(screen.getByText("Favorite window navigation unavailable")).toBeInTheDocument();
-
     const composeControls = within(carousel).getByRole("group", {
       name: "Terminal compose controls",
     });
@@ -278,9 +235,6 @@ describe("MobileTerminalControls", () => {
     ).not.toHaveAttribute("aria-current");
     expect(
       within(pageDots).getByRole("button", { name: "Show Clipboard controls" }),
-    ).not.toHaveAttribute("aria-current");
-    expect(
-      within(pageDots).getByRole("button", { name: "Show Windows controls" }),
     ).not.toHaveAttribute("aria-current");
     expect(
       within(pageDots).getByRole("button", { name: "Show Compose controls" }),
@@ -350,7 +304,6 @@ describe("MobileTerminalControls", () => {
     const compose = within(pageDots).getByRole("button", { name: "Show Compose controls" });
     const navigation = within(pageDots).getByRole("button", { name: "Show Navigation controls" });
     const clipboard = within(pageDots).getByRole("button", { name: "Show Clipboard controls" });
-    const windows = within(pageDots).getByRole("button", { name: "Show Windows controls" });
     const fontSize = within(pageDots).getByRole("button", { name: "Show Font size controls" });
 
     expect(keys).toHaveAttribute("aria-current", "page");
@@ -363,16 +316,12 @@ describe("MobileTerminalControls", () => {
     expect(onHapticFeedback).toHaveBeenCalledTimes(2);
     expect(clipboard).toHaveAttribute("aria-current", "page");
 
-    fireEvent.click(windows);
-    expect(onHapticFeedback).toHaveBeenCalledTimes(3);
-    expect(windows).toHaveAttribute("aria-current", "page");
-
     fireEvent.click(fontSize);
-    expect(onHapticFeedback).toHaveBeenCalledTimes(4);
+    expect(onHapticFeedback).toHaveBeenCalledTimes(3);
     expect(fontSize).toHaveAttribute("aria-current", "page");
 
     fireEvent.click(compose);
-    expect(onHapticFeedback).toHaveBeenCalledTimes(5);
+    expect(onHapticFeedback).toHaveBeenCalledTimes(4);
     expect(compose).toHaveAttribute("aria-current", "page");
   });
 
@@ -446,184 +395,6 @@ describe("MobileTerminalControls", () => {
     expect(onCopy).toHaveBeenCalledTimes(1);
     expect(onPaste).toHaveBeenCalledTimes(1);
     expect(onHapticFeedback).toHaveBeenCalledTimes(3);
-  });
-
-  it("renders loading window navigation as visible disabled controls with a live status", () => {
-    render(
-      <MobileTerminalControls
-        windowNavigation={makeWindowNavigation({
-          sessions: [],
-          current: null,
-          previous: null,
-          next: null,
-          canGoPrevious: false,
-          canGoNext: false,
-          loading: true,
-        })}
-      />,
-    );
-
-    const windowControls = screen.getByRole("group", { name: "Favorite window controls" });
-    const previous = within(windowControls).getByRole("button", {
-      name: "Switch to previous favorite window",
-    });
-    const switcher = within(windowControls).getByRole("button", {
-      name: "Open favorite window switcher",
-    });
-    const next = within(windowControls).getByRole("button", {
-      name: "Switch to next favorite window",
-    });
-    const reload = within(windowControls).getByRole("button", {
-      name: "Reload favorite window list",
-    });
-
-    expect(previous).toBeDisabled();
-    expect(previous).toHaveAttribute("title", "Loading favorite windows");
-    expect(switcher).toBeDisabled();
-    expect(switcher).toHaveAttribute("title", "Loading favorite windows");
-    expect(next).toBeDisabled();
-    expect(next).toHaveAttribute("title", "Loading favorite windows");
-    expect(reload).toBeDisabled();
-    expect(screen.getByText("Loading favorite windows")).toHaveAttribute("aria-live", "polite");
-  });
-
-  it("keeps one-window navigation visible but explains why previous and next are disabled", () => {
-    const sessions = [{ name: "window-one" }];
-    render(
-      <MobileTerminalControls
-        windowNavigation={makeWindowNavigation({
-          sessions,
-          current: sessions[0],
-          previous: null,
-          next: null,
-          canGoPrevious: false,
-          canGoNext: false,
-        })}
-      />,
-    );
-
-    const windowControls = screen.getByRole("group", { name: "Favorite window controls" });
-    const previous = within(windowControls).getByRole("button", {
-      name: "Switch to previous favorite window",
-    });
-    const next = within(windowControls).getByRole("button", {
-      name: "Switch to next favorite window",
-    });
-
-    expect(previous).toBeDisabled();
-    expect(previous).toHaveAttribute("title", "Only one favorite window is available");
-    expect(next).toBeDisabled();
-    expect(next).toHaveAttribute("title", "Only one favorite window is available");
-    expect(screen.getByText("Only one favorite window is available")).toBeInTheDocument();
-    expect(
-      within(windowControls).getByRole("button", { name: "Open favorite window switcher" }),
-    ).toBeEnabled();
-  });
-
-  it("switches previous and next favorite windows and opens the switcher with haptics", () => {
-    const onHapticFeedback = vi.fn();
-    const windowNavigation = makeWindowNavigation();
-    render(
-      <MobileTerminalControls
-        onHapticFeedback={onHapticFeedback}
-        windowNavigation={windowNavigation}
-      />,
-    );
-
-    const windowControls = screen.getByRole("group", { name: "Favorite window controls" });
-    const previous = within(windowControls).getByRole("button", {
-      name: "Switch to previous favorite window",
-    });
-    const switcher = within(windowControls).getByRole("button", {
-      name: "Open favorite window switcher",
-    });
-    const next = within(windowControls).getByRole("button", {
-      name: "Switch to next favorite window",
-    });
-
-    expect(previous).toBeEnabled();
-    expect(next).toBeEnabled();
-    expect(
-      screen.getByText("Current favorite window: window-two. 3 favorite windows available."),
-    ).toHaveAttribute("aria-live", "polite");
-
-    fireEvent.click(previous);
-    expect(windowNavigation.select).toHaveBeenCalledWith("window-one");
-    fireEvent.click(next);
-    expect(windowNavigation.select).toHaveBeenCalledWith("window-three");
-    fireEvent.click(switcher);
-    expect(windowNavigation.onOpenSwitcher).toHaveBeenCalledTimes(1);
-    expect(onHapticFeedback).toHaveBeenCalledTimes(3);
-  });
-
-  it("exposes error retry without enabling stale previous or next navigation", () => {
-    const onHapticFeedback = vi.fn();
-    const windowNavigation = makeWindowNavigation({
-      error: "Failed to load terminal sessions",
-      previous: null,
-      next: null,
-      canGoPrevious: false,
-      canGoNext: false,
-    });
-    render(
-      <MobileTerminalControls
-        onHapticFeedback={onHapticFeedback}
-        windowNavigation={windowNavigation}
-      />,
-    );
-
-    const windowControls = screen.getByRole("group", { name: "Favorite window controls" });
-    expect(
-      within(windowControls).getByRole("button", { name: "Switch to previous favorite window" }),
-    ).toBeDisabled();
-    expect(
-      within(windowControls).getByRole("button", { name: "Switch to next favorite window" }),
-    ).toBeDisabled();
-    expect(
-      screen.getByText("Favorite window navigation error: Failed to load terminal sessions"),
-    ).toBeInTheDocument();
-
-    fireEvent.click(
-      within(windowControls).getByRole("button", { name: "Retry loading favorite windows" }),
-    );
-
-    expect(windowNavigation.reload).toHaveBeenCalledTimes(1);
-    expect(onHapticFeedback).toHaveBeenCalledTimes(1);
-  });
-
-  it("does not throw or fire haptics when optional window callbacks are omitted", () => {
-    const onHapticFeedback = vi.fn();
-    const sessions = [{ name: "window-one" }, { name: "window-two" }];
-    render(
-      <MobileTerminalControls
-        onHapticFeedback={onHapticFeedback}
-        windowNavigation={{
-          sessions,
-          current: sessions[0],
-          previous: null,
-          next: sessions[1],
-          canGoPrevious: false,
-          canGoNext: true,
-          loading: false,
-          error: null,
-        }}
-      />,
-    );
-
-    const windowControls = screen.getByRole("group", { name: "Favorite window controls" });
-    expect(
-      within(windowControls).getByRole("button", { name: "Switch to next favorite window" }),
-    ).toBeDisabled();
-    expect(
-      within(windowControls).getByRole("button", { name: "Switch to next favorite window" }),
-    ).toHaveAttribute("title", "Favorite window switching unavailable");
-    expect(
-      within(windowControls).getByRole("button", { name: "Open favorite window switcher" }),
-    ).toBeDisabled();
-    expect(
-      within(windowControls).getByRole("button", { name: "Reload favorite window list" }),
-    ).toBeDisabled();
-    expect(onHapticFeedback).not.toHaveBeenCalled();
   });
 
   it("dispatches the compose event from the compose page", () => {
@@ -731,27 +502,23 @@ describe("MobileTerminalControls", () => {
         onCopy={vi.fn()}
         onPaste={vi.fn()}
         onToggleSelectionMode={vi.fn()}
-        windowNavigation={makeWindowNavigation()}
       />,
     );
     const enter = screen.getByRole("button", { name: "Enter" });
     const ctrlD = screen.getByRole("button", { name: "Ctrl+D" });
     const dot = screen.getByRole("button", { name: "Show Navigation controls" });
-    const switcher = screen.getByRole("button", { name: "Open favorite window switcher" });
     const selectionMode = screen.getByRole("button", { name: "Turn terminal selection mode on" });
     const copy = screen.getByRole("button", { name: "Copy terminal selection" });
     const paste = screen.getByRole("button", { name: "Paste from clipboard" });
     const pointerEvent = new Event("pointerdown", { bubbles: true, cancelable: true });
     const ctrlDPointerEvent = new Event("pointerdown", { bubbles: true, cancelable: true });
     const dotPointerEvent = new Event("pointerdown", { bubbles: true, cancelable: true });
-    const switcherPointerEvent = new Event("pointerdown", { bubbles: true, cancelable: true });
     const selectionModePointerEvent = new Event("pointerdown", { bubbles: true, cancelable: true });
     const copyPointerEvent = new Event("pointerdown", { bubbles: true, cancelable: true });
     const pastePointerEvent = new Event("pointerdown", { bubbles: true, cancelable: true });
     const mouseEvent = new Event("mousedown", { bubbles: true, cancelable: true });
     const ctrlDMouseEvent = new Event("mousedown", { bubbles: true, cancelable: true });
     const dotMouseEvent = new Event("mousedown", { bubbles: true, cancelable: true });
-    const switcherMouseEvent = new Event("mousedown", { bubbles: true, cancelable: true });
     const selectionModeMouseEvent = new Event("mousedown", { bubbles: true, cancelable: true });
     const copyMouseEvent = new Event("mousedown", { bubbles: true, cancelable: true });
     const pasteMouseEvent = new Event("mousedown", { bubbles: true, cancelable: true });
@@ -759,14 +526,12 @@ describe("MobileTerminalControls", () => {
     fireEvent(enter, pointerEvent);
     fireEvent(ctrlD, ctrlDPointerEvent);
     fireEvent(dot, dotPointerEvent);
-    fireEvent(switcher, switcherPointerEvent);
     fireEvent(selectionMode, selectionModePointerEvent);
     fireEvent(copy, copyPointerEvent);
     fireEvent(paste, pastePointerEvent);
     fireEvent(enter, mouseEvent);
     fireEvent(ctrlD, ctrlDMouseEvent);
     fireEvent(dot, dotMouseEvent);
-    fireEvent(switcher, switcherMouseEvent);
     fireEvent(selectionMode, selectionModeMouseEvent);
     fireEvent(copy, copyMouseEvent);
     fireEvent(paste, pasteMouseEvent);
@@ -774,14 +539,12 @@ describe("MobileTerminalControls", () => {
     expect(pointerEvent.defaultPrevented).toBe(true);
     expect(ctrlDPointerEvent.defaultPrevented).toBe(true);
     expect(dotPointerEvent.defaultPrevented).toBe(true);
-    expect(switcherPointerEvent.defaultPrevented).toBe(true);
     expect(selectionModePointerEvent.defaultPrevented).toBe(true);
     expect(copyPointerEvent.defaultPrevented).toBe(true);
     expect(pastePointerEvent.defaultPrevented).toBe(true);
     expect(mouseEvent.defaultPrevented).toBe(true);
     expect(ctrlDMouseEvent.defaultPrevented).toBe(true);
     expect(dotMouseEvent.defaultPrevented).toBe(true);
-    expect(switcherMouseEvent.defaultPrevented).toBe(true);
     expect(selectionModeMouseEvent.defaultPrevented).toBe(true);
     expect(copyMouseEvent.defaultPrevented).toBe(true);
     expect(pasteMouseEvent.defaultPrevented).toBe(true);

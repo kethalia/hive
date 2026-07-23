@@ -7,7 +7,12 @@ import {
   type DragEndEvent,
   type DragMoveEvent,
   type DragStartEvent,
+  MouseSensor,
+  PointerSensor,
   pointerWithin,
+  TouchSensor,
+  useSensor,
+  useSensors,
 } from "@dnd-kit/core";
 import { getEventCoordinates } from "@dnd-kit/utilities";
 import type { Terminal } from "@xterm/xterm";
@@ -39,13 +44,17 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { SidebarTrigger } from "@/components/ui/sidebar";
+import { SidebarTrigger, useSidebar } from "@/components/ui/sidebar";
 import { TerminalSessionEventLog } from "@/components/workspaces/TerminalSessionEventLog";
 import {
   TerminalFontSizeControls,
   TerminalSessionFrame,
 } from "@/components/workspaces/TerminalSessionFrame";
 import { WorkspaceBoardBar } from "@/components/workspaces/WorkspaceBoardBar";
+import {
+  type WorkspacePaneAction,
+  WorkspacePaneActionSheet,
+} from "@/components/workspaces/WorkspacePaneActionSheet";
 import {
   isWorkspaceSessionToolUrls,
   WorkspaceSessionTools,
@@ -75,6 +84,7 @@ import {
 } from "@/lib/actions/workspaces";
 import { SAFE_IDENTIFIER_RE } from "@/lib/constants";
 import { triggerHapticFeedback } from "@/lib/device/haptics";
+import { DRAG_LONG_PRESS_MOVE_PX } from "@/lib/gestures/conventions";
 import type { GitCloneTerminalIdentity, PublicCloneTree } from "@/lib/git/clone-actions-contract";
 import { getGitRepositoryPresentation } from "@/lib/git/clone-public-identifiers";
 import type { CloneTreeNode, CloneTreeRepositoryNode } from "@/lib/git/clone-tree";
@@ -256,6 +266,16 @@ interface RemoveWorkspacePaneTarget {
   sessionName: string;
   boardKey?: string;
   boardPaneKey?: string;
+}
+
+interface WorkspacePaneActionTarget {
+  boardKey: string;
+  boardPaneKey?: string;
+  kind: "terminal" | "tool";
+  label: string;
+  sessionName: string;
+  subtitle?: string;
+  windowId: string;
 }
 
 interface GitRepositoryOption {
@@ -1205,6 +1225,7 @@ export function MultiSessionWorkspace({
     null,
   );
   const [windowDragOrigin, setWindowDragOrigin] = useState<WorkspaceWindowDragOrigin | null>(null);
+  const [paneActionTarget, setPaneActionTarget] = useState<WorkspacePaneActionTarget | null>(null);
   const [workspaceViewport, setWorkspaceViewport] = useState({ width: 0, height: 0 });
   const [paneRecoveryStates, setPaneRecoveryStates] = useState<
     Record<string, WorkspacePaneRecoveryInput>
@@ -1235,6 +1256,20 @@ export function MultiSessionWorkspace({
   const isUnifiedSource = source === "unified";
   const keepAliveStatus = useKeepAliveStatus(workspaceId);
   const isComposeSheet = useIsComposeSheet();
+  const { openMobileRight, setOpenMobileRight } = useSidebar();
+  const pointerWindowDragSensor = useSensor(PointerSensor, {
+    activationConstraint: { distance: DRAG_LONG_PRESS_MOVE_PX },
+  });
+  const mouseWindowDragSensor = useSensor(MouseSensor, {
+    activationConstraint: { distance: DRAG_LONG_PRESS_MOVE_PX },
+  });
+  const touchWindowDragSensor = useSensor(TouchSensor, {
+    activationConstraint: { distance: DRAG_LONG_PRESS_MOVE_PX },
+  });
+  const windowDragSensors = useSensors(
+    isComposeSheet ? mouseWindowDragSensor : pointerWindowDragSensor,
+    isComposeSheet ? touchWindowDragSensor : null,
+  );
   const {
     isKeyboardVisible: visualKeyboardVisible,
     visualViewportHeightPx,
@@ -1797,6 +1832,7 @@ export function MultiSessionWorkspace({
       onDelete={handleDeleteBoard}
       onSelect={handleSelectBoard}
       className="w-full min-w-0 max-w-full"
+      touchOptimized={isComposeSheet}
     />
   );
 
@@ -2060,6 +2096,15 @@ export function MultiSessionWorkspace({
     [activeBoardRenderModel, selectWorkspaceWindow],
   );
 
+  const openWorkspaceCommandPalette = useCallback(() => {
+    if (isComposeSheet) {
+      setGitSearchQuery("");
+      setOpenMobileRight(true);
+      return;
+    }
+    setPaletteOpen(true);
+  }, [isComposeSheet, setOpenMobileRight]);
+
   const mobileWindowNavigation = useMemo(() => {
     const sessionsForControls = visibleSessions.map((session) => ({
       id: session.sessionName,
@@ -2099,14 +2144,14 @@ export function MultiSessionWorkspace({
         selectSession(target.sessionName, { focusTerminal: false });
         return true;
       },
-      onOpenSwitcher: () => setPaletteOpen(true),
+      onOpenSwitcher: openWorkspaceCommandPalette,
     };
-  }, [activeSessionName, selectSession, visibleSessions]);
+  }, [activeSessionName, openWorkspaceCommandPalette, selectSession, visibleSessions]);
 
   const switchRelativeWorkspaceBoard = useCallback(
     (direction: -1 | 1) => {
       const orderedBoards = orderedWorkspaceBoards(boardState.boards);
-      if (orderedBoards.length <= 1) return;
+      if (orderedBoards.length <= 1) return null;
 
       const activeBoardKey = boardState.activeBoardKey ?? activeBoard?.key;
       const currentIndex = Math.max(
@@ -2115,9 +2160,10 @@ export function MultiSessionWorkspace({
       );
       const nextBoard =
         orderedBoards[(currentIndex + direction + orderedBoards.length) % orderedBoards.length];
-      if (!nextBoard || nextBoard.key === activeBoardKey) return;
+      if (!nextBoard || nextBoard.key === activeBoardKey) return null;
 
       persistBoardState(selectWorkspaceBoard(boardState, nextBoard.key));
+      return nextBoard;
     },
     [activeBoard?.key, boardState, persistBoardState],
   );
@@ -2350,6 +2396,7 @@ export function MultiSessionWorkspace({
     setGitRestoreFailed(false);
     setTerminalCloseFailed(false);
     setWorkspaceViewport({ width: 0, height: 0 });
+    setPaneActionTarget(null);
     setPaneRecoveryStates({});
     workspaceToolPanesRef.current = [];
     setWorkspaceToolPanes([]);
@@ -2579,7 +2626,7 @@ export function MultiSessionWorkspace({
   ]);
 
   useEffect(() => {
-    if (!isUnifiedSource || (!gitSearchOpen && !paletteOpen)) return;
+    if (!isUnifiedSource || (!gitSearchOpen && !paletteOpen && !openMobileRight)) return;
 
     let cancelled = false;
     setGitFavoritesLoading(true);
@@ -2607,7 +2654,7 @@ export function MultiSessionWorkspace({
     return () => {
       cancelled = true;
     };
-  }, [gitSearchOpen, isUnifiedSource, paletteOpen, workspaceId]);
+  }, [gitSearchOpen, isUnifiedSource, openMobileRight, paletteOpen, workspaceId]);
 
   const handleCreateSession = useCallback(
     async (sessionName?: string): Promise<boolean> => {
@@ -3421,6 +3468,16 @@ export function MultiSessionWorkspace({
     ],
   );
 
+  const removeWorkspaceToolPane = useCallback(
+    (toolPaneKey: string) => {
+      if (activeWindowIdRef.current === toolPaneKey) setActiveWindowId(null);
+      replaceWorkspaceToolPanes(
+        workspaceToolPanesRef.current.filter((pane) => pane.key !== toolPaneKey),
+      );
+    },
+    [replaceWorkspaceToolPanes],
+  );
+
   useEffect(() => {
     register({
       id: `multi-session:${workspaceId}:close-active-pane`,
@@ -3431,10 +3488,7 @@ export function MultiSessionWorkspace({
           (pane) => pane.key === activeWindowIdRef.current,
         );
         if (activeToolPane) {
-          setActiveWindowId(null);
-          replaceWorkspaceToolPanes(
-            workspaceToolPanesRef.current.filter((pane) => pane.key !== activeToolPane.key),
-          );
+          removeWorkspaceToolPane(activeToolPane.key);
           return false;
         }
         const target =
@@ -3460,14 +3514,14 @@ export function MultiSessionWorkspace({
     activeBoardRenderModel?.toolPanes,
     handleRemovePane,
     register,
-    replaceWorkspaceToolPanes,
+    removeWorkspaceToolPane,
     unregister,
     visibleSessions,
     workspaceId,
   ]);
 
   const renderGitFontControls = () => {
-    if (!isUnifiedSource) return null;
+    if (!isUnifiedSource || isComposeSheet) return null;
 
     return (
       <TerminalFontSizeControls
@@ -3488,7 +3542,7 @@ export function MultiSessionWorkspace({
         type="button"
         variant="outline"
         size="xs"
-        onClick={() => setPaletteOpen(true)}
+        onClick={openWorkspaceCommandPalette}
         className="h-7 min-h-0 px-2 text-xs"
         aria-label="Open workspace command palette"
         data-testid="open-git-session-search"
@@ -3738,7 +3792,7 @@ export function MultiSessionWorkspace({
 
   const renderWorkspaceHeader = () => (
     <>
-      <header className="grid min-h-[calc(5.75rem+var(--safe-area-inset-top))] shrink-0 grid-cols-[minmax(0,1fr)_auto] grid-rows-[auto_auto] items-center gap-x-2 gap-y-1 border-b border-sidebar-border px-[max(0.5rem,var(--safe-area-inset-left))] pb-1 pt-[calc(var(--safe-area-inset-top)+0.25rem)] pr-[max(0.5rem,var(--safe-area-inset-right))] min-[1025px]:min-h-14 min-[1025px]:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] min-[1025px]:grid-rows-1 min-[1025px]:gap-1 min-[1025px]:px-2 min-[1025px]:py-1">
+      <header className="grid min-h-[calc(5.75rem+var(--safe-area-inset-top))] shrink-0 grid-cols-[minmax(0,1fr)_auto] grid-rows-[auto_auto] items-center gap-x-2 gap-y-1 border-b border-sidebar-border px-[max(0.5rem,var(--safe-area-inset-left))] pb-1 pt-[calc(var(--safe-area-inset-top)+0.25rem)] pr-[max(0.5rem,var(--safe-area-inset-right))] min-[1025px]:min-h-[calc(3.5rem+var(--safe-area-inset-top))] min-[1025px]:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] min-[1025px]:grid-rows-1 min-[1025px]:gap-1">
         <div className="flex min-w-0 items-center gap-1" data-testid="workspace-header-left">
           <SidebarTrigger className="h-7 min-h-0 shrink-0" />
           <div className="min-w-0 flex-1">
@@ -3791,23 +3845,25 @@ export function MultiSessionWorkspace({
       {renderGitRepositorySearchModal()}
       {renderGitAddFailureStatus()}
       {renderGitRestoreFailureStatus()}
-      <CommandPalette
-        open={paletteOpen}
-        onOpenChange={setPaletteOpen}
-        tabs={isUnifiedSource ? [] : commandPaletteTabs}
-        onSelectTab={handlePaletteSelect}
-        onCreateSession={isUnifiedSource ? undefined : () => void handleCreateSession()}
-        actions={workspacePaletteActions}
-        searchValue={isUnifiedSource ? gitSearchQuery : undefined}
-        onSearchValueChange={isUnifiedSource ? setGitSearchQuery : undefined}
-        searchPlaceholder={
-          isUnifiedSource
-            ? "Search terminal sessions, Git repositories, or type a new session name…"
-            : "Search workspace sessions…"
-        }
-        emptyText={isUnifiedSource ? "No command matches." : "No workspace sessions found."}
-        groupHeading="Workspace sessions"
-      />
+      {!isComposeSheet ? (
+        <CommandPalette
+          open={paletteOpen}
+          onOpenChange={setPaletteOpen}
+          tabs={isUnifiedSource ? [] : commandPaletteTabs}
+          onSelectTab={handlePaletteSelect}
+          onCreateSession={isUnifiedSource ? undefined : () => void handleCreateSession()}
+          actions={workspacePaletteActions}
+          searchValue={isUnifiedSource ? gitSearchQuery : undefined}
+          onSearchValueChange={isUnifiedSource ? setGitSearchQuery : undefined}
+          searchPlaceholder={
+            isUnifiedSource
+              ? "Search terminal sessions, Git repositories, or type a new session name…"
+              : "Search workspace sessions…"
+          }
+          emptyText={isUnifiedSource ? "No command matches." : "No workspace sessions found."}
+          groupHeading="Workspace sessions"
+        />
+      ) : null}
     </>
   );
 
@@ -3964,6 +4020,167 @@ export function MultiSessionWorkspace({
     });
   };
 
+  const paneActionModel = paneActionTarget
+    ? boardRenderModels.find((model) => model.board.key === paneActionTarget.boardKey)
+    : undefined;
+  const paneActionSession = paneActionTarget
+    ? sessions.find((session) => session.sessionName === paneActionTarget.sessionName)
+    : undefined;
+  const paneActionTool =
+    paneActionTarget?.kind === "tool"
+      ? paneActionModel?.toolPanes.find((pane) => pane.key === paneActionTarget.windowId)
+      : undefined;
+  const paneActionToolUrl =
+    paneActionTool?.url && !paneActionTool.url.startsWith("/api/workspace-proxy/")
+      ? paneActionTool.url
+      : null;
+
+  const activatePaneActionTarget = () => {
+    if (!paneActionTarget) return;
+    if (boardState.activeBoardKey !== paneActionTarget.boardKey) {
+      persistBoardState(selectWorkspaceBoard(boardState, paneActionTarget.boardKey));
+    }
+    if (paneActionTarget.kind === "tool") {
+      selectSession(paneActionTarget.sessionName, {
+        focusTerminal: false,
+        preserveActiveSessionWhenSourceHidden: true,
+        windowId: paneActionTarget.windowId,
+      });
+      return;
+    }
+    selectSession(paneActionTarget.sessionName);
+  };
+
+  const movePaneActionTarget = (direction: WorkspaceWindowDirection) => {
+    if (!paneActionTarget || !paneActionModel?.windowLayoutRoot) return;
+    const neighborId = findWorkspaceWindowInDirection(
+      paneActionModel.windowRects,
+      paneActionTarget.windowId,
+      direction,
+    );
+    if (!neighborId) return;
+    const nextRoot = moveWorkspaceWindow(
+      paneActionModel.windowLayoutRoot,
+      paneActionTarget.windowId,
+      neighborId,
+      direction === "up" ? "top" : direction === "down" ? "bottom" : direction,
+    );
+    persistWindowLayoutState({
+      ...resolvedWindowLayoutState,
+      boards: resolvedWindowLayoutState.boards.map((board) =>
+        board.boardKey === paneActionTarget.boardKey ? { ...board, root: nextRoot } : board,
+      ),
+    });
+    activatePaneActionTarget();
+  };
+
+  const paneActions: WorkspacePaneAction[] = paneActionTarget
+    ? [
+        {
+          id: "activate",
+          label: "Activate pane",
+          description: "Focus this pane",
+          icon: "activate",
+          onSelect: activatePaneActionTarget,
+        },
+        ...(paneActionToolUrl
+          ? [
+              {
+                id: "pop-out",
+                label: "Open in new tab",
+                description: "Open this workspace tool separately",
+                icon: "pop-out" as const,
+                onSelect: () => {
+                  window.open(paneActionToolUrl, "_blank", "noopener,noreferrer");
+                },
+              },
+            ]
+          : []),
+        ...(paneActionTarget.kind === "terminal" && paneActionSession
+          ? [
+              {
+                id: "files",
+                label: "Open files",
+                description: "Browse this workspace",
+                icon: "files" as const,
+                onSelect: () => {
+                  void openWorkspaceToolForSession(paneActionSession, "files", {
+                    boardKey: paneActionTarget.boardKey,
+                    boardGeneration: boardGenerationRef.current.get(paneActionTarget.boardKey) ?? 0,
+                  });
+                },
+              },
+              {
+                id: "code",
+                label: "Open VS Code",
+                description: "Open the browser editor",
+                icon: "code" as const,
+                onSelect: () => {
+                  void openWorkspaceToolForSession(paneActionSession, "code", {
+                    boardKey: paneActionTarget.boardKey,
+                    boardGeneration: boardGenerationRef.current.get(paneActionTarget.boardKey) ?? 0,
+                  });
+                },
+              },
+              {
+                id: "logs",
+                label: "Open logs",
+                description: "Inspect terminal events",
+                icon: "logs" as const,
+                onSelect: () => {
+                  openWorkspaceLogsForSession(paneActionSession, {
+                    boardKey: paneActionTarget.boardKey,
+                    boardGeneration: boardGenerationRef.current.get(paneActionTarget.boardKey) ?? 0,
+                  });
+                },
+              },
+            ]
+          : []),
+        ...(isComposeSheet
+          ? []
+          : (["left", "right", "up", "down"] as const).map((direction) => ({
+              id: `move-${direction}`,
+              label: `Move ${direction}`,
+              description: "Rearrange the tiled layout",
+              icon: `move-${direction}` as const,
+              disabled: !findWorkspaceWindowInDirection(
+                paneActionModel?.windowRects ?? new Map(),
+                paneActionTarget.windowId,
+                direction,
+              ),
+              onSelect: () => movePaneActionTarget(direction),
+            }))),
+        {
+          id: "remove",
+          label:
+            paneActionTarget.kind === "tool"
+              ? "Close pane"
+              : isUnifiedSource
+                ? "Remove terminal"
+                : "Close terminal",
+          description:
+            paneActionTarget.kind === "tool"
+              ? "Close this workspace tool"
+              : isUnifiedSource
+                ? "Remove from this workspace"
+                : "End the terminal session",
+          icon: "remove",
+          destructive: true,
+          onSelect: () => {
+            if (paneActionTarget.kind === "tool") {
+              removeWorkspaceToolPane(paneActionTarget.windowId);
+              return;
+            }
+            void handleRemovePane({
+              boardKey: paneActionTarget.boardKey,
+              boardPaneKey: paneActionTarget.boardPaneKey,
+              sessionName: paneActionTarget.sessionName,
+            });
+          },
+        },
+      ]
+    : [];
+
   const renderPane = (pane: SessionPane, model: WorkspaceBoardRenderModel) => {
     const toolPane = model.toolPanes.find((candidate) => candidate.key === pane.sessionName);
     if (toolPane) {
@@ -4006,7 +4223,7 @@ export function MultiSessionWorkspace({
           previewStyle={panePreviewStyle}
           style={paneStyle}
         >
-          {({ isDragging, onHeaderPointerDown }) => (
+          {({ dragHandleListeners, isDragging }) => (
             <TerminalSessionFrame
               label={presentation.title}
               subtitle={presentation.subtitle}
@@ -4014,7 +4231,18 @@ export function MultiSessionWorkspace({
               dataTestId={`workspace-tool-pane-${toolPane.tool}`}
               layoutMode="tiled"
               paneState={toolPane.loadState}
-              onHeaderPointerDown={onHeaderPointerDown}
+              dragHandleListeners={dragHandleListeners}
+              onOpenActions={() =>
+                setPaneActionTarget({
+                  boardKey: model.board.key,
+                  kind: "tool",
+                  label: presentation.title,
+                  sessionName: toolPane.sourceSessionName,
+                  subtitle: presentation.subtitle,
+                  windowId: toolPane.key,
+                })
+              }
+              touchOptimizedActions={isComposeSheet}
               isDragging={isDragging}
               headerActions={
                 !toolUrl || toolUrl.startsWith("/api/workspace-proxy/") ? null : (
@@ -4041,12 +4269,7 @@ export function MultiSessionWorkspace({
               closeTestId={`remove-workspace-tool-${toolPane.tool}`}
               onClose={(event) => {
                 event.stopPropagation();
-                if (activeWindowIdRef.current === toolPane.key) setActiveWindowId(null);
-                replaceWorkspaceToolPanes(
-                  workspaceToolPanesRef.current.filter(
-                    (candidate) => candidate.key !== toolPane.key,
-                  ),
-                );
+                removeWorkspaceToolPane(toolPane.key);
               }}
             >
               <div className="relative flex min-h-0 flex-1">
@@ -4142,7 +4365,7 @@ export function MultiSessionWorkspace({
         previewStyle={panePreviewStyle}
         style={paneStyle}
       >
-        {({ isDragging, onHeaderPointerDown }) => (
+        {({ dragHandleListeners, isDragging }) => (
           <TerminalSessionFrame
             label={presentation.title}
             subtitle={presentation.subtitle}
@@ -4151,7 +4374,19 @@ export function MultiSessionWorkspace({
               model.isActive ? `workspace-${pane.id}` : `workspace-${model.board.key}-${pane.id}`
             }
             layoutMode="tiled"
-            onHeaderPointerDown={onHeaderPointerDown}
+            dragHandleListeners={dragHandleListeners}
+            onOpenActions={() =>
+              setPaneActionTarget({
+                boardKey: model.board.key,
+                boardPaneKey: visibleSession?.boardPaneKey,
+                kind: "terminal",
+                label: presentation.title,
+                sessionName: pane.sessionName,
+                subtitle: presentation.subtitle,
+                windowId: pane.sessionName,
+              })
+            }
+            touchOptimizedActions={isComposeSheet}
             isDragging={isDragging}
             disabled={isComposeDisabled}
             disabledLabel="Compose locked"
@@ -4183,10 +4418,14 @@ export function MultiSessionWorkspace({
               }
               selectSession(pane.sessionName);
             }}
-            onMouseMove={() => {
-              if (!model.isActive || activeWindowIdRef.current === pane.sessionName) return;
-              selectSession(pane.sessionName);
-            }}
+            onMouseMove={
+              isComposeSheet
+                ? undefined
+                : () => {
+                    if (!model.isActive || activeWindowIdRef.current === pane.sessionName) return;
+                    selectSession(pane.sessionName);
+                  }
+            }
             onFocusActivate
             closeLabel={`${isUnifiedSource ? "Remove" : "Close"} ${presentation.title}`}
             closeTestId={
@@ -4279,6 +4518,7 @@ export function MultiSessionWorkspace({
     return (
       <DndContext
         key={model.board.key}
+        sensors={windowDragSensors}
         collisionDetection={workspaceWindowCollisionDetection}
         onDragStart={(event) => handleWindowDragStart(model, event)}
         onDragMove={(event) => handleWindowDragMove(model, event)}
@@ -4430,6 +4670,15 @@ export function MultiSessionWorkspace({
         {desktopComposePanel}
       </div>
       {mobileComposeSheet}
+      <WorkspacePaneActionSheet
+        actions={paneActions}
+        description={paneActionTarget?.subtitle}
+        label={paneActionTarget?.label ?? "Pane actions"}
+        open={paneActionTarget !== null}
+        onOpenChange={(open) => {
+          if (!open) setPaneActionTarget(null);
+        }}
+      />
     </section>
   );
 

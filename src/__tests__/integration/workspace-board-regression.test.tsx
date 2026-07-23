@@ -17,6 +17,7 @@ const mockCloseGitCloneTerminal = vi.fn();
 const mockListNavigationFavorites = vi.fn();
 const mockRouterPush = vi.fn();
 const mockToastInfo = vi.hoisted(() => vi.fn());
+const mockSetOpenMobileRight = vi.hoisted(() => vi.fn());
 const terminalProps = new Map<
   string,
   {
@@ -188,6 +189,10 @@ vi.mock("@/components/ui/sidebar", () => ({
       Toggle sidebar
     </button>
   ),
+  useSidebar: () => ({
+    openMobileRight: false,
+    setOpenMobileRight: mockSetOpenMobileRight,
+  }),
 }));
 
 vi.mock("@/components/ui/button", () => ({
@@ -242,9 +247,16 @@ vi.mock("@/components/ui/input", () => ({
 
 vi.mock("lucide-react", () => ({
   AlertCircle: () => <span data-testid="icon-alert" />,
+  ArrowDown: () => <span data-testid="icon-arrow-down" />,
+  ArrowLeft: () => <span data-testid="icon-arrow-left" />,
+  ArrowRight: () => <span data-testid="icon-arrow-right" />,
+  ArrowUp: () => <span data-testid="icon-arrow-up" />,
   Code2: () => <span data-testid="icon-code" />,
+  Ellipsis: () => <span data-testid="icon-ellipsis" />,
   ExternalLink: () => <span data-testid="icon-external-link" />,
+  Files: () => <span data-testid="icon-files" />,
   FolderOpen: () => <span data-testid="icon-folder" />,
+  Focus: () => <span data-testid="icon-focus" />,
   ScrollText: () => <span data-testid="icon-logs" />,
   GripVertical: () => <span data-testid="icon-grip" />,
   Loader2: () => <span data-testid="icon-loader" />,
@@ -733,7 +745,8 @@ describe("workspace board shortcut integration", () => {
     expect(
       await screen.findByTestId("workspace-pane-git-clone-safe-hive-fresh-b"),
     ).toBeInTheDocument();
-    fireEvent.click(screen.getByTestId("remove-pane-pane-git-clone-safe-hive-fresh-b"));
+    fireEvent.click(screen.getByTestId("workspace-pane-git-clone-safe-hive-fresh-b-actions"));
+    fireEvent.click(screen.getByTestId("workspace-pane-action-remove"));
 
     expect(
       screen.queryByTestId("workspace-pane-git-clone-safe-hive-fresh-b"),

@@ -8,7 +8,27 @@ vi.mock("@/hooks/use-mobile", () => ({
 }));
 
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
-import { Sidebar, SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
+import { Sidebar, SidebarProvider, SidebarTrigger, useSidebar } from "@/components/ui/sidebar";
+
+function MobileSidebarSwitcher() {
+  const { setOpenMobile, setOpenMobileRight } = useSidebar();
+  return (
+    <>
+      <button type="button" onClick={() => setOpenMobile(true)}>
+        Open left
+      </button>
+      <button type="button" onClick={() => setOpenMobileRight(true)}>
+        Open right
+      </button>
+      <Sidebar>
+        <nav aria-label="Left navigation">Left navigation</nav>
+      </Sidebar>
+      <Sidebar side="right" mobileOnly>
+        <nav aria-label="Right navigation">Right navigation</nav>
+      </Sidebar>
+    </>
+  );
+}
 
 afterEach(() => {
   cleanup();
@@ -76,5 +96,32 @@ describe("reduced-motion class contracts", () => {
       expect(inner?.className).toContain("pt-[calc(var(--safe-area-inset-top)+0.5rem)]");
       expect(inner?.className).not.toContain("pb-[var(--safe-area-inset-bottom)]");
     });
+  });
+
+  it("keeps the left and right mobile sidebars mutually exclusive at the same dimensions", async () => {
+    render(
+      <SidebarProvider>
+        <MobileSidebarSwitcher />
+      </SidebarProvider>,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Open right" }));
+    await waitFor(() =>
+      expect(screen.getByRole("navigation", { name: "Right navigation" })).toBeVisible(),
+    );
+    const rightDrawer = document.querySelector<HTMLElement>(
+      '[data-mobile="true"][data-side="right"]',
+    );
+    expect(rightDrawer).not.toBeNull();
+    expect(rightDrawer?.className).toContain("!w-(--sidebar-width)");
+    expect(rightDrawer?.className).toContain("data-[side=right]:!h-[var(--app-viewport-height)]");
+    expect(rightDrawer).toHaveStyle({ "--sidebar-width": "18rem" });
+    expect(screen.queryByRole("navigation", { name: "Left navigation" })).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByText("Open left"));
+    await waitFor(() =>
+      expect(screen.getByRole("navigation", { name: "Left navigation" })).toBeVisible(),
+    );
+    expect(screen.queryByRole("navigation", { name: "Right navigation" })).not.toBeInTheDocument();
   });
 });

@@ -35,6 +35,19 @@ describe("WorkspaceBoardBar", () => {
     expect(tablist).toHaveAttribute("data-mobile-scroll-allow", "true");
   });
 
+  it("renders 44px workspace controls in touch mode", () => {
+    render(
+      <WorkspaceBoardBar
+        boards={[board("main", "Main", 0)]}
+        activeBoardKey="main"
+        touchOptimized
+      />,
+    );
+
+    expect(screen.getByTestId("workspace-board-tab-main")).toHaveClass("size-11", "min-h-11");
+    expect(screen.getByTestId("workspace-board-new")).toHaveClass("size-11", "min-h-11");
+  });
+
   afterEach(() => {
     cleanup();
   });

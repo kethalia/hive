@@ -615,6 +615,7 @@ function TerminalInner({
           <SingleTerminalSessionHeader
             sessionLabel={terminalDisplayLabel}
             sessionSubtitle={terminalDisplaySubtitle}
+            showFontSizeControls={false}
           />
           <div className="min-h-0 flex-1 overflow-hidden p-1 pt-0">
             <TerminalSessionFrame

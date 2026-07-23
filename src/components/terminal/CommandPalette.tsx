@@ -1,9 +1,10 @@
 "use client";
 
-import { useDrag } from "@use-gesture/react";
-import { Plus, Search, Terminal, Triangle } from "lucide-react";
+import { ChevronRight, Plus, Search, Terminal, Triangle, X } from "lucide-react";
 import type { CSSProperties, KeyboardEvent } from "react";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { Button } from "@/components/ui/button";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import {
   Command,
   CommandDialog,
@@ -15,14 +16,22 @@ import {
   CommandShortcut,
 } from "@/components/ui/command";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
-import { useIsMobile } from "@/hooks/use-mobile";
-import { usePrefersReducedMotion } from "@/hooks/usePrefersReducedMotion";
-import { useVisualViewportHeight } from "@/hooks/useVisualViewportHeight";
 import {
-  DRAG_DISMISS_DISTANCE_PX,
-  DRAG_DISMISS_VELOCITY,
-  NO_TOUCH_STYLE,
-} from "@/lib/gestures/conventions";
+  Sidebar,
+  SidebarContent,
+  SidebarGroup,
+  SidebarGroupContent,
+  SidebarGroupLabel,
+  SidebarHeader,
+  SidebarInput,
+  SidebarMenu,
+  SidebarMenuButton,
+  SidebarMenuItem,
+} from "@/components/ui/sidebar";
+import { useIsMobile } from "@/hooks/use-mobile";
+import { useSwipeToDismiss } from "@/hooks/useSwipeToDismiss";
+import { useVisualViewportHeight } from "@/hooks/useVisualViewportHeight";
+import { NO_TOUCH_STYLE } from "@/lib/gestures/conventions";
 import { formatShortcut } from "@/lib/keyboard-shortcuts";
 import { cn } from "@/lib/utils";
 
@@ -61,12 +70,11 @@ interface CommandPaletteProps {
   searchPlaceholder?: string;
   emptyText?: string;
   groupHeading?: string;
+  mobileSide?: "bottom" | "right";
 }
 
 const mobileCommandClassName =
-  "[&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:font-medium [&_[cmdk-group-heading]]:text-muted-foreground [&_[cmdk-group]:not([hidden])_~[cmdk-group]]:pt-0 [&_[cmdk-input-wrapper]_svg]:h-5 [&_[cmdk-input-wrapper]_svg]:w-5 [&_[cmdk-input]]:h-12 [&_[cmdk-item]]:px-2 [&_[cmdk-item]]:py-3 [&_[cmdk-group]]:px-2";
-
-const SNAP_BACK_TRANSITION = "transform 150ms ease-out";
+  "rounded-none bg-transparent shadow-none [&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:font-medium [&_[cmdk-group-heading]]:text-muted-foreground [&_[cmdk-group]:not([hidden])_~[cmdk-group]]:pt-0 [&_[cmdk-input-wrapper]_svg]:h-5 [&_[cmdk-input-wrapper]_svg]:w-5 [&_[cmdk-input]]:h-12 [&_[cmdk-item]]:px-2 [&_[cmdk-item]]:py-3 [&_[cmdk-group]]:px-2";
 
 const dragHandleStyle: CSSProperties = {
   ...NO_TOUCH_STYLE,
@@ -86,16 +94,254 @@ interface CommandPaletteBodyProps {
   groupHeading: string;
 }
 
-function getVectorValue(vector: unknown, index: number): number {
-  if (!Array.isArray(vector)) return 0;
-  const value = vector[index];
-  return typeof value === "number" && Number.isFinite(value) ? value : 0;
+function actionIcon(
+  icon: CommandPaletteAction["icon"],
+  className = "mr-2 size-4 shrink-0 opacity-70",
+) {
+  if (icon === "search") return <Search className={className} />;
+  if (icon === "plus") return <Plus className={className} />;
+  return <Terminal className={className} />;
 }
 
-function actionIcon(icon: CommandPaletteAction["icon"]) {
-  if (icon === "search") return <Search className="mr-2 size-4 shrink-0 opacity-70" />;
-  if (icon === "plus") return <Plus className="mr-2 size-4 shrink-0 opacity-70" />;
-  return <Terminal className="mr-2 size-4 shrink-0 opacity-70" />;
+function actionMatchesQuery(action: CommandPaletteAction, normalizedQuery: string): boolean {
+  if (!normalizedQuery) return true;
+  return [
+    action.label,
+    action.description,
+    action.group,
+    action.value,
+    ...(action.options?.map((option) => option.label) ?? []),
+  ]
+    .filter((value): value is string => typeof value === "string")
+    .join(" ")
+    .toLowerCase()
+    .includes(normalizedQuery);
+}
+
+interface MobileSidebarActionProps {
+  action: CommandPaletteAction;
+  onOpenChange: (open: boolean) => void;
+}
+
+function MobileSidebarAction({ action, onOpenChange }: MobileSidebarActionProps) {
+  const [open, setOpen] = useState(false);
+
+  if (action.options) {
+    return (
+      <SidebarMenuItem>
+        <Collapsible open={open} onOpenChange={setOpen} className="group/mobile-command">
+          <SidebarMenuButton
+            render={<CollapsibleTrigger />}
+            size="lg"
+            className="h-auto min-h-11 items-start py-2"
+            disabled={action.disabled}
+            data-testid={`mobile-command-disclosure-${action.id}`}
+          >
+            {actionIcon(action.icon, "mt-0.5 size-4 shrink-0 opacity-70")}
+            <span className="min-w-0 flex-1">
+              <span className="block truncate text-sm font-medium">{action.label}</span>
+              {action.description ? (
+                <span className="block truncate text-xs text-sidebar-foreground/65">
+                  {action.description}
+                </span>
+              ) : null}
+            </span>
+            <ChevronRight
+              aria-hidden="true"
+              className={cn(
+                "mt-0.5 size-4 shrink-0 transition-transform duration-150 motion-reduce:transition-none",
+                open && "rotate-90",
+              )}
+            />
+          </SidebarMenuButton>
+          <CollapsibleContent className="h-[var(--collapsible-panel-height)] overflow-hidden transition-[height] duration-150 motion-reduce:transition-none motion-reduce:duration-0 data-ending-style:h-0 data-starting-style:h-0">
+            <fieldset className="grid grid-cols-2 gap-1 px-2 pb-2 pl-8">
+              <legend className="sr-only">{action.label} actions</legend>
+              {action.options.map((option) => (
+                <Button
+                  key={option.id}
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="h-auto min-h-11 min-w-0 justify-start px-2 text-xs"
+                  disabled={option.disabled}
+                  data-testid={`mobile-command-option-${action.id}-${option.id}`}
+                  onClick={() => {
+                    if (option.disabled) return;
+                    option.onSelect();
+                    onOpenChange(false);
+                  }}
+                >
+                  <span className="truncate">{option.label}</span>
+                </Button>
+              ))}
+            </fieldset>
+          </CollapsibleContent>
+        </Collapsible>
+      </SidebarMenuItem>
+    );
+  }
+
+  return (
+    <SidebarMenuItem>
+      <SidebarMenuButton
+        render={<button type="button" />}
+        size="lg"
+        className="h-auto min-h-11 items-start py-2"
+        disabled={action.disabled}
+        onClick={() => {
+          if (action.disabled) return;
+          action.onSelect();
+          onOpenChange(false);
+        }}
+      >
+        {actionIcon(action.icon, "mt-0.5 size-4 shrink-0 opacity-70")}
+        <span className="min-w-0 flex-1">
+          <span className="block truncate text-sm">{action.label}</span>
+          {action.description ? (
+            <span className="block truncate text-xs text-sidebar-foreground/65">
+              {action.description}
+            </span>
+          ) : null}
+        </span>
+      </SidebarMenuButton>
+    </SidebarMenuItem>
+  );
+}
+
+function MobileSidebarPaletteBody({
+  tabs,
+  onSelectTab,
+  onOpenChange,
+  onCreateSession,
+  actions,
+  searchValue,
+  onSearchValueChange,
+  searchPlaceholder,
+  emptyText,
+  groupHeading,
+}: CommandPaletteBodyProps) {
+  const [localSearchValue, setLocalSearchValue] = useState("");
+  const currentSearchValue = searchValue ?? localSearchValue;
+  const normalizedQuery = currentSearchValue.trim().toLowerCase();
+  const actionGroups = useMemo(() => {
+    const groups = new Map<string, CommandPaletteAction[]>();
+    for (const action of actions) {
+      if (!actionMatchesQuery(action, normalizedQuery)) continue;
+      const group = groups.get(action.group) ?? [];
+      group.push(action);
+      groups.set(action.group, group);
+    }
+    return [...groups.entries()];
+  }, [actions, normalizedQuery]);
+  const visibleTabs = useMemo(
+    () =>
+      tabs.filter(
+        (tab) => !normalizedQuery || tab.sessionName.toLowerCase().includes(normalizedQuery),
+      ),
+    [normalizedQuery, tabs],
+  );
+  const showCreateSession =
+    Boolean(onCreateSession) && (!normalizedQuery || "new session".includes(normalizedQuery));
+  const hasResults = actionGroups.length > 0 || visibleTabs.length > 0 || showCreateSession;
+
+  return (
+    <>
+      <SidebarGroup className="sticky top-0 z-10 border-b border-sidebar-border bg-sidebar p-2">
+        <SidebarGroupContent className="relative">
+          <Search
+            aria-hidden="true"
+            className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-sidebar-foreground/55"
+          />
+          <SidebarInput
+            type="search"
+            aria-label="Search global navigation"
+            autoComplete="off"
+            enterKeyHint="search"
+            spellCheck={false}
+            placeholder={searchPlaceholder}
+            value={currentSearchValue}
+            className="h-11 pl-9 text-base"
+            onChange={(event) => {
+              const nextValue = event.currentTarget.value;
+              setLocalSearchValue(nextValue);
+              onSearchValueChange?.(nextValue);
+            }}
+          />
+        </SidebarGroupContent>
+      </SidebarGroup>
+
+      {!hasResults ? (
+        <p role="status" className="px-4 py-6 text-center text-sm text-sidebar-foreground/65">
+          {emptyText}
+        </p>
+      ) : null}
+
+      {actionGroups.map(([heading, groupActions]) => (
+        <SidebarGroup key={heading} className="py-1">
+          <SidebarGroupLabel>{heading}</SidebarGroupLabel>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              {groupActions.map((action) => (
+                <MobileSidebarAction key={action.id} action={action} onOpenChange={onOpenChange} />
+              ))}
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+      ))}
+
+      {visibleTabs.length > 0 ? (
+        <SidebarGroup className="py-1">
+          <SidebarGroupLabel>{groupHeading}</SidebarGroupLabel>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              {visibleTabs.map((tab) => (
+                <SidebarMenuItem key={tab.id}>
+                  <SidebarMenuButton
+                    render={<button type="button" />}
+                    size="lg"
+                    className="min-h-11"
+                    onClick={() => {
+                      onSelectTab(tab.id);
+                      onOpenChange(false);
+                    }}
+                  >
+                    <Terminal className="size-4 shrink-0 opacity-70" />
+                    <span className="font-mono text-sm">{tab.sessionName}</span>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              ))}
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+      ) : null}
+
+      {showCreateSession ? (
+        <SidebarGroup className="py-1">
+          <SidebarGroupLabel>Actions</SidebarGroupLabel>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              <SidebarMenuItem>
+                <SidebarMenuButton
+                  render={<button type="button" />}
+                  size="lg"
+                  className="min-h-11"
+                  onClick={() => {
+                    if (!onCreateSession) return;
+                    onCreateSession();
+                    onOpenChange(false);
+                  }}
+                >
+                  <Plus className="size-4 shrink-0 opacity-70" />
+                  <span>New Session</span>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+      ) : null}
+    </>
+  );
 }
 
 function selectedOptionIndex(
@@ -390,97 +636,58 @@ export function CommandPalette({
   searchPlaceholder = "Search sessions…",
   emptyText = "No sessions found.",
   groupHeading = "Sessions",
+  mobileSide = "bottom",
 }: CommandPaletteProps) {
   const isMobile = useIsMobile();
   const { height } = useVisualViewportHeight();
-  const prefersReducedMotion = usePrefersReducedMotion();
-  const [dragY, setDragY] = useState(0);
-  const [isDragging, setIsDragging] = useState(false);
-  const [isSnapBack, setIsSnapBack] = useState(false);
   const sheetMaxHeight = height !== null ? `${height}px` : "100dvh";
-
-  useEffect(() => {
-    if (!open) {
-      setDragY(0);
-      setIsDragging(false);
-      setIsSnapBack(false);
-    }
-  }, [open]);
-
-  useEffect(() => {
-    if (!isSnapBack) return;
-
-    const timeoutId = window.setTimeout(() => {
-      setIsSnapBack(false);
-    }, 150);
-
-    return () => window.clearTimeout(timeoutId);
-  }, [isSnapBack]);
-
-  const bindDragHandle = useDrag(
-    ({ active, direction, event, movement, velocity }) => {
-      const movementY = Math.max(0, getVectorValue(movement, 1));
-      const directionY = getVectorValue(direction, 1);
-      const velocityY = directionY > 0 ? getVectorValue(velocity, 1) : 0;
-      const isDownwardDrag = Boolean(active) || movementY > 0;
-
-      if (isDownwardDrag && event && typeof event.preventDefault === "function") {
-        event.preventDefault();
-      }
-
-      if (active) {
-        setIsDragging(true);
-        setIsSnapBack(false);
-        setDragY(movementY);
-        return;
-      }
-
-      setIsDragging(false);
-
-      const shouldDismiss =
-        movementY >= DRAG_DISMISS_DISTANCE_PX || velocityY >= DRAG_DISMISS_VELOCITY;
-
-      if (shouldDismiss) {
-        setDragY(0);
-        setIsSnapBack(false);
-        onOpenChange(false);
-        return;
-      }
-
-      setDragY(0);
-      setIsSnapBack(!prefersReducedMotion);
-    },
-    {
-      axis: "y",
-      eventOptions: { passive: false },
-      filterTaps: true,
-    },
-  );
-
-  const sheetStyle = useMemo<CSSProperties>(() => {
-    const style: CSSProperties = { maxHeight: sheetMaxHeight };
-
-    if (!prefersReducedMotion) {
-      if (dragY > 0 || isSnapBack) {
-        style.transform = `translateY(${dragY}px)`;
-      }
-
-      if (isDragging) {
-        style.transition = "none";
-      } else if (isSnapBack) {
-        style.transition = SNAP_BACK_TRANSITION;
-      }
-    }
-
-    return style;
-  }, [dragY, isDragging, isSnapBack, prefersReducedMotion, sheetMaxHeight]);
+  const { bindDragHandle, sheetStyle } = useSwipeToDismiss({
+    enabled: isMobile && mobileSide === "bottom",
+    maxHeight: sheetMaxHeight,
+    onDismiss: () => onOpenChange(false),
+    open,
+  });
 
   if (isMobile) {
+    if (mobileSide === "right") {
+      return (
+        <Sidebar side="right" mobileOnly data-testid="global-command-sidebar">
+          <SidebarHeader className="h-14 shrink-0 flex-row items-center justify-between border-b border-sidebar-border px-4">
+            <h2 className="text-sm font-medium">Navigate</h2>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              aria-label="Close global navigation"
+              onClick={() => onOpenChange(false)}
+            >
+              <X />
+            </Button>
+          </SidebarHeader>
+          <SidebarContent>
+            <MobileSidebarPaletteBody
+              tabs={tabs}
+              onSelectTab={onSelectTab}
+              onOpenChange={onOpenChange}
+              onCreateSession={onCreateSession}
+              actions={actions}
+              searchValue={searchValue}
+              onSearchValueChange={onSearchValueChange}
+              searchPlaceholder={searchPlaceholder}
+              emptyText={emptyText}
+              groupHeading={groupHeading}
+            />
+          </SidebarContent>
+        </Sidebar>
+      );
+    }
+
     return (
       <Sheet open={open} onOpenChange={onOpenChange}>
         <SheetContent
           side="bottom"
           showCloseButton={false}
+          data-sidebar-gesture-ignore="true"
           className="gap-0 overflow-hidden overscroll-contain rounded-t-2xl p-0 pb-safe motion-reduce:transition-none motion-reduce:duration-0"
           style={sheetStyle}
         >

@@ -32,6 +32,8 @@ type SidebarContextProps = {
   setOpen: (open: boolean) => void;
   openMobile: boolean;
   setOpenMobile: (open: boolean) => void;
+  openMobileRight: boolean;
+  setOpenMobileRight: (open: boolean) => void;
   isMobile: boolean;
   toggleSidebar: () => void;
 };
@@ -61,7 +63,19 @@ function SidebarProvider({
   onOpenChange?: (open: boolean) => void;
 }) {
   const isMobile = useIsMobile();
-  const [openMobile, setOpenMobile] = React.useState(false);
+  const [activeMobileSidebar, setActiveMobileSidebar] = React.useState<"left" | "right" | null>(
+    null,
+  );
+  const openMobile = activeMobileSidebar === "left";
+  const openMobileRight = activeMobileSidebar === "right";
+  const setOpenMobile = React.useCallback((nextOpen: boolean) => {
+    setActiveMobileSidebar((current) => (nextOpen ? "left" : current === "left" ? null : current));
+  }, []);
+  const setOpenMobileRight = React.useCallback((nextOpen: boolean) => {
+    setActiveMobileSidebar((current) =>
+      nextOpen ? "right" : current === "right" ? null : current,
+    );
+  }, []);
 
   // This is the internal state of the sidebar.
   // We use openProp and setOpenProp for control from outside the component.
@@ -88,11 +102,11 @@ function SidebarProvider({
       window.dispatchEvent(new CustomEvent(TERMINAL_FOCUS_ACTIVE_EVENT));
     });
     if (isMobile) {
-      setOpenMobile((open) => !open);
+      setOpenMobile(!openMobile);
     } else {
       setOpen((open) => !open);
     }
-  }, [isMobile, setOpen]);
+  }, [isMobile, openMobile, setOpen, setOpenMobile]);
 
   // We add a state so that we can do data-state="expanded" or "collapsed".
   // This makes it easier to style the sidebar with Tailwind classes.
@@ -106,9 +120,21 @@ function SidebarProvider({
       isMobile,
       openMobile,
       setOpenMobile,
+      openMobileRight,
+      setOpenMobileRight,
       toggleSidebar,
     }),
-    [state, open, setOpen, isMobile, openMobile, toggleSidebar],
+    [
+      state,
+      open,
+      setOpen,
+      isMobile,
+      openMobile,
+      setOpenMobile,
+      openMobileRight,
+      setOpenMobileRight,
+      toggleSidebar,
+    ],
   );
 
   return (
@@ -141,13 +167,22 @@ function Sidebar({
   className,
   children,
   dir,
+  mobileOnly = false,
   ...props
 }: React.ComponentProps<"div"> & {
   side?: "left" | "right";
   variant?: "sidebar" | "floating" | "inset";
   collapsible?: "offcanvas" | "icon" | "none";
+  mobileOnly?: boolean;
 }) {
-  const { isMobile: mobileViewport, state, openMobile, setOpenMobile } = useSidebar();
+  const {
+    isMobile: mobileViewport,
+    state,
+    openMobile,
+    setOpenMobile,
+    openMobileRight,
+    setOpenMobileRight,
+  } = useSidebar();
   const [responsiveReady, setResponsiveReady] = React.useState(false);
   React.useEffect(() => {
     setResponsiveReady(true);
@@ -170,14 +205,16 @@ function Sidebar({
   }
 
   if (isMobile) {
+    const mobileOpen = side === "left" ? openMobile : openMobileRight;
+    const setMobileOpen = side === "left" ? setOpenMobile : setOpenMobileRight;
     return (
-      <Sheet open={openMobile} onOpenChange={setOpenMobile} {...props}>
+      <Sheet open={mobileOpen} onOpenChange={setMobileOpen} {...props}>
         <SheetContent
           dir={dir}
           data-sidebar="sidebar"
           data-slot="sidebar"
           data-mobile="true"
-          className="w-(--sidebar-width) !gap-0 overflow-hidden bg-sidebar p-0 text-sidebar-foreground motion-reduce:transition-none motion-reduce:duration-0 data-[side=left]:!top-0 data-[side=left]:!bottom-auto data-[side=left]:!h-[var(--app-viewport-height)] data-[side=left]:!min-h-0 data-[side=left]:!max-h-none data-[side=right]:!top-0 data-[side=right]:!bottom-auto data-[side=right]:!h-[var(--app-viewport-height)] data-[side=right]:!min-h-0 data-[side=right]:!max-h-none [&>button]:hidden"
+          className="!w-(--sidebar-width) !gap-0 overflow-hidden bg-sidebar p-0 text-sidebar-foreground motion-reduce:transition-none motion-reduce:duration-0 data-[side=left]:!top-0 data-[side=left]:!bottom-auto data-[side=left]:!h-[var(--app-viewport-height)] data-[side=left]:!min-h-0 data-[side=left]:!max-h-none data-[side=right]:!top-0 data-[side=right]:!bottom-auto data-[side=right]:!h-[var(--app-viewport-height)] data-[side=right]:!min-h-0 data-[side=right]:!max-h-none [&>button]:hidden"
           style={
             {
               "--sidebar-width": SIDEBAR_WIDTH_MOBILE,
@@ -186,8 +223,12 @@ function Sidebar({
           side={side}
         >
           <SheetHeader className="sr-only">
-            <SheetTitle>Sidebar</SheetTitle>
-            <SheetDescription>Displays the mobile sidebar.</SheetDescription>
+            <SheetTitle>{side === "left" ? "Navigation" : "Global navigation"}</SheetTitle>
+            <SheetDescription>
+              {side === "left"
+                ? "Displays workspace navigation."
+                : "Displays global application navigation."}
+            </SheetDescription>
           </SheetHeader>
           <div
             data-slot="sidebar-mobile-inner"
@@ -199,6 +240,8 @@ function Sidebar({
       </Sheet>
     );
   }
+
+  if (mobileOnly) return null;
 
   return (
     <div

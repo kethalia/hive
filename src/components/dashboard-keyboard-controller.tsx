@@ -4,6 +4,8 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { CommandPalette, type CommandPaletteAction } from "@/components/terminal/CommandPalette";
 import { useSidebar } from "@/components/ui/sidebar";
+import { useIsMobile } from "@/hooks/use-mobile";
+import { useGlobalCommandPaletteGesture } from "@/hooks/useGlobalCommandPaletteGesture";
 import { useRegisterKeybinding } from "@/hooks/useKeybindings";
 import { listTasksAction } from "@/lib/actions/tasks";
 import { listWorkspacesAction } from "@/lib/actions/workspaces";
@@ -98,7 +100,9 @@ function openWorkspaceHref(workspaceId: string): string {
 
 export function DashboardKeyboardController() {
   const router = useRouter();
-  const { setOpen, setOpenMobile, toggleSidebar } = useSidebar();
+  const { openMobileRight, setOpen, setOpenMobile, setOpenMobileRight, toggleSidebar } =
+    useSidebar();
+  const isMobile = useIsMobile();
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [paletteQuery, setPaletteQuery] = useState("");
   const [workspaces, setWorkspaces] = useState<DashboardWorkspace[]>([]);
@@ -108,8 +112,52 @@ export function DashboardKeyboardController() {
   const [appFullscreen, setAppFullscreen] = useState(false);
   const [paletteSources, setPaletteSources] = useState(getGlobalCommandPaletteSources);
   const appFullscreenRef = useRef(appFullscreen);
+  const previousIsMobileRef = useRef(isMobile);
   appFullscreenRef.current = appFullscreen;
   const activePaletteSource = paletteSources.at(-1) ?? null;
+
+  const openGlobalCommandPalette = useCallback(() => {
+    setPaletteQuery("");
+    activePaletteSource?.onSearchValueChange?.("");
+    if (isMobile) {
+      setOpenMobileRight(true);
+    } else {
+      setPaletteOpen(true);
+    }
+  }, [activePaletteSource, isMobile, setOpenMobileRight]);
+
+  const commandPaletteOpen = isMobile ? openMobileRight : paletteOpen;
+  const setCommandPaletteOpen = useCallback(
+    (nextOpen: boolean) => {
+      if (isMobile) {
+        setOpenMobileRight(nextOpen);
+      } else {
+        setPaletteOpen(nextOpen);
+      }
+    },
+    [isMobile, setOpenMobileRight],
+  );
+
+  useEffect(() => {
+    const wasMobile = previousIsMobileRef.current;
+    if (wasMobile === isMobile) return;
+    previousIsMobileRef.current = isMobile;
+
+    if (isMobile && paletteOpen) {
+      setPaletteOpen(false);
+      setOpenMobileRight(true);
+      return;
+    }
+    if (!isMobile && openMobileRight) {
+      setOpenMobileRight(false);
+      setPaletteOpen(true);
+    }
+  }, [isMobile, openMobileRight, paletteOpen, setOpenMobileRight]);
+
+  useGlobalCommandPaletteGesture({
+    enabled: isMobile && !openMobileRight,
+    onOpen: openGlobalCommandPalette,
+  });
 
   const toggleDashboardFullscreen = useCallback(() => {
     const nextFullscreen = !appFullscreenRef.current;
@@ -118,6 +166,7 @@ export function DashboardKeyboardController() {
     if (nextFullscreen) {
       setOpen(false);
       setOpenMobile(false);
+      setOpenMobileRight(false);
       const root = document.documentElement;
       if (typeof root.requestFullscreen === "function" && !document.fullscreenElement) {
         root.requestFullscreen().catch(() => undefined);
@@ -128,7 +177,7 @@ export function DashboardKeyboardController() {
     if (document.fullscreenElement && typeof document.exitFullscreen === "function") {
       document.exitFullscreen().catch(() => undefined);
     }
-  }, [setOpen, setOpenMobile]);
+  }, [setOpen, setOpenMobile, setOpenMobileRight]);
 
   useEffect(() => {
     const root = document.documentElement;
@@ -155,7 +204,7 @@ export function DashboardKeyboardController() {
   }, []);
 
   useEffect(() => {
-    if (!paletteOpen) return;
+    if (!commandPaletteOpen) return;
     let cancelled = false;
     setLoading(true);
     setLoadFailed(false);
@@ -177,7 +226,7 @@ export function DashboardKeyboardController() {
     return () => {
       cancelled = true;
     };
-  }, [paletteOpen]);
+  }, [commandPaletteOpen]);
 
   useEffect(
     () =>
@@ -191,7 +240,7 @@ export function DashboardKeyboardController() {
     id: "dashboard:command-palette",
     keys: [...GLOBAL_COMMAND_PALETTE_KEYS],
     action: () => {
-      setPaletteOpen(true);
+      openGlobalCommandPalette();
       return false;
     },
     description: "Open command palette",
@@ -447,8 +496,8 @@ export function DashboardKeyboardController() {
 
   return (
     <CommandPalette
-      open={paletteOpen}
-      onOpenChange={setPaletteOpen}
+      open={commandPaletteOpen}
+      onOpenChange={setCommandPaletteOpen}
       tabs={activePaletteSource?.tabs ?? []}
       onSelectTab={activePaletteSource?.onSelectTab ?? (() => undefined)}
       onCreateSession={activePaletteSource?.onCreateSession}
@@ -460,6 +509,7 @@ export function DashboardKeyboardController() {
       }
       emptyText={emptyText}
       groupHeading={activePaletteSource?.groupHeading ?? "Open"}
+      mobileSide="right"
     />
   );
 }

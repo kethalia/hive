@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import "@testing-library/jest-dom/vitest";
 
 const mockUseSidebar = vi.hoisted(() => vi.fn());
@@ -15,16 +15,17 @@ import { SidebarEdgeHandle } from "@/components/sidebar-edge-handle";
 type SidebarState = {
   isMobile: boolean;
   openMobile: boolean;
+  openMobileRight: boolean;
   setOpenMobile: ReturnType<typeof vi.fn>;
 };
 
 let sidebarState: SidebarState;
-let originalPointerEvent: typeof window.PointerEvent | undefined;
 
 function renderHandle(overrides: Partial<SidebarState> = {}) {
   sidebarState = {
     isMobile: true,
     openMobile: false,
+    openMobileRight: false,
     setOpenMobile: vi.fn(),
     ...overrides,
   };
@@ -41,43 +42,17 @@ function renderHandle(overrides: Partial<SidebarState> = {}) {
 
 function swipePage({
   target,
-  start = [240, 200],
+  start = [24, 200],
   move,
-  end = move,
 }: {
   target?: HTMLElement;
   start?: [number, number];
   move: [number, number];
-  end?: [number, number];
 }) {
   const eventTarget = target ?? window;
-  fireEvent.pointerDown(eventTarget, {
-    pointerId: 1,
-    pointerType: "touch",
-    button: 0,
-    buttons: 1,
-    clientX: start[0],
-    clientY: start[1],
-    cancelable: true,
-  });
-  fireEvent.pointerMove(window, {
-    pointerId: 1,
-    pointerType: "touch",
-    button: 0,
-    buttons: 1,
-    clientX: move[0],
-    clientY: move[1],
-    cancelable: true,
-  });
-  fireEvent.pointerUp(window, {
-    pointerId: 1,
-    pointerType: "touch",
-    button: 0,
-    buttons: 0,
-    clientX: end[0],
-    clientY: end[1],
-    cancelable: true,
-  });
+  touchEvent("touchstart", [touchPoint(1, start[0], start[1])], eventTarget);
+  touchEvent("touchmove", [touchPoint(1, move[0], move[1])]);
+  touchEvent("touchend", []);
 }
 
 function touchPoint(identifier: number, clientX: number, clientY: number) {
@@ -95,17 +70,6 @@ function touchEvent(
   target.dispatchEvent(event);
   return event;
 }
-
-beforeAll(() => {
-  originalPointerEvent = window.PointerEvent;
-  if (!window.PointerEvent) {
-    window.PointerEvent = MouseEvent as unknown as typeof PointerEvent;
-  }
-});
-
-afterAll(() => {
-  window.PointerEvent = originalPointerEvent as typeof PointerEvent;
-});
 
 beforeEach(() => {
   mockUseSidebar.mockReset();
@@ -153,7 +117,7 @@ describe("SidebarEdgeHandle", () => {
   it("ignores mostly vertical movement", () => {
     renderHandle();
 
-    swipePage({ target: screen.getByTestId("page-content"), move: [256, 280] });
+    swipePage({ target: screen.getByTestId("page-content"), move: [40, 280] });
 
     expect(sidebarState.setOpenMobile).not.toHaveBeenCalled();
   });
@@ -161,12 +125,55 @@ describe("SidebarEdgeHandle", () => {
   it("ignores leftward horizontal movement", () => {
     renderHandle();
 
-    swipePage({ target: screen.getByTestId("page-content"), start: [300, 200], move: [230, 204] });
+    swipePage({ target: screen.getByTestId("page-content"), start: [64, 200], move: [20, 204] });
 
     expect(sidebarState.setOpenMobile).not.toHaveBeenCalled();
   });
 
-  it("ignores swipes that start on interactive controls", () => {
+  it("opens on a rightward one-finger swipe from anywhere on the page", async () => {
+    renderHandle();
+
+    swipePage({
+      target: screen.getByTestId("page-content"),
+      start: [180, 200],
+      move: [260, 204],
+    });
+
+    await waitFor(() => {
+      expect(sidebarState.setOpenMobile).toHaveBeenCalledWith(true);
+    });
+  });
+
+  it("claims the operating-system edge only after horizontal intent is established", async () => {
+    renderHandle();
+
+    const content = screen.getByTestId("page-content");
+    const start = touchEvent("touchstart", [touchPoint(1, 4, 200)], content);
+    const move = touchEvent("touchmove", [touchPoint(1, 80, 204)]);
+    touchEvent("touchend", []);
+
+    expect(start.defaultPrevented).toBe(false);
+    expect(move.defaultPrevented).toBe(true);
+    await waitFor(() => {
+      expect(sidebarState.setOpenMobile).toHaveBeenCalledWith(true);
+    });
+  });
+
+  it("does not suppress an ordinary touch inside the wider recognition band", () => {
+    renderHandle();
+
+    const start = touchEvent(
+      "touchstart",
+      [touchPoint(1, 40, 200)],
+      screen.getByTestId("page-content"),
+    );
+    touchEvent("touchend", [touchPoint(1, 40, 200)]);
+
+    expect(start.defaultPrevented).toBe(false);
+    expect(sidebarState.setOpenMobile).not.toHaveBeenCalled();
+  });
+
+  it("opens when a deliberate swipe starts on an interactive control", async () => {
     renderHandle();
 
     swipePage({
@@ -174,13 +181,16 @@ describe("SidebarEdgeHandle", () => {
       move: [310, 206],
     });
 
-    expect(sidebarState.setOpenMobile).not.toHaveBeenCalled();
+    await waitFor(() => {
+      expect(sidebarState.setOpenMobile).toHaveBeenCalledWith(true);
+    });
   });
 
-  it("ignores swipes that start on ordinary role buttons", () => {
+  it("opens when a deliberate swipe starts on an ordinary role button", async () => {
     sidebarState = {
       isMobile: true,
       openMobile: false,
+      openMobileRight: false,
       setOpenMobile: vi.fn(),
     };
     mockUseSidebar.mockReturnValue(sidebarState);
@@ -197,13 +207,16 @@ describe("SidebarEdgeHandle", () => {
 
     swipePage({ target: screen.getByTestId("custom-button"), move: [310, 206] });
 
-    expect(sidebarState.setOpenMobile).not.toHaveBeenCalled();
+    await waitFor(() => {
+      expect(sidebarState.setOpenMobile).toHaveBeenCalledWith(true);
+    });
   });
 
   it("opens from multi-session terminal pane frames", async () => {
     sidebarState = {
       isMobile: true,
       openMobile: false,
+      openMobileRight: false,
       setOpenMobile: vi.fn(),
     };
     mockUseSidebar.mockReturnValue(sidebarState);
@@ -229,6 +242,7 @@ describe("SidebarEdgeHandle", () => {
     sidebarState = {
       isMobile: true,
       openMobile: false,
+      openMobileRight: false,
       setOpenMobile: vi.fn(),
     };
     mockUseSidebar.mockReturnValue(sidebarState);
@@ -244,20 +258,64 @@ describe("SidebarEdgeHandle", () => {
     );
 
     const surface = screen.getByTestId("terminal-surface");
-    touchEvent("touchstart", [touchPoint(1, 24, 200)], surface);
+    const start = touchEvent("touchstart", [touchPoint(1, 24, 200)], surface);
     const move = touchEvent("touchmove", [touchPoint(1, 96, 204)]);
-    touchEvent("touchend", [touchPoint(1, 96, 204)]);
+    touchEvent("touchend", []);
 
+    expect(start.defaultPrevented).toBe(false);
     expect(move.defaultPrevented).toBe(true);
     await waitFor(() => {
       expect(sidebarState.setOpenMobile).toHaveBeenCalledWith(true);
     });
   });
 
-  it("ignores swipes that start inside gesture-ignored regions such as carousels", () => {
+  it("opens before xterm-style document touch-end consumption", async () => {
+    renderHandle();
+    const surface = screen.getByTestId("page-content");
+    const consumeTouchEnd = (event: Event) => event.stopPropagation();
+    document.addEventListener("touchend", consumeTouchEnd);
+
+    try {
+      touchEvent("touchstart", [touchPoint(1, 180, 200)], surface);
+      touchEvent("touchmove", [touchPoint(1, 280, 204)], surface);
+      touchEvent("touchend", [], surface);
+
+      await waitFor(() => {
+        expect(sidebarState.setOpenMobile).toHaveBeenCalledWith(true);
+      });
+    } finally {
+      document.removeEventListener("touchend", consumeTouchEnd);
+    }
+  });
+
+  it("reserves pane headers for drag and long-press gestures", () => {
     sidebarState = {
       isMobile: true,
       openMobile: false,
+      openMobileRight: false,
+      setOpenMobile: vi.fn(),
+    };
+    mockUseSidebar.mockReturnValue(sidebarState);
+
+    render(
+      <main data-testid="page-content">
+        <div data-window-drag-surface="true" data-testid="pane-header">
+          Terminal header
+        </div>
+        <SidebarEdgeHandle />
+      </main>,
+    );
+
+    swipePage({ target: screen.getByTestId("pane-header"), start: [80, 40], move: [180, 44] });
+
+    expect(sidebarState.setOpenMobile).not.toHaveBeenCalled();
+  });
+
+  it("reserves gesture-marked carousel swipes for the carousel", () => {
+    sidebarState = {
+      isMobile: true,
+      openMobile: false,
+      openMobileRight: false,
       setOpenMobile: vi.fn(),
     };
     mockUseSidebar.mockReturnValue(sidebarState);
@@ -271,7 +329,91 @@ describe("SidebarEdgeHandle", () => {
       </main>,
     );
 
-    swipePage({ target: screen.getByTestId("carousel-region"), move: [310, 206] });
+    const carousel = screen.getByTestId("carousel-region");
+    const start = touchEvent("touchstart", [touchPoint(1, 180, 200)], carousel);
+    const move = touchEvent("touchmove", [touchPoint(1, 280, 206)], carousel);
+    touchEvent("touchend", [], carousel);
+
+    expect(start.defaultPrevented).toBe(false);
+    expect(move.defaultPrevented).toBe(false);
+    expect(sidebarState.setOpenMobile).not.toHaveBeenCalled();
+  });
+
+  it("reserves explicitly horizontal scroll regions", () => {
+    renderHandle();
+    render(
+      <div data-mobile-scroll-allow="true" data-testid="workspace-tabs">
+        Workspace tabs
+      </div>,
+    );
+
+    const tabs = screen.getByTestId("workspace-tabs");
+    const start = touchEvent("touchstart", [touchPoint(1, 180, 40)], tabs);
+    const move = touchEvent("touchmove", [touchPoint(1, 280, 44)], tabs);
+    touchEvent("touchend", [], tabs);
+
+    expect(start.defaultPrevented).toBe(false);
+    expect(move.defaultPrevented).toBe(false);
+    expect(sidebarState.setOpenMobile).not.toHaveBeenCalled();
+  });
+
+  it("reserves non-sidebar modal dialogs", () => {
+    renderHandle();
+    render(
+      <div role="dialog" aria-label="Pane actions">
+        <button type="button">Modal action</button>
+      </div>,
+    );
+
+    swipePage({ target: screen.getByRole("button", { name: "Modal action" }), move: [310, 206] });
+
+    expect(sidebarState.setOpenMobile).not.toHaveBeenCalled();
+  });
+
+  it("keeps the intentional right-to-left sidebar replacement gesture", async () => {
+    renderHandle({ openMobileRight: true });
+
+    swipePage({ target: screen.getByTestId("page-content"), move: [310, 206] });
+
+    await waitFor(() => {
+      expect(sidebarState.setOpenMobile).toHaveBeenCalledWith(true);
+    });
+  });
+
+  it("cancels the one-finger drawer gesture as soon as a second finger joins", () => {
+    renderHandle();
+
+    const content = screen.getByTestId("page-content");
+    touchEvent("touchstart", [touchPoint(1, 24, 200)], content);
+    touchEvent("touchstart", [touchPoint(1, 24, 200), touchPoint(2, 64, 240)], content);
+    touchEvent("touchmove", [touchPoint(1, 124, 202), touchPoint(2, 164, 242)]);
+    touchEvent("touchend", []);
+
+    expect(sidebarState.setOpenMobile).not.toHaveBeenCalled();
+  });
+
+  it("commits the drawer action only after the gesture ends with one finger", async () => {
+    renderHandle();
+
+    const content = screen.getByTestId("page-content");
+    touchEvent("touchstart", [touchPoint(1, 180, 200)], content);
+    touchEvent("touchmove", [touchPoint(1, 280, 202)]);
+    expect(sidebarState.setOpenMobile).not.toHaveBeenCalled();
+
+    touchEvent("touchend", []);
+    await waitFor(() => {
+      expect(sidebarState.setOpenMobile).toHaveBeenCalledWith(true);
+    });
+  });
+
+  it("does not open when a rightward swipe is reversed before release", () => {
+    renderHandle();
+
+    const content = screen.getByTestId("page-content");
+    touchEvent("touchstart", [touchPoint(1, 180, 200)], content);
+    touchEvent("touchmove", [touchPoint(1, 280, 202)]);
+    touchEvent("touchmove", [touchPoint(1, 190, 202)]);
+    touchEvent("touchend", []);
 
     expect(sidebarState.setOpenMobile).not.toHaveBeenCalled();
   });

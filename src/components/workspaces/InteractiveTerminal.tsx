@@ -15,7 +15,6 @@ import {
 import { useRuntimeConfig } from "@/components/runtime-config-provider";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useKeybindings } from "@/hooks/useKeybindings";
-import { useTerminalPinchZoom } from "@/hooks/useTerminalPinchZoom";
 import {
   type ConnectionState,
   type TerminalRecoveryState,
@@ -560,9 +559,6 @@ export function InteractiveTerminal({
   const showFinalFailure =
     recoveryState?.phase === "final-failure" ||
     (connectionState === "failed" && recoveryState?.isRecoverable === false);
-  const bindPinchZoom = useTerminalPinchZoom();
-  const terminalInteractionProps = selectionModeEnabled ? {} : bindPinchZoom();
-
   useEffect(() => {
     onConnectionStateChange?.(connectionState);
   }, [connectionState, onConnectionStateChange]);
@@ -649,6 +645,7 @@ export function InteractiveTerminal({
       intent.multiTouch = true;
       return;
     }
+    if (intent.multiTouch) return;
 
     const touch = Array.from(event.touches).find(
       (candidate) => candidate.identifier === intent.touchIdentifier,
@@ -1128,7 +1125,6 @@ export function InteractiveTerminal({
           data-testid="terminal-fit-host"
           data-sidebar-gesture-ignore={selectionModeEnabled ? "true" : undefined}
           data-terminal-selection-mode={selectionModeEnabled ? "true" : undefined}
-          {...terminalInteractionProps}
           onClickCapture={stopTerminalEventForSelection}
           onMouseDownCapture={stopTerminalEventForSelection}
           onPointerDownCapture={stopTerminalEventForSelection}

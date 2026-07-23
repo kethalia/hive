@@ -11,7 +11,6 @@ import {
   Copy,
   CornerDownLeft,
   DoorOpen,
-  List,
   MessageSquareText,
   Minus,
   Plus,
@@ -54,7 +53,6 @@ const MOBILE_SMART_KEY_ICONS: Record<MobileSmartKeyIconName, LucideIcon> = {
 const CONTROL_PAGES = [
   ...MOBILE_SMART_KEY_PAGES.map((page) => page.label),
   "Clipboard",
-  "Windows",
   "Compose",
   "Font size",
 ] as const;
@@ -88,37 +86,6 @@ function MobileControlButtonContent({ label, Icon }: { label: string; Icon: Luci
   );
 }
 
-function getWindowNavigationStatus(windowNavigation?: MobileTerminalWindowNavigation): string {
-  if (!windowNavigation) return "Favorite window navigation unavailable";
-  if (windowNavigation.loading) return "Loading favorite windows";
-  if (windowNavigation.error) return `Favorite window navigation error: ${windowNavigation.error}`;
-
-  const windowCount = windowNavigation.sessions?.length ?? 0;
-  if (windowCount <= 0) return "No favorite windows are available";
-  if (windowCount === 1) return "Only one favorite window is available";
-  if (!windowNavigation.current) return `${windowCount} favorite windows available`;
-
-  return `Current favorite window: ${windowNavigation.current.name}. ${windowCount} favorite windows available.`;
-}
-
-function getWindowStepDisabledReason(
-  direction: "previous" | "next",
-  windowNavigation?: MobileTerminalWindowNavigation,
-): string | undefined {
-  if (!windowNavigation) return "Favorite window navigation unavailable";
-  if (windowNavigation.loading) return "Loading favorite windows";
-  if (windowNavigation.error) return "Favorite windows could not be loaded";
-  if (!windowNavigation.select) return "Favorite window switching unavailable";
-  if ((windowNavigation.sessions?.length ?? 0) <= 1) return "Only one favorite window is available";
-  if (direction === "previous" && (!windowNavigation.canGoPrevious || !windowNavigation.previous)) {
-    return "Already at the first favorite window";
-  }
-  if (direction === "next" && (!windowNavigation.canGoNext || !windowNavigation.next)) {
-    return "Already at the last favorite window";
-  }
-  return undefined;
-}
-
 export interface MobileTerminalControlsProps {
   isKeyboardVisible?: boolean;
   /** Called once for each terminal action press and page-dot navigation. */
@@ -138,7 +105,6 @@ export interface MobileTerminalControlsProps {
 export function MobileTerminalControls({
   isKeyboardVisible = false,
   onHapticFeedback,
-  windowNavigation,
   hasSelection = false,
   selectionModeEnabled = false,
   onToggleSelectionMode,
@@ -184,27 +150,6 @@ export function MobileTerminalControls({
     haptic();
     window.dispatchEvent(new CustomEvent(TERMINAL_COMPOSE_OPEN_EVENT));
   }, [haptic]);
-
-  const switchWindow = useCallback(
-    (session?: MobileTerminalWindowSession | null) => {
-      if (!session || !windowNavigation?.select) return;
-      const selected = windowNavigation.select(session.id ?? session.name);
-      if (selected !== false) haptic();
-    },
-    [haptic, windowNavigation],
-  );
-
-  const openWindowSwitcher = useCallback(() => {
-    if (!windowNavigation?.onOpenSwitcher) return;
-    haptic();
-    windowNavigation.onOpenSwitcher();
-  }, [haptic, windowNavigation]);
-
-  const reloadWindows = useCallback(() => {
-    if (!windowNavigation?.reload || windowNavigation.loading) return;
-    haptic();
-    windowNavigation.reload();
-  }, [haptic, windowNavigation]);
 
   const toggleSelectionMode = useCallback(() => {
     if (!onToggleSelectionMode) return;
@@ -256,18 +201,6 @@ export function MobileTerminalControls({
         : hasSelection
           ? "Terminal selection available."
           : "Selection mode off. Use Select to enable terminal selection.");
-  const previousDisabledReason = getWindowStepDisabledReason("previous", windowNavigation);
-  const nextDisabledReason = getWindowStepDisabledReason("next", windowNavigation);
-  const windowStatus = getWindowNavigationStatus(windowNavigation);
-  const windowSwitcherDisabled = !windowNavigation?.onOpenSwitcher || windowNavigation.loading;
-  const windowSwitcherDisabledReason = !windowNavigation?.onOpenSwitcher
-    ? "Favorite window switcher unavailable"
-    : windowNavigation.loading
-      ? "Loading favorite windows"
-      : undefined;
-  const reloadDisabled = !windowNavigation?.reload || Boolean(windowNavigation.loading);
-  const reloadLabel = windowNavigation?.error ? "Retry" : "Reload";
-
   useEffect(() => {
     if (!carouselApi) return;
 
@@ -400,86 +333,6 @@ export function MobileTerminalControls({
                 className="min-h-4 truncate text-center text-[11px] text-muted-foreground"
               >
                 {clipboardStatus}
-              </p>
-            </div>
-          </CarouselItem>
-
-          <CarouselItem aria-label="Windows controls" className="pl-2">
-            <div className="flex flex-col gap-1">
-              <ButtonGroup
-                aria-label="Favorite window controls"
-                className="grid w-full grid-cols-4 rounded-none"
-              >
-                <Button
-                  type="button"
-                  variant="outline"
-                  className={STACKED_BUTTON_CLASS}
-                  style={NO_TOUCH_STYLE}
-                  onPointerDown={keepTerminalKeyboardOpen}
-                  onMouseDown={keepTerminalKeyboardOpen}
-                  onClick={() => switchWindow(windowNavigation?.previous)}
-                  disabled={Boolean(previousDisabledReason)}
-                  aria-label="Switch to previous favorite window"
-                  aria-describedby="terminal-window-navigation-status"
-                  title={previousDisabledReason}
-                >
-                  <MobileControlButtonContent Icon={ArrowLeft} label="Previous" />
-                </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  className={STACKED_BUTTON_CLASS}
-                  style={NO_TOUCH_STYLE}
-                  onPointerDown={keepTerminalKeyboardOpen}
-                  onMouseDown={keepTerminalKeyboardOpen}
-                  onClick={openWindowSwitcher}
-                  disabled={windowSwitcherDisabled}
-                  aria-label="Open favorite window switcher"
-                  aria-describedby="terminal-window-navigation-status"
-                  title={windowSwitcherDisabledReason}
-                >
-                  <MobileControlButtonContent Icon={List} label="Windows" />
-                </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  className={STACKED_BUTTON_CLASS}
-                  style={NO_TOUCH_STYLE}
-                  onPointerDown={keepTerminalKeyboardOpen}
-                  onMouseDown={keepTerminalKeyboardOpen}
-                  onClick={() => switchWindow(windowNavigation?.next)}
-                  disabled={Boolean(nextDisabledReason)}
-                  aria-label="Switch to next favorite window"
-                  aria-describedby="terminal-window-navigation-status"
-                  title={nextDisabledReason}
-                >
-                  <MobileControlButtonContent Icon={ArrowRight} label="Next" />
-                </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  className={STACKED_BUTTON_CLASS}
-                  style={NO_TOUCH_STYLE}
-                  onPointerDown={keepTerminalKeyboardOpen}
-                  onMouseDown={keepTerminalKeyboardOpen}
-                  onClick={reloadWindows}
-                  disabled={reloadDisabled}
-                  aria-label={
-                    windowNavigation?.error
-                      ? "Retry loading favorite windows"
-                      : "Reload favorite window list"
-                  }
-                  aria-describedby="terminal-window-navigation-status"
-                >
-                  <MobileControlButtonContent Icon={RefreshCw} label={reloadLabel} />
-                </Button>
-              </ButtonGroup>
-              <p
-                id="terminal-window-navigation-status"
-                aria-live="polite"
-                className="min-h-4 truncate text-center text-[11px] text-muted-foreground"
-              >
-                {windowStatus}
               </p>
             </div>
           </CarouselItem>

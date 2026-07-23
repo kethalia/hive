@@ -23,6 +23,7 @@ import {
   ChevronDown,
   ChevronRight,
   Code,
+  Ellipsis,
   ExternalLink,
   FolderOpen,
   GitBranch,
@@ -46,7 +47,14 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  type TouchEvent as ReactTouchEvent,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { GitCloneSidebarTree } from "@/components/git-clone-sidebar-tree";
 import { HiveLogo } from "@/components/hive-logo";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -291,10 +299,16 @@ function SessionList({
   const [isAtBottom, setIsAtBottom] = useState(true);
   const [editingSession, setEditingSession] = useState<string | null>(null);
   const [editValue, setEditValue] = useState("");
+  const [revealedSession, setRevealedSession] = useState<string | null>(null);
+  const rowTouchStartRef = useRef<{
+    id: number;
+    sessionName: string;
+    x: number;
+    y: number;
+  } | null>(null);
   const mobileSessionRowClassName = isMobile ? "min-h-11 py-2 text-sm" : undefined;
-  const actionVisibilityClassName = isMobile
-    ? "opacity-100"
-    : "opacity-0 group-hover/session-row:opacity-100 focus-within:opacity-100";
+  const actionVisibilityClassName =
+    "opacity-0 group-hover/session-row:opacity-100 focus-within:opacity-100";
   const actionButtonClassName = isMobile
     ? "flex h-11 w-11 items-center justify-center p-0"
     : "p-0.5";
@@ -326,6 +340,52 @@ function SessionList({
     [editValue, onRename, workspaceId],
   );
 
+  const handleRowTouchStart = (event: ReactTouchEvent<HTMLLIElement>, sessionName: string) => {
+    if (!isMobile || event.touches.length !== 1) {
+      rowTouchStartRef.current = null;
+      return;
+    }
+    const target = event.target;
+    if (target instanceof Element && target.closest("button, input, textarea, select")) {
+      rowTouchStartRef.current = null;
+      return;
+    }
+    const touch = event.touches[0];
+    rowTouchStartRef.current = {
+      id: touch.identifier,
+      sessionName,
+      x: touch.clientX,
+      y: touch.clientY,
+    };
+  };
+
+  const handleRowTouchMove = (event: ReactTouchEvent<HTMLLIElement>) => {
+    if (event.touches.length !== 1) {
+      rowTouchStartRef.current = null;
+      return;
+    }
+    const start = rowTouchStartRef.current;
+    if (!start) return;
+    const touch = Array.from(event.touches).find((candidate) => candidate.identifier === start.id);
+    if (!touch) {
+      rowTouchStartRef.current = null;
+    }
+  };
+
+  const handleRowTouchEnd = (event: ReactTouchEvent<HTMLLIElement>) => {
+    const start = rowTouchStartRef.current;
+    rowTouchStartRef.current = null;
+    if (!start || event.touches.length > 0) return;
+    const touch = Array.from(event.changedTouches).find(
+      (candidate) => candidate.identifier === start.id,
+    );
+    if (!touch) return;
+    const deltaX = touch.clientX - start.x;
+    const deltaY = touch.clientY - start.y;
+    if (Math.abs(deltaX) < 48 || Math.abs(deltaX) <= Math.abs(deltaY)) return;
+    setRevealedSession(deltaX < 0 ? start.sessionName : null);
+  };
+
   return (
     <div className="relative">
       <div
@@ -341,7 +401,16 @@ function SessionList({
           const isMutatingFavorite = mutatingFavoriteKeys.has(favoriteKey);
 
           return (
-            <SidebarMenuSubItem key={session.name} className="group/session-row">
+            <SidebarMenuSubItem
+              key={session.name}
+              className={cn("group/session-row overflow-hidden", isMobile && "touch-pan-y")}
+              onTouchStart={(event) => handleRowTouchStart(event, session.name)}
+              onTouchMove={handleRowTouchMove}
+              onTouchEnd={handleRowTouchEnd}
+              onTouchCancel={() => {
+                rowTouchStartRef.current = null;
+              }}
+            >
               {editingSession === session.name ? (
                 <SidebarMenuSubButton className={cn("cursor-text", mobileSessionRowClassName)}>
                   <Terminal className="h-3 w-3 shrink-0 text-muted-foreground" />
@@ -370,61 +439,104 @@ function SessionList({
                       pathname === `/workspaces/${workspaceId}/terminal` &&
                       activeSession === session.name
                     }
-                    className={cn("pr-24", mobileSessionRowClassName)}
+                    className={cn(
+                      isMobile
+                        ? revealedSession === session.name
+                          ? "pr-[11.25rem]"
+                          : "pr-12"
+                        : "pr-24",
+                      mobileSessionRowClassName,
+                    )}
+                    onClick={() => setRevealedSession(null)}
                   >
                     <Terminal className="h-3 w-3 shrink-0" />
                     <span className="truncate">{session.name}</span>
                   </SidebarMenuSubButton>
-                  <span
+                  <div
                     className={cn(
                       "absolute inset-y-0 right-1 flex items-center gap-0.5",
-                      actionVisibilityClassName,
+                      isMobile ? "bg-sidebar" : actionVisibilityClassName,
                     )}
                   >
-                    <button
-                      type="button"
-                      title={isFavorited ? "Remove from favorites" : "Add to favorites"}
-                      aria-label={`${isFavorited ? "Remove" : "Add"} terminal session ${session.name} ${
-                        isFavorited ? "from" : "to"
-                      } favorites`}
-                      aria-pressed={isFavorited}
-                      data-testid={`favorite-terminal-session-${session.name}`}
-                      disabled={isMutatingFavorite}
-                      className={cn(
-                        "rounded hover:bg-sidebar-accent disabled:pointer-events-none disabled:opacity-50",
-                        actionButtonClassName,
-                      )}
-                      onClick={() => {
-                        onFavoriteToggle(workspaceId, session.name, !isFavorited);
-                      }}
-                    >
-                      <Star className={cn("h-3 w-3", isFavorited && "fill-current")} />
-                    </button>
-                    <button
-                      type="button"
-                      title="Rename session"
-                      aria-label={`Rename session ${session.name}`}
-                      data-testid={`rename-session-${session.name}`}
-                      className={cn("rounded hover:bg-sidebar-accent", actionButtonClassName)}
-                      onClick={() => {
-                        startRename(session.name);
-                      }}
-                    >
-                      <Pencil className="h-3 w-3" />
-                    </button>
-                    <button
-                      type="button"
-                      title="Kill session"
-                      aria-label={`Kill session ${session.name}`}
-                      data-testid={`kill-session-${session.name}`}
-                      className={cn("rounded hover:bg-destructive/20", actionButtonClassName)}
-                      onClick={() => {
-                        onKill(workspaceId, session.name);
-                      }}
-                    >
-                      <X className="h-3 w-3" />
-                    </button>
-                  </span>
+                    {isMobile ? (
+                      <button
+                        type="button"
+                        title={
+                          revealedSession === session.name
+                            ? "Hide session actions"
+                            : "Show session actions"
+                        }
+                        aria-label={`${
+                          revealedSession === session.name ? "Hide" : "Show"
+                        } actions for terminal session ${session.name}`}
+                        aria-controls={`terminal-session-actions-${session.name}`}
+                        aria-expanded={revealedSession === session.name}
+                        data-testid={`show-terminal-session-actions-${session.name}`}
+                        className={cn("rounded hover:bg-sidebar-accent", actionButtonClassName)}
+                        onClick={() =>
+                          setRevealedSession((current) =>
+                            current === session.name ? null : session.name,
+                          )
+                        }
+                      >
+                        <Ellipsis className="h-4 w-4" />
+                      </button>
+                    ) : null}
+                    {!isMobile || revealedSession === session.name ? (
+                      <fieldset
+                        id={`terminal-session-actions-${session.name}`}
+                        aria-label={`Actions for terminal session ${session.name}`}
+                        className="contents"
+                      >
+                        <legend className="sr-only">
+                          {`Actions for terminal session ${session.name}`}
+                        </legend>
+                        <button
+                          type="button"
+                          title={isFavorited ? "Remove from favorites" : "Add to favorites"}
+                          aria-label={`${isFavorited ? "Remove" : "Add"} terminal session ${session.name} ${
+                            isFavorited ? "from" : "to"
+                          } favorites`}
+                          aria-pressed={isFavorited}
+                          data-testid={`favorite-terminal-session-${session.name}`}
+                          disabled={isMutatingFavorite}
+                          className={cn(
+                            "rounded hover:bg-sidebar-accent disabled:pointer-events-none disabled:opacity-50",
+                            actionButtonClassName,
+                          )}
+                          onClick={() => {
+                            onFavoriteToggle(workspaceId, session.name, !isFavorited);
+                          }}
+                        >
+                          <Star className={cn("h-3 w-3", isFavorited && "fill-current")} />
+                        </button>
+                        <button
+                          type="button"
+                          title="Rename session"
+                          aria-label={`Rename session ${session.name}`}
+                          data-testid={`rename-session-${session.name}`}
+                          className={cn("rounded hover:bg-sidebar-accent", actionButtonClassName)}
+                          onClick={() => {
+                            startRename(session.name);
+                          }}
+                        >
+                          <Pencil className="h-3 w-3" />
+                        </button>
+                        <button
+                          type="button"
+                          title="Kill session"
+                          aria-label={`Kill session ${session.name}`}
+                          data-testid={`kill-session-${session.name}`}
+                          className={cn("rounded hover:bg-destructive/20", actionButtonClassName)}
+                          onClick={() => {
+                            onKill(workspaceId, session.name);
+                          }}
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                      </fieldset>
+                    ) : null}
+                  </div>
                 </>
               )}
             </SidebarMenuSubItem>
