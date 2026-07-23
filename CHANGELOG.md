@@ -1,5 +1,11 @@
 # hive-orchestrator
 
+## 2.10.0
+
+### Minor Changes
+
+- 20c81ee: Add accessible mobile and tablet sidebar gestures, direct pane action drawers, and swipe-reveal session actions.
+
 ## 2.9.1
 
 ### Patch Changes
