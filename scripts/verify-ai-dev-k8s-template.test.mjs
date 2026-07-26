@@ -61,82 +61,6 @@ printf 'fresh-test-token\\n'
   chmodSync(join(bin, "coder"), 0o755);
 }
 
-function installGamePluginCodexStub(bin) {
-  writeFileSync(
-    join(bin, "codex"),
-    `#!/bin/sh
-if [ "$1 $2" = "plugin list" ]; then
-  printf 'list\\n' >> "$CODEX_CALLS"
-  printf '{"installed":[{"pluginId":"game-development@team-local","version":"%s","installed":true}]}\\n' "$INSTALLED_VERSION"
-elif [ "$1 $2" = "plugin add" ]; then
-  printf 'add %s\\n' "$3" >> "$CODEX_CALLS"
-else
-  exit 1
-fi
-`,
-  );
-  chmodSync(join(bin, "codex"), 0o755);
-}
-
-function createGamePluginFixture() {
-  const fixtureRoot = mkdtempSync(join(tmpdir(), "ai-dev-k8s-game-plugin-"));
-  const home = join(fixtureRoot, "home");
-  const bin = join(fixtureRoot, "bin");
-  const calls = join(fixtureRoot, "codex-calls.log");
-  const marketplace = join(home, ".agents", "plugins", "marketplace.json");
-  const manifest = join(home, "plugins", "game-development", ".codex-plugin", "plugin.json");
-  const pluginBlock = readTemplateFile("scripts/tools-ai.sh").match(
-    /if command_exists codex && \[ -f "\$HOME\/\.agents\/plugins\/marketplace\.json" \]; then[\s\S]*\nfi\s*$/,
-  );
-
-  assert.ok(pluginBlock);
-  mkdirSync(bin, { recursive: true });
-  mkdirSync(join(home, ".agents", "plugins"), { recursive: true });
-  mkdirSync(join(home, "plugins", "game-development", ".codex-plugin"), { recursive: true });
-  writeFileSync(marketplace, '{"name":"team-local"}\n');
-  writeFileSync(manifest, '{"name":"game-development","version":"0.2.0+codex.template"}\n');
-  writeFileSync(calls, "");
-  installGamePluginCodexStub(bin);
-  const fixtureScript = join(fixtureRoot, "install-plugin.sh");
-  writeFileSync(
-    fixtureScript,
-    `#!/bin/bash
-set -e
-GREEN=""
-YELLOW=""
-RESET=""
-command_exists() { command -v "$1" >/dev/null 2>&1; }
-${pluginBlock[0]}
-`,
-  );
-  return { bin, calls, fixtureScript, home };
-}
-
-function runGamePluginInstallFixture(installedVersion) {
-  const { bin, calls, fixtureScript, home } = createGamePluginFixture();
-  const result = spawnSync("bash", [fixtureScript], {
-    encoding: "utf8",
-    env: {
-      ...process.env,
-      CODEX_CALLS: calls,
-      HOME: home,
-      INSTALLED_VERSION: installedVersion,
-      PATH: `${bin}:${process.env.PATH}`,
-    },
-  });
-
-  assert.equal(result.status, 0, result.stderr);
-  return readFileSync(calls, "utf8").trim().split("\n");
-}
-
-function verifyGamePluginLifecycle() {
-  assert.deepEqual(runGamePluginInstallFixture("0.2.0+codex.template"), ["list"]);
-  assert.deepEqual(runGamePluginInstallFixture("0.1.0"), [
-    "list",
-    "add game-development@team-local",
-  ]);
-}
-
 function verifyPodSecurity() {
   const terraform = readTemplateFile("main.tf");
 
@@ -188,7 +112,8 @@ function verifyFileLoadedScripts() {
     "scripts/tools-web3.sh",
   ]) {
     const script = readTemplateFile(relativePath);
-    const unsupportedEscapes = script.replaceAll("$${agent_file##*/}", "");
+    const terraformShellExpansion = "$" + "$" + "{agent_file##*/}";
+    const unsupportedEscapes = script.replaceAll(terraformShellExpansion, "");
     assert.doesNotMatch(
       unsupportedEscapes,
       /\$\$\{/,
@@ -293,12 +218,11 @@ function runVaultManagedContextCleanupFixture() {
 
   assert.ok(functionMatch);
   const claudeTemplateToken = "$" + "{claude_md_content}";
-  const cleanup = `${functionMatch[0]
+  const renderedFunction = functionMatch[0]
     .replace(/\n\nremove_vault_managed_context$/, "")
     .replace(claudeTemplateToken, "# Coder Workspace")
-    .replaceAll("$${", "${")}
-remove_vault_managed_context
-`;
+    .replaceAll("$" + "$" + "{", "$" + "{");
+  const cleanup = [renderedFunction, "remove_vault_managed_context", ""].join("\n");
   const script = join(fixtureRoot, "cleanup.sh");
   writeFileSync(script, cleanup);
   const result = spawnSync("bash", [script], {
@@ -719,6 +643,94 @@ test("GitHub helpers retrieve fresh Coder credentials on demand", verifyGithubHe
 test("repository manifest only includes approved organizations", verifyRepositoryManifest);
 test("repository bootstrap is idempotent", verifyRepositoryBootstrap);
 test("repository bootstrap rejects failed external authentication", verifyFailedExternalAuth);
+
+function installGamePluginCodexStub(bin) {
+  writeFileSync(
+    join(bin, "codex"),
+    [
+      "#!/bin/sh",
+      'if [ "$1 $2" = "plugin list" ]; then',
+      "  printf 'list\\n' >> \"$CODEX_CALLS\"",
+      "  printf '%s\\n' \"$CODEX_PLUGIN_LIST\"",
+      'elif [ "$1 $2" = "plugin add" ]; then',
+      '  printf \'add %s\\n\' "$3" >> "$CODEX_CALLS"',
+      "else",
+      "  exit 1",
+      "fi",
+      "",
+    ].join("\n"),
+  );
+  chmodSync(join(bin, "codex"), 0o755);
+}
+
+function createGamePluginFixture() {
+  const fixtureRoot = mkdtempSync(join(tmpdir(), "ai-dev-k8s-game-plugin-"));
+  const home = join(fixtureRoot, "home");
+  const bin = join(fixtureRoot, "bin");
+  const calls = join(fixtureRoot, "codex-calls.log");
+  const marketplace = join(home, ".agents", "plugins", "marketplace.json");
+  const manifest = join(home, "plugins", "game-development", ".codex-plugin", "plugin.json");
+  const pluginBlock = readTemplateFile("scripts/tools-ai.sh").match(
+    /if command_exists codex && \[ -f "\$HOME\/\.agents\/plugins\/marketplace\.json" \]; then[\s\S]*\nfi\s*$/,
+  );
+
+  assert.ok(pluginBlock);
+  mkdirSync(bin, { recursive: true });
+  mkdirSync(join(home, ".agents", "plugins"), { recursive: true });
+  mkdirSync(join(home, "plugins", "game-development", ".codex-plugin"), { recursive: true });
+  writeFileSync(marketplace, '{"name":"team-local"}\n');
+  writeFileSync(manifest, '{"name":"game-development","version":"0.2.0+codex.template"}\n');
+  writeFileSync(calls, "");
+  installGamePluginCodexStub(bin);
+  const fixtureScript = join(fixtureRoot, "install-plugin.sh");
+  writeFileSync(
+    fixtureScript,
+    [
+      "#!/bin/bash",
+      "set -e",
+      'GREEN=""',
+      'YELLOW=""',
+      'RESET=""',
+      'command_exists() { command -v "$1" >/dev/null 2>&1; }',
+      pluginBlock[0],
+      "",
+    ].join("\n"),
+  );
+  return { bin, calls, fixtureScript, home };
+}
+
+function runGamePluginInstallFixture(installedVersion) {
+  const { bin, calls, fixtureScript, home } = createGamePluginFixture();
+  const result = spawnSync("bash", [fixtureScript], {
+    encoding: "utf8",
+    env: {
+      ...process.env,
+      CODEX_CALLS: calls,
+      CODEX_PLUGIN_LIST: JSON.stringify({
+        installed: [
+          {
+            installed: true,
+            pluginId: "game-development@team-local",
+            version: installedVersion,
+          },
+        ],
+      }),
+      HOME: home,
+      PATH: `${bin}:${process.env.PATH}`,
+    },
+  });
+
+  assert.equal(result.status, 0, result.stderr);
+  return readFileSync(calls, "utf8").trim().split("\n");
+}
+
+function verifyGamePluginLifecycle() {
+  assert.deepEqual(runGamePluginInstallFixture("0.2.0+codex.template"), ["list"]);
+  assert.deepEqual(runGamePluginInstallFixture("0.1.0"), [
+    "list",
+    "add game-development@team-local",
+  ]);
+}
 
 function runHiveProjectMcpMigrationFixture() {
   const hiveInit = readFileSync(join(process.cwd(), "templates/hive/scripts/init.sh"), "utf8");
