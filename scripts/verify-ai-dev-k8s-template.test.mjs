@@ -184,14 +184,15 @@ function seedVaultManagedContextFixture(home) {
   mkdirSync(piRetainedSkill, { recursive: true });
   mkdirSync(vault, { recursive: true });
   mkdirSync(join(home, ".codex"), { recursive: true });
+  writeFileSync(join(home, "sync-vault.sh"), "# legacy vault integration\n");
   writeFileSync(join(managedSkill, "SKILL.md"), "managed\n");
   writeFileSync(join(retainedSkill, "SKILL.md"), "retained\n");
   writeFileSync(join(piManagedSkill, "SKILL.md"), "managed\n");
   writeFileSync(join(piRetainedSkill, "SKILL.md"), "retained\n");
   writeFileSync(join(home, ".agents", "skills", ".vault-managed"), "managed-skill\n../vault\n");
   writeFileSync(join(home, ".pi", "agent", "skills", ".vault-managed"), "pi-managed-skill\n");
-  writeFileSync(join(home, ".codex", "AGENTS.md"), "# Old\n\n## Vault Context Layer\n");
-  writeFileSync(join(home, ".pi", "agent", "AGENTS.md"), "# Old\n\n## Vault Context Layer\n");
+  writeFileSync(join(home, ".codex", "AGENTS.md"), "# Custom vault agent context\n");
+  writeFileSync(join(home, ".pi", "agent", "AGENTS.md"), "# Custom vault Pi context\n");
   writeFileSync(join(vault, "keep.txt"), "keep\n");
   return { managedSkill, piManagedSkill, piRetainedSkill, retainedSkill, vault };
 }
@@ -454,7 +455,7 @@ function verifyMarketplaceMerge() {
   assert.equal(merged.plugins[1].source.path, "./plugins/game-development");
 }
 
-function verifyHiveMigrationSafety() {
+function runHiveProjectMcpMigrationFixture() {
   const hiveInit = readFileSync(join(process.cwd(), "templates/hive/scripts/init.sh"), "utf8");
   const configMatch = hiveInit.match(/python3 - <<'PYCONFIG'\n([\s\S]*?)\nPYCONFIG/);
   const fixtureRoot = mkdtempSync(join(tmpdir(), "hive-project-mcp-"));
@@ -462,8 +463,6 @@ function verifyHiveMigrationSafety() {
   const projectMcp = join(home, "project", ".gsd", "mcp.json");
 
   assert.ok(configMatch);
-  assert.match(hiveInit, /if ! git -C \/home\/coder\/project checkout -b/);
-  assert.match(hiveInit, /keeping the current worktree/);
   mkdirSync(join(home, "project", ".gsd"), { recursive: true });
   writeFileSync(
     projectMcp,
@@ -485,8 +484,15 @@ function verifyHiveMigrationSafety() {
     env: { ...process.env, HOME: home },
   });
 
+  return { hiveInit, migrated: JSON.parse(readFileSync(projectMcp, "utf8")), result };
+}
+
+function verifyHiveMigrationSafety() {
+  const { hiveInit, migrated, result } = runHiveProjectMcpMigrationFixture();
+
+  assert.match(hiveInit, /if ! git -C \/home\/coder\/project checkout -b/);
+  assert.match(hiveInit, /keeping the current worktree/);
   assert.equal(result.status, 0, result.stderr);
-  const migrated = JSON.parse(readFileSync(projectMcp, "utf8"));
   assert.equal("obsidian" in migrated.mcpServers, false);
   assert.equal("hive_obsidian" in migrated.mcpServers, false);
   assert.deepEqual(migrated.mcpServers.playwright, { command: "keep-playwright" });

@@ -63,10 +63,14 @@ for path in (home / ".claude" / "mcp.json", home / ".mcp.json"):
 PYCONFIG
 
 remove_vault_managed_context() {
-  local skills_root manifest managed_name agent_file
+  local skills_root manifest managed_name agent_file legacy_vault_integration=false
+  if [ -f "$HOME/sync-vault.sh" ] || [ -f "$HOME/.config/hive/vault-repository" ]; then
+    legacy_vault_integration=true
+  fi
   for skills_root in "$HOME/.agents/skills" "$HOME/.claude/skills" "$HOME/.pi/agent/skills"; do
     manifest="$skills_root/.vault-managed"
     [ -f "$manifest" ] || continue
+    legacy_vault_integration=true
     while IFS= read -r managed_name; do
       case "$managed_name" in
         "" | */* | ".." | -*)
@@ -89,7 +93,7 @@ remove_vault_managed_context() {
     "$HOME/.agents/CLAUDE.md" \
     "$HOME/.pi/agent/AGENTS.md" \
     "$HOME/.pi/agent/CLAUDE.md"; do
-    if [ -f "$agent_file" ] && { grep -qF '## Vault Context Layer' "$agent_file" || grep -qF 'personal knowledge vault at' "$agent_file"; }; then
+    if [ -f "$agent_file" ] && { [ "$legacy_vault_integration" = true ] || grep -qF '## Vault Context Layer' "$agent_file" || grep -qF 'personal knowledge vault at' "$agent_file"; }; then
       cat > "$agent_file" << 'AGENTEOF'
 ${claude_md_content}
 AGENTEOF
