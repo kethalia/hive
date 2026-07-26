@@ -16,18 +16,70 @@ on:
   workflow_dispatch:
 
 permissions:
-  actions: write
-  contents: write
-  packages: write
-  pull-requests: write
+  contents: read
 
 concurrency:
   group: build-hive-base-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
+  build-test:
+    name: Build and smoke test hive-base image
+    if: github.event_name != 'push' || github.ref != 'refs/heads/main'
+    permissions:
+      contents: read
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build image
+        uses: docker/build-push-action@v6
+        with:
+          context: docker/hive-base
+          push: false
+          load: true
+          platforms: linux/amd64
+          tags: ghcr.io/kethalia/hive-base:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Smoke test — claude --version
+        run: docker run --rm ghcr.io/kethalia/hive-base:${{ github.sha }} claude --version
+
+      - name: Smoke test — notesmd-cli --version
+        run: docker run --rm ghcr.io/kethalia/hive-base:${{ github.sha }} notesmd-cli --version
+
+      - name: Smoke test — act --version
+        run: docker run --rm ghcr.io/kethalia/hive-base:${{ github.sha }} act --version
+
+      - name: Smoke test — vncserver present
+        run: docker run --rm ghcr.io/kethalia/hive-base:${{ github.sha }} which vncserver
+
+      - name: Smoke test — xfce4-session present
+        run: docker run --rm ghcr.io/kethalia/hive-base:${{ github.sha }} which xfce4-session
+
+      - name: Smoke test — Unity Hub present
+        run: docker run --rm ghcr.io/kethalia/hive-base:${{ github.sha }} which unityhub
+
+      - name: Smoke test — Blender starts
+        run: docker run --rm ghcr.io/kethalia/hive-base:${{ github.sha }} blender --version
+
+      - name: Smoke test — Obsidian retained
+        run: docker run --rm ghcr.io/kethalia/hive-base:${{ github.sha }} which obsidian
+
   build-test-push:
     name: Build, smoke test, and push hive-base image
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    permissions:
+      actions: write
+      contents: write
+      packages: write
+      pull-requests: write
     runs-on: ubuntu-latest
 
     steps:

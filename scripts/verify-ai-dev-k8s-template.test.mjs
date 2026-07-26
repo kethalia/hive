@@ -177,12 +177,13 @@ function seedVaultManagedContextFixture(home) {
   const piManagedSkill = join(home, ".pi", "agent", "skills", "pi-managed-skill");
   const piRetainedSkill = join(home, ".pi", "agent", "skills", "pi-retained-skill");
   const vault = join(home, "vault");
+  const vaultAgents = join(vault, "Agents");
 
   mkdirSync(managedSkill, { recursive: true });
   mkdirSync(retainedSkill, { recursive: true });
   mkdirSync(piManagedSkill, { recursive: true });
   mkdirSync(piRetainedSkill, { recursive: true });
-  mkdirSync(vault, { recursive: true });
+  mkdirSync(vaultAgents, { recursive: true });
   mkdirSync(join(home, ".codex"), { recursive: true });
   writeFileSync(join(home, "sync-vault.sh"), "# legacy vault integration\n");
   writeFileSync(join(managedSkill, "SKILL.md"), "managed\n");
@@ -191,8 +192,10 @@ function seedVaultManagedContextFixture(home) {
   writeFileSync(join(piRetainedSkill, "SKILL.md"), "retained\n");
   writeFileSync(join(home, ".agents", "skills", ".vault-managed"), "managed-skill\n../vault\n");
   writeFileSync(join(home, ".pi", "agent", "skills", ".vault-managed"), "pi-managed-skill\n");
+  writeFileSync(join(vaultAgents, "AGENTS.md"), "# Custom vault agent context\n");
   writeFileSync(join(home, ".codex", "AGENTS.md"), "# Custom vault agent context\n");
-  writeFileSync(join(home, ".pi", "agent", "AGENTS.md"), "# Custom vault Pi context\n");
+  writeFileSync(join(home, ".pi", "agent", "AGENTS.md"), "# Custom vault agent context\n");
+  writeFileSync(join(home, ".agents", "CLAUDE.md"), "# User-owned Claude context\n");
   writeFileSync(join(vault, "keep.txt"), "keep\n");
   return { managedSkill, piManagedSkill, piRetainedSkill, retainedSkill, vault };
 }
@@ -241,6 +244,10 @@ function verifyVaultManagedContextCleanup() {
     readFileSync(join(home, ".pi", "agent", "AGENTS.md"), "utf8"),
     "# Coder Workspace\n",
   );
+  assert.equal(
+    readFileSync(join(home, ".agents", "CLAUDE.md"), "utf8"),
+    "# User-owned Claude context\n",
+  );
   assert.equal(readFileSync(join(vault, "keep.txt"), "utf8"), "keep\n");
 }
 
@@ -259,7 +266,15 @@ function verifyBaseImageRollout() {
   assert.match(workflow, /gh pr list --head "\$branch" --state all/);
   assert.match(workflow, /gh pr reopen/);
   assert.match(workflow, /gh workflow run ci\.yml --ref "\$branch"/);
-  assert.match(workflow, /actions: write/);
+  assert.match(workflow, /^permissions:\n {2}contents: read$/m);
+  assert.match(
+    workflow,
+    /build-test:\n[\s\S]*?if: github\.event_name != 'push'[\s\S]*?permissions:\n {6}contents: read/,
+  );
+  assert.match(
+    workflow,
+    /build-test-push:\n[\s\S]*?if: github\.event_name == 'push' && github\.ref == 'refs\/heads\/main'[\s\S]*?permissions:\n {6}actions: write\n {6}contents: write\n {6}packages: write\n {6}pull-requests: write/,
+  );
   assert.match(
     readFileSync(join(process.cwd(), ".github/workflows/ci.yml"), "utf8"),
     /workflow_dispatch:/,
