@@ -1,7 +1,15 @@
 /* eslint-disable security/detect-non-literal-fs-filename -- Test paths are created under an isolated mkdtemp fixture. */
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { chmodSync, mkdirSync, mkdtempSync, readFileSync, statSync, writeFileSync } from "node:fs";
+import {
+  chmodSync,
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  statSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
@@ -19,7 +27,6 @@ function createBootstrapFixture() {
   const bin = join(fixtureRoot, "bin");
   const manifest = join(fixtureRoot, "repositories.txt");
   const calls = join(fixtureRoot, "gh-calls.log");
-  const gitCalls = join(fixtureRoot, "git-calls.log");
   mkdirSync(home, { recursive: true });
   mkdirSync(bin, { recursive: true });
   writeFileSync(manifest, "example/one|example/one\nexample/two|nested/two\n");
@@ -35,23 +42,7 @@ printf '%s\\n' "$3|$4" >> "$GH_CALLS"
 `,
   );
   chmodSync(join(bin, "gh"), 0o755);
-  writeFileSync(
-    join(bin, "git"),
-    `#!/bin/sh
-set -eu
-printf '%s\\n' "$*" >> "$GIT_CALLS"
-case "$*" in
-  *"remote get-url origin") printf '%s\\n' "\${GIT_ORIGIN:-https://github.com/example/vault.git}" ;;
-  *"symbolic-ref --quiet --short HEAD") printf '%s\\n' "main" ;;
-  *"pull --ff-only origin main") [ "\${GIT_PULL_FAIL:-}" != "1" ] ;;
-esac
-`,
-  );
-  chmodSync(join(bin, "git"), 0o755);
-  writeFileSync(join(home, "sync-vault.sh"), '#!/bin/sh\ntouch "$HOME/.vault-synced"\n');
-  chmodSync(join(home, "sync-vault.sh"), 0o755);
-
-  return { bin, calls, gitCalls, home, manifest };
+  return { bin, calls, home, manifest };
 }
 
 function installFakeCoder(bin) {
@@ -121,7 +112,13 @@ function verifyFileLoadedScripts() {
     "scripts/tools-web3.sh",
   ]) {
     const script = readTemplateFile(relativePath);
-    assert.doesNotMatch(script, /\$\$\{/, `${relativePath} must use normal shell expansion`);
+    const terraformShellExpansion = "$" + "$" + "{agent_file##*/}";
+    const unsupportedEscapes = script.replaceAll(terraformShellExpansion, "");
+    assert.doesNotMatch(
+      unsupportedEscapes,
+      /\$\$\{/,
+      `${relativePath} must use normal shell expansion`,
+    );
     assert.doesNotMatch(
       script,
       /\bsudo\b/,
@@ -148,13 +145,150 @@ function verifySafeBootstrap() {
 
   assert.doesNotMatch(cloneScript, /rsync\s+.*--delete/);
   assert.doesNotMatch(cloneScript, /gh auth setup-git/);
-  assert.match(cloneScript, /! -name \.obsidian/);
-  assert.match(
-    terraform,
-    /validation \{[\s\S]*?regex\s*=\s*"\^\$\|\^\(chillwhales\|kethalia\|phlox-labs\)/,
-  );
+  assert.doesNotMatch(cloneScript, /vault|obsidian/i);
+  assert.doesNotMatch(terraform, /vault_repo|git-clone-vault|mcpvault/);
   assert.doesNotMatch(terraform, /git-clone-vault|github-upload-public-key/);
   assert.doesNotMatch(initScript, /docker (info|version)/);
+  assert.match(initScript, /servers\.pop\("obsidian", None\)/);
+  assert.match(initScript, /managed_tables/);
+  assert.doesNotMatch(initScript, /existing\.split\(start/);
+  assert.match(initScript, /\.config\/autostart\/obsidian\.desktop/);
+  assert.match(initScript, /remove_vault_managed_context/);
+  assert.match(initScript, /\.vault-managed/);
+  assert.doesNotMatch(initScript, /rm[^\n]*\$HOME\/vault/);
+
+  for (const templateRoot of [
+    TEMPLATE_ROOT,
+    DOCKER_TEMPLATE_ROOT,
+    join(process.cwd(), "templates/hive"),
+  ]) {
+    const templateInit = readFileSync(join(templateRoot, "scripts/init.sh"), "utf8");
+    assert.match(templateInit, /remove_vault_managed_context/);
+    assert.match(templateInit, /\.vault-managed/);
+    assert.match(templateInit, /\$\$\{agent_file##\*\/\}/);
+    assert.doesNotMatch(templateInit, /personal knowledge vault at `~\/vault`/);
+    assert.doesNotMatch(templateInit, /rm[^\n]*\$HOME\/vault/);
+  }
+
+  for (const templateRoot of [DOCKER_TEMPLATE_ROOT, join(process.cwd(), "templates/hive")]) {
+    const templateInit = readFileSync(join(templateRoot, "scripts/init.sh"), "utf8");
+    assert.match(templateInit, /\$HOME\/\.pi\/agent\/skills/);
+    assert.match(templateInit, /\$HOME\/\.pi\/agent\/AGENTS\.md/);
+    assert.match(templateInit, /\$HOME\/\.pi\/agent\/CLAUDE\.md/);
+  }
+}
+
+function seedVaultManagedContextFixture(home) {
+  const managedSkill = join(home, ".agents", "skills", "managed-skill");
+  const retainedSkill = join(home, ".agents", "skills", "retained-skill");
+  const piManagedSkill = join(home, ".pi", "agent", "skills", "pi-managed-skill");
+  const piRetainedSkill = join(home, ".pi", "agent", "skills", "pi-retained-skill");
+  const vault = join(home, "vault");
+  const vaultAgents = join(vault, "Agents");
+
+  mkdirSync(managedSkill, { recursive: true });
+  mkdirSync(retainedSkill, { recursive: true });
+  mkdirSync(piManagedSkill, { recursive: true });
+  mkdirSync(piRetainedSkill, { recursive: true });
+  mkdirSync(vaultAgents, { recursive: true });
+  mkdirSync(join(home, ".codex"), { recursive: true });
+  writeFileSync(join(home, "sync-vault.sh"), "# legacy vault integration\n");
+  writeFileSync(join(managedSkill, "SKILL.md"), "managed\n");
+  writeFileSync(join(retainedSkill, "SKILL.md"), "retained\n");
+  writeFileSync(join(piManagedSkill, "SKILL.md"), "managed\n");
+  writeFileSync(join(piRetainedSkill, "SKILL.md"), "retained\n");
+  writeFileSync(join(home, ".agents", "skills", ".vault-managed"), "managed-skill\n../vault\n");
+  writeFileSync(join(home, ".pi", "agent", "skills", ".vault-managed"), "pi-managed-skill\n");
+  writeFileSync(join(vaultAgents, "AGENTS.md"), "# Custom vault agent context\n");
+  writeFileSync(join(home, ".codex", "AGENTS.md"), "# Custom vault agent context\n");
+  writeFileSync(join(home, ".pi", "agent", "AGENTS.md"), "# Custom vault agent context\n");
+  writeFileSync(join(home, ".agents", "CLAUDE.md"), "# User-owned Claude context\n");
+  writeFileSync(join(vault, "keep.txt"), "keep\n");
+  return { managedSkill, piManagedSkill, piRetainedSkill, retainedSkill, vault };
+}
+
+function runVaultManagedContextCleanupFixture() {
+  const fixtureRoot = mkdtempSync(join(tmpdir(), "ai-dev-vault-cleanup-"));
+  const home = join(fixtureRoot, "home");
+  const paths = seedVaultManagedContextFixture(home);
+  const initScript = readFileSync(join(DOCKER_TEMPLATE_ROOT, "scripts/init.sh"), "utf8");
+  const functionMatch = initScript.match(
+    /remove_vault_managed_context\(\) \{[\s\S]*?\n\}\n\nremove_vault_managed_context/,
+  );
+
+  assert.ok(functionMatch);
+  const claudeTemplateToken = "$" + "{claude_md_content}";
+  const renderedFunction = functionMatch[0]
+    .replace(/\n\nremove_vault_managed_context$/, "")
+    .replace(claudeTemplateToken, "# Coder Workspace")
+    .replaceAll("$" + "$" + "{", "$" + "{");
+  const cleanup = [renderedFunction, "remove_vault_managed_context", ""].join("\n");
+  const script = join(fixtureRoot, "cleanup.sh");
+  writeFileSync(script, cleanup);
+  const result = spawnSync("bash", [script], {
+    encoding: "utf8",
+    env: { ...process.env, HOME: home },
+  });
+
+  return {
+    home,
+    ...paths,
+    result,
+  };
+}
+
+function verifyVaultManagedContextCleanup() {
+  const { home, managedSkill, piManagedSkill, piRetainedSkill, retainedSkill, result, vault } =
+    runVaultManagedContextCleanupFixture();
+
+  assert.equal(result.status, 0, result.stderr);
+  assert.equal(existsSync(managedSkill), false);
+  assert.equal(existsSync(retainedSkill), true);
+  assert.equal(existsSync(piManagedSkill), false);
+  assert.equal(existsSync(piRetainedSkill), true);
+  assert.equal(existsSync(join(home, ".agents", "skills", ".vault-managed")), false);
+  assert.equal(existsSync(join(home, ".pi", "agent", "skills", ".vault-managed")), false);
+  assert.equal(readFileSync(join(home, ".codex", "AGENTS.md"), "utf8"), "# Coder Workspace\n");
+  assert.equal(
+    readFileSync(join(home, ".pi", "agent", "AGENTS.md"), "utf8"),
+    "# Coder Workspace\n",
+  );
+  assert.equal(
+    readFileSync(join(home, ".agents", "CLAUDE.md"), "utf8"),
+    "# User-owned Claude context\n",
+  );
+  assert.equal(readFileSync(join(vault, "keep.txt"), "utf8"), "keep\n");
+}
+
+function verifyBaseImageRollout() {
+  const workflow = readFileSync(
+    join(process.cwd(), ".github/workflows/build-base-image.yml"),
+    "utf8",
+  );
+
+  assert.match(workflow, /Smoke test — Unity Hub present/);
+  assert.match(workflow, /Smoke test — Blender starts/);
+  assert.match(workflow, /Smoke test — Obsidian retained/);
+  assert.match(workflow, /docker buildx imagetools inspect/);
+  assert.match(workflow, /chore\(template\): update hive-base image digest/);
+  assert.match(workflow, /gh pr create/);
+  assert.match(workflow, /gh pr list --head "\$branch" --state all/);
+  assert.match(workflow, /gh pr reopen/);
+  assert.match(workflow, /gh workflow run ci\.yml --ref "\$branch"/);
+  assert.match(workflow, /^permissions:\n {2}contents: read$/m);
+  assert.match(
+    workflow,
+    /build-test:\n[\s\S]*?if: github\.ref != 'refs\/heads\/main' \|\| \(github\.event_name != 'push' && github\.event_name != 'workflow_dispatch'\)[\s\S]*?permissions:\n {6}contents: read/,
+  );
+  assert.match(
+    workflow,
+    /build-test-push:\n[\s\S]*?if: github\.ref == 'refs\/heads\/main' && \(github\.event_name == 'push' \|\| github\.event_name == 'workflow_dispatch'\)[\s\S]*?permissions:\n {6}actions: write\n {6}contents: write\n {6}packages: write\n {6}pull-requests: write/,
+  );
+  assert.match(
+    readFileSync(join(process.cwd(), ".github/workflows/ci.yml"), "utf8"),
+    /workflow_dispatch:/,
+  );
+  assert.doesNotMatch(workflow, /git push origin main/);
 }
 
 function verifyNonRootSupplementalTools() {
@@ -169,7 +303,6 @@ function verifyNonRootSupplementalTools() {
   assert.match(terraform, /start_blocks_login\s*=\s*false/);
   assert.match(terraform, /name\s*=\s*"projects_root"[\s\S]*?default\s*=\s*"\/home\/coder"/);
   assert.match(terraform, /HIVE_PROJECTS_ROOT\s*=\s*data\.coder_parameter\.projects_root\.value/);
-  assert.match(terraform, /name\s*=\s*"vault_repo"[\s\S]*?mutable\s*=\s*false/);
   assert.ok(filebrowser.includes('filebrowser_version="2.63.18"'));
   assert.ok(
     filebrowser.includes("cd599c34afad0e8e61c577d1061c820bccb7feaa3c5a4477a12db586a1cd93ff"),
@@ -187,7 +320,7 @@ function verifyNonRootSupplementalTools() {
   assert.match(filebrowser, /login_status/);
   assert.match(filebrowser, /pkill -x filebrowser/);
   assert.doesNotMatch(filebrowser, /\bsudo\b/);
-  assert.ok(initScript.includes("- **Node.js**: v24"));
+  assert.ok(initScript.includes("Node.js v24"));
   assert.ok(!initScript.includes("also available: 18, 20, 22"));
 }
 
@@ -247,7 +380,6 @@ function verifyAiAgentSelection() {
   const script = readTemplateFile("scripts/tools-ai.sh");
   const terraform = readTemplateFile("main.tf");
   const initScript = readTemplateFile("scripts/init.sh");
-  const syncScript = readTemplateFile("scripts/sync-vault.sh");
 
   assert.ok(script.includes('npm_global_has "@openai/codex" && command_exists codex'));
   assert.ok(terraform.includes('module "claude-code"'));
@@ -258,9 +390,111 @@ function verifyAiAgentSelection() {
     assert.ok(!content.toLowerCase().includes("gsd-pi"));
     assert.ok(!content.toLowerCase().includes("get-shit-done"));
   }
-  assert.ok(!syncScript.includes("$HOME/.pi"));
-  assert.ok(syncScript.includes("[Pp][Ii]-*"));
-  assert.ok(syncScript.includes("*[Gg][Ss][Dd]*) return 1"));
+  assert.match(script, /plugin_selector="game-development@\$marketplace_name"/);
+  assert.match(script, /codex plugin list --json/);
+  assert.match(script, /installed_version.*source_version/);
+  assert.match(script, /\.installed == true/);
+  assert.doesNotMatch(script, /game-development@personal/);
+  assert.doesNotMatch(terraform, /sync-vault|vault_repo|mcpvault/);
+}
+
+function verifyGameDevelopmentTooling() {
+  const terraform = readTemplateFile("main.tf");
+  const initScript = readTemplateFile("scripts/init.sh");
+  const dockerfile = readFileSync(join(process.cwd(), "docker/hive-base/Dockerfile"), "utf8");
+  const claudeMcp = readFileSync(join(process.cwd(), "docker/hive-base/claude-mcp.json"), "utf8");
+  const obsidianDesktop = readFileSync(
+    join(process.cwd(), "docker/hive-base/obsidian.desktop"),
+    "utf8",
+  );
+  const marketplace = JSON.parse(readTemplateFile("codex/.agents/plugins/marketplace.json"));
+  const plugin = JSON.parse(
+    readTemplateFile("codex/plugins/game-development/.codex-plugin/plugin.json"),
+  );
+
+  assert.match(dockerfile, /UnityHubSetup-3\.19\.5-amd64\.deb/);
+  assert.match(dockerfile, /5a5b57adc9ce20931c4154c57ffded08f3ffa2743286fdf14c9e7add6b212540/);
+  assert.match(dockerfile, /BLENDER_VERSION=4\.5\.12/);
+  assert.match(dockerfile, /95e3a2dfedba3bd32ca54fc355eac6b15a11986954ccb02815a07535d0120a25/);
+  assert.match(
+    dockerfile,
+    /COPY --chown=coder:coder claude-mcp\.json \/home\/coder\/\.claude\/mcp\.json/,
+  );
+  assert.match(terraform, /visualstudiotoolsforunity\.vstuc/);
+  assert.match(terraform, /ms-dotnettools\.csharp/);
+  assert.match(terraform, /game_plugin_manifest_b64/);
+  assert.match(initScript, /install_game_plugin_source/);
+  assert.match(initScript, /local plugin="\$HOME\/plugins\/game-development"/);
+  assert.match(initScript, /mkdir -p "\$root\/plugins"/);
+  assert.match(initScript, /marketplace\.pre-hive-invalid\.json/);
+  assert.match(initScript, /plugin\.get\("name"\) != "game-development"/);
+  assert.match(initScript, /temporary\.replace\(target\)/);
+  assert.equal(marketplace.plugins[0].name, "game-development");
+  assert.equal(marketplace.plugins[0].source.path, "./plugins/game-development");
+  assert.equal(plugin.name, "game-development");
+  assert.equal(plugin.skills, "./skills/");
+  assert.doesNotMatch(claudeMcp, /obsidian|mcpvault/i);
+  assert.doesNotMatch(obsidianDesktop, /\/home\/coder\/vault/);
+  assert.match(obsidianDesktop, /^Name=Obsidian$/m);
+}
+
+function runMarketplaceMergeFixture(existingMarketplace) {
+  const fixtureRoot = mkdtempSync(join(tmpdir(), "ai-dev-k8s-marketplace-"));
+  const home = join(fixtureRoot, "home");
+  const marketplacePath = join(home, ".agents", "plugins", "marketplace.json");
+  const initScript = readTemplateFile("scripts/init.sh");
+  const scriptMatch = initScript.match(/python3 - <<'PYMARKETPLACE'\n([\s\S]*?)\nPYMARKETPLACE/);
+  const managed = readTemplateFile("codex/.agents/plugins/marketplace.json");
+
+  assert.ok(scriptMatch);
+  mkdirSync(join(home, ".agents", "plugins"), { recursive: true });
+  writeFileSync(marketplacePath, `${JSON.stringify(existingMarketplace)}\n`);
+
+  const script = join(fixtureRoot, "merge.py");
+  writeFileSync(script, scriptMatch[1]);
+  const result = spawnSync("python3", [script], {
+    encoding: "utf8",
+    env: {
+      ...process.env,
+      HOME: home,
+      HIVE_GAME_MARKETPLACE_B64: Buffer.from(managed).toString("base64"),
+    },
+  });
+
+  assert.equal(result.status, 0, result.stderr);
+  return JSON.parse(readFileSync(marketplacePath, "utf8"));
+}
+
+function verifyMarketplaceMerge() {
+  const merged = runMarketplaceMergeFixture({
+    name: "personal",
+    interface: { displayName: "My Plugins", extra: true },
+    customMetadata: { retained: true },
+    plugins: [
+      { name: "existing-plugin", source: { source: "local", path: "./existing" } },
+      { name: "game-development", source: { source: "local", path: "./stale" } },
+    ],
+  });
+
+  assert.deepEqual(merged.customMetadata, { retained: true });
+  assert.deepEqual(merged.interface, { displayName: "My Plugins", extra: true });
+  assert.equal(merged.plugins.length, 2);
+  assert.equal(merged.plugins[0].name, "existing-plugin");
+  assert.equal(merged.plugins[1].name, "game-development");
+  assert.equal(merged.plugins[1].source.path, "./plugins/game-development");
+}
+
+function verifyHiveMigrationSafety() {
+  const { hiveInit, migrated, result } = runHiveProjectMcpMigrationFixture();
+
+  assert.match(hiveInit, /if ! git -C \/home\/coder\/project checkout -b/);
+  assert.match(hiveInit, /keeping the current worktree/);
+  assert.equal(result.status, 0, result.stderr);
+  assert.equal("obsidian" in migrated.mcpServers, false);
+  assert.equal("hive_obsidian" in migrated.mcpServers, false);
+  assert.deepEqual(migrated.mcpServers.playwright, { command: "keep-playwright" });
+  assert.deepEqual(migrated.mcpServers.custom, { command: "keep-custom" });
+  assert.deepEqual(migrated.customMetadata, { retained: true });
 }
 
 function verifyShellRetry() {
@@ -328,16 +562,11 @@ function verifyRepositoryManifest() {
 }
 
 function verifyRepositoryBootstrap() {
-  const { bin, calls, gitCalls, home, manifest } = createBootstrapFixture();
-  mkdirSync(join(home, "vault", ".obsidian"), { recursive: true });
-  writeFileSync(join(home, "vault", ".obsidian", "workspace.json"), "metadata\n");
-  mkdirSync(join(home, ".config", "hive"), { recursive: true });
-  writeFileSync(join(home, ".config", "hive", "vault-repository"), "example/vault\n");
+  const { bin, calls, home, manifest } = createBootstrapFixture();
 
   const env = {
     ...process.env,
     GH_CALLS: calls,
-    GIT_CALLS: gitCalls,
     GH_TOKEN: "test-token",
     HOME: home,
     PATH: `${bin}:${process.env.PATH}`,
@@ -351,33 +580,10 @@ function verifyRepositoryBootstrap() {
   });
   assert.equal(first.status, 0, first.stderr);
   assert.match(first.stderr, /completed with 1 failure/);
-  assert.equal(
-    readFileSync(join(home, "vault", ".obsidian", "workspace.json"), "utf8"),
-    "metadata\n",
-  );
-  writeFileSync(join(home, "vault", "local-note.md"), "uncommitted\n");
-
   const second = spawnSync("bash", [script], { encoding: "utf8", env });
   assert.equal(second.status, 0, second.stderr);
-  assert.equal(readFileSync(join(home, "vault", "local-note.md"), "utf8"), "uncommitted\n");
-  assert.equal(readFileSync(calls, "utf8").trim().split("\n").length, 3);
-  assert.match(second.stdout, /fast-forwarded vault checkout/);
-  assert.match(readFileSync(gitCalls, "utf8"), /pull --ff-only origin main/);
-
-  const divergentVault = spawnSync("bash", [script], {
-    encoding: "utf8",
-    env: { ...env, GIT_PULL_FAIL: "1" },
-  });
-  assert.equal(divergentVault.status, 0, divergentVault.stderr);
-  assert.match(divergentVault.stderr, /vault checkout is dirty or diverged/);
-  assert.equal(readFileSync(join(home, "vault", "local-note.md"), "utf8"), "uncommitted\n");
-
-  const mismatchedOrigin = spawnSync("bash", [script], {
-    encoding: "utf8",
-    env: { ...env, GIT_ORIGIN: "git@github.com:example/different-vault.git" },
-  });
-  assert.equal(mismatchedOrigin.status, 0, mismatchedOrigin.stderr);
-  assert.match(mismatchedOrigin.stderr, /vault origin does not match configured repository/);
+  assert.equal(readFileSync(calls, "utf8").trim().split("\n").length, 2);
+  assert.match(second.stdout, /repository bootstrap complete/);
 }
 
 function verifyFailedExternalAuth() {
@@ -406,7 +612,16 @@ test(
   verifyFileLoadedScripts,
 );
 test("CI tooling installs without root and uses verified GitHub CLI artifacts", verifyCiTooling);
-test("workspace bootstrap does not delete vault content or require Docker", verifySafeBootstrap);
+test(
+  "workspace bootstrap removes vault integration without deleting vault data",
+  verifySafeBootstrap,
+);
+test(
+  "workspace migration removes only manifest-owned vault context",
+  verifyVaultManagedContextCleanup,
+);
+test("workspace migration replaces read-only persisted MCP configs", verifyReadOnlyMcpMigration);
+test("base image rollout updates the pinned template digest through a PR", verifyBaseImageRollout);
 test("supplemental tools support the non-root workspace", verifyNonRootSupplementalTools);
 test("Docker workspaces use the same repairable File Browser runtime", verifyDockerFileBrowser);
 test(
@@ -414,11 +629,174 @@ test(
   verifyCustomFileBrowserRootCreation,
 );
 test("workspace only provisions Claude and Codex AI agents", verifyAiAgentSelection);
+test("game plugin install follows marketplace name and source version", verifyGamePluginLifecycle);
+test(
+  "workspace provisions Unity, Blender, and the game-development Codex plugin",
+  verifyGameDevelopmentTooling,
+);
+test("game marketplace merge preserves user plugins and metadata", verifyMarketplaceMerge);
+test(
+  "Hive migration preserves project MCP data and tolerates checkout failures",
+  verifyHiveMigrationSafety,
+);
 test("shell setup retries incomplete Oh My Zsh installations", verifyShellRetry);
 test("GitHub helpers retrieve fresh Coder credentials on demand", verifyGithubHelpers);
 test("repository manifest only includes approved organizations", verifyRepositoryManifest);
-test(
-  "repository bootstrap is idempotent and preserves local vault content",
-  verifyRepositoryBootstrap,
-);
+test("repository bootstrap is idempotent", verifyRepositoryBootstrap);
 test("repository bootstrap rejects failed external authentication", verifyFailedExternalAuth);
+
+function installGamePluginCodexStub(bin) {
+  writeFileSync(
+    join(bin, "codex"),
+    [
+      "#!/bin/sh",
+      'if [ "$1 $2" = "plugin list" ]; then',
+      "  printf 'list\\n' >> \"$CODEX_CALLS\"",
+      "  printf '%s\\n' \"$CODEX_PLUGIN_LIST\"",
+      'elif [ "$1 $2" = "plugin add" ]; then',
+      '  printf \'add %s\\n\' "$3" >> "$CODEX_CALLS"',
+      "else",
+      "  exit 1",
+      "fi",
+      "",
+    ].join("\n"),
+  );
+  chmodSync(join(bin, "codex"), 0o755);
+}
+
+function createGamePluginFixture() {
+  const fixtureRoot = mkdtempSync(join(tmpdir(), "ai-dev-k8s-game-plugin-"));
+  const home = join(fixtureRoot, "home");
+  const bin = join(fixtureRoot, "bin");
+  const calls = join(fixtureRoot, "codex-calls.log");
+  const marketplace = join(home, ".agents", "plugins", "marketplace.json");
+  const manifest = join(home, "plugins", "game-development", ".codex-plugin", "plugin.json");
+  const pluginBlock = readTemplateFile("scripts/tools-ai.sh").match(
+    /if command_exists codex && \[ -f "\$HOME\/\.agents\/plugins\/marketplace\.json" \]; then[\s\S]*\nfi\s*$/,
+  );
+
+  assert.ok(pluginBlock);
+  mkdirSync(bin, { recursive: true });
+  mkdirSync(join(home, ".agents", "plugins"), { recursive: true });
+  mkdirSync(join(home, "plugins", "game-development", ".codex-plugin"), { recursive: true });
+  writeFileSync(marketplace, '{"name":"team-local"}\n');
+  writeFileSync(manifest, '{"name":"game-development","version":"0.2.0+codex.template"}\n');
+  writeFileSync(calls, "");
+  installGamePluginCodexStub(bin);
+  const fixtureScript = join(fixtureRoot, "install-plugin.sh");
+  writeFileSync(
+    fixtureScript,
+    [
+      "#!/bin/bash",
+      "set -e",
+      'GREEN=""',
+      'YELLOW=""',
+      'RESET=""',
+      'command_exists() { command -v "$1" >/dev/null 2>&1; }',
+      pluginBlock[0],
+      "",
+    ].join("\n"),
+  );
+  return { bin, calls, fixtureScript, home };
+}
+
+function runGamePluginInstallFixture(installedVersion) {
+  const { bin, calls, fixtureScript, home } = createGamePluginFixture();
+  const result = spawnSync("bash", [fixtureScript], {
+    encoding: "utf8",
+    env: {
+      ...process.env,
+      CODEX_CALLS: calls,
+      CODEX_PLUGIN_LIST: JSON.stringify({
+        installed: [
+          {
+            installed: true,
+            pluginId: "game-development@team-local",
+            version: installedVersion,
+          },
+        ],
+      }),
+      HOME: home,
+      PATH: `${bin}:${process.env.PATH}`,
+    },
+  });
+
+  assert.equal(result.status, 0, result.stderr);
+  return readFileSync(calls, "utf8").trim().split("\n");
+}
+
+function verifyGamePluginLifecycle() {
+  assert.deepEqual(runGamePluginInstallFixture("0.2.0+codex.template"), ["list"]);
+  assert.deepEqual(runGamePluginInstallFixture("0.1.0"), [
+    "list",
+    "add game-development@team-local",
+  ]);
+}
+
+function runReadOnlyMcpMigrationFixture(templateRoot) {
+  const initScript = readFileSync(join(templateRoot, "scripts/init.sh"), "utf8");
+  const configMatch = initScript.match(/python3 - <<'PYCONFIG'\n([\s\S]*?)\nPYCONFIG/);
+  const fixtureRoot = mkdtempSync(join(tmpdir(), "read-only-mcp-"));
+  const home = join(fixtureRoot, "home");
+  const claudeRoot = join(home, ".claude");
+  const claudeMcp = join(claudeRoot, "mcp.json");
+
+  assert.ok(configMatch);
+  mkdirSync(claudeRoot, { recursive: true });
+  writeFileSync(
+    claudeMcp,
+    '{"mcpServers":{"obsidian":{"command":"remove"},"custom":{"command":"keep"}}}\n',
+  );
+  chmodSync(claudeMcp, 0o444);
+  const configScript = join(fixtureRoot, "configure.py");
+  writeFileSync(configScript, configMatch[1]);
+  const result = spawnSync("python3", [configScript], {
+    encoding: "utf8",
+    env: { ...process.env, HOME: home },
+  });
+
+  assert.equal(result.status, 0, result.stderr);
+  const migrated = JSON.parse(readFileSync(claudeMcp, "utf8"));
+  assert.equal(migrated.mcpServers.obsidian, undefined);
+  assert.equal(migrated.mcpServers.custom.command, "keep");
+  assert.equal(migrated.mcpServers.playwright.command, "npx");
+  assert.equal(statSync(claudeMcp).mode & 0o777, 0o600);
+}
+
+function verifyReadOnlyMcpMigration() {
+  for (const templateRoot of [DOCKER_TEMPLATE_ROOT, join(process.cwd(), "templates/hive")]) {
+    runReadOnlyMcpMigrationFixture(templateRoot);
+  }
+}
+
+function runHiveProjectMcpMigrationFixture() {
+  const hiveInit = readFileSync(join(process.cwd(), "templates/hive/scripts/init.sh"), "utf8");
+  const configMatch = hiveInit.match(/python3 - <<'PYCONFIG'\n([\s\S]*?)\nPYCONFIG/);
+  const fixtureRoot = mkdtempSync(join(tmpdir(), "hive-project-mcp-"));
+  const home = join(fixtureRoot, "home");
+  const projectMcp = join(home, "project", ".gsd", "mcp.json");
+
+  assert.ok(configMatch);
+  mkdirSync(join(home, "project", ".gsd"), { recursive: true });
+  writeFileSync(
+    projectMcp,
+    `${JSON.stringify({
+      mcpServers: {
+        obsidian: { command: "obsolete" },
+        hive_obsidian: { command: "obsolete" },
+        playwright: { command: "keep-playwright" },
+        custom: { command: "keep-custom" },
+      },
+      customMetadata: { retained: true },
+    })}\n`,
+  );
+
+  const configScript = join(fixtureRoot, "configure.py");
+  writeFileSync(configScript, configMatch[1]);
+  const result = spawnSync("python3", [configScript], {
+    encoding: "utf8",
+    env: { ...process.env, HOME: home },
+  });
+
+  return { hiveInit, migrated: JSON.parse(readFileSync(projectMcp, "utf8")), result };
+}

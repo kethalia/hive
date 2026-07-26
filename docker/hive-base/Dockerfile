@@ -62,10 +62,20 @@ RUN apt-get update \
         htop \
         jq \
         libatk-bridge2.0-0 \
+        libatspi2.0-0 \
+        libgl1 \
+        libglu1-mesa \
         libgtk-3-0 \
+        libnotify4 \
         libnss3 \
+        libsecret-1-0 \
+        libvulkan1 \
+        libxss1 \
+        libxtst6 \
         locales \
         man \
+        mesa-utils \
+        mesa-vulkan-drivers \
         nano \
         dbus-x11 \
         nodejs \
@@ -80,6 +90,7 @@ RUN apt-get update \
         unzip \
         vim \
         wget \
+        xdg-utils \
         xfce4 \
         xfce4-session \
         xfce4-terminal \
@@ -87,6 +98,30 @@ RUN apt-get update \
         zsh \
     && corepack enable \
     && rm -rf /var/lib/apt/lists/*
+
+# Unity Hub 3.19.5 — official Linux package, pinned with its repository digest.
+# Editors and licenses are user-managed under the persistent home volume.
+RUN curl -fsSLo /tmp/unityhub.deb \
+        https://hub.unity3d.com/linux/repos/deb/pool/main/u/unity/unityhub_amd64/UnityHubSetup-3.19.5-amd64.deb \
+    && printf '%s  %s\n' \
+        '5a5b57adc9ce20931c4154c57ffded08f3ffa2743286fdf14c9e7add6b212540' \
+        '/tmp/unityhub.deb' | sha256sum --check --status \
+    && apt-get update \
+    && apt-get install --yes --no-install-recommends /tmp/unityhub.deb \
+    && rm -f /tmp/unityhub.deb \
+    && rm -rf /var/lib/apt/lists/*
+
+# Blender 4.5 LTS — official portable build, pinned for reproducible asset work.
+ARG BLENDER_VERSION=4.5.12
+RUN curl -fsSLo /tmp/blender.tar.xz \
+        "https://download.blender.org/release/Blender4.5/blender-${BLENDER_VERSION}-linux-x64.tar.xz" \
+    && printf '%s  %s\n' \
+        '95e3a2dfedba3bd32ca54fc355eac6b15a11986954ccb02815a07535d0120a25' \
+        '/tmp/blender.tar.xz' | sha256sum --check --status \
+    && mkdir -p /opt/blender \
+    && tar -xJf /tmp/blender.tar.xz --strip-components=1 -C /opt/blender \
+    && ln -s /opt/blender/blender /usr/local/bin/blender \
+    && rm -f /tmp/blender.tar.xz
 
 # KasmVNC (trixie-specific .deb — separate apt-get update needed after Chrome repo add)
 RUN curl -fsSL -o /tmp/kasmvnc.deb \
@@ -149,17 +184,11 @@ ENV LANG=en_US.UTF-8
 ENV LANGUAGE=en_US.UTF-8
 ENV LC_ALL=en_US.UTF-8
 
-# Desktop entries — container-safe flags for Chrome/Electron apps
-# (--no-sandbox required in Docker; Obsidian points to ~/vault)
+# Desktop entries — container-safe launchers for the remote desktop.
 COPY google-chrome.desktop /usr/share/applications/google-chrome.desktop
 COPY obsidian.desktop      /usr/share/applications/obsidian.desktop
-
-# XFCE autostart entries — staged at /usr/share/hive/autostart/ for runtime copy
-# (/home/coder is a volume mount, so ~/.config/autostart/ must be populated by init.sh)
-# Reuses the same .desktop files from /usr/share/applications/ — the Categories/Icon
-# fields are harmlessly ignored by the autostart system.
-RUN mkdir -p /usr/share/hive/autostart
-COPY obsidian.desktop /usr/share/hive/autostart/obsidian.desktop
+COPY unity-hub.desktop     /usr/share/applications/unity-hub.desktop
+COPY blender.desktop       /usr/share/applications/blender.desktop
 
 # KasmVNC defaults — baked into /etc/kasmvnc/ (system-wide, survives /home/coder
 # volume mounts). XFCE is started natively by KasmVNC's select-de mechanism.
@@ -190,21 +219,11 @@ WORKDIR /home/coder
 RUN curl -fsSL https://claude.ai/install.sh | bash
 ENV PATH="/home/coder/.local/bin:${PATH}"
 
-ENV NOTESMD_DEFAULT_VAULT=/home/coder/vault
-
 # Common directories
-RUN mkdir -p ~/projects ~/bin ~/.config ~/.ssh ~/.local/bin ~/vault ~/.claude
+RUN mkdir -p ~/projects ~/bin ~/.config ~/.ssh ~/.local/bin ~/.claude
 
-# Claude Code — seed MCP config so the obsidian vault server is available on first boot
-COPY claude-mcp.json /home/coder/.claude/mcp.json
-
-# Static obsidian.json — registers /home/coder/vault so Obsidian opens it
-# directly instead of showing the vault picker.  Vault ID is the deterministic
-# MD5 of the path (first 16 chars).  Do NOT set "cli": true — that suppresses
-# the GUI window.
-RUN mkdir -p ~/.config/obsidian \
-    && echo '{"vaults":{"3ff2bb63fc5790bf":{"path":"/home/coder/vault","ts":0,"open":true}}}' \
-       > ~/.config/obsidian/obsidian.json
+# Claude Code — seed the headed Playwright MCP config on first boot.
+COPY --chown=coder:coder claude-mcp.json /home/coder/.claude/mcp.json
 
 # Git defaults
 RUN git config --global init.defaultBranch main \

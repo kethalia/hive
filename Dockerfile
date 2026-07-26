@@ -52,6 +52,10 @@ RUN apk add --no-cache ca-certificates curl tar && \
 COPY --from=builder /app/public ./public
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
+# Templates are runtime data used by the template status and push APIs. Copy
+# them explicitly because Next.js output tracing omits hidden plugin metadata
+# such as .codex-plugin/plugin.json and .agents/plugins/marketplace.json.
+COPY --from=builder --chown=nextjs:nodejs /app/templates ./templates
 USER nextjs
 EXPOSE 3000
 CMD ["node", "server.js"]

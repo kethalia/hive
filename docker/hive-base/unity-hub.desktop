@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=Unity Hub
+Comment=Manage Unity Editors, licenses, and projects
+Exec=/usr/bin/unityhub --no-sandbox --disable-gpu-sandbox
+Icon=unityhub
+Categories=Development;GameDevelopment;
+StartupNotify=true

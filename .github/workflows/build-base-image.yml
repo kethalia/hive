@@ -17,15 +17,69 @@ on:
 
 permissions:
   contents: read
-  packages: write
 
 concurrency:
   group: build-hive-base-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
+  build-test:
+    name: Build and smoke test hive-base image
+    if: github.ref != 'refs/heads/main' || (github.event_name != 'push' && github.event_name != 'workflow_dispatch')
+    permissions:
+      contents: read
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build image
+        uses: docker/build-push-action@v6
+        with:
+          context: docker/hive-base
+          push: false
+          load: true
+          platforms: linux/amd64
+          tags: ghcr.io/kethalia/hive-base:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Smoke test — claude --version
+        run: docker run --rm ghcr.io/kethalia/hive-base:${{ github.sha }} claude --version
+
+      - name: Smoke test — notesmd-cli --version
+        run: docker run --rm ghcr.io/kethalia/hive-base:${{ github.sha }} notesmd-cli --version
+
+      - name: Smoke test — act --version
+        run: docker run --rm ghcr.io/kethalia/hive-base:${{ github.sha }} act --version
+
+      - name: Smoke test — vncserver present
+        run: docker run --rm ghcr.io/kethalia/hive-base:${{ github.sha }} which vncserver
+
+      - name: Smoke test — xfce4-session present
+        run: docker run --rm ghcr.io/kethalia/hive-base:${{ github.sha }} which xfce4-session
+
+      - name: Smoke test — Unity Hub present
+        run: docker run --rm ghcr.io/kethalia/hive-base:${{ github.sha }} which unityhub
+
+      - name: Smoke test — Blender starts
+        run: docker run --rm ghcr.io/kethalia/hive-base:${{ github.sha }} blender --version
+
+      - name: Smoke test — Obsidian retained
+        run: docker run --rm ghcr.io/kethalia/hive-base:${{ github.sha }} which obsidian
+
   build-test-push:
     name: Build, smoke test, and push hive-base image
+    if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+    permissions:
+      actions: write
+      contents: write
+      packages: write
+      pull-requests: write
     runs-on: ubuntu-latest
 
     steps:
@@ -71,6 +125,15 @@ jobs:
       - name: Smoke test — xfce4-session present
         run: docker run --rm ghcr.io/kethalia/hive-base:${{ github.sha }} which xfce4-session
 
+      - name: Smoke test — Unity Hub present
+        run: docker run --rm ghcr.io/kethalia/hive-base:${{ github.sha }} which unityhub
+
+      - name: Smoke test — Blender starts
+        run: docker run --rm ghcr.io/kethalia/hive-base:${{ github.sha }} blender --version
+
+      - name: Smoke test — Obsidian retained
+        run: docker run --rm ghcr.io/kethalia/hive-base:${{ github.sha }} which obsidian
+
       # Tag and push the already-built local image — no rebuild, no network fetches.
       # This guarantees what's in the registry is exactly what passed smoke tests.
       - name: Push image (main only, after smoke tests pass)
@@ -79,3 +142,54 @@ jobs:
           docker tag ghcr.io/kethalia/hive-base:${{ github.sha }} ghcr.io/kethalia/hive-base:latest
           docker push ghcr.io/kethalia/hive-base:${{ github.sha }}
           docker push ghcr.io/kethalia/hive-base:latest
+
+      - name: Resolve pushed image digest
+        if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+        id: image
+        run: |
+          digest="sha256:$(docker buildx imagetools inspect "ghcr.io/kethalia/hive-base:${{ github.sha }}" --raw | sha256sum | awk '{print $1}')"
+          [[ "$digest" =~ ^sha256:[0-9a-f]{64}$ ]]
+          echo "digest=$digest" >> "$GITHUB_OUTPUT"
+
+      # The Kubernetes template is digest-pinned. Updating it through a PR keeps
+      # main user-merge-only while ensuring the newly tested image can roll out.
+      - name: Open template image digest PR
+        if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          IMAGE_DIGEST: ${{ steps.image.outputs.digest }}
+        run: |
+          branch="automation/hive-base-${GITHUB_SHA:0:12}"
+          if ! git ls-remote --exit-code --heads origin "$branch" >/dev/null 2>&1; then
+            sed -i -E \
+              "s#ghcr.io/kethalia/hive-base@sha256:[0-9a-f]{64}#ghcr.io/kethalia/hive-base@${IMAGE_DIGEST}#g" \
+              templates/ai-dev-k8s/main.tf
+
+            git diff --exit-code -- templates/ai-dev-k8s/main.tf && exit 0
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git switch -c "$branch"
+            git add templates/ai-dev-k8s/main.tf
+            git commit -m "chore(template): update hive-base image digest"
+            git push origin "$branch"
+          fi
+
+          pr_data="$(gh pr list --head "$branch" --state all --json number,state,url --jq 'if length == 0 then "" else .[0] | [.number, .state, .url] | @tsv end')"
+          if [ -z "$pr_data" ]; then
+            pr_url="$(gh pr create \
+              --base main \
+              --head "$branch" \
+              --title "chore(template): update hive-base image digest" \
+              --body "Pins the Kubernetes workspace template to the hive-base image built and smoke-tested from commit ${GITHUB_SHA}.")"
+          else
+            IFS=$'\t' read -r pr_number pr_state pr_url <<< "$pr_data"
+            if [ "$pr_state" = "CLOSED" ]; then
+              gh pr reopen "$pr_number"
+            elif [ "$pr_state" = "MERGED" ]; then
+              echo "Digest update already merged: $pr_url"
+              exit 0
+            fi
+          fi
+
+          echo "Digest update PR: $pr_url"
+          gh workflow run ci.yml --ref "$branch"

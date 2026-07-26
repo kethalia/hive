@@ -101,3 +101,28 @@ elif [ -n "$codex_path" ]; then
 else
   printf '%b[warn] codex was not found on PATH after installation%b\n' "$YELLOW" "$RESET"
 fi
+
+if command_exists codex && [ -f "$HOME/.agents/plugins/marketplace.json" ]; then
+  marketplace_path="$HOME/.agents/plugins/marketplace.json"
+  plugin_manifest="$HOME/plugins/game-development/.codex-plugin/plugin.json"
+  marketplace_name="$(jq -er '.name | select(type == "string" and length > 0)' "$marketplace_path" 2>/dev/null || true)"
+  source_version="$(jq -er '.version | select(type == "string" and length > 0)' "$plugin_manifest" 2>/dev/null || true)"
+
+  if [ -z "$marketplace_name" ] || [ -z "$source_version" ]; then
+    printf '%b[warn] Game Development plugin metadata is invalid; installation deferred%b\n' "$YELLOW" "$RESET"
+  else
+    plugin_selector="game-development@$marketplace_name"
+    plugin_list="$(codex plugin list --json 2>/dev/null || true)"
+    installed_version="$(printf '%s' "$plugin_list" \
+      | jq -r --arg plugin_id "$plugin_selector" \
+        '[.installed[]? | select(.pluginId == $plugin_id and .installed == true)][0].version // empty' 2>/dev/null || true)"
+
+    if [ "$installed_version" = "$source_version" ]; then
+      printf '%b[ok] Game Development Codex plugin already installed%b\n' "$GREEN" "$RESET"
+    elif codex plugin add "$plugin_selector" --json >/tmp/hive-codex-plugin.json 2>/tmp/hive-codex-plugin.err; then
+      printf '%b[ok] Game Development Codex plugin installed at version %s%b\n' "$GREEN" "$source_version" "$RESET"
+    else
+      printf '%b[warn] Game Development plugin installation deferred; run: codex plugin add %s%b\n' "$YELLOW" "$plugin_selector" "$RESET"
+    fi
+  fi
+fi

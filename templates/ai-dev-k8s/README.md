@@ -2,7 +2,7 @@
 
 This Coder template provisions a non-root Kubernetes workspace Deployment with
 a persistent Longhorn home volume. It carries forward the AI, browser, Node.js,
-Foundry, editor, vault, and terminal tooling from the Docker-backed `ai-dev`
+Foundry, editor, game-development, and terminal tooling from the Docker-backed `ai-dev`
 template without mounting a host Docker socket.
 
 ## Prerequisites
@@ -40,12 +40,22 @@ The generated helper can be rerun after correcting authentication:
 ~/clone-repositories.sh
 ```
 
-The second-brain repository is also initialized in `~/vault` by default so the
-vault context and agent skills are available independently of its checkout
-under `~/projects/kethalia/second-brain`. Every startup safely fast-forwards the
-vault checkout, then syncs agent instructions and skills. The generated helper
-persists the configured vault repository, so manual retries also initialize or
-update `~/vault` without requiring extra environment variables.
+## Game Development
+
+The base image includes Blender 4.5 LTS, Unity Hub, Mesa software-rendering
+support, and VS Code extensions for C#, Unity, and shaders. Open the Coder
+Desktop to launch either application. Unity authentication, licenses, Editors,
+and projects are intentionally stored in the persistent home volume; install
+the current Unity 6.3 LTS Editor from Hub on first use.
+
+The template installs a local Codex `game-development` plugin containing Unity
+development and Blender-to-Unity asset-pipeline skills. Plugin source and its
+personal-marketplace entry are refreshed from the versioned template on every
+start. Start a new Codex session after the first installation.
+
+Obsidian remains installed as a standalone notes application, but Hive no
+longer clones or syncs a vault, injects vault instructions or skills, registers
+an Obsidian MCP server, or starts Obsidian automatically.
 
 ## Publish
 
@@ -66,6 +76,8 @@ Then create a fresh workspace:
 coder create --template ai-dev-k8s ai-dev-k8s-01
 ```
 
-Verify `coder ssh`, `~/projects`, `~/vault`, the web terminal, code-server,
-Codex, Claude Code, Node.js, Foundry, and persistence after a stop/start cycle
-before treating this template as the default.
+Verify `coder ssh`, `~/projects`, the web terminal, code-server, Codex, Claude
+Code, Unity Hub, Blender, Node.js, Foundry, and persistence after a stop/start
+cycle before treating this template as the default. The Kubernetes template
+does not expose a GPU, so validate production rendering and frame-time behavior
+on a GPU-enabled workspace or workstation.
