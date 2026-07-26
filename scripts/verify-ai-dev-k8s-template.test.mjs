@@ -112,7 +112,12 @@ function verifyFileLoadedScripts() {
     "scripts/tools-web3.sh",
   ]) {
     const script = readTemplateFile(relativePath);
-    assert.doesNotMatch(script, /\$\$\{/, `${relativePath} must use normal shell expansion`);
+    const unsupportedEscapes = script.replaceAll("$${agent_file##*/}", "");
+    assert.doesNotMatch(
+      unsupportedEscapes,
+      /\$\$\{/,
+      `${relativePath} must use normal shell expansion`,
+    );
     assert.doesNotMatch(
       script,
       /\bsudo\b/,
@@ -159,6 +164,7 @@ function verifySafeBootstrap() {
     const templateInit = readFileSync(join(templateRoot, "scripts/init.sh"), "utf8");
     assert.match(templateInit, /remove_vault_managed_context/);
     assert.match(templateInit, /\.vault-managed/);
+    assert.match(templateInit, /\$\$\{agent_file##\*\/\}/);
     assert.doesNotMatch(templateInit, /personal knowledge vault at `~\/vault`/);
     assert.doesNotMatch(templateInit, /rm[^\n]*\$HOME\/vault/);
   }
@@ -211,7 +217,10 @@ function runVaultManagedContextCleanupFixture() {
 
   assert.ok(functionMatch);
   const claudeTemplateToken = "$" + "{claude_md_content}";
-  const cleanup = `${functionMatch[0].replace(/\n\nremove_vault_managed_context$/, "").replace(claudeTemplateToken, "# Coder Workspace")}
+  const cleanup = `${functionMatch[0]
+    .replace(/\n\nremove_vault_managed_context$/, "")
+    .replace(claudeTemplateToken, "# Coder Workspace")
+    .replaceAll("$${", "${")}
 remove_vault_managed_context
 `;
   const script = join(fixtureRoot, "cleanup.sh");
@@ -367,6 +376,75 @@ esac
   assert.equal(statSync(customRoot).isDirectory(), true);
 }
 
+function runGamePluginInstallFixture(installedVersion) {
+  const fixtureRoot = mkdtempSync(join(tmpdir(), "ai-dev-k8s-game-plugin-"));
+  const home = join(fixtureRoot, "home");
+  const bin = join(fixtureRoot, "bin");
+  const calls = join(fixtureRoot, "codex-calls.log");
+  const marketplace = join(home, ".agents", "plugins", "marketplace.json");
+  const manifest = join(home, "plugins", "game-development", ".codex-plugin", "plugin.json");
+  const toolsAi = readTemplateFile("scripts/tools-ai.sh");
+  const pluginBlock = toolsAi.match(
+    /if command_exists codex && \[ -f "\$HOME\/\.agents\/plugins\/marketplace\.json" \]; then[\s\S]*\nfi\s*$/,
+  );
+
+  assert.ok(pluginBlock);
+  mkdirSync(bin, { recursive: true });
+  mkdirSync(join(home, ".agents", "plugins"), { recursive: true });
+  mkdirSync(join(home, "plugins", "game-development", ".codex-plugin"), { recursive: true });
+  writeFileSync(marketplace, '{"name":"team-local"}\n');
+  writeFileSync(manifest, '{"name":"game-development","version":"0.2.0+codex.template"}\n');
+  writeFileSync(calls, "");
+  writeFileSync(
+    join(bin, "codex"),
+    `#!/bin/sh
+if [ "$1 $2" = "plugin list" ]; then
+  printf 'list\\n' >> "$CODEX_CALLS"
+  printf '{"installed":[{"pluginId":"game-development@team-local","version":"%s","installed":true}]}\\n' "$INSTALLED_VERSION"
+elif [ "$1 $2" = "plugin add" ]; then
+  printf 'add %s\\n' "$3" >> "$CODEX_CALLS"
+else
+  exit 1
+fi
+`,
+  );
+  chmodSync(join(bin, "codex"), 0o755);
+
+  const fixtureScript = join(fixtureRoot, "install-plugin.sh");
+  writeFileSync(
+    fixtureScript,
+    `#!/bin/bash
+set -e
+GREEN=""
+YELLOW=""
+RESET=""
+command_exists() { command -v "$1" >/dev/null 2>&1; }
+${pluginBlock[0]}
+`,
+  );
+  const result = spawnSync("bash", [fixtureScript], {
+    encoding: "utf8",
+    env: {
+      ...process.env,
+      CODEX_CALLS: calls,
+      HOME: home,
+      INSTALLED_VERSION: installedVersion,
+      PATH: `${bin}:${process.env.PATH}`,
+    },
+  });
+
+  assert.equal(result.status, 0, result.stderr);
+  return readFileSync(calls, "utf8").trim().split("\n");
+}
+
+function verifyGamePluginLifecycle() {
+  assert.deepEqual(runGamePluginInstallFixture("0.2.0+codex.template"), ["list"]);
+  assert.deepEqual(runGamePluginInstallFixture("0.1.0"), [
+    "list",
+    "add game-development@team-local",
+  ]);
+}
+
 function verifyAiAgentSelection() {
   const script = readTemplateFile("scripts/tools-ai.sh");
   const terraform = readTemplateFile("main.tf");
@@ -381,10 +459,11 @@ function verifyAiAgentSelection() {
     assert.ok(!content.toLowerCase().includes("gsd-pi"));
     assert.ok(!content.toLowerCase().includes("get-shit-done"));
   }
-  assert.match(script, /codex plugin add game-development@personal/);
+  assert.match(script, /plugin_selector="game-development@\$marketplace_name"/);
   assert.match(script, /codex plugin list --json/);
+  assert.match(script, /installed_version.*source_version/);
   assert.match(script, /\.installed == true/);
-  assert.doesNotMatch(script, /grep -q '\^game-development@personal'/);
+  assert.doesNotMatch(script, /game-development@personal/);
   assert.doesNotMatch(terraform, /sync-vault|vault_repo|mcpvault/);
 }
 
@@ -618,6 +697,7 @@ test(
   verifyCustomFileBrowserRootCreation,
 );
 test("workspace only provisions Claude and Codex AI agents", verifyAiAgentSelection);
+test("game plugin install follows marketplace name and source version", verifyGamePluginLifecycle);
 test(
   "workspace provisions Unity, Blender, and the game-development Codex plugin",
   verifyGameDevelopmentTooling,

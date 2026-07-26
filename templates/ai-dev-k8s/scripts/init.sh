@@ -194,7 +194,7 @@ remove_vault_managed_context() {
     "$HOME/.agents/AGENTS.md" \
     "$HOME/.claude/CLAUDE.md" \
     "$HOME/.agents/CLAUDE.md"; do
-    vault_agent_file="$HOME/vault/Agents/${agent_file##*/}"
+    vault_agent_file="$HOME/vault/Agents/$${agent_file##*/}"
     if [ -f "$agent_file" ] && { { [ -f "$vault_agent_file" ] && cmp -s "$vault_agent_file" "$agent_file"; } || grep -qF '## Vault Context Layer' "$agent_file" || grep -qF 'personal knowledge vault at' "$agent_file"; }; then
       cat > "$agent_file" << 'AGENTEOF'
 ${claude_md_content}
