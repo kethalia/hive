@@ -391,6 +391,10 @@ function verifyGameDevelopmentTooling() {
   assert.match(dockerfile, /5a5b57adc9ce20931c4154c57ffded08f3ffa2743286fdf14c9e7add6b212540/);
   assert.match(dockerfile, /BLENDER_VERSION=4\.5\.12/);
   assert.match(dockerfile, /95e3a2dfedba3bd32ca54fc355eac6b15a11986954ccb02815a07535d0120a25/);
+  assert.match(
+    dockerfile,
+    /COPY --chown=coder:coder claude-mcp\.json \/home\/coder\/\.claude\/mcp\.json/,
+  );
   assert.match(terraform, /visualstudiotoolsforunity\.vstuc/);
   assert.match(terraform, /ms-dotnettools\.csharp/);
   assert.match(terraform, /game_plugin_manifest_b64/);
@@ -453,38 +457,6 @@ function verifyMarketplaceMerge() {
   assert.equal(merged.plugins[0].name, "existing-plugin");
   assert.equal(merged.plugins[1].name, "game-development");
   assert.equal(merged.plugins[1].source.path, "./plugins/game-development");
-}
-
-function runHiveProjectMcpMigrationFixture() {
-  const hiveInit = readFileSync(join(process.cwd(), "templates/hive/scripts/init.sh"), "utf8");
-  const configMatch = hiveInit.match(/python3 - <<'PYCONFIG'\n([\s\S]*?)\nPYCONFIG/);
-  const fixtureRoot = mkdtempSync(join(tmpdir(), "hive-project-mcp-"));
-  const home = join(fixtureRoot, "home");
-  const projectMcp = join(home, "project", ".gsd", "mcp.json");
-
-  assert.ok(configMatch);
-  mkdirSync(join(home, "project", ".gsd"), { recursive: true });
-  writeFileSync(
-    projectMcp,
-    `${JSON.stringify({
-      mcpServers: {
-        obsidian: { command: "obsolete" },
-        hive_obsidian: { command: "obsolete" },
-        playwright: { command: "keep-playwright" },
-        custom: { command: "keep-custom" },
-      },
-      customMetadata: { retained: true },
-    })}\n`,
-  );
-
-  const configScript = join(fixtureRoot, "configure.py");
-  writeFileSync(configScript, configMatch[1]);
-  const result = spawnSync("python3", [configScript], {
-    encoding: "utf8",
-    env: { ...process.env, HOME: home },
-  });
-
-  return { hiveInit, migrated: JSON.parse(readFileSync(projectMcp, "utf8")), result };
 }
 
 function verifyHiveMigrationSafety() {
@@ -645,3 +617,35 @@ test("GitHub helpers retrieve fresh Coder credentials on demand", verifyGithubHe
 test("repository manifest only includes approved organizations", verifyRepositoryManifest);
 test("repository bootstrap is idempotent", verifyRepositoryBootstrap);
 test("repository bootstrap rejects failed external authentication", verifyFailedExternalAuth);
+
+function runHiveProjectMcpMigrationFixture() {
+  const hiveInit = readFileSync(join(process.cwd(), "templates/hive/scripts/init.sh"), "utf8");
+  const configMatch = hiveInit.match(/python3 - <<'PYCONFIG'\n([\s\S]*?)\nPYCONFIG/);
+  const fixtureRoot = mkdtempSync(join(tmpdir(), "hive-project-mcp-"));
+  const home = join(fixtureRoot, "home");
+  const projectMcp = join(home, "project", ".gsd", "mcp.json");
+
+  assert.ok(configMatch);
+  mkdirSync(join(home, "project", ".gsd"), { recursive: true });
+  writeFileSync(
+    projectMcp,
+    `${JSON.stringify({
+      mcpServers: {
+        obsidian: { command: "obsolete" },
+        hive_obsidian: { command: "obsolete" },
+        playwright: { command: "keep-playwright" },
+        custom: { command: "keep-custom" },
+      },
+      customMetadata: { retained: true },
+    })}\n`,
+  );
+
+  const configScript = join(fixtureRoot, "configure.py");
+  writeFileSync(configScript, configMatch[1]);
+  const result = spawnSync("python3", [configScript], {
+    encoding: "utf8",
+    env: { ...process.env, HOME: home },
+  });
+
+  return { hiveInit, migrated: JSON.parse(readFileSync(projectMcp, "utf8")), result };
+}

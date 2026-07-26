@@ -223,7 +223,7 @@ ENV PATH="/home/coder/.local/bin:${PATH}"
 RUN mkdir -p ~/projects ~/bin ~/.config ~/.ssh ~/.local/bin ~/.claude
 
 # Claude Code — seed the headed Playwright MCP config on first boot.
-COPY claude-mcp.json /home/coder/.claude/mcp.json
+COPY --chown=coder:coder claude-mcp.json /home/coder/.claude/mcp.json
 
 # Git defaults
 RUN git config --global init.defaultBranch main \
