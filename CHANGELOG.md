@@ -1,5 +1,11 @@
 # hive-orchestrator
 
+## 2.10.1
+
+### Patch Changes
+
+- 83153ee: Add Unity and Blender game-development tooling and update the workspace templates.
+
 ## 2.10.0
 
 ### Minor Changes
