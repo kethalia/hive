@@ -101,3 +101,13 @@ elif [ -n "$codex_path" ]; then
 else
   printf '%b[warn] codex was not found on PATH after installation%b\n' "$YELLOW" "$RESET"
 fi
+
+if command_exists codex && [ -f "$HOME/.agents/plugins/marketplace.json" ]; then
+  if codex plugin list 2>/dev/null | grep -q '^game-development@personal'; then
+    printf '%b[ok] Game Development Codex plugin already installed%b\n' "$GREEN" "$RESET"
+  elif codex plugin add game-development@personal --json >/tmp/hive-codex-plugin.json 2>/tmp/hive-codex-plugin.err; then
+    printf '%b[ok] Game Development Codex plugin installed%b\n' "$GREEN" "$RESET"
+  else
+    printf '%b[warn] Game Development plugin installation deferred; run: codex plugin add game-development@personal%b\n' "$YELLOW" "$RESET"
+  fi
+fi

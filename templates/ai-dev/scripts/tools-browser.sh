@@ -19,7 +19,7 @@ printf "${BOLD}[browser] Setting up browser vision tools...${RESET}\n"
 # /usr/bin/chromium-browser so Playwright finds it without extra config.
 CHROME_BIN="/usr/bin/google-chrome-stable"
 
-# Claude Code MCP (obsidian + playwright) is baked into the Docker image
+# Claude Code Playwright MCP is baked into the Docker image
 # at ~/.claude/mcp.json. Codex MCP is managed at startup in ~/.codex/config.toml.
 
 # Create screenshot helper using Google Chrome (CLI fallback for scripts)

@@ -16,9 +16,9 @@ The Coder templates now install Codex and the maintained OpenGSD packages:
 - `@openai/codex` for the Codex CLI.
 
 The templates uninstall the old packages first so stale `gsd` or `gsd-sdk` shims
-cannot stay first on `PATH`. Startup also writes Codex MCP configuration for
-Obsidian and headed Playwright at `~/.codex/config.toml`, while vault skills are
-synced to `~/.agents/skills`, the user skill path Codex scans.
+cannot stay first on `PATH`. Startup also writes headed Playwright MCP
+configuration at `~/.codex/config.toml`. Vault syncing and the Obsidian MCP are
+no longer part of the workspace templates.
 
 ## Publish updated templates
 
@@ -82,10 +82,7 @@ npm uninstall -g \
 npm install -g @openai/codex@latest @opengsd/get-shit-done-redux@latest @opengsd/gsd-pi@latest
 get-shit-done-redux --claude --global
 get-shit-done-redux --codex --global
-codex mcp add hive_obsidian -- npx -y @bitbonsai/mcpvault@0.11.0 /home/coder/vault || true
 codex mcp add hive_playwright --env DISPLAY=:1 -- npx -y @playwright/mcp --no-sandbox || true
-if [ -f "$HOME/vault/Agents/AGENTS.md" ]; then mkdir -p "$HOME/.codex" && cp "$HOME/vault/Agents/AGENTS.md" "$HOME/.codex/AGENTS.md"; fi
-bash "$HOME/sync-vault.sh" || true
 ```
 
 ## Verify each workspace

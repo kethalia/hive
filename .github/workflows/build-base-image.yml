@@ -16,8 +16,9 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
   packages: write
+  pull-requests: write
 
 concurrency:
   group: build-hive-base-${{ github.ref }}
@@ -71,6 +72,15 @@ jobs:
       - name: Smoke test — xfce4-session present
         run: docker run --rm ghcr.io/kethalia/hive-base:${{ github.sha }} which xfce4-session
 
+      - name: Smoke test — Unity Hub present
+        run: docker run --rm ghcr.io/kethalia/hive-base:${{ github.sha }} which unityhub
+
+      - name: Smoke test — Blender starts
+        run: docker run --rm ghcr.io/kethalia/hive-base:${{ github.sha }} blender --version
+
+      - name: Smoke test — Obsidian retained
+        run: docker run --rm ghcr.io/kethalia/hive-base:${{ github.sha }} which obsidian
+
       # Tag and push the already-built local image — no rebuild, no network fetches.
       # This guarantees what's in the registry is exactly what passed smoke tests.
       - name: Push image (main only, after smoke tests pass)
@@ -79,3 +89,42 @@ jobs:
           docker tag ghcr.io/kethalia/hive-base:${{ github.sha }} ghcr.io/kethalia/hive-base:latest
           docker push ghcr.io/kethalia/hive-base:${{ github.sha }}
           docker push ghcr.io/kethalia/hive-base:latest
+
+      - name: Resolve pushed image digest
+        if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+        id: image
+        run: |
+          digest="sha256:$(docker buildx imagetools inspect "ghcr.io/kethalia/hive-base:${{ github.sha }}" --raw | sha256sum | awk '{print $1}')"
+          [[ "$digest" =~ ^sha256:[0-9a-f]{64}$ ]]
+          echo "digest=$digest" >> "$GITHUB_OUTPUT"
+
+      # The Kubernetes template is digest-pinned. Updating it through a PR keeps
+      # main user-merge-only while ensuring the newly tested image can roll out.
+      - name: Open template image digest PR
+        if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          IMAGE_DIGEST: ${{ steps.image.outputs.digest }}
+        run: |
+          branch="automation/hive-base-${GITHUB_SHA:0:12}"
+          if git ls-remote --exit-code --heads origin "$branch" >/dev/null 2>&1; then
+            echo "Digest update branch already exists: $branch"
+            exit 0
+          fi
+
+          sed -i -E \
+            "s#ghcr.io/kethalia/hive-base@sha256:[0-9a-f]{64}#ghcr.io/kethalia/hive-base@${IMAGE_DIGEST}#g" \
+            templates/ai-dev-k8s/main.tf
+
+          git diff --exit-code -- templates/ai-dev-k8s/main.tf && exit 0
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git switch -c "$branch"
+          git add templates/ai-dev-k8s/main.tf
+          git commit -m "chore(template): update hive-base image digest"
+          git push origin "$branch"
+          gh pr create \
+            --base main \
+            --head "$branch" \
+            --title "chore(template): update hive-base image digest" \
+            --body "Pins the Kubernetes workspace template to the hive-base image built and smoke-tested from commit ${GITHUB_SHA}."

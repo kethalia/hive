@@ -3,7 +3,17 @@
   <menu id="root-menu" label="Desktop">
     <item label="Obsidian">
       <action name="Execute">
-        <command>/usr/bin/obsidian --no-sandbox --disable-gpu /home/coder/vault</command>
+        <command>/usr/bin/obsidian --no-sandbox --disable-gpu --disable-dev-shm-usage</command>
+      </action>
+    </item>
+    <item label="Unity Hub">
+      <action name="Execute">
+        <command>/usr/bin/unityhub --no-sandbox --disable-gpu-sandbox</command>
+      </action>
+    </item>
+    <item label="Blender">
+      <action name="Execute">
+        <command>/usr/local/bin/blender</command>
       </action>
     </item>
     <item label="Chrome">

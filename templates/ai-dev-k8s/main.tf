@@ -15,21 +15,6 @@ terraform {
 # Parameters — surfaced in the Coder workspace creation UI
 # =============================================================================
 
-data "coder_parameter" "vault_repo" {
-  name         = "vault_repo"
-  display_name = "Obsidian Vault Repo"
-  description  = "GitHub owner/repository for your Obsidian vault. Initialized in ~/vault and safely fast-forwarded on startup. Leave empty to skip."
-  type         = "string"
-  default      = "kethalia/second-brain"
-  mutable      = false
-  order        = 1
-
-  validation {
-    regex = "^$|^(chillwhales|kethalia|phlox-labs)/[A-Za-z0-9._-]+$"
-    error = "Vault repository must be empty or use owner/repository from chillwhales, kethalia, or phlox-labs."
-  }
-}
-
 data "coder_parameter" "claude_code_model" {
   name         = "claude_code_model"
   display_name = "Claude Code Model"
@@ -143,11 +128,16 @@ resource "coder_agent" "main" {
   startup_script_behavior = "blocking"
 
   startup_script = templatefile("${path.module}/scripts/init.sh", {
-    workspace_name        = data.coder_workspace.me.name
-    owner_name            = data.coder_workspace_owner.me.name
-    owner_email           = data.coder_workspace_owner.me.email
-    claude_md_content     = file("${path.module}/CLAUDE.md")
-    sync_vault_script_b64 = base64encode(file("${path.module}/scripts/sync-vault.sh"))
+    workspace_name             = data.coder_workspace.me.name
+    owner_name                 = data.coder_workspace_owner.me.name
+    owner_email                = data.coder_workspace_owner.me.email
+    claude_md_content          = file("${path.module}/CLAUDE.md")
+    codex_marketplace_b64      = base64encode(file("${path.module}/codex/.agents/plugins/marketplace.json"))
+    game_plugin_manifest_b64   = base64encode(file("${path.module}/codex/plugins/game-development/.codex-plugin/plugin.json"))
+    unity_skill_b64            = base64encode(file("${path.module}/codex/plugins/game-development/skills/unity-development/SKILL.md"))
+    unity_skill_metadata_b64   = base64encode(file("${path.module}/codex/plugins/game-development/skills/unity-development/agents/openai.yaml"))
+    blender_skill_b64          = base64encode(file("${path.module}/codex/plugins/game-development/skills/blender-asset-pipeline/SKILL.md"))
+    blender_skill_metadata_b64 = base64encode(file("${path.module}/codex/plugins/game-development/skills/blender-asset-pipeline/agents/openai.yaml"))
   })
 
   env = merge(
@@ -275,7 +265,6 @@ resource "coder_script" "tools_ci" {
     github_credential_script_b64  = base64encode(file("${path.module}/scripts/github-credential.sh"))
     clone_repositories_script_b64 = base64encode(file("${path.module}/scripts/clone-repositories.sh"))
     repositories_manifest_b64     = base64encode(file("${path.module}/repositories.txt"))
-    vault_repository_b64          = base64encode(data.coder_parameter.vault_repo.value)
   })
 }
 
@@ -329,6 +318,9 @@ module "code-server" {
     "bradlc.vscode-tailwindcss",
     "tintinweb.vscode-solidity-language",
     "nomicfoundation.hardhat-solidity",
+    "ms-dotnettools.csharp",
+    "visualstudiotoolsforunity.vstuc",
+    "slevesque.shader",
     "esbenp.prettier-vscode",
     "eamodio.gitlens",
     "oderwat.indent-rainbow",

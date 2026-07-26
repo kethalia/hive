@@ -15,16 +15,6 @@ terraform {
 # Parameters — surfaced in the Coder workspace creation UI
 # =============================================================================
 
-data "coder_parameter" "vault_repo" {
-  name         = "vault_repo"
-  display_name = "Obsidian Vault Repo"
-  description  = "Git SSH URL for your Obsidian second-brain vault (e.g. git@github.com:you/vault.git). Cloned to ~/vault on start. Leave empty to skip."
-  type         = "string"
-  default      = ""
-  mutable      = true
-  order        = 1
-}
-
 data "coder_parameter" "claude_code_model" {
   name         = "claude_code_model"
   display_name = "Claude Code Model"
@@ -143,11 +133,10 @@ resource "coder_agent" "main" {
   os   = "linux"
 
   startup_script = templatefile("${path.module}/scripts/init.sh", {
-    workspace_name         = data.coder_workspace.me.name
-    owner_name             = data.coder_workspace_owner.me.name
-    owner_email            = data.coder_workspace_owner.me.email
-    claude_md_content      = file("${path.module}/CLAUDE.md")
-    sync_vault_script_b64  = base64encode(file("${path.module}/scripts/sync-vault.sh"))
+    workspace_name    = data.coder_workspace.me.name
+    owner_name        = data.coder_workspace_owner.me.name
+    owner_email       = data.coder_workspace_owner.me.email
+    claude_md_content = file("${path.module}/CLAUDE.md")
   })
 
   env = merge(
@@ -324,6 +313,9 @@ module "code-server" {
     "bradlc.vscode-tailwindcss",
     "tintinweb.vscode-solidity-language",
     "nomicfoundation.hardhat-solidity",
+    "ms-dotnettools.csharp",
+    "visualstudiotoolsforunity.vstuc",
+    "slevesque.shader",
     "esbenp.prettier-vscode",
     "eamodio.gitlens",
     "oderwat.indent-rainbow",
@@ -339,48 +331,48 @@ module "code-server" {
   ]
 
   settings = {
-    "[solidity]": {
-      "editor.defaultFormatter": "esbenp.prettier-vscode",
-      "editor.formatOnSave": true
+    "[solidity]" : {
+      "editor.defaultFormatter" : "esbenp.prettier-vscode",
+      "editor.formatOnSave" : true
     },
-    "solidity.telemetry": false,
-    "editor.defaultFormatter": "esbenp.prettier-vscode",
-    "editor.fontFamily": "Fira Code",
-    "editor.fontLigatures": true,
-    "editor.formatOnSave": true,
-    "editor.wordWrap": "on",
-    "editor.inlineSuggest.enabled": true,
-    "editor.bracketPairColorization.enabled": true,
-    "editor.guides.bracketPairs": true,
-    "editor.minimap.enabled": false,
-    "editor.stickyScroll.enabled": true,
-    "editor.tabSize": 2,
-    "files.autoSave": "off",
-    "files.watcherExclude": {
-      "**/.git/objects/**": true,
-      "**/.git/subtree-cache/**": true,
-      "**/node_modules/**": true,
-      "**/.hg/store/**": true,
-      "**/dist/**": true,
-      "**/build/**": true,
-      "**/.next/**": true,
-      "**/out/**": true
+    "solidity.telemetry" : false,
+    "editor.defaultFormatter" : "esbenp.prettier-vscode",
+    "editor.fontFamily" : "Fira Code",
+    "editor.fontLigatures" : true,
+    "editor.formatOnSave" : true,
+    "editor.wordWrap" : "on",
+    "editor.inlineSuggest.enabled" : true,
+    "editor.bracketPairColorization.enabled" : true,
+    "editor.guides.bracketPairs" : true,
+    "editor.minimap.enabled" : false,
+    "editor.stickyScroll.enabled" : true,
+    "editor.tabSize" : 2,
+    "files.autoSave" : "off",
+    "files.watcherExclude" : {
+      "**/.git/objects/**" : true,
+      "**/.git/subtree-cache/**" : true,
+      "**/node_modules/**" : true,
+      "**/.hg/store/**" : true,
+      "**/dist/**" : true,
+      "**/build/**" : true,
+      "**/.next/**" : true,
+      "**/out/**" : true
     },
-    "git.confirmSync": false,
-    "git.autofetch": true,
-    "git.enableSmartCommit": true,
-    "terminal.integrated.scrollback": 10000,
-    "terminal.integrated.defaultProfile.linux": "zsh",
-    "terminal.integrated.fontSize": 14,
-    "workbench.iconTheme": "material-icon-theme",
-    "explorer.confirmDelete": false,
-    "explorer.confirmDragAndDrop": false,
-    "docker.showStartPage": false,
-    "workbench.preferredDarkColorTheme": "Dark Modern (OLED Black) [Orange]",
-    "workbench.preferredLightColorTheme": "Light Modern (OLED) Saturated",
-    "workbench.preferredHighContrastColorTheme": "Dark Modern (OLED Black) Stylized [Orange]",
-    "workbench.preferredHighContrastLightColorTheme": "Light Modern (OLED) Saturated Stylized",
-    "window.autoDetectColorScheme": true
+    "git.confirmSync" : false,
+    "git.autofetch" : true,
+    "git.enableSmartCommit" : true,
+    "terminal.integrated.scrollback" : 10000,
+    "terminal.integrated.defaultProfile.linux" : "zsh",
+    "terminal.integrated.fontSize" : 14,
+    "workbench.iconTheme" : "material-icon-theme",
+    "explorer.confirmDelete" : false,
+    "explorer.confirmDragAndDrop" : false,
+    "docker.showStartPage" : false,
+    "workbench.preferredDarkColorTheme" : "Dark Modern (OLED Black) [Orange]",
+    "workbench.preferredLightColorTheme" : "Light Modern (OLED) Saturated",
+    "workbench.preferredHighContrastColorTheme" : "Dark Modern (OLED Black) Stylized [Orange]",
+    "workbench.preferredHighContrastLightColorTheme" : "Light Modern (OLED) Saturated Stylized",
+    "window.autoDetectColorScheme" : true
   }
 }
 
@@ -448,52 +440,6 @@ module "git-config" {
   source   = "registry.coder.com/coder/git-config/coder"
   version  = "1.0.33"
   agent_id = coder_agent.main.id
-}
-
-# =============================================================================
-# Obsidian Vault (optional)
-# =============================================================================
-
-module "git-clone-vault" {
-  count       = data.coder_parameter.vault_repo.value != "" ? data.coder_workspace.me.start_count : 0
-  source      = "registry.coder.com/coder/git-clone/coder"
-  version     = "1.2.3"
-  agent_id    = coder_agent.main.id
-  url         = data.coder_parameter.vault_repo.value
-  folder_name = "vault_clone_tmp"
-
-  # The git-clone module skips cloning when the target dir is non-empty, but
-  # post_clone_script runs ALWAYS (even on skip).  We clone into a temp dir,
-  # then rsync into ~/vault so the vault is refreshed on every workspace start.
-  # The git-clone module clones into a temp dir; we rsync into ~/vault then
-  # call ~/sync-vault.sh (deployed by init.sh) to sync config files.
-  post_clone_script = <<-EOT
-    #!/bin/bash
-    set -e
-    VAULT_DIR="$HOME/vault"
-    CLONE_DIR="$HOME/vault_clone_tmp"
-    if [ -d "$CLONE_DIR/.git" ]; then
-      mkdir -p "$VAULT_DIR"
-      rsync -a --delete --exclude '.obsidian' "$CLONE_DIR/" "$VAULT_DIR/"
-      # The git-clone module runs this script from inside the clone directory.
-      # Leave it before deleting the temp clone, otherwise later commands emit
-      # noisy getcwd/chdir errors because their current directory disappeared.
-      cd "$HOME"
-      rm -rf "$CLONE_DIR"
-      echo "Vault synced to $VAULT_DIR"
-
-      # Sync config files (CLAUDE.md, AGENTS.md, Skills, GSD symlinks)
-      if [ -x "$HOME/sync-vault.sh" ]; then
-        "$HOME/sync-vault.sh"
-      else
-        echo "WARNING: ~/sync-vault.sh not found — config sync skipped" >&2
-      fi
-    else
-      echo "ERROR: Vault clone failed — $CLONE_DIR has no .git directory" >&2
-      rm -rf "$CLONE_DIR"
-      exit 1
-    fi
-  EOT
 }
 
 # =============================================================================

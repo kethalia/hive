@@ -1,87 +1,50 @@
 #!/bin/bash
-set -e
+set -euo pipefail
 
-# One-time initialization
-if [ ! -f ~/.workspace_initialized ]; then
+if [ ! -f "$HOME/.workspace_initialized" ]; then
   echo "First-time workspace setup..."
-
-  # Create directory structure
-  mkdir -p ~/projects ~/bin ~/.config ~/.local/bin
-
-  # Setup git aliases
+  mkdir -p "$HOME/projects" "$HOME/bin" "$HOME/.config" "$HOME/.local/bin"
   git config --global alias.st status
   git config --global alias.co checkout
   git config --global alias.br branch
   git config --global alias.cm commit
   git config --global alias.lg "log --graph --pretty=format:'%Cred%h%Creset -%C(yellow)%d%Creset %s %Cgreen(%cr) %C(bold blue)<%an>%Creset' --abbrev-commit"
 
-  # Dotfiles are handled by the coder/dotfiles module in main.tf
-
-  # Create workspace README
-  if [ ! -f ~/README.md ]; then
-    cat > ~/README.md << 'EOFREADME'
+  if [ ! -f "$HOME/README.md" ]; then
+    cat > "$HOME/README.md" << 'EOFREADME'
 # ${workspace_name}
 
-## Quick Start Guide
+## AI-assisted development
 
-### AI-Assisted Development
-- **Claude Code**: `claude` in terminal or use the web app
-- **Codex CLI**: `codex` in terminal with Playwright MCP and vault skills wired
+- `claude` — Claude Code
+- `codex` — Codex CLI with Playwright and the game-development plugin
 
-### Available Tools & Versions
-- **Node.js**: v24
-- **Package Managers**: PNPM, Yarn, Bun
-- **Foundry**: Ethereum development toolkit
-- **act**: Run GitHub Actions locally
-- **Container builds**: Use a rootless or remote builder; no host Docker socket is mounted
+## Game development
 
-### Shell
-- **ZSH** with Starship prompt
-- **tmux** for session persistence
-- **direnv** for per-project env management
+- Open **Desktop** from Coder, then launch **Unity Hub** or **Blender**.
+- Sign in to Unity Hub and install the latest Unity 6.3 LTS Editor into the persistent default location.
+- Blender 4.5 LTS and its `blender` CLI are preinstalled.
+- Unity projects and Editor installs persist under `/home/coder`; GPU-heavy validation may require a GPU-enabled machine.
 
-### Browser Vision
-Claude Code and Codex can see what you're developing in a browser:
-- **Claude Code/Codex**: Just ask! (e.g. "screenshot localhost:3000")
-- **CLI helpers**: `browser-screenshot <url>` or `browser-html <url>`
+## Core tools
 
-### Useful Commands
+- Node.js v24; pnpm, Yarn, and Bun
+- Foundry and GitHub Actions `act`
+- code-server, File Browser, Chrome, tmux, and direnv
+- Rootless or remote container builds; no host Docker socket is mounted
 
-```bash
-# AI Agents
-claude                       # Start Claude Code
-codex                        # Start Codex CLI
+### Workspace
 
-# Node.js
-node --version               # Check Node version
-pnpm install                 # Install with PNPM
-yarn install                 # Install with Yarn
-bun install                  # Install with Bun
-
-# Git
-gs                           # git status
-gco -b feature/new           # Create branch
-gc -m "message"              # Commit
-git lg                       # Pretty log
-```
-
-### Workspace Info
-- **Owner**: ${owner_name}
-- **Email**: ${owner_email}
-- **Created**: $(date)
+- Owner: ${owner_name}
+- Email: ${owner_email}
 EOFREADME
   fi
 
-  # Mark as initialized
-  touch ~/.workspace_initialized
-  echo "Workspace initialized"
+  touch "$HOME/.workspace_initialized"
 fi
 
-# Ensure tools are on PATH (prepend without overriding agent PATH)
 export PATH="$HOME/.local/bin:$HOME/.local/share/pnpm:$HOME/.bun/bin:$HOME/.foundry/bin:$PATH"
 
-# Codex MCP config — user-level config is shared by the Codex CLI and IDE.
-# Managed as a marked block so user settings outside the block are preserved.
 configure_codex_mcp() {
   mkdir -p "$HOME/.codex"
   python3 - <<'PYCODEX'
@@ -89,82 +52,99 @@ import os
 from pathlib import Path
 
 config = Path(os.environ["HOME"]) / ".codex" / "config.toml"
-config.parent.mkdir(parents=True, exist_ok=True)
 existing = config.read_text() if config.exists() else ""
 start = "# >>> hive-managed-codex-mcp"
 end = "# <<< hive-managed-codex-mcp"
-block = f"""{start}
-[mcp_servers.hive_obsidian]
-command = "npx"
-args = ["-y", "@bitbonsai/mcpvault@0.11.0", "/home/coder/vault"]
-
+block = f'''{start}
 [mcp_servers.hive_playwright]
 command = "npx"
 args = ["-y", "@playwright/mcp", "--no-sandbox"]
 
 [mcp_servers.hive_playwright.env]
 DISPLAY = ":1"
-{end}
-"""
+{end}'''
 
-if start in existing and end in existing:
-    before = existing.split(start, 1)[0].rstrip()
-    after = existing.split(end, 1)[1].lstrip()
-    pieces = [part for part in (before, block.rstrip(), after.rstrip()) if part]
-    updated = "\n\n".join(pieces) + "\n"
-else:
-    updated = (existing.rstrip() + "\n\n" if existing.strip() else "") + block
+managed_tables = {
+    "[mcp_servers.hive_obsidian]",
+    "[mcp_servers.hive_playwright]",
+    "[mcp_servers.hive_playwright.env]",
+}
+preserved = []
+skip_table = False
+for line in existing.splitlines():
+    stripped = line.strip()
+    if stripped in (start, end):
+        continue
+    if stripped.startswith("["):
+        skip_table = stripped in managed_tables
+    if not skip_table:
+        preserved.append(line)
+base = "\n".join(preserved).strip()
+updated = (base + "\n\n" if base else "") + block + "\n"
 
 if updated != existing:
     config.write_text(updated)
-    print(f"Codex MCP config synced at {config}")
-else:
-    print(f"Codex MCP config already in sync at {config}")
 PYCODEX
   chmod 600 "$HOME/.codex/config.toml"
 }
 
+configure_json_mcp() {
+  python3 - <<'PYMCP'
+import json
+import os
+from pathlib import Path
+
+home = Path(os.environ["HOME"])
+playwright = {
+    "command": "npx",
+    "args": ["-y", "@playwright/mcp", "--no-sandbox"],
+    "env": {"DISPLAY": ":1"},
+}
+for config in (home / ".claude" / "mcp.json", home / ".mcp.json"):
+    config.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        data = json.loads(config.read_text()) if config.exists() else {}
+    except json.JSONDecodeError:
+        print(f"WARNING: preserving invalid MCP config: {config}")
+        continue
+    servers = data.setdefault("mcpServers", {})
+    servers.pop("obsidian", None)
+    servers.pop("hive_obsidian", None)
+    servers["playwright"] = playwright
+    config.write_text(json.dumps(data, indent=2) + "\n")
+    config.chmod(0o600)
+PYMCP
+}
+
+install_game_plugin_source() {
+  local root="$HOME/.agents"
+  local plugin="$root/plugins/game-development"
+  mkdir -p "$plugin/.codex-plugin" \
+    "$plugin/skills/unity-development/agents" \
+    "$plugin/skills/blender-asset-pipeline/agents"
+  printf '%s' "${codex_marketplace_b64}" | base64 -d > "$root/plugins/marketplace.json"
+  printf '%s' "${game_plugin_manifest_b64}" | base64 -d > "$plugin/.codex-plugin/plugin.json"
+  printf '%s' "${unity_skill_b64}" | base64 -d > "$plugin/skills/unity-development/SKILL.md"
+  printf '%s' "${unity_skill_metadata_b64}" | base64 -d > "$plugin/skills/unity-development/agents/openai.yaml"
+  printf '%s' "${blender_skill_b64}" | base64 -d > "$plugin/skills/blender-asset-pipeline/SKILL.md"
+  printf '%s' "${blender_skill_metadata_b64}" | base64 -d > "$plugin/skills/blender-asset-pipeline/agents/openai.yaml"
+}
+
 configure_codex_mcp
+configure_json_mcp
+install_game_plugin_source
 
-# Per-start initialization
-echo "Starting workspace services..."
+# Remove only files previously generated by Hive's vault integration. The vault
+# and Obsidian application remain untouched.
+rm -f "$HOME/sync-vault.sh" \
+  "$HOME/.config/hive/vault-repository" \
+  "$HOME/.config/autostart/obsidian.desktop"
 
-# XFCE autostart — Obsidian launches automatically when the desktop starts.
-# /home/coder is a volume mount, so we copy from the image-baked staging dir.
-mkdir -p "$HOME/.config/autostart"
-if [ -d /usr/share/hive/autostart ] && ls /usr/share/hive/autostart/*.desktop >/dev/null 2>&1; then
-  cp /usr/share/hive/autostart/*.desktop "$HOME/.config/autostart/"
-fi
-
-# =============================================================================
-# Vault sync — deploy sync-vault.sh and run it
-# sync-vault.sh is the single source of truth for syncing CLAUDE.md, AGENTS.md,
-# Skills from the vault.
-# It's also called by the post_clone_script in main.tf after every vault fetch.
-# Obsidian creates .obsidian/ automatically on first launch.
-# mcp.json is baked into the Docker image (docker/hive-base/claude-mcp.json).
-# =============================================================================
-
-# Deploy sync-vault.sh to ~/sync-vault.sh (used by post_clone_script too)
-# shellcheck disable=SC2154 # Populated by Terraform templatefile().
-printf '%s' "${sync_vault_script_b64}" | base64 -d > "$HOME/sync-vault.sh"
-chmod +x "$HOME/sync-vault.sh"
-
-# CLAUDE.md fallback: if vault isn't available yet, write template content
-# so the workspace has a working CLAUDE.md from first boot.
-# sync-vault.sh will overwrite this with the vault version once it's cloned.
-if [ ! -f "$HOME/vault/Agents/CLAUDE.md" ] && [ ! -f "$HOME/.claude/CLAUDE.md" ]; then
-  mkdir -p "$HOME/.claude"
+mkdir -p "$HOME/.claude"
+if [ ! -f "$HOME/.claude/CLAUDE.md" ] || grep -qF 'personal knowledge vault at `~/vault`' "$HOME/.claude/CLAUDE.md"; then
   cat > "$HOME/.claude/CLAUDE.md" << 'CLAUDEEOF'
 ${claude_md_content}
 CLAUDEEOF
-  echo "CLAUDE.md: written from template fallback (vault not available yet)"
 fi
 
-# Run vault sync (syncs CLAUDE.md, AGENTS.md, and Skills)
-"$HOME/sync-vault.sh"
-
-echo ""
-echo "Workspace is ready!"
-echo "Check ~/README.md for quick start guide"
-echo ""
+echo "Workspace is ready. Check ~/README.md for the game-development quick start."

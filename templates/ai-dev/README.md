@@ -6,12 +6,13 @@ A production-ready Coder template for AI-assisted full-stack development. Featur
 
 ### AI-Assisted Development
 - **Claude Code** - Anthropic's coding agent with CLI and web interface
-- **Codex CLI** - OpenAI's local coding agent with Playwright MCP and vault skills wired
+- **Codex CLI** - OpenAI's local coding agent with headed Playwright MCP
 - **OpenGSD core + Pi** - Maintained GSD slash commands for Claude Code and Codex plus the standalone `gsd` CLI from OpenGSD
 - **Browser Vision** - Claude Code and Codex can see what they're developing in a headed browser
 - All AI tools are configurable via template variables
 
 ### Development Environment
+- **Game development** - Unity Hub, Blender 4.5 LTS, C#, Unity, and shader editor support
 - **Docker** - Full Docker + Compose + act (run GitHub Actions locally)
 - **Node.js** - Multiple versions (18, 20, 22, 24) via version switcher
 - **Package Managers** - PNPM, Yarn, and Bun
@@ -95,10 +96,7 @@ npm uninstall -g get-shit-done-cc get-shit-done-redux gsd-pi @gsd-build/sdk @gsd
 npm install -g @openai/codex@latest @opengsd/get-shit-done-redux@latest @opengsd/gsd-pi@latest
 get-shit-done-redux --claude --global
 get-shit-done-redux --codex --global
-codex mcp add hive_obsidian -- npx -y @bitbonsai/mcpvault@0.11.0 /home/coder/vault || true
 codex mcp add hive_playwright --env DISPLAY=:1 -- npx -y @playwright/mcp --no-sandbox || true
-if [ -f "$HOME/vault/Agents/AGENTS.md" ]; then mkdir -p "$HOME/.codex" && cp "$HOME/vault/Agents/AGENTS.md" "$HOME/.codex/AGENTS.md"; fi
-bash "$HOME/sync-vault.sh" || true
 gsd --version
 codex --version
 ```
@@ -290,10 +288,7 @@ npm uninstall -g get-shit-done-cc get-shit-done-redux gsd-pi @gsd-build/sdk @gsd
 npm install -g @openai/codex@latest @opengsd/get-shit-done-redux@latest @opengsd/gsd-pi@latest
 get-shit-done-redux --claude --global
 get-shit-done-redux --codex --global
-codex mcp add hive_obsidian -- npx -y @bitbonsai/mcpvault@0.11.0 /home/coder/vault || true
 codex mcp add hive_playwright --env DISPLAY=:1 -- npx -y @playwright/mcp --no-sandbox || true
-if [ -f "$HOME/vault/Agents/AGENTS.md" ]; then mkdir -p "$HOME/.codex" && cp "$HOME/vault/Agents/AGENTS.md" "$HOME/.codex/AGENTS.md"; fi
-bash "$HOME/sync-vault.sh" || true
 gsd --version
 codex --version
 ```

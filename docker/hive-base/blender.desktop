@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=Blender
+Comment=Create and edit 3D assets
+Exec=/usr/local/bin/blender
+Icon=/opt/blender/blender.svg
+Categories=Graphics;3DGraphics;GameDevelopment;
+StartupNotify=true

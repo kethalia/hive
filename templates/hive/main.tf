@@ -63,16 +63,6 @@ data "coder_parameter" "branch_name" {
 
 # --- User Preferences ---
 
-data "coder_parameter" "vault_repo" {
-  name         = "vault_repo"
-  display_name = "Obsidian Vault Repo"
-  description  = "Git SSH URL for your Obsidian second-brain vault (e.g. git@github.com:you/vault.git). Cloned to ~/vault on start. Leave empty to skip."
-  type         = "string"
-  default      = ""
-  mutable      = true
-  order        = 5
-}
-
 # --- Claude Code ---
 
 data "coder_parameter" "claude_code_model" {
@@ -164,11 +154,10 @@ resource "coder_agent" "main" {
   os   = "linux"
 
   startup_script = templatefile("${path.module}/scripts/init.sh", {
-    workspace_name         = data.coder_workspace.me.name
-    owner_name             = data.coder_workspace_owner.me.name
-    owner_email            = data.coder_workspace_owner.me.email
-    claude_md_content      = file("${path.module}/CLAUDE.md")
-    sync_vault_script_b64  = base64encode(file("${path.module}/scripts/sync-vault.sh"))
+    workspace_name    = data.coder_workspace.me.name
+    owner_name        = data.coder_workspace_owner.me.name
+    owner_email       = data.coder_workspace_owner.me.email
+    claude_md_content = file("${path.module}/CLAUDE.md")
   })
 
   env = merge(
@@ -349,52 +338,6 @@ module "git-config" {
   source   = "registry.coder.com/coder/git-config/coder"
   version  = "1.0.33"
   agent_id = coder_agent.main.id
-}
-
-# =============================================================================
-# Obsidian Vault (optional)
-# =============================================================================
-
-module "git-clone-vault" {
-  count       = data.coder_parameter.vault_repo.value != "" ? data.coder_workspace.me.start_count : 0
-  source      = "registry.coder.com/coder/git-clone/coder"
-  version     = "1.2.3"
-  agent_id    = coder_agent.main.id
-  url         = data.coder_parameter.vault_repo.value
-  folder_name = "vault_clone_tmp"
-
-  # The git-clone module skips cloning when the target dir is non-empty, but
-  # post_clone_script runs ALWAYS (even on skip).  We clone into a temp dir,
-  # then rsync into ~/vault so the vault is refreshed on every workspace start.
-  # The git-clone module clones into a temp dir; we rsync into ~/vault then
-  # call ~/sync-vault.sh (deployed by init.sh) to sync config files.
-  post_clone_script = <<-EOT
-    #!/bin/bash
-    set -e
-    VAULT_DIR="$HOME/vault"
-    CLONE_DIR="$HOME/vault_clone_tmp"
-    if [ -d "$CLONE_DIR/.git" ]; then
-      mkdir -p "$VAULT_DIR"
-      rsync -a --delete --exclude '.obsidian' "$CLONE_DIR/" "$VAULT_DIR/"
-      # The git-clone module runs this script from inside the clone directory.
-      # Leave it before deleting the temp clone, otherwise later commands emit
-      # noisy getcwd/chdir errors because their current directory disappeared.
-      cd "$HOME"
-      rm -rf "$CLONE_DIR"
-      echo "Vault synced to $VAULT_DIR"
-
-      # Sync config files (CLAUDE.md, AGENTS.md, Skills, GSD symlinks)
-      if [ -x "$HOME/sync-vault.sh" ]; then
-        "$HOME/sync-vault.sh"
-      else
-        echo "WARNING: ~/sync-vault.sh not found — config sync skipped" >&2
-      fi
-    else
-      echo "ERROR: Vault clone failed — $CLONE_DIR has no .git directory" >&2
-      rm -rf "$CLONE_DIR"
-      exit 1
-    fi
-  EOT
 }
 
 # =============================================================================

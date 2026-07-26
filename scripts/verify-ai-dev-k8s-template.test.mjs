@@ -19,7 +19,6 @@ function createBootstrapFixture() {
   const bin = join(fixtureRoot, "bin");
   const manifest = join(fixtureRoot, "repositories.txt");
   const calls = join(fixtureRoot, "gh-calls.log");
-  const gitCalls = join(fixtureRoot, "git-calls.log");
   mkdirSync(home, { recursive: true });
   mkdirSync(bin, { recursive: true });
   writeFileSync(manifest, "example/one|example/one\nexample/two|nested/two\n");
@@ -35,23 +34,7 @@ printf '%s\\n' "$3|$4" >> "$GH_CALLS"
 `,
   );
   chmodSync(join(bin, "gh"), 0o755);
-  writeFileSync(
-    join(bin, "git"),
-    `#!/bin/sh
-set -eu
-printf '%s\\n' "$*" >> "$GIT_CALLS"
-case "$*" in
-  *"remote get-url origin") printf '%s\\n' "\${GIT_ORIGIN:-https://github.com/example/vault.git}" ;;
-  *"symbolic-ref --quiet --short HEAD") printf '%s\\n' "main" ;;
-  *"pull --ff-only origin main") [ "\${GIT_PULL_FAIL:-}" != "1" ] ;;
-esac
-`,
-  );
-  chmodSync(join(bin, "git"), 0o755);
-  writeFileSync(join(home, "sync-vault.sh"), '#!/bin/sh\ntouch "$HOME/.vault-synced"\n');
-  chmodSync(join(home, "sync-vault.sh"), 0o755);
-
-  return { bin, calls, gitCalls, home, manifest };
+  return { bin, calls, home, manifest };
 }
 
 function installFakeCoder(bin) {
@@ -148,13 +131,30 @@ function verifySafeBootstrap() {
 
   assert.doesNotMatch(cloneScript, /rsync\s+.*--delete/);
   assert.doesNotMatch(cloneScript, /gh auth setup-git/);
-  assert.match(cloneScript, /! -name \.obsidian/);
-  assert.match(
-    terraform,
-    /validation \{[\s\S]*?regex\s*=\s*"\^\$\|\^\(chillwhales\|kethalia\|phlox-labs\)/,
-  );
+  assert.doesNotMatch(cloneScript, /vault|obsidian/i);
+  assert.doesNotMatch(terraform, /vault_repo|git-clone-vault|mcpvault/);
   assert.doesNotMatch(terraform, /git-clone-vault|github-upload-public-key/);
   assert.doesNotMatch(initScript, /docker (info|version)/);
+  assert.match(initScript, /servers\.pop\("obsidian", None\)/);
+  assert.match(initScript, /managed_tables/);
+  assert.doesNotMatch(initScript, /existing\.split\(start/);
+  assert.match(initScript, /\.config\/autostart\/obsidian\.desktop/);
+  assert.doesNotMatch(initScript, /rm[^\n]*\$HOME\/vault/);
+}
+
+function verifyBaseImageRollout() {
+  const workflow = readFileSync(
+    join(process.cwd(), ".github/workflows/build-base-image.yml"),
+    "utf8",
+  );
+
+  assert.match(workflow, /Smoke test — Unity Hub present/);
+  assert.match(workflow, /Smoke test — Blender starts/);
+  assert.match(workflow, /Smoke test — Obsidian retained/);
+  assert.match(workflow, /docker buildx imagetools inspect/);
+  assert.match(workflow, /chore\(template\): update hive-base image digest/);
+  assert.match(workflow, /gh pr create/);
+  assert.doesNotMatch(workflow, /git push origin main/);
 }
 
 function verifyNonRootSupplementalTools() {
@@ -169,7 +169,6 @@ function verifyNonRootSupplementalTools() {
   assert.match(terraform, /start_blocks_login\s*=\s*false/);
   assert.match(terraform, /name\s*=\s*"projects_root"[\s\S]*?default\s*=\s*"\/home\/coder"/);
   assert.match(terraform, /HIVE_PROJECTS_ROOT\s*=\s*data\.coder_parameter\.projects_root\.value/);
-  assert.match(terraform, /name\s*=\s*"vault_repo"[\s\S]*?mutable\s*=\s*false/);
   assert.ok(filebrowser.includes('filebrowser_version="2.63.18"'));
   assert.ok(
     filebrowser.includes("cd599c34afad0e8e61c577d1061c820bccb7feaa3c5a4477a12db586a1cd93ff"),
@@ -187,7 +186,7 @@ function verifyNonRootSupplementalTools() {
   assert.match(filebrowser, /login_status/);
   assert.match(filebrowser, /pkill -x filebrowser/);
   assert.doesNotMatch(filebrowser, /\bsudo\b/);
-  assert.ok(initScript.includes("- **Node.js**: v24"));
+  assert.ok(initScript.includes("Node.js v24"));
   assert.ok(!initScript.includes("also available: 18, 20, 22"));
 }
 
@@ -247,7 +246,6 @@ function verifyAiAgentSelection() {
   const script = readTemplateFile("scripts/tools-ai.sh");
   const terraform = readTemplateFile("main.tf");
   const initScript = readTemplateFile("scripts/init.sh");
-  const syncScript = readTemplateFile("scripts/sync-vault.sh");
 
   assert.ok(script.includes('npm_global_has "@openai/codex" && command_exists codex'));
   assert.ok(terraform.includes('module "claude-code"'));
@@ -258,9 +256,39 @@ function verifyAiAgentSelection() {
     assert.ok(!content.toLowerCase().includes("gsd-pi"));
     assert.ok(!content.toLowerCase().includes("get-shit-done"));
   }
-  assert.ok(!syncScript.includes("$HOME/.pi"));
-  assert.ok(syncScript.includes("[Pp][Ii]-*"));
-  assert.ok(syncScript.includes("*[Gg][Ss][Dd]*) return 1"));
+  assert.match(script, /codex plugin add game-development@personal/);
+  assert.doesNotMatch(terraform, /sync-vault|vault_repo|mcpvault/);
+}
+
+function verifyGameDevelopmentTooling() {
+  const terraform = readTemplateFile("main.tf");
+  const initScript = readTemplateFile("scripts/init.sh");
+  const dockerfile = readFileSync(join(process.cwd(), "docker/hive-base/Dockerfile"), "utf8");
+  const claudeMcp = readFileSync(join(process.cwd(), "docker/hive-base/claude-mcp.json"), "utf8");
+  const obsidianDesktop = readFileSync(
+    join(process.cwd(), "docker/hive-base/obsidian.desktop"),
+    "utf8",
+  );
+  const marketplace = JSON.parse(readTemplateFile("codex/.agents/plugins/marketplace.json"));
+  const plugin = JSON.parse(
+    readTemplateFile("codex/plugins/game-development/.codex-plugin/plugin.json"),
+  );
+
+  assert.match(dockerfile, /UnityHubSetup-3\.19\.5-amd64\.deb/);
+  assert.match(dockerfile, /5a5b57adc9ce20931c4154c57ffded08f3ffa2743286fdf14c9e7add6b212540/);
+  assert.match(dockerfile, /BLENDER_VERSION=4\.5\.12/);
+  assert.match(dockerfile, /95e3a2dfedba3bd32ca54fc355eac6b15a11986954ccb02815a07535d0120a25/);
+  assert.match(terraform, /visualstudiotoolsforunity\.vstuc/);
+  assert.match(terraform, /ms-dotnettools\.csharp/);
+  assert.match(terraform, /game_plugin_manifest_b64/);
+  assert.match(initScript, /install_game_plugin_source/);
+  assert.match(initScript, /\$root\/plugins\/marketplace\.json/);
+  assert.equal(marketplace.plugins[0].name, "game-development");
+  assert.equal(plugin.name, "game-development");
+  assert.equal(plugin.skills, "./skills/");
+  assert.doesNotMatch(claudeMcp, /obsidian|mcpvault/i);
+  assert.doesNotMatch(obsidianDesktop, /\/home\/coder\/vault/);
+  assert.match(obsidianDesktop, /^Name=Obsidian$/m);
 }
 
 function verifyShellRetry() {
@@ -328,16 +356,11 @@ function verifyRepositoryManifest() {
 }
 
 function verifyRepositoryBootstrap() {
-  const { bin, calls, gitCalls, home, manifest } = createBootstrapFixture();
-  mkdirSync(join(home, "vault", ".obsidian"), { recursive: true });
-  writeFileSync(join(home, "vault", ".obsidian", "workspace.json"), "metadata\n");
-  mkdirSync(join(home, ".config", "hive"), { recursive: true });
-  writeFileSync(join(home, ".config", "hive", "vault-repository"), "example/vault\n");
+  const { bin, calls, home, manifest } = createBootstrapFixture();
 
   const env = {
     ...process.env,
     GH_CALLS: calls,
-    GIT_CALLS: gitCalls,
     GH_TOKEN: "test-token",
     HOME: home,
     PATH: `${bin}:${process.env.PATH}`,
@@ -351,33 +374,10 @@ function verifyRepositoryBootstrap() {
   });
   assert.equal(first.status, 0, first.stderr);
   assert.match(first.stderr, /completed with 1 failure/);
-  assert.equal(
-    readFileSync(join(home, "vault", ".obsidian", "workspace.json"), "utf8"),
-    "metadata\n",
-  );
-  writeFileSync(join(home, "vault", "local-note.md"), "uncommitted\n");
-
   const second = spawnSync("bash", [script], { encoding: "utf8", env });
   assert.equal(second.status, 0, second.stderr);
-  assert.equal(readFileSync(join(home, "vault", "local-note.md"), "utf8"), "uncommitted\n");
-  assert.equal(readFileSync(calls, "utf8").trim().split("\n").length, 3);
-  assert.match(second.stdout, /fast-forwarded vault checkout/);
-  assert.match(readFileSync(gitCalls, "utf8"), /pull --ff-only origin main/);
-
-  const divergentVault = spawnSync("bash", [script], {
-    encoding: "utf8",
-    env: { ...env, GIT_PULL_FAIL: "1" },
-  });
-  assert.equal(divergentVault.status, 0, divergentVault.stderr);
-  assert.match(divergentVault.stderr, /vault checkout is dirty or diverged/);
-  assert.equal(readFileSync(join(home, "vault", "local-note.md"), "utf8"), "uncommitted\n");
-
-  const mismatchedOrigin = spawnSync("bash", [script], {
-    encoding: "utf8",
-    env: { ...env, GIT_ORIGIN: "git@github.com:example/different-vault.git" },
-  });
-  assert.equal(mismatchedOrigin.status, 0, mismatchedOrigin.stderr);
-  assert.match(mismatchedOrigin.stderr, /vault origin does not match configured repository/);
+  assert.equal(readFileSync(calls, "utf8").trim().split("\n").length, 2);
+  assert.match(second.stdout, /repository bootstrap complete/);
 }
 
 function verifyFailedExternalAuth() {
@@ -406,7 +406,11 @@ test(
   verifyFileLoadedScripts,
 );
 test("CI tooling installs without root and uses verified GitHub CLI artifacts", verifyCiTooling);
-test("workspace bootstrap does not delete vault content or require Docker", verifySafeBootstrap);
+test(
+  "workspace bootstrap removes vault integration without deleting vault data",
+  verifySafeBootstrap,
+);
+test("base image rollout updates the pinned template digest through a PR", verifyBaseImageRollout);
 test("supplemental tools support the non-root workspace", verifyNonRootSupplementalTools);
 test("Docker workspaces use the same repairable File Browser runtime", verifyDockerFileBrowser);
 test(
@@ -414,11 +418,12 @@ test(
   verifyCustomFileBrowserRootCreation,
 );
 test("workspace only provisions Claude and Codex AI agents", verifyAiAgentSelection);
+test(
+  "workspace provisions Unity, Blender, and the game-development Codex plugin",
+  verifyGameDevelopmentTooling,
+);
 test("shell setup retries incomplete Oh My Zsh installations", verifyShellRetry);
 test("GitHub helpers retrieve fresh Coder credentials on demand", verifyGithubHelpers);
 test("repository manifest only includes approved organizations", verifyRepositoryManifest);
-test(
-  "repository bootstrap is idempotent and preserves local vault content",
-  verifyRepositoryBootstrap,
-);
+test("repository bootstrap is idempotent", verifyRepositoryBootstrap);
 test("repository bootstrap rejects failed external authentication", verifyFailedExternalAuth);

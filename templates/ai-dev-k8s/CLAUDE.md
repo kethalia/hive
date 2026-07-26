@@ -1,21 +1,7 @@
-# Second Brain
+# Coder Workspace
 
-Your user maintains a personal knowledge vault at `~/vault`, accessible via the `obsidian` MCP server.
+Use repository-local source, Git history, issues, and `AGENTS.md` files as the source of truth. Keep changes scoped, preserve user work, and run the narrowest relevant checks before broader validation.
 
-## How to use the vault
+The workspace includes Codex, Claude Code, Playwright browser tooling, Unity Hub, Blender, Node.js, Foundry, and GitHub tooling. Unity Editor installations and licenses live in the persistent home volume. Do not assume GPU acceleration is available in the Kubernetes workspace.
 
-Before starting any task, use the obsidian MCP to load relevant context:
-
-- `mcp__obsidian__search_notes` — search by keyword across the whole vault
-- `mcp__obsidian__read_note` — read a specific note
-- `mcp__obsidian__list_notes` — list notes in a folder
-
-Key folders: `Projects/`, `Decision Log/`, `Patterns/`, `Principles/`, `Tech Stack/`, `Profile/`, `Knowledge Base/`
-
-## Writing back
-
-When you make a significant decision, discover a pattern, or complete a milestone — offer to update the relevant vault file.
-
-## Skills
-
-Custom slash commands for this vault are in `~/vault/Skills/`. Run `/help` in Claude Code to see them.
+Use skills and plugins installed under `~/.agents` for reusable workflows. Do not require or sync an Obsidian vault.
