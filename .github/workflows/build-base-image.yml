@@ -25,7 +25,7 @@ concurrency:
 jobs:
   build-test:
     name: Build and smoke test hive-base image
-    if: github.event_name != 'push' || github.ref != 'refs/heads/main'
+    if: github.ref != 'refs/heads/main' || (github.event_name != 'push' && github.event_name != 'workflow_dispatch')
     permissions:
       contents: read
     runs-on: ubuntu-latest
@@ -74,7 +74,7 @@ jobs:
 
   build-test-push:
     name: Build, smoke test, and push hive-base image
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
     permissions:
       actions: write
       contents: write

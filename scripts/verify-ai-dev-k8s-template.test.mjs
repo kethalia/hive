@@ -278,11 +278,11 @@ function verifyBaseImageRollout() {
   assert.match(workflow, /^permissions:\n {2}contents: read$/m);
   assert.match(
     workflow,
-    /build-test:\n[\s\S]*?if: github\.event_name != 'push'[\s\S]*?permissions:\n {6}contents: read/,
+    /build-test:\n[\s\S]*?if: github\.ref != 'refs\/heads\/main' \|\| \(github\.event_name != 'push' && github\.event_name != 'workflow_dispatch'\)[\s\S]*?permissions:\n {6}contents: read/,
   );
   assert.match(
     workflow,
-    /build-test-push:\n[\s\S]*?if: github\.event_name == 'push' && github\.ref == 'refs\/heads\/main'[\s\S]*?permissions:\n {6}actions: write\n {6}contents: write\n {6}packages: write\n {6}pull-requests: write/,
+    /build-test-push:\n[\s\S]*?if: github\.ref == 'refs\/heads\/main' && \(github\.event_name == 'push' \|\| github\.event_name == 'workflow_dispatch'\)[\s\S]*?permissions:\n {6}actions: write\n {6}contents: write\n {6}packages: write\n {6}pull-requests: write/,
   );
   assert.match(
     readFileSync(join(process.cwd(), ".github/workflows/ci.yml"), "utf8"),
@@ -620,6 +620,7 @@ test(
   "workspace migration removes only manifest-owned vault context",
   verifyVaultManagedContextCleanup,
 );
+test("workspace migration replaces read-only persisted MCP configs", verifyReadOnlyMcpMigration);
 test("base image rollout updates the pinned template digest through a PR", verifyBaseImageRollout);
 test("supplemental tools support the non-root workspace", verifyNonRootSupplementalTools);
 test("Docker workspaces use the same repairable File Browser runtime", verifyDockerFileBrowser);
@@ -730,6 +731,42 @@ function verifyGamePluginLifecycle() {
     "list",
     "add game-development@team-local",
   ]);
+}
+
+function runReadOnlyMcpMigrationFixture(templateRoot) {
+  const initScript = readFileSync(join(templateRoot, "scripts/init.sh"), "utf8");
+  const configMatch = initScript.match(/python3 - <<'PYCONFIG'\n([\s\S]*?)\nPYCONFIG/);
+  const fixtureRoot = mkdtempSync(join(tmpdir(), "read-only-mcp-"));
+  const home = join(fixtureRoot, "home");
+  const claudeRoot = join(home, ".claude");
+  const claudeMcp = join(claudeRoot, "mcp.json");
+
+  assert.ok(configMatch);
+  mkdirSync(claudeRoot, { recursive: true });
+  writeFileSync(
+    claudeMcp,
+    '{"mcpServers":{"obsidian":{"command":"remove"},"custom":{"command":"keep"}}}\n',
+  );
+  chmodSync(claudeMcp, 0o444);
+  const configScript = join(fixtureRoot, "configure.py");
+  writeFileSync(configScript, configMatch[1]);
+  const result = spawnSync("python3", [configScript], {
+    encoding: "utf8",
+    env: { ...process.env, HOME: home },
+  });
+
+  assert.equal(result.status, 0, result.stderr);
+  const migrated = JSON.parse(readFileSync(claudeMcp, "utf8"));
+  assert.equal(migrated.mcpServers.obsidian, undefined);
+  assert.equal(migrated.mcpServers.custom.command, "keep");
+  assert.equal(migrated.mcpServers.playwright.command, "npx");
+  assert.equal(statSync(claudeMcp).mode & 0o777, 0o600);
+}
+
+function verifyReadOnlyMcpMigration() {
+  for (const templateRoot of [DOCKER_TEMPLATE_ROOT, join(process.cwd(), "templates/hive")]) {
+    runReadOnlyMcpMigrationFixture(templateRoot);
+  }
 }
 
 function runHiveProjectMcpMigrationFixture() {

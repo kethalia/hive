@@ -16,7 +16,23 @@ export PATH="$HOME/.local/bin:$HOME/.local/share/pnpm:$HOME/.bun/bin:$HOME/.foun
 python3 - <<'PYCONFIG'
 import json
 import os
+import tempfile
 from pathlib import Path
+
+
+def replace_text(path, content):
+    path.parent.mkdir(parents=True, exist_ok=True)
+    descriptor, temporary_name = tempfile.mkstemp(prefix=f".{path.name}.hive-", dir=path.parent)
+    temporary = Path(temporary_name)
+    try:
+        with os.fdopen(descriptor, "w") as output:
+            output.write(content)
+        temporary.chmod(0o600)
+        temporary.replace(path)
+    except BaseException:
+        temporary.unlink(missing_ok=True)
+        raise
+
 
 home = Path(os.environ["HOME"])
 config = home / ".codex" / "config.toml"
@@ -44,8 +60,7 @@ for line in existing.splitlines():
         preserved.append(line)
 base = "\n".join(preserved).strip()
 updated = (base + "\n\n" if base else "") + block + "\n"
-config.write_text(updated)
-config.chmod(0o600)
+replace_text(config, updated)
 
 playwright = {"command": "npx", "args": ["-y", "@playwright/mcp", "--no-sandbox"], "env": {"DISPLAY": ":1"}}
 for path in (home / ".claude" / "mcp.json", home / ".mcp.json"):
@@ -58,8 +73,7 @@ for path in (home / ".claude" / "mcp.json", home / ".mcp.json"):
     servers.pop("obsidian", None)
     servers.pop("hive_obsidian", None)
     servers["playwright"] = playwright
-    path.write_text(json.dumps(data, indent=2) + "\n")
-    path.chmod(0o600)
+    replace_text(path, json.dumps(data, indent=2) + "\n")
 PYCONFIG
 
 remove_vault_managed_context() {
