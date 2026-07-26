@@ -16,6 +16,7 @@ on:
   workflow_dispatch:
 
 permissions:
+  actions: write
   contents: write
   packages: write
   pull-requests: write
@@ -107,24 +108,36 @@ jobs:
           IMAGE_DIGEST: ${{ steps.image.outputs.digest }}
         run: |
           branch="automation/hive-base-${GITHUB_SHA:0:12}"
-          if git ls-remote --exit-code --heads origin "$branch" >/dev/null 2>&1; then
-            echo "Digest update branch already exists: $branch"
-            exit 0
+          if ! git ls-remote --exit-code --heads origin "$branch" >/dev/null 2>&1; then
+            sed -i -E \
+              "s#ghcr.io/kethalia/hive-base@sha256:[0-9a-f]{64}#ghcr.io/kethalia/hive-base@${IMAGE_DIGEST}#g" \
+              templates/ai-dev-k8s/main.tf
+
+            git diff --exit-code -- templates/ai-dev-k8s/main.tf && exit 0
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git switch -c "$branch"
+            git add templates/ai-dev-k8s/main.tf
+            git commit -m "chore(template): update hive-base image digest"
+            git push origin "$branch"
           fi
 
-          sed -i -E \
-            "s#ghcr.io/kethalia/hive-base@sha256:[0-9a-f]{64}#ghcr.io/kethalia/hive-base@${IMAGE_DIGEST}#g" \
-            templates/ai-dev-k8s/main.tf
+          pr_data="$(gh pr list --head "$branch" --state all --json number,state,url --jq 'if length == 0 then "" else .[0] | [.number, .state, .url] | @tsv end')"
+          if [ -z "$pr_data" ]; then
+            pr_url="$(gh pr create \
+              --base main \
+              --head "$branch" \
+              --title "chore(template): update hive-base image digest" \
+              --body "Pins the Kubernetes workspace template to the hive-base image built and smoke-tested from commit ${GITHUB_SHA}.")"
+          else
+            IFS=$'\t' read -r pr_number pr_state pr_url <<< "$pr_data"
+            if [ "$pr_state" = "CLOSED" ]; then
+              gh pr reopen "$pr_number"
+            elif [ "$pr_state" = "MERGED" ]; then
+              echo "Digest update already merged: $pr_url"
+              exit 0
+            fi
+          fi
 
-          git diff --exit-code -- templates/ai-dev-k8s/main.tf && exit 0
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git switch -c "$branch"
-          git add templates/ai-dev-k8s/main.tf
-          git commit -m "chore(template): update hive-base image digest"
-          git push origin "$branch"
-          gh pr create \
-            --base main \
-            --head "$branch" \
-            --title "chore(template): update hive-base image digest" \
-            --body "Pins the Kubernetes workspace template to the hive-base image built and smoke-tested from commit ${GITHUB_SHA}."
+          echo "Digest update PR: $pr_url"
+          gh workflow run ci.yml --ref "$branch"

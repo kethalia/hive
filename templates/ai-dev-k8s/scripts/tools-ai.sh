@@ -103,7 +103,8 @@ else
 fi
 
 if command_exists codex && [ -f "$HOME/.agents/plugins/marketplace.json" ]; then
-  if codex plugin list 2>/dev/null | grep -q '^game-development@personal'; then
+  if codex plugin list --json 2>/dev/null \
+    | jq -e 'any(.installed[]?; .pluginId == "game-development@personal" and .installed == true)' >/dev/null; then
     printf '%b[ok] Game Development Codex plugin already installed%b\n' "$GREEN" "$RESET"
   elif codex plugin add game-development@personal --json >/tmp/hive-codex-plugin.json 2>/tmp/hive-codex-plugin.err; then
     printf '%b[ok] Game Development Codex plugin installed%b\n' "$GREEN" "$RESET"

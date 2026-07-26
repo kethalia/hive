@@ -63,9 +63,43 @@ for path in (home / ".claude" / "mcp.json", home / ".mcp.json"):
     path.chmod(0o600)
 PYCONFIG
 
+remove_vault_managed_context() {
+  local skills_root manifest managed_name agent_file
+  for skills_root in "$HOME/.agents/skills" "$HOME/.claude/skills"; do
+    manifest="$skills_root/.vault-managed"
+    [ -f "$manifest" ] || continue
+    while IFS= read -r managed_name; do
+      case "$managed_name" in
+        "" | */* | ".." | -*)
+          printf 'WARNING: ignoring suspicious vault-managed skill: %s\n' "$managed_name" >&2
+          continue
+          ;;
+      esac
+      if [ -e "$skills_root/$managed_name" ] || [ -L "$skills_root/$managed_name" ]; then
+        rm -rf -- "$skills_root/$managed_name"
+      fi
+    done < "$manifest"
+    rm -f -- "$manifest"
+  done
+
+  for agent_file in \
+    "$HOME/.codex/AGENTS.md" \
+    "$HOME/.claude/AGENTS.md" \
+    "$HOME/.agents/AGENTS.md" \
+    "$HOME/.claude/CLAUDE.md" \
+    "$HOME/.agents/CLAUDE.md"; do
+    if [ -f "$agent_file" ] && { grep -qF '## Vault Context Layer' "$agent_file" || grep -qF 'personal knowledge vault at' "$agent_file"; }; then
+      cat > "$agent_file" << 'AGENTEOF'
+${claude_md_content}
+AGENTEOF
+    fi
+  done
+}
+
+remove_vault_managed_context
 rm -f "$HOME/sync-vault.sh" "$HOME/.config/hive/vault-repository" "$HOME/.config/autostart/obsidian.desktop"
 mkdir -p "$HOME/.claude"
-if [ ! -f "$HOME/.claude/CLAUDE.md" ] || grep -qF 'personal knowledge vault at `~/vault`' "$HOME/.claude/CLAUDE.md"; then
+if [ ! -f "$HOME/.claude/CLAUDE.md" ] || grep -qF 'personal knowledge vault at' "$HOME/.claude/CLAUDE.md"; then
   cat > "$HOME/.claude/CLAUDE.md" << 'CLAUDEEOF'
 ${claude_md_content}
 CLAUDEEOF

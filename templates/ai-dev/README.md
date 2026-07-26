@@ -5,6 +5,7 @@ A production-ready Coder template for AI-assisted full-stack development. Featur
 ## Features
 
 ### AI-Assisted Development
+
 - **Claude Code** - Anthropic's coding agent with CLI and web interface
 - **Codex CLI** - OpenAI's local coding agent with headed Playwright MCP
 - **OpenGSD core + Pi** - Maintained GSD slash commands for Claude Code and Codex plus the standalone `gsd` CLI from OpenGSD
@@ -12,6 +13,7 @@ A production-ready Coder template for AI-assisted full-stack development. Featur
 - All AI tools are configurable via template variables
 
 ### Development Environment
+
 - **Game development** - Unity Hub, Blender 4.5 LTS, C#, Unity, and shader editor support
 - **Docker** - Full Docker + Compose + act (run GitHub Actions locally)
 - **Node.js** - Multiple versions (18, 20, 22, 24) via version switcher
@@ -24,10 +26,12 @@ A production-ready Coder template for AI-assisted full-stack development. Featur
 - **direnv** - Per-project environment management
 
 ### VS Code Integration
+
 - 20 curated extensions including Solidity, Tailwind CSS, GraphQL, Prisma, GitLens, Docker, Error Lens, and more
 - Pre-configured settings for formatting, themes, and terminal
 
 ### Performance & Reliability
+
 - **Resource limits** - 12GB RAM, 6 CPU cores, 32GB total memory (with swap)
 - **Health checks** - Automatic container health monitoring
 - **Monitoring** - Built-in CPU, RAM, disk, and swap metrics
@@ -36,6 +40,7 @@ A production-ready Coder template for AI-assisted full-stack development. Featur
 ## Quick Start
 
 ### Prerequisites
+
 - Coder v2.x deployed and running
 - Docker available on Coder host
 - GitHub external auth configured (id: `primary-github`)

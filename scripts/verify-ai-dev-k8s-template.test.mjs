@@ -1,7 +1,15 @@
 /* eslint-disable security/detect-non-literal-fs-filename -- Test paths are created under an isolated mkdtemp fixture. */
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { chmodSync, mkdirSync, mkdtempSync, readFileSync, statSync, writeFileSync } from "node:fs";
+import {
+  chmodSync,
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  statSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
@@ -139,7 +147,62 @@ function verifySafeBootstrap() {
   assert.match(initScript, /managed_tables/);
   assert.doesNotMatch(initScript, /existing\.split\(start/);
   assert.match(initScript, /\.config\/autostart\/obsidian\.desktop/);
+  assert.match(initScript, /remove_vault_managed_context/);
+  assert.match(initScript, /\.vault-managed/);
   assert.doesNotMatch(initScript, /rm[^\n]*\$HOME\/vault/);
+
+  for (const templateRoot of [
+    TEMPLATE_ROOT,
+    DOCKER_TEMPLATE_ROOT,
+    join(process.cwd(), "templates/hive"),
+  ]) {
+    const templateInit = readFileSync(join(templateRoot, "scripts/init.sh"), "utf8");
+    assert.match(templateInit, /remove_vault_managed_context/);
+    assert.match(templateInit, /\.vault-managed/);
+    assert.doesNotMatch(templateInit, /personal knowledge vault at `~\/vault`/);
+    assert.doesNotMatch(templateInit, /rm[^\n]*\$HOME\/vault/);
+  }
+}
+
+function verifyVaultManagedContextCleanup() {
+  const fixtureRoot = mkdtempSync(join(tmpdir(), "ai-dev-k8s-vault-cleanup-"));
+  const home = join(fixtureRoot, "home");
+  const managedSkill = join(home, ".agents", "skills", "managed-skill");
+  const retainedSkill = join(home, ".agents", "skills", "retained-skill");
+  const vault = join(home, "vault");
+  const initScript = readTemplateFile("scripts/init.sh");
+  const functionMatch = initScript.match(
+    /remove_vault_managed_context\(\) \{[\s\S]*?\n\}\n\nconfigure_codex_mcp/,
+  );
+
+  assert.ok(functionMatch);
+  mkdirSync(managedSkill, { recursive: true });
+  mkdirSync(retainedSkill, { recursive: true });
+  mkdirSync(vault, { recursive: true });
+  mkdirSync(join(home, ".codex"), { recursive: true });
+  writeFileSync(join(managedSkill, "SKILL.md"), "managed\n");
+  writeFileSync(join(retainedSkill, "SKILL.md"), "retained\n");
+  writeFileSync(join(home, ".agents", "skills", ".vault-managed"), "managed-skill\n../vault\n");
+  writeFileSync(join(home, ".codex", "AGENTS.md"), "# Old\n\n## Vault Context Layer\n");
+  writeFileSync(join(vault, "keep.txt"), "keep\n");
+
+  const claudeTemplateToken = "$" + "{claude_md_content}";
+  const cleanup = `${functionMatch[0].replace(/\n\nconfigure_codex_mcp$/, "").replace(claudeTemplateToken, "# Coder Workspace")}
+remove_vault_managed_context
+`;
+  const script = join(fixtureRoot, "cleanup.sh");
+  writeFileSync(script, cleanup);
+  const result = spawnSync("bash", [script], {
+    encoding: "utf8",
+    env: { ...process.env, HOME: home },
+  });
+
+  assert.equal(result.status, 0, result.stderr);
+  assert.equal(existsSync(managedSkill), false);
+  assert.equal(existsSync(retainedSkill), true);
+  assert.equal(existsSync(join(home, ".agents", "skills", ".vault-managed")), false);
+  assert.equal(readFileSync(join(home, ".codex", "AGENTS.md"), "utf8"), "# Coder Workspace\n");
+  assert.equal(readFileSync(join(vault, "keep.txt"), "utf8"), "keep\n");
 }
 
 function verifyBaseImageRollout() {
@@ -154,6 +217,14 @@ function verifyBaseImageRollout() {
   assert.match(workflow, /docker buildx imagetools inspect/);
   assert.match(workflow, /chore\(template\): update hive-base image digest/);
   assert.match(workflow, /gh pr create/);
+  assert.match(workflow, /gh pr list --head "\$branch" --state all/);
+  assert.match(workflow, /gh pr reopen/);
+  assert.match(workflow, /gh workflow run ci\.yml --ref "\$branch"/);
+  assert.match(workflow, /actions: write/);
+  assert.match(
+    readFileSync(join(process.cwd(), ".github/workflows/ci.yml"), "utf8"),
+    /workflow_dispatch:/,
+  );
   assert.doesNotMatch(workflow, /git push origin main/);
 }
 
@@ -257,6 +328,9 @@ function verifyAiAgentSelection() {
     assert.ok(!content.toLowerCase().includes("get-shit-done"));
   }
   assert.match(script, /codex plugin add game-development@personal/);
+  assert.match(script, /codex plugin list --json/);
+  assert.match(script, /\.installed == true/);
+  assert.doesNotMatch(script, /grep -q '\^game-development@personal'/);
   assert.doesNotMatch(terraform, /sync-vault|vault_repo|mcpvault/);
 }
 
@@ -282,13 +356,61 @@ function verifyGameDevelopmentTooling() {
   assert.match(terraform, /ms-dotnettools\.csharp/);
   assert.match(terraform, /game_plugin_manifest_b64/);
   assert.match(initScript, /install_game_plugin_source/);
-  assert.match(initScript, /\$root\/plugins\/marketplace\.json/);
+  assert.match(initScript, /local plugin="\$HOME\/plugins\/game-development"/);
+  assert.match(initScript, /marketplace\.pre-hive-invalid\.json/);
+  assert.match(initScript, /plugin\.get\("name"\) != "game-development"/);
+  assert.match(initScript, /temporary\.replace\(target\)/);
   assert.equal(marketplace.plugins[0].name, "game-development");
+  assert.equal(marketplace.plugins[0].source.path, "./plugins/game-development");
   assert.equal(plugin.name, "game-development");
   assert.equal(plugin.skills, "./skills/");
   assert.doesNotMatch(claudeMcp, /obsidian|mcpvault/i);
   assert.doesNotMatch(obsidianDesktop, /\/home\/coder\/vault/);
   assert.match(obsidianDesktop, /^Name=Obsidian$/m);
+}
+
+function verifyMarketplaceMerge() {
+  const fixtureRoot = mkdtempSync(join(tmpdir(), "ai-dev-k8s-marketplace-"));
+  const home = join(fixtureRoot, "home");
+  const marketplacePath = join(home, ".agents", "plugins", "marketplace.json");
+  const initScript = readTemplateFile("scripts/init.sh");
+  const scriptMatch = initScript.match(/python3 - <<'PYMARKETPLACE'\n([\s\S]*?)\nPYMARKETPLACE/);
+  const managed = readTemplateFile("codex/.agents/plugins/marketplace.json");
+
+  assert.ok(scriptMatch);
+  mkdirSync(join(home, ".agents", "plugins"), { recursive: true });
+  writeFileSync(
+    marketplacePath,
+    `${JSON.stringify({
+      name: "personal",
+      interface: { displayName: "My Plugins", extra: true },
+      customMetadata: { retained: true },
+      plugins: [
+        { name: "existing-plugin", source: { source: "local", path: "./existing" } },
+        { name: "game-development", source: { source: "local", path: "./stale" } },
+      ],
+    })}\n`,
+  );
+
+  const script = join(fixtureRoot, "merge.py");
+  writeFileSync(script, scriptMatch[1]);
+  const result = spawnSync("python3", [script], {
+    encoding: "utf8",
+    env: {
+      ...process.env,
+      HOME: home,
+      HIVE_GAME_MARKETPLACE_B64: Buffer.from(managed).toString("base64"),
+    },
+  });
+
+  assert.equal(result.status, 0, result.stderr);
+  const merged = JSON.parse(readFileSync(marketplacePath, "utf8"));
+  assert.deepEqual(merged.customMetadata, { retained: true });
+  assert.deepEqual(merged.interface, { displayName: "My Plugins", extra: true });
+  assert.equal(merged.plugins.length, 2);
+  assert.equal(merged.plugins[0].name, "existing-plugin");
+  assert.equal(merged.plugins[1].name, "game-development");
+  assert.equal(merged.plugins[1].source.path, "./plugins/game-development");
 }
 
 function verifyShellRetry() {
@@ -410,6 +532,10 @@ test(
   "workspace bootstrap removes vault integration without deleting vault data",
   verifySafeBootstrap,
 );
+test(
+  "workspace migration removes only manifest-owned vault context",
+  verifyVaultManagedContextCleanup,
+);
 test("base image rollout updates the pinned template digest through a PR", verifyBaseImageRollout);
 test("supplemental tools support the non-root workspace", verifyNonRootSupplementalTools);
 test("Docker workspaces use the same repairable File Browser runtime", verifyDockerFileBrowser);
@@ -422,6 +548,7 @@ test(
   "workspace provisions Unity, Blender, and the game-development Codex plugin",
   verifyGameDevelopmentTooling,
 );
+test("game marketplace merge preserves user plugins and metadata", verifyMarketplaceMerge);
 test("shell setup retries incomplete Oh My Zsh installations", verifyShellRetry);
 test("GitHub helpers retrieve fresh Coder credentials on demand", verifyGithubHelpers);
 test("repository manifest only includes approved organizations", verifyRepositoryManifest);
