@@ -64,7 +64,7 @@ PYCONFIG
 
 remove_vault_managed_context() {
   local skills_root manifest managed_name agent_file
-  for skills_root in "$HOME/.agents/skills" "$HOME/.claude/skills"; do
+  for skills_root in "$HOME/.agents/skills" "$HOME/.claude/skills" "$HOME/.pi/agent/skills"; do
     manifest="$skills_root/.vault-managed"
     [ -f "$manifest" ] || continue
     while IFS= read -r managed_name; do
@@ -86,7 +86,9 @@ remove_vault_managed_context() {
     "$HOME/.claude/AGENTS.md" \
     "$HOME/.agents/AGENTS.md" \
     "$HOME/.claude/CLAUDE.md" \
-    "$HOME/.agents/CLAUDE.md"; do
+    "$HOME/.agents/CLAUDE.md" \
+    "$HOME/.pi/agent/AGENTS.md" \
+    "$HOME/.pi/agent/CLAUDE.md"; do
     if [ -f "$agent_file" ] && { grep -qF '## Vault Context Layer' "$agent_file" || grep -qF 'personal knowledge vault at' "$agent_file"; }; then
       cat > "$agent_file" << 'AGENTEOF'
 ${claude_md_content}

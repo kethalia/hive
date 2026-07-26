@@ -9,8 +9,10 @@ if [ -n "$HIVE_REPO_URL" ]; then
     git clone "$HIVE_REPO_URL" /home/coder/project
   fi
   if [ -n "$HIVE_BRANCH_NAME" ] && [ -d /home/coder/project ]; then
-    cd /home/coder/project
-    git checkout -b "$HIVE_BRANCH_NAME" 2>/dev/null || git checkout "$HIVE_BRANCH_NAME"
+    if ! git -C /home/coder/project checkout -b "$HIVE_BRANCH_NAME" 2>/dev/null \
+      && ! git -C /home/coder/project checkout "$HIVE_BRANCH_NAME" 2>/dev/null; then
+      printf 'Warning: could not checkout branch %s; keeping the current worktree\n' "$HIVE_BRANCH_NAME" >&2
+    fi
   fi
 fi
 
@@ -61,11 +63,24 @@ for path in (home / ".claude" / "mcp.json", home / ".mcp.json"):
     servers["playwright"] = playwright
     path.write_text(json.dumps(data, indent=2) + "\n")
     path.chmod(0o600)
+
+project_config = home / "project" / ".gsd" / "mcp.json"
+if project_config.exists():
+    try:
+        project_data = json.loads(project_config.read_text())
+    except json.JSONDecodeError:
+        print(f"WARNING: preserving invalid MCP config: {project_config}")
+    else:
+        project_servers = project_data.setdefault("mcpServers", {})
+        project_servers.pop("obsidian", None)
+        project_servers.pop("hive_obsidian", None)
+        project_config.write_text(json.dumps(project_data, indent=2) + "\n")
+        project_config.chmod(0o600)
 PYCONFIG
 
 remove_vault_managed_context() {
   local skills_root manifest managed_name agent_file
-  for skills_root in "$HOME/.agents/skills" "$HOME/.claude/skills"; do
+  for skills_root in "$HOME/.agents/skills" "$HOME/.claude/skills" "$HOME/.pi/agent/skills"; do
     manifest="$skills_root/.vault-managed"
     [ -f "$manifest" ] || continue
     while IFS= read -r managed_name; do
@@ -87,7 +102,9 @@ remove_vault_managed_context() {
     "$HOME/.claude/AGENTS.md" \
     "$HOME/.agents/AGENTS.md" \
     "$HOME/.claude/CLAUDE.md" \
-    "$HOME/.agents/CLAUDE.md"; do
+    "$HOME/.agents/CLAUDE.md" \
+    "$HOME/.pi/agent/AGENTS.md" \
+    "$HOME/.pi/agent/CLAUDE.md"; do
     if [ -f "$agent_file" ] && { grep -qF '## Vault Context Layer' "$agent_file" || grep -qF 'personal knowledge vault at' "$agent_file"; }; then
       cat > "$agent_file" << 'AGENTEOF'
 ${claude_md_content}

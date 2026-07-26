@@ -119,7 +119,8 @@ PYMCP
 install_game_plugin_source() {
   local root="$HOME/.agents"
   local plugin="$HOME/plugins/game-development"
-  mkdir -p "$plugin/.codex-plugin" \
+  mkdir -p "$root/plugins" \
+    "$plugin/.codex-plugin" \
     "$plugin/skills/unity-development/agents" \
     "$plugin/skills/blender-asset-pipeline/agents"
   HIVE_GAME_MARKETPLACE_B64="${codex_marketplace_b64}" python3 - <<'PYMARKETPLACE'
