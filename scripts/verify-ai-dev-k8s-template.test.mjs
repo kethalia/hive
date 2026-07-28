@@ -407,10 +407,8 @@ function verifyGameDevelopmentTooling() {
     join(process.cwd(), "docker/hive-base/obsidian.desktop"),
     "utf8",
   );
-  const marketplace = JSON.parse(readTemplateFile("codex/.agents/plugins/marketplace.json"));
-  const plugin = JSON.parse(
-    readTemplateFile("codex/plugins/game-development/.codex-plugin/plugin.json"),
-  );
+  const marketplace = JSON.parse(readTemplateFile("codex/marketplace.json"));
+  const plugin = JSON.parse(readTemplateFile("codex/plugins/game-development/plugin.json"));
 
   assert.match(dockerfile, /UnityHubSetup-3\.19\.5-amd64\.deb/);
   assert.match(dockerfile, /5a5b57adc9ce20931c4154c57ffded08f3ffa2743286fdf14c9e7add6b212540/);
@@ -438,13 +436,29 @@ function verifyGameDevelopmentTooling() {
   assert.match(obsidianDesktop, /^Name=Obsidian$/m);
 }
 
+function verifyCoderTemplateUploadPaths() {
+  const terraform = readTemplateFile("main.tf");
+  const references = [
+    ...terraform.matchAll(/(?:file|templatefile)\("\$\{path\.module\}\/([^"]+)"/g),
+  ].map(([, relativePath]) => relativePath);
+
+  assert.ok(references.length > 0);
+  for (const relativePath of references) {
+    assert.ok(
+      relativePath.split("/").every((part) => !part.startsWith(".")),
+      `${relativePath} contains a hidden path that coder templates push will omit`,
+    );
+    assert.ok(existsSync(join(TEMPLATE_ROOT, relativePath)), `${relativePath} must exist`);
+  }
+}
+
 function runMarketplaceMergeFixture(existingMarketplace) {
   const fixtureRoot = mkdtempSync(join(tmpdir(), "ai-dev-k8s-marketplace-"));
   const home = join(fixtureRoot, "home");
   const marketplacePath = join(home, ".agents", "plugins", "marketplace.json");
   const initScript = readTemplateFile("scripts/init.sh");
   const scriptMatch = initScript.match(/python3 - <<'PYMARKETPLACE'\n([\s\S]*?)\nPYMARKETPLACE/);
-  const managed = readTemplateFile("codex/.agents/plugins/marketplace.json");
+  const managed = readTemplateFile("codex/marketplace.json");
 
   assert.ok(scriptMatch);
   mkdirSync(join(home, ".agents", "plugins"), { recursive: true });
@@ -633,6 +647,10 @@ test("game plugin install follows marketplace name and source version", verifyGa
 test(
   "workspace provisions Unity, Blender, and the game-development Codex plugin",
   verifyGameDevelopmentTooling,
+);
+test(
+  "Coder template uploads include every Terraform file dependency",
+  verifyCoderTemplateUploadPaths,
 );
 test("game marketplace merge preserves user plugins and metadata", verifyMarketplaceMerge);
 test(
