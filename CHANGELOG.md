@@ -1,5 +1,11 @@
 # hive-orchestrator
 
+## 2.10.2
+
+### Patch Changes
+
+- f74efe7: Store Codex plugin manifests at upload-safe template source paths so Coder template pushes include them.
+
 ## 2.10.1
 
 ### Patch Changes
