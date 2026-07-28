@@ -602,7 +602,7 @@ resource "kubernetes_deployment_v1" "workspace" {
 
         init_container {
           name              = "seed-home"
-          image             = "ghcr.io/kethalia/hive-base@sha256:3d1942a23c132385c55e1ffe41c45dfb9b1a7896238be14034e10c9109d47c03"
+          image             = "ghcr.io/kethalia/hive-base@sha256:bb97b886b33dab0a4ddfb93629cde56dd7364a8853146015d9ccf41ca5b595ad"
           image_pull_policy = "IfNotPresent"
           command = [
             "sh",
@@ -639,7 +639,7 @@ resource "kubernetes_deployment_v1" "workspace" {
 
         container {
           name              = "dev"
-          image             = "ghcr.io/kethalia/hive-base@sha256:3d1942a23c132385c55e1ffe41c45dfb9b1a7896238be14034e10c9109d47c03"
+          image             = "ghcr.io/kethalia/hive-base@sha256:bb97b886b33dab0a4ddfb93629cde56dd7364a8853146015d9ccf41ca5b595ad"
           image_pull_policy = "IfNotPresent"
           command           = ["sh", "-c", coder_agent.main.init_script]
 
