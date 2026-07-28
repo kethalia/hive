@@ -53,8 +53,8 @@ COPY --from=builder /app/public ./public
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 # Templates are runtime data used by the template status and push APIs. Copy
-# them explicitly because Next.js output tracing omits hidden plugin metadata
-# such as .codex-plugin/plugin.json and .agents/plugins/marketplace.json.
+# the complete source tree explicitly instead of depending on Next.js output
+# tracing to discover every file read dynamically at runtime.
 COPY --from=builder --chown=nextjs:nodejs /app/templates ./templates
 USER nextjs
 EXPOSE 3000

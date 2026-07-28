@@ -132,8 +132,8 @@ resource "coder_agent" "main" {
     owner_name                 = data.coder_workspace_owner.me.name
     owner_email                = data.coder_workspace_owner.me.email
     claude_md_content          = file("${path.module}/CLAUDE.md")
-    codex_marketplace_b64      = base64encode(file("${path.module}/codex/.agents/plugins/marketplace.json"))
-    game_plugin_manifest_b64   = base64encode(file("${path.module}/codex/plugins/game-development/.codex-plugin/plugin.json"))
+    codex_marketplace_b64      = base64encode(file("${path.module}/codex/marketplace.json"))
+    game_plugin_manifest_b64   = base64encode(file("${path.module}/codex/plugins/game-development/plugin.json"))
     unity_skill_b64            = base64encode(file("${path.module}/codex/plugins/game-development/skills/unity-development/SKILL.md"))
     unity_skill_metadata_b64   = base64encode(file("${path.module}/codex/plugins/game-development/skills/unity-development/agents/openai.yaml"))
     blender_skill_b64          = base64encode(file("${path.module}/codex/plugins/game-development/skills/blender-asset-pipeline/SKILL.md"))
