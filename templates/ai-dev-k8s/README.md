@@ -23,6 +23,10 @@ replacement. Workspaces prefer `k3s-03` but may schedule elsewhere. The pinned
 The default home volume is 100 GiB. The workspace requests 2 CPU and 4 GiB of
 memory, with limits of 6 CPU and 12 GiB.
 
+The template has no user-configurable creation parameters or Terraform input
+variables. It uses the fixed 100 GiB home volume and `/home/coder` project root,
+while Claude Code follows its own current model and system-prompt defaults.
+
 Docker socket access is intentionally absent. Container builds must use a
 rootless or remote builder in a later template iteration.
 

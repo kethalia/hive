@@ -93,7 +93,10 @@ function verifyPodSecurity() {
   assert.match(terraform, /fs_group_change_policy\s*=\s*"OnRootMismatch"/);
   assert.match(terraform, /"app\.kubernetes\.io\/name"\s*=\s*"coder-workspace"/);
   assert.doesNotMatch(terraform, /ignore_changes\s*=\s*all/);
-  assert.match(terraform, /name\s*=\s*"home_disk_size"[\s\S]*?mutable\s*=\s*false/);
+  assert.doesNotMatch(terraform, /data "coder_parameter"/);
+  assert.doesNotMatch(terraform, /variable "/);
+  assert.doesNotMatch(terraform, /module "dotfiles"/);
+  assert.match(terraform, /storage\s*=\s*"100Gi"/);
   assert.match(terraform, /name\s*=\s*"USER"[\s\S]*?value\s*=\s*"coder"/);
   assert.match(terraform, /name\s*=\s*"HOME"[\s\S]*?value\s*=\s*"\/home\/coder"/);
 }
@@ -301,8 +304,7 @@ function verifyNonRootSupplementalTools() {
   assert.match(terraform, /resource "coder_script" "filebrowser"/);
   assert.match(terraform, /resource "coder_app" "filebrowser"/);
   assert.match(terraform, /start_blocks_login\s*=\s*false/);
-  assert.match(terraform, /name\s*=\s*"projects_root"[\s\S]*?default\s*=\s*"\/home\/coder"/);
-  assert.match(terraform, /HIVE_PROJECTS_ROOT\s*=\s*data\.coder_parameter\.projects_root\.value/);
+  assert.match(terraform, /HIVE_PROJECTS_ROOT\s*=\s*"\/home\/coder"/);
   assert.ok(filebrowser.includes('filebrowser_version="2.63.18"'));
   assert.ok(
     filebrowser.includes("cd599c34afad0e8e61c577d1061c820bccb7feaa3c5a4477a12db586a1cd93ff"),
