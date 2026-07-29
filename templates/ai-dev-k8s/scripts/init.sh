@@ -18,6 +18,8 @@ if [ ! -f "$HOME/.workspace_initialized" ]; then
 
 - `claude` — Claude Code
 - `codex` — Codex CLI with Playwright browser tooling
+- Official React, UI review, Cloudflare, and application-security skills are shared by both agents.
+- Codex includes OpenAI's official GitHub plugin; open `/plugins` if connector authentication is required.
 
 ## Game development
 

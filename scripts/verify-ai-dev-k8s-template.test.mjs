@@ -399,6 +399,41 @@ function verifyAiAgentSelection() {
   assert.match(agentInstructions, /only vendor-published or OpenAI-curated skills and plugins/);
 }
 
+function verifyCuratedAgentCapabilities() {
+  const script = readTemplateFile("scripts/tools-ai.sh");
+  const readme = readTemplateFile("README.md");
+
+  assert.match(script, /skills_cli_version="1\.5\.20"/);
+  assert.match(script, /openai_skills_ref="[0-9a-f]{40}"/);
+  assert.match(script, /vercel_skills_ref="[0-9a-f]{40}"/);
+  assert.match(script, /plugins_ref="[0-9a-f]{40}"/);
+  assert.doesNotMatch(script, /openai_skills_ref="(?:main|latest)"/);
+  assert.doesNotMatch(script, /vercel_skills_ref="(?:main|latest)"/);
+  assert.doesNotMatch(script, /plugins_ref="(?:main|latest)"/);
+
+  for (const skill of [
+    "cloudflare-deploy",
+    "security-best-practices",
+    "security-threat-model",
+    "react-best-practices",
+    "composition-patterns",
+    "web-design-guidelines",
+  ]) {
+    assert.ok(script.includes(skill), `${skill} must be provisioned`);
+    assert.ok(readme.includes(skill), `${skill} must be documented`);
+  }
+
+  assert.match(script, /https:\/\/github\.com\/openai\/skills\.git/);
+  assert.match(script, /https:\/\/github\.com\/vercel-labs\/agent-skills\.git/);
+  assert.match(script, /--agent claude-code/);
+  assert.match(script, /--agent codex/);
+  assert.match(script, /\.agents\/skills\/\.hive-official/);
+  assert.match(script, /https:\/\/github\.com\/openai\/plugins\.git/);
+  assert.match(script, /github@\$marketplace_name/);
+  assert.match(script, /"name": "hive-openai-official"/);
+  assert.match(readme, /Playwright remains an MCP server rather than a[\s\S]*duplicated skill/);
+}
+
 function verifyGameDevelopmentTooling() {
   const terraform = readTemplateFile("main.tf");
   const dockerfile = readFileSync(join(process.cwd(), "docker/hive-base/Dockerfile"), "utf8");
@@ -604,6 +639,10 @@ test(
   verifyCustomFileBrowserRootCreation,
 );
 test("workspace only provisions Claude and Codex AI agents", verifyAiAgentSelection);
+test(
+  "workspace provisions pinned official skills and the OpenAI GitHub plugin",
+  verifyCuratedAgentCapabilities,
+);
 test(
   "workspace provisions official Unity and Blender applications without custom skills",
   verifyGameDevelopmentTooling,

@@ -58,6 +58,22 @@ servers for Unity, Blender, or KiCad. Use each vendor's official documentation
 and tooling. Unity Editor 6 users may enable Unity's official MCP server through
 the Unity AI Assistant package.
 
+## Curated Agent Capabilities
+
+The workspace installs a deliberately small, revision-pinned skill baseline
+from public official sources. The Vercel `skills` installer keeps one canonical
+copy and exposes it to both Claude Code and Codex:
+
+- OpenAI-curated `cloudflare-deploy`, `security-best-practices`, and
+  `security-threat-model`
+- Vercel-authored `vercel-react-best-practices`,
+  `vercel-composition-patterns`, and `web-design-guidelines`
+
+Codex also receives OpenAI's official GitHub plugin from a pinned checkout of
+`openai/plugins`. Plugin connector authentication may require opening `/plugins`
+after signing in to Codex. Playwright remains an MCP server rather than a
+duplicated skill, and no locally authored domain-expertise skills are installed.
+
 Obsidian remains installed as a standalone notes application, but Hive no
 longer clones or syncs a vault, injects vault instructions or skills, registers
 an Obsidian MCP server, or starts Obsidian automatically.
