@@ -1,0 +1,19 @@
+{
+  "name": "electronics-design",
+  "version": "0.1.0",
+  "description": "KiCad schematic, PCB, validation, and fabrication workflows.",
+  "author": {
+    "name": "Kethalia"
+  },
+  "skills": "./skills/",
+  "mcpServers": "./.mcp.json",
+  "interface": {
+    "displayName": "Electronics Design",
+    "shortDescription": "Design and validate electronics with KiCad.",
+    "longDescription": "Adds KiCad project workflows, headless ERC and DRC checks, manufacturing-output guidance, and KiCad MCP automation.",
+    "developerName": "Kethalia",
+    "category": "Developer Tools",
+    "capabilities": ["KiCad design", "ERC and DRC", "Fabrication outputs"],
+    "defaultPrompt": "Help me design and validate this KiCad project."
+  }
+}

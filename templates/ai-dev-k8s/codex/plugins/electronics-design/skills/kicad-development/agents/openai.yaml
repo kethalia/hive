@@ -1,0 +1,4 @@
+interface:
+  display_name: "KiCad Development"
+  short_description: "Design and validate KiCad electronics"
+  default_prompt: "Use $kicad-development to build or review this KiCad project."

@@ -390,7 +390,8 @@ function verifyAiAgentSelection() {
     assert.ok(!content.toLowerCase().includes("gsd-pi"));
     assert.ok(!content.toLowerCase().includes("get-shit-done"));
   }
-  assert.match(script, /plugin_selector="game-development@\$marketplace_name"/);
+  assert.match(script, /for plugin_name in game-development electronics-design/);
+  assert.match(script, /plugin_selector="\$plugin_name@\$marketplace_name"/);
   assert.match(script, /codex plugin list --json/);
   assert.match(script, /installed_version.*source_version/);
   assert.match(script, /\.installed == true/);
@@ -421,11 +422,11 @@ function verifyGameDevelopmentTooling() {
   assert.match(terraform, /visualstudiotoolsforunity\.vstuc/);
   assert.match(terraform, /ms-dotnettools\.csharp/);
   assert.match(terraform, /game_plugin_manifest_b64/);
-  assert.match(initScript, /install_game_plugin_source/);
-  assert.match(initScript, /local plugin="\$HOME\/plugins\/game-development"/);
+  assert.match(initScript, /install_workspace_plugin_sources/);
+  assert.match(initScript, /local game_plugin="\$HOME\/plugins\/game-development"/);
   assert.match(initScript, /mkdir -p "\$root\/plugins"/);
   assert.match(initScript, /marketplace\.pre-hive-invalid\.json/);
-  assert.match(initScript, /plugin\.get\("name"\) != "game-development"/);
+  assert.match(initScript, /plugin\.get\("name"\) != managed_name/);
   assert.match(initScript, /temporary\.replace\(target\)/);
   assert.equal(marketplace.plugins[0].name, "game-development");
   assert.equal(marketplace.plugins[0].source.path, "./plugins/game-development");
@@ -434,6 +435,46 @@ function verifyGameDevelopmentTooling() {
   assert.doesNotMatch(claudeMcp, /obsidian|mcpvault/i);
   assert.doesNotMatch(obsidianDesktop, /\/home\/coder\/vault/);
   assert.match(obsidianDesktop, /^Name=Obsidian$/m);
+}
+
+function verifyElectronicsDesignTooling() {
+  const terraform = readTemplateFile("main.tf");
+  const initScript = readTemplateFile("scripts/init.sh");
+  const toolsAi = readTemplateFile("scripts/tools-ai.sh");
+  const dockerfile = readFileSync(join(process.cwd(), "docker/hive-base/Dockerfile"), "utf8");
+  const workflow = readFileSync(
+    join(process.cwd(), ".github/workflows/build-base-image.yml"),
+    "utf8",
+  );
+  const marketplace = JSON.parse(readTemplateFile("codex/marketplace.json"));
+  const plugin = JSON.parse(readTemplateFile("codex/plugins/electronics-design/plugin.json"));
+  const mcp = JSON.parse(readTemplateFile("codex/plugins/electronics-design/mcp.json"));
+
+  assert.match(dockerfile, /^\s*kicad \\/m);
+  assert.match(dockerfile, /^\s*kicad-libraries \\/m);
+  assert.match(dockerfile, /^\s*kicad-packages3d \\/m);
+  assert.match(dockerfile, /astral-sh\/uv:0\.11\.32@sha256:[0-9a-f]{64}/);
+  assert.match(dockerfile, /COPY --from=uv \/uv \/uvx \/usr\/local\/bin\//);
+  assert.equal(workflow.match(/kicad-cli version/g)?.length, 2);
+  assert.equal(workflow.match(/npx -y kicad-mcp-pro@3\.25\.0 --help/g)?.length, 2);
+  assert.match(terraform, /electronics_plugin_manifest_b64/);
+  assert.match(terraform, /electronics_plugin_mcp_b64/);
+  assert.match(terraform, /kicad_skill_b64/);
+  assert.match(initScript, /local electronics_plugin="\$HOME\/plugins\/electronics-design"/);
+  assert.match(initScript, /servers\["kicad"\] = kicad/);
+  assert.match(initScript, /\.claude\/skills\/kicad-development/);
+  assert.match(toolsAi, /for plugin_name in game-development electronics-design/);
+  assert.equal(marketplace.plugins[1].name, "electronics-design");
+  assert.equal(marketplace.plugins[1].source.path, "./plugins/electronics-design");
+  assert.equal(plugin.name, "electronics-design");
+  assert.equal(plugin.skills, "./skills/");
+  assert.equal(plugin.mcpServers, "./.mcp.json");
+  assert.deepEqual(mcp.mcpServers.kicad.args, [
+    "-y",
+    "kicad-mcp-pro@3.25.0",
+    "--transport",
+    "stdio",
+  ]);
 }
 
 function verifyCoderTemplateUploadPaths() {
@@ -471,7 +512,7 @@ function runMarketplaceMergeFixture(existingMarketplace) {
     env: {
       ...process.env,
       HOME: home,
-      HIVE_GAME_MARKETPLACE_B64: Buffer.from(managed).toString("base64"),
+      HIVE_CODEX_MARKETPLACE_B64: Buffer.from(managed).toString("base64"),
     },
   });
 
@@ -492,10 +533,12 @@ function verifyMarketplaceMerge() {
 
   assert.deepEqual(merged.customMetadata, { retained: true });
   assert.deepEqual(merged.interface, { displayName: "My Plugins", extra: true });
-  assert.equal(merged.plugins.length, 2);
+  assert.equal(merged.plugins.length, 3);
   assert.equal(merged.plugins[0].name, "existing-plugin");
   assert.equal(merged.plugins[1].name, "game-development");
   assert.equal(merged.plugins[1].source.path, "./plugins/game-development");
+  assert.equal(merged.plugins[2].name, "electronics-design");
+  assert.equal(merged.plugins[2].source.path, "./plugins/electronics-design");
 }
 
 function verifyHiveMigrationSafety() {
@@ -649,6 +692,10 @@ test(
   verifyGameDevelopmentTooling,
 );
 test(
+  "workspace provisions KiCad and shared electronics agent tooling",
+  verifyElectronicsDesignTooling,
+);
+test(
   "Coder template uploads include every Terraform file dependency",
   verifyCoderTemplateUploadPaths,
 );
@@ -688,7 +735,14 @@ function createGamePluginFixture() {
   const bin = join(fixtureRoot, "bin");
   const calls = join(fixtureRoot, "codex-calls.log");
   const marketplace = join(home, ".agents", "plugins", "marketplace.json");
-  const manifest = join(home, "plugins", "game-development", ".codex-plugin", "plugin.json");
+  const gameManifest = join(home, "plugins", "game-development", ".codex-plugin", "plugin.json");
+  const electronicsManifest = join(
+    home,
+    "plugins",
+    "electronics-design",
+    ".codex-plugin",
+    "plugin.json",
+  );
   const pluginBlock = readTemplateFile("scripts/tools-ai.sh").match(
     /if command_exists codex && \[ -f "\$HOME\/\.agents\/plugins\/marketplace\.json" \]; then[\s\S]*\nfi\s*$/,
   );
@@ -697,8 +751,15 @@ function createGamePluginFixture() {
   mkdirSync(bin, { recursive: true });
   mkdirSync(join(home, ".agents", "plugins"), { recursive: true });
   mkdirSync(join(home, "plugins", "game-development", ".codex-plugin"), { recursive: true });
+  mkdirSync(join(home, "plugins", "electronics-design", ".codex-plugin"), {
+    recursive: true,
+  });
   writeFileSync(marketplace, '{"name":"team-local"}\n');
-  writeFileSync(manifest, '{"name":"game-development","version":"0.2.0+codex.template"}\n');
+  writeFileSync(gameManifest, '{"name":"game-development","version":"0.2.0+codex.template"}\n');
+  writeFileSync(
+    electronicsManifest,
+    '{"name":"electronics-design","version":"0.3.0+codex.template"}\n',
+  );
   writeFileSync(calls, "");
   installGamePluginCodexStub(bin);
   const fixtureScript = join(fixtureRoot, "install-plugin.sh");
@@ -718,7 +779,10 @@ function createGamePluginFixture() {
   return { bin, calls, fixtureScript, home };
 }
 
-function runGamePluginInstallFixture(installedVersion) {
+function runGamePluginInstallFixture(
+  installedVersion,
+  electronicsVersion = "0.3.0+codex.template",
+) {
   const { bin, calls, fixtureScript, home } = createGamePluginFixture();
   const result = spawnSync("bash", [fixtureScript], {
     encoding: "utf8",
@@ -731,6 +795,11 @@ function runGamePluginInstallFixture(installedVersion) {
             installed: true,
             pluginId: "game-development@team-local",
             version: installedVersion,
+          },
+          {
+            installed: true,
+            pluginId: "electronics-design@team-local",
+            version: electronicsVersion,
           },
         ],
       }),
@@ -748,6 +817,10 @@ function verifyGamePluginLifecycle() {
   assert.deepEqual(runGamePluginInstallFixture("0.1.0"), [
     "list",
     "add game-development@team-local",
+  ]);
+  assert.deepEqual(runGamePluginInstallFixture("0.2.0+codex.template", "0.1.0"), [
+    "list",
+    "add electronics-design@team-local",
   ]);
 }
 

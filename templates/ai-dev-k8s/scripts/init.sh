@@ -17,7 +17,7 @@ if [ ! -f "$HOME/.workspace_initialized" ]; then
 ## AI-assisted development
 
 - `claude` — Claude Code
-- `codex` — Codex CLI with Playwright and the game-development plugin
+- `codex` — Codex CLI with Playwright, game-development, and electronics-design plugins
 
 ## Game development
 
@@ -25,6 +25,12 @@ if [ ! -f "$HOME/.workspace_initialized" ]; then
 - Sign in to Unity Hub and install the latest Unity 6.3 LTS Editor into the persistent default location.
 - Blender 4.5 LTS and its `blender` CLI are preinstalled.
 - Unity projects and Editor installs persist under `/home/coder`; GPU-heavy validation may require a GPU-enabled machine.
+
+## Electronics design
+
+- Open **Desktop**, then launch **KiCad** for schematic and PCB work.
+- KiCad 9, its standard libraries and 3D packages, and `kicad-cli` are preinstalled.
+- Claude Code and Codex share the `kicad-development` skill and KiCad MCP tooling.
 
 ## Core tools
 
@@ -100,6 +106,10 @@ playwright = {
     "args": ["-y", "@playwright/mcp", "--no-sandbox"],
     "env": {"DISPLAY": ":1"},
 }
+kicad = {
+    "command": "npx",
+    "args": ["-y", "kicad-mcp-pro@3.25.0", "--transport", "stdio"],
+}
 for config in (home / ".claude" / "mcp.json", home / ".mcp.json"):
     config.parent.mkdir(parents=True, exist_ok=True)
     try:
@@ -111,19 +121,25 @@ for config in (home / ".claude" / "mcp.json", home / ".mcp.json"):
     servers.pop("obsidian", None)
     servers.pop("hive_obsidian", None)
     servers["playwright"] = playwright
+    servers["kicad"] = kicad
     config.write_text(json.dumps(data, indent=2) + "\n")
     config.chmod(0o600)
 PYMCP
 }
 
-install_game_plugin_source() {
+install_workspace_plugin_sources() {
   local root="$HOME/.agents"
-  local plugin="$HOME/plugins/game-development"
+  local game_plugin="$HOME/plugins/game-development"
+  local electronics_plugin="$HOME/plugins/electronics-design"
+  local claude_kicad_skill="$HOME/.claude/skills/kicad-development"
   mkdir -p "$root/plugins" \
-    "$plugin/.codex-plugin" \
-    "$plugin/skills/unity-development/agents" \
-    "$plugin/skills/blender-asset-pipeline/agents"
-  HIVE_GAME_MARKETPLACE_B64="${codex_marketplace_b64}" python3 - <<'PYMARKETPLACE'
+    "$HOME/.claude/skills" \
+    "$game_plugin/.codex-plugin" \
+    "$game_plugin/skills/unity-development/agents" \
+    "$game_plugin/skills/blender-asset-pipeline/agents" \
+    "$electronics_plugin/.codex-plugin" \
+    "$electronics_plugin/skills/kicad-development/agents"
+  HIVE_CODEX_MARKETPLACE_B64="${codex_marketplace_b64}" python3 - <<'PYMARKETPLACE'
 import base64
 import json
 import os
@@ -131,9 +147,7 @@ import shutil
 from pathlib import Path
 
 target = Path(os.environ["HOME"]) / ".agents" / "plugins" / "marketplace.json"
-managed = json.loads(base64.b64decode(os.environ["HIVE_GAME_MARKETPLACE_B64"]))
-managed_plugin = next(plugin for plugin in managed["plugins"] if plugin["name"] == "game-development")
-
+managed = json.loads(base64.b64decode(os.environ["HIVE_CODEX_MARKETPLACE_B64"]))
 existing = {}
 if target.exists():
     try:
@@ -150,23 +164,34 @@ if target.exists():
 existing.setdefault("name", managed["name"])
 existing.setdefault("interface", managed["interface"])
 plugins = existing.setdefault("plugins", [])
-replacement_index = next(
-    (index for index, plugin in enumerate(plugins) if plugin.get("name") == "game-development"),
-    len(plugins),
-)
-plugins[:] = [plugin for plugin in plugins if plugin.get("name") != "game-development"]
-plugins.insert(min(replacement_index, len(plugins)), managed_plugin)
+for managed_plugin in managed["plugins"]:
+    managed_name = managed_plugin["name"]
+    replacement_index = next(
+        (index for index, plugin in enumerate(plugins) if plugin.get("name") == managed_name),
+        len(plugins),
+    )
+    plugins[:] = [plugin for plugin in plugins if plugin.get("name") != managed_name]
+    plugins.insert(min(replacement_index, len(plugins)), managed_plugin)
 
 temporary = target.with_name("marketplace.hive.tmp.json")
 temporary.write_text(json.dumps(existing, indent=2) + "\n")
 temporary.chmod(0o600)
 temporary.replace(target)
 PYMARKETPLACE
-  printf '%s' "${game_plugin_manifest_b64}" | base64 -d > "$plugin/.codex-plugin/plugin.json"
-  printf '%s' "${unity_skill_b64}" | base64 -d > "$plugin/skills/unity-development/SKILL.md"
-  printf '%s' "${unity_skill_metadata_b64}" | base64 -d > "$plugin/skills/unity-development/agents/openai.yaml"
-  printf '%s' "${blender_skill_b64}" | base64 -d > "$plugin/skills/blender-asset-pipeline/SKILL.md"
-  printf '%s' "${blender_skill_metadata_b64}" | base64 -d > "$plugin/skills/blender-asset-pipeline/agents/openai.yaml"
+  printf '%s' "${game_plugin_manifest_b64}" | base64 -d > "$game_plugin/.codex-plugin/plugin.json"
+  printf '%s' "${unity_skill_b64}" | base64 -d > "$game_plugin/skills/unity-development/SKILL.md"
+  printf '%s' "${unity_skill_metadata_b64}" | base64 -d > "$game_plugin/skills/unity-development/agents/openai.yaml"
+  printf '%s' "${blender_skill_b64}" | base64 -d > "$game_plugin/skills/blender-asset-pipeline/SKILL.md"
+  printf '%s' "${blender_skill_metadata_b64}" | base64 -d > "$game_plugin/skills/blender-asset-pipeline/agents/openai.yaml"
+  printf '%s' "${electronics_plugin_manifest_b64}" | base64 -d > "$electronics_plugin/.codex-plugin/plugin.json"
+  printf '%s' "${electronics_plugin_mcp_b64}" | base64 -d > "$electronics_plugin/.mcp.json"
+  printf '%s' "${kicad_skill_b64}" | base64 -d > "$electronics_plugin/skills/kicad-development/SKILL.md"
+  printf '%s' "${kicad_skill_metadata_b64}" | base64 -d > "$electronics_plugin/skills/kicad-development/agents/openai.yaml"
+  if [ -L "$claude_kicad_skill" ] || [ ! -e "$claude_kicad_skill" ]; then
+    ln -sfn "$electronics_plugin/skills/kicad-development" "$claude_kicad_skill"
+  else
+    printf 'WARNING: preserving existing Claude skill: %s\n' "$claude_kicad_skill" >&2
+  fi
 }
 
 remove_vault_managed_context() {
@@ -205,8 +230,8 @@ AGENTEOF
 
 configure_codex_mcp
 configure_json_mcp
-install_game_plugin_source
 remove_vault_managed_context
+install_workspace_plugin_sources
 
 # Remove only files previously generated by Hive's vault integration. The vault
 # and Obsidian application remain untouched.
@@ -221,4 +246,4 @@ ${claude_md_content}
 CLAUDEEOF
 fi
 
-echo "Workspace is ready. Check ~/README.md for the game-development quick start."
+echo "Workspace is ready. Check ~/README.md for the development-tool quick start."
