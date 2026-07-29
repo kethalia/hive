@@ -12,88 +12,6 @@ terraform {
 }
 
 # =============================================================================
-# Parameters — surfaced in the Coder workspace creation UI
-# =============================================================================
-
-data "coder_parameter" "claude_code_model" {
-  name         = "claude_code_model"
-  display_name = "Claude Code Model"
-  description  = "Model for Claude Code."
-  type         = "string"
-  default      = "claude-sonnet-4-6"
-  mutable      = true
-  order        = 7
-
-  # Claude 4.6 generation
-  option {
-    name  = "Claude Sonnet 4.6 (Recommended)"
-    value = "claude-sonnet-4-6"
-  }
-  option {
-    name  = "Claude Opus 4.6"
-    value = "claude-opus-4-6"
-  }
-  # Claude 4.5 generation
-  option {
-    name  = "Claude Opus 4.5"
-    value = "claude-opus-4-5"
-  }
-  option {
-    name  = "Claude Sonnet 4.5"
-    value = "claude-sonnet-4-5"
-  }
-  option {
-    name  = "Claude Haiku 4.5"
-    value = "claude-haiku-4-5"
-  }
-  # Claude 3.5 (legacy)
-  option {
-    name  = "Claude Haiku 3.5 (legacy)"
-    value = "claude-haiku-3-5"
-  }
-}
-
-data "coder_parameter" "claude_code_system_prompt" {
-  name         = "claude_code_system_prompt"
-  display_name = "Claude Code System Prompt"
-  description  = "Custom system prompt for Claude Code (optional)."
-  type         = "string"
-  default      = ""
-  mutable      = true
-  order        = 8
-}
-
-data "coder_parameter" "home_disk_size" {
-  name         = "home_disk_size"
-  display_name = "Home disk size"
-  description  = "Persistent Longhorn volume size in GiB. Choose at workspace creation; bound Kubernetes PVCs cannot be shrunk."
-  type         = "number"
-  default      = 100
-  mutable      = false
-  order        = 10
-
-  validation {
-    min = 20
-    max = 500
-  }
-}
-
-data "coder_parameter" "projects_root" {
-  name         = "projects_root"
-  display_name = "Workspace projects root"
-  description  = "Absolute workspace path shared by Hive Git discovery, terminals, VS Code, and File Browser. Must match Hive's HIVE_PROJECTS_ROOT."
-  type         = "string"
-  default      = "/home/coder"
-  mutable      = false
-  order        = 11
-
-  validation {
-    regex = "^/([^/\\x00]+(/[^/\\x00]+)*)?/?$"
-    error = "Workspace projects root must be an absolute POSIX path."
-  }
-}
-
-# =============================================================================
 # Providers & Data Sources
 # =============================================================================
 
@@ -128,34 +46,20 @@ resource "coder_agent" "main" {
   startup_script_behavior = "blocking"
 
   startup_script = templatefile("${path.module}/scripts/init.sh", {
-    workspace_name                  = data.coder_workspace.me.name
-    owner_name                      = data.coder_workspace_owner.me.name
-    owner_email                     = data.coder_workspace_owner.me.email
-    claude_md_content               = file("${path.module}/CLAUDE.md")
-    codex_marketplace_b64           = base64encode(file("${path.module}/codex/marketplace.json"))
-    game_plugin_manifest_b64        = base64encode(file("${path.module}/codex/plugins/game-development/plugin.json"))
-    unity_skill_b64                 = base64encode(file("${path.module}/codex/plugins/game-development/skills/unity-development/SKILL.md"))
-    unity_skill_metadata_b64        = base64encode(file("${path.module}/codex/plugins/game-development/skills/unity-development/agents/openai.yaml"))
-    blender_skill_b64               = base64encode(file("${path.module}/codex/plugins/game-development/skills/blender-asset-pipeline/SKILL.md"))
-    blender_skill_metadata_b64      = base64encode(file("${path.module}/codex/plugins/game-development/skills/blender-asset-pipeline/agents/openai.yaml"))
-    electronics_plugin_manifest_b64 = base64encode(file("${path.module}/codex/plugins/electronics-design/plugin.json"))
-    electronics_plugin_mcp_b64      = base64encode(file("${path.module}/codex/plugins/electronics-design/mcp.json"))
-    kicad_skill_b64                 = base64encode(file("${path.module}/codex/plugins/electronics-design/skills/kicad-development/SKILL.md"))
-    kicad_skill_metadata_b64        = base64encode(file("${path.module}/codex/plugins/electronics-design/skills/kicad-development/agents/openai.yaml"))
+    workspace_name    = data.coder_workspace.me.name
+    owner_name        = data.coder_workspace_owner.me.name
+    owner_email       = data.coder_workspace_owner.me.email
+    claude_md_content = file("${path.module}/CLAUDE.md")
   })
 
-  env = merge(
-    {
-      GIT_AUTHOR_NAME     = coalesce(data.coder_workspace_owner.me.full_name, data.coder_workspace_owner.me.name)
-      GIT_AUTHOR_EMAIL    = data.coder_workspace_owner.me.email
-      GIT_COMMITTER_NAME  = coalesce(data.coder_workspace_owner.me.full_name, data.coder_workspace_owner.me.name)
-      GIT_COMMITTER_EMAIL = data.coder_workspace_owner.me.email
-      EXTENSIONS_GALLERY  = "{\"serviceUrl\":\"https://marketplace.visualstudio.com/_apis/public/gallery\"}"
-      HIVE_PROJECTS_ROOT  = data.coder_parameter.projects_root.value
-    },
-    data.coder_parameter.claude_code_model.value != "" ? { CLAUDE_CODE_DEFAULT_MODEL = data.coder_parameter.claude_code_model.value } : {},
-    data.coder_parameter.claude_code_system_prompt.value != "" ? { CLAUDE_CODE_SYSTEM_PROMPT = data.coder_parameter.claude_code_system_prompt.value } : {}
-  )
+  env = {
+    GIT_AUTHOR_NAME     = coalesce(data.coder_workspace_owner.me.full_name, data.coder_workspace_owner.me.name)
+    GIT_AUTHOR_EMAIL    = data.coder_workspace_owner.me.email
+    GIT_COMMITTER_NAME  = coalesce(data.coder_workspace_owner.me.full_name, data.coder_workspace_owner.me.name)
+    GIT_COMMITTER_EMAIL = data.coder_workspace_owner.me.email
+    EXTENSIONS_GALLERY  = "{\"serviceUrl\":\"https://marketplace.visualstudio.com/_apis/public/gallery\"}"
+    HIVE_PROJECTS_ROOT  = "/home/coder"
+  }
 
   metadata {
     display_name = "CPU Usage"
@@ -458,18 +362,6 @@ module "kasmvnc" {
 }
 
 # =============================================================================
-# Dotfiles (module replaces dotfiles clone in init.sh)
-# =============================================================================
-
-module "dotfiles" {
-  count                 = data.coder_workspace.me.start_count
-  source                = "registry.coder.com/coder/dotfiles/coder"
-  version               = "1.4.1"
-  agent_id              = coder_agent.main.id
-  coder_parameter_order = 11
-}
-
-# =============================================================================
 # Coder Login (auto-authenticates coder CLI inside workspace)
 # =============================================================================
 
@@ -519,7 +411,7 @@ resource "kubernetes_persistent_volume_claim_v1" "home" {
 
     resources {
       requests = {
-        storage = "${data.coder_parameter.home_disk_size.value}Gi"
+        storage = "100Gi"
       }
     }
   }
@@ -714,6 +606,6 @@ resource "coder_metadata" "workspace" {
 
   item {
     key   = "home_disk"
-    value = "${data.coder_parameter.home_disk_size.value} GiB"
+    value = "100 GiB"
   }
 }

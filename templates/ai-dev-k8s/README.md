@@ -2,7 +2,7 @@
 
 This Coder template provisions a non-root Kubernetes workspace Deployment with
 a persistent Longhorn home volume. It carries forward the AI, browser, Node.js,
-Foundry, editor, game-development, and terminal tooling from the Docker-backed `ai-dev`
+Foundry, editor, game-development applications, and terminal tooling from the Docker-backed `ai-dev`
 template without mounting a host Docker socket.
 
 ## Prerequisites
@@ -22,6 +22,10 @@ replacement. Workspaces prefer `k3s-03` but may schedule elsewhere. The pinned
 
 The default home volume is 100 GiB. The workspace requests 2 CPU and 4 GiB of
 memory, with limits of 6 CPU and 12 GiB.
+
+The template has no user-configurable creation parameters or Terraform input
+variables. It uses the fixed 100 GiB home volume and `/home/coder` project root,
+while Claude Code follows its own current model and system-prompt defaults.
 
 Docker socket access is intentionally absent. Container builds must use a
 rootless or remote builder in a later template iteration.
@@ -53,12 +57,26 @@ the current Unity 6.3 LTS Editor from Hub on first use.
 KiCad 9, its standard symbols, footprints, templates, 3D models, and
 `kicad-cli` are image-baked. Launch the GUI from Coder Desktop.
 
-The template installs local Codex `game-development` and `electronics-design`
-plugins. They provide Unity, Blender-to-Unity, and KiCad skills; the electronics
-plugin also supplies pinned KiCad MCP tooling. Claude Code receives the same
-KiCad MCP server and discovers the shared KiCad skill under `~/.claude/skills`.
-Plugin source and personal-marketplace entries are refreshed from the versioned
-template on every start. Start a new agent session after first installation.
+The template does not install domain-specific agent skills or third-party MCP
+servers for Unity, Blender, or KiCad. Use each vendor's official documentation
+and tooling. Unity Editor 6 users may enable Unity's official MCP server through
+the Unity AI Assistant package.
+
+## Curated Agent Capabilities
+
+The workspace installs a deliberately small, revision-pinned skill baseline
+from public official sources. The Vercel `skills` installer keeps one canonical
+copy and exposes it to both Claude Code and Codex:
+
+- OpenAI-curated `cloudflare-deploy`, `security-best-practices`, and
+  `security-threat-model`
+- Vercel-authored `vercel-react-best-practices`,
+  `vercel-composition-patterns`, and `web-design-guidelines`
+
+Codex also receives OpenAI's official GitHub plugin from a pinned checkout of
+`openai/plugins`. Plugin connector authentication may require opening `/plugins`
+after signing in to Codex. Playwright remains an MCP server rather than a
+duplicated skill, and no locally authored domain-expertise skills are installed.
 
 Obsidian remains installed as a standalone notes application, but Hive no
 longer clones or syncs a vault, injects vault instructions or skills, registers

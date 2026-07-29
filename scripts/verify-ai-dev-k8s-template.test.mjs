@@ -93,7 +93,10 @@ function verifyPodSecurity() {
   assert.match(terraform, /fs_group_change_policy\s*=\s*"OnRootMismatch"/);
   assert.match(terraform, /"app\.kubernetes\.io\/name"\s*=\s*"coder-workspace"/);
   assert.doesNotMatch(terraform, /ignore_changes\s*=\s*all/);
-  assert.match(terraform, /name\s*=\s*"home_disk_size"[\s\S]*?mutable\s*=\s*false/);
+  assert.doesNotMatch(terraform, /data "coder_parameter"/);
+  assert.doesNotMatch(terraform, /variable "/);
+  assert.doesNotMatch(terraform, /module "dotfiles"/);
+  assert.match(terraform, /storage\s*=\s*"100Gi"/);
   assert.match(terraform, /name\s*=\s*"USER"[\s\S]*?value\s*=\s*"coder"/);
   assert.match(terraform, /name\s*=\s*"HOME"[\s\S]*?value\s*=\s*"\/home\/coder"/);
 }
@@ -301,8 +304,7 @@ function verifyNonRootSupplementalTools() {
   assert.match(terraform, /resource "coder_script" "filebrowser"/);
   assert.match(terraform, /resource "coder_app" "filebrowser"/);
   assert.match(terraform, /start_blocks_login\s*=\s*false/);
-  assert.match(terraform, /name\s*=\s*"projects_root"[\s\S]*?default\s*=\s*"\/home\/coder"/);
-  assert.match(terraform, /HIVE_PROJECTS_ROOT\s*=\s*data\.coder_parameter\.projects_root\.value/);
+  assert.match(terraform, /HIVE_PROJECTS_ROOT\s*=\s*"\/home\/coder"/);
   assert.ok(filebrowser.includes('filebrowser_version="2.63.18"'));
   assert.ok(
     filebrowser.includes("cd599c34afad0e8e61c577d1061c820bccb7feaa3c5a4477a12db586a1cd93ff"),
@@ -380,6 +382,7 @@ function verifyAiAgentSelection() {
   const script = readTemplateFile("scripts/tools-ai.sh");
   const terraform = readTemplateFile("main.tf");
   const initScript = readTemplateFile("scripts/init.sh");
+  const agentInstructions = readTemplateFile("CLAUDE.md");
 
   assert.ok(script.includes('npm_global_has "@openai/codex" && command_exists codex'));
   assert.ok(terraform.includes('module "claude-code"'));
@@ -389,28 +392,82 @@ function verifyAiAgentSelection() {
     assert.ok(!content.toLowerCase().includes("opengsd"));
     assert.ok(!content.toLowerCase().includes("gsd-pi"));
     assert.ok(!content.toLowerCase().includes("get-shit-done"));
+    assert.ok(!content.includes("game-development"));
+    assert.ok(!content.includes("electronics-design"));
+    assert.ok(!content.includes("kicad-development"));
   }
-  assert.match(script, /for plugin_name in game-development electronics-design/);
-  assert.match(script, /plugin_selector="\$plugin_name@\$marketplace_name"/);
-  assert.match(script, /codex plugin list --json/);
-  assert.match(script, /installed_version.*source_version/);
-  assert.match(script, /\.installed == true/);
-  assert.doesNotMatch(script, /game-development@personal/);
   assert.doesNotMatch(terraform, /sync-vault|vault_repo|mcpvault/);
+  assert.equal(existsSync(join(TEMPLATE_ROOT, "codex")), false);
+  assert.match(agentInstructions, /only vendor-published or OpenAI-curated skills and plugins/);
+}
+
+function verifyCuratedAgentCapabilities() {
+  const script = readTemplateFile("scripts/tools-ai.sh");
+  const readme = readTemplateFile("README.md");
+
+  assert.match(script, /skills_cli_version="1\.5\.20"/);
+  assert.match(script, /openai_skills_ref="[0-9a-f]{40}"/);
+  assert.match(script, /vercel_skills_ref="[0-9a-f]{40}"/);
+  assert.match(script, /plugins_ref="[0-9a-f]{40}"/);
+  assert.doesNotMatch(script, /openai_skills_ref="(?:main|latest)"/);
+  assert.doesNotMatch(script, /vercel_skills_ref="(?:main|latest)"/);
+  assert.doesNotMatch(script, /plugins_ref="(?:main|latest)"/);
+
+  for (const skill of [
+    "cloudflare-deploy",
+    "security-best-practices",
+    "security-threat-model",
+    "react-best-practices",
+    "composition-patterns",
+    "web-design-guidelines",
+  ]) {
+    assert.ok(script.includes(skill), `${skill} must be provisioned`);
+    assert.ok(readme.includes(skill), `${skill} must be documented`);
+  }
+
+  assert.match(script, /https:\/\/github\.com\/openai\/skills\.git/);
+  assert.match(script, /https:\/\/github\.com\/vercel-labs\/agent-skills\.git/);
+  assert.match(script, /local -a skill_sources=\(\)/);
+  assert.match(
+    script,
+    /if ! checkout_pinned_repo "\$openai_root"[\s\S]*?else\s+skill_sources\+=\([\s\S]*?cloudflare-deploy[\s\S]*?security-best-practices[\s\S]*?security-threat-model[\s\S]*?\)\s+fi/,
+  );
+  assert.match(
+    script,
+    /if ! checkout_pinned_repo "\$vercel_root"[\s\S]*?else\s+skill_sources\+=\([\s\S]*?react-best-practices[\s\S]*?composition-patterns[\s\S]*?web-design-guidelines[\s\S]*?\)\s+fi/,
+  );
+  assert.match(script, /--agent claude-code/);
+  assert.match(script, /--agent codex/);
+  assert.match(script, /\.agents\/skills\/\.hive-official/);
+  assert.match(script, /https:\/\/github\.com\/openai\/plugins\.git/);
+  assert.match(
+    script,
+    /if ! checkout_pinned_repo "\$source_root" https:\/\/github\.com\/openai\/plugins\.git "\$plugins_ref" plugins\/github; then[\s\S]*?return 0\s+fi/,
+  );
+  assert.doesNotMatch(
+    script,
+    /if \[ ! -f "\$source_root\/plugins\/github\/\.codex-plugin\/plugin\.json" \]/,
+  );
+  assert.match(script, /github@\$marketplace_name/);
+  assert.match(script, /"name": "hive-openai-official"/);
+  assert.match(script, /\.hive-github-plugin-ref/);
+  assert.match(script, /"\$\(cat "\$installed_ref_file"\)" = "\$plugins_ref"/);
+  assert.match(script, /codex plugin remove "github@\$marketplace_name" --json/);
+  assert.match(
+    script,
+    /codex plugin add "github@\$marketplace_name" --json[\s\S]*?printf '%s\\n' "\$plugins_ref" > "\$installed_ref_file"/,
+  );
+  assert.match(readme, /Playwright remains an MCP server rather than a[\s\S]*duplicated skill/);
 }
 
 function verifyGameDevelopmentTooling() {
   const terraform = readTemplateFile("main.tf");
-  const initScript = readTemplateFile("scripts/init.sh");
   const dockerfile = readFileSync(join(process.cwd(), "docker/hive-base/Dockerfile"), "utf8");
   const claudeMcp = readFileSync(join(process.cwd(), "docker/hive-base/claude-mcp.json"), "utf8");
   const obsidianDesktop = readFileSync(
     join(process.cwd(), "docker/hive-base/obsidian.desktop"),
     "utf8",
   );
-  const marketplace = JSON.parse(readTemplateFile("codex/marketplace.json"));
-  const plugin = JSON.parse(readTemplateFile("codex/plugins/game-development/plugin.json"));
-
   assert.match(dockerfile, /UnityHubSetup-3\.19\.5-amd64\.deb/);
   assert.match(dockerfile, /5a5b57adc9ce20931c4154c57ffded08f3ffa2743286fdf14c9e7add6b212540/);
   assert.match(dockerfile, /BLENDER_VERSION=4\.5\.12/);
@@ -421,17 +478,6 @@ function verifyGameDevelopmentTooling() {
   );
   assert.match(terraform, /visualstudiotoolsforunity\.vstuc/);
   assert.match(terraform, /ms-dotnettools\.csharp/);
-  assert.match(terraform, /game_plugin_manifest_b64/);
-  assert.match(initScript, /install_workspace_plugin_sources/);
-  assert.match(initScript, /local game_plugin="\$HOME\/plugins\/game-development"/);
-  assert.match(initScript, /mkdir -p "\$root\/plugins"/);
-  assert.match(initScript, /marketplace\.pre-hive-invalid\.json/);
-  assert.match(initScript, /plugin\.get\("name"\) != managed_name/);
-  assert.match(initScript, /temporary\.replace\(target\)/);
-  assert.equal(marketplace.plugins[0].name, "game-development");
-  assert.equal(marketplace.plugins[0].source.path, "./plugins/game-development");
-  assert.equal(plugin.name, "game-development");
-  assert.equal(plugin.skills, "./skills/");
   assert.doesNotMatch(claudeMcp, /obsidian|mcpvault/i);
   assert.doesNotMatch(obsidianDesktop, /\/home\/coder\/vault/);
   assert.match(obsidianDesktop, /^Name=Obsidian$/m);
@@ -446,35 +492,16 @@ function verifyElectronicsDesignTooling() {
     join(process.cwd(), ".github/workflows/build-base-image.yml"),
     "utf8",
   );
-  const marketplace = JSON.parse(readTemplateFile("codex/marketplace.json"));
-  const plugin = JSON.parse(readTemplateFile("codex/plugins/electronics-design/plugin.json"));
-  const mcp = JSON.parse(readTemplateFile("codex/plugins/electronics-design/mcp.json"));
-
   assert.match(dockerfile, /^\s*kicad \\/m);
   assert.match(dockerfile, /^\s*kicad-libraries \\/m);
   assert.match(dockerfile, /^\s*kicad-packages3d \\/m);
-  assert.match(dockerfile, /astral-sh\/uv:0\.11\.32@sha256:[0-9a-f]{64}/);
-  assert.match(dockerfile, /COPY --from=uv \/uv \/uvx \/usr\/local\/bin\//);
   assert.equal(workflow.match(/kicad-cli version/g)?.length, 2);
-  assert.equal(workflow.match(/npx -y kicad-mcp-pro@3\.25\.0 --help/g)?.length, 2);
-  assert.match(terraform, /electronics_plugin_manifest_b64/);
-  assert.match(terraform, /electronics_plugin_mcp_b64/);
-  assert.match(terraform, /kicad_skill_b64/);
-  assert.match(initScript, /local electronics_plugin="\$HOME\/plugins\/electronics-design"/);
-  assert.match(initScript, /servers\["kicad"\] = kicad/);
-  assert.match(initScript, /\.claude\/skills\/kicad-development/);
-  assert.match(toolsAi, /for plugin_name in game-development electronics-design/);
-  assert.equal(marketplace.plugins[1].name, "electronics-design");
-  assert.equal(marketplace.plugins[1].source.path, "./plugins/electronics-design");
-  assert.equal(plugin.name, "electronics-design");
-  assert.equal(plugin.skills, "./skills/");
-  assert.equal(plugin.mcpServers, "./.mcp.json");
-  assert.deepEqual(mcp.mcpServers.kicad.args, [
-    "-y",
-    "kicad-mcp-pro@3.25.0",
-    "--transport",
-    "stdio",
-  ]);
+  for (const content of [terraform, initScript, toolsAi, dockerfile, workflow]) {
+    assert.doesNotMatch(
+      content,
+      /kicad-mcp-pro|electronics-design|kicad-development|astral-sh\/uv|COPY --from=uv/,
+    );
+  }
 }
 
 function verifyCoderTemplateUploadPaths() {
@@ -491,54 +518,6 @@ function verifyCoderTemplateUploadPaths() {
     );
     assert.ok(existsSync(join(TEMPLATE_ROOT, relativePath)), `${relativePath} must exist`);
   }
-}
-
-function runMarketplaceMergeFixture(existingMarketplace) {
-  const fixtureRoot = mkdtempSync(join(tmpdir(), "ai-dev-k8s-marketplace-"));
-  const home = join(fixtureRoot, "home");
-  const marketplacePath = join(home, ".agents", "plugins", "marketplace.json");
-  const initScript = readTemplateFile("scripts/init.sh");
-  const scriptMatch = initScript.match(/python3 - <<'PYMARKETPLACE'\n([\s\S]*?)\nPYMARKETPLACE/);
-  const managed = readTemplateFile("codex/marketplace.json");
-
-  assert.ok(scriptMatch);
-  mkdirSync(join(home, ".agents", "plugins"), { recursive: true });
-  writeFileSync(marketplacePath, `${JSON.stringify(existingMarketplace)}\n`);
-
-  const script = join(fixtureRoot, "merge.py");
-  writeFileSync(script, scriptMatch[1]);
-  const result = spawnSync("python3", [script], {
-    encoding: "utf8",
-    env: {
-      ...process.env,
-      HOME: home,
-      HIVE_CODEX_MARKETPLACE_B64: Buffer.from(managed).toString("base64"),
-    },
-  });
-
-  assert.equal(result.status, 0, result.stderr);
-  return JSON.parse(readFileSync(marketplacePath, "utf8"));
-}
-
-function verifyMarketplaceMerge() {
-  const merged = runMarketplaceMergeFixture({
-    name: "personal",
-    interface: { displayName: "My Plugins", extra: true },
-    customMetadata: { retained: true },
-    plugins: [
-      { name: "existing-plugin", source: { source: "local", path: "./existing" } },
-      { name: "game-development", source: { source: "local", path: "./stale" } },
-    ],
-  });
-
-  assert.deepEqual(merged.customMetadata, { retained: true });
-  assert.deepEqual(merged.interface, { displayName: "My Plugins", extra: true });
-  assert.equal(merged.plugins.length, 3);
-  assert.equal(merged.plugins[0].name, "existing-plugin");
-  assert.equal(merged.plugins[1].name, "game-development");
-  assert.equal(merged.plugins[1].source.path, "./plugins/game-development");
-  assert.equal(merged.plugins[2].name, "electronics-design");
-  assert.equal(merged.plugins[2].source.path, "./plugins/electronics-design");
 }
 
 function verifyHiveMigrationSafety() {
@@ -686,20 +665,22 @@ test(
   verifyCustomFileBrowserRootCreation,
 );
 test("workspace only provisions Claude and Codex AI agents", verifyAiAgentSelection);
-test("game plugin install follows marketplace name and source version", verifyGamePluginLifecycle);
 test(
-  "workspace provisions Unity, Blender, and the game-development Codex plugin",
+  "workspace provisions pinned official skills and the OpenAI GitHub plugin",
+  verifyCuratedAgentCapabilities,
+);
+test(
+  "workspace provisions official Unity and Blender applications without custom skills",
   verifyGameDevelopmentTooling,
 );
 test(
-  "workspace provisions KiCad and shared electronics agent tooling",
+  "workspace provisions official KiCad tooling without custom skills or MCP servers",
   verifyElectronicsDesignTooling,
 );
 test(
   "Coder template uploads include every Terraform file dependency",
   verifyCoderTemplateUploadPaths,
 );
-test("game marketplace merge preserves user plugins and metadata", verifyMarketplaceMerge);
 test(
   "Hive migration preserves project MCP data and tolerates checkout failures",
   verifyHiveMigrationSafety,
@@ -709,120 +690,6 @@ test("GitHub helpers retrieve fresh Coder credentials on demand", verifyGithubHe
 test("repository manifest only includes approved organizations", verifyRepositoryManifest);
 test("repository bootstrap is idempotent", verifyRepositoryBootstrap);
 test("repository bootstrap rejects failed external authentication", verifyFailedExternalAuth);
-
-function installGamePluginCodexStub(bin) {
-  writeFileSync(
-    join(bin, "codex"),
-    [
-      "#!/bin/sh",
-      'if [ "$1 $2" = "plugin list" ]; then',
-      "  printf 'list\\n' >> \"$CODEX_CALLS\"",
-      "  printf '%s\\n' \"$CODEX_PLUGIN_LIST\"",
-      'elif [ "$1 $2" = "plugin add" ]; then',
-      '  printf \'add %s\\n\' "$3" >> "$CODEX_CALLS"',
-      "else",
-      "  exit 1",
-      "fi",
-      "",
-    ].join("\n"),
-  );
-  chmodSync(join(bin, "codex"), 0o755);
-}
-
-function createGamePluginFixture() {
-  const fixtureRoot = mkdtempSync(join(tmpdir(), "ai-dev-k8s-game-plugin-"));
-  const home = join(fixtureRoot, "home");
-  const bin = join(fixtureRoot, "bin");
-  const calls = join(fixtureRoot, "codex-calls.log");
-  const marketplace = join(home, ".agents", "plugins", "marketplace.json");
-  const gameManifest = join(home, "plugins", "game-development", ".codex-plugin", "plugin.json");
-  const electronicsManifest = join(
-    home,
-    "plugins",
-    "electronics-design",
-    ".codex-plugin",
-    "plugin.json",
-  );
-  const pluginBlock = readTemplateFile("scripts/tools-ai.sh").match(
-    /if command_exists codex && \[ -f "\$HOME\/\.agents\/plugins\/marketplace\.json" \]; then[\s\S]*\nfi\s*$/,
-  );
-
-  assert.ok(pluginBlock);
-  mkdirSync(bin, { recursive: true });
-  mkdirSync(join(home, ".agents", "plugins"), { recursive: true });
-  mkdirSync(join(home, "plugins", "game-development", ".codex-plugin"), { recursive: true });
-  mkdirSync(join(home, "plugins", "electronics-design", ".codex-plugin"), {
-    recursive: true,
-  });
-  writeFileSync(marketplace, '{"name":"team-local"}\n');
-  writeFileSync(gameManifest, '{"name":"game-development","version":"0.2.0+codex.template"}\n');
-  writeFileSync(
-    electronicsManifest,
-    '{"name":"electronics-design","version":"0.3.0+codex.template"}\n',
-  );
-  writeFileSync(calls, "");
-  installGamePluginCodexStub(bin);
-  const fixtureScript = join(fixtureRoot, "install-plugin.sh");
-  writeFileSync(
-    fixtureScript,
-    [
-      "#!/bin/bash",
-      "set -e",
-      'GREEN=""',
-      'YELLOW=""',
-      'RESET=""',
-      'command_exists() { command -v "$1" >/dev/null 2>&1; }',
-      pluginBlock[0],
-      "",
-    ].join("\n"),
-  );
-  return { bin, calls, fixtureScript, home };
-}
-
-function runGamePluginInstallFixture(
-  installedVersion,
-  electronicsVersion = "0.3.0+codex.template",
-) {
-  const { bin, calls, fixtureScript, home } = createGamePluginFixture();
-  const result = spawnSync("bash", [fixtureScript], {
-    encoding: "utf8",
-    env: {
-      ...process.env,
-      CODEX_CALLS: calls,
-      CODEX_PLUGIN_LIST: JSON.stringify({
-        installed: [
-          {
-            installed: true,
-            pluginId: "game-development@team-local",
-            version: installedVersion,
-          },
-          {
-            installed: true,
-            pluginId: "electronics-design@team-local",
-            version: electronicsVersion,
-          },
-        ],
-      }),
-      HOME: home,
-      PATH: `${bin}:${process.env.PATH}`,
-    },
-  });
-
-  assert.equal(result.status, 0, result.stderr);
-  return readFileSync(calls, "utf8").trim().split("\n");
-}
-
-function verifyGamePluginLifecycle() {
-  assert.deepEqual(runGamePluginInstallFixture("0.2.0+codex.template"), ["list"]);
-  assert.deepEqual(runGamePluginInstallFixture("0.1.0"), [
-    "list",
-    "add game-development@team-local",
-  ]);
-  assert.deepEqual(runGamePluginInstallFixture("0.2.0+codex.template", "0.1.0"), [
-    "list",
-    "add electronics-design@team-local",
-  ]);
-}
 
 function runReadOnlyMcpMigrationFixture(templateRoot) {
   const initScript = readFileSync(join(templateRoot, "scripts/init.sh"), "utf8");
