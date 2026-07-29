@@ -114,14 +114,7 @@ install_official_skills() {
   local vercel_root="$HOME/.local/share/hive/official-skills/vercel-$vercel_skills_ref"
   local managed_manifest="$HOME/.agents/skills/.hive-official"
   local expected_manifest source_path skill_name
-  local -a skill_sources=(
-    "$openai_root/skills/.curated/cloudflare-deploy"
-    "$openai_root/skills/.curated/security-best-practices"
-    "$openai_root/skills/.curated/security-threat-model"
-    "$vercel_root/skills/react-best-practices"
-    "$vercel_root/skills/composition-patterns"
-    "$vercel_root/skills/web-design-guidelines"
-  )
+  local -a skill_sources=()
 
   mkdir -p "$HOME/.agents/skills" "$HOME/.claude/skills" "$HOME/.codex/skills"
 
@@ -145,6 +138,12 @@ vercel-skills=$vercel_skills_ref"
     skills/.curated/security-best-practices \
     skills/.curated/security-threat-model; then
     printf '%b[warn] OpenAI skill checkout failed; continuing without those skills%b\n' "$YELLOW" "$RESET"
+  else
+    skill_sources+=(
+      "$openai_root/skills/.curated/cloudflare-deploy"
+      "$openai_root/skills/.curated/security-best-practices"
+      "$openai_root/skills/.curated/security-threat-model"
+    )
   fi
 
   if ! checkout_pinned_repo "$vercel_root" https://github.com/vercel-labs/agent-skills.git "$vercel_skills_ref" \
@@ -152,6 +151,12 @@ vercel-skills=$vercel_skills_ref"
     skills/composition-patterns \
     skills/web-design-guidelines; then
     printf '%b[warn] Vercel skill checkout failed; continuing without those skills%b\n' "$YELLOW" "$RESET"
+  else
+    skill_sources+=(
+      "$vercel_root/skills/react-best-practices"
+      "$vercel_root/skills/composition-patterns"
+      "$vercel_root/skills/web-design-guidelines"
+    )
   fi
 
   for source_path in "${skill_sources[@]}"; do

@@ -427,6 +427,15 @@ function verifyCuratedAgentCapabilities() {
 
   assert.match(script, /https:\/\/github\.com\/openai\/skills\.git/);
   assert.match(script, /https:\/\/github\.com\/vercel-labs\/agent-skills\.git/);
+  assert.match(script, /local -a skill_sources=\(\)/);
+  assert.match(
+    script,
+    /if ! checkout_pinned_repo "\$openai_root"[\s\S]*?else\s+skill_sources\+=\([\s\S]*?cloudflare-deploy[\s\S]*?security-best-practices[\s\S]*?security-threat-model[\s\S]*?\)\s+fi/,
+  );
+  assert.match(
+    script,
+    /if ! checkout_pinned_repo "\$vercel_root"[\s\S]*?else\s+skill_sources\+=\([\s\S]*?react-best-practices[\s\S]*?composition-patterns[\s\S]*?web-design-guidelines[\s\S]*?\)\s+fi/,
+  );
   assert.match(script, /--agent claude-code/);
   assert.match(script, /--agent codex/);
   assert.match(script, /\.agents\/skills\/\.hive-official/);
