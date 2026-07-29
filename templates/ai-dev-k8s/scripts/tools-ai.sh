@@ -189,18 +189,17 @@ install_official_github_plugin() {
   local source_root="$HOME/.local/share/hive/official-plugins/openai-$plugins_ref"
   local marketplace_root="$HOME/.local/share/hive/codex-marketplaces/openai-official"
   local marketplace_name="hive-openai-official"
-  local marketplace_list plugin_list
+  local installed_ref_file="$marketplace_root/.hive-github-plugin-ref"
+  local marketplace_list plugin_list plugin_installed=false
 
   if ! command_exists codex || ! command_exists git; then
     printf '%b[warn] Codex or Git is unavailable; GitHub plugin installation deferred%b\n' "$YELLOW" "$RESET"
     return 0
   fi
 
-  if [ ! -f "$source_root/plugins/github/.codex-plugin/plugin.json" ]; then
-    if ! checkout_pinned_repo "$source_root" https://github.com/openai/plugins.git "$plugins_ref" plugins/github; then
-      printf '%b[warn] Official GitHub plugin checkout failed; continuing%b\n' "$YELLOW" "$RESET"
-      return 0
-    fi
+  if ! checkout_pinned_repo "$source_root" https://github.com/openai/plugins.git "$plugins_ref" plugins/github; then
+    printf '%b[warn] Official GitHub plugin checkout failed; continuing%b\n' "$YELLOW" "$RESET"
+    return 0
   fi
 
   mkdir -p "$marketplace_root/.agents/plugins" "$marketplace_root/plugins"
@@ -240,8 +239,25 @@ JSON
   plugin_list="$(codex plugin list --json 2>/dev/null || true)"
   if printf '%s' "$plugin_list" | jq -e --arg id "github@$marketplace_name" \
     '.installed[]? | select(.pluginId == $id and .installed == true)' >/dev/null 2>&1; then
+    plugin_installed=true
+  fi
+
+  if [ "$plugin_installed" = true ] \
+    && [ -f "$installed_ref_file" ] \
+    && [ "$(cat "$installed_ref_file")" = "$plugins_ref" ]; then
     printf '%b[ok] Official GitHub Codex plugin already installed%b\n' "$GREEN" "$RESET"
-  elif timeout 60s codex plugin add "github@$marketplace_name" --json >/dev/null 2>&1; then
+    return 0
+  fi
+
+  if [ "$plugin_installed" = true ]; then
+    if ! codex plugin remove "github@$marketplace_name" --json >/dev/null 2>&1; then
+      printf '%b[warn] Existing GitHub plugin could not be removed; upgrade deferred%b\n' "$YELLOW" "$RESET"
+      return 0
+    fi
+  fi
+
+  if timeout 60s codex plugin add "github@$marketplace_name" --json >/dev/null 2>&1; then
+    printf '%s\n' "$plugins_ref" > "$installed_ref_file"
     printf '%b[ok] Official GitHub Codex plugin installed%b\n' "$GREEN" "$RESET"
   else
     printf '%b[warn] GitHub plugin authentication deferred; open /plugins in Codex to finish setup%b\n' "$YELLOW" "$RESET"

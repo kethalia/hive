@@ -440,8 +440,23 @@ function verifyCuratedAgentCapabilities() {
   assert.match(script, /--agent codex/);
   assert.match(script, /\.agents\/skills\/\.hive-official/);
   assert.match(script, /https:\/\/github\.com\/openai\/plugins\.git/);
+  assert.match(
+    script,
+    /if ! checkout_pinned_repo "\$source_root" https:\/\/github\.com\/openai\/plugins\.git "\$plugins_ref" plugins\/github; then[\s\S]*?return 0\s+fi/,
+  );
+  assert.doesNotMatch(
+    script,
+    /if \[ ! -f "\$source_root\/plugins\/github\/\.codex-plugin\/plugin\.json" \]/,
+  );
   assert.match(script, /github@\$marketplace_name/);
   assert.match(script, /"name": "hive-openai-official"/);
+  assert.match(script, /\.hive-github-plugin-ref/);
+  assert.match(script, /"\$\(cat "\$installed_ref_file"\)" = "\$plugins_ref"/);
+  assert.match(script, /codex plugin remove "github@\$marketplace_name" --json/);
+  assert.match(
+    script,
+    /codex plugin add "github@\$marketplace_name" --json[\s\S]*?printf '%s\\n' "\$plugins_ref" > "\$installed_ref_file"/,
+  );
   assert.match(readme, /Playwright remains an MCP server rather than a[\s\S]*duplicated skill/);
 }
 
