@@ -1,5 +1,14 @@
 # hive-orchestrator
 
+## 2.10.5
+
+### Patch Changes
+
+- a66ed2d: Replace unverified domain skills and third-party KiCad MCP tooling with a pinned,
+  official skill baseline for React, UI review, Cloudflare, and application security,
+  plus OpenAI's official GitHub plugin for Codex. Remove unused workspace creation
+  parameters and use fixed template defaults.
+
 ## 2.10.4
 
 ### Patch Changes
