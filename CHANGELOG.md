@@ -1,5 +1,11 @@
 # hive-orchestrator
 
+## 2.10.6
+
+### Patch Changes
+
+- 33fdbbd: Update the workspace template to use the latest hive-base image.
+
 ## 2.10.5
 
 ### Patch Changes
