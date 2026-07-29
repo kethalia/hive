@@ -1,4 +1,0 @@
-interface:
-  display_name: "Blender Asset Pipeline"
-  short_description: "Create game-ready assets with Blender"
-  default_prompt: "Use $blender-asset-pipeline to create or prepare this 3D asset for Unity."

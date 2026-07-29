@@ -101,32 +101,3 @@ elif [ -n "$codex_path" ]; then
 else
   printf '%b[warn] codex was not found on PATH after installation%b\n' "$YELLOW" "$RESET"
 fi
-
-if command_exists codex && [ -f "$HOME/.agents/plugins/marketplace.json" ]; then
-  marketplace_path="$HOME/.agents/plugins/marketplace.json"
-  marketplace_name="$(jq -er '.name | select(type == "string" and length > 0)' "$marketplace_path" 2>/dev/null || true)"
-  plugin_list="$(codex plugin list --json 2>/dev/null || true)"
-
-  for plugin_name in game-development electronics-design; do
-    plugin_manifest="$HOME/plugins/$plugin_name/.codex-plugin/plugin.json"
-    source_version="$(jq -er '.version | select(type == "string" and length > 0)' "$plugin_manifest" 2>/dev/null || true)"
-
-    if [ -z "$marketplace_name" ] || [ -z "$source_version" ]; then
-      printf '%b[warn] %s plugin metadata is invalid; installation deferred%b\n' "$YELLOW" "$plugin_name" "$RESET"
-      continue
-    fi
-
-    plugin_selector="$plugin_name@$marketplace_name"
-    installed_version="$(printf '%s' "$plugin_list" \
-      | jq -r --arg plugin_id "$plugin_selector" \
-        '[.installed[]? | select(.pluginId == $plugin_id and .installed == true)][0].version // empty' 2>/dev/null || true)"
-
-    if [ "$installed_version" = "$source_version" ]; then
-      printf '%b[ok] %s Codex plugin already installed%b\n' "$GREEN" "$plugin_name" "$RESET"
-    elif codex plugin add "$plugin_selector" --json >/tmp/hive-codex-plugin.json 2>/tmp/hive-codex-plugin.err; then
-      printf '%b[ok] %s Codex plugin installed at version %s%b\n' "$GREEN" "$plugin_name" "$source_version" "$RESET"
-    else
-      printf '%b[warn] %s plugin installation deferred; run: codex plugin add %s%b\n' "$YELLOW" "$plugin_name" "$plugin_selector" "$RESET"
-    fi
-  done
-fi

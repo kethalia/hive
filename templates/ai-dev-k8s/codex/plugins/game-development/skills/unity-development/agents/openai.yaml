@@ -1,4 +1,0 @@
-interface:
-  display_name: "Unity Development"
-  short_description: "Build, test, and maintain Unity games"
-  default_prompt: "Use $unity-development to build or improve this Unity project."

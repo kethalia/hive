@@ -2,7 +2,7 @@
 
 This Coder template provisions a non-root Kubernetes workspace Deployment with
 a persistent Longhorn home volume. It carries forward the AI, browser, Node.js,
-Foundry, editor, game-development, and terminal tooling from the Docker-backed `ai-dev`
+Foundry, editor, game-development applications, and terminal tooling from the Docker-backed `ai-dev`
 template without mounting a host Docker socket.
 
 ## Prerequisites
@@ -53,12 +53,10 @@ the current Unity 6.3 LTS Editor from Hub on first use.
 KiCad 9, its standard symbols, footprints, templates, 3D models, and
 `kicad-cli` are image-baked. Launch the GUI from Coder Desktop.
 
-The template installs local Codex `game-development` and `electronics-design`
-plugins. They provide Unity, Blender-to-Unity, and KiCad skills; the electronics
-plugin also supplies pinned KiCad MCP tooling. Claude Code receives the same
-KiCad MCP server and discovers the shared KiCad skill under `~/.claude/skills`.
-Plugin source and personal-marketplace entries are refreshed from the versioned
-template on every start. Start a new agent session after first installation.
+The template does not install domain-specific agent skills or third-party MCP
+servers for Unity, Blender, or KiCad. Use each vendor's official documentation
+and tooling. Unity Editor 6 users may enable Unity's official MCP server through
+the Unity AI Assistant package.
 
 Obsidian remains installed as a standalone notes application, but Hive no
 longer clones or syncs a vault, injects vault instructions or skills, registers
