@@ -447,9 +447,7 @@ function verifyElectronicsDesignTooling() {
     "utf8",
   );
   const marketplace = JSON.parse(readTemplateFile("codex/marketplace.json"));
-  const plugin = JSON.parse(
-    readTemplateFile("codex/plugins/electronics-design/plugin.json"),
-  );
+  const plugin = JSON.parse(readTemplateFile("codex/plugins/electronics-design/plugin.json"));
   const mcp = JSON.parse(readTemplateFile("codex/plugins/electronics-design/mcp.json"));
 
   assert.match(dockerfile, /^\s*kicad \\/m);
@@ -737,13 +735,7 @@ function createGamePluginFixture() {
   const bin = join(fixtureRoot, "bin");
   const calls = join(fixtureRoot, "codex-calls.log");
   const marketplace = join(home, ".agents", "plugins", "marketplace.json");
-  const gameManifest = join(
-    home,
-    "plugins",
-    "game-development",
-    ".codex-plugin",
-    "plugin.json",
-  );
+  const gameManifest = join(home, "plugins", "game-development", ".codex-plugin", "plugin.json");
   const electronicsManifest = join(
     home,
     "plugins",
@@ -763,10 +755,7 @@ function createGamePluginFixture() {
     recursive: true,
   });
   writeFileSync(marketplace, '{"name":"team-local"}\n');
-  writeFileSync(
-    gameManifest,
-    '{"name":"game-development","version":"0.2.0+codex.template"}\n',
-  );
+  writeFileSync(gameManifest, '{"name":"game-development","version":"0.2.0+codex.template"}\n');
   writeFileSync(
     electronicsManifest,
     '{"name":"electronics-design","version":"0.3.0+codex.template"}\n',
@@ -829,10 +818,10 @@ function verifyGamePluginLifecycle() {
     "list",
     "add game-development@team-local",
   ]);
-  assert.deepEqual(
-    runGamePluginInstallFixture("0.2.0+codex.template", "0.1.0"),
-    ["list", "add electronics-design@team-local"],
-  );
+  assert.deepEqual(runGamePluginInstallFixture("0.2.0+codex.template", "0.1.0"), [
+    "list",
+    "add electronics-design@team-local",
+  ]);
 }
 
 function runReadOnlyMcpMigrationFixture(templateRoot) {
