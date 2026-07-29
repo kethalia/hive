@@ -1,6 +1,11 @@
+FROM ghcr.io/astral-sh/uv:0.11.32@sha256:df4cae8f3a96d175e2e5f992e597550000edbe78fdc2594d5cd8de1a217f504c AS uv
+
 FROM debian:trixie
 
 ENV DEBIAN_FRONTEND=noninteractive
+
+# uv/uvx provide the isolated Python runtime used by the KiCad MCP wrapper.
+COPY --from=uv /uv /uvx /usr/local/bin/
 
 # ── Stage 1: system packages (all run as root) ────────────────────────────────
 
@@ -61,6 +66,9 @@ RUN apt-get update \
         google-chrome-stable \
         htop \
         jq \
+        kicad \
+        kicad-libraries \
+        kicad-packages3d \
         libatk-bridge2.0-0 \
         libatspi2.0-0 \
         libgl1 \

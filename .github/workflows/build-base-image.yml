@@ -69,6 +69,12 @@ jobs:
       - name: Smoke test — Blender starts
         run: docker run --rm ghcr.io/kethalia/hive-base:${{ github.sha }} blender --version
 
+      - name: Smoke test — KiCad CLI starts
+        run: docker run --rm ghcr.io/kethalia/hive-base:${{ github.sha }} kicad-cli version
+
+      - name: Smoke test — KiCad MCP starts
+        run: docker run --rm ghcr.io/kethalia/hive-base:${{ github.sha }} npx -y kicad-mcp-pro@3.25.0 --help
+
       - name: Smoke test — Obsidian retained
         run: docker run --rm ghcr.io/kethalia/hive-base:${{ github.sha }} which obsidian
 
@@ -130,6 +136,12 @@ jobs:
 
       - name: Smoke test — Blender starts
         run: docker run --rm ghcr.io/kethalia/hive-base:${{ github.sha }} blender --version
+
+      - name: Smoke test — KiCad CLI starts
+        run: docker run --rm ghcr.io/kethalia/hive-base:${{ github.sha }} kicad-cli version
+
+      - name: Smoke test — KiCad MCP starts
+        run: docker run --rm ghcr.io/kethalia/hive-base:${{ github.sha }} npx -y kicad-mcp-pro@3.25.0 --help
 
       - name: Smoke test — Obsidian retained
         run: docker run --rm ghcr.io/kethalia/hive-base:${{ github.sha }} which obsidian

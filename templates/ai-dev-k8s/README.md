@@ -48,10 +48,17 @@ Desktop to launch either application. Unity authentication, licenses, Editors,
 and projects are intentionally stored in the persistent home volume; install
 the current Unity 6.3 LTS Editor from Hub on first use.
 
-The template installs a local Codex `game-development` plugin containing Unity
-development and Blender-to-Unity asset-pipeline skills. Plugin source and its
-personal-marketplace entry are refreshed from the versioned template on every
-start. Start a new Codex session after the first installation.
+## Electronics Design
+
+KiCad 9, its standard symbols, footprints, templates, 3D models, and
+`kicad-cli` are image-baked. Launch the GUI from Coder Desktop.
+
+The template installs local Codex `game-development` and `electronics-design`
+plugins. They provide Unity, Blender-to-Unity, and KiCad skills; the electronics
+plugin also supplies pinned KiCad MCP tooling. Claude Code receives the same
+KiCad MCP server and discovers the shared KiCad skill under `~/.claude/skills`.
+Plugin source and personal-marketplace entries are refreshed from the versioned
+template on every start. Start a new agent session after first installation.
 
 Obsidian remains installed as a standalone notes application, but Hive no
 longer clones or syncs a vault, injects vault instructions or skills, registers

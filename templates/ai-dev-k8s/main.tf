@@ -128,16 +128,20 @@ resource "coder_agent" "main" {
   startup_script_behavior = "blocking"
 
   startup_script = templatefile("${path.module}/scripts/init.sh", {
-    workspace_name             = data.coder_workspace.me.name
-    owner_name                 = data.coder_workspace_owner.me.name
-    owner_email                = data.coder_workspace_owner.me.email
-    claude_md_content          = file("${path.module}/CLAUDE.md")
-    codex_marketplace_b64      = base64encode(file("${path.module}/codex/marketplace.json"))
-    game_plugin_manifest_b64   = base64encode(file("${path.module}/codex/plugins/game-development/plugin.json"))
-    unity_skill_b64            = base64encode(file("${path.module}/codex/plugins/game-development/skills/unity-development/SKILL.md"))
-    unity_skill_metadata_b64   = base64encode(file("${path.module}/codex/plugins/game-development/skills/unity-development/agents/openai.yaml"))
-    blender_skill_b64          = base64encode(file("${path.module}/codex/plugins/game-development/skills/blender-asset-pipeline/SKILL.md"))
-    blender_skill_metadata_b64 = base64encode(file("${path.module}/codex/plugins/game-development/skills/blender-asset-pipeline/agents/openai.yaml"))
+    workspace_name                  = data.coder_workspace.me.name
+    owner_name                      = data.coder_workspace_owner.me.name
+    owner_email                     = data.coder_workspace_owner.me.email
+    claude_md_content               = file("${path.module}/CLAUDE.md")
+    codex_marketplace_b64           = base64encode(file("${path.module}/codex/marketplace.json"))
+    game_plugin_manifest_b64        = base64encode(file("${path.module}/codex/plugins/game-development/plugin.json"))
+    unity_skill_b64                 = base64encode(file("${path.module}/codex/plugins/game-development/skills/unity-development/SKILL.md"))
+    unity_skill_metadata_b64        = base64encode(file("${path.module}/codex/plugins/game-development/skills/unity-development/agents/openai.yaml"))
+    blender_skill_b64               = base64encode(file("${path.module}/codex/plugins/game-development/skills/blender-asset-pipeline/SKILL.md"))
+    blender_skill_metadata_b64      = base64encode(file("${path.module}/codex/plugins/game-development/skills/blender-asset-pipeline/agents/openai.yaml"))
+    electronics_plugin_manifest_b64 = base64encode(file("${path.module}/codex/plugins/electronics-design/plugin.json"))
+    electronics_plugin_mcp_b64      = base64encode(file("${path.module}/codex/plugins/electronics-design/mcp.json"))
+    kicad_skill_b64                 = base64encode(file("${path.module}/codex/plugins/electronics-design/skills/kicad-development/SKILL.md"))
+    kicad_skill_metadata_b64        = base64encode(file("${path.module}/codex/plugins/electronics-design/skills/kicad-development/agents/openai.yaml"))
   })
 
   env = merge(
