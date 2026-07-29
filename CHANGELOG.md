@@ -1,5 +1,11 @@
 # hive-orchestrator
 
+## 2.10.3
+
+### Patch Changes
+
+- d978aff: Add KiCad and shared Claude/Codex electronics-design tooling to the workspace template.
+
 ## 2.10.2
 
 ### Patch Changes
