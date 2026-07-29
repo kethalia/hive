@@ -55,6 +55,7 @@ configure_codex_mcp() {
   mkdir -p "$HOME/.codex"
   python3 - <<'PYCODEX'
 import os
+import tomllib
 from pathlib import Path
 
 config = Path(os.environ["HOME"]) / ".codex" / "config.toml"
@@ -75,6 +76,25 @@ managed_tables = {
     "[mcp_servers.hive_playwright]",
     "[mcp_servers.hive_playwright.env]",
 }
+
+# Older Hive templates registered the repository's codex directory as an
+# explicit personal marketplace. Current Codex discovers the generated
+# ~/.agents marketplace automatically, while the legacy entry shadows it and
+# prevents every plugin command from loading. Remove only that known legacy
+# source so user-managed personal marketplaces remain untouched.
+try:
+    parsed = tomllib.loads(existing)
+except tomllib.TOMLDecodeError:
+    parsed = {}
+personal_marketplace = parsed.get("marketplaces", {}).get("personal", {})
+legacy_source = personal_marketplace.get("source")
+if (
+    personal_marketplace.get("source_type") == "local"
+    and isinstance(legacy_source, str)
+    and Path(legacy_source).parts[-3:] == ("templates", "ai-dev-k8s", "codex")
+):
+    managed_tables.add("[marketplaces.personal]")
+
 preserved = []
 skip_table = False
 for line in existing.splitlines():

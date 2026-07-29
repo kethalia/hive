@@ -678,6 +678,10 @@ test(
   verifyVaultManagedContextCleanup,
 );
 test("workspace migration replaces read-only persisted MCP configs", verifyReadOnlyMcpMigration);
+test(
+  "workspace migration removes only the obsolete Hive Codex marketplace",
+  verifyLegacyCodexMarketplaceMigration,
+);
 test("base image rollout updates the pinned template digest through a PR", verifyBaseImageRollout);
 test("supplemental tools support the non-root workspace", verifyNonRootSupplementalTools);
 test("Docker workspaces use the same repairable File Browser runtime", verifyDockerFileBrowser);
@@ -822,6 +826,58 @@ function verifyGamePluginLifecycle() {
     "list",
     "add electronics-design@team-local",
   ]);
+}
+
+function runCodexConfigMigrationFixture(configContents) {
+  const initScript = readTemplateFile("scripts/init.sh");
+  const configMatch = initScript.match(/python3 - <<'PYCODEX'\n([\s\S]*?)\nPYCODEX/);
+  const fixtureRoot = mkdtempSync(join(tmpdir(), "codex-marketplace-migration-"));
+  const home = join(fixtureRoot, "home");
+  const codexRoot = join(home, ".codex");
+  const config = join(codexRoot, "config.toml");
+
+  assert.ok(configMatch);
+  mkdirSync(codexRoot, { recursive: true });
+  writeFileSync(config, configContents);
+  const configScript = join(fixtureRoot, "configure.py");
+  writeFileSync(configScript, configMatch[1]);
+  const result = spawnSync("python3", [configScript], {
+    encoding: "utf8",
+    env: { ...process.env, HOME: home },
+  });
+
+  assert.equal(result.status, 0, result.stderr);
+  return readFileSync(config, "utf8");
+}
+
+function verifyLegacyCodexMarketplaceMigration() {
+  const legacyConfig = runCodexConfigMigrationFixture(`personality = "pragmatic"
+
+[marketplaces.personal]
+last_updated = "2026-07-26T11:24:48Z"
+source_type = "local"
+source = "/home/coder/projects/kethalia/hive/templates/ai-dev-k8s/codex"
+
+[marketplaces.team]
+source_type = "local"
+source = "/home/coder/plugins/team"
+
+[plugins."game-development@personal"]
+enabled = true
+`);
+
+  assert.doesNotMatch(legacyConfig, /\[marketplaces\.personal\]/);
+  assert.doesNotMatch(legacyConfig, /templates\/ai-dev-k8s\/codex/);
+  assert.match(legacyConfig, /\[marketplaces\.team\]/);
+  assert.match(legacyConfig, /\[plugins\."game-development@personal"\]/);
+
+  const customConfig = runCodexConfigMigrationFixture(`[marketplaces.personal]
+source_type = "local"
+source = "/home/coder/plugins/custom-marketplace"
+`);
+
+  assert.match(customConfig, /\[marketplaces\.personal\]/);
+  assert.match(customConfig, /\/home\/coder\/plugins\/custom-marketplace/);
 }
 
 function runReadOnlyMcpMigrationFixture(templateRoot) {
