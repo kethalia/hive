@@ -1,5 +1,11 @@
 # hive-orchestrator
 
+## 2.10.4
+
+### Patch Changes
+
+- bae6c89: Ship the latest AI development workspace template with the updated hive-base image digest.
+
 ## 2.10.3
 
 ### Patch Changes
