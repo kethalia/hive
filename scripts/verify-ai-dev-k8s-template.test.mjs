@@ -99,6 +99,10 @@ function verifyPodSecurity() {
   assert.match(terraform, /storage\s*=\s*"100Gi"/);
   assert.match(terraform, /name\s*=\s*"USER"[\s\S]*?value\s*=\s*"coder"/);
   assert.match(terraform, /name\s*=\s*"HOME"[\s\S]*?value\s*=\s*"\/home\/coder"/);
+  assert.match(
+    terraform,
+    /container \{[\s\S]*?name\s*=\s*"dev"[\s\S]*?resources \{\s*requests = \{\s*cpu\s*=\s*"6"\s*memory\s*=\s*"16Gi"\s*\}\s*limits = \{\s*cpu\s*=\s*"12"\s*memory\s*=\s*"32Gi"/,
+  );
 }
 
 function verifyFileLoadedScripts() {

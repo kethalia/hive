@@ -566,12 +566,12 @@ resource "kubernetes_deployment_v1" "workspace" {
 
           resources {
             requests = {
-              cpu    = "2"
-              memory = "4Gi"
+              cpu    = "6"
+              memory = "16Gi"
             }
             limits = {
-              cpu    = "6"
-              memory = "12Gi"
+              cpu    = "12"
+              memory = "32Gi"
             }
           }
 
