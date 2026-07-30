@@ -20,8 +20,8 @@ The pod is ephemeral; `/home/coder` persists across stops, starts, and pod
 replacement. Workspaces prefer `k3s-03` but may schedule elsewhere. The pinned
 `hive-base` image runs as UID/GID 1000 with all Linux capabilities dropped.
 
-The default home volume is 100 GiB. The workspace requests 2 CPU and 4 GiB of
-memory, with limits of 6 CPU and 12 GiB.
+The default home volume is 100 GiB. The workspace requests 6 CPU and 16 GiB of
+memory, with limits of 12 CPU and 32 GiB.
 
 The template has no user-configurable creation parameters or Terraform input
 variables. It uses the fixed 100 GiB home volume and `/home/coder` project root,
