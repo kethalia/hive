@@ -52,8 +52,9 @@ export type ClipboardStatusCallback = (status: ClipboardActionStatus) => void;
 export interface ClipboardActionOptions {
   onStatus?: ClipboardStatusCallback;
   onCompose?: (request: TerminalComposeRequest) => void;
-  onPasteOutcome?: (outcome: TerminalPasteOutcome) => void;
+  onPasteOutcome?: (outcome: TerminalPasteOutcome) => boolean | undefined;
   onPasteFailure?: () => boolean | undefined;
+  runPasteFallback?: (fallback: () => boolean) => boolean;
   targetLabel?: string;
   workspaceId?: string;
 }
@@ -74,11 +75,12 @@ function emitStatus(
 function notifyPasteOutcome(
   options: ClipboardActionOptions | undefined,
   outcome: TerminalPasteOutcome,
-): void {
+): boolean {
   try {
-    options?.onPasteOutcome?.(outcome);
+    return options?.onPasteOutcome?.(outcome) === true;
   } catch {
     console.warn("[clipboard] paste outcome callback failed");
+    return false;
   }
 }
 
@@ -167,7 +169,14 @@ function completePasteFallback(
   reason: Exclude<ClipboardFallbackReason, "clipboard-api-unavailable">,
   options: ClipboardActionOptions | undefined,
 ): void {
-  const fallbackSucceeded = tryExecCommand("paste");
+  let fallbackSucceeded = false;
+  try {
+    fallbackSucceeded = options?.runPasteFallback
+      ? options.runPasteFallback(() => tryExecCommand("paste"))
+      : tryExecCommand("paste");
+  } catch {
+    fallbackSucceeded = false;
+  }
   emitStatus(options, {
     action: "paste",
     outcome: "fallback",
@@ -291,7 +300,7 @@ export function pasteClipboardApiToTerminal(
 
   void readClipboardApiOutcome(clipboard)
     .then((outcome) => {
-      notifyPasteOutcome(options, outcome);
+      if (notifyPasteOutcome(options, outcome)) return;
       return handleTerminalPasteOutcome(
         outcome,
         createTerminalPasteController(term, send, options),

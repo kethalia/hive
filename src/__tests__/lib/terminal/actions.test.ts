@@ -404,6 +404,36 @@ describe("pasteClipboardApiToTerminal", () => {
       expect.objectContaining({ action: "paste", outcome: "fallback" }),
     );
   });
+
+  it("runs exec-command paste inside the request fallback wrapper", async () => {
+    const execCommand = installExecCommand(true);
+    installClipboard({
+      read: vi.fn().mockRejectedValue(new DOMException("denied", "NotAllowedError")),
+      readText: vi.fn(),
+    });
+    const runPasteFallback = vi.fn((fallback: () => boolean) => fallback());
+
+    pasteClipboardApiToTerminal(null, vi.fn(), {
+      onPasteFailure: () => false,
+      runPasteFallback,
+    });
+
+    await vi.waitFor(() => expect(runPasteFallback).toHaveBeenCalledOnce());
+    expect(execCommand).toHaveBeenCalledWith("paste");
+  });
+
+  it("skips default outcome dispatch when the request callback takes ownership", async () => {
+    installClipboard({
+      readText: vi.fn().mockResolvedValue("API text"),
+    });
+    const onPasteOutcome = vi.fn(() => true);
+    const send = vi.fn();
+
+    pasteClipboardApiToTerminal(null, send, { onPasteOutcome });
+
+    await vi.waitFor(() => expect(onPasteOutcome).toHaveBeenCalledOnce());
+    expect(send).not.toHaveBeenCalled();
+  });
 });
 
 describe("pasteNativeClipboardEventToTerminal", () => {

@@ -236,16 +236,12 @@ function terminalMouseTrackingActive(term: Terminal | null): boolean {
   return term?.modes?.mouseTrackingMode !== undefined && term.modes.mouseTrackingMode !== "none";
 }
 
-type NativePasteAttemptState =
-  | "pending"
-  | "clipboard-handled-file"
-  | "prefer-native-file"
-  | "prefer-native-paste";
-
 interface NativePasteAttempt {
   active: boolean;
+  apiOutcome: TerminalPasteOutcome | null;
+  phase: "pending" | "api-file-handled" | "api-failed";
   nativeOutcome: TerminalPasteOutcome | null;
-  state: NativePasteAttemptState;
+  nativeHandled: boolean;
   suppressNativePaste: boolean;
   timer: number | null;
 }
@@ -421,6 +417,7 @@ export function InteractiveTerminal({
   const mobileTouchIntentRef = useRef<MobileTouchIntent | null>(null);
   const suppressNextClickFocusRef = useRef(false);
   const nativePasteAttemptsRef = useRef<NativePasteAttempt[]>([]);
+  const execFallbackPasteAttemptRef = useRef<NativePasteAttempt | null>(null);
   const mobileInputCleanupRef = useRef<MobileInputAdapterCleanup | null>(null);
   const { handleKeyEvent } = useKeybindings();
   const handleKeyEventRef = useRef(handleKeyEvent);
@@ -883,56 +880,62 @@ export function InteractiveTerminal({
           onStatus: onClipboardStatusRef.current,
         });
       };
-      const finishNativePasteAttempt = (attempt: NativePasteAttempt) => {
+      const finishNativePasteAttempt = (
+        attempt: NativePasteAttempt,
+        nativeHandled = attempt.nativeHandled,
+      ) => {
         if (!attempt.active) return;
         attempt.active = false;
+        attempt.nativeHandled = nativeHandled;
         attempt.suppressNativePaste = false;
+        attempt.apiOutcome = null;
         attempt.nativeOutcome = null;
         if (attempt.timer !== null) {
           window.clearTimeout(attempt.timer);
           attempt.timer = null;
         }
+        if (execFallbackPasteAttemptRef.current === attempt) {
+          execFallbackPasteAttemptRef.current = null;
+        }
         nativePasteAttemptsRef.current = nativePasteAttemptsRef.current.filter(
           (candidate) => candidate !== attempt,
         );
       };
-      const preferCapturedNativeFilePaste = (attempt: NativePasteAttempt) => {
-        if (!attempt.active) return;
-        const pendingOutcome = attempt.nativeOutcome;
-        attempt.nativeOutcome = null;
-        if (pendingOutcome?.kind === "asset-files") {
-          handleCapturedNativePaste(pendingOutcome);
-          finishNativePasteAttempt(attempt);
-          return;
-        }
-        if (attempt.suppressNativePaste) {
-          attempt.state = "prefer-native-file";
-          return;
-        }
-        finishNativePasteAttempt(attempt);
+      const resolveNativePasteAttempt = (attempt: NativePasteAttempt) => {
+        const apiOutcome = attempt.apiOutcome;
+        const nativeOutcome = attempt.nativeOutcome;
+        const nativeReplacesApi =
+          nativeOutcome?.kind === "asset-files" && apiOutcome?.kind !== "asset-files";
+        const chosenOutcome =
+          nativeReplacesApi || !apiOutcome || apiOutcome.kind === "empty"
+            ? nativeOutcome
+            : apiOutcome;
+        if (!chosenOutcome || chosenOutcome.kind === "empty") return false;
+
+        handleCapturedNativePaste(chosenOutcome);
+        finishNativePasteAttempt(attempt, chosenOutcome === nativeOutcome);
+        return true;
       };
       const preferCapturedNativePaste = (attempt: NativePasteAttempt): boolean => {
-        if (!attempt.active) return false;
+        if (!attempt.active) return attempt.nativeHandled;
         const pendingOutcome = attempt.nativeOutcome;
-        attempt.nativeOutcome = null;
         if (pendingOutcome && pendingOutcome.kind !== "empty") {
           handleCapturedNativePaste(pendingOutcome);
-          finishNativePasteAttempt(attempt);
+          finishNativePasteAttempt(attempt, true);
           return true;
         }
-        if (attempt.suppressNativePaste) {
-          attempt.state = "prefer-native-paste";
-          return false;
-        }
-        finishNativePasteAttempt(attempt);
+        attempt.phase = "api-failed";
+        attempt.suppressNativePaste = true;
         return false;
       };
       const pasteFromBrowserClipboard = () => {
         if (!onComposeRequestRef.current) return true;
         const attempt: NativePasteAttempt = {
           active: true,
+          apiOutcome: null,
           nativeOutcome: null,
-          state: "pending",
+          nativeHandled: false,
+          phase: "pending",
           suppressNativePaste: true,
           timer: null,
         };
@@ -943,14 +946,26 @@ export function InteractiveTerminal({
           targetLabel: targetLabelRef.current,
           onPasteFailure: () => preferCapturedNativePaste(attempt),
           onPasteOutcome: (outcome) => {
-            if (!attempt.active) return;
+            if (!attempt.active) return attempt.nativeHandled;
             if (outcome.kind === "asset-files") {
-              attempt.nativeOutcome = null;
-              attempt.state = "clipboard-handled-file";
+              handleCapturedNativePaste(outcome);
+              attempt.phase = "api-file-handled";
               if (!attempt.suppressNativePaste) finishNativePasteAttempt(attempt);
-              return;
+              return true;
             }
-            preferCapturedNativeFilePaste(attempt);
+            attempt.apiOutcome = outcome;
+            if (!attempt.suppressNativePaste) resolveNativePasteAttempt(attempt);
+            return true;
+          },
+          runPasteFallback: (fallback) => {
+            execFallbackPasteAttemptRef.current = attempt;
+            try {
+              return fallback();
+            } finally {
+              if (execFallbackPasteAttemptRef.current === attempt) {
+                execFallbackPasteAttemptRef.current = null;
+              }
+            }
           },
           onStatus: (status) => {
             if (isTerminalPasteStatus(status)) onClipboardStatusRef.current?.(status);
@@ -961,7 +976,17 @@ export function InteractiveTerminal({
           return true;
         }
         if (attempt.active) {
-          attempt.timer = window.setTimeout(() => finishNativePasteAttempt(attempt), 750);
+          attempt.timer = window.setTimeout(() => {
+            if (attempt.nativeOutcome && attempt.nativeOutcome.kind !== "empty") {
+              handleCapturedNativePaste(attempt.nativeOutcome);
+              finishNativePasteAttempt(attempt, true);
+              return;
+            }
+            if (attempt.apiOutcome && attempt.apiOutcome.kind !== "empty") {
+              handleCapturedNativePaste(attempt.apiOutcome);
+            }
+            finishNativePasteAttempt(attempt);
+          }, 750);
         }
         return false;
       };
@@ -976,34 +1001,32 @@ export function InteractiveTerminal({
 
       const container = containerRef.current;
       const handlePaste = (event: ClipboardEvent) => {
-        const attempt = nativePasteAttemptsRef.current.find(
-          (candidate) => candidate.active && candidate.suppressNativePaste,
-        );
+        const explicitFallbackAttempt = execFallbackPasteAttemptRef.current;
+        const attempt =
+          explicitFallbackAttempt?.active && explicitFallbackAttempt.suppressNativePaste
+            ? explicitFallbackAttempt
+            : nativePasteAttemptsRef.current.find(
+                (candidate) => candidate.active && candidate.suppressNativePaste,
+              );
         if (attempt) {
           attempt.suppressNativePaste = false;
-          if (attempt.timer !== null) {
-            window.clearTimeout(attempt.timer);
-            attempt.timer = null;
-          }
           const nativeOutcome = readNativePasteOutcome(event);
           event.preventDefault();
           event.stopPropagation();
           event.stopImmediatePropagation();
-          if (attempt.state === "prefer-native-paste") {
-            handleCapturedNativePaste(nativeOutcome);
-            finishNativePasteAttempt(attempt);
-            return;
-          }
-          if (attempt.state === "prefer-native-file") {
-            if (nativeOutcome.kind === "asset-files") handleCapturedNativePaste(nativeOutcome);
-            finishNativePasteAttempt(attempt);
-            return;
-          }
-          if (attempt.state === "clipboard-handled-file") {
-            finishNativePasteAttempt(attempt);
-            return;
-          }
           attempt.nativeOutcome = nativeOutcome;
+          if (attempt.phase === "api-failed") {
+            if (nativeOutcome.kind !== "empty") handleCapturedNativePaste(nativeOutcome);
+            finishNativePasteAttempt(attempt, nativeOutcome.kind !== "empty");
+            return;
+          }
+          if (attempt.phase === "api-file-handled") {
+            finishNativePasteAttempt(attempt);
+            return;
+          }
+          if (attempt.apiOutcome && !resolveNativePasteAttempt(attempt)) {
+            finishNativePasteAttempt(attempt);
+          }
           return;
         }
         if (!onComposeRequestRef.current) return;
@@ -1091,6 +1114,7 @@ export function InteractiveTerminal({
           attempt.active = false;
         }
         nativePasteAttemptsRef.current = [];
+        execFallbackPasteAttemptRef.current = null;
       };
     },
     onResize: () => {
