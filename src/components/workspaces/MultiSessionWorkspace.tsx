@@ -99,7 +99,11 @@ import {
   copyTerminalSelection,
   pasteClipboardApiToTerminal,
 } from "@/lib/terminal/actions";
-import type { TerminalComposeRequest, TerminalPasteStatus } from "@/lib/terminal/clipboard";
+import {
+  submitTerminalComposeDraft,
+  type TerminalComposeRequest,
+  type TerminalPasteStatus,
+} from "@/lib/terminal/clipboard";
 import { TERMINAL_COMPOSE_TOGGLE_EVENT } from "@/lib/terminal/events";
 import { registerGlobalCommandPaletteSource } from "@/lib/terminal/global-command-palette";
 import { isPwaStandalone } from "@/lib/terminal/pwa";
@@ -1989,8 +1993,7 @@ export function MultiSessionWorkspace({
       const targetName = composeTargetSessionName ?? activeSessionNameRef.current;
       const entry = targetName ? terminalsRef.current.get(targetName) : null;
       if (!entry) return;
-      entry.send(draft);
-      entry.send("\r");
+      submitTerminalComposeDraft(entry.term, entry.send, draft);
     },
     [composeTargetSessionName],
   );

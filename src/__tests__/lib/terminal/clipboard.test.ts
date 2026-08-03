@@ -6,6 +6,7 @@ import {
   normalizeClipboardText,
   pasteTextToXterm,
   readClipboardApiOutcome,
+  submitTerminalComposeDraft,
 } from "@/lib/terminal/clipboard";
 
 describe("terminal clipboard normalization", () => {
@@ -81,6 +82,18 @@ describe("terminal paste dispatch", () => {
 
     expect(term.paste).toHaveBeenCalledWith("echo ok");
     expect(send).not.toHaveBeenCalled();
+  });
+
+  it("submits compose drafts through xterm paste before sending enter", () => {
+    const term = { paste: vi.fn() };
+    const send = vi.fn();
+
+    submitTerminalComposeDraft(term as never, send, "one\ntwo");
+
+    expect(term.paste).toHaveBeenCalledWith("one\ntwo");
+    expect(send).toHaveBeenCalledOnce();
+    expect(send).toHaveBeenCalledWith("\r");
+    expect(term.paste.mock.invocationCallOrder[0]).toBeLessThan(send.mock.invocationCallOrder[0]);
   });
 
   it("stages multiline text in compose", async () => {
