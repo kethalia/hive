@@ -2619,14 +2619,14 @@ describe("InteractiveTerminal integration — Mobile input adapter", () => {
       },
     });
     const pasteOptions = mockPasteClipboardApiToTerminal.mock.calls.at(-1)?.[2];
-    if (failureFirst) pasteOptions?.onPasteFailure?.();
+    if (failureFirst) expect(pasteOptions?.onPasteFailure?.()).toBe(false);
 
     document.querySelector(".xterm")?.dispatchEvent(nativePaste);
 
     expect(nativePaste.defaultPrevented).toBe(true);
     if (!failureFirst) {
       expect(onComposeRequest).not.toHaveBeenCalled();
-      pasteOptions?.onPasteFailure?.();
+      expect(pasteOptions?.onPasteFailure?.()).toBe(true);
     }
 
     expect(onComposeRequest).toHaveBeenCalledWith({
@@ -2634,6 +2634,47 @@ describe("InteractiveTerminal integration — Mobile input adapter", () => {
       append: true,
       targetLabel: undefined,
     });
+    unmount();
+  });
+
+  it("keeps overlapping shifted paste fallbacks isolated by request", async () => {
+    const onComposeRequest = vi.fn();
+    mockPasteClipboardApiToTerminal.mockReturnValue(false);
+    const { unmount } = await renderTerminal({ onComposeRequest });
+    const keyHandler = terminalInstances.at(-1)?.attachCustomKeyEventHandler.mock.calls.at(-1)?.[0];
+    const shiftedPasteEvent = {
+      type: "keydown",
+      key: "V",
+      ctrlKey: true,
+      metaKey: false,
+      altKey: false,
+      shiftKey: true,
+    };
+
+    keyHandler?.(shiftedPasteEvent);
+    keyHandler?.(shiftedPasteEvent);
+
+    for (const text of ["first one\nfirst two", "second one\nsecond two"]) {
+      const nativePaste = new Event("paste", {
+        bubbles: true,
+        cancelable: true,
+      }) as ClipboardEvent;
+      Object.defineProperty(nativePaste, "clipboardData", {
+        value: { items: null, getData: vi.fn(() => text) },
+      });
+      document.querySelector(".xterm")?.dispatchEvent(nativePaste);
+      expect(nativePaste.defaultPrevented).toBe(true);
+    }
+
+    const firstPasteOptions = mockPasteClipboardApiToTerminal.mock.calls[0]?.[2];
+    const secondPasteOptions = mockPasteClipboardApiToTerminal.mock.calls[1]?.[2];
+    expect(secondPasteOptions?.onPasteFailure?.()).toBe(true);
+    expect(firstPasteOptions?.onPasteFailure?.()).toBe(true);
+
+    expect(onComposeRequest.mock.calls.map(([request]) => request.draft)).toEqual([
+      "second one\nsecond two",
+      "first one\nfirst two",
+    ]);
     unmount();
   });
 

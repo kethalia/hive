@@ -382,6 +382,28 @@ describe("pasteClipboardApiToTerminal", () => {
       method: "native-browser",
     });
   });
+
+  it("skips exec-command fallback when a captured native paste handled the failure", async () => {
+    const execCommand = installExecCommand(true);
+    installClipboard({
+      read: vi.fn().mockRejectedValue(new DOMException("denied", "NotAllowedError")),
+      readText: vi.fn(),
+    });
+    const onPasteFailure = vi.fn(() => true);
+    const onStatus = vi.fn();
+
+    const result = pasteClipboardApiToTerminal(null, vi.fn(), {
+      onPasteFailure,
+      onStatus,
+    });
+
+    expect(result).toBe(false);
+    await vi.waitFor(() => expect(onPasteFailure).toHaveBeenCalledOnce());
+    expect(execCommand).not.toHaveBeenCalled();
+    expect(onStatus).not.toHaveBeenCalledWith(
+      expect.objectContaining({ action: "paste", outcome: "fallback" }),
+    );
+  });
 });
 
 describe("pasteNativeClipboardEventToTerminal", () => {

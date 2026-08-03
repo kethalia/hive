@@ -53,7 +53,7 @@ export interface ClipboardActionOptions {
   onStatus?: ClipboardStatusCallback;
   onCompose?: (request: TerminalComposeRequest) => void;
   onPasteOutcome?: (outcome: TerminalPasteOutcome) => void;
-  onPasteFailure?: () => void;
+  onPasteFailure?: () => boolean | undefined;
   targetLabel?: string;
   workspaceId?: string;
 }
@@ -82,11 +82,12 @@ function notifyPasteOutcome(
   }
 }
 
-function notifyPasteFailure(options: ClipboardActionOptions | undefined): void {
+function notifyPasteFailure(options: ClipboardActionOptions | undefined): boolean {
   try {
-    options?.onPasteFailure?.();
+    return options?.onPasteFailure?.() === true;
   } catch {
     console.warn("[clipboard] paste failure callback failed");
+    return false;
   }
 }
 
@@ -297,8 +298,8 @@ export function pasteClipboardApiToTerminal(
       );
     })
     .catch((error: unknown) => {
-      notifyPasteFailure(options);
-      completePasteFallback(classifyClipboardFailure(error), options);
+      const failureHandled = notifyPasteFailure(options);
+      if (!failureHandled) completePasteFallback(classifyClipboardFailure(error), options);
     });
 
   return false;
