@@ -1,5 +1,11 @@
 # hive-orchestrator
 
+## 2.10.8
+
+### Patch Changes
+
+- 08013ff: Route shifted terminal paste shortcuts through the multiline compose flow and preserve bracketed paste when sending composed text.
+
 ## 2.10.7
 
 ### Patch Changes
