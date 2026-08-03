@@ -2563,6 +2563,35 @@ describe("InteractiveTerminal integration — Mobile input adapter", () => {
     unmount();
   });
 
+  it("intercepts terminal Ctrl+Shift+V before xterm injects multiline text", async () => {
+    const onComposeRequest = vi.fn();
+    mockPasteClipboardApiToTerminal.mockReturnValue(false);
+    const { unmount } = await renderTerminal({ onComposeRequest });
+    const terminal = terminalInstances.at(-1);
+    const keyHandler = terminal?.attachCustomKeyEventHandler.mock.calls.at(-1)?.[0];
+
+    const result = keyHandler?.({
+      type: "keydown",
+      key: "V",
+      ctrlKey: true,
+      metaKey: false,
+      altKey: false,
+      shiftKey: true,
+    });
+
+    expect(result).toBe(false);
+    expect(mockPasteClipboardApiToTerminal).toHaveBeenCalledWith(
+      terminal,
+      expect.any(Function),
+      expect.objectContaining({
+        onCompose: onComposeRequest,
+        workspaceId: "test-ws",
+      }),
+    );
+    expect(mockHandleKeyEvent).not.toHaveBeenCalled();
+    unmount();
+  });
+
   it("lets native file paste through after terminal Ctrl+V when clipboard item reads are unavailable", async () => {
     const onComposeRequest = vi.fn();
     mockPasteClipboardApiToTerminal.mockReturnValue(true);

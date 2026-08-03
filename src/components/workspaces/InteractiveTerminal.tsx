@@ -930,7 +930,7 @@ export function InteractiveTerminal({
 
       term.attachCustomKeyEventHandler((e) => {
         if (e.type !== "keydown") return true;
-        if ((e.ctrlKey || e.metaKey) && !e.altKey && !e.shiftKey && e.key.toLowerCase() === "v") {
+        if ((e.ctrlKey || e.metaKey) && !e.altKey && e.key.toLowerCase() === "v") {
           return pasteFromBrowserClipboard();
         }
         return handleKeyEventRef.current(e);
