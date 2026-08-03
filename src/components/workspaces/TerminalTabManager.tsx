@@ -21,7 +21,7 @@ import {
   renameSessionAction,
 } from "@/lib/actions/workspaces";
 import { SAFE_IDENTIFIER_RE } from "@/lib/constants";
-import type { TerminalComposeRequest } from "@/lib/terminal/clipboard";
+import { submitTerminalComposeDraft, type TerminalComposeRequest } from "@/lib/terminal/clipboard";
 import { TERMINAL_COMPOSE_TOGGLE_EVENT } from "@/lib/terminal/events";
 import { registerGlobalCommandPaletteSource } from "@/lib/terminal/global-command-palette";
 import { isPwaStandalone } from "@/lib/terminal/pwa";
@@ -308,8 +308,7 @@ export function TerminalTabManager({ agentId, workspaceId }: TerminalTabManagerP
   const sendComposeDraft = useCallback((draft: string) => {
     const entry = activeTabIdRef.current ? terminalsRef.current.get(activeTabIdRef.current) : null;
     if (!entry) return;
-    entry.send(draft);
-    entry.send("\r");
+    submitTerminalComposeDraft(entry.term, entry.send, draft);
   }, []);
 
   const { register, unregister } = keybindingsCtx;

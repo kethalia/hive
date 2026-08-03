@@ -33,7 +33,7 @@ import {
   copyTerminalSelection,
   pasteClipboardApiToTerminal,
 } from "@/lib/terminal/actions";
-import type { TerminalComposeRequest } from "@/lib/terminal/clipboard";
+import { submitTerminalComposeDraft, type TerminalComposeRequest } from "@/lib/terminal/clipboard";
 import { TERMINAL_COMPOSE_OPEN_EVENT, TERMINAL_COMPOSE_TOGGLE_EVENT } from "@/lib/terminal/events";
 import {
   isTerminalSettingsChangedDetail,
@@ -329,10 +329,9 @@ function TerminalInner({
   const sendComposeDraft = useCallback(
     (draft: string) => {
       if (!activeSend) return;
-      activeSend(draft);
-      activeSend("\r");
+      submitTerminalComposeDraft(activeTerminal, activeSend, draft);
     },
-    [activeSend],
+    [activeSend, activeTerminal],
   );
 
   const handleMobilePaste = useCallback(() => {

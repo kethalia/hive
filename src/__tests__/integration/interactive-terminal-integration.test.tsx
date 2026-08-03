@@ -2563,6 +2563,252 @@ describe("InteractiveTerminal integration — Mobile input adapter", () => {
     unmount();
   });
 
+  it("intercepts terminal Ctrl+Shift+V before xterm injects multiline text", async () => {
+    const onComposeRequest = vi.fn();
+    mockPasteClipboardApiToTerminal.mockReturnValue(false);
+    const { unmount } = await renderTerminal({ onComposeRequest });
+    const terminal = terminalInstances.at(-1);
+    const keyHandler = terminal?.attachCustomKeyEventHandler.mock.calls.at(-1)?.[0];
+
+    const result = keyHandler?.({
+      type: "keydown",
+      key: "V",
+      ctrlKey: true,
+      metaKey: false,
+      altKey: false,
+      shiftKey: true,
+    });
+
+    expect(result).toBe(false);
+    expect(mockPasteClipboardApiToTerminal).toHaveBeenCalledWith(
+      terminal,
+      expect.any(Function),
+      expect.objectContaining({
+        onCompose: onComposeRequest,
+        workspaceId: "test-ws",
+      }),
+    );
+    expect(mockHandleKeyEvent).not.toHaveBeenCalled();
+    unmount();
+  });
+
+  it.each([
+    false,
+    true,
+  ])("replays native text when shifted Clipboard API paste fails (failure first: %s)", async (failureFirst) => {
+    const onComposeRequest = vi.fn();
+    mockPasteClipboardApiToTerminal.mockReturnValue(false);
+    const { unmount } = await renderTerminal({ onComposeRequest });
+    const terminal = terminalInstances.at(-1);
+    const keyHandler = terminal?.attachCustomKeyEventHandler.mock.calls.at(-1)?.[0];
+
+    keyHandler?.({
+      type: "keydown",
+      key: "V",
+      ctrlKey: true,
+      metaKey: false,
+      altKey: false,
+      shiftKey: true,
+    });
+
+    const nativePaste = new Event("paste", { bubbles: true, cancelable: true }) as ClipboardEvent;
+    Object.defineProperty(nativePaste, "clipboardData", {
+      value: {
+        items: null,
+        getData: vi.fn(() => "echo first\necho second"),
+      },
+    });
+    const pasteOptions = mockPasteClipboardApiToTerminal.mock.calls.at(-1)?.[2];
+    if (failureFirst) expect(pasteOptions?.onPasteFailure?.()).toBe(false);
+
+    document.querySelector(".xterm")?.dispatchEvent(nativePaste);
+
+    expect(nativePaste.defaultPrevented).toBe(true);
+    if (!failureFirst) {
+      expect(onComposeRequest).not.toHaveBeenCalled();
+      expect(pasteOptions?.onPasteFailure?.()).toBe(true);
+    }
+
+    expect(onComposeRequest).toHaveBeenCalledWith({
+      draft: "echo first\necho second",
+      append: true,
+      targetLabel: undefined,
+    });
+    unmount();
+  });
+
+  it("keeps overlapping shifted paste fallbacks isolated by request", async () => {
+    const onComposeRequest = vi.fn();
+    mockPasteClipboardApiToTerminal.mockReturnValue(false);
+    const { unmount } = await renderTerminal({ onComposeRequest });
+    const keyHandler = terminalInstances.at(-1)?.attachCustomKeyEventHandler.mock.calls.at(-1)?.[0];
+    const shiftedPasteEvent = {
+      type: "keydown",
+      key: "V",
+      ctrlKey: true,
+      metaKey: false,
+      altKey: false,
+      shiftKey: true,
+    };
+
+    keyHandler?.(shiftedPasteEvent);
+    keyHandler?.(shiftedPasteEvent);
+
+    for (const text of ["first one\nfirst two", "second one\nsecond two"]) {
+      const nativePaste = new Event("paste", {
+        bubbles: true,
+        cancelable: true,
+      }) as ClipboardEvent;
+      Object.defineProperty(nativePaste, "clipboardData", {
+        value: { items: null, getData: vi.fn(() => text) },
+      });
+      document.querySelector(".xterm")?.dispatchEvent(nativePaste);
+      expect(nativePaste.defaultPrevented).toBe(true);
+    }
+
+    const firstPasteOptions = mockPasteClipboardApiToTerminal.mock.calls[0]?.[2];
+    const secondPasteOptions = mockPasteClipboardApiToTerminal.mock.calls[1]?.[2];
+    expect(secondPasteOptions?.onPasteFailure?.()).toBe(true);
+    expect(firstPasteOptions?.onPasteFailure?.()).toBe(true);
+
+    expect(onComposeRequest.mock.calls.map(([request]) => request.draft)).toEqual([
+      "second one\nsecond two",
+      "first one\nfirst two",
+    ]);
+    unmount();
+  });
+
+  it("replays cached native text on timeout and ignores the late API outcome", async () => {
+    const onComposeRequest = vi.fn();
+    mockPasteClipboardApiToTerminal.mockReturnValue(false);
+    const { unmount } = await renderTerminal({ onComposeRequest });
+    const timeoutSpy = vi.spyOn(window, "setTimeout");
+    const keyHandler = terminalInstances.at(-1)?.attachCustomKeyEventHandler.mock.calls.at(-1)?.[0];
+
+    keyHandler?.({
+      type: "keydown",
+      key: "V",
+      ctrlKey: true,
+      metaKey: false,
+      altKey: false,
+      shiftKey: true,
+    });
+    const timeoutCallback = timeoutSpy.mock.calls.at(-1)?.[0];
+    const nativePaste = new Event("paste", { bubbles: true, cancelable: true }) as ClipboardEvent;
+    Object.defineProperty(nativePaste, "clipboardData", {
+      value: { items: null, getData: vi.fn(() => "cached one\ncached two") },
+    });
+    document.querySelector(".xterm")?.dispatchEvent(nativePaste);
+
+    expect(onComposeRequest).not.toHaveBeenCalled();
+    if (typeof timeoutCallback !== "function") throw new Error("Paste timeout was not scheduled.");
+    act(() => timeoutCallback());
+
+    expect(onComposeRequest).toHaveBeenCalledOnce();
+    expect(onComposeRequest).toHaveBeenCalledWith(
+      expect.objectContaining({ draft: "cached one\ncached two" }),
+    );
+    const pasteOptions = mockPasteClipboardApiToTerminal.mock.calls.at(-1)?.[2];
+    expect(
+      pasteOptions?.onPasteOutcome?.({ kind: "text", text: "late API text", multiline: false }),
+    ).toBe(true);
+    expect(onComposeRequest).toHaveBeenCalledOnce();
+    timeoutSpy.mockRestore();
+    unmount();
+  });
+
+  it("routes a synchronous exec fallback event to its rejecting attempt", async () => {
+    const onComposeRequest = vi.fn();
+    mockPasteClipboardApiToTerminal.mockReturnValue(false);
+    const { unmount } = await renderTerminal({ onComposeRequest });
+    const keyHandler = terminalInstances.at(-1)?.attachCustomKeyEventHandler.mock.calls.at(-1)?.[0];
+    const shiftedPasteEvent = {
+      type: "keydown",
+      key: "V",
+      ctrlKey: true,
+      metaKey: false,
+      altKey: false,
+      shiftKey: true,
+    };
+    keyHandler?.(shiftedPasteEvent);
+    keyHandler?.(shiftedPasteEvent);
+
+    const firstPasteOptions = mockPasteClipboardApiToTerminal.mock.calls[0]?.[2];
+    const secondPasteOptions = mockPasteClipboardApiToTerminal.mock.calls[1]?.[2];
+    expect(secondPasteOptions?.onPasteFailure?.()).toBe(false);
+    secondPasteOptions?.runPasteFallback?.(() => {
+      const fallbackPaste = new Event("paste", {
+        bubbles: true,
+        cancelable: true,
+      }) as ClipboardEvent;
+      Object.defineProperty(fallbackPaste, "clipboardData", {
+        value: { items: null, getData: vi.fn(() => "newer one\nnewer two") },
+      });
+      document.querySelector(".xterm")?.dispatchEvent(fallbackPaste);
+      return true;
+    });
+
+    const olderPaste = new Event("paste", { bubbles: true, cancelable: true }) as ClipboardEvent;
+    Object.defineProperty(olderPaste, "clipboardData", {
+      value: { items: null, getData: vi.fn(() => "older one\nolder two") },
+    });
+    document.querySelector(".xterm")?.dispatchEvent(olderPaste);
+    expect(firstPasteOptions?.onPasteFailure?.()).toBe(true);
+
+    expect(onComposeRequest.mock.calls.map(([request]) => request.draft)).toEqual([
+      "newer one\nnewer two",
+      "older one\nolder two",
+    ]);
+    unmount();
+  });
+
+  it("prefers a captured native file over a successful API text representation", async () => {
+    const onComposeRequest = vi.fn();
+    mockPasteClipboardApiToTerminal.mockReturnValue(false);
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: true,
+        json: vi.fn().mockResolvedValue({ paths: ["/tmp/hive-terminal-paste/native.png"] }),
+      }),
+    );
+    const { unmount } = await renderTerminal({ onComposeRequest });
+    const keyHandler = terminalInstances.at(-1)?.attachCustomKeyEventHandler.mock.calls.at(-1)?.[0];
+    keyHandler?.({
+      type: "keydown",
+      key: "V",
+      ctrlKey: true,
+      metaKey: false,
+      altKey: false,
+      shiftKey: true,
+    });
+
+    const file = new File(["png"], "native.png", { type: "image/png" });
+    const nativePaste = new Event("paste", { bubbles: true, cancelable: true }) as ClipboardEvent;
+    Object.defineProperty(nativePaste, "clipboardData", {
+      value: {
+        items: { length: 1, 0: { kind: "file", getAsFile: () => file } },
+        getData: vi.fn(() => "/local/native.png"),
+      },
+    });
+    document.querySelector(".xterm")?.dispatchEvent(nativePaste);
+
+    const pasteOptions = mockPasteClipboardApiToTerminal.mock.calls.at(-1)?.[2];
+    expect(
+      pasteOptions?.onPasteOutcome?.({
+        kind: "text",
+        text: "/local/native.png",
+        multiline: false,
+      }),
+    ).toBe(true);
+
+    await waitFor(() =>
+      expect(mockSend).toHaveBeenCalledWith("/tmp/hive-terminal-paste/native.png"),
+    );
+    expect(mockSend).not.toHaveBeenCalledWith("/local/native.png");
+    unmount();
+  });
+
   it("lets native file paste through after terminal Ctrl+V when clipboard item reads are unavailable", async () => {
     const onComposeRequest = vi.fn();
     mockPasteClipboardApiToTerminal.mockReturnValue(true);

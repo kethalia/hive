@@ -88,6 +88,15 @@ export function pasteTextToXterm(
   send(text);
 }
 
+export function submitTerminalComposeDraft(
+  term: Pick<Terminal, "paste"> | null,
+  send: (data: string) => void,
+  draft: string,
+): void {
+  pasteTextToXterm(term, send, draft);
+  send("\r");
+}
+
 export async function uploadTerminalPasteAssets(
   workspaceId: string,
   files: readonly File[],

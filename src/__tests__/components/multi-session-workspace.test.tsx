@@ -624,6 +624,7 @@ function makeTerminal(name: string, focus?: () => void): Terminal {
   return {
     name,
     focus: vi.fn(focus),
+    paste: vi.fn(),
     getSelection: vi.fn(() => `${name}-selection`),
     clearSelection: vi.fn(),
   } as unknown as Terminal;
@@ -1856,10 +1857,12 @@ describe("MultiSessionWorkspace", () => {
     await renderTwoSessionWorkspace();
     const mainSend = makeSender("main-session");
     const devSend = makeSender("dev-server");
+    const mainTerm = makeTerminal("main-session");
+    const devTerm = makeTerminal("dev-server");
 
     act(() => {
-      terminalProps.get("main-session")?.onTerminalReady?.(makeTerminal("main-session"), mainSend);
-      terminalProps.get("dev-server")?.onTerminalReady?.(makeTerminal("dev-server"), devSend);
+      terminalProps.get("main-session")?.onTerminalReady?.(mainTerm, mainSend);
+      terminalProps.get("dev-server")?.onTerminalReady?.(devTerm, devSend);
       terminalProps.get("dev-server")?.onComposeRequest?.({
         draft: "printf dev",
         targetLabel: "dev-server",
@@ -1882,8 +1885,10 @@ describe("MultiSessionWorkspace", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Send command" }));
 
-    expect(devSend).toHaveBeenNthCalledWith(1, "printf dev");
-    expect(devSend).toHaveBeenNthCalledWith(2, "\r");
+    expect(devTerm.paste).toHaveBeenCalledWith("printf dev");
+    expect(devSend).toHaveBeenCalledOnce();
+    expect(devSend).toHaveBeenCalledWith("\r");
+    expect(mainTerm.paste).not.toHaveBeenCalled();
     expect(mainSend).not.toHaveBeenCalled();
   });
 
@@ -1892,10 +1897,12 @@ describe("MultiSessionWorkspace", () => {
     await renderTwoSessionWorkspace();
     const mainSend = makeSender("main-session");
     const devSend = makeSender("dev-server");
+    const mainTerm = makeTerminal("main-session");
+    const devTerm = makeTerminal("dev-server");
 
     act(() => {
-      terminalProps.get("main-session")?.onTerminalReady?.(makeTerminal("main-session"), mainSend);
-      terminalProps.get("dev-server")?.onTerminalReady?.(makeTerminal("dev-server"), devSend);
+      terminalProps.get("main-session")?.onTerminalReady?.(mainTerm, mainSend);
+      terminalProps.get("dev-server")?.onTerminalReady?.(devTerm, devSend);
       window.dispatchEvent(new Event(TERMINAL_COMPOSE_TOGGLE_EVENT));
     });
 
@@ -1932,8 +1939,10 @@ describe("MultiSessionWorkspace", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Send command" }));
 
-    expect(mainSend).toHaveBeenNthCalledWith(1, "printf main");
-    expect(mainSend).toHaveBeenNthCalledWith(2, "\r");
+    expect(mainTerm.paste).toHaveBeenCalledWith("printf main");
+    expect(mainSend).toHaveBeenCalledOnce();
+    expect(mainSend).toHaveBeenCalledWith("\r");
+    expect(devTerm.paste).not.toHaveBeenCalled();
     expect(devSend).not.toHaveBeenCalled();
     expect(screen.getByTestId("workspace-pane-dev-server")).toHaveAttribute(
       "data-compose-disabled",
