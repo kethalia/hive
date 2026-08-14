@@ -16,6 +16,8 @@ import { test } from "node:test";
 
 const TEMPLATE_ROOT = join(process.cwd(), "templates/ai-dev-k8s");
 const DOCKER_TEMPLATE_ROOT = join(process.cwd(), "templates/ai-dev");
+const GAME_TEMPLATE_ROOT = join(process.cwd(), "templates/game-dev");
+const ELECTRONICS_TEMPLATE_ROOT = join(process.cwd(), "templates/electronics");
 
 function readTemplateFile(relativePath) {
   return readFileSync(join(TEMPLATE_ROOT, relativePath), "utf8");
@@ -63,6 +65,7 @@ printf 'fresh-test-token\\n'
 
 function verifyPodSecurity() {
   const terraform = readTemplateFile("main.tf");
+  const profile = JSON.parse(readTemplateFile("profile.json"));
 
   assert.match(terraform, /startup_script_behavior\s*=\s*"blocking"/);
   assert.match(terraform, /resource "coder_agent" "main"[\s\S]*?arch\s*=\s*"amd64"/);
@@ -96,13 +99,21 @@ function verifyPodSecurity() {
   assert.doesNotMatch(terraform, /data "coder_parameter"/);
   assert.doesNotMatch(terraform, /variable "/);
   assert.doesNotMatch(terraform, /module "dotfiles"/);
-  assert.match(terraform, /storage\s*=\s*"100Gi"/);
+  assert.match(terraform, /storage\s*=\s*local\.profile\.resources\.storage/);
   assert.match(terraform, /name\s*=\s*"USER"[\s\S]*?value\s*=\s*"coder"/);
   assert.match(terraform, /name\s*=\s*"HOME"[\s\S]*?value\s*=\s*"\/home\/coder"/);
-  assert.match(
-    terraform,
-    /container \{[\s\S]*?name\s*=\s*"dev"[\s\S]*?resources \{\s*requests = \{\s*cpu\s*=\s*"6"\s*memory\s*=\s*"16Gi"\s*\}\s*limits = \{\s*cpu\s*=\s*"12"\s*memory\s*=\s*"32Gi"/,
-  );
+  assert.match(terraform, /image\s*=\s*local\.profile\.image/);
+  assert.match(terraform, /cpu\s*=\s*local\.profile\.resources\.cpu_request/);
+  assert.match(terraform, /memory\s*=\s*local\.profile\.resources\.memory_request/);
+  assert.match(terraform, /cpu\s*=\s*local\.profile\.resources\.cpu_limit/);
+  assert.match(terraform, /memory\s*=\s*local\.profile\.resources\.memory_limit/);
+  assert.match(terraform, /local\.profile\.vscode_extensions/);
+  assert.match(terraform, /local\.profile\.enable_web3/);
+  assert.equal(profile.id, "software");
+  assert.equal(profile.resources.storage, "100Gi");
+  assert.equal(profile.resources.cpu_request, "6");
+  assert.equal(profile.resources.memory_request, "16Gi");
+  assert.match(profile.image, /^ghcr\.io\/kethalia\/hive-base@sha256:[0-9a-f]{64}$/);
 }
 
 function verifyFileLoadedScripts() {
@@ -278,6 +289,16 @@ function verifyBaseImageRollout() {
   assert.match(workflow, /gh pr list --head "\$branch" --state all/);
   assert.match(workflow, /gh pr reopen/);
   assert.match(workflow, /gh workflow run ci\.yml --ref "\$branch"/);
+  for (const templateName of [
+    "ai-dev-k8s",
+    "orchestrator",
+    "game-dev",
+    "electronics",
+    "infrastructure",
+  ]) {
+    assert.match(workflow, new RegExp(`templates/${templateName}/profile\\.json`));
+  }
+  assert.doesNotMatch(workflow, /templates\/ai-dev-k8s\/main\.tf/);
   assert.match(workflow, /^permissions:\n {2}contents: read$/m);
   assert.match(
     workflow,
@@ -298,6 +319,7 @@ function verifyNonRootSupplementalTools() {
   const terraform = readTemplateFile("main.tf");
   const filebrowser = readTemplateFile("scripts/tools-filebrowser.sh");
   const initScript = readTemplateFile("scripts/init.sh");
+  const workspaceReadme = readTemplateFile("WORKSPACE.md");
 
   assert.ok(!terraform.includes('module "filebrowser"'));
   assert.ok(!terraform.includes('module "nodejs"'));
@@ -322,7 +344,7 @@ function verifyNonRootSupplementalTools() {
   assert.match(filebrowser, /login_status/);
   assert.match(filebrowser, /pkill -x filebrowser/);
   assert.doesNotMatch(filebrowser, /\bsudo\b/);
-  assert.ok(initScript.includes("Node.js v24"));
+  assert.ok(workspaceReadme.includes("Node.js 24"));
   assert.ok(!initScript.includes("also available: 18, 20, 22"));
 }
 
@@ -462,6 +484,7 @@ function verifyCuratedAgentCapabilities() {
 
 function verifyGameDevelopmentTooling() {
   const terraform = readTemplateFile("main.tf");
+  const gameProfile = JSON.parse(readFileSync(join(GAME_TEMPLATE_ROOT, "profile.json"), "utf8"));
   const dockerfile = readFileSync(join(process.cwd(), "docker/hive-base/Dockerfile"), "utf8");
   const claudeMcp = readFileSync(join(process.cwd(), "docker/hive-base/claude-mcp.json"), "utf8");
   const obsidianDesktop = readFileSync(
@@ -476,8 +499,9 @@ function verifyGameDevelopmentTooling() {
     dockerfile,
     /COPY --chown=coder:coder claude-mcp\.json \/home\/coder\/\.claude\/mcp\.json/,
   );
-  assert.match(terraform, /visualstudiotoolsforunity\.vstuc/);
-  assert.match(terraform, /ms-dotnettools\.csharp/);
+  assert.match(terraform, /local\.profile\.vscode_extensions/);
+  assert.ok(gameProfile.vscode_extensions.includes("visualstudiotoolsforunity.vstuc"));
+  assert.ok(gameProfile.vscode_extensions.includes("ms-dotnettools.csharp"));
   assert.doesNotMatch(claudeMcp, /obsidian|mcpvault/i);
   assert.doesNotMatch(obsidianDesktop, /\/home\/coder\/vault/);
   assert.match(obsidianDesktop, /^Name=Obsidian$/m);
@@ -485,6 +509,9 @@ function verifyGameDevelopmentTooling() {
 
 function verifyElectronicsDesignTooling() {
   const terraform = readTemplateFile("main.tf");
+  const electronicsProfile = JSON.parse(
+    readFileSync(join(ELECTRONICS_TEMPLATE_ROOT, "profile.json"), "utf8"),
+  );
   const initScript = readTemplateFile("scripts/init.sh");
   const toolsAi = readTemplateFile("scripts/tools-ai.sh");
   const dockerfile = readFileSync(join(process.cwd(), "docker/hive-base/Dockerfile"), "utf8");
@@ -496,6 +523,8 @@ function verifyElectronicsDesignTooling() {
   assert.match(dockerfile, /^\s*kicad-libraries \\/m);
   assert.match(dockerfile, /^\s*kicad-packages3d \\/m);
   assert.equal(workflow.match(/kicad-cli version/g)?.length, 2);
+  assert.equal(electronicsProfile.id, "electronics");
+  assert.ok(electronicsProfile.vscode_extensions.includes("ms-vscode.cpptools"));
   for (const content of [terraform, initScript, toolsAi, dockerfile, workflow]) {
     assert.doesNotMatch(
       content,
@@ -580,8 +609,10 @@ function verifyRepositoryManifest() {
       `${destination} must use an approved destination organization`,
     );
   }
-  assert.ok(entries.includes("kethalia/k8s-cluster|kethalia/k8s-cluster"));
   assert.ok(entries.includes("phlox-labs/service-routing-api|phlox-labs/service-routing-api"));
+  assert.ok(!entries.includes("chillwhales/realm-of-chill|chillwhales/realm-of-chill"));
+  assert.ok(!entries.includes("kethalia/k8s-cluster|kethalia/k8s-cluster"));
+  assert.ok(!entries.includes("kethalia/workflows|kethalia/workflows"));
 }
 
 function verifyRepositoryBootstrap() {

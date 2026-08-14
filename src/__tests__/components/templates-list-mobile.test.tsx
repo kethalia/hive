@@ -161,6 +161,11 @@ describe("templates mobile list", () => {
     expect(within(cards[1]).getByText("Current")).toBeInTheDocument();
     expect(within(cards[2]).getByText("Unknown")).toBeInTheDocument();
     expect(within(cards[0]).getByText("Last pushed")).toBeInTheDocument();
+    expect(within(cards[0]).getByText("Software development")).toBeInTheDocument();
+    expect(within(cards[0]).getByText("Kubernetes")).toBeInTheDocument();
+    expect(within(cards[1]).getByText("Docker")).toBeInTheDocument();
+    expect(within(cards[2]).getByText("Custom")).toBeInTheDocument();
+    expect(within(cards[2]).getByText("External")).toBeInTheDocument();
 
     const mobilePush = within(cards[0]).getByRole("button", { name: /Push/ });
     expect(mobilePush).toHaveClass("min-h-11", "touch-manipulation", "text-sm");
@@ -168,6 +173,8 @@ describe("templates mobile list", () => {
     const desktopTable = screen.getByTestId("templates-desktop-table");
     expect(desktopTable).toHaveClass("hidden", "md:block");
     expect(within(desktopTable).getByRole("columnheader", { name: "Name" })).toBeInTheDocument();
+    expect(within(desktopTable).getByRole("columnheader", { name: "Profile" })).toBeInTheDocument();
+    expect(within(desktopTable).getByRole("columnheader", { name: "Runtime" })).toBeInTheDocument();
     expect(
       within(desktopTable).getByRole("columnheader", { name: "Last Pushed" }),
     ).toBeInTheDocument();

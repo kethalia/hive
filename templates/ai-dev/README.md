@@ -109,8 +109,8 @@ codex --version
 For projects that still have legacy `.planning` artifacts, open `gsd` in the
 project and run `/gsd migrate`, then `/gsd doctor`.
 
-For the operator runbook covering both Hive and ai-dev templates, see
-`docs/opengsd-coder-workspaces.md`.
+For the operator runbook covering the complete Hive template catalog, see
+`docs/workspace-template-profiles.md`.
 
 ### Create a Workspace
 

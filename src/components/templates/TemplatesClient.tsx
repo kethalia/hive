@@ -30,7 +30,9 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { templateCatalogEntry } from "@/lib/templates/catalog";
 import type { TemplateStatus } from "@/lib/templates/staleness";
+import { workspaceProfileForTemplate } from "@/lib/workspaces/profiles";
 
 // xterm must not run on the server — dynamic import with ssr:false
 const TerminalPanel = dynamic(() => import("./TerminalPanel").then((m) => m.TerminalPanel), {
@@ -68,6 +70,13 @@ function formatDate(iso: string | null): string {
   if (diffDays === 1) return "yesterday";
   if (diffDays < 30) return `${diffDays}d ago`;
   return date.toLocaleDateString();
+}
+
+function runtimeLabel(templateName: string): string {
+  const runtime = templateCatalogEntry(templateName)?.runtime;
+  if (runtime === "kubernetes") return "Kubernetes";
+  if (runtime === "docker") return "Docker";
+  return "External";
 }
 
 export function TemplatesClient({ initialStatuses }: TemplatesClientProps) {
@@ -256,6 +265,8 @@ export function TemplatesClient({ initialStatuses }: TemplatesClientProps) {
             <TableHeader>
               <TableRow>
                 <TableHead>Name</TableHead>
+                <TableHead>Profile</TableHead>
+                <TableHead>Runtime</TableHead>
                 <TableHead>Last Pushed</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead className="text-right">Action</TableHead>
@@ -265,11 +276,24 @@ export function TemplatesClient({ initialStatuses }: TemplatesClientProps) {
               {statuses.map((status) => {
                 const push = pushStates[status.name];
                 const isInProgress = push?.inProgress === true;
+                const definition = templateCatalogEntry(status.name);
+                const profile = workspaceProfileForTemplate(status.name);
 
                 return (
                   <TableRow key={status.name}>
                     <TableCell>
-                      <code className="text-sm font-mono">{status.name}</code>
+                      <code className="font-mono text-sm">{status.name}</code>
+                      {definition ? (
+                        <p className="mt-1 max-w-sm text-xs text-muted-foreground">
+                          {definition.description}
+                        </p>
+                      ) : null}
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant="outline">{profile.label}</Badge>
+                    </TableCell>
+                    <TableCell className="text-sm text-muted-foreground">
+                      {runtimeLabel(status.name)}
                     </TableCell>
                     <TableCell className="text-muted-foreground text-sm">
                       {formatDate(status.lastPushed)}
@@ -328,6 +352,8 @@ export function TemplatesClient({ initialStatuses }: TemplatesClientProps) {
             statuses.map((status) => {
               const push = pushStates[status.name];
               const isInProgress = push?.inProgress === true;
+              const definition = templateCatalogEntry(status.name);
+              const profile = workspaceProfileForTemplate(status.name);
 
               return (
                 <ListCard key={status.name} data-testid="template-mobile-card">
@@ -347,6 +373,11 @@ export function TemplatesClient({ initialStatuses }: TemplatesClientProps) {
                     </ListCardMeta>
                   </ListCardHeader>
                   <ListCardRows>
+                    <ListCardRow label="Profile">{profile.label}</ListCardRow>
+                    <ListCardRow label="Runtime">{runtimeLabel(status.name)}</ListCardRow>
+                    {definition ? (
+                      <ListCardRow label="Purpose">{definition.description}</ListCardRow>
+                    ) : null}
                     <ListCardRow label="Last pushed">{formatDate(status.lastPushed)}</ListCardRow>
                   </ListCardRows>
                   <ListCardActions>

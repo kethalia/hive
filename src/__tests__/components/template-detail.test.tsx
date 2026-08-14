@@ -132,6 +132,15 @@ describe("TemplateDetailClient", () => {
     expect(screen.getByText("ai-dev")).toBeInTheDocument();
   });
 
+  it("renders catalog profile, runtime, and purpose", () => {
+    render(<TemplateDetailClient status={makeStatus()} />);
+    expect(screen.getByText("Software development")).toBeInTheDocument();
+    expect(screen.getByText("Docker")).toBeInTheDocument();
+    expect(
+      screen.getByText("General-purpose software workspace backed by Docker."),
+    ).toBeInTheDocument();
+  });
+
   it("renders staleness badge when stale", () => {
     render(<TemplateDetailClient status={makeStatus({ stale: true })} />);
     expect(screen.getByText("Stale")).toBeInTheDocument();

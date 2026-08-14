@@ -157,9 +157,9 @@ jobs:
           [[ "$digest" =~ ^sha256:[0-9a-f]{64}$ ]]
           echo "digest=$digest" >> "$GITHUB_OUTPUT"
 
-      # The Kubernetes template is digest-pinned. Updating it through a PR keeps
-      # main user-merge-only while ensuring the newly tested image can roll out.
-      - name: Open template image digest PR
+      # Every Kubernetes profile is digest-pinned. Updating them together through
+      # a PR keeps main user-merge-only and the shared image revision consistent.
+      - name: Open workspace profile image digest PR
         if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -167,15 +167,22 @@ jobs:
         run: |
           branch="automation/hive-base-${GITHUB_SHA:0:12}"
           if ! git ls-remote --exit-code --heads origin "$branch" >/dev/null 2>&1; then
+            template_profiles=(
+              templates/ai-dev-k8s/profile.json
+              templates/orchestrator/profile.json
+              templates/game-dev/profile.json
+              templates/electronics/profile.json
+              templates/infrastructure/profile.json
+            )
             sed -i -E \
               "s#ghcr.io/kethalia/hive-base@sha256:[0-9a-f]{64}#ghcr.io/kethalia/hive-base@${IMAGE_DIGEST}#g" \
-              templates/ai-dev-k8s/main.tf
+              "${template_profiles[@]}"
 
-            git diff --exit-code -- templates/ai-dev-k8s/main.tf && exit 0
+            git diff --exit-code -- "${template_profiles[@]}" && exit 0
             git config user.name "github-actions[bot]"
             git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
             git switch -c "$branch"
-            git add templates/ai-dev-k8s/main.tf
+            git add "${template_profiles[@]}"
             git commit -m "chore(template): update hive-base image digest"
             git push origin "$branch"
           fi
@@ -186,7 +193,7 @@ jobs:
               --base main \
               --head "$branch" \
               --title "chore(template): update hive-base image digest" \
-              --body "Pins the Kubernetes workspace template to the hive-base image built and smoke-tested from commit ${GITHUB_SHA}.")"
+              --body "Pins every Kubernetes workspace profile to the hive-base image built and smoke-tested from commit ${GITHUB_SHA}.")"
           else
             IFS=$'\t' read -r pr_number pr_state pr_url <<< "$pr_data"
             if [ "$pr_state" = "CLOSED" ]; then

@@ -3,11 +3,10 @@ import { readdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import extract from "tar-stream";
 import { getCoderClientForUser } from "@/lib/coder/user-client";
+import { KNOWN_TEMPLATES, type KnownTemplate } from "@/lib/templates/catalog";
 
 /** Templates known to this orchestrator. */
-export const KNOWN_TEMPLATES = ["ai-dev", "ai-dev-k8s"] as const;
-
-export type KnownTemplate = (typeof KNOWN_TEMPLATES)[number];
+export { KNOWN_TEMPLATES, type KnownTemplate };
 
 /** Per-template staleness result. */
 export interface TemplateStatus {

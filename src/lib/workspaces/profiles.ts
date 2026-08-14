@@ -1,3 +1,5 @@
+import { templateCatalogEntry } from "@/lib/templates/catalog";
+
 export const WORKSPACE_PROFILES = [
   {
     id: "orchestrator",
@@ -45,10 +47,15 @@ const PROFILE_PATTERNS: ReadonlyArray<{
   { id: "infrastructure", pattern: /infrastructure|platform|devops|terraform|cluster|ops/ },
 ];
 
+const WORKSPACE_PROFILE_BY_ID = new Map<WorkspaceProfileId, WorkspaceProfile>(
+  WORKSPACE_PROFILES.map((profile) => [profile.id, profile]),
+);
+
 export function workspaceProfileForTemplate(templateName: string): WorkspaceProfile {
   const normalizedName = templateName.trim().toLowerCase();
+  const catalogProfileId = templateCatalogEntry(normalizedName)?.profileId;
   const match = PROFILE_PATTERNS.find(({ pattern }) => pattern.test(normalizedName));
   return (
-    WORKSPACE_PROFILES.find(({ id }) => id === (match?.id ?? "custom")) ?? WORKSPACE_PROFILES[5]
+    WORKSPACE_PROFILE_BY_ID.get(catalogProfileId ?? match?.id ?? "custom") ?? WORKSPACE_PROFILES[5]
   );
 }

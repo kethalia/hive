@@ -12,7 +12,14 @@ import {
 
 describe("KNOWN_TEMPLATES", () => {
   it("registers every template exposed by the Hive UI", () => {
-    expect(KNOWN_TEMPLATES).toEqual(["ai-dev", "ai-dev-k8s"]);
+    expect(KNOWN_TEMPLATES).toEqual([
+      "orchestrator",
+      "ai-dev",
+      "ai-dev-k8s",
+      "game-dev",
+      "electronics",
+      "infrastructure",
+    ]);
   });
 });
 
