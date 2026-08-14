@@ -1,8 +1,8 @@
-# Software Development Workspace on Kubernetes
+# Development and Orchestration Workspace on Kubernetes
 
-This Coder template provides the general-purpose software profile used by Hive. It runs as a
-non-root Kubernetes Deployment with a persistent Longhorn home volume and keeps implementation,
-debugging, CI, and review work inside an interactive TUI session.
+This Coder template provides Hive's persistent primary profile. It runs as a non-root Kubernetes
+Deployment with a persistent Longhorn home volume and keeps repository implementation, debugging,
+CI, review, and specialist workspace coordination inside an interactive TUI session.
 
 ## Runtime
 
@@ -18,17 +18,19 @@ remote builder.
 
 ## Tool surface
 
-The headless profile enables Claude Code, Codex, code-server, File Browser, GitHub CLI, Node.js
+The headless profile enables Claude Code, Codex, the Coder CLI, code-server, File Browser, GitHub CLI, Node.js
 package managers, Foundry, GitHub Actions `act`, tmux persistence, and software-focused editor
 extensions. It does not install or start XFCE, KasmVNC, Chrome, Playwright, Unity, Blender, or KiCad.
-Browser validation belongs in `browser-testing`.
+Browser validation belongs in `browser-testing`; game, electronics, and infrastructure work can be
+handed to their matching specialist profiles when they require isolated tools or credentials.
 
 The shared skill baseline includes `cloudflare-deploy`, `security-best-practices`,
 `security-threat-model`, `vercel-react-best-practices`, `vercel-composition-patterns`, and
 `web-design-guidelines`.
 
-On first startup, `repositories.txt` is cloned under `~/projects`. Edit that manifest before pushing
-the template when the default repository set should change.
+On first startup, `repositories.txt` is cloned under `~/projects`. This is the durable repository
+home and replaces the retired standalone orchestrator profile. Edit the manifest before pushing the
+template when the default repository set should change.
 
 ## Prerequisites
 
@@ -46,4 +48,4 @@ coder create --template ai-dev-k8s software-01
 ```
 
 Verify Coder SSH, the Hive terminal, agent login, code-server, File Browser, repository bootstrap,
-and persistence across a stop/start cycle before promoting a new version.
+Coder workspace discovery, and persistence across a stop/start cycle before promoting a new version.

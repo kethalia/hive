@@ -5,7 +5,7 @@ import extract from "tar-stream";
 import { getCoderClientForUser } from "@/lib/coder/user-client";
 import { KNOWN_TEMPLATES, type KnownTemplate } from "@/lib/templates/catalog";
 
-/** Templates known to this orchestrator. */
+/** Deployable templates maintained by Hive. */
 export { KNOWN_TEMPLATES, type KnownTemplate };
 
 /** Per-template staleness result. */

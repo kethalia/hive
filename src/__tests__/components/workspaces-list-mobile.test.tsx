@@ -177,7 +177,7 @@ describe("workspaces mobile list", () => {
     expect(within(cards[0]).getByText("mobile-dev")).toBeInTheDocument();
     expect(within(cards[0]).getByText("running")).toBeInTheDocument();
     expect(within(cards[0]).getByText("AI Dev")).toBeInTheDocument();
-    expect(within(cards[0]).getByText("Software development")).toBeInTheDocument();
+    expect(within(cards[0]).getByText("Development & orchestration")).toBeInTheDocument();
     expect(within(cards[0]).getByText("alice")).toBeInTheDocument();
 
     const terminalLink = within(cards[0]).getByRole("link", {
@@ -226,7 +226,7 @@ describe("workspaces mobile list", () => {
       "Launch workspace",
     );
     expect(screen.getByTestId("selected-workspace-profile")).toHaveTextContent(
-      "Software development",
+      "Development & orchestration",
     );
     expect(mocks.listWorkspaceTemplatesAction).toHaveBeenCalledTimes(1);
 

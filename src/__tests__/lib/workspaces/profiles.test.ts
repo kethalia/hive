@@ -4,7 +4,6 @@ import { WORKSPACE_PROFILES, workspaceProfileForTemplate } from "@/lib/workspace
 describe("workspace profiles", () => {
   it("keeps a stable profile catalog for the launch flow", () => {
     expect(WORKSPACE_PROFILES.map(({ id }) => id)).toEqual([
-      "orchestrator",
       "software",
       "browser",
       "game",
@@ -28,5 +27,13 @@ describe("workspace profiles", () => {
     ["research-lab", "custom"],
   ])("maps %s to the %s profile", (templateName, expectedProfile) => {
     expect(workspaceProfileForTemplate(templateName).id).toBe(expectedProfile);
+  });
+
+  it("keeps the retired orchestrator profile available only for legacy workspace labeling", () => {
+    expect(WORKSPACE_PROFILES.some(({ id }) => id === ("orchestrator" as string))).toBe(false);
+    expect(workspaceProfileForTemplate("orchestrator")).toMatchObject({
+      id: "orchestrator",
+      label: "Legacy orchestrator",
+    });
   });
 });

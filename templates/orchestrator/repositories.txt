@@ -1,4 +1,0 @@
-# Control-plane repositories kept in the persistent orchestrator workspace.
-kethalia/hive|kethalia/hive
-kethalia/workflows|kethalia/workflows
-kethalia/k8s-cluster|kethalia/k8s-cluster

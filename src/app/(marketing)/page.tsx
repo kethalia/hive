@@ -20,12 +20,12 @@ const capabilities = [
   [
     Terminal,
     "Live session control",
-    "Watch, compose, reconnect, and move between terminal sessions without losing context.",
+    "Coordinate specialist workspaces and move between terminal sessions without losing context.",
   ],
   [
     Boxes,
     "Purpose-built profiles",
-    "Separate software, game, electronics, infrastructure, and orchestration environments.",
+    "Keep a durable development command center and launch isolated specialist environments.",
   ],
   [
     ShieldCheck,
@@ -83,9 +83,9 @@ export default function MarketingPage() {
               <span className="phosphor-text block">Stay in the loop.</span>
             </h1>
             <p className="mt-8 max-w-2xl text-base leading-7 text-muted-foreground sm:text-lg">
-              Hive turns Coder templates into purpose-built environments for software, games,
-              electronics, infrastructure, and orchestration—while every conversation stays in a
-              live terminal you can inspect and steer.
+              Hive keeps development and orchestration beside your repository context, then launches
+              purpose-built browser, game, electronics, or infrastructure environments when the work
+              needs isolation—all through live terminals you can inspect and steer.
             </p>
             <div className="mt-10 flex flex-col gap-3 sm:flex-row">
               <Link

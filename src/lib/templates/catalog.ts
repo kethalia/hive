@@ -18,24 +18,13 @@ const HEADLESS_DEVELOPMENT_CAPABILITIES = {
 
 export const TEMPLATE_CATALOG = [
   {
-    name: "orchestrator",
-    profileId: "orchestrator",
-    runtime: "kubernetes",
-    imageVariant: "cli",
-    capabilities: {
-      ...HEADLESS_DEVELOPMENT_CAPABILITIES,
-      editor: false,
-      fileBrowser: false,
-    },
-    description: "Headless command center for coordinating specialist workspaces from the TUI.",
-  },
-  {
     name: "ai-dev-k8s",
     profileId: "software",
     runtime: "kubernetes",
     imageVariant: "cli",
     capabilities: { ...HEADLESS_DEVELOPMENT_CAPABILITIES, web3: true },
-    description: "Headless software workspace for implementation, CI, and code review.",
+    description:
+      "Persistent command center for software delivery and coordinating specialist workspaces.",
   },
   {
     name: "browser-testing",
@@ -105,6 +94,21 @@ const TEMPLATE_BY_NAME = new Map<string, TemplateCatalogEntry>(
   TEMPLATE_CATALOG.map((template) => [template.name, template]),
 );
 
+const RETIRED_TEMPLATE_NAMES = new Set(["orchestrator"]);
+
+const LEGACY_TEMPLATE_CAPABILITIES = new Map<string, WorkspaceTemplateCapabilities>([
+  [
+    "orchestrator",
+    {
+      browser: false,
+      desktop: false,
+      editor: false,
+      fileBrowser: false,
+      web3: false,
+    },
+  ],
+]);
+
 const EXTERNAL_TEMPLATE_CAPABILITIES: WorkspaceTemplateCapabilities = {
   browser: false,
   desktop: true,
@@ -117,16 +121,27 @@ export function templateCatalogEntry(templateName: string): TemplateCatalogEntry
   return TEMPLATE_BY_NAME.get(templateName.trim().toLowerCase()) ?? null;
 }
 
+export function isRetiredWorkspaceTemplate(templateName: string): boolean {
+  return RETIRED_TEMPLATE_NAMES.has(templateName.trim().toLowerCase());
+}
+
 export function workspaceTemplateCapabilities(templateName: string): WorkspaceTemplateCapabilities {
-  return templateCatalogEntry(templateName)?.capabilities ?? EXTERNAL_TEMPLATE_CAPABILITIES;
+  const normalizedName = templateName.trim().toLowerCase();
+  return (
+    templateCatalogEntry(normalizedName)?.capabilities ??
+    LEGACY_TEMPLATE_CAPABILITIES.get(normalizedName) ??
+    EXTERNAL_TEMPLATE_CAPABILITIES
+  );
 }
 
 export function workspaceSurfaceLabel(templateName: string): string {
   const definition = templateCatalogEntry(templateName);
-  if (!definition) return "External";
-  if (definition.capabilities.browser) return "Browser + desktop";
-  if (definition.capabilities.desktop) return "Desktop";
-  if (definition.capabilities.editor || definition.capabilities.fileBrowser) {
+  const legacyCapabilities = LEGACY_TEMPLATE_CAPABILITIES.get(templateName.trim().toLowerCase());
+  const capabilities = definition?.capabilities ?? legacyCapabilities;
+  if (!capabilities) return "External";
+  if (capabilities.browser) return "Browser + desktop";
+  if (capabilities.desktop) return "Desktop";
+  if (capabilities.editor || capabilities.fileBrowser) {
     return "CLI + web tools";
   }
   return "CLI";

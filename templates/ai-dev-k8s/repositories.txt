@@ -8,8 +8,10 @@ kethalia/hive|kethalia/hive
 kethalia/house-of-slabs|kethalia/house-of-slabs
 kethalia/house-of-slabs-new|kethalia/house-of-slabs-new
 kethalia/job-hunter|kethalia/job-hunter
+kethalia/k8s-cluster|kethalia/k8s-cluster
 kethalia/marketing|kethalia/marketing
 kethalia/second-brain|kethalia/second-brain
 kethalia/top-decor|kethalia/top-decor
+kethalia/workflows|kethalia/workflows
 phlox-labs/contracts|phlox-labs/contracts
 phlox-labs/service-routing-api|phlox-labs/service-routing-api
