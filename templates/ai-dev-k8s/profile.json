@@ -2,7 +2,7 @@
   "id": "software",
   "label": "Software development",
   "description": "Headless repository development, CI, implementation, and code review.",
-  "image": "ghcr.io/kethalia/hive-base@sha256:833bcee15215288af56812e62db625d489ed8cc8c95f267adb5217b377082ff4",
+  "image": "ghcr.io/kethalia/hive-base@sha256:9fd9317161165833da8f866a55fb1ab34546cbf03b03036f249ab726998b65cb",
   "image_variant": "cli",
   "capabilities": {
     "browser": false,
