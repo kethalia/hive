@@ -298,6 +298,7 @@ function verifyBaseImageRollout() {
   assert.match(workflow, /gh pr list --head "\$branch" --state all/);
   assert.match(workflow, /gh pr reopen/);
   assert.match(workflow, /gh workflow run ci\.yml --ref "\$branch"/);
+  assert.match(workflow, /changeset_file="\.changeset\/workspace-image-\$\{GITHUB_SHA:0:12\}\.md"/);
   for (const templateName of [
     "ai-dev-k8s",
     "orchestrator",
