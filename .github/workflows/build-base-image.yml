@@ -197,7 +197,7 @@ jobs:
 
           # Digest-only maintenance does not release an application package,
           # but the repository-wide quality gate still requires a changeset.
-          changeset_file=".changeset/workspace-image-digests.md"
+          changeset_file=".changeset/workspace-image-${GITHUB_SHA:0:12}.md"
           printf '%s\n' '---' '---' > "$changeset_file"
 
           branch="automation/workspace-images-${GITHUB_SHA:0:12}"
