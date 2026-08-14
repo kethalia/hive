@@ -8,11 +8,11 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: {
-    default: "Hive — Your autonomous development control plane",
+    default: "Hive — Your interactive workspace control plane",
     template: "%s — Hive",
   },
   description:
-    "Turn an engineering brief into an isolated workspace, verified implementation, and review-ready pull request.",
+    "Launch purpose-built Coder workspaces and stay in the loop through persistent terminal and TUI sessions.",
   manifest: "/manifest.webmanifest",
   icons: {
     icon: "/icons/hive-mark.svg",
@@ -20,7 +20,7 @@ export const metadata: Metadata = {
   },
   applicationName: "Hive",
   category: "developer tools",
-  keywords: ["AI development", "developer automation", "Coder workspaces", "pull requests"],
+  keywords: ["Coder workspaces", "developer environments", "terminal sessions", "TUI"],
 };
 
 export const viewport: Viewport = {

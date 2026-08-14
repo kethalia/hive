@@ -4,16 +4,16 @@ import Link from "next/link";
 import { HiveLogo } from "@/components/hive-logo";
 
 export const metadata: Metadata = {
-  title: "Autonomous development, under your control",
+  title: "Interactive workspaces, under your control",
   description:
-    "Hive coordinates isolated Coder workspaces, AI agents, verification, and pull requests from one keyboard-first control plane.",
+    "Hive turns Coder templates into purpose-built, persistent workspaces with interactive TUI sessions and explicit lifecycle controls.",
 };
 
 const workflow = [
-  ["01", "Brief", "Describe the outcome, repository, and review depth."],
-  ["02", "Isolate", "Hive provisions a clean Coder workspace for the run."],
-  ["03", "Build + prove", "Agents implement, test, and verify by consuming the result."],
-  ["04", "Review", "You receive an auditable branch and review-ready pull request."],
+  ["01", "Choose", "Pick the profile that matches the kind of work in front of you."],
+  ["02", "Launch", "Hive provisions a persistent Coder workspace from that template."],
+  ["03", "Collaborate", "Work through live terminal and TUI sessions, with questions in the loop."],
+  ["04", "Control", "Stop, resume, or deliberately retire the workspace when the work is safe."],
 ] as const;
 
 const capabilities = [
@@ -24,13 +24,13 @@ const capabilities = [
   ],
   [
     Boxes,
-    "Workspace isolation",
-    "Each task runs in a dedicated Coder workspace with explicit lifecycle controls.",
+    "Purpose-built profiles",
+    "Separate software, game, electronics, infrastructure, and orchestration environments.",
   ],
   [
     ShieldCheck,
-    "Proof before claims",
-    "Verification is built into the workflow, with logs and artifacts kept visible.",
+    "Guarded lifecycle",
+    "Launch, start, stop, and explicitly confirm destructive workspace removal.",
   ],
   [
     Keyboard,
@@ -76,16 +76,16 @@ export default function MarketingPage() {
           <div>
             <p className="mb-6 inline-flex items-center gap-2 border border-primary/25 bg-primary/5 px-3 py-2 text-xs uppercase tracking-[0.18em] text-primary">
               <span className="size-2 animate-pulse bg-primary" aria-hidden="true" />
-              Development control plane / online
+              Interactive workspace control plane / online
             </p>
             <h1 className="max-w-4xl text-[clamp(2.6rem,8vw,6.8rem)] font-medium leading-[0.94] tracking-[-0.07em]">
-              Ship the work.
-              <span className="phosphor-text block">Keep the controls.</span>
+              Build in context.
+              <span className="phosphor-text block">Stay in the loop.</span>
             </h1>
             <p className="mt-8 max-w-2xl text-base leading-7 text-muted-foreground sm:text-lg">
-              Hive turns an engineering brief into an isolated workspace, a verified implementation,
-              and an auditable pull request—while you stay close to every terminal, decision, and
-              proof.
+              Hive turns Coder templates into purpose-built environments for software, games,
+              electronics, infrastructure, and orchestration—while every conversation stays in a
+              live terminal you can inspect and steer.
             </p>
             <div className="mt-10 flex flex-col gap-3 sm:flex-row">
               <Link
@@ -98,14 +98,14 @@ export default function MarketingPage() {
                 href="#workflow"
                 className="inline-flex min-h-12 items-center justify-center border border-primary/30 bg-card px-6 text-primary transition-[background-color,scale] duration-150 hover:bg-primary/10 active:scale-[0.96]"
               >
-                Trace a run
+                Explore the workflow
               </a>
             </div>
             <ul
               className="mt-8 flex flex-wrap gap-x-6 gap-y-3 text-xs text-muted-foreground"
               aria-label="Product principles"
             >
-              {["Self-hosted", "Coder-native", "Human in command"].map((item) => (
+              {["Self-hosted", "Coder-native", "Interactive by design"].map((item) => (
                 <li key={item} className="flex items-center gap-2">
                   <Check className="size-3.5 text-primary" aria-hidden="true" /> {item}
                 </li>
@@ -115,20 +115,20 @@ export default function MarketingPage() {
 
           <div className="pixel-panel relative border border-primary/25 bg-[#030604] p-2 shadow-[0_0_80px_rgb(141_255_157/0.08)]">
             <div className="flex items-center justify-between border-b border-primary/20 px-4 py-3 text-[0.68rem] uppercase tracking-[0.16em] text-muted-foreground">
-              <span>hive://run/8F2A</span>
+              <span>hive://workspace/software</span>
               <span className="text-primary">● live</span>
             </div>
             <div className="min-h-[420px] space-y-6 p-5 text-xs leading-6 sm:p-7 sm:text-sm">
               <div className="text-muted-foreground">
-                <span className="text-primary">operator@hive</span>:~$ launch --repo kethalia/hive
+                <span className="text-primary">operator@hive</span>:~$ launch --profile software
               </div>
               <div className="grid gap-3">
                 {[
-                  ["hydrate", "done", "rules + repository context loaded"],
-                  ["workspace", "done", "blush-scorpion-35 / isolated"],
-                  ["implement", "running", "agent session attached"],
-                  ["verify", "queued", "proof-by-consumption"],
-                  ["pull-request", "waiting", "opens after gates pass"],
+                  ["profile", "done", "software development / ai-dev"],
+                  ["workspace", "done", "blush-scorpion-35 / persistent"],
+                  ["terminal", "running", "tmux session attached"],
+                  ["collaborate", "ready", "Codex TUI awaiting input"],
+                  ["lifecycle", "manual", "operator owns stop and delete"],
                 ].map(([label, status, copy], index) => (
                   <div
                     key={label}
@@ -155,20 +155,20 @@ export default function MarketingPage() {
                   </div>
                 ))}
               </div>
-              <p className="text-primary">▌ awaiting stream...</p>
+              <p className="text-primary">▌ awaiting your input...</p>
             </div>
           </div>
         </section>
 
         <section id="workflow" className="border-y border-primary/15 bg-card/40 scroll-mt-16">
           <div className="mx-auto w-full max-w-7xl px-4 py-20 sm:px-6 lg:px-8">
-            <p className="text-xs uppercase tracking-[0.2em] text-primary">Run protocol</p>
+            <p className="text-xs uppercase tracking-[0.2em] text-primary">Workspace protocol</p>
             <div className="mt-4 flex flex-col justify-between gap-6 lg:flex-row lg:items-end">
               <h2 className="max-w-3xl text-3xl font-medium tracking-[-0.04em] sm:text-5xl">
-                From intent to evidence, in one observable loop.
+                From profile to focused work, in one observable loop.
               </h2>
               <p className="max-w-md text-sm leading-6 text-muted-foreground">
-                No invisible handoff. Each stage has a state, owner, terminal, and recovery path.
+                No invisible handoff. You remain present for questions, corrections, and recovery.
               </p>
             </div>
             <ol className="mt-12 grid gap-px border border-primary/15 bg-primary/15 md:grid-cols-2 xl:grid-cols-4">
@@ -189,7 +189,7 @@ export default function MarketingPage() {
         >
           <p className="text-xs uppercase tracking-[0.2em] text-primary">Operator system</p>
           <h2 className="mt-4 max-w-3xl text-3xl font-medium tracking-[-0.04em] sm:text-5xl">
-            Designed for intervention, not autopilot theatre.
+            Designed for conversation, iteration, and intervention.
           </h2>
           <div className="mt-12 grid gap-4 md:grid-cols-2">
             {capabilities.map(([Icon, title, copy]) => (
@@ -210,7 +210,7 @@ export default function MarketingPage() {
             <div>
               <p className="text-xs uppercase tracking-[0.2em] opacity-70">Ready signal</p>
               <h2 className="mt-3 text-3xl font-semibold tracking-[-0.04em] sm:text-5xl">
-                Your next run is waiting.
+                Your next workspace is waiting.
               </h2>
             </div>
             <Link
@@ -225,7 +225,7 @@ export default function MarketingPage() {
 
       <footer className="border-t border-primary/15">
         <div className="mx-auto flex min-h-20 w-full max-w-7xl flex-col justify-center gap-3 px-4 py-5 text-xs text-muted-foreground sm:flex-row sm:items-center sm:justify-between sm:px-6 lg:px-8">
-          <span>HIVE / autonomous development control plane</span>
+          <span>HIVE / interactive workspace control plane</span>
           <div className="flex flex-wrap items-center gap-x-5 gap-y-1 sm:justify-end">
             <a
               className="inline-flex min-h-10 items-center gap-2 hover:text-primary"

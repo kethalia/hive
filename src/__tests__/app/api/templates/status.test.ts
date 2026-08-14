@@ -51,7 +51,7 @@ describe("GET /api/templates/status", () => {
   it("returns JSON array of template statuses", async () => {
     const statuses = [
       {
-        name: "hive",
+        name: "ai-dev-k8s",
         stale: false,
         lastPushed: "2026-04-10T12:00:00Z",
         activeVersionId: "v1",

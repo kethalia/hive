@@ -17,7 +17,6 @@ const mobileState = vi.hoisted(() => ({
   openMobileRight: false,
 }));
 const mockListWorkspaces = vi.hoisted(() => vi.fn());
-const mockListTasks = vi.hoisted(() => vi.fn());
 const registeredBindings = vi.hoisted(() => new Map<string, KeybindingEntry>());
 
 vi.mock("next/navigation", () => ({
@@ -51,10 +50,6 @@ vi.mock("@/hooks/useKeybindings", () => ({
 
 vi.mock("@/lib/actions/workspaces", () => ({
   listWorkspacesAction: () => mockListWorkspaces(),
-}));
-
-vi.mock("@/lib/actions/tasks", () => ({
-  listTasksAction: () => mockListTasks(),
 }));
 
 vi.mock("@/components/terminal/CommandPalette", () => ({
@@ -133,25 +128,6 @@ function workspacePayload() {
   };
 }
 
-function tasksPayload() {
-  return {
-    data: [
-      {
-        id: "11111111-1111-4111-8111-111111111111",
-        prompt: "Fix terminal keyboard shortcuts",
-        status: "running",
-        updatedAt: new Date().toISOString(),
-      },
-      {
-        id: "22222222-2222-4222-8222-222222222222",
-        prompt: "Ship completed work",
-        status: "done",
-        updatedAt: new Date().toISOString(),
-      },
-    ],
-  };
-}
-
 describe("DashboardKeyboardController", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -160,7 +136,6 @@ describe("DashboardKeyboardController", () => {
     mobileState.openMobileRight = false;
     registeredBindings.clear();
     mockListWorkspaces.mockResolvedValue(workspacePayload());
-    mockListTasks.mockResolvedValue(tasksPayload());
     Object.defineProperty(document.documentElement, "requestFullscreen", {
       configurable: true,
       value: vi.fn(() => Promise.resolve()),
@@ -184,28 +159,23 @@ describe("DashboardKeyboardController", () => {
       "ctrl+enter",
       "cmd+enter",
     ]);
-    expect(registeredBindings.get("dashboard:navigate-tasks")?.keys).toEqual([
-      "ctrl+shift+2",
-      "cmd+shift+2",
-    ]);
     expect(registeredBindings.get("dashboard:navigate-workspaces")?.keys).toEqual([
       "ctrl+shift+1",
       "cmd+shift+1",
     ]);
     expect(registeredBindings.get("dashboard:navigate-templates")?.keys).toEqual([
-      "ctrl+shift+3",
-      "cmd+shift+3",
+      "ctrl+shift+2",
+      "cmd+shift+2",
     ]);
     expect(registeredBindings.get("dashboard:navigate-terminal-status")?.keys).toEqual([
-      "ctrl+shift+4",
-      "cmd+shift+4",
+      "ctrl+shift+3",
+      "cmd+shift+3",
     ]);
     for (const id of [
       "dashboard:command-palette",
       "dashboard:toggle-sidebar",
       "dashboard:toggle-compose",
       "dashboard:toggle-fullscreen",
-      "dashboard:navigate-tasks",
       "dashboard:navigate-workspaces",
       "dashboard:navigate-templates",
       "dashboard:navigate-terminal-status",
@@ -232,21 +202,16 @@ describe("DashboardKeyboardController", () => {
 
     await waitFor(() => {
       expect(mockListWorkspaces).toHaveBeenCalled();
-      expect(mockListTasks).toHaveBeenCalled();
     });
 
-    expect(await screen.findByText("New task")).toBeInTheDocument();
-    expect(screen.getByText("Check task progress (1)")).toBeInTheDocument();
+    expect(await screen.findByText("Launch workspace")).toBeInTheDocument();
     expect(screen.getByText("hive-dev")).toBeInTheDocument();
 
     fireEvent.click(screen.getByText("hive-dev"));
     expect(mockRouterPush).toHaveBeenCalledWith("/workspaces/workspace-1/terminal/workspace");
 
-    fireEvent.click(screen.getByText("New task"));
-    expect(mockRouterPush).toHaveBeenCalledWith("/tasks/new");
-
-    fireEvent.click(screen.getByText("Check task progress (1)"));
-    expect(mockRouterPush).toHaveBeenCalledWith("/tasks");
+    fireEvent.click(screen.getByText("Launch workspace"));
+    expect(mockRouterPush).toHaveBeenCalledWith("/workspaces?launch=1");
   });
 
   it("includes commands from the active workspace palette source", async () => {
@@ -373,7 +338,6 @@ describe("DashboardKeyboardController", () => {
     render(<DashboardKeyboardController />);
 
     for (const [id, route] of [
-      ["dashboard:navigate-tasks", "/tasks"],
       ["dashboard:navigate-workspaces", "/workspaces"],
       ["dashboard:navigate-templates", "/templates"],
       ["dashboard:navigate-terminal-status", "/terminal/status"],

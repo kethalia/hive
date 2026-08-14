@@ -9,10 +9,10 @@ test.describe("public marketing and auth boundary", () => {
     await page.goto(new URL("/", appUrl).toString());
 
     await expect(page.getByRole("heading", { level: 1 })).toHaveText(
-      "Ship the work.Keep the controls.",
+      "Build in context.Stay in the loop.",
     );
-    await expect(page.getByRole("heading", { name: /From intent to evidence/ })).toBeVisible();
-    await expect(page.getByRole("heading", { name: /Designed for intervention/ })).toBeVisible();
+    await expect(page.getByRole("heading", { name: /From profile to focused work/ })).toBeVisible();
+    await expect(page.getByRole("heading", { name: /Designed for conversation/ })).toBeVisible();
     await expect(page.getByRole("link", { name: "Open console" })).toBeVisible();
 
     const viewportHasNoHorizontalOverflow = await page.evaluate(
@@ -29,7 +29,7 @@ test.describe("public marketing and auth boundary", () => {
   });
 
   test("keeps private dashboard routes behind authentication", async ({ page }) => {
-    await page.goto(new URL("/tasks", appUrl).toString());
+    await page.goto(new URL("/workspaces", appUrl).toString());
     await expect(page).toHaveURL(/\/login$/);
   });
 });

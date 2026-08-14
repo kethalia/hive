@@ -5,6 +5,7 @@ import { SESSION_MAX_AGE_SECONDS } from "@hive/auth";
 import { cookies } from "next/headers";
 import { z } from "zod";
 import { usesSecureSessionCookies } from "@/lib/auth/session-cookie";
+import type { CoderWorkspace } from "@/lib/coder/types";
 import { getCoderClientForUser } from "@/lib/coder/user-client";
 import { SAFE_IDENTIFIER_RE } from "@/lib/constants";
 import { resolveConfiguredProjectsRoot } from "@/lib/git/clone-actions-contract";
@@ -50,6 +51,91 @@ export const createWorkspaceAction = authActionClient
   .action(async ({ parsedInput, ctx }) => {
     const client = await getCoderClientForUser(ctx.user.id);
     return client.createWorkspace(parsedInput.templateId, parsedInput.name);
+  });
+
+const workspaceLifecycleSchema = z.object({
+  workspaceId: z.string().trim().min(1, "workspaceId is required"),
+});
+
+function assertWorkspaceOwner(workspace: CoderWorkspace, username: string) {
+  if (workspace.owner_name !== username) {
+    throw new Error("Workspace is not owned by the current Coder user.");
+  }
+}
+
+export const startWorkspaceAction = authActionClient
+  .inputSchema(workspaceLifecycleSchema)
+  .action(async ({ parsedInput, ctx }) => {
+    const client = await getCoderClientForUser(ctx.user.id);
+    const workspace = await client.getWorkspace(parsedInput.workspaceId);
+    assertWorkspaceOwner(workspace, ctx.user.username);
+    const status = workspace.latest_build.status;
+
+    if (status === "running") {
+      return { workspaceId: workspace.id, status };
+    }
+    if (status !== "stopped") {
+      throw new Error(`Workspace must be stopped before it can start. Current status: ${status}.`);
+    }
+
+    await client.startWorkspace(workspace.id);
+    await client.waitForBuild(workspace.id, "running");
+    return { workspaceId: workspace.id, status: "running" as const };
+  });
+
+export const stopWorkspaceAction = authActionClient
+  .inputSchema(workspaceLifecycleSchema)
+  .action(async ({ parsedInput, ctx }) => {
+    const client = await getCoderClientForUser(ctx.user.id);
+    const workspace = await client.getWorkspace(parsedInput.workspaceId);
+    assertWorkspaceOwner(workspace, ctx.user.username);
+    const status = workspace.latest_build.status;
+
+    if (status === "stopped") {
+      return { workspaceId: workspace.id, status };
+    }
+    if (status !== "running") {
+      throw new Error(`Workspace must be running before it can stop. Current status: ${status}.`);
+    }
+
+    await client.stopWorkspace(workspace.id);
+    await client.waitForBuild(workspace.id, "stopped");
+    return { workspaceId: workspace.id, status: "stopped" as const };
+  });
+
+const deleteWorkspaceSchema = workspaceLifecycleSchema.extend({
+  confirmationName: z.string().trim().min(1, "Type the workspace name to confirm deletion"),
+});
+
+const BLOCKED_DELETE_STATUSES: ReadonlySet<string> = new Set(["pending", "starting", "canceling"]);
+
+export const deleteWorkspaceAction = authActionClient
+  .inputSchema(deleteWorkspaceSchema)
+  .action(async ({ parsedInput, ctx }) => {
+    const client = await getCoderClientForUser(ctx.user.id);
+    const workspace = await client.getWorkspace(parsedInput.workspaceId);
+    assertWorkspaceOwner(workspace, ctx.user.username);
+    const status = workspace.latest_build.status;
+
+    if (parsedInput.confirmationName !== workspace.name) {
+      throw new Error("Workspace name confirmation does not match.");
+    }
+    if (status === "deleted" || status === "deleting") {
+      return { workspaceId: workspace.id, status };
+    }
+    if (BLOCKED_DELETE_STATUSES.has(status)) {
+      throw new Error(`Wait for the workspace transition to finish before deleting it: ${status}.`);
+    }
+
+    if (status === "running") {
+      await client.stopWorkspace(workspace.id);
+      await client.waitForBuild(workspace.id, "stopped");
+    } else if (status === "stopping") {
+      await client.waitForBuild(workspace.id, "stopped");
+    }
+
+    await client.deleteWorkspace(workspace.id);
+    return { workspaceId: workspace.id, status: "deleting" as const };
   });
 
 const getWorkspaceAgentSchema = z.object({

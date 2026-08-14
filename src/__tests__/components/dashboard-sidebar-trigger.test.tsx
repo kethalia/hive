@@ -32,16 +32,8 @@ describe("DashboardSidebarTrigger", () => {
     expect(screen.getByTestId("dashboard-sidebar-trigger")).toHaveClass("mt-1", "shrink-0");
   });
 
-  it("does not render on task routes that own the page navbar", () => {
-    mockPathname = "/tasks/task-1";
-
-    const { container } = render(<DashboardSidebarTrigger />);
-
-    expect(container).toBeEmptyDOMElement();
-  });
-
   it("does not render on templates routes that own the page navbar", () => {
-    mockPathname = "/templates/hive";
+    mockPathname = "/templates/ai-dev";
 
     const { container } = render(<DashboardSidebarTrigger />);
 

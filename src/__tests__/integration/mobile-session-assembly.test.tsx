@@ -450,7 +450,6 @@ vi.mock("@/lib/terminal/config", () => ({
 }));
 
 import DashboardLayout from "@/app/(dashboard)/layout";
-import { AgentStreamPanel } from "@/app/(dashboard)/tasks/[id]/agent-stream-panel";
 import { CommandPalette } from "@/components/terminal/CommandPalette";
 import { PullToRefresh } from "@/components/ui/pull-to-refresh";
 import { InteractiveTerminal } from "@/components/workspaces/InteractiveTerminal";
@@ -461,65 +460,9 @@ class ResizeObserverMock {
   disconnect = vi.fn();
 }
 
-type ESListener = (event: MessageEvent) => void;
-
-class MockEventSource {
-  static instances: MockEventSource[] = [];
-  closed = false;
-  onerror: ((event: Event) => void) | null = null;
-  onmessage: ((event: MessageEvent) => void) | null = null;
-  readyState = 0;
-  url: string;
-
-  private listeners: Record<string, ESListener[]> = {};
-
-  constructor(url: string) {
-    this.url = url;
-    MockEventSource.instances.push(this);
-  }
-
-  addEventListener(type: string, listener: ESListener) {
-    if (!this.listeners[type]) this.listeners[type] = [];
-    this.listeners[type].push(listener);
-  }
-
-  removeEventListener(type: string, listener: ESListener) {
-    if (!this.listeners[type]) return;
-    this.listeners[type] = this.listeners[type].filter((item) => item !== listener);
-  }
-
-  close() {
-    this.closed = true;
-    this.readyState = 2;
-  }
-
-  emitMessage(data: string) {
-    this.onmessage?.(new MessageEvent("message", { data }));
-  }
-}
-
 function resetTerminalControlState() {
   terminalControlState.increaseFontSize.mockClear();
   terminalControlState.decreaseFontSize.mockClear();
-}
-
-function setScrollMetrics(
-  element: HTMLElement,
-  metrics: { scrollHeight: number; clientHeight: number; scrollTop: number },
-) {
-  Object.defineProperty(element, "scrollHeight", {
-    configurable: true,
-    value: metrics.scrollHeight,
-  });
-  Object.defineProperty(element, "clientHeight", {
-    configurable: true,
-    value: metrics.clientHeight,
-  });
-  Object.defineProperty(element, "scrollTop", {
-    configurable: true,
-    writable: true,
-    value: metrics.scrollTop,
-  });
 }
 
 function latestDragHandler() {
@@ -564,7 +507,6 @@ beforeEach(() => {
   gestureState.dragHandlers.length = 0;
   gestureState.gestureConfigs.length = 0;
   gestureState.gestureHandlers.length = 0;
-  MockEventSource.instances = [];
   window.localStorage.clear();
   Object.defineProperty(window, "innerWidth", { configurable: true, value: 390 });
   Object.defineProperty(window, "innerHeight", { configurable: true, value: 844 });
@@ -574,13 +516,11 @@ beforeEach(() => {
   });
   let randomId = 0;
   vi.stubGlobal("crypto", { randomUUID: vi.fn(() => `uuid-${++randomId}`) });
-  vi.stubGlobal("EventSource", MockEventSource);
   vi.stubGlobal("ResizeObserver", ResizeObserverMock);
   vi.stubGlobal("requestAnimationFrame", (callback: FrameRequestCallback) => {
     return window.setTimeout(() => callback(performance.now()), 0);
   });
   vi.stubGlobal("cancelAnimationFrame", (id: number) => window.clearTimeout(id));
-  Element.prototype.scrollIntoView = vi.fn();
 });
 
 afterEach(() => {
@@ -787,7 +727,7 @@ describe("mobile session assembly", () => {
 
     render(
       <PullToRefresh onRefresh={onRefresh}>
-        <div>Task stream list</div>
+        <div>Workspace list</div>
       </PullToRefresh>,
     );
 
@@ -804,25 +744,5 @@ describe("mobile session assembly", () => {
       expect(indicator?.className).toContain("motion-reduce:transition-none");
       expect(indicator?.className).toContain("motion-reduce:duration-0");
     });
-  });
-
-  it("uses auto, never smooth, scrolling while watching agent task stream output", () => {
-    const scrollIntoView = vi.mocked(Element.prototype.scrollIntoView);
-
-    render(<AgentStreamPanel taskId="task-mobile" status="running" />);
-
-    const eventSource = MockEventSource.instances[0];
-    const viewport = screen.getByTestId("stream-scroll-container");
-    setScrollMetrics(viewport, { clientHeight: 400, scrollHeight: 1000, scrollTop: 560 });
-
-    act(() => {
-      eventSource.emitMessage("agent output line");
-    });
-
-    expect(screen.getByTestId("stream-output")).toHaveTextContent("agent output line");
-    expect(scrollIntoView).toHaveBeenCalledWith({ block: "end", behavior: "auto" });
-    expect(scrollIntoView).not.toHaveBeenCalledWith(
-      expect.objectContaining({ behavior: "smooth" }),
-    );
   });
 });

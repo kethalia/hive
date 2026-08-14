@@ -164,11 +164,7 @@ function verifySafeBootstrap() {
   assert.match(initScript, /\.vault-managed/);
   assert.doesNotMatch(initScript, /rm[^\n]*\$HOME\/vault/);
 
-  for (const templateRoot of [
-    TEMPLATE_ROOT,
-    DOCKER_TEMPLATE_ROOT,
-    join(process.cwd(), "templates/hive"),
-  ]) {
+  for (const templateRoot of [TEMPLATE_ROOT, DOCKER_TEMPLATE_ROOT]) {
     const templateInit = readFileSync(join(templateRoot, "scripts/init.sh"), "utf8");
     assert.match(templateInit, /remove_vault_managed_context/);
     assert.match(templateInit, /\.vault-managed/);
@@ -177,7 +173,7 @@ function verifySafeBootstrap() {
     assert.doesNotMatch(templateInit, /rm[^\n]*\$HOME\/vault/);
   }
 
-  for (const templateRoot of [DOCKER_TEMPLATE_ROOT, join(process.cwd(), "templates/hive")]) {
+  for (const templateRoot of [DOCKER_TEMPLATE_ROOT]) {
     const templateInit = readFileSync(join(templateRoot, "scripts/init.sh"), "utf8");
     assert.match(templateInit, /\$HOME\/\.pi\/agent\/skills/);
     assert.match(templateInit, /\$HOME\/\.pi\/agent\/AGENTS\.md/);
@@ -524,19 +520,6 @@ function verifyCoderTemplateUploadPaths() {
   }
 }
 
-function verifyHiveMigrationSafety() {
-  const { hiveInit, migrated, result } = runHiveProjectMcpMigrationFixture();
-
-  assert.match(hiveInit, /if ! git -C \/home\/coder\/project checkout -b/);
-  assert.match(hiveInit, /keeping the current worktree/);
-  assert.equal(result.status, 0, result.stderr);
-  assert.equal("obsidian" in migrated.mcpServers, false);
-  assert.equal("hive_obsidian" in migrated.mcpServers, false);
-  assert.deepEqual(migrated.mcpServers.playwright, { command: "keep-playwright" });
-  assert.deepEqual(migrated.mcpServers.custom, { command: "keep-custom" });
-  assert.deepEqual(migrated.customMetadata, { retained: true });
-}
-
 function verifyShellRetry() {
   const script = readTemplateFile("scripts/tools-shell.sh");
 
@@ -685,10 +668,6 @@ test(
   "Coder template uploads include every Terraform file dependency",
   verifyCoderTemplateUploadPaths,
 );
-test(
-  "Hive migration preserves project MCP data and tolerates checkout failures",
-  verifyHiveMigrationSafety,
-);
 test("shell setup retries incomplete Oh My Zsh installations", verifyShellRetry);
 test("GitHub helpers retrieve fresh Coder credentials on demand", verifyGithubHelpers);
 test("repository manifest only includes approved organizations", verifyRepositoryManifest);
@@ -726,39 +705,5 @@ function runReadOnlyMcpMigrationFixture(templateRoot) {
 }
 
 function verifyReadOnlyMcpMigration() {
-  for (const templateRoot of [DOCKER_TEMPLATE_ROOT, join(process.cwd(), "templates/hive")]) {
-    runReadOnlyMcpMigrationFixture(templateRoot);
-  }
-}
-
-function runHiveProjectMcpMigrationFixture() {
-  const hiveInit = readFileSync(join(process.cwd(), "templates/hive/scripts/init.sh"), "utf8");
-  const configMatch = hiveInit.match(/python3 - <<'PYCONFIG'\n([\s\S]*?)\nPYCONFIG/);
-  const fixtureRoot = mkdtempSync(join(tmpdir(), "hive-project-mcp-"));
-  const home = join(fixtureRoot, "home");
-  const projectMcp = join(home, "project", ".gsd", "mcp.json");
-
-  assert.ok(configMatch);
-  mkdirSync(join(home, "project", ".gsd"), { recursive: true });
-  writeFileSync(
-    projectMcp,
-    `${JSON.stringify({
-      mcpServers: {
-        obsidian: { command: "obsolete" },
-        hive_obsidian: { command: "obsolete" },
-        playwright: { command: "keep-playwright" },
-        custom: { command: "keep-custom" },
-      },
-      customMetadata: { retained: true },
-    })}\n`,
-  );
-
-  const configScript = join(fixtureRoot, "configure.py");
-  writeFileSync(configScript, configMatch[1]);
-  const result = spawnSync("python3", [configScript], {
-    encoding: "utf8",
-    env: { ...process.env, HOME: home },
-  });
-
-  return { hiveInit, migrated: JSON.parse(readFileSync(projectMcp, "utf8")), result };
+  runReadOnlyMcpMigrationFixture(DOCKER_TEMPLATE_ROOT);
 }

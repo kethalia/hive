@@ -7,36 +7,26 @@ import { useSidebar } from "@/components/ui/sidebar";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useGlobalCommandPaletteGesture } from "@/hooks/useGlobalCommandPaletteGesture";
 import { useRegisterKeybinding } from "@/hooks/useKeybindings";
-import { listTasksAction } from "@/lib/actions/tasks";
 import { listWorkspacesAction } from "@/lib/actions/workspaces";
-import { formatRelativeDate, shortId } from "@/lib/helpers/format";
+import { formatRelativeDate } from "@/lib/helpers/format";
 import { formatShortcut } from "@/lib/keyboard-shortcuts";
 import { TERMINAL_COMPOSE_TOGGLE_EVENT } from "@/lib/terminal/events";
 import {
   getGlobalCommandPaletteSources,
   subscribeGlobalCommandPaletteSources,
 } from "@/lib/terminal/global-command-palette";
-import { ACTIVE_STATUSES } from "@/lib/types/tasks";
 
 const GLOBAL_COMMAND_PALETTE_KEYS = ["ctrl+k", "cmd+k"] as const;
 const GLOBAL_SIDEBAR_KEYS = ["ctrl+b", "cmd+b"] as const;
 const GLOBAL_COMPOSE_KEYS = ["ctrl+`", "cmd+`"] as const;
 const GLOBAL_FULLSCREEN_KEYS = ["ctrl+enter", "cmd+enter"] as const;
 const NAV_WORKSPACES_KEYS = ["ctrl+shift+1", "cmd+shift+1"] as const;
-const NAV_TASKS_KEYS = ["ctrl+shift+2", "cmd+shift+2"] as const;
-const NAV_TEMPLATES_KEYS = ["ctrl+shift+3", "cmd+shift+3"] as const;
-const NAV_STATUS_KEYS = ["ctrl+shift+4", "cmd+shift+4"] as const;
+const NAV_TEMPLATES_KEYS = ["ctrl+shift+2", "cmd+shift+2"] as const;
+const NAV_STATUS_KEYS = ["ctrl+shift+3", "cmd+shift+3"] as const;
 
 type DashboardWorkspace = {
   id: string;
   name: string;
-  status: string;
-  updatedLabel: string;
-};
-
-type DashboardTask = {
-  id: string;
-  prompt: string;
   status: string;
   updatedLabel: string;
 };
@@ -70,22 +60,6 @@ function parseWorkspace(value: unknown): DashboardWorkspace | null {
   };
 }
 
-function parseTask(value: unknown): DashboardTask | null {
-  if (!isObjectRecord(value)) return null;
-  const id = stringValue(value.id);
-  const prompt = stringValue(value.prompt);
-  const status = stringValue(value.status);
-  const updatedAt = stringValue(value.updatedAt);
-  if (!id || !prompt || !status || !updatedAt) return null;
-
-  return {
-    id,
-    prompt,
-    status,
-    updatedLabel: formatRelativeDate(updatedAt),
-  };
-}
-
 function parseArray<T>(value: unknown, parse: (item: unknown) => T | null): T[] {
   if (!Array.isArray(value)) return [];
   return value.flatMap((item) => {
@@ -106,7 +80,6 @@ export function DashboardKeyboardController() {
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [paletteQuery, setPaletteQuery] = useState("");
   const [workspaces, setWorkspaces] = useState<DashboardWorkspace[]>([]);
-  const [tasks, setTasks] = useState<DashboardTask[]>([]);
   const [loading, setLoading] = useState(false);
   const [loadFailed, setLoadFailed] = useState(false);
   const [appFullscreen, setAppFullscreen] = useState(false);
@@ -209,11 +182,10 @@ export function DashboardKeyboardController() {
     setLoading(true);
     setLoadFailed(false);
 
-    Promise.all([listWorkspacesAction(), listTasksAction()])
-      .then(([workspaceResult, taskResult]) => {
+    listWorkspacesAction()
+      .then((workspaceResult) => {
         if (cancelled) return;
         setWorkspaces(parseArray(actionData(workspaceResult), parseWorkspace));
-        setTasks(parseArray(actionData(taskResult), parseTask));
       })
       .catch(() => {
         if (!cancelled) {
@@ -245,20 +217,6 @@ export function DashboardKeyboardController() {
     },
     description: "Open command palette",
     category: "general",
-    enabledInBrowser: true,
-    global: true,
-    allowTextEntry: true,
-  });
-
-  useRegisterKeybinding({
-    id: "dashboard:navigate-tasks",
-    keys: [...NAV_TASKS_KEYS],
-    action: () => {
-      router.push("/tasks");
-      return false;
-    },
-    description: "Open tasks",
-    category: "navigation",
     enabledInBrowser: true,
     global: true,
     allowTextEntry: true,
@@ -357,8 +315,6 @@ export function DashboardKeyboardController() {
   }, []);
 
   const dashboardActions = useMemo<CommandPaletteAction[]>(() => {
-    const activeTasks = tasks.filter((task) => ACTIVE_STATUSES.has(task.status));
-    const recentTasks = tasks.filter((task) => !ACTIVE_STATUSES.has(task.status)).slice(0, 6);
     const workspaceActions = workspaces.slice(0, 8).map<CommandPaletteAction>((workspace) => ({
       id: `dashboard:open-workspace:${workspace.id}`,
       label: workspace.name,
@@ -387,14 +343,15 @@ export function DashboardKeyboardController() {
       },
       ...workspaceActions,
       {
-        id: "dashboard:new-task",
-        label: "New task",
-        description: "Create an automation task",
-        group: "Automation",
-        value: "new task create hive automation task",
+        id: "dashboard:launch-workspace",
+        label: "Launch workspace",
+        description: "Choose a use-case profile and create an interactive workspace",
+        group: "Workspaces",
+        value:
+          "launch create workspace profile orchestrator software game electronics infrastructure",
         icon: "plus",
         onSelect: () => {
-          router.push("/tasks/new");
+          router.push("/workspaces?launch=1");
         },
       },
       {
@@ -422,22 +379,6 @@ export function DashboardKeyboardController() {
         },
       },
       {
-        id: "dashboard:tasks-progress",
-        label: activeTasks.length > 0 ? `Check task progress (${activeTasks.length})` : "Tasks",
-        description:
-          activeTasks.length > 0
-            ? "Review queued, running, and verifying tasks"
-            : "Review recent task history",
-        group: "Actions",
-        value: "tasks progress status running queued verifying",
-        rightLabel: "/tasks",
-        shortcut: formatShortcut(NAV_TASKS_KEYS),
-        icon: "search",
-        onSelect: () => {
-          router.push("/tasks");
-        },
-      },
-      {
         id: "dashboard:toggle-fullscreen-action",
         label: appFullscreen ? "Exit fullscreen" : "Enter fullscreen",
         description: "Toggle the focused dashboard workspace",
@@ -447,32 +388,8 @@ export function DashboardKeyboardController() {
         icon: "search",
         onSelect: toggleDashboardFullscreen,
       },
-      ...activeTasks.slice(0, 6).map<CommandPaletteAction>((task) => ({
-        id: `dashboard:active-task:${task.id}`,
-        label: `${shortId(task.id)} • ${task.status}`,
-        description: task.prompt,
-        group: "Active tasks",
-        value: `${task.id} ${task.status} ${task.prompt}`,
-        rightLabel: task.updatedLabel,
-        icon: "search",
-        onSelect: () => {
-          router.push(`/tasks/${task.id}`);
-        },
-      })),
-      ...recentTasks.map<CommandPaletteAction>((task) => ({
-        id: `dashboard:recent-task:${task.id}`,
-        label: `${shortId(task.id)} • ${task.status}`,
-        description: task.prompt,
-        group: "Recent tasks",
-        value: `${task.id} ${task.status} ${task.prompt}`,
-        rightLabel: task.updatedLabel,
-        icon: "search",
-        onSelect: () => {
-          router.push(`/tasks/${task.id}`);
-        },
-      })),
     ];
-  }, [appFullscreen, router, tasks, toggleDashboardFullscreen, workspaces]);
+  }, [appFullscreen, router, toggleDashboardFullscreen, workspaces]);
 
   const sourceActions = activePaletteSource?.actions ?? [];
   const actions = useMemo(
@@ -505,7 +422,7 @@ export function DashboardKeyboardController() {
       searchValue={activePaletteSource?.searchValue ?? paletteQuery}
       onSearchValueChange={handleSearchValueChange}
       searchPlaceholder={
-        activePaletteSource?.searchPlaceholder ?? "Search commands, workspaces, and tasks…"
+        activePaletteSource?.searchPlaceholder ?? "Search commands and workspaces…"
       }
       emptyText={emptyText}
       groupHeading={activePaletteSource?.groupHeading ?? "Open"}

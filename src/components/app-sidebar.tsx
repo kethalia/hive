@@ -30,13 +30,11 @@ import {
   GripVertical,
   LayoutDashboard,
   LayoutTemplate,
-  ListTodo,
   Loader2,
   LogOut,
   Monitor,
   Pencil,
   Plus,
-  PlusCircle,
   RefreshCw,
   Monitor as ScreenIcon,
   Settings,
@@ -2085,42 +2083,6 @@ export function AppSidebar() {
                 </SidebarMenuItem>
               </Collapsible>
             </SidebarMenu>
-          </SidebarGroup>
-
-          <SidebarGroup className="pt-0">
-            <SidebarGroupLabel>Automation</SidebarGroupLabel>
-            <SidebarGroupContent>
-              <SidebarMenu className="gap-1" data-testid="automation-menu">
-                <SidebarMenuItem>
-                  <SidebarMenuButton
-                    render={<Link href="/tasks" />}
-                    isActive={
-                      pathname === "/tasks" ||
-                      (pathname.startsWith("/tasks/") && !pathname.startsWith("/tasks/new"))
-                    }
-                    aria-current={
-                      pathname === "/tasks" ||
-                      (pathname.startsWith("/tasks/") && !pathname.startsWith("/tasks/new"))
-                        ? "page"
-                        : undefined
-                    }
-                  >
-                    <ListTodo aria-hidden="true" className="h-4 w-4" />
-                    <span>Tasks</span>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-                <SidebarMenuItem>
-                  <SidebarMenuButton
-                    render={<Link href="/tasks/new" />}
-                    isActive={pathname === "/tasks/new"}
-                    aria-current={pathname === "/tasks/new" ? "page" : undefined}
-                  >
-                    <PlusCircle aria-hidden="true" className="h-4 w-4" />
-                    <span>New Task</span>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              </SidebarMenu>
-            </SidebarGroupContent>
           </SidebarGroup>
 
           <SidebarGroup className="pt-0">

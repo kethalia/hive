@@ -1,17 +1,4 @@
-import type { VerificationOutcome } from "@/lib/verification/types";
-
 // ── Shared formatting and display helpers ──────────────────────────
-
-/** Extract org/repo from a GitHub URL. */
-export function shortRepo(url: string): string {
-  try {
-    const parts = new URL(url).pathname.split("/").filter(Boolean);
-    if (parts.length >= 2) return `${parts[0]}/${parts[1]}`;
-    return url;
-  } catch {
-    return url;
-  }
-}
 
 /** Format a date as relative or short string. */
 export function formatRelativeDate(date: Date | string): string {
@@ -28,65 +15,18 @@ export function formatRelativeDate(date: Date | string): string {
   return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
 }
 
-/** Format a date as a short timestamp (e.g. "Mar 19, 10:30:45 AM"). */
-export function formatTimestamp(date: string): string {
-  return new Date(date).toLocaleString("en-US", {
-    month: "short",
-    day: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
-  });
-}
-
-/** Truncate a UUID to 8 chars. */
-export function shortId(id: string): string {
-  return id.slice(0, 8);
-}
-
-/** Read a File as a base64-encoded string (without the data URL prefix). */
-export function readFileAsBase64(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => {
-      const result = reader.result as string;
-      const base64 = result.split(",")[1] ?? "";
-      resolve(base64);
-    };
-    reader.onerror = () => reject(reader.error);
-    reader.readAsDataURL(file);
-  });
-}
-
 // ── Badge variant mapping ──────────────────────────────────────────
 
-/** Map task/workspace status to shadcn Badge variant. */
+/** Map Coder workspace status to shadcn Badge variant. */
 export const statusVariant: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
-  queued: "secondary",
-  running: "default",
-  verifying: "outline",
-  done: "default",
-  failed: "destructive",
   pending: "secondary",
   starting: "secondary",
+  running: "default",
+  stopping: "secondary",
   stopped: "outline",
+  deleting: "secondary",
   deleted: "outline",
+  canceling: "secondary",
+  canceled: "outline",
+  failed: "destructive",
 };
-
-/** Map verification outcome to Badge variant. */
-export const outcomeVariant: Record<VerificationOutcome, "default" | "secondary" | "destructive"> =
-  {
-    pass: "default",
-    fail: "destructive",
-    inconclusive: "secondary",
-  };
-
-/** Format a duration in milliseconds to a human-readable string (e.g. "12s", "2m 30s"). */
-export function formatDuration(ms: number): string {
-  if (!Number.isFinite(ms) || ms < 0) return "0s";
-  const totalSeconds = Math.floor(ms / 1000);
-  if (totalSeconds < 60) return `${totalSeconds}s`;
-  const minutes = Math.floor(totalSeconds / 60);
-  const seconds = totalSeconds % 60;
-  return seconds > 0 ? `${minutes}m ${seconds}s` : `${minutes}m`;
-}

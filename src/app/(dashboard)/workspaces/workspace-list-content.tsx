@@ -1,9 +1,18 @@
 "use client";
 
-import { AlertCircle, Loader2, Monitor, Plus, TerminalSquare } from "lucide-react";
+import {
+  AlertCircle,
+  Loader2,
+  Monitor,
+  Play,
+  Plus,
+  Square,
+  TerminalSquare,
+  Trash2,
+} from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { type FormEvent, useCallback, useEffect, useState } from "react";
+import { type FormEvent, useCallback, useEffect, useMemo, useState, useTransition } from "react";
 import { DashboardPageHeader } from "@/components/dashboard-page-header";
 import { DashboardPageShell } from "@/components/dashboard-page-shell";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -40,14 +49,22 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { useRegisterKeybinding } from "@/hooks/useKeybindings";
-import { createWorkspaceAction, listWorkspaceTemplatesAction } from "@/lib/actions/workspaces";
-import type { CoderWorkspace } from "@/lib/coder/types";
+import {
+  createWorkspaceAction,
+  deleteWorkspaceAction,
+  listWorkspaceTemplatesAction,
+  startWorkspaceAction,
+  stopWorkspaceAction,
+} from "@/lib/actions/workspaces";
+import type { CoderWorkspace, WorkspaceBuildStatus } from "@/lib/coder/types";
 import { formatRelativeDate, statusVariant } from "@/lib/helpers/format";
 import { formatShortcut } from "@/lib/keyboard-shortcuts";
+import { WORKSPACE_PROFILES, workspaceProfileForTemplate } from "@/lib/workspaces/profiles";
 
 interface WorkspaceListContentProps {
   workspaces: CoderWorkspace[];
   error?: string | null;
+  launchOnMount?: boolean;
 }
 
 interface WorkspaceTemplateOption {
@@ -55,6 +72,13 @@ interface WorkspaceTemplateOption {
   name: string;
   activeVersionId: string;
   updatedAt: string;
+}
+
+type WorkspaceOperation = "start" | "stop" | "delete";
+
+interface PendingWorkspaceOperation {
+  workspaceId: string;
+  operation: WorkspaceOperation;
 }
 
 function isWorkspaceTemplateOption(value: unknown): value is WorkspaceTemplateOption {
@@ -105,15 +129,15 @@ function firstValidationMessage(value: unknown): string | null {
   return null;
 }
 
-function createWorkspaceErrorMessage(result: unknown): string {
-  if (typeof result !== "object" || result === null) return "Failed to create workspace.";
+function actionErrorMessage(result: unknown, fallback: string): string {
+  if (typeof result !== "object" || result === null) return fallback;
   if ("serverError" in result && typeof result.serverError === "string") {
     return result.serverError;
   }
   if ("validationErrors" in result) {
-    return firstValidationMessage(result.validationErrors) ?? "Failed to create workspace.";
+    return firstValidationMessage(result.validationErrors) ?? fallback;
   }
-  return "Failed to create workspace.";
+  return fallback;
 }
 
 function templateLabel(workspace: CoderWorkspace): string {
@@ -122,6 +146,12 @@ function templateLabel(workspace: CoderWorkspace): string {
     workspace.template_name?.trim() ||
     workspace.template_id?.trim() ||
     "Unknown"
+  );
+}
+
+function workspaceProfile(workspace: CoderWorkspace) {
+  return workspaceProfileForTemplate(
+    workspace.template_name || workspace.template_display_name || workspace.template_id,
   );
 }
 
@@ -145,16 +175,49 @@ function workspaceStatus(workspace: CoderWorkspace): string {
   return workspace.latest_build.status;
 }
 
+const NON_DELETABLE_STATUSES = new Set<WorkspaceBuildStatus>([
+  "pending",
+  "starting",
+  "stopping",
+  "deleting",
+  "deleted",
+  "canceling",
+]);
+
+function operationIsPending(
+  pendingOperation: PendingWorkspaceOperation | null,
+  workspaceId: string,
+  operation: WorkspaceOperation,
+): boolean {
+  return pendingOperation?.workspaceId === workspaceId && pendingOperation.operation === operation;
+}
+
 function WorkspaceStatusBadge({ workspace }: { workspace: CoderWorkspace }) {
   const status = workspaceStatus(workspace);
 
   return <Badge variant={statusVariant[status] ?? "secondary"}>{status}</Badge>;
 }
 
-function WorkspaceListCard({ workspace }: { workspace: CoderWorkspace }) {
+interface WorkspaceListCardProps {
+  workspace: CoderWorkspace;
+  pendingOperation: PendingWorkspaceOperation | null;
+  onStart: (workspace: CoderWorkspace) => void;
+  onStop: (workspace: CoderWorkspace) => void;
+  onDelete: (workspace: CoderWorkspace) => void;
+}
+
+function WorkspaceListCard({
+  workspace,
+  pendingOperation,
+  onStart,
+  onStop,
+  onDelete,
+}: WorkspaceListCardProps) {
   const status = workspaceStatus(workspace);
   const href = terminalHref(workspace.id);
   const workspaceName = fieldOrUnknown(workspace.name);
+  const anyOperationPending = pendingOperation !== null;
+  const profile = workspaceProfile(workspace);
 
   return (
     <ListCard data-testid="workspace-mobile-card">
@@ -170,25 +233,74 @@ function WorkspaceListCard({ workspace }: { workspace: CoderWorkspace }) {
         </ListCardMeta>
       </ListCardHeader>
       <ListCardRows>
+        <ListCardRow label="Profile">{profile.label}</ListCardRow>
         <ListCardRow label="Template">{templateLabel(workspace)}</ListCardRow>
         <ListCardRow label="Owner">{fieldOrUnknown(workspace.owner_name)}</ListCardRow>
         <ListCardRow label="Last used">{lastUsedLabel(workspace.last_used_at)}</ListCardRow>
         <ListCardRow label="Health">{healthLabel(workspace)}</ListCardRow>
       </ListCardRows>
       <ListCardActions>
-        <ListCardAction as={Link} href={href} aria-label={`Open workspace for ${workspaceName}`}>
-          <TerminalSquare className="h-4 w-4" aria-hidden="true" />
-          Open workspace
-        </ListCardAction>
+        {status === "running" ? (
+          <ListCardAction as={Link} href={href} aria-label={`Open workspace for ${workspaceName}`}>
+            <TerminalSquare className="h-4 w-4" aria-hidden="true" />
+            Open workspace
+          </ListCardAction>
+        ) : null}
+        {status === "stopped" ? (
+          <ListCardAction
+            type="button"
+            onClick={() => onStart(workspace)}
+            disabled={anyOperationPending}
+            aria-label={`Start workspace ${workspaceName}`}
+          >
+            {operationIsPending(pendingOperation, workspace.id, "start") ? (
+              <Loader2 className="animate-spin" aria-hidden="true" />
+            ) : (
+              <Play aria-hidden="true" />
+            )}
+            Start
+          </ListCardAction>
+        ) : null}
+        {status === "running" ? (
+          <ListCardAction
+            type="button"
+            onClick={() => onStop(workspace)}
+            disabled={anyOperationPending}
+            aria-label={`Stop workspace ${workspaceName}`}
+          >
+            {operationIsPending(pendingOperation, workspace.id, "stop") ? (
+              <Loader2 className="animate-spin" aria-hidden="true" />
+            ) : (
+              <Square aria-hidden="true" />
+            )}
+            Stop
+          </ListCardAction>
+        ) : null}
+        {!NON_DELETABLE_STATUSES.has(workspace.latest_build.status) ? (
+          <ListCardAction
+            type="button"
+            onClick={() => onDelete(workspace)}
+            disabled={anyOperationPending}
+            className="text-destructive"
+            aria-label={`Delete workspace ${workspaceName}`}
+          >
+            <Trash2 aria-hidden="true" />
+            Delete
+          </ListCardAction>
+        ) : null}
       </ListCardActions>
     </ListCard>
   );
 }
 
-export function WorkspaceListContent({ workspaces, error }: WorkspaceListContentProps) {
+export function WorkspaceListContent({
+  workspaces,
+  error,
+  launchOnMount = false,
+}: WorkspaceListContentProps) {
   const hasError = Boolean(error);
   const router = useRouter();
-  const [createOpen, setCreateOpen] = useState(false);
+  const [createOpen, setCreateOpen] = useState(launchOnMount);
   const [templates, setTemplates] = useState<WorkspaceTemplateOption[]>([]);
   const [templateId, setTemplateId] = useState("");
   const [workspaceName, setWorkspaceName] = useState("");
@@ -196,6 +308,29 @@ export function WorkspaceListContent({ workspaces, error }: WorkspaceListContent
   const [templatesError, setTemplatesError] = useState<string | null>(null);
   const [createError, setCreateError] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
+  const [pendingOperation, setPendingOperation] = useState<PendingWorkspaceOperation | null>(null);
+  const [lifecycleError, setLifecycleError] = useState<string | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<CoderWorkspace | null>(null);
+  const [deleteConfirmation, setDeleteConfirmation] = useState("");
+  const [, startRefreshTransition] = useTransition();
+
+  const profileGroups = useMemo(
+    () =>
+      WORKSPACE_PROFILES.map((profile) => ({
+        profile,
+        templates: templates.filter(
+          (template) => workspaceProfileForTemplate(template.name).id === profile.id,
+        ),
+      })).filter(({ templates: profileTemplates }) => profileTemplates.length > 0),
+    [templates],
+  );
+  const selectedTemplate = useMemo(
+    () => templates.find((template) => template.id === templateId) ?? null,
+    [templateId, templates],
+  );
+  const selectedProfile = selectedTemplate
+    ? workspaceProfileForTemplate(selectedTemplate.name)
+    : null;
 
   const openCreateDialog = useCallback(() => {
     setCreateOpen(true);
@@ -229,9 +364,7 @@ export function WorkspaceListContent({ workspaces, error }: WorkspaceListContent
           ? result.data.filter(isWorkspaceTemplateOption)
           : [];
         setTemplates(parsed);
-        if (!templateId && parsed[0]) {
-          setTemplateId(parsed[0].id);
-        }
+        setTemplateId((currentTemplateId) => currentTemplateId || parsed[0]?.id || "");
         if (result?.serverError) {
           setTemplatesError(result.serverError);
         }
@@ -249,7 +382,7 @@ export function WorkspaceListContent({ workspaces, error }: WorkspaceListContent
     return () => {
       cancelled = true;
     };
-  }, [createOpen, templateId, templates.length]);
+  }, [createOpen, templates.length]);
 
   const handleCreateWorkspace = useCallback(
     async (event: FormEvent<HTMLFormElement>) => {
@@ -270,12 +403,12 @@ export function WorkspaceListContent({ workspaces, error }: WorkspaceListContent
       try {
         const result = await createWorkspaceAction({ templateId, name: trimmedName });
         if (result?.serverError || result?.validationErrors || !result?.data) {
-          setCreateError(createWorkspaceErrorMessage(result));
+          setCreateError(actionErrorMessage(result, "Failed to create workspace."));
           return;
         }
         setWorkspaceName("");
         setCreateOpen(false);
-        router.refresh();
+        startRefreshTransition(() => router.refresh());
       } catch (err) {
         setCreateError(err instanceof Error ? err.message : "Failed to create workspace.");
       } finally {
@@ -285,11 +418,80 @@ export function WorkspaceListContent({ workspaces, error }: WorkspaceListContent
     [router, templateId, workspaceName],
   );
 
+  const runWorkspaceOperation = useCallback(
+    async (workspace: CoderWorkspace, operation: Exclude<WorkspaceOperation, "delete">) => {
+      setLifecycleError(null);
+      setPendingOperation({ workspaceId: workspace.id, operation });
+
+      try {
+        const result =
+          operation === "start"
+            ? await startWorkspaceAction({ workspaceId: workspace.id })
+            : await stopWorkspaceAction({ workspaceId: workspace.id });
+        if (result?.serverError || result?.validationErrors || !result?.data) {
+          setLifecycleError(
+            actionErrorMessage(result, `Failed to ${operation} workspace ${workspace.name}.`),
+          );
+          return;
+        }
+        startRefreshTransition(() => router.refresh());
+      } catch (err) {
+        setLifecycleError(
+          err instanceof Error
+            ? err.message
+            : `Failed to ${operation} workspace ${workspace.name}.`,
+        );
+      } finally {
+        setPendingOperation(null);
+      }
+    },
+    [router],
+  );
+
+  const openDeleteDialog = useCallback((workspace: CoderWorkspace) => {
+    setLifecycleError(null);
+    setDeleteConfirmation("");
+    setDeleteTarget(workspace);
+  }, []);
+
+  const closeDeleteDialog = useCallback(() => {
+    setLifecycleError(null);
+    setDeleteTarget(null);
+    setDeleteConfirmation("");
+  }, []);
+
+  const handleDeleteWorkspace = useCallback(async () => {
+    if (!deleteTarget || deleteConfirmation !== deleteTarget.name) return;
+
+    setLifecycleError(null);
+    setPendingOperation({ workspaceId: deleteTarget.id, operation: "delete" });
+    try {
+      const result = await deleteWorkspaceAction({
+        workspaceId: deleteTarget.id,
+        confirmationName: deleteConfirmation,
+      });
+      if (result?.serverError || result?.validationErrors || !result?.data) {
+        setLifecycleError(
+          actionErrorMessage(result, `Failed to delete workspace ${deleteTarget.name}.`),
+        );
+        return;
+      }
+      closeDeleteDialog();
+      startRefreshTransition(() => router.refresh());
+    } catch (err) {
+      setLifecycleError(
+        err instanceof Error ? err.message : `Failed to delete workspace ${deleteTarget.name}.`,
+      );
+    } finally {
+      setPendingOperation(null);
+    }
+  }, [closeDeleteDialog, deleteConfirmation, deleteTarget, router]);
+
   return (
     <DashboardPageShell>
       <DashboardPageHeader
         title="Workspaces"
-        description="Persistent development environments. Open one to resume its terminal sessions."
+        description="Interactive, persistent environments organized by use case. Open one to resume its TUI sessions."
         actions={
           <Button
             type="button"
@@ -298,7 +500,7 @@ export function WorkspaceListContent({ workspaces, error }: WorkspaceListContent
             data-testid="open-create-workspace-modal"
           >
             <Plus data-icon="inline-start" />
-            Add workspace
+            Launch workspace
             <span className="ml-1 hidden text-xs text-muted-foreground sm:inline">
               {formatShortcut(CREATE_WORKSPACE_SHORTCUT_KEYS)}
             </span>
@@ -309,10 +511,10 @@ export function WorkspaceListContent({ workspaces, error }: WorkspaceListContent
       <Dialog open={createOpen} onOpenChange={setCreateOpen}>
         <DialogContent data-testid="create-workspace-modal">
           <DialogHeader>
-            <DialogTitle>Add workspace</DialogTitle>
+            <DialogTitle>Launch workspace</DialogTitle>
             <DialogDescription>
-              Create a Coder workspace from an available template. The workspace list refreshes
-              after creation starts.
+              Choose a use-case profile backed by an available Coder template. Creation starts
+              immediately and remains visible in this list.
             </DialogDescription>
           </DialogHeader>
           <form className="space-y-4" onSubmit={handleCreateWorkspace}>
@@ -335,7 +537,7 @@ export function WorkspaceListContent({ workspaces, error }: WorkspaceListContent
 
             <div className="space-y-2">
               <label htmlFor="workspace-template" className="text-sm font-medium">
-                Template
+                Workspace profile
               </label>
               <select
                 id="workspace-template"
@@ -346,12 +548,30 @@ export function WorkspaceListContent({ workspaces, error }: WorkspaceListContent
                 data-testid="create-workspace-template"
               >
                 {templates.length === 0 ? <option value="">No templates loaded</option> : null}
-                {templates.map((template) => (
-                  <option key={template.id} value={template.id}>
-                    {template.name}
-                  </option>
+                {profileGroups.map(({ profile, templates: profileTemplates }) => (
+                  <optgroup key={profile.id} label={profile.label}>
+                    {profileTemplates.map((template) => (
+                      <option key={template.id} value={template.id}>
+                        {template.name}
+                      </option>
+                    ))}
+                  </optgroup>
                 ))}
               </select>
+              {selectedProfile && selectedTemplate ? (
+                <div
+                  className="rounded-md border border-border bg-muted/40 p-3"
+                  data-testid="selected-workspace-profile"
+                >
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Badge variant="outline">{selectedProfile.label}</Badge>
+                    <span className="text-xs text-muted-foreground">{selectedTemplate.name}</span>
+                  </div>
+                  <p className="mt-2 text-sm text-muted-foreground">
+                    {selectedProfile.description}
+                  </p>
+                </div>
+              ) : null}
               {templatesLoading ? (
                 <p className="flex items-center gap-1 text-xs text-muted-foreground">
                   <Loader2 className="size-3 animate-spin" /> Loading templates…
@@ -389,12 +609,88 @@ export function WorkspaceListContent({ workspaces, error }: WorkspaceListContent
                 disabled={creating || templatesLoading || !templateId}
                 data-testid="submit-create-workspace"
               >
-                {creating ? "Creating…" : "Create workspace"}
+                {creating ? "Launching…" : "Launch workspace"}
               </Button>
             </DialogFooter>
           </form>
         </DialogContent>
       </Dialog>
+
+      <Dialog
+        open={Boolean(deleteTarget)}
+        onOpenChange={(open) => {
+          if (!open && pendingOperation?.operation !== "delete") closeDeleteDialog();
+        }}
+      >
+        <DialogContent data-testid="delete-workspace-modal">
+          <DialogHeader>
+            <DialogTitle>Delete workspace</DialogTitle>
+            <DialogDescription>
+              This permanently removes the Coder workspace and any persistent resources owned by its
+              template. Stop and preserve any work you need first.
+            </DialogDescription>
+          </DialogHeader>
+          {deleteTarget ? (
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <label htmlFor="delete-workspace-confirmation" className="text-sm font-medium">
+                  Type <span className="font-mono">{deleteTarget.name}</span> to confirm
+                </label>
+                <Input
+                  id="delete-workspace-confirmation"
+                  value={deleteConfirmation}
+                  onChange={(event) => setDeleteConfirmation(event.target.value)}
+                  autoComplete="off"
+                  disabled={pendingOperation?.operation === "delete"}
+                  data-testid="delete-workspace-confirmation"
+                />
+              </div>
+              {lifecycleError ? (
+                <Alert variant="destructive" data-testid="delete-workspace-error">
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertTitle>Could not delete workspace</AlertTitle>
+                  <AlertDescription>{lifecycleError}</AlertDescription>
+                </Alert>
+              ) : null}
+              <DialogFooter>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={closeDeleteDialog}
+                  disabled={pendingOperation?.operation === "delete"}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="button"
+                  variant="destructive"
+                  onClick={() => void handleDeleteWorkspace()}
+                  disabled={
+                    deleteConfirmation !== deleteTarget.name ||
+                    pendingOperation?.operation === "delete"
+                  }
+                  data-testid="confirm-delete-workspace"
+                >
+                  {pendingOperation?.operation === "delete" ? (
+                    <Loader2 data-icon="inline-start" className="animate-spin" />
+                  ) : (
+                    <Trash2 data-icon="inline-start" />
+                  )}
+                  {pendingOperation?.operation === "delete" ? "Deleting…" : "Delete workspace"}
+                </Button>
+              </DialogFooter>
+            </div>
+          ) : null}
+        </DialogContent>
+      </Dialog>
+
+      {lifecycleError && !deleteTarget ? (
+        <Alert variant="destructive" data-testid="workspace-lifecycle-error">
+          <AlertCircle className="h-4 w-4" />
+          <AlertTitle>Workspace action failed</AlertTitle>
+          <AlertDescription>{lifecycleError}</AlertDescription>
+        </Alert>
+      ) : null}
 
       {hasError ? (
         <Alert variant="destructive" data-testid="workspaces-error-state">
@@ -410,11 +706,11 @@ export function WorkspaceListContent({ workspaces, error }: WorkspaceListContent
             <Monitor className="mb-3 h-8 w-8 text-muted-foreground" aria-hidden="true" />
             <p className="text-muted-foreground text-lg">No workspaces found.</p>
             <p className="text-muted-foreground mt-1 text-sm">
-              Create a workspace to start persistent terminal sessions.
+              Launch a profile to start persistent, interactive terminal sessions.
             </p>
             <Button type="button" className="mt-4" onClick={openCreateDialog}>
               <Plus data-icon="inline-start" />
-              Create workspace
+              Launch workspace
             </Button>
           </CardContent>
         </Card>
@@ -422,7 +718,18 @@ export function WorkspaceListContent({ workspaces, error }: WorkspaceListContent
         <>
           <CardStack aria-label="Workspaces" data-testid="workspaces-mobile-card-stack">
             {workspaces.map((workspace) => (
-              <WorkspaceListCard key={workspace.id} workspace={workspace} />
+              <WorkspaceListCard
+                key={workspace.id}
+                workspace={workspace}
+                pendingOperation={pendingOperation}
+                onStart={(selectedWorkspace) =>
+                  void runWorkspaceOperation(selectedWorkspace, "start")
+                }
+                onStop={(selectedWorkspace) =>
+                  void runWorkspaceOperation(selectedWorkspace, "stop")
+                }
+                onDelete={openDeleteDialog}
+              />
             ))}
           </CardStack>
 
@@ -432,11 +739,12 @@ export function WorkspaceListContent({ workspaces, error }: WorkspaceListContent
                 <TableRow>
                   <TableHead className="w-[100px]">Status</TableHead>
                   <TableHead>Workspace</TableHead>
+                  <TableHead>Profile</TableHead>
                   <TableHead>Template</TableHead>
                   <TableHead>Owner</TableHead>
                   <TableHead>Last used</TableHead>
                   <TableHead>Health</TableHead>
-                  <TableHead className="text-right">Action</TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -447,6 +755,9 @@ export function WorkspaceListContent({ workspaces, error }: WorkspaceListContent
                     </TableCell>
                     <TableCell className="font-medium text-foreground">
                       {fieldOrUnknown(workspace.name)}
+                    </TableCell>
+                    <TableCell className="text-muted-foreground text-sm">
+                      {workspaceProfile(workspace).label}
                     </TableCell>
                     <TableCell className="text-muted-foreground text-sm">
                       {templateLabel(workspace)}
@@ -460,16 +771,67 @@ export function WorkspaceListContent({ workspaces, error }: WorkspaceListContent
                     <TableCell className="text-muted-foreground text-sm">
                       {healthLabel(workspace)}
                     </TableCell>
-                    <TableCell className="text-right">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        nativeButton={false}
-                        render={<Link href={terminalHref(workspace.id)} />}
-                      >
-                        <TerminalSquare data-icon="inline-start" />
-                        Workspace
-                      </Button>
+                    <TableCell>
+                      <div className="flex flex-wrap justify-end gap-2">
+                        {workspace.latest_build.status === "running" ? (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            nativeButton={false}
+                            render={<Link href={terminalHref(workspace.id)} />}
+                          >
+                            <TerminalSquare data-icon="inline-start" />
+                            Open
+                          </Button>
+                        ) : null}
+                        {workspace.latest_build.status === "stopped" ? (
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() => void runWorkspaceOperation(workspace, "start")}
+                            disabled={pendingOperation !== null}
+                            aria-label={`Start workspace ${fieldOrUnknown(workspace.name)}`}
+                          >
+                            {operationIsPending(pendingOperation, workspace.id, "start") ? (
+                              <Loader2 data-icon="inline-start" className="animate-spin" />
+                            ) : (
+                              <Play data-icon="inline-start" />
+                            )}
+                            Start
+                          </Button>
+                        ) : null}
+                        {workspace.latest_build.status === "running" ? (
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() => void runWorkspaceOperation(workspace, "stop")}
+                            disabled={pendingOperation !== null}
+                            aria-label={`Stop workspace ${fieldOrUnknown(workspace.name)}`}
+                          >
+                            {operationIsPending(pendingOperation, workspace.id, "stop") ? (
+                              <Loader2 data-icon="inline-start" className="animate-spin" />
+                            ) : (
+                              <Square data-icon="inline-start" />
+                            )}
+                            Stop
+                          </Button>
+                        ) : null}
+                        {!NON_DELETABLE_STATUSES.has(workspace.latest_build.status) ? (
+                          <Button
+                            type="button"
+                            variant="destructive"
+                            size="sm"
+                            onClick={() => openDeleteDialog(workspace)}
+                            disabled={pendingOperation !== null}
+                            aria-label={`Delete workspace ${fieldOrUnknown(workspace.name)}`}
+                          >
+                            <Trash2 data-icon="inline-start" />
+                            Delete
+                          </Button>
+                        ) : null}
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))}

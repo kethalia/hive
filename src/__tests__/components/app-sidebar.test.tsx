@@ -7,7 +7,7 @@ import "@testing-library/jest-dom/vitest";
 const mockUseIsMobile = vi.hoisted(() => vi.fn(() => false));
 const mockPush = vi.hoisted(() => vi.fn());
 const mockRefresh = vi.hoisted(() => vi.fn());
-const mockNavigationState = vi.hoisted(() => ({ pathname: "/tasks", searchParams: "" }));
+const mockNavigationState = vi.hoisted(() => ({ pathname: "/terminal/status", searchParams: "" }));
 vi.mock("next/navigation", () => ({
   usePathname: () => mockNavigationState.pathname,
   useRouter: () => ({ push: mockPush, refresh: mockRefresh }),
@@ -279,8 +279,6 @@ vi.mock("@/components/ui/switch", () => ({
 
 vi.mock("lucide-react", () => ({
   Ellipsis: () => <span>Ellipsis</span>,
-  ListTodo: () => <span>ListTodo</span>,
-  PlusCircle: () => <span>PlusCircle</span>,
   Settings: () => <span>Settings</span>,
   Hexagon: () => <span>Hexagon</span>,
   LayoutTemplate: () => <span>LayoutTemplate</span>,
@@ -484,7 +482,7 @@ function makeWorkspace(overrides: Partial<CoderWorkspace> = {}): CoderWorkspace 
     id: "ws-1",
     name: "dev-box",
     template_id: "tpl-1",
-    template_name: "hive-worker",
+    template_name: "ai-dev",
     owner_name: "alice",
     latest_build: {
       id: "build-1",
@@ -497,7 +495,7 @@ function makeWorkspace(overrides: Partial<CoderWorkspace> = {}): CoderWorkspace 
 
 function makeTemplate(overrides: Partial<TemplateStatus> = {}): TemplateStatus {
   return {
-    name: "hive-worker",
+    name: "ai-dev",
     stale: false,
     ...overrides,
   } as TemplateStatus;
@@ -552,7 +550,7 @@ async function expandWorkspaceAndTerminalSessions(workspaceId = "ws-1") {
 describe("AppSidebar", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockNavigationState.pathname = "/tasks";
+    mockNavigationState.pathname = "/terminal/status";
     mockNavigationState.searchParams = "";
     mockUseIsMobile.mockReturnValue(false);
     vi.useFakeTimers({ shouldAdvanceTime: true });
@@ -801,7 +799,7 @@ describe("AppSidebar", () => {
     render(<AppSidebar />);
 
     await waitFor(() => {
-      expect(screen.getByText("hive-worker")).toBeInTheDocument();
+      expect(screen.getByText("ai-dev")).toBeInTheDocument();
     });
   });
 
@@ -873,12 +871,6 @@ describe("AppSidebar", () => {
     const workspaces = screen.getByTestId("workspaces-disclosure");
 
     expect(pinned.compareDocumentPosition(workspaces)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
-  });
-
-  it("separates the Tasks and New Task actions", async () => {
-    render(<AppSidebar />);
-
-    expect(await screen.findByTestId("automation-menu")).toHaveClass("gap-1");
   });
 
   it("upserts and removes terminal favorites without user-scoped payload fields", async () => {
@@ -1869,8 +1861,8 @@ describe("AppSidebar", () => {
 
     render(<AppSidebar />);
 
-    const tasksLink = await screen.findByRole("link", { name: /tasks/i });
-    const clickAllowed = fireEvent.click(tasksLink);
+    const templatesLink = await screen.findByRole("link", { name: /templates/i });
+    const clickAllowed = fireEvent.click(templatesLink);
 
     expect(clickAllowed).toBe(true);
     expect(mockPush).not.toHaveBeenCalled();
@@ -1879,8 +1871,8 @@ describe("AppSidebar", () => {
   it("leaves internal sidebar links to Next navigation on normal routes", async () => {
     render(<AppSidebar />);
 
-    const tasksLink = await screen.findByRole("link", { name: /tasks/i });
-    const clickAllowed = fireEvent.click(tasksLink);
+    const templatesLink = await screen.findByRole("link", { name: /templates/i });
+    const clickAllowed = fireEvent.click(templatesLink);
 
     expect(clickAllowed).toBe(true);
   });

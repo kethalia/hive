@@ -94,7 +94,7 @@ describe("useSidebarMode", () => {
 const mockPush = vi.fn();
 const mockRefresh = vi.fn();
 vi.mock("next/navigation", () => ({
-  usePathname: () => "/tasks",
+  usePathname: () => "/terminal/status",
   useRouter: () => ({ push: mockPush, refresh: mockRefresh }),
   useSearchParams: () => new URLSearchParams(),
 }));
