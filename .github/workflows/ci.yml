@@ -22,7 +22,7 @@ jobs:
       node-version: 22
       lint-command: pnpm lint
       format-command: pnpm format:check
-      typecheck-command: ""
+      typecheck-command: pnpm typecheck
       test-command: ""
       build-command: |
         export DATABASE_URL=postgresql://dummy:dummy@localhost:5432/dummy
