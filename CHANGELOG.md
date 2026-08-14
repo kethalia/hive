@@ -1,5 +1,22 @@
 # hive-orchestrator
 
+## 2.11.0
+
+### Minor Changes
+
+- f34c01f: Retire the asynchronous Tasks workflow and task-specific Coder template in favor of interactive,
+  profile-driven workspaces. Add authenticated start, stop, and exact-name-confirmed delete controls,
+  plus the database migration that removes legacy task records and task-owned workspace metadata.
+- 6cedff9: Add Kubernetes-only Orchestrator, Software, Browser Testing, Game, Electronics, and Infrastructure
+  Coder workspace profiles with capability-specific images, resources, tooling, repository bootstrap,
+  interactive guidance, and shared scaffold synchronization. Expose each profile's runtime surface in
+  Hive and hide applications that its template does not provision.
+
+### Patch Changes
+
+- Updated dependencies [f34c01f]
+  - @hive/db@0.2.0
+
 ## 2.10.8
 
 ### Patch Changes
