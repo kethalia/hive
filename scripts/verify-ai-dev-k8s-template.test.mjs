@@ -802,7 +802,10 @@ function verifyReadOnlyMcpMigration() {
 
 function renderBrowserHelper(delimiter, includeMarker) {
   const setup = readTemplateFile("scripts/tools-browser.sh");
-  const match = setup.match(new RegExp(`<< ${delimiter}\\n([\\s\\S]*?)\\n${delimiter}`));
+  const match =
+    delimiter === "SCREENSHOT"
+      ? setup.match(/<< SCREENSHOT\n([\s\S]*?)\nSCREENSHOT/)
+      : setup.match(/<< BROWSERHTML\n([\s\S]*?)\nBROWSERHTML/);
   assert.ok(match);
   let helper = `${match[1]}\n`
     .replaceAll("$CHROME_BIN", "/usr/bin/google-chrome-stable")
@@ -817,14 +820,14 @@ function runBrowserHelperCleanupFixture(contents) {
   const home = join(fixtureRoot, "home");
   const bin = join(home, ".local", "bin");
   const screenshot = join(bin, "browser-screenshot");
-  const html = join(bin, "browser-html");
+  const htmlHelper = join(bin, "browser-html");
   const initScript = readTemplateFile("scripts/init.sh");
   const functionMatch = initScript.match(/remove_hive_browser_helpers\(\) \{[\s\S]*?\n\}/);
 
   assert.ok(functionMatch);
   mkdirSync(bin, { recursive: true });
   writeFileSync(screenshot, contents.screenshot);
-  writeFileSync(html, contents.html);
+  writeFileSync(htmlHelper, contents.htmlHelper);
   const cleanupScript = join(fixtureRoot, "cleanup.sh");
   writeFileSync(cleanupScript, `${functionMatch[0]}\nremove_hive_browser_helpers\n`);
   const result = spawnSync("bash", [cleanupScript], {
@@ -832,7 +835,7 @@ function runBrowserHelperCleanupFixture(contents) {
     env: { ...process.env, HOME: home },
   });
 
-  return { html, result, screenshot };
+  return { htmlHelper, result, screenshot };
 }
 
 function verifyBrowserHelperOwnershipCleanup() {
@@ -840,25 +843,25 @@ function verifyBrowserHelperOwnershipCleanup() {
   const customHtml = "#!/bin/bash\necho user-html\n";
   const custom = runBrowserHelperCleanupFixture({
     screenshot: customScreenshot,
-    html: customHtml,
+    htmlHelper: customHtml,
   });
   assert.equal(custom.result.status, 0, custom.result.stderr);
   assert.equal(readFileSync(custom.screenshot, "utf8"), customScreenshot);
-  assert.equal(readFileSync(custom.html, "utf8"), customHtml);
+  assert.equal(readFileSync(custom.htmlHelper, "utf8"), customHtml);
 
   const legacy = runBrowserHelperCleanupFixture({
     screenshot: renderBrowserHelper("SCREENSHOT", false),
-    html: renderBrowserHelper("BROWSERHTML", false),
+    htmlHelper: renderBrowserHelper("BROWSERHTML", false),
   });
   assert.equal(legacy.result.status, 0, legacy.result.stderr);
   assert.equal(existsSync(legacy.screenshot), false);
-  assert.equal(existsSync(legacy.html), false);
+  assert.equal(existsSync(legacy.htmlHelper), false);
 
   const marked = runBrowserHelperCleanupFixture({
     screenshot: renderBrowserHelper("SCREENSHOT", true),
-    html: renderBrowserHelper("BROWSERHTML", true),
+    htmlHelper: renderBrowserHelper("BROWSERHTML", true),
   });
   assert.equal(marked.result.status, 0, marked.result.stderr);
   assert.equal(existsSync(marked.screenshot), false);
-  assert.equal(existsSync(marked.html), false);
+  assert.equal(existsSync(marked.htmlHelper), false);
 }
