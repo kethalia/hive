@@ -15,7 +15,7 @@ import {
   CODER_HOST_COOKIE,
   coderFrameConfiguredUrls,
 } from "@/lib/security/content-security-policy";
-import { workspaceTemplateCapabilities } from "@/lib/templates/catalog";
+import { isRetiredWorkspaceTemplate, workspaceTemplateCapabilities } from "@/lib/templates/catalog";
 import { execInWorkspace } from "@/lib/workspace/exec";
 import { filterGenericTmuxSessions, parseTmuxSessions } from "@/lib/workspaces/sessions";
 import {
@@ -34,7 +34,8 @@ export const listWorkspacesAction = authActionClient.action(async ({ ctx }) => {
 
 export const listWorkspaceTemplatesAction = authActionClient.action(async ({ ctx }) => {
   const client = await getCoderClientForUser(ctx.user.id);
-  return client.listTemplates();
+  const templates = await client.listTemplates();
+  return templates.filter(({ name }) => !isRetiredWorkspaceTemplate(name));
 });
 
 const createWorkspaceSchema = z.object({
@@ -51,6 +52,16 @@ export const createWorkspaceAction = authActionClient
   .inputSchema(createWorkspaceSchema)
   .action(async ({ parsedInput, ctx }) => {
     const client = await getCoderClientForUser(ctx.user.id);
+    const templates = await client.listTemplates();
+    const selectedTemplate = templates.find(({ id }) => id === parsedInput.templateId);
+    if (!selectedTemplate) {
+      throw new Error("The selected workspace template is no longer available.");
+    }
+    if (isRetiredWorkspaceTemplate(selectedTemplate.name)) {
+      throw new Error(
+        "The orchestrator template is retired. Use ai-dev-k8s for development and orchestration.",
+      );
+    }
     return client.createWorkspace(parsedInput.templateId, parsedInput.name);
   });
 

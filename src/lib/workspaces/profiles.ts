@@ -1,15 +1,17 @@
-import { templateCatalogEntry } from "@/lib/templates/catalog";
+import { isRetiredWorkspaceTemplate, templateCatalogEntry } from "@/lib/templates/catalog";
+
+const LEGACY_ORCHESTRATOR_PROFILE = {
+  id: "orchestrator",
+  label: "Legacy orchestrator",
+  description: "A retired command-center profile retained for existing workspaces.",
+} as const;
 
 export const WORKSPACE_PROFILES = [
   {
-    id: "orchestrator",
-    label: "Orchestrator",
-    description: "A persistent command center for coordinating work across other workspaces.",
-  },
-  {
     id: "software",
-    label: "Software development",
-    description: "A general-purpose coding environment for repositories, terminals, and reviews.",
+    label: "Development & orchestration",
+    description:
+      "The persistent main workspace for repositories, implementation, reviews, and specialist coordination.",
   },
   {
     id: "browser",
@@ -38,14 +40,15 @@ export const WORKSPACE_PROFILES = [
   },
 ] as const;
 
-export type WorkspaceProfile = (typeof WORKSPACE_PROFILES)[number];
+export type WorkspaceProfile =
+  | (typeof WORKSPACE_PROFILES)[number]
+  | typeof LEGACY_ORCHESTRATOR_PROFILE;
 export type WorkspaceProfileId = WorkspaceProfile["id"];
 
 const PROFILE_PATTERNS: ReadonlyArray<{
-  id: Exclude<WorkspaceProfileId, "custom">;
+  id: Exclude<WorkspaceProfileId, "custom" | "orchestrator">;
   pattern: RegExp;
 }> = [
-  { id: "orchestrator", pattern: /orchestrat|command[-_ ]?center|control[-_ ]?plane/ },
   { id: "browser", pattern: /browser|playwright|chrome|end[-_ ]?to[-_ ]?end|e2e/ },
   { id: "game", pattern: /game|unity|unreal|godot|blender/ },
   { id: "electronics", pattern: /electronic|hardware|kicad|pcb|firmware/ },
@@ -54,7 +57,7 @@ const PROFILE_PATTERNS: ReadonlyArray<{
 ];
 
 const WORKSPACE_PROFILE_BY_ID = new Map<WorkspaceProfileId, WorkspaceProfile>(
-  WORKSPACE_PROFILES.map((profile) => [profile.id, profile]),
+  [...WORKSPACE_PROFILES, LEGACY_ORCHESTRATOR_PROFILE].map((profile) => [profile.id, profile]),
 );
 
 function workspaceProfileById(id: WorkspaceProfileId): WorkspaceProfile {
@@ -65,6 +68,9 @@ function workspaceProfileById(id: WorkspaceProfileId): WorkspaceProfile {
 
 export function workspaceProfileForTemplate(templateName: string): WorkspaceProfile {
   const normalizedName = templateName.trim().toLowerCase();
+  if (isRetiredWorkspaceTemplate(normalizedName)) {
+    return workspaceProfileById("orchestrator");
+  }
   const catalogProfileId = templateCatalogEntry(normalizedName)?.profileId;
   const match = PROFILE_PATTERNS.find(({ pattern }) => pattern.test(normalizedName));
   return workspaceProfileById(catalogProfileId ?? match?.id ?? "custom");

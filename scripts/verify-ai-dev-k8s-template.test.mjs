@@ -301,7 +301,6 @@ function verifyBaseImageRollout() {
   assert.match(workflow, /changeset_file="\.changeset\/workspace-image-\$\{GITHUB_SHA:0:12\}\.md"/);
   for (const templateName of [
     "ai-dev-k8s",
-    "orchestrator",
     "browser-testing",
     "game-dev",
     "electronics",
@@ -620,9 +619,9 @@ function verifyRepositoryManifest() {
     );
   }
   assert.ok(entries.includes("phlox-labs/service-routing-api|phlox-labs/service-routing-api"));
+  assert.ok(entries.includes("kethalia/k8s-cluster|kethalia/k8s-cluster"));
+  assert.ok(entries.includes("kethalia/workflows|kethalia/workflows"));
   assert.ok(!entries.includes("chillwhales/realm-of-chill|chillwhales/realm-of-chill"));
-  assert.ok(!entries.includes("kethalia/k8s-cluster|kethalia/k8s-cluster"));
-  assert.ok(!entries.includes("kethalia/workflows|kethalia/workflows"));
 }
 
 function verifyRepositoryBootstrap() {

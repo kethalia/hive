@@ -175,7 +175,6 @@ jobs:
 
           cli_profiles=(
             templates/ai-dev-k8s/profile.json
-            templates/orchestrator/profile.json
             templates/infrastructure/profile.json
           )
           game_profiles=(templates/game-dev/profile.json)

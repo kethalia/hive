@@ -161,7 +161,7 @@ describe("templates mobile list", () => {
     expect(within(cards[1]).getByText("Current")).toBeInTheDocument();
     expect(within(cards[2]).getByText("Unknown")).toBeInTheDocument();
     expect(within(cards[0]).getByText("Last pushed")).toBeInTheDocument();
-    expect(within(cards[0]).getByText("Software development")).toBeInTheDocument();
+    expect(within(cards[0]).getByText("Development & orchestration")).toBeInTheDocument();
     expect(within(cards[0]).getByText("Kubernetes")).toBeInTheDocument();
     expect(within(cards[0]).getByText("CLI + web tools")).toBeInTheDocument();
     expect(within(cards[1]).getByText("Browser + desktop")).toBeInTheDocument();

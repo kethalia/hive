@@ -1,7 +1,7 @@
 {
   "id": "software",
-  "label": "Software development",
-  "description": "Headless repository development, CI, implementation, and code review.",
+  "label": "Development & orchestration",
+  "description": "Persistent repository development, delivery, and specialist workspace coordination.",
   "image": "ghcr.io/kethalia/hive-base@sha256:9fd9317161165833da8f866a55fb1ab34546cbf03b03036f249ab726998b65cb",
   "image_variant": "cli",
   "capabilities": {

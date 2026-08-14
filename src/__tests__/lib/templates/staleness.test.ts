@@ -13,7 +13,6 @@ import {
 describe("KNOWN_TEMPLATES", () => {
   it("registers every template exposed by the Hive UI", () => {
     expect(KNOWN_TEMPLATES).toEqual([
-      "orchestrator",
       "ai-dev-k8s",
       "browser-testing",
       "game-dev",

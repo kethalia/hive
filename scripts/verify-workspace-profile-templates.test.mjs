@@ -10,19 +10,6 @@ const repositoryRoot = process.cwd();
 const templateRoot = join(repositoryRoot, "templates");
 const profiles = [
   {
-    template: "orchestrator",
-    id: "orchestrator",
-    imageVariant: "cli",
-    storage: "50Gi",
-    capabilities: {
-      browser: false,
-      desktop: false,
-      editor: false,
-      file_browser: false,
-      web3: false,
-    },
-  },
-  {
     template: "ai-dev-k8s",
     id: "software",
     imageVariant: "cli",
@@ -108,6 +95,7 @@ test("every workspace profile is a directly deployable Kubernetes Coder template
   ];
 
   assert.equal(existsSync(join(templateRoot, "ai-dev")), false);
+  assert.equal(existsSync(join(templateRoot, "orchestrator")), false);
   for (const { template } of profiles) {
     for (const relativePath of requiredFiles) {
       assert.equal(
@@ -162,6 +150,7 @@ test("canonical Terraform gates every optional workspace surface", () => {
     /local\.profile\.capabilities\.editor/,
     /local\.profile\.capabilities\.file_browser/,
     /local\.profile\.id/,
+    /module "coder-login"/,
   ]) {
     assert.match(terraform, reference);
   }
@@ -192,7 +181,7 @@ test("specialist templates stay synchronized with the canonical Kubernetes scaff
   );
 
   assert.equal(result.status, 0, result.stderr || result.stdout);
-  assert.match(result.stdout, /synchronized \(5 variants\)/);
+  assert.match(result.stdout, /synchronized \(4 variants\)/);
 });
 
 test("profile synchronization detects and removes obsolete shared scripts", () => {
@@ -200,13 +189,7 @@ test("profile synchronization detects and removes obsolete shared scripts", () =
   const fixtureTemplates = join(fixtureRoot, "templates");
   const canonical = join(fixtureTemplates, "ai-dev-k8s");
   const syncScript = join(repositoryRoot, "scripts/sync-workspace-profile-templates.mjs");
-  const targetNames = [
-    "orchestrator",
-    "browser-testing",
-    "game-dev",
-    "electronics",
-    "infrastructure",
-  ];
+  const targetNames = ["browser-testing", "game-dev", "electronics", "infrastructure"];
 
   mkdirSync(join(canonical, "scripts"), { recursive: true });
   writeFileSync(join(canonical, ".terraform.lock.hcl"), "canonical lock\n");
@@ -216,7 +199,7 @@ test("profile synchronization detects and removes obsolete shared scripts", () =
   for (const targetName of targetNames) {
     mkdirSync(join(fixtureTemplates, targetName, "scripts"), { recursive: true });
   }
-  const obsolete = join(fixtureTemplates, "orchestrator", "scripts", "obsolete-shared.sh");
+  const obsolete = join(fixtureTemplates, "browser-testing", "scripts", "obsolete-shared.sh");
   writeFileSync(obsolete, "#!/bin/sh\n");
 
   const drift = spawnSync(process.execPath, [syncScript, "--check"], {
@@ -224,7 +207,7 @@ test("profile synchronization detects and removes obsolete shared scripts", () =
     encoding: "utf8",
   });
   assert.equal(drift.status, 1);
-  assert.match(drift.stderr, /templates\/orchestrator\/scripts\/obsolete-shared\.sh/);
+  assert.match(drift.stderr, /templates\/browser-testing\/scripts\/obsolete-shared\.sh/);
 
   const synchronized = spawnSync(process.execPath, [syncScript], {
     cwd: fixtureRoot,
@@ -265,18 +248,19 @@ test("repository manifests remain narrow and parseable", () => {
   assert.match(readTemplateFile("game-dev", "repositories.txt"), /chillwhales\/realm-of-chill/);
   assert.doesNotMatch(readTemplateFile("ai-dev-k8s", "repositories.txt"), /realm-of-chill/);
   assert.match(readTemplateFile("infrastructure", "repositories.txt"), /kethalia\/k8s-cluster/);
-  assert.doesNotMatch(readTemplateFile("ai-dev-k8s", "repositories.txt"), /kethalia\/k8s-cluster/);
+  assert.match(readTemplateFile("ai-dev-k8s", "repositories.txt"), /kethalia\/k8s-cluster/);
+  assert.match(readTemplateFile("ai-dev-k8s", "repositories.txt"), /kethalia\/workflows/);
 });
 
 test("profile guidance encodes the intended interactive and capability boundaries", () => {
-  const orchestrator = readTemplateFile("orchestrator", "CLAUDE.md");
+  const software = readTemplateFile("ai-dev-k8s", "CLAUDE.md");
   const browser = readTemplateFile("browser-testing", "CLAUDE.md");
   const game = readTemplateFile("game-dev", "CLAUDE.md");
   const electronics = readTemplateFile("electronics", "CLAUDE.md");
   const infrastructure = readTemplateFile("infrastructure", "CLAUDE.md");
 
-  assert.match(orchestrator, /Never delete a[\s\S]*without explicit user confirmation/);
-  assert.match(orchestrator, /terminal-only/);
+  assert.match(software, /Never delete a[\s\S]*without explicit user confirmation/);
+  assert.match(software, /coder templates list/);
   assert.match(browser, /browser automation/);
   assert.match(browser, /cookies, downloads, traces, screenshots/);
   assert.match(game, /does not guarantee GPU access/);

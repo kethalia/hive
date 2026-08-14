@@ -84,7 +84,7 @@ describe("POST /api/templates/[name]/push", () => {
   });
 
   function makeRequest() {
-    return new Request("http://localhost/api/templates/orchestrator/push", {
+    return new Request("http://localhost/api/templates/ai-dev-k8s/push", {
       method: "POST",
     }) as any;
   }
@@ -120,7 +120,7 @@ describe("POST /api/templates/[name]/push", () => {
   it("returns 500 when queue.add fails", async () => {
     mockAdd.mockRejectedValueOnce(new Error("Redis down"));
     const response = await POST(makeRequest(), {
-      params: Promise.resolve({ name: "orchestrator" }),
+      params: Promise.resolve({ name: "ai-dev-k8s" }),
     });
     expect(response.status).toBe(500);
     const body = await response.json();
@@ -149,7 +149,7 @@ describe("GET /api/templates/[name]/push/[jobId]/stream", () => {
     const ctrl = abortController ?? new AbortController();
     return {
       request: new Request(
-        `http://localhost/api/templates/orchestrator/push/${VALID_JOB_ID}/stream`,
+        `http://localhost/api/templates/ai-dev-k8s/push/${VALID_JOB_ID}/stream`,
         {
           signal: ctrl.signal,
         },
@@ -169,7 +169,7 @@ describe("GET /api/templates/[name]/push/[jobId]/stream", () => {
   it("returns 400 for invalid job ID format", async () => {
     const { request } = makeRequest();
     const response = await GET(request, {
-      params: Promise.resolve({ name: "orchestrator", jobId: "not-a-uuid" }),
+      params: Promise.resolve({ name: "ai-dev-k8s", jobId: "not-a-uuid" }),
     });
     expect(response.status).toBe(400);
   });
@@ -181,7 +181,7 @@ describe("GET /api/templates/[name]/push/[jobId]/stream", () => {
 
     const { request } = makeRequest();
     const response = await GET(request, {
-      params: Promise.resolve({ name: "orchestrator", jobId: VALID_JOB_ID }),
+      params: Promise.resolve({ name: "ai-dev-k8s", jobId: VALID_JOB_ID }),
     });
 
     expect(response.headers.get("Content-Type")).toBe("text/event-stream");
@@ -197,7 +197,7 @@ describe("GET /api/templates/[name]/push/[jobId]/stream", () => {
 
     const { request } = makeRequest();
     const response = await GET(request, {
-      params: Promise.resolve({ name: "orchestrator", jobId: VALID_JOB_ID }),
+      params: Promise.resolve({ name: "ai-dev-k8s", jobId: VALID_JOB_ID }),
     });
 
     const text = await response.text();
@@ -213,7 +213,7 @@ describe("GET /api/templates/[name]/push/[jobId]/stream", () => {
 
     const { request } = makeRequest();
     const response = await GET(request, {
-      params: Promise.resolve({ name: "orchestrator", jobId: VALID_JOB_ID }),
+      params: Promise.resolve({ name: "ai-dev-k8s", jobId: VALID_JOB_ID }),
     });
 
     const text = await response.text();
