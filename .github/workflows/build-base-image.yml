@@ -195,12 +195,17 @@ jobs:
           )
           git diff --exit-code -- "${profile_files[@]}" && exit 0
 
+          # Digest-only maintenance does not release an application package,
+          # but the repository-wide quality gate still requires a changeset.
+          changeset_file=".changeset/workspace-image-digests.md"
+          printf '%s\n' '---' '---' > "$changeset_file"
+
           branch="automation/workspace-images-${GITHUB_SHA:0:12}"
           if ! git ls-remote --exit-code --heads origin "$branch" >/dev/null 2>&1; then
             git config user.name "github-actions[bot]"
             git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
             git switch -c "$branch"
-            git add "${profile_files[@]}"
+            git add "${profile_files[@]}" "$changeset_file"
             git commit -m "chore(template): update workspace image digests"
             git push origin "$branch"
           fi
