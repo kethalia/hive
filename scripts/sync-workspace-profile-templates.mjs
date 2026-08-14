@@ -1,5 +1,5 @@
 /* eslint-disable security/detect-non-literal-fs-filename -- Every path is derived from repository-owned template roots. */
-import { copyFile, mkdir, readdir, readFile } from "node:fs/promises";
+import { copyFile, mkdir, readdir, readFile, rm } from "node:fs/promises";
 import { dirname, join, relative } from "node:path";
 
 const repositoryRoot = process.cwd();
@@ -30,14 +30,34 @@ async function collectFiles(directory) {
 }
 
 const canonicalScripts = await collectFiles(join(canonicalRoot, "scripts"));
+const canonicalScriptRelativePaths = new Set(
+  canonicalScripts.map((file) => relative(canonicalRoot, file)),
+);
 const sharedRelativePaths = [
   ".terraform.lock.hcl",
   "main.tf",
-  ...canonicalScripts.map((file) => relative(canonicalRoot, file)),
+  ...canonicalScriptRelativePaths,
 ].sort();
 const drift = [];
+let removedScripts = 0;
 
 for (const targetRoot of targetRoots) {
+  const targetScripts = await collectFiles(join(targetRoot, "scripts"));
+  const obsoleteScripts = targetScripts
+    .map((file) => relative(targetRoot, file))
+    .filter((relativePath) => !canonicalScriptRelativePaths.has(relativePath))
+    .sort();
+
+  for (const relativePath of obsoleteScripts) {
+    const target = join(targetRoot, relativePath);
+    if (checkOnly) {
+      drift.push(relative(repositoryRoot, target));
+    } else {
+      await rm(target);
+      removedScripts += 1;
+    }
+  }
+
   for (const relativePath of sharedRelativePaths) {
     const source = join(canonicalRoot, relativePath);
     const target = join(targetRoot, relativePath);
@@ -68,5 +88,6 @@ if (checkOnly && drift.length > 0) {
 } else if (checkOnly) {
   console.log(`Workspace profile scaffolds are synchronized (${targetRoots.length} variants).`);
 } else {
-  console.log(`Synchronized ${targetRoots.length} workspace profile scaffolds.`);
+  const cleanup = removedScripts > 0 ? `; removed ${removedScripts} obsolete scripts` : "";
+  console.log(`Synchronized ${targetRoots.length} workspace profile scaffolds${cleanup}.`);
 }

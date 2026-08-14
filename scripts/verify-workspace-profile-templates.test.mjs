@@ -1,7 +1,8 @@
 /* eslint-disable security/detect-non-literal-fs-filename -- Test paths are constrained to the repository template catalog. */
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 
@@ -192,6 +193,52 @@ test("specialist templates stay synchronized with the canonical Kubernetes scaff
 
   assert.equal(result.status, 0, result.stderr || result.stdout);
   assert.match(result.stdout, /synchronized \(5 variants\)/);
+});
+
+test("profile synchronization detects and removes obsolete shared scripts", () => {
+  const fixtureRoot = mkdtempSync(join(tmpdir(), "workspace-profile-sync-"));
+  const fixtureTemplates = join(fixtureRoot, "templates");
+  const canonical = join(fixtureTemplates, "ai-dev-k8s");
+  const syncScript = join(repositoryRoot, "scripts/sync-workspace-profile-templates.mjs");
+  const targetNames = [
+    "orchestrator",
+    "browser-testing",
+    "game-dev",
+    "electronics",
+    "infrastructure",
+  ];
+
+  mkdirSync(join(canonical, "scripts"), { recursive: true });
+  writeFileSync(join(canonical, ".terraform.lock.hcl"), "canonical lock\n");
+  writeFileSync(join(canonical, "main.tf"), "# canonical Terraform\n");
+  writeFileSync(join(canonical, "scripts", "init.sh"), "#!/bin/sh\n");
+
+  for (const targetName of targetNames) {
+    mkdirSync(join(fixtureTemplates, targetName, "scripts"), { recursive: true });
+  }
+  const obsolete = join(fixtureTemplates, "orchestrator", "scripts", "obsolete-shared.sh");
+  writeFileSync(obsolete, "#!/bin/sh\n");
+
+  const drift = spawnSync(process.execPath, [syncScript, "--check"], {
+    cwd: fixtureRoot,
+    encoding: "utf8",
+  });
+  assert.equal(drift.status, 1);
+  assert.match(drift.stderr, /templates\/orchestrator\/scripts\/obsolete-shared\.sh/);
+
+  const synchronized = spawnSync(process.execPath, [syncScript], {
+    cwd: fixtureRoot,
+    encoding: "utf8",
+  });
+  assert.equal(synchronized.status, 0, synchronized.stderr);
+  assert.match(synchronized.stdout, /removed 1 obsolete scripts/);
+  assert.equal(existsSync(obsolete), false);
+
+  const verified = spawnSync(process.execPath, [syncScript, "--check"], {
+    cwd: fixtureRoot,
+    encoding: "utf8",
+  });
+  assert.equal(verified.status, 0, verified.stderr);
 });
 
 test("repository manifests remain narrow and parseable", () => {

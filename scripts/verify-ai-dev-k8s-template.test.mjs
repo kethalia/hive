@@ -684,6 +684,10 @@ test(
   verifyVaultManagedContextCleanup,
 );
 test("workspace migration replaces read-only persisted MCP configs", verifyReadOnlyMcpMigration);
+test(
+  "workspace migration removes only Hive-owned browser helpers",
+  verifyBrowserHelperOwnershipCleanup,
+);
 test("base image rollout updates the pinned template digest through a PR", verifyBaseImageRollout);
 test("supplemental tools support the non-root workspace", verifyNonRootSupplementalTools);
 test(
@@ -720,14 +724,40 @@ function runReadOnlyMcpMigrationFixture(templateRoot) {
   const home = join(fixtureRoot, "home");
   const claudeRoot = join(home, ".claude");
   const claudeMcp = join(claudeRoot, "mcp.json");
+  const sharedMcp = join(home, ".mcp.json");
+  const legacyPlaywright = {
+    command: "npx",
+    args: ["-y", "@playwright/mcp", "--no-sandbox"],
+    env: { DISPLAY: ":1" },
+  };
+  const userPlaywright = {
+    command: "custom-playwright",
+    args: ["--user-owned"],
+  };
 
   assert.ok(configMatch);
   mkdirSync(claudeRoot, { recursive: true });
   writeFileSync(
     claudeMcp,
-    '{"mcpServers":{"obsidian":{"command":"remove"},"custom":{"command":"keep"}}}\n',
+    JSON.stringify({
+      mcpServers: {
+        obsidian: { command: "remove" },
+        playwright: legacyPlaywright,
+        custom: { command: "keep" },
+      },
+    }),
+  );
+  writeFileSync(
+    sharedMcp,
+    JSON.stringify({
+      mcpServers: {
+        playwright: userPlaywright,
+        custom: { command: "keep-shared" },
+      },
+    }),
   );
   chmodSync(claudeMcp, 0o444);
+  chmodSync(sharedMcp, 0o444);
   const configScript = join(fixtureRoot, "configure.py");
   writeFileSync(configScript, configMatch[1]);
   const result = spawnSync("python3", [configScript], {
@@ -739,8 +769,17 @@ function runReadOnlyMcpMigrationFixture(templateRoot) {
   const migrated = JSON.parse(readFileSync(claudeMcp, "utf8"));
   assert.equal(migrated.mcpServers.obsidian, undefined);
   assert.equal(migrated.mcpServers.custom.command, "keep");
-  assert.equal(migrated.mcpServers.playwright.command, "npx");
+  assert.equal(migrated.mcpServers.playwright, undefined);
+  assert.equal(migrated.mcpServers.hive_playwright.command, "npx");
+  const migratedShared = JSON.parse(readFileSync(sharedMcp, "utf8"));
+  assert.deepEqual(migratedShared.mcpServers.playwright, userPlaywright);
+  assert.equal(migratedShared.mcpServers.hive_playwright.command, "npx");
   assert.equal(statSync(claudeMcp).mode & 0o777, 0o600);
+  assert.equal(statSync(sharedMcp).mode & 0o777, 0o600);
+
+  migrated.mcpServers.playwright = userPlaywright;
+  writeFileSync(claudeMcp, JSON.stringify(migrated));
+  chmodSync(claudeMcp, 0o444);
 
   const disabledResult = spawnSync("python3", [configScript], {
     encoding: "utf8",
@@ -748,10 +787,78 @@ function runReadOnlyMcpMigrationFixture(templateRoot) {
   });
   assert.equal(disabledResult.status, 0, disabledResult.stderr);
   const disabled = JSON.parse(readFileSync(claudeMcp, "utf8"));
-  assert.equal(disabled.mcpServers.playwright, undefined);
+  assert.deepEqual(disabled.mcpServers.playwright, userPlaywright);
+  assert.equal(disabled.mcpServers.hive_playwright, undefined);
   assert.equal(disabled.mcpServers.custom.command, "keep");
+  const disabledShared = JSON.parse(readFileSync(sharedMcp, "utf8"));
+  assert.deepEqual(disabledShared.mcpServers.playwright, userPlaywright);
+  assert.equal(disabledShared.mcpServers.hive_playwright, undefined);
+  assert.equal(disabledShared.mcpServers.custom.command, "keep-shared");
 }
 
 function verifyReadOnlyMcpMigration() {
   runReadOnlyMcpMigrationFixture(TEMPLATE_ROOT);
+}
+
+function renderBrowserHelper(delimiter, includeMarker) {
+  const setup = readTemplateFile("scripts/tools-browser.sh");
+  const match = setup.match(new RegExp(`<< ${delimiter}\\n([\\s\\S]*?)\\n${delimiter}`));
+  assert.ok(match);
+  let helper = `${match[1]}\n`
+    .replaceAll("$CHROME_BIN", "/usr/bin/google-chrome-stable")
+    .replaceAll("\\$", "$")
+    .replaceAll("\\\\", "\\");
+  if (!includeMarker) helper = helper.replace("# hive-managed-browser-helper:v1\n", "");
+  return helper;
+}
+
+function runBrowserHelperCleanupFixture(contents) {
+  const fixtureRoot = mkdtempSync(join(tmpdir(), "browser-helper-cleanup-"));
+  const home = join(fixtureRoot, "home");
+  const bin = join(home, ".local", "bin");
+  const screenshot = join(bin, "browser-screenshot");
+  const html = join(bin, "browser-html");
+  const initScript = readTemplateFile("scripts/init.sh");
+  const functionMatch = initScript.match(/remove_hive_browser_helpers\(\) \{[\s\S]*?\n\}/);
+
+  assert.ok(functionMatch);
+  mkdirSync(bin, { recursive: true });
+  writeFileSync(screenshot, contents.screenshot);
+  writeFileSync(html, contents.html);
+  const cleanupScript = join(fixtureRoot, "cleanup.sh");
+  writeFileSync(cleanupScript, `${functionMatch[0]}\nremove_hive_browser_helpers\n`);
+  const result = spawnSync("bash", [cleanupScript], {
+    encoding: "utf8",
+    env: { ...process.env, HOME: home },
+  });
+
+  return { html, result, screenshot };
+}
+
+function verifyBrowserHelperOwnershipCleanup() {
+  const customScreenshot = "#!/bin/bash\necho user-screenshot\n";
+  const customHtml = "#!/bin/bash\necho user-html\n";
+  const custom = runBrowserHelperCleanupFixture({
+    screenshot: customScreenshot,
+    html: customHtml,
+  });
+  assert.equal(custom.result.status, 0, custom.result.stderr);
+  assert.equal(readFileSync(custom.screenshot, "utf8"), customScreenshot);
+  assert.equal(readFileSync(custom.html, "utf8"), customHtml);
+
+  const legacy = runBrowserHelperCleanupFixture({
+    screenshot: renderBrowserHelper("SCREENSHOT", false),
+    html: renderBrowserHelper("BROWSERHTML", false),
+  });
+  assert.equal(legacy.result.status, 0, legacy.result.stderr);
+  assert.equal(existsSync(legacy.screenshot), false);
+  assert.equal(existsSync(legacy.html), false);
+
+  const marked = runBrowserHelperCleanupFixture({
+    screenshot: renderBrowserHelper("SCREENSHOT", true),
+    html: renderBrowserHelper("BROWSERHTML", true),
+  });
+  assert.equal(marked.result.status, 0, marked.result.stderr);
+  assert.equal(existsSync(marked.screenshot), false);
+  assert.equal(existsSync(marked.html), false);
 }

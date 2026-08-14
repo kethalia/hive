@@ -29,6 +29,7 @@ ln -sf "$CHROME_BIN" "$HOME/.local/bin/chromium-browser"
 # Create screenshot helper using Google Chrome (CLI fallback for scripts)
 cat > "$HOME/.local/bin/browser-screenshot" << SCREENSHOT
 #!/bin/bash
+# hive-managed-browser-helper:v1
 set -e
 URL="\${1:?Usage: browser-screenshot <url> [output-path]}"
 OUTPUT="\${2:-/tmp/screenshot-\$(date +%s).png}"
@@ -45,6 +46,7 @@ chmod +x "$HOME/.local/bin/browser-screenshot"
 
 cat > "$HOME/.local/bin/browser-html" << BROWSERHTML
 #!/bin/bash
+# hive-managed-browser-helper:v1
 set -e
 URL="\${1:?Usage: browser-html <url>}"
 $CHROME_BIN \\

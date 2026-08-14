@@ -109,12 +109,42 @@ for config in (home / ".claude" / "mcp.json", home / ".mcp.json"):
     servers = data.setdefault("mcpServers", {})
     servers.pop("obsidian", None)
     servers.pop("hive_obsidian", None)
-    servers.pop("playwright", None)
+
+    # Older Hive workspaces managed the generic `playwright` key. Remove it
+    # only when its complete definition still matches the one Hive generated;
+    # a differently configured entry belongs to the user.
+    if servers.get("playwright") == playwright:
+        servers.pop("playwright")
+
+    # The Hive-specific key is an ownership marker, so it is safe to replace or
+    # remove without touching a user-owned `playwright` server.
+    servers.pop("hive_playwright", None)
     if browser_enabled:
-        servers["playwright"] = playwright
+        servers["hive_playwright"] = playwright
     config.write_text(json.dumps(data, indent=2) + "\n")
     config.chmod(0o600)
 PYMCP
+}
+
+remove_hive_browser_helpers() {
+  local helper_path legacy_sha actual_sha
+
+  while IFS='|' read -r helper_path legacy_sha; do
+    [ -f "$helper_path" ] || continue
+
+    if [ "$(sed -n '2p' "$helper_path")" = "# hive-managed-browser-helper:v1" ]; then
+      rm -f -- "$helper_path"
+      continue
+    fi
+
+    actual_sha="$(sha256sum "$helper_path" | cut -d ' ' -f 1)"
+    if [ "$actual_sha" = "$legacy_sha" ]; then
+      rm -f -- "$helper_path"
+    fi
+  done <<EOFHELPERS
+$HOME/.local/bin/browser-screenshot|e68578dca9a11321a94e71c2f961a832de20d43e3701aa3ae3ad0defc29d2d31
+$HOME/.local/bin/browser-html|cedaea62386815c93c096a1b42d581255f7015630a68de0f1e0ece101608e08d
+EOFHELPERS
 }
 
 remove_vault_managed_context() {
@@ -156,7 +186,7 @@ configure_json_mcp
 remove_vault_managed_context
 
 if [ "$HIVE_BROWSER_TOOLS_ENABLED" != "true" ]; then
-  rm -f "$HOME/.local/bin/browser-screenshot" "$HOME/.local/bin/browser-html"
+  remove_hive_browser_helpers
   if [ -L "$HOME/.local/bin/chromium-browser" ] \
     && [ "$(readlink "$HOME/.local/bin/chromium-browser")" = "/usr/bin/google-chrome-stable" ]; then
     rm -f "$HOME/.local/bin/chromium-browser"
