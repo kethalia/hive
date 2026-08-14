@@ -6,6 +6,7 @@ describe("workspace profiles", () => {
     expect(WORKSPACE_PROFILES.map(({ id }) => id)).toEqual([
       "orchestrator",
       "software",
+      "browser",
       "game",
       "electronics",
       "infrastructure",
@@ -15,8 +16,12 @@ describe("workspace profiles", () => {
 
   it.each([
     ["orchestrator-home", "orchestrator"],
-    ["ai-dev", "software"],
     ["ai-dev-k8s", "software"],
+    ["browser-testing", "browser"],
+    ["playwright-qa", "browser"],
+    ["game-dev", "game"],
+    ["electronics", "electronics"],
+    ["infrastructure", "infrastructure"],
     ["unity-game-studio", "game"],
     ["kicad-electronics", "electronics"],
     ["terraform-platform", "infrastructure"],

@@ -66,7 +66,7 @@ function makeWorkspace(overrides: Partial<WorkspaceFixture> = {}): WorkspaceFixt
     id: "workspace-1",
     name: "mobile-dev",
     template_id: "template-1",
-    template_name: "ai-dev",
+    template_name: "ai-dev-k8s",
     template_display_name: "AI Dev",
     owner_name: "alice",
     last_used_at: new Date(Date.now() - 5 * 60 * 1000).toISOString(),
@@ -208,7 +208,7 @@ describe("workspaces mobile list", () => {
       data: [
         {
           id: "template-1",
-          name: "ai-dev",
+          name: "ai-dev-k8s",
           activeVersionId: "version-1",
           updatedAt: "2026-01-01T00:00:00.000Z",
         },
@@ -247,7 +247,7 @@ describe("workspaces mobile list", () => {
       data: [
         {
           id: "template-1",
-          name: "ai-dev",
+          name: "ai-dev-k8s",
           activeVersionId: "version-1",
           updatedAt: "2026-01-01T00:00:00.000Z",
         },
@@ -289,7 +289,7 @@ describe("workspaces mobile list", () => {
       data: [
         {
           id: "template-1",
-          name: "ai-dev",
+          name: "ai-dev-k8s",
           activeVersionId: "version-1",
           updatedAt: "2026-01-01T00:00:00.000Z",
         },

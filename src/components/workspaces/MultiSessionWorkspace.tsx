@@ -94,6 +94,7 @@ import {
   isTextEntryEventTarget,
 } from "@/lib/keyboard-event-targets";
 import { formatShortcut } from "@/lib/keyboard-shortcuts";
+import { workspaceTemplateCapabilities } from "@/lib/templates/catalog";
 import {
   type ClipboardActionStatus,
   copyTerminalSelection,
@@ -300,6 +301,7 @@ interface TerminalEntry {
 interface MultiSessionWorkspaceProps {
   agentId: string;
   workspaceId: string;
+  templateName?: string;
   className?: string;
   source?: "workspace" | "unified";
 }
@@ -1179,9 +1181,13 @@ async function loadUnifiedWorkspaceSessions(
 export function MultiSessionWorkspace({
   agentId,
   workspaceId,
+  templateName,
   className,
   source = "workspace",
 }: MultiSessionWorkspaceProps) {
+  const templateCapabilities = workspaceTemplateCapabilities(templateName ?? "");
+  const canOpenCode = templateCapabilities.editor;
+  const canOpenFiles = templateCapabilities.fileBrowser;
   const router = useRouter();
   const { register, setActiveTerminal, unregister } = useKeybindings();
   const [sessions, setSessions] = useState<WorkspaceSessionPane[]>([]);
@@ -2423,7 +2429,12 @@ export function MultiSessionWorkspace({
         const loadedSession = loadedSessions.find(
           (session) => session.sessionName === descriptor.sessionName,
         );
-        return Boolean(loadedSession || (descriptor.cloneSessionKey && descriptor.relativePath));
+        const toolAvailable =
+          descriptor.tool === "logs" || (descriptor.tool === "code" ? canOpenCode : canOpenFiles);
+        return (
+          toolAvailable &&
+          Boolean(loadedSession || (descriptor.cloneSessionKey && descriptor.relativePath))
+        );
       });
 
       replaceWorkspaceToolPanes(
@@ -2567,7 +2578,7 @@ export function MultiSessionWorkspace({
       pendingTerminalFocusSessionNameRef.current = null;
       clearActiveTerminal();
     };
-  }, [agentId, clearActiveTerminal, reloadKey, source, workspaceId]);
+  }, [agentId, canOpenCode, canOpenFiles, clearActiveTerminal, reloadKey, source, workspaceId]);
 
   useEffect(() => {
     if (!gitSearchOpen) return;
@@ -3058,6 +3069,10 @@ export function MultiSessionWorkspace({
       tool: WorkspaceTool,
       origin?: { boardKey: string; boardGeneration: number },
     ) => {
+      if ((tool === "code" && !canOpenCode) || (tool === "files" && !canOpenFiles)) {
+        toast.error(`${tool === "code" ? "VS Code" : "File Browser"} is not available here.`);
+        return;
+      }
       if (!activeBoard && !origin) return;
       const requestWorkspaceId = workspaceId;
       const requestBoardKey = origin?.boardKey ?? activeBoard?.key;
@@ -3085,11 +3100,15 @@ export function MultiSessionWorkspace({
         }
       }
     },
-    [activeBoard, openWorkspaceToolPane, workspaceId],
+    [activeBoard, canOpenCode, canOpenFiles, openWorkspaceToolPane, workspaceId],
   );
 
   const openWorkspaceToolForGitRepository = useCallback(
     async (repository: GitRepositoryOption, tool: WorkspaceTool | "logs") => {
+      if ((tool === "code" && !canOpenCode) || (tool === "files" && !canOpenFiles)) {
+        toast.error(`${tool === "code" ? "VS Code" : "File Browser"} is not available here.`);
+        return;
+      }
       if (!activeBoard) return;
       const requestWorkspaceId = workspaceId;
       const requestBoardKey = activeBoard.key;
@@ -3158,6 +3177,8 @@ export function MultiSessionWorkspace({
     [
       activeBoard,
       agentId,
+      canOpenCode,
+      canOpenFiles,
       openWorkspaceLogsForSession,
       openWorkspaceToolForSession,
       sessions,
@@ -3276,16 +3297,24 @@ export function MultiSessionWorkspace({
               openTerminalSessionPage(session);
             },
           },
-          {
-            id: "vscode",
-            label: "VS Code",
-            onSelect: () => void openWorkspaceToolForSession(session, "code"),
-          },
-          {
-            id: "filebrowser",
-            label: "Files",
-            onSelect: () => void openWorkspaceToolForSession(session, "files"),
-          },
+          ...(canOpenCode
+            ? [
+                {
+                  id: "vscode",
+                  label: "VS Code",
+                  onSelect: () => void openWorkspaceToolForSession(session, "code"),
+                },
+              ]
+            : []),
+          ...(canOpenFiles
+            ? [
+                {
+                  id: "filebrowser",
+                  label: "Files",
+                  onSelect: () => void openWorkspaceToolForSession(session, "files"),
+                },
+              ]
+            : []),
           {
             id: "logs",
             label: "Logs",
@@ -3331,16 +3360,24 @@ export function MultiSessionWorkspace({
             label: "Open",
             onSelect: () => void openGitRepositoryTerminalPage(repository),
           },
-          {
-            id: "vscode",
-            label: "VS Code",
-            onSelect: () => void openWorkspaceToolForGitRepository(repository, "code"),
-          },
-          {
-            id: "filebrowser",
-            label: "Files",
-            onSelect: () => void openWorkspaceToolForGitRepository(repository, "files"),
-          },
+          ...(canOpenCode
+            ? [
+                {
+                  id: "vscode",
+                  label: "VS Code",
+                  onSelect: () => void openWorkspaceToolForGitRepository(repository, "code"),
+                },
+              ]
+            : []),
+          ...(canOpenFiles
+            ? [
+                {
+                  id: "filebrowser",
+                  label: "Files",
+                  onSelect: () => void openWorkspaceToolForGitRepository(repository, "files"),
+                },
+              ]
+            : []),
           {
             id: "logs",
             label: "Logs",
@@ -3355,6 +3392,8 @@ export function MultiSessionWorkspace({
     activeBoardGitPaneIdentities,
     activeBoardSessionNames,
     addingCloneKey,
+    canOpenCode,
+    canOpenFiles,
     creating,
     favoriteGitRepositories,
     filteredGitRepositories,
@@ -4101,30 +4140,40 @@ export function MultiSessionWorkspace({
           : []),
         ...(paneActionTarget.kind === "terminal" && paneActionSession
           ? [
-              {
-                id: "files",
-                label: "Open files",
-                description: "Browse this workspace",
-                icon: "files" as const,
-                onSelect: () => {
-                  void openWorkspaceToolForSession(paneActionSession, "files", {
-                    boardKey: paneActionTarget.boardKey,
-                    boardGeneration: boardGenerationRef.current.get(paneActionTarget.boardKey) ?? 0,
-                  });
-                },
-              },
-              {
-                id: "code",
-                label: "Open VS Code",
-                description: "Open the browser editor",
-                icon: "code" as const,
-                onSelect: () => {
-                  void openWorkspaceToolForSession(paneActionSession, "code", {
-                    boardKey: paneActionTarget.boardKey,
-                    boardGeneration: boardGenerationRef.current.get(paneActionTarget.boardKey) ?? 0,
-                  });
-                },
-              },
+              ...(canOpenFiles
+                ? [
+                    {
+                      id: "files",
+                      label: "Open files",
+                      description: "Browse this workspace",
+                      icon: "files" as const,
+                      onSelect: () => {
+                        void openWorkspaceToolForSession(paneActionSession, "files", {
+                          boardKey: paneActionTarget.boardKey,
+                          boardGeneration:
+                            boardGenerationRef.current.get(paneActionTarget.boardKey) ?? 0,
+                        });
+                      },
+                    },
+                  ]
+                : []),
+              ...(canOpenCode
+                ? [
+                    {
+                      id: "code",
+                      label: "Open VS Code",
+                      description: "Open the browser editor",
+                      icon: "code" as const,
+                      onSelect: () => {
+                        void openWorkspaceToolForSession(paneActionSession, "code", {
+                          boardKey: paneActionTarget.boardKey,
+                          boardGeneration:
+                            boardGenerationRef.current.get(paneActionTarget.boardKey) ?? 0,
+                        });
+                      },
+                    },
+                  ]
+                : []),
               {
                 id: "logs",
                 label: "Open logs",
@@ -4400,6 +4449,8 @@ export function MultiSessionWorkspace({
                   sessionName={session.sessionName}
                   label={presentation.title}
                   fallbackPath={session.clonePath}
+                  showCode={canOpenCode}
+                  showFiles={canOpenFiles}
                   onOpenTool={(request: WorkspaceToolOpenRequest) => {
                     openWorkspaceToolPane(
                       model.board.key,

@@ -15,7 +15,8 @@ import { join } from "node:path";
 import { test } from "node:test";
 
 const TEMPLATE_ROOT = join(process.cwd(), "templates/ai-dev-k8s");
-const DOCKER_TEMPLATE_ROOT = join(process.cwd(), "templates/ai-dev");
+const GAME_TEMPLATE_ROOT = join(process.cwd(), "templates/game-dev");
+const ELECTRONICS_TEMPLATE_ROOT = join(process.cwd(), "templates/electronics");
 
 function readTemplateFile(relativePath) {
   return readFileSync(join(TEMPLATE_ROOT, relativePath), "utf8");
@@ -63,6 +64,7 @@ printf 'fresh-test-token\\n'
 
 function verifyPodSecurity() {
   const terraform = readTemplateFile("main.tf");
+  const profile = JSON.parse(readTemplateFile("profile.json"));
 
   assert.match(terraform, /startup_script_behavior\s*=\s*"blocking"/);
   assert.match(terraform, /resource "coder_agent" "main"[\s\S]*?arch\s*=\s*"amd64"/);
@@ -96,13 +98,33 @@ function verifyPodSecurity() {
   assert.doesNotMatch(terraform, /data "coder_parameter"/);
   assert.doesNotMatch(terraform, /variable "/);
   assert.doesNotMatch(terraform, /module "dotfiles"/);
-  assert.match(terraform, /storage\s*=\s*"100Gi"/);
+  assert.match(terraform, /storage\s*=\s*local\.profile\.resources\.storage/);
   assert.match(terraform, /name\s*=\s*"USER"[\s\S]*?value\s*=\s*"coder"/);
   assert.match(terraform, /name\s*=\s*"HOME"[\s\S]*?value\s*=\s*"\/home\/coder"/);
-  assert.match(
-    terraform,
-    /container \{[\s\S]*?name\s*=\s*"dev"[\s\S]*?resources \{\s*requests = \{\s*cpu\s*=\s*"6"\s*memory\s*=\s*"16Gi"\s*\}\s*limits = \{\s*cpu\s*=\s*"12"\s*memory\s*=\s*"32Gi"/,
-  );
+  assert.match(terraform, /image\s*=\s*local\.profile\.image/);
+  assert.match(terraform, /cpu\s*=\s*local\.profile\.resources\.cpu_request/);
+  assert.match(terraform, /memory\s*=\s*local\.profile\.resources\.memory_request/);
+  assert.match(terraform, /cpu\s*=\s*local\.profile\.resources\.cpu_limit/);
+  assert.match(terraform, /memory\s*=\s*local\.profile\.resources\.memory_limit/);
+  assert.match(terraform, /local\.profile\.vscode_extensions/);
+  assert.match(terraform, /local\.profile\.capabilities\.web3/);
+  assert.match(terraform, /local\.profile\.capabilities\.desktop/);
+  assert.match(terraform, /local\.profile\.capabilities\.browser/);
+  assert.match(terraform, /local\.profile\.capabilities\.editor/);
+  assert.match(terraform, /local\.profile\.capabilities\.file_browser/);
+  assert.equal(profile.id, "software");
+  assert.equal(profile.image_variant, "cli");
+  assert.deepEqual(profile.capabilities, {
+    browser: false,
+    desktop: false,
+    editor: true,
+    file_browser: true,
+    web3: true,
+  });
+  assert.equal(profile.resources.storage, "100Gi");
+  assert.equal(profile.resources.cpu_request, "6");
+  assert.equal(profile.resources.memory_request, "16Gi");
+  assert.match(profile.image, /^ghcr\.io\/kethalia\/hive-base@sha256:[0-9a-f]{64}$/);
 }
 
 function verifyFileLoadedScripts() {
@@ -119,8 +141,15 @@ function verifyFileLoadedScripts() {
     "scripts/tools-web3.sh",
   ]) {
     const script = readTemplateFile(relativePath);
-    const terraformShellExpansion = "$" + "$" + "{agent_file##*/}";
-    const unsupportedEscapes = script.replaceAll(terraformShellExpansion, "");
+    let unsupportedEscapes = script;
+    for (const allowedExpansion of [
+      "$" + "$" + "{agent_file##*/}",
+      "$" + "$" + "{HIVE_IMAGE_VARIANT:-}",
+      "$" + "$" + "{HIVE_EXPECTED_IMAGE_VARIANT:-}",
+      "$" + "$" + "{HIVE_EXPECTED_IMAGE_VARIANT:-unset}",
+    ]) {
+      unsupportedEscapes = unsupportedEscapes.replaceAll(allowedExpansion, "");
+    }
     assert.doesNotMatch(
       unsupportedEscapes,
       /\$\$\{/,
@@ -164,20 +193,13 @@ function verifySafeBootstrap() {
   assert.match(initScript, /\.vault-managed/);
   assert.doesNotMatch(initScript, /rm[^\n]*\$HOME\/vault/);
 
-  for (const templateRoot of [TEMPLATE_ROOT, DOCKER_TEMPLATE_ROOT]) {
+  for (const templateRoot of [TEMPLATE_ROOT]) {
     const templateInit = readFileSync(join(templateRoot, "scripts/init.sh"), "utf8");
     assert.match(templateInit, /remove_vault_managed_context/);
     assert.match(templateInit, /\.vault-managed/);
     assert.match(templateInit, /\$\$\{agent_file##\*\/\}/);
     assert.doesNotMatch(templateInit, /personal knowledge vault at `~\/vault`/);
     assert.doesNotMatch(templateInit, /rm[^\n]*\$HOME\/vault/);
-  }
-
-  for (const templateRoot of [DOCKER_TEMPLATE_ROOT]) {
-    const templateInit = readFileSync(join(templateRoot, "scripts/init.sh"), "utf8");
-    assert.match(templateInit, /\$HOME\/\.pi\/agent\/skills/);
-    assert.match(templateInit, /\$HOME\/\.pi\/agent\/AGENTS\.md/);
-    assert.match(templateInit, /\$HOME\/\.pi\/agent\/CLAUDE\.md/);
   }
 }
 
@@ -214,15 +236,12 @@ function runVaultManagedContextCleanupFixture() {
   const fixtureRoot = mkdtempSync(join(tmpdir(), "ai-dev-vault-cleanup-"));
   const home = join(fixtureRoot, "home");
   const paths = seedVaultManagedContextFixture(home);
-  const initScript = readFileSync(join(DOCKER_TEMPLATE_ROOT, "scripts/init.sh"), "utf8");
-  const functionMatch = initScript.match(
-    /remove_vault_managed_context\(\) \{[\s\S]*?\n\}\n\nremove_vault_managed_context/,
-  );
+  const initScript = readFileSync(join(TEMPLATE_ROOT, "scripts/init.sh"), "utf8");
+  const functionMatch = initScript.match(/remove_vault_managed_context\(\) \{[\s\S]*?\n\}/);
 
   assert.ok(functionMatch);
   const claudeTemplateToken = "$" + "{claude_md_content}";
   const renderedFunction = functionMatch[0]
-    .replace(/\n\nremove_vault_managed_context$/, "")
     .replace(claudeTemplateToken, "# Coder Workspace")
     .replaceAll("$" + "$" + "{", "$" + "{");
   const cleanup = [renderedFunction, "remove_vault_managed_context", ""].join("\n");
@@ -247,14 +266,14 @@ function verifyVaultManagedContextCleanup() {
   assert.equal(result.status, 0, result.stderr);
   assert.equal(existsSync(managedSkill), false);
   assert.equal(existsSync(retainedSkill), true);
-  assert.equal(existsSync(piManagedSkill), false);
+  assert.equal(existsSync(piManagedSkill), true);
   assert.equal(existsSync(piRetainedSkill), true);
   assert.equal(existsSync(join(home, ".agents", "skills", ".vault-managed")), false);
-  assert.equal(existsSync(join(home, ".pi", "agent", "skills", ".vault-managed")), false);
+  assert.equal(existsSync(join(home, ".pi", "agent", "skills", ".vault-managed")), true);
   assert.equal(readFileSync(join(home, ".codex", "AGENTS.md"), "utf8"), "# Coder Workspace\n");
   assert.equal(
     readFileSync(join(home, ".pi", "agent", "AGENTS.md"), "utf8"),
-    "# Coder Workspace\n",
+    "# Custom vault agent context\n",
   );
   assert.equal(
     readFileSync(join(home, ".agents", "CLAUDE.md"), "utf8"),
@@ -268,16 +287,28 @@ function verifyBaseImageRollout() {
     join(process.cwd(), ".github/workflows/build-base-image.yml"),
     "utf8",
   );
+  const smokeTest = readFileSync(join(process.cwd(), "docker/hive-base/smoke-test.sh"), "utf8");
 
-  assert.match(workflow, /Smoke test — Unity Hub present/);
-  assert.match(workflow, /Smoke test — Blender starts/);
-  assert.match(workflow, /Smoke test — Obsidian retained/);
+  assert.match(workflow, /variant: \[cli, game, electronics, browser\]/);
+  assert.match(workflow, /build-args: WORKSPACE_VARIANT=\$\{\{ matrix\.variant \}\}/);
+  assert.match(workflow, /smoke-test\.sh/);
   assert.match(workflow, /docker buildx imagetools inspect/);
-  assert.match(workflow, /chore\(template\): update hive-base image digest/);
+  assert.match(workflow, /chore\(template\): update workspace image digests/);
   assert.match(workflow, /gh pr create/);
   assert.match(workflow, /gh pr list --head "\$branch" --state all/);
   assert.match(workflow, /gh pr reopen/);
   assert.match(workflow, /gh workflow run ci\.yml --ref "\$branch"/);
+  for (const templateName of [
+    "ai-dev-k8s",
+    "orchestrator",
+    "browser-testing",
+    "game-dev",
+    "electronics",
+    "infrastructure",
+  ]) {
+    assert.ok(workflow.includes(`templates/${templateName}/profile.json`));
+  }
+  assert.doesNotMatch(workflow, /templates\/ai-dev-k8s\/main\.tf/);
   assert.match(workflow, /^permissions:\n {2}contents: read$/m);
   assert.match(
     workflow,
@@ -285,8 +316,23 @@ function verifyBaseImageRollout() {
   );
   assert.match(
     workflow,
-    /build-test-push:\n[\s\S]*?if: github\.ref == 'refs\/heads\/main' && \(github\.event_name == 'push' \|\| github\.event_name == 'workflow_dispatch'\)[\s\S]*?permissions:\n {6}actions: write\n {6}contents: write\n {6}packages: write\n {6}pull-requests: write/,
+    /build-test-push:\n[\s\S]*?if: github\.ref == 'refs\/heads\/main' && \(github\.event_name == 'push' \|\| github\.event_name == 'workflow_dispatch'\)[\s\S]*?permissions:\n {6}contents: read\n {6}packages: write/,
   );
+  assert.match(
+    workflow,
+    /update-profile-digests:[\s\S]*?permissions:\n {6}actions: write\n {6}contents: write\n {6}pull-requests: write/,
+  );
+  for (const command of [
+    "vncserver",
+    "xfce4-session",
+    "google-chrome-stable",
+    "unityhub",
+    "blender",
+    "kicad-cli",
+    "obsidian",
+  ]) {
+    assert.ok(smokeTest.includes(`expect_absent ${command}`));
+  }
   assert.match(
     readFileSync(join(process.cwd(), ".github/workflows/ci.yml"), "utf8"),
     /workflow_dispatch:/,
@@ -298,6 +344,7 @@ function verifyNonRootSupplementalTools() {
   const terraform = readTemplateFile("main.tf");
   const filebrowser = readTemplateFile("scripts/tools-filebrowser.sh");
   const initScript = readTemplateFile("scripts/init.sh");
+  const workspaceReadme = readTemplateFile("WORKSPACE.md");
 
   assert.ok(!terraform.includes('module "filebrowser"'));
   assert.ok(!terraform.includes('module "nodejs"'));
@@ -322,22 +369,8 @@ function verifyNonRootSupplementalTools() {
   assert.match(filebrowser, /login_status/);
   assert.match(filebrowser, /pkill -x filebrowser/);
   assert.doesNotMatch(filebrowser, /\bsudo\b/);
-  assert.ok(initScript.includes("Node.js v24"));
+  assert.ok(workspaceReadme.includes("Node.js 24"));
   assert.ok(!initScript.includes("also available: 18, 20, 22"));
-}
-
-function verifyDockerFileBrowser() {
-  const terraform = readFileSync(join(DOCKER_TEMPLATE_ROOT, "main.tf"), "utf8");
-  const filebrowser = readFileSync(
-    join(DOCKER_TEMPLATE_ROOT, "scripts/tools-filebrowser.sh"),
-    "utf8",
-  );
-
-  assert.doesNotMatch(terraform, /module "filebrowser"/);
-  assert.match(terraform, /resource "coder_script" "filebrowser"/);
-  assert.match(terraform, /resource "coder_app" "filebrowser"/);
-  assert.match(terraform, /start_blocks_login\s*=\s*false/);
-  assert.equal(filebrowser, readTemplateFile("scripts/tools-filebrowser.sh"));
 }
 
 function verifyCustomFileBrowserRootCreation() {
@@ -457,34 +490,33 @@ function verifyCuratedAgentCapabilities() {
     script,
     /codex plugin add "github@\$marketplace_name" --json[\s\S]*?printf '%s\\n' "\$plugins_ref" > "\$installed_ref_file"/,
   );
-  assert.match(readme, /Playwright remains an MCP server rather than a[\s\S]*duplicated skill/);
+  assert.match(readme, /Browser validation belongs in `browser-testing`/);
 }
 
 function verifyGameDevelopmentTooling() {
   const terraform = readTemplateFile("main.tf");
+  const gameProfile = JSON.parse(readFileSync(join(GAME_TEMPLATE_ROOT, "profile.json"), "utf8"));
   const dockerfile = readFileSync(join(process.cwd(), "docker/hive-base/Dockerfile"), "utf8");
-  const claudeMcp = readFileSync(join(process.cwd(), "docker/hive-base/claude-mcp.json"), "utf8");
-  const obsidianDesktop = readFileSync(
-    join(process.cwd(), "docker/hive-base/obsidian.desktop"),
-    "utf8",
-  );
   assert.match(dockerfile, /UnityHubSetup-3\.19\.5-amd64\.deb/);
   assert.match(dockerfile, /5a5b57adc9ce20931c4154c57ffded08f3ffa2743286fdf14c9e7add6b212540/);
   assert.match(dockerfile, /BLENDER_VERSION=4\.5\.12/);
   assert.match(dockerfile, /95e3a2dfedba3bd32ca54fc355eac6b15a11986954ccb02815a07535d0120a25/);
-  assert.match(
-    dockerfile,
-    /COPY --chown=coder:coder claude-mcp\.json \/home\/coder\/\.claude\/mcp\.json/,
-  );
-  assert.match(terraform, /visualstudiotoolsforunity\.vstuc/);
-  assert.match(terraform, /ms-dotnettools\.csharp/);
-  assert.doesNotMatch(claudeMcp, /obsidian|mcpvault/i);
-  assert.doesNotMatch(obsidianDesktop, /\/home\/coder\/vault/);
-  assert.match(obsidianDesktop, /^Name=Obsidian$/m);
+  assert.match(dockerfile, /\[ "\$WORKSPACE_VARIANT" = "game" \]/);
+  assert.match(terraform, /local\.profile\.vscode_extensions/);
+  assert.equal(gameProfile.image_variant, "game");
+  assert.equal(gameProfile.capabilities.desktop, true);
+  assert.equal(gameProfile.capabilities.browser, false);
+  assert.ok(gameProfile.vscode_extensions.includes("visualstudiotoolsforunity.vstuc"));
+  assert.ok(gameProfile.vscode_extensions.includes("ms-dotnettools.csharp"));
+  assert.equal(existsSync(join(process.cwd(), "docker/hive-base/claude-mcp.json")), false);
+  assert.equal(existsSync(join(process.cwd(), "docker/hive-base/obsidian.desktop")), false);
 }
 
 function verifyElectronicsDesignTooling() {
   const terraform = readTemplateFile("main.tf");
+  const electronicsProfile = JSON.parse(
+    readFileSync(join(ELECTRONICS_TEMPLATE_ROOT, "profile.json"), "utf8"),
+  );
   const initScript = readTemplateFile("scripts/init.sh");
   const toolsAi = readTemplateFile("scripts/tools-ai.sh");
   const dockerfile = readFileSync(join(process.cwd(), "docker/hive-base/Dockerfile"), "utf8");
@@ -492,10 +524,16 @@ function verifyElectronicsDesignTooling() {
     join(process.cwd(), ".github/workflows/build-base-image.yml"),
     "utf8",
   );
+  const smokeTest = readFileSync(join(process.cwd(), "docker/hive-base/smoke-test.sh"), "utf8");
   assert.match(dockerfile, /^\s*kicad \\/m);
   assert.match(dockerfile, /^\s*kicad-libraries \\/m);
   assert.match(dockerfile, /^\s*kicad-packages3d \\/m);
-  assert.equal(workflow.match(/kicad-cli version/g)?.length, 2);
+  assert.match(smokeTest, /run kicad-cli version/);
+  assert.equal(electronicsProfile.id, "electronics");
+  assert.equal(electronicsProfile.image_variant, "electronics");
+  assert.equal(electronicsProfile.capabilities.desktop, true);
+  assert.equal(electronicsProfile.capabilities.browser, false);
+  assert.ok(electronicsProfile.vscode_extensions.includes("ms-vscode.cpptools"));
   for (const content of [terraform, initScript, toolsAi, dockerfile, workflow]) {
     assert.doesNotMatch(
       content,
@@ -580,8 +618,10 @@ function verifyRepositoryManifest() {
       `${destination} must use an approved destination organization`,
     );
   }
-  assert.ok(entries.includes("kethalia/k8s-cluster|kethalia/k8s-cluster"));
   assert.ok(entries.includes("phlox-labs/service-routing-api|phlox-labs/service-routing-api"));
+  assert.ok(!entries.includes("chillwhales/realm-of-chill|chillwhales/realm-of-chill"));
+  assert.ok(!entries.includes("kethalia/k8s-cluster|kethalia/k8s-cluster"));
+  assert.ok(!entries.includes("kethalia/workflows|kethalia/workflows"));
 }
 
 function verifyRepositoryBootstrap() {
@@ -644,9 +684,12 @@ test(
   verifyVaultManagedContextCleanup,
 );
 test("workspace migration replaces read-only persisted MCP configs", verifyReadOnlyMcpMigration);
+test(
+  "workspace migration removes only Hive-owned browser helpers",
+  verifyBrowserHelperOwnershipCleanup,
+);
 test("base image rollout updates the pinned template digest through a PR", verifyBaseImageRollout);
 test("supplemental tools support the non-root workspace", verifyNonRootSupplementalTools);
-test("Docker workspaces use the same repairable File Browser runtime", verifyDockerFileBrowser);
 test(
   "File Browser creates a configured projects root before startup",
   verifyCustomFileBrowserRootCreation,
@@ -676,34 +719,153 @@ test("repository bootstrap rejects failed external authentication", verifyFailed
 
 function runReadOnlyMcpMigrationFixture(templateRoot) {
   const initScript = readFileSync(join(templateRoot, "scripts/init.sh"), "utf8");
-  const configMatch = initScript.match(/python3 - <<'PYCONFIG'\n([\s\S]*?)\nPYCONFIG/);
+  const configMatch = initScript.match(/python3 - <<'PYMCP'\n([\s\S]*?)\nPYMCP/);
   const fixtureRoot = mkdtempSync(join(tmpdir(), "read-only-mcp-"));
   const home = join(fixtureRoot, "home");
   const claudeRoot = join(home, ".claude");
   const claudeMcp = join(claudeRoot, "mcp.json");
+  const sharedMcp = join(home, ".mcp.json");
+  const legacyPlaywright = {
+    command: "npx",
+    args: ["-y", "@playwright/mcp", "--no-sandbox"],
+    env: { DISPLAY: ":1" },
+  };
+  const userPlaywright = {
+    command: "custom-playwright",
+    args: ["--user-owned"],
+  };
 
   assert.ok(configMatch);
   mkdirSync(claudeRoot, { recursive: true });
   writeFileSync(
     claudeMcp,
-    '{"mcpServers":{"obsidian":{"command":"remove"},"custom":{"command":"keep"}}}\n',
+    JSON.stringify({
+      mcpServers: {
+        obsidian: { command: "remove" },
+        playwright: legacyPlaywright,
+        custom: { command: "keep" },
+      },
+    }),
+  );
+  writeFileSync(
+    sharedMcp,
+    JSON.stringify({
+      mcpServers: {
+        playwright: userPlaywright,
+        custom: { command: "keep-shared" },
+      },
+    }),
   );
   chmodSync(claudeMcp, 0o444);
+  chmodSync(sharedMcp, 0o444);
   const configScript = join(fixtureRoot, "configure.py");
   writeFileSync(configScript, configMatch[1]);
   const result = spawnSync("python3", [configScript], {
     encoding: "utf8",
-    env: { ...process.env, HOME: home },
+    env: { ...process.env, HIVE_BROWSER_TOOLS_ENABLED: "true", HOME: home },
   });
 
   assert.equal(result.status, 0, result.stderr);
   const migrated = JSON.parse(readFileSync(claudeMcp, "utf8"));
   assert.equal(migrated.mcpServers.obsidian, undefined);
   assert.equal(migrated.mcpServers.custom.command, "keep");
-  assert.equal(migrated.mcpServers.playwright.command, "npx");
+  assert.equal(migrated.mcpServers.playwright, undefined);
+  assert.equal(migrated.mcpServers.hive_playwright.command, "npx");
+  const migratedShared = JSON.parse(readFileSync(sharedMcp, "utf8"));
+  assert.deepEqual(migratedShared.mcpServers.playwright, userPlaywright);
+  assert.equal(migratedShared.mcpServers.hive_playwright.command, "npx");
   assert.equal(statSync(claudeMcp).mode & 0o777, 0o600);
+  assert.equal(statSync(sharedMcp).mode & 0o777, 0o600);
+
+  migrated.mcpServers.playwright = userPlaywright;
+  writeFileSync(claudeMcp, JSON.stringify(migrated));
+  chmodSync(claudeMcp, 0o444);
+
+  const disabledResult = spawnSync("python3", [configScript], {
+    encoding: "utf8",
+    env: { ...process.env, HIVE_BROWSER_TOOLS_ENABLED: "false", HOME: home },
+  });
+  assert.equal(disabledResult.status, 0, disabledResult.stderr);
+  const disabled = JSON.parse(readFileSync(claudeMcp, "utf8"));
+  assert.deepEqual(disabled.mcpServers.playwright, userPlaywright);
+  assert.equal(disabled.mcpServers.hive_playwright, undefined);
+  assert.equal(disabled.mcpServers.custom.command, "keep");
+  const disabledShared = JSON.parse(readFileSync(sharedMcp, "utf8"));
+  assert.deepEqual(disabledShared.mcpServers.playwright, userPlaywright);
+  assert.equal(disabledShared.mcpServers.hive_playwright, undefined);
+  assert.equal(disabledShared.mcpServers.custom.command, "keep-shared");
 }
 
 function verifyReadOnlyMcpMigration() {
-  runReadOnlyMcpMigrationFixture(DOCKER_TEMPLATE_ROOT);
+  runReadOnlyMcpMigrationFixture(TEMPLATE_ROOT);
+}
+
+function renderBrowserHelper(delimiter, includeMarker) {
+  const setup = readTemplateFile("scripts/tools-browser.sh");
+  const boundaries =
+    delimiter === "SCREENSHOT"
+      ? { start: "<< SCREENSHOT\n", end: "\nSCREENSHOT" }
+      : { start: "<< BROWSERHTML\n", end: "\nBROWSERHTML" };
+  const start = setup.indexOf(boundaries.start);
+  assert.notEqual(start, -1);
+  const contentStart = start + boundaries.start.length;
+  const end = setup.indexOf(boundaries.end, contentStart);
+  assert.notEqual(end, -1);
+  let helper = `${setup.slice(contentStart, end)}\n`
+    .replaceAll("$CHROME_BIN", "/usr/bin/google-chrome-stable")
+    .replaceAll("\\$", "$")
+    .replaceAll("\\\\", "\\");
+  if (!includeMarker) helper = helper.replace("# hive-managed-browser-helper:v1\n", "");
+  return helper;
+}
+
+function runBrowserHelperCleanupFixture(contents) {
+  const fixtureRoot = mkdtempSync(join(tmpdir(), "browser-helper-cleanup-"));
+  const home = join(fixtureRoot, "home");
+  const bin = join(home, ".local", "bin");
+  const screenshot = join(bin, "browser-screenshot");
+  const domHelper = join(bin, "browser-html");
+  const initScript = readTemplateFile("scripts/init.sh");
+  const functionMatch = initScript.match(/remove_hive_browser_helpers\(\) \{[\s\S]*?\n\}/);
+
+  assert.ok(functionMatch);
+  mkdirSync(bin, { recursive: true });
+  writeFileSync(screenshot, contents.screenshot);
+  writeFileSync(domHelper, contents.domHelper);
+  const cleanupScript = join(fixtureRoot, "cleanup.sh");
+  writeFileSync(cleanupScript, `${functionMatch[0]}\nremove_hive_browser_helpers\n`);
+  const result = spawnSync("bash", [cleanupScript], {
+    encoding: "utf8",
+    env: { ...process.env, HOME: home },
+  });
+
+  return { domHelper, result, screenshot };
+}
+
+function verifyBrowserHelperOwnershipCleanup() {
+  const customScreenshot = "#!/bin/bash\necho user-screenshot\n";
+  const customDomScript = "#!/bin/bash\necho user-html\n";
+  const custom = runBrowserHelperCleanupFixture({
+    screenshot: customScreenshot,
+    domHelper: customDomScript,
+  });
+  assert.equal(custom.result.status, 0, custom.result.stderr);
+  assert.equal(readFileSync(custom.screenshot, "utf8"), customScreenshot);
+  assert.equal(readFileSync(custom.domHelper, "utf8"), customDomScript);
+
+  const legacy = runBrowserHelperCleanupFixture({
+    screenshot: renderBrowserHelper("SCREENSHOT", false),
+    domHelper: renderBrowserHelper("BROWSERHTML", false),
+  });
+  assert.equal(legacy.result.status, 0, legacy.result.stderr);
+  assert.equal(existsSync(legacy.screenshot), false);
+  assert.equal(existsSync(legacy.domHelper), false);
+
+  const marked = runBrowserHelperCleanupFixture({
+    screenshot: renderBrowserHelper("SCREENSHOT", true),
+    domHelper: renderBrowserHelper("BROWSERHTML", true),
+  });
+  assert.equal(marked.result.status, 0, marked.result.stderr);
+  assert.equal(existsSync(marked.screenshot), false);
+  assert.equal(existsSync(marked.domHelper), false);
 }

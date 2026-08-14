@@ -123,6 +123,7 @@ function makeWorkspace(
     id: "ws-1",
     name: "dev",
     template_id: "tpl-1",
+    template_name: "browser-testing",
     owner_name: "alice",
     latest_build: {
       id: "build-1",
@@ -201,6 +202,26 @@ describe("WorkspaceToolPanel", () => {
     const srcs = Array.from(iframes).map((f) => f.getAttribute("src"));
     expect(srcs).toContain("/api/workspace-proxy/ws-1/filebrowser");
     expect(srcs).toContain("/api/workspace-proxy/ws-1/kasmvnc");
+  });
+
+  it("omits unprovisioned apps from a terminal-only orchestrator", () => {
+    const workspace = makeWorkspace({ template_name: "orchestrator" });
+    const { container } = render(<WorkspaceToolPanel {...defaultProps} workspace={workspace} />);
+
+    expect(screen.getByTestId("tool-option-terminal")).toBeInTheDocument();
+    expect(screen.getByTestId("tool-option-dashboard")).toBeInTheDocument();
+    expect(screen.queryByTestId("tool-option-filebrowser")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("tool-option-kasmvnc")).not.toBeInTheDocument();
+    expect(container.querySelectorAll("iframe")).toHaveLength(0);
+  });
+
+  it("keeps repository apps but omits Desktop for the headless software profile", () => {
+    const workspace = makeWorkspace({ template_name: "ai-dev-k8s" });
+    const { container } = render(<WorkspaceToolPanel {...defaultProps} workspace={workspace} />);
+
+    expect(screen.getByTestId("tool-option-filebrowser")).toBeInTheDocument();
+    expect(screen.queryByTestId("tool-option-kasmvnc")).not.toBeInTheDocument();
+    expect(container.querySelectorAll("iframe")).toHaveLength(1);
   });
 
   it("shows external placeholder for dashboard tool", () => {

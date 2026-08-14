@@ -24,6 +24,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import type { CoderWorkspace } from "@/lib/coder/types";
+import { workspaceTemplateCapabilities } from "@/lib/templates/catalog";
 import { buildWorkspaceUrls } from "@/lib/workspaces/urls";
 
 const TerminalTabManager = dynamic(
@@ -58,8 +59,17 @@ export function WorkspaceToolPanel({
 
   const urls = buildWorkspaceUrls(workspace, agentName, coderUrl);
   const isRunning = workspace.latest_build.status === "running";
+  const capabilities = workspaceTemplateCapabilities(workspace.template_name ?? "");
+  const availableTools = tools.filter(({ id }) => {
+    if (id === "filebrowser") return capabilities.fileBrowser;
+    if (id === "kasmvnc") return capabilities.desktop;
+    return true;
+  });
+  const resolvedActiveTool = availableTools.some(({ id }) => id === activeTool)
+    ? activeTool
+    : "terminal";
 
-  const activeDef = tools.find((t) => t.id === activeTool) ?? tools[0];
+  const activeDef = availableTools.find((tool) => tool.id === resolvedActiveTool) ?? tools[0];
   const ActiveIcon = activeDef.icon;
 
   const proxyBase = `/api/workspace-proxy/${workspace.id}`;
@@ -72,7 +82,7 @@ export function WorkspaceToolPanel({
     kasmvnc: urls?.kasmvnc,
     dashboard: urls?.dashboard,
   };
-  const activeUrl = directUrlMap[activeTool];
+  const activeUrl = directUrlMap[resolvedActiveTool];
 
   if (!isRunning) {
     return (
@@ -84,14 +94,18 @@ export function WorkspaceToolPanel({
         </AlertDescription>
         {urls && (
           <div className="mt-3 flex gap-2">
-            <Button variant="outline" size="sm" disabled>
-              <FolderOpen data-icon="inline-start" />
-              Filebrowser
-            </Button>
-            <Button variant="outline" size="sm" disabled>
-              <Monitor data-icon="inline-start" />
-              KasmVNC
-            </Button>
+            {capabilities.fileBrowser && (
+              <Button variant="outline" size="sm" disabled>
+                <FolderOpen data-icon="inline-start" />
+                Filebrowser
+              </Button>
+            )}
+            {capabilities.desktop && (
+              <Button variant="outline" size="sm" disabled>
+                <Monitor data-icon="inline-start" />
+                KasmVNC
+              </Button>
+            )}
             <Button variant="outline" size="sm" disabled>
               <LayoutDashboard data-icon="inline-start" />
               Dashboard
@@ -126,7 +140,7 @@ export function WorkspaceToolPanel({
                   <ChevronDown className="size-3" />
                 </PopoverTrigger>
                 <PopoverContent align="start" className="w-48 p-1">
-                  {tools.map((tool) => {
+                  {availableTools.map((tool) => {
                     const Icon = tool.icon;
                     return (
                       <button
@@ -137,7 +151,7 @@ export function WorkspaceToolPanel({
                           setToolPickerOpen(false);
                         }}
                         className={`flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm hover:bg-accent ${
-                          tool.id === activeTool
+                          tool.id === resolvedActiveTool
                             ? "bg-accent text-accent-foreground"
                             : "text-foreground"
                         }`}
@@ -168,29 +182,31 @@ export function WorkspaceToolPanel({
         {/* Terminal — always mounted, hidden via CSS */}
         <div
           className="absolute inset-0"
-          style={{ display: activeTool === "terminal" ? "block" : "none" }}
+          style={{ display: resolvedActiveTool === "terminal" ? "block" : "none" }}
         >
           {agentId && <TerminalTabManager agentId={agentId} workspaceId={workspace.id} />}
         </div>
 
         {/* Proxied iframe tools */}
-        {(["filebrowser", "kasmvnc"] as const).map((toolId) => (
-          <div
-            key={toolId}
-            className="absolute inset-0"
-            style={{ display: activeTool === toolId ? "flex" : "none" }}
-          >
-            <iframe
-              src={iframeUrlMap[toolId]}
-              title={tools.find((t) => t.id === toolId)?.label}
-              className="h-full w-full rounded-lg border border-border"
-              allow="clipboard-read; clipboard-write"
-            />
-          </div>
-        ))}
+        {availableTools
+          .filter(({ id }) => id === "filebrowser" || id === "kasmvnc")
+          .map((tool) => (
+            <div
+              key={tool.id}
+              className="absolute inset-0"
+              style={{ display: resolvedActiveTool === tool.id ? "flex" : "none" }}
+            >
+              <iframe
+                src={iframeUrlMap[tool.id]}
+                title={tool.label}
+                className="h-full w-full rounded-lg border border-border"
+                allow="clipboard-read; clipboard-write"
+              />
+            </div>
+          ))}
 
         {/* Dashboard — opens externally (Coder UI can't be proxied reliably) */}
-        {activeTool === "dashboard" && (
+        {resolvedActiveTool === "dashboard" && (
           <div className="absolute inset-0 flex">
             <ExternalToolPlaceholder label="Dashboard" url={urls?.dashboard} />
           </div>

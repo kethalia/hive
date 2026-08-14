@@ -25,6 +25,7 @@ export default async function WorkspaceTerminalPage({ params }: WorkspaceTermina
       <MultiSessionWorkspace
         agentId={agentResult.data.agentId}
         workspaceId={workspaceId}
+        templateName={agentResult.data.templateName}
         source="unified"
         className={WORKSPACE_TERMINAL_SHELL_CLASS_NAME}
       />

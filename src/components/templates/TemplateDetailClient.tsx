@@ -9,7 +9,9 @@ import { TemplatePushConfirmation } from "@/components/templates/TemplatePushCon
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { templateCatalogEntry, workspaceSurfaceLabel } from "@/lib/templates/catalog";
 import type { TemplateStatus } from "@/lib/templates/staleness";
+import { workspaceProfileForTemplate } from "@/lib/workspaces/profiles";
 
 const TerminalPanel = dynamic(() => import("./TerminalPanel").then((m) => m.TerminalPanel), {
   ssr: false,
@@ -47,6 +49,8 @@ interface TemplateDetailClientProps {
 }
 
 export function TemplateDetailClient({ status }: TemplateDetailClientProps) {
+  const definition = templateCatalogEntry(status.name);
+  const profile = workspaceProfileForTemplate(status.name);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [pushState, setPushState] = useState<PushState>({
     jobId: null,
@@ -153,6 +157,7 @@ export function TemplateDetailClient({ status }: TemplateDetailClientProps) {
       />
       <DashboardPageHeader
         title={status.name}
+        description={definition?.description ?? profile.description}
         actions={
           <StatusBadge
             stale={status.stale}
@@ -169,6 +174,20 @@ export function TemplateDetailClient({ status }: TemplateDetailClientProps) {
         </CardHeader>
         <CardContent>
           <dl className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4 text-sm">
+            <div>
+              <dt className="text-muted-foreground">Profile</dt>
+              <dd className="mt-0.5 font-medium">{profile.label}</dd>
+            </div>
+            <div>
+              <dt className="text-muted-foreground">Runtime</dt>
+              <dd className="mt-0.5 font-medium">
+                {definition?.runtime === "kubernetes" ? "Kubernetes" : "External"}
+              </dd>
+            </div>
+            <div>
+              <dt className="text-muted-foreground">Workspace surface</dt>
+              <dd className="mt-0.5 font-medium">{workspaceSurfaceLabel(status.name)}</dd>
+            </div>
             <div>
               <dt className="text-muted-foreground">Last Pushed</dt>
               <dd className="mt-0.5 font-medium">{formatDate(status.lastPushed)}</dd>

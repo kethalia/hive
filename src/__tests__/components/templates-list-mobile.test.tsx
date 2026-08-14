@@ -144,7 +144,7 @@ describe("templates mobile list", () => {
       <TemplatesClient
         initialStatuses={[
           makeStatus({ name: "ai-dev-k8s", stale: true }),
-          makeStatus({ name: "ai-dev", stale: false, remoteHash: "local-hash" }),
+          makeStatus({ name: "browser-testing", stale: false, remoteHash: "local-hash" }),
           makeStatus({ name: "unknown", stale: false, remoteHash: null }),
         ]}
       />,
@@ -161,6 +161,13 @@ describe("templates mobile list", () => {
     expect(within(cards[1]).getByText("Current")).toBeInTheDocument();
     expect(within(cards[2]).getByText("Unknown")).toBeInTheDocument();
     expect(within(cards[0]).getByText("Last pushed")).toBeInTheDocument();
+    expect(within(cards[0]).getByText("Software development")).toBeInTheDocument();
+    expect(within(cards[0]).getByText("Kubernetes")).toBeInTheDocument();
+    expect(within(cards[0]).getByText("CLI + web tools")).toBeInTheDocument();
+    expect(within(cards[1]).getByText("Browser + desktop")).toBeInTheDocument();
+    expect(within(cards[1]).getByText("Kubernetes")).toBeInTheDocument();
+    expect(within(cards[2]).getByText("Custom")).toBeInTheDocument();
+    expect(within(cards[2]).getAllByText("External")).toHaveLength(2);
 
     const mobilePush = within(cards[0]).getByRole("button", { name: /Push/ });
     expect(mobilePush).toHaveClass("min-h-11", "touch-manipulation", "text-sm");
@@ -168,6 +175,9 @@ describe("templates mobile list", () => {
     const desktopTable = screen.getByTestId("templates-desktop-table");
     expect(desktopTable).toHaveClass("hidden", "md:block");
     expect(within(desktopTable).getByRole("columnheader", { name: "Name" })).toBeInTheDocument();
+    expect(within(desktopTable).getByRole("columnheader", { name: "Profile" })).toBeInTheDocument();
+    expect(within(desktopTable).getByRole("columnheader", { name: "Runtime" })).toBeInTheDocument();
+    expect(within(desktopTable).getByRole("columnheader", { name: "Surface" })).toBeInTheDocument();
     expect(
       within(desktopTable).getByRole("columnheader", { name: "Last Pushed" }),
     ).toBeInTheDocument();

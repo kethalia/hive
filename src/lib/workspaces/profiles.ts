@@ -1,3 +1,5 @@
+import { templateCatalogEntry } from "@/lib/templates/catalog";
+
 export const WORKSPACE_PROFILES = [
   {
     id: "orchestrator",
@@ -8,6 +10,11 @@ export const WORKSPACE_PROFILES = [
     id: "software",
     label: "Software development",
     description: "A general-purpose coding environment for repositories, terminals, and reviews.",
+  },
+  {
+    id: "browser",
+    label: "Browser testing",
+    description: "A dedicated Chrome and Playwright environment for browser validation.",
   },
   {
     id: "game",
@@ -39,16 +46,26 @@ const PROFILE_PATTERNS: ReadonlyArray<{
   pattern: RegExp;
 }> = [
   { id: "orchestrator", pattern: /orchestrat|command[-_ ]?center|control[-_ ]?plane/ },
+  { id: "browser", pattern: /browser|playwright|chrome|end[-_ ]?to[-_ ]?end|e2e/ },
   { id: "game", pattern: /game|unity|unreal|godot|blender/ },
   { id: "electronics", pattern: /electronic|hardware|kicad|pcb|firmware/ },
   { id: "software", pattern: /ai[-_ ]?dev|software|full[-_ ]?stack|web[-_ ]?dev|developer/ },
   { id: "infrastructure", pattern: /infrastructure|platform|devops|terraform|cluster|ops/ },
 ];
 
+const WORKSPACE_PROFILE_BY_ID = new Map<WorkspaceProfileId, WorkspaceProfile>(
+  WORKSPACE_PROFILES.map((profile) => [profile.id, profile]),
+);
+
+function workspaceProfileById(id: WorkspaceProfileId): WorkspaceProfile {
+  const profile = WORKSPACE_PROFILE_BY_ID.get(id);
+  if (!profile) throw new Error(`Unknown workspace profile: ${id}`);
+  return profile;
+}
+
 export function workspaceProfileForTemplate(templateName: string): WorkspaceProfile {
   const normalizedName = templateName.trim().toLowerCase();
+  const catalogProfileId = templateCatalogEntry(normalizedName)?.profileId;
   const match = PROFILE_PATTERNS.find(({ pattern }) => pattern.test(normalizedName));
-  return (
-    WORKSPACE_PROFILES.find(({ id }) => id === (match?.id ?? "custom")) ?? WORKSPACE_PROFILES[5]
-  );
+  return workspaceProfileById(catalogProfileId ?? match?.id ?? "custom");
 }

@@ -1308,10 +1308,10 @@ test.describe("authenticated Hive workflows", () => {
     await expect(page.getByRole("heading", { name: "Templates" })).toBeVisible();
     await capture(page, testInfo, "templates");
 
-    await page.goto(new URL("/templates/ai-dev", appUrl).toString());
+    await page.goto(new URL("/templates/browser-testing", appUrl).toString());
     await waitForDashboardReady(page);
     await page.getByRole("button", { name: "Push" }).click();
-    await expect(page.getByRole("heading", { name: "Push ai-dev?" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Push browser-testing?" })).toBeVisible();
     await expect(page.getByText(/Existing workspaces are not rebuilt automatically/)).toBeVisible();
     await page.getByRole("button", { name: "Cancel" }).click();
 

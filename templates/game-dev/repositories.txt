@@ -1,0 +1,2 @@
+# Default game project. Add further repositories only when they belong in this profile.
+chillwhales/realm-of-chill|chillwhales/realm-of-chill

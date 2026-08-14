@@ -12,7 +12,14 @@ import {
 
 describe("KNOWN_TEMPLATES", () => {
   it("registers every template exposed by the Hive UI", () => {
-    expect(KNOWN_TEMPLATES).toEqual(["ai-dev", "ai-dev-k8s"]);
+    expect(KNOWN_TEMPLATES).toEqual([
+      "orchestrator",
+      "ai-dev-k8s",
+      "browser-testing",
+      "game-dev",
+      "electronics",
+      "infrastructure",
+    ]);
   });
 });
 
@@ -262,16 +269,21 @@ describe("compareTemplates", () => {
 
   it("handles multiple templates in one call", async () => {
     await mkdir(join(tempDir, "templates", "ai-dev-k8s"), { recursive: true });
-    await mkdir(join(tempDir, "templates", "ai-dev"), { recursive: true });
+    await mkdir(join(tempDir, "templates", "browser-testing"), { recursive: true });
     await writeFile(join(tempDir, "templates", "ai-dev-k8s", "main.tf"), "k8s content");
-    await writeFile(join(tempDir, "templates", "ai-dev", "main.tf"), "ai-dev content");
+    await writeFile(join(tempDir, "templates", "browser-testing", "main.tf"), "browser content");
 
     const k8sTar = await createTarBuffer({ "main.tf": "k8s content" });
-    const aiDevTar = await createTarBuffer({ "main.tf": "different content" });
+    const browserTar = await createTarBuffer({ "main.tf": "different content" });
 
     mockListTemplates.mockResolvedValue([
       { id: "t1", name: "ai-dev-k8s", activeVersionId: "ver-1", updatedAt: "2026-04-01T00:00:00Z" },
-      { id: "t2", name: "ai-dev", activeVersionId: "ver-2", updatedAt: "2026-04-02T00:00:00Z" },
+      {
+        id: "t2",
+        name: "browser-testing",
+        activeVersionId: "ver-2",
+        updatedAt: "2026-04-02T00:00:00Z",
+      },
     ]);
     mockGetTemplateVersion.mockImplementation(async (versionId: string) => {
       if (versionId === "ver-1")
@@ -291,15 +303,15 @@ describe("compareTemplates", () => {
       };
     });
     mockFetchTemplateFiles.mockImplementation(async (fileId: string) => {
-      return fileId === "file-1" ? k8sTar : aiDevTar;
+      return fileId === "file-1" ? k8sTar : browserTar;
     });
 
-    const results = await compareTemplates(["ai-dev-k8s", "ai-dev"], "user-123");
+    const results = await compareTemplates(["ai-dev-k8s", "browser-testing"], "user-123");
 
     expect(results).toHaveLength(2);
     expect(results[0].name).toBe("ai-dev-k8s");
     expect(results[0].stale).toBe(false);
-    expect(results[1].name).toBe("ai-dev");
+    expect(results[1].name).toBe("browser-testing");
     expect(results[1].stale).toBe(true);
   });
 

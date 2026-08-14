@@ -89,7 +89,7 @@ import type { TemplateStatus } from "@/lib/templates/staleness";
 
 function makeStatus(overrides: Partial<TemplateStatus> = {}): TemplateStatus {
   return {
-    name: "ai-dev",
+    name: "browser-testing",
     stale: true,
     lastPushed: "2026-04-10T12:00:00Z",
     activeVersionId: "ver-abc123",
@@ -129,7 +129,19 @@ describe("TemplateDetailClient", () => {
 
   it("renders template name", () => {
     render(<TemplateDetailClient status={makeStatus()} />);
-    expect(screen.getByText("ai-dev")).toBeInTheDocument();
+    expect(screen.getByText("browser-testing")).toBeInTheDocument();
+  });
+
+  it("renders catalog profile, runtime, and purpose", () => {
+    render(<TemplateDetailClient status={makeStatus()} />);
+    expect(screen.getByText("Browser testing")).toBeInTheDocument();
+    expect(screen.getByText("Kubernetes")).toBeInTheDocument();
+    expect(screen.getByText("Browser + desktop")).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "Dedicated Chrome and Playwright workspace for browser automation and inspection.",
+      ),
+    ).toBeInTheDocument();
   });
 
   it("renders staleness badge when stale", () => {
@@ -174,7 +186,7 @@ describe("TemplateDetailClient", () => {
     fireEvent.click(screen.getByText("Confirm push"));
 
     await waitFor(() => {
-      expect(mockFetch).toHaveBeenCalledWith("/api/templates/ai-dev/push", {
+      expect(mockFetch).toHaveBeenCalledWith("/api/templates/browser-testing/push", {
         method: "POST",
       });
     });

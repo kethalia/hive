@@ -15,6 +15,7 @@ import {
   CODER_HOST_COOKIE,
   coderFrameConfiguredUrls,
 } from "@/lib/security/content-security-policy";
+import { workspaceTemplateCapabilities } from "@/lib/templates/catalog";
 import { execInWorkspace } from "@/lib/workspace/exec";
 import { filterGenericTmuxSessions, parseTmuxSessions } from "@/lib/workspaces/sessions";
 import {
@@ -170,13 +171,17 @@ export const getWorkspaceAgentAction = authActionClient
   .inputSchema(getWorkspaceAgentSchema)
   .action(async ({ parsedInput, ctx }) => {
     const client = await getCoderClientForUser(ctx.user.id);
-    const resources = await client.getWorkspaceResources(parsedInput.workspaceId);
+    const [workspace, resources] = await Promise.all([
+      client.getWorkspace(parsedInput.workspaceId),
+      client.getWorkspaceResources(parsedInput.workspaceId),
+    ]);
     for (const resource of resources) {
       if (resource.agents && resource.agents.length > 0) {
         return {
           agentId: resource.agents[0].id,
           agentName: resource.agents[0].name,
           agentStatus: resource.agents[0].status,
+          templateName: workspace.template_name ?? "",
         };
       }
     }
@@ -338,6 +343,14 @@ export const getWorkspaceSessionToolsAction = authActionClient
       ctx.user.id,
       parsedInput.workspaceId,
     );
+    const capabilities = workspaceTemplateCapabilities(workspace.template_name ?? "");
+    const toolAvailable =
+      parsedInput.tool === "code" ? capabilities.editor : capabilities.fileBrowser;
+    if (!toolAvailable) {
+      throw new Error(
+        `${parsedInput.tool === "code" ? "VS Code" : "File Browser"} is not provisioned for this workspace template.`,
+      );
+    }
 
     const currentDirectory = await getSessionCurrentDirectory({
       agentTarget: `${workspace.name}.${agent.name}`,

@@ -33,7 +33,7 @@ describe("DashboardSidebarTrigger", () => {
   });
 
   it("does not render on templates routes that own the page navbar", () => {
-    mockPathname = "/templates/ai-dev";
+    mockPathname = "/templates/browser-testing";
 
     const { container } = render(<DashboardSidebarTrigger />);
 
