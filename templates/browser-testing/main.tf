@@ -4,87 +4,10 @@ terraform {
       source  = "coder/coder"
       version = "~> 2.15"
     }
-    docker = {
-      source  = "kreuzwerker/docker"
-      version = "~> 3.6"
+    kubernetes = {
+      source  = "hashicorp/kubernetes"
+      version = "~> 2.38"
     }
-  }
-}
-
-# =============================================================================
-# Parameters — surfaced in the Coder workspace creation UI
-# =============================================================================
-
-data "coder_parameter" "claude_code_model" {
-  name         = "claude_code_model"
-  display_name = "Claude Code Model"
-  description  = "Model for Claude Code."
-  type         = "string"
-  default      = "claude-sonnet-4-6"
-  mutable      = true
-  order        = 7
-
-  # Claude 4.6 generation
-  option {
-    name  = "Claude Sonnet 4.6 (Recommended)"
-    value = "claude-sonnet-4-6"
-  }
-  option {
-    name  = "Claude Opus 4.6"
-    value = "claude-opus-4-6"
-  }
-  # Claude 4.5 generation
-  option {
-    name  = "Claude Opus 4.5"
-    value = "claude-opus-4-5"
-  }
-  option {
-    name  = "Claude Sonnet 4.5"
-    value = "claude-sonnet-4-5"
-  }
-  option {
-    name  = "Claude Haiku 4.5"
-    value = "claude-haiku-4-5"
-  }
-  # Claude 3.5 (legacy)
-  option {
-    name  = "Claude Haiku 3.5 (legacy)"
-    value = "claude-haiku-3-5"
-  }
-}
-
-data "coder_parameter" "claude_code_system_prompt" {
-  name         = "claude_code_system_prompt"
-  display_name = "Claude Code System Prompt"
-  description  = "Custom system prompt for Claude Code (optional)."
-  type         = "string"
-  default      = ""
-  mutable      = true
-  order        = 8
-}
-
-data "coder_parameter" "docker_socket" {
-  name         = "docker_socket"
-  display_name = "Docker Socket URI"
-  description  = "Override the Docker socket URI (optional — leave empty to use the default)."
-  type         = "string"
-  default      = ""
-  mutable      = false
-  order        = 10
-}
-
-data "coder_parameter" "projects_root" {
-  name         = "projects_root"
-  display_name = "Workspace projects root"
-  description  = "Absolute workspace path shared by Hive Git discovery, terminals, VS Code, and File Browser. Must match Hive's HIVE_PROJECTS_ROOT."
-  type         = "string"
-  default      = "/home/coder"
-  mutable      = false
-  order        = 11
-
-  validation {
-    regex = "^/([^/\\x00]+(/[^/\\x00]+)*)?/?$"
-    error = "Workspace projects root must be an absolute POSIX path."
   }
 }
 
@@ -92,65 +15,58 @@ data "coder_parameter" "projects_root" {
 # Providers & Data Sources
 # =============================================================================
 
-provider "docker" {
-  host = data.coder_parameter.docker_socket.value != "" ? data.coder_parameter.docker_socket.value : null
-}
+provider "kubernetes" {}
 
 data "coder_provisioner" "me" {}
 data "coder_workspace" "me" {}
 data "coder_workspace_owner" "me" {}
+
+locals {
+  profile                      = jsondecode(file("${path.module}/profile.json"))
+  workspace_hostname_candidate = trim(substr(replace(lower(data.coder_workspace.me.name), "/[^a-z0-9-]/", "-"), 0, 63), "-")
+  workspace_hostname           = local.workspace_hostname_candidate != "" ? local.workspace_hostname_candidate : "workspace"
+}
 
 # =============================================================================
 # External Auth
 # =============================================================================
 
 data "coder_external_auth" "github" {
-  id = "primary-github"
+  id = "github"
 }
 
 
-
-# =============================================================================
-# Base image from GHCR
-# =============================================================================
-
-data "docker_registry_image" "main" {
-  name = "ghcr.io/kethalia/hive-base:latest"
-}
-
-resource "docker_image" "main" {
-  name          = data.docker_registry_image.main.name
-  pull_triggers = [data.docker_registry_image.main.sha256_digest]
-  keep_locally  = true
-}
 
 # =============================================================================
 # Coder Agent
 # =============================================================================
 
 resource "coder_agent" "main" {
-  arch = data.coder_provisioner.me.arch
-  os   = "linux"
+  arch                    = "amd64"
+  os                      = "linux"
+  startup_script_behavior = "blocking"
 
   startup_script = templatefile("${path.module}/scripts/init.sh", {
-    workspace_name    = data.coder_workspace.me.name
-    owner_name        = data.coder_workspace_owner.me.name
-    owner_email       = data.coder_workspace_owner.me.email
-    claude_md_content = file("${path.module}/CLAUDE.md")
+    workspace_name           = data.coder_workspace.me.name
+    owner_name               = data.coder_workspace_owner.me.name
+    owner_email              = data.coder_workspace_owner.me.email
+    enable_browser           = local.profile.capabilities.browser
+    claude_md_content        = file("${path.module}/CLAUDE.md")
+    workspace_readme_content = file("${path.module}/WORKSPACE.md")
   })
 
-  env = merge(
-    {
-      GIT_AUTHOR_NAME     = coalesce(data.coder_workspace_owner.me.full_name, data.coder_workspace_owner.me.name)
-      GIT_AUTHOR_EMAIL    = data.coder_workspace_owner.me.email
-      GIT_COMMITTER_NAME  = coalesce(data.coder_workspace_owner.me.full_name, data.coder_workspace_owner.me.name)
-      GIT_COMMITTER_EMAIL = data.coder_workspace_owner.me.email
-      EXTENSIONS_GALLERY  = "{\"serviceUrl\":\"https://marketplace.visualstudio.com/_apis/public/gallery\"}"
-      HIVE_PROJECTS_ROOT  = data.coder_parameter.projects_root.value
-    },
-    data.coder_parameter.claude_code_model.value != "" ? { CLAUDE_CODE_DEFAULT_MODEL = data.coder_parameter.claude_code_model.value } : {},
-    data.coder_parameter.claude_code_system_prompt.value != "" ? { CLAUDE_CODE_SYSTEM_PROMPT = data.coder_parameter.claude_code_system_prompt.value } : {}
-  )
+  env = {
+    GIT_AUTHOR_NAME             = coalesce(data.coder_workspace_owner.me.full_name, data.coder_workspace_owner.me.name)
+    GIT_AUTHOR_EMAIL            = data.coder_workspace_owner.me.email
+    GIT_COMMITTER_NAME          = coalesce(data.coder_workspace_owner.me.full_name, data.coder_workspace_owner.me.name)
+    GIT_COMMITTER_EMAIL         = data.coder_workspace_owner.me.email
+    EXTENSIONS_GALLERY          = "{\"serviceUrl\":\"https://marketplace.visualstudio.com/_apis/public/gallery\"}"
+    HIVE_PROJECTS_ROOT          = "/home/coder"
+    HIVE_WORKSPACE_PROFILE      = local.profile.id
+    HIVE_EXPECTED_IMAGE_VARIANT = local.profile.image_variant
+    HIVE_DESKTOP_ENABLED        = tostring(local.profile.capabilities.desktop)
+    HIVE_BROWSER_ENABLED        = tostring(local.profile.capabilities.browser)
+  }
 
   metadata {
     display_name = "CPU Usage"
@@ -244,6 +160,7 @@ resource "coder_script" "tools_node" {
 }
 
 resource "coder_script" "tools_web3" {
+  count              = local.profile.capabilities.web3 ? 1 : 0
   agent_id           = coder_agent.main.id
   display_name       = "Web3 Tools"
   icon               = "/icon/terminal.svg"
@@ -259,7 +176,11 @@ resource "coder_script" "tools_ci" {
   run_on_start       = true
   start_blocks_login = true
   script = templatefile("${path.module}/scripts/tools-ci.sh", {
-    github_token = data.coder_external_auth.github.access_token
+    github_token                  = data.coder_external_auth.github.access_token
+    github_cli_script_b64         = base64encode(file("${path.module}/scripts/github-cli.sh"))
+    github_credential_script_b64  = base64encode(file("${path.module}/scripts/github-credential.sh"))
+    clone_repositories_script_b64 = base64encode(file("${path.module}/scripts/clone-repositories.sh"))
+    repositories_manifest_b64     = base64encode(file("${path.module}/repositories.txt"))
   })
 }
 
@@ -273,6 +194,7 @@ resource "coder_script" "tools_ai" {
 }
 
 resource "coder_script" "tools_browser" {
+  count              = local.profile.capabilities.browser ? 1 : 0
   agent_id           = coder_agent.main.id
   display_name       = "Browser Vision"
   icon               = "/icon/terminal.svg"
@@ -295,7 +217,7 @@ resource "coder_script" "symlinks" {
 # =============================================================================
 
 module "code-server" {
-  count   = data.coder_workspace.me.start_count
+  count   = local.profile.capabilities.editor ? data.coder_workspace.me.start_count : 0
   source  = "registry.coder.com/modules/code-server/coder"
   version = "1.4.3"
 
@@ -304,18 +226,9 @@ module "code-server" {
   subdomain             = true
   use_cached_extensions = true
 
-  extensions = [
+  extensions = concat([
     "binary-ink.dark-modern-oled-theme-set",
     "pkief.material-icon-theme",
-    "prisma.prisma",
-    "graphql.vscode-graphql",
-    "graphql.vscode-graphql-syntax",
-    "bradlc.vscode-tailwindcss",
-    "tintinweb.vscode-solidity-language",
-    "nomicfoundation.hardhat-solidity",
-    "ms-dotnettools.csharp",
-    "visualstudiotoolsforunity.vstuc",
-    "slevesque.shader",
     "esbenp.prettier-vscode",
     "eamodio.gitlens",
     "oderwat.indent-rainbow",
@@ -328,7 +241,7 @@ module "code-server" {
     "usernamehw.errorlens",
     "streetsidesoftware.code-spell-checker",
     "wayou.vscode-todo-highlight",
-  ]
+  ], local.profile.vscode_extensions)
 
   settings = {
     "[solidity]" : {
@@ -376,21 +289,12 @@ module "code-server" {
   }
 }
 
-resource "coder_app" "gsd" {
-  agent_id     = coder_agent.main.id
-  slug         = "gsd"
-  display_name = "GSD"
-  icon         = "/icon/terminal.svg"
-  command      = "bash -l -c 'export PATH=\"$HOME/.local/bin:$PATH\" && gsd'"
-  share        = "owner"
-}
-
 # =============================================================================
-# File Browser
+# File Browser — user-writable install for the non-root workspace pod
 # =============================================================================
 
 resource "coder_script" "filebrowser" {
-  count              = data.coder_workspace.me.start_count
+  count              = local.profile.capabilities.file_browser ? 1 : 0
   agent_id           = coder_agent.main.id
   display_name       = "File Browser"
   icon               = "/icon/filebrowser.svg"
@@ -400,7 +304,7 @@ resource "coder_script" "filebrowser" {
 }
 
 resource "coder_app" "filebrowser" {
-  count        = data.coder_workspace.me.start_count
+  count        = local.profile.capabilities.file_browser ? 1 : 0
   agent_id     = coder_agent.main.id
   slug         = "filebrowser"
   display_name = "File Browser"
@@ -419,14 +323,6 @@ resource "coder_app" "filebrowser" {
 # =============================================================================
 # GitHub Integration
 # =============================================================================
-
-module "github-upload-public-key" {
-  count            = data.coder_workspace.me.start_count
-  source           = "registry.coder.com/coder/github-upload-public-key/coder"
-  version          = "1.0.32"
-  agent_id         = coder_agent.main.id
-  external_auth_id = data.coder_external_auth.github.id
-}
 
 module "git-commit-signing" {
   count    = data.coder_workspace.me.start_count
@@ -459,37 +355,12 @@ module "claude-code" {
 # =============================================================================
 
 module "kasmvnc" {
-  count               = data.coder_workspace.me.start_count
+  count               = local.profile.capabilities.desktop ? data.coder_workspace.me.start_count : 0
   source              = "registry.coder.com/coder/kasmvnc/coder"
   version             = "1.3.0"
   agent_id            = coder_agent.main.id
   desktop_environment = "xfce"
   port                = 6080
-}
-
-# =============================================================================
-# Node.js via nvm (module replaces tools-nvm.sh)
-# =============================================================================
-
-module "nodejs" {
-  count                = data.coder_workspace.me.start_count
-  source               = "registry.coder.com/thezoker/nodejs/coder"
-  version              = "1.0.13"
-  agent_id             = coder_agent.main.id
-  node_versions        = ["18", "20", "22", "24"]
-  default_node_version = "24"
-}
-
-# =============================================================================
-# Dotfiles (module replaces dotfiles clone in init.sh)
-# =============================================================================
-
-module "dotfiles" {
-  count                 = data.coder_workspace.me.start_count
-  source                = "registry.coder.com/coder/dotfiles/coder"
-  version               = "1.4.1"
-  agent_id              = coder_agent.main.id
-  coder_parameter_order = 11
 }
 
 # =============================================================================
@@ -515,94 +386,243 @@ module "tmux" {
 }
 
 # =============================================================================
-# Docker Resources
+# Kubernetes Resources
 # =============================================================================
 
-resource "docker_volume" "home_volume" {
-  name = "coder-${data.coder_workspace.me.id}-home"
-
-  lifecycle {
-    ignore_changes = all
+resource "kubernetes_persistent_volume_claim_v1" "home" {
+  metadata {
+    name      = "coder-${data.coder_workspace.me.id}-home"
+    namespace = "coder"
+    labels = {
+      "app.kubernetes.io/name"     = "coder-workspace-home"
+      "app.kubernetes.io/instance" = "coder-${data.coder_workspace.me.id}"
+      "app.kubernetes.io/part-of"  = "coder"
+      "com.coder.resource"         = "true"
+      "com.coder.workspace.id"     = data.coder_workspace.me.id
+      "com.coder.workspace.name"   = data.coder_workspace.me.name
+      "com.coder.user.id"          = data.coder_workspace_owner.me.id
+      "com.coder.user.username"    = data.coder_workspace_owner.me.name
+    }
   }
 
-  labels {
-    label = "coder.owner"
-    value = data.coder_workspace_owner.me.name
+  wait_until_bound = false
+
+  spec {
+    access_modes       = ["ReadWriteOnce"]
+    storage_class_name = "longhorn"
+
+    resources {
+      requests = {
+        storage = local.profile.resources.storage
+      }
+    }
   }
-  labels {
-    label = "coder.owner_id"
-    value = data.coder_workspace_owner.me.id
-  }
-  labels {
-    label = "coder.workspace_id"
-    value = data.coder_workspace.me.id
-  }
-  labels {
-    label = "coder.workspace_name_at_creation"
-    value = data.coder_workspace.me.name
-  }
+
 }
 
-resource "docker_container" "workspace" {
-  count    = data.coder_workspace.me.start_count
-  image    = docker_image.main.image_id
-  name     = "coder-${data.coder_workspace_owner.me.name}-${lower(data.coder_workspace.me.name)}"
-  hostname = data.coder_workspace.me.name
+resource "kubernetes_deployment_v1" "workspace" {
+  count            = data.coder_workspace.me.start_count
+  wait_for_rollout = false
 
-  entrypoint = ["sh", "-c", replace(coder_agent.main.init_script, "/localhost|127\\.0\\.0\\.1/", "host.docker.internal")]
-  env        = ["CODER_AGENT_TOKEN=${coder_agent.main.token}"]
-
-  host {
-    host = "host.docker.internal"
-    ip   = "host-gateway"
-  }
-
-  memory      = 12288
-  memory_swap = 32768
-  cpu_shares  = 6144
-
-  volumes {
-    container_path = "/home/coder"
-    volume_name    = docker_volume.home_volume.name
-    read_only      = false
+  metadata {
+    name      = "coder-${data.coder_workspace.me.id}"
+    namespace = "coder"
+    labels = {
+      "app.kubernetes.io/name"     = "coder-workspace"
+      "app.kubernetes.io/instance" = "coder-${data.coder_workspace.me.id}"
+      "app.kubernetes.io/part-of"  = "coder"
+      "com.coder.resource"         = "true"
+      "com.coder.workspace.id"     = data.coder_workspace.me.id
+      "com.coder.workspace.name"   = data.coder_workspace.me.name
+      "com.coder.user.id"          = data.coder_workspace_owner.me.id
+      "com.coder.user.username"    = data.coder_workspace_owner.me.name
+    }
   }
 
-  volumes {
-    container_path = "/var/run/docker.sock"
-    host_path      = "/var/run/docker.sock"
-    read_only      = false
+  spec {
+    replicas = 1
+
+    selector {
+      match_labels = {
+        "app.kubernetes.io/instance" = "coder-${data.coder_workspace.me.id}"
+      }
+    }
+
+    strategy {
+      type = "Recreate"
+    }
+
+    template {
+      metadata {
+        labels = {
+          "app.kubernetes.io/name"     = "coder-workspace"
+          "app.kubernetes.io/instance" = "coder-${data.coder_workspace.me.id}"
+          "app.kubernetes.io/part-of"  = "coder"
+          "com.coder.resource"         = "true"
+          "com.coder.workspace.id"     = data.coder_workspace.me.id
+          "com.coder.workspace.name"   = data.coder_workspace.me.name
+          "com.coder.user.id"          = data.coder_workspace_owner.me.id
+          "com.coder.user.username"    = data.coder_workspace_owner.me.name
+        }
+      }
+
+      spec {
+        automount_service_account_token = false
+        hostname                        = local.workspace_hostname
+
+        security_context {
+          run_as_non_root        = true
+          run_as_user            = 1000
+          run_as_group           = 1000
+          fs_group               = 1000
+          fs_group_change_policy = "OnRootMismatch"
+        }
+
+        affinity {
+          node_affinity {
+            preferred_during_scheduling_ignored_during_execution {
+              weight = 100
+
+              preference {
+                match_expressions {
+                  key      = "kubernetes.io/hostname"
+                  operator = "In"
+                  values   = ["k3s-03"]
+                }
+              }
+            }
+          }
+        }
+
+        image_pull_secrets {
+          name = "ghcr-pull-kethalia"
+        }
+
+        init_container {
+          name              = "seed-home"
+          image             = local.profile.image
+          image_pull_policy = "IfNotPresent"
+          command = [
+            "sh",
+            "-c",
+            "if [ ! -e /target/.hive-image-seeded ]; then cp -R --no-preserve=ownership,timestamps /home/coder/. /target/ && touch /target/.hive-image-seeded; fi",
+          ]
+
+          security_context {
+            allow_privilege_escalation = false
+            run_as_non_root            = true
+            run_as_user                = 1000
+
+            capabilities {
+              drop = ["ALL"]
+            }
+          }
+
+          resources {
+            requests = {
+              cpu    = "100m"
+              memory = "128Mi"
+            }
+            limits = {
+              cpu    = "500m"
+              memory = "512Mi"
+            }
+          }
+
+          volume_mount {
+            name       = "home"
+            mount_path = "/target"
+          }
+        }
+
+        container {
+          name              = "dev"
+          image             = local.profile.image
+          image_pull_policy = "IfNotPresent"
+          command           = ["sh", "-c", coder_agent.main.init_script]
+
+          security_context {
+            allow_privilege_escalation = false
+            run_as_non_root            = true
+            run_as_user                = 1000
+
+            capabilities {
+              drop = ["ALL"]
+            }
+          }
+
+          env {
+            name  = "CODER_AGENT_TOKEN"
+            value = coder_agent.main.token
+          }
+
+          env {
+            name  = "USER"
+            value = "coder"
+          }
+
+          env {
+            name  = "HOME"
+            value = "/home/coder"
+          }
+
+          resources {
+            requests = {
+              cpu    = local.profile.resources.cpu_request
+              memory = local.profile.resources.memory_request
+            }
+            limits = {
+              cpu    = local.profile.resources.cpu_limit
+              memory = local.profile.resources.memory_limit
+            }
+          }
+
+          volume_mount {
+            name       = "home"
+            mount_path = "/home/coder"
+          }
+        }
+
+        volume {
+          name = "home"
+
+          persistent_volume_claim {
+            claim_name = kubernetes_persistent_volume_claim_v1.home.metadata[0].name
+          }
+        }
+      }
+    }
   }
 
-  lifecycle {
-    ignore_changes = [name]
+  depends_on = [kubernetes_persistent_volume_claim_v1.home]
+}
+
+resource "coder_metadata" "workspace" {
+  count       = data.coder_workspace.me.start_count
+  resource_id = kubernetes_deployment_v1.workspace[count.index].id
+
+  item {
+    key   = "template_version"
+    value = "3.0.0"
   }
 
-  healthcheck {
-    test         = ["CMD-SHELL", "pgrep -x coder > /dev/null || pgrep -f 'coder agent' > /dev/null"]
-    interval     = "30s"
-    timeout      = "5s"
-    retries      = 5
-    start_period = "60s"
+  item {
+    key   = "workspace_profile"
+    value = local.profile.id
   }
 
-  labels {
-    label = "coder.owner"
-    value = data.coder_workspace_owner.me.name
+  item {
+    key   = "image_variant"
+    value = local.profile.image_variant
   }
-  labels {
-    label = "coder.owner_id"
-    value = data.coder_workspace_owner.me.id
+
+  item {
+    key   = "workspace_capabilities"
+    value = join(",", [for name, enabled in local.profile.capabilities : name if enabled])
   }
-  labels {
-    label = "coder.workspace_id"
-    value = data.coder_workspace.me.id
-  }
-  labels {
-    label = "coder.workspace_name"
-    value = data.coder_workspace.me.name
-  }
-  labels {
-    label = "coder.template_version"
-    value = "1.0.0"
+
+  item {
+    key   = "home_disk"
+    value = local.profile.resources.storage
   }
 }

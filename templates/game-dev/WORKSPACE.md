@@ -13,7 +13,8 @@ Use this workspace for interactive Unity, Blender, gameplay, shader, and asset w
 
 - Unity Hub and Blender 4.5 LTS
 - C#, Unity, and shader editor support
-- Claude Code, Codex, headed Playwright, code-server, File Browser, and tmux
+- Claude Code, Codex, code-server, File Browser, and tmux
 - Node.js and standard build/GitHub tooling
 
-GPU-heavy rendering and performance conclusions require a GPU-enabled workspace or workstation.
+Browser automation belongs in the Browser Testing workspace. GPU-heavy rendering and performance
+conclusions require a GPU-enabled workspace or workstation.

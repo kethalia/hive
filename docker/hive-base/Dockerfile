@@ -1,10 +1,22 @@
 FROM debian:trixie
 
+ARG WORKSPACE_VARIANT=cli
+
 ENV DEBIAN_FRONTEND=noninteractive
+ENV HIVE_IMAGE_VARIANT=${WORKSPACE_VARIANT}
 
-# ── Stage 1: system packages (all run as root) ────────────────────────────────
+# One Dockerfile produces four intentionally narrow Kubernetes workspace images:
+#   cli         - Codex, Claude Code, and common command-line development tools
+#   game        - cli + XFCE/KasmVNC + Unity Hub + Blender
+#   electronics - cli + XFCE/KasmVNC + KiCad
+#   browser     - cli + XFCE/KasmVNC + Google Chrome
+RUN case "$WORKSPACE_VARIANT" in \
+      cli|game|electronics|browser) ;; \
+      *) printf 'Unsupported WORKSPACE_VARIANT: %s\n' "$WORKSPACE_VARIANT" >&2; exit 1 ;; \
+    esac
 
-# Base system update
+# ── Common CLI image ─────────────────────────────────────────────────────────
+
 RUN apt-get update \
     && apt-get upgrade --yes --no-install-recommends \
     && apt-get install --yes --no-install-recommends \
@@ -14,7 +26,7 @@ RUN apt-get update \
         lsb-release \
     && rm -rf /var/lib/apt/lists/*
 
-# Docker apt repo
+# Docker apt repository. Workspaces get the client/toolchain, never a host socket.
 RUN install -m 0755 -d /etc/apt/keyrings \
     && curl -fsSL https://download.docker.com/linux/debian/gpg \
         -o /etc/apt/keyrings/docker.asc \
@@ -22,65 +34,34 @@ RUN install -m 0755 -d /etc/apt/keyrings \
     && echo \
         "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/debian \
         $(. /etc/os-release && echo "$VERSION_CODENAME") stable" \
-        | tee /etc/apt/sources.list.d/docker.list > /dev/null
+        > /etc/apt/sources.list.d/docker.list
 
-# NodeSource apt repo (signed key — avoids curl|bash installer)
+# NodeSource apt repository (signed key; avoids the curl|bash installer).
 RUN install -m 0755 -d /etc/apt/keyrings \
     && curl -fsSL https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key \
         | gpg --dearmor -o /etc/apt/keyrings/nodesource.gpg \
     && chmod a+r /etc/apt/keyrings/nodesource.gpg \
-    && echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/nodesource.gpg] https://deb.nodesource.com/node_24.x nodistro main" \
+    && echo "deb [signed-by=/etc/apt/keyrings/nodesource.gpg] https://deb.nodesource.com/node_24.x nodistro main" \
         > /etc/apt/sources.list.d/nodesource.list
 
-# Google Chrome apt repo
-RUN curl -fsSL https://dl.google.com/linux/linux_signing_key.pub \
-        | gpg --dearmor -o /etc/apt/keyrings/google-chrome.gpg \
-    && chmod a+r /etc/apt/keyrings/google-chrome.gpg \
-    && echo "deb [arch=amd64 signed-by=/etc/apt/keyrings/google-chrome.gpg] https://dl.google.com/linux/chrome/deb/ stable main" \
-        > /etc/apt/sources.list.d/google-chrome.list
-
-# Install all apt packages in one layer
-# Note: trixie ships postgresql 17 natively — no version suffix needed
-# Note: software-properties-common was removed from Debian trixie
+# Note: Debian trixie ships PostgreSQL 17 natively.
 RUN apt-get update \
     && apt-get install --yes --no-install-recommends \
         apt-utils \
         bash \
         build-essential \
-        containerd.io \
         direnv \
-        docker-ce \
-        docker-ce-cli \
         docker-buildx-plugin \
+        docker-ce-cli \
         docker-compose-plugin \
         fonts-firacode \
-        fonts-liberation \
-        fonts-noto-color-emoji \
         fonts-powerline \
         git \
-        google-chrome-stable \
         htop \
         jq \
-        kicad \
-        kicad-libraries \
-        kicad-packages3d \
-        libatk-bridge2.0-0 \
-        libatspi2.0-0 \
-        libgl1 \
-        libglu1-mesa \
-        libgtk-3-0 \
-        libnotify4 \
-        libnss3 \
-        libsecret-1-0 \
-        libvulkan1 \
-        libxss1 \
-        libxtst6 \
         locales \
         man \
-        mesa-utils \
-        mesa-vulkan-drivers \
         nano \
-        dbus-x11 \
         nodejs \
         openssh-client \
         postgresql \
@@ -93,77 +74,27 @@ RUN apt-get update \
         unzip \
         vim \
         wget \
-        xdg-utils \
-        xfce4 \
-        xfce4-session \
-        xfce4-terminal \
-        xterm \
         zsh \
     && corepack enable \
     && rm -rf /var/lib/apt/lists/*
 
-# Unity Hub 3.19.5 — official Linux package, pinned with its repository digest.
-# Editors and licenses are user-managed under the persistent home volume.
-RUN curl -fsSLo /tmp/unityhub.deb \
-        https://hub.unity3d.com/linux/repos/deb/pool/main/u/unity/unityhub_amd64/UnityHubSetup-3.19.5-amd64.deb \
-    && printf '%s  %s\n' \
-        '5a5b57adc9ce20931c4154c57ffded08f3ffa2743286fdf14c9e7add6b212540' \
-        '/tmp/unityhub.deb' | sha256sum --check --status \
-    && apt-get update \
-    && apt-get install --yes --no-install-recommends /tmp/unityhub.deb \
-    && rm -f /tmp/unityhub.deb \
-    && rm -rf /var/lib/apt/lists/*
-
-# Blender 4.5 LTS — official portable build, pinned for reproducible asset work.
-ARG BLENDER_VERSION=4.5.12
-RUN curl -fsSLo /tmp/blender.tar.xz \
-        "https://download.blender.org/release/Blender4.5/blender-${BLENDER_VERSION}-linux-x64.tar.xz" \
-    && printf '%s  %s\n' \
-        '95e3a2dfedba3bd32ca54fc355eac6b15a11986954ccb02815a07535d0120a25' \
-        '/tmp/blender.tar.xz' | sha256sum --check --status \
-    && mkdir -p /opt/blender \
-    && tar -xJf /tmp/blender.tar.xz --strip-components=1 -C /opt/blender \
-    && ln -s /opt/blender/blender /usr/local/bin/blender \
-    && rm -f /tmp/blender.tar.xz
-
-# KasmVNC (trixie-specific .deb — separate apt-get update needed after Chrome repo add)
-RUN curl -fsSL -o /tmp/kasmvnc.deb \
-        https://github.com/kasmtech/KasmVNC/releases/download/v1.4.0/kasmvncserver_trixie_1.4.0_amd64.deb \
-    && apt-get update \
-    && apt-get install --yes /tmp/kasmvnc.deb \
-    && rm -f /tmp/kasmvnc.deb \
-    && rm -rf /var/lib/apt/lists/*
-
-# Obsidian v1.12.7 (pinned — Electron app, installs to /usr/bin/obsidian)
-RUN curl -fsSL -o /tmp/obsidian.deb \
-        https://github.com/obsidianmd/obsidian-releases/releases/download/v1.12.7/obsidian_1.12.7_amd64.deb \
-    && apt-get update \
-    && apt-get install --yes /tmp/obsidian.deb \
-    && rm -f /tmp/obsidian.deb \
-    && rm -rf /var/lib/apt/lists/*
-
-# notesmd-cli v0.3.4 pre-built binary → /usr/local/bin (available to all users)
+# notesmd-cli v0.3.4 pre-built binary -> /usr/local/bin.
 RUN wget -qO /tmp/notesmd-cli.tar.gz \
         https://github.com/Yakitrak/notesmd-cli/releases/download/v0.3.4/notesmd-cli_0.3.4_linux_amd64.tar.gz \
     && tar xf /tmp/notesmd-cli.tar.gz -C /usr/local/bin notesmd-cli \
     && chmod +x /usr/local/bin/notesmd-cli \
     && rm -f /tmp/notesmd-cli.tar.gz
 
-# act v0.2.74 (pinned) → /usr/local/bin
+# act v0.2.74 pre-built binary -> /usr/local/bin.
 ENV ACT_VERSION=0.2.74
 RUN wget -qO /tmp/act.tar.gz \
         https://github.com/nektos/act/releases/download/v${ACT_VERSION}/act_Linux_x86_64.tar.gz \
     && tar xf /tmp/act.tar.gz -C /usr/local/bin act \
     && chmod +x /usr/local/bin/act \
-    && rm -f /tmp/act.tar.gz
+    && rm -f /tmp/act.tar.gz \
+    && ln -sf /usr/libexec/docker/cli-plugins/docker-compose /usr/bin/docker-compose
 
-# docker-compose symlink
-RUN ln -sf /usr/libexec/docker/cli-plugins/docker-compose /usr/bin/docker-compose
-
-# tmux session persistence plugins — pinned commits for reproducible builds.
-# Installed to /opt/tmux-plugins (image-baked, immutable). Saved sessions
-# live under ~/.tmux/resurrect/ which is on the persistent home volume,
-# so layout, CWD, and scrollback survive container restarts.
+# tmux session persistence plugins, pinned for reproducible builds.
 ARG TMUX_RESURRECT_SHA=e87d7d592cac97fa38c12395ebec042c154a1844
 ARG TMUX_CONTINUUM_SHA=46e0e0023476018ddb4cc0d44783eede27e5a8ec
 RUN mkdir -p /opt/tmux-plugins \
@@ -175,34 +106,128 @@ RUN mkdir -p /opt/tmux-plugins \
     && git -C /opt/tmux-plugins/tmux-continuum checkout "${TMUX_CONTINUUM_SHA}" \
     && rm -rf /opt/tmux-plugins/*/.git
 
-# System-wide tmux config — applies to every socket, including the `-L web`
-# socket used by the terminal proxy.
 COPY tmux.conf /etc/tmux.conf
 
-# Locale — uncomment en_US.UTF-8 in /etc/locale.gen before generating
-# (Debian comments it out by default; locale-gen is a no-op without this)
 RUN sed -i 's/^# *\(en_US.UTF-8 UTF-8\)$/\1/' /etc/locale.gen \
     && locale-gen en_US.UTF-8
 ENV LANG=en_US.UTF-8
 ENV LANGUAGE=en_US.UTF-8
 ENV LC_ALL=en_US.UTF-8
 
-# Desktop entries — container-safe launchers for the remote desktop.
-COPY google-chrome.desktop /usr/share/applications/google-chrome.desktop
-COPY obsidian.desktop      /usr/share/applications/obsidian.desktop
-COPY unity-hub.desktop     /usr/share/applications/unity-hub.desktop
-COPY blender.desktop       /usr/share/applications/blender.desktop
+# ── Desktop capability (game, electronics, and browser only) ─────────────────
 
-# KasmVNC defaults — baked into /etc/kasmvnc/ (system-wide, survives /home/coder
-# volume mounts). XFCE is started natively by KasmVNC's select-de mechanism.
-RUN mkdir -p /etc/kasmvnc
-COPY xstartup      /etc/kasmvnc/xstartup
-COPY kasmvnc.yaml  /etc/kasmvnc/kasmvnc.yaml
-RUN chmod 755 /etc/kasmvnc/xstartup && chmod 644 /etc/kasmvnc/kasmvnc.yaml
+RUN if [ "$WORKSPACE_VARIANT" != "cli" ]; then \
+      apt-get update \
+      && apt-get install --yes --no-install-recommends \
+          dbus-x11 \
+          fonts-liberation \
+          fonts-noto-color-emoji \
+          libatk-bridge2.0-0 \
+          libatspi2.0-0 \
+          libgl1 \
+          libglu1-mesa \
+          libgtk-3-0 \
+          libnotify4 \
+          libnss3 \
+          libsecret-1-0 \
+          libvulkan1 \
+          libxss1 \
+          libxtst6 \
+          mesa-utils \
+          mesa-vulkan-drivers \
+          xdg-utils \
+          xfce4 \
+          xfce4-session \
+          xfce4-terminal \
+          xterm \
+      && rm -rf /var/lib/apt/lists/* \
+      && curl -fsSL -o /tmp/kasmvnc.deb \
+          https://github.com/kasmtech/KasmVNC/releases/download/v1.4.0/kasmvncserver_trixie_1.4.0_amd64.deb \
+      && apt-get update \
+      && apt-get install --yes --no-install-recommends /tmp/kasmvnc.deb \
+      && rm -f /tmp/kasmvnc.deb \
+      && rm -rf /var/lib/apt/lists/*; \
+    fi
 
-# Create coder user
-# ssl-cert group is REQUIRED for KasmVNC (TLS cert access)
-RUN (id ubuntu && userdel -r ubuntu || true) \
+COPY xstartup kasmvnc.yaml /tmp/hive-kasmvnc/
+RUN if [ "$WORKSPACE_VARIANT" != "cli" ]; then \
+      install -d -m 0755 /etc/kasmvnc \
+      && install -m 0755 /tmp/hive-kasmvnc/xstartup /etc/kasmvnc/xstartup \
+      && install -m 0644 /tmp/hive-kasmvnc/kasmvnc.yaml /etc/kasmvnc/kasmvnc.yaml; \
+    fi \
+    && rm -rf /tmp/hive-kasmvnc
+
+# ── Game capability ──────────────────────────────────────────────────────────
+
+RUN if [ "$WORKSPACE_VARIANT" = "game" ]; then \
+      curl -fsSLo /tmp/unityhub.deb \
+          https://hub.unity3d.com/linux/repos/deb/pool/main/u/unity/unityhub_amd64/UnityHubSetup-3.19.5-amd64.deb \
+      && printf '%s  %s\n' \
+          '5a5b57adc9ce20931c4154c57ffded08f3ffa2743286fdf14c9e7add6b212540' \
+          '/tmp/unityhub.deb' | sha256sum --check --status \
+      && apt-get update \
+      && apt-get install --yes --no-install-recommends /tmp/unityhub.deb \
+      && rm -f /tmp/unityhub.deb \
+      && rm -rf /var/lib/apt/lists/*; \
+    fi
+
+ARG BLENDER_VERSION=4.5.12
+RUN if [ "$WORKSPACE_VARIANT" = "game" ]; then \
+      curl -fsSLo /tmp/blender.tar.xz \
+          "https://download.blender.org/release/Blender4.5/blender-${BLENDER_VERSION}-linux-x64.tar.xz" \
+      && printf '%s  %s\n' \
+          '95e3a2dfedba3bd32ca54fc355eac6b15a11986954ccb02815a07535d0120a25' \
+          '/tmp/blender.tar.xz' | sha256sum --check --status \
+      && mkdir -p /opt/blender \
+      && tar -xJf /tmp/blender.tar.xz --strip-components=1 -C /opt/blender \
+      && ln -s /opt/blender/blender /usr/local/bin/blender \
+      && rm -f /tmp/blender.tar.xz; \
+    fi
+
+COPY unity-hub.desktop blender.desktop /tmp/hive-game-desktop/
+RUN if [ "$WORKSPACE_VARIANT" = "game" ]; then \
+      install -m 0644 /tmp/hive-game-desktop/unity-hub.desktop /usr/share/applications/unity-hub.desktop \
+      && install -m 0644 /tmp/hive-game-desktop/blender.desktop /usr/share/applications/blender.desktop; \
+    fi \
+    && rm -rf /tmp/hive-game-desktop
+
+# ── Electronics capability ───────────────────────────────────────────────────
+
+RUN if [ "$WORKSPACE_VARIANT" = "electronics" ]; then \
+      apt-get update \
+      && apt-get install --yes --no-install-recommends \
+          kicad \
+          kicad-libraries \
+          kicad-packages3d \
+      && rm -rf /var/lib/apt/lists/*; \
+    fi
+
+# ── Browser capability ───────────────────────────────────────────────────────
+
+RUN if [ "$WORKSPACE_VARIANT" = "browser" ]; then \
+      curl -fsSL https://dl.google.com/linux/linux_signing_key.pub \
+          | gpg --dearmor -o /etc/apt/keyrings/google-chrome.gpg \
+      && chmod a+r /etc/apt/keyrings/google-chrome.gpg \
+      && echo "deb [arch=amd64 signed-by=/etc/apt/keyrings/google-chrome.gpg] https://dl.google.com/linux/chrome/deb/ stable main" \
+          > /etc/apt/sources.list.d/google-chrome.list \
+      && apt-get update \
+      && apt-get install --yes --no-install-recommends google-chrome-stable \
+      && rm -rf /var/lib/apt/lists/*; \
+    fi
+
+COPY google-chrome.desktop /tmp/hive-browser-desktop/
+RUN if [ "$WORKSPACE_VARIANT" = "browser" ]; then \
+      install -m 0644 /tmp/hive-browser-desktop/google-chrome.desktop /usr/share/applications/google-chrome.desktop; \
+    fi \
+    && rm -rf /tmp/hive-browser-desktop
+
+# ── Non-root workspace user ──────────────────────────────────────────────────
+
+# The group is present in every variant so the user declaration stays identical;
+# only desktop variants install KasmVNC and consume its certificate access.
+RUN groupadd --force docker \
+    && groupadd --force ssl-cert \
+    && (id ubuntu >/dev/null 2>&1 && userdel -r ubuntu || true) \
     && useradd coder \
         --create-home \
         --shell=/bin/zsh \
@@ -212,34 +237,23 @@ RUN (id ubuntu && userdel -r ubuntu || true) \
     && echo "coder ALL=(ALL) NOPASSWD:ALL" >/etc/sudoers.d/nopasswd \
     && chmod 0440 /etc/sudoers.d/nopasswd
 
-# ── Stage 2: user-scoped installs (run as coder) ──────────────────────────────
-
 USER coder
 WORKDIR /home/coder
 
-# Claude CLI — installed as coder so it lands in ~/.local/bin/claude (user-owned)
-# ENV PATH picks it up for non-interactive contexts (docker run, coder_script)
+# Claude Code is image-baked; Codex is installed into the persistent home by
+# the profile startup script so updates do not require rebuilding every variant.
 RUN curl -fsSL https://claude.ai/install.sh | bash
 ENV PATH="/home/coder/.local/bin:${PATH}"
 
-# Common directories
-RUN mkdir -p ~/projects ~/bin ~/.config ~/.ssh ~/.local/bin ~/.claude
-
-# Claude Code — seed the headed Playwright MCP config on first boot.
-COPY --chown=coder:coder claude-mcp.json /home/coder/.claude/mcp.json
-
-# Git defaults
-RUN git config --global init.defaultBranch main \
+RUN mkdir -p ~/projects ~/bin ~/.config ~/.ssh ~/.local/bin ~/.claude \
+    && git config --global init.defaultBranch main \
     && git config --global pull.rebase false \
     && git config --global core.editor vim
 
-# .zshenv — sourced by all zsh invocations (interactive, non-interactive, login, non-login)
-# Keeps PATH correct even after Oh My Zsh overwrites .zshrc
+# PATH configuration for zsh, bash login shells, and Coder app launchers.
 RUN echo 'export PATH="$HOME/.claude/local/bin:$HOME/.local/bin:$HOME/.local/share/pnpm:$HOME/.bun/bin:$HOME/.foundry/bin:$HOME/bin:$PATH"' >> ~/.zshenv \
     && echo 'export PGHOST=localhost' >> ~/.zshenv \
     && echo 'export PGUSER=coder' >> ~/.zshenv \
-    && echo 'export PGDATABASE=coder' >> ~/.zshenv
-
-# .bashrc / .profile for bash -l contexts (coder_app launchers)
-RUN echo 'export PATH="$HOME/.claude/local/bin:$HOME/.local/bin:$HOME/.local/share/pnpm:$HOME/.bun/bin:$HOME/.foundry/bin:$PATH"' >> ~/.bashrc \
-    && echo 'export PATH="$HOME/.claude/local/bin:$HOME/.local/bin:$HOME/.local/share/pnpm:$HOME/.bun/bin:$HOME/.foundry/bin:$PATH"' >> ~/.profile
+    && echo 'export PGDATABASE=coder' >> ~/.zshenv \
+    && echo 'export PATH="$HOME/.claude/local/bin:$HOME/.local/bin:$HOME/.local/share/pnpm:$HOME/.bun/bin:$HOME/.foundry/bin:$HOME/bin:$PATH"' >> ~/.bashrc \
+    && echo 'export PATH="$HOME/.claude/local/bin:$HOME/.local/bin:$HOME/.local/share/pnpm:$HOME/.bun/bin:$HOME/.foundry/bin:$HOME/bin:$PATH"' >> ~/.profile

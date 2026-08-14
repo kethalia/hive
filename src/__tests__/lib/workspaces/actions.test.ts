@@ -379,6 +379,31 @@ describe("workspace server actions", () => {
     expect(result?.serverError).toContain("Not found");
   });
 
+  it("getWorkspaceAgentAction includes the template used to provision the workspace", async () => {
+    mockGetWorkspace.mockResolvedValueOnce({
+      id: "ws-1",
+      name: "orchestrator",
+      template_name: "orchestrator",
+      owner_name: "alice",
+      template_id: "tpl-1",
+      latest_build: {
+        id: "build-1",
+        status: "running",
+        job: { status: "succeeded", error: "" },
+      },
+    });
+
+    const { getWorkspaceAgentAction } = await import("@/lib/actions/workspaces");
+    const result = await getWorkspaceAgentAction({ workspaceId: "ws-1" });
+
+    expect(result?.data).toEqual({
+      agentId: "agent-1",
+      agentName: "main",
+      agentStatus: "connected",
+      templateName: "orchestrator",
+    });
+  });
+
   it("getWorkspaceSessionsAction returns empty array when tmux server is not running", async () => {
     mockGetWorkspaceAgentName.mockResolvedValueOnce("dev.main");
     mockedExec.mockResolvedValueOnce({
@@ -527,6 +552,36 @@ describe("workspace server actions", () => {
       reloadRequired: false,
       source: "tmux",
     });
+  });
+
+  it.each([
+    ["code", "VS Code"],
+    ["files", "File Browser"],
+  ] as const)("rejects %s when the template does not provision it", async (tool, label) => {
+    mockGetWorkspace.mockResolvedValueOnce({
+      id: "ws-1",
+      name: "command-center",
+      template_name: "orchestrator",
+      owner_name: "alice",
+      template_id: "tpl-orchestrator",
+      latest_build: {
+        id: "build-1",
+        status: "running",
+        job: { status: "succeeded", error: "" },
+      },
+    });
+
+    const { getWorkspaceSessionToolsAction } = await import("@/lib/actions/workspaces");
+    const result = await getWorkspaceSessionToolsAction({
+      workspaceId: "ws-1",
+      sessionName: "main",
+      documentFrameHosts: [],
+      tool,
+    });
+
+    expect(result?.serverError).toContain(`${label} is not provisioned`);
+    expect(mockedExec).not.toHaveBeenCalled();
+    expect(mockGetApplicationAuthRedirect).not.toHaveBeenCalled();
   });
 
   it("keeps VS Code on Coder's isolated app subdomain when Hive uses a private CA", async () => {

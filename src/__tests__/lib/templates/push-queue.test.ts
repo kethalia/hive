@@ -164,7 +164,7 @@ describe("push-queue", () => {
       const { getCoderClientForUser } = await import("@/lib/coder/user-client");
 
       const jobPromise = capturedProcessor!({
-        data: { templateName: "ai-dev", jobId: "job-1", userId: "user-abc" },
+        data: { templateName: "orchestrator", jobId: "job-1", userId: "user-abc" },
       });
 
       await vi.waitFor(() => expect(mockSpawn).toHaveBeenCalled(), {
@@ -182,9 +182,9 @@ describe("push-queue", () => {
       expect(args).toEqual([
         "templates",
         "push",
-        "ai-dev",
+        "orchestrator",
         "--directory",
-        "templates/ai-dev",
+        "templates/orchestrator",
         "--yes",
       ]);
 
@@ -197,7 +197,7 @@ describe("push-queue", () => {
 
     it("tees stdout and stderr to log file", async () => {
       const jobPromise = capturedProcessor!({
-        data: { templateName: "ai-dev", jobId: "job-2", userId: "user-abc" },
+        data: { templateName: "orchestrator", jobId: "job-2", userId: "user-abc" },
       });
 
       await vi.waitFor(() => expect(mockSpawn).toHaveBeenCalled(), {
@@ -214,7 +214,7 @@ describe("push-queue", () => {
 
     it("writes [exit:0] sentinel on success", async () => {
       const jobPromise = capturedProcessor!({
-        data: { templateName: "ai-dev", jobId: "job-3", userId: "user-abc" },
+        data: { templateName: "orchestrator", jobId: "job-3", userId: "user-abc" },
       });
 
       await vi.waitFor(() => expect(mockSpawn).toHaveBeenCalled(), {
@@ -228,7 +228,7 @@ describe("push-queue", () => {
 
     it("writes [exit:1] sentinel and rejects on non-zero exit", async () => {
       const jobPromise = capturedProcessor!({
-        data: { templateName: "ai-dev", jobId: "job-4", userId: "user-abc" },
+        data: { templateName: "orchestrator", jobId: "job-4", userId: "user-abc" },
       });
 
       await vi.waitFor(() => expect(mockSpawn).toHaveBeenCalled(), {
@@ -243,7 +243,7 @@ describe("push-queue", () => {
 
     it("rejects on spawn error and writes error to log", async () => {
       const jobPromise = capturedProcessor!({
-        data: { templateName: "ai-dev", jobId: "job-5", userId: "user-abc" },
+        data: { templateName: "orchestrator", jobId: "job-5", userId: "user-abc" },
       });
 
       await vi.waitFor(() => expect(mockSpawn).toHaveBeenCalled(), {
@@ -271,7 +271,7 @@ describe("push-queue", () => {
 
       await expect(
         capturedProcessor!({
-          data: { templateName: "ai-dev", jobId: "job-6", userId: "bad-user" },
+          data: { templateName: "orchestrator", jobId: "job-6", userId: "bad-user" },
         }),
       ).rejects.toThrow("No Coder API token stored for user bad-user");
 
@@ -279,7 +279,7 @@ describe("push-queue", () => {
         flags: "a",
       });
       const allLog = logChunks.join("");
-      expect(allLog).toContain('[template-push] Starting push for "ai-dev"');
+      expect(allLog).toContain('[template-push] Starting push for "orchestrator"');
       expect(allLog).toContain("No Coder API token stored for user bad-user");
       expect(allLog).toContain("[exit:1]");
     });
@@ -295,7 +295,7 @@ describe("push-queue", () => {
 
       await expect(
         capturedProcessor!({
-          data: { templateName: "ai-dev", jobId: "job-7", userId: "user-abc" },
+          data: { templateName: "orchestrator", jobId: "job-7", userId: "user-abc" },
         }),
       ).rejects.toThrow("coder binary not found");
 
@@ -304,7 +304,7 @@ describe("push-queue", () => {
         flags: "a",
       });
       const allLog = logChunks.join("");
-      expect(allLog).toContain('[template-push] Starting push for "ai-dev"');
+      expect(allLog).toContain('[template-push] Starting push for "orchestrator"');
       expect(allLog).toContain("coder binary not found");
       expect(allLog).toContain("[exit:1]");
     });

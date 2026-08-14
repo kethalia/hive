@@ -1,35 +1,54 @@
 # Workspace Template Profiles
 
-Hive ships deployable Coder templates for each interactive workspace use case. Templates define the
-environment and context boundary; tmux/TUI sessions remain the conversation boundary inside them.
+Hive ships six deployable Coder templates for interactive work in the Kubernetes cluster. Templates
+define the environment and capability boundary; tmux/TUI sessions remain the conversation boundary
+inside each workspace.
 
 ## Catalog
 
-| Template | Profile | Runtime | Default resources |
-| --- | --- | --- | --- |
-| `orchestrator` | Orchestrator | Kubernetes | 4 CPU, 8 GiB RAM, 50 GiB home |
-| `ai-dev` | Software development | Docker | Host-configured |
-| `ai-dev-k8s` | Software development | Kubernetes | 6 CPU, 16 GiB RAM, 100 GiB home |
-| `game-dev` | Game development | Kubernetes | 6 CPU, 16 GiB RAM, 150 GiB home |
-| `electronics` | Electronics | Kubernetes | 4 CPU, 8 GiB RAM, 100 GiB home |
-| `infrastructure` | Infrastructure | Kubernetes | 4 CPU, 8 GiB RAM, 75 GiB home |
+| Template | Profile | Image variant | Surface | Default resources |
+| --- | --- | --- | --- | --- |
+| `orchestrator` | Orchestrator | `cli` | TUI/CLI only | 4 CPU, 8 GiB RAM, 50 GiB home |
+| `ai-dev-k8s` | Software development | `cli` | TUI, VS Code, files | 6 CPU, 16 GiB RAM, 100 GiB home |
+| `browser-testing` | Browser testing | `browser` | Chrome, Playwright, desktop | 4 CPU, 8 GiB RAM, 50 GiB home |
+| `game-dev` | Game development | `game` | Unity, Blender, desktop | 6 CPU, 16 GiB RAM, 150 GiB home |
+| `electronics` | Electronics | `electronics` | KiCad, desktop | 4 CPU, 8 GiB RAM, 100 GiB home |
+| `infrastructure` | Infrastructure | `cli` | TUI, VS Code, files | 4 CPU, 8 GiB RAM, 75 GiB home |
 
-The Kubernetes variants share the same digest-pinned `hive-base` image. This keeps deployment and
-node-layer caching efficient while the template overlays specialize resource sizing, editor
-extensions, repository bootstrap, home documentation, and agent instructions.
+There is no Docker-backed workspace template in the catalog. Every template provisions a non-root
+Kubernetes Deployment and a persistent Longhorn home volume in the `coder` namespace.
+
+## Capability boundaries
+
+Each `profile.json` declares its image variant and explicit capabilities. Terraform uses those flags
+to decide which Coder scripts, applications, and modules exist; the image build uses the variant to
+decide which binaries are present.
+
+| Capability | Orchestrator | Software | Browser | Game | Electronics | Infrastructure |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| Claude Code, Codex, tmux, CLI baseline | Yes | Yes | Yes | Yes | Yes | Yes |
+| code-server and File Browser | No | Yes | Yes | Yes | Yes | Yes |
+| XFCE and KasmVNC | No | No | Yes | Yes | Yes | No |
+| Chrome and Playwright MCP | No | No | Yes | No | No | No |
+| Unity Hub and Blender | No | No | No | Yes | No | No |
+| KiCad | No | No | No | No | Yes | No |
+
+This is both a runtime and image boundary. For example, a CLI image does not merely hide the Desktop
+link: it has no XFCE, KasmVNC, Chrome, Unity, Blender, or KiCad executable to launch. Negative smoke
+tests enforce those exclusions for every image build.
 
 ## Source layout
 
-`templates/ai-dev-k8s` is the canonical Kubernetes scaffold. The four specialist directories contain
-byte-identical Terraform and startup scripts plus their own:
+`templates/ai-dev-k8s` is the canonical Kubernetes scaffold. The five other profile directories
+contain byte-identical Terraform and startup scripts plus their own:
 
-- `profile.json` for image, resources, editor extensions, and optional tool surfaces
+- `profile.json` for image variant, capabilities, resources, and editor extensions
 - `CLAUDE.md` for agent behavior and safety boundaries
 - `WORKSPACE.md` for the generated `~/README.md` quick start
 - `repositories.txt` for the narrow first-start repository set
 - `README.md` for operator-facing deployment notes
 
-After changing the canonical Terraform or scripts, synchronize and verify every specialist template:
+After changing canonical Terraform or scripts, synchronize and verify every profile:
 
 ```bash
 pnpm templates:sync
@@ -42,34 +61,38 @@ CLI; the push worker does not need a build step or symlink support.
 
 ## Publish
 
-Authenticate the Coder CLI, then push every template from the repository root:
+Authenticate the Coder CLI, then push every Kubernetes template from the repository root:
 
 ```bash
-coder templates push ai-dev --directory templates/ai-dev --yes
-coder templates push ai-dev-k8s --directory templates/ai-dev-k8s --yes
 coder templates push orchestrator --directory templates/orchestrator --yes
+coder templates push ai-dev-k8s --directory templates/ai-dev-k8s --yes
+coder templates push browser-testing --directory templates/browser-testing --yes
 coder templates push game-dev --directory templates/game-dev --yes
 coder templates push electronics --directory templates/electronics --yes
 coder templates push infrastructure --directory templates/infrastructure --yes
 ```
 
-The Hive Templates page exposes the same catalog and streams each push. A newly added template is
+The Hive Templates page exposes this same catalog and streams each push. A newly added template is
 reported as stale until its first successful push.
 
-## Base image rollout
+## Image rollout
 
-Kubernetes profile configuration pins `ghcr.io/kethalia/hive-base` by digest. The base-image workflow
-builds and smoke-tests the image, then opens a PR updating every Kubernetes `profile.json`. This keeps
-specialist templates on one reviewed image revision.
+`docker/hive-base/Dockerfile` builds `cli`, `browser`, `game`, and `electronics` variants. Pull-request
+CI builds every variant and verifies both required and forbidden commands. After a change lands on
+`main`, the workflow pushes all four tested images and opens a follow-up PR that pins each
+`profile.json` to the digest for its variant.
 
 ## Validation
 
 Before publishing:
 
 1. Run `pnpm templates:check` and `pnpm test:templates`.
-2. Confirm each `profile.json` has the intended resource envelope and profile ID.
+2. Confirm each `profile.json` has the intended capabilities, image variant, resources, and profile
+   ID.
 3. Push the template and create a fresh workspace rather than relying only on an existing PVC.
-4. Verify Coder SSH, the Hive TUI, agent login, editor apps, repository bootstrap, and stop/start
+4. Verify Coder SSH, the Hive TUI, agent login, declared apps, repository bootstrap, and stop/start
    persistence.
-5. Perform domain checks in the matching profile. GPU, physical electronics, and live infrastructure
+5. Confirm excluded apps are absent: especially Desktop in CLI profiles and Chrome/Playwright in
+   every profile except Browser Testing.
+6. Perform domain checks in the matching profile. GPU, physical electronics, and live infrastructure
    access remain explicit external capabilities rather than template assumptions.

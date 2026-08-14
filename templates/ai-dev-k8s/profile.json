@@ -1,9 +1,16 @@
 {
   "id": "software",
   "label": "Software development",
-  "description": "General-purpose repository development, browser testing, CI, and code review.",
+  "description": "Headless repository development, CI, implementation, and code review.",
   "image": "ghcr.io/kethalia/hive-base@sha256:ccf2559d0e9100649ca00294a9feb7ae3b702b09a43bbfa69731805d7b2482f5",
-  "enable_web3": true,
+  "image_variant": "cli",
+  "capabilities": {
+    "browser": false,
+    "desktop": false,
+    "editor": true,
+    "file_browser": true,
+    "web3": true
+  },
   "resources": {
     "cpu_request": "6",
     "memory_request": "16Gi",

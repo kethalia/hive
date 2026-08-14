@@ -2,6 +2,7 @@
 "hive-web": minor
 ---
 
-Add deployable Orchestrator, Game, Electronics, and Infrastructure Coder workspace templates with
-profile-specific resources, editor tooling, repository bootstrap, interactive guidance, and shared
-scaffold synchronization. Expose the complete profile catalog in Hive's template management UI.
+Add Kubernetes-only Orchestrator, Software, Browser Testing, Game, Electronics, and Infrastructure
+Coder workspace profiles with capability-specific images, resources, tooling, repository bootstrap,
+interactive guidance, and shared scaffold synchronization. Expose each profile's runtime surface in
+Hive and hide applications that its template does not provision.

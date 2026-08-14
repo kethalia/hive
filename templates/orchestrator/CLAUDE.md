@@ -11,7 +11,8 @@ Create a new workspace when dependencies, credentials, resources, or repository 
 Starting, stopping, and inspecting workspaces are normal orchestration operations. Never delete a
 workspace or persistent resource without explicit user confirmation of the exact target. Do not
 silently move domain implementation into this command-center workspace; hand it to Software, Game,
-Electronics, or Infrastructure and keep coordination here.
+Electronics, Browser Testing, or Infrastructure and keep coordination here. This workspace is
+terminal-only: do not expect a desktop, browser, code-server, or File Browser app.
 
 Use repository-local source, Git history, issues, and `AGENTS.md` files as the source of truth. Use
 only vendor-published or OpenAI-curated skills and plugins. Do not require or sync an Obsidian vault.

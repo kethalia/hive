@@ -14,6 +14,7 @@ platform repositories.
 
 - GitHub CLI, Docker client, GitHub Actions `act`, and standard build tools
 - Terraform, Kubernetes, YAML, Docker, and GitHub Actions editor support
-- Claude Code, Codex, headed Playwright, code-server, File Browser, and tmux
+- Claude Code, Codex, code-server, File Browser, and tmux
 
-Cluster credentials and production authority are intentionally not provisioned by the template.
+Browser automation belongs in the Browser Testing workspace. Cluster credentials and production
+authority are intentionally not provisioned by the template.

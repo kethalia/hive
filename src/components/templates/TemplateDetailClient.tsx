@@ -9,7 +9,7 @@ import { TemplatePushConfirmation } from "@/components/templates/TemplatePushCon
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { templateCatalogEntry } from "@/lib/templates/catalog";
+import { templateCatalogEntry, workspaceSurfaceLabel } from "@/lib/templates/catalog";
 import type { TemplateStatus } from "@/lib/templates/staleness";
 import { workspaceProfileForTemplate } from "@/lib/workspaces/profiles";
 
@@ -181,12 +181,12 @@ export function TemplateDetailClient({ status }: TemplateDetailClientProps) {
             <div>
               <dt className="text-muted-foreground">Runtime</dt>
               <dd className="mt-0.5 font-medium">
-                {definition?.runtime === "kubernetes"
-                  ? "Kubernetes"
-                  : definition?.runtime === "docker"
-                    ? "Docker"
-                    : "External"}
+                {definition?.runtime === "kubernetes" ? "Kubernetes" : "External"}
               </dd>
+            </div>
+            <div>
+              <dt className="text-muted-foreground">Workspace surface</dt>
+              <dd className="mt-0.5 font-medium">{workspaceSurfaceLabel(status.name)}</dd>
             </div>
             <div>
               <dt className="text-muted-foreground">Last Pushed</dt>

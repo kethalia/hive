@@ -17,5 +17,5 @@ workspaces while keeping all decisions in an interactive TUI conversation.
 - Delete only after confirming the exact workspace name and preserving required work.
 - Route implementation to the matching Software, Game, Electronics, or Infrastructure profile.
 
-The workspace includes Coder CLI login, GitHub tooling, Claude Code, Codex, code-server, File
-Browser, headed Playwright, and tmux persistence.
+The workspace includes Coder CLI login, GitHub tooling, Claude Code, Codex, and tmux persistence. It
+is intentionally headless; open domain tools inside the matching specialist workspace.

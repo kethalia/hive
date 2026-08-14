@@ -10,10 +10,11 @@ long-lived tmux sessions over domain implementation.
 - Requests: 4 CPU and 8 GiB memory
 - Limits: 8 CPU and 16 GiB memory
 - Persistent home: 50 GiB
-- Shared digest-pinned `hive-base` image for efficient node-layer reuse
+- Image variant: digest-pinned `cli`
+- Surface: TUI and command-line tools only
 
-The template configures Claude Code, Codex, Coder CLI login, GitHub CLI, code-server, File Browser,
-headed Playwright, and infrastructure-oriented editor extensions. Its agent instructions require
+The template configures Claude Code, Codex, Coder CLI login, GitHub CLI, and tmux. It does not install
+or start a desktop, code-server, File Browser, Chrome, or Playwright. Its agent instructions require
 exact-target confirmation before destructive workspace operations.
 
 ## Repository bootstrap

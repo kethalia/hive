@@ -14,6 +14,7 @@ firmware repositories.
 
 - KiCad 9 with standard symbols, footprints, templates, and 3D packages
 - `kicad-cli`, C/C++ editor support, Python, and common build tools
-- Claude Code, Codex, code-server, File Browser, headed Playwright, and tmux
+- Claude Code, Codex, code-server, File Browser, and tmux
 
-USB/serial devices and physical bench equipment are not exposed by default.
+Browser automation belongs in the Browser Testing workspace. USB/serial devices and physical bench
+equipment are not exposed by default.

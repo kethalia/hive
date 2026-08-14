@@ -30,7 +30,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { templateCatalogEntry } from "@/lib/templates/catalog";
+import { templateCatalogEntry, workspaceSurfaceLabel } from "@/lib/templates/catalog";
 import type { TemplateStatus } from "@/lib/templates/staleness";
 import { workspaceProfileForTemplate } from "@/lib/workspaces/profiles";
 
@@ -75,7 +75,6 @@ function formatDate(iso: string | null): string {
 function runtimeLabel(templateName: string): string {
   const runtime = templateCatalogEntry(templateName)?.runtime;
   if (runtime === "kubernetes") return "Kubernetes";
-  if (runtime === "docker") return "Docker";
   return "External";
 }
 
@@ -267,6 +266,7 @@ export function TemplatesClient({ initialStatuses }: TemplatesClientProps) {
                 <TableHead>Name</TableHead>
                 <TableHead>Profile</TableHead>
                 <TableHead>Runtime</TableHead>
+                <TableHead>Surface</TableHead>
                 <TableHead>Last Pushed</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead className="text-right">Action</TableHead>
@@ -294,6 +294,9 @@ export function TemplatesClient({ initialStatuses }: TemplatesClientProps) {
                     </TableCell>
                     <TableCell className="text-sm text-muted-foreground">
                       {runtimeLabel(status.name)}
+                    </TableCell>
+                    <TableCell className="text-sm text-muted-foreground">
+                      {workspaceSurfaceLabel(status.name)}
                     </TableCell>
                     <TableCell className="text-muted-foreground text-sm">
                       {formatDate(status.lastPushed)}
@@ -375,6 +378,7 @@ export function TemplatesClient({ initialStatuses }: TemplatesClientProps) {
                   <ListCardRows>
                     <ListCardRow label="Profile">{profile.label}</ListCardRow>
                     <ListCardRow label="Runtime">{runtimeLabel(status.name)}</ListCardRow>
+                    <ListCardRow label="Surface">{workspaceSurfaceLabel(status.name)}</ListCardRow>
                     {definition ? (
                       <ListCardRow label="Purpose">{definition.description}</ListCardRow>
                     ) : null}

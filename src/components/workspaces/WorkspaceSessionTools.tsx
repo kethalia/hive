@@ -26,6 +26,8 @@ interface WorkspaceSessionToolsProps {
   sessionName: string;
   label: string;
   fallbackPath?: string;
+  showCode?: boolean;
+  showFiles?: boolean;
   onOpenTool: Dispatch<WorkspaceToolOpenRequest>;
   onOpenLogs?: () => void;
 }
@@ -48,6 +50,8 @@ export function WorkspaceSessionTools({
   sessionName,
   label,
   fallbackPath,
+  showCode = true,
+  showFiles = true,
   onOpenTool,
   onOpenLogs,
 }: WorkspaceSessionToolsProps) {
@@ -107,18 +111,22 @@ export function WorkspaceSessionTools({
 
   return (
     <div className="flex items-center gap-0.5" data-testid={`workspace-tools-${sessionName}`}>
-      <ToolButton
-        tool="files"
-        label={`Browse files for ${label}`}
-        loading={loadingTools.has("files")}
-        onClick={() => void openTool("files")}
-      />
-      <ToolButton
-        tool="code"
-        label={`Open VS Code for ${label}`}
-        loading={loadingTools.has("code")}
-        onClick={() => void openTool("code")}
-      />
+      {showFiles ? (
+        <ToolButton
+          tool="files"
+          label={`Browse files for ${label}`}
+          loading={loadingTools.has("files")}
+          onClick={() => void openTool("files")}
+        />
+      ) : null}
+      {showCode ? (
+        <ToolButton
+          tool="code"
+          label={`Open VS Code for ${label}`}
+          loading={loadingTools.has("code")}
+          onClick={() => void openTool("code")}
+        />
+      ) : null}
       {onOpenLogs ? (
         <Button
           type="button"

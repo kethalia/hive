@@ -2,12 +2,12 @@
 
 This Coder template provides the general-purpose software profile used by Hive. It runs as a
 non-root Kubernetes Deployment with a persistent Longhorn home volume and keeps implementation,
-debugging, browser testing, and review work inside an interactive TUI session.
+debugging, CI, and review work inside an interactive TUI session.
 
 ## Runtime
 
 - Profile: `software`
-- Image: digest-pinned `ghcr.io/kethalia/hive-base`
+- Image variant: digest-pinned `cli`
 - Requests: 6 CPU and 16 GiB memory
 - Limits: 12 CPU and 32 GiB memory
 - Persistent home: 100 GiB at `/home/coder`
@@ -18,14 +18,14 @@ remote builder.
 
 ## Tool surface
 
-The profile enables Claude Code, Codex, headed Playwright, code-server, File Browser, GitHub CLI,
-Node.js package managers, Foundry, GitHub Actions `act`, tmux persistence, and software-focused
-editor extensions. Agent capabilities are limited to pinned vendor-published or OpenAI-curated
-skills and the official GitHub plugin.
+The headless profile enables Claude Code, Codex, code-server, File Browser, GitHub CLI, Node.js
+package managers, Foundry, GitHub Actions `act`, tmux persistence, and software-focused editor
+extensions. It does not install or start XFCE, KasmVNC, Chrome, Playwright, Unity, Blender, or KiCad.
+Browser validation belongs in `browser-testing`.
 
 The shared skill baseline includes `cloudflare-deploy`, `security-best-practices`,
 `security-threat-model`, `vercel-react-best-practices`, `vercel-composition-patterns`, and
-`web-design-guidelines`. Playwright remains an MCP server rather than a duplicated skill.
+`web-design-guidelines`.
 
 On first startup, `repositories.txt` is cloned under `~/projects`. Edit that manifest before pushing
 the template when the default repository set should change.

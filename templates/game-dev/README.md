@@ -1,8 +1,7 @@
 # Game Development Workspace on Kubernetes
 
-This Coder template isolates game and content work from the general software workspace while reusing
-the same cached base image. Its persistent home is sized for Unity Editors, projects, Blender assets,
-and generated caches.
+This Coder template isolates game and content work in a dedicated desktop image. Its persistent home
+is sized for Unity Editors, projects, Blender assets, and generated caches.
 
 ## Runtime
 
@@ -11,6 +10,7 @@ and generated caches.
 - Limits: 12 CPU and 32 GiB memory
 - Persistent home: 150 GiB
 - No guaranteed GPU
+- Image variant: `game` (no Chrome, Playwright, KiCad, or Obsidian)
 
 Unity Hub, Blender 4.5 LTS, Coder Desktop, Claude Code, Codex, code-server, File Browser, and focused
 C#/Unity/shader editor extensions are available. Unity licenses and Editors remain in the persistent

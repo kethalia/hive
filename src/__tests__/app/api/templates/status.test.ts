@@ -59,7 +59,7 @@ describe("GET /api/templates/status", () => {
         remoteHash: "abc",
       },
       {
-        name: "ai-dev",
+        name: "browser-testing",
         stale: true,
         lastPushed: "2026-04-09T08:00:00Z",
         activeVersionId: "v2",

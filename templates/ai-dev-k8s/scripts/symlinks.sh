@@ -46,9 +46,6 @@ for bin in forge cast anvil chisel; do
   [ -f "$HOME/.foundry/bin/$bin" ] && ln -sf "$HOME/.foundry/bin/$bin" "$HOME/.local/bin/$bin"
 done
 
-# User-writable compatibility name for tools that invoke chromium-browser via PATH.
-[ -x /usr/bin/google-chrome-stable ] && ln -sf /usr/bin/google-chrome-stable "$HOME/.local/bin/chromium-browser"
-
 printf "%s[ok] All tool symlinks created%s\n" "$GREEN" "$RESET"
 
 echo ""

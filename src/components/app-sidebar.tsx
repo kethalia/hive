@@ -122,6 +122,7 @@ import type {
 import { getGitRepositoryPresentation } from "@/lib/git/clone-public-identifiers";
 import { isCloneTerminalSessionName } from "@/lib/git/clone-terminal-session";
 import type { CloneTreeDiagnostics, CloneTreeRepositoryNode } from "@/lib/git/clone-tree";
+import { workspaceTemplateCapabilities } from "@/lib/templates/catalog";
 import type { TemplateStatus } from "@/lib/templates/staleness";
 import { dispatchTerminalSettingsChanged } from "@/lib/terminal/settings-events";
 import { cn } from "@/lib/utils";
@@ -1767,6 +1768,13 @@ export function AppSidebar() {
                           agent && coderUrl
                             ? buildWorkspaceUrls(ws, agent.agentName, coderUrl)
                             : null;
+                        const templateCapabilities = workspaceTemplateCapabilities(
+                          ws.template_name ?? "",
+                        );
+                        const hasWorkspaceApps =
+                          templateCapabilities.editor ||
+                          templateCapabilities.fileBrowser ||
+                          templateCapabilities.desktop;
                         const sessions = workspaceSessions[ws.id];
                         const agentUnavailable = agent && agent.agentStatus !== "connected";
                         const isRestarting = restartingWorkspaces.has(ws.id);
@@ -2000,75 +2008,84 @@ export function AppSidebar() {
                                       </CollapsibleContent>
                                     </SidebarMenuSubItem>
                                   </Collapsible>
-                                  {urls && (
+                                  {urls && hasWorkspaceApps && (
                                     <SidebarMenuSubItem>
                                       <p className="px-2 pb-1 pt-2 text-[10px] font-medium uppercase tracking-wider text-sidebar-foreground/50">
                                         Tools
                                       </p>
                                       <SidebarMenuSub className="!mr-0 !pr-0">
-                                        <SidebarMenuSubItem>
-                                          <SidebarMenuSubButton
-                                            render={
-                                              <Link
-                                                href={urls.filebrowser}
-                                                target="_blank"
-                                                rel="noopener noreferrer"
+                                        {templateCapabilities.fileBrowser && (
+                                          <SidebarMenuSubItem>
+                                            <SidebarMenuSubButton
+                                              render={
+                                                <Link
+                                                  href={urls.filebrowser}
+                                                  target="_blank"
+                                                  rel="noopener noreferrer"
+                                                />
+                                              }
+                                              aria-label="Files (opens in a new tab)"
+                                            >
+                                              <FolderOpen
+                                                aria-hidden="true"
+                                                className="h-3 w-3 shrink-0"
                                               />
-                                            }
-                                            aria-label="Files (opens in a new tab)"
-                                          >
-                                            <FolderOpen
-                                              aria-hidden="true"
-                                              className="h-3 w-3 shrink-0"
-                                            />
-                                            <span>Files</span>
-                                            <ExternalLink
-                                              aria-hidden="true"
-                                              className="ml-auto size-3"
-                                            />
-                                          </SidebarMenuSubButton>
-                                        </SidebarMenuSubItem>
-                                        <SidebarMenuSubItem>
-                                          <SidebarMenuSubButton
-                                            render={
-                                              <Link
-                                                href={urls.codeServer}
-                                                target="_blank"
-                                                rel="noopener noreferrer"
+                                              <span>Files</span>
+                                              <ExternalLink
+                                                aria-hidden="true"
+                                                className="ml-auto size-3"
                                               />
-                                            }
-                                            aria-label="VS Code (opens in a new tab)"
-                                          >
-                                            <Code aria-hidden="true" className="h-3 w-3 shrink-0" />
-                                            <span>VS Code</span>
-                                            <ExternalLink
-                                              aria-hidden="true"
-                                              className="ml-auto size-3"
-                                            />
-                                          </SidebarMenuSubButton>
-                                        </SidebarMenuSubItem>
-                                        <SidebarMenuSubItem>
-                                          <SidebarMenuSubButton
-                                            render={
-                                              <Link
-                                                href={urls.kasmvnc}
-                                                target="_blank"
-                                                rel="noopener noreferrer"
+                                            </SidebarMenuSubButton>
+                                          </SidebarMenuSubItem>
+                                        )}
+                                        {templateCapabilities.editor && (
+                                          <SidebarMenuSubItem>
+                                            <SidebarMenuSubButton
+                                              render={
+                                                <Link
+                                                  href={urls.codeServer}
+                                                  target="_blank"
+                                                  rel="noopener noreferrer"
+                                                />
+                                              }
+                                              aria-label="VS Code (opens in a new tab)"
+                                            >
+                                              <Code
+                                                aria-hidden="true"
+                                                className="h-3 w-3 shrink-0"
                                               />
-                                            }
-                                            aria-label="Desktop (opens in a new tab)"
-                                          >
-                                            <ScreenIcon
-                                              aria-hidden="true"
-                                              className="h-3 w-3 shrink-0"
-                                            />
-                                            <span>Desktop</span>
-                                            <ExternalLink
-                                              aria-hidden="true"
-                                              className="ml-auto size-3"
-                                            />
-                                          </SidebarMenuSubButton>
-                                        </SidebarMenuSubItem>
+                                              <span>VS Code</span>
+                                              <ExternalLink
+                                                aria-hidden="true"
+                                                className="ml-auto size-3"
+                                              />
+                                            </SidebarMenuSubButton>
+                                          </SidebarMenuSubItem>
+                                        )}
+                                        {templateCapabilities.desktop && (
+                                          <SidebarMenuSubItem>
+                                            <SidebarMenuSubButton
+                                              render={
+                                                <Link
+                                                  href={urls.kasmvnc}
+                                                  target="_blank"
+                                                  rel="noopener noreferrer"
+                                                />
+                                              }
+                                              aria-label="Desktop (opens in a new tab)"
+                                            >
+                                              <ScreenIcon
+                                                aria-hidden="true"
+                                                className="h-3 w-3 shrink-0"
+                                              />
+                                              <span>Desktop</span>
+                                              <ExternalLink
+                                                aria-hidden="true"
+                                                className="ml-auto size-3"
+                                              />
+                                            </SidebarMenuSubButton>
+                                          </SidebarMenuSubItem>
+                                        )}
                                       </SidebarMenuSub>
                                     </SidebarMenuSubItem>
                                   )}

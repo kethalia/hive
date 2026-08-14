@@ -3,7 +3,6 @@ set -e
 
 BOLD='\033[0;1m'
 GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
 RESET='\033[0m'
 
 # Ensure PATH includes tool directories
@@ -13,14 +12,19 @@ mkdir -p "$HOME/.local/bin"
 # Force npm global installs into ~/.local (user-writable, already on PATH)
 export npm_config_prefix="$HOME/.local"
 
-printf "${BOLD}[browser] Setting up browser vision tools...${RESET}\n"
+printf '%b[browser] Setting up browser vision tools...%b\n' "$BOLD" "$RESET"
 
-# Chrome is installed in the Docker image; Dockerfile symlinks it to
-# /usr/bin/chromium-browser so Playwright finds it without extra config.
+# Chrome is installed in the image. The symlink setup exposes a user-writable
+# chromium-browser compatibility command without modifying the root filesystem.
 CHROME_BIN="/usr/bin/google-chrome-stable"
+if [ ! -x "$CHROME_BIN" ]; then
+  printf '[error] Browser image is missing %s\n' "$CHROME_BIN" >&2
+  exit 1
+fi
+ln -sf "$CHROME_BIN" "$HOME/.local/bin/chromium-browser"
 
-# Claude Code Playwright MCP is baked into the Docker image
-# at ~/.claude/mcp.json. Codex MCP is managed at startup in ~/.codex/config.toml.
+# Claude Code and Codex Playwright MCP entries are managed by init.sh only for
+# the browser-testing profile.
 
 # Create screenshot helper using Google Chrome (CLI fallback for scripts)
 cat > "$HOME/.local/bin/browser-screenshot" << SCREENSHOT
@@ -50,7 +54,7 @@ BROWSERHTML
 chmod +x "$HOME/.local/bin/browser-html"
 echo "Helper scripts using: $CHROME_BIN"
 
-printf "${GREEN}[ok] Browser vision tools ready${RESET}\n"
-printf "  Claude Code: Playwright MCP via ~/.claude/mcp.json (baked into image)\n"
+printf '%b[ok] Browser vision tools ready%b\n' "$GREEN" "$RESET"
+printf "  Claude Code: Playwright MCP via ~/.claude/mcp.json (managed at startup)\n"
 printf "  Codex: Playwright MCP via ~/.codex/config.toml (managed at startup)\n"
 printf "  CLI helpers: browser-screenshot <url> and browser-html <url>\n"

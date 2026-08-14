@@ -66,6 +66,12 @@ disabled = true
 STARSHIPEOF
 fi
 
+# Remove the exact alias created by the former all-in-one image. Chrome now
+# exists only in the browser-testing workspace.
+if [ -f "$HOME/.zshrc" ]; then
+  sed -i '/^alias chrome="DISPLAY=:1 google-chrome-stable --no-sandbox"$/d' "$HOME/.zshrc"
+fi
+
 # Append shell config only if not already present (idempotency guard)
 if ! grep -q '# Custom aliases' "$HOME/.zshrc" 2>/dev/null; then
   cat >> "$HOME/.zshrc" << 'ZSHEOF'
@@ -77,7 +83,6 @@ alias gp="git pull"
 alias gc="git commit"
 alias gco="git checkout"
 alias ll="ls -lah"
-alias chrome="DISPLAY=:1 google-chrome-stable --no-sandbox"
 
 # Direnv hook
 eval "$(direnv hook zsh)"

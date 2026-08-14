@@ -1,8 +1,8 @@
 # Electronics Workspace on Kubernetes
 
-This Coder template provides a focused environment for KiCad design and hardware-oriented source
-work. It reuses the cached Hive base image while narrowing editor extensions, repository bootstrap,
-resource sizing, and agent guidance to electronics.
+This Coder template provides a focused desktop image for KiCad design and hardware-oriented source
+work, with editor extensions, repository bootstrap, resource sizing, and agent guidance scoped to
+electronics.
 
 ## Runtime
 
@@ -11,6 +11,7 @@ resource sizing, and agent guidance to electronics.
 - Limits: 8 CPU and 16 GiB memory
 - Persistent home: 100 GiB
 - No USB or serial device passthrough by default
+- Image variant: `electronics` (no Chrome, Playwright, Unity, Blender, or Obsidian)
 
 KiCad 9, its standard libraries and 3D packages, `kicad-cli`, C/C++ editor support, Claude Code,
 Codex, code-server, File Browser, and Coder Desktop are available. Add approved project repositories

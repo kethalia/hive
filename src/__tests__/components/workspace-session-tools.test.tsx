@@ -114,6 +114,32 @@ describe("WorkspaceSessionTools", () => {
     expect(onOpenTool).not.toHaveBeenCalled();
   });
 
+  it("hides unprovisioned workspace apps while keeping session logs available", () => {
+    const onOpenTool = vi.fn();
+    const onOpenLogs = vi.fn();
+    render(
+      <WorkspaceSessionTools
+        workspaceId="ws-1"
+        sessionName="main"
+        label="Orchestrator"
+        showCode={false}
+        showFiles={false}
+        onOpenTool={onOpenTool}
+        onOpenLogs={onOpenLogs}
+      />,
+    );
+
+    expect(
+      screen.queryByRole("button", { name: "Browse files for Orchestrator" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Open VS Code for Orchestrator" }),
+    ).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Open session logs for Orchestrator" }));
+    expect(onOpenLogs).toHaveBeenCalledOnce();
+    expect(mockGetWorkspaceSessionTools).not.toHaveBeenCalled();
+  });
+
   it("opens File Browser and VS Code concurrently with independent loading states", async () => {
     const filesRequest = Promise.withResolvers<{
       data: { codeUrl: string; filesUrl: string; folderPath: string | null };

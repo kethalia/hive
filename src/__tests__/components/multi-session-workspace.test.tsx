@@ -821,6 +821,24 @@ describe("MultiSessionWorkspace", () => {
     expect(screen.getByTestId("workspace-tool-pane-code")).toBeInTheDocument();
   });
 
+  it("keeps the orchestrator terminal-only", async () => {
+    mockGetSessions.mockResolvedValue(twoSessionPayload());
+    render(<MultiSessionWorkspace {...defaultProps} templateName="orchestrator" />);
+
+    await screen.findByTestId("workspace-pane-main-session");
+
+    expect(
+      screen.queryByRole("button", { name: "Browse files for main-session" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Open VS Code for main-session" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Open session logs for main-session" }),
+    ).toBeInTheDocument();
+    expect(mockGetWorkspaceSessionTools).not.toHaveBeenCalled();
+  });
+
   it("opens and restores a live session log as a tiled workspace pane", async () => {
     mockGetSessions.mockResolvedValue(twoSessionPayload());
     const firstRender = render(<MultiSessionWorkspace {...defaultProps} />);

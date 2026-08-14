@@ -50,18 +50,22 @@ resource "coder_agent" "main" {
     workspace_name           = data.coder_workspace.me.name
     owner_name               = data.coder_workspace_owner.me.name
     owner_email              = data.coder_workspace_owner.me.email
+    enable_browser           = local.profile.capabilities.browser
     claude_md_content        = file("${path.module}/CLAUDE.md")
     workspace_readme_content = file("${path.module}/WORKSPACE.md")
   })
 
   env = {
-    GIT_AUTHOR_NAME        = coalesce(data.coder_workspace_owner.me.full_name, data.coder_workspace_owner.me.name)
-    GIT_AUTHOR_EMAIL       = data.coder_workspace_owner.me.email
-    GIT_COMMITTER_NAME     = coalesce(data.coder_workspace_owner.me.full_name, data.coder_workspace_owner.me.name)
-    GIT_COMMITTER_EMAIL    = data.coder_workspace_owner.me.email
-    EXTENSIONS_GALLERY     = "{\"serviceUrl\":\"https://marketplace.visualstudio.com/_apis/public/gallery\"}"
-    HIVE_PROJECTS_ROOT     = "/home/coder"
-    HIVE_WORKSPACE_PROFILE = local.profile.id
+    GIT_AUTHOR_NAME             = coalesce(data.coder_workspace_owner.me.full_name, data.coder_workspace_owner.me.name)
+    GIT_AUTHOR_EMAIL            = data.coder_workspace_owner.me.email
+    GIT_COMMITTER_NAME          = coalesce(data.coder_workspace_owner.me.full_name, data.coder_workspace_owner.me.name)
+    GIT_COMMITTER_EMAIL         = data.coder_workspace_owner.me.email
+    EXTENSIONS_GALLERY          = "{\"serviceUrl\":\"https://marketplace.visualstudio.com/_apis/public/gallery\"}"
+    HIVE_PROJECTS_ROOT          = "/home/coder"
+    HIVE_WORKSPACE_PROFILE      = local.profile.id
+    HIVE_EXPECTED_IMAGE_VARIANT = local.profile.image_variant
+    HIVE_DESKTOP_ENABLED        = tostring(local.profile.capabilities.desktop)
+    HIVE_BROWSER_ENABLED        = tostring(local.profile.capabilities.browser)
   }
 
   metadata {
@@ -156,7 +160,7 @@ resource "coder_script" "tools_node" {
 }
 
 resource "coder_script" "tools_web3" {
-  count              = local.profile.enable_web3 ? 1 : 0
+  count              = local.profile.capabilities.web3 ? 1 : 0
   agent_id           = coder_agent.main.id
   display_name       = "Web3 Tools"
   icon               = "/icon/terminal.svg"
@@ -190,6 +194,7 @@ resource "coder_script" "tools_ai" {
 }
 
 resource "coder_script" "tools_browser" {
+  count              = local.profile.capabilities.browser ? 1 : 0
   agent_id           = coder_agent.main.id
   display_name       = "Browser Vision"
   icon               = "/icon/terminal.svg"
@@ -212,7 +217,7 @@ resource "coder_script" "symlinks" {
 # =============================================================================
 
 module "code-server" {
-  count   = data.coder_workspace.me.start_count
+  count   = local.profile.capabilities.editor ? data.coder_workspace.me.start_count : 0
   source  = "registry.coder.com/modules/code-server/coder"
   version = "1.4.3"
 
@@ -289,6 +294,7 @@ module "code-server" {
 # =============================================================================
 
 resource "coder_script" "filebrowser" {
+  count              = local.profile.capabilities.file_browser ? 1 : 0
   agent_id           = coder_agent.main.id
   display_name       = "File Browser"
   icon               = "/icon/filebrowser.svg"
@@ -298,6 +304,7 @@ resource "coder_script" "filebrowser" {
 }
 
 resource "coder_app" "filebrowser" {
+  count        = local.profile.capabilities.file_browser ? 1 : 0
   agent_id     = coder_agent.main.id
   slug         = "filebrowser"
   display_name = "File Browser"
@@ -348,7 +355,7 @@ module "claude-code" {
 # =============================================================================
 
 module "kasmvnc" {
-  count               = data.coder_workspace.me.start_count
+  count               = local.profile.capabilities.desktop ? data.coder_workspace.me.start_count : 0
   source              = "registry.coder.com/coder/kasmvnc/coder"
   version             = "1.3.0"
   agent_id            = coder_agent.main.id
@@ -596,12 +603,22 @@ resource "coder_metadata" "workspace" {
 
   item {
     key   = "template_version"
-    value = "2.0.0"
+    value = "3.0.0"
   }
 
   item {
     key   = "workspace_profile"
     value = local.profile.id
+  }
+
+  item {
+    key   = "image_variant"
+    value = local.profile.image_variant
+  }
+
+  item {
+    key   = "workspace_capabilities"
+    value = join(",", [for name, enabled in local.profile.capabilities : name if enabled])
   }
 
   item {

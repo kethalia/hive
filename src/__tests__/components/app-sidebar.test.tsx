@@ -482,7 +482,7 @@ function makeWorkspace(overrides: Partial<CoderWorkspace> = {}): CoderWorkspace 
     id: "ws-1",
     name: "dev-box",
     template_id: "tpl-1",
-    template_name: "ai-dev",
+    template_name: "browser-testing",
     owner_name: "alice",
     latest_build: {
       id: "build-1",
@@ -495,7 +495,7 @@ function makeWorkspace(overrides: Partial<CoderWorkspace> = {}): CoderWorkspace 
 
 function makeTemplate(overrides: Partial<TemplateStatus> = {}): TemplateStatus {
   return {
-    name: "ai-dev",
+    name: "browser-testing",
     stale: false,
     ...overrides,
   } as TemplateStatus;
@@ -799,7 +799,7 @@ describe("AppSidebar", () => {
     render(<AppSidebar />);
 
     await waitFor(() => {
-      expect(screen.getByText("ai-dev")).toBeInTheDocument();
+      expect(screen.getByText("browser-testing")).toBeInTheDocument();
     });
   });
 
@@ -1771,6 +1771,36 @@ describe("AppSidebar", () => {
       "https://code-server.test",
     );
     expect(screen.getByText("VS Code").closest("a")).toHaveAttribute("target", "_blank");
+  });
+
+  it("shows only provisioned apps for headless workspace profiles", async () => {
+    mockListWorkspaces.mockResolvedValue({
+      data: [makeWorkspace({ template_name: "ai-dev-k8s" })],
+    });
+
+    render(<AppSidebar />);
+    await screen.findByText("dev-box");
+    fireEvent.click(screen.getByTestId("workspace-disclosure-ws-1"));
+    await screen.findByText("Files");
+
+    expect(screen.getByText("VS Code")).toBeInTheDocument();
+    expect(screen.queryByText("Desktop")).not.toBeInTheDocument();
+  });
+
+  it("does not render a web-app section for the terminal-only orchestrator", async () => {
+    mockListWorkspaces.mockResolvedValue({
+      data: [makeWorkspace({ template_name: "orchestrator" })],
+    });
+
+    render(<AppSidebar />);
+    await screen.findByText("dev-box");
+    fireEvent.click(screen.getByTestId("workspace-disclosure-ws-1"));
+    await waitFor(() => expect(mockGetWorkspaceAgent).toHaveBeenCalled());
+
+    expect(screen.queryByText("Tools")).not.toBeInTheDocument();
+    expect(screen.queryByText("Files")).not.toBeInTheDocument();
+    expect(screen.queryByText("VS Code")).not.toBeInTheDocument();
+    expect(screen.queryByText("Desktop")).not.toBeInTheDocument();
   });
 
   it("uses the workspace name as the unified workspace link without a redundant child", async () => {

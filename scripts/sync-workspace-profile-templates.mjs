@@ -5,6 +5,7 @@ const repositoryRoot = process.cwd();
 const canonicalRoot = join(repositoryRoot, "templates", "ai-dev-k8s");
 const targetRoots = [
   join(repositoryRoot, "templates", "orchestrator"),
+  join(repositoryRoot, "templates", "browser-testing"),
   join(repositoryRoot, "templates", "game-dev"),
   join(repositoryRoot, "templates", "electronics"),
   join(repositoryRoot, "templates", "infrastructure"),
