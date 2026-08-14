@@ -1,5 +1,15 @@
 # hive-migrate
 
+## 0.1.6
+
+### Patch Changes
+
+- f34c01f: Retire the asynchronous Tasks workflow and task-specific Coder template in favor of interactive,
+  profile-driven workspaces. Add authenticated start, stop, and exact-name-confirmed delete controls,
+  plus the database migration that removes legacy task records and task-owned workspace metadata.
+- Updated dependencies [f34c01f]
+  - @hive/db@0.2.0
+
 ## 0.1.5
 
 ### Patch Changes
