@@ -844,14 +844,14 @@ function runBrowserHelperCleanupFixture(contents) {
 
 function verifyBrowserHelperOwnershipCleanup() {
   const customScreenshot = "#!/bin/bash\necho user-screenshot\n";
-  const customHtml = "#!/bin/bash\necho user-html\n";
+  const customDomScript = "#!/bin/bash\necho user-html\n";
   const custom = runBrowserHelperCleanupFixture({
     screenshot: customScreenshot,
-    domHelper: customHtml,
+    domHelper: customDomScript,
   });
   assert.equal(custom.result.status, 0, custom.result.stderr);
   assert.equal(readFileSync(custom.screenshot, "utf8"), customScreenshot);
-  assert.equal(readFileSync(custom.domHelper, "utf8"), customHtml);
+  assert.equal(readFileSync(custom.domHelper, "utf8"), customDomScript);
 
   const legacy = runBrowserHelperCleanupFixture({
     screenshot: renderBrowserHelper("SCREENSHOT", false),
