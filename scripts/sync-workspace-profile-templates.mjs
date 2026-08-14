@@ -1,3 +1,4 @@
+/* eslint-disable security/detect-non-literal-fs-filename -- Every path is derived from repository-owned template roots. */
 import { copyFile, mkdir, readdir, readFile } from "node:fs/promises";
 import { dirname, join, relative } from "node:path";
 

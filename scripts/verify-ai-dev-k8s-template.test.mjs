@@ -306,7 +306,7 @@ function verifyBaseImageRollout() {
     "electronics",
     "infrastructure",
   ]) {
-    assert.match(workflow, new RegExp(`templates/${templateName}/profile\\.json`));
+    assert.ok(workflow.includes(`templates/${templateName}/profile.json`));
   }
   assert.doesNotMatch(workflow, /templates\/ai-dev-k8s\/main\.tf/);
   assert.match(workflow, /^permissions:\n {2}contents: read$/m);
@@ -331,7 +331,7 @@ function verifyBaseImageRollout() {
     "kicad-cli",
     "obsidian",
   ]) {
-    assert.match(smokeTest, new RegExp(`expect_absent ${command}`));
+    assert.ok(smokeTest.includes(`expect_absent ${command}`));
   }
   assert.match(
     readFileSync(join(process.cwd(), ".github/workflows/ci.yml"), "utf8"),

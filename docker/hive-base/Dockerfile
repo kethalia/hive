@@ -73,13 +73,12 @@ RUN apt-get update \
         tmux \
         unzip \
         vim \
-        wget \
         zsh \
     && corepack enable \
     && rm -rf /var/lib/apt/lists/*
 
 # notesmd-cli v0.3.4 pre-built binary -> /usr/local/bin.
-RUN wget -qO /tmp/notesmd-cli.tar.gz \
+RUN curl -fsSLo /tmp/notesmd-cli.tar.gz \
         https://github.com/Yakitrak/notesmd-cli/releases/download/v0.3.4/notesmd-cli_0.3.4_linux_amd64.tar.gz \
     && tar xf /tmp/notesmd-cli.tar.gz -C /usr/local/bin notesmd-cli \
     && chmod +x /usr/local/bin/notesmd-cli \
@@ -87,7 +86,7 @@ RUN wget -qO /tmp/notesmd-cli.tar.gz \
 
 # act v0.2.74 pre-built binary -> /usr/local/bin.
 ENV ACT_VERSION=0.2.74
-RUN wget -qO /tmp/act.tar.gz \
+RUN curl -fsSLo /tmp/act.tar.gz \
         https://github.com/nektos/act/releases/download/v${ACT_VERSION}/act_Linux_x86_64.tar.gz \
     && tar xf /tmp/act.tar.gz -C /usr/local/bin act \
     && chmod +x /usr/local/bin/act \
@@ -116,6 +115,7 @@ ENV LC_ALL=en_US.UTF-8
 
 # ── Desktop capability (game, electronics, and browser only) ─────────────────
 
+# hadolint ignore=DL3008
 RUN if [ "$WORKSPACE_VARIANT" != "cli" ]; then \
       apt-get update \
       && apt-get install --yes --no-install-recommends \
@@ -193,6 +193,7 @@ RUN if [ "$WORKSPACE_VARIANT" = "game" ]; then \
 
 # ── Electronics capability ───────────────────────────────────────────────────
 
+# hadolint ignore=DL3008
 RUN if [ "$WORKSPACE_VARIANT" = "electronics" ]; then \
       apt-get update \
       && apt-get install --yes --no-install-recommends \
@@ -204,6 +205,7 @@ RUN if [ "$WORKSPACE_VARIANT" = "electronics" ]; then \
 
 # ── Browser capability ───────────────────────────────────────────────────────
 
+# hadolint ignore=DL3008
 RUN if [ "$WORKSPACE_VARIANT" = "browser" ]; then \
       curl -fsSL https://dl.google.com/linux/linux_signing_key.pub \
           | gpg --dearmor -o /etc/apt/keyrings/google-chrome.gpg \
