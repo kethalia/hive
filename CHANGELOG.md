@@ -1,5 +1,13 @@
 # hive-orchestrator
 
+## 2.12.0
+
+### Minor Changes
+
+- 14303fc: Make `ai-dev-k8s` the persistent development and orchestration workspace, retire the standalone
+  orchestrator from template publishing and workspace launch flows, and preserve terminal-only support
+  for existing orchestrator workspaces.
+
 ## 2.11.2
 
 ### Patch Changes
