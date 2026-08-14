@@ -14,7 +14,10 @@ describe("workspace profiles", () => {
   });
 
   it.each([
-    ["orchestrator-home", "orchestrator"],
+    ["orchestrator-home", "custom"],
+    ["orchestrator-v2", "custom"],
+    ["command-center", "custom"],
+    ["control-plane-tools", "custom"],
     ["ai-dev-k8s", "software"],
     ["browser-testing", "browser"],
     ["playwright-qa", "browser"],

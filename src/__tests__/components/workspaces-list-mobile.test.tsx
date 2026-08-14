@@ -242,6 +242,49 @@ describe("workspaces mobile list", () => {
     expect(await screen.findByTestId("create-workspace-modal")).toBeInTheDocument();
   });
 
+  it("keeps non-retired orchestration-named external templates launchable", async () => {
+    mocks.listWorkspaceTemplatesAction.mockResolvedValue({
+      data: [
+        {
+          id: "template-external",
+          name: "orchestrator-v2",
+          activeVersionId: "version-external",
+          updatedAt: "2026-01-01T00:00:00.000Z",
+        },
+      ],
+    });
+    mocks.createWorkspaceAction.mockResolvedValue({
+      data: makeWorkspace({
+        id: "workspace-external",
+        name: "external-command-center",
+        template_id: "template-external",
+        template_name: "orchestrator-v2",
+      }),
+    });
+
+    render(<WorkspaceListContent workspaces={[makeWorkspace()]} />);
+
+    fireEvent.click(screen.getByTestId("open-create-workspace-modal"));
+    await waitFor(() => {
+      expect(screen.getByTestId("create-workspace-template")).toHaveValue("template-external");
+    });
+    expect(screen.getByRole("option", { name: "orchestrator-v2" })).toBeInTheDocument();
+    expect(screen.getByTestId("selected-workspace-profile")).toHaveTextContent("Custom");
+
+    fireEvent.change(screen.getByTestId("create-workspace-name"), {
+      target: { value: "external-command-center" },
+    });
+    await act(async () => {
+      fireEvent.click(screen.getByTestId("submit-create-workspace"));
+    });
+
+    expect(mocks.createWorkspaceAction).toHaveBeenCalledWith({
+      templateId: "template-external",
+      name: "external-command-center",
+    });
+    expect(mocks.refresh).toHaveBeenCalledTimes(1);
+  });
+
   it("shows create workspace validation errors from the action response", async () => {
     mocks.listWorkspaceTemplatesAction.mockResolvedValue({
       data: [

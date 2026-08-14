@@ -1,4 +1,4 @@
-import { templateCatalogEntry } from "@/lib/templates/catalog";
+import { isRetiredWorkspaceTemplate, templateCatalogEntry } from "@/lib/templates/catalog";
 
 const LEGACY_ORCHESTRATOR_PROFILE = {
   id: "orchestrator",
@@ -46,10 +46,9 @@ export type WorkspaceProfile =
 export type WorkspaceProfileId = WorkspaceProfile["id"];
 
 const PROFILE_PATTERNS: ReadonlyArray<{
-  id: Exclude<WorkspaceProfileId, "custom">;
+  id: Exclude<WorkspaceProfileId, "custom" | "orchestrator">;
   pattern: RegExp;
 }> = [
-  { id: "orchestrator", pattern: /orchestrat|command[-_ ]?center|control[-_ ]?plane/ },
   { id: "browser", pattern: /browser|playwright|chrome|end[-_ ]?to[-_ ]?end|e2e/ },
   { id: "game", pattern: /game|unity|unreal|godot|blender/ },
   { id: "electronics", pattern: /electronic|hardware|kicad|pcb|firmware/ },
@@ -69,6 +68,9 @@ function workspaceProfileById(id: WorkspaceProfileId): WorkspaceProfile {
 
 export function workspaceProfileForTemplate(templateName: string): WorkspaceProfile {
   const normalizedName = templateName.trim().toLowerCase();
+  if (isRetiredWorkspaceTemplate(normalizedName)) {
+    return workspaceProfileById("orchestrator");
+  }
   const catalogProfileId = templateCatalogEntry(normalizedName)?.profileId;
   const match = PROFILE_PATTERNS.find(({ pattern }) => pattern.test(normalizedName));
   return workspaceProfileById(catalogProfileId ?? match?.id ?? "custom");

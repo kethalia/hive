@@ -135,6 +135,12 @@ describe("workspace server actions", () => {
         activeVersionId: "version-legacy",
         updatedAt: "2026-01-01T00:00:00.000Z",
       },
+      {
+        id: "template-external",
+        name: "orchestrator-v2",
+        activeVersionId: "version-external",
+        updatedAt: "2026-01-01T00:00:00.000Z",
+      },
     ];
     mockListTemplates.mockResolvedValueOnce(templates);
 
@@ -142,7 +148,7 @@ describe("workspace server actions", () => {
     const result = await listWorkspaceTemplatesAction();
 
     expect(mockListTemplates).toHaveBeenCalledTimes(1);
-    expect(result?.data).toEqual([templates[0]]);
+    expect(result?.data).toEqual([templates[0], templates[2]]);
   });
 
   it("createWorkspaceAction creates a workspace from a selected template", async () => {
