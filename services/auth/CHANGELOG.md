@@ -1,5 +1,15 @@
 # hive-auth
 
+## 1.1.2
+
+### Patch Changes
+
+- 7b0f8fe: Update the web, authentication, terminal, and migration runtime dependency chains to patched
+  Next.js, Prisma, Undici, and WebSocket releases. Keep the UI scaffolding CLI out of production
+  dependencies and make CI enforce the root application typecheck.
+- Updated dependencies [7b0f8fe]
+  - @hive/db@0.2.1
+
 ## 1.1.1
 
 ### Patch Changes
