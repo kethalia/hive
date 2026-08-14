@@ -11,7 +11,7 @@ import {
 
 test("caches only anonymous public GET requests", () => {
   const publicRequest = new Request("https://hive.example.com/");
-  const privateRequest = new Request("https://hive.example.com/tasks", {
+  const privateRequest = new Request("https://hive.example.com/workspaces", {
     headers: { cookie: "hive-session=secret" },
   });
 
@@ -36,7 +36,7 @@ test("preserves the origin clipboard permissions policy", () => {
 });
 
 test("routes with the origin host while preserving the public forwarded host", () => {
-  const request = new Request("https://hive.example.com/tasks", {
+  const request = new Request("https://hive.example.com/workspaces", {
     headers: {
       Host: "hive.example.com",
       "CF-Connecting-IP": "203.0.113.10",
@@ -50,7 +50,7 @@ test("routes with the origin host while preserving the public forwarded host", (
     new URL("https://hive-origin.example.net"),
   );
 
-  assert.equal(originRequest.url, "https://hive-origin.example.net/tasks");
+  assert.equal(originRequest.url, "https://hive-origin.example.net/workspaces");
   assert.equal(originRequest.headers.get("Host"), null);
   assert.equal(originRequest.headers.get("X-Forwarded-Host"), "hive.example.com");
   assert.equal(originRequest.headers.get("X-Forwarded-For"), "203.0.113.10");
@@ -73,7 +73,7 @@ test("rewrites same-origin redirects to the public host", () => {
   rewriteOriginRedirect(
     headers,
     new URL("https://hive-origin.example.net"),
-    new URL("https://hive.example.com/tasks"),
+    new URL("https://hive.example.com/workspaces"),
   );
   assert.equal(headers.get("Location"), "https://hive.example.com/login");
 });
@@ -128,7 +128,7 @@ test("returns 502 when the origin fetch fails", async (t) => {
   globalThis.caches = { default: { match: async () => null } };
 
   const response = await proxyRequest(
-    new Request("https://hive.example.com/tasks"),
+    new Request("https://hive.example.com/workspaces"),
     { HIVE_ORIGIN: "https://hive-origin.example.net" },
     { waitUntil() {} },
   );

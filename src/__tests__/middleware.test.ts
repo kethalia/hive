@@ -18,7 +18,7 @@ afterEach(() => {
 describe("proxy", () => {
   it("keeps the marketing homepage public without exposing dashboard routes", () => {
     const homepageResponse = proxy(new NextRequest("https://hive.local.kethalia.com/"));
-    const dashboardResponse = proxy(new NextRequest("https://hive.local.kethalia.com/tasks"));
+    const dashboardResponse = proxy(new NextRequest("https://hive.local.kethalia.com/workspaces"));
 
     expect(homepageResponse.headers.get("location")).toBeNull();
     expect(
@@ -114,7 +114,7 @@ describe("proxy", () => {
       value === "preview-cookie" ? { sessionId: "sess-preview", timestamp: Date.now() } : null,
     );
 
-    const request = new NextRequest("https://pr-101.hive.local.kethalia.com/tasks", {
+    const request = new NextRequest("https://pr-101.hive.local.kethalia.com/workspaces", {
       headers: {
         cookie: "hive-session=preview-cookie; hive-session=prod-cookie",
       },
@@ -134,7 +134,7 @@ describe("proxy", () => {
     vi.stubEnv("COOKIE_DOMAIN", "");
     mockVerifyCookie.mockReturnValue({ sessionId: "sess-preview", timestamp: Date.now() });
 
-    const request = new NextRequest("https://pr-113.hive.local.kethalia.com/tasks", {
+    const request = new NextRequest("https://pr-113.hive.local.kethalia.com/workspaces", {
       headers: {
         cookie: "hive-session=preview-cookie",
       },
@@ -154,7 +154,7 @@ describe("proxy", () => {
     vi.stubEnv("COOKIE_DOMAIN", "");
     mockVerifyCookie.mockReturnValue({ sessionId: "sess-local", timestamp: Date.now() });
 
-    const request = new NextRequest("http://localhost:3000/tasks", {
+    const request = new NextRequest("http://localhost:3000/workspaces", {
       headers: {
         cookie: "hive-session=local-cookie",
       },
@@ -176,7 +176,7 @@ describe("proxy", () => {
       return null;
     });
 
-    const request = new NextRequest("https://pr-101.hive.local.kethalia.com/tasks", {
+    const request = new NextRequest("https://pr-101.hive.local.kethalia.com/workspaces", {
       headers: {
         cookie: "hive-session=older-cookie; hive-session=newer-cookie",
       },

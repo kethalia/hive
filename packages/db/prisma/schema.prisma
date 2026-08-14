@@ -10,62 +10,9 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-enum TaskStatus {
-  queued
-  running
-  verifying
-  done
-  failed
-}
-
-enum WorkspaceStatus {
-  pending
-  starting
-  running
-  stopped
-  deleted
-  failed
-}
-
 enum NavigationFavoriteKind {
   terminal
   git
-}
-
-model Task {
-  id           String     @id @default(uuid()) @db.Uuid
-  prompt       String
-  repoUrl      String     @map("repo_url")
-  status       TaskStatus @default(queued)
-  branch       String?
-  prUrl        String?    @map("pr_url")
-  errorMessage       String?    @map("error_message")
-  verificationReport Json?      @map("verification_report")
-  councilSize        Int        @default(3) @map("council_size")
-  councilReport      Json?      @map("council_report")
-  attachments        Json?
-  userId             String?    @map("user_id") @db.Uuid
-  createdAt    DateTime   @default(now()) @map("created_at") @db.Timestamptz
-  updatedAt    DateTime   @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
-
-  user       User?       @relation(fields: [userId], references: [id])
-  logs       TaskLog[]
-  workspaces Workspace[]
-
-  @@index([userId])
-  @@map("tasks")
-}
-
-model TaskLog {
-  id        String   @id @default(uuid()) @db.Uuid
-  taskId    String   @map("task_id") @db.Uuid
-  message   String
-  level     String   @default("info")
-  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
-
-  task Task @relation(fields: [taskId], references: [id])
-
-  @@map("task_logs")
 }
 
 model User {
@@ -80,7 +27,6 @@ model User {
 
   coderTokens         CoderToken[]
   sessions            Session[]
-  tasks               Task[]
   pushSubscriptions   PushSubscription[]
   navigationFavorites NavigationFavorite[]
 
@@ -157,17 +103,4 @@ model VapidKeys {
   createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz
 
   @@map("vapid_keys")
-}
-
-model Workspace {
-  id               String          @id @default(uuid()) @db.Uuid
-  taskId           String          @map("task_id") @db.Uuid
-  coderWorkspaceId String?         @map("coder_workspace_id")
-  templateType     String          @default("worker") @map("template_type")
-  status           WorkspaceStatus @default(pending)
-  createdAt        DateTime        @default(now()) @map("created_at") @db.Timestamptz
-
-  task Task @relation(fields: [taskId], references: [id])
-
-  @@map("workspaces")
 }

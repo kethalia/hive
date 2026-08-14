@@ -25,14 +25,14 @@ no longer part of the workspace templates.
 From a checkout of Hive with Coder CLI credentials configured:
 
 ```bash
-coder templates push hive --directory templates/hive --yes \
+coder templates push ai-dev --directory templates/ai-dev --yes \
   --message "Install OpenGSD packages"
 
-coder templates push ai-dev --directory templates/ai-dev --yes \
+coder templates push ai-dev-k8s --directory templates/ai-dev-k8s --yes \
   --message "Install OpenGSD packages"
 ```
 
-If you use the Hive web UI template push workflow, push both known templates and
+If you use the Hive web UI template push workflow, push both interactive templates and
 wait for each push stream to finish with `[exit:0]`.
 
 ## Update existing workspaces

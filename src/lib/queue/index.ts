@@ -5,14 +5,6 @@
 
 export { createTemplatePushWorker, getTemplatePushQueue } from "@/lib/templates/push-queue";
 export {
-  createCouncilAggregatorWorker,
-  createCouncilReviewerWorker,
-  getCouncilAggregatorQueue,
-  getCouncilFlowProducer,
-  getCouncilReviewerQueue,
-} from "./council-queues";
-export { createTaskWorker, getTaskQueue } from "./task-queue";
-export {
   createTokenRotationWorker,
   getTokenRotationQueue,
   scheduleTokenRotation,

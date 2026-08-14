@@ -89,7 +89,7 @@ import type { TemplateStatus } from "@/lib/templates/staleness";
 
 function makeStatus(overrides: Partial<TemplateStatus> = {}): TemplateStatus {
   return {
-    name: "hive-worker",
+    name: "ai-dev",
     stale: true,
     lastPushed: "2026-04-10T12:00:00Z",
     activeVersionId: "ver-abc123",
@@ -129,7 +129,7 @@ describe("TemplateDetailClient", () => {
 
   it("renders template name", () => {
     render(<TemplateDetailClient status={makeStatus()} />);
-    expect(screen.getByText("hive-worker")).toBeInTheDocument();
+    expect(screen.getByText("ai-dev")).toBeInTheDocument();
   });
 
   it("renders staleness badge when stale", () => {
@@ -174,7 +174,7 @@ describe("TemplateDetailClient", () => {
     fireEvent.click(screen.getByText("Confirm push"));
 
     await waitFor(() => {
-      expect(mockFetch).toHaveBeenCalledWith("/api/templates/hive-worker/push", {
+      expect(mockFetch).toHaveBeenCalledWith("/api/templates/ai-dev/push", {
         method: "POST",
       });
     });

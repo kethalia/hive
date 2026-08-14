@@ -35,7 +35,7 @@ function renderExampleCard() {
         </ListCardRows>
         <ListCardActions data-testid="actions">
           <ListCardAction>Open</ListCardAction>
-          <ListCardAction as="a" href="/tasks/1">
+          <ListCardAction as="a" href="/workspaces/1">
             Details
           </ListCardAction>
         </ListCardActions>

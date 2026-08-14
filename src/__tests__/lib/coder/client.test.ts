@@ -311,7 +311,7 @@ describe("CoderClient", () => {
 
   it("listTemplates returns normalized template objects", async () => {
     const apiTemplates = [
-      { id: "t1", name: "hive", active_version_id: "v1", updated_at: "2026-04-01T00:00:00Z" },
+      { id: "t1", name: "ai-dev-k8s", active_version_id: "v1", updated_at: "2026-04-01T00:00:00Z" },
       { id: "t2", name: "ai-dev", active_version_id: "v2", updated_at: "2026-04-02T00:00:00Z" },
     ];
     fetchSpy.mockResolvedValueOnce(jsonResponse(apiTemplates));
@@ -321,7 +321,7 @@ describe("CoderClient", () => {
     const [url] = fetchSpy.mock.calls[0];
     expect(url).toBe(`${BASE_URL}/api/v2/organizations/default/templates`);
     expect(result).toEqual([
-      { id: "t1", name: "hive", activeVersionId: "v1", updatedAt: "2026-04-01T00:00:00Z" },
+      { id: "t1", name: "ai-dev-k8s", activeVersionId: "v1", updatedAt: "2026-04-01T00:00:00Z" },
       { id: "t2", name: "ai-dev", activeVersionId: "v2", updatedAt: "2026-04-02T00:00:00Z" },
     ]);
   });

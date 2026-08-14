@@ -5,15 +5,7 @@ export default function robots(): MetadataRoute.Robots {
     rules: {
       userAgent: "*",
       allow: "/",
-      disallow: [
-        "/api/",
-        "/login",
-        "/runtime-config.js",
-        "/tasks",
-        "/templates",
-        "/terminal",
-        "/workspaces",
-      ],
+      disallow: ["/api/", "/login", "/runtime-config.js", "/templates", "/terminal", "/workspaces"],
     },
   };
 }

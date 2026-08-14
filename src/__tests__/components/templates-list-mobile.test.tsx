@@ -55,7 +55,7 @@ class MockEventSource {
 
 function makeStatus(overrides: Partial<TemplateStatus> = {}): TemplateStatus {
   return {
-    name: "hive",
+    name: "ai-dev-k8s",
     stale: true,
     lastPushed: null,
     activeVersionId: "version-1",
@@ -143,7 +143,7 @@ describe("templates mobile list", () => {
     render(
       <TemplatesClient
         initialStatuses={[
-          makeStatus({ name: "hive", stale: true }),
+          makeStatus({ name: "ai-dev-k8s", stale: true }),
           makeStatus({ name: "ai-dev", stale: false, remoteHash: "local-hash" }),
           makeStatus({ name: "unknown", stale: false, remoteHash: null }),
         ]}
@@ -156,7 +156,7 @@ describe("templates mobile list", () => {
 
     const cards = screen.getAllByTestId("template-mobile-card");
     expect(cards).toHaveLength(3);
-    expect(within(cards[0]).getByText("hive")).toBeInTheDocument();
+    expect(within(cards[0]).getByText("ai-dev-k8s")).toBeInTheDocument();
     expect(within(cards[0]).getByText("Stale")).toBeInTheDocument();
     expect(within(cards[1]).getByText("Current")).toBeInTheDocument();
     expect(within(cards[2]).getByText("Unknown")).toBeInTheDocument();
@@ -235,7 +235,7 @@ describe("templates mobile list", () => {
     const fetchMock = vi.fn(fetchImpl);
     globalThis.fetch = fetchMock as unknown as typeof fetch;
 
-    render(<TemplatesClient initialStatuses={[makeStatus({ name: "hive", stale: true })]} />);
+    render(<TemplatesClient initialStatuses={[makeStatus({ name: "ai-dev-k8s", stale: true })]} />);
     const surface = screen.getByTestId("pull-to-refresh");
 
     dragPull(surface, PULL_REFRESH_TRIGGER_PX);
@@ -246,7 +246,7 @@ describe("templates mobile list", () => {
     });
 
     const card = screen.getByTestId("template-mobile-card");
-    expect(within(card).getByText("hive")).toBeInTheDocument();
+    expect(within(card).getByText("ai-dev-k8s")).toBeInTheDocument();
     expect(within(card).getByText("Stale")).toBeInTheDocument();
   });
 
@@ -258,7 +258,7 @@ describe("templates mobile list", () => {
     const fetchMock = vi.fn(() => pushPromise);
     globalThis.fetch = fetchMock as unknown as typeof fetch;
 
-    render(<TemplatesClient initialStatuses={[makeStatus({ name: "hive", stale: true })]} />);
+    render(<TemplatesClient initialStatuses={[makeStatus({ name: "ai-dev-k8s", stale: true })]} />);
     const card = screen.getByTestId("template-mobile-card");
     const mobilePush = within(card).getByRole("button", { name: /Push/ });
 
@@ -266,7 +266,7 @@ describe("templates mobile list", () => {
     fireEvent.click(screen.getByRole("button", { name: /Confirm push/ }));
 
     await waitFor(() => {
-      expect(fetchMock).toHaveBeenCalledWith("/api/templates/hive/push", { method: "POST" });
+      expect(fetchMock).toHaveBeenCalledWith("/api/templates/ai-dev-k8s/push", { method: "POST" });
       expect(within(card).getByRole("button", { name: /Pushing/ })).toBeDisabled();
     });
 
@@ -280,7 +280,7 @@ describe("templates mobile list", () => {
 
     await waitFor(() => {
       expect(MockEventSource.instances).toHaveLength(1);
-      expect(MockEventSource.instances[0].url).toBe("/api/templates/hive/push/job-1/stream");
+      expect(MockEventSource.instances[0].url).toBe("/api/templates/ai-dev-k8s/push/job-1/stream");
     });
   });
 

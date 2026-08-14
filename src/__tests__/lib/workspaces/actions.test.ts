@@ -51,6 +51,7 @@ describe("workspace server actions", () => {
   const mockGetWorkspaceAgentName = vi.fn();
   const mockGetWorkspace = vi.fn();
   const mockGetWorkspaceResources = vi.fn();
+  const mockDeleteWorkspace = vi.fn();
   const mockStopWorkspace = vi.fn();
   const mockStartWorkspace = vi.fn();
   const mockWaitForBuild = vi.fn();
@@ -82,6 +83,7 @@ describe("workspace server actions", () => {
       getWorkspaceAgentName: mockGetWorkspaceAgentName,
       getWorkspace: mockGetWorkspace,
       getWorkspaceResources: mockGetWorkspaceResources,
+      deleteWorkspace: mockDeleteWorkspace,
       stopWorkspace: mockStopWorkspace,
       startWorkspace: mockStartWorkspace,
       waitForBuild: mockWaitForBuild,
@@ -156,6 +158,92 @@ describe("workspace server actions", () => {
 
     expect(mockCreateWorkspace).toHaveBeenCalledWith("template-1", "new-dev");
     expect(result?.data).toEqual(workspace);
+  });
+
+  it("startWorkspaceAction starts an owned stopped workspace and waits until running", async () => {
+    mockGetWorkspace.mockResolvedValueOnce({
+      id: "ws-1",
+      name: "dev",
+      owner_name: "testuser",
+      latest_build: { status: "stopped" },
+    });
+
+    const { startWorkspaceAction } = await import("@/lib/actions/workspaces");
+    const result = await startWorkspaceAction({ workspaceId: "ws-1" });
+
+    expect(mockStartWorkspace).toHaveBeenCalledWith("ws-1");
+    expect(mockWaitForBuild).toHaveBeenCalledWith("ws-1", "running");
+    expect(result?.data).toEqual({ workspaceId: "ws-1", status: "running" });
+  });
+
+  it("stopWorkspaceAction stops an owned running workspace and waits until stopped", async () => {
+    mockGetWorkspace.mockResolvedValueOnce({
+      id: "ws-1",
+      name: "dev",
+      owner_name: "testuser",
+      latest_build: { status: "running" },
+    });
+
+    const { stopWorkspaceAction } = await import("@/lib/actions/workspaces");
+    const result = await stopWorkspaceAction({ workspaceId: "ws-1" });
+
+    expect(mockStopWorkspace).toHaveBeenCalledWith("ws-1");
+    expect(mockWaitForBuild).toHaveBeenCalledWith("ws-1", "stopped");
+    expect(result?.data).toEqual({ workspaceId: "ws-1", status: "stopped" });
+  });
+
+  it("deleteWorkspaceAction stops a running workspace after exact-name confirmation", async () => {
+    mockGetWorkspace.mockResolvedValueOnce({
+      id: "ws-1",
+      name: "dev",
+      owner_name: "testuser",
+      latest_build: { status: "running" },
+    });
+
+    const { deleteWorkspaceAction } = await import("@/lib/actions/workspaces");
+    const result = await deleteWorkspaceAction({
+      workspaceId: "ws-1",
+      confirmationName: "dev",
+    });
+
+    expect(mockStopWorkspace).toHaveBeenCalledWith("ws-1");
+    expect(mockWaitForBuild).toHaveBeenCalledWith("ws-1", "stopped");
+    expect(mockDeleteWorkspace).toHaveBeenCalledWith("ws-1");
+    expect(result?.data).toEqual({ workspaceId: "ws-1", status: "deleting" });
+  });
+
+  it("deleteWorkspaceAction rejects mismatched confirmation without changing the workspace", async () => {
+    mockGetWorkspace.mockResolvedValueOnce({
+      id: "ws-1",
+      name: "dev",
+      owner_name: "testuser",
+      latest_build: { status: "stopped" },
+    });
+
+    const { deleteWorkspaceAction } = await import("@/lib/actions/workspaces");
+    const result = await deleteWorkspaceAction({
+      workspaceId: "ws-1",
+      confirmationName: "not-dev",
+    });
+
+    expect(result?.serverError).toMatch(/does not match/i);
+    expect(mockStopWorkspace).not.toHaveBeenCalled();
+    expect(mockDeleteWorkspace).not.toHaveBeenCalled();
+  });
+
+  it("lifecycle actions reject workspaces owned by another Coder user", async () => {
+    mockGetWorkspace.mockResolvedValueOnce({
+      id: "ws-1",
+      name: "dev",
+      owner_name: "another-user",
+      latest_build: { status: "stopped" },
+    });
+
+    const { startWorkspaceAction } = await import("@/lib/actions/workspaces");
+    const result = await startWorkspaceAction({ workspaceId: "ws-1" });
+
+    expect(result?.serverError).toMatch(/not owned/i);
+    expect(mockStartWorkspace).not.toHaveBeenCalled();
   });
 
   it("getWorkspaceSessionsAction returns parsed sessions for running workspace", async () => {
@@ -246,6 +334,8 @@ describe("workspace server actions", () => {
   it("restartWorkspaceAction stops, starts, and waits for a running workspace", async () => {
     mockGetWorkspace.mockResolvedValueOnce({
       id: "ws-1",
+      name: "dev",
+      owner_name: "testuser",
       latest_build: { status: "running" },
     });
 

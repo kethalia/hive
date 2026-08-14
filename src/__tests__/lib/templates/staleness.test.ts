@@ -12,7 +12,7 @@ import {
 
 describe("KNOWN_TEMPLATES", () => {
   it("registers every template exposed by the Hive UI", () => {
-    expect(KNOWN_TEMPLATES).toEqual(["hive", "ai-dev", "ai-dev-k8s"]);
+    expect(KNOWN_TEMPLATES).toEqual(["ai-dev", "ai-dev-k8s"]);
   });
 });
 
@@ -194,13 +194,13 @@ describe("compareTemplates", () => {
   });
 
   it("returns stale=true when local and remote hashes differ", async () => {
-    await mkdir(join(tempDir, "templates", "hive"), { recursive: true });
-    await writeFile(join(tempDir, "templates", "hive", "main.tf"), "local content v2");
+    await mkdir(join(tempDir, "templates", "ai-dev-k8s"), { recursive: true });
+    await writeFile(join(tempDir, "templates", "ai-dev-k8s", "main.tf"), "local content v2");
 
     const remoteTar = await createTarBuffer({ "main.tf": "remote content v1" });
 
     mockListTemplates.mockResolvedValue([
-      { id: "t1", name: "hive", activeVersionId: "ver-1", updatedAt: "2026-04-01T00:00:00Z" },
+      { id: "t1", name: "ai-dev-k8s", activeVersionId: "ver-1", updatedAt: "2026-04-01T00:00:00Z" },
     ]);
     mockGetTemplateVersion.mockResolvedValue({
       id: "ver-1",
@@ -211,10 +211,10 @@ describe("compareTemplates", () => {
     });
     mockFetchTemplateFiles.mockResolvedValue(remoteTar);
 
-    const results = await compareTemplates(["hive"], "user-123");
+    const results = await compareTemplates(["ai-dev-k8s"], "user-123");
 
     expect(results).toHaveLength(1);
-    expect(results[0].name).toBe("hive");
+    expect(results[0].name).toBe("ai-dev-k8s");
     expect(results[0].stale).toBe(true);
     expect(results[0].localHash).toMatch(/^[a-f0-9]{64}$/);
     expect(results[0].remoteHash).toMatch(/^[a-f0-9]{64}$/);
@@ -222,13 +222,13 @@ describe("compareTemplates", () => {
   });
 
   it("returns stale=false when local and remote hashes match", async () => {
-    await mkdir(join(tempDir, "templates", "hive"), { recursive: true });
-    await writeFile(join(tempDir, "templates", "hive", "main.tf"), "same content");
+    await mkdir(join(tempDir, "templates", "ai-dev-k8s"), { recursive: true });
+    await writeFile(join(tempDir, "templates", "ai-dev-k8s", "main.tf"), "same content");
 
     const remoteTar = await createTarBuffer({ "main.tf": "same content" });
 
     mockListTemplates.mockResolvedValue([
-      { id: "t1", name: "hive", activeVersionId: "ver-1", updatedAt: "2026-04-01T00:00:00Z" },
+      { id: "t1", name: "ai-dev-k8s", activeVersionId: "ver-1", updatedAt: "2026-04-01T00:00:00Z" },
     ]);
     mockGetTemplateVersion.mockResolvedValue({
       id: "ver-1",
@@ -239,7 +239,7 @@ describe("compareTemplates", () => {
     });
     mockFetchTemplateFiles.mockResolvedValue(remoteTar);
 
-    const results = await compareTemplates(["hive"], "user-123");
+    const results = await compareTemplates(["ai-dev-k8s"], "user-123");
 
     expect(results).toHaveLength(1);
     expect(results[0].stale).toBe(false);
@@ -261,16 +261,16 @@ describe("compareTemplates", () => {
   });
 
   it("handles multiple templates in one call", async () => {
-    await mkdir(join(tempDir, "templates", "hive"), { recursive: true });
+    await mkdir(join(tempDir, "templates", "ai-dev-k8s"), { recursive: true });
     await mkdir(join(tempDir, "templates", "ai-dev"), { recursive: true });
-    await writeFile(join(tempDir, "templates", "hive", "main.tf"), "hive content");
+    await writeFile(join(tempDir, "templates", "ai-dev-k8s", "main.tf"), "k8s content");
     await writeFile(join(tempDir, "templates", "ai-dev", "main.tf"), "ai-dev content");
 
-    const hiveTar = await createTarBuffer({ "main.tf": "hive content" });
+    const k8sTar = await createTarBuffer({ "main.tf": "k8s content" });
     const aiDevTar = await createTarBuffer({ "main.tf": "different content" });
 
     mockListTemplates.mockResolvedValue([
-      { id: "t1", name: "hive", activeVersionId: "ver-1", updatedAt: "2026-04-01T00:00:00Z" },
+      { id: "t1", name: "ai-dev-k8s", activeVersionId: "ver-1", updatedAt: "2026-04-01T00:00:00Z" },
       { id: "t2", name: "ai-dev", activeVersionId: "ver-2", updatedAt: "2026-04-02T00:00:00Z" },
     ]);
     mockGetTemplateVersion.mockImplementation(async (versionId: string) => {
@@ -291,13 +291,13 @@ describe("compareTemplates", () => {
       };
     });
     mockFetchTemplateFiles.mockImplementation(async (fileId: string) => {
-      return fileId === "file-1" ? hiveTar : aiDevTar;
+      return fileId === "file-1" ? k8sTar : aiDevTar;
     });
 
-    const results = await compareTemplates(["hive", "ai-dev"], "user-123");
+    const results = await compareTemplates(["ai-dev-k8s", "ai-dev"], "user-123");
 
     expect(results).toHaveLength(2);
-    expect(results[0].name).toBe("hive");
+    expect(results[0].name).toBe("ai-dev-k8s");
     expect(results[0].stale).toBe(false);
     expect(results[1].name).toBe("ai-dev");
     expect(results[1].stale).toBe(true);
@@ -305,11 +305,11 @@ describe("compareTemplates", () => {
 
   it("uses getCoderClientForUser with provided userId", async () => {
     const { getCoderClientForUser } = await import("@/lib/coder/user-client");
-    await mkdir(join(tempDir, "templates", "hive"), { recursive: true });
-    await writeFile(join(tempDir, "templates", "hive", "main.tf"), "content");
+    await mkdir(join(tempDir, "templates", "ai-dev-k8s"), { recursive: true });
+    await writeFile(join(tempDir, "templates", "ai-dev-k8s", "main.tf"), "content");
     mockListTemplates.mockResolvedValue([]);
 
-    await compareTemplates(["hive"], "user-456");
+    await compareTemplates(["ai-dev-k8s"], "user-456");
 
     expect(getCoderClientForUser).toHaveBeenCalledWith("user-456");
   });
@@ -323,16 +323,18 @@ describe("compareTemplates", () => {
       ),
     );
 
-    await expect(compareTemplates(["hive"], "not-real")).rejects.toThrow("User not-real not found");
+    await expect(compareTemplates(["ai-dev-k8s"], "not-real")).rejects.toThrow(
+      "User not-real not found",
+    );
   });
 
   it("returns stale=false for all templates when Coder is unreachable", async () => {
-    await mkdir(join(tempDir, "templates", "hive"), { recursive: true });
-    await writeFile(join(tempDir, "templates", "hive", "main.tf"), "content");
+    await mkdir(join(tempDir, "templates", "ai-dev-k8s"), { recursive: true });
+    await writeFile(join(tempDir, "templates", "ai-dev-k8s", "main.tf"), "content");
 
     mockListTemplates.mockRejectedValue(new Error("network error"));
 
-    const results = await compareTemplates(["hive"], "user-123");
+    const results = await compareTemplates(["ai-dev-k8s"], "user-123");
 
     expect(results).toHaveLength(1);
     expect(results[0].stale).toBe(false);

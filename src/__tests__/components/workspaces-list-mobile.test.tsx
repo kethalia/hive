@@ -14,8 +14,11 @@ import { PULL_REFRESH_TRIGGER_PX } from "@/lib/gestures/conventions";
 
 const mocks = vi.hoisted(() => ({
   createWorkspaceAction: vi.fn(),
+  deleteWorkspaceAction: vi.fn(),
   listWorkspaceTemplatesAction: vi.fn(),
   listWorkspacesAction: vi.fn(),
+  startWorkspaceAction: vi.fn(),
+  stopWorkspaceAction: vi.fn(),
   refresh: vi.fn(),
 }));
 
@@ -25,8 +28,11 @@ vi.mock("next/navigation", () => ({
 
 vi.mock("@/lib/actions/workspaces", () => ({
   createWorkspaceAction: mocks.createWorkspaceAction,
+  deleteWorkspaceAction: mocks.deleteWorkspaceAction,
   listWorkspaceTemplatesAction: mocks.listWorkspaceTemplatesAction,
   listWorkspacesAction: mocks.listWorkspacesAction,
+  startWorkspaceAction: mocks.startWorkspaceAction,
+  stopWorkspaceAction: mocks.stopWorkspaceAction,
 }));
 
 vi.mock("@/components/ui/sidebar", () => ({
@@ -60,8 +66,8 @@ function makeWorkspace(overrides: Partial<WorkspaceFixture> = {}): WorkspaceFixt
     id: "workspace-1",
     name: "mobile-dev",
     template_id: "template-1",
-    template_name: "hive-template",
-    template_display_name: "Hive Template",
+    template_name: "ai-dev",
+    template_display_name: "AI Dev",
     owner_name: "alice",
     last_used_at: new Date(Date.now() - 5 * 60 * 1000).toISOString(),
     health: { healthy: true, failing_agents: [] },
@@ -137,10 +143,14 @@ afterAll(() => {
 
 afterEach(() => {
   cleanup();
+  vi.useRealTimers();
   mocks.createWorkspaceAction.mockReset();
+  mocks.deleteWorkspaceAction.mockReset();
   mocks.listWorkspaceTemplatesAction.mockReset();
   mocks.refresh.mockReset();
   mocks.listWorkspacesAction.mockReset();
+  mocks.startWorkspaceAction.mockReset();
+  mocks.stopWorkspaceAction.mockReset();
 });
 
 describe("workspaces mobile list", () => {
@@ -166,7 +176,8 @@ describe("workspaces mobile list", () => {
     expect(cards).toHaveLength(2);
     expect(within(cards[0]).getByText("mobile-dev")).toBeInTheDocument();
     expect(within(cards[0]).getByText("running")).toBeInTheDocument();
-    expect(within(cards[0]).getByText("Hive Template")).toBeInTheDocument();
+    expect(within(cards[0]).getByText("AI Dev")).toBeInTheDocument();
+    expect(within(cards[0]).getByText("Software development")).toBeInTheDocument();
     expect(within(cards[0]).getByText("alice")).toBeInTheDocument();
 
     const terminalLink = within(cards[0]).getByRole("link", {
@@ -184,19 +195,20 @@ describe("workspaces mobile list", () => {
     expect(
       within(desktopTable).getByRole("columnheader", { name: "Template" }),
     ).toBeInTheDocument();
+    expect(within(desktopTable).getByRole("columnheader", { name: "Profile" })).toBeInTheDocument();
     expect(within(desktopTable).getByRole("columnheader", { name: "Owner" })).toBeInTheDocument();
     expect(
       within(desktopTable).getByRole("columnheader", { name: "Last used" }),
     ).toBeInTheDocument();
-    expect(within(desktopTable).getByRole("columnheader", { name: "Action" })).toBeInTheDocument();
+    expect(within(desktopTable).getByRole("columnheader", { name: "Actions" })).toBeInTheDocument();
   });
 
-  it("opens the add workspace modal from the button and Cmd/Ctrl+Alt+N", async () => {
+  it("opens the launch workspace modal from the button and Cmd/Ctrl+Alt+N", async () => {
     mocks.listWorkspaceTemplatesAction.mockResolvedValue({
       data: [
         {
           id: "template-1",
-          name: "hive-template",
+          name: "ai-dev",
           activeVersionId: "version-1",
           updatedAt: "2026-01-01T00:00:00.000Z",
         },
@@ -210,7 +222,12 @@ describe("workspaces mobile list", () => {
     );
 
     fireEvent.click(screen.getByTestId("open-create-workspace-modal"));
-    expect(await screen.findByTestId("create-workspace-modal")).toHaveTextContent("Add workspace");
+    expect(await screen.findByTestId("create-workspace-modal")).toHaveTextContent(
+      "Launch workspace",
+    );
+    expect(screen.getByTestId("selected-workspace-profile")).toHaveTextContent(
+      "Software development",
+    );
     expect(mocks.listWorkspaceTemplatesAction).toHaveBeenCalledTimes(1);
 
     fireEvent.click(screen.getByRole("button", { name: /close/i }));
@@ -230,7 +247,7 @@ describe("workspaces mobile list", () => {
       data: [
         {
           id: "template-1",
-          name: "hive-template",
+          name: "ai-dev",
           activeVersionId: "version-1",
           updatedAt: "2026-01-01T00:00:00.000Z",
         },
@@ -272,7 +289,7 @@ describe("workspaces mobile list", () => {
       data: [
         {
           id: "template-1",
-          name: "hive-template",
+          name: "ai-dev",
           activeVersionId: "version-1",
           updatedAt: "2026-01-01T00:00:00.000Z",
         },
@@ -303,6 +320,87 @@ describe("workspaces mobile list", () => {
     });
     expect(mocks.refresh).toHaveBeenCalledTimes(1);
     expect(screen.queryByTestId("create-workspace-modal")).not.toBeInTheDocument();
+  });
+
+  it("starts and stops workspaces through explicit lifecycle actions", async () => {
+    mocks.startWorkspaceAction.mockResolvedValue({
+      data: { workspaceId: "stopped-ws", status: "running" },
+    });
+    mocks.stopWorkspaceAction.mockResolvedValue({
+      data: { workspaceId: "running-ws", status: "stopped" },
+    });
+
+    render(
+      <WorkspaceListContent
+        workspaces={[
+          makeWorkspace({ id: "running-ws", name: "running-dev" }),
+          makeWorkspace({
+            id: "stopped-ws",
+            name: "stopped-dev",
+            latest_build: latestBuild("stopped"),
+          }),
+        ]}
+      />,
+    );
+
+    const [runningCard, stoppedCard] = screen.getAllByTestId("workspace-mobile-card");
+    fireEvent.click(
+      within(stoppedCard).getByRole("button", { name: "Start workspace stopped-dev" }),
+    );
+    await waitFor(() => {
+      expect(mocks.startWorkspaceAction).toHaveBeenCalledWith({ workspaceId: "stopped-ws" });
+    });
+
+    fireEvent.click(
+      within(runningCard).getByRole("button", { name: "Stop workspace running-dev" }),
+    );
+    await waitFor(() => {
+      expect(mocks.stopWorkspaceAction).toHaveBeenCalledWith({ workspaceId: "running-ws" });
+    });
+    expect(mocks.refresh).toHaveBeenCalledTimes(2);
+  });
+
+  it("requires the exact workspace name before deletion", async () => {
+    mocks.deleteWorkspaceAction.mockResolvedValue({
+      data: { workspaceId: "workspace-1", status: "deleting" },
+    });
+    render(<WorkspaceListContent workspaces={[makeWorkspace()]} />);
+
+    const card = screen.getByTestId("workspace-mobile-card");
+    fireEvent.click(within(card).getByRole("button", { name: "Delete workspace mobile-dev" }));
+
+    const confirmation = await screen.findByTestId("delete-workspace-confirmation");
+    const deleteButton = screen.getByTestId("confirm-delete-workspace");
+    expect(deleteButton).toBeDisabled();
+
+    fireEvent.change(confirmation, { target: { value: "mobile" } });
+    expect(deleteButton).toBeDisabled();
+    fireEvent.change(confirmation, { target: { value: "mobile-dev" } });
+    expect(deleteButton).toBeEnabled();
+
+    fireEvent.click(deleteButton);
+    await waitFor(() => {
+      expect(mocks.deleteWorkspaceAction).toHaveBeenCalledWith({
+        workspaceId: "workspace-1",
+        confirmationName: "mobile-dev",
+      });
+    });
+    expect(mocks.refresh).toHaveBeenCalledTimes(1);
+    expect(screen.queryByTestId("delete-workspace-modal")).not.toBeInTheDocument();
+  });
+
+  it("auto-opens the launch flow from the workspaces query contract", async () => {
+    mocks.listWorkspacesAction.mockResolvedValueOnce({ data: [makeWorkspace()] });
+    mocks.listWorkspaceTemplatesAction.mockResolvedValueOnce({ data: [] });
+    const { default: WorkspacesPage } = await import("@/app/(dashboard)/workspaces/page");
+
+    render(
+      await WorkspacesPage({
+        searchParams: Promise.resolve({ launch: "1" }),
+      }),
+    );
+
+    expect(await screen.findByTestId("create-workspace-modal")).toBeInTheDocument();
   });
 
   it("keeps the empty state inside the pull-to-refresh surface", () => {
@@ -417,6 +515,21 @@ describe("workspaces mobile list", () => {
     await waitFor(() => {
       expect(surface).toHaveAttribute("data-pull-state", "idle");
     });
+  });
+
+  it("polls while a Coder workspace is transitioning", () => {
+    vi.useFakeTimers();
+
+    render(
+      <WorkspaceListPoller shouldPoll>
+        <WorkspaceListContent workspaces={[makeWorkspace()]} />
+      </WorkspaceListPoller>,
+    );
+
+    act(() => {
+      vi.advanceTimersByTime(5_000);
+    });
+    expect(mocks.refresh).toHaveBeenCalledTimes(1);
   });
 
   it("does not introduce tiny type in S05-owned workspace markup", () => {
