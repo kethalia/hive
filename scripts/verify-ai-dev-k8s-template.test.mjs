@@ -683,6 +683,10 @@ test(
   "workspace migration removes only manifest-owned vault context",
   verifyVaultManagedContextCleanup,
 );
+test(
+  "fresh non-browser workspaces initialize a writable Codex config",
+  verifyFreshNonBrowserCodexConfig,
+);
 test("workspace migration replaces read-only persisted MCP configs", verifyReadOnlyMcpMigration);
 test(
   "workspace migration removes only Hive-owned browser helpers",
@@ -798,6 +802,30 @@ function runReadOnlyMcpMigrationFixture(templateRoot) {
 
 function verifyReadOnlyMcpMigration() {
   runReadOnlyMcpMigrationFixture(TEMPLATE_ROOT);
+}
+
+function verifyFreshNonBrowserCodexConfig() {
+  const initScript = readTemplateFile("scripts/init.sh");
+  const functionMatch = initScript.match(
+    /configure_codex_mcp\(\) \{[\s\S]*?\n\}(?=\n\nconfigure_json_mcp\(\))/,
+  );
+  const fixtureRoot = mkdtempSync(join(tmpdir(), "fresh-non-browser-codex-"));
+  const home = join(fixtureRoot, "home");
+  const config = join(home, ".codex", "config.toml");
+  const script = join(fixtureRoot, "configure-codex.sh");
+
+  assert.ok(functionMatch);
+  mkdirSync(home, { recursive: true });
+  writeFileSync(script, `${functionMatch[0]}\nconfigure_codex_mcp\n`);
+  const result = spawnSync("bash", [script], {
+    encoding: "utf8",
+    env: { ...process.env, HIVE_BROWSER_TOOLS_ENABLED: "false", HOME: home },
+  });
+
+  assert.equal(result.status, 0, result.stderr);
+  assert.equal(existsSync(config), true);
+  assert.equal(readFileSync(config, "utf8"), "");
+  assert.equal(statSync(config).mode & 0o777, 0o600);
 }
 
 function renderBrowserHelper(delimiter, includeMarker) {
