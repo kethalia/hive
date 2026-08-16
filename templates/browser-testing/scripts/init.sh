@@ -80,6 +80,8 @@ updated = updated + "\n" if updated else ""
 
 if updated != existing:
     config.write_text(updated)
+elif not config.exists():
+    config.touch(mode=0o600)
 PYCODEX
   chmod 600 "$HOME/.codex/config.toml"
 }
