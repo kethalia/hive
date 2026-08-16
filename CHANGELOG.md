@@ -1,5 +1,12 @@
 # hive-orchestrator
 
+## 2.12.1
+
+### Patch Changes
+
+- c068d54: Ensure fresh non-browser Coder workspaces complete startup by creating the managed Codex
+  configuration before applying its permissions.
+
 ## 2.12.0
 
 ### Minor Changes
