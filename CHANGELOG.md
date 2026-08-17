@@ -1,5 +1,12 @@
 # hive-orchestrator
 
+## 2.13.0
+
+### Minor Changes
+
+- 4c1c12e: Give Infrastructure its own headless workspace image with checksum-pinned Terraform, kubectl, Helm,
+  and Argo CD clients while keeping those tools out of the general and desktop profiles.
+
 ## 2.12.1
 
 ### Patch Changes
