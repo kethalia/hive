@@ -64,7 +64,7 @@ const profiles = [
   {
     template: "infrastructure",
     id: "infrastructure",
-    imageVariant: "cli",
+    imageVariant: "infrastructure",
     storage: "75Gi",
     capabilities: {
       browser: false,

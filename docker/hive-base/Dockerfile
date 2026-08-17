@@ -5,13 +5,14 @@ ARG WORKSPACE_VARIANT=cli
 ENV DEBIAN_FRONTEND=noninteractive
 ENV HIVE_IMAGE_VARIANT=${WORKSPACE_VARIANT}
 
-# One Dockerfile produces four intentionally narrow Kubernetes workspace images:
-#   cli         - Codex, Claude Code, and common command-line development tools
-#   game        - cli + XFCE/KasmVNC + Unity Hub + Blender
-#   electronics - cli + XFCE/KasmVNC + KiCad
-#   browser     - cli + XFCE/KasmVNC + Google Chrome
+# One Dockerfile produces five intentionally narrow Kubernetes workspace images:
+#   cli           - Codex, Claude Code, and common command-line development tools
+#   infrastructure - cli + Terraform, kubectl, Helm, and Argo CD clients
+#   game          - cli + XFCE/KasmVNC + Unity Hub + Blender
+#   electronics   - cli + XFCE/KasmVNC + KiCad
+#   browser       - cli + XFCE/KasmVNC + Google Chrome
 RUN case "$WORKSPACE_VARIANT" in \
-      cli|game|electronics|browser) ;; \
+      cli|infrastructure|game|electronics|browser) ;; \
       *) printf 'Unsupported WORKSPACE_VARIANT: %s\n' "$WORKSPACE_VARIANT" >&2; exit 1 ;; \
     esac
 
@@ -113,10 +114,55 @@ ENV LANG=en_US.UTF-8
 ENV LANGUAGE=en_US.UTF-8
 ENV LC_ALL=en_US.UTF-8
 
+# ── Infrastructure capability ───────────────────────────────────────────────
+
+# Versions align with the platform repository where one exists. Every archive
+# and standalone binary is verified against its vendor-published SHA-256.
+ARG TERRAFORM_VERSION=1.15.8
+ARG TERRAFORM_SHA256=d25ce7b6902013ad905db3d2eab0be4cd905887fe88b81a6171b8d5503c31f3d
+ARG KUBECTL_VERSION=1.34.5
+ARG KUBECTL_SHA256=6a17dd8387783b3144a65535e38d02c351027e9718ea34a6c360476cb26d28bb
+ARG HELM_VERSION=3.16.4
+ARG HELM_SHA256=fc307327959aa38ed8f9f7e66d45492bb022a66c3e5da6063958254b9767d179
+ARG ARGOCD_VERSION=3.3.4
+ARG ARGOCD_SHA256=404bb83c90cdb7f8054187966f26b17d99961d48fa01f4d6000fe0608dcf9c2b
+RUN if [ "$WORKSPACE_VARIANT" = "infrastructure" ]; then \
+      curl -fsSLo /tmp/terraform.zip \
+          "https://releases.hashicorp.com/terraform/${TERRAFORM_VERSION}/terraform_${TERRAFORM_VERSION}_linux_amd64.zip" \
+      && printf '%s  %s\n' "$TERRAFORM_SHA256" /tmp/terraform.zip \
+          | sha256sum --check --status \
+      && unzip -q /tmp/terraform.zip terraform -d /usr/local/bin \
+      && chmod 0755 /usr/local/bin/terraform \
+      && curl -fsSLo /tmp/kubectl \
+          "https://dl.k8s.io/release/v${KUBECTL_VERSION}/bin/linux/amd64/kubectl" \
+      && printf '%s  %s\n' "$KUBECTL_SHA256" /tmp/kubectl \
+          | sha256sum --check --status \
+      && install -m 0755 /tmp/kubectl /usr/local/bin/kubectl \
+      && curl -fsSLo /tmp/helm.tar.gz \
+          "https://get.helm.sh/helm-v${HELM_VERSION}-linux-amd64.tar.gz" \
+      && printf '%s  %s\n' "$HELM_SHA256" /tmp/helm.tar.gz \
+          | sha256sum --check --status \
+      && tar -xzf /tmp/helm.tar.gz -C /tmp linux-amd64/helm \
+      && install -m 0755 /tmp/linux-amd64/helm /usr/local/bin/helm \
+      && curl -fsSLo /tmp/argocd \
+          "https://github.com/argoproj/argo-cd/releases/download/v${ARGOCD_VERSION}/argocd-linux-amd64" \
+      && printf '%s  %s\n' "$ARGOCD_SHA256" /tmp/argocd \
+          | sha256sum --check --status \
+      && install -m 0755 /tmp/argocd /usr/local/bin/argocd \
+      && rm -rf \
+          /tmp/argocd \
+          /tmp/helm.tar.gz \
+          /tmp/kubectl \
+          /tmp/linux-amd64 \
+          /tmp/terraform.zip; \
+    fi
+
 # ── Desktop capability (game, electronics, and browser only) ─────────────────
 
 # hadolint ignore=DL3008
-RUN if [ "$WORKSPACE_VARIANT" != "cli" ]; then \
+RUN if [ "$WORKSPACE_VARIANT" = "game" ] \
+    || [ "$WORKSPACE_VARIANT" = "electronics" ] \
+    || [ "$WORKSPACE_VARIANT" = "browser" ]; then \
       apt-get update \
       && apt-get install --yes --no-install-recommends \
           dbus-x11 \
@@ -150,7 +196,9 @@ RUN if [ "$WORKSPACE_VARIANT" != "cli" ]; then \
     fi
 
 COPY xstartup kasmvnc.yaml /tmp/hive-kasmvnc/
-RUN if [ "$WORKSPACE_VARIANT" != "cli" ]; then \
+RUN if [ "$WORKSPACE_VARIANT" = "game" ] \
+    || [ "$WORKSPACE_VARIANT" = "electronics" ] \
+    || [ "$WORKSPACE_VARIANT" = "browser" ]; then \
       install -d -m 0755 /etc/kasmvnc \
       && install -m 0755 /tmp/hive-kasmvnc/xstartup /etc/kasmvnc/xstartup \
       && install -m 0644 /tmp/hive-kasmvnc/kasmvnc.yaml /etc/kasmvnc/kasmvnc.yaml; \

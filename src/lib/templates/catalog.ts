@@ -72,7 +72,7 @@ export const TEMPLATE_CATALOG = [
     name: "infrastructure",
     profileId: "infrastructure",
     runtime: "kubernetes",
-    imageVariant: "cli",
+    imageVariant: "infrastructure",
     capabilities: HEADLESS_DEVELOPMENT_CAPABILITIES,
     description: "Headless workspace for clusters, Terraform, deployments, and platform work.",
   },
@@ -80,7 +80,7 @@ export const TEMPLATE_CATALOG = [
   name: string;
   profileId: WorkspaceProfileId;
   runtime: "kubernetes";
-  imageVariant: "cli" | "game" | "electronics" | "browser";
+  imageVariant: "cli" | "infrastructure" | "game" | "electronics" | "browser";
   capabilities: WorkspaceTemplateCapabilities;
   description: string;
 }>;

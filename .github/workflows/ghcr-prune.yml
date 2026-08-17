@@ -1,7 +1,7 @@
 # Scheduled GHCR retention pruner — fans out to the kethalia/workflows
 # reusable `ghcr-prune.yml` for production images.
 #
-# `hive-base` is intentionally excluded: its four workspace variants use
+# `hive-base` is intentionally excluded: its five workspace variants use
 # `:<variant>-latest` + `:<variant>-<sha>`, none of which match `:pr-*`.
 name: GHCR retention pruner
 

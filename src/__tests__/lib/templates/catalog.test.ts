@@ -41,6 +41,10 @@ describe("template catalog", () => {
       browser: true,
       desktop: true,
     });
+    expect(templateCatalogEntry("infrastructure")).toMatchObject({
+      imageVariant: "infrastructure",
+      capabilities: { browser: false, desktop: false },
+    });
   });
 
   it("retires orchestrator from the catalog while preserving legacy workspace capabilities", () => {

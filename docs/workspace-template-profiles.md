@@ -12,7 +12,7 @@ inside each workspace.
 | `browser-testing` | Browser testing | `browser` | Chrome, Playwright, desktop | 4 CPU, 8 GiB RAM, 50 GiB home |
 | `game-dev` | Game development | `game` | Unity, Blender, desktop | 6 CPU, 16 GiB RAM, 150 GiB home |
 | `electronics` | Electronics | `electronics` | KiCad, desktop | 4 CPU, 8 GiB RAM, 100 GiB home |
-| `infrastructure` | Infrastructure | `cli` | TUI, VS Code, files | 4 CPU, 8 GiB RAM, 75 GiB home |
+| `infrastructure` | Infrastructure | `infrastructure` | Terraform, kubectl, Helm, Argo CD | 4 CPU, 8 GiB RAM, 75 GiB home |
 
 There is no Docker-backed workspace template in the catalog. Every template provisions a non-root
 Kubernetes Deployment and a persistent Longhorn home volume in the `coder` namespace.
@@ -32,6 +32,7 @@ decide which binaries are present.
 | Chrome and Playwright MCP | No | Yes | No | No | No |
 | Unity Hub and Blender | No | No | Yes | No | No |
 | KiCad | No | No | No | Yes | No |
+| Terraform, kubectl, Helm, and Argo CD | No | No | No | No | Yes |
 
 This is both a runtime and image boundary. For example, a CLI image does not merely hide the Desktop
 link: it has no XFCE, KasmVNC, Chrome, Unity, Blender, or KiCad executable to launch. Negative smoke
@@ -87,10 +88,10 @@ after any required workspace migration is complete.
 
 ## Image rollout
 
-`docker/hive-base/Dockerfile` builds `cli`, `browser`, `game`, and `electronics` variants. Pull-request
-CI builds every variant and verifies both required and forbidden commands. After a change lands on
-`main`, the workflow pushes all four tested images and opens a follow-up PR that pins each
-`profile.json` to the digest for its variant.
+`docker/hive-base/Dockerfile` builds `cli`, `infrastructure`, `browser`, `game`, and `electronics`
+variants. Pull-request CI builds every variant and verifies both required and forbidden commands.
+After a change lands on `main`, the workflow pushes all five tested images and opens a follow-up PR
+that pins each `profile.json` to the digest for its variant.
 
 ## Validation
 
