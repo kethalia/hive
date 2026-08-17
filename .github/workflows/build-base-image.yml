@@ -168,10 +168,31 @@ jobs:
 
           replace_digest() {
             local digest=$1
+            local expected_image="ghcr.io/kethalia/hive-base@${digest}"
+            local profile
             shift
             sed -i -E \
               "s#ghcr.io/kethalia/hive-base@sha256:[0-9a-f]{64}#ghcr.io/kethalia/hive-base@${digest}#g" \
               "$@"
+            for profile in "$@"; do
+              jq -e --arg expected_image "$expected_image" \
+                '.image == $expected_image' "$profile" >/dev/null
+            done
+          }
+
+          promote_pending_image_variant() {
+            local profile=$1
+            local pending_variant
+            local updated_profile
+            if ! jq -e 'has("pending_image_variant")' "$profile" >/dev/null; then
+              return
+            fi
+            pending_variant="$(jq -er \
+              '.pending_image_variant | select(type == "string" and length > 0)' \
+              "$profile")"
+            updated_profile="$(jq --arg pending_variant "$pending_variant" \
+              '.image_variant = $pending_variant | del(.pending_image_variant)' "$profile")"
+            printf '%s\n' "$updated_profile" > "$profile"
           }
 
           cli_profiles=(
@@ -184,6 +205,7 @@ jobs:
 
           replace_digest "$cli_digest" "${cli_profiles[@]}"
           replace_digest "$infrastructure_digest" "${infrastructure_profiles[@]}"
+          promote_pending_image_variant "${infrastructure_profiles[0]}"
           replace_digest "$game_digest" "${game_profiles[@]}"
           replace_digest "$electronics_digest" "${electronics_profiles[@]}"
           replace_digest "$browser_digest" "${browser_profiles[@]}"

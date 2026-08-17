@@ -18,6 +18,10 @@ infrastructure editor extensions are available. Terraform 1.15.8, kubectl 1.34.5
 Argo CD 3.3.4 are image-baked and checksum-verified; repository-pinned wrappers still take
 precedence when present.
 
+The initial image rollout keeps `image_variant` on the currently pinned `cli` digest and records
+`infrastructure` as `pending_image_variant`. The post-merge image workflow promotes both the new
+digest and variant in one follow-up PR, so every committed template revision remains startable.
+
 ## Publish
 
 ```bash

@@ -93,6 +93,11 @@ variants. Pull-request CI builds every variant and verifies both required and fo
 After a change lands on `main`, the workflow pushes all five tested images and opens a follow-up PR
 that pins each `profile.json` to the digest for its variant.
 
+When introducing a new variant, the profile keeps the variant matching its existing digest and
+declares `pending_image_variant`. The digest workflow replaces the digest, promotes that pending
+variant, and removes the marker in the same follow-up commit; no repository revision contains a
+mismatched expected variant and image.
+
 ## Validation
 
 Before publishing:

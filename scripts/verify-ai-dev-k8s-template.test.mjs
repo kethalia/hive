@@ -559,7 +559,15 @@ function verifyInfrastructureTooling() {
   const smokeTest = readFileSync(join(process.cwd(), "docker/hive-base/smoke-test.sh"), "utf8");
 
   assert.equal(infrastructureProfile.id, "infrastructure");
-  assert.equal(infrastructureProfile.image_variant, "infrastructure");
+  const cliProfile = JSON.parse(readTemplateFile("profile.json"));
+  if (infrastructureProfile.pending_image_variant !== undefined) {
+    assert.equal(infrastructureProfile.image_variant, "cli");
+    assert.equal(infrastructureProfile.pending_image_variant, "infrastructure");
+    assert.equal(infrastructureProfile.image, cliProfile.image);
+  } else {
+    assert.equal(infrastructureProfile.image_variant, "infrastructure");
+    assert.notEqual(infrastructureProfile.image, cliProfile.image);
+  }
   assert.equal(infrastructureProfile.capabilities.desktop, false);
   assert.equal(infrastructureProfile.capabilities.browser, false);
   for (const pin of [
@@ -586,6 +594,11 @@ function verifyInfrastructureTooling() {
     workflow,
     /replace_digest "\$infrastructure_digest" "\$\{infrastructure_profiles\[@\]\}"/,
   );
+  assert.match(workflow, /promote_pending_image_variant "\$\{infrastructure_profiles\[0\]\}"/);
+  assert.match(workflow, /has\("pending_image_variant"\)/);
+  assert.match(workflow, /\.image_variant = \$pending_variant/);
+  assert.match(workflow, /del\(\.pending_image_variant\)/);
+  assert.match(workflow, /\.image == \$expected_image/);
 }
 
 function verifyCoderTemplateUploadPaths() {
