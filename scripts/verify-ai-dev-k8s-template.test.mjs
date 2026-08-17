@@ -300,6 +300,11 @@ function verifyBaseImageRollout() {
   assert.match(workflow, /gh pr reopen/);
   assert.match(workflow, /gh workflow run ci\.yml --ref "\$branch"/);
   assert.match(workflow, /changeset_file="\.changeset\/workspace-image-\$\{GITHUB_SHA:0:12\}\.md"/);
+  assert.match(
+    workflow,
+    /cat > "\$changeset_file" <<'CHANGESET'[\s\S]*?"hive-web": patch[\s\S]*?Release the updated Kubernetes workspace image digests with the bundled Coder templates\.[\s\S]*?CHANGESET/,
+  );
+  assert.doesNotMatch(workflow, /printf '%s\\n' '---' '---'/);
   for (const templateName of [
     "ai-dev-k8s",
     "browser-testing",

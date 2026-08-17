@@ -219,10 +219,16 @@ jobs:
           )
           git diff --exit-code -- "${profile_files[@]}" && exit 0
 
-          # Digest-only maintenance does not release an application package,
-          # but the repository-wide quality gate still requires a changeset.
+          # Hive pushes these bundled profiles from its runtime image, so every
+          # digest update must publish a new hive-web image containing them.
           changeset_file=".changeset/workspace-image-${GITHUB_SHA:0:12}.md"
-          printf '%s\n' '---' '---' > "$changeset_file"
+          cat > "$changeset_file" <<'CHANGESET'
+          ---
+          "hive-web": patch
+          ---
+
+          Release the updated Kubernetes workspace image digests with the bundled Coder templates.
+          CHANGESET
 
           branch="automation/workspace-images-${GITHUB_SHA:0:12}"
           if ! git ls-remote --exit-code --heads origin "$branch" >/dev/null 2>&1; then
