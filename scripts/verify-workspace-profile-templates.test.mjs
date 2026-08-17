@@ -64,7 +64,8 @@ const profiles = [
   {
     template: "infrastructure",
     id: "infrastructure",
-    imageVariant: "cli",
+    imageVariant: "infrastructure",
+    rolloutFromImageVariant: "cli",
     storage: "75Gi",
     capabilities: {
       browser: false,
@@ -110,11 +111,20 @@ test("every workspace profile is a directly deployable Kubernetes Coder template
 
 test("profile configuration defines exact image, resources, and runtime capabilities", () => {
   const seenIds = new Set();
+  const cliImage = JSON.parse(readTemplateFile("ai-dev-k8s", "profile.json")).image;
 
   for (const expected of profiles) {
     const profile = JSON.parse(readTemplateFile(expected.template, "profile.json"));
     assert.equal(profile.id, expected.id);
-    assert.equal(profile.image_variant, expected.imageVariant);
+    if (expected.rolloutFromImageVariant && profile.pending_image_variant !== undefined) {
+      assert.equal(profile.image_variant, expected.rolloutFromImageVariant);
+      assert.equal(profile.pending_image_variant, expected.imageVariant);
+      assert.equal(profile.image, cliImage);
+    } else {
+      assert.equal(profile.image_variant, expected.imageVariant);
+      assert.equal(profile.pending_image_variant, undefined);
+      if (expected.rolloutFromImageVariant) assert.notEqual(profile.image, cliImage);
+    }
     assert.equal(profile.resources.storage, expected.storage);
     assert.deepEqual(profile.capabilities, expected.capabilities);
     assert.equal(profile.enable_web3, undefined);

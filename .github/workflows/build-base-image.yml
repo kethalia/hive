@@ -32,7 +32,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        variant: [cli, game, electronics, browser]
+        variant: [cli, infrastructure, game, electronics, browser]
 
     steps:
       - name: Checkout
@@ -69,7 +69,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        variant: [cli, game, electronics, browser]
+        variant: [cli, infrastructure, game, electronics, browser]
 
     steps:
       - name: Checkout
@@ -151,43 +151,68 @@ jobs:
           path: image-digests
           merge-multiple: true
 
-      # Profiles stay digest-pinned while CLI, game, electronics, and browser
+      # Profiles stay digest-pinned while CLI, infrastructure, game, electronics, and browser
       # pods advance independently to the image that owns their capabilities.
       - name: Open workspace image digest PR
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           cli_digest="$(cat image-digests/cli.txt)"
+          infrastructure_digest="$(cat image-digests/infrastructure.txt)"
           game_digest="$(cat image-digests/game.txt)"
           electronics_digest="$(cat image-digests/electronics.txt)"
           browser_digest="$(cat image-digests/browser.txt)"
-          for digest in "$cli_digest" "$game_digest" "$electronics_digest" "$browser_digest"; do
+          for digest in "$cli_digest" "$infrastructure_digest" "$game_digest" "$electronics_digest" "$browser_digest"; do
             [[ "$digest" =~ ^sha256:[0-9a-f]{64}$ ]]
           done
 
           replace_digest() {
             local digest=$1
+            local expected_image="ghcr.io/kethalia/hive-base@${digest}"
+            local profile
             shift
             sed -i -E \
               "s#ghcr.io/kethalia/hive-base@sha256:[0-9a-f]{64}#ghcr.io/kethalia/hive-base@${digest}#g" \
               "$@"
+            for profile in "$@"; do
+              jq -e --arg expected_image "$expected_image" \
+                '.image == $expected_image' "$profile" >/dev/null
+            done
+          }
+
+          promote_pending_image_variant() {
+            local profile=$1
+            local pending_variant
+            local updated_profile
+            if ! jq -e 'has("pending_image_variant")' "$profile" >/dev/null; then
+              return
+            fi
+            pending_variant="$(jq -er \
+              '.pending_image_variant | select(type == "string" and length > 0)' \
+              "$profile")"
+            updated_profile="$(jq --arg pending_variant "$pending_variant" \
+              '.image_variant = $pending_variant | del(.pending_image_variant)' "$profile")"
+            printf '%s\n' "$updated_profile" > "$profile"
           }
 
           cli_profiles=(
             templates/ai-dev-k8s/profile.json
-            templates/infrastructure/profile.json
           )
+          infrastructure_profiles=(templates/infrastructure/profile.json)
           game_profiles=(templates/game-dev/profile.json)
           electronics_profiles=(templates/electronics/profile.json)
           browser_profiles=(templates/browser-testing/profile.json)
 
           replace_digest "$cli_digest" "${cli_profiles[@]}"
+          replace_digest "$infrastructure_digest" "${infrastructure_profiles[@]}"
+          promote_pending_image_variant "${infrastructure_profiles[0]}"
           replace_digest "$game_digest" "${game_profiles[@]}"
           replace_digest "$electronics_digest" "${electronics_profiles[@]}"
           replace_digest "$browser_digest" "${browser_profiles[@]}"
 
           profile_files=(
             "${cli_profiles[@]}"
+            "${infrastructure_profiles[@]}"
             "${game_profiles[@]}"
             "${electronics_profiles[@]}"
             "${browser_profiles[@]}"

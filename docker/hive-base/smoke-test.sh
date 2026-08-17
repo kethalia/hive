@@ -21,6 +21,13 @@ expect_absent() {
   fi
 }
 
+expect_infrastructure_tools_absent() {
+  expect_absent terraform
+  expect_absent kubectl
+  expect_absent helm
+  expect_absent argocd
+}
+
 actual_variant=$(run sh -lc 'printf %s "$HIVE_IMAGE_VARIANT"')
 if [ "$actual_variant" != "$variant" ]; then
   printf 'Expected image variant %s, got %s\n' "$variant" "$actual_variant" >&2
@@ -42,6 +49,19 @@ case "$variant" in
     expect_absent unityhub
     expect_absent blender
     expect_absent kicad-cli
+    expect_infrastructure_tools_absent
+    ;;
+  infrastructure)
+    run terraform version
+    run kubectl version --client=true
+    run helm version --short
+    run argocd version --client
+    expect_absent vncserver
+    expect_absent xfce4-session
+    expect_absent google-chrome-stable
+    expect_absent unityhub
+    expect_absent blender
+    expect_absent kicad-cli
     ;;
   game)
     expect_command vncserver
@@ -50,6 +70,7 @@ case "$variant" in
     run blender --version
     expect_absent google-chrome-stable
     expect_absent kicad-cli
+    expect_infrastructure_tools_absent
     ;;
   electronics)
     expect_command vncserver
@@ -58,6 +79,7 @@ case "$variant" in
     expect_absent google-chrome-stable
     expect_absent unityhub
     expect_absent blender
+    expect_infrastructure_tools_absent
     ;;
   browser)
     expect_command vncserver
@@ -66,6 +88,7 @@ case "$variant" in
     expect_absent unityhub
     expect_absent blender
     expect_absent kicad-cli
+    expect_infrastructure_tools_absent
     ;;
   *)
     printf 'Unsupported workspace image variant: %s\n' "$variant" >&2

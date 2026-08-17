@@ -17,6 +17,7 @@ import { test } from "node:test";
 const TEMPLATE_ROOT = join(process.cwd(), "templates/ai-dev-k8s");
 const GAME_TEMPLATE_ROOT = join(process.cwd(), "templates/game-dev");
 const ELECTRONICS_TEMPLATE_ROOT = join(process.cwd(), "templates/electronics");
+const INFRASTRUCTURE_TEMPLATE_ROOT = join(process.cwd(), "templates/infrastructure");
 
 function readTemplateFile(relativePath) {
   return readFileSync(join(TEMPLATE_ROOT, relativePath), "utf8");
@@ -289,7 +290,7 @@ function verifyBaseImageRollout() {
   );
   const smokeTest = readFileSync(join(process.cwd(), "docker/hive-base/smoke-test.sh"), "utf8");
 
-  assert.match(workflow, /variant: \[cli, game, electronics, browser\]/);
+  assert.match(workflow, /variant: \[cli, infrastructure, game, electronics, browser\]/);
   assert.match(workflow, /build-args: WORKSPACE_VARIANT=\$\{\{ matrix\.variant \}\}/);
   assert.match(workflow, /smoke-test\.sh/);
   assert.match(workflow, /docker buildx imagetools inspect/);
@@ -329,6 +330,10 @@ function verifyBaseImageRollout() {
     "unityhub",
     "blender",
     "kicad-cli",
+    "terraform",
+    "kubectl",
+    "helm",
+    "argocd",
     "obsidian",
   ]) {
     assert.ok(smokeTest.includes(`expect_absent ${command}`));
@@ -542,6 +547,60 @@ function verifyElectronicsDesignTooling() {
   }
 }
 
+function verifyInfrastructureTooling() {
+  const infrastructureProfile = JSON.parse(
+    readFileSync(join(INFRASTRUCTURE_TEMPLATE_ROOT, "profile.json"), "utf8"),
+  );
+  const dockerfile = readFileSync(join(process.cwd(), "docker/hive-base/Dockerfile"), "utf8");
+  const workflow = readFileSync(
+    join(process.cwd(), ".github/workflows/build-base-image.yml"),
+    "utf8",
+  );
+  const smokeTest = readFileSync(join(process.cwd(), "docker/hive-base/smoke-test.sh"), "utf8");
+
+  assert.equal(infrastructureProfile.id, "infrastructure");
+  const cliProfile = JSON.parse(readTemplateFile("profile.json"));
+  if (infrastructureProfile.pending_image_variant !== undefined) {
+    assert.equal(infrastructureProfile.image_variant, "cli");
+    assert.equal(infrastructureProfile.pending_image_variant, "infrastructure");
+    assert.equal(infrastructureProfile.image, cliProfile.image);
+  } else {
+    assert.equal(infrastructureProfile.image_variant, "infrastructure");
+    assert.notEqual(infrastructureProfile.image, cliProfile.image);
+  }
+  assert.equal(infrastructureProfile.capabilities.desktop, false);
+  assert.equal(infrastructureProfile.capabilities.browser, false);
+  for (const pin of [
+    /TERRAFORM_VERSION=1\.15\.8/,
+    /TERRAFORM_SHA256=d25ce7b6902013ad905db3d2eab0be4cd905887fe88b81a6171b8d5503c31f3d/,
+    /KUBECTL_VERSION=1\.34\.5/,
+    /KUBECTL_SHA256=6a17dd8387783b3144a65535e38d02c351027e9718ea34a6c360476cb26d28bb/,
+    /HELM_VERSION=3\.16\.4/,
+    /HELM_SHA256=fc307327959aa38ed8f9f7e66d45492bb022a66c3e5da6063958254b9767d179/,
+    /ARGOCD_VERSION=3\.3\.4/,
+    /ARGOCD_SHA256=404bb83c90cdb7f8054187966f26b17d99961d48fa01f4d6000fe0608dcf9c2b/,
+  ]) {
+    assert.match(dockerfile, pin);
+  }
+  assert.match(dockerfile, /\[ "\$WORKSPACE_VARIANT" = "infrastructure" \]/);
+  assert.doesNotMatch(dockerfile, /\[ "\$WORKSPACE_VARIANT" != "cli" \]/);
+  assert.match(smokeTest, /run terraform version/);
+  assert.match(smokeTest, /run kubectl version --client=true/);
+  assert.match(smokeTest, /run helm version --short/);
+  assert.match(smokeTest, /run argocd version --client/);
+  assert.match(workflow, /infrastructure_digest="\$\(cat image-digests\/infrastructure\.txt\)"/);
+  assert.match(workflow, /infrastructure_profiles=\(templates\/infrastructure\/profile\.json\)/);
+  assert.match(
+    workflow,
+    /replace_digest "\$infrastructure_digest" "\$\{infrastructure_profiles\[@\]\}"/,
+  );
+  assert.match(workflow, /promote_pending_image_variant "\$\{infrastructure_profiles\[0\]\}"/);
+  assert.match(workflow, /has\("pending_image_variant"\)/);
+  assert.match(workflow, /\.image_variant = \$pending_variant/);
+  assert.match(workflow, /del\(\.pending_image_variant\)/);
+  assert.match(workflow, /\.image == \$expected_image/);
+}
+
 function verifyCoderTemplateUploadPaths() {
   const terraform = readTemplateFile("main.tf");
   const references = [
@@ -710,6 +769,10 @@ test(
 test(
   "workspace provisions official KiCad tooling without custom skills or MCP servers",
   verifyElectronicsDesignTooling,
+);
+test(
+  "workspace provisions checksum-pinned infrastructure clients without a desktop",
+  verifyInfrastructureTooling,
 );
 test(
   "Coder template uploads include every Terraform file dependency",
