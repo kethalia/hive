@@ -2,7 +2,7 @@
   "id": "game",
   "label": "Game development",
   "description": "Interactive Unity, Blender, asset, shader, and gameplay iteration.",
-  "image": "ghcr.io/kethalia/hive-base@sha256:5300f6d72169aa42d74a86cf1816ad977e541a2058748ec92468ad0de968f804",
+  "image": "ghcr.io/kethalia/hive-base@sha256:6617cecab3321548586a4d67cff095ce268aa093b2991b81c4cf405836918b41",
   "image_variant": "game",
   "capabilities": {
     "browser": false,

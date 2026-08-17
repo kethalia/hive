@@ -2,7 +2,7 @@
   "id": "electronics",
   "label": "Electronics",
   "description": "KiCad schematic and PCB design, simulation, and hardware-oriented repositories.",
-  "image": "ghcr.io/kethalia/hive-base@sha256:6f627da7204de0072de87352771f218f641b49478b31d4c2ae95d3cb0ad80259",
+  "image": "ghcr.io/kethalia/hive-base@sha256:8dfbd8e365344cbaa68e1f0c774557826e576c32ebfd99c42f347aeee20854b7",
   "image_variant": "electronics",
   "capabilities": {
     "browser": false,
