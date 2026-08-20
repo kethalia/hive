@@ -1,5 +1,11 @@
 # hive-orchestrator
 
+## 2.13.2
+
+### Patch Changes
+
+- 120a518: Release the updated Kubernetes workspace image digests with the bundled Coder templates.
+
 ## 2.13.1
 
 ### Patch Changes
