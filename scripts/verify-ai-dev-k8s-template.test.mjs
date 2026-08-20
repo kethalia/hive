@@ -11,7 +11,7 @@ import {
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { test } from "node:test";
 
 const TEMPLATE_ROOT = join(process.cwd(), "templates/ai-dev-k8s");
@@ -281,6 +281,56 @@ function verifyVaultManagedContextCleanup() {
     "# User-owned Claude context\n",
   );
   assert.equal(readFileSync(join(vault, "keep.txt"), "utf8"), "keep\n");
+}
+
+function runAgentContextInitializationFixture(existingContext = {}) {
+  const fixtureRoot = mkdtempSync(join(tmpdir(), "ai-dev-agent-context-"));
+  const home = join(fixtureRoot, "home");
+  const initScript = readTemplateFile("scripts/init.sh");
+  const functionMatch = initScript.match(/initialize_agent_context\(\) \{[\s\S]*?\n\}/);
+  const renderedContext = "# Profile Context\n";
+
+  assert.ok(functionMatch);
+  mkdirSync(home, { recursive: true });
+  for (const [relativePath, contents] of Object.entries(existingContext)) {
+    const target = join(home, relativePath);
+    mkdirSync(dirname(target), { recursive: true });
+    writeFileSync(target, contents);
+  }
+
+  const claudeTemplateToken = "$" + "{claude_md_content}";
+  const renderedFunction = functionMatch[0].replace(claudeTemplateToken, renderedContext.trimEnd());
+  const script = join(fixtureRoot, "initialize-agent-context.sh");
+  writeFileSync(script, `${renderedFunction}\ninitialize_agent_context\n`);
+  const result = spawnSync("bash", [script], {
+    encoding: "utf8",
+    env: { ...process.env, HOME: home },
+  });
+
+  return { home, renderedContext, result };
+}
+
+function verifyAgentContextInitialization() {
+  const fresh = runAgentContextInitializationFixture();
+  assert.equal(fresh.result.status, 0, fresh.result.stderr);
+  assert.equal(
+    readFileSync(join(fresh.home, ".codex", "AGENTS.md"), "utf8"),
+    fresh.renderedContext,
+  );
+  assert.equal(
+    readFileSync(join(fresh.home, ".claude", "CLAUDE.md"), "utf8"),
+    fresh.renderedContext,
+  );
+
+  const customCodex = "# User-owned Codex context\n";
+  const customClaude = "# User-owned Claude context\n";
+  const retained = runAgentContextInitializationFixture({
+    ".codex/AGENTS.md": customCodex,
+    ".claude/CLAUDE.md": customClaude,
+  });
+  assert.equal(retained.result.status, 0, retained.result.stderr);
+  assert.equal(readFileSync(join(retained.home, ".codex", "AGENTS.md"), "utf8"), customCodex);
+  assert.equal(readFileSync(join(retained.home, ".claude", "CLAUDE.md"), "utf8"), customClaude);
 }
 
 function verifyBaseImageRollout() {
@@ -746,6 +796,10 @@ test(
 test(
   "workspace migration removes only manifest-owned vault context",
   verifyVaultManagedContextCleanup,
+);
+test(
+  "fresh workspaces initialize Claude and Codex profile context without overwriting user files",
+  verifyAgentContextInitialization,
 );
 test(
   "fresh non-browser workspaces initialize a writable Codex config",

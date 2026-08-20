@@ -183,9 +183,25 @@ AGENTEOF
   done
 }
 
+initialize_agent_context() {
+  local agent_file
+
+  mkdir -p "$HOME/.codex" "$HOME/.claude"
+  for agent_file in \
+    "$HOME/.codex/AGENTS.md" \
+    "$HOME/.claude/CLAUDE.md"; do
+    if [ ! -f "$agent_file" ] || grep -qF 'personal knowledge vault at' "$agent_file"; then
+      cat > "$agent_file" << 'AGENTEOF'
+${claude_md_content}
+AGENTEOF
+    fi
+  done
+}
+
 configure_codex_mcp
 configure_json_mcp
 remove_vault_managed_context
+initialize_agent_context
 
 if [ "$HIVE_BROWSER_TOOLS_ENABLED" != "true" ]; then
   remove_hive_browser_helpers
@@ -200,12 +216,5 @@ fi
 rm -f "$HOME/sync-vault.sh" \
   "$HOME/.config/hive/vault-repository" \
   "$HOME/.config/autostart/obsidian.desktop"
-
-mkdir -p "$HOME/.claude"
-if [ ! -f "$HOME/.claude/CLAUDE.md" ] || grep -qF 'personal knowledge vault at' "$HOME/.claude/CLAUDE.md"; then
-  cat > "$HOME/.claude/CLAUDE.md" << 'CLAUDEEOF'
-${claude_md_content}
-CLAUDEEOF
-fi
 
 echo "Workspace is ready. Check ~/README.md for the profile quick start."
