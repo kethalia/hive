@@ -1,5 +1,12 @@
 # hive-orchestrator
 
+## 2.13.3
+
+### Patch Changes
+
+- a696ad6: Initialize profile guidance for both Codex and Claude in fresh Kubernetes workspaces while preserving
+  existing user-owned agent context.
+
 ## 2.13.2
 
 ### Patch Changes
