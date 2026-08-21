@@ -183,20 +183,31 @@ AGENTEOF
   done
 }
 
-initialize_agent_context() {
-  local agent_file
+write_managed_agent_context() {
+  local agent_directory agent_file="$1" agent_tmp
 
-  mkdir -p "$HOME/.codex" "$HOME/.claude"
-  for agent_file in \
-    "$HOME/.codex/AGENTS.md" \
-    "$HOME/.claude/CLAUDE.md"; do
-    # These are workspace-profile defaults managed by Hive. Repository-local instruction files are
-    # layered by each agent and are never touched here.
-    cat > "$agent_file" << 'AGENTEOF'
+  agent_directory="$(dirname -- "$agent_file")"
+  mkdir -p "$agent_directory"
+  agent_tmp="$(mktemp "$agent_directory/.hive-agent-context.XXXXXX")"
+  if ! cat > "$agent_tmp" << 'AGENTEOF'
 ${claude_md_content}
 AGENTEOF
-    chmod 600 "$agent_file"
-  done
+  then
+    rm -f -- "$agent_tmp"
+    return 1
+  fi
+  chmod 600 "$agent_tmp"
+  if ! mv -fT -- "$agent_tmp" "$agent_file"; then
+    rm -f -- "$agent_tmp"
+    return 1
+  fi
+}
+
+initialize_agent_context() {
+  # These are workspace-profile defaults managed by Hive. Atomic replacement prevents a global
+  # context symlink from redirecting writes or chmod to a repository-owned target.
+  write_managed_agent_context "$HOME/.codex/AGENTS.md"
+  write_managed_agent_context "$HOME/.claude/CLAUDE.md"
 }
 
 configure_codex_mcp

@@ -4,10 +4,12 @@ import { spawnSync } from "node:child_process";
 import {
   chmodSync,
   existsSync,
+  lstatSync,
   mkdirSync,
   mkdtempSync,
   readFileSync,
   statSync,
+  symlinkSync,
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
@@ -283,7 +285,7 @@ function verifyVaultManagedContextCleanup() {
   assert.equal(readFileSync(join(vault, "keep.txt"), "utf8"), "keep\n");
 }
 
-function runAgentContextInitializationFixture(existingContext = {}) {
+function runAgentContextInitializationFixture(existingContext = {}, contextSymlinks = {}) {
   const fixtureRoot = mkdtempSync(join(tmpdir(), "ai-dev-agent-context-"));
   const home = join(fixtureRoot, "home");
   const initScript = readTemplateFile("scripts/init.sh");
@@ -297,11 +299,22 @@ function runAgentContextInitializationFixture(existingContext = {}) {
     mkdirSync(dirname(target), { recursive: true });
     writeFileSync(target, contents);
   }
+  for (const [relativePath, targetPath] of Object.entries(contextSymlinks)) {
+    const target = join(home, relativePath);
+    mkdirSync(dirname(target), { recursive: true });
+    symlinkSync(targetPath, target);
+  }
 
   const claudeTemplateToken = "$" + "{claude_md_content}";
-  const renderedFunction = functionMatch[0].replace(claudeTemplateToken, renderedContext.trimEnd());
+  const writerMatch = initScript.match(/write_managed_agent_context\(\) \{[\s\S]*?\n\}/);
+
+  assert.ok(writerMatch);
+  const renderedFunctions = `${writerMatch[0]}\n${functionMatch[0]}`.replace(
+    claudeTemplateToken,
+    renderedContext.trimEnd(),
+  );
   const script = join(fixtureRoot, "initialize-agent-context.sh");
-  writeFileSync(script, `${renderedFunction}\ninitialize_agent_context\n`);
+  writeFileSync(script, `${renderedFunctions}\ninitialize_agent_context\n`);
   const result = spawnSync("bash", [script], {
     encoding: "utf8",
     env: { ...process.env, HOME: home },
@@ -343,6 +356,25 @@ function verifyAgentContextInitialization() {
     readFileSync(join(refreshed.home, "projects", "example", "AGENTS.md"), "utf8"),
     repositoryContext,
   );
+
+  const linkedTarget = "# Repository context behind a symlink\n";
+  const symlinked = runAgentContextInitializationFixture(
+    { "projects/example/AGENTS.md": linkedTarget },
+    {
+      ".codex/AGENTS.md": "../projects/example/AGENTS.md",
+      ".claude/CLAUDE.md": "../projects/example/AGENTS.md",
+    },
+  );
+  assert.equal(symlinked.result.status, 0, symlinked.result.stderr);
+  assert.equal(
+    readFileSync(join(symlinked.home, "projects", "example", "AGENTS.md"), "utf8"),
+    linkedTarget,
+  );
+  for (const relativePath of [".codex/AGENTS.md", ".claude/CLAUDE.md"]) {
+    const globalContext = join(symlinked.home, relativePath);
+    assert.equal(lstatSync(globalContext).isSymbolicLink(), false);
+    assert.equal(readFileSync(globalContext, "utf8"), symlinked.renderedContext);
+  }
 }
 
 function verifyBaseImageRollout() {
