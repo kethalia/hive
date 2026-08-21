@@ -298,7 +298,10 @@ test("every profile receives the same workspace routing and interactive handoff 
 
   for (const { template } of profiles) {
     assert.equal(readTemplateFile(template, "WORKSPACE_ROUTING.md"), routing);
-    assert.match(routing, new RegExp(`\\b${template}\\b`));
+    assert.ok(
+      routing.includes(`\`${template}\``),
+      `${template} must appear in the routing catalog`,
+    );
   }
 
   assert.match(routing, /Only `ai-dev-k8s` orchestrates workspaces/);
