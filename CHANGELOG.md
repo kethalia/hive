@@ -1,5 +1,12 @@
 # hive-orchestrator
 
+## 2.13.4
+
+### Patch Changes
+
+- 126052e: Teach every Coder workspace how to route capability-specific work and refresh Hive-managed global
+  agent context when a workspace template is updated.
+
 ## 2.13.3
 
 ### Patch Changes
