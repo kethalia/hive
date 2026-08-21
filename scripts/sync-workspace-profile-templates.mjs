@@ -35,6 +35,7 @@ const canonicalScriptRelativePaths = new Set(
 const sharedRelativePaths = [
   ".terraform.lock.hcl",
   "main.tf",
+  "WORKSPACE_ROUTING.md",
   ...canonicalScriptRelativePaths,
 ].sort();
 const drift = [];

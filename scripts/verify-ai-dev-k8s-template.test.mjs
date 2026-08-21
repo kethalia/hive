@@ -4,10 +4,12 @@ import { spawnSync } from "node:child_process";
 import {
   chmodSync,
   existsSync,
+  lstatSync,
   mkdirSync,
   mkdtempSync,
   readFileSync,
   statSync,
+  symlinkSync,
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
@@ -242,10 +244,13 @@ function runVaultManagedContextCleanupFixture() {
 
   assert.ok(functionMatch);
   const claudeTemplateToken = "$" + "{claude_md_content}";
-  const renderedFunction = functionMatch[0]
+  const writerMatch = initScript.match(/write_managed_agent_context\(\) \{[\s\S]*?\n\}/);
+
+  assert.ok(writerMatch);
+  const renderedFunctions = `${writerMatch[0]}\n${functionMatch[0]}`
     .replace(claudeTemplateToken, "# Coder Workspace")
     .replaceAll("$" + "$" + "{", "$" + "{");
-  const cleanup = [renderedFunction, "remove_vault_managed_context", ""].join("\n");
+  const cleanup = [renderedFunctions, "remove_vault_managed_context", ""].join("\n");
   const script = join(fixtureRoot, "cleanup.sh");
   writeFileSync(script, cleanup);
   const result = spawnSync("bash", [script], {
@@ -283,7 +288,11 @@ function verifyVaultManagedContextCleanup() {
   assert.equal(readFileSync(join(vault, "keep.txt"), "utf8"), "keep\n");
 }
 
-function runAgentContextInitializationFixture(existingContext = {}) {
+function runAgentContextInitializationFixture(
+  existingContext = {},
+  contextSymlinks = {},
+  directorySymlinks = {},
+) {
   const fixtureRoot = mkdtempSync(join(tmpdir(), "ai-dev-agent-context-"));
   const home = join(fixtureRoot, "home");
   const initScript = readTemplateFile("scripts/init.sh");
@@ -297,11 +306,27 @@ function runAgentContextInitializationFixture(existingContext = {}) {
     mkdirSync(dirname(target), { recursive: true });
     writeFileSync(target, contents);
   }
+  for (const [relativePath, targetPath] of Object.entries(directorySymlinks)) {
+    const target = join(home, relativePath);
+    mkdirSync(dirname(target), { recursive: true });
+    symlinkSync(targetPath, target);
+  }
+  for (const [relativePath, targetPath] of Object.entries(contextSymlinks)) {
+    const target = join(home, relativePath);
+    mkdirSync(dirname(target), { recursive: true });
+    symlinkSync(targetPath, target);
+  }
 
   const claudeTemplateToken = "$" + "{claude_md_content}";
-  const renderedFunction = functionMatch[0].replace(claudeTemplateToken, renderedContext.trimEnd());
+  const writerMatch = initScript.match(/write_managed_agent_context\(\) \{[\s\S]*?\n\}/);
+
+  assert.ok(writerMatch);
+  const renderedFunctions = `${writerMatch[0]}\n${functionMatch[0]}`.replace(
+    claudeTemplateToken,
+    renderedContext.trimEnd(),
+  );
   const script = join(fixtureRoot, "initialize-agent-context.sh");
-  writeFileSync(script, `${renderedFunction}\ninitialize_agent_context\n`);
+  writeFileSync(script, `${renderedFunctions}\ninitialize_agent_context\n`);
   const result = spawnSync("bash", [script], {
     encoding: "utf8",
     env: { ...process.env, HOME: home },
@@ -322,15 +347,72 @@ function verifyAgentContextInitialization() {
     fresh.renderedContext,
   );
 
-  const customCodex = "# User-owned Codex context\n";
-  const customClaude = "# User-owned Claude context\n";
-  const retained = runAgentContextInitializationFixture({
-    ".codex/AGENTS.md": customCodex,
-    ".claude/CLAUDE.md": customClaude,
+  const oldGlobalCodex = "# Old workspace Codex context\n";
+  const oldGlobalClaude = "# Old workspace Claude context\n";
+  const repositoryContext = "# Repository-owned context\n";
+  const refreshed = runAgentContextInitializationFixture({
+    "projects/example/AGENTS.md": repositoryContext,
+    ".codex/AGENTS.md": oldGlobalCodex,
+    ".claude/CLAUDE.md": oldGlobalClaude,
   });
-  assert.equal(retained.result.status, 0, retained.result.stderr);
-  assert.equal(readFileSync(join(retained.home, ".codex", "AGENTS.md"), "utf8"), customCodex);
-  assert.equal(readFileSync(join(retained.home, ".claude", "CLAUDE.md"), "utf8"), customClaude);
+  assert.equal(refreshed.result.status, 0, refreshed.result.stderr);
+  assert.equal(
+    readFileSync(join(refreshed.home, ".codex", "AGENTS.md"), "utf8"),
+    refreshed.renderedContext,
+  );
+  assert.equal(
+    readFileSync(join(refreshed.home, ".claude", "CLAUDE.md"), "utf8"),
+    refreshed.renderedContext,
+  );
+  assert.equal(
+    readFileSync(join(refreshed.home, "projects", "example", "AGENTS.md"), "utf8"),
+    repositoryContext,
+  );
+
+  const linkedTarget = "# Repository context behind a symlink\n";
+  const symlinked = runAgentContextInitializationFixture(
+    { "projects/example/AGENTS.md": linkedTarget },
+    {
+      ".codex/AGENTS.md": "../projects/example/AGENTS.md",
+      ".claude/CLAUDE.md": "../projects/example/AGENTS.md",
+    },
+  );
+  assert.equal(symlinked.result.status, 0, symlinked.result.stderr);
+  assert.equal(
+    readFileSync(join(symlinked.home, "projects", "example", "AGENTS.md"), "utf8"),
+    linkedTarget,
+  );
+  for (const relativePath of [".codex/AGENTS.md", ".claude/CLAUDE.md"]) {
+    const globalContext = join(symlinked.home, relativePath);
+    assert.equal(lstatSync(globalContext).isSymbolicLink(), false);
+    assert.equal(readFileSync(globalContext, "utf8"), symlinked.renderedContext);
+  }
+
+  const linkedCodex = "# Codex dotfiles context\n";
+  const linkedClaude = "# Claude dotfiles context\n";
+  const linkedDirectories = runAgentContextInitializationFixture(
+    {
+      "dotfiles/codex/AGENTS.md": linkedCodex,
+      "dotfiles/claude/CLAUDE.md": linkedClaude,
+    },
+    {},
+    {
+      ".codex": "dotfiles/codex",
+      ".claude": "dotfiles/claude",
+    },
+  );
+  assert.equal(linkedDirectories.result.status, 0, linkedDirectories.result.stderr);
+  assert.match(linkedDirectories.result.stderr, /preserving symlinked agent directory/);
+  assert.equal(lstatSync(join(linkedDirectories.home, ".codex")).isSymbolicLink(), true);
+  assert.equal(lstatSync(join(linkedDirectories.home, ".claude")).isSymbolicLink(), true);
+  assert.equal(
+    readFileSync(join(linkedDirectories.home, "dotfiles", "codex", "AGENTS.md"), "utf8"),
+    linkedCodex,
+  );
+  assert.equal(
+    readFileSync(join(linkedDirectories.home, "dotfiles", "claude", "CLAUDE.md"), "utf8"),
+    linkedClaude,
+  );
 }
 
 function verifyBaseImageRollout() {
@@ -798,7 +880,7 @@ test(
   verifyVaultManagedContextCleanup,
 );
 test(
-  "fresh workspaces initialize Claude and Codex profile context without overwriting user files",
+  "workspace startup refreshes global agent context without touching repository instructions",
   verifyAgentContextInitialization,
 );
 test(

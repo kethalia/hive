@@ -45,11 +45,14 @@ contain byte-identical Terraform and startup scripts plus their own:
 
 - `profile.json` for image variant, capabilities, resources, and editor extensions
 - `CLAUDE.md` for agent behavior and safety boundaries
+- `WORKSPACE_ROUTING.md`, synchronized from `ai-dev-k8s`, for the shared catalog and TUI handoff
+  contract
 - `WORKSPACE.md` for the generated `~/README.md` quick start
 - `repositories.txt` for the narrow first-start repository set
 - `README.md` for operator-facing deployment notes
 
-After changing canonical Terraform or scripts, synchronize and verify every profile:
+After changing canonical Terraform, routing guidance, or scripts, synchronize and verify every
+profile:
 
 ```bash
 pnpm templates:sync
@@ -59,6 +62,11 @@ pnpm test:templates
 
 Generated scaffold files are committed so every directory remains directly deployable with the Coder
 CLI; the push worker does not need a build step or symlink support.
+
+On every workspace start, Hive refreshes the template-managed global agent context at
+`~/.codex/AGENTS.md` and `~/.claude/CLAUDE.md`. Repository-local instruction files remain owned by
+their repositories and layer on top of that workspace context. If an agent configuration directory
+is itself a symlink, Hive warns and preserves it instead of writing through to the linked target.
 
 ## Publish
 

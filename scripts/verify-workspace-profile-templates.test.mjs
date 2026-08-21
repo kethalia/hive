@@ -87,6 +87,7 @@ test("every workspace profile is a directly deployable Kubernetes Coder template
     "main.tf",
     "profile.json",
     "CLAUDE.md",
+    "WORKSPACE_ROUTING.md",
     "WORKSPACE.md",
     "README.md",
     "repositories.txt",
@@ -204,6 +205,7 @@ test("profile synchronization detects and removes obsolete shared scripts", () =
   mkdirSync(join(canonical, "scripts"), { recursive: true });
   writeFileSync(join(canonical, ".terraform.lock.hcl"), "canonical lock\n");
   writeFileSync(join(canonical, "main.tf"), "# canonical Terraform\n");
+  writeFileSync(join(canonical, "WORKSPACE_ROUTING.md"), "# Canonical routing\n");
   writeFileSync(join(canonical, "scripts", "init.sh"), "#!/bin/sh\n");
 
   for (const targetName of targetNames) {
@@ -232,6 +234,12 @@ test("profile synchronization detects and removes obsolete shared scripts", () =
     encoding: "utf8",
   });
   assert.equal(verified.status, 0, verified.stderr);
+  for (const targetName of targetNames) {
+    assert.equal(
+      readFileSync(join(fixtureTemplates, targetName, "WORKSPACE_ROUTING.md"), "utf8"),
+      "# Canonical routing\n",
+    );
+  }
 });
 
 test("repository manifests remain narrow and parseable", () => {
@@ -282,5 +290,31 @@ test("profile guidance encodes the intended interactive and capability boundarie
 
   for (const template of ["ai-dev-k8s", "game-dev", "electronics", "infrastructure"]) {
     assert.doesNotMatch(readTemplateFile(template, "WORKSPACE.md"), /headed Playwright/);
+  }
+});
+
+test("every profile receives the same workspace routing and interactive handoff contract", () => {
+  const routing = readTemplateFile("ai-dev-k8s", "WORKSPACE_ROUTING.md");
+
+  for (const { template } of profiles) {
+    assert.equal(readTemplateFile(template, "WORKSPACE_ROUTING.md"), routing);
+    assert.ok(
+      routing.includes(`\`${template}\``),
+      `${template} must appear in the routing catalog`,
+    );
+  }
+
+  assert.match(routing, /Only `ai-dev-k8s` orchestrates workspaces/);
+  assert.match(routing, /Specialist profiles do not create, start, stop, or delete/);
+  assert.match(routing, /do not download a replacement browser/);
+  assert.match(routing, /do not[\s\S]*Playwright browser or system-dependency installers/);
+  assert.match(routing, /keep the interaction in Hive's TUI/);
+  assert.match(routing, /Workspace handoff required/);
+  assert.match(routing, /Do not use retired[\s\S]*Tasks or New Task workflows/);
+
+  for (const { template } of profiles) {
+    const terraform = readTemplateFile(template, "main.tf");
+    assert.match(terraform, /trimspace\(file\("\$\{path\.module\}\/CLAUDE\.md"\)\)/);
+    assert.match(terraform, /trimspace\(file\("\$\{path\.module\}\/WORKSPACE_ROUTING\.md"\)\)/);
   }
 });
