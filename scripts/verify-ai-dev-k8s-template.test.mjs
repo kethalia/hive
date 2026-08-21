@@ -322,15 +322,27 @@ function verifyAgentContextInitialization() {
     fresh.renderedContext,
   );
 
-  const customCodex = "# User-owned Codex context\n";
-  const customClaude = "# User-owned Claude context\n";
-  const retained = runAgentContextInitializationFixture({
-    ".codex/AGENTS.md": customCodex,
-    ".claude/CLAUDE.md": customClaude,
+  const oldGlobalCodex = "# Old workspace Codex context\n";
+  const oldGlobalClaude = "# Old workspace Claude context\n";
+  const repositoryContext = "# Repository-owned context\n";
+  const refreshed = runAgentContextInitializationFixture({
+    "projects/example/AGENTS.md": repositoryContext,
+    ".codex/AGENTS.md": oldGlobalCodex,
+    ".claude/CLAUDE.md": oldGlobalClaude,
   });
-  assert.equal(retained.result.status, 0, retained.result.stderr);
-  assert.equal(readFileSync(join(retained.home, ".codex", "AGENTS.md"), "utf8"), customCodex);
-  assert.equal(readFileSync(join(retained.home, ".claude", "CLAUDE.md"), "utf8"), customClaude);
+  assert.equal(refreshed.result.status, 0, refreshed.result.stderr);
+  assert.equal(
+    readFileSync(join(refreshed.home, ".codex", "AGENTS.md"), "utf8"),
+    refreshed.renderedContext,
+  );
+  assert.equal(
+    readFileSync(join(refreshed.home, ".claude", "CLAUDE.md"), "utf8"),
+    refreshed.renderedContext,
+  );
+  assert.equal(
+    readFileSync(join(refreshed.home, "projects", "example", "AGENTS.md"), "utf8"),
+    repositoryContext,
+  );
 }
 
 function verifyBaseImageRollout() {
@@ -798,7 +810,7 @@ test(
   verifyVaultManagedContextCleanup,
 );
 test(
-  "fresh workspaces initialize Claude and Codex profile context without overwriting user files",
+  "workspace startup refreshes global agent context without touching repository instructions",
   verifyAgentContextInitialization,
 );
 test(

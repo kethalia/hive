@@ -51,7 +51,10 @@ resource "coder_agent" "main" {
     owner_name               = data.coder_workspace_owner.me.name
     owner_email              = data.coder_workspace_owner.me.email
     enable_browser           = local.profile.capabilities.browser
-    claude_md_content        = file("${path.module}/CLAUDE.md")
+    claude_md_content = join("\n\n", [
+      trimspace(file("${path.module}/CLAUDE.md")),
+      trimspace(file("${path.module}/WORKSPACE_ROUTING.md")),
+    ])
     workspace_readme_content = file("${path.module}/WORKSPACE.md")
   })
 

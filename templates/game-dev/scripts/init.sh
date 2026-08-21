@@ -190,11 +190,12 @@ initialize_agent_context() {
   for agent_file in \
     "$HOME/.codex/AGENTS.md" \
     "$HOME/.claude/CLAUDE.md"; do
-    if [ ! -f "$agent_file" ] || grep -qF 'personal knowledge vault at' "$agent_file"; then
-      cat > "$agent_file" << 'AGENTEOF'
+    # These are workspace-profile defaults managed by Hive. Repository-local instruction files are
+    # layered by each agent and are never touched here.
+    cat > "$agent_file" << 'AGENTEOF'
 ${claude_md_content}
 AGENTEOF
-    fi
+    chmod 600 "$agent_file"
   done
 }
 
