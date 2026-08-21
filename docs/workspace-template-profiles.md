@@ -65,7 +65,8 @@ CLI; the push worker does not need a build step or symlink support.
 
 On every workspace start, Hive refreshes the template-managed global agent context at
 `~/.codex/AGENTS.md` and `~/.claude/CLAUDE.md`. Repository-local instruction files remain owned by
-their repositories and layer on top of that workspace context.
+their repositories and layer on top of that workspace context. If an agent configuration directory
+is itself a symlink, Hive warns and preserves it instead of writing through to the linked target.
 
 ## Publish
 

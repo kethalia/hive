@@ -176,9 +176,7 @@ remove_vault_managed_context() {
     "$HOME/.agents/CLAUDE.md"; do
     vault_agent_file="$HOME/vault/Agents/$${agent_file##*/}"
     if [ -f "$agent_file" ] && { { [ -f "$vault_agent_file" ] && cmp -s "$vault_agent_file" "$agent_file"; } || grep -qF '## Vault Context Layer' "$agent_file" || grep -qF 'personal knowledge vault at' "$agent_file"; }; then
-      cat > "$agent_file" << 'AGENTEOF'
-${claude_md_content}
-AGENTEOF
+      write_managed_agent_context "$agent_file"
     fi
   done
 }
@@ -187,6 +185,11 @@ write_managed_agent_context() {
   local agent_directory agent_file="$1" agent_tmp
 
   agent_directory="$(dirname -- "$agent_file")"
+  if [ -L "$agent_directory" ]; then
+    printf 'WARNING: preserving symlinked agent directory without refreshing context: %s\n' \
+      "$agent_directory" >&2
+    return 0
+  fi
   mkdir -p "$agent_directory"
   agent_tmp="$(mktemp "$agent_directory/.hive-agent-context.XXXXXX")"
   if ! cat > "$agent_tmp" << 'AGENTEOF'
@@ -204,8 +207,8 @@ AGENTEOF
 }
 
 initialize_agent_context() {
-  # These are workspace-profile defaults managed by Hive. Atomic replacement prevents a global
-  # context symlink from redirecting writes or chmod to a repository-owned target.
+  # These are workspace-profile defaults managed by Hive. Preserve linked configuration directories;
+  # otherwise atomic replacement prevents a context symlink from redirecting writes or chmod.
   write_managed_agent_context "$HOME/.codex/AGENTS.md"
   write_managed_agent_context "$HOME/.claude/CLAUDE.md"
 }
