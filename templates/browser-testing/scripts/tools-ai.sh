@@ -297,8 +297,4 @@ else
 fi
 
 install_official_skills
-if [ "${HIVE_GITHUB_AUTH_ENABLED:-true}" = "true" ]; then
-  install_official_github_plugin
-else
-  printf '%b[skip] GitHub Codex plugin disabled by workspace profile%b\n' "$YELLOW" "$RESET"
-fi
+install_official_github_plugin

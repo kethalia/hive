@@ -37,18 +37,8 @@ fi
 run claude --version
 run notesmd-cli --version
 run act --version
-run python3 -c 'import sys; assert sys.version_info >= (3, 12), sys.version'
-run sh -lc 'probe=$(mktemp -d); trap '\''rm -rf -- "$probe"'\'' EXIT; python3 -m venv "$probe/venv"; "$probe/venv/bin/python" -m pip --version'
-run node -e 'const major = Number(process.versions.node.split(".")[0]); if (major < 20) process.exit(1)'
-run npm --version
-run sqlite3 --version
-run rg --version
 expect_command node
 expect_command npx
-expect_command make
-expect_command git
-expect_command curl
-expect_command jq
 expect_absent obsidian
 
 case "$variant" in

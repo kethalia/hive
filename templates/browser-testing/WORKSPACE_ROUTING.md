@@ -10,9 +10,6 @@ template is an explicit capability boundary rather than a package-installation s
   Code sessions, and Coder workspace lifecycle operations. It has no desktop or browser runtime.
 - `browser-testing` (`HIVE_WORKSPACE_PROFILE=browser`) owns Chrome, Playwright, screenshots, traces,
   accessibility inspection, and headed browser debugging through Coder Desktop.
-- `technical-interview` (`HIVE_WORKSPACE_PROFILE=interview`) is an isolated technical-assessment
-  destination with Chrome, Playwright, a single public assessment repository, and no personal
-  GitHub or Coder orchestration credentials.
 - `game-dev` (`HIVE_WORKSPACE_PROFILE=game`) owns Unity, Blender, game assets, and desktop visual
   iteration. GPU access is not guaranteed.
 - `electronics` (`HIVE_WORKSPACE_PROFILE=electronics`) owns KiCad, electronics design files, and
@@ -28,10 +25,9 @@ Before acting on a capability-sensitive request, identify the current profile fr
 from the checked-out repository or the requested task.
 
 When a required capability belongs to another profile, stop before trying to recreate that profile
-locally. Outside `browser-testing` and `technical-interview`, do not download a replacement browser,
-run Playwright browser or system-dependency installers, use `sudo` or `apt` to add browser libraries,
-or rely on a Docker socket as a browser fallback. Route ordinary browser work to `browser-testing`;
-use `technical-interview` only for its isolated assessment workflow.
+locally. In particular, outside `browser-testing` do not download a replacement browser, run
+Playwright browser or system-dependency installers, use `sudo` or `apt` to add browser libraries, or
+rely on a Docker socket as a browser fallback. Route the browser step to `browser-testing` instead.
 
 Only `ai-dev-k8s` orchestrates workspaces. From that profile, inspect `coder templates list` and
 `coder list`, reuse a healthy matching workspace when possible, and create or start one only when

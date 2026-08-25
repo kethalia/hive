@@ -4,11 +4,6 @@ set -euo pipefail
 if [ ! -f "$HOME/.workspace_initialized" ]; then
   echo "First-time workspace setup..."
   mkdir -p "$HOME/projects" "$HOME/bin" "$HOME/.config" "$HOME/.local/bin"
-  git config --global alias.st status
-  git config --global alias.co checkout
-  git config --global alias.br branch
-  git config --global alias.cm commit
-  git config --global alias.lg "log --graph --pretty=format:'%Cred%h%Creset -%C(yellow)%d%Creset %s %Cgreen(%cr) %C(bold blue)<%an>%Creset' --abbrev-commit"
 
   if [ ! -f "$HOME/README.md" ]; then
     cat > "$HOME/README.md" << 'EOFREADME'
@@ -17,8 +12,6 @@ ${workspace_readme_content}
 ## Workspace identity
 
 - Name: ${workspace_name}
-- Owner: ${owner_name}
-- Email: ${owner_email}
 EOFREADME
   fi
 
@@ -27,6 +20,37 @@ fi
 
 export PATH="$HOME/.local/bin:$HOME/.local/share/pnpm:$HOME/.bun/bin:$HOME/.foundry/bin:$PATH"
 export HIVE_BROWSER_TOOLS_ENABLED="${enable_browser}"
+
+configure_interview_environment() {
+  local shell_file
+  mkdir -p "$HOME/.config/hive"
+  cat > "$HOME/.config/hive/interview-env.sh" <<'EOFENV'
+# hive-managed-interview-environment:v1
+unset ANTHROPIC_API_KEY GH_TOKEN GITHUB_TOKEN CODER_SESSION_TOKEN
+unset REALM_VISUAL_REVIEW_API_KEY RUNCOMFY_API_TOKEN
+EOFENV
+  chmod 600 "$HOME/.config/hive/interview-env.sh"
+
+  for shell_file in "$HOME/.zshenv" "$HOME/.bashrc" "$HOME/.profile"; do
+    if [ ! -e "$shell_file" ]; then
+      touch "$shell_file"
+    fi
+    if [ ! -L "$shell_file" ] \
+      && ! grep -qF '# hive-interview-environment' "$shell_file" 2>/dev/null; then
+      cat >> "$shell_file" <<'EOFSHELL'
+
+# hive-interview-environment
+[ ! -f "$HOME/.config/hive/interview-env.sh" ] || . "$HOME/.config/hive/interview-env.sh"
+EOFSHELL
+    fi
+  done
+
+  rm -f -- "$HOME/.runcomfy-api-token"
+  unset ANTHROPIC_API_KEY GH_TOKEN GITHUB_TOKEN CODER_SESSION_TOKEN
+  unset REALM_VISUAL_REVIEW_API_KEY RUNCOMFY_API_TOKEN
+}
+
+configure_interview_environment
 
 if [ -n "$${HIVE_IMAGE_VARIANT:-}" ] \
   && [ "$HIVE_IMAGE_VARIANT" != "$${HIVE_EXPECTED_IMAGE_VARIANT:-}" ]; then

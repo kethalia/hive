@@ -347,8 +347,7 @@ export function DashboardKeyboardController() {
         label: "Launch workspace",
         description: "Choose a use-case profile and create an interactive workspace",
         group: "Workspaces",
-        value:
-          "launch create workspace profile software browser interview game electronics infrastructure",
+        value: "launch create workspace profile software browser game electronics infrastructure",
         icon: "plus",
         onSelect: () => {
           router.push("/workspaces?launch=1");

@@ -105,7 +105,6 @@ test("every workspace profile is a directly deployable Kubernetes Coder template
     "README.md",
     "repositories.txt",
     "scripts/init.sh",
-    "scripts/tools-ai.sh",
     "scripts/tools-ci.sh",
   ];
 
@@ -155,17 +154,8 @@ test("profile configuration defines exact image, resources, and runtime capabili
   }
 
   const browserImage = JSON.parse(readTemplateFile("browser-testing", "profile.json")).image;
-  const interviewProfile = JSON.parse(readTemplateFile("technical-interview", "profile.json"));
-  assert.equal(interviewProfile.image, browserImage);
-  assert.deepEqual(interviewProfile.security, { github_auth: false, coder_login: false });
-  assert.deepEqual(interviewProfile.agent_context, { include_workspace_routing: false });
-  assert.deepEqual(
-    interviewProfile.applications.map(({ display_name, url }) => ({ display_name, url })),
-    [
-      { display_name: "Interview App", url: "http://localhost:3000" },
-      { display_name: "API Docs", url: "http://localhost:8000/docs" },
-    ],
-  );
+  const interviewImage = JSON.parse(readTemplateFile("technical-interview", "profile.json")).image;
+  assert.equal(interviewImage, browserImage);
 });
 
 test("canonical Terraform gates every optional workspace surface", () => {
@@ -188,10 +178,6 @@ test("canonical Terraform gates every optional workspace surface", () => {
     /local\.profile\.capabilities\.editor/,
     /local\.profile\.capabilities\.file_browser/,
     /local\.profile\.id/,
-    /try\(local\.profile\.security\.github_auth, true\)/,
-    /try\(local\.profile\.security\.coder_login, true\)/,
-    /try\(local\.profile\.agent_context\.include_workspace_routing, true\)/,
-    /try\(local\.profile\.applications, \[\]\)/,
     /module "coder-login"/,
   ]) {
     assert.match(terraform, reference);
@@ -213,19 +199,6 @@ test("canonical Terraform gates every optional workspace surface", () => {
     terraform,
     /resource "coder_app" "filebrowser" \{[\s\S]*?count\s*=\s*local\.profile\.capabilities\.file_browser \? 1 : 0/,
   );
-  assert.match(
-    terraform,
-    /data "coder_external_auth" "github" \{[\s\S]*?count\s*=\s*local\.github_auth_enabled \? 1 : 0/,
-  );
-  assert.match(
-    terraform,
-    /module "coder-login" \{[\s\S]*?count\s*=\s*local\.coder_login_enabled \? data\.coder_workspace\.me\.start_count : 0/,
-  );
-  assert.match(terraform, /fileexists\("\$\{path\.module\}\/bootstrap\.sh"\)/);
-  assert.match(
-    terraform,
-    /resource "coder_app" "profile" \{[\s\S]*?for_each[\s\S]*?share\s*=\s*"owner"[\s\S]*?dynamic "healthcheck"/,
-  );
 });
 
 test("specialist templates stay synchronized with the canonical Kubernetes scaffold", () => {
@@ -236,7 +209,7 @@ test("specialist templates stay synchronized with the canonical Kubernetes scaff
   );
 
   assert.equal(result.status, 0, result.stderr || result.stdout);
-  assert.match(result.stdout, /synchronized \(5 variants\)/);
+  assert.match(result.stdout, /synchronized \(4 variants\)/);
 });
 
 test("profile synchronization detects and removes obsolete shared scripts", () => {
@@ -244,13 +217,7 @@ test("profile synchronization detects and removes obsolete shared scripts", () =
   const fixtureTemplates = join(fixtureRoot, "templates");
   const canonical = join(fixtureTemplates, "ai-dev-k8s");
   const syncScript = join(repositoryRoot, "scripts/sync-workspace-profile-templates.mjs");
-  const targetNames = [
-    "browser-testing",
-    "game-dev",
-    "electronics",
-    "infrastructure",
-    "technical-interview",
-  ];
+  const targetNames = ["browser-testing", "game-dev", "electronics", "infrastructure"];
 
   mkdirSync(join(canonical, "scripts"), { recursive: true });
   writeFileSync(join(canonical, ".terraform.lock.hcl"), "canonical lock\n");
@@ -359,7 +326,13 @@ test("profile guidance encodes the intended interactive and capability boundarie
 test("every profile receives the same workspace routing and interactive handoff contract", () => {
   const routing = readTemplateFile("ai-dev-k8s", "WORKSPACE_ROUTING.md");
 
-  for (const { template } of profiles) {
+  for (const template of [
+    "ai-dev-k8s",
+    "browser-testing",
+    "game-dev",
+    "electronics",
+    "infrastructure",
+  ]) {
     assert.equal(readTemplateFile(template, "WORKSPACE_ROUTING.md"), routing);
     assert.ok(
       routing.includes(`\`${template}\``),
@@ -375,16 +348,19 @@ test("every profile receives the same workspace routing and interactive handoff 
   assert.match(routing, /Workspace handoff required/);
   assert.match(routing, /Do not use retired[\s\S]*Tasks or New Task workflows/);
 
-  for (const { template } of profiles) {
+  for (const template of [
+    "ai-dev-k8s",
+    "browser-testing",
+    "game-dev",
+    "electronics",
+    "infrastructure",
+  ]) {
     const terraform = readTemplateFile(template, "main.tf");
     assert.match(terraform, /trimspace\(file\("\$\{path\.module\}\/CLAUDE\.md"\)\)/);
     assert.match(terraform, /trimspace\(file\("\$\{path\.module\}\/WORKSPACE_ROUTING\.md"\)\)/);
   }
 
-  const interviewProfile = JSON.parse(readTemplateFile("technical-interview", "profile.json"));
-  assert.equal(interviewProfile.agent_context.include_workspace_routing, false);
-  assert.match(
-    readTemplateFile("technical-interview", "main.tf"),
-    /local\.include_workspace_routing \? trimspace\(file\("\$\{path\.module\}\/WORKSPACE_ROUTING\.md"\)\) : ""/,
-  );
+  const interviewTerraform = readTemplateFile("technical-interview", "main.tf");
+  assert.match(interviewTerraform, /trimspace\(file\("\$\{path\.module\}\/CLAUDE\.md"\)\)/);
+  assert.doesNotMatch(interviewTerraform, /WORKSPACE_ROUTING\.md/);
 });

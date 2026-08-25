@@ -6,6 +6,7 @@ umask 077
 interview_bin_dir="$HOME/.local/bin"
 interview_libexec_dir="$HOME/.local/libexec/hive/technical-interview"
 interview_state_dir="$HOME/.local/state/hive/technical-interview"
+interview_ripgrep_version="1.18.0"
 
 mkdir -p "$interview_bin_dir" "$interview_libexec_dir" "$interview_state_dir"
 chmod 700 "$interview_bin_dir" "$interview_libexec_dir" "$interview_state_dir"
@@ -41,6 +42,14 @@ INTERVIEW_STATE_DIR="$HOME/.local/state/hive/technical-interview"
 INTERVIEW_REPORT="$HOME/INTERVIEW_READY.md"
 INTERVIEW_SESSION="interview"
 INTERVIEW_VIRTUALENV_VERSION="20.35.4"
+INTERVIEW_FORBIDDEN_CREDENTIALS=(
+  ANTHROPIC_API_KEY
+  GH_TOKEN
+  GITHUB_TOKEN
+  CODER_SESSION_TOKEN
+  REALM_VISUAL_REVIEW_API_KEY
+  RUNCOMFY_API_TOKEN
+)
 
 mkdir -p "$INTERVIEW_STATE_DIR"
 chmod 700 "$INTERVIEW_STATE_DIR"
@@ -140,7 +149,10 @@ interview_remote_default_state() {
   local local_commit remote_commit
   local_commit="$(git -C "$INTERVIEW_REPOSITORY" rev-parse HEAD 2>/dev/null || true)"
   remote_commit="$(
-    timeout 12s env -u GH_TOKEN -u GITHUB_TOKEN GIT_TERMINAL_PROMPT=0 \
+    timeout 12s env \
+      -u ANTHROPIC_API_KEY -u GH_TOKEN -u GITHUB_TOKEN -u CODER_SESSION_TOKEN \
+      -u REALM_VISUAL_REVIEW_API_KEY -u RUNCOMFY_API_TOKEN \
+      GIT_TERMINAL_PROMPT=0 \
       git -c credential.helper= ls-remote "$INTERVIEW_EXPECTED_ORIGIN" HEAD 2>/dev/null \
       | awk 'NR == 1 {print $1}'
   )"
@@ -156,7 +168,7 @@ interview_remote_default_state() {
 
 interview_forbidden_environment_present() {
   local variable_name
-  for variable_name in ANTHROPIC_API_KEY GH_TOKEN GITHUB_TOKEN; do
+  for variable_name in "${INTERVIEW_FORBIDDEN_CREDENTIALS[@]}"; do
     if printenv "$variable_name" >/dev/null 2>&1; then
       return 0
     fi
@@ -167,7 +179,7 @@ interview_forbidden_environment_present() {
 interview_forbidden_tmux_environment_present() {
   local scope variable_name
   tmux has-session -t "$INTERVIEW_SESSION" 2>/dev/null || return 1
-  for variable_name in ANTHROPIC_API_KEY GH_TOKEN GITHUB_TOKEN; do
+  for variable_name in "${INTERVIEW_FORBIDDEN_CREDENTIALS[@]}" CODER_AGENT_TOKEN; do
     for scope in "-t $INTERVIEW_SESSION" "-g"; do
       # shellcheck disable=SC2086 # Scope intentionally expands into tmux options.
       if tmux show-environment $scope "$variable_name" >/dev/null 2>&1; then
@@ -358,11 +370,13 @@ if ! interview_backend_dependencies_ready || ! interview_frontend_dependencies_r
   exit 1
 fi
 
-api_command="exec env -u ANTHROPIC_API_KEY -u GH_TOKEN -u GITHUB_TOKEN '$INTERVIEW_VENV/bin/uvicorn' app.main:app --reload --host 0.0.0.0 --port 8000"
-web_command="exec env -u ANTHROPIC_API_KEY -u GH_TOKEN -u GITHUB_TOKEN npm run dev -- --host 0.0.0.0 --port 3000"
+api_command="exec env -u ANTHROPIC_API_KEY -u GH_TOKEN -u GITHUB_TOKEN -u CODER_AGENT_TOKEN -u CODER_SESSION_TOKEN -u REALM_VISUAL_REVIEW_API_KEY -u RUNCOMFY_API_TOKEN '$INTERVIEW_VENV/bin/uvicorn' app.main:app --reload --host 0.0.0.0 --port 8000"
+web_command="exec env -u ANTHROPIC_API_KEY -u GH_TOKEN -u GITHUB_TOKEN -u CODER_AGENT_TOKEN -u CODER_SESSION_TOKEN -u REALM_VISUAL_REVIEW_API_KEY -u RUNCOMFY_API_TOKEN npm run dev -- --host 0.0.0.0 --port 3000"
 
 tmux_without_credentials() {
-  env -u ANTHROPIC_API_KEY -u GH_TOKEN -u GITHUB_TOKEN tmux "$@"
+  env -u ANTHROPIC_API_KEY -u GH_TOKEN -u GITHUB_TOKEN \
+    -u CODER_AGENT_TOKEN -u CODER_SESSION_TOKEN \
+    -u REALM_VISUAL_REVIEW_API_KEY -u RUNCOMFY_API_TOKEN tmux "$@"
 }
 
 window_exists() {
@@ -413,8 +427,9 @@ else
 fi
 
 tmux set-option -t "$INTERVIEW_SESSION" remain-on-exit on
-for forbidden_name in ANTHROPIC_API_KEY GH_TOKEN GITHUB_TOKEN; do
+for forbidden_name in "${INTERVIEW_FORBIDDEN_CREDENTIALS[@]}" CODER_AGENT_TOKEN; do
   tmux set-environment -t "$INTERVIEW_SESSION" -u "$forbidden_name" 2>/dev/null || true
+  tmux set-environment -g -u "$forbidden_name" 2>/dev/null || true
 done
 
 interactive_window_present work
@@ -452,8 +467,8 @@ if ! interview_backend_dependencies_ready || ! interview_frontend_dependencies_r
   exit 1
 fi
 
-api_command="exec env -u ANTHROPIC_API_KEY -u GH_TOKEN -u GITHUB_TOKEN '$INTERVIEW_VENV/bin/uvicorn' app.main:app --reload --host 0.0.0.0 --port 8000"
-web_command="exec env -u ANTHROPIC_API_KEY -u GH_TOKEN -u GITHUB_TOKEN npm run dev -- --host 0.0.0.0 --port 3000"
+api_command="exec env -u ANTHROPIC_API_KEY -u GH_TOKEN -u GITHUB_TOKEN -u CODER_AGENT_TOKEN -u CODER_SESSION_TOKEN -u REALM_VISUAL_REVIEW_API_KEY -u RUNCOMFY_API_TOKEN '$INTERVIEW_VENV/bin/uvicorn' app.main:app --reload --host 0.0.0.0 --port 8000"
+web_command="exec env -u ANTHROPIC_API_KEY -u GH_TOKEN -u GITHUB_TOKEN -u CODER_AGENT_TOKEN -u CODER_SESSION_TOKEN -u REALM_VISUAL_REVIEW_API_KEY -u RUNCOMFY_API_TOKEN npm run dev -- --host 0.0.0.0 --port 3000"
 
 restart_service_window() {
   local window_name=$1
@@ -461,10 +476,14 @@ restart_service_window() {
   local service_command=$3
   if tmux list-windows -t "$INTERVIEW_SESSION" -F '#{window_name}' | grep -Fqx -- "$window_name"; then
     env -u ANTHROPIC_API_KEY -u GH_TOKEN -u GITHUB_TOKEN \
+      -u CODER_AGENT_TOKEN -u CODER_SESSION_TOKEN \
+      -u REALM_VISUAL_REVIEW_API_KEY -u RUNCOMFY_API_TOKEN \
       tmux respawn-window -k -t "$INTERVIEW_SESSION:$window_name" \
       -c "$working_directory" "$service_command"
   else
     env -u ANTHROPIC_API_KEY -u GH_TOKEN -u GITHUB_TOKEN \
+      -u CODER_AGENT_TOKEN -u CODER_SESSION_TOKEN \
+      -u REALM_VISUAL_REVIEW_API_KEY -u RUNCOMFY_API_TOKEN \
       tmux new-window -d -t "$INTERVIEW_SESSION:" -n "$window_name" \
       -c "$working_directory" "$service_command"
   fi
@@ -561,7 +580,7 @@ printf '  tmux: %s\n' "$(interview_version_or_missing tmux tmux -V)"
 
 printf 'Forbidden credential variables present (names only):'
 credential_count=0
-for credential_name in ANTHROPIC_API_KEY GH_TOKEN GITHUB_TOKEN; do
+for credential_name in "${INTERVIEW_FORBIDDEN_CREDENTIALS[@]}"; do
   if printenv "$credential_name" >/dev/null 2>&1 \
     || { tmux has-session -t "$INTERVIEW_SESSION" 2>/dev/null \
       && tmux show-environment -t "$INTERVIEW_SESSION" "$credential_name" >/dev/null 2>&1; } \
@@ -652,7 +671,8 @@ else
 fi
 
 cd "$INTERVIEW_REPOSITORY"
-unset GH_TOKEN GITHUB_TOKEN
+unset GH_TOKEN GITHUB_TOKEN CODER_AGENT_TOKEN CODER_SESSION_TOKEN
+unset REALM_VISUAL_REVIEW_API_KEY RUNCOMFY_API_TOKEN
 export ANTHROPIC_API_KEY="$interview_key"
 unset interview_key
 exec claude "${claude_arguments[@]}"
@@ -755,6 +775,7 @@ run_check "Codex is installed" check_command codex
 run_check "Chrome is installed" check_command google-chrome-stable
 run_check "tmux is installed" check_command tmux
 run_check "SQLite CLI is installed" check_command sqlite3
+run_check "ripgrep is installed" check_command rg
 run_check "API responds at /hello" check_api
 run_check "frontend responds on port 3000" check_frontend
 run_check "working tree contains no unexpected files" interview_git_clean
@@ -814,7 +835,7 @@ fi
   printf -- '- `interview-claude` — prompt securely for the temporary Anthropic key and launch Claude Code\n'
   printf '\n## Credential state\n\n'
   printf 'Only credential names are reported; values are never recorded. Required pre-interview state: '
-  printf '`ANTHROPIC_API_KEY`, `GH_TOKEN`, and `GITHUB_TOKEN` absent; GitHub and Coder CLIs unauthenticated.\n'
+  printf '`ANTHROPIC_API_KEY`, GitHub, Coder-session, Realm, and RunComfy credentials absent; GitHub and Coder CLIs unauthenticated.\n'
   printf '\n## Remaining action\n\n%s\n' "$remaining_action"
 } > "$report_temporary"
 chmod 600 "$report_temporary"
@@ -845,6 +866,50 @@ exec python3 -m sqlite3 "$@"
 SQLITEEOF
 fi
 
+install_interview_ripgrep() {
+  local managed_binary="$interview_bin_dir/rg"
+  local tool_root="$interview_state_dir/ripgrep-$interview_ripgrep_version"
+  local packaged_binary="$tool_root/node_modules/@vscode/ripgrep-linux-x64/bin/rg"
+  local system_binary
+
+  for system_binary in /usr/bin/rg /usr/local/bin/rg; do
+    if [ -x "$system_binary" ]; then
+      if [ -L "$managed_binary" ] \
+        && [[ "$(readlink "$managed_binary")" == "$interview_state_dir"/ripgrep-* ]]; then
+        rm -f -- "$managed_binary"
+      fi
+      return 0
+    fi
+  done
+
+  if command -v rg >/dev/null 2>&1; then
+    return 0
+  fi
+  if [ -e "$managed_binary" ] || [ -L "$managed_binary" ]; then
+    interview_warn "Preserving unexpected rg command at $managed_binary"
+    return 1
+  fi
+  if [ ! -x "$packaged_binary" ]; then
+    command -v npm >/dev/null 2>&1 || return 1
+    mkdir -p "$tool_root"
+    npm install \
+      --prefix "$tool_root" \
+      --ignore-scripts \
+      --no-audit \
+      --no-fund \
+      --no-package-lock \
+      --no-save \
+      "@vscode/ripgrep@$interview_ripgrep_version" >/dev/null
+  fi
+  [ -x "$packaged_binary" ] || return 1
+  ln -s "$packaged_binary" "$managed_binary"
+  "$managed_binary" --version >/dev/null 2>&1
+}
+
+if ! install_interview_ripgrep; then
+  printf '[warn] ripgrep could not be prepared; interview-check will report it missing.\n' >&2
+fi
+
 if [ "${HIVE_INTERVIEW_SKIP_AUTOSTART:-false}" = "true" ]; then
   printf '[ok] Interview helper commands installed; automatic checks skipped by test mode\n'
   exit 0
@@ -856,15 +921,6 @@ check_status=0
 "$interview_bin_dir/interview-setup" || setup_status=$?
 "$interview_bin_dir/interview-start" || start_status=$?
 
-# Codex is installed by the shared AI-tools startup script. Coder runs startup
-# scripts independently, so wait boundedly for that sibling script before
-# producing the final readiness report.
-if ! command -v codex >/dev/null 2>&1; then
-  for ((codex_attempt = 1; codex_attempt <= 90; codex_attempt += 1)); do
-    sleep 2
-    command -v codex >/dev/null 2>&1 && break
-  done
-fi
 "$interview_bin_dir/interview-check" || check_status=$?
 
 if ((setup_status != 0 || start_status != 0 || check_status != 0)); then

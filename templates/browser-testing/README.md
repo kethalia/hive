@@ -1,10 +1,8 @@
 # Browser Testing Workspace on Kubernetes
 
-This Coder template is Hive's general-purpose browser-validation profile. It contains Google Chrome
-and configures Playwright for Claude Code and Codex, while the isolated `technical-interview`
-template reuses the same browser image family for time-boxed assessments. Browser Testing isolates
-browser state, screenshots, traces, downloads, and headed inspection from implementation and
-orchestration workspaces.
+This Coder template is the only Hive workspace profile that contains Google Chrome and configures
+Playwright for Claude Code and Codex. It isolates browser state, screenshots, traces, downloads, and
+headed inspection from implementation and orchestration workspaces.
 
 ## Runtime
 

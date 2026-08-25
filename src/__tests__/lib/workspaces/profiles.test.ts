@@ -22,7 +22,7 @@ describe("workspace profiles", () => {
     ["ai-dev-k8s", "software"],
     ["browser-testing", "browser"],
     ["technical-interview", "interview"],
-    ["proton-assessment", "interview"],
+    ["proton-interview", "interview"],
     ["playwright-qa", "browser"],
     ["game-dev", "game"],
     ["electronics", "electronics"],

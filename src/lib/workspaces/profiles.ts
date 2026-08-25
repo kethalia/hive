@@ -55,7 +55,7 @@ const PROFILE_PATTERNS: ReadonlyArray<{
   id: Exclude<WorkspaceProfileId, "custom" | "orchestrator">;
   pattern: RegExp;
 }> = [
-  { id: "interview", pattern: /technical[-_ ]?interview|assessment|coding[-_ ]?interview/ },
+  { id: "interview", pattern: /technical[-_ ]?interview|proton[-_ ]?interview/ },
   { id: "browser", pattern: /browser|playwright|chrome|end[-_ ]?to[-_ ]?end|e2e/ },
   { id: "game", pattern: /game|unity|unreal|godot|blender/ },
   { id: "electronics", pattern: /electronic|hardware|kicad|pcb|firmware/ },

@@ -17,30 +17,14 @@ terraform {
 
 provider "kubernetes" {}
 
-data "coder_provisioner" "me" {}
 data "coder_workspace" "me" {}
 data "coder_workspace_owner" "me" {}
 
 locals {
   profile                      = jsondecode(file("${path.module}/profile.json"))
-  github_auth_enabled          = try(local.profile.security.github_auth, true)
-  coder_login_enabled          = try(local.profile.security.coder_login, true)
-  include_workspace_routing    = try(local.profile.agent_context.include_workspace_routing, true)
-  profile_applications         = try(local.profile.applications, [])
   workspace_hostname_candidate = trim(substr(replace(lower(data.coder_workspace.me.name), "/[^a-z0-9-]/", "-"), 0, 63), "-")
   workspace_hostname           = local.workspace_hostname_candidate != "" ? local.workspace_hostname_candidate : "workspace"
 }
-
-# =============================================================================
-# External Auth
-# =============================================================================
-
-data "coder_external_auth" "github" {
-  count = local.github_auth_enabled ? 1 : 0
-  id    = "github"
-}
-
-
 
 # =============================================================================
 # Coder Agent
@@ -52,29 +36,25 @@ resource "coder_agent" "main" {
   startup_script_behavior = "blocking"
 
   startup_script = templatefile("${path.module}/scripts/init.sh", {
-    workspace_name = data.coder_workspace.me.name
-    owner_name     = data.coder_workspace_owner.me.name
-    owner_email    = data.coder_workspace_owner.me.email
-    enable_browser = local.profile.capabilities.browser
-    claude_md_content = join("\n\n", compact([
-      trimspace(file("${path.module}/CLAUDE.md")),
-      local.include_workspace_routing ? trimspace(file("${path.module}/WORKSPACE_ROUTING.md")) : "",
-    ]))
+    workspace_name           = data.coder_workspace.me.name
+    enable_browser           = local.profile.capabilities.browser
+    claude_md_content        = trimspace(file("${path.module}/CLAUDE.md"))
     workspace_readme_content = file("${path.module}/WORKSPACE.md")
   })
 
   env = {
-    GIT_AUTHOR_NAME             = coalesce(data.coder_workspace_owner.me.full_name, data.coder_workspace_owner.me.name)
-    GIT_AUTHOR_EMAIL            = data.coder_workspace_owner.me.email
-    GIT_COMMITTER_NAME          = coalesce(data.coder_workspace_owner.me.full_name, data.coder_workspace_owner.me.name)
-    GIT_COMMITTER_EMAIL         = data.coder_workspace_owner.me.email
+    GIT_AUTHOR_NAME             = "Interview Candidate"
+    GIT_AUTHOR_EMAIL            = "interview@local.invalid"
+    GIT_COMMITTER_NAME          = "Interview Candidate"
+    GIT_COMMITTER_EMAIL         = "interview@local.invalid"
     EXTENSIONS_GALLERY          = "{\"serviceUrl\":\"https://marketplace.visualstudio.com/_apis/public/gallery\"}"
-    HIVE_PROJECTS_ROOT          = "/home/coder"
+    BASH_ENV                    = "/home/coder/.config/hive/interview-env.sh"
+    ENV                         = "/home/coder/.config/hive/interview-env.sh"
+    HIVE_PROJECTS_ROOT          = "/home/coder/projects"
     HIVE_WORKSPACE_PROFILE      = local.profile.id
     HIVE_EXPECTED_IMAGE_VARIANT = local.profile.image_variant
     HIVE_DESKTOP_ENABLED        = tostring(local.profile.capabilities.desktop)
     HIVE_BROWSER_ENABLED        = tostring(local.profile.capabilities.browser)
-    HIVE_GITHUB_AUTH_ENABLED    = tostring(local.github_auth_enabled)
   }
 
   metadata {
@@ -150,58 +130,17 @@ resource "coder_agent" "main" {
 # Development Tools
 # =============================================================================
 
-resource "coder_script" "tools_shell" {
-  agent_id           = coder_agent.main.id
-  display_name       = "Shell & Prompt"
-  icon               = "/icon/terminal.svg"
-  run_on_start       = true
-  start_blocks_login = true
-  script             = file("${path.module}/scripts/tools-shell.sh")
-}
-
-resource "coder_script" "tools_node" {
-  agent_id           = coder_agent.main.id
-  display_name       = "Node.js Package Managers"
-  icon               = "/icon/nodejs.svg"
-  run_on_start       = true
-  start_blocks_login = true
-  script             = file("${path.module}/scripts/tools-node.sh")
-}
-
-resource "coder_script" "tools_web3" {
-  count              = local.profile.capabilities.web3 ? 1 : 0
-  agent_id           = coder_agent.main.id
-  display_name       = "Web3 Tools"
-  icon               = "/icon/terminal.svg"
-  run_on_start       = true
-  start_blocks_login = true
-  script             = file("${path.module}/scripts/tools-web3.sh")
-}
-
 resource "coder_script" "tools_ci" {
   agent_id           = coder_agent.main.id
-  display_name       = "CI/CD Tools"
+  display_name       = "Interview setup"
   icon               = "/icon/terminal.svg"
   run_on_start       = true
   start_blocks_login = true
   script = templatefile("${path.module}/scripts/tools-ci.sh", {
-    github_auth_enabled           = local.github_auth_enabled
-    github_token                  = local.github_auth_enabled ? data.coder_external_auth.github[0].access_token : ""
-    github_cli_script_b64         = base64encode(file("${path.module}/scripts/github-cli.sh"))
-    github_credential_script_b64  = base64encode(file("${path.module}/scripts/github-credential.sh"))
     clone_repositories_script_b64 = base64encode(file("${path.module}/scripts/clone-repositories.sh"))
     repositories_manifest_b64     = base64encode(file("${path.module}/repositories.txt"))
-    profile_bootstrap_script_b64  = fileexists("${path.module}/bootstrap.sh") ? base64encode(file("${path.module}/bootstrap.sh")) : ""
+    bootstrap_script_b64          = base64encode(file("${path.module}/bootstrap.sh"))
   })
-}
-
-resource "coder_script" "tools_ai" {
-  agent_id           = coder_agent.main.id
-  display_name       = "AI Tools"
-  icon               = "/icon/terminal.svg"
-  run_on_start       = true
-  start_blocks_login = true
-  script             = file("${path.module}/scripts/tools-ai.sh")
 }
 
 resource "coder_script" "tools_browser" {
@@ -212,15 +151,6 @@ resource "coder_script" "tools_browser" {
   run_on_start       = true
   start_blocks_login = true
   script             = file("${path.module}/scripts/tools-browser.sh")
-}
-
-resource "coder_script" "symlinks" {
-  agent_id           = coder_agent.main.id
-  display_name       = "Tool Symlinks"
-  icon               = "/icon/terminal.svg"
-  run_on_start       = true
-  start_blocks_login = true
-  script             = file("${path.module}/scripts/symlinks.sh")
 }
 
 # =============================================================================
@@ -237,30 +167,9 @@ module "code-server" {
   subdomain             = true
   use_cached_extensions = true
 
-  extensions = concat([
-    "binary-ink.dark-modern-oled-theme-set",
-    "pkief.material-icon-theme",
-    "esbenp.prettier-vscode",
-    "eamodio.gitlens",
-    "oderwat.indent-rainbow",
-    "gruntfuggly.todo-tree",
-    "pflannery.vscode-versionlens",
-    "ms-vsliveshare.vsliveshare",
-    "hashicorp.terraform",
-    "ms-azuretools.vscode-docker",
-    "cweijan.vscode-postgresql-client2",
-    "usernamehw.errorlens",
-    "streetsidesoftware.code-spell-checker",
-    "wayou.vscode-todo-highlight",
-  ], local.profile.vscode_extensions)
+  extensions = local.profile.vscode_extensions
 
   settings = {
-    "[solidity]" : {
-      "editor.defaultFormatter" : "esbenp.prettier-vscode",
-      "editor.formatOnSave" : true
-    },
-    "solidity.telemetry" : false,
-    "editor.defaultFormatter" : "esbenp.prettier-vscode",
     "editor.fontFamily" : "Fira Code",
     "editor.fontLigatures" : true,
     "editor.formatOnSave" : true,
@@ -288,14 +197,8 @@ module "code-server" {
     "terminal.integrated.scrollback" : 10000,
     "terminal.integrated.defaultProfile.linux" : "zsh",
     "terminal.integrated.fontSize" : 14,
-    "workbench.iconTheme" : "material-icon-theme",
     "explorer.confirmDelete" : false,
     "explorer.confirmDragAndDrop" : false,
-    "docker.showStartPage" : false,
-    "workbench.preferredDarkColorTheme" : "Dark Modern (OLED Black) [Orange]",
-    "workbench.preferredLightColorTheme" : "Light Modern (OLED) Saturated",
-    "workbench.preferredHighContrastColorTheme" : "Dark Modern (OLED Black) Stylized [Orange]",
-    "workbench.preferredHighContrastLightColorTheme" : "Light Modern (OLED) Saturated Stylized",
     "window.autoDetectColorScheme" : true
   }
 }
@@ -332,59 +235,39 @@ resource "coder_app" "filebrowser" {
 }
 
 # =============================================================================
-# Optional profile-owned applications
+# Interview applications
 # =============================================================================
 
-resource "coder_app" "profile" {
-  for_each = { for application in local.profile_applications : application.slug => application }
-
+resource "coder_app" "interview_app" {
   agent_id     = coder_agent.main.id
-  slug         = each.value.slug
-  display_name = each.value.display_name
-  url          = each.value.url
-  icon         = each.value.icon
-  subdomain    = try(each.value.subdomain, true)
+  slug         = "interview-app"
+  display_name = "Interview App"
+  url          = "http://localhost:3000"
+  icon         = "/icon/nodejs.svg"
+  subdomain    = true
   share        = "owner"
 
-  dynamic "healthcheck" {
-    for_each = try(each.value.healthcheck_url, null) != null ? [each.value.healthcheck_url] : []
-
-    content {
-      url       = healthcheck.value
-      interval  = try(each.value.healthcheck_interval, 5)
-      threshold = try(each.value.healthcheck_threshold, 12)
-    }
+  healthcheck {
+    url       = "http://localhost:3000"
+    interval  = 5
+    threshold = 12
   }
 }
 
-# =============================================================================
-# GitHub Integration
-# =============================================================================
+resource "coder_app" "api_docs" {
+  agent_id     = coder_agent.main.id
+  slug         = "api-docs"
+  display_name = "API Docs"
+  url          = "http://localhost:8000/docs"
+  icon         = "/icon/terminal.svg"
+  subdomain    = true
+  share        = "owner"
 
-module "git-commit-signing" {
-  count    = data.coder_workspace.me.start_count
-  source   = "registry.coder.com/coder/git-commit-signing/coder"
-  version  = "1.0.32"
-  agent_id = coder_agent.main.id
-}
-
-module "git-config" {
-  count    = data.coder_workspace.me.start_count
-  source   = "registry.coder.com/coder/git-config/coder"
-  version  = "1.0.33"
-  agent_id = coder_agent.main.id
-}
-
-# =============================================================================
-# Claude Code (module replaces claude-install.sh + coder_app)
-# =============================================================================
-
-module "claude-code" {
-  count               = data.coder_workspace.me.start_count
-  source              = "registry.coder.com/coder/claude-code/coder"
-  version             = "1.1.0"
-  agent_id            = coder_agent.main.id
-  install_claude_code = false
+  healthcheck {
+    url       = "http://localhost:8000/openapi.json"
+    interval  = 5
+    threshold = 12
+  }
 }
 
 # =============================================================================
@@ -398,28 +281,6 @@ module "kasmvnc" {
   agent_id            = coder_agent.main.id
   desktop_environment = "xfce"
   port                = 6080
-}
-
-# =============================================================================
-# Coder Login (auto-authenticates coder CLI inside workspace)
-# =============================================================================
-
-module "coder-login" {
-  count    = local.coder_login_enabled ? data.coder_workspace.me.start_count : 0
-  source   = "registry.coder.com/coder/coder-login/coder"
-  version  = "1.0.15"
-  agent_id = coder_agent.main.id
-}
-
-# =============================================================================
-# tmux with session persistence
-# =============================================================================
-
-module "tmux" {
-  count    = data.coder_workspace.me.start_count
-  source   = "registry.coder.com/anomaly/tmux/coder"
-  version  = "1.0.4"
-  agent_id = coder_agent.main.id
 }
 
 # =============================================================================

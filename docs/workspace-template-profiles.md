@@ -42,8 +42,8 @@ tests enforce those exclusions for every image build.
 
 ## Source layout
 
-`templates/ai-dev-k8s` is the canonical Kubernetes scaffold. The five specialist directories
-contain byte-identical Terraform and startup scripts plus their own:
+`templates/ai-dev-k8s` is the canonical Kubernetes scaffold. Browser Testing, Game Development,
+Electronics, and Infrastructure contain synchronized Terraform and startup scripts plus their own:
 
 - `profile.json` for image variant, capabilities, resources, and editor extensions
 - `CLAUDE.md` for agent behavior and safety boundaries
@@ -51,8 +51,11 @@ contain byte-identical Terraform and startup scripts plus their own:
   contract
 - `WORKSPACE.md` for the generated `~/README.md` quick start
 - `repositories.txt` for the narrow first-start repository set
-- optional root-level `bootstrap.sh` for deterministic profile setup after repository cloning
 - `README.md` for operator-facing deployment notes
+
+`templates/technical-interview` is deliberately standalone. It carries only the scripts and Coder
+resources needed for the assessment and is not a synchronization target, so adding or removing it
+does not rewrite any existing template.
 
 After changing canonical Terraform, routing guidance, or scripts, synchronize and verify every
 profile:
@@ -70,12 +73,6 @@ On every workspace start, Hive refreshes the template-managed global agent conte
 `~/.codex/AGENTS.md` and `~/.claude/CLAUDE.md`. Repository-local instruction files remain owned by
 their repositories and layer on top of that workspace context. If an agent configuration directory
 is itself a symlink, Hive warns and preserves it instead of writing through to the linked target.
-Profiles can omit the synchronized routing catalog from active agent context with
-`agent_context.include_workspace_routing: false`; the routing source file remains packaged.
-
-Profiles can also disable GitHub external auth and Coder CLI login independently through `security`,
-and can declare owner-only local applications through `applications`. Omitted settings retain the
-existing authenticated behavior for backward compatibility.
 
 ## Publish
 
@@ -109,17 +106,14 @@ after any required workspace migration is complete.
 `docker/hive-base/Dockerfile` builds `cli`, `infrastructure`, `browser`, `game`, and `electronics`
 variants. Pull-request CI builds every variant and verifies both required and forbidden commands.
 After a change lands on `main`, the workflow pushes all five tested image variants and opens a
-follow-up PR that pins each `profile.json` to the digest for its variant. Both `browser-testing` and
-`technical-interview` receive the same browser digest.
+follow-up PR that pins the synchronized profiles to the digest for their variant. The standalone
+interview template intentionally keeps its explicit browser digest until it is removed or updated
+directly.
 
 When introducing a new variant, the profile keeps the variant matching its existing digest and
 declares `pending_image_variant`. The digest workflow replaces the digest, promotes that pending
 variant, and removes the marker in the same follow-up commit; no repository revision contains a
 mismatched expected variant and image.
-
-For the first `technical-interview` rollout: merge the feature PR, wait for and merge the automated
-workspace-image digest PR, repush `technical-interview`, update or restart `proton-interview`
-without deleting its volume, then rerun `interview-check` and the stop/start persistence check.
 
 ## Validation
 

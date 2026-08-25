@@ -18,33 +18,6 @@
     "memory_limit": "16Gi",
     "storage": "50Gi"
   },
-  "security": {
-    "github_auth": false,
-    "coder_login": false
-  },
-  "agent_context": {
-    "include_workspace_routing": false
-  },
-  "applications": [
-    {
-      "slug": "interview-app",
-      "display_name": "Interview App",
-      "url": "http://localhost:3000",
-      "icon": "/icon/nodejs.svg",
-      "healthcheck_url": "http://localhost:3000",
-      "healthcheck_interval": 5,
-      "healthcheck_threshold": 12
-    },
-    {
-      "slug": "api-docs",
-      "display_name": "API Docs",
-      "url": "http://localhost:8000/docs",
-      "icon": "/icon/terminal.svg",
-      "healthcheck_url": "http://localhost:8000/openapi.json",
-      "healthcheck_interval": 5,
-      "healthcheck_threshold": 12
-    }
-  ],
   "vscode_extensions": [
     "Vue.volar",
     "ms-python.python",

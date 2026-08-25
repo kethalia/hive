@@ -18,6 +18,7 @@ import test from "node:test";
 const repositoryRoot = process.cwd();
 const templateRoot = join(repositoryRoot, "templates", "technical-interview");
 const bootstrapScript = join(templateRoot, "bootstrap.sh");
+const cloneScript = join(templateRoot, "scripts", "clone-repositories.sh");
 const expectedOrigin = "https://github.com/prmsolutions/interview-template.git";
 
 function executable(path, contents) {
@@ -173,12 +174,19 @@ exit 0
 set -euo pipefail
 if [ "\${1:-}" = "--version" ]; then printf '2.1.170 (Claude Code)\\n'; exit 0; fi
 [ "\${ANTHROPIC_API_KEY:-}" = "\${EXPECTED_CLAUDE_KEY:-}" ]
+[ -z "\${GH_TOKEN:-}" ]
+[ -z "\${GITHUB_TOKEN:-}" ]
+[ -z "\${CODER_AGENT_TOKEN:-}" ]
+[ -z "\${CODER_SESSION_TOKEN:-}" ]
+[ -z "\${REALM_VISUAL_REVIEW_API_KEY:-}" ]
+[ -z "\${RUNCOMFY_API_TOKEN:-}" ]
 printf '<%s>\\n' "$@" > "$CLAUDE_ARGS_LOG"
 `,
   );
   executable(join(bin, "codex"), "#!/bin/sh\nprintf 'codex-cli 0.149.1\\n'\n");
   executable(join(bin, "google-chrome-stable"), "#!/bin/sh\nprintf 'Google Chrome 140\\n'\n");
   executable(join(bin, "sqlite3"), "#!/bin/sh\nprintf '3.46.1\\n'\n");
+  executable(join(bin, "rg"), "#!/bin/sh\nprintf 'ripgrep 14.1.1\\n'\n");
   executable(
     join(bin, "tmux"),
     `#!/bin/bash
@@ -250,6 +258,8 @@ esac
     "GH_TOKEN",
     "GITHUB_TOKEN",
     "CODER_SESSION_TOKEN",
+    "REALM_VISUAL_REVIEW_API_KEY",
+    "RUNCOMFY_API_TOKEN",
   ]) {
     delete env[variableName];
   }
@@ -280,6 +290,87 @@ function filesRecursively(root) {
   }
   return files;
 }
+
+test("standalone Terraform exposes interview apps without personal auth modules", () => {
+  const terraform = readFileSync(join(templateRoot, "main.tf"), "utf8");
+  const profile = JSON.parse(readFileSync(join(templateRoot, "profile.json"), "utf8"));
+
+  assert.doesNotMatch(terraform, /coder_external_auth/);
+  assert.doesNotMatch(terraform, /coder-login/);
+  assert.doesNotMatch(terraform, /git-commit-signing|module "git-config"/);
+  assert.doesNotMatch(terraform, /module "claude-code"/);
+  assert.doesNotMatch(terraform, /WORKSPACE_ROUTING\.md/);
+  assert.doesNotMatch(terraform, /scripts\/tools-ai\.sh/);
+  assert.match(
+    terraform,
+    /resource "coder_app" "interview_app"[\s\S]*?url\s*=\s*"http:\/\/localhost:3000"[\s\S]*?share\s*=\s*"owner"/,
+  );
+  assert.match(
+    terraform,
+    /resource "coder_app" "api_docs"[\s\S]*?url\s*=\s*"http:\/\/localhost:8000\/docs"[\s\S]*?share\s*=\s*"owner"/,
+  );
+  assert.equal(profile.id, "interview");
+  assert.equal(profile.image_variant, "browser");
+  assert.equal(profile.security, undefined);
+  assert.equal(profile.applications, undefined);
+});
+
+test("repository bootstrap clones anonymously and preserves an existing checkout", () => {
+  const root = mkdtempSync(join(tmpdir(), "technical-interview-clone-"));
+  const home = join(root, "home");
+  const bin = join(root, "bin");
+  const manifest = join(root, "repositories.txt");
+  const calls = join(root, "git-calls.log");
+  const destination = join(home, "projects", "prmsolutions", "interview-template");
+  mkdirSync(home, { recursive: true });
+  mkdirSync(bin, { recursive: true });
+  writeFileSync(manifest, "prmsolutions/interview-template|prmsolutions/interview-template\n");
+  executable(
+    join(bin, "git"),
+    `#!/bin/bash
+set -euo pipefail
+[ "$1" = "-c" ]
+[ "$2" = "credential.helper=" ]
+[ "$3" = "clone" ]
+[ "$4" = "https://github.com/prmsolutions/interview-template.git" ]
+[ -z "\${ANTHROPIC_API_KEY:-}" ]
+[ -z "\${GH_TOKEN:-}" ]
+[ -z "\${GITHUB_TOKEN:-}" ]
+[ -z "\${CODER_SESSION_TOKEN:-}" ]
+[ -z "\${REALM_VISUAL_REVIEW_API_KEY:-}" ]
+[ -z "\${RUNCOMFY_API_TOKEN:-}" ]
+mkdir -p "$5/.git"
+printf '%s\\n' "$*" >> "$GIT_CALLS"
+`,
+  );
+
+  const env = {
+    ...process.env,
+    ANTHROPIC_API_KEY: "must-not-reach-git",
+    CODER_SESSION_TOKEN: "must-not-reach-git",
+    GH_TOKEN: "must-not-reach-git",
+    GITHUB_TOKEN: "must-not-reach-git",
+    GIT_CALLS: calls,
+    HOME: home,
+    PATH: `${bin}:/usr/bin:/bin`,
+    REALM_VISUAL_REVIEW_API_KEY: "must-not-reach-git",
+    REPOSITORIES_FILE: manifest,
+    RUNCOMFY_API_TOKEN: "must-not-reach-git",
+  };
+  const first = run("bash", [cloneScript], env);
+  assert.equal(first.status, 0, first.stderr);
+  const firstCalls = readFileSync(calls, "utf8");
+  assert.match(firstCalls, /clone https:\/\/github\.com\/prmsolutions\/interview-template\.git/);
+  assert.doesNotMatch(firstCalls, /must-not-reach/);
+
+  const candidateFile = join(destination, "candidate-work.txt");
+  writeFileSync(candidateFile, "preserve me\n");
+  const second = run("bash", [cloneScript], env);
+  assert.equal(second.status, 0, second.stderr);
+  assert.match(second.stdout, /preserving existing interview repository/);
+  assert.equal(readFileSync(candidateFile, "utf8"), "preserve me\n");
+  assert.equal(readFileSync(calls, "utf8"), firstCalls);
+});
 
 test("bootstrap installs executable helper commands idempotently", () => {
   const fixture = createFixture();
@@ -389,7 +480,13 @@ test("interview-claude masks and scopes the temporary key without persisting it"
       env: {
         ...fixture.env,
         ANTHROPIC_API_KEY: "inherited-key-must-be-overridden",
+        CODER_AGENT_TOKEN: "must-not-reach-claude",
+        CODER_SESSION_TOKEN: "must-not-reach-claude",
         EXPECTED_CLAUDE_KEY: fakeKey,
+        GH_TOKEN: "must-not-reach-claude",
+        GITHUB_TOKEN: "must-not-reach-claude",
+        REALM_VISUAL_REVIEW_API_KEY: "must-not-reach-claude",
+        RUNCOMFY_API_TOKEN: "must-not-reach-claude",
       },
       stdio: ["pipe", "pipe", "pipe"],
     });
