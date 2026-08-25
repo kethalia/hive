@@ -6,7 +6,7 @@ specialist workspace and bring only the repository or endpoint needed for the br
 
 ## Start here
 
-- Use `claude` or `codex` in a terminal; both receive the Playwright MCP only in this profile.
+- Use `claude` or `codex` in a terminal; both receive the Playwright MCP in browser-capable profiles.
 - Open Desktop from Coder for headed Chrome inspection.
 - Use `browser-screenshot <url>` and `browser-html <url>` for lightweight command-line checks.
 - Store screenshots, traces, and downloads under the task repository or another explicit artifact

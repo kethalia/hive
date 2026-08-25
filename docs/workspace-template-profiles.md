@@ -1,6 +1,6 @@
 # Workspace Template Profiles
 
-Hive ships five deployable Coder templates for interactive work in the Kubernetes cluster. Templates
+Hive ships six deployable Coder templates for interactive work in the Kubernetes cluster. Templates
 define the environment and capability boundary; tmux/TUI sessions remain the conversation boundary
 inside each workspace.
 
@@ -10,6 +10,7 @@ inside each workspace.
 | --- | --- | --- | --- | --- |
 | `ai-dev-k8s` | Development & orchestration | `cli` | TUI, VS Code, files | 6 CPU, 16 GiB RAM, 100 GiB home |
 | `browser-testing` | Browser testing | `browser` | Chrome, Playwright, desktop | 4 CPU, 8 GiB RAM, 50 GiB home |
+| `technical-interview` | Technical interview | `browser` | Prepared assessment app, API, Chrome, desktop | 4 CPU, 8 GiB RAM, 50 GiB home |
 | `game-dev` | Game development | `game` | Unity, Blender, desktop | 6 CPU, 16 GiB RAM, 150 GiB home |
 | `electronics` | Electronics | `electronics` | KiCad, desktop | 4 CPU, 8 GiB RAM, 100 GiB home |
 | `infrastructure` | Infrastructure | `infrastructure` | Terraform, kubectl, Helm, Argo CD | 4 CPU, 8 GiB RAM, 75 GiB home |
@@ -23,16 +24,17 @@ Each `profile.json` declares its image variant and explicit capabilities. Terraf
 to decide which Coder scripts, applications, and modules exist; the image build uses the variant to
 decide which binaries are present.
 
-| Capability | Development | Browser | Game | Electronics | Infrastructure |
-| --- | ---: | ---: | ---: | ---: | ---: |
-| Claude Code, Codex, tmux, CLI baseline | Yes | Yes | Yes | Yes | Yes |
-| Coder workspace orchestration | Yes | No | No | No | No |
-| code-server and File Browser | Yes | Yes | Yes | Yes | Yes |
-| XFCE and KasmVNC | No | Yes | Yes | Yes | No |
-| Chrome and Playwright MCP | No | Yes | No | No | No |
-| Unity Hub and Blender | No | No | Yes | No | No |
-| KiCad | No | No | No | Yes | No |
-| Terraform, kubectl, Helm, and Argo CD | No | No | No | No | Yes |
+| Capability | Development | Browser | Interview | Game | Electronics | Infrastructure |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| Claude Code, Codex, tmux, CLI baseline | Yes | Yes | Yes | Yes | Yes | Yes |
+| Coder workspace orchestration | Yes | No | No | No | No | No |
+| GitHub external authentication | Yes | Yes | No | Yes | Yes | Yes |
+| code-server and File Browser | Yes | Yes | Yes | Yes | Yes | Yes |
+| XFCE and KasmVNC | No | Yes | Yes | Yes | Yes | No |
+| Chrome and Playwright MCP | No | Yes | Yes | No | No | No |
+| Unity Hub and Blender | No | No | No | Yes | No | No |
+| KiCad | No | No | No | No | Yes | No |
+| Terraform, kubectl, Helm, and Argo CD | No | No | No | No | No | Yes |
 
 This is both a runtime and image boundary. For example, a CLI image does not merely hide the Desktop
 link: it has no XFCE, KasmVNC, Chrome, Unity, Blender, or KiCad executable to launch. Negative smoke
@@ -40,7 +42,7 @@ tests enforce those exclusions for every image build.
 
 ## Source layout
 
-`templates/ai-dev-k8s` is the canonical Kubernetes scaffold. The four specialist directories
+`templates/ai-dev-k8s` is the canonical Kubernetes scaffold. The five specialist directories
 contain byte-identical Terraform and startup scripts plus their own:
 
 - `profile.json` for image variant, capabilities, resources, and editor extensions
@@ -49,6 +51,7 @@ contain byte-identical Terraform and startup scripts plus their own:
   contract
 - `WORKSPACE.md` for the generated `~/README.md` quick start
 - `repositories.txt` for the narrow first-start repository set
+- optional root-level `bootstrap.sh` for deterministic profile setup after repository cloning
 - `README.md` for operator-facing deployment notes
 
 After changing canonical Terraform, routing guidance, or scripts, synchronize and verify every
@@ -67,6 +70,12 @@ On every workspace start, Hive refreshes the template-managed global agent conte
 `~/.codex/AGENTS.md` and `~/.claude/CLAUDE.md`. Repository-local instruction files remain owned by
 their repositories and layer on top of that workspace context. If an agent configuration directory
 is itself a symlink, Hive warns and preserves it instead of writing through to the linked target.
+Profiles can omit the synchronized routing catalog from active agent context with
+`agent_context.include_workspace_routing: false`; the routing source file remains packaged.
+
+Profiles can also disable GitHub external auth and Coder CLI login independently through `security`,
+and can declare owner-only local applications through `applications`. Omitted settings retain the
+existing authenticated behavior for backward compatibility.
 
 ## Publish
 
@@ -75,6 +84,7 @@ Authenticate the Coder CLI, then push every Kubernetes template from the reposit
 ```bash
 coder templates push ai-dev-k8s --directory templates/ai-dev-k8s --yes
 coder templates push browser-testing --directory templates/browser-testing --yes
+coder templates push technical-interview --directory templates/technical-interview --yes
 coder templates push game-dev --directory templates/game-dev --yes
 coder templates push electronics --directory templates/electronics --yes
 coder templates push infrastructure --directory templates/infrastructure --yes
@@ -98,13 +108,18 @@ after any required workspace migration is complete.
 
 `docker/hive-base/Dockerfile` builds `cli`, `infrastructure`, `browser`, `game`, and `electronics`
 variants. Pull-request CI builds every variant and verifies both required and forbidden commands.
-After a change lands on `main`, the workflow pushes all five tested images and opens a follow-up PR
-that pins each `profile.json` to the digest for its variant.
+After a change lands on `main`, the workflow pushes all five tested image variants and opens a
+follow-up PR that pins each `profile.json` to the digest for its variant. Both `browser-testing` and
+`technical-interview` receive the same browser digest.
 
 When introducing a new variant, the profile keeps the variant matching its existing digest and
 declares `pending_image_variant`. The digest workflow replaces the digest, promotes that pending
 variant, and removes the marker in the same follow-up commit; no repository revision contains a
 mismatched expected variant and image.
+
+For the first `technical-interview` rollout: merge the feature PR, wait for and merge the automated
+workspace-image digest PR, repush `technical-interview`, update or restart `proton-interview`
+without deleting its volume, then rerun `interview-check` and the stop/start persistence check.
 
 ## Validation
 
@@ -117,6 +132,6 @@ Before publishing:
 4. Verify Coder SSH, the Hive TUI, agent login, declared apps, repository bootstrap, workspace
    discovery from `ai-dev-k8s`, and stop/start persistence.
 5. Confirm excluded apps are absent: especially Desktop in CLI profiles and Chrome/Playwright in
-   every profile except Browser Testing.
+   every profile except Browser Testing and Technical Interview.
 6. Perform domain checks in the matching profile. GPU, physical electronics, and live infrastructure
    access remain explicit external capabilities rather than template assumptions.

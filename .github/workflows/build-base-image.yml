@@ -201,7 +201,10 @@ jobs:
           infrastructure_profiles=(templates/infrastructure/profile.json)
           game_profiles=(templates/game-dev/profile.json)
           electronics_profiles=(templates/electronics/profile.json)
-          browser_profiles=(templates/browser-testing/profile.json)
+          browser_profiles=(
+            templates/browser-testing/profile.json
+            templates/technical-interview/profile.json
+          )
 
           replace_digest "$cli_digest" "${cli_profiles[@]}"
           replace_digest "$infrastructure_digest" "${infrastructure_profiles[@]}"

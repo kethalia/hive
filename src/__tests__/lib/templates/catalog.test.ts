@@ -13,6 +13,7 @@ describe("template catalog", () => {
     expect(KNOWN_TEMPLATES).toEqual([
       "ai-dev-k8s",
       "browser-testing",
+      "technical-interview",
       "game-dev",
       "electronics",
       "infrastructure",
@@ -21,7 +22,7 @@ describe("template catalog", () => {
 
   it("covers every built-in non-custom profile", () => {
     expect(new Set(TEMPLATE_CATALOG.map(({ profileId }) => profileId))).toEqual(
-      new Set(["software", "browser", "game", "electronics", "infrastructure"]),
+      new Set(["software", "browser", "interview", "game", "electronics", "infrastructure"]),
     );
   });
 
@@ -37,6 +38,7 @@ describe("template catalog", () => {
     expect(workspaceSurfaceLabel("ai-dev-k8s")).toBe("CLI + web tools");
     expect(workspaceSurfaceLabel("game-dev")).toBe("Desktop");
     expect(workspaceSurfaceLabel("browser-testing")).toBe("Browser + desktop");
+    expect(workspaceSurfaceLabel("technical-interview")).toBe("Browser + desktop");
     expect(workspaceTemplateCapabilities("browser-testing")).toMatchObject({
       browser: true,
       desktop: true,
@@ -44,6 +46,11 @@ describe("template catalog", () => {
     expect(templateCatalogEntry("infrastructure")).toMatchObject({
       imageVariant: "infrastructure",
       capabilities: { browser: false, desktop: false },
+    });
+    expect(templateCatalogEntry("technical-interview")).toMatchObject({
+      profileId: "interview",
+      imageVariant: "browser",
+      capabilities: { browser: true, desktop: true },
     });
   });
 

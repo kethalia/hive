@@ -1,4 +1,5 @@
 #!/bin/sh
+# hive-managed-github-cli:v1
 set -eu
 
 real_gh="${GH_REAL_BIN:-$HOME/.local/libexec/gh}"

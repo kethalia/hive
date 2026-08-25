@@ -23,6 +23,10 @@ data "coder_workspace_owner" "me" {}
 
 locals {
   profile                      = jsondecode(file("${path.module}/profile.json"))
+  github_auth_enabled          = try(local.profile.security.github_auth, true)
+  coder_login_enabled          = try(local.profile.security.coder_login, true)
+  include_workspace_routing    = try(local.profile.agent_context.include_workspace_routing, true)
+  profile_applications         = try(local.profile.applications, [])
   workspace_hostname_candidate = trim(substr(replace(lower(data.coder_workspace.me.name), "/[^a-z0-9-]/", "-"), 0, 63), "-")
   workspace_hostname           = local.workspace_hostname_candidate != "" ? local.workspace_hostname_candidate : "workspace"
 }
@@ -32,7 +36,8 @@ locals {
 # =============================================================================
 
 data "coder_external_auth" "github" {
-  id = "github"
+  count = local.github_auth_enabled ? 1 : 0
+  id    = "github"
 }
 
 
@@ -47,14 +52,14 @@ resource "coder_agent" "main" {
   startup_script_behavior = "blocking"
 
   startup_script = templatefile("${path.module}/scripts/init.sh", {
-    workspace_name           = data.coder_workspace.me.name
-    owner_name               = data.coder_workspace_owner.me.name
-    owner_email              = data.coder_workspace_owner.me.email
-    enable_browser           = local.profile.capabilities.browser
-    claude_md_content = join("\n\n", [
+    workspace_name = data.coder_workspace.me.name
+    owner_name     = data.coder_workspace_owner.me.name
+    owner_email    = data.coder_workspace_owner.me.email
+    enable_browser = local.profile.capabilities.browser
+    claude_md_content = join("\n\n", compact([
       trimspace(file("${path.module}/CLAUDE.md")),
-      trimspace(file("${path.module}/WORKSPACE_ROUTING.md")),
-    ])
+      local.include_workspace_routing ? trimspace(file("${path.module}/WORKSPACE_ROUTING.md")) : "",
+    ]))
     workspace_readme_content = file("${path.module}/WORKSPACE.md")
   })
 
@@ -69,6 +74,7 @@ resource "coder_agent" "main" {
     HIVE_EXPECTED_IMAGE_VARIANT = local.profile.image_variant
     HIVE_DESKTOP_ENABLED        = tostring(local.profile.capabilities.desktop)
     HIVE_BROWSER_ENABLED        = tostring(local.profile.capabilities.browser)
+    HIVE_GITHUB_AUTH_ENABLED    = tostring(local.github_auth_enabled)
   }
 
   metadata {
@@ -179,11 +185,13 @@ resource "coder_script" "tools_ci" {
   run_on_start       = true
   start_blocks_login = true
   script = templatefile("${path.module}/scripts/tools-ci.sh", {
-    github_token                  = data.coder_external_auth.github.access_token
+    github_auth_enabled           = local.github_auth_enabled
+    github_token                  = local.github_auth_enabled ? data.coder_external_auth.github[0].access_token : ""
     github_cli_script_b64         = base64encode(file("${path.module}/scripts/github-cli.sh"))
     github_credential_script_b64  = base64encode(file("${path.module}/scripts/github-credential.sh"))
     clone_repositories_script_b64 = base64encode(file("${path.module}/scripts/clone-repositories.sh"))
     repositories_manifest_b64     = base64encode(file("${path.module}/repositories.txt"))
+    profile_bootstrap_script_b64  = fileexists("${path.module}/bootstrap.sh") ? base64encode(file("${path.module}/bootstrap.sh")) : ""
   })
 }
 
@@ -324,6 +332,32 @@ resource "coder_app" "filebrowser" {
 }
 
 # =============================================================================
+# Optional profile-owned applications
+# =============================================================================
+
+resource "coder_app" "profile" {
+  for_each = { for application in local.profile_applications : application.slug => application }
+
+  agent_id     = coder_agent.main.id
+  slug         = each.value.slug
+  display_name = each.value.display_name
+  url          = each.value.url
+  icon         = each.value.icon
+  subdomain    = try(each.value.subdomain, true)
+  share        = "owner"
+
+  dynamic "healthcheck" {
+    for_each = try(each.value.healthcheck_url, null) != null ? [each.value.healthcheck_url] : []
+
+    content {
+      url       = healthcheck.value
+      interval  = try(each.value.healthcheck_interval, 5)
+      threshold = try(each.value.healthcheck_threshold, 12)
+    }
+  }
+}
+
+# =============================================================================
 # GitHub Integration
 # =============================================================================
 
@@ -371,7 +405,7 @@ module "kasmvnc" {
 # =============================================================================
 
 module "coder-login" {
-  count    = data.coder_workspace.me.start_count
+  count    = local.coder_login_enabled ? data.coder_workspace.me.start_count : 0
   source   = "registry.coder.com/coder/coder-login/coder"
   version  = "1.0.15"
   agent_id = coder_agent.main.id

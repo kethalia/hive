@@ -20,6 +20,7 @@ const TEMPLATE_ROOT = join(process.cwd(), "templates/ai-dev-k8s");
 const GAME_TEMPLATE_ROOT = join(process.cwd(), "templates/game-dev");
 const ELECTRONICS_TEMPLATE_ROOT = join(process.cwd(), "templates/electronics");
 const INFRASTRUCTURE_TEMPLATE_ROOT = join(process.cwd(), "templates/infrastructure");
+const INTERVIEW_TEMPLATE_ROOT = join(process.cwd(), "templates/technical-interview");
 
 function readTemplateFile(relativePath) {
   return readFileSync(join(TEMPLATE_ROOT, relativePath), "utf8");
@@ -115,6 +116,22 @@ function verifyPodSecurity() {
   assert.match(terraform, /local\.profile\.capabilities\.browser/);
   assert.match(terraform, /local\.profile\.capabilities\.editor/);
   assert.match(terraform, /local\.profile\.capabilities\.file_browser/);
+  assert.match(
+    terraform,
+    /github_auth_enabled\s*=\s*try\(local\.profile\.security\.github_auth, true\)/,
+  );
+  assert.match(
+    terraform,
+    /coder_login_enabled\s*=\s*try\(local\.profile\.security\.coder_login, true\)/,
+  );
+  assert.match(
+    terraform,
+    /data "coder_external_auth" "github" \{[\s\S]*?count\s*=\s*local\.github_auth_enabled \? 1 : 0/,
+  );
+  assert.match(
+    terraform,
+    /module "coder-login" \{[\s\S]*?count\s*=\s*local\.coder_login_enabled \? data\.coder_workspace\.me\.start_count : 0/,
+  );
   assert.equal(profile.id, "software");
   assert.equal(profile.image_variant, "cli");
   assert.deepEqual(profile.capabilities, {
@@ -175,6 +192,13 @@ function verifyCiTooling() {
   assert.match(script, /sha256sum --check --status/);
   assert.match(script, /credential\.https:\/\/github\.com\.helper/);
   assert.match(script, /\.local\/libexec\/gh/);
+  assert.match(script, /github_auth_enabled="\$\{github_auth_enabled\}"/);
+  assert.match(script, /git config --global --add credential\.https:\/\/github\.com\.helper/);
+  assert.doesNotMatch(
+    script,
+    /git config --global --replace-all credential\.https:\/\/github\.com\.helper/,
+  );
+  assert.match(script, /profile_bootstrap_script_b64/);
 }
 
 function verifySafeBootstrap() {
@@ -420,6 +444,7 @@ function verifyBaseImageRollout() {
     join(process.cwd(), ".github/workflows/build-base-image.yml"),
     "utf8",
   );
+  const dockerfile = readFileSync(join(process.cwd(), "docker/hive-base/Dockerfile"), "utf8");
   const smokeTest = readFileSync(join(process.cwd(), "docker/hive-base/smoke-test.sh"), "utf8");
 
   assert.match(workflow, /variant: \[cli, infrastructure, game, electronics, browser\]/);
@@ -440,12 +465,26 @@ function verifyBaseImageRollout() {
   for (const templateName of [
     "ai-dev-k8s",
     "browser-testing",
+    "technical-interview",
     "game-dev",
     "electronics",
     "infrastructure",
   ]) {
     assert.ok(workflow.includes(`templates/${templateName}/profile.json`));
   }
+  assert.match(dockerfile, /^\s*python3-venv \\/m);
+  assert.match(dockerfile, /^\s*ripgrep \\/m);
+  assert.match(dockerfile, /^\s*sqlite3 \\/m);
+  assert.match(smokeTest, /python3 -c 'import sys; assert sys\.version_info >= \(3, 12\)/);
+  assert.match(smokeTest, /python3 -m venv/);
+  assert.match(smokeTest, /process\.versions\.node/);
+  assert.match(smokeTest, /run npm --version/);
+  assert.match(smokeTest, /run sqlite3 --version/);
+  assert.match(smokeTest, /run rg --version/);
+  assert.match(
+    workflow,
+    /browser_profiles=\([\s\S]*templates\/browser-testing\/profile\.json[\s\S]*templates\/technical-interview\/profile\.json[\s\S]*\)/,
+  );
   assert.doesNotMatch(workflow, /templates\/ai-dev-k8s\/main\.tf/);
   assert.match(workflow, /^permissions:\n {2}contents: read$/m);
   assert.match(
@@ -750,6 +789,10 @@ function verifyCoderTemplateUploadPaths() {
       relativePath.split("/").every((part) => !part.startsWith(".")),
       `${relativePath} contains a hidden path that coder templates push will omit`,
     );
+    if (relativePath === "bootstrap.sh") {
+      assert.equal(existsSync(join(TEMPLATE_ROOT, relativePath)), false);
+      continue;
+    }
     assert.ok(existsSync(join(TEMPLATE_ROOT, relativePath)), `${relativePath} must exist`);
   }
 }
@@ -845,6 +888,75 @@ function verifyRepositoryBootstrap() {
   assert.match(second.stdout, /repository bootstrap complete/);
 }
 
+function verifyAnonymousRepositoryBootstrap() {
+  const fixtureRoot = mkdtempSync(join(tmpdir(), "anonymous-repository-bootstrap-"));
+  const home = join(fixtureRoot, "home");
+  const bin = join(fixtureRoot, "bin");
+  const manifest = join(fixtureRoot, "repositories.txt");
+  const calls = join(fixtureRoot, "git-calls.log");
+  mkdirSync(home, { recursive: true });
+  mkdirSync(bin, { recursive: true });
+  writeFileSync(manifest, "prmsolutions/interview-template|prmsolutions/interview-template\n");
+  writeFileSync(
+    join(bin, "git"),
+    `#!/bin/bash
+set -euo pipefail
+[ "$1" = "-c" ]
+[ "$2" = "credential.helper=" ]
+[ "$3" = "clone" ]
+[ -z "\${GH_TOKEN:-}" ]
+[ -z "\${GITHUB_TOKEN:-}" ]
+mkdir -p "$5/.git"
+printf '%s\n' "$*" >> "$GIT_CALLS"
+`,
+  );
+  chmodSync(join(bin, "git"), 0o755);
+  for (const forbiddenCommand of ["gh", "coder"]) {
+    writeFileSync(join(bin, forbiddenCommand), "#!/bin/sh\nexit 97\n");
+    chmodSync(join(bin, forbiddenCommand), 0o755);
+  }
+
+  const script = join(TEMPLATE_ROOT, "scripts/clone-repositories.sh");
+  const env = {
+    ...process.env,
+    GH_TOKEN: "must-not-reach-git",
+    GITHUB_TOKEN: "must-not-reach-git-either",
+    GIT_CALLS: calls,
+    HIVE_GITHUB_AUTH_ENABLED: "false",
+    HOME: home,
+    PATH: `${bin}:${process.env.PATH}`,
+    REPOSITORIES_FILE: manifest,
+  };
+  const first = spawnSync("bash", [script], { encoding: "utf8", env });
+  assert.equal(first.status, 0, first.stderr);
+  const callLog = readFileSync(calls, "utf8");
+  assert.match(callLog, /clone https:\/\/github\.com\/prmsolutions\/interview-template\.git/);
+  assert.doesNotMatch(callLog, /must-not-reach/);
+
+  const candidateFile = join(
+    home,
+    "projects",
+    "prmsolutions",
+    "interview-template",
+    "candidate.txt",
+  );
+  writeFileSync(candidateFile, "preserve candidate work\n");
+  const second = spawnSync("bash", [script], { encoding: "utf8", env });
+  assert.equal(second.status, 0, second.stderr);
+  assert.match(second.stdout, /already exists/);
+  assert.equal(readFileSync(candidateFile, "utf8"), "preserve candidate work\n");
+  assert.equal(readFileSync(calls, "utf8"), callLog);
+}
+
+function verifyInterviewProfileSecurity() {
+  const profile = JSON.parse(readFileSync(join(INTERVIEW_TEMPLATE_ROOT, "profile.json"), "utf8"));
+  const toolsAi = readTemplateFile("scripts/tools-ai.sh");
+  assert.deepEqual(profile.security, { github_auth: false, coder_login: false });
+  assert.deepEqual(profile.agent_context, { include_workspace_routing: false });
+  assert.match(toolsAi, /HIVE_GITHUB_AUTH_ENABLED:-true/);
+  assert.match(toolsAi, /GitHub Codex plugin disabled by workspace profile/);
+}
+
 function verifyFailedExternalAuth() {
   const { bin, home, manifest } = createBootstrapFixture();
   installFakeCoder(bin);
@@ -923,7 +1035,15 @@ test("shell setup retries incomplete Oh My Zsh installations", verifyShellRetry)
 test("GitHub helpers retrieve fresh Coder credentials on demand", verifyGithubHelpers);
 test("repository manifest only includes approved organizations", verifyRepositoryManifest);
 test("repository bootstrap is idempotent", verifyRepositoryBootstrap);
+test(
+  "anonymous repository bootstrap uses public HTTPS and preserves candidate work",
+  verifyAnonymousRepositoryBootstrap,
+);
 test("repository bootstrap rejects failed external authentication", verifyFailedExternalAuth);
+test(
+  "interview security disables personal GitHub, Coder login, and routing context",
+  verifyInterviewProfileSecurity,
+);
 
 function runReadOnlyMcpMigrationFixture(templateRoot) {
   const initScript = readFileSync(join(templateRoot, "scripts/init.sh"), "utf8");

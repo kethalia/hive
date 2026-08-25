@@ -69,7 +69,10 @@ RUN apt-get update \
         postgresql-contrib \
         python3 \
         python3-pip \
+        python3-venv \
+        ripgrep \
         rsync \
+        sqlite3 \
         sudo \
         tmux \
         unzip \

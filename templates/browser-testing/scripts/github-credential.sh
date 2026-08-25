@@ -1,4 +1,5 @@
 #!/bin/sh
+# hive-managed-github-credential:v1
 set -eu
 
 operation=${1:-}

@@ -6,6 +6,7 @@ describe("workspace profiles", () => {
     expect(WORKSPACE_PROFILES.map(({ id }) => id)).toEqual([
       "software",
       "browser",
+      "interview",
       "game",
       "electronics",
       "infrastructure",
@@ -20,6 +21,8 @@ describe("workspace profiles", () => {
     ["control-plane-tools", "custom"],
     ["ai-dev-k8s", "software"],
     ["browser-testing", "browser"],
+    ["technical-interview", "interview"],
+    ["proton-assessment", "interview"],
     ["playwright-qa", "browser"],
     ["game-dev", "game"],
     ["electronics", "electronics"],

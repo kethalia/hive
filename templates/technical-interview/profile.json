@@ -1,0 +1,55 @@
+{
+  "id": "interview",
+  "label": "Technical interview",
+  "description": "Isolated full-stack technical assessment workspace with browser inspection and no personal orchestration credentials.",
+  "image": "ghcr.io/kethalia/hive-base@sha256:079bb11740f04b556122c6734c19832120c3dc3ac0a3404680947b10fdb4bc4b",
+  "image_variant": "browser",
+  "capabilities": {
+    "browser": true,
+    "desktop": true,
+    "editor": true,
+    "file_browser": true,
+    "web3": false
+  },
+  "resources": {
+    "cpu_request": "4",
+    "memory_request": "8Gi",
+    "cpu_limit": "8",
+    "memory_limit": "16Gi",
+    "storage": "50Gi"
+  },
+  "security": {
+    "github_auth": false,
+    "coder_login": false
+  },
+  "agent_context": {
+    "include_workspace_routing": false
+  },
+  "applications": [
+    {
+      "slug": "interview-app",
+      "display_name": "Interview App",
+      "url": "http://localhost:3000",
+      "icon": "/icon/nodejs.svg",
+      "healthcheck_url": "http://localhost:3000",
+      "healthcheck_interval": 5,
+      "healthcheck_threshold": 12
+    },
+    {
+      "slug": "api-docs",
+      "display_name": "API Docs",
+      "url": "http://localhost:8000/docs",
+      "icon": "/icon/terminal.svg",
+      "healthcheck_url": "http://localhost:8000/openapi.json",
+      "healthcheck_interval": 5,
+      "healthcheck_threshold": 12
+    }
+  ],
+  "vscode_extensions": [
+    "Vue.volar",
+    "ms-python.python",
+    "ms-python.vscode-pylance",
+    "dbaeumer.vscode-eslint",
+    "ms-playwright.playwright"
+  ]
+}
