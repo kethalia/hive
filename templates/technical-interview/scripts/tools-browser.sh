@@ -23,8 +23,8 @@ if [ ! -x "$CHROME_BIN" ]; then
 fi
 ln -sf "$CHROME_BIN" "$HOME/.local/bin/chromium-browser"
 
-# Claude Code and Codex Playwright MCP entries are managed by init.sh only for
-# the browser-testing profile.
+# Claude Code and Codex Playwright MCP entries are managed by init.sh and point
+# at the pinned user-space package prepared by the interview bootstrap.
 
 # Create screenshot helper using Google Chrome (CLI fallback for scripts)
 cat > "$HOME/.local/bin/browser-screenshot" << SCREENSHOT

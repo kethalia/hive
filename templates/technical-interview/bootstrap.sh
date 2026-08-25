@@ -7,6 +7,10 @@ interview_bin_dir="$HOME/.local/bin"
 interview_libexec_dir="$HOME/.local/libexec/hive/technical-interview"
 interview_state_dir="$HOME/.local/state/hive/technical-interview"
 interview_ripgrep_version="1.18.0"
+interview_codex_version="0.149.1"
+interview_playwright_mcp_version="0.0.79"
+interview_bun_version="1.4.0"
+interview_pnpm_version="10.32.1"
 
 mkdir -p "$interview_bin_dir" "$interview_libexec_dir" "$interview_state_dir"
 chmod 700 "$interview_bin_dir" "$interview_libexec_dir" "$interview_state_dir"
@@ -575,6 +579,9 @@ printf '  make: %s\n' "$(interview_version_or_missing make make --version)"
 printf '  ripgrep: %s\n' "$(interview_version_or_missing rg rg --version)"
 printf '  Claude Code: %s\n' "$(interview_version_or_missing claude claude --version)"
 printf '  Codex: %s\n' "$(interview_version_or_missing codex codex --version)"
+printf '  Playwright MCP: %s\n' "$(interview_version_or_missing playwright-mcp playwright-mcp --version)"
+printf '  Bun: %s\n' "$(interview_version_or_missing bun bun --version)"
+printf '  pnpm: %s\n' "$(interview_version_or_missing pnpm pnpm --version)"
 printf '  Chrome: %s\n' "$(interview_version_or_missing google-chrome-stable google-chrome-stable --version)"
 printf '  tmux: %s\n' "$(interview_version_or_missing tmux tmux -V)"
 
@@ -735,6 +742,10 @@ check_command() {
   command -v "$1" >/dev/null 2>&1
 }
 
+check_version_command() {
+  command -v "$1" >/dev/null 2>&1 && "$1" --version >/dev/null 2>&1
+}
+
 check_api() {
   curl --fail --silent --show-error --max-time 5 http://127.0.0.1:8000/hello >/dev/null
 }
@@ -770,8 +781,11 @@ run_check "required Python modules import" check_backend_imports
 run_check "backend pytest suite passes" check_backend_tests
 run_check "frontend dependency hash is current" interview_frontend_dependencies_ready
 run_check "frontend production build passes" check_frontend_build
-run_check "Claude Code is installed" check_command claude
-run_check "Codex is installed" check_command codex
+run_check "Claude Code is functional" check_version_command claude
+run_check "Codex is functional" check_version_command codex
+run_check "Playwright MCP is preinstalled" check_version_command playwright-mcp
+run_check "Bun is functional" check_version_command bun
+run_check "pnpm is functional" check_version_command pnpm
 run_check "Chrome is installed" check_command google-chrome-stable
 run_check "tmux is installed" check_command tmux
 run_check "SQLite CLI is installed" check_command sqlite3
@@ -815,6 +829,9 @@ fi
   printf -- '- ripgrep: %s\n' "$(interview_version_or_missing rg rg --version)"
   printf -- '- Claude Code: %s\n' "$(interview_version_or_missing claude claude --version)"
   printf -- '- Codex: %s\n' "$(interview_version_or_missing codex codex --version)"
+  printf -- '- Playwright MCP: %s\n' "$(interview_version_or_missing playwright-mcp playwright-mcp --version)"
+  printf -- '- Bun: %s\n' "$(interview_version_or_missing bun bun --version)"
+  printf -- '- pnpm: %s\n' "$(interview_version_or_missing pnpm pnpm --version)"
   printf -- '- Chrome: %s\n' "$(interview_version_or_missing google-chrome-stable google-chrome-stable --version)"
   printf -- '- tmux: %s\n' "$(interview_version_or_missing tmux tmux -V)"
   printf '\n## Checks performed\n\n'
@@ -908,6 +925,76 @@ install_interview_ripgrep() {
 
 if ! install_interview_ripgrep; then
   printf '[warn] ripgrep could not be prepared; interview-check will report it missing.\n' >&2
+fi
+
+install_interview_npm_tool() {
+  local label=$1
+  local command_name=$2
+  local package_name=$3
+  local package_version=$4
+  local package_binary=$5
+  local managed_binary="$interview_bin_dir/$command_name"
+  local tools_root="$interview_state_dir/tools"
+  local tool_root="$tools_root/$command_name-$package_version"
+  local installed_binary="$tool_root/node_modules/$package_binary"
+  local existing_target
+
+  if [ -x "$managed_binary" ] && "$managed_binary" --version >/dev/null 2>&1; then
+    printf '[ok] %s is already available\n' "$label"
+    return 0
+  fi
+
+  if [ -e "$managed_binary" ] || [ -L "$managed_binary" ]; then
+    if [ -L "$managed_binary" ]; then
+      existing_target="$(readlink "$managed_binary")"
+      if [[ "$existing_target" == "$tools_root"/* ]]; then
+        rm -f -- "$managed_binary"
+      else
+        interview_warn "Preserving unexpected $command_name command at $managed_binary"
+        return 1
+      fi
+    else
+      interview_warn "Preserving unexpected $command_name command at $managed_binary"
+      return 1
+    fi
+  fi
+
+  if [ ! -x "$installed_binary" ]; then
+    command -v npm >/dev/null 2>&1 || return 1
+    mkdir -p "$tool_root"
+    printf '[install] %s %s\n' "$label" "$package_version"
+    PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1 npm install \
+      --prefix "$tool_root" \
+      --ignore-scripts \
+      --no-audit \
+      --no-fund \
+      --no-package-lock \
+      --no-save \
+      "$package_name@$package_version" >/dev/null
+  fi
+
+  [ -x "$installed_binary" ] || return 1
+  ln -s "$installed_binary" "$managed_binary"
+  "$managed_binary" --version >/dev/null 2>&1
+}
+
+tool_failures=0
+install_interview_npm_tool \
+  "Codex CLI" codex @openai/codex "$interview_codex_version" .bin/codex \
+  || tool_failures=$((tool_failures + 1))
+install_interview_npm_tool \
+  "Playwright MCP" playwright-mcp @playwright/mcp "$interview_playwright_mcp_version" .bin/playwright-mcp \
+  || tool_failures=$((tool_failures + 1))
+install_interview_npm_tool \
+  "Bun" bun @oven/bun-linux-x64 "$interview_bun_version" @oven/bun-linux-x64/bin/bun \
+  || tool_failures=$((tool_failures + 1))
+install_interview_npm_tool \
+  "pnpm" pnpm pnpm "$interview_pnpm_version" .bin/pnpm \
+  || tool_failures=$((tool_failures + 1))
+
+if ((tool_failures > 0)); then
+  printf '[warn] %s interview tool(s) could not be prepared; interview-check will report them missing.\n' \
+    "$tool_failures" >&2
 fi
 
 if [ "${HIVE_INTERVIEW_SKIP_AUTOSTART:-false}" = "true" ]; then

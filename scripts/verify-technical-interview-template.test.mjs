@@ -127,10 +127,55 @@ set -euo pipefail
 case "\${1:-}" in
   --version) printf '11.17.0\\n' ;;
   install|ci)
-    printf 'npm-install\\n' >> "$FAKE_CALLS"
-    mkdir -p node_modules/.bin
-    printf '#!/bin/sh\\nexit 0\\n' > node_modules/.bin/vite
-    chmod 755 node_modules/.bin/vite
+    shift
+    install_prefix=''
+    package_spec=''
+    while (($# > 0)); do
+      case "$1" in
+        --prefix)
+          install_prefix=$2
+          shift 2
+          ;;
+        @*|pnpm@*)
+          package_spec=$1
+          shift
+          ;;
+        *)
+          shift
+          ;;
+      esac
+    done
+    if [ -n "$install_prefix" ]; then
+      printf 'tool-install:%s\\n' "$package_spec" >> "$FAKE_CALLS"
+      case "$package_spec" in
+        @openai/codex@*)
+          mkdir -p "$install_prefix/node_modules/.bin"
+          printf '#!/bin/sh\\nprintf "codex-cli 0.149.1\\\\n"\\n' > "$install_prefix/node_modules/.bin/codex"
+          chmod 755 "$install_prefix/node_modules/.bin/codex"
+          ;;
+        @playwright/mcp@*)
+          mkdir -p "$install_prefix/node_modules/.bin"
+          printf '#!/bin/sh\\nprintf "Version 0.0.79\\\\n"\\n' > "$install_prefix/node_modules/.bin/playwright-mcp"
+          chmod 755 "$install_prefix/node_modules/.bin/playwright-mcp"
+          ;;
+        @oven/bun-linux-x64@*)
+          mkdir -p "$install_prefix/node_modules/@oven/bun-linux-x64/bin"
+          printf '#!/bin/sh\\nprintf "1.4.0\\\\n"\\n' > "$install_prefix/node_modules/@oven/bun-linux-x64/bin/bun"
+          chmod 755 "$install_prefix/node_modules/@oven/bun-linux-x64/bin/bun"
+          ;;
+        pnpm@*)
+          mkdir -p "$install_prefix/node_modules/.bin"
+          printf '#!/bin/sh\\nprintf "10.32.1\\\\n"\\n' > "$install_prefix/node_modules/.bin/pnpm"
+          chmod 755 "$install_prefix/node_modules/.bin/pnpm"
+          ;;
+        *) exit 2 ;;
+      esac
+    else
+      printf 'npm-install\\n' >> "$FAKE_CALLS"
+      mkdir -p node_modules/.bin
+      printf '#!/bin/sh\\nexit 0\\n' > node_modules/.bin/vite
+      chmod 755 node_modules/.bin/vite
+    fi
     ;;
   run)
     case "\${2:-}" in
@@ -183,7 +228,6 @@ if [ "\${1:-}" = "--version" ]; then printf '2.1.170 (Claude Code)\\n'; exit 0; 
 printf '<%s>\\n' "$@" > "$CLAUDE_ARGS_LOG"
 `,
   );
-  executable(join(bin, "codex"), "#!/bin/sh\nprintf 'codex-cli 0.149.1\\n'\n");
   executable(join(bin, "google-chrome-stable"), "#!/bin/sh\nprintf 'Google Chrome 140\\n'\n");
   executable(join(bin, "sqlite3"), "#!/bin/sh\nprintf '3.46.1\\n'\n");
   executable(join(bin, "rg"), "#!/bin/sh\nprintf 'ripgrep 14.1.1\\n'\n");
@@ -251,7 +295,7 @@ esac
     FAKE_TMUX_STATE: tmuxRoot,
     HOME: home,
     HIVE_INTERVIEW_SKIP_AUTOSTART: "true",
-    PATH: `${bin}:/usr/bin:/bin`,
+    PATH: `${join(home, ".local", "bin")}:${bin}:/usr/bin:/bin`,
   };
   for (const variableName of [
     "ANTHROPIC_API_KEY",
@@ -293,6 +337,7 @@ function filesRecursively(root) {
 
 test("standalone Terraform exposes interview apps without personal auth modules", () => {
   const terraform = readFileSync(join(templateRoot, "main.tf"), "utf8");
+  const init = readFileSync(join(templateRoot, "scripts", "init.sh"), "utf8");
   const profile = JSON.parse(readFileSync(join(templateRoot, "profile.json"), "utf8"));
 
   assert.doesNotMatch(terraform, /coder_external_auth/);
@@ -301,6 +346,9 @@ test("standalone Terraform exposes interview apps without personal auth modules"
   assert.doesNotMatch(terraform, /module "claude-code"/);
   assert.doesNotMatch(terraform, /WORKSPACE_ROUTING\.md/);
   assert.doesNotMatch(terraform, /scripts\/tools-ai\.sh/);
+  assert.doesNotMatch(init, /command = "npx"|"command": "npx"/);
+  assert.match(init, /\.local[^\n]+playwright-mcp/);
+  assert.match(init, /"--browser", "chrome", "--no-sandbox", "--isolated"/);
   assert.match(
     terraform,
     /resource "coder_app" "interview_app"[\s\S]*?url\s*=\s*"http:\/\/localhost:3000"[\s\S]*?share\s*=\s*"owner"/,
@@ -399,6 +447,42 @@ test("bootstrap installs executable helper commands idempotently", () => {
   }
 });
 
+test("fresh bootstrap installs the pinned standalone toolchain idempotently", () => {
+  const fixture = createFixture();
+  installHelpers(fixture);
+
+  const expectedTools = new Map([
+    ["codex", "codex-cli 0.149.1"],
+    ["playwright-mcp", "Version 0.0.79"],
+    ["bun", "1.4.0"],
+    ["pnpm", "10.32.1"],
+  ]);
+  for (const [command, version] of expectedTools) {
+    const commandPath = join(fixture.home, ".local", "bin", command);
+    assert.equal(existsSync(commandPath), true, `${command} must be installed for a fresh home`);
+    const result = run(commandPath, ["--version"], fixture.env);
+    assert.equal(result.status, 0, result.stderr);
+    assert.match(result.stdout, new RegExp(version.replaceAll(".", "\\.")));
+  }
+
+  const firstCalls = readFileSync(fixture.calls, "utf8");
+  for (const packageName of [
+    "@openai/codex@0.149.1",
+    "@playwright/mcp@0.0.79",
+    "@oven/bun-linux-x64@1.4.0",
+    "pnpm@10.32.1",
+  ]) {
+    assert.equal(
+      firstCalls.split(`tool-install:${packageName}\n`).length - 1,
+      1,
+      `${packageName} must be installed exactly once`,
+    );
+  }
+
+  installHelpers(fixture);
+  assert.equal(readFileSync(fixture.calls, "utf8"), firstCalls);
+});
+
 test("setup hashes dependencies, reinstalls only on manifest changes, and preserves dirty work", () => {
   const fixture = createFixture();
   installHelpers(fixture);
@@ -452,6 +536,9 @@ test("readiness reports strict success and failure without network cloning", () 
       readFileSync(join(fixture.home, "INTERVIEW_READY.md"), "utf8"),
       /INTERVIEW WORKSPACE READY/,
     );
+    assert.match(ready.stdout, /Playwright MCP is preinstalled/);
+    assert.match(ready.stdout, /Bun is functional/);
+    assert.match(ready.stdout, /pnpm is functional/);
 
     const failed = run(check, [], { ...fixture.env, FAKE_PYTEST_FAIL: "1" });
     assert.equal(failed.status, 1);

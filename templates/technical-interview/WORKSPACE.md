@@ -12,6 +12,8 @@ This isolated workspace is prepared for the Proton.ai full-stack assessment at
   **code-server** for editing.
 - Run `interview-claude` when the interviewer provides the temporary Anthropic key. The helper masks
   input and retains the key only for the Claude process.
+- Codex, Playwright MCP, Bun, pnpm, Python, npm, Chrome, and the project dependencies are prepared
+  before the readiness report is generated.
 
 GitHub external authentication and Coder CLI login are intentionally disabled. The workspace clones
 only the public assessment repository over anonymous HTTPS and never updates an existing checkout

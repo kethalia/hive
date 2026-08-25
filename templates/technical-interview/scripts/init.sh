@@ -72,10 +72,11 @@ existing = config.read_text() if config.exists() else ""
 start = "# >>> hive-managed-codex-mcp"
 end = "# <<< hive-managed-codex-mcp"
 browser_enabled = os.environ.get("HIVE_BROWSER_TOOLS_ENABLED") == "true"
+playwright_command = str(Path(os.environ["HOME"]) / ".local" / "bin" / "playwright-mcp")
 block = f'''{start}
 [mcp_servers.hive_playwright]
-command = "npx"
-args = ["-y", "@playwright/mcp", "--no-sandbox"]
+command = "{playwright_command}"
+args = ["--browser", "chrome", "--no-sandbox", "--isolated"]
 
 [mcp_servers.hive_playwright.env]
 DISPLAY = ":1"
@@ -119,8 +120,8 @@ from pathlib import Path
 home = Path(os.environ["HOME"])
 browser_enabled = os.environ.get("HIVE_BROWSER_TOOLS_ENABLED") == "true"
 playwright = {
-    "command": "npx",
-    "args": ["-y", "@playwright/mcp", "--no-sandbox"],
+    "command": str(home / ".local" / "bin" / "playwright-mcp"),
+    "args": ["--browser", "chrome", "--no-sandbox", "--isolated"],
     "env": {"DISPLAY": ":1"},
 }
 for config in (home / ".claude" / "mcp.json", home / ".mcp.json"):
@@ -139,7 +140,14 @@ for config in (home / ".claude" / "mcp.json", home / ".mcp.json"):
     # Older Hive workspaces managed the generic `playwright` key. Remove it
     # only when its complete definition still matches the one Hive generated;
     # a differently configured entry belongs to the user.
-    if servers.get("playwright") == playwright:
+    legacy_playwright = servers.get("playwright")
+    legacy_hive_entry = (
+        isinstance(legacy_playwright, dict)
+        and legacy_playwright.get("command") == "npx"
+        and legacy_playwright.get("args") == ["-y", "@playwright/mcp", "--no-sandbox"]
+        and legacy_playwright.get("env") == {"DISPLAY": ":1"}
+    )
+    if legacy_playwright == playwright or legacy_hive_entry:
         servers.pop("playwright")
 
     # The Hive-specific key is an ownership marker, so it is safe to replace or
