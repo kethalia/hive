@@ -17,12 +17,36 @@ if [ -f "$HOME/.runcomfy-api-token" ]; then
   rm -f -- "$HOME/.runcomfy-api-token"
 fi
 
-printf '%s' "${clone_repositories_script_b64}" | base64 -d > "$HOME/clone-repositories.sh"
-chmod 700 "$HOME/clone-repositories.sh"
-printf '%s' "${repositories_manifest_b64}" | base64 -d > "$HOME/repositories.txt"
-chmod 600 "$HOME/repositories.txt"
-printf '%s' "${bootstrap_script_b64}" | base64 -d > "$HOME/.local/libexec/hive/interview-bootstrap"
-chmod 700 "$HOME/.local/libexec/hive/interview-bootstrap"
+write_embedded_file() {
+  local encoded=$1 destination=$2 mode=$3 destination_directory temporary_file
+
+  destination_directory="$(dirname -- "$destination")"
+  temporary_file="$(mktemp "$destination_directory/.hive-interview-input.XXXXXX")" || return 1
+  if ! printf '%s' "$encoded" | base64 -d > "$temporary_file"; then
+    rm -f -- "$temporary_file"
+    return 1
+  fi
+  if ! chmod "$mode" "$temporary_file" \
+    || ! mv -fT -- "$temporary_file" "$destination"; then
+    rm -f -- "$temporary_file"
+    return 1
+  fi
+}
+
+inputs_ready=true
+write_embedded_file "${clone_repositories_script_b64}" "$HOME/clone-repositories.sh" 700 \
+  || inputs_ready=false
+write_embedded_file "${repositories_manifest_b64}" "$HOME/repositories.txt" 600 \
+  || inputs_ready=false
+write_embedded_file "${bootstrap_script_b64}" \
+  "$HOME/.local/libexec/hive/interview-bootstrap" 700 \
+  || inputs_ready=false
+
+if [ "$inputs_ready" != true ]; then
+  printf '%b[warn] Interview setup inputs could not be installed safely; no generated input was executed.%b\n' \
+    "$YELLOW" "$RESET" >&2
+  exit 0
+fi
 
 if ! "$HOME/clone-repositories.sh"; then
   printf '%b[warn] Interview repository clone failed; candidate files were not modified.%b\n' \

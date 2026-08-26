@@ -115,12 +115,27 @@ configure_codex_mcp() {
   mkdir -p "$HOME/.codex"
   python3 - <<'PYCODEX'
 import os
+import tempfile
 from pathlib import Path
 
+
+def atomic_write(path: Path, contents: str) -> None:
+    descriptor, temporary_name = tempfile.mkstemp(prefix=f".{path.name}.", dir=path.parent)
+    temporary = Path(temporary_name)
+    try:
+        with os.fdopen(descriptor, "w") as handle:
+            handle.write(contents)
+        temporary.chmod(0o600)
+        os.replace(temporary, path)
+    finally:
+        temporary.unlink(missing_ok=True)
+
+
 config = Path(os.environ["HOME"]) / ".codex" / "config.toml"
-if config.exists():
-    config.chmod(0o600)
-existing = config.read_text() if config.exists() else ""
+linked_config = config.is_symlink()
+if linked_config:
+    print(f"WARNING: replacing linked Codex config without reading its target: {config}")
+existing = config.read_text() if config.exists() and not linked_config else ""
 start = "# >>> hive-managed-codex-mcp"
 end = "# <<< hive-managed-codex-mcp"
 browser_enabled = os.environ.get("HIVE_BROWSER_TOOLS_ENABLED") == "true"
@@ -155,19 +170,32 @@ if block:
     updated = (updated + "\n\n" if updated else "") + block
 updated = updated + "\n" if updated else ""
 
-if updated != existing:
-    config.write_text(updated)
-elif not config.exists():
-    config.touch(mode=0o600)
+if linked_config or updated != existing or not config.exists():
+    atomic_write(config, updated)
+else:
+    config.chmod(0o600)
 PYCODEX
-  chmod 600 "$HOME/.codex/config.toml"
 }
 
 configure_json_mcp() {
   python3 - <<'PYMCP'
 import json
 import os
+import tempfile
 from pathlib import Path
+
+
+def atomic_write(path: Path, contents: str) -> None:
+    descriptor, temporary_name = tempfile.mkstemp(prefix=f".{path.name}.", dir=path.parent)
+    temporary = Path(temporary_name)
+    try:
+        with os.fdopen(descriptor, "w") as handle:
+            handle.write(contents)
+        temporary.chmod(0o600)
+        os.replace(temporary, path)
+    finally:
+        temporary.unlink(missing_ok=True)
+
 
 home = Path(os.environ["HOME"])
 browser_enabled = os.environ.get("HIVE_BROWSER_TOOLS_ENABLED") == "true"
@@ -178,14 +206,26 @@ playwright = {
 }
 for config in (home / ".claude" / "mcp.json", home / ".mcp.json"):
     config.parent.mkdir(parents=True, exist_ok=True)
-    if config.exists():
-        config.chmod(0o600)
+    linked_config = config.is_symlink()
+    if linked_config:
+        print(f"WARNING: replacing linked MCP config without reading its target: {config}")
     try:
-        data = json.loads(config.read_text()) if config.exists() else {}
+        data = json.loads(config.read_text()) if config.exists() and not linked_config else {}
     except json.JSONDecodeError:
         print(f"WARNING: preserving invalid MCP config: {config}")
+        config.chmod(0o600)
         continue
-    servers = data.setdefault("mcpServers", {})
+    if not isinstance(data, dict):
+        print(f"WARNING: preserving MCP config with a non-object root: {config}")
+        config.chmod(0o600)
+        continue
+    if "mcpServers" not in data:
+        data["mcpServers"] = {}
+    elif not isinstance(data["mcpServers"], dict):
+        print(f"WARNING: preserving MCP config with non-object mcpServers: {config}")
+        config.chmod(0o600)
+        continue
+    servers = data["mcpServers"]
     servers.pop("obsidian", None)
     servers.pop("hive_obsidian", None)
 
@@ -207,8 +247,7 @@ for config in (home / ".claude" / "mcp.json", home / ".mcp.json"):
     servers.pop("hive_playwright", None)
     if browser_enabled:
         servers["hive_playwright"] = playwright
-    config.write_text(json.dumps(data, indent=2) + "\n")
-    config.chmod(0o600)
+    atomic_write(config, json.dumps(data, indent=2) + "\n")
 PYMCP
 }
 

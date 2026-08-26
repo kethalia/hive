@@ -23,6 +23,7 @@ const templateRoot = join(repositoryRoot, "templates", "technical-interview");
 const bootstrapScript = join(templateRoot, "bootstrap.sh");
 const cloneScript = join(templateRoot, "scripts", "clone-repositories.sh");
 const initScript = join(templateRoot, "scripts", "init.sh");
+const toolsCiScript = join(templateRoot, "scripts", "tools-ci.sh");
 const expectedOrigin = "https://github.com/prmsolutions/interview-template.git";
 
 function executable(path, contents) {
@@ -64,6 +65,23 @@ function renderInitScript() {
     .replace(`\${enable_browser}`, "true")
     .replace(`\${claude_md_content}`, "Technical interview fixture agent context")
     .replaceAll("$${", "${");
+}
+
+function renderToolsCiScript(cloneContents, manifestContents, bootstrapContents) {
+  const placeholder = (name) => `\${${name}}`;
+  return readFileSync(toolsCiScript, "utf8")
+    .replace(
+      placeholder("clone_repositories_script_b64"),
+      Buffer.from(cloneContents).toString("base64"),
+    )
+    .replace(
+      placeholder("repositories_manifest_b64"),
+      Buffer.from(manifestContents).toString("base64"),
+    )
+    .replace(
+      placeholder("bootstrap_script_b64"),
+      Buffer.from(bootstrapContents).toString("base64"),
+    );
 }
 
 function runInit(root, home) {
@@ -466,6 +484,118 @@ test("init atomically replaces the managed environment symlink without touching 
   }
 });
 
+test("startup atomically replaces generated input symlinks without touching their targets", () => {
+  const root = mkdtempSync(join(tmpdir(), "technical-interview-inputs-"));
+  const home = join(root, "home");
+  const renderedToolsCi = join(root, "rendered-tools-ci.sh");
+  const generatedFiles = [
+    {
+      contents: "#!/bin/sh\nexit 0\n",
+      mode: 0o700,
+      path: join(home, "clone-repositories.sh"),
+    },
+    {
+      contents: "prmsolutions/interview-template|prmsolutions/interview-template\n",
+      mode: 0o600,
+      path: join(home, "repositories.txt"),
+    },
+    {
+      contents: "#!/bin/sh\nexit 0\n",
+      mode: 0o700,
+      path: join(home, ".local", "libexec", "hive", "interview-bootstrap"),
+    },
+  ];
+  mkdirSync(join(home, ".local", "libexec", "hive"), { recursive: true });
+
+  for (const [index, generated] of generatedFiles.entries()) {
+    const target = join(root, `candidate-target-${index}`);
+    writeFileSync(target, `preserve candidate target ${index}\n`);
+    chmodSync(target, 0o644);
+    symlinkSync(target, generated.path);
+    generated.target = target;
+  }
+
+  writeFileSync(
+    renderedToolsCi,
+    renderToolsCiScript(
+      generatedFiles[0].contents,
+      generatedFiles[1].contents,
+      generatedFiles[2].contents,
+    ),
+  );
+  const result = run("bash", [renderedToolsCi], {
+    ...process.env,
+    BASH_ENV: "",
+    ENV: "",
+    HOME: home,
+    PATH: "/usr/bin:/bin",
+  });
+  assert.equal(result.status, 0, result.stderr);
+
+  for (const [index, generated] of generatedFiles.entries()) {
+    assert.equal(readFileSync(generated.target, "utf8"), `preserve candidate target ${index}\n`);
+    assert.equal(statSync(generated.target).mode & 0o777, 0o644);
+    assert.equal(lstatSync(generated.path).isSymbolicLink(), false);
+    assert.equal(readFileSync(generated.path, "utf8"), generated.contents);
+    assert.equal(statSync(generated.path).mode & 0o777, generated.mode);
+  }
+});
+
+test("init atomically replaces linked MCP configs without touching their targets", () => {
+  const root = mkdtempSync(join(tmpdir(), "technical-interview-init-mcp-links-"));
+  const home = join(root, "home");
+  const codexConfig = join(home, ".codex", "config.toml");
+  const claudeConfig = join(home, ".claude", "mcp.json");
+  const codexTarget = join(root, "candidate-codex-config");
+  const claudeTarget = join(root, "candidate-claude-config");
+  mkdirSync(join(home, ".codex"), { recursive: true });
+  mkdirSync(join(home, ".claude"), { recursive: true });
+  writeFileSync(codexTarget, 'model = "candidate-owned"\n');
+  writeFileSync(claudeTarget, '{"mcpServers":{"candidate":{"command":"keep"}}}\n');
+  chmodSync(codexTarget, 0o644);
+  chmodSync(claudeTarget, 0o644);
+  symlinkSync(codexTarget, codexConfig);
+  symlinkSync(claudeTarget, claudeConfig);
+
+  const result = runInit(root, home);
+  assert.equal(result.status, 0, result.stderr);
+  assert.equal(readFileSync(codexTarget, "utf8"), 'model = "candidate-owned"\n');
+  assert.equal(
+    readFileSync(claudeTarget, "utf8"),
+    '{"mcpServers":{"candidate":{"command":"keep"}}}\n',
+  );
+  assert.equal(statSync(codexTarget).mode & 0o777, 0o644);
+  assert.equal(statSync(claudeTarget).mode & 0o777, 0o644);
+  assert.equal(lstatSync(codexConfig).isSymbolicLink(), false);
+  assert.equal(lstatSync(claudeConfig).isSymbolicLink(), false);
+  assert.equal(statSync(codexConfig).mode & 0o777, 0o600);
+  assert.equal(statSync(claudeConfig).mode & 0o777, 0o600);
+  assert.match(readFileSync(codexConfig, "utf8"), /mcp_servers\.hive_playwright/);
+  assert.equal(
+    JSON.parse(readFileSync(claudeConfig, "utf8")).mcpServers.hive_playwright.command.endsWith(
+      "playwright-mcp",
+    ),
+    true,
+  );
+});
+
+test("init preserves MCP configs whose JSON containers are not objects", () => {
+  const root = mkdtempSync(join(tmpdir(), "technical-interview-init-mcp-json-"));
+  const home = join(root, "home");
+  const claudeConfig = join(home, ".claude", "mcp.json");
+  const sharedConfig = join(home, ".mcp.json");
+  mkdirSync(join(home, ".claude"), { recursive: true });
+  writeFileSync(claudeConfig, "[]\n");
+  writeFileSync(sharedConfig, '{"mcpServers":[]}\n');
+
+  const result = runInit(root, home);
+  assert.equal(result.status, 0, result.stderr);
+  assert.match(result.stdout, /non-object root/);
+  assert.match(result.stdout, /non-object mcpServers/);
+  assert.equal(readFileSync(claudeConfig, "utf8"), "[]\n");
+  assert.equal(readFileSync(sharedConfig, "utf8"), '{"mcpServers":[]}\n');
+});
+
 test("linked shell configuration is preserved and fails the strict scrub check", () => {
   const fixture = createFixture();
   const linkedShell = join(fixture.home, ".zshenv");
@@ -729,6 +859,13 @@ test("setup hashes dependencies, reinstalls only on manifest changes, and preser
   assert.equal((secondCalls.match(/pip-install/g) ?? []).length, 1);
   assert.equal((secondCalls.match(/npm-install/g) ?? []).length, 1);
 
+  const staleEnvironmentFile = join(
+    fixture.interviewRepository,
+    "backend",
+    ".venv",
+    "stale-package-from-old-manifest",
+  );
+  writeFileSync(staleEnvironmentFile, "must be removed with the old environment\n");
   const candidateFile = join(fixture.interviewRepository, "candidate-work.txt");
   writeFileSync(candidateFile, "do not overwrite\n");
   writeFileSync(
@@ -737,6 +874,8 @@ test("setup hashes dependencies, reinstalls only on manifest changes, and preser
   );
   const changed = run(setup, [], fixture.env);
   assert.equal(changed.status, 0, changed.stderr);
+  assert.equal(existsSync(staleEnvironmentFile), false);
+  assert.match(changed.stdout, /Recreating the managed backend virtual environment/);
   assert.equal(readFileSync(candidateFile, "utf8"), "do not overwrite\n");
   assert.match(changed.stderr, /preserving them unchanged/);
   const changedCalls = readFileSync(fixture.calls, "utf8");

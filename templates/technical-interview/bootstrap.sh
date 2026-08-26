@@ -368,13 +368,8 @@ fi
 mkdir -p "$INTERVIEW_STATE_DIR"
 chmod 700 "$INTERVIEW_STATE_DIR"
 
-if [ ! -x "$INTERVIEW_VENV/bin/python" ]; then
-  if [ -e "$INTERVIEW_VENV" ] || [ -L "$INTERVIEW_VENV" ]; then
-    interview_error "Preserving an existing but unusable backend virtual environment: $INTERVIEW_VENV"
-    interview_error "Move it aside manually after reviewing it, then rerun interview-setup."
-    exit 1
-  fi
-
+interview_create_backend_venv() {
+  local fallback_root venv_probe
   venv_probe="$(mktemp -d "$INTERVIEW_STATE_DIR/.venv-probe.XXXXXX")"
   if python3 -m venv "$venv_probe/venv" >/dev/null 2>&1; then
     rm -rf -- "$venv_probe"
@@ -396,10 +391,26 @@ if [ ! -x "$INTERVIEW_VENV/bin/python" ]; then
     PYTHONPATH="$fallback_root" python3 -m virtualenv "$INTERVIEW_VENV"
     interview_write_state venv-method "transitional virtualenv $INTERVIEW_VIRTUALENV_VERSION"
   fi
+}
+
+if [ ! -x "$INTERVIEW_VENV/bin/python" ]; then
+  if [ -e "$INTERVIEW_VENV" ] || [ -L "$INTERVIEW_VENV" ]; then
+    interview_error "Preserving an existing but unusable backend virtual environment: $INTERVIEW_VENV"
+    interview_error "Move it aside manually after reviewing it, then rerun interview-setup."
+    exit 1
+  fi
+
+  interview_create_backend_venv
 fi
 
 backend_hash="$(interview_backend_hash)"
 stored_backend_hash="$(interview_read_state backend-requirements.sha256 2>/dev/null || true)"
+if [ -n "$stored_backend_hash" ] && [ "$backend_hash" != "$stored_backend_hash" ]; then
+  interview_ok "Recreating the managed backend virtual environment for changed dependencies"
+  rm -rf -- "$INTERVIEW_VENV"
+  interview_create_backend_venv
+fi
+
 if [ "$backend_hash" != "$stored_backend_hash" ] \
   || ! "$INTERVIEW_VENV/bin/python" -c 'import fastapi, httpx, pytest, uvicorn' >/dev/null 2>&1; then
   interview_ok "Installing backend dependencies"
