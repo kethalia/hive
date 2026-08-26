@@ -270,6 +270,7 @@ interview_github_authenticated() {
 
 interview_github_unauthenticated() {
   local auth_json
+  command -v gh >/dev/null 2>&1 || return 0
   auth_json="$(interview_github_auth_json)" || return 1
   jq -e 'all(.hosts[]?[]?; .state != "success")' \
     >/dev/null 2>&1 <<< "$auth_json"

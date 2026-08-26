@@ -763,7 +763,7 @@ test("setup refreshes frontend dependencies when the Node runtime ABI changes", 
   assert.equal((readFileSync(fixture.calls, "utf8").match(/npm-install/g) ?? []).length, 2);
 });
 
-test("GitHub authentication detection rejects any valid account alongside stale accounts", () => {
+test("GitHub auth detection rejects any valid account and accepts a missing CLI", () => {
   const fixture = createFixture();
   installHelpers(fixture);
   const common = join(
@@ -804,6 +804,17 @@ test("GitHub authentication detection rejects any valid account alongside stale 
     { ...fixture.env, FAKE_GH_AUTH_JSON: staleOnly },
   );
   assert.equal(unauthenticated.status, 0, unauthenticated.stderr);
+
+  unlinkSync(join(fixture.bin, "gh"));
+  const missingCli = run(
+    "bash",
+    [
+      "-c",
+      `source "${common}"; ! interview_github_authenticated && interview_github_unauthenticated`,
+    ],
+    fixture.env,
+  );
+  assert.equal(missingCli.status, 0, missingCli.stderr);
 });
 
 test("readiness reports strict success and failure without network cloning", () => {
