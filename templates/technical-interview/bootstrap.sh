@@ -584,6 +584,64 @@ interview_ensure_local_directory "$INTERVIEW_STATE_DIR"
 chmod 700 "$INTERVIEW_STATE_DIR"
 dependencies_refreshed=false
 
+interview_virtualenv_fallback_ready() {
+  local fallback_root=$1 validation_root version_output status=0
+
+  [ -d "$fallback_root" ] && [ ! -L "$fallback_root" ] || return 1
+  version_output="$(
+    PYTHONPATH="$fallback_root" python3 -m virtualenv --version 2>/dev/null
+  )" || return 1
+  case " $version_output " in
+    *" $INTERVIEW_VIRTUALENV_VERSION "*) ;;
+    *) return 1 ;;
+  esac
+
+  validation_root="$(mktemp -d "$INTERVIEW_STATE_DIR/.virtualenv-validation.XXXXXX")" \
+    || return 1
+  if ! PYTHONPATH="$fallback_root" \
+    python3 -m virtualenv "$validation_root/venv" >/dev/null 2>&1; then
+    status=1
+  fi
+  rm -rf -- "$validation_root"
+  return "$status"
+}
+
+interview_install_virtualenv_fallback() {
+  local fallback_root=$1 candidate_root
+
+  candidate_root="$(mktemp -d "$INTERVIEW_STATE_DIR/.virtualenv-install.XXXXXX")" \
+    || return 1
+  if ! python3 -m pip install \
+    --disable-pip-version-check \
+    --no-input \
+    --target "$candidate_root" \
+    "virtualenv==$INTERVIEW_VIRTUALENV_VERSION"; then
+    rm -rf -- "$candidate_root"
+    return 1
+  fi
+  if ! interview_virtualenv_fallback_ready "$candidate_root"; then
+    interview_error "Pinned virtualenv fallback failed validation after installation."
+    rm -rf -- "$candidate_root"
+    return 1
+  fi
+
+  if [ -e "$fallback_root" ] || [ -L "$fallback_root" ]; then
+    if [ -L "$fallback_root" ] || [ ! -d "$fallback_root" ]; then
+      interview_error "Preserving unsafe virtualenv fallback state: $fallback_root"
+      rm -rf -- "$candidate_root"
+      return 1
+    fi
+    if ! rm -rf -- "$fallback_root"; then
+      rm -rf -- "$candidate_root"
+      return 1
+    fi
+  fi
+  if ! mv -T -- "$candidate_root" "$fallback_root"; then
+    rm -rf -- "$candidate_root"
+    return 1
+  fi
+}
+
 interview_create_backend_venv() {
   local fallback_root venv_probe
   venv_probe="$(mktemp -d "$INTERVIEW_STATE_DIR/.venv-probe.XXXXXX")"
@@ -596,13 +654,12 @@ interview_create_backend_venv() {
     rm -rf -- "$venv_probe"
     fallback_root="$INTERVIEW_STATE_DIR/virtualenv-$INTERVIEW_VIRTUALENV_VERSION"
     interview_warn "Standard venv creation is unavailable; using pinned non-root virtualenv $INTERVIEW_VIRTUALENV_VERSION"
-    interview_ensure_local_directory "$fallback_root"
-    if [ ! -f "$fallback_root/virtualenv/__main__.py" ]; then
-      python3 -m pip install \
-        --disable-pip-version-check \
-        --no-input \
-        --target "$fallback_root" \
-        "virtualenv==$INTERVIEW_VIRTUALENV_VERSION"
+    if [ -e "$fallback_root" ] || [ -L "$fallback_root" ]; then
+      interview_ensure_local_directory "$fallback_root"
+    fi
+    if ! interview_virtualenv_fallback_ready "$fallback_root"; then
+      interview_warn "Installing or repairing the pinned virtualenv fallback"
+      interview_install_virtualenv_fallback "$fallback_root"
     fi
     PYTHONPATH="$fallback_root" python3 -m virtualenv "$INTERVIEW_VENV"
     interview_write_state venv-method "transitional virtualenv $INTERVIEW_VIRTUALENV_VERSION"

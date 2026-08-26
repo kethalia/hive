@@ -9,6 +9,7 @@ import {
   mkdtempSync,
   readdirSync,
   readFileSync,
+  rmSync,
   statSync,
   symlinkSync,
   unlinkSync,
@@ -189,6 +190,7 @@ if [ "\${1:-}" = "-c" ]; then
   exit 0
 fi
 if [ "\${1:-}" = "-m" ] && [ "\${2:-}" = "venv" ]; then
+  [ "\${FAKE_STANDARD_VENV_FAIL:-0}" != "1" ] || exit 1
   target=$3
   mkdir -p "$target/bin"
   cat > "$target/bin/python" <<'PYTHON'
@@ -214,6 +216,35 @@ PYTEST
 while :; do sleep 60; done
 UVICORN
   chmod 755 "$target/bin/python" "$target/bin/pytest" "$target/bin/uvicorn"
+  exit 0
+fi
+if [ "\${1:-}" = "-m" ] && [ "\${2:-}" = "pip" ]; then
+  shift 2
+  target=''
+  while (($# > 0)); do
+    case "$1" in
+      --target)
+        target=$2
+        shift 2
+        ;;
+      *) shift ;;
+    esac
+  done
+  [ -n "$target" ]
+  printf 'virtualenv-fallback-install\\n' >> "$FAKE_CALLS"
+  mkdir -p "$target/virtualenv"
+  printf '# fixture virtualenv entrypoint\\n' > "$target/virtualenv/__main__.py"
+  : > "$target/.hive-fixture-complete"
+  exit 0
+fi
+if [ "\${1:-}" = "-m" ] && [ "\${2:-}" = "virtualenv" ]; then
+  [ -f "\${PYTHONPATH:-}/virtualenv/__main__.py" ]
+  [ -f "\${PYTHONPATH:-}/.hive-fixture-complete" ]
+  if [ "\${3:-}" = "--version" ]; then
+    printf 'virtualenv 20.35.4 from %s\\n' "$PYTHONPATH/virtualenv/__init__.py"
+    exit 0
+  fi
+  FAKE_STANDARD_VENV_FAIL=0 "$0" -m venv "$3"
   exit 0
 fi
 printf 'unexpected python3 invocation: %s\\n' "$*" >&2
@@ -500,6 +531,9 @@ test("standalone Terraform exposes interview apps without personal auth modules"
   assert.doesNotMatch(terraform, /module "claude-code"/);
   assert.doesNotMatch(terraform, /WORKSPACE_ROUTING\.md/);
   assert.doesNotMatch(terraform, /scripts\/tools-ai\.sh/);
+  assert.doesNotMatch(terraform, /\bBASH_ENV\b/);
+  assert.doesNotMatch(terraform, /^\s+ENV\s*=/m);
+  assert.doesNotMatch(init, /sync-vault|vault-managed|Vault Context Layer/);
   assert.doesNotMatch(init, /command = "npx"|"command": "npx"/);
   assert.match(init, /\.local[^\n]+playwright-mcp/);
   assert.match(init, /"--browser", "chrome", "--no-sandbox", "--isolated"/);
@@ -551,6 +585,36 @@ test("init atomically replaces the managed environment symlink without touching 
       1,
     );
   }
+});
+
+test("init preserves candidate files at retired vault integration paths", () => {
+  const root = mkdtempSync(join(tmpdir(), "technical-interview-retired-vault-"));
+  const home = join(root, "home");
+  const hiveTarget = join(root, "candidate-hive-config");
+  const autostartTarget = join(root, "candidate-autostart-config");
+  const syncVault = join(home, "sync-vault.sh");
+  mkdirSync(join(home, ".config"), { recursive: true });
+  mkdirSync(hiveTarget);
+  mkdirSync(autostartTarget);
+  writeFileSync(syncVault, "# candidate-owned helper\n");
+  writeFileSync(join(hiveTarget, "vault-repository"), "candidate repository setting\n");
+  writeFileSync(join(autostartTarget, "obsidian.desktop"), "candidate desktop entry\n");
+  symlinkSync(hiveTarget, join(home, ".config", "hive"));
+  symlinkSync(autostartTarget, join(home, ".config", "autostart"));
+
+  const result = runInit(root, home);
+  assert.equal(result.status, 0, result.stderr);
+  assert.equal(readFileSync(syncVault, "utf8"), "# candidate-owned helper\n");
+  assert.equal(
+    readFileSync(join(hiveTarget, "vault-repository"), "utf8"),
+    "candidate repository setting\n",
+  );
+  assert.equal(
+    readFileSync(join(autostartTarget, "obsidian.desktop"), "utf8"),
+    "candidate desktop entry\n",
+  );
+  assert.equal(lstatSync(join(home, ".config", "hive")).isSymbolicLink(), true);
+  assert.equal(lstatSync(join(home, ".config", "autostart")).isSymbolicLink(), true);
 });
 
 test("init prepends credential scrubbing before existing shell startup code", () => {
@@ -1293,6 +1357,45 @@ test("bootstrap preserves unexpected user tools as an explicit readiness failure
     fixture.env,
   );
   assert.notEqual(ready.status, 0);
+});
+
+test("setup repairs and reuses an incomplete pinned virtualenv fallback", () => {
+  const fixture = createFixture();
+  installHelpers(fixture);
+  const fallbackRoot = join(
+    fixture.home,
+    ".local",
+    "state",
+    "hive",
+    "technical-interview",
+    "virtualenv-20.35.4",
+  );
+  const backendVenv = join(fixture.interviewRepository, "backend", ".venv");
+  const setup = join(fixture.home, ".local", "bin", "interview-setup");
+  mkdirSync(join(fallbackRoot, "virtualenv"), { recursive: true });
+  writeFileSync(join(fallbackRoot, "virtualenv", "__main__.py"), "# incomplete install\n");
+  writeFileSync(join(fallbackRoot, "stale-partial-install"), "must be replaced\n");
+
+  const fallbackEnvironment = {
+    ...fixture.env,
+    FAKE_STANDARD_VENV_FAIL: "1",
+  };
+  const first = run(setup, [], fallbackEnvironment);
+  assert.equal(first.status, 0, first.stderr);
+  assert.equal(existsSync(join(fallbackRoot, ".hive-fixture-complete")), true);
+  assert.equal(existsSync(join(fallbackRoot, "stale-partial-install")), false);
+  assert.equal(
+    (readFileSync(fixture.calls, "utf8").match(/virtualenv-fallback-install/g) ?? []).length,
+    1,
+  );
+
+  rmSync(backendVenv, { recursive: true });
+  const second = run(setup, [], fallbackEnvironment);
+  assert.equal(second.status, 0, second.stderr);
+  assert.equal(
+    (readFileSync(fixture.calls, "utf8").match(/virtualenv-fallback-install/g) ?? []).length,
+    1,
+  );
 });
 
 test("setup hashes dependencies, reinstalls only on manifest changes, and preserves dirty work", () => {

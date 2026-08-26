@@ -48,8 +48,6 @@ resource "coder_agent" "main" {
     GIT_COMMITTER_NAME          = "Interview Candidate"
     GIT_COMMITTER_EMAIL         = "interview@local.invalid"
     EXTENSIONS_GALLERY          = "{\"serviceUrl\":\"https://marketplace.visualstudio.com/_apis/public/gallery\"}"
-    BASH_ENV                    = "/home/coder/.config/hive/interview-env.sh"
-    ENV                         = "/home/coder/.config/hive/interview-env.sh"
     HIVE_PROJECTS_ROOT          = "/home/coder/projects"
     HIVE_WORKSPACE_PROFILE      = local.profile.id
     HIVE_EXPECTED_IMAGE_VARIANT = local.profile.image_variant
