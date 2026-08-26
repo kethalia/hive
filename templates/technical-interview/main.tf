@@ -133,7 +133,9 @@ resource "coder_script" "tools_ci" {
   display_name       = "Interview setup"
   icon               = "/icon/terminal.svg"
   run_on_start       = true
-  start_blocks_login = true
+  # Dependency hooks, tests, and builds come from the persistent candidate
+  # checkout and must never make the recovery terminal inaccessible.
+  start_blocks_login = false
   script = templatefile("${path.module}/scripts/tools-ci.sh", {
     clone_repositories_script_b64 = base64encode(file("${path.module}/scripts/clone-repositories.sh"))
     repositories_manifest_b64     = base64encode(file("${path.module}/repositories.txt"))

@@ -2,6 +2,15 @@
 set -euo pipefail
 umask 077
 
+unset ANTHROPIC_API_KEY ANTHROPIC_AUTH_TOKEN
+unset CLAUDE_CODE_OAUTH_TOKEN CLAUDE_CODE_OAUTH_REFRESH_TOKEN CLAUDE_CODE_OAUTH_SCOPES
+unset GH_TOKEN GITHUB_TOKEN CODER_AGENT_TOKEN CODER_SESSION_TOKEN
+unset REALM_VISUAL_REVIEW_API_KEY RUNCOMFY_API_TOKEN
+
+# Never resolve startup commands through persistent candidate-writable paths.
+INTERVIEW_TRUSTED_PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+export PATH="$INTERVIEW_TRUSTED_PATH"
+
 filebrowser_version="2.63.18"
 filebrowser_port="${FILEBROWSER_PORT:-13339}"
 filebrowser_root="${HIVE_PROJECTS_ROOT:-$HOME}"

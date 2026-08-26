@@ -2,6 +2,16 @@
 set -e
 umask 077
 
+unset ANTHROPIC_API_KEY ANTHROPIC_AUTH_TOKEN
+unset CLAUDE_CODE_OAUTH_TOKEN CLAUDE_CODE_OAUTH_REFRESH_TOKEN CLAUDE_CODE_OAUTH_SCOPES
+unset GH_TOKEN GITHUB_TOKEN CODER_AGENT_TOKEN CODER_SESSION_TOKEN
+unset REALM_VISUAL_REVIEW_API_KEY RUNCOMFY_API_TOKEN
+
+# Coder startup scripts inherit the image PATH, which may contain persistent,
+# candidate-writable directories. Do not resolve setup commands through them.
+INTERVIEW_TRUSTED_PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+export PATH="$INTERVIEW_TRUSTED_PATH"
+
 BOLD='\033[0;1m'
 GREEN='\033[0;32m'
 RESET='\033[0m'
@@ -41,12 +51,7 @@ ensure_interview_local_directory() {
   done
 }
 
-# Ensure PATH includes tool directories
-export PATH="$HOME/.local/bin:$HOME/.bun/bin:$HOME/.claude/local/bin:$PATH"
 ensure_interview_local_directory "$HOME/.local/bin"
-
-# Force npm global installs into ~/.local (user-writable, already on PATH)
-export npm_config_prefix="$HOME/.local"
 
 printf '%b[browser] Setting up browser vision tools...%b\n' "$BOLD" "$RESET"
 

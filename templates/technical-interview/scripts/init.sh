@@ -156,29 +156,48 @@ for shell_file in shell_files:
 
     existing = shell_file.read_text() if shell_file.exists() else ""
     existing_lines = existing.splitlines(keepends=True)
-    preserved_start_index = next(
-        (
-            index
-            for index, line in enumerate(existing_lines)
-            if line.rstrip("\r\n") == preserved_start
-        ),
-        None,
+    line_values = [line.rstrip("\r\n") for line in existing_lines]
+
+    def find_line(value, start=0):
+        return next(
+            (index for index in range(start, len(line_values)) if line_values[index] == value),
+            None,
+        )
+
+    managed_start_index = find_line(marker)
+    preserved_start_index = find_line(
+        preserved_start,
+        (managed_start_index + 1) if managed_start_index is not None else 0,
     )
-    preserved_end_index = next(
-        (
-            index
-            for index, line in enumerate(existing_lines)
-            if line.rstrip("\r\n") == preserved_end
-        ),
-        None,
+    preserved_end_index = find_line(
+        preserved_end,
+        (preserved_start_index + 1) if preserved_start_index is not None else 0,
     )
+    managed_end_index = None
     if (
-        preserved_start_index is not None
+        managed_start_index is not None
+        and preserved_start_index == managed_start_index + 4
         and preserved_end_index is not None
-        and preserved_start_index < preserved_end_index
+        and preserved_end_index + 5 < len(line_values)
+        and line_values[managed_start_index + 1] == source
+        and line_values[managed_start_index + 2] == function_start
+        and line_values[managed_start_index + 3] == function_noop
+        and line_values[preserved_end_index + 1] == "}"
+        and line_values[preserved_end_index + 2] == function_name
+        and line_values[preserved_end_index + 3] == function_unset
+        and line_values[preserved_end_index + 4] == final_marker
+        and line_values[preserved_end_index + 5] == source
     ):
+        managed_end_index = preserved_end_index + 6
+
+    if managed_end_index is not None:
+        # Shell tooling may append setup before or after Hive's managed block.
+        # Fold all unmanaged content into the guarded function so it survives
+        # restarts and the final credential scrub still runs after it returns.
         preserved = "".join(
-            existing_lines[preserved_start_index + 1 : preserved_end_index]
+            existing_lines[:managed_start_index]
+            + existing_lines[preserved_start_index + 1 : preserved_end_index]
+            + existing_lines[managed_end_index:]
         )
     else:
         preserved = "".join(

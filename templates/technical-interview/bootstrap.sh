@@ -512,9 +512,46 @@ except (OSError, ValueError, TypeError, json.JSONDecodeError, tomllib.TOMLDecode
 PYMCPREADY
 }
 
+interview_coder_auth_state() {
+  local auth_output auth_status
+
+  if ! command -v coder >/dev/null 2>&1; then
+    printf 'unauthenticated\n'
+    return 0
+  fi
+
+  if auth_output="$(
+    timeout 5s env -u CODER_AGENT_TOKEN -u CODER_SESSION_TOKEN \
+      coder whoami --output json 2>&1
+  )"; then
+    printf 'authenticated\n'
+    return 0
+  else
+    auth_status=$?
+  fi
+
+  case "$auth_status" in
+    124 | 137)
+      printf 'unknown\n'
+      return 0
+      ;;
+  esac
+
+  if grep -Eqi \
+    'you are not logged in|not authenticated|authentication (is )?required|unauthori[sz]ed|invalid (session )?token|(^|[^0-9])401([^0-9]|$)' \
+    <<< "$auth_output"; then
+    printf 'unauthenticated\n'
+  else
+    printf 'unknown\n'
+  fi
+}
+
 interview_coder_authenticated() {
-  command -v coder >/dev/null 2>&1 || return 1
-  timeout 5s env -u CODER_AGENT_TOKEN -u CODER_SESSION_TOKEN coder list >/dev/null 2>&1
+  [ "$(interview_coder_auth_state)" = "authenticated" ]
+}
+
+interview_coder_unauthenticated() {
+  [ "$(interview_coder_auth_state)" = "unauthenticated" ]
 }
 
 interview_wait_url() {
@@ -1006,11 +1043,12 @@ elif interview_github_unauthenticated; then
 else
   printf 'GitHub CLI authentication: UNKNOWN (readiness fails)\n'
 fi
-if interview_coder_authenticated; then
-  printf 'Coder orchestration authentication: PRESENT\n'
-else
-  printf 'Coder orchestration authentication: absent\n'
-fi
+coder_auth_state="$(interview_coder_auth_state)"
+case "$coder_auth_state" in
+  authenticated) printf 'Coder orchestration authentication: PRESENT\n' ;;
+  unauthenticated) printf 'Coder orchestration authentication: absent\n' ;;
+  *) printf 'Coder orchestration authentication: UNKNOWN (readiness fails)\n' ;;
+esac
 if interview_hive_github_helper_present; then
   printf 'Hive GitHub credential helper: PRESENT\n'
 else
@@ -1150,7 +1188,7 @@ check_github_not_authenticated() {
 }
 
 check_coder_not_authenticated() {
-  ! interview_coder_authenticated
+  interview_coder_unauthenticated
 }
 
 check_hive_helper_absent() {

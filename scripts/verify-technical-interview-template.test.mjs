@@ -111,6 +111,13 @@ function renderToolsBrowserScript(chromeBinary) {
   );
 }
 
+function renderToolsFilebrowserScript(trustedPath) {
+  return readFileSync(toolsFilebrowserScript, "utf8").replace(
+    'INTERVIEW_TRUSTED_PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"',
+    `INTERVIEW_TRUSTED_PATH="${trustedPath}"`,
+  );
+}
+
 function runInit(root, home) {
   const renderedInit = join(root, "rendered-init.sh");
   writeFileSync(renderedInit, renderInitScript());
@@ -463,7 +470,31 @@ fi
 exit 1
 `,
   );
-  executable(join(bin, "coder"), "#!/bin/sh\nexit 1\n");
+  executable(
+    join(bin, "coder"),
+    `#!/bin/sh
+[ -z "\${CODER_AGENT_TOKEN:-}" ]
+[ -z "\${CODER_SESSION_TOKEN:-}" ]
+case "\${FAKE_CODER_AUTH_STATE:-unauthenticated}" in
+  authenticated)
+    printf '{"username":"fixture"}\\n'
+    exit 0
+    ;;
+  unauthenticated)
+    printf 'error: You are not logged in.\\n' >&2
+    exit 1
+    ;;
+  unavailable)
+    printf 'error: dial tcp: connection refused\\n' >&2
+    exit 1
+    ;;
+  timeout)
+    exit 124
+    ;;
+  *) exit 2 ;;
+esac
+`,
+  );
 
   const env = {
     ...process.env,
@@ -522,8 +553,16 @@ function filesRecursively(root) {
 test("standalone Terraform exposes interview apps without personal auth modules", () => {
   const terraform = readFileSync(join(templateRoot, "main.tf"), "utf8");
   const init = readFileSync(join(templateRoot, "scripts", "init.sh"), "utf8");
+  const toolsBrowser = readFileSync(join(templateRoot, "scripts", "tools-browser.sh"), "utf8");
   const toolsCi = readFileSync(join(templateRoot, "scripts", "tools-ci.sh"), "utf8");
+  const toolsFilebrowser = readFileSync(
+    join(templateRoot, "scripts", "tools-filebrowser.sh"),
+    "utf8",
+  );
   const profile = JSON.parse(readFileSync(join(templateRoot, "profile.json"), "utf8"));
+  const toolsCiResource = terraform.match(
+    /resource "coder_script" "tools_ci" \{([\s\S]*?)\n\}/,
+  )?.[1];
 
   assert.doesNotMatch(terraform, /coder_external_auth/);
   assert.doesNotMatch(terraform, /coder-login/);
@@ -538,7 +577,12 @@ test("standalone Terraform exposes interview apps without personal auth modules"
   assert.match(init, /\.local[^\n]+playwright-mcp/);
   assert.match(init, /"--browser", "chrome", "--no-sandbox", "--isolated"/);
   assert.match(init, /unset[^\n]+CODER_AGENT_TOKEN/);
+  assert.match(toolsBrowser, /unset[^\n]+CODER_AGENT_TOKEN/);
   assert.match(toolsCi, /unset[^\n]+CODER_AGENT_TOKEN/);
+  assert.match(toolsFilebrowser, /unset[^\n]+CODER_AGENT_TOKEN/);
+  assert.match(toolsBrowser, /INTERVIEW_TRUSTED_PATH="\/usr\/local\/sbin:[^"]+"/);
+  assert.match(toolsFilebrowser, /INTERVIEW_TRUSTED_PATH="\/usr\/local\/sbin:[^"]+"/);
+  assert.match(toolsCiResource ?? "", /start_blocks_login\s*=\s*false/);
   assert.match(
     terraform,
     /resource "coder_app" "interview_app"[\s\S]*?url\s*=\s*"http:\/\/localhost:3000"[\s\S]*?share\s*=\s*"owner"/,
@@ -688,14 +732,35 @@ test("init prepends credential scrubbing before existing shell startup code", ()
     assert.equal(readFileSync(capture, "utf8"), "absent\n");
   }
 
-  const beforeSecondRun = shellFiles.map((shellFile) =>
-    readFileSync(join(home, shellFile), "utf8"),
-  );
+  const unmanagedPrefix = "# candidate-added-before-managed-block";
+  const unmanagedSuffix = "# tool-added-after-managed-block";
+  for (const shellFile of shellFiles) {
+    const shellPath = join(home, shellFile);
+    writeFileSync(
+      shellPath,
+      `${unmanagedPrefix}\n${readFileSync(shellPath, "utf8")}${unmanagedSuffix}\n`,
+    );
+  }
+
   const second = runInit(root, home);
   assert.equal(second.status, 0, second.stderr);
+  for (const shellFile of shellFiles) {
+    const contents = readFileSync(join(home, shellFile), "utf8");
+    const preservedStart = contents.indexOf("# >>> hive-interview-preserved-startup");
+    const preservedEnd = contents.indexOf("# <<< hive-interview-preserved-startup");
+    for (const unmanagedLine of [unmanagedPrefix, unmanagedSuffix]) {
+      assert.equal(contents.split(unmanagedLine).length - 1, 1);
+      assert.ok(contents.indexOf(unmanagedLine) > preservedStart);
+      assert.ok(contents.indexOf(unmanagedLine) < preservedEnd);
+    }
+  }
+
+  const beforeThirdRun = shellFiles.map((shellFile) => readFileSync(join(home, shellFile), "utf8"));
+  const third = runInit(root, home);
+  assert.equal(third.status, 0, third.stderr);
   assert.deepEqual(
     shellFiles.map((shellFile) => readFileSync(join(home, shellFile), "utf8")),
-    beforeSecondRun,
+    beforeThirdRun,
   );
 });
 
@@ -829,9 +894,13 @@ test("browser setup atomically replaces helper symlinks without touching their t
   const home = join(root, "home");
   const localBin = join(home, ".local", "bin");
   const fakeChrome = join(root, "google-chrome-stable");
+  const hijackMarker = join(root, "candidate-path-command-ran");
   const renderedToolsBrowser = join(root, "rendered-tools-browser.sh");
   mkdirSync(localBin, { recursive: true });
   executable(fakeChrome, "#!/bin/sh\nexit 0\n");
+  for (const commandName of ["chmod", "ln", "mktemp", "mv"]) {
+    executable(join(localBin, commandName), '#!/bin/sh\n: > "$HIVE_HIJACK_MARKER"\nexit 99\n');
+  }
 
   for (const helperName of ["browser-screenshot", "browser-html"]) {
     const candidateTarget = join(root, `${helperName}-candidate-target`);
@@ -844,10 +913,17 @@ test("browser setup atomically replaces helper symlinks without touching their t
 
   const first = run("bash", [renderedToolsBrowser], {
     ...process.env,
+    ANTHROPIC_API_KEY: "must-not-reach-browser-tools",
+    CODER_AGENT_TOKEN: "must-not-reach-browser-tools",
+    CODER_SESSION_TOKEN: "must-not-reach-browser-tools",
+    GH_TOKEN: "must-not-reach-browser-tools",
+    GITHUB_TOKEN: "must-not-reach-browser-tools",
+    HIVE_HIJACK_MARKER: hijackMarker,
     HOME: home,
-    PATH: "/usr/bin:/bin",
+    PATH: `${localBin}:/usr/bin:/bin`,
   });
   assert.equal(first.status, 0, first.stderr);
+  assert.equal(existsSync(hijackMarker), false);
   for (const helperName of ["browser-screenshot", "browser-html"]) {
     const candidateTarget = join(root, `${helperName}-candidate-target`);
     const helper = join(localBin, helperName);
@@ -860,10 +936,13 @@ test("browser setup atomically replaces helper symlinks without touching their t
 
   const second = run("bash", [renderedToolsBrowser], {
     ...process.env,
+    CODER_AGENT_TOKEN: "must-not-reach-browser-tools",
+    HIVE_HIJACK_MARKER: hijackMarker,
     HOME: home,
-    PATH: "/usr/bin:/bin",
+    PATH: `${localBin}:/usr/bin:/bin`,
   });
   assert.equal(second.status, 0, second.stderr);
+  assert.equal(existsSync(hijackMarker), false);
 });
 
 test("File Browser installation atomically replaces symlinks without touching their targets", () => {
@@ -875,7 +954,9 @@ test("File Browser installation atomically replaces symlinks without touching th
   const binary = join(localBin, "filebrowser");
   const versionMarker = join(localShare, "filebrowser-version");
   const binaryTarget = join(root, "candidate-binary");
+  const hijackMarker = join(root, "candidate-path-command-ran");
   const markerTarget = join(root, "candidate-version");
+  const renderedToolsFilebrowser = join(root, "rendered-tools-filebrowser.sh");
   const runningMarker = join(root, "filebrowser-running");
   mkdirSync(localBin, { recursive: true });
   mkdirSync(localShare, { recursive: true });
@@ -886,11 +967,14 @@ test("File Browser installation atomically replaces symlinks without touching th
   chmodSync(markerTarget, 0o644);
   symlinkSync(binaryTarget, binary);
   symlinkSync(markerTarget, versionMarker);
+  executable(join(localBin, "curl"), '#!/bin/sh\n: > "$HIVE_HIJACK_MARKER"\nexit 99\n');
 
   executable(
     join(bin, "curl"),
     `#!/bin/bash
 set -euo pipefail
+[ -z "\${CODER_AGENT_TOKEN:-}" ]
+${claudeCredentialAssertions}
 if [ "\${1:-}" = "-fsSLo" ]; then
   : > "$2"
 elif [[ "$*" == *'/health'* ]]; then
@@ -914,6 +998,8 @@ done
 cat > "$destination/filebrowser" <<'FILEBROWSER'
 #!/bin/bash
 set -euo pipefail
+[ -z "\${CODER_AGENT_TOKEN:-}" ]
+${claudeCredentialAssertions}
 case "\${1:-}" in
   config|users) exit 0 ;;
   *) : > "$FAKE_FILEBROWSER_RUNNING" ;;
@@ -922,14 +1008,23 @@ FILEBROWSER
 chmod 755 "$destination/filebrowser"
 `,
   );
+  writeFileSync(renderedToolsFilebrowser, renderToolsFilebrowserScript(`${bin}:/usr/bin:/bin`));
 
-  const result = run("bash", [toolsFilebrowserScript], {
+  const result = run("bash", [renderedToolsFilebrowser], {
     ...process.env,
+    ANTHROPIC_AUTH_TOKEN: "must-not-reach-filebrowser-tools",
+    CLAUDE_CODE_OAUTH_TOKEN: "must-not-reach-filebrowser-tools",
+    CODER_AGENT_TOKEN: "must-not-reach-filebrowser-tools",
+    CODER_SESSION_TOKEN: "must-not-reach-filebrowser-tools",
     FAKE_FILEBROWSER_RUNNING: runningMarker,
+    GH_TOKEN: "must-not-reach-filebrowser-tools",
+    GITHUB_TOKEN: "must-not-reach-filebrowser-tools",
+    HIVE_HIJACK_MARKER: hijackMarker,
     HOME: home,
-    PATH: `${bin}:/usr/bin:/bin`,
+    PATH: `${localBin}:${bin}:/usr/bin:/bin`,
   });
   assert.equal(result.status, 0, result.stderr);
+  assert.equal(existsSync(hijackMarker), false);
   assert.equal(readFileSync(binaryTarget, "utf8"), "preserve candidate binary\n");
   assert.equal(readFileSync(markerTarget, "utf8"), "preserve candidate version\n");
   assert.equal(statSync(binaryTarget).mode & 0o777, 0o644);
@@ -1606,6 +1701,45 @@ test("GitHub auth detection rejects any valid account and accepts a missing CLI"
   assert.equal(missingCli.status, 0, missingCli.stderr);
 });
 
+test("Coder auth detection distinguishes confirmed absence from unknown failures", () => {
+  const fixture = createFixture();
+  installHelpers(fixture);
+  const common = join(
+    fixture.home,
+    ".local",
+    "libexec",
+    "hive",
+    "technical-interview",
+    "common.sh",
+  );
+  const authState = (state) =>
+    run("bash", ["-c", `source "${common}"; interview_coder_auth_state`], {
+      ...fixture.env,
+      FAKE_CODER_AUTH_STATE: state,
+    });
+
+  assert.equal(authState("authenticated").stdout.trim(), "authenticated");
+  assert.equal(authState("unauthenticated").stdout.trim(), "unauthenticated");
+  assert.equal(authState("unavailable").stdout.trim(), "unknown");
+  assert.equal(authState("timeout").stdout.trim(), "unknown");
+
+  const status = run(join(fixture.home, ".local", "bin", "interview-status"), [], {
+    ...fixture.env,
+    FAKE_CODER_AUTH_STATE: "unavailable",
+  });
+  assert.equal(status.status, 0, status.stderr);
+  assert.match(status.stdout, /Coder orchestration authentication: UNKNOWN \(readiness fails\)/);
+
+  unlinkSync(join(fixture.bin, "coder"));
+  const missingCli = run(
+    "bash",
+    ["-c", `source "${common}"; interview_coder_auth_state`],
+    fixture.env,
+  );
+  assert.equal(missingCli.status, 0, missingCli.stderr);
+  assert.equal(missingCli.stdout.trim(), "unauthenticated");
+});
+
 test("readiness reports strict success and failure without network cloning", () => {
   const fixture = createFixture();
   const init = runInit(fixture.root, fixture.home);
@@ -1629,6 +1763,16 @@ test("readiness reports strict success and failure without network cloning", () 
     assert.match(ready.stdout, /Playwright MCP 0\.0\.79 is pinned/);
     assert.match(ready.stdout, /Bun 1\.4\.0 is pinned/);
     assert.match(ready.stdout, /pnpm 10\.32\.1 is pinned/);
+
+    const unknownCoderAuth = run(check, [], {
+      ...fixture.env,
+      FAKE_CODER_AUTH_STATE: "unavailable",
+    });
+    assert.equal(unknownCoderAuth.status, 1);
+    assert.match(
+      `${unknownCoderAuth.stdout}\n${unknownCoderAuth.stderr}`,
+      /\[FAIL\] Coder CLI is not authenticated for orchestration/,
+    );
 
     const failed = run(check, [], { ...fixture.env, FAKE_PYTEST_FAIL: "1" });
     assert.equal(failed.status, 1);
