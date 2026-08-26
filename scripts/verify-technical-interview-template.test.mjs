@@ -15,7 +15,7 @@ import {
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import test from "node:test";
 
 const repositoryRoot = process.cwd();
@@ -65,6 +65,15 @@ function seedSafeInterviewEnvironment(home) {
     writeFileSync(
       join(home, shellFile),
       "# hive-interview-environment\n" +
+        '[ ! -f "$HOME/.config/hive/interview-env.sh" ] || . "$HOME/.config/hive/interview-env.sh"\n' +
+        "__hive_interview_preserved_startup() {\n" +
+        "  :\n" +
+        "# >>> hive-interview-preserved-startup\n" +
+        "# <<< hive-interview-preserved-startup\n" +
+        "}\n" +
+        "__hive_interview_preserved_startup\n" +
+        "unset -f __hive_interview_preserved_startup 2>/dev/null || true\n" +
+        "# hive-interview-environment-final\n" +
         '[ ! -f "$HOME/.config/hive/interview-env.sh" ] || . "$HOME/.config/hive/interview-env.sh"\n',
     );
   }
@@ -90,10 +99,8 @@ function renderToolsCiScript(cloneContents, manifestContents, bootstrapContents)
       placeholder("repositories_manifest_b64"),
       Buffer.from(manifestContents).toString("base64"),
     )
-    .replace(
-      placeholder("bootstrap_script_b64"),
-      Buffer.from(bootstrapContents).toString("base64"),
-    );
+    .replace(placeholder("bootstrap_script_b64"), Buffer.from(bootstrapContents).toString("base64"))
+    .replaceAll("$${", "${");
 }
 
 function renderToolsBrowserScript(chromeBinary) {
@@ -535,7 +542,14 @@ test("init atomically replaces the managed environment symlink without touching 
   assert.equal(second.status, 0, second.stderr);
   for (const shellFile of [".zshenv", ".bashrc", ".profile"]) {
     const contents = readFileSync(join(home, shellFile), "utf8");
-    assert.equal((contents.match(/# hive-interview-environment/g) ?? []).length, 1);
+    assert.equal(
+      contents.split("\n").filter((line) => line === "# hive-interview-environment").length,
+      1,
+    );
+    assert.equal(
+      contents.split("\n").filter((line) => line === "# hive-interview-environment-final").length,
+      1,
+    );
   }
 });
 
@@ -543,12 +557,32 @@ test("init prepends credential scrubbing before existing shell startup code", ()
   const root = mkdtempSync(join(tmpdir(), "technical-interview-init-shell-order-"));
   const home = join(root, "home");
   const capture = join(root, "shell-capture");
+  const restoreCredentials = join(root, "restore-credentials.sh");
+  const forbiddenCredentials = [
+    "ANTHROPIC_API_KEY",
+    "ANTHROPIC_AUTH_TOKEN",
+    "CLAUDE_CODE_OAUTH_TOKEN",
+    "CLAUDE_CODE_OAUTH_REFRESH_TOKEN",
+    "CLAUDE_CODE_OAUTH_SCOPES",
+    "GH_TOKEN",
+    "GITHUB_TOKEN",
+    "CODER_AGENT_TOKEN",
+    "CODER_SESSION_TOKEN",
+    "REALM_VISUAL_REVIEW_API_KEY",
+    "RUNCOMFY_API_TOKEN",
+  ];
   const candidateLine = `printf '%s\\n' "\${CODER_AGENT_TOKEN:-absent}" > "$SHELL_CAPTURE"`;
   mkdirSync(home, { recursive: true });
+  writeFileSync(
+    restoreCredentials,
+    `${forbiddenCredentials
+      .map((credentialName) => `export ${credentialName}=restored-by-startup`)
+      .join("\n")}\n`,
+  );
 
   const shellFiles = [".zshenv", ".bashrc", ".profile", ".bash_profile", ".bash_login"];
   for (const shellFile of shellFiles) {
-    writeFileSync(join(home, shellFile), `${candidateLine}\n`);
+    writeFileSync(join(home, shellFile), `${candidateLine}\n. "$SHELL_RESTORE_FILE"\nreturn 0\n`);
   }
 
   const first = runInit(root, home);
@@ -562,20 +596,30 @@ test("init prepends credential scrubbing before existing shell startup code", ()
       '[ ! -f "$HOME/.config/hive/interview-env.sh" ] || . "$HOME/.config/hive/interview-env.sh"',
     );
     assert.ok(contents.indexOf(candidateLine) > contents.indexOf("# hive-interview-environment"));
+    assert.equal(contents.trimEnd().endsWith('interview-env.sh"'), true);
 
     writeFileSync(capture, "");
-    const sourced = run("bash", ["-c", '. "$1"', "bash", shellPath], {
-      ...process.env,
-      BASH_ENV: "",
-      ANTHROPIC_AUTH_TOKEN: "must-be-scrubbed-first",
-      CLAUDE_CODE_OAUTH_REFRESH_TOKEN: "must-be-scrubbed-first",
-      CLAUDE_CODE_OAUTH_SCOPES: "must-be-scrubbed-first",
-      CLAUDE_CODE_OAUTH_TOKEN: "must-be-scrubbed-first",
-      CODER_AGENT_TOKEN: "must-be-scrubbed-first",
-      ENV: "",
-      HOME: home,
-      SHELL_CAPTURE: capture,
-    });
+    const sourced = run(
+      "bash",
+      [
+        "-c",
+        '. "$1"; shift; for credential_name in "$@"; do ! printenv "$credential_name" >/dev/null || exit 1; done',
+        "bash",
+        shellPath,
+        ...forbiddenCredentials,
+      ],
+      {
+        ...process.env,
+        ...Object.fromEntries(
+          forbiddenCredentials.map((credentialName) => [credentialName, "must-be-scrubbed-first"]),
+        ),
+        BASH_ENV: "",
+        ENV: "",
+        HOME: home,
+        SHELL_CAPTURE: capture,
+        SHELL_RESTORE_FILE: restoreCredentials,
+      },
+    );
     assert.equal(sourced.status, 0, sourced.stderr);
     assert.equal(readFileSync(capture, "utf8"), "absent\n");
   }
@@ -645,6 +689,74 @@ test("startup atomically replaces generated input symlinks without touching thei
     assert.equal(lstatSync(generated.path).isSymbolicLink(), false);
     assert.equal(readFileSync(generated.path, "utf8"), generated.contents);
     assert.equal(statSync(generated.path).mode & 0o777, generated.mode);
+  }
+});
+
+test("startup refuses symlinked managed directory chains before writing generated inputs", () => {
+  for (const relativeDirectory of [".local", ".local/bin", ".local/libexec", ".local/state"]) {
+    const root = mkdtempSync(join(tmpdir(), "technical-interview-input-directories-"));
+    const home = join(root, "home");
+    const unsafeDirectory = join(home, relativeDirectory);
+    const candidateTarget = join(root, `candidate-${relativeDirectory.replaceAll("/", "-")}`);
+    const renderedToolsCi = join(root, "rendered-tools-ci.sh");
+    mkdirSync(dirname(unsafeDirectory), { recursive: true });
+    mkdirSync(candidateTarget);
+    writeFileSync(join(candidateTarget, "candidate.txt"), "preserve candidate directory\n");
+    chmodSync(candidateTarget, 0o750);
+    symlinkSync(candidateTarget, unsafeDirectory);
+    writeFileSync(
+      renderedToolsCi,
+      renderToolsCiScript(
+        "#!/bin/sh\nexit 0\n",
+        "prmsolutions/interview-template|prmsolutions/interview-template\n",
+        "#!/bin/sh\nexit 0\n",
+      ),
+    );
+
+    const result = run("bash", [renderedToolsCi], {
+      ...process.env,
+      BASH_ENV: "",
+      ENV: "",
+      HOME: home,
+      PATH: "/usr/bin:/bin",
+    });
+    assert.equal(result.status, 0, `${relativeDirectory} must leave the agent accessible`);
+    assert.match(result.stderr, /unsafe interview directory was preserved/);
+    assert.match(result.stderr, /no generated input was written/);
+    assert.equal(existsSync(join(home, "clone-repositories.sh")), false);
+    assert.equal(existsSync(join(home, "repositories.txt")), false);
+    assert.equal(
+      readFileSync(join(candidateTarget, "candidate.txt"), "utf8"),
+      "preserve candidate directory\n",
+    );
+    assert.equal(statSync(candidateTarget).mode & 0o777, 0o750);
+    assert.equal(lstatSync(unsafeDirectory).isSymbolicLink(), true);
+  }
+});
+
+test("bootstrap rejects symlinked managed directory chains without touching their targets", () => {
+  for (const relativeDirectory of [".local", ".local/bin", ".local/libexec", ".local/state"]) {
+    const fixture = createFixture();
+    const unsafeDirectory = join(fixture.home, relativeDirectory);
+    const candidateTarget = join(
+      fixture.root,
+      `candidate-${relativeDirectory.replaceAll("/", "-")}`,
+    );
+    mkdirSync(dirname(unsafeDirectory), { recursive: true });
+    mkdirSync(candidateTarget);
+    writeFileSync(join(candidateTarget, "candidate.txt"), "preserve candidate directory\n");
+    chmodSync(candidateTarget, 0o750);
+    symlinkSync(candidateTarget, unsafeDirectory);
+
+    const result = run("bash", [bootstrapScript], fixture.env);
+    assert.equal(result.status, 1, `${relativeDirectory} must stop bootstrap`);
+    assert.match(result.stderr, /unsafe interview directory was preserved/);
+    assert.equal(
+      readFileSync(join(candidateTarget, "candidate.txt"), "utf8"),
+      "preserve candidate directory\n",
+    );
+    assert.equal(statSync(candidateTarget).mode & 0o777, 0o750);
+    assert.equal(lstatSync(unsafeDirectory).isSymbolicLink(), true);
   }
 });
 
@@ -800,6 +912,35 @@ test("init atomically replaces linked MCP configs without touching their targets
       "playwright-mcp",
     ),
     true,
+  );
+});
+
+test("init preserves non-regular MCP paths and defers them to readiness", () => {
+  const fixture = createFixture();
+  const codexConfig = join(fixture.home, ".codex", "config.toml");
+  const claudeConfig = join(fixture.home, ".claude", "mcp.json");
+  const sharedConfig = join(fixture.home, ".mcp.json");
+  mkdirSync(join(fixture.home, ".codex"), { recursive: true });
+  mkdirSync(join(fixture.home, ".claude"), { recursive: true });
+  mkdirSync(codexConfig);
+  mkdirSync(sharedConfig);
+  const fifo = run("/usr/bin/mkfifo", [claudeConfig], process.env);
+  assert.equal(fifo.status, 0, fifo.stderr);
+
+  const init = runInit(fixture.root, fixture.home);
+  assert.equal(init.status, 0, init.stderr);
+  assert.match(init.stderr, /preserving non-regular Codex MCP config/);
+  assert.match(init.stderr, /preserving non-regular MCP config/);
+  assert.equal(lstatSync(codexConfig).isDirectory(), true);
+  assert.equal(lstatSync(claudeConfig).isFIFO(), true);
+  assert.equal(lstatSync(sharedConfig).isDirectory(), true);
+
+  installHelpers(fixture);
+  const check = run(join(fixture.home, ".local", "bin", "interview-check"), [], fixture.env);
+  assert.equal(check.status, 1);
+  assert.match(
+    `${check.stdout}\n${check.stderr}`,
+    /\[FAIL\] managed Playwright MCP configuration is ready/,
   );
 });
 

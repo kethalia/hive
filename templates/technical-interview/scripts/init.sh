@@ -1,14 +1,55 @@
 #!/bin/bash
 set -euo pipefail
+umask 077
 
 unset ANTHROPIC_API_KEY ANTHROPIC_AUTH_TOKEN
 unset CLAUDE_CODE_OAUTH_TOKEN CLAUDE_CODE_OAUTH_REFRESH_TOKEN CLAUDE_CODE_OAUTH_SCOPES
 unset GH_TOKEN GITHUB_TOKEN CODER_AGENT_TOKEN CODER_SESSION_TOKEN
 unset REALM_VISUAL_REVIEW_API_KEY RUNCOMFY_API_TOKEN
 
+ensure_interview_local_directory() {
+  local target=$1 current remainder component
+
+  if [ -L "$HOME" ] || [ ! -d "$HOME" ]; then
+    printf 'WARNING: interview home is not a local directory: %s\n' "$HOME" >&2
+    return 1
+  fi
+  case "$target" in
+    "$HOME") return 0 ;;
+    "$HOME"/*) ;;
+    *)
+      printf 'WARNING: refusing to prepare a directory outside the interview home: %s\n' \
+        "$target" >&2
+      return 1
+      ;;
+  esac
+
+  current="$HOME"
+  remainder="$${target#"$HOME"/}"
+  while [ -n "$remainder" ]; do
+    component="$${remainder%%/*}"
+    if [ "$component" = "$remainder" ]; then
+      remainder=""
+    else
+      remainder="$${remainder#*/}"
+    fi
+    current="$current/$component"
+    if [ -L "$current" ] || { [ -e "$current" ] && [ ! -d "$current" ]; }; then
+      printf 'WARNING: unsafe interview directory was preserved: %s\n' "$current" >&2
+      return 1
+    fi
+    [ -d "$current" ] || mkdir -- "$current" || return 1
+  done
+}
+
+interview_local_tools_safe=true
+if ! ensure_interview_local_directory "$HOME/.local/bin"; then
+  interview_local_tools_safe=false
+fi
+
 if [ ! -f "$HOME/.workspace_initialized" ]; then
   echo "First-time workspace setup..."
-  mkdir -p "$HOME/projects" "$HOME/bin" "$HOME/.config" "$HOME/.local/bin"
+  mkdir -p "$HOME/projects" "$HOME/bin" "$HOME/.config"
 
   if [ ! -f "$HOME/README.md" ]; then
     cat > "$HOME/README.md" << 'EOFREADME'
@@ -82,7 +123,14 @@ from pathlib import Path
 home = Path(os.environ["HOME"])
 marker = "# hive-interview-environment"
 source = '[ ! -f "$HOME/.config/hive/interview-env.sh" ] || . "$HOME/.config/hive/interview-env.sh"'
-managed_lines = {marker, source}
+preserved_start = "# >>> hive-interview-preserved-startup"
+preserved_end = "# <<< hive-interview-preserved-startup"
+function_name = "__hive_interview_preserved_startup"
+function_start = f"{function_name}() {{"
+function_noop = "  :"
+function_unset = f"unset -f {function_name} 2>/dev/null || true"
+final_marker = "# hive-interview-environment-final"
+legacy_managed_lines = {marker, source}
 shell_files = [home / ".zshenv", home / ".bashrc", home / ".profile"]
 shell_files.extend(
     shell_file
@@ -107,12 +155,44 @@ for shell_file in shell_files:
         continue
 
     existing = shell_file.read_text() if shell_file.exists() else ""
-    preserved = "".join(
-        line
-        for line in existing.splitlines(keepends=True)
-        if line.rstrip("\r\n") not in managed_lines
+    existing_lines = existing.splitlines(keepends=True)
+    preserved_start_index = next(
+        (
+            index
+            for index, line in enumerate(existing_lines)
+            if line.rstrip("\r\n") == preserved_start
+        ),
+        None,
     )
-    updated = f"{marker}\n{source}\n{preserved}"
+    preserved_end_index = next(
+        (
+            index
+            for index, line in enumerate(existing_lines)
+            if line.rstrip("\r\n") == preserved_end
+        ),
+        None,
+    )
+    if (
+        preserved_start_index is not None
+        and preserved_end_index is not None
+        and preserved_start_index < preserved_end_index
+    ):
+        preserved = "".join(
+            existing_lines[preserved_start_index + 1 : preserved_end_index]
+        )
+    else:
+        preserved = "".join(
+            line
+            for line in existing_lines
+            if line.rstrip("\r\n") not in legacy_managed_lines
+        )
+    if preserved and not preserved.endswith(("\n", "\r")):
+        preserved += "\n"
+    updated = (
+        f"{marker}\n{source}\n{function_start}\n{function_noop}\n"
+        f"{preserved_start}\n{preserved}{preserved_end}\n}}\n"
+        f"{function_name}\n{function_unset}\n{final_marker}\n{source}\n"
+    )
     mode = stat.S_IMODE(shell_file.stat().st_mode) if shell_file.exists() else 0o600
     descriptor, temporary_name = tempfile.mkstemp(
         prefix=f".{shell_file.name}.", dir=home
@@ -177,6 +257,12 @@ config = Path(os.environ["HOME"]) / ".codex" / "config.toml"
 linked_config = config.is_symlink()
 if linked_config:
     print(f"WARNING: replacing linked Codex config without reading its target: {config}")
+elif config.exists() and not config.is_file():
+    print(
+        f"WARNING: preserving non-regular Codex MCP config; readiness will fail: {config}",
+        file=os.sys.stderr,
+    )
+    raise SystemExit(0)
 existing = config.read_text() if config.exists() and not linked_config else ""
 start = "# >>> hive-managed-codex-mcp"
 end = "# <<< hive-managed-codex-mcp"
@@ -260,6 +346,12 @@ for config in (home / ".claude" / "mcp.json", home / ".mcp.json"):
     linked_config = config.is_symlink()
     if linked_config:
         print(f"WARNING: replacing linked MCP config without reading its target: {config}")
+    elif config.exists() and not config.is_file():
+        print(
+            f"WARNING: preserving non-regular MCP config; readiness will fail: {config}",
+            file=os.sys.stderr,
+        )
+        continue
     try:
         data = json.loads(config.read_text()) if config.exists() and not linked_config else {}
     except json.JSONDecodeError:
@@ -392,7 +484,8 @@ configure_json_mcp
 remove_vault_managed_context
 initialize_agent_context
 
-if [ "$HIVE_BROWSER_TOOLS_ENABLED" != "true" ]; then
+if [ "$HIVE_BROWSER_TOOLS_ENABLED" != "true" ] \
+  && [ "$interview_local_tools_safe" = true ]; then
   remove_hive_browser_helpers
   if [ -L "$HOME/.local/bin/chromium-browser" ] \
     && [ "$(readlink "$HOME/.local/bin/chromium-browser")" = "/usr/bin/google-chrome-stable" ]; then

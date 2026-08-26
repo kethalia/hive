@@ -17,7 +17,44 @@ interview_playwright_mcp_version="0.0.79"
 interview_bun_version="1.4.0"
 interview_pnpm_version="10.32.1"
 
-mkdir -p "$interview_bin_dir" "$interview_libexec_dir" "$interview_state_dir"
+interview_ensure_local_directory() {
+  local target=$1 current remainder component
+
+  if [ -L "$HOME" ] || [ ! -d "$HOME" ]; then
+    printf '[error] interview home is not a local directory: %s\n' "$HOME" >&2
+    return 1
+  fi
+  case "$target" in
+    "$HOME") return 0 ;;
+    "$HOME"/*) ;;
+    *)
+      printf '[error] refusing to prepare a directory outside the interview home: %s\n' \
+        "$target" >&2
+      return 1
+      ;;
+  esac
+
+  current="$HOME"
+  remainder="${target#"$HOME"/}"
+  while [ -n "$remainder" ]; do
+    component="${remainder%%/*}"
+    if [ "$component" = "$remainder" ]; then
+      remainder=""
+    else
+      remainder="${remainder#*/}"
+    fi
+    current="$current/$component"
+    if [ -L "$current" ] || { [ -e "$current" ] && [ ! -d "$current" ]; }; then
+      printf '[error] unsafe interview directory was preserved: %s\n' "$current" >&2
+      return 1
+    fi
+    [ -d "$current" ] || mkdir -- "$current" || return 1
+  done
+}
+
+interview_ensure_local_directory "$interview_bin_dir"
+interview_ensure_local_directory "$interview_libexec_dir"
+interview_ensure_local_directory "$interview_state_dir"
 chmod 700 "$interview_bin_dir" "$interview_libexec_dir" "$interview_state_dir"
 
 install_interview_file() {
@@ -26,7 +63,7 @@ install_interview_file() {
   local destination_directory temporary_file
 
   destination_directory="$(dirname -- "$destination")"
-  mkdir -p "$destination_directory"
+  interview_ensure_local_directory "$destination_directory" || return 1
   temporary_file="$(mktemp "$destination_directory/.hive-interview.XXXXXX")"
   if ! command cat > "$temporary_file"; then
     rm -f -- "$temporary_file"
@@ -71,7 +108,42 @@ INTERVIEW_FORBIDDEN_CREDENTIALS=(
   RUNCOMFY_API_TOKEN
 )
 
-mkdir -p "$INTERVIEW_STATE_DIR"
+interview_ensure_local_directory() {
+  local target=$1 current remainder component
+
+  if [ -L "$HOME" ] || [ ! -d "$HOME" ]; then
+    printf '[error] interview home is not a local directory: %s\n' "$HOME" >&2
+    return 1
+  fi
+  case "$target" in
+    "$HOME") return 0 ;;
+    "$HOME"/*) ;;
+    *)
+      printf '[error] refusing to prepare a directory outside the interview home: %s\n' \
+        "$target" >&2
+      return 1
+      ;;
+  esac
+
+  current="$HOME"
+  remainder="${target#"$HOME"/}"
+  while [ -n "$remainder" ]; do
+    component="${remainder%%/*}"
+    if [ "$component" = "$remainder" ]; then
+      remainder=""
+    else
+      remainder="${remainder#*/}"
+    fi
+    current="$current/$component"
+    if [ -L "$current" ] || { [ -e "$current" ] && [ ! -d "$current" ]; }; then
+      printf '[error] unsafe interview directory was preserved: %s\n' "$current" >&2
+      return 1
+    fi
+    [ -d "$current" ] || mkdir -- "$current" || return 1
+  done
+}
+
+interview_ensure_local_directory "$INTERVIEW_STATE_DIR"
 chmod 700 "$INTERVIEW_STATE_DIR"
 
 interview_scrub_credentials() {
@@ -355,6 +427,39 @@ interview_shell_scrub_ready() {
     [ "$(sed -n '2p' "$shell_file")" = \
       '[ ! -f "$HOME/.config/hive/interview-env.sh" ] || . "$HOME/.config/hive/interview-env.sh"' ] \
       || return 1
+    [ "$(sed -n '3p' "$shell_file")" = '__hive_interview_preserved_startup() {' ] \
+      || return 1
+    [ "$(sed -n '4p' "$shell_file")" = '  :' ] || return 1
+    [ "$(sed -n '5p' "$shell_file")" = '# >>> hive-interview-preserved-startup' ] \
+      || return 1
+    [ "$(tail -n 6 "$shell_file" | sed -n '1p')" = \
+      '# <<< hive-interview-preserved-startup' ] || return 1
+    [ "$(tail -n 6 "$shell_file" | sed -n '2p')" = '}' ] || return 1
+    [ "$(tail -n 6 "$shell_file" | sed -n '3p')" = \
+      '__hive_interview_preserved_startup' ] || return 1
+    [ "$(tail -n 6 "$shell_file" | sed -n '4p')" = \
+      'unset -f __hive_interview_preserved_startup 2>/dev/null || true' ] || return 1
+    [ "$(tail -n 6 "$shell_file" | sed -n '5p')" = \
+      '# hive-interview-environment-final' ] || return 1
+    [ "$(tail -n 6 "$shell_file" | sed -n '6p')" = \
+      '[ ! -f "$HOME/.config/hive/interview-env.sh" ] || . "$HOME/.config/hive/interview-env.sh"' ] \
+      || return 1
+  done
+}
+
+interview_managed_directories_ready() {
+  local managed_directory
+
+  for managed_directory in \
+    "$HOME/.local" \
+    "$HOME/.local/bin" \
+    "$HOME/.local/libexec" \
+    "$HOME/.local/libexec/hive" \
+    "$HOME/.local/libexec/hive/technical-interview" \
+    "$HOME/.local/state" \
+    "$HOME/.local/state/hive" \
+    "$HOME/.local/state/hive/technical-interview"; do
+    [ -d "$managed_directory" ] && [ ! -L "$managed_directory" ] || return 1
   done
 }
 
@@ -475,7 +580,7 @@ if ! npm --version >/dev/null 2>&1; then
   exit 1
 fi
 
-mkdir -p "$INTERVIEW_STATE_DIR"
+interview_ensure_local_directory "$INTERVIEW_STATE_DIR"
 chmod 700 "$INTERVIEW_STATE_DIR"
 dependencies_refreshed=false
 
@@ -491,8 +596,8 @@ interview_create_backend_venv() {
     rm -rf -- "$venv_probe"
     fallback_root="$INTERVIEW_STATE_DIR/virtualenv-$INTERVIEW_VIRTUALENV_VERSION"
     interview_warn "Standard venv creation is unavailable; using pinned non-root virtualenv $INTERVIEW_VIRTUALENV_VERSION"
+    interview_ensure_local_directory "$fallback_root"
     if [ ! -f "$fallback_root/virtualenv/__main__.py" ]; then
-      mkdir -p "$fallback_root"
       python3 -m pip install \
         --disable-pip-version-check \
         --no-input \
@@ -1026,6 +1131,7 @@ run_check "API responds at /hello" check_api
 run_check "frontend responds on port 3000" check_frontend
 run_check "working tree contains no unexpected files" interview_git_clean
 run_check "interactive shell credential scrub hooks are installed" interview_shell_scrub_ready
+run_check "managed tool directory chains are local" interview_managed_directories_ready
 run_check "managed Playwright MCP configuration is ready" interview_mcp_configuration_ready
 run_check "forbidden credential variables are absent" check_forbidden_credentials_absent
 run_check "GitHub CLI is not authenticated" check_github_not_authenticated
@@ -1140,9 +1246,9 @@ install_interview_ripgrep() {
     interview_warn "Preserving unexpected rg command at $managed_binary"
     return 1
   fi
+  interview_ensure_local_directory "$tool_root" || return 1
   if [ ! -x "$packaged_binary" ]; then
     command -v npm >/dev/null 2>&1 || return 1
-    mkdir -p "$tool_root"
     npm install \
       --prefix "$tool_root" \
       --ignore-scripts \
@@ -1173,6 +1279,8 @@ install_interview_npm_tool() {
   local tool_root="$tools_root/$command_name-$package_version"
   local installed_binary="$tool_root/node_modules/$package_binary"
   local existing_target
+
+  interview_ensure_local_directory "$tool_root" || return 1
 
   if [ -L "$managed_binary" ]; then
     existing_target="$(readlink -- "$managed_binary")"
@@ -1205,7 +1313,7 @@ install_interview_npm_tool() {
     if [ -e "$tool_root" ] || [ -L "$tool_root" ]; then
       rm -rf -- "$tool_root"
     fi
-    mkdir -p "$tool_root"
+    interview_ensure_local_directory "$tool_root" || return 1
     printf '[install] %s %s\n' "$label" "$package_version"
     PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1 npm install \
       --prefix "$tool_root" \

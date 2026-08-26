@@ -1,5 +1,6 @@
 #!/bin/bash
 set -euo pipefail
+umask 077
 
 filebrowser_version="2.63.18"
 filebrowser_port="${FILEBROWSER_PORT:-13339}"
@@ -8,6 +9,41 @@ binary="$HOME/.local/bin/filebrowser"
 database="$HOME/.config/filebrowser/filebrowser.db"
 log_file="$HOME/.local/state/filebrowser/filebrowser.log"
 version_marker="$HOME/.local/share/filebrowser-version"
+
+ensure_interview_local_directory() {
+  local target=$1 current remainder component
+
+  if [ -L "$HOME" ] || [ ! -d "$HOME" ]; then
+    printf '[error] interview home is not a local directory: %s\n' "$HOME" >&2
+    return 1
+  fi
+  case "$target" in
+    "$HOME") return 0 ;;
+    "$HOME"/*) ;;
+    *)
+      printf '[error] refusing to prepare a directory outside the interview home: %s\n' \
+        "$target" >&2
+      return 1
+      ;;
+  esac
+
+  current="$HOME"
+  remainder="${target#"$HOME"/}"
+  while [ -n "$remainder" ]; do
+    component="${remainder%%/*}"
+    if [ "$component" = "$remainder" ]; then
+      remainder=""
+    else
+      remainder="${remainder#*/}"
+    fi
+    current="$current/$component"
+    if [ -L "$current" ] || { [ -e "$current" ] && [ ! -d "$current" ]; }; then
+      printf '[error] unsafe interview directory was preserved: %s\n' "$current" >&2
+      return 1
+    fi
+    [ -d "$current" ] || mkdir -- "$current" || return 1
+  done
+}
 
 case "$filebrowser_root" in
   /*) ;;
@@ -37,7 +73,10 @@ case "$(uname -m)" in
     ;;
 esac
 
-mkdir -p "$HOME/.local/bin" "$HOME/.local/share" "$HOME/.local/state/filebrowser" "$(dirname "$database")"
+ensure_interview_local_directory "$HOME/.local/bin"
+ensure_interview_local_directory "$HOME/.local/share"
+ensure_interview_local_directory "$HOME/.local/state/filebrowser"
+ensure_interview_local_directory "$(dirname "$database")"
 
 installed_version=""
 if [ -f "$version_marker" ] && [ ! -L "$version_marker" ]; then

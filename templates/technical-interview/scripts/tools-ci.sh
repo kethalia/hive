@@ -1,6 +1,7 @@
 #!/bin/bash
 # shellcheck disable=SC2154 # Values are populated by Terraform templatefile().
 set -uo pipefail
+umask 077
 
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
@@ -11,7 +12,51 @@ unset CLAUDE_CODE_OAUTH_TOKEN CLAUDE_CODE_OAUTH_REFRESH_TOKEN CLAUDE_CODE_OAUTH_
 unset GH_TOKEN GITHUB_TOKEN CODER_AGENT_TOKEN CODER_SESSION_TOKEN
 unset REALM_VISUAL_REVIEW_API_KEY RUNCOMFY_API_TOKEN
 
-mkdir -p "$HOME/.local/bin" "$HOME/.local/libexec/hive" "$HOME/.local/state/hive/technical-interview"
+ensure_interview_local_directory() {
+  local target=$1 current remainder component
+
+  if [ -L "$HOME" ] || [ ! -d "$HOME" ]; then
+    printf '[error] interview home is not a local directory: %s\n' "$HOME" >&2
+    return 1
+  fi
+  case "$target" in
+    "$HOME") return 0 ;;
+    "$HOME"/*) ;;
+    *)
+      printf '[error] refusing to prepare a directory outside the interview home: %s\n' \
+        "$target" >&2
+      return 1
+      ;;
+  esac
+
+  current="$HOME"
+  remainder="$${target#"$HOME"/}"
+  while [ -n "$remainder" ]; do
+    component="$${remainder%%/*}"
+    if [ "$component" = "$remainder" ]; then
+      remainder=""
+    else
+      remainder="$${remainder#*/}"
+    fi
+    current="$current/$component"
+    if [ -L "$current" ] || { [ -e "$current" ] && [ ! -d "$current" ]; }; then
+      printf '[error] unsafe interview directory was preserved: %s\n' "$current" >&2
+      return 1
+    fi
+    [ -d "$current" ] || mkdir -- "$current" || return 1
+  done
+}
+
+directories_ready=true
+ensure_interview_local_directory "$HOME/.local/bin" || directories_ready=false
+ensure_interview_local_directory "$HOME/.local/libexec/hive" || directories_ready=false
+ensure_interview_local_directory "$HOME/.local/state/hive/technical-interview" \
+  || directories_ready=false
+if [ "$directories_ready" != true ]; then
+  printf '%b[warn] Interview managed directories are unsafe; no generated input was written.%b\n' \
+    "$YELLOW" "$RESET" >&2
+  exit 0
+fi
 
 # This credential belongs to an unrelated optional workspace integration. It
 # must not survive inside the isolated interview home.
@@ -23,6 +68,7 @@ write_embedded_file() {
   local encoded=$1 destination=$2 mode=$3 destination_directory temporary_file
 
   destination_directory="$(dirname -- "$destination")"
+  ensure_interview_local_directory "$destination_directory" || return 1
   temporary_file="$(mktemp "$destination_directory/.hive-interview-input.XXXXXX")" || return 1
   if ! printf '%s' "$encoded" | base64 -d > "$temporary_file"; then
     rm -f -- "$temporary_file"

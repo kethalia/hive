@@ -1,13 +1,49 @@
 #!/bin/bash
 set -e
+umask 077
 
 BOLD='\033[0;1m'
 GREEN='\033[0;32m'
 RESET='\033[0m'
 
+ensure_interview_local_directory() {
+  local target=$1 current remainder component
+
+  if [ -L "$HOME" ] || [ ! -d "$HOME" ]; then
+    printf '[error] interview home is not a local directory: %s\n' "$HOME" >&2
+    return 1
+  fi
+  case "$target" in
+    "$HOME") return 0 ;;
+    "$HOME"/*) ;;
+    *)
+      printf '[error] refusing to prepare a directory outside the interview home: %s\n' \
+        "$target" >&2
+      return 1
+      ;;
+  esac
+
+  current="$HOME"
+  remainder="${target#"$HOME"/}"
+  while [ -n "$remainder" ]; do
+    component="${remainder%%/*}"
+    if [ "$component" = "$remainder" ]; then
+      remainder=""
+    else
+      remainder="${remainder#*/}"
+    fi
+    current="$current/$component"
+    if [ -L "$current" ] || { [ -e "$current" ] && [ ! -d "$current" ]; }; then
+      printf '[error] unsafe interview directory was preserved: %s\n' "$current" >&2
+      return 1
+    fi
+    [ -d "$current" ] || mkdir -- "$current" || return 1
+  done
+}
+
 # Ensure PATH includes tool directories
 export PATH="$HOME/.local/bin:$HOME/.bun/bin:$HOME/.claude/local/bin:$PATH"
-mkdir -p "$HOME/.local/bin"
+ensure_interview_local_directory "$HOME/.local/bin"
 
 # Force npm global installs into ~/.local (user-writable, already on PATH)
 export npm_config_prefix="$HOME/.local"
@@ -36,7 +72,7 @@ if [ ! -x "$CHROME_BIN" ]; then
   printf '[error] Browser image is missing %s\n' "$CHROME_BIN" >&2
   exit 1
 fi
-ln -sf "$CHROME_BIN" "$HOME/.local/bin/chromium-browser"
+ln -sfnT "$CHROME_BIN" "$HOME/.local/bin/chromium-browser"
 
 # Claude Code and Codex Playwright MCP entries are managed by init.sh and point
 # at the pinned user-space package prepared by the interview bootstrap.
