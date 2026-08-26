@@ -152,7 +152,14 @@ function createFixture() {
 set -euo pipefail
 [ -z "\${CODER_AGENT_TOKEN:-}" ]
 if [ "\${1:-}" = "--version" ]; then printf 'Python 3.13.5\\n'; exit 0; fi
-if [ "\${1:-}" = "-c" ]; then exit 0; fi
+if [ "\${1:-}" = "-c" ]; then
+  case "\${2:-}" in
+    *sysconfig.get_config_var*)
+      printf '%s\\n' "\${FAKE_PYTHON_RUNTIME:-3.13.5|cache:cpython-313|abi:cpython-313-x86_64-linux-gnu}"
+      ;;
+  esac
+  exit 0
+fi
 if [ "\${1:-}" = "-m" ] && [ "\${2:-}" = "venv" ]; then
   target=$3
   mkdir -p "$target/bin"
@@ -277,6 +284,17 @@ set -euo pipefail
 [ -z "\${CODER_AGENT_TOKEN:-}" ]
 for argument in "$@"; do
   if [ "$argument" = "ls-remote" ]; then
+    [ "$HOME" != "$FAKE_WORKSPACE_HOME" ]
+    [ "$GIT_CONFIG_GLOBAL" = "/dev/null" ]
+    [ "$GIT_CONFIG_NOSYSTEM" = "1" ]
+    [ "$GIT_ASKPASS" = "/bin/false" ]
+    [ "$GIT_SSH_COMMAND" = "/bin/false" ]
+    [ "$SSH_ASKPASS" = "/bin/false" ]
+    [ -z "\${GIT_CONFIG:-}" ]
+    [ -z "\${GIT_CONFIG_COUNT:-}" ]
+    [ -z "\${GIT_CONFIG_PARAMETERS:-}" ]
+    [ -z "\${SSH_AUTH_SOCK:-}" ]
+    [ -z "\${SSH_AGENT_PID:-}" ]
     printf '%s\\tHEAD\\n' "$FAKE_REMOTE_COMMIT"
     exit 0
   fi
@@ -318,6 +336,7 @@ windows_file="$state/windows"
 mkdir -p "$state"
 command_name=\${1:-}
 shift || true
+printf 'tmux:%s %s\\n' "$command_name" "$*" >> "$FAKE_CALLS"
 case "$command_name" in
   -V)
     printf 'tmux 3.5a\\n'
@@ -384,6 +403,7 @@ exit 1
     FAKE_CALLS: calls,
     FAKE_REMOTE_COMMIT: commit,
     FAKE_TMUX_STATE: tmuxRoot,
+    FAKE_WORKSPACE_HOME: home,
     HOME: home,
     HIVE_INTERVIEW_SKIP_AUTOSTART: "true",
     PATH: `${join(home, ".local", "bin")}:${bin}:/usr/bin:/bin`,
@@ -637,6 +657,12 @@ set -euo pipefail
 [ "$2" = "credential.helper=" ]
 [ "$3" = "clone" ]
 [ "$4" = "https://github.com/prmsolutions/interview-template.git" ]
+[ "$HOME" != "$ORIGINAL_HOME" ]
+[ "$GIT_CONFIG_GLOBAL" = "/dev/null" ]
+[ "$GIT_CONFIG_NOSYSTEM" = "1" ]
+[ "$GIT_ASKPASS" = "/bin/false" ]
+[ "$GIT_SSH_COMMAND" = "/bin/false" ]
+[ "$SSH_ASKPASS" = "/bin/false" ]
 [ -z "\${ANTHROPIC_API_KEY:-}" ]
 [ -z "\${GH_TOKEN:-}" ]
 [ -z "\${GITHUB_TOKEN:-}" ]
@@ -644,6 +670,11 @@ set -euo pipefail
 [ -z "\${CODER_SESSION_TOKEN:-}" ]
 [ -z "\${REALM_VISUAL_REVIEW_API_KEY:-}" ]
 [ -z "\${RUNCOMFY_API_TOKEN:-}" ]
+[ -z "\${GIT_CONFIG:-}" ]
+[ -z "\${GIT_CONFIG_COUNT:-}" ]
+[ -z "\${GIT_CONFIG_PARAMETERS:-}" ]
+[ -z "\${SSH_AUTH_SOCK:-}" ]
+[ -z "\${SSH_AGENT_PID:-}" ]
 mkdir -p "$5/.git"
 printf '%s\\n' "$*" >> "$GIT_CALLS"
 `,
@@ -654,14 +685,25 @@ printf '%s\\n' "$*" >> "$GIT_CALLS"
     ANTHROPIC_API_KEY: "must-not-reach-git",
     CODER_AGENT_TOKEN: "must-not-reach-git",
     CODER_SESSION_TOKEN: "must-not-reach-git",
+    GIT_ASKPASS: "must-not-reach-git",
     GH_TOKEN: "must-not-reach-git",
     GITHUB_TOKEN: "must-not-reach-git",
+    GIT_CONFIG: join(root, "personal-git-config"),
+    GIT_CONFIG_COUNT: "1",
+    GIT_CONFIG_KEY_0: "http.extraHeader",
+    GIT_CONFIG_PARAMETERS: "'url.ssh://personal/.insteadOf=https://github.com/'",
+    GIT_CONFIG_VALUE_0: "Authorization: must-not-reach-git",
+    GIT_SSH_COMMAND: "must-not-reach-git",
     GIT_CALLS: calls,
     HOME: home,
+    ORIGINAL_HOME: home,
     PATH: `${bin}:/usr/bin:/bin`,
     REALM_VISUAL_REVIEW_API_KEY: "must-not-reach-git",
     REPOSITORIES_FILE: manifest,
     RUNCOMFY_API_TOKEN: "must-not-reach-git",
+    SSH_AGENT_PID: "4242",
+    SSH_ASKPASS: "must-not-reach-git",
+    SSH_AUTH_SOCK: join(root, "personal-agent.sock"),
   };
   const first = run("bash", [cloneScript], env);
   assert.equal(first.status, 0, first.stderr);
@@ -676,6 +718,33 @@ printf '%s\\n' "$*" >> "$GIT_CALLS"
   assert.match(second.stdout, /preserving existing interview repository/);
   assert.equal(readFileSync(candidateFile, "utf8"), "preserve me\n");
   assert.equal(readFileSync(calls, "utf8"), firstCalls);
+});
+
+test("remote default checks isolate Git configuration and SSH credentials", () => {
+  const fixture = createFixture();
+  installHelpers(fixture);
+  const result = run(
+    "bash",
+    [
+      "-c",
+      'source "$HOME/.local/libexec/hive/technical-interview/common.sh"; interview_anonymous_git ls-remote "$INTERVIEW_EXPECTED_ORIGIN" HEAD',
+    ],
+    {
+      ...fixture.env,
+      GIT_ASKPASS: "must-not-reach-git",
+      GIT_CONFIG: join(fixture.root, "personal-git-config"),
+      GIT_CONFIG_COUNT: "1",
+      GIT_CONFIG_KEY_0: "http.extraHeader",
+      GIT_CONFIG_PARAMETERS: "'url.ssh://personal/.insteadOf=https://github.com/'",
+      GIT_CONFIG_VALUE_0: "Authorization: must-not-reach-git",
+      GIT_SSH_COMMAND: "must-not-reach-git",
+      SSH_AGENT_PID: "4242",
+      SSH_ASKPASS: "must-not-reach-git",
+      SSH_AUTH_SOCK: join(fixture.root, "personal-agent.sock"),
+    },
+  );
+  assert.equal(result.status, 0, result.stderr);
+  assert.equal(result.stdout.trim(), `${fixture.commit}\tHEAD`);
 });
 
 test("bootstrap installs executable helper commands idempotently", () => {
@@ -900,6 +969,61 @@ test("setup refreshes frontend dependencies when the Node runtime ABI changes", 
   const unchanged = run(setup, [], changedRuntime);
   assert.equal(unchanged.status, 0, unchanged.stderr);
   assert.equal((readFileSync(fixture.calls, "utf8").match(/npm-install/g) ?? []).length, 2);
+});
+
+test("setup recreates the backend environment when the Python runtime ABI changes", () => {
+  const fixture = createFixture();
+  installHelpers(fixture);
+  const setup = join(fixture.home, ".local", "bin", "interview-setup");
+
+  const first = run(setup, [], fixture.env);
+  assert.equal(first.status, 0, first.stderr);
+  assert.equal((readFileSync(fixture.calls, "utf8").match(/pip-install/g) ?? []).length, 1);
+
+  const staleEnvironmentFile = join(
+    fixture.interviewRepository,
+    "backend",
+    ".venv",
+    "old-python-runtime",
+  );
+  writeFileSync(staleEnvironmentFile, "must be removed with the old Python environment\n");
+  const changedRuntime = {
+    ...fixture.env,
+    FAKE_PYTHON_RUNTIME: "3.14.0|cache:cpython-314|abi:cpython-314-x86_64-linux-gnu",
+  };
+  const changed = run(setup, [], changedRuntime);
+  assert.equal(changed.status, 0, changed.stderr);
+  assert.equal(existsSync(staleEnvironmentFile), false);
+  assert.match(changed.stdout, /Recreating the managed backend virtual environment/);
+  assert.equal((readFileSync(fixture.calls, "utf8").match(/pip-install/g) ?? []).length, 2);
+
+  const unchanged = run(setup, [], changedRuntime);
+  assert.equal(unchanged.status, 0, unchanged.stderr);
+  assert.equal((readFileSync(fixture.calls, "utf8").match(/pip-install/g) ?? []).length, 2);
+});
+
+test("setup restarts only active service windows after dependency refresh", () => {
+  const fixture = createFixture();
+  installHelpers(fixture);
+  const setup = join(fixture.home, ".local", "bin", "interview-setup");
+  const start = join(fixture.home, ".local", "bin", "interview-start");
+
+  assert.equal(run(setup, [], fixture.env).status, 0);
+  const started = run(start, [], fixture.env);
+  assert.equal(started.status, 0, started.stderr);
+  const callsBeforeRefresh = readFileSync(fixture.calls, "utf8");
+
+  writeFileSync(
+    join(fixture.interviewRepository, "backend", "requirements.txt"),
+    "fastapi>=0.115.0\npytest>=8.0.0\n# refresh active services\n",
+  );
+  const refreshed = run(setup, [], fixture.env);
+  assert.equal(refreshed.status, 0, refreshed.stderr);
+  assert.match(refreshed.stdout, /restarting only the API and frontend service windows/);
+  const refreshCalls = readFileSync(fixture.calls, "utf8").slice(callsBeforeRefresh.length);
+  assert.match(refreshCalls, /tmux:respawn-window -k -t interview:api/);
+  assert.match(refreshCalls, /tmux:respawn-window -k -t interview:web/);
+  assert.doesNotMatch(refreshCalls, /tmux:respawn-window[^\n]+interview:(?:work|ai)/);
 });
 
 test("GitHub auth detection rejects any valid account and accepts a missing CLI", () => {

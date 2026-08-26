@@ -141,10 +141,17 @@ interview_node_supported() {
 }
 
 interview_backend_hash() {
+  local python_runtime
   [ -f "$INTERVIEW_BACKEND/requirements.txt" ] || return 1
+  python_runtime="$(
+    python3 -c 'import sys, sysconfig; print("{}|cache:{}|abi:{}".format(sys.version.split()[0], sys.implementation.cache_tag or "unknown", sysconfig.get_config_var("SOABI") or "unknown"))'
+  )" || return 1
   (
     cd "$INTERVIEW_REPOSITORY"
-    sha256sum backend/requirements.txt
+    {
+      sha256sum backend/requirements.txt
+      printf 'python-runtime:%s\n' "$python_runtime"
+    }
   ) | sha256sum | awk '{print $1}'
 }
 
@@ -203,16 +210,45 @@ interview_git_clean() {
   [ -z "$(git -C "$INTERVIEW_REPOSITORY" status --short --untracked-files=all)" ]
 }
 
+interview_anonymous_git() {
+  local anonymous_home status
+
+  anonymous_home="$(mktemp -d "$INTERVIEW_STATE_DIR/.anonymous-git.XXXXXX")" || return 1
+  chmod 700 "$anonymous_home"
+  if (
+    cd "$anonymous_home"
+    env \
+      -u ANTHROPIC_API_KEY -u GH_TOKEN -u GITHUB_TOKEN \
+      -u CODER_AGENT_TOKEN -u CODER_SESSION_TOKEN \
+      -u REALM_VISUAL_REVIEW_API_KEY -u RUNCOMFY_API_TOKEN \
+      -u GIT_CONFIG -u GIT_CONFIG_COUNT -u GIT_CONFIG_PARAMETERS \
+      -u GIT_CONFIG_SYSTEM -u GIT_DIR -u GIT_WORK_TREE -u GIT_COMMON_DIR \
+      -u GIT_PROXY_COMMAND -u GIT_SSH -u GIT_SSH_VARIANT \
+      -u SSH_AUTH_SOCK -u SSH_AGENT_PID -u SSH_ASKPASS_REQUIRE \
+      HOME="$anonymous_home" \
+      XDG_CONFIG_HOME="$anonymous_home/.config" \
+      GIT_CONFIG_GLOBAL=/dev/null \
+      GIT_CONFIG_NOSYSTEM=1 \
+      GIT_CEILING_DIRECTORIES="$anonymous_home" \
+      GIT_ASKPASS=/bin/false \
+      GIT_SSH_COMMAND=/bin/false \
+      GIT_TERMINAL_PROMPT=0 \
+      SSH_ASKPASS=/bin/false \
+      timeout 12s git -c credential.helper= "$@"
+  ); then
+    status=0
+  else
+    status=$?
+  fi
+  rm -rf -- "$anonymous_home"
+  return "$status"
+}
+
 interview_remote_default_state() {
   local local_commit remote_commit
   local_commit="$(git -C "$INTERVIEW_REPOSITORY" rev-parse HEAD 2>/dev/null || true)"
   remote_commit="$(
-    timeout 12s env \
-      -u ANTHROPIC_API_KEY -u GH_TOKEN -u GITHUB_TOKEN \
-      -u CODER_AGENT_TOKEN -u CODER_SESSION_TOKEN \
-      -u REALM_VISUAL_REVIEW_API_KEY -u RUNCOMFY_API_TOKEN \
-      GIT_TERMINAL_PROMPT=0 \
-      git -c credential.helper= ls-remote "$INTERVIEW_EXPECTED_ORIGIN" HEAD 2>/dev/null \
+    { interview_anonymous_git ls-remote "$INTERVIEW_EXPECTED_ORIGIN" HEAD 2>/dev/null || true; } \
       | awk 'NR == 1 {print $1}'
   )"
   if [ -z "$remote_commit" ]; then
@@ -367,6 +403,7 @@ fi
 
 mkdir -p "$INTERVIEW_STATE_DIR"
 chmod 700 "$INTERVIEW_STATE_DIR"
+dependencies_refreshed=false
 
 interview_create_backend_venv() {
   local fallback_root venv_probe
@@ -419,6 +456,7 @@ if [ "$backend_hash" != "$stored_backend_hash" ] \
     --no-input \
     -r "$INTERVIEW_BACKEND/requirements.txt"
   interview_write_state backend-requirements.sha256 "$backend_hash"
+  dependencies_refreshed=true
 else
   interview_ok "Backend dependencies match the stored manifest hash"
 fi
@@ -441,6 +479,7 @@ if [ "$frontend_hash" != "$stored_frontend_hash" ] \
     )
   fi
   interview_write_state frontend-manifests.sha256 "$frontend_hash"
+  dependencies_refreshed=true
 else
   interview_ok "Frontend dependencies match the stored manifest hash"
 fi
@@ -462,6 +501,12 @@ if interview_git_clean; then
 else
   interview_warn "Repository has candidate changes or unexpected generated files; preserving them unchanged"
   git -C "$INTERVIEW_REPOSITORY" status --short
+fi
+
+if [ "$dependencies_refreshed" = true ] \
+  && tmux has-session -t "$INTERVIEW_SESSION" 2>/dev/null; then
+  interview_ok "Dependencies changed; restarting only the API and frontend service windows"
+  "$HOME/.local/bin/interview-restart"
 fi
 
 interview_ok "Interview dependencies and build outputs are ready"
