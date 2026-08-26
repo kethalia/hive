@@ -8,7 +8,7 @@ interview feature.
 
 - Template: `technical-interview`
 - Profile: `interview` (`Technical interview`)
-- Image variant: `browser`, pinned to the same digest as `browser-testing`
+- Image variant: `browser`, with a standalone digest that initially matches `browser-testing`
 - Requests: 4 CPU and 8 GiB memory; limits: 8 CPU and 16 GiB memory
 - Persistent home: a dedicated 50 GiB Longhorn volume
 - Browser: Chrome, XFCE/KasmVNC, and Playwright MCP

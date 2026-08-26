@@ -1,6 +1,9 @@
 #!/bin/bash
 set -euo pipefail
 
+unset ANTHROPIC_API_KEY GH_TOKEN GITHUB_TOKEN CODER_AGENT_TOKEN CODER_SESSION_TOKEN
+unset REALM_VISUAL_REVIEW_API_KEY RUNCOMFY_API_TOKEN
+
 if [ ! -f "$HOME/.workspace_initialized" ]; then
   echo "First-time workspace setup..."
   mkdir -p "$HOME/projects" "$HOME/bin" "$HOME/.config" "$HOME/.local/bin"
@@ -26,7 +29,7 @@ configure_interview_environment() {
   mkdir -p "$HOME/.config/hive"
   cat > "$HOME/.config/hive/interview-env.sh" <<'EOFENV'
 # hive-managed-interview-environment:v1
-unset ANTHROPIC_API_KEY GH_TOKEN GITHUB_TOKEN CODER_SESSION_TOKEN
+unset ANTHROPIC_API_KEY GH_TOKEN GITHUB_TOKEN CODER_AGENT_TOKEN CODER_SESSION_TOKEN
 unset REALM_VISUAL_REVIEW_API_KEY RUNCOMFY_API_TOKEN
 EOFENV
   chmod 600 "$HOME/.config/hive/interview-env.sh"
@@ -46,7 +49,7 @@ EOFSHELL
   done
 
   rm -f -- "$HOME/.runcomfy-api-token"
-  unset ANTHROPIC_API_KEY GH_TOKEN GITHUB_TOKEN CODER_SESSION_TOKEN
+  unset ANTHROPIC_API_KEY GH_TOKEN GITHUB_TOKEN CODER_AGENT_TOKEN CODER_SESSION_TOKEN
   unset REALM_VISUAL_REVIEW_API_KEY RUNCOMFY_API_TOKEN
 }
 

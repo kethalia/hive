@@ -3,6 +3,9 @@ set -euo pipefail
 
 umask 077
 
+unset ANTHROPIC_API_KEY GH_TOKEN GITHUB_TOKEN CODER_AGENT_TOKEN CODER_SESSION_TOKEN
+unset REALM_VISUAL_REVIEW_API_KEY RUNCOMFY_API_TOKEN
+
 interview_bin_dir="$HOME/.local/bin"
 interview_libexec_dir="$HOME/.local/libexec/hive/technical-interview"
 interview_state_dir="$HOME/.local/state/hive/technical-interview"
@@ -46,10 +49,15 @@ INTERVIEW_STATE_DIR="$HOME/.local/state/hive/technical-interview"
 INTERVIEW_REPORT="$HOME/INTERVIEW_READY.md"
 INTERVIEW_SESSION="interview"
 INTERVIEW_VIRTUALENV_VERSION="20.35.4"
+INTERVIEW_CODEX_VERSION="0.149.1"
+INTERVIEW_PLAYWRIGHT_MCP_VERSION="0.0.79"
+INTERVIEW_BUN_VERSION="1.4.0"
+INTERVIEW_PNPM_VERSION="10.32.1"
 INTERVIEW_FORBIDDEN_CREDENTIALS=(
   ANTHROPIC_API_KEY
   GH_TOKEN
   GITHUB_TOKEN
+  CODER_AGENT_TOKEN
   CODER_SESSION_TOKEN
   REALM_VISUAL_REVIEW_API_KEY
   RUNCOMFY_API_TOKEN
@@ -57,6 +65,38 @@ INTERVIEW_FORBIDDEN_CREDENTIALS=(
 
 mkdir -p "$INTERVIEW_STATE_DIR"
 chmod 700 "$INTERVIEW_STATE_DIR"
+
+interview_scrub_credentials() {
+  local variable_name
+  for variable_name in "${INTERVIEW_FORBIDDEN_CREDENTIALS[@]}"; do
+    unset "$variable_name"
+  done
+}
+
+interview_tool_version_matches() {
+  local command_path=$1
+  local expected_version=$2
+  local actual_version version_output
+
+  [ -x "$command_path" ] || return 1
+  version_output="$("$command_path" --version 2>/dev/null)" || return 1
+  actual_version="$(printf '%s\n' "$version_output" | awk 'NF {print $NF; exit}')"
+  [ "$actual_version" = "$expected_version" ]
+}
+
+interview_managed_tool_ready() {
+  local command_name=$1
+  local expected_version=$2
+  local package_binary=$3
+  local managed_binary="$HOME/.local/bin/$command_name"
+  local expected_binary="$INTERVIEW_STATE_DIR/tools/$command_name-$expected_version/node_modules/$package_binary"
+
+  [ -L "$managed_binary" ] || return 1
+  [ "$(readlink -- "$managed_binary")" = "$expected_binary" ] || return 1
+  interview_tool_version_matches "$expected_binary" "$expected_version"
+}
+
+interview_scrub_credentials
 
 interview_ok() {
   printf '[ok] %s\n' "$*"
@@ -154,7 +194,8 @@ interview_remote_default_state() {
   local_commit="$(git -C "$INTERVIEW_REPOSITORY" rev-parse HEAD 2>/dev/null || true)"
   remote_commit="$(
     timeout 12s env \
-      -u ANTHROPIC_API_KEY -u GH_TOKEN -u GITHUB_TOKEN -u CODER_SESSION_TOKEN \
+      -u ANTHROPIC_API_KEY -u GH_TOKEN -u GITHUB_TOKEN \
+      -u CODER_AGENT_TOKEN -u CODER_SESSION_TOKEN \
       -u REALM_VISUAL_REVIEW_API_KEY -u RUNCOMFY_API_TOKEN \
       GIT_TERMINAL_PROMPT=0 \
       git -c credential.helper= ls-remote "$INTERVIEW_EXPECTED_ORIGIN" HEAD 2>/dev/null \
@@ -183,7 +224,7 @@ interview_forbidden_environment_present() {
 interview_forbidden_tmux_environment_present() {
   local scope variable_name
   tmux has-session -t "$INTERVIEW_SESSION" 2>/dev/null || return 1
-  for variable_name in "${INTERVIEW_FORBIDDEN_CREDENTIALS[@]}" CODER_AGENT_TOKEN; do
+  for variable_name in "${INTERVIEW_FORBIDDEN_CREDENTIALS[@]}"; do
     for scope in "-t $INTERVIEW_SESSION" "-g"; do
       # shellcheck disable=SC2086 # Scope intentionally expands into tmux options.
       if tmux show-environment $scope "$variable_name" >/dev/null 2>&1; then
@@ -236,6 +277,9 @@ interview_version_or_missing() {
   "$@" 2>&1 | sed -n '1p'
 }
 COMMONEOF
+
+# shellcheck source=/dev/null
+source "$interview_libexec_dir/common.sh"
 
 install_interview_file "$interview_bin_dir/interview-setup" 700 <<'SETUPEOF'
 #!/usr/bin/env bash
@@ -431,7 +475,7 @@ else
 fi
 
 tmux set-option -t "$INTERVIEW_SESSION" remain-on-exit on
-for forbidden_name in "${INTERVIEW_FORBIDDEN_CREDENTIALS[@]}" CODER_AGENT_TOKEN; do
+for forbidden_name in "${INTERVIEW_FORBIDDEN_CREDENTIALS[@]}"; do
   tmux set-environment -t "$INTERVIEW_SESSION" -u "$forbidden_name" 2>/dev/null || true
   tmux set-environment -g -u "$forbidden_name" 2>/dev/null || true
 done
@@ -627,14 +671,9 @@ umask 077
 # shellcheck source=/dev/null
 source "$HOME/.local/libexec/hive/technical-interview/common.sh"
 
-use_environment_key=false
 claude_arguments=()
 while (($# > 0)); do
   case "$1" in
-    --use-env-key)
-      use_environment_key=true
-      shift
-      ;;
     --)
       shift
       claude_arguments+=("$@")
@@ -656,25 +695,16 @@ if ! command -v claude >/dev/null 2>&1; then
   exit 1
 fi
 
-if [ "$use_environment_key" = "true" ]; then
-  if [ -z "${ANTHROPIC_API_KEY:-}" ]; then
-    interview_error "--use-env-key requires ANTHROPIC_API_KEY to already be set."
-    exit 1
-  fi
-  interview_key=$ANTHROPIC_API_KEY
-else
-  unset ANTHROPIC_API_KEY
-  if [ ! -r /dev/tty ] || [ ! -w /dev/tty ]; then
-    interview_error "A controlling terminal is required for masked API-key input."
-    exit 1
-  fi
-  printf 'Temporary Anthropic API key: ' > /dev/tty
-  IFS= read -r -s interview_key < /dev/tty
-  printf '\n' > /dev/tty
-  if [ -z "$interview_key" ]; then
-    interview_error "No API key was provided."
-    exit 1
-  fi
+if [ ! -r /dev/tty ] || [ ! -w /dev/tty ]; then
+  interview_error "A controlling terminal is required for masked API-key input."
+  exit 1
+fi
+printf 'Temporary Anthropic API key: ' > /dev/tty
+IFS= read -r -s interview_key < /dev/tty
+printf '\n' > /dev/tty
+if [ -z "$interview_key" ]; then
+  interview_error "No API key was provided."
+  exit 1
 fi
 
 cd "$INTERVIEW_REPOSITORY"
@@ -782,10 +812,16 @@ run_check "backend pytest suite passes" check_backend_tests
 run_check "frontend dependency hash is current" interview_frontend_dependencies_ready
 run_check "frontend production build passes" check_frontend_build
 run_check "Claude Code is functional" check_version_command claude
-run_check "Codex is functional" check_version_command codex
-run_check "Playwright MCP is preinstalled" check_version_command playwright-mcp
-run_check "Bun is functional" check_version_command bun
-run_check "pnpm is functional" check_version_command pnpm
+run_check "Codex $INTERVIEW_CODEX_VERSION is pinned" \
+  interview_managed_tool_ready codex "$INTERVIEW_CODEX_VERSION" .bin/codex
+run_check "Playwright MCP $INTERVIEW_PLAYWRIGHT_MCP_VERSION is pinned" \
+  interview_managed_tool_ready \
+  playwright-mcp "$INTERVIEW_PLAYWRIGHT_MCP_VERSION" .bin/playwright-mcp
+run_check "Bun $INTERVIEW_BUN_VERSION is pinned" \
+  interview_managed_tool_ready \
+  bun "$INTERVIEW_BUN_VERSION" @oven/bun-linux-x64/bin/bun
+run_check "pnpm $INTERVIEW_PNPM_VERSION is pinned" \
+  interview_managed_tool_ready pnpm "$INTERVIEW_PNPM_VERSION" .bin/pnpm
 run_check "Chrome is installed" check_command google-chrome-stable
 run_check "tmux is installed" check_command tmux
 run_check "SQLite CLI is installed" check_command sqlite3
@@ -852,7 +888,7 @@ fi
   printf -- '- `interview-claude` — prompt securely for the temporary Anthropic key and launch Claude Code\n'
   printf '\n## Credential state\n\n'
   printf 'Only credential names are reported; values are never recorded. Required pre-interview state: '
-  printf '`ANTHROPIC_API_KEY`, GitHub, Coder-session, Realm, and RunComfy credentials absent; GitHub and Coder CLIs unauthenticated.\n'
+  printf '`ANTHROPIC_API_KEY`, GitHub, Coder agent/session, Realm, and RunComfy credentials absent; GitHub and Coder CLIs unauthenticated.\n'
   printf '\n## Remaining action\n\n%s\n' "$remaining_action"
 } > "$report_temporary"
 chmod 600 "$report_temporary"
@@ -939,28 +975,29 @@ install_interview_npm_tool() {
   local installed_binary="$tool_root/node_modules/$package_binary"
   local existing_target
 
-  if [ -x "$managed_binary" ] && "$managed_binary" --version >/dev/null 2>&1; then
-    printf '[ok] %s is already available\n' "$label"
-    return 0
-  fi
-
-  if [ -e "$managed_binary" ] || [ -L "$managed_binary" ]; then
-    if [ -L "$managed_binary" ]; then
-      existing_target="$(readlink "$managed_binary")"
-      if [[ "$existing_target" == "$tools_root"/* ]]; then
-        rm -f -- "$managed_binary"
-      else
-        interview_warn "Preserving unexpected $command_name command at $managed_binary"
-        return 1
-      fi
+  if [ -L "$managed_binary" ]; then
+    existing_target="$(readlink -- "$managed_binary")"
+    if [ "$existing_target" = "$installed_binary" ] \
+      && interview_tool_version_matches "$managed_binary" "$package_version"; then
+      printf '[ok] %s %s is already available\n' "$label" "$package_version"
+      return 0
+    fi
+    if [[ "$existing_target" == "$tools_root"/* ]]; then
+      rm -f -- "$managed_binary"
     else
       interview_warn "Preserving unexpected $command_name command at $managed_binary"
       return 1
     fi
+  elif [ -e "$managed_binary" ]; then
+    interview_warn "Preserving unexpected $command_name command at $managed_binary"
+    return 1
   fi
 
-  if [ ! -x "$installed_binary" ]; then
+  if ! interview_tool_version_matches "$installed_binary" "$package_version"; then
     command -v npm >/dev/null 2>&1 || return 1
+    if [ -e "$tool_root" ] || [ -L "$tool_root" ]; then
+      rm -rf -- "$tool_root"
+    fi
     mkdir -p "$tool_root"
     printf '[install] %s %s\n' "$label" "$package_version"
     PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1 npm install \
@@ -974,8 +1011,8 @@ install_interview_npm_tool() {
   fi
 
   [ -x "$installed_binary" ] || return 1
-  ln -s "$installed_binary" "$managed_binary"
-  "$managed_binary" --version >/dev/null 2>&1
+  ln -s -- "$installed_binary" "$managed_binary"
+  interview_tool_version_matches "$managed_binary" "$package_version"
 }
 
 tool_failures=0

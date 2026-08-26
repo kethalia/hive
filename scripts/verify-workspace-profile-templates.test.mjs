@@ -152,10 +152,6 @@ test("profile configuration defines exact image, resources, and runtime capabili
     assert.equal(seenIds.has(profile.id), false, `duplicate profile id: ${profile.id}`);
     seenIds.add(profile.id);
   }
-
-  const browserImage = JSON.parse(readTemplateFile("browser-testing", "profile.json")).image;
-  const interviewImage = JSON.parse(readTemplateFile("technical-interview", "profile.json")).image;
-  assert.equal(interviewImage, browserImage);
 });
 
 test("canonical Terraform gates every optional workspace surface", () => {

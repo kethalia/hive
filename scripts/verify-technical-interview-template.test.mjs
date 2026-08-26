@@ -6,9 +6,10 @@ import {
   existsSync,
   mkdirSync,
   mkdtempSync,
-  readFileSync,
   readdirSync,
+  readFileSync,
   statSync,
+  symlinkSync,
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
@@ -83,6 +84,7 @@ function createFixture() {
     join(bin, "python3"),
     `#!/bin/bash
 set -euo pipefail
+[ -z "\${CODER_AGENT_TOKEN:-}" ]
 if [ "\${1:-}" = "--version" ]; then printf 'Python 3.13.5\\n'; exit 0; fi
 if [ "\${1:-}" = "-c" ]; then exit 0; fi
 if [ "\${1:-}" = "-m" ] && [ "\${2:-}" = "venv" ]; then
@@ -91,6 +93,7 @@ if [ "\${1:-}" = "-m" ] && [ "\${2:-}" = "venv" ]; then
   cat > "$target/bin/python" <<'PYTHON'
 #!/bin/bash
 set -euo pipefail
+[ -z "\${CODER_AGENT_TOKEN:-}" ]
 if [ "\${1:-}" = "--version" ]; then printf 'Python 3.13.5\\n'; exit 0; fi
 if [ "\${1:-}" = "-m" ] && [ "\${2:-}" = "pip" ]; then
   printf 'pip-install\\n' >> "$FAKE_CALLS"
@@ -99,6 +102,7 @@ exit 0
 PYTHON
   cat > "$target/bin/pytest" <<'PYTEST'
 #!/bin/bash
+[ -z "\${CODER_AGENT_TOKEN:-}" ]
 printf 'pytest\\n' >> "$FAKE_CALLS"
 [ "\${FAKE_PYTEST_FAIL:-0}" != "1" ]
 PYTEST
@@ -116,6 +120,7 @@ exit 2
   executable(
     join(bin, "node"),
     `#!/bin/bash
+[ -z "\${CODER_AGENT_TOKEN:-}" ]
 if [ "\${1:-}" = "--version" ]; then printf 'v24.19.0\\n'; fi
 exit 0
 `,
@@ -124,6 +129,7 @@ exit 0
     join(bin, "npm"),
     `#!/bin/bash
 set -euo pipefail
+[ -z "\${CODER_AGENT_TOKEN:-}" ]
 case "\${1:-}" in
   --version) printf '11.17.0\\n' ;;
   install|ci)
@@ -198,6 +204,7 @@ esac
     join(bin, "git"),
     `#!/bin/bash
 set -euo pipefail
+[ -z "\${CODER_AGENT_TOKEN:-}" ]
 for argument in "$@"; do
   if [ "$argument" = "ls-remote" ]; then
     printf '%s\\tHEAD\\n' "$FAKE_REMOTE_COMMIT"
@@ -290,6 +297,7 @@ esac
   const env = {
     ...process.env,
     CLAUDE_ARGS_LOG: claudeArgs,
+    CODER_AGENT_TOKEN: "must-not-reach-child-processes",
     FAKE_CALLS: calls,
     FAKE_REMOTE_COMMIT: commit,
     FAKE_TMUX_STATE: tmuxRoot,
@@ -338,6 +346,7 @@ function filesRecursively(root) {
 test("standalone Terraform exposes interview apps without personal auth modules", () => {
   const terraform = readFileSync(join(templateRoot, "main.tf"), "utf8");
   const init = readFileSync(join(templateRoot, "scripts", "init.sh"), "utf8");
+  const toolsCi = readFileSync(join(templateRoot, "scripts", "tools-ci.sh"), "utf8");
   const profile = JSON.parse(readFileSync(join(templateRoot, "profile.json"), "utf8"));
 
   assert.doesNotMatch(terraform, /coder_external_auth/);
@@ -349,6 +358,8 @@ test("standalone Terraform exposes interview apps without personal auth modules"
   assert.doesNotMatch(init, /command = "npx"|"command": "npx"/);
   assert.match(init, /\.local[^\n]+playwright-mcp/);
   assert.match(init, /"--browser", "chrome", "--no-sandbox", "--isolated"/);
+  assert.match(init, /unset[^\n]+CODER_AGENT_TOKEN/);
+  assert.match(toolsCi, /unset[^\n]+CODER_AGENT_TOKEN/);
   assert.match(
     terraform,
     /resource "coder_app" "interview_app"[\s\S]*?url\s*=\s*"http:\/\/localhost:3000"[\s\S]*?share\s*=\s*"owner"/,
@@ -384,6 +395,7 @@ set -euo pipefail
 [ -z "\${ANTHROPIC_API_KEY:-}" ]
 [ -z "\${GH_TOKEN:-}" ]
 [ -z "\${GITHUB_TOKEN:-}" ]
+[ -z "\${CODER_AGENT_TOKEN:-}" ]
 [ -z "\${CODER_SESSION_TOKEN:-}" ]
 [ -z "\${REALM_VISUAL_REVIEW_API_KEY:-}" ]
 [ -z "\${RUNCOMFY_API_TOKEN:-}" ]
@@ -395,6 +407,7 @@ printf '%s\\n' "$*" >> "$GIT_CALLS"
   const env = {
     ...process.env,
     ANTHROPIC_API_KEY: "must-not-reach-git",
+    CODER_AGENT_TOKEN: "must-not-reach-git",
     CODER_SESSION_TOKEN: "must-not-reach-git",
     GH_TOKEN: "must-not-reach-git",
     GITHUB_TOKEN: "must-not-reach-git",
@@ -445,6 +458,10 @@ test("bootstrap installs executable helper commands idempotently", () => {
     const path = join(fixture.home, ".local", "bin", helper);
     assert.equal(readFileSync(path, "utf8"), firstContents.get(helper));
   }
+  assert.doesNotMatch(
+    readFileSync(join(fixture.home, ".local", "bin", "interview-claude"), "utf8"),
+    /use-env-key/,
+  );
 });
 
 test("fresh bootstrap installs the pinned standalone toolchain idempotently", () => {
@@ -481,6 +498,56 @@ test("fresh bootstrap installs the pinned standalone toolchain idempotently", ()
 
   installHelpers(fixture);
   assert.equal(readFileSync(fixture.calls, "utf8"), firstCalls);
+});
+
+test("bootstrap replaces stale Hive-managed tools with the pinned versions", () => {
+  const fixture = createFixture();
+  const localBin = join(fixture.home, ".local", "bin");
+  const staleCodex = join(
+    fixture.home,
+    ".local",
+    "state",
+    "hive",
+    "technical-interview",
+    "tools",
+    "codex-0.100.0",
+    "node_modules",
+    ".bin",
+    "codex",
+  );
+  mkdirSync(localBin, { recursive: true });
+  mkdirSync(join(staleCodex, ".."), { recursive: true });
+  executable(staleCodex, "#!/bin/sh\nprintf 'codex-cli 0.100.0\\n'\n");
+  symlinkSync(staleCodex, join(localBin, "codex"));
+
+  installHelpers(fixture);
+
+  const result = run(join(localBin, "codex"), ["--version"], fixture.env);
+  assert.equal(result.status, 0, result.stderr);
+  assert.equal(result.stdout.trim(), "codex-cli 0.149.1");
+  assert.match(readFileSync(fixture.calls, "utf8"), /tool-install:@openai\/codex@0\.149\.1/);
+});
+
+test("bootstrap preserves unexpected user tools as an explicit readiness failure", () => {
+  const fixture = createFixture();
+  const localBin = join(fixture.home, ".local", "bin");
+  const userPnpm = join(localBin, "pnpm");
+  mkdirSync(localBin, { recursive: true });
+  executable(userPnpm, "#!/bin/sh\nprintf '10.32.1\\n'\n");
+
+  const install = installHelpers(fixture);
+  assert.match(install.stderr, /Preserving unexpected pnpm command/);
+  assert.equal(readFileSync(userPnpm, "utf8"), "#!/bin/sh\nprintf '10.32.1\\n'\n");
+
+  const ready = run(
+    "bash",
+    [
+      "-c",
+      'source "$HOME/.local/libexec/hive/technical-interview/common.sh"; interview_managed_tool_ready pnpm "$INTERVIEW_PNPM_VERSION" .bin/pnpm',
+    ],
+    fixture.env,
+  );
+  assert.notEqual(ready.status, 0);
 });
 
 test("setup hashes dependencies, reinstalls only on manifest changes, and preserves dirty work", () => {
@@ -536,9 +603,10 @@ test("readiness reports strict success and failure without network cloning", () 
       readFileSync(join(fixture.home, "INTERVIEW_READY.md"), "utf8"),
       /INTERVIEW WORKSPACE READY/,
     );
-    assert.match(ready.stdout, /Playwright MCP is preinstalled/);
-    assert.match(ready.stdout, /Bun is functional/);
-    assert.match(ready.stdout, /pnpm is functional/);
+    assert.match(ready.stdout, /Codex 0\.149\.1 is pinned/);
+    assert.match(ready.stdout, /Playwright MCP 0\.0\.79 is pinned/);
+    assert.match(ready.stdout, /Bun 1\.4\.0 is pinned/);
+    assert.match(ready.stdout, /pnpm 10\.32\.1 is pinned/);
 
     const failed = run(check, [], { ...fixture.env, FAKE_PYTEST_FAIL: "1" });
     assert.equal(failed.status, 1);
