@@ -22,9 +22,10 @@ creates only owner-shared Coder applications. It clones only
 It does not participate in canonical template synchronization and does not change any existing
 template or workspace.
 
-The first startup installs Codex `0.149.1`, Playwright MCP `0.0.79`, Bun `1.4.0`, and pnpm
-`10.32.1` under the workspace's private user-state directory. Playwright MCP uses the image's Chrome
-binary directly and never downloads a browser during the interview.
+The first startup verifies Codex `0.149.1`, Playwright MCP `0.0.79`, Bun `1.4.0`, and pnpm `10.32.1`.
+Exact matching Codex and Bun commands from the image baseline are reused; missing or mismatched tools
+are installed under the workspace's private user-state directory. Playwright MCP uses the image's
+Chrome binary directly and never downloads a browser during the interview.
 
 ## Publish and provision
 

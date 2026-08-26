@@ -500,6 +500,44 @@ test("fresh bootstrap installs the pinned standalone toolchain idempotently", ()
   assert.equal(readFileSync(fixture.calls, "utf8"), firstCalls);
 });
 
+test("bootstrap reuses exact pinned tools from the Hive image baseline", () => {
+  const fixture = createFixture();
+  const localBin = join(fixture.home, ".local", "bin");
+  const baselineCodex = join(
+    fixture.home,
+    ".local",
+    "lib",
+    "node_modules",
+    "@openai",
+    "codex",
+    "bin",
+    "codex.js",
+  );
+  const baselineBun = join(fixture.home, ".bun", "bin", "bun");
+  mkdirSync(localBin, { recursive: true });
+  mkdirSync(join(baselineCodex, ".."), { recursive: true });
+  mkdirSync(join(baselineBun, ".."), { recursive: true });
+  executable(baselineCodex, "#!/bin/sh\nprintf 'codex-cli 0.149.1\\n'\n");
+  executable(baselineBun, "#!/bin/sh\nprintf '1.4.0\\n'\n");
+  symlinkSync("../lib/node_modules/@openai/codex/bin/codex.js", join(localBin, "codex"));
+  symlinkSync(baselineBun, join(localBin, "bun"));
+
+  installHelpers(fixture);
+
+  const calls = readFileSync(fixture.calls, "utf8");
+  assert.doesNotMatch(calls, /tool-install:@openai\/codex/);
+  assert.doesNotMatch(calls, /tool-install:@oven\/bun-linux-x64/);
+  const ready = run(
+    "bash",
+    [
+      "-c",
+      'source "$HOME/.local/libexec/hive/technical-interview/common.sh"; interview_managed_tool_ready codex "$INTERVIEW_CODEX_VERSION" .bin/codex "$INTERVIEW_CODEX_BASELINE_TARGET" && interview_managed_tool_ready bun "$INTERVIEW_BUN_VERSION" @oven/bun-linux-x64/bin/bun "$INTERVIEW_BUN_BASELINE_TARGET"',
+    ],
+    fixture.env,
+  );
+  assert.equal(ready.status, 0, ready.stderr);
+});
+
 test("bootstrap replaces stale Hive-managed tools with the pinned versions", () => {
   const fixture = createFixture();
   const localBin = join(fixture.home, ".local", "bin");

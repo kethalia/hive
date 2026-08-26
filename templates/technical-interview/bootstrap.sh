@@ -53,6 +53,8 @@ INTERVIEW_CODEX_VERSION="0.149.1"
 INTERVIEW_PLAYWRIGHT_MCP_VERSION="0.0.79"
 INTERVIEW_BUN_VERSION="1.4.0"
 INTERVIEW_PNPM_VERSION="10.32.1"
+INTERVIEW_CODEX_BASELINE_TARGET="../lib/node_modules/@openai/codex/bin/codex.js"
+INTERVIEW_BUN_BASELINE_TARGET="$HOME/.bun/bin/bun"
 INTERVIEW_FORBIDDEN_CREDENTIALS=(
   ANTHROPIC_API_KEY
   GH_TOKEN
@@ -88,12 +90,18 @@ interview_managed_tool_ready() {
   local command_name=$1
   local expected_version=$2
   local package_binary=$3
+  local baseline_target=${4:-}
   local managed_binary="$HOME/.local/bin/$command_name"
   local expected_binary="$INTERVIEW_STATE_DIR/tools/$command_name-$expected_version/node_modules/$package_binary"
+  local actual_target
 
   [ -L "$managed_binary" ] || return 1
-  [ "$(readlink -- "$managed_binary")" = "$expected_binary" ] || return 1
-  interview_tool_version_matches "$expected_binary" "$expected_version"
+  actual_target="$(readlink -- "$managed_binary")"
+  if [ "$actual_target" != "$expected_binary" ] \
+    && { [ -z "$baseline_target" ] || [ "$actual_target" != "$baseline_target" ]; }; then
+    return 1
+  fi
+  interview_tool_version_matches "$managed_binary" "$expected_version"
 }
 
 interview_scrub_credentials
@@ -813,13 +821,14 @@ run_check "frontend dependency hash is current" interview_frontend_dependencies_
 run_check "frontend production build passes" check_frontend_build
 run_check "Claude Code is functional" check_version_command claude
 run_check "Codex $INTERVIEW_CODEX_VERSION is pinned" \
-  interview_managed_tool_ready codex "$INTERVIEW_CODEX_VERSION" .bin/codex
+  interview_managed_tool_ready \
+  codex "$INTERVIEW_CODEX_VERSION" .bin/codex "$INTERVIEW_CODEX_BASELINE_TARGET"
 run_check "Playwright MCP $INTERVIEW_PLAYWRIGHT_MCP_VERSION is pinned" \
   interview_managed_tool_ready \
   playwright-mcp "$INTERVIEW_PLAYWRIGHT_MCP_VERSION" .bin/playwright-mcp
 run_check "Bun $INTERVIEW_BUN_VERSION is pinned" \
   interview_managed_tool_ready \
-  bun "$INTERVIEW_BUN_VERSION" @oven/bun-linux-x64/bin/bun
+  bun "$INTERVIEW_BUN_VERSION" @oven/bun-linux-x64/bin/bun "$INTERVIEW_BUN_BASELINE_TARGET"
 run_check "pnpm $INTERVIEW_PNPM_VERSION is pinned" \
   interview_managed_tool_ready pnpm "$INTERVIEW_PNPM_VERSION" .bin/pnpm
 run_check "Chrome is installed" check_command google-chrome-stable
@@ -969,6 +978,7 @@ install_interview_npm_tool() {
   local package_name=$3
   local package_version=$4
   local package_binary=$5
+  local baseline_target=${6:-}
   local managed_binary="$interview_bin_dir/$command_name"
   local tools_root="$interview_state_dir/tools"
   local tool_root="$tools_root/$command_name-$package_version"
@@ -982,7 +992,15 @@ install_interview_npm_tool() {
       printf '[ok] %s %s is already available\n' "$label" "$package_version"
       return 0
     fi
-    if [[ "$existing_target" == "$tools_root"/* ]]; then
+    if [ -n "$baseline_target" ] \
+      && [ "$existing_target" = "$baseline_target" ] \
+      && interview_tool_version_matches "$managed_binary" "$package_version"; then
+      printf '[ok] %s %s is provided by the pinned image baseline\n' \
+        "$label" "$package_version"
+      return 0
+    fi
+    if [[ "$existing_target" == "$tools_root"/* ]] \
+      || { [ -n "$baseline_target" ] && [ "$existing_target" = "$baseline_target" ]; }; then
       rm -f -- "$managed_binary"
     else
       interview_warn "Preserving unexpected $command_name command at $managed_binary"
@@ -1018,12 +1036,14 @@ install_interview_npm_tool() {
 tool_failures=0
 install_interview_npm_tool \
   "Codex CLI" codex @openai/codex "$interview_codex_version" .bin/codex \
+  "../lib/node_modules/@openai/codex/bin/codex.js" \
   || tool_failures=$((tool_failures + 1))
 install_interview_npm_tool \
   "Playwright MCP" playwright-mcp @playwright/mcp "$interview_playwright_mcp_version" .bin/playwright-mcp \
   || tool_failures=$((tool_failures + 1))
 install_interview_npm_tool \
   "Bun" bun @oven/bun-linux-x64 "$interview_bun_version" @oven/bun-linux-x64/bin/bun \
+  "$HOME/.bun/bin/bun" \
   || tool_failures=$((tool_failures + 1))
 install_interview_npm_tool \
   "pnpm" pnpm pnpm "$interview_pnpm_version" .bin/pnpm \
