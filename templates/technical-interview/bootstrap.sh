@@ -150,12 +150,18 @@ interview_backend_hash() {
 
 interview_frontend_hash() {
   local manifests=(frontend/package.json)
+  local node_runtime
   [ -f "$INTERVIEW_FRONTEND/package.json" ] || return 1
   [ ! -f "$INTERVIEW_FRONTEND/package-lock.json" ] || manifests+=(frontend/package-lock.json)
   [ ! -f "$INTERVIEW_FRONTEND/npm-shrinkwrap.json" ] || manifests+=(frontend/npm-shrinkwrap.json)
+  node_runtime="$(node -p '`${process.version}|abi:${process.versions.modules || "unknown"}`')" \
+    || return 1
   (
     cd "$INTERVIEW_REPOSITORY"
-    sha256sum "${manifests[@]}"
+    {
+      sha256sum "${manifests[@]}"
+      printf 'node-runtime:%s\n' "$node_runtime"
+    }
   ) | sha256sum | awk '{print $1}'
 }
 
@@ -249,9 +255,45 @@ interview_hive_github_helper_present() {
     | grep -Fqx -- "$HOME/.local/bin/coder-github-credential"
 }
 
-interview_github_authenticated() {
+interview_github_auth_json() {
   command -v gh >/dev/null 2>&1 || return 1
-  timeout 5s env -u GH_TOKEN -u GITHUB_TOKEN gh auth status >/dev/null 2>&1
+  timeout 5s env -u GH_TOKEN -u GITHUB_TOKEN \
+    gh auth status --json hosts 2>/dev/null
+}
+
+interview_github_authenticated() {
+  local auth_json
+  auth_json="$(interview_github_auth_json)" || return 1
+  jq -e 'any(.hosts[]?[]?; .state == "success")' \
+    >/dev/null 2>&1 <<< "$auth_json"
+}
+
+interview_github_unauthenticated() {
+  local auth_json
+  auth_json="$(interview_github_auth_json)" || return 1
+  jq -e 'all(.hosts[]?[]?; .state != "success")' \
+    >/dev/null 2>&1 <<< "$auth_json"
+}
+
+interview_shell_scrub_ready() {
+  local environment_file="$HOME/.config/hive/interview-env.sh"
+  local shell_file
+
+  [ -f "$environment_file" ] && [ ! -L "$environment_file" ] || return 1
+  grep -qF '# hive-managed-interview-environment:v1' "$environment_file" || return 1
+  grep -qF \
+    'unset ANTHROPIC_API_KEY GH_TOKEN GITHUB_TOKEN CODER_AGENT_TOKEN CODER_SESSION_TOKEN' \
+    "$environment_file" || return 1
+  grep -qF 'unset REALM_VISUAL_REVIEW_API_KEY RUNCOMFY_API_TOKEN' \
+    "$environment_file" || return 1
+
+  for shell_file in "$HOME/.zshenv" "$HOME/.bashrc" "$HOME/.profile"; do
+    [ -f "$shell_file" ] && [ ! -L "$shell_file" ] || return 1
+    grep -qF '# hive-interview-environment' "$shell_file" || return 1
+    grep -qF \
+      '[ ! -f "$HOME/.config/hive/interview-env.sh" ] || . "$HOME/.config/hive/interview-env.sh"' \
+      "$shell_file" || return 1
+  done
 }
 
 interview_coder_authenticated() {
@@ -426,8 +468,8 @@ if ! interview_backend_dependencies_ready || ! interview_frontend_dependencies_r
   exit 1
 fi
 
-api_command="exec env -u ANTHROPIC_API_KEY -u GH_TOKEN -u GITHUB_TOKEN -u CODER_AGENT_TOKEN -u CODER_SESSION_TOKEN -u REALM_VISUAL_REVIEW_API_KEY -u RUNCOMFY_API_TOKEN '$INTERVIEW_VENV/bin/uvicorn' app.main:app --reload --host 0.0.0.0 --port 8000"
-web_command="exec env -u ANTHROPIC_API_KEY -u GH_TOKEN -u GITHUB_TOKEN -u CODER_AGENT_TOKEN -u CODER_SESSION_TOKEN -u REALM_VISUAL_REVIEW_API_KEY -u RUNCOMFY_API_TOKEN npm run dev -- --host 0.0.0.0 --port 3000"
+api_command="exec env -u ANTHROPIC_API_KEY -u GH_TOKEN -u GITHUB_TOKEN -u CODER_AGENT_TOKEN -u CODER_SESSION_TOKEN -u REALM_VISUAL_REVIEW_API_KEY -u RUNCOMFY_API_TOKEN '$INTERVIEW_VENV/bin/uvicorn' app.main:app --reload --host 127.0.0.1 --port 8000"
+web_command="exec env -u ANTHROPIC_API_KEY -u GH_TOKEN -u GITHUB_TOKEN -u CODER_AGENT_TOKEN -u CODER_SESSION_TOKEN -u REALM_VISUAL_REVIEW_API_KEY -u RUNCOMFY_API_TOKEN npm run dev -- --host 127.0.0.1 --port 3000"
 
 tmux_without_credentials() {
   env -u ANTHROPIC_API_KEY -u GH_TOKEN -u GITHUB_TOKEN \
@@ -523,8 +565,8 @@ if ! interview_backend_dependencies_ready || ! interview_frontend_dependencies_r
   exit 1
 fi
 
-api_command="exec env -u ANTHROPIC_API_KEY -u GH_TOKEN -u GITHUB_TOKEN -u CODER_AGENT_TOKEN -u CODER_SESSION_TOKEN -u REALM_VISUAL_REVIEW_API_KEY -u RUNCOMFY_API_TOKEN '$INTERVIEW_VENV/bin/uvicorn' app.main:app --reload --host 0.0.0.0 --port 8000"
-web_command="exec env -u ANTHROPIC_API_KEY -u GH_TOKEN -u GITHUB_TOKEN -u CODER_AGENT_TOKEN -u CODER_SESSION_TOKEN -u REALM_VISUAL_REVIEW_API_KEY -u RUNCOMFY_API_TOKEN npm run dev -- --host 0.0.0.0 --port 3000"
+api_command="exec env -u ANTHROPIC_API_KEY -u GH_TOKEN -u GITHUB_TOKEN -u CODER_AGENT_TOKEN -u CODER_SESSION_TOKEN -u REALM_VISUAL_REVIEW_API_KEY -u RUNCOMFY_API_TOKEN '$INTERVIEW_VENV/bin/uvicorn' app.main:app --reload --host 127.0.0.1 --port 8000"
+web_command="exec env -u ANTHROPIC_API_KEY -u GH_TOKEN -u GITHUB_TOKEN -u CODER_AGENT_TOKEN -u CODER_SESSION_TOKEN -u REALM_VISUAL_REVIEW_API_KEY -u RUNCOMFY_API_TOKEN npm run dev -- --host 127.0.0.1 --port 3000"
 
 restart_service_window() {
   local window_name=$1
@@ -656,8 +698,10 @@ printf '\n'
 
 if interview_github_authenticated; then
   printf 'GitHub CLI authentication: PRESENT\n'
-else
+elif interview_github_unauthenticated; then
   printf 'GitHub CLI authentication: absent\n'
+else
+  printf 'GitHub CLI authentication: UNKNOWN (readiness fails)\n'
 fi
 if interview_coder_authenticated; then
   printf 'Coder orchestration authentication: PRESENT\n'
@@ -797,7 +841,7 @@ check_forbidden_credentials_absent() {
 }
 
 check_github_not_authenticated() {
-  ! interview_github_authenticated
+  interview_github_unauthenticated
 }
 
 check_coder_not_authenticated() {
@@ -838,6 +882,7 @@ run_check "ripgrep is installed" check_command rg
 run_check "API responds at /hello" check_api
 run_check "frontend responds on port 3000" check_frontend
 run_check "working tree contains no unexpected files" interview_git_clean
+run_check "interactive shell credential scrub hooks are installed" interview_shell_scrub_ready
 run_check "forbidden credential variables are absent" check_forbidden_credentials_absent
 run_check "GitHub CLI is not authenticated" check_github_not_authenticated
 run_check "Coder CLI is not authenticated for orchestration" check_coder_not_authenticated

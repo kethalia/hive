@@ -4,12 +4,14 @@ import { spawn, spawnSync } from "node:child_process";
 import {
   chmodSync,
   existsSync,
+  lstatSync,
   mkdirSync,
   mkdtempSync,
   readdirSync,
   readFileSync,
   statSync,
   symlinkSync,
+  unlinkSync,
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
@@ -20,6 +22,7 @@ const repositoryRoot = process.cwd();
 const templateRoot = join(repositoryRoot, "templates", "technical-interview");
 const bootstrapScript = join(templateRoot, "bootstrap.sh");
 const cloneScript = join(templateRoot, "scripts", "clone-repositories.sh");
+const initScript = join(templateRoot, "scripts", "init.sh");
 const expectedOrigin = "https://github.com/prmsolutions/interview-template.git";
 
 function executable(path, contents) {
@@ -31,6 +34,50 @@ function git(...args) {
   const result = spawnSync("/usr/bin/git", args, { encoding: "utf8" });
   assert.equal(result.status, 0, result.stderr);
   return result.stdout.trim();
+}
+
+function seedSafeInterviewEnvironment(home) {
+  const environmentDirectory = join(home, ".config", "hive");
+  mkdirSync(environmentDirectory, { recursive: true });
+  const environmentFile = join(environmentDirectory, "interview-env.sh");
+  writeFileSync(
+    environmentFile,
+    "# hive-managed-interview-environment:v1\n" +
+      "unset ANTHROPIC_API_KEY GH_TOKEN GITHUB_TOKEN CODER_AGENT_TOKEN CODER_SESSION_TOKEN\n" +
+      "unset REALM_VISUAL_REVIEW_API_KEY RUNCOMFY_API_TOKEN\n",
+  );
+  chmodSync(environmentFile, 0o600);
+
+  for (const shellFile of [".zshenv", ".bashrc", ".profile"]) {
+    writeFileSync(
+      join(home, shellFile),
+      "# hive-interview-environment\n" +
+        '[ ! -f "$HOME/.config/hive/interview-env.sh" ] || . "$HOME/.config/hive/interview-env.sh"\n',
+    );
+  }
+}
+
+function renderInitScript() {
+  return readFileSync(initScript, "utf8")
+    .replace(`\${workspace_readme_content}`, "Technical interview fixture")
+    .replace(`\${workspace_name}`, "fixture-interview")
+    .replace(`\${enable_browser}`, "true")
+    .replace(`\${claude_md_content}`, "Technical interview fixture agent context")
+    .replaceAll("$${", "${");
+}
+
+function runInit(root, home) {
+  const renderedInit = join(root, "rendered-init.sh");
+  writeFileSync(renderedInit, renderInitScript());
+  return run("bash", [renderedInit], {
+    ...process.env,
+    BASH_ENV: "",
+    ENV: "",
+    HIVE_EXPECTED_IMAGE_VARIANT: "browser",
+    HIVE_IMAGE_VARIANT: "browser",
+    HOME: home,
+    PATH: "/usr/bin:/bin",
+  });
 }
 
 function createFixture() {
@@ -45,6 +92,7 @@ function createFixture() {
   mkdirSync(join(interviewRepository, "frontend"), { recursive: true });
   mkdirSync(bin, { recursive: true });
   mkdirSync(tmuxRoot, { recursive: true });
+  seedSafeInterviewEnvironment(home);
   writeFileSync(calls, "");
   writeFileSync(
     join(interviewRepository, ".gitignore"),
@@ -121,8 +169,12 @@ exit 2
     join(bin, "node"),
     `#!/bin/bash
 [ -z "\${CODER_AGENT_TOKEN:-}" ]
-if [ "\${1:-}" = "--version" ]; then printf 'v24.19.0\\n'; fi
-exit 0
+case "\${1:-}" in
+  --version) printf '%s\\n' "\${FAKE_NODE_VERSION:-v24.19.0}" ;;
+  -e) ;;
+  -p) printf '%s|abi:%s\\n' "\${FAKE_NODE_VERSION:-v24.19.0}" "\${FAKE_NODE_ABI:-137}" ;;
+  *) exit 2 ;;
+esac
 `,
   );
   executable(
@@ -291,7 +343,20 @@ case "$command_name" in
 esac
 `,
   );
-  executable(join(bin, "gh"), "#!/bin/sh\nexit 1\n");
+  executable(
+    join(bin, "gh"),
+    `#!/bin/sh
+if [ "$*" = "auth status --json hosts" ]; then
+  if [ -n "\${FAKE_GH_AUTH_JSON:-}" ]; then
+    printf '%s\\n' "$FAKE_GH_AUTH_JSON"
+  else
+    printf '{"hosts":{}}\\n'
+  fi
+  exit "\${FAKE_GH_AUTH_EXIT:-0}"
+fi
+exit 1
+`,
+  );
   executable(join(bin, "coder"), "#!/bin/sh\nexit 1\n");
 
   const env = {
@@ -372,6 +437,56 @@ test("standalone Terraform exposes interview apps without personal auth modules"
   assert.equal(profile.image_variant, "browser");
   assert.equal(profile.security, undefined);
   assert.equal(profile.applications, undefined);
+});
+
+test("init atomically replaces the managed environment symlink without touching its target", () => {
+  const root = mkdtempSync(join(tmpdir(), "technical-interview-init-env-"));
+  const home = join(root, "home");
+  const environmentDirectory = join(home, ".config", "hive");
+  const environmentFile = join(environmentDirectory, "interview-env.sh");
+  const candidateFile = join(root, "candidate-owned.txt");
+  mkdirSync(environmentDirectory, { recursive: true });
+  writeFileSync(candidateFile, "preserve candidate work\n");
+  chmodSync(candidateFile, 0o644);
+  symlinkSync(candidateFile, environmentFile);
+
+  const first = runInit(root, home);
+  assert.equal(first.status, 0, first.stderr);
+  assert.equal(readFileSync(candidateFile, "utf8"), "preserve candidate work\n");
+  assert.equal(statSync(candidateFile).mode & 0o777, 0o644);
+  assert.equal(lstatSync(environmentFile).isSymbolicLink(), false);
+  assert.equal(statSync(environmentFile).mode & 0o777, 0o600);
+  assert.match(readFileSync(environmentFile, "utf8"), /unset ANTHROPIC_API_KEY/);
+
+  const second = runInit(root, home);
+  assert.equal(second.status, 0, second.stderr);
+  for (const shellFile of [".zshenv", ".bashrc", ".profile"]) {
+    const contents = readFileSync(join(home, shellFile), "utf8");
+    assert.equal((contents.match(/# hive-interview-environment/g) ?? []).length, 1);
+  }
+});
+
+test("linked shell configuration is preserved and fails the strict scrub check", () => {
+  const fixture = createFixture();
+  const linkedShell = join(fixture.home, ".zshenv");
+  const candidateFile = join(fixture.root, "candidate-shell-config");
+  unlinkSync(linkedShell);
+  writeFileSync(candidateFile, "preserve linked shell configuration\n");
+  symlinkSync(candidateFile, linkedShell);
+
+  const init = runInit(fixture.root, fixture.home);
+  assert.equal(init.status, 0, init.stderr);
+  assert.match(init.stderr, /linked shell configuration bypasses credential scrubbing/);
+  assert.equal(readFileSync(candidateFile, "utf8"), "preserve linked shell configuration\n");
+  assert.equal(lstatSync(linkedShell).isSymbolicLink(), true);
+
+  installHelpers(fixture);
+  const check = run(join(fixture.home, ".local", "bin", "interview-check"), [], fixture.env);
+  assert.equal(check.status, 1);
+  assert.match(
+    `${check.stdout}\n${check.stderr}`,
+    /\[FAIL\] interactive shell credential scrub hooks are installed/,
+  );
 });
 
 test("repository bootstrap clones anonymously and preserves an existing checkout", () => {
@@ -457,6 +572,11 @@ test("bootstrap installs executable helper commands idempotently", () => {
   for (const helper of expectedHelpers) {
     const path = join(fixture.home, ".local", "bin", helper);
     assert.equal(readFileSync(path, "utf8"), firstContents.get(helper));
+  }
+  for (const helper of ["interview-start", "interview-restart"]) {
+    const contents = firstContents.get(helper);
+    assert.match(contents, /--host 127\.0\.0\.1/);
+    assert.doesNotMatch(contents, /--host 0\.0\.0\.0/);
   }
   assert.doesNotMatch(
     readFileSync(join(fixture.home, ".local", "bin", "interview-claude"), "utf8"),
@@ -622,6 +742,68 @@ test("setup hashes dependencies, reinstalls only on manifest changes, and preser
   const changedCalls = readFileSync(fixture.calls, "utf8");
   assert.equal((changedCalls.match(/pip-install/g) ?? []).length, 2);
   assert.equal((changedCalls.match(/npm-install/g) ?? []).length, 1);
+});
+
+test("setup refreshes frontend dependencies when the Node runtime ABI changes", () => {
+  const fixture = createFixture();
+  installHelpers(fixture);
+  const setup = join(fixture.home, ".local", "bin", "interview-setup");
+
+  const first = run(setup, [], fixture.env);
+  assert.equal(first.status, 0, first.stderr);
+  assert.equal((readFileSync(fixture.calls, "utf8").match(/npm-install/g) ?? []).length, 1);
+
+  const changedRuntime = { ...fixture.env, FAKE_NODE_ABI: "999" };
+  const changed = run(setup, [], changedRuntime);
+  assert.equal(changed.status, 0, changed.stderr);
+  assert.equal((readFileSync(fixture.calls, "utf8").match(/npm-install/g) ?? []).length, 2);
+
+  const unchanged = run(setup, [], changedRuntime);
+  assert.equal(unchanged.status, 0, unchanged.stderr);
+  assert.equal((readFileSync(fixture.calls, "utf8").match(/npm-install/g) ?? []).length, 2);
+});
+
+test("GitHub authentication detection rejects any valid account alongside stale accounts", () => {
+  const fixture = createFixture();
+  installHelpers(fixture);
+  const common = join(
+    fixture.home,
+    ".local",
+    "libexec",
+    "hive",
+    "technical-interview",
+    "common.sh",
+  );
+  const mixedAccounts = JSON.stringify({
+    hosts: {
+      "github.com": [
+        { active: true, login: "valid", state: "success" },
+        { active: false, login: "stale", state: "failure" },
+      ],
+    },
+  });
+  const mixed = run(
+    "bash",
+    [
+      "-c",
+      `source "$HOME/.local/libexec/hive/technical-interview/common.sh"; interview_github_authenticated && ! interview_github_unauthenticated`,
+    ],
+    { ...fixture.env, FAKE_GH_AUTH_JSON: mixedAccounts },
+  );
+  assert.equal(mixed.status, 0, mixed.stderr);
+
+  const staleOnly = JSON.stringify({
+    hosts: { "github.com": [{ active: true, login: "stale", state: "failure" }] },
+  });
+  const unauthenticated = run(
+    "bash",
+    [
+      "-c",
+      `source "${common}"; ! interview_github_authenticated && interview_github_unauthenticated`,
+    ],
+    { ...fixture.env, FAKE_GH_AUTH_JSON: staleOnly },
+  );
+  assert.equal(unauthenticated.status, 0, unauthenticated.stderr);
 });
 
 test("readiness reports strict success and failure without network cloning", () => {

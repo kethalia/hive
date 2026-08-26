@@ -24,22 +24,67 @@ fi
 export PATH="$HOME/.local/bin:$HOME/.local/share/pnpm:$HOME/.bun/bin:$HOME/.foundry/bin:$PATH"
 export HIVE_BROWSER_TOOLS_ENABLED="${enable_browser}"
 
-configure_interview_environment() {
-  local shell_file
-  mkdir -p "$HOME/.config/hive"
-  cat > "$HOME/.config/hive/interview-env.sh" <<'EOFENV'
+write_interview_environment() {
+  local config_directory="$HOME/.config"
+  local hive_config_directory="$HOME/.config/hive"
+  local environment_file="$HOME/.config/hive/interview-env.sh"
+  local temporary_file
+
+  if [ -L "$config_directory" ] \
+    || { [ -e "$config_directory" ] && [ ! -d "$config_directory" ]; }; then
+    printf 'WARNING: interview environment directory is unsafe; readiness will fail: %s\n' \
+      "$config_directory" >&2
+    return 1
+  fi
+  mkdir -p "$config_directory"
+
+  if [ -L "$hive_config_directory" ] \
+    || { [ -e "$hive_config_directory" ] && [ ! -d "$hive_config_directory" ]; }; then
+    printf 'WARNING: interview environment directory is unsafe; readiness will fail: %s\n' \
+      "$hive_config_directory" >&2
+    return 1
+  fi
+  mkdir -p "$hive_config_directory"
+
+  temporary_file="$(mktemp "$hive_config_directory/.interview-env.XXXXXX")"
+  if ! cat > "$temporary_file" <<'EOFENV'
 # hive-managed-interview-environment:v1
 unset ANTHROPIC_API_KEY GH_TOKEN GITHUB_TOKEN CODER_AGENT_TOKEN CODER_SESSION_TOKEN
 unset REALM_VISUAL_REVIEW_API_KEY RUNCOMFY_API_TOKEN
 EOFENV
-  chmod 600 "$HOME/.config/hive/interview-env.sh"
+  then
+    rm -f -- "$temporary_file"
+    return 1
+  fi
+  chmod 600 "$temporary_file"
+  if ! mv -fT -- "$temporary_file" "$environment_file"; then
+    rm -f -- "$temporary_file"
+    return 1
+  fi
+}
+
+configure_interview_environment() {
+  local shell_file
+
+  if ! write_interview_environment; then
+    printf 'WARNING: managed credential scrubbing could not be installed; readiness will fail.\n' >&2
+  fi
 
   for shell_file in "$HOME/.zshenv" "$HOME/.bashrc" "$HOME/.profile"; do
-    if [ ! -e "$shell_file" ]; then
-      touch "$shell_file"
+    if [ -L "$shell_file" ]; then
+      printf 'WARNING: linked shell configuration bypasses credential scrubbing; readiness will fail: %s\n' \
+        "$shell_file" >&2
+      continue
     fi
-    if [ ! -L "$shell_file" ] \
-      && ! grep -qF '# hive-interview-environment' "$shell_file" 2>/dev/null; then
+    if [ -e "$shell_file" ] && [ ! -f "$shell_file" ]; then
+      printf 'WARNING: non-regular shell configuration bypasses credential scrubbing; readiness will fail: %s\n' \
+        "$shell_file" >&2
+      continue
+    fi
+    if [ ! -e "$shell_file" ]; then
+      : > "$shell_file"
+    fi
+    if ! grep -qF '# hive-interview-environment' "$shell_file" 2>/dev/null; then
       cat >> "$shell_file" <<'EOFSHELL'
 
 # hive-interview-environment
@@ -51,6 +96,10 @@ EOFSHELL
   rm -f -- "$HOME/.runcomfy-api-token"
   unset ANTHROPIC_API_KEY GH_TOKEN GITHUB_TOKEN CODER_AGENT_TOKEN CODER_SESSION_TOKEN
   unset REALM_VISUAL_REVIEW_API_KEY RUNCOMFY_API_TOKEN
+
+  # Unsafe persistent shell configuration must remain visible without making
+  # the Coder terminal inaccessible. interview-check performs the strict gate.
+  return 0
 }
 
 configure_interview_environment
