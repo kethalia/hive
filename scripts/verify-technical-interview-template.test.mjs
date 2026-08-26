@@ -25,7 +25,16 @@ const cloneScript = join(templateRoot, "scripts", "clone-repositories.sh");
 const initScript = join(templateRoot, "scripts", "init.sh");
 const toolsBrowserScript = join(templateRoot, "scripts", "tools-browser.sh");
 const toolsCiScript = join(templateRoot, "scripts", "tools-ci.sh");
+const toolsFilebrowserScript = join(templateRoot, "scripts", "tools-filebrowser.sh");
 const expectedOrigin = "https://github.com/prmsolutions/interview-template.git";
+const claudeCredentialAssertions = [
+  "ANTHROPIC_AUTH_TOKEN",
+  "CLAUDE_CODE_OAUTH_TOKEN",
+  "CLAUDE_CODE_OAUTH_REFRESH_TOKEN",
+  "CLAUDE_CODE_OAUTH_SCOPES",
+]
+  .map((name) => `[ -z "\${${name}:-}" ]`)
+  .join("\n");
 
 function executable(path, contents) {
   writeFileSync(path, contents);
@@ -45,7 +54,9 @@ function seedSafeInterviewEnvironment(home) {
   writeFileSync(
     environmentFile,
     "# hive-managed-interview-environment:v1\n" +
-      "unset ANTHROPIC_API_KEY GH_TOKEN GITHUB_TOKEN CODER_AGENT_TOKEN CODER_SESSION_TOKEN\n" +
+      "unset ANTHROPIC_API_KEY ANTHROPIC_AUTH_TOKEN\n" +
+      "unset CLAUDE_CODE_OAUTH_TOKEN CLAUDE_CODE_OAUTH_REFRESH_TOKEN CLAUDE_CODE_OAUTH_SCOPES\n" +
+      "unset GH_TOKEN GITHUB_TOKEN CODER_AGENT_TOKEN CODER_SESSION_TOKEN\n" +
       "unset REALM_VISUAL_REVIEW_API_KEY RUNCOMFY_API_TOKEN\n",
   );
   chmodSync(environmentFile, 0o600);
@@ -159,7 +170,9 @@ function createFixture() {
     `#!/bin/bash
 set -euo pipefail
 [ -z "\${CODER_AGENT_TOKEN:-}" ]
+${claudeCredentialAssertions}
 if [ "\${1:-}" = "--version" ]; then printf 'Python 3.13.5\\n'; exit 0; fi
+if [ "\${1:-}" = "-" ]; then exec /usr/bin/python3 -; fi
 if [ "\${1:-}" = "-c" ]; then
   case "\${2:-}" in
     *sysconfig.get_config_var*)
@@ -175,6 +188,7 @@ if [ "\${1:-}" = "-m" ] && [ "\${2:-}" = "venv" ]; then
 #!/bin/bash
 set -euo pipefail
 [ -z "\${CODER_AGENT_TOKEN:-}" ]
+${claudeCredentialAssertions}
 if [ "\${1:-}" = "--version" ]; then printf 'Python 3.13.5\\n'; exit 0; fi
 if [ "\${1:-}" = "-m" ] && [ "\${2:-}" = "pip" ]; then
   printf 'pip-install\\n' >> "$FAKE_CALLS"
@@ -184,6 +198,7 @@ PYTHON
   cat > "$target/bin/pytest" <<'PYTEST'
 #!/bin/bash
 [ -z "\${CODER_AGENT_TOKEN:-}" ]
+${claudeCredentialAssertions}
 printf 'pytest\\n' >> "$FAKE_CALLS"
 [ "\${FAKE_PYTEST_FAIL:-0}" != "1" ]
 PYTEST
@@ -202,6 +217,7 @@ exit 2
     join(bin, "node"),
     `#!/bin/bash
 [ -z "\${CODER_AGENT_TOKEN:-}" ]
+${claudeCredentialAssertions}
 case "\${1:-}" in
   --version) printf '%s\\n' "\${FAKE_NODE_VERSION:-v24.19.0}" ;;
   -e) ;;
@@ -215,6 +231,7 @@ esac
     `#!/bin/bash
 set -euo pipefail
 [ -z "\${CODER_AGENT_TOKEN:-}" ]
+${claudeCredentialAssertions}
 case "\${1:-}" in
   --version) printf '11.17.0\\n' ;;
   ls)
@@ -294,6 +311,7 @@ esac
     `#!/bin/bash
 set -euo pipefail
 [ -z "\${CODER_AGENT_TOKEN:-}" ]
+${claudeCredentialAssertions}
 for argument in "$@"; do
   if [ "$argument" = "ls-remote" ]; then
     [ "$HOME" != "$FAKE_WORKSPACE_HOME" ]
@@ -326,6 +344,7 @@ exit 0
 set -euo pipefail
 if [ "\${1:-}" = "--version" ]; then printf '2.1.170 (Claude Code)\\n'; exit 0; fi
 [ "\${ANTHROPIC_API_KEY:-}" = "\${EXPECTED_CLAUDE_KEY:-}" ]
+${claudeCredentialAssertions}
 [ -z "\${GH_TOKEN:-}" ]
 [ -z "\${GITHUB_TOKEN:-}" ]
 [ -z "\${CODER_AGENT_TOKEN:-}" ]
@@ -410,7 +429,11 @@ exit 1
 
   const env = {
     ...process.env,
+    ANTHROPIC_AUTH_TOKEN: "must-not-reach-child-processes",
     CLAUDE_ARGS_LOG: claudeArgs,
+    CLAUDE_CODE_OAUTH_REFRESH_TOKEN: "must-not-reach-child-processes",
+    CLAUDE_CODE_OAUTH_SCOPES: "must-not-reach-child-processes",
+    CLAUDE_CODE_OAUTH_TOKEN: "must-not-reach-child-processes",
     CODER_AGENT_TOKEN: "must-not-reach-child-processes",
     FAKE_CALLS: calls,
     FAKE_REMOTE_COMMIT: commit,
@@ -523,13 +546,14 @@ test("init prepends credential scrubbing before existing shell startup code", ()
   const candidateLine = `printf '%s\\n' "\${CODER_AGENT_TOKEN:-absent}" > "$SHELL_CAPTURE"`;
   mkdirSync(home, { recursive: true });
 
-  for (const shellFile of [".zshenv", ".bashrc", ".profile"]) {
+  const shellFiles = [".zshenv", ".bashrc", ".profile", ".bash_profile", ".bash_login"];
+  for (const shellFile of shellFiles) {
     writeFileSync(join(home, shellFile), `${candidateLine}\n`);
   }
 
   const first = runInit(root, home);
   assert.equal(first.status, 0, first.stderr);
-  for (const shellFile of [".zshenv", ".bashrc", ".profile"]) {
+  for (const shellFile of shellFiles) {
     const shellPath = join(home, shellFile);
     const contents = readFileSync(shellPath, "utf8");
     assert.equal(contents.split("\n")[0], "# hive-interview-environment");
@@ -543,6 +567,10 @@ test("init prepends credential scrubbing before existing shell startup code", ()
     const sourced = run("bash", ["-c", '. "$1"', "bash", shellPath], {
       ...process.env,
       BASH_ENV: "",
+      ANTHROPIC_AUTH_TOKEN: "must-be-scrubbed-first",
+      CLAUDE_CODE_OAUTH_REFRESH_TOKEN: "must-be-scrubbed-first",
+      CLAUDE_CODE_OAUTH_SCOPES: "must-be-scrubbed-first",
+      CLAUDE_CODE_OAUTH_TOKEN: "must-be-scrubbed-first",
       CODER_AGENT_TOKEN: "must-be-scrubbed-first",
       ENV: "",
       HOME: home,
@@ -552,15 +580,13 @@ test("init prepends credential scrubbing before existing shell startup code", ()
     assert.equal(readFileSync(capture, "utf8"), "absent\n");
   }
 
-  const beforeSecondRun = [".zshenv", ".bashrc", ".profile"].map((shellFile) =>
+  const beforeSecondRun = shellFiles.map((shellFile) =>
     readFileSync(join(home, shellFile), "utf8"),
   );
   const second = runInit(root, home);
   assert.equal(second.status, 0, second.stderr);
   assert.deepEqual(
-    [".zshenv", ".bashrc", ".profile"].map((shellFile) =>
-      readFileSync(join(home, shellFile), "utf8"),
-    ),
+    shellFiles.map((shellFile) => readFileSync(join(home, shellFile), "utf8")),
     beforeSecondRun,
   );
 });
@@ -664,6 +690,81 @@ test("browser setup atomically replaces helper symlinks without touching their t
   assert.equal(second.status, 0, second.stderr);
 });
 
+test("File Browser installation atomically replaces symlinks without touching their targets", () => {
+  const root = mkdtempSync(join(tmpdir(), "technical-interview-filebrowser-install-"));
+  const home = join(root, "home");
+  const bin = join(root, "bin");
+  const localBin = join(home, ".local", "bin");
+  const localShare = join(home, ".local", "share");
+  const binary = join(localBin, "filebrowser");
+  const versionMarker = join(localShare, "filebrowser-version");
+  const binaryTarget = join(root, "candidate-binary");
+  const markerTarget = join(root, "candidate-version");
+  const runningMarker = join(root, "filebrowser-running");
+  mkdirSync(localBin, { recursive: true });
+  mkdirSync(localShare, { recursive: true });
+  mkdirSync(bin, { recursive: true });
+  writeFileSync(binaryTarget, "preserve candidate binary\n");
+  writeFileSync(markerTarget, "preserve candidate version\n");
+  chmodSync(binaryTarget, 0o644);
+  chmodSync(markerTarget, 0o644);
+  symlinkSync(binaryTarget, binary);
+  symlinkSync(markerTarget, versionMarker);
+
+  executable(
+    join(bin, "curl"),
+    `#!/bin/bash
+set -euo pipefail
+if [ "\${1:-}" = "-fsSLo" ]; then
+  : > "$2"
+elif [[ "$*" == *'/health'* ]]; then
+  [ -f "$FAKE_FILEBROWSER_RUNNING" ]
+elif [[ "$*" == *'/api/login'* ]]; then
+  printf '200'
+else
+  exit 2
+fi
+`,
+  );
+  executable(join(bin, "sha256sum"), "#!/bin/sh\nexit 0\n");
+  executable(
+    join(bin, "tar"),
+    `#!/bin/bash
+set -euo pipefail
+while (($# > 0)); do
+  if [ "$1" = "-C" ]; then destination=$2; break; fi
+  shift
+done
+cat > "$destination/filebrowser" <<'FILEBROWSER'
+#!/bin/bash
+set -euo pipefail
+case "\${1:-}" in
+  config|users) exit 0 ;;
+  *) : > "$FAKE_FILEBROWSER_RUNNING" ;;
+esac
+FILEBROWSER
+chmod 755 "$destination/filebrowser"
+`,
+  );
+
+  const result = run("bash", [toolsFilebrowserScript], {
+    ...process.env,
+    FAKE_FILEBROWSER_RUNNING: runningMarker,
+    HOME: home,
+    PATH: `${bin}:/usr/bin:/bin`,
+  });
+  assert.equal(result.status, 0, result.stderr);
+  assert.equal(readFileSync(binaryTarget, "utf8"), "preserve candidate binary\n");
+  assert.equal(readFileSync(markerTarget, "utf8"), "preserve candidate version\n");
+  assert.equal(statSync(binaryTarget).mode & 0o777, 0o644);
+  assert.equal(statSync(markerTarget).mode & 0o777, 0o644);
+  assert.equal(lstatSync(binary).isSymbolicLink(), false);
+  assert.equal(lstatSync(versionMarker).isSymbolicLink(), false);
+  assert.equal(statSync(binary).mode & 0o777, 0o755);
+  assert.equal(statSync(versionMarker).mode & 0o777, 0o600);
+  assert.equal(readFileSync(versionMarker, "utf8"), "2.63.18\n");
+});
+
 test("init atomically replaces linked MCP configs without touching their targets", () => {
   const root = mkdtempSync(join(tmpdir(), "technical-interview-init-mcp-links-"));
   const home = join(root, "home");
@@ -727,32 +828,41 @@ test("init rejects linked MCP configuration directories without touching their t
   assert.equal(check.status, 1);
   assert.match(
     `${check.stdout}\n${check.stderr}`,
-    /\[FAIL\] managed MCP configuration directories are local/,
+    /\[FAIL\] managed Playwright MCP configuration is ready/,
   );
 });
 
 test("init preserves MCP configs whose JSON containers are not objects", () => {
-  const root = mkdtempSync(join(tmpdir(), "technical-interview-init-mcp-json-"));
-  const home = join(root, "home");
-  const claudeConfig = join(home, ".claude", "mcp.json");
-  const sharedConfig = join(home, ".mcp.json");
-  mkdirSync(join(home, ".claude"), { recursive: true });
+  const fixture = createFixture();
+  const claudeConfig = join(fixture.home, ".claude", "mcp.json");
+  const sharedConfig = join(fixture.home, ".mcp.json");
+  mkdirSync(join(fixture.home, ".claude"), { recursive: true });
   writeFileSync(claudeConfig, "[]\n");
   writeFileSync(sharedConfig, '{"mcpServers":[]}\n');
 
-  const result = runInit(root, home);
+  const result = runInit(fixture.root, fixture.home);
   assert.equal(result.status, 0, result.stderr);
   assert.match(result.stdout, /non-object root/);
   assert.match(result.stdout, /non-object mcpServers/);
   assert.equal(readFileSync(claudeConfig, "utf8"), "[]\n");
   assert.equal(readFileSync(sharedConfig, "utf8"), '{"mcpServers":[]}\n');
+
+  installHelpers(fixture);
+  const readiness = run(
+    "bash",
+    [
+      "-c",
+      'source "$HOME/.local/libexec/hive/technical-interview/common.sh"; interview_mcp_configuration_ready',
+    ],
+    fixture.env,
+  );
+  assert.equal(readiness.status, 1, "invalid JSON MCP containers must fail readiness");
 });
 
 test("linked shell configuration is preserved and fails the strict scrub check", () => {
   const fixture = createFixture();
-  const linkedShell = join(fixture.home, ".zshenv");
+  const linkedShell = join(fixture.home, ".bash_profile");
   const candidateFile = join(fixture.root, "candidate-shell-config");
-  unlinkSync(linkedShell);
   writeFileSync(candidateFile, "preserve linked shell configuration\n");
   symlinkSync(candidateFile, linkedShell);
 
@@ -796,6 +906,7 @@ set -euo pipefail
 [ "$GIT_SSH_COMMAND" = "/bin/false" ]
 [ "$SSH_ASKPASS" = "/bin/false" ]
 [ -z "\${ANTHROPIC_API_KEY:-}" ]
+${claudeCredentialAssertions}
 [ -z "\${GH_TOKEN:-}" ]
 [ -z "\${GITHUB_TOKEN:-}" ]
 [ -z "\${CODER_AGENT_TOKEN:-}" ]
@@ -815,6 +926,10 @@ printf '%s\\n' "$*" >> "$GIT_CALLS"
   const env = {
     ...process.env,
     ANTHROPIC_API_KEY: "must-not-reach-git",
+    ANTHROPIC_AUTH_TOKEN: "must-not-reach-git",
+    CLAUDE_CODE_OAUTH_REFRESH_TOKEN: "must-not-reach-git",
+    CLAUDE_CODE_OAUTH_SCOPES: "must-not-reach-git",
+    CLAUDE_CODE_OAUTH_TOKEN: "must-not-reach-git",
     CODER_AGENT_TOKEN: "must-not-reach-git",
     CODER_SESSION_TOKEN: "must-not-reach-git",
     GIT_ASKPASS: "must-not-reach-git",
@@ -1171,6 +1286,14 @@ test("setup restarts only active service windows after dependency refresh", () =
   const started = run(start, [], fixture.env);
   assert.equal(started.status, 0, started.stderr);
   const callsBeforeRefresh = readFileSync(fixture.calls, "utf8");
+  for (const credentialName of [
+    "ANTHROPIC_AUTH_TOKEN",
+    "CLAUDE_CODE_OAUTH_TOKEN",
+    "CLAUDE_CODE_OAUTH_REFRESH_TOKEN",
+    "CLAUDE_CODE_OAUTH_SCOPES",
+  ]) {
+    assert.match(callsBeforeRefresh, new RegExp(`-u ${credentialName}`));
+  }
 
   writeFileSync(
     join(fixture.interviewRepository, "backend", "requirements.txt"),

@@ -40,21 +40,36 @@ esac
 mkdir -p "$HOME/.local/bin" "$HOME/.local/share" "$HOME/.local/state/filebrowser" "$(dirname "$database")"
 
 installed_version=""
-if [ -f "$version_marker" ]; then
+if [ -f "$version_marker" ] && [ ! -L "$version_marker" ]; then
   installed_version="$(cat "$version_marker")"
 fi
 
 if [ ! -x "$binary" ] || [ "$installed_version" != "$filebrowser_version" ]; then
   temp_dir="$(mktemp -d)"
-  trap 'rm -rf "$temp_dir"' EXIT
+  binary_temporary=""
+  marker_temporary=""
+  cleanup_installation() {
+    rm -rf -- "$temp_dir"
+    [ -z "$binary_temporary" ] || rm -f -- "$binary_temporary"
+    [ -z "$marker_temporary" ] || rm -f -- "$marker_temporary"
+  }
+  trap cleanup_installation EXIT
   download_url="https://github.com/filebrowser/filebrowser/releases/download/v${filebrowser_version}/${archive}"
 
   curl -fsSLo "$temp_dir/$archive" --retry 3 --retry-delay 2 "$download_url"
   printf '%s  %s\n' "$checksum" "$temp_dir/$archive" | sha256sum --check --status
   tar -xzf "$temp_dir/$archive" -C "$temp_dir" filebrowser
-  cp "$temp_dir/filebrowser" "$binary"
-  chmod 0755 "$binary"
-  printf '%s\n' "$filebrowser_version" > "$version_marker"
+  binary_temporary="$(mktemp "$(dirname "$binary")/.filebrowser.XXXXXX")"
+  cp -- "$temp_dir/filebrowser" "$binary_temporary"
+  chmod 0755 "$binary_temporary"
+  mv -fT -- "$binary_temporary" "$binary"
+  binary_temporary=""
+
+  marker_temporary="$(mktemp "$(dirname "$version_marker")/.filebrowser-version.XXXXXX")"
+  printf '%s\n' "$filebrowser_version" > "$marker_temporary"
+  chmod 0600 "$marker_temporary"
+  mv -fT -- "$marker_temporary" "$version_marker"
+  marker_temporary=""
 fi
 
 get_login_status() {

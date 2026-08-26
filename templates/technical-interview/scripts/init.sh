@@ -1,7 +1,9 @@
 #!/bin/bash
 set -euo pipefail
 
-unset ANTHROPIC_API_KEY GH_TOKEN GITHUB_TOKEN CODER_AGENT_TOKEN CODER_SESSION_TOKEN
+unset ANTHROPIC_API_KEY ANTHROPIC_AUTH_TOKEN
+unset CLAUDE_CODE_OAUTH_TOKEN CLAUDE_CODE_OAUTH_REFRESH_TOKEN CLAUDE_CODE_OAUTH_SCOPES
+unset GH_TOKEN GITHUB_TOKEN CODER_AGENT_TOKEN CODER_SESSION_TOKEN
 unset REALM_VISUAL_REVIEW_API_KEY RUNCOMFY_API_TOKEN
 
 if [ ! -f "$HOME/.workspace_initialized" ]; then
@@ -49,7 +51,9 @@ write_interview_environment() {
   temporary_file="$(mktemp "$hive_config_directory/.interview-env.XXXXXX")"
   if ! cat > "$temporary_file" <<'EOFENV'
 # hive-managed-interview-environment:v1
-unset ANTHROPIC_API_KEY GH_TOKEN GITHUB_TOKEN CODER_AGENT_TOKEN CODER_SESSION_TOKEN
+unset ANTHROPIC_API_KEY ANTHROPIC_AUTH_TOKEN
+unset CLAUDE_CODE_OAUTH_TOKEN CLAUDE_CODE_OAUTH_REFRESH_TOKEN CLAUDE_CODE_OAUTH_SCOPES
+unset GH_TOKEN GITHUB_TOKEN CODER_AGENT_TOKEN CODER_SESSION_TOKEN
 unset REALM_VISUAL_REVIEW_API_KEY RUNCOMFY_API_TOKEN
 EOFENV
   then
@@ -79,8 +83,14 @@ home = Path(os.environ["HOME"])
 marker = "# hive-interview-environment"
 source = '[ ! -f "$HOME/.config/hive/interview-env.sh" ] || . "$HOME/.config/hive/interview-env.sh"'
 managed_lines = {marker, source}
+shell_files = [home / ".zshenv", home / ".bashrc", home / ".profile"]
+shell_files.extend(
+    shell_file
+    for shell_file in (home / ".bash_profile", home / ".bash_login")
+    if shell_file.exists() or shell_file.is_symlink()
+)
 
-for shell_file in (home / ".zshenv", home / ".bashrc", home / ".profile"):
+for shell_file in shell_files:
     if shell_file.is_symlink():
         print(
             "WARNING: linked shell configuration bypasses credential scrubbing; "
@@ -118,7 +128,9 @@ for shell_file in (home / ".zshenv", home / ".bashrc", home / ".profile"):
 PYSHELL
 
   rm -f -- "$HOME/.runcomfy-api-token"
-  unset ANTHROPIC_API_KEY GH_TOKEN GITHUB_TOKEN CODER_AGENT_TOKEN CODER_SESSION_TOKEN
+  unset ANTHROPIC_API_KEY ANTHROPIC_AUTH_TOKEN
+  unset CLAUDE_CODE_OAUTH_TOKEN CLAUDE_CODE_OAUTH_REFRESH_TOKEN CLAUDE_CODE_OAUTH_SCOPES
+  unset GH_TOKEN GITHUB_TOKEN CODER_AGENT_TOKEN CODER_SESSION_TOKEN
   unset REALM_VISUAL_REVIEW_API_KEY RUNCOMFY_API_TOKEN
 
   # Unsafe persistent shell configuration must remain visible without making

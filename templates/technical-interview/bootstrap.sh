@@ -3,7 +3,9 @@ set -euo pipefail
 
 umask 077
 
-unset ANTHROPIC_API_KEY GH_TOKEN GITHUB_TOKEN CODER_AGENT_TOKEN CODER_SESSION_TOKEN
+unset ANTHROPIC_API_KEY ANTHROPIC_AUTH_TOKEN
+unset CLAUDE_CODE_OAUTH_TOKEN CLAUDE_CODE_OAUTH_REFRESH_TOKEN CLAUDE_CODE_OAUTH_SCOPES
+unset GH_TOKEN GITHUB_TOKEN CODER_AGENT_TOKEN CODER_SESSION_TOKEN
 unset REALM_VISUAL_REVIEW_API_KEY RUNCOMFY_API_TOKEN
 
 interview_bin_dir="$HOME/.local/bin"
@@ -57,6 +59,10 @@ INTERVIEW_CODEX_BASELINE_TARGET="../lib/node_modules/@openai/codex/bin/codex.js"
 INTERVIEW_BUN_BASELINE_TARGET="$HOME/.bun/bin/bun"
 INTERVIEW_FORBIDDEN_CREDENTIALS=(
   ANTHROPIC_API_KEY
+  ANTHROPIC_AUTH_TOKEN
+  CLAUDE_CODE_OAUTH_TOKEN
+  CLAUDE_CODE_OAUTH_REFRESH_TOKEN
+  CLAUDE_CODE_OAUTH_SCOPES
   GH_TOKEN
   GITHUB_TOKEN
   CODER_AGENT_TOKEN
@@ -222,7 +228,9 @@ interview_anonymous_git() {
   if (
     cd "$anonymous_home"
     env \
-      -u ANTHROPIC_API_KEY -u GH_TOKEN -u GITHUB_TOKEN \
+      -u ANTHROPIC_API_KEY -u ANTHROPIC_AUTH_TOKEN \
+      -u CLAUDE_CODE_OAUTH_TOKEN -u CLAUDE_CODE_OAUTH_REFRESH_TOKEN \
+      -u CLAUDE_CODE_OAUTH_SCOPES -u GH_TOKEN -u GITHUB_TOKEN \
       -u CODER_AGENT_TOKEN -u CODER_SESSION_TOKEN \
       -u REALM_VISUAL_REVIEW_API_KEY -u RUNCOMFY_API_TOKEN \
       -u GIT_CONFIG -u GIT_CONFIG_COUNT -u GIT_CONFIG_PARAMETERS \
@@ -319,16 +327,29 @@ interview_github_unauthenticated() {
 interview_shell_scrub_ready() {
   local environment_file="$HOME/.config/hive/interview-env.sh"
   local shell_file
+  local shell_files=("$HOME/.zshenv" "$HOME/.bashrc" "$HOME/.profile")
 
   [ -f "$environment_file" ] && [ ! -L "$environment_file" ] || return 1
   grep -qF '# hive-managed-interview-environment:v1' "$environment_file" || return 1
   grep -qF \
-    'unset ANTHROPIC_API_KEY GH_TOKEN GITHUB_TOKEN CODER_AGENT_TOKEN CODER_SESSION_TOKEN' \
+    'unset ANTHROPIC_API_KEY ANTHROPIC_AUTH_TOKEN' \
+    "$environment_file" || return 1
+  grep -qF \
+    'unset CLAUDE_CODE_OAUTH_TOKEN CLAUDE_CODE_OAUTH_REFRESH_TOKEN CLAUDE_CODE_OAUTH_SCOPES' \
+    "$environment_file" || return 1
+  grep -qF \
+    'unset GH_TOKEN GITHUB_TOKEN CODER_AGENT_TOKEN CODER_SESSION_TOKEN' \
     "$environment_file" || return 1
   grep -qF 'unset REALM_VISUAL_REVIEW_API_KEY RUNCOMFY_API_TOKEN' \
     "$environment_file" || return 1
 
-  for shell_file in "$HOME/.zshenv" "$HOME/.bashrc" "$HOME/.profile"; do
+  for shell_file in "$HOME/.bash_profile" "$HOME/.bash_login"; do
+    if [ -e "$shell_file" ] || [ -L "$shell_file" ]; then
+      shell_files+=("$shell_file")
+    fi
+  done
+
+  for shell_file in "${shell_files[@]}"; do
     [ -f "$shell_file" ] && [ ! -L "$shell_file" ] || return 1
     [ "$(sed -n '1p' "$shell_file")" = '# hive-interview-environment' ] || return 1
     [ "$(sed -n '2p' "$shell_file")" = \
@@ -337,12 +358,53 @@ interview_shell_scrub_ready() {
   done
 }
 
-interview_mcp_directories_safe() {
+interview_mcp_configuration_ready() {
   local configuration_directory
 
   for configuration_directory in "$HOME/.codex" "$HOME/.claude"; do
     [ -d "$configuration_directory" ] && [ ! -L "$configuration_directory" ] || return 1
   done
+
+  python3 - <<'PYMCPREADY'
+import json
+import os
+import tomllib
+from pathlib import Path
+
+
+home = Path(os.environ["HOME"])
+playwright = {
+    "command": str(home / ".local" / "bin" / "playwright-mcp"),
+    "args": ["--browser", "chrome", "--no-sandbox", "--isolated"],
+    "env": {"DISPLAY": ":1"},
+}
+
+try:
+    codex_config = home / ".codex" / "config.toml"
+    if codex_config.is_symlink() or not codex_config.is_file():
+        raise ValueError("Codex MCP configuration is not a local regular file")
+    with codex_config.open("rb") as handle:
+        codex_data = tomllib.load(handle)
+    codex_servers = codex_data.get("mcp_servers")
+    if (
+        not isinstance(codex_servers, dict)
+        or codex_servers.get("hive_playwright") != playwright
+    ):
+        raise ValueError("Codex Playwright MCP configuration is incomplete")
+
+    for json_config in (home / ".claude" / "mcp.json", home / ".mcp.json"):
+        if json_config.is_symlink() or not json_config.is_file():
+            raise ValueError(f"MCP configuration is not a local regular file: {json_config}")
+        with json_config.open() as handle:
+            json_data = json.load(handle)
+        if not isinstance(json_data, dict):
+            raise ValueError(f"MCP configuration root is not an object: {json_config}")
+        servers = json_data.get("mcpServers")
+        if not isinstance(servers, dict) or servers.get("hive_playwright") != playwright:
+            raise ValueError(f"Playwright MCP configuration is incomplete: {json_config}")
+except (OSError, ValueError, TypeError, json.JSONDecodeError, tomllib.TOMLDecodeError):
+    raise SystemExit(1)
+PYMCPREADY
 }
 
 interview_coder_authenticated() {
@@ -541,13 +603,17 @@ if ! interview_backend_dependencies_ready || ! interview_frontend_dependencies_r
   exit 1
 fi
 
-api_command="exec env -u ANTHROPIC_API_KEY -u GH_TOKEN -u GITHUB_TOKEN -u CODER_AGENT_TOKEN -u CODER_SESSION_TOKEN -u REALM_VISUAL_REVIEW_API_KEY -u RUNCOMFY_API_TOKEN '$INTERVIEW_VENV/bin/uvicorn' app.main:app --reload --host 127.0.0.1 --port 8000"
-web_command="exec env -u ANTHROPIC_API_KEY -u GH_TOKEN -u GITHUB_TOKEN -u CODER_AGENT_TOKEN -u CODER_SESSION_TOKEN -u REALM_VISUAL_REVIEW_API_KEY -u RUNCOMFY_API_TOKEN npm run dev -- --host 127.0.0.1 --port 3000"
+credential_unsets=""
+credential_env_arguments=()
+for forbidden_name in "${INTERVIEW_FORBIDDEN_CREDENTIALS[@]}"; do
+  credential_unsets+=" -u $forbidden_name"
+  credential_env_arguments+=(-u "$forbidden_name")
+done
+api_command="exec env${credential_unsets} '$INTERVIEW_VENV/bin/uvicorn' app.main:app --reload --host 127.0.0.1 --port 8000"
+web_command="exec env${credential_unsets} npm run dev -- --host 127.0.0.1 --port 3000"
 
 tmux_without_credentials() {
-  env -u ANTHROPIC_API_KEY -u GH_TOKEN -u GITHUB_TOKEN \
-    -u CODER_AGENT_TOKEN -u CODER_SESSION_TOKEN \
-    -u REALM_VISUAL_REVIEW_API_KEY -u RUNCOMFY_API_TOKEN tmux "$@"
+  env "${credential_env_arguments[@]}" tmux "$@"
 }
 
 window_exists() {
@@ -638,23 +704,25 @@ if ! interview_backend_dependencies_ready || ! interview_frontend_dependencies_r
   exit 1
 fi
 
-api_command="exec env -u ANTHROPIC_API_KEY -u GH_TOKEN -u GITHUB_TOKEN -u CODER_AGENT_TOKEN -u CODER_SESSION_TOKEN -u REALM_VISUAL_REVIEW_API_KEY -u RUNCOMFY_API_TOKEN '$INTERVIEW_VENV/bin/uvicorn' app.main:app --reload --host 127.0.0.1 --port 8000"
-web_command="exec env -u ANTHROPIC_API_KEY -u GH_TOKEN -u GITHUB_TOKEN -u CODER_AGENT_TOKEN -u CODER_SESSION_TOKEN -u REALM_VISUAL_REVIEW_API_KEY -u RUNCOMFY_API_TOKEN npm run dev -- --host 127.0.0.1 --port 3000"
+credential_unsets=""
+credential_env_arguments=()
+for forbidden_name in "${INTERVIEW_FORBIDDEN_CREDENTIALS[@]}"; do
+  credential_unsets+=" -u $forbidden_name"
+  credential_env_arguments+=(-u "$forbidden_name")
+done
+api_command="exec env${credential_unsets} '$INTERVIEW_VENV/bin/uvicorn' app.main:app --reload --host 127.0.0.1 --port 8000"
+web_command="exec env${credential_unsets} npm run dev -- --host 127.0.0.1 --port 3000"
 
 restart_service_window() {
   local window_name=$1
   local working_directory=$2
   local service_command=$3
   if tmux list-windows -t "$INTERVIEW_SESSION" -F '#{window_name}' | grep -Fqx -- "$window_name"; then
-    env -u ANTHROPIC_API_KEY -u GH_TOKEN -u GITHUB_TOKEN \
-      -u CODER_AGENT_TOKEN -u CODER_SESSION_TOKEN \
-      -u REALM_VISUAL_REVIEW_API_KEY -u RUNCOMFY_API_TOKEN \
+    env "${credential_env_arguments[@]}" \
       tmux respawn-window -k -t "$INTERVIEW_SESSION:$window_name" \
       -c "$working_directory" "$service_command"
   else
-    env -u ANTHROPIC_API_KEY -u GH_TOKEN -u GITHUB_TOKEN \
-      -u CODER_AGENT_TOKEN -u CODER_SESSION_TOKEN \
-      -u REALM_VISUAL_REVIEW_API_KEY -u RUNCOMFY_API_TOKEN \
+    env "${credential_env_arguments[@]}" \
       tmux new-window -d -t "$INTERVIEW_SESSION:" -n "$window_name" \
       -c "$working_directory" "$service_command"
   fi
@@ -833,6 +901,8 @@ if [ -z "$interview_key" ]; then
 fi
 
 cd "$INTERVIEW_REPOSITORY"
+unset ANTHROPIC_AUTH_TOKEN
+unset CLAUDE_CODE_OAUTH_TOKEN CLAUDE_CODE_OAUTH_REFRESH_TOKEN CLAUDE_CODE_OAUTH_SCOPES
 unset GH_TOKEN GITHUB_TOKEN CODER_AGENT_TOKEN CODER_SESSION_TOKEN
 unset REALM_VISUAL_REVIEW_API_KEY RUNCOMFY_API_TOKEN
 export ANTHROPIC_API_KEY="$interview_key"
@@ -956,7 +1026,7 @@ run_check "API responds at /hello" check_api
 run_check "frontend responds on port 3000" check_frontend
 run_check "working tree contains no unexpected files" interview_git_clean
 run_check "interactive shell credential scrub hooks are installed" interview_shell_scrub_ready
-run_check "managed MCP configuration directories are local" interview_mcp_directories_safe
+run_check "managed Playwright MCP configuration is ready" interview_mcp_configuration_ready
 run_check "forbidden credential variables are absent" check_forbidden_credentials_absent
 run_check "GitHub CLI is not authenticated" check_github_not_authenticated
 run_check "Coder CLI is not authenticated for orchestration" check_coder_not_authenticated
@@ -1016,7 +1086,7 @@ fi
   printf -- '- `interview-claude` — prompt securely for the temporary Anthropic key and launch Claude Code\n'
   printf '\n## Credential state\n\n'
   printf 'Only credential names are reported; values are never recorded. Required pre-interview state: '
-  printf '`ANTHROPIC_API_KEY`, GitHub, Coder agent/session, Realm, and RunComfy credentials absent; GitHub and Coder CLIs unauthenticated.\n'
+  printf 'Anthropic API/auth and Claude OAuth credentials, GitHub, Coder agent/session, Realm, and RunComfy credentials absent; GitHub and Coder CLIs unauthenticated.\n'
   printf '\n## Remaining action\n\n%s\n' "$remaining_action"
 } > "$report_temporary"
 chmod 600 "$report_temporary"
