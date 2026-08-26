@@ -64,34 +64,58 @@ EOFENV
 }
 
 configure_interview_environment() {
-  local shell_file
-
   if ! write_interview_environment; then
     printf 'WARNING: managed credential scrubbing could not be installed; readiness will fail.\n' >&2
   fi
 
-  for shell_file in "$HOME/.zshenv" "$HOME/.bashrc" "$HOME/.profile"; do
-    if [ -L "$shell_file" ]; then
-      printf 'WARNING: linked shell configuration bypasses credential scrubbing; readiness will fail: %s\n' \
-        "$shell_file" >&2
-      continue
-    fi
-    if [ -e "$shell_file" ] && [ ! -f "$shell_file" ]; then
-      printf 'WARNING: non-regular shell configuration bypasses credential scrubbing; readiness will fail: %s\n' \
-        "$shell_file" >&2
-      continue
-    fi
-    if [ ! -e "$shell_file" ]; then
-      : > "$shell_file"
-    fi
-    if ! grep -qF '# hive-interview-environment' "$shell_file" 2>/dev/null; then
-      cat >> "$shell_file" <<'EOFSHELL'
+  python3 - <<'PYSHELL'
+import os
+import stat
+import tempfile
+from pathlib import Path
 
-# hive-interview-environment
-[ ! -f "$HOME/.config/hive/interview-env.sh" ] || . "$HOME/.config/hive/interview-env.sh"
-EOFSHELL
-    fi
-  done
+
+home = Path(os.environ["HOME"])
+marker = "# hive-interview-environment"
+source = '[ ! -f "$HOME/.config/hive/interview-env.sh" ] || . "$HOME/.config/hive/interview-env.sh"'
+managed_lines = {marker, source}
+
+for shell_file in (home / ".zshenv", home / ".bashrc", home / ".profile"):
+    if shell_file.is_symlink():
+        print(
+            "WARNING: linked shell configuration bypasses credential scrubbing; "
+            f"readiness will fail: {shell_file}",
+            file=os.sys.stderr,
+        )
+        continue
+    if shell_file.exists() and not shell_file.is_file():
+        print(
+            "WARNING: non-regular shell configuration bypasses credential scrubbing; "
+            f"readiness will fail: {shell_file}",
+            file=os.sys.stderr,
+        )
+        continue
+
+    existing = shell_file.read_text() if shell_file.exists() else ""
+    preserved = "".join(
+        line
+        for line in existing.splitlines(keepends=True)
+        if line.rstrip("\r\n") not in managed_lines
+    )
+    updated = f"{marker}\n{source}\n{preserved}"
+    mode = stat.S_IMODE(shell_file.stat().st_mode) if shell_file.exists() else 0o600
+    descriptor, temporary_name = tempfile.mkstemp(
+        prefix=f".{shell_file.name}.", dir=home
+    )
+    temporary = Path(temporary_name)
+    try:
+        with os.fdopen(descriptor, "w") as handle:
+            handle.write(updated)
+        temporary.chmod(mode)
+        os.replace(temporary, shell_file)
+    finally:
+        temporary.unlink(missing_ok=True)
+PYSHELL
 
   rm -f -- "$HOME/.runcomfy-api-token"
   unset ANTHROPIC_API_KEY GH_TOKEN GITHUB_TOKEN CODER_AGENT_TOKEN CODER_SESSION_TOKEN
@@ -112,6 +136,12 @@ if [ -n "$${HIVE_IMAGE_VARIANT:-}" ] \
 fi
 
 configure_codex_mcp() {
+  if [ -L "$HOME/.codex" ] \
+    || { [ -e "$HOME/.codex" ] && [ ! -d "$HOME/.codex" ]; }; then
+    printf 'WARNING: unsafe Codex configuration directory; MCP configuration was not changed and readiness will fail: %s\n' \
+      "$HOME/.codex" >&2
+    return 0
+  fi
   mkdir -p "$HOME/.codex"
   python3 - <<'PYCODEX'
 import os
@@ -205,6 +235,15 @@ playwright = {
     "env": {"DISPLAY": ":1"},
 }
 for config in (home / ".claude" / "mcp.json", home / ".mcp.json"):
+    if config.parent.is_symlink() or (
+        config.parent.exists() and not config.parent.is_dir()
+    ):
+        print(
+            "WARNING: unsafe MCP configuration directory; configuration was not changed "
+            f"and readiness will fail: {config.parent}",
+            file=os.sys.stderr,
+        )
+        continue
     config.parent.mkdir(parents=True, exist_ok=True)
     linked_config = config.is_symlink()
     if linked_config:

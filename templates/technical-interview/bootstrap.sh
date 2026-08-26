@@ -202,7 +202,11 @@ interview_frontend_dependencies_ready() {
   [ -x "$INTERVIEW_FRONTEND/node_modules/.bin/vite" ] || return 1
   current_hash="$(interview_frontend_hash 2>/dev/null || true)"
   stored_hash="$(interview_read_state frontend-manifests.sha256 2>/dev/null || true)"
-  [ -n "$current_hash" ] && [ "$current_hash" = "$stored_hash" ]
+  [ -n "$current_hash" ] && [ "$current_hash" = "$stored_hash" ] || return 1
+  (
+    cd "$INTERVIEW_FRONTEND"
+    npm ls --all --silent >/dev/null 2>&1
+  )
 }
 
 interview_git_clean() {
@@ -326,10 +330,18 @@ interview_shell_scrub_ready() {
 
   for shell_file in "$HOME/.zshenv" "$HOME/.bashrc" "$HOME/.profile"; do
     [ -f "$shell_file" ] && [ ! -L "$shell_file" ] || return 1
-    grep -qF '# hive-interview-environment' "$shell_file" || return 1
-    grep -qF \
-      '[ ! -f "$HOME/.config/hive/interview-env.sh" ] || . "$HOME/.config/hive/interview-env.sh"' \
-      "$shell_file" || return 1
+    [ "$(sed -n '1p' "$shell_file")" = '# hive-interview-environment' ] || return 1
+    [ "$(sed -n '2p' "$shell_file")" = \
+      '[ ! -f "$HOME/.config/hive/interview-env.sh" ] || . "$HOME/.config/hive/interview-env.sh"' ] \
+      || return 1
+  done
+}
+
+interview_mcp_directories_safe() {
+  local configuration_directory
+
+  for configuration_directory in "$HOME/.codex" "$HOME/.claude"; do
+    [ -d "$configuration_directory" ] && [ ! -L "$configuration_directory" ] || return 1
   done
 }
 
@@ -464,7 +476,11 @@ fi
 frontend_hash="$(interview_frontend_hash)"
 stored_frontend_hash="$(interview_read_state frontend-manifests.sha256 2>/dev/null || true)"
 if [ "$frontend_hash" != "$stored_frontend_hash" ] \
-  || [ ! -x "$INTERVIEW_FRONTEND/node_modules/.bin/vite" ]; then
+  || [ ! -x "$INTERVIEW_FRONTEND/node_modules/.bin/vite" ] \
+  || ! (
+    cd "$INTERVIEW_FRONTEND"
+    npm ls --all --silent >/dev/null 2>&1
+  ); then
   interview_ok "Installing frontend dependencies"
   if [ -f "$INTERVIEW_FRONTEND/package-lock.json" ] \
     || [ -f "$INTERVIEW_FRONTEND/npm-shrinkwrap.json" ]; then
@@ -940,6 +956,7 @@ run_check "API responds at /hello" check_api
 run_check "frontend responds on port 3000" check_frontend
 run_check "working tree contains no unexpected files" interview_git_clean
 run_check "interactive shell credential scrub hooks are installed" interview_shell_scrub_ready
+run_check "managed MCP configuration directories are local" interview_mcp_directories_safe
 run_check "forbidden credential variables are absent" check_forbidden_credentials_absent
 run_check "GitHub CLI is not authenticated" check_github_not_authenticated
 run_check "Coder CLI is not authenticated for orchestration" check_coder_not_authenticated

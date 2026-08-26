@@ -14,6 +14,21 @@ export npm_config_prefix="$HOME/.local"
 
 printf '%b[browser] Setting up browser vision tools...%b\n' "$BOLD" "$RESET"
 
+install_browser_helper() {
+  local destination=$1 temporary_file
+
+  temporary_file="$(mktemp "$HOME/.local/bin/.hive-browser-helper.XXXXXX")"
+  if ! cat > "$temporary_file"; then
+    rm -f -- "$temporary_file"
+    return 1
+  fi
+  if ! chmod 755 "$temporary_file" \
+    || ! mv -fT -- "$temporary_file" "$destination"; then
+    rm -f -- "$temporary_file"
+    return 1
+  fi
+}
+
 # Chrome is installed in the image. The symlink setup exposes a user-writable
 # chromium-browser compatibility command without modifying the root filesystem.
 CHROME_BIN="/usr/bin/google-chrome-stable"
@@ -26,8 +41,10 @@ ln -sf "$CHROME_BIN" "$HOME/.local/bin/chromium-browser"
 # Claude Code and Codex Playwright MCP entries are managed by init.sh and point
 # at the pinned user-space package prepared by the interview bootstrap.
 
-# Create screenshot helper using Google Chrome (CLI fallback for scripts)
-cat > "$HOME/.local/bin/browser-screenshot" << SCREENSHOT
+# Create screenshot helper using Google Chrome (CLI fallback for scripts).
+# Same-directory temporary files ensure a candidate-created symlink is replaced
+# instead of following it into the preserved assessment checkout.
+install_browser_helper "$HOME/.local/bin/browser-screenshot" << SCREENSHOT
 #!/bin/bash
 # hive-managed-browser-helper:v1
 set -e
@@ -42,9 +59,8 @@ $CHROME_BIN \\
   "\$URL" 2>/dev/null
 [ -f "\$OUTPUT" ] && echo "\$OUTPUT" || { echo "ERROR: Screenshot failed" >&2; exit 1; }
 SCREENSHOT
-chmod +x "$HOME/.local/bin/browser-screenshot"
 
-cat > "$HOME/.local/bin/browser-html" << BROWSERHTML
+install_browser_helper "$HOME/.local/bin/browser-html" << BROWSERHTML
 #!/bin/bash
 # hive-managed-browser-helper:v1
 set -e
@@ -53,7 +69,6 @@ $CHROME_BIN \\
   --headless=new --no-sandbox --disable-gpu --disable-dev-shm-usage \\
   --dump-dom "\$URL" 2>/dev/null
 BROWSERHTML
-chmod +x "$HOME/.local/bin/browser-html"
 echo "Helper scripts using: $CHROME_BIN"
 
 printf '%b[ok] Browser vision tools ready%b\n' "$GREEN" "$RESET"

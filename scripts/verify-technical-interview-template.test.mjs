@@ -23,6 +23,7 @@ const templateRoot = join(repositoryRoot, "templates", "technical-interview");
 const bootstrapScript = join(templateRoot, "bootstrap.sh");
 const cloneScript = join(templateRoot, "scripts", "clone-repositories.sh");
 const initScript = join(templateRoot, "scripts", "init.sh");
+const toolsBrowserScript = join(templateRoot, "scripts", "tools-browser.sh");
 const toolsCiScript = join(templateRoot, "scripts", "tools-ci.sh");
 const expectedOrigin = "https://github.com/prmsolutions/interview-template.git";
 
@@ -82,6 +83,13 @@ function renderToolsCiScript(cloneContents, manifestContents, bootstrapContents)
       placeholder("bootstrap_script_b64"),
       Buffer.from(bootstrapContents).toString("base64"),
     );
+}
+
+function renderToolsBrowserScript(chromeBinary) {
+  return readFileSync(toolsBrowserScript, "utf8").replace(
+    'CHROME_BIN="/usr/bin/google-chrome-stable"',
+    `CHROME_BIN="${chromeBinary}"`,
+  );
 }
 
 function runInit(root, home) {
@@ -209,6 +217,9 @@ set -euo pipefail
 [ -z "\${CODER_AGENT_TOKEN:-}" ]
 case "\${1:-}" in
   --version) printf '11.17.0\\n' ;;
+  ls)
+    [ ! -e node_modules/.hive-fixture-incomplete ]
+    ;;
   install|ci)
     shift
     install_prefix=''
@@ -256,6 +267,7 @@ case "\${1:-}" in
     else
       printf 'npm-install\\n' >> "$FAKE_CALLS"
       mkdir -p node_modules/.bin
+      rm -f node_modules/.hive-fixture-incomplete
       printf '#!/bin/sh\\nexit 0\\n' > node_modules/.bin/vite
       chmod 755 node_modules/.bin/vite
     fi
@@ -504,6 +516,55 @@ test("init atomically replaces the managed environment symlink without touching 
   }
 });
 
+test("init prepends credential scrubbing before existing shell startup code", () => {
+  const root = mkdtempSync(join(tmpdir(), "technical-interview-init-shell-order-"));
+  const home = join(root, "home");
+  const capture = join(root, "shell-capture");
+  const candidateLine = `printf '%s\\n' "\${CODER_AGENT_TOKEN:-absent}" > "$SHELL_CAPTURE"`;
+  mkdirSync(home, { recursive: true });
+
+  for (const shellFile of [".zshenv", ".bashrc", ".profile"]) {
+    writeFileSync(join(home, shellFile), `${candidateLine}\n`);
+  }
+
+  const first = runInit(root, home);
+  assert.equal(first.status, 0, first.stderr);
+  for (const shellFile of [".zshenv", ".bashrc", ".profile"]) {
+    const shellPath = join(home, shellFile);
+    const contents = readFileSync(shellPath, "utf8");
+    assert.equal(contents.split("\n")[0], "# hive-interview-environment");
+    assert.equal(
+      contents.split("\n")[1],
+      '[ ! -f "$HOME/.config/hive/interview-env.sh" ] || . "$HOME/.config/hive/interview-env.sh"',
+    );
+    assert.ok(contents.indexOf(candidateLine) > contents.indexOf("# hive-interview-environment"));
+
+    writeFileSync(capture, "");
+    const sourced = run("bash", ["-c", '. "$1"', "bash", shellPath], {
+      ...process.env,
+      BASH_ENV: "",
+      CODER_AGENT_TOKEN: "must-be-scrubbed-first",
+      ENV: "",
+      HOME: home,
+      SHELL_CAPTURE: capture,
+    });
+    assert.equal(sourced.status, 0, sourced.stderr);
+    assert.equal(readFileSync(capture, "utf8"), "absent\n");
+  }
+
+  const beforeSecondRun = [".zshenv", ".bashrc", ".profile"].map((shellFile) =>
+    readFileSync(join(home, shellFile), "utf8"),
+  );
+  const second = runInit(root, home);
+  assert.equal(second.status, 0, second.stderr);
+  assert.deepEqual(
+    [".zshenv", ".bashrc", ".profile"].map((shellFile) =>
+      readFileSync(join(home, shellFile), "utf8"),
+    ),
+    beforeSecondRun,
+  );
+});
+
 test("startup atomically replaces generated input symlinks without touching their targets", () => {
   const root = mkdtempSync(join(tmpdir(), "technical-interview-inputs-"));
   const home = join(root, "home");
@@ -561,6 +622,48 @@ test("startup atomically replaces generated input symlinks without touching thei
   }
 });
 
+test("browser setup atomically replaces helper symlinks without touching their targets", () => {
+  const root = mkdtempSync(join(tmpdir(), "technical-interview-browser-helpers-"));
+  const home = join(root, "home");
+  const localBin = join(home, ".local", "bin");
+  const fakeChrome = join(root, "google-chrome-stable");
+  const renderedToolsBrowser = join(root, "rendered-tools-browser.sh");
+  mkdirSync(localBin, { recursive: true });
+  executable(fakeChrome, "#!/bin/sh\nexit 0\n");
+
+  for (const helperName of ["browser-screenshot", "browser-html"]) {
+    const candidateTarget = join(root, `${helperName}-candidate-target`);
+    const helper = join(localBin, helperName);
+    writeFileSync(candidateTarget, `preserve ${helperName} target\n`);
+    chmodSync(candidateTarget, 0o644);
+    symlinkSync(candidateTarget, helper);
+  }
+  writeFileSync(renderedToolsBrowser, renderToolsBrowserScript(fakeChrome));
+
+  const first = run("bash", [renderedToolsBrowser], {
+    ...process.env,
+    HOME: home,
+    PATH: "/usr/bin:/bin",
+  });
+  assert.equal(first.status, 0, first.stderr);
+  for (const helperName of ["browser-screenshot", "browser-html"]) {
+    const candidateTarget = join(root, `${helperName}-candidate-target`);
+    const helper = join(localBin, helperName);
+    assert.equal(readFileSync(candidateTarget, "utf8"), `preserve ${helperName} target\n`);
+    assert.equal(statSync(candidateTarget).mode & 0o777, 0o644);
+    assert.equal(lstatSync(helper).isSymbolicLink(), false);
+    assert.equal(statSync(helper).mode & 0o777, 0o755);
+    assert.match(readFileSync(helper, "utf8"), /hive-managed-browser-helper:v1/);
+  }
+
+  const second = run("bash", [renderedToolsBrowser], {
+    ...process.env,
+    HOME: home,
+    PATH: "/usr/bin:/bin",
+  });
+  assert.equal(second.status, 0, second.stderr);
+});
+
 test("init atomically replaces linked MCP configs without touching their targets", () => {
   const root = mkdtempSync(join(tmpdir(), "technical-interview-init-mcp-links-"));
   const home = join(root, "home");
@@ -596,6 +699,35 @@ test("init atomically replaces linked MCP configs without touching their targets
       "playwright-mcp",
     ),
     true,
+  );
+});
+
+test("init rejects linked MCP configuration directories without touching their targets", () => {
+  const fixture = createFixture();
+  const codexTarget = join(fixture.root, "candidate-codex-directory");
+  const claudeTarget = join(fixture.root, "candidate-claude-directory");
+  mkdirSync(codexTarget);
+  mkdirSync(claudeTarget);
+  writeFileSync(join(codexTarget, "candidate.txt"), "preserve codex directory\n");
+  writeFileSync(join(claudeTarget, "candidate.txt"), "preserve claude directory\n");
+  symlinkSync(codexTarget, join(fixture.home, ".codex"));
+  symlinkSync(claudeTarget, join(fixture.home, ".claude"));
+
+  const init = runInit(fixture.root, fixture.home);
+  assert.equal(init.status, 0, init.stderr);
+  assert.match(init.stderr, /unsafe Codex configuration directory/);
+  assert.match(init.stderr, /unsafe MCP configuration directory/);
+  assert.equal(lstatSync(join(fixture.home, ".codex")).isSymbolicLink(), true);
+  assert.equal(lstatSync(join(fixture.home, ".claude")).isSymbolicLink(), true);
+  assert.deepEqual(readdirSync(codexTarget), ["candidate.txt"]);
+  assert.deepEqual(readdirSync(claudeTarget), ["candidate.txt"]);
+
+  installHelpers(fixture);
+  const check = run(join(fixture.home, ".local", "bin", "interview-check"), [], fixture.env);
+  assert.equal(check.status, 1);
+  assert.match(
+    `${check.stdout}\n${check.stderr}`,
+    /\[FAIL\] managed MCP configuration directories are local/,
   );
 });
 
@@ -971,6 +1103,33 @@ test("setup refreshes frontend dependencies when the Node runtime ABI changes", 
   assert.equal((readFileSync(fixture.calls, "utf8").match(/npm-install/g) ?? []).length, 2);
 });
 
+test("setup repairs an incomplete frontend dependency tree with a current hash", () => {
+  const fixture = createFixture();
+  installHelpers(fixture);
+  const setup = join(fixture.home, ".local", "bin", "interview-setup");
+
+  const first = run(setup, [], fixture.env);
+  assert.equal(first.status, 0, first.stderr);
+  assert.equal((readFileSync(fixture.calls, "utf8").match(/npm-install/g) ?? []).length, 1);
+
+  const incompleteMarker = join(
+    fixture.interviewRepository,
+    "frontend",
+    "node_modules",
+    ".hive-fixture-incomplete",
+  );
+  writeFileSync(incompleteMarker, "simulate an interrupted dependency installation\n");
+  const repaired = run(setup, [], fixture.env);
+  assert.equal(repaired.status, 0, repaired.stderr);
+  assert.match(repaired.stdout, /Installing frontend dependencies/);
+  assert.equal(existsSync(incompleteMarker), false);
+  assert.equal((readFileSync(fixture.calls, "utf8").match(/npm-install/g) ?? []).length, 2);
+
+  const unchanged = run(setup, [], fixture.env);
+  assert.equal(unchanged.status, 0, unchanged.stderr);
+  assert.equal((readFileSync(fixture.calls, "utf8").match(/npm-install/g) ?? []).length, 2);
+});
+
 test("setup recreates the backend environment when the Python runtime ABI changes", () => {
   const fixture = createFixture();
   installHelpers(fixture);
@@ -1082,6 +1241,8 @@ test("GitHub auth detection rejects any valid account and accepts a missing CLI"
 
 test("readiness reports strict success and failure without network cloning", () => {
   const fixture = createFixture();
+  const init = runInit(fixture.root, fixture.home);
+  assert.equal(init.status, 0, init.stderr);
   installHelpers(fixture);
   const setup = join(fixture.home, ".local", "bin", "interview-setup");
   const start = join(fixture.home, ".local", "bin", "interview-start");
