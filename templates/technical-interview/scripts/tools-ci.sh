@@ -87,15 +87,31 @@ if [ -f "$HOME/.runcomfy-api-token" ]; then
 fi
 
 write_embedded_file() {
-  local encoded=$1 destination=$2 mode=$3 destination_directory temporary_file
+  local encoded=$1 destination=$2 mode=$3 encoding=$4 destination_directory temporary_file
 
   destination_directory="$(dirname -- "$destination")"
   ensure_interview_local_directory "$destination_directory" || return 1
   temporary_file="$(mktemp "$destination_directory/.hive-interview-input.XXXXXX")" || return 1
-  if ! printf '%s' "$encoded" | base64 -d > "$temporary_file"; then
-    rm -f -- "$temporary_file"
-    return 1
-  fi
+  case "$encoding" in
+    base64)
+      if ! printf '%s' "$encoded" | base64 -d > "$temporary_file"; then
+        rm -f -- "$temporary_file"
+        return 1
+      fi
+      ;;
+    base64gzip)
+      # Keep the rendered coder_script comfortably below Linux's per-argument
+      # exec limit as the standalone bootstrap grows.
+      if ! printf '%s' "$encoded" | base64 -d | gzip -d > "$temporary_file"; then
+        rm -f -- "$temporary_file"
+        return 1
+      fi
+      ;;
+    *)
+      rm -f -- "$temporary_file"
+      return 1
+      ;;
+  esac
   if ! chmod "$mode" "$temporary_file" \
     || ! mv -fT -- "$temporary_file" "$destination"; then
     rm -f -- "$temporary_file"
@@ -104,12 +120,12 @@ write_embedded_file() {
 }
 
 inputs_ready=true
-write_embedded_file "${clone_repositories_script_b64}" "$HOME/clone-repositories.sh" 700 \
+write_embedded_file "${clone_repositories_script_b64}" "$HOME/clone-repositories.sh" 700 base64 \
   || inputs_ready=false
-write_embedded_file "${repositories_manifest_b64}" "$HOME/repositories.txt" 600 \
+write_embedded_file "${repositories_manifest_b64}" "$HOME/repositories.txt" 600 base64 \
   || inputs_ready=false
-write_embedded_file "${bootstrap_script_b64}" \
-  "$HOME/.local/libexec/hive/interview-bootstrap" 700 \
+write_embedded_file "${bootstrap_script_b64gzip}" \
+  "$HOME/.local/libexec/hive/interview-bootstrap" 700 base64gzip \
   || inputs_ready=false
 
 if [ "$inputs_ready" != true ]; then

@@ -160,7 +160,7 @@ resource "coder_script" "tools_ci" {
   script = templatefile("${path.module}/scripts/tools-ci.sh", {
     clone_repositories_script_b64 = base64encode(file("${path.module}/scripts/clone-repositories.sh"))
     repositories_manifest_b64     = base64encode(file("${path.module}/repositories.txt"))
-    bootstrap_script_b64          = base64encode(file("${path.module}/bootstrap.sh"))
+    bootstrap_script_b64gzip      = base64gzip(file("${path.module}/bootstrap.sh"))
   })
 }
 

@@ -21,6 +21,7 @@ import {
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import test from "node:test";
+import { gzipSync } from "node:zlib";
 
 const repositoryRoot = process.cwd();
 const templateRoot = join(repositoryRoot, "templates", "technical-interview");
@@ -163,7 +164,10 @@ function renderToolsCiScript(cloneContents, manifestContents, bootstrapContents)
       placeholder("repositories_manifest_b64"),
       Buffer.from(manifestContents).toString("base64"),
     )
-    .replace(placeholder("bootstrap_script_b64"), Buffer.from(bootstrapContents).toString("base64"))
+    .replace(
+      placeholder("bootstrap_script_b64gzip"),
+      gzipSync(Buffer.from(bootstrapContents)).toString("base64"),
+    )
     .replaceAll("$${", "${");
 }
 
@@ -1016,6 +1020,11 @@ test("standalone Terraform exposes interview apps without personal auth modules"
   const toolsCiResource = terraform.match(
     /resource "coder_script" "tools_ci" \{([\s\S]*?)\n\}/,
   )?.[1];
+  const renderedToolsCi = renderToolsCiScript(
+    readFileSync(cloneScript, "utf8"),
+    readFileSync(join(templateRoot, "repositories.txt"), "utf8"),
+    bootstrap,
+  );
   const mainContainer = terraform
     .split('name              = "dev"')[1]
     ?.split("# This sibling container is the credential boundary.")[0];
@@ -1032,6 +1041,12 @@ test("standalone Terraform exposes interview apps without personal auth modules"
   assert.doesNotMatch(terraform, /\bBASH_ENV\b/);
   assert.doesNotMatch(terraform, /^\s+ENV\s*=/m);
   assert.doesNotMatch(terraform, /\.hive-image-seeded/);
+  assert.match(terraform, /bootstrap_script_b64gzip\s*=\s*base64gzip\(file\(/);
+  assert.match(toolsCi, /base64 -d \| gzip -d/);
+  assert.ok(
+    Buffer.byteLength(renderedToolsCi) < 120 * 1024,
+    `rendered Interview setup script exceeds the safe exec margin: ${Buffer.byteLength(renderedToolsCi)} bytes`,
+  );
   assert.equal((terraform.match(/\$\{local\.credentialless_environment\}/g) ?? []).length, 4);
   assert.match(
     terraform,
