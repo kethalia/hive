@@ -241,9 +241,11 @@ function renderInterviewClaudeScript(
   upstreamTls = true,
 ) {
   const fixtureUid = typeof process.getuid === "function" ? process.getuid() : 1000;
+  const fixtureGid = typeof process.getgid === "function" ? process.getgid() : 1000;
 
   return readFileSync(interviewClaudeScript, "utf8")
     .replace("CLIENT_UID = 1000", `CLIENT_UID = ${fixtureUid}`)
+    .replace("CLIENT_GID = 1000", `CLIENT_GID = ${fixtureGid}`)
     .replace("PROTECTED_RUNTIME_UID = 1000", `PROTECTED_RUNTIME_UID = ${fixtureUid}`)
     .replace(
       'TRUSTED_CLAUDE = Path("/opt/hive-interview-tools/claude")',
