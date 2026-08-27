@@ -161,8 +161,36 @@ if curl -fsS "http://127.0.0.1:${filebrowser_port}/health" >/dev/null 2>&1; then
 fi
 
 export FB_DATABASE="$database"
-if [ ! -f "$database" ]; then
-  "$binary" config init
+filebrowser_database_ready() {
+  local candidate_database=$1
+  [ -f "$candidate_database" ] \
+    && [ ! -L "$candidate_database" ] \
+    && FB_DATABASE="$candidate_database" "$binary" config cat >/dev/null 2>&1
+}
+
+initialize_filebrowser_database() {
+  local staging_directory staging_database
+  staging_directory="$(mktemp -d "$(dirname "$database")/.filebrowser-db.XXXXXX")" \
+    || return 1
+  staging_database="$staging_directory/filebrowser.db"
+  if ! FB_DATABASE="$staging_database" "$binary" config init \
+    || ! filebrowser_database_ready "$staging_database"; then
+    rm -rf -- "$staging_directory"
+    return 1
+  fi
+  chmod 0600 "$staging_database"
+  if ! mv -fT -- "$staging_database" "$database"; then
+    rm -rf -- "$staging_directory"
+    return 1
+  fi
+  rmdir -- "$staging_directory"
+}
+
+if ! filebrowser_database_ready "$database"; then
+  if [ -f "$database" ]; then
+    printf '[warn] Rebuilding an incomplete managed File Browser database\n' >&2
+  fi
+  initialize_filebrowser_database
 fi
 "$binary" config set \
   --address="127.0.0.1" \

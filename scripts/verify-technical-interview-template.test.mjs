@@ -1,6 +1,7 @@
 /* eslint-disable security/detect-non-literal-fs-filename -- Test paths are isolated under mkdtemp fixtures. */
 import assert from "node:assert/strict";
 import { spawn, spawnSync } from "node:child_process";
+import { createServer } from "node:http";
 import {
   chmodSync,
   existsSync,
@@ -188,6 +189,9 @@ function renderInterviewClaudeScript(
   trustedGuard,
   interviewRepository,
   interviewHome,
+  upstreamHost = "api.anthropic.com",
+  upstreamPort = 443,
+  upstreamTls = true,
 ) {
   return readFileSync(interviewClaudeScript, "utf8")
     .replace(
@@ -197,6 +201,15 @@ function renderInterviewClaudeScript(
     .replace(
       'TRUSTED_GUARD = Path("/opt/hive-interview-tools/claude-guard.so")',
       `TRUSTED_GUARD = Path("${trustedGuard}")`,
+    )
+    .replace(
+      'ANTHROPIC_UPSTREAM_HOST = "api.anthropic.com"',
+      `ANTHROPIC_UPSTREAM_HOST = "${upstreamHost}"`,
+    )
+    .replace("ANTHROPIC_UPSTREAM_PORT = 443", `ANTHROPIC_UPSTREAM_PORT = ${upstreamPort}`)
+    .replace(
+      "ANTHROPIC_UPSTREAM_TLS = True",
+      `ANTHROPIC_UPSTREAM_TLS = ${upstreamTls ? "True" : "False"}`,
     )
     .replace(
       'INTERVIEW_REPOSITORY = Path("/workspace/projects/prmsolutions/interview-template")',
@@ -226,6 +239,8 @@ function createFixture() {
   const tmuxRoot = join(root, "tmux");
   const calls = join(root, "calls.log");
   const claudeArgs = join(root, "claude-args.log");
+  const claudeBrokerResponse = join(root, "claude-broker-response.log");
+  const claudeChildEnv = join(root, "claude-child-env.log");
   const claudeProcProbe = join(root, "claude-proc-probe.log");
   const interviewRepository = join(home, "projects", "prmsolutions", "interview-template");
   mkdirSync(join(interviewRepository, "backend", "tests"), { recursive: true });
@@ -432,6 +447,11 @@ case "\${1:-}" in
           printf '#!/bin/sh\\nprintf "1.4.0\\\\n"\\n' > "$install_prefix/node_modules/@oven/bun-linux-x64/bin/bun"
           chmod 755 "$install_prefix/node_modules/@oven/bun-linux-x64/bin/bun"
           ;;
+        @vscode/ripgrep@*)
+          mkdir -p "$install_prefix/node_modules/@vscode/ripgrep-linux-x64/bin"
+          printf '#!/bin/sh\\nprintf "ripgrep 15.0.0\\\\n"\\n' > "$install_prefix/node_modules/@vscode/ripgrep-linux-x64/bin/rg"
+          chmod 755 "$install_prefix/node_modules/@vscode/ripgrep-linux-x64/bin/rg"
+          ;;
         pnpm@*)
           mkdir -p "$install_prefix/node_modules/.bin"
           printf '#!/bin/sh\\nprintf "10.32.1\\\\n"\\n' > "$install_prefix/node_modules/.bin/pnpm"
@@ -501,7 +521,9 @@ exit 0
     `#!/bin/bash
 set -euo pipefail
 if [ "\${1:-}" = "--version" ]; then printf '2.1.170 (Claude Code)\\n'; exit 0; fi
-[ "\${ANTHROPIC_API_KEY:-}" = "temporary-interview-key-should-never-persist" ]
+[ "\${ANTHROPIC_API_KEY:-}" = "hive-interview-broker-managed-non-secret" ]
+[ "\${CLAUDE_CODE_SUBPROCESS_ENV_SCRUB:-}" = "1" ]
+case "\${ANTHROPIC_BASE_URL:-}" in http://127.0.0.1:*) ;; *) exit 98 ;; esac
 ${claudeCredentialAssertions}
 [ -z "\${GH_TOKEN:-}" ]
 [ -z "\${GITHUB_TOKEN:-}" ]
@@ -523,6 +545,36 @@ ${claudeCredentialAssertions}
 [ -z "\${RUNCOMFY_API_TOKEN:-}" ]
 if /bin/cat "/proc/$$/environ" >/dev/null 2>&1; then exit 97; fi
 printf 'blocked\\n' > "${claudeProcProbe}"
+/usr/bin/env > "${claudeChildEnv}"
+/usr/bin/python3 -I - <<'PYTHON'
+import os
+import http.client
+import urllib.request
+import urllib.parse
+from pathlib import Path
+
+broker = urllib.parse.urlsplit(os.environ["ANTHROPIC_BASE_URL"])
+connection = http.client.HTTPConnection(broker.hostname, broker.port, timeout=10)
+connection.request("POST", "http://attacker.invalid/v1/messages", body=b"{}")
+blocked = connection.getresponse()
+assert blocked.status == 403
+blocked.read()
+connection.close()
+
+request = urllib.request.Request(
+    os.environ["ANTHROPIC_BASE_URL"] + "/v1/messages?fixture=1",
+    data=b'{"fixture":true}',
+    headers={
+        "Anthropic-Version": "2023-06-01",
+        "Authorization": "Bearer candidate-controlled",
+        "Content-Type": "application/json",
+        "X-Api-Key": "candidate-controlled",
+    },
+    method="POST",
+)
+with urllib.request.urlopen(request, timeout=10) as response:
+    Path("${claudeBrokerResponse}").write_bytes(response.read())
+PYTHON
 printf '<%s>\\n' "$@" > "${claudeArgs}"
 `,
   );
@@ -681,6 +733,8 @@ esac
     calls,
     claudeStatus,
     claudeArgs,
+    claudeBrokerResponse,
+    claudeChildEnv,
     claudeProcProbe,
     commit,
     env,
@@ -804,13 +858,20 @@ test("standalone Terraform exposes interview apps without personal auth modules"
   assert.match(interviewClaude, /PR_SET_DUMPABLE = 4/);
   assert.match(interviewClaude, /libc\.prctl\(PR_SET_DUMPABLE, 0/);
   assert.match(interviewClaude, /subprocess\.Popen\(/);
-  assert.doesNotMatch(interviewClaude, /environment\["ANTHROPIC_API_KEY"\]/);
+  assert.match(interviewClaude, /ANTHROPIC_UPSTREAM_HOST = "api\.anthropic\.com"/);
+  assert.match(interviewClaude, /ANTHROPIC_UPSTREAM_TLS = True/);
+  assert.match(interviewClaude, /ALLOWED_ANTHROPIC_REQUESTS/);
+  assert.match(interviewClaude, /\("POST", "\/v1\/messages"\)/);
+  assert.match(interviewClaude, /\("POST", "\/v1\/messages\/count_tokens"\)/);
+  assert.match(interviewClaude, /forwarded_headers\["X-Api-Key"\]/);
+  assert.match(interviewClaude, /environment\["ANTHROPIC_API_KEY"\] = BROKER_PLACEHOLDER_KEY/);
+  assert.match(interviewClaude, /environment\["ANTHROPIC_BASE_URL"\]/);
+  assert.match(interviewClaude, /environment\["CLAUDE_CODE_SUBPROCESS_ENV_SCRUB"\] = "1"/);
+  assert.doesNotMatch(interviewClaude, /environment\["ANTHROPIC_API_KEY"\] = key/);
   assert.match(claudeGuard, /prctl\(PR_SET_DUMPABLE, 0/);
-  assert.match(claudeGuard, /setenv\("ANTHROPIC_API_KEY", key, 1\)/);
-  assert.match(
-    claudeGuard,
-    /prctl\(PR_SET_DUMPABLE, 0[\s\S]*write\(ready_descriptor, "R", 1\)[\s\S]*setenv\("ANTHROPIC_API_KEY"/,
-  );
+  assert.match(claudeGuard, /ssize_t diagnostic_result = write\(/);
+  assert.doesNotMatch(claudeGuard, /setenv\("ANTHROPIC_API_KEY"/);
+  assert.doesNotMatch(claudeGuard, /HIVE_INTERVIEW_KEY_FD/);
   assert.doesNotMatch(interviewClaude, /command -v claude|exec claude/);
   assert.match(initClaude, /PATH="\/usr\/local\/sbin:[^"]+"/);
   assert.match(initClaude, /isolated-claude-agent-ready-v2/);
@@ -1642,7 +1703,14 @@ set -euo pipefail
 [ -z "\${CODER_AGENT_TOKEN:-}" ]
 ${claudeCredentialAssertions}
 case "\${1:-}" in
-  config|users) exit 0 ;;
+  config)
+    case "\${2:-}" in
+      init) printf 'valid-database\\n' > "$FB_DATABASE" ;;
+      cat|set) [ -f "$FB_DATABASE" ] ;;
+      *) exit 2 ;;
+    esac
+    ;;
+  users) exit 0 ;;
   *) : > "$FAKE_FILEBROWSER_RUNNING" ;;
 esac
 FILEBROWSER
@@ -1679,6 +1747,75 @@ chmod 755 "$destination/filebrowser"
   assert.equal(statSync(logFile).mode & 0o777, 0o600);
   assert.equal(statSync(versionMarker).mode & 0o777, 0o600);
   assert.equal(readFileSync(versionMarker, "utf8"), "2.63.18\n");
+});
+
+test("File Browser atomically rebuilds an interrupted managed database", () => {
+  const root = mkdtempSync(join(tmpdir(), "technical-interview-filebrowser-repair-"));
+  const home = join(root, "home");
+  const bin = join(root, "bin");
+  const localBin = join(home, ".local", "bin");
+  const localShare = join(home, ".local", "share");
+  const database = join(home, ".config", "filebrowser", "filebrowser.db");
+  const calls = join(root, "filebrowser-calls.log");
+  const runningMarker = join(root, "filebrowser-running");
+  const renderedToolsFilebrowser = join(root, "rendered-tools-filebrowser.sh");
+  mkdirSync(dirname(database), { recursive: true });
+  mkdirSync(localBin, { recursive: true });
+  mkdirSync(localShare, { recursive: true });
+  mkdirSync(bin, { recursive: true });
+  writeFileSync(database, "partial database\n");
+  writeFileSync(join(localShare, "filebrowser-version"), "2.63.18\n");
+  executable(
+    join(localBin, "filebrowser"),
+    `#!/bin/bash
+set -euo pipefail
+case "\${1:-}" in
+  config)
+    case "\${2:-}" in
+      cat) grep -q '^valid-database$' "$FB_DATABASE" ;;
+      init)
+        printf 'valid-database\\n' > "$FB_DATABASE"
+        printf 'init\\n' >> "${calls}"
+        ;;
+      set) grep -q '^valid-database$' "$FB_DATABASE" ;;
+      *) exit 2 ;;
+    esac
+    ;;
+  users) exit 0 ;;
+  *) : > "${runningMarker}" ;;
+esac
+`,
+  );
+  executable(
+    join(bin, "curl"),
+    `#!/bin/bash
+set -euo pipefail
+if [[ "$*" == *'/health'* ]]; then
+  [ -f "${runningMarker}" ]
+elif [[ "$*" == *'/api/login'* ]]; then
+  [ -f "${runningMarker}" ] && printf '200' || printf '000'
+else
+  exit 2
+fi
+`,
+  );
+  writeFileSync(renderedToolsFilebrowser, renderToolsFilebrowserScript(`${bin}:/usr/bin:/bin`));
+
+  const result = run("bash", [renderedToolsFilebrowser], {
+    ...process.env,
+    HIVE_PROJECTS_ROOT: home,
+    HOME: home,
+    PATH: `${bin}:/usr/bin:/bin`,
+  });
+  assert.equal(result.status, 0, result.stderr);
+  assert.match(result.stderr, /Rebuilding an incomplete managed File Browser database/);
+  assert.equal(readFileSync(database, "utf8"), "valid-database\n");
+  assert.equal(statSync(database).mode & 0o777, 0o600);
+  assert.equal(readFileSync(calls, "utf8"), "init\n");
+  assert.equal(
+    readdirSync(dirname(database)).some((name) => name.startsWith(".filebrowser-db.")),
+    false,
+  );
 });
 
 test("File Browser rejects a linked database without touching its target", () => {
@@ -2252,6 +2389,49 @@ test("bootstrap replaces stale Hive-managed tools with the pinned versions", () 
   assert.match(readFileSync(fixture.calls, "utf8"), /tool-install:@openai\/codex@0\.149\.1/);
 });
 
+test("bootstrap reinstalls an unusable managed ripgrep package", () => {
+  const fixture = createFixture();
+  const localBin = join(fixture.home, ".local", "bin");
+  const toolRoot = join(
+    fixture.home,
+    ".local",
+    "state",
+    "hive",
+    "technical-interview",
+    "ripgrep-1.18.0",
+  );
+  const packagedRipgrep = join(
+    toolRoot,
+    "node_modules",
+    "@vscode",
+    "ripgrep-linux-x64",
+    "bin",
+    "rg",
+  );
+  const staleMarker = join(toolRoot, "interrupted-install");
+  unlinkSync(join(fixture.bin, "rg"));
+  mkdirSync(dirname(packagedRipgrep), { recursive: true });
+  executable(packagedRipgrep, "#!/bin/sh\nexit 1\n");
+  writeFileSync(staleMarker, "must be replaced\n");
+  symlinkSync(packagedRipgrep, join(localBin, "rg"));
+
+  installHelpers(fixture);
+  assert.equal(run(join(localBin, "rg"), ["--version"], fixture.env).status, 0);
+  assert.equal(existsSync(staleMarker), false);
+  assert.equal(
+    (readFileSync(fixture.calls, "utf8").match(/tool-install:@vscode\/ripgrep@1\.18\.0/g) ?? [])
+      .length,
+    1,
+  );
+
+  installHelpers(fixture);
+  assert.equal(
+    (readFileSync(fixture.calls, "utf8").match(/tool-install:@vscode\/ripgrep@1\.18\.0/g) ?? [])
+      .length,
+    1,
+  );
+});
+
 test("bootstrap preserves unexpected user tools as an explicit readiness failure", () => {
   const fixture = createFixture();
   const localBin = join(fixture.home, ".local", "bin");
@@ -2311,6 +2491,23 @@ test("setup repairs and reuses an incomplete pinned virtualenv fallback", () => 
     (readFileSync(fixture.calls, "utf8").match(/virtualenv-fallback-install/g) ?? []).length,
     1,
   );
+});
+
+test("setup recreates a partial managed backend virtual environment", () => {
+  const fixture = createFixture();
+  installHelpers(fixture);
+  const setup = join(fixture.home, ".local", "bin", "interview-setup");
+  const backendVenv = join(fixture.interviewRepository, "backend", ".venv");
+  const partialMarker = join(backendVenv, "interrupted-creation");
+  mkdirSync(backendVenv, { recursive: true });
+  writeFileSync(partialMarker, "must be replaced\n");
+
+  const result = run(setup, [], fixture.env);
+  assert.equal(result.status, 0, result.stderr);
+  assert.match(result.stdout, /after an interrupted creation/);
+  assert.equal(existsSync(partialMarker), false);
+  assert.equal(statSync(join(backendVenv, "bin", "python")).mode & 0o111, 0o111);
+  assert.equal((readFileSync(fixture.calls, "utf8").match(/pip-install/g) ?? []).length, 1);
 });
 
 test("setup hashes dependencies, reinstalls only on manifest changes, and preserves dirty work", () => {
@@ -2773,7 +2970,7 @@ test("readiness reports strict success and failure without network cloning", () 
   }
 });
 
-test("interview-claude masks and scopes the temporary key without persisting it", async (t) => {
+test("interview-claude brokers the masked key without exposing it to Claude children", async (t) => {
   if (!existsSync("/usr/bin/script")) {
     t.skip("util-linux script command is unavailable");
     return;
@@ -2782,6 +2979,47 @@ test("interview-claude masks and scopes the temporary key without persisting it"
   installHelpers(fixture);
   const helper = fixture.trustedClaudeLauncher;
   const fakeKey = "temporary-interview-key-should-never-persist";
+  let capturedRequest;
+  const upstream = createServer((request, response) => {
+    const chunks = [];
+    request.on("data", (chunk) => chunks.push(chunk));
+    request.on("end", () => {
+      capturedRequest = {
+        body: Buffer.concat(chunks).toString("utf8"),
+        headers: request.headers,
+        method: request.method,
+        url: request.url,
+      };
+      response.writeHead(200, { "Content-Type": "application/json" });
+      response.end('{"broker":"ok"}');
+    });
+  });
+  await new Promise((resolve, reject) => {
+    upstream.once("error", reject);
+    upstream.listen(0, "127.0.0.1", resolve);
+  });
+  t.after(
+    () =>
+      new Promise((resolve) => {
+        upstream.close(resolve);
+      }),
+  );
+  const upstreamAddress = upstream.address();
+  assert.equal(typeof upstreamAddress, "object");
+  chmodSync(helper, 0o755);
+  writeFileSync(
+    helper,
+    renderInterviewClaudeScript(
+      join(fixture.bin, "claude"),
+      fixture.trustedClaudeGuard,
+      fixture.interviewRepository,
+      fixture.home,
+      "127.0.0.1",
+      upstreamAddress.port,
+      false,
+    ),
+  );
+  chmodSync(helper, 0o555);
   const pathHijackMarker = join(fixture.root, "candidate-claude-ran");
   executable(
     join(fixture.home, ".local", "bin", "claude"),
@@ -2842,12 +3080,24 @@ test("interview-claude masks and scopes the temporary key without persisting it"
   assert.doesNotMatch(result.stdout, new RegExp(fakeKey));
   assert.doesNotMatch(result.stderr, new RegExp(fakeKey));
   assert.equal(existsSync(pathHijackMarker), false);
+  assert.equal(capturedRequest?.body, '{"fixture":true}');
+  assert.equal(capturedRequest?.method, "POST");
+  assert.equal(capturedRequest?.url, "/v1/messages?fixture=1");
+  assert.equal(capturedRequest?.headers["x-api-key"], fakeKey);
+  assert.equal(capturedRequest?.headers.authorization, undefined);
+  assert.equal(capturedRequest?.headers.host, "127.0.0.1");
+  assert.equal(capturedRequest?.headers["anthropic-version"], "2023-06-01");
+  assert.equal(readFileSync(fixture.claudeBrokerResponse, "utf8"), '{"broker":"ok"}');
+  const childEnvironment = readFileSync(fixture.claudeChildEnv, "utf8");
+  assert.doesNotMatch(childEnvironment, new RegExp(fakeKey));
+  assert.match(childEnvironment, /ANTHROPIC_API_KEY=hive-interview-broker-managed-non-secret/);
+  assert.match(childEnvironment, /CLAUDE_CODE_SUBPROCESS_ENV_SCRUB=1/);
   assert.equal(readFileSync(fixture.claudeProcProbe, "utf8"), "blocked\n");
   assert.equal(
     readFileSync(fixture.claudeArgs, "utf8"),
     "<--model>\n<test-model>\n<argument with spaces>\n",
   );
-  for (const path of filesRecursively(fixture.home)) {
+  for (const path of filesRecursively(fixture.root)) {
     assert.equal(
       readFileSync(path).includes(Buffer.from(fakeKey)),
       false,

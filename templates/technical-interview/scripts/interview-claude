@@ -1,15 +1,20 @@
 #!/usr/bin/python3 -I
-# hive-managed-interview-claude:v2
-"""Launch Claude with a temporary key inside a non-dumpable process."""
+# hive-managed-interview-claude:v3
+"""Launch Claude through a protected, fixed-destination credential broker."""
 
 import ctypes
 import fcntl
+import http.client
+import http.server
 import os
 import re
+import ssl
 import stat
 import subprocess
 import sys
 import termios
+import threading
+import urllib.parse
 from pathlib import Path
 from typing import NoReturn
 
@@ -25,6 +30,27 @@ EXPECTED_ORIGINS = {
 }
 TRUSTED_CLAUDE = Path("/opt/hive-interview-tools/claude")
 TRUSTED_GUARD = Path("/opt/hive-interview-tools/claude-guard.so")
+ANTHROPIC_UPSTREAM_HOST = "api.anthropic.com"
+ANTHROPIC_UPSTREAM_PORT = 443
+ANTHROPIC_UPSTREAM_TLS = True
+BROKER_PLACEHOLDER_KEY = "hive-interview-broker-managed-non-secret"
+MAX_REQUEST_BYTES = 64 * 1024 * 1024
+ALLOWED_ANTHROPIC_REQUESTS = {
+    ("GET", "/v1/models"),
+    ("POST", "/v1/messages"),
+    ("POST", "/v1/messages/count_tokens"),
+}
+HOP_BY_HOP_HEADERS = {
+    "connection",
+    "expect",
+    "keep-alive",
+    "proxy-authenticate",
+    "proxy-authorization",
+    "te",
+    "trailer",
+    "transfer-encoding",
+    "upgrade",
+}
 UNSAFE_GIT_CONFIG = re.compile(
     r"^(credential($|\.)|http\..*(extraheader|proxy|cookiefile|savecookies|sslcert|sslkey)$|"
     r"core\.(attributesfile|fsmonitor|gitproxy|sshcommand)$|"
@@ -50,7 +76,7 @@ def make_process_nondumpable() -> None:
     ]
     libc.prctl.restype = ctypes.c_int
     if libc.prctl(PR_SET_DUMPABLE, 0, 0, 0, 0) != 0:
-        fail("Unable to establish the protected Claude credential process.")
+        fail("Unable to establish the protected Claude credential broker.")
 
 
 def regular_executable(path: Path) -> bool:
@@ -138,7 +164,7 @@ def verify_repository(environment: dict[str, str]) -> None:
         fail("Expected interview repository has the wrong origin.")
 
 
-def read_temporary_key() -> str:
+def read_temporary_key() -> bytearray:
     try:
         terminal = os.open("/dev/tty", os.O_RDWR)
     except OSError:
@@ -165,69 +191,170 @@ def read_temporary_key() -> str:
             else:
                 fail("The temporary API key is unexpectedly long.")
         finally:
-            termios.tcsetattr(terminal, termios.TCSADRAIN, original)
-            os.write(terminal, b"\n")
+            if original is not None:
+                termios.tcsetattr(terminal, termios.TCSADRAIN, original)
+                os.write(terminal, b"\n")
             try:
                 fcntl.ioctl(terminal, TIOCNXCL)
             except OSError:
                 pass
     finally:
         os.close(terminal)
-    try:
-        key = key_bytes.decode("utf-8")
-    except UnicodeDecodeError:
-        fail("The temporary API key is not valid text.")
-    if not key:
+    if not key_bytes:
         fail("No API key was provided.")
-    return key
+    if any(character < 0x21 or character > 0x7E for character in key_bytes):
+        fail("The temporary API key contains invalid characters.")
+    return key_bytes
 
 
-def launch_claude(arguments: list[str], environment: dict[str, str], key: str) -> int:
-    key_payload = bytearray(key.encode("utf-8"))
-    key_read_descriptor, key_write_descriptor = os.pipe2(os.O_CLOEXEC)
-    ready_read_descriptor, ready_write_descriptor = os.pipe2(os.O_CLOEXEC)
-    environment["HIVE_INTERVIEW_KEY_FD"] = str(key_read_descriptor)
-    environment["HIVE_INTERVIEW_READY_FD"] = str(ready_write_descriptor)
+class AnthropicBroker(http.server.ThreadingHTTPServer):
+    allow_reuse_address = False
+    daemon_threads = True
+
+    def __init__(self, api_key: bytearray) -> None:
+        super().__init__(("127.0.0.1", 0), AnthropicBrokerHandler)
+        self.api_key = api_key
+
+
+class AnthropicBrokerHandler(http.server.BaseHTTPRequestHandler):
+    protocol_version = "HTTP/1.0"
+    server_version = "HiveInterviewBroker"
+    sys_version = ""
+
+    def log_message(self, _format: str, *_arguments: object) -> None:
+        return
+
+    def do_GET(self) -> None:
+        self.forward_request()
+
+    def do_POST(self) -> None:
+        self.forward_request()
+
+    def do_CONNECT(self) -> None:
+        self.send_error(405, "CONNECT is not permitted")
+
+    def forward_request(self) -> None:
+        parsed = urllib.parse.urlsplit(self.path)
+        if (
+            parsed.scheme
+            or parsed.netloc
+            or (self.command, parsed.path) not in ALLOWED_ANTHROPIC_REQUESTS
+        ):
+            self.send_error(403, "Only required Anthropic API requests are permitted")
+            return
+        if self.headers.get("Transfer-Encoding") is not None:
+            self.send_error(400, "Transfer-Encoding is not supported")
+            return
+        content_lengths = self.headers.get_all("Content-Length", failobj=[])
+        if len(content_lengths) > 1:
+            self.send_error(400, "Ambiguous Content-Length")
+            return
+        try:
+            content_length = int(content_lengths[0]) if content_lengths else 0
+        except ValueError:
+            self.send_error(400, "Invalid Content-Length")
+            return
+        if content_length < 0 or content_length > MAX_REQUEST_BYTES:
+            self.send_error(413, "Request body is too large")
+            return
+        request_body = self.rfile.read(content_length)
+        if len(request_body) != content_length:
+            self.send_error(400, "Incomplete request body")
+            return
+
+        forwarded_headers: dict[str, str] = {}
+        for name, value in self.headers.items():
+            lowered = name.lower()
+            if (
+                lowered in HOP_BY_HOP_HEADERS
+                or lowered in {"authorization", "host", "x-api-key"}
+                or lowered.startswith("x-forwarded-")
+            ):
+                continue
+            forwarded_headers[name] = value
+        forwarded_headers["Host"] = ANTHROPIC_UPSTREAM_HOST
+        forwarded_headers["X-Api-Key"] = bytes(self.server.api_key).decode("ascii")
+        forwarded_headers["Content-Length"] = str(content_length)
+
+        if ANTHROPIC_UPSTREAM_TLS:
+            connection = http.client.HTTPSConnection(
+                ANTHROPIC_UPSTREAM_HOST,
+                ANTHROPIC_UPSTREAM_PORT,
+                timeout=660,
+                context=ssl.create_default_context(),
+            )
+        else:
+            connection = http.client.HTTPConnection(
+                ANTHROPIC_UPSTREAM_HOST,
+                ANTHROPIC_UPSTREAM_PORT,
+                timeout=660,
+            )
+        response_started = False
+        try:
+            target = urllib.parse.urlunsplit(("", "", parsed.path, parsed.query, ""))
+            connection.request(
+                self.command,
+                target,
+                body=request_body,
+                headers=forwarded_headers,
+            )
+            response = connection.getresponse()
+            self.send_response_only(response.status, response.reason)
+            for name, value in response.getheaders():
+                if name.lower() not in HOP_BY_HOP_HEADERS:
+                    self.send_header(name, value)
+            self.send_header("Connection", "close")
+            self.end_headers()
+            response_started = True
+            while True:
+                chunk = response.read(64 * 1024)
+                if not chunk:
+                    break
+                self.wfile.write(chunk)
+                self.wfile.flush()
+        except (OSError, http.client.HTTPException, ssl.SSLError):
+            if not response_started and not self.wfile.closed:
+                self.send_error(502, "Anthropic API request failed")
+        finally:
+            connection.close()
+            self.close_connection = True
+
+
+def launch_claude(arguments: list[str], environment: dict[str, str], key: bytearray) -> int:
+    try:
+        broker = AnthropicBroker(key)
+    except OSError:
+        fail("Unable to establish the protected Anthropic credential broker.")
+    broker_thread = threading.Thread(target=broker.serve_forever, daemon=True)
+    broker_thread.start()
+
+    environment["ANTHROPIC_API_KEY"] = BROKER_PLACEHOLDER_KEY
+    environment["ANTHROPIC_BASE_URL"] = f"http://127.0.0.1:{broker.server_port}"
+    environment["CLAUDE_CODE_SUBPROCESS_ENV_SCRUB"] = "1"
     environment["LD_PRELOAD"] = str(TRUSTED_GUARD)
     try:
-        process = subprocess.Popen(
-            [str(TRUSTED_CLAUDE), *arguments],
-            cwd=INTERVIEW_REPOSITORY,
-            env=environment,
-            pass_fds=(key_read_descriptor, ready_write_descriptor),
-        )
-    except OSError:
-        os.close(key_read_descriptor)
-        os.close(key_write_descriptor)
-        os.close(ready_read_descriptor)
-        os.close(ready_write_descriptor)
-        fail("Unable to execute the read-only Claude Code binary.")
-    os.close(key_read_descriptor)
-    os.close(ready_write_descriptor)
-    try:
-        protected = os.read(ready_read_descriptor, 1)
-        if protected != b"R":
-            process.terminate()
-            fail("Claude Code did not establish its credential boundary.")
-        written = 0
-        while written < len(key_payload):
-            written += os.write(key_write_descriptor, key_payload[written:])
-    except OSError:
-        process.terminate()
-        fail("Unable to deliver the temporary key to protected Claude Code.")
-    finally:
-        os.close(ready_read_descriptor)
-        os.close(key_write_descriptor)
-        for index in range(len(key_payload)):
-            key_payload[index] = 0
-
-    while True:
         try:
-            return_code = process.wait()
-            break
-        except KeyboardInterrupt:
-            continue
-    return return_code if return_code >= 0 else 128 - return_code
+            process = subprocess.Popen(
+                [str(TRUSTED_CLAUDE), *arguments],
+                cwd=INTERVIEW_REPOSITORY,
+                env=environment,
+            )
+        except OSError:
+            fail("Unable to execute the read-only Claude Code binary.")
+
+        while True:
+            try:
+                return_code = process.wait()
+                break
+            except KeyboardInterrupt:
+                continue
+        return return_code if return_code >= 0 else 128 - return_code
+    finally:
+        broker.shutdown()
+        broker.server_close()
+        broker_thread.join(timeout=5)
+        for index in range(len(key)):
+            key[index] = 0
 
 
 def main() -> None:

@@ -5,8 +5,8 @@ umask 022
 
 # This script runs in an init container before the persistent home is mounted.
 # Copy the image-baked Claude executable into a pod-local volume which the
-# workspace container mounts read-only. The temporary interview key is then
-# exposed only to this immutable copy, never to a candidate-writable PATH entry.
+# workspace container mounts read-only. The immutable launcher keeps the
+# temporary key in its protected broker rather than exposing it to Claude.
 image_claude_link="/home/coder/.local/bin/claude"
 trusted_tools_dir="/trusted-tools"
 trusted_claude="$trusted_tools_dir/claude"
@@ -18,7 +18,7 @@ if [ -z "${HIVE_INTERVIEW_CLAUDE_HELPER_B64:-}" ]; then
   exit 1
 fi
 if [ -z "${HIVE_INTERVIEW_CLAUDE_GUARD_B64:-}" ]; then
-  printf '[error] trusted Claude credential guard payload is missing\n' >&2
+  printf '[error] trusted Claude process guard payload is missing\n' >&2
   exit 1
 fi
 
@@ -86,4 +86,4 @@ temporary_helper=""
 temporary_guard=""
 trap - EXIT HUP INT TERM
 
-printf '[ok] staged image-baked Claude, launcher, and credential guard for read-only mounts\n'
+printf '[ok] staged image-baked Claude, credential broker, and process guard for read-only mounts\n'

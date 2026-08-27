@@ -864,13 +864,16 @@ interview_claude_ready() {
     && [ -f "$INTERVIEW_CLAUDE_LAUNCHER" ] \
     && [ ! -L "$INTERVIEW_CLAUDE_LAUNCHER" ] \
     && [ -x "$INTERVIEW_CLAUDE_LAUNCHER" ] \
-    && grep -qF '# hive-managed-interview-claude:v2' "$INTERVIEW_CLAUDE_LAUNCHER" \
+    && grep -qF '# hive-managed-interview-claude:v3' "$INTERVIEW_CLAUDE_LAUNCHER" \
     && grep -qF 'INTERVIEW_REPOSITORY = Path("/workspace/projects/prmsolutions/interview-template")' \
       "$INTERVIEW_CLAUDE_LAUNCHER" \
     && grep -qF 'TRUSTED_CLAUDE = Path("/opt/hive-interview-tools/claude")' \
       "$INTERVIEW_CLAUDE_LAUNCHER" \
     && grep -qF 'TRUSTED_GUARD = Path("/opt/hive-interview-tools/claude-guard.so")' \
       "$INTERVIEW_CLAUDE_LAUNCHER" \
+    && grep -qF 'ANTHROPIC_UPSTREAM_HOST = "api.anthropic.com"' \
+      "$INTERVIEW_CLAUDE_LAUNCHER" \
+    && grep -qF 'CLAUDE_CODE_SUBPROCESS_ENV_SCRUB' "$INTERVIEW_CLAUDE_LAUNCHER" \
     && grep -qF 'PR_SET_DUMPABLE = 4' "$INTERVIEW_CLAUDE_LAUNCHER" \
     && [ -f "$INTERVIEW_CLAUDE_BIN" ] \
     && [ ! -L "$INTERVIEW_CLAUDE_BIN" ] \
@@ -1145,9 +1148,12 @@ interview_create_backend_venv() {
 
 if [ ! -x "$INTERVIEW_VENV/bin/python" ]; then
   if [ -e "$INTERVIEW_VENV" ] || [ -L "$INTERVIEW_VENV" ]; then
-    interview_error "Preserving an existing but unusable backend virtual environment: $INTERVIEW_VENV"
-    interview_error "Move it aside manually after reviewing it, then rerun interview-setup."
-    exit 1
+    if [ -L "$INTERVIEW_VENV" ] || [ ! -d "$INTERVIEW_VENV" ]; then
+      interview_error "Preserving an unsafe backend virtual environment: $INTERVIEW_VENV"
+      exit 1
+    fi
+    interview_ok "Recreating the managed backend virtual environment after an interrupted creation"
+    rm -rf -- "$INTERVIEW_VENV"
   fi
 
   interview_create_backend_venv
@@ -1717,7 +1723,7 @@ fi
   printf -- '- `interview-stop` — stop only the interview session\n'
   printf -- '- `interview-status` — show non-secret state\n'
   printf -- '- `interview-check` — rerun this strict readiness check\n'
-  printf -- '- **Interview Claude** Coder app — run the fixed non-dumpable launcher in the isolated credential container\n'
+  printf -- '- **Interview Claude** Coder app — run the fixed launcher and protected Anthropic request broker in the isolated credential container\n'
   printf '\n## Credential state\n\n'
   printf 'Only credential names are reported; values are never recorded. Required pre-interview state: '
   printf 'Anthropic API/auth and Claude OAuth credentials, GitHub, Coder agent/session, Git/SSH transport, Realm, and RunComfy credentials absent; GitHub and Coder CLIs unauthenticated.\n'
@@ -1755,10 +1761,10 @@ install_interview_ripgrep() {
   local managed_binary="$interview_bin_dir/rg"
   local tool_root="$interview_state_dir/ripgrep-$interview_ripgrep_version"
   local packaged_binary="$tool_root/node_modules/@vscode/ripgrep-linux-x64/bin/rg"
-  local system_binary
+  local existing_target system_binary
 
   for system_binary in /usr/bin/rg /usr/local/bin/rg; do
-    if [ -x "$system_binary" ]; then
+    if [ -x "$system_binary" ] && "$system_binary" --version >/dev/null 2>&1; then
       if [ -L "$managed_binary" ] \
         && [[ "$(readlink "$managed_binary")" == "$interview_state_dir"/ripgrep-* ]]; then
         rm -f -- "$managed_binary"
@@ -1770,13 +1776,25 @@ install_interview_ripgrep() {
   if command -v rg >/dev/null 2>&1; then
     return 0
   fi
-  if [ -e "$managed_binary" ] || [ -L "$managed_binary" ]; then
+  if [ -L "$managed_binary" ]; then
+    existing_target="$(readlink -- "$managed_binary")"
+    if [ "$existing_target" != "$packaged_binary" ]; then
+      interview_warn "Preserving unexpected rg command at $managed_binary"
+      return 1
+    fi
+    if [ -x "$packaged_binary" ] && "$packaged_binary" --version >/dev/null 2>&1; then
+      return 0
+    fi
+    rm -f -- "$managed_binary"
+  elif [ -e "$managed_binary" ]; then
     interview_warn "Preserving unexpected rg command at $managed_binary"
     return 1
   fi
   interview_ensure_local_directory "$tool_root" || return 1
-  if [ ! -x "$packaged_binary" ]; then
+  if [ ! -x "$packaged_binary" ] || ! "$packaged_binary" --version >/dev/null 2>&1; then
     command -v npm >/dev/null 2>&1 || return 1
+    rm -rf -- "$tool_root"
+    interview_ensure_local_directory "$tool_root" || return 1
     npm install \
       --prefix "$tool_root" \
       --ignore-scripts \
@@ -1786,8 +1804,10 @@ install_interview_ripgrep() {
       --no-save \
       "@vscode/ripgrep@$interview_ripgrep_version" >/dev/null
   fi
-  [ -x "$packaged_binary" ] || return 1
-  ln -s "$packaged_binary" "$managed_binary"
+  if [ ! -x "$packaged_binary" ] || ! "$packaged_binary" --version >/dev/null 2>&1; then
+    return 1
+  fi
+  ln -s -- "$packaged_binary" "$managed_binary"
   "$managed_binary" --version >/dev/null 2>&1
 }
 

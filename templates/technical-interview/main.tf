@@ -125,10 +125,10 @@ resource "coder_agent" "main" {
   }
 }
 
-# Claude Code receives the interviewer's temporary key only in this second
-# container. Kubernetes gives containers separate PID namespaces unless pod
-# process sharing is explicitly enabled. The launcher also marks the key-bearing
-# process non-dumpable before prompting, preventing same-UID /proc inspection.
+# The interviewer's key remains in a non-dumpable broker owned by the trusted
+# launcher in this second container. Claude and candidate-controlled child
+# processes receive only a non-secret placeholder; the broker injects the real
+# key into fixed-destination Anthropic HTTPS requests.
 resource "coder_agent" "claude" {
   arch                    = "amd64"
   os                      = "linux"
