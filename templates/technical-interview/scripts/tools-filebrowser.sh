@@ -62,11 +62,6 @@ case "$filebrowser_root" in
     ;;
 esac
 
-if ! mkdir -p "$filebrowser_root"; then
-  printf '[error] File Browser root could not be created: %s\n' "$filebrowser_root" >&2
-  exit 1
-fi
-
 case "$(uname -m)" in
   x86_64)
     archive="linux-amd64-filebrowser.tar.gz"
@@ -86,6 +81,11 @@ ensure_interview_local_directory "$HOME/.local/bin"
 ensure_interview_local_directory "$HOME/.local/share"
 ensure_interview_local_directory "$HOME/.local/state/filebrowser"
 ensure_interview_local_directory "$(dirname "$database")"
+if ! ensure_interview_local_directory "$filebrowser_root"; then
+  printf '[error] File Browser root is not a local directory inside the interview home: %s\n' \
+    "$filebrowser_root" >&2
+  exit 1
+fi
 
 if [ -L "$database" ] || { [ -e "$database" ] && [ ! -f "$database" ]; }; then
   printf '[error] unsafe File Browser database was preserved: %s\n' "$database" >&2
@@ -177,7 +177,25 @@ if ! "$binary" users find 1 >/dev/null 2>&1; then
   "$binary" users add coder "$internal_password" --perm.admin
 fi
 
-nohup "$binary" >> "$log_file" 2>&1 &
+if { [ -e "$log_file" ] || [ -L "$log_file" ]; } \
+  && [ ! -L "$log_file" ] \
+  && [ ! -f "$log_file" ]; then
+  printf '[error] unsafe File Browser log was preserved: %s\n' "$log_file" >&2
+  exit 1
+fi
+log_temporary="$(mktemp "$(dirname "$log_file")/.filebrowser-log.XXXXXX")"
+chmod 0600 "$log_temporary"
+if ! mv -fT -- "$log_temporary" "$log_file"; then
+  rm -f -- "$log_temporary"
+  exit 1
+fi
+
+# Open the freshly installed regular log once, before launching. Even if a
+# candidate process swaps the pathname concurrently, File Browser retains this
+# safe descriptor instead of following the replacement.
+exec 3>> "$log_file"
+nohup "$binary" >&3 2>&1 &
+exec 3>&-
 for _ in {1..40}; do
   if [ "$(get_login_status)" = "200" ]; then
     printf '[ok] File Browser %s started on port %s with no-auth access\n' "$filebrowser_version" "$filebrowser_port"

@@ -397,6 +397,48 @@ resource "kubernetes_deployment_v1" "workspace" {
         }
 
         init_container {
+          name              = "stage-trusted-tools"
+          image             = local.profile.image
+          image_pull_policy = "IfNotPresent"
+          command = [
+            "sh",
+            "-c",
+            file("${path.module}/scripts/stage-trusted-tools.sh"),
+          ]
+
+          env {
+            name  = "HIVE_INTERVIEW_CLAUDE_HELPER_B64"
+            value = base64encode(file("${path.module}/scripts/interview-claude"))
+          }
+
+          security_context {
+            allow_privilege_escalation = false
+            run_as_non_root            = true
+            run_as_user                = 1000
+
+            capabilities {
+              drop = ["ALL"]
+            }
+          }
+
+          resources {
+            requests = {
+              cpu    = "100m"
+              memory = "128Mi"
+            }
+            limits = {
+              cpu    = "500m"
+              memory = "512Mi"
+            }
+          }
+
+          volume_mount {
+            name       = "trusted-tools"
+            mount_path = "/trusted-tools"
+          }
+        }
+
+        init_container {
           name              = "seed-home"
           image             = local.profile.image
           image_pull_policy = "IfNotPresent"
@@ -479,6 +521,13 @@ resource "kubernetes_deployment_v1" "workspace" {
             name       = "home"
             mount_path = "/home/coder"
           }
+
+          volume_mount {
+            name       = "trusted-tools"
+            mount_path = "/opt/hive-interview-tools"
+            read_only  = true
+          }
+
         }
 
         volume {
@@ -486,6 +535,14 @@ resource "kubernetes_deployment_v1" "workspace" {
 
           persistent_volume_claim {
             claim_name = kubernetes_persistent_volume_claim_v1.home.metadata[0].name
+          }
+        }
+
+        volume {
+          name = "trusted-tools"
+
+          empty_dir {
+            size_limit = "512Mi"
           }
         }
       }

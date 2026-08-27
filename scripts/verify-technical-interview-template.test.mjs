@@ -25,6 +25,8 @@ const bootstrapScript = join(templateRoot, "bootstrap.sh");
 const cloneScript = join(templateRoot, "scripts", "clone-repositories.sh");
 const initScript = join(templateRoot, "scripts", "init.sh");
 const seedHomeScript = join(templateRoot, "scripts", "seed-home.sh");
+const stageTrustedToolsScript = join(templateRoot, "scripts", "stage-trusted-tools.sh");
+const interviewClaudeScript = join(templateRoot, "scripts", "interview-claude");
 const toolsBrowserScript = join(templateRoot, "scripts", "tools-browser.sh");
 const toolsCiScript = join(templateRoot, "scripts", "tools-ci.sh");
 const toolsFilebrowserScript = join(templateRoot, "scripts", "tools-filebrowser.sh");
@@ -119,6 +121,37 @@ function renderToolsFilebrowserScript(trustedPath) {
   );
 }
 
+function renderBootstrapScript(trustedClaude, trustedClaudeLauncher, chromeBinary) {
+  return readFileSync(bootstrapScript, "utf8")
+    .replace(
+      'interview_claude_launcher_target="/opt/hive-interview-tools/interview-claude"',
+      `interview_claude_launcher_target="${trustedClaudeLauncher}"`,
+    )
+    .replace(
+      'INTERVIEW_CLAUDE_BIN="/opt/hive-interview-tools/claude"',
+      `INTERVIEW_CLAUDE_BIN="${trustedClaude}"`,
+    )
+    .replace(
+      'INTERVIEW_CLAUDE_LAUNCHER="/opt/hive-interview-tools/interview-claude"',
+      `INTERVIEW_CLAUDE_LAUNCHER="${trustedClaudeLauncher}"`,
+    )
+    .replace(
+      'INTERVIEW_CHROME_BIN="/usr/bin/google-chrome-stable"',
+      `INTERVIEW_CHROME_BIN="${chromeBinary}"`,
+    )
+    .replace(
+      'grep -qF \'trusted_claude="/opt/hive-interview-tools/claude"\' "$INTERVIEW_CLAUDE_LAUNCHER"',
+      `grep -qF 'trusted_claude="${trustedClaude}"' "$INTERVIEW_CLAUDE_LAUNCHER"`,
+    );
+}
+
+function renderInterviewClaudeScript(trustedClaude) {
+  return readFileSync(interviewClaudeScript, "utf8").replace(
+    'trusted_claude="/opt/hive-interview-tools/claude"',
+    `trusted_claude="${trustedClaude}"`,
+  );
+}
+
 function runInit(root, home) {
   const renderedInit = join(root, "rendered-init.sh");
   writeFileSync(renderedInit, renderInitScript());
@@ -207,8 +240,33 @@ set -euo pipefail
 [ -z "\${CODER_AGENT_TOKEN:-}" ]
 ${claudeCredentialAssertions}
 if [ "\${1:-}" = "--version" ]; then printf 'Python 3.13.5\\n'; exit 0; fi
+venv_root=$(cd "$(dirname "$0")/.." && pwd -P)
+if [ "\${1:-}" = "-" ]; then
+  [ ! -e "$venv_root/.hive-fixture-record-broken" ] || exit 1
+  /bin/cat >/dev/null
+  exit 0
+fi
 if [ "\${1:-}" = "-m" ] && [ "\${2:-}" = "pip" ]; then
+  if [ "\${3:-}" = "check" ]; then
+    [ ! -e "$venv_root/.hive-fixture-dependencies-broken" ]
+    exit
+  fi
+  report_file=''
+  dry_run=false
+  previous_argument=''
+  for argument in "$@"; do
+    if [ "$previous_argument" = "--report" ]; then report_file=$argument; fi
+    [ "$argument" != "--dry-run" ] || dry_run=true
+    previous_argument=$argument
+  done
+  if [ "$dry_run" = true ]; then
+    [ -n "$report_file" ]
+    printf '{"install":[]}\\n' > "$report_file"
+    exit 0
+  fi
   printf 'pip-install\\n' >> "$FAKE_CALLS"
+  rm -f -- "$venv_root/.hive-fixture-dependencies-broken" \
+    "$venv_root/.hive-fixture-record-broken"
 fi
 exit 0
 PYTHON
@@ -400,7 +458,19 @@ ${claudeCredentialAssertions}
 printf '<%s>\\n' "$@" > "$CLAUDE_ARGS_LOG"
 `,
   );
+  const trustedClaudeLauncher = join(root, "trusted-tools", "interview-claude");
+  mkdirSync(dirname(trustedClaudeLauncher), { recursive: true });
+  writeFileSync(trustedClaudeLauncher, renderInterviewClaudeScript(join(bin, "claude")));
+  chmodSync(trustedClaudeLauncher, 0o555);
+  mkdirSync(join(home, ".local", "bin"), { recursive: true });
   executable(join(bin, "google-chrome-stable"), "#!/bin/sh\nprintf 'Google Chrome 140\\n'\n");
+  symlinkSync(join(bin, "google-chrome-stable"), join(home, ".local", "bin", "chromium-browser"));
+  for (const browserHelper of ["browser-screenshot", "browser-html"]) {
+    executable(
+      join(home, ".local", "bin", browserHelper),
+      "#!/bin/sh\n# hive-managed-browser-helper:v1\nexit 0\n",
+    );
+  }
   executable(join(bin, "sqlite3"), "#!/bin/sh\nprintf '3.46.1\\n'\n");
   executable(join(bin, "rg"), "#!/bin/sh\nprintf 'ripgrep 14.1.1\\n'\n");
   executable(
@@ -524,7 +594,17 @@ esac
     delete env[variableName];
   }
 
-  return { bin, calls, claudeArgs, commit, env, home, interviewRepository, root };
+  return {
+    bin,
+    calls,
+    claudeArgs,
+    commit,
+    env,
+    home,
+    interviewRepository,
+    root,
+    trustedClaudeLauncher,
+  };
 }
 
 function run(command, args, env) {
@@ -532,7 +612,16 @@ function run(command, args, env) {
 }
 
 function installHelpers(fixture) {
-  const result = run("bash", [bootstrapScript], fixture.env);
+  const renderedBootstrap = join(fixture.root, "rendered-bootstrap.sh");
+  writeFileSync(
+    renderedBootstrap,
+    renderBootstrapScript(
+      join(fixture.bin, "claude"),
+      fixture.trustedClaudeLauncher,
+      join(fixture.bin, "google-chrome-stable"),
+    ),
+  );
+  const result = run("bash", [renderedBootstrap], fixture.env);
   assert.equal(result.status, 0, result.stderr);
   return result;
 }
@@ -554,6 +643,8 @@ function filesRecursively(root) {
 test("standalone Terraform exposes interview apps without personal auth modules", () => {
   const terraform = readFileSync(join(templateRoot, "main.tf"), "utf8");
   const init = readFileSync(join(templateRoot, "scripts", "init.sh"), "utf8");
+  const interviewClaude = readFileSync(interviewClaudeScript, "utf8");
+  const stageTrustedTools = readFileSync(stageTrustedToolsScript, "utf8");
   const toolsBrowser = readFileSync(join(templateRoot, "scripts", "tools-browser.sh"), "utf8");
   const toolsCi = readFileSync(join(templateRoot, "scripts", "tools-ci.sh"), "utf8");
   const toolsFilebrowser = readFileSync(
@@ -575,6 +666,17 @@ test("standalone Terraform exposes interview apps without personal auth modules"
   assert.doesNotMatch(terraform, /^\s+ENV\s*=/m);
   assert.doesNotMatch(terraform, /\.hive-image-seeded/);
   assert.match(terraform, /file\("\$\{path\.module\}\/scripts\/seed-home\.sh"\)/);
+  assert.match(terraform, /file\("\$\{path\.module\}\/scripts\/stage-trusted-tools\.sh"\)/);
+  assert.match(
+    terraform,
+    /mount_path\s*=\s*"\/opt\/hive-interview-tools"[\s\S]*?read_only\s*=\s*true/,
+  );
+  assert.doesNotMatch(terraform, /sub_path\s*=\s*"interview-claude"/);
+  assert.match(terraform, /empty_dir\s*\{[\s\S]*?size_limit\s*=\s*"512Mi"/);
+  assert.match(stageTrustedTools, /\/home\/coder\/\.local\/share\/claude\/versions\/\*/);
+  assert.match(interviewClaude, /trusted_claude="\/opt\/hive-interview-tools\/claude"/);
+  assert.match(interviewClaude, /exec "\$trusted_claude" "\$@"/);
+  assert.doesNotMatch(interviewClaude, /command -v claude|exec claude/);
   assert.match(terraform, /"git\.autofetch"\s*:\s*false/);
   assert.doesNotMatch(terraform, /"git\.autofetch"\s*:\s*true/);
   assert.doesNotMatch(init, /sync-vault|vault-managed|Vault Context Layer/);
@@ -682,6 +784,48 @@ test("home seeding retries interrupted copies and promotions", () => {
   assert.equal(existsSync(promotionStaging), false);
   assert.equal(existsSync(join(promotionTarget, ".hive-image-seed-in-progress")), false);
   assert.equal(existsSync(join(promotionTarget, ".hive-image-seed-complete")), true);
+});
+
+test("trusted tool staging copies image Claude and its launcher into pod-local files", () => {
+  const root = mkdtempSync(join(tmpdir(), "technical-interview-trusted-tools-"));
+  const imageHome = join(root, "image-home");
+  const trustedTools = join(root, "trusted-tools");
+  const imageClaude = join(imageHome, ".local", "share", "claude", "versions", "fixture");
+  const imageClaudeLink = join(imageHome, ".local", "bin", "claude");
+  const renderedStage = join(root, "stage-trusted-tools.sh");
+  mkdirSync(dirname(imageClaude), { recursive: true });
+  mkdirSync(dirname(imageClaudeLink), { recursive: true });
+  mkdirSync(trustedTools);
+  executable(imageClaude, "#!/bin/sh\nprintf 'fixture Claude Code\\n'\n");
+  symlinkSync(imageClaude, imageClaudeLink);
+  writeFileSync(
+    renderedStage,
+    readFileSync(stageTrustedToolsScript, "utf8")
+      .replaceAll("/home/coder", imageHome)
+      .replace('trusted_tools_dir="/trusted-tools"', `trusted_tools_dir="${trustedTools}"`),
+  );
+
+  const result = run("sh", [renderedStage], {
+    ...process.env,
+    HIVE_INTERVIEW_CLAUDE_HELPER_B64: Buffer.from(readFileSync(interviewClaudeScript)).toString(
+      "base64",
+    ),
+    PATH: "/usr/bin:/bin",
+  });
+  assert.equal(result.status, 0, result.stderr);
+  for (const stagedFile of ["claude", "interview-claude"]) {
+    const path = join(trustedTools, stagedFile);
+    assert.equal(lstatSync(path).isSymbolicLink(), false);
+    assert.equal(statSync(path).mode & 0o777, 0o555);
+  }
+  assert.equal(
+    readFileSync(join(trustedTools, "claude"), "utf8"),
+    readFileSync(imageClaude, "utf8"),
+  );
+  assert.equal(
+    readFileSync(join(trustedTools, "interview-claude"), "utf8"),
+    readFileSync(interviewClaudeScript, "utf8"),
+  );
 });
 
 test("home seeding preserves unsafe marker and staging paths", () => {
@@ -1048,6 +1192,7 @@ test("startup refuses symlinked managed directory chains before writing generate
     mkdirSync(candidateTarget);
     writeFileSync(join(candidateTarget, "candidate.txt"), "preserve candidate directory\n");
     chmodSync(candidateTarget, 0o750);
+    rmSync(unsafeDirectory, { force: true, recursive: true });
     symlinkSync(candidateTarget, unsafeDirectory);
     writeFileSync(
       renderedToolsCi,
@@ -1091,6 +1236,7 @@ test("bootstrap rejects symlinked managed directory chains without touching thei
     mkdirSync(candidateTarget);
     writeFileSync(join(candidateTarget, "candidate.txt"), "preserve candidate directory\n");
     chmodSync(candidateTarget, 0o750);
+    rmSync(unsafeDirectory, { force: true, recursive: true });
     symlinkSync(candidateTarget, unsafeDirectory);
 
     const result = run("bash", [bootstrapScript], fixture.env);
@@ -1161,6 +1307,32 @@ test("browser setup atomically replaces helper symlinks without touching their t
   assert.equal(existsSync(hijackMarker), false);
 });
 
+test("browser setup preserves non-regular helper paths without blocking workspace login", () => {
+  for (const helperName of ["chromium-browser", "browser-screenshot", "browser-html"]) {
+    const root = mkdtempSync(join(tmpdir(), "technical-interview-browser-nonregular-"));
+    const home = join(root, "home");
+    const localBin = join(home, ".local", "bin");
+    const helper = join(localBin, helperName);
+    const fakeChrome = join(root, "google-chrome-stable");
+    const renderedToolsBrowser = join(root, "rendered-tools-browser.sh");
+    mkdirSync(helper, { recursive: true });
+    writeFileSync(join(helper, "candidate.txt"), `preserve ${helperName}\n`);
+    executable(fakeChrome, "#!/bin/sh\nexit 0\n");
+    writeFileSync(renderedToolsBrowser, renderToolsBrowserScript(fakeChrome));
+
+    const result = run("bash", [renderedToolsBrowser], {
+      ...process.env,
+      HOME: home,
+      PATH: `${localBin}:/usr/bin:/bin`,
+    });
+    assert.equal(result.status, 0, `${helperName} must not block login: ${result.stderr}`);
+    assert.match(result.stderr, /Non-regular browser helper path was preserved/);
+    assert.match(result.stderr, /interview-check will report the affected paths/);
+    assert.equal(lstatSync(helper).isDirectory(), true);
+    assert.equal(readFileSync(join(helper, "candidate.txt"), "utf8"), `preserve ${helperName}\n`);
+  }
+});
+
 test("File Browser installation atomically replaces symlinks without touching their targets", () => {
   const root = mkdtempSync(join(tmpdir(), "technical-interview-filebrowser-install-"));
   const home = join(root, "home");
@@ -1169,19 +1341,25 @@ test("File Browser installation atomically replaces symlinks without touching th
   const localShare = join(home, ".local", "share");
   const binary = join(localBin, "filebrowser");
   const versionMarker = join(localShare, "filebrowser-version");
+  const logDirectory = join(home, ".local", "state", "filebrowser");
+  const logFile = join(logDirectory, "filebrowser.log");
   const binaryTarget = join(root, "candidate-binary");
+  const logTarget = join(root, "candidate-log");
   const hijackMarker = join(root, "candidate-path-command-ran");
   const markerTarget = join(root, "candidate-version");
   const renderedToolsFilebrowser = join(root, "rendered-tools-filebrowser.sh");
   const runningMarker = join(root, "filebrowser-running");
   mkdirSync(localBin, { recursive: true });
   mkdirSync(localShare, { recursive: true });
+  mkdirSync(logDirectory, { recursive: true });
   mkdirSync(bin, { recursive: true });
   writeFileSync(binaryTarget, "preserve candidate binary\n");
+  writeFileSync(logTarget, "preserve candidate log\n");
   writeFileSync(markerTarget, "preserve candidate version\n");
   chmodSync(binaryTarget, 0o644);
   chmodSync(markerTarget, 0o644);
   symlinkSync(binaryTarget, binary);
+  symlinkSync(logTarget, logFile);
   symlinkSync(markerTarget, versionMarker);
   executable(join(localBin, "curl"), '#!/bin/sh\n: > "$HIVE_HIJACK_MARKER"\nexit 99\n');
 
@@ -1236,18 +1414,22 @@ chmod 755 "$destination/filebrowser"
     GH_TOKEN: "must-not-reach-filebrowser-tools",
     GITHUB_TOKEN: "must-not-reach-filebrowser-tools",
     HIVE_HIJACK_MARKER: hijackMarker,
+    HIVE_PROJECTS_ROOT: home,
     HOME: home,
     PATH: `${localBin}:${bin}:/usr/bin:/bin`,
   });
   assert.equal(result.status, 0, result.stderr);
   assert.equal(existsSync(hijackMarker), false);
   assert.equal(readFileSync(binaryTarget, "utf8"), "preserve candidate binary\n");
+  assert.equal(readFileSync(logTarget, "utf8"), "preserve candidate log\n");
   assert.equal(readFileSync(markerTarget, "utf8"), "preserve candidate version\n");
   assert.equal(statSync(binaryTarget).mode & 0o777, 0o644);
   assert.equal(statSync(markerTarget).mode & 0o777, 0o644);
   assert.equal(lstatSync(binary).isSymbolicLink(), false);
+  assert.equal(lstatSync(logFile).isSymbolicLink(), false);
   assert.equal(lstatSync(versionMarker).isSymbolicLink(), false);
   assert.equal(statSync(binary).mode & 0o777, 0o755);
+  assert.equal(statSync(logFile).mode & 0o777, 0o600);
   assert.equal(statSync(versionMarker).mode & 0o777, 0o600);
   assert.equal(readFileSync(versionMarker, "utf8"), "2.63.18\n");
 });
@@ -1270,6 +1452,7 @@ test("File Browser rejects a linked database without touching its target", () =>
 
   const result = run("bash", [renderedToolsFilebrowser], {
     ...process.env,
+    HIVE_PROJECTS_ROOT: home,
     HOME: home,
     PATH: "/usr/bin:/bin",
   });
@@ -1278,6 +1461,36 @@ test("File Browser rejects a linked database without touching its target", () =>
   assert.equal(lstatSync(database).isSymbolicLink(), true);
   assert.equal(readFileSync(candidateDatabase, "utf8"), "preserve candidate database\n");
   assert.equal(statSync(candidateDatabase).mode & 0o777, 0o640);
+});
+
+test("File Browser rejects a linked projects root before serving it", () => {
+  const root = mkdtempSync(join(tmpdir(), "technical-interview-filebrowser-root-"));
+  const home = join(root, "home");
+  const projects = join(home, "projects");
+  const candidateRoot = join(root, "candidate-root");
+  const renderedToolsFilebrowser = join(root, "rendered-tools-filebrowser.sh");
+  mkdirSync(home);
+  mkdirSync(candidateRoot);
+  writeFileSync(join(candidateRoot, "candidate.txt"), "must never be served\n");
+  symlinkSync(candidateRoot, projects);
+  writeFileSync(
+    renderedToolsFilebrowser,
+    renderToolsFilebrowserScript("/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"),
+  );
+
+  const result = run("bash", [renderedToolsFilebrowser], {
+    ...process.env,
+    HIVE_PROJECTS_ROOT: projects,
+    HOME: home,
+    PATH: "/usr/bin:/bin",
+  });
+  assert.equal(result.status, 1, result.stderr);
+  assert.match(result.stderr, /File Browser root is not a local directory/);
+  assert.equal(lstatSync(projects).isSymbolicLink(), true);
+  assert.equal(
+    readFileSync(join(candidateRoot, "candidate.txt"), "utf8"),
+    "must never be served\n",
+  );
 });
 
 test("init atomically replaces linked MCP configs without touching their targets", () => {
@@ -1641,7 +1854,7 @@ test("remote default checks isolate Git configuration and SSH credentials", () =
   assert.equal(result.stdout.trim(), `${fixture.commit}\tHEAD`);
 });
 
-test("bootstrap installs executable helper commands idempotently", () => {
+test("bootstrap installs helpers idempotently and preserves the staged Claude launcher", () => {
   const fixture = createFixture();
   installHelpers(fixture);
   const expectedHelpers = [
@@ -1656,8 +1869,12 @@ test("bootstrap installs executable helper commands idempotently", () => {
   const firstContents = new Map();
   for (const helper of expectedHelpers) {
     const path = join(fixture.home, ".local", "bin", helper);
-    assert.equal(existsSync(path), true, `${helper} must be generated`);
-    assert.equal(statSync(path).mode & 0o777, 0o700);
+    assert.equal(existsSync(path), true, `${helper} must be available`);
+    assert.equal(statSync(path).mode & 0o777, helper === "interview-claude" ? 0o555 : 0o700);
+    if (helper === "interview-claude") {
+      assert.equal(lstatSync(path).isSymbolicLink(), true);
+      assert.equal(readFileSync(path, "utf8"), readFileSync(fixture.trustedClaudeLauncher, "utf8"));
+    }
     firstContents.set(helper, readFileSync(path, "utf8"));
   }
 
@@ -1883,6 +2100,61 @@ test("setup hashes dependencies, reinstalls only on manifest changes, and preser
   const changedCalls = readFileSync(fixture.calls, "utf8");
   assert.equal((changedCalls.match(/pip-install/g) ?? []).length, 2);
   assert.equal((changedCalls.match(/npm-install/g) ?? []).length, 1);
+});
+
+test("setup rejects a linked backend virtual environment without invoking its target", () => {
+  const fixture = createFixture();
+  installHelpers(fixture);
+  const setup = join(fixture.home, ".local", "bin", "interview-setup");
+  const backendVenv = join(fixture.interviewRepository, "backend", ".venv");
+  const candidateVenv = join(fixture.root, "candidate-venv");
+  const invocationMarker = join(fixture.root, "candidate-python-invoked");
+  mkdirSync(join(candidateVenv, "bin"), { recursive: true });
+  executable(
+    join(candidateVenv, "bin", "python"),
+    `#!/bin/sh\n: > "${invocationMarker}"\nexit 0\n`,
+  );
+  symlinkSync(candidateVenv, backendVenv);
+
+  const result = run(setup, [], fixture.env);
+  assert.equal(result.status, 1, result.stderr);
+  assert.match(result.stderr, /unsafe linked or non-directory backend virtual environment chain/);
+  assert.equal(existsSync(invocationMarker), false);
+  assert.equal(lstatSync(backendVenv).isSymbolicLink(), true);
+  assert.equal(lstatSync(candidateVenv).isDirectory(), true);
+});
+
+test("setup recreates backend dependencies when the full environment is missing or damaged", () => {
+  const fixture = createFixture();
+  installHelpers(fixture);
+  const setup = join(fixture.home, ".local", "bin", "interview-setup");
+  const backendVenv = join(fixture.interviewRepository, "backend", ".venv");
+
+  const initial = run(setup, [], fixture.env);
+  assert.equal(initial.status, 0, initial.stderr);
+  assert.equal((readFileSync(fixture.calls, "utf8").match(/pip-install/g) ?? []).length, 1);
+
+  writeFileSync(
+    join(backendVenv, ".hive-fixture-dependencies-broken"),
+    "simulate a missing transitive dependency\n",
+  );
+  const missing = run(setup, [], fixture.env);
+  assert.equal(missing.status, 0, missing.stderr);
+  assert.match(missing.stdout, /repair incomplete or damaged dependencies/);
+  assert.equal((readFileSync(fixture.calls, "utf8").match(/pip-install/g) ?? []).length, 2);
+
+  writeFileSync(
+    join(backendVenv, ".hive-fixture-record-broken"),
+    "simulate a damaged installed distribution file\n",
+  );
+  const damaged = run(setup, [], fixture.env);
+  assert.equal(damaged.status, 0, damaged.stderr);
+  assert.match(damaged.stdout, /repair incomplete or damaged dependencies/);
+  assert.equal((readFileSync(fixture.calls, "utf8").match(/pip-install/g) ?? []).length, 3);
+
+  const unchanged = run(setup, [], fixture.env);
+  assert.equal(unchanged.status, 0, unchanged.stderr);
+  assert.equal((readFileSync(fixture.calls, "utf8").match(/pip-install/g) ?? []).length, 3);
 });
 
 test("setup refreshes frontend dependencies when the Node runtime ABI changes", () => {
@@ -2142,6 +2414,11 @@ test("interview-claude masks and scopes the temporary key without persisting it"
   installHelpers(fixture);
   const helper = join(fixture.home, ".local", "bin", "interview-claude");
   const fakeKey = "temporary-interview-key-should-never-persist";
+  const pathHijackMarker = join(fixture.root, "candidate-claude-ran");
+  executable(
+    join(fixture.home, ".local", "bin", "claude"),
+    `#!/bin/sh\n: > "${pathHijackMarker}"\nprintf '2.1.170 (Claude Code)\\n'\n`,
+  );
   const command = `${helper} --model test-model -- 'argument with spaces'`;
   const result = await new Promise((resolve, reject) => {
     const child = spawn("/usr/bin/script", ["-qefc", command, "/dev/null"], {
@@ -2187,6 +2464,7 @@ test("interview-claude masks and scopes the temporary key without persisting it"
   assert.equal(result.status, 0, result.stderr);
   assert.doesNotMatch(result.stdout, new RegExp(fakeKey));
   assert.doesNotMatch(result.stderr, new RegExp(fakeKey));
+  assert.equal(existsSync(pathHijackMarker), false);
   assert.equal(
     readFileSync(fixture.claudeArgs, "utf8"),
     "<--model>\n<test-model>\n<argument with spaces>\n",

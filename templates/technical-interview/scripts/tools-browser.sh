@@ -51,7 +51,10 @@ ensure_interview_local_directory() {
   done
 }
 
-ensure_interview_local_directory "$HOME/.local/bin"
+if ! ensure_interview_local_directory "$HOME/.local/bin"; then
+  printf '[warn] Browser helper setup was deferred so workspace login remains available.\n' >&2
+  exit 0
+fi
 
 printf '%b[browser] Setting up browser vision tools...%b\n' "$BOLD" "$RESET"
 
@@ -77,6 +80,26 @@ if [ ! -x "$CHROME_BIN" ]; then
   printf '[error] Browser image is missing %s\n' "$CHROME_BIN" >&2
   exit 1
 fi
+
+browser_helpers_safe=true
+for browser_helper in \
+  "$HOME/.local/bin/chromium-browser" \
+  "$HOME/.local/bin/browser-screenshot" \
+  "$HOME/.local/bin/browser-html"; do
+  if { [ -e "$browser_helper" ] || [ -L "$browser_helper" ]; } \
+    && [ ! -L "$browser_helper" ] \
+    && [ ! -f "$browser_helper" ]; then
+    printf '[warn] Non-regular browser helper path was preserved: %s\n' \
+      "$browser_helper" >&2
+    browser_helpers_safe=false
+  fi
+done
+if [ "$browser_helpers_safe" != true ]; then
+  printf '[warn] Browser helper setup was deferred; interview-check will report the affected paths.\n' \
+    >&2
+  exit 0
+fi
+
 ln -sfnT "$CHROME_BIN" "$HOME/.local/bin/chromium-browser"
 
 # Claude Code and Codex Playwright MCP entries are managed by init.sh and point

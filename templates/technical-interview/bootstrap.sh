@@ -16,6 +16,7 @@ interview_codex_version="0.149.1"
 interview_playwright_mcp_version="0.0.79"
 interview_bun_version="1.4.0"
 interview_pnpm_version="10.32.1"
+interview_claude_launcher_target="/opt/hive-interview-tools/interview-claude"
 
 interview_ensure_local_directory() {
   local target=$1 current remainder component
@@ -76,6 +77,27 @@ install_interview_file() {
   fi
 }
 
+install_interview_symlink() {
+  local destination=$1 target=$2
+  local destination_directory staging_directory staged_link
+
+  destination_directory="$(dirname -- "$destination")"
+  interview_ensure_local_directory "$destination_directory" || return 1
+  staging_directory="$(mktemp -d "$destination_directory/.hive-interview-link.XXXXXX")"
+  staged_link="$staging_directory/$(basename -- "$destination")"
+  ln -s -- "$target" "$staged_link"
+  if ! mv -fT -- "$staged_link" "$destination"; then
+    rm -f -- "$staged_link"
+    rmdir -- "$staging_directory"
+    return 1
+  fi
+  rmdir -- "$staging_directory"
+}
+
+install_interview_symlink \
+  "$interview_bin_dir/interview-claude" \
+  "$interview_claude_launcher_target"
+
 install_interview_file "$interview_libexec_dir/common.sh" 600 <<'COMMONEOF'
 #!/usr/bin/env bash
 
@@ -94,6 +116,9 @@ INTERVIEW_BUN_VERSION="1.4.0"
 INTERVIEW_PNPM_VERSION="10.32.1"
 INTERVIEW_CODEX_BASELINE_TARGET="../lib/node_modules/@openai/codex/bin/codex.js"
 INTERVIEW_BUN_BASELINE_TARGET="$HOME/.bun/bin/bun"
+INTERVIEW_CLAUDE_BIN="/opt/hive-interview-tools/claude"
+INTERVIEW_CLAUDE_LAUNCHER="/opt/hive-interview-tools/interview-claude"
+INTERVIEW_CHROME_BIN="/usr/bin/google-chrome-stable"
 INTERVIEW_FORBIDDEN_CREDENTIALS=(
   ANTHROPIC_API_KEY
   ANTHROPIC_AUTH_TOKEN
@@ -140,6 +165,35 @@ interview_ensure_local_directory() {
       return 1
     fi
     [ -d "$current" ] || mkdir -- "$current" || return 1
+  done
+}
+
+interview_local_directory_chain_ready() {
+  local target=$1 current remainder component
+
+  [ -d "$HOME" ] && [ ! -L "$HOME" ] || return 1
+  case "$target" in
+    "$HOME") return 0 ;;
+    "$HOME"/*) ;;
+    *) return 1 ;;
+  esac
+
+  current="$HOME"
+  remainder="${target#"$HOME"/}"
+  while [ -n "$remainder" ]; do
+    component="${remainder%%/*}"
+    if [ "$component" = "$remainder" ]; then
+      remainder=""
+    else
+      remainder="${remainder#*/}"
+    fi
+    current="$current/$component"
+    if [ -L "$current" ] || { [ -e "$current" ] && [ ! -d "$current" ]; }; then
+      return 1
+    fi
+    # A missing component means the rest of the path cannot exist yet. Its
+    # eventual creator still has to use the validated local parent.
+    [ -d "$current" ] || return 0
   done
 }
 
@@ -267,9 +321,85 @@ interview_write_state() {
   mv -fT -- "$temporary_file" "$INTERVIEW_STATE_DIR/$state_name"
 }
 
+interview_python_distributions_intact() {
+  "$INTERVIEW_VENV/bin/python" - <<'PYDISTINTEGRITY'
+import base64
+import hashlib
+import importlib.metadata
+import sys
+from pathlib import Path
+
+
+venv = Path(sys.prefix).resolve()
+try:
+    distributions = list(importlib.metadata.distributions())
+    if not distributions:
+        raise ValueError("the virtual environment has no installed distributions")
+    for distribution in distributions:
+        files = distribution.files
+        if files is None:
+            raise ValueError(f"distribution has no installed-file record: {distribution}")
+        for installed_file in files:
+            expected_hash = installed_file.hash
+            if expected_hash is None:
+                continue
+            path = Path(distribution.locate_file(installed_file))
+            if path.is_symlink() or not path.is_file():
+                raise ValueError(f"installed dependency file is missing or linked: {path}")
+            path.resolve().relative_to(venv)
+            digest = hashlib.new(expected_hash.mode)
+            with path.open("rb") as handle:
+                for block in iter(lambda: handle.read(1024 * 1024), b""):
+                    digest.update(block)
+            actual_hash = base64.urlsafe_b64encode(digest.digest()).rstrip(b"=").decode()
+            if actual_hash != expected_hash.value:
+                raise ValueError(f"installed dependency file failed integrity validation: {path}")
+except (OSError, ValueError):
+    raise SystemExit(1)
+PYDISTINTEGRITY
+}
+
+interview_backend_environment_ready() {
+  local report_file status=0
+
+  interview_local_directory_chain_ready "$INTERVIEW_VENV/bin" || return 1
+  [ -x "$INTERVIEW_VENV/bin/python" ] || return 1
+  "$INTERVIEW_VENV/bin/python" -m pip check >/dev/null 2>&1 || return 1
+
+  report_file="$(mktemp "$INTERVIEW_STATE_DIR/.pip-dry-run.XXXXXX")" || return 1
+  if ! "$INTERVIEW_VENV/bin/python" -m pip install \
+    --disable-pip-version-check \
+    --dry-run \
+    --no-cache-dir \
+    --no-input \
+    --quiet \
+    --report "$report_file" \
+    -r "$INTERVIEW_BACKEND/requirements.txt" >/dev/null 2>&1; then
+    status=1
+  elif ! /usr/bin/python3 - "$report_file" <<'PYPIPREPORT'
+import json
+import sys
+
+try:
+    with open(sys.argv[1], encoding="utf-8") as handle:
+        report = json.load(handle)
+    if not isinstance(report, dict) or report.get("install") != []:
+        raise ValueError("the requirements would change the environment")
+except (OSError, ValueError, TypeError, json.JSONDecodeError):
+    raise SystemExit(1)
+PYPIPREPORT
+  then
+    status=1
+  elif ! interview_python_distributions_intact; then
+    status=1
+  fi
+  rm -f -- "$report_file"
+  return "$status"
+}
+
 interview_backend_dependencies_ready() {
   local current_hash stored_hash
-  [ -x "$INTERVIEW_VENV/bin/python" ] || return 1
+  interview_backend_environment_ready || return 1
   current_hash="$(interview_backend_hash 2>/dev/null || true)"
   stored_hash="$(interview_read_state backend-requirements.sha256 2>/dev/null || true)"
   [ -n "$current_hash" ] && [ "$current_hash" = "$stored_hash" ]
@@ -463,6 +593,43 @@ interview_managed_directories_ready() {
   done
 }
 
+interview_browser_helpers_ready() {
+  local chromium="$HOME/.local/bin/chromium-browser"
+  local helper
+
+  [ -x "$INTERVIEW_CHROME_BIN" ] || return 1
+  [ -L "$chromium" ] || return 1
+  [ "$(/usr/bin/readlink -- "$chromium")" = "$INTERVIEW_CHROME_BIN" ] || return 1
+  for helper in "$HOME/.local/bin/browser-screenshot" "$HOME/.local/bin/browser-html"; do
+    [ -f "$helper" ] && [ ! -L "$helper" ] && [ -x "$helper" ] || return 1
+    grep -qF '# hive-managed-browser-helper:v1' "$helper" || return 1
+  done
+}
+
+interview_claude_ready() {
+  local launcher="$HOME/.local/bin/interview-claude"
+
+  [ -L "$launcher" ] \
+    && [ "$(/usr/bin/readlink -- "$launcher")" = "$INTERVIEW_CLAUDE_LAUNCHER" ] \
+    && [ -f "$INTERVIEW_CLAUDE_LAUNCHER" ] \
+    && [ ! -L "$INTERVIEW_CLAUDE_LAUNCHER" ] \
+    && [ -x "$launcher" ] \
+    && grep -qF '# hive-managed-interview-claude:v1' "$INTERVIEW_CLAUDE_LAUNCHER" \
+    && grep -qF 'trusted_claude="/opt/hive-interview-tools/claude"' "$INTERVIEW_CLAUDE_LAUNCHER" \
+    && [ -f "$INTERVIEW_CLAUDE_BIN" ] \
+    && [ ! -L "$INTERVIEW_CLAUDE_BIN" ] \
+    && [ -x "$INTERVIEW_CLAUDE_BIN" ] \
+    && "$INTERVIEW_CLAUDE_BIN" --version >/dev/null 2>&1
+}
+
+interview_claude_version_or_missing() {
+  if interview_claude_ready; then
+    "$INTERVIEW_CLAUDE_BIN" --version 2>&1 | sed -n '1p'
+  else
+    printf 'missing or untrusted'
+  fi
+}
+
 interview_agent_context_ready() {
   local context_file
 
@@ -628,6 +795,12 @@ fi
 interview_ensure_local_directory "$INTERVIEW_STATE_DIR"
 chmod 700 "$INTERVIEW_STATE_DIR"
 dependencies_refreshed=false
+backend_venv_created=false
+
+if ! interview_local_directory_chain_ready "$INTERVIEW_VENV/bin"; then
+  interview_error "Preserving an unsafe linked or non-directory backend virtual environment chain: $INTERVIEW_VENV"
+  exit 1
+fi
 
 interview_virtualenv_fallback_ready() {
   local fallback_root=$1 validation_root version_output status=0
@@ -709,6 +882,7 @@ interview_create_backend_venv() {
     PYTHONPATH="$fallback_root" python3 -m virtualenv "$INTERVIEW_VENV"
     interview_write_state venv-method "transitional virtualenv $INTERVIEW_VIRTUALENV_VERSION"
   fi
+  backend_venv_created=true
 }
 
 if [ ! -x "$INTERVIEW_VENV/bin/python" ]; then
@@ -727,15 +901,27 @@ if [ -n "$stored_backend_hash" ] && [ "$backend_hash" != "$stored_backend_hash" 
   interview_ok "Recreating the managed backend virtual environment for changed dependencies"
   rm -rf -- "$INTERVIEW_VENV"
   interview_create_backend_venv
+elif [ -n "$stored_backend_hash" ] && ! interview_backend_environment_ready; then
+  interview_ok "Recreating the managed backend virtual environment to repair incomplete or damaged dependencies"
+  rm -rf -- "$INTERVIEW_VENV"
+  interview_create_backend_venv
+  stored_backend_hash=""
+elif [ -z "$stored_backend_hash" ] && [ "$backend_venv_created" != true ]; then
+  interview_ok "Recreating the unmanaged backend virtual environment before the initial dependency install"
+  rm -rf -- "$INTERVIEW_VENV"
+  interview_create_backend_venv
 fi
 
-if [ "$backend_hash" != "$stored_backend_hash" ] \
-  || ! "$INTERVIEW_VENV/bin/python" -c 'import fastapi, httpx, pytest, uvicorn' >/dev/null 2>&1; then
+if [ "$backend_hash" != "$stored_backend_hash" ]; then
   interview_ok "Installing backend dependencies"
   "$INTERVIEW_VENV/bin/python" -m pip install \
     --disable-pip-version-check \
     --no-input \
     -r "$INTERVIEW_BACKEND/requirements.txt"
+  if ! interview_backend_environment_ready; then
+    interview_error "Backend dependencies failed complete requirement and installed-file validation."
+    exit 1
+  fi
   interview_write_state backend-requirements.sha256 "$backend_hash"
   dependencies_refreshed=true
 else
@@ -1019,12 +1205,12 @@ printf '  SQLite: %s\n' "$(interview_version_or_missing sqlite3 sqlite3 --versio
 printf '  Git: %s\n' "$(interview_version_or_missing git git --version)"
 printf '  make: %s\n' "$(interview_version_or_missing make make --version)"
 printf '  ripgrep: %s\n' "$(interview_version_or_missing rg rg --version)"
-printf '  Claude Code: %s\n' "$(interview_version_or_missing claude claude --version)"
+printf '  Claude Code: %s\n' "$(interview_claude_version_or_missing)"
 printf '  Codex: %s\n' "$(interview_version_or_missing codex codex --version)"
 printf '  Playwright MCP: %s\n' "$(interview_version_or_missing playwright-mcp playwright-mcp --version)"
 printf '  Bun: %s\n' "$(interview_version_or_missing bun bun --version)"
 printf '  pnpm: %s\n' "$(interview_version_or_missing pnpm pnpm --version)"
-printf '  Chrome: %s\n' "$(interview_version_or_missing google-chrome-stable google-chrome-stable --version)"
+printf '  Chrome: %s\n' "$(interview_version_or_missing "$INTERVIEW_CHROME_BIN" "$INTERVIEW_CHROME_BIN" --version)"
 printf '  tmux: %s\n' "$(interview_version_or_missing tmux tmux -V)"
 
 printf 'Forbidden credential variables present (names only):'
@@ -1063,60 +1249,6 @@ else
   printf 'Hive GitHub credential helper: absent\n'
 fi
 STATUSEOF
-
-install_interview_file "$interview_bin_dir/interview-claude" 700 <<'CLAUDEEOF'
-#!/usr/bin/env bash
-set -euo pipefail
-umask 077
-
-# shellcheck source=/dev/null
-source "$HOME/.local/libexec/hive/technical-interview/common.sh"
-
-claude_arguments=()
-while (($# > 0)); do
-  case "$1" in
-    --)
-      shift
-      claude_arguments+=("$@")
-      break
-      ;;
-    *)
-      claude_arguments+=("$1")
-      shift
-      ;;
-  esac
-done
-
-if [ ! -d "$INTERVIEW_REPOSITORY/.git" ] || ! interview_origin_is_expected; then
-  interview_error "Expected interview repository is unavailable or has the wrong origin."
-  exit 1
-fi
-if ! command -v claude >/dev/null 2>&1; then
-  interview_error "Claude Code is not installed."
-  exit 1
-fi
-
-if [ ! -r /dev/tty ] || [ ! -w /dev/tty ]; then
-  interview_error "A controlling terminal is required for masked API-key input."
-  exit 1
-fi
-printf 'Temporary Anthropic API key: ' > /dev/tty
-IFS= read -r -s interview_key < /dev/tty
-printf '\n' > /dev/tty
-if [ -z "$interview_key" ]; then
-  interview_error "No API key was provided."
-  exit 1
-fi
-
-cd "$INTERVIEW_REPOSITORY"
-unset ANTHROPIC_AUTH_TOKEN
-unset CLAUDE_CODE_OAUTH_TOKEN CLAUDE_CODE_OAUTH_REFRESH_TOKEN CLAUDE_CODE_OAUTH_SCOPES
-unset GH_TOKEN GITHUB_TOKEN CODER_AGENT_TOKEN CODER_SESSION_TOKEN
-unset REALM_VISUAL_REVIEW_API_KEY RUNCOMFY_API_TOKEN
-export ANTHROPIC_API_KEY="$interview_key"
-unset interview_key
-exec claude "${claude_arguments[@]}"
-CLAUDEEOF
 
 install_interview_file "$interview_bin_dir/interview-check" 700 <<'CHECKEOF'
 #!/usr/bin/env bash
@@ -1175,10 +1307,6 @@ check_command() {
   command -v "$1" >/dev/null 2>&1
 }
 
-check_version_command() {
-  command -v "$1" >/dev/null 2>&1 && "$1" --version >/dev/null 2>&1
-}
-
 check_api() {
   curl --fail --silent --show-error --max-time 5 http://127.0.0.1:8000/hello >/dev/null
 }
@@ -1214,7 +1342,7 @@ run_check "required Python modules import" check_backend_imports
 run_check "backend pytest suite passes" check_backend_tests
 run_check "frontend dependency hash is current" interview_frontend_dependencies_ready
 run_check "frontend production build passes" check_frontend_build
-run_check "Claude Code is functional" check_version_command claude
+run_check "read-only image-baked Claude Code is functional" interview_claude_ready
 run_check "Codex $INTERVIEW_CODEX_VERSION is pinned" \
   interview_managed_tool_ready \
   codex "$INTERVIEW_CODEX_VERSION" .bin/codex "$INTERVIEW_CODEX_BASELINE_TARGET"
@@ -1226,7 +1354,8 @@ run_check "Bun $INTERVIEW_BUN_VERSION is pinned" \
   bun "$INTERVIEW_BUN_VERSION" @oven/bun-linux-x64/bin/bun "$INTERVIEW_BUN_BASELINE_TARGET"
 run_check "pnpm $INTERVIEW_PNPM_VERSION is pinned" \
   interview_managed_tool_ready pnpm "$INTERVIEW_PNPM_VERSION" .bin/pnpm
-run_check "Chrome is installed" check_command google-chrome-stable
+run_check "Chrome is installed" test -x "$INTERVIEW_CHROME_BIN"
+run_check "managed browser helper paths are ready" interview_browser_helpers_ready
 run_check "tmux is installed" check_command tmux
 run_check "SQLite CLI is installed" check_command sqlite3
 run_check "ripgrep is installed" check_command rg
@@ -1271,12 +1400,12 @@ fi
   printf -- '- Git: %s\n' "$(interview_version_or_missing git git --version)"
   printf -- '- make: %s\n' "$(interview_version_or_missing make make --version)"
   printf -- '- ripgrep: %s\n' "$(interview_version_or_missing rg rg --version)"
-  printf -- '- Claude Code: %s\n' "$(interview_version_or_missing claude claude --version)"
+  printf -- '- Claude Code: %s\n' "$(interview_claude_version_or_missing)"
   printf -- '- Codex: %s\n' "$(interview_version_or_missing codex codex --version)"
   printf -- '- Playwright MCP: %s\n' "$(interview_version_or_missing playwright-mcp playwright-mcp --version)"
   printf -- '- Bun: %s\n' "$(interview_version_or_missing bun bun --version)"
   printf -- '- pnpm: %s\n' "$(interview_version_or_missing pnpm pnpm --version)"
-  printf -- '- Chrome: %s\n' "$(interview_version_or_missing google-chrome-stable google-chrome-stable --version)"
+  printf -- '- Chrome: %s\n' "$(interview_version_or_missing "$INTERVIEW_CHROME_BIN" "$INTERVIEW_CHROME_BIN" --version)"
   printf -- '- tmux: %s\n' "$(interview_version_or_missing tmux tmux -V)"
   printf '\n## Checks performed\n\n'
   for result_entry in "${check_results[@]}"; do

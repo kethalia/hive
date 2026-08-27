@@ -1,0 +1,91 @@
+#!/bin/dash
+# hive-managed-interview-claude:v1
+set -eu
+umask 077
+
+interview_repository="$HOME/projects/prmsolutions/interview-template"
+expected_origin="https://github.com/prmsolutions/interview-template.git"
+trusted_claude="/opt/hive-interview-tools/claude"
+
+interview_error() {
+  printf '[error] %s\n' "$*" >&2
+}
+
+# Preserve every argument exactly while treating the first standalone `--` as
+# the helper/Claude delimiter. Rotating positional parameters avoids eval,
+# temporary files, arrays, and candidate-resolved helper processes.
+argument_count=$#
+scanned_arguments=0
+while [ "$scanned_arguments" -lt "$argument_count" ]; do
+  first_argument=$1
+  shift
+  if [ "$first_argument" = "--" ]; then
+    remaining_arguments=$((argument_count - scanned_arguments - 1))
+    rotated_arguments=0
+    while [ "$rotated_arguments" -lt "$remaining_arguments" ]; do
+      first_argument=$1
+      shift
+      set -- "$@" "$first_argument"
+      rotated_arguments=$((rotated_arguments + 1))
+    done
+    break
+  fi
+  set -- "$@" "$first_argument"
+  scanned_arguments=$((scanned_arguments + 1))
+done
+
+if [ ! -d "$interview_repository/.git" ]; then
+  interview_error "Expected interview repository is unavailable."
+  exit 1
+fi
+origin="$(/usr/bin/git -C "$interview_repository" remote get-url origin 2>/dev/null || true)"
+case "$origin" in
+  https://github.com/prmsolutions/interview-template | "$expected_origin") ;;
+  *)
+    interview_error "Expected interview repository has the wrong origin."
+    exit 1
+    ;;
+esac
+if [ ! -f "$trusted_claude" ] || [ -L "$trusted_claude" ] || [ ! -x "$trusted_claude" ]; then
+  interview_error "The read-only image-baked Claude Code executable is unavailable."
+  exit 1
+fi
+
+if [ ! -r /dev/tty ] || [ ! -w /dev/tty ]; then
+  interview_error "A controlling terminal is required for masked API-key input."
+  exit 1
+fi
+terminal_state="$(/bin/stty -g < /dev/tty)" || {
+  interview_error "Unable to read terminal settings for masked API-key input."
+  exit 1
+}
+restore_terminal() {
+  if [ -n "$terminal_state" ]; then
+    /bin/stty "$terminal_state" < /dev/tty 2>/dev/null || true
+  fi
+}
+trap restore_terminal EXIT HUP INT TERM
+/bin/stty -echo < /dev/tty
+printf 'Temporary Anthropic API key: ' > /dev/tty
+if ! IFS= read -r interview_key < /dev/tty; then
+  interview_error "Unable to read the temporary API key."
+  exit 1
+fi
+/bin/stty "$terminal_state" < /dev/tty
+terminal_state=""
+trap - EXIT HUP INT TERM
+printf '\n' > /dev/tty
+if [ -z "$interview_key" ]; then
+  interview_error "No API key was provided."
+  exit 1
+fi
+
+cd "$interview_repository"
+unset BASH_ENV ENV CDPATH LD_LIBRARY_PATH LD_PRELOAD
+unset ANTHROPIC_AUTH_TOKEN
+unset CLAUDE_CODE_OAUTH_TOKEN CLAUDE_CODE_OAUTH_REFRESH_TOKEN CLAUDE_CODE_OAUTH_SCOPES
+unset GH_TOKEN GITHUB_TOKEN CODER_AGENT_TOKEN CODER_SESSION_TOKEN
+unset REALM_VISUAL_REVIEW_API_KEY RUNCOMFY_API_TOKEN
+export ANTHROPIC_API_KEY="$interview_key"
+unset interview_key
+exec "$trusted_claude" "$@"
