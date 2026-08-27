@@ -575,7 +575,7 @@ test("standalone Terraform exposes interview apps without personal auth modules"
   assert.doesNotMatch(terraform, /\.hive-image-seeded/);
   assert.match(
     terraform,
-    /find \/target -mindepth 1 -maxdepth 1 -print -quit[\s\S]*?Preserving existing workspace home/,
+    /find \/target -mindepth 1 -maxdepth 1 ! -name lost\+found -print -quit[\s\S]*?Preserving existing workspace home/,
   );
   assert.doesNotMatch(init, /sync-vault|vault-managed|Vault Context Layer/);
   assert.doesNotMatch(init, /command = "npx"|"command": "npx"/);
@@ -600,6 +600,39 @@ test("standalone Terraform exposes interview apps without personal auth modules"
   assert.equal(profile.image_variant, "browser");
   assert.equal(profile.security, undefined);
   assert.equal(profile.applications, undefined);
+});
+
+test("home seeding ignores filesystem metadata but never overwrites persisted files", () => {
+  const terraform = readFileSync(join(templateRoot, "main.tf"), "utf8");
+  const encodedCommand = terraform.match(
+    /name\s*=\s*"seed-home"[\s\S]*?command\s*=\s*\[[\s\S]*?"sh",\s*"-c",\s*"((?:\\.|[^"\\])*)"/,
+  )?.[1];
+  assert.ok(encodedCommand, "seed-home shell command must be present");
+
+  const root = mkdtempSync(join(tmpdir(), "technical-interview-seed-home-"));
+  const imageHome = join(root, "image-home");
+  const target = join(root, "target");
+  mkdirSync(join(imageHome, ".claude"), { recursive: true });
+  mkdirSync(join(target, "lost+found"), { recursive: true });
+  writeFileSync(join(imageHome, ".claude", "fixture"), "image configuration\n");
+  writeFileSync(join(imageHome, ".profile"), "image profile\n");
+  writeFileSync(join(target, "lost+found", "filesystem-metadata"), "preserve metadata\n");
+
+  const seedCommand = JSON.parse(`"${encodedCommand}"`)
+    .replaceAll("/home/coder", imageHome)
+    .replaceAll("/target", target);
+  const first = run("sh", ["-c", seedCommand], process.env);
+  assert.equal(first.status, 0, first.stderr);
+  assert.equal(readFileSync(join(target, ".claude", "fixture"), "utf8"), "image configuration\n");
+  assert.equal(
+    readFileSync(join(target, "lost+found", "filesystem-metadata"), "utf8"),
+    "preserve metadata\n",
+  );
+
+  writeFileSync(join(target, ".profile"), "candidate profile\n");
+  const second = run("sh", ["-c", seedCommand], process.env);
+  assert.equal(second.status, 0, second.stderr);
+  assert.equal(readFileSync(join(target, ".profile"), "utf8"), "candidate profile\n");
 });
 
 test("init atomically replaces the managed environment symlink without touching its target", () => {

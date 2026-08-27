@@ -403,7 +403,7 @@ resource "kubernetes_deployment_v1" "workspace" {
           command = [
             "sh",
             "-c",
-            "if [ -z \"$(find /target -mindepth 1 -maxdepth 1 -print -quit)\" ]; then cp -R --no-preserve=ownership,timestamps /home/coder/. /target/; else printf '%s\\n' 'Preserving existing workspace home; image seed skipped.'; fi",
+            "if [ -z \"$(find /target -mindepth 1 -maxdepth 1 ! -name lost+found -print -quit)\" ]; then cp -R --no-preserve=ownership,timestamps /home/coder/. /target/; else printf '%s\\n' 'Preserving existing workspace home; image seed skipped.'; fi",
           ]
 
           security_context {
