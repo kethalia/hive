@@ -33,6 +33,7 @@ locals {
 resource "coder_agent" "main" {
   arch                    = "amd64"
   os                      = "linux"
+  api_key_scope           = "no_user_data"
   startup_script_behavior = "blocking"
 
   startup_script = templatefile("${path.module}/scripts/init.sh", {
@@ -124,15 +125,47 @@ resource "coder_agent" "main" {
   }
 }
 
+# Claude Code receives the interviewer's temporary key only in this second
+# container. Kubernetes gives containers separate PID namespaces unless pod
+# process sharing is explicitly enabled, so candidate processes in the main
+# development container cannot read the credential-bearing process environment.
+resource "coder_agent" "claude" {
+  arch                    = "amd64"
+  os                      = "linux"
+  api_key_scope           = "no_user_data"
+  startup_script_behavior = "blocking"
+  order                   = 2
+
+  startup_script = templatefile("${path.module}/scripts/init-claude.sh", {
+    claude_md_content = trimspace(file("${path.module}/CLAUDE.md"))
+  })
+
+  display_apps {
+    port_forwarding_helper = false
+    ssh_helper             = true
+    vscode                 = false
+    vscode_insiders        = false
+    web_terminal           = true
+  }
+
+  env = {
+    GIT_AUTHOR_NAME        = "Interview Candidate"
+    GIT_AUTHOR_EMAIL       = "interview@local.invalid"
+    GIT_COMMITTER_NAME     = "Interview Candidate"
+    GIT_COMMITTER_EMAIL    = "interview@local.invalid"
+    HIVE_WORKSPACE_PROFILE = local.profile.id
+  }
+}
+
 # =============================================================================
 # Development Tools
 # =============================================================================
 
 resource "coder_script" "tools_ci" {
-  agent_id           = coder_agent.main.id
-  display_name       = "Interview setup"
-  icon               = "/icon/terminal.svg"
-  run_on_start       = true
+  agent_id     = coder_agent.main.id
+  display_name = "Interview setup"
+  icon         = "/icon/terminal.svg"
+  run_on_start = true
   # Dependency hooks, tests, and builds come from the persistent candidate
   # checkout and must never make the recovery terminal inaccessible.
   start_blocks_login = false
@@ -270,6 +303,15 @@ resource "coder_app" "api_docs" {
   }
 }
 
+resource "coder_app" "interview_claude" {
+  agent_id     = coder_agent.claude.id
+  slug         = "interview-claude"
+  display_name = "Interview Claude"
+  command      = "interview-claude"
+  icon         = "/icon/terminal.svg"
+  share        = "owner"
+}
+
 # =============================================================================
 # KasmVNC (module replaces browser-serve.sh + coder_app)
 # =============================================================================
@@ -367,6 +409,7 @@ resource "kubernetes_deployment_v1" "workspace" {
       spec {
         automount_service_account_token = false
         hostname                        = local.workspace_hostname
+        share_process_namespace         = false
 
         security_context {
           run_as_non_root        = true
@@ -528,6 +571,77 @@ resource "kubernetes_deployment_v1" "workspace" {
             read_only  = true
           }
 
+          volume_mount {
+            name       = "claude-status"
+            mount_path = "/run/hive-interview-claude"
+            read_only  = true
+          }
+
+        }
+
+        container {
+          name              = "claude"
+          image             = local.profile.image
+          image_pull_policy = "IfNotPresent"
+          command           = ["sh", "-c", coder_agent.claude.init_script]
+
+          security_context {
+            allow_privilege_escalation = false
+            run_as_non_root            = true
+            run_as_user                = 1000
+
+            capabilities {
+              drop = ["ALL"]
+            }
+          }
+
+          env {
+            name  = "CODER_AGENT_TOKEN"
+            value = coder_agent.claude.token
+          }
+
+          env {
+            name  = "USER"
+            value = "coder"
+          }
+
+          env {
+            name  = "HOME"
+            value = "/home/coder"
+          }
+
+          resources {
+            requests = {
+              cpu    = "100m"
+              memory = "256Mi"
+            }
+            limits = {
+              cpu    = "2"
+              memory = "2Gi"
+            }
+          }
+
+          volume_mount {
+            name       = "home"
+            mount_path = "/workspace/projects"
+            sub_path   = "projects"
+          }
+
+          volume_mount {
+            name       = "claude-home"
+            mount_path = "/home/coder"
+          }
+
+          volume_mount {
+            name       = "trusted-tools"
+            mount_path = "/opt/hive-interview-tools"
+            read_only  = true
+          }
+
+          volume_mount {
+            name       = "claude-status"
+            mount_path = "/run/hive-interview-claude"
+          }
         }
 
         volume {
@@ -543,6 +657,22 @@ resource "kubernetes_deployment_v1" "workspace" {
 
           empty_dir {
             size_limit = "512Mi"
+          }
+        }
+
+        volume {
+          name = "claude-home"
+
+          empty_dir {
+            size_limit = "1Gi"
+          }
+        }
+
+        volume {
+          name = "claude-status"
+
+          empty_dir {
+            size_limit = "1Mi"
           }
         }
       }

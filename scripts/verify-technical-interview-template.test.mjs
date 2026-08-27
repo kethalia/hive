@@ -24,6 +24,7 @@ const templateRoot = join(repositoryRoot, "templates", "technical-interview");
 const bootstrapScript = join(templateRoot, "bootstrap.sh");
 const cloneScript = join(templateRoot, "scripts", "clone-repositories.sh");
 const initScript = join(templateRoot, "scripts", "init.sh");
+const initClaudeScript = join(templateRoot, "scripts", "init-claude.sh");
 const seedHomeScript = join(templateRoot, "scripts", "seed-home.sh");
 const stageTrustedToolsScript = join(templateRoot, "scripts", "stage-trusted-tools.sh");
 const interviewClaudeScript = join(templateRoot, "scripts", "interview-claude");
@@ -61,7 +62,15 @@ function seedSafeInterviewEnvironment(home) {
       "unset ANTHROPIC_API_KEY ANTHROPIC_AUTH_TOKEN\n" +
       "unset CLAUDE_CODE_OAUTH_TOKEN CLAUDE_CODE_OAUTH_REFRESH_TOKEN CLAUDE_CODE_OAUTH_SCOPES\n" +
       "unset GH_TOKEN GITHUB_TOKEN CODER_AGENT_TOKEN CODER_SESSION_TOKEN\n" +
-      "unset REALM_VISUAL_REVIEW_API_KEY RUNCOMFY_API_TOKEN\n",
+      "unset GIT_CONFIG GIT_CONFIG_COUNT GIT_CONFIG_PARAMETERS GIT_PROXY_COMMAND GIT_SSH\n" +
+      "unset SSH_AUTH_SOCK SSH_AGENT_PID SSH_ASKPASS_REQUIRE\n" +
+      "unset REALM_VISUAL_REVIEW_API_KEY RUNCOMFY_API_TOKEN\n" +
+      "export GIT_CONFIG_GLOBAL=/dev/null\n" +
+      "export GIT_CONFIG_NOSYSTEM=1\n" +
+      "export GIT_ASKPASS=/bin/false\n" +
+      "export GIT_SSH_COMMAND=/bin/false\n" +
+      "export GIT_TERMINAL_PROMPT=0\n" +
+      "export SSH_ASKPASS=/bin/false\n",
   );
   chmodSync(environmentFile, 0o600);
 
@@ -121,11 +130,21 @@ function renderToolsFilebrowserScript(trustedPath) {
   );
 }
 
-function renderBootstrapScript(trustedClaude, trustedClaudeLauncher, chromeBinary) {
+function renderBootstrapScript(
+  trustedClaude,
+  trustedClaudeLauncher,
+  claudeStatus,
+  chromeBinary,
+  interviewRepository,
+) {
   return readFileSync(bootstrapScript, "utf8")
+    .replaceAll(
+      'export PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"',
+      `export PATH="${dirname(trustedClaude)}:/usr/bin:/bin"`,
+    )
     .replace(
-      'interview_claude_launcher_target="/opt/hive-interview-tools/interview-claude"',
-      `interview_claude_launcher_target="${trustedClaudeLauncher}"`,
+      'INTERVIEW_TRUSTED_PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"',
+      `INTERVIEW_TRUSTED_PATH="${dirname(trustedClaude)}:/usr/bin:/bin"`,
     )
     .replace(
       'INTERVIEW_CLAUDE_BIN="/opt/hive-interview-tools/claude"',
@@ -136,20 +155,33 @@ function renderBootstrapScript(trustedClaude, trustedClaudeLauncher, chromeBinar
       `INTERVIEW_CLAUDE_LAUNCHER="${trustedClaudeLauncher}"`,
     )
     .replace(
+      'INTERVIEW_CLAUDE_STATUS="/run/hive-interview-claude/ready"',
+      `INTERVIEW_CLAUDE_STATUS="${claudeStatus}"`,
+    )
+    .replace(
       'INTERVIEW_CHROME_BIN="/usr/bin/google-chrome-stable"',
       `INTERVIEW_CHROME_BIN="${chromeBinary}"`,
     )
     .replace(
       'grep -qF \'trusted_claude="/opt/hive-interview-tools/claude"\' "$INTERVIEW_CLAUDE_LAUNCHER"',
       `grep -qF 'trusted_claude="${trustedClaude}"' "$INTERVIEW_CLAUDE_LAUNCHER"`,
+    )
+    .replace(
+      "grep -qF 'interview_repository=\"/workspace/projects/prmsolutions/interview-template\"'",
+      `grep -qF 'interview_repository="${interviewRepository}"'`,
     );
 }
 
-function renderInterviewClaudeScript(trustedClaude) {
-  return readFileSync(interviewClaudeScript, "utf8").replace(
-    'trusted_claude="/opt/hive-interview-tools/claude"',
-    `trusted_claude="${trustedClaude}"`,
-  );
+function renderInterviewClaudeScript(trustedClaude, interviewRepository) {
+  return readFileSync(interviewClaudeScript, "utf8")
+    .replace(
+      'trusted_claude="/opt/hive-interview-tools/claude"',
+      `trusted_claude="${trustedClaude}"`,
+    )
+    .replace(
+      'interview_repository="/workspace/projects/prmsolutions/interview-template"',
+      `interview_repository="${interviewRepository}"`,
+    );
 }
 
 function runInit(root, home) {
@@ -453,15 +485,34 @@ ${claudeCredentialAssertions}
 [ -z "\${GITHUB_TOKEN:-}" ]
 [ -z "\${CODER_AGENT_TOKEN:-}" ]
 [ -z "\${CODER_SESSION_TOKEN:-}" ]
+[ -z "\${GIT_CONFIG:-}" ]
+[ -z "\${GIT_CONFIG_COUNT:-}" ]
+[ -z "\${GIT_CONFIG_PARAMETERS:-}" ]
+[ -z "\${GIT_PROXY_COMMAND:-}" ]
+[ -z "\${GIT_SSH:-}" ]
+[ -z "\${SSH_AUTH_SOCK:-}" ]
+[ -z "\${SSH_AGENT_PID:-}" ]
+[ "\${GIT_CONFIG_GLOBAL:-}" = "/dev/null" ]
+[ "\${GIT_CONFIG_NOSYSTEM:-}" = "1" ]
+[ "\${GIT_ASKPASS:-}" = "/bin/false" ]
+[ "\${GIT_SSH_COMMAND:-}" = "/bin/false" ]
+[ "\${SSH_ASKPASS:-}" = "/bin/false" ]
 [ -z "\${REALM_VISUAL_REVIEW_API_KEY:-}" ]
 [ -z "\${RUNCOMFY_API_TOKEN:-}" ]
 printf '<%s>\\n' "$@" > "$CLAUDE_ARGS_LOG"
 `,
   );
   const trustedClaudeLauncher = join(root, "trusted-tools", "interview-claude");
+  const claudeStatus = join(root, "claude-status", "ready");
   mkdirSync(dirname(trustedClaudeLauncher), { recursive: true });
-  writeFileSync(trustedClaudeLauncher, renderInterviewClaudeScript(join(bin, "claude")));
+  mkdirSync(dirname(claudeStatus), { recursive: true });
+  writeFileSync(
+    trustedClaudeLauncher,
+    renderInterviewClaudeScript(join(bin, "claude"), interviewRepository),
+  );
   chmodSync(trustedClaudeLauncher, 0o555);
+  writeFileSync(claudeStatus, "isolated-claude-agent-ready-v1\n");
+  chmodSync(claudeStatus, 0o444);
   mkdirSync(join(home, ".local", "bin"), { recursive: true });
   executable(join(bin, "google-chrome-stable"), "#!/bin/sh\nprintf 'Google Chrome 140\\n'\n");
   symlinkSync(join(bin, "google-chrome-stable"), join(home, ".local", "bin", "chromium-browser"));
@@ -597,6 +648,7 @@ esac
   return {
     bin,
     calls,
+    claudeStatus,
     claudeArgs,
     commit,
     env,
@@ -618,7 +670,9 @@ function installHelpers(fixture) {
     renderBootstrapScript(
       join(fixture.bin, "claude"),
       fixture.trustedClaudeLauncher,
+      fixture.claudeStatus,
       join(fixture.bin, "google-chrome-stable"),
+      fixture.interviewRepository,
     ),
   );
   const result = run("bash", [renderedBootstrap], fixture.env);
@@ -643,6 +697,7 @@ function filesRecursively(root) {
 test("standalone Terraform exposes interview apps without personal auth modules", () => {
   const terraform = readFileSync(join(templateRoot, "main.tf"), "utf8");
   const init = readFileSync(join(templateRoot, "scripts", "init.sh"), "utf8");
+  const initClaude = readFileSync(initClaudeScript, "utf8");
   const interviewClaude = readFileSync(interviewClaudeScript, "utf8");
   const stageTrustedTools = readFileSync(stageTrustedToolsScript, "utf8");
   const toolsBrowser = readFileSync(join(templateRoot, "scripts", "tools-browser.sh"), "utf8");
@@ -669,14 +724,43 @@ test("standalone Terraform exposes interview apps without personal auth modules"
   assert.match(terraform, /file\("\$\{path\.module\}\/scripts\/stage-trusted-tools\.sh"\)/);
   assert.match(
     terraform,
+    /resource "coder_agent" "main"[\s\S]*?api_key_scope\s*=\s*"no_user_data"/,
+  );
+  assert.match(
+    terraform,
+    /resource "coder_agent" "claude"[\s\S]*?api_key_scope\s*=\s*"no_user_data"/,
+  );
+  assert.match(terraform, /share_process_namespace\s*=\s*false/);
+  assert.match(
+    terraform,
+    /container \{[\s\S]*?name\s*=\s*"claude"[\s\S]*?coder_agent\.claude\.init_script[\s\S]*?coder_agent\.claude\.token/,
+  );
+  assert.match(
+    terraform,
+    /name\s*=\s*"home"[\s\S]*?mount_path\s*=\s*"\/workspace\/projects"[\s\S]*?sub_path\s*=\s*"projects"/,
+  );
+  assert.match(terraform, /name\s*=\s*"claude-home"[\s\S]*?mount_path\s*=\s*"\/home\/coder"/);
+  assert.match(
+    terraform,
+    /resource "coder_app" "interview_claude"[\s\S]*?agent_id\s*=\s*coder_agent\.claude\.id[\s\S]*?command\s*=\s*"interview-claude"[\s\S]*?share\s*=\s*"owner"/,
+  );
+  assert.match(
+    terraform,
     /mount_path\s*=\s*"\/opt\/hive-interview-tools"[\s\S]*?read_only\s*=\s*true/,
   );
   assert.doesNotMatch(terraform, /sub_path\s*=\s*"interview-claude"/);
   assert.match(terraform, /empty_dir\s*\{[\s\S]*?size_limit\s*=\s*"512Mi"/);
   assert.match(stageTrustedTools, /\/home\/coder\/\.local\/share\/claude\/versions\/\*/);
   assert.match(interviewClaude, /trusted_claude="\/opt\/hive-interview-tools\/claude"/);
+  assert.match(
+    interviewClaude,
+    /interview_repository="\/workspace\/projects\/prmsolutions\/interview-template"/,
+  );
   assert.match(interviewClaude, /exec "\$trusted_claude" "\$@"/);
   assert.doesNotMatch(interviewClaude, /command -v claude|exec claude/);
+  assert.match(initClaude, /PATH="\/usr\/local\/sbin:[^"]+"/);
+  assert.match(initClaude, /isolated-claude-agent-ready-v1/);
+  assert.doesNotMatch(initClaude, /\/home\/coder\/projects/);
   assert.match(terraform, /"git\.autofetch"\s*:\s*false/);
   assert.doesNotMatch(terraform, /"git\.autofetch"\s*:\s*true/);
   assert.doesNotMatch(init, /sync-vault|vault-managed|Vault Context Layer/);
@@ -828,6 +912,54 @@ test("trusted tool staging copies image Claude and its launcher into pod-local f
   );
 });
 
+test("isolated Claude agent startup uses an ephemeral home and trusted command path", () => {
+  const root = mkdtempSync(join(tmpdir(), "technical-interview-claude-agent-"));
+  const home = join(root, "home");
+  const repository = join(root, "projects", "prmsolutions", "interview-template");
+  const trustedHelper = join(root, "trusted-tools", "interview-claude");
+  const statusDirectory = join(root, "status");
+  const renderedInit = join(root, "init-claude.sh");
+  const candidateMarker = join(root, "candidate-command-ran");
+  const context = "Isolated fixture guidance";
+  const contextPlaceholder = "$" + "{base64encode(claude_md_content)}";
+  mkdirSync(join(home, ".local", "bin"), { recursive: true });
+  mkdirSync(repository, { recursive: true });
+  mkdirSync(dirname(trustedHelper), { recursive: true });
+  mkdirSync(statusDirectory);
+  executable(trustedHelper, "#!/bin/sh\nexit 0\n");
+  executable(
+    join(home, ".local", "bin", "base64"),
+    `#!/bin/sh\n: > "${candidateMarker}"\nexit 1\n`,
+  );
+  writeFileSync(
+    renderedInit,
+    readFileSync(initClaudeScript, "utf8")
+      .replaceAll("/workspace/projects/prmsolutions/interview-template", repository)
+      .replaceAll("/opt/hive-interview-tools/interview-claude", trustedHelper)
+      .replaceAll("/run/hive-interview-claude", statusDirectory)
+      .replace(contextPlaceholder, Buffer.from(context).toString("base64")),
+  );
+
+  const fakeSecret = "isolated-init-secret-must-not-be-printed";
+  const result = run("bash", [renderedInit], {
+    ...process.env,
+    ANTHROPIC_API_KEY: fakeSecret,
+    CODER_AGENT_TOKEN: fakeSecret,
+    HOME: home,
+    PATH: `${join(home, ".local", "bin")}:/usr/bin:/bin`,
+  });
+  assert.equal(result.status, 0, result.stderr);
+  assert.equal(existsSync(candidateMarker), false);
+  assert.equal(lstatSync(join(home, ".local", "bin", "interview-claude")).isSymbolicLink(), true);
+  assert.equal(lstatSync(join(home, "projects")).isSymbolicLink(), true);
+  assert.equal(readFileSync(join(home, ".claude", "CLAUDE.md"), "utf8"), context);
+  assert.equal(
+    readFileSync(join(statusDirectory, "ready"), "utf8"),
+    "isolated-claude-agent-ready-v1\n",
+  );
+  assert.doesNotMatch(`${result.stdout}${result.stderr}`, new RegExp(fakeSecret));
+});
+
 test("home seeding preserves unsafe marker and staging paths", () => {
   for (const relativePath of [
     ".hive-image-seed-complete",
@@ -901,6 +1033,22 @@ test("init atomically replaces the managed environment symlink without touching 
       1,
     );
   }
+});
+
+test("blocking init never executes candidate-writable PATH commands", () => {
+  const root = mkdtempSync(join(tmpdir(), "technical-interview-init-path-"));
+  const home = join(root, "home");
+  const localBin = join(home, ".local", "bin");
+  const invocationMarker = join(root, "candidate-python-invoked");
+  mkdirSync(localBin, { recursive: true });
+  executable(
+    join(localBin, "python3"),
+    `#!/bin/sh\n: > "${invocationMarker}"\n/usr/bin/sleep 60\n`,
+  );
+
+  const result = runInit(root, home);
+  assert.equal(result.status, 0, result.stderr);
+  assert.equal(existsSync(invocationMarker), false);
 });
 
 test("init preserves a non-regular workspace README without blocking startup", () => {
@@ -1036,6 +1184,14 @@ test("init prepends credential scrubbing before existing shell startup code", ()
     "GITHUB_TOKEN",
     "CODER_AGENT_TOKEN",
     "CODER_SESSION_TOKEN",
+    "GIT_CONFIG",
+    "GIT_CONFIG_COUNT",
+    "GIT_CONFIG_PARAMETERS",
+    "GIT_PROXY_COMMAND",
+    "GIT_SSH",
+    "SSH_AUTH_SOCK",
+    "SSH_AGENT_PID",
+    "SSH_ASKPASS_REQUIRE",
     "REALM_VISUAL_REVIEW_API_KEY",
     "RUNCOMFY_API_TOKEN",
   ];
@@ -1741,6 +1897,14 @@ exec /usr/bin/git "$@"
   assert.match(second.stdout, /preserving existing interview repository/);
   assert.equal(readFileSync(candidateFile, "utf8"), "preserve me\n");
   assert.equal(readFileSync(calls, "utf8"), firstCalls);
+
+  const fakeSecret = "persisted-helper-secret-must-not-be-reported";
+  git("-C", destination, "config", "credential.helper", `store --file=${fakeSecret}`);
+  const rejected = run("bash", [cloneScript], env);
+  assert.equal(rejected.status, 1);
+  assert.match(rejected.stderr, /preserving incomplete or invalid interview repository/);
+  assert.doesNotMatch(`${rejected.stdout}${rejected.stderr}`, new RegExp(fakeSecret));
+  assert.equal(readFileSync(candidateFile, "utf8"), "preserve me\n");
 });
 
 test("repository bootstrap rejects linked parent directories", () => {
@@ -1870,10 +2034,11 @@ test("bootstrap installs helpers idempotently and preserves the staged Claude la
   for (const helper of expectedHelpers) {
     const path = join(fixture.home, ".local", "bin", helper);
     assert.equal(existsSync(path), true, `${helper} must be available`);
-    assert.equal(statSync(path).mode & 0o777, helper === "interview-claude" ? 0o555 : 0o700);
+    assert.equal(statSync(path).mode & 0o777, 0o700);
     if (helper === "interview-claude") {
-      assert.equal(lstatSync(path).isSymbolicLink(), true);
-      assert.equal(readFileSync(path, "utf8"), readFileSync(fixture.trustedClaudeLauncher, "utf8"));
+      assert.equal(lstatSync(path).isSymbolicLink(), false);
+      assert.match(readFileSync(path, "utf8"), /hive-managed-interview-claude-handoff:v1/);
+      assert.doesNotMatch(readFileSync(path, "utf8"), /read -r|stty -echo/);
     }
     firstContents.set(helper, readFileSync(path, "utf8"));
   }
@@ -2203,6 +2368,29 @@ test("setup repairs an incomplete frontend dependency tree with a current hash",
   assert.equal((readFileSync(fixture.calls, "utf8").match(/npm-install/g) ?? []).length, 2);
 });
 
+test("setup repairs corrupted frontend package payloads even when npm ls succeeds", () => {
+  const fixture = createFixture();
+  installHelpers(fixture);
+  const setup = join(fixture.home, ".local", "bin", "interview-setup");
+  const vite = join(fixture.interviewRepository, "frontend", "node_modules", ".bin", "vite");
+
+  const first = run(setup, [], fixture.env);
+  assert.equal(first.status, 0, first.stderr);
+  const installedPayload = readFileSync(vite, "utf8");
+  writeFileSync(vite, "#!/bin/sh\n# corrupted package payload\nexit 0\n");
+  chmodSync(vite, 0o755);
+
+  const repaired = run(setup, [], fixture.env);
+  assert.equal(repaired.status, 0, repaired.stderr);
+  assert.match(repaired.stdout, /Installing frontend dependencies/);
+  assert.equal(readFileSync(vite, "utf8"), installedPayload);
+  assert.equal((readFileSync(fixture.calls, "utf8").match(/npm-install/g) ?? []).length, 2);
+
+  const unchanged = run(setup, [], fixture.env);
+  assert.equal(unchanged.status, 0, unchanged.stderr);
+  assert.equal((readFileSync(fixture.calls, "utf8").match(/npm-install/g) ?? []).length, 2);
+});
+
 test("setup recreates the backend environment when the Python runtime ABI changes", () => {
   const fixture = createFixture();
   installHelpers(fixture);
@@ -2359,6 +2547,63 @@ test("Coder auth detection distinguishes confirmed absence from unknown failures
   assert.equal(missingCli.stdout.trim(), "unauthenticated");
 });
 
+test("Git transport readiness rejects persisted helpers, headers, credential files, and SSH keys", () => {
+  const fixture = createFixture();
+  installHelpers(fixture);
+  const common = join(
+    fixture.home,
+    ".local",
+    "libexec",
+    "hive",
+    "technical-interview",
+    "common.sh",
+  );
+  const inspect = () =>
+    run(
+      "bash",
+      ["-c", `source "${common}"; interview_git_transport_credentials_absent`],
+      fixture.env,
+    );
+  const fakeSecret = "generic-git-secret-must-never-be-reported";
+
+  assert.equal(inspect().status, 0);
+
+  const globalConfig = join(fixture.home, ".gitconfig");
+  writeFileSync(globalConfig, `[credential]\n\thelper = store --file=${fakeSecret}\n`);
+  const helperResult = inspect();
+  assert.equal(helperResult.status, 1);
+  assert.doesNotMatch(`${helperResult.stdout}${helperResult.stderr}`, new RegExp(fakeSecret));
+  unlinkSync(globalConfig);
+
+  git(
+    "-C",
+    fixture.interviewRepository,
+    "config",
+    "http.https://github.com/.extraHeader",
+    `Authorization: ${fakeSecret}`,
+  );
+  const headerResult = inspect();
+  assert.equal(headerResult.status, 1);
+  assert.doesNotMatch(`${headerResult.stdout}${headerResult.stderr}`, new RegExp(fakeSecret));
+  git(
+    "-C",
+    fixture.interviewRepository,
+    "config",
+    "--unset-all",
+    "http.https://github.com/.extraHeader",
+  );
+
+  const credentialFile = join(fixture.home, ".git-credentials");
+  writeFileSync(credentialFile, `https://candidate:${fakeSecret}@github.com\n`);
+  assert.equal(inspect().status, 1);
+  unlinkSync(credentialFile);
+
+  const sshDirectory = join(fixture.home, ".ssh");
+  mkdirSync(sshDirectory, { recursive: true });
+  writeFileSync(join(sshDirectory, "id_ed25519"), fakeSecret);
+  assert.equal(inspect().status, 1);
+});
+
 test("readiness reports strict success and failure without network cloning", () => {
   const fixture = createFixture();
   const init = runInit(fixture.root, fixture.home);
@@ -2412,7 +2657,7 @@ test("interview-claude masks and scopes the temporary key without persisting it"
   }
   const fixture = createFixture();
   installHelpers(fixture);
-  const helper = join(fixture.home, ".local", "bin", "interview-claude");
+  const helper = fixture.trustedClaudeLauncher;
   const fakeKey = "temporary-interview-key-should-never-persist";
   const pathHijackMarker = join(fixture.root, "candidate-claude-ran");
   executable(
@@ -2428,10 +2673,20 @@ test("interview-claude masks and scopes the temporary key without persisting it"
         CODER_AGENT_TOKEN: "must-not-reach-claude",
         CODER_SESSION_TOKEN: "must-not-reach-claude",
         EXPECTED_CLAUDE_KEY: fakeKey,
+        GIT_ASKPASS: "must-not-reach-claude",
+        GIT_CONFIG: join(fixture.root, "personal-git-config"),
+        GIT_CONFIG_COUNT: "1",
+        GIT_CONFIG_PARAMETERS: "'http.extraHeader=must-not-reach-claude'",
+        GIT_PROXY_COMMAND: "must-not-reach-claude",
+        GIT_SSH: "must-not-reach-claude",
+        GIT_SSH_COMMAND: "must-not-reach-claude",
         GH_TOKEN: "must-not-reach-claude",
         GITHUB_TOKEN: "must-not-reach-claude",
         REALM_VISUAL_REVIEW_API_KEY: "must-not-reach-claude",
         RUNCOMFY_API_TOKEN: "must-not-reach-claude",
+        SSH_AGENT_PID: "4242",
+        SSH_ASKPASS: "must-not-reach-claude",
+        SSH_AUTH_SOCK: join(fixture.root, "personal-agent.sock"),
       },
       stdio: ["pipe", "pipe", "pipe"],
     });

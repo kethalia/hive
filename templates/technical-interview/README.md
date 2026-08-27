@@ -9,8 +9,11 @@ interview feature.
 - Template: `technical-interview`
 - Profile: `interview` (`Technical interview`)
 - Image variant: `browser`, with a standalone digest that initially matches `browser-testing`
-- Requests: 4 CPU and 8 GiB memory; limits: 8 CPU and 16 GiB memory
+- Main development container: 4 CPU and 8 GiB requested; 8 CPU and 16 GiB limits
+- Isolated Claude container: 100m CPU and 256 MiB requested; 2 CPU and 2 GiB limits
 - Persistent home: a dedicated 50 GiB Longhorn volume
+- Temporary-key boundary: an owner-only `claude` Coder agent in a second container, with an
+  ephemeral home, a separate PID namespace, and only the persistent `projects` subtree mounted
 - Browser: Chrome, XFCE/KasmVNC, and Playwright MCP
 - User-space toolchain: Codex, Playwright MCP, Bun, and pnpm, pinned and prepared during startup
 - GitHub external auth, Git helpers, commit signing, and Coder CLI login: not provisioned
@@ -21,6 +24,11 @@ creates only owner-shared Coder applications. It clones only
 `https://github.com/prmsolutions/interview-template.git` and preserves any existing checkout.
 It does not participate in canonical template synchronization and does not change any existing
 template or workspace.
+
+Open the **Interview Claude** Coder application for the masked temporary-key prompt. From a trusted
+external Coder client, use `coder ssh <workspace>.claude` and then run `interview-claude`. The main
+development container cannot enter the Claude container's process namespace and never receives the
+temporary key.
 
 The first startup verifies Codex `0.149.1`, Playwright MCP `0.0.79`, Bun `1.4.0`, and pnpm `10.32.1`.
 Exact matching Codex and Bun commands from the image baseline are reused; missing or mismatched tools

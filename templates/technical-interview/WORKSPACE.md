@@ -10,8 +10,11 @@ This isolated workspace is prepared for the Proton.ai full-stack assessment at
   the `interview` tmux session.
 - Open **Interview App** for the Vue frontend, **API Docs** for FastAPI, **Desktop** for Chrome, or
   **code-server** for editing.
-- Run `interview-claude` when the interviewer provides the temporary Anthropic key. The helper masks
-  input and retains the key only for the Claude process.
+- Open the owner-only **Interview Claude** application when the interviewer provides the temporary
+  Anthropic key. It opens a second Coder agent in a separate container and PID namespace. Run
+  `interview-claude` there; the helper masks input and retains the key only for that Claude process.
+- From a trusted external Coder client, the equivalent connection is
+  `coder ssh <workspace>.claude`. The main development terminal intentionally refuses key input.
 - Codex, Playwright MCP, Bun, pnpm, Python, npm, Chrome, and the project dependencies are prepared
   before the readiness report is generated.
 

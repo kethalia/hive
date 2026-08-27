@@ -2,10 +2,20 @@
 set -euo pipefail
 umask 077
 
+export PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+unset BASH_ENV ENV CDPATH LD_LIBRARY_PATH LD_PRELOAD
 unset ANTHROPIC_API_KEY ANTHROPIC_AUTH_TOKEN
 unset CLAUDE_CODE_OAUTH_TOKEN CLAUDE_CODE_OAUTH_REFRESH_TOKEN CLAUDE_CODE_OAUTH_SCOPES
 unset GH_TOKEN GITHUB_TOKEN CODER_AGENT_TOKEN CODER_SESSION_TOKEN
+unset GIT_CONFIG GIT_CONFIG_COUNT GIT_CONFIG_PARAMETERS GIT_PROXY_COMMAND GIT_SSH
+unset SSH_AUTH_SOCK SSH_AGENT_PID SSH_ASKPASS_REQUIRE
 unset REALM_VISUAL_REVIEW_API_KEY RUNCOMFY_API_TOKEN
+export GIT_CONFIG_GLOBAL=/dev/null
+export GIT_CONFIG_NOSYSTEM=1
+export GIT_ASKPASS=/bin/false
+export GIT_SSH_COMMAND=/bin/false
+export GIT_TERMINAL_PROMPT=0
+export SSH_ASKPASS=/bin/false
 
 ensure_interview_local_directory() {
   local target=$1 current remainder component
@@ -100,7 +110,6 @@ EOFREADME
 
 initialize_workspace_home
 
-export PATH="$HOME/.local/bin:$HOME/.local/share/pnpm:$HOME/.bun/bin:$HOME/.foundry/bin:$PATH"
 export HIVE_BROWSER_TOOLS_ENABLED="${enable_browser}"
 
 write_interview_environment() {
@@ -131,7 +140,16 @@ write_interview_environment() {
 unset ANTHROPIC_API_KEY ANTHROPIC_AUTH_TOKEN
 unset CLAUDE_CODE_OAUTH_TOKEN CLAUDE_CODE_OAUTH_REFRESH_TOKEN CLAUDE_CODE_OAUTH_SCOPES
 unset GH_TOKEN GITHUB_TOKEN CODER_AGENT_TOKEN CODER_SESSION_TOKEN
+unset GIT_CONFIG GIT_CONFIG_COUNT GIT_CONFIG_PARAMETERS GIT_PROXY_COMMAND GIT_SSH
+unset SSH_AUTH_SOCK SSH_AGENT_PID SSH_ASKPASS_REQUIRE
 unset REALM_VISUAL_REVIEW_API_KEY RUNCOMFY_API_TOKEN
+export GIT_CONFIG_GLOBAL=/dev/null
+export GIT_CONFIG_NOSYSTEM=1
+export GIT_ASKPASS=/bin/false
+export GIT_SSH_COMMAND=/bin/false
+export GIT_TERMINAL_PROMPT=0
+export SSH_ASKPASS=/bin/false
+export PATH="$HOME/.local/bin:$HOME/.local/share/pnpm:$HOME/.bun/bin:$HOME/.foundry/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
 EOFENV
   then
     rm -f -- "$temporary_file"
@@ -277,7 +295,15 @@ PYSHELL
   unset ANTHROPIC_API_KEY ANTHROPIC_AUTH_TOKEN
   unset CLAUDE_CODE_OAUTH_TOKEN CLAUDE_CODE_OAUTH_REFRESH_TOKEN CLAUDE_CODE_OAUTH_SCOPES
   unset GH_TOKEN GITHUB_TOKEN CODER_AGENT_TOKEN CODER_SESSION_TOKEN
+  unset GIT_CONFIG GIT_CONFIG_COUNT GIT_CONFIG_PARAMETERS GIT_PROXY_COMMAND GIT_SSH
+  unset SSH_AUTH_SOCK SSH_AGENT_PID SSH_ASKPASS_REQUIRE
   unset REALM_VISUAL_REVIEW_API_KEY RUNCOMFY_API_TOKEN
+  export GIT_CONFIG_GLOBAL=/dev/null
+  export GIT_CONFIG_NOSYSTEM=1
+  export GIT_ASKPASS=/bin/false
+  export GIT_SSH_COMMAND=/bin/false
+  export GIT_TERMINAL_PROMPT=0
+  export SSH_ASKPASS=/bin/false
 
   # Unsafe persistent shell configuration must remain visible without making
   # the Coder terminal inaccessible. interview-check performs the strict gate.

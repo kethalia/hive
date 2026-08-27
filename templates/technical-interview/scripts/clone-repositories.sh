@@ -97,14 +97,28 @@ anonymous_git() {
 }
 
 validate_checkout() {
-  local checkout=$1 origin
+  local checkout=$1 origin git_directory git_config
 
-  [ -d "$checkout/.git" ] && [ ! -L "$checkout/.git" ] || return 1
-  [ "$(anonymous_git -C "$checkout" rev-parse --is-inside-work-tree 2>/dev/null)" = true ] \
+  git_directory="$checkout/.git"
+  git_config="$git_directory/config"
+  [ -d "$git_directory" ] && [ ! -L "$git_directory" ] || return 1
+  [ -f "$git_config" ] && [ ! -L "$git_config" ] || return 1
+  if anonymous_git config --file "$git_config" --no-includes --name-only --get-regexp \
+    '^(credential($|\.)|http\..*(extraheader|proxy|cookiefile|savecookies|sslcert|sslkey)$|core\.(attributesfile|fsmonitor|gitproxy|sshcommand)$|filter\..*\.(clean|process|smudge)$|diff\..*\.(command|textconv)$|remote\..*\.proxy$|url\..*\.insteadof$|include($|\.)|includeif\.)' \
+    >/dev/null 2>&1; then
+    return 1
+  fi
+  [ "$(
+    anonymous_git -c core.fsmonitor=false -c core.hooksPath=/dev/null \
+      -C "$checkout" rev-parse --is-inside-work-tree 2>/dev/null
+  )" = true ] \
     || return 1
-  origin="$(anonymous_git -C "$checkout" remote get-url origin 2>/dev/null)" || return 1
+  origin="$(
+    anonymous_git config --file "$git_config" --no-includes --get remote.origin.url 2>/dev/null
+  )" || return 1
   [ "$origin" = "$expected_origin" ] || return 1
-  anonymous_git -C "$checkout" rev-parse --verify 'HEAD^{commit}' >/dev/null 2>&1
+  anonymous_git -c core.fsmonitor=false -c core.hooksPath=/dev/null \
+    -C "$checkout" rev-parse --verify 'HEAD^{commit}' >/dev/null 2>&1
 }
 
 if [ ! -x "$git_binary" ]; then
