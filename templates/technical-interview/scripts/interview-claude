@@ -1,14 +1,18 @@
 #!/usr/bin/python3 -I
-# hive-managed-interview-claude:v4
-"""Launch Claude through a private Unix-socket credential broker."""
+# hive-managed-interview-claude:v5
+"""Bridge a Coder command app to a shell-inaccessible Claude runtime."""
 
 import ctypes
+import errno
 import fcntl
 import http.client
 import http.server
 import os
+import pty
 import re
+import select
 import shutil
+import signal
 import socket
 import socketserver
 import ssl
@@ -19,6 +23,7 @@ import sys
 import termios
 import threading
 import tempfile
+import tty
 import urllib.parse
 from pathlib import Path
 from typing import NoReturn
@@ -27,6 +32,7 @@ from typing import NoReturn
 PR_SET_DUMPABLE = 4
 TIOCEXCL = getattr(termios, "TIOCEXCL", 0x540C)
 TIOCNXCL = getattr(termios, "TIOCNXCL", 0x540D)
+TIOCSCTTY = getattr(termios, "TIOCSCTTY", 0x540E)
 INTERVIEW_REPOSITORY = Path("/workspace/projects/prmsolutions/interview-template")
 INTERVIEW_HOME = Path("/home/coder")
 EXPECTED_ORIGINS = {
@@ -41,6 +47,21 @@ ANTHROPIC_UPSTREAM_TLS = True
 BROKER_PLACEHOLDER_KEY = "hive-interview-broker-managed-non-secret"
 BROKER_REDIRECT_PORT = 43117
 MAX_REQUEST_BYTES = 64 * 1024 * 1024
+MAX_LAUNCH_ARGUMENTS = 128
+MAX_LAUNCH_ARGUMENT_BYTES = 64 * 1024
+MAX_LAUNCH_KEY_BYTES = 16 * 1024
+MAX_FRAME_BYTES = 1024 * 1024
+LAUNCH_PROTOCOL_MAGIC = b"HIVECLAUDEv5\0\0\0\0"
+LAUNCH_REQUEST_HEADER = struct.Struct("!16sIIIHH")
+FRAME_HEADER = struct.Struct("!BI")
+FRAME_INPUT = 1
+FRAME_RESIZE = 2
+FRAME_OUTPUT = 3
+FRAME_EXIT = 4
+FRAME_ERROR = 5
+CLIENT_UID = 1000
+CLIENT_GID = 1000
+PROTECTED_RUNTIME_UID = 1000
 ALLOWED_ANTHROPIC_REQUESTS = {
     ("GET", "/v1/models"),
     ("POST", "/v1/messages"),
@@ -170,20 +191,34 @@ def verify_repository(environment: dict[str, str]) -> None:
         fail("Expected interview repository has the wrong origin.")
 
 
-def read_temporary_key() -> bytearray:
+def open_protected_terminal() -> int:
     try:
         terminal = os.open("/dev/tty", os.O_RDWR)
     except OSError:
         fail("A controlling terminal is required for masked API-key input.")
 
+    try:
+        fcntl.ioctl(terminal, TIOCEXCL)
+        termios.tcgetattr(terminal)
+    except OSError:
+        os.close(terminal)
+        fail("Unable to protect the terminal for masked API-key input.")
+    return terminal
+
+
+def close_protected_terminal(terminal: int) -> None:
+    try:
+        fcntl.ioctl(terminal, TIOCNXCL)
+    except OSError:
+        pass
+    os.close(terminal)
+
+
+def read_temporary_key(terminal: int) -> bytearray:
     original = None
     key_bytes = bytearray()
     try:
-        try:
-            fcntl.ioctl(terminal, TIOCEXCL)
-            original = termios.tcgetattr(terminal)
-        except OSError:
-            fail("Unable to protect the terminal for masked API-key input.")
+        original = termios.tcgetattr(terminal)
         masked = termios.tcgetattr(terminal)
         masked[3] &= ~termios.ECHO
         try:
@@ -200,12 +235,8 @@ def read_temporary_key() -> bytearray:
             if original is not None:
                 termios.tcsetattr(terminal, termios.TCSADRAIN, original)
                 os.write(terminal, b"\n")
-            try:
-                fcntl.ioctl(terminal, TIOCNXCL)
-            except OSError:
-                pass
-    finally:
-        os.close(terminal)
+    except OSError:
+        fail("Unable to read the temporary API key securely.")
     if not key_bytes:
         fail("No API key was provided.")
     if any(character < 0x21 or character > 0x7E for character in key_bytes):
@@ -284,7 +315,7 @@ class AnthropicBrokerHandler(http.server.BaseHTTPRequestHandler):
             lowered = name.lower()
             if (
                 lowered in HOP_BY_HOP_HEADERS
-                or lowered in {"authorization", "host", "x-api-key"}
+                or lowered in {"authorization", "content-length", "host", "x-api-key"}
                 or lowered.startswith("x-forwarded-")
             ):
                 continue
@@ -354,7 +385,136 @@ def private_broker_socket() -> tuple[Path, Path]:
     return broker_directory, broker_directory / "anthropic.sock"
 
 
-def launch_claude(arguments: list[str], environment: dict[str, str], key: bytearray) -> int:
+def wipe(secret: bytearray) -> None:
+    for index in range(len(secret)):
+        secret[index] = 0
+
+
+def receive_exact(connection: socket.socket, size: int) -> bytes:
+    payload = bytearray(size)
+    view = memoryview(payload)
+    received = 0
+    while received < size:
+        count = connection.recv_into(view[received:])
+        if count == 0:
+            raise EOFError("launch connection closed")
+        received += count
+    return bytes(payload)
+
+
+def receive_secret(connection: socket.socket, size: int) -> bytearray:
+    secret = bytearray(size)
+    view = memoryview(secret)
+    received = 0
+    while received < size:
+        count = connection.recv_into(view[received:])
+        if count == 0:
+            wipe(secret)
+            raise EOFError("launch connection closed")
+        received += count
+    return secret
+
+
+def send_frame(connection: socket.socket, frame_type: int, payload: bytes = b"") -> None:
+    if len(payload) > MAX_FRAME_BYTES:
+        raise ValueError("launch frame is too large")
+    connection.sendall(FRAME_HEADER.pack(frame_type, len(payload)))
+    if payload:
+        connection.sendall(payload)
+
+
+def receive_frame(connection: socket.socket) -> tuple[int, bytes]:
+    frame_type, length = FRAME_HEADER.unpack(receive_exact(connection, FRAME_HEADER.size))
+    if length > MAX_FRAME_BYTES:
+        raise ValueError("launch frame is too large")
+    return frame_type, receive_exact(connection, length)
+
+
+def terminal_size(terminal: int) -> tuple[int, int]:
+    try:
+        rows, columns, _x_pixels, _y_pixels = struct.unpack(
+            "HHHH",
+            fcntl.ioctl(terminal, termios.TIOCGWINSZ, b"\0" * 8),
+        )
+    except OSError:
+        return 24, 80
+    return max(rows, 1), max(columns, 1)
+
+
+def apply_terminal_size(terminal: int, rows: int, columns: int) -> None:
+    fcntl.ioctl(
+        terminal,
+        termios.TIOCSWINSZ,
+        struct.pack("HHHH", max(rows, 1), max(columns, 1), 0, 0),
+    )
+
+
+def parse_launch_request(
+    connection: socket.socket,
+) -> tuple[list[str], bytearray, int, int]:
+    header = receive_exact(connection, LAUNCH_REQUEST_HEADER.size)
+    magic, key_length, argument_count, argument_bytes, rows, columns = (
+        LAUNCH_REQUEST_HEADER.unpack(header)
+    )
+    if magic != LAUNCH_PROTOCOL_MAGIC:
+        raise ValueError("invalid launch protocol")
+    if key_length == 0 or key_length > MAX_LAUNCH_KEY_BYTES:
+        raise ValueError("invalid launch credential")
+    if argument_count > MAX_LAUNCH_ARGUMENTS or argument_bytes > MAX_LAUNCH_ARGUMENT_BYTES:
+        raise ValueError("invalid launch arguments")
+
+    key = receive_secret(connection, key_length)
+    try:
+        if any(character < 0x21 or character > 0x7E for character in key):
+            raise ValueError("invalid launch credential")
+        arguments: list[str] = []
+        consumed = 0
+        for _index in range(argument_count):
+            encoded_length = struct.unpack("!I", receive_exact(connection, 4))[0]
+            consumed += 4 + encoded_length
+            if encoded_length > MAX_LAUNCH_ARGUMENT_BYTES or consumed > argument_bytes:
+                raise ValueError("invalid launch arguments")
+            encoded = receive_exact(connection, encoded_length)
+            if b"\0" in encoded:
+                raise ValueError("invalid launch arguments")
+            arguments.append(encoded.decode("utf-8"))
+        if consumed != argument_bytes:
+            raise ValueError("invalid launch arguments")
+        return arguments, key, max(rows, 1), max(columns, 1)
+    except (UnicodeDecodeError, ValueError):
+        wipe(key)
+        raise
+
+
+def terminate_process_group(process: subprocess.Popen[bytes]) -> None:
+    if process.poll() is not None:
+        return
+    try:
+        os.killpg(process.pid, signal.SIGTERM)
+        process.wait(timeout=5)
+    except (OSError, subprocess.TimeoutExpired):
+        try:
+            os.killpg(process.pid, signal.SIGKILL)
+        except OSError:
+            pass
+        try:
+            process.wait(timeout=5)
+        except subprocess.TimeoutExpired:
+            pass
+
+
+def protected_claude_session(
+    connection: socket.socket,
+    arguments: list[str],
+    key: bytearray,
+    rows: int,
+    columns: int,
+) -> int:
+    environment = safe_environment()
+    verify_repository(environment)
+    if not regular_executable(TRUSTED_CLAUDE) or not regular_executable(TRUSTED_GUARD):
+        fail("The read-only image-baked Claude Code executable is unavailable.")
+
     broker_directory, broker_socket = private_broker_socket()
     try:
         broker = AnthropicBroker(key, broker_socket)
@@ -374,49 +534,313 @@ def launch_claude(arguments: list[str], environment: dict[str, str], key: bytear
     environment["HIVE_INTERVIEW_BROKER_SOCKET"] = str(broker_socket)
     environment["LD_PRELOAD"] = str(TRUSTED_GUARD)
     broker_thread: threading.Thread | None = None
+    process: subprocess.Popen[bytes] | None = None
+    master_terminal = -1
+    slave_terminal = -1
+    client_connected = True
+    terminal_open = True
     try:
+        master_terminal, slave_terminal = pty.openpty()
+        apply_terminal_size(slave_terminal, rows, columns)
+
+        def establish_controlling_terminal() -> None:
+            os.setsid()
+            fcntl.ioctl(slave_terminal, TIOCSCTTY, 0)
+
         try:
             process = subprocess.Popen(
                 [str(TRUSTED_CLAUDE), *arguments],
                 cwd=INTERVIEW_REPOSITORY,
                 env=environment,
+                stdin=slave_terminal,
+                stdout=slave_terminal,
+                stderr=slave_terminal,
+                close_fds=True,
+                preexec_fn=establish_controlling_terminal,
             )
         except OSError:
             fail("Unable to execute the read-only Claude Code binary.")
+        os.close(slave_terminal)
+        slave_terminal = -1
 
         broker.claude_pid = process.pid
         broker_thread = threading.Thread(target=broker.serve_forever, daemon=True)
         broker_thread.start()
+
         while True:
             try:
-                return_code = process.wait()
-                break
-            except KeyboardInterrupt:
+                monitored = [connection]
+                if terminal_open:
+                    monitored.append(master_terminal)
+                readable, _writable, _exceptional = select.select(monitored, [], [], 0.1)
+            except InterruptedError:
                 continue
+
+            if master_terminal in readable:
+                try:
+                    output = os.read(master_terminal, 64 * 1024)
+                except OSError as error:
+                    if error.errno != errno.EIO:
+                        raise
+                    output = b""
+                if output:
+                    try:
+                        send_frame(connection, FRAME_OUTPUT, output)
+                    except (BrokenPipeError, ConnectionError, EOFError):
+                        client_connected = False
+                        break
+                else:
+                    terminal_open = False
+
+            if connection in readable:
+                try:
+                    frame_type, payload = receive_frame(connection)
+                except (BrokenPipeError, ConnectionError, EOFError):
+                    client_connected = False
+                    break
+                if frame_type == FRAME_INPUT:
+                    os.write(master_terminal, payload)
+                elif frame_type == FRAME_RESIZE and len(payload) == 4:
+                    next_rows, next_columns = struct.unpack("!HH", payload)
+                    apply_terminal_size(master_terminal, next_rows, next_columns)
+                else:
+                    raise ValueError("invalid client launch frame")
+
+            if process.poll() is not None and (
+                not terminal_open or master_terminal not in readable
+            ):
+                break
+
+        if not client_connected:
+            terminate_process_group(process)
+        return_code = process.wait()
         return return_code if return_code >= 0 else 128 - return_code
     finally:
+        if process is not None:
+            terminate_process_group(process)
+        if slave_terminal >= 0:
+            os.close(slave_terminal)
+        if master_terminal >= 0:
+            os.close(master_terminal)
         if broker_thread is not None:
             broker.shutdown()
         broker.server_close()
         if broker_thread is not None:
             broker_thread.join(timeout=5)
         shutil.rmtree(broker_directory, ignore_errors=True)
-        for index in range(len(key)):
-            key[index] = 0
+        wipe(key)
+
+
+def handle_launch_connection(connection: socket.socket) -> None:
+    peer_credentials = connection.getsockopt(
+        socket.SOL_SOCKET,
+        socket.SO_PEERCRED,
+        struct.calcsize("3i"),
+    )
+    _peer_pid, peer_uid, peer_gid = struct.unpack("3i", peer_credentials)
+    if peer_uid != CLIENT_UID or peer_gid != CLIENT_GID:
+        send_frame(connection, FRAME_ERROR, b"Unauthorized Claude launch client.")
+        return
+
+    key: bytearray | None = None
+    try:
+        arguments, key, rows, columns = parse_launch_request(connection)
+        return_code = protected_claude_session(connection, arguments, key, rows, columns)
+        key = None
+        send_frame(connection, FRAME_EXIT, struct.pack("!i", return_code))
+    except (EOFError, OSError, ValueError):
+        try:
+            send_frame(connection, FRAME_ERROR, b"Protected Claude launch failed.")
+        except (BrokenPipeError, ConnectionError, OSError):
+            pass
+    finally:
+        if key is not None:
+            wipe(key)
+
+
+def serve_launch_socket(socket_path: Path) -> NoReturn:
+    try:
+        parent_metadata = socket_path.parent.lstat()
+    except OSError:
+        fail("The protected Claude launch volume is unavailable.")
+    if not stat.S_ISDIR(parent_metadata.st_mode) or socket_path.parent.is_symlink():
+        fail("The protected Claude launch volume is unsafe.")
+
+    try:
+        existing = socket_path.lstat()
+    except FileNotFoundError:
+        existing = None
+    except OSError:
+        fail("The protected Claude launch socket is unsafe.")
+    if existing is not None:
+        if not stat.S_ISSOCK(existing.st_mode) or existing.st_uid != os.getuid():
+            fail("The protected Claude launch socket is unsafe.")
+        socket_path.unlink()
+
+    listener = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+    try:
+        listener.bind(str(socket_path))
+        os.chmod(socket_path, 0o660)
+        listener.listen(4)
+        while True:
+            connection, _address = listener.accept()
+            with connection:
+                handle_launch_connection(connection)
+    finally:
+        listener.close()
+        try:
+            metadata = socket_path.lstat()
+            if stat.S_ISSOCK(metadata.st_mode) and metadata.st_uid == os.getuid():
+                socket_path.unlink()
+        except OSError:
+            pass
+    raise SystemExit(1)
+
+
+def send_launch_request(
+    connection: socket.socket,
+    arguments: list[str],
+    key: bytearray,
+    rows: int,
+    columns: int,
+) -> None:
+    if len(arguments) > MAX_LAUNCH_ARGUMENTS:
+        fail("Too many Claude arguments were provided.")
+    encoded_arguments = []
+    argument_bytes = 0
+    for argument in arguments:
+        try:
+            encoded = argument.encode("utf-8")
+        except UnicodeEncodeError:
+            fail("Claude arguments must be valid UTF-8.")
+        if b"\0" in encoded:
+            fail("Claude arguments may not contain null bytes.")
+        argument_bytes += 4 + len(encoded)
+        if argument_bytes > MAX_LAUNCH_ARGUMENT_BYTES:
+            fail("Claude arguments are unexpectedly large.")
+        encoded_arguments.append(encoded)
+
+    connection.sendall(
+        LAUNCH_REQUEST_HEADER.pack(
+            LAUNCH_PROTOCOL_MAGIC,
+            len(key),
+            len(encoded_arguments),
+            argument_bytes,
+            rows,
+            columns,
+        )
+    )
+    connection.sendall(key)
+    for encoded in encoded_arguments:
+        connection.sendall(struct.pack("!I", len(encoded)))
+        connection.sendall(encoded)
+
+
+def run_launch_client(socket_path: Path, arguments: list[str]) -> int:
+    try:
+        socket_metadata = socket_path.lstat()
+    except OSError:
+        fail("The protected Claude runtime is not ready. Retry in a few seconds.")
+    if not stat.S_ISSOCK(socket_metadata.st_mode) or socket_metadata.st_uid != PROTECTED_RUNTIME_UID:
+        fail("The protected Claude launch socket is unsafe.")
+
+    connection = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+    terminal = -1
+    key: bytearray | None = None
+    original_terminal = None
+    original_winch_handler = None
+    try:
+        connection.settimeout(10)
+        connection.connect(str(socket_path))
+        peer_credentials = connection.getsockopt(
+            socket.SOL_SOCKET,
+            socket.SO_PEERCRED,
+            struct.calcsize("3i"),
+        )
+        _peer_pid, peer_uid, _peer_gid = struct.unpack("3i", peer_credentials)
+        if peer_uid != PROTECTED_RUNTIME_UID:
+            fail("The protected Claude runtime identity is invalid.")
+        connection.settimeout(None)
+
+        terminal = open_protected_terminal()
+        key = read_temporary_key(terminal)
+        rows, columns = terminal_size(terminal)
+        send_launch_request(connection, arguments, key, rows, columns)
+        wipe(key)
+        key = None
+
+        original_terminal = termios.tcgetattr(terminal)
+        tty.setraw(terminal, termios.TCSADRAIN)
+        resize_pending = [False]
+
+        def request_resize(_signum: int, _frame: object) -> None:
+            resize_pending[0] = True
+
+        original_winch_handler = signal.signal(signal.SIGWINCH, request_resize)
+        while True:
+            if resize_pending[0]:
+                resize_pending[0] = False
+                next_rows, next_columns = terminal_size(terminal)
+                send_frame(connection, FRAME_RESIZE, struct.pack("!HH", next_rows, next_columns))
+
+            try:
+                readable, _writable, _exceptional = select.select(
+                    [terminal, connection], [], [], 0.25
+                )
+            except InterruptedError:
+                continue
+            if terminal in readable:
+                terminal_input = os.read(terminal, 64 * 1024)
+                if not terminal_input:
+                    return 1
+                send_frame(connection, FRAME_INPUT, terminal_input)
+            if connection in readable:
+                frame_type, payload = receive_frame(connection)
+                if frame_type == FRAME_OUTPUT:
+                    os.write(terminal, payload)
+                elif frame_type == FRAME_EXIT and len(payload) == 4:
+                    return_code = struct.unpack("!i", payload)[0]
+                    return return_code if return_code >= 0 else 128 - return_code
+                elif frame_type == FRAME_ERROR:
+                    os.write(terminal, b"\r\n[error] " + payload + b"\r\n")
+                    return 1
+                else:
+                    fail("The protected Claude runtime returned an invalid response.")
+    except (BrokenPipeError, ConnectionError, EOFError, OSError):
+        fail("The protected Claude runtime connection was interrupted.")
+    finally:
+        if original_winch_handler is not None:
+            signal.signal(signal.SIGWINCH, original_winch_handler)
+        if original_terminal is not None and terminal >= 0:
+            try:
+                termios.tcsetattr(terminal, termios.TCSADRAIN, original_terminal)
+            except OSError:
+                pass
+        if key is not None:
+            wipe(key)
+        if terminal >= 0:
+            close_protected_terminal(terminal)
+        connection.close()
+    return 1
 
 
 def main() -> None:
     make_process_nondumpable()
-    environment = safe_environment()
-    verify_repository(environment)
-    if not regular_executable(TRUSTED_CLAUDE) or not regular_executable(TRUSTED_GUARD):
-        fail("The read-only image-baked Claude Code executable is unavailable.")
+    if len(sys.argv) < 3 or sys.argv[1] not in {"--client", "--serve"}:
+        fail("This launcher may only run as the managed Claude client or runtime service.")
 
-    arguments = sys.argv[1:]
-    if "--" in arguments:
-        arguments.remove("--")
-    key = read_temporary_key()
-    raise SystemExit(launch_claude(arguments, environment, key))
+    socket_path = Path(sys.argv[2])
+    if not socket_path.is_absolute():
+        fail("The protected Claude launch socket path must be absolute.")
+    if sys.argv[1] == "--serve":
+        if len(sys.argv) != 3:
+            fail("The protected Claude runtime service does not accept arguments.")
+        serve_launch_socket(socket_path)
+
+    arguments = sys.argv[3:]
+    if arguments[:1] == ["--"]:
+        arguments = arguments[1:]
+    raise SystemExit(run_launch_client(socket_path, arguments))
 
 
 if __name__ == "__main__":

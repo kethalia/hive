@@ -6,6 +6,8 @@ umask 022
 unset NPM_TOKEN NODE_AUTH_TOKEN
 unset NPM_CONFIG_USERCONFIG NPM_CONFIG_GLOBALCONFIG
 unset npm_config_userconfig npm_config_globalconfig
+unset PIP_CONFIG_FILE PIP_INDEX_URL PIP_EXTRA_INDEX_URL PIP_TRUSTED_HOST
+unset PIP_CERT PIP_CLIENT_CERT PIP_KEYRING_PROVIDER PIP_PROXY
 
 # This script runs in a credential-free sidecar without the persistent home.
 # Copy the image-baked Claude executable and install the pinned Playwright MCP
@@ -82,7 +84,6 @@ import sys
 
 compile(Path(sys.argv[1]).read_bytes(), sys.argv[1], "exec")
 PYTHONCHECK
-
 printf '%s' "$HIVE_INTERVIEW_CLAUDE_GUARD_B64" \
   | /usr/bin/base64 --decode > "$temporary_guard_source"
 unset HIVE_INTERVIEW_CLAUDE_GUARD_B64
@@ -134,7 +135,7 @@ temporary_helper=""
 temporary_guard=""
 trap - EXIT HUP INT TERM
 
-printf '[ok] staged Claude, credential broker, process guard, and Playwright MCP for read-only mounts\n'
+printf '[ok] staged the immutable Claude client, runtime, credential broker, process guard, and Playwright MCP\n'
 
 if [ "${1:-}" = "--stay-alive" ]; then
   printf '[ok] trusted interview payload is ready; keeping staging sidecar available\n'

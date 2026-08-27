@@ -24,6 +24,25 @@ locals {
   profile                      = jsondecode(file("${path.module}/profile.json"))
   workspace_hostname_candidate = trim(substr(replace(lower(data.coder_workspace.me.name), "/[^a-z0-9-]/", "-"), 0, 63), "-")
   workspace_hostname           = local.workspace_hostname_candidate != "" ? local.workspace_hostname_candidate : "workspace"
+  credentialless_environment   = <<-EOT
+    unset ANTHROPIC_API_KEY ANTHROPIC_AUTH_TOKEN
+    unset CLAUDE_CODE_OAUTH_TOKEN CLAUDE_CODE_OAUTH_REFRESH_TOKEN CLAUDE_CODE_OAUTH_SCOPES
+    unset CLAUDE_CONFIG_DIR CLAUDE_SECURESTORAGE_CONFIG_DIR
+    unset NPM_TOKEN NODE_AUTH_TOKEN NPM_CONFIG_USERCONFIG NPM_CONFIG_GLOBALCONFIG
+    unset npm_config_userconfig npm_config_globalconfig
+    unset PIP_CONFIG_FILE PIP_INDEX_URL PIP_EXTRA_INDEX_URL PIP_TRUSTED_HOST
+    unset PIP_CERT PIP_CLIENT_CERT PIP_KEYRING_PROVIDER PIP_PROXY
+    unset GH_TOKEN GITHUB_TOKEN CODER_SESSION_TOKEN
+    unset GIT_CONFIG GIT_CONFIG_COUNT GIT_CONFIG_PARAMETERS GIT_PROXY_COMMAND GIT_SSH
+    unset SSH_AUTH_SOCK SSH_AGENT_PID SSH_ASKPASS_REQUIRE
+    unset REALM_VISUAL_REVIEW_API_KEY RUNCOMFY_API_TOKEN
+    unset AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY AWS_SESSION_TOKEN AWS_PROFILE
+    unset AWS_CONFIG_FILE AWS_SHARED_CREDENTIALS_FILE AWS_WEB_IDENTITY_TOKEN_FILE
+    unset GOOGLE_APPLICATION_CREDENTIALS CLOUDSDK_AUTH_ACCESS_TOKEN
+    unset AZURE_CLIENT_ID AZURE_CLIENT_SECRET AZURE_TENANT_ID
+    unset ARM_CLIENT_ID ARM_CLIENT_SECRET ARM_TENANT_ID ARM_SUBSCRIPTION_ID
+    unset KUBECONFIG
+  EOT
 }
 
 # =============================================================================
@@ -123,48 +142,6 @@ resource "coder_agent" "main" {
     interval     = 300
     timeout      = 10
   }
-}
-
-# The interviewer's key remains in a non-dumpable broker owned by the trusted
-# launcher in this second container. Claude and candidate-controlled child
-# processes receive only a non-secret placeholder; the private Unix broker
-# accepts only the protected Claude PID and injects the real key into
-# fixed-destination Anthropic HTTPS requests.
-resource "coder_agent" "claude" {
-  arch                    = "amd64"
-  os                      = "linux"
-  api_key_scope           = "no_user_data"
-  startup_script_behavior = "blocking"
-  order                   = 2
-
-  startup_script = templatefile("${path.module}/scripts/init-claude.sh", {
-    claude_md_content = trimspace(file("${path.module}/CLAUDE.md"))
-  })
-
-  display_apps {
-    port_forwarding_helper = false
-    ssh_helper             = false
-    vscode                 = false
-    vscode_insiders        = false
-    web_terminal           = false
-  }
-
-  env = {
-    GIT_AUTHOR_NAME        = "Interview Candidate"
-    GIT_AUTHOR_EMAIL       = "interview@local.invalid"
-    GIT_COMMITTER_NAME     = "Interview Candidate"
-    GIT_COMMITTER_EMAIL    = "interview@local.invalid"
-    HIVE_WORKSPACE_PROFILE = local.profile.id
-  }
-}
-
-resource "coder_script" "claude_heartbeat" {
-  agent_id     = coder_agent.claude.id
-  display_name = "Claude agent heartbeat"
-  icon         = "/icon/terminal.svg"
-  script       = file("${path.module}/scripts/claude-heartbeat.sh")
-  cron         = "*/5 * * * * *"
-  timeout      = 4
 }
 
 # =============================================================================
@@ -314,10 +291,10 @@ resource "coder_app" "api_docs" {
 }
 
 resource "coder_app" "interview_claude" {
-  agent_id     = coder_agent.claude.id
+  agent_id     = coder_agent.main.id
   slug         = "interview-claude"
   display_name = "Interview Claude"
-  command      = "interview-claude"
+  command      = "/opt/hive-interview-tools/interview-claude --client /run/hive-interview-launch/claude.sock"
   icon         = "/icon/terminal.svg"
   share        = "owner"
 }
@@ -451,8 +428,8 @@ resource "kubernetes_deployment_v1" "workspace" {
 
         # Keep network-dependent trusted staging independent from the main
         # recovery runtime. This credential-free sidecar retries transient
-        # failures while the development agent remains usable; the isolated
-        # Claude agent waits for its atomically promoted payload.
+        # failures while the development agent remains usable; the protected
+        # Claude runtime waits for its atomically promoted payload.
         container {
           name              = "stage-trusted-tools"
           image             = local.profile.image
@@ -461,6 +438,7 @@ resource "kubernetes_deployment_v1" "workspace" {
             "sh",
             "-c",
             <<-EOT
+              ${local.credentialless_environment}
               while ! /bin/sh -c "$1" stage-trusted-tools --stay-alive; do
                 printf '[warn] trusted interview payload staging failed; retrying in 5 seconds\n' >&2
                 /usr/bin/sleep 5
@@ -517,11 +495,7 @@ resource "kubernetes_deployment_v1" "workspace" {
           name              = "seed-home"
           image             = local.profile.image
           image_pull_policy = "IfNotPresent"
-          command = [
-            "sh",
-            "-c",
-            file("${path.module}/scripts/seed-home.sh"),
-          ]
+          command = ["sh", "-c", "${local.credentialless_environment}\n/bin/sh -c \"$1\"", "seed-home-wrapper", file("${path.module}/scripts/seed-home.sh")]
 
           security_context {
             allow_privilege_escalation = false
@@ -554,7 +528,13 @@ resource "kubernetes_deployment_v1" "workspace" {
           name              = "dev"
           image             = local.profile.image
           image_pull_policy = "IfNotPresent"
-          command           = ["sh", "-c", coder_agent.main.init_script]
+          command = [
+            "sh",
+            "-c",
+            "${local.credentialless_environment}\nexec /bin/sh -c \"$1\"",
+            "coder-agent-wrapper",
+            coder_agent.main.init_script,
+          ]
 
           security_context {
             allow_privilege_escalation = false
@@ -609,13 +589,43 @@ resource "kubernetes_deployment_v1" "workspace" {
             read_only  = true
           }
 
+          volume_mount {
+            name       = "claude-launch"
+            mount_path = "/run/hive-interview-launch"
+            read_only  = true
+          }
         }
 
+        # This sibling container is the credential boundary. It has no Coder
+        # agent, no Coder token, and therefore no owner-reachable SSH or web
+        # terminal. The immutable runtime service owns the masked key and
+        # relays a PTY through the read-only socket exposed to the main client.
         container {
-          name              = "claude"
+          name              = "claude-runtime"
           image             = local.profile.image
           image_pull_policy = "IfNotPresent"
-          command           = ["sh", "-c", coder_agent.claude.init_script]
+          command = [
+            "sh",
+            "-c",
+            <<-EOT
+              ${local.credentialless_environment}
+              unset CODER_AGENT_TOKEN
+              /bin/bash -c "$1"
+              (
+                while :; do
+                  /bin/bash -c "$2" || true
+                  /usr/bin/sleep 5
+                done
+              ) &
+              exec /opt/hive-interview-tools/interview-claude --serve /run/hive-interview-launch/claude.sock
+            EOT
+            ,
+            "claude-runtime-wrapper",
+            templatefile("${path.module}/scripts/init-claude.sh", {
+              claude_md_content = trimspace(file("${path.module}/CLAUDE.md"))
+            }),
+            file("${path.module}/scripts/claude-heartbeat.sh"),
+          ]
 
           security_context {
             allow_privilege_escalation = false
@@ -625,11 +635,6 @@ resource "kubernetes_deployment_v1" "workspace" {
             capabilities {
               drop = ["ALL"]
             }
-          }
-
-          env {
-            name  = "CODER_AGENT_TOKEN"
-            value = coder_agent.claude.token
           }
 
           env {
@@ -680,6 +685,11 @@ resource "kubernetes_deployment_v1" "workspace" {
             mount_path = "/opt/hive-interview-mcp"
             read_only  = true
           }
+
+          volume_mount {
+            name       = "claude-launch"
+            mount_path = "/run/hive-interview-launch"
+          }
         }
 
         volume {
@@ -719,6 +729,14 @@ resource "kubernetes_deployment_v1" "workspace" {
 
           empty_dir {
             size_limit = "512Mi"
+          }
+        }
+
+        volume {
+          name = "claude-launch"
+
+          empty_dir {
+            size_limit = "1Mi"
           }
         }
       }

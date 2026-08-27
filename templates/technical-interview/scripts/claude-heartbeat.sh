@@ -9,12 +9,14 @@ unset CLAUDE_CODE_OAUTH_TOKEN CLAUDE_CODE_OAUTH_REFRESH_TOKEN CLAUDE_CODE_OAUTH_
 unset CLAUDE_CONFIG_DIR CLAUDE_SECURESTORAGE_CONFIG_DIR
 unset NPM_TOKEN NODE_AUTH_TOKEN NPM_CONFIG_USERCONFIG NPM_CONFIG_GLOBALCONFIG
 unset npm_config_userconfig npm_config_globalconfig
+unset PIP_CONFIG_FILE PIP_INDEX_URL PIP_EXTRA_INDEX_URL PIP_TRUSTED_HOST
+unset PIP_CERT PIP_CLIENT_CERT PIP_KEYRING_PROVIDER PIP_PROXY
 unset GH_TOKEN GITHUB_TOKEN CODER_AGENT_TOKEN CODER_SESSION_TOKEN
 unset SSH_AUTH_SOCK SSH_AGENT_PID
 
 status_directory="/run/hive-interview-claude"
+launch_socket="/run/hive-interview-launch/claude.sock"
 trusted_helper="/opt/hive-interview-tools/interview-claude"
-installed_helper="$HOME/.local/bin/interview-claude"
 playwright_mcp_version="0.0.79"
 staged_playwright_root="/opt/hive-interview-mcp/playwright-mcp-$playwright_mcp_version"
 staged_playwright_mcp="$staged_playwright_root/node_modules/.bin/playwright-mcp"
@@ -27,8 +29,10 @@ fi
 if [ ! -f "$trusted_helper" ] || [ -L "$trusted_helper" ] || [ ! -x "$trusted_helper" ]; then
   exit 1
 fi
-if [ ! -L "$installed_helper" ] \
-  || [ "$(/usr/bin/readlink -- "$installed_helper")" != "$trusted_helper" ]; then
+if [ ! -S "$launch_socket" ] || [ -L "$launch_socket" ] || [ ! -O "$launch_socket" ]; then
+  exit 1
+fi
+if ! /usr/bin/grep -qF '# hive-managed-interview-claude:v5' "$trusted_helper"; then
   exit 1
 fi
 if [ ! -L "$installed_playwright_mcp" ] \
@@ -75,6 +79,6 @@ then
 fi
 
 temporary_status="$(/usr/bin/mktemp "$status_directory/.ready.XXXXXX")"
-/usr/bin/printf 'isolated-claude-agent-ready-v2 %s\n' "$(/usr/bin/date +%s)" > "$temporary_status"
+/usr/bin/printf 'isolated-claude-runtime-ready-v3 %s\n' "$(/usr/bin/date +%s)" > "$temporary_status"
 /usr/bin/chmod 0444 "$temporary_status"
 /usr/bin/mv -fT -- "$temporary_status" "$status_directory/ready"

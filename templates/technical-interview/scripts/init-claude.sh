@@ -11,10 +11,18 @@ unset CLAUDE_CODE_OAUTH_TOKEN CLAUDE_CODE_OAUTH_REFRESH_TOKEN CLAUDE_CODE_OAUTH_
 unset CLAUDE_CONFIG_DIR CLAUDE_SECURESTORAGE_CONFIG_DIR
 unset NPM_TOKEN NODE_AUTH_TOKEN NPM_CONFIG_USERCONFIG NPM_CONFIG_GLOBALCONFIG
 unset npm_config_userconfig npm_config_globalconfig
+unset PIP_CONFIG_FILE PIP_INDEX_URL PIP_EXTRA_INDEX_URL PIP_TRUSTED_HOST
+unset PIP_CERT PIP_CLIENT_CERT PIP_KEYRING_PROVIDER PIP_PROXY
 unset GH_TOKEN GITHUB_TOKEN CODER_AGENT_TOKEN CODER_SESSION_TOKEN
 unset GIT_CONFIG GIT_CONFIG_COUNT GIT_CONFIG_PARAMETERS GIT_PROXY_COMMAND GIT_SSH
 unset SSH_AUTH_SOCK SSH_AGENT_PID SSH_ASKPASS_REQUIRE
 unset REALM_VISUAL_REVIEW_API_KEY RUNCOMFY_API_TOKEN
+unset AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY AWS_SESSION_TOKEN AWS_PROFILE
+unset AWS_CONFIG_FILE AWS_SHARED_CREDENTIALS_FILE AWS_WEB_IDENTITY_TOKEN_FILE
+unset GOOGLE_APPLICATION_CREDENTIALS CLOUDSDK_AUTH_ACCESS_TOKEN
+unset AZURE_CLIENT_ID AZURE_CLIENT_SECRET AZURE_TENANT_ID
+unset ARM_CLIENT_ID ARM_CLIENT_SECRET ARM_TENANT_ID ARM_SUBSCRIPTION_ID
+unset KUBECONFIG
 export GIT_CONFIG_GLOBAL=/dev/null
 export GIT_CONFIG_NOSYSTEM=1
 export GIT_ASKPASS=/bin/false
@@ -24,7 +32,8 @@ export SSH_ASKPASS=/bin/false
 
 interview_repository="/workspace/projects/prmsolutions/interview-template"
 trusted_helper="/opt/hive-interview-tools/interview-claude"
-status_directory="/run/hive-interview-claude"
+trusted_claude="/opt/hive-interview-tools/claude"
+trusted_guard="/opt/hive-interview-tools/claude-guard.so"
 playwright_mcp_version="0.0.79"
 staged_playwright_root="/opt/hive-interview-mcp/playwright-mcp-$playwright_mcp_version"
 staged_playwright_mcp="$staged_playwright_root/node_modules/.bin/playwright-mcp"
@@ -54,6 +63,12 @@ trusted_payload_ready() {
   [ -f "$trusted_helper" ] \
     && [ ! -L "$trusted_helper" ] \
     && [ -x "$trusted_helper" ] \
+    && [ -f "$trusted_claude" ] \
+    && [ ! -L "$trusted_claude" ] \
+    && [ -x "$trusted_claude" ] \
+    && [ -f "$trusted_guard" ] \
+    && [ ! -L "$trusted_guard" ] \
+    && [ -x "$trusted_guard" ] \
     && playwright_mcp_ready
 }
 
@@ -63,11 +78,6 @@ fi
 until trusted_payload_ready; do
   /usr/bin/sleep 2
 done
-
-link_staging="$(/usr/bin/mktemp -d "$HOME/.local/bin/.interview-claude.XXXXXX")"
-/usr/bin/ln -s -- "$trusted_helper" "$link_staging/interview-claude"
-/usr/bin/mv -fT -- "$link_staging/interview-claude" "$HOME/.local/bin/interview-claude"
-/usr/bin/rmdir -- "$link_staging"
 
 playwright_link_staging="$(/usr/bin/mktemp -d "$HOME/.local/bin/.playwright-mcp.XXXXXX")"
 /usr/bin/ln -s -- "$staged_playwright_mcp" "$playwright_link_staging/playwright-mcp"
@@ -105,22 +115,14 @@ temporary_mcp="$(/usr/bin/mktemp "$HOME/.claude.json.XXXXXX")"
 
 temporary_readme="$(/usr/bin/mktemp "$HOME/.README.XXXXXX")"
 /usr/bin/printf '%s\n' \
-  'Isolated Claude interview agent' \
+  'Protected Claude interview runtime' \
   '' \
-  'Run interview-claude from this terminal when the interviewer provides the temporary key.' \
+  'This runtime has no Coder agent, SSH endpoint, or web terminal.' \
+  'Use the Interview Claude app; its immutable client relays this runtime PTY.' \
   'Playwright MCP uses the image Chrome with browser state confined to this ephemeral home.' \
   'Only /workspace/projects is shared with the main development container.' \
   > "$temporary_readme"
 /usr/bin/chmod 600 "$temporary_readme"
 /usr/bin/mv -fT -- "$temporary_readme" "$HOME/README.md"
 
-if [ -L "$status_directory" ] || [ ! -d "$status_directory" ]; then
-  printf 'ERROR: isolated Claude status volume is unavailable\n' >&2
-  exit 1
-fi
-temporary_status="$(/usr/bin/mktemp "$status_directory/.ready.XXXXXX")"
-/usr/bin/printf 'isolated-claude-agent-ready-v2 %s\n' "$(/usr/bin/date +%s)" > "$temporary_status"
-/usr/bin/chmod 0444 "$temporary_status"
-/usr/bin/mv -fT -- "$temporary_status" "$status_directory/ready"
-
-printf 'Isolated Claude launcher ready for %s\n' "$interview_repository"
+printf 'Protected shell-inaccessible Claude runtime prepared for %s\n' "$interview_repository"

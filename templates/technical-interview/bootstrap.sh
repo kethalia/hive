@@ -11,10 +11,18 @@ unset CLAUDE_CONFIG_DIR CLAUDE_SECURESTORAGE_CONFIG_DIR
 unset NPM_TOKEN NODE_AUTH_TOKEN
 unset NPM_CONFIG_USERCONFIG NPM_CONFIG_GLOBALCONFIG
 unset npm_config_userconfig npm_config_globalconfig
+unset PIP_CONFIG_FILE PIP_INDEX_URL PIP_EXTRA_INDEX_URL PIP_TRUSTED_HOST
+unset PIP_CERT PIP_CLIENT_CERT PIP_KEYRING_PROVIDER PIP_PROXY
 unset GH_TOKEN GITHUB_TOKEN CODER_AGENT_TOKEN CODER_SESSION_TOKEN
 unset GIT_CONFIG GIT_CONFIG_COUNT GIT_CONFIG_PARAMETERS GIT_PROXY_COMMAND GIT_SSH
 unset SSH_AUTH_SOCK SSH_AGENT_PID SSH_ASKPASS_REQUIRE
 unset REALM_VISUAL_REVIEW_API_KEY RUNCOMFY_API_TOKEN
+unset AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY AWS_SESSION_TOKEN AWS_PROFILE
+unset AWS_CONFIG_FILE AWS_SHARED_CREDENTIALS_FILE AWS_WEB_IDENTITY_TOKEN_FILE
+unset GOOGLE_APPLICATION_CREDENTIALS CLOUDSDK_AUTH_ACCESS_TOKEN
+unset AZURE_CLIENT_ID AZURE_CLIENT_SECRET AZURE_TENANT_ID
+unset ARM_CLIENT_ID ARM_CLIENT_SECRET ARM_TENANT_ID ARM_SUBSCRIPTION_ID
+unset KUBECONFIG
 export GIT_CONFIG_GLOBAL=/dev/null
 export GIT_CONFIG_NOSYSTEM=1
 export GIT_ASKPASS=/bin/false
@@ -110,13 +118,10 @@ install_interview_symlink() {
 install_interview_file "$interview_bin_dir/interview-claude" 700 <<'CLAUDEHANDOFFEOF'
 #!/bin/bash
 # hive-managed-interview-claude-handoff:v1
-set -u
+set -eu
 
-printf '%s\n' \
-  '[error] Temporary Anthropic key input is disabled in the main development container.' \
-  '[info] Open the owner-only Interview Claude application in Coder.' \
-  '[info] Its fixed command prompts for the key inside the isolated Claude container.' >&2
-exit 1
+exec /opt/hive-interview-tools/interview-claude \
+  --client /run/hive-interview-launch/claude.sock -- "$@"
 CLAUDEHANDOFFEOF
 
 install_interview_file "$interview_libexec_dir/common.sh" 600 <<'COMMONEOF'
@@ -145,7 +150,6 @@ INTERVIEW_CLAUDE_BIN="/opt/hive-interview-tools/claude"
 INTERVIEW_CLAUDE_LAUNCHER="/opt/hive-interview-tools/interview-claude"
 INTERVIEW_CLAUDE_GUARD="/opt/hive-interview-tools/claude-guard.so"
 INTERVIEW_CLAUDE_STATUS="/run/hive-interview-claude/ready"
-INTERVIEW_CLAUDE_AGENT="claude"
 INTERVIEW_CHROME_BIN="/usr/bin/google-chrome-stable"
 INTERVIEW_CODEX_BIN="$HOME/.local/bin/codex"
 INTERVIEW_PLAYWRIGHT_MCP_BIN="$HOME/.local/bin/playwright-mcp"
@@ -167,6 +171,14 @@ INTERVIEW_FORBIDDEN_CREDENTIALS=(
   NPM_CONFIG_GLOBALCONFIG
   npm_config_userconfig
   npm_config_globalconfig
+  PIP_CONFIG_FILE
+  PIP_INDEX_URL
+  PIP_EXTRA_INDEX_URL
+  PIP_TRUSTED_HOST
+  PIP_CERT
+  PIP_CLIENT_CERT
+  PIP_KEYRING_PROVIDER
+  PIP_PROXY
   GH_TOKEN
   GITHUB_TOKEN
   CODER_AGENT_TOKEN
@@ -181,6 +193,23 @@ INTERVIEW_FORBIDDEN_CREDENTIALS=(
   SSH_ASKPASS_REQUIRE
   REALM_VISUAL_REVIEW_API_KEY
   RUNCOMFY_API_TOKEN
+  AWS_ACCESS_KEY_ID
+  AWS_SECRET_ACCESS_KEY
+  AWS_SESSION_TOKEN
+  AWS_PROFILE
+  AWS_CONFIG_FILE
+  AWS_SHARED_CREDENTIALS_FILE
+  AWS_WEB_IDENTITY_TOKEN_FILE
+  GOOGLE_APPLICATION_CREDENTIALS
+  CLOUDSDK_AUTH_ACCESS_TOKEN
+  AZURE_CLIENT_ID
+  AZURE_CLIENT_SECRET
+  AZURE_TENANT_ID
+  ARM_CLIENT_ID
+  ARM_CLIENT_SECRET
+  ARM_TENANT_ID
+  ARM_SUBSCRIPTION_ID
+  KUBECONFIG
 )
 
 interview_ensure_local_directory() {
@@ -261,6 +290,18 @@ interview_scrub_credentials() {
   export GIT_SSH_COMMAND=/bin/false
   export GIT_TERMINAL_PROMPT=0
   export SSH_ASKPASS=/bin/false
+}
+
+interview_pip() {
+  local python_command=$1
+  shift
+
+  "$python_command" -m pip \
+    --isolated \
+    --disable-pip-version-check \
+    --no-input \
+    --keyring-provider disabled \
+    "$@"
 }
 
 interview_tool_version_matches() {
@@ -630,14 +671,12 @@ interview_backend_environment_ready() {
 
   interview_local_directory_chain_ready "$INTERVIEW_VENV/bin" || return 1
   [ -x "$INTERVIEW_VENV/bin/python" ] || return 1
-  "$INTERVIEW_VENV/bin/python" -m pip check >/dev/null 2>&1 || return 1
+  interview_pip "$INTERVIEW_VENV/bin/python" check >/dev/null 2>&1 || return 1
 
   report_file="$(mktemp "$INTERVIEW_STATE_DIR/.pip-dry-run.XXXXXX")" || return 1
-  if ! "$INTERVIEW_VENV/bin/python" -m pip install \
-    --disable-pip-version-check \
+  if ! interview_pip "$INTERVIEW_VENV/bin/python" install \
     --dry-run \
     --no-cache-dir \
-    --no-input \
     --quiet \
     --report "$report_file" \
     -r "$INTERVIEW_BACKEND/requirements.txt" >/dev/null 2>&1; then
@@ -917,9 +956,20 @@ interview_claude_authentication_absent() {
 }
 
 interview_package_authentication_absent() {
-  # npm's default per-user configuration can contain registry bearer tokens.
-  # Preserve the user-owned file but fail readiness without reading it.
-  [ ! -e "$HOME/.npmrc" ] && [ ! -L "$HOME/.npmrc" ]
+  local configuration_path
+
+  # npm and pip per-user configuration can contain registry bearer tokens or
+  # embedded index credentials. Preserve each user-owned path, but fail
+  # readiness without reading it.
+  for configuration_path in \
+    "$HOME/.npmrc" \
+    "$HOME/.config/pip/pip.conf" \
+    "$HOME/.pip/pip.conf"; do
+    if [ -e "$configuration_path" ] || [ -L "$configuration_path" ]; then
+      return 1
+    fi
+  done
+  return 0
 }
 
 interview_github_auth_json() {
@@ -966,10 +1016,32 @@ interview_shell_scrub_ready() {
     'unset npm_config_userconfig npm_config_globalconfig' \
     "$environment_file" || return 1
   grep -qF \
+    'unset PIP_CONFIG_FILE PIP_INDEX_URL PIP_EXTRA_INDEX_URL PIP_TRUSTED_HOST' \
+    "$environment_file" || return 1
+  grep -qF \
+    'unset PIP_CERT PIP_CLIENT_CERT PIP_KEYRING_PROVIDER PIP_PROXY' \
+    "$environment_file" || return 1
+  grep -qF \
     'unset GH_TOKEN GITHUB_TOKEN CODER_AGENT_TOKEN CODER_SESSION_TOKEN' \
     "$environment_file" || return 1
   grep -qF 'unset REALM_VISUAL_REVIEW_API_KEY RUNCOMFY_API_TOKEN' \
     "$environment_file" || return 1
+  grep -qF \
+    'unset AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY AWS_SESSION_TOKEN AWS_PROFILE' \
+    "$environment_file" || return 1
+  grep -qF \
+    'unset AWS_CONFIG_FILE AWS_SHARED_CREDENTIALS_FILE AWS_WEB_IDENTITY_TOKEN_FILE' \
+    "$environment_file" || return 1
+  grep -qF \
+    'unset GOOGLE_APPLICATION_CREDENTIALS CLOUDSDK_AUTH_ACCESS_TOKEN' \
+    "$environment_file" || return 1
+  grep -qF \
+    'unset AZURE_CLIENT_ID AZURE_CLIENT_SECRET AZURE_TENANT_ID' \
+    "$environment_file" || return 1
+  grep -qF \
+    'unset ARM_CLIENT_ID ARM_CLIENT_SECRET ARM_TENANT_ID ARM_SUBSCRIPTION_ID' \
+    "$environment_file" || return 1
+  grep -qF 'unset KUBECONFIG' "$environment_file" || return 1
   grep -qF \
     'unset GIT_CONFIG GIT_CONFIG_COUNT GIT_CONFIG_PARAMETERS GIT_PROXY_COMMAND GIT_SSH' \
     "$environment_file" || return 1
@@ -1047,7 +1119,7 @@ interview_claude_ready() {
   [ -f "$INTERVIEW_CLAUDE_STATUS" ] \
     && [ ! -L "$INTERVIEW_CLAUDE_STATUS" ] \
     && IFS=' ' read -r marker timestamp extra < "$INTERVIEW_CLAUDE_STATUS" \
-    && [ "$marker" = 'isolated-claude-agent-ready-v2' ] \
+    && [ "$marker" = 'isolated-claude-runtime-ready-v3' ] \
     && [ -z "$extra" ] \
     && [[ "$timestamp" =~ ^[0-9]+$ ]] \
     && now="$(date +%s)" \
@@ -1057,7 +1129,7 @@ interview_claude_ready() {
     && [ -f "$INTERVIEW_CLAUDE_LAUNCHER" ] \
     && [ ! -L "$INTERVIEW_CLAUDE_LAUNCHER" ] \
     && [ -x "$INTERVIEW_CLAUDE_LAUNCHER" ] \
-    && grep -qF '# hive-managed-interview-claude:v4' "$INTERVIEW_CLAUDE_LAUNCHER" \
+    && grep -qF '# hive-managed-interview-claude:v5' "$INTERVIEW_CLAUDE_LAUNCHER" \
     && grep -qF 'INTERVIEW_REPOSITORY = Path("/workspace/projects/prmsolutions/interview-template")' \
       "$INTERVIEW_CLAUDE_LAUNCHER" \
     && grep -qF 'TRUSTED_CLAUDE = Path("/opt/hive-interview-tools/claude")' \
@@ -1070,6 +1142,8 @@ interview_claude_ready() {
       "$INTERVIEW_CLAUDE_LAUNCHER" \
     && grep -qF 'socketserver.UnixStreamServer' "$INTERVIEW_CLAUDE_LAUNCHER" \
     && grep -qF 'socket.SO_PEERCRED' "$INTERVIEW_CLAUDE_LAUNCHER" \
+    && grep -qF 'serve_launch_socket' "$INTERVIEW_CLAUDE_LAUNCHER" \
+    && grep -qF 'run_launch_client' "$INTERVIEW_CLAUDE_LAUNCHER" \
     && grep -qF 'PR_SET_DUMPABLE = 4' "$INTERVIEW_CLAUDE_LAUNCHER" \
     && [ -f "$INTERVIEW_CLAUDE_BIN" ] \
     && [ ! -L "$INTERVIEW_CLAUDE_BIN" ] \
@@ -1296,9 +1370,7 @@ interview_install_virtualenv_fallback() {
 
   candidate_root="$(mktemp -d "$INTERVIEW_STATE_DIR/.virtualenv-install.XXXXXX")" \
     || return 1
-  if ! python3 -m pip install \
-    --disable-pip-version-check \
-    --no-input \
+  if ! interview_pip python3 install \
     --target "$candidate_root" \
     "virtualenv==$INTERVIEW_VIRTUALENV_VERSION"; then
     rm -rf -- "$candidate_root"
@@ -1384,9 +1456,7 @@ fi
 
 if [ "$backend_hash" != "$stored_backend_hash" ]; then
   interview_ok "Installing backend dependencies"
-  "$INTERVIEW_VENV/bin/python" -m pip install \
-    --disable-pip-version-check \
-    --no-input \
+  interview_pip "$INTERVIEW_VENV/bin/python" install \
     -r "$INTERVIEW_BACKEND/requirements.txt"
   if ! interview_backend_environment_ready; then
     interview_error "Backend dependencies failed complete requirement and installed-file validation."
@@ -1870,7 +1940,7 @@ run_check "required Python modules import" check_backend_imports
 run_check "backend pytest suite passes" check_backend_tests
 run_check "frontend dependency hash is current" interview_frontend_dependencies_ready
 run_check "frontend production build passes" check_frontend_build
-run_check "isolated read-only Claude agent is ready" interview_claude_ready
+run_check "shell-inaccessible read-only Claude runtime is ready" interview_claude_ready
 run_check "Codex $INTERVIEW_CODEX_VERSION is pinned" \
   interview_managed_tool_ready \
   codex "$INTERVIEW_CODEX_VERSION" .bin/codex "$INTERVIEW_CODEX_BASELINE_TARGET"
@@ -1956,7 +2026,7 @@ fi
   printf -- '- `interview-stop` — stop only the interview session\n'
   printf -- '- `interview-status` — show non-secret state\n'
   printf -- '- `interview-check` — rerun this strict readiness check\n'
-  printf -- '- **Interview Claude** Coder app — run the fixed launcher and protected Anthropic request broker in the isolated credential container\n'
+  printf -- '- `interview-claude` or the **Interview Claude** Coder app — use the immutable client to reach the shell-inaccessible protected runtime\n'
   printf '\n## Credential state\n\n'
   printf 'Only credential names are reported; values are never recorded. Required pre-interview state: '
   printf 'Anthropic API/auth and Claude OAuth credentials (environment and persisted login), package-manager authentication, GitHub, Coder agent/session, Git/SSH transport, Realm, and RunComfy credentials absent; GitHub and Coder CLIs unauthenticated.\n'
@@ -2203,6 +2273,14 @@ start_status=0
 check_status=0
 "$interview_bin_dir/interview-setup" || setup_status=$?
 "$interview_bin_dir/interview-start" || start_status=$?
+
+# The protected runtime stages independently so a registry outage cannot hide
+# the main recovery terminal. Give its immutable service a bounded opportunity
+# to publish a fresh heartbeat before the final all-or-nothing readiness pass.
+for _claude_attempt in {1..60}; do
+  interview_claude_ready && break
+  sleep 2
+done
 
 "$interview_bin_dir/interview-check" || check_status=$?
 

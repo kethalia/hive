@@ -12,14 +12,14 @@ This isolated workspace is prepared for the Proton.ai full-stack assessment at
 - Open **Interview App** for the Vue frontend, **API Docs** for FastAPI, **Desktop** for Chrome, or
   **code-server** for editing.
 - Open the owner-only **Interview Claude** application when the interviewer provides the temporary
-  Anthropic key. Its fixed command runs in a second Coder agent with a separate container, PID
-  namespace, and ephemeral home. The masked helper keeps the real key in a non-dumpable private
-  Unix-socket broker that accepts only the protected Claude process and injects the key only into
-  fixed-destination Anthropic API requests. Claude, hooks, commands, and stdio MCP servers never
-  inherit the real key. Its pinned Playwright MCP command is registered in Claude's supported
-  user-scoped configuration and keeps browser state in that container's ephemeral home.
-- Generic SSH and Web Terminal buttons are hidden for the Claude agent. The main development
-  terminal intentionally refuses key input.
+  Anthropic key, or run `interview-claude`. The fixed client is loaded from a read-only pod-local
+  volume and relays the terminal to a sibling runtime that has no Coder agent, Coder token, SSH
+  endpoint, or web terminal. The runtime keeps the real key in a non-dumpable private
+  Unix-socket broker and injects it only into fixed-destination Anthropic API requests. Claude,
+  hooks, commands, and stdio MCP servers never inherit the real key. Its pinned Playwright MCP
+  command and browser state remain in the shell-inaccessible runtime's ephemeral home.
+- The client can reach only the protected launch protocol; it cannot enter the runtime home,
+  process namespace, or credential broker.
 - Codex, Playwright MCP, Bun, pnpm, Python, npm, Chrome, and the project dependencies are prepared
   before the readiness report is generated.
 
