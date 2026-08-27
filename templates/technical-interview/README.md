@@ -25,10 +25,10 @@ creates only owner-shared Coder applications. It clones only
 It does not participate in canonical template synchronization and does not change any existing
 template or workspace.
 
-Open the **Interview Claude** Coder application for the masked temporary-key prompt. From a trusted
-external Coder client, use `coder ssh <workspace>.claude` and then run `interview-claude`. The main
-development container cannot enter the Claude container's process namespace and never receives the
-temporary key.
+Open the owner-only **Interview Claude** Coder application for the fixed masked temporary-key prompt.
+Generic SSH and Web Terminal buttons are hidden for the dedicated Claude agent. The main development
+container cannot enter its process namespace, while the key-bearing process is non-dumpable even to
+same-UID processes inside the Claude container.
 
 The first startup verifies Codex `0.149.1`, Playwright MCP `0.0.79`, Bun `1.4.0`, and pnpm `10.32.1`.
 Exact matching Codex and Bun commands from the image baseline are reused; missing or mismatched tools

@@ -291,7 +291,12 @@ PYSHELL
     printf 'WARNING: interactive shell credential scrubbing could not be refreshed; readiness will fail.\n' >&2
   fi
 
-  rm -f -- "$HOME/.runcomfy-api-token"
+  if [ -L "$HOME/.runcomfy-api-token" ] || [ -f "$HOME/.runcomfy-api-token" ]; then
+    rm -f -- "$HOME/.runcomfy-api-token"
+  elif [ -e "$HOME/.runcomfy-api-token" ]; then
+    printf 'WARNING: non-regular RunComfy token path was preserved; readiness will fail: %s\n' \
+      "$HOME/.runcomfy-api-token" >&2
+  fi
   unset ANTHROPIC_API_KEY ANTHROPIC_AUTH_TOKEN
   unset CLAUDE_CODE_OAUTH_TOKEN CLAUDE_CODE_OAUTH_REFRESH_TOKEN CLAUDE_CODE_OAUTH_SCOPES
   unset GH_TOKEN GITHUB_TOKEN CODER_AGENT_TOKEN CODER_SESSION_TOKEN

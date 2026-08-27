@@ -127,8 +127,8 @@ resource "coder_agent" "main" {
 
 # Claude Code receives the interviewer's temporary key only in this second
 # container. Kubernetes gives containers separate PID namespaces unless pod
-# process sharing is explicitly enabled, so candidate processes in the main
-# development container cannot read the credential-bearing process environment.
+# process sharing is explicitly enabled. The launcher also marks the key-bearing
+# process non-dumpable before prompting, preventing same-UID /proc inspection.
 resource "coder_agent" "claude" {
   arch                    = "amd64"
   os                      = "linux"
@@ -142,10 +142,10 @@ resource "coder_agent" "claude" {
 
   display_apps {
     port_forwarding_helper = false
-    ssh_helper             = true
+    ssh_helper             = false
     vscode                 = false
     vscode_insiders        = false
-    web_terminal           = true
+    web_terminal           = false
   }
 
   env = {
@@ -155,6 +155,15 @@ resource "coder_agent" "claude" {
     GIT_COMMITTER_EMAIL    = "interview@local.invalid"
     HIVE_WORKSPACE_PROFILE = local.profile.id
   }
+}
+
+resource "coder_script" "claude_heartbeat" {
+  agent_id     = coder_agent.claude.id
+  display_name = "Claude agent heartbeat"
+  icon         = "/icon/terminal.svg"
+  script       = file("${path.module}/scripts/claude-heartbeat.sh")
+  cron         = "*/5 * * * * *"
+  timeout      = 4
 }
 
 # =============================================================================
@@ -452,6 +461,11 @@ resource "kubernetes_deployment_v1" "workspace" {
           env {
             name  = "HIVE_INTERVIEW_CLAUDE_HELPER_B64"
             value = base64encode(file("${path.module}/scripts/interview-claude"))
+          }
+
+          env {
+            name  = "HIVE_INTERVIEW_CLAUDE_GUARD_B64"
+            value = base64encode(file("${path.module}/scripts/claude-guard.c"))
           }
 
           security_context {

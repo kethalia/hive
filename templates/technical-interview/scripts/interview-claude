@@ -1,108 +1,248 @@
-#!/bin/dash
-# hive-managed-interview-claude:v1
-set -eu
-umask 077
+#!/usr/bin/python3 -I
+# hive-managed-interview-claude:v2
+"""Launch Claude with a temporary key inside a non-dumpable process."""
 
-interview_repository="/workspace/projects/prmsolutions/interview-template"
-expected_origin="https://github.com/prmsolutions/interview-template.git"
-trusted_claude="/opt/hive-interview-tools/claude"
+import ctypes
+import fcntl
+import os
+import re
+import stat
+import subprocess
+import sys
+import termios
+from pathlib import Path
+from typing import NoReturn
 
-interview_error() {
-  printf '[error] %s\n' "$*" >&2
+
+PR_SET_DUMPABLE = 4
+TIOCEXCL = getattr(termios, "TIOCEXCL", 0x540C)
+TIOCNXCL = getattr(termios, "TIOCNXCL", 0x540D)
+INTERVIEW_REPOSITORY = Path("/workspace/projects/prmsolutions/interview-template")
+INTERVIEW_HOME = Path("/home/coder")
+EXPECTED_ORIGINS = {
+    "https://github.com/prmsolutions/interview-template",
+    "https://github.com/prmsolutions/interview-template.git",
 }
+TRUSTED_CLAUDE = Path("/opt/hive-interview-tools/claude")
+TRUSTED_GUARD = Path("/opt/hive-interview-tools/claude-guard.so")
+UNSAFE_GIT_CONFIG = re.compile(
+    r"^(credential($|\.)|http\..*(extraheader|proxy|cookiefile|savecookies|sslcert|sslkey)$|"
+    r"core\.(attributesfile|fsmonitor|gitproxy|sshcommand)$|"
+    r"filter\..*\.(clean|process|smudge)$|diff\..*\.(command|textconv)$|"
+    r"remote\..*\.proxy$|url\..*\.insteadof$|include($|\.)|includeif\.)",
+    re.IGNORECASE,
+)
 
-# Preserve every argument exactly while treating the first standalone `--` as
-# the helper/Claude delimiter. Rotating positional parameters avoids eval,
-# temporary files, arrays, and candidate-resolved helper processes.
-argument_count=$#
-scanned_arguments=0
-while [ "$scanned_arguments" -lt "$argument_count" ]; do
-  first_argument=$1
-  shift
-  if [ "$first_argument" = "--" ]; then
-    remaining_arguments=$((argument_count - scanned_arguments - 1))
-    rotated_arguments=0
-    while [ "$rotated_arguments" -lt "$remaining_arguments" ]; do
-      first_argument=$1
-      shift
-      set -- "$@" "$first_argument"
-      rotated_arguments=$((rotated_arguments + 1))
-    done
-    break
-  fi
-  set -- "$@" "$first_argument"
-  scanned_arguments=$((scanned_arguments + 1))
-done
 
-git_directory="$interview_repository/.git"
-git_config="$git_directory/config"
-if [ ! -d "$git_directory" ] || [ -L "$git_directory" ] \
-  || [ ! -f "$git_config" ] || [ -L "$git_config" ]; then
-  interview_error "Expected interview repository is unavailable."
-  exit 1
-fi
-if /usr/bin/git config --file "$git_config" --no-includes --name-only --get-regexp \
-  '^(credential($|\.)|http\..*(extraheader|proxy|cookiefile|savecookies|sslcert|sslkey)$|core\.(attributesfile|fsmonitor|gitproxy|sshcommand)$|filter\..*\.(clean|process|smudge)$|diff\..*\.(command|textconv)$|remote\..*\.proxy$|url\..*\.insteadof$|include($|\.)|includeif\.)' \
-  >/dev/null 2>&1; then
-  interview_error "Expected interview repository contains unsafe Git transport configuration."
-  exit 1
-fi
-origin="$(/usr/bin/git config --file "$git_config" --no-includes --get remote.origin.url 2>/dev/null || true)"
-case "$origin" in
-  https://github.com/prmsolutions/interview-template | "$expected_origin") ;;
-  *)
-    interview_error "Expected interview repository has the wrong origin."
-    exit 1
-    ;;
-esac
-if [ ! -f "$trusted_claude" ] || [ -L "$trusted_claude" ] || [ ! -x "$trusted_claude" ]; then
-  interview_error "The read-only image-baked Claude Code executable is unavailable."
-  exit 1
-fi
+def fail(message: str) -> NoReturn:
+    print(f"[error] {message}", file=sys.stderr)
+    raise SystemExit(1)
 
-if [ ! -r /dev/tty ] || [ ! -w /dev/tty ]; then
-  interview_error "A controlling terminal is required for masked API-key input."
-  exit 1
-fi
-terminal_state="$(/bin/stty -g < /dev/tty)" || {
-  interview_error "Unable to read terminal settings for masked API-key input."
-  exit 1
-}
-restore_terminal() {
-  if [ -n "$terminal_state" ]; then
-    /bin/stty "$terminal_state" < /dev/tty 2>/dev/null || true
-  fi
-}
-trap restore_terminal EXIT HUP INT TERM
-/bin/stty -echo < /dev/tty
-printf 'Temporary Anthropic API key: ' > /dev/tty
-if ! IFS= read -r interview_key < /dev/tty; then
-  interview_error "Unable to read the temporary API key."
-  exit 1
-fi
-/bin/stty "$terminal_state" < /dev/tty
-terminal_state=""
-trap - EXIT HUP INT TERM
-printf '\n' > /dev/tty
-if [ -z "$interview_key" ]; then
-  interview_error "No API key was provided."
-  exit 1
-fi
 
-cd "$interview_repository"
-unset BASH_ENV ENV CDPATH LD_LIBRARY_PATH LD_PRELOAD
-unset ANTHROPIC_AUTH_TOKEN
-unset CLAUDE_CODE_OAUTH_TOKEN CLAUDE_CODE_OAUTH_REFRESH_TOKEN CLAUDE_CODE_OAUTH_SCOPES
-unset GH_TOKEN GITHUB_TOKEN CODER_AGENT_TOKEN CODER_SESSION_TOKEN
-unset GIT_CONFIG GIT_CONFIG_COUNT GIT_CONFIG_PARAMETERS GIT_PROXY_COMMAND GIT_SSH
-unset SSH_AUTH_SOCK SSH_AGENT_PID SSH_ASKPASS_REQUIRE
-unset REALM_VISUAL_REVIEW_API_KEY RUNCOMFY_API_TOKEN
-export GIT_CONFIG_GLOBAL=/dev/null
-export GIT_CONFIG_NOSYSTEM=1
-export GIT_ASKPASS=/bin/false
-export GIT_SSH_COMMAND=/bin/false
-export GIT_TERMINAL_PROMPT=0
-export SSH_ASKPASS=/bin/false
-export ANTHROPIC_API_KEY="$interview_key"
-unset interview_key
-exec "$trusted_claude" "$@"
+def make_process_nondumpable() -> None:
+    libc = ctypes.CDLL(None, use_errno=True)
+    libc.prctl.argtypes = [
+        ctypes.c_int,
+        ctypes.c_ulong,
+        ctypes.c_ulong,
+        ctypes.c_ulong,
+        ctypes.c_ulong,
+    ]
+    libc.prctl.restype = ctypes.c_int
+    if libc.prctl(PR_SET_DUMPABLE, 0, 0, 0, 0) != 0:
+        fail("Unable to establish the protected Claude credential process.")
+
+
+def regular_executable(path: Path) -> bool:
+    try:
+        metadata = path.lstat()
+    except OSError:
+        return False
+    return stat.S_ISREG(metadata.st_mode) and bool(metadata.st_mode & 0o111)
+
+
+def safe_environment() -> dict[str, str]:
+    environment = {
+        "GIT_ASKPASS": "/bin/false",
+        "GIT_CONFIG_GLOBAL": "/dev/null",
+        "GIT_CONFIG_NOSYSTEM": "1",
+        "GIT_SSH_COMMAND": "/bin/false",
+        "GIT_TERMINAL_PROMPT": "0",
+        "HOME": str(INTERVIEW_HOME),
+        "LANG": "C.UTF-8",
+        "LOGNAME": "coder",
+        "PATH": "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+        "SHELL": "/bin/bash",
+        "SSH_ASKPASS": "/bin/false",
+        "USER": "coder",
+    }
+    term = os.environ.get("TERM", "xterm-256color")
+    if re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9+._-]{0,63}", term):
+        environment["TERM"] = term
+    else:
+        environment["TERM"] = "xterm-256color"
+    return environment
+
+
+def verify_repository(environment: dict[str, str]) -> None:
+    git_directory = INTERVIEW_REPOSITORY / ".git"
+    git_config = git_directory / "config"
+    try:
+        git_directory_metadata = git_directory.lstat()
+        git_config_metadata = git_config.lstat()
+    except OSError:
+        fail("Expected interview repository is unavailable.")
+    if not stat.S_ISDIR(git_directory_metadata.st_mode) or not stat.S_ISREG(
+        git_config_metadata.st_mode
+    ):
+        fail("Expected interview repository is unavailable.")
+
+    names = subprocess.run(
+        [
+            "/usr/bin/git",
+            "config",
+            "--file",
+            str(git_config),
+            "--no-includes",
+            "--name-only",
+            "--list",
+        ],
+        check=False,
+        capture_output=True,
+        env=environment,
+        text=True,
+        timeout=10,
+    )
+    if names.returncode != 0:
+        fail("Expected interview repository Git configuration is unreadable.")
+    if any(UNSAFE_GIT_CONFIG.search(name) for name in names.stdout.splitlines()):
+        fail("Expected interview repository contains unsafe Git transport configuration.")
+
+    origin = subprocess.run(
+        [
+            "/usr/bin/git",
+            "config",
+            "--file",
+            str(git_config),
+            "--no-includes",
+            "--get",
+            "remote.origin.url",
+        ],
+        check=False,
+        capture_output=True,
+        env=environment,
+        text=True,
+        timeout=10,
+    )
+    if origin.returncode != 0 or origin.stdout.strip() not in EXPECTED_ORIGINS:
+        fail("Expected interview repository has the wrong origin.")
+
+
+def read_temporary_key() -> str:
+    try:
+        terminal = os.open("/dev/tty", os.O_RDWR)
+    except OSError:
+        fail("A controlling terminal is required for masked API-key input.")
+
+    original = None
+    key_bytes = bytearray()
+    try:
+        try:
+            fcntl.ioctl(terminal, TIOCEXCL)
+            original = termios.tcgetattr(terminal)
+        except OSError:
+            fail("Unable to protect the terminal for masked API-key input.")
+        masked = termios.tcgetattr(terminal)
+        masked[3] &= ~termios.ECHO
+        try:
+            termios.tcsetattr(terminal, termios.TCSADRAIN, masked)
+            os.write(terminal, b"Temporary Anthropic API key: ")
+            while len(key_bytes) <= 16_384:
+                character = os.read(terminal, 1)
+                if not character or character in {b"\r", b"\n"}:
+                    break
+                key_bytes.extend(character)
+            else:
+                fail("The temporary API key is unexpectedly long.")
+        finally:
+            termios.tcsetattr(terminal, termios.TCSADRAIN, original)
+            os.write(terminal, b"\n")
+            try:
+                fcntl.ioctl(terminal, TIOCNXCL)
+            except OSError:
+                pass
+    finally:
+        os.close(terminal)
+    try:
+        key = key_bytes.decode("utf-8")
+    except UnicodeDecodeError:
+        fail("The temporary API key is not valid text.")
+    if not key:
+        fail("No API key was provided.")
+    return key
+
+
+def launch_claude(arguments: list[str], environment: dict[str, str], key: str) -> int:
+    key_payload = bytearray(key.encode("utf-8"))
+    key_read_descriptor, key_write_descriptor = os.pipe2(os.O_CLOEXEC)
+    ready_read_descriptor, ready_write_descriptor = os.pipe2(os.O_CLOEXEC)
+    environment["HIVE_INTERVIEW_KEY_FD"] = str(key_read_descriptor)
+    environment["HIVE_INTERVIEW_READY_FD"] = str(ready_write_descriptor)
+    environment["LD_PRELOAD"] = str(TRUSTED_GUARD)
+    try:
+        process = subprocess.Popen(
+            [str(TRUSTED_CLAUDE), *arguments],
+            cwd=INTERVIEW_REPOSITORY,
+            env=environment,
+            pass_fds=(key_read_descriptor, ready_write_descriptor),
+        )
+    except OSError:
+        os.close(key_read_descriptor)
+        os.close(key_write_descriptor)
+        os.close(ready_read_descriptor)
+        os.close(ready_write_descriptor)
+        fail("Unable to execute the read-only Claude Code binary.")
+    os.close(key_read_descriptor)
+    os.close(ready_write_descriptor)
+    try:
+        protected = os.read(ready_read_descriptor, 1)
+        if protected != b"R":
+            process.terminate()
+            fail("Claude Code did not establish its credential boundary.")
+        written = 0
+        while written < len(key_payload):
+            written += os.write(key_write_descriptor, key_payload[written:])
+    except OSError:
+        process.terminate()
+        fail("Unable to deliver the temporary key to protected Claude Code.")
+    finally:
+        os.close(ready_read_descriptor)
+        os.close(key_write_descriptor)
+        for index in range(len(key_payload)):
+            key_payload[index] = 0
+
+    while True:
+        try:
+            return_code = process.wait()
+            break
+        except KeyboardInterrupt:
+            continue
+    return return_code if return_code >= 0 else 128 - return_code
+
+
+def main() -> None:
+    make_process_nondumpable()
+    environment = safe_environment()
+    verify_repository(environment)
+    if not regular_executable(TRUSTED_CLAUDE) or not regular_executable(TRUSTED_GUARD):
+        fail("The read-only image-baked Claude Code executable is unavailable.")
+
+    arguments = sys.argv[1:]
+    if "--" in arguments:
+        arguments.remove("--")
+    key = read_temporary_key()
+    raise SystemExit(launch_claude(arguments, environment, key))
+
+
+if __name__ == "__main__":
+    main()

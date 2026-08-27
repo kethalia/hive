@@ -72,7 +72,7 @@ if [ -L "$status_directory" ] || [ ! -d "$status_directory" ]; then
   exit 1
 fi
 temporary_status="$(/usr/bin/mktemp "$status_directory/.ready.XXXXXX")"
-/usr/bin/printf 'isolated-claude-agent-ready-v1\n' > "$temporary_status"
+/usr/bin/printf 'isolated-claude-agent-ready-v2 %s\n' "$(/usr/bin/date +%s)" > "$temporary_status"
 /usr/bin/chmod 0444 "$temporary_status"
 /usr/bin/mv -fT -- "$temporary_status" "$status_directory/ready"
 

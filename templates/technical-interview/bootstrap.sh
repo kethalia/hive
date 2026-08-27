@@ -110,9 +110,8 @@ set -u
 
 printf '%s\n' \
   '[error] Temporary Anthropic key input is disabled in the main development container.' \
-  '[info] Open the owner-only Interview Claude application in Coder, or connect from a trusted client with:' \
-  '       coder ssh <workspace>.claude' \
-  '[info] Then run interview-claude inside that isolated terminal.' >&2
+  '[info] Open the owner-only Interview Claude application in Coder.' \
+  '[info] Its fixed command prompts for the key inside the isolated Claude container.' >&2
 exit 1
 CLAUDEHANDOFFEOF
 
@@ -139,6 +138,7 @@ INTERVIEW_CODEX_BASELINE_TARGET="../lib/node_modules/@openai/codex/bin/codex.js"
 INTERVIEW_BUN_BASELINE_TARGET="$HOME/.bun/bin/bun"
 INTERVIEW_CLAUDE_BIN="/opt/hive-interview-tools/claude"
 INTERVIEW_CLAUDE_LAUNCHER="/opt/hive-interview-tools/interview-claude"
+INTERVIEW_CLAUDE_GUARD="/opt/hive-interview-tools/claude-guard.so"
 INTERVIEW_CLAUDE_STATUS="/run/hive-interview-claude/ready"
 INTERVIEW_CLAUDE_AGENT="claude"
 INTERVIEW_CHROME_BIN="/usr/bin/google-chrome-stable"
@@ -849,20 +849,35 @@ interview_browser_helpers_ready() {
 }
 
 interview_claude_ready() {
+  local marker timestamp extra now age
+
   [ -f "$INTERVIEW_CLAUDE_STATUS" ] \
     && [ ! -L "$INTERVIEW_CLAUDE_STATUS" ] \
-    && [ "$(sed -n '1p' "$INTERVIEW_CLAUDE_STATUS")" = \
-      'isolated-claude-agent-ready-v1' ] \
+    && IFS=' ' read -r marker timestamp extra < "$INTERVIEW_CLAUDE_STATUS" \
+    && [ "$marker" = 'isolated-claude-agent-ready-v2' ] \
+    && [ -z "$extra" ] \
+    && [[ "$timestamp" =~ ^[0-9]+$ ]] \
+    && now="$(date +%s)" \
+    && ((timestamp <= now + 5)) \
+    && age=$((now - timestamp)) \
+    && ((age <= 30)) \
     && [ -f "$INTERVIEW_CLAUDE_LAUNCHER" ] \
     && [ ! -L "$INTERVIEW_CLAUDE_LAUNCHER" ] \
     && [ -x "$INTERVIEW_CLAUDE_LAUNCHER" ] \
-    && grep -qF '# hive-managed-interview-claude:v1' "$INTERVIEW_CLAUDE_LAUNCHER" \
-    && grep -qF 'interview_repository="/workspace/projects/prmsolutions/interview-template"' \
+    && grep -qF '# hive-managed-interview-claude:v2' "$INTERVIEW_CLAUDE_LAUNCHER" \
+    && grep -qF 'INTERVIEW_REPOSITORY = Path("/workspace/projects/prmsolutions/interview-template")' \
       "$INTERVIEW_CLAUDE_LAUNCHER" \
-    && grep -qF 'trusted_claude="/opt/hive-interview-tools/claude"' "$INTERVIEW_CLAUDE_LAUNCHER" \
+    && grep -qF 'TRUSTED_CLAUDE = Path("/opt/hive-interview-tools/claude")' \
+      "$INTERVIEW_CLAUDE_LAUNCHER" \
+    && grep -qF 'TRUSTED_GUARD = Path("/opt/hive-interview-tools/claude-guard.so")' \
+      "$INTERVIEW_CLAUDE_LAUNCHER" \
+    && grep -qF 'PR_SET_DUMPABLE = 4' "$INTERVIEW_CLAUDE_LAUNCHER" \
     && [ -f "$INTERVIEW_CLAUDE_BIN" ] \
     && [ ! -L "$INTERVIEW_CLAUDE_BIN" ] \
     && [ -x "$INTERVIEW_CLAUDE_BIN" ] \
+    && [ -f "$INTERVIEW_CLAUDE_GUARD" ] \
+    && [ ! -L "$INTERVIEW_CLAUDE_GUARD" ] \
+    && [ -x "$INTERVIEW_CLAUDE_GUARD" ] \
     && "$INTERVIEW_CLAUDE_BIN" --version >/dev/null 2>&1
 }
 
@@ -1656,7 +1671,7 @@ repository_commit="$(interview_repository_commit 2>/dev/null || printf unavailab
 venv_method="$(interview_read_state venv-method 2>/dev/null || printf unavailable)"
 if ((check_failures == 0)); then
   report_result="INTERVIEW WORKSPACE READY"
-  remaining_action="At interview time, open the owner-only Interview Claude app (or connect from a trusted client to <workspace>.claude), run interview-claude there, and enter the temporary key at the masked prompt."
+  remaining_action="At interview time, open the owner-only Interview Claude app and enter the temporary key at the masked prompt."
 else
   report_result="INTERVIEW WORKSPACE NOT READY"
   remaining_action="Resolve the failed checks above, then rerun interview-setup, interview-start, and interview-check."
@@ -1702,8 +1717,7 @@ fi
   printf -- '- `interview-stop` — stop only the interview session\n'
   printf -- '- `interview-status` — show non-secret state\n'
   printf -- '- `interview-check` — rerun this strict readiness check\n'
-  printf -- '- **Interview Claude** Coder app — open the isolated credential-boundary terminal\n'
-  printf -- '- `interview-claude` (inside `<workspace>.claude`) — prompt securely for the temporary Anthropic key and launch Claude Code\n'
+  printf -- '- **Interview Claude** Coder app — run the fixed non-dumpable launcher in the isolated credential container\n'
   printf '\n## Credential state\n\n'
   printf 'Only credential names are reported; values are never recorded. Required pre-interview state: '
   printf 'Anthropic API/auth and Claude OAuth credentials, GitHub, Coder agent/session, Git/SSH transport, Realm, and RunComfy credentials absent; GitHub and Coder CLIs unauthenticated.\n'

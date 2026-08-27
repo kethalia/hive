@@ -25,6 +25,8 @@ const bootstrapScript = join(templateRoot, "bootstrap.sh");
 const cloneScript = join(templateRoot, "scripts", "clone-repositories.sh");
 const initScript = join(templateRoot, "scripts", "init.sh");
 const initClaudeScript = join(templateRoot, "scripts", "init-claude.sh");
+const claudeHeartbeatScript = join(templateRoot, "scripts", "claude-heartbeat.sh");
+const claudeGuardScript = join(templateRoot, "scripts", "claude-guard.c");
 const seedHomeScript = join(templateRoot, "scripts", "seed-home.sh");
 const stageTrustedToolsScript = join(templateRoot, "scripts", "stage-trusted-tools.sh");
 const interviewClaudeScript = join(templateRoot, "scripts", "interview-claude");
@@ -133,6 +135,7 @@ function renderToolsFilebrowserScript(trustedPath) {
 function renderBootstrapScript(
   trustedClaude,
   trustedClaudeLauncher,
+  trustedClaudeGuard,
   claudeStatus,
   chromeBinary,
   interviewRepository,
@@ -155,6 +158,10 @@ function renderBootstrapScript(
       `INTERVIEW_CLAUDE_LAUNCHER="${trustedClaudeLauncher}"`,
     )
     .replace(
+      'INTERVIEW_CLAUDE_GUARD="/opt/hive-interview-tools/claude-guard.so"',
+      `INTERVIEW_CLAUDE_GUARD="${trustedClaudeGuard}"`,
+    )
+    .replace(
       'INTERVIEW_CLAUDE_STATUS="/run/hive-interview-claude/ready"',
       `INTERVIEW_CLAUDE_STATUS="${claudeStatus}"`,
     )
@@ -163,25 +170,39 @@ function renderBootstrapScript(
       `INTERVIEW_CHROME_BIN="${chromeBinary}"`,
     )
     .replace(
-      'grep -qF \'trusted_claude="/opt/hive-interview-tools/claude"\' "$INTERVIEW_CLAUDE_LAUNCHER"',
-      `grep -qF 'trusted_claude="${trustedClaude}"' "$INTERVIEW_CLAUDE_LAUNCHER"`,
+      "grep -qF 'TRUSTED_CLAUDE = Path(\"/opt/hive-interview-tools/claude\")'",
+      `grep -qF 'TRUSTED_CLAUDE = Path("${trustedClaude}")'`,
     )
     .replace(
-      "grep -qF 'interview_repository=\"/workspace/projects/prmsolutions/interview-template\"'",
-      `grep -qF 'interview_repository="${interviewRepository}"'`,
+      "grep -qF 'TRUSTED_GUARD = Path(\"/opt/hive-interview-tools/claude-guard.so\")'",
+      `grep -qF 'TRUSTED_GUARD = Path("${trustedClaudeGuard}")'`,
+    )
+    .replace(
+      "grep -qF 'INTERVIEW_REPOSITORY = Path(\"/workspace/projects/prmsolutions/interview-template\")'",
+      `grep -qF 'INTERVIEW_REPOSITORY = Path("${interviewRepository}")'`,
     );
 }
 
-function renderInterviewClaudeScript(trustedClaude, interviewRepository) {
+function renderInterviewClaudeScript(
+  trustedClaude,
+  trustedGuard,
+  interviewRepository,
+  interviewHome,
+) {
   return readFileSync(interviewClaudeScript, "utf8")
     .replace(
-      'trusted_claude="/opt/hive-interview-tools/claude"',
-      `trusted_claude="${trustedClaude}"`,
+      'TRUSTED_CLAUDE = Path("/opt/hive-interview-tools/claude")',
+      `TRUSTED_CLAUDE = Path("${trustedClaude}")`,
     )
     .replace(
-      'interview_repository="/workspace/projects/prmsolutions/interview-template"',
-      `interview_repository="${interviewRepository}"`,
-    );
+      'TRUSTED_GUARD = Path("/opt/hive-interview-tools/claude-guard.so")',
+      `TRUSTED_GUARD = Path("${trustedGuard}")`,
+    )
+    .replace(
+      'INTERVIEW_REPOSITORY = Path("/workspace/projects/prmsolutions/interview-template")',
+      `INTERVIEW_REPOSITORY = Path("${interviewRepository}")`,
+    )
+    .replace('INTERVIEW_HOME = Path("/home/coder")', `INTERVIEW_HOME = Path("${interviewHome}")`);
 }
 
 function runInit(root, home) {
@@ -205,6 +226,7 @@ function createFixture() {
   const tmuxRoot = join(root, "tmux");
   const calls = join(root, "calls.log");
   const claudeArgs = join(root, "claude-args.log");
+  const claudeProcProbe = join(root, "claude-proc-probe.log");
   const interviewRepository = join(home, "projects", "prmsolutions", "interview-template");
   mkdirSync(join(interviewRepository, "backend", "tests"), { recursive: true });
   mkdirSync(join(interviewRepository, "frontend"), { recursive: true });
@@ -479,7 +501,7 @@ exit 0
     `#!/bin/bash
 set -euo pipefail
 if [ "\${1:-}" = "--version" ]; then printf '2.1.170 (Claude Code)\\n'; exit 0; fi
-[ "\${ANTHROPIC_API_KEY:-}" = "\${EXPECTED_CLAUDE_KEY:-}" ]
+[ "\${ANTHROPIC_API_KEY:-}" = "temporary-interview-key-should-never-persist" ]
 ${claudeCredentialAssertions}
 [ -z "\${GH_TOKEN:-}" ]
 [ -z "\${GITHUB_TOKEN:-}" ]
@@ -499,19 +521,29 @@ ${claudeCredentialAssertions}
 [ "\${SSH_ASKPASS:-}" = "/bin/false" ]
 [ -z "\${REALM_VISUAL_REVIEW_API_KEY:-}" ]
 [ -z "\${RUNCOMFY_API_TOKEN:-}" ]
-printf '<%s>\\n' "$@" > "$CLAUDE_ARGS_LOG"
+if /bin/cat "/proc/$$/environ" >/dev/null 2>&1; then exit 97; fi
+printf 'blocked\\n' > "${claudeProcProbe}"
+printf '<%s>\\n' "$@" > "${claudeArgs}"
 `,
   );
   const trustedClaudeLauncher = join(root, "trusted-tools", "interview-claude");
+  const trustedClaudeGuard = join(root, "trusted-tools", "claude-guard.so");
   const claudeStatus = join(root, "claude-status", "ready");
   mkdirSync(dirname(trustedClaudeLauncher), { recursive: true });
   mkdirSync(dirname(claudeStatus), { recursive: true });
+  const guardCompilation = spawnSync(
+    "/usr/bin/cc",
+    ["-shared", "-fPIC", "-O2", "-o", trustedClaudeGuard, claudeGuardScript],
+    { encoding: "utf8" },
+  );
+  assert.equal(guardCompilation.status, 0, guardCompilation.stderr);
+  chmodSync(trustedClaudeGuard, 0o555);
   writeFileSync(
     trustedClaudeLauncher,
-    renderInterviewClaudeScript(join(bin, "claude"), interviewRepository),
+    renderInterviewClaudeScript(join(bin, "claude"), trustedClaudeGuard, interviewRepository, home),
   );
   chmodSync(trustedClaudeLauncher, 0o555);
-  writeFileSync(claudeStatus, "isolated-claude-agent-ready-v1\n");
+  writeFileSync(claudeStatus, `isolated-claude-agent-ready-v2 ${Math.floor(Date.now() / 1000)}\n`);
   chmodSync(claudeStatus, 0o444);
   mkdirSync(join(home, ".local", "bin"), { recursive: true });
   executable(join(bin, "google-chrome-stable"), "#!/bin/sh\nprintf 'Google Chrome 140\\n'\n");
@@ -621,7 +653,6 @@ esac
   const env = {
     ...process.env,
     ANTHROPIC_AUTH_TOKEN: "must-not-reach-child-processes",
-    CLAUDE_ARGS_LOG: claudeArgs,
     CLAUDE_CODE_OAUTH_REFRESH_TOKEN: "must-not-reach-child-processes",
     CLAUDE_CODE_OAUTH_SCOPES: "must-not-reach-child-processes",
     CLAUDE_CODE_OAUTH_TOKEN: "must-not-reach-child-processes",
@@ -650,12 +681,14 @@ esac
     calls,
     claudeStatus,
     claudeArgs,
+    claudeProcProbe,
     commit,
     env,
     home,
     interviewRepository,
     root,
     trustedClaudeLauncher,
+    trustedClaudeGuard,
   };
 }
 
@@ -670,6 +703,7 @@ function installHelpers(fixture) {
     renderBootstrapScript(
       join(fixture.bin, "claude"),
       fixture.trustedClaudeLauncher,
+      fixture.trustedClaudeGuard,
       fixture.claudeStatus,
       join(fixture.bin, "google-chrome-stable"),
       fixture.interviewRepository,
@@ -698,6 +732,8 @@ test("standalone Terraform exposes interview apps without personal auth modules"
   const terraform = readFileSync(join(templateRoot, "main.tf"), "utf8");
   const init = readFileSync(join(templateRoot, "scripts", "init.sh"), "utf8");
   const initClaude = readFileSync(initClaudeScript, "utf8");
+  const claudeHeartbeat = readFileSync(claudeHeartbeatScript, "utf8");
+  const claudeGuard = readFileSync(claudeGuardScript, "utf8");
   const interviewClaude = readFileSync(interviewClaudeScript, "utf8");
   const stageTrustedTools = readFileSync(stageTrustedToolsScript, "utf8");
   const toolsBrowser = readFileSync(join(templateRoot, "scripts", "tools-browser.sh"), "utf8");
@@ -722,6 +758,7 @@ test("standalone Terraform exposes interview apps without personal auth modules"
   assert.doesNotMatch(terraform, /\.hive-image-seeded/);
   assert.match(terraform, /file\("\$\{path\.module\}\/scripts\/seed-home\.sh"\)/);
   assert.match(terraform, /file\("\$\{path\.module\}\/scripts\/stage-trusted-tools\.sh"\)/);
+  assert.match(terraform, /file\("\$\{path\.module\}\/scripts\/claude-guard\.c"\)/);
   assert.match(
     terraform,
     /resource "coder_agent" "main"[\s\S]*?api_key_scope\s*=\s*"no_user_data"/,
@@ -729,6 +766,14 @@ test("standalone Terraform exposes interview apps without personal auth modules"
   assert.match(
     terraform,
     /resource "coder_agent" "claude"[\s\S]*?api_key_scope\s*=\s*"no_user_data"/,
+  );
+  assert.match(
+    terraform,
+    /resource "coder_agent" "claude"[\s\S]*?ssh_helper\s*=\s*false[\s\S]*?web_terminal\s*=\s*false/,
+  );
+  assert.match(
+    terraform,
+    /resource "coder_script" "claude_heartbeat"[\s\S]*?cron\s*=\s*"\*\/5 \* \* \* \* \*"/,
   );
   assert.match(terraform, /share_process_namespace\s*=\s*false/);
   assert.match(
@@ -751,15 +796,25 @@ test("standalone Terraform exposes interview apps without personal auth modules"
   assert.doesNotMatch(terraform, /sub_path\s*=\s*"interview-claude"/);
   assert.match(terraform, /empty_dir\s*\{[\s\S]*?size_limit\s*=\s*"512Mi"/);
   assert.match(stageTrustedTools, /\/home\/coder\/\.local\/share\/claude\/versions\/\*/);
-  assert.match(interviewClaude, /trusted_claude="\/opt\/hive-interview-tools\/claude"/);
+  assert.match(interviewClaude, /TRUSTED_CLAUDE = Path\("\/opt\/hive-interview-tools\/claude"\)/);
   assert.match(
     interviewClaude,
-    /interview_repository="\/workspace\/projects\/prmsolutions\/interview-template"/,
+    /INTERVIEW_REPOSITORY = Path\("\/workspace\/projects\/prmsolutions\/interview-template"\)/,
   );
-  assert.match(interviewClaude, /exec "\$trusted_claude" "\$@"/);
+  assert.match(interviewClaude, /PR_SET_DUMPABLE = 4/);
+  assert.match(interviewClaude, /libc\.prctl\(PR_SET_DUMPABLE, 0/);
+  assert.match(interviewClaude, /subprocess\.Popen\(/);
+  assert.doesNotMatch(interviewClaude, /environment\["ANTHROPIC_API_KEY"\]/);
+  assert.match(claudeGuard, /prctl\(PR_SET_DUMPABLE, 0/);
+  assert.match(claudeGuard, /setenv\("ANTHROPIC_API_KEY", key, 1\)/);
+  assert.match(
+    claudeGuard,
+    /prctl\(PR_SET_DUMPABLE, 0[\s\S]*write\(ready_descriptor, "R", 1\)[\s\S]*setenv\("ANTHROPIC_API_KEY"/,
+  );
   assert.doesNotMatch(interviewClaude, /command -v claude|exec claude/);
   assert.match(initClaude, /PATH="\/usr\/local\/sbin:[^"]+"/);
-  assert.match(initClaude, /isolated-claude-agent-ready-v1/);
+  assert.match(initClaude, /isolated-claude-agent-ready-v2/);
+  assert.match(claudeHeartbeat, /isolated-claude-agent-ready-v2/);
   assert.doesNotMatch(initClaude, /\/home\/coder\/projects/);
   assert.match(terraform, /"git\.autofetch"\s*:\s*false/);
   assert.doesNotMatch(terraform, /"git\.autofetch"\s*:\s*true/);
@@ -894,10 +949,13 @@ test("trusted tool staging copies image Claude and its launcher into pod-local f
     HIVE_INTERVIEW_CLAUDE_HELPER_B64: Buffer.from(readFileSync(interviewClaudeScript)).toString(
       "base64",
     ),
+    HIVE_INTERVIEW_CLAUDE_GUARD_B64: Buffer.from(readFileSync(claudeGuardScript)).toString(
+      "base64",
+    ),
     PATH: "/usr/bin:/bin",
   });
   assert.equal(result.status, 0, result.stderr);
-  for (const stagedFile of ["claude", "interview-claude"]) {
+  for (const stagedFile of ["claude", "interview-claude", "claude-guard.so"]) {
     const path = join(trustedTools, stagedFile);
     assert.equal(lstatSync(path).isSymbolicLink(), false);
     assert.equal(statSync(path).mode & 0o777, 0o555);
@@ -953,9 +1011,29 @@ test("isolated Claude agent startup uses an ephemeral home and trusted command p
   assert.equal(lstatSync(join(home, ".local", "bin", "interview-claude")).isSymbolicLink(), true);
   assert.equal(lstatSync(join(home, "projects")).isSymbolicLink(), true);
   assert.equal(readFileSync(join(home, ".claude", "CLAUDE.md"), "utf8"), context);
-  assert.equal(
+  assert.match(
     readFileSync(join(statusDirectory, "ready"), "utf8"),
-    "isolated-claude-agent-ready-v1\n",
+    /^isolated-claude-agent-ready-v2 [0-9]+\n$/,
+  );
+
+  const renderedHeartbeat = join(root, "claude-heartbeat.sh");
+  writeFileSync(
+    renderedHeartbeat,
+    readFileSync(claudeHeartbeatScript, "utf8")
+      .replaceAll("/opt/hive-interview-tools/interview-claude", trustedHelper)
+      .replaceAll("/run/hive-interview-claude", statusDirectory),
+  );
+  unlinkSync(join(statusDirectory, "ready"));
+  writeFileSync(join(statusDirectory, "ready"), "isolated-claude-agent-ready-v2 1\n");
+  const heartbeat = run("bash", [renderedHeartbeat], {
+    ...process.env,
+    HOME: home,
+    PATH: `${join(home, ".local", "bin")}:/usr/bin:/bin`,
+  });
+  assert.equal(heartbeat.status, 0, heartbeat.stderr);
+  assert.match(
+    readFileSync(join(statusDirectory, "ready"), "utf8"),
+    /^isolated-claude-agent-ready-v2 [0-9]{10}\n$/,
   );
   assert.doesNotMatch(`${result.stdout}${result.stderr}`, new RegExp(fakeSecret));
 });
@@ -1064,6 +1142,19 @@ test("init preserves a non-regular workspace README without blocking startup", (
   assert.match(result.stderr, /unsafe workspace README was preserved/);
   assert.equal(lstatSync(readme).isFIFO(), true);
   assert.equal(lstatSync(join(home, ".workspace_initialized")).isFile(), true);
+});
+
+test("init preserves a non-regular RunComfy token path without blocking startup", () => {
+  const root = mkdtempSync(join(tmpdir(), "technical-interview-runcomfy-path-"));
+  const home = join(root, "home");
+  const tokenPath = join(home, ".runcomfy-api-token");
+  mkdirSync(tokenPath, { recursive: true });
+  writeFileSync(join(tokenPath, "candidate.txt"), "preserve me\n");
+
+  const result = runInit(root, home);
+  assert.equal(result.status, 0, result.stderr);
+  assert.equal(readFileSync(join(tokenPath, "candidate.txt"), "utf8"), "preserve me\n");
+  assert.match(result.stderr, /non-regular RunComfy token path was preserved/);
 });
 
 test("init preserves non-directory agent configuration paths", () => {
@@ -2616,6 +2707,26 @@ test("Git transport readiness rejects persisted helpers, headers, credential fil
   assert.equal(inspect().status, 1);
 });
 
+test("Claude readiness rejects a stale agent heartbeat", () => {
+  const fixture = createFixture();
+  installHelpers(fixture);
+  const common = join(
+    fixture.home,
+    ".local",
+    "libexec",
+    "hive",
+    "technical-interview",
+    "common.sh",
+  );
+  const inspect = () =>
+    run("bash", ["-c", `source "${common}"; interview_claude_ready`], fixture.env);
+
+  assert.equal(inspect().status, 0);
+  unlinkSync(fixture.claudeStatus);
+  writeFileSync(fixture.claudeStatus, "isolated-claude-agent-ready-v2 1\n");
+  assert.equal(inspect().status, 1);
+});
+
 test("readiness reports strict success and failure without network cloning", () => {
   const fixture = createFixture();
   const init = runInit(fixture.root, fixture.home);
@@ -2684,7 +2795,6 @@ test("interview-claude masks and scopes the temporary key without persisting it"
         ANTHROPIC_API_KEY: "inherited-key-must-be-overridden",
         CODER_AGENT_TOKEN: "must-not-reach-claude",
         CODER_SESSION_TOKEN: "must-not-reach-claude",
-        EXPECTED_CLAUDE_KEY: fakeKey,
         GIT_ASKPASS: "must-not-reach-claude",
         GIT_CONFIG: join(fixture.root, "personal-git-config"),
         GIT_CONFIG_COUNT: "1",
@@ -2728,10 +2838,11 @@ test("interview-claude masks and scopes the temporary key without persisting it"
     });
   });
 
-  assert.equal(result.status, 0, result.stderr);
+  assert.equal(result.status, 0, `${result.stderr}\n${result.stdout}`);
   assert.doesNotMatch(result.stdout, new RegExp(fakeKey));
   assert.doesNotMatch(result.stderr, new RegExp(fakeKey));
   assert.equal(existsSync(pathHijackMarker), false);
+  assert.equal(readFileSync(fixture.claudeProcProbe, "utf8"), "blocked\n");
   assert.equal(
     readFileSync(fixture.claudeArgs, "utf8"),
     "<--model>\n<test-model>\n<argument with spaces>\n",
