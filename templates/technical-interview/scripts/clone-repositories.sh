@@ -3,21 +3,9 @@ set -uo pipefail
 umask 077
 
 unset ANTHROPIC_API_KEY ANTHROPIC_AUTH_TOKEN
-unset OPENAI_API_KEY OPENAI_API_TOKEN CODEX_API_KEY
 unset CLAUDE_CODE_OAUTH_TOKEN CLAUDE_CODE_OAUTH_REFRESH_TOKEN CLAUDE_CODE_OAUTH_SCOPES
-unset CLAUDE_CONFIG_DIR CLAUDE_SECURESTORAGE_CONFIG_DIR
-unset NPM_TOKEN NODE_AUTH_TOKEN NPM_CONFIG_USERCONFIG NPM_CONFIG_GLOBALCONFIG
-unset npm_config_userconfig npm_config_globalconfig
-unset PIP_CONFIG_FILE PIP_INDEX_URL PIP_EXTRA_INDEX_URL PIP_TRUSTED_HOST
-unset PIP_CERT PIP_CLIENT_CERT PIP_KEYRING_PROVIDER PIP_PROXY
 unset GH_TOKEN GITHUB_TOKEN CODER_AGENT_TOKEN CODER_SESSION_TOKEN
 unset REALM_VISUAL_REVIEW_API_KEY RUNCOMFY_API_TOKEN
-unset AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY AWS_SESSION_TOKEN AWS_PROFILE
-unset AWS_CONFIG_FILE AWS_SHARED_CREDENTIALS_FILE AWS_WEB_IDENTITY_TOKEN_FILE
-unset GOOGLE_APPLICATION_CREDENTIALS CLOUDSDK_AUTH_ACCESS_TOKEN
-unset AZURE_CLIENT_ID AZURE_CLIENT_SECRET AZURE_TENANT_ID
-unset ARM_CLIENT_ID ARM_CLIENT_SECRET ARM_TENANT_ID ARM_SUBSCRIPTION_ID
-unset KUBECONFIG
 
 INTERVIEW_TRUSTED_PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
 export PATH="$INTERVIEW_TRUSTED_PATH"
@@ -78,12 +66,7 @@ anonymous_git() {
     env \
       -u ANTHROPIC_API_KEY -u ANTHROPIC_AUTH_TOKEN \
       -u CLAUDE_CODE_OAUTH_TOKEN -u CLAUDE_CODE_OAUTH_REFRESH_TOKEN \
-      -u CLAUDE_CODE_OAUTH_SCOPES \
-      -u CLAUDE_CONFIG_DIR -u CLAUDE_SECURESTORAGE_CONFIG_DIR \
-      -u NPM_TOKEN -u NODE_AUTH_TOKEN \
-      -u NPM_CONFIG_USERCONFIG -u NPM_CONFIG_GLOBALCONFIG \
-      -u npm_config_userconfig -u npm_config_globalconfig \
-      -u GH_TOKEN -u GITHUB_TOKEN \
+      -u CLAUDE_CODE_OAUTH_SCOPES -u GH_TOKEN -u GITHUB_TOKEN \
       -u CODER_AGENT_TOKEN -u CODER_SESSION_TOKEN \
       -u REALM_VISUAL_REVIEW_API_KEY -u RUNCOMFY_API_TOKEN \
       -u GIT_CONFIG -u GIT_CONFIG_COUNT -u GIT_CONFIG_PARAMETERS \
@@ -114,28 +97,14 @@ anonymous_git() {
 }
 
 validate_checkout() {
-  local checkout=$1 origin git_directory git_config
+  local checkout=$1 origin
 
-  git_directory="$checkout/.git"
-  git_config="$git_directory/config"
-  [ -d "$git_directory" ] && [ ! -L "$git_directory" ] || return 1
-  [ -f "$git_config" ] && [ ! -L "$git_config" ] || return 1
-  if anonymous_git config --file "$git_config" --no-includes --name-only --get-regexp \
-    '^(credential($|\.)|http\..*(extraheader|proxy|cookiefile|savecookies|sslcert|sslkey)$|core\.(attributesfile|fsmonitor|gitproxy|sshcommand)$|filter\..*\.(clean|process|smudge)$|diff\..*\.(command|textconv)$|remote\..*\.proxy$|url\..*\.insteadof$|include($|\.)|includeif\.)' \
-    >/dev/null 2>&1; then
-    return 1
-  fi
-  [ "$(
-    anonymous_git -c core.fsmonitor=false -c core.hooksPath=/dev/null \
-      -C "$checkout" rev-parse --is-inside-work-tree 2>/dev/null
-  )" = true ] \
+  [ -d "$checkout/.git" ] && [ ! -L "$checkout/.git" ] || return 1
+  [ "$(anonymous_git -C "$checkout" rev-parse --is-inside-work-tree 2>/dev/null)" = true ] \
     || return 1
-  origin="$(
-    anonymous_git config --file "$git_config" --no-includes --get remote.origin.url 2>/dev/null
-  )" || return 1
+  origin="$(anonymous_git -C "$checkout" remote get-url origin 2>/dev/null)" || return 1
   [ "$origin" = "$expected_origin" ] || return 1
-  anonymous_git -c core.fsmonitor=false -c core.hooksPath=/dev/null \
-    -C "$checkout" rev-parse --verify 'HEAD^{commit}' >/dev/null 2>&1
+  anonymous_git -C "$checkout" rev-parse --verify 'HEAD^{commit}' >/dev/null 2>&1
 }
 
 if [ ! -x "$git_binary" ]; then

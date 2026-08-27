@@ -24,26 +24,6 @@ locals {
   profile                      = jsondecode(file("${path.module}/profile.json"))
   workspace_hostname_candidate = trim(substr(replace(lower(data.coder_workspace.me.name), "/[^a-z0-9-]/", "-"), 0, 63), "-")
   workspace_hostname           = local.workspace_hostname_candidate != "" ? local.workspace_hostname_candidate : "workspace"
-  credentialless_environment   = <<-EOT
-    unset ANTHROPIC_API_KEY ANTHROPIC_AUTH_TOKEN
-    unset OPENAI_API_KEY OPENAI_API_TOKEN CODEX_API_KEY
-    unset CLAUDE_CODE_OAUTH_TOKEN CLAUDE_CODE_OAUTH_REFRESH_TOKEN CLAUDE_CODE_OAUTH_SCOPES
-    unset CLAUDE_CONFIG_DIR CLAUDE_SECURESTORAGE_CONFIG_DIR
-    unset NPM_TOKEN NODE_AUTH_TOKEN NPM_CONFIG_USERCONFIG NPM_CONFIG_GLOBALCONFIG
-    unset npm_config_userconfig npm_config_globalconfig
-    unset PIP_CONFIG_FILE PIP_INDEX_URL PIP_EXTRA_INDEX_URL PIP_TRUSTED_HOST
-    unset PIP_CERT PIP_CLIENT_CERT PIP_KEYRING_PROVIDER PIP_PROXY
-    unset GH_TOKEN GITHUB_TOKEN CODER_SESSION_TOKEN
-    unset GIT_CONFIG GIT_CONFIG_COUNT GIT_CONFIG_PARAMETERS GIT_PROXY_COMMAND GIT_SSH
-    unset SSH_AUTH_SOCK SSH_AGENT_PID SSH_ASKPASS_REQUIRE
-    unset REALM_VISUAL_REVIEW_API_KEY RUNCOMFY_API_TOKEN
-    unset AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY AWS_SESSION_TOKEN AWS_PROFILE
-    unset AWS_CONFIG_FILE AWS_SHARED_CREDENTIALS_FILE AWS_WEB_IDENTITY_TOKEN_FILE
-    unset GOOGLE_APPLICATION_CREDENTIALS CLOUDSDK_AUTH_ACCESS_TOKEN
-    unset AZURE_CLIENT_ID AZURE_CLIENT_SECRET AZURE_TENANT_ID
-    unset ARM_CLIENT_ID ARM_CLIENT_SECRET ARM_TENANT_ID ARM_SUBSCRIPTION_ID
-    unset KUBECONFIG
-  EOT
 }
 
 # =============================================================================
@@ -150,17 +130,17 @@ resource "coder_agent" "main" {
 # =============================================================================
 
 resource "coder_script" "tools_ci" {
-  agent_id     = coder_agent.main.id
-  display_name = "Interview setup"
-  icon         = "/icon/terminal.svg"
-  run_on_start = true
+  agent_id           = coder_agent.main.id
+  display_name       = "Interview setup"
+  icon               = "/icon/terminal.svg"
+  run_on_start       = true
   # Dependency hooks, tests, and builds come from the persistent candidate
   # checkout and must never make the recovery terminal inaccessible.
   start_blocks_login = false
   script = templatefile("${path.module}/scripts/tools-ci.sh", {
     clone_repositories_script_b64 = base64encode(file("${path.module}/scripts/clone-repositories.sh"))
     repositories_manifest_b64     = base64encode(file("${path.module}/repositories.txt"))
-    bootstrap_script_b64gzip      = base64gzip(file("${path.module}/bootstrap.sh"))
+    bootstrap_script_b64          = base64encode(file("${path.module}/bootstrap.sh"))
   })
 }
 
@@ -291,31 +271,6 @@ resource "coder_app" "api_docs" {
   }
 }
 
-resource "coder_app" "interview_claude" {
-  agent_id     = coder_agent.main.id
-  slug         = "interview-claude"
-  display_name = "Interview Claude"
-  command      = "/opt/hive-interview-tools/interview-claude --client /run/hive-interview-launch/claude.sock"
-  icon         = "/icon/terminal.svg"
-  share        = "owner"
-}
-
-resource "coder_app" "interview_claude_key" {
-  agent_id     = coder_agent.main.id
-  slug         = "interview-claude-key"
-  display_name = "Interview Claude Key"
-  url          = "http://localhost:43118"
-  icon         = "/icon/terminal.svg"
-  subdomain    = true
-  share        = "owner"
-
-  healthcheck {
-    url       = "http://localhost:43118/health"
-    interval  = 5
-    threshold = 12
-  }
-}
-
 # =============================================================================
 # KasmVNC (module replaces browser-serve.sh + coder_app)
 # =============================================================================
@@ -413,7 +368,6 @@ resource "kubernetes_deployment_v1" "workspace" {
       spec {
         automount_service_account_token = false
         hostname                        = local.workspace_hostname
-        share_process_namespace         = false
 
         security_context {
           run_as_non_root        = true
@@ -443,76 +397,15 @@ resource "kubernetes_deployment_v1" "workspace" {
           name = "ghcr-pull-kethalia"
         }
 
-        # Keep network-dependent trusted staging independent from the main
-        # recovery runtime. This credential-free sidecar retries transient
-        # failures while the development agent remains usable; the protected
-        # Claude runtime waits for its atomically promoted payload.
-        container {
-          name              = "stage-trusted-tools"
+        init_container {
+          name              = "seed-home"
           image             = local.profile.image
           image_pull_policy = "IfNotPresent"
           command = [
             "sh",
             "-c",
-            <<-EOT
-              ${local.credentialless_environment}
-              while ! /bin/sh -c "$1" stage-trusted-tools --stay-alive; do
-                printf '[warn] trusted interview payload staging failed; retrying in 5 seconds\n' >&2
-                /usr/bin/sleep 5
-              done
-            EOT
-            ,
-            "stage-trusted-tools-wrapper",
-            file("${path.module}/scripts/stage-trusted-tools.sh"),
+            file("${path.module}/scripts/seed-home.sh"),
           ]
-
-          env {
-            name  = "HIVE_INTERVIEW_CLAUDE_HELPER_B64"
-            value = base64encode(file("${path.module}/scripts/interview-claude"))
-          }
-
-          env {
-            name  = "HIVE_INTERVIEW_CLAUDE_GUARD_B64"
-            value = base64encode(file("${path.module}/scripts/claude-guard.c"))
-          }
-
-          security_context {
-            allow_privilege_escalation = false
-            run_as_non_root            = true
-            run_as_user                = 1000
-
-            capabilities {
-              drop = ["ALL"]
-            }
-          }
-
-          resources {
-            requests = {
-              cpu    = "100m"
-              memory = "256Mi"
-            }
-            limits = {
-              cpu    = "500m"
-              memory = "1Gi"
-            }
-          }
-
-          volume_mount {
-            name       = "trusted-tools"
-            mount_path = "/trusted-tools"
-          }
-
-          volume_mount {
-            name       = "claude-mcp"
-            mount_path = "/trusted-mcp"
-          }
-        }
-
-        init_container {
-          name              = "seed-home"
-          image             = local.profile.image
-          image_pull_policy = "IfNotPresent"
-          command = ["sh", "-c", "${local.credentialless_environment}\n/bin/sh -c \"$1\"", "seed-home-wrapper", file("${path.module}/scripts/seed-home.sh")]
 
           security_context {
             allow_privilege_escalation = false
@@ -545,13 +438,7 @@ resource "kubernetes_deployment_v1" "workspace" {
           name              = "dev"
           image             = local.profile.image
           image_pull_policy = "IfNotPresent"
-          command = [
-            "sh",
-            "-c",
-            "${local.credentialless_environment}\nexec /bin/sh -c \"$1\"",
-            "coder-agent-wrapper",
-            coder_agent.main.init_script,
-          ]
+          command           = ["sh", "-c", coder_agent.main.init_script]
 
           security_context {
             allow_privilege_escalation = false
@@ -593,141 +480,6 @@ resource "kubernetes_deployment_v1" "workspace" {
             name       = "home"
             mount_path = "/home/coder"
           }
-
-          volume_mount {
-            name       = "trusted-tools"
-            mount_path = "/opt/hive-interview-tools"
-            read_only  = true
-          }
-
-          volume_mount {
-            name       = "claude-status"
-            mount_path = "/run/hive-interview-claude"
-            read_only  = true
-          }
-
-          volume_mount {
-            name       = "claude-launch"
-            mount_path = "/run/hive-interview-launch"
-            read_only  = true
-          }
-
-          volume_mount {
-            name       = "browser-profile"
-            mount_path = "/home/coder/.cache/hive-interview-browser"
-          }
-
-          volume_mount {
-            name       = "browser-google-profile"
-            mount_path = "/home/coder/.config/google-chrome"
-          }
-
-          volume_mount {
-            name       = "browser-chromium-profile"
-            mount_path = "/home/coder/.config/chromium"
-          }
-
-          volume_mount {
-            name       = "browser-chromium-browser-profile"
-            mount_path = "/home/coder/.config/chromium-browser"
-          }
-        }
-
-        # This sibling container is the credential boundary. It has no Coder
-        # agent, no Coder token, and therefore no owner-reachable SSH or web
-        # terminal. Its owner-only key app encrypts the temporary key in the
-        # browser before handing it to this runtime. The runtime relays a PTY
-        # through the read-only socket exposed to the credentialless client.
-        container {
-          name              = "claude-runtime"
-          image             = local.profile.image
-          image_pull_policy = "IfNotPresent"
-          command = [
-            "sh",
-            "-c",
-            <<-EOT
-              ${local.credentialless_environment}
-              unset CODER_AGENT_TOKEN
-              /bin/bash -c "$1"
-              (
-                while :; do
-                  /bin/bash -c "$2" || true
-                  /usr/bin/sleep 5
-                done
-              ) &
-              exec /opt/hive-interview-tools/interview-claude --serve /run/hive-interview-launch/claude.sock
-            EOT
-            ,
-            "claude-runtime-wrapper",
-            templatefile("${path.module}/scripts/init-claude.sh", {
-              claude_md_content = trimspace(file("${path.module}/CLAUDE.md"))
-            }),
-            file("${path.module}/scripts/claude-heartbeat.sh"),
-          ]
-
-          security_context {
-            allow_privilege_escalation = false
-            run_as_non_root            = true
-            run_as_user                = 1000
-
-            capabilities {
-              drop = ["ALL"]
-            }
-          }
-
-          env {
-            name  = "USER"
-            value = "coder"
-          }
-
-          env {
-            name  = "HOME"
-            value = "/home/coder"
-          }
-
-          resources {
-            requests = {
-              cpu    = "100m"
-              memory = "256Mi"
-            }
-            limits = {
-              cpu    = "2"
-              memory = "2Gi"
-            }
-          }
-
-          volume_mount {
-            name       = "home"
-            mount_path = "/workspace/projects"
-            sub_path   = "projects"
-          }
-
-          volume_mount {
-            name       = "claude-home"
-            mount_path = "/home/coder"
-          }
-
-          volume_mount {
-            name       = "trusted-tools"
-            mount_path = "/opt/hive-interview-tools"
-            read_only  = true
-          }
-
-          volume_mount {
-            name       = "claude-status"
-            mount_path = "/run/hive-interview-claude"
-          }
-
-          volume_mount {
-            name       = "claude-mcp"
-            mount_path = "/opt/hive-interview-mcp"
-            read_only  = true
-          }
-
-          volume_mount {
-            name       = "claude-launch"
-            mount_path = "/run/hive-interview-launch"
-          }
         }
 
         volume {
@@ -735,78 +487,6 @@ resource "kubernetes_deployment_v1" "workspace" {
 
           persistent_volume_claim {
             claim_name = kubernetes_persistent_volume_claim_v1.home.metadata[0].name
-          }
-        }
-
-        volume {
-          name = "trusted-tools"
-
-          empty_dir {
-            size_limit = "512Mi"
-          }
-        }
-
-        volume {
-          name = "claude-home"
-
-          empty_dir {
-            size_limit = "1Gi"
-          }
-        }
-
-        volume {
-          name = "claude-status"
-
-          empty_dir {
-            size_limit = "1Mi"
-          }
-        }
-
-        volume {
-          name = "claude-mcp"
-
-          empty_dir {
-            size_limit = "512Mi"
-          }
-        }
-
-        volume {
-          name = "claude-launch"
-
-          empty_dir {
-            size_limit = "1Mi"
-          }
-        }
-
-        volume {
-          name = "browser-profile"
-
-          empty_dir {
-            size_limit = "1Gi"
-          }
-        }
-
-        volume {
-          name = "browser-google-profile"
-
-          empty_dir {
-            size_limit = "1Gi"
-          }
-        }
-
-        volume {
-          name = "browser-chromium-profile"
-
-          empty_dir {
-            size_limit = "1Gi"
-          }
-        }
-
-        volume {
-          name = "browser-chromium-browser-profile"
-
-          empty_dir {
-            size_limit = "1Gi"
           }
         }
       }

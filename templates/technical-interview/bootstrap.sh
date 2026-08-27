@@ -1,35 +1,12 @@
-#!/bin/bash
+#!/usr/bin/env bash
 set -euo pipefail
 
 umask 077
 
-export PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
-unset BASH_ENV ENV CDPATH LD_LIBRARY_PATH LD_PRELOAD
 unset ANTHROPIC_API_KEY ANTHROPIC_AUTH_TOKEN
-unset OPENAI_API_KEY OPENAI_API_TOKEN CODEX_API_KEY
 unset CLAUDE_CODE_OAUTH_TOKEN CLAUDE_CODE_OAUTH_REFRESH_TOKEN CLAUDE_CODE_OAUTH_SCOPES
-unset CLAUDE_CONFIG_DIR CLAUDE_SECURESTORAGE_CONFIG_DIR
-unset NPM_TOKEN NODE_AUTH_TOKEN
-unset NPM_CONFIG_USERCONFIG NPM_CONFIG_GLOBALCONFIG
-unset npm_config_userconfig npm_config_globalconfig
-unset PIP_CONFIG_FILE PIP_INDEX_URL PIP_EXTRA_INDEX_URL PIP_TRUSTED_HOST
-unset PIP_CERT PIP_CLIENT_CERT PIP_KEYRING_PROVIDER PIP_PROXY
 unset GH_TOKEN GITHUB_TOKEN CODER_AGENT_TOKEN CODER_SESSION_TOKEN
-unset GIT_CONFIG GIT_CONFIG_COUNT GIT_CONFIG_PARAMETERS GIT_PROXY_COMMAND GIT_SSH
-unset SSH_AUTH_SOCK SSH_AGENT_PID SSH_ASKPASS_REQUIRE
 unset REALM_VISUAL_REVIEW_API_KEY RUNCOMFY_API_TOKEN
-unset AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY AWS_SESSION_TOKEN AWS_PROFILE
-unset AWS_CONFIG_FILE AWS_SHARED_CREDENTIALS_FILE AWS_WEB_IDENTITY_TOKEN_FILE
-unset GOOGLE_APPLICATION_CREDENTIALS CLOUDSDK_AUTH_ACCESS_TOKEN
-unset AZURE_CLIENT_ID AZURE_CLIENT_SECRET AZURE_TENANT_ID
-unset ARM_CLIENT_ID ARM_CLIENT_SECRET ARM_TENANT_ID ARM_SUBSCRIPTION_ID
-unset KUBECONFIG
-export GIT_CONFIG_GLOBAL=/dev/null
-export GIT_CONFIG_NOSYSTEM=1
-export GIT_ASKPASS=/bin/false
-export GIT_SSH_COMMAND=/bin/false
-export GIT_TERMINAL_PROMPT=0
-export SSH_ASKPASS=/bin/false
 
 interview_bin_dir="$HOME/.local/bin"
 interview_libexec_dir="$HOME/.local/libexec/hive/technical-interview"
@@ -99,37 +76,8 @@ install_interview_file() {
   fi
 }
 
-install_interview_symlink() {
-  local destination=$1 target=$2
-  local destination_directory staging_directory staged_link
-
-  destination_directory="$(dirname -- "$destination")"
-  interview_ensure_local_directory "$destination_directory" || return 1
-  staging_directory="$(mktemp -d "$destination_directory/.hive-interview-link.XXXXXX")"
-  staged_link="$staging_directory/$(basename -- "$destination")"
-  ln -s -- "$target" "$staged_link"
-  if ! mv -fT -- "$staged_link" "$destination"; then
-    rm -f -- "$staged_link"
-    rmdir -- "$staging_directory"
-    return 1
-  fi
-  rmdir -- "$staging_directory"
-}
-
-install_interview_file "$interview_bin_dir/interview-claude" 700 <<'CLAUDEHANDOFFEOF'
-#!/bin/bash
-# hive-managed-interview-claude-handoff:v2
-set -eu
-
-exec /opt/hive-interview-tools/interview-claude \
-  --client /run/hive-interview-launch/claude.sock -- "$@"
-CLAUDEHANDOFFEOF
-
 install_interview_file "$interview_libexec_dir/common.sh" 600 <<'COMMONEOF'
-#!/bin/bash
-
-INTERVIEW_TRUSTED_PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
-export PATH="$INTERVIEW_TRUSTED_PATH"
+#!/usr/bin/env bash
 
 INTERVIEW_REPOSITORY="$HOME/projects/prmsolutions/interview-template"
 INTERVIEW_EXPECTED_ORIGIN="https://github.com/prmsolutions/interview-template.git"
@@ -144,76 +92,20 @@ INTERVIEW_CODEX_VERSION="0.149.1"
 INTERVIEW_PLAYWRIGHT_MCP_VERSION="0.0.79"
 INTERVIEW_BUN_VERSION="1.4.0"
 INTERVIEW_PNPM_VERSION="10.32.1"
-INTERVIEW_RIPGREP_VERSION="1.18.0"
 INTERVIEW_CODEX_BASELINE_TARGET="../lib/node_modules/@openai/codex/bin/codex.js"
 INTERVIEW_BUN_BASELINE_TARGET="$HOME/.bun/bin/bun"
-INTERVIEW_CLAUDE_BIN="/opt/hive-interview-tools/claude"
-INTERVIEW_CLAUDE_LAUNCHER="/opt/hive-interview-tools/interview-claude"
-INTERVIEW_CLAUDE_GUARD="/opt/hive-interview-tools/claude-guard.so"
-INTERVIEW_CLAUDE_STATUS="/run/hive-interview-claude/ready"
-INTERVIEW_CHROME_BIN="/usr/bin/google-chrome-stable"
-INTERVIEW_CODEX_BIN="$HOME/.local/bin/codex"
-INTERVIEW_PLAYWRIGHT_MCP_BIN="$HOME/.local/bin/playwright-mcp"
-INTERVIEW_BUN_BIN="$HOME/.local/bin/bun"
-INTERVIEW_PNPM_BIN="$HOME/.local/bin/pnpm"
-INTERVIEW_SQLITE_BIN="$(command -v sqlite3 2>/dev/null || printf '%s' "$HOME/.local/bin/sqlite3")"
-INTERVIEW_RG_BIN="$(command -v rg 2>/dev/null || printf '%s' "$HOME/.local/bin/rg")"
 INTERVIEW_FORBIDDEN_CREDENTIALS=(
   ANTHROPIC_API_KEY
   ANTHROPIC_AUTH_TOKEN
-  OPENAI_API_KEY
-  OPENAI_API_TOKEN
-  CODEX_API_KEY
   CLAUDE_CODE_OAUTH_TOKEN
   CLAUDE_CODE_OAUTH_REFRESH_TOKEN
   CLAUDE_CODE_OAUTH_SCOPES
-  CLAUDE_CONFIG_DIR
-  CLAUDE_SECURESTORAGE_CONFIG_DIR
-  NPM_TOKEN
-  NODE_AUTH_TOKEN
-  NPM_CONFIG_USERCONFIG
-  NPM_CONFIG_GLOBALCONFIG
-  npm_config_userconfig
-  npm_config_globalconfig
-  PIP_CONFIG_FILE
-  PIP_INDEX_URL
-  PIP_EXTRA_INDEX_URL
-  PIP_TRUSTED_HOST
-  PIP_CERT
-  PIP_CLIENT_CERT
-  PIP_KEYRING_PROVIDER
-  PIP_PROXY
   GH_TOKEN
   GITHUB_TOKEN
   CODER_AGENT_TOKEN
   CODER_SESSION_TOKEN
-  GIT_CONFIG
-  GIT_CONFIG_COUNT
-  GIT_CONFIG_PARAMETERS
-  GIT_PROXY_COMMAND
-  GIT_SSH
-  SSH_AUTH_SOCK
-  SSH_AGENT_PID
-  SSH_ASKPASS_REQUIRE
   REALM_VISUAL_REVIEW_API_KEY
   RUNCOMFY_API_TOKEN
-  AWS_ACCESS_KEY_ID
-  AWS_SECRET_ACCESS_KEY
-  AWS_SESSION_TOKEN
-  AWS_PROFILE
-  AWS_CONFIG_FILE
-  AWS_SHARED_CREDENTIALS_FILE
-  AWS_WEB_IDENTITY_TOKEN_FILE
-  GOOGLE_APPLICATION_CREDENTIALS
-  CLOUDSDK_AUTH_ACCESS_TOKEN
-  AZURE_CLIENT_ID
-  AZURE_CLIENT_SECRET
-  AZURE_TENANT_ID
-  ARM_CLIENT_ID
-  ARM_CLIENT_SECRET
-  ARM_TENANT_ID
-  ARM_SUBSCRIPTION_ID
-  KUBECONFIG
 )
 
 interview_ensure_local_directory() {
@@ -251,35 +143,6 @@ interview_ensure_local_directory() {
   done
 }
 
-interview_local_directory_chain_ready() {
-  local target=$1 current remainder component
-
-  [ -d "$HOME" ] && [ ! -L "$HOME" ] || return 1
-  case "$target" in
-    "$HOME") return 0 ;;
-    "$HOME"/*) ;;
-    *) return 1 ;;
-  esac
-
-  current="$HOME"
-  remainder="${target#"$HOME"/}"
-  while [ -n "$remainder" ]; do
-    component="${remainder%%/*}"
-    if [ "$component" = "$remainder" ]; then
-      remainder=""
-    else
-      remainder="${remainder#*/}"
-    fi
-    current="$current/$component"
-    if [ -L "$current" ] || { [ -e "$current" ] && [ ! -d "$current" ]; }; then
-      return 1
-    fi
-    # A missing component means the rest of the path cannot exist yet. Its
-    # eventual creator still has to use the validated local parent.
-    [ -d "$current" ] || return 0
-  done
-}
-
 interview_ensure_local_directory "$INTERVIEW_STATE_DIR"
 chmod 700 "$INTERVIEW_STATE_DIR"
 
@@ -288,24 +151,6 @@ interview_scrub_credentials() {
   for variable_name in "${INTERVIEW_FORBIDDEN_CREDENTIALS[@]}"; do
     unset "$variable_name"
   done
-  export GIT_CONFIG_GLOBAL=/dev/null
-  export GIT_CONFIG_NOSYSTEM=1
-  export GIT_ASKPASS=/bin/false
-  export GIT_SSH_COMMAND=/bin/false
-  export GIT_TERMINAL_PROMPT=0
-  export SSH_ASKPASS=/bin/false
-}
-
-interview_pip() {
-  local python_command=$1
-  shift
-
-  "$python_command" -m pip \
-    --isolated \
-    --disable-pip-version-check \
-    --no-input \
-    --keyring-provider disabled \
-    "$@"
 }
 
 interview_tool_version_matches() {
@@ -319,163 +164,6 @@ interview_tool_version_matches() {
   [ "$actual_version" = "$expected_version" ]
 }
 
-interview_tool_runtime_works() {
-  local command_name=$1
-  local command_path=$2
-
-  case "$command_name" in
-    pnpm)
-      /usr/bin/timeout 10s "$command_path" help >/dev/null 2>&1
-      ;;
-    codex | playwright-mcp | bun)
-      /usr/bin/timeout 10s "$command_path" --help >/dev/null 2>&1
-      ;;
-    *)
-      return 1
-      ;;
-  esac
-}
-
-interview_npm() {
-  if ! interview_project_npm_authentication_absent; then
-    printf '[error] repository npm configuration is present; refusing to run npm\n' >&2
-    return 1
-  fi
-  env \
-    -u NPM_TOKEN -u NODE_AUTH_TOKEN \
-    -u NPM_CONFIG_GLOBALCONFIG \
-    -u npm_config_userconfig -u npm_config_globalconfig \
-    NPM_CONFIG_USERCONFIG=/dev/null \
-    npm "$@"
-}
-
-interview_project_npm_authentication_absent() {
-  local configuration_path
-
-  # npm always considers project configuration in addition to user config.
-  # Never inspect or consume a repository-owned .npmrc: preserve it and stop
-  # before any managed npm command can run from the assessment checkout.
-  for configuration_path in \
-    "$INTERVIEW_REPOSITORY/.npmrc" \
-    "$INTERVIEW_FRONTEND/.npmrc"; do
-    if [ -e "$configuration_path" ] || [ -L "$configuration_path" ]; then
-      return 1
-    fi
-  done
-  return 0
-}
-
-interview_tool_payload_hash() {
-  local payload_root=$1
-
-  /usr/bin/python3 -I - "$payload_root" <<'PYTOOLINTEGRITY'
-import hashlib
-import os
-import stat
-import sys
-from pathlib import Path
-
-
-root = Path(sys.argv[1])
-try:
-    root_metadata = root.lstat()
-    resolved_root = root.resolve(strict=True)
-    digest = hashlib.sha256()
-
-    def add(value: bytes) -> None:
-        digest.update(len(value).to_bytes(8, "big"))
-        digest.update(value)
-
-    def add_file(path: Path, metadata: os.stat_result) -> None:
-        add(b"file")
-        add(str(stat.S_IMODE(metadata.st_mode) & 0o111).encode())
-        with path.open("rb") as handle:
-            for block in iter(lambda: handle.read(1024 * 1024), b""):
-                digest.update(block)
-
-    def visit(directory: Path, relative_directory: Path) -> None:
-        with os.scandir(directory) as entries:
-            ordered = sorted(entries, key=lambda entry: os.fsencode(entry.name))
-        for entry in ordered:
-            path = Path(entry.path)
-            relative = relative_directory / entry.name
-            metadata = entry.stat(follow_symlinks=False)
-            add(os.fsencode(str(relative)))
-            if stat.S_ISDIR(metadata.st_mode):
-                add(b"directory")
-                visit(path, relative)
-            elif stat.S_ISREG(metadata.st_mode):
-                add_file(path, metadata)
-            elif stat.S_ISLNK(metadata.st_mode):
-                add(b"symlink")
-                add(os.fsencode(os.readlink(path)))
-                path.resolve(strict=True).relative_to(resolved_root)
-            else:
-                raise ValueError(f"unsupported tool payload entry: {relative}")
-
-    if stat.S_ISDIR(root_metadata.st_mode):
-        add(b"root-directory")
-        visit(root, Path())
-    elif stat.S_ISREG(root_metadata.st_mode):
-        add(b"root-file")
-        add_file(root, root_metadata)
-    else:
-        raise ValueError("tool payload root is not a regular file or directory")
-    print(digest.hexdigest())
-except (OSError, RuntimeError, ValueError):
-    raise SystemExit(1)
-PYTOOLINTEGRITY
-}
-
-interview_tool_payload_root() {
-  local command_name=$1
-  local actual_target=$2
-  local expected_binary=$3
-  local baseline_target=${4:-}
-  local managed_binary=$5
-
-  if [ "$actual_target" = "$expected_binary" ]; then
-    printf '%s\n' "${expected_binary%%/node_modules/*}/node_modules"
-    return 0
-  fi
-  [ -n "$baseline_target" ] && [ "$actual_target" = "$baseline_target" ] || return 1
-  case "$command_name" in
-    codex)
-      printf '%s\n' "$HOME/.local/lib/node_modules/@openai/codex"
-      ;;
-    bun)
-      /usr/bin/readlink -f -- "$managed_binary"
-      ;;
-    *)
-      return 1
-      ;;
-  esac
-}
-
-interview_tool_payload_ready() {
-  local command_name=$1
-  local expected_version=$2
-  local payload_root=$3
-  local current_hash stored_hash
-
-  current_hash="$(interview_tool_payload_hash "$payload_root" 2>/dev/null || true)"
-  stored_hash="$(
-    interview_read_state "tool-$command_name-$expected_version.sha256" 2>/dev/null || true
-  )"
-  [ -n "$current_hash" ] && [ "$current_hash" = "$stored_hash" ]
-}
-
-interview_record_tool_payload() {
-  local command_name=$1
-  local expected_version=$2
-  local payload_root=$3
-  local payload_hash
-
-  payload_hash="$(interview_tool_payload_hash "$payload_root")" || return 1
-  [ -n "$payload_hash" ] || return 1
-  interview_write_state "tool-$command_name-$expected_version.sha256" "$payload_hash"
-}
-
 interview_managed_tool_ready() {
   local command_name=$1
   local expected_version=$2
@@ -483,7 +171,7 @@ interview_managed_tool_ready() {
   local baseline_target=${4:-}
   local managed_binary="$HOME/.local/bin/$command_name"
   local expected_binary="$INTERVIEW_STATE_DIR/tools/$command_name-$expected_version/node_modules/$package_binary"
-  local actual_target payload_root
+  local actual_target
 
   [ -L "$managed_binary" ] || return 1
   actual_target="$(readlink -- "$managed_binary")"
@@ -491,13 +179,7 @@ interview_managed_tool_ready() {
     && { [ -z "$baseline_target" ] || [ "$actual_target" != "$baseline_target" ]; }; then
     return 1
   fi
-  interview_tool_version_matches "$managed_binary" "$expected_version" || return 1
-  interview_tool_runtime_works "$command_name" "$managed_binary" || return 1
-  payload_root="$(
-    interview_tool_payload_root \
-      "$command_name" "$actual_target" "$expected_binary" "$baseline_target" "$managed_binary"
-  )" || return 1
-  interview_tool_payload_ready "$command_name" "$expected_version" "$payload_root"
+  interview_tool_version_matches "$managed_binary" "$expected_version"
 }
 
 interview_scrub_credentials
@@ -516,16 +198,8 @@ interview_error() {
 
 interview_origin_is_expected() {
   local origin
-  [ -d "$INTERVIEW_REPOSITORY/.git" ] \
-    && [ ! -L "$INTERVIEW_REPOSITORY/.git" ] \
-    && [ -f "$INTERVIEW_REPOSITORY/.git/config" ] \
-    && [ ! -L "$INTERVIEW_REPOSITORY/.git/config" ] || return 1
-  origin="$(
-    /usr/bin/timeout 3s /usr/bin/git config \
-      --file "$INTERVIEW_REPOSITORY/.git/config" \
-      --no-includes \
-      --get remote.origin.url 2>/dev/null || true
-  )"
+  [ -d "$INTERVIEW_REPOSITORY/.git" ] || return 1
+  origin="$(git -C "$INTERVIEW_REPOSITORY" remote get-url origin 2>/dev/null || true)"
   case "$origin" in
     https://github.com/prmsolutions/interview-template | https://github.com/prmsolutions/interview-template.git)
       return 0
@@ -576,65 +250,6 @@ interview_frontend_hash() {
   ) | sha256sum | awk '{print $1}'
 }
 
-interview_frontend_install_hash() {
-  local node_modules="$INTERVIEW_FRONTEND/node_modules"
-
-  interview_local_directory_chain_ready "$node_modules" || return 1
-  [ -d "$node_modules" ] && [ ! -L "$node_modules" ] || return 1
-  /usr/bin/python3 - "$node_modules" <<'PYFRONTENDINTEGRITY'
-import hashlib
-import os
-import stat
-import sys
-from pathlib import Path
-
-
-root = Path(sys.argv[1])
-try:
-    resolved_root = root.resolve(strict=True)
-    digest = hashlib.sha256()
-
-    def add(value: bytes) -> None:
-        digest.update(len(value).to_bytes(8, "big"))
-        digest.update(value)
-
-    def visit(directory: Path, relative_directory: Path) -> None:
-        with os.scandir(directory) as entries:
-            ordered = sorted(entries, key=lambda entry: os.fsencode(entry.name))
-        for entry in ordered:
-            if not relative_directory.parts and entry.name in {
-                ".cache",
-                ".vite",
-                ".vue-global-types",
-            }:
-                continue
-            path = Path(entry.path)
-            relative = relative_directory / entry.name
-            metadata = entry.stat(follow_symlinks=False)
-            add(os.fsencode(str(relative)))
-            if stat.S_ISDIR(metadata.st_mode):
-                add(b"directory")
-                visit(path, relative)
-            elif stat.S_ISREG(metadata.st_mode):
-                add(b"file")
-                add(str(stat.S_IMODE(metadata.st_mode) & 0o111).encode())
-                with path.open("rb") as handle:
-                    for block in iter(lambda: handle.read(1024 * 1024), b""):
-                        digest.update(block)
-            elif stat.S_ISLNK(metadata.st_mode):
-                add(b"symlink")
-                add(os.fsencode(os.readlink(path)))
-                path.resolve(strict=True).relative_to(resolved_root)
-            else:
-                raise ValueError(f"unsupported dependency entry: {relative}")
-
-    visit(root, Path())
-    print(digest.hexdigest())
-except (OSError, RuntimeError, ValueError):
-    raise SystemExit(1)
-PYFRONTENDINTEGRITY
-}
-
 interview_read_state() {
   local state_name=$1
   [ -f "$INTERVIEW_STATE_DIR/$state_name" ] || return 1
@@ -652,115 +267,29 @@ interview_write_state() {
   mv -fT -- "$temporary_file" "$INTERVIEW_STATE_DIR/$state_name"
 }
 
-interview_python_distributions_intact() {
-  "$INTERVIEW_VENV/bin/python" - <<'PYDISTINTEGRITY'
-import base64
-import hashlib
-import importlib.metadata
-import sys
-from pathlib import Path
-
-
-venv = Path(sys.prefix).resolve()
-try:
-    distributions = list(importlib.metadata.distributions())
-    if not distributions:
-        raise ValueError("the virtual environment has no installed distributions")
-    for distribution in distributions:
-        files = distribution.files
-        if files is None:
-            raise ValueError(f"distribution has no installed-file record: {distribution}")
-        for installed_file in files:
-            expected_hash = installed_file.hash
-            if expected_hash is None:
-                continue
-            path = Path(distribution.locate_file(installed_file))
-            if path.is_symlink() or not path.is_file():
-                raise ValueError(f"installed dependency file is missing or linked: {path}")
-            path.resolve().relative_to(venv)
-            digest = hashlib.new(expected_hash.mode)
-            with path.open("rb") as handle:
-                for block in iter(lambda: handle.read(1024 * 1024), b""):
-                    digest.update(block)
-            actual_hash = base64.urlsafe_b64encode(digest.digest()).rstrip(b"=").decode()
-            if actual_hash != expected_hash.value:
-                raise ValueError(f"installed dependency file failed integrity validation: {path}")
-except (OSError, ValueError):
-    raise SystemExit(1)
-PYDISTINTEGRITY
-}
-
-interview_backend_environment_ready() {
-  local report_file status=0
-
-  interview_local_directory_chain_ready "$INTERVIEW_VENV/bin" || return 1
-  [ -x "$INTERVIEW_VENV/bin/python" ] || return 1
-  interview_pip "$INTERVIEW_VENV/bin/python" check >/dev/null 2>&1 || return 1
-
-  report_file="$(mktemp "$INTERVIEW_STATE_DIR/.pip-dry-run.XXXXXX")" || return 1
-  if ! interview_pip "$INTERVIEW_VENV/bin/python" install \
-    --dry-run \
-    --no-cache-dir \
-    --quiet \
-    --report "$report_file" \
-    -r "$INTERVIEW_BACKEND/requirements.txt" >/dev/null 2>&1; then
-    status=1
-  elif ! /usr/bin/python3 - "$report_file" <<'PYPIPREPORT'
-import json
-import sys
-
-try:
-    with open(sys.argv[1], encoding="utf-8") as handle:
-        report = json.load(handle)
-    if not isinstance(report, dict) or report.get("install") != []:
-        raise ValueError("the requirements would change the environment")
-except (OSError, ValueError, TypeError, json.JSONDecodeError):
-    raise SystemExit(1)
-PYPIPREPORT
-  then
-    status=1
-  elif ! interview_python_distributions_intact; then
-    status=1
-  fi
-  rm -f -- "$report_file"
-  return "$status"
-}
-
 interview_backend_dependencies_ready() {
   local current_hash stored_hash
-  interview_backend_environment_ready || return 1
+  [ -x "$INTERVIEW_VENV/bin/python" ] || return 1
   current_hash="$(interview_backend_hash 2>/dev/null || true)"
   stored_hash="$(interview_read_state backend-requirements.sha256 2>/dev/null || true)"
   [ -n "$current_hash" ] && [ "$current_hash" = "$stored_hash" ]
 }
 
 interview_frontend_dependencies_ready() {
-  local current_hash stored_hash current_install_hash stored_install_hash
-  interview_local_directory_chain_ready "$INTERVIEW_FRONTEND/node_modules" || return 1
+  local current_hash stored_hash
   [ -x "$INTERVIEW_FRONTEND/node_modules/.bin/vite" ] || return 1
   current_hash="$(interview_frontend_hash 2>/dev/null || true)"
   stored_hash="$(interview_read_state frontend-manifests.sha256 2>/dev/null || true)"
   [ -n "$current_hash" ] && [ "$current_hash" = "$stored_hash" ] || return 1
-  current_install_hash="$(interview_frontend_install_hash 2>/dev/null || true)"
-  stored_install_hash="$(interview_read_state frontend-install.sha256 2>/dev/null || true)"
-  [ -n "$current_install_hash" ] \
-    && [ "$current_install_hash" = "$stored_install_hash" ] || return 1
   (
     cd "$INTERVIEW_FRONTEND"
-    interview_npm ls --all --silent >/dev/null 2>&1
+    npm ls --all --silent >/dev/null 2>&1
   )
 }
 
 interview_git_clean() {
   [ -d "$INTERVIEW_REPOSITORY/.git" ] || return 1
-  interview_git_transport_credentials_absent || return 1
-  [ -z "$(
-    /usr/bin/timeout 10s /usr/bin/git \
-      -c core.fsmonitor=false \
-      -c core.hooksPath=/dev/null \
-      -C "$INTERVIEW_REPOSITORY" \
-      status --short --untracked-files=all 2>/dev/null
-  )" ]
+  [ -z "$(git -C "$INTERVIEW_REPOSITORY" status --short --untracked-files=all)" ]
 }
 
 interview_anonymous_git() {
@@ -773,12 +302,7 @@ interview_anonymous_git() {
     env \
       -u ANTHROPIC_API_KEY -u ANTHROPIC_AUTH_TOKEN \
       -u CLAUDE_CODE_OAUTH_TOKEN -u CLAUDE_CODE_OAUTH_REFRESH_TOKEN \
-      -u CLAUDE_CODE_OAUTH_SCOPES \
-      -u CLAUDE_CONFIG_DIR -u CLAUDE_SECURESTORAGE_CONFIG_DIR \
-      -u NPM_TOKEN -u NODE_AUTH_TOKEN \
-      -u NPM_CONFIG_USERCONFIG -u NPM_CONFIG_GLOBALCONFIG \
-      -u npm_config_userconfig -u npm_config_globalconfig \
-      -u GH_TOKEN -u GITHUB_TOKEN \
+      -u CLAUDE_CODE_OAUTH_SCOPES -u GH_TOKEN -u GITHUB_TOKEN \
       -u CODER_AGENT_TOKEN -u CODER_SESSION_TOKEN \
       -u REALM_VISUAL_REVIEW_API_KEY -u RUNCOMFY_API_TOKEN \
       -u GIT_CONFIG -u GIT_CONFIG_COUNT -u GIT_CONFIG_PARAMETERS \
@@ -806,7 +330,7 @@ interview_anonymous_git() {
 
 interview_remote_default_state() {
   local local_commit remote_commit
-  local_commit="$(interview_repository_commit 2>/dev/null || true)"
+  local_commit="$(git -C "$INTERVIEW_REPOSITORY" rev-parse HEAD 2>/dev/null || true)"
   remote_commit="$(
     { interview_anonymous_git ls-remote "$INTERVIEW_EXPECTED_ORIGIN" HEAD 2>/dev/null || true; } \
       | awk 'NR == 1 {print $1}'
@@ -819,15 +343,6 @@ interview_remote_default_state() {
     printf 'Remote default branch is at %s; checkout %s was preserved without updating.' \
       "$remote_commit" "$local_commit"
   fi
-}
-
-interview_repository_commit() {
-  interview_git_transport_credentials_absent || return 1
-  /usr/bin/timeout 3s /usr/bin/git \
-    -c core.fsmonitor=false \
-    -c core.hooksPath=/dev/null \
-    -C "$INTERVIEW_REPOSITORY" \
-    rev-parse HEAD
 }
 
 interview_forbidden_environment_present() {
@@ -855,213 +370,9 @@ interview_forbidden_tmux_environment_present() {
 }
 
 interview_hive_github_helper_present() {
-  local config_file helper_output
-
   [ -e "$HOME/.local/bin/coder-github-credential" ] && return 0
-  for config_file in "$HOME/.gitconfig" "$HOME/.config/git/config"; do
-    [ -f "$config_file" ] && [ ! -L "$config_file" ] || continue
-    helper_output="$(
-      /usr/bin/timeout 3s /usr/bin/git config --file "$config_file" --no-includes \
-        --get-all credential.https://github.com.helper 2>/dev/null || true
-    )"
-    if grep -Fqx -- "$HOME/.local/bin/coder-github-credential" <<< "$helper_output"; then
-      return 0
-    fi
-  done
-  return 1
-}
-
-interview_git_config_contains_transport_auth() {
-  local config_file=$1 status
-
-  if [ ! -e "$config_file" ] && [ ! -L "$config_file" ]; then
-    return 1
-  fi
-  [ -f "$config_file" ] && [ ! -L "$config_file" ] || return 0
-  if /usr/bin/timeout 3s /usr/bin/git config \
-    --file "$config_file" \
-    --no-includes \
-    --name-only \
-    --get-regexp \
-    '^(credential($|\.)|http\..*(extraheader|proxy|cookiefile|savecookies|sslcert|sslkey)$|core\.(attributesfile|fsmonitor|gitproxy|sshcommand)$|filter\..*\.(clean|process|smudge)$|diff\..*\.(command|textconv)$|remote\..*\.proxy$|url\..*\.insteadof$|include($|\.)|includeif\.)' \
-    >/dev/null 2>&1; then
-    status=0
-  else
-    status=$?
-  fi
-  case "$status" in
-    0) return 0 ;;
-    1) return 1 ;;
-    *) return 0 ;;
-  esac
-}
-
-interview_git_transport_credentials_absent() {
-  local credential_path config_file ssh_directory="$HOME/.ssh"
-  local remote_line remote_url
-
-  for credential_path in \
-    "$HOME/.git-credentials" \
-    "$HOME/.netrc" \
-    "$HOME/.authinfo" \
-    "$HOME/.config/git/credentials" \
-    "$HOME/.config/gh/hosts.yml" \
-    "$HOME/.cache/git/credential"; do
-    if [ -e "$credential_path" ] || [ -L "$credential_path" ]; then
-      return 1
-    fi
-  done
-
-  if [ -e "$ssh_directory" ] || [ -L "$ssh_directory" ]; then
-    [ -d "$ssh_directory" ] && [ ! -L "$ssh_directory" ] || return 1
-    if ! (
-      shopt -s dotglob nullglob
-      for credential_path in "$ssh_directory"/*; do
-        case "${credential_path##*/}" in
-          authorized_keys | known_hosts | known_hosts.old | *.pub)
-            [ -f "$credential_path" ] && [ ! -L "$credential_path" ] || exit 1
-            ;;
-          *) exit 1 ;;
-        esac
-      done
-    ); then
-      return 1
-    fi
-  fi
-
-  for config_file in \
-    "$HOME/.gitconfig" \
-    "$HOME/.config/git/config" \
-    "$INTERVIEW_REPOSITORY/.git/config"; do
-    if interview_git_config_contains_transport_auth "$config_file"; then
-      return 1
-    fi
-  done
-
-  if [ -f "$INTERVIEW_REPOSITORY/.git/config" ] \
-    && [ ! -L "$INTERVIEW_REPOSITORY/.git/config" ]; then
-    while IFS= read -r remote_line; do
-      remote_url="${remote_line#* }"
-      case "$remote_url" in
-        https://github.com/prmsolutions/interview-template | "$INTERVIEW_EXPECTED_ORIGIN") ;;
-        *) return 1 ;;
-      esac
-    done < <(
-      /usr/bin/timeout 3s /usr/bin/git config \
-        --file "$INTERVIEW_REPOSITORY/.git/config" \
-        --no-includes \
-        --get-regexp '^remote\..*\.(url|pushurl)$' 2>/dev/null || true
-    )
-  fi
-
-  [ "${GIT_CONFIG_GLOBAL:-}" = /dev/null ] \
-    && [ "${GIT_CONFIG_NOSYSTEM:-}" = 1 ] \
-    && [ "${GIT_ASKPASS:-}" = /bin/false ] \
-    && [ "${GIT_SSH_COMMAND:-}" = /bin/false ] \
-    && [ "${GIT_TERMINAL_PROMPT:-}" = 0 ] \
-    && [ "${SSH_ASKPASS:-}" = /bin/false ]
-}
-
-interview_claude_authentication_absent() {
-  local credential_path
-
-  # Claude Code's supported Linux credential store is the first path. The
-  # second is a legacy compatibility path still found in persisted homes.
-  # Preserve either user-owned path, but fail readiness rather than allowing
-  # the image-baked main-container Claude binary to reuse a personal login.
-  for credential_path in \
-    "$HOME/.claude/.credentials.json" \
-    "$HOME/.config/claude-code/auth.json"; do
-    if [ -e "$credential_path" ] || [ -L "$credential_path" ]; then
-      return 1
-    fi
-  done
-  return 0
-}
-
-interview_codex_authentication_absent() {
-  local credential_path
-
-  # Codex uses auth.json for persisted login state. Preserve any user-owned
-  # credential store, but never let the disposable interview workspace reuse
-  # it or read it while checking readiness.
-  for credential_path in \
-    "$HOME/.codex/auth.json" \
-    "$HOME/.config/codex/auth.json" \
-    "$HOME/.config/openai"; do
-    if [ -e "$credential_path" ] || [ -L "$credential_path" ]; then
-      return 1
-    fi
-  done
-  return 0
-}
-
-interview_cloud_orchestration_authentication_absent() {
-  local credential_path
-
-  # A reused home must not expose personal cloud, registry, cluster, IaC, or
-  # orchestration sessions. Check only path existence so values are never read,
-  # printed, or deleted.
-  for credential_path in \
-    "$HOME/.aws" \
-    "$HOME/.config/gcloud" \
-    "$HOME/.azure" \
-    "$HOME/.kube" \
-    "$HOME/.terraform.d/credentials.tfrc.json" \
-    "$HOME/.docker/config.json" \
-    "$HOME/.config/containers/auth.json" \
-    "$HOME/.config/helm/registry/config.json" \
-    "$HOME/.pulumi/credentials.json" \
-    "$HOME/.vault-token" \
-    "$HOME/.config/coderv2/session" \
-    "$HOME/.config/coder/session"; do
-    if [ -e "$credential_path" ] || [ -L "$credential_path" ]; then
-      return 1
-    fi
-  done
-  return 0
-}
-
-interview_browser_authentication_absent() {
-  local profile_path
-
-  # Default Chrome/Chromium profiles can contain cookies and logged-in web
-  # sessions. Every installed browser's default profile is shadowed by a
-  # pod-ephemeral mount. Preserve but reject a profile path if that isolation
-  # boundary is missing.
-  for profile_path in \
-    "$HOME/.config/google-chrome" \
-    "$HOME/.config/chromium" \
-    "$HOME/.config/chromium-browser"; do
-    if [ -e "$profile_path" ] || [ -L "$profile_path" ]; then
-      if [ -d "$profile_path" ] \
-        && [ ! -L "$profile_path" ] \
-        && /usr/bin/mountpoint --quiet -- "$profile_path"; then
-        continue
-      fi
-      return 1
-    fi
-  done
-  return 0
-}
-
-interview_package_authentication_absent() {
-  local configuration_path
-
-  # npm and pip per-user configuration can contain registry bearer tokens or
-  # embedded index credentials. Preserve each user-owned path, but fail
-  # readiness without reading it.
-  for configuration_path in \
-    "$HOME/.npmrc" \
-    "$HOME/.config/pip/pip.conf" \
-    "$HOME/.pip/pip.conf" \
-    "$INTERVIEW_REPOSITORY/.npmrc" \
-    "$INTERVIEW_FRONTEND/.npmrc"; do
-    if [ -e "$configuration_path" ] || [ -L "$configuration_path" ]; then
-      return 1
-    fi
-  done
-  return 0
+  git config --global --get-all credential.https://github.com.helper 2>/dev/null \
+    | grep -Fqx -- "$HOME/.local/bin/coder-github-credential"
 }
 
 interview_github_auth_json() {
@@ -1096,56 +407,13 @@ interview_shell_scrub_ready() {
     'unset ANTHROPIC_API_KEY ANTHROPIC_AUTH_TOKEN' \
     "$environment_file" || return 1
   grep -qF \
-    'unset OPENAI_API_KEY OPENAI_API_TOKEN CODEX_API_KEY' \
-    "$environment_file" || return 1
-  grep -qF \
     'unset CLAUDE_CODE_OAUTH_TOKEN CLAUDE_CODE_OAUTH_REFRESH_TOKEN CLAUDE_CODE_OAUTH_SCOPES' \
-    "$environment_file" || return 1
-  grep -qF \
-    'unset CLAUDE_CONFIG_DIR CLAUDE_SECURESTORAGE_CONFIG_DIR' \
-    "$environment_file" || return 1
-  grep -qF \
-    'unset NPM_TOKEN NODE_AUTH_TOKEN NPM_CONFIG_USERCONFIG NPM_CONFIG_GLOBALCONFIG' \
-    "$environment_file" || return 1
-  grep -qF \
-    'unset npm_config_userconfig npm_config_globalconfig' \
-    "$environment_file" || return 1
-  grep -qF \
-    'unset PIP_CONFIG_FILE PIP_INDEX_URL PIP_EXTRA_INDEX_URL PIP_TRUSTED_HOST' \
-    "$environment_file" || return 1
-  grep -qF \
-    'unset PIP_CERT PIP_CLIENT_CERT PIP_KEYRING_PROVIDER PIP_PROXY' \
     "$environment_file" || return 1
   grep -qF \
     'unset GH_TOKEN GITHUB_TOKEN CODER_AGENT_TOKEN CODER_SESSION_TOKEN' \
     "$environment_file" || return 1
   grep -qF 'unset REALM_VISUAL_REVIEW_API_KEY RUNCOMFY_API_TOKEN' \
     "$environment_file" || return 1
-  grep -qF \
-    'unset AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY AWS_SESSION_TOKEN AWS_PROFILE' \
-    "$environment_file" || return 1
-  grep -qF \
-    'unset AWS_CONFIG_FILE AWS_SHARED_CREDENTIALS_FILE AWS_WEB_IDENTITY_TOKEN_FILE' \
-    "$environment_file" || return 1
-  grep -qF \
-    'unset GOOGLE_APPLICATION_CREDENTIALS CLOUDSDK_AUTH_ACCESS_TOKEN' \
-    "$environment_file" || return 1
-  grep -qF \
-    'unset AZURE_CLIENT_ID AZURE_CLIENT_SECRET AZURE_TENANT_ID' \
-    "$environment_file" || return 1
-  grep -qF \
-    'unset ARM_CLIENT_ID ARM_CLIENT_SECRET ARM_TENANT_ID ARM_SUBSCRIPTION_ID' \
-    "$environment_file" || return 1
-  grep -qF 'unset KUBECONFIG' "$environment_file" || return 1
-  grep -qF \
-    'unset GIT_CONFIG GIT_CONFIG_COUNT GIT_CONFIG_PARAMETERS GIT_PROXY_COMMAND GIT_SSH' \
-    "$environment_file" || return 1
-  grep -qF 'unset SSH_AUTH_SOCK SSH_AGENT_PID SSH_ASKPASS_REQUIRE' \
-    "$environment_file" || return 1
-  grep -qF 'export GIT_CONFIG_GLOBAL=/dev/null' "$environment_file" || return 1
-  grep -qF 'export GIT_CONFIG_NOSYSTEM=1' "$environment_file" || return 1
-  grep -qF 'export GIT_ASKPASS=/bin/false' "$environment_file" || return 1
-  grep -qF 'export GIT_SSH_COMMAND=/bin/false' "$environment_file" || return 1
 
   for shell_file in "$HOME/.bash_profile" "$HOME/.bash_login"; do
     if [ -e "$shell_file" ] || [ -L "$shell_file" ]; then
@@ -1193,76 +461,6 @@ interview_managed_directories_ready() {
     "$HOME/.local/state/hive/technical-interview"; do
     [ -d "$managed_directory" ] && [ ! -L "$managed_directory" ] || return 1
   done
-}
-
-interview_browser_helpers_ready() {
-  local chromium="$HOME/.local/bin/chromium-browser"
-  local interview_chrome="$HOME/.local/bin/interview-chrome"
-  local desktop_entry="$HOME/.local/share/applications/google-chrome.desktop"
-  local helper
-
-  [ -x "$INTERVIEW_CHROME_BIN" ] || return 1
-  for helper in "$chromium" "$interview_chrome"; do
-    [ -f "$helper" ] && [ ! -L "$helper" ] && [ -x "$helper" ] || return 1
-    grep -qF '# hive-managed-interview-chrome:v1' "$helper" || return 1
-  done
-  [ -f "$desktop_entry" ] && [ ! -L "$desktop_entry" ] || return 1
-  grep -qF 'Exec=/home/coder/.local/bin/interview-chrome %U' "$desktop_entry" || return 1
-  for helper in "$HOME/.local/bin/browser-screenshot" "$HOME/.local/bin/browser-html"; do
-    [ -f "$helper" ] && [ ! -L "$helper" ] && [ -x "$helper" ] || return 1
-    grep -qF '# hive-managed-browser-helper:v1' "$helper" || return 1
-  done
-}
-
-interview_claude_ready() {
-  local marker timestamp extra now age
-
-  [ -f "$INTERVIEW_CLAUDE_STATUS" ] \
-    && [ ! -L "$INTERVIEW_CLAUDE_STATUS" ] \
-    && IFS=' ' read -r marker timestamp extra < "$INTERVIEW_CLAUDE_STATUS" \
-    && [ "$marker" = 'isolated-claude-runtime-ready-v4' ] \
-    && [ -z "$extra" ] \
-    && [[ "$timestamp" =~ ^[0-9]+$ ]] \
-    && now="$(date +%s)" \
-    && ((timestamp <= now + 5)) \
-    && age=$((now - timestamp)) \
-    && ((age <= 30)) \
-    && [ -f "$INTERVIEW_CLAUDE_LAUNCHER" ] \
-    && [ ! -L "$INTERVIEW_CLAUDE_LAUNCHER" ] \
-    && [ -x "$INTERVIEW_CLAUDE_LAUNCHER" ] \
-    && grep -qF '# hive-managed-interview-claude:v7' "$INTERVIEW_CLAUDE_LAUNCHER" \
-    && grep -qF 'INTERVIEW_REPOSITORY = Path("/workspace/projects/prmsolutions/interview-template")' \
-      "$INTERVIEW_CLAUDE_LAUNCHER" \
-    && grep -qF 'TRUSTED_CLAUDE = Path("/opt/hive-interview-tools/claude")' \
-      "$INTERVIEW_CLAUDE_LAUNCHER" \
-    && grep -qF 'TRUSTED_GUARD = Path("/opt/hive-interview-tools/claude-guard.so")' \
-      "$INTERVIEW_CLAUDE_LAUNCHER" \
-    && grep -qF 'ANTHROPIC_UPSTREAM_HOST = "api.anthropic.com"' \
-      "$INTERVIEW_CLAUDE_LAUNCHER" \
-    && grep -qF 'environment["CLAUDE_CODE_SUBPROCESS_ENV_SCRUB"] = "0"' \
-      "$INTERVIEW_CLAUDE_LAUNCHER" \
-    && grep -qF 'socketserver.UnixStreamServer' "$INTERVIEW_CLAUDE_LAUNCHER" \
-    && grep -qF 'socket.SO_PEERCRED' "$INTERVIEW_CLAUDE_LAUNCHER" \
-    && grep -qF 'serve_launch_socket' "$INTERVIEW_CLAUDE_LAUNCHER" \
-    && grep -qF 'run_launch_client' "$INTERVIEW_CLAUDE_LAUNCHER" \
-    && grep -qF 'class KeyHandoffServer' "$INTERVIEW_CLAUDE_LAUNCHER" \
-    && grep -qF 'rsa_padding_mode:oaep' "$INTERVIEW_CLAUDE_LAUNCHER" \
-    && grep -qF 'PR_SET_DUMPABLE = 4' "$INTERVIEW_CLAUDE_LAUNCHER" \
-    && [ -f "$INTERVIEW_CLAUDE_BIN" ] \
-    && [ ! -L "$INTERVIEW_CLAUDE_BIN" ] \
-    && [ -x "$INTERVIEW_CLAUDE_BIN" ] \
-    && [ -f "$INTERVIEW_CLAUDE_GUARD" ] \
-    && [ ! -L "$INTERVIEW_CLAUDE_GUARD" ] \
-    && [ -x "$INTERVIEW_CLAUDE_GUARD" ] \
-    && "$INTERVIEW_CLAUDE_BIN" --version >/dev/null 2>&1
-}
-
-interview_claude_version_or_missing() {
-  if interview_claude_ready; then
-    "$INTERVIEW_CLAUDE_BIN" --version 2>&1 | sed -n '1p'
-  else
-    printf 'missing or untrusted'
-  fi
 }
 
 interview_agent_context_ready() {
@@ -1395,26 +593,12 @@ COMMONEOF
 source "$interview_libexec_dir/common.sh"
 
 install_interview_file "$interview_bin_dir/interview-setup" 700 <<'SETUPEOF'
-#!/bin/bash
+#!/usr/bin/env bash
 set -euo pipefail
 umask 077
 
 # shellcheck source=/dev/null
 source "$HOME/.local/libexec/hive/technical-interview/common.sh"
-
-tool_preparer="$HOME/.local/libexec/hive/technical-interview/prepare-tools.sh"
-if [ ! -f "$tool_preparer" ] || [ -L "$tool_preparer" ] || [ ! -x "$tool_preparer" ]; then
-  interview_error "Managed interview tool recovery command is unavailable."
-  exit 1
-fi
-if ! interview_project_npm_authentication_absent; then
-  interview_error "Preserving repository npm configuration; remove project .npmrc credentials before setup."
-  exit 1
-fi
-if ! "$tool_preparer"; then
-  interview_error "Interview tool preparation failed; restore network access and rerun interview-setup."
-  exit 1
-fi
 
 if [ ! -d "$INTERVIEW_REPOSITORY/.git" ]; then
   interview_error "Expected repository is missing: $INTERVIEW_REPOSITORY"
@@ -1424,6 +608,7 @@ fi
 
 if ! interview_origin_is_expected; then
   interview_error "Repository origin is not the expected public Proton.ai repository."
+  git -C "$INTERVIEW_REPOSITORY" remote get-url origin 2>/dev/null || true
   exit 1
 fi
 
@@ -1435,7 +620,7 @@ if ! interview_node_supported; then
   interview_error "Node.js 20 or newer is required."
   exit 1
 fi
-if ! interview_npm --version >/dev/null 2>&1; then
+if ! npm --version >/dev/null 2>&1; then
   interview_error "npm is required but is not functional."
   exit 1
 fi
@@ -1443,12 +628,6 @@ fi
 interview_ensure_local_directory "$INTERVIEW_STATE_DIR"
 chmod 700 "$INTERVIEW_STATE_DIR"
 dependencies_refreshed=false
-backend_venv_created=false
-
-if ! interview_local_directory_chain_ready "$INTERVIEW_VENV/bin"; then
-  interview_error "Preserving an unsafe linked or non-directory backend virtual environment chain: $INTERVIEW_VENV"
-  exit 1
-fi
 
 interview_virtualenv_fallback_ready() {
   local fallback_root=$1 validation_root version_output status=0
@@ -1477,7 +656,9 @@ interview_install_virtualenv_fallback() {
 
   candidate_root="$(mktemp -d "$INTERVIEW_STATE_DIR/.virtualenv-install.XXXXXX")" \
     || return 1
-  if ! interview_pip python3 install \
+  if ! python3 -m pip install \
+    --disable-pip-version-check \
+    --no-input \
     --target "$candidate_root" \
     "virtualenv==$INTERVIEW_VIRTUALENV_VERSION"; then
     rm -rf -- "$candidate_root"
@@ -1528,17 +709,13 @@ interview_create_backend_venv() {
     PYTHONPATH="$fallback_root" python3 -m virtualenv "$INTERVIEW_VENV"
     interview_write_state venv-method "transitional virtualenv $INTERVIEW_VIRTUALENV_VERSION"
   fi
-  backend_venv_created=true
 }
 
 if [ ! -x "$INTERVIEW_VENV/bin/python" ]; then
   if [ -e "$INTERVIEW_VENV" ] || [ -L "$INTERVIEW_VENV" ]; then
-    if [ -L "$INTERVIEW_VENV" ] || [ ! -d "$INTERVIEW_VENV" ]; then
-      interview_error "Preserving an unsafe backend virtual environment: $INTERVIEW_VENV"
-      exit 1
-    fi
-    interview_ok "Recreating the managed backend virtual environment after an interrupted creation"
-    rm -rf -- "$INTERVIEW_VENV"
+    interview_error "Preserving an existing but unusable backend virtual environment: $INTERVIEW_VENV"
+    interview_error "Move it aside manually after reviewing it, then rerun interview-setup."
+    exit 1
   fi
 
   interview_create_backend_venv
@@ -1550,25 +727,15 @@ if [ -n "$stored_backend_hash" ] && [ "$backend_hash" != "$stored_backend_hash" 
   interview_ok "Recreating the managed backend virtual environment for changed dependencies"
   rm -rf -- "$INTERVIEW_VENV"
   interview_create_backend_venv
-elif [ -n "$stored_backend_hash" ] && ! interview_backend_environment_ready; then
-  interview_ok "Recreating the managed backend virtual environment to repair incomplete or damaged dependencies"
-  rm -rf -- "$INTERVIEW_VENV"
-  interview_create_backend_venv
-  stored_backend_hash=""
-elif [ -z "$stored_backend_hash" ] && [ "$backend_venv_created" != true ]; then
-  interview_ok "Recreating the unmanaged backend virtual environment before the initial dependency install"
-  rm -rf -- "$INTERVIEW_VENV"
-  interview_create_backend_venv
 fi
 
-if [ "$backend_hash" != "$stored_backend_hash" ]; then
+if [ "$backend_hash" != "$stored_backend_hash" ] \
+  || ! "$INTERVIEW_VENV/bin/python" -c 'import fastapi, httpx, pytest, uvicorn' >/dev/null 2>&1; then
   interview_ok "Installing backend dependencies"
-  interview_pip "$INTERVIEW_VENV/bin/python" install \
+  "$INTERVIEW_VENV/bin/python" -m pip install \
+    --disable-pip-version-check \
+    --no-input \
     -r "$INTERVIEW_BACKEND/requirements.txt"
-  if ! interview_backend_environment_ready; then
-    interview_error "Backend dependencies failed complete requirement and installed-file validation."
-    exit 1
-  fi
   interview_write_state backend-requirements.sha256 "$backend_hash"
   dependencies_refreshed=true
 else
@@ -1576,47 +743,27 @@ else
 fi
 
 frontend_hash="$(interview_frontend_hash)"
-if ! interview_local_directory_chain_ready "$INTERVIEW_FRONTEND/node_modules"; then
-  interview_error "Preserving an unsafe linked or non-directory frontend dependency chain: $INTERVIEW_FRONTEND/node_modules"
-  exit 1
-fi
-if [ -e "$INTERVIEW_FRONTEND/node_modules" ] \
-  && { [ -L "$INTERVIEW_FRONTEND/node_modules" ] \
-    || [ ! -d "$INTERVIEW_FRONTEND/node_modules" ]; }; then
-  interview_error "Preserving unsafe frontend dependency state: $INTERVIEW_FRONTEND/node_modules"
-  exit 1
-fi
-
-if ! interview_frontend_dependencies_ready; then
+stored_frontend_hash="$(interview_read_state frontend-manifests.sha256 2>/dev/null || true)"
+if [ "$frontend_hash" != "$stored_frontend_hash" ] \
+  || [ ! -x "$INTERVIEW_FRONTEND/node_modules/.bin/vite" ] \
+  || ! (
+    cd "$INTERVIEW_FRONTEND"
+    npm ls --all --silent >/dev/null 2>&1
+  ); then
   interview_ok "Installing frontend dependencies"
-  if [ -d "$INTERVIEW_FRONTEND/node_modules" ]; then
-    /usr/bin/rm -rf -- "$INTERVIEW_FRONTEND/node_modules"
-  fi
   if [ -f "$INTERVIEW_FRONTEND/package-lock.json" ] \
     || [ -f "$INTERVIEW_FRONTEND/npm-shrinkwrap.json" ]; then
     (
       cd "$INTERVIEW_FRONTEND"
-      interview_npm ci --no-audit --no-fund
+      npm ci --no-audit --no-fund
     )
   else
     (
       cd "$INTERVIEW_FRONTEND"
-      interview_npm install --no-package-lock --no-audit --no-fund
+      npm install --no-package-lock --no-audit --no-fund
     )
   fi
-  if ! (
-    cd "$INTERVIEW_FRONTEND"
-    interview_npm ls --all --silent >/dev/null 2>&1
-  ); then
-    interview_error "Frontend dependencies are incomplete after installation."
-    exit 1
-  fi
-  frontend_install_hash="$(interview_frontend_install_hash)" || {
-    interview_error "Frontend dependencies failed installed-file integrity validation."
-    exit 1
-  }
   interview_write_state frontend-manifests.sha256 "$frontend_hash"
-  interview_write_state frontend-install.sha256 "$frontend_install_hash"
   dependencies_refreshed=true
 else
   interview_ok "Frontend dependencies match the stored manifest hash"
@@ -1631,19 +778,14 @@ interview_ok "Running backend tests"
 interview_ok "Running frontend production build"
 (
   cd "$INTERVIEW_FRONTEND"
-  interview_npm run build
+  npm run build
 )
-if ! interview_frontend_dependencies_ready; then
-  interview_error "Frontend dependencies changed or failed integrity validation during the build."
-  exit 1
-fi
 
 if interview_git_clean; then
   interview_ok "Repository working tree remains clean"
 else
   interview_warn "Repository has candidate changes or unexpected generated files; preserving them unchanged"
-  /usr/bin/git -c core.fsmonitor=false -c core.hooksPath=/dev/null \
-    -C "$INTERVIEW_REPOSITORY" status --short
+  git -C "$INTERVIEW_REPOSITORY" status --short
 fi
 
 if [ "$dependencies_refreshed" = true ] \
@@ -1656,7 +798,7 @@ interview_ok "Interview dependencies and build outputs are ready"
 SETUPEOF
 
 install_interview_file "$interview_bin_dir/interview-start" 700 <<'STARTEOF'
-#!/bin/bash
+#!/usr/bin/env bash
 set -euo pipefail
 umask 077
 
@@ -1675,7 +817,7 @@ for forbidden_name in "${INTERVIEW_FORBIDDEN_CREDENTIALS[@]}"; do
   credential_env_arguments+=(-u "$forbidden_name")
 done
 api_command="exec env${credential_unsets} '$INTERVIEW_VENV/bin/uvicorn' app.main:app --reload --host 127.0.0.1 --port 8000"
-web_command="exec env${credential_unsets} NPM_CONFIG_USERCONFIG=/dev/null npm run dev -- --host 127.0.0.1 --port 3000"
+web_command="exec env${credential_unsets} npm run dev -- --host 127.0.0.1 --port 3000"
 
 tmux_without_credentials() {
   env "${credential_env_arguments[@]}" tmux "$@"
@@ -1690,7 +832,6 @@ service_window_ready() {
   local window_name=$1
   local working_directory=$2
   local service_command=$3
-  local service_url=$4
   local pane_dead
 
   if ! window_exists "$window_name"; then
@@ -1705,10 +846,6 @@ service_window_ready() {
     tmux_without_credentials respawn-window -k -t "$INTERVIEW_SESSION:$window_name" \
       -c "$working_directory" "$service_command"
     interview_ok "Restarted stopped tmux service window: $window_name"
-  elif ! curl --fail --silent --max-time 3 "$service_url" >/dev/null 2>&1; then
-    tmux_without_credentials respawn-window -k -t "$INTERVIEW_SESSION:$window_name" \
-      -c "$working_directory" "$service_command"
-    interview_ok "Restarted unhealthy tmux service window: $window_name"
   else
     interview_ok "Preserving active tmux window: $window_name"
   fi
@@ -1740,8 +877,8 @@ for forbidden_name in "${INTERVIEW_FORBIDDEN_CREDENTIALS[@]}"; do
 done
 
 interactive_window_present work
-service_window_ready api "$INTERVIEW_BACKEND" "$api_command" "http://127.0.0.1:8000/hello"
-service_window_ready web "$INTERVIEW_FRONTEND" "$web_command" "http://127.0.0.1:3000"
+service_window_ready api "$INTERVIEW_BACKEND" "$api_command"
+service_window_ready web "$INTERVIEW_FRONTEND" "$web_command"
 interactive_window_present ai
 tmux select-window -t "$INTERVIEW_SESSION:work" 2>/dev/null || true
 
@@ -1758,7 +895,7 @@ interview_ok "Interview tmux session is ready"
 STARTEOF
 
 install_interview_file "$interview_bin_dir/interview-restart" 700 <<'RESTARTEOF'
-#!/bin/bash
+#!/usr/bin/env bash
 set -euo pipefail
 umask 077
 
@@ -1781,7 +918,7 @@ for forbidden_name in "${INTERVIEW_FORBIDDEN_CREDENTIALS[@]}"; do
   credential_env_arguments+=(-u "$forbidden_name")
 done
 api_command="exec env${credential_unsets} '$INTERVIEW_VENV/bin/uvicorn' app.main:app --reload --host 127.0.0.1 --port 8000"
-web_command="exec env${credential_unsets} NPM_CONFIG_USERCONFIG=/dev/null npm run dev -- --host 127.0.0.1 --port 3000"
+web_command="exec env${credential_unsets} npm run dev -- --host 127.0.0.1 --port 3000"
 
 restart_service_window() {
   local window_name=$1
@@ -1808,7 +945,7 @@ interview_ok "Working and AI windows were preserved"
 RESTARTEOF
 
 install_interview_file "$interview_bin_dir/interview-stop" 700 <<'STOPEOF'
-#!/bin/bash
+#!/usr/bin/env bash
 set -euo pipefail
 
 # shellcheck source=/dev/null
@@ -1823,7 +960,7 @@ fi
 STOPEOF
 
 install_interview_file "$interview_bin_dir/interview-status" 700 <<'STATUSEOF'
-#!/bin/bash
+#!/usr/bin/env bash
 set -euo pipefail
 
 # shellcheck source=/dev/null
@@ -1831,13 +968,12 @@ source "$HOME/.local/libexec/hive/technical-interview/common.sh"
 
 printf 'Interview repository: %s\n' "$INTERVIEW_REPOSITORY"
 if [ -d "$INTERVIEW_REPOSITORY/.git" ]; then
-  printf 'Repository commit: %s\n' "$(interview_repository_commit 2>/dev/null || printf unknown)"
+  printf 'Repository commit: %s\n' "$(git -C "$INTERVIEW_REPOSITORY" rev-parse HEAD 2>/dev/null || printf unknown)"
   if interview_git_clean; then
     printf 'Git status: clean\n'
   else
     printf 'Git status: dirty (preserved)\n'
-    /usr/bin/git -c core.fsmonitor=false -c core.hooksPath=/dev/null \
-      -C "$INTERVIEW_REPOSITORY" status --short
+    git -C "$INTERVIEW_REPOSITORY" status --short
   fi
   printf 'Remote state: %s\n' "$(interview_remote_default_state)"
 else
@@ -1879,16 +1015,16 @@ printf 'Tool versions:\n'
 printf '  Python: %s\n' "$(interview_version_or_missing python3 python3 --version)"
 printf '  Node: %s\n' "$(interview_version_or_missing node node --version)"
 printf '  npm: %s\n' "$(interview_version_or_missing npm npm --version)"
-printf '  SQLite: %s\n' "$(interview_version_or_missing "$INTERVIEW_SQLITE_BIN" "$INTERVIEW_SQLITE_BIN" --version)"
+printf '  SQLite: %s\n' "$(interview_version_or_missing sqlite3 sqlite3 --version)"
 printf '  Git: %s\n' "$(interview_version_or_missing git git --version)"
 printf '  make: %s\n' "$(interview_version_or_missing make make --version)"
-printf '  ripgrep: %s\n' "$(interview_version_or_missing "$INTERVIEW_RG_BIN" "$INTERVIEW_RG_BIN" --version)"
-printf '  Claude Code: %s\n' "$(interview_claude_version_or_missing)"
-printf '  Codex: %s\n' "$(interview_version_or_missing "$INTERVIEW_CODEX_BIN" "$INTERVIEW_CODEX_BIN" --version)"
-printf '  Playwright MCP: %s\n' "$(interview_version_or_missing "$INTERVIEW_PLAYWRIGHT_MCP_BIN" "$INTERVIEW_PLAYWRIGHT_MCP_BIN" --version)"
-printf '  Bun: %s\n' "$(interview_version_or_missing "$INTERVIEW_BUN_BIN" "$INTERVIEW_BUN_BIN" --version)"
-printf '  pnpm: %s\n' "$(interview_version_or_missing "$INTERVIEW_PNPM_BIN" "$INTERVIEW_PNPM_BIN" --version)"
-printf '  Chrome: %s\n' "$(interview_version_or_missing "$INTERVIEW_CHROME_BIN" "$INTERVIEW_CHROME_BIN" --version)"
+printf '  ripgrep: %s\n' "$(interview_version_or_missing rg rg --version)"
+printf '  Claude Code: %s\n' "$(interview_version_or_missing claude claude --version)"
+printf '  Codex: %s\n' "$(interview_version_or_missing codex codex --version)"
+printf '  Playwright MCP: %s\n' "$(interview_version_or_missing playwright-mcp playwright-mcp --version)"
+printf '  Bun: %s\n' "$(interview_version_or_missing bun bun --version)"
+printf '  pnpm: %s\n' "$(interview_version_or_missing pnpm pnpm --version)"
+printf '  Chrome: %s\n' "$(interview_version_or_missing google-chrome-stable google-chrome-stable --version)"
 printf '  tmux: %s\n' "$(interview_version_or_missing tmux tmux -V)"
 
 printf 'Forbidden credential variables present (names only):'
@@ -1926,40 +1062,64 @@ if interview_hive_github_helper_present; then
 else
   printf 'Hive GitHub credential helper: absent\n'
 fi
-if interview_git_transport_credentials_absent; then
-  printf 'Persisted Git transport credentials: absent\n'
-else
-  printf 'Persisted Git transport credentials: PRESENT or unsafe (names only; readiness fails)\n'
-fi
-if interview_claude_authentication_absent; then
-  printf 'Persisted Claude authentication: absent\n'
-else
-  printf 'Persisted Claude authentication: PRESENT or unsafe (path names only; readiness fails)\n'
-fi
-if interview_codex_authentication_absent; then
-  printf 'Persisted Codex authentication: absent\n'
-else
-  printf 'Persisted Codex authentication: PRESENT or unsafe (path names only; readiness fails)\n'
-fi
-if interview_cloud_orchestration_authentication_absent; then
-  printf 'Persisted cloud/orchestration authentication: absent\n'
-else
-  printf 'Persisted cloud/orchestration authentication: PRESENT or unsafe (path names only; readiness fails)\n'
-fi
-if interview_browser_authentication_absent; then
-  printf 'Persisted browser authentication: absent\n'
-else
-  printf 'Persisted browser authentication: PRESENT or unsafe (path names only; readiness fails)\n'
-fi
-if interview_package_authentication_absent; then
-  printf 'Persisted package-manager authentication: absent\n'
-else
-  printf 'Persisted package-manager authentication: PRESENT or unsafe (path names only; readiness fails)\n'
-fi
 STATUSEOF
 
+install_interview_file "$interview_bin_dir/interview-claude" 700 <<'CLAUDEEOF'
+#!/usr/bin/env bash
+set -euo pipefail
+umask 077
+
+# shellcheck source=/dev/null
+source "$HOME/.local/libexec/hive/technical-interview/common.sh"
+
+claude_arguments=()
+while (($# > 0)); do
+  case "$1" in
+    --)
+      shift
+      claude_arguments+=("$@")
+      break
+      ;;
+    *)
+      claude_arguments+=("$1")
+      shift
+      ;;
+  esac
+done
+
+if [ ! -d "$INTERVIEW_REPOSITORY/.git" ] || ! interview_origin_is_expected; then
+  interview_error "Expected interview repository is unavailable or has the wrong origin."
+  exit 1
+fi
+if ! command -v claude >/dev/null 2>&1; then
+  interview_error "Claude Code is not installed."
+  exit 1
+fi
+
+if [ ! -r /dev/tty ] || [ ! -w /dev/tty ]; then
+  interview_error "A controlling terminal is required for masked API-key input."
+  exit 1
+fi
+printf 'Temporary Anthropic API key: ' > /dev/tty
+IFS= read -r -s interview_key < /dev/tty
+printf '\n' > /dev/tty
+if [ -z "$interview_key" ]; then
+  interview_error "No API key was provided."
+  exit 1
+fi
+
+cd "$INTERVIEW_REPOSITORY"
+unset ANTHROPIC_AUTH_TOKEN
+unset CLAUDE_CODE_OAUTH_TOKEN CLAUDE_CODE_OAUTH_REFRESH_TOKEN CLAUDE_CODE_OAUTH_SCOPES
+unset GH_TOKEN GITHUB_TOKEN CODER_AGENT_TOKEN CODER_SESSION_TOKEN
+unset REALM_VISUAL_REVIEW_API_KEY RUNCOMFY_API_TOKEN
+export ANTHROPIC_API_KEY="$interview_key"
+unset interview_key
+exec claude "${claude_arguments[@]}"
+CLAUDEEOF
+
 install_interview_file "$interview_bin_dir/interview-check" 700 <<'CHECKEOF'
-#!/bin/bash
+#!/usr/bin/env bash
 set -uo pipefail
 umask 077
 
@@ -1987,7 +1147,7 @@ check_repository_exists() {
 }
 
 check_npm() {
-  interview_npm --version >/dev/null 2>&1
+  npm --version >/dev/null 2>&1
 }
 
 check_backend_imports() {
@@ -2007,12 +1167,16 @@ check_backend_tests() {
 check_frontend_build() {
   (
     cd "$INTERVIEW_FRONTEND" 2>/dev/null || exit 1
-    interview_npm run build
+    npm run build
   )
 }
 
 check_command() {
   command -v "$1" >/dev/null 2>&1
+}
+
+check_version_command() {
+  command -v "$1" >/dev/null 2>&1 && "$1" --version >/dev/null 2>&1
 }
 
 check_api() {
@@ -2039,30 +1203,6 @@ check_hive_helper_absent() {
   ! interview_hive_github_helper_present
 }
 
-check_git_transport_credentials_absent() {
-  interview_git_transport_credentials_absent
-}
-
-check_claude_authentication_absent() {
-  interview_claude_authentication_absent
-}
-
-check_codex_authentication_absent() {
-  interview_codex_authentication_absent
-}
-
-check_cloud_orchestration_authentication_absent() {
-  interview_cloud_orchestration_authentication_absent
-}
-
-check_browser_authentication_absent() {
-  interview_browser_authentication_absent
-}
-
-check_package_authentication_absent() {
-  interview_package_authentication_absent
-}
-
 run_check "expected repository exists" check_repository_exists
 run_check "origin is the expected public HTTPS repository" interview_origin_is_expected
 run_check "Python is at least 3.12" interview_python_supported
@@ -2074,7 +1214,7 @@ run_check "required Python modules import" check_backend_imports
 run_check "backend pytest suite passes" check_backend_tests
 run_check "frontend dependency hash is current" interview_frontend_dependencies_ready
 run_check "frontend production build passes" check_frontend_build
-run_check "shell-inaccessible read-only Claude runtime is ready" interview_claude_ready
+run_check "Claude Code is functional" check_version_command claude
 run_check "Codex $INTERVIEW_CODEX_VERSION is pinned" \
   interview_managed_tool_ready \
   codex "$INTERVIEW_CODEX_VERSION" .bin/codex "$INTERVIEW_CODEX_BASELINE_TARGET"
@@ -2086,11 +1226,10 @@ run_check "Bun $INTERVIEW_BUN_VERSION is pinned" \
   bun "$INTERVIEW_BUN_VERSION" @oven/bun-linux-x64/bin/bun "$INTERVIEW_BUN_BASELINE_TARGET"
 run_check "pnpm $INTERVIEW_PNPM_VERSION is pinned" \
   interview_managed_tool_ready pnpm "$INTERVIEW_PNPM_VERSION" .bin/pnpm
-run_check "Chrome is installed" test -x "$INTERVIEW_CHROME_BIN"
-run_check "managed browser helper paths are ready" interview_browser_helpers_ready
+run_check "Chrome is installed" check_command google-chrome-stable
 run_check "tmux is installed" check_command tmux
-run_check "SQLite CLI is installed" test -x "$INTERVIEW_SQLITE_BIN"
-run_check "ripgrep is installed" test -x "$INTERVIEW_RG_BIN"
+run_check "SQLite CLI is installed" check_command sqlite3
+run_check "ripgrep is installed" check_command rg
 run_check "API responds at /hello" check_api
 run_check "frontend responds on port 3000" check_frontend
 run_check "working tree contains no unexpected files" interview_git_clean
@@ -2102,25 +1241,13 @@ run_check "forbidden credential variables are absent" check_forbidden_credential
 run_check "GitHub CLI is not authenticated" check_github_not_authenticated
 run_check "Coder CLI is not authenticated for orchestration" check_coder_not_authenticated
 run_check "Hive GitHub credential helper is absent" check_hive_helper_absent
-run_check "persisted Git and SSH transport credentials are absent" \
-  check_git_transport_credentials_absent
-run_check "persisted Claude authentication is absent" \
-  check_claude_authentication_absent
-run_check "persisted Codex authentication is absent" \
-  check_codex_authentication_absent
-run_check "persisted cloud and orchestration authentication is absent" \
-  check_cloud_orchestration_authentication_absent
-run_check "persisted browser authentication is absent" \
-  check_browser_authentication_absent
-run_check "persisted package-manager authentication is absent" \
-  check_package_authentication_absent
 
 report_temporary="$(mktemp "$HOME/.INTERVIEW_READY.XXXXXX")"
-repository_commit="$(interview_repository_commit 2>/dev/null || printf unavailable)"
+repository_commit="$(git -C "$INTERVIEW_REPOSITORY" rev-parse HEAD 2>/dev/null || printf unavailable)"
 venv_method="$(interview_read_state venv-method 2>/dev/null || printf unavailable)"
 if ((check_failures == 0)); then
   report_result="INTERVIEW WORKSPACE READY"
-  remaining_action="At interview time, start Interview Claude, then enter its pairing code and the temporary key in the owner-only Interview Claude Key app."
+  remaining_action="At interview time, run interview-claude and enter the temporary key at the masked prompt."
 else
   report_result="INTERVIEW WORKSPACE NOT READY"
   remaining_action="Resolve the failed checks above, then rerun interview-setup, interview-start, and interview-check."
@@ -2140,16 +1267,16 @@ fi
   printf -- '- Python: %s\n' "$(interview_version_or_missing python3 python3 --version)"
   printf -- '- Node: %s\n' "$(interview_version_or_missing node node --version)"
   printf -- '- npm: %s\n' "$(interview_version_or_missing npm npm --version)"
-  printf -- '- SQLite: %s\n' "$(interview_version_or_missing "$INTERVIEW_SQLITE_BIN" "$INTERVIEW_SQLITE_BIN" --version)"
+  printf -- '- SQLite: %s\n' "$(interview_version_or_missing sqlite3 sqlite3 --version)"
   printf -- '- Git: %s\n' "$(interview_version_or_missing git git --version)"
   printf -- '- make: %s\n' "$(interview_version_or_missing make make --version)"
-  printf -- '- ripgrep: %s\n' "$(interview_version_or_missing "$INTERVIEW_RG_BIN" "$INTERVIEW_RG_BIN" --version)"
-  printf -- '- Claude Code: %s\n' "$(interview_claude_version_or_missing)"
-  printf -- '- Codex: %s\n' "$(interview_version_or_missing "$INTERVIEW_CODEX_BIN" "$INTERVIEW_CODEX_BIN" --version)"
-  printf -- '- Playwright MCP: %s\n' "$(interview_version_or_missing "$INTERVIEW_PLAYWRIGHT_MCP_BIN" "$INTERVIEW_PLAYWRIGHT_MCP_BIN" --version)"
-  printf -- '- Bun: %s\n' "$(interview_version_or_missing "$INTERVIEW_BUN_BIN" "$INTERVIEW_BUN_BIN" --version)"
-  printf -- '- pnpm: %s\n' "$(interview_version_or_missing "$INTERVIEW_PNPM_BIN" "$INTERVIEW_PNPM_BIN" --version)"
-  printf -- '- Chrome: %s\n' "$(interview_version_or_missing "$INTERVIEW_CHROME_BIN" "$INTERVIEW_CHROME_BIN" --version)"
+  printf -- '- ripgrep: %s\n' "$(interview_version_or_missing rg rg --version)"
+  printf -- '- Claude Code: %s\n' "$(interview_version_or_missing claude claude --version)"
+  printf -- '- Codex: %s\n' "$(interview_version_or_missing codex codex --version)"
+  printf -- '- Playwright MCP: %s\n' "$(interview_version_or_missing playwright-mcp playwright-mcp --version)"
+  printf -- '- Bun: %s\n' "$(interview_version_or_missing bun bun --version)"
+  printf -- '- pnpm: %s\n' "$(interview_version_or_missing pnpm pnpm --version)"
+  printf -- '- Chrome: %s\n' "$(interview_version_or_missing google-chrome-stable google-chrome-stable --version)"
   printf -- '- tmux: %s\n' "$(interview_version_or_missing tmux tmux -V)"
   printf '\n## Checks performed\n\n'
   for result_entry in "${check_results[@]}"; do
@@ -2160,17 +1287,16 @@ fi
   printf -- '- API Docs: http://localhost:8000/docs\n'
   printf -- '- API health: http://127.0.0.1:8000/hello\n'
   printf '\n## Helper commands\n\n'
-  printf -- '- `interview-setup` — repair pinned tools, refresh changed dependencies, test, and build\n'
+  printf -- '- `interview-setup` — refresh dependencies only when manifests change; test and build\n'
   printf -- '- `interview-start` — create or preserve the detached `interview` tmux session\n'
   printf -- '- `interview-restart` — restart only API and frontend windows\n'
   printf -- '- `interview-stop` — stop only the interview session\n'
   printf -- '- `interview-status` — show non-secret state\n'
   printf -- '- `interview-check` — rerun this strict readiness check\n'
-  printf -- '- `interview-claude` or **Interview Claude** — create a one-time pairing code for the shell-inaccessible runtime\n'
-  printf -- '- **Interview Claude Key** — encrypt and hand off the temporary key from the owner browser boundary\n'
+  printf -- '- `interview-claude` — prompt securely for the temporary Anthropic key and launch Claude Code\n'
   printf '\n## Credential state\n\n'
   printf 'Only credential names are reported; values are never recorded. Required pre-interview state: '
-  printf 'Anthropic, OpenAI/Codex, package-manager, GitHub, Coder, Git/SSH, browser, cloud, cluster, IaC, registry, Realm, and RunComfy credentials absent from the environment and standard persisted stores; GitHub and Coder CLIs unauthenticated.\n'
+  printf 'Anthropic API/auth and Claude OAuth credentials, GitHub, Coder agent/session, Realm, and RunComfy credentials absent; GitHub and Coder CLIs unauthenticated.\n'
   printf '\n## Remaining action\n\n%s\n' "$remaining_action"
 } > "$report_temporary"
 chmod 600 "$report_temporary"
@@ -2194,50 +1320,21 @@ if [ -x /usr/bin/sqlite3 ] || [ -x /usr/local/bin/sqlite3 ]; then
   fi
 elif ! command -v sqlite3 >/dev/null 2>&1; then
   install_interview_file "$sqlite_compatibility_helper" 700 <<'SQLITEEOF'
-#!/bin/bash
+#!/usr/bin/env bash
 # hive-managed-interview-sqlite:v1
 set -euo pipefail
 exec python3 -m sqlite3 "$@"
 SQLITEEOF
 fi
 
-install_interview_file "$interview_libexec_dir/prepare-tools.sh" 700 <<'TOOLSEOF'
-#!/bin/bash
-set -euo pipefail
-umask 077
-
-unset BASH_ENV ENV CDPATH LD_LIBRARY_PATH LD_PRELOAD
-unset ANTHROPIC_API_KEY ANTHROPIC_AUTH_TOKEN
-unset OPENAI_API_KEY OPENAI_API_TOKEN CODEX_API_KEY
-unset CLAUDE_CODE_OAUTH_TOKEN CLAUDE_CODE_OAUTH_REFRESH_TOKEN CLAUDE_CODE_OAUTH_SCOPES
-unset CLAUDE_CONFIG_DIR CLAUDE_SECURESTORAGE_CONFIG_DIR
-unset NPM_TOKEN NODE_AUTH_TOKEN
-unset NPM_CONFIG_USERCONFIG NPM_CONFIG_GLOBALCONFIG
-unset npm_config_userconfig npm_config_globalconfig
-unset GH_TOKEN GITHUB_TOKEN CODER_AGENT_TOKEN CODER_SESSION_TOKEN
-unset GIT_CONFIG GIT_CONFIG_COUNT GIT_CONFIG_PARAMETERS GIT_PROXY_COMMAND GIT_SSH
-unset SSH_AUTH_SOCK SSH_AGENT_PID SSH_ASKPASS_REQUIRE
-unset REALM_VISUAL_REVIEW_API_KEY RUNCOMFY_API_TOKEN
-
-# shellcheck source=/dev/null
-source "$HOME/.local/libexec/hive/technical-interview/common.sh"
-
-interview_bin_dir="$HOME/.local/bin"
-interview_state_dir="$INTERVIEW_STATE_DIR"
-interview_ripgrep_version="$INTERVIEW_RIPGREP_VERSION"
-interview_codex_version="$INTERVIEW_CODEX_VERSION"
-interview_playwright_mcp_version="$INTERVIEW_PLAYWRIGHT_MCP_VERSION"
-interview_bun_version="$INTERVIEW_BUN_VERSION"
-interview_pnpm_version="$INTERVIEW_PNPM_VERSION"
-
 install_interview_ripgrep() {
   local managed_binary="$interview_bin_dir/rg"
   local tool_root="$interview_state_dir/ripgrep-$interview_ripgrep_version"
   local packaged_binary="$tool_root/node_modules/@vscode/ripgrep-linux-x64/bin/rg"
-  local existing_target system_binary
+  local system_binary
 
   for system_binary in /usr/bin/rg /usr/local/bin/rg; do
-    if [ -x "$system_binary" ] && "$system_binary" --version >/dev/null 2>&1; then
+    if [ -x "$system_binary" ]; then
       if [ -L "$managed_binary" ] \
         && [[ "$(readlink "$managed_binary")" == "$interview_state_dir"/ripgrep-* ]]; then
         rm -f -- "$managed_binary"
@@ -2246,26 +1343,17 @@ install_interview_ripgrep() {
     fi
   done
 
-  if [ -L "$managed_binary" ]; then
-    existing_target="$(readlink -- "$managed_binary")"
-    if [ "$existing_target" != "$packaged_binary" ]; then
-      interview_warn "Preserving unexpected rg command at $managed_binary"
-      return 1
-    fi
-    if [ -x "$packaged_binary" ] && "$packaged_binary" --version >/dev/null 2>&1; then
-      return 0
-    fi
-    rm -f -- "$managed_binary"
-  elif [ -e "$managed_binary" ]; then
+  if command -v rg >/dev/null 2>&1; then
+    return 0
+  fi
+  if [ -e "$managed_binary" ] || [ -L "$managed_binary" ]; then
     interview_warn "Preserving unexpected rg command at $managed_binary"
     return 1
   fi
   interview_ensure_local_directory "$tool_root" || return 1
-  if [ ! -x "$packaged_binary" ] || ! "$packaged_binary" --version >/dev/null 2>&1; then
+  if [ ! -x "$packaged_binary" ]; then
     command -v npm >/dev/null 2>&1 || return 1
-    rm -rf -- "$tool_root"
-    interview_ensure_local_directory "$tool_root" || return 1
-    interview_npm install \
+    npm install \
       --prefix "$tool_root" \
       --ignore-scripts \
       --no-audit \
@@ -2274,17 +1362,13 @@ install_interview_ripgrep() {
       --no-save \
       "@vscode/ripgrep@$interview_ripgrep_version" >/dev/null
   fi
-  if [ ! -x "$packaged_binary" ] || ! "$packaged_binary" --version >/dev/null 2>&1; then
-    return 1
-  fi
-  ln -s -- "$packaged_binary" "$managed_binary"
+  [ -x "$packaged_binary" ] || return 1
+  ln -s "$packaged_binary" "$managed_binary"
   "$managed_binary" --version >/dev/null 2>&1
 }
 
-tool_failures=0
 if ! install_interview_ripgrep; then
   printf '[warn] ripgrep could not be prepared; interview-check will report it missing.\n' >&2
-  tool_failures=$((tool_failures + 1))
 fi
 
 install_interview_npm_tool() {
@@ -2298,44 +1382,23 @@ install_interview_npm_tool() {
   local tools_root="$interview_state_dir/tools"
   local tool_root="$tools_root/$command_name-$package_version"
   local installed_binary="$tool_root/node_modules/$package_binary"
-  local installed_payload="$tool_root/node_modules"
-  local existing_target payload_root state_name
-
-  state_name="tool-$command_name-$package_version.sha256"
+  local existing_target
 
   interview_ensure_local_directory "$tool_root" || return 1
 
   if [ -L "$managed_binary" ]; then
     existing_target="$(readlink -- "$managed_binary")"
     if [ "$existing_target" = "$installed_binary" ] \
-      && interview_tool_version_matches "$managed_binary" "$package_version" \
-      && interview_tool_runtime_works "$command_name" "$managed_binary" \
-      && interview_tool_payload_ready \
-        "$command_name" "$package_version" "$installed_payload"; then
+      && interview_tool_version_matches "$managed_binary" "$package_version"; then
       printf '[ok] %s %s is already available\n' "$label" "$package_version"
       return 0
     fi
     if [ -n "$baseline_target" ] \
       && [ "$existing_target" = "$baseline_target" ] \
-      && interview_tool_version_matches "$managed_binary" "$package_version" \
-      && interview_tool_runtime_works "$command_name" "$managed_binary"; then
-      payload_root="$(
-        interview_tool_payload_root \
-          "$command_name" "$existing_target" "$installed_binary" \
-          "$baseline_target" "$managed_binary"
-      )" || return 1
-      if interview_tool_payload_ready "$command_name" "$package_version" "$payload_root"; then
-        printf '[ok] %s %s is provided by the pinned image baseline\n' \
-          "$label" "$package_version"
-        return 0
-      fi
-      if ! interview_read_state "$state_name" >/dev/null 2>&1; then
-        interview_record_tool_payload "$command_name" "$package_version" "$payload_root" \
-          || return 1
-        printf '[ok] %s %s is provided by the pinned image baseline\n' \
-          "$label" "$package_version"
-        return 0
-      fi
+      && interview_tool_version_matches "$managed_binary" "$package_version"; then
+      printf '[ok] %s %s is provided by the pinned image baseline\n' \
+        "$label" "$package_version"
+      return 0
     fi
     if [[ "$existing_target" == "$tools_root"/* ]] \
       || { [ -n "$baseline_target" ] && [ "$existing_target" = "$baseline_target" ]; }; then
@@ -2349,17 +1412,14 @@ install_interview_npm_tool() {
     return 1
   fi
 
-  if ! interview_tool_version_matches "$installed_binary" "$package_version" \
-    || ! interview_tool_runtime_works "$command_name" "$installed_binary" \
-    || ! interview_tool_payload_ready \
-      "$command_name" "$package_version" "$installed_payload"; then
+  if ! interview_tool_version_matches "$installed_binary" "$package_version"; then
     command -v npm >/dev/null 2>&1 || return 1
     if [ -e "$tool_root" ] || [ -L "$tool_root" ]; then
       rm -rf -- "$tool_root"
     fi
     interview_ensure_local_directory "$tool_root" || return 1
     printf '[install] %s %s\n' "$label" "$package_version"
-    PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1 interview_npm install \
+    PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1 npm install \
       --prefix "$tool_root" \
       --ignore-scripts \
       --no-audit \
@@ -2367,18 +1427,14 @@ install_interview_npm_tool() {
       --no-package-lock \
       --no-save \
       "$package_name@$package_version" >/dev/null
-    interview_record_tool_payload \
-      "$command_name" "$package_version" "$installed_payload" || return 1
   fi
 
   [ -x "$installed_binary" ] || return 1
   ln -s -- "$installed_binary" "$managed_binary"
-  interview_tool_version_matches "$managed_binary" "$package_version" \
-    && interview_tool_runtime_works "$command_name" "$managed_binary" \
-    && interview_tool_payload_ready \
-      "$command_name" "$package_version" "$installed_payload"
+  interview_tool_version_matches "$managed_binary" "$package_version"
 }
 
+tool_failures=0
 install_interview_npm_tool \
   "Codex CLI" codex @openai/codex "$interview_codex_version" .bin/codex \
   "../lib/node_modules/@openai/codex/bin/codex.js" \
@@ -2393,18 +1449,10 @@ install_interview_npm_tool \
 install_interview_npm_tool \
   "pnpm" pnpm pnpm "$interview_pnpm_version" .bin/pnpm \
   || tool_failures=$((tool_failures + 1))
+
 if ((tool_failures > 0)); then
   printf '[warn] %s interview tool(s) could not be prepared; interview-check will report them missing.\n' \
     "$tool_failures" >&2
-  exit 1
-fi
-TOOLSEOF
-
-if ! interview_project_npm_authentication_absent; then
-  printf '[warn] Repository npm configuration was preserved; managed npm setup was skipped.\n' >&2
-elif ! "$interview_libexec_dir/prepare-tools.sh"; then
-  printf '[warn] Interview tools are incomplete; rerun interview-setup after network access is restored.\n' \
-    >&2
 fi
 
 if [ "${HIVE_INTERVIEW_SKIP_AUTOSTART:-false}" = "true" ]; then
@@ -2417,14 +1465,6 @@ start_status=0
 check_status=0
 "$interview_bin_dir/interview-setup" || setup_status=$?
 "$interview_bin_dir/interview-start" || start_status=$?
-
-# The protected runtime stages independently so a registry outage cannot hide
-# the main recovery terminal. Give its immutable service a bounded opportunity
-# to publish a fresh heartbeat before the final all-or-nothing readiness pass.
-for _claude_attempt in {1..60}; do
-  interview_claude_ready && break
-  sleep 2
-done
 
 "$interview_bin_dir/interview-check" || check_status=$?
 

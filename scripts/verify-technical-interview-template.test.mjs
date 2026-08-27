@@ -1,15 +1,12 @@
 /* eslint-disable security/detect-non-literal-fs-filename -- Test paths are isolated under mkdtemp fixtures. */
 import assert from "node:assert/strict";
 import { spawn, spawnSync } from "node:child_process";
-import { webcrypto } from "node:crypto";
-import { createServer } from "node:http";
 import {
   chmodSync,
   existsSync,
   lstatSync,
   mkdirSync,
   mkdtempSync,
-  readlinkSync,
   readdirSync,
   readFileSync,
   rmSync,
@@ -21,62 +18,22 @@ import {
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import test from "node:test";
-import { gzipSync } from "node:zlib";
 
 const repositoryRoot = process.cwd();
 const templateRoot = join(repositoryRoot, "templates", "technical-interview");
 const bootstrapScript = join(templateRoot, "bootstrap.sh");
 const cloneScript = join(templateRoot, "scripts", "clone-repositories.sh");
 const initScript = join(templateRoot, "scripts", "init.sh");
-const initClaudeScript = join(templateRoot, "scripts", "init-claude.sh");
-const claudeHeartbeatScript = join(templateRoot, "scripts", "claude-heartbeat.sh");
-const claudeGuardScript = join(templateRoot, "scripts", "claude-guard.c");
 const seedHomeScript = join(templateRoot, "scripts", "seed-home.sh");
-const stageTrustedToolsScript = join(templateRoot, "scripts", "stage-trusted-tools.sh");
-const interviewClaudeScript = join(templateRoot, "scripts", "interview-claude");
 const toolsBrowserScript = join(templateRoot, "scripts", "tools-browser.sh");
 const toolsCiScript = join(templateRoot, "scripts", "tools-ci.sh");
 const toolsFilebrowserScript = join(templateRoot, "scripts", "tools-filebrowser.sh");
 const expectedOrigin = "https://github.com/prmsolutions/interview-template.git";
 const claudeCredentialAssertions = [
   "ANTHROPIC_AUTH_TOKEN",
-  "OPENAI_API_KEY",
-  "OPENAI_API_TOKEN",
-  "CODEX_API_KEY",
   "CLAUDE_CODE_OAUTH_TOKEN",
   "CLAUDE_CODE_OAUTH_REFRESH_TOKEN",
   "CLAUDE_CODE_OAUTH_SCOPES",
-  "CLAUDE_CONFIG_DIR",
-  "CLAUDE_SECURESTORAGE_CONFIG_DIR",
-  "NPM_TOKEN",
-  "NODE_AUTH_TOKEN",
-  "PIP_CONFIG_FILE",
-  "PIP_INDEX_URL",
-  "PIP_EXTRA_INDEX_URL",
-  "PIP_TRUSTED_HOST",
-  "PIP_CERT",
-  "PIP_CLIENT_CERT",
-  "PIP_KEYRING_PROVIDER",
-  "PIP_PROXY",
-  "AWS_ACCESS_KEY_ID",
-  "AWS_SECRET_ACCESS_KEY",
-  "AWS_SESSION_TOKEN",
-  "AWS_PROFILE",
-  "AWS_CONFIG_FILE",
-  "AWS_SHARED_CREDENTIALS_FILE",
-  "AWS_WEB_IDENTITY_TOKEN_FILE",
-  "GOOGLE_APPLICATION_CREDENTIALS",
-  "CLOUDSDK_AUTH_ACCESS_TOKEN",
-  "AZURE_CLIENT_ID",
-  "AZURE_CLIENT_SECRET",
-  "AZURE_TENANT_ID",
-  "ARM_CLIENT_ID",
-  "ARM_CLIENT_SECRET",
-  "ARM_TENANT_ID",
-  "ARM_SUBSCRIPTION_ID",
-  "KUBECONFIG",
-  "REALM_VISUAL_REVIEW_API_KEY",
-  "RUNCOMFY_API_TOKEN",
 ]
   .map((name) => `[ -z "\${${name}:-}" ]`)
   .join("\n");
@@ -100,29 +57,9 @@ function seedSafeInterviewEnvironment(home) {
     environmentFile,
     "# hive-managed-interview-environment:v1\n" +
       "unset ANTHROPIC_API_KEY ANTHROPIC_AUTH_TOKEN\n" +
-      "unset OPENAI_API_KEY OPENAI_API_TOKEN CODEX_API_KEY\n" +
       "unset CLAUDE_CODE_OAUTH_TOKEN CLAUDE_CODE_OAUTH_REFRESH_TOKEN CLAUDE_CODE_OAUTH_SCOPES\n" +
-      "unset CLAUDE_CONFIG_DIR CLAUDE_SECURESTORAGE_CONFIG_DIR\n" +
-      "unset NPM_TOKEN NODE_AUTH_TOKEN NPM_CONFIG_USERCONFIG NPM_CONFIG_GLOBALCONFIG\n" +
-      "unset npm_config_userconfig npm_config_globalconfig\n" +
-      "unset PIP_CONFIG_FILE PIP_INDEX_URL PIP_EXTRA_INDEX_URL PIP_TRUSTED_HOST\n" +
-      "unset PIP_CERT PIP_CLIENT_CERT PIP_KEYRING_PROVIDER PIP_PROXY\n" +
       "unset GH_TOKEN GITHUB_TOKEN CODER_AGENT_TOKEN CODER_SESSION_TOKEN\n" +
-      "unset GIT_CONFIG GIT_CONFIG_COUNT GIT_CONFIG_PARAMETERS GIT_PROXY_COMMAND GIT_SSH\n" +
-      "unset SSH_AUTH_SOCK SSH_AGENT_PID SSH_ASKPASS_REQUIRE\n" +
-      "unset REALM_VISUAL_REVIEW_API_KEY RUNCOMFY_API_TOKEN\n" +
-      "unset AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY AWS_SESSION_TOKEN AWS_PROFILE\n" +
-      "unset AWS_CONFIG_FILE AWS_SHARED_CREDENTIALS_FILE AWS_WEB_IDENTITY_TOKEN_FILE\n" +
-      "unset GOOGLE_APPLICATION_CREDENTIALS CLOUDSDK_AUTH_ACCESS_TOKEN\n" +
-      "unset AZURE_CLIENT_ID AZURE_CLIENT_SECRET AZURE_TENANT_ID\n" +
-      "unset ARM_CLIENT_ID ARM_CLIENT_SECRET ARM_TENANT_ID ARM_SUBSCRIPTION_ID\n" +
-      "unset KUBECONFIG\n" +
-      "export GIT_CONFIG_GLOBAL=/dev/null\n" +
-      "export GIT_CONFIG_NOSYSTEM=1\n" +
-      "export GIT_ASKPASS=/bin/false\n" +
-      "export GIT_SSH_COMMAND=/bin/false\n" +
-      "export GIT_TERMINAL_PROMPT=0\n" +
-      "export SSH_ASKPASS=/bin/false\n",
+      "unset REALM_VISUAL_REVIEW_API_KEY RUNCOMFY_API_TOKEN\n",
   );
   chmodSync(environmentFile, 0o600);
 
@@ -164,10 +101,7 @@ function renderToolsCiScript(cloneContents, manifestContents, bootstrapContents)
       placeholder("repositories_manifest_b64"),
       Buffer.from(manifestContents).toString("base64"),
     )
-    .replace(
-      placeholder("bootstrap_script_b64gzip"),
-      gzipSync(Buffer.from(bootstrapContents)).toString("base64"),
-    )
+    .replace(placeholder("bootstrap_script_b64"), Buffer.from(bootstrapContents).toString("base64"))
     .replaceAll("$${", "${");
 }
 
@@ -183,104 +117,6 @@ function renderToolsFilebrowserScript(trustedPath) {
     'INTERVIEW_TRUSTED_PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"',
     `INTERVIEW_TRUSTED_PATH="${trustedPath}"`,
   );
-}
-
-function renderBootstrapScript(
-  trustedClaude,
-  trustedClaudeLauncher,
-  trustedClaudeGuard,
-  claudeStatus,
-  chromeBinary,
-  interviewRepository,
-) {
-  return readFileSync(bootstrapScript, "utf8")
-    .replaceAll(
-      'export PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"',
-      `export PATH="${dirname(trustedClaude)}:/usr/bin:/bin"`,
-    )
-    .replace(
-      'INTERVIEW_TRUSTED_PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"',
-      `INTERVIEW_TRUSTED_PATH="${dirname(trustedClaude)}:/usr/bin:/bin"`,
-    )
-    .replace(
-      'INTERVIEW_CLAUDE_BIN="/opt/hive-interview-tools/claude"',
-      `INTERVIEW_CLAUDE_BIN="${trustedClaude}"`,
-    )
-    .replace(
-      'INTERVIEW_CLAUDE_LAUNCHER="/opt/hive-interview-tools/interview-claude"',
-      `INTERVIEW_CLAUDE_LAUNCHER="${trustedClaudeLauncher}"`,
-    )
-    .replace(
-      'INTERVIEW_CLAUDE_GUARD="/opt/hive-interview-tools/claude-guard.so"',
-      `INTERVIEW_CLAUDE_GUARD="${trustedClaudeGuard}"`,
-    )
-    .replace(
-      'INTERVIEW_CLAUDE_STATUS="/run/hive-interview-claude/ready"',
-      `INTERVIEW_CLAUDE_STATUS="${claudeStatus}"`,
-    )
-    .replace(
-      "for system_binary in /usr/bin/rg /usr/local/bin/rg; do",
-      `for system_binary in "${dirname(trustedClaude)}/rg" "${dirname(trustedClaude)}/missing-rg"; do`,
-    )
-    .replace(
-      'INTERVIEW_CHROME_BIN="/usr/bin/google-chrome-stable"',
-      `INTERVIEW_CHROME_BIN="${chromeBinary}"`,
-    )
-    .replace(
-      "grep -qF 'TRUSTED_CLAUDE = Path(\"/opt/hive-interview-tools/claude\")'",
-      `grep -qF 'TRUSTED_CLAUDE = Path("${trustedClaude}")'`,
-    )
-    .replace(
-      "grep -qF 'TRUSTED_GUARD = Path(\"/opt/hive-interview-tools/claude-guard.so\")'",
-      `grep -qF 'TRUSTED_GUARD = Path("${trustedClaudeGuard}")'`,
-    )
-    .replace(
-      "grep -qF 'INTERVIEW_REPOSITORY = Path(\"/workspace/projects/prmsolutions/interview-template\")'",
-      `grep -qF 'INTERVIEW_REPOSITORY = Path("${interviewRepository}")'`,
-    );
-}
-
-function renderInterviewClaudeScript(
-  trustedClaude,
-  trustedGuard,
-  interviewRepository,
-  interviewHome,
-  upstreamHost = "api.anthropic.com",
-  upstreamPort = 443,
-  upstreamTls = true,
-  handoffPort = 43118,
-) {
-  const fixtureUid = typeof process.getuid === "function" ? process.getuid() : 1000;
-  const fixtureGid = typeof process.getgid === "function" ? process.getgid() : 1000;
-
-  return readFileSync(interviewClaudeScript, "utf8")
-    .replace("CLIENT_UID = 1000", `CLIENT_UID = ${fixtureUid}`)
-    .replace("CLIENT_GID = 1000", `CLIENT_GID = ${fixtureGid}`)
-    .replace("PROTECTED_RUNTIME_UID = 1000", `PROTECTED_RUNTIME_UID = ${fixtureUid}`)
-    .replace("LAUNCH_HANDSHAKE_TIMEOUT_SECONDS = 5", "LAUNCH_HANDSHAKE_TIMEOUT_SECONDS = 0.25")
-    .replace("KEY_HANDOFF_PORT = 43118", `KEY_HANDOFF_PORT = ${handoffPort}`)
-    .replace(
-      'TRUSTED_CLAUDE = Path("/opt/hive-interview-tools/claude")',
-      `TRUSTED_CLAUDE = Path("${trustedClaude}")`,
-    )
-    .replace(
-      'TRUSTED_GUARD = Path("/opt/hive-interview-tools/claude-guard.so")',
-      `TRUSTED_GUARD = Path("${trustedGuard}")`,
-    )
-    .replace(
-      'ANTHROPIC_UPSTREAM_HOST = "api.anthropic.com"',
-      `ANTHROPIC_UPSTREAM_HOST = "${upstreamHost}"`,
-    )
-    .replace("ANTHROPIC_UPSTREAM_PORT = 443", `ANTHROPIC_UPSTREAM_PORT = ${upstreamPort}`)
-    .replace(
-      "ANTHROPIC_UPSTREAM_TLS = True",
-      `ANTHROPIC_UPSTREAM_TLS = ${upstreamTls ? "True" : "False"}`,
-    )
-    .replace(
-      'INTERVIEW_REPOSITORY = Path("/workspace/projects/prmsolutions/interview-template")',
-      `INTERVIEW_REPOSITORY = Path("${interviewRepository}")`,
-    )
-    .replace('INTERVIEW_HOME = Path("/home/coder")', `INTERVIEW_HOME = Path("${interviewHome}")`);
 }
 
 function runInit(root, home) {
@@ -304,10 +140,6 @@ function createFixture() {
   const tmuxRoot = join(root, "tmux");
   const calls = join(root, "calls.log");
   const claudeArgs = join(root, "claude-args.log");
-  const claudeBrokerChildProbe = join(root, "claude-broker-child-probe.log");
-  const claudeBrokerResponse = join(root, "claude-broker-response.log");
-  const claudeChildEnv = join(root, "claude-child-env.log");
-  const claudeProcProbe = join(root, "claude-proc-probe.log");
   const interviewRepository = join(home, "projects", "prmsolutions", "interview-template");
   mkdirSync(join(interviewRepository, "backend", "tests"), { recursive: true });
   mkdirSync(join(interviewRepository, "frontend"), { recursive: true });
@@ -375,41 +207,8 @@ set -euo pipefail
 [ -z "\${CODER_AGENT_TOKEN:-}" ]
 ${claudeCredentialAssertions}
 if [ "\${1:-}" = "--version" ]; then printf 'Python 3.13.5\\n'; exit 0; fi
-venv_root=$(cd "$(dirname "$0")/.." && pwd -P)
-if [ "\${1:-}" = "-" ]; then
-  [ ! -e "$venv_root/.hive-fixture-record-broken" ] || exit 1
-  /bin/cat >/dev/null
-  exit 0
-fi
 if [ "\${1:-}" = "-m" ] && [ "\${2:-}" = "pip" ]; then
-  case " $* " in *" --isolated "*) ;; *) exit 3 ;; esac
-  case " $* " in *" --no-input "*) ;; *) exit 3 ;; esac
-  case " $* " in *" --keyring-provider disabled "*) ;; *) exit 3 ;; esac
-  shift 2
-  pip_command=''
-  for argument in "$@"; do
-    case "$argument" in check|install) pip_command=$argument ;; esac
-  done
-  if [ "$pip_command" = "check" ]; then
-    [ ! -e "$venv_root/.hive-fixture-dependencies-broken" ]
-    exit
-  fi
-  report_file=''
-  dry_run=false
-  previous_argument=''
-  for argument in "$@"; do
-    if [ "$previous_argument" = "--report" ]; then report_file=$argument; fi
-    [ "$argument" != "--dry-run" ] || dry_run=true
-    previous_argument=$argument
-  done
-  if [ "$dry_run" = true ]; then
-    [ -n "$report_file" ]
-    printf '{"install":[]}\\n' > "$report_file"
-    exit 0
-  fi
   printf 'pip-install\\n' >> "$FAKE_CALLS"
-  rm -f -- "$venv_root/.hive-fixture-dependencies-broken" \
-    "$venv_root/.hive-fixture-record-broken"
 fi
 exit 0
 PYTHON
@@ -428,9 +227,6 @@ UVICORN
   exit 0
 fi
 if [ "\${1:-}" = "-m" ] && [ "\${2:-}" = "pip" ]; then
-  case " $* " in *" --isolated "*) ;; *) exit 3 ;; esac
-  case " $* " in *" --no-input "*) ;; *) exit 3 ;; esac
-  case " $* " in *" --keyring-provider disabled "*) ;; *) exit 3 ;; esac
   shift 2
   target=''
   while (($# > 0)); do
@@ -485,17 +281,9 @@ ${claudeCredentialAssertions}
 case "\${1:-}" in
   --version) printf '11.17.0\\n' ;;
   ls)
-    [ "\${NPM_CONFIG_USERCONFIG:-}" = /dev/null ]
-    [ -z "\${NPM_CONFIG_GLOBALCONFIG:-}" ]
-    [ -z "\${npm_config_userconfig:-}" ]
-    [ -z "\${npm_config_globalconfig:-}" ]
     [ ! -e node_modules/.hive-fixture-incomplete ]
     ;;
   install|ci)
-    [ "\${NPM_CONFIG_USERCONFIG:-}" = /dev/null ]
-    [ -z "\${NPM_CONFIG_GLOBALCONFIG:-}" ]
-    [ -z "\${npm_config_userconfig:-}" ]
-    [ -z "\${npm_config_globalconfig:-}" ]
     shift
     install_prefix=''
     package_spec=''
@@ -516,39 +304,25 @@ case "\${1:-}" in
     done
     if [ -n "$install_prefix" ]; then
       printf 'tool-install:%s\\n' "$package_spec" >> "$FAKE_CALLS"
-      if [ "\${FAKE_TOOL_INSTALL_FAIL_ONCE:-}" = "$package_spec" ] \
-        && [ ! -e "\${FAKE_TOOL_INSTALL_FAILURE_MARKER:-}" ]; then
-        : > "$FAKE_TOOL_INSTALL_FAILURE_MARKER"
-        exit 1
-      fi
       case "$package_spec" in
         @openai/codex@*)
-          mkdir -p "$install_prefix/node_modules/.bin" "$install_prefix/node_modules/@openai/codex"
+          mkdir -p "$install_prefix/node_modules/.bin"
           printf '#!/bin/sh\\nprintf "codex-cli 0.149.1\\\\n"\\n' > "$install_prefix/node_modules/.bin/codex"
-          printf 'codex runtime payload\\n' > "$install_prefix/node_modules/@openai/codex/runtime.js"
           chmod 755 "$install_prefix/node_modules/.bin/codex"
           ;;
         @playwright/mcp@*)
-          mkdir -p "$install_prefix/node_modules/.bin" "$install_prefix/node_modules/@playwright/mcp"
+          mkdir -p "$install_prefix/node_modules/.bin"
           printf '#!/bin/sh\\nprintf "Version 0.0.79\\\\n"\\n' > "$install_prefix/node_modules/.bin/playwright-mcp"
-          printf 'playwright runtime payload\\n' > "$install_prefix/node_modules/@playwright/mcp/runtime.js"
           chmod 755 "$install_prefix/node_modules/.bin/playwright-mcp"
           ;;
         @oven/bun-linux-x64@*)
           mkdir -p "$install_prefix/node_modules/@oven/bun-linux-x64/bin"
           printf '#!/bin/sh\\nprintf "1.4.0\\\\n"\\n' > "$install_prefix/node_modules/@oven/bun-linux-x64/bin/bun"
-          printf 'bun runtime payload\\n' > "$install_prefix/node_modules/@oven/bun-linux-x64/runtime.js"
           chmod 755 "$install_prefix/node_modules/@oven/bun-linux-x64/bin/bun"
           ;;
-        @vscode/ripgrep@*)
-          mkdir -p "$install_prefix/node_modules/@vscode/ripgrep-linux-x64/bin"
-          printf '#!/bin/sh\\nprintf "ripgrep 15.0.0\\\\n"\\n' > "$install_prefix/node_modules/@vscode/ripgrep-linux-x64/bin/rg"
-          chmod 755 "$install_prefix/node_modules/@vscode/ripgrep-linux-x64/bin/rg"
-          ;;
         pnpm@*)
-          mkdir -p "$install_prefix/node_modules/.bin" "$install_prefix/node_modules/pnpm"
+          mkdir -p "$install_prefix/node_modules/.bin"
           printf '#!/bin/sh\\nprintf "10.32.1\\\\n"\\n' > "$install_prefix/node_modules/.bin/pnpm"
-          printf 'pnpm runtime payload\\n' > "$install_prefix/node_modules/pnpm/runtime.js"
           chmod 755 "$install_prefix/node_modules/.bin/pnpm"
           ;;
         *) exit 2 ;;
@@ -562,10 +336,6 @@ case "\${1:-}" in
     fi
     ;;
   run)
-    [ "\${NPM_CONFIG_USERCONFIG:-}" = /dev/null ]
-    [ -z "\${NPM_CONFIG_GLOBALCONFIG:-}" ]
-    [ -z "\${npm_config_userconfig:-}" ]
-    [ -z "\${npm_config_globalconfig:-}" ]
     case "\${2:-}" in
       build)
         printf 'npm-build\\n' >> "$FAKE_CALLS"
@@ -610,190 +380,27 @@ exec /usr/bin/git "$@"
   );
   executable(
     join(bin, "curl"),
-    `#!/bin/bash
-url=''
-for argument in "$@"; do url=$argument; done
-if [ -n "\${FAKE_UNHEALTHY_URL:-}" ] \
-  && [ "$url" = "$FAKE_UNHEALTHY_URL" ] \
-  && [ ! -e "\${FAKE_SERVICE_RECOVERED_MARKER:-}" ]; then
-  exit 1
-fi
+    `#!/bin/sh
 exit 0
 `,
   );
   executable(
     join(bin, "claude"),
-    `#!/usr/bin/python3 -I
-import os
-import http.client
-import socket
-import subprocess
-import sys
-import time
-import urllib.request
-import urllib.parse
-from pathlib import Path
-
-if sys.argv[1:] == ["--version"]:
-    print("2.1.170 (Claude Code)")
-    raise SystemExit(0)
-
-assert os.environ.get("ANTHROPIC_API_KEY") == "hive-interview-broker-managed-non-secret"
-assert os.environ.get("CLAUDE_CODE_SUBPROCESS_ENV_SCRUB") == "0"
-assert os.environ.get("ANTHROPIC_BASE_URL", "").startswith("http://127.0.0.1:")
-for variable_name in ${JSON.stringify([
-      "ANTHROPIC_AUTH_TOKEN",
-      "CLAUDE_CODE_OAUTH_TOKEN",
-      "CLAUDE_CODE_OAUTH_REFRESH_TOKEN",
-      "CLAUDE_CODE_OAUTH_SCOPES",
-      "CLAUDE_CONFIG_DIR",
-      "CLAUDE_SECURESTORAGE_CONFIG_DIR",
-      "CODER_AGENT_TOKEN",
-      "CODER_SESSION_TOKEN",
-      "GH_TOKEN",
-      "GITHUB_TOKEN",
-      "GIT_CONFIG",
-      "GIT_CONFIG_COUNT",
-      "GIT_CONFIG_PARAMETERS",
-      "GIT_PROXY_COMMAND",
-      "GIT_SSH",
-      "HIVE_INTERVIEW_BROKER_PORT",
-      "HIVE_INTERVIEW_BROKER_SOCKET",
-      "LD_PRELOAD",
-      "NODE_AUTH_TOKEN",
-      "NPM_CONFIG_GLOBALCONFIG",
-      "NPM_CONFIG_USERCONFIG",
-      "NPM_TOKEN",
-      "npm_config_globalconfig",
-      "npm_config_userconfig",
-      "REALM_VISUAL_REVIEW_API_KEY",
-      "RUNCOMFY_API_TOKEN",
-      "SSH_AUTH_SOCK",
-      "SSH_AGENT_PID",
-    ])}:
-    assert not os.environ.get(variable_name), variable_name
-assert os.environ.get("GIT_CONFIG_GLOBAL") == "/dev/null"
-assert os.environ.get("GIT_CONFIG_NOSYSTEM") == "1"
-assert os.environ.get("GIT_ASKPASS") == "/bin/false"
-assert os.environ.get("GIT_SSH_COMMAND") == "/bin/false"
-assert os.environ.get("SSH_ASKPASS") == "/bin/false"
-
-probe = subprocess.run(
-    ["/bin/cat", f"/proc/{os.getpid()}/environ"],
-    stdout=subprocess.DEVNULL,
-    stderr=subprocess.DEVNULL,
-    check=False,
-)
-assert probe.returncode != 0
-Path("${claudeProcProbe}").write_text("blocked\\n")
-child_environment = subprocess.run(
-    ["/usr/bin/env"], check=True, capture_output=True
-).stdout
-Path("${claudeChildEnv}").write_bytes(child_environment)
-
-broker = urllib.parse.urlsplit(os.environ["ANTHROPIC_BASE_URL"])
-connection = http.client.HTTPConnection(broker.hostname, broker.port, timeout=10)
-connection.request("POST", "http://attacker.invalid/v1/messages", body=b"{}")
-blocked = connection.getresponse()
-assert blocked.status == 403
-blocked.read()
-connection.close()
-
-request = urllib.request.Request(
-    os.environ["ANTHROPIC_BASE_URL"] + "/v1/messages?fixture=1",
-    data=b'{"fixture":true}',
-    headers={
-        "Anthropic-Version": "2023-06-01",
-        "Authorization": "Bearer candidate-controlled",
-        "Content-Type": "application/json",
-        "X-Api-Key": "candidate-controlled",
-    },
-    method="POST",
-)
-with urllib.request.urlopen(request, timeout=10) as response:
-    Path("${claudeBrokerResponse}").write_bytes(response.read())
-
-child_probe = r'''import socket
-from pathlib import Path
-
-network_probe = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-network_probe.settimeout(1)
-assert network_probe.connect_ex(("127.0.0.1", 43117)) != 0
-network_probe.close()
-
-paths = list((Path.home() / ".claude").glob(".hive-interview-broker.*/anthropic.sock"))
-assert len(paths) == 1
-connection = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-connection.settimeout(10)
-connection.connect(str(paths[0]))
-connection.sendall(
-    b"POST /v1/messages HTTP/1.0\\r\\nHost: api.anthropic.com\\r\\nContent-Length: 2\\r\\n\\r\\n{}"
-)
-response = bytearray()
-while True:
-    chunk = connection.recv(65536)
-    if not chunk:
-        break
-    response.extend(chunk)
-connection.close()
-assert b" 403 " in response.splitlines()[0]
-print("blocked")
-'''
-child_result = subprocess.run(
-    ["/usr/bin/python3", "-I", "-c", child_probe],
-    check=False,
-    capture_output=True,
-    env=os.environ,
-    timeout=10,
-)
-assert child_result.returncode == 0, child_result.stderr
-Path("${claudeBrokerChildProbe}").write_bytes(child_result.stdout)
-Path("${claudeArgs}").write_text("".join(f"<{argument}>\\n" for argument in sys.argv[1:]))
-if "--fixture-hold" in sys.argv[1:]:
-    time.sleep(2)
+    `#!/bin/bash
+set -euo pipefail
+if [ "\${1:-}" = "--version" ]; then printf '2.1.170 (Claude Code)\\n'; exit 0; fi
+[ "\${ANTHROPIC_API_KEY:-}" = "\${EXPECTED_CLAUDE_KEY:-}" ]
+${claudeCredentialAssertions}
+[ -z "\${GH_TOKEN:-}" ]
+[ -z "\${GITHUB_TOKEN:-}" ]
+[ -z "\${CODER_AGENT_TOKEN:-}" ]
+[ -z "\${CODER_SESSION_TOKEN:-}" ]
+[ -z "\${REALM_VISUAL_REVIEW_API_KEY:-}" ]
+[ -z "\${RUNCOMFY_API_TOKEN:-}" ]
+printf '<%s>\\n' "$@" > "$CLAUDE_ARGS_LOG"
 `,
   );
-  const trustedClaudeLauncher = join(root, "trusted-tools", "interview-claude");
-  const trustedClaudeGuard = join(root, "trusted-tools", "claude-guard.so");
-  const claudeStatus = join(root, "claude-status", "ready");
-  mkdirSync(dirname(trustedClaudeLauncher), { recursive: true });
-  mkdirSync(dirname(claudeStatus), { recursive: true });
-  const guardCompilation = spawnSync(
-    "/usr/bin/cc",
-    ["-shared", "-fPIC", "-O2", "-o", trustedClaudeGuard, claudeGuardScript, "-ldl"],
-    { encoding: "utf8" },
-  );
-  assert.equal(guardCompilation.status, 0, guardCompilation.stderr);
-  chmodSync(trustedClaudeGuard, 0o555);
-  writeFileSync(
-    trustedClaudeLauncher,
-    renderInterviewClaudeScript(join(bin, "claude"), trustedClaudeGuard, interviewRepository, home),
-  );
-  chmodSync(trustedClaudeLauncher, 0o555);
-  writeFileSync(
-    claudeStatus,
-    `isolated-claude-runtime-ready-v4 ${Math.floor(Date.now() / 1000)}\n`,
-  );
-  chmodSync(claudeStatus, 0o444);
-  mkdirSync(join(home, ".local", "bin"), { recursive: true });
   executable(join(bin, "google-chrome-stable"), "#!/bin/sh\nprintf 'Google Chrome 140\\n'\n");
-  for (const browserLauncher of ["interview-chrome", "chromium-browser"]) {
-    executable(
-      join(home, ".local", "bin", browserLauncher),
-      "#!/bin/sh\n# hive-managed-interview-chrome:v1\nexit 0\n",
-    );
-  }
-  mkdirSync(join(home, ".local", "share", "applications"), { recursive: true });
-  writeFileSync(
-    join(home, ".local", "share", "applications", "google-chrome.desktop"),
-    "[Desktop Entry]\nExec=/home/coder/.local/bin/interview-chrome %U\n",
-  );
-  for (const browserHelper of ["browser-screenshot", "browser-html"]) {
-    executable(
-      join(home, ".local", "bin", browserHelper),
-      "#!/bin/sh\n# hive-managed-browser-helper:v1\nexit 0\n",
-    );
-  }
   executable(join(bin, "sqlite3"), "#!/bin/sh\nprintf '3.46.1\\n'\n");
   executable(join(bin, "rg"), "#!/bin/sh\nprintf 'ripgrep 14.1.1\\n'\n");
   executable(
@@ -838,15 +445,7 @@ case "$command_name" in
   show-environment)
     exit 1
     ;;
-  set-option|set-environment|select-window)
-    ;;
-  respawn-window)
-    case "$*" in
-      *interview:api*)
-        [ -z "\${FAKE_SERVICE_RECOVERED_MARKER:-}" ] \
-          || : > "$FAKE_SERVICE_RECOVERED_MARKER"
-        ;;
-    esac
+  set-option|set-environment|select-window|respawn-window)
     ;;
   kill-session|kill-server)
     rm -f "$session_file" "$windows_file"
@@ -901,34 +500,11 @@ esac
   const env = {
     ...process.env,
     ANTHROPIC_AUTH_TOKEN: "must-not-reach-child-processes",
-    CODEX_API_KEY: "must-not-reach-child-processes",
-    AWS_ACCESS_KEY_ID: "must-not-reach-child-processes",
-    AWS_SECRET_ACCESS_KEY: "must-not-reach-child-processes",
-    AWS_SESSION_TOKEN: "must-not-reach-child-processes",
-    GOOGLE_APPLICATION_CREDENTIALS: join(root, "personal-google-credentials.json"),
-    KUBECONFIG: join(root, "personal-kubeconfig"),
+    CLAUDE_ARGS_LOG: claudeArgs,
     CLAUDE_CODE_OAUTH_REFRESH_TOKEN: "must-not-reach-child-processes",
     CLAUDE_CODE_OAUTH_SCOPES: "must-not-reach-child-processes",
     CLAUDE_CODE_OAUTH_TOKEN: "must-not-reach-child-processes",
     CODER_AGENT_TOKEN: "must-not-reach-child-processes",
-    NODE_AUTH_TOKEN: "must-not-reach-child-processes",
-    NPM_CONFIG_GLOBALCONFIG: join(root, "personal-global-npmrc"),
-    NPM_CONFIG_USERCONFIG: join(root, "personal-user-npmrc"),
-    NPM_TOKEN: "must-not-reach-child-processes",
-    OPENAI_API_KEY: "must-not-reach-child-processes",
-    OPENAI_API_TOKEN: "must-not-reach-child-processes",
-    npm_config_globalconfig: join(root, "personal-lower-global-npmrc"),
-    npm_config_userconfig: join(root, "personal-lower-user-npmrc"),
-    PIP_CERT: join(root, "personal-pip-cert.pem"),
-    PIP_CLIENT_CERT: join(root, "personal-pip-client-cert.pem"),
-    PIP_CONFIG_FILE: join(root, "personal-pip.conf"),
-    PIP_EXTRA_INDEX_URL: "https://candidate:must-not-reach-child-processes@example.invalid/simple",
-    PIP_INDEX_URL: "https://candidate:must-not-reach-child-processes@example.invalid/simple",
-    PIP_KEYRING_PROVIDER: "subprocess",
-    PIP_PROXY: "https://candidate:must-not-reach-child-processes@example.invalid",
-    PIP_TRUSTED_HOST: "example.invalid",
-    REALM_VISUAL_REVIEW_API_KEY: "must-not-reach-child-processes",
-    RUNCOMFY_API_TOKEN: "must-not-reach-child-processes",
     FAKE_CALLS: calls,
     FAKE_REMOTE_COMMIT: commit,
     FAKE_TMUX_STATE: tmuxRoot,
@@ -942,47 +518,21 @@ esac
     "GH_TOKEN",
     "GITHUB_TOKEN",
     "CODER_SESSION_TOKEN",
+    "REALM_VISUAL_REVIEW_API_KEY",
+    "RUNCOMFY_API_TOKEN",
   ]) {
     delete env[variableName];
   }
 
-  return {
-    bin,
-    calls,
-    claudeStatus,
-    claudeArgs,
-    claudeBrokerChildProbe,
-    claudeBrokerResponse,
-    claudeChildEnv,
-    claudeProcProbe,
-    commit,
-    env,
-    home,
-    interviewRepository,
-    root,
-    trustedClaudeLauncher,
-    trustedClaudeGuard,
-  };
+  return { bin, calls, claudeArgs, commit, env, home, interviewRepository, root };
 }
 
 function run(command, args, env) {
   return spawnSync(command, args, { encoding: "utf8", env, timeout: 30_000 });
 }
 
-function installHelpers(fixture, environment = fixture.env) {
-  const renderedBootstrap = join(fixture.root, "rendered-bootstrap.sh");
-  writeFileSync(
-    renderedBootstrap,
-    renderBootstrapScript(
-      join(fixture.bin, "claude"),
-      fixture.trustedClaudeLauncher,
-      fixture.trustedClaudeGuard,
-      fixture.claudeStatus,
-      join(fixture.bin, "google-chrome-stable"),
-      fixture.interviewRepository,
-    ),
-  );
-  const result = run("bash", [renderedBootstrap], environment);
+function installHelpers(fixture) {
+  const result = run("bash", [bootstrapScript], fixture.env);
   assert.equal(result.status, 0, result.stderr);
   return result;
 }
@@ -1003,13 +553,7 @@ function filesRecursively(root) {
 
 test("standalone Terraform exposes interview apps without personal auth modules", () => {
   const terraform = readFileSync(join(templateRoot, "main.tf"), "utf8");
-  const bootstrap = readFileSync(bootstrapScript, "utf8");
   const init = readFileSync(join(templateRoot, "scripts", "init.sh"), "utf8");
-  const initClaude = readFileSync(initClaudeScript, "utf8");
-  const claudeHeartbeat = readFileSync(claudeHeartbeatScript, "utf8");
-  const claudeGuard = readFileSync(claudeGuardScript, "utf8");
-  const interviewClaude = readFileSync(interviewClaudeScript, "utf8");
-  const stageTrustedTools = readFileSync(stageTrustedToolsScript, "utf8");
   const toolsBrowser = readFileSync(join(templateRoot, "scripts", "tools-browser.sh"), "utf8");
   const toolsCi = readFileSync(join(templateRoot, "scripts", "tools-ci.sh"), "utf8");
   const toolsFilebrowser = readFileSync(
@@ -1020,20 +564,10 @@ test("standalone Terraform exposes interview apps without personal auth modules"
   const toolsCiResource = terraform.match(
     /resource "coder_script" "tools_ci" \{([\s\S]*?)\n\}/,
   )?.[1];
-  const renderedToolsCi = renderToolsCiScript(
-    readFileSync(cloneScript, "utf8"),
-    readFileSync(join(templateRoot, "repositories.txt"), "utf8"),
-    bootstrap,
-  );
-  const mainContainer = terraform
-    .split('name              = "dev"')[1]
-    ?.split("# This sibling container is the credential boundary.")[0];
-  const runtimeContainer = terraform
-    .split('name              = "claude-runtime"')[1]
-    ?.split("\n        volume {")[0];
 
   assert.doesNotMatch(terraform, /coder_external_auth/);
   assert.doesNotMatch(terraform, /coder-login/);
+  assert.match(terraform, /api_key_scope\s*=\s*"no_user_data"/);
   assert.doesNotMatch(terraform, /git-commit-signing|module "git-config"/);
   assert.doesNotMatch(terraform, /module "claude-code"/);
   assert.doesNotMatch(terraform, /WORKSPACE_ROUTING\.md/);
@@ -1041,204 +575,7 @@ test("standalone Terraform exposes interview apps without personal auth modules"
   assert.doesNotMatch(terraform, /\bBASH_ENV\b/);
   assert.doesNotMatch(terraform, /^\s+ENV\s*=/m);
   assert.doesNotMatch(terraform, /\.hive-image-seeded/);
-  assert.match(terraform, /bootstrap_script_b64gzip\s*=\s*base64gzip\(file\(/);
-  assert.match(toolsCi, /base64 -d \| gzip -d/);
-  assert.ok(
-    Buffer.byteLength(renderedToolsCi) < 120 * 1024,
-    `rendered Interview setup script exceeds the safe exec margin: ${Buffer.byteLength(renderedToolsCi)} bytes`,
-  );
-  assert.equal((terraform.match(/\$\{local\.credentialless_environment\}/g) ?? []).length, 4);
-  assert.match(
-    terraform,
-    /credentialless_environment[\s\S]*?unset OPENAI_API_KEY OPENAI_API_TOKEN CODEX_API_KEY[\s\S]*?unset REALM_VISUAL_REVIEW_API_KEY RUNCOMFY_API_TOKEN[\s\S]*?unset AWS_ACCESS_KEY_ID[\s\S]*?unset KUBECONFIG/,
-  );
-  assert.match(bootstrap, /for _claude_attempt in \{1\.\.60\}; do[\s\S]*?sleep 2/);
   assert.match(terraform, /file\("\$\{path\.module\}\/scripts\/seed-home\.sh"\)/);
-  assert.match(terraform, /file\("\$\{path\.module\}\/scripts\/stage-trusted-tools\.sh"\)/);
-  assert.match(terraform, /file\("\$\{path\.module\}\/scripts\/claude-guard\.c"\)/);
-  assert.match(
-    terraform,
-    /resource "coder_agent" "main"[\s\S]*?api_key_scope\s*=\s*"no_user_data"/,
-  );
-  assert.equal((terraform.match(/resource "coder_agent"/g) ?? []).length, 1);
-  assert.doesNotMatch(terraform, /coder_agent\.claude-gateway|name\s*=\s*"claude-gateway"/);
-  assert.doesNotMatch(terraform, /resource "coder_agent" "claude"/);
-  assert.doesNotMatch(terraform, /resource "coder_script" "claude_heartbeat"/);
-  assert.match(terraform, /share_process_namespace\s*=\s*false/);
-  assert.match(mainContainer ?? "", /coder_agent\.main\.init_script/);
-  assert.match(
-    mainContainer ?? "",
-    /name\s*=\s*"trusted-tools"[\s\S]*?mount_path\s*=\s*"\/opt\/hive-interview-tools"[\s\S]*?read_only\s*=\s*true/,
-  );
-  assert.match(
-    mainContainer ?? "",
-    /name\s*=\s*"claude-launch"[\s\S]*?mount_path\s*=\s*"\/run\/hive-interview-launch"[\s\S]*?read_only\s*=\s*true/,
-  );
-  assert.match(
-    runtimeContainer ?? "",
-    /interview-claude --serve \/run\/hive-interview-launch\/claude\.sock/,
-  );
-  assert.match(runtimeContainer ?? "", /scripts\/init-claude\.sh/);
-  assert.match(runtimeContainer ?? "", /scripts\/claude-heartbeat\.sh/);
-  assert.doesNotMatch(runtimeContainer ?? "", /coder_agent\.|name\s*=\s*"CODER_AGENT_TOKEN"/);
-  assert.match(runtimeContainer ?? "", /unset CODER_AGENT_TOKEN/);
-  assert.match(
-    runtimeContainer ?? "",
-    /name\s*=\s*"home"[\s\S]*?mount_path\s*=\s*"\/workspace\/projects"[\s\S]*?sub_path\s*=\s*"projects"/,
-  );
-  assert.match(
-    runtimeContainer ?? "",
-    /name\s*=\s*"claude-home"[\s\S]*?mount_path\s*=\s*"\/home\/coder"/,
-  );
-  assert.match(
-    terraform,
-    /resource "coder_app" "interview_claude"[\s\S]*?agent_id\s*=\s*coder_agent\.main\.id[\s\S]*?command\s*=\s*"\/opt\/hive-interview-tools\/interview-claude --client \/run\/hive-interview-launch\/claude\.sock"[\s\S]*?share\s*=\s*"owner"/,
-  );
-  assert.match(
-    terraform,
-    /resource "coder_app" "interview_claude_key"[\s\S]*?url\s*=\s*"http:\/\/localhost:43118"[\s\S]*?share\s*=\s*"owner"[\s\S]*?http:\/\/localhost:43118\/health/,
-  );
-  assert.match(
-    bootstrap,
-    /hive-managed-interview-claude-handoff:v2[\s\S]*?exec \/opt\/hive-interview-tools\/interview-claude[\s\S]*?--client \/run\/hive-interview-launch\/claude\.sock -- "\$@"/,
-  );
-  assert.doesNotMatch(terraform, /kubernetes_config_map/);
-  assert.match(
-    terraform,
-    /mount_path\s*=\s*"\/opt\/hive-interview-tools"[\s\S]*?read_only\s*=\s*true/,
-  );
-  assert.match(
-    terraform,
-    /name\s*=\s*"stage-trusted-tools"[\s\S]*?name\s*=\s*"claude-mcp"[\s\S]*?mount_path\s*=\s*"\/trusted-mcp"/,
-  );
-  assert.match(terraform, /\n\s*container\s*\{\s*name\s*=\s*"stage-trusted-tools"/);
-  assert.doesNotMatch(terraform, /init_container\s*\{\s*name\s*=\s*"stage-trusted-tools"/);
-  assert.match(
-    terraform,
-    /while ! \/bin\/sh -c "\$1" stage-trusted-tools --stay-alive; do[\s\S]*?retrying in 5 seconds/,
-  );
-  assert.match(
-    terraform,
-    /name\s*=\s*"claude-mcp"[\s\S]*?mount_path\s*=\s*"\/opt\/hive-interview-mcp"[\s\S]*?read_only\s*=\s*true/,
-  );
-  assert.equal((terraform.match(/name\s*=\s*"claude-mcp"/g) ?? []).length, 3);
-  assert.equal((terraform.match(/name\s*=\s*"claude-launch"/g) ?? []).length, 3);
-  assert.equal((terraform.match(/name\s*=\s*"browser-profile"/g) ?? []).length, 2);
-  for (const profileVolume of [
-    "browser-google-profile",
-    "browser-chromium-profile",
-    "browser-chromium-browser-profile",
-  ]) {
-    assert.equal(
-      (terraform.match(new RegExp(`name\\s*=\\s*"${profileVolume}"`, "g")) ?? []).length,
-      2,
-    );
-  }
-  assert.match(
-    terraform,
-    /name\s*=\s*"browser-profile"[\s\S]*?mount_path\s*=\s*"\/home\/coder\/\.cache\/hive-interview-browser"/,
-  );
-  assert.match(
-    terraform,
-    /name\s*=\s*"browser-google-profile"[\s\S]*?mount_path\s*=\s*"\/home\/coder\/\.config\/google-chrome"/,
-  );
-  assert.match(
-    terraform,
-    /name\s*=\s*"browser-chromium-profile"[\s\S]*?mount_path\s*=\s*"\/home\/coder\/\.config\/chromium"/,
-  );
-  assert.match(
-    terraform,
-    /name\s*=\s*"browser-chromium-browser-profile"[\s\S]*?mount_path\s*=\s*"\/home\/coder\/\.config\/chromium-browser"/,
-  );
-  assert.doesNotMatch(terraform, /claude-gateway-client|claude-gateway-home|trusted-gateway/);
-  assert.doesNotMatch(terraform, /\/run\/hive-interview-claude-mcp/);
-  assert.doesNotMatch(terraform, /sub_path\s*=\s*"interview-claude"/);
-  assert.match(terraform, /empty_dir\s*\{[\s\S]*?size_limit\s*=\s*"512Mi"/);
-  assert.match(stageTrustedTools, /\/home\/coder\/\.local\/share\/claude\/versions\/\*/);
-  assert.match(stageTrustedTools, /trusted_mcp_dir="\/trusted-mcp"/);
-  assert.match(stageTrustedTools, /"@playwright\/mcp@\$playwright_mcp_version"/);
-  assert.match(stageTrustedTools, /PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1/);
-  assert.match(stageTrustedTools, /\$\{1:-\}.*--stay-alive/);
-  assert.match(stageTrustedTools, /-ldl/);
-  assert.match(interviewClaude, /TRUSTED_CLAUDE = Path\("\/opt\/hive-interview-tools\/claude"\)/);
-  assert.match(
-    interviewClaude,
-    /INTERVIEW_REPOSITORY = Path\("\/workspace\/projects\/prmsolutions\/interview-template"\)/,
-  );
-  assert.match(interviewClaude, /PR_SET_DUMPABLE = 4/);
-  assert.match(interviewClaude, /libc\.prctl\(PR_SET_DUMPABLE, 0/);
-  assert.match(interviewClaude, /subprocess\.Popen\(/);
-  assert.match(interviewClaude, /def serve_launch_socket/);
-  assert.match(interviewClaude, /def run_launch_client/);
-  assert.match(interviewClaude, /pty\.openpty\(\)/);
-  assert.match(interviewClaude, /LAUNCH_PROTOCOL_MAGIC/);
-  assert.match(interviewClaude, /LAUNCH_HANDSHAKE_TIMEOUT_SECONDS = 5/);
-  assert.match(
-    interviewClaude,
-    /connection\.settimeout\(LAUNCH_HANDSHAKE_TIMEOUT_SECONDS\)[\s\S]*?parse_launch_request\(connection\)[\s\S]*?connection\.settimeout\(None\)/,
-  );
-  assert.doesNotMatch(interviewClaude, /read_temporary_key|TIOCEXCL/);
-  assert.match(interviewClaude, /class KeyHandoffServer/);
-  assert.match(interviewClaude, /crypto\.subtle\.encrypt/);
-  assert.match(interviewClaude, /rsa_padding_mode:oaep/);
-  assert.match(interviewClaude, /threading\.Thread\([\s\S]*?target=serve_connection/);
-  assert.match(interviewClaude, /active_session\.acquire\(blocking=False\)/);
-  assert.ok(interviewClaude.includes(String.raw`r"^remote\..*\.(url|pushurl)$"`));
-  assert.match(interviewClaude, /peer_uid != CLIENT_UID/);
-  assert.match(interviewClaude, /socket_metadata\.st_uid != PROTECTED_RUNTIME_UID/);
-  assert.match(interviewClaude, /ANTHROPIC_UPSTREAM_HOST = "api\.anthropic\.com"/);
-  assert.match(interviewClaude, /ANTHROPIC_UPSTREAM_TLS = True/);
-  assert.match(interviewClaude, /ALLOWED_ANTHROPIC_REQUESTS/);
-  assert.match(interviewClaude, /\("POST", "\/v1\/messages"\)/);
-  assert.match(interviewClaude, /\("POST", "\/v1\/messages\/count_tokens"\)/);
-  assert.match(interviewClaude, /forwarded_headers\["X-Api-Key"\]/);
-  assert.match(interviewClaude, /"authorization", "content-length", "host", "x-api-key"/);
-  assert.match(interviewClaude, /environment\["ANTHROPIC_API_KEY"\] = BROKER_PLACEHOLDER_KEY/);
-  assert.match(interviewClaude, /environment\["ANTHROPIC_BASE_URL"\]/);
-  assert.match(interviewClaude, /environment\["CLAUDE_CODE_SUBPROCESS_ENV_SCRUB"\] = "0"/);
-  assert.match(interviewClaude, /socketserver\.UnixStreamServer/);
-  assert.match(interviewClaude, /socket\.SO_PEERCRED/);
-  assert.match(interviewClaude, /private_broker_socket/);
-  assert.match(interviewClaude, /http\.server\.ThreadingHTTPServer/);
-  assert.doesNotMatch(interviewClaude, /server_port/);
-  assert.doesNotMatch(interviewClaude, /environment\["ANTHROPIC_API_KEY"\] = key/);
-  assert.match(claudeGuard, /prctl\(PR_SET_DUMPABLE, 0/);
-  assert.match(claudeGuard, /ssize_t diagnostic_result = write\(/);
-  assert.match(claudeGuard, /int connect\(/);
-  assert.match(claudeGuard, /HIVE_INTERVIEW_BROKER_SOCKET/);
-  assert.match(claudeGuard, /dup3\(replacement, socket_descriptor, O_CLOEXEC\)/);
-  assert.match(claudeGuard, /unsetenv\("LD_PRELOAD"\)/);
-  assert.doesNotMatch(claudeGuard, /setenv\("ANTHROPIC_API_KEY"/);
-  assert.doesNotMatch(claudeGuard, /HIVE_INTERVIEW_KEY_FD/);
-  assert.doesNotMatch(interviewClaude, /command -v claude|exec claude/);
-  assert.match(bootstrap, /"\$HOME\/\.codex\/auth\.json"/);
-  assert.match(bootstrap, /"\$HOME\/\.aws"/);
-  assert.match(bootstrap, /"\$HOME\/\.config\/gcloud"/);
-  assert.match(bootstrap, /"\$HOME\/\.azure"/);
-  assert.match(bootstrap, /"\$HOME\/\.kube"/);
-  assert.match(bootstrap, /"\$INTERVIEW_REPOSITORY\/\.npmrc"/);
-  assert.match(bootstrap, /"\$INTERVIEW_FRONTEND\/\.npmrc"/);
-  assert.ok(bootstrap.includes(String.raw`--get-regexp '^remote\..*\.(url|pushurl)$'`));
-  assert.match(bootstrap, /"\$HOME\/\.config\/google-chrome"/);
-  assert.match(bootstrap, /persisted Codex authentication is absent/);
-  assert.match(bootstrap, /persisted cloud and orchestration authentication is absent/);
-  assert.match(bootstrap, /persisted browser authentication is absent/);
-  assert.match(toolsBrowser, /hive-managed-interview-chrome:v1/);
-  assert.match(toolsBrowser, /--user-data-dir="\\\$profile_root"/);
-  assert.match(toolsBrowser, /Exec=\/home\/coder\/\.local\/bin\/interview-chrome %U/);
-  assert.match(initClaude, /PATH="\/usr\/local\/sbin:[^"]+"/);
-  assert.doesNotMatch(initClaude, /isolated-claude-(?:agent|runtime)-ready/);
-  assert.match(initClaude, /claude_user_config="\$HOME\/\.claude\.json"/);
-  assert.match(initClaude, /\/opt\/hive-interview-mcp\/playwright-mcp-/);
-  assert.match(initClaude, /until trusted_payload_ready; do[\s\S]*?\/usr\/bin\/sleep 2/);
-  assert.doesNotMatch(initClaude, /\{1\.\.180\}|\/usr\/bin\/sleep 1/);
-  assert.match(initClaude, /"--browser","chrome","--headless","--no-sandbox","--isolated"/);
-  assert.match(claudeHeartbeat, /isolated-claude-runtime-ready-v4/);
-  assert.match(claudeHeartbeat, /http:\/\/127\.0\.0\.1:43118\/health/);
-  assert.match(claudeHeartbeat, /launch_socket="\/run\/hive-interview-launch\/claude\.sock"/);
-  assert.doesNotMatch(initClaude, /\.local\/bin\/interview-claude/);
-  assert.match(claudeHeartbeat, /playwright_mcp_config/);
-  assert.doesNotMatch(initClaude, /\/home\/coder\/projects/);
   assert.match(terraform, /"git\.autofetch"\s*:\s*false/);
   assert.doesNotMatch(terraform, /"git\.autofetch"\s*:\s*true/);
   assert.doesNotMatch(init, /sync-vault|vault-managed|Vault Context Layer/);
@@ -1348,207 +685,6 @@ test("home seeding retries interrupted copies and promotions", () => {
   assert.equal(existsSync(join(promotionTarget, ".hive-image-seed-complete")), true);
 });
 
-test("trusted sidecar stages immutable Claude and Playwright payloads for runtime", () => {
-  const root = mkdtempSync(join(tmpdir(), "technical-interview-trusted-tools-"));
-  const imageHome = join(root, "image-home");
-  const trustedTools = join(root, "trusted-tools");
-  const trustedMcp = join(root, "trusted-mcp");
-  const imageClaude = join(imageHome, ".local", "share", "claude", "versions", "fixture");
-  const imageClaudeLink = join(imageHome, ".local", "bin", "claude");
-  const fakeNpm = join(root, "npm");
-  const npmCalls = join(root, "npm-calls.log");
-  const npmFailureMarker = join(root, "npm-failed-once");
-  const renderedStage = join(root, "stage-trusted-tools.sh");
-  mkdirSync(dirname(imageClaude), { recursive: true });
-  mkdirSync(dirname(imageClaudeLink), { recursive: true });
-  mkdirSync(trustedTools);
-  mkdirSync(trustedMcp);
-  executable(imageClaude, "#!/bin/sh\nprintf 'fixture Claude Code\\n'\n");
-  symlinkSync(imageClaude, imageClaudeLink);
-  executable(
-    fakeNpm,
-    `#!/bin/sh
-set -eu
-prefix=''
-while [ "$#" -gt 0 ]; do
-  if [ "$1" = "--prefix" ]; then prefix=$2; shift 2; else shift; fi
-done
-printf 'install\\n' >> "$FAKE_NPM_CALLS"
-if [ ! -e "$FAKE_NPM_FAILURE_MARKER" ]; then
-  : > "$FAKE_NPM_FAILURE_MARKER"
-  exit 1
-fi
-mkdir -p "$prefix/node_modules/.bin"
-printf '#!/bin/sh\\nprintf "Version 0.0.79\\\\n"\\n' > "$prefix/node_modules/.bin/playwright-mcp"
-chmod 755 "$prefix/node_modules/.bin/playwright-mcp"
-`,
-  );
-  writeFileSync(
-    renderedStage,
-    readFileSync(stageTrustedToolsScript, "utf8")
-      .replaceAll("/home/coder", imageHome)
-      .replace('trusted_tools_dir="/trusted-tools"', `trusted_tools_dir="${trustedTools}"`)
-      .replace('trusted_mcp_dir="/trusted-mcp"', `trusted_mcp_dir="${trustedMcp}"`)
-      .replaceAll("/usr/bin/npm", fakeNpm),
-  );
-
-  const environment = {
-    ...process.env,
-    FAKE_NPM_CALLS: npmCalls,
-    FAKE_NPM_FAILURE_MARKER: npmFailureMarker,
-    HIVE_INTERVIEW_CLAUDE_HELPER_B64: Buffer.from(readFileSync(interviewClaudeScript)).toString(
-      "base64",
-    ),
-    HIVE_INTERVIEW_CLAUDE_GUARD_B64: Buffer.from(readFileSync(claudeGuardScript)).toString(
-      "base64",
-    ),
-    PATH: "/usr/bin:/bin",
-  };
-  const interrupted = run("sh", [renderedStage], environment);
-  assert.equal(interrupted.status, 1);
-  assert.deepEqual(
-    readdirSync(trustedMcp).filter((entry) => entry.startsWith(".playwright-mcp.")),
-    [],
-  );
-  const result = run("sh", [renderedStage], environment);
-  assert.equal(result.status, 0, result.stderr);
-  for (const stagedFile of ["claude", "interview-claude", "claude-guard.so"]) {
-    const path = join(trustedTools, stagedFile);
-    assert.equal(lstatSync(path).isSymbolicLink(), false);
-    assert.equal(statSync(path).mode & 0o777, 0o555);
-  }
-  assert.equal(
-    readFileSync(join(trustedTools, "claude"), "utf8"),
-    readFileSync(imageClaude, "utf8"),
-  );
-  assert.equal(
-    readFileSync(join(trustedTools, "interview-claude"), "utf8"),
-    readFileSync(interviewClaudeScript, "utf8"),
-  );
-  const stagedPlaywright = join(
-    trustedMcp,
-    "playwright-mcp-0.0.79",
-    "node_modules",
-    ".bin",
-    "playwright-mcp",
-  );
-  assert.equal(run(stagedPlaywright, ["--version"], environment).stdout.trim(), "Version 0.0.79");
-
-  const repeated = run("sh", [renderedStage], environment);
-  assert.equal(repeated.status, 0, repeated.stderr);
-  assert.equal(readFileSync(npmCalls, "utf8"), "install\ninstall\n");
-});
-
-test("protected Claude runtime startup uses an ephemeral home without a Coder shell", () => {
-  const root = mkdtempSync(join(tmpdir(), "technical-interview-claude-agent-"));
-  const home = join(root, "home");
-  const repository = join(root, "projects", "prmsolutions", "interview-template");
-  const trustedHelper = join(root, "trusted-tools", "interview-claude");
-  const trustedClaude = join(root, "trusted-tools", "claude");
-  const trustedGuard = join(root, "trusted-tools", "claude-guard.so");
-  const claudeMcpStage = join(root, "claude-mcp-stage");
-  const stagedPlaywright = join(
-    claudeMcpStage,
-    "playwright-mcp-0.0.79",
-    "node_modules",
-    ".bin",
-    "playwright-mcp",
-  );
-  const statusDirectory = join(root, "status");
-  const launchDirectory = join(root, "launch");
-  const launchSocket = join(launchDirectory, "claude.sock");
-  const renderedInit = join(root, "init-claude.sh");
-  const candidateMarker = join(root, "candidate-command-ran");
-  const context = "Isolated fixture guidance";
-  const contextPlaceholder = "$" + "{base64encode(claude_md_content)}";
-  mkdirSync(join(home, ".local", "bin"), { recursive: true });
-  mkdirSync(repository, { recursive: true });
-  mkdirSync(dirname(trustedHelper), { recursive: true });
-  mkdirSync(dirname(stagedPlaywright), { recursive: true });
-  mkdirSync(statusDirectory);
-  mkdirSync(launchDirectory);
-  executable(trustedHelper, "#!/bin/sh\n# hive-managed-interview-claude:v7\nexit 0\n");
-  executable(trustedClaude, "#!/bin/sh\nexit 0\n");
-  executable(trustedGuard, "#!/bin/sh\nexit 0\n");
-  executable(stagedPlaywright, "#!/bin/sh\nprintf 'Version 0.0.79\\n'\n");
-  executable(
-    join(home, ".local", "bin", "base64"),
-    `#!/bin/sh\n: > "${candidateMarker}"\nexit 1\n`,
-  );
-  writeFileSync(
-    renderedInit,
-    readFileSync(initClaudeScript, "utf8")
-      .replaceAll("/workspace/projects/prmsolutions/interview-template", repository)
-      .replaceAll("/opt/hive-interview-tools/interview-claude", trustedHelper)
-      .replaceAll("/opt/hive-interview-tools/claude-guard.so", trustedGuard)
-      .replaceAll("/opt/hive-interview-tools/claude", trustedClaude)
-      .replaceAll("/opt/hive-interview-mcp", claudeMcpStage)
-      .replaceAll("/run/hive-interview-claude", statusDirectory)
-      .replace(contextPlaceholder, Buffer.from(context).toString("base64")),
-  );
-
-  const fakeSecret = "isolated-init-secret-must-not-be-printed";
-  const result = run("bash", [renderedInit], {
-    ...process.env,
-    ANTHROPIC_API_KEY: fakeSecret,
-    CODER_AGENT_TOKEN: fakeSecret,
-    HOME: home,
-    PATH: `${join(home, ".local", "bin")}:/usr/bin:/bin`,
-  });
-  assert.equal(result.status, 0, result.stderr);
-  assert.equal(existsSync(candidateMarker), false);
-  assert.equal(existsSync(join(home, ".local", "bin", "interview-claude")), false);
-  assert.equal(lstatSync(join(home, ".local", "bin", "playwright-mcp")).isSymbolicLink(), true);
-  assert.equal(readlinkSync(join(home, ".local", "bin", "playwright-mcp")), stagedPlaywright);
-  assert.equal(lstatSync(join(home, "projects")).isSymbolicLink(), true);
-  assert.equal(readFileSync(join(home, ".claude", "CLAUDE.md"), "utf8"), context);
-  assert.deepEqual(JSON.parse(readFileSync(join(home, ".claude.json"), "utf8")), {
-    mcpServers: {
-      playwright: {
-        type: "stdio",
-        command: "/home/coder/.local/bin/playwright-mcp",
-        args: ["--browser", "chrome", "--headless", "--no-sandbox", "--isolated"],
-        env: {},
-      },
-    },
-  });
-  assert.equal(existsSync(join(statusDirectory, "ready")), false);
-
-  const renderedHeartbeat = join(root, "claude-heartbeat.sh");
-  writeFileSync(
-    renderedHeartbeat,
-    readFileSync(claudeHeartbeatScript, "utf8")
-      .replaceAll("/opt/hive-interview-tools/interview-claude", trustedHelper)
-      .replaceAll("/opt/hive-interview-mcp", claudeMcpStage)
-      .replaceAll("/run/hive-interview-claude", statusDirectory)
-      .replaceAll("/run/hive-interview-launch/claude.sock", launchSocket)
-      .replaceAll("/usr/bin/curl", "/usr/bin/true"),
-  );
-  const boundSocket = run(
-    "/usr/bin/python3",
-    [
-      "-I",
-      "-c",
-      "import socket,sys; s=socket.socket(socket.AF_UNIX); s.bind(sys.argv[1]); s.close()",
-      launchSocket,
-    ],
-    { ...process.env, PATH: "/usr/bin:/bin" },
-  );
-  assert.equal(boundSocket.status, 0, boundSocket.stderr);
-  writeFileSync(join(statusDirectory, "ready"), "isolated-claude-runtime-ready-v4 1\n");
-  const heartbeat = run("bash", [renderedHeartbeat], {
-    ...process.env,
-    HOME: home,
-    PATH: `${join(home, ".local", "bin")}:/usr/bin:/bin`,
-  });
-  assert.equal(heartbeat.status, 0, heartbeat.stderr);
-  assert.match(
-    readFileSync(join(statusDirectory, "ready"), "utf8"),
-    /^isolated-claude-runtime-ready-v4 [0-9]{10}\n$/,
-  );
-  assert.doesNotMatch(`${result.stdout}${result.stderr}`, new RegExp(fakeSecret));
-});
-
 test("home seeding preserves unsafe marker and staging paths", () => {
   for (const relativePath of [
     ".hive-image-seed-complete",
@@ -1624,22 +760,6 @@ test("init atomically replaces the managed environment symlink without touching 
   }
 });
 
-test("blocking init never executes candidate-writable PATH commands", () => {
-  const root = mkdtempSync(join(tmpdir(), "technical-interview-init-path-"));
-  const home = join(root, "home");
-  const localBin = join(home, ".local", "bin");
-  const invocationMarker = join(root, "candidate-python-invoked");
-  mkdirSync(localBin, { recursive: true });
-  executable(
-    join(localBin, "python3"),
-    `#!/bin/sh\n: > "${invocationMarker}"\n/usr/bin/sleep 60\n`,
-  );
-
-  const result = runInit(root, home);
-  assert.equal(result.status, 0, result.stderr);
-  assert.equal(existsSync(invocationMarker), false);
-});
-
 test("init preserves a non-regular workspace README without blocking startup", () => {
   const root = mkdtempSync(join(tmpdir(), "technical-interview-init-readme-"));
   const home = join(root, "home");
@@ -1653,19 +773,6 @@ test("init preserves a non-regular workspace README without blocking startup", (
   assert.match(result.stderr, /unsafe workspace README was preserved/);
   assert.equal(lstatSync(readme).isFIFO(), true);
   assert.equal(lstatSync(join(home, ".workspace_initialized")).isFile(), true);
-});
-
-test("init preserves a non-regular RunComfy token path without blocking startup", () => {
-  const root = mkdtempSync(join(tmpdir(), "technical-interview-runcomfy-path-"));
-  const home = join(root, "home");
-  const tokenPath = join(home, ".runcomfy-api-token");
-  mkdirSync(tokenPath, { recursive: true });
-  writeFileSync(join(tokenPath, "candidate.txt"), "preserve me\n");
-
-  const result = runInit(root, home);
-  assert.equal(result.status, 0, result.stderr);
-  assert.equal(readFileSync(join(tokenPath, "candidate.txt"), "utf8"), "preserve me\n");
-  assert.match(result.stderr, /non-regular RunComfy token path was preserved/);
 });
 
 test("init preserves non-directory agent configuration paths", () => {
@@ -1782,26 +889,10 @@ test("init prepends credential scrubbing before existing shell startup code", ()
     "CLAUDE_CODE_OAUTH_TOKEN",
     "CLAUDE_CODE_OAUTH_REFRESH_TOKEN",
     "CLAUDE_CODE_OAUTH_SCOPES",
-    "CLAUDE_CONFIG_DIR",
-    "CLAUDE_SECURESTORAGE_CONFIG_DIR",
-    "NPM_TOKEN",
-    "NODE_AUTH_TOKEN",
-    "NPM_CONFIG_USERCONFIG",
-    "NPM_CONFIG_GLOBALCONFIG",
-    "npm_config_userconfig",
-    "npm_config_globalconfig",
     "GH_TOKEN",
     "GITHUB_TOKEN",
     "CODER_AGENT_TOKEN",
     "CODER_SESSION_TOKEN",
-    "GIT_CONFIG",
-    "GIT_CONFIG_COUNT",
-    "GIT_CONFIG_PARAMETERS",
-    "GIT_PROXY_COMMAND",
-    "GIT_SSH",
-    "SSH_AUTH_SOCK",
-    "SSH_AGENT_PID",
-    "SSH_ASKPASS_REQUIRE",
     "REALM_VISUAL_REVIEW_API_KEY",
     "RUNCOMFY_API_TOKEN",
   ];
@@ -1958,7 +1049,6 @@ test("startup refuses symlinked managed directory chains before writing generate
     mkdirSync(candidateTarget);
     writeFileSync(join(candidateTarget, "candidate.txt"), "preserve candidate directory\n");
     chmodSync(candidateTarget, 0o750);
-    rmSync(unsafeDirectory, { force: true, recursive: true });
     symlinkSync(candidateTarget, unsafeDirectory);
     writeFileSync(
       renderedToolsCi,
@@ -2002,7 +1092,6 @@ test("bootstrap rejects symlinked managed directory chains without touching thei
     mkdirSync(candidateTarget);
     writeFileSync(join(candidateTarget, "candidate.txt"), "preserve candidate directory\n");
     chmodSync(candidateTarget, 0o750);
-    rmSync(unsafeDirectory, { force: true, recursive: true });
     symlinkSync(candidateTarget, unsafeDirectory);
 
     const result = run("bash", [bootstrapScript], fixture.env);
@@ -2073,32 +1162,6 @@ test("browser setup atomically replaces helper symlinks without touching their t
   assert.equal(existsSync(hijackMarker), false);
 });
 
-test("browser setup preserves non-regular helper paths without blocking workspace login", () => {
-  for (const helperName of ["chromium-browser", "browser-screenshot", "browser-html"]) {
-    const root = mkdtempSync(join(tmpdir(), "technical-interview-browser-nonregular-"));
-    const home = join(root, "home");
-    const localBin = join(home, ".local", "bin");
-    const helper = join(localBin, helperName);
-    const fakeChrome = join(root, "google-chrome-stable");
-    const renderedToolsBrowser = join(root, "rendered-tools-browser.sh");
-    mkdirSync(helper, { recursive: true });
-    writeFileSync(join(helper, "candidate.txt"), `preserve ${helperName}\n`);
-    executable(fakeChrome, "#!/bin/sh\nexit 0\n");
-    writeFileSync(renderedToolsBrowser, renderToolsBrowserScript(fakeChrome));
-
-    const result = run("bash", [renderedToolsBrowser], {
-      ...process.env,
-      HOME: home,
-      PATH: `${localBin}:/usr/bin:/bin`,
-    });
-    assert.equal(result.status, 0, `${helperName} must not block login: ${result.stderr}`);
-    assert.match(result.stderr, /Non-regular browser helper path was preserved/);
-    assert.match(result.stderr, /interview-check will report the affected paths/);
-    assert.equal(lstatSync(helper).isDirectory(), true);
-    assert.equal(readFileSync(join(helper, "candidate.txt"), "utf8"), `preserve ${helperName}\n`);
-  }
-});
-
 test("File Browser installation atomically replaces symlinks without touching their targets", () => {
   const root = mkdtempSync(join(tmpdir(), "technical-interview-filebrowser-install-"));
   const home = join(root, "home");
@@ -2107,26 +1170,19 @@ test("File Browser installation atomically replaces symlinks without touching th
   const localShare = join(home, ".local", "share");
   const binary = join(localBin, "filebrowser");
   const versionMarker = join(localShare, "filebrowser-version");
-  const logDirectory = join(home, ".local", "state", "filebrowser");
-  const logFile = join(logDirectory, "filebrowser.log");
   const binaryTarget = join(root, "candidate-binary");
-  const logTarget = join(root, "candidate-log");
   const hijackMarker = join(root, "candidate-path-command-ran");
   const markerTarget = join(root, "candidate-version");
   const renderedToolsFilebrowser = join(root, "rendered-tools-filebrowser.sh");
   const runningMarker = join(root, "filebrowser-running");
-  const downloads = join(root, "filebrowser-downloads.log");
   mkdirSync(localBin, { recursive: true });
   mkdirSync(localShare, { recursive: true });
-  mkdirSync(logDirectory, { recursive: true });
   mkdirSync(bin, { recursive: true });
   writeFileSync(binaryTarget, "preserve candidate binary\n");
-  writeFileSync(logTarget, "preserve candidate log\n");
   writeFileSync(markerTarget, "preserve candidate version\n");
   chmodSync(binaryTarget, 0o644);
   chmodSync(markerTarget, 0o644);
   symlinkSync(binaryTarget, binary);
-  symlinkSync(logTarget, logFile);
   symlinkSync(markerTarget, versionMarker);
   executable(join(localBin, "curl"), '#!/bin/sh\n: > "$HIVE_HIJACK_MARKER"\nexit 99\n');
 
@@ -2138,7 +1194,6 @@ set -euo pipefail
 ${claudeCredentialAssertions}
 if [ "\${1:-}" = "-fsSLo" ]; then
   : > "$2"
-  printf 'download\\n' >> "$FAKE_FILEBROWSER_DOWNLOADS"
 elif [[ "$*" == *'/health'* ]]; then
   [ -f "$FAKE_FILEBROWSER_RUNNING" ]
 elif [[ "$*" == *'/api/login'* ]]; then
@@ -2163,15 +1218,7 @@ set -euo pipefail
 [ -z "\${CODER_AGENT_TOKEN:-}" ]
 ${claudeCredentialAssertions}
 case "\${1:-}" in
-  version) printf 'File Browser v2.63.18/fixture\\n' ;;
-  config)
-    case "\${2:-}" in
-      init) printf 'valid-database\\n' > "$FB_DATABASE" ;;
-      cat|set) [ -f "$FB_DATABASE" ] ;;
-      *) exit 2 ;;
-    esac
-    ;;
-  users) exit 0 ;;
+  config|users) exit 0 ;;
   *) : > "$FAKE_FILEBROWSER_RUNNING" ;;
 esac
 FILEBROWSER
@@ -2180,114 +1227,30 @@ chmod 755 "$destination/filebrowser"
   );
   writeFileSync(renderedToolsFilebrowser, renderToolsFilebrowserScript(`${bin}:/usr/bin:/bin`));
 
-  const filebrowserEnvironment = {
+  const result = run("bash", [renderedToolsFilebrowser], {
     ...process.env,
     ANTHROPIC_AUTH_TOKEN: "must-not-reach-filebrowser-tools",
     CLAUDE_CODE_OAUTH_TOKEN: "must-not-reach-filebrowser-tools",
     CODER_AGENT_TOKEN: "must-not-reach-filebrowser-tools",
     CODER_SESSION_TOKEN: "must-not-reach-filebrowser-tools",
-    FAKE_FILEBROWSER_DOWNLOADS: downloads,
     FAKE_FILEBROWSER_RUNNING: runningMarker,
     GH_TOKEN: "must-not-reach-filebrowser-tools",
     GITHUB_TOKEN: "must-not-reach-filebrowser-tools",
     HIVE_HIJACK_MARKER: hijackMarker,
-    HIVE_PROJECTS_ROOT: home,
     HOME: home,
     PATH: `${localBin}:${bin}:/usr/bin:/bin`,
-  };
-  const result = run("bash", [renderedToolsFilebrowser], filebrowserEnvironment);
+  });
   assert.equal(result.status, 0, result.stderr);
   assert.equal(existsSync(hijackMarker), false);
   assert.equal(readFileSync(binaryTarget, "utf8"), "preserve candidate binary\n");
-  assert.equal(readFileSync(logTarget, "utf8"), "preserve candidate log\n");
   assert.equal(readFileSync(markerTarget, "utf8"), "preserve candidate version\n");
   assert.equal(statSync(binaryTarget).mode & 0o777, 0o644);
   assert.equal(statSync(markerTarget).mode & 0o777, 0o644);
   assert.equal(lstatSync(binary).isSymbolicLink(), false);
-  assert.equal(lstatSync(logFile).isSymbolicLink(), false);
   assert.equal(lstatSync(versionMarker).isSymbolicLink(), false);
   assert.equal(statSync(binary).mode & 0o777, 0o755);
-  assert.equal(statSync(logFile).mode & 0o777, 0o600);
   assert.equal(statSync(versionMarker).mode & 0o777, 0o600);
   assert.equal(readFileSync(versionMarker, "utf8"), "2.63.18\n");
-  assert.equal(readFileSync(downloads, "utf8"), "download\n");
-
-  executable(binary, "#!/bin/sh\nexit 1\n");
-  if (existsSync(runningMarker)) unlinkSync(runningMarker);
-  const repaired = run("bash", [renderedToolsFilebrowser], filebrowserEnvironment);
-  assert.equal(repaired.status, 0, repaired.stderr);
-  assert.equal(readFileSync(downloads, "utf8"), "download\ndownload\n");
-  assert.match(readFileSync(binary, "utf8"), /File Browser v2\.63\.18/);
-});
-
-test("File Browser atomically rebuilds an interrupted managed database", () => {
-  const root = mkdtempSync(join(tmpdir(), "technical-interview-filebrowser-repair-"));
-  const home = join(root, "home");
-  const bin = join(root, "bin");
-  const localBin = join(home, ".local", "bin");
-  const localShare = join(home, ".local", "share");
-  const database = join(home, ".config", "filebrowser", "filebrowser.db");
-  const calls = join(root, "filebrowser-calls.log");
-  const runningMarker = join(root, "filebrowser-running");
-  const renderedToolsFilebrowser = join(root, "rendered-tools-filebrowser.sh");
-  mkdirSync(dirname(database), { recursive: true });
-  mkdirSync(localBin, { recursive: true });
-  mkdirSync(localShare, { recursive: true });
-  mkdirSync(bin, { recursive: true });
-  writeFileSync(database, "partial database\n");
-  writeFileSync(join(localShare, "filebrowser-version"), "2.63.18\n");
-  executable(
-    join(localBin, "filebrowser"),
-    `#!/bin/bash
-set -euo pipefail
-case "\${1:-}" in
-  version) printf 'File Browser v2.63.18/fixture\\n' ;;
-  config)
-    case "\${2:-}" in
-      cat) grep -q '^valid-database$' "$FB_DATABASE" ;;
-      init)
-        printf 'valid-database\\n' > "$FB_DATABASE"
-        printf 'init\\n' >> "${calls}"
-        ;;
-      set) grep -q '^valid-database$' "$FB_DATABASE" ;;
-      *) exit 2 ;;
-    esac
-    ;;
-  users) exit 0 ;;
-  *) : > "${runningMarker}" ;;
-esac
-`,
-  );
-  executable(
-    join(bin, "curl"),
-    `#!/bin/bash
-set -euo pipefail
-if [[ "$*" == *'/health'* ]]; then
-  [ -f "${runningMarker}" ]
-elif [[ "$*" == *'/api/login'* ]]; then
-  [ -f "${runningMarker}" ] && printf '200' || printf '000'
-else
-  exit 2
-fi
-`,
-  );
-  writeFileSync(renderedToolsFilebrowser, renderToolsFilebrowserScript(`${bin}:/usr/bin:/bin`));
-
-  const result = run("bash", [renderedToolsFilebrowser], {
-    ...process.env,
-    HIVE_PROJECTS_ROOT: home,
-    HOME: home,
-    PATH: `${bin}:/usr/bin:/bin`,
-  });
-  assert.equal(result.status, 0, result.stderr);
-  assert.match(result.stderr, /Rebuilding an incomplete managed File Browser database/);
-  assert.equal(readFileSync(database, "utf8"), "valid-database\n");
-  assert.equal(statSync(database).mode & 0o777, 0o600);
-  assert.equal(readFileSync(calls, "utf8"), "init\n");
-  assert.equal(
-    readdirSync(dirname(database)).some((name) => name.startsWith(".filebrowser-db.")),
-    false,
-  );
 });
 
 test("File Browser rejects a linked database without touching its target", () => {
@@ -2308,7 +1271,6 @@ test("File Browser rejects a linked database without touching its target", () =>
 
   const result = run("bash", [renderedToolsFilebrowser], {
     ...process.env,
-    HIVE_PROJECTS_ROOT: home,
     HOME: home,
     PATH: "/usr/bin:/bin",
   });
@@ -2317,36 +1279,6 @@ test("File Browser rejects a linked database without touching its target", () =>
   assert.equal(lstatSync(database).isSymbolicLink(), true);
   assert.equal(readFileSync(candidateDatabase, "utf8"), "preserve candidate database\n");
   assert.equal(statSync(candidateDatabase).mode & 0o777, 0o640);
-});
-
-test("File Browser rejects a linked projects root before serving it", () => {
-  const root = mkdtempSync(join(tmpdir(), "technical-interview-filebrowser-root-"));
-  const home = join(root, "home");
-  const projects = join(home, "projects");
-  const candidateRoot = join(root, "candidate-root");
-  const renderedToolsFilebrowser = join(root, "rendered-tools-filebrowser.sh");
-  mkdirSync(home);
-  mkdirSync(candidateRoot);
-  writeFileSync(join(candidateRoot, "candidate.txt"), "must never be served\n");
-  symlinkSync(candidateRoot, projects);
-  writeFileSync(
-    renderedToolsFilebrowser,
-    renderToolsFilebrowserScript("/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"),
-  );
-
-  const result = run("bash", [renderedToolsFilebrowser], {
-    ...process.env,
-    HIVE_PROJECTS_ROOT: projects,
-    HOME: home,
-    PATH: "/usr/bin:/bin",
-  });
-  assert.equal(result.status, 1, result.stderr);
-  assert.match(result.stderr, /File Browser root is not a local directory/);
-  assert.equal(lstatSync(projects).isSymbolicLink(), true);
-  assert.equal(
-    readFileSync(join(candidateRoot, "candidate.txt"), "utf8"),
-    "must never be served\n",
-  );
 });
 
 test("init atomically replaces linked MCP configs without touching their targets", () => {
@@ -2597,14 +1529,6 @@ exec /usr/bin/git "$@"
   assert.match(second.stdout, /preserving existing interview repository/);
   assert.equal(readFileSync(candidateFile, "utf8"), "preserve me\n");
   assert.equal(readFileSync(calls, "utf8"), firstCalls);
-
-  const fakeSecret = "persisted-helper-secret-must-not-be-reported";
-  git("-C", destination, "config", "credential.helper", `store --file=${fakeSecret}`);
-  const rejected = run("bash", [cloneScript], env);
-  assert.equal(rejected.status, 1);
-  assert.match(rejected.stderr, /preserving incomplete or invalid interview repository/);
-  assert.doesNotMatch(`${rejected.stdout}${rejected.stderr}`, new RegExp(fakeSecret));
-  assert.equal(readFileSync(candidateFile, "utf8"), "preserve me\n");
 });
 
 test("repository bootstrap rejects linked parent directories", () => {
@@ -2718,7 +1642,7 @@ test("remote default checks isolate Git configuration and SSH credentials", () =
   assert.equal(result.stdout.trim(), `${fixture.commit}\tHEAD`);
 });
 
-test("bootstrap installs helpers idempotently and preserves the staged Claude launcher", () => {
+test("bootstrap installs executable helper commands idempotently", () => {
   const fixture = createFixture();
   installHelpers(fixture);
   const expectedHelpers = [
@@ -2733,13 +1657,8 @@ test("bootstrap installs helpers idempotently and preserves the staged Claude la
   const firstContents = new Map();
   for (const helper of expectedHelpers) {
     const path = join(fixture.home, ".local", "bin", helper);
-    assert.equal(existsSync(path), true, `${helper} must be available`);
+    assert.equal(existsSync(path), true, `${helper} must be generated`);
     assert.equal(statSync(path).mode & 0o777, 0o700);
-    if (helper === "interview-claude") {
-      assert.equal(lstatSync(path).isSymbolicLink(), false);
-      assert.match(readFileSync(path, "utf8"), /hive-managed-interview-claude-handoff:v2/);
-      assert.doesNotMatch(readFileSync(path, "utf8"), /read -r|stty -echo/);
-    }
     firstContents.set(helper, readFileSync(path, "utf8"));
   }
 
@@ -2776,6 +1695,7 @@ test("fresh bootstrap installs the pinned standalone toolchain idempotently", ()
     assert.equal(result.status, 0, result.stderr);
     assert.match(result.stdout, new RegExp(version.replaceAll(".", "\\.")));
   }
+
   const firstCalls = readFileSync(fixture.calls, "utf8");
   for (const packageName of [
     "@openai/codex@0.149.1",
@@ -2792,275 +1712,6 @@ test("fresh bootstrap installs the pinned standalone toolchain idempotently", ()
 
   installHelpers(fixture);
   assert.equal(readFileSync(fixture.calls, "utf8"), firstCalls);
-});
-
-test("managed npm installs isolate persisted user authentication", () => {
-  const fixture = createFixture();
-  const npmConfiguration = join(fixture.home, ".npmrc");
-  const fakeSecret = "persisted-npm-install-secret-must-not-leak";
-  writeFileSync(npmConfiguration, `//registry.npmjs.org/:_authToken=${fakeSecret}\n`);
-
-  const installed = installHelpers(fixture);
-  assert.doesNotMatch(`${installed.stdout}\n${installed.stderr}`, new RegExp(fakeSecret));
-  assert.match(readFileSync(npmConfiguration, "utf8"), new RegExp(fakeSecret));
-  assert.doesNotMatch(readFileSync(fixture.calls, "utf8"), new RegExp(fakeSecret));
-  const readiness = run(
-    "bash",
-    [
-      "-c",
-      'source "$HOME/.local/libexec/hive/technical-interview/common.sh"; interview_package_authentication_absent',
-    ],
-    fixture.env,
-  );
-  assert.equal(readiness.status, 1);
-});
-
-test("setup rejects repository npm credentials before invoking npm", () => {
-  for (const relativeConfiguration of [".npmrc", join("frontend", ".npmrc")]) {
-    const fixture = createFixture();
-    const configuration = join(fixture.interviewRepository, relativeConfiguration);
-    const fakeSecret = "project-npm-secret-must-not-be-consumed";
-    writeFileSync(configuration, `//registry.npmjs.org/:_authToken=${fakeSecret}\n`);
-    const installed = installHelpers(fixture);
-    assert.equal(installed.status, 0, installed.stderr);
-    assert.doesNotMatch(`${installed.stdout}${installed.stderr}`, new RegExp(fakeSecret));
-    assert.doesNotMatch(readFileSync(fixture.calls, "utf8"), /tool-install:/);
-    const callsBeforeSetup = readFileSync(fixture.calls, "utf8");
-
-    const result = run(join(fixture.home, ".local", "bin", "interview-setup"), [], fixture.env);
-    assert.equal(result.status, 1);
-    assert.match(result.stderr, /Preserving repository npm configuration/);
-    assert.doesNotMatch(`${result.stdout}${result.stderr}`, new RegExp(fakeSecret));
-    assert.equal(
-      readFileSync(configuration, "utf8"),
-      `//registry.npmjs.org/:_authToken=${fakeSecret}\n`,
-    );
-    assert.equal(readFileSync(fixture.calls, "utf8"), callsBeforeSetup);
-    const readiness = run(
-      "bash",
-      [
-        "-c",
-        'source "$HOME/.local/libexec/hive/technical-interview/common.sh"; interview_package_authentication_absent',
-      ],
-      fixture.env,
-    );
-    assert.equal(readiness.status, 1);
-  }
-});
-
-test("managed pip installs ignore preserved user indexes and disable keyring lookup", () => {
-  const fixture = createFixture();
-  const pipConfiguration = join(fixture.home, ".config", "pip", "pip.conf");
-  const fakeSecret = "persisted-pip-install-secret-must-not-leak";
-  mkdirSync(dirname(pipConfiguration), { recursive: true });
-  writeFileSync(
-    pipConfiguration,
-    `[global]\nindex-url = https://candidate:${fakeSecret}@example.invalid/simple\n`,
-  );
-
-  const installed = installHelpers(fixture);
-  assert.doesNotMatch(`${installed.stdout}\n${installed.stderr}`, new RegExp(fakeSecret));
-  assert.match(readFileSync(pipConfiguration, "utf8"), new RegExp(fakeSecret));
-  assert.doesNotMatch(readFileSync(fixture.calls, "utf8"), new RegExp(fakeSecret));
-  const readiness = run(
-    "bash",
-    [
-      "-c",
-      'source "$HOME/.local/libexec/hive/technical-interview/common.sh"; interview_package_authentication_absent',
-    ],
-    fixture.env,
-  );
-  assert.equal(readiness.status, 1);
-});
-
-test("persisted Codex, cloud, and browser credential stores fail without being read", () => {
-  const fixture = createFixture();
-  installHelpers(fixture);
-  const common = join(
-    fixture.home,
-    ".local",
-    "libexec",
-    "hive",
-    "technical-interview",
-    "common.sh",
-  );
-  const inspect = (functionName) =>
-    run("bash", ["-c", `source "${common}"; ${functionName}`], fixture.env);
-  const fakeSecret = "persisted-personal-store-secret-must-not-leak";
-  const credentialPaths = [
-    [join(fixture.home, ".codex", "auth.json"), false, "interview_codex_authentication_absent"],
-    [
-      join(fixture.home, ".config", "codex", "auth.json"),
-      false,
-      "interview_codex_authentication_absent",
-    ],
-    [join(fixture.home, ".config", "openai"), true, "interview_codex_authentication_absent"],
-    [join(fixture.home, ".aws"), true, "interview_cloud_orchestration_authentication_absent"],
-    [
-      join(fixture.home, ".config", "gcloud"),
-      true,
-      "interview_cloud_orchestration_authentication_absent",
-    ],
-    [join(fixture.home, ".azure"), true, "interview_cloud_orchestration_authentication_absent"],
-    [join(fixture.home, ".kube"), true, "interview_cloud_orchestration_authentication_absent"],
-    [
-      join(fixture.home, ".terraform.d", "credentials.tfrc.json"),
-      false,
-      "interview_cloud_orchestration_authentication_absent",
-    ],
-    [
-      join(fixture.home, ".docker", "config.json"),
-      false,
-      "interview_cloud_orchestration_authentication_absent",
-    ],
-    [
-      join(fixture.home, ".config", "containers", "auth.json"),
-      false,
-      "interview_cloud_orchestration_authentication_absent",
-    ],
-    [
-      join(fixture.home, ".config", "helm", "registry", "config.json"),
-      false,
-      "interview_cloud_orchestration_authentication_absent",
-    ],
-    [
-      join(fixture.home, ".pulumi", "credentials.json"),
-      false,
-      "interview_cloud_orchestration_authentication_absent",
-    ],
-    [
-      join(fixture.home, ".vault-token"),
-      false,
-      "interview_cloud_orchestration_authentication_absent",
-    ],
-    [
-      join(fixture.home, ".config", "coderv2", "session"),
-      false,
-      "interview_cloud_orchestration_authentication_absent",
-    ],
-    [
-      join(fixture.home, ".config", "coder", "session"),
-      false,
-      "interview_cloud_orchestration_authentication_absent",
-    ],
-    [
-      join(fixture.home, ".config", "google-chrome"),
-      true,
-      "interview_browser_authentication_absent",
-    ],
-    [join(fixture.home, ".config", "chromium"), true, "interview_browser_authentication_absent"],
-    [
-      join(fixture.home, ".config", "chromium-browser"),
-      true,
-      "interview_browser_authentication_absent",
-    ],
-  ];
-
-  for (const [credentialPath, directory, functionName] of credentialPaths) {
-    assert.equal(inspect(functionName).status, 0);
-    if (directory) {
-      mkdirSync(credentialPath, { recursive: true });
-    } else {
-      mkdirSync(dirname(credentialPath), { recursive: true });
-      writeFileSync(credentialPath, fakeSecret);
-    }
-    const rejected = inspect(functionName);
-    assert.equal(rejected.status, 1);
-    assert.doesNotMatch(`${rejected.stdout}${rejected.stderr}`, new RegExp(fakeSecret));
-    rmSync(credentialPath, { force: true, recursive: true });
-  }
-});
-
-test("setup repairs managed tool payload corruption even when version commands pass", () => {
-  const fixture = createFixture();
-  installHelpers(fixture);
-  const toolCases = [
-    {
-      command: "codex",
-      packageSpec: "@openai/codex@0.149.1",
-      payload: join(
-        fixture.home,
-        ".local/state/hive/technical-interview/tools/codex-0.149.1/node_modules/@openai/codex/runtime.js",
-      ),
-      ready:
-        'interview_managed_tool_ready codex "$INTERVIEW_CODEX_VERSION" .bin/codex "$INTERVIEW_CODEX_BASELINE_TARGET"',
-    },
-    {
-      command: "playwright-mcp",
-      packageSpec: "@playwright/mcp@0.0.79",
-      payload: join(
-        fixture.home,
-        ".local/state/hive/technical-interview/tools/playwright-mcp-0.0.79/node_modules/@playwright/mcp/runtime.js",
-      ),
-      ready:
-        'interview_managed_tool_ready playwright-mcp "$INTERVIEW_PLAYWRIGHT_MCP_VERSION" .bin/playwright-mcp',
-    },
-    {
-      command: "pnpm",
-      packageSpec: "pnpm@10.32.1",
-      payload: join(
-        fixture.home,
-        ".local/state/hive/technical-interview/tools/pnpm-10.32.1/node_modules/pnpm/runtime.js",
-      ),
-      ready: 'interview_managed_tool_ready pnpm "$INTERVIEW_PNPM_VERSION" .bin/pnpm',
-    },
-  ];
-
-  for (const toolCase of toolCases) {
-    assert.equal(
-      run(join(fixture.home, ".local/bin", toolCase.command), ["--version"], fixture.env).status,
-      0,
-    );
-    unlinkSync(toolCase.payload);
-    assert.equal(
-      run(join(fixture.home, ".local/bin", toolCase.command), ["--version"], fixture.env).status,
-      0,
-    );
-    const readiness = run(
-      "bash",
-      ["-c", `source "$HOME/.local/libexec/hive/technical-interview/common.sh"; ${toolCase.ready}`],
-      fixture.env,
-    );
-    assert.equal(readiness.status, 1, `${toolCase.command} payload damage must fail readiness`);
-  }
-
-  const setup = run(join(fixture.home, ".local/bin", "interview-setup"), [], fixture.env);
-  assert.equal(setup.status, 0, setup.stderr);
-  const calls = readFileSync(fixture.calls, "utf8");
-  for (const toolCase of toolCases) {
-    assert.equal(
-      existsSync(toolCase.payload),
-      true,
-      `${toolCase.command} payload must be restored`,
-    );
-    assert.equal(
-      calls.split(`tool-install:${toolCase.packageSpec}\n`).length - 1,
-      2,
-      `${toolCase.command} must be reinstalled exactly once after corruption`,
-    );
-  }
-});
-
-test("interview-setup retries a transient managed-tool installation failure", () => {
-  const fixture = createFixture();
-  const failureMarker = join(fixture.root, "transient-tool-failure");
-  installHelpers(fixture, {
-    ...fixture.env,
-    FAKE_TOOL_INSTALL_FAIL_ONCE: "@playwright/mcp@0.0.79",
-    FAKE_TOOL_INSTALL_FAILURE_MARKER: failureMarker,
-  });
-  assert.equal(existsSync(failureMarker), true);
-  assert.equal(existsSync(join(fixture.home, ".local", "bin", "playwright-mcp")), false);
-
-  const setup = run(join(fixture.home, ".local", "bin", "interview-setup"), [], fixture.env);
-  assert.equal(setup.status, 0, setup.stderr);
-  const repairedPlaywright = join(fixture.home, ".local", "bin", "playwright-mcp");
-  assert.equal(run(repairedPlaywright, ["--version"], fixture.env).status, 0);
-  assert.equal(
-    (readFileSync(fixture.calls, "utf8").match(/tool-install:@playwright\/mcp@0\.0\.79/g) ?? [])
-      .length,
-    2,
-  );
 });
 
 test("bootstrap reuses exact pinned tools from the Hive image baseline", () => {
@@ -3129,49 +1780,6 @@ test("bootstrap replaces stale Hive-managed tools with the pinned versions", () 
   assert.match(readFileSync(fixture.calls, "utf8"), /tool-install:@openai\/codex@0\.149\.1/);
 });
 
-test("bootstrap reinstalls an unusable managed ripgrep package", () => {
-  const fixture = createFixture();
-  const localBin = join(fixture.home, ".local", "bin");
-  const toolRoot = join(
-    fixture.home,
-    ".local",
-    "state",
-    "hive",
-    "technical-interview",
-    "ripgrep-1.18.0",
-  );
-  const packagedRipgrep = join(
-    toolRoot,
-    "node_modules",
-    "@vscode",
-    "ripgrep-linux-x64",
-    "bin",
-    "rg",
-  );
-  const staleMarker = join(toolRoot, "interrupted-install");
-  unlinkSync(join(fixture.bin, "rg"));
-  mkdirSync(dirname(packagedRipgrep), { recursive: true });
-  executable(packagedRipgrep, "#!/bin/sh\nexit 1\n");
-  writeFileSync(staleMarker, "must be replaced\n");
-  symlinkSync(packagedRipgrep, join(localBin, "rg"));
-
-  installHelpers(fixture);
-  assert.equal(run(join(localBin, "rg"), ["--version"], fixture.env).status, 0);
-  assert.equal(existsSync(staleMarker), false);
-  assert.equal(
-    (readFileSync(fixture.calls, "utf8").match(/tool-install:@vscode\/ripgrep@1\.18\.0/g) ?? [])
-      .length,
-    1,
-  );
-
-  installHelpers(fixture);
-  assert.equal(
-    (readFileSync(fixture.calls, "utf8").match(/tool-install:@vscode\/ripgrep@1\.18\.0/g) ?? [])
-      .length,
-    1,
-  );
-});
-
 test("bootstrap preserves unexpected user tools as an explicit readiness failure", () => {
   const fixture = createFixture();
   const localBin = join(fixture.home, ".local", "bin");
@@ -3233,23 +1841,6 @@ test("setup repairs and reuses an incomplete pinned virtualenv fallback", () => 
   );
 });
 
-test("setup recreates a partial managed backend virtual environment", () => {
-  const fixture = createFixture();
-  installHelpers(fixture);
-  const setup = join(fixture.home, ".local", "bin", "interview-setup");
-  const backendVenv = join(fixture.interviewRepository, "backend", ".venv");
-  const partialMarker = join(backendVenv, "interrupted-creation");
-  mkdirSync(backendVenv, { recursive: true });
-  writeFileSync(partialMarker, "must be replaced\n");
-
-  const result = run(setup, [], fixture.env);
-  assert.equal(result.status, 0, result.stderr);
-  assert.match(result.stdout, /after an interrupted creation/);
-  assert.equal(existsSync(partialMarker), false);
-  assert.equal(statSync(join(backendVenv, "bin", "python")).mode & 0o111, 0o111);
-  assert.equal((readFileSync(fixture.calls, "utf8").match(/pip-install/g) ?? []).length, 1);
-});
-
 test("setup hashes dependencies, reinstalls only on manifest changes, and preserves dirty work", () => {
   const fixture = createFixture();
   installHelpers(fixture);
@@ -3295,61 +1886,6 @@ test("setup hashes dependencies, reinstalls only on manifest changes, and preser
   assert.equal((changedCalls.match(/npm-install/g) ?? []).length, 1);
 });
 
-test("setup rejects a linked backend virtual environment without invoking its target", () => {
-  const fixture = createFixture();
-  installHelpers(fixture);
-  const setup = join(fixture.home, ".local", "bin", "interview-setup");
-  const backendVenv = join(fixture.interviewRepository, "backend", ".venv");
-  const candidateVenv = join(fixture.root, "candidate-venv");
-  const invocationMarker = join(fixture.root, "candidate-python-invoked");
-  mkdirSync(join(candidateVenv, "bin"), { recursive: true });
-  executable(
-    join(candidateVenv, "bin", "python"),
-    `#!/bin/sh\n: > "${invocationMarker}"\nexit 0\n`,
-  );
-  symlinkSync(candidateVenv, backendVenv);
-
-  const result = run(setup, [], fixture.env);
-  assert.equal(result.status, 1, result.stderr);
-  assert.match(result.stderr, /unsafe linked or non-directory backend virtual environment chain/);
-  assert.equal(existsSync(invocationMarker), false);
-  assert.equal(lstatSync(backendVenv).isSymbolicLink(), true);
-  assert.equal(lstatSync(candidateVenv).isDirectory(), true);
-});
-
-test("setup recreates backend dependencies when the full environment is missing or damaged", () => {
-  const fixture = createFixture();
-  installHelpers(fixture);
-  const setup = join(fixture.home, ".local", "bin", "interview-setup");
-  const backendVenv = join(fixture.interviewRepository, "backend", ".venv");
-
-  const initial = run(setup, [], fixture.env);
-  assert.equal(initial.status, 0, initial.stderr);
-  assert.equal((readFileSync(fixture.calls, "utf8").match(/pip-install/g) ?? []).length, 1);
-
-  writeFileSync(
-    join(backendVenv, ".hive-fixture-dependencies-broken"),
-    "simulate a missing transitive dependency\n",
-  );
-  const missing = run(setup, [], fixture.env);
-  assert.equal(missing.status, 0, missing.stderr);
-  assert.match(missing.stdout, /repair incomplete or damaged dependencies/);
-  assert.equal((readFileSync(fixture.calls, "utf8").match(/pip-install/g) ?? []).length, 2);
-
-  writeFileSync(
-    join(backendVenv, ".hive-fixture-record-broken"),
-    "simulate a damaged installed distribution file\n",
-  );
-  const damaged = run(setup, [], fixture.env);
-  assert.equal(damaged.status, 0, damaged.stderr);
-  assert.match(damaged.stdout, /repair incomplete or damaged dependencies/);
-  assert.equal((readFileSync(fixture.calls, "utf8").match(/pip-install/g) ?? []).length, 3);
-
-  const unchanged = run(setup, [], fixture.env);
-  assert.equal(unchanged.status, 0, unchanged.stderr);
-  assert.equal((readFileSync(fixture.calls, "utf8").match(/pip-install/g) ?? []).length, 3);
-});
-
 test("setup refreshes frontend dependencies when the Node runtime ABI changes", () => {
   const fixture = createFixture();
   installHelpers(fixture);
@@ -3389,41 +1925,6 @@ test("setup repairs an incomplete frontend dependency tree with a current hash",
   assert.equal(repaired.status, 0, repaired.stderr);
   assert.match(repaired.stdout, /Installing frontend dependencies/);
   assert.equal(existsSync(incompleteMarker), false);
-  assert.equal((readFileSync(fixture.calls, "utf8").match(/npm-install/g) ?? []).length, 2);
-
-  const unchanged = run(setup, [], fixture.env);
-  assert.equal(unchanged.status, 0, unchanged.stderr);
-  assert.equal((readFileSync(fixture.calls, "utf8").match(/npm-install/g) ?? []).length, 2);
-});
-
-test("setup repairs corrupted frontend package payloads even when npm ls succeeds", () => {
-  const fixture = createFixture();
-  installHelpers(fixture);
-  const setup = join(fixture.home, ".local", "bin", "interview-setup");
-  const vite = join(fixture.interviewRepository, "frontend", "node_modules", ".bin", "vite");
-
-  const first = run(setup, [], fixture.env);
-  assert.equal(first.status, 0, first.stderr);
-  const installedPayload = readFileSync(vite, "utf8");
-  const generatedCache = join(
-    fixture.interviewRepository,
-    "frontend",
-    "node_modules",
-    ".vue-global-types",
-  );
-  mkdirSync(generatedCache);
-  writeFileSync(join(generatedCache, "generated.d.ts"), "// build-generated cache\n");
-  const cacheOnly = run(setup, [], fixture.env);
-  assert.equal(cacheOnly.status, 0, cacheOnly.stderr);
-  assert.equal((readFileSync(fixture.calls, "utf8").match(/npm-install/g) ?? []).length, 1);
-
-  writeFileSync(vite, "#!/bin/sh\n# corrupted package payload\nexit 0\n");
-  chmodSync(vite, 0o755);
-
-  const repaired = run(setup, [], fixture.env);
-  assert.equal(repaired.status, 0, repaired.stderr);
-  assert.match(repaired.stdout, /Installing frontend dependencies/);
-  assert.equal(readFileSync(vite, "utf8"), installedPayload);
   assert.equal((readFileSync(fixture.calls, "utf8").match(/npm-install/g) ?? []).length, 2);
 
   const unchanged = run(setup, [], fixture.env);
@@ -3492,31 +1993,6 @@ test("setup restarts only active service windows after dependency refresh", () =
   assert.match(refreshCalls, /tmux:respawn-window -k -t interview:api/);
   assert.match(refreshCalls, /tmux:respawn-window -k -t interview:web/);
   assert.doesNotMatch(refreshCalls, /tmux:respawn-window[^\n]+interview:(?:work|ai)/);
-});
-
-test("interview-start restarts an active service pane that fails its health check", () => {
-  const fixture = createFixture();
-  installHelpers(fixture);
-  const setup = join(fixture.home, ".local", "bin", "interview-setup");
-  const start = join(fixture.home, ".local", "bin", "interview-start");
-  const recoveredMarker = join(fixture.root, "api-service-recovered");
-
-  assert.equal(run(setup, [], fixture.env).status, 0);
-  assert.equal(run(start, [], fixture.env).status, 0);
-  const callsBeforeRecovery = readFileSync(fixture.calls, "utf8");
-  const recovered = run(start, [], {
-    ...fixture.env,
-    FAKE_SERVICE_RECOVERED_MARKER: recoveredMarker,
-    FAKE_UNHEALTHY_URL: "http://127.0.0.1:8000/hello",
-  });
-  assert.equal(recovered.status, 0, recovered.stderr);
-  assert.match(recovered.stdout, /Restarted unhealthy tmux service window: api/);
-  assert.match(recovered.stdout, /Preserving active tmux window: web/);
-  assert.equal(existsSync(recoveredMarker), true);
-
-  const recoveryCalls = readFileSync(fixture.calls, "utf8").slice(callsBeforeRecovery.length);
-  assert.match(recoveryCalls, /tmux:respawn-window -k -t interview:api/);
-  assert.doesNotMatch(recoveryCalls, /tmux:respawn-window[^\n]+interview:(?:web|work|ai)/);
 });
 
 test("GitHub auth detection rejects any valid account and accepts a missing CLI", () => {
@@ -3612,95 +2088,6 @@ test("Coder auth detection distinguishes confirmed absence from unknown failures
   assert.equal(missingCli.stdout.trim(), "unauthenticated");
 });
 
-test("Git transport readiness rejects persisted helpers, headers, credential files, and SSH keys", () => {
-  const fixture = createFixture();
-  installHelpers(fixture);
-  const common = join(
-    fixture.home,
-    ".local",
-    "libexec",
-    "hive",
-    "technical-interview",
-    "common.sh",
-  );
-  const inspect = () =>
-    run(
-      "bash",
-      ["-c", `source "${common}"; interview_git_transport_credentials_absent`],
-      fixture.env,
-    );
-  const fakeSecret = "generic-git-secret-must-never-be-reported";
-
-  assert.equal(inspect().status, 0);
-
-  const globalConfig = join(fixture.home, ".gitconfig");
-  writeFileSync(globalConfig, `[credential]\n\thelper = store --file=${fakeSecret}\n`);
-  const helperResult = inspect();
-  assert.equal(helperResult.status, 1);
-  assert.doesNotMatch(`${helperResult.stdout}${helperResult.stderr}`, new RegExp(fakeSecret));
-  unlinkSync(globalConfig);
-
-  git(
-    "-C",
-    fixture.interviewRepository,
-    "config",
-    "http.https://github.com/.extraHeader",
-    `Authorization: ${fakeSecret}`,
-  );
-  const headerResult = inspect();
-  assert.equal(headerResult.status, 1);
-  assert.doesNotMatch(`${headerResult.stdout}${headerResult.stderr}`, new RegExp(fakeSecret));
-  git(
-    "-C",
-    fixture.interviewRepository,
-    "config",
-    "--unset-all",
-    "http.https://github.com/.extraHeader",
-  );
-
-  git(
-    "-C",
-    fixture.interviewRepository,
-    "config",
-    "remote.origin.pushurl",
-    `https://candidate:${fakeSecret}@github.com/prmsolutions/interview-template.git`,
-  );
-  const pushUrlResult = inspect();
-  assert.equal(pushUrlResult.status, 1);
-  assert.doesNotMatch(`${pushUrlResult.stdout}${pushUrlResult.stderr}`, new RegExp(fakeSecret));
-  git("-C", fixture.interviewRepository, "config", "--unset-all", "remote.origin.pushurl");
-
-  const credentialFile = join(fixture.home, ".git-credentials");
-  writeFileSync(credentialFile, `https://candidate:${fakeSecret}@github.com\n`);
-  assert.equal(inspect().status, 1);
-  unlinkSync(credentialFile);
-
-  const sshDirectory = join(fixture.home, ".ssh");
-  mkdirSync(sshDirectory, { recursive: true });
-  writeFileSync(join(sshDirectory, "id_ed25519"), fakeSecret);
-  assert.equal(inspect().status, 1);
-});
-
-test("Claude readiness rejects a stale protected-runtime heartbeat", () => {
-  const fixture = createFixture();
-  installHelpers(fixture);
-  const common = join(
-    fixture.home,
-    ".local",
-    "libexec",
-    "hive",
-    "technical-interview",
-    "common.sh",
-  );
-  const inspect = () =>
-    run("bash", ["-c", `source "${common}"; interview_claude_ready`], fixture.env);
-
-  assert.equal(inspect().status, 0);
-  unlinkSync(fixture.claudeStatus);
-  writeFileSync(fixture.claudeStatus, "isolated-claude-runtime-ready-v4 1\n");
-  assert.equal(inspect().status, 1);
-});
-
 test("readiness reports strict success and failure without network cloning", () => {
   const fixture = createFixture();
   const init = runInit(fixture.root, fixture.home);
@@ -3709,20 +2096,11 @@ test("readiness reports strict success and failure without network cloning", () 
   const setup = join(fixture.home, ".local", "bin", "interview-setup");
   const start = join(fixture.home, ".local", "bin", "interview-start");
   const check = join(fixture.home, ".local", "bin", "interview-check");
-  const runReadiness = (environment = fixture.env) => {
-    chmodSync(fixture.claudeStatus, 0o600);
-    writeFileSync(
-      fixture.claudeStatus,
-      `isolated-claude-runtime-ready-v4 ${Math.floor(Date.now() / 1000)}\n`,
-    );
-    chmodSync(fixture.claudeStatus, 0o444);
-    return run(check, [], environment);
-  };
   try {
     assert.equal(run(setup, [], fixture.env).status, 0);
     const startResult = run(start, [], fixture.env);
     assert.equal(startResult.status, 0, startResult.stderr);
-    const ready = runReadiness();
+    const ready = run(check, [], fixture.env);
     assert.equal(ready.status, 0, ready.stderr);
     assert.match(ready.stdout, /INTERVIEW WORKSPACE READY/);
     assert.match(
@@ -3734,194 +2112,7 @@ test("readiness reports strict success and failure without network cloning", () 
     assert.match(ready.stdout, /Bun 1\.4\.0 is pinned/);
     assert.match(ready.stdout, /pnpm 10\.32\.1 is pinned/);
 
-    const persistedClaudeCredential = join(fixture.home, ".claude", ".credentials.json");
-    const fakeClaudeSecret = "persisted-claude-secret-must-not-be-reported";
-    writeFileSync(persistedClaudeCredential, fakeClaudeSecret);
-    const persistedClaudeStatus = run(
-      join(fixture.home, ".local", "bin", "interview-status"),
-      [],
-      fixture.env,
-    );
-    assert.equal(persistedClaudeStatus.status, 0, persistedClaudeStatus.stderr);
-    assert.match(
-      persistedClaudeStatus.stdout,
-      /Persisted Claude authentication: PRESENT or unsafe \(path names only; readiness fails\)/,
-    );
-    const persistedClaudeFailure = runReadiness();
-    assert.equal(persistedClaudeFailure.status, 1);
-    assert.match(
-      `${persistedClaudeFailure.stdout}\n${persistedClaudeFailure.stderr}`,
-      /\[FAIL\] persisted Claude authentication is absent/,
-    );
-    assert.equal(readFileSync(persistedClaudeCredential, "utf8"), fakeClaudeSecret);
-    assert.doesNotMatch(
-      `${persistedClaudeStatus.stdout}\n${persistedClaudeStatus.stderr}\n` +
-        `${persistedClaudeFailure.stdout}\n${persistedClaudeFailure.stderr}\n` +
-        readFileSync(join(fixture.home, "INTERVIEW_READY.md"), "utf8"),
-      new RegExp(fakeClaudeSecret),
-    );
-    unlinkSync(persistedClaudeCredential);
-    assert.equal(runReadiness().status, 0);
-
-    const persistedCodexCredential = join(fixture.home, ".codex", "auth.json");
-    const fakeCodexSecret = "persisted-codex-secret-must-not-be-reported";
-    mkdirSync(dirname(persistedCodexCredential), { recursive: true });
-    writeFileSync(persistedCodexCredential, fakeCodexSecret);
-    const persistedCodexStatus = run(
-      join(fixture.home, ".local", "bin", "interview-status"),
-      [],
-      fixture.env,
-    );
-    assert.equal(persistedCodexStatus.status, 0, persistedCodexStatus.stderr);
-    assert.match(
-      persistedCodexStatus.stdout,
-      /Persisted Codex authentication: PRESENT or unsafe \(path names only; readiness fails\)/,
-    );
-    const persistedCodexFailure = runReadiness();
-    assert.equal(persistedCodexFailure.status, 1);
-    assert.match(
-      `${persistedCodexFailure.stdout}\n${persistedCodexFailure.stderr}`,
-      /\[FAIL\] persisted Codex authentication is absent/,
-    );
-    assert.equal(readFileSync(persistedCodexCredential, "utf8"), fakeCodexSecret);
-    assert.doesNotMatch(
-      `${persistedCodexStatus.stdout}\n${persistedCodexStatus.stderr}\n` +
-        `${persistedCodexFailure.stdout}\n${persistedCodexFailure.stderr}\n` +
-        readFileSync(join(fixture.home, "INTERVIEW_READY.md"), "utf8"),
-      new RegExp(fakeCodexSecret),
-    );
-    unlinkSync(persistedCodexCredential);
-    assert.equal(runReadiness().status, 0);
-
-    const persistedCloudCredential = join(fixture.home, ".aws", "credentials");
-    const fakeCloudSecret = "persisted-cloud-secret-must-not-be-reported";
-    mkdirSync(dirname(persistedCloudCredential), { recursive: true });
-    writeFileSync(persistedCloudCredential, fakeCloudSecret);
-    const persistedCloudStatus = run(
-      join(fixture.home, ".local", "bin", "interview-status"),
-      [],
-      fixture.env,
-    );
-    assert.equal(persistedCloudStatus.status, 0, persistedCloudStatus.stderr);
-    assert.match(
-      persistedCloudStatus.stdout,
-      /Persisted cloud\/orchestration authentication: PRESENT or unsafe \(path names only; readiness fails\)/,
-    );
-    const persistedCloudFailure = runReadiness();
-    assert.equal(persistedCloudFailure.status, 1);
-    assert.match(
-      `${persistedCloudFailure.stdout}\n${persistedCloudFailure.stderr}`,
-      /\[FAIL\] persisted cloud and orchestration authentication is absent/,
-    );
-    assert.equal(readFileSync(persistedCloudCredential, "utf8"), fakeCloudSecret);
-    assert.doesNotMatch(
-      `${persistedCloudStatus.stdout}\n${persistedCloudStatus.stderr}\n` +
-        `${persistedCloudFailure.stdout}\n${persistedCloudFailure.stderr}\n` +
-        readFileSync(join(fixture.home, "INTERVIEW_READY.md"), "utf8"),
-      new RegExp(fakeCloudSecret),
-    );
-    rmSync(join(fixture.home, ".aws"), { recursive: true });
-    assert.equal(runReadiness().status, 0);
-
-    const persistedBrowserCredential = join(
-      fixture.home,
-      ".config",
-      "google-chrome",
-      "Default",
-      "Cookies",
-    );
-    const fakeBrowserSecret = "persisted-browser-secret-must-not-be-reported";
-    mkdirSync(dirname(persistedBrowserCredential), { recursive: true });
-    writeFileSync(persistedBrowserCredential, fakeBrowserSecret);
-    const persistedBrowserStatus = run(
-      join(fixture.home, ".local", "bin", "interview-status"),
-      [],
-      fixture.env,
-    );
-    assert.equal(persistedBrowserStatus.status, 0, persistedBrowserStatus.stderr);
-    assert.match(
-      persistedBrowserStatus.stdout,
-      /Persisted browser authentication: PRESENT or unsafe \(path names only; readiness fails\)/,
-    );
-    const persistedBrowserFailure = runReadiness();
-    assert.equal(persistedBrowserFailure.status, 1);
-    assert.match(
-      `${persistedBrowserFailure.stdout}\n${persistedBrowserFailure.stderr}`,
-      /\[FAIL\] persisted browser authentication is absent/,
-    );
-    assert.equal(readFileSync(persistedBrowserCredential, "utf8"), fakeBrowserSecret);
-    assert.doesNotMatch(
-      `${persistedBrowserStatus.stdout}\n${persistedBrowserStatus.stderr}\n` +
-        `${persistedBrowserFailure.stdout}\n${persistedBrowserFailure.stderr}\n` +
-        readFileSync(join(fixture.home, "INTERVIEW_READY.md"), "utf8"),
-      new RegExp(fakeBrowserSecret),
-    );
-    rmSync(join(fixture.home, ".config", "google-chrome"), { recursive: true });
-    assert.equal(runReadiness().status, 0);
-
-    const persistedNpmConfiguration = join(fixture.home, ".npmrc");
-    const fakeNpmSecret = "persisted-npm-secret-must-not-be-reported";
-    writeFileSync(persistedNpmConfiguration, `//registry.npmjs.org/:_authToken=${fakeNpmSecret}\n`);
-    const persistedNpmStatus = run(
-      join(fixture.home, ".local", "bin", "interview-status"),
-      [],
-      fixture.env,
-    );
-    assert.equal(persistedNpmStatus.status, 0, persistedNpmStatus.stderr);
-    assert.match(
-      persistedNpmStatus.stdout,
-      /Persisted package-manager authentication: PRESENT or unsafe \(path names only; readiness fails\)/,
-    );
-    const persistedNpmFailure = runReadiness();
-    assert.equal(persistedNpmFailure.status, 1);
-    assert.match(
-      `${persistedNpmFailure.stdout}\n${persistedNpmFailure.stderr}`,
-      /\[FAIL\] persisted package-manager authentication is absent/,
-    );
-    assert.match(readFileSync(persistedNpmConfiguration, "utf8"), new RegExp(fakeNpmSecret));
-    assert.doesNotMatch(
-      `${persistedNpmStatus.stdout}\n${persistedNpmStatus.stderr}\n` +
-        `${persistedNpmFailure.stdout}\n${persistedNpmFailure.stderr}\n` +
-        readFileSync(join(fixture.home, "INTERVIEW_READY.md"), "utf8"),
-      new RegExp(fakeNpmSecret),
-    );
-    unlinkSync(persistedNpmConfiguration);
-    assert.equal(runReadiness().status, 0);
-
-    const persistedPipConfiguration = join(fixture.home, ".config", "pip", "pip.conf");
-    const fakePipSecret = "persisted-pip-secret-must-not-be-reported";
-    mkdirSync(dirname(persistedPipConfiguration), { recursive: true });
-    writeFileSync(
-      persistedPipConfiguration,
-      `[global]\nindex-url = https://candidate:${fakePipSecret}@example.invalid/simple\n`,
-    );
-    const persistedPipStatus = run(
-      join(fixture.home, ".local", "bin", "interview-status"),
-      [],
-      fixture.env,
-    );
-    assert.equal(persistedPipStatus.status, 0, persistedPipStatus.stderr);
-    assert.match(
-      persistedPipStatus.stdout,
-      /Persisted package-manager authentication: PRESENT or unsafe \(path names only; readiness fails\)/,
-    );
-    const persistedPipFailure = runReadiness();
-    assert.equal(persistedPipFailure.status, 1);
-    assert.match(
-      `${persistedPipFailure.stdout}\n${persistedPipFailure.stderr}`,
-      /\[FAIL\] persisted package-manager authentication is absent/,
-    );
-    assert.match(readFileSync(persistedPipConfiguration, "utf8"), new RegExp(fakePipSecret));
-    assert.doesNotMatch(
-      `${persistedPipStatus.stdout}\n${persistedPipStatus.stderr}\n` +
-        `${persistedPipFailure.stdout}\n${persistedPipFailure.stderr}\n` +
-        readFileSync(join(fixture.home, "INTERVIEW_READY.md"), "utf8"),
-      new RegExp(fakePipSecret),
-    );
-    unlinkSync(persistedPipConfiguration);
-    assert.equal(runReadiness().status, 0);
-
-    const unknownCoderAuth = runReadiness({
+    const unknownCoderAuth = run(check, [], {
       ...fixture.env,
       FAKE_CODER_AUTH_STATE: "unavailable",
     });
@@ -3931,7 +2122,7 @@ test("readiness reports strict success and failure without network cloning", () 
       /\[FAIL\] Coder CLI is not authenticated for orchestration/,
     );
 
-    const failed = runReadiness({ ...fixture.env, FAKE_PYTEST_FAIL: "1" });
+    const failed = run(check, [], { ...fixture.env, FAKE_PYTEST_FAIL: "1" });
     assert.equal(failed.status, 1);
     assert.match(failed.stdout, /INTERVIEW WORKSPACE NOT READY/);
     assert.match(
@@ -3943,251 +2134,45 @@ test("readiness reports strict success and failure without network cloning", () 
   }
 });
 
-test("interview-claude brokers an encrypted browser handoff without exposing the key", async (t) => {
+test("interview-claude masks and scopes the temporary key without persisting it", async (t) => {
   if (!existsSync("/usr/bin/script")) {
     t.skip("util-linux script command is unavailable");
     return;
   }
   const fixture = createFixture();
   installHelpers(fixture);
-  mkdirSync(join(fixture.home, ".claude"), { recursive: true });
-  const helper = fixture.trustedClaudeLauncher;
+  const helper = join(fixture.home, ".local", "bin", "interview-claude");
   const fakeKey = "temporary-interview-key-should-never-persist";
-  let capturedRequest;
-  const upstream = createServer((request, response) => {
-    const chunks = [];
-    request.on("data", (chunk) => chunks.push(chunk));
-    request.on("end", () => {
-      capturedRequest = {
-        body: Buffer.concat(chunks).toString("utf8"),
-        headers: request.headers,
-        method: request.method,
-        rawHeaders: request.rawHeaders,
-        url: request.url,
-      };
-      response.writeHead(200, { "Content-Type": "application/json" });
-      response.end('{"broker":"ok"}');
-    });
-  });
-  await new Promise((resolve, reject) => {
-    upstream.once("error", reject);
-    upstream.listen(0, "127.0.0.1", resolve);
-  });
-  t.after(
-    () =>
-      new Promise((resolve) => {
-        upstream.close(resolve);
-      }),
-  );
-  const upstreamAddress = upstream.address();
-  assert.equal(typeof upstreamAddress, "object");
-  const handoffReservation = createServer();
-  await new Promise((resolve, reject) => {
-    handoffReservation.once("error", reject);
-    handoffReservation.listen(0, "127.0.0.1", resolve);
-  });
-  const handoffAddress = handoffReservation.address();
-  assert.equal(typeof handoffAddress, "object");
-  const handoffPort = handoffAddress.port;
-  await new Promise((resolve, reject) => {
-    handoffReservation.close((error) => (error ? reject(error) : resolve()));
-  });
-  chmodSync(helper, 0o755);
-  writeFileSync(
-    helper,
-    renderInterviewClaudeScript(
-      join(fixture.bin, "claude"),
-      fixture.trustedClaudeGuard,
-      fixture.interviewRepository,
-      fixture.home,
-      "127.0.0.1",
-      upstreamAddress.port,
-      false,
-      handoffPort,
-    ),
-  );
-  chmodSync(helper, 0o555);
-  const launchDirectory = join(fixture.root, "launch");
-  const launchSocket = join(launchDirectory, "claude.sock");
-  mkdirSync(launchDirectory);
-  const runtime = spawn(helper, ["--serve", launchSocket], {
-    env: fixture.env,
-    stdio: ["ignore", "pipe", "pipe"],
-  });
-  let runtimeStderr = "";
-  runtime.stderr.setEncoding("utf8");
-  runtime.stderr.on("data", (chunk) => {
-    runtimeStderr += chunk;
-  });
-  t.after(
-    () =>
-      new Promise((resolve) => {
-        if (runtime.exitCode !== null) {
-          resolve();
-          return;
-        }
-        runtime.once("close", resolve);
-        runtime.kill("SIGTERM");
-      }),
-  );
-  for (let attempt = 0; attempt < 200 && !existsSync(launchSocket); attempt += 1) {
-    await new Promise((resolve) => setTimeout(resolve, 25));
-  }
-  assert.equal(existsSync(launchSocket), true, runtimeStderr);
-  assert.equal(runtime.exitCode, null, runtimeStderr);
-  let handoffPage = "";
-  for (let attempt = 0; attempt < 200; attempt += 1) {
-    try {
-      const response = await fetch(`http://127.0.0.1:${handoffPort}/`);
-      if (response.ok) {
-        handoffPage = await response.text();
-        break;
-      }
-    } catch {
-      // The protected runtime is still generating its ephemeral RSA key.
-    }
-    await new Promise((resolve) => setTimeout(resolve, 25));
-  }
-  assert.match(handoffPage, /Interview Claude Key/);
-  const publicKeyMatch = handoffPage.match(/const publicKeyB64="([A-Za-z0-9+/=]+)"/);
-  assert.ok(publicKeyMatch);
-  const publicKey = await webcrypto.subtle.importKey(
-    "spki",
-    Buffer.from(publicKeyMatch[1], "base64"),
-    { name: "RSA-OAEP", hash: "SHA-256" },
-    false,
-    ["encrypt"],
-  );
-  const handoffKey = async (pairingCode) => {
-    const encryptedKey = await webcrypto.subtle.encrypt(
-      { name: "RSA-OAEP" },
-      publicKey,
-      new TextEncoder().encode(fakeKey),
-    );
-    return fetch(`http://127.0.0.1:${handoffPort}/handoff`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        pairing_code: pairingCode,
-        encrypted_key: Buffer.from(encryptedKey).toString("base64"),
-      }),
-    });
-  };
-  const stalledClient = spawnSync(
-    "/usr/bin/python3",
-    [
-      "-I",
-      "-c",
-      "import socket,sys,time; s=socket.socket(socket.AF_UNIX); s.connect(sys.argv[1]); s.sendall(b'H'); time.sleep(0.75); s.close()",
-      launchSocket,
-    ],
-    { encoding: "utf8" },
-  );
-  assert.equal(stalledClient.status, 0, stalledClient.stderr);
-  assert.equal(runtime.exitCode, null, runtimeStderr);
-  for (let attempt = 0; attempt < 10; attempt += 1) {
-    const disconnectedClient = spawnSync(
-      "/usr/bin/python3",
-      [
-        "-I",
-        "-c",
-        [
-          "import socket,struct,sys,time",
-          "s=socket.socket(socket.AF_UNIX)",
-          "s.connect(sys.argv[1])",
-          "s.sendall(struct.pack('!16sIIHH',b'HIVECLAUDEv7\\0\\0\\0\\0',0,0,24,80))",
-          "header=s.recv(5)",
-          "assert len(header)==5",
-          "frame_type,length=struct.unpack('!BI',header)",
-          "payload=b''",
-          "while len(payload)<length: payload+=s.recv(length-len(payload))",
-          "assert frame_type==6 and len(payload)==32",
-          "s.close()",
-          "time.sleep(0.15)",
-        ].join("\n"),
-        launchSocket,
-      ],
-      { encoding: "utf8" },
-    );
-    assert.equal(
-      disconnectedClient.status,
-      0,
-      `disconnected launch ${attempt + 1} consumed a pending slot: ${disconnectedClient.stderr}`,
-    );
-  }
-  assert.equal(runtime.exitCode, null, runtimeStderr);
-  const launcherHijackMarker = join(fixture.root, "candidate-launcher-ran");
-  executable(
-    join(fixture.home, ".local", "bin", "interview-claude"),
-    `#!/bin/sh\n: > "${launcherHijackMarker}"\nexit 1\n`,
-  );
-  const pathHijackMarker = join(fixture.root, "candidate-claude-ran");
-  executable(
-    join(fixture.home, ".local", "bin", "claude"),
-    `#!/bin/sh\n: > "${pathHijackMarker}"\nprintf '2.1.170 (Claude Code)\\n'\n`,
-  );
-  const command = `${helper} --client ${launchSocket} --fixture-hold --model test-model -- 'argument with spaces'`;
-  let confirmFirstHandoff;
-  let rejectFirstHandoff;
-  const firstHandoff = new Promise((resolve, reject) => {
-    confirmFirstHandoff = resolve;
-    rejectFirstHandoff = reject;
-  });
-  const resultPromise = new Promise((resolve, reject) => {
+  const command = `${helper} --model test-model -- 'argument with spaces'`;
+  const result = await new Promise((resolve, reject) => {
     const child = spawn("/usr/bin/script", ["-qefc", command, "/dev/null"], {
       env: {
         ...fixture.env,
         ANTHROPIC_API_KEY: "inherited-key-must-be-overridden",
         CODER_AGENT_TOKEN: "must-not-reach-claude",
         CODER_SESSION_TOKEN: "must-not-reach-claude",
-        GIT_ASKPASS: "must-not-reach-claude",
-        GIT_CONFIG: join(fixture.root, "personal-git-config"),
-        GIT_CONFIG_COUNT: "1",
-        GIT_CONFIG_PARAMETERS: "'http.extraHeader=must-not-reach-claude'",
-        GIT_PROXY_COMMAND: "must-not-reach-claude",
-        GIT_SSH: "must-not-reach-claude",
-        GIT_SSH_COMMAND: "must-not-reach-claude",
+        EXPECTED_CLAUDE_KEY: fakeKey,
         GH_TOKEN: "must-not-reach-claude",
         GITHUB_TOKEN: "must-not-reach-claude",
         REALM_VISUAL_REVIEW_API_KEY: "must-not-reach-claude",
         RUNCOMFY_API_TOKEN: "must-not-reach-claude",
-        SSH_AGENT_PID: "4242",
-        SSH_ASKPASS: "must-not-reach-claude",
-        SSH_AUTH_SOCK: join(fixture.root, "personal-agent.sock"),
       },
       stdio: ["pipe", "pipe", "pipe"],
     });
     let stdout = "";
     let stderr = "";
-    let handoffStarted = false;
+    let keySent = false;
     const timeout = setTimeout(() => {
       child.kill("SIGKILL");
-      reject(
-        new Error(
-          `encrypted Claude handoff timed out\nstdout: ${stdout}\nstderr: ${stderr}\nruntime: ${runtimeStderr}`,
-        ),
-      );
+      reject(new Error("masked Claude prompt timed out"));
     }, 30_000);
     child.stdout.setEncoding("utf8");
     child.stderr.setEncoding("utf8");
-    child.stdout.on("data", async (chunk) => {
+    child.stdout.on("data", (chunk) => {
       stdout += chunk;
-      const pairing = stdout.match(/Pairing code: ([A-Za-z0-9_-]{32})/);
-      if (!handoffStarted && pairing) {
-        handoffStarted = true;
-        try {
-          const response = await handoffKey(pairing[1]);
-          const responseBody = await response.text();
-          if (!response.ok) {
-            throw new Error(`key handoff failed: ${response.status} ${responseBody}`);
-          }
-          confirmFirstHandoff();
-        } catch (error) {
-          clearTimeout(timeout);
-          child.kill("SIGKILL");
-          rejectFirstHandoff(error);
-          reject(error);
-        }
+      if (!keySent && stdout.includes("Temporary Anthropic API key:")) {
+        keySent = true;
+        child.stdin.write(`${fakeKey}\n`);
       }
     });
     child.stderr.on("data", (chunk) => {
@@ -4200,90 +2185,14 @@ test("interview-claude brokers an encrypted browser handoff without exposing the
     });
   });
 
-  await firstHandoff;
-  const busyCommand = `${helper} --client ${launchSocket} --model second-session`;
-  const busyResult = await new Promise((resolve, reject) => {
-    const child = spawn("/usr/bin/script", ["-qefc", busyCommand, "/dev/null"], {
-      env: fixture.env,
-      stdio: ["pipe", "pipe", "pipe"],
-    });
-    let stdout = "";
-    let stderr = "";
-    let handoffStarted = false;
-    let handoffStatus = 0;
-    const timeout = setTimeout(() => {
-      child.kill("SIGKILL");
-      reject(new Error(`concurrent launch did not fail promptly: ${stdout} ${stderr}`));
-    }, 10_000);
-    child.stdout.setEncoding("utf8");
-    child.stderr.setEncoding("utf8");
-    child.stdout.on("data", async (chunk) => {
-      stdout += chunk;
-      const pairing = stdout.match(/Pairing code: ([A-Za-z0-9_-]{32})/);
-      if (!handoffStarted && pairing) {
-        handoffStarted = true;
-        try {
-          const response = await handoffKey(pairing[1]);
-          handoffStatus = response.status;
-          await response.text();
-        } catch (error) {
-          clearTimeout(timeout);
-          child.kill("SIGKILL");
-          reject(error);
-        }
-      }
-    });
-    child.stderr.on("data", (chunk) => {
-      stderr += chunk;
-    });
-    child.on("error", reject);
-    child.on("close", (status) => {
-      clearTimeout(timeout);
-      resolve({ status, stderr, stdout, handoffStatus });
-    });
-  });
-  assert.equal(busyResult.handoffStatus, 409);
-  assert.equal(busyResult.status, 1, `${busyResult.stderr}\n${busyResult.stdout}`);
-  assert.match(busyResult.stdout, /Another Interview Claude session is active/);
-
-  const result = await resultPromise;
-
-  assert.equal(result.status, 0, `${result.stderr}\n${result.stdout}`);
+  assert.equal(result.status, 0, result.stderr);
   assert.doesNotMatch(result.stdout, new RegExp(fakeKey));
   assert.doesNotMatch(result.stderr, new RegExp(fakeKey));
-  assert.equal(existsSync(launcherHijackMarker), false);
-  assert.equal(existsSync(pathHijackMarker), false);
-  assert.equal(capturedRequest?.body, '{"fixture":true}');
-  assert.equal(capturedRequest?.method, "POST");
-  assert.equal(capturedRequest?.url, "/v1/messages?fixture=1");
-  assert.equal(capturedRequest?.headers["x-api-key"], fakeKey);
-  assert.equal(capturedRequest?.headers.authorization, undefined);
-  assert.equal(capturedRequest?.headers.host, "127.0.0.1");
-  assert.equal(capturedRequest?.headers["anthropic-version"], "2023-06-01");
-  assert.equal(
-    capturedRequest?.rawHeaders.filter(
-      (_header, index) => index % 2 === 0 && _header.toLowerCase() === "content-length",
-    ).length,
-    1,
-  );
-  assert.equal(readFileSync(fixture.claudeBrokerResponse, "utf8"), '{"broker":"ok"}');
-  assert.equal(readFileSync(fixture.claudeBrokerChildProbe, "utf8"), "blocked\n");
-  const childEnvironment = readFileSync(fixture.claudeChildEnv, "utf8");
-  assert.doesNotMatch(childEnvironment, new RegExp(fakeKey));
-  assert.match(childEnvironment, /ANTHROPIC_API_KEY=hive-interview-broker-managed-non-secret/);
-  assert.match(childEnvironment, /CLAUDE_CODE_SUBPROCESS_ENV_SCRUB=0/);
-  assert.equal(readFileSync(fixture.claudeProcProbe, "utf8"), "blocked\n");
   assert.equal(
     readFileSync(fixture.claudeArgs, "utf8"),
-    "<--fixture-hold>\n<--model>\n<test-model>\n<-->\n<argument with spaces>\n",
+    "<--model>\n<test-model>\n<argument with spaces>\n",
   );
-  assert.deepEqual(
-    readdirSync(join(fixture.home, ".claude")).filter((entry) =>
-      entry.startsWith(".hive-interview-broker."),
-    ),
-    [],
-  );
-  for (const path of filesRecursively(fixture.root)) {
+  for (const path of filesRecursively(fixture.home)) {
     assert.equal(
       readFileSync(path).includes(Buffer.from(fakeKey)),
       false,
