@@ -22,6 +22,9 @@ export SSH_ASKPASS=/bin/false
 interview_repository="/workspace/projects/prmsolutions/interview-template"
 trusted_helper="/opt/hive-interview-tools/interview-claude"
 status_directory="/run/hive-interview-claude"
+playwright_mcp_version="0.0.79"
+staged_playwright_root="/opt/hive-interview-mcp/playwright-mcp-$playwright_mcp_version"
+staged_playwright_mcp="$staged_playwright_root/node_modules/.bin/playwright-mcp"
 
 for directory in "$HOME/.local" "$HOME/.local/bin" "$HOME/.claude"; do
   if [ -L "$directory" ] || { [ -e "$directory" ] && [ ! -d "$directory" ]; }; then
@@ -41,6 +44,34 @@ link_staging="$(/usr/bin/mktemp -d "$HOME/.local/bin/.interview-claude.XXXXXX")"
 /usr/bin/mv -fT -- "$link_staging/interview-claude" "$HOME/.local/bin/interview-claude"
 /usr/bin/rmdir -- "$link_staging"
 
+playwright_mcp_ready() {
+  local resolved_playwright_mcp
+  [ -x "$staged_playwright_mcp" ] || return 1
+  resolved_playwright_mcp="$(/usr/bin/readlink -f -- "$staged_playwright_mcp")" || return 1
+  case "$resolved_playwright_mcp" in
+    "$staged_playwright_root"/*) ;;
+    *) return 1 ;;
+  esac
+  "$staged_playwright_mcp" --version 2>/dev/null \
+    | /usr/bin/grep -qF -- "$playwright_mcp_version"
+}
+
+for _ in {1..180}; do
+  if playwright_mcp_ready; then
+    break
+  fi
+  /usr/bin/sleep 1
+done
+if ! playwright_mcp_ready; then
+  printf 'ERROR: isolated Claude Playwright MCP payload is unavailable\n' >&2
+  exit 1
+fi
+
+playwright_link_staging="$(/usr/bin/mktemp -d "$HOME/.local/bin/.playwright-mcp.XXXXXX")"
+/usr/bin/ln -s -- "$staged_playwright_mcp" "$playwright_link_staging/playwright-mcp"
+/usr/bin/mv -fT -- "$playwright_link_staging/playwright-mcp" "$HOME/.local/bin/playwright-mcp"
+/usr/bin/rmdir -- "$playwright_link_staging"
+
 projects_link_staging="$(/usr/bin/mktemp -d "$HOME/.projects.XXXXXX")"
 /usr/bin/ln -s -- /workspace/projects "$projects_link_staging/projects"
 /usr/bin/mv -fT -- "$projects_link_staging/projects" "$HOME/projects"
@@ -57,11 +88,19 @@ fi
 /usr/bin/chmod 600 "$temporary_context"
 /usr/bin/mv -fT -- "$temporary_context" "$HOME/.claude/CLAUDE.md"
 
+temporary_mcp="$(/usr/bin/mktemp "$HOME/.claude/.mcp.json.XXXXXX")"
+/usr/bin/printf '%s\n' \
+  '{"mcpServers":{"playwright":{"command":"/home/coder/.local/bin/playwright-mcp","args":["--browser","chrome","--no-sandbox","--isolated"]}}}' \
+  > "$temporary_mcp"
+/usr/bin/chmod 600 "$temporary_mcp"
+/usr/bin/mv -fT -- "$temporary_mcp" "$HOME/.claude/mcp.json"
+
 temporary_readme="$(/usr/bin/mktemp "$HOME/.README.XXXXXX")"
 /usr/bin/printf '%s\n' \
   'Isolated Claude interview agent' \
   '' \
   'Run interview-claude from this terminal when the interviewer provides the temporary key.' \
+  'Playwright MCP uses the image Chrome with browser state confined to this ephemeral home.' \
   'Only /workspace/projects is shared with the main development container.' \
   > "$temporary_readme"
 /usr/bin/chmod 600 "$temporary_readme"

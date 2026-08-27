@@ -97,7 +97,21 @@ if [ -f "$version_marker" ] && [ ! -L "$version_marker" ]; then
   installed_version="$(cat "$version_marker")"
 fi
 
-if [ ! -x "$binary" ] || [ "$installed_version" != "$filebrowser_version" ]; then
+filebrowser_binary_ready() {
+  local candidate_binary=$1 version_output
+  [ -f "$candidate_binary" ] \
+    && [ ! -L "$candidate_binary" ] \
+    && [ -x "$candidate_binary" ] \
+    || return 1
+  version_output="$(timeout 5 "$candidate_binary" version 2>/dev/null)" || return 1
+  case "$version_output" in
+    "File Browser v$filebrowser_version/"*) ;;
+    *) return 1 ;;
+  esac
+}
+
+if ! filebrowser_binary_ready "$binary" \
+  || [ "$installed_version" != "$filebrowser_version" ]; then
   temp_dir="$(mktemp -d)"
   binary_temporary=""
   marker_temporary=""
@@ -112,6 +126,7 @@ if [ ! -x "$binary" ] || [ "$installed_version" != "$filebrowser_version" ]; the
   curl -fsSLo "$temp_dir/$archive" --retry 3 --retry-delay 2 "$download_url"
   printf '%s  %s\n' "$checksum" "$temp_dir/$archive" | sha256sum --check --status
   tar -xzf "$temp_dir/$archive" -C "$temp_dir" filebrowser
+  filebrowser_binary_ready "$temp_dir/filebrowser"
   binary_temporary="$(mktemp "$(dirname "$binary")/.filebrowser.XXXXXX")"
   cp -- "$temp_dir/filebrowser" "$binary_temporary"
   chmod 0755 "$binary_temporary"

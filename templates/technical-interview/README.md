@@ -30,7 +30,9 @@ Generic SSH and Web Terminal buttons are hidden for the dedicated Claude agent. 
 container cannot enter its process namespace. The non-dumpable launcher retains the real key in a
 loopback broker that forwards only Anthropic v1 API paths to `api.anthropic.com`; Claude and all
 candidate-controlled commands receive only a non-secret placeholder. Claude also enables its
-built-in subprocess credential scrub for hooks, shell commands, and stdio MCP servers.
+built-in subprocess credential scrub for hooks, shell commands, and stdio MCP servers. The pinned
+Playwright MCP payload is copied into a pod-local volume and mounted read-only into the isolated
+Claude container, while its browser profile remains confined to Claude's ephemeral home.
 
 The first startup verifies Codex `0.149.1`, Playwright MCP `0.0.79`, Bun `1.4.0`, and pnpm `10.32.1`.
 Exact matching Codex and Bun commands from the image baseline are reused; missing or mismatched tools

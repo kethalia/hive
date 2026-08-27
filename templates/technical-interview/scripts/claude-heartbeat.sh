@@ -12,6 +12,11 @@ unset SSH_AUTH_SOCK SSH_AGENT_PID
 status_directory="/run/hive-interview-claude"
 trusted_helper="/opt/hive-interview-tools/interview-claude"
 installed_helper="$HOME/.local/bin/interview-claude"
+playwright_mcp_version="0.0.79"
+staged_playwright_root="/opt/hive-interview-mcp/playwright-mcp-$playwright_mcp_version"
+staged_playwright_mcp="$staged_playwright_root/node_modules/.bin/playwright-mcp"
+installed_playwright_mcp="$HOME/.local/bin/playwright-mcp"
+playwright_mcp_config="$HOME/.claude/mcp.json"
 
 if [ -L "$status_directory" ] || [ ! -d "$status_directory" ]; then
   exit 1
@@ -21,6 +26,28 @@ if [ ! -f "$trusted_helper" ] || [ -L "$trusted_helper" ] || [ ! -x "$trusted_he
 fi
 if [ ! -L "$installed_helper" ] \
   || [ "$(/usr/bin/readlink -- "$installed_helper")" != "$trusted_helper" ]; then
+  exit 1
+fi
+if [ ! -L "$installed_playwright_mcp" ] \
+  || [ "$(/usr/bin/readlink -- "$installed_playwright_mcp")" != "$staged_playwright_mcp" ] \
+  || [ ! -x "$staged_playwright_mcp" ]; then
+  exit 1
+fi
+resolved_playwright_mcp="$(/usr/bin/readlink -f -- "$staged_playwright_mcp")" || exit 1
+case "$resolved_playwright_mcp" in
+  "$staged_playwright_root"/*) ;;
+  *) exit 1 ;;
+esac
+if ! "$staged_playwright_mcp" --version 2>/dev/null \
+  | /usr/bin/grep -qF -- "$playwright_mcp_version"; then
+  exit 1
+fi
+if [ ! -f "$playwright_mcp_config" ] \
+  || [ -L "$playwright_mcp_config" ] \
+  || ! /usr/bin/grep -qF -- '"command":"/home/coder/.local/bin/playwright-mcp"' \
+    "$playwright_mcp_config" \
+  || ! /usr/bin/grep -qF -- '"--browser","chrome","--no-sandbox","--isolated"' \
+    "$playwright_mcp_config"; then
   exit 1
 fi
 

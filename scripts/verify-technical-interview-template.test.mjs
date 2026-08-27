@@ -8,6 +8,7 @@ import {
   lstatSync,
   mkdirSync,
   mkdtempSync,
+  readlinkSync,
   readdirSync,
   readFileSync,
   rmSync,
@@ -138,6 +139,7 @@ function renderBootstrapScript(
   trustedClaudeLauncher,
   trustedClaudeGuard,
   claudeStatus,
+  claudeMcpStage,
   chromeBinary,
   interviewRepository,
 ) {
@@ -165,6 +167,14 @@ function renderBootstrapScript(
     .replace(
       'INTERVIEW_CLAUDE_STATUS="/run/hive-interview-claude/ready"',
       `INTERVIEW_CLAUDE_STATUS="${claudeStatus}"`,
+    )
+    .replace(
+      'interview_claude_mcp_stage="/run/hive-interview-claude-mcp"',
+      `interview_claude_mcp_stage="${claudeMcpStage}"`,
+    )
+    .replace(
+      "for system_binary in /usr/bin/rg /usr/local/bin/rg; do",
+      `for system_binary in "${dirname(trustedClaude)}/rg" "${dirname(trustedClaude)}/missing-rg"; do`,
     )
     .replace(
       'INTERVIEW_CHROME_BIN="/usr/bin/google-chrome-stable"',
@@ -242,10 +252,12 @@ function createFixture() {
   const claudeBrokerResponse = join(root, "claude-broker-response.log");
   const claudeChildEnv = join(root, "claude-child-env.log");
   const claudeProcProbe = join(root, "claude-proc-probe.log");
+  const claudeMcpStage = join(root, "claude-mcp-stage");
   const interviewRepository = join(home, "projects", "prmsolutions", "interview-template");
   mkdirSync(join(interviewRepository, "backend", "tests"), { recursive: true });
   mkdirSync(join(interviewRepository, "frontend"), { recursive: true });
   mkdirSync(bin, { recursive: true });
+  mkdirSync(claudeMcpStage);
   mkdirSync(tmuxRoot, { recursive: true });
   seedSafeInterviewEnvironment(home);
   writeFileSync(calls, "");
@@ -731,6 +743,7 @@ esac
   return {
     bin,
     calls,
+    claudeMcpStage,
     claudeStatus,
     claudeArgs,
     claudeBrokerResponse,
@@ -759,6 +772,7 @@ function installHelpers(fixture) {
       fixture.trustedClaudeLauncher,
       fixture.trustedClaudeGuard,
       fixture.claudeStatus,
+      fixture.claudeMcpStage,
       join(fixture.bin, "google-chrome-stable"),
       fixture.interviewRepository,
     ),
@@ -847,6 +861,14 @@ test("standalone Terraform exposes interview apps without personal auth modules"
     terraform,
     /mount_path\s*=\s*"\/opt\/hive-interview-tools"[\s\S]*?read_only\s*=\s*true/,
   );
+  assert.match(
+    terraform,
+    /name\s*=\s*"claude-mcp"[\s\S]*?mount_path\s*=\s*"\/run\/hive-interview-claude-mcp"/,
+  );
+  assert.match(
+    terraform,
+    /name\s*=\s*"claude-mcp"[\s\S]*?mount_path\s*=\s*"\/opt\/hive-interview-mcp"[\s\S]*?read_only\s*=\s*true/,
+  );
   assert.doesNotMatch(terraform, /sub_path\s*=\s*"interview-claude"/);
   assert.match(terraform, /empty_dir\s*\{[\s\S]*?size_limit\s*=\s*"512Mi"/);
   assert.match(stageTrustedTools, /\/home\/coder\/\.local\/share\/claude\/versions\/\*/);
@@ -875,7 +897,10 @@ test("standalone Terraform exposes interview apps without personal auth modules"
   assert.doesNotMatch(interviewClaude, /command -v claude|exec claude/);
   assert.match(initClaude, /PATH="\/usr\/local\/sbin:[^"]+"/);
   assert.match(initClaude, /isolated-claude-agent-ready-v2/);
+  assert.match(initClaude, /\/opt\/hive-interview-mcp\/playwright-mcp-/);
+  assert.match(initClaude, /"--browser","chrome","--no-sandbox","--isolated"/);
   assert.match(claudeHeartbeat, /isolated-claude-agent-ready-v2/);
+  assert.match(claudeHeartbeat, /playwright_mcp_config/);
   assert.doesNotMatch(initClaude, /\/home\/coder\/projects/);
   assert.match(terraform, /"git\.autofetch"\s*:\s*false/);
   assert.doesNotMatch(terraform, /"git\.autofetch"\s*:\s*true/);
@@ -1036,6 +1061,14 @@ test("isolated Claude agent startup uses an ephemeral home and trusted command p
   const home = join(root, "home");
   const repository = join(root, "projects", "prmsolutions", "interview-template");
   const trustedHelper = join(root, "trusted-tools", "interview-claude");
+  const claudeMcpStage = join(root, "claude-mcp-stage");
+  const stagedPlaywright = join(
+    claudeMcpStage,
+    "playwright-mcp-0.0.79",
+    "node_modules",
+    ".bin",
+    "playwright-mcp",
+  );
   const statusDirectory = join(root, "status");
   const renderedInit = join(root, "init-claude.sh");
   const candidateMarker = join(root, "candidate-command-ran");
@@ -1044,8 +1077,10 @@ test("isolated Claude agent startup uses an ephemeral home and trusted command p
   mkdirSync(join(home, ".local", "bin"), { recursive: true });
   mkdirSync(repository, { recursive: true });
   mkdirSync(dirname(trustedHelper), { recursive: true });
+  mkdirSync(dirname(stagedPlaywright), { recursive: true });
   mkdirSync(statusDirectory);
   executable(trustedHelper, "#!/bin/sh\nexit 0\n");
+  executable(stagedPlaywright, "#!/bin/sh\nprintf 'Version 0.0.79\\n'\n");
   executable(
     join(home, ".local", "bin", "base64"),
     `#!/bin/sh\n: > "${candidateMarker}"\nexit 1\n`,
@@ -1055,6 +1090,7 @@ test("isolated Claude agent startup uses an ephemeral home and trusted command p
     readFileSync(initClaudeScript, "utf8")
       .replaceAll("/workspace/projects/prmsolutions/interview-template", repository)
       .replaceAll("/opt/hive-interview-tools/interview-claude", trustedHelper)
+      .replaceAll("/opt/hive-interview-mcp", claudeMcpStage)
       .replaceAll("/run/hive-interview-claude", statusDirectory)
       .replace(contextPlaceholder, Buffer.from(context).toString("base64")),
   );
@@ -1070,8 +1106,18 @@ test("isolated Claude agent startup uses an ephemeral home and trusted command p
   assert.equal(result.status, 0, result.stderr);
   assert.equal(existsSync(candidateMarker), false);
   assert.equal(lstatSync(join(home, ".local", "bin", "interview-claude")).isSymbolicLink(), true);
+  assert.equal(lstatSync(join(home, ".local", "bin", "playwright-mcp")).isSymbolicLink(), true);
+  assert.equal(readlinkSync(join(home, ".local", "bin", "playwright-mcp")), stagedPlaywright);
   assert.equal(lstatSync(join(home, "projects")).isSymbolicLink(), true);
   assert.equal(readFileSync(join(home, ".claude", "CLAUDE.md"), "utf8"), context);
+  assert.deepEqual(JSON.parse(readFileSync(join(home, ".claude", "mcp.json"), "utf8")), {
+    mcpServers: {
+      playwright: {
+        command: "/home/coder/.local/bin/playwright-mcp",
+        args: ["--browser", "chrome", "--no-sandbox", "--isolated"],
+      },
+    },
+  });
   assert.match(
     readFileSync(join(statusDirectory, "ready"), "utf8"),
     /^isolated-claude-agent-ready-v2 [0-9]+\n$/,
@@ -1082,6 +1128,7 @@ test("isolated Claude agent startup uses an ephemeral home and trusted command p
     renderedHeartbeat,
     readFileSync(claudeHeartbeatScript, "utf8")
       .replaceAll("/opt/hive-interview-tools/interview-claude", trustedHelper)
+      .replaceAll("/opt/hive-interview-mcp", claudeMcpStage)
       .replaceAll("/run/hive-interview-claude", statusDirectory),
   );
   unlinkSync(join(statusDirectory, "ready"));
@@ -1657,6 +1704,7 @@ test("File Browser installation atomically replaces symlinks without touching th
   const markerTarget = join(root, "candidate-version");
   const renderedToolsFilebrowser = join(root, "rendered-tools-filebrowser.sh");
   const runningMarker = join(root, "filebrowser-running");
+  const downloads = join(root, "filebrowser-downloads.log");
   mkdirSync(localBin, { recursive: true });
   mkdirSync(localShare, { recursive: true });
   mkdirSync(logDirectory, { recursive: true });
@@ -1679,6 +1727,7 @@ set -euo pipefail
 ${claudeCredentialAssertions}
 if [ "\${1:-}" = "-fsSLo" ]; then
   : > "$2"
+  printf 'download\\n' >> "$FAKE_FILEBROWSER_DOWNLOADS"
 elif [[ "$*" == *'/health'* ]]; then
   [ -f "$FAKE_FILEBROWSER_RUNNING" ]
 elif [[ "$*" == *'/api/login'* ]]; then
@@ -1703,6 +1752,7 @@ set -euo pipefail
 [ -z "\${CODER_AGENT_TOKEN:-}" ]
 ${claudeCredentialAssertions}
 case "\${1:-}" in
+  version) printf 'File Browser v2.63.18/fixture\\n' ;;
   config)
     case "\${2:-}" in
       init) printf 'valid-database\\n' > "$FB_DATABASE" ;;
@@ -1719,12 +1769,13 @@ chmod 755 "$destination/filebrowser"
   );
   writeFileSync(renderedToolsFilebrowser, renderToolsFilebrowserScript(`${bin}:/usr/bin:/bin`));
 
-  const result = run("bash", [renderedToolsFilebrowser], {
+  const filebrowserEnvironment = {
     ...process.env,
     ANTHROPIC_AUTH_TOKEN: "must-not-reach-filebrowser-tools",
     CLAUDE_CODE_OAUTH_TOKEN: "must-not-reach-filebrowser-tools",
     CODER_AGENT_TOKEN: "must-not-reach-filebrowser-tools",
     CODER_SESSION_TOKEN: "must-not-reach-filebrowser-tools",
+    FAKE_FILEBROWSER_DOWNLOADS: downloads,
     FAKE_FILEBROWSER_RUNNING: runningMarker,
     GH_TOKEN: "must-not-reach-filebrowser-tools",
     GITHUB_TOKEN: "must-not-reach-filebrowser-tools",
@@ -1732,7 +1783,8 @@ chmod 755 "$destination/filebrowser"
     HIVE_PROJECTS_ROOT: home,
     HOME: home,
     PATH: `${localBin}:${bin}:/usr/bin:/bin`,
-  });
+  };
+  const result = run("bash", [renderedToolsFilebrowser], filebrowserEnvironment);
   assert.equal(result.status, 0, result.stderr);
   assert.equal(existsSync(hijackMarker), false);
   assert.equal(readFileSync(binaryTarget, "utf8"), "preserve candidate binary\n");
@@ -1747,6 +1799,14 @@ chmod 755 "$destination/filebrowser"
   assert.equal(statSync(logFile).mode & 0o777, 0o600);
   assert.equal(statSync(versionMarker).mode & 0o777, 0o600);
   assert.equal(readFileSync(versionMarker, "utf8"), "2.63.18\n");
+  assert.equal(readFileSync(downloads, "utf8"), "download\n");
+
+  executable(binary, "#!/bin/sh\nexit 1\n");
+  if (existsSync(runningMarker)) unlinkSync(runningMarker);
+  const repaired = run("bash", [renderedToolsFilebrowser], filebrowserEnvironment);
+  assert.equal(repaired.status, 0, repaired.stderr);
+  assert.equal(readFileSync(downloads, "utf8"), "download\ndownload\n");
+  assert.match(readFileSync(binary, "utf8"), /File Browser v2\.63\.18/);
 });
 
 test("File Browser atomically rebuilds an interrupted managed database", () => {
@@ -1770,6 +1830,7 @@ test("File Browser atomically rebuilds an interrupted managed database", () => {
     `#!/bin/bash
 set -euo pipefail
 case "\${1:-}" in
+  version) printf 'File Browser v2.63.18/fixture\\n' ;;
   config)
     case "\${2:-}" in
       cat) grep -q '^valid-database$' "$FB_DATABASE" ;;
@@ -2304,6 +2365,16 @@ test("fresh bootstrap installs the pinned standalone toolchain idempotently", ()
     assert.equal(result.status, 0, result.stderr);
     assert.match(result.stdout, new RegExp(version.replaceAll(".", "\\.")));
   }
+  const stagedPlaywright = join(
+    fixture.claudeMcpStage,
+    "playwright-mcp-0.0.79",
+    "node_modules",
+    ".bin",
+    "playwright-mcp",
+  );
+  const stagedVersion = run(stagedPlaywright, ["--version"], fixture.env);
+  assert.equal(stagedVersion.status, 0, stagedVersion.stderr);
+  assert.equal(stagedVersion.stdout.trim(), "Version 0.0.79");
 
   const firstCalls = readFileSync(fixture.calls, "utf8");
   for (const packageName of [

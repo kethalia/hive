@@ -21,6 +21,7 @@ export SSH_ASKPASS=/bin/false
 interview_bin_dir="$HOME/.local/bin"
 interview_libexec_dir="$HOME/.local/libexec/hive/technical-interview"
 interview_state_dir="$HOME/.local/state/hive/technical-interview"
+interview_claude_mcp_stage="/run/hive-interview-claude-mcp"
 interview_ripgrep_version="1.18.0"
 interview_codex_version="0.149.1"
 interview_playwright_mcp_version="0.0.79"
@@ -1773,9 +1774,6 @@ install_interview_ripgrep() {
     fi
   done
 
-  if command -v rg >/dev/null 2>&1; then
-    return 0
-  fi
   if [ -L "$managed_binary" ]; then
     existing_target="$(readlink -- "$managed_binary")"
     if [ "$existing_target" != "$packaged_binary" ]; then
@@ -1878,6 +1876,47 @@ install_interview_npm_tool() {
   interview_tool_version_matches "$managed_binary" "$package_version"
 }
 
+stage_interview_claude_playwright() {
+  local source_root source_binary staged_root staged_binary temporary_root
+  source_root="$interview_state_dir/tools/playwright-mcp-$interview_playwright_mcp_version"
+  source_binary="$source_root/node_modules/.bin/playwright-mcp"
+  staged_root="$interview_claude_mcp_stage/playwright-mcp-$interview_playwright_mcp_version"
+  staged_binary="$staged_root/node_modules/.bin/playwright-mcp"
+
+  if [ -L "$interview_claude_mcp_stage" ] || [ ! -d "$interview_claude_mcp_stage" ]; then
+    interview_warn "Claude MCP staging volume is unavailable"
+    return 1
+  fi
+  if ! interview_tool_version_matches "$source_binary" "$interview_playwright_mcp_version"; then
+    interview_warn "Pinned Playwright MCP source is unavailable for the isolated Claude agent"
+    return 1
+  fi
+  if [ -L "$staged_root" ] || { [ -e "$staged_root" ] && [ ! -d "$staged_root" ]; }; then
+    interview_warn "Preserving unsafe Claude MCP staging path: $staged_root"
+    return 1
+  fi
+  if interview_tool_version_matches "$staged_binary" "$interview_playwright_mcp_version"; then
+    return 0
+  fi
+
+  temporary_root="$(mktemp -d "$interview_claude_mcp_stage/.playwright-mcp.XXXXXX")" \
+    || return 1
+  if ! cp -a -- "$source_root/." "$temporary_root/" \
+    || ! interview_tool_version_matches \
+      "$temporary_root/node_modules/.bin/playwright-mcp" \
+      "$interview_playwright_mcp_version"; then
+    rm -rf -- "$temporary_root"
+    return 1
+  fi
+  if [ -d "$staged_root" ]; then
+    rm -rf -- "$staged_root"
+  fi
+  if ! mv -T -- "$temporary_root" "$staged_root"; then
+    rm -rf -- "$temporary_root"
+    return 1
+  fi
+}
+
 tool_failures=0
 install_interview_npm_tool \
   "Codex CLI" codex @openai/codex "$interview_codex_version" .bin/codex \
@@ -1892,6 +1931,8 @@ install_interview_npm_tool \
   || tool_failures=$((tool_failures + 1))
 install_interview_npm_tool \
   "pnpm" pnpm pnpm "$interview_pnpm_version" .bin/pnpm \
+  || tool_failures=$((tool_failures + 1))
+stage_interview_claude_playwright \
   || tool_failures=$((tool_failures + 1))
 
 if ((tool_failures > 0)); then

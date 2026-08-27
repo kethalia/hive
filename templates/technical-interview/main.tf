@@ -591,6 +591,11 @@ resource "kubernetes_deployment_v1" "workspace" {
             read_only  = true
           }
 
+          volume_mount {
+            name       = "claude-mcp"
+            mount_path = "/run/hive-interview-claude-mcp"
+          }
+
         }
 
         container {
@@ -656,6 +661,12 @@ resource "kubernetes_deployment_v1" "workspace" {
             name       = "claude-status"
             mount_path = "/run/hive-interview-claude"
           }
+
+          volume_mount {
+            name       = "claude-mcp"
+            mount_path = "/opt/hive-interview-mcp"
+            read_only  = true
+          }
         }
 
         volume {
@@ -687,6 +698,14 @@ resource "kubernetes_deployment_v1" "workspace" {
 
           empty_dir {
             size_limit = "1Mi"
+          }
+        }
+
+        volume {
+          name = "claude-mcp"
+
+          empty_dir {
+            size_limit = "512Mi"
           }
         }
       }
