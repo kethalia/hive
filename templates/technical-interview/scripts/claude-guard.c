@@ -193,7 +193,9 @@ __attribute__((constructor)) static void protect_claude_process(void) {
       unsetenv("LD_PRELOAD") != 0 || unsetenv("ANTHROPIC_AUTH_TOKEN") != 0 ||
       unsetenv("CLAUDE_CODE_OAUTH_TOKEN") != 0 ||
       unsetenv("CLAUDE_CODE_OAUTH_REFRESH_TOKEN") != 0 ||
-      unsetenv("CLAUDE_CODE_OAUTH_SCOPES") != 0) {
+      unsetenv("CLAUDE_CODE_OAUTH_SCOPES") != 0 ||
+      unsetenv("CLAUDE_CONFIG_DIR") != 0 ||
+      unsetenv("CLAUDE_SECURESTORAGE_CONFIG_DIR") != 0) {
     guard_failure();
   }
 }

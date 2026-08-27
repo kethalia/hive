@@ -7,6 +7,7 @@ export PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
 unset BASH_ENV ENV CDPATH LD_LIBRARY_PATH LD_PRELOAD
 unset ANTHROPIC_API_KEY ANTHROPIC_AUTH_TOKEN
 unset CLAUDE_CODE_OAUTH_TOKEN CLAUDE_CODE_OAUTH_REFRESH_TOKEN CLAUDE_CODE_OAUTH_SCOPES
+unset CLAUDE_CONFIG_DIR CLAUDE_SECURESTORAGE_CONFIG_DIR
 unset GH_TOKEN GITHUB_TOKEN CODER_AGENT_TOKEN CODER_SESSION_TOKEN
 unset GIT_CONFIG GIT_CONFIG_COUNT GIT_CONFIG_PARAMETERS GIT_PROXY_COMMAND GIT_SSH
 unset SSH_AUTH_SOCK SSH_AGENT_PID SSH_ASKPASS_REQUIRE
@@ -155,6 +156,8 @@ INTERVIEW_FORBIDDEN_CREDENTIALS=(
   CLAUDE_CODE_OAUTH_TOKEN
   CLAUDE_CODE_OAUTH_REFRESH_TOKEN
   CLAUDE_CODE_OAUTH_SCOPES
+  CLAUDE_CONFIG_DIR
+  CLAUDE_SECURESTORAGE_CONFIG_DIR
   GH_TOKEN
   GITHUB_TOKEN
   CODER_AGENT_TOKEN
@@ -555,7 +558,9 @@ interview_anonymous_git() {
     env \
       -u ANTHROPIC_API_KEY -u ANTHROPIC_AUTH_TOKEN \
       -u CLAUDE_CODE_OAUTH_TOKEN -u CLAUDE_CODE_OAUTH_REFRESH_TOKEN \
-      -u CLAUDE_CODE_OAUTH_SCOPES -u GH_TOKEN -u GITHUB_TOKEN \
+      -u CLAUDE_CODE_OAUTH_SCOPES \
+      -u CLAUDE_CONFIG_DIR -u CLAUDE_SECURESTORAGE_CONFIG_DIR \
+      -u GH_TOKEN -u GITHUB_TOKEN \
       -u CODER_AGENT_TOKEN -u CODER_SESSION_TOKEN \
       -u REALM_VISUAL_REVIEW_API_KEY -u RUNCOMFY_API_TOKEN \
       -u GIT_CONFIG -u GIT_CONFIG_COUNT -u GIT_CONFIG_PARAMETERS \
@@ -739,6 +744,23 @@ interview_git_transport_credentials_absent() {
     && [ "${SSH_ASKPASS:-}" = /bin/false ]
 }
 
+interview_claude_authentication_absent() {
+  local credential_path
+
+  # Claude Code's supported Linux credential store is the first path. The
+  # second is a legacy compatibility path still found in persisted homes.
+  # Preserve either user-owned path, but fail readiness rather than allowing
+  # the image-baked main-container Claude binary to reuse a personal login.
+  for credential_path in \
+    "$HOME/.claude/.credentials.json" \
+    "$HOME/.config/claude-code/auth.json"; do
+    if [ -e "$credential_path" ] || [ -L "$credential_path" ]; then
+      return 1
+    fi
+  done
+  return 0
+}
+
 interview_github_auth_json() {
   command -v gh >/dev/null 2>&1 || return 1
   timeout 5s env -u GH_TOKEN -u GITHUB_TOKEN \
@@ -772,6 +794,9 @@ interview_shell_scrub_ready() {
     "$environment_file" || return 1
   grep -qF \
     'unset CLAUDE_CODE_OAUTH_TOKEN CLAUDE_CODE_OAUTH_REFRESH_TOKEN CLAUDE_CODE_OAUTH_SCOPES' \
+    "$environment_file" || return 1
+  grep -qF \
+    'unset CLAUDE_CONFIG_DIR CLAUDE_SECURESTORAGE_CONFIG_DIR' \
     "$environment_file" || return 1
   grep -qF \
     'unset GH_TOKEN GITHUB_TOKEN CODER_AGENT_TOKEN CODER_SESSION_TOKEN' \
@@ -1557,6 +1582,11 @@ if interview_git_transport_credentials_absent; then
 else
   printf 'Persisted Git transport credentials: PRESENT or unsafe (names only; readiness fails)\n'
 fi
+if interview_claude_authentication_absent; then
+  printf 'Persisted Claude authentication: absent\n'
+else
+  printf 'Persisted Claude authentication: PRESENT or unsafe (path names only; readiness fails)\n'
+fi
 STATUSEOF
 
 install_interview_file "$interview_bin_dir/interview-check" 700 <<'CHECKEOF'
@@ -1644,6 +1674,10 @@ check_git_transport_credentials_absent() {
   interview_git_transport_credentials_absent
 }
 
+check_claude_authentication_absent() {
+  interview_claude_authentication_absent
+}
+
 run_check "expected repository exists" check_repository_exists
 run_check "origin is the expected public HTTPS repository" interview_origin_is_expected
 run_check "Python is at least 3.12" interview_python_supported
@@ -1685,6 +1719,8 @@ run_check "Coder CLI is not authenticated for orchestration" check_coder_not_aut
 run_check "Hive GitHub credential helper is absent" check_hive_helper_absent
 run_check "persisted Git and SSH transport credentials are absent" \
   check_git_transport_credentials_absent
+run_check "persisted Claude authentication is absent" \
+  check_claude_authentication_absent
 
 report_temporary="$(mktemp "$HOME/.INTERVIEW_READY.XXXXXX")"
 repository_commit="$(interview_repository_commit 2>/dev/null || printf unavailable)"
@@ -1740,7 +1776,7 @@ fi
   printf -- '- **Interview Claude** Coder app — run the fixed launcher and protected Anthropic request broker in the isolated credential container\n'
   printf '\n## Credential state\n\n'
   printf 'Only credential names are reported; values are never recorded. Required pre-interview state: '
-  printf 'Anthropic API/auth and Claude OAuth credentials, GitHub, Coder agent/session, Git/SSH transport, Realm, and RunComfy credentials absent; GitHub and Coder CLIs unauthenticated.\n'
+  printf 'Anthropic API/auth and Claude OAuth credentials (environment and persisted login), GitHub, Coder agent/session, Git/SSH transport, Realm, and RunComfy credentials absent; GitHub and Coder CLIs unauthenticated.\n'
   printf '\n## Remaining action\n\n%s\n' "$remaining_action"
 } > "$report_temporary"
 chmod 600 "$report_temporary"
@@ -1779,6 +1815,7 @@ umask 077
 unset BASH_ENV ENV CDPATH LD_LIBRARY_PATH LD_PRELOAD
 unset ANTHROPIC_API_KEY ANTHROPIC_AUTH_TOKEN
 unset CLAUDE_CODE_OAUTH_TOKEN CLAUDE_CODE_OAUTH_REFRESH_TOKEN CLAUDE_CODE_OAUTH_SCOPES
+unset CLAUDE_CONFIG_DIR CLAUDE_SECURESTORAGE_CONFIG_DIR
 unset GH_TOKEN GITHUB_TOKEN CODER_AGENT_TOKEN CODER_SESSION_TOKEN
 unset GIT_CONFIG GIT_CONFIG_COUNT GIT_CONFIG_PARAMETERS GIT_PROXY_COMMAND GIT_SSH
 unset SSH_AUTH_SOCK SSH_AGENT_PID SSH_ASKPASS_REQUIRE

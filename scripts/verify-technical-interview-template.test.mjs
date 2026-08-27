@@ -41,6 +41,8 @@ const claudeCredentialAssertions = [
   "CLAUDE_CODE_OAUTH_TOKEN",
   "CLAUDE_CODE_OAUTH_REFRESH_TOKEN",
   "CLAUDE_CODE_OAUTH_SCOPES",
+  "CLAUDE_CONFIG_DIR",
+  "CLAUDE_SECURESTORAGE_CONFIG_DIR",
 ]
   .map((name) => `[ -z "\${${name}:-}" ]`)
   .join("\n");
@@ -65,6 +67,7 @@ function seedSafeInterviewEnvironment(home) {
     "# hive-managed-interview-environment:v1\n" +
       "unset ANTHROPIC_API_KEY ANTHROPIC_AUTH_TOKEN\n" +
       "unset CLAUDE_CODE_OAUTH_TOKEN CLAUDE_CODE_OAUTH_REFRESH_TOKEN CLAUDE_CODE_OAUTH_SCOPES\n" +
+      "unset CLAUDE_CONFIG_DIR CLAUDE_SECURESTORAGE_CONFIG_DIR\n" +
       "unset GH_TOKEN GITHUB_TOKEN CODER_AGENT_TOKEN CODER_SESSION_TOKEN\n" +
       "unset GIT_CONFIG GIT_CONFIG_COUNT GIT_CONFIG_PARAMETERS GIT_PROXY_COMMAND GIT_SSH\n" +
       "unset SSH_AUTH_SOCK SSH_AGENT_PID SSH_ASKPASS_REQUIRE\n" +
@@ -922,6 +925,12 @@ test("standalone Terraform exposes interview apps without personal auth modules"
     terraform,
     /name\s*=\s*"stage-trusted-tools"[\s\S]*?name\s*=\s*"claude-mcp"[\s\S]*?mount_path\s*=\s*"\/trusted-mcp"/,
   );
+  assert.match(terraform, /\n\s*container\s*\{\s*name\s*=\s*"stage-trusted-tools"/);
+  assert.doesNotMatch(terraform, /init_container\s*\{\s*name\s*=\s*"stage-trusted-tools"/);
+  assert.match(
+    terraform,
+    /while ! \/bin\/sh -c "\$1" stage-trusted-tools --stay-alive; do[\s\S]*?retrying in 5 seconds/,
+  );
   assert.match(
     terraform,
     /name\s*=\s*"claude-mcp"[\s\S]*?mount_path\s*=\s*"\/opt\/hive-interview-mcp"[\s\S]*?read_only\s*=\s*true/,
@@ -934,6 +943,7 @@ test("standalone Terraform exposes interview apps without personal auth modules"
   assert.match(stageTrustedTools, /trusted_mcp_dir="\/trusted-mcp"/);
   assert.match(stageTrustedTools, /"@playwright\/mcp@\$playwright_mcp_version"/);
   assert.match(stageTrustedTools, /PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1/);
+  assert.match(stageTrustedTools, /\$\{1:-\}.*--stay-alive/);
   assert.match(stageTrustedTools, /-ldl/);
   assert.match(interviewClaude, /TRUSTED_CLAUDE = Path\("\/opt\/hive-interview-tools\/claude"\)/);
   assert.match(
@@ -970,6 +980,7 @@ test("standalone Terraform exposes interview apps without personal auth modules"
   assert.match(initClaude, /isolated-claude-agent-ready-v2/);
   assert.match(initClaude, /claude_user_config="\$HOME\/\.claude\.json"/);
   assert.match(initClaude, /\/opt\/hive-interview-mcp\/playwright-mcp-/);
+  assert.match(initClaude, /until trusted_payload_ready; do[\s\S]*?\/usr\/bin\/sleep 2/);
   assert.doesNotMatch(initClaude, /\{1\.\.180\}|\/usr\/bin\/sleep 1/);
   assert.match(initClaude, /"--browser","chrome","--headless","--no-sandbox","--isolated"/);
   assert.match(claudeHeartbeat, /isolated-claude-agent-ready-v2/);
@@ -1084,7 +1095,7 @@ test("home seeding retries interrupted copies and promotions", () => {
   assert.equal(existsSync(join(promotionTarget, ".hive-image-seed-complete")), true);
 });
 
-test("trusted init stages immutable Claude and Playwright payloads before runtime", () => {
+test("trusted sidecar stages immutable Claude and Playwright payloads for runtime", () => {
   const root = mkdtempSync(join(tmpdir(), "technical-interview-trusted-tools-"));
   const imageHome = join(root, "image-home");
   const trustedTools = join(root, "trusted-tools");
@@ -1501,6 +1512,8 @@ test("init prepends credential scrubbing before existing shell startup code", ()
     "CLAUDE_CODE_OAUTH_TOKEN",
     "CLAUDE_CODE_OAUTH_REFRESH_TOKEN",
     "CLAUDE_CODE_OAUTH_SCOPES",
+    "CLAUDE_CONFIG_DIR",
+    "CLAUDE_SECURESTORAGE_CONFIG_DIR",
     "GH_TOKEN",
     "GITHUB_TOKEN",
     "CODER_AGENT_TOKEN",
@@ -3151,6 +3164,35 @@ test("readiness reports strict success and failure without network cloning", () 
     assert.match(ready.stdout, /Playwright MCP 0\.0\.79 is pinned/);
     assert.match(ready.stdout, /Bun 1\.4\.0 is pinned/);
     assert.match(ready.stdout, /pnpm 10\.32\.1 is pinned/);
+
+    const persistedClaudeCredential = join(fixture.home, ".claude", ".credentials.json");
+    const fakeClaudeSecret = "persisted-claude-secret-must-not-be-reported";
+    writeFileSync(persistedClaudeCredential, fakeClaudeSecret);
+    const persistedClaudeStatus = run(
+      join(fixture.home, ".local", "bin", "interview-status"),
+      [],
+      fixture.env,
+    );
+    assert.equal(persistedClaudeStatus.status, 0, persistedClaudeStatus.stderr);
+    assert.match(
+      persistedClaudeStatus.stdout,
+      /Persisted Claude authentication: PRESENT or unsafe \(path names only; readiness fails\)/,
+    );
+    const persistedClaudeFailure = run(check, [], fixture.env);
+    assert.equal(persistedClaudeFailure.status, 1);
+    assert.match(
+      `${persistedClaudeFailure.stdout}\n${persistedClaudeFailure.stderr}`,
+      /\[FAIL\] persisted Claude authentication is absent/,
+    );
+    assert.equal(readFileSync(persistedClaudeCredential, "utf8"), fakeClaudeSecret);
+    assert.doesNotMatch(
+      `${persistedClaudeStatus.stdout}\n${persistedClaudeStatus.stderr}\n` +
+        `${persistedClaudeFailure.stdout}\n${persistedClaudeFailure.stderr}\n` +
+        readFileSync(join(fixture.home, "INTERVIEW_READY.md"), "utf8"),
+      new RegExp(fakeClaudeSecret),
+    );
+    unlinkSync(persistedClaudeCredential);
+    assert.equal(run(check, [], fixture.env).status, 0);
 
     const unknownCoderAuth = run(check, [], {
       ...fixture.env,

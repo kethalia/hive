@@ -32,8 +32,10 @@ private Unix-socket broker that accepts only the protected Claude process and fo
 Anthropic v1 API paths to `api.anthropic.com`; Claude and all candidate-controlled commands receive
 only a non-secret placeholder. The launcher's fixed environment excludes every workspace,
 orchestration, and personal credential, while the guard removes the private broker route before
-Claude can execute hooks, shell commands, or stdio MCP servers. A trusted Kubernetes init container
-installs and validates the pinned Playwright MCP payload before either runtime starts. The candidate
+Claude can execute hooks, shell commands, or stdio MCP servers. A credential-free trusted Kubernetes
+sidecar installs and validates the pinned Playwright MCP payload in a pod-local volume. The main
+recovery environment starts independently if registry access is unavailable, while the isolated
+Claude agent waits for the atomically promoted payload and the staging sidecar retries. The candidate
 container never mounts that volume, and Claude mounts it read-only; browser state remains confined
 to Claude's ephemeral home.
 

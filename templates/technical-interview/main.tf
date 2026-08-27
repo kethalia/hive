@@ -449,13 +449,25 @@ resource "kubernetes_deployment_v1" "workspace" {
           name = "ghcr-pull-kethalia"
         }
 
-        init_container {
+        # Keep network-dependent trusted staging independent from the main
+        # recovery runtime. This credential-free sidecar retries transient
+        # failures while the development agent remains usable; the isolated
+        # Claude agent waits for its atomically promoted payload.
+        container {
           name              = "stage-trusted-tools"
           image             = local.profile.image
           image_pull_policy = "IfNotPresent"
           command = [
             "sh",
             "-c",
+            <<-EOT
+              while ! /bin/sh -c "$1" stage-trusted-tools --stay-alive; do
+                printf '[warn] trusted interview payload staging failed; retrying in 5 seconds\n' >&2
+                /usr/bin/sleep 5
+              done
+            EOT
+            ,
+            "stage-trusted-tools-wrapper",
             file("${path.module}/scripts/stage-trusted-tools.sh"),
           ]
 

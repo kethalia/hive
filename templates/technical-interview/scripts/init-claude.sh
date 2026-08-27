@@ -8,6 +8,7 @@ export PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
 unset BASH_ENV ENV CDPATH LD_LIBRARY_PATH LD_PRELOAD
 unset ANTHROPIC_API_KEY ANTHROPIC_AUTH_TOKEN
 unset CLAUDE_CODE_OAUTH_TOKEN CLAUDE_CODE_OAUTH_REFRESH_TOKEN CLAUDE_CODE_OAUTH_SCOPES
+unset CLAUDE_CONFIG_DIR CLAUDE_SECURESTORAGE_CONFIG_DIR
 unset GH_TOKEN GITHUB_TOKEN CODER_AGENT_TOKEN CODER_SESSION_TOKEN
 unset GIT_CONFIG GIT_CONFIG_COUNT GIT_CONFIG_PARAMETERS GIT_PROXY_COMMAND GIT_SSH
 unset SSH_AUTH_SOCK SSH_AGENT_PID SSH_ASKPASS_REQUIRE
@@ -35,16 +36,6 @@ for directory in "$HOME/.local" "$HOME/.local/bin" "$HOME/.claude"; do
   /usr/bin/mkdir -p -- "$directory"
 done
 
-if [ ! -f "$trusted_helper" ] || [ -L "$trusted_helper" ] || [ ! -x "$trusted_helper" ]; then
-  printf 'ERROR: immutable interview-claude launcher is unavailable\n' >&2
-  exit 1
-fi
-
-link_staging="$(/usr/bin/mktemp -d "$HOME/.local/bin/.interview-claude.XXXXXX")"
-/usr/bin/ln -s -- "$trusted_helper" "$link_staging/interview-claude"
-/usr/bin/mv -fT -- "$link_staging/interview-claude" "$HOME/.local/bin/interview-claude"
-/usr/bin/rmdir -- "$link_staging"
-
 playwright_mcp_ready() {
   local resolved_playwright_mcp
   [ -x "$staged_playwright_mcp" ] || return 1
@@ -57,10 +48,24 @@ playwright_mcp_ready() {
     | /usr/bin/grep -qF -- "$playwright_mcp_version"
 }
 
-if ! playwright_mcp_ready; then
-  printf 'ERROR: trusted init did not provide the isolated Playwright MCP payload\n' >&2
-  exit 1
+trusted_payload_ready() {
+  [ -f "$trusted_helper" ] \
+    && [ ! -L "$trusted_helper" ] \
+    && [ -x "$trusted_helper" ] \
+    && playwright_mcp_ready
+}
+
+if ! trusted_payload_ready; then
+  printf 'Waiting for trusted Claude and Playwright MCP staging; main recovery remains available.\n' >&2
 fi
+until trusted_payload_ready; do
+  /usr/bin/sleep 2
+done
+
+link_staging="$(/usr/bin/mktemp -d "$HOME/.local/bin/.interview-claude.XXXXXX")"
+/usr/bin/ln -s -- "$trusted_helper" "$link_staging/interview-claude"
+/usr/bin/mv -fT -- "$link_staging/interview-claude" "$HOME/.local/bin/interview-claude"
+/usr/bin/rmdir -- "$link_staging"
 
 playwright_link_staging="$(/usr/bin/mktemp -d "$HOME/.local/bin/.playwright-mcp.XXXXXX")"
 /usr/bin/ln -s -- "$staged_playwright_mcp" "$playwright_link_staging/playwright-mcp"

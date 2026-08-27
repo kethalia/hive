@@ -3,10 +3,12 @@ set -eu
 
 umask 022
 
-# This script runs in an init container before the persistent home is mounted.
+# This script runs in a credential-free sidecar without the persistent home.
 # Copy the image-baked Claude executable and install the pinned Playwright MCP
-# into pod-local volumes before either runtime container starts. Runtime mounts
-# are read-only, so candidate processes cannot replace either trusted payload.
+# into pod-local volumes. Runtime mounts are read-only and the candidate
+# container never mounts the MCP volume, so candidate processes cannot replace
+# either trusted payload. Kubernetes retries this sidecar after a transient
+# staging failure without blocking the main recovery terminal.
 image_claude_link="/home/coder/.local/bin/claude"
 trusted_tools_dir="/trusted-tools"
 trusted_mcp_dir="/trusted-mcp"
@@ -129,3 +131,10 @@ temporary_guard=""
 trap - EXIT HUP INT TERM
 
 printf '[ok] staged Claude, credential broker, process guard, and Playwright MCP for read-only mounts\n'
+
+if [ "${1:-}" = "--stay-alive" ]; then
+  printf '[ok] trusted interview payload is ready; keeping staging sidecar available\n'
+  while :; do
+    /usr/bin/sleep 3600
+  done
+fi
