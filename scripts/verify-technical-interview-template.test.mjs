@@ -43,6 +43,8 @@ const claudeCredentialAssertions = [
   "CLAUDE_CODE_OAUTH_SCOPES",
   "CLAUDE_CONFIG_DIR",
   "CLAUDE_SECURESTORAGE_CONFIG_DIR",
+  "NPM_TOKEN",
+  "NODE_AUTH_TOKEN",
 ]
   .map((name) => `[ -z "\${${name}:-}" ]`)
   .join("\n");
@@ -68,6 +70,8 @@ function seedSafeInterviewEnvironment(home) {
       "unset ANTHROPIC_API_KEY ANTHROPIC_AUTH_TOKEN\n" +
       "unset CLAUDE_CODE_OAUTH_TOKEN CLAUDE_CODE_OAUTH_REFRESH_TOKEN CLAUDE_CODE_OAUTH_SCOPES\n" +
       "unset CLAUDE_CONFIG_DIR CLAUDE_SECURESTORAGE_CONFIG_DIR\n" +
+      "unset NPM_TOKEN NODE_AUTH_TOKEN NPM_CONFIG_USERCONFIG NPM_CONFIG_GLOBALCONFIG\n" +
+      "unset npm_config_userconfig npm_config_globalconfig\n" +
       "unset GH_TOKEN GITHUB_TOKEN CODER_AGENT_TOKEN CODER_SESSION_TOKEN\n" +
       "unset GIT_CONFIG GIT_CONFIG_COUNT GIT_CONFIG_PARAMETERS GIT_PROXY_COMMAND GIT_SSH\n" +
       "unset SSH_AUTH_SOCK SSH_AGENT_PID SSH_ASKPASS_REQUIRE\n" +
@@ -417,9 +421,17 @@ ${claudeCredentialAssertions}
 case "\${1:-}" in
   --version) printf '11.17.0\\n' ;;
   ls)
+    [ "\${NPM_CONFIG_USERCONFIG:-}" = /dev/null ]
+    [ -z "\${NPM_CONFIG_GLOBALCONFIG:-}" ]
+    [ -z "\${npm_config_userconfig:-}" ]
+    [ -z "\${npm_config_globalconfig:-}" ]
     [ ! -e node_modules/.hive-fixture-incomplete ]
     ;;
   install|ci)
+    [ "\${NPM_CONFIG_USERCONFIG:-}" = /dev/null ]
+    [ -z "\${NPM_CONFIG_GLOBALCONFIG:-}" ]
+    [ -z "\${npm_config_userconfig:-}" ]
+    [ -z "\${npm_config_globalconfig:-}" ]
     shift
     install_prefix=''
     package_spec=''
@@ -447,18 +459,21 @@ case "\${1:-}" in
       fi
       case "$package_spec" in
         @openai/codex@*)
-          mkdir -p "$install_prefix/node_modules/.bin"
+          mkdir -p "$install_prefix/node_modules/.bin" "$install_prefix/node_modules/@openai/codex"
           printf '#!/bin/sh\\nprintf "codex-cli 0.149.1\\\\n"\\n' > "$install_prefix/node_modules/.bin/codex"
+          printf 'codex runtime payload\\n' > "$install_prefix/node_modules/@openai/codex/runtime.js"
           chmod 755 "$install_prefix/node_modules/.bin/codex"
           ;;
         @playwright/mcp@*)
-          mkdir -p "$install_prefix/node_modules/.bin"
+          mkdir -p "$install_prefix/node_modules/.bin" "$install_prefix/node_modules/@playwright/mcp"
           printf '#!/bin/sh\\nprintf "Version 0.0.79\\\\n"\\n' > "$install_prefix/node_modules/.bin/playwright-mcp"
+          printf 'playwright runtime payload\\n' > "$install_prefix/node_modules/@playwright/mcp/runtime.js"
           chmod 755 "$install_prefix/node_modules/.bin/playwright-mcp"
           ;;
         @oven/bun-linux-x64@*)
           mkdir -p "$install_prefix/node_modules/@oven/bun-linux-x64/bin"
           printf '#!/bin/sh\\nprintf "1.4.0\\\\n"\\n' > "$install_prefix/node_modules/@oven/bun-linux-x64/bin/bun"
+          printf 'bun runtime payload\\n' > "$install_prefix/node_modules/@oven/bun-linux-x64/runtime.js"
           chmod 755 "$install_prefix/node_modules/@oven/bun-linux-x64/bin/bun"
           ;;
         @vscode/ripgrep@*)
@@ -467,8 +482,9 @@ case "\${1:-}" in
           chmod 755 "$install_prefix/node_modules/@vscode/ripgrep-linux-x64/bin/rg"
           ;;
         pnpm@*)
-          mkdir -p "$install_prefix/node_modules/.bin"
+          mkdir -p "$install_prefix/node_modules/.bin" "$install_prefix/node_modules/pnpm"
           printf '#!/bin/sh\\nprintf "10.32.1\\\\n"\\n' > "$install_prefix/node_modules/.bin/pnpm"
+          printf 'pnpm runtime payload\\n' > "$install_prefix/node_modules/pnpm/runtime.js"
           chmod 755 "$install_prefix/node_modules/.bin/pnpm"
           ;;
         *) exit 2 ;;
@@ -482,6 +498,10 @@ case "\${1:-}" in
     fi
     ;;
   run)
+    [ "\${NPM_CONFIG_USERCONFIG:-}" = /dev/null ]
+    [ -z "\${NPM_CONFIG_GLOBALCONFIG:-}" ]
+    [ -z "\${npm_config_userconfig:-}" ]
+    [ -z "\${npm_config_globalconfig:-}" ]
     case "\${2:-}" in
       build)
         printf 'npm-build\\n' >> "$FAKE_CALLS"
@@ -526,7 +546,14 @@ exec /usr/bin/git "$@"
   );
   executable(
     join(bin, "curl"),
-    `#!/bin/sh
+    `#!/bin/bash
+url=''
+for argument in "$@"; do url=$argument; done
+if [ -n "\${FAKE_UNHEALTHY_URL:-}" ] \
+  && [ "$url" = "$FAKE_UNHEALTHY_URL" ] \
+  && [ ! -e "\${FAKE_SERVICE_RECOVERED_MARKER:-}" ]; then
+  exit 1
+fi
 exit 0
 `,
   );
@@ -554,6 +581,8 @@ for variable_name in ${JSON.stringify([
       "CLAUDE_CODE_OAUTH_TOKEN",
       "CLAUDE_CODE_OAUTH_REFRESH_TOKEN",
       "CLAUDE_CODE_OAUTH_SCOPES",
+      "CLAUDE_CONFIG_DIR",
+      "CLAUDE_SECURESTORAGE_CONFIG_DIR",
       "CODER_AGENT_TOKEN",
       "CODER_SESSION_TOKEN",
       "GH_TOKEN",
@@ -566,6 +595,12 @@ for variable_name in ${JSON.stringify([
       "HIVE_INTERVIEW_BROKER_PORT",
       "HIVE_INTERVIEW_BROKER_SOCKET",
       "LD_PRELOAD",
+      "NODE_AUTH_TOKEN",
+      "NPM_CONFIG_GLOBALCONFIG",
+      "NPM_CONFIG_USERCONFIG",
+      "NPM_TOKEN",
+      "npm_config_globalconfig",
+      "npm_config_userconfig",
       "REALM_VISUAL_REVIEW_API_KEY",
       "RUNCOMFY_API_TOKEN",
       "SSH_AUTH_SOCK",
@@ -723,7 +758,15 @@ case "$command_name" in
   show-environment)
     exit 1
     ;;
-  set-option|set-environment|select-window|respawn-window)
+  set-option|set-environment|select-window)
+    ;;
+  respawn-window)
+    case "$*" in
+      *interview:api*)
+        [ -z "\${FAKE_SERVICE_RECOVERED_MARKER:-}" ] \
+          || : > "$FAKE_SERVICE_RECOVERED_MARKER"
+        ;;
+    esac
     ;;
   kill-session|kill-server)
     rm -f "$session_file" "$windows_file"
@@ -782,6 +825,12 @@ esac
     CLAUDE_CODE_OAUTH_SCOPES: "must-not-reach-child-processes",
     CLAUDE_CODE_OAUTH_TOKEN: "must-not-reach-child-processes",
     CODER_AGENT_TOKEN: "must-not-reach-child-processes",
+    NODE_AUTH_TOKEN: "must-not-reach-child-processes",
+    NPM_CONFIG_GLOBALCONFIG: join(root, "personal-global-npmrc"),
+    NPM_CONFIG_USERCONFIG: join(root, "personal-user-npmrc"),
+    NPM_TOKEN: "must-not-reach-child-processes",
+    npm_config_globalconfig: join(root, "personal-lower-global-npmrc"),
+    npm_config_userconfig: join(root, "personal-lower-user-npmrc"),
     FAKE_CALLS: calls,
     FAKE_REMOTE_COMMIT: commit,
     FAKE_TMUX_STATE: tmuxRoot,
@@ -1514,6 +1563,12 @@ test("init prepends credential scrubbing before existing shell startup code", ()
     "CLAUDE_CODE_OAUTH_SCOPES",
     "CLAUDE_CONFIG_DIR",
     "CLAUDE_SECURESTORAGE_CONFIG_DIR",
+    "NPM_TOKEN",
+    "NODE_AUTH_TOKEN",
+    "NPM_CONFIG_USERCONFIG",
+    "NPM_CONFIG_GLOBALCONFIG",
+    "npm_config_userconfig",
+    "npm_config_globalconfig",
     "GH_TOKEN",
     "GITHUB_TOKEN",
     "CODER_AGENT_TOKEN",
@@ -2518,6 +2573,97 @@ test("fresh bootstrap installs the pinned standalone toolchain idempotently", ()
   assert.equal(readFileSync(fixture.calls, "utf8"), firstCalls);
 });
 
+test("managed npm installs isolate persisted user authentication", () => {
+  const fixture = createFixture();
+  const npmConfiguration = join(fixture.home, ".npmrc");
+  const fakeSecret = "persisted-npm-install-secret-must-not-leak";
+  writeFileSync(npmConfiguration, `//registry.npmjs.org/:_authToken=${fakeSecret}\n`);
+
+  const installed = installHelpers(fixture);
+  assert.doesNotMatch(`${installed.stdout}\n${installed.stderr}`, new RegExp(fakeSecret));
+  assert.match(readFileSync(npmConfiguration, "utf8"), new RegExp(fakeSecret));
+  assert.doesNotMatch(readFileSync(fixture.calls, "utf8"), new RegExp(fakeSecret));
+  const readiness = run(
+    "bash",
+    [
+      "-c",
+      'source "$HOME/.local/libexec/hive/technical-interview/common.sh"; interview_package_authentication_absent',
+    ],
+    fixture.env,
+  );
+  assert.equal(readiness.status, 1);
+});
+
+test("setup repairs managed tool payload corruption even when version commands pass", () => {
+  const fixture = createFixture();
+  installHelpers(fixture);
+  const toolCases = [
+    {
+      command: "codex",
+      packageSpec: "@openai/codex@0.149.1",
+      payload: join(
+        fixture.home,
+        ".local/state/hive/technical-interview/tools/codex-0.149.1/node_modules/@openai/codex/runtime.js",
+      ),
+      ready:
+        'interview_managed_tool_ready codex "$INTERVIEW_CODEX_VERSION" .bin/codex "$INTERVIEW_CODEX_BASELINE_TARGET"',
+    },
+    {
+      command: "playwright-mcp",
+      packageSpec: "@playwright/mcp@0.0.79",
+      payload: join(
+        fixture.home,
+        ".local/state/hive/technical-interview/tools/playwright-mcp-0.0.79/node_modules/@playwright/mcp/runtime.js",
+      ),
+      ready:
+        'interview_managed_tool_ready playwright-mcp "$INTERVIEW_PLAYWRIGHT_MCP_VERSION" .bin/playwright-mcp',
+    },
+    {
+      command: "pnpm",
+      packageSpec: "pnpm@10.32.1",
+      payload: join(
+        fixture.home,
+        ".local/state/hive/technical-interview/tools/pnpm-10.32.1/node_modules/pnpm/runtime.js",
+      ),
+      ready: 'interview_managed_tool_ready pnpm "$INTERVIEW_PNPM_VERSION" .bin/pnpm',
+    },
+  ];
+
+  for (const toolCase of toolCases) {
+    assert.equal(
+      run(join(fixture.home, ".local/bin", toolCase.command), ["--version"], fixture.env).status,
+      0,
+    );
+    unlinkSync(toolCase.payload);
+    assert.equal(
+      run(join(fixture.home, ".local/bin", toolCase.command), ["--version"], fixture.env).status,
+      0,
+    );
+    const readiness = run(
+      "bash",
+      ["-c", `source "$HOME/.local/libexec/hive/technical-interview/common.sh"; ${toolCase.ready}`],
+      fixture.env,
+    );
+    assert.equal(readiness.status, 1, `${toolCase.command} payload damage must fail readiness`);
+  }
+
+  const setup = run(join(fixture.home, ".local/bin", "interview-setup"), [], fixture.env);
+  assert.equal(setup.status, 0, setup.stderr);
+  const calls = readFileSync(fixture.calls, "utf8");
+  for (const toolCase of toolCases) {
+    assert.equal(
+      existsSync(toolCase.payload),
+      true,
+      `${toolCase.command} payload must be restored`,
+    );
+    assert.equal(
+      calls.split(`tool-install:${toolCase.packageSpec}\n`).length - 1,
+      2,
+      `${toolCase.command} must be reinstalled exactly once after corruption`,
+    );
+  }
+});
+
 test("interview-setup retries a transient managed-tool installation failure", () => {
   const fixture = createFixture();
   const failureMarker = join(fixture.root, "transient-tool-failure");
@@ -2971,6 +3117,31 @@ test("setup restarts only active service windows after dependency refresh", () =
   assert.doesNotMatch(refreshCalls, /tmux:respawn-window[^\n]+interview:(?:work|ai)/);
 });
 
+test("interview-start restarts an active service pane that fails its health check", () => {
+  const fixture = createFixture();
+  installHelpers(fixture);
+  const setup = join(fixture.home, ".local", "bin", "interview-setup");
+  const start = join(fixture.home, ".local", "bin", "interview-start");
+  const recoveredMarker = join(fixture.root, "api-service-recovered");
+
+  assert.equal(run(setup, [], fixture.env).status, 0);
+  assert.equal(run(start, [], fixture.env).status, 0);
+  const callsBeforeRecovery = readFileSync(fixture.calls, "utf8");
+  const recovered = run(start, [], {
+    ...fixture.env,
+    FAKE_SERVICE_RECOVERED_MARKER: recoveredMarker,
+    FAKE_UNHEALTHY_URL: "http://127.0.0.1:8000/hello",
+  });
+  assert.equal(recovered.status, 0, recovered.stderr);
+  assert.match(recovered.stdout, /Restarted unhealthy tmux service window: api/);
+  assert.match(recovered.stdout, /Preserving active tmux window: web/);
+  assert.equal(existsSync(recoveredMarker), true);
+
+  const recoveryCalls = readFileSync(fixture.calls, "utf8").slice(callsBeforeRecovery.length);
+  assert.match(recoveryCalls, /tmux:respawn-window -k -t interview:api/);
+  assert.doesNotMatch(recoveryCalls, /tmux:respawn-window[^\n]+interview:(?:web|work|ai)/);
+});
+
 test("GitHub auth detection rejects any valid account and accepts a missing CLI", () => {
   const fixture = createFixture();
   installHelpers(fixture);
@@ -3192,6 +3363,35 @@ test("readiness reports strict success and failure without network cloning", () 
       new RegExp(fakeClaudeSecret),
     );
     unlinkSync(persistedClaudeCredential);
+    assert.equal(run(check, [], fixture.env).status, 0);
+
+    const persistedNpmConfiguration = join(fixture.home, ".npmrc");
+    const fakeNpmSecret = "persisted-npm-secret-must-not-be-reported";
+    writeFileSync(persistedNpmConfiguration, `//registry.npmjs.org/:_authToken=${fakeNpmSecret}\n`);
+    const persistedNpmStatus = run(
+      join(fixture.home, ".local", "bin", "interview-status"),
+      [],
+      fixture.env,
+    );
+    assert.equal(persistedNpmStatus.status, 0, persistedNpmStatus.stderr);
+    assert.match(
+      persistedNpmStatus.stdout,
+      /Persisted package-manager authentication: PRESENT or unsafe \(path names only; readiness fails\)/,
+    );
+    const persistedNpmFailure = run(check, [], fixture.env);
+    assert.equal(persistedNpmFailure.status, 1);
+    assert.match(
+      `${persistedNpmFailure.stdout}\n${persistedNpmFailure.stderr}`,
+      /\[FAIL\] persisted package-manager authentication is absent/,
+    );
+    assert.match(readFileSync(persistedNpmConfiguration, "utf8"), new RegExp(fakeNpmSecret));
+    assert.doesNotMatch(
+      `${persistedNpmStatus.stdout}\n${persistedNpmStatus.stderr}\n` +
+        `${persistedNpmFailure.stdout}\n${persistedNpmFailure.stderr}\n` +
+        readFileSync(join(fixture.home, "INTERVIEW_READY.md"), "utf8"),
+      new RegExp(fakeNpmSecret),
+    );
+    unlinkSync(persistedNpmConfiguration);
     assert.equal(run(check, [], fixture.env).status, 0);
 
     const unknownCoderAuth = run(check, [], {

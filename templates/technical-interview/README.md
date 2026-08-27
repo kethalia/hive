@@ -41,8 +41,12 @@ to Claude's ephemeral home.
 
 The first startup verifies Codex `0.149.1`, Playwright MCP `0.0.79`, Bun `1.4.0`, and pnpm `10.32.1`.
 Exact matching Codex and Bun commands from the image baseline are reused; missing or mismatched tools
-are installed under the workspace's private user-state directory. Playwright MCP uses the image's
-Chrome binary directly and never downloads a browser during the interview.
+are installed under the workspace's private user-state directory. Stored payload fingerprints catch
+missing runtime files even when a launcher still reports the pinned version. npm operations ignore
+persisted user and global configuration, and readiness rejects a preserved user `.npmrc` rather than
+reading or deleting it. `interview-start` also replaces an active API or frontend service pane when
+its health endpoint is unavailable while preserving the work and AI panes. Playwright MCP uses the
+image's Chrome binary directly and never downloads a browser during the interview.
 
 ## Publish and provision
 

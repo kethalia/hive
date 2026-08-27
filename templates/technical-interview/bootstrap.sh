@@ -8,6 +8,9 @@ unset BASH_ENV ENV CDPATH LD_LIBRARY_PATH LD_PRELOAD
 unset ANTHROPIC_API_KEY ANTHROPIC_AUTH_TOKEN
 unset CLAUDE_CODE_OAUTH_TOKEN CLAUDE_CODE_OAUTH_REFRESH_TOKEN CLAUDE_CODE_OAUTH_SCOPES
 unset CLAUDE_CONFIG_DIR CLAUDE_SECURESTORAGE_CONFIG_DIR
+unset NPM_TOKEN NODE_AUTH_TOKEN
+unset NPM_CONFIG_USERCONFIG NPM_CONFIG_GLOBALCONFIG
+unset npm_config_userconfig npm_config_globalconfig
 unset GH_TOKEN GITHUB_TOKEN CODER_AGENT_TOKEN CODER_SESSION_TOKEN
 unset GIT_CONFIG GIT_CONFIG_COUNT GIT_CONFIG_PARAMETERS GIT_PROXY_COMMAND GIT_SSH
 unset SSH_AUTH_SOCK SSH_AGENT_PID SSH_ASKPASS_REQUIRE
@@ -158,6 +161,12 @@ INTERVIEW_FORBIDDEN_CREDENTIALS=(
   CLAUDE_CODE_OAUTH_SCOPES
   CLAUDE_CONFIG_DIR
   CLAUDE_SECURESTORAGE_CONFIG_DIR
+  NPM_TOKEN
+  NODE_AUTH_TOKEN
+  NPM_CONFIG_USERCONFIG
+  NPM_CONFIG_GLOBALCONFIG
+  npm_config_userconfig
+  npm_config_globalconfig
   GH_TOKEN
   GITHUB_TOKEN
   CODER_AGENT_TOKEN
@@ -265,6 +274,143 @@ interview_tool_version_matches() {
   [ "$actual_version" = "$expected_version" ]
 }
 
+interview_tool_runtime_works() {
+  local command_name=$1
+  local command_path=$2
+
+  case "$command_name" in
+    pnpm)
+      /usr/bin/timeout 10s "$command_path" help >/dev/null 2>&1
+      ;;
+    codex | playwright-mcp | bun)
+      /usr/bin/timeout 10s "$command_path" --help >/dev/null 2>&1
+      ;;
+    *)
+      return 1
+      ;;
+  esac
+}
+
+interview_npm() {
+  env \
+    -u NPM_TOKEN -u NODE_AUTH_TOKEN \
+    -u NPM_CONFIG_GLOBALCONFIG \
+    -u npm_config_userconfig -u npm_config_globalconfig \
+    NPM_CONFIG_USERCONFIG=/dev/null \
+    npm "$@"
+}
+
+interview_tool_payload_hash() {
+  local payload_root=$1
+
+  /usr/bin/python3 -I - "$payload_root" <<'PYTOOLINTEGRITY'
+import hashlib
+import os
+import stat
+import sys
+from pathlib import Path
+
+
+root = Path(sys.argv[1])
+try:
+    root_metadata = root.lstat()
+    resolved_root = root.resolve(strict=True)
+    digest = hashlib.sha256()
+
+    def add(value: bytes) -> None:
+        digest.update(len(value).to_bytes(8, "big"))
+        digest.update(value)
+
+    def add_file(path: Path, metadata: os.stat_result) -> None:
+        add(b"file")
+        add(str(stat.S_IMODE(metadata.st_mode) & 0o111).encode())
+        with path.open("rb") as handle:
+            for block in iter(lambda: handle.read(1024 * 1024), b""):
+                digest.update(block)
+
+    def visit(directory: Path, relative_directory: Path) -> None:
+        with os.scandir(directory) as entries:
+            ordered = sorted(entries, key=lambda entry: os.fsencode(entry.name))
+        for entry in ordered:
+            path = Path(entry.path)
+            relative = relative_directory / entry.name
+            metadata = entry.stat(follow_symlinks=False)
+            add(os.fsencode(str(relative)))
+            if stat.S_ISDIR(metadata.st_mode):
+                add(b"directory")
+                visit(path, relative)
+            elif stat.S_ISREG(metadata.st_mode):
+                add_file(path, metadata)
+            elif stat.S_ISLNK(metadata.st_mode):
+                add(b"symlink")
+                add(os.fsencode(os.readlink(path)))
+                path.resolve(strict=True).relative_to(resolved_root)
+            else:
+                raise ValueError(f"unsupported tool payload entry: {relative}")
+
+    if stat.S_ISDIR(root_metadata.st_mode):
+        add(b"root-directory")
+        visit(root, Path())
+    elif stat.S_ISREG(root_metadata.st_mode):
+        add(b"root-file")
+        add_file(root, root_metadata)
+    else:
+        raise ValueError("tool payload root is not a regular file or directory")
+    print(digest.hexdigest())
+except (OSError, RuntimeError, ValueError):
+    raise SystemExit(1)
+PYTOOLINTEGRITY
+}
+
+interview_tool_payload_root() {
+  local command_name=$1
+  local actual_target=$2
+  local expected_binary=$3
+  local baseline_target=${4:-}
+  local managed_binary=$5
+
+  if [ "$actual_target" = "$expected_binary" ]; then
+    printf '%s\n' "${expected_binary%%/node_modules/*}/node_modules"
+    return 0
+  fi
+  [ -n "$baseline_target" ] && [ "$actual_target" = "$baseline_target" ] || return 1
+  case "$command_name" in
+    codex)
+      printf '%s\n' "$HOME/.local/lib/node_modules/@openai/codex"
+      ;;
+    bun)
+      /usr/bin/readlink -f -- "$managed_binary"
+      ;;
+    *)
+      return 1
+      ;;
+  esac
+}
+
+interview_tool_payload_ready() {
+  local command_name=$1
+  local expected_version=$2
+  local payload_root=$3
+  local current_hash stored_hash
+
+  current_hash="$(interview_tool_payload_hash "$payload_root" 2>/dev/null || true)"
+  stored_hash="$(
+    interview_read_state "tool-$command_name-$expected_version.sha256" 2>/dev/null || true
+  )"
+  [ -n "$current_hash" ] && [ "$current_hash" = "$stored_hash" ]
+}
+
+interview_record_tool_payload() {
+  local command_name=$1
+  local expected_version=$2
+  local payload_root=$3
+  local payload_hash
+
+  payload_hash="$(interview_tool_payload_hash "$payload_root")" || return 1
+  [ -n "$payload_hash" ] || return 1
+  interview_write_state "tool-$command_name-$expected_version.sha256" "$payload_hash"
+}
+
 interview_managed_tool_ready() {
   local command_name=$1
   local expected_version=$2
@@ -272,7 +418,7 @@ interview_managed_tool_ready() {
   local baseline_target=${4:-}
   local managed_binary="$HOME/.local/bin/$command_name"
   local expected_binary="$INTERVIEW_STATE_DIR/tools/$command_name-$expected_version/node_modules/$package_binary"
-  local actual_target
+  local actual_target payload_root
 
   [ -L "$managed_binary" ] || return 1
   actual_target="$(readlink -- "$managed_binary")"
@@ -280,7 +426,13 @@ interview_managed_tool_ready() {
     && { [ -z "$baseline_target" ] || [ "$actual_target" != "$baseline_target" ]; }; then
     return 1
   fi
-  interview_tool_version_matches "$managed_binary" "$expected_version"
+  interview_tool_version_matches "$managed_binary" "$expected_version" || return 1
+  interview_tool_runtime_works "$command_name" "$managed_binary" || return 1
+  payload_root="$(
+    interview_tool_payload_root \
+      "$command_name" "$actual_target" "$expected_binary" "$baseline_target" "$managed_binary"
+  )" || return 1
+  interview_tool_payload_ready "$command_name" "$expected_version" "$payload_root"
 }
 
 interview_scrub_credentials
@@ -532,7 +684,7 @@ interview_frontend_dependencies_ready() {
     && [ "$current_install_hash" = "$stored_install_hash" ] || return 1
   (
     cd "$INTERVIEW_FRONTEND"
-    npm ls --all --silent >/dev/null 2>&1
+    interview_npm ls --all --silent >/dev/null 2>&1
   )
 }
 
@@ -560,6 +712,9 @@ interview_anonymous_git() {
       -u CLAUDE_CODE_OAUTH_TOKEN -u CLAUDE_CODE_OAUTH_REFRESH_TOKEN \
       -u CLAUDE_CODE_OAUTH_SCOPES \
       -u CLAUDE_CONFIG_DIR -u CLAUDE_SECURESTORAGE_CONFIG_DIR \
+      -u NPM_TOKEN -u NODE_AUTH_TOKEN \
+      -u NPM_CONFIG_USERCONFIG -u NPM_CONFIG_GLOBALCONFIG \
+      -u npm_config_userconfig -u npm_config_globalconfig \
       -u GH_TOKEN -u GITHUB_TOKEN \
       -u CODER_AGENT_TOKEN -u CODER_SESSION_TOKEN \
       -u REALM_VISUAL_REVIEW_API_KEY -u RUNCOMFY_API_TOKEN \
@@ -761,6 +916,12 @@ interview_claude_authentication_absent() {
   return 0
 }
 
+interview_package_authentication_absent() {
+  # npm's default per-user configuration can contain registry bearer tokens.
+  # Preserve the user-owned file but fail readiness without reading it.
+  [ ! -e "$HOME/.npmrc" ] && [ ! -L "$HOME/.npmrc" ]
+}
+
 interview_github_auth_json() {
   command -v gh >/dev/null 2>&1 || return 1
   timeout 5s env -u GH_TOKEN -u GITHUB_TOKEN \
@@ -797,6 +958,12 @@ interview_shell_scrub_ready() {
     "$environment_file" || return 1
   grep -qF \
     'unset CLAUDE_CONFIG_DIR CLAUDE_SECURESTORAGE_CONFIG_DIR' \
+    "$environment_file" || return 1
+  grep -qF \
+    'unset NPM_TOKEN NODE_AUTH_TOKEN NPM_CONFIG_USERCONFIG NPM_CONFIG_GLOBALCONFIG' \
+    "$environment_file" || return 1
+  grep -qF \
+    'unset npm_config_userconfig npm_config_globalconfig' \
     "$environment_file" || return 1
   grep -qF \
     'unset GH_TOKEN GITHUB_TOKEN CODER_AGENT_TOKEN CODER_SESSION_TOKEN' \
@@ -1087,7 +1254,7 @@ if ! interview_node_supported; then
   interview_error "Node.js 20 or newer is required."
   exit 1
 fi
-if ! npm --version >/dev/null 2>&1; then
+if ! interview_npm --version >/dev/null 2>&1; then
   interview_error "npm is required but is not functional."
   exit 1
 fi
@@ -1252,17 +1419,17 @@ if ! interview_frontend_dependencies_ready; then
     || [ -f "$INTERVIEW_FRONTEND/npm-shrinkwrap.json" ]; then
     (
       cd "$INTERVIEW_FRONTEND"
-      npm ci --no-audit --no-fund
+      interview_npm ci --no-audit --no-fund
     )
   else
     (
       cd "$INTERVIEW_FRONTEND"
-      npm install --no-package-lock --no-audit --no-fund
+      interview_npm install --no-package-lock --no-audit --no-fund
     )
   fi
   if ! (
     cd "$INTERVIEW_FRONTEND"
-    npm ls --all --silent >/dev/null 2>&1
+    interview_npm ls --all --silent >/dev/null 2>&1
   ); then
     interview_error "Frontend dependencies are incomplete after installation."
     exit 1
@@ -1287,7 +1454,7 @@ interview_ok "Running backend tests"
 interview_ok "Running frontend production build"
 (
   cd "$INTERVIEW_FRONTEND"
-  npm run build
+  interview_npm run build
 )
 if ! interview_frontend_dependencies_ready; then
   interview_error "Frontend dependencies changed or failed integrity validation during the build."
@@ -1331,7 +1498,7 @@ for forbidden_name in "${INTERVIEW_FORBIDDEN_CREDENTIALS[@]}"; do
   credential_env_arguments+=(-u "$forbidden_name")
 done
 api_command="exec env${credential_unsets} '$INTERVIEW_VENV/bin/uvicorn' app.main:app --reload --host 127.0.0.1 --port 8000"
-web_command="exec env${credential_unsets} npm run dev -- --host 127.0.0.1 --port 3000"
+web_command="exec env${credential_unsets} NPM_CONFIG_USERCONFIG=/dev/null npm run dev -- --host 127.0.0.1 --port 3000"
 
 tmux_without_credentials() {
   env "${credential_env_arguments[@]}" tmux "$@"
@@ -1346,6 +1513,7 @@ service_window_ready() {
   local window_name=$1
   local working_directory=$2
   local service_command=$3
+  local service_url=$4
   local pane_dead
 
   if ! window_exists "$window_name"; then
@@ -1360,6 +1528,10 @@ service_window_ready() {
     tmux_without_credentials respawn-window -k -t "$INTERVIEW_SESSION:$window_name" \
       -c "$working_directory" "$service_command"
     interview_ok "Restarted stopped tmux service window: $window_name"
+  elif ! curl --fail --silent --max-time 3 "$service_url" >/dev/null 2>&1; then
+    tmux_without_credentials respawn-window -k -t "$INTERVIEW_SESSION:$window_name" \
+      -c "$working_directory" "$service_command"
+    interview_ok "Restarted unhealthy tmux service window: $window_name"
   else
     interview_ok "Preserving active tmux window: $window_name"
   fi
@@ -1391,8 +1563,8 @@ for forbidden_name in "${INTERVIEW_FORBIDDEN_CREDENTIALS[@]}"; do
 done
 
 interactive_window_present work
-service_window_ready api "$INTERVIEW_BACKEND" "$api_command"
-service_window_ready web "$INTERVIEW_FRONTEND" "$web_command"
+service_window_ready api "$INTERVIEW_BACKEND" "$api_command" "http://127.0.0.1:8000/hello"
+service_window_ready web "$INTERVIEW_FRONTEND" "$web_command" "http://127.0.0.1:3000"
 interactive_window_present ai
 tmux select-window -t "$INTERVIEW_SESSION:work" 2>/dev/null || true
 
@@ -1432,7 +1604,7 @@ for forbidden_name in "${INTERVIEW_FORBIDDEN_CREDENTIALS[@]}"; do
   credential_env_arguments+=(-u "$forbidden_name")
 done
 api_command="exec env${credential_unsets} '$INTERVIEW_VENV/bin/uvicorn' app.main:app --reload --host 127.0.0.1 --port 8000"
-web_command="exec env${credential_unsets} npm run dev -- --host 127.0.0.1 --port 3000"
+web_command="exec env${credential_unsets} NPM_CONFIG_USERCONFIG=/dev/null npm run dev -- --host 127.0.0.1 --port 3000"
 
 restart_service_window() {
   local window_name=$1
@@ -1587,6 +1759,11 @@ if interview_claude_authentication_absent; then
 else
   printf 'Persisted Claude authentication: PRESENT or unsafe (path names only; readiness fails)\n'
 fi
+if interview_package_authentication_absent; then
+  printf 'Persisted package-manager authentication: absent\n'
+else
+  printf 'Persisted package-manager authentication: PRESENT or unsafe (path names only; readiness fails)\n'
+fi
 STATUSEOF
 
 install_interview_file "$interview_bin_dir/interview-check" 700 <<'CHECKEOF'
@@ -1618,7 +1795,7 @@ check_repository_exists() {
 }
 
 check_npm() {
-  npm --version >/dev/null 2>&1
+  interview_npm --version >/dev/null 2>&1
 }
 
 check_backend_imports() {
@@ -1638,7 +1815,7 @@ check_backend_tests() {
 check_frontend_build() {
   (
     cd "$INTERVIEW_FRONTEND" 2>/dev/null || exit 1
-    npm run build
+    interview_npm run build
   )
 }
 
@@ -1676,6 +1853,10 @@ check_git_transport_credentials_absent() {
 
 check_claude_authentication_absent() {
   interview_claude_authentication_absent
+}
+
+check_package_authentication_absent() {
+  interview_package_authentication_absent
 }
 
 run_check "expected repository exists" check_repository_exists
@@ -1721,6 +1902,8 @@ run_check "persisted Git and SSH transport credentials are absent" \
   check_git_transport_credentials_absent
 run_check "persisted Claude authentication is absent" \
   check_claude_authentication_absent
+run_check "persisted package-manager authentication is absent" \
+  check_package_authentication_absent
 
 report_temporary="$(mktemp "$HOME/.INTERVIEW_READY.XXXXXX")"
 repository_commit="$(interview_repository_commit 2>/dev/null || printf unavailable)"
@@ -1776,7 +1959,7 @@ fi
   printf -- '- **Interview Claude** Coder app — run the fixed launcher and protected Anthropic request broker in the isolated credential container\n'
   printf '\n## Credential state\n\n'
   printf 'Only credential names are reported; values are never recorded. Required pre-interview state: '
-  printf 'Anthropic API/auth and Claude OAuth credentials (environment and persisted login), GitHub, Coder agent/session, Git/SSH transport, Realm, and RunComfy credentials absent; GitHub and Coder CLIs unauthenticated.\n'
+  printf 'Anthropic API/auth and Claude OAuth credentials (environment and persisted login), package-manager authentication, GitHub, Coder agent/session, Git/SSH transport, Realm, and RunComfy credentials absent; GitHub and Coder CLIs unauthenticated.\n'
   printf '\n## Remaining action\n\n%s\n' "$remaining_action"
 } > "$report_temporary"
 chmod 600 "$report_temporary"
@@ -1816,6 +1999,9 @@ unset BASH_ENV ENV CDPATH LD_LIBRARY_PATH LD_PRELOAD
 unset ANTHROPIC_API_KEY ANTHROPIC_AUTH_TOKEN
 unset CLAUDE_CODE_OAUTH_TOKEN CLAUDE_CODE_OAUTH_REFRESH_TOKEN CLAUDE_CODE_OAUTH_SCOPES
 unset CLAUDE_CONFIG_DIR CLAUDE_SECURESTORAGE_CONFIG_DIR
+unset NPM_TOKEN NODE_AUTH_TOKEN
+unset NPM_CONFIG_USERCONFIG NPM_CONFIG_GLOBALCONFIG
+unset npm_config_userconfig npm_config_globalconfig
 unset GH_TOKEN GITHUB_TOKEN CODER_AGENT_TOKEN CODER_SESSION_TOKEN
 unset GIT_CONFIG GIT_CONFIG_COUNT GIT_CONFIG_PARAMETERS GIT_PROXY_COMMAND GIT_SSH
 unset SSH_AUTH_SOCK SSH_AGENT_PID SSH_ASKPASS_REQUIRE
@@ -1867,7 +2053,7 @@ install_interview_ripgrep() {
     command -v npm >/dev/null 2>&1 || return 1
     rm -rf -- "$tool_root"
     interview_ensure_local_directory "$tool_root" || return 1
-    npm install \
+    interview_npm install \
       --prefix "$tool_root" \
       --ignore-scripts \
       --no-audit \
@@ -1900,23 +2086,44 @@ install_interview_npm_tool() {
   local tools_root="$interview_state_dir/tools"
   local tool_root="$tools_root/$command_name-$package_version"
   local installed_binary="$tool_root/node_modules/$package_binary"
-  local existing_target
+  local installed_payload="$tool_root/node_modules"
+  local existing_target payload_root state_name
+
+  state_name="tool-$command_name-$package_version.sha256"
 
   interview_ensure_local_directory "$tool_root" || return 1
 
   if [ -L "$managed_binary" ]; then
     existing_target="$(readlink -- "$managed_binary")"
     if [ "$existing_target" = "$installed_binary" ] \
-      && interview_tool_version_matches "$managed_binary" "$package_version"; then
+      && interview_tool_version_matches "$managed_binary" "$package_version" \
+      && interview_tool_runtime_works "$command_name" "$managed_binary" \
+      && interview_tool_payload_ready \
+        "$command_name" "$package_version" "$installed_payload"; then
       printf '[ok] %s %s is already available\n' "$label" "$package_version"
       return 0
     fi
     if [ -n "$baseline_target" ] \
       && [ "$existing_target" = "$baseline_target" ] \
-      && interview_tool_version_matches "$managed_binary" "$package_version"; then
-      printf '[ok] %s %s is provided by the pinned image baseline\n' \
-        "$label" "$package_version"
-      return 0
+      && interview_tool_version_matches "$managed_binary" "$package_version" \
+      && interview_tool_runtime_works "$command_name" "$managed_binary"; then
+      payload_root="$(
+        interview_tool_payload_root \
+          "$command_name" "$existing_target" "$installed_binary" \
+          "$baseline_target" "$managed_binary"
+      )" || return 1
+      if interview_tool_payload_ready "$command_name" "$package_version" "$payload_root"; then
+        printf '[ok] %s %s is provided by the pinned image baseline\n' \
+          "$label" "$package_version"
+        return 0
+      fi
+      if ! interview_read_state "$state_name" >/dev/null 2>&1; then
+        interview_record_tool_payload "$command_name" "$package_version" "$payload_root" \
+          || return 1
+        printf '[ok] %s %s is provided by the pinned image baseline\n' \
+          "$label" "$package_version"
+        return 0
+      fi
     fi
     if [[ "$existing_target" == "$tools_root"/* ]] \
       || { [ -n "$baseline_target" ] && [ "$existing_target" = "$baseline_target" ]; }; then
@@ -1930,14 +2137,17 @@ install_interview_npm_tool() {
     return 1
   fi
 
-  if ! interview_tool_version_matches "$installed_binary" "$package_version"; then
+  if ! interview_tool_version_matches "$installed_binary" "$package_version" \
+    || ! interview_tool_runtime_works "$command_name" "$installed_binary" \
+    || ! interview_tool_payload_ready \
+      "$command_name" "$package_version" "$installed_payload"; then
     command -v npm >/dev/null 2>&1 || return 1
     if [ -e "$tool_root" ] || [ -L "$tool_root" ]; then
       rm -rf -- "$tool_root"
     fi
     interview_ensure_local_directory "$tool_root" || return 1
     printf '[install] %s %s\n' "$label" "$package_version"
-    PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1 npm install \
+    PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1 interview_npm install \
       --prefix "$tool_root" \
       --ignore-scripts \
       --no-audit \
@@ -1945,11 +2155,16 @@ install_interview_npm_tool() {
       --no-package-lock \
       --no-save \
       "$package_name@$package_version" >/dev/null
+    interview_record_tool_payload \
+      "$command_name" "$package_version" "$installed_payload" || return 1
   fi
 
   [ -x "$installed_binary" ] || return 1
   ln -s -- "$installed_binary" "$managed_binary"
-  interview_tool_version_matches "$managed_binary" "$package_version"
+  interview_tool_version_matches "$managed_binary" "$package_version" \
+    && interview_tool_runtime_works "$command_name" "$managed_binary" \
+    && interview_tool_payload_ready \
+      "$command_name" "$package_version" "$installed_payload"
 }
 
 install_interview_npm_tool \

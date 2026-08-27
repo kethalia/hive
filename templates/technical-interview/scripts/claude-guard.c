@@ -195,7 +195,12 @@ __attribute__((constructor)) static void protect_claude_process(void) {
       unsetenv("CLAUDE_CODE_OAUTH_REFRESH_TOKEN") != 0 ||
       unsetenv("CLAUDE_CODE_OAUTH_SCOPES") != 0 ||
       unsetenv("CLAUDE_CONFIG_DIR") != 0 ||
-      unsetenv("CLAUDE_SECURESTORAGE_CONFIG_DIR") != 0) {
+      unsetenv("CLAUDE_SECURESTORAGE_CONFIG_DIR") != 0 ||
+      unsetenv("NPM_TOKEN") != 0 || unsetenv("NODE_AUTH_TOKEN") != 0 ||
+      unsetenv("NPM_CONFIG_USERCONFIG") != 0 ||
+      unsetenv("NPM_CONFIG_GLOBALCONFIG") != 0 ||
+      unsetenv("npm_config_userconfig") != 0 ||
+      unsetenv("npm_config_globalconfig") != 0) {
     guard_failure();
   }
 }

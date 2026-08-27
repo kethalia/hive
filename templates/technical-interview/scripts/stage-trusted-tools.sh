@@ -3,6 +3,10 @@ set -eu
 
 umask 022
 
+unset NPM_TOKEN NODE_AUTH_TOKEN
+unset NPM_CONFIG_USERCONFIG NPM_CONFIG_GLOBALCONFIG
+unset npm_config_userconfig npm_config_globalconfig
+
 # This script runs in a credential-free sidecar without the persistent home.
 # Copy the image-baked Claude executable and install the pinned Playwright MCP
 # into pod-local volumes. Runtime mounts are read-only and the candidate
