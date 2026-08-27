@@ -572,6 +572,11 @@ test("standalone Terraform exposes interview apps without personal auth modules"
   assert.doesNotMatch(terraform, /scripts\/tools-ai\.sh/);
   assert.doesNotMatch(terraform, /\bBASH_ENV\b/);
   assert.doesNotMatch(terraform, /^\s+ENV\s*=/m);
+  assert.doesNotMatch(terraform, /\.hive-image-seeded/);
+  assert.match(
+    terraform,
+    /find \/target -mindepth 1 -maxdepth 1 -print -quit[\s\S]*?Preserving existing workspace home/,
+  );
   assert.doesNotMatch(init, /sync-vault|vault-managed|Vault Context Layer/);
   assert.doesNotMatch(init, /command = "npx"|"command": "npx"/);
   assert.match(init, /\.local[^\n]+playwright-mcp/);
@@ -629,6 +634,37 @@ test("init atomically replaces the managed environment symlink without touching 
       1,
     );
   }
+});
+
+test("init preserves a non-regular workspace README without blocking startup", () => {
+  const root = mkdtempSync(join(tmpdir(), "technical-interview-init-readme-"));
+  const home = join(root, "home");
+  const readme = join(home, "README.md");
+  mkdirSync(home, { recursive: true });
+  const fifo = run("/usr/bin/mkfifo", [readme], process.env);
+  assert.equal(fifo.status, 0, fifo.stderr);
+
+  const result = runInit(root, home);
+  assert.equal(result.status, 0, result.stderr);
+  assert.match(result.stderr, /unsafe workspace README was preserved/);
+  assert.equal(lstatSync(readme).isFIFO(), true);
+  assert.equal(lstatSync(join(home, ".workspace_initialized")).isFile(), true);
+});
+
+test("init preserves non-directory agent configuration paths", () => {
+  const root = mkdtempSync(join(tmpdir(), "technical-interview-init-agent-paths-"));
+  const home = join(root, "home");
+  const codexPath = join(home, ".codex");
+  const claudePath = join(home, ".claude");
+  mkdirSync(home, { recursive: true });
+  writeFileSync(codexPath, "preserve candidate Codex path\n");
+  writeFileSync(claudePath, "preserve candidate Claude path\n");
+
+  const result = runInit(root, home);
+  assert.equal(result.status, 0, result.stderr);
+  assert.match(result.stderr, /preserving unsafe agent path without refreshing context/);
+  assert.equal(readFileSync(codexPath, "utf8"), "preserve candidate Codex path\n");
+  assert.equal(readFileSync(claudePath, "utf8"), "preserve candidate Claude path\n");
 });
 
 test("init preserves candidate files at retired vault integration paths", () => {
@@ -1034,6 +1070,34 @@ chmod 755 "$destination/filebrowser"
   assert.equal(statSync(binary).mode & 0o777, 0o755);
   assert.equal(statSync(versionMarker).mode & 0o777, 0o600);
   assert.equal(readFileSync(versionMarker, "utf8"), "2.63.18\n");
+});
+
+test("File Browser rejects a linked database without touching its target", () => {
+  const root = mkdtempSync(join(tmpdir(), "technical-interview-filebrowser-database-"));
+  const home = join(root, "home");
+  const databaseDirectory = join(home, ".config", "filebrowser");
+  const database = join(databaseDirectory, "filebrowser.db");
+  const candidateDatabase = join(root, "candidate.db");
+  const renderedToolsFilebrowser = join(root, "rendered-tools-filebrowser.sh");
+  mkdirSync(databaseDirectory, { recursive: true });
+  writeFileSync(candidateDatabase, "preserve candidate database\n");
+  chmodSync(candidateDatabase, 0o640);
+  symlinkSync(candidateDatabase, database);
+  writeFileSync(
+    renderedToolsFilebrowser,
+    renderToolsFilebrowserScript("/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"),
+  );
+
+  const result = run("bash", [renderedToolsFilebrowser], {
+    ...process.env,
+    HOME: home,
+    PATH: "/usr/bin:/bin",
+  });
+  assert.equal(result.status, 1, result.stderr);
+  assert.match(result.stderr, /unsafe File Browser database was preserved/);
+  assert.equal(lstatSync(database).isSymbolicLink(), true);
+  assert.equal(readFileSync(candidateDatabase, "utf8"), "preserve candidate database\n");
+  assert.equal(statSync(candidateDatabase).mode & 0o777, 0o640);
 });
 
 test("init atomically replaces linked MCP configs without touching their targets", () => {

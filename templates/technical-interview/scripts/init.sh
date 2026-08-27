@@ -47,22 +47,58 @@ if ! ensure_interview_local_directory "$HOME/.local/bin"; then
   interview_local_tools_safe=false
 fi
 
-if [ ! -f "$HOME/.workspace_initialized" ]; then
-  echo "First-time workspace setup..."
-  mkdir -p "$HOME/projects" "$HOME/bin" "$HOME/.config"
+initialize_workspace_home() {
+  local initialization_marker="$HOME/.workspace_initialized"
+  local readme="$HOME/README.md"
+  local temporary_file
 
-  if [ ! -f "$HOME/README.md" ]; then
-    cat > "$HOME/README.md" << 'EOFREADME'
+  if [ -L "$initialization_marker" ] \
+    || { [ -e "$initialization_marker" ] && [ ! -f "$initialization_marker" ]; }; then
+    printf 'WARNING: unsafe workspace initialization marker was preserved: %s\n' \
+      "$initialization_marker" >&2
+    return 0
+  fi
+  [ ! -f "$initialization_marker" ] || return 0
+
+  echo "First-time workspace setup..."
+  for directory in "$HOME/projects" "$HOME/bin" "$HOME/.config"; do
+    if ! ensure_interview_local_directory "$directory"; then
+      printf 'WARNING: workspace directory could not be prepared; readiness will fail: %s\n' \
+        "$directory" >&2
+    fi
+  done
+
+  if [ -L "$readme" ] || { [ -e "$readme" ] && [ ! -f "$readme" ]; }; then
+    printf 'WARNING: unsafe workspace README was preserved: %s\n' "$readme" >&2
+  elif [ ! -f "$readme" ]; then
+    temporary_file="$(mktemp "$HOME/.README.md.XXXXXX")"
+    if ! cat > "$temporary_file" << 'EOFREADME'
 ${workspace_readme_content}
 
 ## Workspace identity
 
 - Name: ${workspace_name}
 EOFREADME
+    then
+      rm -f -- "$temporary_file"
+      return 1
+    fi
+    chmod 600 "$temporary_file"
+    if ! mv -fT -- "$temporary_file" "$readme"; then
+      rm -f -- "$temporary_file"
+      return 1
+    fi
   fi
 
-  touch "$HOME/.workspace_initialized"
-fi
+  temporary_file="$(mktemp "$HOME/.workspace_initialized.XXXXXX")"
+  chmod 600 "$temporary_file"
+  if ! mv -fT -- "$temporary_file" "$initialization_marker"; then
+    rm -f -- "$temporary_file"
+    return 1
+  fi
+}
+
+initialize_workspace_home
 
 export PATH="$HOME/.local/bin:$HOME/.local/share/pnpm:$HOME/.bun/bin:$HOME/.foundry/bin:$PATH"
 export HIVE_BROWSER_TOOLS_ENABLED="${enable_browser}"
@@ -438,12 +474,11 @@ write_managed_agent_context() {
   local agent_directory agent_file="$1" agent_tmp
 
   agent_directory="$(dirname -- "$agent_file")"
-  if [ -L "$agent_directory" ]; then
-    printf 'WARNING: preserving symlinked agent directory without refreshing context: %s\n' \
+  if ! ensure_interview_local_directory "$agent_directory"; then
+    printf 'WARNING: preserving unsafe agent path without refreshing context: %s\n' \
       "$agent_directory" >&2
     return 0
   fi
-  mkdir -p "$agent_directory"
   agent_tmp="$(mktemp "$agent_directory/.hive-agent-context.XXXXXX")"
   if ! cat > "$agent_tmp" << 'AGENTEOF'
 ${claude_md_content}

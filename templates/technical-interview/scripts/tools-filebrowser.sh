@@ -87,6 +87,11 @@ ensure_interview_local_directory "$HOME/.local/share"
 ensure_interview_local_directory "$HOME/.local/state/filebrowser"
 ensure_interview_local_directory "$(dirname "$database")"
 
+if [ -L "$database" ] || { [ -e "$database" ] && [ ! -f "$database" ]; }; then
+  printf '[error] unsafe File Browser database was preserved: %s\n' "$database" >&2
+  exit 1
+fi
+
 installed_version=""
 if [ -f "$version_marker" ] && [ ! -L "$version_marker" ]; then
   installed_version="$(cat "$version_marker")"
