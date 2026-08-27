@@ -57,14 +57,8 @@ playwright_mcp_ready() {
     | /usr/bin/grep -qF -- "$playwright_mcp_version"
 }
 
-for _ in {1..180}; do
-  if playwright_mcp_ready; then
-    break
-  fi
-  /usr/bin/sleep 1
-done
 if ! playwright_mcp_ready; then
-  printf 'ERROR: isolated Claude Playwright MCP payload is unavailable\n' >&2
+  printf 'ERROR: trusted init did not provide the isolated Playwright MCP payload\n' >&2
   exit 1
 fi
 

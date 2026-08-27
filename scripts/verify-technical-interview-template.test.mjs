@@ -139,7 +139,6 @@ function renderBootstrapScript(
   trustedClaudeLauncher,
   trustedClaudeGuard,
   claudeStatus,
-  claudeMcpStage,
   chromeBinary,
   interviewRepository,
 ) {
@@ -167,14 +166,6 @@ function renderBootstrapScript(
     .replace(
       'INTERVIEW_CLAUDE_STATUS="/run/hive-interview-claude/ready"',
       `INTERVIEW_CLAUDE_STATUS="${claudeStatus}"`,
-    )
-    .replace(
-      'interview_claude_mcp_stage="/run/hive-interview-claude-mcp"',
-      `interview_claude_mcp_stage="${claudeMcpStage}"`,
-    )
-    .replace(
-      'INTERVIEW_CLAUDE_MCP_STAGE="/run/hive-interview-claude-mcp"',
-      `INTERVIEW_CLAUDE_MCP_STAGE="${claudeMcpStage}"`,
     )
     .replace(
       "for system_binary in /usr/bin/rg /usr/local/bin/rg; do",
@@ -257,12 +248,10 @@ function createFixture() {
   const claudeBrokerResponse = join(root, "claude-broker-response.log");
   const claudeChildEnv = join(root, "claude-child-env.log");
   const claudeProcProbe = join(root, "claude-proc-probe.log");
-  const claudeMcpStage = join(root, "claude-mcp-stage");
   const interviewRepository = join(home, "projects", "prmsolutions", "interview-template");
   mkdirSync(join(interviewRepository, "backend", "tests"), { recursive: true });
   mkdirSync(join(interviewRepository, "frontend"), { recursive: true });
   mkdirSync(bin, { recursive: true });
-  mkdirSync(claudeMcpStage);
   mkdirSync(tmuxRoot, { recursive: true });
   seedSafeInterviewEnvironment(home);
   writeFileSync(calls, "");
@@ -812,7 +801,6 @@ esac
   return {
     bin,
     calls,
-    claudeMcpStage,
     claudeStatus,
     claudeArgs,
     claudeBrokerChildProbe,
@@ -842,7 +830,6 @@ function installHelpers(fixture, environment = fixture.env) {
       fixture.trustedClaudeLauncher,
       fixture.trustedClaudeGuard,
       fixture.claudeStatus,
-      fixture.claudeMcpStage,
       join(fixture.bin, "google-chrome-stable"),
       fixture.interviewRepository,
     ),
@@ -933,15 +920,20 @@ test("standalone Terraform exposes interview apps without personal auth modules"
   );
   assert.match(
     terraform,
-    /name\s*=\s*"claude-mcp"[\s\S]*?mount_path\s*=\s*"\/run\/hive-interview-claude-mcp"/,
+    /name\s*=\s*"stage-trusted-tools"[\s\S]*?name\s*=\s*"claude-mcp"[\s\S]*?mount_path\s*=\s*"\/trusted-mcp"/,
   );
   assert.match(
     terraform,
     /name\s*=\s*"claude-mcp"[\s\S]*?mount_path\s*=\s*"\/opt\/hive-interview-mcp"[\s\S]*?read_only\s*=\s*true/,
   );
+  assert.equal((terraform.match(/name\s*=\s*"claude-mcp"/g) ?? []).length, 3);
+  assert.doesNotMatch(terraform, /\/run\/hive-interview-claude-mcp/);
   assert.doesNotMatch(terraform, /sub_path\s*=\s*"interview-claude"/);
   assert.match(terraform, /empty_dir\s*\{[\s\S]*?size_limit\s*=\s*"512Mi"/);
   assert.match(stageTrustedTools, /\/home\/coder\/\.local\/share\/claude\/versions\/\*/);
+  assert.match(stageTrustedTools, /trusted_mcp_dir="\/trusted-mcp"/);
+  assert.match(stageTrustedTools, /"@playwright\/mcp@\$playwright_mcp_version"/);
+  assert.match(stageTrustedTools, /PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1/);
   assert.match(stageTrustedTools, /-ldl/);
   assert.match(interviewClaude, /TRUSTED_CLAUDE = Path\("\/opt\/hive-interview-tools\/claude"\)/);
   assert.match(
@@ -978,6 +970,7 @@ test("standalone Terraform exposes interview apps without personal auth modules"
   assert.match(initClaude, /isolated-claude-agent-ready-v2/);
   assert.match(initClaude, /claude_user_config="\$HOME\/\.claude\.json"/);
   assert.match(initClaude, /\/opt\/hive-interview-mcp\/playwright-mcp-/);
+  assert.doesNotMatch(initClaude, /\{1\.\.180\}|\/usr\/bin\/sleep 1/);
   assert.match(initClaude, /"--browser","chrome","--headless","--no-sandbox","--isolated"/);
   assert.match(claudeHeartbeat, /isolated-claude-agent-ready-v2/);
   assert.match(claudeHeartbeat, /playwright_mcp_config/);
@@ -1091,27 +1084,54 @@ test("home seeding retries interrupted copies and promotions", () => {
   assert.equal(existsSync(join(promotionTarget, ".hive-image-seed-complete")), true);
 });
 
-test("trusted tool staging copies image Claude and its launcher into pod-local files", () => {
+test("trusted init stages immutable Claude and Playwright payloads before runtime", () => {
   const root = mkdtempSync(join(tmpdir(), "technical-interview-trusted-tools-"));
   const imageHome = join(root, "image-home");
   const trustedTools = join(root, "trusted-tools");
+  const trustedMcp = join(root, "trusted-mcp");
   const imageClaude = join(imageHome, ".local", "share", "claude", "versions", "fixture");
   const imageClaudeLink = join(imageHome, ".local", "bin", "claude");
+  const fakeNpm = join(root, "npm");
+  const npmCalls = join(root, "npm-calls.log");
+  const npmFailureMarker = join(root, "npm-failed-once");
   const renderedStage = join(root, "stage-trusted-tools.sh");
   mkdirSync(dirname(imageClaude), { recursive: true });
   mkdirSync(dirname(imageClaudeLink), { recursive: true });
   mkdirSync(trustedTools);
+  mkdirSync(trustedMcp);
   executable(imageClaude, "#!/bin/sh\nprintf 'fixture Claude Code\\n'\n");
   symlinkSync(imageClaude, imageClaudeLink);
+  executable(
+    fakeNpm,
+    `#!/bin/sh
+set -eu
+prefix=''
+while [ "$#" -gt 0 ]; do
+  if [ "$1" = "--prefix" ]; then prefix=$2; shift 2; else shift; fi
+done
+printf 'install\\n' >> "$FAKE_NPM_CALLS"
+if [ ! -e "$FAKE_NPM_FAILURE_MARKER" ]; then
+  : > "$FAKE_NPM_FAILURE_MARKER"
+  exit 1
+fi
+mkdir -p "$prefix/node_modules/.bin"
+printf '#!/bin/sh\\nprintf "Version 0.0.79\\\\n"\\n' > "$prefix/node_modules/.bin/playwright-mcp"
+chmod 755 "$prefix/node_modules/.bin/playwright-mcp"
+`,
+  );
   writeFileSync(
     renderedStage,
     readFileSync(stageTrustedToolsScript, "utf8")
       .replaceAll("/home/coder", imageHome)
-      .replace('trusted_tools_dir="/trusted-tools"', `trusted_tools_dir="${trustedTools}"`),
+      .replace('trusted_tools_dir="/trusted-tools"', `trusted_tools_dir="${trustedTools}"`)
+      .replace('trusted_mcp_dir="/trusted-mcp"', `trusted_mcp_dir="${trustedMcp}"`)
+      .replaceAll("/usr/bin/npm", fakeNpm),
   );
 
-  const result = run("sh", [renderedStage], {
+  const environment = {
     ...process.env,
+    FAKE_NPM_CALLS: npmCalls,
+    FAKE_NPM_FAILURE_MARKER: npmFailureMarker,
     HIVE_INTERVIEW_CLAUDE_HELPER_B64: Buffer.from(readFileSync(interviewClaudeScript)).toString(
       "base64",
     ),
@@ -1119,7 +1139,15 @@ test("trusted tool staging copies image Claude and its launcher into pod-local f
       "base64",
     ),
     PATH: "/usr/bin:/bin",
-  });
+  };
+  const interrupted = run("sh", [renderedStage], environment);
+  assert.equal(interrupted.status, 1);
+  assert.deepEqual(
+    readdirSync(trustedMcp).filter((entry) => entry.startsWith(".playwright-mcp.")),
+    [],
+  );
+
+  const result = run("sh", [renderedStage], environment);
   assert.equal(result.status, 0, result.stderr);
   for (const stagedFile of ["claude", "interview-claude", "claude-guard.so"]) {
     const path = join(trustedTools, stagedFile);
@@ -1134,6 +1162,18 @@ test("trusted tool staging copies image Claude and its launcher into pod-local f
     readFileSync(join(trustedTools, "interview-claude"), "utf8"),
     readFileSync(interviewClaudeScript, "utf8"),
   );
+  const stagedPlaywright = join(
+    trustedMcp,
+    "playwright-mcp-0.0.79",
+    "node_modules",
+    ".bin",
+    "playwright-mcp",
+  );
+  assert.equal(run(stagedPlaywright, ["--version"], environment).stdout.trim(), "Version 0.0.79");
+
+  const repeated = run("sh", [renderedStage], environment);
+  assert.equal(repeated.status, 0, repeated.stderr);
+  assert.equal(readFileSync(npmCalls, "utf8"), "install\ninstall\n");
 });
 
 test("isolated Claude agent startup uses an ephemeral home and trusted command path", () => {
@@ -2447,17 +2487,6 @@ test("fresh bootstrap installs the pinned standalone toolchain idempotently", ()
     assert.equal(result.status, 0, result.stderr);
     assert.match(result.stdout, new RegExp(version.replaceAll(".", "\\.")));
   }
-  const stagedPlaywright = join(
-    fixture.claudeMcpStage,
-    "playwright-mcp-0.0.79",
-    "node_modules",
-    ".bin",
-    "playwright-mcp",
-  );
-  const stagedVersion = run(stagedPlaywright, ["--version"], fixture.env);
-  assert.equal(stagedVersion.status, 0, stagedVersion.stderr);
-  assert.equal(stagedVersion.stdout.trim(), "Version 0.0.79");
-
   const firstCalls = readFileSync(fixture.calls, "utf8");
   for (const packageName of [
     "@openai/codex@0.149.1",
@@ -2489,14 +2518,8 @@ test("interview-setup retries a transient managed-tool installation failure", ()
 
   const setup = run(join(fixture.home, ".local", "bin", "interview-setup"), [], fixture.env);
   assert.equal(setup.status, 0, setup.stderr);
-  const stagedPlaywright = join(
-    fixture.claudeMcpStage,
-    "playwright-mcp-0.0.79",
-    "node_modules",
-    ".bin",
-    "playwright-mcp",
-  );
-  assert.equal(run(stagedPlaywright, ["--version"], fixture.env).status, 0);
+  const repairedPlaywright = join(fixture.home, ".local", "bin", "playwright-mcp");
+  assert.equal(run(repairedPlaywright, ["--version"], fixture.env).status, 0);
   assert.equal(
     (readFileSync(fixture.calls, "utf8").match(/tool-install:@playwright\/mcp@0\.0\.79/g) ?? [])
       .length,

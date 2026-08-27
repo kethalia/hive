@@ -482,17 +482,22 @@ resource "kubernetes_deployment_v1" "workspace" {
           resources {
             requests = {
               cpu    = "100m"
-              memory = "128Mi"
+              memory = "256Mi"
             }
             limits = {
               cpu    = "500m"
-              memory = "512Mi"
+              memory = "1Gi"
             }
           }
 
           volume_mount {
             name       = "trusted-tools"
             mount_path = "/trusted-tools"
+          }
+
+          volume_mount {
+            name       = "claude-mcp"
+            mount_path = "/trusted-mcp"
           }
         }
 
@@ -590,11 +595,6 @@ resource "kubernetes_deployment_v1" "workspace" {
             name       = "claude-status"
             mount_path = "/run/hive-interview-claude"
             read_only  = true
-          }
-
-          volume_mount {
-            name       = "claude-mcp"
-            mount_path = "/run/hive-interview-claude-mcp"
           }
 
         }

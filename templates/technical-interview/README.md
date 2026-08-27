@@ -32,9 +32,10 @@ private Unix-socket broker that accepts only the protected Claude process and fo
 Anthropic v1 API paths to `api.anthropic.com`; Claude and all candidate-controlled commands receive
 only a non-secret placeholder. The launcher's fixed environment excludes every workspace,
 orchestration, and personal credential, while the guard removes the private broker route before
-Claude can execute hooks, shell commands, or stdio MCP servers. The pinned Playwright MCP payload is
-copied into a pod-local volume and mounted read-only into the isolated Claude container, while its
-browser profile remains confined to Claude's ephemeral home.
+Claude can execute hooks, shell commands, or stdio MCP servers. A trusted Kubernetes init container
+installs and validates the pinned Playwright MCP payload before either runtime starts. The candidate
+container never mounts that volume, and Claude mounts it read-only; browser state remains confined
+to Claude's ephemeral home.
 
 The first startup verifies Codex `0.149.1`, Playwright MCP `0.0.79`, Bun `1.4.0`, and pnpm `10.32.1`.
 Exact matching Codex and Bun commands from the image baseline are reused; missing or mismatched tools
