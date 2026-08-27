@@ -381,6 +381,12 @@ try:
         with os.scandir(directory) as entries:
             ordered = sorted(entries, key=lambda entry: os.fsencode(entry.name))
         for entry in ordered:
+            if not relative_directory.parts and entry.name in {
+                ".cache",
+                ".vite",
+                ".vue-global-types",
+            }:
+                continue
             path = Path(entry.path)
             relative = relative_directory / entry.name
             metadata = entry.stat(follow_symlinks=False)

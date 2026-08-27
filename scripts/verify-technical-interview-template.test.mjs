@@ -2377,6 +2377,18 @@ test("setup repairs corrupted frontend package payloads even when npm ls succeed
   const first = run(setup, [], fixture.env);
   assert.equal(first.status, 0, first.stderr);
   const installedPayload = readFileSync(vite, "utf8");
+  const generatedCache = join(
+    fixture.interviewRepository,
+    "frontend",
+    "node_modules",
+    ".vue-global-types",
+  );
+  mkdirSync(generatedCache);
+  writeFileSync(join(generatedCache, "generated.d.ts"), "// build-generated cache\n");
+  const cacheOnly = run(setup, [], fixture.env);
+  assert.equal(cacheOnly.status, 0, cacheOnly.stderr);
+  assert.equal((readFileSync(fixture.calls, "utf8").match(/npm-install/g) ?? []).length, 1);
+
   writeFileSync(vite, "#!/bin/sh\n# corrupted package payload\nexit 0\n");
   chmodSync(vite, 0o755);
 
