@@ -1,5 +1,13 @@
 # hive-orchestrator
 
+## 2.14.0
+
+### Minor Changes
+
+- 58c347b: Add an isolated browser-capable technical interview workspace with anonymous repository bootstrap,
+  credential-safe Claude launch, pinned Codex, Playwright MCP, Bun and pnpm tooling, readiness helpers,
+  and built-in Hive template integration.
+
 ## 2.13.4
 
 ### Patch Changes
