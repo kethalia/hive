@@ -1,6 +1,6 @@
 # Workspace Template Profiles
 
-Hive ships five deployable Coder templates for interactive work in the Kubernetes cluster. Templates
+Hive ships six deployable Coder templates for interactive work in the Kubernetes cluster. Templates
 define the environment and capability boundary; tmux/TUI sessions remain the conversation boundary
 inside each workspace.
 
@@ -10,6 +10,7 @@ inside each workspace.
 | --- | --- | --- | --- | --- |
 | `ai-dev-k8s` | Development & orchestration | `cli` | TUI, VS Code, files | 6 CPU, 16 GiB RAM, 100 GiB home |
 | `browser-testing` | Browser testing | `browser` | Chrome, Playwright, desktop | 4 CPU, 8 GiB RAM, 50 GiB home |
+| `technical-interview` | Technical interview | `browser` | Prepared assessment app, API, Chrome, desktop | 4 CPU, 8 GiB RAM, 50 GiB home |
 | `game-dev` | Game development | `game` | Unity, Blender, desktop | 6 CPU, 16 GiB RAM, 150 GiB home |
 | `electronics` | Electronics | `electronics` | KiCad, desktop | 4 CPU, 8 GiB RAM, 100 GiB home |
 | `infrastructure` | Infrastructure | `infrastructure` | Terraform, kubectl, Helm, Argo CD | 4 CPU, 8 GiB RAM, 75 GiB home |
@@ -23,16 +24,17 @@ Each `profile.json` declares its image variant and explicit capabilities. Terraf
 to decide which Coder scripts, applications, and modules exist; the image build uses the variant to
 decide which binaries are present.
 
-| Capability | Development | Browser | Game | Electronics | Infrastructure |
-| --- | ---: | ---: | ---: | ---: | ---: |
-| Claude Code, Codex, tmux, CLI baseline | Yes | Yes | Yes | Yes | Yes |
-| Coder workspace orchestration | Yes | No | No | No | No |
-| code-server and File Browser | Yes | Yes | Yes | Yes | Yes |
-| XFCE and KasmVNC | No | Yes | Yes | Yes | No |
-| Chrome and Playwright MCP | No | Yes | No | No | No |
-| Unity Hub and Blender | No | No | Yes | No | No |
-| KiCad | No | No | No | Yes | No |
-| Terraform, kubectl, Helm, and Argo CD | No | No | No | No | Yes |
+| Capability | Development | Browser | Interview | Game | Electronics | Infrastructure |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| Claude Code, Codex, tmux, CLI baseline | Yes | Yes | Yes | Yes | Yes | Yes |
+| Coder workspace orchestration | Yes | No | No | No | No | No |
+| GitHub external authentication | Yes | Yes | No | Yes | Yes | Yes |
+| code-server and File Browser | Yes | Yes | Yes | Yes | Yes | Yes |
+| XFCE and KasmVNC | No | Yes | Yes | Yes | Yes | No |
+| Chrome and Playwright MCP | No | Yes | Yes | No | No | No |
+| Unity Hub and Blender | No | No | No | Yes | No | No |
+| KiCad | No | No | No | No | Yes | No |
+| Terraform, kubectl, Helm, and Argo CD | No | No | No | No | No | Yes |
 
 This is both a runtime and image boundary. For example, a CLI image does not merely hide the Desktop
 link: it has no XFCE, KasmVNC, Chrome, Unity, Blender, or KiCad executable to launch. Negative smoke
@@ -40,8 +42,8 @@ tests enforce those exclusions for every image build.
 
 ## Source layout
 
-`templates/ai-dev-k8s` is the canonical Kubernetes scaffold. The four specialist directories
-contain byte-identical Terraform and startup scripts plus their own:
+`templates/ai-dev-k8s` is the canonical Kubernetes scaffold. Browser Testing, Game Development,
+Electronics, and Infrastructure contain synchronized Terraform and startup scripts plus their own:
 
 - `profile.json` for image variant, capabilities, resources, and editor extensions
 - `CLAUDE.md` for agent behavior and safety boundaries
@@ -50,6 +52,10 @@ contain byte-identical Terraform and startup scripts plus their own:
 - `WORKSPACE.md` for the generated `~/README.md` quick start
 - `repositories.txt` for the narrow first-start repository set
 - `README.md` for operator-facing deployment notes
+
+`templates/technical-interview` is deliberately standalone. It carries only the scripts and Coder
+resources needed for the assessment and is not a synchronization target, so adding or removing it
+does not rewrite any existing template.
 
 After changing canonical Terraform, routing guidance, or scripts, synchronize and verify every
 profile:
@@ -75,6 +81,7 @@ Authenticate the Coder CLI, then push every Kubernetes template from the reposit
 ```bash
 coder templates push ai-dev-k8s --directory templates/ai-dev-k8s --yes
 coder templates push browser-testing --directory templates/browser-testing --yes
+coder templates push technical-interview --directory templates/technical-interview --yes
 coder templates push game-dev --directory templates/game-dev --yes
 coder templates push electronics --directory templates/electronics --yes
 coder templates push infrastructure --directory templates/infrastructure --yes
@@ -98,8 +105,10 @@ after any required workspace migration is complete.
 
 `docker/hive-base/Dockerfile` builds `cli`, `infrastructure`, `browser`, `game`, and `electronics`
 variants. Pull-request CI builds every variant and verifies both required and forbidden commands.
-After a change lands on `main`, the workflow pushes all five tested images and opens a follow-up PR
-that pins each `profile.json` to the digest for its variant.
+After a change lands on `main`, the workflow pushes all five tested image variants and opens a
+follow-up PR that pins the synchronized profiles to the digest for their variant. The standalone
+interview template intentionally keeps its explicit browser digest until it is removed or updated
+directly.
 
 When introducing a new variant, the profile keeps the variant matching its existing digest and
 declares `pending_image_variant`. The digest workflow replaces the digest, promotes that pending
@@ -117,6 +126,6 @@ Before publishing:
 4. Verify Coder SSH, the Hive TUI, agent login, declared apps, repository bootstrap, workspace
    discovery from `ai-dev-k8s`, and stop/start persistence.
 5. Confirm excluded apps are absent: especially Desktop in CLI profiles and Chrome/Playwright in
-   every profile except Browser Testing.
+   every profile except Browser Testing and Technical Interview.
 6. Perform domain checks in the matching profile. GPU, physical electronics, and live infrastructure
    access remain explicit external capabilities rather than template assumptions.

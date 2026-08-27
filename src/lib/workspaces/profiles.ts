@@ -19,6 +19,12 @@ export const WORKSPACE_PROFILES = [
     description: "A dedicated Chrome and Playwright environment for browser validation.",
   },
   {
+    id: "interview",
+    label: "Technical interview",
+    description:
+      "An isolated, credential-minimal environment for time-boxed full-stack assessments.",
+  },
+  {
     id: "game",
     label: "Game development",
     description: "An interactive environment for engines, content tools, and visual iteration.",
@@ -49,6 +55,7 @@ const PROFILE_PATTERNS: ReadonlyArray<{
   id: Exclude<WorkspaceProfileId, "custom" | "orchestrator">;
   pattern: RegExp;
 }> = [
+  { id: "interview", pattern: /technical[-_ ]?interview|proton[-_ ]?interview/ },
   { id: "browser", pattern: /browser|playwright|chrome|end[-_ ]?to[-_ ]?end|e2e/ },
   { id: "game", pattern: /game|unity|unreal|godot|blender/ },
   { id: "electronics", pattern: /electronic|hardware|kicad|pcb|firmware/ },

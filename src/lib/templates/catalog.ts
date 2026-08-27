@@ -41,6 +41,21 @@ export const TEMPLATE_CATALOG = [
     description: "Dedicated Chrome and Playwright workspace for browser automation and inspection.",
   },
   {
+    name: "technical-interview",
+    profileId: "interview",
+    runtime: "kubernetes",
+    imageVariant: "browser",
+    capabilities: {
+      browser: true,
+      desktop: true,
+      editor: true,
+      fileBrowser: true,
+      web3: false,
+    },
+    description:
+      "Credential-minimal full-stack assessment workspace with prepared services and browser access.",
+  },
+  {
     name: "game-dev",
     profileId: "game",
     runtime: "kubernetes",
