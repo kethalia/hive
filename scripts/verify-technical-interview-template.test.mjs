@@ -173,6 +173,10 @@ function renderBootstrapScript(
       `interview_claude_mcp_stage="${claudeMcpStage}"`,
     )
     .replace(
+      'INTERVIEW_CLAUDE_MCP_STAGE="/run/hive-interview-claude-mcp"',
+      `INTERVIEW_CLAUDE_MCP_STAGE="${claudeMcpStage}"`,
+    )
+    .replace(
       "for system_binary in /usr/bin/rg /usr/local/bin/rg; do",
       `for system_binary in "${dirname(trustedClaude)}/rg" "${dirname(trustedClaude)}/missing-rg"; do`,
     )
@@ -249,6 +253,7 @@ function createFixture() {
   const tmuxRoot = join(root, "tmux");
   const calls = join(root, "calls.log");
   const claudeArgs = join(root, "claude-args.log");
+  const claudeBrokerChildProbe = join(root, "claude-broker-child-probe.log");
   const claudeBrokerResponse = join(root, "claude-broker-response.log");
   const claudeChildEnv = join(root, "claude-child-env.log");
   const claudeProcProbe = join(root, "claude-proc-probe.log");
@@ -443,6 +448,11 @@ case "\${1:-}" in
     done
     if [ -n "$install_prefix" ]; then
       printf 'tool-install:%s\\n' "$package_spec" >> "$FAKE_CALLS"
+      if [ "\${FAKE_TOOL_INSTALL_FAIL_ONCE:-}" = "$package_spec" ] \
+        && [ ! -e "\${FAKE_TOOL_INSTALL_FAILURE_MARKER:-}" ]; then
+        : > "$FAKE_TOOL_INSTALL_FAILURE_MARKER"
+        exit 1
+      fi
       case "$package_spec" in
         @openai/codex@*)
           mkdir -p "$install_prefix/node_modules/.bin"
@@ -530,40 +540,64 @@ exit 0
   );
   executable(
     join(bin, "claude"),
-    `#!/bin/bash
-set -euo pipefail
-if [ "\${1:-}" = "--version" ]; then printf '2.1.170 (Claude Code)\\n'; exit 0; fi
-[ "\${ANTHROPIC_API_KEY:-}" = "hive-interview-broker-managed-non-secret" ]
-[ "\${CLAUDE_CODE_SUBPROCESS_ENV_SCRUB:-}" = "1" ]
-case "\${ANTHROPIC_BASE_URL:-}" in http://127.0.0.1:*) ;; *) exit 98 ;; esac
-${claudeCredentialAssertions}
-[ -z "\${GH_TOKEN:-}" ]
-[ -z "\${GITHUB_TOKEN:-}" ]
-[ -z "\${CODER_AGENT_TOKEN:-}" ]
-[ -z "\${CODER_SESSION_TOKEN:-}" ]
-[ -z "\${GIT_CONFIG:-}" ]
-[ -z "\${GIT_CONFIG_COUNT:-}" ]
-[ -z "\${GIT_CONFIG_PARAMETERS:-}" ]
-[ -z "\${GIT_PROXY_COMMAND:-}" ]
-[ -z "\${GIT_SSH:-}" ]
-[ -z "\${SSH_AUTH_SOCK:-}" ]
-[ -z "\${SSH_AGENT_PID:-}" ]
-[ "\${GIT_CONFIG_GLOBAL:-}" = "/dev/null" ]
-[ "\${GIT_CONFIG_NOSYSTEM:-}" = "1" ]
-[ "\${GIT_ASKPASS:-}" = "/bin/false" ]
-[ "\${GIT_SSH_COMMAND:-}" = "/bin/false" ]
-[ "\${SSH_ASKPASS:-}" = "/bin/false" ]
-[ -z "\${REALM_VISUAL_REVIEW_API_KEY:-}" ]
-[ -z "\${RUNCOMFY_API_TOKEN:-}" ]
-if /bin/cat "/proc/$$/environ" >/dev/null 2>&1; then exit 97; fi
-printf 'blocked\\n' > "${claudeProcProbe}"
-/usr/bin/env > "${claudeChildEnv}"
-/usr/bin/python3 -I - <<'PYTHON'
+    `#!/usr/bin/python3 -I
 import os
 import http.client
+import socket
+import subprocess
+import sys
 import urllib.request
 import urllib.parse
 from pathlib import Path
+
+if sys.argv[1:] == ["--version"]:
+    print("2.1.170 (Claude Code)")
+    raise SystemExit(0)
+
+assert os.environ.get("ANTHROPIC_API_KEY") == "hive-interview-broker-managed-non-secret"
+assert os.environ.get("CLAUDE_CODE_SUBPROCESS_ENV_SCRUB") == "1"
+assert os.environ.get("ANTHROPIC_BASE_URL", "").startswith("http://127.0.0.1:")
+for variable_name in ${JSON.stringify([
+      "ANTHROPIC_AUTH_TOKEN",
+      "CLAUDE_CODE_OAUTH_TOKEN",
+      "CLAUDE_CODE_OAUTH_REFRESH_TOKEN",
+      "CLAUDE_CODE_OAUTH_SCOPES",
+      "CODER_AGENT_TOKEN",
+      "CODER_SESSION_TOKEN",
+      "GH_TOKEN",
+      "GITHUB_TOKEN",
+      "GIT_CONFIG",
+      "GIT_CONFIG_COUNT",
+      "GIT_CONFIG_PARAMETERS",
+      "GIT_PROXY_COMMAND",
+      "GIT_SSH",
+      "HIVE_INTERVIEW_BROKER_PORT",
+      "HIVE_INTERVIEW_BROKER_SOCKET",
+      "LD_PRELOAD",
+      "REALM_VISUAL_REVIEW_API_KEY",
+      "RUNCOMFY_API_TOKEN",
+      "SSH_AUTH_SOCK",
+      "SSH_AGENT_PID",
+    ])}:
+    assert not os.environ.get(variable_name), variable_name
+assert os.environ.get("GIT_CONFIG_GLOBAL") == "/dev/null"
+assert os.environ.get("GIT_CONFIG_NOSYSTEM") == "1"
+assert os.environ.get("GIT_ASKPASS") == "/bin/false"
+assert os.environ.get("GIT_SSH_COMMAND") == "/bin/false"
+assert os.environ.get("SSH_ASKPASS") == "/bin/false"
+
+probe = subprocess.run(
+    ["/bin/cat", f"/proc/{os.getpid()}/environ"],
+    stdout=subprocess.DEVNULL,
+    stderr=subprocess.DEVNULL,
+    check=False,
+)
+assert probe.returncode != 0
+Path("${claudeProcProbe}").write_text("blocked\\n")
+child_environment = subprocess.run(
+    ["/usr/bin/env"], check=True, capture_output=True
+).stdout
+Path("${claudeChildEnv}").write_bytes(child_environment)
 
 broker = urllib.parse.urlsplit(os.environ["ANTHROPIC_BASE_URL"])
 connection = http.client.HTTPConnection(broker.hostname, broker.port, timeout=10)
@@ -586,8 +620,43 @@ request = urllib.request.Request(
 )
 with urllib.request.urlopen(request, timeout=10) as response:
     Path("${claudeBrokerResponse}").write_bytes(response.read())
-PYTHON
-printf '<%s>\\n' "$@" > "${claudeArgs}"
+
+child_probe = r'''import socket
+from pathlib import Path
+
+network_probe = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+network_probe.settimeout(1)
+assert network_probe.connect_ex(("127.0.0.1", 43117)) != 0
+network_probe.close()
+
+paths = list((Path.home() / ".claude").glob(".hive-interview-broker.*/anthropic.sock"))
+assert len(paths) == 1
+connection = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+connection.settimeout(10)
+connection.connect(str(paths[0]))
+connection.sendall(
+    b"POST /v1/messages HTTP/1.0\\r\\nHost: api.anthropic.com\\r\\nContent-Length: 2\\r\\n\\r\\n{}"
+)
+response = bytearray()
+while True:
+    chunk = connection.recv(65536)
+    if not chunk:
+        break
+    response.extend(chunk)
+connection.close()
+assert b" 403 " in response.splitlines()[0]
+print("blocked")
+'''
+child_result = subprocess.run(
+    ["/usr/bin/python3", "-I", "-c", child_probe],
+    check=False,
+    capture_output=True,
+    env=os.environ,
+    timeout=10,
+)
+assert child_result.returncode == 0, child_result.stderr
+Path("${claudeBrokerChildProbe}").write_bytes(child_result.stdout)
+Path("${claudeArgs}").write_text("".join(f"<{argument}>\\n" for argument in sys.argv[1:]))
 `,
   );
   const trustedClaudeLauncher = join(root, "trusted-tools", "interview-claude");
@@ -597,7 +666,7 @@ printf '<%s>\\n' "$@" > "${claudeArgs}"
   mkdirSync(dirname(claudeStatus), { recursive: true });
   const guardCompilation = spawnSync(
     "/usr/bin/cc",
-    ["-shared", "-fPIC", "-O2", "-o", trustedClaudeGuard, claudeGuardScript],
+    ["-shared", "-fPIC", "-O2", "-o", trustedClaudeGuard, claudeGuardScript, "-ldl"],
     { encoding: "utf8" },
   );
   assert.equal(guardCompilation.status, 0, guardCompilation.stderr);
@@ -746,6 +815,7 @@ esac
     claudeMcpStage,
     claudeStatus,
     claudeArgs,
+    claudeBrokerChildProbe,
     claudeBrokerResponse,
     claudeChildEnv,
     claudeProcProbe,
@@ -763,7 +833,7 @@ function run(command, args, env) {
   return spawnSync(command, args, { encoding: "utf8", env, timeout: 30_000 });
 }
 
-function installHelpers(fixture) {
+function installHelpers(fixture, environment = fixture.env) {
   const renderedBootstrap = join(fixture.root, "rendered-bootstrap.sh");
   writeFileSync(
     renderedBootstrap,
@@ -777,7 +847,7 @@ function installHelpers(fixture) {
       fixture.interviewRepository,
     ),
   );
-  const result = run("bash", [renderedBootstrap], fixture.env);
+  const result = run("bash", [renderedBootstrap], environment);
   assert.equal(result.status, 0, result.stderr);
   return result;
 }
@@ -872,6 +942,7 @@ test("standalone Terraform exposes interview apps without personal auth modules"
   assert.doesNotMatch(terraform, /sub_path\s*=\s*"interview-claude"/);
   assert.match(terraform, /empty_dir\s*\{[\s\S]*?size_limit\s*=\s*"512Mi"/);
   assert.match(stageTrustedTools, /\/home\/coder\/\.local\/share\/claude\/versions\/\*/);
+  assert.match(stageTrustedTools, /-ldl/);
   assert.match(interviewClaude, /TRUSTED_CLAUDE = Path\("\/opt\/hive-interview-tools\/claude"\)/);
   assert.match(
     interviewClaude,
@@ -889,16 +960,25 @@ test("standalone Terraform exposes interview apps without personal auth modules"
   assert.match(interviewClaude, /environment\["ANTHROPIC_API_KEY"\] = BROKER_PLACEHOLDER_KEY/);
   assert.match(interviewClaude, /environment\["ANTHROPIC_BASE_URL"\]/);
   assert.match(interviewClaude, /environment\["CLAUDE_CODE_SUBPROCESS_ENV_SCRUB"\] = "1"/);
+  assert.match(interviewClaude, /socketserver\.UnixStreamServer/);
+  assert.match(interviewClaude, /socket\.SO_PEERCRED/);
+  assert.match(interviewClaude, /private_broker_socket/);
+  assert.doesNotMatch(interviewClaude, /ThreadingHTTPServer|server_port/);
   assert.doesNotMatch(interviewClaude, /environment\["ANTHROPIC_API_KEY"\] = key/);
   assert.match(claudeGuard, /prctl\(PR_SET_DUMPABLE, 0/);
   assert.match(claudeGuard, /ssize_t diagnostic_result = write\(/);
+  assert.match(claudeGuard, /int connect\(/);
+  assert.match(claudeGuard, /HIVE_INTERVIEW_BROKER_SOCKET/);
+  assert.match(claudeGuard, /dup3\(replacement, socket_descriptor, O_CLOEXEC\)/);
+  assert.match(claudeGuard, /unsetenv\("LD_PRELOAD"\)/);
   assert.doesNotMatch(claudeGuard, /setenv\("ANTHROPIC_API_KEY"/);
   assert.doesNotMatch(claudeGuard, /HIVE_INTERVIEW_KEY_FD/);
   assert.doesNotMatch(interviewClaude, /command -v claude|exec claude/);
   assert.match(initClaude, /PATH="\/usr\/local\/sbin:[^"]+"/);
   assert.match(initClaude, /isolated-claude-agent-ready-v2/);
+  assert.match(initClaude, /claude_user_config="\$HOME\/\.claude\.json"/);
   assert.match(initClaude, /\/opt\/hive-interview-mcp\/playwright-mcp-/);
-  assert.match(initClaude, /"--browser","chrome","--no-sandbox","--isolated"/);
+  assert.match(initClaude, /"--browser","chrome","--headless","--no-sandbox","--isolated"/);
   assert.match(claudeHeartbeat, /isolated-claude-agent-ready-v2/);
   assert.match(claudeHeartbeat, /playwright_mcp_config/);
   assert.doesNotMatch(initClaude, /\/home\/coder\/projects/);
@@ -1110,11 +1190,13 @@ test("isolated Claude agent startup uses an ephemeral home and trusted command p
   assert.equal(readlinkSync(join(home, ".local", "bin", "playwright-mcp")), stagedPlaywright);
   assert.equal(lstatSync(join(home, "projects")).isSymbolicLink(), true);
   assert.equal(readFileSync(join(home, ".claude", "CLAUDE.md"), "utf8"), context);
-  assert.deepEqual(JSON.parse(readFileSync(join(home, ".claude", "mcp.json"), "utf8")), {
+  assert.deepEqual(JSON.parse(readFileSync(join(home, ".claude.json"), "utf8")), {
     mcpServers: {
       playwright: {
+        type: "stdio",
         command: "/home/coder/.local/bin/playwright-mcp",
-        args: ["--browser", "chrome", "--no-sandbox", "--isolated"],
+        args: ["--browser", "chrome", "--headless", "--no-sandbox", "--isolated"],
+        env: {},
       },
     },
   });
@@ -2394,6 +2476,34 @@ test("fresh bootstrap installs the pinned standalone toolchain idempotently", ()
   assert.equal(readFileSync(fixture.calls, "utf8"), firstCalls);
 });
 
+test("interview-setup retries a transient managed-tool installation failure", () => {
+  const fixture = createFixture();
+  const failureMarker = join(fixture.root, "transient-tool-failure");
+  installHelpers(fixture, {
+    ...fixture.env,
+    FAKE_TOOL_INSTALL_FAIL_ONCE: "@playwright/mcp@0.0.79",
+    FAKE_TOOL_INSTALL_FAILURE_MARKER: failureMarker,
+  });
+  assert.equal(existsSync(failureMarker), true);
+  assert.equal(existsSync(join(fixture.home, ".local", "bin", "playwright-mcp")), false);
+
+  const setup = run(join(fixture.home, ".local", "bin", "interview-setup"), [], fixture.env);
+  assert.equal(setup.status, 0, setup.stderr);
+  const stagedPlaywright = join(
+    fixture.claudeMcpStage,
+    "playwright-mcp-0.0.79",
+    "node_modules",
+    ".bin",
+    "playwright-mcp",
+  );
+  assert.equal(run(stagedPlaywright, ["--version"], fixture.env).status, 0);
+  assert.equal(
+    (readFileSync(fixture.calls, "utf8").match(/tool-install:@playwright\/mcp@0\.0\.79/g) ?? [])
+      .length,
+    2,
+  );
+});
+
 test("bootstrap reuses exact pinned tools from the Hive image baseline", () => {
   const fixture = createFixture();
   const localBin = join(fixture.home, ".local", "bin");
@@ -3048,6 +3158,7 @@ test("interview-claude brokers the masked key without exposing it to Claude chil
   }
   const fixture = createFixture();
   installHelpers(fixture);
+  mkdirSync(join(fixture.home, ".claude"), { recursive: true });
   const helper = fixture.trustedClaudeLauncher;
   const fakeKey = "temporary-interview-key-should-never-persist";
   let capturedRequest;
@@ -3159,6 +3270,7 @@ test("interview-claude brokers the masked key without exposing it to Claude chil
   assert.equal(capturedRequest?.headers.host, "127.0.0.1");
   assert.equal(capturedRequest?.headers["anthropic-version"], "2023-06-01");
   assert.equal(readFileSync(fixture.claudeBrokerResponse, "utf8"), '{"broker":"ok"}');
+  assert.equal(readFileSync(fixture.claudeBrokerChildProbe, "utf8"), "blocked\n");
   const childEnvironment = readFileSync(fixture.claudeChildEnv, "utf8");
   assert.doesNotMatch(childEnvironment, new RegExp(fakeKey));
   assert.match(childEnvironment, /ANTHROPIC_API_KEY=hive-interview-broker-managed-non-secret/);
@@ -3167,6 +3279,12 @@ test("interview-claude brokers the masked key without exposing it to Claude chil
   assert.equal(
     readFileSync(fixture.claudeArgs, "utf8"),
     "<--model>\n<test-model>\n<argument with spaces>\n",
+  );
+  assert.deepEqual(
+    readdirSync(join(fixture.home, ".claude")).filter((entry) =>
+      entry.startsWith(".hive-interview-broker."),
+    ),
+    [],
   );
   for (const path of filesRecursively(fixture.root)) {
     assert.equal(

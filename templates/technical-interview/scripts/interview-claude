@@ -1,6 +1,6 @@
 #!/usr/bin/python3 -I
-# hive-managed-interview-claude:v3
-"""Launch Claude through a protected, fixed-destination credential broker."""
+# hive-managed-interview-claude:v4
+"""Launch Claude through a private Unix-socket credential broker."""
 
 import ctypes
 import fcntl
@@ -8,12 +8,17 @@ import http.client
 import http.server
 import os
 import re
+import shutil
+import socket
+import socketserver
 import ssl
 import stat
+import struct
 import subprocess
 import sys
 import termios
 import threading
+import tempfile
 import urllib.parse
 from pathlib import Path
 from typing import NoReturn
@@ -34,6 +39,7 @@ ANTHROPIC_UPSTREAM_HOST = "api.anthropic.com"
 ANTHROPIC_UPSTREAM_PORT = 443
 ANTHROPIC_UPSTREAM_TLS = True
 BROKER_PLACEHOLDER_KEY = "hive-interview-broker-managed-non-secret"
+BROKER_REDIRECT_PORT = 43117
 MAX_REQUEST_BYTES = 64 * 1024 * 1024
 ALLOWED_ANTHROPIC_REQUESTS = {
     ("GET", "/v1/models"),
@@ -207,13 +213,14 @@ def read_temporary_key() -> bytearray:
     return key_bytes
 
 
-class AnthropicBroker(http.server.ThreadingHTTPServer):
+class AnthropicBroker(socketserver.ThreadingMixIn, socketserver.UnixStreamServer):
     allow_reuse_address = False
     daemon_threads = True
 
-    def __init__(self, api_key: bytearray) -> None:
-        super().__init__(("127.0.0.1", 0), AnthropicBrokerHandler)
+    def __init__(self, api_key: bytearray, socket_path: Path) -> None:
+        super().__init__(str(socket_path), AnthropicBrokerHandler)
         self.api_key = api_key
+        self.claude_pid: int | None = None
 
 
 class AnthropicBrokerHandler(http.server.BaseHTTPRequestHandler):
@@ -234,6 +241,16 @@ class AnthropicBrokerHandler(http.server.BaseHTTPRequestHandler):
         self.send_error(405, "CONNECT is not permitted")
 
     def forward_request(self) -> None:
+        peer_credentials = self.connection.getsockopt(
+            socket.SOL_SOCKET,
+            socket.SO_PEERCRED,
+            struct.calcsize("3i"),
+        )
+        peer_pid, _peer_uid, _peer_gid = struct.unpack("3i", peer_credentials)
+        if self.server.claude_pid is None or peer_pid != self.server.claude_pid:
+            self.send_error(403, "Only the protected Claude process may use this broker")
+            return
+
         parsed = urllib.parse.urlsplit(self.path)
         if (
             parsed.scheme
@@ -320,18 +337,39 @@ class AnthropicBrokerHandler(http.server.BaseHTTPRequestHandler):
             self.close_connection = True
 
 
-def launch_claude(arguments: list[str], environment: dict[str, str], key: bytearray) -> int:
+def private_broker_socket() -> tuple[Path, Path]:
+    configuration_directory = INTERVIEW_HOME / ".claude"
     try:
-        broker = AnthropicBroker(key)
+        metadata = configuration_directory.lstat()
     except OSError:
+        fail("The isolated Claude configuration directory is unavailable.")
+    if not stat.S_ISDIR(metadata.st_mode):
+        fail("The isolated Claude configuration directory is unsafe.")
+    try:
+        broker_directory = Path(
+            tempfile.mkdtemp(prefix=".hive-interview-broker.", dir=configuration_directory)
+        )
+    except OSError:
+        fail("Unable to create the private Anthropic broker socket directory.")
+    return broker_directory, broker_directory / "anthropic.sock"
+
+
+def launch_claude(arguments: list[str], environment: dict[str, str], key: bytearray) -> int:
+    broker_directory, broker_socket = private_broker_socket()
+    try:
+        broker = AnthropicBroker(key, broker_socket)
+        os.chmod(broker_socket, 0o600)
+    except OSError:
+        shutil.rmtree(broker_directory, ignore_errors=True)
         fail("Unable to establish the protected Anthropic credential broker.")
-    broker_thread = threading.Thread(target=broker.serve_forever, daemon=True)
-    broker_thread.start()
 
     environment["ANTHROPIC_API_KEY"] = BROKER_PLACEHOLDER_KEY
-    environment["ANTHROPIC_BASE_URL"] = f"http://127.0.0.1:{broker.server_port}"
+    environment["ANTHROPIC_BASE_URL"] = f"http://127.0.0.1:{BROKER_REDIRECT_PORT}"
     environment["CLAUDE_CODE_SUBPROCESS_ENV_SCRUB"] = "1"
+    environment["HIVE_INTERVIEW_BROKER_PORT"] = str(BROKER_REDIRECT_PORT)
+    environment["HIVE_INTERVIEW_BROKER_SOCKET"] = str(broker_socket)
     environment["LD_PRELOAD"] = str(TRUSTED_GUARD)
+    broker_thread: threading.Thread | None = None
     try:
         try:
             process = subprocess.Popen(
@@ -342,6 +380,9 @@ def launch_claude(arguments: list[str], environment: dict[str, str], key: bytear
         except OSError:
             fail("Unable to execute the read-only Claude Code binary.")
 
+        broker.claude_pid = process.pid
+        broker_thread = threading.Thread(target=broker.serve_forever, daemon=True)
+        broker_thread.start()
         while True:
             try:
                 return_code = process.wait()
@@ -350,9 +391,12 @@ def launch_claude(arguments: list[str], environment: dict[str, str], key: bytear
                 continue
         return return_code if return_code >= 0 else 128 - return_code
     finally:
-        broker.shutdown()
+        if broker_thread is not None:
+            broker.shutdown()
         broker.server_close()
-        broker_thread.join(timeout=5)
+        if broker_thread is not None:
+            broker_thread.join(timeout=5)
+        shutil.rmtree(broker_directory, ignore_errors=True)
         for index in range(len(key)):
             key[index] = 0
 

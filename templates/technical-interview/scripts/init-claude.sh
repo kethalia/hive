@@ -25,6 +25,7 @@ status_directory="/run/hive-interview-claude"
 playwright_mcp_version="0.0.79"
 staged_playwright_root="/opt/hive-interview-mcp/playwright-mcp-$playwright_mcp_version"
 staged_playwright_mcp="$staged_playwright_root/node_modules/.bin/playwright-mcp"
+claude_user_config="$HOME/.claude.json"
 
 for directory in "$HOME/.local" "$HOME/.local/bin" "$HOME/.claude"; do
   if [ -L "$directory" ] || { [ -e "$directory" ] && [ ! -d "$directory" ]; }; then
@@ -72,6 +73,12 @@ playwright_link_staging="$(/usr/bin/mktemp -d "$HOME/.local/bin/.playwright-mcp.
 /usr/bin/mv -fT -- "$playwright_link_staging/playwright-mcp" "$HOME/.local/bin/playwright-mcp"
 /usr/bin/rmdir -- "$playwright_link_staging"
 
+if [ -L "$claude_user_config" ] \
+  || { [ -e "$claude_user_config" ] && [ ! -f "$claude_user_config" ]; }; then
+  printf 'ERROR: isolated Claude home contains an unsafe user configuration path\n' >&2
+  exit 1
+fi
+
 projects_link_staging="$(/usr/bin/mktemp -d "$HOME/.projects.XXXXXX")"
 /usr/bin/ln -s -- /workspace/projects "$projects_link_staging/projects"
 /usr/bin/mv -fT -- "$projects_link_staging/projects" "$HOME/projects"
@@ -88,12 +95,12 @@ fi
 /usr/bin/chmod 600 "$temporary_context"
 /usr/bin/mv -fT -- "$temporary_context" "$HOME/.claude/CLAUDE.md"
 
-temporary_mcp="$(/usr/bin/mktemp "$HOME/.claude/.mcp.json.XXXXXX")"
+temporary_mcp="$(/usr/bin/mktemp "$HOME/.claude.json.XXXXXX")"
 /usr/bin/printf '%s\n' \
-  '{"mcpServers":{"playwright":{"command":"/home/coder/.local/bin/playwright-mcp","args":["--browser","chrome","--no-sandbox","--isolated"]}}}' \
+  '{"mcpServers":{"playwright":{"type":"stdio","command":"/home/coder/.local/bin/playwright-mcp","args":["--browser","chrome","--headless","--no-sandbox","--isolated"],"env":{}}}}' \
   > "$temporary_mcp"
 /usr/bin/chmod 600 "$temporary_mcp"
-/usr/bin/mv -fT -- "$temporary_mcp" "$HOME/.claude/mcp.json"
+/usr/bin/mv -fT -- "$temporary_mcp" "$claude_user_config"
 
 temporary_readme="$(/usr/bin/mktemp "$HOME/.README.XXXXXX")"
 /usr/bin/printf '%s\n' \

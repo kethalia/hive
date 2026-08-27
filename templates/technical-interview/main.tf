@@ -127,8 +127,9 @@ resource "coder_agent" "main" {
 
 # The interviewer's key remains in a non-dumpable broker owned by the trusted
 # launcher in this second container. Claude and candidate-controlled child
-# processes receive only a non-secret placeholder; the broker injects the real
-# key into fixed-destination Anthropic HTTPS requests.
+# processes receive only a non-secret placeholder; the private Unix broker
+# accepts only the protected Claude PID and injects the real key into
+# fixed-destination Anthropic HTTPS requests.
 resource "coder_agent" "claude" {
   arch                    = "amd64"
   os                      = "linux"

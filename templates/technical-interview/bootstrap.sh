@@ -135,12 +135,14 @@ INTERVIEW_CODEX_VERSION="0.149.1"
 INTERVIEW_PLAYWRIGHT_MCP_VERSION="0.0.79"
 INTERVIEW_BUN_VERSION="1.4.0"
 INTERVIEW_PNPM_VERSION="10.32.1"
+INTERVIEW_RIPGREP_VERSION="1.18.0"
 INTERVIEW_CODEX_BASELINE_TARGET="../lib/node_modules/@openai/codex/bin/codex.js"
 INTERVIEW_BUN_BASELINE_TARGET="$HOME/.bun/bin/bun"
 INTERVIEW_CLAUDE_BIN="/opt/hive-interview-tools/claude"
 INTERVIEW_CLAUDE_LAUNCHER="/opt/hive-interview-tools/interview-claude"
 INTERVIEW_CLAUDE_GUARD="/opt/hive-interview-tools/claude-guard.so"
 INTERVIEW_CLAUDE_STATUS="/run/hive-interview-claude/ready"
+INTERVIEW_CLAUDE_MCP_STAGE="/run/hive-interview-claude-mcp"
 INTERVIEW_CLAUDE_AGENT="claude"
 INTERVIEW_CHROME_BIN="/usr/bin/google-chrome-stable"
 INTERVIEW_CODEX_BIN="$HOME/.local/bin/codex"
@@ -865,7 +867,7 @@ interview_claude_ready() {
     && [ -f "$INTERVIEW_CLAUDE_LAUNCHER" ] \
     && [ ! -L "$INTERVIEW_CLAUDE_LAUNCHER" ] \
     && [ -x "$INTERVIEW_CLAUDE_LAUNCHER" ] \
-    && grep -qF '# hive-managed-interview-claude:v3' "$INTERVIEW_CLAUDE_LAUNCHER" \
+    && grep -qF '# hive-managed-interview-claude:v4' "$INTERVIEW_CLAUDE_LAUNCHER" \
     && grep -qF 'INTERVIEW_REPOSITORY = Path("/workspace/projects/prmsolutions/interview-template")' \
       "$INTERVIEW_CLAUDE_LAUNCHER" \
     && grep -qF 'TRUSTED_CLAUDE = Path("/opt/hive-interview-tools/claude")' \
@@ -875,6 +877,8 @@ interview_claude_ready() {
     && grep -qF 'ANTHROPIC_UPSTREAM_HOST = "api.anthropic.com"' \
       "$INTERVIEW_CLAUDE_LAUNCHER" \
     && grep -qF 'CLAUDE_CODE_SUBPROCESS_ENV_SCRUB' "$INTERVIEW_CLAUDE_LAUNCHER" \
+    && grep -qF 'socketserver.UnixStreamServer' "$INTERVIEW_CLAUDE_LAUNCHER" \
+    && grep -qF 'socket.SO_PEERCRED' "$INTERVIEW_CLAUDE_LAUNCHER" \
     && grep -qF 'PR_SET_DUMPABLE = 4' "$INTERVIEW_CLAUDE_LAUNCHER" \
     && [ -f "$INTERVIEW_CLAUDE_BIN" ] \
     && [ ! -L "$INTERVIEW_CLAUDE_BIN" ] \
@@ -1029,6 +1033,16 @@ umask 077
 
 # shellcheck source=/dev/null
 source "$HOME/.local/libexec/hive/technical-interview/common.sh"
+
+tool_preparer="$HOME/.local/libexec/hive/technical-interview/prepare-tools.sh"
+if [ ! -f "$tool_preparer" ] || [ -L "$tool_preparer" ] || [ ! -x "$tool_preparer" ]; then
+  interview_error "Managed interview tool recovery command is unavailable."
+  exit 1
+fi
+if ! "$tool_preparer"; then
+  interview_error "Interview tool preparation failed; restore network access and rerun interview-setup."
+  exit 1
+fi
 
 if [ ! -d "$INTERVIEW_REPOSITORY/.git" ]; then
   interview_error "Expected repository is missing: $INTERVIEW_REPOSITORY"
@@ -1718,7 +1732,7 @@ fi
   printf -- '- API Docs: http://localhost:8000/docs\n'
   printf -- '- API health: http://127.0.0.1:8000/hello\n'
   printf '\n## Helper commands\n\n'
-  printf -- '- `interview-setup` — refresh dependencies only when manifests change; test and build\n'
+  printf -- '- `interview-setup` — repair pinned tools, refresh changed dependencies, test, and build\n'
   printf -- '- `interview-start` — create or preserve the detached `interview` tmux session\n'
   printf -- '- `interview-restart` — restart only API and frontend windows\n'
   printf -- '- `interview-stop` — stop only the interview session\n'
@@ -1757,6 +1771,31 @@ set -euo pipefail
 exec python3 -m sqlite3 "$@"
 SQLITEEOF
 fi
+
+install_interview_file "$interview_libexec_dir/prepare-tools.sh" 700 <<'TOOLSEOF'
+#!/bin/bash
+set -euo pipefail
+umask 077
+
+unset BASH_ENV ENV CDPATH LD_LIBRARY_PATH LD_PRELOAD
+unset ANTHROPIC_API_KEY ANTHROPIC_AUTH_TOKEN
+unset CLAUDE_CODE_OAUTH_TOKEN CLAUDE_CODE_OAUTH_REFRESH_TOKEN CLAUDE_CODE_OAUTH_SCOPES
+unset GH_TOKEN GITHUB_TOKEN CODER_AGENT_TOKEN CODER_SESSION_TOKEN
+unset GIT_CONFIG GIT_CONFIG_COUNT GIT_CONFIG_PARAMETERS GIT_PROXY_COMMAND GIT_SSH
+unset SSH_AUTH_SOCK SSH_AGENT_PID SSH_ASKPASS_REQUIRE
+unset REALM_VISUAL_REVIEW_API_KEY RUNCOMFY_API_TOKEN
+
+# shellcheck source=/dev/null
+source "$HOME/.local/libexec/hive/technical-interview/common.sh"
+
+interview_bin_dir="$HOME/.local/bin"
+interview_state_dir="$INTERVIEW_STATE_DIR"
+interview_claude_mcp_stage="$INTERVIEW_CLAUDE_MCP_STAGE"
+interview_ripgrep_version="$INTERVIEW_RIPGREP_VERSION"
+interview_codex_version="$INTERVIEW_CODEX_VERSION"
+interview_playwright_mcp_version="$INTERVIEW_PLAYWRIGHT_MCP_VERSION"
+interview_bun_version="$INTERVIEW_BUN_VERSION"
+interview_pnpm_version="$INTERVIEW_PNPM_VERSION"
 
 install_interview_ripgrep() {
   local managed_binary="$interview_bin_dir/rg"
@@ -1809,8 +1848,10 @@ install_interview_ripgrep() {
   "$managed_binary" --version >/dev/null 2>&1
 }
 
+tool_failures=0
 if ! install_interview_ripgrep; then
   printf '[warn] ripgrep could not be prepared; interview-check will report it missing.\n' >&2
+  tool_failures=$((tool_failures + 1))
 fi
 
 install_interview_npm_tool() {
@@ -1917,7 +1958,6 @@ stage_interview_claude_playwright() {
   fi
 }
 
-tool_failures=0
 install_interview_npm_tool \
   "Codex CLI" codex @openai/codex "$interview_codex_version" .bin/codex \
   "../lib/node_modules/@openai/codex/bin/codex.js" \
@@ -1938,6 +1978,13 @@ stage_interview_claude_playwright \
 if ((tool_failures > 0)); then
   printf '[warn] %s interview tool(s) could not be prepared; interview-check will report them missing.\n' \
     "$tool_failures" >&2
+  exit 1
+fi
+TOOLSEOF
+
+if ! "$interview_libexec_dir/prepare-tools.sh"; then
+  printf '[warn] Interview tools are incomplete; rerun interview-setup after network access is restored.\n' \
+    >&2
 fi
 
 if [ "${HIVE_INTERVIEW_SKIP_AUTOSTART:-false}" = "true" ]; then

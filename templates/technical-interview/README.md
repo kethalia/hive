@@ -28,8 +28,9 @@ template or workspace.
 Open the owner-only **Interview Claude** Coder application for the fixed masked temporary-key prompt.
 Generic SSH and Web Terminal buttons are hidden for the dedicated Claude agent. The main development
 container cannot enter its process namespace. The non-dumpable launcher retains the real key in a
-loopback broker that forwards only Anthropic v1 API paths to `api.anthropic.com`; Claude and all
-candidate-controlled commands receive only a non-secret placeholder. Claude also enables its
+private Unix-socket broker that accepts only the protected Claude process and forwards only
+Anthropic v1 API paths to `api.anthropic.com`; Claude and all candidate-controlled commands receive
+only a non-secret placeholder. Claude also enables its
 built-in subprocess credential scrub for hooks, shell commands, and stdio MCP servers. The pinned
 Playwright MCP payload is copied into a pod-local volume and mounted read-only into the isolated
 Claude container, while its browser profile remains confined to Claude's ephemeral home.

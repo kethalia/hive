@@ -136,6 +136,6 @@ BROWSERHTML
 echo "Helper scripts using: $CHROME_BIN"
 
 printf '%b[ok] Browser vision tools ready%b\n' "$GREEN" "$RESET"
-printf "  Claude Code: Playwright MCP via ~/.claude/mcp.json (managed at startup)\n"
+printf "  Claude Code: Playwright MCP via ~/.claude.json in the isolated agent\n"
 printf "  Codex: Playwright MCP via ~/.codex/config.toml (managed at startup)\n"
 printf "  CLI helpers: browser-screenshot <url> and browser-html <url>\n"

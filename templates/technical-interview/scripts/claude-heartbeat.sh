@@ -16,7 +16,7 @@ playwright_mcp_version="0.0.79"
 staged_playwright_root="/opt/hive-interview-mcp/playwright-mcp-$playwright_mcp_version"
 staged_playwright_mcp="$staged_playwright_root/node_modules/.bin/playwright-mcp"
 installed_playwright_mcp="$HOME/.local/bin/playwright-mcp"
-playwright_mcp_config="$HOME/.claude/mcp.json"
+playwright_mcp_config="$HOME/.claude.json"
 
 if [ -L "$status_directory" ] || [ ! -d "$status_directory" ]; then
   exit 1
@@ -42,12 +42,32 @@ if ! "$staged_playwright_mcp" --version 2>/dev/null \
   | /usr/bin/grep -qF -- "$playwright_mcp_version"; then
   exit 1
 fi
-if [ ! -f "$playwright_mcp_config" ] \
-  || [ -L "$playwright_mcp_config" ] \
-  || ! /usr/bin/grep -qF -- '"command":"/home/coder/.local/bin/playwright-mcp"' \
-    "$playwright_mcp_config" \
-  || ! /usr/bin/grep -qF -- '"--browser","chrome","--no-sandbox","--isolated"' \
-    "$playwright_mcp_config"; then
+if [ ! -f "$playwright_mcp_config" ] || [ -L "$playwright_mcp_config" ]; then
+  exit 1
+fi
+if ! /usr/bin/python3 -I - "$playwright_mcp_config" <<'PYTHONMCP'
+import json
+import sys
+from pathlib import Path
+
+expected = {
+    "mcpServers": {
+        "playwright": {
+            "type": "stdio",
+            "command": "/home/coder/.local/bin/playwright-mcp",
+            "args": ["--browser", "chrome", "--headless", "--no-sandbox", "--isolated"],
+            "env": {},
+        }
+    }
+}
+try:
+    actual = json.loads(Path(sys.argv[1]).read_text())
+except (OSError, UnicodeDecodeError, json.JSONDecodeError):
+    raise SystemExit(1)
+if actual != expected:
+    raise SystemExit(1)
+PYTHONMCP
+then
   exit 1
 fi
 

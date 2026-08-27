@@ -73,7 +73,7 @@ printf '%s' "$HIVE_INTERVIEW_CLAUDE_GUARD_B64" \
   | /usr/bin/base64 --decode > "$temporary_guard_source"
 unset HIVE_INTERVIEW_CLAUDE_GUARD_B64
 /usr/bin/cc -shared -fPIC -O2 -Wall -Wextra -Werror \
-  -Wl,-z,relro,-z,now -o "$temporary_guard" "$temporary_guard_source"
+  -Wl,-z,relro,-z,now -o "$temporary_guard" "$temporary_guard_source" -ldl
 /usr/bin/chmod 0555 "$temporary_guard"
 /usr/bin/rm -f -- "$temporary_guard_source"
 temporary_guard_source=""
