@@ -300,6 +300,22 @@ resource "coder_app" "interview_claude" {
   share        = "owner"
 }
 
+resource "coder_app" "interview_claude_key" {
+  agent_id     = coder_agent.main.id
+  slug         = "interview-claude-key"
+  display_name = "Interview Claude Key"
+  url          = "http://localhost:43118"
+  icon         = "/icon/terminal.svg"
+  subdomain    = true
+  share        = "owner"
+
+  healthcheck {
+    url       = "http://localhost:43118/health"
+    interval  = 5
+    threshold = 12
+  }
+}
+
 # =============================================================================
 # KasmVNC (module replaces browser-serve.sh + coder_app)
 # =============================================================================
@@ -595,12 +611,33 @@ resource "kubernetes_deployment_v1" "workspace" {
             mount_path = "/run/hive-interview-launch"
             read_only  = true
           }
+
+          volume_mount {
+            name       = "browser-profile"
+            mount_path = "/home/coder/.cache/hive-interview-browser"
+          }
+
+          volume_mount {
+            name       = "browser-google-profile"
+            mount_path = "/home/coder/.config/google-chrome"
+          }
+
+          volume_mount {
+            name       = "browser-chromium-profile"
+            mount_path = "/home/coder/.config/chromium"
+          }
+
+          volume_mount {
+            name       = "browser-chromium-browser-profile"
+            mount_path = "/home/coder/.config/chromium-browser"
+          }
         }
 
         # This sibling container is the credential boundary. It has no Coder
         # agent, no Coder token, and therefore no owner-reachable SSH or web
-        # terminal. The immutable runtime service owns the masked key and
-        # relays a PTY through the read-only socket exposed to the main client.
+        # terminal. Its owner-only key app encrypts the temporary key in the
+        # browser before handing it to this runtime. The runtime relays a PTY
+        # through the read-only socket exposed to the credentialless client.
         container {
           name              = "claude-runtime"
           image             = local.profile.image
@@ -738,6 +775,38 @@ resource "kubernetes_deployment_v1" "workspace" {
 
           empty_dir {
             size_limit = "1Mi"
+          }
+        }
+
+        volume {
+          name = "browser-profile"
+
+          empty_dir {
+            size_limit = "1Gi"
+          }
+        }
+
+        volume {
+          name = "browser-google-profile"
+
+          empty_dir {
+            size_limit = "1Gi"
+          }
+        }
+
+        volume {
+          name = "browser-chromium-profile"
+
+          empty_dir {
+            size_limit = "1Gi"
+          }
+        }
+
+        volume {
+          name = "browser-chromium-browser-profile"
+
+          empty_dir {
+            size_limit = "1Gi"
           }
         }
       }

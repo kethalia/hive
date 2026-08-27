@@ -118,7 +118,7 @@ install_interview_symlink() {
 
 install_interview_file "$interview_bin_dir/interview-claude" 700 <<'CLAUDEHANDOFFEOF'
 #!/bin/bash
-# hive-managed-interview-claude-handoff:v1
+# hive-managed-interview-claude-handoff:v2
 set -eu
 
 exec /opt/hive-interview-tools/interview-claude \
@@ -337,12 +337,32 @@ interview_tool_runtime_works() {
 }
 
 interview_npm() {
+  if ! interview_project_npm_authentication_absent; then
+    printf '[error] repository npm configuration is present; refusing to run npm\n' >&2
+    return 1
+  fi
   env \
     -u NPM_TOKEN -u NODE_AUTH_TOKEN \
     -u NPM_CONFIG_GLOBALCONFIG \
     -u npm_config_userconfig -u npm_config_globalconfig \
     NPM_CONFIG_USERCONFIG=/dev/null \
     npm "$@"
+}
+
+interview_project_npm_authentication_absent() {
+  local configuration_path
+
+  # npm always considers project configuration in addition to user config.
+  # Never inspect or consume a repository-owned .npmrc: preserve it and stop
+  # before any managed npm command can run from the assessment checkout.
+  for configuration_path in \
+    "$INTERVIEW_REPOSITORY/.npmrc" \
+    "$INTERVIEW_FRONTEND/.npmrc"; do
+    if [ -e "$configuration_path" ] || [ -L "$configuration_path" ]; then
+      return 1
+    fi
+  done
+  return 0
 }
 
 interview_tool_payload_hash() {
@@ -930,7 +950,7 @@ interview_git_transport_credentials_absent() {
       /usr/bin/timeout 3s /usr/bin/git config \
         --file "$INTERVIEW_REPOSITORY/.git/config" \
         --no-includes \
-        --get-regexp '^remote\..*\.url$' 2>/dev/null || true
+        --get-regexp '^remote\..*\.(url|pushurl)$' 2>/dev/null || true
     )
   fi
 
@@ -1002,6 +1022,29 @@ interview_cloud_orchestration_authentication_absent() {
   return 0
 }
 
+interview_browser_authentication_absent() {
+  local profile_path
+
+  # Default Chrome/Chromium profiles can contain cookies and logged-in web
+  # sessions. Every installed browser's default profile is shadowed by a
+  # pod-ephemeral mount. Preserve but reject a profile path if that isolation
+  # boundary is missing.
+  for profile_path in \
+    "$HOME/.config/google-chrome" \
+    "$HOME/.config/chromium" \
+    "$HOME/.config/chromium-browser"; do
+    if [ -e "$profile_path" ] || [ -L "$profile_path" ]; then
+      if [ -d "$profile_path" ] \
+        && [ ! -L "$profile_path" ] \
+        && /usr/bin/mountpoint --quiet -- "$profile_path"; then
+        continue
+      fi
+      return 1
+    fi
+  done
+  return 0
+}
+
 interview_package_authentication_absent() {
   local configuration_path
 
@@ -1011,7 +1054,9 @@ interview_package_authentication_absent() {
   for configuration_path in \
     "$HOME/.npmrc" \
     "$HOME/.config/pip/pip.conf" \
-    "$HOME/.pip/pip.conf"; do
+    "$HOME/.pip/pip.conf" \
+    "$INTERVIEW_REPOSITORY/.npmrc" \
+    "$INTERVIEW_FRONTEND/.npmrc"; do
     if [ -e "$configuration_path" ] || [ -L "$configuration_path" ]; then
       return 1
     fi
@@ -1152,11 +1197,17 @@ interview_managed_directories_ready() {
 
 interview_browser_helpers_ready() {
   local chromium="$HOME/.local/bin/chromium-browser"
+  local interview_chrome="$HOME/.local/bin/interview-chrome"
+  local desktop_entry="$HOME/.local/share/applications/google-chrome.desktop"
   local helper
 
   [ -x "$INTERVIEW_CHROME_BIN" ] || return 1
-  [ -L "$chromium" ] || return 1
-  [ "$(/usr/bin/readlink -- "$chromium")" = "$INTERVIEW_CHROME_BIN" ] || return 1
+  for helper in "$chromium" "$interview_chrome"; do
+    [ -f "$helper" ] && [ ! -L "$helper" ] && [ -x "$helper" ] || return 1
+    grep -qF '# hive-managed-interview-chrome:v1' "$helper" || return 1
+  done
+  [ -f "$desktop_entry" ] && [ ! -L "$desktop_entry" ] || return 1
+  grep -qF 'Exec=/home/coder/.local/bin/interview-chrome %U' "$desktop_entry" || return 1
   for helper in "$HOME/.local/bin/browser-screenshot" "$HOME/.local/bin/browser-html"; do
     [ -f "$helper" ] && [ ! -L "$helper" ] && [ -x "$helper" ] || return 1
     grep -qF '# hive-managed-browser-helper:v1' "$helper" || return 1
@@ -1169,7 +1220,7 @@ interview_claude_ready() {
   [ -f "$INTERVIEW_CLAUDE_STATUS" ] \
     && [ ! -L "$INTERVIEW_CLAUDE_STATUS" ] \
     && IFS=' ' read -r marker timestamp extra < "$INTERVIEW_CLAUDE_STATUS" \
-    && [ "$marker" = 'isolated-claude-runtime-ready-v3' ] \
+    && [ "$marker" = 'isolated-claude-runtime-ready-v4' ] \
     && [ -z "$extra" ] \
     && [[ "$timestamp" =~ ^[0-9]+$ ]] \
     && now="$(date +%s)" \
@@ -1179,7 +1230,7 @@ interview_claude_ready() {
     && [ -f "$INTERVIEW_CLAUDE_LAUNCHER" ] \
     && [ ! -L "$INTERVIEW_CLAUDE_LAUNCHER" ] \
     && [ -x "$INTERVIEW_CLAUDE_LAUNCHER" ] \
-    && grep -qF '# hive-managed-interview-claude:v6' "$INTERVIEW_CLAUDE_LAUNCHER" \
+    && grep -qF '# hive-managed-interview-claude:v7' "$INTERVIEW_CLAUDE_LAUNCHER" \
     && grep -qF 'INTERVIEW_REPOSITORY = Path("/workspace/projects/prmsolutions/interview-template")' \
       "$INTERVIEW_CLAUDE_LAUNCHER" \
     && grep -qF 'TRUSTED_CLAUDE = Path("/opt/hive-interview-tools/claude")' \
@@ -1194,6 +1245,8 @@ interview_claude_ready() {
     && grep -qF 'socket.SO_PEERCRED' "$INTERVIEW_CLAUDE_LAUNCHER" \
     && grep -qF 'serve_launch_socket' "$INTERVIEW_CLAUDE_LAUNCHER" \
     && grep -qF 'run_launch_client' "$INTERVIEW_CLAUDE_LAUNCHER" \
+    && grep -qF 'class KeyHandoffServer' "$INTERVIEW_CLAUDE_LAUNCHER" \
+    && grep -qF 'rsa_padding_mode:oaep' "$INTERVIEW_CLAUDE_LAUNCHER" \
     && grep -qF 'PR_SET_DUMPABLE = 4' "$INTERVIEW_CLAUDE_LAUNCHER" \
     && [ -f "$INTERVIEW_CLAUDE_BIN" ] \
     && [ ! -L "$INTERVIEW_CLAUDE_BIN" ] \
@@ -1352,6 +1405,10 @@ source "$HOME/.local/libexec/hive/technical-interview/common.sh"
 tool_preparer="$HOME/.local/libexec/hive/technical-interview/prepare-tools.sh"
 if [ ! -f "$tool_preparer" ] || [ -L "$tool_preparer" ] || [ ! -x "$tool_preparer" ]; then
   interview_error "Managed interview tool recovery command is unavailable."
+  exit 1
+fi
+if ! interview_project_npm_authentication_absent; then
+  interview_error "Preserving repository npm configuration; remove project .npmrc credentials before setup."
   exit 1
 fi
 if ! "$tool_preparer"; then
@@ -1889,6 +1946,11 @@ if interview_cloud_orchestration_authentication_absent; then
 else
   printf 'Persisted cloud/orchestration authentication: PRESENT or unsafe (path names only; readiness fails)\n'
 fi
+if interview_browser_authentication_absent; then
+  printf 'Persisted browser authentication: absent\n'
+else
+  printf 'Persisted browser authentication: PRESENT or unsafe (path names only; readiness fails)\n'
+fi
 if interview_package_authentication_absent; then
   printf 'Persisted package-manager authentication: absent\n'
 else
@@ -1993,6 +2055,10 @@ check_cloud_orchestration_authentication_absent() {
   interview_cloud_orchestration_authentication_absent
 }
 
+check_browser_authentication_absent() {
+  interview_browser_authentication_absent
+}
+
 check_package_authentication_absent() {
   interview_package_authentication_absent
 }
@@ -2044,6 +2110,8 @@ run_check "persisted Codex authentication is absent" \
   check_codex_authentication_absent
 run_check "persisted cloud and orchestration authentication is absent" \
   check_cloud_orchestration_authentication_absent
+run_check "persisted browser authentication is absent" \
+  check_browser_authentication_absent
 run_check "persisted package-manager authentication is absent" \
   check_package_authentication_absent
 
@@ -2052,7 +2120,7 @@ repository_commit="$(interview_repository_commit 2>/dev/null || printf unavailab
 venv_method="$(interview_read_state venv-method 2>/dev/null || printf unavailable)"
 if ((check_failures == 0)); then
   report_result="INTERVIEW WORKSPACE READY"
-  remaining_action="At interview time, open the owner-only Interview Claude app and enter the temporary key at the masked prompt."
+  remaining_action="At interview time, start Interview Claude, then enter its pairing code and the temporary key in the owner-only Interview Claude Key app."
 else
   report_result="INTERVIEW WORKSPACE NOT READY"
   remaining_action="Resolve the failed checks above, then rerun interview-setup, interview-start, and interview-check."
@@ -2098,10 +2166,11 @@ fi
   printf -- '- `interview-stop` — stop only the interview session\n'
   printf -- '- `interview-status` — show non-secret state\n'
   printf -- '- `interview-check` — rerun this strict readiness check\n'
-  printf -- '- `interview-claude` or the **Interview Claude** Coder app — use the immutable client to reach the shell-inaccessible protected runtime\n'
+  printf -- '- `interview-claude` or **Interview Claude** — create a one-time pairing code for the shell-inaccessible runtime\n'
+  printf -- '- **Interview Claude Key** — encrypt and hand off the temporary key from the owner browser boundary\n'
   printf '\n## Credential state\n\n'
   printf 'Only credential names are reported; values are never recorded. Required pre-interview state: '
-  printf 'Anthropic, OpenAI/Codex, package-manager, GitHub, Coder, Git/SSH, cloud, cluster, IaC, registry, Realm, and RunComfy credentials absent from the environment and standard persisted stores; GitHub and Coder CLIs unauthenticated.\n'
+  printf 'Anthropic, OpenAI/Codex, package-manager, GitHub, Coder, Git/SSH, browser, cloud, cluster, IaC, registry, Realm, and RunComfy credentials absent from the environment and standard persisted stores; GitHub and Coder CLIs unauthenticated.\n'
   printf '\n## Remaining action\n\n%s\n' "$remaining_action"
 } > "$report_temporary"
 chmod 600 "$report_temporary"
@@ -2331,7 +2400,9 @@ if ((tool_failures > 0)); then
 fi
 TOOLSEOF
 
-if ! "$interview_libexec_dir/prepare-tools.sh"; then
+if ! interview_project_npm_authentication_absent; then
+  printf '[warn] Repository npm configuration was preserved; managed npm setup was skipped.\n' >&2
+elif ! "$interview_libexec_dir/prepare-tools.sh"; then
   printf '[warn] Interview tools are incomplete; rerun interview-setup after network access is restored.\n' \
     >&2
 fi

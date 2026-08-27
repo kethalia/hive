@@ -33,7 +33,11 @@ fi
 if [ ! -S "$launch_socket" ] || [ -L "$launch_socket" ] || [ ! -O "$launch_socket" ]; then
   exit 1
 fi
-if ! /usr/bin/grep -qF '# hive-managed-interview-claude:v6' "$trusted_helper"; then
+if ! /usr/bin/grep -qF '# hive-managed-interview-claude:v7' "$trusted_helper"; then
+  exit 1
+fi
+if ! /usr/bin/curl --fail --silent --show-error \
+  --max-time 2 http://127.0.0.1:43118/health >/dev/null; then
   exit 1
 fi
 if [ ! -L "$installed_playwright_mcp" ] \
@@ -80,6 +84,6 @@ then
 fi
 
 temporary_status="$(/usr/bin/mktemp "$status_directory/.ready.XXXXXX")"
-/usr/bin/printf 'isolated-claude-runtime-ready-v3 %s\n' "$(/usr/bin/date +%s)" > "$temporary_status"
+/usr/bin/printf 'isolated-claude-runtime-ready-v4 %s\n' "$(/usr/bin/date +%s)" > "$temporary_status"
 /usr/bin/chmod 0444 "$temporary_status"
 /usr/bin/mv -fT -- "$temporary_status" "$status_directory/ready"

@@ -63,22 +63,25 @@ ensure_interview_local_directory() {
   done
 }
 
-if ! ensure_interview_local_directory "$HOME/.local/bin"; then
+if ! ensure_interview_local_directory "$HOME/.local/bin" \
+  || ! ensure_interview_local_directory "$HOME/.local/share/applications" \
+  || ! ensure_interview_local_directory "$HOME/.cache/hive-interview-browser"; then
   printf '[warn] Browser helper setup was deferred so workspace login remains available.\n' >&2
   exit 0
 fi
 
 printf '%b[browser] Setting up browser vision tools...%b\n' "$BOLD" "$RESET"
 
-install_browser_helper() {
-  local destination=$1 temporary_file
+install_browser_file() {
+  local destination=$1 mode=$2 destination_directory temporary_file
 
-  temporary_file="$(mktemp "$HOME/.local/bin/.hive-browser-helper.XXXXXX")"
+  destination_directory="${destination%/*}"
+  temporary_file="$(mktemp "$destination_directory/.hive-browser-file.XXXXXX")"
   if ! cat > "$temporary_file"; then
     rm -f -- "$temporary_file"
     return 1
   fi
-  if ! chmod 755 "$temporary_file" \
+  if ! chmod "$mode" "$temporary_file" \
     || ! mv -fT -- "$temporary_file" "$destination"; then
     rm -f -- "$temporary_file"
     return 1
@@ -96,8 +99,10 @@ fi
 browser_helpers_safe=true
 for browser_helper in \
   "$HOME/.local/bin/chromium-browser" \
+  "$HOME/.local/bin/interview-chrome" \
   "$HOME/.local/bin/browser-screenshot" \
-  "$HOME/.local/bin/browser-html"; do
+  "$HOME/.local/bin/browser-html" \
+  "$HOME/.local/share/applications/google-chrome.desktop"; do
   if { [ -e "$browser_helper" ] || [ -L "$browser_helper" ]; } \
     && [ ! -L "$browser_helper" ] \
     && [ ! -f "$browser_helper" ]; then
@@ -112,7 +117,42 @@ if [ "$browser_helpers_safe" != true ]; then
   exit 0
 fi
 
-ln -sfnT "$CHROME_BIN" "$HOME/.local/bin/chromium-browser"
+install_browser_file "$HOME/.local/bin/interview-chrome" 755 << CHROMEWRAPPER
+#!/bin/bash
+# hive-managed-interview-chrome:v1
+set -euo pipefail
+profile_root="\$HOME/.cache/hive-interview-browser/chrome"
+if [ -L "\$profile_root" ] || { [ -e "\$profile_root" ] && [ ! -d "\$profile_root" ]; }; then
+  printf '[error] unsafe ephemeral Chrome profile path: %s\\n' "\$profile_root" >&2
+  exit 1
+fi
+mkdir -p -- "\$profile_root"
+exec "$CHROME_BIN" \\
+  --user-data-dir="\$profile_root" \\
+  --no-first-run --no-default-browser-check "\$@"
+CHROMEWRAPPER
+
+install_browser_file "$HOME/.local/bin/chromium-browser" 755 <<'CHROMIUMWRAPPER'
+#!/bin/bash
+# hive-managed-interview-chrome:v1
+set -euo pipefail
+exec "$HOME/.local/bin/interview-chrome" "$@"
+CHROMIUMWRAPPER
+
+# Override the image desktop entry so normal headed launches use only the
+# pod-ephemeral profile mounted inside the workspace home.
+install_browser_file "$HOME/.local/share/applications/google-chrome.desktop" 644 <<'CHROMEDESKTOP'
+[Desktop Entry]
+Version=1.0
+Name=Google Chrome (Interview)
+GenericName=Web Browser
+Exec=/home/coder/.local/bin/interview-chrome %U
+Terminal=false
+Icon=google-chrome
+Type=Application
+Categories=Network;WebBrowser;
+MimeType=text/html;text/xml;application/xhtml+xml;x-scheme-handler/http;x-scheme-handler/https;
+CHROMEDESKTOP
 
 # Claude Code and Codex Playwright MCP entries are managed by init.sh and point
 # at the pinned user-space package prepared by the interview bootstrap.
@@ -120,29 +160,35 @@ ln -sfnT "$CHROME_BIN" "$HOME/.local/bin/chromium-browser"
 # Create screenshot helper using Google Chrome (CLI fallback for scripts).
 # Same-directory temporary files ensure a candidate-created symlink is replaced
 # instead of following it into the preserved assessment checkout.
-install_browser_helper "$HOME/.local/bin/browser-screenshot" << SCREENSHOT
+install_browser_file "$HOME/.local/bin/browser-screenshot" 755 << SCREENSHOT
 #!/bin/bash
 # hive-managed-browser-helper:v1
-set -e
+set -euo pipefail
 URL="\${1:?Usage: browser-screenshot <url> [output-path]}"
 OUTPUT="\${2:-/tmp/screenshot-\$(date +%s).png}"
 VIEWPORT="\${BROWSER_VIEWPORT:-1280x720}"
 WIDTH=\$(echo "\$VIEWPORT" | cut -dx -f1)
 HEIGHT=\$(echo "\$VIEWPORT" | cut -dx -f2)
+PROFILE=\$(mktemp -d "\$HOME/.cache/hive-interview-browser/screenshot.XXXXXX")
+trap 'rm -rf -- "\$PROFILE"' EXIT
 $CHROME_BIN \\
   --headless=new --no-sandbox --disable-gpu --disable-dev-shm-usage \\
+  --user-data-dir="\$PROFILE" \\
   --window-size="\$WIDTH,\$HEIGHT" --screenshot="\$OUTPUT" --hide-scrollbars \\
   "\$URL" 2>/dev/null
 [ -f "\$OUTPUT" ] && echo "\$OUTPUT" || { echo "ERROR: Screenshot failed" >&2; exit 1; }
 SCREENSHOT
 
-install_browser_helper "$HOME/.local/bin/browser-html" << BROWSERHTML
+install_browser_file "$HOME/.local/bin/browser-html" 755 << BROWSERHTML
 #!/bin/bash
 # hive-managed-browser-helper:v1
-set -e
+set -euo pipefail
 URL="\${1:?Usage: browser-html <url>}"
+PROFILE=\$(mktemp -d "\$HOME/.cache/hive-interview-browser/html.XXXXXX")
+trap 'rm -rf -- "\$PROFILE"' EXIT
 $CHROME_BIN \\
   --headless=new --no-sandbox --disable-gpu --disable-dev-shm-usage \\
+  --user-data-dir="\$PROFILE" \\
   --dump-dom "\$URL" 2>/dev/null
 BROWSERHTML
 echo "Helper scripts using: $CHROME_BIN"

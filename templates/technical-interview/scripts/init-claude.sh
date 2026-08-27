@@ -119,7 +119,7 @@ temporary_readme="$(/usr/bin/mktemp "$HOME/.README.XXXXXX")"
   'Protected Claude interview runtime' \
   '' \
   'This runtime has no Coder agent, SSH endpoint, or web terminal.' \
-  'Use the Interview Claude app; its immutable client relays this runtime PTY.' \
+  'Use Interview Claude for a pairing code, then hand off the encrypted key through Interview Claude Key.' \
   'Playwright MCP uses the image Chrome with browser state confined to this ephemeral home.' \
   'Only /workspace/projects is shared with the main development container.' \
   > "$temporary_readme"

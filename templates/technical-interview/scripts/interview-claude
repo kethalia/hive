@@ -1,15 +1,18 @@
 #!/usr/bin/python3 -I
-# hive-managed-interview-claude:v6
+# hive-managed-interview-claude:v7
 """Bridge a Coder command app to a shell-inaccessible Claude runtime."""
 
 import ctypes
+import base64
 import errno
 import fcntl
 import http.client
 import http.server
+import json
 import os
 import pty
 import re
+import secrets
 import select
 import shutil
 import signal
@@ -23,6 +26,7 @@ import sys
 import termios
 import threading
 import tempfile
+import time
 import tty
 import urllib.parse
 from pathlib import Path
@@ -30,8 +34,6 @@ from typing import NoReturn
 
 
 PR_SET_DUMPABLE = 4
-TIOCEXCL = getattr(termios, "TIOCEXCL", 0x540C)
-TIOCNXCL = getattr(termios, "TIOCNXCL", 0x540D)
 TIOCSCTTY = getattr(termios, "TIOCSCTTY", 0x540E)
 INTERVIEW_REPOSITORY = Path("/workspace/projects/prmsolutions/interview-template")
 INTERVIEW_HOME = Path("/home/coder")
@@ -49,17 +51,23 @@ BROKER_REDIRECT_PORT = 43117
 MAX_REQUEST_BYTES = 64 * 1024 * 1024
 MAX_LAUNCH_ARGUMENTS = 128
 MAX_LAUNCH_ARGUMENT_BYTES = 64 * 1024
-MAX_LAUNCH_KEY_BYTES = 16 * 1024
 MAX_FRAME_BYTES = 1024 * 1024
 LAUNCH_HANDSHAKE_TIMEOUT_SECONDS = 5
-LAUNCH_PROTOCOL_MAGIC = b"HIVECLAUDEv6\0\0\0\0"
-LAUNCH_REQUEST_HEADER = struct.Struct("!16sIIIHH")
+KEY_HANDOFF_TIMEOUT_SECONDS = 120
+KEY_HANDOFF_PORT = 43118
+KEY_HANDOFF_RSA_BYTES = 384
+MAX_HANDOFF_KEY_BYTES = 256
+MAX_PENDING_LAUNCHES = 8
+MAX_LAUNCH_CONNECTIONS = 16
+LAUNCH_PROTOCOL_MAGIC = b"HIVECLAUDEv7\0\0\0\0"
+LAUNCH_REQUEST_HEADER = struct.Struct("!16sIIHH")
 FRAME_HEADER = struct.Struct("!BI")
 FRAME_INPUT = 1
 FRAME_RESIZE = 2
 FRAME_OUTPUT = 3
 FRAME_EXIT = 4
 FRAME_ERROR = 5
+FRAME_PAIRING = 6
 CLIENT_UID = 1000
 CLIENT_GID = 1000
 PROTECTED_RUNTIME_UID = 1000
@@ -191,58 +199,339 @@ def verify_repository(environment: dict[str, str]) -> None:
     if origin.returncode != 0 or origin.stdout.strip() not in EXPECTED_ORIGINS:
         fail("Expected interview repository has the wrong origin.")
 
+    remote_urls = subprocess.run(
+        [
+            "/usr/bin/git",
+            "config",
+            "--file",
+            str(git_config),
+            "--no-includes",
+            "--get-regexp",
+            r"^remote\..*\.(url|pushurl)$",
+        ],
+        check=False,
+        capture_output=True,
+        env=environment,
+        text=True,
+        timeout=10,
+    )
+    if remote_urls.returncode not in {0, 1}:
+        fail("Expected interview repository Git configuration is unreadable.")
+    for remote_line in remote_urls.stdout.splitlines():
+        _name, separator, remote_url = remote_line.partition(" ")
+        if not separator or remote_url.strip() not in EXPECTED_ORIGINS:
+            fail("Expected interview repository contains an unsafe remote URL.")
 
-def open_protected_terminal() -> int:
+
+def open_terminal() -> int:
     try:
         terminal = os.open("/dev/tty", os.O_RDWR)
     except OSError:
-        fail("A controlling terminal is required for masked API-key input.")
+        fail("A controlling terminal is required for Interview Claude.")
 
     try:
-        fcntl.ioctl(terminal, TIOCEXCL)
         termios.tcgetattr(terminal)
     except OSError:
         os.close(terminal)
-        fail("Unable to protect the terminal for masked API-key input.")
+        fail("Unable to access the Interview Claude terminal.")
     return terminal
 
 
-def close_protected_terminal(terminal: int) -> None:
-    try:
-        fcntl.ioctl(terminal, TIOCNXCL)
-    except OSError:
-        pass
+def close_terminal(terminal: int) -> None:
     os.close(terminal)
 
 
-def read_temporary_key(terminal: int) -> bytearray:
-    original = None
-    key_bytes = bytearray()
-    try:
-        original = termios.tcgetattr(terminal)
-        masked = termios.tcgetattr(terminal)
-        masked[3] &= ~termios.ECHO
+class EphemeralHandoffDecryptor:
+    """Keep the handoff RSA private key only in a protected anonymous fd."""
+
+    def __init__(self) -> None:
+        if not hasattr(os, "memfd_create") or not regular_executable(Path("/usr/bin/openssl")):
+            fail("The protected key-handoff cryptography is unavailable.")
+        self.private_key_fd = os.memfd_create(
+            "hive-interview-key-handoff",
+            getattr(os, "MFD_CLOEXEC", 0x0001),
+        )
+        os.fchmod(self.private_key_fd, 0o600)
+        generated = subprocess.run(
+            [
+                "/usr/bin/openssl",
+                "genpkey",
+                "-algorithm",
+                "RSA",
+                "-pkeyopt",
+                "rsa_keygen_bits:3072",
+            ],
+            check=False,
+            stdin=subprocess.DEVNULL,
+            stdout=self.private_key_fd,
+            stderr=subprocess.DEVNULL,
+            timeout=30,
+        )
+        if generated.returncode != 0:
+            self.close()
+            fail("Unable to initialize protected key-handoff cryptography.")
+        os.lseek(self.private_key_fd, 0, os.SEEK_SET)
+        exported = subprocess.run(
+            [
+                "/usr/bin/openssl",
+                "pkey",
+                "-pubout",
+                "-outform",
+                "DER",
+                "-in",
+                f"/proc/self/fd/{self.private_key_fd}",
+            ],
+            check=False,
+            capture_output=True,
+            pass_fds=(self.private_key_fd,),
+            timeout=10,
+        )
+        if exported.returncode != 0 or not exported.stdout:
+            self.close()
+            fail("Unable to initialize protected key-handoff cryptography.")
+        self.public_key_b64 = base64.b64encode(exported.stdout).decode("ascii")
+        self.decrypt_lock = threading.Lock()
+
+    def decrypt(self, ciphertext: bytes) -> bytearray:
+        if len(ciphertext) != KEY_HANDOFF_RSA_BYTES:
+            raise ValueError("invalid encrypted key")
+        with self.decrypt_lock:
+            os.lseek(self.private_key_fd, 0, os.SEEK_SET)
+            decrypted = subprocess.run(
+                [
+                    "/usr/bin/openssl",
+                    "pkeyutl",
+                    "-decrypt",
+                    "-inkey",
+                    f"/proc/self/fd/{self.private_key_fd}",
+                    "-pkeyopt",
+                    "rsa_padding_mode:oaep",
+                    "-pkeyopt",
+                    "rsa_oaep_md:sha256",
+                    "-pkeyopt",
+                    "rsa_mgf1_md:sha256",
+                ],
+                check=False,
+                input=ciphertext,
+                capture_output=True,
+                pass_fds=(self.private_key_fd,),
+                timeout=10,
+            )
+        key = bytearray(decrypted.stdout)
+        if (
+            decrypted.returncode != 0
+            or not key
+            or len(key) > MAX_HANDOFF_KEY_BYTES
+            or any(character < 0x21 or character > 0x7E for character in key)
+        ):
+            wipe(key)
+            raise ValueError("invalid encrypted key")
+        return key
+
+    def close(self) -> None:
+        private_key_fd = getattr(self, "private_key_fd", -1)
+        if private_key_fd < 0:
+            return
         try:
-            termios.tcsetattr(terminal, termios.TCSADRAIN, masked)
-            os.write(terminal, b"Temporary Anthropic API key: ")
-            while len(key_bytes) <= 16_384:
-                character = os.read(terminal, 1)
-                if not character or character in {b"\r", b"\n"}:
-                    break
-                key_bytes.extend(character)
-            else:
-                fail("The temporary API key is unexpectedly long.")
-        finally:
-            if original is not None:
-                termios.tcsetattr(terminal, termios.TCSADRAIN, original)
-                os.write(terminal, b"\n")
-    except OSError:
-        fail("Unable to read the temporary API key securely.")
-    if not key_bytes:
-        fail("No API key was provided.")
-    if any(character < 0x21 or character > 0x7E for character in key_bytes):
-        fail("The temporary API key contains invalid characters.")
-    return key_bytes
+            size = os.fstat(private_key_fd).st_size
+            os.lseek(private_key_fd, 0, os.SEEK_SET)
+            while size > 0:
+                chunk_size = min(size, 64 * 1024)
+                os.write(private_key_fd, b"\0" * chunk_size)
+                size -= chunk_size
+        except OSError:
+            pass
+        os.close(private_key_fd)
+        self.private_key_fd = -1
+
+
+class PendingLaunch:
+    def __init__(self) -> None:
+        self.event = threading.Event()
+        self.key: bytearray | None = None
+        self.error: bytes | None = None
+        self.claimed = False
+        self.active_slot = False
+
+
+class LaunchCoordinator:
+    def __init__(self) -> None:
+        self.decryptor = EphemeralHandoffDecryptor()
+        self.lock = threading.Lock()
+        self.pending: dict[str, PendingLaunch] = {}
+        self.pending_slots = threading.BoundedSemaphore(MAX_PENDING_LAUNCHES)
+        self.active_session = threading.Lock()
+
+    def register(self) -> tuple[str, PendingLaunch] | None:
+        if not self.pending_slots.acquire(blocking=False):
+            return None
+        pending = PendingLaunch()
+        with self.lock:
+            while True:
+                pairing_code = secrets.token_urlsafe(24)
+                if pairing_code not in self.pending:
+                    self.pending[pairing_code] = pending
+                    return pairing_code, pending
+
+    def deliver(self, pairing_code: str, ciphertext: bytes) -> tuple[int, str]:
+        with self.lock:
+            pending = self.pending.get(pairing_code)
+            if pending is None or pending.claimed or pending.event.is_set():
+                return 404, "Pairing code is unavailable. Start Interview Claude again."
+            pending.claimed = True
+        try:
+            key = self.decryptor.decrypt(ciphertext)
+        except (OSError, subprocess.SubprocessError, ValueError):
+            with self.lock:
+                if self.pending.get(pairing_code) is pending:
+                    pending.claimed = False
+            return 400, "The encrypted key was rejected."
+
+        if not self.active_session.acquire(blocking=False):
+            wipe(key)
+            with self.lock:
+                if self.pending.get(pairing_code) is pending:
+                    pending.error = b"Another Interview Claude session is active."
+                    pending.event.set()
+            return 409, "Another Interview Claude session is active."
+
+        with self.lock:
+            if self.pending.get(pairing_code) is not pending or pending.event.is_set():
+                self.active_session.release()
+                wipe(key)
+                return 404, "Pairing code is unavailable. Start Interview Claude again."
+            pending.key = key
+            pending.active_slot = True
+            pending.event.set()
+        return 200, "Key accepted. Return to the Interview Claude terminal."
+
+    def wait(
+        self,
+        pairing_code: str,
+        pending: PendingLaunch,
+        connection: socket.socket,
+    ) -> bytearray | None:
+        deadline = time.monotonic() + KEY_HANDOFF_TIMEOUT_SECONDS
+        delivered = False
+        while True:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                break
+            if pending.event.wait(min(remaining, 0.1)):
+                delivered = True
+                break
+            try:
+                peer_data = connection.recv(1, socket.MSG_PEEK | socket.MSG_DONTWAIT)
+            except BlockingIOError:
+                continue
+            if not peer_data:
+                break
+        self.cancel(pairing_code, pending)
+        if not delivered:
+            return None
+        return pending.key
+
+    def cancel(self, pairing_code: str, pending: PendingLaunch) -> None:
+        with self.lock:
+            if self.pending.get(pairing_code) is not pending:
+                return
+            del self.pending[pairing_code]
+        self.pending_slots.release()
+
+    def finish(self, pending: PendingLaunch) -> None:
+        if pending.active_slot:
+            pending.active_slot = False
+            self.active_session.release()
+
+    def close(self) -> None:
+        self.decryptor.close()
+
+
+class KeyHandoffServer(http.server.ThreadingHTTPServer):
+    allow_reuse_address = False
+    daemon_threads = True
+
+    def __init__(self, coordinator: LaunchCoordinator) -> None:
+        self.coordinator = coordinator
+        super().__init__(("127.0.0.1", KEY_HANDOFF_PORT), KeyHandoffHandler)
+
+
+class KeyHandoffHandler(http.server.BaseHTTPRequestHandler):
+    protocol_version = "HTTP/1.0"
+    server_version = "HiveInterviewKeyHandoff"
+    sys_version = ""
+
+    def log_message(self, _format: str, *_arguments: object) -> None:
+        return
+
+    def send_payload(self, status: int, content_type: str, payload: bytes) -> None:
+        self.send_response(status)
+        self.send_header("Cache-Control", "no-store, max-age=0")
+        self.send_header("Content-Security-Policy", "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src 'self'; form-action 'self'; frame-ancestors 'self'")
+        self.send_header("Content-Type", content_type)
+        self.send_header("Referrer-Policy", "no-referrer")
+        self.send_header("X-Content-Type-Options", "nosniff")
+        self.send_header("Content-Length", str(len(payload)))
+        self.end_headers()
+        self.wfile.write(payload)
+
+    def do_GET(self) -> None:
+        path = urllib.parse.urlsplit(self.path).path
+        if path == "/health":
+            self.send_payload(200, "text/plain; charset=utf-8", b"ok\n")
+            return
+        if path != "/":
+            self.send_payload(404, "text/plain; charset=utf-8", b"not found\n")
+            return
+        public_key = self.server.coordinator.decryptor.public_key_b64
+        page = KEY_HANDOFF_PAGE.replace("__PUBLIC_KEY_B64__", public_key).encode("utf-8")
+        self.send_payload(200, "text/html; charset=utf-8", page)
+
+    def do_POST(self) -> None:
+        if urllib.parse.urlsplit(self.path).path != "/handoff":
+            self.send_payload(404, "application/json", b'{"message":"not found"}\n')
+            return
+        try:
+            content_length = int(self.headers.get("Content-Length", ""))
+        except ValueError:
+            content_length = -1
+        if content_length < 2 or content_length > 8 * 1024:
+            self.send_payload(400, "application/json", b'{"message":"invalid request"}\n')
+            return
+        try:
+            document = json.loads(self.rfile.read(content_length))
+            pairing_code = document["pairing_code"]
+            ciphertext = base64.b64decode(document["encrypted_key"], validate=True)
+            if (
+                not isinstance(pairing_code, str)
+                or re.fullmatch(r"[A-Za-z0-9_-]{32}", pairing_code) is None
+            ):
+                raise ValueError("invalid pairing code")
+        except (KeyError, TypeError, ValueError, json.JSONDecodeError):
+            self.send_payload(400, "application/json", b'{"message":"invalid request"}\n')
+            return
+        status, message = self.server.coordinator.deliver(pairing_code, ciphertext)
+        payload = json.dumps({"message": message}, separators=(",", ":")).encode("utf-8") + b"\n"
+        self.send_payload(status, "application/json", payload)
+
+
+KEY_HANDOFF_PAGE = """<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Interview Claude Key</title><style>
+body{font:16px system-ui,sans-serif;max-width:42rem;margin:4rem auto;padding:0 1rem;color:#172033;background:#f7f9fc}
+main{background:white;border:1px solid #d8dfeb;border-radius:12px;padding:1.5rem}label{display:block;font-weight:650;margin-top:1rem}
+input,button{box-sizing:border-box;width:100%;font:inherit;padding:.75rem;margin-top:.4rem}button{cursor:pointer;font-weight:650}
+#result{min-height:1.5rem;margin-top:1rem}.error{color:#a31515}.ok{color:#126b32}
+</style></head><body><main><h1>Interview Claude Key</h1>
+<p>Start <code>interview-claude</code>, then paste its one-time pairing code and the interviewer-provided temporary key here. The browser encrypts the key before it enters the workspace network.</p>
+<form id="handoff" autocomplete="off"><label for="pairing">Pairing code</label><input id="pairing" required autocapitalize="off" spellcheck="false">
+<label for="key">Temporary Anthropic API key</label><input id="key" type="password" required autocomplete="off" autocapitalize="off" spellcheck="false">
+<button type="submit">Launch Interview Claude</button></form><p id="result" role="status"></p></main><script>
+const publicKeyB64="__PUBLIC_KEY_B64__";
+const bytesFromB64=(value)=>Uint8Array.from(atob(value),(character)=>character.charCodeAt(0));
+const b64FromBytes=(value)=>{let result="";for(const byte of new Uint8Array(value))result+=String.fromCharCode(byte);return btoa(result)};
+document.getElementById("handoff").addEventListener("submit",async(event)=>{event.preventDefault();const button=event.target.querySelector("button");const result=document.getElementById("result");const keyInput=document.getElementById("key");button.disabled=true;result.className="";result.textContent="Encrypting and handing off…";try{const encoded=new TextEncoder().encode(keyInput.value);if(!encoded.length||encoded.length>256)throw new Error("The temporary key length is invalid.");const publicKey=await crypto.subtle.importKey("spki",bytesFromB64(publicKeyB64),{name:"RSA-OAEP",hash:"SHA-256"},false,["encrypt"]);const encrypted=await crypto.subtle.encrypt({name:"RSA-OAEP"},publicKey,encoded);keyInput.value="";const response=await fetch("handoff",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({pairing_code:document.getElementById("pairing").value.trim(),encrypted_key:b64FromBytes(encrypted)})});const body=await response.json();result.textContent=body.message||"Key handoff failed.";result.className=response.ok?"ok":"error"}catch(error){keyInput.value="";result.textContent=error instanceof Error?error.message:"Key handoff failed.";result.className="error"}finally{button.disabled=false}});
+</script></body></html>"""
 
 
 class AnthropicBroker(socketserver.ThreadingMixIn, socketserver.UnixStreamServer):
@@ -403,19 +692,6 @@ def receive_exact(connection: socket.socket, size: int) -> bytes:
     return bytes(payload)
 
 
-def receive_secret(connection: socket.socket, size: int) -> bytearray:
-    secret = bytearray(size)
-    view = memoryview(secret)
-    received = 0
-    while received < size:
-        count = connection.recv_into(view[received:])
-        if count == 0:
-            wipe(secret)
-            raise EOFError("launch connection closed")
-        received += count
-    return secret
-
-
 def send_frame(connection: socket.socket, frame_type: int, payload: bytes = b"") -> None:
     if len(payload) > MAX_FRAME_BYTES:
         raise ValueError("launch frame is too large")
@@ -452,22 +728,15 @@ def apply_terminal_size(terminal: int, rows: int, columns: int) -> None:
 
 def parse_launch_request(
     connection: socket.socket,
-) -> tuple[list[str], bytearray, int, int]:
+) -> tuple[list[str], int, int]:
     header = receive_exact(connection, LAUNCH_REQUEST_HEADER.size)
-    magic, key_length, argument_count, argument_bytes, rows, columns = (
-        LAUNCH_REQUEST_HEADER.unpack(header)
-    )
+    magic, argument_count, argument_bytes, rows, columns = LAUNCH_REQUEST_HEADER.unpack(header)
     if magic != LAUNCH_PROTOCOL_MAGIC:
         raise ValueError("invalid launch protocol")
-    if key_length == 0 or key_length > MAX_LAUNCH_KEY_BYTES:
-        raise ValueError("invalid launch credential")
     if argument_count > MAX_LAUNCH_ARGUMENTS or argument_bytes > MAX_LAUNCH_ARGUMENT_BYTES:
         raise ValueError("invalid launch arguments")
 
-    key = receive_secret(connection, key_length)
     try:
-        if any(character < 0x21 or character > 0x7E for character in key):
-            raise ValueError("invalid launch credential")
         arguments: list[str] = []
         consumed = 0
         for _index in range(argument_count):
@@ -481,9 +750,8 @@ def parse_launch_request(
             arguments.append(encoded.decode("utf-8"))
         if consumed != argument_bytes:
             raise ValueError("invalid launch arguments")
-        return arguments, key, max(rows, 1), max(columns, 1)
+        return arguments, max(rows, 1), max(columns, 1)
     except (UnicodeDecodeError, ValueError):
-        wipe(key)
         raise
 
 
@@ -632,7 +900,10 @@ def protected_claude_session(
         wipe(key)
 
 
-def handle_launch_connection(connection: socket.socket) -> None:
+def handle_launch_connection(
+    connection: socket.socket,
+    coordinator: LaunchCoordinator,
+) -> None:
     peer_credentials = connection.getsockopt(
         socket.SOL_SOCKET,
         socket.SO_PEERCRED,
@@ -643,11 +914,27 @@ def handle_launch_connection(connection: socket.socket) -> None:
         send_frame(connection, FRAME_ERROR, b"Unauthorized Claude launch client.")
         return
 
+    pending: PendingLaunch | None = None
+    pairing_code: str | None = None
     key: bytearray | None = None
     try:
         connection.settimeout(LAUNCH_HANDSHAKE_TIMEOUT_SECONDS)
-        arguments, key, rows, columns = parse_launch_request(connection)
+        arguments, rows, columns = parse_launch_request(connection)
         connection.settimeout(None)
+        registered = coordinator.register()
+        if registered is None:
+            send_frame(connection, FRAME_ERROR, b"Too many Interview Claude launches are pending.")
+            return
+        pairing_code, pending = registered
+        send_frame(connection, FRAME_PAIRING, pairing_code.encode("ascii"))
+        key = coordinator.wait(pairing_code, pending, connection)
+        if key is None:
+            send_frame(
+                connection,
+                FRAME_ERROR,
+                pending.error or b"Key handoff timed out. Start Interview Claude again.",
+            )
+            return
         return_code = protected_claude_session(connection, arguments, key, rows, columns)
         key = None
         send_frame(connection, FRAME_EXIT, struct.pack("!i", return_code))
@@ -659,6 +946,10 @@ def handle_launch_connection(connection: socket.socket) -> None:
     finally:
         if key is not None:
             wipe(key)
+        if pending is not None:
+            coordinator.finish(pending)
+            if pairing_code is not None:
+                coordinator.cancel(pairing_code, pending)
 
 
 def serve_launch_socket(socket_path: Path) -> NoReturn:
@@ -680,17 +971,48 @@ def serve_launch_socket(socket_path: Path) -> NoReturn:
             fail("The protected Claude launch socket is unsafe.")
         socket_path.unlink()
 
+    coordinator = LaunchCoordinator()
+    try:
+        handoff_server = KeyHandoffServer(coordinator)
+    except OSError:
+        coordinator.close()
+        fail("Unable to bind the protected key-handoff application.")
+    handoff_thread = threading.Thread(target=handoff_server.serve_forever, daemon=True)
+    handoff_thread.start()
     listener = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+    connection_slots = threading.BoundedSemaphore(MAX_LAUNCH_CONNECTIONS)
+
+    def serve_connection(connection: socket.socket) -> None:
+        try:
+            with connection:
+                handle_launch_connection(connection, coordinator)
+        finally:
+            connection_slots.release()
+
     try:
         listener.bind(str(socket_path))
         os.chmod(socket_path, 0o660)
-        listener.listen(4)
+        listener.listen(MAX_LAUNCH_CONNECTIONS)
         while True:
             connection, _address = listener.accept()
-            with connection:
-                handle_launch_connection(connection)
+            if not connection_slots.acquire(blocking=False):
+                with connection:
+                    try:
+                        send_frame(connection, FRAME_ERROR, b"Interview Claude is busy. Retry shortly.")
+                    except OSError:
+                        pass
+                continue
+            threading.Thread(
+                target=serve_connection,
+                args=(connection,),
+                daemon=True,
+            ).start()
     finally:
         listener.close()
+        handoff_server.shutdown()
+        handoff_server.server_close()
+        handoff_thread.join(timeout=5)
+        coordinator.close()
         try:
             metadata = socket_path.lstat()
             if stat.S_ISSOCK(metadata.st_mode) and metadata.st_uid == os.getuid():
@@ -703,7 +1025,6 @@ def serve_launch_socket(socket_path: Path) -> NoReturn:
 def send_launch_request(
     connection: socket.socket,
     arguments: list[str],
-    key: bytearray,
     rows: int,
     columns: int,
 ) -> None:
@@ -726,14 +1047,12 @@ def send_launch_request(
     connection.sendall(
         LAUNCH_REQUEST_HEADER.pack(
             LAUNCH_PROTOCOL_MAGIC,
-            len(key),
             len(encoded_arguments),
             argument_bytes,
             rows,
             columns,
         )
     )
-    connection.sendall(key)
     for encoded in encoded_arguments:
         connection.sendall(struct.pack("!I", len(encoded)))
         connection.sendall(encoded)
@@ -749,12 +1068,10 @@ def run_launch_client(socket_path: Path, arguments: list[str]) -> int:
 
     connection = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
     terminal = -1
-    key: bytearray | None = None
     original_terminal = None
     original_winch_handler = None
     try:
-        terminal = open_protected_terminal()
-        key = read_temporary_key(terminal)
+        terminal = open_terminal()
         rows, columns = terminal_size(terminal)
 
         connection.settimeout(10)
@@ -769,9 +1086,27 @@ def run_launch_client(socket_path: Path, arguments: list[str]) -> int:
             fail("The protected Claude runtime identity is invalid.")
         connection.settimeout(None)
 
-        send_launch_request(connection, arguments, key, rows, columns)
-        wipe(key)
-        key = None
+        send_launch_request(connection, arguments, rows, columns)
+        frame_type, payload = receive_frame(connection)
+        if frame_type == FRAME_ERROR:
+            os.write(terminal, b"\r\n[error] " + payload + b"\r\n")
+            return 1
+        if frame_type != FRAME_PAIRING:
+            fail("The protected Claude runtime returned an invalid response.")
+        try:
+            pairing_code = payload.decode("ascii")
+        except UnicodeDecodeError:
+            fail("The protected Claude runtime returned an invalid pairing code.")
+        if re.fullmatch(r"[A-Za-z0-9_-]{32}", pairing_code) is None:
+            fail("The protected Claude runtime returned an invalid pairing code.")
+        os.write(
+            terminal,
+            (
+                "\r\nOpen the owner-only Interview Claude Key app.\r\n"
+                f"Pairing code: {pairing_code}\r\n"
+                "Waiting for encrypted key handoff...\r\n\r\n"
+            ).encode("ascii"),
+        )
 
         original_terminal = termios.tcgetattr(terminal)
         tty.setraw(terminal, termios.TCSADRAIN)
@@ -820,10 +1155,8 @@ def run_launch_client(socket_path: Path, arguments: list[str]) -> int:
                 termios.tcsetattr(terminal, termios.TCSADRAIN, original_terminal)
             except OSError:
                 pass
-        if key is not None:
-            wipe(key)
         if terminal >= 0:
-            close_protected_terminal(terminal)
+            close_terminal(terminal)
         connection.close()
     return 1
 

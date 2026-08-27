@@ -1,6 +1,7 @@
 /* eslint-disable security/detect-non-literal-fs-filename -- Test paths are isolated under mkdtemp fixtures. */
 import assert from "node:assert/strict";
 import { spawn, spawnSync } from "node:child_process";
+import { webcrypto } from "node:crypto";
 import { createServer } from "node:http";
 import {
   chmodSync,
@@ -243,6 +244,7 @@ function renderInterviewClaudeScript(
   upstreamHost = "api.anthropic.com",
   upstreamPort = 443,
   upstreamTls = true,
+  handoffPort = 43118,
 ) {
   const fixtureUid = typeof process.getuid === "function" ? process.getuid() : 1000;
   const fixtureGid = typeof process.getgid === "function" ? process.getgid() : 1000;
@@ -252,6 +254,7 @@ function renderInterviewClaudeScript(
     .replace("CLIENT_GID = 1000", `CLIENT_GID = ${fixtureGid}`)
     .replace("PROTECTED_RUNTIME_UID = 1000", `PROTECTED_RUNTIME_UID = ${fixtureUid}`)
     .replace("LAUNCH_HANDSHAKE_TIMEOUT_SECONDS = 5", "LAUNCH_HANDSHAKE_TIMEOUT_SECONDS = 0.25")
+    .replace("KEY_HANDOFF_PORT = 43118", `KEY_HANDOFF_PORT = ${handoffPort}`)
     .replace(
       'TRUSTED_CLAUDE = Path("/opt/hive-interview-tools/claude")',
       `TRUSTED_CLAUDE = Path("${trustedClaude}")`,
@@ -622,6 +625,7 @@ import http.client
 import socket
 import subprocess
 import sys
+import time
 import urllib.request
 import urllib.parse
 from pathlib import Path
@@ -741,6 +745,8 @@ child_result = subprocess.run(
 assert child_result.returncode == 0, child_result.stderr
 Path("${claudeBrokerChildProbe}").write_bytes(child_result.stdout)
 Path("${claudeArgs}").write_text("".join(f"<{argument}>\\n" for argument in sys.argv[1:]))
+if "--fixture-hold" in sys.argv[1:]:
+    time.sleep(2)
 `,
   );
   const trustedClaudeLauncher = join(root, "trusted-tools", "interview-claude");
@@ -762,12 +768,22 @@ Path("${claudeArgs}").write_text("".join(f"<{argument}>\\n" for argument in sys.
   chmodSync(trustedClaudeLauncher, 0o555);
   writeFileSync(
     claudeStatus,
-    `isolated-claude-runtime-ready-v3 ${Math.floor(Date.now() / 1000)}\n`,
+    `isolated-claude-runtime-ready-v4 ${Math.floor(Date.now() / 1000)}\n`,
   );
   chmodSync(claudeStatus, 0o444);
   mkdirSync(join(home, ".local", "bin"), { recursive: true });
   executable(join(bin, "google-chrome-stable"), "#!/bin/sh\nprintf 'Google Chrome 140\\n'\n");
-  symlinkSync(join(bin, "google-chrome-stable"), join(home, ".local", "bin", "chromium-browser"));
+  for (const browserLauncher of ["interview-chrome", "chromium-browser"]) {
+    executable(
+      join(home, ".local", "bin", browserLauncher),
+      "#!/bin/sh\n# hive-managed-interview-chrome:v1\nexit 0\n",
+    );
+  }
+  mkdirSync(join(home, ".local", "share", "applications"), { recursive: true });
+  writeFileSync(
+    join(home, ".local", "share", "applications", "google-chrome.desktop"),
+    "[Desktop Entry]\nExec=/home/coder/.local/bin/interview-chrome %U\n",
+  );
   for (const browserHelper of ["browser-screenshot", "browser-html"]) {
     executable(
       join(home, ".local", "bin", browserHelper),
@@ -1064,8 +1080,12 @@ test("standalone Terraform exposes interview apps without personal auth modules"
     /resource "coder_app" "interview_claude"[\s\S]*?agent_id\s*=\s*coder_agent\.main\.id[\s\S]*?command\s*=\s*"\/opt\/hive-interview-tools\/interview-claude --client \/run\/hive-interview-launch\/claude\.sock"[\s\S]*?share\s*=\s*"owner"/,
   );
   assert.match(
+    terraform,
+    /resource "coder_app" "interview_claude_key"[\s\S]*?url\s*=\s*"http:\/\/localhost:43118"[\s\S]*?share\s*=\s*"owner"[\s\S]*?http:\/\/localhost:43118\/health/,
+  );
+  assert.match(
     bootstrap,
-    /hive-managed-interview-claude-handoff:v1[\s\S]*?exec \/opt\/hive-interview-tools\/interview-claude[\s\S]*?--client \/run\/hive-interview-launch\/claude\.sock -- "\$@"/,
+    /hive-managed-interview-claude-handoff:v2[\s\S]*?exec \/opt\/hive-interview-tools\/interview-claude[\s\S]*?--client \/run\/hive-interview-launch\/claude\.sock -- "\$@"/,
   );
   assert.doesNotMatch(terraform, /kubernetes_config_map/);
   assert.match(
@@ -1088,6 +1108,33 @@ test("standalone Terraform exposes interview apps without personal auth modules"
   );
   assert.equal((terraform.match(/name\s*=\s*"claude-mcp"/g) ?? []).length, 3);
   assert.equal((terraform.match(/name\s*=\s*"claude-launch"/g) ?? []).length, 3);
+  assert.equal((terraform.match(/name\s*=\s*"browser-profile"/g) ?? []).length, 2);
+  for (const profileVolume of [
+    "browser-google-profile",
+    "browser-chromium-profile",
+    "browser-chromium-browser-profile",
+  ]) {
+    assert.equal(
+      (terraform.match(new RegExp(`name\\s*=\\s*"${profileVolume}"`, "g")) ?? []).length,
+      2,
+    );
+  }
+  assert.match(
+    terraform,
+    /name\s*=\s*"browser-profile"[\s\S]*?mount_path\s*=\s*"\/home\/coder\/\.cache\/hive-interview-browser"/,
+  );
+  assert.match(
+    terraform,
+    /name\s*=\s*"browser-google-profile"[\s\S]*?mount_path\s*=\s*"\/home\/coder\/\.config\/google-chrome"/,
+  );
+  assert.match(
+    terraform,
+    /name\s*=\s*"browser-chromium-profile"[\s\S]*?mount_path\s*=\s*"\/home\/coder\/\.config\/chromium"/,
+  );
+  assert.match(
+    terraform,
+    /name\s*=\s*"browser-chromium-browser-profile"[\s\S]*?mount_path\s*=\s*"\/home\/coder\/\.config\/chromium-browser"/,
+  );
   assert.doesNotMatch(terraform, /claude-gateway-client|claude-gateway-home|trusted-gateway/);
   assert.doesNotMatch(terraform, /\/run\/hive-interview-claude-mcp/);
   assert.doesNotMatch(terraform, /sub_path\s*=\s*"interview-claude"/);
@@ -1115,10 +1162,13 @@ test("standalone Terraform exposes interview apps without personal auth modules"
     interviewClaude,
     /connection\.settimeout\(LAUNCH_HANDSHAKE_TIMEOUT_SECONDS\)[\s\S]*?parse_launch_request\(connection\)[\s\S]*?connection\.settimeout\(None\)/,
   );
-  assert.ok(
-    interviewClaude.indexOf("key = read_temporary_key(terminal)") <
-      interviewClaude.indexOf("connection.connect(str(socket_path))"),
-  );
+  assert.doesNotMatch(interviewClaude, /read_temporary_key|TIOCEXCL/);
+  assert.match(interviewClaude, /class KeyHandoffServer/);
+  assert.match(interviewClaude, /crypto\.subtle\.encrypt/);
+  assert.match(interviewClaude, /rsa_padding_mode:oaep/);
+  assert.match(interviewClaude, /threading\.Thread\([\s\S]*?target=serve_connection/);
+  assert.match(interviewClaude, /active_session\.acquire\(blocking=False\)/);
+  assert.ok(interviewClaude.includes(String.raw`r"^remote\..*\.(url|pushurl)$"`));
   assert.match(interviewClaude, /peer_uid != CLIENT_UID/);
   assert.match(interviewClaude, /socket_metadata\.st_uid != PROTECTED_RUNTIME_UID/);
   assert.match(interviewClaude, /ANTHROPIC_UPSTREAM_HOST = "api\.anthropic\.com"/);
@@ -1134,7 +1184,8 @@ test("standalone Terraform exposes interview apps without personal auth modules"
   assert.match(interviewClaude, /socketserver\.UnixStreamServer/);
   assert.match(interviewClaude, /socket\.SO_PEERCRED/);
   assert.match(interviewClaude, /private_broker_socket/);
-  assert.doesNotMatch(interviewClaude, /ThreadingHTTPServer|server_port/);
+  assert.match(interviewClaude, /http\.server\.ThreadingHTTPServer/);
+  assert.doesNotMatch(interviewClaude, /server_port/);
   assert.doesNotMatch(interviewClaude, /environment\["ANTHROPIC_API_KEY"\] = key/);
   assert.match(claudeGuard, /prctl\(PR_SET_DUMPABLE, 0/);
   assert.match(claudeGuard, /ssize_t diagnostic_result = write\(/);
@@ -1150,8 +1201,16 @@ test("standalone Terraform exposes interview apps without personal auth modules"
   assert.match(bootstrap, /"\$HOME\/\.config\/gcloud"/);
   assert.match(bootstrap, /"\$HOME\/\.azure"/);
   assert.match(bootstrap, /"\$HOME\/\.kube"/);
+  assert.match(bootstrap, /"\$INTERVIEW_REPOSITORY\/\.npmrc"/);
+  assert.match(bootstrap, /"\$INTERVIEW_FRONTEND\/\.npmrc"/);
+  assert.ok(bootstrap.includes(String.raw`--get-regexp '^remote\..*\.(url|pushurl)$'`));
+  assert.match(bootstrap, /"\$HOME\/\.config\/google-chrome"/);
   assert.match(bootstrap, /persisted Codex authentication is absent/);
   assert.match(bootstrap, /persisted cloud and orchestration authentication is absent/);
+  assert.match(bootstrap, /persisted browser authentication is absent/);
+  assert.match(toolsBrowser, /hive-managed-interview-chrome:v1/);
+  assert.match(toolsBrowser, /--user-data-dir="\\\$profile_root"/);
+  assert.match(toolsBrowser, /Exec=\/home\/coder\/\.local\/bin\/interview-chrome %U/);
   assert.match(initClaude, /PATH="\/usr\/local\/sbin:[^"]+"/);
   assert.doesNotMatch(initClaude, /isolated-claude-(?:agent|runtime)-ready/);
   assert.match(initClaude, /claude_user_config="\$HOME\/\.claude\.json"/);
@@ -1159,7 +1218,8 @@ test("standalone Terraform exposes interview apps without personal auth modules"
   assert.match(initClaude, /until trusted_payload_ready; do[\s\S]*?\/usr\/bin\/sleep 2/);
   assert.doesNotMatch(initClaude, /\{1\.\.180\}|\/usr\/bin\/sleep 1/);
   assert.match(initClaude, /"--browser","chrome","--headless","--no-sandbox","--isolated"/);
-  assert.match(claudeHeartbeat, /isolated-claude-runtime-ready-v3/);
+  assert.match(claudeHeartbeat, /isolated-claude-runtime-ready-v4/);
+  assert.match(claudeHeartbeat, /http:\/\/127\.0\.0\.1:43118\/health/);
   assert.match(claudeHeartbeat, /launch_socket="\/run\/hive-interview-launch\/claude\.sock"/);
   assert.doesNotMatch(initClaude, /\.local\/bin\/interview-claude/);
   assert.match(claudeHeartbeat, /playwright_mcp_config/);
@@ -1392,7 +1452,7 @@ test("protected Claude runtime startup uses an ephemeral home without a Coder sh
   mkdirSync(dirname(stagedPlaywright), { recursive: true });
   mkdirSync(statusDirectory);
   mkdirSync(launchDirectory);
-  executable(trustedHelper, "#!/bin/sh\n# hive-managed-interview-claude:v6\nexit 0\n");
+  executable(trustedHelper, "#!/bin/sh\n# hive-managed-interview-claude:v7\nexit 0\n");
   executable(trustedClaude, "#!/bin/sh\nexit 0\n");
   executable(trustedGuard, "#!/bin/sh\nexit 0\n");
   executable(stagedPlaywright, "#!/bin/sh\nprintf 'Version 0.0.79\\n'\n");
@@ -1446,7 +1506,8 @@ test("protected Claude runtime startup uses an ephemeral home without a Coder sh
       .replaceAll("/opt/hive-interview-tools/interview-claude", trustedHelper)
       .replaceAll("/opt/hive-interview-mcp", claudeMcpStage)
       .replaceAll("/run/hive-interview-claude", statusDirectory)
-      .replaceAll("/run/hive-interview-launch/claude.sock", launchSocket),
+      .replaceAll("/run/hive-interview-launch/claude.sock", launchSocket)
+      .replaceAll("/usr/bin/curl", "/usr/bin/true"),
   );
   const boundSocket = run(
     "/usr/bin/python3",
@@ -1459,7 +1520,7 @@ test("protected Claude runtime startup uses an ephemeral home without a Coder sh
     { ...process.env, PATH: "/usr/bin:/bin" },
   );
   assert.equal(boundSocket.status, 0, boundSocket.stderr);
-  writeFileSync(join(statusDirectory, "ready"), "isolated-claude-runtime-ready-v3 1\n");
+  writeFileSync(join(statusDirectory, "ready"), "isolated-claude-runtime-ready-v4 1\n");
   const heartbeat = run("bash", [renderedHeartbeat], {
     ...process.env,
     HOME: home,
@@ -1468,7 +1529,7 @@ test("protected Claude runtime startup uses an ephemeral home without a Coder sh
   assert.equal(heartbeat.status, 0, heartbeat.stderr);
   assert.match(
     readFileSync(join(statusDirectory, "ready"), "utf8"),
-    /^isolated-claude-runtime-ready-v3 [0-9]{10}\n$/,
+    /^isolated-claude-runtime-ready-v4 [0-9]{10}\n$/,
   );
   assert.doesNotMatch(`${result.stdout}${result.stderr}`, new RegExp(fakeSecret));
 });
@@ -2661,7 +2722,7 @@ test("bootstrap installs helpers idempotently and preserves the staged Claude la
     assert.equal(statSync(path).mode & 0o777, 0o700);
     if (helper === "interview-claude") {
       assert.equal(lstatSync(path).isSymbolicLink(), false);
-      assert.match(readFileSync(path, "utf8"), /hive-managed-interview-claude-handoff:v1/);
+      assert.match(readFileSync(path, "utf8"), /hive-managed-interview-claude-handoff:v2/);
       assert.doesNotMatch(readFileSync(path, "utf8"), /read -r|stty -echo/);
     }
     firstContents.set(helper, readFileSync(path, "utf8"));
@@ -2739,6 +2800,39 @@ test("managed npm installs isolate persisted user authentication", () => {
   assert.equal(readiness.status, 1);
 });
 
+test("setup rejects repository npm credentials before invoking npm", () => {
+  for (const relativeConfiguration of [".npmrc", join("frontend", ".npmrc")]) {
+    const fixture = createFixture();
+    const configuration = join(fixture.interviewRepository, relativeConfiguration);
+    const fakeSecret = "project-npm-secret-must-not-be-consumed";
+    writeFileSync(configuration, `//registry.npmjs.org/:_authToken=${fakeSecret}\n`);
+    const installed = installHelpers(fixture);
+    assert.equal(installed.status, 0, installed.stderr);
+    assert.doesNotMatch(`${installed.stdout}${installed.stderr}`, new RegExp(fakeSecret));
+    assert.doesNotMatch(readFileSync(fixture.calls, "utf8"), /tool-install:/);
+    const callsBeforeSetup = readFileSync(fixture.calls, "utf8");
+
+    const result = run(join(fixture.home, ".local", "bin", "interview-setup"), [], fixture.env);
+    assert.equal(result.status, 1);
+    assert.match(result.stderr, /Preserving repository npm configuration/);
+    assert.doesNotMatch(`${result.stdout}${result.stderr}`, new RegExp(fakeSecret));
+    assert.equal(
+      readFileSync(configuration, "utf8"),
+      `//registry.npmjs.org/:_authToken=${fakeSecret}\n`,
+    );
+    assert.equal(readFileSync(fixture.calls, "utf8"), callsBeforeSetup);
+    const readiness = run(
+      "bash",
+      [
+        "-c",
+        'source "$HOME/.local/libexec/hive/technical-interview/common.sh"; interview_package_authentication_absent',
+      ],
+      fixture.env,
+    );
+    assert.equal(readiness.status, 1);
+  }
+});
+
 test("managed pip installs ignore preserved user indexes and disable keyring lookup", () => {
   const fixture = createFixture();
   const pipConfiguration = join(fixture.home, ".config", "pip", "pip.conf");
@@ -2764,7 +2858,7 @@ test("managed pip installs ignore preserved user indexes and disable keyring loo
   assert.equal(readiness.status, 1);
 });
 
-test("persisted Codex and cloud credential stores fail readiness without being read", () => {
+test("persisted Codex, cloud, and browser credential stores fail without being read", () => {
   const fixture = createFixture();
   installHelpers(fixture);
   const common = join(
@@ -2833,6 +2927,17 @@ test("persisted Codex and cloud credential stores fail readiness without being r
       join(fixture.home, ".config", "coder", "session"),
       false,
       "interview_cloud_orchestration_authentication_absent",
+    ],
+    [
+      join(fixture.home, ".config", "google-chrome"),
+      true,
+      "interview_browser_authentication_absent",
+    ],
+    [join(fixture.home, ".config", "chromium"), true, "interview_browser_authentication_absent"],
+    [
+      join(fixture.home, ".config", "chromium-browser"),
+      true,
+      "interview_browser_authentication_absent",
     ],
   ];
 
@@ -3538,6 +3643,18 @@ test("Git transport readiness rejects persisted helpers, headers, credential fil
     "http.https://github.com/.extraHeader",
   );
 
+  git(
+    "-C",
+    fixture.interviewRepository,
+    "config",
+    "remote.origin.pushurl",
+    `https://candidate:${fakeSecret}@github.com/prmsolutions/interview-template.git`,
+  );
+  const pushUrlResult = inspect();
+  assert.equal(pushUrlResult.status, 1);
+  assert.doesNotMatch(`${pushUrlResult.stdout}${pushUrlResult.stderr}`, new RegExp(fakeSecret));
+  git("-C", fixture.interviewRepository, "config", "--unset-all", "remote.origin.pushurl");
+
   const credentialFile = join(fixture.home, ".git-credentials");
   writeFileSync(credentialFile, `https://candidate:${fakeSecret}@github.com\n`);
   assert.equal(inspect().status, 1);
@@ -3565,7 +3682,7 @@ test("Claude readiness rejects a stale protected-runtime heartbeat", () => {
 
   assert.equal(inspect().status, 0);
   unlinkSync(fixture.claudeStatus);
-  writeFileSync(fixture.claudeStatus, "isolated-claude-runtime-ready-v3 1\n");
+  writeFileSync(fixture.claudeStatus, "isolated-claude-runtime-ready-v4 1\n");
   assert.equal(inspect().status, 1);
 });
 
@@ -3581,7 +3698,7 @@ test("readiness reports strict success and failure without network cloning", () 
     chmodSync(fixture.claudeStatus, 0o600);
     writeFileSync(
       fixture.claudeStatus,
-      `isolated-claude-runtime-ready-v3 ${Math.floor(Date.now() / 1000)}\n`,
+      `isolated-claude-runtime-ready-v4 ${Math.floor(Date.now() / 1000)}\n`,
     );
     chmodSync(fixture.claudeStatus, 0o444);
     return run(check, [], environment);
@@ -3691,6 +3808,42 @@ test("readiness reports strict success and failure without network cloning", () 
     rmSync(join(fixture.home, ".aws"), { recursive: true });
     assert.equal(runReadiness().status, 0);
 
+    const persistedBrowserCredential = join(
+      fixture.home,
+      ".config",
+      "google-chrome",
+      "Default",
+      "Cookies",
+    );
+    const fakeBrowserSecret = "persisted-browser-secret-must-not-be-reported";
+    mkdirSync(dirname(persistedBrowserCredential), { recursive: true });
+    writeFileSync(persistedBrowserCredential, fakeBrowserSecret);
+    const persistedBrowserStatus = run(
+      join(fixture.home, ".local", "bin", "interview-status"),
+      [],
+      fixture.env,
+    );
+    assert.equal(persistedBrowserStatus.status, 0, persistedBrowserStatus.stderr);
+    assert.match(
+      persistedBrowserStatus.stdout,
+      /Persisted browser authentication: PRESENT or unsafe \(path names only; readiness fails\)/,
+    );
+    const persistedBrowserFailure = runReadiness();
+    assert.equal(persistedBrowserFailure.status, 1);
+    assert.match(
+      `${persistedBrowserFailure.stdout}\n${persistedBrowserFailure.stderr}`,
+      /\[FAIL\] persisted browser authentication is absent/,
+    );
+    assert.equal(readFileSync(persistedBrowserCredential, "utf8"), fakeBrowserSecret);
+    assert.doesNotMatch(
+      `${persistedBrowserStatus.stdout}\n${persistedBrowserStatus.stderr}\n` +
+        `${persistedBrowserFailure.stdout}\n${persistedBrowserFailure.stderr}\n` +
+        readFileSync(join(fixture.home, "INTERVIEW_READY.md"), "utf8"),
+      new RegExp(fakeBrowserSecret),
+    );
+    rmSync(join(fixture.home, ".config", "google-chrome"), { recursive: true });
+    assert.equal(runReadiness().status, 0);
+
     const persistedNpmConfiguration = join(fixture.home, ".npmrc");
     const fakeNpmSecret = "persisted-npm-secret-must-not-be-reported";
     writeFileSync(persistedNpmConfiguration, `//registry.npmjs.org/:_authToken=${fakeNpmSecret}\n`);
@@ -3775,7 +3928,7 @@ test("readiness reports strict success and failure without network cloning", () 
   }
 });
 
-test("interview-claude brokers the masked key without exposing it to Claude children", async (t) => {
+test("interview-claude brokers an encrypted browser handoff without exposing the key", async (t) => {
   if (!existsSync("/usr/bin/script")) {
     t.skip("util-linux script command is unavailable");
     return;
@@ -3813,6 +3966,17 @@ test("interview-claude brokers the masked key without exposing it to Claude chil
   );
   const upstreamAddress = upstream.address();
   assert.equal(typeof upstreamAddress, "object");
+  const handoffReservation = createServer();
+  await new Promise((resolve, reject) => {
+    handoffReservation.once("error", reject);
+    handoffReservation.listen(0, "127.0.0.1", resolve);
+  });
+  const handoffAddress = handoffReservation.address();
+  assert.equal(typeof handoffAddress, "object");
+  const handoffPort = handoffAddress.port;
+  await new Promise((resolve, reject) => {
+    handoffReservation.close((error) => (error ? reject(error) : resolve()));
+  });
   chmodSync(helper, 0o755);
   writeFileSync(
     helper,
@@ -3824,6 +3988,7 @@ test("interview-claude brokers the masked key without exposing it to Claude chil
       "127.0.0.1",
       upstreamAddress.port,
       false,
+      handoffPort,
     ),
   );
   chmodSync(helper, 0o555);
@@ -3855,6 +4020,44 @@ test("interview-claude brokers the masked key without exposing it to Claude chil
   }
   assert.equal(existsSync(launchSocket), true, runtimeStderr);
   assert.equal(runtime.exitCode, null, runtimeStderr);
+  let handoffPage = "";
+  for (let attempt = 0; attempt < 200; attempt += 1) {
+    try {
+      const response = await fetch(`http://127.0.0.1:${handoffPort}/`);
+      if (response.ok) {
+        handoffPage = await response.text();
+        break;
+      }
+    } catch {
+      // The protected runtime is still generating its ephemeral RSA key.
+    }
+    await new Promise((resolve) => setTimeout(resolve, 25));
+  }
+  assert.match(handoffPage, /Interview Claude Key/);
+  const publicKeyMatch = handoffPage.match(/const publicKeyB64="([A-Za-z0-9+/=]+)"/);
+  assert.ok(publicKeyMatch);
+  const publicKey = await webcrypto.subtle.importKey(
+    "spki",
+    Buffer.from(publicKeyMatch[1], "base64"),
+    { name: "RSA-OAEP", hash: "SHA-256" },
+    false,
+    ["encrypt"],
+  );
+  const handoffKey = async (pairingCode) => {
+    const encryptedKey = await webcrypto.subtle.encrypt(
+      { name: "RSA-OAEP" },
+      publicKey,
+      new TextEncoder().encode(fakeKey),
+    );
+    return fetch(`http://127.0.0.1:${handoffPort}/handoff`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        pairing_code: pairingCode,
+        encrypted_key: Buffer.from(encryptedKey).toString("base64"),
+      }),
+    });
+  };
   const stalledClient = spawnSync(
     "/usr/bin/python3",
     [
@@ -3867,6 +4070,37 @@ test("interview-claude brokers the masked key without exposing it to Claude chil
   );
   assert.equal(stalledClient.status, 0, stalledClient.stderr);
   assert.equal(runtime.exitCode, null, runtimeStderr);
+  for (let attempt = 0; attempt < 10; attempt += 1) {
+    const disconnectedClient = spawnSync(
+      "/usr/bin/python3",
+      [
+        "-I",
+        "-c",
+        [
+          "import socket,struct,sys,time",
+          "s=socket.socket(socket.AF_UNIX)",
+          "s.connect(sys.argv[1])",
+          "s.sendall(struct.pack('!16sIIHH',b'HIVECLAUDEv7\\0\\0\\0\\0',0,0,24,80))",
+          "header=s.recv(5)",
+          "assert len(header)==5",
+          "frame_type,length=struct.unpack('!BI',header)",
+          "payload=b''",
+          "while len(payload)<length: payload+=s.recv(length-len(payload))",
+          "assert frame_type==6 and len(payload)==32",
+          "s.close()",
+          "time.sleep(0.15)",
+        ].join("\n"),
+        launchSocket,
+      ],
+      { encoding: "utf8" },
+    );
+    assert.equal(
+      disconnectedClient.status,
+      0,
+      `disconnected launch ${attempt + 1} consumed a pending slot: ${disconnectedClient.stderr}`,
+    );
+  }
+  assert.equal(runtime.exitCode, null, runtimeStderr);
   const launcherHijackMarker = join(fixture.root, "candidate-launcher-ran");
   executable(
     join(fixture.home, ".local", "bin", "interview-claude"),
@@ -3877,8 +4111,14 @@ test("interview-claude brokers the masked key without exposing it to Claude chil
     join(fixture.home, ".local", "bin", "claude"),
     `#!/bin/sh\n: > "${pathHijackMarker}"\nprintf '2.1.170 (Claude Code)\\n'\n`,
   );
-  const command = `${helper} --client ${launchSocket} --model test-model -- 'argument with spaces'`;
-  const result = await new Promise((resolve, reject) => {
+  const command = `${helper} --client ${launchSocket} --fixture-hold --model test-model -- 'argument with spaces'`;
+  let confirmFirstHandoff;
+  let rejectFirstHandoff;
+  const firstHandoff = new Promise((resolve, reject) => {
+    confirmFirstHandoff = resolve;
+    rejectFirstHandoff = reject;
+  });
+  const resultPromise = new Promise((resolve, reject) => {
     const child = spawn("/usr/bin/script", ["-qefc", command, "/dev/null"], {
       env: {
         ...fixture.env,
@@ -3904,22 +4144,35 @@ test("interview-claude brokers the masked key without exposing it to Claude chil
     });
     let stdout = "";
     let stderr = "";
-    let keySent = false;
+    let handoffStarted = false;
     const timeout = setTimeout(() => {
       child.kill("SIGKILL");
       reject(
         new Error(
-          `masked Claude prompt timed out\nstdout: ${stdout}\nstderr: ${stderr}\nruntime: ${runtimeStderr}`,
+          `encrypted Claude handoff timed out\nstdout: ${stdout}\nstderr: ${stderr}\nruntime: ${runtimeStderr}`,
         ),
       );
     }, 30_000);
     child.stdout.setEncoding("utf8");
     child.stderr.setEncoding("utf8");
-    child.stdout.on("data", (chunk) => {
+    child.stdout.on("data", async (chunk) => {
       stdout += chunk;
-      if (!keySent && stdout.includes("Temporary Anthropic API key:")) {
-        keySent = true;
-        child.stdin.write(`${fakeKey}\n`);
+      const pairing = stdout.match(/Pairing code: ([A-Za-z0-9_-]{32})/);
+      if (!handoffStarted && pairing) {
+        handoffStarted = true;
+        try {
+          const response = await handoffKey(pairing[1]);
+          const responseBody = await response.text();
+          if (!response.ok) {
+            throw new Error(`key handoff failed: ${response.status} ${responseBody}`);
+          }
+          confirmFirstHandoff();
+        } catch (error) {
+          clearTimeout(timeout);
+          child.kill("SIGKILL");
+          rejectFirstHandoff(error);
+          reject(error);
+        }
       }
     });
     child.stderr.on("data", (chunk) => {
@@ -3931,6 +4184,54 @@ test("interview-claude brokers the masked key without exposing it to Claude chil
       resolve({ status, stderr, stdout });
     });
   });
+
+  await firstHandoff;
+  const busyCommand = `${helper} --client ${launchSocket} --model second-session`;
+  const busyResult = await new Promise((resolve, reject) => {
+    const child = spawn("/usr/bin/script", ["-qefc", busyCommand, "/dev/null"], {
+      env: fixture.env,
+      stdio: ["pipe", "pipe", "pipe"],
+    });
+    let stdout = "";
+    let stderr = "";
+    let handoffStarted = false;
+    let handoffStatus = 0;
+    const timeout = setTimeout(() => {
+      child.kill("SIGKILL");
+      reject(new Error(`concurrent launch did not fail promptly: ${stdout} ${stderr}`));
+    }, 10_000);
+    child.stdout.setEncoding("utf8");
+    child.stderr.setEncoding("utf8");
+    child.stdout.on("data", async (chunk) => {
+      stdout += chunk;
+      const pairing = stdout.match(/Pairing code: ([A-Za-z0-9_-]{32})/);
+      if (!handoffStarted && pairing) {
+        handoffStarted = true;
+        try {
+          const response = await handoffKey(pairing[1]);
+          handoffStatus = response.status;
+          await response.text();
+        } catch (error) {
+          clearTimeout(timeout);
+          child.kill("SIGKILL");
+          reject(error);
+        }
+      }
+    });
+    child.stderr.on("data", (chunk) => {
+      stderr += chunk;
+    });
+    child.on("error", reject);
+    child.on("close", (status) => {
+      clearTimeout(timeout);
+      resolve({ status, stderr, stdout, handoffStatus });
+    });
+  });
+  assert.equal(busyResult.handoffStatus, 409);
+  assert.equal(busyResult.status, 1, `${busyResult.stderr}\n${busyResult.stdout}`);
+  assert.match(busyResult.stdout, /Another Interview Claude session is active/);
+
+  const result = await resultPromise;
 
   assert.equal(result.status, 0, `${result.stderr}\n${result.stdout}`);
   assert.doesNotMatch(result.stdout, new RegExp(fakeKey));
@@ -3959,7 +4260,7 @@ test("interview-claude brokers the masked key without exposing it to Claude chil
   assert.equal(readFileSync(fixture.claudeProcProbe, "utf8"), "blocked\n");
   assert.equal(
     readFileSync(fixture.claudeArgs, "utf8"),
-    "<--model>\n<test-model>\n<-->\n<argument with spaces>\n",
+    "<--fixture-hold>\n<--model>\n<test-model>\n<-->\n<argument with spaces>\n",
   );
   assert.deepEqual(
     readdirSync(join(fixture.home, ".claude")).filter((entry) =>
