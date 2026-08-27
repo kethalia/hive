@@ -365,7 +365,11 @@ def launch_claude(arguments: list[str], environment: dict[str, str], key: bytear
 
     environment["ANTHROPIC_API_KEY"] = BROKER_PLACEHOLDER_KEY
     environment["ANTHROPIC_BASE_URL"] = f"http://127.0.0.1:{BROKER_REDIRECT_PORT}"
-    environment["CLAUDE_CODE_SUBPROCESS_ENV_SCRUB"] = "1"
+    # The trusted whitelist already excludes every credential, and the preload
+    # guard removes the broker route before Claude can exec a child. Forcing
+    # Claude's optional bwrap-based scrub would make the pinned rollout image
+    # refuse to start because that image intentionally has no bubblewrap.
+    environment["CLAUDE_CODE_SUBPROCESS_ENV_SCRUB"] = "0"
     environment["HIVE_INTERVIEW_BROKER_PORT"] = str(BROKER_REDIRECT_PORT)
     environment["HIVE_INTERVIEW_BROKER_SOCKET"] = str(broker_socket)
     environment["LD_PRELOAD"] = str(TRUSTED_GUARD)

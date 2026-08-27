@@ -555,7 +555,7 @@ if sys.argv[1:] == ["--version"]:
     raise SystemExit(0)
 
 assert os.environ.get("ANTHROPIC_API_KEY") == "hive-interview-broker-managed-non-secret"
-assert os.environ.get("CLAUDE_CODE_SUBPROCESS_ENV_SCRUB") == "1"
+assert os.environ.get("CLAUDE_CODE_SUBPROCESS_ENV_SCRUB") == "0"
 assert os.environ.get("ANTHROPIC_BASE_URL", "").startswith("http://127.0.0.1:")
 for variable_name in ${JSON.stringify([
       "ANTHROPIC_AUTH_TOKEN",
@@ -959,7 +959,7 @@ test("standalone Terraform exposes interview apps without personal auth modules"
   assert.match(interviewClaude, /forwarded_headers\["X-Api-Key"\]/);
   assert.match(interviewClaude, /environment\["ANTHROPIC_API_KEY"\] = BROKER_PLACEHOLDER_KEY/);
   assert.match(interviewClaude, /environment\["ANTHROPIC_BASE_URL"\]/);
-  assert.match(interviewClaude, /environment\["CLAUDE_CODE_SUBPROCESS_ENV_SCRUB"\] = "1"/);
+  assert.match(interviewClaude, /environment\["CLAUDE_CODE_SUBPROCESS_ENV_SCRUB"\] = "0"/);
   assert.match(interviewClaude, /socketserver\.UnixStreamServer/);
   assert.match(interviewClaude, /socket\.SO_PEERCRED/);
   assert.match(interviewClaude, /private_broker_socket/);
@@ -3274,7 +3274,7 @@ test("interview-claude brokers the masked key without exposing it to Claude chil
   const childEnvironment = readFileSync(fixture.claudeChildEnv, "utf8");
   assert.doesNotMatch(childEnvironment, new RegExp(fakeKey));
   assert.match(childEnvironment, /ANTHROPIC_API_KEY=hive-interview-broker-managed-non-secret/);
-  assert.match(childEnvironment, /CLAUDE_CODE_SUBPROCESS_ENV_SCRUB=1/);
+  assert.match(childEnvironment, /CLAUDE_CODE_SUBPROCESS_ENV_SCRUB=0/);
   assert.equal(readFileSync(fixture.claudeProcProbe, "utf8"), "blocked\n");
   assert.equal(
     readFileSync(fixture.claudeArgs, "utf8"),

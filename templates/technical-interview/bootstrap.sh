@@ -876,7 +876,8 @@ interview_claude_ready() {
       "$INTERVIEW_CLAUDE_LAUNCHER" \
     && grep -qF 'ANTHROPIC_UPSTREAM_HOST = "api.anthropic.com"' \
       "$INTERVIEW_CLAUDE_LAUNCHER" \
-    && grep -qF 'CLAUDE_CODE_SUBPROCESS_ENV_SCRUB' "$INTERVIEW_CLAUDE_LAUNCHER" \
+    && grep -qF 'environment["CLAUDE_CODE_SUBPROCESS_ENV_SCRUB"] = "0"' \
+      "$INTERVIEW_CLAUDE_LAUNCHER" \
     && grep -qF 'socketserver.UnixStreamServer' "$INTERVIEW_CLAUDE_LAUNCHER" \
     && grep -qF 'socket.SO_PEERCRED' "$INTERVIEW_CLAUDE_LAUNCHER" \
     && grep -qF 'PR_SET_DUMPABLE = 4' "$INTERVIEW_CLAUDE_LAUNCHER" \
