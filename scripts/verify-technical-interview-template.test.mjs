@@ -38,6 +38,9 @@ const toolsFilebrowserScript = join(templateRoot, "scripts", "tools-filebrowser.
 const expectedOrigin = "https://github.com/prmsolutions/interview-template.git";
 const claudeCredentialAssertions = [
   "ANTHROPIC_AUTH_TOKEN",
+  "OPENAI_API_KEY",
+  "OPENAI_API_TOKEN",
+  "CODEX_API_KEY",
   "CLAUDE_CODE_OAUTH_TOKEN",
   "CLAUDE_CODE_OAUTH_REFRESH_TOKEN",
   "CLAUDE_CODE_OAUTH_SCOPES",
@@ -95,6 +98,7 @@ function seedSafeInterviewEnvironment(home) {
     environmentFile,
     "# hive-managed-interview-environment:v1\n" +
       "unset ANTHROPIC_API_KEY ANTHROPIC_AUTH_TOKEN\n" +
+      "unset OPENAI_API_KEY OPENAI_API_TOKEN CODEX_API_KEY\n" +
       "unset CLAUDE_CODE_OAUTH_TOKEN CLAUDE_CODE_OAUTH_REFRESH_TOKEN CLAUDE_CODE_OAUTH_SCOPES\n" +
       "unset CLAUDE_CONFIG_DIR CLAUDE_SECURESTORAGE_CONFIG_DIR\n" +
       "unset NPM_TOKEN NODE_AUTH_TOKEN NPM_CONFIG_USERCONFIG NPM_CONFIG_GLOBALCONFIG\n" +
@@ -247,6 +251,7 @@ function renderInterviewClaudeScript(
     .replace("CLIENT_UID = 1000", `CLIENT_UID = ${fixtureUid}`)
     .replace("CLIENT_GID = 1000", `CLIENT_GID = ${fixtureGid}`)
     .replace("PROTECTED_RUNTIME_UID = 1000", `PROTECTED_RUNTIME_UID = ${fixtureUid}`)
+    .replace("LAUNCH_HANDSHAKE_TIMEOUT_SECONDS = 5", "LAUNCH_HANDSHAKE_TIMEOUT_SECONDS = 0.25")
     .replace(
       'TRUSTED_CLAUDE = Path("/opt/hive-interview-tools/claude")',
       `TRUSTED_CLAUDE = Path("${trustedClaude}")`,
@@ -876,6 +881,7 @@ esac
   const env = {
     ...process.env,
     ANTHROPIC_AUTH_TOKEN: "must-not-reach-child-processes",
+    CODEX_API_KEY: "must-not-reach-child-processes",
     AWS_ACCESS_KEY_ID: "must-not-reach-child-processes",
     AWS_SECRET_ACCESS_KEY: "must-not-reach-child-processes",
     AWS_SESSION_TOKEN: "must-not-reach-child-processes",
@@ -889,6 +895,8 @@ esac
     NPM_CONFIG_GLOBALCONFIG: join(root, "personal-global-npmrc"),
     NPM_CONFIG_USERCONFIG: join(root, "personal-user-npmrc"),
     NPM_TOKEN: "must-not-reach-child-processes",
+    OPENAI_API_KEY: "must-not-reach-child-processes",
+    OPENAI_API_TOKEN: "must-not-reach-child-processes",
     npm_config_globalconfig: join(root, "personal-lower-global-npmrc"),
     npm_config_userconfig: join(root, "personal-lower-user-npmrc"),
     PIP_CERT: join(root, "personal-pip-cert.pem"),
@@ -1011,7 +1019,7 @@ test("standalone Terraform exposes interview apps without personal auth modules"
   assert.equal((terraform.match(/\$\{local\.credentialless_environment\}/g) ?? []).length, 4);
   assert.match(
     terraform,
-    /credentialless_environment[\s\S]*?unset REALM_VISUAL_REVIEW_API_KEY RUNCOMFY_API_TOKEN[\s\S]*?unset AWS_ACCESS_KEY_ID[\s\S]*?unset KUBECONFIG/,
+    /credentialless_environment[\s\S]*?unset OPENAI_API_KEY OPENAI_API_TOKEN CODEX_API_KEY[\s\S]*?unset REALM_VISUAL_REVIEW_API_KEY RUNCOMFY_API_TOKEN[\s\S]*?unset AWS_ACCESS_KEY_ID[\s\S]*?unset KUBECONFIG/,
   );
   assert.match(bootstrap, /for _claude_attempt in \{1\.\.60\}; do[\s\S]*?sleep 2/);
   assert.match(terraform, /file\("\$\{path\.module\}\/scripts\/seed-home\.sh"\)/);
@@ -1102,6 +1110,15 @@ test("standalone Terraform exposes interview apps without personal auth modules"
   assert.match(interviewClaude, /def run_launch_client/);
   assert.match(interviewClaude, /pty\.openpty\(\)/);
   assert.match(interviewClaude, /LAUNCH_PROTOCOL_MAGIC/);
+  assert.match(interviewClaude, /LAUNCH_HANDSHAKE_TIMEOUT_SECONDS = 5/);
+  assert.match(
+    interviewClaude,
+    /connection\.settimeout\(LAUNCH_HANDSHAKE_TIMEOUT_SECONDS\)[\s\S]*?parse_launch_request\(connection\)[\s\S]*?connection\.settimeout\(None\)/,
+  );
+  assert.ok(
+    interviewClaude.indexOf("key = read_temporary_key(terminal)") <
+      interviewClaude.indexOf("connection.connect(str(socket_path))"),
+  );
   assert.match(interviewClaude, /peer_uid != CLIENT_UID/);
   assert.match(interviewClaude, /socket_metadata\.st_uid != PROTECTED_RUNTIME_UID/);
   assert.match(interviewClaude, /ANTHROPIC_UPSTREAM_HOST = "api\.anthropic\.com"/);
@@ -1128,6 +1145,13 @@ test("standalone Terraform exposes interview apps without personal auth modules"
   assert.doesNotMatch(claudeGuard, /setenv\("ANTHROPIC_API_KEY"/);
   assert.doesNotMatch(claudeGuard, /HIVE_INTERVIEW_KEY_FD/);
   assert.doesNotMatch(interviewClaude, /command -v claude|exec claude/);
+  assert.match(bootstrap, /"\$HOME\/\.codex\/auth\.json"/);
+  assert.match(bootstrap, /"\$HOME\/\.aws"/);
+  assert.match(bootstrap, /"\$HOME\/\.config\/gcloud"/);
+  assert.match(bootstrap, /"\$HOME\/\.azure"/);
+  assert.match(bootstrap, /"\$HOME\/\.kube"/);
+  assert.match(bootstrap, /persisted Codex authentication is absent/);
+  assert.match(bootstrap, /persisted cloud and orchestration authentication is absent/);
   assert.match(initClaude, /PATH="\/usr\/local\/sbin:[^"]+"/);
   assert.doesNotMatch(initClaude, /isolated-claude-(?:agent|runtime)-ready/);
   assert.match(initClaude, /claude_user_config="\$HOME\/\.claude\.json"/);
@@ -1368,7 +1392,7 @@ test("protected Claude runtime startup uses an ephemeral home without a Coder sh
   mkdirSync(dirname(stagedPlaywright), { recursive: true });
   mkdirSync(statusDirectory);
   mkdirSync(launchDirectory);
-  executable(trustedHelper, "#!/bin/sh\n# hive-managed-interview-claude:v5\nexit 0\n");
+  executable(trustedHelper, "#!/bin/sh\n# hive-managed-interview-claude:v6\nexit 0\n");
   executable(trustedClaude, "#!/bin/sh\nexit 0\n");
   executable(trustedGuard, "#!/bin/sh\nexit 0\n");
   executable(stagedPlaywright, "#!/bin/sh\nprintf 'Version 0.0.79\\n'\n");
@@ -2740,6 +2764,93 @@ test("managed pip installs ignore preserved user indexes and disable keyring loo
   assert.equal(readiness.status, 1);
 });
 
+test("persisted Codex and cloud credential stores fail readiness without being read", () => {
+  const fixture = createFixture();
+  installHelpers(fixture);
+  const common = join(
+    fixture.home,
+    ".local",
+    "libexec",
+    "hive",
+    "technical-interview",
+    "common.sh",
+  );
+  const inspect = (functionName) =>
+    run("bash", ["-c", `source "${common}"; ${functionName}`], fixture.env);
+  const fakeSecret = "persisted-personal-store-secret-must-not-leak";
+  const credentialPaths = [
+    [join(fixture.home, ".codex", "auth.json"), false, "interview_codex_authentication_absent"],
+    [
+      join(fixture.home, ".config", "codex", "auth.json"),
+      false,
+      "interview_codex_authentication_absent",
+    ],
+    [join(fixture.home, ".config", "openai"), true, "interview_codex_authentication_absent"],
+    [join(fixture.home, ".aws"), true, "interview_cloud_orchestration_authentication_absent"],
+    [
+      join(fixture.home, ".config", "gcloud"),
+      true,
+      "interview_cloud_orchestration_authentication_absent",
+    ],
+    [join(fixture.home, ".azure"), true, "interview_cloud_orchestration_authentication_absent"],
+    [join(fixture.home, ".kube"), true, "interview_cloud_orchestration_authentication_absent"],
+    [
+      join(fixture.home, ".terraform.d", "credentials.tfrc.json"),
+      false,
+      "interview_cloud_orchestration_authentication_absent",
+    ],
+    [
+      join(fixture.home, ".docker", "config.json"),
+      false,
+      "interview_cloud_orchestration_authentication_absent",
+    ],
+    [
+      join(fixture.home, ".config", "containers", "auth.json"),
+      false,
+      "interview_cloud_orchestration_authentication_absent",
+    ],
+    [
+      join(fixture.home, ".config", "helm", "registry", "config.json"),
+      false,
+      "interview_cloud_orchestration_authentication_absent",
+    ],
+    [
+      join(fixture.home, ".pulumi", "credentials.json"),
+      false,
+      "interview_cloud_orchestration_authentication_absent",
+    ],
+    [
+      join(fixture.home, ".vault-token"),
+      false,
+      "interview_cloud_orchestration_authentication_absent",
+    ],
+    [
+      join(fixture.home, ".config", "coderv2", "session"),
+      false,
+      "interview_cloud_orchestration_authentication_absent",
+    ],
+    [
+      join(fixture.home, ".config", "coder", "session"),
+      false,
+      "interview_cloud_orchestration_authentication_absent",
+    ],
+  ];
+
+  for (const [credentialPath, directory, functionName] of credentialPaths) {
+    assert.equal(inspect(functionName).status, 0);
+    if (directory) {
+      mkdirSync(credentialPath, { recursive: true });
+    } else {
+      mkdirSync(dirname(credentialPath), { recursive: true });
+      writeFileSync(credentialPath, fakeSecret);
+    }
+    const rejected = inspect(functionName);
+    assert.equal(rejected.status, 1);
+    assert.doesNotMatch(`${rejected.stdout}${rejected.stderr}`, new RegExp(fakeSecret));
+    rmSync(credentialPath, { force: true, recursive: true });
+  }
+});
+
 test("setup repairs managed tool payload corruption even when version commands pass", () => {
   const fixture = createFixture();
   installHelpers(fixture);
@@ -3466,11 +3577,20 @@ test("readiness reports strict success and failure without network cloning", () 
   const setup = join(fixture.home, ".local", "bin", "interview-setup");
   const start = join(fixture.home, ".local", "bin", "interview-start");
   const check = join(fixture.home, ".local", "bin", "interview-check");
+  const runReadiness = (environment = fixture.env) => {
+    chmodSync(fixture.claudeStatus, 0o600);
+    writeFileSync(
+      fixture.claudeStatus,
+      `isolated-claude-runtime-ready-v3 ${Math.floor(Date.now() / 1000)}\n`,
+    );
+    chmodSync(fixture.claudeStatus, 0o444);
+    return run(check, [], environment);
+  };
   try {
     assert.equal(run(setup, [], fixture.env).status, 0);
     const startResult = run(start, [], fixture.env);
     assert.equal(startResult.status, 0, startResult.stderr);
-    const ready = run(check, [], fixture.env);
+    const ready = runReadiness();
     assert.equal(ready.status, 0, ready.stderr);
     assert.match(ready.stdout, /INTERVIEW WORKSPACE READY/);
     assert.match(
@@ -3495,7 +3615,7 @@ test("readiness reports strict success and failure without network cloning", () 
       persistedClaudeStatus.stdout,
       /Persisted Claude authentication: PRESENT or unsafe \(path names only; readiness fails\)/,
     );
-    const persistedClaudeFailure = run(check, [], fixture.env);
+    const persistedClaudeFailure = runReadiness();
     assert.equal(persistedClaudeFailure.status, 1);
     assert.match(
       `${persistedClaudeFailure.stdout}\n${persistedClaudeFailure.stderr}`,
@@ -3509,7 +3629,67 @@ test("readiness reports strict success and failure without network cloning", () 
       new RegExp(fakeClaudeSecret),
     );
     unlinkSync(persistedClaudeCredential);
-    assert.equal(run(check, [], fixture.env).status, 0);
+    assert.equal(runReadiness().status, 0);
+
+    const persistedCodexCredential = join(fixture.home, ".codex", "auth.json");
+    const fakeCodexSecret = "persisted-codex-secret-must-not-be-reported";
+    mkdirSync(dirname(persistedCodexCredential), { recursive: true });
+    writeFileSync(persistedCodexCredential, fakeCodexSecret);
+    const persistedCodexStatus = run(
+      join(fixture.home, ".local", "bin", "interview-status"),
+      [],
+      fixture.env,
+    );
+    assert.equal(persistedCodexStatus.status, 0, persistedCodexStatus.stderr);
+    assert.match(
+      persistedCodexStatus.stdout,
+      /Persisted Codex authentication: PRESENT or unsafe \(path names only; readiness fails\)/,
+    );
+    const persistedCodexFailure = runReadiness();
+    assert.equal(persistedCodexFailure.status, 1);
+    assert.match(
+      `${persistedCodexFailure.stdout}\n${persistedCodexFailure.stderr}`,
+      /\[FAIL\] persisted Codex authentication is absent/,
+    );
+    assert.equal(readFileSync(persistedCodexCredential, "utf8"), fakeCodexSecret);
+    assert.doesNotMatch(
+      `${persistedCodexStatus.stdout}\n${persistedCodexStatus.stderr}\n` +
+        `${persistedCodexFailure.stdout}\n${persistedCodexFailure.stderr}\n` +
+        readFileSync(join(fixture.home, "INTERVIEW_READY.md"), "utf8"),
+      new RegExp(fakeCodexSecret),
+    );
+    unlinkSync(persistedCodexCredential);
+    assert.equal(runReadiness().status, 0);
+
+    const persistedCloudCredential = join(fixture.home, ".aws", "credentials");
+    const fakeCloudSecret = "persisted-cloud-secret-must-not-be-reported";
+    mkdirSync(dirname(persistedCloudCredential), { recursive: true });
+    writeFileSync(persistedCloudCredential, fakeCloudSecret);
+    const persistedCloudStatus = run(
+      join(fixture.home, ".local", "bin", "interview-status"),
+      [],
+      fixture.env,
+    );
+    assert.equal(persistedCloudStatus.status, 0, persistedCloudStatus.stderr);
+    assert.match(
+      persistedCloudStatus.stdout,
+      /Persisted cloud\/orchestration authentication: PRESENT or unsafe \(path names only; readiness fails\)/,
+    );
+    const persistedCloudFailure = runReadiness();
+    assert.equal(persistedCloudFailure.status, 1);
+    assert.match(
+      `${persistedCloudFailure.stdout}\n${persistedCloudFailure.stderr}`,
+      /\[FAIL\] persisted cloud and orchestration authentication is absent/,
+    );
+    assert.equal(readFileSync(persistedCloudCredential, "utf8"), fakeCloudSecret);
+    assert.doesNotMatch(
+      `${persistedCloudStatus.stdout}\n${persistedCloudStatus.stderr}\n` +
+        `${persistedCloudFailure.stdout}\n${persistedCloudFailure.stderr}\n` +
+        readFileSync(join(fixture.home, "INTERVIEW_READY.md"), "utf8"),
+      new RegExp(fakeCloudSecret),
+    );
+    rmSync(join(fixture.home, ".aws"), { recursive: true });
+    assert.equal(runReadiness().status, 0);
 
     const persistedNpmConfiguration = join(fixture.home, ".npmrc");
     const fakeNpmSecret = "persisted-npm-secret-must-not-be-reported";
@@ -3524,7 +3704,7 @@ test("readiness reports strict success and failure without network cloning", () 
       persistedNpmStatus.stdout,
       /Persisted package-manager authentication: PRESENT or unsafe \(path names only; readiness fails\)/,
     );
-    const persistedNpmFailure = run(check, [], fixture.env);
+    const persistedNpmFailure = runReadiness();
     assert.equal(persistedNpmFailure.status, 1);
     assert.match(
       `${persistedNpmFailure.stdout}\n${persistedNpmFailure.stderr}`,
@@ -3538,7 +3718,7 @@ test("readiness reports strict success and failure without network cloning", () 
       new RegExp(fakeNpmSecret),
     );
     unlinkSync(persistedNpmConfiguration);
-    assert.equal(run(check, [], fixture.env).status, 0);
+    assert.equal(runReadiness().status, 0);
 
     const persistedPipConfiguration = join(fixture.home, ".config", "pip", "pip.conf");
     const fakePipSecret = "persisted-pip-secret-must-not-be-reported";
@@ -3557,7 +3737,7 @@ test("readiness reports strict success and failure without network cloning", () 
       persistedPipStatus.stdout,
       /Persisted package-manager authentication: PRESENT or unsafe \(path names only; readiness fails\)/,
     );
-    const persistedPipFailure = run(check, [], fixture.env);
+    const persistedPipFailure = runReadiness();
     assert.equal(persistedPipFailure.status, 1);
     assert.match(
       `${persistedPipFailure.stdout}\n${persistedPipFailure.stderr}`,
@@ -3571,9 +3751,9 @@ test("readiness reports strict success and failure without network cloning", () 
       new RegExp(fakePipSecret),
     );
     unlinkSync(persistedPipConfiguration);
-    assert.equal(run(check, [], fixture.env).status, 0);
+    assert.equal(runReadiness().status, 0);
 
-    const unknownCoderAuth = run(check, [], {
+    const unknownCoderAuth = runReadiness({
       ...fixture.env,
       FAKE_CODER_AUTH_STATE: "unavailable",
     });
@@ -3583,7 +3763,7 @@ test("readiness reports strict success and failure without network cloning", () 
       /\[FAIL\] Coder CLI is not authenticated for orchestration/,
     );
 
-    const failed = run(check, [], { ...fixture.env, FAKE_PYTEST_FAIL: "1" });
+    const failed = runReadiness({ ...fixture.env, FAKE_PYTEST_FAIL: "1" });
     assert.equal(failed.status, 1);
     assert.match(failed.stdout, /INTERVIEW WORKSPACE NOT READY/);
     assert.match(
@@ -3674,6 +3854,18 @@ test("interview-claude brokers the masked key without exposing it to Claude chil
     await new Promise((resolve) => setTimeout(resolve, 25));
   }
   assert.equal(existsSync(launchSocket), true, runtimeStderr);
+  assert.equal(runtime.exitCode, null, runtimeStderr);
+  const stalledClient = spawnSync(
+    "/usr/bin/python3",
+    [
+      "-I",
+      "-c",
+      "import socket,sys,time; s=socket.socket(socket.AF_UNIX); s.connect(sys.argv[1]); s.sendall(b'H'); time.sleep(0.75); s.close()",
+      launchSocket,
+    ],
+    { encoding: "utf8" },
+  );
+  assert.equal(stalledClient.status, 0, stalledClient.stderr);
   assert.equal(runtime.exitCode, null, runtimeStderr);
   const launcherHijackMarker = join(fixture.root, "candidate-launcher-ran");
   executable(

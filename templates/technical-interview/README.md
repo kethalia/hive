@@ -18,6 +18,8 @@ interview feature.
 - Browser: Chrome, XFCE/KasmVNC, and Playwright MCP
 - User-space toolchain: Codex, Playwright MCP, Bun, and pnpm, pinned and prepared during startup
 - GitHub external auth, Git helpers, commit signing, and Coder CLI login: not provisioned
+- Persisted Codex, cloud, cluster, registry, IaC, and orchestration credential stores: strict
+  readiness failure without reading or deleting them
 - Active global agent context: interview guidance only
 
 The template remains non-root, receives no Docker socket or Kubernetes service-account token, and
@@ -46,7 +48,8 @@ are installed under the workspace's private user-state directory. Stored payload
 missing runtime files even when a launcher still reports the pinned version. npm and pip operations
 ignore persisted user configuration and environment overrides, disable interactive credential
 lookup, and readiness rejects preserved `.npmrc` or pip configuration paths rather than reading or
-deleting them. `interview-start` also replaces an active API or frontend service pane when
+deleting them. Standard Codex and cloud credential stores are handled by the same preserve-and-fail
+policy. `interview-start` also replaces an active API or frontend service pane when
 its health endpoint is unavailable while preserving the work and AI panes. Playwright MCP uses the
 image's Chrome binary directly and never downloads a browser during the interview.
 

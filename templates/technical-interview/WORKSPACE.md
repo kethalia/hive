@@ -25,4 +25,5 @@ This isolated workspace is prepared for the Proton.ai full-stack assessment at
 
 GitHub external authentication and Coder CLI login are intentionally disabled. The workspace clones
 only the public assessment repository over anonymous HTTPS and never updates an existing checkout
-automatically.
+automatically. `interview-check` also rejects standard persisted Codex, cloud, cluster, registry,
+IaC, and orchestration credential stores without reading, reporting, or deleting their values.

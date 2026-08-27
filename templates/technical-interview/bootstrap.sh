@@ -6,6 +6,7 @@ umask 077
 export PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
 unset BASH_ENV ENV CDPATH LD_LIBRARY_PATH LD_PRELOAD
 unset ANTHROPIC_API_KEY ANTHROPIC_AUTH_TOKEN
+unset OPENAI_API_KEY OPENAI_API_TOKEN CODEX_API_KEY
 unset CLAUDE_CODE_OAUTH_TOKEN CLAUDE_CODE_OAUTH_REFRESH_TOKEN CLAUDE_CODE_OAUTH_SCOPES
 unset CLAUDE_CONFIG_DIR CLAUDE_SECURESTORAGE_CONFIG_DIR
 unset NPM_TOKEN NODE_AUTH_TOKEN
@@ -160,6 +161,9 @@ INTERVIEW_RG_BIN="$(command -v rg 2>/dev/null || printf '%s' "$HOME/.local/bin/r
 INTERVIEW_FORBIDDEN_CREDENTIALS=(
   ANTHROPIC_API_KEY
   ANTHROPIC_AUTH_TOKEN
+  OPENAI_API_KEY
+  OPENAI_API_TOKEN
+  CODEX_API_KEY
   CLAUDE_CODE_OAUTH_TOKEN
   CLAUDE_CODE_OAUTH_REFRESH_TOKEN
   CLAUDE_CODE_OAUTH_SCOPES
@@ -955,6 +959,49 @@ interview_claude_authentication_absent() {
   return 0
 }
 
+interview_codex_authentication_absent() {
+  local credential_path
+
+  # Codex uses auth.json for persisted login state. Preserve any user-owned
+  # credential store, but never let the disposable interview workspace reuse
+  # it or read it while checking readiness.
+  for credential_path in \
+    "$HOME/.codex/auth.json" \
+    "$HOME/.config/codex/auth.json" \
+    "$HOME/.config/openai"; do
+    if [ -e "$credential_path" ] || [ -L "$credential_path" ]; then
+      return 1
+    fi
+  done
+  return 0
+}
+
+interview_cloud_orchestration_authentication_absent() {
+  local credential_path
+
+  # A reused home must not expose personal cloud, registry, cluster, IaC, or
+  # orchestration sessions. Check only path existence so values are never read,
+  # printed, or deleted.
+  for credential_path in \
+    "$HOME/.aws" \
+    "$HOME/.config/gcloud" \
+    "$HOME/.azure" \
+    "$HOME/.kube" \
+    "$HOME/.terraform.d/credentials.tfrc.json" \
+    "$HOME/.docker/config.json" \
+    "$HOME/.config/containers/auth.json" \
+    "$HOME/.config/helm/registry/config.json" \
+    "$HOME/.pulumi/credentials.json" \
+    "$HOME/.vault-token" \
+    "$HOME/.config/coderv2/session" \
+    "$HOME/.config/coder/session"; do
+    if [ -e "$credential_path" ] || [ -L "$credential_path" ]; then
+      return 1
+    fi
+  done
+  return 0
+}
+
 interview_package_authentication_absent() {
   local configuration_path
 
@@ -1002,6 +1049,9 @@ interview_shell_scrub_ready() {
   grep -qF '# hive-managed-interview-environment:v1' "$environment_file" || return 1
   grep -qF \
     'unset ANTHROPIC_API_KEY ANTHROPIC_AUTH_TOKEN' \
+    "$environment_file" || return 1
+  grep -qF \
+    'unset OPENAI_API_KEY OPENAI_API_TOKEN CODEX_API_KEY' \
     "$environment_file" || return 1
   grep -qF \
     'unset CLAUDE_CODE_OAUTH_TOKEN CLAUDE_CODE_OAUTH_REFRESH_TOKEN CLAUDE_CODE_OAUTH_SCOPES' \
@@ -1129,7 +1179,7 @@ interview_claude_ready() {
     && [ -f "$INTERVIEW_CLAUDE_LAUNCHER" ] \
     && [ ! -L "$INTERVIEW_CLAUDE_LAUNCHER" ] \
     && [ -x "$INTERVIEW_CLAUDE_LAUNCHER" ] \
-    && grep -qF '# hive-managed-interview-claude:v5' "$INTERVIEW_CLAUDE_LAUNCHER" \
+    && grep -qF '# hive-managed-interview-claude:v6' "$INTERVIEW_CLAUDE_LAUNCHER" \
     && grep -qF 'INTERVIEW_REPOSITORY = Path("/workspace/projects/prmsolutions/interview-template")' \
       "$INTERVIEW_CLAUDE_LAUNCHER" \
     && grep -qF 'TRUSTED_CLAUDE = Path("/opt/hive-interview-tools/claude")' \
@@ -1829,6 +1879,16 @@ if interview_claude_authentication_absent; then
 else
   printf 'Persisted Claude authentication: PRESENT or unsafe (path names only; readiness fails)\n'
 fi
+if interview_codex_authentication_absent; then
+  printf 'Persisted Codex authentication: absent\n'
+else
+  printf 'Persisted Codex authentication: PRESENT or unsafe (path names only; readiness fails)\n'
+fi
+if interview_cloud_orchestration_authentication_absent; then
+  printf 'Persisted cloud/orchestration authentication: absent\n'
+else
+  printf 'Persisted cloud/orchestration authentication: PRESENT or unsafe (path names only; readiness fails)\n'
+fi
 if interview_package_authentication_absent; then
   printf 'Persisted package-manager authentication: absent\n'
 else
@@ -1925,6 +1985,14 @@ check_claude_authentication_absent() {
   interview_claude_authentication_absent
 }
 
+check_codex_authentication_absent() {
+  interview_codex_authentication_absent
+}
+
+check_cloud_orchestration_authentication_absent() {
+  interview_cloud_orchestration_authentication_absent
+}
+
 check_package_authentication_absent() {
   interview_package_authentication_absent
 }
@@ -1972,6 +2040,10 @@ run_check "persisted Git and SSH transport credentials are absent" \
   check_git_transport_credentials_absent
 run_check "persisted Claude authentication is absent" \
   check_claude_authentication_absent
+run_check "persisted Codex authentication is absent" \
+  check_codex_authentication_absent
+run_check "persisted cloud and orchestration authentication is absent" \
+  check_cloud_orchestration_authentication_absent
 run_check "persisted package-manager authentication is absent" \
   check_package_authentication_absent
 
@@ -2029,7 +2101,7 @@ fi
   printf -- '- `interview-claude` or the **Interview Claude** Coder app — use the immutable client to reach the shell-inaccessible protected runtime\n'
   printf '\n## Credential state\n\n'
   printf 'Only credential names are reported; values are never recorded. Required pre-interview state: '
-  printf 'Anthropic API/auth and Claude OAuth credentials (environment and persisted login), package-manager authentication, GitHub, Coder agent/session, Git/SSH transport, Realm, and RunComfy credentials absent; GitHub and Coder CLIs unauthenticated.\n'
+  printf 'Anthropic, OpenAI/Codex, package-manager, GitHub, Coder, Git/SSH, cloud, cluster, IaC, registry, Realm, and RunComfy credentials absent from the environment and standard persisted stores; GitHub and Coder CLIs unauthenticated.\n'
   printf '\n## Remaining action\n\n%s\n' "$remaining_action"
 } > "$report_temporary"
 chmod 600 "$report_temporary"
@@ -2067,6 +2139,7 @@ umask 077
 
 unset BASH_ENV ENV CDPATH LD_LIBRARY_PATH LD_PRELOAD
 unset ANTHROPIC_API_KEY ANTHROPIC_AUTH_TOKEN
+unset OPENAI_API_KEY OPENAI_API_TOKEN CODEX_API_KEY
 unset CLAUDE_CODE_OAUTH_TOKEN CLAUDE_CODE_OAUTH_REFRESH_TOKEN CLAUDE_CODE_OAUTH_SCOPES
 unset CLAUDE_CONFIG_DIR CLAUDE_SECURESTORAGE_CONFIG_DIR
 unset NPM_TOKEN NODE_AUTH_TOKEN

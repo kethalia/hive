@@ -1,5 +1,5 @@
 #!/usr/bin/python3 -I
-# hive-managed-interview-claude:v5
+# hive-managed-interview-claude:v6
 """Bridge a Coder command app to a shell-inaccessible Claude runtime."""
 
 import ctypes
@@ -51,7 +51,8 @@ MAX_LAUNCH_ARGUMENTS = 128
 MAX_LAUNCH_ARGUMENT_BYTES = 64 * 1024
 MAX_LAUNCH_KEY_BYTES = 16 * 1024
 MAX_FRAME_BYTES = 1024 * 1024
-LAUNCH_PROTOCOL_MAGIC = b"HIVECLAUDEv5\0\0\0\0"
+LAUNCH_HANDSHAKE_TIMEOUT_SECONDS = 5
+LAUNCH_PROTOCOL_MAGIC = b"HIVECLAUDEv6\0\0\0\0"
 LAUNCH_REQUEST_HEADER = struct.Struct("!16sIIIHH")
 FRAME_HEADER = struct.Struct("!BI")
 FRAME_INPUT = 1
@@ -644,7 +645,9 @@ def handle_launch_connection(connection: socket.socket) -> None:
 
     key: bytearray | None = None
     try:
+        connection.settimeout(LAUNCH_HANDSHAKE_TIMEOUT_SECONDS)
         arguments, key, rows, columns = parse_launch_request(connection)
+        connection.settimeout(None)
         return_code = protected_claude_session(connection, arguments, key, rows, columns)
         key = None
         send_frame(connection, FRAME_EXIT, struct.pack("!i", return_code))
@@ -750,6 +753,10 @@ def run_launch_client(socket_path: Path, arguments: list[str]) -> int:
     original_terminal = None
     original_winch_handler = None
     try:
+        terminal = open_protected_terminal()
+        key = read_temporary_key(terminal)
+        rows, columns = terminal_size(terminal)
+
         connection.settimeout(10)
         connection.connect(str(socket_path))
         peer_credentials = connection.getsockopt(
@@ -762,9 +769,6 @@ def run_launch_client(socket_path: Path, arguments: list[str]) -> int:
             fail("The protected Claude runtime identity is invalid.")
         connection.settimeout(None)
 
-        terminal = open_protected_terminal()
-        key = read_temporary_key(terminal)
-        rows, columns = terminal_size(terminal)
         send_launch_request(connection, arguments, key, rows, columns)
         wipe(key)
         key = None

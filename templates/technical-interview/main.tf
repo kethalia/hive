@@ -26,6 +26,7 @@ locals {
   workspace_hostname           = local.workspace_hostname_candidate != "" ? local.workspace_hostname_candidate : "workspace"
   credentialless_environment   = <<-EOT
     unset ANTHROPIC_API_KEY ANTHROPIC_AUTH_TOKEN
+    unset OPENAI_API_KEY OPENAI_API_TOKEN CODEX_API_KEY
     unset CLAUDE_CODE_OAUTH_TOKEN CLAUDE_CODE_OAUTH_REFRESH_TOKEN CLAUDE_CODE_OAUTH_SCOPES
     unset CLAUDE_CONFIG_DIR CLAUDE_SECURESTORAGE_CONFIG_DIR
     unset NPM_TOKEN NODE_AUTH_TOKEN NPM_CONFIG_USERCONFIG NPM_CONFIG_GLOBALCONFIG
