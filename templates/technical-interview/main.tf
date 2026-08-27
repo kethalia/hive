@@ -192,7 +192,7 @@ module "code-server" {
       "**/out/**" : true
     },
     "git.confirmSync" : false,
-    "git.autofetch" : true,
+    "git.autofetch" : false,
     "git.enableSmartCommit" : true,
     "terminal.integrated.scrollback" : 10000,
     "terminal.integrated.defaultProfile.linux" : "zsh",
@@ -403,7 +403,7 @@ resource "kubernetes_deployment_v1" "workspace" {
           command = [
             "sh",
             "-c",
-            "if [ -z \"$(find /target -mindepth 1 -maxdepth 1 ! -name lost+found -print -quit)\" ]; then cp -R --no-preserve=ownership,timestamps /home/coder/. /target/; else printf '%s\\n' 'Preserving existing workspace home; image seed skipped.'; fi",
+            file("${path.module}/scripts/seed-home.sh"),
           ]
 
           security_context {

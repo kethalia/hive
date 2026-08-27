@@ -149,7 +149,7 @@ configure_interview_environment() {
     printf 'WARNING: managed credential scrubbing could not be installed; readiness will fail.\n' >&2
   fi
 
-  python3 - <<'PYSHELL'
+  if ! python3 - <<'PYSHELL'
 import os
 import stat
 import tempfile
@@ -190,7 +190,15 @@ for shell_file in shell_files:
         )
         continue
 
-    existing = shell_file.read_text() if shell_file.exists() else ""
+    try:
+        existing = shell_file.read_text() if shell_file.exists() else ""
+    except (OSError, UnicodeDecodeError):
+        print(
+            "WARNING: non-UTF-8 shell configuration bypasses credential scrubbing; "
+            f"readiness will fail: {shell_file}",
+            file=os.sys.stderr,
+        )
+        continue
     existing_lines = existing.splitlines(keepends=True)
     line_values = [line.rstrip("\r\n") for line in existing_lines]
 
@@ -261,6 +269,9 @@ for shell_file in shell_files:
     finally:
         temporary.unlink(missing_ok=True)
 PYSHELL
+  then
+    printf 'WARNING: interactive shell credential scrubbing could not be refreshed; readiness will fail.\n' >&2
+  fi
 
   rm -f -- "$HOME/.runcomfy-api-token"
   unset ANTHROPIC_API_KEY ANTHROPIC_AUTH_TOKEN
@@ -318,7 +329,14 @@ elif config.exists() and not config.is_file():
         file=os.sys.stderr,
     )
     raise SystemExit(0)
-existing = config.read_text() if config.exists() and not linked_config else ""
+try:
+    existing = config.read_text() if config.exists() and not linked_config else ""
+except (OSError, UnicodeDecodeError):
+    print(
+        f"WARNING: preserving non-UTF-8 Codex MCP config; readiness will fail: {config}",
+        file=os.sys.stderr,
+    )
+    raise SystemExit(0)
 start = "# >>> hive-managed-codex-mcp"
 end = "# <<< hive-managed-codex-mcp"
 browser_enabled = os.environ.get("HIVE_BROWSER_TOOLS_ENABLED") == "true"
@@ -409,19 +427,16 @@ for config in (home / ".claude" / "mcp.json", home / ".mcp.json"):
         continue
     try:
         data = json.loads(config.read_text()) if config.exists() and not linked_config else {}
-    except json.JSONDecodeError:
-        print(f"WARNING: preserving invalid MCP config: {config}")
-        config.chmod(0o600)
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError):
+        print(f"WARNING: preserving invalid or non-UTF-8 MCP config: {config}")
         continue
     if not isinstance(data, dict):
         print(f"WARNING: preserving MCP config with a non-object root: {config}")
-        config.chmod(0o600)
         continue
     if "mcpServers" not in data:
         data["mcpServers"] = {}
     elif not isinstance(data["mcpServers"], dict):
         print(f"WARNING: preserving MCP config with non-object mcpServers: {config}")
-        config.chmod(0o600)
         continue
     servers = data["mcpServers"]
     servers.pop("obsidian", None)
@@ -479,6 +494,10 @@ write_managed_agent_context() {
       "$agent_directory" >&2
     return 0
   fi
+  if [ ! -L "$agent_file" ] && [ -e "$agent_file" ] && [ ! -f "$agent_file" ]; then
+    printf 'WARNING: preserving non-regular agent context path: %s\n' "$agent_file" >&2
+    return 0
+  fi
   agent_tmp="$(mktemp "$agent_directory/.hive-agent-context.XXXXXX")"
   if ! cat > "$agent_tmp" << 'AGENTEOF'
 ${claude_md_content}
@@ -495,14 +514,24 @@ AGENTEOF
 }
 
 initialize_agent_context() {
+  local context_file
+
   # These are workspace-profile defaults managed by Hive. Preserve linked configuration directories;
   # otherwise atomic replacement prevents a context symlink from redirecting writes or chmod.
-  write_managed_agent_context "$HOME/.codex/AGENTS.md"
-  write_managed_agent_context "$HOME/.claude/CLAUDE.md"
+  for context_file in "$HOME/.codex/AGENTS.md" "$HOME/.claude/CLAUDE.md"; do
+    if ! write_managed_agent_context "$context_file"; then
+      printf 'WARNING: agent context could not be refreshed; readiness will fail: %s\n' \
+        "$context_file" >&2
+    fi
+  done
 }
 
-configure_codex_mcp
-configure_json_mcp
+if ! configure_codex_mcp; then
+  printf 'WARNING: Codex MCP configuration could not be refreshed; readiness will fail.\n' >&2
+fi
+if ! configure_json_mcp; then
+  printf 'WARNING: JSON MCP configuration could not be refreshed; readiness will fail.\n' >&2
+fi
 initialize_agent_context
 
 if [ "$HIVE_BROWSER_TOOLS_ENABLED" != "true" ] \

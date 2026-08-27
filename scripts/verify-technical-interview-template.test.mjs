@@ -24,6 +24,7 @@ const templateRoot = join(repositoryRoot, "templates", "technical-interview");
 const bootstrapScript = join(templateRoot, "bootstrap.sh");
 const cloneScript = join(templateRoot, "scripts", "clone-repositories.sh");
 const initScript = join(templateRoot, "scripts", "init.sh");
+const seedHomeScript = join(templateRoot, "scripts", "seed-home.sh");
 const toolsBrowserScript = join(templateRoot, "scripts", "tools-browser.sh");
 const toolsCiScript = join(templateRoot, "scripts", "tools-ci.sh");
 const toolsFilebrowserScript = join(templateRoot, "scripts", "tools-filebrowser.sh");
@@ -573,10 +574,9 @@ test("standalone Terraform exposes interview apps without personal auth modules"
   assert.doesNotMatch(terraform, /\bBASH_ENV\b/);
   assert.doesNotMatch(terraform, /^\s+ENV\s*=/m);
   assert.doesNotMatch(terraform, /\.hive-image-seeded/);
-  assert.match(
-    terraform,
-    /find \/target -mindepth 1 -maxdepth 1 ! -name lost\+found -print -quit[\s\S]*?Preserving existing workspace home/,
-  );
+  assert.match(terraform, /file\("\$\{path\.module\}\/scripts\/seed-home\.sh"\)/);
+  assert.match(terraform, /"git\.autofetch"\s*:\s*false/);
+  assert.doesNotMatch(terraform, /"git\.autofetch"\s*:\s*true/);
   assert.doesNotMatch(init, /sync-vault|vault-managed|Vault Context Layer/);
   assert.doesNotMatch(init, /command = "npx"|"command": "npx"/);
   assert.match(init, /\.local[^\n]+playwright-mcp/);
@@ -603,12 +603,6 @@ test("standalone Terraform exposes interview apps without personal auth modules"
 });
 
 test("home seeding ignores filesystem metadata but never overwrites persisted files", () => {
-  const terraform = readFileSync(join(templateRoot, "main.tf"), "utf8");
-  const encodedCommand = terraform.match(
-    /name\s*=\s*"seed-home"[\s\S]*?command\s*=\s*\[[\s\S]*?"sh",\s*"-c",\s*"((?:\\.|[^"\\])*)"/,
-  )?.[1];
-  assert.ok(encodedCommand, "seed-home shell command must be present");
-
   const root = mkdtempSync(join(tmpdir(), "technical-interview-seed-home-"));
   const imageHome = join(root, "image-home");
   const target = join(root, "target");
@@ -618,10 +612,13 @@ test("home seeding ignores filesystem metadata but never overwrites persisted fi
   writeFileSync(join(imageHome, ".profile"), "image profile\n");
   writeFileSync(join(target, "lost+found", "filesystem-metadata"), "preserve metadata\n");
 
-  const seedCommand = JSON.parse(`"${encodedCommand}"`)
-    .replaceAll("/home/coder", imageHome)
-    .replaceAll("/target", target);
-  const first = run("sh", ["-c", seedCommand], process.env);
+  const seedEnvironment = {
+    ...process.env,
+    HIVE_IMAGE_HOME: imageHome,
+    HIVE_TARGET_HOME: target,
+    PATH: "/usr/bin:/bin",
+  };
+  const first = run("sh", [seedHomeScript], seedEnvironment);
   assert.equal(first.status, 0, first.stderr);
   assert.equal(readFileSync(join(target, ".claude", "fixture"), "utf8"), "image configuration\n");
   assert.equal(
@@ -630,9 +627,102 @@ test("home seeding ignores filesystem metadata but never overwrites persisted fi
   );
 
   writeFileSync(join(target, ".profile"), "candidate profile\n");
-  const second = run("sh", ["-c", seedCommand], process.env);
+  const second = run("sh", [seedHomeScript], seedEnvironment);
   assert.equal(second.status, 0, second.stderr);
   assert.equal(readFileSync(join(target, ".profile"), "utf8"), "candidate profile\n");
+});
+
+test("home seeding retries interrupted copies and promotions", () => {
+  const root = mkdtempSync(join(tmpdir(), "technical-interview-seed-recovery-"));
+  const imageHome = join(root, "image-home");
+  const copyTarget = join(root, "copy-target");
+  const promotionTarget = join(root, "promotion-target");
+  const copyStaging = join(copyTarget, ".hive-image-seed-staging");
+  const promotionStaging = join(promotionTarget, ".hive-image-seed-staging");
+  mkdirSync(join(imageHome, ".claude"), { recursive: true });
+  mkdirSync(copyStaging, { recursive: true });
+  mkdirSync(join(copyTarget, "lost+found"));
+  writeFileSync(join(imageHome, ".claude", "fixture"), "complete image context\n");
+  writeFileSync(join(imageHome, ".profile"), "complete image profile\n");
+  writeFileSync(join(copyStaging, "partial-copy"), "interrupted\n");
+
+  const copyRecovery = run("sh", [seedHomeScript], {
+    ...process.env,
+    HIVE_IMAGE_HOME: imageHome,
+    HIVE_TARGET_HOME: copyTarget,
+    PATH: "/usr/bin:/bin",
+  });
+  assert.equal(copyRecovery.status, 0, copyRecovery.stderr);
+  assert.equal(readFileSync(join(copyTarget, ".profile"), "utf8"), "complete image profile\n");
+  assert.equal(existsSync(join(copyTarget, "partial-copy")), false);
+  assert.equal(existsSync(copyStaging), false);
+
+  mkdirSync(join(promotionStaging, ".claude"), { recursive: true });
+  mkdirSync(join(promotionTarget, "lost+found"));
+  writeFileSync(join(promotionTarget, ".profile"), "already promoted profile\n");
+  writeFileSync(join(promotionStaging, ".claude", "fixture"), "remaining context\n");
+  writeFileSync(join(promotionStaging, ".hive-stage-complete"), "");
+  writeFileSync(join(promotionTarget, ".hive-image-seed-in-progress"), "in progress\n");
+
+  const promotionRecovery = run("sh", [seedHomeScript], {
+    ...process.env,
+    HIVE_IMAGE_HOME: imageHome,
+    HIVE_TARGET_HOME: promotionTarget,
+    PATH: "/usr/bin:/bin",
+  });
+  assert.equal(promotionRecovery.status, 0, promotionRecovery.stderr);
+  assert.equal(
+    readFileSync(join(promotionTarget, ".profile"), "utf8"),
+    "already promoted profile\n",
+  );
+  assert.equal(
+    readFileSync(join(promotionTarget, ".claude", "fixture"), "utf8"),
+    "remaining context\n",
+  );
+  assert.equal(existsSync(promotionStaging), false);
+  assert.equal(existsSync(join(promotionTarget, ".hive-image-seed-in-progress")), false);
+  assert.equal(existsSync(join(promotionTarget, ".hive-image-seed-complete")), true);
+});
+
+test("home seeding preserves unsafe marker and staging paths", () => {
+  for (const relativePath of [
+    ".hive-image-seed-complete",
+    ".hive-image-seed-in-progress",
+    ".hive-image-seed-staging",
+  ]) {
+    const root = mkdtempSync(join(tmpdir(), "technical-interview-seed-unsafe-"));
+    const imageHome = join(root, "image-home");
+    const target = join(root, "target");
+    const unsafePath = join(target, relativePath);
+    const candidateTarget = join(root, "candidate-target");
+    mkdirSync(imageHome);
+    mkdirSync(target);
+    if (relativePath.endsWith("staging")) {
+      mkdirSync(candidateTarget);
+      writeFileSync(join(candidateTarget, "candidate.txt"), "preserve candidate directory\n");
+    } else {
+      writeFileSync(candidateTarget, "preserve candidate marker target\n");
+    }
+    symlinkSync(candidateTarget, unsafePath);
+
+    const result = run("sh", [seedHomeScript], {
+      ...process.env,
+      HIVE_IMAGE_HOME: imageHome,
+      HIVE_TARGET_HOME: target,
+      PATH: "/usr/bin:/bin",
+    });
+    assert.equal(result.status, 0, result.stderr);
+    assert.match(result.stderr, /Unsafe home-seed/);
+    assert.equal(lstatSync(unsafePath).isSymbolicLink(), true);
+    if (relativePath.endsWith("staging")) {
+      assert.equal(
+        readFileSync(join(candidateTarget, "candidate.txt"), "utf8"),
+        "preserve candidate directory\n",
+      );
+    } else {
+      assert.equal(readFileSync(candidateTarget, "utf8"), "preserve candidate marker target\n");
+    }
+  }
 });
 
 test("init atomically replaces the managed environment symlink without touching its target", () => {
@@ -698,6 +788,63 @@ test("init preserves non-directory agent configuration paths", () => {
   assert.match(result.stderr, /preserving unsafe agent path without refreshing context/);
   assert.equal(readFileSync(codexPath, "utf8"), "preserve candidate Codex path\n");
   assert.equal(readFileSync(claudePath, "utf8"), "preserve candidate Claude path\n");
+});
+
+test("init preserves non-regular managed agent context files", () => {
+  const fixture = createFixture();
+  const codexContext = join(fixture.home, ".codex", "AGENTS.md");
+  const claudeContext = join(fixture.home, ".claude", "CLAUDE.md");
+  mkdirSync(codexContext, { recursive: true });
+  mkdirSync(claudeContext, { recursive: true });
+  writeFileSync(join(codexContext, "candidate.txt"), "preserve Codex context path\n");
+  writeFileSync(join(claudeContext, "candidate.txt"), "preserve Claude context path\n");
+
+  const init = runInit(fixture.root, fixture.home);
+  assert.equal(init.status, 0, init.stderr);
+  assert.match(init.stderr, /preserving non-regular agent context path/);
+  assert.equal(lstatSync(codexContext).isDirectory(), true);
+  assert.equal(lstatSync(claudeContext).isDirectory(), true);
+
+  installHelpers(fixture);
+  const check = run(join(fixture.home, ".local", "bin", "interview-check"), [], fixture.env);
+  assert.equal(check.status, 1);
+  assert.match(
+    `${check.stdout}\n${check.stderr}`,
+    /\[FAIL\] managed agent context paths are ready/,
+  );
+});
+
+test("init preserves non-UTF-8 shell and MCP configuration", () => {
+  const fixture = createFixture();
+  const invalidBytes = Buffer.from([0x66, 0x69, 0x78, 0x74, 0x75, 0x72, 0x65, 0xff, 0x0a]);
+  const paths = [
+    join(fixture.home, ".bashrc"),
+    join(fixture.home, ".codex", "config.toml"),
+    join(fixture.home, ".claude", "mcp.json"),
+    join(fixture.home, ".mcp.json"),
+  ];
+  mkdirSync(join(fixture.home, ".codex"), { recursive: true });
+  mkdirSync(join(fixture.home, ".claude"), { recursive: true });
+  for (const path of paths) writeFileSync(path, invalidBytes);
+
+  const init = runInit(fixture.root, fixture.home);
+  assert.equal(init.status, 0, init.stderr);
+  assert.match(init.stderr, /non-UTF-8 shell configuration/);
+  assert.match(init.stderr, /non-UTF-8 Codex MCP config/);
+  assert.match(init.stdout, /invalid or non-UTF-8 MCP config/);
+  for (const path of paths) assert.deepEqual(readFileSync(path), invalidBytes);
+
+  installHelpers(fixture);
+  const check = run(join(fixture.home, ".local", "bin", "interview-check"), [], fixture.env);
+  assert.equal(check.status, 1);
+  assert.match(
+    `${check.stdout}\n${check.stderr}`,
+    /\[FAIL\] interactive shell credential scrub hooks are installed/,
+  );
+  assert.match(
+    `${check.stdout}\n${check.stderr}`,
+    /\[FAIL\] managed Playwright MCP configuration is ready/,
+  );
 });
 
 test("init preserves candidate files at retired vault integration paths", () => {
@@ -1294,8 +1441,6 @@ test("repository bootstrap clones anonymously and preserves an existing checkout
 set -euo pipefail
 [ "$1" = "-c" ]
 [ "$2" = "credential.helper=" ]
-[ "$3" = "clone" ]
-[ "$4" = "https://github.com/prmsolutions/interview-template.git" ]
 [ "$HOME" != "$ORIGINAL_HOME" ]
 [ "$GIT_CONFIG_GLOBAL" = "/dev/null" ]
 [ "$GIT_CONFIG_NOSYSTEM" = "1" ]
@@ -1313,10 +1458,26 @@ ${claudeCredentialAssertions}
 [ -z "\${GIT_CONFIG:-}" ]
 [ -z "\${GIT_CONFIG_COUNT:-}" ]
 [ -z "\${GIT_CONFIG_PARAMETERS:-}" ]
+[ -z "\${GIT_TEMPLATE_DIR:-}" ]
+[ -z "\${GIT_OBJECT_DIRECTORY:-}" ]
+[ -z "\${HTTPS_PROXY:-}" ]
+[ -z "\${https_proxy:-}" ]
 [ -z "\${SSH_AUTH_SOCK:-}" ]
 [ -z "\${SSH_AGENT_PID:-}" ]
-mkdir -p "$5/.git"
-printf '%s\\n' "$*" >> "$GIT_CALLS"
+if [ "\${3:-}" = "clone" ]; then
+  [ "$4" = "https://github.com/prmsolutions/interview-template.git" ]
+  clone_destination=$5
+  /usr/bin/git init --quiet "$clone_destination"
+  /usr/bin/git -C "$clone_destination" config user.name Fixture
+  /usr/bin/git -C "$clone_destination" config user.email fixture@example.test
+  /usr/bin/git -C "$clone_destination" remote add origin "$4"
+  printf 'fixture checkout\\n' > "$clone_destination/fixture.txt"
+  /usr/bin/git -C "$clone_destination" add fixture.txt
+  /usr/bin/git -C "$clone_destination" commit --quiet -m fixture
+  printf '%s\\n' "$*" >> "$GIT_CALLS"
+  exit 0
+fi
+exec /usr/bin/git "$@"
 `,
   );
 
@@ -1337,9 +1498,14 @@ printf '%s\\n' "$*" >> "$GIT_CALLS"
     GIT_CONFIG_KEY_0: "http.extraHeader",
     GIT_CONFIG_PARAMETERS: "'url.ssh://personal/.insteadOf=https://github.com/'",
     GIT_CONFIG_VALUE_0: "Authorization: must-not-reach-git",
+    GIT_OBJECT_DIRECTORY: join(root, "personal-git-objects"),
     GIT_SSH_COMMAND: "must-not-reach-git",
+    GIT_TEMPLATE_DIR: join(root, "personal-git-template"),
     GIT_CALLS: calls,
     HOME: home,
+    INTERVIEW_GIT_BIN: join(bin, "git"),
+    HTTPS_PROXY: "http://personal-proxy.example.test",
+    https_proxy: "http://personal-proxy.example.test",
     ORIGINAL_HOME: home,
     PATH: `${bin}:/usr/bin:/bin`,
     REALM_VISUAL_REVIEW_API_KEY: "must-not-reach-git",
@@ -1362,6 +1528,90 @@ printf '%s\\n' "$*" >> "$GIT_CALLS"
   assert.match(second.stdout, /preserving existing interview repository/);
   assert.equal(readFileSync(candidateFile, "utf8"), "preserve me\n");
   assert.equal(readFileSync(calls, "utf8"), firstCalls);
+});
+
+test("repository bootstrap rejects linked parent directories", () => {
+  const root = mkdtempSync(join(tmpdir(), "technical-interview-clone-parent-"));
+  const home = join(root, "home");
+  const bin = join(root, "bin");
+  const manifest = join(root, "repositories.txt");
+  const candidateDirectory = join(root, "candidate-projects");
+  const gitCalled = join(root, "git-called");
+  mkdirSync(home);
+  mkdirSync(bin);
+  mkdirSync(candidateDirectory);
+  writeFileSync(manifest, "prmsolutions/interview-template|prmsolutions/interview-template\n");
+  symlinkSync(candidateDirectory, join(home, "projects"));
+  executable(join(bin, "git"), '#!/bin/sh\n: > "$GIT_CALLED"\nexit 99\n');
+
+  const result = run("bash", [cloneScript], {
+    ...process.env,
+    GIT_CALLED: gitCalled,
+    HOME: home,
+    INTERVIEW_GIT_BIN: join(bin, "git"),
+    PATH: `${bin}:/usr/bin:/bin`,
+    REPOSITORIES_FILE: manifest,
+  });
+  assert.equal(result.status, 1, result.stderr);
+  assert.match(result.stderr, /repository parent directory is unsafe/);
+  assert.equal(existsSync(gitCalled), false);
+  assert.deepEqual(readdirSync(candidateDirectory), []);
+  assert.equal(lstatSync(join(home, "projects")).isSymbolicLink(), true);
+});
+
+test("repository bootstrap preserves but rejects an incomplete checkout", () => {
+  const root = mkdtempSync(join(tmpdir(), "technical-interview-clone-incomplete-"));
+  const home = join(root, "home");
+  const manifest = join(root, "repositories.txt");
+  const destination = join(home, "projects", "prmsolutions", "interview-template");
+  const candidateFile = join(destination, "candidate-work.txt");
+  mkdirSync(join(destination, ".git"), { recursive: true });
+  writeFileSync(candidateFile, "preserve incomplete checkout\n");
+  writeFileSync(manifest, "prmsolutions/interview-template|prmsolutions/interview-template\n");
+
+  const result = run("bash", [cloneScript], {
+    ...process.env,
+    HOME: home,
+    PATH: "/usr/bin:/bin",
+    REPOSITORIES_FILE: manifest,
+  });
+  assert.equal(result.status, 1, result.stderr);
+  assert.match(result.stderr, /preserving incomplete or invalid interview repository/);
+  assert.equal(readFileSync(candidateFile, "utf8"), "preserve incomplete checkout\n");
+  assert.equal(lstatSync(join(destination, ".git")).isDirectory(), true);
+});
+
+test("repository bootstrap cleans an interrupted staging clone without installing it", () => {
+  const root = mkdtempSync(join(tmpdir(), "technical-interview-clone-interrupted-"));
+  const home = join(root, "home");
+  const bin = join(root, "bin");
+  const manifest = join(root, "repositories.txt");
+  const destinationParent = join(home, "projects", "prmsolutions");
+  const destination = join(destinationParent, "interview-template");
+  mkdirSync(home);
+  mkdirSync(bin);
+  writeFileSync(manifest, "prmsolutions/interview-template|prmsolutions/interview-template\n");
+  executable(
+    join(bin, "git"),
+    '#!/bin/sh\nmkdir -p "$5/.git"\nprintf "partial clone\\n" > "$5/partial"\nexit 1\n',
+  );
+
+  const result = run("bash", [cloneScript], {
+    ...process.env,
+    HOME: home,
+    INTERVIEW_GIT_BIN: join(bin, "git"),
+    PATH: `${bin}:/usr/bin:/bin`,
+    REPOSITORIES_FILE: manifest,
+  });
+  assert.equal(result.status, 1, result.stderr);
+  assert.match(result.stderr, /public HTTPS clone failed/);
+  assert.equal(existsSync(destination), false);
+  assert.deepEqual(
+    readdirSync(destinationParent).filter((entry) =>
+      entry.startsWith(".interview-template.clone."),
+    ),
+    [],
+  );
 });
 
 test("remote default checks isolate Git configuration and SSH credentials", () => {

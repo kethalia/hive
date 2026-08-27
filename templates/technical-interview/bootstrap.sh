@@ -463,6 +463,14 @@ interview_managed_directories_ready() {
   done
 }
 
+interview_agent_context_ready() {
+  local context_file
+
+  for context_file in "$HOME/.codex/AGENTS.md" "$HOME/.claude/CLAUDE.md"; do
+    [ -f "$context_file" ] && [ ! -L "$context_file" ] || return 1
+  done
+}
+
 interview_mcp_configuration_ready() {
   local configuration_directory
 
@@ -1227,6 +1235,7 @@ run_check "frontend responds on port 3000" check_frontend
 run_check "working tree contains no unexpected files" interview_git_clean
 run_check "interactive shell credential scrub hooks are installed" interview_shell_scrub_ready
 run_check "managed tool directory chains are local" interview_managed_directories_ready
+run_check "managed agent context paths are ready" interview_agent_context_ready
 run_check "managed Playwright MCP configuration is ready" interview_mcp_configuration_ready
 run_check "forbidden credential variables are absent" check_forbidden_credentials_absent
 run_check "GitHub CLI is not authenticated" check_github_not_authenticated
