@@ -36,19 +36,6 @@ const profiles = [
     },
   },
   {
-    template: "technical-interview",
-    id: "interview",
-    imageVariant: "browser",
-    storage: "50Gi",
-    capabilities: {
-      browser: true,
-      desktop: true,
-      editor: true,
-      file_browser: true,
-      web3: false,
-    },
-  },
-  {
     template: "game-dev",
     id: "game",
     imageVariant: "game",
@@ -120,7 +107,6 @@ test("every workspace profile is a directly deployable Kubernetes Coder template
     }
     assert.match(readTemplateFile(template, "main.tf"), /kubernetes_deployment_v1/);
   }
-  assert.equal(existsSync(join(templateRoot, "technical-interview", "bootstrap.sh")), true);
 });
 
 test("profile configuration defines exact image, resources, and runtime capabilities", () => {
@@ -281,14 +267,6 @@ test("repository manifests remain narrow and parseable", () => {
   assert.match(readTemplateFile("infrastructure", "repositories.txt"), /kethalia\/k8s-cluster/);
   assert.match(readTemplateFile("ai-dev-k8s", "repositories.txt"), /kethalia\/k8s-cluster/);
   assert.match(readTemplateFile("ai-dev-k8s", "repositories.txt"), /kethalia\/workflows/);
-  assert.equal(
-    readTemplateFile("technical-interview", "repositories.txt").trim(),
-    "prmsolutions/interview-template|prmsolutions/interview-template",
-  );
-  assert.doesNotMatch(
-    readTemplateFile("technical-interview", "repositories.txt"),
-    /kethalia|chillwhales|infrastructure/i,
-  );
 });
 
 test("profile guidance encodes the intended interactive and capability boundaries", () => {
@@ -297,8 +275,6 @@ test("profile guidance encodes the intended interactive and capability boundarie
   const game = readTemplateFile("game-dev", "CLAUDE.md");
   const electronics = readTemplateFile("electronics", "CLAUDE.md");
   const infrastructure = readTemplateFile("infrastructure", "CLAUDE.md");
-  const interview = readTemplateFile("technical-interview", "CLAUDE.md");
-
   assert.match(software, /Never delete a[\s\S]*without explicit user confirmation/);
   assert.match(software, /coder templates list/);
   assert.match(browser, /browser automation/);
@@ -309,11 +285,6 @@ test("profile guidance encodes the intended interactive and capability boundarie
     infrastructure,
     /Applying infrastructure[\s\S]*requires explicit user\s+authorization/,
   );
-  assert.match(interview, /Work only inside `~\/projects\/prmsolutions\/interview-template`/);
-  assert.match(interview, /PRD supplied during the live[\s\S]*source of truth/);
-  assert.match(interview, /Never[\s\S]*Anthropic API key/);
-  assert.match(interview, /Never[\s\S]*commit or push unless the user explicitly asks/);
-
   for (const template of ["ai-dev-k8s", "game-dev", "electronics", "infrastructure"]) {
     assert.doesNotMatch(readTemplateFile(template, "WORKSPACE.md"), /headed Playwright/);
   }
@@ -355,8 +326,4 @@ test("every profile receives the same workspace routing and interactive handoff 
     assert.match(terraform, /trimspace\(file\("\$\{path\.module\}\/CLAUDE\.md"\)\)/);
     assert.match(terraform, /trimspace\(file\("\$\{path\.module\}\/WORKSPACE_ROUTING\.md"\)\)/);
   }
-
-  const interviewTerraform = readTemplateFile("technical-interview", "main.tf");
-  assert.match(interviewTerraform, /trimspace\(file\("\$\{path\.module\}\/CLAUDE\.md"\)\)/);
-  assert.doesNotMatch(interviewTerraform, /WORKSPACE_ROUTING\.md/);
 });

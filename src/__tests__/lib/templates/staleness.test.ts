@@ -15,7 +15,6 @@ describe("KNOWN_TEMPLATES", () => {
     expect(KNOWN_TEMPLATES).toEqual([
       "ai-dev-k8s",
       "browser-testing",
-      "technical-interview",
       "game-dev",
       "electronics",
       "infrastructure",
