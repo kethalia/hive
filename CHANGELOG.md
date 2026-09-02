@@ -1,5 +1,11 @@
 # hive-orchestrator
 
+## 2.15.0
+
+### Minor Changes
+
+- 10cba9d: Remove the retired technical interview workspace template and its Hive catalog and profile entries.
+
 ## 2.14.0
 
 ### Minor Changes
