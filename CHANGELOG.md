@@ -1,5 +1,11 @@
 # hive-orchestrator
 
+## 2.15.1
+
+### Patch Changes
+
+- d79cf42: Register the Cloudflare API MCP server during startup across all Coder workspace templates so Codex can find it for OAuth login, while preserving existing user configuration.
+
 ## 2.15.0
 
 ### Minor Changes
