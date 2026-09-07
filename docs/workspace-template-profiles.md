@@ -69,6 +69,24 @@ On every workspace start, Hive refreshes the template-managed global agent conte
 their repositories and layer on top of that workspace context. If an agent configuration directory
 is itself a symlink, Hive warns and preserves it instead of writing through to the linked target.
 
+## Codex Cloudflare authentication
+
+On every workspace start, all five templates register `cloudflare-api` in
+`~/.codex/config.toml` when that server is missing, using Cloudflare's official
+`https://mcp.cloudflare.com/mcp` endpoint. Existing server settings, including a custom URL or
+`enabled = false`, are preserved. This explicit registration makes the server available to
+`codex mcp login` independently of the Cloudflare plugin.
+
+After starting a workspace with the updated template, authenticate interactively:
+
+```bash
+codex mcp login cloudflare-api
+```
+
+Open the printed authorization URL in your browser and complete Cloudflare's OAuth flow. Startup
+does not initiate login or wait for browser authorization. Invalid TOML or a table layout that
+cannot accept the defaults is preserved with a warning for manual correction.
+
 ## Publish
 
 Authenticate the Coder CLI, then push every Kubernetes template from the repository root:
