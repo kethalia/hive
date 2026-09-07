@@ -52,6 +52,11 @@ except tomllib.TOMLDecodeError:
     print(f"WARNING: preserving invalid Codex config: {config}")
     raise SystemExit(0)
 
+mcp_servers = settings.get("mcp_servers", {})
+if not isinstance(mcp_servers, dict):
+    print(f"WARNING: preserving Codex config; mcp_servers must be a table: {config}")
+    raise SystemExit(0)
+
 start = "# >>> hive-managed-codex-mcp"
 end = "# <<< hive-managed-codex-mcp"
 browser_enabled = os.environ.get("HIVE_BROWSER_TOOLS_ENABLED") == "true"
@@ -85,7 +90,7 @@ updated = base
 # installation alone may not expose its MCP server to the standalone CLI.
 # Seed a default only; existing URLs, credentials, and enabled flags are owned
 # by the user. OAuth remains an interactive step after workspace startup.
-if "cloudflare-api" not in settings.get("mcp_servers", {}):
+if "cloudflare-api" not in mcp_servers:
     updated = (updated + "\n\n" if updated else "") + '''[mcp_servers.cloudflare-api]
 url = "https://mcp.cloudflare.com/mcp"'''
 if block:

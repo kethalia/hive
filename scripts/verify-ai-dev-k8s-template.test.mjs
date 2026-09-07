@@ -1131,11 +1131,19 @@ function verifyInvalidCodexMcpConfig() {
   for (const existing of [
     '[mcp_servers.custom\ncommand = "keep"\n',
     'mcp_servers = { custom = { command = "keep" } }\n',
+    "mcp_servers = 42\n",
+    "mcp_servers = false\n",
+    "mcp_servers = 0.5\n",
+    "mcp_servers = 2026-09-07\n",
+    'mcp_servers = "cloudflare-api"\n',
+    'mcp_servers = ["cloudflare-api"]\n',
   ]) {
     const fixture = createCodexMcpFixture(TEMPLATE_ROOT, existing);
-    const result = fixture.run();
-    assert.match(result.stdout, /WARNING: preserving.*Codex config/);
-    assert.equal(readFileSync(fixture.config, "utf8"), existing);
+    for (const browserEnabled of [false, true]) {
+      const result = fixture.run(browserEnabled);
+      assert.match(result.stdout, /WARNING: preserving.*Codex config/);
+      assert.equal(readFileSync(fixture.config, "utf8"), existing);
+    }
   }
 }
 
