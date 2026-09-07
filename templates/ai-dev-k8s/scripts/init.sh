@@ -39,12 +39,24 @@ configure_codex_mcp() {
   mkdir -p "$HOME/.codex"
   python3 - <<'PYCODEX'
 import os
+import tomllib
 from pathlib import Path
 
 config = Path(os.environ["HOME"]) / ".codex" / "config.toml"
 if config.exists():
     config.chmod(0o600)
 existing = config.read_text() if config.exists() else ""
+try:
+    settings = tomllib.loads(existing)
+except tomllib.TOMLDecodeError:
+    print(f"WARNING: preserving invalid Codex config: {config}")
+    raise SystemExit(0)
+
+mcp_servers = settings.get("mcp_servers", {})
+if not isinstance(mcp_servers, dict):
+    print(f"WARNING: preserving Codex config; mcp_servers must be a table: {config}")
+    raise SystemExit(0)
+
 start = "# >>> hive-managed-codex-mcp"
 end = "# <<< hive-managed-codex-mcp"
 browser_enabled = os.environ.get("HIVE_BROWSER_TOOLS_ENABLED") == "true"
@@ -74,9 +86,24 @@ for line in existing.splitlines():
         preserved.append(line)
 base = "\n".join(preserved).strip()
 updated = base
+# Register the server explicitly for `codex mcp login cloudflare-api`. Plugin
+# installation alone may not expose its MCP server to the standalone CLI.
+# Seed a default only; existing URLs, credentials, and enabled flags are owned
+# by the user. OAuth remains an interactive step after workspace startup.
+if "cloudflare-api" not in mcp_servers:
+    updated = (updated + "\n\n" if updated else "") + '''[mcp_servers.cloudflare-api]
+url = "https://mcp.cloudflare.com/mcp"'''
 if block:
     updated = (updated + "\n\n" if updated else "") + block
 updated = updated + "\n" if updated else ""
+
+# Preserve configurations whose table layout cannot accept the added defaults
+# (for example, an inline mcp_servers table) instead of writing invalid TOML.
+try:
+    tomllib.loads(updated)
+except tomllib.TOMLDecodeError:
+    print(f"WARNING: preserving Codex config; MCP defaults could not be added: {config}")
+    raise SystemExit(0)
 
 if updated != existing:
     config.write_text(updated)

@@ -884,8 +884,16 @@ test(
   verifyAgentContextInitialization,
 );
 test(
-  "fresh non-browser workspaces initialize a writable Codex config",
-  verifyFreshNonBrowserCodexConfig,
+  "fresh workspace profiles register Cloudflare in a writable Codex config",
+  verifyFreshCodexMcpConfig,
+);
+test(
+  "Codex MCP migration preserves user configuration across repeated starts",
+  verifyCodexMcpMigration,
+);
+test(
+  "Codex MCP migration preserves invalid or incompatible TOML with a warning",
+  verifyInvalidCodexMcpConfig,
 );
 test("workspace migration replaces read-only persisted MCP configs", verifyReadOnlyMcpMigration);
 test(
@@ -1008,28 +1016,135 @@ function verifyReadOnlyMcpMigration() {
   runReadOnlyMcpMigrationFixture(TEMPLATE_ROOT);
 }
 
-function verifyFreshNonBrowserCodexConfig() {
-  const initScript = readTemplateFile("scripts/init.sh");
+function createCodexMcpFixture(templateRoot = TEMPLATE_ROOT, existing) {
+  const initScript = readFileSync(join(templateRoot, "scripts/init.sh"), "utf8");
   const functionMatch = initScript.match(
     /configure_codex_mcp\(\) \{[\s\S]*?\n\}(?=\n\nconfigure_json_mcp\(\))/,
   );
-  const fixtureRoot = mkdtempSync(join(tmpdir(), "fresh-non-browser-codex-"));
+  const fixtureRoot = mkdtempSync(join(tmpdir(), "codex-mcp-"));
   const home = join(fixtureRoot, "home");
   const config = join(home, ".codex", "config.toml");
   const script = join(fixtureRoot, "configure-codex.sh");
 
   assert.ok(functionMatch);
   mkdirSync(home, { recursive: true });
-  writeFileSync(script, `${functionMatch[0]}\nconfigure_codex_mcp\n`);
-  const result = spawnSync("bash", [script], {
-    encoding: "utf8",
-    env: { ...process.env, HIVE_BROWSER_TOOLS_ENABLED: "false", HOME: home },
-  });
+  if (existing !== undefined) {
+    mkdirSync(dirname(config), { recursive: true });
+    writeFileSync(config, existing);
+    chmodSync(config, 0o444);
+  }
+  writeFileSync(script, `set -euo pipefail\n${functionMatch[0]}\nconfigure_codex_mcp\n`);
 
-  assert.equal(result.status, 0, result.stderr);
-  assert.equal(existsSync(config), true);
-  assert.equal(readFileSync(config, "utf8"), "");
-  assert.equal(statSync(config).mode & 0o777, 0o600);
+  return {
+    config,
+    run(browserEnabled = false) {
+      const result = spawnSync("bash", [script], {
+        encoding: "utf8",
+        env: { ...process.env, HIVE_BROWSER_TOOLS_ENABLED: String(browserEnabled), HOME: home },
+        timeout: 5_000,
+      });
+      assert.equal(result.status, 0, result.error?.message ?? result.stderr);
+      return result;
+    },
+    read() {
+      const result = spawnSync(
+        "python3",
+        ["-c", "import json, sys, tomllib; print(json.dumps(tomllib.loads(sys.stdin.read())))"],
+        { encoding: "utf8", input: readFileSync(config, "utf8") },
+      );
+      assert.equal(result.status, 0, result.stderr);
+      return JSON.parse(result.stdout);
+    },
+  };
+}
+
+function verifyFreshCodexMcpConfig() {
+  for (const template of [
+    "ai-dev-k8s",
+    "browser-testing",
+    "game-dev",
+    "electronics",
+    "infrastructure",
+  ]) {
+    const fixture = createCodexMcpFixture(join(process.cwd(), "templates", template));
+    const browserEnabled = template === "browser-testing";
+    fixture.run(browserEnabled);
+
+    const settings = fixture.read();
+    assert.deepEqual(settings.mcp_servers["cloudflare-api"], {
+      url: "https://mcp.cloudflare.com/mcp",
+    });
+    assert.equal(Boolean(settings.mcp_servers.hive_playwright), browserEnabled);
+    assert.equal(statSync(fixture.config).mode & 0o777, 0o600);
+
+    const firstStart = readFileSync(fixture.config, "utf8");
+    fixture.run(browserEnabled);
+    assert.equal(readFileSync(fixture.config, "utf8"), firstStart);
+  }
+}
+
+function verifyCodexMcpMigration() {
+  const userConfig = `# Keep the user's preferences and servers.
+model = "user-model"
+
+[mcp_servers.custom]
+command = "custom-mcp"
+args = ["--user-owned"]
+`;
+  const cloudflareDefinitions = [
+    "",
+    '[mcp_servers.cloudflare-api]\nurl = "https://custom.example/mcp"\nenabled = false\n',
+    '[mcp_servers."cloudflare-api"]\nurl = "https://custom.example/mcp"\nbearer_token_env_var = "CUSTOM_TOKEN"\n',
+    '[mcp_servers]\ncloudflare-api = { url = "https://custom.example/mcp", enabled = false }\n',
+  ];
+
+  for (const cloudflareDefinition of cloudflareDefinitions) {
+    const fixture = createCodexMcpFixture(TEMPLATE_ROOT, userConfig + cloudflareDefinition);
+    const before = fixture.read();
+    const expectedCloudflare = before.mcp_servers["cloudflare-api"] ?? {
+      url: "https://mcp.cloudflare.com/mcp",
+    };
+
+    fixture.run();
+    const migrated = fixture.read();
+    assert.deepEqual(migrated.mcp_servers["cloudflare-api"], expectedCloudflare);
+    delete migrated.mcp_servers["cloudflare-api"];
+    delete before.mcp_servers["cloudflare-api"];
+    assert.deepEqual(migrated, before);
+    assert.ok(readFileSync(fixture.config, "utf8").startsWith(userConfig));
+    assert.equal(statSync(fixture.config).mode & 0o777, 0o600);
+
+    const firstStart = readFileSync(fixture.config, "utf8");
+    fixture.run();
+    assert.equal(readFileSync(fixture.config, "utf8"), firstStart);
+
+    fixture.run(true);
+    assert.deepEqual(fixture.read().mcp_servers["cloudflare-api"], expectedCloudflare);
+    assert.equal(fixture.read().mcp_servers.hive_playwright.command, "npx");
+    fixture.run(false);
+    assert.deepEqual(fixture.read().mcp_servers["cloudflare-api"], expectedCloudflare);
+    assert.equal(fixture.read().mcp_servers.hive_playwright, undefined);
+  }
+}
+
+function verifyInvalidCodexMcpConfig() {
+  for (const existing of [
+    '[mcp_servers.custom\ncommand = "keep"\n',
+    'mcp_servers = { custom = { command = "keep" } }\n',
+    "mcp_servers = 42\n",
+    "mcp_servers = false\n",
+    "mcp_servers = 0.5\n",
+    "mcp_servers = 2026-09-07\n",
+    'mcp_servers = "cloudflare-api"\n',
+    'mcp_servers = ["cloudflare-api"]\n',
+  ]) {
+    const fixture = createCodexMcpFixture(TEMPLATE_ROOT, existing);
+    for (const browserEnabled of [false, true]) {
+      const result = fixture.run(browserEnabled);
+      assert.match(result.stdout, /WARNING: preserving.*Codex config/);
+      assert.equal(readFileSync(fixture.config, "utf8"), existing);
+    }
+  }
 }
 
 function renderBrowserHelper(delimiter, includeMarker) {
