@@ -8,6 +8,9 @@ Prefer the engine or tool's native validation plus repository tests. Use Coder D
 and Blender, and use the TUI for code, logs, builds, and questions. Do not claim visual, frame-time,
 or GPU validation unless it actually ran; this Kubernetes workspace does not guarantee GPU access.
 
+Use the included Chrome browser in Coder Desktop for Unity Hub sign-in and its `unityhub://`
+callback. Browser automation and Playwright validation belong in `browser-testing`.
+
 Keep licenses, installed Unity Editors, caches, and projects inside the persistent home. Ask before
 upgrading an engine version, changing render pipelines, regenerating many assets, or modifying a
 binary artifact whose source is unclear.

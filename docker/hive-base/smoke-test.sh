@@ -21,6 +21,16 @@ expect_absent() {
   fi
 }
 
+expect_output() {
+  local expected=$1 actual
+  shift
+  actual=$(run "$@")
+  if [ "$actual" != "$expected" ]; then
+    printf 'Expected %s, got %s from %s\n' "$expected" "$actual" "$*" >&2
+    return 1
+  fi
+}
+
 expect_infrastructure_tools_absent() {
   expect_absent terraform
   expect_absent kubectl
@@ -68,7 +78,12 @@ case "$variant" in
     expect_command xfce4-session
     expect_command unityhub
     run blender --version
-    expect_absent google-chrome-stable
+    run google-chrome-stable --version
+    run desktop-file-validate /usr/share/applications/google-chrome.desktop /usr/share/applications/unityhub.desktop
+    expect_output google-chrome.desktop xdg-mime query default x-scheme-handler/http
+    expect_output google-chrome.desktop xdg-mime query default x-scheme-handler/https
+    expect_output unityhub.desktop xdg-mime query default x-scheme-handler/unityhub
+    expect_output yes env XDG_CURRENT_DESKTOP=XFCE xdg-settings check default-web-browser google-chrome.desktop
     expect_absent kicad-cli
     expect_infrastructure_tools_absent
     ;;

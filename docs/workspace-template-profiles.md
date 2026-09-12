@@ -30,7 +30,8 @@ decide which binaries are present.
 | GitHub external authentication | Yes | Yes | Yes | Yes | Yes |
 | code-server and File Browser | Yes | Yes | Yes | Yes | Yes |
 | XFCE and KasmVNC | No | Yes | Yes | Yes | No |
-| Chrome and Playwright MCP | No | Yes | No | No | No |
+| Chrome | No | Yes | Unity authentication | No | No |
+| Playwright MCP | No | Yes | No | No | No |
 | Unity Hub and Blender | No | No | Yes | No | No |
 | KiCad | No | No | No | Yes | No |
 | Terraform, kubectl, Helm, and Argo CD | No | No | No | No | Yes |
@@ -38,6 +39,11 @@ decide which binaries are present.
 This is both a runtime and image boundary. For example, a CLI image does not merely hide the Desktop
 link: it has no XFCE, KasmVNC, Chrome, Unity, Blender, or KiCad executable to launch. Negative smoke
 tests enforce those exclusions for every image build.
+
+The `browser` capability controls browser automation, MCP configuration, and screenshot/HTML helpers.
+Game Development keeps that flag disabled while including Chrome for interactive Unity Hub sign-in.
+Its image supplies system browser defaults and the `unityhub://` callback handler; user preferences
+in the persistent home take precedence.
 
 ## Source layout
 
@@ -135,7 +141,7 @@ Before publishing:
 3. Push the template and create a fresh workspace rather than relying only on an existing PVC.
 4. Verify Coder SSH, the Hive TUI, agent login, declared apps, repository bootstrap, workspace
    discovery from `ai-dev-k8s`, and stop/start persistence.
-5. Confirm excluded apps are absent: especially Desktop in CLI profiles and Chrome/Playwright in
-   every profile except Browser Testing.
+5. Confirm excluded apps are absent: especially Desktop in CLI profiles, Chrome outside Browser
+   Testing and Game Development, and Playwright outside Browser Testing.
 6. Perform domain checks in the matching profile. GPU, physical electronics, and live infrastructure
    access remain explicit external capabilities rather than template assumptions.

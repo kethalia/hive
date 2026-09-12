@@ -11,7 +11,8 @@ template is an explicit capability boundary rather than a package-installation s
 - `browser-testing` (`HIVE_WORKSPACE_PROFILE=browser`) owns Chrome, Playwright, screenshots, traces,
   accessibility inspection, and headed browser debugging through Coder Desktop.
 - `game-dev` (`HIVE_WORKSPACE_PROFILE=game`) owns Unity, Blender, game assets, and desktop visual
-  iteration. GPU access is not guaranteed.
+  iteration. It includes Chrome for interactive Unity Hub authentication. GPU access is not
+  guaranteed.
 - `electronics` (`HIVE_WORKSPACE_PROFILE=electronics`) owns KiCad, electronics design files, and
   desktop design review. Physical USB and serial hardware are not available by default.
 - `infrastructure` (`HIVE_WORKSPACE_PROFILE=infrastructure`) owns Terraform, kubectl, Helm, Argo CD,
@@ -28,6 +29,10 @@ When a required capability belongs to another profile, stop before trying to rec
 locally. In particular, outside `browser-testing` do not download a replacement browser, run
 Playwright browser or system-dependency installers, use `sudo` or `apt` to add browser libraries, or
 rely on a Docker socket as a browser fallback. Route the browser step to `browser-testing` instead.
+
+The Chrome included in `game-dev` supports interactive Unity Hub authentication in that workspace's
+desktop, including the `unityhub://` callback. Keep this sign-in flow in `game-dev`; browser
+automation, screenshots, traces, and web validation still belong in `browser-testing`.
 
 Only `ai-dev-k8s` orchestrates workspaces. From that profile, inspect `coder templates list` and
 `coder list`, reuse a healthy matching workspace when possible, and create or start one only when
