@@ -1,5 +1,12 @@
 # hive-orchestrator
 
+## 2.15.2
+
+### Patch Changes
+
+- ea42a7e: Include Chrome and desktop authentication handlers in the game workspace image for Unity Hub sign-in, and document the game profile's browser support.
+- ea42a7e: Upgrade Next.js to 16.3.3 to address critical security advisories GHSA-p293-qw3h-jr36 and GHSA-2xp9-vwfh-vxw4.
+
 ## 2.15.1
 
 ### Patch Changes
