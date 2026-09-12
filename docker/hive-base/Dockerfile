@@ -8,7 +8,7 @@ ENV HIVE_IMAGE_VARIANT=${WORKSPACE_VARIANT}
 # One Dockerfile produces five intentionally narrow Kubernetes workspace images:
 #   cli           - Codex, Claude Code, and common command-line development tools
 #   infrastructure - cli + Terraform, kubectl, Helm, and Argo CD clients
-#   game          - cli + XFCE/KasmVNC + Unity Hub + Blender
+#   game          - cli + XFCE/KasmVNC + Unity Hub + Blender + Chrome for sign-in
 #   electronics   - cli + XFCE/KasmVNC + KiCad
 #   browser       - cli + XFCE/KasmVNC + Google Chrome
 RUN case "$WORKSPACE_VARIANT" in \
@@ -166,6 +166,7 @@ RUN if [ "$WORKSPACE_VARIANT" = "game" ] \
       apt-get update \
       && apt-get install --yes --no-install-recommends \
           dbus-x11 \
+          desktop-file-utils \
           fonts-liberation \
           fonts-noto-color-emoji \
           libatk-bridge2.0-0 \
@@ -234,7 +235,7 @@ RUN if [ "$WORKSPACE_VARIANT" = "game" ]; then \
 
 COPY unity-hub.desktop blender.desktop /tmp/hive-game-desktop/
 RUN if [ "$WORKSPACE_VARIANT" = "game" ]; then \
-      install -m 0644 /tmp/hive-game-desktop/unity-hub.desktop /usr/share/applications/unity-hub.desktop \
+      install -m 0644 /tmp/hive-game-desktop/unity-hub.desktop /usr/share/applications/unityhub.desktop \
       && install -m 0644 /tmp/hive-game-desktop/blender.desktop /usr/share/applications/blender.desktop; \
     fi \
     && rm -rf /tmp/hive-game-desktop
@@ -251,10 +252,11 @@ RUN if [ "$WORKSPACE_VARIANT" = "electronics" ]; then \
       && rm -rf /var/lib/apt/lists/*; \
     fi
 
-# ── Browser capability ───────────────────────────────────────────────────────
+# ── Chrome (browser testing and Unity Hub authentication) ─────────────────────
 
 # hadolint ignore=DL3008
-RUN if [ "$WORKSPACE_VARIANT" = "browser" ]; then \
+RUN if [ "$WORKSPACE_VARIANT" = "browser" ] \
+    || [ "$WORKSPACE_VARIANT" = "game" ]; then \
       curl -fsSL https://dl.google.com/linux/linux_signing_key.pub \
           | gpg --dearmor -o /etc/apt/keyrings/google-chrome.gpg \
       && chmod a+r /etc/apt/keyrings/google-chrome.gpg \
@@ -266,10 +268,23 @@ RUN if [ "$WORKSPACE_VARIANT" = "browser" ]; then \
     fi
 
 COPY google-chrome.desktop /tmp/hive-browser-desktop/
-RUN if [ "$WORKSPACE_VARIANT" = "browser" ]; then \
+RUN if [ "$WORKSPACE_VARIANT" = "browser" ] \
+    || [ "$WORKSPACE_VARIANT" = "game" ]; then \
       install -m 0644 /tmp/hive-browser-desktop/google-chrome.desktop /usr/share/applications/google-chrome.desktop; \
     fi \
     && rm -rf /tmp/hive-browser-desktop
+
+# Unity Hub opens HTTP(S) in XFCE's preferred browser and receives a unityhub://
+# callback. Keep both launchers compatible with the workspace container. System
+# defaults apply to persistent homes without replacing user preferences.
+COPY game-mimeapps.list google-chrome-xfce.desktop /tmp/hive-game-auth/
+RUN if [ "$WORKSPACE_VARIANT" = "game" ]; then \
+      install -m 0644 /tmp/hive-game-auth/game-mimeapps.list /etc/xdg/mimeapps.list \
+      && install -m 0644 /tmp/hive-game-auth/google-chrome-xfce.desktop /usr/share/xfce4/helpers/google-chrome.desktop \
+      && sed -i 's/^WebBrowser=.*/WebBrowser=google-chrome/' /etc/xdg/xfce4/helpers.rc \
+      && update-desktop-database /usr/share/applications; \
+    fi \
+    && rm -rf /tmp/hive-game-auth
 
 # ── Non-root workspace user ──────────────────────────────────────────────────
 

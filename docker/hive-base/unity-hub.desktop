@@ -2,7 +2,8 @@
 Type=Application
 Name=Unity Hub
 Comment=Manage Unity Editors, licenses, and projects
-Exec=/usr/bin/unityhub --no-sandbox --disable-gpu-sandbox
+Exec=/usr/bin/unityhub --no-sandbox --disable-gpu-sandbox %U
 Icon=unityhub
-Categories=Development;GameDevelopment;
+Categories=Development;
+MimeType=x-scheme-handler/unityhub;
 StartupNotify=true

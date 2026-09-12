@@ -5,6 +5,7 @@ Use this workspace for interactive Unity, Blender, gameplay, shader, and asset w
 ## Start here
 
 - Open Desktop from Coder, then launch Unity Hub or Blender.
+- Sign in through Unity Hub; complete authentication in Chrome and allow it to reopen Unity Hub.
 - Install the required Unity Editor through Hub into the persistent home volume.
 - Keep source projects under `~/projects`; the default game repository is cloned on first startup.
 - Use `claude` or `codex` from the project root for code and build-log work.
@@ -12,6 +13,7 @@ Use this workspace for interactive Unity, Blender, gameplay, shader, and asset w
 ## Included tools
 
 - Unity Hub and Blender 4.5 LTS
+- Google Chrome for Unity authentication
 - C#, Unity, and shader editor support
 - Claude Code, Codex, code-server, File Browser, and tmux
 - Node.js and standard build/GitHub tooling
