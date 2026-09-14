@@ -16,12 +16,13 @@ describe("template catalog", () => {
       "game-dev",
       "electronics",
       "infrastructure",
+      "copy-dev",
     ]);
   });
 
   it("covers every built-in non-custom profile", () => {
     expect(new Set(TEMPLATE_CATALOG.map(({ profileId }) => profileId))).toEqual(
-      new Set(["software", "browser", "game", "electronics", "infrastructure"]),
+      new Set(["software", "browser", "game", "electronics", "infrastructure", "copy"]),
     );
   });
 
@@ -44,6 +45,13 @@ describe("template catalog", () => {
     expect(templateCatalogEntry("infrastructure")).toMatchObject({
       imageVariant: "infrastructure",
       capabilities: { browser: false, desktop: false },
+    });
+    expect(workspaceTemplateCapabilities("copy-dev")).toEqual({
+      browser: false,
+      desktop: false,
+      editor: true,
+      fileBrowser: true,
+      web3: true,
     });
   });
 

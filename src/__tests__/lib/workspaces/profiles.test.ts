@@ -9,6 +9,7 @@ describe("workspace profiles", () => {
       "game",
       "electronics",
       "infrastructure",
+      "copy",
       "custom",
     ]);
   });
@@ -24,6 +25,7 @@ describe("workspace profiles", () => {
     ["game-dev", "game"],
     ["electronics", "electronics"],
     ["infrastructure", "infrastructure"],
+    ["copy-dev", "copy"],
     ["unity-game-studio", "game"],
     ["kicad-electronics", "electronics"],
     ["terraform-platform", "infrastructure"],

@@ -76,6 +76,15 @@ export const TEMPLATE_CATALOG = [
     capabilities: HEADLESS_DEVELOPMENT_CAPABILITIES,
     description: "Headless workspace for clusters, Terraform, deployments, and platform work.",
   },
+  {
+    name: "copy-dev",
+    profileId: "copy",
+    runtime: "kubernetes",
+    imageVariant: "cli",
+    capabilities: { ...HEADLESS_DEVELOPMENT_CAPABILITIES, web3: true },
+    description:
+      "COPY development with a persistent repository, Node.js, Foundry, and a private web preview.",
+  },
 ] as const satisfies ReadonlyArray<{
   name: string;
   profileId: WorkspaceProfileId;

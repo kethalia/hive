@@ -1,0 +1,23 @@
+{
+  "id": "copy",
+  "label": "COPY development",
+  "description": "Dedicated development workspace for lunarresearcher/copy and its CLI, paper engine, and optional web wrapper.",
+  "image": "ghcr.io/kethalia/hive-base@sha256:12ad07d3b3e20e85eb3ecb862b9bd426eeefd22d1c9097a7004d277f907e21e7",
+  "image_variant": "cli",
+  "project_directory": "/home/coder/projects/lunarresearcher/copy",
+  "capabilities": {
+    "browser": false,
+    "desktop": false,
+    "editor": true,
+    "file_browser": true,
+    "web3": true
+  },
+  "resources": {
+    "cpu_request": "2",
+    "memory_request": "4Gi",
+    "cpu_limit": "4",
+    "memory_limit": "8Gi",
+    "storage": "25Gi"
+  },
+  "vscode_extensions": ["tintinweb.vscode-solidity-language", "nomicfoundation.hardhat-solidity"]
+}

@@ -62,6 +62,19 @@ const profiles = [
     },
   },
   {
+    template: "copy-dev",
+    id: "copy",
+    imageVariant: "cli",
+    storage: "25Gi",
+    capabilities: {
+      browser: false,
+      desktop: false,
+      editor: true,
+      file_browser: true,
+      web3: true,
+    },
+  },
+  {
     template: "infrastructure",
     id: "infrastructure",
     imageVariant: "infrastructure",
@@ -191,7 +204,7 @@ test("specialist templates stay synchronized with the canonical Kubernetes scaff
   );
 
   assert.equal(result.status, 0, result.stderr || result.stdout);
-  assert.match(result.stdout, /synchronized \(4 variants\)/);
+  assert.match(result.stdout, /synchronized \(5 variants\)/);
 });
 
 test("profile synchronization detects and removes obsolete shared scripts", () => {
@@ -199,7 +212,7 @@ test("profile synchronization detects and removes obsolete shared scripts", () =
   const fixtureTemplates = join(fixtureRoot, "templates");
   const canonical = join(fixtureTemplates, "ai-dev-k8s");
   const syncScript = join(repositoryRoot, "scripts/sync-workspace-profile-templates.mjs");
-  const targetNames = ["browser-testing", "game-dev", "electronics", "infrastructure"];
+  const targetNames = ["browser-testing", "game-dev", "electronics", "infrastructure", "copy-dev"];
 
   mkdirSync(join(canonical, "scripts"), { recursive: true });
   writeFileSync(join(canonical, ".terraform.lock.hcl"), "canonical lock\n");
@@ -212,6 +225,9 @@ test("profile synchronization detects and removes obsolete shared scripts", () =
   }
   const obsolete = join(fixtureTemplates, "browser-testing", "scripts", "obsolete-shared.sh");
   writeFileSync(obsolete, "#!/bin/sh\n");
+  const projectSetup = join(fixtureTemplates, "copy-dev", "project", "setup.sh");
+  mkdirSync(join(fixtureTemplates, "copy-dev", "project"), { recursive: true });
+  writeFileSync(projectSetup, "#!/bin/sh\necho project-owned\n");
 
   const drift = spawnSync(process.execPath, [syncScript, "--check"], {
     cwd: fixtureRoot,
@@ -227,6 +243,7 @@ test("profile synchronization detects and removes obsolete shared scripts", () =
   assert.equal(synchronized.status, 0, synchronized.stderr);
   assert.match(synchronized.stdout, /removed 1 obsolete scripts/);
   assert.equal(existsSync(obsolete), false);
+  assert.equal(readFileSync(projectSetup, "utf8"), "#!/bin/sh\necho project-owned\n");
 
   const verified = spawnSync(process.execPath, [syncScript, "--check"], {
     cwd: fixtureRoot,
@@ -267,6 +284,12 @@ test("repository manifests remain narrow and parseable", () => {
   assert.match(readTemplateFile("infrastructure", "repositories.txt"), /kethalia\/k8s-cluster/);
   assert.match(readTemplateFile("ai-dev-k8s", "repositories.txt"), /kethalia\/k8s-cluster/);
   assert.match(readTemplateFile("ai-dev-k8s", "repositories.txt"), /kethalia\/workflows/);
+  assert.deepEqual(
+    readTemplateFile("copy-dev", "repositories.txt")
+      .split("\n")
+      .filter((entry) => entry && !entry.startsWith("#")),
+    ["lunarresearcher/copy|lunarresearcher/copy"],
+  );
 });
 
 test("profile guidance encodes the intended interactive and capability boundaries", () => {
@@ -299,6 +322,7 @@ test("every profile receives the same workspace routing and interactive handoff 
     "game-dev",
     "electronics",
     "infrastructure",
+    "copy-dev",
   ]) {
     assert.equal(readTemplateFile(template, "WORKSPACE_ROUTING.md"), routing);
     assert.ok(
@@ -321,6 +345,7 @@ test("every profile receives the same workspace routing and interactive handoff 
     "game-dev",
     "electronics",
     "infrastructure",
+    "copy-dev",
   ]) {
     const terraform = readTemplateFile(template, "main.tf");
     assert.match(terraform, /trimspace\(file\("\$\{path\.module\}\/CLAUDE\.md"\)\)/);

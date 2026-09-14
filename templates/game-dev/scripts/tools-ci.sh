@@ -60,3 +60,10 @@ printf '%s' "${repositories_manifest_b64}" | base64 -d > "$HOME/repositories.txt
 chmod 600 "$HOME/repositories.txt"
 export GH_TOKEN="${github_token}"
 "$HOME/clone-repositories.sh"
+
+# Project setup must follow the clone in this script: Coder starts separate scripts in parallel.
+if [ -n "${project_setup_script_b64}" ]; then
+  printf '%s' "${project_setup_script_b64}" | base64 -d > "$HOME/.local/libexec/hive-project-setup"
+  chmod 700 "$HOME/.local/libexec/hive-project-setup"
+  "$HOME/.local/libexec/hive-project-setup"
+fi

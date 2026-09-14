@@ -18,6 +18,7 @@ describe("KNOWN_TEMPLATES", () => {
       "game-dev",
       "electronics",
       "infrastructure",
+      "copy-dev",
     ]);
   });
 });

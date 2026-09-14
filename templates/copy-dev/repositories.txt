@@ -1,0 +1,2 @@
+# Dedicated COPY checkout; existing repositories are preserved on restart.
+lunarresearcher/copy|lunarresearcher/copy

@@ -197,6 +197,7 @@ jobs:
 
           cli_profiles=(
             templates/ai-dev-k8s/profile.json
+            templates/copy-dev/profile.json
           )
           infrastructure_profiles=(templates/infrastructure/profile.json)
           game_profiles=(templates/game-dev/profile.json)

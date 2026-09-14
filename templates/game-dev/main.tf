@@ -23,6 +23,7 @@ data "coder_workspace_owner" "me" {}
 
 locals {
   profile                      = jsondecode(file("${path.module}/profile.json"))
+  project_setup_path           = "${path.module}/project/setup.sh"
   workspace_hostname_candidate = trim(substr(replace(lower(data.coder_workspace.me.name), "/[^a-z0-9-]/", "-"), 0, 63), "-")
   workspace_hostname           = local.workspace_hostname_candidate != "" ? local.workspace_hostname_candidate : "workspace"
 }
@@ -184,6 +185,7 @@ resource "coder_script" "tools_ci" {
     github_credential_script_b64  = base64encode(file("${path.module}/scripts/github-credential.sh"))
     clone_repositories_script_b64 = base64encode(file("${path.module}/scripts/clone-repositories.sh"))
     repositories_manifest_b64     = base64encode(file("${path.module}/repositories.txt"))
+    project_setup_script_b64       = fileexists(local.project_setup_path) ? base64encode(file(local.project_setup_path)) : ""
   })
 }
 
@@ -228,6 +230,7 @@ module "code-server" {
   order                 = 1
   subdomain             = true
   use_cached_extensions = true
+  folder                = try(local.profile.project_directory, "")
 
   extensions = concat([
     "binary-ink.dark-modern-oled-theme-set",

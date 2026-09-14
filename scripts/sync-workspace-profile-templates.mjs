@@ -9,6 +9,7 @@ const targetRoots = [
   join(repositoryRoot, "templates", "game-dev"),
   join(repositoryRoot, "templates", "electronics"),
   join(repositoryRoot, "templates", "infrastructure"),
+  join(repositoryRoot, "templates", "copy-dev"),
 ];
 const checkOnly = process.argv.includes("--check");
 

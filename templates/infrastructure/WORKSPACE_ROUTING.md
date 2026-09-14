@@ -18,6 +18,9 @@ template is an explicit capability boundary rather than a package-installation s
 - `infrastructure` (`HIVE_WORKSPACE_PROFILE=infrastructure`) owns Terraform, kubectl, Helm, Argo CD,
   and infrastructure repositories. Tooling does not imply credentials or permission to mutate a
   live environment.
+- `copy-dev` (`HIVE_WORKSPACE_PROFILE=copy`) owns the isolated `lunarresearcher/copy` development
+  checkout, Node.js CLI, paper engine, and optional private web preview. It uses the headless `cli`
+  image; browser validation belongs in `browser-testing` and orchestration in `ai-dev-k8s`.
 
 ## Routing contract
 

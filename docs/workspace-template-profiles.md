@@ -1,6 +1,6 @@
 # Workspace Template Profiles
 
-Hive ships five deployable Coder templates for interactive work in the Kubernetes cluster. Templates
+Hive ships six deployable Coder templates for interactive work in the Kubernetes cluster. Templates
 define the environment and capability boundary; tmux/TUI sessions remain the conversation boundary
 inside each workspace.
 
@@ -13,6 +13,7 @@ inside each workspace.
 | `game-dev` | Game development | `game` | Unity, Blender, desktop | 6 CPU, 16 GiB RAM, 150 GiB home |
 | `electronics` | Electronics | `electronics` | KiCad, desktop | 4 CPU, 8 GiB RAM, 100 GiB home |
 | `infrastructure` | Infrastructure | `infrastructure` | Terraform, kubectl, Helm, Argo CD | 4 CPU, 8 GiB RAM, 75 GiB home |
+| `copy-dev` | COPY development | `cli` | COPY TUI, VS Code, files, private web preview | 2 CPU, 4 GiB RAM, 25 GiB home |
 
 There is no Docker-backed workspace template in the catalog. Every template provisions a non-root
 Kubernetes Deployment and a persistent Longhorn home volume in the `coder` namespace.
@@ -48,7 +49,7 @@ in the persistent home take precedence.
 ## Source layout
 
 `templates/ai-dev-k8s` is the canonical Kubernetes scaffold. Browser Testing, Game Development,
-Electronics, and Infrastructure contain synchronized Terraform and startup scripts plus their own:
+Electronics, Infrastructure, and COPY Development contain synchronized Terraform and startup scripts plus their own:
 
 - `profile.json` for image variant, capabilities, resources, and editor extensions
 - `CLAUDE.md` for agent behavior and safety boundaries
@@ -57,6 +58,14 @@ Electronics, and Infrastructure contain synchronized Terraform and startup scrip
 - `WORKSPACE.md` for the generated `~/README.md` quick start
 - `repositories.txt` for the narrow first-start repository set
 - `README.md` for operator-facing deployment notes
+
+Project templates can additionally supply `project/setup.sh`, executed after repository cloning in
+the same startup script, and `project.tf` for project apps. These files stay outside the synchronized
+scaffold. An optional `project_directory` in `profile.json` selects the initial code-server folder.
+`copy-dev` uses these extensions to prepare COPY's dependencies and `.env`, install a launcher that
+selects the repository directory, and expose its manually started port 8787 web wrapper privately.
+It uses the shared CLI tools with Foundry, has no workspace orchestration role, and routes browser
+validation to Browser Testing. See [COPY deployment notes](../templates/copy-dev/README.md).
 
 After changing canonical Terraform, routing guidance, or scripts, synchronize and verify every
 profile:
@@ -77,7 +86,7 @@ is itself a symlink, Hive warns and preserves it instead of writing through to t
 
 ## Codex Cloudflare authentication
 
-On every workspace start, all five templates register `cloudflare-api` in
+On every workspace start, all six templates register `cloudflare-api` in
 `~/.codex/config.toml` when that server is missing, using Cloudflare's official
 `https://mcp.cloudflare.com/mcp` endpoint. Existing server settings, including a custom URL or
 `enabled = false`, are preserved. This explicit registration makes the server available to
@@ -103,6 +112,7 @@ coder templates push browser-testing --directory templates/browser-testing --yes
 coder templates push game-dev --directory templates/game-dev --yes
 coder templates push electronics --directory templates/electronics --yes
 coder templates push infrastructure --directory templates/infrastructure --yes
+coder templates push copy-dev --directory templates/copy-dev --yes
 ```
 
 The Hive Templates page exposes this same catalog and streams each push. A newly added template is

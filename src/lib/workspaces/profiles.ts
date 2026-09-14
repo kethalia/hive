@@ -34,6 +34,11 @@ export const WORKSPACE_PROFILES = [
     description: "An operations environment for clusters, Terraform, and platform work.",
   },
   {
+    id: "copy",
+    label: "COPY development",
+    description: "A dedicated workspace for lunarresearcher/copy, its terminal, and paper engine.",
+  },
+  {
     id: "custom",
     label: "Custom",
     description: "A specialized Coder template that does not match a built-in profile yet.",
