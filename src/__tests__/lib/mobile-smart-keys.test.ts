@@ -22,6 +22,27 @@ describe("mobile smart key catalog", () => {
         keyLabels: ["Enter", "Tab", "Esc", "Backspace"],
       },
       {
+        id: "codex",
+        label: "Codex",
+        ariaLabel: "Codex shortcuts",
+        keyLabels: ["Queue", "Steer", "Transcript", "Copy reply"],
+      },
+      {
+        id: "questions",
+        label: "Questions",
+        ariaLabel: "Codex question controls",
+        keyLabels: [
+          "Option up",
+          "Option down",
+          "Select",
+          "Answer",
+          "Previous",
+          "Next",
+          "Choice left",
+          "Choice right",
+        ],
+      },
+      {
         id: "control",
         label: "Control",
         ariaLabel: "Terminal control keys",
@@ -38,6 +59,18 @@ describe("mobile smart key catalog", () => {
 
   it("uses exact terminal byte sequences for every fixed smart key", () => {
     expect(Object.fromEntries(keySequenceByLabel())).toEqual({
+      Queue: "\t",
+      Steer: "\r",
+      Transcript: "\x14",
+      "Copy reply": "\x0f",
+      "Option up": "\x1b[A",
+      "Option down": "\x1b[B",
+      Select: " ",
+      Answer: "\r",
+      Previous: "\x1b[Z",
+      Next: "\t",
+      "Choice left": "\x1b[D",
+      "Choice right": "\x1b[C",
       Enter: "\r",
       Tab: "\t",
       Esc: "\x1b",

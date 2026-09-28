@@ -88,8 +88,8 @@ describe("copyTerminalSelection", () => {
     expect(result).toBe(false);
     expect(writeText).toHaveBeenCalledOnce();
     expect(writeText).toHaveBeenCalledWith("selected terminal payload");
-    expect(term.clearSelection).toHaveBeenCalledOnce();
     await vi.waitFor(() => {
+      expect(term.clearSelection).toHaveBeenCalledOnce();
       expect(onStatus).toHaveBeenCalledWith({
         action: "copy",
         outcome: "copied",
@@ -194,7 +194,7 @@ describe("pasteToTerminal", () => {
     expect(warningText()).not.toContain("pasted terminal payload");
   });
 
-  it("stages multiline clipboard text in compose when a compose target is provided", async () => {
+  it("pastes multiline clipboard text directly even with a compose target", async () => {
     readText.mockResolvedValue("echo one\necho two");
     const send = vi.fn();
     const onCompose = vi.fn();
@@ -208,18 +208,14 @@ describe("pasteToTerminal", () => {
 
     expect(result).toBe(false);
     await vi.waitFor(() => {
-      expect(onCompose).toHaveBeenCalledWith({
-        draft: "echo one\necho two",
-        append: true,
-        targetLabel: "main",
-      });
+      expect(send).toHaveBeenCalledExactlyOnceWith("echo one\necho two");
+      expect(onCompose).not.toHaveBeenCalled();
       expect(onStatus).toHaveBeenCalledWith({
         action: "paste",
         outcome: "pasted",
         method: "clipboard-api",
       });
     });
-    expect(send).not.toHaveBeenCalled();
   });
 
   it("does not send empty clipboard text and reports an empty outcome", async () => {
@@ -467,4 +463,36 @@ describe("pasteNativeClipboardEventToTerminal", () => {
     expect(send).not.toHaveBeenCalled();
     expect(onCompose).not.toHaveBeenCalled();
   });
+});
+
+it("copies native mobile selection only from the selected terminal", async () => {
+  const writeText = vi.fn().mockResolvedValue(undefined);
+  installClipboard({ writeText });
+  const { getTerminalSelectionText } = await import("@/lib/terminal/actions");
+  const element = document.createElement("div");
+  element.textContent = "native mobile selection";
+  document.body.append(element);
+  const range = document.createRange();
+  range.selectNodeContents(element);
+  window.getSelection()?.removeAllRanges();
+  window.getSelection()?.addRange(range);
+  const term = { element, getSelection: vi.fn(() => ""), clearSelection: vi.fn() };
+  expect(getTerminalSelectionText(term)).toBe("native mobile selection");
+  expect(getTerminalSelectionText({ ...term, element: document.createElement("div") })).toBe("");
+  copyTerminalSelection(term);
+  expect(writeText).toHaveBeenCalledWith("native mobile selection");
+  element.remove();
+  window.getSelection()?.removeAllRanges();
+});
+
+it("keeps terminal selection when both clipboard write methods fail", async () => {
+  installClipboard({ writeText: vi.fn().mockRejectedValue(new Error("denied")) });
+  installExecCommand(false);
+  const term = makeMockTerminal("keep this selection");
+  const onStatus = vi.fn();
+  copyTerminalSelection(term, { onStatus });
+  await vi.waitFor(() =>
+    expect(onStatus).toHaveBeenCalledWith(expect.objectContaining({ outcome: "failed" })),
+  );
+  expect(term.clearSelection).not.toHaveBeenCalled();
 });

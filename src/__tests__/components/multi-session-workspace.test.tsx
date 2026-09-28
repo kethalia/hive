@@ -298,7 +298,8 @@ vi.mock("@/lib/device/haptics", () => ({
   triggerHapticFeedback: () => mockTriggerHapticFeedback(),
 }));
 
-vi.mock("@/lib/terminal/actions", () => ({
+vi.mock("@/lib/terminal/actions", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/terminal/actions")>()),
   copyTerminalSelection: (...args: unknown[]) => mockCopyTerminalSelection(...args),
   pasteClipboardApiToTerminal: (...args: unknown[]) => mockPasteClipboardApiToTerminal(...args),
   pasteToTerminal: vi.fn(),

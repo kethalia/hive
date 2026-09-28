@@ -96,7 +96,7 @@ describe("terminal paste dispatch", () => {
     expect(term.paste.mock.invocationCallOrder[0]).toBeLessThan(send.mock.invocationCallOrder[0]);
   });
 
-  it("stages multiline text in compose", async () => {
+  it("pastes multiline text without opening compose or submitting", async () => {
     const openCompose = vi.fn();
     const send = vi.fn();
 
@@ -105,12 +105,8 @@ describe("terminal paste dispatch", () => {
       { term: null, send, openCompose, targetLabel: "main" },
     );
 
-    expect(send).not.toHaveBeenCalled();
-    expect(openCompose).toHaveBeenCalledWith({
-      draft: "one\ntwo",
-      append: true,
-      targetLabel: "main",
-    });
+    expect(send).toHaveBeenCalledExactlyOnceWith("one\ntwo");
+    expect(openCompose).not.toHaveBeenCalled();
   });
 
   it("pastes a single uploaded file path directly to the terminal", async () => {
@@ -153,7 +149,7 @@ describe("terminal paste dispatch", () => {
     });
   });
 
-  it("stages multiple uploaded file paths in compose", async () => {
+  it("pastes multiple uploaded file paths without opening compose", async () => {
     const imageFile = new File(["png"], "pasted.png", { type: "image/png" });
     const textFile = new File(["txt"], "notes.txt", { type: "text/plain" });
     const openCompose = vi.fn();
@@ -181,12 +177,10 @@ describe("terminal paste dispatch", () => {
       },
     );
 
-    expect(send).not.toHaveBeenCalled();
-    expect(openCompose).toHaveBeenCalledWith({
-      draft: "/tmp/hive-terminal-paste/pasted.png\n/tmp/hive-terminal-paste/notes.txt",
-      append: true,
-      targetLabel: "main",
-    });
+    expect(send).toHaveBeenCalledExactlyOnceWith(
+      "/tmp/hive-terminal-paste/pasted.png\n/tmp/hive-terminal-paste/notes.txt",
+    );
+    expect(openCompose).not.toHaveBeenCalled();
     expect(onStatus).toHaveBeenCalledWith({
       action: "paste",
       outcome: "uploading",
@@ -230,4 +224,25 @@ describe("terminal paste dispatch", () => {
       message: "File paste failed: upload failed with payload details",
     });
   });
+});
+
+it("pastes a complete multiline prompt once and never sends Enter", async () => {
+  const term = { paste: vi.fn() };
+  const send = vi.fn();
+  const openCompose = vi.fn();
+  const prompt = "First instruction\r\nSecond instruction\nFinal instruction\n";
+  await handleTerminalPasteOutcome(normalizeClipboardText(prompt), {
+    term: term as never,
+    send,
+    openCompose,
+  });
+  expect(term.paste).toHaveBeenCalledExactlyOnceWith(prompt);
+  expect(send).not.toHaveBeenCalled();
+  expect(openCompose).not.toHaveBeenCalled();
+});
+
+it("prevents pasted escape sequences from ending bracketed paste early", () => {
+  const term = { paste: vi.fn() };
+  pasteTextToXterm(term as never, vi.fn(), "one\x1b[201~\ntwo");
+  expect(term.paste).toHaveBeenCalledWith("one[201~\ntwo");
 });

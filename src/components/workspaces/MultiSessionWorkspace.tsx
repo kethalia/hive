@@ -98,6 +98,7 @@ import { workspaceTemplateCapabilities } from "@/lib/templates/catalog";
 import {
   type ClipboardActionStatus,
   copyTerminalSelection,
+  getTerminalSelectionText,
   pasteClipboardApiToTerminal,
 } from "@/lib/terminal/actions";
 import {
@@ -493,14 +494,6 @@ function isGitCloneTerminalIdentity(value: unknown): value is GitCloneTerminalId
     typeof value.cloneProof === "string" &&
     value.cloneProof.length > 0
   );
-}
-
-function terminalHasSelection(term: {
-  hasSelection?: () => boolean;
-  getSelection?: () => string;
-}): boolean {
-  if (typeof term.hasSelection === "function") return term.hasSelection();
-  return Boolean(term.getSelection?.());
 }
 
 function clipboardStatusText(
@@ -2065,13 +2058,15 @@ export function MultiSessionWorkspace({
     }
 
     const updateSelectionState = () =>
-      setHasTerminalSelection(terminalHasSelection(activeTerminalEntry.term));
+      setHasTerminalSelection(Boolean(getTerminalSelectionText(activeTerminalEntry.term)));
     updateSelectionState();
 
-    if (typeof activeTerminalEntry.term.onSelectionChange !== "function") return;
-
-    const disposable = activeTerminalEntry.term.onSelectionChange(updateSelectionState);
-    return () => disposable.dispose();
+    document.addEventListener("selectionchange", updateSelectionState);
+    const disposable = activeTerminalEntry.term.onSelectionChange?.(updateSelectionState);
+    return () => {
+      disposable?.dispose();
+      document.removeEventListener("selectionchange", updateSelectionState);
+    };
   }, [activeTerminalEntry]);
 
   const selectWorkspaceWindow = useCallback(

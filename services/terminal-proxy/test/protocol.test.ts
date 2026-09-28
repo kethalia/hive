@@ -3,7 +3,7 @@ import { buildPtyUrl } from "../src/protocol.js";
 
 const EXPECTED_TMUX_MENU_BINDING =
   "bind-key -n F12 display-menu -T '#S:#W' 'Copy mode' c 'copy-mode' 'Choose tree' t 'choose-tree -Zw' '' 'Split horizontal' h 'split-window -h' 'Split vertical' v 'split-window -v' 'New window' n 'new-window' 'Rename window' r 'command-prompt -I \"#W\" \"rename-window -- %%\"' '' 'Kill pane' x 'confirm-before -p \"kill-pane #P? (y/n)\" kill-pane'";
-const EXPECTED_TMUX_PREFIX = `tmux -L web ${EXPECTED_TMUX_MENU_BINDING}`;
+const EXPECTED_TMUX_PREFIX = `tmux -L web -T clipboard,hyperlinks,RGB,extkeys set -s set-clipboard on \\; set -s extended-keys on \\; ${EXPECTED_TMUX_MENU_BINDING}`;
 
 describe("buildPtyUrl", () => {
   const defaults = {

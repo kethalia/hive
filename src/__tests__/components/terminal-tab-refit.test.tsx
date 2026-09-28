@@ -6,6 +6,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mockFit = vi.fn();
 
+vi.mock("@/lib/terminal/browser-integration", () => ({
+  installTerminalBrowserIntegration: vi.fn(() => vi.fn()),
+}));
+
 vi.mock("@xterm/xterm", () => {
   return {
     Terminal: class MockTerminal {

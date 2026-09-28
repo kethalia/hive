@@ -132,6 +132,10 @@ const {
   };
 });
 
+vi.mock("@/lib/terminal/browser-integration", () => ({
+  installTerminalBrowserIntegration: vi.fn(() => vi.fn()),
+}));
+
 vi.mock("@xterm/xterm", () => ({
   Terminal: class MockTerminal {
     rows = 24;
@@ -638,7 +642,8 @@ vi.mock("@/lib/device/haptics", () => ({
   triggerHapticFeedback: vi.fn(),
 }));
 
-vi.mock("@/lib/terminal/actions", () => ({
+vi.mock("@/lib/terminal/actions", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/terminal/actions")>()),
   copyTerminalSelection: mockCopyTerminalSelection,
   dropDataTransferToTerminal: vi.fn(),
   pasteClipboardApiToTerminal: mockPasteClipboardApiToTerminal,
@@ -2629,11 +2634,8 @@ describe("InteractiveTerminal integration — Mobile input adapter", () => {
       expect(pasteOptions?.onPasteFailure?.()).toBe(true);
     }
 
-    expect(onComposeRequest).toHaveBeenCalledWith({
-      draft: "echo first\necho second",
-      append: true,
-      targetLabel: undefined,
-    });
+    expect(onComposeRequest).not.toHaveBeenCalled();
+    expect(mockSend).toHaveBeenCalledExactlyOnceWith("echo first\necho second");
     unmount();
   });
 
@@ -2671,7 +2673,7 @@ describe("InteractiveTerminal integration — Mobile input adapter", () => {
     expect(secondPasteOptions?.onPasteFailure?.()).toBe(true);
     expect(firstPasteOptions?.onPasteFailure?.()).toBe(true);
 
-    expect(onComposeRequest.mock.calls.map(([request]) => request.draft)).toEqual([
+    expect(mockSend.mock.calls.map(([frame]) => frame)).toEqual([
       "second one\nsecond two",
       "first one\nfirst two",
     ]);
@@ -2704,15 +2706,13 @@ describe("InteractiveTerminal integration — Mobile input adapter", () => {
     if (typeof timeoutCallback !== "function") throw new Error("Paste timeout was not scheduled.");
     act(() => timeoutCallback());
 
-    expect(onComposeRequest).toHaveBeenCalledOnce();
-    expect(onComposeRequest).toHaveBeenCalledWith(
-      expect.objectContaining({ draft: "cached one\ncached two" }),
-    );
+    expect(onComposeRequest).not.toHaveBeenCalled();
+    expect(mockSend).toHaveBeenCalledExactlyOnceWith("cached one\ncached two");
     const pasteOptions = mockPasteClipboardApiToTerminal.mock.calls.at(-1)?.[2];
     expect(
       pasteOptions?.onPasteOutcome?.({ kind: "text", text: "late API text", multiline: false }),
     ).toBe(true);
-    expect(onComposeRequest).toHaveBeenCalledOnce();
+    expect(mockSend).toHaveBeenCalledOnce();
     timeoutSpy.mockRestore();
     unmount();
   });
@@ -2755,7 +2755,7 @@ describe("InteractiveTerminal integration — Mobile input adapter", () => {
     document.querySelector(".xterm")?.dispatchEvent(olderPaste);
     expect(firstPasteOptions?.onPasteFailure?.()).toBe(true);
 
-    expect(onComposeRequest.mock.calls.map(([request]) => request.draft)).toEqual([
+    expect(mockSend.mock.calls.map(([frame]) => frame)).toEqual([
       "newer one\nnewer two",
       "older one\nolder two",
     ]);

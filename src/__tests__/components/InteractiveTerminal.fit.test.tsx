@@ -19,6 +19,10 @@ vi.mock("@xterm/addon-fit", () => {
   return { FitAddon };
 });
 
+vi.mock("@/lib/terminal/browser-integration", () => ({
+  installTerminalBrowserIntegration: vi.fn(() => vi.fn()),
+}));
+
 vi.mock("@xterm/xterm", () => {
   class Terminal {
     rows = 24;

@@ -38,14 +38,18 @@ export function useXtermSurface({
 
     let mounted = true;
     let resizeTimer: ReturnType<typeof setTimeout> | null = null;
+    let browserCleanup: (() => void) | undefined;
     let readyCleanup: (() => void) | undefined;
     const host = containerRef.current;
 
     (async () => {
-      const [{ Terminal }, { FitAddon }] = await Promise.all([
-        import("@xterm/xterm"),
-        import("@xterm/addon-fit"),
-      ]);
+      const [{ Terminal }, { FitAddon }, { installTerminalBrowserIntegration }] = await Promise.all(
+        [
+          import("@xterm/xterm"),
+          import("@xterm/addon-fit"),
+          import("@/lib/terminal/browser-integration"),
+        ],
+      );
 
       if (!mounted || !containerRef.current) return;
 
@@ -55,12 +59,14 @@ export function useXtermSurface({
       const term = new Terminal({
         theme: TERMINAL_THEME,
         fontFamily: TERMINAL_FONT_FAMILY,
+        minimumContrastRatio: 4.5,
         ...terminalOptions,
       });
       const fit = new FitAddon();
 
       term.loadAddon(fit);
       term.open(containerRef.current);
+      browserCleanup = installTerminalBrowserIntegration(term);
       termRef.current = term;
       fitRef.current = fit;
 
@@ -87,6 +93,7 @@ export function useXtermSurface({
       if (resizeTimer) clearTimeout(resizeTimer);
       resizeObserver.disconnect();
       readyCleanup?.();
+      browserCleanup?.();
       onDispose?.();
       termRef.current?.dispose();
       termRef.current = null;

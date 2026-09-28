@@ -59,7 +59,24 @@ export interface ClipboardActionOptions {
   workspaceId?: string;
 }
 
-type TerminalSelection = Pick<Terminal, "getSelection" | "clearSelection">;
+type TerminalSelection = Pick<Terminal, "getSelection" | "clearSelection"> &
+  Pick<Partial<Terminal>, "element">;
+
+export function getTerminalSelectionText(term: {
+  getSelection?: () => string;
+  element?: HTMLElement;
+}): string {
+  const native = typeof window === "undefined" ? null : window.getSelection();
+  if (
+    native &&
+    term.element?.contains(native.anchorNode) &&
+    term.element.contains(native.focusNode)
+  ) {
+    const text = native.toString();
+    if (text) return text;
+  }
+  return term.getSelection?.() ?? "";
+}
 
 function emitStatus(
   options: ClipboardActionOptions | undefined,
@@ -122,6 +139,11 @@ function tryExecCommand(command: "copy" | "paste"): boolean {
 function execCommandCopyFallback(text: string): boolean {
   if (typeof document === "undefined" || !document.body) return false;
 
+  const selection = window.getSelection();
+  const ranges = selection
+    ? Array.from({ length: selection.rangeCount }, (_, i) => selection.getRangeAt(i).cloneRange())
+    : [];
+  const activeElement = document.activeElement;
   const textarea = document.createElement("textarea");
   textarea.value = text;
   textarea.setAttribute("readonly", "");
@@ -136,6 +158,11 @@ function execCommandCopyFallback(text: string): boolean {
     return false;
   } finally {
     textarea.remove();
+    if (activeElement instanceof HTMLElement) activeElement.focus({ preventScroll: true });
+    selection?.removeAllRanges();
+    for (const range of ranges) {
+      if (range.commonAncestorContainer.isConnected) selection?.addRange(range);
+    }
   }
 }
 
@@ -143,7 +170,7 @@ function completeCopyFallback(
   text: string,
   reason: ClipboardFallbackReason,
   options: ClipboardActionOptions | undefined,
-): void {
+): boolean {
   const fallbackSucceeded = execCommandCopyFallback(text);
 
   if (fallbackSucceeded) {
@@ -153,7 +180,7 @@ function completeCopyFallback(
       method: "exec-command",
       fallbackReason: reason,
     });
-    return;
+    return true;
   }
 
   emitStatus(options, {
@@ -163,6 +190,7 @@ function completeCopyFallback(
     fallbackAttempted: true,
   });
   console.warn("[clipboard] copy fallback failed");
+  return false;
 }
 
 function completePasteFallback(
@@ -206,7 +234,7 @@ export function copyTerminalSelection(
   term: TerminalSelection,
   options?: ClipboardActionOptions,
 ): boolean {
-  const selection = term.getSelection();
+  const selection = getTerminalSelectionText(term);
   if (!selection) {
     emitStatus(options, {
       action: "copy",
@@ -218,8 +246,8 @@ export function copyTerminalSelection(
 
   const clipboard = getClipboard();
   if (typeof clipboard?.writeText !== "function") {
-    completeCopyFallback(selection, "clipboard-api-unavailable", options);
-    term.clearSelection();
+    if (completeCopyFallback(selection, "clipboard-api-unavailable", options))
+      term.clearSelection();
     return false;
   }
 
@@ -227,6 +255,7 @@ export function copyTerminalSelection(
     const writeResult = clipboard.writeText(selection);
     void writeResult
       .then(() => {
+        if (getTerminalSelectionText(term) === selection) term.clearSelection();
         emitStatus(options, {
           action: "copy",
           outcome: "copied",
@@ -234,13 +263,14 @@ export function copyTerminalSelection(
         });
       })
       .catch((error: unknown) => {
-        completeCopyFallback(selection, classifyClipboardFailure(error), options);
+        if (completeCopyFallback(selection, classifyClipboardFailure(error), options))
+          term.clearSelection();
       });
   } catch (error) {
-    completeCopyFallback(selection, classifyClipboardFailure(error), options);
+    if (completeCopyFallback(selection, classifyClipboardFailure(error), options))
+      term.clearSelection();
   }
 
-  term.clearSelection();
   return false;
 }
 

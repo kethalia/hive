@@ -336,7 +336,8 @@ vi.mock("@/lib/actions/workspaces", () => ({
   renameSessionAction: (...args: unknown[]) => workspaceActions.renameSessionAction(...args),
 }));
 
-vi.mock("@/lib/terminal/actions", () => ({
+vi.mock("@/lib/terminal/actions", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/terminal/actions")>()),
   copyTerminalSelection: vi.fn(),
   pasteClipboardApiToTerminal: vi.fn(),
   pasteToTerminal: vi.fn(),
@@ -394,6 +395,10 @@ vi.mock("@xterm/addon-fit", () => {
 
   return { FitAddon };
 });
+
+vi.mock("@/lib/terminal/browser-integration", () => ({
+  installTerminalBrowserIntegration: vi.fn(() => vi.fn()),
+}));
 
 vi.mock("@xterm/xterm", () => {
   class Terminal {
