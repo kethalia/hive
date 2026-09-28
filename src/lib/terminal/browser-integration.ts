@@ -39,9 +39,12 @@ export const terminalClipboardProvider: IClipboardProvider = {
 /** Use standard terminal links and clipboard protocols, including in fullscreen TUIs. */
 export function installTerminalBrowserIntegration(term: Terminal): () => void {
   let hoveredUri: string | undefined;
+  let touchProbe: MouseEvent | undefined;
   let pressed: { uri: string; x: number; y: number } | undefined;
-  const hover = (_event: MouseEvent, uri: string) => {
+  const hover = (event: MouseEvent, uri: string) => {
+    if (touchProbe && event !== touchProbe) return;
     hoveredUri = uri;
+    if (touchProbe) pressed = { uri, x: touchProbe.clientX, y: touchProbe.clientY };
   };
   const leave = () => {
     hoveredUri = undefined;
@@ -78,30 +81,40 @@ export function installTerminalBrowserIntegration(term: Terminal): () => void {
   };
   const touchStart = (event: TouchEvent) => {
     pressed = undefined;
+    touchProbe = undefined;
+    hoveredUri = undefined;
     if (event.touches.length !== 1 || element?.closest('[data-terminal-selection-mode="true"]'))
       return;
     const touch = event.touches[0];
     // xterm's public link providers resolve on mouse movement; touch has no hover.
     const screen = element?.querySelector(".xterm-screen");
-    screen?.dispatchEvent(
-      new MouseEvent("mousemove", {
-        bubbles: true,
-        clientX: touch.clientX,
-        clientY: touch.clientY,
-      }),
-    );
-    if (hoveredUri) pressed = { uri: hoveredUri, x: touch.clientX, y: touch.clientY };
+    // Invalidate xterm's hover cache so a second tap at the same position also resolves.
+    screen?.dispatchEvent(new MouseEvent("mouseleave"));
+    touchProbe = new MouseEvent("mousemove", {
+      bubbles: true,
+      clientX: touch.clientX,
+      clientY: touch.clientY,
+    });
+    screen?.dispatchEvent(touchProbe);
   };
   const touchEnd = (event: TouchEvent) => {
     const link = pressed;
     pressed = undefined;
+    touchProbe = undefined;
     const touch = event.changedTouches[0];
-    if (!link || !touch || Math.hypot(touch.clientX - link.x, touch.clientY - link.y) >= 8) return;
+    if (
+      !link ||
+      !touch ||
+      hoveredUri !== link.uri ||
+      Math.hypot(touch.clientX - link.x, touch.clientY - link.y) >= 8
+    )
+      return;
     event.preventDefault();
     event.stopImmediatePropagation();
     openTerminalLink(link.uri);
   };
   const cancel = () => {
+    touchProbe = undefined;
     pressed = undefined;
   };
   element?.addEventListener("mousedown", mouseDown, true);

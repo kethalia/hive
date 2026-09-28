@@ -115,3 +115,76 @@ describe("terminal browser integration", () => {
     );
   });
 });
+
+function touchEvent(type: string, x = 10, y = 20): Event {
+  const event = new Event(type, { bubbles: true, cancelable: true });
+  Object.defineProperties(event, {
+    touches: { value: [{ clientX: x, clientY: y }] },
+    changedTouches: { value: [{ clientX: x, clientY: y }] },
+  });
+  return event;
+}
+
+it("does not open an old hover when touching padding without a link result", () => {
+  const open = vi.spyOn(window, "open").mockReturnValue(null);
+  const { term, dispose } = surface();
+  term.options.linkHandler?.hover?.(
+    new MouseEvent("mousemove"),
+    "https://old.example",
+    {} as never,
+  );
+  term.element.dispatchEvent(touchEvent("touchstart"));
+  term.element.dispatchEvent(touchEvent("touchend"));
+  expect(open).not.toHaveBeenCalled();
+  dispose();
+});
+
+it("opens only the current touch result, including delayed providers and repeated taps", () => {
+  const open = vi.spyOn(window, "open").mockReturnValue(null);
+  const { term, dispose } = surface();
+  const screen = document.createElement("div");
+  screen.className = "xterm-screen";
+  term.element.append(screen);
+  const probes: MouseEvent[] = [];
+  screen.addEventListener("mousemove", (event) => probes.push(event));
+  const hover = (event: MouseEvent, url: string) =>
+    term.options.linkHandler?.hover?.(event, url, {} as never);
+  term.element.dispatchEvent(touchEvent("touchstart"));
+  term.element.dispatchEvent(touchEvent("touchcancel"));
+  term.element.dispatchEvent(touchEvent("touchstart"));
+  hover(probes[0], "https://old.example");
+  term.element.dispatchEvent(touchEvent("touchend"));
+  expect(open).not.toHaveBeenCalled();
+  for (let i = 0; i < 2; i++) {
+    term.element.dispatchEvent(touchEvent("touchstart"));
+    hover(probes.at(-1)!, "https://current.example");
+    term.element.dispatchEvent(touchEvent("touchend"));
+  }
+  expect(open).toHaveBeenCalledTimes(2);
+  expect(open).toHaveBeenLastCalledWith(
+    "https://current.example/",
+    "_blank",
+    "noopener,noreferrer",
+  );
+  dispose();
+});
+
+it("does not activate a touch link that was invalidated before release", () => {
+  const open = vi.spyOn(window, "open").mockReturnValue(null);
+  const { term, dispose } = surface();
+  const screen = document.createElement("div");
+  screen.className = "xterm-screen";
+  term.element.append(screen);
+  screen.addEventListener("mousemove", (event) =>
+    term.options.linkHandler?.hover?.(event, "https://example.com", {} as never),
+  );
+  term.element.dispatchEvent(touchEvent("touchstart"));
+  term.options.linkHandler?.leave?.(
+    new MouseEvent("mouseleave"),
+    "https://example.com",
+    {} as never,
+  );
+  term.element.dispatchEvent(touchEvent("touchend"));
+  expect(open).not.toHaveBeenCalled();
+  dispose();
+});

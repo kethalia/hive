@@ -4,6 +4,13 @@ import { encodeTerminalShortcut } from "@/lib/terminal/shortcut-keys";
 const base = { ctrl: false, alt: false, shift: false };
 describe("terminal shortcut encoding", () => {
   it.each([
+    ["Space", { shift: true }, "\x1b[32;2u"],
+    ["Esc", { shift: true }, "\x1b[27;2u"],
+    ["Backspace", { shift: true }, "\x1b[127;2u"],
+    ["Tab", { alt: true, shift: true }, "\x1b[9;4u"],
+    ["Space", { alt: true, shift: true }, "\x1b[32;4u"],
+    ["Space", { ctrl: true }, "\0"],
+    ["Backspace", { alt: true }, "\x1b\x7f"],
     ["Enter", {}, "\r"],
     ["Space", {}, " "],
     ["Tab", { shift: true }, "\x1b[Z"],

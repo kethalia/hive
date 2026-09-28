@@ -244,10 +244,40 @@ export function copyTerminalSelection(
     return true;
   }
 
+  const native = typeof window === "undefined" ? null : window.getSelection();
+  const nativeSnapshot =
+    native &&
+    term.element?.contains(native.anchorNode) &&
+    term.element.contains(native.focusNode) &&
+    native.toString()
+      ? {
+          anchorNode: native.anchorNode,
+          anchorOffset: native.anchorOffset,
+          focusNode: native.focusNode,
+          focusOffset: native.focusOffset,
+        }
+      : null;
+  const clearCopiedSelection = () => {
+    if (nativeSnapshot) {
+      const current = window.getSelection();
+      if (
+        current?.anchorNode === nativeSnapshot.anchorNode &&
+        current.anchorOffset === nativeSnapshot.anchorOffset &&
+        current.focusNode === nativeSnapshot.focusNode &&
+        current.focusOffset === nativeSnapshot.focusOffset &&
+        current.toString() === selection
+      ) {
+        current.removeAllRanges();
+      }
+    } else if (term.getSelection() === selection) {
+      term.clearSelection();
+    }
+  };
+
   const clipboard = getClipboard();
   if (typeof clipboard?.writeText !== "function") {
     if (completeCopyFallback(selection, "clipboard-api-unavailable", options))
-      term.clearSelection();
+      clearCopiedSelection();
     return false;
   }
 
@@ -255,7 +285,7 @@ export function copyTerminalSelection(
     const writeResult = clipboard.writeText(selection);
     void writeResult
       .then(() => {
-        if (getTerminalSelectionText(term) === selection) term.clearSelection();
+        clearCopiedSelection();
         emitStatus(options, {
           action: "copy",
           outcome: "copied",
@@ -264,11 +294,11 @@ export function copyTerminalSelection(
       })
       .catch((error: unknown) => {
         if (completeCopyFallback(selection, classifyClipboardFailure(error), options))
-          term.clearSelection();
+          clearCopiedSelection();
       });
   } catch (error) {
     if (completeCopyFallback(selection, classifyClipboardFailure(error), options))
-      term.clearSelection();
+      clearCopiedSelection();
   }
 
   return false;

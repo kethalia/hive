@@ -66,6 +66,7 @@ in 0.157.0 and stopped at 0.157.1; no claim is made about unpublished 0.158 chan
   paste preserved; modified Enter forwarded as an extended key.
 
 Sources:
+
 - [Codex changelog](https://learn.chatgpt.com/docs/changelog)
 - [CLI commands and shortcuts](https://learn.chatgpt.com/docs/developer-commands)
 - [Codex keymap configuration](https://learn.chatgpt.com/docs/config-file/config-sample)
@@ -74,6 +75,7 @@ Sources:
 ## Browser validation handoff
 
 Workspace handoff required
+
 - Target template: `browser-testing`
 - Reason: Chrome, Playwright, and visual desktop/mobile validation belong to that profile.
 - Repository/path: `kethalia/hive`, branch `fix/terminal-codex-compatibility`, based on

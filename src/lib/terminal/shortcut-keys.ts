@@ -83,9 +83,10 @@ export function encodeTerminalShortcut(key: string, modifiers: TerminalKeyModifi
   const special: Record<string, number> = { Space: 32, Enter: 13, Tab: 9, Esc: 27, Backspace: 127 };
   let character = key.length === 1 ? key : String.fromCharCode(special[key] ?? 0);
   if (character === "\0") return "";
-  // Modified Enter and Ctrl+Shift combinations need distinct key identities.
+  // Legacy special-key sequences cannot retain Shift (except Shift+Tab above).
   if (
-    (key === "Enter" && (shift || ctrl)) ||
+    (shift && special[key] !== undefined) ||
+    (key === "Enter" && ctrl) ||
     (ctrl && shift) ||
     (ctrl && ["Tab", "Backspace"].includes(key))
   ) {

@@ -496,3 +496,84 @@ it("keeps terminal selection when both clipboard write methods fail", async () =
   );
   expect(term.clearSelection).not.toHaveBeenCalled();
 });
+
+describe("native selection copy completion", () => {
+  afterEach(() => {
+    window.getSelection()?.removeAllRanges();
+    document.body.replaceChildren();
+  });
+
+  function selectedTerminal() {
+    const element = document.createElement("div");
+    element.textContent = "selected text";
+    document.body.append(element);
+    const select = (target: HTMLElement = element) => {
+      const range = document.createRange();
+      range.selectNodeContents(target);
+      window.getSelection()?.removeAllRanges();
+      window.getSelection()?.addRange(range);
+    };
+    select();
+    return { element, select, getSelection: vi.fn(() => ""), clearSelection: vi.fn() };
+  }
+
+  it.each([
+    "api",
+    "fallback",
+    "missing-api",
+  ])("clears native selection on %s copy success", async (mode) => {
+    installClipboard({
+      writeText:
+        mode === "missing-api"
+          ? undefined
+          : mode === "api"
+            ? vi.fn().mockResolvedValue(undefined)
+            : vi.fn().mockRejectedValue(new Error("denied")),
+    });
+    installExecCommand(true);
+    const term = selectedTerminal();
+    const onStatus = vi.fn();
+    copyTerminalSelection(term, { onStatus });
+    await vi.waitFor(() =>
+      expect(onStatus).toHaveBeenCalledWith(expect.objectContaining({ outcome: "copied" })),
+    );
+    expect(window.getSelection()?.rangeCount).toBe(0);
+  });
+
+  it("preserves native selection when API and fallback both fail", async () => {
+    installClipboard({ writeText: vi.fn().mockRejectedValue(new Error("denied")) });
+    installExecCommand(false);
+    const term = selectedTerminal();
+    const onStatus = vi.fn();
+    copyTerminalSelection(term, { onStatus });
+    await vi.waitFor(() =>
+      expect(onStatus).toHaveBeenCalledWith(expect.objectContaining({ outcome: "failed" })),
+    );
+    expect(window.getSelection()?.toString()).toBe("selected text");
+  });
+
+  it.each([
+    false,
+    true,
+  ])("preserves a newer range while copy is pending (fallback: %s)", async (fallback) => {
+    let finish: (() => void) | undefined;
+    const write = new Promise<void>((resolve, reject) => {
+      finish = () => (fallback ? reject(new Error("denied")) : resolve());
+    });
+    installClipboard({ writeText: vi.fn(() => write) });
+    installExecCommand(true);
+    const term = selectedTerminal();
+    const onStatus = vi.fn();
+    copyTerminalSelection(term, { onStatus });
+    const replacement = document.createElement("span");
+    replacement.textContent = "selected text";
+    term.element.append(replacement);
+    term.select(replacement);
+    finish?.();
+    await vi.waitFor(() =>
+      expect(onStatus).toHaveBeenCalledWith(expect.objectContaining({ outcome: "copied" })),
+    );
+    expect(window.getSelection()?.anchorNode).toBe(replacement);
+    expect(window.getSelection()?.toString()).toBe("selected text");
+  });
+});

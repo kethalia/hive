@@ -2057,8 +2057,9 @@ export function MultiSessionWorkspace({
       return;
     }
 
-    const updateSelectionState = () =>
+    const updateSelectionState = () => {
       setHasTerminalSelection(Boolean(getTerminalSelectionText(activeTerminalEntry.term)));
+    };
     updateSelectionState();
 
     document.addEventListener("selectionchange", updateSelectionState);

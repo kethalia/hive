@@ -379,8 +379,9 @@ function TerminalInner({
       return;
     }
 
-    const updateSelectionState = () =>
+    const updateSelectionState = () => {
       setHasTerminalSelection(Boolean(getTerminalSelectionText(activeTerminal)));
+    };
     updateSelectionState();
 
     document.addEventListener("selectionchange", updateSelectionState);
