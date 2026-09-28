@@ -86,3 +86,15 @@ describe("workspace tool pane persistence", () => {
     expect(serialized).not.toContain("filesUrl");
   });
 });
+
+it("preserves separate file windows and their absolute targets", () => {
+  const panes = ["one", "two"].map((paneId) => ({
+    boardKey: "workspace-2",
+    sessionName: "main",
+    tool: "files" as const,
+    label: "file.png",
+    filePath: "/home/coder/file.png",
+    paneId,
+  }));
+  expect(parsePersistedWorkspaceToolPanes(serializeWorkspaceToolPanes(panes))).toEqual(panes);
+});

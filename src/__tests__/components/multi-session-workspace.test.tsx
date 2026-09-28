@@ -104,6 +104,7 @@ const terminalProps = new Map<
     onTerminalDestroy?: () => void;
     onUserFocusRequest?: () => void;
     onComposeRequest?: (request: { draft: string; append?: boolean; targetLabel?: string }) => void;
+    onFileAction?: import("@/lib/terminal/link-target").TerminalFileActionHandler;
     onClipboardStatus?: (status: {
       action: "paste";
       outcome: "uploading" | "pasted" | "empty" | "failed";
@@ -149,6 +150,7 @@ vi.mock("next/dynamic", () => ({
       onUserFocusRequest,
       onComposeRequest,
       onClipboardStatus,
+      onFileAction,
       mobileInputMode,
       suppressAutoFocus,
       pinToBottomOnResize,
@@ -180,6 +182,7 @@ vi.mock("next/dynamic", () => ({
         append?: boolean;
         targetLabel?: string;
       }) => void;
+      onFileAction?: import("@/lib/terminal/link-target").TerminalFileActionHandler;
       onClipboardStatus?: (status: {
         action: "paste";
         outcome: "uploading" | "pasted" | "empty" | "failed";
@@ -219,6 +222,7 @@ vi.mock("next/dynamic", () => ({
         onUserFocusRequest,
         onComposeRequest,
         onClipboardStatus,
+        onFileAction,
         mobileInputMode,
         suppressAutoFocus,
         pinToBottomOnResize,
@@ -761,6 +765,65 @@ describe("MultiSessionWorkspace", () => {
   afterEach(() => {
     cleanup();
     vi.restoreAllMocks();
+  });
+
+  it.each([
+    "open",
+    "new-workspace",
+  ] as const)("opens terminal files in independent windows with %s", async (action) => {
+    await renderTwoSessionWorkspace();
+    const filePath = "/home/coder/projects/hive/design.png";
+    mockGetWorkspaceSessionTools.mockResolvedValue({
+      data: {
+        codeUrl: "https://code.test",
+        filesUrl: "https://files.test/files/projects/hive/design.png",
+        folderPath: filePath,
+      },
+    });
+    await act(async () => {
+      terminalProps.get("main-session")?.onFileAction?.("design.png", action);
+    });
+    expect(mockGetWorkspaceSessionTools).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        filePath: "design.png",
+        tool: "files",
+        download: false,
+        sessionName: "main-session",
+      }),
+    );
+    expect(await screen.findByTestId("workspace-tool-frame-files")).toHaveAttribute(
+      "src",
+      "https://files.test/files/projects/hive/design.png",
+    );
+    const stored = JSON.parse(window.localStorage.getItem("workspace-tool-panes:workspace:ws-1")!);
+    expect(stored.panes[0]).toEqual(
+      expect.objectContaining({ filePath, paneId: expect.any(String) }),
+    );
+    if (action === "new-workspace") expect(stored.panes[0].boardKey).toBe("workspace-2");
+    if (action === "open") {
+      await act(async () => {
+        terminalProps.get("main-session")?.onFileAction?.("design.png", action);
+      });
+      expect(screen.getAllByTestId("workspace-tool-frame-files")).toHaveLength(2);
+    }
+  });
+
+  it("reserves a download window during the gesture and navigates after authorization", async () => {
+    await renderTwoSessionWorkspace();
+    const downloadWindow = { opener: window, location: { replace: vi.fn() }, close: vi.fn() };
+    const open = vi.spyOn(window, "open").mockReturnValue(downloadWindow as unknown as Window);
+    await act(async () => {
+      terminalProps.get("main-session")?.onFileAction?.("image.png", "download");
+    });
+    expect(open).toHaveBeenCalledWith("about:blank", "_blank");
+    expect(downloadWindow.opener).toBeNull();
+    expect(mockGetWorkspaceSessionTools).toHaveBeenCalledWith(
+      expect.objectContaining({ filePath: "image.png", download: true }),
+    );
+    expect(downloadWindow.location.replace).toHaveBeenCalledWith(
+      "https://filebrowser.test/files/home/coder",
+    );
+    expect(screen.queryByTestId("workspace-tool-frame-files")).not.toBeInTheDocument();
   });
 
   it("adds File Browser and VS Code as tiled workspace panes instead of dialogs", async () => {

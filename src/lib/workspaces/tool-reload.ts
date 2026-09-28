@@ -3,6 +3,8 @@ import type { WorkspaceTool } from "@/components/workspaces/WorkspaceSessionTool
 const WORKSPACE_TOOL_RELOAD_KEY = "hive:pending-workspace-tool";
 
 export interface PendingWorkspaceToolIntent {
+  filePath?: string;
+  paneId?: string;
   workspaceId: string;
   boardKey: string;
   sessionName: string;
@@ -33,6 +35,8 @@ function isPendingWorkspaceToolIntent(value: unknown): value is PendingWorkspace
   const requiredIdentifiers = [properties.workspaceId, properties.boardKey, properties.sessionName];
   const hasRequiredIdentifiers = requiredIdentifiers.every(isNonEmptyString);
   const hasValidTool = ["code", "files"].includes(String(properties.tool));
+  if (properties.filePath !== undefined && !isNonEmptyString(properties.filePath)) return false;
+  if (properties.paneId !== undefined && !isNonEmptyString(properties.paneId)) return false;
   return hasRequiredIdentifiers && hasValidTool && hasValidOptionalCloneIdentity(properties);
 }
 

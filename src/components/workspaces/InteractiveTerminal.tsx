@@ -74,6 +74,8 @@ export type RefreshCloneTerminalIdentity = (
   context: RefreshCloneTerminalIdentityContext,
 ) => Promise<RefreshedCloneTerminalIdentity> | RefreshedCloneTerminalIdentity;
 
+import type { TerminalFileActionHandler } from "@/lib/terminal/link-target";
+
 interface InteractiveTerminalProps {
   agentId: string;
   workspaceId: string;
@@ -88,6 +90,7 @@ interface InteractiveTerminalProps {
   onTerminalDestroy?: () => void;
   onUserFocusRequest?: () => void;
   onComposeRequest?: (request: TerminalComposeRequest) => void;
+  onFileAction?: TerminalFileActionHandler;
   onClipboardStatus?: (status: TerminalPasteStatus) => void;
   targetLabel?: string;
   layoutSignal?: unknown;
@@ -394,6 +397,7 @@ export function InteractiveTerminal({
   onUserFocusRequest,
   onComposeRequest,
   onClipboardStatus,
+  onFileAction,
   targetLabel,
   layoutSignal,
   mobileInputMode = false,
@@ -837,6 +841,7 @@ export function InteractiveTerminal({
 
   useXtermSurface({
     allowClipboardWrite: true,
+    onFileAction,
     containerRef,
     termRef,
     fitRef,

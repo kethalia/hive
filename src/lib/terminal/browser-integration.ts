@@ -2,6 +2,9 @@ import { ClipboardAddon, type IClipboardProvider } from "@xterm/addon-clipboard"
 import { WebLinksAddon } from "@xterm/addon-web-links";
 import type { Terminal } from "@xterm/xterm";
 import { toast } from "sonner";
+import { createTerminalLinkMenu } from "./link-menu";
+import { type TerminalFileActionHandler, terminalLinkTarget } from "./link-target";
+import { terminalPathLinkProvider } from "./path-link-provider";
 
 export function openTerminalLink(uri: string): void {
   try {
@@ -39,29 +42,43 @@ export const terminalClipboardProvider: IClipboardProvider = {
 /** Use standard terminal links and clipboard protocols, including in fullscreen TUIs. */
 export function installTerminalBrowserIntegration(
   term: Terminal,
-  { allowClipboardWrite = false }: { allowClipboardWrite?: boolean } = {},
+  {
+    allowClipboardWrite = false,
+    onFileAction,
+  }: { allowClipboardWrite?: boolean; onFileAction?: TerminalFileActionHandler } = {},
 ): () => void {
+  const menu = createTerminalLinkMenu(onFileAction);
   let hoveredUri: string | undefined;
   let touchProbe: MouseEvent | undefined;
   let pressed: { uri: string; x: number; y: number } | undefined;
   const hover = (event: MouseEvent, uri: string) => {
     if (touchProbe && event !== touchProbe) return;
+    if (!terminalLinkTarget(uri) || event.shiftKey) {
+      hoveredUri = undefined;
+      menu.close();
+      return;
+    }
     hoveredUri = uri;
+    if (!touchProbe) menu.hover(uri, event.clientX, event.clientY);
     if (touchProbe) pressed = { uri, x: touchProbe.clientX, y: touchProbe.clientY };
   };
   const leave = () => {
     hoveredUri = undefined;
+    menu.leave();
   };
   const activate = (event: MouseEvent, uri: string) => {
-    if (!event.shiftKey) openTerminalLink(uri);
+    if (!event.shiftKey) menu.show(uri, event.clientX, event.clientY, true);
   };
   const previousLinkHandler = term.options.linkHandler;
-  term.options.linkHandler = { activate, hover, leave, allowNonHttpProtocols: false };
+  term.options.linkHandler = { activate, hover, leave, allowNonHttpProtocols: true };
   const links = new WebLinksAddon(activate, { hover, leave });
   const clipboard = allowClipboardWrite
     ? new ClipboardAddon(undefined, terminalClipboardProvider)
     : undefined;
   term.loadAddon(links);
+  const paths = term.registerLinkProvider(
+    terminalPathLinkProvider(term, { activate, hover, leave }),
+  );
   if (clipboard) term.loadAddon(clipboard);
   const element = term.element;
 
@@ -69,6 +86,7 @@ export function installTerminalBrowserIntegration(
   // Shift-drag remains available for terminal selection.
   const mouseDown = (event: MouseEvent) => {
     pressed = undefined;
+    menu.close();
     if (!hoveredUri || event.button !== 0 || event.shiftKey) return;
     pressed = { uri: hoveredUri, x: event.clientX, y: event.clientY };
     event.preventDefault();
@@ -81,7 +99,7 @@ export function installTerminalBrowserIntegration(
     event.preventDefault();
     event.stopImmediatePropagation();
     if (hoveredUri === link.uri && Math.hypot(event.clientX - link.x, event.clientY - link.y) < 8) {
-      openTerminalLink(link.uri);
+      menu.show(link.uri, event.clientX, event.clientY, true);
     }
   };
   const touchStart = (event: TouchEvent) => {
@@ -131,11 +149,12 @@ export function installTerminalBrowserIntegration(
       return;
     event.preventDefault();
     event.stopImmediatePropagation();
-    openTerminalLink(link.uri);
+    menu.show(link.uri, touch.clientX, touch.clientY, true);
   };
   const cancel = () => {
     touchProbe = undefined;
     pressed = undefined;
+    menu.close();
   };
   const touchMove = (event: TouchEvent) => {
     const touch = event.touches[0];
@@ -147,6 +166,7 @@ export function installTerminalBrowserIntegration(
       cancel();
     }
   };
+  element?.addEventListener("wheel", menu.close, { passive: true });
   element?.addEventListener("mousedown", mouseDown, true);
   element?.addEventListener("mouseup", mouseUp, true);
   element?.addEventListener("touchstart", touchStart, { passive: true });
@@ -155,6 +175,7 @@ export function installTerminalBrowserIntegration(
   element?.addEventListener("touchcancel", cancel);
   element?.addEventListener("mouseleave", leave);
   return () => {
+    element?.removeEventListener("wheel", menu.close);
     element?.removeEventListener("mousedown", mouseDown, true);
     element?.removeEventListener("mouseup", mouseUp, true);
     element?.removeEventListener("touchstart", touchStart);
@@ -163,6 +184,8 @@ export function installTerminalBrowserIntegration(
     element?.removeEventListener("touchcancel", cancel);
     element?.removeEventListener("mouseleave", leave);
     term.options.linkHandler = previousLinkHandler;
+    paths.dispose();
+    menu.dispose();
     links.dispose();
     clipboard?.dispose();
   };
