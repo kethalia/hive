@@ -540,6 +540,31 @@ describe("native selection copy completion", () => {
     expect(window.getSelection()?.rangeCount).toBe(0);
   });
 
+  it.each([
+    true,
+    false,
+  ])("preserves backward selection direction during fallback (success: %s)", async (success) => {
+    installClipboard({ writeText: vi.fn().mockRejectedValue(new Error("denied")) });
+    installExecCommand(success);
+    const term = selectedTerminal();
+    const text = term.element.firstChild!;
+    window.getSelection()?.setBaseAndExtent(text, text.textContent!.length, text, 0);
+    const onStatus = vi.fn();
+    copyTerminalSelection(term, { onStatus });
+    await vi.waitFor(() =>
+      expect(onStatus).toHaveBeenCalledWith(
+        expect.objectContaining({ outcome: success ? "copied" : "failed" }),
+      ),
+    );
+    if (success) {
+      expect(window.getSelection()?.rangeCount).toBe(0);
+    } else {
+      expect(window.getSelection()?.toString()).toBe("selected text");
+      expect(window.getSelection()?.anchorOffset).toBe(text.textContent!.length);
+      expect(window.getSelection()?.focusOffset).toBe(0);
+    }
+  });
+
   it("preserves native selection when API and fallback both fail", async () => {
     installClipboard({ writeText: vi.fn().mockRejectedValue(new Error("denied")) });
     installExecCommand(false);

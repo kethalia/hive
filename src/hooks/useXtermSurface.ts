@@ -12,6 +12,7 @@ interface UseXtermSurfaceOptions {
   fitRef: MutableRefObject<FitAddon | null>;
   terminalOptions: ITerminalOptions;
   resizeDelayMs?: number;
+  allowClipboardWrite?: boolean;
   recreateKey: string;
   onReady?: (
     term: Terminal,
@@ -27,6 +28,7 @@ export function useXtermSurface({
   fitRef,
   terminalOptions,
   resizeDelayMs = 50,
+  allowClipboardWrite = false,
   recreateKey,
   onReady,
   onResize,
@@ -66,7 +68,7 @@ export function useXtermSurface({
 
       term.loadAddon(fit);
       term.open(containerRef.current);
-      browserCleanup = installTerminalBrowserIntegration(term);
+      browserCleanup = installTerminalBrowserIntegration(term, { allowClipboardWrite });
       termRef.current = term;
       fitRef.current = fit;
 

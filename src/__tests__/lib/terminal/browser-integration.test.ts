@@ -14,12 +14,13 @@ afterEach(() => {
   document.body.replaceChildren();
 });
 
-function surface() {
+function surface(allowClipboardWrite = false) {
   const element = document.createElement("div");
   document.body.append(element);
   const osc = new Map<number, (data: string) => unknown>();
   const term = {
     element,
+    cols: 80,
     options: {} as Terminal["options"],
     parser: {
       registerOscHandler: vi.fn((id: number, handler: (data: string) => unknown) => {
@@ -31,7 +32,9 @@ function surface() {
     registerLinkProvider: vi.fn(() => ({ dispose: vi.fn() })),
     loadAddon: vi.fn((addon) => addon.activate(term)),
   };
-  const dispose = installTerminalBrowserIntegration(term as unknown as Terminal);
+  const dispose = installTerminalBrowserIntegration(term as unknown as Terminal, {
+    allowClipboardWrite,
+  });
   return { term, osc, dispose };
 }
 
@@ -92,7 +95,7 @@ describe("terminal browser integration", () => {
       configurable: true,
       value: { writeText, readText },
     });
-    const { term, osc, dispose } = surface();
+    const { term, osc, dispose } = surface(true);
     const text = "a complete\nCodex selection";
     await osc.get(52)?.(`c;${btoa(text)}`);
     expect(writeText).toHaveBeenCalledExactlyOnceWith(text);
@@ -186,5 +189,54 @@ it("does not activate a touch link that was invalidated before release", () => {
   );
   term.element.dispatchEvent(touchEvent("touchend"));
   expect(open).not.toHaveBeenCalled();
+  dispose();
+});
+
+it("does not register clipboard protocols on read-only surfaces", () => {
+  const { osc, dispose } = surface();
+  expect(osc.has(52)).toBe(false);
+  dispose();
+});
+
+it.each([
+  0, 1, 7, 8, 20,
+])("rechecks the same xterm cell and tolerates %s px of touch movement", (movement) => {
+  const open = vi.spyOn(window, "open").mockReturnValue(null);
+  const { term, dispose } = surface();
+  const screen = document.createElement("div");
+  screen.className = "xterm-screen";
+  term.element.append(screen);
+  vi.spyOn(screen, "getBoundingClientRect").mockReturnValue({
+    left: 0,
+    right: 800,
+    width: 800,
+  } as DOMRect);
+  const remoteMotion = vi.fn();
+  term.element.addEventListener("mousemove", remoteMotion);
+  // Match xterm 6's Linkifier contract: mouseleave clears the link but retains
+  // the last buffer cell, and mousemove only queries when that cell changes.
+  let lastColumn = 0;
+  let currentLink = false;
+  screen.addEventListener("mouseleave", (event) => {
+    currentLink = false;
+    term.options.linkHandler?.leave?.(event, "https://example.com", {} as never);
+  });
+  screen.addEventListener("mousemove", (event) => {
+    const column = Math.ceil(event.clientX / 10);
+    if (column === lastColumn) return;
+    lastColumn = column;
+    if (column !== 1) return;
+    currentLink = true;
+    term.options.linkHandler?.hover?.(event, "https://example.com", {} as never);
+  });
+  for (let i = 0; i < 2; i++) {
+    term.element.dispatchEvent(touchEvent("touchstart"));
+    expect(currentLink).toBe(true);
+    term.element.dispatchEvent(touchEvent("touchmove", 10 + movement));
+    // Returning to the start must not turn an actual scroll into a tap.
+    term.element.dispatchEvent(touchEvent("touchend"));
+  }
+  expect(open).toHaveBeenCalledTimes(movement < 8 ? 2 : 0);
+  expect(remoteMotion).not.toHaveBeenCalled();
   dispose();
 });

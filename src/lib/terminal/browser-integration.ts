@@ -37,7 +37,10 @@ export const terminalClipboardProvider: IClipboardProvider = {
 };
 
 /** Use standard terminal links and clipboard protocols, including in fullscreen TUIs. */
-export function installTerminalBrowserIntegration(term: Terminal): () => void {
+export function installTerminalBrowserIntegration(
+  term: Terminal,
+  { allowClipboardWrite = false }: { allowClipboardWrite?: boolean } = {},
+): () => void {
   let hoveredUri: string | undefined;
   let touchProbe: MouseEvent | undefined;
   let pressed: { uri: string; x: number; y: number } | undefined;
@@ -55,9 +58,11 @@ export function installTerminalBrowserIntegration(term: Terminal): () => void {
   const previousLinkHandler = term.options.linkHandler;
   term.options.linkHandler = { activate, hover, leave, allowNonHttpProtocols: false };
   const links = new WebLinksAddon(activate, { hover, leave });
-  const clipboard = new ClipboardAddon(undefined, terminalClipboardProvider);
+  const clipboard = allowClipboardWrite
+    ? new ClipboardAddon(undefined, terminalClipboardProvider)
+    : undefined;
   term.loadAddon(links);
-  term.loadAddon(clipboard);
+  if (clipboard) term.loadAddon(clipboard);
   const element = term.element;
 
   // Link clicks belong to the browser, not the remote application's mouse handler.
@@ -88,13 +93,28 @@ export function installTerminalBrowserIntegration(term: Terminal): () => void {
     const touch = event.touches[0];
     // xterm's public link providers resolve on mouse movement; touch has no hover.
     const screen = element?.querySelector(".xterm-screen");
-    // Invalidate xterm's hover cache so a second tap at the same position also resolves.
-    screen?.dispatchEvent(new MouseEvent("mouseleave"));
     touchProbe = new MouseEvent("mousemove", {
-      bubbles: true,
       clientX: touch.clientX,
       clientY: touch.clientY,
     });
+    // xterm retains its last buffer cell on mouseleave. Visit a different column
+    // first so repeated taps trigger a fresh lookup. Keep probes on the screen:
+    // bubbling would send synthetic mouse motion to the remote application.
+    const rect = screen?.getBoundingClientRect();
+    if (rect && rect.width > 0) {
+      const cellWidth = rect.width / term.cols;
+      const resetX =
+        touch.clientX <= rect.left + cellWidth
+          ? rect.right - cellWidth / 2
+          : rect.left + cellWidth / 2;
+      screen?.dispatchEvent(
+        new MouseEvent("mousemove", {
+          clientX: resetX,
+          clientY: touch.clientY,
+        }),
+      );
+    }
+    screen?.dispatchEvent(new MouseEvent("mouseleave"));
     screen?.dispatchEvent(touchProbe);
   };
   const touchEnd = (event: TouchEvent) => {
@@ -117,11 +137,21 @@ export function installTerminalBrowserIntegration(term: Terminal): () => void {
     touchProbe = undefined;
     pressed = undefined;
   };
+  const touchMove = (event: TouchEvent) => {
+    const touch = event.touches[0];
+    if (
+      !touchProbe ||
+      event.touches.length !== 1 ||
+      Math.hypot(touch.clientX - touchProbe.clientX, touch.clientY - touchProbe.clientY) >= 8
+    ) {
+      cancel();
+    }
+  };
   element?.addEventListener("mousedown", mouseDown, true);
   element?.addEventListener("mouseup", mouseUp, true);
   element?.addEventListener("touchstart", touchStart, { passive: true });
   element?.addEventListener("touchend", touchEnd, { passive: false });
-  element?.addEventListener("touchmove", cancel, { passive: true });
+  element?.addEventListener("touchmove", touchMove, { passive: true });
   element?.addEventListener("touchcancel", cancel);
   element?.addEventListener("mouseleave", leave);
   return () => {
@@ -129,11 +159,11 @@ export function installTerminalBrowserIntegration(term: Terminal): () => void {
     element?.removeEventListener("mouseup", mouseUp, true);
     element?.removeEventListener("touchstart", touchStart);
     element?.removeEventListener("touchend", touchEnd);
-    element?.removeEventListener("touchmove", cancel);
+    element?.removeEventListener("touchmove", touchMove);
     element?.removeEventListener("touchcancel", cancel);
     element?.removeEventListener("mouseleave", leave);
     term.options.linkHandler = previousLinkHandler;
     links.dispose();
-    clipboard.dispose();
+    clipboard?.dispose();
   };
 }

@@ -143,6 +143,15 @@ function execCommandCopyFallback(text: string): boolean {
   const ranges = selection
     ? Array.from({ length: selection.rangeCount }, (_, i) => selection.getRangeAt(i).cloneRange())
     : [];
+  const direction =
+    selection?.anchorNode && selection.focusNode
+      ? {
+          anchorNode: selection.anchorNode,
+          anchorOffset: selection.anchorOffset,
+          focusNode: selection.focusNode,
+          focusOffset: selection.focusOffset,
+        }
+      : null;
   const activeElement = document.activeElement;
   const textarea = document.createElement("textarea");
   textarea.value = text;
@@ -162,6 +171,18 @@ function execCommandCopyFallback(text: string): boolean {
     selection?.removeAllRanges();
     for (const range of ranges) {
       if (range.commonAncestorContainer.isConnected) selection?.addRange(range);
+    }
+    if (
+      ranges.length === 1 &&
+      direction?.anchorNode.isConnected &&
+      direction.focusNode.isConnected
+    ) {
+      selection?.setBaseAndExtent(
+        direction.anchorNode,
+        direction.anchorOffset,
+        direction.focusNode,
+        direction.focusOffset,
+      );
     }
   }
 }
