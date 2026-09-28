@@ -283,8 +283,8 @@ it("shows file actions on hover and keeps the menu open while entering it", () =
   expect(buttons.map((button) => button.textContent)).toEqual([
     "Copy path",
     "Download",
-    "Open in Files in a new window",
-    "Open in Files in a new workspace",
+    "Open in Files (new window)",
+    "Open in Files (new workspace)",
   ]);
   buttons[3].click();
   expect(onFileAction).toHaveBeenCalledWith("/home/coder/my file.png", "new-workspace");
