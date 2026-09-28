@@ -3,6 +3,8 @@ export const WORKSPACE_TOOL_PANE_STATE_VERSION = 1;
 export type PersistedWorkspaceTool = "code" | "files" | "logs";
 
 export interface PersistedWorkspaceToolPane {
+  filePath?: string;
+  paneId?: string;
   boardKey: string;
   sessionName: string;
   tool: PersistedWorkspaceTool;
@@ -60,7 +62,17 @@ function parsePane(value: unknown): PersistedWorkspaceToolPane | null {
   const relativePath = safeRelativePath(value.relativePath);
   if (Boolean(cloneSessionKey) !== Boolean(relativePath)) return null;
 
+  if (
+    value.filePath !== undefined &&
+    (typeof value.filePath !== "string" ||
+      !value.filePath.startsWith("/") ||
+      value.filePath.length > 4096)
+  )
+    return null;
+  if (value.paneId !== undefined && !safeString(value.paneId)) return null;
   const pane = {
+    ...(typeof value.filePath === "string" ? { filePath: value.filePath } : {}),
+    ...(typeof value.paneId === "string" ? { paneId: value.paneId } : {}),
     boardKey,
     sessionName,
     tool,
@@ -92,7 +104,7 @@ export function parsePersistedWorkspaceToolPanes(
     for (const candidate of parsed.panes.slice(0, MAX_PANES)) {
       const pane = parsePane(candidate);
       if (!pane) continue;
-      const identity = `${pane.boardKey}\0${pane.sessionName}\0${pane.tool}`;
+      const identity = `${pane.boardKey}\0${pane.sessionName}\0${pane.tool}\0${pane.paneId ?? ""}`;
       if (seen.has(identity)) continue;
       seen.add(identity);
       panes.push(pane);

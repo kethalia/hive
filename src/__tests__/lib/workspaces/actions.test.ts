@@ -565,6 +565,40 @@ describe("workspace server actions", () => {
     expect(result?.serverError).toMatch(/timed out/i);
   });
 
+  it.each([
+    false,
+    true,
+  ])("resolves terminal file paths and download=%s against tmux cwd", async (download) => {
+    mockGetWorkspace.mockResolvedValueOnce({
+      id: "ws-1",
+      name: "dev-box",
+      owner_name: "alice",
+      template_id: "tpl-1",
+      latest_build: { id: "build-1", status: "running", job: { status: "succeeded" } },
+    });
+    mockedExec.mockResolvedValueOnce({
+      stdout: "/home/coder/projects/hive\n",
+      stderr: "",
+      exitCode: 0,
+    });
+    const { getWorkspaceSessionToolsAction } = await import("@/lib/actions/workspaces");
+    const result = await getWorkspaceSessionToolsAction({
+      workspaceId: "ws-1",
+      sessionName: "main",
+      tool: "files",
+      documentFrameHosts: [],
+      filePath: "docs/a #b.png",
+      download,
+    });
+    expect(result?.data?.folderPath).toBe("/home/coder/projects/hive/docs/a #b.png");
+    expect(result?.data?.filesUrl).toContain(
+      `${download ? "/api/raw" : "/files"}/projects/hive/docs/a%20%23b.png`,
+    );
+    expect(mockGetApplicationAuthRedirect).toHaveBeenCalledWith(
+      expect.stringContaining(download ? "/api/raw/" : "/files/"),
+    );
+  });
+
   it("resolves embedded VS Code and File Browser URLs from the tmux pane directory", async () => {
     mockGetWorkspace.mockResolvedValueOnce({
       id: "ws-1",

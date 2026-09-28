@@ -14,7 +14,10 @@ afterEach(() => {
   document.body.replaceChildren();
 });
 
-function surface(allowClipboardWrite = false) {
+function surface(
+  allowClipboardWrite = false,
+  onFileAction?: import("@/lib/terminal/link-target").TerminalFileActionHandler,
+) {
   const element = document.createElement("div");
   document.body.append(element);
   const osc = new Map<number, (data: string) => unknown>();
@@ -34,6 +37,7 @@ function surface(allowClipboardWrite = false) {
   };
   const dispose = installTerminalBrowserIntegration(term as unknown as Terminal, {
     allowClipboardWrite,
+    onFileAction,
   });
   return { term, osc, dispose };
 }
@@ -66,6 +70,8 @@ describe("terminal browser integration", () => {
     term.element.dispatchEvent(new MouseEvent("mousedown", { bubbles: true, cancelable: true }));
     term.element.dispatchEvent(new MouseEvent("mouseup", { bubbles: true, cancelable: true }));
     expect(remote).not.toHaveBeenCalled();
+    expect(open).not.toHaveBeenCalled();
+    clickOpenUrl();
     expect(open).toHaveBeenCalledOnce();
     dispose();
     term.element.dispatchEvent(new MouseEvent("mousedown"));
@@ -162,6 +168,7 @@ it("opens only the current touch result, including delayed providers and repeate
     term.element.dispatchEvent(touchEvent("touchstart"));
     hover(probes.at(-1)!, "https://current.example");
     term.element.dispatchEvent(touchEvent("touchend"));
+    clickOpenUrl();
   }
   expect(open).toHaveBeenCalledTimes(2);
   expect(open).toHaveBeenLastCalledWith(
@@ -235,8 +242,64 @@ it.each([
     term.element.dispatchEvent(touchEvent("touchmove", 10 + movement));
     // Returning to the start must not turn an actual scroll into a tap.
     term.element.dispatchEvent(touchEvent("touchend"));
+    if (movement < 8) clickOpenUrl();
+    else expect(document.querySelector("[role=menu]")).toBeNull();
   }
   expect(open).toHaveBeenCalledTimes(movement < 8 ? 2 : 0);
   expect(remoteMotion).not.toHaveBeenCalled();
+  dispose();
+});
+
+function clickOpenUrl() {
+  const button = Array.from(document.querySelectorAll<HTMLButtonElement>("[role=menuitem]")).find(
+    (item) => item.textContent === "Open URL in browser",
+  );
+  expect(button).toBeDefined();
+  button?.click();
+}
+
+it("shows file actions on hover and keeps the menu open while entering it", () => {
+  vi.useFakeTimers();
+  const onFileAction = vi.fn();
+  const { term, dispose } = surface(false, onFileAction);
+  term.options.linkHandler?.hover?.(
+    new MouseEvent("mousemove", { clientX: 20, clientY: 30 }),
+    "file:///home/coder/my%20file.png",
+    {} as never,
+  );
+  expect(document.querySelector("[role=menu]")).toBeNull();
+  vi.advanceTimersByTime(400);
+  const menu = document.querySelector("[role=menu]")!;
+  expect(menu).not.toBeNull();
+  term.options.linkHandler?.leave?.(
+    new MouseEvent("mouseleave"),
+    "file:///home/coder/my%20file.png",
+    {} as never,
+  );
+  menu.dispatchEvent(new Event("pointerenter"));
+  vi.advanceTimersByTime(500);
+  expect(menu.isConnected).toBe(true);
+  const buttons = Array.from(menu.querySelectorAll("button"));
+  expect(buttons.map((button) => button.textContent)).toEqual([
+    "Copy path",
+    "Download",
+    "Open in Files in a new window",
+    "Open in Files in a new workspace",
+  ]);
+  buttons[3].click();
+  expect(onFileAction).toHaveBeenCalledWith("/home/coder/my file.png", "new-workspace");
+  expect(menu.isConnected).toBe(false);
+  dispose();
+  vi.useRealTimers();
+});
+
+it("rejects unsafe OSC links and dismisses a menu with Escape", () => {
+  const { term, dispose } = surface();
+  term.options.linkHandler?.activate(new MouseEvent("click"), "javascript:alert(1)", {} as never);
+  expect(document.querySelector("[role=menu]")).toBeNull();
+  term.options.linkHandler?.activate(new MouseEvent("click"), "https://example.com", {} as never);
+  expect(document.querySelector("[role=menu]")).not.toBeNull();
+  document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }));
+  expect(document.querySelector("[role=menu]")).toBeNull();
   dispose();
 });

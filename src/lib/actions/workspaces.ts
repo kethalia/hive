@@ -18,6 +18,7 @@ import {
 import { isRetiredWorkspaceTemplate, workspaceTemplateCapabilities } from "@/lib/templates/catalog";
 import { execInWorkspace } from "@/lib/workspace/exec";
 import { filterGenericTmuxSessions, parseTmuxSessions } from "@/lib/workspaces/sessions";
+import { resolveTerminalFilePath } from "@/lib/workspaces/terminal-file-path";
 import {
   buildCodeServerFolderUrl,
   buildFileBrowserFolderUrl,
@@ -204,6 +205,8 @@ const getWorkspaceSessionsSchema = z.object({
 });
 
 const workspaceSessionToolsSchema = z.object({
+  filePath: z.string().min(1).max(4096).optional(),
+  download: z.boolean().optional(),
   workspaceId: z.string().min(1, "workspaceId is required"),
   sessionName: z
     .string()
@@ -369,8 +372,11 @@ export const getWorkspaceSessionToolsAction = authActionClient
       sessionName: parsedInput.sessionName,
       sessionToken: client.getSessionToken(),
     });
-    const folderPath =
+    const currentPath =
       currentDirectory ?? resolveWorkspaceFallbackDirectory(parsedInput.fallbackPath) ?? undefined;
+    const folderPath = parsedInput.filePath
+      ? resolveTerminalFilePath(parsedInput.filePath, currentPath, resolveConfiguredProjectsRoot())
+      : currentPath;
     const urls = buildWorkspaceUrls(workspace, agent.name, client.getBaseUrl(), applicationsHost);
     if (!urls) throw new Error("Coder URL is unavailable for workspace tools");
     // Coder app subdomains are isolated browser origins and are the supported
@@ -378,11 +384,17 @@ export const getWorkspaceSessionToolsAction = authActionClient
     // extends trust for Hive's server-side requests; it must not switch the browser
     // to a same-origin Coder path app, whose framing and sharing rules differ.
     const requestedCodeUrl = buildCodeServerFolderUrl(urls.codeServer, folderPath);
-    const requestedFilesUrl = buildFileBrowserFolderUrl(
+    let requestedFilesUrl = buildFileBrowserFolderUrl(
       urls.filebrowser,
       folderPath,
       resolveConfiguredProjectsRoot(),
     );
+
+    if (parsedInput.download && parsedInput.filePath) {
+      const downloadUrl = new URL(requestedFilesUrl);
+      downloadUrl.pathname = downloadUrl.pathname.replace(/^\/files(?=\/|$)/, "/api/raw");
+      requestedFilesUrl = downloadUrl.toString();
+    }
 
     const codeUrl =
       parsedInput.tool === "code"

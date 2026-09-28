@@ -172,6 +172,7 @@ import {
 } from "@/lib/workspaces/workspace-window-layout";
 
 interface InteractiveTerminalComponentProps {
+  onFileAction?: import("@/lib/terminal/link-target").TerminalFileActionHandler;
   agentId: string;
   workspaceId: string;
   sessionName: string;
@@ -255,6 +256,8 @@ const workspaceWindowCollisionDetection: CollisionDetection = (args) => {
 };
 
 interface WorkspaceToolPane {
+  filePath?: string;
+  paneId?: string;
   key: string;
   boardKey: string;
   sourceSessionName: string;
@@ -751,6 +754,8 @@ function workspaceWindowLayoutRoot(
 
 function persistedWorkspaceToolPane(pane: WorkspaceToolPane): PersistedWorkspaceToolPane {
   return {
+    filePath: pane.filePath,
+    paneId: pane.paneId,
     boardKey: pane.boardKey,
     sessionName: pane.sourceSessionName,
     tool: pane.tool,
@@ -766,7 +771,9 @@ function resolvedWorkspaceToolPane(
   urls: WorkspaceSessionToolUrls,
 ): WorkspaceToolPane {
   return {
-    key: `workspace-tool:${descriptor.boardKey}:${descriptor.sessionName}:${descriptor.tool}`,
+    key: `workspace-tool:${descriptor.boardKey}:${descriptor.sessionName}:${descriptor.tool}${descriptor.paneId ? `:${descriptor.paneId}` : ""}`,
+    filePath: descriptor.filePath,
+    paneId: descriptor.paneId,
     boardKey: descriptor.boardKey,
     sourceSessionName: descriptor.sessionName,
     tool: descriptor.tool,
@@ -806,7 +813,9 @@ function sessionLogWorkspaceToolPane(descriptor: PersistedWorkspaceToolPane): Wo
 
 function pendingWorkspaceToolPane(descriptor: PersistedWorkspaceToolPane): WorkspaceToolPane {
   return {
-    key: `workspace-tool:${descriptor.boardKey}:${descriptor.sessionName}:${descriptor.tool}`,
+    key: `workspace-tool:${descriptor.boardKey}:${descriptor.sessionName}:${descriptor.tool}${descriptor.paneId ? `:${descriptor.paneId}` : ""}`,
+    filePath: descriptor.filePath,
+    paneId: descriptor.paneId,
     boardKey: descriptor.boardKey,
     sourceSessionName: descriptor.sessionName,
     tool: descriptor.tool,
@@ -2456,6 +2465,7 @@ export function MultiSessionWorkspace({
               workspaceId,
               sessionName: descriptor.sessionName,
               fallbackPath,
+              filePath: descriptor.filePath,
               documentFrameHosts: readDocumentCoderFrameHosts(),
               tool: externalTool,
             });
@@ -2477,6 +2487,8 @@ export function MultiSessionWorkspace({
                 boardKey: descriptor.boardKey,
                 sessionName: descriptor.sessionName,
                 tool: externalTool,
+                filePath: descriptor.filePath,
+                paneId: descriptor.paneId,
                 ...(descriptor.cloneSessionKey && descriptor.relativePath
                   ? {
                       cloneSessionKey: descriptor.cloneSessionKey,
@@ -2969,6 +2981,7 @@ export function MultiSessionWorkspace({
       tool: WorkspaceTool,
       urls: WorkspaceSessionToolUrls,
       expectedBoardGeneration: number,
+      file?: { filePath: string; paneId: string },
     ) => {
       if ((boardGenerationRef.current.get(boardKey) ?? 0) !== expectedBoardGeneration) return;
       if (urls.reloadRequired) {
@@ -2977,6 +2990,7 @@ export function MultiSessionWorkspace({
           boardKey,
           sessionName: session.sessionName,
           tool,
+          ...file,
           ...(session.cloneSessionKey && session.relativePath
             ? {
                 cloneSessionKey: session.cloneSessionKey,
@@ -2992,7 +3006,10 @@ export function MultiSessionWorkspace({
           boardKey,
           sessionName: session.sessionName,
           tool,
-          label: workspaceSessionPresentation(session).title,
+          label: file
+            ? (file.filePath.split("/").pop() ?? session.label)
+            : workspaceSessionPresentation(session).title,
+          ...file,
           ...(session.cloneSessionKey && session.relativePath
             ? {
                 cloneSessionKey: session.cloneSessionKey,
@@ -3064,6 +3081,7 @@ export function MultiSessionWorkspace({
       session: WorkspaceSessionPane,
       tool: WorkspaceTool,
       origin?: { boardKey: string; boardGeneration: number },
+      file?: { filePath: string; paneId: string },
     ) => {
       if ((tool === "code" && !canOpenCode) || (tool === "files" && !canOpenFiles)) {
         toast.error(`${tool === "code" ? "VS Code" : "File Browser"} is not available here.`);
@@ -3080,6 +3098,7 @@ export function MultiSessionWorkspace({
           workspaceId,
           sessionName: session.sessionName,
           fallbackPath: session.clonePath,
+          ...(file ? { filePath: file.filePath } : {}),
           documentFrameHosts: readDocumentCoderFrameHosts(),
           tool,
         });
@@ -3089,7 +3108,7 @@ export function MultiSessionWorkspace({
           toast.error("Could not open workspace tools for this session.");
           return;
         }
-        openWorkspaceToolPane(requestBoardKey, session, tool, urls, requestBoardGeneration);
+        openWorkspaceToolPane(requestBoardKey, session, tool, urls, requestBoardGeneration, file);
       } catch {
         if (latestWorkspaceIdRef.current === requestWorkspaceId) {
           toast.error("Could not open workspace tools for this session.");
@@ -3099,8 +3118,83 @@ export function MultiSessionWorkspace({
     [activeBoard, canOpenCode, canOpenFiles, openWorkspaceToolPane, workspaceId],
   );
 
+  const openTerminalFile = useCallback(
+    async (
+      session: WorkspaceSessionPane,
+      boardKey: string,
+      path: string,
+      action: "download" | "open" | "new-workspace",
+    ) => {
+      if (!canOpenFiles) {
+        toast.error("File Browser is not available here.");
+        return;
+      }
+      const requestWorkspaceId = workspaceId;
+      const generation = boardGenerationRef.current.get(boardKey) ?? 0;
+      // Reserve the browser window during the gesture, before authorization awaits.
+      const downloadWindow = action === "download" ? window.open("about:blank", "_blank") : null;
+      if (downloadWindow) downloadWindow.opener = null;
+      if (action === "download" && !downloadWindow) {
+        toast.error("Allow pop-ups to download this file.");
+        return;
+      }
+      try {
+        const result = await getWorkspaceSessionToolsAction({
+          workspaceId,
+          sessionName: session.sessionName,
+          fallbackPath: session.clonePath,
+          filePath: path,
+          download: action === "download",
+          tool: "files",
+          documentFrameHosts: readDocumentCoderFrameHosts(),
+        });
+        if (
+          latestWorkspaceIdRef.current !== requestWorkspaceId ||
+          (boardGenerationRef.current.get(boardKey) ?? 0) !== generation
+        ) {
+          downloadWindow?.close();
+          return;
+        }
+        const urls = unwrapActionData(result);
+        if (!isWorkspaceSessionToolUrls(urls) || !urls.folderPath)
+          throw new Error(
+            "Could not open this file. Check that the path exists inside the File Browser root.",
+          );
+        if (downloadWindow) {
+          downloadWindow.location.replace(urls.filesUrl);
+          return;
+        }
+        let targetBoard = boardKey;
+        if (action === "new-workspace") {
+          const current = boardStateRef.current;
+          const next = createWorkspaceBoard(current, `Workspace ${current.boards.length + 1}`);
+          persistBoardState(next);
+          if (!next.activeBoardKey || next.activeBoardKey === current.activeBoardKey)
+            throw new Error("Could not create another workspace.");
+          targetBoard = next.activeBoardKey;
+        }
+        openWorkspaceToolPane(
+          targetBoard,
+          session,
+          "files",
+          urls,
+          boardGenerationRef.current.get(targetBoard) ?? 0,
+          { filePath: urls.folderPath, paneId: crypto.randomUUID() },
+        );
+      } catch (error) {
+        downloadWindow?.close();
+        toast.error(error instanceof Error ? error.message : "Could not open this file.");
+      }
+    },
+    [canOpenFiles, workspaceId, persistBoardState, openWorkspaceToolPane],
+  );
+
   const openWorkspaceToolForGitRepository = useCallback(
-    async (repository: GitRepositoryOption, tool: WorkspaceTool | "logs") => {
+    async (
+      repository: GitRepositoryOption,
+      tool: WorkspaceTool | "logs",
+      file?: { filePath: string; paneId: string },
+    ) => {
       if ((tool === "code" && !canOpenCode) || (tool === "files" && !canOpenFiles)) {
         toast.error(`${tool === "code" ? "VS Code" : "File Browser"} is not available here.`);
         return;
@@ -3155,10 +3249,15 @@ export function MultiSessionWorkspace({
             boardGeneration: requestBoardGeneration,
           });
         } else {
-          await openWorkspaceToolForSession(session, tool, {
-            boardKey: requestBoardKey,
-            boardGeneration: requestBoardGeneration,
-          });
+          await openWorkspaceToolForSession(
+            session,
+            tool,
+            {
+              boardKey: requestBoardKey,
+              boardGeneration: requestBoardGeneration,
+            },
+            file,
+          );
         }
       } catch {
         if (latestWorkspaceIdRef.current === requestWorkspaceId) {
@@ -3203,7 +3302,14 @@ export function MultiSessionWorkspace({
     const intentSession = sessions.find((session) => session.sessionName === intent.sessionName);
     clearPendingWorkspaceToolIntent();
     if (intentSession) {
-      void openWorkspaceToolForSession(intentSession, intent.tool);
+      void openWorkspaceToolForSession(
+        intentSession,
+        intent.tool,
+        undefined,
+        intent.filePath
+          ? { filePath: intent.filePath, paneId: intent.paneId ?? crypto.randomUUID() }
+          : undefined,
+      );
       return;
     }
     if (intent.cloneSessionKey && intent.relativePath && intent.label) {
@@ -3214,6 +3320,9 @@ export function MultiSessionWorkspace({
           label: intent.label,
         },
         intent.tool,
+        intent.filePath
+          ? { filePath: intent.filePath, paneId: intent.paneId ?? crypto.randomUUID() }
+          : undefined,
       );
     }
   }, [
@@ -4496,6 +4605,13 @@ export function MultiSessionWorkspace({
               agentId={agentId}
               workspaceId={workspaceId}
               sessionName={pane.sessionName}
+              onFileAction={
+                session && canOpenFiles
+                  ? (path, action) => {
+                      void openTerminalFile(session, model.board.key, path, action);
+                    }
+                  : undefined
+              }
               clonePath={session?.clonePath}
               cloneProof={session?.cloneProof}
               refreshCloneTerminalIdentity={refreshCloneTerminalIdentity}
