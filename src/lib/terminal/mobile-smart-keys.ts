@@ -9,6 +9,7 @@ export type MobileSmartKeyIconName =
   | "CornerDownLeft"
   | "DoorOpen"
   | "RefreshCw"
+  | "Plus"
   | "X";
 
 export interface MobileSmartKey {
@@ -16,6 +17,7 @@ export interface MobileSmartKey {
   label: string;
   sequence: string;
   iconName: MobileSmartKeyIconName;
+  description?: string;
 }
 
 export interface MobileSmartKeyPage {
@@ -50,6 +52,80 @@ export const MOBILE_SMART_KEY_PAGES = [
         sequence: VIRTUAL_KEY_SEQUENCES.Backspace,
         iconName: "ArrowLeft",
       },
+    ],
+  },
+  {
+    id: "codex",
+    label: "Codex",
+    ariaLabel: "Codex shortcuts",
+    keys: [
+      {
+        id: "codex-queue",
+        label: "Queue",
+        sequence: "\t",
+        iconName: "ArrowRightToLine",
+        description: "Queue follow-up (Tab)",
+      },
+      {
+        id: "codex-steer",
+        label: "Steer",
+        sequence: "\r",
+        iconName: "CornerDownLeft",
+        description: "Send or steer current turn (Enter)",
+      },
+      {
+        id: "codex-transcript",
+        label: "Transcript",
+        sequence: "\x14",
+        iconName: "ArrowUp",
+        description: "Open transcript (Ctrl+T)",
+      },
+      {
+        id: "codex-copy",
+        label: "Copy reply",
+        sequence: "\x0f",
+        iconName: "ArrowLeft",
+        description: "Copy latest Codex output (Ctrl+O)",
+      },
+    ],
+  },
+  {
+    id: "questions",
+    label: "Questions",
+    ariaLabel: "Codex question controls",
+    keys: [
+      { id: "question-up", label: "Option up", sequence: "\x1b[A", iconName: "ArrowUp" },
+      { id: "question-down", label: "Option down", sequence: "\x1b[B", iconName: "ArrowDown" },
+      {
+        id: "question-toggle",
+        label: "Select",
+        sequence: " ",
+        iconName: "Plus",
+        description: "Toggle an option (Space)",
+      },
+      {
+        id: "question-answer",
+        label: "Answer",
+        sequence: "\r",
+        iconName: "CornerDownLeft",
+        description: "Confirm answer (Enter)",
+      },
+      {
+        id: "question-back",
+        label: "Previous",
+        sequence: "\x1b[Z",
+        iconName: "ArrowLeft",
+        description: "Previous field (Shift+Tab)",
+      },
+      {
+        id: "question-next",
+        label: "Next",
+        sequence: "\t",
+        iconName: "ArrowRight",
+        description: "Next field (Tab)",
+      },
+      { id: "question-left", label: "Choice left", sequence: "\x1b[D", iconName: "ArrowLeft" },
+      { id: "question-right", label: "Choice right", sequence: "\x1b[C", iconName: "ArrowRight" },
     ],
   },
   {

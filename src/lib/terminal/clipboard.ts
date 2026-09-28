@@ -82,7 +82,8 @@ export function pasteTextToXterm(
   text: string,
 ): void {
   if (term && typeof term.paste === "function") {
-    term.paste(text);
+    // Pasted escape characters must not terminate the application's bracketed paste.
+    term.paste(text.replaceAll("\x1b", ""));
     return;
   }
   send(text);
@@ -201,17 +202,7 @@ export async function handleTerminalPasteOutcome(
     try {
       controller.onStatus?.({ action: "paste", outcome: "uploading", method: "clipboard-api" });
       const paths = await uploadTerminalPasteAssets(controller.workspaceId, outcome.files);
-      if (paths.length === 1) {
-        pasteTextToXterm(controller.term, controller.send, paths[0] ?? "");
-        controller.onStatus?.({ action: "paste", outcome: "pasted", method: "clipboard-api" });
-        return;
-      }
-
-      controller.openCompose({
-        draft: paths.join("\n"),
-        append: true,
-        targetLabel: controller.targetLabel,
-      });
+      pasteTextToXterm(controller.term, controller.send, paths.join("\n"));
       controller.onStatus?.({ action: "paste", outcome: "pasted", method: "clipboard-api" });
     } catch (error) {
       const reason = error instanceof Error ? error.message : "Failed to upload pasted file";
@@ -222,16 +213,6 @@ export async function handleTerminalPasteOutcome(
         message: `File paste failed: ${reason}`,
       });
     }
-    return;
-  }
-
-  if (outcome.multiline) {
-    controller.openCompose({
-      draft: outcome.text,
-      append: true,
-      targetLabel: controller.targetLabel,
-    });
-    controller.onStatus?.({ action: "paste", outcome: "pasted", method: "clipboard-api" });
     return;
   }
 

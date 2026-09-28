@@ -9,6 +9,10 @@ const { mockFit, mockFocus } = vi.hoisted(() => ({
   mockFocus: vi.fn(),
 }));
 
+vi.mock("@/lib/terminal/browser-integration", () => ({
+  installTerminalBrowserIntegration: vi.fn(() => vi.fn()),
+}));
+
 vi.mock("@xterm/xterm", () => ({
   Terminal: class MockTerminal {
     rows = 24;

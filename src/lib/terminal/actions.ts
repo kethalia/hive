@@ -59,7 +59,24 @@ export interface ClipboardActionOptions {
   workspaceId?: string;
 }
 
-type TerminalSelection = Pick<Terminal, "getSelection" | "clearSelection">;
+type TerminalSelection = Pick<Terminal, "getSelection" | "clearSelection"> &
+  Pick<Partial<Terminal>, "element">;
+
+export function getTerminalSelectionText(term: {
+  getSelection?: () => string;
+  element?: HTMLElement;
+}): string {
+  const native = typeof window === "undefined" ? null : window.getSelection();
+  if (
+    native &&
+    term.element?.contains(native.anchorNode) &&
+    term.element.contains(native.focusNode)
+  ) {
+    const text = native.toString();
+    if (text) return text;
+  }
+  return term.getSelection?.() ?? "";
+}
 
 function emitStatus(
   options: ClipboardActionOptions | undefined,
@@ -122,6 +139,20 @@ function tryExecCommand(command: "copy" | "paste"): boolean {
 function execCommandCopyFallback(text: string): boolean {
   if (typeof document === "undefined" || !document.body) return false;
 
+  const selection = window.getSelection();
+  const ranges = selection
+    ? Array.from({ length: selection.rangeCount }, (_, i) => selection.getRangeAt(i).cloneRange())
+    : [];
+  const direction =
+    selection?.anchorNode && selection.focusNode
+      ? {
+          anchorNode: selection.anchorNode,
+          anchorOffset: selection.anchorOffset,
+          focusNode: selection.focusNode,
+          focusOffset: selection.focusOffset,
+        }
+      : null;
+  const activeElement = document.activeElement;
   const textarea = document.createElement("textarea");
   textarea.value = text;
   textarea.setAttribute("readonly", "");
@@ -136,6 +167,23 @@ function execCommandCopyFallback(text: string): boolean {
     return false;
   } finally {
     textarea.remove();
+    if (activeElement instanceof HTMLElement) activeElement.focus({ preventScroll: true });
+    selection?.removeAllRanges();
+    for (const range of ranges) {
+      if (range.commonAncestorContainer.isConnected) selection?.addRange(range);
+    }
+    if (
+      ranges.length === 1 &&
+      direction?.anchorNode.isConnected &&
+      direction.focusNode.isConnected
+    ) {
+      selection?.setBaseAndExtent(
+        direction.anchorNode,
+        direction.anchorOffset,
+        direction.focusNode,
+        direction.focusOffset,
+      );
+    }
   }
 }
 
@@ -143,7 +191,7 @@ function completeCopyFallback(
   text: string,
   reason: ClipboardFallbackReason,
   options: ClipboardActionOptions | undefined,
-): void {
+): boolean {
   const fallbackSucceeded = execCommandCopyFallback(text);
 
   if (fallbackSucceeded) {
@@ -153,7 +201,7 @@ function completeCopyFallback(
       method: "exec-command",
       fallbackReason: reason,
     });
-    return;
+    return true;
   }
 
   emitStatus(options, {
@@ -163,6 +211,7 @@ function completeCopyFallback(
     fallbackAttempted: true,
   });
   console.warn("[clipboard] copy fallback failed");
+  return false;
 }
 
 function completePasteFallback(
@@ -206,7 +255,7 @@ export function copyTerminalSelection(
   term: TerminalSelection,
   options?: ClipboardActionOptions,
 ): boolean {
-  const selection = term.getSelection();
+  const selection = getTerminalSelectionText(term);
   if (!selection) {
     emitStatus(options, {
       action: "copy",
@@ -216,10 +265,40 @@ export function copyTerminalSelection(
     return true;
   }
 
+  const native = typeof window === "undefined" ? null : window.getSelection();
+  const nativeSnapshot =
+    native &&
+    term.element?.contains(native.anchorNode) &&
+    term.element.contains(native.focusNode) &&
+    native.toString()
+      ? {
+          anchorNode: native.anchorNode,
+          anchorOffset: native.anchorOffset,
+          focusNode: native.focusNode,
+          focusOffset: native.focusOffset,
+        }
+      : null;
+  const clearCopiedSelection = () => {
+    if (nativeSnapshot) {
+      const current = window.getSelection();
+      if (
+        current?.anchorNode === nativeSnapshot.anchorNode &&
+        current.anchorOffset === nativeSnapshot.anchorOffset &&
+        current.focusNode === nativeSnapshot.focusNode &&
+        current.focusOffset === nativeSnapshot.focusOffset &&
+        current.toString() === selection
+      ) {
+        current.removeAllRanges();
+      }
+    } else if (term.getSelection() === selection) {
+      term.clearSelection();
+    }
+  };
+
   const clipboard = getClipboard();
   if (typeof clipboard?.writeText !== "function") {
-    completeCopyFallback(selection, "clipboard-api-unavailable", options);
-    term.clearSelection();
+    if (completeCopyFallback(selection, "clipboard-api-unavailable", options))
+      clearCopiedSelection();
     return false;
   }
 
@@ -227,6 +306,7 @@ export function copyTerminalSelection(
     const writeResult = clipboard.writeText(selection);
     void writeResult
       .then(() => {
+        clearCopiedSelection();
         emitStatus(options, {
           action: "copy",
           outcome: "copied",
@@ -234,13 +314,14 @@ export function copyTerminalSelection(
         });
       })
       .catch((error: unknown) => {
-        completeCopyFallback(selection, classifyClipboardFailure(error), options);
+        if (completeCopyFallback(selection, classifyClipboardFailure(error), options))
+          clearCopiedSelection();
       });
   } catch (error) {
-    completeCopyFallback(selection, classifyClipboardFailure(error), options);
+    if (completeCopyFallback(selection, classifyClipboardFailure(error), options))
+      clearCopiedSelection();
   }
 
-  term.clearSelection();
   return false;
 }
 

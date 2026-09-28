@@ -120,7 +120,8 @@ vi.mock("@/lib/actions/navigation-favorites", () => ({
   listNavigationFavoritesAction: (...args: unknown[]) => mockListNavigationFavorites(...args),
 }));
 
-vi.mock("@/lib/terminal/actions", () => ({
+vi.mock("@/lib/terminal/actions", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/terminal/actions")>()),
   copyTerminalSelection: vi.fn(() => false),
   pasteClipboardApiToTerminal: vi.fn(),
   pasteToTerminal: vi.fn(),

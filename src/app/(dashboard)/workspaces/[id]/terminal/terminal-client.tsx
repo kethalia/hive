@@ -31,6 +31,7 @@ import {
 import {
   type ClipboardActionStatus,
   copyTerminalSelection,
+  getTerminalSelectionText,
   pasteClipboardApiToTerminal,
 } from "@/lib/terminal/actions";
 import { submitTerminalComposeDraft, type TerminalComposeRequest } from "@/lib/terminal/clipboard";
@@ -66,14 +67,6 @@ function clipboardFallbackText(reason: string): string {
     default:
       return "Clipboard API failed. Use selection mode or the browser paste control.";
   }
-}
-
-function terminalHasSelection(term: {
-  hasSelection?: () => boolean;
-  getSelection?: () => string;
-}): boolean {
-  if (typeof term.hasSelection === "function") return term.hasSelection();
-  return Boolean(term.getSelection?.());
 }
 
 function isObjectRecord(value: unknown): value is Record<string, unknown> {
@@ -386,14 +379,17 @@ function TerminalInner({
       return;
     }
 
-    const updateSelectionState = () =>
-      setHasTerminalSelection(terminalHasSelection(activeTerminal));
+    const updateSelectionState = () => {
+      setHasTerminalSelection(Boolean(getTerminalSelectionText(activeTerminal)));
+    };
     updateSelectionState();
 
-    if (typeof activeTerminal.onSelectionChange !== "function") return;
-
-    const disposable = activeTerminal.onSelectionChange(updateSelectionState);
-    return () => disposable.dispose();
+    document.addEventListener("selectionchange", updateSelectionState);
+    const disposable = activeTerminal.onSelectionChange?.(updateSelectionState);
+    return () => {
+      disposable?.dispose();
+      document.removeEventListener("selectionchange", updateSelectionState);
+    };
   }, [activeTerminal]);
 
   useEffect(() => {

@@ -20,6 +20,7 @@ import {
 } from "lucide-react";
 import type { PointerEvent, MouseEvent as ReactMouseEvent } from "react";
 import { useCallback, useEffect, useState } from "react";
+import { TerminalShortcutKeyboard } from "@/components/terminal/TerminalShortcutKeyboard";
 import { Button } from "@/components/ui/button";
 import { ButtonGroup, ButtonGroupText } from "@/components/ui/button-group";
 import {
@@ -34,6 +35,7 @@ import { NO_TOUCH_STYLE } from "@/lib/gestures/conventions";
 import { TERMINAL_COMPOSE_OPEN_EVENT } from "@/lib/terminal/events";
 import {
   MOBILE_SMART_KEY_PAGES,
+  type MobileSmartKey,
   type MobileSmartKeyIconName,
 } from "@/lib/terminal/mobile-smart-keys";
 import { cn } from "@/lib/utils";
@@ -48,10 +50,12 @@ const MOBILE_SMART_KEY_ICONS: Record<MobileSmartKeyIconName, LucideIcon> = {
   DoorOpen,
   RefreshCw,
   X,
+  Plus,
 };
 
 const CONTROL_PAGES = [
   ...MOBILE_SMART_KEY_PAGES.map((page) => page.label),
+  "All keys",
   "Clipboard",
   "Compose",
   "Font size",
@@ -249,11 +253,13 @@ export function MobileTerminalControls({
                 aria-label={page.ariaLabel}
                 className="grid w-full grid-cols-4 rounded-none"
               >
-                {page.keys.map(({ id, label, iconName, sequence }) => {
+                {page.keys.map(({ id, label, iconName, sequence, description }: MobileSmartKey) => {
                   const Icon = MOBILE_SMART_KEY_ICONS[iconName];
                   return (
                     <Button
                       key={id}
+                      title={description}
+                      disabled={!activeSend}
                       type="button"
                       variant="outline"
                       className={STACKED_BUTTON_CLASS}
@@ -269,6 +275,15 @@ export function MobileTerminalControls({
               </ButtonGroup>
             </CarouselItem>
           ))}
+
+          <CarouselItem aria-label="All keys controls" className="pl-2">
+            <TerminalShortcutKeyboard
+              send={activeSend}
+              onPress={haptic}
+              onPaste={onPaste}
+              onCopy={hasSelection ? onCopy : undefined}
+            />
+          </CarouselItem>
 
           <CarouselItem aria-label="Clipboard controls" className="pl-2">
             <div className="flex flex-col gap-1">

@@ -134,8 +134,11 @@ describe("MobileTerminalControls", () => {
       ),
     ).toEqual([
       "Key controls",
+      "Codex controls",
+      "Questions controls",
       "Control controls",
       "Navigation controls",
+      "All keys controls",
       "Clipboard controls",
       "Compose controls",
       "Font size controls",
@@ -292,7 +295,7 @@ describe("MobileTerminalControls", () => {
     render(<MobileTerminalControls onHapticFeedback={onHapticFeedback} />);
 
     expect(() => fireEvent.click(screen.getByRole("button", { name: "Ctrl+D" }))).not.toThrow();
-    expect(onHapticFeedback).toHaveBeenCalledTimes(1);
+    expect(onHapticFeedback).not.toHaveBeenCalled();
     expect(mockActiveSend).not.toHaveBeenCalled();
   });
 
@@ -549,4 +552,30 @@ describe("MobileTerminalControls", () => {
     expect(copyMouseEvent.defaultPrevented).toBe(true);
     expect(pasteMouseEvent.defaultPrevented).toBe(true);
   });
+});
+
+it("answers questions and sends complete modified shortcuts to the active terminal", () => {
+  render(<MobileTerminalControls />);
+  const questions = screen.getByRole("group", { name: "Codex question controls" });
+  for (const [label, sequence] of [
+    ["Option down", "\x1b[B"],
+    ["Select", " "],
+    ["Answer", "\r"],
+    ["Previous", "\x1b[Z"],
+  ]) {
+    fireEvent.click(within(questions).getByRole("button", { name: label }));
+    expect(mockActiveSend).toHaveBeenLastCalledWith(sequence);
+  }
+  fireEvent.click(screen.getByText("All shortcut keys"));
+  const modifiers = screen.getByRole("group", { name: "Shortcut modifiers" });
+  fireEvent.click(within(modifiers).getByRole("button", { name: "Ctrl" }));
+  fireEvent.click(screen.getByRole("button", { name: "Key g" }));
+  expect(mockActiveSend).toHaveBeenLastCalledWith("\x07");
+  expect(within(modifiers).getByRole("button", { name: "Ctrl" })).toHaveAttribute(
+    "aria-pressed",
+    "false",
+  );
+  fireEvent.click(within(modifiers).getByRole("button", { name: "Shift" }));
+  fireEvent.click(screen.getByRole("button", { name: "Key Enter" }));
+  expect(mockActiveSend).toHaveBeenLastCalledWith("\x1b[13;2u");
 });

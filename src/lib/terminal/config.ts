@@ -5,7 +5,7 @@ export const TERMINAL_THEME: ITheme = {
   foreground: "#e5e5e5",
   cursor: "#e5e5e5",
   black: "#1a1a1a",
-  brightBlack: "#444444",
+  brightBlack: "#808080",
   red: "#ff5555",
   brightRed: "#ff6e6e",
   green: "#50fa7b",

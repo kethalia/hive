@@ -1,7 +1,9 @@
 // @vitest-environment jsdom
 import { act, cleanup, render, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { TerminalPanel } from "@/components/templates/TerminalPanel";
 import { InteractiveTerminal } from "@/components/workspaces/InteractiveTerminal";
+import { installTerminalBrowserIntegration } from "@/lib/terminal/browser-integration";
 import { EVENT_NAME as FONT_SIZE_EVENT } from "@/lib/terminal/font-size";
 
 const mockTerminalState = vi.hoisted(() => ({
@@ -18,6 +20,10 @@ vi.mock("@xterm/addon-fit", () => {
 
   return { FitAddon };
 });
+
+vi.mock("@/lib/terminal/browser-integration", () => ({
+  installTerminalBrowserIntegration: vi.fn(() => vi.fn()),
+}));
 
 vi.mock("@xterm/xterm", () => {
   class Terminal {
@@ -112,6 +118,9 @@ describe("InteractiveTerminal safe fit", () => {
 
     await waitFor(() => expect(onTerminalReady).toHaveBeenCalledTimes(1));
     const terminal = mockTerminalState.terminalInstances[0];
+    expect(installTerminalBrowserIntegration).toHaveBeenLastCalledWith(terminal, {
+      allowClipboardWrite: true,
+    });
     expect(terminal?.options.fontSize).toBe(13);
 
     mockTerminalState.fit.mockImplementationOnce(() => {
@@ -144,4 +153,14 @@ describe("InteractiveTerminal safe fit", () => {
 
     await waitFor(() => expect(onTerminalReady).toHaveBeenCalledTimes(1));
   });
+});
+
+it("keeps template push output unable to write the local clipboard", async () => {
+  const onReady = vi.fn();
+  render(<TerminalPanel onClose={vi.fn()} writeRef={{ current: null }} onReady={onReady} />);
+  await waitFor(() => expect(onReady).toHaveBeenCalledOnce());
+  expect(installTerminalBrowserIntegration).toHaveBeenLastCalledWith(
+    mockTerminalState.terminalInstances[0],
+    { allowClipboardWrite: false },
+  );
 });

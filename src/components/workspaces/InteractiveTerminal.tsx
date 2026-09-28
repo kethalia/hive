@@ -836,6 +836,7 @@ export function InteractiveTerminal({
   }, [layoutSignal, fitResizeAndPreserveBottom]);
 
   useXtermSurface({
+    allowClipboardWrite: true,
     containerRef,
     termRef,
     fitRef,

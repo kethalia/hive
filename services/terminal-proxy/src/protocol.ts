@@ -56,8 +56,10 @@ export function buildPtyUrl(
   // pane history, including output produced before the browser attached.
   // Install the Hive menu binding on every attach so existing tmux servers pick
   // up config changes without needing a server restart.
+  // Advertise the browser terminal's actual capabilities to this client. Forward
+  // application OSC 52 copies and negotiated modified keys through the web server.
   const cwdArg = cwd ? ` -c ${shellQuote(cwd)}` : "";
-  const command = `tmux -L web ${TMUX_MENU_BINDING_COMMAND} \\; new-session -A -s ${sessionName}${cwdArg} \\; set status off \\; set mouse on`;
+  const command = `tmux -L web -T clipboard,hyperlinks,RGB,extkeys set -s set-clipboard on \\; set -s extended-keys on \\; ${TMUX_MENU_BINDING_COMMAND} \\; new-session -A -s ${sessionName}${cwdArg} \\; set status off \\; set mouse on`;
 
   const params = new URLSearchParams({
     reconnect: reconnectId,
