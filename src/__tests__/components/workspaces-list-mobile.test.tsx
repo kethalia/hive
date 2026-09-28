@@ -225,7 +225,7 @@ describe("workspaces mobile list", () => {
     expect(await screen.findByTestId("create-workspace-modal")).toHaveTextContent(
       "Launch workspace",
     );
-    expect(screen.getByTestId("selected-workspace-profile")).toHaveTextContent(
+    expect(await screen.findByTestId("selected-workspace-profile")).toHaveTextContent(
       "Development & orchestration",
     );
     expect(mocks.listWorkspaceTemplatesAction).toHaveBeenCalledTimes(1);
