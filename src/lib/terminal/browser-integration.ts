@@ -1,6 +1,6 @@
 import { ClipboardAddon, type IClipboardProvider } from "@xterm/addon-clipboard";
 import { WebLinksAddon } from "@xterm/addon-web-links";
-import type { Terminal } from "@xterm/xterm";
+import type { IBuffer, Terminal } from "@xterm/xterm";
 import { toast } from "sonner";
 import { createTerminalLinkMenu } from "./link-menu";
 import { type TerminalFileActionHandler, terminalLinkTarget } from "./link-target";
@@ -47,10 +47,55 @@ export function installTerminalBrowserIntegration(
     onFileAction,
   }: { allowClipboardWrite?: boolean; onFileAction?: TerminalFileActionHandler } = {},
 ): () => void {
-  const menu = createTerminalLinkMenu(onFileAction);
+  const menu = createTerminalLinkMenu(onFileAction, ({ y }) => {
+    anchor = pendingAnchor ?? readAnchor(y);
+    pendingAnchor = undefined;
+  });
   let hoveredUri: string | undefined;
   let touchProbe: MouseEvent | undefined;
   let pressed: { uri: string; x: number; y: number } | undefined;
+  let anchor: { buffer: IBuffer; row: number; text: string } | undefined;
+  let pendingAnchor: typeof anchor;
+  const lineText = (buffer: IBuffer, row: number) => {
+    let start = row;
+    let end = row;
+    while (start > 0 && buffer.getLine(start)?.isWrapped) start--;
+    while (end + 1 < buffer.length && buffer.getLine(end + 1)?.isWrapped) end++;
+    const lines: string[] = [];
+    for (let y = start; y <= end; y++) lines.push(buffer.getLine(y)?.translateToString() ?? "");
+    return `${start}:${end}:${lines.join("\n")}`;
+  };
+  const readAnchor = (clientY: number): typeof anchor => {
+    const rect = term.element?.querySelector(".xterm-screen")?.getBoundingClientRect();
+    if (!rect || rect.height <= 0) {
+      return undefined;
+    }
+    const buffer = term.buffer.active;
+    const row = buffer.viewportY + Math.floor(((clientY - rect.top) * term.rows) / rect.height);
+    return { buffer, row, text: lineText(buffer, row) };
+  };
+  const invalidateLink = () => {
+    anchor = undefined;
+    pendingAnchor = undefined;
+    hoveredUri = undefined;
+    pressed = undefined;
+    touchProbe = undefined;
+    menu.close();
+  };
+  // A DOM mouseleave also happens while crossing into the menu. Terminal
+  // lifecycle events distinguish that crossing from a stale buffer location.
+  const scroll = term.onScroll(invalidateLink);
+  const parsed = term.onWriteParsed(() => {
+    if (
+      [anchor, pendingAnchor].some(
+        (location) =>
+          location &&
+          (location.buffer !== term.buffer.active ||
+            lineText(location.buffer, location.row) !== location.text),
+      )
+    )
+      invalidateLink();
+  });
   const hover = (event: MouseEvent, uri: string) => {
     if (touchProbe && event !== touchProbe) return;
     if (!terminalLinkTarget(uri) || event.shiftKey) {
@@ -58,16 +103,20 @@ export function installTerminalBrowserIntegration(
       menu.close();
       return;
     }
+    pendingAnchor = readAnchor(event.clientY);
     hoveredUri = uri;
     if (!touchProbe) menu.hover(uri, event.clientX, event.clientY);
     if (touchProbe) pressed = { uri, x: touchProbe.clientX, y: touchProbe.clientY };
   };
   const leave = () => {
     hoveredUri = undefined;
+    pendingAnchor = undefined;
     menu.leave();
   };
   const activate = (event: MouseEvent, uri: string) => {
-    if (!event.shiftKey) menu.show(uri, event.clientX, event.clientY, true);
+    if (!event.shiftKey) {
+      menu.show(uri, event.clientX, event.clientY, true);
+    }
   };
   const previousLinkHandler = term.options.linkHandler;
   term.options.linkHandler = { activate, hover, leave, allowNonHttpProtocols: true };
@@ -184,6 +233,8 @@ export function installTerminalBrowserIntegration(
     element?.removeEventListener("touchcancel", cancel);
     element?.removeEventListener("mouseleave", leave);
     term.options.linkHandler = previousLinkHandler;
+    scroll.dispose();
+    parsed.dispose();
     paths.dispose();
     menu.dispose();
     links.dispose();

@@ -4,7 +4,10 @@ import { type TerminalFileActionHandler, terminalLinkTarget } from "./link-targe
 let closeActiveMenu: (() => void) | undefined;
 
 /** A portal outside xterm: its buttons must never send input to the remote TUI. */
-export function createTerminalLinkMenu(onFileAction?: TerminalFileActionHandler) {
+export function createTerminalLinkMenu(
+  onFileAction?: TerminalFileActionHandler,
+  onShow?: (position: { x: number; y: number }) => void,
+) {
   let menu: HTMLDivElement | undefined;
   let targetKey: string | undefined;
   let timer: ReturnType<typeof setTimeout> | undefined;
@@ -36,6 +39,7 @@ export function createTerminalLinkMenu(onFileAction?: TerminalFileActionHandler)
     close();
     closeActiveMenu = close;
     targetKey = key;
+    onShow?.({ x, y });
     restoreFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     menu = document.createElement("div");
     menu.setAttribute("role", "menu");
@@ -56,7 +60,7 @@ export function createTerminalLinkMenu(onFileAction?: TerminalFileActionHandler)
       button.textContent = title;
       button.disabled = disabled;
       button.className =
-        "block min-h-7 w-full rounded px-2 py-1 [@media(pointer:coarse)]:min-h-11 text-left hover:bg-accent focus:bg-accent focus:outline-none disabled:opacity-50";
+        "block min-h-7 w-full rounded px-2 py-1 [@media(any-pointer:coarse)]:min-h-11 text-left hover:bg-accent focus:bg-accent focus:outline-none disabled:opacity-50";
       button.addEventListener("click", () => {
         close();
         action();

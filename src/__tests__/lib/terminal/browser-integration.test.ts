@@ -21,7 +21,27 @@ function surface(
   const element = document.createElement("div");
   document.body.append(element);
   const osc = new Map<number, (data: string) => unknown>();
+  const events = { scroll: () => {}, parsed: () => {} };
+  const scrollDispose = vi.fn();
+  const parsedDispose = vi.fn();
+  const lines = ["docs/image.png", "other output"];
   const term = {
+    rows: 2,
+    buffer: {
+      active: {
+        viewportY: 0,
+        length: 2,
+        getLine: (row: number) => ({ isWrapped: false, translateToString: () => lines[row] ?? "" }),
+      },
+    },
+    onScroll: vi.fn((handler) => {
+      events.scroll = handler;
+      return { dispose: scrollDispose };
+    }),
+    onWriteParsed: vi.fn((handler) => {
+      events.parsed = handler;
+      return { dispose: parsedDispose };
+    }),
     element,
     cols: 80,
     options: {} as Terminal["options"],
@@ -39,7 +59,7 @@ function surface(
     allowClipboardWrite,
     onFileAction,
   });
-  return { term, osc, dispose };
+  return { term, osc, dispose, events, lines, scrollDispose, parsedDispose };
 }
 
 describe("terminal browser integration", () => {
@@ -302,4 +322,57 @@ it("rejects unsafe OSC links and dismisses a menu with Escape", () => {
   document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }));
   expect(document.querySelector("[role=menu]")).toBeNull();
   dispose();
+});
+
+it("dismisses stale links after buffer changes and keyboard scrolling, but keeps unchanged redraws", () => {
+  vi.useFakeTimers();
+  const { term, dispose, events, lines, scrollDispose, parsedDispose } = surface();
+  const screen = document.createElement("div");
+  screen.className = "xterm-screen";
+  term.element.append(screen);
+  vi.spyOn(screen, "getBoundingClientRect").mockReturnValue({ top: 0, height: 40 } as DOMRect);
+  const show = () =>
+    term.options.linkHandler?.activate(
+      new MouseEvent("click", { clientY: 10 }),
+      "docs/image.png",
+      {} as never,
+    );
+  show();
+  events.parsed();
+  lines[1] = "unrelated status update";
+  events.parsed();
+  expect(document.querySelector("[role=menu]")).not.toBeNull();
+  // Hovering another link must not replace the anchor of the still-visible menu.
+  term.options.linkHandler?.hover?.(
+    new MouseEvent("mousemove", { clientY: 30 }),
+    "docs/other.png",
+    {} as never,
+  );
+  lines[0] = "replacement output";
+  events.parsed();
+  expect(document.querySelector("[role=menu]")).toBeNull();
+  show();
+  events.scroll();
+  expect(document.querySelector("[role=menu]")).toBeNull();
+  term.options.linkHandler?.hover?.(
+    new MouseEvent("mousemove", { clientY: 10 }),
+    "docs/image.png",
+    {} as never,
+  );
+  events.scroll();
+  vi.advanceTimersByTime(500);
+  expect(document.querySelector("[role=menu]")).toBeNull();
+  term.options.linkHandler?.hover?.(
+    new MouseEvent("mousemove", { clientY: 10 }),
+    "docs/image.png",
+    {} as never,
+  );
+  lines[0] = "changed before hover delay elapsed";
+  events.parsed();
+  vi.advanceTimersByTime(500);
+  expect(document.querySelector("[role=menu]")).toBeNull();
+  dispose();
+  expect(scrollDispose).toHaveBeenCalledOnce();
+  expect(parsedDispose).toHaveBeenCalledOnce();
+  vi.useRealTimers();
 });
