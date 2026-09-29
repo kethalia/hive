@@ -82,6 +82,13 @@ export function installTerminalBrowserIntegration(
   let pressed: { uri: string; x: number; y: number } | undefined;
   let anchor: { buffer: IBuffer; row: number; text: string; opaque: boolean } | undefined;
   let pendingAnchor: typeof anchor;
+  let validationAnchor: typeof anchor;
+  let unverifiedHover: { uri: string; click?: { x: number; y: number } } | undefined;
+  const cancelPathValidation = () => {
+    validationGeneration++;
+    unverifiedHover = undefined;
+    validationAnchor = undefined;
+  };
   const lineText = (buffer: IBuffer, row: number) => {
     let start = row;
     let end = row;
@@ -101,7 +108,7 @@ export function installTerminalBrowserIntegration(
     return { buffer, row, text: lineText(buffer, row), opaque };
   };
   const invalidateLink = () => {
-    validationGeneration++;
+    cancelPathValidation();
     clearTouch();
     anchor = undefined;
     pendingAnchor = undefined;
@@ -122,7 +129,7 @@ export function installTerminalBrowserIntegration(
       location.buffer !== term.buffer.active ||
       lineText(location.buffer, location.row) !== location.text);
   const parsed = term.onWriteParsed(() => {
-    validationGeneration++;
+    if (isInvalid(validationAnchor)) cancelPathValidation();
     if (isInvalid(anchor)) {
       invalidateLink();
     } else if (isInvalid(pendingAnchor)) {
@@ -153,9 +160,12 @@ export function installTerminalBrowserIntegration(
     if (!touchProbe) menu.hover(uri, event.clientX, event.clientY);
     if (touchProbe) pressed = { uri, x: touchProbe.clientX, y: touchProbe.clientY };
   };
-  const hover = (event: MouseEvent, uri: string) => hoverLink(event, uri, false);
+  const hover = (event: MouseEvent, uri: string) => {
+    cancelPathValidation();
+    hoverLink(event, uri, false);
+  };
   const leave = () => {
-    validationGeneration++;
+    cancelPathValidation();
     hoveredUri = undefined;
     pendingAnchor = undefined;
     menu.leave();
@@ -166,33 +176,64 @@ export function installTerminalBrowserIntegration(
       menu.show(uri, event.clientX, event.clientY, true);
     }
   };
-  const verifiedOscLink = (event: MouseEvent, uri: string, run: () => void) => {
+  const verifiedOscLink = (event: MouseEvent, uri: string, run: () => void, hovering = false) => {
+    if (
+      event.shiftKey ||
+      (touchProbe && event !== touchProbe) ||
+      (touchProbes.has(event) && event !== touchProbe)
+    )
+      return;
+    cancelPathValidation();
     const target = terminalLinkTarget(uri);
     if (!target) return;
-    const generation = ++validationGeneration;
+    const generation = validationGeneration;
     if (target.kind === "url") {
       run();
       return;
     }
     const location = readAnchor(event.clientY);
+    validationAnchor = location;
+    const candidate = hovering
+      ? { uri, click: undefined as { x: number; y: number } | undefined }
+      : undefined;
+    unverifiedHover = candidate;
     const finish = (existing: string[]) => {
-      if (disposed || generation !== validationGeneration || isInvalid(location)) return;
-      if (existing.includes(target.value)) run();
+      if (disposed || generation !== validationGeneration) return;
+      if (isInvalid(location)) {
+        cancelPathValidation();
+        return;
+      }
+      unverifiedHover = undefined;
+      validationAnchor = undefined;
+      if (!existing.includes(target.value)) return;
+      if (candidate?.click) {
+        activate(
+          new MouseEvent("click", { clientX: candidate.click.x, clientY: candidate.click.y }),
+          uri,
+          true,
+        );
+      } else run();
     };
     try {
       const result = validatePaths([target.value]);
       if (Array.isArray(result)) finish(result);
-      else void result.then(finish, () => {});
+      else void result.then(finish, () => finish([]));
     } catch {
-      /* An unverified path must not become selectable. */
+      finish([]);
     }
   };
+  // OSC 8 metadata is not exposed by public cells. Cancel checks when that
+  // metadata is written, while allowing unrelated output to continue.
+  const oscLinks = term.parser.registerOscHandler(8, () => {
+    cancelPathValidation();
+    return false;
+  });
   const previousLinkHandler = term.options.linkHandler;
   term.options.linkHandler = {
     activate: (event, uri) => {
       verifiedOscLink(event, uri, () => activate(event, uri, true));
     },
-    hover: (event, uri) => verifiedOscLink(event, uri, () => hoverLink(event, uri, true)),
+    hover: (event, uri) => verifiedOscLink(event, uri, () => hoverLink(event, uri, true), true),
     leave,
     allowNonHttpProtocols: true,
   };
@@ -212,8 +253,13 @@ export function installTerminalBrowserIntegration(
   const mouseDown = (event: MouseEvent) => {
     pressed = undefined;
     menu.close();
-    if (!hoveredUri || event.button !== 0 || event.shiftKey) return;
-    pressed = { uri: hoveredUri, x: event.clientX, y: event.clientY };
+    if (event.button !== 0 || event.shiftKey) {
+      cancelPathValidation();
+      return;
+    }
+    const uri = unverifiedHover?.uri ?? hoveredUri;
+    if (!uri) return;
+    pressed = { uri, x: event.clientX, y: event.clientY };
     event.preventDefault();
     event.stopImmediatePropagation();
   };
@@ -223,12 +269,20 @@ export function installTerminalBrowserIntegration(
     if (!link) return;
     event.preventDefault();
     event.stopImmediatePropagation();
-    if (hoveredUri === link.uri && Math.hypot(event.clientX - link.x, event.clientY - link.y) < 8) {
+    if (Math.hypot(event.clientX - link.x, event.clientY - link.y) >= 8) {
+      cancelPathValidation();
+      return;
+    }
+    if (unverifiedHover?.uri === link.uri) {
+      unverifiedHover.click = { x: event.clientX, y: event.clientY };
+      return;
+    }
+    if (hoveredUri === link.uri) {
       menu.show(link.uri, event.clientX, event.clientY, true);
     }
   };
   const touchStart = (event: TouchEvent) => {
-    validationGeneration++;
+    cancelPathValidation();
     clearTouch();
     pressed = undefined;
     touchProbe = undefined;
@@ -293,7 +347,7 @@ export function installTerminalBrowserIntegration(
     menu.show(link.uri, touch.clientX, touch.clientY, true);
   };
   const cancel = () => {
-    validationGeneration++;
+    cancelPathValidation();
     clearTouch();
     touchProbe = undefined;
     pressed = undefined;
@@ -310,13 +364,24 @@ export function installTerminalBrowserIntegration(
     }
   };
   const cancelValidation = () => {
-    validationGeneration++;
+    cancelPathValidation();
     clearTouch();
   };
   const escapeValidation = (event: KeyboardEvent) => {
     if (event.key === "Escape") cancelValidation();
   };
-  document.addEventListener("pointerdown", cancelValidation, true);
+  const pointerValidation = (event: PointerEvent) => {
+    if (
+      unverifiedHover &&
+      element?.contains(event.target as Node) &&
+      event.button === 0 &&
+      !event.shiftKey &&
+      event.pointerType !== "touch"
+    )
+      return;
+    cancelValidation();
+  };
+  document.addEventListener("pointerdown", pointerValidation, true);
   document.addEventListener("keydown", escapeValidation);
   element?.addEventListener("wheel", invalidateLink, { passive: true });
   element?.addEventListener("mousedown", mouseDown, true);
@@ -328,9 +393,9 @@ export function installTerminalBrowserIntegration(
   element?.addEventListener("mouseleave", leave);
   return () => {
     disposed = true;
-    validationGeneration++;
+    cancelPathValidation();
     clearTouch();
-    document.removeEventListener("pointerdown", cancelValidation, true);
+    document.removeEventListener("pointerdown", pointerValidation, true);
     document.removeEventListener("keydown", escapeValidation);
     element?.removeEventListener("wheel", invalidateLink);
     element?.removeEventListener("mousedown", mouseDown, true);
@@ -341,6 +406,7 @@ export function installTerminalBrowserIntegration(
     element?.removeEventListener("touchcancel", cancel);
     element?.removeEventListener("mouseleave", leave);
     term.options.linkHandler = previousLinkHandler;
+    oscLinks.dispose();
     resized.dispose();
     scroll.dispose();
     parsed.dispose();

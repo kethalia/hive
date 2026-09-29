@@ -102,3 +102,29 @@ it("discards validation results after the terminal row changes", async () => {
   await Promise.resolve();
   expect(callback).toHaveBeenCalledWith([]);
 });
+
+it.each([
+  "resolve",
+  "reject",
+])("ignores superseded provider requests that %s after a newer row", async (outcome) => {
+  const { terminal, rows } = fixture();
+  rows.push("docs/new.md");
+  Object.assign(terminal.buffer.active, { length: 2 });
+  const requests: { resolve: (paths: string[]) => void; reject: (reason: Error) => void }[] = [];
+  const provider = terminalPathLinkProvider(
+    terminal,
+    { activate: vi.fn() },
+    () => new Promise((resolve, reject) => requests.push({ resolve, reject })),
+  );
+  const oldCallback = vi.fn();
+  const currentCallback = vi.fn();
+  provider.provideLinks(1, oldCallback);
+  provider.provideLinks(2, currentCallback);
+  requests[1].resolve(["docs/new.md"]);
+  await Promise.resolve();
+  expect(currentCallback.mock.calls[0][0][0].text).toBe("docs/new.md");
+  if (outcome === "resolve") requests[0].resolve(["docs/real.md"]);
+  else requests[0].reject(new Error("offline"));
+  await Promise.resolve();
+  expect(oldCallback).not.toHaveBeenCalled();
+});

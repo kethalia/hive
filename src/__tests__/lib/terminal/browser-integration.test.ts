@@ -391,8 +391,10 @@ it("dismisses stale links after buffer changes and keyboard scrolling, but keeps
   vi.useRealTimers();
 });
 
-function positionedSurface() {
-  const result = surface(false, vi.fn());
+function positionedSurface(
+  validatePaths?: import("@/lib/terminal/link-target").TerminalPathValidator,
+) {
+  const result = surface(false, vi.fn(), validatePaths);
   const screen = document.createElement("div");
   screen.className = "xterm-screen";
   result.term.element.append(screen);
@@ -565,5 +567,89 @@ it("opens a file after a quick tap finishes before validation", () => {
   term.element.dispatchEvent(touchEvent("touchend"));
   plainLink.hover?.(probe, plainLink.text);
   expect(document.querySelector('[role="menu"]')?.textContent).toContain("docs/image.png");
+  dispose();
+});
+
+function pendingFileHover() {
+  let resolve!: (paths: string[]) => void;
+  const result = positionedSurface(
+    () =>
+      new Promise((done) => {
+        resolve = done;
+      }),
+  );
+  result.term.options.linkHandler?.hover?.(
+    new MouseEvent("mousemove", { clientY: 10 }),
+    "file:///home/coder/real.md",
+    {} as never,
+  );
+  return { ...result, resolve: (paths = ["/home/coder/real.md"]) => resolve(paths) };
+}
+
+it("keeps pending OSC file validation through unrelated terminal writes", async () => {
+  vi.useFakeTimers();
+  const { lines, events, resolve, dispose } = pendingFileHover();
+  lines[1] = "unrelated progress";
+  events.parsed();
+  resolve();
+  await Promise.resolve();
+  vi.advanceTimersByTime(500);
+  expect(document.querySelector("[role=menu]")?.textContent).toContain("/home/coder/real.md");
+  dispose();
+});
+
+it.each([
+  "text",
+  "metadata",
+])("rejects pending OSC validation after anchored %s changes", async (change) => {
+  vi.useFakeTimers();
+  const { lines, events, osc, resolve, dispose } = pendingFileHover();
+  if (change === "text") lines[0] = "replacement text";
+  else expect(osc.get(8)?.(";file:///home/coder/replaced.md")).toBe(false);
+  events.parsed();
+  resolve();
+  await Promise.resolve();
+  vi.advanceTimersByTime(500);
+  expect(document.querySelector("[role=menu]")).toBeNull();
+  dispose();
+});
+
+it.each([
+  true,
+  false,
+])("consumes mouse input before file validation completes (exists=%s)", async (exists) => {
+  const { term, resolve, dispose } = pendingFileHover();
+  const remote = vi.fn();
+  term.element.addEventListener("mousedown", remote);
+  term.element.addEventListener("mouseup", remote);
+  term.element.dispatchEvent(new MouseEvent("pointerdown", { bubbles: true, clientY: 10 }));
+  term.element.dispatchEvent(
+    new MouseEvent("mousedown", { bubbles: true, cancelable: true, clientY: 10 }),
+  );
+  term.element.dispatchEvent(
+    new MouseEvent("mouseup", { bubbles: true, cancelable: true, clientY: 10 }),
+  );
+  expect(remote).not.toHaveBeenCalled();
+  expect(document.querySelector("[role=menu]")).toBeNull();
+  resolve(exists ? ["/home/coder/real.md"] : []);
+  await Promise.resolve();
+  expect(Boolean(document.querySelector("[role=menu]"))).toBe(exists);
+  dispose();
+});
+
+it("preserves Shift selection while file validation is pending", async () => {
+  const { term, resolve, dispose } = pendingFileHover();
+  const remote = vi.fn();
+  term.element.addEventListener("mousedown", remote);
+  term.element.dispatchEvent(
+    new MouseEvent("pointerdown", { bubbles: true, shiftKey: true, clientY: 10 }),
+  );
+  term.element.dispatchEvent(
+    new MouseEvent("mousedown", { bubbles: true, shiftKey: true, clientY: 10 }),
+  );
+  expect(remote).toHaveBeenCalledOnce();
+  resolve();
+  await Promise.resolve();
+  expect(document.querySelector("[role=menu]")).toBeNull();
   dispose();
 });

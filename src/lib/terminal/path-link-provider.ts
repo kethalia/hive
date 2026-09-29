@@ -6,8 +6,10 @@ export function terminalPathLinkProvider(
   handlers: Pick<ILink, "activate" | "hover" | "leave">,
   validatePaths: TerminalPathValidator = () => [],
 ): ILinkProvider {
+  let requestGeneration = 0;
   return {
     provideLinks(lineNumber, callback) {
+      const generation = ++requestGeneration;
       const buffer = term.buffer.active;
       let start = lineNumber - 1;
       let end = start;
@@ -43,6 +45,8 @@ export function terminalPathLinkProvider(
         buffer.getLine(start + i)?.translateToString(),
       );
       const deliver = (existing: string[]) => {
+        // xterm associates replies with its current line, including empty replies.
+        if (generation !== requestGeneration) return;
         if (
           term.buffer.active !== buffer ||
           buffer.viewportY !== viewportY ||
@@ -61,9 +65,9 @@ export function terminalPathLinkProvider(
           ...new Set(links.map((link) => terminalLinkTarget(link.text)?.value ?? "")),
         ]);
         if (Array.isArray(result)) deliver(result);
-        else void result.then(deliver, () => callback([]));
+        else void result.then(deliver, () => deliver([]));
       } catch {
-        callback([]);
+        deliver([]);
       }
     },
   };
