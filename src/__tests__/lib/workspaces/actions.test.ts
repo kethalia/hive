@@ -565,6 +565,78 @@ describe("workspace server actions", () => {
     expect(result?.serverError).toMatch(/timed out/i);
   });
 
+  it("checks candidate paths in the session workspace and returns only existing entries", async () => {
+    mockGetWorkspace.mockResolvedValueOnce({ name: "dev-box", template_name: "ai-dev-k8s" });
+    mockedExec.mockResolvedValueOnce({
+      stdout: "/home/coder/projects/hive\n",
+      stderr: "",
+      exitCode: 0,
+    });
+    mockedExec.mockResolvedValueOnce({ stdout: "1\n2\n", stderr: "", exitCode: 0 });
+    const { getExistingTerminalPathsAction } = await import("@/lib/actions/workspaces");
+    const result = await getExistingTerminalPathsAction({
+      workspaceId: "ws-1",
+      sessionName: "main",
+      paths: ["token/DPP", "docs/real.md", "docs/folder", "/etc/passwd", "bad\npath"],
+    });
+    expect(result?.data).toEqual(["docs/real.md", "docs/folder"]);
+    const [agent, command, options] = mockedExec.mock.calls[1];
+    expect(agent).toBe("dev-box.main");
+    expect(command).toContain("[ -f '/home/coder/projects/hive/docs/real.md' ]");
+    expect(command).toContain("[ -d '/home/coder/projects/hive/docs/folder' ]");
+    expect(command).not.toContain("/etc/passwd");
+    expect(command).not.toContain("bad\npath");
+    expect(options).toMatchObject({ sessionToken: "coder-session-token", timeoutMs: 5000 });
+    expect(mockGetApplicationAuthRedirect).not.toHaveBeenCalled();
+  });
+
+  it("checks real files, directories, missing paths and shell-special filenames", async () => {
+    const { mkdtempSync, mkdirSync, writeFileSync, symlinkSync, rmSync } = await import("node:fs");
+    const { tmpdir } = await import("node:os");
+    const { execFileSync } = await import("node:child_process");
+    const root = mkdtempSync(`${tmpdir()}/hive-path-check-`);
+    try {
+      vi.stubEnv("HIVE_PROJECTS_ROOT", root);
+      mkdirSync(`${root}/docs`);
+      const filename = "docs/a'b $(false).md";
+      writeFileSync(`${root}/${filename}`, "content");
+      symlinkSync(`${root}/missing`, `${root}/broken`);
+      mockGetWorkspace.mockResolvedValueOnce({ name: "dev-box", template_name: "ai-dev-k8s" });
+      mockedExec.mockResolvedValueOnce({ stdout: root, stderr: "", exitCode: 0 });
+      mockedExec.mockImplementationOnce(async (_agent, command) => ({
+        stdout: execFileSync("sh", ["-c", command], { encoding: "utf8" }),
+        stderr: "",
+        exitCode: 0,
+      }));
+      const { getExistingTerminalPathsAction } = await import("@/lib/actions/workspaces");
+      const result = await getExistingTerminalPathsAction({
+        workspaceId: "ws-1",
+        sessionName: "main",
+        paths: [filename, "docs", "token/DPP", "broken"],
+      });
+      expect(result?.data).toEqual([filename, "docs"]);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it("fails closed when the workspace path check fails", async () => {
+    mockGetWorkspace.mockResolvedValueOnce({ name: "dev-box", template_name: "ai-dev-k8s" });
+    mockedExec.mockResolvedValueOnce({
+      stdout: "/home/coder/projects/hive\n",
+      stderr: "",
+      exitCode: 0,
+    });
+    mockedExec.mockResolvedValueOnce({ stdout: "0\n", stderr: "offline", exitCode: 1 });
+    const { getExistingTerminalPathsAction } = await import("@/lib/actions/workspaces");
+    const result = await getExistingTerminalPathsAction({
+      workspaceId: "ws-1",
+      sessionName: "main",
+      paths: ["docs/real.md"],
+    });
+    expect(result?.data).toEqual([]);
+  });
+
   it.each([
     false,
     true,

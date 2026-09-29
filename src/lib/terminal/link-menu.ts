@@ -1,9 +1,16 @@
 import { toast } from "sonner";
 import { type TerminalFileActionHandler, terminalLinkTarget } from "./link-target";
 
+let closeActiveMenu: (() => void) | undefined;
+
 /** A portal outside xterm: its buttons must never send input to the remote TUI. */
-export function createTerminalLinkMenu(onFileAction?: TerminalFileActionHandler) {
+export function createTerminalLinkMenu(
+  onFileAction?: TerminalFileActionHandler,
+  onShow?: (position: { x: number; y: number }) => void,
+  onClose?: () => void,
+) {
   let menu: HTMLDivElement | undefined;
+  let targetKey: string | undefined;
   let timer: ReturnType<typeof setTimeout> | undefined;
   let restoreFocus: HTMLElement | null = null;
   const cancelTimer = () => {
@@ -11,30 +18,41 @@ export function createTerminalLinkMenu(onFileAction?: TerminalFileActionHandler)
   };
   const close = () => {
     cancelTimer();
+    const wasOpen = Boolean(menu);
     const focused = menu?.contains(document.activeElement);
     menu?.remove();
     menu = undefined;
+    targetKey = undefined;
+    if (closeActiveMenu === close) closeActiveMenu = undefined;
+    if (wasOpen) onClose?.();
     if (focused) restoreFocus?.focus({ preventScroll: true });
   };
-  const leave = () => {
-    cancelTimer();
-    timer = setTimeout(close, 350);
-  };
-  const show = (uri: string, x: number, y: number, focus = false) => {
+  // Leaving a link cancels a pending hover, but an open menu stays reachable.
+  const leave = cancelTimer;
+  const show = (uri: string, x: number, y: number, focus = false, instance = "") => {
     const target = terminalLinkTarget(uri);
     if (!target) return;
+    const key = `${target.kind}:${target.value}:${instance}`;
+    cancelTimer();
+    if (menu && targetKey === key) {
+      if (focus) menu.querySelector<HTMLButtonElement>("button")?.focus({ preventScroll: true });
+      return;
+    }
+    closeActiveMenu?.();
     close();
+    closeActiveMenu = close;
+    targetKey = key;
+    onShow?.({ x, y });
     restoreFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     menu = document.createElement("div");
     menu.setAttribute("role", "menu");
     menu.setAttribute("aria-label", target.kind === "file" ? "File actions" : "Link actions");
     menu.className =
-      "fixed z-[100] w-80 max-w-[calc(100vw-16px)] rounded-md border bg-popover p-1 text-popover-foreground shadow-lg text-sm";
+      "fixed z-[100] w-64 max-w-[calc(100vw-16px)] rounded-md border bg-popover p-1 text-popover-foreground shadow-lg text-xs";
     menu.addEventListener("pointerenter", cancelTimer);
-    menu.addEventListener("pointerleave", leave);
     menu.addEventListener("focusin", cancelTimer);
     const label = document.createElement("div");
-    label.className = "truncate px-3 py-2 text-xs text-muted-foreground";
+    label.className = "truncate px-2 py-1 text-xs text-muted-foreground";
     label.textContent = target.value;
     label.title = target.value;
     menu.append(label);
@@ -45,7 +63,7 @@ export function createTerminalLinkMenu(onFileAction?: TerminalFileActionHandler)
       button.textContent = title;
       button.disabled = disabled;
       button.className =
-        "block min-h-11 w-full rounded px-3 py-2 text-left hover:bg-accent focus:bg-accent focus:outline-none disabled:opacity-50";
+        "block min-h-7 w-full rounded px-2 py-1 [@media(any-pointer:coarse)]:min-h-11 text-left hover:bg-accent focus:bg-accent focus:outline-none disabled:opacity-50";
       button.addEventListener("click", () => {
         close();
         action();
@@ -64,13 +82,9 @@ export function createTerminalLinkMenu(onFileAction?: TerminalFileActionHandler)
       add("Open URL in browser", () => window.open(target.value, "_blank", "noopener,noreferrer"));
     } else {
       add("Download", () => onFileAction?.(target.value, "download"), !onFileAction);
+      add("Open in Files (new window)", () => onFileAction?.(target.value, "open"), !onFileAction);
       add(
-        "Open in Files in a new window",
-        () => onFileAction?.(target.value, "open"),
-        !onFileAction,
-      );
-      add(
-        "Open in Files in a new workspace",
+        "Open in Files (new workspace)",
         () => onFileAction?.(target.value, "new-workspace"),
         !onFileAction,
       );
@@ -109,9 +123,9 @@ export function createTerminalLinkMenu(onFileAction?: TerminalFileActionHandler)
   window.addEventListener("resize", close);
   return {
     show,
-    hover: (uri: string, x: number, y: number) => {
+    hover: (uri: string, x: number, y: number, instance = "") => {
       cancelTimer();
-      timer = setTimeout(() => show(uri, x, y), 400);
+      timer = setTimeout(() => show(uri, x, y, false, instance), 400);
     },
     leave,
     close,

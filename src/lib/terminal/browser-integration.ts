@@ -1,9 +1,13 @@
 import { ClipboardAddon, type IClipboardProvider } from "@xterm/addon-clipboard";
 import { WebLinksAddon } from "@xterm/addon-web-links";
-import type { Terminal } from "@xterm/xterm";
+import type { IBuffer, IBufferRange, Terminal } from "@xterm/xterm";
 import { toast } from "sonner";
 import { createTerminalLinkMenu } from "./link-menu";
-import { type TerminalFileActionHandler, terminalLinkTarget } from "./link-target";
+import {
+  type TerminalFileActionHandler,
+  type TerminalPathValidator,
+  terminalLinkTarget,
+} from "./link-target";
 import { terminalPathLinkProvider } from "./path-link-provider";
 
 export function openTerminalLink(uri: string): void {
@@ -45,40 +49,223 @@ export function installTerminalBrowserIntegration(
   {
     allowClipboardWrite = false,
     onFileAction,
-  }: { allowClipboardWrite?: boolean; onFileAction?: TerminalFileActionHandler } = {},
+    validatePaths = () => [],
+  }: {
+    allowClipboardWrite?: boolean;
+    onFileAction?: TerminalFileActionHandler;
+    validatePaths?: TerminalPathValidator;
+  } = {},
 ): () => void {
-  const menu = createTerminalLinkMenu(onFileAction);
+  const menu = createTerminalLinkMenu(
+    onFileAction,
+    ({ y }) => {
+      anchor = pendingAnchor ?? readAnchor(y, hoveredOpaque);
+      pendingAnchor = undefined;
+    },
+    () => {
+      anchor = undefined;
+    },
+  );
+  let validationGeneration = 0;
+  let disposed = false;
+  const touchProbes = new WeakSet<MouseEvent>();
+  let releasedTouch: { x: number; y: number } | undefined;
+  let touchTimer: ReturnType<typeof setTimeout> | undefined;
+  const clearTouch = () => {
+    clearTimeout(touchTimer);
+    touchProbe = undefined;
+    releasedTouch = undefined;
+  };
   let hoveredUri: string | undefined;
+  let hoveredOpaque = false;
+  let hoveredInstance = "";
+  let pendingPlainPress: ReturnType<typeof pathProvider.pendingLinkAt>;
+  let pendingPlainClick: { x: number; y: number } | undefined;
+  const instanceKey = (event: MouseEvent, range?: IBufferRange) =>
+    range?.start && range?.end
+      ? `${range.start.x}:${range.start.y}:${range.end.x}:${range.end.y}`
+      : `row:${readAnchor(event.clientY)?.row ?? event.clientY}`;
   let touchProbe: MouseEvent | undefined;
   let pressed: { uri: string; x: number; y: number } | undefined;
-  const hover = (event: MouseEvent, uri: string) => {
+  let anchor: { buffer: IBuffer; row: number; text: string; opaque: boolean } | undefined;
+  let pendingAnchor: typeof anchor;
+  let validationAnchor: typeof anchor;
+  let unverifiedHover: { uri: string; click?: { x: number; y: number } } | undefined;
+  const cancelPathValidation = () => {
+    validationGeneration++;
+    pendingPlainPress = undefined;
+    pendingPlainClick = undefined;
+    unverifiedHover = undefined;
+    validationAnchor = undefined;
+  };
+  const lineText = (buffer: IBuffer, row: number) => {
+    let start = row;
+    let end = row;
+    while (start > 0 && buffer.getLine(start)?.isWrapped) start--;
+    while (end + 1 < buffer.length && buffer.getLine(end + 1)?.isWrapped) end++;
+    const lines: string[] = [];
+    for (let y = start; y <= end; y++) lines.push(buffer.getLine(y)?.translateToString() ?? "");
+    return `${start}:${end}:${lines.join("\n")}`;
+  };
+  const readAnchor = (clientY: number, opaque = false): typeof anchor => {
+    const rect = term.element?.querySelector(".xterm-screen")?.getBoundingClientRect();
+    if (!rect || rect.height <= 0) {
+      return undefined;
+    }
+    const buffer = term.buffer.active;
+    const row = buffer.viewportY + Math.floor(((clientY - rect.top) * term.rows) / rect.height);
+    return { buffer, row, text: lineText(buffer, row), opaque };
+  };
+  const invalidateLink = () => {
+    cancelPathValidation();
+    clearTouch();
+    anchor = undefined;
+    pendingAnchor = undefined;
+    hoveredUri = undefined;
+    pressed = undefined;
+    touchProbe = undefined;
+    menu.close();
+  };
+  // A DOM mouseleave also happens while crossing into the menu. Terminal
+  // lifecycle events distinguish that crossing from a stale buffer location.
+  const scroll = term.onScroll(invalidateLink);
+  const resized = term.onResize(invalidateLink);
+  const isInvalid = (location: typeof anchor) =>
+    location &&
+    // xterm's public cells expose text but not OSC 8 URI metadata. A parsed
+    // write may change an OSC link without changing its label, so dismiss it.
+    (location.opaque ||
+      location.buffer !== term.buffer.active ||
+      lineText(location.buffer, location.row) !== location.text);
+  const parsed = term.onWriteParsed(() => {
+    if (isInvalid(validationAnchor)) cancelPathValidation();
+    if (isInvalid(anchor)) {
+      invalidateLink();
+    } else if (isInvalid(pendingAnchor)) {
+      pendingAnchor = undefined;
+      hoveredUri = undefined;
+      pressed = undefined;
+      touchProbe = undefined;
+      menu.leave();
+    }
+  });
+  const hoverLink = (event: MouseEvent, uri: string, opaque: boolean, range?: IBufferRange) => {
+    if (disposed || (touchProbes.has(event) && event !== touchProbe)) return;
     if (touchProbe && event !== touchProbe) return;
     if (!terminalLinkTarget(uri) || event.shiftKey) {
-      hoveredUri = undefined;
-      menu.close();
+      invalidateLink();
       return;
     }
+    pendingAnchor = readAnchor(event.clientY, opaque);
     hoveredUri = uri;
-    if (!touchProbe) menu.hover(uri, event.clientX, event.clientY);
+    hoveredOpaque = opaque;
+    hoveredInstance = instanceKey(event, range);
+    if (touchProbe && releasedTouch) {
+      const touch = releasedTouch;
+      clearTouch();
+      pressed = undefined;
+      menu.show(uri, touch.x, touch.y, true, hoveredInstance);
+      return;
+    }
+    if (!touchProbe) menu.hover(uri, event.clientX, event.clientY, hoveredInstance);
     if (touchProbe) pressed = { uri, x: touchProbe.clientX, y: touchProbe.clientY };
   };
+  const hover = (event: MouseEvent, uri: string, range?: IBufferRange) => {
+    if (!pendingPlainClick && !pendingPlainPress) cancelPathValidation();
+    hoverLink(event, uri, false, range);
+  };
   const leave = () => {
+    cancelPathValidation();
     hoveredUri = undefined;
+    pendingAnchor = undefined;
     menu.leave();
   };
-  const activate = (event: MouseEvent, uri: string) => {
-    if (!event.shiftKey) menu.show(uri, event.clientX, event.clientY, true);
+  const activate = (event: MouseEvent, uri: string, opaque = false, range?: IBufferRange) => {
+    if (!event.shiftKey) {
+      pendingAnchor = readAnchor(event.clientY, opaque);
+      menu.show(uri, event.clientX, event.clientY, true, instanceKey(event, range));
+    }
   };
+  const verifiedOscLink = (
+    event: MouseEvent,
+    uri: string,
+    run: () => void,
+    hovering = false,
+    range?: IBufferRange,
+  ) => {
+    if (
+      event.shiftKey ||
+      (touchProbe && event !== touchProbe) ||
+      (touchProbes.has(event) && event !== touchProbe)
+    )
+      return;
+    cancelPathValidation();
+    const target = terminalLinkTarget(uri);
+    if (!target) return;
+    const generation = validationGeneration;
+    if (target.kind === "url") {
+      run();
+      return;
+    }
+    const location = readAnchor(event.clientY);
+    validationAnchor = location;
+    const candidate = hovering
+      ? { uri, click: undefined as { x: number; y: number } | undefined }
+      : undefined;
+    unverifiedHover = candidate;
+    const finish = (existing: string[]) => {
+      if (disposed || generation !== validationGeneration) return;
+      if (isInvalid(location)) {
+        cancelPathValidation();
+        return;
+      }
+      unverifiedHover = undefined;
+      validationAnchor = undefined;
+      if (!existing.includes(target.value)) return;
+      if (candidate?.click) {
+        activate(
+          new MouseEvent("click", { clientX: candidate.click.x, clientY: candidate.click.y }),
+          uri,
+          true,
+          range,
+        );
+      } else run();
+    };
+    try {
+      const result = validatePaths([target.value]);
+      if (Array.isArray(result)) finish(result);
+      else void result.then(finish, () => finish([]));
+    } catch {
+      finish([]);
+    }
+  };
+  // OSC 8 metadata is not exposed by public cells. Cancel checks when that
+  // metadata is written, while allowing unrelated output to continue.
+  const oscLinks = term.parser.registerOscHandler(8, () => {
+    cancelPathValidation();
+    return false;
+  });
   const previousLinkHandler = term.options.linkHandler;
-  term.options.linkHandler = { activate, hover, leave, allowNonHttpProtocols: true };
+  term.options.linkHandler = {
+    activate: (event, uri, range) => {
+      verifiedOscLink(event, uri, () => activate(event, uri, true, range), false, range);
+    },
+    hover: (event, uri, range) =>
+      verifiedOscLink(event, uri, () => hoverLink(event, uri, true, range), true, range),
+    leave,
+    allowNonHttpProtocols: true,
+  };
   const links = new WebLinksAddon(activate, { hover, leave });
   const clipboard = allowClipboardWrite
     ? new ClipboardAddon(undefined, terminalClipboardProvider)
     : undefined;
   term.loadAddon(links);
-  const paths = term.registerLinkProvider(
-    terminalPathLinkProvider(term, { activate, hover, leave }),
+  const pathProvider = terminalPathLinkProvider(
+    term,
+    { activate: (event, uri, range) => activate(event, uri, false, range), hover, leave },
+    validatePaths,
   );
+  const paths = term.registerLinkProvider(pathProvider);
   if (clipboard) term.loadAddon(clipboard);
   const element = term.element;
 
@@ -87,22 +274,50 @@ export function installTerminalBrowserIntegration(
   const mouseDown = (event: MouseEvent) => {
     pressed = undefined;
     menu.close();
-    if (!hoveredUri || event.button !== 0 || event.shiftKey) return;
-    pressed = { uri: hoveredUri, x: event.clientX, y: event.clientY };
+    if (event.button !== 0 || event.shiftKey) {
+      cancelPathValidation();
+      return;
+    }
+    pendingPlainPress = pathProvider.pendingLinkAt(event);
+    const uri = unverifiedHover?.uri ?? pendingPlainPress?.link.text ?? hoveredUri;
+    if (!uri) return;
+    pressed = { uri, x: event.clientX, y: event.clientY };
     event.preventDefault();
     event.stopImmediatePropagation();
   };
   const mouseUp = (event: MouseEvent) => {
     const link = pressed;
+    const pending = pendingPlainPress;
+    pendingPlainPress = undefined;
     pressed = undefined;
     if (!link) return;
     event.preventDefault();
     event.stopImmediatePropagation();
-    if (hoveredUri === link.uri && Math.hypot(event.clientX - link.x, event.clientY - link.y) < 8) {
-      menu.show(link.uri, event.clientX, event.clientY, true);
+    if (Math.hypot(event.clientX - link.x, event.clientY - link.y) >= 8) {
+      cancelPathValidation();
+      return;
+    }
+    if (pending) {
+      const click = { x: event.clientX, y: event.clientY };
+      pendingPlainClick = click;
+      void pending.ready.then((valid) => {
+        if (disposed || pendingPlainClick !== click) return;
+        pendingPlainClick = undefined;
+        if (valid) activate(event, pending.link.text, false, pending.link.range);
+      });
+      return;
+    }
+    if (unverifiedHover?.uri === link.uri) {
+      unverifiedHover.click = { x: event.clientX, y: event.clientY };
+      return;
+    }
+    if (hoveredUri === link.uri) {
+      menu.show(link.uri, event.clientX, event.clientY, true, hoveredInstance);
     }
   };
   const touchStart = (event: TouchEvent) => {
+    cancelPathValidation();
+    clearTouch();
     pressed = undefined;
     touchProbe = undefined;
     hoveredUri = undefined;
@@ -115,6 +330,7 @@ export function installTerminalBrowserIntegration(
       clientX: touch.clientX,
       clientY: touch.clientY,
     });
+    touchProbes.add(touchProbe);
     // xterm retains its last buffer cell on mouseleave. Visit a different column
     // first so repeated taps trigger a fresh lookup. Keep probes on the screen:
     // bubbling would send synthetic mouse motion to the remote application.
@@ -134,12 +350,26 @@ export function installTerminalBrowserIntegration(
     }
     screen?.dispatchEvent(new MouseEvent("mouseleave"));
     screen?.dispatchEvent(touchProbe);
+    touchTimer = setTimeout(clearTouch, 5000);
   };
   const touchEnd = (event: TouchEvent) => {
     const link = pressed;
     pressed = undefined;
-    touchProbe = undefined;
     const touch = event.changedTouches[0];
+    if (
+      !link &&
+      touchProbe &&
+      (unverifiedHover || pathProvider.isValidationPending(touchProbe)) &&
+      touch &&
+      Math.hypot(touch.clientX - touchProbe.clientX, touch.clientY - touchProbe.clientY) < 8
+    ) {
+      releasedTouch = { x: touch.clientX, y: touch.clientY };
+      // Suppress the compatibility mouse events while the touch lookup is pending.
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      return;
+    }
+    clearTouch();
     if (
       !link ||
       !touch ||
@@ -149,9 +379,11 @@ export function installTerminalBrowserIntegration(
       return;
     event.preventDefault();
     event.stopImmediatePropagation();
-    menu.show(link.uri, touch.clientX, touch.clientY, true);
+    menu.show(link.uri, touch.clientX, touch.clientY, true, hoveredInstance);
   };
   const cancel = () => {
+    cancelPathValidation();
+    clearTouch();
     touchProbe = undefined;
     pressed = undefined;
     menu.close();
@@ -166,7 +398,35 @@ export function installTerminalBrowserIntegration(
       cancel();
     }
   };
-  element?.addEventListener("wheel", menu.close, { passive: true });
+  const cancelValidation = () => {
+    cancelPathValidation();
+    clearTouch();
+  };
+  const escapeValidation = (event: KeyboardEvent) => {
+    if (event.key === "Escape") cancelValidation();
+  };
+  const pointerValidation = (event: PointerEvent) => {
+    if (
+      unverifiedHover &&
+      element?.contains(event.target as Node) &&
+      event.button === 0 &&
+      !event.shiftKey &&
+      event.pointerType !== "touch"
+    )
+      return;
+    cancelValidation();
+  };
+  document.addEventListener("pointerdown", pointerValidation, true);
+  document.addEventListener("keydown", escapeValidation);
+  const mouseMove = (event: MouseEvent) => {
+    if (
+      pendingPlainClick &&
+      Math.hypot(event.clientX - pendingPlainClick.x, event.clientY - pendingPlainClick.y) >= 8
+    )
+      cancelPathValidation();
+  };
+  element?.addEventListener("mousemove", mouseMove, true);
+  element?.addEventListener("wheel", invalidateLink, { passive: true });
   element?.addEventListener("mousedown", mouseDown, true);
   element?.addEventListener("mouseup", mouseUp, true);
   element?.addEventListener("touchstart", touchStart, { passive: true });
@@ -175,7 +435,13 @@ export function installTerminalBrowserIntegration(
   element?.addEventListener("touchcancel", cancel);
   element?.addEventListener("mouseleave", leave);
   return () => {
-    element?.removeEventListener("wheel", menu.close);
+    disposed = true;
+    cancelPathValidation();
+    clearTouch();
+    document.removeEventListener("pointerdown", pointerValidation, true);
+    document.removeEventListener("keydown", escapeValidation);
+    element?.removeEventListener("mousemove", mouseMove, true);
+    element?.removeEventListener("wheel", invalidateLink);
     element?.removeEventListener("mousedown", mouseDown, true);
     element?.removeEventListener("mouseup", mouseUp, true);
     element?.removeEventListener("touchstart", touchStart);
@@ -184,6 +450,10 @@ export function installTerminalBrowserIntegration(
     element?.removeEventListener("touchcancel", cancel);
     element?.removeEventListener("mouseleave", leave);
     term.options.linkHandler = previousLinkHandler;
+    oscLinks.dispose();
+    resized.dispose();
+    scroll.dispose();
+    parsed.dispose();
     paths.dispose();
     menu.dispose();
     links.dispose();
