@@ -1,6 +1,6 @@
 import { ClipboardAddon, type IClipboardProvider } from "@xterm/addon-clipboard";
 import { WebLinksAddon } from "@xterm/addon-web-links";
-import type { IBuffer, Terminal } from "@xterm/xterm";
+import type { IBuffer, IBufferRange, Terminal } from "@xterm/xterm";
 import { toast } from "sonner";
 import { createTerminalLinkMenu } from "./link-menu";
 import {
@@ -78,6 +78,13 @@ export function installTerminalBrowserIntegration(
   };
   let hoveredUri: string | undefined;
   let hoveredOpaque = false;
+  let hoveredInstance = "";
+  let pendingPlainPress: ReturnType<typeof pathProvider.pendingLinkAt>;
+  let pendingPlainClick: { x: number; y: number } | undefined;
+  const instanceKey = (event: MouseEvent, range?: IBufferRange) =>
+    range?.start && range?.end
+      ? `${range.start.x}:${range.start.y}:${range.end.x}:${range.end.y}`
+      : `row:${readAnchor(event.clientY)?.row ?? event.clientY}`;
   let touchProbe: MouseEvent | undefined;
   let pressed: { uri: string; x: number; y: number } | undefined;
   let anchor: { buffer: IBuffer; row: number; text: string; opaque: boolean } | undefined;
@@ -86,6 +93,8 @@ export function installTerminalBrowserIntegration(
   let unverifiedHover: { uri: string; click?: { x: number; y: number } } | undefined;
   const cancelPathValidation = () => {
     validationGeneration++;
+    pendingPlainPress = undefined;
+    pendingPlainClick = undefined;
     unverifiedHover = undefined;
     validationAnchor = undefined;
   };
@@ -140,7 +149,7 @@ export function installTerminalBrowserIntegration(
       menu.leave();
     }
   });
-  const hoverLink = (event: MouseEvent, uri: string, opaque: boolean) => {
+  const hoverLink = (event: MouseEvent, uri: string, opaque: boolean, range?: IBufferRange) => {
     if (disposed || (touchProbes.has(event) && event !== touchProbe)) return;
     if (touchProbe && event !== touchProbe) return;
     if (!terminalLinkTarget(uri) || event.shiftKey) {
@@ -150,19 +159,20 @@ export function installTerminalBrowserIntegration(
     pendingAnchor = readAnchor(event.clientY, opaque);
     hoveredUri = uri;
     hoveredOpaque = opaque;
+    hoveredInstance = instanceKey(event, range);
     if (touchProbe && releasedTouch) {
       const touch = releasedTouch;
       clearTouch();
       pressed = undefined;
-      menu.show(uri, touch.x, touch.y, true);
+      menu.show(uri, touch.x, touch.y, true, hoveredInstance);
       return;
     }
-    if (!touchProbe) menu.hover(uri, event.clientX, event.clientY);
+    if (!touchProbe) menu.hover(uri, event.clientX, event.clientY, hoveredInstance);
     if (touchProbe) pressed = { uri, x: touchProbe.clientX, y: touchProbe.clientY };
   };
-  const hover = (event: MouseEvent, uri: string) => {
-    cancelPathValidation();
-    hoverLink(event, uri, false);
+  const hover = (event: MouseEvent, uri: string, range?: IBufferRange) => {
+    if (!pendingPlainClick && !pendingPlainPress) cancelPathValidation();
+    hoverLink(event, uri, false, range);
   };
   const leave = () => {
     cancelPathValidation();
@@ -170,13 +180,19 @@ export function installTerminalBrowserIntegration(
     pendingAnchor = undefined;
     menu.leave();
   };
-  const activate = (event: MouseEvent, uri: string, opaque = false) => {
+  const activate = (event: MouseEvent, uri: string, opaque = false, range?: IBufferRange) => {
     if (!event.shiftKey) {
       pendingAnchor = readAnchor(event.clientY, opaque);
-      menu.show(uri, event.clientX, event.clientY, true);
+      menu.show(uri, event.clientX, event.clientY, true, instanceKey(event, range));
     }
   };
-  const verifiedOscLink = (event: MouseEvent, uri: string, run: () => void, hovering = false) => {
+  const verifiedOscLink = (
+    event: MouseEvent,
+    uri: string,
+    run: () => void,
+    hovering = false,
+    range?: IBufferRange,
+  ) => {
     if (
       event.shiftKey ||
       (touchProbe && event !== touchProbe) ||
@@ -211,6 +227,7 @@ export function installTerminalBrowserIntegration(
           new MouseEvent("click", { clientX: candidate.click.x, clientY: candidate.click.y }),
           uri,
           true,
+          range,
         );
       } else run();
     };
@@ -230,10 +247,11 @@ export function installTerminalBrowserIntegration(
   });
   const previousLinkHandler = term.options.linkHandler;
   term.options.linkHandler = {
-    activate: (event, uri) => {
-      verifiedOscLink(event, uri, () => activate(event, uri, true));
+    activate: (event, uri, range) => {
+      verifiedOscLink(event, uri, () => activate(event, uri, true, range), false, range);
     },
-    hover: (event, uri) => verifiedOscLink(event, uri, () => hoverLink(event, uri, true), true),
+    hover: (event, uri, range) =>
+      verifiedOscLink(event, uri, () => hoverLink(event, uri, true, range), true, range),
     leave,
     allowNonHttpProtocols: true,
   };
@@ -242,7 +260,11 @@ export function installTerminalBrowserIntegration(
     ? new ClipboardAddon(undefined, terminalClipboardProvider)
     : undefined;
   term.loadAddon(links);
-  const pathProvider = terminalPathLinkProvider(term, { activate, hover, leave }, validatePaths);
+  const pathProvider = terminalPathLinkProvider(
+    term,
+    { activate: (event, uri, range) => activate(event, uri, false, range), hover, leave },
+    validatePaths,
+  );
   const paths = term.registerLinkProvider(pathProvider);
   if (clipboard) term.loadAddon(clipboard);
   const element = term.element;
@@ -256,7 +278,8 @@ export function installTerminalBrowserIntegration(
       cancelPathValidation();
       return;
     }
-    const uri = unverifiedHover?.uri ?? hoveredUri;
+    pendingPlainPress = pathProvider.pendingLinkAt(event);
+    const uri = unverifiedHover?.uri ?? pendingPlainPress?.link.text ?? hoveredUri;
     if (!uri) return;
     pressed = { uri, x: event.clientX, y: event.clientY };
     event.preventDefault();
@@ -264,6 +287,8 @@ export function installTerminalBrowserIntegration(
   };
   const mouseUp = (event: MouseEvent) => {
     const link = pressed;
+    const pending = pendingPlainPress;
+    pendingPlainPress = undefined;
     pressed = undefined;
     if (!link) return;
     event.preventDefault();
@@ -272,12 +297,22 @@ export function installTerminalBrowserIntegration(
       cancelPathValidation();
       return;
     }
+    if (pending) {
+      const click = { x: event.clientX, y: event.clientY };
+      pendingPlainClick = click;
+      void pending.ready.then((valid) => {
+        if (disposed || pendingPlainClick !== click) return;
+        pendingPlainClick = undefined;
+        if (valid) activate(event, pending.link.text, false, pending.link.range);
+      });
+      return;
+    }
     if (unverifiedHover?.uri === link.uri) {
       unverifiedHover.click = { x: event.clientX, y: event.clientY };
       return;
     }
     if (hoveredUri === link.uri) {
-      menu.show(link.uri, event.clientX, event.clientY, true);
+      menu.show(link.uri, event.clientX, event.clientY, true, hoveredInstance);
     }
   };
   const touchStart = (event: TouchEvent) => {
@@ -344,7 +379,7 @@ export function installTerminalBrowserIntegration(
       return;
     event.preventDefault();
     event.stopImmediatePropagation();
-    menu.show(link.uri, touch.clientX, touch.clientY, true);
+    menu.show(link.uri, touch.clientX, touch.clientY, true, hoveredInstance);
   };
   const cancel = () => {
     cancelPathValidation();
@@ -383,6 +418,14 @@ export function installTerminalBrowserIntegration(
   };
   document.addEventListener("pointerdown", pointerValidation, true);
   document.addEventListener("keydown", escapeValidation);
+  const mouseMove = (event: MouseEvent) => {
+    if (
+      pendingPlainClick &&
+      Math.hypot(event.clientX - pendingPlainClick.x, event.clientY - pendingPlainClick.y) >= 8
+    )
+      cancelPathValidation();
+  };
+  element?.addEventListener("mousemove", mouseMove, true);
   element?.addEventListener("wheel", invalidateLink, { passive: true });
   element?.addEventListener("mousedown", mouseDown, true);
   element?.addEventListener("mouseup", mouseUp, true);
@@ -397,6 +440,7 @@ export function installTerminalBrowserIntegration(
     clearTouch();
     document.removeEventListener("pointerdown", pointerValidation, true);
     document.removeEventListener("keydown", escapeValidation);
+    element?.removeEventListener("mousemove", mouseMove, true);
     element?.removeEventListener("wheel", invalidateLink);
     element?.removeEventListener("mousedown", mouseDown, true);
     element?.removeEventListener("mouseup", mouseUp, true);

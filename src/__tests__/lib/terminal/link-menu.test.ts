@@ -59,3 +59,18 @@ it("cancels an unopened hover and keeps only one terminal menu visible", () => {
   document.body.dispatchEvent(new Event("pointerdown", { bubbles: true }));
   expect(document.querySelector("[role=menu]")).toBeNull();
 });
+
+it("repositions the same destination for another link instance but preserves repeated hovers", () => {
+  const { menu } = setup();
+  menu.show("docs/image.png", 80, 100, false, "1:1:14:1");
+  const first = document.querySelector<HTMLElement>("[role=menu]")!;
+  menu.hover("docs/image.png", 100, 105, "1:1:14:1");
+  vi.advanceTimersByTime(400);
+  expect(document.querySelector("[role=menu]")).toBe(first);
+  menu.hover("docs/image.png", 200, 200, "1:3:14:3");
+  vi.advanceTimersByTime(400);
+  const second = document.querySelector<HTMLElement>("[role=menu]")!;
+  expect(second).not.toBe(first);
+  expect(second.style.left).toBe("200px");
+  expect(second.style.top).toBe("210px");
+});

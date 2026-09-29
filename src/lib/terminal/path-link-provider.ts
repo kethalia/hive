@@ -1,4 +1,4 @@
-import type { ILink, ILinkProvider, Terminal } from "@xterm/xterm";
+import type { IBufferRange, ILink, ILinkProvider, Terminal } from "@xterm/xterm";
 import {
   TERMINAL_PATH_BATCH_SIZE,
   type TerminalPathValidator,
@@ -8,33 +8,49 @@ import {
 
 export function terminalPathLinkProvider(
   term: Terminal,
-  handlers: Pick<ILink, "activate" | "hover" | "leave">,
+  handlers: {
+    activate: (event: MouseEvent, text: string, range?: IBufferRange) => void;
+    hover?: (event: MouseEvent, text: string, range?: IBufferRange) => void;
+    leave?: ILink["leave"];
+  },
   validatePaths: TerminalPathValidator = () => [],
-): ILinkProvider & { isValidationPending(event: MouseEvent): boolean } {
+): ILinkProvider & {
+  isValidationPending(event: MouseEvent): boolean;
+  pendingLinkAt(event: MouseEvent): { link: ILink; ready: Promise<boolean> } | undefined;
+} {
   let requestGeneration = 0;
   let pendingLinks: ILink[] = [];
+  let pendingResult: Promise<Set<ILink>> | undefined;
+  let settlePending: ((valid: Set<ILink>) => void) | undefined;
 
   return {
     isValidationPending(event) {
+      return Boolean(this.pendingLinkAt(event));
+    },
+    pendingLinkAt(event) {
       const rect = term.element?.querySelector(".xterm-screen")?.getBoundingClientRect();
-      if (!rect?.width || !rect.height) return false;
+      if (!rect?.width || !rect.height || !pendingResult) return undefined;
       const x = Math.floor(((event.clientX - rect.left) * term.cols) / rect.width) + 1;
       const y =
         term.buffer.active.viewportY +
         Math.floor(((event.clientY - rect.top) * term.rows) / rect.height) +
         1;
       if (x < 1 || x > term.cols || event.clientY < rect.top || event.clientY >= rect.bottom)
-        return false;
-      return pendingLinks.some(
+        return undefined;
+      const link = pendingLinks.find(
         ({ range }) =>
           y >= range.start.y &&
           y <= range.end.y &&
           (y !== range.start.y || x >= range.start.x) &&
           (y !== range.end.y || x <= range.end.x),
       );
+      return link ? { link, ready: pendingResult.then((valid) => valid.has(link)) } : undefined;
     },
     provideLinks(lineNumber, callback) {
       const generation = ++requestGeneration;
+      settlePending?.(new Set());
+      pendingResult = undefined;
+      settlePending = undefined;
       pendingLinks = [];
       const buffer = term.buffer.active;
       let start = lineNumber - 1;
@@ -58,7 +74,16 @@ export function terminalPathLinkProvider(
         const first = cells[match.index];
         const last = cells[match.index + match.text.length - 1];
         if (!first || !last || first.y > lineNumber || last.y < lineNumber) return [];
-        return [{ text: match.text, range: { start: first, end: last }, ...handlers }];
+        const range = { start: first, end: last };
+        return [
+          {
+            text: match.text,
+            range,
+            activate: (event: MouseEvent, text: string) => handlers.activate(event, text, range),
+            hover: (event: MouseEvent, text: string) => handlers.hover?.(event, text, range),
+            leave: handlers.leave,
+          },
+        ];
       });
       if (!links.length) {
         callback([]);
@@ -81,11 +106,16 @@ export function terminalPathLinkProvider(
           term.rows !== rows ||
           snapshot.some((line, i) => buffer.getLine(start + i)?.translateToString() !== line)
         ) {
+          settlePending?.(new Set());
           callback([]);
           return;
         }
         const valid = new Set(existing);
-        callback(links.filter((link) => valid.has(terminalLinkTarget(link.text)?.value ?? "")));
+        const confirmed = links.filter((link) =>
+          valid.has(terminalLinkTarget(link.text)?.value ?? ""),
+        );
+        settlePending?.(new Set(confirmed));
+        callback(confirmed);
       };
       try {
         const candidates = [
@@ -104,6 +134,9 @@ export function terminalPathLinkProvider(
         if (batches.every(Array.isArray)) deliver(batches.flat());
         else {
           pendingLinks = links;
+          pendingResult = new Promise((resolve) => {
+            settlePending = resolve;
+          });
           if (batches.length === 1) {
             void Promise.resolve(batches[0]).then(deliver, () => deliver([]));
             return;

@@ -29,10 +29,10 @@ export function createTerminalLinkMenu(
   };
   // Leaving a link cancels a pending hover, but an open menu stays reachable.
   const leave = cancelTimer;
-  const show = (uri: string, x: number, y: number, focus = false) => {
+  const show = (uri: string, x: number, y: number, focus = false, instance = "") => {
     const target = terminalLinkTarget(uri);
     if (!target) return;
-    const key = `${target.kind}:${target.value}`;
+    const key = `${target.kind}:${target.value}:${instance}`;
     cancelTimer();
     if (menu && targetKey === key) {
       if (focus) menu.querySelector<HTMLButtonElement>("button")?.focus({ preventScroll: true });
@@ -123,9 +123,9 @@ export function createTerminalLinkMenu(
   window.addEventListener("resize", close);
   return {
     show,
-    hover: (uri: string, x: number, y: number) => {
+    hover: (uri: string, x: number, y: number, instance = "") => {
       cancelTimer();
-      timer = setTimeout(() => show(uri, x, y), 400);
+      timer = setTimeout(() => show(uri, x, y, false, instance), 400);
     },
     leave,
     close,

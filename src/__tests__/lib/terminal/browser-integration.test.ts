@@ -693,3 +693,66 @@ it("preserves Shift selection while file validation is pending", async () => {
   expect(document.querySelector("[role=menu]")).toBeNull();
   dispose();
 });
+
+it.each([
+  "before-release",
+  "after-release",
+  "missing",
+])("holds plain-path clicks during validation (%s)", async (mode) => {
+  let resolve!: (paths: string[]) => void;
+  const { term, dispose } = positionedSurface(
+    () =>
+      new Promise((done) => {
+        resolve = done;
+      }),
+  );
+  const screen = term.element.querySelector(".xterm-screen")!;
+  vi.spyOn(screen, "getBoundingClientRect").mockReturnValue({
+    left: 0,
+    top: 0,
+    width: 800,
+    height: 40,
+    bottom: 40,
+    right: 800,
+  } as DOMRect);
+  const remote = vi.fn();
+  term.element.addEventListener("mousedown", remote);
+  term.element.addEventListener("mouseup", remote);
+  term.element.dispatchEvent(
+    new MouseEvent("pointerdown", { bubbles: true, clientX: 10, clientY: 10 }),
+  );
+  term.element.dispatchEvent(
+    new MouseEvent("mousedown", { bubbles: true, cancelable: true, clientX: 10, clientY: 10 }),
+  );
+  if (mode === "before-release") {
+    resolve(["docs/image.png"]);
+    await Promise.resolve();
+  }
+  term.element.dispatchEvent(
+    new MouseEvent("mouseup", { bubbles: true, cancelable: true, clientX: 10, clientY: 10 }),
+  );
+  expect(remote).not.toHaveBeenCalled();
+  resolve(mode === "missing" ? [] : ["docs/image.png"]);
+  await new Promise((done) => setTimeout(done, 0));
+  expect(Boolean(document.querySelector("[role=menu]"))).toBe(mode !== "missing");
+  dispose();
+});
+
+it("reanchors a repeated file destination to its second row", () => {
+  vi.useFakeTimers();
+  const { term, plainLink, lines, events, dispose } = positionedSurface();
+  lines[1] = lines[0];
+  let second!: ILink;
+  term.registerLinkProvider.mock.calls.at(-1)![0].provideLinks(2, (links) => {
+    second = links![0];
+  });
+  plainLink.activate(new MouseEvent("click", { clientY: 10 }), plainLink.text);
+  second.hover?.(new MouseEvent("mousemove", { clientY: 30 }), second.text);
+  vi.advanceTimersByTime(400);
+  const menu = document.querySelector("[role=menu]");
+  lines[0] = "changed first occurrence";
+  events.parsed();
+  expect(document.querySelector("[role=menu]")).toBe(menu);
+  expect(menu).not.toBeNull();
+  dispose();
+});
