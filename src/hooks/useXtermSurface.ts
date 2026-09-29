@@ -6,7 +6,7 @@ import type { MutableRefObject, RefObject } from "react";
 import { useEffect, useRef } from "react";
 import { loadTerminalFont, TERMINAL_FONT_FAMILY, TERMINAL_THEME } from "@/lib/terminal/config";
 
-import type { TerminalFileActionHandler } from "@/lib/terminal/link-target";
+import type { TerminalFileActionHandler, TerminalPathValidator } from "@/lib/terminal/link-target";
 
 interface UseXtermSurfaceOptions {
   containerRef: RefObject<HTMLDivElement | null>;
@@ -16,6 +16,7 @@ interface UseXtermSurfaceOptions {
   resizeDelayMs?: number;
   allowClipboardWrite?: boolean;
   onFileAction?: TerminalFileActionHandler;
+  validatePaths?: TerminalPathValidator;
   recreateKey: string;
   onReady?: (
     term: Terminal,
@@ -33,11 +34,14 @@ export function useXtermSurface({
   resizeDelayMs = 50,
   allowClipboardWrite = false,
   onFileAction,
+  validatePaths,
   recreateKey,
   onReady,
   onResize,
   onDispose,
 }: UseXtermSurfaceOptions): void {
+  const validatePathsRef = useRef(validatePaths);
+  validatePathsRef.current = validatePaths;
   const fileActionRef = useRef(onFileAction);
   fileActionRef.current = onFileAction;
   // biome-ignore lint/correctness/useExhaustiveDependencies: xterm setup is recreated only when the caller changes the explicit lifecycle key.
@@ -76,6 +80,7 @@ export function useXtermSurface({
       term.open(containerRef.current);
       browserCleanup = installTerminalBrowserIntegration(term, {
         allowClipboardWrite,
+        validatePaths: (paths) => validatePathsRef.current?.(paths) ?? [],
         ...(onFileAction
           ? { onFileAction: (path, action) => fileActionRef.current?.(path, action) }
           : {}),

@@ -18,6 +18,7 @@ afterEach(() => {
 function surface(
   allowClipboardWrite = false,
   onFileAction?: import("@/lib/terminal/link-target").TerminalFileActionHandler,
+  validatePaths: import("@/lib/terminal/link-target").TerminalPathValidator = (paths) => paths,
 ) {
   const element = document.createElement("div");
   document.body.append(element);
@@ -71,6 +72,7 @@ function surface(
   const dispose = installTerminalBrowserIntegration(term as unknown as Terminal, {
     allowClipboardWrite,
     onFileAction,
+    validatePaths,
   });
   let plainLink!: ILink;
   term.registerLinkProvider.mock.calls.at(-1)![0].provideLinks(1, (links) => {
@@ -483,4 +485,85 @@ it.each([
   replacement?.dispose();
   dispose();
   vi.useRealTimers();
+});
+
+it("rejects missing explicit file links while allowing web URLs", () => {
+  const { term, dispose } = surface(false, undefined, () => []);
+  term.options.linkHandler?.activate(
+    new MouseEvent("click"),
+    "file:///home/coder/token/DPP",
+    undefined as never,
+  );
+  expect(document.querySelector('[role="menu"]')).toBeNull();
+  term.options.linkHandler?.activate(
+    new MouseEvent("click"),
+    "https://example.com",
+    undefined as never,
+  );
+  expect(document.querySelector('[role="menu"]')?.textContent).toContain("Copy URL");
+  dispose();
+});
+
+it("ignores a delayed file check after leaving the link", async () => {
+  vi.useFakeTimers();
+  let resolve!: (paths: string[]) => void;
+  const { term, dispose } = surface(
+    false,
+    undefined,
+    () =>
+      new Promise((done) => {
+        resolve = done;
+      }),
+  );
+  term.options.linkHandler?.hover?.(
+    new MouseEvent("mousemove"),
+    "file:///home/coder/real.md",
+    undefined as never,
+  );
+  term.options.linkHandler?.leave?.(
+    new MouseEvent("mouseleave"),
+    "file:///home/coder/real.md",
+    undefined as never,
+  );
+  resolve(["/home/coder/real.md"]);
+  await Promise.resolve();
+  vi.advanceTimersByTime(500);
+  expect(document.querySelector('[role="menu"]')).toBeNull();
+  dispose();
+});
+
+it.each([
+  "touchcancel",
+  "touchmove",
+])("does not open a delayed touch result after %s", (cancelEvent) => {
+  const { term, plainLink, dispose } = surface();
+  const screen = document.createElement("div");
+  screen.className = "xterm-screen";
+  term.element.append(screen);
+  let probe!: MouseEvent;
+  screen.addEventListener("mousemove", (event) => {
+    probe = event;
+  });
+  term.element.dispatchEvent(touchEvent("touchstart"));
+  term.element.dispatchEvent(touchEvent(cancelEvent, 100, 100));
+  term.element.dispatchEvent(touchEvent("touchend", 100, 100));
+  plainLink.hover?.(probe, plainLink.text);
+  expect(document.querySelector('[role="menu"]')).toBeNull();
+  dispose();
+});
+
+it("opens a file after a quick tap finishes before validation", () => {
+  const { term, plainLink, dispose } = surface();
+  const screen = document.createElement("div");
+  screen.className = "xterm-screen";
+  term.element.append(screen);
+  let probe!: MouseEvent;
+  screen.addEventListener("mousemove", (event) => {
+    probe = event;
+  });
+  term.element.dispatchEvent(touchEvent("touchstart"));
+  term.element.dispatchEvent(touchEvent("touchend"));
+  plainLink.hover?.(probe, plainLink.text);
+  expect(document.querySelector('[role="menu"]')?.textContent).toContain("docs/image.png");
+  dispose();
 });

@@ -350,6 +350,66 @@ export const getWorkspaceSessionsAction = authActionClient
     return filterGenericTmuxSessions(parseTmuxSessions(result.stdout));
   });
 
+// Return only candidates backed by a regular file or directory in this workspace.
+export const getExistingTerminalPathsAction = authActionClient
+  .inputSchema(
+    workspaceSessionToolsSchema
+      .pick({ workspaceId: true, sessionName: true, fallbackPath: true })
+      .extend({
+        paths: z.array(z.string().min(1).max(4096)).max(128),
+      }),
+  )
+  .action(async ({ parsedInput, ctx }) => {
+    if (!parsedInput.paths.length) return [];
+    const { agent, client, workspace } = await getWorkspaceWithAgent(
+      ctx.user.id,
+      parsedInput.workspaceId,
+    );
+    if (!workspaceTemplateCapabilities(workspace.template_name ?? "").fileBrowser) return [];
+    const agentTarget = `${workspace.name}.${agent.name}`;
+    const cwd = await getSessionCurrentDirectory({
+      agentTarget,
+      coderUrl: client.getBaseUrl(),
+      sessionToken: client.getSessionToken(),
+      sessionName: parsedInput.sessionName,
+    });
+    const currentPath =
+      cwd ?? resolveWorkspaceFallbackDirectory(parsedInput.fallbackPath) ?? undefined;
+    const candidates = parsedInput.paths.flatMap((path, index) => {
+      try {
+        return [
+          {
+            index,
+            path: resolveTerminalFilePath(path, currentPath, resolveConfiguredProjectsRoot()),
+          },
+        ];
+      } catch {
+        return [];
+      }
+    });
+    if (!candidates.length) return [];
+    const quote = (value: string) => `'${value.replace(/'/g, "'\\''")}'`;
+    const result = await execInWorkspace(
+      agentTarget,
+      candidates
+        .map(
+          ({ index, path }) =>
+            `if [ -f ${quote(path)} ] || [ -d ${quote(path)} ]; then printf '%s\\n' ${index}; fi`,
+        )
+        .join("\n"),
+      {
+        coderUrl: client.getBaseUrl(),
+        sessionToken: client.getSessionToken(),
+        timeoutMs: WORKSPACE_TOOL_DIRECTORY_TIMEOUT_MS,
+      },
+    );
+    if (result.exitCode !== 0) return [];
+    const existing = new Set(result.stdout.trim().split(/\s+/));
+    return candidates
+      .filter(({ index }) => existing.has(String(index)))
+      .map(({ index }) => parsedInput.paths[index]);
+  });
+
 export const getWorkspaceSessionToolsAction = authActionClient
   .inputSchema(workspaceSessionToolsSchema)
   .action(async ({ parsedInput, ctx }) => {

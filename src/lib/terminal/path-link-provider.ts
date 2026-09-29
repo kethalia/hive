@@ -1,9 +1,10 @@
 import type { ILink, ILinkProvider, Terminal } from "@xterm/xterm";
-import { terminalPathMatches } from "./link-target";
+import { type TerminalPathValidator, terminalLinkTarget, terminalPathMatches } from "./link-target";
 
 export function terminalPathLinkProvider(
   term: Terminal,
   handlers: Pick<ILink, "activate" | "hover" | "leave">,
+  validatePaths: TerminalPathValidator = () => [],
 ): ILinkProvider {
   return {
     provideLinks(lineNumber, callback) {
@@ -25,14 +26,45 @@ export function terminalPathLinkProvider(
           text += chars;
         }
       }
-      callback(
-        terminalPathMatches(text).flatMap((match) => {
-          const first = cells[match.index];
-          const last = cells[match.index + match.text.length - 1];
-          if (!first || !last || first.y > lineNumber || last.y < lineNumber) return [];
-          return [{ text: match.text, range: { start: first, end: last }, ...handlers }];
-        }),
+      const links = terminalPathMatches(text).flatMap((match) => {
+        const first = cells[match.index];
+        const last = cells[match.index + match.text.length - 1];
+        if (!first || !last || first.y > lineNumber || last.y < lineNumber) return [];
+        return [{ text: match.text, range: { start: first, end: last }, ...handlers }];
+      });
+      if (!links.length) {
+        callback([]);
+        return;
+      }
+      const viewportY = buffer.viewportY;
+      const cols = term.cols;
+      const rows = term.rows;
+      const snapshot = Array.from({ length: end - start + 1 }, (_, i) =>
+        buffer.getLine(start + i)?.translateToString(),
       );
+      const deliver = (existing: string[]) => {
+        if (
+          term.buffer.active !== buffer ||
+          buffer.viewportY !== viewportY ||
+          term.cols !== cols ||
+          term.rows !== rows ||
+          snapshot.some((line, i) => buffer.getLine(start + i)?.translateToString() !== line)
+        ) {
+          callback([]);
+          return;
+        }
+        const valid = new Set(existing);
+        callback(links.filter((link) => valid.has(terminalLinkTarget(link.text)?.value ?? "")));
+      };
+      try {
+        const result = validatePaths([
+          ...new Set(links.map((link) => terminalLinkTarget(link.text)?.value ?? "")),
+        ]);
+        if (Array.isArray(result)) deliver(result);
+        else void result.then(deliver, () => callback([]));
+      } catch {
+        callback([]);
+      }
     },
   };
 }

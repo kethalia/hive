@@ -120,6 +120,7 @@ describe("InteractiveTerminal safe fit", () => {
     const terminal = mockTerminalState.terminalInstances[0];
     expect(installTerminalBrowserIntegration).toHaveBeenLastCalledWith(terminal, {
       allowClipboardWrite: true,
+      validatePaths: expect.any(Function),
     });
     expect(terminal?.options.fontSize).toBe(13);
 
@@ -161,6 +162,6 @@ it("keeps template push output unable to write the local clipboard", async () =>
   await waitFor(() => expect(onReady).toHaveBeenCalledOnce());
   expect(installTerminalBrowserIntegration).toHaveBeenLastCalledWith(
     mockTerminalState.terminalInstances[0],
-    { allowClipboardWrite: false },
+    { allowClipboardWrite: false, validatePaths: expect.any(Function) },
   );
 });

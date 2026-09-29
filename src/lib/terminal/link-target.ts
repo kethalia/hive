@@ -1,5 +1,6 @@
 export type TerminalLinkTarget = { kind: "url" | "file"; value: string };
 export type TerminalFileAction = "download" | "open" | "new-workspace";
+export type TerminalPathValidator = (paths: string[]) => string[] | Promise<string[]>;
 export type TerminalFileActionHandler = (path: string, action: TerminalFileAction) => void;
 
 /** OSC 8 can contain arbitrary schemes; never turn those into browser navigation. */

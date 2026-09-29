@@ -3,7 +3,11 @@ import { WebLinksAddon } from "@xterm/addon-web-links";
 import type { IBuffer, Terminal } from "@xterm/xterm";
 import { toast } from "sonner";
 import { createTerminalLinkMenu } from "./link-menu";
-import { type TerminalFileActionHandler, terminalLinkTarget } from "./link-target";
+import {
+  type TerminalFileActionHandler,
+  type TerminalPathValidator,
+  terminalLinkTarget,
+} from "./link-target";
 import { terminalPathLinkProvider } from "./path-link-provider";
 
 export function openTerminalLink(uri: string): void {
@@ -45,7 +49,12 @@ export function installTerminalBrowserIntegration(
   {
     allowClipboardWrite = false,
     onFileAction,
-  }: { allowClipboardWrite?: boolean; onFileAction?: TerminalFileActionHandler } = {},
+    validatePaths = () => [],
+  }: {
+    allowClipboardWrite?: boolean;
+    onFileAction?: TerminalFileActionHandler;
+    validatePaths?: TerminalPathValidator;
+  } = {},
 ): () => void {
   const menu = createTerminalLinkMenu(
     onFileAction,
@@ -57,6 +66,16 @@ export function installTerminalBrowserIntegration(
       anchor = undefined;
     },
   );
+  let validationGeneration = 0;
+  let disposed = false;
+  const touchProbes = new WeakSet<MouseEvent>();
+  let releasedTouch: { x: number; y: number } | undefined;
+  let touchTimer: ReturnType<typeof setTimeout> | undefined;
+  const clearTouch = () => {
+    clearTimeout(touchTimer);
+    touchProbe = undefined;
+    releasedTouch = undefined;
+  };
   let hoveredUri: string | undefined;
   let hoveredOpaque = false;
   let touchProbe: MouseEvent | undefined;
@@ -82,6 +101,8 @@ export function installTerminalBrowserIntegration(
     return { buffer, row, text: lineText(buffer, row), opaque };
   };
   const invalidateLink = () => {
+    validationGeneration++;
+    clearTouch();
     anchor = undefined;
     pendingAnchor = undefined;
     hoveredUri = undefined;
@@ -101,6 +122,7 @@ export function installTerminalBrowserIntegration(
       location.buffer !== term.buffer.active ||
       lineText(location.buffer, location.row) !== location.text);
   const parsed = term.onWriteParsed(() => {
+    validationGeneration++;
     if (isInvalid(anchor)) {
       invalidateLink();
     } else if (isInvalid(pendingAnchor)) {
@@ -112,6 +134,7 @@ export function installTerminalBrowserIntegration(
     }
   });
   const hoverLink = (event: MouseEvent, uri: string, opaque: boolean) => {
+    if (disposed || (touchProbes.has(event) && event !== touchProbe)) return;
     if (touchProbe && event !== touchProbe) return;
     if (!terminalLinkTarget(uri) || event.shiftKey) {
       invalidateLink();
@@ -120,11 +143,19 @@ export function installTerminalBrowserIntegration(
     pendingAnchor = readAnchor(event.clientY, opaque);
     hoveredUri = uri;
     hoveredOpaque = opaque;
+    if (touchProbe && releasedTouch) {
+      const touch = releasedTouch;
+      clearTouch();
+      pressed = undefined;
+      menu.show(uri, touch.x, touch.y, true);
+      return;
+    }
     if (!touchProbe) menu.hover(uri, event.clientX, event.clientY);
     if (touchProbe) pressed = { uri, x: touchProbe.clientX, y: touchProbe.clientY };
   };
   const hover = (event: MouseEvent, uri: string) => hoverLink(event, uri, false);
   const leave = () => {
+    validationGeneration++;
     hoveredUri = undefined;
     pendingAnchor = undefined;
     menu.leave();
@@ -135,12 +166,33 @@ export function installTerminalBrowserIntegration(
       menu.show(uri, event.clientX, event.clientY, true);
     }
   };
+  const verifiedOscLink = (event: MouseEvent, uri: string, run: () => void) => {
+    const target = terminalLinkTarget(uri);
+    if (!target) return;
+    const generation = ++validationGeneration;
+    if (target.kind === "url") {
+      run();
+      return;
+    }
+    const location = readAnchor(event.clientY);
+    const finish = (existing: string[]) => {
+      if (disposed || generation !== validationGeneration || isInvalid(location)) return;
+      if (existing.includes(target.value)) run();
+    };
+    try {
+      const result = validatePaths([target.value]);
+      if (Array.isArray(result)) finish(result);
+      else void result.then(finish, () => {});
+    } catch {
+      /* An unverified path must not become selectable. */
+    }
+  };
   const previousLinkHandler = term.options.linkHandler;
   term.options.linkHandler = {
     activate: (event, uri) => {
-      activate(event, uri, true);
+      verifiedOscLink(event, uri, () => activate(event, uri, true));
     },
-    hover: (event, uri) => hoverLink(event, uri, true),
+    hover: (event, uri) => verifiedOscLink(event, uri, () => hoverLink(event, uri, true)),
     leave,
     allowNonHttpProtocols: true,
   };
@@ -150,7 +202,7 @@ export function installTerminalBrowserIntegration(
     : undefined;
   term.loadAddon(links);
   const paths = term.registerLinkProvider(
-    terminalPathLinkProvider(term, { activate, hover, leave }),
+    terminalPathLinkProvider(term, { activate, hover, leave }, validatePaths),
   );
   if (clipboard) term.loadAddon(clipboard);
   const element = term.element;
@@ -176,6 +228,8 @@ export function installTerminalBrowserIntegration(
     }
   };
   const touchStart = (event: TouchEvent) => {
+    validationGeneration++;
+    clearTouch();
     pressed = undefined;
     touchProbe = undefined;
     hoveredUri = undefined;
@@ -188,6 +242,7 @@ export function installTerminalBrowserIntegration(
       clientX: touch.clientX,
       clientY: touch.clientY,
     });
+    touchProbes.add(touchProbe);
     // xterm retains its last buffer cell on mouseleave. Visit a different column
     // first so repeated taps trigger a fresh lookup. Keep probes on the screen:
     // bubbling would send synthetic mouse motion to the remote application.
@@ -207,12 +262,25 @@ export function installTerminalBrowserIntegration(
     }
     screen?.dispatchEvent(new MouseEvent("mouseleave"));
     screen?.dispatchEvent(touchProbe);
+    touchTimer = setTimeout(clearTouch, 5000);
   };
   const touchEnd = (event: TouchEvent) => {
     const link = pressed;
     pressed = undefined;
-    touchProbe = undefined;
     const touch = event.changedTouches[0];
+    if (
+      !link &&
+      touchProbe &&
+      touch &&
+      Math.hypot(touch.clientX - touchProbe.clientX, touch.clientY - touchProbe.clientY) < 8
+    ) {
+      releasedTouch = { x: touch.clientX, y: touch.clientY };
+      // Suppress the compatibility mouse events while the touch lookup is pending.
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      return;
+    }
+    clearTouch();
     if (
       !link ||
       !touch ||
@@ -225,6 +293,8 @@ export function installTerminalBrowserIntegration(
     menu.show(link.uri, touch.clientX, touch.clientY, true);
   };
   const cancel = () => {
+    validationGeneration++;
+    clearTouch();
     touchProbe = undefined;
     pressed = undefined;
     menu.close();
@@ -239,7 +309,16 @@ export function installTerminalBrowserIntegration(
       cancel();
     }
   };
-  element?.addEventListener("wheel", menu.close, { passive: true });
+  const cancelValidation = () => {
+    validationGeneration++;
+    clearTouch();
+  };
+  const escapeValidation = (event: KeyboardEvent) => {
+    if (event.key === "Escape") cancelValidation();
+  };
+  document.addEventListener("pointerdown", cancelValidation, true);
+  document.addEventListener("keydown", escapeValidation);
+  element?.addEventListener("wheel", invalidateLink, { passive: true });
   element?.addEventListener("mousedown", mouseDown, true);
   element?.addEventListener("mouseup", mouseUp, true);
   element?.addEventListener("touchstart", touchStart, { passive: true });
@@ -248,7 +327,12 @@ export function installTerminalBrowserIntegration(
   element?.addEventListener("touchcancel", cancel);
   element?.addEventListener("mouseleave", leave);
   return () => {
-    element?.removeEventListener("wheel", menu.close);
+    disposed = true;
+    validationGeneration++;
+    clearTouch();
+    document.removeEventListener("pointerdown", cancelValidation, true);
+    document.removeEventListener("keydown", escapeValidation);
+    element?.removeEventListener("wheel", invalidateLink);
     element?.removeEventListener("mousedown", mouseDown, true);
     element?.removeEventListener("mouseup", mouseUp, true);
     element?.removeEventListener("touchstart", touchStart);

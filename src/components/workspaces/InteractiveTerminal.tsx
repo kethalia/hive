@@ -22,6 +22,7 @@ import {
   useTerminalWebSocket,
 } from "@/hooks/useTerminalWebSocket";
 import { useXtermSurface } from "@/hooks/useXtermSurface";
+import { getExistingTerminalPathsAction } from "@/lib/actions/workspaces";
 import { TAP_THRESHOLD_PX } from "@/lib/gestures/conventions";
 import { isCloneTerminalSessionName } from "@/lib/git/clone-terminal-session";
 import {
@@ -842,6 +843,15 @@ export function InteractiveTerminal({
   useXtermSurface({
     allowClipboardWrite: true,
     onFileAction,
+    validatePaths: async (paths) => {
+      const result = await getExistingTerminalPathsAction({
+        workspaceId,
+        sessionName,
+        fallbackPath: clonePath,
+        paths,
+      });
+      return result?.data ?? [];
+    },
     containerRef,
     termRef,
     fitRef,
