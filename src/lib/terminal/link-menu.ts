@@ -7,6 +7,7 @@ let closeActiveMenu: (() => void) | undefined;
 export function createTerminalLinkMenu(
   onFileAction?: TerminalFileActionHandler,
   onShow?: (position: { x: number; y: number }) => void,
+  onClose?: () => void,
 ) {
   let menu: HTMLDivElement | undefined;
   let targetKey: string | undefined;
@@ -17,11 +18,13 @@ export function createTerminalLinkMenu(
   };
   const close = () => {
     cancelTimer();
+    const wasOpen = Boolean(menu);
     const focused = menu?.contains(document.activeElement);
     menu?.remove();
     menu = undefined;
     targetKey = undefined;
     if (closeActiveMenu === close) closeActiveMenu = undefined;
+    if (wasOpen) onClose?.();
     if (focused) restoreFocus?.focus({ preventScroll: true });
   };
   // Leaving a link cancels a pending hover, but an open menu stays reachable.

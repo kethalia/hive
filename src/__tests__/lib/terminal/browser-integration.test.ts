@@ -1,11 +1,12 @@
 // @vitest-environment jsdom
-import type { Terminal } from "@xterm/xterm";
+import type { ILink, ILinkProvider, Terminal } from "@xterm/xterm";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   installTerminalBrowserIntegration,
   openTerminalLink,
   terminalClipboardProvider,
 } from "@/lib/terminal/browser-integration";
+import { createTerminalLinkMenu } from "@/lib/terminal/link-menu";
 
 vi.mock("sonner", () => ({ toast: Object.assign(vi.fn(), { success: vi.fn() }) }));
 
@@ -21,7 +22,8 @@ function surface(
   const element = document.createElement("div");
   document.body.append(element);
   const osc = new Map<number, (data: string) => unknown>();
-  const events = { scroll: () => {}, parsed: () => {} };
+  const events = { scroll: () => {}, parsed: () => {}, resize: () => {} };
+  const resizeDispose = vi.fn();
   const scrollDispose = vi.fn();
   const parsedDispose = vi.fn();
   const lines = ["docs/image.png", "other output"];
@@ -31,9 +33,20 @@ function surface(
       active: {
         viewportY: 0,
         length: 2,
-        getLine: (row: number) => ({ isWrapped: false, translateToString: () => lines[row] ?? "" }),
+        getLine: (row: number) => ({
+          isWrapped: false,
+          translateToString: () => lines[row] ?? "",
+          getCell: (col: number) => ({
+            getWidth: () => 1,
+            getChars: () => lines[row]?.[col] ?? "",
+          }),
+        }),
       },
     },
+    onResize: vi.fn((handler) => {
+      events.resize = handler;
+      return { dispose: resizeDispose };
+    }),
     onScroll: vi.fn((handler) => {
       events.scroll = handler;
       return { dispose: scrollDispose };
@@ -52,14 +65,28 @@ function surface(
       }),
     },
     input: vi.fn(),
-    registerLinkProvider: vi.fn(() => ({ dispose: vi.fn() })),
+    registerLinkProvider: vi.fn((_provider: ILinkProvider) => ({ dispose: vi.fn() })),
     loadAddon: vi.fn((addon) => addon.activate(term)),
   };
   const dispose = installTerminalBrowserIntegration(term as unknown as Terminal, {
     allowClipboardWrite,
     onFileAction,
   });
-  return { term, osc, dispose, events, lines, scrollDispose, parsedDispose };
+  let plainLink!: ILink;
+  term.registerLinkProvider.mock.calls.at(-1)![0].provideLinks(1, (links) => {
+    plainLink = links![0];
+  });
+  return {
+    term,
+    osc,
+    dispose,
+    events,
+    lines,
+    scrollDispose,
+    parsedDispose,
+    resizeDispose,
+    plainLink,
+  };
 }
 
 describe("terminal browser integration", () => {
@@ -326,53 +353,134 @@ it("rejects unsafe OSC links and dismisses a menu with Escape", () => {
 
 it("dismisses stale links after buffer changes and keyboard scrolling, but keeps unchanged redraws", () => {
   vi.useFakeTimers();
-  const { term, dispose, events, lines, scrollDispose, parsedDispose } = surface();
+  const { term, dispose, events, lines, scrollDispose, parsedDispose, plainLink, resizeDispose } =
+    surface();
   const screen = document.createElement("div");
   screen.className = "xterm-screen";
   term.element.append(screen);
   vi.spyOn(screen, "getBoundingClientRect").mockReturnValue({ top: 0, height: 40 } as DOMRect);
-  const show = () =>
-    term.options.linkHandler?.activate(
-      new MouseEvent("click", { clientY: 10 }),
-      "docs/image.png",
-      {} as never,
-    );
+  const show = () => plainLink.activate(new MouseEvent("click", { clientY: 10 }), "docs/image.png");
   show();
   events.parsed();
   lines[1] = "unrelated status update";
   events.parsed();
   expect(document.querySelector("[role=menu]")).not.toBeNull();
   // Hovering another link must not replace the anchor of the still-visible menu.
-  term.options.linkHandler?.hover?.(
-    new MouseEvent("mousemove", { clientY: 30 }),
-    "docs/other.png",
-    {} as never,
-  );
+  plainLink.hover?.(new MouseEvent("mousemove", { clientY: 30 }), "docs/other.png");
   lines[0] = "replacement output";
   events.parsed();
   expect(document.querySelector("[role=menu]")).toBeNull();
   show();
   events.scroll();
   expect(document.querySelector("[role=menu]")).toBeNull();
-  term.options.linkHandler?.hover?.(
-    new MouseEvent("mousemove", { clientY: 10 }),
-    "docs/image.png",
-    {} as never,
-  );
+  plainLink.hover?.(new MouseEvent("mousemove", { clientY: 10 }), "docs/image.png");
   events.scroll();
   vi.advanceTimersByTime(500);
   expect(document.querySelector("[role=menu]")).toBeNull();
-  term.options.linkHandler?.hover?.(
-    new MouseEvent("mousemove", { clientY: 10 }),
-    "docs/image.png",
-    {} as never,
-  );
+  plainLink.hover?.(new MouseEvent("mousemove", { clientY: 10 }), "docs/image.png");
   lines[0] = "changed before hover delay elapsed";
   events.parsed();
   vi.advanceTimersByTime(500);
   expect(document.querySelector("[role=menu]")).toBeNull();
   dispose();
+  expect(resizeDispose).toHaveBeenCalledOnce();
   expect(scrollDispose).toHaveBeenCalledOnce();
   expect(parsedDispose).toHaveBeenCalledOnce();
+  vi.useRealTimers();
+});
+
+function positionedSurface() {
+  const result = surface(false, vi.fn());
+  const screen = document.createElement("div");
+  screen.className = "xterm-screen";
+  result.term.element.append(screen);
+  vi.spyOn(screen, "getBoundingClientRect").mockReturnValue({ top: 0, height: 40 } as DOMRect);
+  return result;
+}
+
+it.each([
+  "activate",
+  "hover-click",
+])("invalidates OSC metadata on writes after %s even when the label is unchanged", (mode) => {
+  vi.useFakeTimers();
+  const { term, events, dispose } = positionedSurface();
+  if (mode === "activate") {
+    term.options.linkHandler?.activate(
+      new MouseEvent("click", { clientY: 10 }),
+      "https://old.example",
+      {} as never,
+    );
+  } else {
+    term.options.linkHandler?.hover?.(
+      new MouseEvent("mousemove", { clientY: 10 }),
+      "https://old.example",
+      {} as never,
+    );
+    vi.advanceTimersByTime(400);
+    term.element.dispatchEvent(new MouseEvent("mousedown", { clientY: 10 }));
+    term.element.dispatchEvent(new MouseEvent("mouseup", { clientY: 10 }));
+  }
+  expect(document.querySelector("[role=menu]")).not.toBeNull();
+  events.parsed(); // OSC 8 URI changes cannot be verified through public text cells.
+  expect(document.querySelector("[role=menu]")).toBeNull();
+  dispose();
+  vi.useRealTimers();
+});
+
+it("closes open menus and cancels pending menus on terminal-only resize", () => {
+  vi.useFakeTimers();
+  const { plainLink, events, dispose } = positionedSurface();
+  plainLink.activate(new MouseEvent("click", { clientY: 10 }), "docs/image.png");
+  events.resize();
+  expect(document.querySelector("[role=menu]")).toBeNull();
+  plainLink.hover?.(new MouseEvent("mousemove", { clientY: 10 }), "docs/image.png");
+  events.resize();
+  vi.advanceTimersByTime(500);
+  expect(document.querySelector("[role=menu]")).toBeNull();
+  dispose();
+  vi.useRealTimers();
+});
+
+it("cancels an invalid pending link without removing the valid open menu", () => {
+  vi.useFakeTimers();
+  const { plainLink, events, lines, dispose } = positionedSurface();
+  plainLink.activate(new MouseEvent("click", { clientY: 10 }), "docs/image.png");
+  const menu = document.querySelector("[role=menu]");
+  plainLink.hover?.(new MouseEvent("mousemove", { clientY: 30 }), "docs/other.png");
+  lines[1] = "changed pending row";
+  events.parsed();
+  vi.advanceTimersByTime(500);
+  expect(document.querySelector("[role=menu]")).toBe(menu);
+  expect(menu?.textContent).toContain("docs/image.png");
+  dispose();
+  vi.useRealTimers();
+});
+
+it.each([
+  "escape",
+  "outside",
+  "action",
+  "replacement",
+])("forgets the active anchor after %s closes the menu", (method) => {
+  vi.useFakeTimers();
+  const { plainLink, events, lines, dispose } = positionedSurface();
+  plainLink.activate(new MouseEvent("click", { clientY: 10 }), "docs/image.png");
+  let replacement: ReturnType<typeof createTerminalLinkMenu> | undefined;
+  if (method === "escape") document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }));
+  if (method === "outside")
+    document.body.dispatchEvent(new Event("pointerdown", { bubbles: true }));
+  if (method === "action")
+    document.querySelectorAll<HTMLButtonElement>("[role=menuitem]")[2].click();
+  if (method === "replacement") {
+    replacement = createTerminalLinkMenu();
+    replacement.show("https://other.example", 0, 0);
+  }
+  plainLink.hover?.(new MouseEvent("mousemove", { clientY: 30 }), "docs/other.png");
+  lines[0] = "old menu row changed";
+  events.parsed();
+  vi.advanceTimersByTime(500);
+  expect(document.querySelector("[role=menu]")?.textContent).toContain("docs/other.png");
+  replacement?.dispose();
+  dispose();
   vi.useRealTimers();
 });
