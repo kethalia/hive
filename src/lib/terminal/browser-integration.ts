@@ -242,9 +242,8 @@ export function installTerminalBrowserIntegration(
     ? new ClipboardAddon(undefined, terminalClipboardProvider)
     : undefined;
   term.loadAddon(links);
-  const paths = term.registerLinkProvider(
-    terminalPathLinkProvider(term, { activate, hover, leave }, validatePaths),
-  );
+  const pathProvider = terminalPathLinkProvider(term, { activate, hover, leave }, validatePaths);
+  const paths = term.registerLinkProvider(pathProvider);
   if (clipboard) term.loadAddon(clipboard);
   const element = term.element;
 
@@ -325,6 +324,7 @@ export function installTerminalBrowserIntegration(
     if (
       !link &&
       touchProbe &&
+      (unverifiedHover || pathProvider.isValidationPending(touchProbe)) &&
       touch &&
       Math.hypot(touch.clientX - touchProbe.clientX, touch.clientY - touchProbe.clientY) < 8
     ) {

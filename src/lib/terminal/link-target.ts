@@ -1,3 +1,4 @@
+export const TERMINAL_PATH_BATCH_SIZE = 128;
 export type TerminalLinkTarget = { kind: "url" | "file"; value: string };
 export type TerminalFileAction = "download" | "open" | "new-workspace";
 export type TerminalPathValidator = (paths: string[]) => string[] | Promise<string[]>;

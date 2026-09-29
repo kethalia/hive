@@ -1,15 +1,41 @@
 import type { ILink, ILinkProvider, Terminal } from "@xterm/xterm";
-import { type TerminalPathValidator, terminalLinkTarget, terminalPathMatches } from "./link-target";
+import {
+  TERMINAL_PATH_BATCH_SIZE,
+  type TerminalPathValidator,
+  terminalLinkTarget,
+  terminalPathMatches,
+} from "./link-target";
 
 export function terminalPathLinkProvider(
   term: Terminal,
   handlers: Pick<ILink, "activate" | "hover" | "leave">,
   validatePaths: TerminalPathValidator = () => [],
-): ILinkProvider {
+): ILinkProvider & { isValidationPending(event: MouseEvent): boolean } {
   let requestGeneration = 0;
+  let pendingLinks: ILink[] = [];
+
   return {
+    isValidationPending(event) {
+      const rect = term.element?.querySelector(".xterm-screen")?.getBoundingClientRect();
+      if (!rect?.width || !rect.height) return false;
+      const x = Math.floor(((event.clientX - rect.left) * term.cols) / rect.width) + 1;
+      const y =
+        term.buffer.active.viewportY +
+        Math.floor(((event.clientY - rect.top) * term.rows) / rect.height) +
+        1;
+      if (x < 1 || x > term.cols || event.clientY < rect.top || event.clientY >= rect.bottom)
+        return false;
+      return pendingLinks.some(
+        ({ range }) =>
+          y >= range.start.y &&
+          y <= range.end.y &&
+          (y !== range.start.y || x >= range.start.x) &&
+          (y !== range.end.y || x <= range.end.x),
+      );
+    },
     provideLinks(lineNumber, callback) {
       const generation = ++requestGeneration;
+      pendingLinks = [];
       const buffer = term.buffer.active;
       let start = lineNumber - 1;
       let end = start;
@@ -47,6 +73,7 @@ export function terminalPathLinkProvider(
       const deliver = (existing: string[]) => {
         // xterm associates replies with its current line, including empty replies.
         if (generation !== requestGeneration) return;
+        pendingLinks = [];
         if (
           term.buffer.active !== buffer ||
           buffer.viewportY !== viewportY ||
@@ -61,11 +88,30 @@ export function terminalPathLinkProvider(
         callback(links.filter((link) => valid.has(terminalLinkTarget(link.text)?.value ?? "")));
       };
       try {
-        const result = validatePaths([
+        const candidates = [
           ...new Set(links.map((link) => terminalLinkTarget(link.text)?.value ?? "")),
-        ]);
-        if (Array.isArray(result)) deliver(result);
-        else void result.then(deliver, () => deliver([]));
+        ];
+        const batches: ReturnType<TerminalPathValidator>[] = [];
+        for (let offset = 0; offset < candidates.length; offset += TERMINAL_PATH_BATCH_SIZE) {
+          try {
+            batches.push(
+              validatePaths(candidates.slice(offset, offset + TERMINAL_PATH_BATCH_SIZE)),
+            );
+          } catch {
+            batches.push([]);
+          }
+        }
+        if (batches.every(Array.isArray)) deliver(batches.flat());
+        else {
+          pendingLinks = links;
+          if (batches.length === 1) {
+            void Promise.resolve(batches[0]).then(deliver, () => deliver([]));
+            return;
+          }
+          void Promise.all(batches.map((batch) => Promise.resolve(batch).catch(() => []))).then(
+            (results) => deliver(results.flat()),
+          );
+        }
       } catch {
         deliver([]);
       }

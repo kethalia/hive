@@ -554,19 +554,59 @@ it.each([
   dispose();
 });
 
-it("opens a file after a quick tap finishes before validation", () => {
-  const { term, plainLink, dispose } = surface();
-  const screen = document.createElement("div");
-  screen.className = "xterm-screen";
-  term.element.append(screen);
-  let probe!: MouseEvent;
+it("opens a file after a quick tap finishes before validation", async () => {
+  let resolve!: (paths: string[]) => void;
+  const { term, dispose } = positionedSurface(
+    () =>
+      new Promise((done) => {
+        resolve = done;
+      }),
+  );
+  const screen = term.element.querySelector(".xterm-screen")!;
+  vi.spyOn(screen, "getBoundingClientRect").mockReturnValue({
+    left: 0,
+    top: 0,
+    width: 800,
+    height: 40,
+    bottom: 40,
+    right: 800,
+  } as DOMRect);
   screen.addEventListener("mousemove", (event) => {
-    probe = event;
+    term.registerLinkProvider.mock.calls
+      .at(-1)![0]
+      .provideLinks(1, (links) => links?.[0]?.hover?.(event as MouseEvent, links[0].text));
   });
-  term.element.dispatchEvent(touchEvent("touchstart"));
-  term.element.dispatchEvent(touchEvent("touchend"));
-  plainLink.hover?.(probe, plainLink.text);
+  term.element.dispatchEvent(touchEvent("touchstart", 10, 10));
+  const end = touchEvent("touchend", 10, 10);
+  term.element.dispatchEvent(end);
+  expect(end.defaultPrevented).toBe(true);
+  resolve(["docs/image.png"]);
+  await Promise.resolve();
   expect(document.querySelector('[role="menu"]')?.textContent).toContain("docs/image.png");
+  dispose();
+});
+
+it.each(["empty", "rejected", "other-cell"])("does not consume a blank-cell tap (%s)", (mode) => {
+  const { term, dispose } = positionedSurface(
+    mode === "rejected"
+      ? () => []
+      : mode === "other-cell"
+        ? () => new Promise(() => {})
+        : undefined,
+  );
+  const screen = term.element.querySelector(".xterm-screen")!;
+  vi.spyOn(screen, "getBoundingClientRect").mockReturnValue({
+    left: 0,
+    top: 0,
+    width: 800,
+    height: 40,
+    bottom: 40,
+    right: 800,
+  } as DOMRect);
+  term.element.dispatchEvent(touchEvent("touchstart", 700, 10));
+  const end = touchEvent("touchend", 700, 10);
+  term.element.dispatchEvent(end);
+  expect(end.defaultPrevented).toBe(false);
   dispose();
 });
 

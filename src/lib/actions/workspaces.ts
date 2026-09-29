@@ -16,6 +16,7 @@ import {
   coderFrameConfiguredUrls,
 } from "@/lib/security/content-security-policy";
 import { isRetiredWorkspaceTemplate, workspaceTemplateCapabilities } from "@/lib/templates/catalog";
+import { TERMINAL_PATH_BATCH_SIZE } from "@/lib/terminal/link-target";
 import { execInWorkspace } from "@/lib/workspace/exec";
 import { filterGenericTmuxSessions, parseTmuxSessions } from "@/lib/workspaces/sessions";
 import { resolveTerminalFilePath } from "@/lib/workspaces/terminal-file-path";
@@ -356,7 +357,7 @@ export const getExistingTerminalPathsAction = authActionClient
     workspaceSessionToolsSchema
       .pick({ workspaceId: true, sessionName: true, fallbackPath: true })
       .extend({
-        paths: z.array(z.string().min(1).max(4096)).max(128),
+        paths: z.array(z.string().min(1).max(4096)).max(TERMINAL_PATH_BATCH_SIZE),
       }),
   )
   .action(async ({ parsedInput, ctx }) => {

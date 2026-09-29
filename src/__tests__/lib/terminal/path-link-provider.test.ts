@@ -128,3 +128,19 @@ it.each([
   await Promise.resolve();
   expect(oldCallback).not.toHaveBeenCalled();
 });
+
+it("validates more than 128 candidates in bounded batches", async () => {
+  const { terminal, rows } = fixture();
+  const candidates = Array.from({ length: 260 }, (_, i) => `docs/file${i}.md`);
+  rows[0] = candidates.join(" ");
+  Object.assign(terminal, { cols: rows[0].length });
+  const validate = vi.fn(async (paths: string[]) => {
+    expect(paths.length).toBeLessThanOrEqual(128);
+    return paths;
+  });
+  const callback = vi.fn();
+  terminalPathLinkProvider(terminal, { activate: vi.fn() }, validate).provideLinks(1, callback);
+  await vi.waitFor(() => expect(callback).toHaveBeenCalledOnce());
+  expect(validate.mock.calls.map(([paths]) => paths.length)).toEqual([128, 128, 4]);
+  expect(callback.mock.calls[0][0].map((link: ILink) => link.text)).toEqual(candidates);
+});
