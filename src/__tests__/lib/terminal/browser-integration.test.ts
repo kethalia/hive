@@ -11,6 +11,7 @@ import { createTerminalLinkMenu } from "@/lib/terminal/link-menu";
 vi.mock("sonner", () => ({ toast: Object.assign(vi.fn(), { success: vi.fn() }) }));
 
 afterEach(() => {
+  vi.useRealTimers();
   vi.restoreAllMocks();
   document.body.replaceChildren();
 });
