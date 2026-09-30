@@ -45,6 +45,13 @@ function useMobileTerminalViewportLock(isKeyboardVisible: boolean) {
     const snapshot = applyMobileViewportLock(document, isKeyboardVisible);
     const blockPageScroll = (event: Event) => {
       if (isSidebarScrollTarget(event.target)) return;
+      // Terminal gestures handle scrolling themselves and must retain native selection.
+      if (
+        event.type === "touchmove" &&
+        event.target instanceof Element &&
+        event.target.closest('[data-terminal-native-selection="true"]')
+      )
+        return;
 
       event.preventDefault();
     };

@@ -99,11 +99,7 @@ function isTextEntryElement(element: Element | null): boolean {
 
 function clipboardStatusText(
   status: ClipboardActionStatus | null,
-  {
-    canPaste,
-    hasTerminal,
-    selectionModeEnabled,
-  }: { canPaste: boolean; hasTerminal: boolean; selectionModeEnabled: boolean },
+  { canPaste, hasTerminal }: { canPaste: boolean; hasTerminal: boolean },
 ): string {
   if (status) {
     switch (status.action) {
@@ -133,11 +129,10 @@ function clipboardStatusText(
 
   if (!hasTerminal)
     return "Terminal is not ready. Clipboard controls will enable after connection.";
-  if (selectionModeEnabled) return "Selection mode on. Select terminal text, then copy.";
   if (!canPaste) {
     return "Terminal ready. Select terminal text to copy; paste will enable after connection.";
   }
-  return "Terminal ready. Use Select for text selection, Copy, or Paste.";
+  return "Terminal ready. Long-press text to select, then copy.";
 }
 
 function toastPasteError(status: ClipboardActionStatus): void {
@@ -176,7 +171,6 @@ function TerminalInner({
   const [composeDraft, setComposeDraft] = useState("");
   const [composeTargetLabel, setComposeTargetLabel] = useState<string | undefined>();
   const [windowSwitcherOpen, setWindowSwitcherOpen] = useState(false);
-  const [selectionModeEnabled, setSelectionModeEnabled] = useState(false);
   const [terminalControlsBeyondMobile, setTerminalControlsBeyondMobile] = useState(
     initialTerminalControlsBeyondMobile,
   );
@@ -219,14 +213,11 @@ function TerminalInner({
   const mobileLayoutSignal = isMobileKeyboardVisible
     ? `keyboard:${visualViewportHeightPx}:${visualViewportOffsetTopPx}`
     : `lift:${keyboardLiftPx}`;
-  const controlsVisible = isComposeSheet || terminalControlsBeyondMobile;
-  const controlsSelectionModeEnabled = controlsVisible && selectionModeEnabled;
   const hasActiveTerminal = Boolean(activeTerminal);
   const hasActiveSender = Boolean(activeSend);
   const clipboardStatus = clipboardStatusText(clipboardActionStatus, {
     canPaste: hasActiveSender,
     hasTerminal: hasActiveTerminal,
-    selectionModeEnabled: controlsSelectionModeEnabled,
   });
   const cloneIdentityMatchesRoute = cloneIdentity.sessionName === session;
   const clonePath = cloneIdentityMatchesRoute ? cloneIdentity.clonePath : routeClonePath;
@@ -295,11 +286,6 @@ function TerminalInner({
     setActiveTerminal(null, null);
   }, [setActiveTerminal]);
 
-  const handleSelectionModeChange = useCallback((enabled: boolean) => {
-    setSelectionModeEnabled(enabled);
-    setClipboardActionStatus(null);
-  }, []);
-
   const handleClipboardActionStatus = useCallback((status: ClipboardActionStatus) => {
     setClipboardActionStatus(status);
     toastPasteError(status);
@@ -345,7 +331,7 @@ function TerminalInner({
   ]);
 
   useEffect(() => {
-    if (!session || isComposeSheet || composeOpen || selectionModeEnabled || !activeTerminal) {
+    if (!session || isComposeSheet || composeOpen || !activeTerminal) {
       return;
     }
 
@@ -355,7 +341,7 @@ function TerminalInner({
     });
 
     return () => window.cancelAnimationFrame(frame);
-  }, [activeTerminal, composeOpen, isComposeSheet, selectionModeEnabled, session]);
+  }, [activeTerminal, composeOpen, isComposeSheet, session]);
 
   useEffect(() => {
     setCloneIdentity({
@@ -369,7 +355,6 @@ function TerminalInner({
     if (previousSessionRef.current === session) return;
 
     previousSessionRef.current = session;
-    setSelectionModeEnabled(false);
     setClipboardActionStatus(null);
   }, [session]);
 
@@ -544,7 +529,7 @@ function TerminalInner({
   const terminalPane = (
     <div
       className="h-full"
-      data-sidebar-gesture-ignore={controlsSelectionModeEnabled ? "true" : undefined}
+      data-sidebar-gesture-ignore={isComposeSheet ? "true" : undefined}
       data-terminal-surface="true"
     >
       <InteractiveTerminal
@@ -566,7 +551,6 @@ function TerminalInner({
         layoutSignal={mobileLayoutSignal}
         mobileInputMode={isComposeSheet}
         pinToBottomOnResize={isComposeSheet}
-        selectionModeEnabled={controlsSelectionModeEnabled}
       />
     </div>
   );
@@ -576,12 +560,9 @@ function TerminalInner({
       isKeyboardVisible={isMobileKeyboardVisible}
       onHapticFeedback={triggerHapticFeedback}
       hasSelection={hasTerminalSelection}
-      selectionModeEnabled={controlsSelectionModeEnabled}
-      onToggleSelectionMode={handleSelectionModeChange}
       onCopy={handleMobileCopy}
       onPaste={handleMobilePaste}
       clipboardStatusText={clipboardStatus}
-      selectionModeDisabledReason={hasActiveTerminal ? undefined : "Terminal is not ready"}
       copyDisabledReason={
         hasActiveTerminal
           ? hasTerminalSelection

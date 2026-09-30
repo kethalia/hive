@@ -102,6 +102,7 @@ interface InteractiveTerminalProps {
 }
 
 interface MobileTouchIntent {
+  startedAt: number;
   didScroll: boolean;
   touchIdentifier: number;
   startX: number;
@@ -632,6 +633,7 @@ export function InteractiveTerminal({
 
   const beginMobileTouchScroll = useCallback((touch: Touch) => {
     mobileTouchIntentRef.current = {
+      startedAt: Date.now(),
       didScroll: false,
       touchIdentifier: touch.identifier,
       startX: touch.clientX,
@@ -656,6 +658,13 @@ export function InteractiveTerminal({
     );
     if (!touch) return;
 
+    // Native long-press selection owns the gesture once the hold threshold is reached.
+    if (
+      !intent.didScroll &&
+      (Date.now() - intent.startedAt >= 400 || window.getSelection()?.isCollapsed === false)
+    )
+      return;
+
     const deltaX = touch.clientX - intent.startX;
     const deltaYFromStart = touch.clientY - intent.startY;
     const movedPx = Math.hypot(deltaX, deltaYFromStart);
@@ -664,7 +673,7 @@ export function InteractiveTerminal({
     intent.didScroll = true;
     suppressNextClickFocusRef.current = true;
     preventDefaultIfCancelable(event);
-    event.stopPropagation();
+    // Let the link integration see movement so it can cancel pending tap lookups.
 
     const deltaY = touch.clientY - intent.lastY;
     intent.lastY = touch.clientY;
@@ -686,9 +695,16 @@ export function InteractiveTerminal({
       if (!ended) return;
 
       mobileTouchIntentRef.current = null;
-      suppressNextClickFocusRef.current = intent.didScroll || intent.multiTouch;
-      if (!intent.didScroll && !intent.multiTouch && !selectionModeEnabledRef.current) {
-        suppressNextClickFocusRef.current = true;
+      suppressNextClickFocusRef.current = true;
+      if (
+        event.type !== "touchcancel" &&
+        !event.defaultPrevented &&
+        Date.now() - intent.startedAt < 400 &&
+        window.getSelection()?.isCollapsed !== false &&
+        !intent.didScroll &&
+        !intent.multiTouch &&
+        !selectionModeEnabledRef.current
+      ) {
         focusInteractiveTerminal();
       }
     },
@@ -698,6 +714,7 @@ export function InteractiveTerminal({
   const handleTerminalClick = useCallback(
     (event: ReactMouseEvent<HTMLDivElement>) => {
       if (mobileInputModeRef.current) {
+        if (window.getSelection()?.isCollapsed === false) return;
         if (selectionModeEnabledRef.current) {
           event.stopPropagation();
           return;
@@ -723,33 +740,42 @@ export function InteractiveTerminal({
     const container = containerRef.current;
     if (!container) return;
 
-    const preventXtermTouchFocus = (event: TouchEvent | PointerEvent) => {
-      if (!mobileInputModeRef.current || selectionModeEnabledRef.current) return;
-      if (event.cancelable) event.preventDefault();
+    // Keep native long-press selection available. Only suppress xterm's
+    // compatibility mouse handlers; they focus its hidden input on mobile.
+    const preventXtermMouseFocus = (event: MouseEvent) => {
+      if (!mobileInputModeRef.current) return;
+      event.preventDefault();
+      event.stopImmediatePropagation();
+    };
+    const preserveNativeContextMenu = (event: Event) => {
+      if (mobileInputModeRef.current) event.stopImmediatePropagation();
     };
     const handleTouchStart = (event: TouchEvent) => {
-      if (!mobileInputModeRef.current || event.touches.length !== 1) return;
-      preventXtermTouchFocus(event);
+      if (!mobileInputModeRef.current) return;
+      if (event.touches.length !== 1) {
+        if (mobileTouchIntentRef.current) mobileTouchIntentRef.current.multiTouch = true;
+        return;
+      }
+      suppressNextClickFocusRef.current = true;
       beginMobileTouchScroll(event.touches[0]);
     };
     const handleTouchMove = (event: TouchEvent) => continueMobileTouchScroll(event);
     const handleTouchEnd = (event: TouchEvent) => endMobileTouchScroll(event);
-    const handlePointerDown = (event: PointerEvent) => {
-      if (event.pointerType === "touch") preventXtermTouchFocus(event);
-    };
-
-    container.addEventListener("pointerdown", handlePointerDown, { capture: true, passive: false });
+    container.addEventListener("mousedown", preventXtermMouseFocus, true);
+    container.addEventListener("contextmenu", preserveNativeContextMenu, true);
     container.addEventListener("touchstart", handleTouchStart, { capture: true, passive: false });
     container.addEventListener("touchmove", handleTouchMove, { capture: true, passive: false });
-    container.addEventListener("touchend", handleTouchEnd, { capture: true, passive: true });
-    container.addEventListener("touchcancel", handleTouchEnd, { capture: true, passive: true });
+    // Link handlers on xterm must consume taps before the outer tap-to-type fallback.
+    container.addEventListener("touchend", handleTouchEnd, { passive: true });
+    container.addEventListener("touchcancel", handleTouchEnd, { passive: true });
 
     return () => {
-      container.removeEventListener("pointerdown", handlePointerDown, { capture: true });
+      container.removeEventListener("mousedown", preventXtermMouseFocus, true);
+      container.removeEventListener("contextmenu", preserveNativeContextMenu, true);
       container.removeEventListener("touchstart", handleTouchStart, { capture: true });
       container.removeEventListener("touchmove", handleTouchMove, { capture: true });
-      container.removeEventListener("touchend", handleTouchEnd, { capture: true });
-      container.removeEventListener("touchcancel", handleTouchEnd, { capture: true });
+      container.removeEventListener("touchend", handleTouchEnd);
+      container.removeEventListener("touchcancel", handleTouchEnd);
     };
   }, [beginMobileTouchScroll, continueMobileTouchScroll, endMobileTouchScroll]);
 
@@ -1198,7 +1224,8 @@ export function InteractiveTerminal({
           ref={containerRef}
           className="h-full min-h-0 w-full"
           data-testid="terminal-fit-host"
-          data-sidebar-gesture-ignore={selectionModeEnabled ? "true" : undefined}
+          data-sidebar-gesture-ignore={mobileInputMode || selectionModeEnabled ? "true" : undefined}
+          data-terminal-native-selection={mobileInputMode ? "true" : undefined}
           data-terminal-selection-mode={selectionModeEnabled ? "true" : undefined}
           onClickCapture={stopTerminalEventForSelection}
           onMouseDownCapture={stopTerminalEventForSelection}

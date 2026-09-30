@@ -92,6 +92,7 @@ export function installTerminalBrowserIntegration(
       ? `${range.start.x}:${range.start.y}:${range.end.x}:${range.end.y}`
       : `row:${readAnchor(event.clientY)?.row ?? event.clientY}`;
   let touchProbe: MouseEvent | undefined;
+  let touchStartedAt = 0;
   let pressed: { uri: string; x: number; y: number; osc?: boolean } | undefined;
   let anchor: { buffer: IBuffer; row: number; text: string; opaque: boolean } | undefined;
   let pendingAnchor: typeof anchor;
@@ -192,7 +193,7 @@ export function installTerminalBrowserIntegration(
       const touch = releasedTouch;
       clearTouch();
       pressed = undefined;
-      menu.show(uri, touch.x, touch.y, true, hoveredInstance);
+      menu.show(uri, touch.x, touch.y, false, hoveredInstance);
       return;
     }
     if (!touchProbe) {
@@ -375,6 +376,7 @@ export function installTerminalBrowserIntegration(
     hoveredUri = undefined;
     if (event.touches.length !== 1 || element?.closest('[data-terminal-selection-mode="true"]'))
       return;
+    touchStartedAt = Date.now();
     const touch = event.touches[0];
     // xterm's public link providers resolve on mouse movement; touch has no hover.
     const screen = element?.querySelector(".xterm-screen");
@@ -405,6 +407,10 @@ export function installTerminalBrowserIntegration(
     touchTimer = setTimeout(clearTouch, TERMINAL_PATH_VALIDATION_TIMEOUT_MS + 1000);
   };
   const touchEnd = (event: TouchEvent) => {
+    if (Date.now() - touchStartedAt >= 400 || window.getSelection()?.isCollapsed === false) {
+      cancel();
+      return;
+    }
     const link = pressed;
     pressed = undefined;
     const touch = event.changedTouches[0];
@@ -435,7 +441,7 @@ export function installTerminalBrowserIntegration(
       return;
     event.preventDefault();
     event.stopImmediatePropagation();
-    menu.show(link.uri, touch.clientX, touch.clientY, true, hoveredInstance);
+    menu.show(link.uri, touch.clientX, touch.clientY, false, hoveredInstance);
   };
   const cancel = () => {
     cancelPathValidation();
@@ -448,6 +454,7 @@ export function installTerminalBrowserIntegration(
     const touch = event.touches[0];
     if (
       !touchProbe ||
+      Date.now() - touchStartedAt >= 400 ||
       event.touches.length !== 1 ||
       Math.hypot(touch.clientX - touchProbe.clientX, touch.clientY - touchProbe.clientY) >= 8
     ) {

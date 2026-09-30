@@ -1052,3 +1052,21 @@ it.each([
   expect(document.querySelector("[role=menu]")?.textContent).toContain("/home/coder/image.png");
   dispose();
 });
+
+it("leaves a held link available for native selection without opening its menu", () => {
+  vi.useFakeTimers();
+  const { term, dispose } = surface();
+  const screen = document.createElement("div");
+  screen.className = "xterm-screen";
+  term.element.append(screen);
+  screen.addEventListener("mousemove", (event) => {
+    term.options.linkHandler?.hover?.(event, "https://example.com", {} as never);
+  });
+  term.element.dispatchEvent(touchEvent("touchstart"));
+  vi.advanceTimersByTime(500);
+  const end = touchEvent("touchend");
+  term.element.dispatchEvent(end);
+  expect(end.defaultPrevented).toBe(false);
+  expect(document.querySelector("[role=menu]")).toBeNull();
+  dispose();
+});

@@ -2032,7 +2032,7 @@ describe("MultiSessionWorkspace", () => {
     );
   });
 
-  it("passes multi-session selection mode to mobile workspace panes", async () => {
+  it("uses direct mobile selection without enabling a separate mode", async () => {
     mockUseIsComposeSheet.mockReturnValue(true);
     await renderTwoSessionWorkspace();
 
@@ -2040,16 +2040,8 @@ describe("MultiSessionWorkspace", () => {
       terminalProps.get("main-session")?.onTerminalReady?.(makeTerminal("main-session"), vi.fn());
     });
 
-    fireEvent.click(screen.getByTestId("terminal-selection-toggle"));
-
-    expect(screen.getByTestId("terminal-mobile-controls")).toHaveAttribute(
-      "data-selection-mode-enabled",
-      "true",
-    );
-    expect(screen.getByTestId("interactive-terminal-main-session")).toHaveAttribute(
-      "data-selection-mode-enabled",
-      "true",
-    );
+    expect(terminalProps.get("main-session")?.mobileInputMode).toBe(true);
+    expect(terminalProps.get("main-session")?.selectionModeEnabled).toBeUndefined();
   });
 
   it("ignores duplicate pane connection updates from callback identity changes", async () => {

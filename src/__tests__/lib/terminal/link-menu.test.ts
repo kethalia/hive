@@ -86,3 +86,25 @@ it("shows immediate validation feedback without actions, then replaces it with f
   menu.closeLoading();
   expect(document.querySelector("[role=menu]")).not.toBeNull();
 });
+
+it("keeps actions within the visual viewport when the keyboard is open", () => {
+  const viewport = new EventTarget();
+  Object.assign(viewport, { width: 375, height: 300, offsetLeft: 0, offsetTop: 50 });
+  vi.stubGlobal("visualViewport", viewport);
+  const { menu } = setup();
+  const rect = vi
+    .spyOn(HTMLElement.prototype, "getBoundingClientRect")
+    .mockReturnValue({ width: 256, height: 120 } as DOMRect);
+  menu.show("https://example.com", 350, 600);
+  const popup = document.querySelector<HTMLElement>("[role=menu]")!;
+  expect(popup.style.left).toBe("111px");
+  expect(popup.style.top).toBe("222px");
+  Object.assign(viewport, { height: 250 });
+  viewport.dispatchEvent(new Event("resize"));
+  expect(popup.isConnected).toBe(true);
+  expect(popup.style.top).toBe("172px");
+  expect(popup.getAttribute("data-mobile-scroll-allow")).toBe("true");
+  menu.dispose();
+  rect.mockRestore();
+  vi.unstubAllGlobals();
+});

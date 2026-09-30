@@ -11,6 +11,20 @@ export function createTerminalLinkMenu(
 ) {
   let menu: HTMLDivElement | undefined;
   let loading = false;
+  let position = { x: 0, y: 0 };
+  const reposition = () => {
+    if (!menu) return;
+    const viewport = window.visualViewport;
+    const left = viewport?.offsetLeft ?? 0;
+    const top = viewport?.offsetTop ?? 0;
+    const width = viewport?.width ?? window.innerWidth;
+    const height = viewport?.height ?? window.innerHeight;
+    menu.style.maxHeight = `${Math.max(0, height - 16)}px`;
+    menu.style.maxWidth = `${Math.max(0, width - 16)}px`;
+    const rect = menu.getBoundingClientRect();
+    menu.style.left = `${Math.max(left + 8, Math.min(position.x, left + width - rect.width - 8))}px`;
+    menu.style.top = `${Math.max(top + 8, Math.min(position.y + 10, top + height - rect.height - 8))}px`;
+  };
   let targetKey: string | undefined;
   let timer: ReturnType<typeof setTimeout> | undefined;
   let restoreFocus: HTMLElement | null = null;
@@ -55,11 +69,13 @@ export function createTerminalLinkMenu(
     onShow?.({ x, y });
     restoreFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     menu = document.createElement("div");
+    menu.setAttribute("data-mobile-scroll-allow", "true");
+    menu.addEventListener("mousedown", (event) => event.preventDefault());
     menu.setAttribute("role", checking ? "status" : "menu");
     if (checking) menu.setAttribute("aria-live", "polite");
     menu.setAttribute("aria-label", target.kind === "file" ? "File actions" : "Link actions");
     menu.className =
-      "fixed z-[100] w-64 max-w-[calc(100vw-16px)] rounded-md border bg-popover p-1 text-popover-foreground shadow-lg text-xs";
+      "fixed z-[100] overflow-y-auto overscroll-contain w-64 max-w-[calc(100vw-16px)] rounded-md border bg-popover p-1 text-popover-foreground shadow-lg text-xs";
     menu.addEventListener("pointerenter", cancelTimer);
     menu.addEventListener("focusin", cancelTimer);
     const label = document.createElement("div");
@@ -131,9 +147,8 @@ export function createTerminalLinkMenu(
       }
     });
     document.body.append(menu);
-    const rect = menu.getBoundingClientRect();
-    menu.style.left = `${Math.max(8, Math.min(x, window.innerWidth - rect.width - 8))}px`;
-    menu.style.top = `${Math.max(8, Math.min(y + 10, window.innerHeight - rect.height - 8))}px`;
+    position = { x, y };
+    reposition();
     if (focus) menu.querySelector<HTMLButtonElement>("button")?.focus({ preventScroll: true });
   };
   const outside = (event: Event) => {
@@ -144,7 +159,9 @@ export function createTerminalLinkMenu(
   };
   document.addEventListener("pointerdown", outside, true);
   document.addEventListener("keydown", handleEscape);
-  window.addEventListener("resize", close);
+  window.addEventListener("resize", reposition);
+  window.visualViewport?.addEventListener("resize", reposition);
+  window.visualViewport?.addEventListener("scroll", reposition);
   return {
     show,
     loading: (uri: string, x: number, y: number, instance = "") =>
@@ -162,7 +179,9 @@ export function createTerminalLinkMenu(
       close();
       document.removeEventListener("pointerdown", outside, true);
       document.removeEventListener("keydown", handleEscape);
-      window.removeEventListener("resize", close);
+      window.removeEventListener("resize", reposition);
+      window.visualViewport?.removeEventListener("resize", reposition);
+      window.visualViewport?.removeEventListener("scroll", reposition);
     },
   };
 }

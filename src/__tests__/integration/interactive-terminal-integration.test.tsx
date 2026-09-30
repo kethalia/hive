@@ -2053,47 +2053,18 @@ describe("TerminalClient integration — Mobile terminal route props", () => {
     unmount();
   });
 
-  it("forwards mobile selection mode to the terminal only on compose-sheet routes", async () => {
+  it("enables direct mobile selection without a selection-mode toggle", async () => {
     mockUseIsComposeSheet.mockReturnValue(true);
-    const activeTerminal = {
-      clearSelection: vi.fn(),
-      getSelection: vi.fn(() => ""),
-    };
-    const activeSend = vi.fn();
-    mockUseKeybindings.mockReturnValue({
-      activeSend,
-      activeTerminal,
-      getAll: vi.fn(() => []),
-      handleKeyEvent: mockHandleKeyEvent,
-      register: mockRegisterKeybinding,
-      setActiveTerminal: mockSetActiveTerminal,
-      unregister: mockUnregisterKeybinding,
-    });
-
     const { getByTestId, unmount } = await renderTerminalClient("session=main");
-
-    await waitFor(() => {
-      expect(getByTestId("terminal-mobile-controls")).toHaveAttribute(
-        "data-selection-mode-enabled",
-        "false",
-      );
-    });
-
-    fireEvent.click(getByTestId("terminal-selection-toggle"));
-
-    expect(getByTestId("terminal-mobile-controls")).toHaveAttribute(
-      "data-selection-mode-enabled",
-      "true",
-    );
+    expect(getByTestId("interactive-terminal")).toHaveAttribute("data-mobile-input-mode", "true");
     expect(getByTestId("interactive-terminal")).toHaveAttribute(
       "data-selection-mode-enabled",
-      "true",
+      "false",
     );
     expect(getByTestId("interactive-terminal").parentElement).toHaveAttribute(
       "data-sidebar-gesture-ignore",
       "true",
     );
-    expect(getByTestId("terminal-clipboard-status")).toHaveTextContent("Selection mode on");
     unmount();
   });
 
@@ -2976,8 +2947,8 @@ describe("InteractiveTerminal integration — Mobile input adapter", () => {
     });
     fireTouchEvent(inputTarget as Element, "touchend", [], [touchPoint(1, 82, 242)]);
 
-    expect(pointerDownAllowed).toBe(false);
-    expect(touchStart.defaultPrevented).toBe(true);
+    expect(pointerDownAllowed).toBe(true);
+    expect(touchStart.defaultPrevented).toBe(false);
     expect(terminal?.focus).toHaveBeenCalledTimes(1);
     expect(onUserFocusRequest).toHaveBeenCalledTimes(1);
 
@@ -2988,6 +2959,33 @@ describe("InteractiveTerminal integration — Mobile input adapter", () => {
       terminal?.dataHandler?.("echo mobile\r");
     });
     expect(mockSend).toHaveBeenCalledWith("echo mobile\r");
+    unmount();
+  });
+
+  it.each(["touchcancel", "hold", "link"])("does not focus after %s gestures", async (gesture) => {
+    const { container, unmount } = await renderTerminal({ mobileInputMode: true });
+    const terminal = terminalInstances.at(-1)!;
+    const host = container.querySelector('[data-testid="terminal-fit-host"]')!;
+    const target = document.createElement("span");
+    host.append(target);
+    terminal.focus.mockClear();
+    const now = vi.spyOn(Date, "now").mockReturnValue(1000);
+    fireTouchEvent(target, "touchstart", [touchPoint(1, 80, 240)]);
+    if (gesture === "hold") now.mockReturnValue(1500);
+    if (gesture === "link")
+      target.addEventListener("touchend", (event) => {
+        event.preventDefault();
+        event.stopImmediatePropagation();
+      });
+    fireTouchEvent(
+      target,
+      gesture === "touchcancel" ? "touchcancel" : "touchend",
+      [],
+      [touchPoint(1, 80, 240)],
+    );
+    fireEvent.click(target);
+    expect(terminal.focus).not.toHaveBeenCalled();
+    now.mockRestore();
     unmount();
   });
 
