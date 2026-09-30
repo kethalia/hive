@@ -61,11 +61,11 @@ function terminalSessionHref(
 function clipboardFallbackText(reason: string): string {
   switch (reason) {
     case "clipboard-api-denied":
-      return "Clipboard permission was denied. Use selection mode or the browser paste control.";
+      return "Clipboard permission was denied. Long-press terminal text to select and copy, or use the browser paste control.";
     case "clipboard-api-unavailable":
-      return "Clipboard API is unavailable. Use selection mode or the browser paste control.";
+      return "Clipboard API is unavailable. Long-press terminal text to select and copy, or use the browser paste control.";
     default:
-      return "Clipboard API failed. Use selection mode or the browser paste control.";
+      return "Clipboard API failed. Long-press terminal text to select and copy, or use the browser paste control.";
   }
 }
 

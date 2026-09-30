@@ -94,3 +94,26 @@ it("disables unavailable actions and respects font limits", () => {
   fireEvent.click(screen.getByRole("button", { name: "Increase font size" }));
   expect(increase).toHaveBeenCalledTimes(1);
 });
+
+it.each([
+  { modifiers: ["Shift"], label: "Shift+1", duplicate: "Shift+!", sequence: "!" },
+  { modifiers: ["Shift"], label: "Shift+/", duplicate: "Shift+?", sequence: "?" },
+  { modifiers: ["Ctrl"], label: "Ctrl+Space", duplicate: "Ctrl+@", sequence: "\x00" },
+  {
+    modifiers: ["Alt", "Shift"],
+    label: "Alt+Shift+1",
+    duplicate: "Alt+Shift+!",
+    sequence: "\x1b!",
+  },
+])("keeps only $label for duplicate modified sequences", ({
+  modifiers,
+  label,
+  duplicate,
+  sequence,
+}) => {
+  render(<MobileTerminalControls />);
+  for (const modifier of modifiers) fireEvent.click(screen.getByRole("button", { name: modifier }));
+  expect(screen.queryByRole("button", { name: duplicate })).toBeNull();
+  fireEvent.click(screen.getByRole("button", { name: label }));
+  expect(send).toHaveBeenLastCalledWith(sequence);
+});

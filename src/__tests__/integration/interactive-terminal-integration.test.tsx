@@ -1975,6 +1975,34 @@ describe("TerminalClient integration — Mobile terminal route props", () => {
     unmount();
   });
 
+  it.each([
+    "clipboard-api-denied",
+    "clipboard-api-unavailable",
+    "unknown-error",
+  ])("describes native selection after a %s clipboard failure", async (reason) => {
+    mockUseIsComposeSheet.mockReturnValue(true);
+    mockUseKeybindings.mockReturnValue({
+      activeTerminal: { getSelection: () => "selected text" },
+      activeSend: vi.fn(),
+      getAll: vi.fn(() => []),
+      handleKeyEvent: mockHandleKeyEvent,
+      register: mockRegisterKeybinding,
+      setActiveTerminal: mockSetActiveTerminal,
+      unregister: mockUnregisterKeybinding,
+    });
+    mockCopyTerminalSelection.mockImplementation((_term, options) => {
+      options?.onStatus?.({ action: "copy", outcome: "failed", reason });
+      return false;
+    });
+    const { getByTestId, unmount } = await renderTerminalClient("session=main");
+    fireEvent.click(getByTestId("terminal-copy-selection"));
+    expect(getByTestId("terminal-clipboard-status")).toHaveTextContent(
+      "Long-press terminal text to select and copy",
+    );
+    expect(getByTestId("terminal-clipboard-status")).not.toHaveTextContent("selection mode");
+    unmount();
+  });
+
   it("stages multiple pasted file paths in compose on regular single terminal routes", async () => {
     mockUseIsComposeSheet.mockReturnValue(true);
     const activeTerminal = {
@@ -2985,6 +3013,48 @@ describe("InteractiveTerminal integration — Mobile input adapter", () => {
     );
     fireEvent.click(target);
     expect(terminal.focus).not.toHaveBeenCalled();
+    now.mockRestore();
+    unmount();
+  });
+
+  it("preserves physical mouse presses and suppresses only touch compatibility presses in mobile layouts", async () => {
+    const { container, unmount } = await renderTerminal({ mobileInputMode: true });
+    const host = container.querySelector('[data-testid="terminal-fit-host"]')!;
+    const target = document.createElement("span");
+    host.append(target);
+    const descendantPress = vi.fn();
+    target.addEventListener("mousedown", descendantPress);
+    expect(fireEvent.mouseDown(target)).toBe(true);
+    expect(descendantPress).toHaveBeenCalledTimes(1);
+
+    const now = vi.spyOn(Date, "now").mockReturnValue(1000);
+    fireTouchEvent(target, "touchstart", [touchPoint(1, 80, 240)]);
+    now.mockReturnValue(5000); // A held touch also produces compatibility mouse events.
+    fireTouchEvent(target, "touchend", [], [touchPoint(1, 80, 240)]);
+    expect(fireEvent.mouseDown(target)).toBe(false);
+    expect(descendantPress).toHaveBeenCalledTimes(1);
+
+    const mouse = new MouseEvent("mousedown", { bubbles: true, cancelable: true });
+    Object.defineProperty(mouse, "sourceCapabilities", { value: { firesTouchEvents: false } });
+    expect(fireEvent(target, mouse)).toBe(true);
+    expect(descendantPress).toHaveBeenCalledTimes(2);
+
+    fireEvent.pointerDown(target, { pointerType: "mouse" });
+    expect(fireEvent.mouseDown(target)).toBe(true);
+    expect(descendantPress).toHaveBeenCalledTimes(3);
+
+    const compatibility = new MouseEvent("mousedown", { bubbles: true, cancelable: true });
+    Object.defineProperty(compatibility, "sourceCapabilities", {
+      value: { firesTouchEvents: true },
+    });
+    expect(fireEvent(target, compatibility)).toBe(false);
+    expect(descendantPress).toHaveBeenCalledTimes(3);
+
+    fireTouchEvent(target, "touchstart", [touchPoint(1, 80, 240)]);
+    fireTouchEvent(target, "touchend", [], [touchPoint(1, 80, 240)]);
+    now.mockReturnValue(6100);
+    expect(fireEvent.mouseDown(target)).toBe(true);
+    expect(descendantPress).toHaveBeenCalledTimes(4);
     now.mockRestore();
     unmount();
   });

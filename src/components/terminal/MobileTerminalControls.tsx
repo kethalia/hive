@@ -70,13 +70,28 @@ export function MobileTerminalControls({
     action();
   };
   const prefix = `${modifiers.ctrl ? "Ctrl+" : ""}${modifiers.alt ? "Alt+" : ""}${modifiers.shift ? "Shift+" : ""}`;
+  const seenSequences = new Set<string>();
   const keys = [
     ...MOBILE_SMART_KEYS,
     ...EXTRA_KEYS.map((label) => ({
       label,
       sequence: encodeTerminalShortcut(label, NO_MODIFIERS),
     })),
-  ];
+  ].flatMap(({ label, sequence }) => {
+    const fixedCombination = label.length > 1 && label.includes("+");
+    const output = fixedCombination ? sequence : encodeTerminalShortcut(label, modifiers);
+    if (seenSequences.has(output)) return [];
+    seenSequences.add(output);
+    return [
+      {
+        id: label,
+        label: fixedCombination
+          ? label
+          : `${prefix}${prefix && label.length === 1 ? label.toUpperCase() : label}`,
+        sequence: output,
+      },
+    ];
+  });
   return (
     <section
       aria-label="Terminal mobile controls"
@@ -110,34 +125,23 @@ export function MobileTerminalControls({
             {modifier === "ctrl" ? "Ctrl" : modifier === "alt" ? "Alt" : "Shift"}
           </Button>
         ))}
-        {keys.map(({ label, sequence }) => {
-          const fixedCombination = label.length > 1 && label.includes("+");
-          const displayedLabel = fixedCombination
-            ? label
-            : `${prefix}${prefix && label.length === 1 ? label.toUpperCase() : label}`;
-          // A selected modifier can produce one of the existing fixed combinations.
-          if (!fixedCombination && prefix && keys.some((key) => key.label === displayedLabel))
-            return null;
-          return (
-            <Button
-              key={label}
-              type="button"
-              variant="outline"
-              className={BUTTON_CLASS}
-              disabled={!activeSend}
-              onClick={() =>
-                press(() => {
-                  activeSend?.(
-                    fixedCombination ? sequence : encodeTerminalShortcut(label, modifiers),
-                  );
-                  setModifiers(NO_MODIFIERS);
-                })
-              }
-            >
-              {displayedLabel}
-            </Button>
-          );
-        })}
+        {keys.map(({ id, label, sequence }) => (
+          <Button
+            key={id}
+            type="button"
+            variant="outline"
+            className={BUTTON_CLASS}
+            disabled={!activeSend}
+            onClick={() =>
+              press(() => {
+                activeSend?.(sequence);
+                setModifiers(NO_MODIFIERS);
+              })
+            }
+          >
+            {label}
+          </Button>
+        ))}
         {[
           {
             label: "Copy terminal selection",

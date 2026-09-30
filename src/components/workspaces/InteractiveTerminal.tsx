@@ -740,18 +740,41 @@ export function InteractiveTerminal({
     const container = containerRef.current;
     if (!container) return;
 
-    // Keep native long-press selection available. Only suppress xterm's
-    // compatibility mouse handlers; they focus its hidden input on mobile.
+    // Input capabilities identify compatibility events where supported. Older
+    // browsers fall back to recent touch activity, cleared by a physical pointer.
+    let lastTouchAt = Number.NEGATIVE_INFINITY;
+    let touchActive = false;
+    const recordTouch = (event: TouchEvent) => {
+      touchActive = event.touches.length > 0;
+      lastTouchAt = Date.now();
+    };
+    const recordPointer = (event: PointerEvent) => {
+      if (event.pointerType === "mouse" || event.pointerType === "pen") {
+        touchActive = false;
+        lastTouchAt = Number.NEGATIVE_INFINITY;
+      }
+    };
+    const isTouchMouseEvent = (event: MouseEvent) => {
+      const capabilities = (
+        event as MouseEvent & {
+          sourceCapabilities?: { firesTouchEvents: boolean } | null;
+        }
+      ).sourceCapabilities;
+      return capabilities?.firesTouchEvents ?? (touchActive || Date.now() - lastTouchAt < 1000);
+    };
+    // Keep native long-press selection available, while letting real mouse
+    // presses reach xterm selection and the descendant link handlers.
     const preventXtermMouseFocus = (event: MouseEvent) => {
-      if (!mobileInputModeRef.current) return;
+      if (!mobileInputModeRef.current || !isTouchMouseEvent(event)) return;
       event.preventDefault();
       event.stopImmediatePropagation();
     };
-    const preserveNativeContextMenu = (event: Event) => {
-      if (mobileInputModeRef.current) event.stopImmediatePropagation();
+    const preserveNativeContextMenu = (event: MouseEvent) => {
+      if (mobileInputModeRef.current && isTouchMouseEvent(event)) event.stopImmediatePropagation();
     };
     const handleTouchStart = (event: TouchEvent) => {
       if (!mobileInputModeRef.current) return;
+      recordTouch(event);
       if (event.touches.length !== 1) {
         if (mobileTouchIntentRef.current) mobileTouchIntentRef.current.multiTouch = true;
         return;
@@ -761,6 +784,9 @@ export function InteractiveTerminal({
     };
     const handleTouchMove = (event: TouchEvent) => continueMobileTouchScroll(event);
     const handleTouchEnd = (event: TouchEvent) => endMobileTouchScroll(event);
+    container.addEventListener("pointerdown", recordPointer, true);
+    container.addEventListener("touchend", recordTouch, { capture: true, passive: true });
+    container.addEventListener("touchcancel", recordTouch, { capture: true, passive: true });
     container.addEventListener("mousedown", preventXtermMouseFocus, true);
     container.addEventListener("contextmenu", preserveNativeContextMenu, true);
     container.addEventListener("touchstart", handleTouchStart, { capture: true, passive: false });
@@ -770,6 +796,9 @@ export function InteractiveTerminal({
     container.addEventListener("touchcancel", handleTouchEnd, { passive: true });
 
     return () => {
+      container.removeEventListener("pointerdown", recordPointer, true);
+      container.removeEventListener("touchend", recordTouch, true);
+      container.removeEventListener("touchcancel", recordTouch, true);
       container.removeEventListener("mousedown", preventXtermMouseFocus, true);
       container.removeEventListener("contextmenu", preserveNativeContextMenu, true);
       container.removeEventListener("touchstart", handleTouchStart, { capture: true });
