@@ -73,3 +73,80 @@ test("late path validation uses the current pointer cell on the same row", async
     await page.evaluate(() => (window as unknown as ValidationWindow).validation.input.length),
   ).toBeGreaterThan(0);
 });
+
+for (const format of ["relative", "file-url", "osc"] as const) {
+  test(`file menu survives validation-triggered redraws (${format})`, async ({ page }) => {
+    await page.setContent('<div id="terminal"></div>');
+    await page.addStyleTag({ path: requireModule.resolve("@xterm/xterm/css/xterm.css") });
+    for (const module of ["@xterm/xterm", "@xterm/addon-web-links", "@xterm/addon-clipboard"])
+      await page.addScriptTag({ path: requireModule.resolve(module) });
+    await page.evaluate(
+      async ({ sources, format }) => {
+        const state = window as unknown as {
+          Terminal: new (options: object) => import("@xterm/xterm").Terminal;
+          WebLinksAddon: object;
+          ClipboardAddon: object;
+          checks: number;
+          actions: string[];
+        };
+        const modules: Record<string, object> = {
+          "@xterm/addon-web-links": state.WebLinksAddon,
+          "@xterm/addon-clipboard": state.ClipboardAddon,
+          sonner: { toast: Object.assign(() => {}, { success: () => {}, error: () => {} }) },
+        };
+        for (const [name, code] of sources) {
+          const exports = {};
+          new Function("require", "exports", code)((key: string) => modules[key], exports);
+          modules[name] = exports;
+        }
+        const { installTerminalBrowserIntegration } = modules[
+          "./browser-integration"
+        ] as typeof import("../src/lib/terminal/browser-integration");
+        const term = new state.Terminal({ cols: 120, rows: 5 });
+        term.open(document.getElementById("terminal") as HTMLElement);
+        state.checks = 0;
+        state.actions = [];
+        installTerminalBrowserIntegration(term, {
+          validatePaths: async (paths) => {
+            state.checks++;
+            await new Promise((resolve) => setTimeout(resolve, 750));
+            // Model the terminal being repainted after a server response. Re-linking
+            // that same row must not perpetually start another server action.
+            setTimeout(() => term.refresh(0, 4), 0);
+            return paths;
+          },
+          onFileAction: (path) => state.actions.push(path),
+        });
+        const path =
+          format === "relative"
+            ? "docs/design/references/images/flash-desktop-concept.png"
+            : "file:///home/coder/.codex/generated_images/example/image.png";
+        const text = format === "osc" ? `\x1b]8;;${path}\x07${path}\x1b]8;;\x07` : path;
+        await new Promise<void>((resolve) => term.write(`${text}\r\n`, resolve));
+      },
+      {
+        format,
+        sources: [
+          "link-target",
+          "path-validation",
+          "path-link-provider",
+          "link-menu",
+          "browser-integration",
+        ].map((name) => [`./${name}`, compile(`src/lib/terminal/${name}.ts`)]),
+      },
+    );
+    const screen = await page.locator(".xterm-screen").boundingBox();
+    if (!screen) throw new Error("Terminal screen is missing");
+    await page.mouse.move(screen.x + 30, screen.y + 8);
+    await expect(page.getByRole("menu")).toBeVisible({ timeout: 4000 });
+    expect(await page.evaluate(() => (window as unknown as { checks: number }).checks)).toBe(1);
+    await page.getByRole("menuitem", { name: "Open in Files (new window)", exact: true }).click();
+    expect(await page.evaluate(() => (window as unknown as { actions: string[] }).actions)).toEqual(
+      [
+        format === "relative"
+          ? "docs/design/references/images/flash-desktop-concept.png"
+          : "/home/coder/.codex/generated_images/example/image.png",
+      ],
+    );
+  });
+}

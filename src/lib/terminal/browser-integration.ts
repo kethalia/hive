@@ -9,6 +9,7 @@ import {
   terminalLinkTarget,
 } from "./link-target";
 import { terminalPathLinkProvider } from "./path-link-provider";
+import { createTerminalPathValidator } from "./path-validation";
 
 export function openTerminalLink(uri: string): void {
   try {
@@ -56,6 +57,7 @@ export function installTerminalBrowserIntegration(
     validatePaths?: TerminalPathValidator;
   } = {},
 ): () => void {
+  const checkPaths = createTerminalPathValidator(validatePaths);
   const menu = createTerminalLinkMenu(
     onFileAction,
     ({ y }) => {
@@ -232,7 +234,7 @@ export function installTerminalBrowserIntegration(
       } else run();
     };
     try {
-      const result = validatePaths([target.value]);
+      const result = checkPaths([target.value]);
       if (Array.isArray(result)) finish(result);
       else void result.then(finish, () => finish([]));
     } catch {
@@ -263,7 +265,7 @@ export function installTerminalBrowserIntegration(
   const pathProvider = terminalPathLinkProvider(
     term,
     { activate: (event, uri, range) => activate(event, uri, false, range), hover, leave },
-    validatePaths,
+    checkPaths,
   );
   const paths = term.registerLinkProvider(pathProvider);
   if (clipboard) term.loadAddon(clipboard);

@@ -16,6 +16,11 @@ afterEach(() => {
   document.body.replaceChildren();
 });
 
+async function settleValidation() {
+  if (vi.isFakeTimers()) await vi.advanceTimersByTimeAsync(0);
+  else await new Promise((resolve) => setTimeout(resolve, 0));
+}
+
 function surface(
   allowClipboardWrite = false,
   onFileAction?: import("@/lib/terminal/link-target").TerminalFileActionHandler,
@@ -529,7 +534,7 @@ it("ignores a delayed file check after leaving the link", async () => {
     undefined as never,
   );
   resolve(["/home/coder/real.md"]);
-  await Promise.resolve();
+  await settleValidation();
   vi.advanceTimersByTime(500);
   expect(document.querySelector('[role="menu"]')).toBeNull();
   dispose();
@@ -582,7 +587,7 @@ it("opens a file after a quick tap finishes before validation", async () => {
   term.element.dispatchEvent(end);
   expect(end.defaultPrevented).toBe(true);
   resolve(["docs/image.png"]);
-  await Promise.resolve();
+  await settleValidation();
   expect(document.querySelector('[role="menu"]')?.textContent).toContain("docs/image.png");
   dispose();
 });
@@ -633,7 +638,7 @@ it("keeps pending OSC file validation through unrelated terminal writes", async 
   lines[1] = "unrelated progress";
   events.parsed();
   resolve();
-  await Promise.resolve();
+  await settleValidation();
   vi.advanceTimersByTime(500);
   expect(document.querySelector("[role=menu]")?.textContent).toContain("/home/coder/real.md");
   dispose();
@@ -649,7 +654,7 @@ it.each([
   else expect(osc.get(8)?.(";file:///home/coder/replaced.md")).toBe(false);
   events.parsed();
   resolve();
-  await Promise.resolve();
+  await settleValidation();
   vi.advanceTimersByTime(500);
   expect(document.querySelector("[role=menu]")).toBeNull();
   dispose();
@@ -673,7 +678,7 @@ it.each([
   expect(remote).not.toHaveBeenCalled();
   expect(document.querySelector("[role=menu]")).toBeNull();
   resolve(exists ? ["/home/coder/real.md"] : []);
-  await Promise.resolve();
+  await settleValidation();
   expect(Boolean(document.querySelector("[role=menu]"))).toBe(exists);
   dispose();
 });
@@ -690,7 +695,7 @@ it("preserves Shift selection while file validation is pending", async () => {
   );
   expect(remote).toHaveBeenCalledOnce();
   resolve();
-  await Promise.resolve();
+  await settleValidation();
   expect(document.querySelector("[role=menu]")).toBeNull();
   dispose();
 });
@@ -727,7 +732,7 @@ it.each([
   );
   if (mode === "before-release") {
     resolve(["docs/image.png"]);
-    await Promise.resolve();
+    await settleValidation();
   }
   term.element.dispatchEvent(
     new MouseEvent("mouseup", { bubbles: true, cancelable: true, clientX: 10, clientY: 10 }),
