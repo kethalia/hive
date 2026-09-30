@@ -92,11 +92,13 @@ export function installTerminalBrowserIntegration(
       ? `${range.start.x}:${range.start.y}:${range.end.x}:${range.end.y}`
       : `row:${readAnchor(event.clientY)?.row ?? event.clientY}`;
   let touchProbe: MouseEvent | undefined;
-  let pressed: { uri: string; x: number; y: number } | undefined;
+  let pressed: { uri: string; x: number; y: number; osc?: boolean } | undefined;
   let anchor: { buffer: IBuffer; row: number; text: string; opaque: boolean } | undefined;
   let pendingAnchor: typeof anchor;
   let validationAnchor: typeof anchor;
-  let unverifiedHover: { uri: string; click?: { x: number; y: number } } | undefined;
+  let unverifiedHover:
+    | { uri: string; click?: { x: number; y: number }; mouse?: MouseEvent }
+    | undefined;
   const cancelPathValidation = () => {
     validationGeneration++;
     menu.closeLoading();
@@ -239,9 +241,7 @@ export function installTerminalBrowserIntegration(
     }
     const location = readAnchor(event.clientY);
     validationAnchor = location;
-    const candidate = hovering
-      ? { uri, click: undefined as { x: number; y: number } | undefined }
-      : undefined;
+    const candidate: typeof unverifiedHover = hovering ? { uri } : undefined;
     unverifiedHover = candidate;
     const finish = (existing: string[]) => {
       if (disposed || generation !== validationGeneration) return;
@@ -263,7 +263,8 @@ export function installTerminalBrowserIntegration(
           true,
           range,
         );
-      } else run();
+      } else if (candidate?.mouse) hoverLink(candidate.mouse, uri, true, range);
+      else run();
     };
     try {
       const result = checkPaths([target.value]);
@@ -282,6 +283,7 @@ export function installTerminalBrowserIntegration(
   // OSC 8 metadata is not exposed by public cells. Cancel checks when that
   // metadata is written, while allowing unrelated output to continue.
   const oscLinks = term.parser.registerOscHandler(8, () => {
+    pressed = undefined;
     cancelPathValidation();
     return false;
   });
@@ -321,7 +323,7 @@ export function installTerminalBrowserIntegration(
     pendingPlainPress = pathProvider.pendingLinkAt(event);
     const uri = unverifiedHover?.uri ?? pendingPlainPress?.link.text ?? hoveredUri;
     if (!uri) return;
-    pressed = { uri, x: event.clientX, y: event.clientY };
+    pressed = { uri, x: event.clientX, y: event.clientY, osc: Boolean(unverifiedHover) };
     event.preventDefault();
     event.stopImmediatePropagation();
   };
@@ -352,6 +354,12 @@ export function installTerminalBrowserIntegration(
       unverifiedHover.click = { x: event.clientX, y: event.clientY };
       pendingAnchor = readAnchor(event.clientY);
       menu.loading(link.uri, event.clientX, event.clientY);
+      return;
+    }
+    if (link.osc) {
+      // A redraw can clear hover state while the mouse button is held. Keep
+      // the intercepted press local and revalidate its OSC target on release.
+      verifiedOscLink(event, link.uri, () => activate(event, link.uri, true));
       return;
     }
     if (hoveredUri === link.uri) {
@@ -464,7 +472,31 @@ export function installTerminalBrowserIntegration(
     } else cancelValidation();
   };
   const pointerValidation = (event: PointerEvent) => {
-    if (touchProbe && event.pointerType !== "touch") cancel();
+    if (touchProbe && event.pointerType !== "touch") {
+      const rect = element?.querySelector(".xterm-screen")?.getBoundingClientRect();
+      const sameCell =
+        rect && rect.width > 0 && rect.height > 0
+          ? Math.floor(((event.clientX - rect.left) * term.cols) / rect.width) ===
+              Math.floor(((touchProbe.clientX - rect.left) * term.cols) / rect.width) &&
+            Math.floor(((event.clientY - rect.top) * term.rows) / rect.height) ===
+              Math.floor(((touchProbe.clientY - rect.top) * term.rows) / rect.height)
+          : event.clientX === touchProbe.clientX && event.clientY === touchProbe.clientY;
+      if (
+        unverifiedHover &&
+        sameCell &&
+        element?.contains(event.target as Node) &&
+        event.button === 0 &&
+        !event.shiftKey
+      ) {
+        // Transfer the pending check to the mouse press. Its original synthetic
+        // touch event is obsolete, but the click must still be intercepted.
+        unverifiedHover.mouse = event;
+        clearTouch();
+        pressed = undefined;
+        suppressHover = true;
+        menu.closeLoading();
+      } else cancel();
+    }
     if (
       unverifiedHover &&
       element?.contains(event.target as Node) &&

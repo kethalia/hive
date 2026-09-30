@@ -1006,3 +1006,49 @@ it("abandons a slow tap when mouse movement resumes", async () => {
   expect(document.querySelector("[role=menu]")?.textContent).toContain("https://example.com");
   dispose();
 });
+
+it.each([
+  false,
+  true,
+])("transfers a pending OSC tap to a stationary mouse press (resolves before release=%s)", async (beforeRelease) => {
+  let resolve!: (paths: string[]) => void;
+  const { term, dispose } = positionedSurface(
+    () =>
+      new Promise<string[]>((done) => {
+        resolve = done;
+      }),
+  );
+  const screen = term.element.querySelector(".xterm-screen")!;
+  screen.addEventListener("mousemove", (event) =>
+    term.options.linkHandler?.hover?.(
+      event as MouseEvent,
+      "file:///home/coder/image.png",
+      {} as never,
+    ),
+  );
+  term.element.dispatchEvent(touchEvent("touchstart", 10, 10));
+  term.element.dispatchEvent(touchEvent("touchend", 10, 10));
+  expect(document.querySelector("[role=status]")).not.toBeNull();
+  const remote = vi.fn();
+  term.element.addEventListener("mousedown", remote);
+  term.element.addEventListener("mouseup", remote);
+  const init = { clientX: 10, clientY: 10, bubbles: true, cancelable: true };
+  // jsdom lacks PointerEvent; add its pointerType to the mouse event.
+  const pointer = new MouseEvent("pointerdown", init);
+  Object.defineProperty(pointer, "pointerType", { value: "mouse" });
+  term.element.dispatchEvent(pointer);
+  term.element.dispatchEvent(new MouseEvent("mousedown", init));
+  if (beforeRelease) {
+    resolve(["/home/coder/image.png"]);
+    await settleValidation();
+    expect(document.querySelector("[role=menu]")).toBeNull();
+  }
+  term.element.dispatchEvent(new MouseEvent("mouseup", init));
+  if (!beforeRelease) {
+    resolve(["/home/coder/image.png"]);
+    await settleValidation();
+  }
+  expect(remote).not.toHaveBeenCalled();
+  expect(document.querySelector("[role=menu]")?.textContent).toContain("/home/coder/image.png");
+  dispose();
+});

@@ -84,6 +84,8 @@ for (const format of [
   "osc-touch",
   "relative-hybrid-touch",
   "osc-hybrid-touch",
+  "osc-stationary-touch",
+  "osc-stationary-hold-touch",
   "relative-escape",
   "osc-escape",
   "relative-missing",
@@ -144,7 +146,7 @@ for (const format of [
         const text = format.startsWith("osc") ? `\x1b]8;;${path}\x07${path}\x1b]8;;\x07` : path;
         await new Promise<void>((resolve) =>
           term.write(
-            `${text}\r\n${format === "relative-mouse" || format.endsWith("escape") ? "\x1b[?1003h\x1b[?1006h" : ""}`,
+            `${text}\r\n${format === "relative-mouse" || format.endsWith("escape") || format.includes("stationary") ? "\x1b[?1003h\x1b[?1006h" : ""}`,
             resolve,
           ),
         );
@@ -162,6 +164,7 @@ for (const format of [
     );
     const screen = await page.locator(".xterm-screen").boundingBox();
     if (!screen) throw new Error("Terminal screen is missing");
+    if (format.includes("stationary")) await page.mouse.move(screen.x + 30, screen.y + 8);
     if (format.endsWith("touch")) {
       await page.locator(".xterm-screen").evaluate((screen) => {
         const rect = screen.getBoundingClientRect();
@@ -190,6 +193,21 @@ for (const format of [
     } else await page.mouse.move(screen.x + 30, screen.y + 8);
     await expect(page.getByRole("status")).toHaveText(/Checking file…/, { timeout: 300 });
     await expect(page.getByRole("menuitem")).toHaveCount(0);
+    if (format.includes("stationary")) {
+      await page.evaluate(() => {
+        (window as unknown as { reports: string[] }).reports = [];
+      });
+      await page.mouse.down();
+      if (format.includes("hold")) {
+        await page.waitForTimeout(1000);
+        await expect(page.getByRole("menu")).toHaveCount(0);
+      }
+      await page.mouse.up();
+      await expect(page.getByRole("menu")).toBeVisible();
+      expect(
+        await page.evaluate(() => (window as unknown as { reports: string[] }).reports),
+      ).toEqual([]);
+    }
     if (format.includes("hybrid")) {
       await page.mouse.move(screen.x + screen.width - 10, screen.y + 8);
       await expect(page.getByRole("status")).toHaveCount(0);
