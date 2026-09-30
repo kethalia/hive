@@ -331,8 +331,6 @@ it("shows file actions on hover and keeps the menu open while entering it", () =
     "file:///home/coder/my%20file.png",
     {} as never,
   );
-  expect(document.querySelector("[role=menu]")).toBeNull();
-  vi.advanceTimersByTime(400);
   const menu = document.querySelector("[role=menu]")!;
   expect(menu).not.toBeNull();
   term.options.linkHandler?.leave?.(
@@ -382,9 +380,9 @@ it("dismisses stale links after buffer changes and keyboard scrolling, but keeps
   lines[1] = "unrelated status update";
   events.parsed();
   expect(document.querySelector("[role=menu]")).not.toBeNull();
-  // Hovering another link must not replace the anchor of the still-visible menu.
+  // Hovering another confirmed file immediately replaces the menu and its anchor.
   plainLink.hover?.(new MouseEvent("mousemove", { clientY: 30 }), "docs/other.png");
-  lines[0] = "replacement output";
+  lines[1] = "replacement output";
   events.parsed();
   expect(document.querySelector("[role=menu]")).toBeNull();
   show();
@@ -460,17 +458,15 @@ it("closes open menus and cancels pending menus on terminal-only resize", () => 
   vi.useRealTimers();
 });
 
-it("cancels an invalid pending link without removing the valid open menu", () => {
+it("dismisses the new file menu when its row changes", () => {
   vi.useFakeTimers();
   const { plainLink, events, lines, dispose } = positionedSurface();
   plainLink.activate(new MouseEvent("click", { clientY: 10 }), "docs/image.png");
-  const menu = document.querySelector("[role=menu]");
   plainLink.hover?.(new MouseEvent("mousemove", { clientY: 30 }), "docs/other.png");
   lines[1] = "changed pending row";
   events.parsed();
   vi.advanceTimersByTime(500);
-  expect(document.querySelector("[role=menu]")).toBe(menu);
-  expect(menu?.textContent).toContain("docs/image.png");
+  expect(document.querySelector("[role=menu]")).toBeNull();
   dispose();
   vi.useRealTimers();
 });
@@ -482,7 +478,7 @@ it.each([
   "replacement",
 ])("forgets the active anchor after %s closes the menu", (method) => {
   vi.useFakeTimers();
-  const { plainLink, events, lines, dispose } = positionedSurface();
+  const { term, plainLink, events, lines, dispose } = positionedSurface();
   plainLink.activate(new MouseEvent("click", { clientY: 10 }), "docs/image.png");
   let replacement: ReturnType<typeof createTerminalLinkMenu> | undefined;
   if (method === "escape") document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }));
@@ -494,6 +490,7 @@ it.each([
     replacement = createTerminalLinkMenu();
     replacement.show("https://other.example", 0, 0);
   }
+  term.element.dispatchEvent(new MouseEvent("mousemove", { clientY: 30 }));
   plainLink.hover?.(new MouseEvent("mousemove", { clientY: 30 }), "docs/other.png");
   lines[0] = "old menu row changed";
   events.parsed();
@@ -537,11 +534,13 @@ it("ignores a delayed file check after leaving the link", async () => {
     "file:///home/coder/real.md",
     undefined as never,
   );
+  expect(document.querySelector("[role=status]")?.textContent).toContain("Checking file…");
   term.options.linkHandler?.leave?.(
     new MouseEvent("mouseleave"),
     "file:///home/coder/real.md",
     undefined as never,
   );
+  expect(document.querySelector("[role=status]")).toBeNull();
   resolve(["/home/coder/real.md"]);
   await settleValidation();
   vi.advanceTimersByTime(500);
@@ -569,7 +568,8 @@ it.each([
   dispose();
 });
 
-it("opens a file after a quick tap finishes before validation", async () => {
+it("shows loading after a quick tap and opens even when validation takes over five seconds", async () => {
+  vi.useFakeTimers();
   let resolve!: (paths: string[]) => void;
   const { term, dispose } = positionedSurface(
     () =>
@@ -595,6 +595,9 @@ it("opens a file after a quick tap finishes before validation", async () => {
   const end = touchEvent("touchend", 10, 10);
   term.element.dispatchEvent(end);
   expect(end.defaultPrevented).toBe(true);
+  expect(document.querySelector("[role=status]")?.textContent).toContain("Checking file…");
+  expect(document.querySelector("[role=menuitem]")).toBeNull();
+  await vi.advanceTimersByTimeAsync(6000);
   resolve(["docs/image.png"]);
   await settleValidation();
   expect(document.querySelector('[role="menu"]')?.textContent).toContain("docs/image.png");

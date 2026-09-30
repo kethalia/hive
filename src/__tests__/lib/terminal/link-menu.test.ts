@@ -74,3 +74,15 @@ it("repositions the same destination for another link instance but preserves rep
   expect(second.style.left).toBe("200px");
   expect(second.style.top).toBe("210px");
 });
+
+it("shows immediate validation feedback without actions, then replaces it with file actions", () => {
+  const { menu } = setup();
+  menu.loading("docs/image.png", 80, 100);
+  expect(document.querySelector("[role=status]")?.textContent).toContain("Checking file…");
+  expect(document.querySelector("[role=menuitem]")).toBeNull();
+  menu.show("docs/image.png", 80, 100);
+  expect(document.querySelector("[role=status]")).toBeNull();
+  expect(document.querySelector("[role=menu]")).not.toBeNull();
+  menu.closeLoading();
+  expect(document.querySelector("[role=menu]")).not.toBeNull();
+});

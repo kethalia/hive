@@ -80,6 +80,12 @@ for (const format of [
   "osc",
   "relative-mouse",
   "relative-output",
+  "relative-touch",
+  "osc-touch",
+  "relative-escape",
+  "osc-escape",
+  "relative-missing",
+  "osc-missing",
 ] as const) {
   test(`file menu survives validation-triggered redraws (${format})`, async ({ page }) => {
     await page.setContent('<div id="terminal"></div>');
@@ -122,7 +128,7 @@ for (const format of [
             // Model the terminal being repainted after a server response. Re-linking
             // that same row must not perpetually start another server action.
             if (format !== "relative-output") setTimeout(() => term.refresh(0, 4), 0);
-            return paths;
+            return format.endsWith("missing") ? [] : paths;
           },
           onFileAction: (path) => state.actions.push(path),
         });
@@ -133,7 +139,7 @@ for (const format of [
         const path = format.startsWith("relative")
           ? "docs/design/references/images/flash-desktop-concept.png"
           : "file:///home/coder/.codex/generated_images/example/image.png";
-        const text = format === "osc" ? `\x1b]8;;${path}\x07${path}\x1b]8;;\x07` : path;
+        const text = format.startsWith("osc") ? `\x1b]8;;${path}\x07${path}\x1b]8;;\x07` : path;
         await new Promise<void>((resolve) =>
           term.write(
             `${text}\r\n${format === "relative-mouse" ? "\x1b[?1003h\x1b[?1006h" : ""}`,
@@ -154,7 +160,41 @@ for (const format of [
     );
     const screen = await page.locator(".xterm-screen").boundingBox();
     if (!screen) throw new Error("Terminal screen is missing");
-    await page.mouse.move(screen.x + 30, screen.y + 8);
+    if (format.endsWith("touch")) {
+      await page.locator(".xterm-screen").evaluate((screen) => {
+        const rect = screen.getBoundingClientRect();
+        const touch = new Touch({
+          identifier: 1,
+          target: screen,
+          clientX: rect.x + 30,
+          clientY: rect.y + 8,
+        });
+        screen.dispatchEvent(
+          new TouchEvent("touchstart", {
+            bubbles: true,
+            touches: [touch],
+            changedTouches: [touch],
+          }),
+        );
+        screen.dispatchEvent(
+          new TouchEvent("touchend", {
+            bubbles: true,
+            cancelable: true,
+            touches: [],
+            changedTouches: [touch],
+          }),
+        );
+      });
+    } else await page.mouse.move(screen.x + 30, screen.y + 8);
+    await expect(page.getByRole("status")).toHaveText(/Checking file…/, { timeout: 300 });
+    await expect(page.getByRole("menuitem")).toHaveCount(0);
+    if (format.endsWith("escape") || format.endsWith("missing")) {
+      if (format.endsWith("escape")) await page.keyboard.press("Escape");
+      await page.waitForTimeout(1000);
+      await expect(page.getByRole("status")).toHaveCount(0);
+      await expect(page.getByRole("menu")).toHaveCount(0);
+      return;
+    }
     await expect(page.getByRole("menu")).toBeVisible({ timeout: 4000 });
     if (format === "relative-mouse") {
       expect(

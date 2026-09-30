@@ -9,7 +9,10 @@ import {
   terminalLinkTarget,
 } from "./link-target";
 import { terminalPathLinkProvider } from "./path-link-provider";
-import { createTerminalPathValidator } from "./path-validation";
+import {
+  createTerminalPathValidator,
+  TERMINAL_PATH_VALIDATION_TIMEOUT_MS,
+} from "./path-validation";
 
 export function openTerminalLink(uri: string): void {
   try {
@@ -78,6 +81,7 @@ export function installTerminalBrowserIntegration(
     touchProbe = undefined;
     releasedTouch = undefined;
   };
+  let suppressHover = false;
   let hoveredUri: string | undefined;
   let hoveredOpaque = false;
   let hoveredInstance = "";
@@ -95,6 +99,7 @@ export function installTerminalBrowserIntegration(
   let unverifiedHover: { uri: string; click?: { x: number; y: number } } | undefined;
   const cancelPathValidation = () => {
     validationGeneration++;
+    menu.closeLoading();
     pendingPlainPress = undefined;
     pendingPlainClick = undefined;
     unverifiedHover = undefined;
@@ -184,10 +189,15 @@ export function installTerminalBrowserIntegration(
       menu.show(uri, touch.x, touch.y, true, hoveredInstance);
       return;
     }
-    if (!touchProbe) menu.hover(uri, event.clientX, event.clientY, hoveredInstance);
+    if (!touchProbe) {
+      if (terminalLinkTarget(uri)?.kind === "file")
+        menu.show(uri, event.clientX, event.clientY, false, hoveredInstance);
+      else menu.hover(uri, event.clientX, event.clientY, hoveredInstance);
+    }
     if (touchProbe) pressed = { uri, x: touchProbe.clientX, y: touchProbe.clientY };
   };
   const hover = (event: MouseEvent, uri: string, range?: IBufferRange) => {
+    if (suppressHover) return;
     if (!pendingPlainClick && !pendingPlainPress) cancelPathValidation();
     hoverLink(event, uri, false, range);
   };
@@ -211,6 +221,7 @@ export function installTerminalBrowserIntegration(
     range?: IBufferRange,
   ) => {
     if (
+      (hovering && suppressHover) ||
       event.shiftKey ||
       (touchProbe && event !== touchProbe) ||
       (touchProbes.has(event) && event !== touchProbe)
@@ -238,7 +249,11 @@ export function installTerminalBrowserIntegration(
       }
       unverifiedHover = undefined;
       validationAnchor = undefined;
-      if (!existing.includes(target.value)) return;
+      if (!existing.includes(target.value)) {
+        menu.closeLoading();
+        clearTouch();
+        return;
+      }
       if (candidate?.click) {
         activate(
           new MouseEvent("click", { clientX: candidate.click.x, clientY: candidate.click.y }),
@@ -251,7 +266,13 @@ export function installTerminalBrowserIntegration(
     try {
       const result = checkPaths([target.value]);
       if (Array.isArray(result)) finish(result);
-      else void result.then(finish, () => finish([]));
+      else {
+        if (!touchProbe) {
+          pendingAnchor = location;
+          menu.loading(uri, event.clientX, event.clientY, instanceKey(event, range));
+        }
+        void result.then(finish, () => finish([]));
+      }
     } catch {
       finish([]);
     }
@@ -317,6 +338,7 @@ export function installTerminalBrowserIntegration(
     if (pending) {
       const click = { x: event.clientX, y: event.clientY };
       pendingPlainClick = click;
+      showPendingPlain(event);
       void pending.ready.then((valid) => {
         if (disposed || pendingPlainClick !== click) return;
         pendingPlainClick = undefined;
@@ -326,6 +348,8 @@ export function installTerminalBrowserIntegration(
     }
     if (unverifiedHover?.uri === link.uri) {
       unverifiedHover.click = { x: event.clientX, y: event.clientY };
+      pendingAnchor = readAnchor(event.clientY);
+      menu.loading(link.uri, event.clientX, event.clientY);
       return;
     }
     if (hoveredUri === link.uri) {
@@ -333,6 +357,7 @@ export function installTerminalBrowserIntegration(
     }
   };
   const touchStart = (event: TouchEvent) => {
+    suppressHover = false;
     cancelPathValidation();
     clearTouch();
     pressed = undefined;
@@ -367,7 +392,7 @@ export function installTerminalBrowserIntegration(
     }
     screen?.dispatchEvent(new MouseEvent("mouseleave"));
     screen?.dispatchEvent(touchProbe);
-    touchTimer = setTimeout(clearTouch, 5000);
+    touchTimer = setTimeout(clearTouch, TERMINAL_PATH_VALIDATION_TIMEOUT_MS + 1000);
   };
   const touchEnd = (event: TouchEvent) => {
     const link = pressed;
@@ -381,6 +406,10 @@ export function installTerminalBrowserIntegration(
       Math.hypot(touch.clientX - touchProbe.clientX, touch.clientY - touchProbe.clientY) < 8
     ) {
       releasedTouch = { x: touch.clientX, y: touch.clientY };
+      if (unverifiedHover) {
+        pendingAnchor = readAnchor(touch.clientY);
+        menu.loading(unverifiedHover.uri, touch.clientX, touch.clientY);
+      } else showPendingPlain(touchProbe);
       // Suppress the compatibility mouse events while the touch lookup is pending.
       event.preventDefault();
       event.stopImmediatePropagation();
@@ -416,6 +445,9 @@ export function installTerminalBrowserIntegration(
     }
   };
   const cancelValidation = () => {
+    // xterm may deliver a provider hover after dismissal, even without a new
+    // pointer gesture. Wait for an actual move or tap before accepting it.
+    suppressHover = true;
     cancelPathValidation();
     clearTouch();
   };
@@ -435,7 +467,38 @@ export function installTerminalBrowserIntegration(
   };
   document.addEventListener("pointerdown", pointerValidation, true);
   document.addEventListener("keydown", escapeValidation);
+  // xterm starts its asynchronous lookup on the screen before this bubbling
+  // listener runs. Expose that pending result without treating it as a valid file.
+  let pendingFeedback: object | undefined;
+  const showPendingPlain = (event: MouseEvent) => {
+    const pending = pathProvider.pendingLinkAt(event);
+    if (!pending || event.shiftKey) return;
+    const token = {};
+    pendingFeedback = token;
+    const generation = validationGeneration;
+    pendingAnchor = readAnchor(event.clientY);
+    menu.loading(
+      pending.link.text,
+      event.clientX,
+      event.clientY,
+      instanceKey(event, pending.link.range),
+    );
+    void pending.ready.then((valid) => {
+      if (disposed || generation !== validationGeneration || pendingFeedback !== token) return;
+      if (!valid) {
+        menu.closeLoading();
+        clearTouch();
+      }
+    });
+  };
+  const pendingMouseMove = (event: MouseEvent) => {
+    if (touchProbe) return;
+    if (pathProvider.pendingLinkAt(event)) showPendingPlain(event);
+    else if (!unverifiedHover) menu.closeLoading();
+  };
+  element?.addEventListener("mousemove", pendingMouseMove);
   const mouseMove = (event: MouseEvent) => {
+    if (!touchProbes.has(event)) suppressHover = false;
     if (
       pendingPlainClick &&
       Math.hypot(event.clientX - pendingPlainClick.x, event.clientY - pendingPlainClick.y) >= 8
@@ -457,6 +520,7 @@ export function installTerminalBrowserIntegration(
     clearTouch();
     document.removeEventListener("pointerdown", pointerValidation, true);
     document.removeEventListener("keydown", escapeValidation);
+    element?.removeEventListener("mousemove", pendingMouseMove);
     element?.removeEventListener("mousemove", mouseMove, true);
     element?.removeEventListener("wheel", invalidateLink);
     element?.removeEventListener("mousedown", mouseDown, true);

@@ -10,6 +10,7 @@ export function createTerminalLinkMenu(
   onClose?: () => void,
 ) {
   let menu: HTMLDivElement | undefined;
+  let loading = false;
   let targetKey: string | undefined;
   let timer: ReturnType<typeof setTimeout> | undefined;
   let restoreFocus: HTMLElement | null = null;
@@ -22,6 +23,7 @@ export function createTerminalLinkMenu(
     const focused = menu?.contains(document.activeElement);
     menu?.remove();
     menu = undefined;
+    loading = false;
     targetKey = undefined;
     if (closeActiveMenu === close) closeActiveMenu = undefined;
     if (wasOpen) onClose?.();
@@ -29,10 +31,17 @@ export function createTerminalLinkMenu(
   };
   // Leaving a link cancels a pending hover, but an open menu stays reachable.
   const leave = cancelTimer;
-  const show = (uri: string, x: number, y: number, focus = false, instance = "") => {
+  const show = (
+    uri: string,
+    x: number,
+    y: number,
+    focus = false,
+    instance = "",
+    checking = false,
+  ) => {
     const target = terminalLinkTarget(uri);
     if (!target) return;
-    const key = `${target.kind}:${target.value}:${instance}`;
+    const key = `${target.kind}:${target.value}:${instance}:${checking}`;
     cancelTimer();
     if (menu && targetKey === key) {
       if (focus) menu.querySelector<HTMLButtonElement>("button")?.focus({ preventScroll: true });
@@ -42,10 +51,12 @@ export function createTerminalLinkMenu(
     close();
     closeActiveMenu = close;
     targetKey = key;
+    loading = checking;
     onShow?.({ x, y });
     restoreFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     menu = document.createElement("div");
-    menu.setAttribute("role", "menu");
+    menu.setAttribute("role", checking ? "status" : "menu");
+    if (checking) menu.setAttribute("aria-live", "polite");
     menu.setAttribute("aria-label", target.kind === "file" ? "File actions" : "Link actions");
     menu.className =
       "fixed z-[100] w-64 max-w-[calc(100vw-16px)] rounded-md border bg-popover p-1 text-popover-foreground shadow-lg text-xs";
@@ -70,24 +81,37 @@ export function createTerminalLinkMenu(
       });
       menu?.append(button);
     };
-    add(target.kind === "file" ? "Copy path" : "Copy URL", () => {
-      void Promise.resolve()
-        .then(() => navigator.clipboard.writeText(target.value))
-        .then(
-          () => toast.success(target.kind === "file" ? "Path copied" : "URL copied"),
-          () => toast.error("Could not copy to clipboard"),
-        );
-    });
-    if (target.kind === "url") {
-      add("Open URL in browser", () => window.open(target.value, "_blank", "noopener,noreferrer"));
+    if (checking) {
+      const status = document.createElement("div");
+      status.className = "px-2 py-2 text-muted-foreground";
+      status.textContent = "Checking file…";
+      menu.append(status);
     } else {
-      add("Download", () => onFileAction?.(target.value, "download"), !onFileAction);
-      add("Open in Files (new window)", () => onFileAction?.(target.value, "open"), !onFileAction);
-      add(
-        "Open in Files (new workspace)",
-        () => onFileAction?.(target.value, "new-workspace"),
-        !onFileAction,
-      );
+      add(target.kind === "file" ? "Copy path" : "Copy URL", () => {
+        void Promise.resolve()
+          .then(() => navigator.clipboard.writeText(target.value))
+          .then(
+            () => toast.success(target.kind === "file" ? "Path copied" : "URL copied"),
+            () => toast.error("Could not copy to clipboard"),
+          );
+      });
+      if (target.kind === "url") {
+        add("Open URL in browser", () =>
+          window.open(target.value, "_blank", "noopener,noreferrer"),
+        );
+      } else {
+        add("Download", () => onFileAction?.(target.value, "download"), !onFileAction);
+        add(
+          "Open in Files (new window)",
+          () => onFileAction?.(target.value, "open"),
+          !onFileAction,
+        );
+        add(
+          "Open in Files (new workspace)",
+          () => onFileAction?.(target.value, "new-workspace"),
+          !onFileAction,
+        );
+      }
     }
     menu.addEventListener("keydown", (event) => {
       event.stopPropagation();
@@ -123,6 +147,11 @@ export function createTerminalLinkMenu(
   window.addEventListener("resize", close);
   return {
     show,
+    loading: (uri: string, x: number, y: number, instance = "") =>
+      show(uri, x, y, false, instance, true),
+    closeLoading: () => {
+      if (loading) close();
+    },
     hover: (uri: string, x: number, y: number, instance = "") => {
       cancelTimer();
       timer = setTimeout(() => show(uri, x, y, false, instance), 400);
