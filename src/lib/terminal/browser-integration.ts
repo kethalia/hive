@@ -9,6 +9,7 @@ import {
   terminalLinkTarget,
 } from "./link-target";
 import { terminalPathLinkProvider } from "./path-link-provider";
+import { createTerminalPathValidator } from "./path-validation";
 
 export function openTerminalLink(uri: string): void {
   try {
@@ -56,6 +57,7 @@ export function installTerminalBrowserIntegration(
     validatePaths?: TerminalPathValidator;
   } = {},
 ): () => void {
+  const checkPaths = createTerminalPathValidator(validatePaths);
   const menu = createTerminalLinkMenu(
     onFileAction,
     ({ y }) => {
@@ -137,7 +139,22 @@ export function installTerminalBrowserIntegration(
     (location.opaque ||
       location.buffer !== term.buffer.active ||
       lineText(location.buffer, location.row) !== location.text);
+  // There is no reliable CWD event in every shell/TUI. Conservatively expire
+  // relative checks on input and output; a paint-only refresh retains them.
+  const input = term.onData((data) => {
+    // Link hover runs before xterm emits the mouse report for that movement.
+    // Mouse tracking must not cancel the check it just started. Keep forwarding
+    // these reports to the TUI; output still invalidates relative paths.
+    const mouseReport =
+      (data.startsWith("\x1b[<") && /^\d+;\d+;\d+[Mm]$/.test(data.slice(3))) ||
+      (data.startsWith("\x1b[M") && Array.from(data.slice(3)).length === 3) ||
+      (data.startsWith("\x1b[") && /^\d+;\d+;\d+M$/.test(data.slice(2)));
+    if (!mouseReport) checkPaths.invalidateRelativePaths();
+  });
   const parsed = term.onWriteParsed(() => {
+    // Output can be unrelated progress on another row. Let pending checks
+    // finish; the provider/anchor snapshots below reject changed link rows.
+    checkPaths.invalidateRelativePaths({ cancelPending: false });
     if (isInvalid(validationAnchor)) cancelPathValidation();
     if (isInvalid(anchor)) {
       invalidateLink();
@@ -232,7 +249,7 @@ export function installTerminalBrowserIntegration(
       } else run();
     };
     try {
-      const result = validatePaths([target.value]);
+      const result = checkPaths([target.value]);
       if (Array.isArray(result)) finish(result);
       else void result.then(finish, () => finish([]));
     } catch {
@@ -263,7 +280,7 @@ export function installTerminalBrowserIntegration(
   const pathProvider = terminalPathLinkProvider(
     term,
     { activate: (event, uri, range) => activate(event, uri, false, range), hover, leave },
-    validatePaths,
+    checkPaths,
   );
   const paths = term.registerLinkProvider(pathProvider);
   if (clipboard) term.loadAddon(clipboard);
@@ -454,6 +471,8 @@ export function installTerminalBrowserIntegration(
     resized.dispose();
     scroll.dispose();
     parsed.dispose();
+    input.dispose();
+    checkPaths.dispose();
     paths.dispose();
     menu.dispose();
     links.dispose();

@@ -16,6 +16,11 @@ afterEach(() => {
   document.body.replaceChildren();
 });
 
+async function settleValidation() {
+  if (vi.isFakeTimers()) await vi.advanceTimersByTimeAsync(0);
+  else await new Promise((resolve) => setTimeout(resolve, 0));
+}
+
 function surface(
   allowClipboardWrite = false,
   onFileAction?: import("@/lib/terminal/link-target").TerminalFileActionHandler,
@@ -24,7 +29,12 @@ function surface(
   const element = document.createElement("div");
   document.body.append(element);
   const osc = new Map<number, (data: string) => unknown>();
-  const events = { scroll: () => {}, parsed: () => {}, resize: () => {} };
+  const events = {
+    scroll: () => {},
+    parsed: () => {},
+    resize: () => {},
+    input: (_data = "") => {},
+  };
   const resizeDispose = vi.fn();
   const scrollDispose = vi.fn();
   const parsedDispose = vi.fn();
@@ -45,6 +55,10 @@ function surface(
         }),
       },
     },
+    onData: vi.fn((handler) => {
+      events.input = handler;
+      return { dispose: vi.fn() };
+    }),
     onResize: vi.fn((handler) => {
       events.resize = handler;
       return { dispose: resizeDispose };
@@ -529,7 +543,7 @@ it("ignores a delayed file check after leaving the link", async () => {
     undefined as never,
   );
   resolve(["/home/coder/real.md"]);
-  await Promise.resolve();
+  await settleValidation();
   vi.advanceTimersByTime(500);
   expect(document.querySelector('[role="menu"]')).toBeNull();
   dispose();
@@ -582,7 +596,7 @@ it("opens a file after a quick tap finishes before validation", async () => {
   term.element.dispatchEvent(end);
   expect(end.defaultPrevented).toBe(true);
   resolve(["docs/image.png"]);
-  await Promise.resolve();
+  await settleValidation();
   expect(document.querySelector('[role="menu"]')?.textContent).toContain("docs/image.png");
   dispose();
 });
@@ -633,7 +647,7 @@ it("keeps pending OSC file validation through unrelated terminal writes", async 
   lines[1] = "unrelated progress";
   events.parsed();
   resolve();
-  await Promise.resolve();
+  await settleValidation();
   vi.advanceTimersByTime(500);
   expect(document.querySelector("[role=menu]")?.textContent).toContain("/home/coder/real.md");
   dispose();
@@ -649,7 +663,7 @@ it.each([
   else expect(osc.get(8)?.(";file:///home/coder/replaced.md")).toBe(false);
   events.parsed();
   resolve();
-  await Promise.resolve();
+  await settleValidation();
   vi.advanceTimersByTime(500);
   expect(document.querySelector("[role=menu]")).toBeNull();
   dispose();
@@ -673,7 +687,7 @@ it.each([
   expect(remote).not.toHaveBeenCalled();
   expect(document.querySelector("[role=menu]")).toBeNull();
   resolve(exists ? ["/home/coder/real.md"] : []);
-  await Promise.resolve();
+  await settleValidation();
   expect(Boolean(document.querySelector("[role=menu]"))).toBe(exists);
   dispose();
 });
@@ -690,7 +704,7 @@ it("preserves Shift selection while file validation is pending", async () => {
   );
   expect(remote).toHaveBeenCalledOnce();
   resolve();
-  await Promise.resolve();
+  await settleValidation();
   expect(document.querySelector("[role=menu]")).toBeNull();
   dispose();
 });
@@ -727,7 +741,7 @@ it.each([
   );
   if (mode === "before-release") {
     resolve(["docs/image.png"]);
-    await Promise.resolve();
+    await settleValidation();
   }
   term.element.dispatchEvent(
     new MouseEvent("mouseup", { bubbles: true, cancelable: true, clientX: 10, clientY: 10 }),
@@ -755,5 +769,97 @@ it("reanchors a repeated file destination to its second row", () => {
   events.parsed();
   expect(document.querySelector("[role=menu]")).toBe(menu);
   expect(menu).not.toBeNull();
+  dispose();
+});
+
+it.each([
+  "input",
+  "parsed",
+] as const)("rechecks relative files after terminal %s", async (activity) => {
+  const validate = vi.fn((paths: string[]) => paths);
+  const { term, events, dispose } = surface(false, undefined, validate);
+  const provider = term.registerLinkProvider.mock.calls.at(-1)![0];
+  const callback = vi.fn();
+  provider.provideLinks(1, callback);
+  expect(validate).toHaveBeenCalledTimes(1);
+  if (activity === "input") events.input("\r");
+  else events.parsed();
+  validate.mockReturnValue([]);
+  provider.provideLinks(1, callback);
+  expect(validate).toHaveBeenCalledTimes(2);
+  expect(callback).toHaveBeenLastCalledWith([]);
+  dispose();
+});
+
+it.each([
+  "\x1b[<35;10;5M", // SGR motion
+  "\x1b[<0;10;5M", // SGR press
+  "\x1b[<0;10;5m", // SGR release
+  "\x1b[M#*%", // legacy report
+  "\x1b[35;10;5M", // urxvt report
+])("keeps pending relative validation through mouse report %j", async (report) => {
+  let resolve!: (paths: string[]) => void;
+  const validate = vi.fn(
+    () =>
+      new Promise<string[]>((done) => {
+        resolve = done;
+      }),
+  );
+  const { term, events, dispose } = surface(false, undefined, validate);
+  const provider = term.registerLinkProvider.mock.calls.at(-1)![0];
+  const callback = vi.fn();
+  provider.provideLinks(1, callback);
+  events.input(report);
+  resolve(["docs/image.png"]);
+  await settleValidation();
+  expect(callback.mock.calls[0][0]).toHaveLength(1);
+  provider.provideLinks(1, vi.fn());
+  expect(validate).toHaveBeenCalledTimes(1);
+  dispose();
+});
+
+it.each([
+  "cd ../other\r",
+  "\r",
+  "\x1b[A",
+  "\x1b[200~cd ../other\x1b[201~",
+])("still invalidates relative paths for keyboard or pasted input %j", (data) => {
+  const validate = vi.fn((paths: string[]) => paths);
+  const { term, events, dispose } = surface(false, undefined, validate);
+  events.input(data);
+  term.registerLinkProvider.mock.calls.at(-1)![0].provideLinks(1, vi.fn());
+  expect(validate).toHaveBeenCalledTimes(2);
+  dispose();
+});
+
+it.each([
+  false,
+  true,
+])("handles pending relative paths during output (link row changed=%s)", async (changed) => {
+  let resolve!: (paths: string[]) => void;
+  const { term, events, lines, dispose } = surface(
+    false,
+    undefined,
+    () =>
+      new Promise<string[]>((done) => {
+        resolve = done;
+      }),
+  );
+  const provider = term.registerLinkProvider.mock.calls.at(-1)![0];
+  const callback = vi.fn();
+  provider.provideLinks(1, callback);
+  for (let i = 0; i < 5; i++) {
+    lines[1] = `Build progress ${i}`;
+    events.parsed();
+  }
+  if (changed) {
+    lines[0] = "different/path.png";
+    events.parsed();
+  }
+  await settleValidation();
+  expect(callback).not.toHaveBeenCalled();
+  resolve(["docs/image.png"]);
+  await settleValidation();
+  expect(callback.mock.calls[0][0]).toHaveLength(changed ? 0 : 1);
   dispose();
 });
