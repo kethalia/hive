@@ -6,7 +6,7 @@ export const TERMINAL_PATH_VALIDATION_TIMEOUT_MS = 10_000;
 export function createTerminalPathValidator(
   validate: TerminalPathValidator,
 ): TerminalPathValidator & {
-  invalidateRelativePaths(): void;
+  invalidateRelativePaths(options?: { cancelPending?: boolean }): void;
   dispose(): void;
 } {
   const cache = new Map<string, { exists: boolean; expires: number }>();
@@ -81,9 +81,11 @@ export function createTerminalPathValidator(
     );
   };
   return Object.assign(check, {
-    invalidateRelativePaths() {
+    invalidateRelativePaths({ cancelPending = true } = {}) {
       for (const path of cache.keys()) if (isRelative(path)) cache.delete(path);
-      for (const [path, request] of pending) if (isRelative(path)) request.cancel();
+      if (cancelPending) {
+        for (const [path, request] of pending) if (isRelative(path)) request.cancel();
+      }
     },
     dispose() {
       cache.clear();

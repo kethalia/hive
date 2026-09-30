@@ -74,7 +74,13 @@ test("late path validation uses the current pointer cell on the same row", async
   ).toBeGreaterThan(0);
 });
 
-for (const format of ["relative", "file-url", "osc", "relative-mouse"] as const) {
+for (const format of [
+  "relative",
+  "file-url",
+  "osc",
+  "relative-mouse",
+  "relative-output",
+] as const) {
   test(`file menu survives validation-triggered redraws (${format})`, async ({ page }) => {
     await page.setContent('<div id="terminal"></div>');
     await page.addStyleTag({ path: requireModule.resolve("@xterm/xterm/css/xterm.css") });
@@ -115,11 +121,15 @@ for (const format of ["relative", "file-url", "osc", "relative-mouse"] as const)
             await new Promise((resolve) => setTimeout(resolve, 750));
             // Model the terminal being repainted after a server response. Re-linking
             // that same row must not perpetually start another server action.
-            setTimeout(() => term.refresh(0, 4), 0);
+            if (format !== "relative-output") setTimeout(() => term.refresh(0, 4), 0);
             return paths;
           },
           onFileAction: (path) => state.actions.push(path),
         });
+        if (format === "relative-output") {
+          let progress = 0;
+          setInterval(() => term.write(`\x1b[4;1HBuild progress ${progress++}`), 80);
+        }
         const path = format.startsWith("relative")
           ? "docs/design/references/images/flash-desktop-concept.png"
           : "file:///home/coder/.codex/generated_images/example/image.png";

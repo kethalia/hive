@@ -831,3 +831,35 @@ it.each([
   expect(validate).toHaveBeenCalledTimes(2);
   dispose();
 });
+
+it.each([
+  false,
+  true,
+])("handles pending relative paths during output (link row changed=%s)", async (changed) => {
+  let resolve!: (paths: string[]) => void;
+  const { term, events, lines, dispose } = surface(
+    false,
+    undefined,
+    () =>
+      new Promise<string[]>((done) => {
+        resolve = done;
+      }),
+  );
+  const provider = term.registerLinkProvider.mock.calls.at(-1)![0];
+  const callback = vi.fn();
+  provider.provideLinks(1, callback);
+  for (let i = 0; i < 5; i++) {
+    lines[1] = `Build progress ${i}`;
+    events.parsed();
+  }
+  if (changed) {
+    lines[0] = "different/path.png";
+    events.parsed();
+  }
+  await settleValidation();
+  expect(callback).not.toHaveBeenCalled();
+  resolve(["docs/image.png"]);
+  await settleValidation();
+  expect(callback.mock.calls[0][0]).toHaveLength(changed ? 0 : 1);
+  dispose();
+});

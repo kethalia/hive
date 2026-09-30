@@ -152,7 +152,9 @@ export function installTerminalBrowserIntegration(
     if (!mouseReport) checkPaths.invalidateRelativePaths();
   });
   const parsed = term.onWriteParsed(() => {
-    checkPaths.invalidateRelativePaths();
+    // Output can be unrelated progress on another row. Let pending checks
+    // finish; the provider/anchor snapshots below reject changed link rows.
+    checkPaths.invalidateRelativePaths({ cancelPending: false });
     if (isInvalid(validationAnchor)) cancelPathValidation();
     if (isInvalid(anchor)) {
       invalidateLink();
