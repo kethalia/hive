@@ -1,5 +1,11 @@
 # hive-orchestrator
 
+## 2.17.2
+
+### Patch Changes
+
+- 117e199: Share pending terminal file checks and briefly cache their results so redraws do not repeatedly validate the same path and prevent file menus from opening. Cover relative paths, file URLs, and embedded terminal links.
+
 ## 2.17.1
 
 ### Patch Changes
