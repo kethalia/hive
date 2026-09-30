@@ -139,7 +139,11 @@ export function installTerminalBrowserIntegration(
     (location.opaque ||
       location.buffer !== term.buffer.active ||
       lineText(location.buffer, location.row) !== location.text);
+  // There is no reliable CWD event in every shell/TUI. Conservatively expire
+  // relative checks on input and output; a paint-only refresh retains them.
+  const input = term.onData(() => checkPaths.invalidateRelativePaths());
   const parsed = term.onWriteParsed(() => {
+    checkPaths.invalidateRelativePaths();
     if (isInvalid(validationAnchor)) cancelPathValidation();
     if (isInvalid(anchor)) {
       invalidateLink();
@@ -456,6 +460,8 @@ export function installTerminalBrowserIntegration(
     resized.dispose();
     scroll.dispose();
     parsed.dispose();
+    input.dispose();
+    checkPaths.dispose();
     paths.dispose();
     menu.dispose();
     links.dispose();

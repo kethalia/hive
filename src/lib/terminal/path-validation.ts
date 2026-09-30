@@ -1,11 +1,17 @@
 import { TERMINAL_PATH_BATCH_SIZE, type TerminalPathValidator } from "./link-target";
 
+export const TERMINAL_PATH_VALIDATION_TIMEOUT_MS = 10_000;
+
 /** Share checks between OSC links and plain paths, including xterm redraws. */
 export function createTerminalPathValidator(
   validate: TerminalPathValidator,
-): TerminalPathValidator {
+): TerminalPathValidator & {
+  invalidateRelativePaths(): void;
+  dispose(): void;
+} {
   const cache = new Map<string, { exists: boolean; expires: number }>();
-  const pending = new Map<string, Promise<boolean>>();
+  const pending = new Map<string, { result: Promise<boolean>; cancel(): void }>();
+  const isRelative = (path: string) => !path.startsWith("/") && !path.startsWith("~/");
   const remember = (path: string, exists: boolean) => {
     cache.delete(path);
     cache.set(path, { exists, expires: Date.now() + 2_000 });
@@ -13,13 +19,13 @@ export function createTerminalPathValidator(
     if (cache.size > 256 && oldest !== undefined) cache.delete(oldest);
   };
 
-  return (paths) => {
+  const check: TerminalPathValidator = (paths) => {
     const unique = [...new Set(paths)];
     const results = new Map<string, boolean | Promise<boolean>>();
     const missing = unique.filter((path) => {
       const cached = cache.get(path);
       if (cached && cached.expires <= Date.now()) cache.delete(path);
-      const known = pending.get(path) ?? cache.get(path)?.exists;
+      const known = pending.get(path)?.result ?? cache.get(path)?.exists;
       if (known !== undefined) results.set(path, known);
       return known === undefined;
     });
@@ -43,14 +49,25 @@ export function createTerminalPathValidator(
           () => new Set<string>(),
         );
         for (const path of batch) {
-          const check = checked.then((existing) => {
-            const exists = existing.has(path);
-            pending.delete(path);
-            remember(path, exists);
-            return exists;
+          let finish!: (exists: boolean, cacheResult: boolean) => void;
+          const value = new Promise<boolean>((resolve) => {
+            let settled = false;
+            const timer = setTimeout(
+              () => finish(false, false),
+              TERMINAL_PATH_VALIDATION_TIMEOUT_MS,
+            );
+            finish = (exists, cacheResult) => {
+              if (settled) return;
+              settled = true;
+              clearTimeout(timer);
+              pending.delete(path);
+              if (cacheResult) remember(path, exists);
+              resolve(exists);
+            };
           });
-          pending.set(path, check);
-          results.set(path, check);
+          pending.set(path, { result: value, cancel: () => finish(false, false) });
+          void checked.then((existing) => finish(existing.has(path), true));
+          results.set(path, value);
         }
       }
     }
@@ -63,4 +80,14 @@ export function createTerminalPathValidator(
       (existing) => existing.filter((path): path is string => path !== null),
     );
   };
+  return Object.assign(check, {
+    invalidateRelativePaths() {
+      for (const path of cache.keys()) if (isRelative(path)) cache.delete(path);
+      for (const [path, request] of pending) if (isRelative(path)) request.cancel();
+    },
+    dispose() {
+      cache.clear();
+      for (const request of pending.values()) request.cancel();
+    },
+  });
 }

@@ -29,7 +29,7 @@ function surface(
   const element = document.createElement("div");
   document.body.append(element);
   const osc = new Map<number, (data: string) => unknown>();
-  const events = { scroll: () => {}, parsed: () => {}, resize: () => {} };
+  const events = { scroll: () => {}, parsed: () => {}, resize: () => {}, input: () => {} };
   const resizeDispose = vi.fn();
   const scrollDispose = vi.fn();
   const parsedDispose = vi.fn();
@@ -50,6 +50,10 @@ function surface(
         }),
       },
     },
+    onData: vi.fn((handler) => {
+      events.input = handler;
+      return { dispose: vi.fn() };
+    }),
     onResize: vi.fn((handler) => {
       events.resize = handler;
       return { dispose: resizeDispose };
@@ -760,5 +764,23 @@ it("reanchors a repeated file destination to its second row", () => {
   events.parsed();
   expect(document.querySelector("[role=menu]")).toBe(menu);
   expect(menu).not.toBeNull();
+  dispose();
+});
+
+it.each([
+  "input",
+  "parsed",
+] as const)("rechecks relative files after terminal %s", async (activity) => {
+  const validate = vi.fn((paths: string[]) => paths);
+  const { term, events, dispose } = surface(false, undefined, validate);
+  const provider = term.registerLinkProvider.mock.calls.at(-1)![0];
+  const callback = vi.fn();
+  provider.provideLinks(1, callback);
+  expect(validate).toHaveBeenCalledTimes(1);
+  events[activity]();
+  validate.mockReturnValue([]);
+  provider.provideLinks(1, callback);
+  expect(validate).toHaveBeenCalledTimes(2);
+  expect(callback).toHaveBeenLastCalledWith([]);
   dispose();
 });
