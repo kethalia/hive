@@ -866,3 +866,66 @@ it.each([
   expect(callback.mock.calls[0][0]).toHaveLength(changed ? 0 : 1);
   dispose();
 });
+
+it("closes pending path feedback immediately when its row is replaced", async () => {
+  let resolve!: (paths: string[]) => void;
+  const { term, lines, events, dispose } = positionedSurface(
+    () =>
+      new Promise<string[]>((done) => {
+        resolve = done;
+      }),
+  );
+  const screen = term.element.querySelector(".xterm-screen")!;
+  vi.spyOn(screen, "getBoundingClientRect").mockReturnValue({
+    left: 0,
+    top: 0,
+    width: 800,
+    height: 40,
+    right: 800,
+    bottom: 40,
+  } as DOMRect);
+  term.element.dispatchEvent(new MouseEvent("mousemove", { clientX: 10, clientY: 10 }));
+  term.element.dispatchEvent(new MouseEvent("mousemove", { clientX: 11, clientY: 10 }));
+  expect(document.querySelector("[role=status]")).not.toBeNull();
+  lines[0] = "replacement output";
+  events.parsed();
+  expect(document.querySelector("[role=status]")).toBeNull();
+  resolve(["docs/image.png"]);
+  await settleValidation();
+  expect(document.querySelector("[role=menu]")).toBeNull();
+  dispose();
+});
+
+it("intercepts a stationary click after Escape suppresses a late plain-path hover", async () => {
+  let resolve!: (paths: string[]) => void;
+  const { term, dispose } = positionedSurface(
+    () =>
+      new Promise<string[]>((done) => {
+        resolve = done;
+      }),
+  );
+  const provider = term.registerLinkProvider.mock.calls.at(-1)![0];
+  provider.provideLinks(1, (links) => {
+    links?.[0]?.hover?.(new MouseEvent("mousemove", { clientX: 10, clientY: 10 }), links[0].text);
+  });
+  document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }));
+  resolve(["docs/image.png"]);
+  await settleValidation();
+  expect(document.querySelector("[role=menu]")).toBeNull();
+  const remoteMouse = vi.fn();
+  term.element.addEventListener("mousedown", remoteMouse);
+  term.element.addEventListener("mouseup", remoteMouse);
+  for (const type of ["mousedown", "mouseup"]) {
+    const event = new MouseEvent(type, {
+      clientX: 10,
+      clientY: 10,
+      bubbles: true,
+      cancelable: true,
+    });
+    term.element.dispatchEvent(event);
+    expect(event.defaultPrevented).toBe(true);
+  }
+  expect(remoteMouse).not.toHaveBeenCalled();
+  expect(document.querySelector("[role=menu]")?.textContent).toContain("docs/image.png");
+  dispose();
+});

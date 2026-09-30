@@ -169,6 +169,7 @@ export function installTerminalBrowserIntegration(
       pressed = undefined;
       touchProbe = undefined;
       menu.leave();
+      menu.closeLoading();
     }
   });
   const hoverLink = (event: MouseEvent, uri: string, opaque: boolean, range?: IBufferRange) => {
@@ -182,6 +183,9 @@ export function installTerminalBrowserIntegration(
     hoveredUri = uri;
     hoveredOpaque = opaque;
     hoveredInstance = instanceKey(event, range);
+    // Remember confirmed links for click interception even after Escape. Only
+    // suppress opening the popup, not the current link's interaction state.
+    if (suppressHover && !touchProbe) return;
     if (touchProbe && releasedTouch) {
       const touch = releasedTouch;
       clearTouch();
@@ -197,7 +201,6 @@ export function installTerminalBrowserIntegration(
     if (touchProbe) pressed = { uri, x: touchProbe.clientX, y: touchProbe.clientY };
   };
   const hover = (event: MouseEvent, uri: string, range?: IBufferRange) => {
-    if (suppressHover) return;
     if (!pendingPlainClick && !pendingPlainPress) cancelPathValidation();
     hoverLink(event, uri, false, range);
   };

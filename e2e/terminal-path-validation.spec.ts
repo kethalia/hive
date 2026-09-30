@@ -142,7 +142,7 @@ for (const format of [
         const text = format.startsWith("osc") ? `\x1b]8;;${path}\x07${path}\x1b]8;;\x07` : path;
         await new Promise<void>((resolve) =>
           term.write(
-            `${text}\r\n${format === "relative-mouse" ? "\x1b[?1003h\x1b[?1006h" : ""}`,
+            `${text}\r\n${format === "relative-mouse" || format === "relative-escape" ? "\x1b[?1003h\x1b[?1006h" : ""}`,
             resolve,
           ),
         );
@@ -193,6 +193,18 @@ for (const format of [
       await page.waitForTimeout(1000);
       await expect(page.getByRole("status")).toHaveCount(0);
       await expect(page.getByRole("menu")).toHaveCount(0);
+      if (format === "relative-escape") {
+        await page.evaluate(() => {
+          (window as unknown as { reports: string[] }).reports = [];
+        });
+        // No move: the late provider hover must still arm local click interception.
+        await page.mouse.down();
+        await page.mouse.up();
+        await expect(page.getByRole("menu")).toBeVisible();
+        expect(
+          await page.evaluate(() => (window as unknown as { reports: string[] }).reports),
+        ).toEqual([]);
+      }
       return;
     }
     await expect(page.getByRole("menu")).toBeVisible({ timeout: 4000 });
