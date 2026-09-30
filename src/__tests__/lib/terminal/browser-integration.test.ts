@@ -929,3 +929,80 @@ it("intercepts a stationary click after Escape suppresses a late plain-path hove
   expect(document.querySelector("[role=menu]")?.textContent).toContain("docs/image.png");
   dispose();
 });
+
+it.each([
+  false,
+  true,
+])("intercepts OSC clicks after Escape (validation finished=%s)", async (finished) => {
+  let resolve!: (paths: string[]) => void;
+  const { term, dispose } = positionedSurface(
+    () =>
+      new Promise<string[]>((done) => {
+        resolve = done;
+      }),
+  );
+  const uri = "file:///home/coder/image.png";
+  term.options.linkHandler?.hover?.(
+    new MouseEvent("mousemove", { clientX: 10, clientY: 10 }),
+    uri,
+    {} as never,
+  );
+  document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }));
+  if (finished) {
+    resolve(["/home/coder/image.png"]);
+    await settleValidation();
+  }
+  expect(document.querySelector("[role=status], [role=menu]")).toBeNull();
+  const remote = vi.fn();
+  term.element.addEventListener("mousedown", remote);
+  term.element.addEventListener("mouseup", remote);
+  for (const type of ["mousedown", "mouseup"]) {
+    term.element.dispatchEvent(
+      new MouseEvent(type, { clientX: 10, clientY: 10, bubbles: true, cancelable: true }),
+    );
+  }
+  if (!finished) {
+    resolve(["/home/coder/image.png"]);
+    await settleValidation();
+  }
+  expect(remote).not.toHaveBeenCalled();
+  expect(document.querySelector("[role=menu]")?.textContent).toContain("/home/coder/image.png");
+  dispose();
+});
+
+it("abandons a slow tap when mouse movement resumes", async () => {
+  vi.useFakeTimers();
+  let resolve!: (paths: string[]) => void;
+  const { term, dispose } = positionedSurface(
+    () =>
+      new Promise<string[]>((done) => {
+        resolve = done;
+      }),
+  );
+  const screen = term.element.querySelector(".xterm-screen")!;
+  screen.addEventListener("mousemove", (event) => {
+    if ((event as MouseEvent).clientY === 10)
+      term.options.linkHandler?.hover?.(
+        event as MouseEvent,
+        "file:///home/coder/image.png",
+        {} as never,
+      );
+  });
+  term.element.dispatchEvent(touchEvent("touchstart", 10, 10));
+  term.element.dispatchEvent(touchEvent("touchend", 10, 10));
+  expect(document.querySelector("[role=status]")).not.toBeNull();
+  await vi.advanceTimersByTimeAsync(6000);
+  screen.dispatchEvent(new MouseEvent("mousemove", { bubbles: true, clientX: 20, clientY: 30 }));
+  expect(document.querySelector("[role=status]")).toBeNull();
+  resolve(["/home/coder/image.png"]);
+  await settleValidation();
+  expect(document.querySelector("[role=menu]")).toBeNull();
+  term.options.linkHandler?.hover?.(
+    new MouseEvent("mousemove", { clientX: 20, clientY: 30 }),
+    "https://example.com",
+    {} as never,
+  );
+  await vi.advanceTimersByTimeAsync(400);
+  expect(document.querySelector("[role=menu]")?.textContent).toContain("https://example.com");
+  dispose();
+});

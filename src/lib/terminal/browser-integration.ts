@@ -224,7 +224,6 @@ export function installTerminalBrowserIntegration(
     range?: IBufferRange,
   ) => {
     if (
-      (hovering && suppressHover) ||
       event.shiftKey ||
       (touchProbe && event !== touchProbe) ||
       (touchProbes.has(event) && event !== touchProbe)
@@ -270,7 +269,7 @@ export function installTerminalBrowserIntegration(
       const result = checkPaths([target.value]);
       if (Array.isArray(result)) finish(result);
       else {
-        if (!touchProbe) {
+        if (!touchProbe && (!hovering || !suppressHover)) {
           pendingAnchor = location;
           menu.loading(uri, event.clientX, event.clientY, instanceKey(event, range));
         }
@@ -386,12 +385,12 @@ export function installTerminalBrowserIntegration(
         touch.clientX <= rect.left + cellWidth
           ? rect.right - cellWidth / 2
           : rect.left + cellWidth / 2;
-      screen?.dispatchEvent(
-        new MouseEvent("mousemove", {
-          clientX: resetX,
-          clientY: touch.clientY,
-        }),
-      );
+      const resetProbe = new MouseEvent("mousemove", {
+        clientX: resetX,
+        clientY: touch.clientY,
+      });
+      touchProbes.add(resetProbe);
+      screen?.dispatchEvent(resetProbe);
     }
     screen?.dispatchEvent(new MouseEvent("mouseleave"));
     screen?.dispatchEvent(touchProbe);
@@ -455,9 +454,17 @@ export function installTerminalBrowserIntegration(
     clearTouch();
   };
   const escapeValidation = (event: KeyboardEvent) => {
-    if (event.key === "Escape") cancelValidation();
+    if (event.key !== "Escape") return;
+    if (unverifiedHover && !touchProbe) {
+      // Keep the pending OSC lookup available to intercept a stationary click.
+      // Its result may update hover state, but must not reopen the dismissed UI.
+      suppressHover = true;
+      unverifiedHover.click = undefined;
+      menu.closeLoading();
+    } else cancelValidation();
   };
   const pointerValidation = (event: PointerEvent) => {
+    if (touchProbe && event.pointerType !== "touch") cancel();
     if (
       unverifiedHover &&
       element?.contains(event.target as Node) &&
@@ -501,7 +508,10 @@ export function installTerminalBrowserIntegration(
   };
   element?.addEventListener("mousemove", pendingMouseMove);
   const mouseMove = (event: MouseEvent) => {
-    if (!touchProbes.has(event)) suppressHover = false;
+    if (!touchProbes.has(event)) {
+      if (touchProbe) cancel();
+      suppressHover = false;
+    }
     if (
       pendingPlainClick &&
       Math.hypot(event.clientX - pendingPlainClick.x, event.clientY - pendingPlainClick.y) >= 8

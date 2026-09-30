@@ -82,6 +82,8 @@ for (const format of [
   "relative-output",
   "relative-touch",
   "osc-touch",
+  "relative-hybrid-touch",
+  "osc-hybrid-touch",
   "relative-escape",
   "osc-escape",
   "relative-missing",
@@ -142,7 +144,7 @@ for (const format of [
         const text = format.startsWith("osc") ? `\x1b]8;;${path}\x07${path}\x1b]8;;\x07` : path;
         await new Promise<void>((resolve) =>
           term.write(
-            `${text}\r\n${format === "relative-mouse" || format === "relative-escape" ? "\x1b[?1003h\x1b[?1006h" : ""}`,
+            `${text}\r\n${format === "relative-mouse" || format.endsWith("escape") ? "\x1b[?1003h\x1b[?1006h" : ""}`,
             resolve,
           ),
         );
@@ -188,12 +190,19 @@ for (const format of [
     } else await page.mouse.move(screen.x + 30, screen.y + 8);
     await expect(page.getByRole("status")).toHaveText(/Checking file…/, { timeout: 300 });
     await expect(page.getByRole("menuitem")).toHaveCount(0);
+    if (format.includes("hybrid")) {
+      await page.mouse.move(screen.x + screen.width - 10, screen.y + 8);
+      await expect(page.getByRole("status")).toHaveCount(0);
+      await page.waitForTimeout(1000);
+      await expect(page.getByRole("menu")).toHaveCount(0);
+      await page.mouse.move(screen.x + 30, screen.y + 8);
+    }
     if (format.endsWith("escape") || format.endsWith("missing")) {
       if (format.endsWith("escape")) await page.keyboard.press("Escape");
       await page.waitForTimeout(1000);
       await expect(page.getByRole("status")).toHaveCount(0);
       await expect(page.getByRole("menu")).toHaveCount(0);
-      if (format === "relative-escape") {
+      if (format.endsWith("escape")) {
         await page.evaluate(() => {
           (window as unknown as { reports: string[] }).reports = [];
         });
