@@ -331,8 +331,6 @@ it("shows file actions on hover and keeps the menu open while entering it", () =
     "file:///home/coder/my%20file.png",
     {} as never,
   );
-  expect(document.querySelector("[role=menu]")).toBeNull();
-  vi.advanceTimersByTime(400);
   const menu = document.querySelector("[role=menu]")!;
   expect(menu).not.toBeNull();
   term.options.linkHandler?.leave?.(
@@ -382,9 +380,9 @@ it("dismisses stale links after buffer changes and keyboard scrolling, but keeps
   lines[1] = "unrelated status update";
   events.parsed();
   expect(document.querySelector("[role=menu]")).not.toBeNull();
-  // Hovering another link must not replace the anchor of the still-visible menu.
+  // Hovering another confirmed file immediately replaces the menu and its anchor.
   plainLink.hover?.(new MouseEvent("mousemove", { clientY: 30 }), "docs/other.png");
-  lines[0] = "replacement output";
+  lines[1] = "replacement output";
   events.parsed();
   expect(document.querySelector("[role=menu]")).toBeNull();
   show();
@@ -460,17 +458,15 @@ it("closes open menus and cancels pending menus on terminal-only resize", () => 
   vi.useRealTimers();
 });
 
-it("cancels an invalid pending link without removing the valid open menu", () => {
+it("dismisses the new file menu when its row changes", () => {
   vi.useFakeTimers();
   const { plainLink, events, lines, dispose } = positionedSurface();
   plainLink.activate(new MouseEvent("click", { clientY: 10 }), "docs/image.png");
-  const menu = document.querySelector("[role=menu]");
   plainLink.hover?.(new MouseEvent("mousemove", { clientY: 30 }), "docs/other.png");
   lines[1] = "changed pending row";
   events.parsed();
   vi.advanceTimersByTime(500);
-  expect(document.querySelector("[role=menu]")).toBe(menu);
-  expect(menu?.textContent).toContain("docs/image.png");
+  expect(document.querySelector("[role=menu]")).toBeNull();
   dispose();
   vi.useRealTimers();
 });
@@ -482,7 +478,7 @@ it.each([
   "replacement",
 ])("forgets the active anchor after %s closes the menu", (method) => {
   vi.useFakeTimers();
-  const { plainLink, events, lines, dispose } = positionedSurface();
+  const { term, plainLink, events, lines, dispose } = positionedSurface();
   plainLink.activate(new MouseEvent("click", { clientY: 10 }), "docs/image.png");
   let replacement: ReturnType<typeof createTerminalLinkMenu> | undefined;
   if (method === "escape") document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }));
@@ -494,6 +490,7 @@ it.each([
     replacement = createTerminalLinkMenu();
     replacement.show("https://other.example", 0, 0);
   }
+  term.element.dispatchEvent(new MouseEvent("mousemove", { clientY: 30 }));
   plainLink.hover?.(new MouseEvent("mousemove", { clientY: 30 }), "docs/other.png");
   lines[0] = "old menu row changed";
   events.parsed();
@@ -537,11 +534,13 @@ it("ignores a delayed file check after leaving the link", async () => {
     "file:///home/coder/real.md",
     undefined as never,
   );
+  expect(document.querySelector("[role=status]")?.textContent).toContain("Checking file…");
   term.options.linkHandler?.leave?.(
     new MouseEvent("mouseleave"),
     "file:///home/coder/real.md",
     undefined as never,
   );
+  expect(document.querySelector("[role=status]")).toBeNull();
   resolve(["/home/coder/real.md"]);
   await settleValidation();
   vi.advanceTimersByTime(500);
@@ -569,7 +568,8 @@ it.each([
   dispose();
 });
 
-it("opens a file after a quick tap finishes before validation", async () => {
+it("shows loading after a quick tap and opens even when validation takes over five seconds", async () => {
+  vi.useFakeTimers();
   let resolve!: (paths: string[]) => void;
   const { term, dispose } = positionedSurface(
     () =>
@@ -595,6 +595,9 @@ it("opens a file after a quick tap finishes before validation", async () => {
   const end = touchEvent("touchend", 10, 10);
   term.element.dispatchEvent(end);
   expect(end.defaultPrevented).toBe(true);
+  expect(document.querySelector("[role=status]")?.textContent).toContain("Checking file…");
+  expect(document.querySelector("[role=menuitem]")).toBeNull();
+  await vi.advanceTimersByTimeAsync(6000);
   resolve(["docs/image.png"]);
   await settleValidation();
   expect(document.querySelector('[role="menu"]')?.textContent).toContain("docs/image.png");
@@ -861,5 +864,191 @@ it.each([
   resolve(["docs/image.png"]);
   await settleValidation();
   expect(callback.mock.calls[0][0]).toHaveLength(changed ? 0 : 1);
+  dispose();
+});
+
+it("closes pending path feedback immediately when its row is replaced", async () => {
+  let resolve!: (paths: string[]) => void;
+  const { term, lines, events, dispose } = positionedSurface(
+    () =>
+      new Promise<string[]>((done) => {
+        resolve = done;
+      }),
+  );
+  const screen = term.element.querySelector(".xterm-screen")!;
+  vi.spyOn(screen, "getBoundingClientRect").mockReturnValue({
+    left: 0,
+    top: 0,
+    width: 800,
+    height: 40,
+    right: 800,
+    bottom: 40,
+  } as DOMRect);
+  term.element.dispatchEvent(new MouseEvent("mousemove", { clientX: 10, clientY: 10 }));
+  term.element.dispatchEvent(new MouseEvent("mousemove", { clientX: 11, clientY: 10 }));
+  expect(document.querySelector("[role=status]")).not.toBeNull();
+  lines[0] = "replacement output";
+  events.parsed();
+  expect(document.querySelector("[role=status]")).toBeNull();
+  resolve(["docs/image.png"]);
+  await settleValidation();
+  expect(document.querySelector("[role=menu]")).toBeNull();
+  dispose();
+});
+
+it("intercepts a stationary click after Escape suppresses a late plain-path hover", async () => {
+  let resolve!: (paths: string[]) => void;
+  const { term, dispose } = positionedSurface(
+    () =>
+      new Promise<string[]>((done) => {
+        resolve = done;
+      }),
+  );
+  const provider = term.registerLinkProvider.mock.calls.at(-1)![0];
+  provider.provideLinks(1, (links) => {
+    links?.[0]?.hover?.(new MouseEvent("mousemove", { clientX: 10, clientY: 10 }), links[0].text);
+  });
+  document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }));
+  resolve(["docs/image.png"]);
+  await settleValidation();
+  expect(document.querySelector("[role=menu]")).toBeNull();
+  const remoteMouse = vi.fn();
+  term.element.addEventListener("mousedown", remoteMouse);
+  term.element.addEventListener("mouseup", remoteMouse);
+  for (const type of ["mousedown", "mouseup"]) {
+    const event = new MouseEvent(type, {
+      clientX: 10,
+      clientY: 10,
+      bubbles: true,
+      cancelable: true,
+    });
+    term.element.dispatchEvent(event);
+    expect(event.defaultPrevented).toBe(true);
+  }
+  expect(remoteMouse).not.toHaveBeenCalled();
+  expect(document.querySelector("[role=menu]")?.textContent).toContain("docs/image.png");
+  dispose();
+});
+
+it.each([
+  false,
+  true,
+])("intercepts OSC clicks after Escape (validation finished=%s)", async (finished) => {
+  let resolve!: (paths: string[]) => void;
+  const { term, dispose } = positionedSurface(
+    () =>
+      new Promise<string[]>((done) => {
+        resolve = done;
+      }),
+  );
+  const uri = "file:///home/coder/image.png";
+  term.options.linkHandler?.hover?.(
+    new MouseEvent("mousemove", { clientX: 10, clientY: 10 }),
+    uri,
+    {} as never,
+  );
+  document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }));
+  if (finished) {
+    resolve(["/home/coder/image.png"]);
+    await settleValidation();
+  }
+  expect(document.querySelector("[role=status], [role=menu]")).toBeNull();
+  const remote = vi.fn();
+  term.element.addEventListener("mousedown", remote);
+  term.element.addEventListener("mouseup", remote);
+  for (const type of ["mousedown", "mouseup"]) {
+    term.element.dispatchEvent(
+      new MouseEvent(type, { clientX: 10, clientY: 10, bubbles: true, cancelable: true }),
+    );
+  }
+  if (!finished) {
+    resolve(["/home/coder/image.png"]);
+    await settleValidation();
+  }
+  expect(remote).not.toHaveBeenCalled();
+  expect(document.querySelector("[role=menu]")?.textContent).toContain("/home/coder/image.png");
+  dispose();
+});
+
+it("abandons a slow tap when mouse movement resumes", async () => {
+  vi.useFakeTimers();
+  let resolve!: (paths: string[]) => void;
+  const { term, dispose } = positionedSurface(
+    () =>
+      new Promise<string[]>((done) => {
+        resolve = done;
+      }),
+  );
+  const screen = term.element.querySelector(".xterm-screen")!;
+  screen.addEventListener("mousemove", (event) => {
+    if ((event as MouseEvent).clientY === 10)
+      term.options.linkHandler?.hover?.(
+        event as MouseEvent,
+        "file:///home/coder/image.png",
+        {} as never,
+      );
+  });
+  term.element.dispatchEvent(touchEvent("touchstart", 10, 10));
+  term.element.dispatchEvent(touchEvent("touchend", 10, 10));
+  expect(document.querySelector("[role=status]")).not.toBeNull();
+  await vi.advanceTimersByTimeAsync(6000);
+  screen.dispatchEvent(new MouseEvent("mousemove", { bubbles: true, clientX: 20, clientY: 30 }));
+  expect(document.querySelector("[role=status]")).toBeNull();
+  resolve(["/home/coder/image.png"]);
+  await settleValidation();
+  expect(document.querySelector("[role=menu]")).toBeNull();
+  term.options.linkHandler?.hover?.(
+    new MouseEvent("mousemove", { clientX: 20, clientY: 30 }),
+    "https://example.com",
+    {} as never,
+  );
+  await vi.advanceTimersByTimeAsync(400);
+  expect(document.querySelector("[role=menu]")?.textContent).toContain("https://example.com");
+  dispose();
+});
+
+it.each([
+  false,
+  true,
+])("transfers a pending OSC tap to a stationary mouse press (resolves before release=%s)", async (beforeRelease) => {
+  let resolve!: (paths: string[]) => void;
+  const { term, dispose } = positionedSurface(
+    () =>
+      new Promise<string[]>((done) => {
+        resolve = done;
+      }),
+  );
+  const screen = term.element.querySelector(".xterm-screen")!;
+  screen.addEventListener("mousemove", (event) =>
+    term.options.linkHandler?.hover?.(
+      event as MouseEvent,
+      "file:///home/coder/image.png",
+      {} as never,
+    ),
+  );
+  term.element.dispatchEvent(touchEvent("touchstart", 10, 10));
+  term.element.dispatchEvent(touchEvent("touchend", 10, 10));
+  expect(document.querySelector("[role=status]")).not.toBeNull();
+  const remote = vi.fn();
+  term.element.addEventListener("mousedown", remote);
+  term.element.addEventListener("mouseup", remote);
+  const init = { clientX: 10, clientY: 10, bubbles: true, cancelable: true };
+  // jsdom lacks PointerEvent; add its pointerType to the mouse event.
+  const pointer = new MouseEvent("pointerdown", init);
+  Object.defineProperty(pointer, "pointerType", { value: "mouse" });
+  term.element.dispatchEvent(pointer);
+  term.element.dispatchEvent(new MouseEvent("mousedown", init));
+  if (beforeRelease) {
+    resolve(["/home/coder/image.png"]);
+    await settleValidation();
+    expect(document.querySelector("[role=menu]")).toBeNull();
+  }
+  term.element.dispatchEvent(new MouseEvent("mouseup", init));
+  if (!beforeRelease) {
+    resolve(["/home/coder/image.png"]);
+    await settleValidation();
+  }
+  expect(remote).not.toHaveBeenCalled();
+  expect(document.querySelector("[role=menu]")?.textContent).toContain("/home/coder/image.png");
   dispose();
 });
