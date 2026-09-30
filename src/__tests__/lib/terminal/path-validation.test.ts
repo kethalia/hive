@@ -1,5 +1,8 @@
 import { afterEach, expect, it, vi } from "vitest";
-import { createTerminalPathValidator } from "@/lib/terminal/path-validation";
+import {
+  createTerminalPathValidator,
+  TERMINAL_PATH_VALIDATION_TIMEOUT_MS,
+} from "@/lib/terminal/path-validation";
 
 afterEach(() => vi.useRealTimers());
 
@@ -122,7 +125,7 @@ it("settles stalled checks, retries immediately, and ignores late timed-out resp
   const validate = createTerminalPathValidator(remote);
   const old = validate(["/home/coder/image.png"]);
   const shared = validate(["/home/coder/image.png"]);
-  await vi.advanceTimersByTimeAsync(10_000);
+  await vi.advanceTimersByTimeAsync(TERMINAL_PATH_VALIDATION_TIMEOUT_MS);
   expect(await old).toEqual([]);
   expect(await shared).toEqual([]);
   const retry = validate(["/home/coder/image.png"]);
@@ -143,5 +146,53 @@ it("cancels outstanding checks and timers when the terminal is disposed", async 
   const result = validate(["docs/image.png", "/home/coder/image.png"]);
   validate.dispose();
   expect(await result).toEqual([]);
+  expect(vi.getTimerCount()).toBe(0);
+});
+
+it.each([
+  true,
+  false,
+])("does not cache a pending relative result after output (exists=%s)", async (exists) => {
+  let reply!: (paths: string[]) => void;
+  const path = "docs/image.png";
+  const absolute = "/home/coder/image.png";
+  const remote = vi
+    .fn()
+    .mockImplementationOnce(
+      () =>
+        new Promise<string[]>((r) => {
+          reply = r;
+        }),
+    )
+    .mockResolvedValueOnce(exists ? [] : [path]);
+  const validate = createTerminalPathValidator(remote);
+  const current = validate([path, absolute]);
+  validate.invalidateRelativePaths({ cancelPending: false });
+  const shared = validate([path]);
+  expect(remote).toHaveBeenCalledTimes(1);
+  reply(exists ? [path, absolute] : [absolute]);
+  expect(await current).toEqual(exists ? [path, absolute] : [absolute]);
+  expect(await shared).toEqual(exists ? [path] : []);
+  expect(validate([absolute])).toEqual([absolute]);
+  expect(await validate([path])).toEqual(exists ? [] : [path]);
+  expect(remote).toHaveBeenCalledTimes(2);
+});
+
+it("accepts a slow successful response after both workspace command windows", async () => {
+  vi.useFakeTimers();
+  const validate = createTerminalPathValidator(
+    (paths) =>
+      new Promise((resolve) => {
+        // Two near-5s commands plus Coder discovery and transport.
+        setTimeout(() => resolve(paths), 12_000);
+      }),
+  );
+  const settled = vi.fn();
+  const result = Promise.resolve(validate(["docs/image.png"])).then(settled);
+  await vi.advanceTimersByTimeAsync(10_000);
+  expect(settled).not.toHaveBeenCalled();
+  await vi.advanceTimersByTimeAsync(2_000);
+  await result;
+  expect(settled).toHaveBeenCalledWith(["docs/image.png"]);
   expect(vi.getTimerCount()).toBe(0);
 });

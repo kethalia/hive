@@ -1,6 +1,9 @@
 import { TERMINAL_PATH_BATCH_SIZE, type TerminalPathValidator } from "./link-target";
 
-export const TERMINAL_PATH_VALIDATION_TIMEOUT_MS = 10_000;
+// The server runs two sequential workspace commands with 5-second limits,
+// plus authentication, Coder API discovery and server-action transport. Leave
+// headroom for that pipeline; this is a stalled-request watchdog.
+export const TERMINAL_PATH_VALIDATION_TIMEOUT_MS = 30_000;
 
 /** Share checks between OSC links and plain paths, including xterm redraws. */
 export function createTerminalPathValidator(
@@ -10,7 +13,14 @@ export function createTerminalPathValidator(
   dispose(): void;
 } {
   const cache = new Map<string, { exists: boolean; expires: number }>();
-  const pending = new Map<string, { result: Promise<boolean>; cancel(): void }>();
+  const pending = new Map<
+    string,
+    {
+      result: Promise<boolean>;
+      cancel(): void;
+      preventCaching(): void;
+    }
+  >();
   const isRelative = (path: string) => !path.startsWith("/") && !path.startsWith("~/");
   const remember = (path: string, exists: boolean) => {
     cache.delete(path);
@@ -49,6 +59,7 @@ export function createTerminalPathValidator(
           () => new Set<string>(),
         );
         for (const path of batch) {
+          let cacheable = true;
           let finish!: (exists: boolean, cacheResult: boolean) => void;
           const value = new Promise<boolean>((resolve) => {
             let settled = false;
@@ -61,11 +72,17 @@ export function createTerminalPathValidator(
               settled = true;
               clearTimeout(timer);
               pending.delete(path);
-              if (cacheResult) remember(path, exists);
+              if (cacheResult && cacheable) remember(path, exists);
               resolve(exists);
             };
           });
-          pending.set(path, { result: value, cancel: () => finish(false, false) });
+          pending.set(path, {
+            result: value,
+            cancel: () => finish(false, false),
+            preventCaching: () => {
+              cacheable = false;
+            },
+          });
           void checked.then((existing) => finish(existing.has(path), true));
           results.set(path, value);
         }
@@ -83,8 +100,12 @@ export function createTerminalPathValidator(
   return Object.assign(check, {
     invalidateRelativePaths({ cancelPending = true } = {}) {
       for (const path of cache.keys()) if (isRelative(path)) cache.delete(path);
-      if (cancelPending) {
-        for (const [path, request] of pending) if (isRelative(path)) request.cancel();
+      for (const [path, request] of pending) {
+        if (!isRelative(path)) continue;
+        // An old result may finish for its anchored consumer, but must not
+        // become a reusable answer for the directory after this output.
+        request.preventCaching();
+        if (cancelPending) request.cancel();
       }
     },
     dispose() {
