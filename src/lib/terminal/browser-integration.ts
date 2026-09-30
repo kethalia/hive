@@ -141,7 +141,16 @@ export function installTerminalBrowserIntegration(
       lineText(location.buffer, location.row) !== location.text);
   // There is no reliable CWD event in every shell/TUI. Conservatively expire
   // relative checks on input and output; a paint-only refresh retains them.
-  const input = term.onData(() => checkPaths.invalidateRelativePaths());
+  const input = term.onData((data) => {
+    // Link hover runs before xterm emits the mouse report for that movement.
+    // Mouse tracking must not cancel the check it just started. Keep forwarding
+    // these reports to the TUI; output still invalidates relative paths.
+    const mouseReport =
+      (data.startsWith("\x1b[<") && /^\d+;\d+;\d+[Mm]$/.test(data.slice(3))) ||
+      (data.startsWith("\x1b[M") && Array.from(data.slice(3)).length === 3) ||
+      (data.startsWith("\x1b[") && /^\d+;\d+;\d+M$/.test(data.slice(2)));
+    if (!mouseReport) checkPaths.invalidateRelativePaths();
+  });
   const parsed = term.onWriteParsed(() => {
     checkPaths.invalidateRelativePaths();
     if (isInvalid(validationAnchor)) cancelPathValidation();

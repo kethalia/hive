@@ -74,7 +74,7 @@ test("late path validation uses the current pointer cell on the same row", async
   ).toBeGreaterThan(0);
 });
 
-for (const format of ["relative", "file-url", "osc"] as const) {
+for (const format of ["relative", "file-url", "osc", "relative-mouse"] as const) {
   test(`file menu survives validation-triggered redraws (${format})`, async ({ page }) => {
     await page.setContent('<div id="terminal"></div>');
     await page.addStyleTag({ path: requireModule.resolve("@xterm/xterm/css/xterm.css") });
@@ -87,6 +87,7 @@ for (const format of ["relative", "file-url", "osc"] as const) {
           WebLinksAddon: object;
           ClipboardAddon: object;
           checks: number;
+          reports: string[];
           actions: string[];
         };
         const modules: Record<string, object> = {
@@ -105,6 +106,8 @@ for (const format of ["relative", "file-url", "osc"] as const) {
         const term = new state.Terminal({ cols: 120, rows: 5 });
         term.open(document.getElementById("terminal") as HTMLElement);
         state.checks = 0;
+        state.reports = [];
+        term.onData((data) => state.reports.push(data));
         state.actions = [];
         installTerminalBrowserIntegration(term, {
           validatePaths: async (paths) => {
@@ -117,12 +120,16 @@ for (const format of ["relative", "file-url", "osc"] as const) {
           },
           onFileAction: (path) => state.actions.push(path),
         });
-        const path =
-          format === "relative"
-            ? "docs/design/references/images/flash-desktop-concept.png"
-            : "file:///home/coder/.codex/generated_images/example/image.png";
+        const path = format.startsWith("relative")
+          ? "docs/design/references/images/flash-desktop-concept.png"
+          : "file:///home/coder/.codex/generated_images/example/image.png";
         const text = format === "osc" ? `\x1b]8;;${path}\x07${path}\x1b]8;;\x07` : path;
-        await new Promise<void>((resolve) => term.write(`${text}\r\n`, resolve));
+        await new Promise<void>((resolve) =>
+          term.write(
+            `${text}\r\n${format === "relative-mouse" ? "\x1b[?1003h\x1b[?1006h" : ""}`,
+            resolve,
+          ),
+        );
       },
       {
         format,
@@ -139,11 +146,20 @@ for (const format of ["relative", "file-url", "osc"] as const) {
     if (!screen) throw new Error("Terminal screen is missing");
     await page.mouse.move(screen.x + 30, screen.y + 8);
     await expect(page.getByRole("menu")).toBeVisible({ timeout: 4000 });
+    if (format === "relative-mouse") {
+      expect(
+        await page.evaluate(() =>
+          (window as unknown as { reports: string[] }).reports.some((data) =>
+            data.startsWith("\x1b[<35;"),
+          ),
+        ),
+      ).toBe(true);
+    }
     expect(await page.evaluate(() => (window as unknown as { checks: number }).checks)).toBe(1);
     await page.getByRole("menuitem", { name: "Open in Files (new window)", exact: true }).click();
     expect(await page.evaluate(() => (window as unknown as { actions: string[] }).actions)).toEqual(
       [
-        format === "relative"
+        format.startsWith("relative")
           ? "docs/design/references/images/flash-desktop-concept.png"
           : "/home/coder/.codex/generated_images/example/image.png",
       ],

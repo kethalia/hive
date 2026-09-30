@@ -29,7 +29,12 @@ function surface(
   const element = document.createElement("div");
   document.body.append(element);
   const osc = new Map<number, (data: string) => unknown>();
-  const events = { scroll: () => {}, parsed: () => {}, resize: () => {}, input: () => {} };
+  const events = {
+    scroll: () => {},
+    parsed: () => {},
+    resize: () => {},
+    input: (_data = "") => {},
+  };
   const resizeDispose = vi.fn();
   const scrollDispose = vi.fn();
   const parsedDispose = vi.fn();
@@ -777,10 +782,52 @@ it.each([
   const callback = vi.fn();
   provider.provideLinks(1, callback);
   expect(validate).toHaveBeenCalledTimes(1);
-  events[activity]();
+  if (activity === "input") events.input("\r");
+  else events.parsed();
   validate.mockReturnValue([]);
   provider.provideLinks(1, callback);
   expect(validate).toHaveBeenCalledTimes(2);
   expect(callback).toHaveBeenLastCalledWith([]);
+  dispose();
+});
+
+it.each([
+  "\x1b[<35;10;5M", // SGR motion
+  "\x1b[<0;10;5M", // SGR press
+  "\x1b[<0;10;5m", // SGR release
+  "\x1b[M#*%", // legacy report
+  "\x1b[35;10;5M", // urxvt report
+])("keeps pending relative validation through mouse report %j", async (report) => {
+  let resolve!: (paths: string[]) => void;
+  const validate = vi.fn(
+    () =>
+      new Promise<string[]>((done) => {
+        resolve = done;
+      }),
+  );
+  const { term, events, dispose } = surface(false, undefined, validate);
+  const provider = term.registerLinkProvider.mock.calls.at(-1)![0];
+  const callback = vi.fn();
+  provider.provideLinks(1, callback);
+  events.input(report);
+  resolve(["docs/image.png"]);
+  await settleValidation();
+  expect(callback.mock.calls[0][0]).toHaveLength(1);
+  provider.provideLinks(1, vi.fn());
+  expect(validate).toHaveBeenCalledTimes(1);
+  dispose();
+});
+
+it.each([
+  "cd ../other\r",
+  "\r",
+  "\x1b[A",
+  "\x1b[200~cd ../other\x1b[201~",
+])("still invalidates relative paths for keyboard or pasted input %j", (data) => {
+  const validate = vi.fn((paths: string[]) => paths);
+  const { term, events, dispose } = surface(false, undefined, validate);
+  events.input(data);
+  term.registerLinkProvider.mock.calls.at(-1)![0].provideLinks(1, vi.fn());
+  expect(validate).toHaveBeenCalledTimes(2);
   dispose();
 });
