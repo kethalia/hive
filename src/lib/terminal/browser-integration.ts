@@ -8,6 +8,7 @@ import {
   type TerminalPathValidator,
   terminalLinkTarget,
 } from "./link-target";
+import { hasNativeTerminalSelection, installNativeTerminalSelection } from "./native-selection";
 import { terminalPathLinkProvider } from "./path-link-provider";
 import {
   createTerminalPathValidator,
@@ -60,6 +61,7 @@ export function installTerminalBrowserIntegration(
     validatePaths?: TerminalPathValidator;
   } = {},
 ): () => void {
+  const disposeNativeSelection = installNativeTerminalSelection(term);
   const checkPaths = createTerminalPathValidator(validatePaths);
   const menu = createTerminalLinkMenu(
     onFileAction,
@@ -139,7 +141,21 @@ export function installTerminalBrowserIntegration(
   // A DOM mouseleave also happens while crossing into the menu. Terminal
   // lifecycle events distinguish that crossing from a stale buffer location.
   const scroll = term.onScroll(invalidateLink);
-  const resized = term.onResize(invalidateLink);
+  const resized = term.onResize(() => {
+    if (!menu.hasFocus()) {
+      invalidateLink();
+      return;
+    }
+    // Focusing a touch menu can close the soft keyboard and resize xterm.
+    // Keep the explicitly chosen actions reachable, but discard hover anchors.
+    cancelPathValidation();
+    clearTouch();
+    anchor = undefined;
+    pendingAnchor = undefined;
+    hoveredUri = undefined;
+    pressed = undefined;
+    menu.reposition();
+  });
   const isInvalid = (location: typeof anchor) =>
     location &&
     // xterm's public cells expose text but not OSC 8 URI metadata. A parsed
@@ -193,7 +209,7 @@ export function installTerminalBrowserIntegration(
       const touch = releasedTouch;
       clearTouch();
       pressed = undefined;
-      menu.show(uri, touch.x, touch.y, false, hoveredInstance);
+      menu.show(uri, touch.x, touch.y, true, hoveredInstance);
       return;
     }
     if (!touchProbe) {
@@ -407,7 +423,7 @@ export function installTerminalBrowserIntegration(
     touchTimer = setTimeout(clearTouch, TERMINAL_PATH_VALIDATION_TIMEOUT_MS + 1000);
   };
   const touchEnd = (event: TouchEvent) => {
-    if (Date.now() - touchStartedAt >= 400 || window.getSelection()?.isCollapsed === false) {
+    if (Date.now() - touchStartedAt >= 400 || hasNativeTerminalSelection(element)) {
       cancel();
       return;
     }
@@ -441,7 +457,7 @@ export function installTerminalBrowserIntegration(
       return;
     event.preventDefault();
     event.stopImmediatePropagation();
-    menu.show(link.uri, touch.clientX, touch.clientY, false, hoveredInstance);
+    menu.show(link.uri, touch.clientX, touch.clientY, true, hoveredInstance);
   };
   const cancel = () => {
     cancelPathValidation();
@@ -568,6 +584,7 @@ export function installTerminalBrowserIntegration(
   element?.addEventListener("mouseleave", leave);
   return () => {
     disposed = true;
+    disposeNativeSelection();
     cancelPathValidation();
     clearTouch();
     document.removeEventListener("pointerdown", pointerValidation, true);

@@ -444,10 +444,10 @@ it.each([
   vi.useRealTimers();
 });
 
-it("closes open menus and cancels pending menus on terminal-only resize", () => {
+it("closes unfocused menus and cancels pending menus on terminal-only resize", () => {
   vi.useFakeTimers();
   const { plainLink, events, dispose } = positionedSurface();
-  plainLink.activate(new MouseEvent("click", { clientY: 10 }), "docs/image.png");
+  plainLink.hover?.(new MouseEvent("mousemove", { clientY: 10 }), "docs/image.png");
   events.resize();
   expect(document.querySelector("[role=menu]")).toBeNull();
   plainLink.hover?.(new MouseEvent("mousemove", { clientY: 10 }), "docs/image.png");
@@ -1069,4 +1069,52 @@ it("leaves a held link available for native selection without opening its menu",
   expect(end.defaultPrevented).toBe(false);
   expect(document.querySelector("[role=menu]")).toBeNull();
   dispose();
+});
+
+it.each([
+  false,
+  true,
+])("focuses touch menu actions after validation (delayed=%s) and survives keyboard resize", async (delayed) => {
+  let resolve: (paths: string[]) => void = () => {};
+  const { term, events, dispose } = positionedSurface((paths) =>
+    delayed
+      ? new Promise((done) => {
+          resolve = done;
+        })
+      : paths,
+  );
+  const helper = document.createElement("textarea");
+  term.element.append(helper);
+  helper.focus();
+  const sibling = document.createElement("div");
+  sibling.textContent = "another pane selection";
+  document.body.append(sibling);
+  window.getSelection()!.selectAllChildren(sibling);
+  const screen = term.element.querySelector(".xterm-screen")!;
+  screen.addEventListener("mousemove", (event) => {
+    term.options.linkHandler?.hover?.(
+      event as MouseEvent,
+      "file:///home/coder/image.png",
+      {} as never,
+    );
+  });
+  term.element.dispatchEvent(touchEvent("touchstart", 10, 10));
+  term.element.dispatchEvent(touchEvent("touchend", 10, 10));
+  if (delayed) {
+    resolve(["/home/coder/image.png"]);
+    await settleValidation();
+  }
+  const menu = document.querySelector<HTMLElement>('[role="menu"]')!;
+  expect(menu).not.toBeNull();
+  const buttons = menu.querySelectorAll("button:enabled");
+  expect(document.activeElement).toBe(buttons[0]);
+  events.resize(); // Soft-keyboard dismissal resizes the terminal.
+  expect(menu.isConnected).toBe(true);
+  const remoteKey = vi.fn();
+  term.element.addEventListener("keydown", remoteKey);
+  buttons[0].dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowDown", bubbles: true }));
+  expect(document.activeElement).toBe(buttons[1]);
+  expect(remoteKey).not.toHaveBeenCalled();
+  dispose();
+  window.getSelection()!.removeAllRanges();
 });

@@ -58,7 +58,8 @@ export function createTerminalLinkMenu(
     const key = `${target.kind}:${target.value}:${instance}:${checking}`;
     cancelTimer();
     if (menu && targetKey === key) {
-      if (focus) menu.querySelector<HTMLButtonElement>("button")?.focus({ preventScroll: true });
+      if (focus)
+        menu.querySelector<HTMLButtonElement>("button:enabled")?.focus({ preventScroll: true });
       return;
     }
     closeActiveMenu?.();
@@ -149,7 +150,8 @@ export function createTerminalLinkMenu(
     document.body.append(menu);
     position = { x, y };
     reposition();
-    if (focus) menu.querySelector<HTMLButtonElement>("button")?.focus({ preventScroll: true });
+    if (focus)
+      menu.querySelector<HTMLButtonElement>("button:enabled")?.focus({ preventScroll: true });
   };
   const outside = (event: Event) => {
     if (!menu?.contains(event.target as Node)) close();
@@ -163,6 +165,8 @@ export function createTerminalLinkMenu(
   window.visualViewport?.addEventListener("resize", reposition);
   window.visualViewport?.addEventListener("scroll", reposition);
   return {
+    hasFocus: () => Boolean(menu?.contains(document.activeElement)),
+    reposition,
     show,
     loading: (uri: string, x: number, y: number, instance = "") =>
       show(uri, x, y, false, instance, true),

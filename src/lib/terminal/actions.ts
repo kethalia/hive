@@ -8,6 +8,7 @@ import {
   type TerminalPasteOutcome,
   type TerminalPasteStatus,
 } from "@/lib/terminal/clipboard";
+import { preservedTerminalSelection } from "./native-selection";
 
 export type ClipboardFallbackReason =
   | "clipboard-api-unavailable"
@@ -66,6 +67,8 @@ export function getTerminalSelectionText(term: {
   getSelection?: () => string;
   element?: HTMLElement;
 }): string {
+  const preserved = preservedTerminalSelection(term);
+  if (preserved !== undefined) return preserved;
   const native = typeof window === "undefined" ? null : window.getSelection();
   if (
     native &&

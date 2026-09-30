@@ -3059,6 +3059,34 @@ describe("InteractiveTerminal integration — Mobile input adapter", () => {
     unmount();
   });
 
+  it.each([
+    false,
+    true,
+  ])("scopes mobile selection gesture ownership to this pane (local=%s)", async (local) => {
+    const { container, unmount } = await renderTerminal({ mobileInputMode: true });
+    const terminal = terminalInstances.at(-1)!;
+    const host = container.querySelector('[data-testid="terminal-fit-host"]')!;
+    const screen = container.querySelector(".xterm-screen")!;
+    const text = document.createElement("span");
+    text.textContent = "selected text";
+    (local ? host : document.body).append(text);
+    window.getSelection()!.selectAllChildren(text);
+    terminal.modes.mouseTrackingMode = "any";
+    const wheel = vi.fn();
+    screen.addEventListener("wheel", wheel);
+    fireTouchEvent(host, "touchstart", [touchPoint(1, 80, 320)]);
+    fireTouchEvent(host, "touchmove", [touchPoint(1, 80, 240)]);
+    fireTouchEvent(host, "touchend", [], [touchPoint(1, 80, 240)]);
+    expect(wheel).toHaveBeenCalledTimes(local ? 0 : 1);
+    terminal.focus.mockClear();
+    fireTouchEvent(host, "touchstart", [touchPoint(1, 80, 240)]);
+    fireTouchEvent(host, "touchend", [], [touchPoint(1, 80, 240)]);
+    expect(terminal.focus).toHaveBeenCalledTimes(local ? 0 : 1);
+    window.getSelection()!.removeAllRanges();
+    text.remove();
+    unmount();
+  });
+
   it("does not refocus a terminal after a multi-touch sequence", async () => {
     const onUserFocusRequest = vi.fn();
     const { container, unmount } = await renderTerminal({

@@ -51,6 +51,7 @@ import {
   recordMobileTerminalResizeSent,
   recordMobileTerminalXtermDimensions,
 } from "@/lib/terminal/mobile-terminal-diagnostics-state";
+import { hasNativeTerminalSelection } from "@/lib/terminal/native-selection";
 import { encodeInput } from "@/lib/terminal/protocol";
 import { cn } from "@/lib/utils";
 import "@/styles/xterm.css";
@@ -661,7 +662,7 @@ export function InteractiveTerminal({
     // Native long-press selection owns the gesture once the hold threshold is reached.
     if (
       !intent.didScroll &&
-      (Date.now() - intent.startedAt >= 400 || window.getSelection()?.isCollapsed === false)
+      (Date.now() - intent.startedAt >= 400 || hasNativeTerminalSelection(containerRef.current))
     )
       return;
 
@@ -700,7 +701,7 @@ export function InteractiveTerminal({
         event.type !== "touchcancel" &&
         !event.defaultPrevented &&
         Date.now() - intent.startedAt < 400 &&
-        window.getSelection()?.isCollapsed !== false &&
+        !hasNativeTerminalSelection(containerRef.current) &&
         !intent.didScroll &&
         !intent.multiTouch &&
         !selectionModeEnabledRef.current
@@ -714,7 +715,7 @@ export function InteractiveTerminal({
   const handleTerminalClick = useCallback(
     (event: ReactMouseEvent<HTMLDivElement>) => {
       if (mobileInputModeRef.current) {
-        if (window.getSelection()?.isCollapsed === false) return;
+        if (hasNativeTerminalSelection(containerRef.current)) return;
         if (selectionModeEnabledRef.current) {
           event.stopPropagation();
           return;
