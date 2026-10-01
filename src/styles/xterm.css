@@ -48,6 +48,15 @@
     pointer-events: auto;
 }
 
+/* Override the root too: WebKit must not inherit xterm's selection suppression. */
+[data-terminal-native-selection="true"] .xterm,
+[data-terminal-selection-mode="true"] .xterm {
+    user-select: text;
+    -webkit-user-select: text;
+    -ms-user-select: text;
+    -webkit-touch-callout: default;
+}
+
 /* Mobile text is directly selectable with a native long press. */
 [data-terminal-native-selection="true"] .xterm .xterm-rows,
 [data-terminal-native-selection="true"] .xterm .xterm-rows *,

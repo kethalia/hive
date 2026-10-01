@@ -3046,7 +3046,7 @@ describe("InteractiveTerminal integration — Mobile input adapter", () => {
     unmount();
   });
 
-  it("preserves physical mouse presses and suppresses only touch compatibility presses in mobile layouts", async () => {
+  it("preserves browser selection defaults while blocking touch compatibility presses from xterm", async () => {
     const { container, unmount } = await renderTerminal({ mobileInputMode: true });
     const host = container.querySelector('[data-testid="terminal-fit-host"]')!;
     const target = document.createElement("span");
@@ -3060,7 +3060,7 @@ describe("InteractiveTerminal integration — Mobile input adapter", () => {
     fireTouchEvent(target, "touchstart", [touchPoint(1, 80, 240)]);
     now.mockReturnValue(5000); // A held touch also produces compatibility mouse events.
     fireTouchEvent(target, "touchend", [], [touchPoint(1, 80, 240)]);
-    expect(fireEvent.mouseDown(target)).toBe(false);
+    expect(fireEvent.mouseDown(target)).toBe(true);
     expect(descendantPress).toHaveBeenCalledTimes(1);
 
     const mouse = new MouseEvent("mousedown", { bubbles: true, cancelable: true });
@@ -3076,7 +3076,7 @@ describe("InteractiveTerminal integration — Mobile input adapter", () => {
     Object.defineProperty(compatibility, "sourceCapabilities", {
       value: { firesTouchEvents: true },
     });
-    expect(fireEvent(target, compatibility)).toBe(false);
+    expect(fireEvent(target, compatibility)).toBe(true);
     expect(descendantPress).toHaveBeenCalledTimes(3);
 
     fireTouchEvent(target, "touchstart", [touchPoint(1, 80, 240)]);

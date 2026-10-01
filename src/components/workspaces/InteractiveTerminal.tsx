@@ -775,7 +775,7 @@ export function InteractiveTerminal({
     // presses reach xterm selection and the descendant link handlers.
     const preventXtermMouseFocus = (event: MouseEvent) => {
       if (!mobileInputModeRef.current || !isTouchMouseEvent(event)) return;
-      event.preventDefault();
+      // Block xterm's focus/selection handlers, not the browser's native selection default.
       event.stopImmediatePropagation();
     };
     const preserveNativeContextMenu = (event: MouseEvent) => {
