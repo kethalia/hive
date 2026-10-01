@@ -1,4 +1,5 @@
 import type { Terminal } from "@xterm/xterm";
+import { NO_MOBILE_MODIFIERS, setMobileModifiers } from "./mobile-modifiers";
 
 export const TERMINAL_PASTE_ASSET_MAX_FILES = 10;
 export const TERMINAL_PASTE_ASSET_MAX_BYTES = 10 * 1024 * 1024;
@@ -81,6 +82,8 @@ export function pasteTextToXterm(
   send: (data: string) => void,
   text: string,
 ): void {
+  // Clipboard and compose text are literal input, not the next modified key.
+  setMobileModifiers(term, NO_MOBILE_MODIFIERS);
   if (term && typeof term.paste === "function") {
     // Pasted escape characters must not terminate the application's bracketed paste.
     term.paste(text.replaceAll("\x1b", ""));

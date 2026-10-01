@@ -2,6 +2,7 @@ import { ClipboardAddon, type IClipboardProvider } from "@xterm/addon-clipboard"
 import { WebLinksAddon } from "@xterm/addon-web-links";
 import type { IBuffer, IBufferRange, Terminal } from "@xterm/xterm";
 import { toast } from "sonner";
+import { LONG_PRESS_MS } from "@/lib/gestures/conventions";
 import { createTerminalLinkMenu } from "./link-menu";
 import {
   type TerminalFileActionHandler,
@@ -423,7 +424,7 @@ export function installTerminalBrowserIntegration(
     touchTimer = setTimeout(clearTouch, TERMINAL_PATH_VALIDATION_TIMEOUT_MS + 1000);
   };
   const touchEnd = (event: TouchEvent) => {
-    if (Date.now() - touchStartedAt >= 400 || hasNativeTerminalSelection(element)) {
+    if (Date.now() - touchStartedAt >= LONG_PRESS_MS || hasNativeTerminalSelection(element)) {
       cancel();
       return;
     }
@@ -470,7 +471,7 @@ export function installTerminalBrowserIntegration(
     const touch = event.touches[0];
     if (
       !touchProbe ||
-      Date.now() - touchStartedAt >= 400 ||
+      Date.now() - touchStartedAt >= LONG_PRESS_MS ||
       event.touches.length !== 1 ||
       Math.hypot(touch.clientX - touchProbe.clientX, touch.clientY - touchProbe.clientY) >= 8
     ) {

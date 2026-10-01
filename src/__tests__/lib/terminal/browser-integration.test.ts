@@ -1053,7 +1053,7 @@ it.each([
   dispose();
 });
 
-it("leaves a held link available for native selection without opening its menu", () => {
+it.each([450, 500])("uses the shared long-press boundary for links (%sms)", (duration) => {
   vi.useFakeTimers();
   const { term, dispose } = surface();
   const screen = document.createElement("div");
@@ -1063,11 +1063,11 @@ it("leaves a held link available for native selection without opening its menu",
     term.options.linkHandler?.hover?.(event, "https://example.com", {} as never);
   });
   term.element.dispatchEvent(touchEvent("touchstart"));
-  vi.advanceTimersByTime(500);
+  vi.advanceTimersByTime(duration);
   const end = touchEvent("touchend");
   term.element.dispatchEvent(end);
-  expect(end.defaultPrevented).toBe(false);
-  expect(document.querySelector("[role=menu]")).toBeNull();
+  expect(end.defaultPrevented).toBe(duration < 500);
+  expect(Boolean(document.querySelector("[role=menu]"))).toBe(duration < 500);
   dispose();
 });
 

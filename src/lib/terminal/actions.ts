@@ -293,15 +293,12 @@ export function copyTerminalSelection(
         current.toString() === nativeSnapshot.text
       ) {
         current.removeAllRanges();
-        if (getTerminalSelectionText(term) === selection) {
-          clearPreservedTerminalSelection(term);
-          term.clearSelection();
-        }
       }
-    } else if (getTerminalSelectionText(term) === selection) {
-      clearPreservedTerminalSelection(term);
-      term.clearSelection();
     }
+    // A redraw may collapse the DOM range while the clipboard write is pending.
+    // Clear the copied snapshot independently, leaving any newer DOM range alone.
+    if (preservedTerminalSelection(term) === selection) clearPreservedTerminalSelection(term);
+    if (term.getSelection() === selection) term.clearSelection();
   };
 
   const clipboard = getClipboard();

@@ -3019,6 +3019,25 @@ describe("InteractiveTerminal integration — Mobile input adapter", () => {
     unmount();
   });
 
+  it.each([
+    450, 500,
+  ])("uses the shared long-press boundary for tap focus (%sms)", async (duration) => {
+    const { container, unmount } = await renderTerminal({ mobileInputMode: true });
+    const terminal = terminalInstances.at(-1)!;
+    const host = container.querySelector('[data-testid="terminal-fit-host"]')!;
+    const now = vi.spyOn(Date, "now").mockReturnValue(1000);
+    try {
+      terminal.focus.mockClear();
+      fireTouchEvent(host, "touchstart", [touchPoint(1, 80, 240)]);
+      now.mockReturnValue(1000 + duration);
+      fireTouchEvent(host, "touchend", [], [touchPoint(1, 80, 240)]);
+      expect(terminal.focus).toHaveBeenCalledTimes(duration < 500 ? 1 : 0);
+    } finally {
+      now.mockRestore();
+      unmount();
+    }
+  });
+
   it.each(["touchcancel", "hold", "link"])("does not focus after %s gestures", async (gesture) => {
     const { container, unmount } = await renderTerminal({ mobileInputMode: true });
     const terminal = terminalInstances.at(-1)!;

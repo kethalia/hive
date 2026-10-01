@@ -23,7 +23,7 @@ import {
 } from "@/hooks/useTerminalWebSocket";
 import { useXtermSurface } from "@/hooks/useXtermSurface";
 import { getExistingTerminalPathsAction } from "@/lib/actions/workspaces";
-import { TAP_THRESHOLD_PX } from "@/lib/gestures/conventions";
+import { LONG_PRESS_MS, TAP_THRESHOLD_PX } from "@/lib/gestures/conventions";
 import { isCloneTerminalSessionName } from "@/lib/git/clone-terminal-session";
 import {
   type ClipboardActionStatus,
@@ -717,7 +717,7 @@ export function InteractiveTerminal({
       if (
         event.type !== "touchcancel" &&
         !event.defaultPrevented &&
-        Date.now() - intent.startedAt < 400 &&
+        Date.now() - intent.startedAt < LONG_PRESS_MS &&
         !hasNativeTerminalSelection(containerRef.current) &&
         !intent.didScroll &&
         !intent.multiTouch &&

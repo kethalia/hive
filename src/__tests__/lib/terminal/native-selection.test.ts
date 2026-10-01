@@ -145,7 +145,10 @@ it("retains a copy fallback after an unavoidable row replacement", () => {
   dispose();
 });
 
-it("clears the DOM range and snapshot after successful helper Copy", async () => {
+it.each([
+  false,
+  true,
+])("clears copied snapshots even if rows redraw before copy completes (redraw=%s)", async (redraw) => {
   const { term, element, dispose } = setup();
   const writeText = vi.fn().mockResolvedValue(undefined);
   const original = Object.getOwnPropertyDescriptor(navigator, "clipboard");
@@ -154,6 +157,11 @@ it("clears the DOM range and snapshot after successful helper Copy", async () =>
     window.getSelection()!.selectAllChildren(element.querySelector("span")!);
     document.dispatchEvent(new Event("selectionchange"));
     copyTerminalSelection(term);
+    if (redraw) {
+      element.querySelector(".xterm-rows")!.replaceChildren();
+      document.dispatchEvent(new Event("selectionchange"));
+      expect(getTerminalSelectionText(term)).toBe("A😀");
+    }
     await Promise.resolve();
     expect(writeText).toHaveBeenCalledWith("A😀");
     expect(window.getSelection()!.isCollapsed).toBe(true);
