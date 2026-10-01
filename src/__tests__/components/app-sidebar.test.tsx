@@ -381,7 +381,6 @@ import type {
 } from "@/lib/git/clone-actions-contract";
 import type { CloneTreeDiagnostics } from "@/lib/git/clone-tree";
 import type { TemplateStatus } from "@/lib/templates/staleness";
-import { TERMINAL_SETTINGS_CHANGED_EVENT } from "@/lib/terminal/settings-events";
 
 const PRIVATE_ROOT = "/home/coder/SUPER_SECRET_TOKEN";
 
@@ -630,158 +629,13 @@ describe("AppSidebar", () => {
     });
   });
 
-  it("loads the synced terminal controls setting once per sidebar mount", async () => {
-    mockGetTerminalSettings.mockResolvedValueOnce({
-      data: { terminalControlsBeyondMobile: true },
-    });
-
+  it("does not offer or fetch the removed desktop terminal controls setting", async () => {
     render(<AppSidebar />);
-
-    const switchControl = await screen.findByRole("switch", {
-      name: "Show terminal controls beyond phone",
-    });
-
-    await waitFor(() => {
-      expect(switchControl).toHaveAttribute("aria-checked", "true");
-      expect(switchControl).not.toBeDisabled();
-    });
-    expect(mockGetTerminalSettings).toHaveBeenCalledTimes(1);
-  });
-
-  it("falls back to the default-off terminal controls setting when read data is missing", async () => {
-    mockGetTerminalSettings.mockResolvedValueOnce({});
-
-    render(<AppSidebar />);
-
-    const switchControl = await screen.findByRole("switch", {
-      name: "Show terminal controls beyond phone",
-    });
-
-    await waitFor(() => {
-      expect(screen.queryByText("Loading terminal controls setting…")).not.toBeInTheDocument();
-    });
-    expect(switchControl).toHaveAttribute("aria-checked", "false");
-    expect(screen.queryByTestId("terminal-settings-error")).not.toBeInTheDocument();
-  });
-
-  it("shows redacted retry UI when reading terminal controls setting fails", async () => {
-    mockGetTerminalSettings.mockResolvedValueOnce({
-      serverError: "database path /home/coder/secret failed",
-    });
-
-    render(<AppSidebar />);
-
-    const switchControl = await screen.findByRole("switch", {
-      name: "Show terminal controls beyond phone",
-    });
-
-    await waitFor(() => {
-      expect(screen.getByTestId("terminal-settings-error")).toHaveTextContent(
-        "Terminal controls setting unavailable.",
-      );
-    });
-    expect(switchControl).toHaveAttribute("aria-checked", "false");
-    expect(document.body.innerHTML).not.toContain("/home/coder/secret");
-
-    mockGetTerminalSettings.mockResolvedValueOnce({
-      data: { terminalControlsBeyondMobile: true },
-    });
-    fireEvent.click(screen.getByRole("button", { name: "Retry" }));
-
-    await waitFor(() => {
-      expect(switchControl).toHaveAttribute("aria-checked", "true");
-      expect(screen.queryByTestId("terminal-settings-error")).not.toBeInTheDocument();
-    });
-  });
-
-  it("optimistically updates terminal controls, dispatches the setting event, and refreshes", async () => {
-    const events: boolean[] = [];
-    window.addEventListener(TERMINAL_SETTINGS_CHANGED_EVENT, (event) => {
-      events.push(
-        (event as CustomEvent<{ terminalControlsBeyondMobile: boolean }>).detail
-          .terminalControlsBeyondMobile,
-      );
-    });
-
-    render(<AppSidebar />);
-
-    const switchControl = await screen.findByRole("switch", {
-      name: "Show terminal controls beyond phone",
-    });
-    await waitFor(() => expect(switchControl).not.toBeDisabled());
-    fireEvent.click(switchControl);
-
-    await waitFor(() => {
-      expect(mockUpdateTerminalSettings).toHaveBeenCalledWith({
-        terminalControlsBeyondMobile: true,
-      });
-      expect(switchControl).toHaveAttribute("aria-checked", "true");
-      expect(events).toEqual([true]);
-      expect(mockRefresh).toHaveBeenCalledTimes(1);
-    });
-  });
-
-  it("rolls back terminal controls and skips the success event when updating fails", async () => {
-    const eventSpy = vi.fn();
-    window.addEventListener(TERMINAL_SETTINGS_CHANGED_EVENT, eventSpy);
-    mockUpdateTerminalSettings.mockResolvedValueOnce({
-      serverError: "write failed with terminal text redacted",
-    });
-
-    render(<AppSidebar />);
-
-    const switchControl = await screen.findByRole("switch", {
-      name: "Show terminal controls beyond phone",
-    });
-    await waitFor(() => expect(switchControl).not.toBeDisabled());
-    fireEvent.click(switchControl);
-
-    await waitFor(() => {
-      expect(screen.getByTestId("terminal-settings-error")).toHaveTextContent(
-        "Terminal controls setting unavailable.",
-      );
-      expect(switchControl).toHaveAttribute("aria-checked", "false");
-    });
-    expect(eventSpy).not.toHaveBeenCalled();
-    expect(mockRefresh).not.toHaveBeenCalled();
-  });
-
-  it("leaves terminal controls unchanged when update returns malformed data", async () => {
-    mockGetTerminalSettings.mockResolvedValueOnce({
-      data: { terminalControlsBeyondMobile: true },
-    });
-    mockUpdateTerminalSettings.mockResolvedValueOnce({ data: {} });
-
-    render(<AppSidebar />);
-
-    const switchControl = await screen.findByRole("switch", {
-      name: "Show terminal controls beyond phone",
-    });
-    await waitFor(() => {
-      expect(switchControl).toHaveAttribute("aria-checked", "true");
-      expect(switchControl).not.toBeDisabled();
-    });
-
-    fireEvent.click(switchControl);
-
-    await waitFor(() => {
-      expect(switchControl).toHaveAttribute("aria-checked", "true");
-      expect(screen.getByTestId("terminal-settings-error")).toBeInTheDocument();
-    });
-  });
-
-  it("renders accessible thumb-friendly terminal controls setting without removed sidebar mode UI", async () => {
-    render(<AppSidebar />);
-
-    const switchControl = await screen.findByRole("switch", {
-      name: "Show terminal controls beyond phone",
-    });
-    expect(switchControl).toHaveAccessibleDescription(
-      "Use mobile-style terminal controls on tablet, laptop, and desktop.",
-    );
-    expect(screen.getByTestId("terminal-controls-beyond-mobile-setting")).toHaveClass("min-h-11");
-    expect(screen.queryByTestId("sidebar-mode-toggle")).not.toBeInTheDocument();
-    expect(screen.queryByText("Float sidebar")).not.toBeInTheDocument();
+    await screen.findByTestId("update-installed-app");
+    expect(
+      screen.queryByRole("switch", { name: "Show terminal controls beyond phone" }),
+    ).toBeNull();
+    expect(mockGetTerminalSettings).not.toHaveBeenCalled();
   });
 
   it("offers an app update action from settings", async () => {

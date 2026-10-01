@@ -36,10 +36,6 @@ import {
 } from "@/lib/terminal/actions";
 import { submitTerminalComposeDraft, type TerminalComposeRequest } from "@/lib/terminal/clipboard";
 import { TERMINAL_COMPOSE_OPEN_EVENT, TERMINAL_COMPOSE_TOGGLE_EVENT } from "@/lib/terminal/events";
-import {
-  isTerminalSettingsChangedDetail,
-  TERMINAL_SETTINGS_CHANGED_EVENT,
-} from "@/lib/terminal/settings-events";
 
 const InteractiveTerminal = dynamic(
   () => import("@/components/workspaces/InteractiveTerminal").then((m) => m.InteractiveTerminal),
@@ -140,15 +136,7 @@ function toastPasteError(status: ClipboardActionStatus): void {
   toast.error(status.message ?? "Paste failed.");
 }
 
-function TerminalInner({
-  agentId,
-  terminalControlsBeyondMobile: initialTerminalControlsBeyondMobile,
-  workspaceId,
-}: {
-  agentId: string;
-  terminalControlsBeyondMobile: boolean;
-  workspaceId: string;
-}) {
+function TerminalInner({ agentId, workspaceId }: { agentId: string; workspaceId: string }) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const session = searchParams.get("session");
@@ -171,9 +159,6 @@ function TerminalInner({
   const [composeDraft, setComposeDraft] = useState("");
   const [composeTargetLabel, setComposeTargetLabel] = useState<string | undefined>();
   const [windowSwitcherOpen, setWindowSwitcherOpen] = useState(false);
-  const [terminalControlsBeyondMobile, setTerminalControlsBeyondMobile] = useState(
-    initialTerminalControlsBeyondMobile,
-  );
   const [hasTerminalSelection, setHasTerminalSelection] = useState(false);
   const [clipboardActionStatus, setClipboardActionStatus] = useState<ClipboardActionStatus | null>(
     null,
@@ -378,10 +363,6 @@ function TerminalInner({
   }, [activeTerminal]);
 
   useEffect(() => {
-    setTerminalControlsBeyondMobile(initialTerminalControlsBeyondMobile);
-  }, [initialTerminalControlsBeyondMobile]);
-
-  useEffect(() => {
     const handleComposeOpen = () => {
       setComposeOpen(true);
     };
@@ -394,18 +375,6 @@ function TerminalInner({
       window.removeEventListener(TERMINAL_COMPOSE_OPEN_EVENT, handleComposeOpen);
       window.removeEventListener(TERMINAL_COMPOSE_TOGGLE_EVENT, handleComposeToggle);
     };
-  }, []);
-
-  useEffect(() => {
-    const handleTerminalSettingsChanged = (event: Event) => {
-      if (!(event instanceof CustomEvent)) return;
-      if (!isTerminalSettingsChangedDetail(event.detail)) return;
-      setTerminalControlsBeyondMobile(event.detail.terminalControlsBeyondMobile);
-    };
-
-    window.addEventListener(TERMINAL_SETTINGS_CHANGED_EVENT, handleTerminalSettingsChanged);
-    return () =>
-      window.removeEventListener(TERMINAL_SETTINGS_CHANGED_EVENT, handleTerminalSettingsChanged);
   }, []);
 
   useEffect(() => {
@@ -667,7 +636,6 @@ function TerminalInner({
           </div>
         ) : null}
       </div>
-      {terminalControlsBeyondMobile ? terminalControls : null}
       <MobileTerminalDiagnosticsOverlay enabled={debugViewportEnabled} />
     </div>
   );
@@ -676,15 +644,10 @@ function TerminalInner({
 interface TerminalClientProps {
   agentId: string;
   agentName?: string;
-  terminalControlsBeyondMobile?: boolean;
   workspaceId: string;
 }
 
-export function TerminalClient({
-  agentId,
-  terminalControlsBeyondMobile = false,
-  workspaceId,
-}: TerminalClientProps) {
+export function TerminalClient({ agentId, workspaceId }: TerminalClientProps) {
   return (
     <Suspense
       fallback={
@@ -696,11 +659,7 @@ export function TerminalClient({
         </div>
       }
     >
-      <TerminalInner
-        agentId={agentId}
-        terminalControlsBeyondMobile={terminalControlsBeyondMobile}
-        workspaceId={workspaceId}
-      />
+      <TerminalInner agentId={agentId} workspaceId={workspaceId} />
     </Suspense>
   );
 }
