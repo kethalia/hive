@@ -172,3 +172,35 @@ it.each([
     dispose();
   }
 });
+
+it.each([
+  "pointerdown",
+  "touchstart",
+])("clears detached snapshots on an outside %s but preserves Copy actions", (type) => {
+  const { term, element, dispose } = setup();
+  window.getSelection()!.selectAllChildren(element.querySelector("span")!);
+  document.dispatchEvent(new Event("selectionchange"));
+  element.querySelector(".xterm-rows")!.replaceChildren();
+  document.dispatchEvent(new Event("selectionchange"));
+  const copy = document.createElement("button");
+  const icon = document.createElement("span");
+  copy.append(icon);
+  document.body.append(copy);
+  icon.dispatchEvent(new Event(type, { bubbles: true }));
+  expect(getTerminalSelectionText(term)).toBe("A😀");
+  const outside = document.createElement("div");
+  document.body.append(outside);
+  const changed = vi.fn();
+  document.addEventListener("selectionchange", changed);
+  try {
+    outside.dispatchEvent(new Event(type, { bubbles: true }));
+    expect(getTerminalSelectionText(term)).toBe("");
+    expect(changed).toHaveBeenCalledOnce();
+    dispose();
+    outside.dispatchEvent(new Event(type, { bubbles: true }));
+    expect(changed).toHaveBeenCalledOnce();
+  } finally {
+    document.removeEventListener("selectionchange", changed);
+    dispose();
+  }
+});

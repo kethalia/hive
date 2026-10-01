@@ -32,6 +32,11 @@ const INPUT_KEYS: Record<string, string> = {
   "\x1b[B": "Down",
   "\x1b[C": "Right",
   "\x1b[D": "Left",
+  // DECCKM application-cursor mode uses SS3 instead of CSI.
+  "\x1bOA": "Up",
+  "\x1bOB": "Down",
+  "\x1bOC": "Right",
+  "\x1bOD": "Left",
 };
 /** Modify single keys; leave mouse reports and multi-character input batches intact. */
 export function applyMobileModifiers(term: object, data: string): string {

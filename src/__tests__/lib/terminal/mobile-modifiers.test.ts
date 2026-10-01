@@ -17,3 +17,18 @@ it("isolates modifier state by terminal and does not consume it for protocol or 
   expect(applyMobileModifiers(terminal, "c")).toBe("\x03");
   expect(getMobileModifiers(terminal).ctrl).toBe(false);
 });
+
+it.each([
+  ["A", "5", { ctrl: true, alt: false, shift: false }],
+  ["B", "3", { ctrl: false, alt: true, shift: false }],
+  ["C", "2", { ctrl: false, alt: false, shift: true }],
+  ["D", "8", { ctrl: true, alt: true, shift: true }],
+] as const)("modifies application-cursor arrow %s and consumes the toggles", (direction, parameter, modifiers) => {
+  const terminal = {};
+  const input = `\x1bO${direction}`;
+  expect(applyMobileModifiers(terminal, input)).toBe(input);
+  setMobileModifiers(terminal, modifiers);
+  expect(applyMobileModifiers(terminal, input)).toBe(`\x1b[1;${parameter}${direction}`);
+  expect(getMobileModifiers(terminal)).toEqual({ ctrl: false, alt: false, shift: false });
+  expect(applyMobileModifiers(terminal, "c")).toBe("c");
+});

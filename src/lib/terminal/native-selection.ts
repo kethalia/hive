@@ -43,6 +43,18 @@ export function installNativeTerminalSelection(term: Terminal): () => void {
     // Touch compatibility mouse events never reach xterm's usual deselection.
     if (mirrored) term.clearSelection();
   };
+  const outsideGesture = (event: Event) => {
+    const target = event.target;
+    if (!(target instanceof Element) || element?.contains(target)) return;
+    // Controls such as Copy intentionally act on the saved selection.
+    if (target.closest("button, a, input, textarea, select, [role='button'], [role='menuitem']"))
+      return;
+    if (!snapshots.has(term) || !endpoints?.some((node) => !node.isConnected)) return;
+    clear();
+    // The redraw may already have collapsed the DOM range, so the browser need
+    // not emit another selectionchange. Refresh shared Copy availability now.
+    document.dispatchEvent(new Event("selectionchange"));
+  };
   const capture = () => {
     if (!element?.closest('[data-terminal-native-selection="true"]')) return;
     if (!hasNativeTerminalSelection(element)) {
@@ -116,6 +128,8 @@ export function installNativeTerminalSelection(term: Terminal): () => void {
   };
   // Run before clipboard-availability listeners read the selection.
   document.addEventListener("selectionchange", capture, true);
+  document.addEventListener("pointerdown", outsideGesture, true);
+  document.addEventListener("touchstart", outsideGesture, { capture: true, passive: true });
   element?.addEventListener("copy", copy, true);
   element?.addEventListener("pointerdown", newGesture, true);
   element?.addEventListener("touchstart", newGesture, { capture: true, passive: true });
@@ -123,6 +137,8 @@ export function installNativeTerminalSelection(term: Terminal): () => void {
     clear();
     changed?.dispose();
     document.removeEventListener("selectionchange", capture, true);
+    document.removeEventListener("pointerdown", outsideGesture, true);
+    document.removeEventListener("touchstart", outsideGesture, true);
     element?.removeEventListener("copy", copy, true);
     element?.removeEventListener("pointerdown", newGesture, true);
     element?.removeEventListener("touchstart", newGesture, true);
