@@ -54,6 +54,7 @@ import {
 } from "@/lib/terminal/mobile-terminal-diagnostics-state";
 import { hasNativeTerminalSelection } from "@/lib/terminal/native-selection";
 import { encodeInput } from "@/lib/terminal/protocol";
+import { createSelectionOutput } from "@/lib/terminal/selection-output";
 import { cn } from "@/lib/utils";
 import "@/styles/xterm.css";
 
@@ -538,7 +539,7 @@ export function InteractiveTerminal({
     ],
   );
 
-  const handleData = useCallback((data: Uint8Array | string) => {
+  const writeOutput = useCallback((data: Uint8Array | string) => {
     const term = termRef.current;
     if (!term) return;
 
@@ -550,6 +551,25 @@ export function InteractiveTerminal({
       pinnedToBottomRef.current = isTerminalScrolledToBottom(term);
     });
   }, []);
+
+  const [selectionOutput] = useState(() =>
+    createSelectionOutput(
+      () => mobileInputModeRef.current && hasNativeTerminalSelection(containerRef.current),
+      writeOutput,
+      () => {
+        if (hasNativeTerminalSelection(containerRef.current))
+          window.getSelection()?.removeAllRanges();
+      },
+    ),
+  );
+  useEffect(() => {
+    document.addEventListener("selectionchange", selectionOutput.flush);
+    return () => {
+      document.removeEventListener("selectionchange", selectionOutput.flush);
+      selectionOutput.clear();
+    };
+  }, [selectionOutput]);
+  const handleData = selectionOutput.push;
 
   const { send, resize, connectionState, recoveryState, manualReconnect } = useTerminalWebSocket({
     url: wsUrl,

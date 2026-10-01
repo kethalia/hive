@@ -26,7 +26,7 @@ export function preservedTerminalSelection(term: object): string | undefined {
   return snapshot && snapshot.position === snapshot.currentPosition() ? snapshot.text : undefined;
 }
 
-/** Mirror native DOM ranges into xterm's stable buffer selection before rows redraw. */
+/** Read native ranges without triggering xterm selection redraws. */
 export function installNativeTerminalSelection(term: Terminal): () => void {
   const element = term.element;
   const positionKey = () => JSON.stringify(term.getSelectionPosition?.());
@@ -36,6 +36,8 @@ export function installNativeTerminalSelection(term: Terminal): () => void {
     snapshots.delete(term);
   };
   const newGesture = () => {
+    // Native selection handles start new touches too; keep their range intact.
+    if (hasNativeTerminalSelection(element) && endpoints?.every((node) => node.isConnected)) return;
     const mirrored = snapshots.has(term);
     clear();
     // Touch compatibility mouse events never reach xterm's usual deselection.
@@ -43,7 +45,10 @@ export function installNativeTerminalSelection(term: Terminal): () => void {
   };
   const capture = () => {
     if (!element?.closest('[data-terminal-native-selection="true"]')) return;
-    if (!hasNativeTerminalSelection(element)) return;
+    if (!hasNativeTerminalSelection(element)) {
+      if (endpoints?.every((node) => node.isConnected)) clear();
+      return;
+    }
     // A redraw can shrink a native range without fully collapsing it. Keep
     // the original buffer range until a new user gesture starts selection.
     if (endpoints?.some((node) => !node.isConnected)) return;
@@ -82,9 +87,19 @@ export function installNativeTerminalSelection(term: Terminal): () => void {
     if (!start || !end) return;
     const length = (end.y - start.y) * term.cols + end.x - start.x;
     if (length <= 0) return;
-    term.select(start.x, start.y, length);
-    // xterm joins soft-wrapped rows while retaining real line breaks.
-    const text = term.getSelection();
+    // Selecting through xterm redraws every row and destroys the native range.
+    // Read the buffer directly, joining soft wraps while retaining hard newlines.
+    let text = "";
+    for (let y = start.y; y <= end.y; y++) {
+      const line = term.buffer.active.getLine(y);
+      if (!line) continue;
+      if (y > start.y && !line.isWrapped) text += "\n";
+      text += line.translateToString(
+        true,
+        y === start.y ? start.x : 0,
+        y === end.y ? end.x : term.cols,
+      );
+    }
     endpoints = [range.startContainer, range.endContainer];
     snapshots.set(term, { text, position: positionKey(), currentPosition: positionKey });
   };
