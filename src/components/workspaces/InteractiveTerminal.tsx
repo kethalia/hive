@@ -712,6 +712,17 @@ export function InteractiveTerminal({
     [focusInteractiveTerminal],
   );
 
+  useEffect(() => {
+    const activateSelectedPane = () => {
+      if (mobileInputModeRef.current && hasNativeTerminalSelection(containerRef.current)) {
+        // Activate shared clipboard controls without focusing the hidden input.
+        onUserFocusRequest?.();
+      }
+    };
+    document.addEventListener("selectionchange", activateSelectedPane);
+    return () => document.removeEventListener("selectionchange", activateSelectedPane);
+  }, [onUserFocusRequest]);
+
   const handleTerminalClick = useCallback(
     (event: ReactMouseEvent<HTMLDivElement>) => {
       if (mobileInputModeRef.current) {

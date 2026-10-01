@@ -48,7 +48,7 @@ function setup() {
       changed();
     }),
     getSelectionPosition: () => position,
-    getSelection: () => (position ? "redrawn buffer text" : ""),
+    getSelection: vi.fn((): string => (position ? "redrawn buffer text" : "")),
     clearSelection: () => {
       position = undefined;
       changed();
@@ -81,11 +81,13 @@ it("retains native text and buffer coordinates across row replacement, then clea
   const { term, element, dispose } = setup();
   const spans = element.querySelectorAll("span");
   const selection = window.getSelection()!;
+  term.getSelection.mockReturnValue("😀界");
   // Backward selection across emoji and wide-character cells.
   selection.setBaseAndExtent(spans[1].firstChild!, 1, spans[0].firstChild!, 1);
   document.dispatchEvent(new Event("selectionchange"));
   expect(term.select).toHaveBeenCalledWith(1, 7, 4);
   element.querySelector(".xterm-rows")!.innerHTML = "<div>updated output</div>";
+  term.getSelection.mockReturnValue("updated output");
   document.dispatchEvent(new Event("selectionchange"));
   expect(selection.isCollapsed).toBe(true);
   expect(getTerminalSelectionText(term)).toBe("😀界");
@@ -96,6 +98,7 @@ it("retains native text and buffer coordinates across row replacement, then clea
   expect(setData).toHaveBeenCalledWith("text/plain", "😀界");
   expect(copy.defaultPrevented).toBe(true);
   term.clearSelection();
+  term.getSelection.mockReturnValue("");
   expect(getTerminalSelectionText(term)).toBe("");
   dispose();
 });
@@ -127,8 +130,54 @@ it("does not shrink a captured multi-row selection when only one endpoint redraw
   expect(getTerminalSelectionText(term)).toBe(original);
   // A fresh user selection can replace the snapshot.
   element.dispatchEvent(new Event("pointerdown"));
+  term.getSelection.mockReturnValue("sec");
   selection.setBaseAndExtent(rows[1].firstChild!, 0, rows[1].firstChild!, 3);
   document.dispatchEvent(new Event("selectionchange"));
   expect(getTerminalSelectionText(term)).toBe("sec");
+  dispose();
+});
+
+it.each([
+  "pointerdown",
+  "touchstart",
+])("clears a saved selection on %s and permits a fresh selection", (eventType) => {
+  const { term, element, dispose } = setup();
+  const span = element.querySelector("span")!;
+  const selection = window.getSelection()!;
+  selection.selectAllChildren(span);
+  document.dispatchEvent(new Event("selectionchange"));
+  expect(term.getSelectionPosition()).toBeDefined();
+  element.dispatchEvent(new Event(eventType));
+  selection.removeAllRanges(); // The browser collapses the old range on a fresh tap.
+  document.dispatchEvent(new Event("selectionchange"));
+  expect(term.getSelectionPosition()).toBeUndefined();
+  expect(getTerminalSelectionText(term)).toBe("");
+  selection.selectAllChildren(span);
+  document.dispatchEvent(new Event("selectionchange"));
+  expect(term.select).toHaveBeenCalledTimes(2);
+  expect(getTerminalSelectionText(term)).toBe("redrawn buffer text");
+  dispose();
+});
+
+it.each([
+  { boundary: "soft wrap", text: "A😀界Bsec" },
+  { boundary: "hard newline", text: "A😀界B\nsec" },
+])("snapshots xterm's canonical text for a $boundary", ({ text }) => {
+  const { term, element, dispose } = setup();
+  const rows = element.querySelector(".xterm-rows")!.children;
+  window
+    .getSelection()!
+    .setBaseAndExtent(rows[0].firstChild!.firstChild!, 0, rows[1].firstChild!, 3);
+  term.getSelection.mockImplementation(() => {
+    // The buffer selection must be established before reading canonical text.
+    expect(term.getSelectionPosition()).toEqual({ x: 0, y: 7, length: 13 });
+    return text;
+  });
+  document.dispatchEvent(new Event("selectionchange"));
+  rows[0].replaceChildren(document.createTextNode("redrawn"));
+  term.getSelection.mockReturnValue("changed buffer");
+  window.getSelection()!.removeAllRanges();
+  document.dispatchEvent(new Event("selectionchange"));
+  expect(getTerminalSelectionText(term)).toBe(text);
   dispose();
 });

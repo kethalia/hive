@@ -27,12 +27,15 @@ export function installNativeTerminalSelection(term: Terminal): () => void {
   const element = term.element;
   const positionKey = () => JSON.stringify(term.getSelectionPosition?.());
   let endpoints: [Node, Node] | undefined;
-  const newGesture = () => {
-    endpoints = undefined;
-  };
   const clear = () => {
     endpoints = undefined;
     snapshots.delete(term);
+  };
+  const newGesture = () => {
+    const mirrored = snapshots.has(term);
+    clear();
+    // Touch compatibility mouse events never reach xterm's usual deselection.
+    if (mirrored) term.clearSelection();
   };
   const capture = () => {
     if (!element?.closest('[data-terminal-native-selection="true"]')) return;
@@ -75,8 +78,9 @@ export function installNativeTerminalSelection(term: Terminal): () => void {
     if (!start || !end) return;
     const length = (end.y - start.y) * term.cols + end.x - start.x;
     if (length <= 0) return;
-    const text = selection.toString();
     term.select(start.x, start.y, length);
+    // xterm joins soft-wrapped rows while retaining real line breaks.
+    const text = term.getSelection();
     endpoints = [range.startContainer, range.endContainer];
     snapshots.set(term, { text, position: positionKey(), currentPosition: positionKey });
   };
