@@ -232,6 +232,7 @@ export function TerminalSessionFrame({
         isDropTarget && "border-primary/80 ring-2 ring-inset ring-primary/60",
         isDragging && "shadow-xl shadow-black/40",
         disabled && "border-white/10 opacity-45 grayscale-[0.35] saturate-50",
+        touchOptimizedActions && "rounded-none border-y-0 shadow-none ring-0 focus-visible:ring-0",
         className,
       )}
       aria-disabled={disabled || undefined}
@@ -252,6 +253,7 @@ export function TerminalSessionFrame({
         <div
           className={cn(
             "flex min-h-10 shrink-0 select-none items-center gap-1 border-b border-white/10 bg-zinc-950 px-2 text-white",
+            touchOptimizedActions && "border-b-0",
             draggableHeader && "touch-none cursor-grab active:cursor-grabbing",
           )}
           data-window-drag-surface={draggableHeader ? "true" : undefined}

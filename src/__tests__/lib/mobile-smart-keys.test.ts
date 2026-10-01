@@ -12,13 +12,6 @@ it("has one exact key label per terminal sequence", () => {
     Left: "\x1b[D",
     Right: "\x1b[C",
     Space: " ",
-    "Shift+Tab": "\x1b[Z",
-    "Ctrl+C": "\x03",
-    "Ctrl+D": "\x04",
-    "Ctrl+L": "\x0c",
-    "Ctrl+R": "\x12",
-    "Ctrl+T": "\x14",
-    "Ctrl+O": "\x0f",
   });
   expect(new Set(MOBILE_SMART_KEYS.map((key) => key.sequence)).size).toBe(MOBILE_SMART_KEYS.length);
 });

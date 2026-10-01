@@ -64,6 +64,9 @@ it("labels modified keys with the exact combination and resets after sending", (
   fireEvent.click(screen.getByRole("button", { name: "Shift" }));
   fireEvent.click(screen.getByRole("button", { name: "Shift+Enter" }));
   expect(send).toHaveBeenLastCalledWith("\x1b[13;2u");
+  fireEvent.click(screen.getByRole("button", { name: "Shift" }));
+  fireEvent.click(screen.getByRole("button", { name: "Shift+Tab" }));
+  expect(send).toHaveBeenLastCalledWith("\x1b[Z");
 });
 
 it("preserves input focus without cancelling touch or horizontal pan", () => {
@@ -84,8 +87,11 @@ it("keeps clipboard actions distinct from terminal Ctrl+C and Ctrl+V", () => {
   expect(copy).toHaveBeenCalledTimes(1);
   expect(paste).toHaveBeenCalledTimes(1);
   expect(send).not.toHaveBeenCalled();
-  fireEvent.click(screen.getByRole("button", { name: "Ctrl+C" }));
-  expect(send).toHaveBeenLastCalledWith("\x03");
+  fireEvent.click(screen.getByRole("button", { name: "Ctrl" }));
+  act(() => {
+    expect(applyMobileModifiers(terminal, "c")).toBe("\x03");
+  });
+  expect(copy).toHaveBeenCalledTimes(1);
 });
 
 it("disables unavailable actions and respects font limits", () => {
@@ -101,7 +107,21 @@ it("disables unavailable actions and respects font limits", () => {
 
 it("keeps ordinary keyboard keys out of the helper and renders direction symbols", () => {
   render(<MobileTerminalControls />);
-  for (const label of ["a", "g", "1", "!", "/", "F1"]) {
+  for (const label of [
+    "a",
+    "g",
+    "1",
+    "!",
+    "/",
+    "F1",
+    "Shift+Tab",
+    "Ctrl+C",
+    "Ctrl+D",
+    "Ctrl+L",
+    "Ctrl+R",
+    "Ctrl+T",
+    "Ctrl+O",
+  ]) {
     expect(screen.queryByRole("button", { name: label })).toBeNull();
   }
   for (const [name, symbol] of [

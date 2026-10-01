@@ -17,7 +17,7 @@ import { encodeTerminalShortcut } from "@/lib/terminal/shortcut-keys";
 import { cn } from "@/lib/utils";
 
 const ARROW_LABELS: Record<string, string> = { Up: "↑", Down: "↓", Left: "←", Right: "→" };
-const BUTTON_CLASS = "h-9 min-w-9 shrink-0 px-2 text-xs font-mono";
+const BUTTON_CLASS = "h-10 min-w-10 shrink-0 px-2.5 text-sm font-mono";
 
 interface MobileTerminalWindowSession {
   id?: string;
@@ -74,29 +74,18 @@ export function MobileTerminalControls({
     action();
   };
   const prefix = `${modifiers.ctrl ? "Ctrl+" : ""}${modifiers.alt ? "Alt+" : ""}${modifiers.shift ? "Shift+" : ""}`;
-  const seenSequences = new Set<string>();
-  const keys = MOBILE_SMART_KEYS.flatMap(({ label, sequence }) => {
-    const fixedCombination = label.length > 1 && label.includes("+");
-    const output = fixedCombination ? sequence : encodeTerminalShortcut(label, modifiers);
-    if (seenSequences.has(output)) return [];
-    seenSequences.add(output);
-    return [
-      {
-        id: label,
-        display: ARROW_LABELS[label] ? `${prefix}${ARROW_LABELS[label]}` : undefined,
-        label: fixedCombination
-          ? label
-          : `${prefix}${prefix && label.length === 1 ? label.toUpperCase() : label}`,
-        sequence: output,
-      },
-    ];
-  });
+  const keys = MOBILE_SMART_KEYS.map(({ label }) => ({
+    id: label,
+    display: ARROW_LABELS[label] ? `${prefix}${ARROW_LABELS[label]}` : undefined,
+    label: `${prefix}${label}`,
+    sequence: encodeTerminalShortcut(label, modifiers),
+  }));
   return (
     <section
       aria-label="Terminal mobile controls"
       className={cn(
-        "min-w-0 shrink-0 border-t bg-background/95 px-2 pt-1",
-        isKeyboardVisible ? "pb-0" : "pb-[max(0.25rem,var(--safe-area-inset-bottom))]",
+        "min-w-0 shrink-0 bg-background/95 px-2 pt-1",
+        isKeyboardVisible ? "pb-1" : "pb-[max(0.25rem,var(--safe-area-inset-bottom))]",
       )}
       data-sidebar-gesture-ignore="true"
     >
