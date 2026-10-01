@@ -3068,7 +3068,10 @@ describe("InteractiveTerminal integration — Mobile input adapter", () => {
     unmount();
   });
 
-  it("activates only the pane receiving native selection without focusing either input", async () => {
+  it.each([
+    false,
+    true,
+  ])("activates native selection only in an interactive workspace (inert=%s)", async (inert) => {
     const activateFirst = vi.fn();
     const activateSecond = vi.fn();
     const first = await renderTerminal({
@@ -3089,9 +3092,11 @@ describe("InteractiveTerminal integration — Mobile input adapter", () => {
     text.textContent = "selection in inactive pane";
     second.container.querySelector('[data-testid="terminal-fit-host"]')!.append(text);
     window.getSelection()!.selectAllChildren(text);
+    // A browser selection event can arrive after switching away from its board.
+    if (inert) second.container.setAttribute("inert", "");
     fireEvent(document, new Event("selectionchange"));
     expect(activateFirst).not.toHaveBeenCalled();
-    expect(activateSecond).toHaveBeenCalledTimes(1);
+    expect(activateSecond).toHaveBeenCalledTimes(inert ? 0 : 1);
     expect(firstTerminal.focus).not.toHaveBeenCalled();
     expect(secondTerminal.focus).not.toHaveBeenCalled();
     window.getSelection()!.removeAllRanges();

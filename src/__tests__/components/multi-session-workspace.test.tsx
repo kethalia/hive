@@ -2699,6 +2699,8 @@ describe("MultiSessionWorkspace", () => {
     expect(screen.getByTestId("workspace-review-pane-dev-server")).toBeInTheDocument();
     expect(screen.getByTestId("interactive-terminal-main-session")).toBeInTheDocument();
     expect(screen.getByTestId("interactive-terminal-dev-server")).toBeInTheDocument();
+    expect(screen.getByTestId("multi-session-grid")).not.toHaveAttribute("inert");
+    expect(screen.getByTestId("multi-session-grid-review")).toHaveAttribute("inert");
     expect(mockGetSessions).toHaveBeenCalledTimes(1);
     markTwoSessionsConnected();
 
@@ -2706,6 +2708,8 @@ describe("MultiSessionWorkspace", () => {
 
     expect(screen.getByTestId("workspace-pane-dev-server")).toBeInTheDocument();
     expect(screen.getByTestId("workspace-default-pane-main-session")).toBeInTheDocument();
+    expect(screen.getByTestId("multi-session-grid")).not.toHaveAttribute("inert");
+    expect(screen.getByTestId("multi-session-grid-default")).toHaveAttribute("inert");
     expect(screen.getByTestId("interactive-terminal-main-session")).toBeInTheDocument();
     expect(screen.getByTestId("interactive-terminal-dev-server")).toBeInTheDocument();
     expect(screen.getByTestId("multi-session-pane-count")).toHaveTextContent("1");
