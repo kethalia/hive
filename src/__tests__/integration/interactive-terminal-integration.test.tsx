@@ -24,6 +24,7 @@ const { mockUseTerminalWebSocket, mockFit, mockSend, mockResize, terminalInstanc
       dataHandler?: (data: string) => void;
       focus: ReturnType<typeof vi.fn>;
       onData: ReturnType<typeof vi.fn>;
+      write: ReturnType<typeof vi.fn>;
       resizeHandler?: (dimensions: { rows: number; cols: number }) => void;
       scrollLines: ReturnType<typeof vi.fn>;
       scrollToBottom: ReturnType<typeof vi.fn>;
@@ -1370,6 +1371,7 @@ describe("InteractiveTerminal integration — Session lifecycle", () => {
     await act(async () => {
       result = render(
         <InteractiveTerminal
+          mobileInputMode
           agentId="test-agent"
           clonePath="kethalia/hive"
           workspaceId="test-ws"
@@ -1384,9 +1386,22 @@ describe("InteractiveTerminal integration — Session lifecycle", () => {
       expect(url.searchParams.get("clonePath")).toBe("kethalia/hive");
     });
 
+    const host = result!.container.querySelector('[data-testid="terminal-fit-host"]')!;
+    const text = document.createElement("span");
+    text.textContent = "selected old output";
+    host.append(text);
+    window.getSelection()!.selectAllChildren(text);
+    const oldTerminal = terminalInstances.at(-1)!;
+    oldTerminal.write.mockClear();
+    const receive = () =>
+      mockUseTerminalWebSocket.mock.calls.at(-1)![0].onData as (data: string) => void;
+    act(() => receive()("old queued output"));
+    expect(oldTerminal.write).not.toHaveBeenCalled();
+
     await act(async () => {
       result!.rerender(
         <InteractiveTerminal
+          mobileInputMode
           agentId="test-agent"
           clonePath="kethalia/hive-renamed"
           workspaceId="test-ws"
@@ -1400,6 +1415,12 @@ describe("InteractiveTerminal integration — Session lifecycle", () => {
       const url = new URL(terminalWebSocketUrls().at(-1)!);
       expect(url.searchParams.get("clonePath")).toBe("kethalia/hive-renamed");
     });
+    const replacement = terminalInstances.at(-1)!;
+    expect(replacement).not.toBe(oldTerminal);
+    window.getSelection()!.removeAllRanges();
+    fireEvent(document, new Event("selectionchange"));
+    act(() => receive()("fresh output"));
+    expect(replacement.write.mock.calls.map(([data]) => data)).toEqual(["fresh output"]);
     result!.unmount();
   });
 
@@ -2090,9 +2111,8 @@ describe("TerminalClient integration — Mobile terminal route props", () => {
       "data-selection-mode-enabled",
       "false",
     );
-    expect(getByTestId("interactive-terminal").parentElement).toHaveAttribute(
+    expect(getByTestId("interactive-terminal").parentElement).not.toHaveAttribute(
       "data-sidebar-gesture-ignore",
-      "true",
     );
     unmount();
   });

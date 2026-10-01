@@ -527,11 +527,7 @@ function TerminalInner({
   }
 
   const terminalPane = (
-    <div
-      className="h-full"
-      data-sidebar-gesture-ignore={isComposeSheet ? "true" : undefined}
-      data-terminal-surface="true"
-    >
+    <div className="h-full" data-terminal-surface="true">
       <InteractiveTerminal
         key={session}
         agentId={agentId}

@@ -1221,6 +1221,7 @@ export function InteractiveTerminal({
       fitResizeAndPreserveBottom(false, "resize-observer-refit");
     },
     onDispose: () => {
+      selectionOutput.clear();
       mobileTouchIntentRef.current = null;
       suppressNextClickFocusRef.current = false;
       mobileInputCleanupRef.current?.dispose();
