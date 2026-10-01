@@ -739,6 +739,7 @@ export function InteractiveTerminal({
 
   useEffect(() => {
     const activateSelectedPane = () => {
+      if (containerRef.current?.closest("[inert]")) return;
       if (mobileInputModeRef.current && hasNativeTerminalSelection(containerRef.current)) {
         // Activate shared clipboard controls without focusing the hidden input.
         onUserFocusRequest?.();

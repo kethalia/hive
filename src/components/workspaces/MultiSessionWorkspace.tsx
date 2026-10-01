@@ -4690,6 +4690,9 @@ export function MultiSessionWorkspace({
           data-board-key={model.board.key}
           data-board-active={model.isActive ? "true" : "false"}
           aria-hidden={model.isActive ? undefined : true}
+          // Terminal rows enable pointer events for native mobile selection.
+          // Inert blocks those descendants while keeping the session mounted.
+          inert={!model.isActive}
         >
           {model.layout.panes.map((pane) => renderPane(pane, model))}
           {dropPlaceholder}

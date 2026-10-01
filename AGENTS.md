@@ -8,4 +8,6 @@
 - Do not force-push unless the user explicitly asks for history rewriting.
 - Use Conventional Commits for commit titles, for example `feat(terminal): add shared session frame`.
 - Use Conventional Commits format for PR titles.
+- Open PRs as drafts only while work is still in progress. Once the work is complete and ready for
+  the user to check, open the PR as ready for review or mark an existing draft ready for review.
 - After a completed PR slice, verify the PR exists and leave `main` clean.
