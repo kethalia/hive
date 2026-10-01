@@ -1,5 +1,11 @@
 # hive-orchestrator
 
+## 2.17.5
+
+### Patch Changes
+
+- 2eb9289: Prevent hidden workspaces from intercepting mobile terminal taps or reclaiming the active window through stale selection events.
+
 ## 2.17.4
 
 ### Patch Changes
