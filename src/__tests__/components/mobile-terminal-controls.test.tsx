@@ -1,11 +1,13 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { MobileTerminalControls } from "@/components/terminal/MobileTerminalControls";
+import { applyMobileModifiers, getMobileModifiers } from "@/lib/terminal/mobile-modifiers";
 import { MOBILE_SMART_KEYS } from "@/lib/terminal/mobile-smart-keys";
 
-const { send, useKeybindings, increase, decrease } = vi.hoisted(() => ({
+const { send, useKeybindings, increase, decrease, terminal } = vi.hoisted(() => ({
+  terminal: {},
   send: vi.fn(),
   useKeybindings: vi.fn(),
   increase: vi.fn(),
@@ -23,7 +25,7 @@ vi.mock("@/hooks/useTerminalFontStep", () => ({
 afterEach(cleanup);
 beforeEach(() => {
   vi.clearAllMocks();
-  useKeybindings.mockReturnValue({ activeSend: send });
+  useKeybindings.mockReturnValue({ activeSend: send, activeTerminal: terminal });
 });
 
 it("renders one native horizontally scrolling row without pages or selection mode", () => {
@@ -54,8 +56,10 @@ it("sends each unique quick key once with exact byte sequences", () => {
 it("labels modified keys with the exact combination and resets after sending", () => {
   render(<MobileTerminalControls />);
   fireEvent.click(screen.getByRole("button", { name: "Ctrl" }));
-  fireEvent.click(screen.getByRole("button", { name: "Ctrl+G" }));
-  expect(send).toHaveBeenLastCalledWith("\x07");
+  expect(screen.getByRole("button", { name: "Ctrl" })).toHaveClass("ring-2", "bg-primary");
+  act(() => {
+    expect(applyMobileModifiers(terminal, "g")).toBe("\x07");
+  });
   expect(screen.getByRole("button", { name: "Ctrl" })).toHaveAttribute("aria-pressed", "false");
   fireEvent.click(screen.getByRole("button", { name: "Shift" }));
   fireEvent.click(screen.getByRole("button", { name: "Shift+Enter" }));
@@ -95,25 +99,31 @@ it("disables unavailable actions and respects font limits", () => {
   expect(increase).toHaveBeenCalledTimes(1);
 });
 
-it.each([
-  { modifiers: ["Shift"], label: "Shift+1", duplicate: "Shift+!", sequence: "!" },
-  { modifiers: ["Shift"], label: "Shift+/", duplicate: "Shift+?", sequence: "?" },
-  { modifiers: ["Ctrl"], label: "Ctrl+Space", duplicate: "Ctrl+@", sequence: "\x00" },
-  {
-    modifiers: ["Alt", "Shift"],
-    label: "Alt+Shift+1",
-    duplicate: "Alt+Shift+!",
-    sequence: "\x1b!",
-  },
-])("keeps only $label for duplicate modified sequences", ({
-  modifiers,
-  label,
-  duplicate,
-  sequence,
-}) => {
+it("keeps ordinary keyboard keys out of the helper and renders direction symbols", () => {
   render(<MobileTerminalControls />);
-  for (const modifier of modifiers) fireEvent.click(screen.getByRole("button", { name: modifier }));
-  expect(screen.queryByRole("button", { name: duplicate })).toBeNull();
-  fireEvent.click(screen.getByRole("button", { name: label }));
-  expect(send).toHaveBeenLastCalledWith(sequence);
+  for (const label of ["a", "g", "1", "!", "/", "F1"]) {
+    expect(screen.queryByRole("button", { name: label })).toBeNull();
+  }
+  for (const [name, symbol] of [
+    ["Up", "↑"],
+    ["Down", "↓"],
+    ["Left", "←"],
+    ["Right", "→"],
+  ]) {
+    expect(screen.getByRole("button", { name })).toHaveTextContent(symbol);
+    expect(screen.getByRole("button", { name })).not.toHaveTextContent(name);
+  }
+});
+
+it("clears pending modifiers when switching terminal or unmounting controls", () => {
+  const { rerender, unmount } = render(<MobileTerminalControls />);
+  fireEvent.click(screen.getByRole("button", { name: "Ctrl" }));
+  const other = {};
+  useKeybindings.mockReturnValue({ activeSend: send, activeTerminal: other });
+  rerender(<MobileTerminalControls />);
+  expect(getMobileModifiers(terminal).ctrl).toBe(false);
+  expect(screen.getByRole("button", { name: "Ctrl" })).toHaveAttribute("aria-pressed", "false");
+  fireEvent.click(screen.getByRole("button", { name: "Alt" }));
+  unmount();
+  expect(getMobileModifiers(other).alt).toBe(false);
 });

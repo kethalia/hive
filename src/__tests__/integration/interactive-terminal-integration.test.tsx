@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 
+import { getMobileModifiers, setMobileModifiers } from "@/lib/terminal/mobile-modifiers";
 import "@testing-library/jest-dom/vitest";
 import { act, cleanup, fireEvent, render, waitFor } from "@testing-library/react";
 import type React from "react";
@@ -2940,6 +2941,31 @@ describe("InteractiveTerminal integration — Mobile input adapter", () => {
       );
       expect(mockSend).toHaveBeenCalledWith("/tmp/hive-terminal-paste/pasted.txt");
     });
+    unmount();
+  });
+
+  it.each([
+    { modifiers: { ctrl: true, alt: false, shift: false }, input: "c", output: "\x03" },
+    { modifiers: { ctrl: false, alt: true, shift: false }, input: "x", output: "\x1bx" },
+    { modifiers: { ctrl: false, alt: false, shift: true }, input: "1", output: "!" },
+    { modifiers: { ctrl: true, alt: false, shift: false }, input: "\r", output: "\x1b[13;5u" },
+  ])("applies helper modifiers to mobile xterm input $input", async ({
+    modifiers,
+    input,
+    output,
+  }) => {
+    const { unmount } = await renderTerminal({ mobileInputMode: true });
+    const terminal = terminalInstances.at(-1)!;
+    setMobileModifiers(terminal, modifiers);
+    act(() => {
+      terminal.dataHandler?.(input);
+    });
+    expect(mockSend).toHaveBeenLastCalledWith(output);
+    expect(getMobileModifiers(terminal)).toEqual({ ctrl: false, alt: false, shift: false });
+    act(() => {
+      terminal.dataHandler?.("a");
+    });
+    expect(mockSend).toHaveBeenLastCalledWith("a");
     unmount();
   });
 

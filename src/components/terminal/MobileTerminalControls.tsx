@@ -1,23 +1,22 @@
 "use client";
 
 import { ClipboardPaste, Copy, MessageSquareText, Minus, Plus } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useSyncExternalStore } from "react";
 import { Button } from "@/components/ui/button";
 import { useKeybindings } from "@/hooks/useKeybindings";
 import { useTerminalFontStep } from "@/hooks/useTerminalFontStep";
 import { TERMINAL_COMPOSE_OPEN_EVENT } from "@/lib/terminal/events";
-import { MOBILE_SMART_KEYS } from "@/lib/terminal/mobile-smart-keys";
 import {
-  encodeTerminalShortcut,
-  TERMINAL_SHORTCUT_KEYS,
-  type TerminalKeyModifiers,
-} from "@/lib/terminal/shortcut-keys";
+  getMobileModifiers,
+  NO_MOBILE_MODIFIERS,
+  setMobileModifiers,
+  subscribeMobileModifiers,
+} from "@/lib/terminal/mobile-modifiers";
+import { MOBILE_SMART_KEYS } from "@/lib/terminal/mobile-smart-keys";
+import { encodeTerminalShortcut } from "@/lib/terminal/shortcut-keys";
 import { cn } from "@/lib/utils";
 
-const NO_MODIFIERS: TerminalKeyModifiers = { ctrl: false, alt: false, shift: false };
-const EXTRA_KEYS = TERMINAL_SHORTCUT_KEYS.filter(
-  (key) => !MOBILE_SMART_KEYS.some((item) => item.label === key),
-);
+const ARROW_LABELS: Record<string, string> = { Up: "↑", Down: "↓", Left: "←", Right: "→" };
 const BUTTON_CLASS = "h-9 min-w-9 shrink-0 px-2 text-xs font-mono";
 
 interface MobileTerminalWindowSession {
@@ -62,8 +61,13 @@ export function MobileTerminalControls({
   copyDisabledReason,
   pasteDisabledReason,
 }: MobileTerminalControlsProps = {}) {
-  const { activeSend } = useKeybindings();
-  const [modifiers, setModifiers] = useState(NO_MODIFIERS);
+  const { activeSend, activeTerminal } = useKeybindings();
+  const modifiers = useSyncExternalStore(
+    subscribeMobileModifiers,
+    () => getMobileModifiers(activeTerminal),
+    () => NO_MOBILE_MODIFIERS,
+  );
+  useEffect(() => () => setMobileModifiers(activeTerminal, NO_MOBILE_MODIFIERS), [activeTerminal]);
   const { increase, decrease, canIncrease, canDecrease } = useTerminalFontStep();
   const press = (action: () => void) => {
     onHapticFeedback?.();
@@ -71,13 +75,7 @@ export function MobileTerminalControls({
   };
   const prefix = `${modifiers.ctrl ? "Ctrl+" : ""}${modifiers.alt ? "Alt+" : ""}${modifiers.shift ? "Shift+" : ""}`;
   const seenSequences = new Set<string>();
-  const keys = [
-    ...MOBILE_SMART_KEYS,
-    ...EXTRA_KEYS.map((label) => ({
-      label,
-      sequence: encodeTerminalShortcut(label, NO_MODIFIERS),
-    })),
-  ].flatMap(({ label, sequence }) => {
+  const keys = MOBILE_SMART_KEYS.flatMap(({ label, sequence }) => {
     const fixedCombination = label.length > 1 && label.includes("+");
     const output = fixedCombination ? sequence : encodeTerminalShortcut(label, modifiers);
     if (seenSequences.has(output)) return [];
@@ -85,6 +83,7 @@ export function MobileTerminalControls({
     return [
       {
         id: label,
+        display: ARROW_LABELS[label] ? `${prefix}${ARROW_LABELS[label]}` : undefined,
         label: fixedCombination
           ? label
           : `${prefix}${prefix && label.length === 1 ? label.toUpperCase() : label}`,
@@ -112,22 +111,26 @@ export function MobileTerminalControls({
           <Button
             key={modifier}
             type="button"
-            variant="outline"
-            className={BUTTON_CLASS}
-            disabled={!activeSend}
+            variant={modifiers[modifier] ? "default" : "outline"}
+            className={cn(BUTTON_CLASS, modifiers[modifier] && "ring-2 ring-primary ring-offset-1")}
+            disabled={!activeSend || !activeTerminal}
             aria-pressed={modifiers[modifier]}
             onClick={() =>
               press(() =>
-                setModifiers((current) => ({ ...current, [modifier]: !current[modifier] })),
+                setMobileModifiers(activeTerminal, {
+                  ...modifiers,
+                  [modifier]: !modifiers[modifier],
+                }),
               )
             }
           >
             {modifier === "ctrl" ? "Ctrl" : modifier === "alt" ? "Alt" : "Shift"}
           </Button>
         ))}
-        {keys.map(({ id, label, sequence }) => (
+        {keys.map(({ id, label, sequence, display }) => (
           <Button
             key={id}
+            aria-label={label}
             type="button"
             variant="outline"
             className={BUTTON_CLASS}
@@ -135,11 +138,11 @@ export function MobileTerminalControls({
             onClick={() =>
               press(() => {
                 activeSend?.(sequence);
-                setModifiers(NO_MODIFIERS);
+                setMobileModifiers(activeTerminal, NO_MOBILE_MODIFIERS);
               })
             }
           >
-            {label}
+            {display ?? label}
           </Button>
         ))}
         {[

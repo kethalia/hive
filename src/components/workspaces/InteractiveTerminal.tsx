@@ -45,6 +45,7 @@ import {
   focusTerminalForMobileInput,
   type MobileInputAdapterCleanup,
 } from "@/lib/terminal/mobile-input-adapter";
+import { applyMobileModifiers } from "@/lib/terminal/mobile-modifiers";
 import {
   recordMobileTerminalFit,
   recordMobileTerminalResizeRequest,
@@ -1144,7 +1145,11 @@ export function InteractiveTerminal({
       term.onData((data) => {
         const filteredData = stripXtermDeviceAnswerbacks(data);
         if (filteredData.length === 0) return;
-        sendRef.current(encodeInput(filteredData));
+        sendRef.current(
+          encodeInput(
+            mobileInputModeRef.current ? applyMobileModifiers(term, filteredData) : filteredData,
+          ),
+        );
       });
 
       term.onResize(({ rows, cols }) => {

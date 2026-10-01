@@ -550,9 +550,20 @@ export function installTerminalBrowserIntegration(
     );
     void pending.ready.then((valid) => {
       if (disposed || generation !== validationGeneration || pendingFeedback !== token) return;
+      menu.closeLoading();
       if (!valid) {
-        menu.closeLoading();
         clearTouch();
+      } else if (touchProbe === event && releasedTouch) {
+        // Touch has no reliable follow-up hover. A confirmed tap can open its
+        // actions directly from the validation result, even after a repaint.
+        const touch = releasedTouch;
+        clearTouch();
+        activate(
+          new MouseEvent("click", { clientX: touch.x, clientY: touch.y }),
+          pending.link.text,
+          false,
+          pending.link.range,
+        );
       }
     });
   };

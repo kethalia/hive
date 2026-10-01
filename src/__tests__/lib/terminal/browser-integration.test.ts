@@ -1118,3 +1118,35 @@ it.each([
   dispose();
   window.getSelection()!.removeAllRanges();
 });
+
+it("finishes a tapped file check without requiring a subsequent xterm hover", async () => {
+  let resolve!: (paths: string[]) => void;
+  const { term, dispose } = positionedSurface(
+    () =>
+      new Promise((done) => {
+        resolve = done;
+      }),
+  );
+  const screen = term.element.querySelector(".xterm-screen")!;
+  vi.spyOn(screen, "getBoundingClientRect").mockReturnValue({
+    left: 0,
+    top: 0,
+    width: 800,
+    height: 40,
+    bottom: 40,
+    right: 800,
+  } as DOMRect);
+  screen.addEventListener("mousemove", () => {
+    // xterm can complete a provider lookup without delivering its hover callback.
+    term.registerLinkProvider.mock.calls.at(-1)![0].provideLinks(1, () => {});
+  });
+  term.element.dispatchEvent(touchEvent("touchstart", 10, 10));
+  term.element.dispatchEvent(touchEvent("touchend", 10, 10));
+  expect(document.querySelector("[role=status]")?.textContent).toContain("Checking file");
+  resolve(["docs/image.png"]);
+  await settleValidation();
+  expect(document.querySelector("[role=status]")).toBeNull();
+  expect(document.querySelector("[role=menu]")?.textContent).toContain("Download");
+  expect(document.activeElement?.textContent).toBe("Copy path");
+  dispose();
+});
