@@ -1,5 +1,11 @@
 # hive-orchestrator
 
+## 2.17.6
+
+### Patch Changes
+
+- d6623f8: Open terminal web-link menus reliably on touch by delaying link detection until finger release, preserving the original touch target while the finger is down.
+
 ## 2.17.5
 
 ### Patch Changes
