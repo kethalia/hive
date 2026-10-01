@@ -1,8 +1,10 @@
 "use client";
 
 import { useEffect, useRef } from "react";
+import { LONG_PRESS_MS } from "@/lib/gestures/conventions";
 import {
   isSidebarGestureIgnoredTarget,
+  isSidebarGestureSelectionTarget,
   resolveHorizontalSwipe,
 } from "@/lib/gestures/horizontal-swipe";
 
@@ -16,6 +18,8 @@ type TouchStart = {
   x: number;
   y: number;
   qualified: boolean;
+  startedAt: number;
+  target: EventTarget | null;
 };
 
 /** Opens the global command drawer with a deliberate one-finger leftward swipe. */
@@ -59,6 +63,8 @@ export function useGlobalCommandPaletteGesture({
         x: touch.clientX,
         y: touch.clientY,
         qualified: false,
+        startedAt: Date.now(),
+        target: event.target,
       };
     };
 
@@ -68,6 +74,13 @@ export function useGlobalCommandPaletteGesture({
         return;
       }
       if (!touchStart) return;
+      if (
+        Date.now() - touchStart.startedAt >= LONG_PRESS_MS ||
+        isSidebarGestureSelectionTarget(touchStart.target)
+      ) {
+        reset();
+        return;
+      }
 
       const touch = Array.from(event.touches).find(
         (candidate) => candidate.identifier === touchStart?.id,

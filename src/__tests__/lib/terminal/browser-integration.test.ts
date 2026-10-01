@@ -444,10 +444,10 @@ it.each([
   vi.useRealTimers();
 });
 
-it("closes open menus and cancels pending menus on terminal-only resize", () => {
+it("closes unfocused menus and cancels pending menus on terminal-only resize", () => {
   vi.useFakeTimers();
   const { plainLink, events, dispose } = positionedSurface();
-  plainLink.activate(new MouseEvent("click", { clientY: 10 }), "docs/image.png");
+  plainLink.hover?.(new MouseEvent("mousemove", { clientY: 10 }), "docs/image.png");
   events.resize();
   expect(document.querySelector("[role=menu]")).toBeNull();
   plainLink.hover?.(new MouseEvent("mousemove", { clientY: 10 }), "docs/image.png");
@@ -1050,5 +1050,103 @@ it.each([
   }
   expect(remote).not.toHaveBeenCalled();
   expect(document.querySelector("[role=menu]")?.textContent).toContain("/home/coder/image.png");
+  dispose();
+});
+
+it.each([450, 500])("uses the shared long-press boundary for links (%sms)", (duration) => {
+  vi.useFakeTimers();
+  const { term, dispose } = surface();
+  const screen = document.createElement("div");
+  screen.className = "xterm-screen";
+  term.element.append(screen);
+  screen.addEventListener("mousemove", (event) => {
+    term.options.linkHandler?.hover?.(event, "https://example.com", {} as never);
+  });
+  term.element.dispatchEvent(touchEvent("touchstart"));
+  vi.advanceTimersByTime(duration);
+  const end = touchEvent("touchend");
+  term.element.dispatchEvent(end);
+  expect(end.defaultPrevented).toBe(duration < 500);
+  expect(Boolean(document.querySelector("[role=menu]"))).toBe(duration < 500);
+  dispose();
+});
+
+it.each([
+  false,
+  true,
+])("focuses touch menu actions after validation (delayed=%s) and survives keyboard resize", async (delayed) => {
+  let resolve: (paths: string[]) => void = () => {};
+  const { term, events, dispose } = positionedSurface((paths) =>
+    delayed
+      ? new Promise((done) => {
+          resolve = done;
+        })
+      : paths,
+  );
+  const helper = document.createElement("textarea");
+  term.element.append(helper);
+  helper.focus();
+  const sibling = document.createElement("div");
+  sibling.textContent = "another pane selection";
+  document.body.append(sibling);
+  window.getSelection()!.selectAllChildren(sibling);
+  const screen = term.element.querySelector(".xterm-screen")!;
+  screen.addEventListener("mousemove", (event) => {
+    term.options.linkHandler?.hover?.(
+      event as MouseEvent,
+      "file:///home/coder/image.png",
+      {} as never,
+    );
+  });
+  term.element.dispatchEvent(touchEvent("touchstart", 10, 10));
+  term.element.dispatchEvent(touchEvent("touchend", 10, 10));
+  if (delayed) {
+    resolve(["/home/coder/image.png"]);
+    await settleValidation();
+  }
+  const menu = document.querySelector<HTMLElement>('[role="menu"]')!;
+  expect(menu).not.toBeNull();
+  const buttons = menu.querySelectorAll("button:enabled");
+  expect(document.activeElement).toBe(buttons[0]);
+  events.resize(); // Soft-keyboard dismissal resizes the terminal.
+  expect(menu.isConnected).toBe(true);
+  const remoteKey = vi.fn();
+  term.element.addEventListener("keydown", remoteKey);
+  buttons[0].dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowDown", bubbles: true }));
+  expect(document.activeElement).toBe(buttons[1]);
+  expect(remoteKey).not.toHaveBeenCalled();
+  dispose();
+  window.getSelection()!.removeAllRanges();
+});
+
+it("finishes a tapped file check without requiring a subsequent xterm hover", async () => {
+  let resolve!: (paths: string[]) => void;
+  const { term, dispose } = positionedSurface(
+    () =>
+      new Promise((done) => {
+        resolve = done;
+      }),
+  );
+  const screen = term.element.querySelector(".xterm-screen")!;
+  vi.spyOn(screen, "getBoundingClientRect").mockReturnValue({
+    left: 0,
+    top: 0,
+    width: 800,
+    height: 40,
+    bottom: 40,
+    right: 800,
+  } as DOMRect);
+  screen.addEventListener("mousemove", () => {
+    // xterm can complete a provider lookup without delivering its hover callback.
+    term.registerLinkProvider.mock.calls.at(-1)![0].provideLinks(1, () => {});
+  });
+  term.element.dispatchEvent(touchEvent("touchstart", 10, 10));
+  term.element.dispatchEvent(touchEvent("touchend", 10, 10));
+  expect(document.querySelector("[role=status]")?.textContent).toContain("Checking file");
+  resolve(["docs/image.png"]);
+  await settleValidation();
+  expect(document.querySelector("[role=status]")).toBeNull();
+  expect(document.querySelector("[role=menu]")?.textContent).toContain("Download");
+  expect(document.activeElement?.textContent).toBe("Copy path");
   dispose();
 });

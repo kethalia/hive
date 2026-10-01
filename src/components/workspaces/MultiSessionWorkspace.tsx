@@ -501,11 +501,7 @@ function isGitCloneTerminalIdentity(value: unknown): value is GitCloneTerminalId
 
 function clipboardStatusText(
   status: ClipboardActionStatus | null,
-  {
-    canPaste,
-    hasTerminal,
-    selectionModeEnabled,
-  }: { canPaste: boolean; hasTerminal: boolean; selectionModeEnabled: boolean },
+  { canPaste, hasTerminal }: { canPaste: boolean; hasTerminal: boolean },
 ): string {
   if (status) {
     switch (status.action) {
@@ -521,7 +517,6 @@ function clipboardStatusText(
         return "Terminal controls ready";
     }
   }
-  if (selectionModeEnabled) return "Selection mode on. Select terminal text, then copy.";
   if (!hasTerminal) return "Terminal is not ready";
   if (!canPaste) return "Paste is unavailable until the terminal sender is ready";
   return "Terminal controls ready";
@@ -1210,7 +1205,6 @@ export function MultiSessionWorkspace({
   const [composeDraft, setComposeDraft] = useState("");
   const [composeTargetSessionName, setComposeTargetSessionName] = useState<string | null>(null);
   const [composeTargetLabel, setComposeTargetLabel] = useState<string | undefined>();
-  const [selectionModeEnabled, setSelectionModeEnabled] = useState(false);
   const [hasTerminalSelection, setHasTerminalSelection] = useState(false);
   const [clipboardActionStatus, setClipboardActionStatus] = useState<ClipboardActionStatus | null>(
     null,
@@ -2026,11 +2020,6 @@ export function MultiSessionWorkspace({
       window.removeEventListener(TERMINAL_COMPOSE_TOGGLE_EVENT, handleComposeToggle);
     };
   }, [activeLabel]);
-
-  const handleSelectionModeChange = useCallback((enabled: boolean) => {
-    setSelectionModeEnabled(enabled);
-    setClipboardActionStatus(null);
-  }, []);
 
   const handleClipboardActionStatus = useCallback((status: ClipboardActionStatus) => {
     setClipboardActionStatus(status);
@@ -4028,13 +4017,11 @@ export function MultiSessionWorkspace({
     </div>
   );
 
-  const controlsSelectionModeEnabled = isComposeSheet && selectionModeEnabled;
   const hasActiveTerminal = Boolean(activeTerminalEntry?.term);
   const hasActiveSender = Boolean(activeTerminalEntry?.send);
   const mobileClipboardStatus = clipboardStatusText(clipboardActionStatus, {
     canPaste: hasActiveSender,
     hasTerminal: hasActiveTerminal,
-    selectionModeEnabled: controlsSelectionModeEnabled,
   });
   const mobileTerminalControls = isComposeSheet ? (
     <MobileTerminalControls
@@ -4042,12 +4029,12 @@ export function MultiSessionWorkspace({
       onHapticFeedback={triggerHapticFeedback}
       windowNavigation={mobileWindowNavigation}
       hasSelection={hasTerminalSelection}
-      selectionModeEnabled={controlsSelectionModeEnabled}
-      onToggleSelectionMode={handleSelectionModeChange}
       onCopy={handleMobileCopy}
       onPaste={handleMobilePaste}
       clipboardStatusText={mobileClipboardStatus}
-      selectionModeDisabledReason={hasActiveTerminal ? undefined : "Terminal is not ready"}
+      showClipboardStatus={
+        clipboardActionStatus?.outcome === "failed" || clipboardActionStatus?.outcome === "fallback"
+      }
       copyDisabledReason={
         hasActiveTerminal
           ? hasTerminalSelection
@@ -4620,7 +4607,6 @@ export function MultiSessionWorkspace({
               mobileInputMode={isComposeSheet}
               suppressAutoFocus
               pinToBottomOnResize={isComposeSheet}
-              selectionModeEnabled={controlsSelectionModeEnabled}
               onConnectionStateChange={(state) =>
                 handlePaneConnectionStateChange(boardPaneSignal, boardPaneKind, state)
               }
@@ -4827,7 +4813,10 @@ export function MultiSessionWorkspace({
       <div className="flex min-h-0 flex-1 flex-col">
         <div
           ref={workspaceBodyRef}
-          className="relative min-h-0 flex-1 overflow-hidden overscroll-none"
+          className={cn(
+            "relative min-h-0 flex-1 overflow-hidden overscroll-none",
+            isComposeSheet && "mt-2",
+          )}
           data-testid="multi-session-body"
         >
           {boardRenderModels.map(renderBoardLayer)}

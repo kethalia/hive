@@ -2,8 +2,10 @@
 
 import { useEffect, useRef } from "react";
 import { useSidebar } from "@/components/ui/sidebar";
+import { LONG_PRESS_MS } from "@/lib/gestures/conventions";
 import {
   isSidebarGestureIgnoredTarget,
+  isSidebarGestureSelectionTarget,
   resolveHorizontalSwipe,
 } from "@/lib/gestures/horizontal-swipe";
 
@@ -16,6 +18,8 @@ type TouchStart = {
   x: number;
   y: number;
   qualified: boolean;
+  startedAt: number;
+  target: EventTarget | null;
 };
 
 /**
@@ -40,9 +44,14 @@ export function SidebarEdgeHandle(_props: SidebarEdgeHandleProps) {
       touchStartRef.current = null;
     };
 
-    const trackStart = ({ id, x, y }: Omit<TouchStart, "qualified">): TouchStart | null => {
+    const trackStart = ({
+      id,
+      x,
+      y,
+      target,
+    }: Omit<TouchStart, "qualified" | "startedAt">): TouchStart | null => {
       if (x < 0 || x > window.innerWidth) return null;
-      return { id, x, y, qualified: false };
+      return { id, x, y, qualified: false, startedAt: Date.now(), target };
     };
 
     const maybeOpen = (
@@ -80,6 +89,7 @@ export function SidebarEdgeHandle(_props: SidebarEdgeHandleProps) {
         return;
       }
       const start = trackStart({
+        target: event.target,
         id: touch.identifier,
         x: touch.clientX,
         y: touch.clientY,
@@ -94,6 +104,13 @@ export function SidebarEdgeHandle(_props: SidebarEdgeHandleProps) {
       }
       const start = touchStartRef.current;
       if (!start) return;
+      if (
+        Date.now() - start.startedAt >= LONG_PRESS_MS ||
+        isSidebarGestureSelectionTarget(start.target)
+      ) {
+        reset();
+        return;
+      }
       const touch = Array.from(event.touches).find(
         (candidate) => candidate.identifier === start.id,
       );

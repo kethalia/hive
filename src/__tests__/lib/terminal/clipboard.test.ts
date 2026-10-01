@@ -246,3 +246,15 @@ it("prevents pasted escape sequences from ending bracketed paste early", () => {
   pasteTextToXterm(term as never, vi.fn(), "one\x1b[201~\ntwo");
   expect(term.paste).toHaveBeenCalledWith("one[201~\ntwo");
 });
+
+it.each(["c", "hello"])("pastes %s literally and clears armed modifiers", async (text) => {
+  const { applyMobileModifiers, getMobileModifiers, setMobileModifiers } = await import(
+    "@/lib/terminal/mobile-modifiers"
+  );
+  const send = vi.fn();
+  const term = { paste: (data: string) => send(applyMobileModifiers(term, data)) };
+  setMobileModifiers(term, { ctrl: true, alt: false, shift: false });
+  pasteTextToXterm(term, send, text);
+  expect(send).toHaveBeenCalledExactlyOnceWith(text);
+  expect(getMobileModifiers(term).ctrl).toBe(false);
+});

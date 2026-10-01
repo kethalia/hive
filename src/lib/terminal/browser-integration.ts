@@ -2,12 +2,14 @@ import { ClipboardAddon, type IClipboardProvider } from "@xterm/addon-clipboard"
 import { WebLinksAddon } from "@xterm/addon-web-links";
 import type { IBuffer, IBufferRange, Terminal } from "@xterm/xterm";
 import { toast } from "sonner";
+import { LONG_PRESS_MS } from "@/lib/gestures/conventions";
 import { createTerminalLinkMenu } from "./link-menu";
 import {
   type TerminalFileActionHandler,
   type TerminalPathValidator,
   terminalLinkTarget,
 } from "./link-target";
+import { hasNativeTerminalSelection, installNativeTerminalSelection } from "./native-selection";
 import { terminalPathLinkProvider } from "./path-link-provider";
 import {
   createTerminalPathValidator,
@@ -60,6 +62,7 @@ export function installTerminalBrowserIntegration(
     validatePaths?: TerminalPathValidator;
   } = {},
 ): () => void {
+  const disposeNativeSelection = installNativeTerminalSelection(term);
   const checkPaths = createTerminalPathValidator(validatePaths);
   const menu = createTerminalLinkMenu(
     onFileAction,
@@ -92,6 +95,7 @@ export function installTerminalBrowserIntegration(
       ? `${range.start.x}:${range.start.y}:${range.end.x}:${range.end.y}`
       : `row:${readAnchor(event.clientY)?.row ?? event.clientY}`;
   let touchProbe: MouseEvent | undefined;
+  let touchStartedAt = 0;
   let pressed: { uri: string; x: number; y: number; osc?: boolean } | undefined;
   let anchor: { buffer: IBuffer; row: number; text: string; opaque: boolean } | undefined;
   let pendingAnchor: typeof anchor;
@@ -138,7 +142,21 @@ export function installTerminalBrowserIntegration(
   // A DOM mouseleave also happens while crossing into the menu. Terminal
   // lifecycle events distinguish that crossing from a stale buffer location.
   const scroll = term.onScroll(invalidateLink);
-  const resized = term.onResize(invalidateLink);
+  const resized = term.onResize(() => {
+    if (!menu.hasFocus()) {
+      invalidateLink();
+      return;
+    }
+    // Focusing a touch menu can close the soft keyboard and resize xterm.
+    // Keep the explicitly chosen actions reachable, but discard hover anchors.
+    cancelPathValidation();
+    clearTouch();
+    anchor = undefined;
+    pendingAnchor = undefined;
+    hoveredUri = undefined;
+    pressed = undefined;
+    menu.reposition();
+  });
   const isInvalid = (location: typeof anchor) =>
     location &&
     // xterm's public cells expose text but not OSC 8 URI metadata. A parsed
@@ -375,6 +393,7 @@ export function installTerminalBrowserIntegration(
     hoveredUri = undefined;
     if (event.touches.length !== 1 || element?.closest('[data-terminal-selection-mode="true"]'))
       return;
+    touchStartedAt = Date.now();
     const touch = event.touches[0];
     // xterm's public link providers resolve on mouse movement; touch has no hover.
     const screen = element?.querySelector(".xterm-screen");
@@ -405,6 +424,10 @@ export function installTerminalBrowserIntegration(
     touchTimer = setTimeout(clearTouch, TERMINAL_PATH_VALIDATION_TIMEOUT_MS + 1000);
   };
   const touchEnd = (event: TouchEvent) => {
+    if (Date.now() - touchStartedAt >= LONG_PRESS_MS || hasNativeTerminalSelection(element)) {
+      cancel();
+      return;
+    }
     const link = pressed;
     pressed = undefined;
     const touch = event.changedTouches[0];
@@ -448,6 +471,7 @@ export function installTerminalBrowserIntegration(
     const touch = event.touches[0];
     if (
       !touchProbe ||
+      Date.now() - touchStartedAt >= LONG_PRESS_MS ||
       event.touches.length !== 1 ||
       Math.hypot(touch.clientX - touchProbe.clientX, touch.clientY - touchProbe.clientY) >= 8
     ) {
@@ -527,9 +551,20 @@ export function installTerminalBrowserIntegration(
     );
     void pending.ready.then((valid) => {
       if (disposed || generation !== validationGeneration || pendingFeedback !== token) return;
+      menu.closeLoading();
       if (!valid) {
-        menu.closeLoading();
         clearTouch();
+      } else if (touchProbe === event && releasedTouch) {
+        // Touch has no reliable follow-up hover. A confirmed tap can open its
+        // actions directly from the validation result, even after a repaint.
+        const touch = releasedTouch;
+        clearTouch();
+        activate(
+          new MouseEvent("click", { clientX: touch.x, clientY: touch.y }),
+          pending.link.text,
+          false,
+          pending.link.range,
+        );
       }
     });
   };
@@ -561,6 +596,7 @@ export function installTerminalBrowserIntegration(
   element?.addEventListener("mouseleave", leave);
   return () => {
     disposed = true;
+    disposeNativeSelection();
     cancelPathValidation();
     clearTouch();
     document.removeEventListener("pointerdown", pointerValidation, true);

@@ -8,6 +8,7 @@ import {
   type TerminalPasteOutcome,
   type TerminalPasteStatus,
 } from "@/lib/terminal/clipboard";
+import { clearPreservedTerminalSelection, preservedTerminalSelection } from "./native-selection";
 
 export type ClipboardFallbackReason =
   | "clipboard-api-unavailable"
@@ -66,6 +67,8 @@ export function getTerminalSelectionText(term: {
   getSelection?: () => string;
   element?: HTMLElement;
 }): string {
+  const preserved = preservedTerminalSelection(term);
+  if (preserved !== undefined) return preserved;
   const native = typeof window === "undefined" ? null : window.getSelection();
   if (
     native &&
@@ -272,6 +275,7 @@ export function copyTerminalSelection(
     term.element.contains(native.focusNode) &&
     native.toString()
       ? {
+          text: native.toString(),
           anchorNode: native.anchorNode,
           anchorOffset: native.anchorOffset,
           focusNode: native.focusNode,
@@ -286,13 +290,15 @@ export function copyTerminalSelection(
         current.anchorOffset === nativeSnapshot.anchorOffset &&
         current.focusNode === nativeSnapshot.focusNode &&
         current.focusOffset === nativeSnapshot.focusOffset &&
-        current.toString() === selection
+        current.toString() === nativeSnapshot.text
       ) {
         current.removeAllRanges();
       }
-    } else if (term.getSelection() === selection) {
-      term.clearSelection();
     }
+    // A redraw may collapse the DOM range while the clipboard write is pending.
+    // Clear the copied snapshot independently, leaving any newer DOM range alone.
+    if (preservedTerminalSelection(term) === selection) clearPreservedTerminalSelection(term);
+    if (term.getSelection() === selection) term.clearSelection();
   };
 
   const clipboard = getClipboard();

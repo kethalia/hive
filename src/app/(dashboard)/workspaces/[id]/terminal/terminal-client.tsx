@@ -36,10 +36,6 @@ import {
 } from "@/lib/terminal/actions";
 import { submitTerminalComposeDraft, type TerminalComposeRequest } from "@/lib/terminal/clipboard";
 import { TERMINAL_COMPOSE_OPEN_EVENT, TERMINAL_COMPOSE_TOGGLE_EVENT } from "@/lib/terminal/events";
-import {
-  isTerminalSettingsChangedDetail,
-  TERMINAL_SETTINGS_CHANGED_EVENT,
-} from "@/lib/terminal/settings-events";
 
 const InteractiveTerminal = dynamic(
   () => import("@/components/workspaces/InteractiveTerminal").then((m) => m.InteractiveTerminal),
@@ -61,11 +57,11 @@ function terminalSessionHref(
 function clipboardFallbackText(reason: string): string {
   switch (reason) {
     case "clipboard-api-denied":
-      return "Clipboard permission was denied. Use selection mode or the browser paste control.";
+      return "Clipboard permission was denied. Long-press terminal text to select and copy, or use the browser paste control.";
     case "clipboard-api-unavailable":
-      return "Clipboard API is unavailable. Use selection mode or the browser paste control.";
+      return "Clipboard API is unavailable. Long-press terminal text to select and copy, or use the browser paste control.";
     default:
-      return "Clipboard API failed. Use selection mode or the browser paste control.";
+      return "Clipboard API failed. Long-press terminal text to select and copy, or use the browser paste control.";
   }
 }
 
@@ -99,11 +95,7 @@ function isTextEntryElement(element: Element | null): boolean {
 
 function clipboardStatusText(
   status: ClipboardActionStatus | null,
-  {
-    canPaste,
-    hasTerminal,
-    selectionModeEnabled,
-  }: { canPaste: boolean; hasTerminal: boolean; selectionModeEnabled: boolean },
+  { canPaste, hasTerminal }: { canPaste: boolean; hasTerminal: boolean },
 ): string {
   if (status) {
     switch (status.action) {
@@ -133,11 +125,10 @@ function clipboardStatusText(
 
   if (!hasTerminal)
     return "Terminal is not ready. Clipboard controls will enable after connection.";
-  if (selectionModeEnabled) return "Selection mode on. Select terminal text, then copy.";
   if (!canPaste) {
     return "Terminal ready. Select terminal text to copy; paste will enable after connection.";
   }
-  return "Terminal ready. Use Select for text selection, Copy, or Paste.";
+  return "Terminal ready. Long-press text to select, then copy.";
 }
 
 function toastPasteError(status: ClipboardActionStatus): void {
@@ -145,15 +136,7 @@ function toastPasteError(status: ClipboardActionStatus): void {
   toast.error(status.message ?? "Paste failed.");
 }
 
-function TerminalInner({
-  agentId,
-  terminalControlsBeyondMobile: initialTerminalControlsBeyondMobile,
-  workspaceId,
-}: {
-  agentId: string;
-  terminalControlsBeyondMobile: boolean;
-  workspaceId: string;
-}) {
+function TerminalInner({ agentId, workspaceId }: { agentId: string; workspaceId: string }) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const session = searchParams.get("session");
@@ -176,10 +159,6 @@ function TerminalInner({
   const [composeDraft, setComposeDraft] = useState("");
   const [composeTargetLabel, setComposeTargetLabel] = useState<string | undefined>();
   const [windowSwitcherOpen, setWindowSwitcherOpen] = useState(false);
-  const [selectionModeEnabled, setSelectionModeEnabled] = useState(false);
-  const [terminalControlsBeyondMobile, setTerminalControlsBeyondMobile] = useState(
-    initialTerminalControlsBeyondMobile,
-  );
   const [hasTerminalSelection, setHasTerminalSelection] = useState(false);
   const [clipboardActionStatus, setClipboardActionStatus] = useState<ClipboardActionStatus | null>(
     null,
@@ -219,14 +198,11 @@ function TerminalInner({
   const mobileLayoutSignal = isMobileKeyboardVisible
     ? `keyboard:${visualViewportHeightPx}:${visualViewportOffsetTopPx}`
     : `lift:${keyboardLiftPx}`;
-  const controlsVisible = isComposeSheet || terminalControlsBeyondMobile;
-  const controlsSelectionModeEnabled = controlsVisible && selectionModeEnabled;
   const hasActiveTerminal = Boolean(activeTerminal);
   const hasActiveSender = Boolean(activeSend);
   const clipboardStatus = clipboardStatusText(clipboardActionStatus, {
     canPaste: hasActiveSender,
     hasTerminal: hasActiveTerminal,
-    selectionModeEnabled: controlsSelectionModeEnabled,
   });
   const cloneIdentityMatchesRoute = cloneIdentity.sessionName === session;
   const clonePath = cloneIdentityMatchesRoute ? cloneIdentity.clonePath : routeClonePath;
@@ -295,11 +271,6 @@ function TerminalInner({
     setActiveTerminal(null, null);
   }, [setActiveTerminal]);
 
-  const handleSelectionModeChange = useCallback((enabled: boolean) => {
-    setSelectionModeEnabled(enabled);
-    setClipboardActionStatus(null);
-  }, []);
-
   const handleClipboardActionStatus = useCallback((status: ClipboardActionStatus) => {
     setClipboardActionStatus(status);
     toastPasteError(status);
@@ -345,7 +316,7 @@ function TerminalInner({
   ]);
 
   useEffect(() => {
-    if (!session || isComposeSheet || composeOpen || selectionModeEnabled || !activeTerminal) {
+    if (!session || isComposeSheet || composeOpen || !activeTerminal) {
       return;
     }
 
@@ -355,7 +326,7 @@ function TerminalInner({
     });
 
     return () => window.cancelAnimationFrame(frame);
-  }, [activeTerminal, composeOpen, isComposeSheet, selectionModeEnabled, session]);
+  }, [activeTerminal, composeOpen, isComposeSheet, session]);
 
   useEffect(() => {
     setCloneIdentity({
@@ -369,7 +340,6 @@ function TerminalInner({
     if (previousSessionRef.current === session) return;
 
     previousSessionRef.current = session;
-    setSelectionModeEnabled(false);
     setClipboardActionStatus(null);
   }, [session]);
 
@@ -393,10 +363,6 @@ function TerminalInner({
   }, [activeTerminal]);
 
   useEffect(() => {
-    setTerminalControlsBeyondMobile(initialTerminalControlsBeyondMobile);
-  }, [initialTerminalControlsBeyondMobile]);
-
-  useEffect(() => {
     const handleComposeOpen = () => {
       setComposeOpen(true);
     };
@@ -409,18 +375,6 @@ function TerminalInner({
       window.removeEventListener(TERMINAL_COMPOSE_OPEN_EVENT, handleComposeOpen);
       window.removeEventListener(TERMINAL_COMPOSE_TOGGLE_EVENT, handleComposeToggle);
     };
-  }, []);
-
-  useEffect(() => {
-    const handleTerminalSettingsChanged = (event: Event) => {
-      if (!(event instanceof CustomEvent)) return;
-      if (!isTerminalSettingsChangedDetail(event.detail)) return;
-      setTerminalControlsBeyondMobile(event.detail.terminalControlsBeyondMobile);
-    };
-
-    window.addEventListener(TERMINAL_SETTINGS_CHANGED_EVENT, handleTerminalSettingsChanged);
-    return () =>
-      window.removeEventListener(TERMINAL_SETTINGS_CHANGED_EVENT, handleTerminalSettingsChanged);
   }, []);
 
   useEffect(() => {
@@ -542,11 +496,7 @@ function TerminalInner({
   }
 
   const terminalPane = (
-    <div
-      className="h-full"
-      data-sidebar-gesture-ignore={controlsSelectionModeEnabled ? "true" : undefined}
-      data-terminal-surface="true"
-    >
+    <div className="h-full" data-terminal-surface="true">
       <InteractiveTerminal
         key={session}
         agentId={agentId}
@@ -566,7 +516,6 @@ function TerminalInner({
         layoutSignal={mobileLayoutSignal}
         mobileInputMode={isComposeSheet}
         pinToBottomOnResize={isComposeSheet}
-        selectionModeEnabled={controlsSelectionModeEnabled}
       />
     </div>
   );
@@ -576,12 +525,12 @@ function TerminalInner({
       isKeyboardVisible={isMobileKeyboardVisible}
       onHapticFeedback={triggerHapticFeedback}
       hasSelection={hasTerminalSelection}
-      selectionModeEnabled={controlsSelectionModeEnabled}
-      onToggleSelectionMode={handleSelectionModeChange}
       onCopy={handleMobileCopy}
       onPaste={handleMobilePaste}
       clipboardStatusText={clipboardStatus}
-      selectionModeDisabledReason={hasActiveTerminal ? undefined : "Terminal is not ready"}
+      showClipboardStatus={
+        clipboardActionStatus?.outcome === "failed" || clipboardActionStatus?.outcome === "fallback"
+      }
       copyDisabledReason={
         hasActiveTerminal
           ? hasTerminalSelection
@@ -687,7 +636,6 @@ function TerminalInner({
           </div>
         ) : null}
       </div>
-      {terminalControlsBeyondMobile ? terminalControls : null}
       <MobileTerminalDiagnosticsOverlay enabled={debugViewportEnabled} />
     </div>
   );
@@ -696,15 +644,10 @@ function TerminalInner({
 interface TerminalClientProps {
   agentId: string;
   agentName?: string;
-  terminalControlsBeyondMobile?: boolean;
   workspaceId: string;
 }
 
-export function TerminalClient({
-  agentId,
-  terminalControlsBeyondMobile = false,
-  workspaceId,
-}: TerminalClientProps) {
+export function TerminalClient({ agentId, workspaceId }: TerminalClientProps) {
   return (
     <Suspense
       fallback={
@@ -716,11 +659,7 @@ export function TerminalClient({
         </div>
       }
     >
-      <TerminalInner
-        agentId={agentId}
-        terminalControlsBeyondMobile={terminalControlsBeyondMobile}
-        workspaceId={workspaceId}
-      />
+      <TerminalInner agentId={agentId} workspaceId={workspaceId} />
     </Suspense>
   );
 }

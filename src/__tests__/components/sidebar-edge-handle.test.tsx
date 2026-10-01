@@ -426,3 +426,45 @@ describe("SidebarEdgeHandle", () => {
     expect(sidebarState.setOpenMobile).not.toHaveBeenCalled();
   });
 });
+
+it("leaves long-press selection drags to the browser", async () => {
+  renderHandle();
+  const now = vi.spyOn(Date, "now").mockReturnValue(1000);
+  try {
+    touchEvent("touchstart", [touchPoint(1, 200, 200)]);
+    now.mockReturnValue(1600);
+    const move = touchEvent("touchmove", [touchPoint(1, 280, 204)]);
+    touchEvent("touchend", []);
+    await Promise.resolve();
+    expect(move.defaultPrevented).toBe(false);
+    expect(sidebarState.setOpenMobile).not.toHaveBeenCalled();
+  } finally {
+    now.mockRestore();
+  }
+});
+
+it.each([
+  true,
+  false,
+])("scopes selection ownership to the swipe surface (local=%s)", async (local) => {
+  renderHandle();
+  const pane = document.createElement("div");
+  pane.dataset.terminalNativeSelection = "true";
+  pane.textContent = "selected terminal text";
+  const other = document.createElement("div");
+  document.body.append(pane, other);
+  window.getSelection()!.selectAllChildren(pane);
+  try {
+    const target = local ? pane : other;
+    touchEvent("touchstart", [touchPoint(1, 200, 200)], target);
+    const move = touchEvent("touchmove", [touchPoint(1, 280, 204)], target);
+    touchEvent("touchend", [], target);
+    await Promise.resolve();
+    expect(move.defaultPrevented).toBe(!local);
+    expect(sidebarState.setOpenMobile).toHaveBeenCalledTimes(local ? 0 : 1);
+  } finally {
+    window.getSelection()!.removeAllRanges();
+    pane.remove();
+    other.remove();
+  }
+});
