@@ -212,25 +212,24 @@ it("does not open an old hover when touching padding without a link result", () 
   dispose();
 });
 
-it("opens only the current touch result, including delayed providers and repeated taps", () => {
+it("probes only released taps, including repeated taps after a canceled gesture", () => {
   const open = vi.spyOn(window, "open").mockReturnValue(null);
   const { term, dispose } = surface();
   const screen = document.createElement("div");
   screen.className = "xterm-screen";
   term.element.append(screen);
-  const probes: MouseEvent[] = [];
-  screen.addEventListener("mousemove", (event) => probes.push(event));
-  const hover = (event: MouseEvent, url: string) =>
-    term.options.linkHandler?.hover?.(event, url, {} as never);
+  const probe = vi.fn((event: MouseEvent) =>
+    term.options.linkHandler?.hover?.(event, "https://current.example", {} as never),
+  );
+  screen.addEventListener("mousemove", probe);
   term.element.dispatchEvent(touchEvent("touchstart"));
   term.element.dispatchEvent(touchEvent("touchcancel"));
-  term.element.dispatchEvent(touchEvent("touchstart"));
-  hover(probes[0], "https://old.example");
   term.element.dispatchEvent(touchEvent("touchend"));
-  expect(open).not.toHaveBeenCalled();
+  expect(probe).not.toHaveBeenCalled();
+  expect(document.querySelector("[role=menu]")).toBeNull();
   for (let i = 0; i < 2; i++) {
     term.element.dispatchEvent(touchEvent("touchstart"));
-    hover(probes.at(-1)!, "https://current.example");
+    expect(probe).toHaveBeenCalledTimes(i);
     term.element.dispatchEvent(touchEvent("touchend"));
     clickOpenUrl();
   }
@@ -243,9 +242,30 @@ it("opens only the current touch result, including delayed providers and repeate
   dispose();
 });
 
-it("does not activate a touch link that was invalidated before release", () => {
-  const open = vi.spyOn(window, "open").mockReturnValue(null);
+it("keeps the touched text attached until release even when URL decoration replaces it", () => {
   const { term, dispose } = surface();
+  const screen = document.createElement("div");
+  screen.className = "xterm-screen";
+  const text = document.createElement("span");
+  text.textContent = "https://example.com";
+  screen.append(text);
+  term.element.append(screen);
+  screen.addEventListener("mousemove", (event) => {
+    // xterm's DOM renderer replaces the link's spans when applying its underline.
+    screen.replaceChildren(document.createElement("span"));
+    term.options.linkHandler?.hover?.(event, "https://example.com", {} as never);
+  });
+  text.dispatchEvent(touchEvent("touchstart"));
+  expect(text.isConnected).toBe(true);
+  text.dispatchEvent(touchEvent("touchend"));
+  expect(text.isConnected).toBe(false);
+  expect(document.querySelector("[role=menu]")?.textContent).toContain("Open URL in browser");
+  dispose();
+});
+
+it("does not probe a touch link after the terminal scrolls before release", () => {
+  const open = vi.spyOn(window, "open").mockReturnValue(null);
+  const { term, events, dispose } = surface();
   const screen = document.createElement("div");
   screen.className = "xterm-screen";
   term.element.append(screen);
@@ -253,19 +273,60 @@ it("does not activate a touch link that was invalidated before release", () => {
     term.options.linkHandler?.hover?.(event, "https://example.com", {} as never),
   );
   term.element.dispatchEvent(touchEvent("touchstart"));
-  term.options.linkHandler?.leave?.(
-    new MouseEvent("mouseleave"),
-    "https://example.com",
-    {} as never,
-  );
+  events.scroll();
   term.element.dispatchEvent(touchEvent("touchend"));
   expect(open).not.toHaveBeenCalled();
+  expect(document.querySelector("[role=menu]")).toBeNull();
+  dispose();
+});
+
+it.each([
+  false,
+  true,
+])("checks the touched row before probing on release (changed=%s)", (changed) => {
+  const { term, events, lines, dispose } = positionedSurface();
+  const screen = term.element.querySelector<HTMLElement>(".xterm-screen")!;
+  const probe = vi.fn((event: MouseEvent) =>
+    term.options.linkHandler?.hover?.(event, "https://example.com", {} as never),
+  );
+  screen.addEventListener("mousemove", probe);
+  term.element.dispatchEvent(touchEvent("touchstart", 10, 10));
+  lines[changed ? 0 : 1] = "updated output";
+  events.parsed();
+  term.element.dispatchEvent(touchEvent("touchend", 10, 10));
+  expect(probe).toHaveBeenCalledTimes(changed ? 0 : 1);
+  expect(Boolean(document.querySelector("[role=menu]"))).toBe(!changed);
   dispose();
 });
 
 it("does not register clipboard protocols on read-only surfaces", () => {
   const { osc, dispose } = surface();
   expect(osc.has(52)).toBe(false);
+  dispose();
+});
+
+it("cancels a held tap when OSC metadata changes without changing the visible label", () => {
+  const { term, events, lines, osc, dispose } = positionedSurface();
+  lines[0] = "Pull request";
+  let uri = "https://example.com/original";
+  const screen = term.element.querySelector<HTMLElement>(".xterm-screen")!;
+  const probe = vi.fn((event: MouseEvent) =>
+    term.options.linkHandler?.hover?.(event, uri, {} as never),
+  );
+  screen.addEventListener("mousemove", probe);
+
+  term.element.dispatchEvent(touchEvent("touchstart", 10, 10));
+  uri = "https://example.com/replacement";
+  expect(osc.get(8)?.(`;${uri}`)).toBe(false);
+  events.parsed(); // The rendered label is unchanged; only the OSC destination changed.
+  term.element.dispatchEvent(touchEvent("touchend", 10, 10));
+  expect(probe).not.toHaveBeenCalled();
+  expect(document.querySelector("[role=menu]")).toBeNull();
+
+  // A fresh gesture may intentionally choose the replacement destination.
+  term.element.dispatchEvent(touchEvent("touchstart", 10, 10));
+  term.element.dispatchEvent(touchEvent("touchend", 10, 10));
+  expect(document.querySelector("[role=menu]")?.textContent).toContain(uri);
   dispose();
 });
 
@@ -302,12 +363,13 @@ it.each([
   });
   for (let i = 0; i < 2; i++) {
     term.element.dispatchEvent(touchEvent("touchstart"));
-    expect(currentLink).toBe(true);
     term.element.dispatchEvent(touchEvent("touchmove", 10 + movement));
     // Returning to the start must not turn an actual scroll into a tap.
     term.element.dispatchEvent(touchEvent("touchend"));
-    if (movement < 8) clickOpenUrl();
-    else expect(document.querySelector("[role=menu]")).toBeNull();
+    if (movement < 8) {
+      expect(currentLink).toBe(true);
+      clickOpenUrl();
+    } else expect(document.querySelector("[role=menu]")).toBeNull();
   }
   expect(open).toHaveBeenCalledTimes(movement < 8 ? 2 : 0);
   expect(remoteMotion).not.toHaveBeenCalled();
@@ -560,6 +622,8 @@ it.each([
   screen.addEventListener("mousemove", (event) => {
     probe = event;
   });
+  term.element.dispatchEvent(touchEvent("touchstart"));
+  term.element.dispatchEvent(touchEvent("touchend"));
   term.element.dispatchEvent(touchEvent("touchstart"));
   term.element.dispatchEvent(touchEvent(cancelEvent, 100, 100));
   term.element.dispatchEvent(touchEvent("touchend", 100, 100));
