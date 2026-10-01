@@ -4810,7 +4810,10 @@ export function MultiSessionWorkspace({
       <div className="flex min-h-0 flex-1 flex-col">
         <div
           ref={workspaceBodyRef}
-          className="relative min-h-0 flex-1 overflow-hidden overscroll-none"
+          className={cn(
+            "relative min-h-0 flex-1 overflow-hidden overscroll-none",
+            isComposeSheet && "my-2",
+          )}
           data-testid="multi-session-body"
         >
           {boardRenderModels.map(renderBoardLayer)}
