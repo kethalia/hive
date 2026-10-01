@@ -305,6 +305,31 @@ it("does not register clipboard protocols on read-only surfaces", () => {
   dispose();
 });
 
+it("cancels a held tap when OSC metadata changes without changing the visible label", () => {
+  const { term, events, lines, osc, dispose } = positionedSurface();
+  lines[0] = "Pull request";
+  let uri = "https://example.com/original";
+  const screen = term.element.querySelector<HTMLElement>(".xterm-screen")!;
+  const probe = vi.fn((event: MouseEvent) =>
+    term.options.linkHandler?.hover?.(event, uri, {} as never),
+  );
+  screen.addEventListener("mousemove", probe);
+
+  term.element.dispatchEvent(touchEvent("touchstart", 10, 10));
+  uri = "https://example.com/replacement";
+  expect(osc.get(8)?.(`;${uri}`)).toBe(false);
+  events.parsed(); // The rendered label is unchanged; only the OSC destination changed.
+  term.element.dispatchEvent(touchEvent("touchend", 10, 10));
+  expect(probe).not.toHaveBeenCalled();
+  expect(document.querySelector("[role=menu]")).toBeNull();
+
+  // A fresh gesture may intentionally choose the replacement destination.
+  term.element.dispatchEvent(touchEvent("touchstart", 10, 10));
+  term.element.dispatchEvent(touchEvent("touchend", 10, 10));
+  expect(document.querySelector("[role=menu]")?.textContent).toContain(uri);
+  dispose();
+});
+
 it.each([
   0, 1, 7, 8, 20,
 ])("rechecks the same xterm cell and tolerates %s px of touch movement", (movement) => {

@@ -298,10 +298,11 @@ export function installTerminalBrowserIntegration(
       finish([]);
     }
   };
-  // OSC 8 metadata is not exposed by public cells. Cancel checks when that
-  // metadata is written, while allowing unrelated output to continue.
+  // OSC 8 metadata is not exposed by public cells. Cancel checks and pending
+  // taps when it changes, even if the visible label stays the same.
   const oscLinks = term.parser.registerOscHandler(8, () => {
     pressed = undefined;
+    clearTouch();
     cancelPathValidation();
     return false;
   });
