@@ -147,3 +147,16 @@ it("clears pending modifiers when switching terminal or unmounting controls", ()
   unmount();
   expect(getMobileModifiers(other).alt).toBe(false);
 });
+
+it("shows clipboard failure feedback without adding another row of buttons", () => {
+  render(
+    <MobileTerminalControls
+      clipboardStatusText="Clipboard permission was denied."
+      showClipboardStatus
+    />,
+  );
+  const status = screen.getByText("Clipboard permission was denied.");
+  expect(status).not.toHaveClass("sr-only");
+  expect(status).toHaveAttribute("aria-live", "polite");
+  expect(screen.getAllByRole("group", { name: "Terminal keys" })).toHaveLength(1);
+});

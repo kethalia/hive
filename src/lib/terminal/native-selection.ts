@@ -18,7 +18,9 @@ const snapshots = new WeakMap<
 >();
 
 export function clearPreservedTerminalSelection(term: object): void {
-  snapshots.delete(term);
+  if (snapshots.delete(term) && typeof document !== "undefined") {
+    document.dispatchEvent(new Event("selectionchange"));
+  }
 }
 
 export function preservedTerminalSelection(term: object): string | undefined {

@@ -3232,6 +3232,26 @@ describe("InteractiveTerminal integration — Mobile input adapter", () => {
     unmount();
   });
 
+  it.each([
+    -1, 1,
+  ])("does not send diagonal drawer swipes to the remote TUI (direction=%s)", async (direction) => {
+    const { container, unmount } = await renderTerminal({ mobileInputMode: true });
+    const terminal = terminalInstances.at(-1)!;
+    terminal.modes.mouseTrackingMode = "any";
+    terminal.focus.mockClear();
+    const host = container.querySelector('[data-testid="terminal-fit-host"]')!;
+    const screen = container.querySelector(".xterm-screen")!;
+    const wheel = vi.fn();
+    screen.addEventListener("wheel", wheel);
+    fireTouchEvent(host, "touchstart", [touchPoint(1, 200, 200)]);
+    fireTouchEvent(host, "touchmove", [touchPoint(1, 200 + direction * 80, 220)]);
+    fireTouchEvent(host, "touchmove", [touchPoint(1, 200 + direction * 80, 300)]);
+    fireTouchEvent(host, "touchend", [], [touchPoint(1, 200 + direction * 80, 300)]);
+    expect(wheel).not.toHaveBeenCalled();
+    expect(terminal.focus).not.toHaveBeenCalled();
+    unmount();
+  });
+
   it("does not use browser scrollback for mobile terminal touch drags", async () => {
     const { container, unmount } = await renderTerminal({ mobileInputMode: true });
     const terminal = terminalInstances.at(-1);

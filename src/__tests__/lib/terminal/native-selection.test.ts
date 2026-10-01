@@ -204,3 +204,31 @@ it.each([
     dispose();
   }
 });
+
+it("notifies Copy availability after copying an already detached snapshot", async () => {
+  const { term, element, dispose } = setup();
+  window.getSelection()!.selectAllChildren(element.querySelector("span")!);
+  document.dispatchEvent(new Event("selectionchange"));
+  element.querySelector(".xterm-rows")!.replaceChildren();
+  document.dispatchEvent(new Event("selectionchange"));
+  let available = true;
+  const update = () => {
+    available = Boolean(getTerminalSelectionText(term));
+  };
+  document.addEventListener("selectionchange", update);
+  const original = Object.getOwnPropertyDescriptor(navigator, "clipboard");
+  Object.defineProperty(navigator, "clipboard", {
+    configurable: true,
+    value: { writeText: vi.fn().mockResolvedValue(undefined) },
+  });
+  try {
+    copyTerminalSelection(term);
+    await Promise.resolve();
+    expect(available).toBe(false);
+  } finally {
+    document.removeEventListener("selectionchange", update);
+    if (original) Object.defineProperty(navigator, "clipboard", original);
+    else Reflect.deleteProperty(navigator, "clipboard");
+    dispose();
+  }
+});

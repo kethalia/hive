@@ -47,6 +47,7 @@ export interface MobileTerminalControlsProps {
   onCopy?: () => void;
   onPaste?: () => void;
   clipboardStatusText?: string;
+  showClipboardStatus?: boolean;
   copyDisabledReason?: string;
   pasteDisabledReason?: string;
 }
@@ -58,6 +59,7 @@ export function MobileTerminalControls({
   onCopy,
   onPaste,
   clipboardStatusText,
+  showClipboardStatus = false,
   copyDisabledReason,
   pasteDisabledReason,
 }: MobileTerminalControlsProps = {}) {
@@ -169,7 +171,12 @@ export function MobileTerminalControls({
           </Button>
         ))}
       </fieldset>
-      <span className="sr-only" aria-live="polite">
+      <span
+        className={
+          showClipboardStatus ? "block px-1 py-1 text-xs text-muted-foreground" : "sr-only"
+        }
+        aria-live="polite"
+      >
         {clipboardStatusText}
       </span>
     </section>

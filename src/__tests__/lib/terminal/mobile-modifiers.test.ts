@@ -32,3 +32,22 @@ it.each([
   expect(getMobileModifiers(terminal)).toEqual({ ctrl: false, alt: false, shift: false });
   expect(applyMobileModifiers(terminal, "c")).toBe("c");
 });
+
+it.each([
+  ["\x1b[H", "\x1b[1;5H"],
+  ["\x1bOH", "\x1b[1;5H"],
+  ["\x1b[F", "\x1b[1;5F"],
+  ["\x1bOF", "\x1b[1;5F"],
+  ["\x1b[2~", "\x1b[2;5~"],
+  ["\x1b[3~", "\x1b[3;5~"],
+  ["\x1b[5~", "\x1b[5;5~"],
+  ["\x1b[6~", "\x1b[6;5~"],
+  ...["P", "Q", "R", "S"].map((key) => [`\x1bO${key}`, `\x1b[1;5${key}`]),
+  ...[15, 17, 18, 19, 20, 21, 23, 24].map((key) => [`\x1b[${key}~`, `\x1b[${key};5~`]),
+])("applies Ctrl to hardware special key %s without leaving it armed", (input, expected) => {
+  const terminal = {};
+  setMobileModifiers(terminal, { ctrl: true, alt: false, shift: false });
+  expect(applyMobileModifiers(terminal, input)).toBe(expected);
+  expect(getMobileModifiers(terminal).ctrl).toBe(false);
+  expect(applyMobileModifiers(terminal, "c")).toBe("c");
+});

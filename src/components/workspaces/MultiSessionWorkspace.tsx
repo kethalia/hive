@@ -4032,6 +4032,9 @@ export function MultiSessionWorkspace({
       onCopy={handleMobileCopy}
       onPaste={handleMobilePaste}
       clipboardStatusText={mobileClipboardStatus}
+      showClipboardStatus={
+        clipboardActionStatus?.outcome === "failed" || clipboardActionStatus?.outcome === "fallback"
+      }
       copyDisabledReason={
         hasActiveTerminal
           ? hasTerminalSelection

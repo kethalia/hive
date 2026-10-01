@@ -107,6 +107,7 @@ interface InteractiveTerminalProps {
 interface MobileTouchIntent {
   startedAt: number;
   didScroll: boolean;
+  horizontalSwipe: boolean;
   touchIdentifier: number;
   startX: number;
   startY: number;
@@ -657,6 +658,7 @@ export function InteractiveTerminal({
     mobileTouchIntentRef.current = {
       startedAt: Date.now(),
       didScroll: false,
+      horizontalSwipe: false,
       touchIdentifier: touch.identifier,
       startX: touch.clientX,
       startY: touch.clientY,
@@ -673,7 +675,7 @@ export function InteractiveTerminal({
       intent.multiTouch = true;
       return;
     }
-    if (intent.multiTouch) return;
+    if (intent.multiTouch || intent.horizontalSwipe) return;
 
     const touch = Array.from(event.touches).find(
       (candidate) => candidate.identifier === intent.touchIdentifier,
@@ -688,6 +690,11 @@ export function InteractiveTerminal({
     const movedPx = Math.hypot(deltaX, deltaYFromStart);
     if (!intent.didScroll && movedPx < MOBILE_TERMINAL_SCROLL_THRESHOLD_PX) return;
 
+    if (Math.abs(deltaX) >= Math.abs(deltaYFromStart)) {
+      intent.horizontalSwipe = true;
+      suppressNextClickFocusRef.current = true;
+      return;
+    }
     intent.didScroll = true;
     suppressNextClickFocusRef.current = true;
     preventDefaultIfCancelable(event);
@@ -720,6 +727,7 @@ export function InteractiveTerminal({
         Date.now() - intent.startedAt < LONG_PRESS_MS &&
         !hasNativeTerminalSelection(containerRef.current) &&
         !intent.didScroll &&
+        !intent.horizontalSwipe &&
         !intent.multiTouch &&
         !selectionModeEnabledRef.current
       ) {

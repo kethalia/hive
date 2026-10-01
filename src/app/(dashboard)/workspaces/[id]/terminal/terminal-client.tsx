@@ -559,6 +559,9 @@ function TerminalInner({
       onCopy={handleMobileCopy}
       onPaste={handleMobilePaste}
       clipboardStatusText={clipboardStatus}
+      showClipboardStatus={
+        clipboardActionStatus?.outcome === "failed" || clipboardActionStatus?.outcome === "fallback"
+      }
       copyDisabledReason={
         hasActiveTerminal
           ? hasTerminalSelection
