@@ -160,3 +160,12 @@ it("shows clipboard failure feedback without adding another row of buttons", () 
   expect(status).toHaveAttribute("aria-live", "polite");
   expect(screen.getAllByRole("group", { name: "Terminal keys" })).toHaveLength(1);
 });
+
+it("reserves saved selection only for the Copy control", () => {
+  render(<MobileTerminalControls hasSelection onCopy={vi.fn()} onPaste={vi.fn()} />);
+  const copy = screen.getByRole("button", { name: "Copy terminal selection" });
+  expect(copy).toHaveAttribute("data-terminal-selection-copy", "true");
+  for (const button of screen.getAllByRole("button")) {
+    if (button !== copy) expect(button).not.toHaveAttribute("data-terminal-selection-copy");
+  }
+});

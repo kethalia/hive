@@ -140,6 +140,7 @@ export function MobileTerminalControls({
           {
             label: "Copy terminal selection",
             Icon: Copy,
+            preservesSelection: true,
             action: () => onCopy?.(),
             disabled: !onCopy || !hasSelection || Boolean(copyDisabledReason),
           },
@@ -156,7 +157,7 @@ export function MobileTerminalControls({
           },
           { label: "Decrease font size", Icon: Minus, action: decrease, disabled: !canDecrease },
           { label: "Increase font size", Icon: Plus, action: increase, disabled: !canIncrease },
-        ].map(({ label, Icon, action, disabled }) => (
+        ].map(({ label, Icon, action, disabled, preservesSelection }) => (
           <Button
             key={label}
             type="button"
@@ -164,6 +165,7 @@ export function MobileTerminalControls({
             className={BUTTON_CLASS}
             aria-label={label}
             title={label}
+            data-terminal-selection-copy={preservesSelection ? "true" : undefined}
             disabled={disabled}
             onClick={() => press(action)}
           >

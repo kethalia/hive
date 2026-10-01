@@ -173,22 +173,24 @@ it.each([
   }
 });
 
-it.each([
-  "pointerdown",
-  "touchstart",
-])("clears detached snapshots on an outside %s but preserves Copy actions", (type) => {
+it.each(
+  ["pointerdown", "touchstart"].flatMap((type) =>
+    ["div", "button", "a", "input", "textarea", "select"].map((tag) => ({ type, tag })),
+  ),
+)("clears detached snapshots on $tag $type but preserves Copy actions", ({ type, tag }) => {
   const { term, element, dispose } = setup();
   window.getSelection()!.selectAllChildren(element.querySelector("span")!);
   document.dispatchEvent(new Event("selectionchange"));
   element.querySelector(".xterm-rows")!.replaceChildren();
   document.dispatchEvent(new Event("selectionchange"));
   const copy = document.createElement("button");
+  copy.dataset.terminalSelectionCopy = "true";
   const icon = document.createElement("span");
   copy.append(icon);
   document.body.append(copy);
   icon.dispatchEvent(new Event(type, { bubbles: true }));
   expect(getTerminalSelectionText(term)).toBe("A😀");
-  const outside = document.createElement("div");
+  const outside = document.createElement(tag);
   document.body.append(outside);
   const changed = vi.fn();
   document.addEventListener("selectionchange", changed);

@@ -48,9 +48,8 @@ export function installNativeTerminalSelection(term: Terminal): () => void {
   const outsideGesture = (event: Event) => {
     const target = event.target;
     if (!(target instanceof Element) || element?.contains(target)) return;
-    // Controls such as Copy intentionally act on the saved selection.
-    if (target.closest("button, a, input, textarea, select, [role='button'], [role='menuitem']"))
-      return;
+    // Only Copy consumes the saved range; other controls dismiss stale text.
+    if (target.closest('[data-terminal-selection-copy="true"]')) return;
     if (!snapshots.has(term) || !endpoints?.some((node) => !node.isConnected)) return;
     clear();
     // The redraw may already have collapsed the DOM range, so the browser need
