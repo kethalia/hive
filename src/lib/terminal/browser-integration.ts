@@ -395,13 +395,19 @@ export function installTerminalBrowserIntegration(
       return;
     touchStartedAt = Date.now();
     const touch = event.touches[0];
-    // xterm's public link providers resolve on mouse movement; touch has no hover.
-    const screen = element?.querySelector(".xterm-screen");
+    pendingAnchor = readAnchor(touch.clientY);
     touchProbe = new MouseEvent("mousemove", {
       clientX: touch.clientX,
       clientY: touch.clientY,
     });
     touchProbes.add(touchProbe);
+    touchTimer = setTimeout(clearTouch, TERMINAL_PATH_VALIDATION_TIMEOUT_MS + 1000);
+  };
+  const probeTouchLink = (probe: MouseEvent) => {
+    // Probe only after release: xterm underlines links by replacing their DOM
+    // text nodes. Probing on touchstart detaches the finger's original target,
+    // so touchend cannot bubble to this terminal and open the URL menu.
+    const screen = element?.querySelector(".xterm-screen");
     // xterm retains its last buffer cell on mouseleave. Visit a different column
     // first so repeated taps trigger a fresh lookup. Keep probes on the screen:
     // bubbling would send synthetic mouse motion to the remote application.
@@ -409,28 +415,34 @@ export function installTerminalBrowserIntegration(
     if (rect && rect.width > 0) {
       const cellWidth = rect.width / term.cols;
       const resetX =
-        touch.clientX <= rect.left + cellWidth
+        probe.clientX <= rect.left + cellWidth
           ? rect.right - cellWidth / 2
           : rect.left + cellWidth / 2;
       const resetProbe = new MouseEvent("mousemove", {
         clientX: resetX,
-        clientY: touch.clientY,
+        clientY: probe.clientY,
       });
       touchProbes.add(resetProbe);
       screen?.dispatchEvent(resetProbe);
     }
     screen?.dispatchEvent(new MouseEvent("mouseleave"));
-    screen?.dispatchEvent(touchProbe);
-    touchTimer = setTimeout(clearTouch, TERMINAL_PATH_VALIDATION_TIMEOUT_MS + 1000);
+    screen?.dispatchEvent(probe);
   };
   const touchEnd = (event: TouchEvent) => {
     if (Date.now() - touchStartedAt >= LONG_PRESS_MS || hasNativeTerminalSelection(element)) {
       cancel();
       return;
     }
+    const touch = event.changedTouches[0];
+    const probe = touchProbe;
+    if (!probe || !touch) return;
+    if (Math.hypot(touch.clientX - probe.clientX, touch.clientY - probe.clientY) >= 8) {
+      cancel();
+      return;
+    }
+    probeTouchLink(probe);
     const link = pressed;
     pressed = undefined;
-    const touch = event.changedTouches[0];
     if (
       !link &&
       touchProbe &&

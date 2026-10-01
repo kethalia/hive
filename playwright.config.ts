@@ -32,5 +32,9 @@ export default defineConfig({
       name: "mobile-webkit",
       use: { ...devices["iPhone 15 Pro"], browserName: "webkit" },
     },
+    {
+      name: "tablet-webkit",
+      use: { ...devices["iPad Mini"], browserName: "webkit" },
+    },
   ],
 });
