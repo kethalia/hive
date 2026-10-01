@@ -50,3 +50,19 @@ export function resolveHorizontalSwipe(
 
   return { direction: deltaX < 0 ? "left" : "right", horizontalIntent };
 }
+
+/** Only the selected surface owns selection-handle drags. */
+export function isSidebarGestureSelectionTarget(target: EventTarget | null): boolean {
+  if (!(target instanceof Element)) return false;
+  const selection = window.getSelection();
+  if (!selection || selection.isCollapsed || !selection.rangeCount) return false;
+  const ancestor = selection.getRangeAt(0).commonAncestorContainer;
+  const surface =
+    target.closest('[data-terminal-native-selection="true"]') ??
+    (ancestor instanceof Element ? ancestor : ancestor.parentElement);
+  return Boolean(
+    surface?.contains(target) &&
+      surface.contains(selection.anchorNode) &&
+      surface.contains(selection.focusNode),
+  );
+}

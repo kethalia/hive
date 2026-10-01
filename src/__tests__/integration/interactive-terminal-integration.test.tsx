@@ -2944,17 +2944,20 @@ describe("InteractiveTerminal integration — Mobile input adapter", () => {
     unmount();
   });
 
-  it.each([
-    { modifiers: { ctrl: true, alt: false, shift: false }, input: "c", output: "\x03" },
-    { modifiers: { ctrl: false, alt: true, shift: false }, input: "x", output: "\x1bx" },
-    { modifiers: { ctrl: false, alt: false, shift: true }, input: "1", output: "!" },
-    { modifiers: { ctrl: true, alt: false, shift: false }, input: "\r", output: "\x1b[13;5u" },
-  ])("applies helper modifiers to mobile xterm input $input", async ({
+  it.each(
+    [
+      { modifiers: { ctrl: true, alt: false, shift: false }, input: "c", output: "\x03" },
+      { modifiers: { ctrl: false, alt: true, shift: false }, input: "x", output: "\x1bx" },
+      { modifiers: { ctrl: false, alt: false, shift: true }, input: "1", output: "!" },
+      { modifiers: { ctrl: true, alt: false, shift: false }, input: "\r", output: "\x1b[13;5u" },
+    ].flatMap((entry) => [true, false].map((mobileInputMode) => ({ ...entry, mobileInputMode }))),
+  )("applies helper modifiers to xterm input $input (mobile=$mobileInputMode)", async ({
     modifiers,
     input,
     output,
+    mobileInputMode,
   }) => {
-    const { unmount } = await renderTerminal({ mobileInputMode: true });
+    const { unmount } = await renderTerminal({ mobileInputMode });
     const terminal = terminalInstances.at(-1)!;
     setMobileModifiers(terminal, modifiers);
     act(() => {
@@ -3211,7 +3214,10 @@ describe("InteractiveTerminal integration — Mobile input adapter", () => {
     unmount();
   });
 
-  it("forwards mobile terminal touch drags to tmux mouse scrollback when mouse tracking is active", async () => {
+  it.each([
+    0, 600,
+  ])("forwards mobile touch drags to tmux after a %sms hold without selection", async (hold) => {
+    const now = vi.spyOn(Date, "now").mockReturnValue(1000);
     const { container, unmount } = await renderTerminal({ mobileInputMode: true });
     const terminal = terminalInstances.at(-1);
     expect(terminal).toBeDefined();
@@ -3231,6 +3237,7 @@ describe("InteractiveTerminal integration — Mobile input adapter", () => {
     });
 
     fireTouchEvent(inputTarget as Element, "touchstart", [touchPoint(1, 80, 320)]);
+    now.mockReturnValue(1000 + hold);
     const touchMove = fireTouchEvent(inputTarget as Element, "touchmove", [touchPoint(1, 80, 240)]);
     fireTouchEvent(inputTarget as Element, "touchend", [], [touchPoint(1, 80, 240)]);
 
@@ -3240,6 +3247,7 @@ describe("InteractiveTerminal integration — Mobile input adapter", () => {
     expect(wheelEvents[0]?.deltaY).toBe(80);
     expect(wheelEvents[0]?.clientX).toBe(80);
     expect(wheelEvents[0]?.clientY).toBe(240);
+    now.mockRestore();
     unmount();
   });
 

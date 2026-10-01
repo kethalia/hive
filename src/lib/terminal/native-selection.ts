@@ -17,6 +17,10 @@ const snapshots = new WeakMap<
   { text: string; position: string; currentPosition: () => string }
 >();
 
+export function clearPreservedTerminalSelection(term: object): void {
+  snapshots.delete(term);
+}
+
 export function preservedTerminalSelection(term: object): string | undefined {
   const snapshot = snapshots.get(term);
   return snapshot && snapshot.position === snapshot.currentPosition() ? snapshot.text : undefined;

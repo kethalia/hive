@@ -5,6 +5,7 @@ import { useSidebar } from "@/components/ui/sidebar";
 import { LONG_PRESS_MS } from "@/lib/gestures/conventions";
 import {
   isSidebarGestureIgnoredTarget,
+  isSidebarGestureSelectionTarget,
   resolveHorizontalSwipe,
 } from "@/lib/gestures/horizontal-swipe";
 
@@ -18,6 +19,7 @@ type TouchStart = {
   y: number;
   qualified: boolean;
   startedAt: number;
+  target: EventTarget | null;
 };
 
 /**
@@ -46,9 +48,10 @@ export function SidebarEdgeHandle(_props: SidebarEdgeHandleProps) {
       id,
       x,
       y,
+      target,
     }: Omit<TouchStart, "qualified" | "startedAt">): TouchStart | null => {
       if (x < 0 || x > window.innerWidth) return null;
-      return { id, x, y, qualified: false, startedAt: Date.now() };
+      return { id, x, y, qualified: false, startedAt: Date.now(), target };
     };
 
     const maybeOpen = (
@@ -86,6 +89,7 @@ export function SidebarEdgeHandle(_props: SidebarEdgeHandleProps) {
         return;
       }
       const start = trackStart({
+        target: event.target,
         id: touch.identifier,
         x: touch.clientX,
         y: touch.clientY,
@@ -102,7 +106,7 @@ export function SidebarEdgeHandle(_props: SidebarEdgeHandleProps) {
       if (!start) return;
       if (
         Date.now() - start.startedAt >= LONG_PRESS_MS ||
-        window.getSelection()?.isCollapsed === false
+        isSidebarGestureSelectionTarget(start.target)
       ) {
         reset();
         return;

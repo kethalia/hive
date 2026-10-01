@@ -190,3 +190,30 @@ it("leaves long-press selection drags to the browser", async () => {
     now.mockRestore();
   }
 });
+
+it.each([
+  true,
+  false,
+])("scopes selection ownership to the swipe surface (local=%s)", async (local) => {
+  const onOpen = vi.fn();
+  render(<GestureHarness onOpen={onOpen} />);
+  const pane = document.createElement("div");
+  pane.dataset.terminalNativeSelection = "true";
+  pane.textContent = "selected terminal text";
+  const other = document.createElement("div");
+  document.body.append(pane, other);
+  window.getSelection()!.selectAllChildren(pane);
+  try {
+    const target = local ? pane : other;
+    dispatchTouch("touchstart", [touch(1, 200, 200)], target);
+    const move = dispatchTouch("touchmove", [touch(1, 120, 204)], target);
+    dispatchTouch("touchend", [], target);
+    await Promise.resolve();
+    expect(move.defaultPrevented).toBe(!local);
+    expect(onOpen).toHaveBeenCalledTimes(local ? 0 : 1);
+  } finally {
+    window.getSelection()!.removeAllRanges();
+    pane.remove();
+    other.remove();
+  }
+});

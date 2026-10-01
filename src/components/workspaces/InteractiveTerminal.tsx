@@ -660,12 +660,8 @@ export function InteractiveTerminal({
     );
     if (!touch) return;
 
-    // Native long-press selection owns the gesture once the hold threshold is reached.
-    if (
-      !intent.didScroll &&
-      (Date.now() - intent.startedAt >= 400 || hasNativeTerminalSelection(containerRef.current))
-    )
-      return;
+    // A hold without a native range can still transition into scrolling.
+    if (!intent.didScroll && hasNativeTerminalSelection(containerRef.current)) return;
 
     const deltaX = touch.clientX - intent.startX;
     const deltaYFromStart = touch.clientY - intent.startY;
@@ -1145,11 +1141,7 @@ export function InteractiveTerminal({
       term.onData((data) => {
         const filteredData = stripXtermDeviceAnswerbacks(data);
         if (filteredData.length === 0) return;
-        sendRef.current(
-          encodeInput(
-            mobileInputModeRef.current ? applyMobileModifiers(term, filteredData) : filteredData,
-          ),
-        );
+        sendRef.current(encodeInput(applyMobileModifiers(term, filteredData)));
       });
 
       term.onResize(({ rows, cols }) => {

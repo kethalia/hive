@@ -8,7 +8,7 @@ import {
   type TerminalPasteOutcome,
   type TerminalPasteStatus,
 } from "@/lib/terminal/clipboard";
-import { preservedTerminalSelection } from "./native-selection";
+import { clearPreservedTerminalSelection, preservedTerminalSelection } from "./native-selection";
 
 export type ClipboardFallbackReason =
   | "clipboard-api-unavailable"
@@ -275,6 +275,7 @@ export function copyTerminalSelection(
     term.element.contains(native.focusNode) &&
     native.toString()
       ? {
+          text: native.toString(),
           anchorNode: native.anchorNode,
           anchorOffset: native.anchorOffset,
           focusNode: native.focusNode,
@@ -289,11 +290,16 @@ export function copyTerminalSelection(
         current.anchorOffset === nativeSnapshot.anchorOffset &&
         current.focusNode === nativeSnapshot.focusNode &&
         current.focusOffset === nativeSnapshot.focusOffset &&
-        current.toString() === selection
+        current.toString() === nativeSnapshot.text
       ) {
         current.removeAllRanges();
+        if (getTerminalSelectionText(term) === selection) {
+          clearPreservedTerminalSelection(term);
+          term.clearSelection();
+        }
       }
-    } else if (term.getSelection() === selection) {
+    } else if (getTerminalSelectionText(term) === selection) {
+      clearPreservedTerminalSelection(term);
       term.clearSelection();
     }
   };

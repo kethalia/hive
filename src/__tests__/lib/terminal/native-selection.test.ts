@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import type { Terminal } from "@xterm/xterm";
 import { afterEach, expect, it, vi } from "vitest";
-import { getTerminalSelectionText } from "@/lib/terminal/actions";
+import { copyTerminalSelection, getTerminalSelectionText } from "@/lib/terminal/actions";
 import {
   hasNativeTerminalSelection,
   installNativeTerminalSelection,
@@ -180,4 +180,26 @@ it.each([
   document.dispatchEvent(new Event("selectionchange"));
   expect(getTerminalSelectionText(term)).toBe(text);
   dispose();
+});
+
+it("clears the DOM range, mirrored buffer selection and snapshot after copying canonical text", async () => {
+  const { term, element, dispose } = setup();
+  const writeText = vi.fn().mockResolvedValue(undefined);
+  const original = Object.getOwnPropertyDescriptor(navigator, "clipboard");
+  Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText } });
+  try {
+    window.getSelection()!.selectAllChildren(element.querySelector("span")!);
+    document.dispatchEvent(new Event("selectionchange"));
+    expect(getTerminalSelectionText(term)).toBe("redrawn buffer text");
+    copyTerminalSelection(term);
+    await Promise.resolve();
+    expect(writeText).toHaveBeenCalledWith("redrawn buffer text");
+    expect(window.getSelection()!.isCollapsed).toBe(true);
+    expect(term.getSelectionPosition()).toBeUndefined();
+    expect(getTerminalSelectionText(term)).toBe("");
+  } finally {
+    if (original) Object.defineProperty(navigator, "clipboard", original);
+    else Reflect.deleteProperty(navigator, "clipboard");
+    dispose();
+  }
 });
