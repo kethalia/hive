@@ -3245,6 +3245,9 @@ describe("InteractiveTerminal integration — Mobile input adapter", () => {
 
   it("keeps selection mode passive so native text selection wins over keyboard, scroll, and sidebar gestures", async () => {
     const { container, rerender, unmount } = await renderTerminal({ mobileInputMode: true });
+    expect(container.querySelector('[data-testid="terminal-fit-host"]')).not.toHaveAttribute(
+      "data-sidebar-gesture-ignore",
+    );
     const terminal = terminalInstances.at(-1);
     expect(terminal).toBeDefined();
 

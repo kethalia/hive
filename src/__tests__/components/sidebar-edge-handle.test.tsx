@@ -426,3 +426,19 @@ describe("SidebarEdgeHandle", () => {
     expect(sidebarState.setOpenMobile).not.toHaveBeenCalled();
   });
 });
+
+it("leaves long-press selection drags to the browser", async () => {
+  renderHandle();
+  const now = vi.spyOn(Date, "now").mockReturnValue(1000);
+  try {
+    touchEvent("touchstart", [touchPoint(1, 200, 200)]);
+    now.mockReturnValue(1600);
+    const move = touchEvent("touchmove", [touchPoint(1, 280, 204)]);
+    touchEvent("touchend", []);
+    await Promise.resolve();
+    expect(move.defaultPrevented).toBe(false);
+    expect(sidebarState.setOpenMobile).not.toHaveBeenCalled();
+  } finally {
+    now.mockRestore();
+  }
+});

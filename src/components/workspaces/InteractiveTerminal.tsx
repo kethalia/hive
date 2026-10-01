@@ -1270,7 +1270,7 @@ export function InteractiveTerminal({
           ref={containerRef}
           className="h-full min-h-0 w-full"
           data-testid="terminal-fit-host"
-          data-sidebar-gesture-ignore={mobileInputMode || selectionModeEnabled ? "true" : undefined}
+          data-sidebar-gesture-ignore={selectionModeEnabled ? "true" : undefined}
           data-terminal-native-selection={mobileInputMode ? "true" : undefined}
           data-terminal-selection-mode={selectionModeEnabled ? "true" : undefined}
           onClickCapture={stopTerminalEventForSelection}

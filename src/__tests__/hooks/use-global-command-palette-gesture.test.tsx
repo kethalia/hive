@@ -173,3 +173,20 @@ describe("useGlobalCommandPaletteGesture", () => {
     expect(onOpen).not.toHaveBeenCalled();
   });
 });
+
+it("leaves long-press selection drags to the browser", async () => {
+  const onOpen = vi.fn();
+  render(<GestureHarness onOpen={onOpen} />);
+  const now = vi.spyOn(Date, "now").mockReturnValue(1000);
+  try {
+    dispatchTouch("touchstart", [touch(1, 200, 200)]);
+    now.mockReturnValue(1600);
+    const move = dispatchTouch("touchmove", [touch(1, 120, 204)]);
+    dispatchTouch("touchend", []);
+    await Promise.resolve();
+    expect(move.defaultPrevented).toBe(false);
+    expect(onOpen).not.toHaveBeenCalled();
+  } finally {
+    now.mockRestore();
+  }
+});
