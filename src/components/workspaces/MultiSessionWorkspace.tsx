@@ -4812,7 +4812,7 @@ export function MultiSessionWorkspace({
           ref={workspaceBodyRef}
           className={cn(
             "relative min-h-0 flex-1 overflow-hidden overscroll-none",
-            isComposeSheet && "my-2",
+            isComposeSheet && "mt-2",
           )}
           data-testid="multi-session-body"
         >
