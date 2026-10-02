@@ -47,10 +47,10 @@ resource "coder_agent" "main" {
   startup_script_behavior = "blocking"
 
   startup_script = templatefile("${path.module}/scripts/init.sh", {
-    workspace_name           = data.coder_workspace.me.name
-    owner_name               = data.coder_workspace_owner.me.name
-    owner_email              = data.coder_workspace_owner.me.email
-    enable_browser           = local.profile.capabilities.browser
+    workspace_name = data.coder_workspace.me.name
+    owner_name     = data.coder_workspace_owner.me.name
+    owner_email    = data.coder_workspace_owner.me.email
+    enable_browser = local.profile.capabilities.browser
     claude_md_content = join("\n\n", [
       trimspace(file("${path.module}/CLAUDE.md")),
       trimspace(file("${path.module}/WORKSPACE_ROUTING.md")),
@@ -160,6 +160,20 @@ resource "coder_script" "tools_node" {
   run_on_start       = true
   start_blocks_login = true
   script             = file("${path.module}/scripts/tools-node.sh")
+}
+
+# Coder agents schedule this directly; workspace containers need no cron daemon
+# or user systemd session. Stopped workspaces run at the next scheduled time
+# after starting; cache maintenance never blocks workspace startup.
+resource "coder_script" "workspace_cache_maintenance" {
+  agent_id           = coder_agent.main.id
+  display_name       = "Weekly npm cache maintenance"
+  icon               = "/icon/nodejs.svg"
+  cron               = "CRON_TZ=UTC 0 45 6 * * 0"
+  run_on_start       = false
+  start_blocks_login = false
+  timeout            = 600
+  script             = file("${path.module}/scripts/workspace-cache-maintenance.sh")
 }
 
 resource "coder_script" "tools_web3" {
