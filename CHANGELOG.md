@@ -1,5 +1,11 @@
 # hive-orchestrator
 
+## 2.17.8
+
+### Patch Changes
+
+- 2abd33d: Restore keyboard focus to the selected terminal when switching Hive workspaces, including when the terminal becomes ready after the switch.
+
 ## 2.17.7
 
 ### Patch Changes
