@@ -1252,6 +1252,7 @@ export function MultiSessionWorkspace({
   const pendingWindowSplitTargetByBoardRef = useRef(new Map<string, string>());
   const pendingTerminalFocusSessionNameRef = useRef<string | null>(null);
   const previousFocusBoardKeyRef = useRef<string | null>(null);
+  const preserveTabFocusBoardKeyRef = useRef<string | null>(null);
   const latestWorkspaceIdRef = useRef(workspaceId);
   const boardGenerationRef = useRef(new Map<string, number>());
   sessionsRef.current = sessions;
@@ -1841,7 +1842,10 @@ export function MultiSessionWorkspace({
   );
 
   const handleSelectBoard = useCallback(
-    (boardKey: string) => persistBoardState(selectWorkspaceBoard(boardState, boardKey)),
+    (boardKey: string, options?: { focusTerminal: boolean }) => {
+      preserveTabFocusBoardKeyRef.current = options?.focusTerminal === false ? boardKey : null;
+      persistBoardState(selectWorkspaceBoard(boardState, boardKey));
+    },
     [boardState, persistBoardState],
   );
 
@@ -2652,6 +2656,14 @@ export function MultiSessionWorkspace({
   ]);
 
   useEffect(() => {
+    const cancelPendingTerminalFocus = () => {
+      pendingTerminalFocusSessionNameRef.current = null;
+    };
+    document.addEventListener("focusin", cancelPendingTerminalFocus);
+    return () => document.removeEventListener("focusin", cancelPendingTerminalFocus);
+  }, []);
+
+  useEffect(() => {
     const previousBoardKey = previousFocusBoardKeyRef.current;
     const boardKey = activeBoard?.key ?? null;
     previousFocusBoardKeyRef.current = loading ? null : boardKey;
@@ -2660,6 +2672,9 @@ export function MultiSessionWorkspace({
     // Selection is reconciled above; restore keyboard focus only on board changes.
     // selectSession also queues focus when the destination terminal is not ready yet.
     pendingTerminalFocusSessionNameRef.current = null;
+    const preserveTabFocus = preserveTabFocusBoardKeyRef.current === boardKey;
+    preserveTabFocusBoardKeyRef.current = null;
+    if (preserveTabFocus) return;
     const windowId = activeWindowIdRef.current;
     if (windowId) selectWorkspaceWindow(windowId);
   }, [activeBoard?.key, loading, selectWorkspaceWindow]);

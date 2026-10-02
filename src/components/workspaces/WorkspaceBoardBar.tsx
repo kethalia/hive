@@ -2,7 +2,7 @@
 
 import { X } from "lucide-react";
 import type { KeyboardEvent } from "react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import type { WorkspaceBoard } from "@/lib/workspaces/workspace-board-state";
@@ -12,7 +12,7 @@ export interface WorkspaceBoardBarProps {
   activeBoardKey?: string;
   onCreate?: () => void;
   onDelete?: (boardKey: string) => void;
-  onSelect?: (boardKey: string) => void;
+  onSelect?: (boardKey: string, options?: { focusTerminal: boolean }) => void;
   className?: string;
   touchOptimized?: boolean;
 }
@@ -27,6 +27,7 @@ export function WorkspaceBoardBar({
   touchOptimized = false,
 }: WorkspaceBoardBarProps) {
   const [dangerBoardKey, setDangerBoardKey] = useState<string | null>(null);
+  const hoveredBoardKeyRef = useRef<string | null>(null);
   const orderedBoards = useMemo(() => orderedWorkspaceBoards(boards), [boards]);
   const activeKey = orderedBoards.some((board) => board.key === activeBoardKey)
     ? activeBoardKey
@@ -74,7 +75,9 @@ export function WorkspaceBoardBar({
     event.preventDefault();
     const nextBoard = orderedBoards[nextIndex];
     if (nextBoard) {
-      selectBoard(nextBoard.key);
+      if (nextBoard.key !== activeKey) {
+        onSelect?.(nextBoard.key, { focusTerminal: false });
+      }
       event.currentTarget
         .closest('[role="tablist"]')
         ?.querySelector<HTMLButtonElement>(`[data-testid="workspace-board-tab-${nextBoard.key}"]`)
@@ -119,13 +122,17 @@ export function WorkspaceBoardBar({
               onClick={() => handleBoardPress(board.key)}
               onKeyDown={(event) => handleTabKeyDown(event, board.key)}
               onMouseEnter={() => {
+                hoveredBoardKeyRef.current = board.key;
                 if (canDelete && isActive) setDangerBoardKey(board.key);
               }}
               onMouseLeave={() => {
+                hoveredBoardKeyRef.current = null;
                 if (dangerBoardKey === board.key) setDangerBoardKey(null);
               }}
               onBlur={() => {
-                if (dangerBoardKey === board.key) setDangerBoardKey(null);
+                if (dangerBoardKey === board.key && hoveredBoardKeyRef.current !== board.key) {
+                  setDangerBoardKey(null);
+                }
               }}
             >
               {isDanger ? <X className="size-3.5" data-testid="workspace-board-delete" /> : number}

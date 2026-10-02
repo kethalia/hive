@@ -88,12 +88,12 @@ describe("WorkspaceBoardBar", () => {
     );
 
     fireEvent.keyDown(screen.getByTestId("workspace-board-tab-main"), { key: "ArrowRight" });
-    expect(onSelect).toHaveBeenLastCalledWith("planning");
+    expect(onSelect).toHaveBeenLastCalledWith("planning", { focusTerminal: false });
     expect(screen.getByTestId("workspace-board-tab-planning")).toHaveFocus();
 
     rerender(<WorkspaceBoardBar boards={boards} activeBoardKey="planning" onSelect={onSelect} />);
     fireEvent.keyDown(screen.getByTestId("workspace-board-tab-planning"), { key: "ArrowLeft" });
-    expect(onSelect).toHaveBeenLastCalledWith("main");
+    expect(onSelect).toHaveBeenLastCalledWith("main", { focusTerminal: false });
     expect(screen.getByTestId("workspace-board-tab-main")).toHaveFocus();
   });
 
