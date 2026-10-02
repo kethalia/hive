@@ -145,3 +145,29 @@ Before publishing:
    Testing and Game Development, and Playwright outside Browser Testing.
 6. Perform domain checks in the matching profile. GPU, physical electronics, and live infrastructure
    access remain explicit external capabilities rather than template assumptions.
+
+## Scheduled workspace cache maintenance
+
+Every profile includes a Coder agent script named **Weekly npm cache maintenance**.
+It runs Sundays at 06:45 UTC while the workspace is running, using Coder's
+[six-field script scheduler](https://registry.terraform.io/providers/coder/coder/2.18.0/docs/resources/script).
+It does not require systemd or a separate cron daemon, run at startup, or block
+login. A stopped workspace skips that occurrence and waits for the next schedule
+after it starts.
+
+The script calls `npm cache verify` as the workspace owner with low CPU priority
+and a nine-minute execution limit (ten minutes for the whole Coder script). It
+accepts only the standard `$HOME/.npm` directory and refuses symlinked caches or
+redirected cache objects or logs. Npm verifies cached objects and removes its own garbage;
+valid package data may remain, so reclaimed space can be zero. Repositories,
+worktrees, agent conversations, and PVCs are outside its scope.
+
+Inspect the script's Coder logs for timestamps, before/after KiB, and failures.
+The template change takes effect when a workspace is updated to the new template
+version; merging alone does not update existing workspace builds. Review one
+workspace's first run before updating the remaining profiles. Removing the script
+resource stops future scheduled runs after the next workspace update.
+
+Node image/log retention and Longhorn snapshot cleanup remain separate policies
+in `k8s-cluster`. This script does not activate those policies or post Telegram
+messages directly.
