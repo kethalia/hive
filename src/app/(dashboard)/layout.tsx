@@ -9,6 +9,7 @@ import { ServiceWorkerRegister } from "@/components/service-worker-register";
 import { SidebarEdgeHandle } from "@/components/sidebar-edge-handle";
 import { HelpOverlay } from "@/components/terminal/HelpOverlay";
 import KeybindingProvider from "@/components/terminal/KeybindingProvider";
+import { PersistentTerminalProvider } from "@/components/terminal/PersistentTerminalProvider";
 import { TokenExpiryBanner } from "@/components/token-expiry-banner";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { Toaster } from "@/components/ui/sonner";
@@ -34,34 +35,36 @@ export default async function DashboardLayout({ children }: { children: React.Re
       <TooltipProvider>
         <SidebarProvider>
           <KeybindingProvider>
-            <Suspense fallback={null}>
-              <AppSidebar />
-            </Suspense>
-            <SidebarEdgeHandle />
-            <SidebarInset className="h-[var(--app-viewport-height)] min-h-0 overflow-hidden">
-              <main
-                id="main-content"
-                className="crt-grid crt-scanlines flex h-full min-h-0 flex-1 overflow-hidden"
-                data-dashboard-main=""
-              >
-                <div
-                  className="flex h-full min-h-0 w-full flex-1 items-stretch gap-0"
-                  data-dashboard-content-row=""
+            <PersistentTerminalProvider>
+              <Suspense fallback={null}>
+                <AppSidebar />
+              </Suspense>
+              <SidebarEdgeHandle />
+              <SidebarInset className="h-[var(--app-viewport-height)] min-h-0 overflow-hidden">
+                <main
+                  id="main-content"
+                  className="crt-grid crt-scanlines flex h-full min-h-0 flex-1 overflow-hidden"
+                  data-dashboard-main=""
                 >
-                  <DashboardSidebarTrigger />
                   <div
-                    className="flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden"
-                    data-dashboard-content=""
+                    className="flex h-full min-h-0 w-full flex-1 items-stretch gap-0"
+                    data-dashboard-content-row=""
                   >
-                    {bannerStatus?.data && <TokenExpiryBanner status={bannerStatus.data} />}
-                    <PushPermissionPrompt />
-                    {children}
+                    <DashboardSidebarTrigger />
+                    <div
+                      className="flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden"
+                      data-dashboard-content=""
+                    >
+                      {bannerStatus?.data && <TokenExpiryBanner status={bannerStatus.data} />}
+                      <PushPermissionPrompt />
+                      {children}
+                    </div>
                   </div>
-                </div>
-              </main>
-            </SidebarInset>
-            <DashboardKeyboardController />
-            <HelpOverlay />
+                </main>
+              </SidebarInset>
+              <DashboardKeyboardController />
+              <HelpOverlay />
+            </PersistentTerminalProvider>
           </KeybindingProvider>
         </SidebarProvider>
       </TooltipProvider>

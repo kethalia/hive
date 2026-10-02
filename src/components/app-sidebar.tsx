@@ -117,6 +117,7 @@ import { isCloneTerminalSessionName } from "@/lib/git/clone-terminal-session";
 import type { CloneTreeDiagnostics, CloneTreeRepositoryNode } from "@/lib/git/clone-tree";
 import { workspaceTemplateCapabilities } from "@/lib/templates/catalog";
 import type { TemplateStatus } from "@/lib/templates/staleness";
+import { forgetTerminalSession } from "@/lib/terminal/session-lifetime";
 import { cn } from "@/lib/utils";
 import type { TmuxSession } from "@/lib/workspaces/sessions";
 import { buildWorkspaceUrls } from "@/lib/workspaces/urls";
@@ -1498,6 +1499,7 @@ export function AppSidebar() {
       }
       const result = await killSessionAction({ workspaceId, sessionName });
       if (result?.data) {
+        forgetTerminalSession(workspaceId, sessionName);
         setWorkspaceSessions((prev) => {
           const current = prev[workspaceId];
           if (!current) return prev;
@@ -1525,6 +1527,7 @@ export function AppSidebar() {
       }
       const result = await renameSessionAction({ workspaceId, oldName, newName });
       if (result?.data) {
+        forgetTerminalSession(workspaceId, oldName);
         const { newName: renamedTo } = result.data;
         setWorkspaceSessions((prev) => {
           const current = prev[workspaceId];

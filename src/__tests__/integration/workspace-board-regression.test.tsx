@@ -7,6 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import "@testing-library/jest-dom/vitest";
 import { KeybindingProvider } from "@/components/terminal/KeybindingProvider";
 import { MultiSessionWorkspace } from "@/components/workspaces/MultiSessionWorkspace";
+import { TERMINAL_VIEWS_FORGET_EVENT, terminalPaneViewKey } from "@/lib/terminal/session-lifetime";
 
 const mockCreateSession = vi.fn();
 const mockGetSessions = vi.fn();
@@ -24,6 +25,7 @@ const terminalProps = new Map<
     agentId: string;
     workspaceId: string;
     sessionName: string;
+    viewKey?: string;
     clonePath?: string;
     cloneProof?: string;
     className?: string;
@@ -51,6 +53,7 @@ vi.mock("next/dynamic", () => ({
       agentId,
       workspaceId,
       sessionName,
+      viewKey,
       clonePath,
       cloneProof,
       className,
@@ -61,6 +64,7 @@ vi.mock("next/dynamic", () => ({
       agentId: string;
       workspaceId: string;
       sessionName: string;
+      viewKey?: string;
       clonePath?: string;
       cloneProof?: string;
       className?: string;
@@ -72,6 +76,7 @@ vi.mock("next/dynamic", () => ({
         agentId,
         workspaceId,
         sessionName,
+        viewKey,
         clonePath,
         cloneProof,
         className,
@@ -494,6 +499,33 @@ describe("workspace board shortcut integration", () => {
     vi.restoreAllMocks();
   });
 
+  it("releases the views of an explicitly deleted populated board without killing sessions", async () => {
+    seedTwoBoardState();
+    mockStandaloneDisplayMode(false);
+    render(
+      <KeybindingProvider>
+        <MultiSessionWorkspace agentId="agent-1" workspaceId="ws-1" source="unified" />
+      </KeybindingProvider>,
+    );
+    await screen.findByTestId("terminal-input-main-session");
+    fireEvent.click(screen.getByTestId("workspace-board-tab-review"));
+    await screen.findByTestId("terminal-input-dev-server");
+    const viewKey = terminalProps.get("dev-server")?.viewKey;
+    expect(viewKey).toBe(terminalPaneViewKey("review", "terminal:dev-server"));
+    const dispatch = vi.spyOn(window, "dispatchEvent");
+    fireEvent.mouseEnter(screen.getByTestId("workspace-board-tab-review"));
+    fireEvent.click(screen.getByTestId("workspace-board-tab-review"));
+    expect(screen.queryByTestId("workspace-board-tab-review")).not.toBeInTheDocument();
+    expect(dispatch).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: TERMINAL_VIEWS_FORGET_EVENT,
+        detail: { workspaceId: "ws-1", viewKeys: [viewKey] },
+      }),
+    );
+    expect(mockKillSession).not.toHaveBeenCalled();
+    expect(mockCloseGitCloneTerminal).not.toHaveBeenCalled();
+  });
+
   it("captures real provider board shortcuts from terminal focus while nearby input passes through", async () => {
     seedTwoBoardState();
     mockStandaloneDisplayMode(false);
@@ -747,7 +779,16 @@ describe("workspace board shortcut integration", () => {
       await screen.findByTestId("workspace-pane-git-clone-safe-hive-fresh-b"),
     ).toBeInTheDocument();
     fireEvent.click(screen.getByTestId("workspace-pane-git-clone-safe-hive-fresh-b-actions"));
+    const removedViewKey = terminalProps.get("git-clone-safe-hive-fresh-b")?.viewKey;
+    expect(removedViewKey).toBeDefined();
+    const dispatch = vi.spyOn(window, "dispatchEvent");
     fireEvent.click(screen.getByTestId("workspace-pane-action-remove"));
+    expect(dispatch).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: TERMINAL_VIEWS_FORGET_EVENT,
+        detail: { workspaceId: "ws-1", viewKeys: [removedViewKey] },
+      }),
+    );
 
     expect(
       screen.queryByTestId("workspace-pane-git-clone-safe-hive-fresh-b"),

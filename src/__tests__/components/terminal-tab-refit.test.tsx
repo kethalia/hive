@@ -13,6 +13,7 @@ vi.mock("@/lib/terminal/browser-integration", () => ({
 vi.mock("@xterm/xterm", () => {
   return {
     Terminal: class MockTerminal {
+      options = { disableStdin: false };
       rows = 24;
       cols = 80;
       open = vi.fn();

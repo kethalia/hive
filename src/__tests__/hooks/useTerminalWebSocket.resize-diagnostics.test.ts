@@ -10,6 +10,7 @@ class MockWebSocket {
   static CLOSING = 2;
   static CLOSED = 3;
 
+  protocol = "hive-terminal-v1";
   binaryType: BinaryType = "blob";
   readyState = MockWebSocket.CONNECTING;
   onopen: ((event: Event) => void) | null = null;
@@ -33,6 +34,9 @@ function openSocket(socket = instances.at(-1)) {
   socket.readyState = MockWebSocket.OPEN;
   act(() => {
     socket.onopen?.(new Event("open"));
+    socket.onmessage?.(
+      new MessageEvent("message", { data: JSON.stringify({ type: "hive:ready" }) }),
+    );
   });
   return socket;
 }

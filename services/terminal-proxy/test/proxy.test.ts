@@ -30,6 +30,8 @@ type MockWebSocket = {
   ping: ReturnType<typeof vi.fn>;
   terminate: ReturnType<typeof vi.fn>;
   readyState: number;
+  protocol: string;
+  bufferedAmount: number;
 };
 
 const wsMockState = vi.hoisted(() => {
@@ -40,6 +42,8 @@ const wsMockState = vi.hoisted(() => {
     ping: vi.fn(),
     terminate: vi.fn(),
     readyState: 1,
+    protocol: "",
+    bufferedAmount: 0,
   });
 
   return {
@@ -319,6 +323,34 @@ describe("handleUpgrade", () => {
     expect(opts.headers["Coder-Session-Token"]).toBe("per-user-token");
   });
 
+  it("bounds queued output and closes only the slow attachment with a retryable reason", async () => {
+    await handleUpgrade(makeReq(validParams), makeSocket(), Buffer.alloc(0));
+    const browser = wsMockState.browserSockets.at(-1)!;
+    const upstream = wsMockState.upstreamSockets.at(-1)!;
+    getSocketHandler(upstream, "open")();
+    browser.bufferedAmount = 4 * 1024 * 1024;
+    getSocketHandler(upstream, "message")(Buffer.from("output"), true);
+    expect(browser.close).toHaveBeenCalledWith(1013, "terminal output backpressure");
+    expect(browser.send).not.toHaveBeenCalled();
+    expect(upstream.close).toHaveBeenCalledTimes(1);
+    getSocketHandler(upstream, "message")(Buffer.from("more output"), true);
+    expect(browser.send).not.toHaveBeenCalled();
+    expect(upstream.close).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not start heartbeat timers if upstream opens after the browser has left", async () => {
+    vi.useFakeTimers();
+    await handleUpgrade(makeReq(validParams), makeSocket(), Buffer.alloc(0));
+    const browser = wsMockState.browserSockets.at(-1)!;
+    const upstream = wsMockState.upstreamSockets.at(-1)!;
+    for (const [event, listener] of browser.on.mock.calls) {
+      if (event === "close") listener(1000);
+    }
+    getSocketHandler(upstream, "open")();
+    expect(upstream.ping).not.toHaveBeenCalled();
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
   it("keeps responsive browser and upstream websocket legs alive", async () => {
     vi.useFakeTimers();
     const socket = makeSocket();
@@ -350,31 +382,19 @@ describe("handleUpgrade", () => {
     expect(upstreamWs.close).not.toHaveBeenCalled();
   });
 
-  it("tolerates two missed browser heartbeats before terminating the browser leg", async () => {
+  it("keeps a suspended browser warm for five minutes, then bounds the attachment lifetime", async () => {
     vi.useFakeTimers();
-    const socket = makeSocket();
-    await handleUpgrade(makeReq(validParams), socket, Buffer.alloc(0));
-
-    const browserWs = wsMockState.browserSockets.at(-1);
-    const upstreamWs = wsMockState.upstreamSockets.at(-1);
-    expect(browserWs).toBeDefined();
-    expect(upstreamWs).toBeDefined();
-    if (!browserWs || !upstreamWs) return;
-
+    await handleUpgrade(makeReq(validParams), makeSocket(), Buffer.alloc(0));
+    const browserWs = wsMockState.browserSockets.at(-1)!;
+    const upstreamWs = wsMockState.upstreamSockets.at(-1)!;
     getSocketHandler(upstreamWs, "open")();
-    expect(browserWs.terminate).not.toHaveBeenCalled();
-
+    for (let missed = 0; missed < 20; missed++) {
+      getSocketHandler(upstreamWs, "pong")();
+      await vi.advanceTimersByTimeAsync(15_000);
+      expect(browserWs.terminate).not.toHaveBeenCalled();
+    }
     getSocketHandler(upstreamWs, "pong")();
     await vi.advanceTimersByTimeAsync(15_000);
-
-    expect(browserWs.terminate).not.toHaveBeenCalled();
-    getSocketHandler(upstreamWs, "pong")();
-    await vi.advanceTimersByTimeAsync(15_000);
-
-    expect(browserWs.terminate).not.toHaveBeenCalled();
-    getSocketHandler(upstreamWs, "pong")();
-    await vi.advanceTimersByTimeAsync(15_000);
-
     expect(browserWs.terminate).toHaveBeenCalledTimes(1);
     expect(upstreamWs.terminate).not.toHaveBeenCalled();
     expect(upstreamWs.close).toHaveBeenCalledTimes(1);

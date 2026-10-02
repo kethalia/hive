@@ -109,6 +109,11 @@ import {
 import { TERMINAL_COMPOSE_TOGGLE_EVENT } from "@/lib/terminal/events";
 import { registerGlobalCommandPaletteSource } from "@/lib/terminal/global-command-palette";
 import { isPwaStandalone } from "@/lib/terminal/pwa";
+import {
+  forgetTerminalSession,
+  forgetTerminalViews,
+  terminalPaneViewKey,
+} from "@/lib/terminal/session-lifetime";
 import { cn } from "@/lib/utils";
 import { readDocumentCoderFrameHosts } from "@/lib/workspaces/document-frame-hosts";
 import {
@@ -176,6 +181,7 @@ interface InteractiveTerminalComponentProps {
   agentId: string;
   workspaceId: string;
   sessionName: string;
+  viewKey?: string;
   clonePath?: string;
   cloneProof?: string;
   refreshCloneTerminalIdentity?: (context: {
@@ -1816,13 +1822,21 @@ export function MultiSessionWorkspace({
 
   const handleDeleteBoard = useCallback(
     (boardKey: string) => {
+      const nextBoardState = deleteWorkspaceBoard(boardState, boardKey);
+      if (nextBoardState.boards.some((board) => board.key === boardKey)) return;
       boardGenerationRef.current.set(boardKey, (boardGenerationRef.current.get(boardKey) ?? 0) + 1);
       replaceWorkspaceToolPanes(
         workspaceToolPanesRef.current.filter((pane) => pane.boardKey !== boardKey),
       );
-      persistBoardState(deleteWorkspaceBoard(boardState, boardKey));
+      forgetTerminalViews(
+        workspaceId,
+        boardState.boards
+          .find((board) => board.key === boardKey)
+          ?.panes.map((pane) => terminalPaneViewKey(boardKey, pane.key)) ?? [],
+      );
+      persistBoardState(nextBoardState);
     },
-    [boardState, persistBoardState, replaceWorkspaceToolPanes],
+    [boardState, persistBoardState, replaceWorkspaceToolPanes, workspaceId],
   );
 
   const handleSelectBoard = useCallback(
@@ -3549,12 +3563,16 @@ export function MultiSessionWorkspace({
 
       if (!isUnifiedSource) {
         try {
-          await killSessionAction({ workspaceId, sessionName });
+          const result = await killSessionAction({ workspaceId, sessionName });
+          if (!result?.data) throw new Error("Terminal session could not be closed");
+          forgetTerminalSession(workspaceId, sessionName);
         } catch {
           setTerminalCloseFailed(true);
           return;
         }
       }
+
+      forgetTerminalViews(workspaceId, [terminalPaneViewKey(board.key, boardPaneKey)]);
 
       const nextSessions = isUnifiedSource
         ? sessions
@@ -4592,6 +4610,7 @@ export function MultiSessionWorkspace({
               agentId={agentId}
               workspaceId={workspaceId}
               sessionName={pane.sessionName}
+              viewKey={terminalPaneViewKey(model.board.key, boardPaneSignal)}
               onFileAction={
                 session && canOpenFiles
                   ? (path, action) => {
