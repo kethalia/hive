@@ -21,6 +21,7 @@ const { mockUseTerminalWebSocket, mockFit, mockSend, mockResize, terminalInstanc
       attachCustomKeyEventHandler: ReturnType<typeof vi.fn>;
       buffer: { active: { baseY: number; viewportY: number } };
       constructorOptions: Record<string, unknown>;
+      options: { disableStdin: boolean };
       dataHandler?: (data: string) => void;
       focus: ReturnType<typeof vi.fn>;
       onData: ReturnType<typeof vi.fn>;
@@ -140,6 +141,7 @@ vi.mock("@/lib/terminal/browser-integration", () => ({
 
 vi.mock("@xterm/xterm", () => ({
   Terminal: class MockTerminal {
+    options = { disableStdin: false };
     rows = 24;
     cols = 80;
     buffer = { active: { baseY: 10, viewportY: 9 } };
@@ -1419,6 +1421,36 @@ describe("InteractiveTerminal integration — Session lifecycle", () => {
     act(() => receive()("fresh output"));
     expect(replacement.write.mock.calls.map(([data]) => data)).toEqual(["fresh output"]);
     result!.unmount();
+  });
+
+  it("preserves the renderer when a clone proof refreshes and disables input until ready", async () => {
+    const { InteractiveTerminal } = await import("@/components/workspaces/InteractiveTerminal");
+    mockUseTerminalWebSocket.mockReturnValue({
+      send: mockSend,
+      resize: mockResize,
+      connectionState: "connecting",
+    });
+    const props = {
+      agentId: "test-agent",
+      workspaceId: "test-ws",
+      sessionName: "git-clone-proof-test",
+      clonePath: "/home/coder/repo",
+    };
+    const view = render(<InteractiveTerminal {...props} cloneProof="first-proof" />);
+    await flushTerminalEffects();
+    const terminal = terminalInstances.at(-1)!;
+    expect(terminal.options.disableStdin).toBe(true);
+    mockUseTerminalWebSocket.mockReturnValue({
+      send: mockSend,
+      resize: mockResize,
+      connectionState: "connected",
+    });
+    view.rerender(<InteractiveTerminal {...props} cloneProof="new-proof" />);
+    await flushTerminalEffects();
+    expect(terminalInstances.at(-1)).toBe(terminal);
+    expect(terminalInstances).toHaveLength(1);
+    expect(terminal.options.disableStdin).toBe(false);
+    view.unmount();
   });
 
   it("resizes the PTY after connection and preserves bottom pinning when configured", async () => {

@@ -13,6 +13,7 @@ import {
   useState,
 } from "react";
 import { useRuntimeConfig } from "@/components/runtime-config-provider";
+import { PersistentTerminal } from "@/components/terminal/PersistentTerminalProvider";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useKeybindings } from "@/hooks/useKeybindings";
 import {
@@ -80,7 +81,7 @@ export type RefreshCloneTerminalIdentity = (
 
 import type { TerminalFileActionHandler } from "@/lib/terminal/link-target";
 
-interface InteractiveTerminalProps {
+export interface InteractiveTerminalProps {
   agentId: string;
   workspaceId: string;
   sessionName: string;
@@ -388,7 +389,11 @@ export function connectionBadgeProps(state: ConnectionState) {
   }
 }
 
-export function InteractiveTerminal({
+export function InteractiveTerminal(props: InteractiveTerminalProps) {
+  return <PersistentTerminal terminalProps={props} Runtime={TerminalRuntime} />;
+}
+
+function TerminalRuntime({
   agentId,
   workspaceId,
   sessionName,
@@ -583,11 +588,14 @@ export function InteractiveTerminal({
       ? refreshCloneTerminalWebSocketUrl
       : undefined,
   });
+  const connectionStateRef = useRef(connectionState);
+  connectionStateRef.current = connectionState;
   const recoveryMessage = quietRecoveryMessage(connectionState, recoveryState);
   const showFinalFailure =
     recoveryState?.phase === "final-failure" ||
     (connectionState === "failed" && recoveryState?.isRecoverable === false);
   useEffect(() => {
+    if (termRef.current) termRef.current.options.disableStdin = connectionState !== "connected";
     onConnectionStateChange?.(connectionState);
   }, [connectionState, onConnectionStateChange]);
 
@@ -952,6 +960,7 @@ export function InteractiveTerminal({
       fontSize: getTerminalFontSize(),
       lineHeight: 1.4,
       cursorBlink: true,
+      disableStdin: true,
       convertEol: true,
       macOptionClickForcesSelection: true,
       rightClickSelectsWord: true,
@@ -963,11 +972,11 @@ export function InteractiveTerminal({
       workspaceId,
       sessionName,
       clonePath ?? "",
-      cloneProof ?? "",
       reconnectId,
       terminalWsUrl,
     ].join(":"),
     onReady: async (term, fit) => {
+      term.options.disableStdin = connectionStateRef.current !== "connected";
       applyMobileInputAdapter();
       if (!mobileInputModeRef.current && !suppressAutoFocusRef.current) {
         term.focus();

@@ -25,6 +25,7 @@ import { submitTerminalComposeDraft, type TerminalComposeRequest } from "@/lib/t
 import { TERMINAL_COMPOSE_TOGGLE_EVENT } from "@/lib/terminal/events";
 import { registerGlobalCommandPaletteSource } from "@/lib/terminal/global-command-palette";
 import { isPwaStandalone } from "@/lib/terminal/pwa";
+import { forgetTerminalSession } from "@/lib/terminal/session-lifetime";
 import { cn } from "@/lib/utils";
 
 const InteractiveTerminal = dynamic(
@@ -257,6 +258,7 @@ export function TerminalTabManager({ agentId, workspaceId }: TerminalTabManagerP
           newName: trimmed,
         });
         if (result?.data) {
+          forgetTerminalSession(workspaceId, tab.sessionName);
           dispatch({ type: "RENAME_TAB", tabId, newName: result.data.newName });
         }
       } catch (err) {
@@ -278,7 +280,9 @@ export function TerminalTabManager({ agentId, workspaceId }: TerminalTabManagerP
       if (!tab) return;
 
       try {
-        await killSessionAction({ workspaceId, sessionName: tab.sessionName });
+        const result = await killSessionAction({ workspaceId, sessionName: tab.sessionName });
+        if (!result?.data) throw new Error("Terminal session could not be closed");
+        forgetTerminalSession(workspaceId, tab.sessionName);
         window.localStorage.removeItem(`terminal:reconnect:${agentId}:${tab.sessionName}`);
 
         dispatch({ type: "KILL_TAB", tabId });

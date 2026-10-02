@@ -23,6 +23,7 @@ import {
   renameSessionAction,
 } from "@/lib/actions/workspaces";
 import { SAFE_IDENTIFIER_RE } from "@/lib/constants";
+import { forgetTerminalSession } from "@/lib/terminal/session-lifetime";
 import { cn } from "@/lib/utils";
 import type { TmuxSession } from "@/lib/workspaces/sessions";
 
@@ -121,7 +122,9 @@ export function TerminalBreadcrumbs({ workspaceId }: TerminalBreadcrumbsProps) {
     async (name: string, e: React.MouseEvent) => {
       e.stopPropagation();
       try {
-        await killSessionAction({ workspaceId, sessionName: name });
+        const result = await killSessionAction({ workspaceId, sessionName: name });
+        if (!result?.data) throw new Error("Terminal session could not be closed");
+        forgetTerminalSession(workspaceId, name);
         const updated = sessions.filter((s) => s.name !== name);
         setSessions(updated);
         if (currentSession === name && updated.length > 0) {
@@ -153,6 +156,7 @@ export function TerminalBreadcrumbs({ workspaceId }: TerminalBreadcrumbsProps) {
           newName: trimmed,
         });
         if (result?.data) {
+          forgetTerminalSession(workspaceId, oldName);
           const { newName } = result.data;
           setSessions((prev) =>
             prev.map((s) => (s.name === oldName ? { ...s, name: newName } : s)),

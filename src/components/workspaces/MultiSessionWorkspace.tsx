@@ -109,6 +109,7 @@ import {
 import { TERMINAL_COMPOSE_TOGGLE_EVENT } from "@/lib/terminal/events";
 import { registerGlobalCommandPaletteSource } from "@/lib/terminal/global-command-palette";
 import { isPwaStandalone } from "@/lib/terminal/pwa";
+import { forgetTerminalSession } from "@/lib/terminal/session-lifetime";
 import { cn } from "@/lib/utils";
 import { readDocumentCoderFrameHosts } from "@/lib/workspaces/document-frame-hosts";
 import {
@@ -3549,7 +3550,9 @@ export function MultiSessionWorkspace({
 
       if (!isUnifiedSource) {
         try {
-          await killSessionAction({ workspaceId, sessionName });
+          const result = await killSessionAction({ workspaceId, sessionName });
+          if (!result?.data) throw new Error("Terminal session could not be closed");
+          forgetTerminalSession(workspaceId, sessionName);
         } catch {
           setTerminalCloseFailed(true);
           return;
