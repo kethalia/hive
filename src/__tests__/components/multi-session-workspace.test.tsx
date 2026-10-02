@@ -2258,6 +2258,115 @@ describe("MultiSessionWorkspace", () => {
     expect(screen.getByTestId("active-pane-label")).toHaveTextContent("dev-server");
   });
 
+  it.each([
+    "click",
+    "shortcut",
+    "delayed",
+    "cancel-delayed",
+    "tab-keys",
+    "delete",
+  ])("respects focus intent between single-window boards (%s)", async (mode) => {
+    window.localStorage.setItem(
+      "workspace-board-state:workspace:ws-1",
+      JSON.stringify({
+        version: 1,
+        activeBoardKey: "main",
+        boards: ["main-session", "dev-server"].map((sessionName, order) => ({
+          key: order === 0 ? "main" : "review",
+          name: order === 0 ? "Main" : "Review",
+          order,
+          activePaneKey: `terminal:${sessionName}`,
+          panes: [{ kind: "terminal", key: `terminal:${sessionName}`, sessionName, order: 0 }],
+        })),
+      }),
+    );
+    mockGetSessions.mockResolvedValueOnce(twoSessionPayload());
+    render(<MultiSessionWorkspace {...defaultProps} />);
+    await screen.findByTestId("interactive-terminal-main-session");
+    const mainInput = screen.getByTestId("terminal-input-main-session");
+    const mainTerm = makeTerminal("main-session", () => mainInput.focus());
+    const devTerm = makeTerminal("dev-server", () =>
+      screen.getByTestId("terminal-input-dev-server").focus(),
+    );
+    act(() => {
+      terminalProps.get("main-session")?.onTerminalReady?.(mainTerm, makeSender("main"));
+      if (mode !== "delayed" && mode !== "cancel-delayed") {
+        terminalProps.get("dev-server")?.onTerminalReady?.(devTerm, makeSender("dev"));
+      }
+    });
+    expect(mainTerm.focus).not.toHaveBeenCalled();
+    expect(devTerm.focus).not.toHaveBeenCalled();
+    mainInput.focus();
+
+    if (mode === "tab-keys") {
+      for (const [from, key, to] of [
+        ["main", "ArrowRight", "review"],
+        ["review", "ArrowLeft", "main"],
+        ["main", "End", "review"],
+        ["review", "Home", "main"],
+      ]) {
+        act(() => screen.getByTestId(`workspace-board-tab-${from}`).focus());
+        fireEvent.keyDown(screen.getByTestId(`workspace-board-tab-${from}`), { key });
+        expect(screen.getByTestId(`workspace-board-tab-${to}`)).toHaveFocus();
+        expect(screen.getByTestId(`workspace-board-tab-${to}`)).toHaveAttribute(
+          "aria-selected",
+          "true",
+        );
+      }
+      expect(mainTerm.focus).not.toHaveBeenCalled();
+      expect(devTerm.focus).not.toHaveBeenCalled();
+      return;
+    }
+
+    if (mode === "delete") {
+      const reviewTab = screen.getByTestId("workspace-board-tab-review");
+      fireEvent.mouseEnter(reviewTab);
+      act(() => reviewTab.focus());
+    }
+    if (mode === "shortcut") {
+      act(() => {
+        lastRegisteredEntry("multi-session:ws-1:next-board").action(null, null);
+      });
+    } else {
+      fireEvent.click(screen.getByTestId("workspace-board-tab-review"));
+    }
+    if (mode === "cancel-delayed") {
+      const otherInput = document.createElement("input");
+      document.body.append(otherInput);
+      try {
+        act(() => otherInput.focus());
+        act(() => {
+          terminalProps.get("dev-server")?.onTerminalReady?.(devTerm, makeSender("dev"));
+        });
+        expect(otherInput).toHaveFocus();
+        expect(devTerm.focus).not.toHaveBeenCalled();
+      } finally {
+        otherInput.remove();
+      }
+      return;
+    }
+    if (mode === "delayed") {
+      act(() => {
+        terminalProps.get("dev-server")?.onTerminalReady?.(devTerm, makeSender("dev"));
+      });
+    }
+    expect(screen.getByTestId("terminal-input-dev-server")).toHaveFocus();
+    expect(devTerm.focus).toHaveBeenCalledTimes(1);
+
+    if (mode === "delete") {
+      expect(screen.getByTestId("workspace-board-tab-review")).toHaveAccessibleName(
+        "Delete workspace 2",
+      );
+      fireEvent.click(screen.getByTestId("workspace-board-tab-review"));
+      expect(screen.queryByTestId("workspace-board-tab-review")).not.toBeInTheDocument();
+      expect(mainInput).toHaveFocus();
+      return;
+    }
+    fireEvent.click(screen.getByTestId("workspace-board-tab-main"));
+    expect(mainInput).toHaveFocus();
+    expect(mainTerm.focus).toHaveBeenCalledTimes(1);
+  });
+
   it("registers exact global board shortcuts that switch boards through board persistence only", async () => {
     window.localStorage.setItem(
       "workspace-board-state:workspace:ws-1",
