@@ -10,13 +10,21 @@ class MockWebSocket {
   static CLOSING = 2;
   static CLOSED = 3;
 
+  protocol = "hive-terminal-v1";
   binaryType: BinaryType = "blob";
   readyState = MockWebSocket.CONNECTING;
   onopen: ((event: Event) => void) | null = null;
   onmessage: ((event: MessageEvent) => void) | null = null;
   onclose: ((event: CloseEvent) => void) | null = null;
   onerror: ((event: Event) => void) | null = null;
-  send = vi.fn();
+  send = vi.fn((data: string) => {
+    if (data.startsWith('{"type":"hive:ping"')) {
+      const { id } = JSON.parse(data);
+      this.onmessage?.(
+        new MessageEvent("message", { data: JSON.stringify({ type: "hive:pong", id }) }),
+      );
+    }
+  });
   close = vi.fn(() => {
     this.readyState = MockWebSocket.CLOSED;
   });
@@ -33,6 +41,9 @@ function openSocket(socket = instances.at(-1)) {
   socket.readyState = MockWebSocket.OPEN;
   act(() => {
     socket.onopen?.(new Event("open"));
+    socket.onmessage?.(
+      new MessageEvent("message", { data: JSON.stringify({ type: "hive:ready" }) }),
+    );
   });
   return socket;
 }
@@ -80,6 +91,143 @@ describe("useTerminalWebSocket reconnect loop", () => {
     vi.useRealTimers();
     vi.restoreAllMocks();
     vi.unstubAllGlobals();
+  });
+
+  it("waits for PTY readiness and flushes the latest size before allowing input", () => {
+    const onData = vi.fn();
+    const { result, unmount } = renderHook(() =>
+      useTerminalWebSocket({ url: "ws://terminal.example/ws", onData }),
+    );
+    const socket = latestSocket();
+    socket.readyState = MockWebSocket.OPEN;
+    act(() => socket.onopen?.(new Event("open")));
+    expect(result.current.connectionState).toBe("connecting");
+    act(() => {
+      result.current.send("too early");
+      result.current.resize(24, 80);
+      result.current.resize(40, 120, "latest-layout");
+    });
+    expect(socket.send).not.toHaveBeenCalled();
+    act(() => socket.onmessage?.(new MessageEvent("message", { data: '{"type":"hive:ready"}' })));
+    expect(result.current.connectionState).toBe("connected");
+    expect(socket.send).toHaveBeenCalledExactlyOnceWith('{"height":40,"width":120}');
+    act(() => result.current.send("ready input"));
+    expect(socket.send).toHaveBeenLastCalledWith("ready input");
+    expect(onData).not.toHaveBeenCalled();
+    unmount();
+  });
+
+  it("increments retries when upgrades succeed but the PTY repeatedly fails", async () => {
+    const { result, unmount } = renderHook(() =>
+      useTerminalWebSocket({ url: "ws://terminal.example/ws", onData: vi.fn() }),
+    );
+    for (let attempt = 1; attempt <= 3; attempt++) {
+      const socket = latestSocket();
+      socket.readyState = MockWebSocket.OPEN;
+      act(() => socket.onopen?.(new Event("open")));
+      closeSocket(socket, { code: 1013, reason: "upstream error", wasClean: false });
+      expect(result.current.recoveryState.retryCount).toBe(attempt);
+      await advanceTimersAndFlush(1000 * 2 ** (attempt - 1));
+    }
+    unmount();
+  });
+
+  it("replaces a half-open socket after an unanswered foreground probe", async () => {
+    const { result, unmount } = renderHook(() =>
+      useTerminalWebSocket({ url: "ws://terminal.example/ws", onData: vi.fn() }),
+    );
+    const socket = openSocket();
+    socket.send.mockImplementation(() => {});
+    mockVisibilityState("visible");
+    act(() => document.dispatchEvent(new Event("visibilitychange")));
+    expect(instances).toHaveLength(1);
+    await advanceTimersAndFlush(8000);
+    expect(socket.close).toHaveBeenCalledTimes(1);
+    expect(result.current.connectionState).toBe("disconnected");
+    await advanceTimersAndFlush(1000);
+    expect(instances).toHaveLength(2);
+    unmount();
+  });
+
+  it("does not expire a foreground probe after the page is hidden or frozen", async () => {
+    const { unmount } = renderHook(() =>
+      useTerminalWebSocket({ url: "ws://terminal.example/ws", onData: vi.fn() }),
+    );
+    const socket = openSocket();
+    socket.send.mockImplementation(() => {});
+    mockVisibilityState("visible");
+    act(() => document.dispatchEvent(new Event("visibilitychange")));
+    act(() => document.dispatchEvent(new Event("freeze")));
+    await advanceTimersAndFlush(120_000);
+    expect(socket.close).not.toHaveBeenCalled();
+    act(() => document.dispatchEvent(new Event("resume")));
+    expect(socket.close).not.toHaveBeenCalled();
+    const ping = JSON.parse(socket.send.mock.lastCall![0]);
+    act(() =>
+      socket.onmessage?.(
+        new MessageEvent("message", { data: JSON.stringify({ type: "hive:pong", id: ping.id }) }),
+      ),
+    );
+    await advanceTimersAndFlush(8000);
+    expect(socket.close).not.toHaveBeenCalled();
+    unmount();
+  });
+
+  it("reprobes instead of disconnecting after an unobserved event-loop suspension", async () => {
+    const { unmount } = renderHook(() =>
+      useTerminalWebSocket({ url: "ws://terminal.example/ws", onData: vi.fn() }),
+    );
+    const socket = openSocket();
+    socket.send.mockImplementation(() => {});
+    mockVisibilityState("visible");
+    act(() => window.dispatchEvent(new Event("pageshow")));
+    vi.setSystemTime(Date.now() + 60_000);
+    await advanceTimersAndFlush(8000);
+    expect(socket.close).not.toHaveBeenCalled();
+    expect(socket.send).toHaveBeenCalledTimes(2);
+    const ping = JSON.parse(socket.send.mock.lastCall![0]);
+    act(() =>
+      socket.onmessage?.(
+        new MessageEvent("message", { data: JSON.stringify({ type: "hive:pong", id: ping.id }) }),
+      ),
+    );
+    expect(instances).toHaveLength(1);
+    unmount();
+  });
+
+  it("ignores late readiness and output from a socket replaced by navigation", () => {
+    const onData = vi.fn();
+    const { rerender, result, unmount } = renderHook(
+      ({ url }) => useTerminalWebSocket({ url, onData }),
+      { initialProps: { url: "ws://terminal.example/a" } },
+    );
+    const old = latestSocket();
+    const oldMessage = old.onmessage!;
+    const oldOpen = old.onopen!;
+    rerender({ url: "ws://terminal.example/b" });
+    act(() => {
+      oldOpen(new Event("open"));
+      oldMessage(new MessageEvent("message", { data: '{"type":"hive:ready"}' }));
+      oldMessage(new MessageEvent("message", { data: new Uint8Array([65]).buffer }));
+    });
+    expect(result.current.connectionState).toBe("connecting");
+    expect(onData).not.toHaveBeenCalled();
+    expect(latestSocket().close).not.toHaveBeenCalled();
+    unmount();
+  });
+
+  it("rejects unnegotiated upgrades and keeps control frames out of terminal output", () => {
+    const onData = vi.fn();
+    const { unmount } = renderHook(() =>
+      useTerminalWebSocket({ url: "ws://terminal.example/ws", onData }),
+    );
+    const socket = latestSocket();
+    socket.protocol = "";
+    socket.readyState = MockWebSocket.OPEN;
+    act(() => socket.onopen?.(new Event("open")));
+    expect(socket.close).toHaveBeenCalled();
+    expect(onData).not.toHaveBeenCalled();
+    unmount();
   });
 
   it("keeps retrying recoverable disconnects past ten attempts without final failure", () => {
@@ -299,7 +447,7 @@ describe("useTerminalWebSocket reconnect loop", () => {
       phase: "recovering",
       retryCount: 1,
       lastCloseCategory: "transient",
-      lastReasonCategory: "timeout",
+      lastReasonCategory: "upstream-timeout",
       lastDelayMs: 1000,
       lastRecoveryAction: "schedule-reconnect",
       isRecoverable: true,
@@ -836,7 +984,7 @@ describe("useTerminalWebSocket reconnect loop", () => {
 
     expect(replacementSocket.send).toHaveBeenCalledWith("still-connected");
     expect(result.current.connectionState).toBe("connected");
-    expect(vi.getTimerCount()).toBe(0);
+    expect(vi.getTimerCount()).toBe(1);
     unmount();
   });
 

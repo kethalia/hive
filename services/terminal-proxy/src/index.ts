@@ -11,7 +11,12 @@ import {
   serializeKeepAliveStatusPayload,
   type WorkspaceHealth,
 } from "./keepalive.js";
-import { connectionRegistry, handleUpgrade, isOriginAllowed } from "./proxy.js";
+import {
+  connectionRegistry,
+  drainTerminalConnections,
+  handleUpgrade,
+  isOriginAllowed,
+} from "./proxy.js";
 import { type TerminalSessionEventStore, terminalSessionEventStore } from "./session-events.js";
 
 const INDEX_FILE = fileURLToPath(import.meta.url);
@@ -366,6 +371,22 @@ const isEntrypoint = process.argv[1] ? INDEX_FILE === resolve(process.argv[1]) :
 
 if (isEntrypoint) {
   const { server } = createTerminalProxyServer();
+  let stopping = false;
+  const shutdown = () => {
+    if (stopping) return;
+    stopping = true;
+    const terminate = drainTerminalConnections();
+    server.close();
+    // Upgraded sockets are not closed by http.Server.close(). Bound draining
+    // below Kubernetes' default 30-second termination grace period.
+    const timer = setTimeout(() => {
+      terminate();
+      server.closeAllConnections();
+    }, 25_000);
+    timer.unref();
+  };
+  process.once("SIGTERM", shutdown);
+  process.once("SIGINT", shutdown);
   server.listen(PORT, HOSTNAME, () => {
     console.log(`[terminal-proxy] listening on http://${HOSTNAME}:${PORT}`);
   });

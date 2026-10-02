@@ -1,7 +1,12 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { encodeResize } from "@/lib/terminal/protocol";
+import {
+  encodeResize,
+  encodeTerminalPing,
+  parseTerminalControl,
+  TERMINAL_SUBPROTOCOL,
+} from "@/lib/terminal/protocol";
 
 export type ConnectionState =
   | "connecting"
@@ -118,6 +123,8 @@ const MAX_DELAY_MS = 30000;
 const BACKOFF_FACTOR = 2;
 const JITTER_MS = 500;
 const CONNECTING_STALL_MS = 15000;
+const HEALTH_INTERVAL_MS = 15000;
+const HEALTH_TIMEOUT_MS = 8000;
 const WORKSPACE_OFFLINE_CODE = 4404;
 const AUTH_EXPIRED_CODE = 4401;
 const PERMISSION_DENIED_CODE = 4403;
@@ -284,6 +291,8 @@ type StartManualReconnectOptions = {
 type UseBrowserLifecycleReconnectionOptions = {
   backgroundedAtRef: MutableRef<number | null>;
   startManualReconnect: (options?: StartManualReconnectOptions) => void;
+  checkHealth: () => void;
+  clearHealthCheck: () => void;
 };
 
 function normalizeResizeDimension(value: number): number | null {
@@ -305,16 +314,21 @@ function isTerminalRefreshFailure(value: unknown): value is TerminalRefreshUrlFa
 function useBrowserLifecycleReconnection({
   backgroundedAtRef,
   startManualReconnect,
+  checkHealth,
+  clearHealthCheck,
 }: UseBrowserLifecycleReconnectionOptions) {
   useEffect(() => {
     if (typeof document === "undefined" || typeof window === "undefined") return;
 
     const handleBackground = () => {
       backgroundedAtRef.current = Date.now();
+      clearHealthCheck();
     };
 
     const handleForeground = () => {
       backgroundedAtRef.current = null;
+      clearHealthCheck();
+      checkHealth();
 
       startManualReconnect({
         preserveRetryCount: true,
@@ -337,6 +351,8 @@ function useBrowserLifecycleReconnection({
     };
 
     const handleOnline = () => {
+      clearHealthCheck();
+      checkHealth();
       startManualReconnect({
         preserveRetryCount: true,
         onlyWhenConnectionLost: true,
@@ -344,17 +360,22 @@ function useBrowserLifecycleReconnection({
     };
 
     document.addEventListener("visibilitychange", handleVisibilityChange);
+    document.addEventListener("freeze", handleBackground);
+    document.addEventListener("resume", handleForeground);
     window.addEventListener("pagehide", handleBackground);
     window.addEventListener("pageshow", handlePageShow);
     window.addEventListener("online", handleOnline);
 
     return () => {
+      clearHealthCheck();
+      document.removeEventListener("freeze", handleBackground);
+      document.removeEventListener("resume", handleForeground);
       document.removeEventListener("visibilitychange", handleVisibilityChange);
       window.removeEventListener("pagehide", handleBackground);
       window.removeEventListener("pageshow", handlePageShow);
       window.removeEventListener("online", handleOnline);
     };
-  }, [backgroundedAtRef, startManualReconnect]);
+  }, [backgroundedAtRef, startManualReconnect, checkHealth, clearHealthCheck]);
 }
 
 export function useTerminalWebSocket({
@@ -368,6 +389,10 @@ export function useTerminalWebSocket({
   const [connectionState, setConnectionState] = useState<ConnectionState>("disconnected");
   const [recoveryState, setRecoveryState] = useState<TerminalRecoveryState>(INITIAL_RECOVERY_STATE);
   const wsRef = useRef<WebSocket | null>(null);
+  const healthTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const healthSequenceRef = useRef(0);
+  const pendingHealthRef = useRef<number | null>(null);
+  const latestResizeRef = useRef<{ rows: number; cols: number; source: string } | null>(null);
   const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const connectingStallTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const connectInFlightRef = useRef(false);
@@ -421,6 +446,65 @@ export function useTerminalWebSocket({
     }
   }, []);
 
+  const clearHealthCheck = useCallback(() => {
+    if (healthTimerRef.current !== null) clearTimeout(healthTimerRef.current);
+    healthTimerRef.current = null;
+    pendingHealthRef.current = null;
+  }, []);
+
+  // Do not wait for the browser's close-handshake timeout to recover a dead leg.
+  const failSocket = useCallback((socket: WebSocket, reason: string) => {
+    socket.onclose?.call(socket, new CloseEvent("close", { code: 1013, reason, wasClean: false }));
+    socket.onopen = null;
+    socket.onmessage = null;
+    socket.onclose = null;
+    socket.onerror = null;
+    socket.close();
+  }, []);
+
+  const checkHealth = useCallback(
+    function probe() {
+      const socket = wsRef.current;
+      if (
+        document.visibilityState === "hidden" ||
+        backgroundedAtRef.current !== null ||
+        connectionStateRef.current !== "connected" ||
+        socket?.readyState !== WebSocket.OPEN ||
+        pendingHealthRef.current !== null
+      )
+        return;
+      const id = ++healthSequenceRef.current;
+      pendingHealthRef.current = id;
+      const startedAt = Date.now();
+      healthTimerRef.current = setTimeout(() => {
+        clearHealthCheck();
+        // The event loop itself may have slept. A delayed callback is not proof
+        // of a dead connection; ask again with a fresh foreground deadline.
+        if (Date.now() - startedAt > HEALTH_TIMEOUT_MS + 2000) {
+          probe();
+          return;
+        }
+        if (document.visibilityState !== "hidden" && wsRef.current === socket) {
+          failSocket(socket, "heartbeat timeout");
+        }
+      }, HEALTH_TIMEOUT_MS);
+      try {
+        socket.send(encodeTerminalPing(id));
+      } catch {
+        clearHealthCheck();
+        failSocket(socket, "heartbeat send failed");
+      }
+    },
+    [clearHealthCheck, failSocket],
+  );
+
+  const sendLatestResize = useCallback((socket: WebSocket) => {
+    const size = latestResizeRef.current;
+    if (!size) return;
+    socket.send(encodeResize(size.rows, size.cols));
+    onResizeSentRef.current?.({ ...size, sentAt: Date.now() });
+  }, []);
+
   const finishConnectAttempt = useCallback((generation: number) => {
     if (connectInFlightGenerationRef.current !== generation) return;
     connectInFlightRef.current = false;
@@ -444,6 +528,7 @@ export function useTerminalWebSocket({
 
       clearReconnectTimer();
       clearConnectingStallTimer();
+      clearHealthCheck();
 
       const action: TerminalRecoveryAction =
         recoveryAction ?? (attemptRef.current > 0 ? "schedule-reconnect" : "initial-connect");
@@ -563,15 +648,26 @@ export function useTerminalWebSocket({
         console.log(`[terminal] Reconnect attempt ${attemptRef.current}`);
       }
 
-      const ws = new WebSocket(effectiveUrl);
+      const ws = new WebSocket(effectiveUrl, TERMINAL_SUBPROTOCOL);
       ws.binaryType = "arraybuffer";
       wsRef.current = ws;
 
+      const isCurrentSocket = () =>
+        mountedRef.current &&
+        generation === connectionGenerationRef.current &&
+        wsRef.current === ws;
       ws.onopen = () => {
-        if (!mountedRef.current) {
+        if (!isCurrentSocket()) {
           ws.close();
           return;
         }
+        // An HTTP upgrade only proves the proxy is reachable, not the PTY.
+        if (ws.protocol !== TERMINAL_SUBPROTOCOL) failSocket(ws, "terminal protocol unavailable");
+      };
+
+      const markReady = () => {
+        if (!isCurrentSocket() || connectionStateRef.current === "connected") return;
+        sendLatestResize(ws);
         finishConnectAttempt(generation);
         clearConnectingStallTimer();
         attemptRef.current = 0;
@@ -590,7 +686,18 @@ export function useTerminalWebSocket({
       };
 
       ws.onmessage = (event: MessageEvent) => {
-        if (!mountedRef.current) return;
+        if (!isCurrentSocket()) return;
+        const control = parseTerminalControl(event.data);
+        if (control?.type === "hive:ready") {
+          markReady();
+          return;
+        }
+        if (control?.type === "hive:pong") {
+          if (control.id === pendingHealthRef.current) clearHealthCheck();
+          return;
+        }
+        // Negotiated output is binary; never render unrecognized control text.
+        if (typeof event.data === "string") return;
         if (event.data instanceof ArrayBuffer) {
           onDataRef.current(new Uint8Array(event.data));
         } else {
@@ -608,6 +715,7 @@ export function useTerminalWebSocket({
         }
         finishConnectAttempt(generation);
         clearConnectingStallTimer();
+        clearHealthCheck();
         wsRef.current = null;
 
         const classification = classifyTerminalClose(event);
@@ -685,50 +793,9 @@ export function useTerminalWebSocket({
       };
 
       connectingStallTimerRef.current = setTimeout(() => {
-        if (
-          !mountedRef.current ||
-          generation !== connectionGenerationRef.current ||
-          wsRef.current !== ws ||
-          ws.readyState === WebSocket.OPEN
-        ) {
-          return;
+        if (isCurrentSocket() && connectionStateRef.current !== "connected") {
+          failSocket(ws, "upstream connect timeout");
         }
-
-        console.log("[terminal] WebSocket connection stalled; forcing reconnect");
-        finishConnectAttempt(generation);
-        ws.onclose = null;
-        ws.onerror = null;
-        ws.close();
-        wsRef.current = null;
-
-        const delay = computeBackoff(attemptRef.current);
-        attemptRef.current += 1;
-        const retryCount = attemptRef.current;
-        updateState("disconnected");
-        updateRecoveryState((current) => ({
-          ...current,
-          phase: "recovering",
-          retryCount,
-          lastCloseCode: null,
-          lastCloseCategory: "transient",
-          lastReasonCategory: "timeout",
-          failureCategory: null,
-          lastDelayMs: Math.round(delay),
-          lastDisconnectedAt: Date.now(),
-          lastRecoveryAction: "schedule-reconnect",
-          isRecoverable: true,
-          canRetry: true,
-        }));
-        reconnectTimerRef.current = setTimeout(() => {
-          if (mountedRef.current && generation === connectionGenerationRef.current) {
-            void connect({
-              recoveryAction: "schedule-reconnect",
-              reconnectReason: "scheduled-reconnect",
-              refreshBeforeConnect: Boolean(refreshUrlBeforeReconnectRef.current),
-              generation,
-            });
-          }
-        }, delay);
       }, CONNECTING_STALL_MS);
     },
     [
@@ -738,6 +805,9 @@ export function useTerminalWebSocket({
       clearReconnectTimer,
       clearConnectingStallTimer,
       finishConnectAttempt,
+      clearHealthCheck,
+      failSocket,
+      sendLatestResize,
     ],
   );
 
@@ -759,13 +829,14 @@ export function useTerminalWebSocket({
       connectInFlightGenerationRef.current = null;
       clearReconnectTimer();
       clearConnectingStallTimer();
+      clearHealthCheck();
       if (wsRef.current) {
         wsRef.current.onclose = null;
         wsRef.current.close();
         wsRef.current = null;
       }
     };
-  }, [connect, clearReconnectTimer, clearConnectingStallTimer, url]);
+  }, [connect, clearReconnectTimer, clearConnectingStallTimer, clearHealthCheck, url]);
 
   const startManualReconnect = useCallback(
     ({
@@ -822,31 +893,40 @@ export function useTerminalWebSocket({
   useBrowserLifecycleReconnection({
     backgroundedAtRef,
     startManualReconnect,
+    checkHealth,
+    clearHealthCheck,
   });
+
+  useEffect(() => {
+    if (connectionState !== "connected") return;
+    const interval = setInterval(checkHealth, HEALTH_INTERVAL_MS);
+    return () => {
+      clearInterval(interval);
+      clearHealthCheck();
+    };
+  }, [connectionState, checkHealth, clearHealthCheck]);
 
   const send = useCallback((data: string) => {
     const socket = wsRef.current;
-    if (socket?.readyState === WebSocket.OPEN) {
+    if (connectionStateRef.current === "connected" && socket?.readyState === WebSocket.OPEN) {
       socket.send(data);
     }
   }, []);
 
-  const resize = useCallback((rows: number, cols: number, source = "unknown") => {
-    const normalizedRows = normalizeResizeDimension(rows);
-    const normalizedCols = normalizeResizeDimension(cols);
-    if (normalizedRows === null || normalizedCols === null) return;
+  const resize = useCallback(
+    (rows: number, cols: number, source = "unknown") => {
+      const normalizedRows = normalizeResizeDimension(rows);
+      const normalizedCols = normalizeResizeDimension(cols);
+      if (normalizedRows === null || normalizedCols === null) return;
 
-    const socket = wsRef.current;
-    if (socket?.readyState === WebSocket.OPEN) {
-      socket.send(encodeResize(normalizedRows, normalizedCols));
-      onResizeSentRef.current?.({
-        rows: normalizedRows,
-        cols: normalizedCols,
-        source,
-        sentAt: Date.now(),
-      });
-    }
-  }, []);
+      latestResizeRef.current = { rows: normalizedRows, cols: normalizedCols, source };
+      const socket = wsRef.current;
+      if (connectionStateRef.current === "connected" && socket?.readyState === WebSocket.OPEN) {
+        sendLatestResize(socket);
+      }
+    },
+    [sendLatestResize],
+  );
 
   return { send, connectionState, resize, recoveryState, manualReconnect };
 }

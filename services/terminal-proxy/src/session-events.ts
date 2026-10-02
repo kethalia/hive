@@ -5,6 +5,7 @@ export const TERMINAL_SESSION_EVENT_PAYLOAD_VERSION = 1;
 export type TerminalSessionKind = "git" | "terminal";
 export type TerminalSessionEventLevel = "error" | "info" | "warning";
 export type TerminalSessionEventType =
+  | "browser_backpressure"
   | "browser_disconnected"
   | "browser_error"
   | "browser_input"

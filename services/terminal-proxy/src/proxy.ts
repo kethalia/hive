@@ -23,6 +23,11 @@ import { verifyWorkspaceAgentAccess } from "./workspace-authorization.js";
 
 const PING_INTERVAL_MS = 15_000;
 const MAX_MISSED_HEARTBEATS = 2;
+// A backgrounded browser can be suspended. Keep its attachment warm for five
+// minutes; the foreground application probe detects a dead path in eight seconds.
+const MAX_BROWSER_MISSED_HEARTBEATS = 20;
+const MAX_BROWSER_BUFFER_BYTES = 4 * 1024 * 1024;
+const TERMINAL_SUBPROTOCOL = "hive-terminal-v1";
 const UPSTREAM_CONNECT_TIMEOUT_MS = 10_000;
 const BROWSER_CLOSE_UPSTREAM_CLOSED_CODE = 1013;
 const BROWSER_CLOSE_UPSTREAM_CLOSED_REASON = "upstream closed";
@@ -35,7 +40,21 @@ const CLONE_TERMINAL_SESSION_RE = /^git-clone-[0-9a-f]{32}$/;
 const PROJECTS_ROOT_ENV_KEY = "HIVE_PROJECTS_ROOT";
 const DEFAULT_PROJECTS_ROOT_PATH = "/home/coder";
 
-const wss = new WebSocketServer({ noServer: true, maxPayload: 1_048_576 });
+const wss = new WebSocketServer({
+  noServer: true,
+  maxPayload: 1_048_576,
+  handleProtocols: (protocols) =>
+    protocols.has(TERMINAL_SUBPROTOCOL) ? TERMINAL_SUBPROTOCOL : false,
+});
+let draining = false;
+
+export function drainTerminalConnections(): () => void {
+  draining = true;
+  for (const socket of wss.clients) socket.close(1012, "terminal proxy restarting");
+  return () => {
+    for (const socket of wss.clients) socket.terminate();
+  };
+}
 
 export const connectionRegistry = new ConnectionRegistry();
 
@@ -450,6 +469,11 @@ export async function handleUpgrade(
       }
     : null;
 
+  if (draining) {
+    socket.write("HTTP/1.1 503 Service Unavailable\r\nConnection: close\r\n\r\n");
+    socket.destroy();
+    return;
+  }
   wss.handleUpgrade(req, socket, head, (browserWs) => {
     wss.emit("connection", browserWs, req);
 
@@ -491,6 +515,10 @@ function connectUpstream(
     ...(ca ? { ca } : {}),
   });
 
+  const controlProtocol = browserWs.protocol === TERMINAL_SUBPROTOCOL;
+  let upstreamReady = false;
+  let cleanedUp = false;
+  let connectTimer: ReturnType<typeof setTimeout> | null = null;
   let pingTimer: ReturnType<typeof setInterval> | null = null;
   let trafficTimer: ReturnType<typeof setInterval> | null = null;
   let browserResponsive = true;
@@ -539,6 +567,12 @@ function connectUpstream(
   }
 
   function cleanup() {
+    if (cleanedUp) return;
+    cleanedUp = true;
+    if (connectTimer) {
+      clearTimeout(connectTimer);
+      connectTimer = null;
+    }
     if (pingTimer) {
       clearInterval(pingTimer);
       pingTimer = null;
@@ -558,14 +592,14 @@ function connectUpstream(
 
   function handleHeartbeatTimeout(): boolean {
     if (
-      browserMissedHeartbeats <= MAX_MISSED_HEARTBEATS &&
+      browserMissedHeartbeats <= MAX_BROWSER_MISSED_HEARTBEATS &&
       upstreamMissedHeartbeats <= MAX_MISSED_HEARTBEATS
     ) {
       return false;
     }
 
     const unresponsiveLeg =
-      browserMissedHeartbeats > MAX_MISSED_HEARTBEATS ? "browser" : "upstream";
+      browserMissedHeartbeats > MAX_BROWSER_MISSED_HEARTBEATS ? "browser" : "upstream";
     logProxyEvent("error", "heartbeat_timeout", {
       category: "heartbeat_timeout",
       leg: unresponsiveLeg,
@@ -584,7 +618,7 @@ function connectUpstream(
       );
     }
     if (
-      browserMissedHeartbeats > MAX_MISSED_HEARTBEATS &&
+      browserMissedHeartbeats > MAX_BROWSER_MISSED_HEARTBEATS &&
       browserWs.readyState === WebSocket.OPEN
     ) {
       browserWs.terminate();
@@ -600,6 +634,16 @@ function connectUpstream(
   }
 
   upstream.on("open", () => {
+    if (cleanedUp || browserWs.readyState !== WebSocket.OPEN) {
+      upstream.close();
+      return;
+    }
+    upstreamReady = true;
+    if (connectTimer) {
+      clearTimeout(connectTimer);
+      connectTimer = null;
+    }
+    if (controlProtocol) browserWs.send(JSON.stringify({ type: "hive:ready" }));
     logProxyEvent("log", "upstream_connected", { category: "upstream_connected" });
     if (context) recordProxyEvent(eventStore, context, "upstream_connected");
     const runHeartbeat = () => {
@@ -638,10 +682,27 @@ function connectUpstream(
   });
 
   upstream.on("message", (data, isBinary) => {
+    if (cleanedUp) return;
+    upstreamResponsive = true;
     upstreamOutputBytes += messageByteLength(data);
     upstreamOutputFrames += 1;
     if (browserWs.readyState === WebSocket.OPEN) {
-      browserWs.send(data, { binary: isBinary });
+      if (browserWs.bufferedAmount + messageByteLength(data) > MAX_BROWSER_BUFFER_BYTES) {
+        if (context)
+          recordProxyEvent(
+            eventStore,
+            context,
+            "browser_backpressure",
+            {
+              bufferedBytes: browserWs.bufferedAmount,
+            },
+            "warning",
+          );
+        browserWs.close(1013, "terminal output backpressure");
+        cleanup();
+        return;
+      }
+      browserWs.send(data, { binary: controlProtocol || isBinary });
     }
   });
 
@@ -664,6 +725,25 @@ function connectUpstream(
   });
 
   browserWs.on("message", (data, isBinary) => {
+    if (cleanedUp) return;
+    browserResponsive = true;
+    if (controlProtocol && !isBinary && messageByteLength(data) <= 128) {
+      try {
+        const control = JSON.parse(data.toString());
+        if (control?.type === "hive:ping" && Number.isSafeInteger(control.id)) {
+          if (
+            upstreamReady &&
+            upstream.readyState === WebSocket.OPEN &&
+            browserWs.readyState === WebSocket.OPEN
+          ) {
+            browserWs.send(JSON.stringify({ type: "hive:pong", id: control.id }));
+          }
+          return;
+        }
+      } catch {
+        /* Normal PTY input is handled below. */
+      }
+    }
     const details = browserMessageDetails(data, isBinary);
     if (details.frame === "resize") {
       browserResizeBytes += messageByteLength(data);
@@ -679,9 +759,9 @@ function connectUpstream(
     }
   });
 
-  browserWs.on("close", () => {
+  browserWs.on("close", (code) => {
     logProxyEvent("log", "browser_disconnected", { category: "browser_disconnected" });
-    if (context) recordProxyEvent(eventStore, context, "browser_disconnected");
+    if (context) recordProxyEvent(eventStore, context, "browser_disconnected", { code });
     cleanup();
   });
 
@@ -691,7 +771,7 @@ function connectUpstream(
     cleanup();
   });
 
-  setTimeout(() => {
+  connectTimer = setTimeout(() => {
     if (upstream.readyState === WebSocket.CONNECTING) {
       logProxyEvent("error", "upstream_connect_timeout", {
         category: "upstream_connect_timeout",
