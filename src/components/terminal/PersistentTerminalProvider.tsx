@@ -14,7 +14,10 @@ import {
 import { createPortal } from "react-dom";
 import type { InteractiveTerminalProps } from "@/components/workspaces/InteractiveTerminal";
 import type { ConnectionState, TerminalRecoveryState } from "@/hooks/useTerminalWebSocket";
-import { TERMINAL_SESSION_FORGET_EVENT } from "@/lib/terminal/session-lifetime";
+import {
+  TERMINAL_SESSION_FORGET_EVENT,
+  TERMINAL_VIEWS_FORGET_EVENT,
+} from "@/lib/terminal/session-lifetime";
 
 // Bound only parked surfaces. Visible panes are never evicted. The server-side
 // tmux session remains available if a parked surface must be released.
@@ -193,10 +196,8 @@ class TerminalStore {
     this.scheduleExpiry();
   }
 
-  forget(workspaceId: string, sessionName: string) {
-    const removed = this.entries.filter(
-      (entry) => entry.props.workspaceId === workspaceId && entry.props.sessionName === sessionName,
-    );
+  forget(matches: (props: InteractiveTerminalProps) => boolean) {
+    const removed = this.entries.filter((entry) => matches(entry.props));
     this.entries = this.entries.filter((entry) => !removed.includes(entry));
     for (const entry of removed) {
       entry.host.remove();
@@ -218,13 +219,29 @@ export function PersistentTerminalProvider({ children }: { children: ReactNode }
     const forget = (event: Event) => {
       const detail = (event as CustomEvent<{ workspaceId: string; sessionName: string }>).detail;
       if (typeof detail?.workspaceId === "string" && typeof detail.sessionName === "string")
-        store.forget(detail.workspaceId, detail.sessionName);
+        store.forget(
+          (props) =>
+            props.workspaceId === detail.workspaceId && props.sessionName === detail.sessionName,
+        );
+    };
+    const forgetViews = (event: Event) => {
+      const detail = (event as CustomEvent<{ workspaceId: string; viewKeys: string[] }>).detail;
+      if (typeof detail?.workspaceId !== "string" || !Array.isArray(detail.viewKeys)) return;
+      const keys = new Set(detail.viewKeys);
+      store.forget(
+        (props) =>
+          props.workspaceId === detail.workspaceId &&
+          props.viewKey !== undefined &&
+          keys.has(props.viewKey),
+      );
     };
     window.addEventListener(TERMINAL_SESSION_FORGET_EVENT, forget);
+    window.addEventListener(TERMINAL_VIEWS_FORGET_EVENT, forgetViews);
     return () => {
       store.active = false;
       store.cancelExpiry();
       window.removeEventListener(TERMINAL_SESSION_FORGET_EVENT, forget);
+      window.removeEventListener(TERMINAL_VIEWS_FORGET_EVENT, forgetViews);
     };
   }, [store]);
   return (

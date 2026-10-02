@@ -9,3 +9,17 @@ export function forgetTerminalSession(workspaceId: string, sessionName: string):
     }),
   );
 }
+
+export const TERMINAL_VIEWS_FORGET_EVENT = "hive:terminal-views-forget";
+
+export function terminalPaneViewKey(boardKey: string, paneKey: string): string {
+  return JSON.stringify([boardKey, paneKey]);
+}
+
+// Removing a board or pane closes only its clients, not the underlying tmux
+// session or other views of that session.
+export function forgetTerminalViews(workspaceId: string, viewKeys: string[]): void {
+  window.dispatchEvent(
+    new CustomEvent(TERMINAL_VIEWS_FORGET_EVENT, { detail: { workspaceId, viewKeys } }),
+  );
+}

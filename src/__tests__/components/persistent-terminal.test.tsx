@@ -7,7 +7,7 @@ import {
   PersistentTerminalProvider,
 } from "@/components/terminal/PersistentTerminalProvider";
 import type { InteractiveTerminalProps } from "@/components/workspaces/InteractiveTerminal";
-import { forgetTerminalSession } from "@/lib/terminal/session-lifetime";
+import { forgetTerminalSession, forgetTerminalViews } from "@/lib/terminal/session-lifetime";
 
 const mounted = vi.fn();
 const disposed = vi.fn();
@@ -105,6 +105,43 @@ describe("dashboard terminal lifetime", () => {
     );
     expect(screen.getAllByRole("textbox")).toHaveLength(2);
     expect(mounted).toHaveBeenCalledTimes(2);
+  });
+
+  it("disposes a removed pane immediately without closing another view of its session", () => {
+    function Panes({ showFirst = true }) {
+      return (
+        <PersistentTerminalProvider>
+          {showFirst && <View viewKey="first" />}
+          <View viewKey="second" />
+        </PersistentTerminalProvider>
+      );
+    }
+    const { rerender } = render(<Panes />);
+    const second = screen.getAllByRole("textbox")[1];
+    act(() => forgetTerminalViews("workspace-a", ["first"]));
+    rerender(<Panes showFirst={false} />);
+    expect(disposed).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole("textbox")).toBe(second);
+    expect(mounted).toHaveBeenCalledTimes(2);
+  });
+
+  it("disposes all parked views of a deleted board only in the targeted workspace", () => {
+    function Panes({ show = true }) {
+      return (
+        <PersistentTerminalProvider>
+          {show && <View viewKey="first" />}
+          {show && <View viewKey="second" sessionName="git" />}
+          <View workspaceId="workspace-b" viewKey="first" />
+        </PersistentTerminalProvider>
+      );
+    }
+    const { rerender } = render(<Panes />);
+    const otherWorkspace = screen.getAllByRole("textbox")[2];
+    rerender(<Panes show={false} />);
+    expect(disposed).not.toHaveBeenCalled();
+    act(() => forgetTerminalViews("workspace-a", ["first", "second"]));
+    expect(disposed).toHaveBeenCalledTimes(2);
+    expect(screen.getByRole("textbox")).toBe(otherWorkspace);
   });
 
   it("explicit session deletion releases parked surfaces", () => {

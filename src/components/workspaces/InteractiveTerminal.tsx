@@ -85,6 +85,7 @@ export interface InteractiveTerminalProps {
   agentId: string;
   workspaceId: string;
   sessionName: string;
+  viewKey?: string;
   clonePath?: string;
   cloneProof?: string;
   refreshCloneTerminalIdentity?: RefreshCloneTerminalIdentity;
