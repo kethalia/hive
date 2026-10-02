@@ -1,5 +1,11 @@
 # hive-orchestrator
 
+## 2.17.9
+
+### Patch Changes
+
+- e15ca66: Schedule bounded weekly npm cache maintenance in all bundled Coder workspace profiles.
+
 ## 2.17.8
 
 ### Patch Changes
