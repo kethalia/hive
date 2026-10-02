@@ -1251,6 +1251,7 @@ export function MultiSessionWorkspace({
   const windowDropPreviewRef = useRef<WorkspaceWindowDropPreview | null>(null);
   const pendingWindowSplitTargetByBoardRef = useRef(new Map<string, string>());
   const pendingTerminalFocusSessionNameRef = useRef<string | null>(null);
+  const previousFocusBoardKeyRef = useRef<string | null>(null);
   const latestWorkspaceIdRef = useRef(workspaceId);
   const boardGenerationRef = useRef(new Map<string, number>());
   sessionsRef.current = sessions;
@@ -2649,6 +2650,19 @@ export function MultiSessionWorkspace({
     selectSession,
     visibleSessions,
   ]);
+
+  useEffect(() => {
+    const previousBoardKey = previousFocusBoardKeyRef.current;
+    const boardKey = activeBoard?.key ?? null;
+    previousFocusBoardKeyRef.current = loading ? null : boardKey;
+    if (loading || !previousBoardKey || previousBoardKey === boardKey) return;
+
+    // Selection is reconciled above; restore keyboard focus only on board changes.
+    // selectSession also queues focus when the destination terminal is not ready yet.
+    pendingTerminalFocusSessionNameRef.current = null;
+    const windowId = activeWindowIdRef.current;
+    if (windowId) selectWorkspaceWindow(windowId);
+  }, [activeBoard?.key, loading, selectWorkspaceWindow]);
 
   useEffect(() => {
     if (!isUnifiedSource || (!gitSearchOpen && !paletteOpen && !openMobileRight)) return;
