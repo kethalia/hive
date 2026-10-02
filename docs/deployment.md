@@ -101,3 +101,64 @@ Choose the least risky rollback that matches the failure mode:
 4. **Bad chart/config change:** revert the GitOps values or chart version change, then sync and verify the Deployment progress deadline clears.
 
 After any rollback, run the verifier again and check the user-facing web and terminal entry points.
+
+## Terminal connection continuity
+
+The dashboard owns terminal surfaces above the workspace routes. Navigating to another workspace
+or tool parks the surface in an inert, hidden host instead of destroying its renderer and socket.
+Returning within 30 minutes reuses that surface and re-registers its terminal/input callbacks with
+the active page. At most 24 parked surfaces are retained; the oldest are released first if that
+limit is exceeded. Visible surfaces are never evicted. Dashboard unmount (including logout),
+explicit session deletion, and session rename release the relevant clients. Releasing a client
+never kills tmux. Existing tabs/boards within a mounted page retain their existing lifetime.
+
+Parked connections continue to participate in the proxy's workspace keepalive until released.
+Consequently, visiting a workspace can keep it running for the 30-minute retention period and
+Coder's remaining extended deadline. Closing the browser or dashboard releases its attachments;
+this is not an always-on workspace policy.
+
+New clients negotiate `hive-terminal-v1`. On that subprotocol:
+
+- The proxy sends the text control frame `{"type":"hive:ready"}` only after the Coder PTY socket
+  opens. An HTTP/WebSocket upgrade alone does not reset retries or enable terminal input.
+- The proxy sends all PTY output as binary frames. Terminal output that happens to resemble JSON
+  cannot impersonate readiness or health messages.
+- The client retains the latest requested dimensions during recovery and sends them on readiness.
+- While foregrounded, the client probes the proxy every 15 seconds and on resume. Matching
+  `hive:ping` / `hive:pong` IDs confirm that the proxy is responsive and still has an open, ready
+  upstream socket. An unanswered probe expires after eight seconds. Browser suspension cancels
+  the probe deadline; late callbacks after an event-loop sleep trigger a fresh probe.
+- The existing native WebSocket heartbeats independently check the browser and Coder legs. The
+  browser receives a five-minute grace period (plus one heartbeat tick), while the upstream
+  retains its existing three-missed-check threshold. Received traffic also proves leg activity.
+
+Old clients without a subprotocol retain the previous output format, allowing the proxy to deploy
+before the web client. A new client talking to an old proxy retries until the compatible proxy is
+available. Deploy the proxy before the web client when rolling these services separately.
+
+Queued browser output is bounded at 4 MiB. A slow attachment is closed with retryable code 1013
+and a `browser_backpressure` diagnostic event, protecting other sessions from unbounded buffering.
+SIGTERM/SIGINT stop acceptance of new terminal upgrades and close existing sockets with retryable
+code 1012, with forced cleanup after 25 seconds. This does not transfer live sockets between pods;
+redundant replicas and infrastructure restart/ingress monitoring remain deployment concerns.
+
+The web client never uses refreshed clone proofs as renderer identity. Proof refreshes only affect
+subsequent handshakes, retaining the current surface and its content.
+
+### Continuity validation
+
+The unit suites exercise readiness, retry counting, suspended/half-open connections, latest-size
+replay, route reuse, simultaneous views, explicit removal, and 30-minute expiry. Proxy integration
+tests use real WebSockets and verify upstream readiness, input forwarding, control/output separation,
+and compatibility with existing clients.
+
+`e2e/terminal-continuity.spec.mjs` bundles the production session provider and transport into an
+isolated test server, outside the Next.js application. Run it in Browser Testing:
+
+```sh
+pnpm exec playwright test e2e/terminal-continuity.spec.mjs
+```
+
+The harness verifies DOM/output retention, input isolation, navigation without new sockets, and
+half-open recovery. It does not replace production preview checks of xterm sizing, clipboard,
+clone authorization, real Coder workspaces, or physical-device background suspension.
