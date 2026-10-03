@@ -1,5 +1,11 @@
 # hive-orchestrator
 
+## 2.17.12
+
+### Patch Changes
+
+- 1c16900: Fix workspace provisioning across all five templates by exposing the manual sandbox diagnostic as a terminal app instead of an invalid triggerless Coder script.
+
 ## 2.17.11
 
 ### Patch Changes
