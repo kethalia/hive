@@ -12,7 +12,7 @@
     "web3": false
   },
   "resources": {
-    "cpu_request": "4",
+    "cpu_request": "1",
     "memory_request": "8Gi",
     "cpu_limit": "8",
     "memory_limit": "16Gi",

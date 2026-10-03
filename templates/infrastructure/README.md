@@ -7,7 +7,7 @@ focused repository manifest, and conservative live-environment guidance.
 ## Runtime
 
 - Profile: `infrastructure`
-- Requests: 4 CPU and 8 GiB memory
+- Requests: 1 CPU and 8 GiB memory
 - Limits: 8 CPU and 16 GiB memory
 - Persistent home: 75 GiB
 - No cluster credentials or production authority granted by the template
@@ -21,6 +21,10 @@ precedence when present.
 The initial image rollout keeps `image_variant` on the currently pinned `cli` digest and records
 `infrastructure` as `pending_image_variant`. The post-merge image workflow promotes both the new
 digest and variant in one follow-up PR, so every committed template revision remains startable.
+
+The CPU request reserves capacity for interactive infrastructure CLI work; the higher limit
+allows bursts during validation. A four-core reservation previously left maintenance workspaces
+Pending when no individual node had that much unreserved CPU, despite spare aggregate capacity.
 
 ## Publish
 
