@@ -1,5 +1,12 @@
 # hive-orchestrator
 
+## 2.17.11
+
+### Patch Changes
+
+- bbe2c9e: Update global agent instructions across all workspace profiles to require Conventional Commit titles and ready-for-review PRs when work is complete. Automatically stop and delete disposable specialist workspaces created for a completed task after preserving results; retain reused or persistent workspaces unless deletion is explicitly confirmed, and protect active tasks and the primary workspace.
+- 5948f20: Add a credential-free restricted Codex sandbox diagnostic and opt-in, node-scoped AppArmor policy selection to the shared workspace scaffold.
+
 ## 2.17.10
 
 ### Patch Changes
