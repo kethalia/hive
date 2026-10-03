@@ -1,5 +1,11 @@
 # hive-orchestrator
 
+## 2.17.10
+
+### Patch Changes
+
+- 688712c: Reduce infrastructure workspace CPU reservations to one core so maintenance workspaces can schedule on nodes with limited unreserved capacity, while preserving their eight-core burst limit.
+
 ## 2.17.9
 
 ### Patch Changes
