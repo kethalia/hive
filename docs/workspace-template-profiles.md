@@ -133,6 +133,12 @@ mismatched expected variant and image.
 
 ## Validation
 
+Restricted Codex filesystem profiles require working nested namespaces and mount
+operations. Use the on-demand **Codex restricted sandbox readiness** script and
+the [sandbox runbook](codex-restricted-sandbox.md) before enabling a node-local
+AppArmor policy. A sandbox startup failure is not evidence of read isolation.
+The policy opt-in remains disabled pending node-policy and canary validation.
+
 Before publishing:
 
 1. Run `pnpm templates:check` and `pnpm test:templates`.

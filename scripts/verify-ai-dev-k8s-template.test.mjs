@@ -21,6 +21,32 @@ const GAME_TEMPLATE_ROOT = join(process.cwd(), "templates/game-dev");
 const ELECTRONICS_TEMPLATE_ROOT = join(process.cwd(), "templates/electronics");
 const INFRASTRUCTURE_TEMPLATE_ROOT = join(process.cwd(), "templates/infrastructure");
 
+test("sandbox evidence rejects startup failures and inconclusive denial results", () => {
+  const result = spawnSync("python3", ["-B", "scripts/codex-sandbox-readiness.test.py"], {
+    encoding: "utf8",
+    timeout: 30000,
+  });
+  assert.equal(result.status, 0, result.stderr || result.error?.message);
+});
+
+test("sandbox readiness is on demand and AppArmor selection is per dev container", () => {
+  const terraform = readTemplateFile("main.tf");
+  assert.match(
+    terraform,
+    /resource "coder_script" "codex_sandbox_readiness"[\s\S]*?run_on_start\s*=\s*false/,
+  );
+  assert.match(terraform, /container\.apparmor\.security\.beta\.kubernetes\.io\/dev/);
+  assert.match(terraform, /localhost\/\$\{local\.profile\.codex_sandbox_apparmor_profile\}/);
+  assert.match(
+    terraform,
+    /"hive\.kethalia\.com\/codex-sandbox" = local\.profile\.codex_sandbox_apparmor_profile/,
+  );
+  assert.match(terraform, /\^hive-codex-v\[0-9\]\+\$/);
+  assert.doesNotMatch(terraform, /apparmor[^\n]*Unconfined|apparmor[^\n]*unconfined/);
+  assert.doesNotMatch(terraform, /privileged\s*=\s*true|add\s*=\s*\["SYS_ADMIN"\]/);
+  assert.match(terraform, /drop\s*=\s*\["ALL"\]/);
+});
+
 function readTemplateFile(relativePath) {
   return readFileSync(join(TEMPLATE_ROOT, relativePath), "utf8");
 }

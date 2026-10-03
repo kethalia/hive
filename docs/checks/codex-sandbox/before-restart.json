@@ -1,0 +1,116 @@
+{
+  "schemaVersion": 1,
+  "passed": false,
+  "kernel": "6.8.0-134-generic",
+  "at": "2026-10-03T15:11:21.439205+00:00",
+  "profile": "infrastructure",
+  "imageVariant": "infrastructure",
+  "apparmor": "cri-containerd.apparmor.d (enforce)",
+  "processSecurity": [
+    "CapInh:\t0000000000000000",
+    "CapPrm:\t0000000000000000",
+    "CapEff:\t0000000000000000",
+    "CapBnd:\t0000000000000000",
+    "CapAmb:\t0000000000000000",
+    "NoNewPrivs:\t1",
+    "Seccomp:\t0",
+    "Seccomp_filters:\t0"
+  ],
+  "sysctls": {
+    "kernel/unprivileged_userns_clone": "1",
+    "kernel/apparmor_restrict_unprivileged_userns": "1",
+    "user/max_user_namespaces": "254107"
+  },
+  "requiredCli": "codex-cli 0.160.0",
+  "namespaces": {
+    "user": {
+      "status": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    "mount": {
+      "status": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    "mountPropagation": {
+      "status": 1,
+      "stdout": "",
+      "stderr": "unshare: cannot change root filesystem propagation: Permission denied\n"
+    }
+  },
+  "cli": {
+    "status": 0,
+    "stdout": "codex-cli 0.160.0\n",
+    "stderr": ""
+  },
+  "results": {
+    "inside": {
+      "control": {
+        "status": 0,
+        "stdout": "{\"probe\": \"inside\", \"outcome\": \"allowed\"}\n",
+        "stderr": ""
+      },
+      "sandbox": {
+        "status": 1,
+        "stdout": "",
+        "stderr": "bwrap: Failed to make / slave: Permission denied\n"
+      },
+      "outcome": "unavailable"
+    },
+    "outside": {
+      "control": {
+        "status": 0,
+        "stdout": "{\"probe\": \"outside\", \"outcome\": \"allowed\"}\n",
+        "stderr": ""
+      },
+      "sandbox": {
+        "status": 1,
+        "stdout": "",
+        "stderr": "bwrap: Failed to make / slave: Permission denied\n"
+      },
+      "outcome": "unavailable"
+    },
+    "symlink": {
+      "control": {
+        "status": 0,
+        "stdout": "{\"probe\": \"symlink\", \"outcome\": \"allowed\"}\n",
+        "stderr": ""
+      },
+      "sandbox": {
+        "status": 1,
+        "stdout": "",
+        "stderr": "bwrap: Failed to make / slave: Permission denied\n"
+      },
+      "outcome": "unavailable"
+    },
+    "write": {
+      "control": {
+        "status": 0,
+        "stdout": "{\"probe\": \"write\", \"outcome\": \"allowed\"}\n",
+        "stderr": ""
+      },
+      "sandbox": {
+        "status": 1,
+        "stdout": "",
+        "stderr": "bwrap: Failed to make / slave: Permission denied\n"
+      },
+      "outcome": "unavailable"
+    },
+    "network": {
+      "control": {
+        "status": 0,
+        "stdout": "{\"probe\": \"network\", \"outcome\": \"allowed\"}\n",
+        "stderr": ""
+      },
+      "sandbox": {
+        "status": 1,
+        "stdout": "",
+        "stderr": "bwrap: Failed to make / slave: Permission denied\n"
+      },
+      "outcome": "unavailable"
+    }
+  },
+  "unchanged": true,
+  "blocker": "Restricted sandbox not ready. In Infrastructure, inspect node AppArmor audit denials, effective pod security context and runtime seccomp policy. Startup errors, timeouts, missing tools and connection failures are not isolation evidence. Do not broaden permissions."
+}
