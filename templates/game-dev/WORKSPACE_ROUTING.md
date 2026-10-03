@@ -36,9 +36,13 @@ automation, screenshots, traces, and web validation still belong in `browser-tes
 
 Only `ai-dev-k8s` orchestrates workspaces. From that profile, inspect `coder templates list` and
 `coder list`, reuse a healthy matching workspace when possible, and create or start one only when
-needed. Never delete a workspace or persistent volume without explicit confirmation of the exact
-target. After preparing a specialist workspace, keep the interaction in Hive's TUI: tell the user
-which workspace to open and provide the handoff below so questions and corrections stay interactive.
+needed. After the specialist task finishes and its changes and evidence are preserved, stop and
+delete that workspace from `ai-dev-k8s`. This cleanup is preauthorized and does not require another
+confirmation. Do not delete a workspace still serving another active task. Preserve the primary
+workspace and unrelated persistent resources; deleting those requires explicit confirmation of the
+exact target. Specialist agents return a completion handoff to `ai-dev-k8s` for cleanup. After
+preparing a specialist workspace, keep the interaction in Hive's TUI: tell the user which workspace
+to open and provide the handoff below so questions and corrections stay interactive.
 
 Specialist profiles do not create, start, stop, or delete other workspaces. If work falls outside the
 current profile, preserve the current state and return this handoff to the user or the agent running
