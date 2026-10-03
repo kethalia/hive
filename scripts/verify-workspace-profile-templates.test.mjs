@@ -307,8 +307,14 @@ test("every profile receives the same workspace routing and interactive handoff 
   }
 
   assert.match(routing, /Only `ai-dev-k8s` orchestrates workspaces/);
-  assert.match(routing, /Automatic deletion is preauthorized only for disposable workspaces created for the completed task/);
-  assert.match(routing, /Reused or persistent specialist workspaces must be retained after stopping/);
+  assert.match(
+    routing,
+    /Automatic deletion is preauthorized only for disposable workspaces created for the completed task/,
+  );
+  assert.match(
+    routing,
+    /Reused or persistent specialist workspaces must be retained after stopping/,
+  );
   assert.match(routing, /If workspace provenance is unknown, retain it/);
   assert.match(routing, /Do not stop or delete a workspace still serving another active task/);
   assert.match(routing, /Preserve the primary workspace and unrelated persistent resources/);
