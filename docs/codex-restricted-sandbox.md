@@ -104,9 +104,11 @@ python3 templates/ai-dev-k8s/scripts/codex-sandbox-readiness.py
 python3 templates/ai-dev-k8s/scripts/codex-sandbox-readiness.py --codex /path/to/codex
 ```
 
-After publishing the scaffold, the Coder agent also exposes **Codex restricted
-sandbox readiness** as an on-demand script. It does not run at startup or race
-the separate AI-tools installer. It returns nonzero unless every condition passes.
+After publishing the scaffold, open the **Codex restricted sandbox readiness**
+terminal app to run the diagnostic on demand. It does not run at startup or race
+the separate AI-tools installer. It returns nonzero unless every condition passes
+and is limited to 240 seconds. This uses `coder_app.command`: a `coder_script`
+without a startup, shutdown, or cron trigger fails during workspace provisioning.
 
 The check requires exactly `codex-cli 0.160.0`; it never installs, upgrades,
 downgrades or changes configuration for any tool. `tools-ai.sh` retains its

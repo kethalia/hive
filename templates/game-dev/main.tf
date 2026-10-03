@@ -162,16 +162,15 @@ resource "coder_script" "tools_node" {
   script             = file("${path.module}/scripts/tools-node.sh")
 }
 
-# An on-demand diagnostic: no credentials/model calls, no tool installation,
-# and no startup dependency on Codex's separate tools_ai installation.
-resource "coder_script" "codex_sandbox_readiness" {
-  agent_id           = coder_agent.main.id
-  display_name       = "Codex restricted sandbox readiness"
-  icon               = "/icon/terminal.svg"
-  run_on_start       = false
-  start_blocks_login = false
-  timeout            = 240
-  script             = "python3 - <<'HIVE_SANDBOX_PY'\n${file("${path.module}/scripts/codex-sandbox-readiness.py")}\nHIVE_SANDBOX_PY\n"
+# A terminal app keeps the diagnostic on demand. coder_script requires a startup,
+# shutdown, or cron trigger, even when it is intended for manual execution only.
+resource "coder_app" "codex_sandbox_readiness" {
+  agent_id     = coder_agent.main.id
+  slug         = "codex-sandbox-readiness"
+  display_name = "Codex restricted sandbox readiness"
+  icon         = "/icon/terminal.svg"
+  share        = "owner"
+  command      = "timeout 240s python3 - <<'HIVE_SANDBOX_PY'\n${file("${path.module}/scripts/codex-sandbox-readiness.py")}\nHIVE_SANDBOX_PY\n"
 }
 
 # Coder agents schedule this directly; workspace containers need no cron daemon

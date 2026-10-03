@@ -81,6 +81,21 @@ function readTemplateFile(templateName, relativePath) {
   return readFileSync(join(templateRoot, templateName, relativePath), "utf8");
 }
 
+test("every Coder script has a supported execution trigger", () => {
+  for (const { template } of profiles) {
+    const terraform = readTemplateFile(template, "main.tf");
+    const scripts = [...terraform.matchAll(/resource "coder_script" "([^"]+)" \{([\s\S]*?)\n\}/g)];
+    assert.ok(scripts.length > 0, `${template}: expected Coder scripts`);
+    for (const [, name, body] of scripts) {
+      assert.match(
+        body,
+        /^\s*(?:run_on_start\s*=\s*true\b|run_on_stop\s*=\s*true\b|cron\s*=\s*"[^"\n]+")/m,
+        `${template}/${name}: coder_script requires run_on_start, run_on_stop, or cron`,
+      );
+    }
+  }
+});
+
 test("every workspace profile is a directly deployable Kubernetes Coder template", () => {
   const requiredFiles = [
     ".terraform.lock.hcl",

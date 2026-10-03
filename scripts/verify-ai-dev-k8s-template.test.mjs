@@ -33,8 +33,9 @@ test("sandbox readiness is on demand and AppArmor selection is per dev container
   const terraform = readTemplateFile("main.tf");
   assert.match(
     terraform,
-    /resource "coder_script" "codex_sandbox_readiness"[\s\S]*?run_on_start\s*=\s*false/,
+    /resource "coder_app" "codex_sandbox_readiness"[\s\S]*?command\s*=\s*"timeout 240s python3 - /,
   );
+  assert.doesNotMatch(terraform, /resource "coder_script" "codex_sandbox_readiness"/);
   assert.match(terraform, /container\.apparmor\.security\.beta\.kubernetes\.io\/dev/);
   assert.match(terraform, /localhost\/\$\{local\.profile\.codex_sandbox_apparmor_profile\}/);
   assert.match(
