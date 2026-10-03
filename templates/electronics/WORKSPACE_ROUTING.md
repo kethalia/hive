@@ -36,9 +36,24 @@ automation, screenshots, traces, and web validation still belong in `browser-tes
 
 Only `ai-dev-k8s` orchestrates workspaces. From that profile, inspect `coder templates list` and
 `coder list`, reuse a healthy matching workspace when possible, and create or start one only when
-needed. Never delete a workspace or persistent volume without explicit confirmation of the exact
-target. After preparing a specialist workspace, keep the interaction in Hive's TUI: tell the user
-which workspace to open and provide the handoff below so questions and corrections stay interactive.
+needed. Record whether the workspace was reused or created as disposable for the task. After
+preparing a specialist workspace, keep the interaction in Hive's TUI: tell the user which workspace
+to open and provide the handoff below so questions and corrections stay interactive.
+
+After a specialist task finishes, preserve its changes and evidence in the primary workspace before
+cleanup. Only `ai-dev-k8s` performs cleanup:
+
+- Do not stop or delete a workspace still serving another active task.
+- Stop the specialist workspace once it is no longer in use.
+- Automatic deletion is preauthorized only for disposable workspaces created for the completed task.
+  Delete those workspaces after stopping them; no additional confirmation is required.
+- Reused or persistent specialist workspaces must be retained after stopping. Deleting them requires
+  explicit user confirmation of the exact target. If workspace provenance is unknown, retain it.
+- Preserve the primary workspace and unrelated persistent resources; deleting those requires explicit
+  user confirmation of the exact target.
+
+Specialist agents return a completion handoff to `ai-dev-k8s` with the workspace name, whether it was
+reused or created as disposable, and the location of preserved changes and evidence for cleanup.
 
 Specialist profiles do not create, start, stop, or delete other workspaces. If work falls outside the
 current profile, preserve the current state and return this handoff to the user or the agent running
@@ -57,3 +72,12 @@ Keep implementation in the workspace that owns the repository unless the task ex
 Use the specialist workspace for its bounded validation or tool step, then carry the resulting
 evidence or changes back through the repository and the live TUI conversation. Do not use retired
 Hive Tasks or New Task workflows for handoffs.
+
+## Git And PR Workflow
+
+- Use Conventional Commits for every commit title and every PR title, for example
+  `feat(terminal): add shared session frame`.
+- Open a PR as a draft only when the goal or task is still running and work remains in progress.
+  If the work is complete when the PR is opened, open it ready for review.
+- When a goal or task finishes, mark any associated draft PRs ready for review before handing
+  the completed work back to the user.

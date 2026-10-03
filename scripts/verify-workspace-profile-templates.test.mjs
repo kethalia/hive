@@ -275,7 +275,6 @@ test("profile guidance encodes the intended interactive and capability boundarie
   const game = readTemplateFile("game-dev", "CLAUDE.md");
   const electronics = readTemplateFile("electronics", "CLAUDE.md");
   const infrastructure = readTemplateFile("infrastructure", "CLAUDE.md");
-  assert.match(software, /Never delete a[\s\S]*without explicit user confirmation/);
   assert.match(software, /coder templates list/);
   assert.match(browser, /browser automation/);
   assert.match(browser, /cookies, downloads, traces, screenshots/);
@@ -308,6 +307,20 @@ test("every profile receives the same workspace routing and interactive handoff 
   }
 
   assert.match(routing, /Only `ai-dev-k8s` orchestrates workspaces/);
+  assert.match(
+    routing,
+    /Automatic deletion is preauthorized only for disposable workspaces created for the completed task/,
+  );
+  assert.match(
+    routing,
+    /Reused or persistent specialist workspaces must be retained after stopping/,
+  );
+  assert.match(routing, /If workspace provenance is unknown, retain it/);
+  assert.match(routing, /Do not stop or delete a workspace still serving another active task/);
+  assert.match(routing, /Preserve the primary workspace and unrelated persistent resources/);
+  assert.match(routing, /Use Conventional Commits for every commit title and every PR title/);
+  assert.match(routing, /Open a PR as a draft only when the goal or task is still running/);
+  assert.match(routing, /mark any associated draft PRs ready for review/);
   assert.match(routing, /Specialist profiles do not create, start, stop, or delete/);
   assert.match(routing, /do not download a replacement browser/);
   assert.match(routing, /do not[\s\S]*Playwright browser or system-dependency installers/);

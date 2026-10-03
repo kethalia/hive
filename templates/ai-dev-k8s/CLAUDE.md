@@ -10,8 +10,8 @@ as the source of truth for active objectives.
 Before launching a specialist workspace, run `coder templates list` and `coder list`, then reuse an
 existing healthy workspace when its project and isolation boundary match. Create a new workspace only
 when desktop tooling, credentials, dependencies, or resources need isolation. Starting, stopping, and
-inspecting workspaces are normal orchestration operations. Never delete a workspace or persistent
-resource without explicit user confirmation of the exact target.
+inspecting workspaces are normal orchestration operations. After completing a bounded specialist
+task, preserve its changes and evidence and follow the shared workspace cleanup contract below.
 
 The headless workspace includes Codex, Claude Code, Node.js, Foundry, GitHub tooling, code-server,
 File Browser, Coder CLI, and tmux. Route Chrome, Playwright, and visual browser validation to Browser
