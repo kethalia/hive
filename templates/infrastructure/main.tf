@@ -162,6 +162,18 @@ resource "coder_script" "tools_node" {
   script             = file("${path.module}/scripts/tools-node.sh")
 }
 
+# An on-demand diagnostic: no credentials/model calls, no tool installation,
+# and no startup dependency on Codex's separate tools_ai installation.
+resource "coder_script" "codex_sandbox_readiness" {
+  agent_id           = coder_agent.main.id
+  display_name       = "Codex restricted sandbox readiness"
+  icon               = "/icon/terminal.svg"
+  run_on_start       = false
+  start_blocks_login = false
+  timeout            = 240
+  script             = "python3 - <<'HIVE_SANDBOX_PY'\n${file("${path.module}/scripts/codex-sandbox-readiness.py")}\nHIVE_SANDBOX_PY\n"
+}
+
 # Coder agents schedule this directly; workspace containers need no cron daemon
 # or user systemd session. Stopped workspaces run at the next scheduled time
 # after starting; cache maintenance never blocks workspace startup.
@@ -438,6 +450,13 @@ resource "kubernetes_persistent_volume_claim_v1" "home" {
 }
 
 resource "kubernetes_deployment_v1" "workspace" {
+  lifecycle {
+    precondition {
+      condition     = try(local.profile.codex_sandbox_apparmor_profile, null) == null ? true : can(regex("^hive-codex-v[0-9]+$", local.profile.codex_sandbox_apparmor_profile))
+      error_message = "Codex sandbox AppArmor policy must be a versioned hive-codex-vN localhost profile installed by the cluster operator."
+    }
+  }
+
   count            = data.coder_workspace.me.start_count
   wait_for_rollout = false
 
@@ -471,6 +490,14 @@ resource "kubernetes_deployment_v1" "workspace" {
 
     template {
       metadata {
+        # Kubernetes provider 2.38 does not expose securityContext.appArmorProfile.
+        # Verify this compatibility annotation against deployed k3s before rollout.
+        # Opt in only after the named policy is loaded on eligible nodes.
+        # The seed-home container continues using the runtime's default policy.
+        annotations = try(local.profile.codex_sandbox_apparmor_profile, null) == null ? {} : {
+          "container.apparmor.security.beta.kubernetes.io/dev" = "localhost/${local.profile.codex_sandbox_apparmor_profile}"
+        }
+
         labels = {
           "app.kubernetes.io/name"     = "coder-workspace"
           "app.kubernetes.io/instance" = "coder-${data.coder_workspace.me.id}"
@@ -486,6 +513,9 @@ resource "kubernetes_deployment_v1" "workspace" {
       spec {
         automount_service_account_token = false
         hostname                        = local.workspace_hostname
+        node_selector = try(local.profile.codex_sandbox_apparmor_profile, null) == null ? {} : {
+          "hive.kethalia.com/codex-sandbox" = local.profile.codex_sandbox_apparmor_profile
+        }
 
         security_context {
           run_as_non_root        = true

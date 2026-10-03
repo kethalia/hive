@@ -1,0 +1,31 @@
+{
+  "cli": "0.160.0",
+  "at": "2026-10-03T15:15:55.031Z",
+  "bounded": true,
+  "sandbox": "studio-preview: minimal runtime + disposable root read-only, network disabled",
+  "repository": "fresh disposable Git repository",
+  "separateApiKey": false,
+  "initialized": false,
+  "state": "interrupted",
+  "eventCount": 8,
+  "unknownMethods": [],
+  "text": "",
+  "errors": [
+    {
+      "message": "Error: codex account authentication required to read rate limits"
+    },
+    {
+      "message": "account/rateLimits/read unavailable: Error: codex account authentication required to read rate limits"
+    },
+    {
+      "message": "Error: error creating thread: failed to load AGENTS.md instructions for environment `local`: fs sandbox helper failed with status exit status: 1: bwrap: Failed to make / slave: Permission denied"
+    },
+    {
+      "message": "Error: error creating thread: failed to load AGENTS.md instructions for environment `local`: fs sandbox helper failed with status exit status: 1: bwrap: Failed to make / slave: Permission denied"
+    }
+  ],
+  "accountReported": false,
+  "limitsReported": false,
+  "usageReported": false,
+  "replayStable": true
+}

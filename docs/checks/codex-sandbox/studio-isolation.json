@@ -1,0 +1,33 @@
+{
+  "at": "2026-10-03T15:16:08.606Z",
+  "profile": "infrastructure",
+  "cli": "codex-cli 0.160.0",
+  "results": {
+    "inside": {
+      "status": 1,
+      "signal": null,
+      "stdout": "",
+      "stderr": "bwrap: Failed to make / slave: Permission denied\n"
+    },
+    "outside": {
+      "status": 1,
+      "signal": null,
+      "stdout": "",
+      "stderr": "bwrap: Failed to make / slave: Permission denied\n"
+    },
+    "symlink": {
+      "status": 1,
+      "signal": null,
+      "stdout": "",
+      "stderr": "bwrap: Failed to make / slave: Permission denied\n"
+    },
+    "write": {
+      "status": 1,
+      "signal": null,
+      "stdout": "",
+      "stderr": "bwrap: Failed to make / slave: Permission denied\n"
+    }
+  },
+  "unchanged": true,
+  "passed": false
+}
