@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Credential-free, pinned-CLI restricted sandbox diagnostic (no model calls)."""
+"""Credential-free, installed-CLI restricted sandbox diagnostic (no model calls)."""
 
 import argparse
 from contextlib import ExitStack
@@ -16,10 +16,6 @@ import socket
 import subprocess
 import tempfile
 
-BWRAP_PINS = {
-    "codex-cli 0.160.0": "01fb705f067bd5365b63d8ad2323a61c8d007733ca5e649437e086f3fb9935d8",
-    "codex-cli 0.160.1": "77360cb751ccedc5971391444ac86a8a33c15b04d6b4a6fe45f5d25496e62c4c",
-}
 APPARMOR_PROFILE = "hive-codex-v1 (enforce)"
 CAPABILITY_FIELDS = ("CapInh", "CapPrm", "CapEff", "CapBnd", "CapAmb")
 ESCAPE_WRITES = ("outside-write", "symlink-write", "outside-create", "symlink-create")
@@ -130,7 +126,6 @@ def diagnose(codex, writable=False):
         "sysctls": {name: read_public("/proc/sys/" + name) for name in (
             "kernel/unprivileged_userns_clone", "kernel/apparmor_restrict_unprivileged_userns",
             "user/max_user_namespaces")},
-        "supportedCli": sorted(BWRAP_PINS),
     }
     report["outerSecurityBlockers"] = outer_security_blockers(
         report["apparmor"], report["processSecurity"])
@@ -146,21 +141,20 @@ def diagnose(codex, writable=False):
     }
     executable = shutil.which(codex)
     if executable is None:
-        report["blocker"] = "Codex missing; supply --codex /absolute/path/to/pinned/codex. No tool was installed."
+        report["blocker"] = "Codex missing; supply --codex /absolute/path/to/native/codex. No tool was installed."
         return report
     # A launcher script is not the executable re-entered inside bubblewrap.
-    # Require the pinned native ELF so the only extra readable path is explicit.
+    # Require the native ELF so the only extra readable path is explicit.
     executable = str(Path(executable).resolve())
     with open(executable, "rb") as binary:
         if binary.read(4) != b"\x7fELF":
-            report["blocker"] = "Supply --codex with the pinned native ELF, not its npm launcher."
+            report["blocker"] = "Supply --codex with the native ELF, not its npm launcher."
             return report
     report["runtimeReadableExecutable"] = executable
     version = run([executable, "--version"])
     report["cli"] = version
-    required_digest = BWRAP_PINS.get(version.get("stdout", "").strip())
-    if version.get("status") != 0 or required_digest is None:
-        report["blocker"] = "CLI mismatch or unavailable; supported versions: " + ", ".join(sorted(BWRAP_PINS)) + ". Existing tools are preserved."
+    if version.get("status") != 0 or not version.get("stdout", "").strip():
+        report["blocker"] = "CLI version command failed or returned no output; existing tools are preserved."
         return report
     helper = Path(executable).parent.parent / "codex-resources" / "bwrap"
     try:
@@ -168,9 +162,9 @@ def diagnose(codex, writable=False):
     except OSError:
         helper_digest = None
     report["bubblewrap"] = {"selection": "bundled-only", "path": str(helper),
-                            "sha256": helper_digest, "requiredSHA256": required_digest}
-    if helper_digest != required_digest:
-        report["blocker"] = "Pinned bundled bubblewrap is missing or has a different digest."
+                            "sha256": helper_digest, "executable": os.access(helper, os.X_OK)}
+    if helper_digest is None or not os.access(helper, os.X_OK):
+        report["blocker"] = "Bundled bubblewrap is missing, unreadable, or not executable."
         return report
     # Codex refuses helper aliases beneath /tmp. Use a fresh private home child,
     # never the user's real CODEX_HOME; cleanup only this generated directory.
@@ -202,7 +196,7 @@ def diagnose(codex, writable=False):
         empty_path.mkdir()
         # Never load the user's Codex config, plugins, auth, or shell environment.
         # Absolute command paths need no PATH tools. Exclude system bwrap so
-        # Codex can only fall back to the digest-checked bundled helper.
+        # Codex can only fall back to the installed bundled helper.
         env = {"PATH": str(empty_path), "HOME": str(home),
                "CODEX_HOME": str(home), "LANG": "C.UTF-8"}
         access = "write" if writable else "read"
@@ -258,7 +252,7 @@ def diagnose(codex, writable=False):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--codex", default=str(Path.home() / ".local/lib/node_modules/@openai/codex/node_modules/@openai/codex-linux-x64/vendor/x86_64-unknown-linux-musl/bin/codex"), help="Pinned native CLI ELF; never installs or replaces tools")
+    parser.add_argument("--codex", default=str(Path.home() / ".local/lib/node_modules/@openai/codex/node_modules/@openai/codex-linux-x64/vendor/x86_64-unknown-linux-musl/bin/codex"), help="Installed native CLI ELF; never installs or replaces tools")
     parser.add_argument("--writable-fixture", action="store_true", help="Also verify a scoped writable fixture; no user files are touched")
     args = parser.parse_args()
     output = diagnose(args.codex, args.writable_fixture)

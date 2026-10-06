@@ -77,17 +77,16 @@ python3 templates/ai-dev-k8s/scripts/codex-sandbox-readiness.py --writable-fixtu
 
 The default is the native executable in Hive's persistent Linux x64 npm install.
 Use `--codex /absolute/path/to/native/codex` for an isolated alternative with its
-sibling `codex-resources/bwrap`. The diagnostic accepts only these validated
-Linux x64 CLI/helper pairs:
+sibling `codex-resources/bwrap`. Hive uses the latest Codex release; the diagnostic
+has no CLI version or helper-hash allowlist. It records the installed CLI version
+and bundled helper SHA-256 for troubleshooting, requires a readable executable
+helper, and runs the isolation probes against that installation. A newer version
+or changed helper digest does not itself fail readiness.
 
-| CLI | Bundled helper SHA-256 |
-| --- | --- |
-| `codex-cli 0.160.0` | `01fb705f067bd5365b63d8ad2323a61c8d007733ca5e649437e086f3fb9935d8` |
-| `codex-cli 0.160.1` | `77360cb751ccedc5971391444ac86a8a33c15b04d6b4a6fe45f5d25496e62c4c` |
-
-A supported CLI with the other version's helper still fails closed.
-The diagnostic never installs or replaces tools. Other versions/platforms fail
-closed pending validation. No startup hooks or AI-tool upgrade behavior change.
+The diagnostic never installs, downgrades, or replaces tools. If a future release
+changes the sandbox interface or behavior, failed or inconclusive probes still
+return nonzero. A successful run proves only the checks exercised on that runtime;
+it does not guarantee compatibility with releases that have not run the probes.
 
 The diagnostic uses private synthetic fixtures and no credentials or model
 calls. It needs a writable runtime directory for a temporary sibling sentinel,
@@ -121,8 +120,8 @@ missing-helper warning with `/usr/bin:/bin` and started without that warning
 with the link present. Both read-only and scoped-write boundary checks passed
 using PATH selection of the same bundled helper (SHA-256
 `77360cb751ccedc5971391444ac86a8a33c15b04d6b4a6fe45f5d25496e62c4c`).
-The on-demand diagnostic now accepts both validated versions with their exact
-helper digest. Its isolated empty PATH continues to exercise bundled selection.
+The on-demand diagnostic accepts installed and future versions without a version
+allowlist. Its isolated empty PATH continues to exercise bundled selection.
 
 An already-open Codex session can retain its startup warning. Start a new Codex
 session after the link is installed; a workspace restart is not needed for

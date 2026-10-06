@@ -43,10 +43,7 @@ class EvidenceTests(unittest.TestCase):
         readiness.shutil.copyfile(sys.executable, self.native)
         self.helper = self.runtime / "codex-resources/bwrap"
         self.helper.write_bytes(b"test bundled helper")
-        digest = hashlib.sha256(self.helper.read_bytes()).hexdigest()
-        pin = patch.object(readiness, "BWRAP_PINS", {"codex-cli 0.160.0": digest, "codex-cli 0.160.1": "other-helper-digest"})
-        pin.start()
-        self.addCleanup(pin.stop)
+        self.helper.chmod(0o755)
 
     def test_unsafe_or_missing_outer_context_never_runs_probes(self):
         contexts = [(profile, SAFE_STATUS) for profile in (
@@ -114,32 +111,34 @@ class EvidenceTests(unittest.TestCase):
         self.assertFalse(report["passed"])
         self.assertIn("native ELF", report["blocker"])
 
-    def test_mismatched_cli_never_runs_sandbox(self):
-        calls = []
-        def fake_run(argv, **_):
-            calls.append(argv)
-            return {"status": 0, "stdout": "codex-cli 0.159.0\n", "stderr": ""}
-        with patch.object(readiness.shutil, "which", return_value=self.native), patch.object(readiness, "run", fake_run):
-            report = readiness.diagnose("codex")
-        self.assertFalse(report["passed"])
-        self.assertFalse(any("sandbox" in argv for argv in calls))
-        self.assertIn("mismatch", report["blocker"])
+    def test_unavailable_cli_never_runs_sandbox(self):
+        for result in ({"status": 1, "stdout": "codex-cli 99.0.0"},
+                       {"status": 0, "stdout": ""}, {"error": "timeout"}):
+            with patch.object(readiness.shutil, "which", return_value=self.native), patch.object(
+                readiness, "run", return_value=result
+            ) as run:
+                report = readiness.diagnose(self.native)
+            self.assertFalse(report["passed"])
+            self.assertFalse(any("sandbox" in call.args[0] for call in run.call_args_list))
 
-    def test_version_and_helper_must_match_as_a_pair(self):
-        for version, expected_digest in readiness.BWRAP_PINS.items():
-            for matches in (False, True):
-                with self.subTest(version=version, matches=matches):
-                    digest = expected_digest if matches else "wrong-version-helper"
-                    with patch.object(readiness.shutil, "which", return_value=self.native), patch.object(
-                        readiness, "run", return_value={"status": 0, "stdout": version}
-                    ) as run, patch.object(readiness.hashlib, "sha256") as sha:
-                        sha.return_value.hexdigest.return_value = digest
-                        report = readiness.diagnose(self.native)
-                    self.assertEqual(report["bubblewrap"]["requiredSHA256"], expected_digest)
-                    self.assertEqual(any("sandbox" in call.args[0] for call in run.call_args_list), matches)
-                    if not matches:
-                        self.assertFalse(report["passed"])
-                        self.assertIn("bubblewrap", report["blocker"])
+    def test_new_versions_and_helper_contents_are_measured_not_allowlisted(self):
+        for version in ("codex-cli 0.160.1", "codex-cli 99.0.0", "codex-cli 99.1.0-alpha.1"):
+            self.helper.write_bytes(version.encode())
+            def fake_run(argv, **_):
+                if argv[0] == "unshare":
+                    return {"status": 0, "stdout": "", "stderr": ""}
+                if "--version" in argv:
+                    return {"status": 0, "stdout": version, "stderr": ""}
+                operation = argv[-2]
+                return (completed(operation) if "sandbox" not in argv or operation == "inside"
+                        else completed(operation, "error", errno.EACCES))
+            with patch.object(readiness.shutil, "which", return_value=self.native), patch.object(readiness, "run", fake_run):
+                report = readiness.diagnose(self.native)
+            self.assertTrue(report["passed"])
+            self.assertEqual(report["cli"]["stdout"], version)
+            self.assertEqual(report["bubblewrap"]["sha256"], hashlib.sha256(version.encode()).hexdigest())
+            self.assertNotIn("supportedCli", report)
+            self.assertNotIn("requiredSHA256", report["bubblewrap"])
 
     def test_scoped_write_requires_a_real_fixture_change(self):
         for change_file in (False, True):
@@ -216,15 +215,15 @@ class EvidenceTests(unittest.TestCase):
         with patch.object(readiness.shutil, "which", return_value=self.native), patch.object(readiness, "run", fake_run):
             report = readiness.diagnose(self.native)
         self.assertTrue(report["passed"])
-        self.assertEqual(report["bubblewrap"]["sha256"], readiness.BWRAP_PINS["codex-cli 0.160.0"])
+        self.assertEqual(report["bubblewrap"]["sha256"], hashlib.sha256(self.helper.read_bytes()).hexdigest())
         self.assertFalse(seen["sentinel"].exists())
 
-    def test_missing_or_changed_bundled_helper_never_runs_sandbox(self):
+    def test_missing_or_nonexecutable_bundled_helper_never_runs_sandbox(self):
         for missing in (False, True):
             if missing:
                 self.helper.unlink()
             else:
-                self.helper.write_bytes(b"wrong helper")
+                self.helper.chmod(0o644)
             with patch.object(readiness.shutil, "which", return_value=self.native), patch.object(
                 readiness, "run", return_value={"status": 0, "stdout": "codex-cli 0.160.0"}
             ) as run:
