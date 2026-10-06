@@ -356,7 +356,6 @@ test("every profile receives the same workspace routing and interactive handoff 
   }
 });
 
-
 test("Turborepo cache cleanup preserves project data", () => {
   const result = spawnSync("python3", ["scripts/test-prune-turbo-cache.py"], {
     cwd: repositoryRoot,
