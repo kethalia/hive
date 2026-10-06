@@ -14,10 +14,7 @@
       "Seccomp:\t0",
       "Seccomp_filters:\t0"
     ],
-    "supportedCli": [
-      "codex-cli 0.160.0",
-      "codex-cli 0.160.1"
-    ],
+    "supportedCli": ["codex-cli 0.160.0", "codex-cli 0.160.1"],
     "cli": {
       "status": 0,
       "stdout": "codex-cli 0.160.1\n",
@@ -46,10 +43,7 @@
       "Seccomp:\t0",
       "Seccomp_filters:\t0"
     ],
-    "supportedCli": [
-      "codex-cli 0.160.0",
-      "codex-cli 0.160.1"
-    ],
+    "supportedCli": ["codex-cli 0.160.0", "codex-cli 0.160.1"],
     "cli": {
       "status": 0,
       "stdout": "codex-cli 0.160.1\n",
@@ -78,10 +72,7 @@
       "Seccomp:\t0",
       "Seccomp_filters:\t0"
     ],
-    "supportedCli": [
-      "codex-cli 0.160.0",
-      "codex-cli 0.160.1"
-    ],
+    "supportedCli": ["codex-cli 0.160.0", "codex-cli 0.160.1"],
     "cli": {
       "status": 0,
       "stdout": "codex-cli 0.160.0\n",
@@ -110,10 +101,7 @@
       "Seccomp:\t0",
       "Seccomp_filters:\t0"
     ],
-    "supportedCli": [
-      "codex-cli 0.160.0",
-      "codex-cli 0.160.1"
-    ],
+    "supportedCli": ["codex-cli 0.160.0", "codex-cli 0.160.1"],
     "cli": {
       "status": 0,
       "stdout": "codex-cli 0.160.0\n",
