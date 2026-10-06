@@ -1,5 +1,11 @@
 # hive-orchestrator
 
+## 2.17.14
+
+### Patch Changes
+
+- ba9bba6: Expose Codex's bundled bubblewrap on PATH when no bwrap command exists, preventing the missing-helper startup warning while preserving existing commands.
+
 ## 2.17.13
 
 ### Patch Changes
