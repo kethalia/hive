@@ -101,3 +101,23 @@ fail-closed sandbox startup error; never compensate with unrestricted mode.
 Remove a node's readiness label before retiring its policy, and unload/remove
 the policy only after no running container references it. Keep the reusable
 Infrastructure canary and its PVC; stop it when idle.
+
+## Missing bubblewrap startup warning
+
+`tools-ai.sh` exposes the installed Codex npm package's bundled helper as
+`~/.local/bin/bwrap` when no `bwrap` command exists. It preserves existing
+commands and occupied destinations, needs no root access, and skips unsupported
+platforms or missing helpers. The symlink follows the stable npm package path
+across updates; it does not copy or independently upgrade bubblewrap.
+
+On the primary software workspace, Codex 0.160.1's App Server reproduced the
+missing-helper warning with `/usr/bin:/bin` and started without that warning
+with the link present. Both read-only and scoped-write boundary checks passed
+using PATH selection of the same bundled helper (SHA-256
+`77360cb751ccedc5971391444ac86a8a33c15b04d6b4a6fe45f5d25496e62c4c`).
+This was a separate candidate-version check; the on-demand diagnostic above
+remains pinned to 0.160.0 and will report a version mismatch for 0.160.1.
+
+An already-open Codex session can retain its startup warning. Start a new Codex
+session after the link is installed; a workspace restart is not needed for
+that session to discover it.

@@ -1243,3 +1243,48 @@ function verifyBrowserHelperOwnershipCleanup() {
   assert.equal(existsSync(marked.screenshot), false);
   assert.equal(existsSync(marked.domHelper), false);
 }
+
+test("bundled bubblewrap setup preserves existing commands and handles missing helpers", () => {
+  const script = readTemplateFile("scripts/tools-ai.sh");
+  const setup = script.slice(
+    script.indexOf("ensure_codex_bwrap() {"),
+    script.indexOf("repair_node_shims() {"),
+  );
+  const fixture = mkdtempSync(join(tmpdir(), "hive-bwrap-"));
+  const home = join(fixture, "home");
+  const bin = join(home, ".local/bin");
+  mkdirSync(bin, { recursive: true });
+  const helper = join(
+    home,
+    ".local/lib/node_modules/@openai/codex/node_modules/@openai/codex-linux-x64/vendor/x86_64-unknown-linux-musl/codex-resources/bwrap",
+  );
+  const run = () =>
+    spawnSync("/bin/bash", ["-c", `${setup}\nensure_codex_bwrap`], {
+      env: { HOME: home, PATH: bin },
+      encoding: "utf8",
+    });
+  for (const tool of ["ln", "mkdir"]) symlinkSync(`/bin/${tool}`, join(bin, tool));
+  // Fixture's uname makes this Linux/x64 test independent of the test host.
+  writeFileSync(
+    join(bin, "uname"),
+    '#!/bin/sh\ncase "$1" in -s) echo Linux;; -m) echo x86_64;; esac\n',
+    { mode: 0o755 },
+  );
+  assert.equal(run().status, 0);
+  assert.equal(existsSync(join(bin, "bwrap")), false);
+  mkdirSync(dirname(helper), { recursive: true });
+  writeFileSync(helper, "#!/bin/sh\nexit 0\n", { mode: 0o755 });
+  assert.equal(run().status, 0);
+  assert.equal(lstatSync(join(bin, "bwrap")).isSymbolicLink(), true);
+  assert.equal(run().status, 0); // idempotent
+  // A separately installed executable takes precedence and stays intact.
+  const customBin = join(fixture, "custom");
+  mkdirSync(customBin);
+  writeFileSync(join(customBin, "bwrap"), "#!/bin/sh\nexit 0\n", { mode: 0o755 });
+  const custom = spawnSync("/bin/bash", ["-c", `${setup}\nensure_codex_bwrap`], {
+    env: { HOME: join(fixture, "unused-home"), PATH: `${customBin}:/usr/bin:/bin` },
+    encoding: "utf8",
+  });
+  assert.equal(custom.status, 0);
+  assert.equal(existsSync(join(fixture, "unused-home/.local/bin/bwrap")), false);
+});
